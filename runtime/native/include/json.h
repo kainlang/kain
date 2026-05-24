@@ -23,6 +23,7 @@ void json_array_push(int64_t array, int64_t value);
 int64_t json_array_len(int64_t array);
 int64_t json_array_get(int64_t array, int64_t index);
 int64_t json_box_float(double value);
+void json_retain(int64_t value);
 void json_release(int64_t value);
 
 #ifdef __cplusplus

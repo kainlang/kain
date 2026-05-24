@@ -78,6 +78,19 @@
 - Surface: gpu
 - Symptom: the `gpu-hlsl` build task failed with `Kain error: Codegen error ... Unsupported function call in shader: 'fbm2'`.
 - Workflow impact: The smoketest album built and certified almost completely, but the final DAG still failed because the fragment shader track used `fbm2`, which currently works in the math/std surface but not in HLSL shader lowering.
+
+---
+
+## 2026-05-23 - native JSON runtime / stdlib
+### native JSON bridge mis-handled string values and broader non-int value lanes under LLVM
+- Categories: correctness, developer-experience, runtime
+- Status: Verified
+- Surface: stdlib
+- Symptom: Historical LLVM lowering and return-cleanup behavior flattened `JsonValue = Any` wrapper arguments to raw `i64` and released owned JSON locals before `return` cleanup finished, which broke string values, float values, bool arrays, and parsed string reads even though the public `std::json` wrappers typechecked cleanly.
+- Workflow impact: This previously blocked honest runtime certification of the new `std::json` typed field/decode surface, forced an int-only narrowed probe, and kept `stdlib/requirements.md` at `PARTIAL`.
+- Minimal repro: `.\target\debug\kain.exe run blades\stdlib-foundations\src\fmt_json_probe.kn --target llvm` on the pre-fix tree before narrowing the probe from strings/floats/bool-arrays to int-only JSON.
+- Evidence: Fixed by JSON-aware direct-call lowering and owned-return retention in `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`, `json_retain` in `runtime/native/src/core/json.c`, and string helper cleanup in `stdlib/json.kn`. Z3 reports `z3/reports/20260524T012653Z-json-any-tag-partition.json` and `z3/reports/20260524T012653Z-json-owned-return-transfer.json` are `unsat`; the old broken return model still has a `sat` counterexample in `z3/reports/20260524T012706Z-json-old-return-transfer-counterexample.json`. Focused runtime validation now passes in `blades/stdlib-foundations/src/fmt_json_probe.kn` and `attrition/cases/kain_stdlib_foundations/main.kn`.
+- Suggested direction: Keep the proof-linked comments near `compile_direct_call` and `Stmt::Return`; if JSON regressions reappear, inspect `JsonValue` argument boxing/tagging and owned return transfer before blaming `stdlib/json.kn`.
 - Minimal repro: `cargo run -q -p cli --bin kain -- blades build . --json --clean` in `D:\\Kain-Lang\\smoketest`, or any HLSL-target fragment shader that calls `fbm2(uv, octaves)`.
 - Evidence: `smoketest:gpu-hlsl` failed in `smoketest/.kain/reports/build/session-1779448114057-30408.json` with `Unsupported function call in shader: 'fbm2'`.
 - Suggested direction: Teach the HLSL backend to lower `fbm2` (and likely adjacent std math shader helpers), or emit an earlier target-specific diagnostic during `check` so authors know which shader helpers are unavailable before the GPU artifact task runs.
@@ -188,3 +201,16 @@
 - Minimal repro: author a wasm-target `.kn` file that imports `std::alloc`, allocates a temporary pointer buffer with `alloc_zeroed`, and runs `collapse/observe/decay` over it, then build with `--target wasm`.
 - Evidence: `website/kain/.kain/reports/build/session-1779568374054-2088.json`
 - Suggested direction: inspect the wasm lowering path for authored allocation/ownership helpers and trace why it reaches a missing `map_new` dependency. This looks like a real authored-surface lowering gap rather than a website-specific bug.
+
+---
+
+## 2026-05-23 - benchmark v2 semantics authoring
+### `check-llvm` and native LLVM compile disagree on direct writes to entangle mirror state
+- Categories: correctness, developer-experience, tooling
+- Status: Active
+- Surface: lowering
+- Symptom: an authored benchmark case in `benchmark/cases_v2/classic_systems.kn` passed `kain check ... --target llvm` even when it directly assigned `ClassicGhostMirror.signal_copy = 1`, but the native executable compile later failed with `cannot write entangle mirror 'ClassicGhostMirror.signal_copy' directly; write authority 'ClassicGhostAuthority.signal'`.
+- Workflow impact: the v2 benchmark pack looked green at the check stage, but the real root executable build failed later in the blade/native compile lane, which burned time chasing a seeming checksum issue that was actually a lowering contract mismatch.
+- Minimal repro: author an entangled world pair, assign the mirror-side field directly in a function, run `kain check <file> --target llvm`, then compile the same entry through the native executable lane.
+- Evidence: `D:\Kain-Lang\benchmark\.kain\out\llvm\x86_64-windows\dev\x86_64-windows\benchmark-v2\benchmark-v2-root-executable\kain-evidence.json` included `error[Codegen Error]: while compiling 'ghost_mirror_checksum': cannot write entangle mirror 'ClassicGhostMirror.signal_copy' directly; write authority 'ClassicGhostAuthority.signal'` even though `check-llvm` had already passed.
+- Suggested direction: make the `check --target llvm` path reject the same mirror-side writes that native lowering rejects, or downgrade native lowering to a shared earlier diagnostic pass so authored Kain gets one consistent truth.

@@ -6,8 +6,8 @@
   "offset": 5003,
   "status": 0,
   "ok": 1,
-  "started_ms": 26,
-  "ended_ms": 27,
+  "started_ms": 28,
+  "ended_ms": 29,
   "elapsed_ms": 1,
   "track_checksum": 480442,
   "composition_checksum": 598880861,
@@ -16,8 +16,8 @@
   "entangle_propagation_count": 3306,
   "converge_mismatch_count": 0,
   "runtime_converge_telemetry_count": 4,
-  "runtime_machine_teleport_count": 1104,
-  "runtime_machine_pulse_total_fire_count": 2,
+  "runtime_machine_teleport_count": 1105,
+  "runtime_machine_pulse_total_fire_count": 3,
   "actor_scheduler_queue_depth": 0,
   "actor_scheduler_total_enqueued": 0
 }

@@ -2,6 +2,7 @@ use std::runtime
 use std::ascii
 use std::bytes
 use std::fmt
+use std::json
 use std::semver
 use std::text
 use std::collections
@@ -70,7 +71,7 @@ fn probe_semver() -> Int:
         return 21
     return 0
 
-fn probe_authoring_floor() -> Int:
+fn probe_authoring_floor() -> Int with Unsafe:
     let view = bytes_slice("::telemetry::", 2, 9)
     if bytes_materialize(view) != "telemetry":
         return 70
@@ -93,6 +94,37 @@ fn probe_authoring_floor() -> Int:
     writer = fmt_writer_push_json_string(writer, "steady")
     if fmt_writer_build(writer) != "lane=authoring \"steady\"":
         return 74
+    var spec = fmt_spec_default()
+    spec = fmt_spec_prefix(spec, "0x")
+    spec = fmt_spec_base(spec, FMT_BASE_HEX)
+    if fmt_int_spec(42, spec) != "0x2a":
+        return 75
+    let payload = json_object()
+    let _name = json_object_set_string(payload, "name", "authoring")
+    let _version = json_object_set_int(payload, "version", 42)
+    let _ratio = json_object_set_float(payload, "ratio", 2.5)
+    let _flags = json_object_set_bool_array(payload, "flags", [true, false])
+    let rendered = json_stringify(payload)
+    let parsed = json_parse_text(rendered)
+    let flags = json_bool_array_field_result(parsed, "flags")
+    let ratio = json_float_required(parsed, "ratio")
+    if json_string_required(parsed, "name") != "authoring":
+        return 76
+    if text_contains_string(rendered, "\"version\":42") == false:
+        return 77
+    if text_contains_string(rendered, "\"ratio\":2.5") == false:
+        return 78
+    if text_contains_string(rendered, "\"flags\":[true,false]") == false:
+        return 79
+    if flags.ok == false or len(flags.value) != 2:
+        return 80
+    if flags.value[0] == false or flags.value[1] == true:
+        return 81
+    if ratio < 2.49 or ratio > 2.51:
+        return 82
+    let writer_rendered = fmt_writer_build(json_fmt_writer_push_value(fmt_writer_new(), payload))
+    if writer_rendered != rendered:
+        return 83
     return 0
 
 fn probe_collections() -> Int:
@@ -250,7 +282,7 @@ fn probe_allocators() -> Int:
     let _pool_destroy = pool_allocator_destroy(pool_c.pool)
     return 0
 
-fn main() -> Int:
+fn main() -> Int with Unsafe:
     let boot = runtime_init()
     if boot < 0:
         return 100

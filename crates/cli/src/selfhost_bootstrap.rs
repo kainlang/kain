@@ -1045,43 +1045,8 @@ fn verify_ouroboros(contract: &BootstrapContract, backend: BootstrapBackend) -> 
 }
 
 fn resolve_clang_command() -> Result<String, String> {
-    if let Ok(env_path) = std::env::var("KAIN_CLANG_PATH") {
-        let path = PathBuf::from(env_path);
-        if path.exists() {
-            return Ok(path.to_string_lossy().into_owned());
-        }
-    }
-
-    let candidate_suffixes = [
-        PathBuf::from("toolchain/llvm/bin/clang.exe"),
-        PathBuf::from("toolchain/llvm/bin/clang"),
-        PathBuf::from("third_party/llvm/bin/clang.exe"),
-        PathBuf::from("third_party/llvm/bin/clang"),
-        PathBuf::from("llvm/bin/clang.exe"),
-        PathBuf::from("llvm/bin/clang"),
-    ];
-    let mut search_roots = Vec::new();
-    if let Ok(cwd) = std::env::current_dir() {
-        search_roots.push(cwd);
-    }
-    if let Ok(exe_path) = std::env::current_exe() {
-        if let Some(dir) = exe_path.parent() {
-            let mut cursor = dir.to_path_buf();
-            loop {
-                search_roots.push(cursor.clone());
-                if !cursor.pop() {
-                    break;
-                }
-            }
-        }
-    }
-    for root in search_roots {
-        for suffix in &candidate_suffixes {
-            let candidate = root.join(suffix);
-            if candidate.exists() {
-                return Ok(candidate.to_string_lossy().into_owned());
-            }
-        }
+    if let Some(path) = kain_core::install_layout::resolve_bundled_clang_path() {
+        return Ok(path.to_string_lossy().into_owned());
     }
     if which::which("clang").is_ok() {
         return Ok("clang".to_string());

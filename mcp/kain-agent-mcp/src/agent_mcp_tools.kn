@@ -1,0 +1,556 @@
+use std::fs
+use std::json
+use std::process
+use std::text
+use agent_mcp_config::AgentMcpConfig
+use agent_mcp_util::mcp_contains_any_tag
+use agent_mcp_util::mcp_bool_field_or
+use agent_mcp_util::mcp_error_result
+use agent_mcp_util::mcp_extract_json_object
+use agent_mcp_util::mcp_int_field_or
+use agent_mcp_util::mcp_join_from
+use agent_mcp_util::mcp_limit_or
+use agent_mcp_util::mcp_nonempty_split
+use agent_mcp_util::mcp_repo_relative
+use agent_mcp_util::mcp_resolve_path
+use agent_mcp_util::mcp_string_array_field_or
+use agent_mcp_util::mcp_string_field_or
+use agent_mcp_util::mcp_tool_result
+use agent_mcp_util::mcp_trim_wrapping
+
+pub struct ProcessRunResult:
+    program: String
+    workdir: String
+    args: Array<String>
+    stdout: String
+    stderr: String
+    status: Int
+    success: Bool
+
+// ============================================================================
+//                          process bridge helpers
+// ============================================================================
+
+fn run_process_capture(program: String, args: Array<String>, workdir: String, timeout_ms: Int) -> ProcessRunResult:
+    let spec = process_spec_create_piped(program)
+    let _inherit = process_spec_set_inherit_environment(spec, 1)
+    if len(workdir) > 0:
+        let _cwd = process_spec_set_cwd(spec, workdir)
+    var arg_index = 0
+    while arg_index < len(args):
+        let _arg = process_spec_add_arg(spec, args[arg_index])
+        arg_index = arg_index + 1
+
+    let process_id = process_spawn(spec)
+    if process_id <= 0:
+        let _destroy = process_spec_destroy(spec)
+        return ProcessRunResult {
+            program: program,
+            workdir: workdir,
+            args: args,
+            stdout: "",
+            stderr: process_last_error_kind() + ": " + process_last_error_message(),
+            status: process_last_status(),
+            success: false,
+        }
+
+    let waited = process_collect_output_until_exit(process_id, timeout_ms, 10)
+    let exit_code = if waited == 1:
+        process_exit_code(process_id)
+    else:
+        -1
+
+    let stdout = process_stdout_capture_text(process_id)
+    let stderr = process_stderr_capture_text(process_id)
+    let _close = process_close(process_id)
+    let _destroy = process_spec_destroy(spec)
+    return ProcessRunResult {
+        program: program,
+        workdir: workdir,
+        args: args,
+        stdout: stdout,
+        stderr: stderr,
+        status: exit_code,
+        success: waited == 1 and exit_code == 0,
+    }
+
+fn process_result_json(result: ProcessRunResult) -> JsonObject:
+    let payload = json_object()
+    let _program = json_object_set_string(payload, "program", result.program)
+    let _workdir = json_object_set_string(payload, "workdir", result.workdir)
+    let _args = json_object_set_string_array(payload, "args", result.args)
+    let _stdout = json_object_set_string(payload, "stdout", result.stdout)
+    let _stderr = json_object_set_string(payload, "stderr", result.stderr)
+    let _status = json_object_set_int(payload, "status", result.status)
+    let _success = json_object_set_bool(payload, "success", result.success)
+    return payload
+
+fn command_summary(label: String, result: ProcessRunResult) -> String:
+    if result.success:
+        return label + " succeeded"
+    if result.status == 1 and text_lower(result.program) == text_lower("rg"):
+        return label + " found no matches"
+    return label + " failed with status " + str(result.status)
+
+fn manifest_paths(config: AgentMcpConfig) -> JsonObject:
+    let paths_result = json_object_field(config.manifest, "paths")
+    if paths_result.ok:
+        return paths_result.value
+    return json_object()
+
+fn parse_command_registry(config: AgentMcpConfig, bin_name: String, include_runtime: Bool) -> ProcessRunResult:
+    let args = ["commands", "list", "--bin", bin_name]
+    if include_runtime:
+        push(args, "--runtime")
+    return run_process_capture(config.kain_bin, args, config.repo_root, config.timeout_ms)
+
+fn command_matches(command: JsonObject, query: String, pack_filter: String) -> Bool:
+    if len(pack_filter) > 0 and mcp_string_field_or(command, "pack", "") != pack_filter:
+        return false
+    if len(query) == 0:
+        return true
+
+    let lowered = text_lower(query)
+    let id = text_lower(mcp_string_field_or(command, "id", ""))
+    let about = text_lower(mcp_string_field_or(command, "about", ""))
+    let handler = text_lower(mcp_string_field_or(command, "handler", ""))
+    let source = text_lower(mcp_string_field_or(command, "source", ""))
+    let path_values = mcp_string_array_field_or(command, "path")
+    let path_text = text_lower(text_join_strings(path_values, " "))
+    if text_contains_string(id, lowered):
+        return true
+    if text_contains_string(about, lowered):
+        return true
+    if text_contains_string(handler, lowered):
+        return true
+    if text_contains_string(source, lowered):
+        return true
+    if text_contains_string(path_text, lowered):
+        return true
+    let tags = mcp_string_array_field_or(command, "tags")
+    return mcp_contains_any_tag(tags, lowered)
+
+fn command_public_payload(command: JsonObject) -> JsonObject:
+    let payload = json_object()
+    let _id = json_object_set_string(payload, "id", mcp_string_field_or(command, "id", ""))
+    let _pack = json_object_set_string(payload, "pack", mcp_string_field_or(command, "pack", ""))
+    let _handler = json_object_set_string(payload, "handler", mcp_string_field_or(command, "handler", ""))
+    let _source = json_object_set_string(payload, "source", mcp_string_field_or(command, "source", ""))
+    let _about = json_object_set_string(payload, "about", mcp_string_field_or(command, "about", ""))
+    let _hidden = json_object_set_bool(payload, "hidden", mcp_bool_field_or(command, "hidden", false))
+    let _bins = json_object_set_string_array(payload, "bins", mcp_string_array_field_or(command, "bins"))
+    let _path = json_object_set_string_array(payload, "path", mcp_string_array_field_or(command, "path"))
+    let _tags = json_object_set_string_array(payload, "tags", mcp_string_array_field_or(command, "tags"))
+    return payload
+
+fn parse_command_list_line(command_line: String) -> JsonObject:
+    let columns = mcp_nonempty_split(command_line, "  ")
+    let payload = json_object()
+    if len(columns) == 0:
+        return payload
+
+    let path_text = columns[0]
+    let _id = json_object_set_string(payload, "id", path_text)
+    let _path = json_object_set_string_array(payload, "path", mcp_nonempty_split(path_text, " "))
+    let _hidden = json_object_set_bool(payload, "hidden", false)
+
+    if len(columns) > 1:
+        let bins_text = mcp_trim_wrapping(columns[1], "[", "]")
+        let _bins = json_object_set_string_array(payload, "bins", mcp_nonempty_split(bins_text, ","))
+
+    var column_index = 2
+    while column_index < len(columns):
+        let column = columns[column_index]
+        if text_starts_with_string(column, "pack="):
+            let _pack = json_object_set_string(payload, "pack", text_substring_string(column, 5, len(column) - 5))
+            column_index = column_index + 1
+            continue
+        if text_starts_with_string(column, "handler="):
+            let _handler = json_object_set_string(payload, "handler", text_substring_string(column, 8, len(column) - 8))
+            column_index = column_index + 1
+            continue
+        if text_starts_with_string(column, "source="):
+            let source_and_tags = text_split_string(column, " tags=")
+            let source_text = text_substring_string(source_and_tags[0], 7, len(source_and_tags[0]) - 7)
+            let _source = json_object_set_string(payload, "source", source_text)
+            if len(source_and_tags) > 1:
+                let _tags = json_object_set_string_array(payload, "tags", mcp_nonempty_split(source_and_tags[1], ","))
+            column_index = column_index + 1
+            continue
+        if text_starts_with_string(column, "tags="):
+            let tags_text = text_substring_string(column, 5, len(column) - 5)
+            let _tags = json_object_set_string_array(payload, "tags", mcp_nonempty_split(tags_text, ","))
+            column_index = column_index + 1
+            continue
+        let _about = json_object_set_string(payload, "about", mcp_join_from(columns, column_index, "  "))
+        break
+    return payload
+
+fn append_understanding_entry(items: JsonArray, config: AgentMcpConfig, id: String, relative_path: String, purpose: String) -> Unit:
+    let item = json_object()
+    let absolute_path = mcp_resolve_path(config.repo_root, relative_path)
+    let _id = json_object_set_string(item, "id", id)
+    let _path = json_object_set_string(item, "path", mcp_repo_relative(config.repo_root, absolute_path))
+    let _purpose = json_object_set_string(item, "purpose", purpose)
+    let _push = json_array_push_object(items, item)
+
+fn append_major_root(items: JsonArray, path: String, purpose: String) -> Unit:
+    let item = json_object()
+    let _path = json_object_set_string(item, "path", path)
+    let _purpose = json_object_set_string(item, "purpose", purpose)
+    let _push = json_array_push_object(items, item)
+
+fn append_example_root(items: JsonArray, path: String, tags: Array<String>) -> Unit:
+    let item = json_object()
+    let _path = json_object_set_string(item, "path", path)
+    let _tags = json_object_set_string_array(item, "tags", tags)
+    let _push = json_array_push_object(items, item)
+
+fn append_curated_example(items: JsonArray, path: String, root: String, tags: Array<String>, about: String) -> Unit:
+    let item = json_object()
+    let _path = json_object_set_string(item, "path", path)
+    let _root = json_object_set_string(item, "root", root)
+    let _tags = json_object_set_string_array(item, "tags", tags)
+    let _about = json_object_set_string(item, "about", about)
+    let _push = json_array_push_object(items, item)
+
+// ============================================================================
+//                          repo and language tools
+// ============================================================================
+
+fn handle_repo_overview(config: AgentMcpConfig, _tool_args: JsonObject) -> JsonObject:
+    let structured = json_object()
+    let paths = manifest_paths(config)
+    let understanding = json_array()
+    let major_roots = json_array()
+    let stdlib_summary = json_object()
+    let repo_root_display = fs_path_parent(fs_path_parent(fs_path_parent(fs_path_parent(config.config_path))))
+
+    let stdlib_map_rel = mcp_string_field_or(paths, "stdlib_map_path", "stdlib/stdlib.map.json")
+    let stdlib_map_path = mcp_resolve_path(config.repo_root, stdlib_map_rel)
+    if fs_exists(stdlib_map_path):
+        let stdlib_map = json_parse_text(fs_read_text(stdlib_map_path))
+        let summary_result = json_object_field(stdlib_map, "summary")
+        if summary_result.ok:
+            let _module_count = json_object_set_int(stdlib_summary, "module_count", mcp_int_field_or(summary_result.value, "module_count", 0))
+            let _public_count = json_object_set_int(stdlib_summary, "public_symbol_count", mcp_int_field_or(summary_result.value, "public_symbol_count", 0))
+            let _symbol_count = json_object_set_int(stdlib_summary, "symbol_count", mcp_int_field_or(summary_result.value, "symbol_count", 0))
+            let _builtin_count = json_object_set_int(stdlib_summary, "builtin_count", mcp_int_field_or(summary_result.value, "builtin_count", 0))
+            let _service_count = json_object_set_int(stdlib_summary, "native_service_count", mcp_int_field_or(summary_result.value, "native_service_count", 0))
+
+    // These are the "start here" artifacts we want agents to internalize.
+    append_understanding_entry(understanding, config, "agent_doctrine", "AGENTS.md", "North-star specimen plus repo doctrine for how Kain wants to be reasoned about.")
+    append_understanding_entry(understanding, config, "architecture", "ARCHITECTURE.md", "Durable architectural map and subsystem ownership boundaries.")
+    append_understanding_entry(understanding, config, "glossary", "GLOSSARY.md", "Fast vocabulary map for repo and language-specific terms.")
+    append_understanding_entry(understanding, config, "stdlib_map", "stdlib/STDLIB_MAP.llm.md", "Agent-first atlas of the root stdlib surface.")
+    append_understanding_entry(understanding, config, "stdlib_data", "stdlib/stdlib.map.json", "Machine-readable stdlib symbol graph for counts and lookup workflows.")
+    append_understanding_entry(understanding, config, "smoketest_album", "smoketest/src/main.kn", "Cross-lane proving ground that shows how Kain features compose in one workspace.")
+    append_understanding_entry(understanding, config, "neural_lattice", "blades/experiments/neural_lattice/src/main.kn", "Experimental authored system with dense Kain semantics and repo-style structure.")
+    append_understanding_entry(understanding, config, "gpu_benchmark", "benchmark/lanes/gpu/cases/semantic_ping_pong/kain.kn", "Concrete GPU benchmark lane showing real compute-oriented authored Kain.")
+    append_understanding_entry(understanding, config, "network_domain", "library_of_kain/network-domains.kn", "Networking-flavored authored Kain example with domain semantics.")
+
+    append_major_root(major_roots, "stdlib", "Public standard-library surface and the fastest way to teach agents what Kain can do.")
+    append_major_root(major_roots, "smoketest", "Shared album-style proving ground for cross-lane language pressure.")
+    append_major_root(major_roots, "library_of_kain", "Focused authored examples and language idioms.")
+    append_major_root(major_roots, "blades/experiments", "Speculative packages and weird systems work worth mining for patterns.")
+    append_major_root(major_roots, "benchmark", "Performance truth and treasure maps for slow semantic lanes.")
+    append_major_root(major_roots, "runtime/native", "Native C runtime substrate that this MCP lane should eventually lean on more deeply.")
+    append_major_root(major_roots, "crates", "Bootstrap compiler, CLI, registries, and native bridge ownership.")
+
+    let _ok = json_object_set_bool(structured, "ok", true)
+    let _architecture_doc = json_object_set_string(structured, "architecture_doc", mcp_string_field_or(paths, "architecture_doc", "ARCHITECTURE.md"))
+    let _glossary_doc = json_object_set_string(structured, "glossary_doc", mcp_string_field_or(paths, "glossary_doc", "GLOSSARY.md"))
+    let _stdlib_summary = json_object_set_object(structured, "stdlib_summary", stdlib_summary)
+    let _major_roots = json_object_set_array(structured, "major_roots", major_roots)
+    let _understanding = json_object_set_array(structured, "understanding_paths", understanding)
+    let _repo_root = json_object_set_string(structured, "repo_root", repo_root_display)
+    return mcp_tool_result("Loaded the Kain repo orientation map.", structured, false)
+
+fn handle_stdlib_query(config: AgentMcpConfig, tool_args: JsonObject) -> JsonObject:
+    let paths = manifest_paths(config)
+    let query_script = mcp_resolve_path(config.repo_root, mcp_string_field_or(paths, "stdlib_query_script", "query_stdlib.py"))
+    let args = [query_script]
+
+    let wants_summary = mcp_bool_field_or(tool_args, "summary", false)
+    let wants_imports = mcp_bool_field_or(tool_args, "imports", false)
+    let module_name = mcp_string_field_or(tool_args, "module", "")
+    let search = mcp_string_field_or(tool_args, "search", "")
+    let contains = mcp_string_field_or(tool_args, "contains", "")
+    let kind = mcp_string_field_or(tool_args, "kind", "")
+    let include_private = mcp_bool_field_or(tool_args, "private", false)
+    let wants_json = mcp_bool_field_or(tool_args, "json", false)
+    let limit = mcp_limit_or(mcp_int_field_or(tool_args, "limit", 0), config.default_limit, config.max_results)
+
+    if wants_summary or (wants_imports == false and module_name == "" and search == ""):
+        push(args, "--summary")
+    if wants_imports:
+        push(args, "--imports")
+    if module_name != "":
+        push(args, "--module")
+        push(args, module_name)
+    if search != "":
+        push(args, "--search")
+        push(args, search)
+    if contains != "":
+        push(args, "--contains")
+        push(args, contains)
+    if kind != "":
+        push(args, "--kind")
+        push(args, kind)
+    if include_private:
+        push(args, "--private")
+    push(args, "--limit")
+    push(args, str(limit))
+    if wants_json:
+        push(args, "--json")
+
+    let result = run_process_capture(config.python_bin, args, config.repo_root, config.timeout_ms)
+    let structured = process_result_json(result)
+    let _ok = json_object_set_bool(structured, "ok", result.success)
+    let _limit = json_object_set_int(structured, "limit", limit)
+    if wants_json and result.success:
+        let json_text = mcp_extract_json_object(result.stdout)
+        if len(json_text) > 0:
+            let _selection = json_object_set_value(structured, "selection", json_parse_text(json_text))
+    return mcp_tool_result(command_summary("stdlib.query", result), structured, result.success == false)
+
+fn handle_repo_examples(config: AgentMcpConfig, tool_args: JsonObject) -> JsonObject:
+    let topic = text_lower(mcp_string_field_or(tool_args, "topic", ""))
+    let limit = mcp_limit_or(mcp_int_field_or(tool_args, "limit", 0), config.default_limit, config.max_results)
+    let catalog = json_array()
+    append_curated_example(catalog, "library_of_kain/network-domains.kn", "library_of_kain", ["network", "http", "language"], "Networking-flavored authored Kain example.")
+    append_curated_example(catalog, "smoketest/src/main.kn", "smoketest", ["smoketest", "cross-lane", "language"], "Album entrypoint that wires many language lanes together.")
+    append_curated_example(catalog, "smoketest/src/ui/dashboard.kn", "smoketest", ["ui", "dashboard", "smoketest"], "UI lane inside the shared smoketest workspace.")
+    append_curated_example(catalog, "smoketest/src/systems/memory.kn", "smoketest", ["systems", "memory", "unsafe"], "Systems-focused memory pressure lane in smoketest.")
+    append_curated_example(catalog, "blades/experiments/neural_lattice/src/main.kn", "blades/experiments", ["neural", "experiments", "systems"], "Dense experimental authored system.")
+    append_curated_example(catalog, "benchmark/lanes/gpu/cases/semantic_ping_pong/kain.kn", "benchmark", ["gpu", "benchmark", "compute"], "GPU benchmark lane with real compute-oriented authored Kain.")
+    append_curated_example(catalog, "blades/vulkain/src/main.kn", "blades/vulkain", ["gpu", "graphics", "package"], "Primary Vulkain package entrypoint.")
+    append_curated_example(catalog, "blades/vulkain/examples/mesh-scene/src/main.kn", "blades/vulkain", ["gpu", "graphics", "scene"], "Vulkain mesh-scene example.")
+    append_curated_example(catalog, "blades/vulkain/examples/std-math-bounce-game/src/main.kn", "blades/vulkain", ["gpu", "graphics", "game"], "Vulkain bounce-game example.")
+    append_curated_example(catalog, "blades/kaintana/src/main.kn", "blades/kaintana", ["ui", "framework", "package"], "Primary Kaintana package entrypoint.")
+    append_curated_example(catalog, "blades/kaintana/examples/example_modal_popup.kn", "blades/kaintana", ["ui", "widgets", "example"], "Kaintana modal popup example.")
+    append_curated_example(catalog, "blades/kaintana/examples/example_data_grid.kn", "blades/kaintana", ["ui", "widgets", "data"], "Kaintana data-grid example.")
+    let examples = json_array()
+    var count = 0
+
+    var root_index = 0
+    while root_index < json_array_length(catalog):
+        let root_entry = json_array_value_at(catalog, root_index)
+        if count >= limit:
+            break
+        let root_rel = mcp_string_field_or(root_entry, "path", "")
+        let tags = mcp_string_array_field_or(root_entry, "tags")
+        let relative_lower = text_lower(root_rel)
+        let topic_ok = if len(topic) == 0:
+            true
+        else:
+            text_contains_string(relative_lower, topic) or mcp_contains_any_tag(tags, topic) or text_contains_string(text_lower(mcp_string_field_or(root_entry, "about", "")), topic)
+        if topic_ok:
+            let example = json_object()
+            let _path = json_object_set_string(example, "path", root_rel)
+            let _root = json_object_set_string(example, "root", mcp_string_field_or(root_entry, "root", ""))
+            let _tags = json_object_set_string_array(example, "tags", tags)
+            let _about = json_object_set_string(example, "about", mcp_string_field_or(root_entry, "about", ""))
+            let _push = json_array_push_object(examples, example)
+            count = count + 1
+        root_index = root_index + 1
+
+    let structured = json_object()
+    let _ok = json_object_set_bool(structured, "ok", true)
+    let _topic = json_object_set_string(structured, "topic", topic)
+    let _count = json_object_set_int(structured, "count", count)
+    let _examples = json_object_set_array(structured, "examples", examples)
+    return mcp_tool_result("Collected " + str(count) + " Kain examples.", structured, false)
+
+fn handle_repo_search(config: AgentMcpConfig, tool_args: JsonObject) -> JsonObject:
+    let query = mcp_string_field_or(tool_args, "query", "")
+    if len(text_trim_string(query)) == 0:
+        return mcp_error_result("repo.search needs a query.", "Missing required `query` argument.")
+
+    let requested_path = mcp_string_field_or(tool_args, "path", ".")
+    let limit = mcp_limit_or(mcp_int_field_or(tool_args, "limit", 0), config.default_limit, config.max_results)
+    let args = ["-n", "--no-heading", "--color", "never", "--smart-case", query, requested_path]
+    let result = run_process_capture(config.rg_bin, args, config.repo_root, config.timeout_ms)
+
+    let matches = json_array()
+    let lines = text_split_string(result.stdout, "\n")
+    var count = 0
+    var row_index = 0
+    while row_index < len(lines):
+        let match_row = lines[row_index]
+        if count >= limit:
+            break
+        if match_row == "":
+            row_index = row_index + 1
+            continue
+        let parts = text_split_string(match_row, ":")
+        if len(parts) < 3:
+            row_index = row_index + 1
+            continue
+        let match_payload = json_object()
+        let _path = json_object_set_string(match_payload, "path", parts[0])
+        let _line = json_object_set_int(match_payload, "line", to_int(parts[1]))
+        let _text = json_object_set_string(match_payload, "text", mcp_join_from(parts, 2, ":"))
+        let _push = json_array_push_object(matches, match_payload)
+        count = count + 1
+        row_index = row_index + 1
+
+    let structured = process_result_json(result)
+    let _ok = json_object_set_bool(structured, "ok", result.success or result.status == 1)
+    let _query = json_object_set_string(structured, "query", query)
+    let _path = json_object_set_string(structured, "path", requested_path)
+    let _count = json_object_set_int(structured, "count", count)
+    let _matches = json_object_set_array(structured, "matches", matches)
+    return mcp_tool_result(command_summary("repo.search", result), structured, result.success == false and result.status != 1)
+
+fn handle_kain_commands_list(config: AgentMcpConfig, tool_args: JsonObject) -> JsonObject:
+    let bin_name = mcp_string_field_or(tool_args, "bin", "kain")
+    let include_runtime = mcp_bool_field_or(tool_args, "runtime", false)
+    let pack_filter = mcp_string_field_or(tool_args, "pack", "")
+    let query = mcp_string_field_or(tool_args, "query", "")
+    let limit = mcp_limit_or(mcp_int_field_or(tool_args, "limit", 0), config.default_limit, config.max_results)
+    let paths = manifest_paths(config)
+    let script_path = mcp_resolve_path(config.repo_root, mcp_string_field_or(paths, "command_query_script", "mcp/kain-agent-mcp/scripts/query_command_registry.py"))
+    let args = [
+        script_path,
+        "--kain-bin",
+        config.kain_bin,
+        "--bin",
+        bin_name,
+        "--mode",
+        "list",
+        "--query",
+        query,
+        "--pack",
+        pack_filter,
+        "--limit",
+        str(limit),
+    ]
+    if include_runtime:
+        push(args, "--runtime")
+
+    let result = run_process_capture(config.python_bin, args, config.repo_root, config.timeout_ms)
+    if result.success == false:
+        let structured = json_object()
+        let _ok = json_object_set_bool(structured, "ok", false)
+        let _bin = json_object_set_string(structured, "bin", bin_name)
+        let _runtime = json_object_set_bool(structured, "runtime", include_runtime)
+        let _query = json_object_set_string(structured, "query", query)
+        let _pack = json_object_set_string(structured, "pack", pack_filter)
+        let _stderr = json_object_set_string(structured, "stderr", result.stderr)
+        let _status = json_object_set_int(structured, "status", result.status)
+        return mcp_tool_result(command_summary("kain.commands.list", result), structured, true)
+
+    let commands_text = text_trim_string(result.stdout)
+    let has_matches = len(commands_text) > 0
+
+    let structured = json_object()
+    let _ok = json_object_set_bool(structured, "ok", true)
+    let _bin = json_object_set_string(structured, "bin", bin_name)
+    let _runtime = json_object_set_bool(structured, "runtime", include_runtime)
+    let _pack = json_object_set_string(structured, "pack", pack_filter)
+    let _query = json_object_set_string(structured, "query", query)
+    let _count = json_object_set_bool(structured, "has_matches", has_matches)
+    let _commands = json_object_set_string(structured, "commands_text", commands_text)
+    if has_matches:
+        return mcp_tool_result("Loaded a Kain command registry excerpt.", structured, false)
+    return mcp_tool_result("No Kain commands matched.", structured, false)
+
+fn handle_kain_commands_describe(config: AgentMcpConfig, tool_args: JsonObject) -> JsonObject:
+    let query = text_trim_string(mcp_string_field_or(tool_args, "query", ""))
+    if len(query) == 0:
+        return mcp_error_result("kain.commands.describe needs a query.", "Missing required `query` argument.")
+
+    let bin_name = mcp_string_field_or(tool_args, "bin", "kain")
+    let include_runtime = mcp_bool_field_or(tool_args, "runtime", false)
+    let paths = manifest_paths(config)
+    let script_path = mcp_resolve_path(config.repo_root, mcp_string_field_or(paths, "command_query_script", "mcp/kain-agent-mcp/scripts/query_command_registry.py"))
+    let args = [
+        script_path,
+        "--kain-bin",
+        config.kain_bin,
+        "--bin",
+        bin_name,
+        "--mode",
+        "describe",
+        "--query",
+        query,
+    ]
+    if include_runtime:
+        push(args, "--runtime")
+
+    let result = run_process_capture(config.python_bin, args, config.repo_root, config.timeout_ms)
+    if result.success == false:
+        return mcp_error_result("No Kain command matched `" + query + "`.", "Try `kain.commands.list` with a query filter first.")
+
+    let command_line = text_trim_string(result.stdout)
+    if command_line == "":
+        return mcp_error_result("No Kain command matched `" + query + "`.", "Try `kain.commands.list` with a query filter first.")
+
+    let structured = json_object()
+    let _ok = json_object_set_bool(structured, "ok", true)
+    let _bin = json_object_set_string(structured, "bin", bin_name)
+    let _runtime = json_object_set_bool(structured, "runtime", include_runtime)
+    let _query = json_object_set_string(structured, "query", query)
+    let _command = json_object_set_string(structured, "command", command_line)
+    return mcp_tool_result("Described Kain command `" + query + "`.", structured, false)
+
+// ============================================================================
+//                          execution truth tools
+// ============================================================================
+
+fn handle_kain_check(config: AgentMcpConfig, tool_args: JsonObject) -> JsonObject:
+    let requested_path = text_trim_string(mcp_string_field_or(tool_args, "path", ""))
+    if len(requested_path) == 0:
+        return mcp_error_result("kain.check needs a path.", "Missing required `path` argument.")
+
+    let target = mcp_string_field_or(tool_args, "target", "llvm")
+    let report_path = fs_temp_file("kain_agent_mcp_check")
+    let resolved_path = mcp_resolve_path(config.repo_root, requested_path)
+    let args = ["check", resolved_path, "--target", target, "--json", report_path]
+    let result = run_process_capture(config.kain_bin, args, config.repo_root, config.timeout_ms)
+
+    let structured = process_result_json(result)
+    let _ok = json_object_set_bool(structured, "ok", result.success)
+    let _input = json_object_set_string(structured, "input", resolved_path)
+    let _report_path = json_object_set_string(structured, "report_path", report_path)
+    if fs_exists(report_path):
+        let _report = json_object_set_value(structured, "report", json_parse_text(fs_read_text(report_path)))
+    return mcp_tool_result(command_summary("kain.check", result), structured, result.success == false)
+
+fn handle_kain_run_plan(config: AgentMcpConfig, tool_args: JsonObject) -> JsonObject:
+    let requested_path = text_trim_string(mcp_string_field_or(tool_args, "path", ""))
+    if len(requested_path) == 0:
+        return mcp_error_result("kain.run_plan needs a path.", "Missing required `path` argument.")
+
+    let target = mcp_string_field_or(tool_args, "target", "auto")
+    let resolved_path = mcp_resolve_path(config.repo_root, requested_path)
+    let args = ["run", "plan", resolved_path, "--target", target, "--json"]
+    let result = run_process_capture(config.kain_bin, args, config.repo_root, config.timeout_ms)
+
+    let structured = process_result_json(result)
+    let _ok = json_object_set_bool(structured, "ok", result.success)
+    let _input = json_object_set_string(structured, "input", resolved_path)
+    let json_text = mcp_extract_json_object(result.stdout)
+    if len(json_text) > 0:
+        let _plan = json_object_set_value(structured, "plan", json_parse_text(json_text))
+    return mcp_tool_result(command_summary("kain.run_plan", result), structured, result.success == false)
+
+pub fn dispatch_agent_mcp_tool(config: AgentMcpConfig, tool_name: String, tool_args: JsonObject) -> JsonObject:
+    if tool_name == "repo.overview":
+        return handle_repo_overview(config, tool_args)
+    if tool_name == "stdlib.query":
+        return handle_stdlib_query(config, tool_args)
+    if tool_name == "repo.examples":
+        return handle_repo_examples(config, tool_args)
+    if tool_name == "repo.search":
+        return handle_repo_search(config, tool_args)
+    if tool_name == "kain.commands.list":
+        return handle_kain_commands_list(config, tool_args)
+    if tool_name == "kain.commands.describe":
+        return handle_kain_commands_describe(config, tool_args)
+    if tool_name == "kain.check":
+        return handle_kain_check(config, tool_args)
+    if tool_name == "kain.run_plan":
+        return handle_kain_run_plan(config, tool_args)
+    return mcp_error_result("Unknown tool `" + tool_name + "`.", "The manifest referenced a tool that this runtime lane does not implement.")

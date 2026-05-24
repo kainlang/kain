@@ -231,7 +231,7 @@ mod tests {
 
     #[test]
     fn detects_kn_launcher_from_path() {
-        let path = std::path::Path::new("C:/Users/Admin/.cargo/bin/kn.exe");
+        let path = std::path::Path::new("C:/Users/Admin/.kain/bin/kn.exe");
         assert_eq!(detect_launcher_from_path(Some(path)), LauncherKind::Kn);
     }
 

@@ -1,0 +1,138 @@
+use std::fs
+use std::json
+use std::text
+
+pub fn mcp_is_absolute_path(path: String) -> Bool:
+    if len(path) == 0:
+        return false
+    if text_starts_with_string(path, "\\\\"):
+        return true
+    if text_starts_with_string(path, "/"):
+        return true
+    if len(path) >= 2 and char_at(path, 1) == ":":
+        return true
+    return false
+
+pub fn mcp_resolve_path(base: String, raw_path: String) -> String:
+    let trimmed = text_trim_string(raw_path)
+    if len(trimmed) == 0:
+        return base
+    if mcp_is_absolute_path(trimmed):
+        return trimmed
+    return fs_path_join(base, trimmed)
+
+pub fn mcp_string_field_or(object: JsonObject, key: String, fallback: String) -> String:
+    let value = json_string_field(object, key)
+    if value.ok:
+        return value.value
+    return fallback
+
+pub fn mcp_int_field_or(object: JsonObject, key: String, fallback: Int) -> Int:
+    let value = json_int_field(object, key)
+    if value.ok:
+        return value.value
+    return fallback
+
+pub fn mcp_bool_field_or(object: JsonObject, key: String, fallback: Bool) -> Bool:
+    let value = json_bool_field(object, key)
+    if value.ok:
+        return value.value
+    return fallback
+
+pub fn mcp_string_array_field_or(object: JsonObject, key: String) -> Array<String>:
+    let value = json_string_array_field_result(object, key)
+    if value.ok:
+        return value.value
+    return []
+
+pub fn mcp_text_item(text: String) -> JsonObject:
+    let item = json_object()
+    let _type = json_object_set_string(item, "type", "text")
+    let _text = json_object_set_string(item, "text", text)
+    return item
+
+pub fn mcp_tool_result(summary: String, structured: JsonObject, is_error: Bool) -> JsonObject:
+    let result = json_object()
+    let content = json_array()
+    let _item = json_array_push_object(content, mcp_text_item(summary))
+    let _content = json_object_set_array(result, "content", content)
+    let _error = json_object_set_bool(result, "isError", is_error)
+    let _structured = json_object_set_object(result, "structuredContent", structured)
+    return result
+
+pub fn mcp_error_result(summary: String, message: String) -> JsonObject:
+    let structured = json_object()
+    let _ok = json_object_set_bool(structured, "ok", false)
+    let _message = json_object_set_string(structured, "message", message)
+    return mcp_tool_result(summary, structured, true)
+
+pub fn mcp_limit_or(raw_limit: Int, default_limit: Int, max_limit: Int) -> Int:
+    let mut value = raw_limit
+    if value <= 0:
+        value = default_limit
+    if value > max_limit:
+        value = max_limit
+    return value
+
+pub fn mcp_join_from(items: Array<String>, start_index: Int, separator: String) -> String:
+    let mut output = ""
+    var index = start_index
+    while index < len(items):
+        if len(output) > 0:
+            output = output + separator
+        output = output + items[index]
+        index = index + 1
+    return output
+
+pub fn mcp_nonempty_split(source: String, separator: String) -> Array<String>:
+    let raw_parts = text_split_string(source, separator)
+    let mut parts: Array<String> = []
+    var index = 0
+    while index < len(raw_parts):
+        let piece = text_trim_string(raw_parts[index])
+        if piece != "":
+            push(parts, piece)
+        index = index + 1
+    return parts
+
+pub fn mcp_trim_wrapping(source: String, prefix: String, suffix: String) -> String:
+    if text_starts_with_string(source, prefix) == false:
+        return source
+    if text_ends_with_string(source, suffix) == false:
+        return source
+    let trimmed_start = len(prefix)
+    let trimmed_len = len(source) - len(prefix) - len(suffix)
+    if trimmed_len < 0:
+        return source
+    return text_substring_string(source, trimmed_start, trimmed_len)
+
+pub fn mcp_repo_relative(repo_root: String, raw_path: String) -> String:
+    let lower_root = text_lower(repo_root)
+    let lower_path = text_lower(raw_path)
+    if text_starts_with_string(lower_path, lower_root) == false:
+        return raw_path
+    let offset = len(repo_root)
+    if len(raw_path) <= offset:
+        return "."
+    let next = text_substring_string(raw_path, offset, 1)
+    if next == "\\" or next == "/":
+        return text_substring_string(raw_path, offset + 1, len(raw_path) - offset - 1)
+    return text_substring_string(raw_path, offset, len(raw_path) - offset)
+
+pub fn mcp_extract_json_object(text: String) -> String:
+    var index = 0
+    while index < len(text):
+        let ch = char_at(text, index)
+        if ch == "{" or ch == "[":
+            return text_substring_string(text, index, len(text) - index)
+        index = index + 1
+    return ""
+
+pub fn mcp_contains_any_tag(tags: Array<String>, topic: String) -> Bool:
+    let lowered = text_lower(topic)
+    var index = 0
+    while index < len(tags):
+        if text_contains_string(text_lower(tags[index]), lowered):
+            return true
+        index = index + 1
+    return false

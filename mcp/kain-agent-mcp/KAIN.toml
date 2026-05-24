@@ -8,12 +8,7 @@ name = "kain-agent-mcp"
 kind = "kain_app"
 entry = "src/main.kn"
 source_roots = ["src"]
-module_roots = [
-  "src",
-  "src/protocol",
-  "src/server",
-  "src/tools/health",
-]
+module_roots = ["src"]
 build_targets = ["llvm"]
 
 [run]
@@ -33,8 +28,10 @@ entry = "src/main.kn"
 target = "llvm"
 inputs = [
   "src/main.kn",
-  "src/protocol/http_probe_protocol.kn",
-  "src/server/http_probe_server.kn",
-  "src/tools/health/health_tool.kn",
+  "src/agent_mcp_util.kn",
+  "src/agent_mcp_config.kn",
+  "src/agent_mcp_protocol.kn",
+  "src/agent_mcp_tools.kn",
+  "src/agent_mcp_server.kn",
   "config/server.json",
 ]

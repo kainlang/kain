@@ -13,7 +13,7 @@ This backlog is derived from:
 
 Current reality:
 
-- Kain root stdlib atlas currently reports `56` modules, `2282` public symbols, and `2899` total symbols.
+- Kain root stdlib atlas currently reports `56` modules, `2394` public symbols, and `3050` total symbols.
 - The root profile is still much thinner than Zig's local `lib/std` capability envelope.
 - Kain is already unusually strong in `std::math`, `std::gpu`, `std::graphics`, `std::ui`, `std::build`, `std::bench`, `std::attrition`, `std::certify`, `std::actor`, and semantic/runtime-facing surfaces such as `std::intent` and `std::runtime`.
 - Kain is still obviously missing a large amount of boring-but-necessary authoring, systems, container, path, stream, encoding, archive, and binary-introspection depth.
@@ -131,8 +131,8 @@ Every row below is a v1-facing gap compared to a serious systems language stdlib
 | `DONE` | `P0` | new `std::ascii` or `std::text` subfamily | Expose ASCII classification, case fold, digit/hex helpers, whitespace checks, and predictable byte-level transforms instead of forcing every caller to re-encode them manually. |
 | `DONE` | `P0` | new `std::unicode` | Add UTF-8 validation, codepoint iteration, encoding/decoding helpers, normalization hooks, case mapping where practical, and explicit invalid-sequence behavior. |
 | `DONE` | `P0` | new `std::base64` plus binary encodings | Base64, URL-safe base64, base16/hex encode-decode, and related helpers now exist as a root family instead of being scattered across unrelated domains. |
-| `PARTIAL` | `P0` | new `std::fmt` | The second pass now covers string-oriented formatting helpers plus a real writer/builder surface for accumulating ints, floats, bools, hex, binary, key-value pairs, and JSON strings. Remaining: richer spec-driven formatting and tighter stream-backed `std::io` integration. |
-| `PARTIAL` | `P0` | new `std::json` | The first pass now covers parse, stringify, token scanning, dynamic tree access, object/array builders, and basic typed field helpers. Finish richer typed decode/encode ergonomics, structured error/status surfaces, and tighter streaming or builder integration so JSON work does not stay `Any`-shaped forever. |
+| `DONE` | `P0` | new `std::fmt` | Root formatting now ships spec-driven string, number, and bool rendering plus `FmtWriter` and `std::io::StringBuilder` integration for buffered accumulation and stream-backed authoring sinks instead of staying a string-only helper shelf. |
+| `DONE` | `P0` | new `std::json` | Root JSON now ships typed field and array result structs, structured scan/status reporting, richer object/array encode helpers, writer/builder integration, and a repaired LLVM/native bridge that preserves string, float, bool, object, and array value lanes through JSON-aware `Any` lowering and owned-return transfer fixes verified by focused runtime lanes and Z3 proofs. |
 | `DONE` | `P0` | new `std::uri` | Add URI/URL parsing, normalization, authority/path/query helpers, percent encoding/decoding, and typed integration with HTTP/TLS surfaces. |
 | `DONE` | `P0` | new `std::semver` | Add semantic version parse/format/compare and version-range matching so package/build/runtime metadata is not forced into raw strings. |
 | `DONE` | `P0` | `std::collections` generic container floor | Done with `IntQueue`/`Deque`/`PriorityQueue`, `SlotMap`, and zero-allocation `IntrusiveHashMap` (`uthash` evolution), now complete with standard `ArrayList` and `HashMap` structures. |
@@ -203,29 +203,14 @@ These are still part of a serious stdlib story. They may land after the `P0` flo
 
 ## Likely Remaining Root Modules
 
-These names are not sacred, but they are the most obvious root families still missing or still likely to split out further after the current first-pass text/data landings:
+These names are not sacred, but they are the most obvious concrete root families still missing from the live tree right now:
 
-- `stdlib/unicode.kn`
-- `stdlib/uri.kn`
-- `stdlib/semver.kn`
-- `stdlib/io.kn`
-- `stdlib/random.kn`
-- `stdlib/atomic.kn`
-- `stdlib/sync.kn`
-- `stdlib/thread.kn`
 - `stdlib/os.kn`
 - `stdlib/posix.kn`
-- `stdlib/target.kn`
-- `stdlib/reflect.kn` or `stdlib/meta.kn`
-- `stdlib/compress.kn`
-- `stdlib/tar.kn`
-- `stdlib/zip.kn`
-- `stdlib/elf.kn`
 - `stdlib/dwarf.kn`
 - `stdlib/macho.kn`
 - `stdlib/coff.kn`
 - `stdlib/pdb.kn`
-- `stdlib/wasm.kn`
 
 If a future implementation chooses a different public module split, update both this section and the requirement rows so the difference is explicit.
 

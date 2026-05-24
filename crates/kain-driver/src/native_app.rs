@@ -168,58 +168,7 @@ impl RuntimeVersionMetadata {
 }
 
 fn find_native_runtime_manifest() -> Option<PathBuf> {
-    // Prefer the CLI/runtime bundle env var, but keep the legacy driver name for compatibility.
-    for env_var in ["KAIN_RUNTIME_MANIFEST_PATH", "KAIN_RUNTIME_MANIFEST"] {
-        if let Ok(explicit) = std::env::var(env_var) {
-            let candidate = PathBuf::from(explicit);
-            if candidate.exists() {
-                return Some(candidate);
-            }
-        }
-    }
-
-    // Try relative to current directory
-    if let Ok(mut dir) = std::env::current_dir() {
-        for _ in 0..10 {
-            for suffix in native_runtime_manifest_candidate_suffixes() {
-                let candidate = dir.join(suffix);
-                if candidate.exists() {
-                    return Some(candidate);
-                }
-            }
-            match dir.parent() {
-                Some(parent) => dir = parent.to_path_buf(),
-                None => break,
-            }
-        }
-    }
-
-    // Try relative to executable
-    if let Ok(exe_path) = std::env::current_exe() {
-        if let Some(mut dir) = exe_path.parent().map(|p| p.to_path_buf()) {
-            loop {
-                for suffix in native_runtime_manifest_candidate_suffixes() {
-                    let candidate = dir.join(suffix);
-                    if candidate.exists() {
-                        return Some(candidate);
-                    }
-                }
-                if !dir.pop() {
-                    break;
-                }
-            }
-        }
-    }
-
-    None
-}
-
-fn native_runtime_manifest_candidate_suffixes() -> &'static [&'static str] {
-    &[
-        "runtime/native_core_runtime.toml",
-        "runtime/native_runtime.toml",
-        "runtime/native/runtime.toml",
-    ]
+    kain_core::install_layout::resolve_native_runtime_manifest_path()
 }
 
 #[derive(Debug, Clone)]

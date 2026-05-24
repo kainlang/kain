@@ -1,0 +1,136 @@
+use std::json
+use std::text
+
+pub fn mcp_build_jsonrpc_success(request: JsonObject, result: JsonValue) -> String:
+    let response = json_object()
+    let _jsonrpc = json_object_set_string(response, "jsonrpc", "2.0")
+    let _id = json_object_set_value(response, "id", json_get_value(request, "id"))
+    let _result = json_object_set_value(response, "result", result)
+    return json_stringify(response)
+
+pub fn mcp_build_jsonrpc_error(request: JsonObject, code: Int, message: String) -> String:
+    let response = json_object()
+    let error = json_object()
+    let _jsonrpc = json_object_set_string(response, "jsonrpc", "2.0")
+    let _id = json_object_set_value(response, "id", json_get_value(request, "id"))
+    let _code = json_object_set_int(error, "code", code)
+    let _message = json_object_set_string(error, "message", message)
+    let _error = json_object_set_object(response, "error", error)
+    return json_stringify(response)
+
+pub fn mcp_build_parse_error(message: String) -> String:
+    let response = json_object()
+    let error = json_object()
+    let _jsonrpc = json_object_set_string(response, "jsonrpc", "2.0")
+    let _id = json_object_set_value(response, "id", json_parse_text("null"))
+    let _code = json_object_set_int(error, "code", -32700)
+    let _message = json_object_set_string(error, "message", message)
+    let _error = json_object_set_object(response, "error", error)
+    return json_stringify(response)
+
+pub fn mcp_write_response_frame(body: String) -> Unit:
+    let header = "Content-Length: " + str(len(body)) + "\r\n\r\n"
+    stdout_write(header)
+    stdout_write(body)
+
+pub fn mcp_read_next_request_frame() -> String:
+    var content_length = 0
+
+    while true:
+        let header_line = read_line()
+        if len(header_line) == 0:
+            break
+        if text_starts_with_string(header_line, "Content-Length:"):
+            let raw_value = text_trim_string(text_substring_string(header_line, len("Content-Length:"), len(header_line) - len("Content-Length:")))
+            if raw_value != "":
+                content_length = to_int(raw_value)
+    if content_length <= 0:
+        return ""
+    return stdin_read_exact(content_length)
+
+fn select_protocol_version(requested: String) -> String:
+    if requested == "2025-06-18" or requested == "2025-03-26":
+        return requested
+    return "2025-06-18"
+
+pub fn mcp_build_initialize_result(requested_protocol: String) -> JsonObject:
+    let result = json_object()
+    let capabilities = json_object()
+    let tools = json_object()
+    let server_info = json_object()
+
+    let _protocol = json_object_set_string(result, "protocolVersion", select_protocol_version(requested_protocol))
+    let _list_changed = json_object_set_bool(tools, "listChanged", false)
+    let _tools = json_object_set_object(capabilities, "tools", tools)
+    let _capabilities = json_object_set_object(result, "capabilities", capabilities)
+
+    let _name = json_object_set_string(server_info, "name", "kain-agent-mcp")
+    let _title = json_object_set_string(server_info, "title", "Kain Agent MCP")
+    let _version = json_object_set_string(server_info, "version", "0.2.0")
+    let _description = json_object_set_string(server_info, "description", "Runtime-native Kain MCP")
+    let _server_info = json_object_set_object(result, "serverInfo", server_info)
+    let _instructions = json_object_set_string(result, "instructions", "Use stdlib.query and repo.examples before broad repo spelunking. Treat the command registry tools as the first stop for Kain CLI understanding, then use kain.check and kain.run_plan when you need execution truth.")
+    return result
+
+pub fn mcp_build_tools_list_result() -> JsonObject:
+    let result = json_object()
+    let public_tools = json_array()
+
+    let repo_overview = json_object()
+    let _name_a = json_object_set_string(repo_overview, "name", "repo.overview")
+    let _title_a = json_object_set_string(repo_overview, "title", "Repo Overview")
+    let _description_a = json_object_set_string(repo_overview, "description", "Return the Kain repo orientation map: docs, major roots, and stdlib summary counts.")
+    let _schema_a = json_object_set_object(repo_overview, "inputSchema", json_object_with_string("type", "object"))
+    let _push_a = json_array_push_object(public_tools, repo_overview)
+
+    let stdlib_query = json_object()
+    let _name_b = json_object_set_string(stdlib_query, "name", "stdlib.query")
+    let _title_b = json_object_set_string(stdlib_query, "title", "Stdlib Query")
+    let _description_b = json_object_set_string(stdlib_query, "description", "Query the generated stdlib atlas through query_stdlib.py without shelling out manually.")
+    let _schema_b = json_object_set_object(stdlib_query, "inputSchema", json_object_with_string("type", "object"))
+    let _push_b = json_array_push_object(public_tools, stdlib_query)
+
+    let repo_examples = json_object()
+    let _name_c = json_object_set_string(repo_examples, "name", "repo.examples")
+    let _title_c = json_object_set_string(repo_examples, "title", "Repo Examples")
+    let _description_c = json_object_set_string(repo_examples, "description", "Find authored Kain examples across library_of_kain, smoketest, experiments, UI, and GPU lanes.")
+    let _schema_c = json_object_set_object(repo_examples, "inputSchema", json_object_with_string("type", "object"))
+    let _push_c = json_array_push_object(public_tools, repo_examples)
+
+    let repo_search = json_object()
+    let _name_d = json_object_set_string(repo_search, "name", "repo.search")
+    let _title_d = json_object_set_string(repo_search, "title", "Repo Search")
+    let _description_d = json_object_set_string(repo_search, "description", "Semantic text search across the repo through ripgrep with concise structured matches.")
+    let _schema_d = json_object_set_object(repo_search, "inputSchema", json_object_with_string("type", "object"))
+    let _push_d = json_array_push_object(public_tools, repo_search)
+
+    let commands_list = json_object()
+    let _name_e = json_object_set_string(commands_list, "name", "kain.commands.list")
+    let _title_e = json_object_set_string(commands_list, "title", "Kain Commands List")
+    let _description_e = json_object_set_string(commands_list, "description", "Return structured command-registry entries for the selected Kain binary view.")
+    let _schema_e = json_object_set_object(commands_list, "inputSchema", json_object_with_string("type", "object"))
+    let _push_e = json_array_push_object(public_tools, commands_list)
+
+    let commands_describe = json_object()
+    let _name_f = json_object_set_string(commands_describe, "name", "kain.commands.describe")
+    let _title_f = json_object_set_string(commands_describe, "title", "Kain Commands Describe")
+    let _description_f = json_object_set_string(commands_describe, "description", "Describe one Kain command by command path such as `check` or `run plan`.")
+    let _schema_f = json_object_set_object(commands_describe, "inputSchema", json_object_with_string("type", "object"))
+    let _push_f = json_array_push_object(public_tools, commands_describe)
+
+    let kain_check = json_object()
+    let _name_g = json_object_set_string(kain_check, "name", "kain.check")
+    let _title_g = json_object_set_string(kain_check, "title", "Kain Check")
+    let _description_g = json_object_set_string(kain_check, "description", "Run `kain check` through the MCP and return the structured report when available.")
+    let _schema_g = json_object_set_object(kain_check, "inputSchema", json_object_with_string("type", "object"))
+    let _push_g = json_array_push_object(public_tools, kain_check)
+
+    let run_plan = json_object()
+    let _name_h = json_object_set_string(run_plan, "name", "kain.run_plan")
+    let _title_h = json_object_set_string(run_plan, "title", "Kain Run Plan")
+    let _description_h = json_object_set_string(run_plan, "description", "Run `kain run plan --json` and return the resolved execution plan for a path or workspace.")
+    let _schema_h = json_object_set_object(run_plan, "inputSchema", json_object_with_string("type", "object"))
+    let _push_h = json_array_push_object(public_tools, run_plan)
+
+    let _tools = json_object_set_array(result, "tools", public_tools)
+    return result

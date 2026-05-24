@@ -8054,12 +8054,9 @@ fn eval_binop(op: BinaryOp, left: Value, right: Value) -> KainResult<Value> {
         (BinaryOp::Gt, Value::Float(a), Value::Float(b)) => Ok(Value::Bool(a > b)),
         (BinaryOp::Le, Value::Float(a), Value::Float(b)) => Ok(Value::Bool(a <= b)),
         (BinaryOp::Ge, Value::Float(a), Value::Float(b)) => Ok(Value::Bool(a >= b)),
-        (BinaryOp::Eq, Value::Float(a), Value::Float(b)) => {
-            Ok(Value::Bool((a - b).abs() < f64::EPSILON))
-        }
-        (BinaryOp::Ne, Value::Float(a), Value::Float(b)) => {
-            Ok(Value::Bool((a - b).abs() >= f64::EPSILON))
-        }
+        // Proof: crates/kain-core/z3/proofs/control-float-exact-equality-aligns-with-compiled-ieee-semantics.yaml
+        (BinaryOp::Eq, Value::Float(a), Value::Float(b)) => Ok(Value::Bool(a == b)),
+        (BinaryOp::Ne, Value::Float(a), Value::Float(b)) => Ok(Value::Bool(a != b)),
 
         (BinaryOp::Lt, Value::Int(a), Value::Int(b)) => Ok(Value::Bool(a < b)),
         (BinaryOp::Gt, Value::Int(a), Value::Int(b)) => Ok(Value::Bool(a > b)),
@@ -8630,5 +8627,63 @@ mod tests {
 
         let value = eval_expr(&mut env, &expr).expect("Option-based '?' should propagate None");
         assert!(matches!(value, Value::Return(inner) if matches!(inner.as_ref(), Value::None)));
+    }
+
+    #[test]
+    fn runtime_float_casts_keep_total_nonzero_and_saturating_truth() {
+        let span = Span::default();
+        let bool_ty = Type::Named {
+            name: "Bool".to_string(),
+            generics: vec![],
+            span,
+        };
+        let int_ty = Type::Named {
+            name: "Int".to_string(),
+            generics: vec![],
+            span,
+        };
+
+        assert!(matches!(
+            runtime_cast_value(Value::Float(f64::NAN), &bool_ty).expect("NaN -> Bool cast"),
+            Value::Bool(true)
+        ));
+        assert!(matches!(
+            runtime_cast_value(Value::Float(f64::NAN), &int_ty).expect("NaN -> Int cast"),
+            Value::Int(0)
+        ));
+        assert!(matches!(
+            runtime_cast_value(Value::Float(f64::INFINITY), &int_ty)
+                .expect("+inf -> Int cast"),
+            Value::Int(value) if value == i64::MAX
+        ));
+        assert!(matches!(
+            runtime_cast_value(Value::Float(f64::NEG_INFINITY), &int_ty)
+                .expect("-inf -> Int cast"),
+            Value::Int(value) if value == i64::MIN
+        ));
+    }
+
+    #[test]
+    fn runtime_float_eq_and_ne_follow_exact_ieee_semantics() {
+        assert!(matches!(
+            eval_binop(BinaryOp::Eq, Value::Float(0.0), Value::Float(1e-16))
+                .expect("float equality should evaluate"),
+            Value::Bool(false)
+        ));
+        assert!(matches!(
+            eval_binop(BinaryOp::Ne, Value::Float(0.0), Value::Float(1e-16))
+                .expect("float inequality should evaluate"),
+            Value::Bool(true)
+        ));
+        assert!(matches!(
+            eval_binop(BinaryOp::Eq, Value::Float(f64::NAN), Value::Float(f64::NAN))
+                .expect("NaN equality should evaluate"),
+            Value::Bool(false)
+        ));
+        assert!(matches!(
+            eval_binop(BinaryOp::Ne, Value::Float(f64::NAN), Value::Float(f64::NAN))
+                .expect("NaN inequality should evaluate"),
+            Value::Bool(true)
+        ));
     }
 }

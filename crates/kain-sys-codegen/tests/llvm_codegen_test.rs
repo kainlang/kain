@@ -2324,7 +2324,9 @@ fn probe(value: Float) -> Int:
 
     assert!(llvm.contains("declare double @llvm.floor.f64(double)"));
     assert!(llvm.contains("call double @llvm.floor.f64(double"));
-    assert!(llvm.contains("fptosi double"));
+    assert!(llvm.contains("declare i64 @llvm.fptosi.sat.i64.f64(double)"));
+    assert!(llvm.contains("call i64 @llvm.fptosi.sat.i64.f64(double"));
+    assert!(!llvm.contains("fptosi double"));
     assert!(!llvm.contains("call i64 @kain_floor_i64"));
     verify_llvm_ir_with_repo_llvm_as(&llvm, "floor-builtin-lowering");
 }
@@ -3411,6 +3413,61 @@ fn main() -> Int:
         parse_int_ir
     );
     verify_llvm_ir_with_repo_llvm_as(&llvm, "ord-chr-to-int-native-builtins");
+}
+
+#[test]
+fn llvm_lowers_float_truthiness_inequality_and_int_casts_through_total_ieee_paths() {
+    let source = r#"
+fn boolify(value: Float) -> Bool:
+    if value:
+        return value != 1.0
+    return value == 0.0
+
+fn truncate(value: Float) -> Int:
+    return value as Int
+
+fn pow_bucket(base: Int, exp: Int) -> Int:
+    return base ** exp
+"#;
+
+    let typed = typed_program_from_source(source);
+    let llvm = String::from_utf8(generate_llvm(&typed).expect("llvm generation should succeed"))
+        .expect("llvm output should be utf8");
+    let boolify_ir = llvm_function_ir(&llvm, "define internal i1 @boolify(double %arg0)");
+    let truncate_ir = llvm_function_ir(&llvm, "define internal i64 @truncate(double %arg0)");
+    let pow_ir = llvm_function_ir(&llvm, "define internal i64 @pow_bucket(i64 %arg0, i64 %arg1)");
+
+    assert!(
+        boolify_ir.contains("fcmp une double %r0, 0.0"),
+        "float truthiness must use unordered-nonzero so NaN stays truthy:\n{}",
+        boolify_ir
+    );
+    assert!(
+        boolify_ir.matches("fcmp une double").count() >= 2,
+        "float truthiness and inequality should both use unordered-not-equal paths:\n{}",
+        boolify_ir
+    );
+    assert!(
+        boolify_ir.contains("fcmp oeq double"),
+        "float equality should stay exact IEEE ordered-equal:\n{}",
+        boolify_ir
+    );
+    assert!(
+        truncate_ir.contains("call i64 @llvm.fptosi.sat.i64.f64(double"),
+        "explicit Float -> Int casts should route through the saturating intrinsic:\n{}",
+        truncate_ir
+    );
+    assert!(
+        pow_ir.contains("call i64 @llvm.fptosi.sat.i64.f64(double"),
+        "integer pow lowering should reuse the saturating intrinsic on the float result:\n{}",
+        pow_ir
+    );
+    assert!(
+        !llvm.contains("fptosi double"),
+        "all LLVM float-to-int paths should leave the raw poison-prone cast behind:\n{}",
+        llvm
+    );
+    verify_llvm_ir_with_repo_llvm_as(&llvm, "float-total-ieee-lowering");
 }
 
 #[test]

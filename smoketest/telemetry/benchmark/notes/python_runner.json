@@ -1,7 +1,7 @@
 {
   "mode": "benchmark",
   "status": 0,
-  "elapsed_ms": 68,
+  "elapsed_ms": 122,
   "summary_exists": 1,
   "summary_path": "D:/Kain-Lang/smoketest/telemetry/benchmark/summary.json",
   "output_dir": "D:/Kain-Lang/smoketest/telemetry/benchmark",
@@ -19,7 +19,7 @@
   "error_message": "",
   "stdout_len": 0,
   "stderr_len": 0,
-  "runner_checksum": 677449,
+  "runner_checksum": 677611,
   "probe": {
   "ok": 1,
   "python": "D:/kain-bazel/output-user-root/ccujd7ry/execroot/_main/bazel-out/x64_windows-dbg/bin/crates/cli/kain.exe",

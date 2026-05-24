@@ -1,0 +1,108 @@
+use std::fs
+use std::json
+use std::process
+use std::text
+use agent_mcp_util::mcp_is_absolute_path
+use agent_mcp_util::mcp_int_field_or
+use agent_mcp_util::mcp_resolve_path
+use agent_mcp_util::mcp_string_array_field_or
+use agent_mcp_util::mcp_string_field_or
+
+pub struct AgentMcpConfig:
+    server_root: String
+    repo_root: String
+    config_path: String
+    manifest: JsonObject
+    python_bin: String
+    rg_bin: String
+    kain_bin: String
+    timeout_ms: Int
+    default_limit: Int
+    max_results: Int
+
+fn detect_server_root() -> String:
+    let cwd_path = process_current_working_directory()
+    let env_root = text_trim_string(process_environment("KAIN_AGENT_MCP_ROOT"))
+    if len(env_root) > 0:
+        return env_root
+
+    if fs_exists(fs_path_join(cwd_path, "config/server.json")):
+        return cwd_path
+
+    let repo_local = fs_path_join(fs_path_join(cwd_path, "mcp"), "kain-agent-mcp")
+    if fs_exists(fs_path_join(repo_local, "config/server.json")):
+        return repo_local
+
+    let parent = fs_path_parent(cwd_path)
+    if fs_path_file_name(cwd_path) == "src" and fs_exists(fs_path_join(parent, "config/server.json")):
+        return parent
+
+    return cwd_path
+
+fn detect_repo_root(server_root: String, manifest: JsonObject) -> String:
+    let env_repo_root = text_trim_string(process_environment("KAIN_AGENT_REPO_ROOT"))
+    if len(env_repo_root) > 0:
+        return env_repo_root
+
+    let paths = json_object_field(manifest, "paths")
+    if paths.ok:
+        let repo_root_value = mcp_string_field_or(paths.value, "repo_root", "../..")
+        if repo_root_value == "../.." or repo_root_value == "..\\..":
+            return fs_path_parent(fs_path_parent(server_root))
+        return mcp_resolve_path(server_root, repo_root_value)
+    return fs_path_parent(fs_path_parent(server_root))
+
+fn resolve_runtime_string(runtime: JsonObject, field_name: String, override_key: String, fallback: String) -> String:
+    let env_value = text_trim_string(process_environment(override_key))
+    if len(env_value) > 0:
+        return env_value
+
+    let value = mcp_string_field_or(runtime, field_name, fallback)
+    if len(text_trim_string(value)) == 0:
+        return fallback
+    return value
+
+fn resolve_kain_bin(repo_root: String, runtime: JsonObject) -> String:
+    let env_kain_bin = text_trim_string(process_environment("KAIN_AGENT_KAIN_BIN"))
+    if len(env_kain_bin) > 0:
+        return env_kain_bin
+
+    let candidates = mcp_string_array_field_or(runtime, "kain_bin_candidates")
+    var index = 0
+    while index < len(candidates):
+        let candidate = candidates[index]
+        if text_starts_with_string(candidate, "PATH:"):
+            return text_substring_string(candidate, 5, len(candidate) - 5)
+        let resolved = if mcp_is_absolute_path(candidate):
+            candidate
+        else:
+            mcp_resolve_path(repo_root, candidate)
+        if fs_exists(resolved):
+            return resolved
+        index = index + 1
+    return "kain"
+
+pub fn load_agent_mcp_config() -> AgentMcpConfig:
+    let server_root = detect_server_root()
+    let config_path = fs_path_join(server_root, "config/server.json")
+    let manifest = json_parse_text(fs_read_text(config_path))
+    let repo_root = detect_repo_root(server_root, manifest)
+
+    let runtime_result = json_object_field(manifest, "runtime")
+    let runtime = if runtime_result.ok:
+        runtime_result.value
+    else:
+        json_object()
+
+    return AgentMcpConfig {
+        server_root: server_root,
+        repo_root: repo_root,
+        config_path: config_path,
+        manifest: manifest,
+        python_bin: resolve_runtime_string(runtime, "python_bin", "KAIN_AGENT_PYTHON_BIN", "python"),
+        rg_bin: resolve_runtime_string(runtime, "rg_bin", "KAIN_AGENT_RG_BIN", "rg"),
+        kain_bin: resolve_kain_bin(repo_root, runtime),
+        timeout_ms: mcp_int_field_or(runtime, "timeout_ms", 30000),
+        default_limit: mcp_int_field_or(runtime, "default_limit", 20),
+        max_results: mcp_int_field_or(runtime, "max_results", 80),
+    }

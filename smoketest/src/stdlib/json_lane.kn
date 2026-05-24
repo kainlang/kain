@@ -1,35 +1,115 @@
+use std::fmt
+use std::io
 use std::json
 use std::text
 
-pub fn smoke_json_lane() -> Int:
+pub fn smoke_json_lane() -> Int with Unsafe:
     let payload = json_object()
-    let tags = json_array()
-    let _tag_alpha = json_array_push_string(tags, "alpha")
-    let _tag_beta = json_array_push_string(tags, "beta")
+    let tags = ["alpha", "beta"]
+    let scores = [3, 5, 8]
+    let flags = [true, false]
+    let meta = json_object_with_string("mode", "strict")
+
     let _name = json_object_set_string(payload, "name", "kain")
     let _version = json_object_set_int(payload, "version", 1)
+    let _ratio = json_object_set_float(payload, "ratio", 2.5)
     let _ok = json_object_set_bool(payload, "ok", true)
-    let _tags = json_object_set_value(payload, "tags", tags)
+    let _tags = json_object_set_string_array(payload, "tags", tags)
+    let _scores = json_object_set_int_array(payload, "scores", scores)
+    let _flags = json_object_set_bool_array(payload, "flags", flags)
+    let _meta = json_object_set_object(payload, "meta", meta)
+
     let rendered = json_stringify(payload)
     if text_contains_string(rendered, "\"name\"") == false:
         return 1
+
     let parsed = json_parse_text(rendered)
-    if json_string_or(parsed, "name", "") != "kain":
+
+    let name = json_string_field(parsed, "name")
+    if name.ok == false or name.value != "kain":
         return 2
-    if json_int_or(parsed, "version", 0) != 1:
+
+    let version = json_int_field(parsed, "version")
+    if version.ok == false or version.value != 1:
         return 3
-    if json_bool_or(parsed, "ok", false) == false:
+
+    let ratio = json_float_field(parsed, "ratio")
+    if ratio.ok == false or ratio.value < 2.49 or ratio.value > 2.51:
         return 4
-    let parsed_tags = json_string_array_field(parsed, "tags")
-    if len(parsed_tags) != 2:
+
+    let ok = json_bool_field(parsed, "ok")
+    if ok.ok == false or ok.value == false:
         return 5
-    if parsed_tags[1] != "beta":
+
+    let parsed_tags = json_string_array_field_result(parsed, "tags")
+    if parsed_tags.ok == false or len(parsed_tags.value) != 2:
         return 6
+    if parsed_tags.value[1] != "beta":
+        return 7
+
+    let parsed_scores = json_int_array_field_result(parsed, "scores")
+    if parsed_scores.ok == false or len(parsed_scores.value) != 3:
+        return 8
+    if parsed_scores.value[2] != 8:
+        return 9
+
+    let parsed_flags = json_bool_array_field_result(parsed, "flags")
+    if parsed_flags.ok == false or len(parsed_flags.value) != 2:
+        return 10
+    if parsed_flags.value[0] == false or parsed_flags.value[1] == true:
+        return 11
+
+    let meta_result = json_object_field(parsed, "meta")
+    if meta_result.ok == false:
+        return 12
+    let mode = json_string_field(meta_result.value, "mode")
+    if mode.ok == false or mode.value != "strict":
+        return 13
+
+    if json_value_kind(parsed) != JSON_KIND_OBJECT:
+        return 14
+
+    let mismatch = json_string_field(parsed, "version")
+    if mismatch.ok or mismatch.status.code != JSON_STATUS_WRONG_KIND:
+        return 15
+
+    let missing = json_bool_field(parsed, "missing")
+    if missing.ok or missing.status.code != JSON_STATUS_MISSING_KEY:
+        return 16
+
+    let writer = json_fmt_writer_push_value(fmt_writer_new(), payload)
+    if fmt_writer_build(writer) != rendered:
+        return 17
+
+    let builder = string_builder_new(16)
+    let builder_ptr: ptr<StringBuilder> = addr_of(builder, "StringBuilder")
+    let _wrote = json_string_builder_push_value(builder_ptr, payload)
+    if string_builder_to_string(builder) != rendered:
+        return 18
+    string_builder_destroy(builder)
+
+    let report = json_scan_report(rendered)
+    if report.ok == false or report.code != JSON_STATUS_OK:
+        return 19
+
+    let unknown_report = json_scan_report("{\"ok\"=true}")
+    if unknown_report.ok or unknown_report.code != JSON_STATUS_SCAN_UNKNOWN_TOKEN:
+        return 20
+
+    let unbalanced_report = json_scan_report("{\"ok\": [1, 2}")
+    if unbalanced_report.ok or unbalanced_report.code != JSON_STATUS_SCAN_UNBALANCED_DELIMITER:
+        return 21
+
+    let empty_report = json_scan_report("")
+    if empty_report.ok or empty_report.code != JSON_STATUS_SCAN_EMPTY_INPUT:
+        return 22
+
     let tokens = json_scan_significant("{\"ok\": true, \"count\": 2}")
     if len(tokens) < 5:
-        return 7
+        return 23
     if tokens[0].kind != JSON_TOKEN_LBRACE:
-        return 8
+        return 24
     if tokens[1].kind != JSON_TOKEN_STRING:
-        return 9
+        return 25
+
     return 0

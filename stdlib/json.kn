@@ -1,4 +1,7 @@
 use std::ascii
+use std::fmt
+use std::io
+use std::text
 
 pub type JsonValue = Any
 pub type JsonObject = Any
@@ -18,11 +21,95 @@ pub const JSON_TOKEN_NULL: String = "null"
 pub const JSON_TOKEN_WHITESPACE: String = "whitespace"
 pub const JSON_TOKEN_UNKNOWN: String = "unknown"
 
+pub const JSON_KIND_NULL: String = "null"
+pub const JSON_KIND_BOOL: String = "bool"
+pub const JSON_KIND_INT: String = "int"
+pub const JSON_KIND_FLOAT: String = "float"
+pub const JSON_KIND_STRING: String = "string"
+pub const JSON_KIND_OBJECT: String = "object"
+pub const JSON_KIND_ARRAY: String = "array"
+
+pub const JSON_STATUS_OK: Int = 0
+pub const JSON_STATUS_MISSING_KEY: Int = 1
+pub const JSON_STATUS_WRONG_KIND: Int = 2
+pub const JSON_STATUS_INDEX_OUT_OF_RANGE: Int = 3
+pub const JSON_STATUS_SCAN_UNKNOWN_TOKEN: Int = 4
+pub const JSON_STATUS_SCAN_UNTERMINATED_STRING: Int = 5
+pub const JSON_STATUS_SCAN_UNBALANCED_DELIMITER: Int = 6
+pub const JSON_STATUS_SCAN_EMPTY_INPUT: Int = 7
+
 pub struct JsonToken:
     kind: String
     start: Int
     length: Int
     lexeme: String
+
+pub struct JsonStatus:
+    ok: Bool
+    code: Int
+    key: String
+    expected_kind: String
+    actual_kind: String
+    index: Int
+    message: String
+
+pub struct JsonStringResult:
+    ok: Bool
+    value: String
+    status: JsonStatus
+
+pub struct JsonIntResult:
+    ok: Bool
+    value: Int
+    status: JsonStatus
+
+pub struct JsonFloatResult:
+    ok: Bool
+    value: Float
+    status: JsonStatus
+
+pub struct JsonBoolResult:
+    ok: Bool
+    value: Bool
+    status: JsonStatus
+
+pub struct JsonObjectResult:
+    ok: Bool
+    value: JsonObject
+    status: JsonStatus
+
+pub struct JsonArrayResult:
+    ok: Bool
+    value: JsonArray
+    status: JsonStatus
+
+pub struct JsonStringArrayResult:
+    ok: Bool
+    value: Array<String>
+    status: JsonStatus
+
+pub struct JsonIntArrayResult:
+    ok: Bool
+    value: Array<Int>
+    status: JsonStatus
+
+pub struct JsonFloatArrayResult:
+    ok: Bool
+    value: Array<Float>
+    status: JsonStatus
+
+pub struct JsonBoolArrayResult:
+    ok: Bool
+    value: Array<Bool>
+    status: JsonStatus
+
+pub struct JsonScanReport:
+    ok: Bool
+    code: Int
+    token_index: Int
+    balance_objects: Int
+    balance_arrays: Int
+    message: String
 
 fn json_token(kind: String, source: String, start: Int, length: Int) -> JsonToken:
     return JsonToken {
@@ -30,6 +117,152 @@ fn json_token(kind: String, source: String, start: Int, length: Int) -> JsonToke
         start: start,
         length: length,
         lexeme: substring(source, start, start + length)
+    }
+
+fn json_status_ok() -> JsonStatus:
+    return JsonStatus {
+        ok: true,
+        code: JSON_STATUS_OK,
+        key: "",
+        expected_kind: "",
+        actual_kind: "",
+        index: -1,
+        message: ""
+    }
+
+fn json_status_error(code: Int, key: String, expected_kind: String, actual_kind: String, index: Int, message: String) -> JsonStatus:
+    return JsonStatus {
+        ok: false,
+        code: code,
+        key: key,
+        expected_kind: expected_kind,
+        actual_kind: actual_kind,
+        index: index,
+        message: message
+    }
+
+fn json_missing_key_status(key: String) -> JsonStatus:
+    return json_status_error(
+        JSON_STATUS_MISSING_KEY,
+        key,
+        "",
+        JSON_KIND_NULL,
+        -1,
+        "missing key `" + key + "`"
+    )
+
+fn json_wrong_kind_status(key: String, expected_kind: String, actual_kind: String, index: Int) -> JsonStatus:
+    var location = "field `" + key + "`"
+    if len(key) == 0:
+        location = "array item"
+    if index >= 0:
+        location = location + " at index " + to_string(index)
+    return json_status_error(
+        JSON_STATUS_WRONG_KIND,
+        key,
+        expected_kind,
+        actual_kind,
+        index,
+        location + " expected " + expected_kind + " but found " + actual_kind
+    )
+
+fn json_index_status(index: Int, actual_kind: String) -> JsonStatus:
+    return json_status_error(
+        JSON_STATUS_INDEX_OUT_OF_RANGE,
+        "",
+        JSON_KIND_ARRAY,
+        actual_kind,
+        index,
+        "index " + to_string(index) + " was out of range for json array"
+    )
+
+fn json_wrap_value(value: JsonValue) -> JsonObject:
+    let wrapper = json_object_new()
+    json_object_set(wrapper, "__value", value)
+    return wrapper
+
+fn json_string_value(value: JsonValue) -> String:
+    return json_get_string(json_wrap_value(value), "__value")
+
+fn json_int_value(value: JsonValue) -> Int:
+    return json_get_int(json_wrap_value(value), "__value")
+
+fn json_float_value(value: JsonValue, actual_kind: String) -> Float:
+    if actual_kind == JSON_KIND_INT:
+        return json_int_value(value) / 1.0
+    return json_get_float(json_wrap_value(value), "__value")
+
+fn json_bool_value(value: JsonValue) -> Bool:
+    return json_get_bool(json_wrap_value(value), "__value")
+
+fn json_string_result_error(status: JsonStatus) -> JsonStringResult:
+    return JsonStringResult {
+        ok: false,
+        value: "",
+        status: status
+    }
+
+fn json_int_result_error(status: JsonStatus) -> JsonIntResult:
+    return JsonIntResult {
+        ok: false,
+        value: 0,
+        status: status
+    }
+
+fn json_float_result_error(status: JsonStatus) -> JsonFloatResult:
+    return JsonFloatResult {
+        ok: false,
+        value: 0.0,
+        status: status
+    }
+
+fn json_bool_result_error(status: JsonStatus) -> JsonBoolResult:
+    return JsonBoolResult {
+        ok: false,
+        value: false,
+        status: status
+    }
+
+fn json_object_result_error(status: JsonStatus) -> JsonObjectResult:
+    return JsonObjectResult {
+        ok: false,
+        value: json_object(),
+        status: status
+    }
+
+fn json_array_result_error(status: JsonStatus) -> JsonArrayResult:
+    return JsonArrayResult {
+        ok: false,
+        value: json_array(),
+        status: status
+    }
+
+fn json_string_array_result_error(status: JsonStatus) -> JsonStringArrayResult:
+    return JsonStringArrayResult {
+        ok: false,
+        value: [],
+        status: status
+    }
+
+fn json_int_array_result_error(status: JsonStatus) -> JsonIntArrayResult:
+    return JsonIntArrayResult {
+        ok: false,
+        value: [],
+        status: status
+    }
+
+fn json_float_array_result_error(status: JsonStatus) -> JsonFloatArrayResult:
+    return JsonFloatArrayResult {
+        ok: false,
+        value: [],
+        status: status
+    }
+
+fn json_bool_array_result_error(status: JsonStatus) -> JsonBoolArrayResult:
+    return JsonBoolArrayResult {
+        ok: false,
+        value: [],
+        status: status
     }
 
 fn json_match_literal(text: String, start: Int, literal: String) -> Bool:
@@ -83,6 +316,97 @@ fn json_scan_number_end(text: String, start: Int) -> Int:
                 index = index + 1
     return index
 
+fn json_kind_from_rendered(rendered: String) -> String:
+    if rendered == "null":
+        return JSON_KIND_NULL
+    if rendered == "true" or rendered == "false":
+        return JSON_KIND_BOOL
+    if len(rendered) >= 2 and char_at(rendered, 0) == "\"" and char_at(rendered, len(rendered) - 1) == "\"":
+        return JSON_KIND_STRING
+    if len(rendered) > 0 and char_at(rendered, 0) == "{":
+        return JSON_KIND_OBJECT
+    if len(rendered) > 0 and char_at(rendered, 0) == "[":
+        return JSON_KIND_ARRAY
+    if find_substring_from(rendered, ".", 0) >= 0 or find_substring_from(rendered, "e", 0) >= 0 or find_substring_from(rendered, "E", 0) >= 0:
+        return JSON_KIND_FLOAT
+    return JSON_KIND_INT
+
+fn json_kind_from_value(value: JsonValue) -> String:
+    let wrapped = json_stringify(json_wrap_value(value))
+    let prefix = "{\"__value\":"
+    if len(wrapped) <= len(prefix):
+        return JSON_KIND_NULL
+    return json_kind_from_rendered(substring(wrapped, len(prefix), len(wrapped) - 1))
+
+fn json_rendered_result(value: String) -> JsonStringResult:
+    return JsonStringResult {
+        ok: true,
+        value: value,
+        status: json_status_ok()
+    }
+
+fn json_value_end_token_index(tokens: Array<JsonToken>, start_index: Int) -> Int:
+    let start_kind = tokens[start_index].kind
+    if start_kind != JSON_TOKEN_LBRACE and start_kind != JSON_TOKEN_LBRACKET:
+        return start_index
+    var object_depth = 0
+    var array_depth = 0
+    if start_kind == JSON_TOKEN_LBRACE:
+        object_depth = 1
+    else:
+        array_depth = 1
+    var index = start_index + 1
+    while index < len(tokens):
+        let kind = tokens[index].kind
+        if kind == JSON_TOKEN_LBRACE:
+            object_depth = object_depth + 1
+        else:
+            if kind == JSON_TOKEN_RBRACE:
+                object_depth = object_depth - 1
+            else:
+                if kind == JSON_TOKEN_LBRACKET:
+                    array_depth = array_depth + 1
+                else:
+                    if kind == JSON_TOKEN_RBRACKET:
+                        array_depth = array_depth - 1
+        if object_depth == 0 and array_depth == 0:
+            return index
+        index = index + 1
+    return start_index
+
+fn json_field_rendered(object: JsonObject, key: String) -> JsonStringResult:
+    if !json_has_key(object, key):
+        return json_string_result_error(json_missing_key_status(key))
+    let rendered = json_stringify(object)
+    let tokens = json_scan_significant(rendered)
+    let key_lexeme = fmt_json_string(key)
+    var object_depth = 0
+    var array_depth = 0
+    var index = 0
+    while index < len(tokens):
+        let token = tokens[index]
+        if token.kind == JSON_TOKEN_LBRACE:
+            object_depth = object_depth + 1
+        else:
+            if token.kind == JSON_TOKEN_RBRACE:
+                object_depth = object_depth - 1
+            else:
+                if token.kind == JSON_TOKEN_LBRACKET:
+                    array_depth = array_depth + 1
+                else:
+                    if token.kind == JSON_TOKEN_RBRACKET:
+                        array_depth = array_depth - 1
+        if object_depth == 1 and array_depth == 0 and token.kind == JSON_TOKEN_STRING and token.lexeme == key_lexeme:
+            if index + 2 >= len(tokens) or tokens[index + 1].kind != JSON_TOKEN_COLON:
+                return json_string_result_error(json_missing_key_status(key))
+            let value_start = index + 2
+            let value_end = json_value_end_token_index(tokens, value_start)
+            let start = tokens[value_start].start
+            let end = tokens[value_end].start + tokens[value_end].length
+            return json_rendered_result(substring(rendered, start, end))
+        index = index + 1
+    return json_string_result_error(json_missing_key_status(key))
+
 pub fn json_parse_text(text: String) -> JsonValue:
     return json_parse(text)
 
@@ -94,6 +418,30 @@ pub fn json_has_key(object: JsonObject, key: String) -> Bool:
 
 pub fn json_get_value(object: JsonObject, key: String) -> JsonValue:
     return json_get(object, key)
+
+pub fn json_value_kind(value: JsonValue) -> String:
+    return json_kind_from_value(value)
+
+pub fn json_is_null(value: JsonValue) -> Bool:
+    return json_value_kind(value) == JSON_KIND_NULL
+
+pub fn json_is_string(value: JsonValue) -> Bool:
+    return json_value_kind(value) == JSON_KIND_STRING
+
+pub fn json_is_int(value: JsonValue) -> Bool:
+    return json_value_kind(value) == JSON_KIND_INT
+
+pub fn json_is_float(value: JsonValue) -> Bool:
+    return json_value_kind(value) == JSON_KIND_FLOAT
+
+pub fn json_is_bool(value: JsonValue) -> Bool:
+    return json_value_kind(value) == JSON_KIND_BOOL
+
+pub fn json_is_object(value: JsonValue) -> Bool:
+    return json_value_kind(value) == JSON_KIND_OBJECT
+
+pub fn json_is_array(value: JsonValue) -> Bool:
+    return json_value_kind(value) == JSON_KIND_ARRAY
 
 pub fn json_string_required(object: JsonObject, key: String) -> String:
     return json_get_string(object, key)
@@ -127,6 +475,84 @@ pub fn json_bool_or(object: JsonObject, key: String, default_value: Bool) -> Boo
         return default_value
     return json_bool_required(object, key)
 
+pub fn json_string_field(object: JsonObject, key: String) -> JsonStringResult:
+    let field = json_field_rendered(object, key)
+    if field.ok == false:
+        return field
+    let actual_kind = json_kind_from_rendered(field.value)
+    if actual_kind != JSON_KIND_STRING:
+        return json_string_result_error(json_wrong_kind_status(key, JSON_KIND_STRING, actual_kind, -1))
+    return JsonStringResult {
+        ok: true,
+        value: json_get_string(object, key),
+        status: json_status_ok()
+    }
+
+pub fn json_int_field(object: JsonObject, key: String) -> JsonIntResult:
+    let field = json_field_rendered(object, key)
+    if field.ok == false:
+        return json_int_result_error(field.status)
+    let actual_kind = json_kind_from_rendered(field.value)
+    if actual_kind != JSON_KIND_INT:
+        return json_int_result_error(json_wrong_kind_status(key, JSON_KIND_INT, actual_kind, -1))
+    return JsonIntResult {
+        ok: true,
+        value: json_get_int(object, key),
+        status: json_status_ok()
+    }
+
+pub fn json_float_field(object: JsonObject, key: String) -> JsonFloatResult:
+    let field = json_field_rendered(object, key)
+    if field.ok == false:
+        return json_float_result_error(field.status)
+    let actual_kind = json_kind_from_rendered(field.value)
+    if actual_kind != JSON_KIND_FLOAT and actual_kind != JSON_KIND_INT:
+        return json_float_result_error(json_wrong_kind_status(key, JSON_KIND_FLOAT, actual_kind, -1))
+    return JsonFloatResult {
+        ok: true,
+        value: json_get_float(object, key),
+        status: json_status_ok()
+    }
+
+pub fn json_bool_field(object: JsonObject, key: String) -> JsonBoolResult:
+    let field = json_field_rendered(object, key)
+    if field.ok == false:
+        return json_bool_result_error(field.status)
+    let actual_kind = json_kind_from_rendered(field.value)
+    if actual_kind != JSON_KIND_BOOL:
+        return json_bool_result_error(json_wrong_kind_status(key, JSON_KIND_BOOL, actual_kind, -1))
+    return JsonBoolResult {
+        ok: true,
+        value: json_get_bool(object, key),
+        status: json_status_ok()
+    }
+
+pub fn json_object_field(object: JsonObject, key: String) -> JsonObjectResult:
+    let field = json_field_rendered(object, key)
+    if field.ok == false:
+        return json_object_result_error(field.status)
+    let actual_kind = json_kind_from_rendered(field.value)
+    if actual_kind != JSON_KIND_OBJECT:
+        return json_object_result_error(json_wrong_kind_status(key, JSON_KIND_OBJECT, actual_kind, -1))
+    return JsonObjectResult {
+        ok: true,
+        value: json_parse_text(field.value),
+        status: json_status_ok()
+    }
+
+pub fn json_array_field(object: JsonObject, key: String) -> JsonArrayResult:
+    let field = json_field_rendered(object, key)
+    if field.ok == false:
+        return json_array_result_error(field.status)
+    let actual_kind = json_kind_from_rendered(field.value)
+    if actual_kind != JSON_KIND_ARRAY:
+        return json_array_result_error(json_wrong_kind_status(key, JSON_KIND_ARRAY, actual_kind, -1))
+    return JsonArrayResult {
+        ok: true,
+        value: json_parse_text(field.value),
+        status: json_status_ok()
+    }
+
 pub fn json_object() -> JsonObject:
     return json_object_new()
 
@@ -144,6 +570,12 @@ pub fn json_object_set_float(object: JsonObject, key: String, value: Float) -> J
     return json_object_set_value(object, key, value)
 
 pub fn json_object_set_bool(object: JsonObject, key: String, value: Bool) -> JsonObject:
+    return json_object_set_value(object, key, value)
+
+pub fn json_object_set_object(object: JsonObject, key: String, value: JsonObject) -> JsonObject:
+    return json_object_set_value(object, key, value)
+
+pub fn json_object_set_array(object: JsonObject, key: String, value: JsonArray) -> JsonObject:
     return json_object_set_value(object, key, value)
 
 pub fn json_array() -> JsonArray:
@@ -165,6 +597,12 @@ pub fn json_array_push_float(array: JsonArray, value: Float) -> JsonArray:
 pub fn json_array_push_bool(array: JsonArray, value: Bool) -> JsonArray:
     return json_array_push_value(array, value)
 
+pub fn json_array_push_object(array: JsonArray, value: JsonObject) -> JsonArray:
+    return json_array_push_value(array, value)
+
+pub fn json_array_push_array(array: JsonArray, value: JsonArray) -> JsonArray:
+    return json_array_push_value(array, value)
+
 pub fn json_array_length(array: JsonArray) -> Int:
     return json_array_len(array)
 
@@ -175,14 +613,180 @@ pub fn json_string_array(values: JsonArray) -> Array<String>:
     let mut items: Array<String> = []
     var index = 0
     while index < json_array_length(values):
-        push(items, to_string(json_array_value_at(values, index)))
+        push(items, json_string_value(json_array_value_at(values, index)))
         index = index + 1
     return items
 
+pub fn json_int_array(values: JsonArray) -> Array<Int>:
+    let mut items: Array<Int> = []
+    var index = 0
+    while index < json_array_length(values):
+        push(items, json_int_value(json_array_value_at(values, index)))
+        index = index + 1
+    return items
+
+pub fn json_float_array(values: JsonArray) -> Array<Float>:
+    let mut items: Array<Float> = []
+    var index = 0
+    while index < json_array_length(values):
+        let value = json_array_value_at(values, index)
+        push(items, json_float_value(value, json_value_kind(value)))
+        index = index + 1
+    return items
+
+pub fn json_bool_array(values: JsonArray) -> Array<Bool>:
+    let mut items: Array<Bool> = []
+    var index = 0
+    while index < json_array_length(values):
+        push(items, json_bool_value(json_array_value_at(values, index)))
+        index = index + 1
+    return items
+
+pub fn json_string_array_result(values: JsonArray) -> JsonStringArrayResult:
+    if json_is_array(values) == false:
+        return json_string_array_result_error(json_wrong_kind_status("", JSON_KIND_ARRAY, json_value_kind(values), -1))
+    let mut items: Array<String> = []
+    var index = 0
+    while index < json_array_length(values):
+        let value = json_array_value_at(values, index)
+        let actual_kind = json_value_kind(value)
+        if actual_kind != JSON_KIND_STRING:
+            return json_string_array_result_error(json_wrong_kind_status("", JSON_KIND_STRING, actual_kind, index))
+        push(items, json_string_value(value))
+        index = index + 1
+    return JsonStringArrayResult {
+        ok: true,
+        value: items,
+        status: json_status_ok()
+    }
+
+pub fn json_int_array_result(values: JsonArray) -> JsonIntArrayResult:
+    if json_is_array(values) == false:
+        return json_int_array_result_error(json_wrong_kind_status("", JSON_KIND_ARRAY, json_value_kind(values), -1))
+    let mut items: Array<Int> = []
+    var index = 0
+    while index < json_array_length(values):
+        let value = json_array_value_at(values, index)
+        let actual_kind = json_value_kind(value)
+        if actual_kind != JSON_KIND_INT:
+            return json_int_array_result_error(json_wrong_kind_status("", JSON_KIND_INT, actual_kind, index))
+        push(items, json_int_value(value))
+        index = index + 1
+    return JsonIntArrayResult {
+        ok: true,
+        value: items,
+        status: json_status_ok()
+    }
+
+pub fn json_float_array_result(values: JsonArray) -> JsonFloatArrayResult:
+    if json_is_array(values) == false:
+        return json_float_array_result_error(json_wrong_kind_status("", JSON_KIND_ARRAY, json_value_kind(values), -1))
+    let mut items: Array<Float> = []
+    var index = 0
+    while index < json_array_length(values):
+        let value = json_array_value_at(values, index)
+        let actual_kind = json_value_kind(value)
+        if actual_kind != JSON_KIND_FLOAT and actual_kind != JSON_KIND_INT:
+            return json_float_array_result_error(json_wrong_kind_status("", JSON_KIND_FLOAT, actual_kind, index))
+        push(items, json_float_value(value, actual_kind))
+        index = index + 1
+    return JsonFloatArrayResult {
+        ok: true,
+        value: items,
+        status: json_status_ok()
+    }
+
+pub fn json_bool_array_result(values: JsonArray) -> JsonBoolArrayResult:
+    if json_is_array(values) == false:
+        return json_bool_array_result_error(json_wrong_kind_status("", JSON_KIND_ARRAY, json_value_kind(values), -1))
+    let mut items: Array<Bool> = []
+    var index = 0
+    while index < json_array_length(values):
+        let value = json_array_value_at(values, index)
+        let actual_kind = json_value_kind(value)
+        if actual_kind != JSON_KIND_BOOL:
+            return json_bool_array_result_error(json_wrong_kind_status("", JSON_KIND_BOOL, actual_kind, index))
+        push(items, json_bool_value(value))
+        index = index + 1
+    return JsonBoolArrayResult {
+        ok: true,
+        value: items,
+        status: json_status_ok()
+    }
+
 pub fn json_string_array_field(object: JsonObject, key: String) -> Array<String>:
-    if !json_has_key(object, key):
+    let array_result = json_array_field(object, key)
+    if array_result.ok == false:
         return []
-    return json_string_array(json_get_value(object, key))
+    return json_string_array(array_result.value)
+
+pub fn json_string_array_field_result(object: JsonObject, key: String) -> JsonStringArrayResult:
+    let array_result = json_array_field(object, key)
+    if array_result.ok == false:
+        return json_string_array_result_error(array_result.status)
+    return json_string_array_result(array_result.value)
+
+pub fn json_int_array_field_result(object: JsonObject, key: String) -> JsonIntArrayResult:
+    let array_result = json_array_field(object, key)
+    if array_result.ok == false:
+        return json_int_array_result_error(array_result.status)
+    return json_int_array_result(array_result.value)
+
+pub fn json_float_array_field_result(object: JsonObject, key: String) -> JsonFloatArrayResult:
+    let array_result = json_array_field(object, key)
+    if array_result.ok == false:
+        return json_float_array_result_error(array_result.status)
+    return json_float_array_result(array_result.value)
+
+pub fn json_bool_array_field_result(object: JsonObject, key: String) -> JsonBoolArrayResult:
+    let array_result = json_array_field(object, key)
+    if array_result.ok == false:
+        return json_bool_array_result_error(array_result.status)
+    return json_bool_array_result(array_result.value)
+
+pub fn json_array_from_strings(values: Array<String>) -> JsonArray:
+    let array = json_array()
+    var index = 0
+    while index < len(values):
+        let _pushed = json_array_push_string(array, values[index])
+        index = index + 1
+    return array
+
+pub fn json_array_from_ints(values: Array<Int>) -> JsonArray:
+    let array = json_array()
+    var index = 0
+    while index < len(values):
+        let _pushed = json_array_push_int(array, values[index])
+        index = index + 1
+    return array
+
+pub fn json_array_from_floats(values: Array<Float>) -> JsonArray:
+    let array = json_array()
+    var index = 0
+    while index < len(values):
+        let _pushed = json_array_push_float(array, values[index])
+        index = index + 1
+    return array
+
+pub fn json_array_from_bools(values: Array<Bool>) -> JsonArray:
+    let array = json_array()
+    var index = 0
+    while index < len(values):
+        let _pushed = json_array_push_bool(array, values[index])
+        index = index + 1
+    return array
+
+pub fn json_object_set_string_array(object: JsonObject, key: String, values: Array<String>) -> JsonObject:
+    return json_object_set_array(object, key, json_array_from_strings(values))
+
+pub fn json_object_set_int_array(object: JsonObject, key: String, values: Array<Int>) -> JsonObject:
+    return json_object_set_array(object, key, json_array_from_ints(values))
+
+pub fn json_object_set_float_array(object: JsonObject, key: String, values: Array<Float>) -> JsonObject:
+    return json_object_set_array(object, key, json_array_from_floats(values))
+
+pub fn json_object_set_bool_array(object: JsonObject, key: String, values: Array<Bool>) -> JsonObject:
+    return json_object_set_array(object, key, json_array_from_bools(values))
 
 pub fn json_object_with_string(key: String, value: String) -> JsonObject:
     return json_object_set_string(json_object(), key, value)
@@ -190,8 +794,23 @@ pub fn json_object_with_string(key: String, value: String) -> JsonObject:
 pub fn json_object_with_int(key: String, value: Int) -> JsonObject:
     return json_object_set_int(json_object(), key, value)
 
+pub fn json_object_with_float(key: String, value: Float) -> JsonObject:
+    return json_object_set_float(json_object(), key, value)
+
 pub fn json_object_with_bool(key: String, value: Bool) -> JsonObject:
     return json_object_set_bool(json_object(), key, value)
+
+pub fn json_object_with_array(key: String, value: JsonArray) -> JsonObject:
+    return json_object_set_array(json_object(), key, value)
+
+pub fn json_object_with_object(key: String, value: JsonObject) -> JsonObject:
+    return json_object_set_object(json_object(), key, value)
+
+pub fn json_fmt_writer_push_value(writer: FmtWriter, value: JsonValue) -> FmtWriter:
+    return fmt_writer_push_string(writer, json_stringify(value))
+
+pub fn json_string_builder_push_value(builder: ptr<StringBuilder>, value: JsonValue) -> Int with Unsafe:
+    return string_builder_append_string(builder, json_stringify(value))
 
 pub fn json_scan(text: String) -> Array<JsonToken>:
     let mut tokens: Array<JsonToken> = []
@@ -264,3 +883,86 @@ pub fn json_scan_significant(text: String) -> Array<JsonToken>:
             push(significant, tokens[index])
         index = index + 1
     return significant
+
+pub fn json_scan_report(text: String) -> JsonScanReport:
+    let tokens = json_scan_significant(text)
+    if len(tokens) == 0:
+        return JsonScanReport {
+            ok: false,
+            code: JSON_STATUS_SCAN_EMPTY_INPUT,
+            token_index: -1,
+            balance_objects: 0,
+            balance_arrays: 0,
+            message: "empty input is not valid json"
+        }
+    var object_balance = 0
+    var array_balance = 0
+    var index = 0
+    while index < len(tokens):
+        let token = tokens[index]
+        if token.kind == JSON_TOKEN_UNKNOWN:
+            return JsonScanReport {
+                ok: false,
+                code: JSON_STATUS_SCAN_UNKNOWN_TOKEN,
+                token_index: index,
+                balance_objects: object_balance,
+                balance_arrays: array_balance,
+                message: "unexpected token `" + token.lexeme + "`"
+            }
+        if token.kind == JSON_TOKEN_STRING:
+            if token.length < 2 or char_at(token.lexeme, token.length - 1) != "\"":
+                return JsonScanReport {
+                    ok: false,
+                    code: JSON_STATUS_SCAN_UNTERMINATED_STRING,
+                    token_index: index,
+                    balance_objects: object_balance,
+                    balance_arrays: array_balance,
+                    message: "unterminated string literal"
+                }
+        if token.kind == JSON_TOKEN_LBRACE:
+            object_balance = object_balance + 1
+        else:
+            if token.kind == JSON_TOKEN_RBRACE:
+                object_balance = object_balance - 1
+                if object_balance < 0:
+                    return JsonScanReport {
+                        ok: false,
+                        code: JSON_STATUS_SCAN_UNBALANCED_DELIMITER,
+                        token_index: index,
+                        balance_objects: object_balance,
+                        balance_arrays: array_balance,
+                        message: "closing object delimiter without matching opening brace"
+                    }
+            else:
+                if token.kind == JSON_TOKEN_LBRACKET:
+                    array_balance = array_balance + 1
+                else:
+                    if token.kind == JSON_TOKEN_RBRACKET:
+                        array_balance = array_balance - 1
+                        if array_balance < 0:
+                            return JsonScanReport {
+                                ok: false,
+                                code: JSON_STATUS_SCAN_UNBALANCED_DELIMITER,
+                                token_index: index,
+                                balance_objects: object_balance,
+                                balance_arrays: array_balance,
+                                message: "closing array delimiter without matching opening bracket"
+                            }
+        index = index + 1
+    if object_balance != 0 or array_balance != 0:
+        return JsonScanReport {
+            ok: false,
+            code: JSON_STATUS_SCAN_UNBALANCED_DELIMITER,
+            token_index: len(tokens) - 1,
+            balance_objects: object_balance,
+            balance_arrays: array_balance,
+            message: "json delimiters were not balanced"
+        }
+    return JsonScanReport {
+        ok: true,
+        code: JSON_STATUS_OK,
+        token_index: -1,
+        balance_objects: 0,
+        balance_arrays: 0,
+        message: ""
+    }

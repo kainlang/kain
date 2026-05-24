@@ -1,10 +1,11 @@
 use std::bytes
 use std::ascii
 use std::fmt
+use std::io
 use std::runtime
 use std::text
 
-pub fn smoke_text_lane() -> Int:
+pub fn smoke_text_lane() -> Int with Unsafe:
     let wire = text_trim(text_slice("  zero-copy  ", 2, 11))
     if text_len(wire) <= 0:
         return 1
@@ -58,4 +59,21 @@ pub fn smoke_text_lane() -> Int:
     writer = fmt_writer_push_json_string(writer, "ok")
     if fmt_writer_build(writer) != "lane=text \"ok\"":
         return 18
+    var spec = fmt_spec_default()
+    spec = fmt_spec_base(spec, FMT_BASE_HEX)
+    spec = fmt_spec_prefix(spec, "0x")
+    spec = fmt_spec_width(spec, 6)
+    spec = fmt_spec_pad(spec, "0")
+    if fmt_int_spec(31, spec) != "000x1f":
+        return 19
+    let bool_spec = fmt_spec_bool_style(fmt_spec_uppercase(fmt_spec_prefix(fmt_spec_default(), "flag="), true), FMT_BOOL_STYLE_WORD)
+    if fmt_bool_spec(true, bool_spec) != "flag=TRUE":
+        return 20
+    let sb = string_builder_new(8)
+    let sb_ptr: ptr<StringBuilder> = addr_of(sb, "StringBuilder")
+    let _fmt_push_a = fmt_string_builder_push_string(sb_ptr, "id=")
+    let _fmt_push_b = fmt_string_builder_push_int_spec(sb_ptr, 7, fmt_spec_plus(fmt_spec_default(), true))
+    if string_builder_to_string(sb) != "id=+7":
+        return 21
+    string_builder_destroy(sb)
     return 0

@@ -11,6 +11,7 @@ pub mod diagnostics;
 pub mod effects;
 pub mod error;
 pub mod formatter;
+pub mod install_layout;
 pub mod language_features;
 pub mod lexer;
 pub mod low_level_abi;

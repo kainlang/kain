@@ -1,0 +1,28 @@
+{
+  "input_path": "benchmark/cases/rust_import_tokio_pathmesh/src/main.rs",
+  "output_path": "benchmark/cases/rust_import_tokio_pathmesh/main.kn",
+  "target": null,
+  "recursive": true,
+  "flat": false,
+  "include_filters": [],
+  "exclude_filters": [],
+  "discovered_files": 1,
+  "imported_files": 1,
+  "skipped_files": 0,
+  "failed_files": [],
+  "lossy_diagnostics": [
+    {
+      "file": "benchmark/cases/rust_import_tokio_pathmesh/src/main.rs",
+      "module_path": "module",
+      "diagnostics": [
+        "namespaced Rust attribute tokio::main omitted from imported KAIN surface"
+      ],
+      "diagnostic_classes": {},
+      "repair_hint": "search these class markers in the generated .kn or import report; they point at the lowered seam"
+    }
+  ],
+  "diagnostics_by_class": {},
+  "generated_kain_path": "benchmark/cases/rust_import_tokio_pathmesh/main.kn",
+  "compiled_output_path": null,
+  "generated_at_utc": "2026-05-24T03:15:44.513164300+00:00"
+}

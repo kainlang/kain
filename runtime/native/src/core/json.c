@@ -830,6 +830,13 @@ int64_t json_box_float(double value) {
     return json_handle_from_value(json_value_float(value));
 }
 
+void json_retain(int64_t value) {
+    KainJsonValue* json = json_registered_handle(value);
+    if (json) {
+        rc_retain(json);
+    }
+}
+
 void json_release(int64_t value) {
     KainJsonValue* json = json_registered_handle(value);
     if (json) {

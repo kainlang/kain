@@ -62,6 +62,10 @@ use thread_lane::smoke_thread_lane
 use c_bridge::smoke_c_bridge_lane
 use c_abi_album::smoke_c_abi_album_lane
 
+// UI track
+use dashboard::smoke_ui_album_lane
+use presenter::smoke_opengl_album_lane
+
 // Telemetry tracks
 use report::smoke_telemetry_mode
 use report::smoke_telemetry_prepare
@@ -131,7 +135,7 @@ fn smoke_run_full_album(mode: String) -> Int with Unsafe:
         return 10 + boot
 
     let started_ms = now_millis()
-    let total_tracks: Int = 52
+    let total_tracks: Int = 54
     var succeeded_tracks: Int = 0
     var composition_checksum: Int = 0
 
@@ -601,6 +605,24 @@ fn smoke_run_full_album(mode: String) -> Int with Unsafe:
     let e_process = smoke_first_error(4900, lane_process)
     if e_process != 0:
         return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_process, "stdlib.process_lane")
+    succeeded_tracks = succeeded_tracks + 1
+
+    let started_ui_dashboard = now_millis()
+    let ui_snapshot = smoke_ui_album_lane(mode, total_tracks, succeeded_tracks + 1, composition_checksum)
+    let ended_ui_dashboard = now_millis()
+    composition_checksum = smoke_record_track(mode, "ui", "ui.album_dashboard", "album_dashboard", 53, 5000, ui_snapshot.status, started_ui_dashboard, ended_ui_dashboard, composition_checksum)
+    let e_ui_dashboard = smoke_first_error(5000, ui_snapshot.status)
+    if e_ui_dashboard != 0:
+        return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_ui_dashboard, "ui.album_dashboard")
+    succeeded_tracks = succeeded_tracks + 1
+
+    let started_ui_presenter = now_millis()
+    let lane_ui_presenter = smoke_opengl_album_lane(mode, total_tracks, succeeded_tracks + 1, composition_checksum, ui_snapshot)
+    let ended_ui_presenter = now_millis()
+    composition_checksum = smoke_record_track(mode, "ui", "ui.opengl_album", "opengl_album", 54, 5100, lane_ui_presenter, started_ui_presenter, ended_ui_presenter, composition_checksum)
+    let e_ui_presenter = smoke_first_error(5100, lane_ui_presenter)
+    if e_ui_presenter != 0:
+        return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_ui_presenter, "ui.opengl_album")
     succeeded_tracks = succeeded_tracks + 1
 
     let shape_ok = converge_mismatch_count() == 0 and runtime_heap_validate() >= 0 and patch_journal_count() >= 1 and entangle_propagation_count() >= 1 and runtime_converge_telemetry_count() >= 1

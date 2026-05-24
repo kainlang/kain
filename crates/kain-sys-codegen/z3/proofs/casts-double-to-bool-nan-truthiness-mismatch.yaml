@@ -1,0 +1,40 @@
+version: 1
+id: kain.sys.codegen.llvm.proofs.casts_double_to_bool_nan_truthiness_mismatch
+kind: check_smt2
+description: LLVM double -> bool lowering uses ordered non-zero comparison (`fcmp
+  one`) while the interpreter/runtime truthiness path uses `number != 0.0`, so NaN
+  becomes false in LLVM but true in Kain semantic truth.
+tags:
+- llvm
+- casts
+- float
+- bool
+- nan
+- truthiness
+- miscompile
+source:
+  path: D:\Kain-Lang\crates\kain-sys-codegen\src\codegen_llvm\mod.rs
+  symbol: cast_numeric_value
+  start_line: 8776
+  reason: double -> i1 lowering emits `fcmp one double value, 0.0` in the shared numeric
+    cast helper used by LLVM codegen
+case:
+  smt2: '(set-logic QF_FP)
+
+    (declare-const x (_ FloatingPoint 11 53))
+
+    (define-fun zero () (_ FloatingPoint 11 53) (_ +zero 11 53))
+
+    (define-fun runtime_truthy () Bool (not (fp.eq x zero)))
+
+    (define-fun llvm_truthy () Bool (and (not (fp.isNaN x)) (not (fp.eq x zero))))
+
+    (assert (xor runtime_truthy llvm_truthy))
+
+    (check-sat)
+
+    (get-model)
+
+    '
+  include_model: true
+  include_stats: false

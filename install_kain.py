@@ -26,9 +26,16 @@ class PackageManagerPlan:
 @dataclass(frozen=True)
 class InstallContext:
     repo_root: Path
+    kain_home: Path
+    kain_bin_dir: Path
+    stdlib_dir: Path
+    runtime_dir: Path
     toolchain_bin: Path
     generated_dir: Path
-    cargo_bin_dir: Path
+    packages_dir: Path
+    tooling_dir: Path
+    cache_dir: Path
+    install_manifest_path: Path
     system_name: str
     is_windows: bool
     is_macos: bool
@@ -41,13 +48,17 @@ class InstallContext:
 
 
 WINDOWS_BUNDLE_PATTERNS = (
-    "clang*.exe",
-    "clang*.dll",
-    "lld*.exe",
-    "lld*.dll",
-    "llvm*.exe",
-    "llvm*.dll",
-    "libclang*.dll",
+    "clang.exe",
+    "clang++.exe",
+    "lld.exe",
+    "lld-link.exe",
+    "llvm-ar.exe",
+    "llvm-lib.exe",
+    "llvm-ranlib.exe",
+    "llvm-mt.exe",
+    "llvm-rc.exe",
+    "LLVM-C.dll",
+    "libclang.dll",
     "libomp*.dll",
     "zlib1.dll",
 )
@@ -99,18 +110,23 @@ MACOS_PACKAGE_MANAGERS = (
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Install Kain from this repo, bundle clang into toolchain/llvm/bin, "
-            "and emit shell activation scripts for the current checkout."
+            "Install Kain from this repo into a self-contained Kain home bundle "
+            "with stdlib, runtime assets, and a bundled LLVM toolchain."
         )
     )
     parser.add_argument("--skip-build", action="store_true", help="Skip `cargo build --release -p cli`.")
     parser.add_argument(
         "--skip-binary-install",
         action="store_true",
-        help="Skip copying `kain` and `kn` into the cargo bin directory.",
+        help="Skip copying CLI binaries into the managed Kain user bin.",
     )
     parser.add_argument("--dry-run", action="store_true", help="Print planned actions without mutating the repo.")
     parser.add_argument("--clang-path", type=Path, help="Use this clang executable instead of auto-discovery.")
+    parser.add_argument(
+        "--kain-home",
+        type=Path,
+        help="Install into this Kain home directory instead of the default ~/.kain.",
+    )
     parser.add_argument(
         "--python-path",
         type=Path,
@@ -122,12 +138,20 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
     repo_root = Path(__file__).resolve().parent
+    kain_home = resolve_kain_home_dir(args.kain_home)
     system_name = platform.system().lower()
     context = InstallContext(
         repo_root=repo_root,
-        toolchain_bin=repo_root / "toolchain" / "llvm" / "bin",
-        generated_dir=repo_root / "generated",
-        cargo_bin_dir=resolve_cargo_bin_dir(),
+        kain_home=kain_home,
+        kain_bin_dir=kain_home / "bin",
+        stdlib_dir=kain_home / "stdlib",
+        runtime_dir=kain_home / "runtime",
+        toolchain_bin=kain_home / "toolchain" / "llvm" / "bin",
+        generated_dir=kain_home / "generated",
+        packages_dir=kain_home / "packages",
+        tooling_dir=kain_home / "tooling",
+        cache_dir=kain_home / "cache",
+        install_manifest_path=kain_home / "install_manifest.json",
         system_name=system_name,
         is_windows=system_name == "windows",
         is_macos=system_name == "darwin",
@@ -146,9 +170,12 @@ def main() -> int:
         bundled_clang_path = bundle_clang_into_repo(context, clang_path)
         python_path = resolve_python_path(context)
         build_cli(context, bundled_clang_path, python_path)
-        install_cli_binaries(context)
+        install_bundle_resources(context)
+        installed_binaries = install_cli_binaries(context)
         resource_map = build_resource_map(context, bundled_clang_path, python_path)
+        ensure_user_bin_on_path(context)
         write_activation_scripts(context, resource_map)
+        write_install_manifest(context, bundled_clang_path, python_path, resource_map, installed_binaries)
         print_summary(context, bundled_clang_path, python_path, resource_map)
         return 0
     except subprocess.CalledProcessError as err:
@@ -167,8 +194,11 @@ def print_banner(context: InstallContext) -> None:
     print("Kain Universal Installer")
     print("=" * 76)
     print(f"Repo root      : {context.repo_root}")
+    print(f"Kain home      : {context.kain_home}")
+    print(f"Kain user bin  : {context.kain_bin_dir}")
+    print(f"Stdlib dir     : {context.stdlib_dir}")
+    print(f"Runtime dir    : {context.runtime_dir}")
     print(f"Platform       : {context.system_name}")
-    print(f"Cargo bin dir  : {context.cargo_bin_dir}")
     print(f"Toolchain bin  : {context.toolchain_bin}")
     print()
 
@@ -180,11 +210,13 @@ def normalize_existing_path(path: Path | None) -> Path | None:
     return resolved if resolved.exists() else None
 
 
-def resolve_cargo_bin_dir() -> Path:
-    cargo_home = os.environ.get("CARGO_HOME")
-    if cargo_home:
-        return Path(cargo_home).expanduser() / "bin"
-    return Path.home() / ".cargo" / "bin"
+def resolve_kain_home_dir(explicit_home: Path | None) -> Path:
+    if explicit_home is not None:
+        return explicit_home.expanduser()
+    env_home = os.environ.get("KAIN_HOME")
+    if env_home:
+        return Path(env_home).expanduser()
+    return Path.home() / ".kain"
 
 
 def command_exists(name: str) -> bool:
@@ -219,7 +251,7 @@ def resolve_or_install_clang(context: InstallContext) -> Path:
         print(f"[ok] clang -> {clang_path}")
         return clang_path
 
-    print("[info] clang not found in repo toolchain or common system locations")
+    print("[info] clang not found in the managed toolchain or common system locations")
     install_llvm_with_package_manager(context)
     clang_path = resolve_clang_path(context)
     if clang_path is None:
@@ -441,7 +473,7 @@ def write_bundle_manifest(
     bundled_files: list[Path],
     strategy: str,
 ) -> None:
-    manifest_path = context.repo_root / "toolchain" / "llvm" / "kain_bundle_manifest.json"
+    manifest_path = context.toolchain_bin.parent / "kain_bundle_manifest.json"
     payload = {
         "schema_version": 1,
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
@@ -489,17 +521,48 @@ def build_cli(context: InstallContext, bundled_clang_path: Path, python_path: Pa
     run_command(["cargo", "build", "--release", "-p", "cli"], context=context, env_overrides=env_overrides)
 
 
-def install_cli_binaries(context: InstallContext) -> None:
-    if context.skip_binary_install:
-        print("[skip] install kain and kn binaries")
-        return
+def install_bundle_resources(context: InstallContext) -> None:
+    ensure_standard_home_directories(context)
+    sync_directory(context, context.repo_root / "stdlib", context.stdlib_dir)
+    sync_directory(context, context.repo_root / "runtime", context.runtime_dir)
 
-    install_dir = context.cargo_bin_dir
+
+def ensure_standard_home_directories(context: InstallContext) -> None:
+    for path in (
+        context.kain_home,
+        context.kain_bin_dir,
+        context.generated_dir,
+        context.packages_dir,
+        context.tooling_dir,
+        context.cache_dir,
+        context.toolchain_bin,
+    ):
+        print(f"[mkdir] {path}")
+        if not context.dry_run:
+            path.mkdir(parents=True, exist_ok=True)
+
+
+def sync_directory(context: InstallContext, source: Path, destination: Path) -> None:
+    print(f"[sync] {source} -> {destination}")
+    if context.dry_run:
+        return
+    if destination.exists():
+        shutil.rmtree(destination)
+    shutil.copytree(source, destination)
+
+
+def install_cli_binaries(context: InstallContext) -> list[Path]:
+    if context.skip_binary_install:
+        print("[skip] install kain, kn, and blade binaries")
+        return []
+
+    install_dir = context.kain_bin_dir
     if not context.dry_run:
         install_dir.mkdir(parents=True, exist_ok=True)
 
+    installed_binaries: list[Path] = []
     extension = ".exe" if context.is_windows else ""
-    for name in ("kain", "kn"):
+    for name in ("kain", "kn", "blade"):
         source = context.repo_root / "target" / "release" / f"{name}{extension}"
         if not source.exists():
             raise RuntimeError(
@@ -509,6 +572,8 @@ def install_cli_binaries(context: InstallContext) -> None:
         print(f"[install] {source} -> {destination}")
         if not context.dry_run:
             shutil.copy2(source, destination)
+        installed_binaries.append(destination)
+    return installed_binaries
 
 
 def build_resource_map(
@@ -517,14 +582,83 @@ def build_resource_map(
     python_path: Path | None,
 ) -> dict[str, str]:
     resource_map = {
-        "KAIN_STDLIB_PATH": str(context.repo_root / "stdlib"),
-        "KAIN_RUNTIME_C_PATH": str(context.repo_root / "runtime" / "kain_runtime.c"),
-        "KAIN_RUNTIME_MANIFEST_PATH": str(context.repo_root / "runtime" / "native_core_runtime.toml"),
+        "KAIN_HOME": str(context.kain_home),
+        "KAIN_STDLIB_PATH": str(context.stdlib_dir),
+        "KAIN_RUNTIME_C_PATH": str(context.runtime_dir / "runtime.c"),
+        "KAIN_RUNTIME_MANIFEST_PATH": str(context.runtime_dir / "native_core_runtime.toml"),
         "KAIN_CLANG_PATH": str(bundled_clang_path),
     }
     if python_path is not None:
         resource_map["PYO3_PYTHON"] = str(python_path)
     return resource_map
+
+
+def ensure_user_bin_on_path(context: InstallContext) -> None:
+    if not context.is_windows:
+        return
+    update_windows_user_path(context, context.kain_bin_dir)
+
+
+def update_windows_user_path(context: InstallContext, entry: Path) -> None:
+    try:
+        import ctypes
+        import winreg
+    except ImportError:
+        print(f"[warn] unable to import winreg; add {entry} to PATH manually")
+        return
+
+    entry_text = str(entry)
+    if context.dry_run:
+        print(f"[path] add {entry} to HKCU\\Environment\\Path")
+        return
+
+    with winreg.OpenKey(
+        winreg.HKEY_CURRENT_USER,
+        "Environment",
+        0,
+        winreg.KEY_READ | winreg.KEY_WRITE,
+    ) as key:
+        try:
+            current_value, value_type = winreg.QueryValueEx(key, "Path")
+        except FileNotFoundError:
+            current_value, value_type = "", winreg.REG_EXPAND_SZ
+
+        path_entries = [part.strip() for part in str(current_value).split(";") if part.strip()]
+        normalized_entry = os.path.normcase(os.path.normpath(entry_text))
+        if any(os.path.normcase(os.path.normpath(part)) == normalized_entry for part in path_entries):
+            print(f"[path] {entry} already present in HKCU\\Environment\\Path")
+            return
+
+        updated_entries = path_entries + [entry_text]
+        updated_value = ";".join(updated_entries)
+        print(f"[path] add {entry} to HKCU\\Environment\\Path")
+        winreg.SetValueEx(
+            key,
+            "Path",
+            0,
+            value_type if value_type in (winreg.REG_SZ, winreg.REG_EXPAND_SZ) else winreg.REG_EXPAND_SZ,
+            updated_value,
+        )
+
+    broadcast_environment_refresh(ctypes)
+
+
+def broadcast_environment_refresh(ctypes_module: object) -> None:
+    try:
+        hwnd_broadcast = 0xFFFF
+        wm_settingchange = 0x001A
+        send_timeout_abort = 0x0002
+        ctypes_module.windll.user32.SendMessageTimeoutW(
+            hwnd_broadcast,
+            wm_settingchange,
+            0,
+            "Environment",
+            send_timeout_abort,
+            5000,
+            None,
+        )
+    except Exception:
+        return
 
 
 def write_activation_scripts(context: InstallContext, resource_map: dict[str, str]) -> None:
@@ -533,13 +667,13 @@ def write_activation_scripts(context: InstallContext, resource_map: dict[str, st
     shell_path = context.generated_dir / "kain-env.sh"
     powershell_path = context.generated_dir / "kain-env.ps1"
 
-    unix_lines = ["#!/usr/bin/env bash", f'export PATH="{context.cargo_bin_dir}:{context.toolchain_bin}:$PATH"']
+    unix_lines = ["#!/usr/bin/env bash", f'export PATH="{context.kain_bin_dir}:$PATH"']
     unix_lines.extend(
         f'export {name}="{shell_escape_path(value)}"' for name, value in resource_map.items()
     )
 
     path_separator = ";" if context.is_windows else os.pathsep
-    ps_lines = [f'$env:PATH = "{context.cargo_bin_dir}{path_separator}{context.toolchain_bin}{path_separator}$env:PATH"']
+    ps_lines = [f'$env:PATH = "{context.kain_bin_dir}{path_separator}$env:PATH"']
     ps_lines.extend(f'$env:{name} = "{value}"' for name, value in resource_map.items())
 
     write_text_file(context, shell_path, "\n".join(unix_lines) + "\n", make_executable=True)
@@ -566,6 +700,38 @@ def write_text_file(
         path.chmod(path.stat().st_mode | 0o111)
 
 
+def write_install_manifest(
+    context: InstallContext,
+    bundled_clang_path: Path,
+    python_path: Path | None,
+    resource_map: dict[str, str],
+    installed_binaries: list[Path],
+) -> None:
+    payload = {
+        "schema_version": 1,
+        "generated_at_utc": datetime.now(timezone.utc).isoformat(),
+        "platform": context.system_name,
+        "repo_root": str(context.repo_root),
+        "kain_home": str(context.kain_home),
+        "bin_dir": str(context.kain_bin_dir),
+        "stdlib_dir": str(context.stdlib_dir),
+        "runtime_dir": str(context.runtime_dir),
+        "toolchain_bin": str(context.toolchain_bin),
+        "packages_dir": str(context.packages_dir),
+        "tooling_dir": str(context.tooling_dir),
+        "cache_dir": str(context.cache_dir),
+        "bundled_clang": str(bundled_clang_path),
+        "python": str(python_path) if python_path is not None else None,
+        "binaries": [str(path) for path in installed_binaries],
+        "resource_env": resource_map,
+    }
+    print(f"[write] {context.install_manifest_path}")
+    if context.dry_run:
+        return
+    context.install_manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    context.install_manifest_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+
+
 def print_summary(
     context: InstallContext,
     bundled_clang_path: Path,
@@ -578,20 +744,25 @@ def print_summary(
     print("=" * 76)
     print("Kain installer completed")
     print("=" * 76)
+    print(f"Kain home     : {context.kain_home}")
+    print(f"Kain user bin : {context.kain_bin_dir}")
     print(f"Bundled clang : {bundled_clang_path}")
     print(f"Python        : {python_path if python_path is not None else 'not set'}")
-    print(f"Cargo bin     : {context.cargo_bin_dir}")
+    print(f"Stdlib        : {context.stdlib_dir}")
+    print(f"Runtime       : {context.runtime_dir}")
+    print(f"Manifest      : {context.install_manifest_path}")
     print()
     for name, value in resource_map.items():
         print(f"{name}={value}")
     print()
     print("Next steps:")
     if context.is_windows:
-        print(f'  PowerShell: . "{powershell_activation}"')
-        print(f"  Then run : kain doctor")
+        print(f'  Current shell: . "{powershell_activation}"')
+        print("  New shell    : open a fresh PowerShell or cmd session")
+        print("  Then run     : kain doctor")
     else:
-        print(f"  Bash/Zsh : source {shell_activation}")
-        print("  Then run : kain doctor")
+        print(f"  Bash/Zsh: source {shell_activation}")
+        print("  Then run: kain doctor")
     print()
 
 

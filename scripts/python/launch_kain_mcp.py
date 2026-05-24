@@ -309,7 +309,7 @@ def compute_runtime_stamp(repo_root: Path, sync_policy: dict) -> str:
     normalized_files = [str(item) for item in runtime_files if isinstance(item, str) and item.strip()]
     if not normalized_files:
         normalized_files = [
-            "runtime/kain_runtime.c",
+            "runtime/runtime.c",
             "runtime/native_core_runtime.toml",
             "blades/kain-mcp/config/runtime_policy.json",
         ]

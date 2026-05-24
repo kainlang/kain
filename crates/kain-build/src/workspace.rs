@@ -319,6 +319,7 @@ enum BuildTaskAdapter {
         header: PathBuf,
         include_paths: Vec<PathBuf>,
         defines: Vec<String>,
+        link_libs: Vec<String>,
         cpp_options: Vec<String>,
         canonical_output: PathBuf,
         materialized_output: Option<PathBuf>,
@@ -1960,6 +1961,7 @@ fn add_c_tasks(
                 header: library.header.clone(),
                 include_paths: library.include_paths.clone(),
                 defines: library.defines.clone(),
+                link_libs: library.link_libs.clone(),
                 cpp_options: library.cpp_options.clone(),
                 canonical_output,
                 materialized_output: Some(materialized_output.clone()),
@@ -2312,6 +2314,7 @@ fn build_explicit_task(
                 header,
                 include_paths: Vec::new(),
                 defines: Vec::new(),
+                link_libs: Vec::new(),
                 cpp_options: task.args.clone(),
                 canonical_output,
                 materialized_output: None,
@@ -2892,6 +2895,7 @@ fn execute_task(
             header,
             include_paths,
             defines,
+            link_libs,
             cpp_options,
             canonical_output,
             materialized_output,
@@ -2902,6 +2906,7 @@ fn execute_task(
             header,
             include_paths,
             defines,
+            link_libs,
             cpp_options,
             canonical_output,
             materialized_output.as_ref(),
@@ -3872,6 +3877,7 @@ fn run_c_shared_library(
     header: &Path,
     include_paths: &[PathBuf],
     defines: &[String],
+    link_libs: &[String],
     cpp_options: &[String],
     canonical_output: &Path,
     materialized_output: Option<&PathBuf>,
@@ -3904,6 +3910,9 @@ fn run_c_shared_library(
     }
     for source in sources {
         command.arg(source);
+    }
+    for link_lib in link_libs {
+        command.arg(format!("-l{link_lib}"));
     }
     command.arg("-o").arg(canonical_output);
     command.stdout(Stdio::piped()).stderr(Stdio::piped());
@@ -5015,19 +5024,11 @@ fn with_file_name_suffix(base: &Path, suffix: &str, extension: &str) -> PathBuf 
 }
 
 fn find_clang(workspace_root: &Path) -> BuildResult<PathBuf> {
-    if let Ok(path) = std::env::var("KAIN_CLANG_PATH") {
-        let candidate = PathBuf::from(path);
-        if candidate.exists() {
-            return Ok(candidate);
-        }
+    if let Some(candidate) = kain_core::install_layout::resolve_bundled_clang_path() {
+        return Ok(candidate);
     }
     for ancestor in workspace_root.ancestors() {
-        for relative in [
-            "toolchain/llvm/bin/clang.exe",
-            "toolchain/llvm/bin/clang",
-            "third_party/llvm/bin/clang.exe",
-            "third_party/llvm/bin/clang",
-        ] {
+        for relative in ["toolchain/llvm/bin/clang.exe", "toolchain/llvm/bin/clang"] {
             let candidate = ancestor.join(relative);
             if candidate.exists() {
                 return Ok(candidate);
@@ -5526,6 +5527,77 @@ fn build(ctx: BuildContext) -> BuildGraph:
             ]
         );
         assert_eq!(by_id["bun-ish"].kind, "bun");
+    }
+
+    #[test]
+    fn auto_c_sidecar_tasks_keep_manifest_link_libs() {
+        let workspace_root = PathBuf::from("D:/Kain-Lang/smoketest");
+        let config = BuildWorkspaceConfig {
+            workspace_root: workspace_root.clone(),
+            artifact_root: workspace_root.join(".kain/out/llvm"),
+            cache_root: workspace_root.join(".kain/cache/build"),
+            report_root: workspace_root.join(".kain/reports/build"),
+            host: "x86_64-windows".to_string(),
+            lane: BuildLane::Dev,
+            profile: "debug".to_string(),
+            target: "x86_64-windows".to_string(),
+        };
+        let blade = ResolvedBlade {
+            name: "smoketest".to_string(),
+            version: Some("0.1.0".to_string()),
+            kind: "kain_app".to_string(),
+            root: workspace_root.clone(),
+            manifest_path: Some(workspace_root.join("KAIN.toml")),
+            kain_manifest: None,
+            cargo_manifest: None,
+            rust_crate_name: None,
+            fabric_manifest: None,
+            entry: Some(workspace_root.join("src/main.kn")),
+            source_roots: vec![workspace_root.join("src")],
+            module_roots: vec![workspace_root.join("src")],
+            build_targets: vec!["llvm".to_string()],
+            dependencies: Vec::new(),
+            artifacts: BTreeMap::new(),
+            c_ffi_libraries: vec![ResolvedCffiLibrary {
+                name: "smoketest_visualizer_bridge".to_string(),
+                header: workspace_root.join("native/smoketest_visualizer_bridge.h"),
+                sources: vec![workspace_root.join("native/smoketest_visualizer_bridge.c")],
+                shared_lib: Some(workspace_root.join(".kain/native/smoketest_visualizer_bridge.obj")),
+                include_paths: vec![workspace_root.join("native")],
+                defines: vec!["_CRT_SECURE_NO_WARNINGS".to_string()],
+                link_libs: vec![
+                    "user32".to_string(),
+                    "gdi32".to_string(),
+                    "opengl32".to_string(),
+                ],
+                cpp_options: Vec::new(),
+            }],
+            gpu_shader_sources: Vec::new(),
+            gpu_shader_roots: Vec::new(),
+            compute_keys: Vec::new(),
+            discovery_source: "unit-test".to_string(),
+        };
+
+        let mut tasks = Vec::new();
+        let mut sidecar_task_ids = Vec::new();
+        add_c_tasks(&mut tasks, &mut sidecar_task_ids, &config, &blade).unwrap();
+
+        assert_eq!(
+            sidecar_task_ids,
+            vec!["c:smoketest:smoketest_visualizer_bridge".to_string()]
+        );
+        let adapter = &tasks[0].adapter;
+        match adapter {
+            BuildTaskAdapter::CSharedLibrary { link_libs, .. } => assert_eq!(
+                link_libs,
+                &vec![
+                    "user32".to_string(),
+                    "gdi32".to_string(),
+                    "opengl32".to_string(),
+                ]
+            ),
+            other => panic!("unexpected adapter: {other:?}"),
+        }
     }
 
     #[test]

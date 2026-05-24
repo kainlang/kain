@@ -1,0 +1,44 @@
+version: 1
+id: kain.core.proofs.control_float_exact_equality_aligns_with_compiled_ieee_semantics
+kind: check_smt2
+description: Kain runtime float `==` / `!=` now use exact IEEE comparison so the
+  interpreter matches the compiled LLVM/C/C++/Rust lane shape, including `NaN`
+  behavior.
+tags:
+- runtime
+- float
+- equality
+- ieee
+- semantics
+- interpreter
+source:
+  path: D:\Kain-Lang\crates\kain-core\src\runtime.rs
+  symbol: eval_binop
+  start_line: 8033
+  reason: float equality and inequality now use exact IEEE semantics in the runtime
+    semantic owner instead of an epsilon window that only the interpreter knew about
+case:
+  smt2: '(set-logic QF_FP)
+
+    (declare-const a (_ FloatingPoint 11 53))
+    (declare-const b (_ FloatingPoint 11 53))
+
+    (define-fun runtime_eq_after_fix () Bool (fp.eq a b))
+
+    (define-fun llvm_eq () Bool
+      (and (not (fp.isNaN a)) (not (fp.isNaN b)) (fp.eq a b)))
+
+    (define-fun runtime_ne_after_fix () Bool (not (fp.eq a b)))
+
+    (define-fun llvm_ne_after_fix () Bool
+      (or (fp.isNaN a) (fp.isNaN b) (not (fp.eq a b))))
+
+    (assert
+      (or (xor runtime_eq_after_fix llvm_eq)
+          (xor runtime_ne_after_fix llvm_ne_after_fix)))
+
+    (check-sat)
+
+    '
+  include_model: false
+  include_stats: false

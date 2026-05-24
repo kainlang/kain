@@ -1,0 +1,105 @@
+use std::actor
+use std::fs
+use std::intent
+use std::runtime
+use c::smoketest_visualizer_bridge
+use dashboard::SmokeUiAlbumSnapshot
+use report::smoke_telemetry_output_root
+use report::smoke_write_note_report
+
+const SMOKE_PRESENT_SEMANTICS_TRACKS: Int = 18
+const SMOKE_PRESENT_SYSTEMS_TRACKS: Int = 7
+const SMOKE_PRESENT_GPU_TRACKS: Int = 1
+const SMOKE_PRESENT_STDLIB_TRACKS: Int = 22
+const SMOKE_PRESENT_INTEROP_TRACKS: Int = 2
+const SMOKE_PRESENT_TELEMETRY_TRACKS: Int = 2
+const SMOKE_PRESENT_UI_TRACKS: Int = 2
+
+pub fn smoke_visualizer_probe() -> Int:
+    return smoketest_visualizer_native_probe()
+
+pub fn smoke_visualizer_run_window(title: String, width: Int, height: Int, frame_budget: Int, input_path: String) -> Int:
+    return smoketest_visualizer_native_run_window(title, width, height, frame_budget, input_path)
+
+pub fn smoke_visualizer_frames() -> Int:
+    return smoketest_visualizer_native_frames_presented()
+
+pub fn smoke_visualizer_cells() -> Int:
+    return smoketest_visualizer_native_cells_drawn()
+
+pub fn smoke_visualizer_write_report(path: String) -> Int:
+    return smoketest_visualizer_native_write_report(path)
+
+fn smoke_visual_frame_budget(mode: String) -> Int:
+    if mode == "visual":
+        return 0
+    return 180
+
+pub fn smoke_opengl_album_lane(mode: String, total_tracks: Int, succeeded_tracks: Int, composition_checksum: Int, ui_snapshot: SmokeUiAlbumSnapshot) -> Int:
+    if smoke_visualizer_probe() != 1:
+        return 1
+
+    let frame_budget = smoke_visual_frame_budget(mode)
+    let notes_root = fs_path_join(smoke_telemetry_output_root(mode), "notes")
+    let deck_path = fs_path_join(notes_root, "opengl_window_input.txt")
+    var deck = ""
+    deck = deck + "total_tracks=" + str(total_tracks) + "\n"
+    deck = deck + "passed_tracks=" + str(succeeded_tracks) + "\n"
+    deck = deck + "composition_checksum=" + str(composition_checksum) + "\n"
+    deck = deck + "semantics_tracks=" + str(SMOKE_PRESENT_SEMANTICS_TRACKS) + "\n"
+    deck = deck + "systems_tracks=" + str(SMOKE_PRESENT_SYSTEMS_TRACKS) + "\n"
+    deck = deck + "gpu_tracks=" + str(SMOKE_PRESENT_GPU_TRACKS) + "\n"
+    deck = deck + "stdlib_tracks=" + str(SMOKE_PRESENT_STDLIB_TRACKS) + "\n"
+    deck = deck + "interop_tracks=" + str(SMOKE_PRESENT_INTEROP_TRACKS) + "\n"
+    deck = deck + "telemetry_tracks=" + str(SMOKE_PRESENT_TELEMETRY_TRACKS) + "\n"
+    deck = deck + "ui_tracks=" + str(SMOKE_PRESENT_UI_TRACKS) + "\n"
+    deck = deck + "patch_journal=" + str(patch_journal_count()) + "\n"
+    deck = deck + "entangle_propagations=" + str(entangle_propagation_count()) + "\n"
+    deck = deck + "converge_mismatches=" + str(converge_mismatch_count()) + "\n"
+    deck = deck + "pulse_count=" + str(runtime_machine_pulse_total_fire_count()) + "\n"
+    deck = deck + "actor_enqueued=" + str(actor_scheduler_total_enqueued()) + "\n"
+    deck = deck + "ui_hash=" + str(ui_snapshot.frame_hash) + "\n"
+    deck = deck + "ui_draws=" + str(ui_snapshot.draw_count) + "\n"
+    deck = deck + "graphics_draws=" + str(ui_snapshot.graphics_draws) + "\n"
+    deck = deck + "graphics_score=" + str(ui_snapshot.graphics_score) + "\n"
+    let _deck_write = fs_atomic_write_text(deck_path, deck)
+
+    let status = smoke_visualizer_run_window(
+        "Kain Smoketest Album // OpenGL Visualizer",
+        1440,
+        880,
+        frame_budget,
+        deck_path
+    )
+
+    let report_path = fs_path_join(notes_root, "opengl_window_report.txt")
+    let report_status = smoke_visualizer_write_report(report_path)
+    let frames = smoke_visualizer_frames()
+    let cells = smoke_visualizer_cells()
+
+    var note = "{\n"
+    note = note + "  \"status\": " + str(status) + ",\n"
+    note = note + "  \"frame_budget\": " + str(frame_budget) + ",\n"
+    note = note + "  \"frames\": " + str(frames) + ",\n"
+    note = note + "  \"cells\": " + str(cells) + ",\n"
+    note = note + "  \"report_status\": " + str(report_status) + ",\n"
+    note = note + "  \"patch_journal\": " + str(patch_journal_count()) + ",\n"
+    note = note + "  \"entangle_propagations\": " + str(entangle_propagation_count()) + ",\n"
+    note = note + "  \"converge_mismatches\": " + str(converge_mismatch_count()) + ",\n"
+    note = note + "  \"pulse_count\": " + str(runtime_machine_pulse_total_fire_count()) + ",\n"
+    note = note + "  \"actor_enqueued\": " + str(actor_scheduler_total_enqueued()) + ",\n"
+    note = note + "  \"ui_hash\": " + str(ui_snapshot.frame_hash) + ",\n"
+    note = note + "  \"ui_draws\": " + str(ui_snapshot.draw_count) + ",\n"
+    note = note + "  \"graphics_draws\": " + str(ui_snapshot.graphics_draws) + "\n"
+    note = note + "}\n"
+    let _report = smoke_write_note_report(mode, "opengl_album.json", note)
+
+    if status != 0:
+        return 2
+    if report_status != 0:
+        return 3
+    if frames < 1:
+        return 4
+    if cells < 8:
+        return 5
+    return 0

@@ -4,10 +4,10 @@
 // kind:       kain_executable
 // storage:    editable
 // contents:   source
-// digest:     sha256:34164dbb4d29463853ae8d1ad8ac38afff8b63c3ccda5a6e31b7429ebd942bee
+// digest:     sha256:21e62691d4f2ce5382d3fa8d93839a45ffd0640723ab41159b5f28eaefbc83dd
 // capsule:    smoketest
 // entry:      src/main.kn
-// structure:  81 files | 67 modules
+// structure:  87 files | 69 modules
 // ---------------------------------------------------------------------------
 //
 // -- PUBLIC INTERFACE DIRECTORY -----------------------------------------------
@@ -20,12 +20,18 @@
 //   SHARE_FANOUT_STEPS, SHARE_FANOUT_MODULUS, SMOKE_HUGE_PAGE_PROBE_BYTES
 //   SMOKE_FLOW_CELL_COUNT, SMOKE_FLOW_CONVERGE_KEY, SMOKE_FLOW_MODULUS
 //   SMOKE_TELEMETRY_ROOT, SMOKE_TELEMETRY_TRACKS_DIR, SMOKE_TELEMETRY_NOTES_DIR
-//   SMOKE_TELEMETRY_MODULUS, SMOKE_PYTHON_RUNNER_TRACK_ID
-//   SMOKE_PYTHON_RUNNER_LANE_RANK, SMOKE_PYTHON_RUNNER_MODULUS
+//   SMOKE_TELEMETRY_MODULUS, SMOKE_UI_SEMANTICS_TRACKS, SMOKE_UI_SYSTEMS_TRACKS
+//   SMOKE_UI_GPU_TRACKS, SMOKE_UI_STDLIB_TRACKS, SMOKE_UI_INTEROP_TRACKS
+//   SMOKE_UI_TELEMETRY_TRACKS, SMOKE_UI_UI_TRACKS, SMOKE_PRESENT_SEMANTICS_TRACKS
+//   SMOKE_PRESENT_SYSTEMS_TRACKS, SMOKE_PRESENT_GPU_TRACKS
+//   SMOKE_PRESENT_STDLIB_TRACKS, SMOKE_PRESENT_INTEROP_TRACKS
+//   SMOKE_PRESENT_TELEMETRY_TRACKS, SMOKE_PRESENT_UI_TRACKS
+//   SMOKE_PYTHON_RUNNER_TRACK_ID, SMOKE_PYTHON_RUNNER_LANE_RANK
+//   SMOKE_PYTHON_RUNNER_MODULUS
 //
 // [types]
 //   struct KeywordMeshRecord, shatter struct SmokeShard, struct SmokePacket
-//   struct DeviceRegs
+//   struct DeviceRegs, struct SmokeUiGraphicsSnapshot
 //
 // [traits]
 //   trait KeywordFold, trait SmokeFold
@@ -74,19 +80,8 @@
 //   fn smoke_stage_bias(value: Int) -> Int
 //   fn smoke_approx(a: Float, b: Float) -> Bool
 //   fn smoke_process_last_path_segment(path: String) -> String
-//   fn smoke_abi_symbol_lane(seed: Int) -> Int
-//   fn smoke_naked_trap_lane() with Unsafe, fn smoke_interrupt_lane() with Unsafe
-//   fn smoke_mmio_fold(regs: ptr<DeviceRegs>) -> Int with Unsafe
-//   fn share_fanout_expected() -> Int, fn smoke_digit_value(ch: String) -> Int
-//   fn smoke_parse_int_text(text: String) -> Int
-//   fn smoke_env_int(key: String, fallback: Int) -> Int, fn main() -> Int
-//   fn smoke_env_text(key: String, fallback: String) -> String
-//   fn wasm_add(a: Int, b: Int) -> Int, fn wasm_factorial(n: Int) -> Int
-//   fn wasm_fibonacci(n: Int) -> Int
-//   fn smoke_python_runner_track_checksum(track_id: Int, lane_rank: Int, status: Int, elapsed_ms: Int, tag: String) -> Int
-//   fn smoke_python_bridge_install_runner()
 //
-// [+14 more symbols hidden. use 'kain amalgamate inspect <capsule.kn>' for full log]
+// [+32 more symbols hidden. use 'kain amalgamate inspect <capsule.kn>' for full log]
 //
 //!kain-capsule
 // schema = 2
@@ -95,14 +90,14 @@
 // contents = "source"
 // source_kind = "kain_executable"
 // compression = "none"
-// digest = "sha256:34164dbb4d29463853ae8d1ad8ac38afff8b63c3ccda5a6e31b7429ebd942bee"
-// created_at = "2026-05-23T22:20:20.454341600+00:00"
-// file_count = 81
-// module_count = 67
+// digest = "sha256:21e62691d4f2ce5382d3fa8d93839a45ffd0640723ab41159b5f28eaefbc83dd"
+// created_at = "2026-05-24T02:00:05.092628200+00:00"
+// file_count = 87
+// module_count = 69
 // preview_symbol_limit = 96
 // api_index = "auto"
 // module_index = "auto"
-// directories = ["native", "src", "src/c", "src/gpu", "src/interop", "src/semantics", "src/stdlib", "src/systems", "src/telemetry", "src/wasm", "telemetry"]
+// directories = ["native", "src", "src/c", "src/gpu", "src/interop", "src/semantics", "src/stdlib", "src/systems", "src/telemetry", "src/ui", "src/wasm", "telemetry"]
 // name = "smoketest"
 // capsule_set = "smoketest"
 // version = "0.1.0"
@@ -130,8 +125,8 @@
 // path = "KAIN.toml"
 // kind = "text"
 // encoding = "utf8"
-// bytes = 1330
-// sha256 = "sha256:d149eaa45ddbe69a7044d56978d9acf6437bb9170212dc1ab66aac29afe84662"
+// bytes = 1636
+// sha256 = "sha256:8be1b5f3253552420615d4e02c8f689f3b924a1c55d1cef6698ee861a8808293"
 // trailing_newline = true
 //!kain-file-content
 // # build.kn owns the explicit evidence DAG; this manifest carries compatibility
@@ -155,6 +150,7 @@
 //   "src/interop",
 //   "src/wasm",
 //   "src/telemetry",
+//   "src/ui",
 //   "telemetry",
 // ]
 // module_roots = [
@@ -166,6 +162,7 @@
 //   "src/interop",
 //   "src/wasm",
 //   "src/telemetry",
+//   "src/ui",
 //   "telemetry",
 // ]
 // build_targets = ["llvm"]
@@ -197,13 +194,74 @@
 // sources = ["native/smoketest_c_abi_album.c"]
 // include_paths = ["native"]
 // defines = ["_CRT_SECURE_NO_WARNINGS"]
+//
+// [[c_ffi.libraries]]
+// name = "smoketest_visualizer_bridge"
+// tier = "inline"
+// header = "native/smoketest_visualizer_bridge.h"
+// sources = ["native/smoketest_visualizer_bridge.c"]
+// include_paths = ["native"]
+// defines = ["_CRT_SECURE_NO_WARNINGS"]
+// link_libs = ["user32", "gdi32", "opengl32"]
+//!end-kain-file
+//!kain-file
+// path = "build-smoketest-visualizer-bridge.ps1"
+// kind = "text"
+// encoding = "utf8"
+// bytes = 1198
+// sha256 = "sha256:20c4a75225265d6d046e6ed0edceaa9727f9091cfc120c0a86f1319dde75e546"
+// trailing_newline = true
+//!kain-file-content
+// param(
+//     [string]$Clang = ""
+// )
+//
+// $ErrorActionPreference = "Stop"
+// Set-StrictMode -Version Latest
+//
+// $smoketestRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+// $repoRoot = Resolve-Path (Join-Path $smoketestRoot "..")
+// $nativeRoot = Join-Path $smoketestRoot "native"
+// $nativeOut = Join-Path $smoketestRoot ".kain\native"
+// $objectPath = Join-Path $nativeOut "smoketest_visualizer_bridge.obj"
+//
+// if (!$Clang) {
+//     $bundled = Join-Path $repoRoot "toolchain\llvm\bin\clang.exe"
+//     if (Test-Path $bundled) {
+//         $Clang = $bundled
+//     } else {
+//         $clangCommand = Get-Command clang -ErrorAction SilentlyContinue
+//         if (!$clangCommand) {
+//             throw "clang was not found."
+//         }
+//         $Clang = $clangCommand.Source
+//     }
+// }
+//
+// New-Item -ItemType Directory -Force -Path $nativeOut | Out-Null
+//
+// $clangArgs = @(
+//     "-c",
+//     "-O2",
+//     "-D_CRT_SECURE_NO_WARNINGS",
+//     "-I", $nativeRoot,
+//     (Join-Path $nativeRoot "smoketest_visualizer_bridge.c"),
+//     "-o", $objectPath
+// )
+//
+// & $Clang @clangArgs
+// if ($LASTEXITCODE -ne 0) {
+//     throw "smoketest visualizer bridge object compilation failed with exit code $LASTEXITCODE"
+// }
+//
+// Write-Host "[PASS] Smoketest visualizer bridge object: $objectPath"
 //!end-kain-file
 //!kain-file
 // path = "build.kn"
 // kind = "text"
 // encoding = "utf8"
-// bytes = 12471
-// sha256 = "sha256:f715bab2047234cb4cd31aefe135ec27ecc5abc44784ef50736390b6c13db828"
+// bytes = 13305
+// sha256 = "sha256:0d014d695bfce4e498a0b176f3d4808c8b8d9ccb18d4f3f9d44616c517a6587d"
 // trailing_newline = true
 //!kain-file-content
 // use std::build
@@ -218,13 +276,13 @@
 //
 //     let pkg = package("smoketest").version("0.1.0").description("THE smoketest: album-edition workspace covering every Kain feature in one proof surface.")
 //
-//     let blade_spec = blade("smoketest").kind("kain_executable").entry("src/main.kn").source_root("src").source_root("src/semantics").source_root("src/systems").source_root("src/gpu").source_root("src/stdlib").source_root("src/interop").source_root("src/wasm").source_root("src/telemetry").source_root("telemetry").module_root("src").module_root("src/semantics").module_root("src/systems").module_root("src/gpu").module_root("src/stdlib").module_root("src/interop").module_root("src/wasm").module_root("src/telemetry").module_root("telemetry").build_target("llvm")
+//     let blade_spec = blade("smoketest").kind("kain_executable").entry("src/main.kn").source_root("src").source_root("src/semantics").source_root("src/systems").source_root("src/gpu").source_root("src/stdlib").source_root("src/interop").source_root("src/wasm").source_root("src/telemetry").source_root("src/ui").source_root("telemetry").module_root("src").module_root("src/semantics").module_root("src/systems").module_root("src/gpu").module_root("src/stdlib").module_root("src/interop").module_root("src/wasm").module_root("src/telemetry").module_root("src/ui").module_root("telemetry").build_target("llvm")
 //
 //     let defaults = build_defaults().entry("src/main.kn").artifact_root(".kain/out/llvm").cache_root(".kain/cache/build").profile("debug").target("llvm")
 //
-//     let run = run_defaults().entry("src/main.kn").target("llvm").watch("src/telemetry").watch("telemetry").watch("native").watch("telemetry/python_bridge.kn").watch("telemetry/run_smoketest_mode.kn")
+//     let run = run_defaults().entry("src/main.kn").target("llvm").watch("src/telemetry").watch("src/ui").watch("telemetry").watch("native").watch("build-smoketest-visualizer-bridge.ps1").watch("run-visual-smoketest.ps1").watch("telemetry/python_bridge.kn").watch("telemetry/run_smoketest_mode.kn")
 //
-//     let check_llvm = build_check("check-llvm").entry("src/main.kn").target("llvm").axis("target", "llvm").telemetry("llm.evidence").telemetry("smoketest.album").input("src/main.kn").input("src/semantics/types.kn").input("src/semantics/control.kn").input("src/semantics/effects.kn").input("src/semantics/option_result.kn").input("src/semantics/async_future.kn").input("src/semantics/world.kn").input("src/semantics/entangle.kn").input("src/semantics/law.kn").input("src/semantics/patch.kn").input("src/semantics/actor.kn").input("src/semantics/converge.kn").input("src/semantics/orchestrate.kn").input("src/semantics/axiom.kn").input("src/semantics/shatter.kn").input("src/semantics/pulse.kn").input("src/semantics/teleport.kn").input("src/semantics/comptime.kn").input("src/semantics/keyword_mesh.kn").input("src/systems/memory.kn").input("src/systems/ownership.kn").input("src/systems/share_fanout.kn").input("src/systems/abi_control.kn").input("src/systems/vm_topology.kn").input("src/systems/mmio_interrupt.kn").input("src/systems/native_cli.kn").input("src/gpu/fragment.kn").input("src/gpu/compute.kn").input("src/stdlib/ascii_lane.kn").input("src/stdlib/base64_lane.kn").input("src/stdlib/bytes_lane.kn").input("src/stdlib/collections_lane.kn").input("src/stdlib/crypto_lane.kn").input("src/stdlib/text_lane.kn").input("src/stdlib/fs_lane.kn").input("src/stdlib/alloc_lane.kn").input("src/stdlib/json_lane.kn").input("src/stdlib/math_lane.kn").input("src/stdlib/time_lane.kn").input("src/stdlib/unicode_lane.kn").input("src/stdlib/random_lane.kn").input("src/stdlib/uri_lane.kn").input("src/stdlib/semver_lane.kn").input("src/stdlib/sync_lane.kn").input("src/stdlib/io_lane.kn").input("src/stdlib/meta_lane.kn").input("src/stdlib/thread_lane.kn").input("src/stdlib/process_lane.kn").input("src/stdlib/diagnostics_lane.kn").input("src/stdlib/platform_lane.kn").input("src/interop/c_bridge.kn").input("src/interop/c_abi_album.kn").input("src/interop/smoketest_interop_import.kn").input("src/telemetry/report.kn").input("src/telemetry/headless_host.kn").input("src/telemetry/flow.kn").input("native/smoketest_interop_bridge.h").input("native/smoketest_interop_bridge.c").input("native/smoketest_c_abi_album.h").input("native/smoketest_c_abi_album.c").input("KAIN.toml").input("build.kn")
+//     let check_llvm = build_check("check-llvm").entry("src/main.kn").target("llvm").axis("target", "llvm").telemetry("llm.evidence").telemetry("smoketest.album").input("src/main.kn").input("src/semantics/types.kn").input("src/semantics/control.kn").input("src/semantics/effects.kn").input("src/semantics/option_result.kn").input("src/semantics/async_future.kn").input("src/semantics/world.kn").input("src/semantics/entangle.kn").input("src/semantics/law.kn").input("src/semantics/patch.kn").input("src/semantics/actor.kn").input("src/semantics/converge.kn").input("src/semantics/orchestrate.kn").input("src/semantics/axiom.kn").input("src/semantics/shatter.kn").input("src/semantics/pulse.kn").input("src/semantics/teleport.kn").input("src/semantics/comptime.kn").input("src/semantics/keyword_mesh.kn").input("src/systems/memory.kn").input("src/systems/ownership.kn").input("src/systems/share_fanout.kn").input("src/systems/abi_control.kn").input("src/systems/vm_topology.kn").input("src/systems/mmio_interrupt.kn").input("src/systems/native_cli.kn").input("src/gpu/fragment.kn").input("src/gpu/compute.kn").input("src/stdlib/ascii_lane.kn").input("src/stdlib/base64_lane.kn").input("src/stdlib/bytes_lane.kn").input("src/stdlib/collections_lane.kn").input("src/stdlib/crypto_lane.kn").input("src/stdlib/text_lane.kn").input("src/stdlib/fs_lane.kn").input("src/stdlib/alloc_lane.kn").input("src/stdlib/json_lane.kn").input("src/stdlib/math_lane.kn").input("src/stdlib/time_lane.kn").input("src/stdlib/unicode_lane.kn").input("src/stdlib/random_lane.kn").input("src/stdlib/uri_lane.kn").input("src/stdlib/semver_lane.kn").input("src/stdlib/sync_lane.kn").input("src/stdlib/io_lane.kn").input("src/stdlib/meta_lane.kn").input("src/stdlib/thread_lane.kn").input("src/stdlib/process_lane.kn").input("src/stdlib/diagnostics_lane.kn").input("src/stdlib/platform_lane.kn").input("src/interop/c_bridge.kn").input("src/interop/c_abi_album.kn").input("src/interop/smoketest_interop_import.kn").input("src/telemetry/report.kn").input("src/telemetry/headless_host.kn").input("src/telemetry/flow.kn").input("src/ui/dashboard.kn").input("src/ui/presenter.kn").input("native/smoketest_interop_bridge.h").input("native/smoketest_interop_bridge.c").input("native/smoketest_c_abi_album.h").input("native/smoketest_c_abi_album.c").input("native/smoketest_visualizer_bridge.h").input("native/smoketest_visualizer_bridge.c").input("build-smoketest-visualizer-bridge.ps1").input("run-visual-smoketest.ps1").input("KAIN.toml").input("build.kn")
 //
 //     let check_runner = exec_task("check-telemetry-runner").command("powershell").cwd("..").telemetry("smoketest.python-ffi").input("telemetry/invoke_kain.ps1").input("telemetry/python_bridge.kn").input("telemetry/run_smoketest_mode.kn").input("src/telemetry/report.kn").input("build.kn").arg("-NoProfile").arg("-ExecutionPolicy").arg("Bypass").arg("-File").arg("$root/telemetry/invoke_kain.ps1").arg("check").arg("smoketest/telemetry/run_smoketest_mode.kn").arg("--target").arg("interpret")
 //
@@ -238,9 +296,9 @@
 //
 //     let gpu_hlsl = build_task("gpu-hlsl").kind("gpu").entry("src/gpu/fragment.kn").target("hlsl").artifact_root(".kain/out/hlsl").requires("check-spirv").input("src/gpu/fragment.kn").input("src/gpu/compute.kn")
 //
-//     let source_tests = test_suite("source-tests").entry("src/main.kn").target("llvm").requires("check-llvm").input("src/main.kn").input("src/systems/abi_control.kn").input("src/systems/vm_topology.kn").input("src/systems/mmio_interrupt.kn").input("src/systems/native_cli.kn").input("src/telemetry/report.kn").input("src/telemetry/headless_host.kn").input("src/telemetry/flow.kn").input("src/interop/c_bridge.kn").input("src/interop/c_abi_album.kn").input("src/interop/smoketest_interop_import.kn").input("native/smoketest_interop_bridge.h").input("native/smoketest_interop_bridge.c").input("native/smoketest_c_abi_album.h").input("native/smoketest_c_abi_album.c").input("KAIN.toml").input("build.kn")
+//     let source_tests = test_suite("source-tests").entry("src/main.kn").target("llvm").requires("check-llvm").input("src/main.kn").input("src/systems/abi_control.kn").input("src/systems/vm_topology.kn").input("src/systems/mmio_interrupt.kn").input("src/systems/native_cli.kn").input("src/telemetry/report.kn").input("src/telemetry/headless_host.kn").input("src/telemetry/flow.kn").input("src/ui/dashboard.kn").input("src/ui/presenter.kn").input("src/interop/c_bridge.kn").input("src/interop/c_abi_album.kn").input("src/interop/smoketest_interop_import.kn").input("native/smoketest_interop_bridge.h").input("native/smoketest_interop_bridge.c").input("native/smoketest_c_abi_album.h").input("native/smoketest_c_abi_album.c").input("native/smoketest_visualizer_bridge.h").input("native/smoketest_visualizer_bridge.c").input("build-smoketest-visualizer-bridge.ps1").input("run-visual-smoketest.ps1").input("KAIN.toml").input("build.kn")
 //
-//     let root_exe = native_executable("root-executable").entry("src/main.kn").root_output("$blade/smoketest.exe").requires("check-llvm").requires("check-spirv").requires("check-wasm").requires("source-tests").input("src/main.kn").input("src/systems/abi_control.kn").input("src/systems/vm_topology.kn").input("src/systems/mmio_interrupt.kn").input("src/systems/native_cli.kn").input("src/telemetry/report.kn").input("src/telemetry/headless_host.kn").input("src/telemetry/flow.kn").input("src/interop/c_bridge.kn").input("src/interop/c_abi_album.kn").input("src/interop/smoketest_interop_import.kn").input("native/smoketest_interop_bridge.h").input("native/smoketest_interop_bridge.c").input("native/smoketest_c_abi_album.h").input("native/smoketest_c_abi_album.c").input("KAIN.toml").input("build.kn")
+//     let root_exe = native_executable("root-executable").entry("src/main.kn").root_output("$blade/smoketest.exe").requires("check-llvm").requires("check-spirv").requires("check-wasm").requires("source-tests").input("src/main.kn").input("src/systems/abi_control.kn").input("src/systems/vm_topology.kn").input("src/systems/mmio_interrupt.kn").input("src/systems/native_cli.kn").input("src/telemetry/report.kn").input("src/telemetry/headless_host.kn").input("src/telemetry/flow.kn").input("src/ui/dashboard.kn").input("src/ui/presenter.kn").input("src/interop/c_bridge.kn").input("src/interop/c_abi_album.kn").input("src/interop/smoketest_interop_import.kn").input("native/smoketest_interop_bridge.h").input("native/smoketest_interop_bridge.c").input("native/smoketest_c_abi_album.h").input("native/smoketest_c_abi_album.c").input("native/smoketest_visualizer_bridge.h").input("native/smoketest_visualizer_bridge.c").input("build-smoketest-visualizer-bridge.ps1").input("run-visual-smoketest.ps1").input("KAIN.toml").input("build.kn")
 //
 //     let telemetry_full = exec_task("telemetry-full").command("powershell").cwd("..").requires("root-executable").requires("check-telemetry-runner").telemetry("smoketest.full").input("src/main.kn").input("src/systems/abi_control.kn").input("src/systems/vm_topology.kn").input("src/systems/mmio_interrupt.kn").input("src/systems/native_cli.kn").input("src/telemetry/report.kn").input("src/telemetry/headless_host.kn").input("src/telemetry/flow.kn").input("telemetry/invoke_kain.ps1").input("telemetry/python_bridge.kn").input("telemetry/run_smoketest_mode.kn").input("src/interop/c_bridge.kn").input("src/interop/c_abi_album.kn").input("src/interop/smoketest_interop_import.kn").input("native/smoketest_interop_bridge.h").input("native/smoketest_interop_bridge.c").input("native/smoketest_c_abi_album.h").input("native/smoketest_c_abi_album.c").input("KAIN.toml").arg("-NoProfile").arg("-ExecutionPolicy").arg("Bypass").arg("-File").arg("$root/telemetry/invoke_kain.ps1").arg("run").arg("smoketest/telemetry/run_smoketest_mode.kn").arg("--target").arg("interpret").arg("--").arg("--mode").arg("full").arg("--executable").arg("$root/smoketest.exe").arg("--output-dir").arg("$root/telemetry/full").output("$root/telemetry/full")
 //
@@ -6588,6 +6646,934 @@
 // #endif
 //!end-kain-file
 //!kain-file
+// path = "native/smoketest_visualizer_bridge.c"
+// kind = "text"
+// encoding = "utf8"
+// bytes = 32027
+// sha256 = "sha256:5a682f960f86a0d5290c667b8890cf8b00287175efa987368d56a5ad94d6a3d2"
+// trailing_newline = true
+//!kain-file-content
+// #include "smoketest_visualizer_bridge.h"
+//
+// #ifdef _WIN32
+//
+// #include <windows.h>
+// #include <windowsx.h>
+// #include <GL/gl.h>
+//
+// #include <math.h>
+// #include <stdio.h>
+// #include <string.h>
+//
+// #define SMOKETEST_VISUALIZER_CLASS_NAME "KainSmoketestVisualizerWindow"
+//
+// enum {
+//     SMOKETEST_VIEW_OVERVIEW = 0,
+//     SMOKETEST_VIEW_RUNTIME = 1,
+//     SMOKETEST_VIEW_STDLIB = 2,
+//     SMOKETEST_VIEW_TELEMETRY = 3,
+//     SMOKETEST_VIEW_COUNT = 4
+// };
+//
+// typedef struct {
+//     HINSTANCE instance;
+//     HWND hwnd;
+//     HDC dc;
+//     HGLRC glrc;
+//     HFONT font;
+//     GLuint font_list_base;
+//     int width;
+//     int height;
+//     int frame_budget;
+//     int should_close;
+//     int total_tracks;
+//     int passed_tracks;
+//     int composition_checksum;
+//     int semantics_tracks;
+//     int systems_tracks;
+//     int gpu_tracks;
+//     int stdlib_tracks;
+//     int interop_tracks;
+//     int telemetry_tracks;
+//     int ui_tracks;
+//     int patch_journal;
+//     int entangle_propagations;
+//     int converge_mismatches;
+//     int pulse_count;
+//     int actor_enqueued;
+//     int ui_hash;
+//     int ui_draws;
+//     int graphics_draws;
+//     int current_view;
+//     int hover_view;
+//     int auto_cycle;
+//     int mouse_x;
+//     int mouse_y;
+// } SmoketestVisualizerState;
+//
+// static SmoketestVisualizerState g_visualizer_state = {0};
+// static int g_frames_presented = 0;
+// static int g_cells_drawn = 0;
+// static char g_last_error[256] = "ok";
+//
+// static void smoketest_copy_text(char* out_text, size_t out_cap, const char* text) {
+//     if (!out_text || out_cap == 0) {
+//         return;
+//     }
+//     if (!text) {
+//         text = "";
+//     }
+//     snprintf(out_text, out_cap, "%s", text);
+// }
+//
+// static void smoketest_set_error(const char* text) {
+//     smoketest_copy_text(g_last_error, sizeof(g_last_error), text);
+// }
+//
+// static float smoketest_clampf(float value, float min_value, float max_value) {
+//     if (value < min_value) {
+//         return min_value;
+//     }
+//     if (value > max_value) {
+//         return max_value;
+//     }
+//     return value;
+// }
+//
+// static float smoketest_ratio(int value, int max_value) {
+//     if (max_value <= 0) {
+//         return 0.0f;
+//     }
+//     return smoketest_clampf((float)value / (float)max_value, 0.0f, 1.0f);
+// }
+//
+// static float smoketest_ring_unit(int value, int modulus) {
+//     int lane;
+//     if (modulus <= 1) {
+//         return 0.0f;
+//     }
+//     lane = value % modulus;
+//     if (lane < 0) {
+//         lane += modulus;
+//     }
+//     return (float)lane / (float)(modulus - 1);
+// }
+//
+// static void smoketest_draw_quad(float left, float top, float right, float bottom, float red, float green, float blue, float alpha) {
+//     glColor4f(red, green, blue, alpha);
+//     glBegin(GL_QUADS);
+//     glVertex2f(left, top);
+//     glVertex2f(right, top);
+//     glVertex2f(right, bottom);
+//     glVertex2f(left, bottom);
+//     glEnd();
+// }
+//
+// static void smoketest_draw_outline(float left, float top, float right, float bottom, float thickness, float red, float green, float blue, float alpha) {
+//     smoketest_draw_quad(left, top, right, top + thickness, red, green, blue, alpha);
+//     smoketest_draw_quad(left, bottom - thickness, right, bottom, red, green, blue, alpha);
+//     smoketest_draw_quad(left, top, left + thickness, bottom, red, green, blue, alpha);
+//     smoketest_draw_quad(right - thickness, top, right, bottom, red, green, blue, alpha);
+// }
+//
+// static void smoketest_draw_scanlines(int width, int height) {
+//     int y;
+//     glBegin(GL_LINES);
+//     for (y = 0; y < height; y += 4) {
+//         float alpha = (y % 8 == 0) ? 0.05f : 0.025f;
+//         glColor4f(0.05f, 0.08f, 0.10f, alpha);
+//         glVertex2f(0.0f, (float)y + 0.5f);
+//         glVertex2f((float)width, (float)y + 0.5f);
+//     }
+//     glEnd();
+// }
+//
+// static void smoketest_draw_text(SmoketestVisualizerState* state, float x, float y, float red, float green, float blue, const char* text) {
+//     GLubyte glyph_indices[256];
+//     size_t text_length;
+//     size_t index;
+//
+//     if (!state || !state->font_list_base || !text) {
+//         return;
+//     }
+//     text_length = strlen(text);
+//     if (text_length == 0) {
+//         return;
+//     }
+//     if (text_length > sizeof(glyph_indices)) {
+//         text_length = sizeof(glyph_indices);
+//     }
+//     for (index = 0; index < text_length; index += 1) {
+//         unsigned char glyph = (unsigned char)text[index];
+//         if (glyph < 32u || glyph > 127u) {
+//             glyph = (unsigned char)'?';
+//         }
+//         glyph_indices[index] = (GLubyte)(glyph - 32u);
+//     }
+//     glColor3f(red, green, blue);
+//     glRasterPos2f(x, y);
+//     glListBase(state->font_list_base);
+//     glCallLists((GLsizei)text_length, GL_UNSIGNED_BYTE, glyph_indices);
+// }
+//
+// static void smoketest_draw_bar(
+//     SmoketestVisualizerState* state,
+//     float left,
+//     float top,
+//     float width,
+//     float height,
+//     float ratio,
+//     float red,
+//     float green,
+//     float blue,
+//     const char* label,
+//     const char* value_text
+// ) {
+//     float clamped = smoketest_clampf(ratio, 0.0f, 1.0f);
+//     smoketest_draw_quad(left, top, left + width, top + height, 0.08f, 0.10f, 0.14f, 0.96f);
+//     smoketest_draw_quad(left, top, left + (width * clamped), top + height, red, green, blue, 0.92f);
+//     smoketest_draw_outline(left, top, left + width, top + height, 1.0f, red * 0.85f, green * 0.85f, blue * 0.85f, 1.0f);
+//     smoketest_draw_text(state, left + 10.0f, top + 18.0f, 0.96f, 0.97f, 1.0f, label);
+//     smoketest_draw_text(state, left + width - 120.0f, top + 18.0f, 0.85f, 0.92f, 0.98f, value_text);
+// }
+//
+// static const char* smoketest_view_name(int view) {
+//     switch (view) {
+//         case SMOKETEST_VIEW_RUNTIME:
+//             return "RUNTIME";
+//         case SMOKETEST_VIEW_STDLIB:
+//             return "STDLIB";
+//         case SMOKETEST_VIEW_TELEMETRY:
+//             return "TELEMETRY";
+//         case SMOKETEST_VIEW_OVERVIEW:
+//         default:
+//             return "OVERVIEW";
+//     }
+// }
+//
+// static const char* smoketest_view_description(int view) {
+//     switch (view) {
+//         case SMOKETEST_VIEW_RUNTIME:
+//             return "runtime counters, pulse pressure, actor enqueue volume, and proof-health bars";
+//         case SMOKETEST_VIEW_STDLIB:
+//             return "album category spread with the stdlib slab highlighted as the deepest public surface";
+//         case SMOKETEST_VIEW_TELEMETRY:
+//             return "Kain-authored std::ui hash, draw pressure, graphics draw count, and completion telemetry";
+//         case SMOKETEST_VIEW_OVERVIEW:
+//         default:
+//             return "whole-album progress, category topology, and interactive OpenGL proof that smoketest is no longer headless";
+//     }
+// }
+//
+// static void smoketest_button_rect(const SmoketestVisualizerState* state, int index, RECT* rect) {
+//     int width = 132;
+//     int height = 30;
+//     int gap = 12;
+//     int total_width = (SMOKETEST_VIEW_COUNT * width) + ((SMOKETEST_VIEW_COUNT - 1) * gap);
+//     int left;
+//     int top;
+//
+//     if (!rect) {
+//         return;
+//     }
+//     if (!state) {
+//         SetRect(rect, 0, 0, 0, 0);
+//         return;
+//     }
+//
+//     left = (state->width - total_width) / 2;
+//     top = state->height - 50;
+//     SetRect(rect, left + (index * (width + gap)), top, left + (index * (width + gap)) + width, top + height);
+// }
+//
+// static int smoketest_hit_button(const SmoketestVisualizerState* state, int x, int y) {
+//     int index;
+//     for (index = 0; index < SMOKETEST_VIEW_COUNT; index += 1) {
+//         RECT rect;
+//         smoketest_button_rect(state, index, &rect);
+//         if (x >= rect.left && x < rect.right && y >= rect.top && y < rect.bottom) {
+//             return index;
+//         }
+//     }
+//     return -1;
+// }
+//
+// static void smoketest_trim_newline(char* text) {
+//     size_t length;
+//     if (!text) {
+//         return;
+//     }
+//     length = strlen(text);
+//     while (length > 0 && (text[length - 1] == '\n' || text[length - 1] == '\r' || text[length - 1] == ' ' || text[length - 1] == '\t')) {
+//         text[length - 1] = '\0';
+//         length -= 1;
+//     }
+// }
+//
+// static void smoketest_apply_kv(SmoketestVisualizerState* state, const char* key, const char* value) {
+//     int parsed;
+//     if (!state || !key || !value) {
+//         return;
+//     }
+//     parsed = atoi(value);
+//     if (strcmp(key, "total_tracks") == 0) {
+//         state->total_tracks = parsed;
+//     } else if (strcmp(key, "passed_tracks") == 0) {
+//         state->passed_tracks = parsed;
+//     } else if (strcmp(key, "composition_checksum") == 0) {
+//         state->composition_checksum = parsed;
+//     } else if (strcmp(key, "semantics_tracks") == 0) {
+//         state->semantics_tracks = parsed;
+//     } else if (strcmp(key, "systems_tracks") == 0) {
+//         state->systems_tracks = parsed;
+//     } else if (strcmp(key, "gpu_tracks") == 0) {
+//         state->gpu_tracks = parsed;
+//     } else if (strcmp(key, "stdlib_tracks") == 0) {
+//         state->stdlib_tracks = parsed;
+//     } else if (strcmp(key, "interop_tracks") == 0) {
+//         state->interop_tracks = parsed;
+//     } else if (strcmp(key, "telemetry_tracks") == 0) {
+//         state->telemetry_tracks = parsed;
+//     } else if (strcmp(key, "ui_tracks") == 0) {
+//         state->ui_tracks = parsed;
+//     } else if (strcmp(key, "patch_journal") == 0) {
+//         state->patch_journal = parsed;
+//     } else if (strcmp(key, "entangle_propagations") == 0) {
+//         state->entangle_propagations = parsed;
+//     } else if (strcmp(key, "converge_mismatches") == 0) {
+//         state->converge_mismatches = parsed;
+//     } else if (strcmp(key, "pulse_count") == 0) {
+//         state->pulse_count = parsed;
+//     } else if (strcmp(key, "actor_enqueued") == 0) {
+//         state->actor_enqueued = parsed;
+//     } else if (strcmp(key, "ui_hash") == 0) {
+//         state->ui_hash = parsed;
+//     } else if (strcmp(key, "ui_draws") == 0) {
+//         state->ui_draws = parsed;
+//     } else if (strcmp(key, "graphics_draws") == 0) {
+//         state->graphics_draws = parsed;
+//     }
+// }
+//
+// static int smoketest_load_input_file(SmoketestVisualizerState* state, const char* path) {
+//     FILE* file;
+//     char line[256];
+//     if (!state || !path || !path[0]) {
+//         smoketest_set_error("missing visualizer input path");
+//         return 0;
+//     }
+//     file = fopen(path, "rb");
+//     if (!file) {
+//         smoketest_set_error("failed to open visualizer input file");
+//         return 0;
+//     }
+//     while (fgets(line, sizeof(line), file)) {
+//         char* equals = strchr(line, '=');
+//         char* value;
+//         if (!equals) {
+//             continue;
+//         }
+//         *equals = '\0';
+//         value = equals + 1;
+//         smoketest_trim_newline(line);
+//         smoketest_trim_newline(value);
+//         smoketest_apply_kv(state, line, value);
+//     }
+//     fclose(file);
+//     return 1;
+// }
+//
+// static int smoketest_boot_font(SmoketestVisualizerState* state) {
+//     HFONT font;
+//     GLuint list_base;
+//
+//     if (!state || !state->dc) {
+//         return 0;
+//     }
+//
+//     font = (HFONT)GetStockObject(OEM_FIXED_FONT);
+//     if (!font) {
+//         font = (HFONT)GetStockObject(ANSI_FIXED_FONT);
+//     }
+//     if (!font) {
+//         smoketest_set_error("failed to acquire fixed font");
+//         return 0;
+//     }
+//
+//     list_base = glGenLists(96);
+//     if (!list_base) {
+//         smoketest_set_error("glGenLists failed");
+//         return 0;
+//     }
+//
+//     SelectObject(state->dc, font);
+//     if (!wglUseFontBitmapsA(state->dc, 32, 96, list_base)) {
+//         glDeleteLists(list_base, 96);
+//         smoketest_set_error("wglUseFontBitmaps failed");
+//         return 0;
+//     }
+//
+//     state->font = font;
+//     state->font_list_base = list_base;
+//     return 1;
+// }
+//
+// static void smoketest_shutdown_window(SmoketestVisualizerState* state) {
+//     if (!state) {
+//         return;
+//     }
+//     if (state->font_list_base) {
+//         glDeleteLists(state->font_list_base, 96);
+//         state->font_list_base = 0;
+//         state->font = NULL;
+//     }
+//     if (state->glrc) {
+//         wglMakeCurrent(NULL, NULL);
+//         wglDeleteContext(state->glrc);
+//         state->glrc = NULL;
+//     }
+//     if (state->hwnd && state->dc) {
+//         ReleaseDC(state->hwnd, state->dc);
+//         state->dc = NULL;
+//     }
+//     if (state->hwnd) {
+//         DestroyWindow(state->hwnd);
+//         state->hwnd = NULL;
+//     }
+// }
+//
+// static LRESULT CALLBACK smoketest_window_proc(HWND hwnd, UINT message, WPARAM w_param, LPARAM l_param) {
+//     SmoketestVisualizerState* state = (SmoketestVisualizerState*)GetWindowLongPtrA(hwnd, GWLP_USERDATA);
+//     switch (message) {
+//         case WM_NCCREATE: {
+//             CREATESTRUCTA* create = (CREATESTRUCTA*)l_param;
+//             SetWindowLongPtrA(hwnd, GWLP_USERDATA, (LONG_PTR)create->lpCreateParams);
+//             return DefWindowProcA(hwnd, message, w_param, l_param);
+//         }
+//         case WM_CLOSE:
+//             if (state) {
+//                 state->should_close = 1;
+//             }
+//             return 0;
+//         case WM_DESTROY:
+//             if (state) {
+//                 state->should_close = 1;
+//             }
+//             PostQuitMessage(0);
+//             return 0;
+//         case WM_SIZE:
+//             if (state) {
+//                 state->width = LOWORD(l_param) > 0 ? (int)LOWORD(l_param) : state->width;
+//                 state->height = HIWORD(l_param) > 0 ? (int)HIWORD(l_param) : state->height;
+//             }
+//             return 0;
+//         case WM_MOUSEMOVE:
+//             if (state) {
+//                 state->mouse_x = GET_X_LPARAM(l_param);
+//                 state->mouse_y = GET_Y_LPARAM(l_param);
+//                 state->hover_view = smoketest_hit_button(state, state->mouse_x, state->mouse_y);
+//             }
+//             return 0;
+//         case WM_LBUTTONDOWN:
+//             if (state) {
+//                 int hit = smoketest_hit_button(state, GET_X_LPARAM(l_param), GET_Y_LPARAM(l_param));
+//                 if (hit >= 0) {
+//                     state->current_view = hit;
+//                     state->auto_cycle = 0;
+//                     SetFocus(hwnd);
+//                 }
+//             }
+//             return 0;
+//         case WM_KEYDOWN:
+//             if (state) {
+//                 switch (w_param) {
+//                     case '1':
+//                         state->current_view = SMOKETEST_VIEW_OVERVIEW;
+//                         state->auto_cycle = 0;
+//                         return 0;
+//                     case '2':
+//                         state->current_view = SMOKETEST_VIEW_RUNTIME;
+//                         state->auto_cycle = 0;
+//                         return 0;
+//                     case '3':
+//                         state->current_view = SMOKETEST_VIEW_STDLIB;
+//                         state->auto_cycle = 0;
+//                         return 0;
+//                     case '4':
+//                         state->current_view = SMOKETEST_VIEW_TELEMETRY;
+//                         state->auto_cycle = 0;
+//                         return 0;
+//                     case VK_SPACE:
+//                         state->auto_cycle = state->auto_cycle ? 0 : 1;
+//                         return 0;
+//                     default:
+//                         break;
+//                 }
+//             }
+//             break;
+//         default:
+//             return DefWindowProcA(hwnd, message, w_param, l_param);
+//     }
+//     return DefWindowProcA(hwnd, message, w_param, l_param);
+// }
+//
+// static int smoketest_register_class(HINSTANCE instance) {
+//     WNDCLASSA window_class;
+//     ZeroMemory(&window_class, sizeof(window_class));
+//     window_class.style = CS_OWNDC | CS_HREDRAW | CS_VREDRAW;
+//     window_class.lpfnWndProc = smoketest_window_proc;
+//     window_class.hInstance = instance;
+//     window_class.hCursor = LoadCursorA(NULL, IDC_ARROW);
+//     window_class.lpszClassName = SMOKETEST_VISUALIZER_CLASS_NAME;
+//     if (!RegisterClassA(&window_class) && GetLastError() != ERROR_CLASS_ALREADY_EXISTS) {
+//         smoketest_set_error("failed to register smoketest visualizer window");
+//         return 0;
+//     }
+//     return 1;
+// }
+//
+// static int smoketest_boot_context(SmoketestVisualizerState* state) {
+//     PIXELFORMATDESCRIPTOR pfd;
+//     int pixel_format;
+//
+//     if (!state || !state->hwnd) {
+//         smoketest_set_error("missing window for GL boot");
+//         return 0;
+//     }
+//
+//     state->dc = GetDC(state->hwnd);
+//     if (!state->dc) {
+//         smoketest_set_error("failed to acquire window device context");
+//         return 0;
+//     }
+//
+//     ZeroMemory(&pfd, sizeof(pfd));
+//     pfd.nSize = sizeof(pfd);
+//     pfd.nVersion = 1;
+//     pfd.dwFlags = PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER;
+//     pfd.iPixelType = PFD_TYPE_RGBA;
+//     pfd.cColorBits = 32;
+//     pfd.cAlphaBits = 8;
+//     pfd.cDepthBits = 24;
+//     pfd.iLayerType = PFD_MAIN_PLANE;
+//
+//     pixel_format = ChoosePixelFormat(state->dc, &pfd);
+//     if (!pixel_format) {
+//         smoketest_set_error("ChoosePixelFormat failed");
+//         return 0;
+//     }
+//     if (!SetPixelFormat(state->dc, pixel_format, &pfd)) {
+//         smoketest_set_error("SetPixelFormat failed");
+//         return 0;
+//     }
+//     state->glrc = wglCreateContext(state->dc);
+//     if (!state->glrc) {
+//         smoketest_set_error("wglCreateContext failed");
+//         return 0;
+//     }
+//     if (!wglMakeCurrent(state->dc, state->glrc)) {
+//         smoketest_set_error("wglMakeCurrent failed");
+//         return 0;
+//     }
+//
+//     glDisable(GL_DITHER);
+//     glDisable(GL_DEPTH_TEST);
+//     glDisable(GL_CULL_FACE);
+//     glEnable(GL_BLEND);
+//     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+//
+//     if (!smoketest_boot_font(state)) {
+//         return 0;
+//     }
+//     return 1;
+// }
+//
+// static int smoketest_create_window(SmoketestVisualizerState* state, const char* title) {
+//     DWORD style = WS_OVERLAPPEDWINDOW | WS_VISIBLE;
+//     RECT rect;
+//
+//     if (!state) {
+//         smoketest_set_error("missing window state");
+//         return 0;
+//     }
+//     if (!smoketest_register_class(state->instance)) {
+//         return 0;
+//     }
+//
+//     rect.left = 0;
+//     rect.top = 0;
+//     rect.right = state->width > 0 ? state->width : 1440;
+//     rect.bottom = state->height > 0 ? state->height : 880;
+//     AdjustWindowRect(&rect, style, FALSE);
+//
+//     state->hwnd = CreateWindowExA(
+//         0,
+//         SMOKETEST_VISUALIZER_CLASS_NAME,
+//         title && title[0] ? title : "Kain Smoketest Visualizer",
+//         style,
+//         CW_USEDEFAULT,
+//         CW_USEDEFAULT,
+//         rect.right - rect.left,
+//         rect.bottom - rect.top,
+//         NULL,
+//         NULL,
+//         state->instance,
+//         state
+//     );
+//     if (!state->hwnd) {
+//         smoketest_set_error("failed to create smoketest visualizer window");
+//         return 0;
+//     }
+//
+//     ShowWindow(state->hwnd, SW_SHOW);
+//     UpdateWindow(state->hwnd);
+//     return smoketest_boot_context(state);
+// }
+//
+// static void smoketest_update_title(SmoketestVisualizerState* state) {
+//     char title[256];
+//     if (!state || !state->hwnd) {
+//         return;
+//     }
+//     snprintf(
+//         title,
+//         sizeof(title),
+//         "Kain Smoketest // %s // tracks=%d/%d // checksum=%d",
+//         smoketest_view_name(state->current_view),
+//         state->passed_tracks,
+//         state->total_tracks,
+//         state->composition_checksum
+//     );
+//     SetWindowTextA(state->hwnd, title);
+// }
+//
+// static void smoketest_render_frame(SmoketestVisualizerState* state, int frame_index) {
+//     static const char* category_names[7] = {
+//         "Semantics",
+//         "Systems",
+//         "GPU",
+//         "Stdlib",
+//         "Interop",
+//         "Telemetry",
+//         "UI"
+//     };
+//     int category_values[7];
+//     int i;
+//     float phase;
+//     float progress_ratio;
+//     float checksum_ratio;
+//     char text[256];
+//     char value_text[64];
+//
+//     category_values[0] = state->semantics_tracks;
+//     category_values[1] = state->systems_tracks;
+//     category_values[2] = state->gpu_tracks;
+//     category_values[3] = state->stdlib_tracks;
+//     category_values[4] = state->interop_tracks;
+//     category_values[5] = state->telemetry_tracks;
+//     category_values[6] = state->ui_tracks;
+//
+//     progress_ratio = smoketest_ratio(state->passed_tracks, state->total_tracks);
+//     checksum_ratio = smoketest_ring_unit(state->composition_checksum, 1000000007);
+//     phase = (float)frame_index * 0.045f;
+//
+//     glViewport(0, 0, state->width, state->height);
+//     glClearColor(0.04f, 0.05f, 0.08f, 1.0f);
+//     glClear(GL_COLOR_BUFFER_BIT);
+//
+//     glMatrixMode(GL_PROJECTION);
+//     glLoadIdentity();
+//     glOrtho(0.0, (double)state->width, (double)state->height, 0.0, -1.0, 1.0);
+//     glMatrixMode(GL_MODELVIEW);
+//     glLoadIdentity();
+//
+//     smoketest_draw_quad(0.0f, 0.0f, (float)state->width, (float)state->height, 0.04f, 0.05f, 0.08f, 1.0f);
+//     smoketest_draw_quad(0.0f, 0.0f, (float)state->width, 180.0f, 0.08f, 0.10f, 0.16f, 1.0f);
+//     smoketest_draw_quad(0.0f, 180.0f, (float)state->width, 520.0f, 0.06f, 0.07f, 0.10f, 1.0f);
+//     smoketest_draw_quad(0.0f, 520.0f, (float)state->width, (float)state->height, 0.05f, 0.07f, 0.09f, 1.0f);
+//     smoketest_draw_scanlines(state->width, state->height);
+//
+//     smoketest_draw_quad(42.0f, 38.0f, 706.0f, 154.0f, 0.10f, 0.14f, 0.20f, 0.96f);
+//     smoketest_draw_quad(734.0f, 38.0f, 1398.0f, 154.0f, 0.11f, 0.12f, 0.18f, 0.96f);
+//     smoketest_draw_outline(42.0f, 38.0f, 706.0f, 154.0f, 1.0f, 0.25f, 0.47f, 0.62f, 1.0f);
+//     smoketest_draw_outline(734.0f, 38.0f, 1398.0f, 154.0f, 1.0f, 0.45f, 0.32f, 0.24f, 1.0f);
+//
+//     smoketest_draw_text(state, 68.0f, 68.0f, 0.98f, 0.97f, 0.92f, "Kain Smoketest Album");
+//     smoketest_draw_text(state, 68.0f, 94.0f, 0.72f, 0.84f, 0.94f, smoketest_view_description(state->current_view));
+//     smoketest_draw_text(state, 68.0f, 124.0f, 0.92f, 0.93f, 0.98f, "Press 1-4 to switch views, click buttons, space to auto-cycle.");
+//
+//     snprintf(text, sizeof(text), "Album progress %d/%d // OpenGL presenter is live", state->passed_tracks, state->total_tracks);
+//     smoketest_draw_text(state, 760.0f, 70.0f, 0.98f, 0.97f, 0.92f, text);
+//     snprintf(text, sizeof(text), "Composition checksum %d // ui hash %d", state->composition_checksum, state->ui_hash);
+//     smoketest_draw_text(state, 760.0f, 96.0f, 0.84f, 0.91f, 0.97f, text);
+//     snprintf(text, sizeof(text), "graphics draws %d // ui draws %d // view %s", state->graphics_draws, state->ui_draws, smoketest_view_name(state->current_view));
+//     smoketest_draw_text(state, 760.0f, 122.0f, 0.82f, 0.88f, 0.94f, text);
+//
+//     smoketest_draw_bar(state, 62.0f, 178.0f, 612.0f, 28.0f, progress_ratio, 0.20f, 0.76f, 0.64f, "Track Completion", "live");
+//     smoketest_draw_bar(state, 62.0f, 218.0f, 612.0f, 28.0f, checksum_ratio, 0.92f, 0.54f, 0.28f, "Checksum Ring", "ring");
+//
+//     if (state->current_view == SMOKETEST_VIEW_RUNTIME) {
+//         snprintf(value_text, sizeof(value_text), "%d", state->patch_journal);
+//         smoketest_draw_bar(state, 744.0f, 178.0f, 612.0f, 28.0f, smoketest_ring_unit(state->patch_journal, 256), 0.33f, 0.73f, 0.94f, "Patch Journal", value_text);
+//         snprintf(value_text, sizeof(value_text), "%d", state->entangle_propagations);
+//         smoketest_draw_bar(state, 744.0f, 218.0f, 612.0f, 28.0f, smoketest_ring_unit(state->entangle_propagations, 256), 0.27f, 0.86f, 0.68f, "Entangle Propagations", value_text);
+//         snprintf(value_text, sizeof(value_text), "%d", state->pulse_count);
+//         smoketest_draw_bar(state, 744.0f, 258.0f, 612.0f, 28.0f, smoketest_ring_unit(state->pulse_count, 1024), 0.87f, 0.58f, 0.30f, "Pulse Fires", value_text);
+//         snprintf(value_text, sizeof(value_text), "%d", state->actor_enqueued);
+//         smoketest_draw_bar(state, 744.0f, 298.0f, 612.0f, 28.0f, smoketest_ring_unit(state->actor_enqueued, 2048), 0.84f, 0.42f, 0.56f, "Actor Enqueued", value_text);
+//         snprintf(value_text, sizeof(value_text), "%d", state->converge_mismatches);
+//         smoketest_draw_bar(state, 744.0f, 338.0f, 612.0f, 28.0f, 1.0f - smoketest_ring_unit(state->converge_mismatches, 8), 0.68f, 0.82f, 0.34f, "Converge Health", value_text);
+//     } else if (state->current_view == SMOKETEST_VIEW_TELEMETRY) {
+//         snprintf(value_text, sizeof(value_text), "%d", state->ui_hash);
+//         smoketest_draw_bar(state, 744.0f, 178.0f, 612.0f, 28.0f, smoketest_ring_unit(state->ui_hash, 1000000007), 0.29f, 0.67f, 0.97f, "UI Frame Hash", value_text);
+//         snprintf(value_text, sizeof(value_text), "%d", state->ui_draws);
+//         smoketest_draw_bar(state, 744.0f, 218.0f, 612.0f, 28.0f, smoketest_ring_unit(state->ui_draws, 128), 0.25f, 0.84f, 0.71f, "UI Draw Commands", value_text);
+//         snprintf(value_text, sizeof(value_text), "%d", state->graphics_draws);
+//         smoketest_draw_bar(state, 744.0f, 258.0f, 612.0f, 28.0f, smoketest_ring_unit(state->graphics_draws, 128), 0.92f, 0.54f, 0.29f, "Graphics Draw Commands", value_text);
+//         snprintf(value_text, sizeof(value_text), "%d", state->passed_tracks);
+//         smoketest_draw_bar(state, 744.0f, 298.0f, 612.0f, 28.0f, progress_ratio, 0.85f, 0.42f, 0.58f, "Succeeded Tracks", value_text);
+//         snprintf(value_text, sizeof(value_text), "%d", state->total_tracks);
+//         smoketest_draw_bar(state, 744.0f, 338.0f, 612.0f, 28.0f, smoketest_ratio(state->total_tracks, 64), 0.67f, 0.82f, 0.34f, "Album Span", value_text);
+//     } else {
+//         snprintf(value_text, sizeof(value_text), "%d", state->total_tracks);
+//         smoketest_draw_bar(state, 744.0f, 178.0f, 612.0f, 28.0f, smoketest_ratio(state->semantics_tracks + state->systems_tracks, state->total_tracks), 0.29f, 0.67f, 0.97f, "Core Surface", value_text);
+//         snprintf(value_text, sizeof(value_text), "%d", state->stdlib_tracks);
+//         smoketest_draw_bar(state, 744.0f, 218.0f, 612.0f, 28.0f, smoketest_ratio(state->stdlib_tracks, 22), 0.72f, 0.47f, 0.94f, "Stdlib Slab", value_text);
+//         snprintf(value_text, sizeof(value_text), "%d", state->ui_tracks);
+//         smoketest_draw_bar(state, 744.0f, 258.0f, 612.0f, 28.0f, smoketest_ratio(state->ui_tracks, 2), 0.27f, 0.86f, 0.68f, "UI Expansion", value_text);
+//         snprintf(value_text, sizeof(value_text), "%d", state->patch_journal);
+//         smoketest_draw_bar(state, 744.0f, 298.0f, 612.0f, 28.0f, smoketest_ring_unit(state->patch_journal, 256), 0.92f, 0.54f, 0.29f, "Mutation Pressure", value_text);
+//         snprintf(value_text, sizeof(value_text), "%d", state->ui_hash);
+//         smoketest_draw_bar(state, 744.0f, 338.0f, 612.0f, 28.0f, smoketest_ring_unit(state->ui_hash, 1000000007), 0.84f, 0.42f, 0.58f, "UI Fingerprint", value_text);
+//     }
+//
+//     for (i = 0; i < 7; i += 1) {
+//         float y = 396.0f + ((float)i * 42.0f);
+//         float ratio = smoketest_ratio(category_values[i], 22);
+//         float red = 0.22f + (0.05f * (float)((i + 1) % 3));
+//         float green = 0.42f + (0.06f * (float)((i + 2) % 3));
+//         float blue = 0.58f + (0.05f * (float)(i % 3));
+//         if (state->current_view == SMOKETEST_VIEW_STDLIB && i == 3) {
+//             red = 0.87f;
+//             green = 0.50f;
+//             blue = 0.29f;
+//             ratio = smoketest_ratio(category_values[i], 22) * (0.82f + (sinf(phase * 3.0f) * 0.12f));
+//         }
+//         snprintf(value_text, sizeof(value_text), "%d", category_values[i]);
+//         smoketest_draw_bar(state, 62.0f, y, 1294.0f, 24.0f, ratio, red, green, blue, category_names[i], value_text);
+//     }
+//
+//     smoketest_draw_quad(64.0f, 708.0f, 1358.0f, 738.0f, 0.08f, 0.10f, 0.14f, 0.96f);
+//     smoketest_draw_outline(64.0f, 708.0f, 1358.0f, 738.0f, 1.0f, 0.24f, 0.32f, 0.44f, 1.0f);
+//     snprintf(text, sizeof(text), "headless is dead: std::ui authored the dashboard, OpenGL is visualizing the album, and mode %s is currently live", smoketest_view_name(state->current_view));
+//     smoketest_draw_text(state, 82.0f, 728.0f, 0.95f, 0.97f, 1.0f, text);
+//
+//     for (i = 0; i < SMOKETEST_VIEW_COUNT; i += 1) {
+//         RECT rect;
+//         float left;
+//         float top;
+//         float right;
+//         float bottom;
+//         float red = 0.18f;
+//         float green = 0.22f;
+//         float blue = 0.28f;
+//         smoketest_button_rect(state, i, &rect);
+//         left = (float)rect.left;
+//         top = (float)rect.top;
+//         right = (float)rect.right;
+//         bottom = (float)rect.bottom;
+//         if (state->current_view == i) {
+//             red = 0.29f;
+//             green = 0.64f;
+//             blue = 0.78f;
+//         } else if (state->hover_view == i) {
+//             red = 0.23f;
+//             green = 0.34f;
+//             blue = 0.48f;
+//         }
+//         smoketest_draw_quad(left, top, right, bottom, red, green, blue, 0.94f);
+//         smoketest_draw_outline(left, top, right, bottom, 1.0f, red + 0.08f, green + 0.08f, blue + 0.08f, 1.0f);
+//         smoketest_draw_text(state, left + 16.0f, top + 19.0f, 0.98f, 0.98f, 1.0f, smoketest_view_name(i));
+//     }
+//
+//     glFinish();
+//     SwapBuffers(state->dc);
+//     g_frames_presented += 1;
+//     g_cells_drawn += 12;
+// }
+//
+// int smoketest_visualizer_native_probe(void) {
+//     return 1;
+// }
+//
+// int smoketest_visualizer_native_run_window(
+//     const char* title,
+//     int width,
+//     int height,
+//     int frame_budget,
+//     const char* input_path
+// ) {
+//     MSG msg;
+//     int frame_index = 0;
+//     ZeroMemory(&g_visualizer_state, sizeof(g_visualizer_state));
+//     g_frames_presented = 0;
+//     g_cells_drawn = 0;
+//     smoketest_set_error("ok");
+//
+//     g_visualizer_state.instance = GetModuleHandleA(NULL);
+//     g_visualizer_state.width = width > 0 ? width : 1440;
+//     g_visualizer_state.height = height > 0 ? height : 880;
+//     g_visualizer_state.frame_budget = frame_budget;
+//     g_visualizer_state.current_view = SMOKETEST_VIEW_OVERVIEW;
+//     g_visualizer_state.hover_view = -1;
+//     g_visualizer_state.auto_cycle = 1;
+//
+//     if (!smoketest_load_input_file(&g_visualizer_state, input_path)) {
+//         return -2;
+//     }
+//
+//     if (!smoketest_create_window(&g_visualizer_state, title)) {
+//         smoketest_shutdown_window(&g_visualizer_state);
+//         return -1;
+//     }
+//
+//     while (!g_visualizer_state.should_close) {
+//         while (PeekMessageA(&msg, NULL, 0, 0, PM_REMOVE)) {
+//             if (msg.message == WM_QUIT) {
+//                 g_visualizer_state.should_close = 1;
+//                 break;
+//             }
+//             TranslateMessage(&msg);
+//             DispatchMessageA(&msg);
+//         }
+//         if (g_visualizer_state.should_close) {
+//             break;
+//         }
+//         if (g_visualizer_state.frame_budget > 0 && frame_index >= g_visualizer_state.frame_budget) {
+//             break;
+//         }
+//         if (g_visualizer_state.auto_cycle && g_visualizer_state.frame_budget <= 0) {
+//             g_visualizer_state.current_view = (frame_index / 180) % SMOKETEST_VIEW_COUNT;
+//         } else if (g_visualizer_state.auto_cycle && g_visualizer_state.frame_budget > 0) {
+//             g_visualizer_state.current_view = (frame_index / 45) % SMOKETEST_VIEW_COUNT;
+//         }
+//         smoketest_update_title(&g_visualizer_state);
+//         smoketest_render_frame(&g_visualizer_state, frame_index);
+//         Sleep(16);
+//         frame_index += 1;
+//     }
+//
+//     smoketest_shutdown_window(&g_visualizer_state);
+//     return 0;
+// }
+//
+// int smoketest_visualizer_native_frames_presented(void) {
+//     return g_frames_presented;
+// }
+//
+// int smoketest_visualizer_native_cells_drawn(void) {
+//     return g_cells_drawn;
+// }
+//
+// int smoketest_visualizer_native_write_report(const char* path) {
+//     FILE* file;
+//     if (!path || !path[0]) {
+//         smoketest_set_error("missing report path");
+//         return -1;
+//     }
+//     file = fopen(path, "wb");
+//     if (!file) {
+//         smoketest_set_error("failed to open report path");
+//         return -2;
+//     }
+//     fprintf(file, "frames=%d\n", g_frames_presented);
+//     fprintf(file, "cells=%d\n", g_cells_drawn);
+//     fprintf(file, "view=%s\n", smoketest_view_name(g_visualizer_state.current_view));
+//     fprintf(file, "tracks=%d/%d\n", g_visualizer_state.passed_tracks, g_visualizer_state.total_tracks);
+//     fprintf(file, "checksum=%d\n", g_visualizer_state.composition_checksum);
+//     fprintf(file, "patch_journal=%d\n", g_visualizer_state.patch_journal);
+//     fprintf(file, "entangle_propagations=%d\n", g_visualizer_state.entangle_propagations);
+//     fprintf(file, "converge_mismatches=%d\n", g_visualizer_state.converge_mismatches);
+//     fprintf(file, "pulse_count=%d\n", g_visualizer_state.pulse_count);
+//     fprintf(file, "actor_enqueued=%d\n", g_visualizer_state.actor_enqueued);
+//     fprintf(file, "ui_hash=%d\n", g_visualizer_state.ui_hash);
+//     fprintf(file, "ui_draws=%d\n", g_visualizer_state.ui_draws);
+//     fprintf(file, "graphics_draws=%d\n", g_visualizer_state.graphics_draws);
+//     fprintf(file, "last_error=%s\n", g_last_error);
+//     fclose(file);
+//     return 0;
+// }
+//
+// #else
+//
+// int smoketest_visualizer_native_probe(void) {
+//     return 0;
+// }
+//
+// int smoketest_visualizer_native_run_window(
+//     const char* title,
+//     int width,
+//     int height,
+//     int frame_budget,
+//     const char* input_path
+// ) {
+//     (void)title;
+//     (void)width;
+//     (void)height;
+//     (void)frame_budget;
+//     (void)input_path;
+//     return -1;
+// }
+//
+// int smoketest_visualizer_native_frames_presented(void) {
+//     return 0;
+// }
+//
+// int smoketest_visualizer_native_cells_drawn(void) {
+//     return 0;
+// }
+//
+// int smoketest_visualizer_native_write_report(const char* path) {
+//     (void)path;
+//     return -1;
+// }
+//
+// #endif
+//!end-kain-file
+//!kain-file
+// path = "native/smoketest_visualizer_bridge.h"
+// kind = "text"
+// encoding = "utf8"
+// bytes = 530
+// sha256 = "sha256:3fbf43e2d16cd4cfd63ec321d7eabec3a82feb99c524bed335063acc23ebee2d"
+// trailing_newline = true
+//!kain-file-content
+// #ifndef KAIN_SMOKETEST_VISUALIZER_BRIDGE_H
+// #define KAIN_SMOKETEST_VISUALIZER_BRIDGE_H
+//
+// #ifdef __cplusplus
+// extern "C" {
+// #endif
+//
+// int smoketest_visualizer_native_probe(void);
+// int smoketest_visualizer_native_run_window(
+//     const char* title,
+//     int width,
+//     int height,
+//     int frame_budget,
+//     const char* input_path
+// );
+// int smoketest_visualizer_native_frames_presented(void);
+// int smoketest_visualizer_native_cells_drawn(void);
+// int smoketest_visualizer_native_write_report(const char* path);
+//
+// #ifdef __cplusplus
+// }
+// #endif
+//
+// #endif
+//!end-kain-file
+//!kain-file
 // path = "native/utarray.h"
 // kind = "text"
 // encoding = "utf8"
@@ -9830,6 +10816,71 @@
 // #endif /* UTSTRING_H */
 //!end-kain-file
 //!kain-file
+// path = "run-visual-smoketest.ps1"
+// kind = "text"
+// encoding = "utf8"
+// bytes = 1973
+// sha256 = "sha256:e036413ee2d4a9a00445741f9a60212032d8caa60e3dd98764b35a73f8338af8"
+// trailing_newline = true
+//!kain-file-content
+// param(
+//     [ValidateSet("dev", "release")]
+//     [string]$BazelConfig = "dev"
+// )
+//
+// $ErrorActionPreference = "Stop"
+// Set-StrictMode -Version Latest
+//
+// $smoketestRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+// $repoRoot = Resolve-Path (Join-Path $smoketestRoot "..")
+// $compileScript = Join-Path $repoRoot ".agents\skills\lang-projects\scripts\compile_kain_project_to_root.ps1"
+// $prebuildScript = Join-Path $smoketestRoot "build-smoketest-visualizer-bridge.ps1"
+// $entry = Join-Path $smoketestRoot "src\main.kn"
+// $exePath = Join-Path $smoketestRoot "smoketest.exe"
+// $visualTelemetryRoot = Join-Path $smoketestRoot "telemetry\visual"
+// $uiReportPath = Join-Path $visualTelemetryRoot "notes\ui_dashboard.json"
+// $openglReportPath = Join-Path $visualTelemetryRoot "notes\opengl_album.json"
+// $windowReportPath = Join-Path $visualTelemetryRoot "notes\opengl_window_report.txt"
+//
+// New-Item -ItemType Directory -Force -Path $visualTelemetryRoot | Out-Null
+//
+// & $prebuildScript
+// & $compileScript -Entry $entry -OutputName "smoketest.exe" -BazelConfig $BazelConfig -VerifyLlvm
+//
+// if (!(Test-Path $exePath)) {
+//     throw "Expected executable was not created: $exePath"
+// }
+//
+// $env:KAIN_SMOKETEST_MODE = "visual"
+//
+// Push-Location $smoketestRoot
+// try {
+//     & $exePath
+//     if ($LASTEXITCODE -ne 0) {
+//         throw "smoketest.exe exited with code $LASTEXITCODE"
+//     }
+// }
+// finally {
+//     Pop-Location
+//     Remove-Item Env:KAIN_SMOKETEST_MODE -ErrorAction SilentlyContinue
+// }
+//
+// if (!(Test-Path $uiReportPath)) {
+//     throw "Expected UI dashboard note was not created: $uiReportPath"
+// }
+// if (!(Test-Path $openglReportPath)) {
+//     throw "Expected OpenGL album note was not created: $openglReportPath"
+// }
+// if (!(Test-Path $windowReportPath)) {
+//     throw "Expected OpenGL window report was not created: $windowReportPath"
+// }
+//
+// Write-Host "[PASS] smoketest visual mode executed: $exePath"
+// Write-Host "[PASS] ui note: $uiReportPath"
+// Write-Host "[PASS] opengl note: $openglReportPath"
+// Write-Host "[PASS] window report: $windowReportPath"
+//!end-kain-file
+//!kain-file
 // path = "src/c/smoketest_interop_bridge.kn"
 // kind = "text"
 // encoding = "utf8"
@@ -10082,8 +11133,8 @@
 // path = "src/main.kn"
 // kind = "text"
 // encoding = "utf8"
-// bytes = 33607
-// sha256 = "sha256:6e45b7780e093b48b6c83cfcca84dfc8b2ea7de234bcafa48822b8fbefed7de2"
+// bytes = 35046
+// sha256 = "sha256:6f7706cda9472463967525b2dae5932f8d439d48ff94e3fb15e9986b1ea18e2e"
 // trailing_newline = true
 //!kain-file-content
 // use std::runtime
@@ -10149,6 +11200,10 @@
 // // Interop track
 // use c_bridge::smoke_c_bridge_lane
 // use c_abi_album::smoke_c_abi_album_lane
+//
+// // UI track
+// use dashboard::smoke_ui_album_lane
+// use presenter::smoke_opengl_album_lane
 //
 // // Telemetry tracks
 // use report::smoke_telemetry_mode
@@ -10219,7 +11274,7 @@
 //         return 10 + boot
 //
 //     let started_ms = now_millis()
-//     let total_tracks: Int = 52
+//     let total_tracks: Int = 54
 //     var succeeded_tracks: Int = 0
 //     var composition_checksum: Int = 0
 //
@@ -10689,6 +11744,24 @@
 //     let e_process = smoke_first_error(4900, lane_process)
 //     if e_process != 0:
 //         return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_process, "stdlib.process_lane")
+//     succeeded_tracks = succeeded_tracks + 1
+//
+//     let started_ui_dashboard = now_millis()
+//     let ui_snapshot = smoke_ui_album_lane(mode, total_tracks, succeeded_tracks + 1, composition_checksum)
+//     let ended_ui_dashboard = now_millis()
+//     composition_checksum = smoke_record_track(mode, "ui", "ui.album_dashboard", "album_dashboard", 53, 5000, ui_snapshot.status, started_ui_dashboard, ended_ui_dashboard, composition_checksum)
+//     let e_ui_dashboard = smoke_first_error(5000, ui_snapshot.status)
+//     if e_ui_dashboard != 0:
+//         return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_ui_dashboard, "ui.album_dashboard")
+//     succeeded_tracks = succeeded_tracks + 1
+//
+//     let started_ui_presenter = now_millis()
+//     let lane_ui_presenter = smoke_opengl_album_lane(mode, total_tracks, succeeded_tracks + 1, composition_checksum, ui_snapshot)
+//     let ended_ui_presenter = now_millis()
+//     composition_checksum = smoke_record_track(mode, "ui", "ui.opengl_album", "opengl_album", 54, 5100, lane_ui_presenter, started_ui_presenter, ended_ui_presenter, composition_checksum)
+//     let e_ui_presenter = smoke_first_error(5100, lane_ui_presenter)
+//     if e_ui_presenter != 0:
+//         return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_ui_presenter, "ui.opengl_album")
 //     succeeded_tracks = succeeded_tracks + 1
 //
 //     let shape_ok = converge_mismatch_count() == 0 and runtime_heap_validate() >= 0 and patch_journal_count() >= 1 and entangle_propagation_count() >= 1 and runtime_converge_telemetry_count() >= 1
@@ -12094,44 +13167,124 @@
 // path = "src/stdlib/json_lane.kn"
 // kind = "text"
 // encoding = "utf8"
-// bytes = 1252
-// sha256 = "sha256:74b6c78c35d1e9e3e834f7400765701e1ad5f668a65467528e9ecc1d5d9de4dc"
+// bytes = 3973
+// sha256 = "sha256:64e244855df98b7ec00cb532c7226619952583d892deb588d7e69f26a9a12dc5"
 // trailing_newline = true
 //!kain-file-content
+// use std::fmt
+// use std::io
 // use std::json
 // use std::text
 //
-// pub fn smoke_json_lane() -> Int:
+// pub fn smoke_json_lane() -> Int with Unsafe:
 //     let payload = json_object()
-//     let tags = json_array()
-//     let _tag_alpha = json_array_push_string(tags, "alpha")
-//     let _tag_beta = json_array_push_string(tags, "beta")
+//     let tags = ["alpha", "beta"]
+//     let scores = [3, 5, 8]
+//     let flags = [true, false]
+//     let meta = json_object_with_string("mode", "strict")
+//
 //     let _name = json_object_set_string(payload, "name", "kain")
 //     let _version = json_object_set_int(payload, "version", 1)
+//     let _ratio = json_object_set_float(payload, "ratio", 2.5)
 //     let _ok = json_object_set_bool(payload, "ok", true)
-//     let _tags = json_object_set_value(payload, "tags", tags)
+//     let _tags = json_object_set_string_array(payload, "tags", tags)
+//     let _scores = json_object_set_int_array(payload, "scores", scores)
+//     let _flags = json_object_set_bool_array(payload, "flags", flags)
+//     let _meta = json_object_set_object(payload, "meta", meta)
+//
 //     let rendered = json_stringify(payload)
 //     if text_contains_string(rendered, "\"name\"") == false:
 //         return 1
+//
 //     let parsed = json_parse_text(rendered)
-//     if json_string_or(parsed, "name", "") != "kain":
+//
+//     let name = json_string_field(parsed, "name")
+//     if name.ok == false or name.value != "kain":
 //         return 2
-//     if json_int_or(parsed, "version", 0) != 1:
+//
+//     let version = json_int_field(parsed, "version")
+//     if version.ok == false or version.value != 1:
 //         return 3
-//     if json_bool_or(parsed, "ok", false) == false:
+//
+//     let ratio = json_float_field(parsed, "ratio")
+//     if ratio.ok == false or ratio.value < 2.49 or ratio.value > 2.51:
 //         return 4
-//     let parsed_tags = json_string_array_field(parsed, "tags")
-//     if len(parsed_tags) != 2:
+//
+//     let ok = json_bool_field(parsed, "ok")
+//     if ok.ok == false or ok.value == false:
 //         return 5
-//     if parsed_tags[1] != "beta":
+//
+//     let parsed_tags = json_string_array_field_result(parsed, "tags")
+//     if parsed_tags.ok == false or len(parsed_tags.value) != 2:
 //         return 6
+//     if parsed_tags.value[1] != "beta":
+//         return 7
+//
+//     let parsed_scores = json_int_array_field_result(parsed, "scores")
+//     if parsed_scores.ok == false or len(parsed_scores.value) != 3:
+//         return 8
+//     if parsed_scores.value[2] != 8:
+//         return 9
+//
+//     let parsed_flags = json_bool_array_field_result(parsed, "flags")
+//     if parsed_flags.ok == false or len(parsed_flags.value) != 2:
+//         return 10
+//     if parsed_flags.value[0] == false or parsed_flags.value[1] == true:
+//         return 11
+//
+//     let meta_result = json_object_field(parsed, "meta")
+//     if meta_result.ok == false:
+//         return 12
+//     let mode = json_string_field(meta_result.value, "mode")
+//     if mode.ok == false or mode.value != "strict":
+//         return 13
+//
+//     if json_value_kind(parsed) != JSON_KIND_OBJECT:
+//         return 14
+//
+//     let mismatch = json_string_field(parsed, "version")
+//     if mismatch.ok or mismatch.status.code != JSON_STATUS_WRONG_KIND:
+//         return 15
+//
+//     let missing = json_bool_field(parsed, "missing")
+//     if missing.ok or missing.status.code != JSON_STATUS_MISSING_KEY:
+//         return 16
+//
+//     let writer = json_fmt_writer_push_value(fmt_writer_new(), payload)
+//     if fmt_writer_build(writer) != rendered:
+//         return 17
+//
+//     let builder = string_builder_new(16)
+//     let builder_ptr: ptr<StringBuilder> = addr_of(builder, "StringBuilder")
+//     let _wrote = json_string_builder_push_value(builder_ptr, payload)
+//     if string_builder_to_string(builder) != rendered:
+//         return 18
+//     string_builder_destroy(builder)
+//
+//     let report = json_scan_report(rendered)
+//     if report.ok == false or report.code != JSON_STATUS_OK:
+//         return 19
+//
+//     let unknown_report = json_scan_report("{\"ok\"=true}")
+//     if unknown_report.ok or unknown_report.code != JSON_STATUS_SCAN_UNKNOWN_TOKEN:
+//         return 20
+//
+//     let unbalanced_report = json_scan_report("{\"ok\": [1, 2}")
+//     if unbalanced_report.ok or unbalanced_report.code != JSON_STATUS_SCAN_UNBALANCED_DELIMITER:
+//         return 21
+//
+//     let empty_report = json_scan_report("")
+//     if empty_report.ok or empty_report.code != JSON_STATUS_SCAN_EMPTY_INPUT:
+//         return 22
+//
 //     let tokens = json_scan_significant("{\"ok\": true, \"count\": 2}")
 //     if len(tokens) < 5:
-//         return 7
+//         return 23
 //     if tokens[0].kind != JSON_TOKEN_LBRACE:
-//         return 8
+//         return 24
 //     if tokens[1].kind != JSON_TOKEN_STRING:
-//         return 9
+//         return 25
+//
 //     return 0
 //!end-kain-file
 //!kain-file
@@ -12768,17 +13921,18 @@
 // path = "src/stdlib/text_lane.kn"
 // kind = "text"
 // encoding = "utf8"
-// bytes = 2065
-// sha256 = "sha256:ff5f4b5b2899ad6b778a968857b378fd0b3ed4cdb9b32e6813bab671fb81dd28"
+// bytes = 2916
+// sha256 = "sha256:ec78d6a99db322e71fe861e0456f06dfe05cfa1809d0c27ea4dbbf30975ff06f"
 // trailing_newline = true
 //!kain-file-content
 // use std::bytes
 // use std::ascii
 // use std::fmt
+// use std::io
 // use std::runtime
 // use std::text
 //
-// pub fn smoke_text_lane() -> Int:
+// pub fn smoke_text_lane() -> Int with Unsafe:
 //     let wire = text_trim(text_slice("  zero-copy  ", 2, 11))
 //     if text_len(wire) <= 0:
 //         return 1
@@ -12832,6 +13986,23 @@
 //     writer = fmt_writer_push_json_string(writer, "ok")
 //     if fmt_writer_build(writer) != "lane=text \"ok\"":
 //         return 18
+//     var spec = fmt_spec_default()
+//     spec = fmt_spec_base(spec, FMT_BASE_HEX)
+//     spec = fmt_spec_prefix(spec, "0x")
+//     spec = fmt_spec_width(spec, 6)
+//     spec = fmt_spec_pad(spec, "0")
+//     if fmt_int_spec(31, spec) != "000x1f":
+//         return 19
+//     let bool_spec = fmt_spec_bool_style(fmt_spec_uppercase(fmt_spec_prefix(fmt_spec_default(), "flag="), true), FMT_BOOL_STYLE_WORD)
+//     if fmt_bool_spec(true, bool_spec) != "flag=TRUE":
+//         return 20
+//     let sb = string_builder_new(8)
+//     let sb_ptr: ptr<StringBuilder> = addr_of(sb, "StringBuilder")
+//     let _fmt_push_a = fmt_string_builder_push_string(sb_ptr, "id=")
+//     let _fmt_push_b = fmt_string_builder_push_int_spec(sb_ptr, 7, fmt_spec_plus(fmt_spec_default(), true))
+//     if string_builder_to_string(sb) != "id=+7":
+//         return 21
+//     string_builder_destroy(sb)
 //     return 0
 //!end-kain-file
 //!kain-file
@@ -14583,6 +15754,407 @@
 //     return extern_probe(value)
 //
 // fn main() -> Int:
+//     return 0
+//!end-kain-file
+//!kain-file
+// path = "src/ui/dashboard.kn"
+// kind = "text"
+// encoding = "utf8"
+// bytes = 17714
+// sha256 = "sha256:7f8861c9ac225f1c2406ae59dce2f15a45038a5f6d53d26a7efd74a825b8474f"
+// trailing_newline = true
+//!kain-file-content
+// use std::graphics
+// use std::ui
+// use report::smoke_write_note_report
+//
+// const SMOKE_UI_SEMANTICS_TRACKS: Int = 18
+// const SMOKE_UI_SYSTEMS_TRACKS: Int = 7
+// const SMOKE_UI_GPU_TRACKS: Int = 1
+// const SMOKE_UI_STDLIB_TRACKS: Int = 22
+// const SMOKE_UI_INTEROP_TRACKS: Int = 2
+// const SMOKE_UI_TELEMETRY_TRACKS: Int = 2
+// const SMOKE_UI_UI_TRACKS: Int = 2
+//
+// struct SmokeUiGraphicsSnapshot:
+//     status: Int
+//     score: Int
+//     draw_count: Int
+//     backend_len: Int
+//
+// pub struct SmokeUiAlbumSnapshot:
+//     status: Int
+//     frame_hash: Int
+//     draw_count: Int
+//     presented_draws: Int
+//     state_count: Int
+//     interaction_count: Int
+//     focus_node: Int
+//     resource_count: Int
+//     graphics_score: Int
+//     graphics_draws: Int
+//     backend_len: Int
+//
+// fn smoke_ui_graphics_probe(seed: Int) -> SmokeUiGraphicsSnapshot:
+//     let _reset = graphics_reset()
+//     let session = graphics_session_create("smoketest.album.graphics", 320, 240)
+//     if session <= 0:
+//         return SmokeUiGraphicsSnapshot {
+//             status: 1,
+//             score: 0,
+//             draw_count: 0,
+//             backend_len: 0
+//         }
+//
+//     let _backend = graphics_backend_select(session, "software")
+//     let vb = graphics_buffer_create_from_hex(session, "vertex", "smoketest.album.vertices", "00000000010000000200000003000000", 12)
+//     let ib = graphics_buffer_create_from_hex(session, "index", "smoketest.album.indices", "000000000100000002000000000000000200000003000000", 4)
+//     let mesh = graphics_mesh_create(session, "smoketest.album.mesh", vb, ib, 4, 6)
+//     let vs = graphics_shader_spirv_from_hex(session, "smoketest.album.vertex", "vertex", "main", "03022307")
+//     let fs = graphics_shader_spirv_from_hex(session, "smoketest.album.fragment", "fragment", "main", "03022307")
+//     let pipeline = graphics_pipeline_create(session, "smoketest.album.pipeline", vs, fs, "software")
+//     let _begin = graphics_begin_frame(session, 16.0)
+//     let draw = graphics_draw_mesh(session, pipeline, mesh, (seed % 4) + 1)
+//     let ended = graphics_end_frame(session)
+//     let presented = graphics_present(session)
+//     let draws = graphics_draw_command_count(session)
+//     let backend = graphics_active_backend(session)
+//     let backend_score = len(backend) + len(graphics_backend_status("software"))
+//     let _destroy = graphics_session_destroy(session)
+//     return SmokeUiGraphicsSnapshot {
+//         status: 0,
+//         score: draw + ended + presented + draws + backend_score,
+//         draw_count: draws,
+//         backend_len: len(backend)
+//     }
+//
+// fn smoke_ui_zero_snapshot(status: Int) -> SmokeUiAlbumSnapshot:
+//     return SmokeUiAlbumSnapshot {
+//         status: status,
+//         frame_hash: 0,
+//         draw_count: 0,
+//         presented_draws: 0,
+//         state_count: 0,
+//         interaction_count: 0,
+//         focus_node: 0,
+//         resource_count: 0,
+//         graphics_score: 0,
+//         graphics_draws: 0,
+//         backend_len: 0
+//     }
+//
+// pub fn smoke_ui_album_lane(mode: String, total_tracks: Int, succeeded_tracks: Int, composition_checksum: Int) -> SmokeUiAlbumSnapshot:
+//     let graphics = smoke_ui_graphics_probe(composition_checksum + succeeded_tracks)
+//     let _reset = ui_reset()
+//     let session = ui_host_session_create("smoketest.album.ui", "Kain Smoketest Album UI", 1280, 760, "software")
+//     if session <= 0:
+//         return smoke_ui_zero_snapshot(1)
+//
+//     let generation = native_ui_hot_reload_begin(session, "smoketest.album.rev-b")
+//     let body_font = native_ui_font_create(session, "font.album.body", "JetBrains Mono", 14.0)
+//     let hero_font = native_ui_font_create(session, "font.album.hero", "JetBrains Mono", 20.0)
+//     let badge = ui_texture_rgba8_from_hex(session, "album.badge", 2, 2, "ff6b3dff2ec4b6ff15314bffefdcb5ff")
+//
+//     let root = ui_reconcile_node(session, 0, "root", "album.root", 0.0, 0.0, 1280.0, 760.0)
+//     let hero = ui_reconcile_labeled_node(session, root, "panel", "album.hero", "smoketest-album", "region", "Smoketest Album Hero", 36.0, 28.0, 1208.0, 118.0)
+//     let hero_title = ui_reconcile_text_node(session, hero, "text", "album.hero.title", "Kain Smoketest Album", 128.0, 24.0, 420.0, 28.0)
+//     let hero_subtitle = ui_reconcile_text_node(session, hero, "text", "album.hero.subtitle", "full-surface UI plus OpenGL instrumentation lane", 128.0, 62.0, 680.0, 22.0)
+//     let hero_badge = ui_reconcile_node(session, hero, "image", "album.hero.badge", 28.0, 24.0, 72.0, 72.0)
+//
+//     let overview_button = ui_reconcile_focusable_node(session, root, "button", "album.button.overview", "overview", "button", "Overview", 44.0, 170.0, 164.0, 38.0)
+//     let runtime_button = ui_reconcile_focusable_node(session, root, "button", "album.button.runtime", "runtime", "button", "Runtime Lens", 224.0, 170.0, 164.0, 38.0)
+//     let telemetry_button = ui_reconcile_focusable_node(session, root, "button", "album.button.telemetry", "telemetry", "button", "Telemetry", 404.0, 170.0, 164.0, 38.0)
+//
+//     let card_width = 372.0
+//     let gap = 24.0
+//     let row_one_y = 232.0
+//     let row_two_y = 416.0
+//     let col_one_x = 44.0
+//     let col_two_x = col_one_x + card_width + gap
+//     let col_three_x = col_two_x + card_width + gap
+//
+//     let semantics = ui_reconcile_text_node(session, root, "panel", "album.card.semantics", "Semantics 18/18", col_one_x, row_one_y, card_width, 132.0)
+//     let systems = ui_reconcile_text_node(session, root, "panel", "album.card.systems", "Systems 7/7", col_two_x, row_one_y, card_width, 132.0)
+//     let gpu = ui_reconcile_text_node(session, root, "panel", "album.card.gpu", "GPU 1/1", col_three_x, row_one_y, card_width, 132.0)
+//     let stdlib = ui_reconcile_text_node(session, root, "panel", "album.card.stdlib", "Stdlib 22/22", col_one_x, row_two_y, card_width, 132.0)
+//     let interop = ui_reconcile_text_node(session, root, "panel", "album.card.interop", "Interop 2/2", col_two_x, row_two_y, card_width, 132.0)
+//     let telemetry = ui_reconcile_text_node(session, root, "panel", "album.card.telemetry", "Telemetry 2/2, UI 1/2", col_three_x, row_two_y, card_width, 132.0)
+//
+//     let footer = ui_reconcile_labeled_node(session, root, "panel", "album.footer", "footer", "region", "Album Footer", 44.0, 598.0, 1200.0, 118.0)
+//     let footer_text = ui_reconcile_text_node(session, footer, "text", "album.footer.text", "album footer", 20.0, 24.0, 1160.0, 30.0)
+//     let footer_metrics = ui_reconcile_text_node(session, footer, "text", "album.footer.metrics", "album metrics", 20.0, 62.0, 1160.0, 24.0)
+//
+//     let _hero_resource = ui_state_resource(session, hero_badge, "badge", "smoketest.album.badge", badge)
+//     let _hero_shape = ui_state_shape(session, hero, "hero.deck", "smoketest-album")
+//     let _hero_draw = ui_state_draw(session, hero, "hero.draw", "album-pulse")
+//     let _hero_counter = ui_state_counter(session, hero, "state.frames", 1)
+//     let _hero_mode = ui_state_set_string(session, overview_button, "button.mode", "overview")
+//     let _runtime_mode = ui_state_set_string(session, runtime_button, "button.mode", "runtime")
+//     let _telemetry_mode = ui_state_set_string(session, telemetry_button, "button.mode", "telemetry")
+//
+//     let _root_bg = ui_style_color_rgba(session, root, "ui.root", 0.04, 0.05, 0.08, 1.0)
+//     let _hero_bg = ui_style_color_rgba(session, hero, "ui.hero", 0.10, 0.14, 0.20, 1.0)
+//     let _hero_badge_style = ui_style_color_rgba(session, hero_badge, "ui.badge", 1.0, 1.0, 1.0, 1.0)
+//     let _hero_title_fg = ui_style_color_rgba(session, hero_title, "ui.hero.title", 0.98, 0.97, 0.93, 1.0)
+//     let _hero_sub_fg = ui_style_color_rgba(session, hero_subtitle, "ui.hero.subtitle", 0.74, 0.84, 0.93, 1.0)
+//
+//     let _button_overview_bg = ui_style_color_rgba(session, overview_button, "ui.button.overview", 0.18, 0.27, 0.31, 1.0)
+//     let _button_runtime_bg = ui_style_color_rgba(session, runtime_button, "ui.button.runtime", 0.18, 0.22, 0.34, 1.0)
+//     let _button_telemetry_bg = ui_style_color_rgba(session, telemetry_button, "ui.button.telemetry", 0.22, 0.16, 0.31, 1.0)
+//     let _button_fg = ui_style_color_rgba(session, overview_button, "ui.button.ink", 0.97, 0.98, 1.0, 1.0)
+//     let _button_runtime_fg = ui_style_color_rgba(session, runtime_button, "ui.button.ink", 0.97, 0.98, 1.0, 1.0)
+//     let _button_telemetry_fg = ui_style_color_rgba(session, telemetry_button, "ui.button.ink", 0.97, 0.98, 1.0, 1.0)
+//
+//     let _semantics_bg = ui_style_color_rgba(session, semantics, "ui.card.semantics", 0.12, 0.21, 0.26, 1.0)
+//     let _systems_bg = ui_style_color_rgba(session, systems, "ui.card.systems", 0.15, 0.20, 0.31, 1.0)
+//     let _gpu_bg = ui_style_color_rgba(session, gpu, "ui.card.gpu", 0.13, 0.17, 0.29, 1.0)
+//     let _stdlib_bg = ui_style_color_rgba(session, stdlib, "ui.card.stdlib", 0.19, 0.16, 0.25, 1.0)
+//     let _interop_bg = ui_style_color_rgba(session, interop, "ui.card.interop", 0.20, 0.18, 0.16, 1.0)
+//     let _telemetry_bg = ui_style_color_rgba(session, telemetry, "ui.card.telemetry", 0.13, 0.20, 0.18, 1.0)
+//     let _card_fg = ui_style_color_rgba(session, semantics, "ui.card.ink", 0.97, 0.98, 1.0, 1.0)
+//     let _systems_fg = ui_style_color_rgba(session, systems, "ui.card.ink", 0.97, 0.98, 1.0, 1.0)
+//     let _gpu_fg = ui_style_color_rgba(session, gpu, "ui.card.ink", 0.97, 0.98, 1.0, 1.0)
+//     let _stdlib_fg = ui_style_color_rgba(session, stdlib, "ui.card.ink", 0.97, 0.98, 1.0, 1.0)
+//     let _interop_fg = ui_style_color_rgba(session, interop, "ui.card.ink", 0.97, 0.98, 1.0, 1.0)
+//     let _telemetry_fg = ui_style_color_rgba(session, telemetry, "ui.card.ink", 0.97, 0.98, 1.0, 1.0)
+//     let _footer_bg = ui_style_color_rgba(session, footer, "ui.footer", 0.09, 0.12, 0.18, 1.0)
+//     let _footer_fg = ui_style_color_rgba(session, footer_text, "ui.footer.ink", 0.97, 0.98, 1.0, 1.0)
+//     let _footer_metrics_fg = ui_style_color_rgba(session, footer_metrics, "ui.footer.metrics", 0.70, 0.82, 0.92, 1.0)
+//
+//     let _hero_padding = ui_style_padding(session, hero, "ui.hero", 18.0, 18.0, 18.0, 18.0)
+//     let _footer_padding = ui_style_padding(session, footer, "ui.footer", 18.0, 18.0, 18.0, 18.0)
+//     let _card_padding = ui_style_padding(session, semantics, "ui.card", 16.0, 16.0, 16.0, 16.0)
+//     let _systems_padding = ui_style_padding(session, systems, "ui.card", 16.0, 16.0, 16.0, 16.0)
+//     let _gpu_padding = ui_style_padding(session, gpu, "ui.card", 16.0, 16.0, 16.0, 16.0)
+//     let _stdlib_padding = ui_style_padding(session, stdlib, "ui.card", 16.0, 16.0, 16.0, 16.0)
+//     let _interop_padding = ui_style_padding(session, interop, "ui.card", 16.0, 16.0, 16.0, 16.0)
+//     let _telemetry_padding = ui_style_padding(session, telemetry, "ui.card", 16.0, 16.0, 16.0, 16.0)
+//
+//     let _semantics_text = native_ui_node_set_text(session, semantics, "Semantics " + str(SMOKE_UI_SEMANTICS_TRACKS) + "/" + str(SMOKE_UI_SEMANTICS_TRACKS) + " // worlds, converge, teleport, actors")
+//     let _systems_text = native_ui_node_set_text(session, systems, "Systems " + str(SMOKE_UI_SYSTEMS_TRACKS) + "/" + str(SMOKE_UI_SYSTEMS_TRACKS) + " // ownership, ABI, VM, MMIO")
+//     let _gpu_text = native_ui_node_set_text(session, gpu, "GPU " + str(SMOKE_UI_GPU_TRACKS) + "/" + str(SMOKE_UI_GPU_TRACKS) + " // shader lane compile-certified")
+//     let _stdlib_text = native_ui_node_set_text(session, stdlib, "Stdlib " + str(SMOKE_UI_STDLIB_TRACKS) + "/" + str(SMOKE_UI_STDLIB_TRACKS) + " // bytes, json, fs, process, thread")
+//     let _interop_text = native_ui_node_set_text(session, interop, "Interop " + str(SMOKE_UI_INTEROP_TRACKS) + "/" + str(SMOKE_UI_INTEROP_TRACKS) + " // C bridge plus ABI album")
+//     let _telemetry_text = native_ui_node_set_text(session, telemetry, "Telemetry " + str(SMOKE_UI_TELEMETRY_TRACKS) + "/" + str(SMOKE_UI_TELEMETRY_TRACKS) + " // UI " + str(SMOKE_UI_UI_TRACKS - 1) + "/" + str(SMOKE_UI_UI_TRACKS) + " while OpenGL waits next")
+//
+//     let footer_copy = "progress " + str(succeeded_tracks) + "/" + str(total_tracks) + " checksum " + str(composition_checksum)
+//     let footer_metric_copy = "ui draw " + str(0) + " graphics score " + str(graphics.score) + " graphics draws " + str(graphics.draw_count)
+//     let _footer_text_set = native_ui_node_set_text(session, footer_text, footer_copy)
+//     let _footer_metrics_set = native_ui_node_set_text(session, footer_metrics, footer_metric_copy)
+//
+//     let _down = native_ui_push_event(session, "pointer.down", runtime_button, 306.0, 189.0, 0, "primary")
+//     let _up = native_ui_push_event(session, "pointer.up", runtime_button, 306.0, 189.0, 0, "primary")
+//     let interactions = ui_drain_events_for_node(session, runtime_button)
+//
+//     let _begin = ui_frame_begin(session, 16.0)
+//     let _draw_root = ui_render_box(session, root, "ui.root")
+//     let _draw_hero = ui_render_box(session, hero, "ui.hero")
+//     let _draw_badge = ui_render_resource_in_node(session, hero_badge, badge, "ui.badge")
+//     let _draw_title = ui_render_text(session, hero_title, hero_font, native_ui_node_x(session, hero_title), native_ui_node_y(session, hero_title) + 18.0, "ui.hero.title")
+//     let _draw_subtitle = ui_render_text(session, hero_subtitle, body_font, native_ui_node_x(session, hero_subtitle), native_ui_node_y(session, hero_subtitle) + 14.0, "ui.hero.subtitle")
+//
+//     let _draw_overview_button = ui_render_box(session, overview_button, "ui.button.overview")
+//     let _draw_runtime_button = ui_render_box(session, runtime_button, "ui.button.runtime")
+//     let _draw_telemetry_button = ui_render_box(session, telemetry_button, "ui.button.telemetry")
+//     let _draw_overview_text = ui_render_text_in_box(session, overview_button, body_font, 18.0, 24.0, "ui.button.ink")
+//     let _draw_runtime_text = ui_render_text_in_box(session, runtime_button, body_font, 18.0, 24.0, "ui.button.ink")
+//     let _draw_telemetry_text = ui_render_text_in_box(session, telemetry_button, body_font, 18.0, 24.0, "ui.button.ink")
+//
+//     let _draw_semantics = ui_render_box(session, semantics, "ui.card.semantics")
+//     let _draw_systems = ui_render_box(session, systems, "ui.card.systems")
+//     let _draw_gpu = ui_render_box(session, gpu, "ui.card.gpu")
+//     let _draw_stdlib = ui_render_box(session, stdlib, "ui.card.stdlib")
+//     let _draw_interop = ui_render_box(session, interop, "ui.card.interop")
+//     let _draw_telemetry = ui_render_box(session, telemetry, "ui.card.telemetry")
+//     let _draw_semantics_text = ui_render_text_in_box(session, semantics, body_font, 16.0, 28.0, "ui.card.ink")
+//     let _draw_systems_text = ui_render_text_in_box(session, systems, body_font, 16.0, 28.0, "ui.card.ink")
+//     let _draw_gpu_text = ui_render_text_in_box(session, gpu, body_font, 16.0, 28.0, "ui.card.ink")
+//     let _draw_stdlib_text = ui_render_text_in_box(session, stdlib, body_font, 16.0, 28.0, "ui.card.ink")
+//     let _draw_interop_text = ui_render_text_in_box(session, interop, body_font, 16.0, 28.0, "ui.card.ink")
+//     let _draw_telemetry_text = ui_render_text_in_box(session, telemetry, body_font, 16.0, 28.0, "ui.card.ink")
+//
+//     let _draw_footer = ui_render_box(session, footer, "ui.footer")
+//     let _draw_footer_text = ui_render_text_in_box(session, footer_text, body_font, 0.0, 14.0, "ui.footer.ink")
+//     let _draw_footer_metrics = ui_render_text_in_box(session, footer_metrics, body_font, 0.0, 14.0, "ui.footer.metrics")
+//
+//     let submitted = ui_frame_submit(session)
+//     let pumped = native_ui_host_pump(session)
+//     let committed = native_ui_hot_reload_commit(session)
+//
+//     let draw_count = native_ui_draw_command_count(session)
+//     let presented_draws = native_ui_host_presented_draw_count(session)
+//     let frame_hash = native_ui_host_frame_hash(session)
+//     let state_count = native_ui_state_count(session)
+//     let focus_node = native_ui_focused_node(session)
+//     let resource_count = native_ui_resource_count(session)
+//     let backend = native_ui_host_backend(session)
+//
+//     var note = "{\n"
+//     note = note + "  \"status\": 0,\n"
+//     note = note + "  \"progress\": \"" + str(succeeded_tracks) + "/" + str(total_tracks) + "\",\n"
+//     note = note + "  \"composition_checksum\": " + str(composition_checksum) + ",\n"
+//     note = note + "  \"generation\": " + str(generation) + ",\n"
+//     note = note + "  \"committed\": " + str(committed) + ",\n"
+//     note = note + "  \"draw_count\": " + str(draw_count) + ",\n"
+//     note = note + "  \"presented_draws\": " + str(presented_draws) + ",\n"
+//     note = note + "  \"frame_hash\": " + str(frame_hash) + ",\n"
+//     note = note + "  \"state_count\": " + str(state_count) + ",\n"
+//     note = note + "  \"interaction_count\": " + str(interactions) + ",\n"
+//     note = note + "  \"focus_node\": " + str(focus_node) + ",\n"
+//     note = note + "  \"resource_count\": " + str(resource_count) + ",\n"
+//     note = note + "  \"backend\": \"" + backend + "\",\n"
+//     note = note + "  \"graphics_score\": " + str(graphics.score) + ",\n"
+//     note = note + "  \"graphics_draws\": " + str(graphics.draw_count) + "\n"
+//     note = note + "}\n"
+//     let _report = smoke_write_note_report(mode, "ui_dashboard.json", note)
+//     let _destroy = ui_session_destroy(session)
+//
+//     var status = 0
+//     if body_font <= 0 or hero_font <= 0:
+//         status = 2
+//     if status == 0 and badge <= 0:
+//         status = 3
+//     if status == 0 and generation != committed:
+//         status = 4
+//     if status == 0 and submitted < 0:
+//         status = 5
+//     if status == 0 and pumped < 0:
+//         status = 6
+//     if status == 0 and draw_count < 16:
+//         status = 7
+//     if status == 0 and interactions < 1:
+//         status = 8
+//     if status == 0 and len(backend) == 0:
+//         status = 9
+//     if status == 0 and graphics.status != 0:
+//         status = 10
+//
+//     return SmokeUiAlbumSnapshot {
+//         status: status,
+//         frame_hash: frame_hash,
+//         draw_count: draw_count,
+//         presented_draws: presented_draws,
+//         state_count: state_count,
+//         interaction_count: interactions,
+//         focus_node: focus_node,
+//         resource_count: resource_count,
+//         graphics_score: graphics.score,
+//         graphics_draws: graphics.draw_count,
+//         backend_len: len(backend)
+//     }
+//!end-kain-file
+//!kain-file
+// path = "src/ui/presenter.kn"
+// kind = "text"
+// encoding = "utf8"
+// bytes = 4858
+// sha256 = "sha256:f2f30e5c45005e4fd5f025e2dbeb8592b5f1e9be56ec8c2bb00700a2fbce1ffc"
+// trailing_newline = true
+//!kain-file-content
+// use std::actor
+// use std::fs
+// use std::intent
+// use std::runtime
+// use c::smoketest_visualizer_bridge
+// use dashboard::SmokeUiAlbumSnapshot
+// use report::smoke_telemetry_output_root
+// use report::smoke_write_note_report
+//
+// const SMOKE_PRESENT_SEMANTICS_TRACKS: Int = 18
+// const SMOKE_PRESENT_SYSTEMS_TRACKS: Int = 7
+// const SMOKE_PRESENT_GPU_TRACKS: Int = 1
+// const SMOKE_PRESENT_STDLIB_TRACKS: Int = 22
+// const SMOKE_PRESENT_INTEROP_TRACKS: Int = 2
+// const SMOKE_PRESENT_TELEMETRY_TRACKS: Int = 2
+// const SMOKE_PRESENT_UI_TRACKS: Int = 2
+//
+// pub fn smoke_visualizer_probe() -> Int:
+//     return smoketest_visualizer_native_probe()
+//
+// pub fn smoke_visualizer_run_window(title: String, width: Int, height: Int, frame_budget: Int, input_path: String) -> Int:
+//     return smoketest_visualizer_native_run_window(title, width, height, frame_budget, input_path)
+//
+// pub fn smoke_visualizer_frames() -> Int:
+//     return smoketest_visualizer_native_frames_presented()
+//
+// pub fn smoke_visualizer_cells() -> Int:
+//     return smoketest_visualizer_native_cells_drawn()
+//
+// pub fn smoke_visualizer_write_report(path: String) -> Int:
+//     return smoketest_visualizer_native_write_report(path)
+//
+// fn smoke_visual_frame_budget(mode: String) -> Int:
+//     if mode == "visual":
+//         return 0
+//     return 180
+//
+// pub fn smoke_opengl_album_lane(mode: String, total_tracks: Int, succeeded_tracks: Int, composition_checksum: Int, ui_snapshot: SmokeUiAlbumSnapshot) -> Int:
+//     if smoke_visualizer_probe() != 1:
+//         return 1
+//
+//     let frame_budget = smoke_visual_frame_budget(mode)
+//     let notes_root = fs_path_join(smoke_telemetry_output_root(mode), "notes")
+//     let deck_path = fs_path_join(notes_root, "opengl_window_input.txt")
+//     var deck = ""
+//     deck = deck + "total_tracks=" + str(total_tracks) + "\n"
+//     deck = deck + "passed_tracks=" + str(succeeded_tracks) + "\n"
+//     deck = deck + "composition_checksum=" + str(composition_checksum) + "\n"
+//     deck = deck + "semantics_tracks=" + str(SMOKE_PRESENT_SEMANTICS_TRACKS) + "\n"
+//     deck = deck + "systems_tracks=" + str(SMOKE_PRESENT_SYSTEMS_TRACKS) + "\n"
+//     deck = deck + "gpu_tracks=" + str(SMOKE_PRESENT_GPU_TRACKS) + "\n"
+//     deck = deck + "stdlib_tracks=" + str(SMOKE_PRESENT_STDLIB_TRACKS) + "\n"
+//     deck = deck + "interop_tracks=" + str(SMOKE_PRESENT_INTEROP_TRACKS) + "\n"
+//     deck = deck + "telemetry_tracks=" + str(SMOKE_PRESENT_TELEMETRY_TRACKS) + "\n"
+//     deck = deck + "ui_tracks=" + str(SMOKE_PRESENT_UI_TRACKS) + "\n"
+//     deck = deck + "patch_journal=" + str(patch_journal_count()) + "\n"
+//     deck = deck + "entangle_propagations=" + str(entangle_propagation_count()) + "\n"
+//     deck = deck + "converge_mismatches=" + str(converge_mismatch_count()) + "\n"
+//     deck = deck + "pulse_count=" + str(runtime_machine_pulse_total_fire_count()) + "\n"
+//     deck = deck + "actor_enqueued=" + str(actor_scheduler_total_enqueued()) + "\n"
+//     deck = deck + "ui_hash=" + str(ui_snapshot.frame_hash) + "\n"
+//     deck = deck + "ui_draws=" + str(ui_snapshot.draw_count) + "\n"
+//     deck = deck + "graphics_draws=" + str(ui_snapshot.graphics_draws) + "\n"
+//     deck = deck + "graphics_score=" + str(ui_snapshot.graphics_score) + "\n"
+//     let _deck_write = fs_atomic_write_text(deck_path, deck)
+//
+//     let status = smoke_visualizer_run_window(
+//         "Kain Smoketest Album // OpenGL Visualizer",
+//         1440,
+//         880,
+//         frame_budget,
+//         deck_path
+//     )
+//
+//     let report_path = fs_path_join(notes_root, "opengl_window_report.txt")
+//     let report_status = smoke_visualizer_write_report(report_path)
+//     let frames = smoke_visualizer_frames()
+//     let cells = smoke_visualizer_cells()
+//
+//     var note = "{\n"
+//     note = note + "  \"status\": " + str(status) + ",\n"
+//     note = note + "  \"frame_budget\": " + str(frame_budget) + ",\n"
+//     note = note + "  \"frames\": " + str(frames) + ",\n"
+//     note = note + "  \"cells\": " + str(cells) + ",\n"
+//     note = note + "  \"report_status\": " + str(report_status) + ",\n"
+//     note = note + "  \"patch_journal\": " + str(patch_journal_count()) + ",\n"
+//     note = note + "  \"entangle_propagations\": " + str(entangle_propagation_count()) + ",\n"
+//     note = note + "  \"converge_mismatches\": " + str(converge_mismatch_count()) + ",\n"
+//     note = note + "  \"pulse_count\": " + str(runtime_machine_pulse_total_fire_count()) + ",\n"
+//     note = note + "  \"actor_enqueued\": " + str(actor_scheduler_total_enqueued()) + ",\n"
+//     note = note + "  \"ui_hash\": " + str(ui_snapshot.frame_hash) + ",\n"
+//     note = note + "  \"ui_draws\": " + str(ui_snapshot.draw_count) + ",\n"
+//     note = note + "  \"graphics_draws\": " + str(ui_snapshot.graphics_draws) + "\n"
+//     note = note + "}\n"
+//     let _report = smoke_write_note_report(mode, "opengl_album.json", note)
+//
+//     if status != 0:
+//         return 2
+//     if report_status != 0:
+//         return 3
+//     if frames < 1:
+//         return 4
+//     if cells < 8:
+//         return 5
 //     return 0
 //!end-kain-file
 //!kain-file

@@ -14,13 +14,15 @@
 //! - `extern crate` → skipped
 //! - Associated types in traits → skipped for first slice
 
-use super::types::RustTypeMapper;
-use crate::common::identifier_registry::{IdentifierDomain, StableIdentifierRenamer};
+use super::{semantic_map, types::RustTypeMapper};
+use crate::common::identifier_registry::{
+    sanitize_identifier_base, IdentifierDomain, StableIdentifierRenamer,
+};
 use crate::Result;
 use kain_core::ast::*;
 use kain_core::effects::Effect;
 use kain_core::span::Span;
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use syn::{self};
 
 // ── Transformer state ─────────────────────────────────────────────────────────
@@ -104,6 +106,18 @@ pub struct RustTransformer {
     /// Known enum variant constructor shapes keyed by fully-qualified enum path.
     enum_variant_shapes: HashMap<String, HashMap<String, EnumVariantCtorShape>>,
 
+    /// Field type lookups for imported structs keyed by lowered struct name.
+    struct_field_types: HashMap<String, HashMap<String, Type>>,
+
+    /// Module imports required by synthesized Kain helper calls.
+    synthesized_use_paths: BTreeSet<Vec<String>>,
+
+    /// Async Rust functions lowered as Kain async-effect functions instead of Future-returning values.
+    effectful_async_functions: HashSet<String>,
+
+    /// Async Rust functions whose lowered Kain bodies no longer require Async effects.
+    sync_lowered_async_functions: HashSet<String>,
+
     /// Accumulated warnings / unsupported construct notes.
     pub diagnostics: Vec<String>,
 
@@ -116,7 +130,10 @@ pub struct RustTransformer {
 
 impl RustTransformer {
     pub fn new() -> Self {
-        Self::with_options(RustTransformOptions::default())
+        Self::with_options(RustTransformOptions {
+            strict_selfhost: false,
+            macro_policy: RustMacroPolicy::phase1_default(),
+        })
     }
 
     pub fn new_selfhost() -> Self {
@@ -142,6 +159,10 @@ impl RustTransformer {
             value_substitutions: vec![HashMap::new()],
             closure_param_counter: 0,
             enum_variant_shapes: HashMap::new(),
+            struct_field_types: HashMap::new(),
+            synthesized_use_paths: BTreeSet::new(),
+            effectful_async_functions: HashSet::new(),
+            sync_lowered_async_functions: HashSet::new(),
             diagnostics: Vec::new(),
             reported_diagnostic_keys: HashSet::new(),
             options,
@@ -151,7 +172,18 @@ impl RustTransformer {
     fn transform_attributes(&mut self, attrs: &[syn::Attribute]) -> Vec<Attribute> {
         let mut lowered = Vec::new();
         for attr in attrs {
-            let name = path_to_ident(attr.path());
+            let raw_name = path_to_ident(attr.path());
+            if raw_name.contains("::") {
+                self.note_lossy_class(
+                    "attribute_lowering",
+                    format!(
+                        "namespaced Rust attribute {} omitted from imported KAIN surface",
+                        raw_name
+                    ),
+                );
+                continue;
+            }
+            let name = sanitize_identifier_base(&raw_name);
             let args = match &attr.meta {
                 syn::Meta::Path(_) => Vec::new(),
                 syn::Meta::List(_) => {
@@ -669,7 +701,122 @@ impl RustTransformer {
                 self.lookup_local_type(&name).cloned()
             }
             syn::Expr::Paren(paren) => self.inferred_receiver_type_hint(&paren.expr),
+            syn::Expr::If(if_expr) => {
+                let then_ty = self.inferred_block_tail_type_hint(&if_expr.then_branch)?;
+                let else_ty = self.inferred_else_branch_type_hint(
+                    if_expr
+                        .else_branch
+                        .as_ref()
+                        .map(|(_, expr)| expr.as_ref()),
+                )?;
+                if then_ty == else_ty {
+                    Some(then_ty)
+                } else {
+                    None
+                }
+            }
+            syn::Expr::Block(block) => self.inferred_block_tail_type_hint(&block.block),
+            syn::Expr::Field(field) => {
+                let base_ty = self.inferred_receiver_type_hint(&field.base)?;
+                let field_name = self.rename_field(&member_name(&field.member));
+                self.lookup_struct_field_type(&base_ty, &field_name)
+            }
+            syn::Expr::MethodCall(method_call) => {
+                let receiver_ty = self.inferred_receiver_type_hint(&method_call.receiver)?;
+                let method = method_call.method.to_string();
+                if semantic_map::path_method_target(&method).is_some()
+                    && semantic_map::is_path_like_type(&receiver_ty)
+                {
+                    return Some(self.named_type("String"));
+                }
+                if semantic_map::is_path_passthrough_method(&method)
+                    && semantic_map::is_path_like_type(&receiver_ty)
+                {
+                    return Some(self.named_type("String"));
+                }
+                if semantic_map::is_string_passthrough_method(&method)
+                    && (semantic_map::is_string_like_type(&receiver_ty)
+                        || semantic_map::is_path_like_type(&receiver_ty))
+                {
+                    return Some(self.named_type("String"));
+                }
+                if semantic_map::duration_method_target(&method).is_some()
+                    && semantic_map::is_duration_type(&receiver_ty)
+                {
+                    return Some(self.named_type("Int"));
+                }
+                if semantic_map::instant_method_target(&method).is_some()
+                    && semantic_map::is_instant_type(&receiver_ty)
+                {
+                    return Some(self.named_type("std::time::Duration"));
+                }
+                if let Some(target) = semantic_map::deadline_method_target(&method) {
+                    if semantic_map::is_deadline_type(&receiver_ty) {
+                        let tail = target.last().copied().unwrap_or_default();
+                        return Some(match tail {
+                            "deadline_is_elapsed" => self.named_type("Bool"),
+                            "deadline_remaining" => self.named_type("std::time::Duration"),
+                            _ => self.named_type("Unknown"),
+                        });
+                    }
+                }
+                None
+            }
+            syn::Expr::Call(call) => {
+                let syn::Expr::Path(path) = call.func.as_ref() else {
+                    return None;
+                };
+                let raw = path
+                    .path
+                    .segments
+                    .iter()
+                    .map(|segment| segment.ident.to_string())
+                    .collect::<Vec<_>>();
+                let resolved = self.resolved_path_segments(&path.path);
+                if semantic_map::is_identity_constructor(&raw, &resolved) {
+                    return Some(self.named_type("String"));
+                }
+                None
+            }
             _ => None,
+        }
+    }
+
+    fn inferred_else_branch_type_hint(&mut self, branch: Option<&syn::Expr>) -> Option<Type> {
+        let branch = branch?;
+        match branch {
+            syn::Expr::Block(block) => self.inferred_block_tail_type_hint(&block.block),
+            expr => self.inferred_receiver_type_hint(expr),
+        }
+    }
+
+    fn inferred_block_tail_type_hint(&mut self, block: &syn::Block) -> Option<Type> {
+        let stmt = block.stmts.last()?;
+        match stmt {
+            syn::Stmt::Expr(expr, _) => self.inferred_receiver_type_hint(expr),
+            _ => None,
+        }
+    }
+
+    fn lookup_struct_field_type(&self, ty: &Type, field: &str) -> Option<Type> {
+        match ty {
+            Type::Ref { inner, .. } | Type::Ptr { inner, .. } => {
+                self.lookup_struct_field_type(inner, field)
+            }
+            Type::Named { name, .. } => self
+                .struct_field_types
+                .get(name)
+                .and_then(|fields| fields.get(field))
+                .cloned(),
+            _ => None,
+        }
+    }
+
+    fn named_type(&self, name: &str) -> Type {
+        Type::Named {
+            name: name.to_string(),
+            generics: Vec::new(),
+            span: S,
         }
     }
 
@@ -741,6 +888,9 @@ impl RustTransformer {
     }
 
     fn resolved_value_ident(&mut self, resolved: &[String]) -> String {
+        if semantic_map::is_kain_namespaced_path(resolved) {
+            return resolved.join("::");
+        }
         if resolved.len() == 1 {
             self.rename_value(&resolved[0])
         } else {
@@ -1109,6 +1259,7 @@ impl RustTransformer {
         for item in &file.items {
             items.extend(self.transform_item(item)?);
         }
+        items = self.prepend_synthesized_uses(items);
         Ok(Program { items, span: S })
     }
 
@@ -1278,6 +1429,7 @@ impl RustTransformer {
 
     fn transform_fn(&mut self, f: &syn::ItemFn) -> Result<Vec<Function>> {
         let name = self.rename_value(&f.sig.ident.to_string());
+        let lowers_tokio_main_runtime = has_attr_path(&f.attrs, &["tokio", "main"]);
         self.current_function = Some(name.clone());
 
         // Generic params
@@ -1293,15 +1445,6 @@ impl RustTransformer {
             syn::ReturnType::Type(_, ty) => Some(self.map_type_checked(ty)),
         };
 
-        // Effects
-        let mut effects: Vec<Effect> = Vec::new();
-        if f.sig.unsafety.is_some() {
-            effects.push(Effect::Unsafe);
-        }
-        if f.sig.asyncness.is_some() {
-            effects.push(Effect::Async);
-        }
-
         // Body
         self.push_scope();
         for p in &params {
@@ -1309,6 +1452,24 @@ impl RustTransformer {
         }
         let body = self.transform_block(&f.block)?;
         self.pop_scope();
+
+        let lowers_to_async_effect = f.sig.asyncness.is_some()
+            && !lowers_tokio_main_runtime
+            && self.block_requires_async_effect(&body);
+        if lowers_to_async_effect {
+            self.effectful_async_functions.insert(name.clone());
+        } else if f.sig.asyncness.is_some() && !lowers_tokio_main_runtime {
+            self.sync_lowered_async_functions.insert(name.clone());
+        }
+
+        // Effects
+        let mut effects: Vec<Effect> = Vec::new();
+        if f.sig.unsafety.is_some() {
+            effects.push(Effect::Unsafe);
+        }
+        if lowers_to_async_effect {
+            effects.push(Effect::Async);
+        }
 
         self.generics_in_scope.clear();
         self.current_function = None;
@@ -1575,6 +1736,14 @@ impl RustTransformer {
                 .collect(),
             syn::Fields::Unit => vec![],
         };
+
+        self.struct_field_types.insert(
+            name.clone(),
+            fields
+                .iter()
+                .map(|field| (field.name.clone(), field.ty.clone()))
+                .collect(),
+        );
 
         Ok(Struct {
             name,
@@ -2235,14 +2404,23 @@ impl RustTransformer {
                 let pattern = self.transform_pattern(&local.pat);
                 let ty = self.type_from_local_pat(&local.pat);
                 let ty_ann = ty.or_else(|| self.type_from_local_pat(&local.pat));
-                if let (Some(ty_ann), Pattern::Binding { name, .. }) = (&ty_ann, &pattern) {
-                    self.define(name, ty_ann.clone());
-                }
+                let inferred_binding_ty = if ty_ann.is_none() {
+                    local.init
+                        .as_ref()
+                        .and_then(|init| self.inferred_receiver_type_hint(&init.expr))
+                } else {
+                    None
+                };
                 let value = if let Some(init) = &local.init {
                     Some(self.transform_expr(&init.expr)?)
                 } else {
                     None
                 };
+                if let Pattern::Binding { name, .. } = &pattern {
+                    if let Some(binding_ty) = ty_ann.clone().or(inferred_binding_ty) {
+                        self.define(name, binding_ty);
+                    }
+                }
                 Ok(vec![Stmt::Let {
                     pattern,
                     ty: ty_ann,
@@ -2303,23 +2481,27 @@ impl RustTransformer {
                         self.type_mapper
                             .register_visible_path(visible, prefix.clone());
                     }
-                    items.push(Item::Use(Use {
-                        path: prefix,
-                        alias: None,
-                        glob: false,
-                        span: S,
-                    }));
+                    if let Some(path) = semantic_map::emitted_use_path(&prefix) {
+                        items.push(Item::Use(Use {
+                            path,
+                            alias: None,
+                            glob: false,
+                            span: S,
+                        }));
+                    }
                 } else {
                     let mut full_path = prefix;
                     full_path.push(name.ident.to_string());
                     self.type_mapper
                         .register_visible_path(name.ident.to_string(), full_path.clone());
-                    items.push(Item::Use(Use {
-                        path: full_path,
-                        alias: None,
-                        glob: false,
-                        span: S,
-                    }));
+                    if let Some(path) = semantic_map::emitted_use_path(&full_path) {
+                        items.push(Item::Use(Use {
+                            path,
+                            alias: None,
+                            glob: false,
+                            span: S,
+                        }));
+                    }
                 }
                 Ok(())
             }
@@ -2328,21 +2510,25 @@ impl RustTransformer {
                 full_path.push(rename.ident.to_string());
                 self.type_mapper
                     .register_visible_path(rename.rename.to_string(), full_path.clone());
-                items.push(Item::Use(Use {
-                    path: full_path,
-                    alias: Some(rename.rename.to_string()),
-                    glob: false,
-                    span: S,
-                }));
+                if let Some(path) = semantic_map::emitted_use_path(&full_path) {
+                    items.push(Item::Use(Use {
+                        path,
+                        alias: Some(rename.rename.to_string()),
+                        glob: false,
+                        span: S,
+                    }));
+                }
                 Ok(())
             }
             syn::UseTree::Glob(_) => {
-                items.push(Item::Use(Use {
-                    path: prefix,
-                    alias: None,
-                    glob: true,
-                    span: S,
-                }));
+                if let Some(path) = semantic_map::emitted_use_path(&prefix) {
+                    items.push(Item::Use(Use {
+                        path,
+                        alias: None,
+                        glob: true,
+                        span: S,
+                    }));
+                }
                 Ok(())
             }
             syn::UseTree::Group(group) => {
@@ -2488,6 +2674,10 @@ impl RustTransformer {
                     {
                         return constructor_expr;
                     }
+                    if let Some(semantic_expr) = self.lower_semantic_call_expr(&path.path, &c.args)
+                    {
+                        return semantic_expr;
+                    }
                     if let Some(variant_expr) = self.lower_variant_call_expr(&path.path, &c.args) {
                         return variant_expr;
                     }
@@ -2508,6 +2698,14 @@ impl RustTransformer {
                 let receiver = self.transform_expr(&m.receiver)?;
                 let receiver = self.peel_expr_wrapper(receiver);
                 let method_name = m.method.to_string();
+                if let Some(expr) = self.lower_semantic_method_call(
+                    receiver.clone(),
+                    receiver_ty.clone(),
+                    &method_name,
+                    &m.args,
+                ) {
+                    return expr;
+                }
                 if m.args.is_empty() && method_name == "as_ref" {
                     return Ok(self.lower_option_as_ref_call(receiver, receiver_ty));
                 }
@@ -2715,7 +2913,15 @@ impl RustTransformer {
             // ── await ─────────────────────────────────────────────────────
             syn::Expr::Await(a) => {
                 let inner = self.transform_expr(&a.base)?;
-                Ok(Expr::Await(Box::new(inner), S))
+                if let Some(sync_semantic_expr) = self.strip_sync_semantic_await_expr(&inner) {
+                    Ok(sync_semantic_expr)
+                } else if self.is_sync_lowered_async_call_expr(&inner) {
+                    Ok(inner)
+                } else if self.is_effectful_async_call_expr(&inner) {
+                    Ok(inner)
+                } else {
+                    Ok(Expr::Await(Box::new(inner), S))
+                }
             }
 
             // ── async block ───────────────────────────────────────────────
@@ -3162,14 +3368,14 @@ impl RustTransformer {
         }
     }
 
-    fn local_pat_name(&self, pat: &syn::Pat) -> (String, bool) {
+    fn local_pat_name(&mut self, pat: &syn::Pat) -> (String, bool) {
         match pat {
             syn::Pat::Ident(pi) => {
                 let raw = pi.ident.to_string();
                 let name = if raw == "self" {
                     "_self".to_string()
                 } else {
-                    raw
+                    self.rename_value(&raw)
                 };
                 (name, pi.mutability.is_some())
             }
@@ -3190,6 +3396,7 @@ impl RustTransformer {
     fn coerce_statement_expr(&mut self, expr: Expr) -> Expr {
         match expr {
             Expr::Return(_, _) | Expr::Break(_, _) | Expr::Continue(_) => expr,
+            assign @ Expr::Assign { .. } => assign,
             Expr::Block(block, span) => Expr::Block(self.coerce_statement_block(block), span),
             Expr::If {
                 condition,
@@ -3467,6 +3674,25 @@ impl RustTransformer {
         }
     }
 
+    fn assert_call(&self, condition: Expr, message: Expr) -> Expr {
+        Expr::Call {
+            callee: Box::new(Expr::Ident("assert".to_string(), S)),
+            args: vec![
+                CallArg {
+                    name: None,
+                    value: condition,
+                    span: S,
+                },
+                CallArg {
+                    name: None,
+                    value: message,
+                    span: S,
+                },
+            ],
+            span: S,
+        }
+    }
+
     fn lower_assert_macro(
         &mut self,
         macro_name: &str,
@@ -3511,19 +3737,7 @@ impl RustTransformer {
             })
             .unwrap_or_else(|| Expr::String(format!("{macro_name}! failed"), S));
 
-        Some(Expr::If {
-            condition: Box::new(Expr::Unary {
-                op: UnaryOp::Not,
-                operand: Box::new(condition),
-                span: S,
-            }),
-            then_branch: Block {
-                stmts: vec![Stmt::Expr(self.panic_call(message))],
-                span: S,
-            },
-            else_branch: None,
-            span: S,
-        })
+        Some(self.assert_call(condition, message))
     }
 
     fn lower_assert_eq_macro(&mut self, tokens: &proc_macro2::TokenStream) -> Option<Expr> {
@@ -3562,20 +3776,15 @@ impl RustTransformer {
             .and_then(|(_, rest)| self.lower_format_macro(rest))
             .unwrap_or_else(|| Expr::String("assert_eq! failed".to_string(), S));
 
-        Some(Expr::If {
-            condition: Box::new(Expr::Binary {
+        Some(self.assert_call(
+            Expr::Binary {
                 left: Box::new(left),
-                op: BinaryOp::Ne,
+                op: BinaryOp::Eq,
                 right: Box::new(right),
                 span: S,
-            }),
-            then_branch: Block {
-                stmts: vec![Stmt::Expr(self.panic_call(message))],
-                span: S,
             },
-            else_branch: None,
-            span: S,
-        })
+            message,
+        ))
     }
 
     fn lower_panic_macro(&mut self, tokens: &proc_macro2::TokenStream) -> Option<Expr> {
@@ -3886,6 +4095,9 @@ impl RustTransformer {
         }
         let resolved = self
             .resolve_impl_self_path_segments(self.type_mapper.resolve_value_path_segments(path));
+        if semantic_map::is_kain_namespaced_path(&resolved) {
+            return resolved.join("::");
+        }
         if resolved.len() == 1 {
             self.rename_value(&resolved[0])
         } else {
@@ -3898,6 +4110,8 @@ impl RustTransformer {
             self.resolve_impl_self_path_segments(self.type_mapper.resolve_path_segments(path));
         if resolved.len() == 1 {
             self.rename_type(&resolved[0])
+        } else if semantic_map::is_kain_namespaced_path(&resolved) {
+            resolved.join("::")
         } else if let Some(normalized) = self.normalize_local_type_path(&resolved) {
             normalized
         } else {
@@ -3923,6 +4137,8 @@ impl RustTransformer {
     fn normalize_variant_enum_name(&mut self, resolved: &[String]) -> String {
         if resolved.len() == 1 {
             self.rename_type(&resolved[0])
+        } else if semantic_map::is_kain_namespaced_path(resolved) {
+            resolved.join("::")
         } else if let Some(normalized) = self.normalize_local_type_path(resolved) {
             normalized
         } else {
@@ -3931,6 +4147,9 @@ impl RustTransformer {
     }
 
     fn flatten_value_path_segments(&mut self, resolved: &[String]) -> String {
+        if semantic_map::is_kain_namespaced_path(resolved) {
+            return resolved.join("::");
+        }
         let effective = if resolved
             .first()
             .is_some_and(|segment| matches!(segment.as_str(), "crate" | "self" | "super"))
@@ -3958,6 +4177,421 @@ impl RustTransformer {
             })
             .collect::<Vec<_>>()
             .join("__")
+    }
+
+    fn lower_semantic_call_expr(
+        &mut self,
+        path: &syn::Path,
+        args: &syn::punctuated::Punctuated<syn::Expr, syn::Token![,]>,
+    ) -> Option<Result<Expr>> {
+        let raw = path
+            .segments
+            .iter()
+            .map(|segment| segment.ident.to_string())
+            .collect::<Vec<_>>();
+        let resolved = self.resolved_path_segments(path);
+        if semantic_map::is_identity_constructor(&raw, &resolved) {
+            let expr = args.first()?;
+            return Some(self.transform_expr(expr).map(|value| {
+                let value = self.peel_expr_wrapper(value);
+                self.strip_semantic_borrow(value)
+            }));
+        }
+        if let Some(target) = semantic_map::direct_call_target(&raw, &resolved) {
+            return Some(
+                self.transform_semantic_call_args(args)
+                    .map(|values| self.build_namespaced_call(target, values)),
+            );
+        }
+        if let Some(target) = semantic_map::async_call_target(&raw, &resolved) {
+            return Some(self.transform_semantic_call_args(args).map(|values| {
+                Expr::AsyncBlock(Box::new(self.build_namespaced_call(target, values)), S)
+            }));
+        }
+        if let Some(target) = semantic_map::direct_duration_call_target(&raw, &resolved) {
+            return Some(self.lower_semantic_duration_call(args, target, false));
+        }
+        if let Some(target) = semantic_map::async_duration_call_target(&raw, &resolved) {
+            return Some(self.lower_semantic_duration_call(args, target, true));
+        }
+        None
+    }
+
+    fn lower_semantic_duration_call(
+        &mut self,
+        args: &syn::punctuated::Punctuated<syn::Expr, syn::Token![,]>,
+        target: Vec<String>,
+        wrap_async: bool,
+    ) -> Result<Expr> {
+        let duration_arg = args.first().ok_or_else(|| {
+            crate::ImportError::UnsupportedFeature(
+                "duration-backed semantic call expects exactly one argument".to_string(),
+            )
+        })?;
+        let duration_expr = self.transform_expr(duration_arg)?;
+        let duration_expr = self.peel_expr_wrapper(duration_expr);
+        let duration_expr = self.strip_semantic_borrow(duration_expr);
+        let millis_expr = self.build_namespaced_call(
+            vec![
+                "std".to_string(),
+                "time".to_string(),
+                "duration_to_millis".to_string(),
+            ],
+            vec![duration_expr],
+        );
+        let call = self.build_namespaced_call(target, vec![millis_expr]);
+        if wrap_async {
+            Ok(Expr::AsyncBlock(Box::new(call), S))
+        } else {
+            Ok(call)
+        }
+    }
+
+    fn lower_semantic_method_call(
+        &mut self,
+        receiver: Expr,
+        receiver_ty: Option<Type>,
+        method: &str,
+        args: &syn::punctuated::Punctuated<syn::Expr, syn::Token![,]>,
+    ) -> Option<Result<Expr>> {
+        let receiver_ty = receiver_ty?;
+        if args.is_empty()
+            && semantic_map::is_path_passthrough_method(method)
+            && semantic_map::is_path_like_type(&receiver_ty)
+        {
+            return Some(Ok(self.strip_semantic_borrow(receiver)));
+        }
+        if args.is_empty()
+            && semantic_map::is_string_passthrough_method(method)
+            && (semantic_map::is_string_like_type(&receiver_ty)
+                || semantic_map::is_path_like_type(&receiver_ty))
+        {
+            return Some(Ok(self.strip_semantic_borrow(receiver)));
+        }
+        if args.is_empty()
+            && method == "len"
+            && (semantic_map::is_string_like_type(&receiver_ty)
+                || semantic_map::is_path_like_type(&receiver_ty))
+        {
+            return Some(Ok(Expr::Call {
+                callee: Box::new(Expr::Ident("len".to_string(), S)),
+                args: vec![CallArg {
+                    name: None,
+                    value: self.strip_semantic_borrow(receiver),
+                    span: S,
+                }],
+                span: S,
+            }));
+        }
+        if let Some(target) = semantic_map::path_method_target(method) {
+            if semantic_map::is_path_like_type(&receiver_ty) {
+                return Some(self.transform_semantic_call_args(args).map(|mut values| {
+                    values.insert(0, self.strip_semantic_borrow(receiver));
+                    self.build_namespaced_call(
+                        target
+                            .iter()
+                            .map(|segment| (*segment).to_string())
+                            .collect(),
+                        values,
+                    )
+                }));
+            }
+        }
+        if let Some(target) = semantic_map::duration_method_target(method) {
+            if semantic_map::is_duration_type(&receiver_ty) {
+                return Some(self.transform_semantic_call_args(args).map(|mut values| {
+                    values.insert(0, self.strip_semantic_borrow(receiver));
+                    self.build_namespaced_call(
+                        target
+                            .iter()
+                            .map(|segment| (*segment).to_string())
+                            .collect(),
+                        values,
+                    )
+                }));
+            }
+        }
+        if let Some(target) = semantic_map::instant_method_target(method) {
+            if semantic_map::is_instant_type(&receiver_ty) {
+                return Some(self.transform_semantic_call_args(args).map(|mut values| {
+                    values.insert(0, self.strip_semantic_borrow(receiver));
+                    self.build_namespaced_call(
+                        target
+                            .iter()
+                            .map(|segment| (*segment).to_string())
+                            .collect(),
+                        values,
+                    )
+                }));
+            }
+        }
+        if let Some(target) = semantic_map::deadline_method_target(method) {
+            if semantic_map::is_deadline_type(&receiver_ty) {
+                return Some(self.transform_semantic_call_args(args).map(|mut values| {
+                    values.insert(0, self.strip_semantic_borrow(receiver));
+                    self.build_namespaced_call(
+                        target
+                            .iter()
+                            .map(|segment| (*segment).to_string())
+                            .collect(),
+                        values,
+                    )
+                }));
+            }
+        }
+        None
+    }
+
+    fn transform_semantic_call_args(
+        &mut self,
+        args: &syn::punctuated::Punctuated<syn::Expr, syn::token::Comma>,
+    ) -> Result<Vec<Expr>> {
+        args.iter()
+            .map(|expr| {
+                let value = self.transform_expr(expr)?;
+                let value = self.peel_expr_wrapper(value);
+                Ok(self.strip_semantic_borrow(value))
+            })
+            .collect()
+    }
+
+    fn build_namespaced_call(&mut self, path: Vec<String>, args: Vec<Expr>) -> Expr {
+        self.record_synthesized_use_for_target(&path);
+        let callee = path
+            .last()
+            .cloned()
+            .unwrap_or_else(|| "__invalid_import_target".to_string());
+        Expr::Call {
+            callee: Box::new(Expr::Ident(callee, S)),
+            args: args
+                .into_iter()
+                .map(|value| CallArg {
+                    name: None,
+                    value,
+                    span: S,
+            })
+            .collect(),
+            span: S,
+        }
+    }
+
+    fn record_synthesized_use_for_target(&mut self, path: &[String]) {
+        if path.len() < 2 || path.first().map(String::as_str) != Some("std") {
+            return;
+        }
+        self.synthesized_use_paths.insert(path[..path.len() - 1].to_vec());
+    }
+
+    fn prepend_synthesized_uses(&self, items: Vec<Item>) -> Vec<Item> {
+        let existing_uses = items
+            .iter()
+            .filter_map(|item| match item {
+                Item::Use(use_item) if use_item.alias.is_none() && !use_item.glob => {
+                    Some(use_item.path.clone())
+                }
+                _ => None,
+            })
+            .collect::<HashSet<_>>();
+
+        let mut prefixed = self
+            .synthesized_use_paths
+            .iter()
+            .filter(|path| !existing_uses.contains(*path))
+            .map(|path| {
+                Item::Use(Use {
+                    path: path.clone(),
+                    alias: None,
+                    glob: false,
+                    span: S,
+                })
+            })
+            .collect::<Vec<_>>();
+        prefixed.extend(items);
+        prefixed
+    }
+
+    fn is_effectful_async_call_expr(&self, expr: &Expr) -> bool {
+        match expr {
+            Expr::Call { callee, .. } => matches!(
+                callee.as_ref(),
+                Expr::Ident(name, _) if self.effectful_async_functions.contains(name)
+            ),
+            _ => false,
+        }
+    }
+
+    fn is_sync_lowered_async_call_expr(&self, expr: &Expr) -> bool {
+        match expr {
+            Expr::Call { callee, .. } => matches!(
+                callee.as_ref(),
+                Expr::Ident(name, _) if self.sync_lowered_async_functions.contains(name)
+            ),
+            _ => false,
+        }
+    }
+
+    fn block_requires_async_effect(&self, block: &Block) -> bool {
+        block.stmts.iter().any(|stmt| self.stmt_requires_async_effect(stmt))
+    }
+
+    fn stmt_requires_async_effect(&self, stmt: &Stmt) -> bool {
+        match stmt {
+            Stmt::Let { value, .. } => value
+                .as_ref()
+                .is_some_and(|expr| self.expr_requires_async_effect(expr)),
+            Stmt::Expr(expr) => self.expr_requires_async_effect(expr),
+            Stmt::Return(value, _) | Stmt::Break(value, _) => value
+                .as_ref()
+                .is_some_and(|expr| self.expr_requires_async_effect(expr)),
+            Stmt::For { iter, body, .. } | Stmt::Fanout { iter, body, .. } => {
+                self.expr_requires_async_effect(iter) || self.block_requires_async_effect(body)
+            }
+            Stmt::While {
+                condition, body, ..
+            } => {
+                self.expr_requires_async_effect(condition) || self.block_requires_async_effect(body)
+            }
+            Stmt::Loop { body, .. } => self.block_requires_async_effect(body),
+            Stmt::Item(_) | Stmt::Continue(_) => false,
+        }
+    }
+
+    fn else_branch_requires_async_effect(&self, branch: &ElseBranch) -> bool {
+        match branch {
+            ElseBranch::Else(block) => self.block_requires_async_effect(block),
+            ElseBranch::ElseIf(condition, block, next) => {
+                self.expr_requires_async_effect(condition)
+                    || self.block_requires_async_effect(block)
+                    || next
+                        .as_ref()
+                        .is_some_and(|branch| self.else_branch_requires_async_effect(branch))
+            }
+        }
+    }
+
+    fn expr_requires_async_effect(&self, expr: &Expr) -> bool {
+        match expr {
+            Expr::Await(_, _) | Expr::AsyncBlock(_, _) => true,
+            Expr::Call { .. } => self.is_effectful_async_call_expr(expr),
+            Expr::Paren(inner, _)
+            | Expr::Ref { value: inner, .. }
+            | Expr::Deref(inner, _)
+            | Expr::Try(inner, _)
+            | Expr::Comptime(inner, _) => self.expr_requires_async_effect(inner),
+            Expr::Unary { operand, .. } => self.expr_requires_async_effect(operand),
+            Expr::Binary { left, right, .. } => {
+                self.expr_requires_async_effect(left) || self.expr_requires_async_effect(right)
+            }
+            Expr::Array(values, _) | Expr::Tuple(values, _) | Expr::FString(values, _) => {
+                values.iter().any(|value| self.expr_requires_async_effect(value))
+            }
+            Expr::Struct { fields, rest, .. } => {
+                fields
+                    .iter()
+                    .any(|(_, value)| self.expr_requires_async_effect(value))
+                    || rest
+                        .as_ref()
+                        .is_some_and(|value| self.expr_requires_async_effect(value))
+            }
+            Expr::AggregateInit { fields, .. } => fields
+                .iter()
+                .any(|(_, value)| self.expr_requires_async_effect(value)),
+            Expr::EnumVariant { fields, .. } => match fields {
+                EnumVariantFields::Unit => false,
+                EnumVariantFields::Tuple(values) => {
+                    values.iter().any(|value| self.expr_requires_async_effect(value))
+                }
+                EnumVariantFields::Struct(values) => values
+                    .iter()
+                    .any(|(_, value)| self.expr_requires_async_effect(value)),
+            },
+            Expr::Field { object, .. } => self.expr_requires_async_effect(object),
+            Expr::Index { object, index, .. } => {
+                self.expr_requires_async_effect(object) || self.expr_requires_async_effect(index)
+            }
+            Expr::Assign { target, value, .. } => {
+                self.expr_requires_async_effect(target) || self.expr_requires_async_effect(value)
+            }
+            Expr::MethodCall { receiver, args, .. } => {
+                self.expr_requires_async_effect(receiver)
+                    || args
+                        .iter()
+                        .any(|arg| self.expr_requires_async_effect(&arg.value))
+            }
+            Expr::StageCall { args, .. } => args
+                .iter()
+                .any(|arg| self.expr_requires_async_effect(&arg.value)),
+            Expr::If {
+                condition,
+                then_branch,
+                else_branch,
+                ..
+            } => {
+                self.expr_requires_async_effect(condition)
+                    || self.block_requires_async_effect(then_branch)
+                    || else_branch
+                        .as_ref()
+                        .is_some_and(|branch| self.else_branch_requires_async_effect(branch))
+            }
+            Expr::Block(block, _) => self.block_requires_async_effect(block),
+            Expr::Match {
+                scrutinee, arms, ..
+            } => {
+                self.expr_requires_async_effect(scrutinee)
+                    || arms.iter().any(|arm| {
+                        arm.guard
+                            .as_ref()
+                            .is_some_and(|guard| self.expr_requires_async_effect(guard))
+                            || self.expr_requires_async_effect(&arm.body)
+                    })
+            }
+            Expr::Range { start, end, .. } => {
+                start
+                    .as_ref()
+                    .is_some_and(|value| self.expr_requires_async_effect(value))
+                    || end
+                        .as_ref()
+                        .is_some_and(|value| self.expr_requires_async_effect(value))
+            }
+            Expr::MacroCall { args, .. } => args
+                .iter()
+                .any(|arg| self.expr_requires_async_effect(arg)),
+            Expr::Cast { value, .. } | Expr::Bitcast { value, .. } => {
+                self.expr_requires_async_effect(value)
+            }
+            Expr::InlineAsm { operands, .. } => operands
+                .iter()
+                .any(|operand| self.expr_requires_async_effect(operand)),
+            Expr::Lambda { body, .. } => self.expr_requires_async_effect(body),
+            _ => false,
+        }
+    }
+
+    fn strip_sync_semantic_await_expr(&self, expr: &Expr) -> Option<Expr> {
+        match expr {
+            Expr::Call { callee, .. }
+                if matches!(callee.as_ref(), Expr::Ident(name, _) if name == "sleep_millis") =>
+            {
+                Some(expr.clone())
+            }
+            Expr::AsyncBlock(inner, _) => match inner.as_ref() {
+                Expr::Call { callee, .. }
+                    if matches!(callee.as_ref(), Expr::Ident(name, _) if name == "sleep_millis") =>
+                {
+                    Some((**inner).clone())
+                }
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
+    fn strip_semantic_borrow(&self, expr: Expr) -> Expr {
+        match expr {
+            Expr::Ref { value, .. } => self.strip_semantic_borrow(*value),
+            Expr::Paren(inner, _) => self.strip_semantic_borrow(*inner),
+            other => other,
+        }
     }
 }
 
@@ -4047,6 +4681,16 @@ fn has_derive_attr(attrs: &[syn::Attribute], derive_name: &str) -> bool {
         )
         .map(|paths| paths.iter().any(|path| path.is_ident(derive_name)))
         .unwrap_or(false)
+    })
+}
+
+fn has_attr_path(attrs: &[syn::Attribute], expected: &[&str]) -> bool {
+    attrs.iter().any(|attr| {
+        attr.path()
+            .segments
+            .iter()
+            .map(|segment| segment.ident.to_string())
+            .eq(expected.iter().copied().map(str::to_string))
     })
 }
 
@@ -4410,6 +5054,13 @@ mod tests {
             .transform(file)
             .expect("transform should succeed");
         (program, transformer.diagnostics)
+    }
+
+    fn transform_source_default(source: &str) -> Program {
+        let file = syn::parse_file(source).expect("rust should parse");
+        RustTransformer::new()
+            .transform(file)
+            .expect("transform should succeed")
     }
 
     #[test]
@@ -4981,6 +5632,56 @@ mod tests {
     }
 
     #[test]
+    fn lowers_statement_println_macro_to_kain_call() {
+        let program = transform_source(
+            r#"
+            fn demo(value: i32) {
+                println!("{}", value);
+            }
+            "#,
+        );
+
+        let Item::Function(func) = &program.items[0] else {
+            panic!("expected function");
+        };
+
+        let Stmt::Expr(Expr::Call { callee, args, .. }) = &func.body.stmts[0] else {
+            panic!("expected lowered println call");
+        };
+
+        assert!(matches!(callee.as_ref(), Expr::Ident(name, _) if name == "println"));
+        assert_eq!(args.len(), 1);
+        assert!(!matches!(args[0].value, Expr::MacroCall { .. }));
+    }
+
+    #[test]
+    fn default_transformer_lowers_common_macros_for_regular_imports() {
+        let program = transform_source_default(
+            r#"
+            fn demo(value: i32) {
+                println!("{}", value);
+                assert_eq!(value, 7);
+            }
+            "#,
+        );
+
+        let Item::Function(func) = &program.items[0] else {
+            panic!("expected function");
+        };
+
+        assert!(matches!(
+            &func.body.stmts[0],
+            Stmt::Expr(Expr::Call { callee, .. })
+                if matches!(callee.as_ref(), Expr::Ident(name, _) if name == "println")
+        ));
+        assert!(matches!(
+            &func.body.stmts[1],
+            Stmt::Expr(Expr::Call { callee, .. })
+                if matches!(callee.as_ref(), Expr::Ident(name, _) if name == "assert")
+        ));
+    }
+
+    #[test]
     fn skips_test_modules_and_cfg_test_items_by_default() {
         let program = transform_source(
             r#"
@@ -5057,7 +5758,8 @@ mod tests {
 
         assert!(matches!(
             callee.as_ref(),
-            Expr::Ident(path, _) if path == "SpanMapper::new_"
+            Expr::Ident(path, _)
+                if path == "SpanMapper__new" || path == "SpanMapper__new_"
         ));
     }
 
@@ -5074,9 +5776,21 @@ mod tests {
             "#,
         );
 
-        let Item::Function(func) = &program.items[1] else {
-            panic!("expected function");
-        };
+        let func = program
+            .items
+            .iter()
+            .find_map(|item| match item {
+                Item::Function(func) => Some(func),
+                _ => None,
+            })
+            .expect("expected function");
+
+        assert!(program.items.iter().any(|item| {
+            matches!(
+                item,
+                Item::Use(Use { path, alias: None, glob: false, .. }) if path == &vec!["std".to_string(), "process".to_string()]
+            )
+        }));
 
         for stmt in &func.body.stmts {
             let Stmt::Let {
@@ -5089,7 +5803,7 @@ mod tests {
 
             assert!(matches!(
                 callee.as_ref(),
-                Expr::Ident(path, _) if path == "std__env__var_"
+                Expr::Ident(path, _) if path == "process_environment"
             ));
         }
     }
@@ -5663,6 +6377,427 @@ mod tests {
         assert!(!diagnostics
             .iter()
             .any(|diag| diag.contains("class:unsupported_expr_lowering")));
+    }
+
+    #[test]
+    fn rewrites_tokio_sleep_await_to_direct_kain_time_call() {
+        let program = transform_source(
+            r#"
+            use tokio::time::{sleep, Duration};
+
+            async fn demo() {
+                sleep(Duration::from_millis(5)).await;
+            }
+            "#,
+        );
+
+        let Item::Function(func) = program
+            .items
+            .iter()
+            .find(|item| matches!(item, Item::Function(function) if function.name == "demo"))
+            .expect("expected function")
+        else {
+            panic!("expected function");
+        };
+
+        assert!(program.items.iter().any(|item| {
+            matches!(
+                item,
+                Item::Use(Use { path, alias: None, glob: false, .. }) if path == &vec!["std".to_string(), "time".to_string()]
+            )
+        }));
+
+        fn stmt_contains_sleep_millis(stmt: &Stmt) -> bool {
+            match stmt {
+                Stmt::Expr(Expr::Call { callee, .. }) => {
+                    matches!(callee.as_ref(), Expr::Ident(path, _) if path == "sleep_millis")
+                }
+                Stmt::Expr(Expr::Block(block, _)) => {
+                    block.stmts.iter().any(stmt_contains_sleep_millis)
+                }
+                _ => false,
+            }
+        }
+
+        fn stmt_contains_await(stmt: &Stmt) -> bool {
+            match stmt {
+                Stmt::Expr(Expr::Await(_, _)) => true,
+                Stmt::Expr(Expr::Block(block, _)) => block.stmts.iter().any(stmt_contains_await),
+                _ => false,
+            }
+        }
+
+        assert!(func.body.stmts.iter().any(stmt_contains_sleep_millis));
+        assert!(!func.body.stmts.iter().any(stmt_contains_await));
+    }
+
+    #[test]
+    fn strips_await_from_calls_to_imported_effectful_async_functions() {
+        let program = transform_source(
+            r#"
+            async fn pulse_once() -> i32 {
+                7
+            }
+
+            async fn main() {
+                let value = pulse_once().await;
+            }
+            "#,
+        );
+
+        let Item::Function(function) = program
+            .items
+            .iter()
+            .find(|item| matches!(item, Item::Function(func) if func.name == "main"))
+            .expect("expected main function")
+        else {
+            panic!("expected main function");
+        };
+
+        let Stmt::Let { value: Some(value), .. } = &function.body.stmts[0] else {
+            panic!("expected let binding");
+        };
+        assert!(matches!(value, Expr::Call { .. }));
+        assert!(!matches!(value, Expr::Await(_, _)));
+    }
+
+    #[test]
+    fn rewrites_pathbuf_methods_into_kain_path_helpers() {
+        let program = transform_source(
+            r#"
+            use std::path::PathBuf;
+
+            fn demo(base: PathBuf) {
+                let next = base.join("child");
+                let text = next.to_string_lossy().to_string();
+            }
+            "#,
+        );
+
+        let Item::Function(func) = program
+            .items
+            .iter()
+            .find(|item| matches!(item, Item::Function(function) if function.name == "demo"))
+            .expect("expected function")
+        else {
+            panic!("expected function");
+        };
+
+        assert!(program.items.iter().any(|item| {
+            matches!(
+                item,
+                Item::Use(Use { path, alias: None, glob: false, .. }) if path == &vec!["std".to_string(), "path".to_string()]
+            )
+        }));
+
+        let Stmt::Let {
+            value: Some(Expr::Call { callee, .. }),
+            ..
+        } = &func.body.stmts[0]
+        else {
+            panic!("expected rewritten path join call");
+        };
+        assert!(matches!(
+            callee.as_ref(),
+            Expr::Ident(path, _) if path == "path_join"
+        ));
+
+        let Stmt::Let { value: Some(_), .. } = &func.body.stmts[1] else {
+            panic!("expected second let binding");
+        };
+    }
+
+    #[test]
+    fn rewrites_string_len_methods_after_path_lowering() {
+        let program = transform_source(
+            r#"
+            use std::path::PathBuf;
+
+            fn demo(root: PathBuf, round: i32) -> i32 {
+                let label = if (round & 1) == 0 {
+                    root.join("warm.lane").to_string_lossy().to_string()
+                } else {
+                    root.join("hot.lane").to_string_lossy().to_string()
+                };
+                label.len() as i32
+            }
+            "#,
+        );
+
+        let Item::Function(function) = program
+            .items
+            .iter()
+            .find(|item| matches!(item, Item::Function(func) if func.name == "demo"))
+            .expect("expected demo function")
+        else {
+            panic!("expected demo function");
+        };
+
+        fn expr_contains_method(expr: &Expr, expected: &str) -> bool {
+            match expr {
+                Expr::MethodCall {
+                    method,
+                    receiver,
+                    args,
+                    ..
+                } => {
+                    method == expected
+                        || expr_contains_method(receiver, expected)
+                        || args.iter().any(|arg| expr_contains_method(&arg.value, expected))
+                }
+                Expr::Call { callee, args, .. } => {
+                    expr_contains_method(callee, expected)
+                        || args.iter().any(|arg| expr_contains_method(&arg.value, expected))
+                }
+                Expr::Field { object, .. } => expr_contains_method(object, expected),
+                Expr::If {
+                    condition,
+                    then_branch,
+                    else_branch,
+                    ..
+                } => {
+                    fn else_branch_contains_method(branch: &ElseBranch, expected: &str) -> bool {
+                        match branch {
+                            ElseBranch::Else(block) => block
+                                .stmts
+                                .iter()
+                                .any(|stmt| stmt_contains_method(stmt, expected)),
+                            ElseBranch::ElseIf(condition, block, else_branch) => {
+                                expr_contains_method(condition, expected)
+                                    || block
+                                        .stmts
+                                        .iter()
+                                        .any(|stmt| stmt_contains_method(stmt, expected))
+                                    || else_branch
+                                        .as_ref()
+                                        .is_some_and(|next| else_branch_contains_method(next, expected))
+                            }
+                        }
+                    }
+
+                    expr_contains_method(condition, expected)
+                        || then_branch
+                            .stmts
+                            .iter()
+                            .any(|stmt| stmt_contains_method(stmt, expected))
+                        || else_branch
+                            .as_ref()
+                            .is_some_and(|branch| else_branch_contains_method(branch, expected))
+                }
+                Expr::Cast { value, .. } | Expr::Paren(value, _) => {
+                    expr_contains_method(value, expected)
+                }
+                _ => false,
+            }
+        }
+
+        fn stmt_contains_method(stmt: &Stmt, expected: &str) -> bool {
+            match stmt {
+                Stmt::Expr(expr) => expr_contains_method(expr, expected),
+                Stmt::Let { value, .. } => value
+                    .as_ref()
+                    .is_some_and(|expr| expr_contains_method(expr, expected)),
+                _ => false,
+            }
+        }
+
+        assert!(
+            !function
+                .body
+                .stmts
+                .iter()
+                .any(|stmt| stmt_contains_method(stmt, "len")),
+            "string len should lower to Kain len(...) instead of a method call"
+        );
+        assert!(matches!(
+            function.body.stmts.last(),
+            Some(Stmt::Expr(Expr::Cast { value, .. }))
+                if matches!(value.as_ref(), Expr::Call { callee, .. } if matches!(callee.as_ref(), Expr::Ident(name, _) if name == "len"))
+        ));
+    }
+
+    #[test]
+    fn rewrites_path_methods_through_field_and_constructor_chains() {
+        let program = transform_source(
+            r#"
+            use std::path::PathBuf;
+
+            struct LaneState {
+                root: PathBuf,
+            }
+
+            impl LaneState {
+                fn label(&self) -> String {
+                    self.root.join("warm.lane").to_string_lossy().to_string()
+                }
+            }
+
+            fn demo() {
+                let root = PathBuf::from("benchmark").join("cases").join("lane");
+            }
+            "#,
+        );
+
+        fn expr_contains_method(expr: &Expr, expected: &str) -> bool {
+            match expr {
+                Expr::MethodCall {
+                    receiver,
+                    method,
+                    args,
+                    ..
+                } => {
+                    method == expected
+                        || expr_contains_method(receiver, expected)
+                        || args.iter().any(|arg| expr_contains_method(&arg.value, expected))
+                }
+                Expr::Call { callee, args, .. } => {
+                    expr_contains_method(callee, expected)
+                        || args.iter().any(|arg| expr_contains_method(&arg.value, expected))
+                }
+                Expr::Field { object, .. } => expr_contains_method(object, expected),
+                Expr::If {
+                    condition,
+                    then_branch,
+                    else_branch,
+                    ..
+                } => {
+                    expr_contains_method(condition, expected)
+                        || then_branch.stmts.iter().any(|stmt| stmt_contains_method(stmt, expected))
+                        || else_branch
+                            .as_deref()
+                            .is_some_and(|branch| else_branch_contains_method(branch, expected))
+                }
+                Expr::Cast { value, .. }
+                | Expr::Try(value, _)
+                | Expr::Await(value, _)
+                | Expr::Deref(value, _)
+                | Expr::Paren(value, _) => expr_contains_method(value, expected),
+                _ => false,
+            }
+        }
+
+        fn stmt_contains_method(stmt: &Stmt, expected: &str) -> bool {
+            match stmt {
+                Stmt::Expr(expr) => expr_contains_method(expr, expected),
+                Stmt::Let { value, .. } => value
+                    .as_ref()
+                    .is_some_and(|expr| expr_contains_method(expr, expected)),
+                _ => false,
+            }
+        }
+
+        fn else_branch_contains_method(branch: &ElseBranch, expected: &str) -> bool {
+            match branch {
+                ElseBranch::Else(block) => {
+                    block.stmts.iter().any(|stmt| stmt_contains_method(stmt, expected))
+                }
+                ElseBranch::ElseIf(condition, block, tail) => {
+                    expr_contains_method(condition, expected)
+                        || block.stmts.iter().any(|stmt| stmt_contains_method(stmt, expected))
+                        || tail
+                            .as_deref()
+                            .is_some_and(|next| else_branch_contains_method(next, expected))
+                }
+            }
+        }
+
+        let Item::Impl(impl_block) = program
+            .items
+            .iter()
+            .find(|item| {
+                matches!(
+                    item,
+                    Item::Impl(impl_block)
+                        if matches!(
+                            &impl_block.target_type,
+                            Type::Named { name, .. } if name == "LaneState"
+                        )
+                )
+            })
+            .expect("expected impl block")
+        else {
+            panic!("expected impl block");
+        };
+        let method = impl_block
+            .methods
+            .iter()
+            .find(|method| method.name == "label")
+            .expect("expected label method");
+        assert!(
+            !method
+                .body
+                .stmts
+                .iter()
+                .any(|stmt| stmt_contains_method(stmt, "join")),
+            "join should lower into std::path helpers"
+        );
+        assert!(
+            !method
+                .body
+                .stmts
+                .iter()
+                .any(|stmt| stmt_contains_method(stmt, "to_string_lossy")),
+            "to_string_lossy should collapse away on path-like imported values"
+        );
+
+        let Item::Function(function) = program
+            .items
+            .iter()
+            .find(|item| matches!(item, Item::Function(function) if function.name == "demo"))
+            .expect("expected demo function")
+        else {
+            panic!("expected demo function");
+        };
+        assert!(
+            !function
+                .body
+                .stmts
+                .iter()
+                .any(|stmt| stmt_contains_method(stmt, "join")),
+            "constructor chains should also lower path joins into std::path helpers"
+        );
+    }
+
+    #[test]
+    fn drops_namespaced_rust_attributes_from_imported_items() {
+        let program = transform_source(
+            r#"
+            #[tokio::main(flavor = "current_thread")]
+            async fn main() {}
+            "#,
+        );
+
+        let Item::Function(function) = &program.items[0] else {
+            panic!("expected function");
+        };
+
+        assert!(function.attributes.is_empty());
+        assert!(!function.effects.contains(&Effect::Async));
+    }
+
+    #[test]
+    fn renames_reserved_parameter_bindings_consistently() {
+        let program = transform_source(
+            r#"
+            fn demo(pulse: i32) -> i32 {
+                pulse + 1
+            }
+            "#,
+        );
+
+        let Item::Function(function) = &program.items[0] else {
+            panic!("expected function");
+        };
+
+        assert!(matches!(
+            function.params.as_slice(),
+            [Param { name, .. }] if name == "pulse_"
+        ));
+        assert!(matches!(
+            function.body.stmts.as_slice(),
+            [Stmt::Expr(Expr::Binary { left, .. })]
+                if matches!(left.as_ref(), Expr::Ident(name, _) if name == "pulse_")
+        ));
     }
 
     #[test]

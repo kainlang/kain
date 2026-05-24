@@ -550,6 +550,13 @@ When a proof unlocks a faster dirty path, take the path. Unsafe Rust, C pointer 
 - Native LLVM and `runtime/native` are the priority. Rust remains the bootstrap and tooling substrate, but Kain must increasingly own its own semantics.
 - Prefer Bazel for serious compiler/runtime/CLI builds and for fresh `kain`, `kn`, and `blade` binaries. Cargo is still useful for local Rust iteration, but Bazel is the repo-scale proof lane.
 - Keep authored behavior in Kain when it belongs to Kain semantics. Use C/Rust/FFI/host bridges for OS, ABI, driver, GPU, platform, and ecosystem surfaces.
+- New PRIORITY EFFECTIVE MAY 22: when authoring KAIN try and leave useful non robotic comments in the code etc so that way we can start getting fire examples for humans to read etc -- also in a kain file if you are building out a full on system etc, section dividers that look like this would be superb (HOWEVER DO NOT CRAZY WITH THESE, ONLY for sexy code and complex ass systems you would be proud of) (AND IF YOU REALLY WANT TO CRAZY, DEVISE SOME ASCII ART/ flow charts IN THE CODE OF HOW SOMETHING WORKS IF you truly want to flex your skills lol)
+-  
+// ============================================================================
+//                          ex. entanglement pizza
+// ============================================================================
+  entangle crust <-> pizza
+  entangle pepperoni <-> cheese
 
 ## Smoketest Doctrine
 

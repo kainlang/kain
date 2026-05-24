@@ -1062,9 +1062,25 @@ fn generate_kain_source(program: &kain_core::ast::Program) -> KainResult<String>
     writeln!(output)
         .map_err(|e| KainError::runtime(format!("Failed to generate source: {}", e)))?;
 
-    // Generate code for each item
-    for item in &program.items {
-        write_item(&mut output, item, 0)?;
+    match kain_core::format_program(program) {
+        Ok(formatted) => {
+            output.push_str(&formatted);
+            if !formatted.ends_with('\n') {
+                output.push('\n');
+            }
+        }
+        Err(err) => {
+            writeln!(
+                output,
+                "# Formatter fallback: canonical Kain formatter rejected imported AST ({err})"
+            )
+            .map_err(|e| KainError::runtime(format!("Failed to generate source: {}", e)))?;
+            writeln!(output)
+                .map_err(|e| KainError::runtime(format!("Failed to generate source: {}", e)))?;
+            for item in &program.items {
+                write_item(&mut output, item, 0)?;
+            }
+        }
     }
 
     Ok(output)
@@ -2482,11 +2498,44 @@ mod tests {
             !generated.contains("LOSSY LOWERING"),
             "printer should not emit lossy placeholders:\n{generated}"
         );
-        assert!(generated.contains("let target = PathBuf__from(&path)"));
+        assert!(generated.contains("with Async:"));
+        assert!(generated.contains("let target = path"));
         assert!(generated.contains("let policy = preview_streaming.policy().clone()"));
         assert!(generated.contains("await run_native_blocking_task"));
-        assert!(generated.contains("BinaryResponse__new_(bytes)"));
+        assert!(generated.contains("BinaryResponse__new"));
         assert!(generated.contains("dirs__home_dir().map"));
+    }
+
+    #[test]
+    fn rust_import_maps_tokio_and_path_surface_to_kain_semantics() {
+        let source = r#"
+            use std::path::PathBuf;
+            use tokio::fs;
+            use tokio::time::{sleep, Duration};
+
+            pub async fn load(path: PathBuf) -> String {
+                sleep(Duration::from_millis(5)).await;
+                fs::read_to_string(path).await
+            }
+        "#;
+        let (program, diagnostics) =
+            kain_import::rust::import_rust_source_detailed(source, Path::new("tokio_load.rs"))
+                .expect("rust source should import");
+        let generated = generate_kain_source(&program).expect("Kain source should generate");
+
+        assert!(
+            diagnostics.is_empty(),
+            "unexpected import diagnostics: {diagnostics:?}"
+        );
+        assert!(generated.contains("use std::fs"));
+        assert!(generated.contains("use std::time::Duration"));
+        assert!(generated.contains("pub fn load(path: String) -> String with Async:"));
+        assert!(generated.contains(
+            "await async std::time::sleep_millis(std::time::duration_to_millis(std::time::duration_from_millis(5)))"
+        ));
+        assert!(generated.contains("await async std::fs::fs_read_text(path)"));
+        assert!(!generated.contains("tokio::"));
+        assert!(!generated.contains("use std::path::PathBuf"));
     }
 
     #[test]

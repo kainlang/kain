@@ -1,24 +1,214 @@
 {
   "server": {
     "name": "kain-agent-mcp",
-    "version": "0.1.0",
-    "transport": "http-probe",
-    "mode": "self-test",
-    "host": "127.0.0.1",
-    "port": 0
+    "title": "Kain Agent MCP",
+    "version": "0.2.0",
+    "description": "Runtime-native MCP for Kain language understanding, semantic repo search, examples, and command execution.",
+    "transport": "stdio",
+    "mode": "runtime-native",
+    "protocol_versions": [
+      "2025-06-18",
+      "2025-03-26"
+    ]
   },
-  "runtime_policy": {
-    "network_timeout_ms": 5000,
-    "max_probe_requests": 1,
-    "shutdown_after_self_test": true
+  "instructions": "Use stdlib.query and repo.examples before broad repo spelunking. Treat the command registry tools as the first stop for Kain CLI understanding, then use kain.check and kain.run_plan when you need execution truth.",
+  "paths": {
+    "repo_root": "../..",
+    "stdlib_query_script": "query_stdlib.py",
+    "command_query_script": "mcp/kain-agent-mcp/scripts/query_command_registry.py",
+    "stdlib_map_path": "stdlib/stdlib.map.json",
+    "architecture_doc": "ARCHITECTURE.md",
+    "glossary_doc": "GLOSSARY.md",
+    "understanding_paths": [
+      {
+        "id": "architecture",
+        "path": "ARCHITECTURE.md",
+        "purpose": "Durable architectural map and ownership boundaries."
+      },
+      {
+        "id": "glossary",
+        "path": "GLOSSARY.md",
+        "purpose": "Fast vocabulary map for repo- and language-specific terms."
+      },
+      {
+        "id": "stdlib_map",
+        "path": "stdlib/STDLIB_MAP.llm.md",
+        "purpose": "Agent-first atlas of the root stdlib surface."
+      },
+      {
+        "id": "smoketest_album",
+        "path": "smoketest/src/main.kn",
+        "purpose": "Cross-lane proving ground that shows how Kain features compose."
+      },
+      {
+        "id": "neural_lattice",
+        "path": "blades/experiments/neural_lattice/src/main.kn",
+        "purpose": "Experimental authored system with semantic density."
+      }
+    ],
+    "example_roots": [
+      {
+        "path": "library_of_kain",
+        "tags": ["language", "examples", "repo"]
+      },
+      {
+        "path": "smoketest/src",
+        "tags": ["language", "smoketest", "cross-lane"]
+      },
+      {
+        "path": "blades/experiments",
+        "tags": ["experiments", "neural", "systems"]
+      },
+      {
+        "path": "benchmark/lanes/gpu/cases",
+        "tags": ["gpu", "benchmark", "compute"]
+      },
+      {
+        "path": "blades/vulkain",
+        "tags": ["gpu", "graphics", "package"]
+      },
+      {
+        "path": "blades/kaintana",
+        "tags": ["ui", "framework", "package"]
+      }
+    ]
+  },
+  "runtime": {
+    "python_bin": "python",
+    "rg_bin": "rg",
+    "timeout_ms": 30000,
+    "default_limit": 20,
+    "max_results": 80,
+    "kain_bin_candidates": [
+      "target/codex-kain-cli/debug/kain.exe",
+      "PATH:kain"
+    ]
   },
   "tools": [
     {
-      "name": "health.ping",
-      "module": "tools/health/health_tool.kn",
-      "method": "GET",
-      "path": "/mcp/health",
-      "destructive": false
+      "name": "repo.overview",
+      "title": "Repo Overview",
+      "description": "Return the Kain repo orientation map: docs, major roots, and stdlib summary counts.",
+      "handler": "repo.overview",
+      "writes": false,
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "stdlib.query",
+      "title": "Stdlib Query",
+      "description": "Query the generated stdlib atlas through query_stdlib.py without shelling out manually.",
+      "handler": "stdlib.query",
+      "writes": false,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "summary": { "type": "boolean" },
+          "imports": { "type": "boolean" },
+          "module": { "type": "string" },
+          "search": { "type": "string" },
+          "contains": { "type": "string" },
+          "kind": { "type": "string" },
+          "private": { "type": "boolean" },
+          "limit": { "type": "integer" },
+          "json": { "type": "boolean" }
+        }
+      }
+    },
+    {
+      "name": "repo.examples",
+      "title": "Repo Examples",
+      "description": "Find authored Kain examples across library_of_kain, smoketest, experiments, UI, and GPU lanes.",
+      "handler": "repo.examples",
+      "writes": false,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "topic": { "type": "string" },
+          "limit": { "type": "integer" }
+        }
+      }
+    },
+    {
+      "name": "repo.search",
+      "title": "Repo Search",
+      "description": "Semantic text search across the repo through ripgrep with concise structured matches.",
+      "handler": "repo.search",
+      "writes": false,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": { "type": "string" },
+          "path": { "type": "string" },
+          "limit": { "type": "integer" }
+        },
+        "required": ["query"]
+      }
+    },
+    {
+      "name": "kain.commands.list",
+      "title": "Kain Commands List",
+      "description": "Return structured command-registry entries for the selected Kain binary view.",
+      "handler": "kain.commands.list",
+      "writes": false,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "bin": { "type": "string" },
+          "runtime": { "type": "boolean" },
+          "pack": { "type": "string" },
+          "query": { "type": "string" },
+          "limit": { "type": "integer" }
+        }
+      }
+    },
+    {
+      "name": "kain.commands.describe",
+      "title": "Kain Commands Describe",
+      "description": "Describe one Kain command by id or command path such as `check` or `run plan`.",
+      "handler": "kain.commands.describe",
+      "writes": false,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "bin": { "type": "string" },
+          "runtime": { "type": "boolean" },
+          "query": { "type": "string" }
+        },
+        "required": ["query"]
+      }
+    },
+    {
+      "name": "kain.check",
+      "title": "Kain Check",
+      "description": "Run `kain check` through the MCP and return the structured report when available.",
+      "handler": "kain.check",
+      "writes": false,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "path": { "type": "string" },
+          "target": { "type": "string" }
+        },
+        "required": ["path"]
+      }
+    },
+    {
+      "name": "kain.run_plan",
+      "title": "Kain Run Plan",
+      "description": "Run `kain run plan --json` and return the resolved execution plan for a path or workspace.",
+      "handler": "kain.run_plan",
+      "writes": false,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "path": { "type": "string" },
+          "target": { "type": "string" }
+        },
+        "required": ["path"]
+      }
     }
   ]
 }

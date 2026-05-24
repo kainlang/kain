@@ -18,7 +18,50 @@ const EXTRA_LEXER_KEYWORDS: &[&str] = &[
     "and", "or",
     // First-class/contextual tokens that the parser does not accept in normal
     // imported value/type/field positions even when the source language does.
-    "shader", "state", "vertex", "fragment", "Pure", "IO", "GPU", "Reactive", "Unsafe",
+    "shader",
+    "state",
+    "vertex",
+    "fragment",
+    "Pure",
+    "IO",
+    "GPU",
+    "Reactive",
+    "Unsafe",
+    "patch",
+    "law",
+    "axiom",
+    "pulse",
+    "orchestrate",
+    "converge",
+    "world",
+    "entangle",
+    "shatter",
+    "teleport",
+    "every",
+    "when",
+    "guarantee",
+    "fallback",
+    "spec",
+    "fast",
+    "verify",
+    "random",
+    "jitter",
+    "target",
+    "capability",
+    "from",
+    "to",
+    "via",
+    "surface",
+    "native_ui",
+    "viewport3d",
+    "web",
+    "ue5",
+    "compute",
+    "uniform",
+    "render",
+    "on",
+    "weak",
+    "single_writer",
 ];
 
 pub fn is_reserved_identifier(name: &str) -> bool {
@@ -114,6 +157,7 @@ mod tests {
         assert_eq!(sanitize_identifier_base("type"), "type_");
         assert_eq!(sanitize_identifier_base("in"), "in_");
         assert_eq!(sanitize_identifier_base("state"), "state_");
+        assert_eq!(sanitize_identifier_base("pulse"), "pulse_");
         assert_eq!(sanitize_identifier_base("123abc"), "c_123abc");
     }
 

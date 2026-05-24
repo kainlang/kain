@@ -1,7 +1,7 @@
 {
   "mode": "full",
   "status": 2515,
-  "elapsed_ms": 57,
+  "elapsed_ms": 138,
   "summary_exists": 1,
   "summary_path": "D:/Kain-Lang/smoketest/telemetry/full/summary.json",
   "output_dir": "D:/Kain-Lang/smoketest/telemetry/full",
@@ -19,7 +19,7 @@
   "error_message": "",
   "stdout_len": 0,
   "stderr_len": 0,
-  "runner_checksum": 2740811,
+  "runner_checksum": 2740892,
   "probe": {
   "ok": 1,
   "python": "D:/kain-bazel/output-user-root/ccujd7ry/execroot/_main/bazel-out/x64_windows-dbg/bin/crates/cli/kain.exe",

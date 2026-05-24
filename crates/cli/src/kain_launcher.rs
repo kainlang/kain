@@ -3225,11 +3225,17 @@ fn print_doctor(active_launcher: LauncherKind) {
     let kn_path_command = which::which("kn").ok();
     let kain_path_matches = collect_path_matches("kain");
     let kn_path_matches = collect_path_matches("kn");
+    let install_layout = kain_core::install_layout::default_kain_install_layout();
     let stdlib_roots = kain_core::stdlib::find_stdlib_search_roots();
     let runtime_c = find_runtime_c();
     let runtime_manifest = find_native_runtime_manifest();
     let resolved_clang = if cfg!(feature = "sys") {
         find_bundled_clang()
+    } else {
+        None
+    };
+    let resolved_libclang = if cfg!(feature = "sys") {
+        kain_core::install_layout::resolve_bundled_libclang_path()
     } else {
         None
     };
@@ -3260,6 +3266,17 @@ fn print_doctor(active_launcher: LauncherKind) {
             println!(" Binary Kind: {}", classify_binary_path(path));
         }
         None => println!(" Binary Path: <unknown>"),
+    }
+    if let Some(layout) = &install_layout {
+        println!(" Kain Home: {}", layout.home_dir.display());
+        println!(" Kain User Bin: {}", layout.bin_dir.display());
+        println!(" Kain Packages Dir: {}", layout.packages_dir.display());
+        println!(" Kain Tooling Dir: {}", layout.tooling_dir.display());
+        println!(" Kain Cache Dir: {}", layout.cache_dir.display());
+        println!(" Kain Generated Dir: {}", layout.generated_dir.display());
+        println!(" Kain Install Manifest: {}", layout.install_manifest_path.display());
+    } else {
+        println!(" Kain Home: <unresolved>");
     }
     println!(" Active Launcher: {}", active_launcher.display_name());
 
@@ -3409,6 +3426,10 @@ fn print_doctor(active_launcher: LauncherKind) {
             Some(path) => println!(" Resolved LLVM Clang: {}", path),
             None => println!(" Resolved LLVM Clang: <not found in bundled locations>"),
         }
+        match resolved_libclang {
+            Some(path) => println!(" Resolved LLVM libclang: {}", path.display()),
+            None => println!(" Resolved LLVM libclang: <not found in bundled locations>"),
+        }
     }
 
     if let Some(path) = current_exe.as_deref() {
@@ -3416,11 +3437,11 @@ fn print_doctor(active_launcher: LauncherKind) {
             println!(" Warning: active kain comes from a repo target directory.");
             if cfg!(windows) {
                 println!(
-                    "          Refresh/install a stable PATH binary with scripts/windows/sync-kain-source-of-truth.ps1."
+                    "          Refresh/install a stable PATH binary with `python install_kain.py`, then open a new shell."
                 );
             } else {
                 println!(
-                    "          Refresh/install a stable PATH binary with python3 install_kain.py and source generated/kain-env.sh."
+                    "          Refresh/install a stable PATH binary with `python3 install_kain.py` or source `~/.kain/generated/kain-env.sh`."
                 );
             }
         }
@@ -3444,6 +3465,8 @@ fn classify_binary_path(path: &Path) -> &'static str {
         "bazel-output"
     } else if is_repo_target_binary(path) {
         "repo-target"
+    } else if is_kain_home_binary(path) {
+        "kain-home-bin"
     } else if is_cargo_bin_binary(path) {
         "cargo-bin"
     } else {
@@ -3475,6 +3498,10 @@ fn is_cargo_bin_binary(path: &Path) -> bool {
     cargo_home
         .map(|home| path.starts_with(home.join("bin")))
         .unwrap_or(false)
+}
+
+fn is_kain_home_binary(path: &Path) -> bool {
+    kain_core::install_layout::is_path_within_kain_home_bin(path)
 }
 
 fn collect_path_matches(command_name: &str) -> Vec<PathBuf> {
@@ -3574,40 +3601,7 @@ fn ensure_parent_dir(file_path: &Path) -> bool {
 }
 
 fn find_runtime_c() -> Option<PathBuf> {
-    if let Ok(env_path) = std::env::var("KAIN_RUNTIME_C_PATH") {
-        let p = PathBuf::from(env_path);
-        if p.exists() {
-            return Some(p);
-        }
-    }
-
-    let candidates = [
-        PathBuf::from("runtime/runtime.c"),
-        PathBuf::from("runtime/KAIN_runtime.c"),
-        PathBuf::from("src/runtime/c/KAIN_runtime.c"),
-    ];
-
-    for candidate in candidates {
-        if candidate.exists() {
-            return Some(candidate);
-        }
-    }
-
-    if let Ok(exe_path) = std::env::current_exe() {
-        if let Some(mut dir) = exe_path.parent().map(|p| p.to_path_buf()) {
-            loop {
-                let candidate = dir.join("runtime").join("runtime.c");
-                if candidate.exists() {
-                    return Some(candidate);
-                }
-                if !dir.pop() {
-                    break;
-                }
-            }
-        }
-    }
-
-    None
+    kain_core::install_layout::resolve_runtime_c_path()
 }
 
 fn resolve_native_runtime_bundle() -> Result<Option<ResolvedNativeRuntimeBundle>, String> {
@@ -4665,49 +4659,17 @@ fn default_native_runtime_cpp_link_libs() -> Vec<String> {
 }
 
 fn find_native_runtime_manifest() -> Option<PathBuf> {
-    if let Ok(env_path) = std::env::var("KAIN_RUNTIME_MANIFEST_PATH") {
-        let path = PathBuf::from(env_path);
-        if path.exists() {
-            return Some(path);
-        }
-    }
-
-    for root in runtime_search_roots() {
-        for suffix in native_runtime_manifest_candidate_suffixes() {
-            let candidate = root.join(suffix);
-            if candidate.exists() {
-                return Some(candidate);
-            }
-        }
-    }
-
-    None
+    kain_core::install_layout::resolve_native_runtime_manifest_path()
 }
 
+#[cfg(test)]
 fn native_runtime_manifest_candidate_suffixes() -> [PathBuf; 3] {
+    let suffixes = kain_core::install_layout::native_runtime_manifest_candidate_suffixes();
     [
-        PathBuf::from("runtime/native_core_runtime.toml"),
-        PathBuf::from("runtime/native_runtime.toml"),
-        PathBuf::from("runtime/native/runtime.toml"),
+        PathBuf::from(suffixes[0]),
+        PathBuf::from(suffixes[1]),
+        PathBuf::from(suffixes[2]),
     ]
-}
-
-fn runtime_search_roots() -> Vec<PathBuf> {
-    let mut roots = Vec::new();
-    if let Ok(cwd) = std::env::current_dir() {
-        roots.push(cwd);
-    }
-    if let Ok(exe_path) = std::env::current_exe() {
-        if let Some(mut dir) = exe_path.parent().map(|path| path.to_path_buf()) {
-            loop {
-                roots.push(dir.clone());
-                if !dir.pop() {
-                    break;
-                }
-            }
-        }
-    }
-    roots
 }
 
 #[cfg(test)]
@@ -5178,48 +5140,8 @@ pub fn helper_lane() -> Int:
 }
 
 fn find_bundled_clang() -> Option<String> {
-    if let Ok(env_path) = std::env::var("KAIN_CLANG_PATH") {
-        let path = PathBuf::from(env_path);
-        if path.exists() {
-            return Some(path.to_string_lossy().into_owned());
-        }
-    }
-
-    let candidate_suffixes = [
-        PathBuf::from("toolchain/llvm/bin/clang.exe"),
-        PathBuf::from("toolchain/llvm/bin/clang"),
-        PathBuf::from("third_party/llvm/bin/clang.exe"),
-        PathBuf::from("third_party/llvm/bin/clang"),
-        PathBuf::from("llvm/bin/clang.exe"),
-        PathBuf::from("llvm/bin/clang"),
-    ];
-
-    let mut search_roots = Vec::new();
-    if let Ok(cwd) = std::env::current_dir() {
-        search_roots.push(cwd);
-    }
-    if let Ok(exe_path) = std::env::current_exe() {
-        if let Some(dir) = exe_path.parent() {
-            let mut cursor = dir.to_path_buf();
-            loop {
-                search_roots.push(cursor.clone());
-                if !cursor.pop() {
-                    break;
-                }
-            }
-        }
-    }
-
-    for root in search_roots {
-        for suffix in &candidate_suffixes {
-            let candidate = root.join(suffix);
-            if candidate.exists() {
-                return Some(candidate.to_string_lossy().into_owned());
-            }
-        }
-    }
-
-    None
+    kain_core::install_layout::resolve_bundled_clang_path()
+        .map(|path| path.to_string_lossy().into_owned())
 }
 
 fn find_binary(name: &str, fallback: Option<&str>) -> Option<PathBuf> {

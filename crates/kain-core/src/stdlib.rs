@@ -1348,62 +1348,7 @@ impl Default for StdLib {
 /// This is also surfaced through `kain doctor` so the active compiler can
 /// explain exactly which stdlib roots it will prefer on the current machine.
 pub fn find_stdlib_search_roots() -> Vec<std::path::PathBuf> {
-    use std::env;
-    use std::path::PathBuf;
-
-    let mut roots = Vec::new();
-
-    // Priority 1: KAIN_STDLIB_PATH environment variable (highest priority)
-    if let Ok(env_path) = env::var("KAIN_STDLIB_PATH") {
-        let path = PathBuf::from(env_path);
-        if path.exists() {
-            roots.push(path);
-            return roots; // If env var is set and valid, use only that
-        }
-    }
-
-    // Priority 2: Walk up from executable location
-    if let Ok(exe_path) = env::current_exe() {
-        if let Some(mut current) = exe_path.parent() {
-            loop {
-                let stdlib_dir = current.join("stdlib");
-                if stdlib_dir.exists() && stdlib_dir.is_dir() {
-                    roots.push(stdlib_dir);
-                    break;
-                }
-
-                // Move to parent directory
-                if let Some(parent) = current.parent() {
-                    current = parent;
-                } else {
-                    break; // Reached filesystem root
-                }
-            }
-        }
-    }
-
-    // Priority 3: Walk up from current working directory
-    if let Ok(mut current) = env::current_dir() {
-        loop {
-            let stdlib_dir = current.join("stdlib");
-            if stdlib_dir.exists() && stdlib_dir.is_dir() {
-                // Avoid duplicates
-                if !roots.iter().any(|r| r == &stdlib_dir) {
-                    roots.push(stdlib_dir);
-                }
-                break;
-            }
-
-            // Move to parent directory
-            if let Some(parent) = current.parent() {
-                current = parent.to_path_buf();
-            } else {
-                break; // Reached filesystem root
-            }
-        }
-    }
-
-    roots
+    crate::install_layout::find_stdlib_search_roots()
 }
 
 /// Load all .kn files from a directory, excluding README files

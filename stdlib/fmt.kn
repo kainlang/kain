@@ -1,19 +1,228 @@
 use std::ascii
 use std::bytes
+use std::io
+
+pub const FMT_ALIGN_LEFT: String = "left"
+pub const FMT_ALIGN_RIGHT: String = "right"
+pub const FMT_ALIGN_CENTER: String = "center"
+
+pub const FMT_BOOL_STYLE_WORD: String = "word"
+pub const FMT_BOOL_STYLE_JSON: String = "json"
+pub const FMT_BOOL_STYLE_NUMERIC: String = "numeric"
+
+pub const FMT_BASE_DECIMAL: Int = 10
+pub const FMT_BASE_HEX: Int = 16
+pub const FMT_BASE_BINARY: Int = 2
 
 pub struct FmtWriter:
     builder: BytesBuilder
+
+pub struct FmtSpec:
+    width: Int
+    pad: String
+    align: String
+    prefix: String
+    plus_for_positive: Bool
+    uppercase: Bool
+    number_base: Int
+    bool_style: String
 
 fn fmt_pad_token(pad: String) -> String:
     if len(pad) == 0:
         return " "
     return char_at(pad, 0)
 
+fn fmt_supported_align(align: String) -> String:
+    if align == FMT_ALIGN_LEFT:
+        return align
+    if align == FMT_ALIGN_CENTER:
+        return align
+    return FMT_ALIGN_RIGHT
+
+fn fmt_supported_base(base: Int) -> Int:
+    if base == FMT_BASE_HEX:
+        return base
+    if base == FMT_BASE_BINARY:
+        return base
+    return FMT_BASE_DECIMAL
+
+fn fmt_supported_bool_style(style: String) -> String:
+    if style == FMT_BOOL_STYLE_JSON:
+        return style
+    if style == FMT_BOOL_STYLE_NUMERIC:
+        return style
+    return FMT_BOOL_STYLE_WORD
+
+fn fmt_apply_uppercase(value: String, uppercase: Bool) -> String:
+    if uppercase:
+        return to_upper(value)
+    return value
+
+fn fmt_apply_prefix(value: String, prefix: String) -> String:
+    if len(prefix) == 0:
+        return value
+    if len(value) == 0:
+        return prefix
+    let head = char_at(value, 0)
+    if head == "-" or head == "+":
+        return head + prefix + substring(value, 1, len(value))
+    return prefix + value
+
+fn fmt_apply_plus(value: String, plus_for_positive: Bool) -> String:
+    if plus_for_positive == false:
+        return value
+    if len(value) == 0:
+        return value
+    let head = char_at(value, 0)
+    if head == "-" or head == "+":
+        return value
+    return "+" + value
+
+fn fmt_apply_width(value: String, spec: FmtSpec) -> String:
+    if spec.width <= len(value):
+        return value
+    let align = fmt_supported_align(spec.align)
+    if align == FMT_ALIGN_LEFT:
+        return fmt_pad_right(value, spec.width, spec.pad)
+    if align == FMT_ALIGN_CENTER:
+        return fmt_pad_center(value, spec.width, spec.pad)
+    return fmt_pad_left(value, spec.width, spec.pad)
+
+fn fmt_render_number_body(value: Int, spec: FmtSpec) -> String:
+    let base = fmt_supported_base(spec.number_base)
+    if base == FMT_BASE_HEX:
+        return fmt_apply_uppercase(fmt_hex_int(value), spec.uppercase)
+    if base == FMT_BASE_BINARY:
+        return fmt_binary_int(value)
+    return fmt_int(value)
+
+fn fmt_render_float_body(value: Float, spec: FmtSpec) -> String:
+    return fmt_apply_uppercase(fmt_float(value), spec.uppercase)
+
+fn fmt_render_bool_body(value: Bool, spec: FmtSpec) -> String:
+    let style = fmt_supported_bool_style(spec.bool_style)
+    if style == FMT_BOOL_STYLE_NUMERIC:
+        if value:
+            return "1"
+        return "0"
+    if style == FMT_BOOL_STYLE_JSON:
+        return fmt_bool_json(value)
+    let body = fmt_bool_word(value)
+    return fmt_apply_uppercase(body, spec.uppercase)
+
 pub fn fmt_string(value: String) -> String:
     return value
 
 pub fn fmt_writer_new() -> FmtWriter:
     return FmtWriter { builder: bytes_builder_new() }
+
+pub fn fmt_spec_default() -> FmtSpec:
+    return FmtSpec {
+        width: 0,
+        pad: " ",
+        align: FMT_ALIGN_RIGHT,
+        prefix: "",
+        plus_for_positive: false,
+        uppercase: false,
+        number_base: FMT_BASE_DECIMAL,
+        bool_style: FMT_BOOL_STYLE_WORD
+    }
+
+pub fn fmt_spec_width(spec: FmtSpec, width: Int) -> FmtSpec:
+    return FmtSpec {
+        width: int_max(width, 0),
+        pad: spec.pad,
+        align: spec.align,
+        prefix: spec.prefix,
+        plus_for_positive: spec.plus_for_positive,
+        uppercase: spec.uppercase,
+        number_base: spec.number_base,
+        bool_style: spec.bool_style
+    }
+
+pub fn fmt_spec_pad(spec: FmtSpec, pad: String) -> FmtSpec:
+    return FmtSpec {
+        width: spec.width,
+        pad: fmt_pad_token(pad),
+        align: spec.align,
+        prefix: spec.prefix,
+        plus_for_positive: spec.plus_for_positive,
+        uppercase: spec.uppercase,
+        number_base: spec.number_base,
+        bool_style: spec.bool_style
+    }
+
+pub fn fmt_spec_align(spec: FmtSpec, align: String) -> FmtSpec:
+    return FmtSpec {
+        width: spec.width,
+        pad: spec.pad,
+        align: fmt_supported_align(align),
+        prefix: spec.prefix,
+        plus_for_positive: spec.plus_for_positive,
+        uppercase: spec.uppercase,
+        number_base: spec.number_base,
+        bool_style: spec.bool_style
+    }
+
+pub fn fmt_spec_prefix(spec: FmtSpec, prefix: String) -> FmtSpec:
+    return FmtSpec {
+        width: spec.width,
+        pad: spec.pad,
+        align: spec.align,
+        prefix: prefix,
+        plus_for_positive: spec.plus_for_positive,
+        uppercase: spec.uppercase,
+        number_base: spec.number_base,
+        bool_style: spec.bool_style
+    }
+
+pub fn fmt_spec_plus(spec: FmtSpec, enabled: Bool) -> FmtSpec:
+    return FmtSpec {
+        width: spec.width,
+        pad: spec.pad,
+        align: spec.align,
+        prefix: spec.prefix,
+        plus_for_positive: enabled,
+        uppercase: spec.uppercase,
+        number_base: spec.number_base,
+        bool_style: spec.bool_style
+    }
+
+pub fn fmt_spec_uppercase(spec: FmtSpec, enabled: Bool) -> FmtSpec:
+    return FmtSpec {
+        width: spec.width,
+        pad: spec.pad,
+        align: spec.align,
+        prefix: spec.prefix,
+        plus_for_positive: spec.plus_for_positive,
+        uppercase: enabled,
+        number_base: spec.number_base,
+        bool_style: spec.bool_style
+    }
+
+pub fn fmt_spec_base(spec: FmtSpec, base: Int) -> FmtSpec:
+    return FmtSpec {
+        width: spec.width,
+        pad: spec.pad,
+        align: spec.align,
+        prefix: spec.prefix,
+        plus_for_positive: spec.plus_for_positive,
+        uppercase: spec.uppercase,
+        number_base: fmt_supported_base(base),
+        bool_style: spec.bool_style
+    }
+
+pub fn fmt_spec_bool_style(spec: FmtSpec, style: String) -> FmtSpec:
+    return FmtSpec {
+        width: spec.width,
+        pad: spec.pad,
+        align: spec.align,
+        prefix: spec.prefix,
+        plus_for_positive: spec.plus_for_positive,
+        uppercase: spec.uppercase,
+        number_base: spec.number_base,
+        bool_style: fmt_supported_bool_style(style)
+    }
 
 pub fn fmt_writer_len(writer: FmtWriter) -> Int:
     return bytes_builder_len(writer.builder)
@@ -23,17 +232,29 @@ pub fn fmt_writer_push_string(writer: FmtWriter, value: String) -> FmtWriter:
         builder: bytes_builder_push_string(writer.builder, value)
     }
 
+pub fn fmt_writer_push_string_spec(writer: FmtWriter, value: String, spec: FmtSpec) -> FmtWriter:
+    return fmt_writer_push_string(writer, fmt_string_spec(value, spec))
+
 pub fn fmt_writer_push_any(writer: FmtWriter, value: Any) -> FmtWriter:
     return fmt_writer_push_string(writer, fmt_any(value))
 
 pub fn fmt_writer_push_int(writer: FmtWriter, value: Int) -> FmtWriter:
     return fmt_writer_push_string(writer, fmt_int(value))
 
+pub fn fmt_writer_push_int_spec(writer: FmtWriter, value: Int, spec: FmtSpec) -> FmtWriter:
+    return fmt_writer_push_string(writer, fmt_int_spec(value, spec))
+
 pub fn fmt_writer_push_float(writer: FmtWriter, value: Float) -> FmtWriter:
     return fmt_writer_push_string(writer, fmt_float(value))
 
+pub fn fmt_writer_push_float_spec(writer: FmtWriter, value: Float, spec: FmtSpec) -> FmtWriter:
+    return fmt_writer_push_string(writer, fmt_float_spec(value, spec))
+
 pub fn fmt_writer_push_bool_word(writer: FmtWriter, value: Bool) -> FmtWriter:
     return fmt_writer_push_string(writer, fmt_bool_word(value))
+
+pub fn fmt_writer_push_bool_spec(writer: FmtWriter, value: Bool, spec: FmtSpec) -> FmtWriter:
+    return fmt_writer_push_string(writer, fmt_bool_spec(value, spec))
 
 pub fn fmt_writer_push_hex_int(writer: FmtWriter, value: Int) -> FmtWriter:
     return fmt_writer_push_string(writer, fmt_hex_int(value))
@@ -64,19 +285,75 @@ pub fn fmt_writer_push_prefixed_lines(writer: FmtWriter, prefix: String, lines: 
 pub fn fmt_writer_build(writer: FmtWriter) -> String:
     return bytes_builder_build(writer.builder)
 
+pub fn fmt_string_builder_push_string(builder: ptr<StringBuilder>, value: String) -> Int with Unsafe:
+    return string_builder_append_string(builder, value)
+
+pub fn fmt_string_builder_push_string_spec(builder: ptr<StringBuilder>, value: String, spec: FmtSpec) -> Int with Unsafe:
+    return string_builder_append_string(builder, fmt_string_spec(value, spec))
+
+pub fn fmt_string_builder_push_any(builder: ptr<StringBuilder>, value: Any) -> Int with Unsafe:
+    return string_builder_append_string(builder, fmt_any(value))
+
+pub fn fmt_string_builder_push_int(builder: ptr<StringBuilder>, value: Int) -> Int with Unsafe:
+    return string_builder_append_string(builder, fmt_int(value))
+
+pub fn fmt_string_builder_push_int_spec(builder: ptr<StringBuilder>, value: Int, spec: FmtSpec) -> Int with Unsafe:
+    return string_builder_append_string(builder, fmt_int_spec(value, spec))
+
+pub fn fmt_string_builder_push_float(builder: ptr<StringBuilder>, value: Float) -> Int with Unsafe:
+    return string_builder_append_string(builder, fmt_float(value))
+
+pub fn fmt_string_builder_push_float_spec(builder: ptr<StringBuilder>, value: Float, spec: FmtSpec) -> Int with Unsafe:
+    return string_builder_append_string(builder, fmt_float_spec(value, spec))
+
+pub fn fmt_string_builder_push_bool_spec(builder: ptr<StringBuilder>, value: Bool, spec: FmtSpec) -> Int with Unsafe:
+    return string_builder_append_string(builder, fmt_bool_spec(value, spec))
+
+pub fn fmt_string_builder_push_json_string(builder: ptr<StringBuilder>, value: String) -> Int with Unsafe:
+    return string_builder_append_string(builder, fmt_json_string(value))
+
+pub fn fmt_string_builder_push_key_value(builder: ptr<StringBuilder>, key: String, value: String) -> Int with Unsafe:
+    return string_builder_append_string(builder, fmt_key_value(key, value))
+
+pub fn fmt_string_builder_push_line(builder: ptr<StringBuilder>, value: String) -> Int with Unsafe:
+    let wrote = string_builder_append_string(builder, value)
+    let newline = string_builder_append_string(builder, "\n")
+    return wrote + newline
+
 pub fn fmt_any(value: Any) -> String:
     return to_string(value)
+
+pub fn fmt_string_spec(value: String, spec: FmtSpec) -> String:
+    let prefixed = fmt_apply_prefix(fmt_apply_uppercase(value, spec.uppercase), spec.prefix)
+    return fmt_apply_width(prefixed, spec)
 
 pub fn fmt_int(value: Int) -> String:
     return to_string(value)
 
+pub fn fmt_int_spec(value: Int, spec: FmtSpec) -> String:
+    let body = fmt_render_number_body(value, spec)
+    let with_plus = fmt_apply_plus(body, spec.plus_for_positive)
+    let prefixed = fmt_apply_prefix(with_plus, spec.prefix)
+    return fmt_apply_width(prefixed, spec)
+
 pub fn fmt_float(value: Float) -> String:
     return to_string(value)
+
+pub fn fmt_float_spec(value: Float, spec: FmtSpec) -> String:
+    let body = fmt_render_float_body(value, spec)
+    let with_plus = fmt_apply_plus(body, spec.plus_for_positive)
+    let prefixed = fmt_apply_prefix(with_plus, spec.prefix)
+    return fmt_apply_width(prefixed, spec)
 
 pub fn fmt_bool_word(value: Bool) -> String:
     if value:
         return "true"
     return "false"
+
+pub fn fmt_bool_spec(value: Bool, spec: FmtSpec) -> String:
+    let body = fmt_render_bool_body(value, spec)
+    let prefixed = fmt_apply_prefix(body, spec.prefix)
+    return fmt_apply_width(prefixed, spec)
 
 pub fn fmt_bool_json(value: Bool) -> String:
     return fmt_bool_word(value)

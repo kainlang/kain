@@ -16,6 +16,7 @@
 //! - `impl Trait` → `Type::Impl`
 //! - Lifetimes → erased (KAIN uses effect system for safety)
 
+use super::semantic_map;
 use kain_core::ast::{PointerProvenance, Type};
 use kain_core::span::Span;
 use std::collections::HashMap;
@@ -122,17 +123,23 @@ impl RustTypeMapper {
     // ── Path types (most common) ──────────────────────────────────────────
 
     fn map_path(&self, tp: &syn::TypePath) -> Type {
+        let raw_segments = self.collect_path_segments(&tp.path);
         let resolved_segments = self.resolve_path_segments(&tp.path);
         let seg = match tp.path.segments.last() {
             Some(s) => s,
             None => return Type::Unit(S),
         };
 
+        let generics = self.generic_args(&seg.arguments);
+        if let Some(rewritten) =
+            semantic_map::rewrite_type_path(&raw_segments, &resolved_segments, &generics)
+        {
+            return rewritten;
+        }
         let name = resolved_segments
             .last()
             .cloned()
             .unwrap_or_else(|| seg.ident.to_string());
-        let generics = self.generic_args(&seg.arguments);
 
         // Primitives — map to KAIN canonical names
         match name.as_str() {
@@ -378,13 +385,32 @@ impl RustTypeMapper {
             let Some(seg) = tb.path.segments.last() else {
                 continue;
             };
-            let trait_name = seg.ident.to_string();
+            let short_trait_name = seg.ident.to_string();
             if matches!(
-                trait_name.as_str(),
+                short_trait_name.as_str(),
                 "Send" | "Sync" | "Sized" | "Unpin" | "UnwindSafe" | "RefUnwindSafe"
             ) {
                 continue;
             }
+            let mut resolved_segments = self.collect_path_segments(&tb.path);
+            if let Some(first) = resolved_segments.first().cloned() {
+                if let Some(expanded) = self.visible_paths.get(&first) {
+                    let mut expanded_segments = expanded.clone();
+                    expanded_segments.extend(resolved_segments.into_iter().skip(1));
+                    resolved_segments = expanded_segments;
+                }
+            }
+            if matches!(
+                resolved_segments.first().map(String::as_str),
+                Some("crate" | "self" | "super")
+            ) {
+                resolved_segments.remove(0);
+            }
+            let trait_name = if resolved_segments.is_empty() {
+                short_trait_name
+            } else {
+                resolved_segments.join("::")
+            };
             return Some((trait_name, self.generic_args(&seg.arguments)));
         }
         None
@@ -505,5 +531,28 @@ mod tests {
         let ty: syn::Type = parse_quote!(once_cell::sync::Lazy<String>);
 
         assert_eq!(mapper.map_type(&ty), named("String"));
+    }
+
+    #[test]
+    fn maps_pathbuf_to_canonical_string_value() {
+        let mapper = RustTypeMapper::new_selfhost();
+        let ty: syn::Type = parse_quote!(std::path::PathBuf);
+
+        assert_eq!(mapper.map_type(&ty), named("String"));
+    }
+
+    #[test]
+    fn maps_tokio_duration_to_kain_time_duration() {
+        let mapper = RustTypeMapper::new_selfhost();
+        let ty: syn::Type = parse_quote!(tokio::time::Duration);
+
+        assert_eq!(
+            mapper.map_type(&ty),
+            Type::Named {
+                name: "std::time::Duration".to_string(),
+                generics: vec![],
+                span: S,
+            }
+        );
     }
 }

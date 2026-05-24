@@ -1,0 +1,50 @@
+use std::runtime
+use std::fmt
+use std::json
+use std::text
+
+fn main() -> Int with Unsafe:
+    let boot = runtime_init()
+    if boot != 0:
+        return 100 + boot
+
+    let payload = json_object()
+    let _name = json_object_set_string(payload, "name", "kain")
+    let _version = json_object_set_int(payload, "version", 1)
+    let _ratio = json_object_set_float(payload, "ratio", 2.5)
+    let _flags = json_object_set_bool_array(payload, "flags", [true, false])
+
+    let rendered = json_stringify(payload)
+    if text_contains_string(rendered, "\"name\":\"kain\"") == false:
+        return 1
+    if text_contains_string(rendered, "\"version\":1") == false:
+        return 2
+    if text_contains_string(rendered, "\"ratio\":2.5") == false:
+        return 3
+    if text_contains_string(rendered, "\"flags\":[true,false]") == false:
+        return 4
+
+    let parsed = json_parse_text(rendered)
+    if json_string_required(parsed, "name") != "kain":
+        return 5
+    let ratio = json_float_required(parsed, "ratio")
+    if ratio < 2.49 or ratio > 2.51:
+        return 6
+    let flags = json_bool_array_field_result(parsed, "flags")
+    if flags.ok == false or len(flags.value) != 2:
+        return 7
+    if flags.value[0] == false or flags.value[1] == true:
+        return 8
+
+    let writer_rendered = fmt_writer_build(json_fmt_writer_push_value(fmt_writer_new(), payload))
+    if writer_rendered != rendered:
+        return 9
+
+    let scan = json_scan_report(rendered)
+    if scan.ok == false:
+        return 10
+
+    let shutdown = runtime_shutdown()
+    if shutdown != 0:
+        return 200 + shutdown
+    return 0

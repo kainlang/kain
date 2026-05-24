@@ -17,33 +17,7 @@ pub struct FilesystemModuleResolutionContext {
 }
 
 pub fn find_stdlib_roots() -> Vec<PathBuf> {
-    let mut roots = Vec::new();
-
-    if let Ok(env_path) = std::env::var("KAIN_STDLIB_PATH") {
-        roots.push(PathBuf::from(env_path));
-    }
-
-    if let Ok(exe_path) = std::env::current_exe() {
-        if let Some(mut dir) = exe_path.parent().map(|p| p.to_path_buf()) {
-            loop {
-                roots.push(dir.join("stdlib"));
-                if !dir.pop() {
-                    break;
-                }
-            }
-        }
-    }
-
-    if let Ok(mut dir) = std::env::current_dir() {
-        loop {
-            roots.push(dir.join("stdlib"));
-            if !dir.pop() {
-                break;
-            }
-        }
-    }
-
-    roots
+    crate::install_layout::find_stdlib_search_roots()
 }
 
 pub fn canonical_stdlib_module_name(module_name: &str) -> String {

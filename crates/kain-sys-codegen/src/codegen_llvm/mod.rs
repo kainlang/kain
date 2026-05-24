@@ -425,6 +425,9 @@ struct LlvmGenerator {
     borrowed_locals: HashSet<String>,
     /// i64 locals that carry native JSON handles or JSON-tagged Any values.
     json_handle_locals: HashSet<String>,
+    /// i64 locals that carry JSON handles/tagged values but only borrow the
+    /// ownership from an outer frame or aliasing return path.
+    json_passthrough_locals: HashSet<String>,
     /// Maps function names to return type
     functions: HashMap<String, String>,
     /// Tracks function parameter LLVM types for call-site lowering.
@@ -432,6 +435,15 @@ struct LlvmGenerator {
     /// Tracks which direct-call parameters are language-level strings and can be
     /// treated as borrowed aliases instead of refcount-owned call-frame locals.
     string_function_params: HashMap<String, Vec<bool>>,
+    /// Tracks which direct-call parameters expect a JSON value/tagged Any lane
+    /// and therefore need JSON-aware boxing at the call site.
+    json_value_function_params: HashMap<String, Vec<bool>>,
+    /// Functions whose return lane carries a JSON handle/tagged Any, including
+    /// aliasing mutators that forward an existing handle.
+    json_carrying_function_returns: HashSet<String>,
+    /// Functions whose return lane owns a fresh or cloned JSON handle/tagged
+    /// Any and must be released when bound into locals.
+    json_owning_function_returns: HashSet<String>,
     /// Authored function names mapped to their emitted LLVM symbol spelling.
     function_symbols: HashMap<String, String>,
     /// Authored function names mapped to their emitted LLVM calling convention.
@@ -526,6 +538,7 @@ struct LlvmFunctionState {
     literal_map_candidate_scopes: Vec<HashSet<String>>,
     borrowed_locals: HashSet<String>,
     json_handle_locals: HashSet<String>,
+    json_passthrough_locals: HashSet<String>,
     loop_stack: Vec<(String, String)>,
     scopes: Vec<Vec<String>>,
     current_block: String,
@@ -569,9 +582,13 @@ impl LlvmGenerator {
             literal_map_candidate_scopes: Vec::new(),
             borrowed_locals: HashSet::new(),
             json_handle_locals: HashSet::new(),
+            json_passthrough_locals: HashSet::new(),
             functions: HashMap::new(),
             function_params: HashMap::new(),
             string_function_params: HashMap::new(),
+            json_value_function_params: HashMap::new(),
+            json_carrying_function_returns: HashSet::new(),
+            json_owning_function_returns: HashSet::new(),
             function_symbols: HashMap::new(),
             function_calling_conventions: HashMap::new(),
             extern_functions: HashSet::new(),
@@ -637,6 +654,7 @@ impl LlvmGenerator {
             literal_map_candidate_scopes: self.literal_map_candidate_scopes.clone(),
             borrowed_locals: self.borrowed_locals.clone(),
             json_handle_locals: self.json_handle_locals.clone(),
+            json_passthrough_locals: self.json_passthrough_locals.clone(),
             loop_stack: self.loop_stack.clone(),
             scopes: self.scopes.clone(),
             current_block: self.current_block.clone(),
@@ -677,6 +695,7 @@ impl LlvmGenerator {
         self.literal_map_candidate_scopes = state.literal_map_candidate_scopes;
         self.borrowed_locals = state.borrowed_locals;
         self.json_handle_locals = state.json_handle_locals;
+        self.json_passthrough_locals = state.json_passthrough_locals;
         self.loop_stack = state.loop_stack;
         self.scopes = state.scopes;
         self.current_block = state.current_block;
@@ -716,6 +735,7 @@ impl LlvmGenerator {
         self.literal_map_candidate_scopes.clear();
         self.borrowed_locals.clear();
         self.json_handle_locals.clear();
+        self.json_passthrough_locals.clear();
         self.loop_stack.clear();
         self.scopes.clear();
         self.scopes.push(Vec::new());
@@ -1840,6 +1860,22 @@ impl LlvmGenerator {
         )
     }
 
+    fn ast_type_is_json_value(ty: &Type) -> bool {
+        matches!(ty, Type::Named { name, .. } if name == "JsonValue")
+    }
+
+    fn ast_type_is_json_handle_like(ty: &Type) -> bool {
+        matches!(
+            ty,
+            Type::Named { name, .. }
+                if matches!(name.as_str(), "JsonValue" | "JsonObject" | "JsonArray")
+        )
+    }
+
+    fn json_function_return_is_aliasing(name: &str) -> bool {
+        name.starts_with("json_object_set") || name.starts_with("json_array_push")
+    }
+
     fn ast_runtime_array_element_llvm_ty(&self, ty: &Type) -> Option<String> {
         match ty {
             Type::Array(inner, _, _) | Type::Slice(inner, _) => Some(self.map_type_from_ast(inner)),
@@ -1858,6 +1894,71 @@ impl LlvmGenerator {
 
     fn resolved_type_is_string(ty: &ResolvedType) -> bool {
         matches!(ty, ResolvedType::String)
+    }
+
+    fn clear_json_local_tracking(&mut self, name: &str) {
+        self.json_handle_locals.remove(name);
+        self.json_passthrough_locals.remove(name);
+    }
+
+    fn local_carries_json_value(&self, name: &str) -> bool {
+        self.json_handle_locals.contains(name) || self.json_passthrough_locals.contains(name)
+    }
+
+    fn call_carries_json_value(&self, name: &str) -> bool {
+        matches!(
+            name,
+            "json_object_new" | "json_array_new" | "json_parse" | "json_get" | "json_array_get"
+        ) || self.json_carrying_function_returns.contains(name)
+    }
+
+    fn call_returns_owned_json_value(&self, name: &str) -> bool {
+        matches!(
+            name,
+            "json_object_new" | "json_array_new" | "json_parse" | "json_get" | "json_array_get"
+        ) || self.json_owning_function_returns.contains(name)
+    }
+
+    fn expr_carries_json_value(&self, expr: &Expr) -> bool {
+        match expr {
+            Expr::Ident(name, _) => self.local_carries_json_value(name),
+            Expr::Paren(inner, _) => self.expr_carries_json_value(inner),
+            Expr::Cast { value, .. } | Expr::Bitcast { value, .. } => {
+                self.expr_carries_json_value(value)
+            }
+            Expr::Call { callee, .. } => matches!(
+                callee.as_ref(),
+                Expr::Ident(name, _) if self.call_carries_json_value(name)
+            ),
+            _ => false,
+        }
+    }
+
+    fn expr_owns_json_value(&self, expr: &Expr) -> bool {
+        match expr {
+            Expr::Ident(name, _) => self.json_handle_locals.contains(name),
+            Expr::Paren(inner, _) => self.expr_owns_json_value(inner),
+            Expr::Cast { value, .. } | Expr::Bitcast { value, .. } => {
+                self.expr_owns_json_value(value)
+            }
+            Expr::Call { callee, .. } => matches!(
+                callee.as_ref(),
+                Expr::Ident(name, _) if self.call_returns_owned_json_value(name)
+            ),
+            _ => false,
+        }
+    }
+
+    fn record_json_local_tracking_from_expr(&mut self, name: &str, expr: &Expr) {
+        if self.expr_owns_json_value(expr) {
+            self.json_handle_locals.insert(name.to_string());
+            self.json_passthrough_locals.remove(name);
+        } else if self.expr_carries_json_value(expr) {
+            self.json_handle_locals.remove(name);
+            self.json_passthrough_locals.insert(name.to_string());
+        } else {
+            self.clear_json_local_tracking(name);
+        }
     }
 
     fn resolved_runtime_array_element_llvm_ty(&self, ty: &ResolvedType) -> Option<String> {
@@ -6510,8 +6611,7 @@ impl LlvmGenerator {
                 Ok((res, "i8*".to_string()))
             }
             "double" => {
-                let narrowed = self.next_reg();
-                self.emit(&format!("  {} = fptosi double {} to i64", narrowed, val));
+                let narrowed = self.emit_saturating_fptosi(val, "i64")?;
                 let res = self.next_reg();
                 self.emit(&format!(
                     "  {} = call i8* @to_string(i64 {})",
@@ -8589,9 +8689,8 @@ impl LlvmGenerator {
                 reg
             }
             "double" => {
-                let reg = self.next_reg();
-                self.emit(&format!("  {} = fptosi double {} to i64", reg, val));
-                reg
+                self.emit_saturating_fptosi(val, "i64")
+                    .expect("double -> i64 saturation should stay supported")
             }
             _ if ty.ends_with('*') => {
                 let reg = self.next_reg();
@@ -8603,26 +8702,7 @@ impl LlvmGenerator {
     }
 
     fn expr_returns_json_handle(&self, expr: &Expr) -> bool {
-        match expr {
-            Expr::Ident(name, _) => self.json_handle_locals.contains(name),
-            Expr::Paren(inner, _) => self.expr_returns_json_handle(inner),
-            Expr::Cast { value, .. } | Expr::Bitcast { value, .. } => {
-                self.expr_returns_json_handle(value)
-            }
-            Expr::Call { callee, .. } => matches!(
-                callee.as_ref(),
-                Expr::Ident(name, _)
-                    if matches!(
-                        name.as_str(),
-                        "json_object_new"
-                            | "json_array_new"
-                            | "json_parse"
-                            | "json_get"
-                            | "json_array_get"
-                    )
-            ),
-            _ => false,
-        }
+        self.expr_carries_json_value(expr)
     }
 
     fn encode_json_any_i64_payload(&mut self, value: &str, tag: i64) -> String {
@@ -8854,20 +8934,12 @@ impl LlvmGenerator {
                 self.emit(&format!("  {} = sext i8 {} to i64", reg, val));
                 Ok(reg)
             }
-            ("double", "i64") => {
-                self.emit(&format!("  {} = fptosi double {} to i64", reg, val));
-                Ok(reg)
-            }
-            ("double", "i32") => {
-                self.emit(&format!("  {} = fptosi double {} to i32", reg, val));
-                Ok(reg)
-            }
-            ("double", "i8") => {
-                self.emit(&format!("  {} = fptosi double {} to i8", reg, val));
-                Ok(reg)
+            ("double", "i64") | ("double", "i32") | ("double", "i8") => {
+                self.emit_saturating_fptosi(&val, dst_ty)
             }
             ("double", "i1") => {
-                self.emit(&format!("  {} = fcmp one double {}, 0.0", reg, val));
+                // Proof: crates/kain-sys-codegen/z3/proofs/casts-double-to-bool-unordered-nonzero-aligns-with-runtime-truthiness.yaml
+                self.emit(&format!("  {} = fcmp une double {}, 0.0", reg, val));
                 Ok(reg)
             }
             _ => Err(KainError::codegen(
@@ -8875,6 +8947,49 @@ impl LlvmGenerator {
                 kain_core::Span::default(),
             )),
         }
+    }
+
+    // Proof: crates/kain-sys-codegen/z3/proofs/casts-double-to-int-saturating-intrinsic-preserves-in-range-raw-cast.yaml
+    fn emit_saturating_fptosi(&mut self, val: &str, dst_ty: &str) -> KainResult<String> {
+        let intrinsic = match dst_ty {
+            "i64" => "@llvm.fptosi.sat.i64.f64",
+            "i32" => "@llvm.fptosi.sat.i32.f64",
+            "i8" => "@llvm.fptosi.sat.i8.f64",
+            _ => {
+                return Err(KainError::codegen(
+                    format!("Unsupported saturating float-to-int cast target {}", dst_ty),
+                    kain_core::Span::default(),
+                ))
+            }
+        };
+        let reg = self.next_reg();
+        self.emit(&format!(
+            "  {} = call {} {}(double {})",
+            reg, dst_ty, intrinsic, val
+        ));
+        Ok(reg)
+    }
+
+    fn coerce_condition_value_to_i1(
+        &mut self,
+        cond_val: String,
+        cond_ty: &str,
+        span: kain_core::Span,
+    ) -> KainResult<String> {
+        match cond_ty {
+            "i1" => Ok(cond_val),
+            "i64" | "i32" | "i8" | "double" => self.cast_numeric_value(cond_val, cond_ty, "i1"),
+            ty if ty.ends_with('*') => self.cast_numeric_value(cond_val, ty, "i1"),
+            _ => Err(KainError::codegen(
+                format!("expected Bool-like condition, found {}", cond_ty),
+                span,
+            )),
+        }
+    }
+
+    fn compile_condition_expr(&mut self, condition: &Expr) -> KainResult<String> {
+        let (cond_val, cond_ty) = self.compile_expr(condition)?;
+        self.coerce_condition_value_to_i1(cond_val, &cond_ty, condition.span())
     }
 
     fn coerce_binary_operands(
@@ -11287,6 +11402,32 @@ impl LlvmGenerator {
                             })
                             .collect(),
                     );
+                    self.json_value_function_params.insert(
+                        func.ast.name.clone(),
+                        func.ast
+                            .params
+                            .iter()
+                            .map(|param| Self::ast_type_is_json_value(&param.ty))
+                            .collect(),
+                    );
+                    if func
+                        .ast
+                        .return_type
+                        .as_ref()
+                        .is_some_and(Self::ast_type_is_json_handle_like)
+                    {
+                        self.json_carrying_function_returns
+                            .insert(func.ast.name.clone());
+                        if !Self::json_function_return_is_aliasing(&func.ast.name) {
+                            self.json_owning_function_returns
+                                .insert(func.ast.name.clone());
+                        } else {
+                            self.json_owning_function_returns.remove(&func.ast.name);
+                        }
+                    } else {
+                        self.json_carrying_function_returns.remove(&func.ast.name);
+                        self.json_owning_function_returns.remove(&func.ast.name);
+                    }
                     self.function_symbols.insert(
                         func.ast.name.clone(),
                         Self::callable_link_name(&func.ast.attributes)
@@ -11773,6 +11914,7 @@ impl LlvmGenerator {
         self.sealed_literal_map_locals.clear();
         self.borrowed_locals.clear();
         self.json_handle_locals.clear();
+        self.json_passthrough_locals.clear();
         self.string_locals.clear();
         self.runtime_array_locals.clear();
         self.string_length_values.clear();
@@ -11957,6 +12099,7 @@ impl LlvmGenerator {
         self.sealed_literal_map_locals.clear();
         self.borrowed_locals.clear();
         self.json_handle_locals.clear();
+        self.json_passthrough_locals.clear();
         self.string_locals.clear();
         self.runtime_array_locals.clear();
         self.string_length_values.clear();
@@ -12248,6 +12391,7 @@ impl LlvmGenerator {
         self.emit("declare void @rc_release(i8*)");
         self.emit("declare i8* @string_new(i8*)");
         self.emit("declare i64 @json_box_float(double)");
+        self.emit("declare void @json_retain(i64)");
         self.emit("declare void @json_release(i64)");
         self.emit("declare void @map_set_static_prehashed(i64, i8*, i64, i64, i64, i64)");
         self.emit("declare i64 @map_get_prehashed(i64, i8*, i64, i64, i64)");
@@ -12383,6 +12527,9 @@ impl LlvmGenerator {
 
         // LLVM math intrinsics used by compiler-owned numeric fast paths.
         self.emit("declare double @llvm.floor.f64(double)");
+        self.emit("declare i64 @llvm.fptosi.sat.i64.f64(double)");
+        self.emit("declare i32 @llvm.fptosi.sat.i32.f64(double)");
+        self.emit("declare i8 @llvm.fptosi.sat.i8.f64(double)");
 
         // StdLib
         self.emit_stdlib_externs();
@@ -12480,6 +12627,7 @@ impl LlvmGenerator {
         self.sealed_literal_map_locals.clear();
         self.borrowed_locals.clear();
         self.json_handle_locals.clear();
+        self.json_passthrough_locals.clear();
         self.string_locals.clear();
         self.runtime_array_locals.clear();
         self.string_length_values.clear();
@@ -12573,6 +12721,7 @@ impl LlvmGenerator {
         self.sealed_literal_map_locals.clear();
         self.borrowed_locals.clear();
         self.json_handle_locals.clear();
+        self.json_passthrough_locals.clear();
         self.string_locals.clear();
         self.runtime_array_locals.clear();
         self.string_length_values.clear();
@@ -12772,6 +12921,7 @@ impl LlvmGenerator {
         self.sealed_literal_map_locals.clear();
         self.borrowed_locals.clear();
         self.json_handle_locals.clear();
+        self.json_passthrough_locals.clear();
         self.string_locals.clear();
         self.runtime_array_locals.clear();
         self.string_length_values.clear();
@@ -12932,6 +13082,9 @@ impl LlvmGenerator {
                     self.prime_string_param_length_cache(&param.name, &addr_reg);
                 }
             }
+            if Self::ast_type_is_json_handle_like(&param.ty) {
+                self.json_passthrough_locals.insert(param.name.clone());
+            }
             if let Some(scope) = self.scopes.last_mut() {
                 scope.push(param.name.clone());
             }
@@ -13030,6 +13183,7 @@ impl LlvmGenerator {
         self.sealed_literal_map_locals.clear();
         self.borrowed_locals.clear();
         self.json_handle_locals.clear();
+        self.json_passthrough_locals.clear();
         self.string_locals.clear();
         self.runtime_array_locals.clear();
         self.string_length_values.clear();
@@ -13087,6 +13241,7 @@ impl LlvmGenerator {
         self.sealed_literal_map_locals.clear();
         self.borrowed_locals.clear();
         self.json_handle_locals.clear();
+        self.json_passthrough_locals.clear();
         self.string_locals.clear();
         self.runtime_array_locals.clear();
         self.string_length_values.clear();
@@ -13134,6 +13289,7 @@ impl LlvmGenerator {
         self.sealed_literal_map_locals.clear();
         self.borrowed_locals.clear();
         self.json_handle_locals.clear();
+        self.json_passthrough_locals.clear();
         self.string_locals.clear();
         self.runtime_array_locals.clear();
         self.string_length_values.clear();
@@ -13262,6 +13418,7 @@ impl LlvmGenerator {
         self.sealed_literal_map_locals.clear();
         self.borrowed_locals.clear();
         self.json_handle_locals.clear();
+        self.json_passthrough_locals.clear();
         self.string_locals.clear();
         self.runtime_array_locals.clear();
         self.string_length_values.clear();
@@ -13510,6 +13667,7 @@ impl LlvmGenerator {
         self.sealed_literal_map_locals.clear();
         self.borrowed_locals.clear();
         self.json_handle_locals.clear();
+        self.json_passthrough_locals.clear();
         self.string_locals.clear();
         self.runtime_array_locals.clear();
         self.string_length_values.clear();
@@ -13766,6 +13924,7 @@ impl LlvmGenerator {
         self.forwarded_mem_slot_scopes.push(HashMap::new());
         let mut last_res = None;
         let mut last_is_new = false;
+        let mut last_owns_json = false;
 
         for (i, stmt) in block.stmts.iter().enumerate() {
             if i == block.stmts.len() - 1 {
@@ -13773,6 +13932,7 @@ impl LlvmGenerator {
                     let (val, ty) = self.compile_expr(expr)?;
                     last_res = Some((val, ty));
                     last_is_new = self.is_new_object(expr);
+                    last_owns_json = self.expr_owns_json_value(expr);
                     self.record_stmt_literal_map_effects(stmt);
                     self.record_stmt_i64_literal_effects(stmt);
                     self.record_stmt_nonnegative_i64_effects(stmt);
@@ -13826,6 +13986,8 @@ impl LlvmGenerator {
         if let Some((val, ty)) = &last_res {
             if ty == "i8*" && !last_is_new {
                 self.emit_rc_retain_if_heap_i8(&val);
+            } else if ty == "i64" && last_owns_json && !last_is_new {
+                self.emit(&format!("  call void @json_retain(i64 {})", val));
             }
         }
 
@@ -13955,7 +14117,7 @@ impl LlvmGenerator {
                 }
                 if ty == "i8*" && self.helper_owned_pointer_locals.contains_key(var_name) {
                     self.emit_helper_owned_local_decay_cleanup(&addr);
-                    self.json_handle_locals.remove(var_name);
+                    self.clear_json_local_tracking(var_name);
                     continue;
                 }
                 // Release if it's a pointer or struct
@@ -13964,7 +14126,7 @@ impl LlvmGenerator {
                     self.emit(&format!("  {} = load {}, {}* {}", tmp, ty, ty, addr));
                     self.emit_release(&tmp, &ty);
                 }
-                self.json_handle_locals.remove(var_name);
+                self.clear_json_local_tracking(var_name);
             }
         }
     }
@@ -14056,7 +14218,7 @@ impl LlvmGenerator {
         then_branch: &Block,
         else_branch: Option<&ElseBranch>,
     ) -> KainResult<()> {
-        let (cond_val, _) = self.compile_expr(condition)?;
+        let cond_val = self.compile_condition_expr(condition)?;
         let label_then = self.next_label();
         let label_merge = self.next_label();
         let label_else = else_branch.map(|_| self.next_label());
@@ -14144,7 +14306,7 @@ impl LlvmGenerator {
                                 );
                                 self.helper_owned_pointer_locals.remove(name);
                                 self.ephemeral_owned_pointer_locals.remove(name);
-                                self.json_handle_locals.remove(name);
+                                self.clear_json_local_tracking(name);
                                 self.shattered_array_locals.remove(name);
                                 self.runtime_array_locals.remove(name);
                                 self.fixed_array_locals.insert(
@@ -14211,7 +14373,7 @@ impl LlvmGenerator {
                                     );
                                     self.helper_owned_pointer_locals.remove(name);
                                     self.ephemeral_owned_pointer_locals.remove(name);
-                                    self.json_handle_locals.remove(name);
+                                    self.clear_json_local_tracking(name);
                                     self.fixed_array_locals.remove(name);
                                     self.runtime_array_locals.remove(name);
                                     self.shattered_array_locals.insert(
@@ -14318,7 +14480,7 @@ impl LlvmGenerator {
                                     *span,
                                 );
                                 self.helper_owned_pointer_locals.remove(name);
-                                self.json_handle_locals.remove(name);
+                                self.clear_json_local_tracking(name);
                                 self.ephemeral_owned_pointer_locals.insert(
                                     name.clone(),
                                     EphemeralOwnershipLocalWitness {
@@ -14384,11 +14546,7 @@ impl LlvmGenerator {
                             .and_then(|declared| self.ast_runtime_array_element_llvm_ty(declared))
                             .or_else(|| self.runtime_array_expr_element_llvm_ty(val_expr));
                         self.record_runtime_array_local_element_ty(name, runtime_array_element_ty);
-                        if self.expr_returns_json_handle(val_expr) {
-                            self.json_handle_locals.insert(name.clone());
-                        } else {
-                            self.json_handle_locals.remove(name);
-                        }
+                        self.record_json_local_tracking_from_expr(name, val_expr);
                         self.record_helper_owned_pointer_local(name, local_pointer_provenance);
                         self.fixed_array_locals.remove(name);
                         if let Some(struct_name) = self.shattered_array_expr_struct_name(val_expr) {
@@ -14454,6 +14612,10 @@ impl LlvmGenerator {
 
                     if ty == "i8*" && self.expr_needs_rc_retain(e) {
                         self.emit_rc_retain_if_heap_i8(&val);
+                    }
+                    if ty == "i64" && self.expr_owns_json_value(e) && !self.is_new_object(e) {
+                        // Proof: crates/kain-sys-codegen/z3/proofs/json_owned_return_transfer.smt2
+                        self.emit(&format!("  call void @json_retain(i64 {})", val));
                     }
 
                     self.emit_all_scopes_cleanup();
@@ -14521,7 +14683,7 @@ impl LlvmGenerator {
                 self.emit(&format!("  br label %{}", label_cond));
                 self.emit_label(&label_cond);
 
-                let (cond_val, _) = self.compile_expr(condition)?;
+                let cond_val = self.compile_condition_expr(condition)?;
                 self.emit(&format!(
                     "  br i1 {}, label %{}, label %{}",
                     cond_val, label_body, label_end
@@ -14759,11 +14921,7 @@ impl LlvmGenerator {
             "  {} = call double @llvm.floor.f64(double {})",
             floored_float, float_value
         ));
-        let floored_int = self.next_reg();
-        self.emit(&format!(
-            "  {} = fptosi double {} to i64",
-            floored_int, floored_float
-        ));
+        let floored_int = self.emit_saturating_fptosi(&floored_float, "i64")?;
         Ok((floored_int, "i64".to_string()))
     }
 
@@ -15099,6 +15257,8 @@ impl LlvmGenerator {
         let is_extern = self.extern_functions.contains(func_name);
         let param_types = self.function_params.get(func_name).cloned();
         let borrowed_string_params = self.string_function_params.get(func_name).cloned();
+        let json_value_params = self.json_value_function_params.get(func_name).cloned();
+        let mut json_release_after_call = Vec::new();
 
         for (index, arg) in args.iter().enumerate() {
             let param_ty = param_types
@@ -15116,8 +15276,24 @@ impl LlvmGenerator {
             let passes_borrowed_string = inferred_borrowed_string || runtime_borrowed_string;
             let can_lower_static_literal_as_borrowed =
                 runtime_borrowed_string || (is_extern && inferred_borrowed_string);
+            let expects_json_value = json_value_params
+                .as_ref()
+                .and_then(|flags| flags.get(index))
+                .copied()
+                .unwrap_or(false);
 
             if is_extern && param_ty == "void" {
+                continue;
+            }
+
+            if expects_json_value {
+                // Proof: crates/kain-sys-codegen/z3/proofs/json_any_tag_partition.smt2
+                let value_any = self.compile_json_any_argument(&arg.value)?;
+                compiled_args.push(value_any.value.clone());
+                arg_types.push("i64".to_string());
+                if value_any.release_after_call {
+                    json_release_after_call.push(value_any.value);
+                }
                 continue;
             }
 
@@ -15187,6 +15363,9 @@ impl LlvmGenerator {
                 "  call {}void @{}({})",
                 callconv_prefix, callee_symbol, arg_str
             ));
+            for value in json_release_after_call {
+                self.emit(&format!("  call void @json_release(i64 {})", value));
+            }
             Ok(("0".into(), "i64".into()))
         } else {
             let res = self.next_reg();
@@ -15194,6 +15373,9 @@ impl LlvmGenerator {
                 "  {} = call {}{} @{}({})",
                 res, callconv_prefix, ret_ty, callee_symbol, arg_str
             ));
+            for value in json_release_after_call {
+                self.emit(&format!("  call void @json_release(i64 {})", value));
+            }
             Ok((res, ret_ty))
         }
     }
@@ -15269,6 +15451,53 @@ impl LlvmGenerator {
         if release_text {
             self.emit_release(&text, "i8*");
         }
+        Ok(("0".into(), "i64".into()))
+    }
+
+    fn compile_assert_call(
+        &mut self,
+        args: &[kain_core::ast::CallArg],
+        span: kain_core::Span,
+    ) -> KainResult<(String, String)> {
+        if args.is_empty() || args.len() > 2 {
+            return Err(KainError::codegen(
+                "assert expects a condition and optional message",
+                span,
+            ));
+        }
+
+        let condition_i1 = self.compile_condition_expr(&args[0].value)?;
+
+        let continue_label = self.next_label();
+        let fail_label = self.next_label();
+        self.emit(&format!(
+            "  br i1 {}, label %{}, label %{}",
+            condition_i1, continue_label, fail_label
+        ));
+
+        self.emit_label(&fail_label);
+        let (mut message_text, mut release_message) = match args.get(1) {
+            Some(message_arg) => self.compile_expr_as_string_value(&message_arg.value)?,
+            None => self.compile_string_literal_value("Assertion failed"),
+        };
+        let (newline, release_newline) = self.compile_string_literal_value("\n");
+        let with_newline = self.concat_strings(&message_text, &newline);
+        if release_message {
+            self.emit_release(&message_text, "i8*");
+        }
+        if release_newline {
+            self.emit_release(&newline, "i8*");
+        }
+        message_text = with_newline;
+        release_message = true;
+        self.emit(&format!("  call void @stdout_write(i8* {})", message_text));
+        if release_message {
+            self.emit_release(&message_text, "i8*");
+        }
+        self.emit("  call void @abort()");
+        self.emit("  unreachable");
+
+        self.emit_label(&continue_label);
         Ok(("0".into(), "i64".into()))
     }
 
@@ -15407,8 +15636,7 @@ impl LlvmGenerator {
                     self.emit(&format!("  {} = sitofp i64 {} to double", res, val));
                     Ok((res, dst_ty))
                 } else if src_ty == "double" && dst_ty == "i64" {
-                    let res = self.next_reg();
-                    self.emit(&format!("  {} = fptosi double {} to i64", res, val));
+                    let res = self.emit_saturating_fptosi(&val, "i64")?;
                     Ok((res, dst_ty))
                 } else if src_ty == "i1" && dst_ty == "i64" {
                     let res = self.next_reg();
@@ -15778,6 +16006,8 @@ impl LlvmGenerator {
                         let (rhs, rhs_ty) = self.compile_expr_for_target_type(value, &ty)?;
                         self.string_length_values.remove(name);
                         let was_borrowed_local = self.borrowed_locals.remove(name);
+                        let was_owned_json_local = self.json_handle_locals.remove(name);
+                        self.json_passthrough_locals.remove(name);
                         if ty == "i8*" {
                             if self.expr_needs_rc_retain(value) {
                                 self.emit_rc_retain_if_heap_i8(&rhs);
@@ -15790,6 +16020,10 @@ impl LlvmGenerator {
                                 ));
                                 self.emit_rc_release_if_heap_i8(&previous_value);
                             }
+                        } else if ty == "i64" && was_owned_json_local {
+                            let previous_value = self.next_reg();
+                            self.emit(&format!("  {} = load i64, i64* {}", previous_value, addr));
+                            self.emit(&format!("  call void @json_release(i64 {})", previous_value));
                         }
                         self.emit(&format!("  store {} {}, {}* {}", rhs_ty, rhs, ty, addr));
                         self.invalidate_consumed_helper_realloc_source_for_assignment(name, value);
@@ -15797,6 +16031,7 @@ impl LlvmGenerator {
                             name,
                             self.ownership_pointer_provenance_for_expr(value),
                         );
+                        self.record_json_local_tracking_from_expr(name, value);
                         Ok((rhs, rhs_ty))
                     } else {
                         Err(KainError::codegen(
@@ -16014,6 +16249,9 @@ impl LlvmGenerator {
                 Ok((arr, "i8*".into()))
             }
             Expr::Tuple(items, span) => {
+                if items.is_empty() {
+                    return Ok(("0".to_string(), "void".to_string()));
+                }
                 let mut compiled_fields = Vec::new();
                 let mut field_tys = Vec::new();
                 for item in items {
@@ -16740,8 +16978,7 @@ impl LlvmGenerator {
                                 "  {} = call double @pow(double {}, double {})",
                                 pow_res, lhs_cast, rhs_cast
                             ));
-                            let int_res = self.next_reg();
-                            self.emit(&format!("  {} = fptosi double {} to i64", int_res, pow_res));
+                            let int_res = self.emit_saturating_fptosi(&pow_res, "i64")?;
                             Ok((int_res, "i64".to_string()))
                         }
                     }
@@ -16755,7 +16992,7 @@ impl LlvmGenerator {
                     }
                     BinaryOp::Ne => {
                         if is_float {
-                            self.emit(&format!("  {} = fcmp one double {}, {}", res, lhs, rhs));
+                            self.emit(&format!("  {} = fcmp une double {}, {}", res, lhs, rhs));
                         } else {
                             self.emit(&format!("  {} = icmp ne {} {}, {}", res, ty, lhs, rhs));
                         }
@@ -17042,6 +17279,10 @@ impl LlvmGenerator {
                         let res = self.next_reg();
                         self.emit(&format!("  {} = call i64 @clock_wrapper()", res));
                         return Ok((res, "i64".into()));
+                    }
+
+                    if name == "assert" {
+                        return self.compile_assert_call(args, *span);
                     }
 
                     if name == "print" || name == "println" {

@@ -2044,19 +2044,11 @@ fn find_kain_launcher() -> PathBuf {
 }
 
 fn find_clang(workspace_root: &Path) -> PathBuf {
-    if let Ok(path) = std::env::var("KAIN_CLANG_PATH") {
-        let candidate = PathBuf::from(path);
-        if candidate.exists() {
-            return candidate;
-        }
+    if let Some(candidate) = kain_core::install_layout::resolve_bundled_clang_path() {
+        return candidate;
     }
     for ancestor in workspace_root.ancestors() {
-        for relative in [
-            "toolchain/llvm/bin/clang.exe",
-            "toolchain/llvm/bin/clang",
-            "third_party/llvm/bin/clang.exe",
-            "third_party/llvm/bin/clang",
-        ] {
+        for relative in ["toolchain/llvm/bin/clang.exe", "toolchain/llvm/bin/clang"] {
             let candidate = ancestor.join(relative);
             if candidate.exists() {
                 return candidate;

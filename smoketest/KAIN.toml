@@ -19,6 +19,7 @@ source_roots = [
   "src/interop",
   "src/wasm",
   "src/telemetry",
+  "src/ui",
   "telemetry",
 ]
 module_roots = [
@@ -30,6 +31,7 @@ module_roots = [
   "src/interop",
   "src/wasm",
   "src/telemetry",
+  "src/ui",
   "telemetry",
 ]
 build_targets = ["llvm"]
@@ -61,3 +63,12 @@ header = "native/smoketest_c_abi_album.h"
 sources = ["native/smoketest_c_abi_album.c"]
 include_paths = ["native"]
 defines = ["_CRT_SECURE_NO_WARNINGS"]
+
+[[c_ffi.libraries]]
+name = "smoketest_visualizer_bridge"
+tier = "inline"
+header = "native/smoketest_visualizer_bridge.h"
+sources = ["native/smoketest_visualizer_bridge.c"]
+include_paths = ["native"]
+defines = ["_CRT_SECURE_NO_WARNINGS"]
+link_libs = ["user32", "gdi32", "opengl32"]

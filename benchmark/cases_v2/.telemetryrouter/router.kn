@@ -7,6 +7,27 @@ use std::text
 use std::collections
 use std::crypto
 use std::alloc
+use classic_core::classic_case_count
+use classic_core::classic_case_checksum
+use classic_core::classic_case_expected_checksum
+use classic_core::classic_case_group
+use classic_core::classic_case_id
+use classic_core::classic_case_iterations
+use classic_core::classic_case_title
+use classic_systems::classic_systems_case_checksum
+use classic_systems::classic_systems_case_count
+use classic_systems::classic_systems_case_expected_checksum
+use classic_systems::classic_systems_case_group
+use classic_systems::classic_systems_case_id
+use classic_systems::classic_systems_case_iterations
+use classic_systems::classic_systems_case_title
+use classic_core3d::classic_core3d_case_checksum
+use classic_core3d::classic_core3d_case_count
+use classic_core3d::classic_core3d_case_expected_checksum
+use classic_core3d::classic_core3d_case_group
+use classic_core3d::classic_core3d_case_id
+use classic_core3d::classic_core3d_case_iterations
+use classic_core3d::classic_core3d_case_title
 
 const ROUTER_SCHEMA_VERSION: Int = 1
 const ROUTER_MODULUS: Int = 1000000007
@@ -17,9 +38,6 @@ const DEFAULT_AMPLIFY: Int = 1
 const DEFAULT_MARKDOWN_PATH: String = "latest_v2.md"
 const DEFAULT_JSON_PATH: String = "out/reports/latest_v2.json"
 const DEFAULT_TRACK_ROOT: String = "out/reports/v2_tracks"
-const SCALAR_MIX_OFFSET: Int = 22
-const BRANCH_DISPATCH_BLOCK_WIDTH: Int = 8
-const CALL_CHAIN_MODULUS: Int = 1000000007
 const ARRAY_SCAN_WEIGHTED_INNER: Int = 204
 const ARRAY_SCAN_RESIDUE_PERIOD: Int = 7
 const ARRAY_SCAN_RESIDUE_PERIOD_SUM: Int = 21
@@ -215,103 +233,6 @@ fn amplified_expected_checksum(base_checksum: Int, amplify: Int) -> Int:
         repeat = repeat + 1
     return acc
 
-fn scalar_mix_scalar_checksum(iterations: Int, offset: Int, modulus: Int) -> Int:
-    let acc = 0
-    let index = 0
-    while index < iterations:
-        acc = (acc + index + offset) % modulus
-        index = index + 1
-    return acc
-
-fn scalar_mix_closed_form_checksum(iterations: Int, offset: Int, modulus: Int) -> Int:
-    let triangular = (iterations * (iterations - 1)) / 2
-    return ((iterations * offset) + triangular) % modulus
-
-converge scalar_mix_checksum(iterations: Int, offset: Int, modulus: Int) -> Int:
-    spec reference:
-        return scalar_mix_scalar_checksum(iterations, offset, modulus)
-    fast affine_closed_form_lane when target("llvm"):
-        return scalar_mix_closed_form_checksum(iterations, offset, modulus)
-
-fn classify(value: Int) -> Int:
-    let tag = value % 8
-    if tag == 0:
-        return value + 1
-    if tag == 1:
-        return (value * 3) + 7
-    if tag == 2:
-        return value - 5
-    if tag == 3:
-        return (value * value) + 11
-    if tag == 4:
-        return value + 17
-    if tag == 5:
-        return (value * 5) - 13
-    if tag == 6:
-        return value + 23
-    return value - 11
-
-fn branch_dispatch_scalar_checksum(iterations: Int, modulus: Int) -> Int:
-    let acc = 0
-    let index = 0
-    while index < iterations:
-        acc = (acc + classify(index)) % modulus
-        index = index + 1
-    return acc
-
-fn branch_dispatch_periodic_checksum(iterations: Int, modulus: Int) -> Int:
-    let full_blocks = iterations / BRANCH_DISPATCH_BLOCK_WIDTH
-    let tail = iterations % BRANCH_DISPATCH_BLOCK_WIDTH
-    let sum_k = (full_blocks * (full_blocks - 1)) / 2
-    let sum_k2 = (full_blocks * (full_blocks - 1) * ((2 * full_blocks) - 1)) / 6
-    let acc = ((64 * sum_k2) + (152 * sum_k) + (86 * full_blocks)) % modulus
-    let tail_base = full_blocks * BRANCH_DISPATCH_BLOCK_WIDTH
-    let tail_index = 0
-    while tail_index < tail:
-        acc = (acc + classify(tail_base + tail_index)) % modulus
-        tail_index = tail_index + 1
-    return acc
-
-converge branch_dispatch_checksum(iterations: Int, modulus: Int) -> Int:
-    spec reference:
-        return branch_dispatch_scalar_checksum(iterations, modulus)
-    fast polynomial_block_lane when target("llvm"):
-        return branch_dispatch_periodic_checksum(iterations, modulus)
-
-fn step_a(value: Int) -> Int:
-    return ((value * 3) + 1) % CALL_CHAIN_MODULUS
-
-fn step_b(value: Int) -> Int:
-    return ((step_a(value) + 5) * 7) % CALL_CHAIN_MODULUS
-
-fn step_c(value: Int) -> Int:
-    return (step_b(value) + step_a(value + 11) + 13) % CALL_CHAIN_MODULUS
-
-fn step_d(value: Int) -> Int:
-    return ((step_c(value) * 3) + step_b(value + 17) + 19) % CALL_CHAIN_MODULUS
-
-fn call_chain_scalar_checksum(iterations: Int) -> Int:
-    let acc = 1
-    let index = 0
-    while index < iterations:
-        acc = step_d(acc + index)
-        index = index + 1
-    return acc
-
-fn call_chain_affine_checksum(iterations: Int, modulus: Int) -> Int:
-    let acc = 1
-    let index = 0
-    while index < iterations:
-        acc = (((acc + index) * 93) + 685) % modulus
-        index = index + 1
-    return acc
-
-converge call_chain_checksum(iterations: Int) -> Int:
-    spec reference:
-        return call_chain_scalar_checksum(iterations)
-    fast affine_recurrence_lane when target("llvm"):
-        return call_chain_affine_checksum(iterations, CALL_CHAIN_MODULUS)
-
 fn array_scan_scalar_checksum(iterations: Int, modulus: Int) -> Int:
     let values = [1, 2, 3, 4, 5, 6, 7, 8]
     let acc = 0
@@ -456,16 +377,19 @@ fn stdlib_foundations_checksum(iterations: Int) -> Int:
     return acc
 
 fn run_case_checksum(case_id: String, iterations: Int, amplify: Int) -> Int:
+    let classic_checksum = classic_case_checksum(case_id, iterations, amplify, ROUTER_MODULUS)
+    if classic_checksum >= 0:
+        return classic_checksum
+    let classic_systems_checksum = classic_systems_case_checksum(case_id, iterations, amplify, ROUTER_MODULUS)
+    if classic_systems_checksum >= 0:
+        return classic_systems_checksum
+    let classic_core3d_checksum = classic_core3d_case_checksum(case_id, iterations, amplify, ROUTER_MODULUS)
+    if classic_core3d_checksum >= 0:
+        return classic_core3d_checksum
     let repeat = 0
     let acc = 0
     while repeat < amplify:
-        if case_id == "scalar_mix":
-            acc = (acc + scalar_mix_checksum(iterations, SCALAR_MIX_OFFSET, ROUTER_MODULUS)) % ROUTER_MODULUS
-        else if case_id == "branch_dispatch":
-            acc = (acc + branch_dispatch_checksum(iterations, ROUTER_MODULUS)) % ROUTER_MODULUS
-        else if case_id == "call_chain":
-            acc = (acc + call_chain_checksum(iterations)) % ROUTER_MODULUS
-        else if case_id == "array_scan":
+        if case_id == "array_scan":
             acc = (acc + array_scan_checksum(iterations, ROUTER_MODULUS)) % ROUTER_MODULUS
         else if case_id == "option_result":
             acc = (acc + option_result_checksum(iterations, ROUTER_MODULUS)) % ROUTER_MODULUS
@@ -696,41 +620,56 @@ fn main() -> Int:
     let failure_count = 0
     let table_rows = ""
 
-    if case_selected(config.filter_text, "scalar_mix", "core"):
-        let result = run_case("scalar_mix", "core", "Scalar Mix", 2000000, 42986000, config)
-        let _track = write_track_report(result)
-        cases_json_items = append_json_item(cases_json_items, render_result_json(result))
-        table_rows = table_rows + format_result_row(result)
-        case_count = case_count + 1
-        if result.success:
-            success_count = success_count + 1
-        else:
-            failure_count = failure_count + 1
-        println("[bench-v2] scalar_mix best=" + str(result.best_ms) + "ms avg=" + str(result.average_ms) + "ms status=" + result_status_text(result))
+    let classic_index = 0
+    while classic_index < classic_case_count():
+        let case_id = classic_case_id(classic_index)
+        let case_group = classic_case_group(classic_index)
+        if case_selected(config.filter_text, case_id, case_group):
+            let result = run_case(case_id, case_group, classic_case_title(classic_index), classic_case_iterations(classic_index), classic_case_expected_checksum(classic_index), config)
+            let _track = write_track_report(result)
+            cases_json_items = append_json_item(cases_json_items, render_result_json(result))
+            table_rows = table_rows + format_result_row(result)
+            case_count = case_count + 1
+            if result.success:
+                success_count = success_count + 1
+            else:
+                failure_count = failure_count + 1
+            println("[bench-v2] " + case_id + " best=" + str(result.best_ms) + "ms avg=" + str(result.average_ms) + "ms status=" + result_status_text(result))
+        classic_index = classic_index + 1
 
-    if case_selected(config.filter_text, "branch_dispatch", "control"):
-        let result = run_case("branch_dispatch", "control", "Branch Dispatch", 3000000, 632706747, config)
-        let _track = write_track_report(result)
-        cases_json_items = append_json_item(cases_json_items, render_result_json(result))
-        table_rows = table_rows + format_result_row(result)
-        case_count = case_count + 1
-        if result.success:
-            success_count = success_count + 1
-        else:
-            failure_count = failure_count + 1
-        println("[bench-v2] branch_dispatch best=" + str(result.best_ms) + "ms avg=" + str(result.average_ms) + "ms status=" + result_status_text(result))
+    let classic_systems_index = 0
+    while classic_systems_index < classic_systems_case_count():
+        let case_id = classic_systems_case_id(classic_systems_index)
+        let case_group = classic_systems_case_group(classic_systems_index)
+        if case_selected(config.filter_text, case_id, case_group):
+            let result = run_case(case_id, case_group, classic_systems_case_title(classic_systems_index), classic_systems_case_iterations(classic_systems_index), classic_systems_case_expected_checksum(classic_systems_index), config)
+            let _track = write_track_report(result)
+            cases_json_items = append_json_item(cases_json_items, render_result_json(result))
+            table_rows = table_rows + format_result_row(result)
+            case_count = case_count + 1
+            if result.success:
+                success_count = success_count + 1
+            else:
+                failure_count = failure_count + 1
+            println("[bench-v2] " + case_id + " best=" + str(result.best_ms) + "ms avg=" + str(result.average_ms) + "ms status=" + result_status_text(result))
+        classic_systems_index = classic_systems_index + 1
 
-    if case_selected(config.filter_text, "call_chain", "control"):
-        let result = run_case("call_chain", "control", "Call Chain", 1500000, 61920954, config)
-        let _track = write_track_report(result)
-        cases_json_items = append_json_item(cases_json_items, render_result_json(result))
-        table_rows = table_rows + format_result_row(result)
-        case_count = case_count + 1
-        if result.success:
-            success_count = success_count + 1
-        else:
-            failure_count = failure_count + 1
-        println("[bench-v2] call_chain best=" + str(result.best_ms) + "ms avg=" + str(result.average_ms) + "ms status=" + result_status_text(result))
+    let classic_core3d_index = 0
+    while classic_core3d_index < classic_core3d_case_count():
+        let case_id = classic_core3d_case_id(classic_core3d_index)
+        let case_group = classic_core3d_case_group(classic_core3d_index)
+        if case_selected(config.filter_text, case_id, case_group):
+            let result = run_case(case_id, case_group, classic_core3d_case_title(classic_core3d_index), classic_core3d_case_iterations(classic_core3d_index), classic_core3d_case_expected_checksum(classic_core3d_index), config)
+            let _track = write_track_report(result)
+            cases_json_items = append_json_item(cases_json_items, render_result_json(result))
+            table_rows = table_rows + format_result_row(result)
+            case_count = case_count + 1
+            if result.success:
+                success_count = success_count + 1
+            else:
+                failure_count = failure_count + 1
+            println("[bench-v2] " + case_id + " best=" + str(result.best_ms) + "ms avg=" + str(result.average_ms) + "ms status=" + result_status_text(result))
+        classic_core3d_index = classic_core3d_index + 1
 
     if case_selected(config.filter_text, "array_scan", "core"):
         let result = run_case("array_scan", "core", "Array Scan", 500000, 103499994, config)

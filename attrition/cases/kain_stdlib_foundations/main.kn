@@ -1,4 +1,6 @@
 use std::runtime
+use std::fmt
+use std::json
 use std::text
 use std::collections
 use std::crypto
@@ -131,6 +133,36 @@ fn exercise_foundations(iteration: Int) -> Int with Unsafe:
         if len(random_bytes(8)) != 16:
             return -8
 
+    let payload = json_object()
+    let _json_name = json_object_set_string(payload, "name", "attrition")
+    let _json_iteration = json_object_set_int(payload, "iteration", iteration)
+    let _json_ratio = json_object_set_float(payload, "ratio", (iteration % 7) / 2.0)
+    let _json_flags = json_object_set_bool_array(payload, "flags", [true, false])
+    let rendered = json_stringify(payload)
+    let parsed = json_parse_text(rendered)
+    if text_contains_string(rendered, "\"iteration\":") == false:
+        return -28
+    if text_contains_string(rendered, "\"ratio\":") == false:
+        return -29
+    if text_contains_string(rendered, "\"flags\":[true,false]") == false:
+        return -30
+    let scan = json_scan_report(rendered)
+    if scan.ok == false:
+        return -31
+    if json_string_required(parsed, "name") != "attrition":
+        return -32
+    let parsed_flags = json_bool_array_field_result(parsed, "flags")
+    if parsed_flags.ok == false or len(parsed_flags.value) != 2:
+        return -33
+    if parsed_flags.value[0] == false or parsed_flags.value[1] == true:
+        return -34
+    let parsed_ratio = json_float_required(parsed, "ratio")
+    if parsed_ratio < 0.0 or parsed_ratio > 3.0:
+        return -35
+    let rendered_again = fmt_writer_build(json_fmt_writer_push_value(fmt_writer_new(), payload))
+    if rendered_again != rendered:
+        return -36
+
     let lock = mcs_mutex_new()
     let node = mcs_node_new()
     if mcs_mutex_lock(lock, node) != SYNC_OK:
@@ -180,9 +212,10 @@ fn exercise_foundations(iteration: Int) -> Int with Unsafe:
     let _wg_destroy = wait_group_destroy(wg)
 
     let map_score = typed_map_get(metrics, "iteration") + typed_map_get(metrics, "text")
+    let json_score = len(rendered) + len(json_string_required(parsed, "name")) + 98
     let _metrics_destroy = typed_map_destroy(metrics)
     let text_score = text_byte_at(text, iteration % text_len(text))
-    return (map_score + queue_score + pq_score + slot_score + bump_score + pool_score + text_score + chan_score) % STDLIB_FOUNDATIONS_ATTRITION_MODULUS
+    return (map_score + queue_score + pq_score + slot_score + bump_score + pool_score + text_score + chan_score + json_score) % STDLIB_FOUNDATIONS_ATTRITION_MODULUS
 
 fn main() -> Int with Unsafe:
     let boot = runtime_init()

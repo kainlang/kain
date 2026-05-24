@@ -41,6 +41,7 @@
 
 mod parser;
 mod selfhost;
+mod semantic_map;
 mod transformer;
 mod types;
 

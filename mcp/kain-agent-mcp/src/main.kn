@@ -1,12 +1,12 @@
 use std::runtime
-use http_probe_server::run_mcp_http_probe
+use agent_mcp_server::run_agent_mcp
 
 fn main() -> Int:
     let boot = runtime_init()
     if boot != 0:
         return 100 + boot
 
-    let status = run_mcp_http_probe()
+    let status = run_agent_mcp()
 
     let shutdown = runtime_shutdown()
     if shutdown != 0:

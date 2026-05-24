@@ -565,7 +565,7 @@ $stampPath = if (-not [string]::IsNullOrWhiteSpace($env:KAIN_SYNC_STAMP_PATH)) {
 }
 $counterPath = Resolve-StatePath -StateRoot $stateRoot -SyncPolicy $syncPolicy -Key "build_counter_relative_path" -DefaultRelative "state/build_counter.json"
 $runtimeStampFiles = Convert-ToStringArray -Value (Get-HashValue -Table $syncPolicy -Key "runtime_stamp_files" -DefaultValue @(
-        "runtime/kain_runtime.c",
+        "runtime/runtime.c",
         "runtime/native_core_runtime.toml",
         "blades/kain-mcp/config/runtime_policy.json"
     ))
@@ -579,7 +579,7 @@ $sharedLauncherDir = if (-not [string]::IsNullOrWhiteSpace($env:KAIN_BAZEL_LAUNC
 } else {
     [System.IO.Path]::GetFullPath([Environment]::ExpandEnvironmentVariables([string](Get-HashValue -Table $syncPolicy -Key "shared_launcher_dir_windows" -DefaultValue "D:/Kain-Bazel/bin")))
 }
-$shadowLauncherDirs = Resolve-ConfiguredPathList -Value (Get-HashValue -Table $syncPolicy -Key "shadow_launcher_dirs_windows" -DefaultValue @("%USERPROFILE%/.cargo/bin"))
+$shadowLauncherDirs = Resolve-ConfiguredPathList -Value (Get-HashValue -Table $syncPolicy -Key "shadow_launcher_dirs_windows" -DefaultValue @("%USERPROFILE%/.kain/bin", "%USERPROFILE%/.cargo/bin"))
 $bazelConfig = if (-not [string]::IsNullOrWhiteSpace($env:KAIN_BAZEL_CONFIG)) {
     $env:KAIN_BAZEL_CONFIG
 } else {
@@ -612,7 +612,7 @@ if ($resolvedPythonPath) {
 $resourceMap = [ordered]@{
     "KAIN_REPO_ROOT" = $repoRoot
     "KAIN_STDLIB_PATH" = (Join-Path $repoRoot "stdlib")
-    "KAIN_RUNTIME_C_PATH" = (Join-Path $repoRoot "runtime\kain_runtime.c")
+    "KAIN_RUNTIME_C_PATH" = (Join-Path $repoRoot "runtime\runtime.c")
     "KAIN_RUNTIME_MANIFEST_PATH" = (Join-Path $repoRoot "runtime\native_core_runtime.toml")
     "KAIN_SYNC_ROOT" = $stateRoot
     "KAIN_SYNC_STAMP_PATH" = $stampPath
