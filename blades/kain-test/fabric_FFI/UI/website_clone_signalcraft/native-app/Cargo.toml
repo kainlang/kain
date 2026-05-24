@@ -1,9 +1,0 @@
-[package]
-name = "ui-smoke-website-clone-signalcraft"
-version = "0.1.0"
-edition = "2021"
-
-[workspace]
-
-[dependencies]
-kain-ui-native = { path = "../../../../crates/kain-ui-native" }

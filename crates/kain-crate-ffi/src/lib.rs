@@ -261,7 +261,7 @@ mod tests {
 
     #[test]
     fn detects_rust_imports() {
-        let source = "use std::python::bridge\nuse rust::browser\nuse rust::glam\n";
+        let source = "use std::python\nuse rust::browser\nuse rust::glam\n";
         assert_eq!(
             detect_rust_crate_imports(source),
             vec!["browser".to_string(), "glam".to_string()]

@@ -1,6 +1,0 @@
-// SPIR-V seed for OCIO/LUT/HDR transform routing across paint, render, compositor, and review surfaces.
-
-kernel color_pipeline_resolve:
-    stage = "color_pipeline"
-    domain = "color"
-    intent = "Resolve display transforms, look transforms, and media/material color routes into parity-safe viewport, review, and delivery packets."

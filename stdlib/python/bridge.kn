@@ -1,3 +1,8 @@
+// Legacy compatibility surface.
+//
+// Prefer `use std::python` for the generic embedded-Python lane. Keep this
+// module around so older blades and smokes do not break while the repo migrates.
+
 pub fn py_bridge_bootstrap():
     py_exec("import importlib.util\n\ndef __kain_module_available(name):\n    return importlib.util.find_spec(name) is not None\n")
 

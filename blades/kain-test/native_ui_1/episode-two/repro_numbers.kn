@@ -1,4 +1,0 @@
-use repro_shared::four
-
-fn main() -> Int:
-    return four()

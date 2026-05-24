@@ -1,5 +1,0 @@
-use std::javascript::bridge
-
-fn main() -> String:
-    let publisher = js_bridge_import("./apps/kain-fabric-modeler/scripts/node_publish_summary.mjs")
-    return js_bridge_call_method(publisher, "run", [fabric_inputs])

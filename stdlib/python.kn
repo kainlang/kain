@@ -1,0 +1,100 @@
+// Root Python surface for Kain.
+//
+// This is the generic low-level lane for embedded Python interop. The package-
+// specific helper modules under `std::python::*` are optional convenience
+// layers, not the core requirement for talking to Python.
+
+pub fn python_bootstrap():
+    py_exec("import importlib.util\n\ndef __kain_module_available(name):\n    return importlib.util.find_spec(name) is not None\n")
+
+pub fn python_exec(code: String):
+    py_exec(code)
+
+pub fn python_eval(code: String) -> Any:
+    return py_eval(code)
+
+pub fn python_eval_raw(code: String) -> Any:
+    return py_eval_raw(code)
+
+pub fn python_import(name: String) -> Any:
+    return py_import(name)
+
+pub fn python_module_available(name: String) -> Bool:
+    python_bootstrap()
+    return py_call("__kain_module_available", [name])
+
+pub fn python_require_module(name: String) -> Any:
+    assert(python_module_available(name), "python module missing: " + name)
+    return py_import(name)
+
+pub fn python_call(target: Any, args: Any) -> Any:
+    return py_call(target, args)
+
+pub fn python_call_kwargs(target: Any, args: Any, kwargs: Any) -> Any:
+    return py_call(target, args, kwargs)
+
+pub fn python_call_attr(target: Any, attr: String, args: Any) -> Any:
+    return py_call(target, attr, args)
+
+pub fn python_call_attr_kwargs(target: Any, attr: String, args: Any, kwargs: Any) -> Any:
+    return py_call(target, attr, args, kwargs)
+
+pub fn python_call_raw(target: Any, args: Any) -> Any:
+    return py_call_raw(target, args)
+
+pub fn python_call_attr_raw(target: Any, attr: String, args: Any) -> Any:
+    return py_call_raw(target, attr, args)
+
+pub fn python_getattr(target: Any, name: String) -> Any:
+    return py_getattr(target, name)
+
+pub fn python_getattr_raw(target: Any, name: String) -> Any:
+    return py_getattr_raw(target, name)
+
+pub fn python_setattr(target: Any, name: String, value: Any):
+    py_setattr(target, name, value)
+
+pub fn python_hasattr(target: Any, name: String) -> Bool:
+    return py_hasattr(target, name)
+
+pub fn python_shared_buffer(target: Any) -> Any:
+    return kain_shared_buffer_from_py(target)
+
+pub fn python_shared_image(target: Any) -> Any:
+    return kain_shared_image_from_py(target)
+
+pub fn python_image(target: Any) -> Any:
+    return kain_image_from_py(target)
+
+pub fn python_image_shared(target: Any) -> Any:
+    return kain_image_from_py_shared(target)
+
+pub fn python_image_owned(target: Any) -> Any:
+    return kain_image_from_py_owned(target)
+
+pub fn python_image_to(image: Any, backend: String) -> Any:
+    return kain_image_to_py(image, backend)
+
+pub fn python_tensor(target: Any) -> Any:
+    return kain_tensor_from_py(target)
+
+pub fn python_tensor_shared(target: Any) -> Any:
+    return kain_tensor_from_py_shared(target)
+
+pub fn python_tensor_owned(target: Any) -> Any:
+    return kain_tensor_from_py_owned(target)
+
+pub fn python_tensor_to(tensor: Any, backend: String) -> Any:
+    return kain_tensor_to_py(tensor, backend)
+
+pub fn python_geometry(target: Any) -> Any:
+    return kain_geometry_from_py(target)
+
+pub fn python_geometry_shared(target: Any) -> Any:
+    return kain_geometry_from_py_shared(target)
+
+pub fn python_geometry_owned(target: Any) -> Any:
+    return kain_geometry_from_py_owned(target)
+
+pub fn python_geometry_to(geometry: Any, backend: String) -> Any:
+    return kain_geometry_to_py(geometry, backend)

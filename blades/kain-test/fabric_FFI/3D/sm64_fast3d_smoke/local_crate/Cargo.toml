@@ -1,9 +1,0 @@
-[package]
-name = "sm64_fast3d_smoke_viewer"
-version = "0.1.0"
-edition = "2021"
-
-[dependencies]
-kain-fast3d-runtime = { path = "../../../../crates/kain-fast3d-runtime" }
-
-[workspace]

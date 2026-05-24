@@ -1,6 +1,0 @@
-// Job-queue dispatch seed for farm, bake, simulation, and delivery workloads.
-
-kernel job_queue_dispatch_resolve:
-    stage = "job_queue_dispatch"
-    domain = "jobs"
-    intent = "Resolve manifest-driven queue assignment, worker capability matching, retries, and promotion-aware job receipts."

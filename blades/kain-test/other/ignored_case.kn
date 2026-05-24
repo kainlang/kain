@@ -1,3 +1,0 @@
-//@ ignore: proof that skipped cases are reported without failing the suite
-
-fn main( -> Int:

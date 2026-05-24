@@ -500,14 +500,99 @@ def resolve_python_path(context: InstallContext) -> Path | None:
         if candidate is not None:
             return candidate
 
-    current_python = Path(sys.executable).resolve()
-    if current_python.exists():
+    def probe(candidate: Path | None) -> Path | None:
+        if candidate is None:
+            return None
+        resolved = normalize_existing_path(candidate)
+        if resolved is None:
+            return None
+        if "windowsapps" in str(resolved).lower() and resolved.name.lower() == "python.exe":
+            return None
+        try:
+            completed = subprocess.run(
+                [str(resolved), "-c", "import sys; print(f'{sys.version_info[0]}.{sys.version_info[1]}'); print(sys.executable)"],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+        except Exception:
+            return None
+        lines = [line.strip() for line in completed.stdout.splitlines() if line.strip()]
+        if len(lines) < 2:
+            return None
+        major_minor = lines[0].split(".", 1)
+        if len(major_minor) != 2:
+            return None
+        try:
+            major = int(major_minor[0])
+            minor = int(major_minor[1])
+        except ValueError:
+            return None
+        if major != 3 or minor < 10:
+            return None
+        return normalize_existing_path(Path(lines[1]))
+
+    for env_key in ("VIRTUAL_ENV", "CONDA_PREFIX"):
+        root = os.environ.get(env_key)
+        if not root:
+            continue
+        for suffix in ("Scripts/python.exe", "bin/python", "python.exe"):
+            resolved = probe(Path(root) / suffix)
+            if resolved is not None:
+                return resolved
+
+    current_python = probe(Path(sys.executable).resolve())
+    if current_python is not None:
         return current_python
 
-    for name in ("python3.12", "python3", "python"):
-        resolved = shutil.which(name)
-        if resolved:
-            return Path(resolved).resolve()
+    for name in ("python", "python3"):
+        resolved_name = shutil.which(name)
+        if resolved_name:
+            resolved = probe(Path(resolved_name))
+            if resolved is not None:
+                return resolved
+
+    py_launcher = shutil.which("py")
+    if py_launcher:
+        try:
+            completed = subprocess.run(
+                [py_launcher, "-c", "import sys; print(sys.executable)"],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            resolved = probe(Path(completed.stdout.strip()))
+            if resolved is not None:
+                return resolved
+        except Exception:
+            pass
+
+        for minor in (14, 13, 12, 11, 10):
+            try:
+                completed = subprocess.run(
+                    [py_launcher, f"-3.{minor}", "-c", "import sys; print(sys.executable)"],
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                )
+                resolved = probe(Path(completed.stdout.strip()))
+                if resolved is not None:
+                    return resolved
+            except Exception:
+                pass
+
+    if context.is_windows:
+        for minor in (14, 13, 12, 11, 10):
+            compact = f"3{minor}"
+            for raw in (
+                Path(os.environ.get("LOCALAPPDATA", "")) / "Programs" / "Python" / f"Python{compact}" / "python.exe",
+                Path.home() / "AppData" / "Local" / "Programs" / "Python" / f"Python{compact}" / "python.exe",
+                Path(f"C:/Python{compact}/python.exe"),
+            ):
+                resolved = probe(raw)
+                if resolved is not None:
+                    return resolved
+
     return None
 
 

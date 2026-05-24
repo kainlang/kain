@@ -1,5 +1,0 @@
-[node_ffi]
-command = "node"
-args = []
-cwd = "."
-

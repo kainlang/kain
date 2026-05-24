@@ -1,8 +1,0 @@
-[package]
-name = "sm64_fast3d_smoke"
-version = "0.1.0"
-
-[build]
-entry = "smoke.kn"
-output = "outputs"
-targets = ["run", "test"]

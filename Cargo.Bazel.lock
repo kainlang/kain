@@ -1,5 +1,5 @@
 {
-  "checksum": "90ada883c5aa3487ede7cb8c09cbf95518a8912bd42da3424f84a712e2ffacbe",
+  "checksum": "adc531e01af5f991ce6213a655ae040159b0b024228cfce174d9cc12b9ef4e1c",
   "crates": {
     "ab_glyph 0.2.32": {
       "name": "ab_glyph",
@@ -26264,12 +26264,6 @@
               "target": "target_lexicon"
             }
           ],
-          "selects": {}
-        },
-        "build_script_env": {
-          "common": {
-            "PYO3_PYTHON": "C:/Users/Admin/AppData/Local/Programs/Python/Python310/python.exe"
-          },
           "selects": {}
         }
       },

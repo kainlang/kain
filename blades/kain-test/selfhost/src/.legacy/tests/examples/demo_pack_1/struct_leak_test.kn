@@ -1,9 +1,0 @@
-struct Wrapper:
-    name: String
-
-fn main():
-    println("Start Struct Leak Test")
-    
-    let w = Wrapper { name: "LeakMe" }
-    
-    println("Exiting scope...")

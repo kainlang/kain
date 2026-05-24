@@ -1,8 +1,0 @@
-[
-  { "id": "gouache_block", "name": "Gouache Block", "size": 18, "opacity": 0.88, "flow": 0.76, "hardness": 0.82, "spacing": 0.11, "tip": "round" },
-  { "id": "ink_falcon", "name": "Ink Falcon", "size": 6, "opacity": 0.96, "flow": 0.92, "hardness": 0.98, "spacing": 0.03, "tip": "round" },
-  { "id": "soft_pastel", "name": "Soft Pastel", "size": 34, "opacity": 0.42, "flow": 0.48, "hardness": 0.26, "spacing": 0.2, "tip": "round" },
-  { "id": "marker_flat", "name": "Marker Flat", "size": 24, "opacity": 0.72, "flow": 0.84, "hardness": 0.6, "spacing": 0.08, "tip": "square" },
-  { "id": "cloud_eraser", "name": "Cloud Eraser", "size": 42, "opacity": 0.78, "flow": 0.8, "hardness": 0.18, "spacing": 0.18, "tip": "round" }
-]
-

@@ -368,16 +368,16 @@ mod tests {
     }
 
     #[test]
-    fn check_source_allows_python_bridge_imports_in_llvm_frontend_checks() {
+    fn check_source_allows_std_python_root_in_llvm_frontend_checks() {
         let report = check_source(
             "<test>",
-            "use std::python::bridge\n\nfn main() -> Int:\n    py_bridge_exec(\"value = 1\")\n    return 0\n",
+            "use std::python\n\nfn main() -> Int:\n    python_exec(\"value = 1\")\n    return 0\n",
             &CheckOptions::new(CompileTarget::Llvm),
         );
 
         assert!(
             report.passed(),
-            "llvm frontend checks should see python bridge globals: {:?}",
+            "llvm frontend checks should see std::python globals: {:?}",
             report.error
         );
     }

@@ -1,6 +1,0 @@
-// SPIR-V seed for branching narrative state, dialogue routing, and quest progression authoring.
-
-kernel narrative_state_graph_resolve:
-    stage = "narrative_state"
-    domain = "narrative"
-    intent = "Resolve story branches, dialogue variants, and objective progression into replay-safe, localization-aware runtime state packets."

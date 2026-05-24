@@ -1,6 +1,0 @@
-// Source-level scene document resolution seed for authored classes, mounts, and launch-ready scene declarations.
-
-kernel scene_source_document_resolve:
-    stage = "scene_source_documents"
-    domain = "scene_source"
-    intent = "Resolve scene-source documents, authored scene classes, runtime mounts, and bundle-bound launch declarations."

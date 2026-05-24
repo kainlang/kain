@@ -1,4 +1,0 @@
-//@ run-fail
-
-fn main() -> Int:
-    return missing_name

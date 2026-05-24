@@ -1,6 +1,0 @@
-// Resource-reflection catalog seed for residency metadata, budget inspection, compatibility windows, and resource-query receipts.
-
-kernel resource_reflection_catalog_resolve:
-    stage = "resource_reflection"
-    domain = "resource_reflection"
-    intent = "Resolve resource reflection catalogs, residency and budget query views, compatibility metadata, and delivery-visible inspection receipts."

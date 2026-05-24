@@ -26,12 +26,6 @@ use_repo(rust, "rust_toolchains")
 
 crate = use_extension("@rules_rust//crate_universe:extensions.bzl", "crate")
 crate.annotation(
-    crate = "pyo3-build-config",
-    build_script_env = {
-        "PYO3_PYTHON": "C:/Users/Admin/AppData/Local/Programs/Python/Python310/python.exe",
-    },
-)
-crate.annotation(
     crate = "zstd-sys",
     build_script_rundir = "external/rules_rust++crate+crates__zstd-sys-2.0.16-zstd.1.5.7",
 )

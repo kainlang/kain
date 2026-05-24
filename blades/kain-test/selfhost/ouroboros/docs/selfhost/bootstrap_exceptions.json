@@ -1,5 +1,0 @@
-{
-  "version": 1,
-  "description": "Bounded bootstrap-only exceptions allowed during self-host phase2 convergence.",
-  "exceptions": []
-}

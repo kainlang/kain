@@ -1,6 +1,0 @@
-{
-  "action": "viewer",
-  "manifest_path": "./scene_manifest.json",
-  "gameplay_state_path": "./gameplay_state.json",
-  "shader_overrides_path": "./shader_overrides.json"
-}

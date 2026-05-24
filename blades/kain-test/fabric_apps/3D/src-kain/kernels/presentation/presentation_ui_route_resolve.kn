@@ -1,6 +1,0 @@
-// Presentation shell seed for HUD/menu/accessibility routing and overlay composition.
-
-kernel presentation_ui_route_resolve:
-    stage = "presentation_shell"
-    domain = "presentation"
-    intent = "Resolve HUD, menu, subtitle, and accessibility-aware presentation routes across native and in-game surfaces."

@@ -1,4 +1,0 @@
-extern fn test_extern(x: Int) -> Int
-
-fn main():
-    println("Hello from extern test!")

@@ -1,6 +1,0 @@
-use math
-
-@blueprint
-fn allinone_stdlib_probe(a: Float, b: Float) -> Float:
-    let clamped = clamp_float(a, 0.0, 1.0)
-    return lerp_float(clamped, b, 0.5)

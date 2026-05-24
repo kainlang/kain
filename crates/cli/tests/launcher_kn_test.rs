@@ -24,7 +24,7 @@ fn kn_without_args_shows_quick_start_menu() {
         stdout
     );
     assert!(
-        stdout.contains("std::python::bridge"),
+        stdout.contains("std::python"),
         "expected Python FFI hint in stdout, got:\n{}",
         stdout
     );

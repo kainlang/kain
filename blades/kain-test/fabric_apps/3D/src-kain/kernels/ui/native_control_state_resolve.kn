@@ -1,6 +1,0 @@
-// Native-control state seed for inspectors, outliners, tables, timelines, and dock-aware editor control families.
-
-kernel native_control_state_resolve:
-    stage = "native_controls"
-    domain = "native_controls"
-    intent = "Resolve native control families, focus-safe state routing, dock/layout bindings, and control-schema synchronization."

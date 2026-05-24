@@ -1,9 +1,0 @@
-[package]
-name = "fabric-studio-3d-editor"
-version = "0.1.0"
-edition = "2021"
-
-[workspace]
-
-[dependencies]
-kain-ui-native = { path = "../../../../crates/kain-ui-native" }

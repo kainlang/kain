@@ -74,8 +74,9 @@ const KN_SHORTCUTS: &[&str] = &[
 ];
 
 const KN_PYTHON_FFI_MODULES: &[&str] = &[
-    "std::python::bridge",
+    "std::python",
     "std::python::numpy",
+    "std::python::torch",
     "std::python::pygame",
     "std::python::trimesh",
 ];
@@ -93,7 +94,7 @@ pub fn render_launcher_menu(launcher: LauncherKind) -> Option<String> {
         menu.push('\n');
     }
     menu.push('\n');
-    menu.push_str(" Python FFI is already wired in:\n");
+    menu.push_str(" Python interop is already wired in:\n");
     for module in KN_PYTHON_FFI_MODULES {
         menu.push_str("   - use ");
         menu.push_str(module);

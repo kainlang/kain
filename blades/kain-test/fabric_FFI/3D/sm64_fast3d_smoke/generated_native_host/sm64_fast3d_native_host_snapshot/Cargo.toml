@@ -1,9 +1,0 @@
-[package]
-name = "sm64-fast3d-native-host-snapshot"
-version = "0.1.0"
-edition = "2021"
-
-[workspace]
-
-[dependencies]
-kain-fast3d-runtime = { path = "M:/Code/Kain/crates/kain-fast3d-runtime" }

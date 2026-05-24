@@ -1,9 +1,0 @@
-[package]
-name = "kain-fabric-modeler"
-version = "0.1.0"
-edition = "2021"
-
-[workspace]
-
-[dependencies]
-kain-ui-native = { path = "../../../crates/kain-ui-native" }

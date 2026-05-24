@@ -29,6 +29,86 @@ function Resolve-CommandPath {
     return $null
 }
 
+function Resolve-ExistingPath {
+    param([string]$Candidate)
+
+    if ([string]::IsNullOrWhiteSpace($Candidate)) {
+        return $null
+    }
+
+    try {
+        if (Test-Path $Candidate) {
+            return (Resolve-Path $Candidate).Path
+        }
+    } catch {
+    }
+
+    return $null
+}
+
+function Test-WindowsAppAliasPath {
+    param([string]$Candidate)
+
+    if ([string]::IsNullOrWhiteSpace($Candidate)) {
+        return $false
+    }
+
+    return $Candidate -like "*WindowsApps*python*.exe"
+}
+
+function Resolve-PythonExecutableFromCommand {
+    param(
+        [Parameter(Mandatory = $true)][string]$CommandPath,
+        [string[]]$Arguments = @()
+    )
+
+    try {
+        $resolved = (& $CommandPath @Arguments -c "import sys; print(sys.executable)" 2>$null | Select-Object -First 1).Trim()
+        return Resolve-ValidatedPythonPath -Candidate $resolved
+    } catch {
+        return $null
+    }
+}
+
+function Resolve-ValidatedPythonPath {
+    param([string]$Candidate)
+
+    $existing = Resolve-ExistingPath -Candidate $Candidate
+    if (-not $existing) {
+        return $null
+    }
+    if (Test-WindowsAppAliasPath -Candidate $existing) {
+        return $null
+    }
+
+    try {
+        $version = (& $existing -c "import sys; print(f'{sys.version_info[0]}.{sys.version_info[1]}')" 2>$null | Select-Object -First 1).Trim()
+        if ([string]::IsNullOrWhiteSpace($version)) {
+            return $null
+        }
+
+        $parts = $version.Split('.')
+        if ($parts.Count -lt 2) {
+            return $null
+        }
+
+        $major = [int]$parts[0]
+        $minor = [int]$parts[1]
+        if ($major -ne 3 -or $minor -lt 10) {
+            return $null
+        }
+
+        $resolvedExecutable = (& $existing -c "import sys; print(sys.executable)" 2>$null | Select-Object -First 1).Trim()
+        $resolvedExisting = Resolve-ExistingPath -Candidate $resolvedExecutable
+        if ($resolvedExisting) {
+            return $resolvedExisting
+        }
+    } catch {
+    }
+
+    return $null
+}
+
 function Set-PathPrefix {
     param(
         [Parameter(Mandatory = $true)][string]$PathValue,
@@ -166,30 +246,66 @@ function Resolve-ClangPath {
     return $null
 }
 
-function Resolve-Python312Path {
-    if (-not [string]::IsNullOrWhiteSpace($env:PYO3_PYTHON) -and (Test-Path $env:PYO3_PYTHON)) {
-        return (Resolve-Path $env:PYO3_PYTHON).Path
+function Resolve-PythonPath {
+    $preferredMinors = @(14, 13, 12, 11, 10)
+    $candidates = @()
+
+    $envPython = Resolve-ValidatedPythonPath -Candidate $env:PYO3_PYTHON
+    if ($envPython) {
+        return $envPython
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($env:VIRTUAL_ENV)) {
+        $candidates += (Join-Path $env:VIRTUAL_ENV "Scripts\python.exe")
+        $candidates += (Join-Path $env:VIRTUAL_ENV "bin/python")
+    }
+    if (-not [string]::IsNullOrWhiteSpace($env:CONDA_PREFIX)) {
+        $candidates += (Join-Path $env:CONDA_PREFIX "python.exe")
+        $candidates += (Join-Path $env:CONDA_PREFIX "bin/python")
+    }
+
+    foreach ($candidate in $candidates) {
+        $resolved = Resolve-ValidatedPythonPath -Candidate $candidate
+        if ($resolved) {
+            return $resolved
+        }
     }
 
     $pyLauncher = Resolve-CommandPath -Name "py"
     if ($pyLauncher) {
-        try {
-            $resolved = (& $pyLauncher -3.12 -c "import sys; print(sys.executable)" 2>$null | Select-Object -First 1).Trim()
-            if (-not [string]::IsNullOrWhiteSpace($resolved) -and (Test-Path $resolved)) {
-                return (Resolve-Path $resolved).Path
+        $resolved = Resolve-PythonExecutableFromCommand -CommandPath $pyLauncher
+        if ($resolved) {
+            return $resolved
+        }
+
+        foreach ($minor in $preferredMinors) {
+            $resolved = Resolve-PythonExecutableFromCommand -CommandPath $pyLauncher -Arguments @("-3.$minor")
+            if ($resolved) {
+                return $resolved
             }
-        } catch {
         }
     }
 
-    $candidates = @(
-        (Join-Path $env:LOCALAPPDATA "Programs\Python\Python312\python.exe"),
-        (Join-Path $env:USERPROFILE "AppData\Local\Programs\Python\Python312\python.exe")
-    )
+    $pythonFromPath = Resolve-CommandPath -Name "python"
+    if ($pythonFromPath) {
+        $resolved = Resolve-ValidatedPythonPath -Candidate $pythonFromPath
+        if ($resolved) {
+            return $resolved
+        }
+    }
 
-    foreach ($candidate in $candidates) {
-        if (-not [string]::IsNullOrWhiteSpace($candidate) -and (Test-Path $candidate)) {
-            return (Resolve-Path $candidate).Path
+    foreach ($minor in $preferredMinors) {
+        $versionSuffix = "3.$minor"
+        $compactVersion = "3$minor"
+        foreach ($candidate in @(
+                (Join-Path $env:LOCALAPPDATA "Programs\Python\Python$compactVersion\python.exe"),
+                (Join-Path $env:USERPROFILE "AppData\Local\Programs\Python\Python$compactVersion\python.exe"),
+                "C:\Python$compactVersion\python.exe"
+            )) {
+            $resolved = Resolve-ValidatedPythonPath -Candidate $candidate
+            if ($resolved) {
+                return $resolved
+            }
         }
     }
 
@@ -619,7 +735,7 @@ $runtimeStampFiles = Convert-ToStringArray -Value (Get-HashValue -Table $syncPol
 $sourceWatchPaths = Resolve-SourceWatchPaths -SyncPolicy $syncPolicy
 
 $resolvedClangPath = Resolve-ClangPath -RepoRoot $repoRoot
-$resolvedPythonPath = Resolve-Python312Path
+$resolvedPythonPath = Resolve-PythonPath
 $invocationLocation = Get-Location
 $invocationWorkingDirectory = $null
 if ($invocationLocation.Provider -and $invocationLocation.Provider.Name -eq "FileSystem") {

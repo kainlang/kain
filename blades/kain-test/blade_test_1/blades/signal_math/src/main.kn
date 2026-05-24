@@ -1,5 +1,0 @@
-fn signal_score(width: Int, height: Int, accent: Int, stride: Int) -> Int:
-    return width * height + accent * 3 + stride
-
-fn main() -> Int:
-    return signal_score(7, 5, 31, 11)

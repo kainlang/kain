@@ -1,5 +1,0 @@
-# Generated import shim for crate trinity_stack_node
-use rust::trinity_stack_node::rust_trinity_stack_node_cargo_spokes as rust_trinity_stack_node_cargo_spokes
-use rust::trinity_stack_node::rust_trinity_stack_node_cargo_markers as rust_trinity_stack_node_cargo_markers
-use rust::trinity_stack_node::rust_trinity_stack_node_trinity_signature as rust_trinity_stack_node_trinity_signature
-use rust::trinity_stack_node::rust_trinity_stack_node_trinity_stamp_orbit as rust_trinity_stack_node_trinity_stamp_orbit

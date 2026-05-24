@@ -1,6 +1,0 @@
-// Persistence snapshot and delta-materialization seed for autosave and recovery workflows.
-
-kernel persistence_snapshot_delta_resolve:
-    stage = "persistence_snapshot_delta"
-    domain = "persistence"
-    intent = "Resolve project snapshots, workspace deltas, recovery checkpoints, and resumable persistence receipts."

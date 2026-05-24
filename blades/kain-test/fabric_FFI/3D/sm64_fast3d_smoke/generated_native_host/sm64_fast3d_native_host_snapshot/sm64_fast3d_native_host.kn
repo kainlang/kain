@@ -1,3 +1,0 @@
-
-component App():
-    render <panel title="SM64 Fast3D Native Host" />

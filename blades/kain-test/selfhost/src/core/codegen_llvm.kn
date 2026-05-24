@@ -1,7 +1,0 @@
-use types::TypedProgram
-
-# Kain LLVM codegen bootstrap shim.
-# The owned LLVM backend still lives in the Rust host for bootstrap.
-
-pub fn generate_llvm_ir(program: TypedProgram) -> String:
-    __kain_bootstrap_generate_llvm_ir(program)

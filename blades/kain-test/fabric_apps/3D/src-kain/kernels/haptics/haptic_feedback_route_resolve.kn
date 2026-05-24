@@ -1,6 +1,0 @@
-// SPIR-V seed for stylus, controller, XR, and machine-feedback routing across interactive tool contexts.
-
-kernel haptic_feedback_route_resolve:
-    stage = "haptics_feedback"
-    domain = "haptics"
-    intent = "Resolve contact, force, and tool-context feedback into latency-bounded stylus, controller, XR, and machine haptic routes."
