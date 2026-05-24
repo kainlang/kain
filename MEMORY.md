@@ -1,5 +1,32 @@
 # Kain Memory
 
+# 2026-05-24 - Core Semantics Pack & Beginner Keyword Guides Upgrade
+
+Expanded the interactive documentation suite with a comprehensive pack of 6 beginner-friendly, highly interactive developer guides targeted at teaching Kain's foundational keyword grammar (`world`, `entangle`, `converge`, `component`, `orchestrate`, and `systems`). Each guide combines simple analogies (Explain-Like-I'm-5) with high-fidelity, senior-level systems specifications, backed by fully responsive canvas-based simulators.
+
+What changed:
+
+- `website/public/docs/manifest.json`
+  - Added the `core-semantics` ("Core Semantics") category with order `2` to organize beginner manuals seamlessly.
+  - Registered 6 new guides: `world.html`, `entangle.html`, `converge.html`, `component.html`, `orchestrate.html`, and `systems_semantics.html`.
+- `website/public/docs/world.html`
+  - Created a guide detailing isolated memory partitioning. Includes a live State Transition Sandbox plotting dynamic tick mutations across CPU and GPU threads.
+- `website/public/docs/entangle.html`
+  - Developed a synchronization channel guide with a playable dual-paddle single-writer entanglement wire canvas tracking dynamic quadratic Bezier pulses.
+- `website/public/docs/converge.html`
+  - Penned a specialization compliance guide showing an interactive Z3 Bit-Vector equivalence checker loop verifying specialized AVX2 and reference compiler nodes.
+- `website/public/docs/component.html`
+  - Created a direct-to-GPU UI primitive manual showing a custom vector render tree that highlights compiled Vulkan index draw lists (`vkCmdDrawIndexed`).
+- `website/public/docs/orchestrate.html`
+  - Penned an interop pipeline guide showing a real-time cross-language transition canvas (`Kain -> C ABI -> Rust FFI`) tracking microsecond latency and zero-copy registers.
+- `website/public/docs/systems_semantics.html`
+  - Built an unsafe bounds-safe pointer guide featuring a contiguous 64-bit address register slider (8-byte strides) and an atomic memory barrier fence trigger.
+
+Durable lessons:
+
+- Standardizing on HSL/RGB tailored canvas grids and strict IIFE script containment guarantees high-contrast premium styling without cross-guide DOM pollution.
+- Using direct WebGL/Canvas-based animation hooks bound by `!canvas.isConnected` checks is extremely robust, keeping memory consumption stable across extensive documentation browsing sessions.
+
 # 2026-05-24 - Interactive Specimen Expansion & React Callback Ref Docs Upgrade
 
 Delivered a major upgrade to the developer documentation suite, introducing three new premium, highly interactive specimens that showcase Kain's core paradigms (World Entanglements, Actor Mailboxes, Silicon-native Atomics, Zero-Copy wire layouts, and Vulkain compute shaders) inspired by `/blades/pong` and `/benchmark/cases_v2/classic_systems.kn`, alongside a robust React Callback Ref rewrite to eliminate asynchronous script-mount race conditions.
