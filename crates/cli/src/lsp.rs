@@ -2,19 +2,20 @@ use std::collections::{hash_map::Entry, HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::ast::{
+use kain_core::ast::{
     Actor, Component, Const, EntangleDef, Enum, Field, Function, Impl, Item, MacroDef,
     MessageHandler, Param, Program, Shader, StateDecl, Struct, TestDef, Trait, TraitMethod, Type,
     Uniform, Variant, Visibility,
 };
-use crate::diagnostic_registry::spec_for_code;
+use kain_core::diagnostic_registry::spec_for_code;
 use crate::error::KainError;
-use crate::lexer::{Lexer, Token, TokenKind};
+use kain_core::lexer::{Lexer, Token, TokenKind};
 use crate::packager::{load_manifest, PackageManifest};
-use crate::parser::Parser;
-use crate::span::Span;
-use crate::types;
-use crate::ErrorKind;
+use kain_core::parser::Parser;
+use kain_core::span::Span;
+use kain_core::types;
+use kain_core::CompileTarget;
+use kain_core::ErrorKind;
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer, LspService, Server};

@@ -5703,7 +5703,7 @@ fn build(ctx: BuildContext) -> BuildGraph:
 
     #[test]
     fn auto_c_sidecar_tasks_keep_manifest_link_libs() {
-        let workspace_root = PathBuf::from("D:/Kain-Lang/smoketest");
+        let workspace_root = unique_test_dir("smoketest-link-libs");
         let config = BuildWorkspaceConfig {
             workspace_root: workspace_root.clone(),
             artifact_root: workspace_root.join(".kain/out/llvm"),
@@ -5771,6 +5771,17 @@ fn build(ctx: BuildContext) -> BuildGraph:
                 ]
             ),
             other => panic!("unexpected adapter: {other:?}"),
+        }
+    }
+
+    #[cfg(windows)]
+    fn windows_test_drive_prefix() -> String {
+        let cwd = std::env::current_dir().expect("cwd");
+        let cwd_text = cwd.display().to_string();
+        if cwd_text.len() >= 2 && cwd_text.as_bytes()[1] == b':' {
+            cwd_text[..2].to_string()
+        } else {
+            "C:".to_string()
         }
     }
 
@@ -6255,26 +6266,30 @@ fn build(ctx: BuildContext) -> BuildGraph:
     #[cfg(windows)]
     #[test]
     fn process_portable_values_strip_windows_verbatim_prefixes() {
+        let drive = windows_test_drive_prefix();
         assert_eq!(
-            process_portable_string(r"\\?\D:\Kain-Lang\smoketest\telemetry\full"),
-            r"D:\Kain-Lang\smoketest\telemetry\full"
+            process_portable_string(&format!(r"\\?\{}\repo\smoketest\telemetry\full", drive)),
+            format!(r"{}\repo\smoketest\telemetry\full", drive)
         );
         assert_eq!(
             process_portable_string(r"\\?\UNC\server\share\album.kn"),
             r"\\server\share\album.kn"
         );
         assert_eq!(
-            process_portable_path(Path::new(r"\\?\D:\Kain-Lang\smoketest\smoketest.exe")),
-            PathBuf::from(r"D:\Kain-Lang\smoketest\smoketest.exe")
+            process_portable_path(Path::new(&format!(r"\\?\{}\repo\smoketest\smoketest.exe", drive))),
+            PathBuf::from(format!(r"{}\repo\smoketest\smoketest.exe", drive))
         );
     }
 
     #[cfg(windows)]
     #[test]
     fn resolve_build_graph_string_value_renders_portable_windows_paths() {
-        let workspace_root = Path::new(r"\\?\D:\Kain-Lang\smoketest");
+        let drive = windows_test_drive_prefix();
+        let workspace_root_value = format!(r"\\?\{}\repo\smoketest", drive);
+        let task_root_value = format!(r"\\?\{}\repo\smoketest\.kain\out\task", drive);
+        let workspace_root = Path::new(&workspace_root_value);
         let root = workspace_root;
-        let task_root = Path::new(r"\\?\D:\Kain-Lang\smoketest\.kain\out\task");
+        let task_root = Path::new(&task_root_value);
         assert_eq!(
             resolve_build_graph_string_value(
                 workspace_root,
@@ -6282,11 +6297,11 @@ fn build(ctx: BuildContext) -> BuildGraph:
                 task_root,
                 "$root/telemetry/attrition"
             ),
-            r"D:\Kain-Lang\smoketest\telemetry\attrition"
+            format!(r"{}\repo\smoketest\telemetry\attrition", drive)
         );
         assert_eq!(
             resolve_build_graph_string_value(workspace_root, root, task_root, "$task/runner.json"),
-            r"D:\Kain-Lang\smoketest\.kain\out\task\runner.json"
+            format!(r"{}\repo\smoketest\.kain\out\task\runner.json", drive)
         );
     }
 

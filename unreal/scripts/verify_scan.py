@@ -1,13 +1,15 @@
 """Quick verification that scanned metadata loads correctly."""
-import json, sys, os
+import json
+from pathlib import Path
 
-metadata_dir = r"m:\Kain-Lang\kain-private\kain\unreal\metadata"
+metadata_dir = Path(__file__).resolve().parents[1] / "metadata"
 
-for fname in sorted(os.listdir(metadata_dir)):
+for path in sorted(metadata_dir.iterdir()):
+    fname = path.name
     if not fname.endswith("_scanned.json"):
         continue
-    path = os.path.join(metadata_dir, fname)
-    d = json.load(open(path))
+    with path.open(encoding="utf-8") as handle:
+        d = json.load(handle)
     nc = len(d.get("classes", []))
     ns = len(d.get("structs", []))
     ne = len(d.get("enums", []))

@@ -30,7 +30,7 @@ pub fn kaintana_example_file_explorer(ctx: KaintanaContext, rect: KaintanaRect, 
     next = panel.ctx
 
     let inner = kaintana_inset(rect, 14.0, 50.0, 14.0, 14.0)
-    next = explorer_button(next, kaintana_column_slot(inner, 0.0, 32.0, 5.0), "explorer.path", "D:/Kain-Lang/blades/kaintana", body_font)
+    next = explorer_button(next, kaintana_column_slot(inner, 0.0, 32.0, 5.0), "explorer.path", "blades/kaintana", body_font)
     next = explorer_label(next, kaintana_column_slot(inner, 1.0, 24.0, 4.0), "explorer.src", "[dir] src", body_font)
     next = explorer_label(next, kaintana_column_slot(inner, 2.0, 24.0, 4.0), "explorer.examples", "[dir] examples", body_font)
     next = explorer_label(next, kaintana_column_slot(inner, 3.0, 24.0, 4.0), "explorer.native", "[dir] native", body_font)

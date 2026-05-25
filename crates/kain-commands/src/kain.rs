@@ -94,7 +94,7 @@ pub struct KainCli {
     #[command(subcommand)]
     pub command: Option<KainCommand>,
 
-    /// Explicit Kain config path. Defaults to ~/.kain/config.toml
+    /// Explicit Kain config path. Otherwise resolves nearest .kain/config.toml, then KAIN_CONFIG, then KAIN_HOME/config.toml.
     #[arg(long, global = true)]
     pub config: Option<PathBuf>,
 
@@ -102,7 +102,7 @@ pub struct KainCli {
     #[arg(long, global = true, value_enum)]
     pub color: Option<CliColorArg>,
 
-    /// Select a CLI theme: hyperpop, ember, glacier, or oxide
+    /// Select a CLI theme: plain, slate, graphite, arctic, or sandstone
     #[arg(long, global = true)]
     pub theme: Option<String>,
 
@@ -1155,13 +1155,13 @@ mod tests {
             "--color",
             "always",
             "--theme",
-            "ember",
+            "sandstone",
             "check",
             "main.kn",
         ]);
         assert_eq!(cli.config, Some(PathBuf::from("custom.toml")));
         assert_eq!(cli.color, Some(CliColorArg::Always));
-        assert_eq!(cli.theme.as_deref(), Some("ember"));
+        assert_eq!(cli.theme.as_deref(), Some("sandstone"));
         match cli.command {
             Some(KainCommand::Check { input, .. }) => {
                 assert_eq!(input, PathBuf::from("main.kn"));

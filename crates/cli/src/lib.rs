@@ -7,6 +7,9 @@ extern crate self as cli;
 
 // Re-export core compiler
 pub use kain_core::*;
+pub use kain_core::{
+    ast, diagnostic_registry, diagnostics, lexer, parser, span, types, CompileTarget,
+};
 
 // CLI-specific modules
 pub mod amalgamate;
@@ -71,7 +74,14 @@ pub mod import_typescript {
 }
 pub mod kain_launcher;
 pub mod llvm_native_stage;
-pub mod lsp;
+pub mod lsp {
+    pub async fn run_server() {
+        eprintln!(
+            "KAIN LSP is legacy and is not part of the canonical Bazel build on this machine."
+        );
+        eprintln!("The historical Rust implementation remains in crates/cli/src/lsp.rs.");
+    }
+}
 pub mod native_ui_build;
 pub mod native_ui_dev;
 pub mod omni;
@@ -277,7 +287,7 @@ mod tests {
 
     #[test]
     fn detects_kn_launcher_from_path() {
-        let path = std::path::Path::new("C:/Users/Admin/.kain/bin/kn.exe");
+        let path = std::path::Path::new(".kain/bin/kn.exe");
         assert_eq!(detect_launcher_from_path(Some(path)), LauncherKind::Kn);
     }
 

@@ -39,9 +39,9 @@ Use this skill when the compiler-owned GPU pipeline changes: frontend eligibilit
 cargo test -p gpu --lib storage_buffer_stride_matches_vulkan_base_alignment_for_common_types --target-dir target\codex-bootstrap-gpu-lib -- --nocapture
 cargo test -p gpu --test spirv_layout --target-dir target\codex-bootstrap-gpu-spirv -- --nocapture
 cargo test -p gpu --test ptx_codegen --target-dir target\codex-bootstrap-gpu-ptx -- --nocapture
-uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path D:\Kain-Lang\crates\gpu --lane layout
-uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path D:\Kain-Lang\crates\gpu --lane ptx
-uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path D:\Kain-Lang\crates\gpu --lane full
+uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path crates\gpu --lane layout
+uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path crates\gpu --lane ptx
+uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path crates\gpu --lane full
 ```
 
 If bundle or artifact staging changed, also run:

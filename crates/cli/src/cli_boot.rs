@@ -5,7 +5,7 @@ use kain_commands::shared::LauncherKind;
 use kain_commands::ui::{apply_command_ui, CommandUiPreferences, CommandUiTheme};
 use kain_core::install_layout::KAIN_CONFIG_ENV_VAR;
 use kain_core::tooling_config::{
-    install_active_kain_tooling_config, load_kain_tooling_config, supported_theme_names,
+    install_active_kain_tooling_config, load_kain_tooling_config, normalize_ui_theme_name,
     KainColorPreference, ResolvedKainToolingConfig,
 };
 use std::path::PathBuf;
@@ -79,16 +79,7 @@ fn command_ui_preferences<'a>(
 }
 
 fn normalize_theme_override(theme: &str) -> Result<String, String> {
-    let normalized = theme.trim().to_ascii_lowercase();
-    if supported_theme_names().contains(&normalized.as_str()) {
-        Ok(normalized)
-    } else {
-        Err(format!(
-            "unknown Kain theme `{}`; expected one of {}",
-            theme.trim(),
-            supported_theme_names().join(", ")
-        ))
-    }
+    normalize_ui_theme_name(theme)
 }
 
 fn scan_boot_overrides() -> Result<CliBootOverrides, String> {

@@ -1,9 +1,13 @@
 use std::fs
+use std::process
+use std::runtime
 use std::text
+use std::time
 
 const APP_NAME: String = "kain-tui"
 const VISIBLE_ROWS: Int = 26
 const PREVIEW_LIMIT: Int = 4096
+const CLOCK_ORBIT_STEPS: Int = 12
 
 struct ExplorerState:
     current_path: String
@@ -11,6 +15,16 @@ struct ExplorerState:
     scroll_top: Int
     quit: Bool
     status: String
+
+// ============================================================================
+//                              pulse clock lane
+// ============================================================================
+// This is intentionally tiny: the pulse fires in the runtime, and the TUI
+// reads the native pulse counter live so we can visibly prove the machine lane
+// is ticking instead of only trusting headless telemetry.
+
+pulse tui_clock every 250ms jitter 25ms:
+    let _tick_shape = pulse_tick + pulse_dt_ms + pulse_missed
 
 fn clamp_int(value: Int, low: Int, high: Int) -> Int:
     if value < low:
@@ -140,7 +154,124 @@ fn build_preview(current_path: String, entry: String) -> String:
 fn build_status(current_path: String) -> String:
     return "j/k move | h parent | l open | r refresh | q quit\n" + current_path
 
-fn main() -> Int:
+fn two_digits(value: Int) -> String:
+    if value < 10:
+        return "0" + to_string(value)
+    return to_string(value)
+
+fn clock_orbit_x(step: Int) -> Int:
+    let slot = step % CLOCK_ORBIT_STEPS
+    if slot == 0:
+        return 10
+    if slot == 1:
+        return 13
+    if slot == 2:
+        return 15
+    if slot == 3:
+        return 16
+    if slot == 4:
+        return 15
+    if slot == 5:
+        return 13
+    if slot == 6:
+        return 10
+    if slot == 7:
+        return 7
+    if slot == 8:
+        return 5
+    if slot == 9:
+        return 4
+    if slot == 10:
+        return 5
+    return 7
+
+fn clock_orbit_y(step: Int) -> Int:
+    let slot = step % CLOCK_ORBIT_STEPS
+    if slot == 0:
+        return 0
+    if slot == 1:
+        return 1
+    if slot == 2:
+        return 2
+    if slot == 3:
+        return 5
+    if slot == 4:
+        return 8
+    if slot == 5:
+        return 9
+    if slot == 6:
+        return 10
+    if slot == 7:
+        return 9
+    if slot == 8:
+        return 8
+    if slot == 9:
+        return 5
+    if slot == 10:
+        return 2
+    return 1
+
+fn clock_face(fires: Int) -> String:
+    let hot_x = clock_orbit_x(fires)
+    let hot_y = clock_orbit_y(fires)
+    var row = 0
+    var face = ""
+    while row < 11:
+        var col = 0
+        while col < 21:
+            var glyph = " "
+            if col == hot_x and row == hot_y:
+                glyph = "@"
+            elif col == 10 and row == 5:
+                glyph = "O"
+            elif (col == 10 and row == 0) or (col == 16 and row == 5) or (col == 10 and row == 10) or (col == 4 and row == 5):
+                glyph = "+"
+            elif (col == 13 and row == 1) or (col == 15 and row == 2) or (col == 15 and row == 8) or (col == 13 and row == 9) or (col == 7 and row == 9) or (col == 5 and row == 8) or (col == 5 and row == 2) or (col == 7 and row == 1):
+                glyph = "."
+            face = face + glyph
+            col = col + 1
+        face = face + "\n"
+        row = row + 1
+    return face
+
+fn clock_screen(fires: Int) -> String:
+    let now = datetime_from_epoch_millis(now_millis())
+    let pulse_slot = fires % CLOCK_ORBIT_STEPS
+    let header = text_chr(27) + "[2J" + text_chr(27) + "[H"
+    var screen = header
+    screen = screen + APP_NAME + " | pulse clock\n"
+    screen = screen + "UTC " + to_string(now.year) + "-" + two_digits(now.month) + "-" + two_digits(now.day) + " "
+    screen = screen + two_digits(now.hour) + ":" + two_digits(now.minute) + ":" + two_digits(now.second) + "." + two_digits(now.millis / 10) + "\n"
+    screen = screen + "pulse_fires=" + to_string(fires) + " orbit_slot=" + to_string(pulse_slot) + " cadence=250ms jitter=25ms\n"
+    screen = screen + "ctrl+c to bail out\n"
+    screen = screen + "\n"
+    screen = screen + clock_face(fires)
+    screen = screen + "\n"
+    screen = screen + "            12\n"
+    screen = screen + "        10      2\n"
+    screen = screen + "      9     O      3\n"
+    screen = screen + "        8       4\n"
+    screen = screen + "            6\n"
+    return screen
+
+fn run_clock_mode() -> Int:
+    let boot = runtime_init()
+    if boot != 0:
+        println("clock runtime init failed: " + to_string(boot))
+        return 100 + boot
+
+    var status = 0
+    while status == 0:
+        let fires = runtime_machine_pulse_total_fire_count()
+        print(clock_screen(fires))
+        let _sleep = sleep_millis(33)
+
+    let shutdown = runtime_shutdown()
+    if shutdown != 0:
+        return 200 + shutdown
+    return status
+
+fn run_explorer_mode() -> Int:
     let explorer: ExplorerState = ExplorerState {
         current_path: ".",
         selected_index: 0,
@@ -157,3 +288,9 @@ fn main() -> Int:
     println(listing)
 
     return 0
+
+fn main() -> Int:
+    let args = process_user_args()
+    if len(args) > 0 and args[0] == "clock":
+        return run_clock_mode()
+    return run_explorer_mode()

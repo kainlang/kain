@@ -6,6 +6,8 @@ description = "Modular interactive REPL runtime for the KAIN toolchain"
 license = "MIT"
 
 [dependencies]
+arboard = "3"
+kain-lattice = { path = "../kain-lattice" }
 kain-core = { path = "../kain-core" }
 kain-driver = { path = "../kain-driver", default-features = false }
 logos = { workspace = true }

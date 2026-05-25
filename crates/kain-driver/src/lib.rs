@@ -2863,6 +2863,12 @@ mod tests {
 
     static TEST_CWD_LOCK: Mutex<()> = Mutex::new(());
 
+    fn repo_file(relative: &str) -> std::path::PathBuf {
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../..")
+            .join(relative)
+    }
+
     #[test]
     fn parse_typescript_aliases() {
         assert_eq!(parse_compile_target("ts"), Some(CompileTarget::Ts));
@@ -3723,7 +3729,8 @@ fn main() -> Int:
     #[test]
     fn frontend_bundle_does_not_duplicate_ambient_stdlib_entry_file() {
         let source = include_str!("../../../stdlib/runtime.kn");
-        let path = Path::new("D:/Kain-Lang/stdlib/runtime.kn");
+        let path_buf = repo_file("stdlib/runtime.kn");
+        let path = path_buf.as_path();
         let session = DriverSession::default();
         let frontend =
             build_frontend_source_bundle(&session, source, Some(path), CompileTarget::Llvm)
@@ -3764,7 +3771,8 @@ fn main() -> Int:
 
     #[test]
     fn frontend_bundle_native_cli_keeps_ascii_and_fs_top_level_functions_visible() {
-        let path = Path::new("D:/Kain-Lang/smoketest/src/systems/native_cli.kn");
+        let path_buf = repo_file("smoketest/src/systems/native_cli.kn");
+        let path = path_buf.as_path();
         let source = fs::read_to_string(path).expect("read native cli source");
         let session = DriverSession::default();
         let frontend =

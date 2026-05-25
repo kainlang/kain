@@ -24,19 +24,19 @@ The pack intentionally lives under `runtime/native/src/core/z3` because the firs
 Common commands:
 
 ```powershell
-uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path D:\Kain-Lang\runtime\native\src\core --lane smoke
-uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path D:\Kain-Lang\runtime\native\src\core --lane actor
-uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path D:\Kain-Lang\runtime\native\src\core --lane graphics
-uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path D:\Kain-Lang\runtime\native\src\core --lane memory
-uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path D:\Kain-Lang\runtime\native\src\core --lane ownership
-uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path D:\Kain-Lang\runtime\native\src\core --lane net
-uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path D:\Kain-Lang\runtime\native\src\core --lane process
-uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path D:\Kain-Lang\runtime\native\src\core --lane entangle
-uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path D:\Kain-Lang\runtime\native\src\core --lane realtime
-uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path D:\Kain-Lang\runtime\native\src\core --lane services
-uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path D:\Kain-Lang\runtime\native\src\core --lane stdlib
-uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path D:\Kain-Lang\runtime\native\src\core --lane full
-uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --workspace --project-root D:\Kain-Lang --lane smoke
+uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path runtime\native\src\core --lane smoke
+uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path runtime\native\src\core --lane actor
+uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path runtime\native\src\core --lane graphics
+uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path runtime\native\src\core --lane memory
+uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path runtime\native\src\core --lane ownership
+uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path runtime\native\src\core --lane net
+uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path runtime\native\src\core --lane process
+uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path runtime\native\src\core --lane entangle
+uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path runtime\native\src\core --lane realtime
+uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path runtime\native\src\core --lane services
+uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path runtime\native\src\core --lane stdlib
+uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path runtime\native\src\core --lane full
+uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --workspace --project-root . --lane smoke
 .\target\debug\kain.exe check runtime\native\src\core\z3\kain\main.kn --target llvm
 ```
 

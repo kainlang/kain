@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "generated_at_utc": "2026-05-16T09:47:04+00:00",
-  "source_inventory": "D:/Kain-Lang/runtime/native",
+  "source_inventory": "runtime/native",
   "policy": {
     "kain_native_lowercase": "abi_<tail>",
     "kain_runtime_lowercase": "domain tail when domain-qualified; otherwise runtime_<tail>",

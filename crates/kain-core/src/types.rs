@@ -11406,6 +11406,14 @@ mod tests {
         (combined, origins)
     }
 
+    fn repo_test_path(relative: &str) -> String {
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../..")
+            .join(relative)
+            .to_string_lossy()
+            .replace('\\', "/")
+    }
+
     fn register_program_items_for_test<'a>(
         program: &Program,
         span_mapper: &'a SpanMapper,
@@ -11442,11 +11450,11 @@ fn main() -> Int:
 "#;
         let (combined, origins) = combine_sources_with_origins(&[
             (
-                "D:/Kain-Lang/stdlib/ascii.kn",
+                &repo_test_path("stdlib/ascii.kn"),
                 include_str!("../../../stdlib/ascii.kn"),
             ),
             (
-                "D:/Kain-Lang/stdlib/base64.kn",
+                &repo_test_path("stdlib/base64.kn"),
                 include_str!("../../../stdlib/base64.kn"),
             ),
             ("<test>", entry),
@@ -11472,19 +11480,19 @@ fn main() -> Int:
 "#;
         let (combined, origins) = combine_sources_with_origins(&[
             (
-                "D:/Kain-Lang/stdlib/ascii.kn",
+                &repo_test_path("stdlib/ascii.kn"),
                 include_str!("../../../stdlib/ascii.kn"),
             ),
             (
-                "D:/Kain-Lang/stdlib/base64.kn",
+                &repo_test_path("stdlib/base64.kn"),
                 include_str!("../../../stdlib/base64.kn"),
             ),
             (
-                "D:/Kain-Lang/stdlib/text.kn",
+                &repo_test_path("stdlib/text.kn"),
                 include_str!("../../../stdlib/text.kn"),
             ),
             (
-                "D:/Kain-Lang/stdlib/fs.kn",
+                &repo_test_path("stdlib/fs.kn"),
                 include_str!("../../../stdlib/fs.kn"),
             ),
             ("<test>", entry),
@@ -11642,7 +11650,7 @@ pub fn fs_read_text(path: String) -> String:
         let span_mapper = SpanMapper::with_origins(
             source,
             vec![SourceOriginSegment {
-                file: "D:/Kain-Lang/stdlib/fs.kn".to_string(),
+                file: repo_test_path("stdlib/fs.kn"),
                 combined_span: Span::new(0, source.len()),
                 source: source.to_string(),
             }],
@@ -11694,10 +11702,10 @@ pub fn runtime_init() -> Int:
     return abi_runtime_init()
 "#;
         let span_mapper = SpanMapper::new(source);
-        let program =
-            parse_source_for_typecheck(source, &span_mapper, "D:/Kain-Lang/stdlib/runtime.kn");
+        let runtime_path = repo_test_path("stdlib/runtime.kn");
+        let program = parse_source_for_typecheck(source, &span_mapper, &runtime_path);
 
-        check(&program, &span_mapper, "D:/Kain-Lang/stdlib/runtime.kn")
+        check(&program, &span_mapper, &runtime_path)
             .expect("stdlib @extern declarations should register cleanly across passes");
     }
 
@@ -11719,11 +11727,11 @@ fn main() -> Int:
     #[test]
     fn typecheck_real_stdlib_runtime_declarations_do_not_self_collide() {
         let source = include_str!("../../../stdlib/runtime.kn");
-        let filename = "D:/Kain-Lang/stdlib/runtime.kn";
+        let filename = repo_test_path("stdlib/runtime.kn");
         let span_mapper = SpanMapper::new(source);
-        let program = parse_source_for_typecheck(source, &span_mapper, filename);
+        let program = parse_source_for_typecheck(source, &span_mapper, &filename);
 
-        check(&program, &span_mapper, filename)
+        check(&program, &span_mapper, &filename)
             .expect("real stdlib/runtime.kn should not self-collide during registration");
     }
 

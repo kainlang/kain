@@ -5,7 +5,7 @@ param(
     [string]$OutputName,
     [string]$KainBin = $env:KAIN_BIN,
     [ValidateSet("bazel", "cargo", "auto")]
-    [string]$CompilerBuild = "auto",
+    [string]$CompilerBuild = "bazel",
     [ValidateSet("dev", "release")]
     [string]$BazelConfig = "dev",
     [ValidateSet("project-root", "repo-root")]
@@ -117,8 +117,8 @@ function Resolve-KainBinary {
         }
     }
 
-    if ($CompilerBuild -eq "bazel") {
-        throw "Bazel did not produce kain.exe and -CompilerBuild bazel forbids Cargo fallback."
+    if ($CompilerBuild -eq "bazel" -or $CompilerBuild -eq "auto") {
+        throw "Bazel did not produce kain.exe. This helper now treats Bazel as canonical; use -CompilerBuild cargo only for an explicit local Rust override."
     }
 
     Push-Location $repoRoot

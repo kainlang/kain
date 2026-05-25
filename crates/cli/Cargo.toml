@@ -54,7 +54,6 @@ kain-web = { path = "../kain-web", optional = true }
 kain-sys-codegen = { path = "../kain-sys-codegen", optional = true }
 
 clap = { workspace = true }
-tower-lsp = { workspace = true }
 notify = { workspace = true }
 ctrlc = { workspace = true }
 tokio = { workspace = true }

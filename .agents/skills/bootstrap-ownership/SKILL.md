@@ -38,14 +38,14 @@ Use this skill when the ownership lattice or compiler-owned ownership policy is 
 ```powershell
 cargo test -p kain-ownership --target-dir target\codex-bootstrap-ownership -- --nocapture
 cargo test -p kain-core --test ownership_keywords_test --target-dir target\codex-bootstrap-ownership-core -- --nocapture
-uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path D:\Kain-Lang\crates\kain-ownership --lane full
-uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path D:\Kain-Lang\crates\kain-core --lane keywords
+uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path crates\kain-ownership --lane full
+uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path crates\kain-core --lane keywords
 ```
 
 If lowering changed, also run:
 
 ```powershell
-uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path D:\Kain-Lang\crates\kain-sys-codegen --lane llvm
+uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path crates\kain-sys-codegen --lane llvm
 ```
 
 ## Guardrails

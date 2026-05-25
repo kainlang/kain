@@ -548,7 +548,8 @@ When a proof unlocks a faster dirty path, take the path. Unsafe Rust, C pointer 
 ## Kain Priorities
 
 - Native LLVM and `runtime/native` are the priority. Rust remains the bootstrap and tooling substrate, but Kain must increasingly own its own semantics.
-- Prefer Bazel for serious compiler/runtime/CLI builds and for fresh `kain`, `kn`, and `blade` binaries. Cargo is still useful for local Rust iteration, but Bazel is the repo-scale proof lane.
+- Bazel is the canonical build and test lane for this repo. Agents should use `bazel build` and `bazel test` first for compiler/runtime/CLI work, including Rust crate validation.
+- Do not default to `cargo build`, `cargo run`, or `cargo test` for normal agent workflows. Only use Cargo when the user explicitly asks for it or when you are intentionally doing crate-local Rust iteration that Bazel cannot express.
 - Keep authored behavior in Kain when it belongs to Kain semantics. Use C/Rust/FFI/host bridges for OS, ABI, driver, GPU, platform, and ecosystem surfaces.
 - New PRIORITY EFFECTIVE MAY 22: when authoring KAIN try and leave useful non robotic comments in the code etc so that way we can start getting fire examples for humans to read etc -- also in a kain file if you are building out a full on system etc, section dividers that look like this would be superb (HOWEVER DO NOT CRAZY WITH THESE, ONLY for sexy code and complex ass systems you would be proud of) (AND IF YOU REALLY WANT TO CRAZY, DEVISE SOME ASCII ART/ flow charts IN THE CODE OF HOW SOMETHING WORKS IF you truly want to flex your skills lol)
 -  
@@ -680,13 +681,13 @@ py install_kain.py
 kain doctor
 ```
 
-Fallback when the installed CLI is stale:
+If the installed CLI is stale, refresh the Bazel-backed launchers instead of using Cargo:
 
 ```powershell
-cargo run -p cli --bin kain -- <subcommand>
+powershell -ExecutionPolicy Bypass -File scripts/windows/sync-kain-source-of-truth.ps1 -PersistUserEnv
 ```
 
-Bazel, preferred for serious repo-scale builds:
+Bazel, canonical for serious repo-scale builds and tests:
 
 ```powershell
 bazel build //:kain --config=dev
@@ -694,12 +695,15 @@ bazel build //:kn --config=dev
 bazel build //:blade --config=dev
 bazel build //:kain --config=release
 bazel build //runtime:all
+bazel test //:crate_tests --config=dev
+bazel test //:key_crate_tests --config=dev
+bazel test //:developer_smoke_tests --config=dev
 bazel test //runtime:native_runtime_tests
 python tools/bazel/sync_rust_builds.py --check
 py -3 tools/bazel/sync_native_runtime_builds.py --check
 ```
 
-On this Windows workstation, `.bazelrc` intentionally keeps cache/temp/output state under `D:/Kain-Bazel`. Prefer Bazel-built launchers or set `KAIN_BIN` to a fresh Bazel `kain.exe` when validating blades, benchmarks, and native runtime changes.
+On this Windows workstation, the repo root lives on `X:\` and Bazel cache/temp/output state intentionally lives on `F:\Caches\bazel\...` and `F:\DevTemp\bazel`. Prefer Bazel-built launchers from `X:\.kain\bin` or set `KAIN_BIN` to a fresh Bazel `kain.exe` when validating blades, benchmarks, and native runtime changes.
 
 Core CLI:
 
@@ -796,6 +800,9 @@ python attrition/run.py --case <case> --sabotage <mode>
 - Commit and push your work always and try and keep worktree clean, do not care if the worktree is dirty however -- we have 3-5 agents working at once typically in here.
 - For massive feature commits, add tags
 - Never hide uncertainty. If a proof, benchmark, attrition run, or GUI screenshot was not run, say so.
+
+## Toolchain
+- Scoop is available and there is a dedicated drive to tools and scoop etc at F:/  --- feel free to install any tool needed if it helps with work etc, no need to ask for permission considering scoop makes it crazy easy to manage tooling etc. the C:/ drive is specifically for OS so try to keep things out of it when possible as all of our drives are on REFS and c:/ would not mesh in with the setup /speed etc 
 
 ## References
 In reference/langs - if you ever need reference code or a baseline for how the other langs do it or something to compare against ->

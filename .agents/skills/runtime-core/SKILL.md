@@ -109,7 +109,7 @@ Useful MCP calls:
 - `mcp__z3_local__.analyze_source_file(path="runtime/native/src/core/actor.c", symbol="...")`
 - `mcp__z3_local__.suggest_proof_targets(path="runtime/native/src/core/memory.c")`
 - `mcp__z3_local__.extract_source_proof_cases(path="...", save=true)`
-- `mcp__z3_local__.run_proof_pack(path="D:/Kain-Lang/runtime/native/src/core/z3", lane="memory")`
+- `mcp__z3_local__.run_proof_pack(path="runtime/native/src/core/z3", lane="memory")`
 - `mcp__z3_local__.check_smt2(smt2="...", include_model=true)`
 - `mcp__z3_local__.bitvec_equiv(...)`, `range_check(...)`, `size_add_ok(...)`, `size_mul_ok(...)`, `ptr_offset_ok(...)`, `buffer_growth_ok(...)`, `state_machine_check(...)`
 
@@ -182,11 +182,11 @@ bazel test //runtime:native_runtime_tests
 Z3 pack:
 
 ```powershell
-uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path D:\Kain-Lang\runtime\native\src\core --lane smoke
-uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path D:\Kain-Lang\runtime\native\src\core --lane actor
-uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path D:\Kain-Lang\runtime\native\src\core --lane memory
-uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path D:\Kain-Lang\runtime\native\src\core --lane ownership
-uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path D:\Kain-Lang\runtime\native\src\core --lane full
+uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path runtime\native\src\core --lane smoke
+uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path runtime\native\src\core --lane actor
+uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path runtime\native\src\core --lane memory
+uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path runtime\native\src\core --lane ownership
+uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path runtime\native\src\core --lane full
 ```
 
 Pick the smallest lane that proves the touched surface, then climb if the change affects shared ABI or manifests.

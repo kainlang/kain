@@ -32,5 +32,5 @@ cargo check -p kain-gpu-runtime --target-dir target\codex-runtime-gpu
 cargo test -p kain-gpu-runtime ptx_dispatch_group_count_rounds_up --target-dir target\codex-runtime-gpu -- --nocapture
 cargo test -p kain-gpu-runtime nvidia_ptx_executor_can_launch_tiny_kernel_when_driver_is_available --target-dir target\codex-runtime-gpu -- --nocapture
 bash runtime/conformance/graphics_runtime/run_tests.sh --verbose
-mcp__z3_local__.run_proof_pack(path="D:\Kain-Lang\runtime\native\src\core", lane="graphics")
+mcp__z3_local__.run_proof_pack(path="runtime/native/src/core", lane="graphics")
 ```

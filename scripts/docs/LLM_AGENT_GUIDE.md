@@ -673,6 +673,7 @@ STDLIB: print, read_file, write_file, http_get, json_parse
 Compiler source of truth:
 - Use `kain` from PATH for normal workflows.
 - If the compiler changed, run `scripts/windows/sync-kain-source-of-truth.ps1`.
+- Bazel is the canonical compiler/test lane: prefer `bazel build //:kain --config=dev`, `bazel build //:kn --config=dev`, and `bazel test //:developer_smoke_tests --config=dev`.
 - Do not use `cargo run -p cli` except when explicitly working on the CLI itself.
 
 When user asks to:
@@ -701,7 +702,8 @@ When user asks to:
 ## CRITICAL RULES
 - Always use `kain` from PATH
 - Refresh the canonical PATH binary with `scripts/windows/sync-kain-source-of-truth.ps1` after CLI/compiler changes
-- Avoid `cargo run -p cli` for normal builds, smokes, and agent workflows
+- Avoid `cargo run -p cli`, `cargo build`, and `cargo test` for normal builds, smokes, and agent workflows
+- Prefer `bazel test //:crate_tests --config=dev` or `bazel test //:developer_smoke_tests --config=dev` instead of raw Cargo test loops
 - USF target auto-generates `.h` file
 - Permutation uniforms MUST start with `CFG_` or `ENABLE_`
 - Binding slots `@N` must be unique per shader

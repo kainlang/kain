@@ -2,9 +2,9 @@ use std::cuda
 use std::fs
 use std::json
 
-const PROBE_REPO_ROOT: String = "D:/Kain-Lang"
-const PROBE_MANIFEST_PATH: String = "D:/Kain-Lang/blades/cuda/kain_compute_residency.json"
-const PROBE_REPORT_PATH: String = "D:/Kain-Lang/blades/cuda/.kain/run/cuda_manifest_probe.txt"
+const PROBE_REPO_ROOT: String = "."
+const PROBE_MANIFEST_PATH: String = "blades/cuda/kain_compute_residency.json"
+const PROBE_REPORT_PATH: String = "blades/cuda/.kain/run/cuda_manifest_probe.txt"
 
 fn append_line(report: String, label: String, value: String) -> String:
     return report + label + "=" + value + "\n"

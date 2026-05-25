@@ -40,15 +40,15 @@ Use this skill when the primary job is changing what Kain means, how the fronten
 ```powershell
 cargo check -p kain-core -p kain-sys-codegen
 cargo test -p kain-core --test semantic_typecheck_test --target-dir target\codex-bootstrap-core -- --nocapture
-uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path D:\Kain-Lang\crates\kain-core --lane parser
-uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path D:\Kain-Lang\crates\kain-core --lane keywords
-uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path D:\Kain-Lang\crates\kain-core --lane full
+uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path crates\kain-core --lane parser
+uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path crates\kain-core --lane keywords
+uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path crates\kain-core --lane full
 ```
 
 If lowering math or CFG shape changed, also run:
 
 ```powershell
-uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path D:\Kain-Lang\crates\kain-sys-codegen --lane llvm
+uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path crates\kain-sys-codegen --lane llvm
 ```
 
 ## Guardrails

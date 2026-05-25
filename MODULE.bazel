@@ -9,10 +9,6 @@ bazel_dep(name = "platforms", version = "1.0.0")
 
 single_version_override(
     module_name = "rules_rust",
-    patch_strip = 1,
-    patches = [
-        "//:tools/bazel/patches/rules_rust_windows_force_all_deps_direct.patch",
-    ],
     version = "0.70.0",
 )
 
@@ -40,13 +36,16 @@ crate.annotation(
 )
 crate.annotation(
     build_script_env = {
-        "PYO3_PYTHON": "$(PYO3_PYTHON)",
+        # crate_universe expects a literal env value here. On this Windows
+        # workstation the PyO3-compatible interpreter lives on the F: toolchain
+        # drive and build-script PATH does not include Scoop shims.
+        "PYO3_PYTHON": "F:/Scoop/apps/python312/current/python.exe",
     },
     crate = "pyo3-build-config",
 )
 crate.annotation(
     build_script_env = {
-        "PYO3_PYTHON": "$(PYO3_PYTHON)",
+        "PYO3_PYTHON": "F:/Scoop/apps/python312/current/python.exe",
     },
     crate = "pyo3-ffi",
 )

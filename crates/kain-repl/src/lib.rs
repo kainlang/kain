@@ -12,6 +12,7 @@ pub mod metadata;
 pub mod session;
 pub mod source;
 pub mod terminal;
+mod theme;
 
 pub use command::{ReplDirective, REPL_HELP_TEXT};
 pub use evaluation::{ReplEvaluation, ReplEvaluationError, ReplEvaluationResult, ReplEvaluator};

@@ -128,7 +128,7 @@ pub enum BladesCommand {
 #[command(version = env!("CARGO_PKG_VERSION"))]
 #[command(about = "Standalone Kain blade workspace tool")]
 pub struct BladeCli {
-    /// Explicit Kain config path. Defaults to ~/.kain/config.toml
+    /// Explicit Kain config path. Otherwise resolves nearest .kain/config.toml, then KAIN_CONFIG, then KAIN_HOME/config.toml.
     #[arg(long, global = true)]
     pub config: Option<PathBuf>,
 
@@ -136,7 +136,7 @@ pub struct BladeCli {
     #[arg(long, global = true, value_enum)]
     pub color: Option<CliColorArg>,
 
-    /// Select a CLI theme: hyperpop, ember, glacier, or oxide
+    /// Select a CLI theme: plain, slate, graphite, arctic, or sandstone
     #[arg(long, global = true)]
     pub theme: Option<String>,
 
@@ -296,13 +296,13 @@ mod tests {
             "--color",
             "never",
             "--theme",
-            "glacier",
+            "arctic",
             "build",
             ".",
         ]);
         assert_eq!(cli.config, Some(PathBuf::from("team.toml")));
         assert_eq!(cli.color, Some(CliColorArg::Never));
-        assert_eq!(cli.theme.as_deref(), Some("glacier"));
+        assert_eq!(cli.theme.as_deref(), Some("arctic"));
     }
 
     #[test]

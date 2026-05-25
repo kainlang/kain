@@ -8,10 +8,7 @@ const DEFAULT_BAZEL_CONFIG: &str = match option_env!("KAIN_DEFAULT_BAZEL_CONFIG"
     Some(value) if !value.is_empty() => value,
     _ => "dev",
 };
-const DEFAULT_LAUNCHER_DIR: &str = match option_env!("KAIN_DEFAULT_LAUNCHER_DIR") {
-    Some(value) if !value.is_empty() => value,
-    _ => "D:/Kain-Bazel/bin",
-};
+const DEFAULT_LAUNCHER_DIR: &str = ".kain/bin";
 
 fn is_non_empty(value: &OsStr) -> bool {
     !value.is_empty()
@@ -30,10 +27,22 @@ fn resolve_bazel_config() -> OsString {
         .unwrap_or_else(|| OsString::from(DEFAULT_BAZEL_CONFIG))
 }
 
-fn resolve_launcher_dir() -> OsString {
-    env::var_os("KAIN_BAZEL_LAUNCHER_DIR")
+fn resolve_launcher_dir(repo_root: &Path) -> PathBuf {
+    let configured = env::var_os("KAIN_BAZEL_LAUNCHER_DIR")
         .filter(|value| is_non_empty(value))
-        .unwrap_or_else(|| OsString::from(DEFAULT_LAUNCHER_DIR))
+        .map(PathBuf::from)
+        .or_else(|| {
+            option_env!("KAIN_DEFAULT_LAUNCHER_DIR")
+                .filter(|value| !value.is_empty())
+                .map(PathBuf::from)
+        })
+        .unwrap_or_else(|| PathBuf::from(DEFAULT_LAUNCHER_DIR));
+
+    if configured.is_absolute() {
+        configured
+    } else {
+        repo_root.join(configured)
+    }
 }
 
 fn resolve_binary_name(exe_path: &Path) -> Result<&'static str, String> {
@@ -81,7 +90,7 @@ fn main() {
 
     let forward_args: Vec<OsString> = env::args_os().skip(1).collect();
     let bazel_config = resolve_bazel_config();
-    let launcher_dir = resolve_launcher_dir();
+    let launcher_dir = resolve_launcher_dir(&repo_root);
 
     let status = match Command::new("powershell.exe")
         .arg("-NoProfile")

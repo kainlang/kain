@@ -46,6 +46,14 @@ def resolve_repo_root() -> Path:
     return REPO_ROOT
 
 
+def resolve_configured_path(repo_root: Path, raw_path: str) -> Path:
+    expanded = os.path.expandvars(os.path.expanduser(raw_path.strip()))
+    candidate = Path(expanded)
+    if not candidate.is_absolute():
+        candidate = repo_root / candidate
+    return candidate.resolve()
+
+
 def resolve_blade_root(repo_root: Path) -> Path:
     return repo_root / "blades" / "kain-mcp"
 
@@ -75,29 +83,31 @@ def resolve_kain_binary_candidates(policy: dict) -> list[str]:
         if candidates:
             return candidates
     return [
-        "PATH:kain",
+        ".kain/bin/kain.exe",
+        ".kain/bin/kain",
         "target/debug/kain.exe",
         "target/debug/kain",
         "target/release/kain.exe",
         "target/release/kain",
+        "PATH:kain",
     ]
 
 
 def iter_kain_launcher_dirs(policy: dict) -> list[Path]:
+    repo_root = resolve_repo_root()
     discovered: list[Path] = []
     override = os.environ.get("KAIN_BAZEL_LAUNCHER_DIR", "").strip()
     if override:
-        discovered.append(Path(override))
+        discovered.append(resolve_configured_path(repo_root, override))
 
     key = "kain_launcher_dirs_windows" if os.name == "nt" else "kain_launcher_dirs_unix"
     raw = policy.get(key, [])
     if isinstance(raw, list):
         for item in raw:
             if isinstance(item, str) and item.strip():
-                discovered.append(Path(item.strip()))
+                discovered.append(resolve_configured_path(repo_root, item))
 
-    if os.name == "nt":
-        discovered.append(Path("D:/Kain-Bazel/bin"))
+    discovered.append(resolve_configured_path(repo_root, ".kain/bin"))
 
     ordered: list[Path] = []
     seen: set[str] = set()
@@ -123,16 +133,24 @@ def build_kain_search_path(policy: dict, existing_path: str | None = None) -> st
 
 
 def resolve_sync_state_root(sync_policy: dict) -> Path:
+    repo_root = resolve_repo_root()
     env_key = str(sync_policy.get("state_root_env_key", "KAIN_SYNC_ROOT"))
     override = os.environ.get(env_key, "").strip()
     if override:
-        return Path(os.path.expandvars(os.path.expanduser(override))).resolve()
+        return resolve_configured_path(repo_root, override)
 
-    default_value = "%USERPROFILE%/.kain" if os.name == "nt" else "~/.kain"
+    default_value = ".kain/state"
     key = "default_state_root_windows" if os.name == "nt" else "default_state_root_unix"
     configured = str(sync_policy.get(key, default_value))
-    expanded = os.path.expandvars(os.path.expanduser(configured))
-    return Path(expanded).resolve()
+    return resolve_configured_path(repo_root, configured)
+
+
+def resolve_repo_kain_home(repo_root: Path) -> Path:
+    return (repo_root / ".kain").resolve()
+
+
+def resolve_repo_kain_config_path(repo_root: Path) -> Path:
+    return (resolve_repo_kain_home(repo_root) / "config.toml").resolve()
 
 
 def resolve_sync_paths(sync_policy: dict) -> tuple[Path, Path, Path]:
@@ -557,6 +575,8 @@ def maybe_run_managed_sync(repo_root: Path, policy: dict, initial_sync_stamp: di
         command = resolve_sync_command(repo_root, sync_policy)
         env = os.environ.copy()
         env["KAIN_REPO_ROOT"] = str(repo_root)
+        env["KAIN_HOME"] = str(resolve_repo_kain_home(repo_root))
+        env["KAIN_CONFIG"] = str(resolve_repo_kain_config_path(repo_root))
         env["KAIN_SYNC_ROOT"] = str(resolve_sync_state_root(sync_policy))
         env["KAIN_SYNC_STAMP_PATH"] = str(stamp_path)
         env["KAIN_SYNC_LOCK_PATH"] = str(lock_path)
@@ -775,6 +795,8 @@ def main() -> int:
 
     env = os.environ.copy()
     env["KAIN_REPO_ROOT"] = str(repo_root)
+    env["KAIN_HOME"] = str(resolve_repo_kain_home(repo_root))
+    env["KAIN_CONFIG"] = str(resolve_repo_kain_config_path(repo_root))
     env["KAIN_MCP_BLADE_ROOT"] = str(blade_root)
     env["KAIN_SYNC_LOCK_PATH"] = str(lock_path)
     env["KAIN_SYNC_STAMP_PATH"] = str(stamp_path)

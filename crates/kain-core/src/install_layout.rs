@@ -7,8 +7,11 @@ pub const KAIN_RUNTIME_C_ENV_VAR: &str = "KAIN_RUNTIME_C_PATH";
 pub const KAIN_RUNTIME_MANIFEST_ENV_VARS: &[&str] =
     &["KAIN_RUNTIME_MANIFEST_PATH", "KAIN_RUNTIME_MANIFEST"];
 pub const KAIN_CLANG_ENV_VAR: &str = "KAIN_CLANG_PATH";
+pub const KAIN_REPO_ROOT_ENV_VAR: &str = "KAIN_REPO_ROOT";
 
 const STDLIB_DIR_NAME: &str = "stdlib";
+const KAIN_HOME_DIR_NAME: &str = ".kain";
+const KAIN_HOME_SENTINEL_SUFFIXES: &[&str] = &["config.toml", "install_manifest.json"];
 const CLANG_CANDIDATE_SUFFIXES: &[&str] = &[
     "toolchain/llvm/bin/clang.exe",
     "toolchain/llvm/bin/clang",
@@ -81,7 +84,11 @@ pub fn canonical_kain_home_dir() -> Option<PathBuf> {
         return Some(explicit_home);
     }
 
-    user_home_dir().map(|home| home.join(".kain"))
+    if let Some(discovered_home) = discover_nearest_kain_home_dir() {
+        return Some(discovered_home);
+    }
+
+    user_home_dir().map(|home| home.join(KAIN_HOME_DIR_NAME))
 }
 
 pub fn default_kain_install_layout() -> Option<KainInstallLayout> {
@@ -170,6 +177,60 @@ fn default_resource_search_roots() -> Vec<PathBuf> {
     roots
 }
 
+fn discover_nearest_kain_home_dir() -> Option<PathBuf> {
+    for search_root in kain_home_discovery_roots() {
+        if let Some(candidate) = find_kain_home_in_ancestor_chain(&search_root) {
+            return Some(candidate);
+        }
+    }
+    None
+}
+
+fn kain_home_discovery_roots() -> Vec<PathBuf> {
+    let mut roots = Vec::new();
+
+    if let Some(repo_root) = env_path(KAIN_REPO_ROOT_ENV_VAR) {
+        push_unique_path(&mut roots, repo_root);
+    }
+
+    if let Ok(current_dir) = std::env::current_dir() {
+        push_unique_path(&mut roots, current_dir);
+    }
+
+    if let Ok(exe_path) = std::env::current_exe() {
+        if let Some(exe_dir) = exe_path.parent() {
+            push_unique_path(&mut roots, exe_dir.to_path_buf());
+        }
+    }
+
+    roots
+}
+
+fn find_kain_home_in_ancestor_chain(start: &Path) -> Option<PathBuf> {
+    let mut cursor = start.to_path_buf();
+    loop {
+        let candidate = cursor.join(KAIN_HOME_DIR_NAME);
+        if looks_like_kain_home(&candidate) {
+            return Some(candidate);
+        }
+        if !cursor.pop() {
+            break;
+        }
+    }
+    None
+}
+
+fn looks_like_kain_home(path: &Path) -> bool {
+    if !path.is_dir() {
+        return false;
+    }
+
+    KAIN_HOME_SENTINEL_SUFFIXES
+        .iter()
+        .map(|suffix| path.join(suffix))
+        .any(|candidate| candidate.is_file())
+}
+
 fn find_first_existing_relative_path(
     search_roots: &[PathBuf],
     suffixes: &[&str],
@@ -241,12 +302,22 @@ fn user_home_dir() -> Option<PathBuf> {
 
 #[cfg(test)]
 mod tests {
-    use super::{canonical_kain_home_dir, default_kain_install_layout, KAIN_HOME_ENV_VAR};
+    use super::{
+        canonical_kain_home_dir, default_kain_install_layout, find_kain_home_in_ancestor_chain,
+        looks_like_kain_home, KAIN_HOME_ENV_VAR, KAIN_REPO_ROOT_ENV_VAR,
+    };
+    use once_cell::sync::Lazy;
     use std::env;
+    use std::fs;
     use std::path::PathBuf;
+    use std::sync::Mutex;
+    use tempfile::TempDir;
+
+    static INSTALL_LAYOUT_TEST_LOCK: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
 
     #[test]
     fn explicit_kain_home_env_wins() {
+        let _guard = INSTALL_LAYOUT_TEST_LOCK.lock().expect("test lock");
         let previous = env::var_os(KAIN_HOME_ENV_VAR);
         env::set_var(KAIN_HOME_ENV_VAR, "D:/test-kain-home");
 
@@ -262,6 +333,7 @@ mod tests {
 
     #[test]
     fn install_layout_derives_standard_directories() {
+        let _guard = INSTALL_LAYOUT_TEST_LOCK.lock().expect("test lock");
         let layout = default_kain_install_layout()
             .unwrap_or_else(|| super::KainInstallLayout::new(PathBuf::from("C:/Users/Test/.kain")));
         let explicit_layout = super::KainInstallLayout::new(layout.home_dir.clone());
@@ -282,5 +354,59 @@ mod tests {
             explicit_layout.install_manifest_path,
             explicit_layout.home_dir.join("install_manifest.json")
         );
+    }
+
+    #[test]
+    fn ancestor_discovery_prefers_nearest_real_kain_home() {
+        let _guard = INSTALL_LAYOUT_TEST_LOCK.lock().expect("test lock");
+        let temp_dir = TempDir::new().expect("temp dir");
+        let repo_root = temp_dir.path().join("repo");
+        let nested = repo_root.join("crates").join("cli");
+        fs::create_dir_all(&nested).expect("nested dirs");
+        fs::create_dir_all(repo_root.join(".kain")).expect("kain home dir");
+        fs::write(repo_root.join(".kain").join("config.toml"), "schema = 1\n").expect("config");
+
+        let discovered = find_kain_home_in_ancestor_chain(&nested).expect("repo-local kain home");
+        assert_eq!(discovered, repo_root.join(".kain"));
+    }
+
+    #[test]
+    fn blade_local_cache_without_control_plane_is_not_treated_as_kain_home() {
+        let _guard = INSTALL_LAYOUT_TEST_LOCK.lock().expect("test lock");
+        let temp_dir = TempDir::new().expect("temp dir");
+        let blade_root = temp_dir.path().join("blade");
+        let nested = blade_root.join("src");
+        fs::create_dir_all(blade_root.join(".kain").join("out")).expect("blade cache");
+        fs::create_dir_all(&nested).expect("nested dirs");
+
+        assert!(!looks_like_kain_home(&blade_root.join(".kain")));
+        assert!(find_kain_home_in_ancestor_chain(&nested).is_none());
+    }
+
+    #[test]
+    fn repo_root_env_allows_real_binary_to_find_repo_local_kain_home() {
+        let _guard = INSTALL_LAYOUT_TEST_LOCK.lock().expect("test lock");
+        let temp_dir = TempDir::new().expect("temp dir");
+        let repo_root = temp_dir.path().join("repo");
+        fs::create_dir_all(repo_root.join(".kain")).expect("kain home dir");
+        fs::write(repo_root.join(".kain").join("config.toml"), "schema = 1\n").expect("config");
+
+        let previous_repo_root = env::var_os(KAIN_REPO_ROOT_ENV_VAR);
+        let previous_home = env::var_os(KAIN_HOME_ENV_VAR);
+        env::set_var(KAIN_REPO_ROOT_ENV_VAR, &repo_root);
+        env::remove_var(KAIN_HOME_ENV_VAR);
+
+        let resolved = canonical_kain_home_dir();
+
+        match previous_repo_root {
+            Some(value) => env::set_var(KAIN_REPO_ROOT_ENV_VAR, value),
+            None => env::remove_var(KAIN_REPO_ROOT_ENV_VAR),
+        }
+        match previous_home {
+            Some(value) => env::set_var(KAIN_HOME_ENV_VAR, value),
+            None => env::remove_var(KAIN_HOME_ENV_VAR),
+        }
+
+        assert_eq!(resolved, Some(repo_root.join(".kain")));
     }
 }

@@ -26,7 +26,7 @@ kain build --ue5
 
 **Install:**
 ```bash
-cargo install --path crates/cli --force
+powershell -ExecutionPolicy Bypass -File scripts/windows/sync-kain-source-of-truth.ps1 -PersistUserEnv
 ```
 
 ---
@@ -776,7 +776,7 @@ let return_type = ctx.shader_knowledge.infer_return_type("dot");
 # When UE5 version changes
 python unreal/scripts/corpus_extractor.py "M:\Utility\Unreal-Corpus" --output unreal/metadata
 python unreal/scripts/shader_extractor.py "D:\Unreal\UE_5.7\Engine\Shaders" --output unreal/metadata
-cargo build --release  # Compiler auto-loads new JSON
+bazel build //:kain --config=release  # Compiler auto-loads new JSON
 ```
 
 
@@ -811,16 +811,17 @@ fn test_actor_generation() {
 
 **Run Tests:**
 ```bash
-# All tests
-cargo test
+# Canonical repo tests
+bazel test //:crate_tests --config=dev
+bazel test //:developer_smoke_tests --config=dev
 
-# Specific crate
-cargo test --package ue5
-cargo test --package ue5-editor
-cargo test --package ue5-shaders
+# Specific crate-style Bazel tests
+bazel test //crates/ue5:unit_test --config=dev
+bazel test //crates/ue5-editor:unit_test --config=dev
+bazel test //crates/ue5-shaders:unit_test --config=dev
 
-# Specific test
-cargo test --package ue5 test_actor_generation
+# Runtime lane
+bazel test //runtime:native_runtime_tests --config=dev
 ```
 
 ### Integration Tests
@@ -973,8 +974,8 @@ cat Source/MyPlugin/Generated/*.cpp
 
 4. **Run Tests:**
 ```bash
-# Run specific test
-cargo test --package ue5 test_actor_generation -- --nocapture
+# Run crate lane with output
+bazel test //crates/ue5:unit_test --config=dev --test_output=all
 ```
 
 5. **Compare with Reference:**
@@ -1042,7 +1043,7 @@ diff Source/MyPlugin/Generated/MyActor.h testing/Phase3/SlateTest4/Source/Ulta/G
 - **Finally:** Read specific system docs (`docs/DATA_DRIVEN_PIPELINE.md`, etc.)
 
 #### 2. Making Changes
-- **Always run tests** after changes: `cargo test`
+- **Always run tests** after changes: `bazel test //:developer_smoke_tests --config=dev`
 - **Check generated output** in `testing/Phase3/SlateTest4/Source/`
 - **Validate against UE5** if possible (compile in actual UE5 project)
 
@@ -1081,7 +1082,7 @@ diff Source/MyPlugin/Generated/MyActor.h testing/Phase3/SlateTest4/Source/Ulta/G
 - **Use ASCII diagrams** for architecture (more compact than text)
 
 #### 5. Quality Checklist
-- [ ] Tests pass (`cargo test`)
+- [ ] Tests pass (`bazel test //:developer_smoke_tests --config=dev`)
 - [ ] Integration test builds (`cd testing/Phase3/SlateTest4 && kain build --ue5`)
 - [ ] Generated C++ compiles (if UE5 available)
 - [ ] Documentation updated
@@ -1165,20 +1166,20 @@ Available to all codegen crates
 ### Build Commands
 ```bash
 # Build compiler
-cargo build --release
+bazel build //:kain --config=release
 
-# Install globally
-cargo install --path crates/cli --force
+# Refresh canonical launchers
+powershell -ExecutionPolicy Bypass -File scripts/windows/sync-kain-source-of-truth.ps1 -PersistUserEnv
 
 # Build plugin
 cd YourPlugin/
 kain build --ue5
 
 # Run tests
-cargo test
-cargo test --package ue5
-cargo test --package ue5-editor
-cargo test --package ue5-shaders
+bazel test //:crate_tests --config=dev
+bazel test //crates/ue5:unit_test --config=dev
+bazel test //crates/ue5-editor:unit_test --config=dev
+bazel test //crates/ue5-shaders:unit_test --config=dev
 ```
 
 ### File Patterns

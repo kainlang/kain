@@ -1,11 +1,12 @@
 import os
 import re
 import json
+from pathlib import Path
 
 # Paths
-ROOT_DIR = r"D:\Kain-Lang"
-RUNTIME_CORE_DIR = os.path.join(ROOT_DIR, "runtime", "native", "src", "core")
-OUTPUT_REPORT_PATH = os.path.join(ROOT_DIR, "z3", "reports", "mass_math_analysis.json")
+ROOT_DIR = Path(__file__).resolve().parents[2]
+RUNTIME_CORE_DIR = ROOT_DIR / "runtime" / "native" / "src" / "core"
+OUTPUT_REPORT_PATH = ROOT_DIR / "z3" / "reports" / "mass_math_analysis.json"
 
 # Rules to scan for risky patterns
 RISKY_PATTERNS = [
@@ -33,7 +34,7 @@ RISKY_PATTERNS = [
 
 def scan_file(filepath):
     results = []
-    filename = os.path.relpath(filepath, ROOT_DIR)
+    filename = os.path.relpath(filepath, str(ROOT_DIR))
     
     with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
         lines = f.readlines()
@@ -94,7 +95,7 @@ def main():
     print(f"Scanning runtime core directory: {RUNTIME_CORE_DIR} ...")
     all_findings = []
     
-    for root, _, files in os.walk(RUNTIME_CORE_DIR):
+    for root, _, files in os.walk(str(RUNTIME_CORE_DIR)):
         for file in files:
             if file.endswith((".c", ".h")):
                 filepath = os.path.join(root, file)
@@ -104,7 +105,7 @@ def main():
     # Group findings by file and rule
     print(f"Scan complete. Found {len(all_findings)} potential risky math operations.")
     
-    os.makedirs(os.path.dirname(OUTPUT_REPORT_PATH), exist_ok=True)
+    os.makedirs(OUTPUT_REPORT_PATH.parent, exist_ok=True)
     with open(OUTPUT_REPORT_PATH, "w", encoding="utf-8") as f:
         json.dump(all_findings, f, indent=4)
         

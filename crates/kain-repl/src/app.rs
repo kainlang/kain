@@ -1,22 +1,27 @@
+use arboard::Clipboard;
+use kain_core::tooling_config::normalize_ui_theme_name;
 use std::io;
 use std::time::Duration;
 
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use crossterm::execute;
-use crossterm::terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen};
+use crossterm::terminal::{
+    disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
+};
 use ratatui::backend::CrosstermBackend;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
-use ratatui::style::{Color, Modifier, Style};
+use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::{Block, Borders, Clear, Paragraph};
 use ratatui::{Frame, Terminal};
 use unicode_width::UnicodeWidthStr;
 
-use crate::command::{ReplDirective, REPL_HELP_TEXT};
+use crate::command::{parse_theme_argument, ReplDirective, REPL_HELP_TEXT};
 use crate::evaluation::{ReplEvaluation, ReplEvaluator};
 use crate::highlight::highlight_source_line;
 use crate::source::normalize_script_source;
 use crate::terminal::ReplTerminalConfig;
+use crate::theme::{active_repl_theme_name, repl_palette, repl_theme_names, ReplPalette};
 
 const TAB_WIDTH: usize = 4;
 const OUTPUT_HISTORY_LIMIT: usize = 64;
@@ -77,6 +82,7 @@ struct ReplApp {
     config: ReplTerminalConfig,
     evaluator: ReplEvaluator,
     editor: ReplEditor,
+    theme_name: String,
     output_log: Vec<OutputEntry>,
     show_help: bool,
     should_quit: bool,
@@ -90,18 +96,19 @@ impl ReplApp {
             config,
             evaluator: ReplEvaluator::default(),
             editor: ReplEditor::default(),
+            theme_name: active_repl_theme_name(),
             output_log: Vec::new(),
             show_help: false,
             should_quit: false,
             next_run_id: 0,
-            status: "Composer hot and ready. Ctrl+Enter or F5 runs the current buffer.".to_string(),
+            status: "Ready. Ctrl+Enter or F5 runs the current buffer.".to_string(),
         };
         app.push_output(
             OutputKind::Info,
-            "Kain REPL is live",
+            "Session opened",
             vec![
-                "Compose real multiline Kain in the top pane.".to_string(),
-                "Ctrl+Enter or F5 runs the buffer. Failures stay in-session so you can fix and rerun.".to_string(),
+                "Multiline source stays live between runs so you can patch and rerun quickly."
+                    .to_string(),
             ],
         );
         app
@@ -120,9 +127,12 @@ impl ReplApp {
                 code: KeyCode::Char('c'),
                 modifiers,
                 ..
-            } if modifiers.contains(KeyModifiers::CONTROL) => {
-                self.should_quit = true;
-            }
+            } if modifiers.contains(KeyModifiers::CONTROL) => self.copy_buffer_to_clipboard(),
+            KeyEvent {
+                code: KeyCode::Char('v'),
+                modifiers,
+                ..
+            } if modifiers.contains(KeyModifiers::CONTROL) => self.paste_from_clipboard(),
             KeyEvent {
                 code: KeyCode::Enter,
                 modifiers,
@@ -228,6 +238,7 @@ impl ReplApp {
                 self.editor.clear();
                 self.status = "Input buffer cleared.".to_string();
             }
+            Submission::Theme(theme) => self.apply_theme_command(theme),
             Submission::Exit => {
                 self.should_quit = true;
             }
@@ -259,7 +270,8 @@ impl ReplApp {
             Ok(evaluation) => {
                 self.push_output(OutputKind::Success, headline, evaluation_lines(&evaluation));
                 self.editor.clear();
-                self.status = format!("Run #{run_id} landed clean. Buffer reset for the next swing.");
+                self.status =
+                    format!("Run #{run_id} landed clean. Buffer reset for the next swing.");
             }
             Err(error) => {
                 let body = error
@@ -268,8 +280,9 @@ impl ReplApp {
                     .map(|line| line.to_string())
                     .collect::<Vec<_>>();
                 self.push_output(OutputKind::Error, headline, body);
-                self.status =
-                    format!("Run #{run_id} hit diagnostics. Buffer stayed live so you can patch and rerun.");
+                self.status = format!(
+                    "Run #{run_id} hit diagnostics. Buffer stayed live so you can patch and rerun."
+                );
             }
         }
     }
@@ -288,6 +301,7 @@ impl ReplApp {
 
     fn render(&mut self, frame: &mut Frame<'_>) {
         let area = frame.area();
+        let palette = repl_palette(&self.theme_name);
         let layout = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
@@ -297,61 +311,64 @@ impl ReplApp {
             ])
             .split(area);
 
-        self.render_header(frame, layout[0]);
-        self.render_body(frame, layout[1]);
-        self.render_status(frame, layout[2]);
+        self.render_header(frame, layout[0], palette);
+        self.render_body(frame, layout[1], palette);
+        self.render_status(frame, layout[2], palette);
 
         if self.show_help {
-            self.render_help_overlay(frame, area);
+            self.render_help_overlay(frame, area, palette);
         }
     }
 
-    fn render_header(&self, frame: &mut Frame<'_>, area: Rect) {
+    fn render_header(&self, frame: &mut Frame<'_>, area: Rect, palette: ReplPalette) {
         let banner = Paragraph::new(Text::from(vec![
             Line::from(vec![
                 Span::styled(
-                    " Kain REPL Beast Mode ",
-                    Style::default()
-                        .fg(Color::Rgb(255, 206, 86))
-                        .add_modifier(Modifier::BOLD),
+                    " Kain REPL Workbench ",
+                    palette.title_style(),
                 ),
                 Span::styled(
                     self.config.metadata.banner(),
-                    Style::default().fg(Color::Rgb(127, 195, 255)),
+                    Style::default().fg(palette.chrome_secondary),
                 ),
             ]),
             Line::from(vec![Span::styled(
-                " Ratatui front-end, multiline composer, syntax color, and in-session recovery after busted runs.",
-                Style::default().fg(Color::Rgb(171, 255, 118)),
+                format!(
+                    " Multiline Kain composer with {} theme, persistent buffer, and in-session diagnostics.",
+                    self.theme_name
+                ),
+                Style::default().fg(palette.text_muted),
             )]),
         ]))
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .border_style(Style::default().fg(Color::Rgb(92, 225, 230))),
+                .border_style(Style::default().fg(palette.border_focus))
+                .style(Style::default().bg(palette.panel_background)),
         );
         frame.render_widget(banner, area);
     }
 
-    fn render_body(&mut self, frame: &mut Frame<'_>, area: Rect) {
+    fn render_body(&mut self, frame: &mut Frame<'_>, area: Rect, palette: ReplPalette) {
         let panels = Layout::default()
             .direction(Direction::Vertical)
             .constraints([Constraint::Min(8), Constraint::Length(10)])
             .split(area);
-        self.render_editor(frame, panels[0]);
-        self.render_output(frame, panels[1]);
+        self.render_editor(frame, panels[0], palette);
+        self.render_output(frame, panels[1], palette);
     }
 
-    fn render_editor(&mut self, frame: &mut Frame<'_>, area: Rect) {
+    fn render_editor(&mut self, frame: &mut Frame<'_>, area: Rect, palette: ReplPalette) {
         let title = format!(
-            " Composer · {} lines · {} chars ",
+            " Editor · {} lines · {} chars ",
             self.editor.line_count(),
             self.editor.char_count()
         );
         let block = Block::default()
             .title(title)
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(Color::Rgb(255, 179, 71)));
+            .border_style(Style::default().fg(palette.border_focus))
+            .style(Style::default().bg(palette.panel_background));
         let inner = block.inner(area);
         frame.render_widget(block, area);
 
@@ -362,24 +379,25 @@ impl ReplApp {
         let gutter_width = self.editor.gutter_width();
         let columns = Layout::default()
             .direction(Direction::Horizontal)
-            .constraints([
-                Constraint::Length(gutter_width as u16),
-                Constraint::Min(1),
-            ])
+            .constraints([Constraint::Length(gutter_width as u16), Constraint::Min(1)])
             .split(inner);
 
         self.editor
             .ensure_visible(columns[1].width as usize, columns[1].height as usize);
 
-        let line_numbers = self.editor.render_line_numbers();
-        let source_lines = self.editor.render_source_lines();
+        let line_numbers = self.editor.render_line_numbers(palette);
+        let source_lines = self.editor.render_source_lines(palette);
 
         frame.render_widget(
-            Paragraph::new(line_numbers),
+            Paragraph::new(line_numbers)
+                .scroll((self.editor.scroll_y as u16, 0))
+                .style(Style::default().bg(palette.panel_background)),
             columns[0],
         );
         frame.render_widget(
-            Paragraph::new(source_lines).scroll((self.editor.scroll_y as u16, self.editor.scroll_x as u16)),
+            Paragraph::new(source_lines)
+                .scroll((self.editor.scroll_y as u16, self.editor.scroll_x as u16))
+                .style(Style::default().bg(palette.panel_background)),
             columns[1],
         );
 
@@ -387,29 +405,32 @@ impl ReplApp {
         frame.set_cursor_position((cursor_x, cursor_y));
     }
 
-    fn render_output(&self, frame: &mut Frame<'_>, area: Rect) {
+    fn render_output(&self, frame: &mut Frame<'_>, area: Rect, palette: ReplPalette) {
         let block = Block::default()
             .title(format!(" Output · {} entries ", self.output_log.len()))
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(Color::Rgb(92, 225, 230)));
+            .border_style(Style::default().fg(palette.border))
+            .style(Style::default().bg(palette.panel_background));
         let inner = block.inner(area);
         frame.render_widget(block, area);
 
-        let lines = self.output_lines();
+        let lines = self.output_lines(palette);
         let scroll_y = lines
             .len()
             .saturating_sub(inner.height as usize)
             .try_into()
             .unwrap_or(u16::MAX);
         frame.render_widget(
-            Paragraph::new(Text::from(lines)).scroll((scroll_y, 0)),
+            Paragraph::new(Text::from(lines))
+                .scroll((scroll_y, 0))
+                .style(Style::default().bg(palette.panel_background)),
             inner,
         );
     }
 
-    fn render_status(&self, frame: &mut Frame<'_>, area: Rect) {
+    fn render_status(&self, frame: &mut Frame<'_>, area: Rect, palette: ReplPalette) {
         let status = format!(
-            " Ln {}, Col {}  |  {}  |  Ctrl+Enter/F5 run  Ctrl+L clear  Ctrl+K wipe output  F1 help  Ctrl+Q quit ",
+            " Ln {}, Col {}  |  {}  |  Ctrl+Enter/F5 run  F1 help  Ctrl+Q quit ",
             self.editor.cursor_row + 1,
             self.editor.cursor_col + 1,
             self.status
@@ -418,30 +439,27 @@ impl ReplApp {
             Paragraph::new(Line::from(Span::styled(
                 status,
                 Style::default()
-                    .fg(Color::Rgb(24, 33, 45))
-                    .bg(Color::Rgb(255, 206, 86))
+                    .fg(palette.status_fg)
+                    .bg(palette.status_bg)
                     .add_modifier(Modifier::BOLD),
             ))),
             area,
         );
     }
 
-    fn render_help_overlay(&self, frame: &mut Frame<'_>, area: Rect) {
+    fn render_help_overlay(&self, frame: &mut Frame<'_>, area: Rect, palette: ReplPalette) {
         let popup = centered_rect(78, 70, area);
         let help_text = Text::from(vec![
-            Line::from(Span::styled(
-                "Kain REPL Controls",
-                Style::default()
-                    .fg(Color::Rgb(255, 206, 86))
-                    .add_modifier(Modifier::BOLD),
-            )),
+            Line::from(Span::styled("Kain REPL Controls", palette.title_style())),
             Line::raw(""),
             Line::raw("Ctrl+Enter or F5  run the current buffer"),
             Line::raw("Enter               insert a newline"),
             Line::raw("Tab                 insert four spaces"),
+            Line::raw("Ctrl+C / Ctrl+Shift+C copy the current buffer"),
+            Line::raw("Ctrl+V / Ctrl+Shift+V paste from the system clipboard"),
             Line::raw("Ctrl+L              clear the composer buffer"),
             Line::raw("Ctrl+K              clear the output pane"),
-            Line::raw("Ctrl+Q / Ctrl+C     quit the REPL"),
+            Line::raw("Ctrl+Q              quit the REPL"),
             Line::raw("F1 / Esc            toggle this help"),
             Line::raw(""),
             Line::raw("Dot directives still work when they are the whole buffer:"),
@@ -457,17 +475,18 @@ impl ReplApp {
                 Block::default()
                     .title(" Help ")
                     .borders(Borders::ALL)
-                    .border_style(Style::default().fg(Color::Rgb(171, 255, 118))),
+                    .border_style(Style::default().fg(palette.border_focus))
+                    .style(Style::default().bg(palette.panel_background)),
             ),
             popup,
         );
     }
 
-    fn output_lines(&self) -> Vec<Line<'static>> {
+    fn output_lines(&self, palette: ReplPalette) -> Vec<Line<'static>> {
         if self.output_log.is_empty() {
             return vec![Line::from(Span::styled(
-                "No output yet. Throw some Kain at it.",
-                Style::default().fg(Color::Rgb(124, 137, 154)),
+                "No runs yet.",
+                palette.muted_style(),
             ))];
         }
 
@@ -475,7 +494,7 @@ impl ReplApp {
         for entry in &self.output_log {
             lines.push(Line::from(Span::styled(
                 entry.title.clone(),
-                entry.kind.title_style(),
+                entry.kind.title_style(palette),
             )));
             for line in &entry.body {
                 lines.push(Line::from(Span::styled(
@@ -484,12 +503,79 @@ impl ReplApp {
                     } else {
                         format!("  {line}")
                     },
-                    entry.kind.body_style(),
+                    entry.kind.body_style(palette),
                 )));
             }
             lines.push(Line::raw(""));
         }
         lines
+    }
+
+    fn copy_buffer_to_clipboard(&mut self) {
+        let text = self.editor.buffer();
+        if text.trim().is_empty() {
+            self.status = "Buffer is empty. Nothing copied.".to_string();
+            return;
+        }
+        match Clipboard::new().and_then(|mut clipboard| clipboard.set_text(text)) {
+            Ok(()) => {
+                self.status = format!(
+                    "Copied {} line(s) to the system clipboard.",
+                    self.editor.line_count()
+                );
+            }
+            Err(err) => {
+                self.status = format!("Clipboard copy failed: {err}");
+            }
+        }
+    }
+
+    fn paste_from_clipboard(&mut self) {
+        match Clipboard::new().and_then(|mut clipboard| clipboard.get_text()) {
+            Ok(text) => {
+                if text.is_empty() {
+                    self.status = "Clipboard is empty.".to_string();
+                    return;
+                }
+                self.editor.insert_text(&text);
+                self.status = "Pasted clipboard contents into the buffer.".to_string();
+            }
+            Err(err) => {
+                self.status = format!("Clipboard paste failed: {err}");
+            }
+        }
+    }
+
+    fn apply_theme_command(&mut self, requested: Option<String>) {
+        match requested {
+            Some(name) => match normalize_ui_theme_name(&name) {
+                Ok(theme_name) => {
+                    self.theme_name = theme_name.clone();
+                    self.status = format!("Theme switched to {theme_name}.");
+                    self.push_output(
+                        OutputKind::Info,
+                        "Theme updated",
+                        vec![format!("Active REPL theme: {}", self.theme_name)],
+                    );
+                }
+                Err(err) => {
+                    self.status = err.clone();
+                    self.push_output(OutputKind::Error, "Theme update failed", vec![err]);
+                }
+            },
+            None => {
+                self.status = format!("Current theme: {}.", self.theme_name);
+                self.push_output(
+                    OutputKind::Info,
+                    "Available themes",
+                    vec![
+                        format!("Current theme: {}", self.theme_name),
+                        format!("Themes: {}", repl_theme_names().join(", ")),
+                        "Use `.theme <name>` to switch the live REPL palette.".to_string(),
+                    ],
+                );
+            }
+        }
     }
 }
 
@@ -498,6 +584,7 @@ enum Submission {
     Empty,
     Help,
     Clear,
+    Theme(Option<String>),
     Exit,
     Evaluate {
         source: String,
@@ -516,6 +603,9 @@ fn collect_submission(buffer: &str) -> Submission {
         return match directive {
             ReplDirective::Help => Submission::Help,
             ReplDirective::Clear => Submission::Clear,
+            ReplDirective::Theme => Submission::Theme(
+                parse_theme_argument(trimmed).expect("theme directive should parse"),
+            ),
             ReplDirective::Exit => Submission::Exit,
             ReplDirective::Run => Submission::Empty,
         };
@@ -605,25 +695,25 @@ enum OutputKind {
 }
 
 impl OutputKind {
-    fn title_style(self) -> Style {
+    fn title_style(self, palette: ReplPalette) -> Style {
         match self {
             Self::Info => Style::default()
-                .fg(Color::Rgb(127, 195, 255))
+                .fg(palette.title_info)
                 .add_modifier(Modifier::BOLD),
             Self::Success => Style::default()
-                .fg(Color::Rgb(171, 255, 118))
+                .fg(palette.title_success)
                 .add_modifier(Modifier::BOLD),
             Self::Error => Style::default()
-                .fg(Color::Rgb(255, 89, 168))
+                .fg(palette.title_error)
                 .add_modifier(Modifier::BOLD),
         }
     }
 
-    fn body_style(self) -> Style {
+    fn body_style(self, palette: ReplPalette) -> Style {
         match self {
-            Self::Info => Style::default().fg(Color::Rgb(214, 188, 139)),
-            Self::Success => Style::default().fg(Color::Rgb(230, 224, 208)),
-            Self::Error => Style::default().fg(Color::Rgb(230, 224, 208)),
+            Self::Info => Style::default().fg(palette.text_muted),
+            Self::Success => Style::default().fg(palette.text_primary),
+            Self::Error => Style::default().fg(palette.text_primary),
         }
     }
 }
@@ -678,7 +768,10 @@ impl ReplEditor {
     }
 
     fn char_count(&self) -> usize {
-        self.lines.iter().map(|line| line.chars().count()).sum::<usize>()
+        self.lines
+            .iter()
+            .map(|line| line.chars().count())
+            .sum::<usize>()
             + self.lines.len().saturating_sub(1)
     }
 
@@ -686,17 +779,17 @@ impl ReplEditor {
         self.line_count().max(1).to_string().len() + 2
     }
 
-    fn render_line_numbers(&self) -> Text<'static> {
+    fn render_line_numbers(&self, palette: ReplPalette) -> Text<'static> {
         let mut lines = Vec::with_capacity(self.lines.len());
         let width = self.gutter_width().saturating_sub(1);
         for (index, _) in self.lines.iter().enumerate() {
             let style = if index == self.cursor_row {
                 Style::default()
-                    .fg(Color::Rgb(255, 206, 86))
-                    .bg(Color::Rgb(24, 33, 45))
+                    .fg(palette.chrome_accent)
+                    .bg(palette.panel_background_active)
                     .add_modifier(Modifier::BOLD)
             } else {
-                Style::default().fg(Color::Rgb(92, 225, 230))
+                Style::default().fg(palette.chrome_muted)
             };
             lines.push(Line::from(Span::styled(
                 format!("{:>width$} ", index + 1, width = width),
@@ -706,12 +799,12 @@ impl ReplEditor {
         Text::from(lines)
     }
 
-    fn render_source_lines(&self) -> Text<'static> {
+    fn render_source_lines(&self, palette: ReplPalette) -> Text<'static> {
         let lines = self
             .lines
             .iter()
             .enumerate()
-            .map(|(index, line)| highlight_source_line(line, index == self.cursor_row))
+            .map(|(index, line)| highlight_source_line(line, index == self.cursor_row, palette))
             .collect::<Vec<_>>();
         Text::from(lines)
     }
@@ -935,6 +1028,14 @@ mod tests {
                 assert_eq!(source, "fn main() -> Int:\n    return 7");
             }
             other => panic!("expected evaluation submission, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn theme_directive_is_routed_to_theme_submission() {
+        match collect_submission(".theme plain") {
+            Submission::Theme(Some(theme)) => assert_eq!(theme, "plain"),
+            other => panic!("expected theme submission, got {other:?}"),
         }
     }
 }

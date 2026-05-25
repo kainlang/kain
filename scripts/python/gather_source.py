@@ -5,7 +5,7 @@ Useful for extracting C++ source from UE5 projects, plugins, etc.
 
 Usage:
     python gather_source.py <input_dir> <output_dir>
-    python gather_source.py "D:\UE5Projects" "M:\Kain-Lang\kain-private\plugin-corpus"
+    python gather_source.py "X:\UE5Projects" ".\plugin-corpus"
     python gather_source.py <input_dir> <output_dir> --dry-run
 """
 

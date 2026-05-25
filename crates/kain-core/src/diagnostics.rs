@@ -5,6 +5,7 @@ use crate::diagnostic_registry::spec_for_code;
 use crate::error::{DiagnosticReport, DiagnosticSeverity, KainError};
 use crate::span::Span;
 use crate::tooling_config::{active_color_preference, active_ui_theme_name};
+use kain_lattice::{theme_by_name, LatticeTheme, SemanticRole};
 use std::path::Path;
 
 /// Source location with file, line, and column information
@@ -179,94 +180,46 @@ fn normalize_origin_file_key(file: &str) -> String {
 #[derive(Debug, Clone, Copy)]
 struct DiagnosticPalette {
     enabled: bool,
-    error: &'static str,
-    warning: &'static str,
-    note: &'static str,
-    help: &'static str,
-    gutter: &'static str,
-    pointer: &'static str,
-    reset: &'static str,
+    theme: &'static LatticeTheme,
 }
 
 impl DiagnosticPalette {
-    fn paint(&self, style: &'static str, text: &str) -> String {
-        if self.enabled {
-            format!("{style}{text}{}", self.reset)
-        } else {
-            text.to_string()
-        }
+    fn paint(&self, role: SemanticRole, text: &str) -> String {
+        self.theme.ansi_paint(role, text, self.enabled)
     }
 
     fn severity_text(&self, severity: DiagnosticSeverity, text: &str) -> String {
         match severity {
-            DiagnosticSeverity::Error => self.paint(self.error, text),
-            DiagnosticSeverity::Warning => self.paint(self.warning, text),
-            DiagnosticSeverity::Note => self.paint(self.note, text),
-            DiagnosticSeverity::Help => self.paint(self.help, text),
+            DiagnosticSeverity::Error => self.paint(SemanticRole::DiagError, text),
+            DiagnosticSeverity::Warning => self.paint(SemanticRole::DiagWarning, text),
+            DiagnosticSeverity::Note => self.paint(SemanticRole::DiagNote, text),
+            DiagnosticSeverity::Help => self.paint(SemanticRole::DiagHelp, text),
         }
     }
 
     fn error_text(&self, text: &str) -> String {
-        self.paint(self.error, text)
+        self.paint(SemanticRole::DiagError, text)
     }
 
     fn note_text(&self, text: &str) -> String {
-        self.paint(self.note, text)
+        self.paint(SemanticRole::DiagNote, text)
     }
 
     fn gutter_text(&self, text: &str) -> String {
-        self.paint(self.gutter, text)
+        self.paint(SemanticRole::DiagGutter, text)
     }
 
     fn pointer_text(&self, text: &str) -> String {
-        self.paint(self.pointer, text)
+        self.paint(SemanticRole::DiagPointer, text)
     }
 }
 
 fn active_diagnostic_palette() -> DiagnosticPalette {
     let enabled = active_color_preference().should_color_stderr();
     let theme = active_ui_theme_name();
-    match theme.as_str() {
-        "ember" => DiagnosticPalette {
-            enabled,
-            error: "\x1b[1;38;2;255;102;64m",
-            warning: "\x1b[1;38;2;255;196;82m",
-            note: "\x1b[1;38;2;255;145;94m",
-            help: "\x1b[1;38;2;255;220;128m",
-            gutter: "\x1b[1;38;2;255;176;120m",
-            pointer: "\x1b[1;38;2;255;102;64m",
-            reset: "\x1b[0m",
-        },
-        "glacier" => DiagnosticPalette {
-            enabled,
-            error: "\x1b[1;38;2;255;112;146m",
-            warning: "\x1b[1;38;2;255;212;102m",
-            note: "\x1b[1;38;2;113;205;255m",
-            help: "\x1b[1;38;2;164;244;255m",
-            gutter: "\x1b[1;38;2;151;221;255m",
-            pointer: "\x1b[1;38;2;255;112;146m",
-            reset: "\x1b[0m",
-        },
-        "oxide" => DiagnosticPalette {
-            enabled,
-            error: "\x1b[1;38;2;209;84;67m",
-            warning: "\x1b[1;38;2;234;187;84m",
-            note: "\x1b[1;38;2;171;201;92m",
-            help: "\x1b[1;38;2;224;223;128m",
-            gutter: "\x1b[1;38;2;224;160;96m",
-            pointer: "\x1b[1;38;2;209;84;67m",
-            reset: "\x1b[0m",
-        },
-        _ => DiagnosticPalette {
-            enabled,
-            error: "\x1b[1;38;2;255;89;168m",
-            warning: "\x1b[1;38;2;255;206;86m",
-            note: "\x1b[1;38;2;92;225;230m",
-            help: "\x1b[1;38;2;171;255;118m",
-            gutter: "\x1b[1;38;2;92;225;230m",
-            pointer: "\x1b[1;38;2;255;89;168m",
-            reset: "\x1b[0m",
-        },
+    DiagnosticPalette {
+        enabled,
+        theme: theme_by_name(&theme),
     }
 }
 

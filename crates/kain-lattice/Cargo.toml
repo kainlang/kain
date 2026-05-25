@@ -1,0 +1,13 @@
+[package]
+name = "kain-lattice"
+version = "0.1.0"
+edition = "2021"
+description = "Semantic presentation substrate for Kain themes, diagnostics, and syntax roles"
+license = "MIT"
+
+[dependencies]
+clap = { workspace = true }
+once_cell = { workspace = true }
+ratatui = { workspace = true }
+serde = { workspace = true }
+toml = { workspace = true }

@@ -47,8 +47,8 @@ description: >-
 - Run the Kain-only crucible: `python benchmark/run.py --case semantic_singularity_crucible --languages kain --runs 1 --warmups 0 --timeout 900`
 - Run the FFI stress row inside the main suite: `python benchmark/run.py --case ffi_shared_call_stress --languages kain,rust,cpp --runs 5 --warmups 2`
 - Run several Kain-only ablations in one report: `python benchmark/run.py --case semantic_singularity,semantic_singularity_no_actor,semantic_singularity_no_entangle,semantic_singularity_no_patch,semantic_singularity_shatter_only,semantic_singularity_actor_only,semantic_singularity_converge_only --languages kain --runs 1 --warmups 0 --timeout 900`
-- Pin Kain compiler: `python benchmark/run.py --kain-exe D:\\Kain-Lang\\target\\release\\kain.exe`
-- Pin C++ compiler: `python benchmark/run.py --languages cpp --cxx D:\\Kain-Lang\\toolchain\\llvm\\bin\\clang++.exe`
+- Pin Kain compiler: `python benchmark/run.py --kain-exe target\\release\\kain.exe`
+- Pin C++ compiler: `python benchmark/run.py --languages cpp --cxx toolchain\\llvm\\bin\\clang++.exe`
 - Pin Zig compiler: `python benchmark/run.py --case native_map_lookup --languages zig --zig C:\\Users\\Admin\\scoop\\shims\\zig.exe`
 - Pin Go compiler: `python benchmark/run.py --case http_server_frameworks --languages go --go C:\\Program Files\\Go\\bin\\go.exe`
 - Pin Erlang tools: `python benchmark/run.py --case actor_mailbox_erlang --languages erlang --erl "C:\\Program Files\\Erlang OTP\\bin\\erl.exe" --erlc "C:\\Program Files\\Erlang OTP\\bin\\erlc.exe"`
@@ -116,7 +116,7 @@ description: >-
 - Build proof from repo root:
 
 ```powershell
-.\.agents\skills\kain-blade-workspace\scripts\compile_kain_blade_to_root.ps1 -Entry benchmark\blades\kain-benchmark\src\main.kn -OutputName D:\Kain-Lang\benchmark\kain-benchmark.exe -ArtifactRoot .kain\out -VerifyLlvm
+.\.agents\skills\kain-blade-workspace\scripts\compile_kain_blade_to_root.ps1 -Entry benchmark\blades\kain-benchmark\src\main.kn -OutputName benchmark\kain-benchmark.exe -ArtifactRoot .kain\out -VerifyLlvm
 ```
 
 - Validate the blade with `KAIN_NATIVE_UI_WIN32_GL_SCREENSHOT_PATH` and `KAIN_NATIVE_UI_WIN32_GL_AUTO_EXIT_AFTER_FRAMES`.

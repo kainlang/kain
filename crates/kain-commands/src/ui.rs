@@ -1,23 +1,26 @@
 use std::io::IsTerminal;
 
-use clap::builder::styling::{AnsiColor, Effects, Styles};
+use clap::builder::styling::Styles;
 use clap::{ColorChoice, Command};
+use kain_lattice::{theme_banner_accent, theme_by_name};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CommandUiTheme {
-    Hyperpop,
-    Ember,
-    Glacier,
-    Oxide,
+    Plain,
+    Slate,
+    Graphite,
+    Arctic,
+    Sandstone,
 }
 
 impl CommandUiTheme {
     pub fn from_name(name: &str) -> Self {
         match name.trim().to_ascii_lowercase().as_str() {
-            "ember" => Self::Ember,
-            "glacier" => Self::Glacier,
-            "oxide" => Self::Oxide,
-            _ => Self::Hyperpop,
+            "plain" => Self::Plain,
+            "graphite" | "oxide" => Self::Graphite,
+            "arctic" | "glacier" => Self::Arctic,
+            "sandstone" | "ember" => Self::Sandstone,
+            _ => Self::Slate,
         }
     }
 }
@@ -49,40 +52,7 @@ fn should_emit_manual_color(choice: ColorChoice) -> bool {
 }
 
 fn styles_for_theme(theme: CommandUiTheme) -> Styles {
-    match theme {
-        CommandUiTheme::Hyperpop => Styles::styled()
-            .header(AnsiColor::BrightCyan.on_default().effects(Effects::BOLD))
-            .usage(AnsiColor::BrightMagenta.on_default().effects(Effects::BOLD))
-            .literal(AnsiColor::BrightYellow.on_default().effects(Effects::BOLD))
-            .placeholder(AnsiColor::BrightGreen.on_default())
-            .error(AnsiColor::BrightRed.on_default().effects(Effects::BOLD))
-            .valid(AnsiColor::BrightCyan.on_default().effects(Effects::BOLD))
-            .invalid(AnsiColor::BrightYellow.on_default().effects(Effects::BOLD)),
-        CommandUiTheme::Ember => Styles::styled()
-            .header(AnsiColor::BrightRed.on_default().effects(Effects::BOLD))
-            .usage(AnsiColor::BrightYellow.on_default().effects(Effects::BOLD))
-            .literal(AnsiColor::BrightMagenta.on_default().effects(Effects::BOLD))
-            .placeholder(AnsiColor::BrightCyan.on_default())
-            .error(AnsiColor::BrightRed.on_default().effects(Effects::BOLD))
-            .valid(AnsiColor::BrightGreen.on_default().effects(Effects::BOLD))
-            .invalid(AnsiColor::BrightYellow.on_default().effects(Effects::BOLD)),
-        CommandUiTheme::Glacier => Styles::styled()
-            .header(AnsiColor::BrightBlue.on_default().effects(Effects::BOLD))
-            .usage(AnsiColor::BrightCyan.on_default().effects(Effects::BOLD))
-            .literal(AnsiColor::BrightWhite.on_default().effects(Effects::BOLD))
-            .placeholder(AnsiColor::BrightBlue.on_default())
-            .error(AnsiColor::BrightRed.on_default().effects(Effects::BOLD))
-            .valid(AnsiColor::BrightGreen.on_default().effects(Effects::BOLD))
-            .invalid(AnsiColor::BrightYellow.on_default().effects(Effects::BOLD)),
-        CommandUiTheme::Oxide => Styles::styled()
-            .header(AnsiColor::Red.on_default().effects(Effects::BOLD))
-            .usage(AnsiColor::Yellow.on_default().effects(Effects::BOLD))
-            .literal(AnsiColor::Green.on_default().effects(Effects::BOLD))
-            .placeholder(AnsiColor::BrightWhite.on_default())
-            .error(AnsiColor::BrightRed.on_default().effects(Effects::BOLD))
-            .valid(AnsiColor::Green.on_default().effects(Effects::BOLD))
-            .invalid(AnsiColor::Yellow.on_default().effects(Effects::BOLD)),
-    }
+    theme_by_name(command_theme_name(theme)).clap_styles()
 }
 
 fn render_help_banner(preferences: CommandUiPreferences<'_>) -> String {
@@ -98,12 +68,19 @@ fn render_help_banner(preferences: CommandUiPreferences<'_>) -> String {
         );
     }
 
-    let (lead, accent, _tail) = match preferences.theme {
-        CommandUiTheme::Hyperpop => ("\x1b[38;2;92;225;230m", "\x1b[38;2;255;89;168m", "\x1b[38;2;255;206;86m"),
-        CommandUiTheme::Ember => ("\x1b[38;2;255;119;51m", "\x1b[38;2;255;184;77m", "\x1b[38;2;255;84;112m"),
-        CommandUiTheme::Glacier => ("\x1b[38;2;113;205;255m", "\x1b[38;2;171;244;255m", "\x1b[38;2;214;230;255m"),
-        CommandUiTheme::Oxide => ("\x1b[38;2;210;90;58m", "\x1b[38;2;255;185;90m", "\x1b[38;2;196;214;110m"),
-    };
+    if matches!(preferences.theme, CommandUiTheme::Plain) {
+        let tagline = match preferences.bin {
+            "blade" => "workspace forge / build graph blade runner",
+            "kn" => "run-first launcher / hot authoring lane",
+            _ => "compiler / interop / native weirdness",
+        };
+        return format!(
+            " {bin:^6}\n {tagline}\n",
+            bin = preferences.bin.to_ascii_uppercase()
+        );
+    }
+
+    let (accent, lead) = theme_banner_accent(command_theme_name(preferences.theme));
     let reset = "\x1b[0m";
     let tagline = match preferences.bin {
         "blade" => "workspace forge / build graph blade runner",
@@ -117,15 +94,20 @@ fn render_help_banner(preferences: CommandUiPreferences<'_>) -> String {
 }
 
 fn render_help_footer(preferences: CommandUiPreferences<'_>) -> String {
-    let theme_name = match preferences.theme {
-        CommandUiTheme::Hyperpop => "hyperpop",
-        CommandUiTheme::Ember => "ember",
-        CommandUiTheme::Glacier => "glacier",
-        CommandUiTheme::Oxide => "oxide",
-    };
+    let theme_name = command_theme_name(preferences.theme);
     format!(
-        "Theme: {theme_name}  Override: --theme <name> --color <auto|always|never>  Config: ~/.kain/config.toml"
+        "Theme: {theme_name}  Override: --theme <name> --color <auto|always|never>  Config: nearest .kain/config.toml, KAIN_CONFIG, or KAIN_HOME/config.toml"
     )
+}
+
+fn command_theme_name(theme: CommandUiTheme) -> &'static str {
+    match theme {
+        CommandUiTheme::Plain => "plain",
+        CommandUiTheme::Slate => "slate",
+        CommandUiTheme::Graphite => "graphite",
+        CommandUiTheme::Arctic => "arctic",
+        CommandUiTheme::Sandstone => "sandstone",
+    }
 }
 
 fn leak_string(value: String) -> &'static str {

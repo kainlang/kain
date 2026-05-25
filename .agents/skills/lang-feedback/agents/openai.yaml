@@ -1,4 +1,4 @@
 interface:
   display_name: "Lang Feedback"
   short_description: "Log systemic Kain blockers after .kn or project work"
-  default_prompt: "After Kain authoring/review work, append only fundamental language/toolchain workflow blockers to D:\\Kain-Lang\\FEEDBACK.md using concise issue titles and flat bullets; skip writing when no qualifying blocker exists."
+  default_prompt: "After Kain authoring/review work, append only fundamental language/toolchain workflow blockers to repo-root FEEDBACK.md using concise issue titles and flat bullets; skip writing when no qualifying blocker exists."

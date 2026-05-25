@@ -1,3 +1,4 @@
+use crate::command::parse_theme_argument;
 use crate::command::ReplDirective;
 use crate::source::normalize_script_source;
 
@@ -7,6 +8,7 @@ pub enum ReplLineAction {
     Exit,
     Clear,
     Help,
+    Theme(Option<String>),
     Evaluate(String),
 }
 
@@ -49,6 +51,11 @@ impl ReplSession {
                 return self.take_buffer_for_evaluation_if_present();
             }
             Some(ReplDirective::Help) => return ReplLineAction::Help,
+            Some(ReplDirective::Theme) => {
+                return ReplLineAction::Theme(
+                    parse_theme_argument(trimmed).expect("theme directive should parse"),
+                );
+            }
             None => {}
         }
 
@@ -113,6 +120,16 @@ mod tests {
         let mut session = ReplSession::new();
         session.accept_raw_line("fn main() -> Int:\n");
         assert_eq!(session.accept_raw_line(".clear\n"), ReplLineAction::Clear);
+        assert!(session.buffered_source().is_empty());
+    }
+
+    #[test]
+    fn theme_command_is_reported_without_touching_the_buffer() {
+        let mut session = ReplSession::new();
+        assert_eq!(
+            session.accept_raw_line(".theme plain\n"),
+            ReplLineAction::Theme(Some("plain".to_string()))
+        );
         assert!(session.buffered_source().is_empty());
     }
 }

@@ -163,7 +163,7 @@ mod tests {
             .with_argument("--serve")
             .with_argument("stdio")
             .with_environment("KAIN_MODE", "native")
-            .with_current_working_directory("D:/Kain-Lang");
+            .with_current_working_directory("repo");
         assert_eq!(
             spec.arguments,
             vec!["--serve".to_string(), "stdio".to_string()]
@@ -171,10 +171,7 @@ mod tests {
         assert_eq!(spec.environment.len(), 1);
         assert_eq!(spec.environment[0].key, "KAIN_MODE");
         assert_eq!(spec.environment[0].value, "native");
-        assert_eq!(
-            spec.current_working_directory.as_deref(),
-            Some("D:/Kain-Lang")
-        );
+        assert_eq!(spec.current_working_directory.as_deref(), Some("repo"));
     }
 
     #[test]
@@ -190,14 +187,14 @@ mod tests {
     #[test]
     fn current_process_info_is_plain_data() {
         let info = CurrentProcessInfo {
-            executable_path: "D:/Kain-Lang/kg.exe".to_string(),
+            executable_path: "repo/kg.exe".to_string(),
             arguments: vec!["kg.exe".to_string(), "needle".to_string()],
-            current_working_directory: "D:/Kain-Lang".to_string(),
+            current_working_directory: "repo".to_string(),
             operating_system_process_id: Some(77),
         };
         assert_eq!(info.arguments.len(), 2);
         assert_eq!(info.arguments[1], "needle");
-        assert_eq!(info.current_working_directory, "D:/Kain-Lang");
+        assert_eq!(info.current_working_directory, "repo");
         assert_eq!(info.operating_system_process_id, Some(77));
     }
 }

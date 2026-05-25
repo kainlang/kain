@@ -93,6 +93,9 @@ unreal/UE_API/
 generated/**/.~lock.*
 smoketest/**/.kain/cache/
 **/.kain/
+!/.kain/
+/.kain/*
+!/.kain/config.toml
 toolchain/llvm/bin/clang
 toolchain/llvm/bin/clang++
 toolchain/llvm/bin/clang*.exe

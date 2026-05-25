@@ -8,7 +8,7 @@ Run individual files with:
 
 ```powershell
 Get-Content runtime\native\src\core\z3\proofs-experimental\<file>.smt2 -Raw |
-  & C:\Users\Admin\.local\tools\z3-4.16.0\bin\z3.exe -smt2 -in
+  z3 -smt2 -in
 ```
 
 Current references:

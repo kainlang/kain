@@ -2321,14 +2321,12 @@ fn build_stage2_workspace(workspace_dir: &Path) -> KainResult<Stage2BuildResult>
         .args(["build", "-p", "cli", "--bin", "kain"])
         .current_dir(workspace_dir);
     apply_cargo_command_defaults(&mut command);
-    let output = command
-        .output()
-        .map_err(|err| {
-            KainError::runtime(format!(
-                "Failed to run cargo build in stage2 workspace: {}",
-                err
-            ))
-        })?;
+    let output = command.output().map_err(|err| {
+        KainError::runtime(format!(
+            "Failed to run cargo build in stage2 workspace: {}",
+            err
+        ))
+    })?;
 
     let mut log = String::new();
     log.push_str(&String::from_utf8_lossy(&output.stdout));

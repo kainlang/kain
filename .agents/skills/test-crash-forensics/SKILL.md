@@ -41,11 +41,11 @@ Use this skill for post-crash evidence gathering and deterministic native repro 
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\tools\crash-forensics\analyze_native_crash.ps1 `
-  -ExePath D:\Kain-Lang\blades\kaintana-test\kaintana-test.exe `
+  -ExePath blades\kaintana-test\kaintana-test.exe `
   -DumpPath $env:LOCALAPPDATA\CrashDumps\kaintana-test.exe.12345.dmp `
-  -LlvmPath D:\Kain-Lang\blades\kaintana-test\.kain\out\kaintana-test\kaintana-test.ll `
-  -FrameReportPath D:\Kain-Lang\blades\kaintana-test\.kain\run\kaintana_test_desktop_frame.txt `
-  -HostReportPath D:\Kain-Lang\blades\kaintana-test\.kain\run\kaintana_test_desktop_host.txt
+  -LlvmPath blades\kaintana-test\.kain\out\kaintana-test\kaintana-test.ll `
+  -FrameReportPath blades\kaintana-test\.kain\run\kaintana_test_desktop_frame.txt `
+  -HostReportPath blades\kaintana-test\.kain\run\kaintana_test_desktop_host.txt
 blades\kaintana-test\run.ps1 -FrameBudget 300
 blades\pong\run.ps1 -FrameBudget 300
 ```

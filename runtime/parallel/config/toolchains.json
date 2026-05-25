@@ -2,12 +2,12 @@
   "schema_version": 1,
   "tools": {
     "cargo": {
-      "command": "C:/Users/Admin/.cargo/bin/cargo.exe",
+      "command": "cargo",
       "fallback": []
     },
     "zig": {
-      "command": "C:/Users/Admin/scoop/shims/zig.exe",
-      "fallback": ["zig"]
+      "command": "zig",
+      "fallback": []
     },
     "clang": {
       "env": "KAIN_CLANG_PATH"

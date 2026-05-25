@@ -10,6 +10,7 @@ members = [
     "crates/kain-input",
     "crates/kain-net",
     "crates/kain-process",
+    "crates/kain-lattice",
     "crates/kain-repl",
     "crates/kain-check",
     "crates/kain-test",

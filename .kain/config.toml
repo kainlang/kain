@@ -1,0 +1,16 @@
+# Repo-local Kain control plane for compiler/runtime development.
+# The Bazel launchers export KAIN_HOME/KAIN_CONFIG into this tree so fresh
+# clones exercise the same config surface instead of silently drifting into
+# ~/.kain during repo work.
+
+schema = 1
+
+[build]
+jobs = "smart"
+
+[ui]
+color = "auto"
+# `hyperpop` normalizes to the current `slate` theme, while still loading on
+# slightly older stamped binaries during repo bootstrap.
+theme = "hyperpop"
+experimental_help = true

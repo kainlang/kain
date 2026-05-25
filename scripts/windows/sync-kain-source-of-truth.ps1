@@ -367,16 +367,31 @@ function Convert-ToStringArray {
     return $result
 }
 
+function Resolve-ConfiguredPath {
+    param(
+        [Parameter(Mandatory = $true)][string]$RepoRoot,
+        [Parameter(Mandatory = $true)][string]$Value
+    )
+
+    $expanded = [Environment]::ExpandEnvironmentVariables($Value)
+    if ($expanded.StartsWith("~")) {
+        $expanded = Join-Path $HOME ($expanded.TrimStart("~\/"))
+    }
+    if (-not [System.IO.Path]::IsPathRooted($expanded)) {
+        $expanded = Join-Path $RepoRoot $expanded
+    }
+    return [System.IO.Path]::GetFullPath($expanded)
+}
+
 function Resolve-ConfiguredPathList {
-    param([Parameter(Mandatory = $true)]$Value)
+    param(
+        [Parameter(Mandatory = $true)][string]$RepoRoot,
+        $Value = @()
+    )
 
     $results = @()
     foreach ($item in (Convert-ToStringArray -Value $Value)) {
-        $expanded = [Environment]::ExpandEnvironmentVariables($item)
-        if ($expanded.StartsWith("~")) {
-            $expanded = Join-Path $HOME ($expanded.TrimStart("~\/"))
-        }
-        $results += [System.IO.Path]::GetFullPath($expanded)
+        $results += Resolve-ConfiguredPath -RepoRoot $RepoRoot -Value ([string]$item)
     }
     return $results
 }
@@ -395,21 +410,20 @@ function Load-RuntimePolicy {
 }
 
 function Resolve-SyncStateRoot {
-    param([Parameter(Mandatory = $true)]$SyncPolicy)
+    param(
+        [Parameter(Mandatory = $true)][string]$RepoRoot,
+        [Parameter(Mandatory = $true)]$SyncPolicy
+    )
     $envKey = [string](Get-HashValue -Table $SyncPolicy -Key "state_root_env_key" -DefaultValue "KAIN_SYNC_ROOT")
     $envOverride = [string](Get-Item -Path ("Env:" + $envKey) -ErrorAction SilentlyContinue).Value
     if (-not [string]::IsNullOrWhiteSpace($envOverride)) {
-        return [System.IO.Path]::GetFullPath([Environment]::ExpandEnvironmentVariables($envOverride))
+        return Resolve-ConfiguredPath -RepoRoot $RepoRoot -Value $envOverride
     }
 
-    $defaultRoot = if ($IsWindows) { "%USERPROFILE%\.kain" } else { "~/.kain" }
+    $defaultRoot = ".kain/state"
     $configKey = if ($IsWindows) { "default_state_root_windows" } else { "default_state_root_unix" }
     $configured = [string](Get-HashValue -Table $SyncPolicy -Key $configKey -DefaultValue $defaultRoot)
-    $expanded = [Environment]::ExpandEnvironmentVariables($configured)
-    if ($expanded.StartsWith("~")) {
-        $expanded = Join-Path $HOME ($expanded.TrimStart("~\/"))
-    }
-    return [System.IO.Path]::GetFullPath($expanded)
+    return Resolve-ConfiguredPath -RepoRoot $RepoRoot -Value $configured
 }
 
 function Resolve-StatePath {
@@ -738,7 +752,7 @@ if ([string]::IsNullOrWhiteSpace($repoRoot) -or -not (Test-Path $repoRoot)) {
 
 $runtimePolicy = Load-RuntimePolicy -RepoRoot $repoRoot
 $syncPolicy = Get-HashValue -Table $runtimePolicy -Key "launcher_sync" -DefaultValue @{}
-$stateRoot = Resolve-SyncStateRoot -SyncPolicy $syncPolicy
+$stateRoot = Resolve-SyncStateRoot -RepoRoot $repoRoot -SyncPolicy $syncPolicy
 $lockPath = Resolve-StatePath -StateRoot $stateRoot -SyncPolicy $syncPolicy -Key "lock_relative_path" -DefaultRelative "locks/sync.lock"
 $stampPath = if (-not [string]::IsNullOrWhiteSpace($env:KAIN_SYNC_STAMP_PATH)) {
     [System.IO.Path]::GetFullPath($env:KAIN_SYNC_STAMP_PATH)
@@ -757,11 +771,15 @@ if (-not (Test-Path $launcherScriptPath)) {
     throw ("Bazel launcher script not found at " + $launcherScriptPath)
 }
 $sharedLauncherDir = if (-not [string]::IsNullOrWhiteSpace($env:KAIN_BAZEL_LAUNCHER_DIR)) {
-    [System.IO.Path]::GetFullPath([Environment]::ExpandEnvironmentVariables($env:KAIN_BAZEL_LAUNCHER_DIR))
+    Resolve-ConfiguredPath -RepoRoot $repoRoot -Value $env:KAIN_BAZEL_LAUNCHER_DIR
 } else {
-    [System.IO.Path]::GetFullPath([Environment]::ExpandEnvironmentVariables([string](Get-HashValue -Table $syncPolicy -Key "shared_launcher_dir_windows" -DefaultValue "D:/Kain-Bazel/bin")))
+    Resolve-ConfiguredPath -RepoRoot $repoRoot -Value ([string](Get-HashValue -Table $syncPolicy -Key "shared_launcher_dir_windows" -DefaultValue ".kain/bin"))
 }
-$shadowLauncherDirs = Resolve-ConfiguredPathList -Value (Get-HashValue -Table $syncPolicy -Key "shadow_launcher_dirs_windows" -DefaultValue @("%USERPROFILE%/.kain/bin", "%USERPROFILE%/.cargo/bin"))
+$configuredShadowLauncherDirs = Get-HashValue -Table $syncPolicy -Key "shadow_launcher_dirs_windows" -DefaultValue @()
+if ($null -eq $configuredShadowLauncherDirs) {
+    $configuredShadowLauncherDirs = @()
+}
+$shadowLauncherDirs = Resolve-ConfiguredPathList -RepoRoot $repoRoot -Value $configuredShadowLauncherDirs
 $bazelConfig = if (-not [string]::IsNullOrWhiteSpace($env:KAIN_BAZEL_CONFIG)) {
     $env:KAIN_BAZEL_CONFIG
 } else {
@@ -780,7 +798,10 @@ $primaryBinary = $binaryTargets | Where-Object { $_.Name -eq "kain" } | Select-O
 $resolvedClangPath = Resolve-ClangPath -RepoRoot $repoRoot
 $resolvedPythonPath = Resolve-PythonPath
 $resolvedRustcPath = Resolve-RustcPath
+$repoKainHome = [System.IO.Path]::GetFullPath((Join-Path $repoRoot ".kain"))
+$repoKainConfigPath = Join-Path $repoKainHome "config.toml"
 New-Item -ItemType Directory -Force -Path $sharedLauncherDir | Out-Null
+$null = New-Item -ItemType Directory -Force -Path $repoKainHome
 $sessionPathPrefixes = @($sharedLauncherDir)
 $launcherShimTemplatePath = Join-Path $stateRoot "artifacts\kain_bazel_cli_launcher.exe"
 
@@ -790,6 +811,8 @@ if ($resolvedClangPath) {
 
 $resourceMap = [ordered]@{
     "KAIN_REPO_ROOT" = $repoRoot
+    "KAIN_HOME" = $repoKainHome
+    "KAIN_CONFIG" = $repoKainConfigPath
     "KAIN_STDLIB_PATH" = (Join-Path $repoRoot "stdlib")
     "KAIN_RUNTIME_C_PATH" = (Join-Path $repoRoot "runtime\runtime.c")
     "KAIN_RUNTIME_MANIFEST_PATH" = (Join-Path $repoRoot "runtime\native_core_runtime.toml")

@@ -44,7 +44,7 @@ cargo check -p kain-build -p kain-run -p kain-check -p kain-test -p kain-blades 
 If module resolution or import guard math changed, also run:
 
 ```powershell
-uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path D:\Kain-Lang\crates\kain-core --lane full
+uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path crates\kain-core --lane full
 ```
 
 ## Guardrails

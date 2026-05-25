@@ -1,6 +1,6 @@
 ---
 name: lang-feedback
-description: Use when an agent has finished authoring, reviewing, debugging, or validating Kain `.kn` files or Kain project/system work and should optionally record fundamental language or toolchain workflow blockers in `D:\Kain-Lang\FEEDBACK.md` for future agents. Log only systemic issues in Kain/compiler/runtime/stdlib/tooling surfaces; do not log mistakes in the code the agent just wrote. If no qualifying issue exists, skip writing feedback.
+description: Use when an agent has finished authoring, reviewing, debugging, or validating Kain `.kn` files or Kain project/system work and should optionally record fundamental language or toolchain workflow blockers in repo-root `FEEDBACK.md` for future agents. Log only systemic issues in Kain/compiler/runtime/stdlib/tooling surfaces; do not log mistakes in the code the agent just wrote. If no qualifying issue exists, skip writing feedback.
 ---
 
 # Lang Feedback
@@ -27,7 +27,7 @@ Do not record:
 
 If no qualifying issue exists, write nothing.
 
-If qualifying issues exist, append to `D:\Kain-Lang\FEEDBACK.md` without deleting prior entries.
+If qualifying issues exist, append to repo-root `FEEDBACK.md` without deleting prior entries.
 
 When `FEEDBACK.md` is empty, add:
 

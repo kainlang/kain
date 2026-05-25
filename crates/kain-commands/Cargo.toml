@@ -6,6 +6,7 @@ build = "build.rs"
 
 [dependencies]
 clap = { workspace = true }
+kain-lattice = { path = "../kain-lattice" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }

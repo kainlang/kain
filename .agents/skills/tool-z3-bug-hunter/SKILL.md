@@ -1,6 +1,6 @@
 ---
 name: tool-z3-bug-hunter
-description: 'Use with an owning subsystem skill when auditing Kain compiler, runtime, stdlib, tooling, or authored-system surfaces for real bugs, weird edge cases, invariant breaks, miscompiles, crashes, race windows, ABI/layout mistakes, or other solver-checkable failures. This is the exploratory sibling to `tool-z3-black-magic`: hunt and log defects into `D:\Kain-Lang\BUGS.md`, especially with Z3-backed evidence, but do not fix them here.'
+description: 'Use with an owning subsystem skill when auditing Kain compiler, runtime, stdlib, tooling, or authored-system surfaces for real bugs, weird edge cases, invariant breaks, miscompiles, crashes, race windows, ABI/layout mistakes, or other solver-checkable failures. This is the exploratory sibling to `tool-z3-black-magic`: hunt and log defects into repo-root `BUGS.md`, especially with Z3-backed evidence, but do not fix them here.'
 ---
 
 
@@ -17,7 +17,7 @@ description: 'Use with an owning subsystem skill when auditing Kain compiler, ru
 - This is a logging pipeline, not a repair lane. Confirm, minimize, and record the bug; do not silently fix it as part of this skill.
 - Prefer concrete evidence over vibes: solver witness, crash text, failing command, minimized input, proof report, or deterministic observed misbehavior.
 - Pair the hunt with the owning subsystem validation loop, but do not let passing tests overrule a real counterexample.
-- **CRITICAL / MANDATORY**: Every logged bug entry MUST be mathematically verified and accompanied by a dedicated Z3 proof file (YAML/SMT2). You MUST save this proof under the nearest subsystem's `z3/proofs/` directory and explicitly document its absolute `file:///` path under the `- Z3 Proof:` field of the bug entry. Bug entries without a verified Z3 proof path are strictly invalid.
+- **CRITICAL / MANDATORY**: Every logged bug entry MUST be mathematically verified and accompanied by a dedicated Z3 proof file (YAML/SMT2). You MUST save this proof under the nearest subsystem's `z3/proofs/` directory and explicitly document its repo-root-relative path under the `- Z3 Proof:` field of the bug entry. Bug entries without a verified proof path are strictly invalid.
 - IF A BUG is proved unsat, make sure to update and add a comment to the corresponding line of code with this format (using an existing comment as an example)   /* Proof: runtime/native/src/core/z3/proofs/actor-supervision-restart-count-stays-within-window-limit.yaml */
 
 ## Hunt Loop
@@ -26,7 +26,7 @@ description: 'Use with an owning subsystem skill when auditing Kain compiler, ru
 2. Inspect the pointed code for closed domains, masks, bounds math, pointer offsets, packed fields, state transitions, concurrency handoffs, lowering mismatches, and other finite surfaces where the machine can search harder than a human.
 3. Use the right `mcp__z3_local__` tool for the failure shape.
 4. Minimize the witness until a future agent can rerun it without reconstructing your whole session.
-5. Append only real, reproducible bugs to `D:\Kain-Lang\BUGS.md`. Each entry MUST include the absolute `file:///` path to the supporting Z3 proof file under the required `- Z3 Proof:` line.
+5. Append only real, reproducible bugs to repo-root `BUGS.md`. Each entry MUST include the repo-root-relative path to the supporting Z3 proof file under the required `- Z3 Proof:` line.
 6. If the solver cannot model the issue and you lack strong runtime evidence, log nothing.
 
 ## Z3 Lens
@@ -44,7 +44,7 @@ description: 'Use with an owning subsystem skill when auditing Kain compiler, ru
 
 If no qualifying bug exists, write nothing.
 
-If qualifying bugs exist, append to `D:\Kain-Lang\BUGS.md` without deleting prior entries.
+If qualifying bugs exist, append to repo-root `BUGS.md` without deleting prior entries.
 
 When `BUGS.md` is empty, add:
 
@@ -69,7 +69,7 @@ Use this exact structure so future LLMs can scan and triage quickly:
 - Minimal repro: <command/file/input/seed>
 - Evidence: <error text, report path, solver result, or crash artifact>
 - Z3 angle: <what was proved, disproved, or still needs modeling>
-- Z3 Proof: [proof-name](file:///absolute/path/to/proof.yaml)  <-- MANDATORY: The absolute file:/// path to the verified Z3 YAML/SMT2 proof file.
+- Z3 Proof: [proof-name](runtime/native/src/core/z3/proofs/proof-name.yaml)  <-- MANDATORY: The repo-root-relative path to the verified Z3 YAML/SMT2 proof file.
 - Suggested follow-up: <small concrete next move for a future fixing agent>
 ```
 

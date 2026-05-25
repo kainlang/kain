@@ -1782,8 +1782,7 @@ pub fn build_ue5_plugin_with_options(embed_kain: bool) -> KainResult<()> {
 
         // 2. Walk up from CWD — works when running `kain build --ue5` from any plugin dir.
         //    Looks for an ancestor directory that contains unreal/metadata/module_graph.json.
-        //    This correctly finds the KAIN root (e.g. M:\Kain-Lang\kain-private\kain\) even
-        //    when CWD is M:\Kain-Lang\kain-private\kain\testing\Phase3\SlateTest4\.
+        //    This correctly finds the KAIN root even when CWD is a nested plugin test dir.
         let from_cwd_walk = {
             let mut dir = cwd.clone();
             let mut found = None;

@@ -3831,19 +3831,10 @@ fn normalize_optional_config_string(value: &str) -> Option<String> {
 }
 
 fn normalize_theme_config_value(value: &str) -> Result<String, String> {
-    let normalized = value.trim().to_ascii_lowercase();
-    if normalized.is_empty() {
+    if value.trim().is_empty() {
         return Err("theme value cannot be empty".to_string());
     }
-    if kain_core::tooling_config::supported_theme_names().contains(&normalized.as_str()) {
-        Ok(normalized)
-    } else {
-        Err(format!(
-            "unknown Kain theme `{}`; expected one of {}",
-            value.trim(),
-            kain_core::tooling_config::supported_theme_names().join(", ")
-        ))
-    }
+    kain_core::tooling_config::normalize_ui_theme_name(value)
 }
 
 fn apply_config_key_value(
@@ -5280,7 +5271,7 @@ mod tests {
         );
         assert!(config.build.cargo_jobs.is_none());
         assert!(config.build.native_jobs.is_none());
-        assert_eq!(config.ui.theme.as_deref(), Some("ember"));
+        assert_eq!(config.ui.theme.as_deref(), Some("sandstone"));
         assert_eq!(config.ui.color, Some(KainColorPreference::Never));
         assert_eq!(config.ui.experimental_help, Some(false));
     }

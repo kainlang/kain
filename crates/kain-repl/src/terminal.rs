@@ -97,6 +97,18 @@ where
                     return false;
                 }
             }
+            ReplLineAction::Theme(theme) => {
+                let message = match theme {
+                    Some(name) => format!(
+                        " Theme switching is available in the TUI REPL. Requested theme: {name}"
+                    ),
+                    None => " Theme switching is available in the TUI REPL via `.theme <name>`."
+                        .to_string(),
+                };
+                if writeln!(output, "{message}").is_err() {
+                    return false;
+                }
+            }
             ReplLineAction::Evaluate(source) => {
                 if evaluate_and_write(&evaluator, &config, &source, &mut output, &mut error)
                     .is_err()

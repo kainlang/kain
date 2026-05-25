@@ -1,10 +1,10 @@
-use crate::CompileTarget;
 use kain_core::ast::{Item, Program};
 use kain_core::diagnostics::SpanMapper;
 use kain_core::format_program;
 use kain_core::lexer::Lexer;
 use kain_core::parser::Parser;
 use kain_core::tooling_config::apply_cargo_command_defaults;
+use kain_core::CompileTarget;
 use kain_driver::{write_compute_residency_sidecars, COMPUTE_RESIDENCY_FILE_NAME};
 use std::fs;
 use std::path::{Path, PathBuf};

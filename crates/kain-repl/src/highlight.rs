@@ -1,16 +1,22 @@
 use kain_core::lexer::TokenKind;
+use kain_lattice::{semantic_role_for_catalog_word, SemanticRole};
 use logos::Logos;
-use ratatui::style::{Color, Modifier, Style};
+use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 
 use crate::command::ReplDirective;
+use crate::theme::ReplPalette;
 
-pub fn highlight_source_line(source: &str, is_current_line: bool) -> Line<'static> {
+pub fn highlight_source_line(
+    source: &str,
+    is_current_line: bool,
+    palette: ReplPalette,
+) -> Line<'static> {
     if let Some(line) = highlight_directive_line(source, is_current_line) {
         return line;
     }
 
-    let base_style = base_line_style(is_current_line);
+    let base_style = base_line_style(is_current_line, palette);
     let mut spans = Vec::new();
     let mut lexer = TokenKind::lexer(source);
     let mut cursor = 0usize;
@@ -19,15 +25,18 @@ pub fn highlight_source_line(source: &str, is_current_line: bool) -> Line<'stati
     while let Some(result) = lexer.next() {
         let span = lexer.span();
         if span.start > cursor {
-            spans.push(Span::styled(source[cursor..span.start].to_string(), base_style));
+            spans.push(Span::styled(
+                source[cursor..span.start].to_string(),
+                base_style,
+            ));
         }
 
         let lexeme = &source[span.start..span.end];
         let style = match result {
             Ok(ref kind) => {
-                token_style(kind, lexeme, highlight_next_attribute_name).patch(base_style)
+                token_style(kind, lexeme, highlight_next_attribute_name, palette).patch(base_style)
             }
-            Err(_) => invalid_token_style().patch(base_style),
+            Err(_) => invalid_token_style(palette).patch(base_style),
         };
         spans.push(Span::styled(lexeme.to_string(), style));
 
@@ -52,70 +61,84 @@ fn highlight_directive_line(source: &str, is_current_line: bool) -> Option<Line<
         return None;
     }
 
-    let base_style = base_line_style(is_current_line);
+    let palette = crate::theme::active_repl_palette();
+    let base_style = base_line_style(is_current_line, palette);
     Some(Line::from(vec![Span::styled(
         source.to_string(),
-        directive_style().patch(base_style),
+        directive_style(palette).patch(base_style),
     )]))
 }
 
-fn base_line_style(is_current_line: bool) -> Style {
-    let mut style = Style::default().fg(Color::Rgb(230, 224, 208));
+fn base_line_style(is_current_line: bool, palette: ReplPalette) -> Style {
+    let mut style = Style::default().fg(palette.text_primary);
     if is_current_line {
-        style = style.bg(Color::Rgb(24, 33, 45));
+        style = style.bg(palette.panel_background_active);
     }
     style
 }
 
-fn directive_style() -> Style {
+fn directive_style(palette: ReplPalette) -> Style {
     Style::default()
-        .fg(Color::Rgb(255, 206, 86))
+        .fg(palette.directive)
         .add_modifier(Modifier::BOLD)
 }
 
-fn invalid_token_style() -> Style {
+fn invalid_token_style(palette: ReplPalette) -> Style {
     Style::default()
-        .fg(Color::Rgb(255, 89, 168))
+        .fg(palette.invalid)
         .add_modifier(Modifier::UNDERLINED)
 }
 
-fn token_style(kind: &TokenKind, lexeme: &str, attribute_name: bool) -> Style {
+fn token_style(
+    kind: &TokenKind,
+    lexeme: &str,
+    attribute_name: bool,
+    palette: ReplPalette,
+) -> Style {
     if attribute_name {
         return Style::default()
-            .fg(Color::Rgb(255, 206, 86))
+            .fg(palette.directive)
             .add_modifier(Modifier::BOLD);
     }
 
     match kind {
         TokenKind::Comment | TokenKind::HashComment => Style::default()
-            .fg(Color::Rgb(124, 137, 154))
+            .fg(palette.text_subtle)
             .add_modifier(Modifier::ITALIC),
-        TokenKind::Int(_) | TokenKind::Float(_) => Style::default().fg(Color::Rgb(255, 140, 105)),
+        TokenKind::Int(_) | TokenKind::Float(_) => Style::default().fg(palette.number),
         TokenKind::String(_) | TokenKind::FString(_) | TokenKind::Char(_) => {
-            Style::default().fg(Color::Rgb(171, 255, 118))
+            Style::default().fg(palette.string)
         }
         TokenKind::True | TokenKind::False | TokenKind::None => Style::default()
-            .fg(Color::Rgb(127, 195, 255))
+            .fg(palette.identifier_type)
             .add_modifier(Modifier::BOLD),
         TokenKind::Ident(name) if looks_like_type_name(name) => Style::default()
-            .fg(Color::Rgb(127, 195, 255))
+            .fg(palette.identifier_type)
             .add_modifier(Modifier::BOLD),
-        TokenKind::Ident(_) => Style::default().fg(Color::Rgb(230, 224, 208)),
+        TokenKind::Ident(_) => Style::default().fg(palette.identifier_plain),
         TokenKind::At => Style::default()
-            .fg(Color::Rgb(255, 206, 86))
+            .fg(palette.directive)
             .add_modifier(Modifier::BOLD),
-        kind if is_keyword(kind) => Style::default()
-            .fg(Color::Rgb(255, 179, 71))
-            .add_modifier(Modifier::BOLD),
-        kind if is_kain_semantic_keyword(kind) => Style::default()
-            .fg(Color::Rgb(92, 225, 230))
-            .add_modifier(Modifier::BOLD),
-        kind if is_operator_or_punctuation(kind) => {
-            Style::default().fg(Color::Rgb(214, 188, 139))
-        }
-        _ if lexeme.starts_with('@') => directive_style(),
-        _ => Style::default().fg(Color::Rgb(230, 224, 208)),
+        kind if is_keyword_like(kind) => keyword_style(lexeme, palette),
+        kind if is_operator_or_punctuation(kind) => Style::default().fg(palette.operator),
+        _ if lexeme.starts_with('@') => directive_style(palette),
+        _ => Style::default().fg(palette.identifier_plain),
     }
+}
+
+fn keyword_style(lexeme: &str, palette: ReplPalette) -> Style {
+    let color = match semantic_role_for_catalog_word(lexeme) {
+        Some(SemanticRole::SyntaxKeywordType) => palette.identifier_type,
+        Some(SemanticRole::SyntaxKeywordEffect) => palette.keyword,
+        Some(SemanticRole::SyntaxFamilyActor) => palette.title_error,
+        Some(SemanticRole::SyntaxFamilyWorld) => palette.semantic_keyword,
+        Some(SemanticRole::SyntaxFamilyOwnership) => palette.title_success,
+        Some(SemanticRole::SyntaxFamilyProof) => palette.chrome_secondary,
+        Some(SemanticRole::SyntaxFamilyShader) => palette.directive,
+        Some(SemanticRole::SyntaxKeywordCore) | None => palette.keyword,
+        Some(_) => palette.keyword,
+    };
+    Style::default().fg(color).add_modifier(Modifier::BOLD)
 }
 
 fn looks_like_type_name(name: &str) -> bool {
@@ -125,7 +148,7 @@ fn looks_like_type_name(name: &str) -> bool {
         .unwrap_or(false)
 }
 
-fn is_keyword(kind: &TokenKind) -> bool {
+fn is_keyword_like(kind: &TokenKind) -> bool {
     matches!(
         kind,
         TokenKind::Fn
@@ -164,13 +187,7 @@ fn is_keyword(kind: &TokenKind) -> bool {
             | TokenKind::Gpu
             | TokenKind::Reactive
             | TokenKind::Unsafe
-    )
-}
-
-fn is_kain_semantic_keyword(kind: &TokenKind) -> bool {
-    matches!(
-        kind,
-        TokenKind::Component
+            | TokenKind::Component
             | TokenKind::Shader
             | TokenKind::Actor
             | TokenKind::State

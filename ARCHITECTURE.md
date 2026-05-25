@@ -423,7 +423,7 @@ Typical commands:
 - `kain run blades/kain-mcp`
 - `kain run plan blades/kain-mcp`
 - `kain blades build blades/kain-mcp --json`
-- `D:\Kain-Bazel\bin\kain.exe run D:\Kain-Lang\blades\kain-mcp`
+- `.\.kain\bin\kain.exe run blades\kain-mcp`
 - `./runtime/fixtures/validate_all.sh`
 - `powershell -ExecutionPolicy Bypass -File runtime\fixtures\validate_all.ps1`
 - `./runtime/conformance/run_all.sh`

@@ -79,9 +79,12 @@
     "default_limit": 20,
     "max_results": 80,
     "kain_bin_candidates": [
-      "D:/Kain-Bazel/output-user-root/ccujd7ry/execroot/_main/bazel-out/x64_windows-dbg/bin/crates/cli/kain.exe",
-      "D:/Kain-Bazel/bin/kain.exe",
-      "D:/Kain-Lang/target/codex-kain-cli/debug/kain.exe",
+      ".kain/bin/kain.exe",
+      ".kain/bin/kain",
+      "target/debug/kain.exe",
+      "target/debug/kain",
+      "target/release/kain.exe",
+      "target/release/kain",
       "PATH:kain"
     ]
   },

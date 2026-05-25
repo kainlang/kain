@@ -2,6 +2,20 @@
 
 > Ultra-simple command guide optimized for AI agents. No fluff, just what you need.
 
+## Repo Build Rule
+
+For repo/compiler/runtime work, use Bazel first:
+
+```bash
+bazel build //:kain --config=dev
+bazel build //:kn --config=dev
+bazel build //:blade --config=dev
+bazel test //:crate_tests --config=dev
+bazel test //:developer_smoke_tests --config=dev
+```
+
+Do not default to `cargo build`, `cargo run`, or `cargo test` for normal agent workflows in this repo.
+
 ---
 
 ## 🎯 The Three Ways to Use KAIN

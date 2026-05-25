@@ -237,6 +237,22 @@ function Get-HashValue {
     return $DefaultValue
 }
 
+function Resolve-ConfiguredPath {
+    param(
+        [Parameter(Mandatory = $true)][string]$RepoRoot,
+        [Parameter(Mandatory = $true)][string]$Value
+    )
+
+    $expanded = [Environment]::ExpandEnvironmentVariables($Value)
+    if ($expanded.StartsWith("~")) {
+        $expanded = Join-Path $HOME ($expanded.TrimStart("~\/"))
+    }
+    if (-not [System.IO.Path]::IsPathRooted($expanded)) {
+        $expanded = Join-Path $RepoRoot $expanded
+    }
+    return [System.IO.Path]::GetFullPath($expanded)
+}
+
 function Convert-ToStringArray {
     param([Parameter(Mandatory = $true)]$Value)
 
@@ -249,6 +265,45 @@ function Convert-ToStringArray {
         }
     }
     return $result
+}
+
+function ConvertTo-BooleanValue {
+    param(
+        $Value,
+        [bool]$DefaultValue = $false
+    )
+
+    if ($null -eq $Value) {
+        return $DefaultValue
+    }
+    if ($Value -is [bool]) {
+        return [bool]$Value
+    }
+
+    $normalized = ([string]$Value).Trim().ToLowerInvariant()
+    if ([string]::IsNullOrWhiteSpace($normalized)) {
+        return $DefaultValue
+    }
+    if (@("1", "true", "yes", "on", "enable", "enabled") -contains $normalized) {
+        return $true
+    }
+    if (@("0", "false", "no", "off", "disable", "disabled") -contains $normalized) {
+        return $false
+    }
+    return $DefaultValue
+}
+
+function Get-BooleanConfigValue {
+    param(
+        [Parameter(Mandatory = $true)]$Table,
+        [Parameter(Mandatory = $true)][string]$Key,
+        [bool]$DefaultValue = $false
+    )
+
+    if ($Table -is [hashtable] -and $Table.ContainsKey($Key)) {
+        return ConvertTo-BooleanValue -Value $Table[$Key] -DefaultValue $DefaultValue
+    }
+    return $DefaultValue
 }
 
 function Resolve-RepoRoot {
@@ -352,20 +407,19 @@ function Resolve-PythonPath {
 }
 
 function Resolve-SyncStateRoot {
-    param([Parameter(Mandatory = $true)]$SyncPolicy)
+    param(
+        [Parameter(Mandatory = $true)][string]$RepoRoot,
+        [Parameter(Mandatory = $true)]$SyncPolicy
+    )
 
     $envKey = [string](Get-HashValue -Table $SyncPolicy -Key "state_root_env_key" -DefaultValue "KAIN_SYNC_ROOT")
     $envOverride = [string](Get-Item -Path ("Env:" + $envKey) -ErrorAction SilentlyContinue).Value
     if (-not [string]::IsNullOrWhiteSpace($envOverride)) {
-        return [System.IO.Path]::GetFullPath([Environment]::ExpandEnvironmentVariables($envOverride))
+        return Resolve-ConfiguredPath -RepoRoot $RepoRoot -Value $envOverride
     }
 
-    $configured = [string](Get-HashValue -Table $SyncPolicy -Key "default_state_root_windows" -DefaultValue "%USERPROFILE%/.kain")
-    $expanded = [Environment]::ExpandEnvironmentVariables($configured)
-    if ($expanded.StartsWith("~")) {
-        $expanded = Join-Path $HOME ($expanded.TrimStart("~\/"))
-    }
-    return [System.IO.Path]::GetFullPath($expanded)
+    $configured = [string](Get-HashValue -Table $SyncPolicy -Key "default_state_root_windows" -DefaultValue ".kain/state")
+    return Resolve-ConfiguredPath -RepoRoot $RepoRoot -Value $configured
 }
 
 function Resolve-StatePath {
@@ -507,6 +561,7 @@ function Resolve-SourceWatchPaths {
             "src",
             "Cargo.toml",
             "Cargo.lock",
+            "Cargo.Bazel.lock",
             "BUILD.bazel",
             "MODULE.bazel",
             "MODULE.bazel.lock"
@@ -685,6 +740,45 @@ function Write-JsonAtomic {
     Move-FileAtomically -TempPath $tempPath -DestinationPath $Path
 }
 
+function Invoke-WithExclusiveFileLock {
+    param(
+        [Parameter(Mandatory = $true)][string]$LockPath,
+        [int]$TimeoutSeconds = 300,
+        [Parameter(Mandatory = $true)][scriptblock]$ScriptBlock
+    )
+
+    $directory = Split-Path -Parent $LockPath
+    if (-not [string]::IsNullOrWhiteSpace($directory)) {
+        New-Item -ItemType Directory -Force -Path $directory | Out-Null
+    }
+
+    $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
+    $lockHandle = $null
+    while ($null -eq $lockHandle) {
+        try {
+            $lockHandle = [System.IO.File]::Open(
+                $LockPath,
+                [System.IO.FileMode]::OpenOrCreate,
+                [System.IO.FileAccess]::ReadWrite,
+                [System.IO.FileShare]::None
+            )
+        } catch {
+            if ([DateTime]::UtcNow -ge $deadline) {
+                throw ("Timed out waiting for lock " + $LockPath)
+            }
+            Start-Sleep -Milliseconds 500
+        }
+    }
+
+    try {
+        return & $ScriptBlock
+    } finally {
+        if ($null -ne $lockHandle) {
+            $lockHandle.Dispose()
+        }
+    }
+}
+
 function Get-BinaryFingerprint {
     param([Parameter(Mandatory = $true)][string]$Path)
 
@@ -705,7 +799,11 @@ function Get-BinaryFingerprint {
 }
 
 function Strip-AnsiText {
-    param([Parameter(Mandatory = $true)][string]$Text)
+    param(
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyString()]
+        [string]$Text
+    )
 
     return [System.Text.RegularExpressions.Regex]::Replace($Text, "\x1B\[[0-9;]*[A-Za-z]", "")
 }
@@ -735,8 +833,115 @@ function Get-BazelPythonEnvironmentArgs {
     )
 }
 
+function Invoke-BazelCommandWithLiveOutput {
+    param([Parameter(Mandatory = $true)][string[]]$BazelArgs)
+
+    $BazelArgs = @(
+        $BazelArgs |
+        Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+    )
+    if ($BazelArgs.Count -eq 0) {
+        throw "No Bazel arguments were provided."
+    }
+
+    $escapedArgs = @()
+    foreach ($arg in $BazelArgs) {
+        $escapedArgs += ('"' + ($arg -replace '"', '\"') + '"')
+    }
+    $commandText = "bazel " + ($escapedArgs -join " ") + " 2>&1"
+
+    $script:LastBazelExitCode = 0
+    $script:LastBazelCommandOutput = @()
+    Invoke-WithSanitizedPythonEnvironment -ScriptBlock {
+        $capturedOutput = @()
+        & cmd.exe /d /c $commandText | Tee-Object -Variable capturedOutput | Out-Host
+        $script:LastBazelExitCode = $LASTEXITCODE
+        $script:LastBazelCommandOutput = @($capturedOutput)
+    } | Out-Null
+
+    $lines = @(
+        $script:LastBazelCommandOutput |
+        ForEach-Object { Strip-AnsiText -Text ([string]$_) }
+    )
+    return @{
+        exit_code = $script:LastBazelExitCode
+        output_lines = $lines
+        output_text = [string]::Join("`n", $lines)
+    }
+}
+
+function Test-CargoBazelRepinMismatch {
+    param([Parameter(Mandatory = $true)]$BazelResult)
+
+    $outputText = [string](Get-HashValue -Table $BazelResult -Key "output_text" -DefaultValue "")
+    if ([string]::IsNullOrWhiteSpace($outputText)) {
+        return $false
+    }
+
+    return $outputText.Contains("out of date for 'crates'") -and
+        $outputText.Contains("CARGO_BAZEL_REPIN=true") -and
+        ($outputText.Contains("Digests do not match:") -or $outputText.Contains("crate_universe"))
+}
+
+function Invoke-BazelBuildWithCargoRepinRecovery {
+    param(
+        [Parameter(Mandatory = $true)][string]$BinaryName,
+        [Parameter(Mandatory = $true)][string]$Config,
+        [string[]]$ExtraBazelArgs = @(),
+        [bool]$AutoRepinEnabled = $true,
+        [string]$RepinLockPath = "",
+        [int]$RepinLockTimeoutSeconds = 300
+    )
+
+    $buildArgs = @("build", ("//:" + $BinaryName), ("--config=" + $Config)) + $ExtraBazelArgs
+    $buildResult = Invoke-BazelCommandWithLiveOutput -BazelArgs $buildArgs
+    if ([int](Get-HashValue -Table $buildResult -Key "exit_code" -DefaultValue 1) -eq 0) {
+        return @{
+            exit_code = 0
+            auto_repin = $false
+        }
+    }
+
+    if (-not $AutoRepinEnabled -or -not (Test-CargoBazelRepinMismatch -BazelResult $buildResult)) {
+        return @{
+            exit_code = [int](Get-HashValue -Table $buildResult -Key "exit_code" -DefaultValue 1)
+            auto_repin = $false
+        }
+    }
+
+    Write-Host "[kain] Cargo.Bazel.lock drift detected; repinning crate_universe and retrying once..." -ForegroundColor Yellow
+    Invoke-WithExclusiveFileLock -LockPath $RepinLockPath -TimeoutSeconds $RepinLockTimeoutSeconds -ScriptBlock {
+        $repinSnapshot = Save-EnvironmentSnapshot -Names @("CARGO_BAZEL_REPIN")
+        try {
+            Set-Item -Path Env:CARGO_BAZEL_REPIN -Value "true"
+            $repinArgs = @("fetch", ("//:" + $BinaryName), ("--config=" + $Config)) + $ExtraBazelArgs
+            $repinResult = Invoke-BazelCommandWithLiveOutput -BazelArgs $repinArgs
+            if ([int](Get-HashValue -Table $repinResult -Key "exit_code" -DefaultValue 1) -ne 0) {
+                throw ("auto-repin failed while running bazel " + ($repinArgs -join " "))
+            }
+        } finally {
+            Restore-EnvironmentSnapshot -Snapshot $repinSnapshot
+        }
+    }
+
+    Write-Host ("[kain] Cargo.Bazel.lock refreshed; retrying bazel build //:{0} --config={1}..." -f $BinaryName, $Config) -ForegroundColor Yellow
+    $retryResult = Invoke-BazelCommandWithLiveOutput -BazelArgs $buildArgs
+    return @{
+        exit_code = [int](Get-HashValue -Table $retryResult -Key "exit_code" -DefaultValue 1)
+        auto_repin = $true
+    }
+}
+
 function Invoke-BazelAndCaptureLastLine {
     param([Parameter(Mandatory = $true)][string[]]$BazelArgs)
+
+    $BazelArgs = @(
+        $BazelArgs |
+        Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+    )
+    if ($BazelArgs.Count -eq 0) {
+        throw "No Bazel arguments were provided."
+    }
 
     $escapedArgs = @()
     foreach ($arg in $BazelArgs) {
@@ -770,6 +975,10 @@ function Resolve-BazelBinaryPath {
         [string[]]$ExtraBazelArgs = @()
     )
 
+    $ExtraBazelArgs = @(
+        $ExtraBazelArgs |
+        Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+    )
     $bazelBin = Invoke-BazelAndCaptureLastLine -BazelArgs (@("info", "bazel-bin", "--config=$Config") + $ExtraBazelArgs)
     $binaryPath = Join-Path $bazelBin ("crates/cli/" + $Name + ".exe")
     return [System.IO.Path]::GetFullPath($binaryPath)
@@ -779,7 +988,10 @@ $repoRoot = Resolve-RepoRoot
 $runtimePolicy = Load-RuntimePolicy -RepoRoot $repoRoot
 $syncPolicy = Get-HashValue -Table $runtimePolicy -Key "launcher_sync" -DefaultValue @{}
 $resolvedConfig = Resolve-BazelConfigValue -SyncPolicy $syncPolicy
-$stateRoot = Resolve-SyncStateRoot -SyncPolicy $syncPolicy
+$stateRoot = Resolve-SyncStateRoot -RepoRoot $repoRoot -SyncPolicy $syncPolicy
+$autoCargoBazelRepin = Get-BooleanConfigValue -Table $syncPolicy -Key "cargo_bazel_auto_repin_enabled" -DefaultValue $true
+$cargoBazelRepinLockPath = Resolve-StatePath -StateRoot $stateRoot -SyncPolicy $syncPolicy -Key "cargo_bazel_repin_lock_relative_path" -DefaultRelative "locks/cargo-bazel-repin.lock"
+$cargoBazelRepinLockTimeoutSeconds = [int](Get-HashValue -Table $syncPolicy -Key "cargo_bazel_repin_lock_timeout_seconds" -DefaultValue 300)
 $stampPath = if (-not [string]::IsNullOrWhiteSpace($env:KAIN_SYNC_STAMP_PATH)) {
     [System.IO.Path]::GetFullPath($env:KAIN_SYNC_STAMP_PATH)
 } else {
@@ -795,6 +1007,8 @@ $sourceWatchPaths = Resolve-SourceWatchPaths -SyncPolicy $syncPolicy
 $resolvedClangPath = Resolve-ClangPath -RepoRoot $repoRoot
 $resolvedPythonPath = Resolve-PythonPath
 $bazelPythonEnvArgs = Get-BazelPythonEnvironmentArgs -ResolvedPythonPath $resolvedPythonPath
+$repoKainHome = [System.IO.Path]::GetFullPath((Join-Path $repoRoot ".kain"))
+$repoKainConfigPath = Join-Path $repoKainHome "config.toml"
 $invocationLocation = Get-Location
 $invocationWorkingDirectory = $null
 if ($invocationLocation.Provider -and $invocationLocation.Provider.Name -eq "FileSystem") {
@@ -802,6 +1016,8 @@ if ($invocationLocation.Provider -and $invocationLocation.Provider.Name -eq "Fil
 }
 
 $env:KAIN_REPO_ROOT = $repoRoot
+$env:KAIN_HOME = $repoKainHome
+$env:KAIN_CONFIG = $repoKainConfigPath
 $env:KAIN_STDLIB_PATH = (Join-Path $repoRoot "stdlib")
 $env:KAIN_RUNTIME_C_PATH = (Join-Path $repoRoot "runtime\runtime.c")
 $env:KAIN_RUNTIME_MANIFEST_PATH = (Join-Path $repoRoot "runtime\native_core_runtime.toml")
@@ -865,12 +1081,8 @@ try {
     }
 
     if ($shouldBuild) {
-        $buildArgs = @("build", ("//:" + $BinaryName), ("--config=" + $resolvedConfig)) + $bazelPythonEnvArgs
-        $script:LastBazelExitCode = 0
-        Invoke-WithSanitizedPythonEnvironment -ScriptBlock {
-            & bazel @buildArgs
-            $script:LastBazelExitCode = $LASTEXITCODE
-        }
+        $buildResult = Invoke-BazelBuildWithCargoRepinRecovery -BinaryName $BinaryName -Config $resolvedConfig -ExtraBazelArgs $bazelPythonEnvArgs -AutoRepinEnabled $autoCargoBazelRepin -RepinLockPath $cargoBazelRepinLockPath -RepinLockTimeoutSeconds $cargoBazelRepinLockTimeoutSeconds
+        $script:LastBazelExitCode = [int](Get-HashValue -Table $buildResult -Key "exit_code" -DefaultValue 1)
         if ($script:LastBazelExitCode -ne 0) {
             throw ("bazel build //:" + $BinaryName + " --config=" + $resolvedConfig + " failed with exit code " + $script:LastBazelExitCode)
         }

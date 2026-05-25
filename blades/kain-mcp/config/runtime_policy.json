@@ -17,26 +17,34 @@
     "args": ["-3"]
   },
   "kain_binary_candidates": [
-    "PATH:kain",
+    ".kain/bin/kain.exe",
+    ".kain/bin/kain",
     "target/debug/kain.exe",
     "target/debug/kain",
     "target/release/kain.exe",
-    "target/release/kain"
+    "target/release/kain",
+    "PATH:kain"
   ],
   "kain_launcher_dirs_windows": [
-    "D:/Kain-Bazel/bin"
+    ".kain/bin"
+  ],
+  "kain_launcher_dirs_unix": [
+    ".kain/bin"
   ],
   "launcher_sync": {
     "enabled": false,
     "prefer_synced_binary": false,
     "state_root_env_key": "KAIN_SYNC_ROOT",
-    "default_state_root_windows": "%USERPROFILE%/.kain",
-    "default_state_root_unix": "~/.kain",
-    "shared_launcher_dir_windows": "D:/Kain-Bazel/bin",
-    "shadow_launcher_dirs_windows": [
-      "%USERPROFILE%/.cargo/bin"
-    ],
+    "default_state_root_windows": ".kain/state",
+    "default_state_root_unix": ".kain/state",
+    "shared_launcher_dir_windows": ".kain/bin",
+    "shared_launcher_dir_unix": ".kain/bin",
+    "shadow_launcher_dirs_windows": [],
+    "shadow_launcher_dirs_unix": [],
     "bazel_default_config_windows": "dev",
+    "cargo_bazel_auto_repin_enabled": true,
+    "cargo_bazel_repin_lock_relative_path": "locks/cargo-bazel-repin.lock",
+    "cargo_bazel_repin_lock_timeout_seconds": 300,
     "lock_relative_path": "locks/sync.lock",
     "stamp_relative_path": "state/kain_sync_stamp.json",
     "build_counter_relative_path": "state/build_counter.json",
@@ -70,6 +78,7 @@
       "src",
       "Cargo.toml",
       "Cargo.lock",
+      "Cargo.Bazel.lock",
       "BUILD.bazel",
       "MODULE.bazel",
       "MODULE.bazel.lock"

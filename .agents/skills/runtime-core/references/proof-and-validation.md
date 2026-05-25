@@ -63,11 +63,11 @@ Lane names from `z3.toml`:
 Batch runner:
 
 ```powershell
-uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path D:\Kain-Lang\runtime\native\src\core --lane smoke
-uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path D:\Kain-Lang\runtime\native\src\core --lane actor
-uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path D:\Kain-Lang\runtime\native\src\core --lane memory
-uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path D:\Kain-Lang\runtime\native\src\core --lane ownership
-uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path D:\Kain-Lang\runtime\native\src\core --lane full
+uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path runtime\native\src\core --lane smoke
+uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path runtime\native\src\core --lane actor
+uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path runtime\native\src\core --lane memory
+uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path runtime\native\src\core --lane ownership
+uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path runtime\native\src\core --lane full
 ```
 
 MCP flow:

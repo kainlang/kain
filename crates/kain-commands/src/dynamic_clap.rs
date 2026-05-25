@@ -23,7 +23,7 @@ pub fn dynamic_command_for_bin(registry: &CommandRegistry, bin: &str) -> Command
         registry,
         CommandUiPreferences {
             bin,
-            theme: crate::ui::CommandUiTheme::Hyperpop,
+            theme: crate::ui::CommandUiTheme::Slate,
             color_choice: clap::ColorChoice::Auto,
             experimental_help: false,
         },
@@ -66,7 +66,7 @@ pub fn dynamic_help_for_bin(registry: &CommandRegistry, bin: &str) -> Result<Str
         registry,
         CommandUiPreferences {
             bin,
-            theme: crate::ui::CommandUiTheme::Hyperpop,
+            theme: crate::ui::CommandUiTheme::Slate,
             color_choice: clap::ColorChoice::Auto,
             experimental_help: false,
         },
@@ -255,14 +255,15 @@ mod tests {
             &builtin_registry(),
             crate::ui::CommandUiPreferences {
                 bin: "kain",
-                theme: crate::ui::CommandUiTheme::Ember,
+                theme: crate::ui::CommandUiTheme::Sandstone,
                 color_choice: clap::ColorChoice::Never,
                 experimental_help: true,
             },
         )
         .unwrap();
-        assert!(help.contains("Theme: ember"));
-        assert!(help.contains("Config: ~/.kain/config.toml"));
+        assert!(help.contains("Theme: sandstone"));
+        assert!(help.contains("Config:"));
+        assert!(help.contains("config.toml"));
     }
 
     #[test]

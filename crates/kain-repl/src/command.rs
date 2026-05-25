@@ -4,6 +4,7 @@ pub enum ReplDirective {
     Clear,
     Run,
     Help,
+    Theme,
 }
 
 pub const REPL_HELP_TEXT: &str = "\
@@ -11,7 +12,9 @@ pub const REPL_HELP_TEXT: &str = "\
 .clear  discard the current buffer
 .exit   leave the REPL
 .quit   leave the REPL
-.help   show this command list";
+.help   show this command list
+.theme  show the current theme and available themes
+.theme <name>  switch the live REPL theme";
 
 impl ReplDirective {
     pub fn parse(trimmed_line: &str) -> Option<Self> {
@@ -20,8 +23,26 @@ impl ReplDirective {
             ".clear" => Some(Self::Clear),
             ".run" => Some(Self::Run),
             ".help" => Some(Self::Help),
+            _ if trimmed_line == ".theme" || trimmed_line.starts_with(".theme ") => {
+                Some(Self::Theme)
+            }
             _ => None,
         }
+    }
+}
+
+pub fn parse_theme_argument(trimmed_line: &str) -> Option<Option<String>> {
+    if ReplDirective::parse(trimmed_line) != Some(ReplDirective::Theme) {
+        return None;
+    }
+    let rest = trimmed_line
+        .strip_prefix(".theme")
+        .expect("theme directive prefix")
+        .trim();
+    if rest.is_empty() {
+        Some(None)
+    } else {
+        Some(Some(rest.to_string()))
     }
 }
 
@@ -36,10 +57,24 @@ mod tests {
         assert_eq!(ReplDirective::parse(".clear"), Some(ReplDirective::Clear));
         assert_eq!(ReplDirective::parse(".run"), Some(ReplDirective::Run));
         assert_eq!(ReplDirective::parse(".help"), Some(ReplDirective::Help));
+        assert_eq!(ReplDirective::parse(".theme"), Some(ReplDirective::Theme));
+        assert_eq!(
+            ReplDirective::parse(".theme plain"),
+            Some(ReplDirective::Theme)
+        );
     }
 
     #[test]
     fn leaves_source_like_dot_lines_for_the_language() {
         assert_eq!(ReplDirective::parse(".unknown"), None);
+    }
+
+    #[test]
+    fn parses_theme_argument_when_present() {
+        assert_eq!(parse_theme_argument(".theme"), Some(None));
+        assert_eq!(
+            parse_theme_argument(".theme graphite"),
+            Some(Some("graphite".to_string()))
+        );
     }
 }
