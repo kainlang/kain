@@ -1,9 +1,14 @@
 use arboard::Clipboard;
 use kain_core::tooling_config::normalize_ui_theme_name;
+use std::fs;
 use std::io;
+use std::path::PathBuf;
 use std::time::Duration;
 
-use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
+use crossterm::event::{
+    self, DisableBracketedPaste, EnableBracketedPaste, Event, KeyCode, KeyEvent, KeyEventKind,
+    KeyModifiers,
+};
 use crossterm::execute;
 use crossterm::terminal::{
     disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
@@ -27,11 +32,13 @@ use crate::theme::{
 
 const TAB_WIDTH: usize = 4;
 const OUTPUT_HISTORY_LIMIT: usize = 64;
+const MIN_GUTTER_DIGITS: usize = 4;
+const UNDO_HISTORY_LIMIT: usize = 256;
 
 pub fn run_tui_repl(config: ReplTerminalConfig) -> io::Result<()> {
     let mut stdout = io::stdout();
     enable_raw_mode()?;
-    execute!(stdout, EnterAlternateScreen)?;
+    execute!(stdout, EnterAlternateScreen, EnableBracketedPaste)?;
 
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
@@ -51,7 +58,11 @@ pub fn run_tui_repl(config: ReplTerminalConfig) -> io::Result<()> {
 
 fn restore_terminal(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> io::Result<()> {
     disable_raw_mode()?;
-    execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
+    execute!(
+        terminal.backend_mut(),
+        DisableBracketedPaste,
+        LeaveAlternateScreen
+    )?;
     terminal.show_cursor()?;
     Ok(())
 }
@@ -72,7 +83,7 @@ fn run_event_loop(
 
         match event::read()? {
             Event::Key(key) if key.kind == KeyEventKind::Press => app.handle_key(key),
-            Event::Paste(content) => app.editor.insert_text(&content),
+            Event::Paste(content) => app.handle_paste(content),
             Event::Resize(_, _) => {}
             _ => {}
         }
@@ -87,9 +98,12 @@ struct ReplApp {
     theme_name: String,
     output_log: Vec<OutputEntry>,
     show_help: bool,
+    save_prompt: Option<String>,
+    last_save_path: String,
     should_quit: bool,
     next_run_id: usize,
     status: String,
+    cwd_display: String,
 }
 
 impl ReplApp {
@@ -101,13 +115,24 @@ impl ReplApp {
             theme_name: active_repl_theme_name(),
             output_log: Vec::new(),
             show_help: false,
+            save_prompt: None,
+            last_save_path: "file.kn".to_string(),
             should_quit: false,
             next_run_id: 0,
             status: "Idle".to_string(),
+            cwd_display: std::env::current_dir()
+                .unwrap_or_else(|_| PathBuf::from("."))
+                .display()
+                .to_string(),
         }
     }
 
     fn handle_key(&mut self, key: KeyEvent) {
+        if self.save_prompt.is_some() {
+            self.handle_save_prompt_key(key);
+            return;
+        }
+
         match key {
             KeyEvent {
                 code: KeyCode::Char('q'),
@@ -126,6 +151,30 @@ impl ReplApp {
                 modifiers,
                 ..
             } if modifiers.contains(KeyModifiers::CONTROL) => self.paste_from_clipboard(),
+            KeyEvent {
+                code: KeyCode::Char('s'),
+                modifiers,
+                ..
+            } if modifiers.contains(KeyModifiers::CONTROL) => self.open_save_prompt(),
+            KeyEvent {
+                code: KeyCode::Char('z'),
+                modifiers,
+                ..
+            } if modifiers.contains(KeyModifiers::CONTROL)
+                && modifiers.contains(KeyModifiers::SHIFT) =>
+            {
+                self.redo_editor_change()
+            }
+            KeyEvent {
+                code: KeyCode::Char('z'),
+                modifiers,
+                ..
+            } if modifiers.contains(KeyModifiers::CONTROL) => self.undo_editor_change(),
+            KeyEvent {
+                code: KeyCode::Char('y'),
+                modifiers,
+                ..
+            } if modifiers.contains(KeyModifiers::CONTROL) => self.redo_editor_change(),
             KeyEvent {
                 code: KeyCode::Enter,
                 modifiers,
@@ -223,6 +272,14 @@ impl ReplApp {
         }
     }
 
+    fn handle_paste(&mut self, content: String) {
+        if let Some(prompt) = &mut self.save_prompt {
+            prompt.push_str(&content.replace(['\r', '\n'], ""));
+            return;
+        }
+        self.editor.insert_text(&content);
+    }
+
     fn run_current_buffer(&mut self) {
         match collect_submission(&self.editor.buffer()) {
             Submission::Empty => {
@@ -267,9 +324,7 @@ impl ReplApp {
         {
             Ok(evaluation) => {
                 self.push_output(OutputKind::Success, headline, evaluation_lines(&evaluation));
-                self.editor.clear();
-                self.status =
-                    format!("Run #{run_id} landed clean. Buffer reset for the next swing.");
+                self.status = format!("Run #{run_id} clean");
             }
             Err(error) => {
                 let body = error
@@ -278,9 +333,7 @@ impl ReplApp {
                     .map(|line| line.to_string())
                     .collect::<Vec<_>>();
                 self.push_output(OutputKind::Error, headline, body);
-                self.status = format!(
-                    "Run #{run_id} hit diagnostics. Buffer stayed live so you can patch and rerun."
-                );
+                self.status = format!("Run #{run_id} diagnostics");
             }
         }
     }
@@ -303,7 +356,7 @@ impl ReplApp {
         let layout = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Length(3),
+                Constraint::Length(4),
                 Constraint::Min(10),
                 Constraint::Length(1),
             ])
@@ -315,21 +368,32 @@ impl ReplApp {
 
         if self.show_help {
             self.render_help_overlay(frame, area, palette);
+        } else if self.save_prompt.is_some() {
+            self.render_save_overlay(frame, area, palette);
         }
     }
 
     fn render_header(&self, frame: &mut Frame<'_>, area: Rect, palette: ReplPalette) {
-        let banner = Paragraph::new(Text::from(vec![Line::from(vec![
-            Span::styled(" Kain REPL ", palette.title_style()),
-            Span::styled(
-                format!("[{}] ", self.theme_name),
-                Style::default().fg(palette.chrome_secondary),
-            ),
-            Span::styled(
-                self.config.metadata.banner(),
-                Style::default().fg(palette.text_muted),
-            ),
-        ])]))
+        let banner = Paragraph::new(Text::from(vec![
+            Line::from(vec![
+                Span::styled(" Kain REPL ", palette.title_style()),
+                Span::styled(
+                    format!("[{}] ", self.theme_name),
+                    Style::default().fg(palette.chrome_secondary),
+                ),
+                Span::styled(
+                    self.config.metadata.banner(),
+                    Style::default().fg(palette.text_muted),
+                ),
+            ]),
+            Line::from(vec![
+                Span::styled(" cwd ", Style::default().fg(palette.chrome_secondary)),
+                Span::styled(
+                    self.cwd_display.clone(),
+                    Style::default().fg(palette.text_muted),
+                ),
+            ]),
+        ]))
         .block(
             Block::default()
                 .borders(Borders::ALL)
@@ -420,10 +484,9 @@ impl ReplApp {
 
     fn render_status(&self, frame: &mut Frame<'_>, area: Rect, palette: ReplPalette) {
         let status = format!(
-            " Ln {}, Col {} | {} | {} | Ctrl+Enter run | F2 palette | Ctrl+Q quit ",
+            " Ln {}, Col {} | {} | Ctrl+Enter run | F2 theme | Ctrl+S save file | Ctrl+Q quit ",
             self.editor.cursor_row + 1,
             self.editor.cursor_col + 1,
-            self.theme_name,
             self.status
         );
         frame.render_widget(
@@ -444,10 +507,14 @@ impl ReplApp {
             Line::from(Span::styled("Keys", palette.title_style())),
             Line::raw(""),
             Line::raw("Ctrl+Enter / F5  run"),
-            Line::raw("F2                next palette"),
-            Line::raw("Shift+F2          previous palette"),
+            Line::raw("F2                next theme"),
+            Line::raw("Shift+F2          previous theme"),
             Line::raw("Ctrl+Shift+C      copy"),
             Line::raw("Ctrl+Shift+V      paste"),
+            Line::raw("Ctrl+S            save file"),
+            Line::raw("Ctrl+Z            undo"),
+            Line::raw("Ctrl+Y            redo"),
+            Line::raw("Ctrl+Shift+Z      redo"),
             Line::raw("Ctrl+L            clear buffer"),
             Line::raw("Ctrl+K            clear output"),
             Line::raw("Ctrl+Q            quit"),
@@ -460,7 +527,7 @@ impl ReplApp {
             Line::raw(".theme <name>"),
             Line::raw(".quit"),
             Line::raw(""),
-            Line::raw(format!("Palettes: {}", repl_theme_names().join(", "))),
+            Line::raw(format!("Themes: {}", repl_theme_names().join(", "))),
         ]);
 
         frame.render_widget(Clear, popup);
@@ -476,6 +543,49 @@ impl ReplApp {
                 .wrap(Wrap { trim: false }),
             popup,
         );
+    }
+
+    fn render_save_overlay(&self, frame: &mut Frame<'_>, area: Rect, palette: ReplPalette) {
+        let popup = centered_rect(48, 22, area);
+        let input = self
+            .save_prompt
+            .as_deref()
+            .unwrap_or(self.last_save_path.as_str());
+        let content = Text::from(vec![
+            Line::from(Span::styled("Save File", palette.title_style())),
+            Line::raw(""),
+            Line::raw("Path"),
+            Line::from(Span::styled(
+                format!(" {input} "),
+                Style::default()
+                    .fg(palette.text_primary)
+                    .bg(palette.panel_background_active),
+            )),
+            Line::raw(""),
+            Line::from(Span::styled(
+                "Enter save file  Esc cancel",
+                Style::default().fg(palette.text_muted),
+            )),
+        ]);
+
+        frame.render_widget(Clear, popup);
+        frame.render_widget(
+            Paragraph::new(content).block(
+                Block::default()
+                    .title(" Save ")
+                    .borders(Borders::ALL)
+                    .border_style(Style::default().fg(palette.border_focus))
+                    .style(Style::default().bg(palette.panel_background)),
+            ),
+            popup,
+        );
+
+        let cursor_x = popup
+            .x
+            .saturating_add(2)
+            .saturating_add(input.chars().count() as u16);
+        let cursor_y = popup.y.saturating_add(4);
+        frame.set_cursor_position((cursor_x, cursor_y));
     }
 
     fn output_lines(&self, palette: ReplPalette) -> Vec<Line<'static>> {
@@ -539,10 +649,100 @@ impl ReplApp {
         }
     }
 
+    fn open_save_prompt(&mut self) {
+        self.show_help = false;
+        self.save_prompt = Some(self.last_save_path.clone());
+        self.status = "Save file".to_string();
+    }
+
+    fn handle_save_prompt_key(&mut self, key: KeyEvent) {
+        match key {
+            KeyEvent {
+                code: KeyCode::Esc, ..
+            } => {
+                self.save_prompt = None;
+                self.status = "Save cancelled".to_string();
+            }
+            KeyEvent {
+                code: KeyCode::Enter,
+                ..
+            } => self.commit_save_prompt(),
+            KeyEvent {
+                code: KeyCode::Backspace,
+                ..
+            } => {
+                if let Some(prompt) = &mut self.save_prompt {
+                    prompt.pop();
+                }
+            }
+            KeyEvent {
+                code: KeyCode::Char(ch),
+                modifiers,
+                ..
+            } if !modifiers.contains(KeyModifiers::CONTROL)
+                && !modifiers.contains(KeyModifiers::ALT) =>
+            {
+                if let Some(prompt) = &mut self.save_prompt {
+                    prompt.push(ch);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn commit_save_prompt(&mut self) {
+        let Some(raw_path) = self.save_prompt.take() else {
+            return;
+        };
+        let trimmed = raw_path.trim();
+        if trimmed.is_empty() {
+            self.status = "Path required".to_string();
+            return;
+        }
+
+        let path = PathBuf::from(trimmed);
+        let absolute = if path.is_absolute() {
+            path
+        } else {
+            std::env::current_dir()
+                .unwrap_or_else(|_| PathBuf::from("."))
+                .join(path)
+        };
+        let source = self.editor.buffer();
+        match fs::write(&absolute, source) {
+            Ok(()) => {
+                let display = absolute.display().to_string();
+                self.last_save_path = display.clone();
+                self.status = format!("Saved {display}");
+                self.push_output(OutputKind::Info, "Saved", vec![display]);
+            }
+            Err(err) => {
+                self.status = format!("Save failed: {err}");
+                self.push_output(OutputKind::Error, "Save failed", vec![err.to_string()]);
+            }
+        }
+    }
+
     fn cycle_theme(&mut self, reverse: bool) {
         let next_theme = cycle_repl_theme_name(&self.theme_name, reverse);
         self.theme_name = next_theme.clone();
-        self.status = format!("Palette {next_theme}");
+        self.status = "Theme changed".to_string();
+    }
+
+    fn undo_editor_change(&mut self) {
+        if self.editor.undo() {
+            self.status = "Undo".to_string();
+        } else {
+            self.status = "Undo empty".to_string();
+        }
+    }
+
+    fn redo_editor_change(&mut self) {
+        if self.editor.redo() {
+            self.status = "Redo".to_string();
+        } else {
+            self.status = "Redo empty".to_string();
+        }
     }
 
     fn apply_theme_command(&mut self, requested: Option<String>) {
@@ -550,18 +750,18 @@ impl ReplApp {
             Some(name) => match normalize_ui_theme_name(&name) {
                 Ok(theme_name) => {
                     self.theme_name = theme_name.clone();
-                    self.status = format!("Palette {theme_name}");
+                    self.status = "Theme changed".to_string();
                 }
                 Err(err) => {
                     self.status = err.clone();
-                    self.push_output(OutputKind::Error, "Palette error", vec![err]);
+                    self.push_output(OutputKind::Error, "Theme error", vec![err]);
                 }
             },
             None => {
-                self.status = format!("Palette {}", self.theme_name);
+                self.status = "Theme".to_string();
                 self.push_output(
                     OutputKind::Info,
-                    "Palette",
+                    "Theme",
                     vec![
                         format!("Current: {}", self.theme_name),
                         format!("Available: {}", repl_theme_names().join(", ")),
@@ -716,8 +916,11 @@ struct ReplEditor {
     lines: Vec<String>,
     cursor_row: usize,
     cursor_col: usize,
+    desired_col: usize,
     scroll_x: usize,
     scroll_y: usize,
+    undo_stack: Vec<EditorSnapshot>,
+    redo_stack: Vec<EditorSnapshot>,
 }
 
 impl Default for ReplEditor {
@@ -726,8 +929,11 @@ impl Default for ReplEditor {
             lines: vec![String::new()],
             cursor_row: 0,
             cursor_col: 0,
+            desired_col: 0,
             scroll_x: 0,
             scroll_y: 0,
+            undo_stack: Vec::new(),
+            redo_stack: Vec::new(),
         }
     }
 }
@@ -738,6 +944,11 @@ impl ReplEditor {
     }
 
     fn set_text(&mut self, text: &str) {
+        self.push_undo_state();
+        self.set_text_raw(text);
+    }
+
+    fn set_text_raw(&mut self, text: &str) {
         self.lines = if text.is_empty() {
             vec![String::new()]
         } else {
@@ -748,11 +959,17 @@ impl ReplEditor {
         }
         self.cursor_row = self.lines.len().saturating_sub(1);
         self.cursor_col = line_char_len(self.current_line());
+        self.desired_col = self.cursor_col;
         self.scroll_x = 0;
         self.scroll_y = 0;
     }
 
     fn clear(&mut self) {
+        self.push_undo_state();
+        self.clear_raw();
+    }
+
+    fn clear_raw(&mut self) {
         *self = Self::default();
     }
 
@@ -769,7 +986,12 @@ impl ReplEditor {
     }
 
     fn gutter_width(&self) -> usize {
-        self.line_count().max(1).to_string().len() + 2
+        self.line_count()
+            .max(1)
+            .to_string()
+            .len()
+            .max(MIN_GUTTER_DIGITS)
+            + 2
     }
 
     fn render_line_numbers(&self, palette: ReplPalette) -> Text<'static> {
@@ -797,36 +1019,96 @@ impl ReplEditor {
             .lines
             .iter()
             .enumerate()
-            .map(|(index, line)| highlight_source_line(line, index == self.cursor_row, palette))
+            .map(|(index, line)| {
+                let mut display_line = line.to_string();
+                if index == self.cursor_row {
+                    let virtual_padding = self.cursor_col.saturating_sub(line_char_len(line));
+                    if virtual_padding > 0 {
+                        display_line.push_str(&" ".repeat(virtual_padding));
+                    } else if display_line.is_empty() {
+                        display_line.push(' ');
+                    }
+                }
+                highlight_source_line(&display_line, index == self.cursor_row, palette)
+            })
             .collect::<Vec<_>>();
         Text::from(lines)
     }
 
     fn insert_char(&mut self, ch: char) {
+        self.push_undo_state();
+        self.insert_char_raw(ch);
+    }
+
+    fn insert_char_raw(&mut self, ch: char) {
+        self.materialize_virtual_space();
         let cursor_col = self.cursor_col;
         let line = self.current_line_mut();
         let byte_index = char_to_byte_index(line, cursor_col);
         line.insert(byte_index, ch);
         self.cursor_col += 1;
+        self.desired_col = self.cursor_col;
     }
 
     fn insert_spaces(&mut self, count: usize) {
-        for _ in 0..count {
-            self.insert_char(' ');
+        if count == 0 {
+            return;
         }
+        self.push_undo_state();
+        self.insert_str_raw(&" ".repeat(count));
     }
 
     fn insert_text(&mut self, text: &str) {
-        for ch in text.chars() {
-            if ch == '\n' {
-                self.insert_newline();
-            } else if ch != '\r' {
-                self.insert_char(ch);
-            }
+        if text.is_empty() {
+            return;
         }
+        self.push_undo_state();
+        self.insert_text_raw(text);
+    }
+
+    fn insert_text_raw(&mut self, text: &str) {
+        let normalized = text.replace("\r\n", "\n").replace('\r', "\n");
+        let segments = normalized.split('\n').collect::<Vec<_>>();
+        if segments.is_empty() {
+            return;
+        }
+
+        if segments.len() == 1 {
+            self.insert_str_raw(segments[0]);
+            return;
+        }
+
+        let row = self.cursor_row;
+        let col = self.cursor_col;
+        self.materialize_virtual_space();
+        let split_at = char_to_byte_index(&self.lines[row], col);
+        let suffix = self.lines[row].split_off(split_at);
+        self.lines[row].push_str(segments[0]);
+
+        for (offset, segment) in segments.iter().enumerate().skip(1) {
+            let is_last = offset == segments.len() - 1;
+            let mut next_line = (*segment).to_string();
+            if is_last {
+                next_line.push_str(&suffix);
+            }
+            self.lines.insert(row + offset, next_line);
+        }
+
+        self.cursor_row = row + segments.len() - 1;
+        self.cursor_col = segments
+            .last()
+            .map(|segment| segment.chars().count())
+            .unwrap_or(0);
+        self.desired_col = self.cursor_col;
     }
 
     fn insert_newline(&mut self) {
+        self.push_undo_state();
+        self.insert_newline_raw();
+    }
+
+    fn insert_newline_raw(&mut self) {
+        self.materialize_virtual_space();
         let cursor_col = self.cursor_col;
         let current_row = self.cursor_row;
         let line = self.current_line_mut();
@@ -835,9 +1117,26 @@ impl ReplEditor {
         self.lines.insert(current_row + 1, remainder);
         self.cursor_row += 1;
         self.cursor_col = 0;
+        self.desired_col = 0;
     }
 
     fn backspace(&mut self) {
+        let current_len = line_char_len(self.current_line());
+        if self.cursor_col > current_len {
+            self.cursor_col -= 1;
+            self.desired_col = self.cursor_col;
+            return;
+        }
+
+        if self.cursor_col == 0 && self.cursor_row == 0 {
+            return;
+        }
+
+        self.push_undo_state();
+        self.backspace_raw();
+    }
+
+    fn backspace_raw(&mut self) {
         if self.cursor_col > 0 {
             let cursor_col = self.cursor_col;
             let line = self.current_line_mut();
@@ -845,10 +1144,7 @@ impl ReplEditor {
             let end = char_to_byte_index(line, cursor_col);
             line.replace_range(start..end, "");
             self.cursor_col -= 1;
-            return;
-        }
-
-        if self.cursor_row == 0 {
+            self.desired_col = self.cursor_col;
             return;
         }
 
@@ -857,9 +1153,24 @@ impl ReplEditor {
         let previous_len = line_char_len(self.current_line());
         self.lines[self.cursor_row].push_str(&current);
         self.cursor_col = previous_len;
+        self.desired_col = self.cursor_col;
     }
 
     fn delete(&mut self) {
+        let current_len = line_char_len(self.current_line());
+        if self.cursor_col > current_len {
+            return;
+        }
+
+        if self.cursor_col >= current_len && self.cursor_row + 1 >= self.lines.len() {
+            return;
+        }
+
+        self.push_undo_state();
+        self.delete_raw();
+    }
+
+    fn delete_raw(&mut self) {
         let current_len = line_char_len(self.current_line());
         if self.cursor_col < current_len {
             let cursor_col = self.cursor_col;
@@ -870,10 +1181,6 @@ impl ReplEditor {
             return;
         }
 
-        if self.cursor_row + 1 >= self.lines.len() {
-            return;
-        }
-
         let next_line = self.lines.remove(self.cursor_row + 1);
         self.lines[self.cursor_row].push_str(&next_line);
     }
@@ -881,20 +1188,16 @@ impl ReplEditor {
     fn move_left(&mut self) {
         if self.cursor_col > 0 {
             self.cursor_col -= 1;
-        } else if self.cursor_row > 0 {
+        } else if self.cursor_row > 0 && !self.current_line().is_empty() {
             self.cursor_row -= 1;
             self.cursor_col = line_char_len(self.current_line());
         }
+        self.desired_col = self.cursor_col;
     }
 
     fn move_right(&mut self) {
-        let current_len = line_char_len(self.current_line());
-        if self.cursor_col < current_len {
-            self.cursor_col += 1;
-        } else if self.cursor_row + 1 < self.lines.len() {
-            self.cursor_row += 1;
-            self.cursor_col = 0;
-        }
+        self.cursor_col += 1;
+        self.desired_col = self.cursor_col;
     }
 
     fn move_up(&mut self) {
@@ -902,33 +1205,39 @@ impl ReplEditor {
             return;
         }
         self.cursor_row -= 1;
-        self.cursor_col = self.cursor_col.min(line_char_len(self.current_line()));
+        self.cursor_col = self.desired_col;
     }
 
     fn move_down(&mut self) {
         if self.cursor_row + 1 >= self.lines.len() {
-            return;
+            self.lines.push(String::new());
         }
         self.cursor_row += 1;
-        self.cursor_col = self.cursor_col.min(line_char_len(self.current_line()));
+        self.cursor_col = self.desired_col;
     }
 
     fn move_home(&mut self) {
         self.cursor_col = 0;
+        self.desired_col = 0;
     }
 
     fn move_end(&mut self) {
         self.cursor_col = line_char_len(self.current_line());
+        self.desired_col = self.cursor_col;
     }
 
     fn page_up(&mut self) {
         self.cursor_row = self.cursor_row.saturating_sub(10);
-        self.cursor_col = self.cursor_col.min(line_char_len(self.current_line()));
+        self.cursor_col = self.desired_col;
     }
 
     fn page_down(&mut self) {
-        self.cursor_row = (self.cursor_row + 10).min(self.lines.len().saturating_sub(1));
-        self.cursor_col = self.cursor_col.min(line_char_len(self.current_line()));
+        let target_row = self.cursor_row + 10;
+        while self.lines.len() <= target_row {
+            self.lines.push(String::new());
+        }
+        self.cursor_row = target_row;
+        self.cursor_col = self.desired_col;
     }
 
     fn ensure_visible(&mut self, viewport_width: usize, viewport_height: usize) {
@@ -971,6 +1280,93 @@ impl ReplEditor {
     fn current_line_mut(&mut self) -> &mut String {
         &mut self.lines[self.cursor_row]
     }
+
+    fn insert_str_raw(&mut self, text: &str) {
+        self.materialize_virtual_space();
+        let cursor_col = self.cursor_col;
+        let line = self.current_line_mut();
+        let byte_index = char_to_byte_index(line, cursor_col);
+        line.insert_str(byte_index, text);
+        self.cursor_col += text.chars().count();
+        self.desired_col = self.cursor_col;
+    }
+
+    fn materialize_virtual_space(&mut self) {
+        let line_len = line_char_len(self.current_line());
+        if self.cursor_col <= line_len {
+            return;
+        }
+        let padding = self.cursor_col - line_len;
+        self.current_line_mut().push_str(&" ".repeat(padding));
+    }
+
+    fn push_undo_state(&mut self) {
+        self.undo_stack.push(EditorSnapshot {
+            lines: self.lines.clone(),
+            cursor_row: self.cursor_row,
+            cursor_col: self.cursor_col,
+            desired_col: self.desired_col,
+            scroll_x: self.scroll_x,
+            scroll_y: self.scroll_y,
+        });
+        self.redo_stack.clear();
+        if self.undo_stack.len() > UNDO_HISTORY_LIMIT {
+            let drain = self.undo_stack.len() - UNDO_HISTORY_LIMIT;
+            self.undo_stack.drain(0..drain);
+        }
+    }
+
+    fn undo(&mut self) -> bool {
+        let Some(snapshot) = self.undo_stack.pop() else {
+            return false;
+        };
+        self.redo_stack.push(EditorSnapshot {
+            lines: self.lines.clone(),
+            cursor_row: self.cursor_row,
+            cursor_col: self.cursor_col,
+            desired_col: self.desired_col,
+            scroll_x: self.scroll_x,
+            scroll_y: self.scroll_y,
+        });
+        self.lines = snapshot.lines;
+        self.cursor_row = snapshot.cursor_row;
+        self.cursor_col = snapshot.cursor_col;
+        self.desired_col = snapshot.desired_col;
+        self.scroll_x = snapshot.scroll_x;
+        self.scroll_y = snapshot.scroll_y;
+        true
+    }
+
+    fn redo(&mut self) -> bool {
+        let Some(snapshot) = self.redo_stack.pop() else {
+            return false;
+        };
+        self.undo_stack.push(EditorSnapshot {
+            lines: self.lines.clone(),
+            cursor_row: self.cursor_row,
+            cursor_col: self.cursor_col,
+            desired_col: self.desired_col,
+            scroll_x: self.scroll_x,
+            scroll_y: self.scroll_y,
+        });
+        self.lines = snapshot.lines;
+        self.cursor_row = snapshot.cursor_row;
+        self.cursor_col = snapshot.cursor_col;
+        self.desired_col = snapshot.desired_col;
+        self.scroll_x = snapshot.scroll_x;
+        self.scroll_y = snapshot.scroll_y;
+        true
+    }
+}
+
+#[derive(Debug, Clone)]
+struct EditorSnapshot {
+    lines: Vec<String>,
+    cursor_row: usize,
+    cursor_col: usize,
+    desired_col: usize,
+    scroll_x: usize,
+    scroll_y: usize,
 }
 
 fn char_to_byte_index(line: &str, char_index: usize) -> usize {
@@ -989,8 +1385,9 @@ fn line_char_len(line: &str) -> usize {
 }
 
 fn cursor_prefix_width(line: &str, cursor_col: usize) -> usize {
+    let line_len = line_char_len(line);
     let byte_index = char_to_byte_index(line, cursor_col);
-    UnicodeWidthStr::width(&line[..byte_index])
+    UnicodeWidthStr::width(&line[..byte_index]) + cursor_col.saturating_sub(line_len)
 }
 
 #[cfg(test)]
@@ -1008,6 +1405,70 @@ mod tests {
 
         assert_eq!(editor.line_count(), 1);
         assert_eq!(editor.buffer(), "fn main()    return 7");
+    }
+
+    #[test]
+    fn move_down_materializes_missing_empty_line() {
+        let mut editor = ReplEditor::default();
+        editor.move_down();
+        assert_eq!(editor.line_count(), 2);
+        assert_eq!(editor.cursor_row, 1);
+    }
+
+    #[test]
+    fn moving_across_empty_lines_preserves_virtual_column() {
+        let mut editor = ReplEditor::default();
+        editor.insert_text("abcdef");
+        editor.insert_newline();
+        editor.insert_newline();
+        editor.cursor_row = 0;
+        editor.cursor_col = 5;
+        editor.desired_col = 5;
+
+        editor.move_down();
+        assert_eq!(editor.cursor_row, 1);
+        assert_eq!(editor.cursor_col, 5);
+
+        editor.move_down();
+        assert_eq!(editor.cursor_row, 2);
+        assert_eq!(editor.cursor_col, 5);
+    }
+
+    #[test]
+    fn move_left_does_not_jump_out_of_empty_line_origin() {
+        let mut editor = ReplEditor::default();
+        editor.move_down();
+        editor.move_right();
+        editor.move_right();
+
+        editor.move_left();
+        assert_eq!(editor.cursor_row, 1);
+        assert_eq!(editor.cursor_col, 1);
+
+        editor.move_left();
+        assert_eq!(editor.cursor_row, 1);
+        assert_eq!(editor.cursor_col, 0);
+
+        editor.move_left();
+        assert_eq!(editor.cursor_row, 1);
+        assert_eq!(editor.cursor_col, 0);
+    }
+
+    #[test]
+    fn undo_restores_previous_buffer_state() {
+        let mut editor = ReplEditor::default();
+        editor.insert_text("abc");
+        editor.undo();
+        assert_eq!(editor.buffer(), "");
+    }
+
+    #[test]
+    fn redo_restores_undone_buffer_state() {
+        let mut editor = ReplEditor::default();
+        editor.insert_text("abc");
+        editor.undo();
+        assert!(editor.redo());
+        assert_eq!(editor.buffer(), "abc");
     }
 
     #[test]
@@ -1038,5 +1499,28 @@ mod tests {
         app.theme_name = "plain".to_string();
         app.cycle_theme(true);
         assert_eq!(app.theme_name, "sandstone");
+    }
+
+    #[test]
+    fn successful_runs_keep_buffer_live() {
+        let mut app = ReplApp::new(ReplTerminalConfig::default());
+        app.evaluator = ReplEvaluator::interpret_only_for_testing();
+        app.editor.set_text("fn main() -> Int:\n    return 7");
+        let expected = app.editor.buffer();
+        app.run_current_buffer();
+        assert_eq!(app.editor.buffer(), expected);
+    }
+
+    #[test]
+    fn gutter_width_is_stable_across_double_and_triple_digits() {
+        let mut editor = ReplEditor::default();
+        editor.lines = vec![String::new(); 9];
+        let single = editor.gutter_width();
+        editor.lines = vec![String::new(); 99];
+        let double = editor.gutter_width();
+        editor.lines = vec![String::new(); 999];
+        let triple = editor.gutter_width();
+        assert_eq!(single, double);
+        assert_eq!(double, triple);
     }
 }

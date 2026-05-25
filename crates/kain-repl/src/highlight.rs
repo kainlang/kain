@@ -118,6 +118,9 @@ fn token_style(
         TokenKind::Ident(name) if looks_like_type_name(name) => Style::default()
             .fg(palette.identifier_type)
             .add_modifier(Modifier::BOLD),
+        TokenKind::Ident(name) if semantic_role_for_catalog_word(name).is_some() => {
+            keyword_style(name, palette)
+        }
         TokenKind::Ident(_) => Style::default().fg(palette.identifier_plain),
         TokenKind::At => Style::default()
             .fg(palette.directive)
@@ -131,13 +134,13 @@ fn token_style(
 
 fn keyword_style(lexeme: &str, palette: ReplPalette) -> Style {
     let color = match semantic_role_for_catalog_word(lexeme) {
-        Some(SemanticRole::SyntaxKeywordType) => palette.identifier_type,
-        Some(SemanticRole::SyntaxKeywordEffect) => palette.keyword,
-        Some(SemanticRole::SyntaxFamilyActor) => palette.title_error,
-        Some(SemanticRole::SyntaxFamilyWorld) => palette.semantic_keyword,
-        Some(SemanticRole::SyntaxFamilyOwnership) => palette.title_success,
-        Some(SemanticRole::SyntaxFamilyProof) => palette.chrome_secondary,
-        Some(SemanticRole::SyntaxFamilyShader) => palette.directive,
+        Some(SemanticRole::SyntaxKeywordType) => palette.keyword_type,
+        Some(SemanticRole::SyntaxKeywordEffect) => palette.keyword_effect,
+        Some(SemanticRole::SyntaxFamilyActor) => palette.keyword_actor,
+        Some(SemanticRole::SyntaxFamilyWorld) => palette.keyword_world,
+        Some(SemanticRole::SyntaxFamilyOwnership) => palette.keyword_ownership,
+        Some(SemanticRole::SyntaxFamilyProof) => palette.keyword_proof,
+        Some(SemanticRole::SyntaxFamilyShader) => palette.keyword_shader,
         Some(SemanticRole::SyntaxKeywordCore) | None => palette.keyword,
         Some(_) => palette.keyword,
     };

@@ -30,6 +30,40 @@ function Test-CommandAvailable {
     return $null -ne (Get-Command $Name -ErrorAction SilentlyContinue)
 }
 
+function Get-UserPathEntries {
+    $current = [Environment]::GetEnvironmentVariable("Path", "User")
+    if ([string]::IsNullOrWhiteSpace($current)) {
+        return @()
+    }
+
+    return @($current.Split(';', [System.StringSplitOptions]::RemoveEmptyEntries))
+}
+
+function Add-UserPathEntry {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$PathValue
+    )
+
+    if ([string]::IsNullOrWhiteSpace($PathValue) -or -not (Test-Path -LiteralPath $PathValue)) {
+        return
+    }
+
+    $normalized = $PathValue.Trim().TrimEnd('\')
+    $processEntries = @($env:Path.Split(';', [System.StringSplitOptions]::RemoveEmptyEntries))
+    if (-not ($processEntries | Where-Object { $_.TrimEnd('\') -ieq $normalized })) {
+        $env:Path = $env:Path.TrimEnd(';') + ";" + $normalized
+    }
+
+    $userEntries = @(Get-UserPathEntries)
+    if ($userEntries | Where-Object { $_.TrimEnd('\') -ieq $normalized }) {
+        return
+    }
+
+    [Environment]::SetEnvironmentVariable("Path", (@($userEntries + $normalized) -join ';'), "User")
+    Write-Host ("[path] added " + $normalized) -ForegroundColor DarkYellow
+}
+
 function Invoke-External {
     param(
         [Parameter(Mandatory = $true)]
@@ -67,6 +101,37 @@ function Get-PythonLauncher {
         return [pscustomobject]@{
             FilePath = "py"
             PrefixArgs = @("-3")
+        }
+    }
+
+    return $null
+}
+
+function Get-PythonUserScriptsPath {
+    $pythonLauncher = Get-PythonLauncher
+    if ($null -eq $pythonLauncher) {
+        return $null
+    }
+
+    $filePath = [string]$pythonLauncher.FilePath
+    $prefixArgs = @($pythonLauncher.PrefixArgs)
+    $scriptPath = & $filePath @prefixArgs -c "import sysconfig; print(sysconfig.get_path('scripts', 'nt_user'))" 2>$null
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($scriptPath)) {
+        return $null
+    }
+
+    return $scriptPath.Trim()
+}
+
+function Get-WindowsPerformanceToolkitPath {
+    $candidates = @(
+        "C:\Program Files (x86)\Windows Kits\10\Windows Performance Toolkit",
+        "C:\Program Files\Windows Kits\10\Windows Performance Toolkit"
+    )
+
+    foreach ($candidate in $candidates) {
+        if (Test-Path -LiteralPath (Join-Path $candidate "wpa.exe")) {
+            return $candidate
         }
     }
 
@@ -340,6 +405,26 @@ function Install-PythonLayer {
     Invoke-External -FilePath $launcherFile -ArgumentList ($launcherArgs + @("-m", "pip", "install", "--user", "--upgrade") + $packages) -Description "Install Python testing and profiling toolbox"
 }
 
+function Repair-UsefulPathEntries {
+    Write-Section "PATH Repair"
+
+    $pythonScriptsPath = Get-PythonUserScriptsPath
+    if ($null -ne $pythonScriptsPath) {
+        Add-UserPathEntry -PathValue $pythonScriptsPath
+    }
+    else {
+        Write-Host "[skip] could not resolve Python user Scripts path" -ForegroundColor Yellow
+    }
+
+    $wptPath = Get-WindowsPerformanceToolkitPath
+    if ($null -ne $wptPath) {
+        Add-UserPathEntry -PathValue $wptPath
+    }
+    else {
+        Write-Host "[skip] Windows Performance Toolkit path not found" -ForegroundColor Yellow
+    }
+}
+
 if (-not (Test-Path -LiteralPath $ManifestPath)) {
     throw "Tooling manifest not found: $ManifestPath"
 }
@@ -376,6 +461,8 @@ if (-not $SkipCargo) {
 if (-not $SkipPython) {
     Install-PythonLayer -Config $manifest
 }
+
+Repair-UsefulPathEntries
 
 Write-Section "Done"
 Write-Host "Agent tooling bootstrap finished."

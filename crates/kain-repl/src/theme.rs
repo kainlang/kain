@@ -26,7 +26,13 @@ pub struct ReplPalette {
     pub identifier_type: Color,
     pub identifier_plain: Color,
     pub keyword: Color,
-    pub semantic_keyword: Color,
+    pub keyword_type: Color,
+    pub keyword_effect: Color,
+    pub keyword_actor: Color,
+    pub keyword_world: Color,
+    pub keyword_ownership: Color,
+    pub keyword_proof: Color,
+    pub keyword_shader: Color,
     pub operator: Color,
     pub directive: Color,
     pub invalid: Color,
@@ -68,7 +74,17 @@ pub fn repl_palette(theme_name: &str) -> ReplPalette {
         identifier_type: theme.tone(SemanticRole::SyntaxType).ratatui_color(),
         identifier_plain: theme.tone(SemanticRole::SyntaxIdentifier).ratatui_color(),
         keyword: theme.tone(SemanticRole::SyntaxKeywordCore).ratatui_color(),
-        semantic_keyword: theme.tone(SemanticRole::SyntaxFamilyWorld).ratatui_color(),
+        keyword_type: theme.tone(SemanticRole::SyntaxKeywordType).ratatui_color(),
+        keyword_effect: theme
+            .tone(SemanticRole::SyntaxKeywordEffect)
+            .ratatui_color(),
+        keyword_actor: theme.tone(SemanticRole::SyntaxFamilyActor).ratatui_color(),
+        keyword_world: theme.tone(SemanticRole::SyntaxFamilyWorld).ratatui_color(),
+        keyword_ownership: theme
+            .tone(SemanticRole::SyntaxFamilyOwnership)
+            .ratatui_color(),
+        keyword_proof: theme.tone(SemanticRole::SyntaxFamilyProof).ratatui_color(),
+        keyword_shader: theme.tone(SemanticRole::SyntaxFamilyShader).ratatui_color(),
         operator: theme.tone(SemanticRole::SyntaxOperator).ratatui_color(),
         directive: theme.tone(SemanticRole::SyntaxDirective).ratatui_color(),
         invalid: theme.tone(SemanticRole::SyntaxInvalid).ratatui_color(),

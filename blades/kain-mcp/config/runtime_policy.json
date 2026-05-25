@@ -76,12 +76,20 @@
       "crates",
       "runtime",
       "src",
+      "tools/bazel",
+      "toolchain/rules_rust",
       "Cargo.toml",
       "Cargo.lock",
       "Cargo.Bazel.lock",
       "BUILD.bazel",
       "MODULE.bazel",
-      "MODULE.bazel.lock"
+      "MODULE.bazel.lock",
+      ".bazelrc",
+      ".bazelversion",
+      ".bazeliskrc"
+    ],
+    "source_filesystem_watch_paths": [
+      "toolchain/rules_rust"
     ]
   },
   "defaults": {
