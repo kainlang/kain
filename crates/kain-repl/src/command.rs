@@ -5,6 +5,7 @@ pub enum ReplDirective {
     Run,
     Help,
     Theme,
+    Open,
 }
 
 pub const REPL_HELP_TEXT: &str = "\
@@ -12,8 +13,9 @@ pub const REPL_HELP_TEXT: &str = "\
 .clear           clear buffer
 .quit            quit
 .help            command list
-.theme           palette status
-.theme <name>    switch palette";
+.theme           theme status
+.theme <name>    switch theme
+.open <path>     open file";
 
 impl ReplDirective {
     pub fn parse(trimmed_line: &str) -> Option<Self> {
@@ -25,6 +27,7 @@ impl ReplDirective {
             _ if trimmed_line == ".theme" || trimmed_line.starts_with(".theme ") => {
                 Some(Self::Theme)
             }
+            _ if trimmed_line == ".open" || trimmed_line.starts_with(".open ") => Some(Self::Open),
             _ => None,
         }
     }
@@ -45,6 +48,21 @@ pub fn parse_theme_argument(trimmed_line: &str) -> Option<Option<String>> {
     }
 }
 
+pub fn parse_open_argument(trimmed_line: &str) -> Option<Option<String>> {
+    if ReplDirective::parse(trimmed_line) != Some(ReplDirective::Open) {
+        return None;
+    }
+    let rest = trimmed_line
+        .strip_prefix(".open")
+        .expect("open directive prefix")
+        .trim();
+    if rest.is_empty() {
+        Some(None)
+    } else {
+        Some(Some(rest.to_string()))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -57,9 +75,14 @@ mod tests {
         assert_eq!(ReplDirective::parse(".run"), Some(ReplDirective::Run));
         assert_eq!(ReplDirective::parse(".help"), Some(ReplDirective::Help));
         assert_eq!(ReplDirective::parse(".theme"), Some(ReplDirective::Theme));
+        assert_eq!(ReplDirective::parse(".open"), Some(ReplDirective::Open));
         assert_eq!(
             ReplDirective::parse(".theme plain"),
             Some(ReplDirective::Theme)
+        );
+        assert_eq!(
+            ReplDirective::parse(".open demo.kn"),
+            Some(ReplDirective::Open)
         );
     }
 
@@ -74,6 +97,15 @@ mod tests {
         assert_eq!(
             parse_theme_argument(".theme graphite"),
             Some(Some("graphite".to_string()))
+        );
+    }
+
+    #[test]
+    fn parses_open_argument_when_present() {
+        assert_eq!(parse_open_argument(".open"), Some(None));
+        assert_eq!(
+            parse_open_argument(".open demo.kn"),
+            Some(Some("demo.kn".to_string()))
         );
     }
 }

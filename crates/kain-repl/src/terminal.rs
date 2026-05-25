@@ -1,4 +1,6 @@
+use std::fs;
 use std::io::{self, BufRead, IsTerminal, Write};
+use std::path::PathBuf;
 
 use crate::app::run_tui_repl;
 use crate::command::REPL_HELP_TEXT;
@@ -113,11 +115,32 @@ where
             }
             ReplLineAction::Theme(theme) => {
                 let message = match theme {
-                    Some(name) => format!("palette {name}"),
-                    None => "palette".to_string(),
+                    Some(name) => format!("theme {name}"),
+                    None => "theme".to_string(),
                 };
                 if writeln!(output, "{message}").is_err() {
                     return false;
+                }
+            }
+            ReplLineAction::Open(path) => {
+                let message = match path {
+                    Some(path) => open_file_into_session(&mut session, &path),
+                    None => Err(io::Error::new(
+                        io::ErrorKind::InvalidInput,
+                        "path required for .open",
+                    )),
+                };
+                match message {
+                    Ok(path) => {
+                        if writeln!(output, "opened {path}").is_err() {
+                            return false;
+                        }
+                    }
+                    Err(err) => {
+                        if writeln!(error, " open failed: {err}").is_err() {
+                            return false;
+                        }
+                    }
                 }
             }
             ReplLineAction::Evaluate(source) => {
@@ -169,6 +192,19 @@ where
         Ok(evaluation) => write_evaluation(output, &evaluation),
         Err(failure) => write!(error, "{}", failure.formatted_error),
     }
+}
+
+fn open_file_into_session(session: &mut ReplSession, raw_path: &str) -> io::Result<String> {
+    let path = if PathBuf::from(raw_path).is_absolute() {
+        PathBuf::from(raw_path)
+    } else {
+        std::env::current_dir()
+            .unwrap_or_else(|_| PathBuf::from("."))
+            .join(raw_path)
+    };
+    let source = fs::read_to_string(&path)?;
+    session.replace_buffer(source);
+    Ok(path.display().to_string())
 }
 
 fn write_evaluation<W>(output: &mut W, evaluation: &ReplEvaluation) -> io::Result<()>

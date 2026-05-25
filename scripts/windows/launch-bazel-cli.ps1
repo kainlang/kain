@@ -534,11 +534,13 @@ function Normalize-RelativePath {
 function Invoke-GitLines {
     param(
         [Parameter(Mandatory = $true)][string]$RepoRoot,
-        [Parameter(Mandatory = $true)][string[]]$Args
+        [Parameter(Mandatory = $true)][string[]]$GitArgs
     )
 
     try {
-        $output = & git -C $RepoRoot @Args 2>$null
+        $repoRootForCmd = Join-Path $RepoRoot "."
+        $commandText = 'git -C "' + $repoRootForCmd + '" ' + ($GitArgs -join " ") + ' 2>nul'
+        $output = & cmd.exe /d /c $commandText
         if ($LASTEXITCODE -ne 0) {
             return @()
         }
@@ -583,6 +585,24 @@ function Resolve-SourceWatchPaths {
         }
     }
     return $normalized
+}
+
+function Test-PathMatchesWatchPath {
+    param(
+        [Parameter(Mandatory = $true)][string]$CandidatePath,
+        [Parameter(Mandatory = $true)][string[]]$WatchPaths
+    )
+
+    foreach ($watchPath in $WatchPaths) {
+        if ($CandidatePath.Equals($watchPath, [System.StringComparison]::OrdinalIgnoreCase)) {
+            return $true
+        }
+        if ($CandidatePath.StartsWith(($watchPath + "/"), [System.StringComparison]::OrdinalIgnoreCase)) {
+            return $true
+        }
+    }
+
+    return $false
 }
 
 function Resolve-SourceFilesystemWatchPaths {
@@ -681,8 +701,6 @@ function Get-SourceStampData {
         $headDescriptors.Add(("head|{0}|{1}" -f $relative, $headObject))
     }
 
-    $pathArgs = @("--")
-    $pathArgs += $normalizedWatchPaths
     $dirtyPaths = New-Object System.Collections.Generic.HashSet[string] ([System.StringComparer]::OrdinalIgnoreCase)
     $dirtyCommandArgs = @(
         @("diff", "--name-only"),
@@ -690,10 +708,10 @@ function Get-SourceStampData {
         @("ls-files", "--others", "--exclude-standard")
     )
     foreach ($commandArgs in $dirtyCommandArgs) {
-        $lines = Invoke-GitLines -RepoRoot $RepoRoot -Args ($commandArgs + $pathArgs)
+        $lines = Invoke-GitLines -RepoRoot $RepoRoot -GitArgs $commandArgs
         foreach ($line in $lines) {
             $normalized = Normalize-RelativePath -PathText $line
-            if (-not [string]::IsNullOrWhiteSpace($normalized)) {
+            if (-not [string]::IsNullOrWhiteSpace($normalized) -and (Test-PathMatchesWatchPath -CandidatePath $normalized -WatchPaths $normalizedWatchPaths)) {
                 $null = $dirtyPaths.Add($normalized)
             }
         }

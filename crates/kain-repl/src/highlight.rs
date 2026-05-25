@@ -11,24 +11,30 @@ pub fn highlight_source_line(
     source: &str,
     is_current_line: bool,
     palette: ReplPalette,
+    selection: Option<(usize, usize)>,
 ) -> Line<'static> {
-    if let Some(line) = highlight_directive_line(source, is_current_line, palette) {
+    if let Some(line) = highlight_directive_line(source, is_current_line, palette, selection) {
         return line;
     }
 
     let base_style = base_line_style(is_current_line, palette);
     let mut spans = Vec::new();
     let mut lexer = TokenKind::lexer(source);
-    let mut cursor = 0usize;
+    let mut byte_cursor = 0usize;
+    let mut char_cursor = 0usize;
     let mut highlight_next_attribute_name = false;
 
     while let Some(result) = lexer.next() {
         let span = lexer.span();
-        if span.start > cursor {
-            spans.push(Span::styled(
-                source[cursor..span.start].to_string(),
+        if span.start > byte_cursor {
+            push_highlighted_text(
+                &mut spans,
+                &source[byte_cursor..span.start],
                 base_style,
-            ));
+                selection,
+                &mut char_cursor,
+                palette,
+            );
         }
 
         let lexeme = &source[span.start..span.end];
@@ -38,14 +44,28 @@ pub fn highlight_source_line(
             }
             Err(_) => invalid_token_style(palette).patch(base_style),
         };
-        spans.push(Span::styled(lexeme.to_string(), style));
+        push_highlighted_text(
+            &mut spans,
+            lexeme,
+            style,
+            selection,
+            &mut char_cursor,
+            palette,
+        );
 
         highlight_next_attribute_name = matches!(result, Ok(TokenKind::At));
-        cursor = span.end;
+        byte_cursor = span.end;
     }
 
-    if cursor < source.len() {
-        spans.push(Span::styled(source[cursor..].to_string(), base_style));
+    if byte_cursor < source.len() {
+        push_highlighted_text(
+            &mut spans,
+            &source[byte_cursor..],
+            base_style,
+            selection,
+            &mut char_cursor,
+            palette,
+        );
     }
 
     if spans.is_empty() {
@@ -59,6 +79,7 @@ fn highlight_directive_line(
     source: &str,
     is_current_line: bool,
     palette: ReplPalette,
+    selection: Option<(usize, usize)>,
 ) -> Option<Line<'static>> {
     let trimmed = source.trim();
     if ReplDirective::parse(trimmed).is_none() {
@@ -66,10 +87,17 @@ fn highlight_directive_line(
     }
 
     let base_style = base_line_style(is_current_line, palette);
-    Some(Line::from(vec![Span::styled(
-        source.to_string(),
+    let mut spans = Vec::new();
+    let mut char_cursor = 0usize;
+    push_highlighted_text(
+        &mut spans,
+        source,
         directive_style(palette).patch(base_style),
-    )]))
+        selection,
+        &mut char_cursor,
+        palette,
+    );
+    Some(Line::from(spans))
 }
 
 fn base_line_style(is_current_line: bool, palette: ReplPalette) -> Style {
@@ -90,6 +118,59 @@ fn invalid_token_style(palette: ReplPalette) -> Style {
     Style::default()
         .fg(palette.invalid)
         .add_modifier(Modifier::UNDERLINED)
+}
+
+fn selected_style(style: Style, palette: ReplPalette) -> Style {
+    let _ = palette;
+    style.add_modifier(Modifier::REVERSED)
+}
+
+fn push_highlighted_text(
+    spans: &mut Vec<Span<'static>>,
+    text: &str,
+    style: Style,
+    selection: Option<(usize, usize)>,
+    char_cursor: &mut usize,
+    palette: ReplPalette,
+) {
+    let segment_start = *char_cursor;
+    let segment_len = text.chars().count();
+    let segment_end = segment_start + segment_len;
+
+    match selection {
+        Some((sel_start, sel_end)) if sel_start < segment_end && sel_end > segment_start => {
+            let prefix_len = sel_start.saturating_sub(segment_start).min(segment_len);
+            let selected_start = segment_start + prefix_len;
+            let selected_len = sel_end
+                .min(segment_end)
+                .saturating_sub(selected_start)
+                .min(segment_len.saturating_sub(prefix_len));
+            let suffix_start = prefix_len + selected_len;
+
+            if prefix_len > 0 {
+                spans.push(Span::styled(slice_chars(text, 0, prefix_len), style));
+            }
+            if selected_len > 0 {
+                spans.push(Span::styled(
+                    slice_chars(text, prefix_len, selected_len),
+                    selected_style(style, palette),
+                ));
+            }
+            if suffix_start < segment_len {
+                spans.push(Span::styled(
+                    slice_chars(text, suffix_start, segment_len - suffix_start),
+                    style,
+                ));
+            }
+        }
+        _ => spans.push(Span::styled(text.to_string(), style)),
+    }
+
+    *char_cursor = segment_end;
+}
+
+fn slice_chars(text: &str, start: usize, len: usize) -> String {
+    text.chars().skip(start).take(len).collect()
 }
 
 fn token_style(

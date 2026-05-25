@@ -1,5 +1,5 @@
-use crate::command::parse_theme_argument;
 use crate::command::ReplDirective;
+use crate::command::{parse_open_argument, parse_theme_argument};
 use crate::source::normalize_script_source;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -9,6 +9,7 @@ pub enum ReplLineAction {
     Clear,
     Help,
     Theme(Option<String>),
+    Open(Option<String>),
     Evaluate(String),
 }
 
@@ -38,6 +39,10 @@ impl ReplSession {
         self.buffer.clear();
     }
 
+    pub fn replace_buffer(&mut self, source: impl Into<String>) {
+        self.buffer = source.into();
+    }
+
     pub fn accept_raw_line(&mut self, raw_line: &str) -> ReplLineAction {
         let trimmed = raw_line.trim_end_matches(['\r', '\n']);
 
@@ -54,6 +59,11 @@ impl ReplSession {
             Some(ReplDirective::Theme) => {
                 return ReplLineAction::Theme(
                     parse_theme_argument(trimmed).expect("theme directive should parse"),
+                );
+            }
+            Some(ReplDirective::Open) => {
+                return ReplLineAction::Open(
+                    parse_open_argument(trimmed).expect("open directive should parse"),
                 );
             }
             None => {}
@@ -129,6 +139,16 @@ mod tests {
         assert_eq!(
             session.accept_raw_line(".theme plain\n"),
             ReplLineAction::Theme(Some("plain".to_string()))
+        );
+        assert!(session.buffered_source().is_empty());
+    }
+
+    #[test]
+    fn open_command_is_reported_without_touching_the_buffer() {
+        let mut session = ReplSession::new();
+        assert_eq!(
+            session.accept_raw_line(".open demo.kn\n"),
+            ReplLineAction::Open(Some("demo.kn".to_string()))
         );
         assert!(session.buffered_source().is_empty());
     }

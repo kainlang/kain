@@ -3,11 +3,11 @@ use kain_core::tooling_config::normalize_ui_theme_name;
 use std::fs;
 use std::io;
 use std::path::PathBuf;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use crossterm::event::{
-    self, DisableBracketedPaste, EnableBracketedPaste, Event, KeyCode, KeyEvent, KeyEventKind,
-    KeyModifiers,
+    self, DisableBracketedPaste, DisableMouseCapture, EnableBracketedPaste, EnableMouseCapture,
+    Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
 };
 use crossterm::execute;
 use crossterm::terminal::{
@@ -21,7 +21,7 @@ use ratatui::widgets::{Block, Borders, Clear, Paragraph, Wrap};
 use ratatui::{Frame, Terminal};
 use unicode_width::UnicodeWidthStr;
 
-use crate::command::{parse_theme_argument, ReplDirective};
+use crate::command::{parse_open_argument, parse_theme_argument, ReplDirective};
 use crate::evaluation::{ReplEvaluation, ReplEvaluator};
 use crate::highlight::highlight_source_line;
 use crate::source::normalize_script_source;
@@ -38,7 +38,12 @@ const UNDO_HISTORY_LIMIT: usize = 256;
 pub fn run_tui_repl(config: ReplTerminalConfig) -> io::Result<()> {
     let mut stdout = io::stdout();
     enable_raw_mode()?;
-    execute!(stdout, EnterAlternateScreen, EnableBracketedPaste)?;
+    execute!(
+        stdout,
+        EnterAlternateScreen,
+        EnableBracketedPaste,
+        EnableMouseCapture
+    )?;
 
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
@@ -61,6 +66,7 @@ fn restore_terminal(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> io
     execute!(
         terminal.backend_mut(),
         DisableBracketedPaste,
+        DisableMouseCapture,
         LeaveAlternateScreen
     )?;
     terminal.show_cursor()?;
@@ -84,10 +90,61 @@ fn run_event_loop(
         match event::read()? {
             Event::Key(key) if key.kind == KeyEventKind::Press => app.handle_key(key),
             Event::Paste(content) => app.handle_paste(content),
+            Event::Mouse(mouse) => app.handle_mouse(mouse),
             Event::Resize(_, _) => {}
             _ => {}
         }
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PromptKind {
+    SaveFile,
+    OpenFile,
+}
+
+#[derive(Debug, Clone)]
+struct PromptState {
+    kind: PromptKind,
+    input: String,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct ClickState {
+    point: CursorPoint,
+    at: Instant,
+    count: u8,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct CursorPoint {
+    row: usize,
+    col: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct SelectionRange {
+    start: CursorPoint,
+    end: CursorPoint,
+}
+
+impl SelectionRange {
+    fn normalize(self) -> Self {
+        if cursor_point_leq(self.start, self.end) {
+            self
+        } else {
+            Self {
+                start: self.end,
+                end: self.start,
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum RunSlice {
+    Selection(String),
+    Block(String),
 }
 
 #[derive(Debug, Clone)]
@@ -98,12 +155,17 @@ struct ReplApp {
     theme_name: String,
     output_log: Vec<OutputEntry>,
     show_help: bool,
-    save_prompt: Option<String>,
+    prompt: Option<PromptState>,
     last_save_path: String,
+    last_open_path: String,
+    current_file_path: Option<String>,
+    clean_buffer_snapshot: String,
     should_quit: bool,
     next_run_id: usize,
     status: String,
     cwd_display: String,
+    editor_text_area: Rect,
+    click_state: Option<ClickState>,
 }
 
 impl ReplApp {
@@ -115,8 +177,11 @@ impl ReplApp {
             theme_name: active_repl_theme_name(),
             output_log: Vec::new(),
             show_help: false,
-            save_prompt: None,
+            prompt: None,
             last_save_path: "file.kn".to_string(),
+            last_open_path: ".".to_string(),
+            current_file_path: None,
+            clean_buffer_snapshot: String::new(),
             should_quit: false,
             next_run_id: 0,
             status: "Idle".to_string(),
@@ -124,14 +189,18 @@ impl ReplApp {
                 .unwrap_or_else(|_| PathBuf::from("."))
                 .display()
                 .to_string(),
+            editor_text_area: Rect::default(),
+            click_state: None,
         }
     }
 
     fn handle_key(&mut self, key: KeyEvent) {
-        if self.save_prompt.is_some() {
-            self.handle_save_prompt_key(key);
+        if self.prompt.is_some() {
+            self.handle_prompt_key(key);
             return;
         }
+
+        let selecting = key.modifiers.contains(KeyModifiers::SHIFT);
 
         match key {
             KeyEvent {
@@ -157,6 +226,11 @@ impl ReplApp {
                 ..
             } if modifiers.contains(KeyModifiers::CONTROL) => self.open_save_prompt(),
             KeyEvent {
+                code: KeyCode::Char('o'),
+                modifiers,
+                ..
+            } if modifiers.contains(KeyModifiers::CONTROL) => self.open_open_prompt(),
+            KeyEvent {
                 code: KeyCode::Char('z'),
                 modifiers,
                 ..
@@ -179,6 +253,15 @@ impl ReplApp {
                 code: KeyCode::Enter,
                 modifiers,
                 ..
+            } if modifiers.contains(KeyModifiers::CONTROL)
+                && modifiers.contains(KeyModifiers::SHIFT) =>
+            {
+                self.run_selection_or_current_block();
+            }
+            KeyEvent {
+                code: KeyCode::Enter,
+                modifiers,
+                ..
             } if modifiers.contains(KeyModifiers::CONTROL) => {
                 self.run_current_buffer();
             }
@@ -186,6 +269,10 @@ impl ReplApp {
                 code: KeyCode::F(5),
                 ..
             } => self.run_current_buffer(),
+            KeyEvent {
+                code: KeyCode::F(6),
+                ..
+            } => self.run_selection_or_current_block(),
             KeyEvent {
                 code: KeyCode::F(1),
                 ..
@@ -213,37 +300,40 @@ impl ReplApp {
             }
             KeyEvent {
                 code: KeyCode::Esc, ..
-            } => self.show_help = false,
+            } => {
+                self.show_help = false;
+                self.editor.clear_selection();
+            }
             KeyEvent {
                 code: KeyCode::Left,
                 ..
-            } => self.editor.move_left(),
+            } => self.editor.move_left(selecting),
             KeyEvent {
                 code: KeyCode::Right,
                 ..
-            } => self.editor.move_right(),
+            } => self.editor.move_right(selecting),
             KeyEvent {
                 code: KeyCode::Up, ..
-            } => self.editor.move_up(),
+            } => self.editor.move_up(selecting),
             KeyEvent {
                 code: KeyCode::Down,
                 ..
-            } => self.editor.move_down(),
+            } => self.editor.move_down(selecting),
             KeyEvent {
                 code: KeyCode::Home,
                 ..
-            } => self.editor.move_home(),
+            } => self.editor.move_home(selecting),
             KeyEvent {
                 code: KeyCode::End, ..
-            } => self.editor.move_end(),
+            } => self.editor.move_end(selecting),
             KeyEvent {
                 code: KeyCode::PageUp,
                 ..
-            } => self.editor.page_up(),
+            } => self.editor.page_up(selecting),
             KeyEvent {
                 code: KeyCode::PageDown,
                 ..
-            } => self.editor.page_down(),
+            } => self.editor.page_down(selecting),
             KeyEvent {
                 code: KeyCode::Backspace,
                 ..
@@ -273,11 +363,62 @@ impl ReplApp {
     }
 
     fn handle_paste(&mut self, content: String) {
-        if let Some(prompt) = &mut self.save_prompt {
-            prompt.push_str(&content.replace(['\r', '\n'], ""));
+        if let Some(prompt) = &mut self.prompt {
+            prompt.input.push_str(&content.replace(['\r', '\n'], ""));
             return;
         }
         self.editor.insert_text(&content);
+        self.status = "Pasted".to_string();
+    }
+
+    fn handle_mouse(&mut self, mouse: MouseEvent) {
+        if self.show_help || self.prompt.is_some() {
+            return;
+        }
+
+        match mouse.kind {
+            MouseEventKind::Down(MouseButton::Left) => {
+                if let Some(point) = self.editor_point_from_screen(mouse.column, mouse.row) {
+                    match self.register_click(point) {
+                        1 => self.editor.start_mouse_selection(point),
+                        2 => self.editor.select_word_at(point),
+                        _ => self.editor.select_line_at(point),
+                    }
+                }
+            }
+            MouseEventKind::Drag(MouseButton::Left) => {
+                if let Some(point) = self.editor_point_from_screen(mouse.column, mouse.row) {
+                    self.editor.drag_mouse_selection(point);
+                }
+            }
+            MouseEventKind::Up(MouseButton::Left) => self.editor.finish_mouse_selection(),
+            MouseEventKind::ScrollUp => self.editor.scroll_lines(-3),
+            MouseEventKind::ScrollDown => self.editor.scroll_lines(3),
+            _ => {}
+        }
+    }
+
+    fn register_click(&mut self, point: CursorPoint) -> u8 {
+        let now = Instant::now();
+        let next_count = match self.click_state {
+            Some(state)
+                if state.point == point
+                    && now.duration_since(state.at) <= Duration::from_millis(450) =>
+            {
+                if state.count >= 3 {
+                    1
+                } else {
+                    state.count + 1
+                }
+            }
+            _ => 1,
+        };
+        self.click_state = Some(ClickState {
+            point,
+            at: now,
+            count: next_count,
+        });
+        next_count
     }
 
     fn run_current_buffer(&mut self) {
@@ -294,6 +435,10 @@ impl ReplApp {
                 self.status = "Buffer cleared".to_string();
             }
             Submission::Theme(theme) => self.apply_theme_command(theme),
+            Submission::Open(path) => match path {
+                Some(path) => self.open_from_path(&path),
+                None => self.open_open_prompt(),
+            },
             Submission::Exit => {
                 self.should_quit = true;
             }
@@ -309,12 +454,26 @@ impl ReplApp {
         }
     }
 
+    fn run_selection_or_current_block(&mut self) {
+        match self.editor.selection_or_current_block() {
+            Some(RunSlice::Selection(source)) => self.evaluate_named_source("Selection", source),
+            Some(RunSlice::Block(source)) => self.evaluate_named_source("Block", source),
+            None => {
+                self.status = "Empty block".to_string();
+            }
+        }
+    }
+
     fn evaluate_source(&mut self, source: String) {
+        self.evaluate_named_source("Run", source);
+    }
+
+    fn evaluate_named_source(&mut self, run_label: &str, source: String) {
         self.next_run_id += 1;
         let run_id = self.next_run_id;
         let line_count = source.lines().count().max(1);
         let headline = format!(
-            "Run #{run_id} · {line_count} lines · {}",
+            "{run_label} #{run_id} · {line_count} lines · {}",
             preview_source_headline(&source)
         );
 
@@ -324,7 +483,7 @@ impl ReplApp {
         {
             Ok(evaluation) => {
                 self.push_output(OutputKind::Success, headline, evaluation_lines(&evaluation));
-                self.status = format!("Run #{run_id} clean");
+                self.status = format!("{run_label} #{run_id} clean");
             }
             Err(error) => {
                 let body = error
@@ -333,7 +492,7 @@ impl ReplApp {
                     .map(|line| line.to_string())
                     .collect::<Vec<_>>();
                 self.push_output(OutputKind::Error, headline, body);
-                self.status = format!("Run #{run_id} diagnostics");
+                self.status = format!("{run_label} #{run_id} diagnostics");
             }
         }
     }
@@ -368,12 +527,28 @@ impl ReplApp {
 
         if self.show_help {
             self.render_help_overlay(frame, area, palette);
-        } else if self.save_prompt.is_some() {
-            self.render_save_overlay(frame, area, palette);
+        } else if self.prompt.is_some() {
+            self.render_prompt_overlay(frame, area, palette);
         }
     }
 
     fn render_header(&self, frame: &mut Frame<'_>, area: Rect, palette: ReplPalette) {
+        let file_label = self
+            .current_file_path
+            .as_deref()
+            .unwrap_or(self.config.source_name.as_str());
+        let dirty_label = if self.is_dirty() {
+            " modified "
+        } else {
+            " clean "
+        };
+        let dirty_style = if self.is_dirty() {
+            Style::default()
+                .fg(palette.keyword_effect)
+                .add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(palette.keyword_world)
+        };
         let banner = Paragraph::new(Text::from(vec![
             Line::from(vec![
                 Span::styled(" Kain REPL ", palette.title_style()),
@@ -392,6 +567,13 @@ impl ReplApp {
                     self.cwd_display.clone(),
                     Style::default().fg(palette.text_muted),
                 ),
+                Span::styled("  file ", Style::default().fg(palette.chrome_secondary)),
+                Span::styled(
+                    file_label.to_string(),
+                    Style::default().fg(palette.text_muted),
+                ),
+                Span::styled("  state ", Style::default().fg(palette.chrome_secondary)),
+                Span::styled(dirty_label, dirty_style),
             ]),
         ]))
         .block(
@@ -435,6 +617,7 @@ impl ReplApp {
             .direction(Direction::Horizontal)
             .constraints([Constraint::Length(gutter_width as u16), Constraint::Min(1)])
             .split(inner);
+        self.editor_text_area = columns[1];
 
         self.editor
             .ensure_visible(columns[1].width as usize, columns[1].height as usize);
@@ -455,8 +638,10 @@ impl ReplApp {
             columns[1],
         );
 
-        let (cursor_x, cursor_y) = self.editor.cursor_screen_position(columns[1]);
-        frame.set_cursor_position((cursor_x, cursor_y));
+        if self.prompt.is_none() && !self.show_help {
+            let (cursor_x, cursor_y) = self.editor.cursor_screen_position(columns[1]);
+            frame.set_cursor_position((cursor_x, cursor_y));
+        }
     }
 
     fn render_output(&self, frame: &mut Frame<'_>, area: Rect, palette: ReplPalette) {
@@ -484,7 +669,7 @@ impl ReplApp {
 
     fn render_status(&self, frame: &mut Frame<'_>, area: Rect, palette: ReplPalette) {
         let status = format!(
-            " Ln {}, Col {} | {} | Ctrl+Enter run | F2 theme | Ctrl+S save file | Ctrl+Q quit ",
+            " Ln {}, Col {} | {} | Ctrl+Enter run | Ctrl+Shift+Enter block | F2 theme | Ctrl+O open | Ctrl+S save | Ctrl+Q quit ",
             self.editor.cursor_row + 1,
             self.editor.cursor_col + 1,
             self.status
@@ -507,11 +692,14 @@ impl ReplApp {
             Line::from(Span::styled("Keys", palette.title_style())),
             Line::raw(""),
             Line::raw("Ctrl+Enter / F5  run"),
+            Line::raw("Ctrl+Shift+Enter run selection or block"),
+            Line::raw("F6                run selection or block"),
             Line::raw("F2                next theme"),
             Line::raw("Shift+F2          previous theme"),
             Line::raw("Ctrl+Shift+C      copy"),
             Line::raw("Ctrl+Shift+V      paste"),
             Line::raw("Ctrl+S            save file"),
+            Line::raw("Ctrl+O            open file"),
             Line::raw("Ctrl+Z            undo"),
             Line::raw("Ctrl+Y            redo"),
             Line::raw("Ctrl+Shift+Z      redo"),
@@ -525,6 +713,7 @@ impl ReplApp {
             Line::raw(".clear"),
             Line::raw(".theme"),
             Line::raw(".theme <name>"),
+            Line::raw(".open <path>"),
             Line::raw(".quit"),
             Line::raw(""),
             Line::raw(format!("Themes: {}", repl_theme_names().join(", "))),
@@ -545,14 +734,18 @@ impl ReplApp {
         );
     }
 
-    fn render_save_overlay(&self, frame: &mut Frame<'_>, area: Rect, palette: ReplPalette) {
+    fn render_prompt_overlay(&self, frame: &mut Frame<'_>, area: Rect, palette: ReplPalette) {
         let popup = centered_rect(48, 22, area);
-        let input = self
-            .save_prompt
-            .as_deref()
-            .unwrap_or(self.last_save_path.as_str());
+        let Some(prompt) = &self.prompt else {
+            return;
+        };
+        let (title, hint) = match prompt.kind {
+            PromptKind::SaveFile => ("Save File", "Enter save file  Esc cancel"),
+            PromptKind::OpenFile => ("Open File", "Enter open file  Esc cancel"),
+        };
+        let input = prompt.input.as_str();
         let content = Text::from(vec![
-            Line::from(Span::styled("Save File", palette.title_style())),
+            Line::from(Span::styled(title, palette.title_style())),
             Line::raw(""),
             Line::raw("Path"),
             Line::from(Span::styled(
@@ -562,17 +755,17 @@ impl ReplApp {
                     .bg(palette.panel_background_active),
             )),
             Line::raw(""),
-            Line::from(Span::styled(
-                "Enter save file  Esc cancel",
-                Style::default().fg(palette.text_muted),
-            )),
+            Line::from(Span::styled(hint, Style::default().fg(palette.text_muted))),
         ]);
 
         frame.render_widget(Clear, popup);
         frame.render_widget(
             Paragraph::new(content).block(
                 Block::default()
-                    .title(" Save ")
+                    .title(match prompt.kind {
+                        PromptKind::SaveFile => " Save ",
+                        PromptKind::OpenFile => " Open ",
+                    })
                     .borders(Borders::ALL)
                     .border_style(Style::default().fg(palette.border_focus))
                     .style(Style::default().bg(palette.panel_background)),
@@ -618,14 +811,21 @@ impl ReplApp {
     }
 
     fn copy_buffer_to_clipboard(&mut self) {
-        let text = self.editor.buffer();
+        let text = self
+            .editor
+            .selected_text()
+            .unwrap_or_else(|| self.editor.buffer());
         if text.trim().is_empty() {
             self.status = "Copy skipped".to_string();
             return;
         }
         match Clipboard::new().and_then(|mut clipboard| clipboard.set_text(text)) {
             Ok(()) => {
-                self.status = format!("Copied {} line(s)", self.editor.line_count());
+                self.status = if self.editor.has_selection() {
+                    "Copied selection".to_string()
+                } else {
+                    format!("Copied {} line(s)", self.editor.line_count())
+                };
             }
             Err(err) => {
                 self.status = format!("Clipboard copy failed: {err}");
@@ -651,28 +851,59 @@ impl ReplApp {
 
     fn open_save_prompt(&mut self) {
         self.show_help = false;
-        self.save_prompt = Some(self.last_save_path.clone());
+        let default_path = self
+            .current_file_path
+            .clone()
+            .unwrap_or_else(|| self.last_save_path.clone());
+        self.prompt = Some(PromptState {
+            kind: PromptKind::SaveFile,
+            input: default_path,
+        });
         self.status = "Save file".to_string();
     }
 
-    fn handle_save_prompt_key(&mut self, key: KeyEvent) {
+    fn open_open_prompt(&mut self) {
+        self.show_help = false;
+        let default_path = self
+            .current_file_path
+            .clone()
+            .unwrap_or_else(|| self.last_open_path.clone());
+        self.prompt = Some(PromptState {
+            kind: PromptKind::OpenFile,
+            input: default_path,
+        });
+        self.status = "Open file".to_string();
+    }
+
+    fn handle_prompt_key(&mut self, key: KeyEvent) {
         match key {
             KeyEvent {
                 code: KeyCode::Esc, ..
             } => {
-                self.save_prompt = None;
-                self.status = "Save cancelled".to_string();
+                self.prompt = None;
+                self.status = "Prompt cancelled".to_string();
             }
             KeyEvent {
                 code: KeyCode::Enter,
                 ..
-            } => self.commit_save_prompt(),
+            } => self.commit_prompt(),
+            KeyEvent {
+                code: KeyCode::Char('v'),
+                modifiers,
+                ..
+            } if modifiers.contains(KeyModifiers::CONTROL) => {
+                if let Ok(text) = Clipboard::new().and_then(|mut clipboard| clipboard.get_text()) {
+                    if let Some(prompt) = &mut self.prompt {
+                        prompt.input.push_str(&text.replace(['\r', '\n'], ""));
+                    }
+                }
+            }
             KeyEvent {
                 code: KeyCode::Backspace,
                 ..
             } => {
-                if let Some(prompt) = &mut self.save_prompt {
-                    prompt.pop();
+                if let Some(prompt) = &mut self.prompt {
+                    prompt.input.pop();
                 }
             }
             KeyEvent {
@@ -682,37 +913,41 @@ impl ReplApp {
             } if !modifiers.contains(KeyModifiers::CONTROL)
                 && !modifiers.contains(KeyModifiers::ALT) =>
             {
-                if let Some(prompt) = &mut self.save_prompt {
-                    prompt.push(ch);
+                if let Some(prompt) = &mut self.prompt {
+                    prompt.input.push(ch);
                 }
             }
             _ => {}
         }
     }
 
-    fn commit_save_prompt(&mut self) {
-        let Some(raw_path) = self.save_prompt.take() else {
+    fn commit_prompt(&mut self) {
+        let Some(prompt) = self.prompt.take() else {
             return;
         };
-        let trimmed = raw_path.trim();
+        let trimmed = prompt.input.trim();
         if trimmed.is_empty() {
             self.status = "Path required".to_string();
             return;
         }
 
-        let path = PathBuf::from(trimmed);
-        let absolute = if path.is_absolute() {
-            path
-        } else {
-            std::env::current_dir()
-                .unwrap_or_else(|_| PathBuf::from("."))
-                .join(path)
-        };
+        match prompt.kind {
+            PromptKind::SaveFile => self.save_to_path(trimmed),
+            PromptKind::OpenFile => self.open_from_path(trimmed),
+        }
+    }
+
+    fn save_to_path(&mut self, raw_path: &str) {
+        let absolute = resolve_prompt_path(raw_path);
         let source = self.editor.buffer();
         match fs::write(&absolute, source) {
             Ok(()) => {
                 let display = absolute.display().to_string();
                 self.last_save_path = display.clone();
+                self.last_open_path = display.clone();
+                self.current_file_path = Some(display.clone());
+                self.config.source_name = display.clone();
+                self.clean_buffer_snapshot = self.editor.buffer();
                 self.status = format!("Saved {display}");
                 self.push_output(OutputKind::Info, "Saved", vec![display]);
             }
@@ -721,6 +956,52 @@ impl ReplApp {
                 self.push_output(OutputKind::Error, "Save failed", vec![err.to_string()]);
             }
         }
+    }
+
+    fn open_from_path(&mut self, raw_path: &str) {
+        let absolute = resolve_prompt_path(raw_path);
+        match fs::read_to_string(&absolute) {
+            Ok(source) => {
+                let display = absolute.display().to_string();
+                self.editor.set_text(&source);
+                self.editor.clear_selection();
+                self.last_open_path = display.clone();
+                self.last_save_path = display.clone();
+                self.current_file_path = Some(display.clone());
+                self.config.source_name = display.clone();
+                self.clean_buffer_snapshot = self.editor.buffer();
+                self.status = format!("Opened {display}");
+                self.push_output(OutputKind::Info, "Opened", vec![display]);
+            }
+            Err(err) => {
+                self.status = format!("Open failed: {err}");
+                self.push_output(OutputKind::Error, "Open failed", vec![err.to_string()]);
+            }
+        }
+    }
+
+    fn editor_point_from_screen(&self, column: u16, row: u16) -> Option<CursorPoint> {
+        if column < self.editor_text_area.x
+            || row < self.editor_text_area.y
+            || column >= self.editor_text_area.x + self.editor_text_area.width
+            || row >= self.editor_text_area.y + self.editor_text_area.height
+        {
+            return None;
+        }
+
+        let visual_row = (row - self.editor_text_area.y) as usize;
+        let visual_col = (column - self.editor_text_area.x) as usize;
+        let target_row = self.editor.scroll_y + visual_row;
+        let line = self.editor.line_for_row(target_row);
+        let target_col = visual_width_to_cursor_col(line, self.editor.scroll_x + visual_col);
+        Some(CursorPoint {
+            row: target_row,
+            col: target_col,
+        })
+    }
+
+    fn is_dirty(&self) -> bool {
+        self.editor.buffer() != self.clean_buffer_snapshot
     }
 
     fn cycle_theme(&mut self, reverse: bool) {
@@ -778,6 +1059,7 @@ enum Submission {
     Help,
     Clear,
     Theme(Option<String>),
+    Open(Option<String>),
     Exit,
     Evaluate {
         source: String,
@@ -799,6 +1081,9 @@ fn collect_submission(buffer: &str) -> Submission {
             ReplDirective::Theme => Submission::Theme(
                 parse_theme_argument(trimmed).expect("theme directive should parse"),
             ),
+            ReplDirective::Open => {
+                Submission::Open(parse_open_argument(trimmed).expect("open directive should parse"))
+            }
             ReplDirective::Exit => Submission::Exit,
             ReplDirective::Run => Submission::Empty,
         };
@@ -853,6 +1138,17 @@ fn preview_source_headline(source: &str) -> String {
     }
 }
 
+fn resolve_prompt_path(raw_path: &str) -> PathBuf {
+    let path = PathBuf::from(raw_path);
+    if path.is_absolute() {
+        path
+    } else {
+        std::env::current_dir()
+            .unwrap_or_else(|_| PathBuf::from("."))
+            .join(path)
+    }
+}
+
 fn centered_rect(percent_x: u16, percent_y: u16, area: Rect) -> Rect {
     let popup_layout = Layout::default()
         .direction(Direction::Vertical)
@@ -871,6 +1167,10 @@ fn centered_rect(percent_x: u16, percent_y: u16, area: Rect) -> Rect {
             Constraint::Percentage((100 - percent_x) / 2),
         ])
         .split(popup_layout[1])[1]
+}
+
+fn cursor_point_leq(left: CursorPoint, right: CursorPoint) -> bool {
+    left.row < right.row || (left.row == right.row && left.col <= right.col)
 }
 
 #[derive(Debug, Clone)]
@@ -919,6 +1219,9 @@ struct ReplEditor {
     desired_col: usize,
     scroll_x: usize,
     scroll_y: usize,
+    follow_cursor: bool,
+    selection_anchor: Option<CursorPoint>,
+    mouse_selecting: bool,
     undo_stack: Vec<EditorSnapshot>,
     redo_stack: Vec<EditorSnapshot>,
 }
@@ -932,6 +1235,9 @@ impl Default for ReplEditor {
             desired_col: 0,
             scroll_x: 0,
             scroll_y: 0,
+            follow_cursor: true,
+            selection_anchor: None,
+            mouse_selecting: false,
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
         }
@@ -941,6 +1247,41 @@ impl Default for ReplEditor {
 impl ReplEditor {
     fn buffer(&self) -> String {
         self.lines.join("\n")
+    }
+
+    fn has_selection(&self) -> bool {
+        self.selection_range().is_some()
+    }
+
+    fn clear_selection(&mut self) {
+        self.selection_anchor = None;
+        self.mouse_selecting = false;
+    }
+
+    fn line_for_row(&self, row: usize) -> &str {
+        self.lines.get(row).map(String::as_str).unwrap_or("")
+    }
+
+    fn selected_text(&self) -> Option<String> {
+        let selection = self.selection_range()?;
+        let mut chunks = Vec::new();
+        for row in selection.start.row..=selection.end.row {
+            let line = self.line_for_row(row);
+            let start_col = if row == selection.start.row {
+                selection.start.col.min(line_char_len(line))
+            } else {
+                0
+            };
+            let end_col = if row == selection.end.row {
+                selection.end.col.min(line_char_len(line))
+            } else {
+                line_char_len(line)
+            };
+            let start_byte = char_to_byte_index(line, start_col);
+            let end_byte = char_to_byte_index(line, end_col);
+            chunks.push(line[start_byte..end_byte].to_string());
+        }
+        Some(chunks.join("\n"))
     }
 
     fn set_text(&mut self, text: &str) {
@@ -962,6 +1303,8 @@ impl ReplEditor {
         self.desired_col = self.cursor_col;
         self.scroll_x = 0;
         self.scroll_y = 0;
+        self.follow_cursor = true;
+        self.clear_selection();
     }
 
     fn clear(&mut self) {
@@ -1021,6 +1364,10 @@ impl ReplEditor {
             .enumerate()
             .map(|(index, line)| {
                 let mut display_line = line.to_string();
+                let line_is_selected = self
+                    .selection_range()
+                    .map(|selection| index >= selection.start.row && index <= selection.end.row)
+                    .unwrap_or(false);
                 if index == self.cursor_row {
                     let virtual_padding = self.cursor_col.saturating_sub(line_char_len(line));
                     if virtual_padding > 0 {
@@ -1028,8 +1375,11 @@ impl ReplEditor {
                     } else if display_line.is_empty() {
                         display_line.push(' ');
                     }
+                } else if display_line.is_empty() && line_is_selected {
+                    display_line.push(' ');
                 }
-                highlight_source_line(&display_line, index == self.cursor_row, palette)
+                let selection = self.selection_bounds_for_line(index, display_line.chars().count());
+                highlight_source_line(&display_line, index == self.cursor_row, palette, selection)
             })
             .collect::<Vec<_>>();
         Text::from(lines)
@@ -1037,10 +1387,12 @@ impl ReplEditor {
 
     fn insert_char(&mut self, ch: char) {
         self.push_undo_state();
+        self.delete_selection_raw();
         self.insert_char_raw(ch);
     }
 
     fn insert_char_raw(&mut self, ch: char) {
+        self.follow_cursor = true;
         self.materialize_virtual_space();
         let cursor_col = self.cursor_col;
         let line = self.current_line_mut();
@@ -1055,6 +1407,7 @@ impl ReplEditor {
             return;
         }
         self.push_undo_state();
+        self.delete_selection_raw();
         self.insert_str_raw(&" ".repeat(count));
     }
 
@@ -1063,10 +1416,12 @@ impl ReplEditor {
             return;
         }
         self.push_undo_state();
+        self.delete_selection_raw();
         self.insert_text_raw(text);
     }
 
     fn insert_text_raw(&mut self, text: &str) {
+        self.follow_cursor = true;
         let normalized = text.replace("\r\n", "\n").replace('\r', "\n");
         let segments = normalized.split('\n').collect::<Vec<_>>();
         if segments.is_empty() {
@@ -1104,10 +1459,12 @@ impl ReplEditor {
 
     fn insert_newline(&mut self) {
         self.push_undo_state();
+        self.delete_selection_raw();
         self.insert_newline_raw();
     }
 
     fn insert_newline_raw(&mut self) {
+        self.follow_cursor = true;
         self.materialize_virtual_space();
         let cursor_col = self.cursor_col;
         let current_row = self.cursor_row;
@@ -1121,6 +1478,11 @@ impl ReplEditor {
     }
 
     fn backspace(&mut self) {
+        if self.has_selection() {
+            self.push_undo_state();
+            self.delete_selection_raw();
+            return;
+        }
         let current_len = line_char_len(self.current_line());
         if self.cursor_col > current_len {
             self.cursor_col -= 1;
@@ -1137,6 +1499,7 @@ impl ReplEditor {
     }
 
     fn backspace_raw(&mut self) {
+        self.follow_cursor = true;
         if self.cursor_col > 0 {
             let cursor_col = self.cursor_col;
             let line = self.current_line_mut();
@@ -1157,6 +1520,11 @@ impl ReplEditor {
     }
 
     fn delete(&mut self) {
+        if self.has_selection() {
+            self.push_undo_state();
+            self.delete_selection_raw();
+            return;
+        }
         let current_len = line_char_len(self.current_line());
         if self.cursor_col > current_len {
             return;
@@ -1171,6 +1539,7 @@ impl ReplEditor {
     }
 
     fn delete_raw(&mut self) {
+        self.follow_cursor = true;
         let current_len = line_char_len(self.current_line());
         if self.cursor_col < current_len {
             let cursor_col = self.cursor_col;
@@ -1185,7 +1554,12 @@ impl ReplEditor {
         self.lines[self.cursor_row].push_str(&next_line);
     }
 
-    fn move_left(&mut self) {
+    fn move_left(&mut self, selecting: bool) {
+        if !selecting && self.has_selection() {
+            self.collapse_selection_to_start();
+            return;
+        }
+        self.prepare_selection_for_move(selecting);
         if self.cursor_col > 0 {
             self.cursor_col -= 1;
         } else if self.cursor_row > 0 && !self.current_line().is_empty() {
@@ -1193,51 +1567,104 @@ impl ReplEditor {
             self.cursor_col = line_char_len(self.current_line());
         }
         self.desired_col = self.cursor_col;
+        self.follow_cursor = true;
     }
 
-    fn move_right(&mut self) {
+    fn move_right(&mut self, selecting: bool) {
+        if !selecting && self.has_selection() {
+            self.collapse_selection_to_end();
+            return;
+        }
+        self.prepare_selection_for_move(selecting);
         self.cursor_col += 1;
         self.desired_col = self.cursor_col;
+        self.follow_cursor = true;
     }
 
-    fn move_up(&mut self) {
+    fn move_up(&mut self, selecting: bool) {
+        if !selecting && self.has_selection() {
+            self.collapse_selection_to_start();
+            return;
+        }
+        self.prepare_selection_for_move(selecting);
         if self.cursor_row == 0 {
             return;
         }
         self.cursor_row -= 1;
         self.cursor_col = self.desired_col;
+        self.follow_cursor = true;
     }
 
-    fn move_down(&mut self) {
+    fn move_down(&mut self, selecting: bool) {
+        if !selecting && self.has_selection() {
+            self.collapse_selection_to_end();
+            return;
+        }
+        self.prepare_selection_for_move(selecting);
         if self.cursor_row + 1 >= self.lines.len() {
             self.lines.push(String::new());
         }
         self.cursor_row += 1;
         self.cursor_col = self.desired_col;
+        self.follow_cursor = true;
     }
 
-    fn move_home(&mut self) {
+    fn move_home(&mut self, selecting: bool) {
+        if !selecting && self.has_selection() {
+            self.collapse_selection_to_start();
+            return;
+        }
+        self.prepare_selection_for_move(selecting);
         self.cursor_col = 0;
         self.desired_col = 0;
+        self.follow_cursor = true;
     }
 
-    fn move_end(&mut self) {
+    fn move_end(&mut self, selecting: bool) {
+        if !selecting && self.has_selection() {
+            self.collapse_selection_to_end();
+            return;
+        }
+        self.prepare_selection_for_move(selecting);
         self.cursor_col = line_char_len(self.current_line());
         self.desired_col = self.cursor_col;
+        self.follow_cursor = true;
     }
 
-    fn page_up(&mut self) {
+    fn page_up(&mut self, selecting: bool) {
+        if !selecting && self.has_selection() {
+            self.collapse_selection_to_start();
+            return;
+        }
+        self.prepare_selection_for_move(selecting);
         self.cursor_row = self.cursor_row.saturating_sub(10);
         self.cursor_col = self.desired_col;
+        self.follow_cursor = true;
     }
 
-    fn page_down(&mut self) {
+    fn page_down(&mut self, selecting: bool) {
+        if !selecting && self.has_selection() {
+            self.collapse_selection_to_end();
+            return;
+        }
+        self.prepare_selection_for_move(selecting);
         let target_row = self.cursor_row + 10;
         while self.lines.len() <= target_row {
             self.lines.push(String::new());
         }
         self.cursor_row = target_row;
         self.cursor_col = self.desired_col;
+        self.follow_cursor = true;
+    }
+
+    fn scroll_lines(&mut self, delta: isize) {
+        self.follow_cursor = false;
+        if delta < 0 {
+            self.scroll_y = self.scroll_y.saturating_sub(delta.unsigned_abs());
+        } else {
+            self.scroll_y =
+                (self.scroll_y + delta as usize).min(self.lines.len().saturating_sub(1));
+        }
     }
 
     fn ensure_visible(&mut self, viewport_width: usize, viewport_height: usize) {
@@ -1245,10 +1672,12 @@ impl ReplEditor {
             return;
         }
 
-        if self.cursor_row < self.scroll_y {
-            self.scroll_y = self.cursor_row;
-        } else if self.cursor_row >= self.scroll_y + viewport_height {
-            self.scroll_y = self.cursor_row + 1 - viewport_height;
+        if self.follow_cursor {
+            if self.cursor_row < self.scroll_y {
+                self.scroll_y = self.cursor_row;
+            } else if self.cursor_row >= self.scroll_y + viewport_height {
+                self.scroll_y = self.cursor_row + 1 - viewport_height;
+            }
         }
 
         let prefix_width = cursor_prefix_width(self.current_line(), self.cursor_col);
@@ -1281,6 +1710,214 @@ impl ReplEditor {
         &mut self.lines[self.cursor_row]
     }
 
+    fn cursor_point(&self) -> CursorPoint {
+        CursorPoint {
+            row: self.cursor_row,
+            col: self.cursor_col,
+        }
+    }
+
+    fn prepare_selection_for_move(&mut self, selecting: bool) {
+        if selecting {
+            self.selection_anchor.get_or_insert(self.cursor_point());
+        } else {
+            self.clear_selection();
+        }
+    }
+
+    fn start_mouse_selection(&mut self, point: CursorPoint) {
+        self.move_cursor_to(point, false);
+        self.selection_anchor = Some(point);
+        self.mouse_selecting = true;
+    }
+
+    fn drag_mouse_selection(&mut self, point: CursorPoint) {
+        if !self.mouse_selecting {
+            self.start_mouse_selection(point);
+            return;
+        }
+        self.move_cursor_to(point, true);
+    }
+
+    fn finish_mouse_selection(&mut self) {
+        self.mouse_selecting = false;
+        if self.selection_anchor == Some(self.cursor_point()) {
+            self.selection_anchor = None;
+        }
+    }
+
+    fn move_cursor_to(&mut self, point: CursorPoint, selecting: bool) {
+        if selecting {
+            self.selection_anchor.get_or_insert(self.cursor_point());
+        } else if !self.mouse_selecting {
+            self.clear_selection();
+        }
+        while self.lines.len() <= point.row {
+            self.lines.push(String::new());
+        }
+        self.cursor_row = point.row;
+        self.cursor_col = point.col;
+        self.desired_col = point.col;
+        self.follow_cursor = true;
+    }
+
+    fn collapse_selection_to_start(&mut self) {
+        if let Some(selection) = self.selection_range() {
+            self.cursor_row = selection.start.row;
+            self.cursor_col = selection.start.col;
+            self.desired_col = self.cursor_col;
+            self.clear_selection();
+            self.follow_cursor = true;
+        }
+    }
+
+    fn collapse_selection_to_end(&mut self) {
+        if let Some(selection) = self.selection_range() {
+            self.cursor_row = selection.end.row;
+            self.cursor_col = selection.end.col;
+            self.desired_col = self.cursor_col;
+            self.clear_selection();
+            self.follow_cursor = true;
+        }
+    }
+
+    fn select_word_at(&mut self, point: CursorPoint) {
+        while self.lines.len() <= point.row {
+            self.lines.push(String::new());
+        }
+        let line = self.line_for_row(point.row);
+        let chars = line.chars().collect::<Vec<_>>();
+        if chars.is_empty() {
+            self.select_line_at(point);
+            return;
+        }
+        let pivot = point.col.min(chars.len().saturating_sub(1));
+        let is_word = is_word_char(chars[pivot]);
+        let mut start = pivot;
+        while start > 0 && is_same_word_class(chars[start - 1], is_word) {
+            start -= 1;
+        }
+        let mut end = pivot;
+        while end < chars.len() && is_same_word_class(chars[end], is_word) {
+            end += 1;
+        }
+        self.selection_anchor = Some(CursorPoint {
+            row: point.row,
+            col: start,
+        });
+        self.cursor_row = point.row;
+        self.cursor_col = end;
+        self.desired_col = end;
+        self.mouse_selecting = false;
+        self.follow_cursor = true;
+    }
+
+    fn select_line_at(&mut self, point: CursorPoint) {
+        while self.lines.len() <= point.row {
+            self.lines.push(String::new());
+        }
+        let end = line_char_len(self.line_for_row(point.row));
+        self.selection_anchor = Some(CursorPoint {
+            row: point.row,
+            col: 0,
+        });
+        self.cursor_row = point.row;
+        self.cursor_col = end;
+        self.desired_col = end;
+        self.mouse_selecting = false;
+        self.follow_cursor = true;
+    }
+
+    fn current_block_text(&self) -> Option<String> {
+        if self.lines.is_empty() {
+            return None;
+        }
+
+        let mut pivot = self.cursor_row.min(self.lines.len() - 1);
+        if self.line_for_row(pivot).trim().is_empty() {
+            if let Some(next) =
+                (pivot + 1..self.lines.len()).find(|row| !self.line_for_row(*row).trim().is_empty())
+            {
+                pivot = next;
+            } else if let Some(prev) =
+                (0..pivot).rfind(|row| !self.line_for_row(*row).trim().is_empty())
+            {
+                pivot = prev;
+            } else {
+                return None;
+            }
+        }
+
+        let mut start = pivot;
+        while start > 0 && !self.line_for_row(start - 1).trim().is_empty() {
+            start -= 1;
+        }
+
+        let mut end = pivot;
+        while end + 1 < self.lines.len() && !self.line_for_row(end + 1).trim().is_empty() {
+            end += 1;
+        }
+
+        Some(self.lines[start..=end].join("\n"))
+    }
+
+    fn selection_or_current_block(&self) -> Option<RunSlice> {
+        if let Some(selection) = self.selected_text() {
+            if !selection.trim().is_empty() {
+                return Some(RunSlice::Selection(selection));
+            }
+        }
+        self.current_block_text().map(RunSlice::Block)
+    }
+
+    fn selection_range(&self) -> Option<SelectionRange> {
+        let anchor = self.selection_anchor?;
+        let cursor = self.cursor_point();
+        if anchor == cursor {
+            None
+        } else {
+            Some(
+                SelectionRange {
+                    start: anchor,
+                    end: cursor,
+                }
+                .normalize(),
+            )
+        }
+    }
+
+    fn selection_bounds_for_line(
+        &self,
+        line_index: usize,
+        display_len: usize,
+    ) -> Option<(usize, usize)> {
+        let selection = self.selection_range()?;
+        if line_index < selection.start.row || line_index > selection.end.row {
+            return None;
+        }
+
+        let start = if line_index == selection.start.row {
+            selection.start.col.min(display_len)
+        } else {
+            0
+        };
+        let mut end = if line_index == selection.end.row {
+            selection.end.col.min(display_len)
+        } else {
+            display_len
+        };
+
+        if display_len == 1 && self.line_for_row(line_index).is_empty() && start == 0 && end == 0 {
+            end = 1;
+        }
+
+        if start >= end {
+            None
+        } else {
+            Some((start, end))
+        }
+    }
+
     fn insert_str_raw(&mut self, text: &str) {
         self.materialize_virtual_space();
         let cursor_col = self.cursor_col;
@@ -1300,6 +1937,43 @@ impl ReplEditor {
         self.current_line_mut().push_str(&" ".repeat(padding));
     }
 
+    fn delete_selection_raw(&mut self) -> bool {
+        let Some(selection) = self.selection_range() else {
+            return false;
+        };
+
+        let start_row = selection.start.row;
+        let start_col = selection.start.col;
+        let end_row = selection.end.row;
+        let end_col = selection.end.col;
+
+        if start_row == end_row {
+            let line = &mut self.lines[start_row];
+            let start_byte = char_to_byte_index(line, start_col.min(line_char_len(line)));
+            let end_byte = char_to_byte_index(line, end_col.min(line_char_len(line)));
+            line.replace_range(start_byte..end_byte, "");
+        } else {
+            let prefix = {
+                let line = &self.lines[start_row];
+                let start_byte = char_to_byte_index(line, start_col.min(line_char_len(line)));
+                line[..start_byte].to_string()
+            };
+            let suffix = {
+                let line = &self.lines[end_row];
+                let end_byte = char_to_byte_index(line, end_col.min(line_char_len(line)));
+                line[end_byte..].to_string()
+            };
+            self.lines
+                .splice(start_row..=end_row, [format!("{prefix}{suffix}")]);
+        }
+
+        self.cursor_row = start_row;
+        self.cursor_col = start_col;
+        self.desired_col = start_col;
+        self.clear_selection();
+        true
+    }
+
     fn push_undo_state(&mut self) {
         self.undo_stack.push(EditorSnapshot {
             lines: self.lines.clone(),
@@ -1308,6 +1982,8 @@ impl ReplEditor {
             desired_col: self.desired_col,
             scroll_x: self.scroll_x,
             scroll_y: self.scroll_y,
+            follow_cursor: self.follow_cursor,
+            selection_anchor: self.selection_anchor,
         });
         self.redo_stack.clear();
         if self.undo_stack.len() > UNDO_HISTORY_LIMIT {
@@ -1327,6 +2003,8 @@ impl ReplEditor {
             desired_col: self.desired_col,
             scroll_x: self.scroll_x,
             scroll_y: self.scroll_y,
+            follow_cursor: self.follow_cursor,
+            selection_anchor: self.selection_anchor,
         });
         self.lines = snapshot.lines;
         self.cursor_row = snapshot.cursor_row;
@@ -1334,6 +2012,9 @@ impl ReplEditor {
         self.desired_col = snapshot.desired_col;
         self.scroll_x = snapshot.scroll_x;
         self.scroll_y = snapshot.scroll_y;
+        self.follow_cursor = snapshot.follow_cursor;
+        self.selection_anchor = snapshot.selection_anchor;
+        self.mouse_selecting = false;
         true
     }
 
@@ -1348,6 +2029,8 @@ impl ReplEditor {
             desired_col: self.desired_col,
             scroll_x: self.scroll_x,
             scroll_y: self.scroll_y,
+            follow_cursor: self.follow_cursor,
+            selection_anchor: self.selection_anchor,
         });
         self.lines = snapshot.lines;
         self.cursor_row = snapshot.cursor_row;
@@ -1355,6 +2038,9 @@ impl ReplEditor {
         self.desired_col = snapshot.desired_col;
         self.scroll_x = snapshot.scroll_x;
         self.scroll_y = snapshot.scroll_y;
+        self.follow_cursor = snapshot.follow_cursor;
+        self.selection_anchor = snapshot.selection_anchor;
+        self.mouse_selecting = false;
         true
     }
 }
@@ -1367,6 +2053,8 @@ struct EditorSnapshot {
     desired_col: usize,
     scroll_x: usize,
     scroll_y: usize,
+    follow_cursor: bool,
+    selection_anchor: Option<CursorPoint>,
 }
 
 fn char_to_byte_index(line: &str, char_index: usize) -> usize {
@@ -1384,10 +2072,36 @@ fn line_char_len(line: &str) -> usize {
     line.chars().count()
 }
 
+fn visual_width_to_cursor_col(line: &str, visual_width: usize) -> usize {
+    let mut consumed_width = 0usize;
+    let mut col = 0usize;
+    for ch in line.chars() {
+        let ch_width = UnicodeWidthStr::width(ch.encode_utf8(&mut [0; 4]));
+        if consumed_width + ch_width > visual_width {
+            return col;
+        }
+        consumed_width += ch_width;
+        col += 1;
+    }
+    col + visual_width.saturating_sub(consumed_width)
+}
+
 fn cursor_prefix_width(line: &str, cursor_col: usize) -> usize {
     let line_len = line_char_len(line);
     let byte_index = char_to_byte_index(line, cursor_col);
     UnicodeWidthStr::width(&line[..byte_index]) + cursor_col.saturating_sub(line_len)
+}
+
+fn is_word_char(ch: char) -> bool {
+    ch.is_ascii_alphanumeric() || ch == '_'
+}
+
+fn is_same_word_class(ch: char, word_class: bool) -> bool {
+    if word_class {
+        is_word_char(ch)
+    } else {
+        !ch.is_whitespace() && !is_word_char(ch)
+    }
 }
 
 #[cfg(test)]
@@ -1400,7 +2114,7 @@ mod tests {
         editor.insert_text("fn main()");
         editor.insert_newline();
         editor.insert_text("    return 7");
-        editor.move_home();
+        editor.move_home(false);
         editor.backspace();
 
         assert_eq!(editor.line_count(), 1);
@@ -1410,7 +2124,7 @@ mod tests {
     #[test]
     fn move_down_materializes_missing_empty_line() {
         let mut editor = ReplEditor::default();
-        editor.move_down();
+        editor.move_down(false);
         assert_eq!(editor.line_count(), 2);
         assert_eq!(editor.cursor_row, 1);
     }
@@ -1425,11 +2139,11 @@ mod tests {
         editor.cursor_col = 5;
         editor.desired_col = 5;
 
-        editor.move_down();
+        editor.move_down(false);
         assert_eq!(editor.cursor_row, 1);
         assert_eq!(editor.cursor_col, 5);
 
-        editor.move_down();
+        editor.move_down(false);
         assert_eq!(editor.cursor_row, 2);
         assert_eq!(editor.cursor_col, 5);
     }
@@ -1437,21 +2151,127 @@ mod tests {
     #[test]
     fn move_left_does_not_jump_out_of_empty_line_origin() {
         let mut editor = ReplEditor::default();
-        editor.move_down();
-        editor.move_right();
-        editor.move_right();
+        editor.move_down(false);
+        editor.move_right(false);
+        editor.move_right(false);
 
-        editor.move_left();
+        editor.move_left(false);
         assert_eq!(editor.cursor_row, 1);
         assert_eq!(editor.cursor_col, 1);
 
-        editor.move_left();
+        editor.move_left(false);
         assert_eq!(editor.cursor_row, 1);
         assert_eq!(editor.cursor_col, 0);
 
-        editor.move_left();
+        editor.move_left(false);
         assert_eq!(editor.cursor_row, 1);
         assert_eq!(editor.cursor_col, 0);
+    }
+
+    #[test]
+    fn selected_text_spans_multiple_lines() {
+        let mut editor = ReplEditor::default();
+        editor.set_text_raw("alpha\nbeta\ngamma");
+        editor.selection_anchor = Some(CursorPoint { row: 0, col: 2 });
+        editor.cursor_row = 2;
+        editor.cursor_col = 2;
+        assert_eq!(editor.selected_text().as_deref(), Some("pha\nbeta\nga"));
+    }
+
+    #[test]
+    fn left_arrow_collapses_selection_to_start() {
+        let mut editor = ReplEditor::default();
+        editor.set_text_raw("alpha beta");
+        editor.selection_anchor = Some(CursorPoint { row: 0, col: 2 });
+        editor.cursor_row = 0;
+        editor.cursor_col = 7;
+
+        editor.move_left(false);
+
+        assert_eq!(editor.cursor_row, 0);
+        assert_eq!(editor.cursor_col, 2);
+        assert!(!editor.has_selection());
+    }
+
+    #[test]
+    fn right_arrow_collapses_selection_to_end() {
+        let mut editor = ReplEditor::default();
+        editor.set_text_raw("alpha beta");
+        editor.selection_anchor = Some(CursorPoint { row: 0, col: 2 });
+        editor.cursor_row = 0;
+        editor.cursor_col = 7;
+
+        editor.move_right(false);
+
+        assert_eq!(editor.cursor_row, 0);
+        assert_eq!(editor.cursor_col, 7);
+        assert!(!editor.has_selection());
+    }
+
+    #[test]
+    fn wheel_scroll_stays_decoupled_from_cursor_until_cursor_moves() {
+        let mut editor = ReplEditor::default();
+        editor.lines = vec![String::new(); 120];
+        editor.cursor_row = 10;
+        editor.scroll_y = 10;
+
+        editor.scroll_lines(40);
+        editor.ensure_visible(80, 20);
+        assert_eq!(editor.scroll_y, 50);
+
+        editor.move_down(false);
+        editor.ensure_visible(80, 20);
+        assert_eq!(editor.scroll_y, 11);
+    }
+
+    #[test]
+    fn current_block_extracts_nearest_non_empty_block() {
+        let mut editor = ReplEditor::default();
+        editor.set_text_raw("use std::fs\n\nfn main() -> Int:\n    let value = 7\n    return value\n\nfn other() -> Int:\n    return 9");
+        editor.cursor_row = 3;
+        editor.cursor_col = 4;
+
+        assert_eq!(
+            editor.current_block_text().as_deref(),
+            Some("fn main() -> Int:\n    let value = 7\n    return value")
+        );
+    }
+
+    #[test]
+    fn selection_run_slice_wins_over_block_run() {
+        let mut editor = ReplEditor::default();
+        editor.set_text_raw("alpha\nbeta\ngamma");
+        editor.selection_anchor = Some(CursorPoint { row: 0, col: 1 });
+        editor.cursor_row = 1;
+        editor.cursor_col = 2;
+
+        assert_eq!(
+            editor.selection_or_current_block(),
+            Some(RunSlice::Selection("lpha\nbe".to_string()))
+        );
+    }
+
+    #[test]
+    fn double_click_word_selection_grabs_identifier() {
+        let mut editor = ReplEditor::default();
+        editor.set_text_raw("entangle world.signal");
+
+        editor.select_word_at(CursorPoint { row: 0, col: 10 });
+
+        assert_eq!(editor.selected_text().as_deref(), Some("world"));
+    }
+
+    #[test]
+    fn triple_click_line_selection_grabs_whole_line() {
+        let mut editor = ReplEditor::default();
+        editor.set_text_raw("entangle world.signal");
+
+        editor.select_line_at(CursorPoint { row: 0, col: 4 });
+
+        assert_eq!(
+            editor.selected_text().as_deref(),
+            Some("entangle world.signal")
+        );
     }
 
     #[test]
@@ -1490,6 +2310,14 @@ mod tests {
         match collect_submission(".theme plain") {
             Submission::Theme(Some(theme)) => assert_eq!(theme, "plain"),
             other => panic!("expected theme submission, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn open_directive_is_routed_to_open_submission() {
+        match collect_submission(".open demo.kn") {
+            Submission::Open(Some(path)) => assert_eq!(path, "demo.kn"),
+            other => panic!("expected open submission, got {other:?}"),
         }
     }
 
