@@ -3303,6 +3303,7 @@ dependencies = [
  "kain-core",
  "kain-driver",
  "kain-lattice",
+ "kain-run",
  "logos",
  "ratatui",
  "unicode-width 0.1.14",

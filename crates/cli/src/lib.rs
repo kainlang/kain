@@ -10,6 +10,9 @@ pub use kain_core::*;
 pub use kain_core::{
     ast, diagnostic_registry, diagnostics, lexer, parser, span, types, CompileTarget,
 };
+pub use kain_core::error::{KainError, KainResult};
+pub use kain_core::runtime_contract::RuntimeContractBundle;
+pub use kain_core::types::TypedProgram;
 
 // CLI-specific modules
 pub mod amalgamate;
@@ -33,8 +36,7 @@ pub mod import_typescript;
 #[cfg(not(feature = "typescript-import"))]
 pub mod import_typescript {
     use std::path::{Path, PathBuf};
-
-    use crate::error::{KainError, KainResult};
+    use crate::{KainError, KainResult};
 
     #[derive(Debug, Clone)]
     pub struct ImportTypeScriptBatchOptions {

@@ -102,7 +102,7 @@ pub struct KainCli {
     #[arg(long, global = true, value_enum)]
     pub color: Option<CliColorArg>,
 
-    /// Select a CLI theme: plain, slate, graphite, arctic, or sandstone
+    /// Select a CLI theme: plain, lattice, slate, graphite, arctic, or sandstone
     #[arg(long, global = true)]
     pub theme: Option<String>,
 
@@ -1155,13 +1155,13 @@ mod tests {
             "--color",
             "always",
             "--theme",
-            "sandstone",
+            "lattice",
             "check",
             "main.kn",
         ]);
         assert_eq!(cli.config, Some(PathBuf::from("custom.toml")));
         assert_eq!(cli.color, Some(CliColorArg::Always));
-        assert_eq!(cli.theme.as_deref(), Some("sandstone"));
+        assert_eq!(cli.theme.as_deref(), Some("lattice"));
         match cli.command {
             Some(KainCommand::Check { input, .. }) => {
                 assert_eq!(input, PathBuf::from("main.kn"));

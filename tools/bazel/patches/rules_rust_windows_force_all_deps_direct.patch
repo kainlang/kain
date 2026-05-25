@@ -1,3 +1,87 @@
+diff --git a/rust/private/rust.bzl b/rust/private/rust.bzl
+--- a/rust/private/rust.bzl
++++ b/rust/private/rust.bzl
+@@ -224,6 +224,7 @@ def _rust_library_common(ctx, crate_type):
+         attr = ctx.attr,
+         toolchain = toolchain,
+         output_hash = output_hash,
++        force_all_deps_direct = getattr(ctx.attr, "force_all_deps_direct", False),
+         crate_info_dict = dict(
+             name = crate_name,
+             type = crate_type,
+@@ -934,6 +935,14 @@ rust_library = rule(
+                 crates will instead use the `.rlib` file.
+             """),
+         ),
++        "force_all_deps_direct": attr.bool(
++            default = False,
++            doc = dedent("""\
++                Forces the full transitive Rust dependency closure to be passed with `--extern`
++                instead of relying on transitive `-Ldependency` search roots. Useful on large
++                Windows graphs where proc-macro DLL loading can exhaust the OS DLL-directory budget.
++            """),
++        ),
+     },
+     fragments = ["cpp"],
+     toolchains = [
 diff --git a/rust/private/rustc.bzl b/rust/private/rustc.bzl
 --- a/rust/private/rustc.bzl
 +++ b/rust/private/rustc.bzl
+@@ -2214,18 +2214,33 @@ def add_crate_link_flags(args, dep_info, force_all_deps_direct = False, use_met
+         use_metadata (bool, optional): Build command line arguments using metadata for crates that provide it.
+     """
+ 
+-    direct_crates = depset(
+-        transitive = [
+-            dep_info.direct_crates,
+-            dep_info.transitive_crates,
+-        ],
+-    ) if force_all_deps_direct else dep_info.direct_crates
++    crate_link_inputs = dep_info.direct_crates
++    if force_all_deps_direct:
++        # Preserve direct dependency precedence, then append only unseen
++        # transitive crate names so large graphs stay Cargo-like instead of
++        # spraying duplicate extern names into rustc.
++        crate_link_inputs = []
++        seen_crate_names = {}
++        for crate in dep_info.direct_crates.to_list():
++            if crate.name in seen_crate_names:
++                continue
++            seen_crate_names[crate.name] = True
++            crate_link_inputs.append(crate)
++        for crate in dep_info.transitive_crates.to_list():
++            if crate.name in seen_crate_names:
++                continue
++            seen_crate_names[crate.name] = True
++            crate_link_inputs.append(crate)
+ 
+     crate_to_link_flags = _crate_to_link_flag_metadata if use_metadata else _crate_to_link_flag
+-    args.add_all(direct_crates, uniquify = True, map_each = crate_to_link_flags)
++    args.add_all(crate_link_inputs, uniquify = True, map_each = crate_to_link_flags)
++
++    dependency_search_roots = dep_info.transitive_crates
++    if force_all_deps_direct:
++        dependency_search_roots = []
+ 
+     args.add_all(
+-        dep_info.transitive_crates,
++        dependency_search_roots,
+         map_each = _get_crate_dirname,
+         uniquify = True,
+         format_each = "-Ldependency=%s",
+@@ -2276,11 +2276,13 @@ def _get_crate_dirname(crate):
+     """A helper macro used by `add_crate_link_flags` for getting the directory name of the current crate's output path
+ 
+     Args:
+-        crate (CrateInfo): A CrateInfo provider from the current rule
++        crate (CrateInfo|AliasableDepInfo): A crate provider from the current rule
+ 
+     Returns:
+         str: The directory name of the the output File that will be produced.
+     """
++    if hasattr(crate, "dep"):
++        return crate.dep.output.dirname
+     return crate.output.dirname
+ 
+ def portable_link_flags(
+

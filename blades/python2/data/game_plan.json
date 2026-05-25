@@ -1,0 +1,20 @@
+{
+  "arena_width": 320,
+  "arena_height": 200,
+  "rounds": 24,
+  "lives": 3,
+  "paddle_width": 56,
+  "paddle_height": 10,
+  "paddle_speed": 10,
+  "oracle_bias": 23,
+  "pygame_driver": "dummy",
+  "pygame_use_display": true,
+  "pygame_hidden": true,
+  "pygame_bonus": 211,
+  "numpy_bonus": 223,
+  "background": [10, 14, 24],
+  "lane": [20, 28, 42],
+  "player": [255, 176, 64],
+  "ball": [242, 246, 255],
+  "ghost": [72, 230, 188]
+}

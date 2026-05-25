@@ -152,6 +152,41 @@ impl RunRequest {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct InlineKainSourceRequest {
+    pub source_name: String,
+    pub source: String,
+    pub cwd: PathBuf,
+    pub target: RunTarget,
+    pub args: Vec<String>,
+}
+
+impl InlineKainSourceRequest {
+    pub fn new(
+        source_name: impl Into<String>,
+        source: impl Into<String>,
+        cwd: impl Into<PathBuf>,
+    ) -> Self {
+        Self {
+            source_name: source_name.into(),
+            source: source.into(),
+            cwd: cwd.into(),
+            target: RunTarget::Llvm,
+            args: Vec::new(),
+        }
+    }
+
+    pub fn with_target(mut self, target: RunTarget) -> Self {
+        self.target = target;
+        self
+    }
+
+    pub fn with_args(mut self, args: Vec<String>) -> Self {
+        self.args = args;
+        self
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RunPlan {
     pub workspace_root: PathBuf,
@@ -370,6 +405,23 @@ pub fn execute_run(request: &RunRequest) -> RunResult<RunReport> {
         return run_dev_loop(request, plan);
     }
     execute_plan(plan, request)
+}
+
+pub fn execute_inline_kain_source(request: &InlineKainSourceRequest) -> RunResult<RunReport> {
+    kfs::create_dir_all(&request.cwd)?;
+    let entry = request
+        .cwd
+        .join(inline_source_entry_file_name(&request.source_name));
+    kfs::write_text(&entry, &request.source)?;
+
+    let run_request = RunRequest::new(Some(entry.clone()))
+        .with_target(request.target)
+        .with_args(request.args.clone())
+        .with_workspace_path(request.cwd.clone());
+    let result = execute_run(&run_request);
+
+    let _cleanup = kfs::remove_file(&entry);
+    result
 }
 
 pub fn execute_plan(plan: RunPlan, request: &RunRequest) -> RunResult<RunReport> {
@@ -2136,6 +2188,34 @@ pub fn render_text_report(report: &RunReport) -> String {
     }
     out.push_str(&format!("Report: {}\n", report.report_path.display()));
     out
+}
+
+pub fn render_compact_output(report: &RunReport) -> String {
+    let mut out = String::new();
+    for unit in &report.units {
+        if !unit.output.trim().is_empty() && unit.output.trim() != "()" {
+            out.push_str(unit.output.trim());
+            out.push('\n');
+        }
+        if !unit.stdout.trim().is_empty() {
+            out.push_str(unit.stdout.trim());
+            out.push('\n');
+        }
+        if !unit.stderr.trim().is_empty() {
+            out.push_str(unit.stderr.trim());
+            out.push('\n');
+        }
+        if let Some(error) = &unit.error {
+            out.push_str(error.trim());
+            out.push('\n');
+        }
+    }
+    out
+}
+
+fn inline_source_entry_file_name(source_name: &str) -> String {
+    let stem = sanitize_id(&path_stem_or_name(Path::new(source_name)));
+    format!(".kain-inline-{stem}.kn")
 }
 
 #[cfg(test)]

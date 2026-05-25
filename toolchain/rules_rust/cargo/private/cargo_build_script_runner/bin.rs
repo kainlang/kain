@@ -1,0 +1,672 @@
+// Copyright 2018 The Bazel Authors. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+//! A simple wrapper around a build_script execution to generate file to reuse
+//! by rust_library/rust_binary.
+
+use std::collections::BTreeMap;
+use std::env;
+use std::fs::{create_dir_all, read_dir, read_to_string, remove_file, write};
+use std::path::{Path, PathBuf};
+use std::process::Command;
+
+use cargo_build_script_runner::cargo_manifest_dir::{remove_symlink, symlink, RunfilesMaker};
+use cargo_build_script_runner::{BuildScriptOutput, CompileAndLinkFlags};
+
+fn run_buildrs() -> Result<(), String> {
+    // We use exec_root.join rather than std::fs::canonicalize, to avoid resolving symlinks, as
+    // some execution strategies and remote execution environments may use symlinks in ways which
+    // canonicalizing them may break them, e.g. by having input files be symlinks into a /cas
+    // directory - resolving these may cause tools which inspect $0, or try to resolve files
+    // relative to themselves, to fail.
+    let exec_root = env::current_dir().expect("Failed to get current directory");
+    let manifest_dir_env = env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR was not set");
+    let rustc_env = env::var("RUSTC").expect("RUSTC was not set");
+    let manifest_dir = exec_root.join(manifest_dir_env);
+    let rustc = exec_root.join(&rustc_env);
+    let Args {
+        progname,
+        crate_links,
+        out_dir,
+        env_file,
+        compile_flags_file,
+        link_flags_file,
+        link_search_paths_file,
+        output_dep_env_path,
+        stdout_path,
+        stderr_path,
+        rundir,
+        input_dep_env_paths,
+        cargo_manifest_maker,
+    } = Args::parse();
+
+    cargo_manifest_maker.create_runfiles_dir().unwrap();
+
+    let out_dir_abs = exec_root.join(&out_dir);
+    // For some reason Google's RBE does not create the output directory, force create it.
+    create_dir_all(&out_dir_abs)
+        .unwrap_or_else(|_| panic!("Failed to make output directory: {:?}", out_dir_abs));
+
+    let mut exec_root_links = Vec::new();
+    if should_symlink_exec_root() {
+        // Symlink the execroot to the manifest_dir so that we can use relative paths in the arguments.
+        let exec_root_paths = std::fs::read_dir(&exec_root)
+            .map_err(|err| format!("Failed while listing exec root: {err:?}"))?;
+        for path in exec_root_paths {
+            let path = path
+                .map_err(|err| {
+                    format!("Failed while getting path from exec root listing: {err:?}")
+                })?
+                .path();
+
+            let file_name = path
+                .file_name()
+                .ok_or_else(|| "Failed while getting file name".to_string())?;
+            let link = manifest_dir.join(file_name);
+
+            symlink_if_not_exists(&path, &link)
+                .map_err(|err| format!("Failed to symlink {path:?} to {link:?}: {err}"))?;
+
+            exec_root_links.push(link)
+        }
+    }
+
+    let target_env_vars =
+        get_target_env_vars(&rustc_env).expect("Error getting target env vars from rustc");
+
+    let working_directory = resolve_rundir(&rundir, &exec_root, &manifest_dir)?;
+
+    let mut command = Command::new(exec_root.join(progname));
+    command
+        .current_dir(&working_directory)
+        .envs(target_env_vars)
+        .env("OUT_DIR", &out_dir_abs)
+        .env("CARGO_MANIFEST_DIR", manifest_dir)
+        .env("RUSTC", rustc)
+        .env("RUST_BACKTRACE", "full");
+
+    for dep_env_path in input_dep_env_paths.iter() {
+        if let Ok(contents) = read_to_string(dep_env_path) {
+            for line in contents.split('\n') {
+                // split on empty contents will still produce a single empty string in iterable.
+                if line.is_empty() {
+                    continue;
+                }
+                match line.split_once('=') {
+                    Some((key, value)) => {
+                        command.env(key, value.replace("${pwd}", &exec_root.to_string_lossy()));
+                    }
+                    _ => {
+                        return Err(
+                            "error: Wrong environment file format, should not happen".to_owned()
+                        )
+                    }
+                }
+            }
+        } else {
+            return Err("error: Dependency environment file unreadable".to_owned());
+        }
+    }
+
+    for tool_env_var in &["CC", "CXX", "LD"] {
+        if let Some(tool_path) = env::var_os(tool_env_var) {
+            command.env(tool_env_var, exec_root.join(tool_path));
+        }
+    }
+
+    if let Some(ar_path) = env::var_os("AR") {
+        // The default OSX toolchain uses libtool as ar_executable not ar.
+        // This doesn't work when used as $AR, so simply don't set it - tools will probably fall back to
+        // /usr/bin/ar which is probably good enough.
+        let file_name = Path::new(&ar_path)
+            .file_name()
+            .ok_or_else(|| "Failed while getting file name".to_string())?
+            .to_string_lossy();
+        if file_name.contains("libtool") {
+            command.env_remove("AR");
+            command.env_remove("ARFLAGS");
+        } else {
+            command.env("AR", exec_root.join(ar_path));
+        }
+    }
+
+    // replace env vars with a ${pwd} prefix with the exec_root
+    for (key, value) in env::vars() {
+        let exec_root_str = exec_root.to_str().expect("exec_root not in utf8");
+        if value.contains("${pwd}") {
+            env::set_var(key, value.replace("${pwd}", exec_root_str));
+        }
+    }
+
+    // Bazel does not support byte strings so in order to correctly represent `CARGO_ENCODED_RUSTFLAGS`
+    // the escaped `\x1f` sequences need to be unescaped
+    if let Ok(encoded_rustflags) = env::var("CARGO_ENCODED_RUSTFLAGS") {
+        command.env(
+            "CARGO_ENCODED_RUSTFLAGS",
+            encoded_rustflags.replace("\\x1f", "\x1f"),
+        );
+    }
+
+    let (buildrs_outputs, process_output) = BuildScriptOutput::outputs_from_command(&mut command)
+        .map_err(|process_output| {
+        format!(
+            "Build script process failed{}\n--stdout:\n{}\n--stderr:\n{}",
+            if let Some(exit_code) = process_output.status.code() {
+                format!(" with exit code {exit_code}")
+            } else {
+                String::new()
+            },
+            String::from_utf8(process_output.stdout)
+                .expect("Failed to parse stdout of child process"),
+            String::from_utf8(process_output.stderr)
+                .expect("Failed to parse stdout of child process"),
+        )
+    })?;
+
+    write(
+        &env_file,
+        BuildScriptOutput::outputs_to_env(&buildrs_outputs, &exec_root.to_string_lossy(), &out_dir)
+            .as_bytes(),
+    )
+    .unwrap_or_else(|e| panic!("Unable to write file {:?}: {:#?}", env_file, e));
+    write(
+        &output_dep_env_path,
+        BuildScriptOutput::outputs_to_dep_env(
+            &buildrs_outputs,
+            &crate_links,
+            &exec_root.to_string_lossy(),
+            &out_dir,
+        )
+        .as_bytes(),
+    )
+    .unwrap_or_else(|e| panic!("Unable to write file {:?}: {:#?}", output_dep_env_path, e));
+
+    if let Some(path) = &stdout_path {
+        write(path, process_output.stdout)
+            .unwrap_or_else(|e| panic!("Unable to write file {:?}: {:#?}", path, e));
+    }
+    if let Some(path) = &stderr_path {
+        write(path, process_output.stderr)
+            .unwrap_or_else(|e| panic!("Unable to write file {:?}: {:#?}", path, e));
+    }
+
+    let CompileAndLinkFlags {
+        compile_flags,
+        link_flags,
+        link_search_paths,
+    } = BuildScriptOutput::outputs_to_flags(
+        &buildrs_outputs,
+        &exec_root.to_string_lossy(),
+        &out_dir,
+    );
+
+    write(&compile_flags_file, compile_flags.as_bytes())
+        .unwrap_or_else(|e| panic!("Unable to write file {:?}: {:#?}", compile_flags_file, e));
+    write(&link_flags_file, link_flags.as_bytes())
+        .unwrap_or_else(|e| panic!("Unable to write file {:?}: {:#?}", link_flags_file, e));
+    write(&link_search_paths_file, link_search_paths.as_bytes()).unwrap_or_else(|e| {
+        panic!(
+            "Unable to write file {:?}: {:#?}",
+            link_search_paths_file, e
+        )
+    });
+
+    if !exec_root_links.is_empty() {
+        for link in exec_root_links {
+            remove_symlink(&link).map_err(|e| {
+                format!(
+                    "Failed to remove exec_root link '{}' with {:?}",
+                    link.display(),
+                    e
+                )
+            })?;
+        }
+    }
+
+    // Delete any runfiles that do not need to be propagated to down stream dependents.
+    cargo_manifest_maker
+        .drain_runfiles_dir(&out_dir_abs)
+        .unwrap();
+
+    // Remove non-deterministic configure-generated files from OUT_DIR before
+    // Bazel captures it as a TreeArtifact. Files like config.log and
+    // Makefile.config embed the Bazel sandbox path (which changes on every
+    // action run), making the TreeArtifact hash non-deterministic and causing
+    // cache misses for all downstream rustc compilations.
+    remove_nondeterministic_out_dir_files(&out_dir_abs);
+
+    // If out_dir is empty add an empty file to the directory to avoid an upstream Bazel bug
+    // https://github.com/bazelbuild/bazel/issues/28286
+    if out_dir_abs.read_dir().map(|read| read.count()).unwrap_or(0) == 0 {
+        create_dir_all(&out_dir_abs).unwrap_or_else(|e| {
+            panic!(
+                "Failed to create OUT_DIR `{}`\n{:?}",
+                out_dir_abs.display(),
+                e
+            )
+        });
+        std::fs::write(out_dir_abs.join(".empty"), "").unwrap_or_else(|e| {
+            panic!(
+                "Failed to write empty file to OUT_DIR `{}`\n{:?}",
+                out_dir_abs.display(),
+                e
+            )
+        })
+    }
+
+    Ok(())
+}
+
+/// Recursively walk `dir` and delete any file whose basename appears in
+/// `RULES_RUST_OUT_DIR_VOLATILE_BASENAMES` (colon-separated, set by the
+/// `//cargo/settings:out_dir_volatile_file_basenames` flag) or has a `.d` or
+/// `.pc` extension. Errors are silently ignored: if a file cannot be removed
+/// the worst outcome is a cache miss, not a build failure.
+fn remove_nondeterministic_out_dir_files(dir: &Path) {
+    let volatile_basenames: Vec<String> = env::var("RULES_RUST_OUT_DIR_VOLATILE_BASENAMES")
+        .map(|v| v.split(':').map(String::from).collect())
+        .unwrap_or_default();
+    remove_nondeterministic_out_dir_files_with_list(dir, &volatile_basenames);
+}
+
+fn remove_nondeterministic_out_dir_files_with_list(dir: &Path, volatile_basenames: &[String]) {
+    let entries = match read_dir(dir) {
+        Ok(e) => e,
+        Err(_) => return,
+    };
+    for entry in entries.flatten() {
+        // Use file_type() which does not follow symlinks, so we never recurse
+        // into symlink targets or traverse outside OUT_DIR.
+        let Ok(file_type) = entry.file_type() else {
+            continue;
+        };
+        let path = entry.path();
+        if file_type.is_dir() {
+            remove_nondeterministic_out_dir_files_with_list(&path, volatile_basenames);
+        } else if file_type.is_file() {
+            if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+                if volatile_basenames.iter().any(|b| b == name)
+                    || name.ends_with(".d")
+                    || name.ends_with(".pc")
+                {
+                    let _ = remove_file(&path);
+                }
+            }
+        }
+    }
+}
+
+fn should_symlink_exec_root() -> bool {
+    env::var("RULES_RUST_SYMLINK_EXEC_ROOT")
+        .map(|s| s == "1")
+        .unwrap_or(false)
+}
+
+/// Create a symlink from `link` to `original` if `link` doesn't already exist.
+fn symlink_if_not_exists(original: &Path, link: &Path) -> Result<(), String> {
+    symlink(original, link)
+        .or_else(swallow_already_exists)
+        .map_err(|err| format!("Failed to create symlink: {err}"))
+}
+
+fn resolve_rundir(rundir: &str, exec_root: &Path, manifest_dir: &Path) -> Result<PathBuf, String> {
+    if rundir.is_empty() {
+        return Ok(manifest_dir.to_owned());
+    }
+    let rundir_path = Path::new(rundir);
+    if rundir_path.is_absolute() {
+        return Err(format!("rundir must be empty (to run in manifest path) or relative path (relative to exec root), but was {:?}", rundir));
+    }
+    if rundir_path
+        .components()
+        .any(|c| c == std::path::Component::ParentDir)
+    {
+        return Err(format!("rundir must not contain .. but was {:?}", rundir));
+    }
+    Ok(exec_root.join(rundir_path))
+}
+
+fn swallow_already_exists(err: std::io::Error) -> std::io::Result<()> {
+    if err.kind() == std::io::ErrorKind::AlreadyExists {
+        Ok(())
+    } else {
+        Err(err)
+    }
+}
+
+/// A representation of expected command line arguments.
+struct Args {
+    progname: String,
+    crate_links: String,
+    out_dir: String,
+    env_file: String,
+    compile_flags_file: String,
+    link_flags_file: String,
+    link_search_paths_file: String,
+    output_dep_env_path: String,
+    stdout_path: Option<String>,
+    stderr_path: Option<String>,
+    rundir: String,
+    input_dep_env_paths: Vec<String>,
+    cargo_manifest_maker: RunfilesMaker,
+}
+
+impl Args {
+    fn parse() -> Self {
+        let mut progname: Result<String, String> =
+            Err("Argument `progname` not provided".to_owned());
+        let mut crate_links: Result<String, String> =
+            Err("Argument `crate_links` not provided".to_owned());
+        let mut out_dir: Result<String, String> = Err("Argument `out_dir` not provided".to_owned());
+        let mut env_file: Result<String, String> =
+            Err("Argument `env_file` not provided".to_owned());
+        let mut compile_flags_file: Result<String, String> =
+            Err("Argument `compile_flags_file` not provided".to_owned());
+        let mut link_flags_file: Result<String, String> =
+            Err("Argument `link_flags_file` not provided".to_owned());
+        let mut link_search_paths_file: Result<String, String> =
+            Err("Argument `link_search_paths_file` not provided".to_owned());
+        let mut output_dep_env_path: Result<String, String> =
+            Err("Argument `output_dep_env_path` not provided".to_owned());
+        let mut stdout_path = None;
+        let mut stderr_path = None;
+        let mut rundir: Result<String, String> = Err("Argument `rundir` not provided".to_owned());
+        let mut input_dep_env_paths = Vec::new();
+        let mut cargo_manifest_maker: Result<RunfilesMaker, String> =
+            Err("Argument `cargo_manifest_args` not provided".to_owned());
+
+        for mut arg in env::args().skip(1) {
+            if arg.starts_with("--script=") {
+                progname = Ok(arg.split_off("--script=".len()));
+            } else if arg.starts_with("--links=") {
+                crate_links = Ok(arg.split_off("--links=".len()));
+            } else if arg.starts_with("--out_dir=") {
+                out_dir = Ok(arg.split_off("--out_dir=".len()));
+            } else if arg.starts_with("--env_out=") {
+                env_file = Ok(arg.split_off("--env_out=".len()));
+            } else if arg.starts_with("--flags_out=") {
+                compile_flags_file = Ok(arg.split_off("--flags_out=".len()));
+            } else if arg.starts_with("--link_flags=") {
+                link_flags_file = Ok(arg.split_off("--link_flags=".len()));
+            } else if arg.starts_with("--link_search_paths=") {
+                link_search_paths_file = Ok(arg.split_off("--link_search_paths=".len()));
+            } else if arg.starts_with("--dep_env_out=") {
+                output_dep_env_path = Ok(arg.split_off("--dep_env_out=".len()));
+            } else if arg.starts_with("--stdout=") {
+                stdout_path = Some(arg.split_off("--stdout=".len()));
+            } else if arg.starts_with("--stderr=") {
+                stderr_path = Some(arg.split_off("--stderr=".len()));
+            } else if arg.starts_with("--rundir=") {
+                rundir = Ok(arg.split_off("--rundir=".len()))
+            } else if arg.starts_with("--input_dep_env_path=") {
+                input_dep_env_paths.push(arg.split_off("--input_dep_env_path=".len()));
+            } else if arg.starts_with("--cargo_manifest_args=") {
+                cargo_manifest_maker = Ok(RunfilesMaker::from_param_file(
+                    &arg.split_off("--cargo_manifest_args=".len()),
+                ));
+            }
+        }
+
+        Args {
+            progname: progname.unwrap(),
+            crate_links: crate_links.unwrap(),
+            out_dir: out_dir.unwrap(),
+            env_file: env_file.unwrap(),
+            compile_flags_file: compile_flags_file.unwrap(),
+            link_flags_file: link_flags_file.unwrap(),
+            link_search_paths_file: link_search_paths_file.unwrap(),
+            output_dep_env_path: output_dep_env_path.unwrap(),
+            stdout_path,
+            stderr_path,
+            rundir: rundir.unwrap(),
+            input_dep_env_paths,
+            cargo_manifest_maker: cargo_manifest_maker.unwrap(),
+        }
+    }
+}
+
+fn get_target_env_vars<P: AsRef<Path>>(rustc: &P) -> Result<BTreeMap<String, String>, String> {
+    // As done by Cargo when constructing a cargo::core::compiler::build_context::target_info::TargetInfo.
+    let output = Command::new(rustc.as_ref())
+        .arg("--print=cfg")
+        .arg(format!(
+            "--target={}",
+            env::var("TARGET").expect("missing TARGET")
+        ))
+        .output()
+        .map_err(|err| format!("Error running rustc to get target information: {err}"))?;
+    if !output.status.success() {
+        return Err(format!(
+            "Error running rustc to get target information: {output:?}",
+        ));
+    }
+    let stdout = std::str::from_utf8(&output.stdout)
+        .map_err(|err| format!("Non-UTF8 stdout from rustc: {err:?}"))?;
+
+    Ok(parse_rustc_cfg_output(stdout))
+}
+
+fn parse_rustc_cfg_output(stdout: &str) -> BTreeMap<String, String> {
+    let mut values = BTreeMap::new();
+
+    for line in stdout.lines() {
+        if line.starts_with("target_") && line.contains('=') {
+            // UNWRAP: Verified that line contains = and split into exactly 2 parts.
+            let (key, value) = line.split_once('=').unwrap();
+            if value.starts_with('"') && value.ends_with('"') && value.len() >= 2 {
+                values
+                    .entry(key)
+                    .or_insert_with(Vec::new)
+                    .push(value[1..(value.len() - 1)].to_owned());
+            }
+        } else if ["windows", "unix"].contains(&line) {
+            // the 'windows' or 'unix' line received from rustc will be turned
+            // into eg. CARGO_CFG_WINDOWS='' below
+            values.insert(line, vec![]);
+        }
+    }
+
+    values
+        .into_iter()
+        .map(|(key, value)| (format!("CARGO_CFG_{}", key.to_uppercase()), value.join(",")))
+        .collect()
+}
+
+fn main() {
+    std::process::exit(match run_buildrs() {
+        Ok(_) => 0,
+        Err(err) => {
+            // Neatly print errors
+            eprintln!("{err}");
+            1
+        }
+    });
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use std::fs::{create_dir_all, write};
+
+    fn make_temp_dir(label: &str) -> PathBuf {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .subsec_nanos();
+        let dir = std::env::temp_dir().join(format!("rules_rust_bin_test_{}_{}", label, nanos));
+        create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    fn basenames(names: &[&str]) -> Vec<String> {
+        names.iter().map(|s| s.to_string()).collect()
+    }
+
+    #[test]
+    fn remove_nondeterministic_named_files() {
+        let names = &["config.log", "config.status", "Makefile", "commit_hash"];
+        let dir = make_temp_dir("named");
+        for name in names {
+            write(dir.join(name), "content").unwrap();
+        }
+        write(dir.join("libfoo.a"), "keep").unwrap();
+
+        remove_nondeterministic_out_dir_files_with_list(&dir, &basenames(names));
+
+        for name in names {
+            assert!(
+                !dir.join(name).exists(),
+                "{} should have been removed",
+                name
+            );
+        }
+        assert!(dir.join("libfoo.a").exists(), "libfoo.a should be kept");
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn remove_dot_d_and_pc_files() {
+        let dir = make_temp_dir("dotd");
+        write(dir.join("foo.d"), "deps").unwrap();
+        write(dir.join("bar.d"), "deps").unwrap();
+        write(dir.join("jemalloc.pc"), "prefix=/sandbox/out").unwrap();
+        write(dir.join("output.o"), "keep").unwrap();
+
+        remove_nondeterministic_out_dir_files_with_list(&dir, &[]);
+
+        assert!(!dir.join("foo.d").exists(), "foo.d should be removed");
+        assert!(!dir.join("bar.d").exists(), "bar.d should be removed");
+        assert!(
+            !dir.join("jemalloc.pc").exists(),
+            "jemalloc.pc should be removed"
+        );
+        assert!(dir.join("output.o").exists(), "output.o should be kept");
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn remove_nondeterministic_files_recursively() {
+        let dir = make_temp_dir("recurse");
+        let sub = dir.join("subdir");
+        create_dir_all(&sub).unwrap();
+        write(sub.join("config.log"), "log").unwrap();
+        write(sub.join("foo.d"), "deps").unwrap();
+        write(sub.join("output.o"), "keep").unwrap();
+        write(dir.join("Makefile"), "top-level").unwrap();
+
+        remove_nondeterministic_out_dir_files_with_list(
+            &dir,
+            &basenames(&["config.log", "Makefile"]),
+        );
+
+        assert!(!sub.join("config.log").exists());
+        assert!(!sub.join("foo.d").exists());
+        assert!(sub.join("output.o").exists());
+        assert!(!dir.join("Makefile").exists());
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn remove_nondeterministic_nonexistent_dir_is_noop() {
+        let dir = std::env::temp_dir().join("rules_rust_bin_test_nonexistent_999999999");
+        // Must not panic.
+        remove_nondeterministic_out_dir_files_with_list(&dir, &[]);
+    }
+
+    #[test]
+    fn remove_nondeterministic_custom_basenames() {
+        let dir = make_temp_dir("custom");
+        write(dir.join("custom_volatile.txt"), "bad").unwrap();
+        write(dir.join("config.log"), "keep_this").unwrap();
+
+        remove_nondeterministic_out_dir_files_with_list(&dir, &basenames(&["custom_volatile.txt"]));
+
+        assert!(
+            !dir.join("custom_volatile.txt").exists(),
+            "custom file should be removed"
+        );
+        assert!(
+            dir.join("config.log").exists(),
+            "config.log should be kept with custom list"
+        );
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn remove_nondeterministic_env_var_override() {
+        let dir = make_temp_dir("envvar");
+        write(dir.join("config.log"), "would be removed by default").unwrap();
+        write(dir.join("only_this.txt"), "should be removed").unwrap();
+
+        // Override via env var: only "only_this.txt" is volatile; config.log should survive.
+        let prev = std::env::var("RULES_RUST_OUT_DIR_VOLATILE_BASENAMES").ok();
+        std::env::set_var("RULES_RUST_OUT_DIR_VOLATILE_BASENAMES", "only_this.txt");
+        remove_nondeterministic_out_dir_files(&dir);
+        match prev {
+            Some(v) => std::env::set_var("RULES_RUST_OUT_DIR_VOLATILE_BASENAMES", v),
+            None => std::env::remove_var("RULES_RUST_OUT_DIR_VOLATILE_BASENAMES"),
+        }
+
+        assert!(
+            !dir.join("only_this.txt").exists(),
+            "only_this.txt should be removed"
+        );
+        assert!(
+            dir.join("config.log").exists(),
+            "config.log should survive when not in env var list"
+        );
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn rustc_cfg_parsing() {
+        let macos_output = r#"\
+debug_assertions
+target_arch="x86_64"
+target_endian="little"
+target_env=""
+target_family="unix"
+target_feature="fxsr"
+target_feature="sse"
+target_feature="sse2"
+target_feature="sse3"
+target_feature="ssse3"
+target_os="macos"
+target_pointer_width="64"
+target_vendor="apple"
+unix
+"#;
+        let tree = parse_rustc_cfg_output(macos_output);
+        assert_eq!(tree["CARGO_CFG_UNIX"], "");
+        assert_eq!(tree["CARGO_CFG_TARGET_FAMILY"], "unix");
+
+        let windows_output = r#"\
+debug_assertions
+target_arch="x86_64"
+target_endian="little"
+target_env="msvc"
+target_family="windows"
+target_feature="fxsr"
+target_feature="sse"
+target_feature="sse2"
+target_os="windows"
+target_pointer_width="64"
+target_vendor="pc"
+windows
+"#;
+        let tree = parse_rustc_cfg_output(windows_output);
+        assert_eq!(tree["CARGO_CFG_WINDOWS"], "");
+        assert_eq!(tree["CARGO_CFG_TARGET_FAMILY"], "windows");
+    }
+}

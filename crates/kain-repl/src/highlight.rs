@@ -12,7 +12,7 @@ pub fn highlight_source_line(
     is_current_line: bool,
     palette: ReplPalette,
 ) -> Line<'static> {
-    if let Some(line) = highlight_directive_line(source, is_current_line) {
+    if let Some(line) = highlight_directive_line(source, is_current_line, palette) {
         return line;
     }
 
@@ -55,13 +55,16 @@ pub fn highlight_source_line(
     Line::from(spans)
 }
 
-fn highlight_directive_line(source: &str, is_current_line: bool) -> Option<Line<'static>> {
+fn highlight_directive_line(
+    source: &str,
+    is_current_line: bool,
+    palette: ReplPalette,
+) -> Option<Line<'static>> {
     let trimmed = source.trim();
     if ReplDirective::parse(trimmed).is_none() {
         return None;
     }
 
-    let palette = crate::theme::active_repl_palette();
     let base_style = base_line_style(is_current_line, palette);
     Some(Line::from(vec![Span::styled(
         source.to_string(),

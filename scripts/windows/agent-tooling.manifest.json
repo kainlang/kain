@@ -1,0 +1,157 @@
+{
+  "version": 1,
+  "scoopBuckets": [
+    "extras"
+  ],
+  "scoopPackages": [
+    {
+      "name": "bazelisk",
+      "reason": "Canonical Bazel launcher for repo builds and tests."
+    },
+    {
+      "name": "llvm",
+      "reason": "IR, objdump, symbolization, and sanitizer-adjacent tooling."
+    },
+    {
+      "name": "python",
+      "installedNames": [
+        "python",
+        "python312"
+      ],
+      "reason": "Base Python interpreter for repo scripts and uv."
+    },
+    {
+      "name": "rustup",
+      "reason": "Rust toolchain manager for cargo-side tooling."
+    },
+    {
+      "name": "jq",
+      "reason": "Fast JSON slicing for benchmark, BEP, and report artifacts."
+    },
+    {
+      "name": "yq",
+      "reason": "YAML/TOML/JSON inspection for config and proof packs."
+    },
+    {
+      "name": "graphviz",
+      "reason": "Graph rendering for build, proof, and dependency visualization."
+    },
+    {
+      "name": "hyperfine",
+      "reason": "Ad hoc command benchmarking outside the canonical benchmark lane."
+    },
+    {
+      "name": "drmemory",
+      "reason": "Windows memory debugger for native code pressure."
+    },
+    {
+      "name": "sysinternals",
+      "reason": "ProcMon, ProcDump, Process Explorer, VMMap, TCPView, Handle, and DebugView."
+    },
+    {
+      "name": "uv",
+      "reason": "Fast Python environment and tool manager."
+    }
+  ],
+  "wingetPackages": [
+    {
+      "id": "Microsoft.WinDbg",
+      "displayName": "WinDbg",
+      "reason": "Native debugging, dump triage, and time-travel debugging.",
+      "group": "core"
+    },
+    {
+      "id": "Microsoft.WindowsADK",
+      "displayName": "Windows ADK",
+      "reason": "Installs the Windows Performance Toolkit lane used for WPR/WPA.",
+      "group": "heavy"
+    },
+    {
+      "id": "Microsoft.WindowsSDK.10.0.18362",
+      "displayName": "Windows SDK",
+      "reason": "AppVerifier lives in the Windows SDK.",
+      "group": "heavy",
+      "alternateIds": [
+        "Microsoft.WindowsSDK.10.0.17134"
+      ]
+    }
+  ],
+  "cargoCrates": [
+    {
+      "name": "cargo-nextest",
+      "reason": "High-signal Rust test runner for crate-local iteration."
+    },
+    {
+      "name": "cargo-llvm-cov",
+      "reason": "Coverage extraction for Rust-targeted investigation."
+    },
+    {
+      "name": "cargo-fuzz",
+      "reason": "libFuzzer-based fuzzing entrypoint."
+    },
+    {
+      "name": "cargo-mutants",
+      "reason": "Mutation testing to find fake confidence."
+    },
+    {
+      "name": "cargo-expand",
+      "reason": "Macro expansion visibility."
+    },
+    {
+      "name": "cargo-show-asm",
+      "reason": "Assembly inspection from Cargo workflows."
+    },
+    {
+      "name": "cargo-bloat",
+      "reason": "Size attribution for binaries."
+    },
+    {
+      "name": "cargo-udeps",
+      "reason": "Unused dependency detection."
+    },
+    {
+      "name": "cargo-audit",
+      "reason": "RustSec advisory scanning."
+    },
+    {
+      "name": "cargo-deny",
+      "reason": "Dependency policy, license, and advisory checks."
+    }
+  ],
+  "pythonToolbox": {
+    "packages": [
+      {
+        "name": "pytest",
+        "reason": "Python test runner."
+      },
+      {
+        "name": "pytest-xdist",
+        "reason": "Parallel pytest execution."
+      },
+      {
+        "name": "coverage",
+        "reason": "Coverage.py CLI."
+      },
+      {
+        "name": "hypothesis",
+        "reason": "Property-based testing."
+      },
+      {
+        "name": "py-spy",
+        "reason": "Low-overhead Python sampling profiler."
+      },
+      {
+        "name": "scalene",
+        "reason": "CPU, memory, and GPU-oriented Python profiling."
+      },
+      {
+        "name": "viztracer",
+        "reason": "Trace visualization for Python execution."
+      },
+      {
+        "name": "z3-solver",
+        "reason": "Solver backend for proof and bug-hunt scripts."
+      }
+    ]
+  }
+}

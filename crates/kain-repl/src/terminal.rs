@@ -46,10 +46,25 @@ pub fn run_terminal_repl(config: ReplTerminalConfig) -> bool {
 }
 
 pub fn run_terminal_repl_with_io<R, W, E>(
+    input: R,
+    output: W,
+    error: E,
+    config: ReplTerminalConfig,
+) -> bool
+where
+    R: BufRead,
+    W: Write,
+    E: Write,
+{
+    run_terminal_repl_with_io_and_evaluator(input, output, error, config, ReplEvaluator::default())
+}
+
+fn run_terminal_repl_with_io_and_evaluator<R, W, E>(
     mut input: R,
     mut output: W,
     mut error: E,
     config: ReplTerminalConfig,
+    evaluator: ReplEvaluator,
 ) -> bool
 where
     R: BufRead,
@@ -60,7 +75,6 @@ where
         return false;
     }
 
-    let evaluator = ReplEvaluator::default();
     let mut session = ReplSession::new();
     let mut line = String::new();
 
@@ -99,11 +113,8 @@ where
             }
             ReplLineAction::Theme(theme) => {
                 let message = match theme {
-                    Some(name) => format!(
-                        " Theme switching is available in the TUI REPL. Requested theme: {name}"
-                    ),
-                    None => " Theme switching is available in the TUI REPL via `.theme <name>`."
-                        .to_string(),
+                    Some(name) => format!("palette {name}"),
+                    None => "palette".to_string(),
                 };
                 if writeln!(output, "{message}").is_err() {
                     return false;
@@ -154,7 +165,7 @@ where
     W: Write,
     E: Write,
 {
-    match evaluator.evaluate_interpret_source(&config.source_name, source) {
+    match evaluator.evaluate_source(&config.source_name, source) {
         Ok(evaluation) => write_evaluation(output, &evaluation),
         Err(failure) => write!(error, "{}", failure.formatted_error),
     }
@@ -203,11 +214,12 @@ mod tests {
         let mut output = Vec::new();
         let mut error = Vec::new();
 
-        assert!(run_terminal_repl_with_io(
+        assert!(run_terminal_repl_with_io_and_evaluator(
             input,
             &mut output,
             &mut error,
-            ReplTerminalConfig::default()
+            ReplTerminalConfig::default(),
+            ReplEvaluator::interpret_only_for_testing(),
         ));
 
         let output = String::from_utf8(output).expect("output should be utf-8");
@@ -224,11 +236,12 @@ mod tests {
         let mut output = Vec::new();
         let mut error = Vec::new();
 
-        assert!(run_terminal_repl_with_io(
+        assert!(run_terminal_repl_with_io_and_evaluator(
             input,
             &mut output,
             &mut error,
-            ReplTerminalConfig::default()
+            ReplTerminalConfig::default(),
+            ReplEvaluator::interpret_only_for_testing(),
         ));
 
         let output = String::from_utf8(output).expect("output should be utf-8");

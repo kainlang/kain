@@ -10,6 +10,7 @@ arboard = "3"
 kain-lattice = { path = "../kain-lattice" }
 kain-core = { path = "../kain-core" }
 kain-driver = { path = "../kain-driver", default-features = false }
+kain-run = { path = "../kain-run" }
 logos = { workspace = true }
 ratatui = { workspace = true }
 crossterm = { workspace = true }

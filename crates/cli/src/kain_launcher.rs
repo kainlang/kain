@@ -588,6 +588,105 @@ fn run_source(
     )
 }
 
+fn legacy_source_prefers_native_script(requested_target: &str, has_output: bool) -> bool {
+    if has_output {
+        return false;
+    }
+    matches!(
+        requested_target.trim().to_ascii_lowercase().as_str(),
+        "wasm" | "llvm" | "native" | "n"
+    )
+}
+
+fn legacy_file_prefers_native_script(
+    launcher: LauncherKind,
+    requested_target: &str,
+    has_output: bool,
+) -> bool {
+    launcher.prefers_interpret_default()
+        && legacy_source_prefers_native_script(requested_target, has_output)
+}
+
+fn print_compact_run_report(report: &kain_run::RunReport, success: bool) {
+    let compact = kain_run::render_compact_output(report);
+    if compact.trim().is_empty() {
+        return;
+    }
+    if success {
+        print!("{compact}");
+    } else {
+        eprint!("{compact}");
+    }
+}
+
+fn run_inline_native_script(source_name: &str, source: &str) -> bool {
+    let cwd = match std::env::current_dir() {
+        Ok(path) => path,
+        Err(err) => {
+            eprintln!(
+                " Failed to resolve current directory for inline script: {}",
+                err
+            );
+            return false;
+        }
+    };
+    let request = kain_run::InlineKainSourceRequest::new(source_name, source, cwd);
+    match kain_run::execute_inline_kain_source(&request) {
+        Ok(report) => {
+            let success = report.is_success();
+            print_compact_run_report(&report, success);
+            success
+        }
+        Err(err) => {
+            eprintln!(" Inline native script failed: {}", err);
+            false
+        }
+    }
+}
+
+fn run_file_as_native_script(input: PathBuf, watch: bool) -> bool {
+    let request = match run_cli::make_request(
+        Some(input),
+        if watch {
+            kain_run::RunMode::Dev
+        } else {
+            kain_run::RunMode::Once
+        },
+        "llvm".to_string(),
+        Vec::new(),
+        false,
+        false,
+        false,
+        false,
+    ) {
+        Ok(request) => request,
+        Err(err) => {
+            eprintln!(" Native script setup failed: {}", err);
+            return false;
+        }
+    };
+
+    if watch {
+        if let Err(err) = run_cli::execute(request) {
+            eprintln!(" Native script watch failed: {}", err);
+            return false;
+        }
+        return true;
+    }
+
+    match kain_run::execute_run(&request) {
+        Ok(report) => {
+            let success = report.is_success();
+            print_compact_run_report(&report, success);
+            success
+        }
+        Err(err) => {
+            eprintln!(" Native script execution failed: {}", err);
+            false
+        }
+    }
+}
+
 fn run_source_with_session(
     session: &kain_driver::DriverSession,
     source_name: &str,
@@ -3068,6 +3167,14 @@ pub fn main_entry() {
                             if !run_ue5_shader_pipeline(&input, &args) {
                                 std::process::exit(1);
                             }
+                        } else if legacy_file_prefers_native_script(
+                            launcher,
+                            &args.target,
+                            args.output.is_some(),
+                        ) {
+                            if !run_file_as_native_script(input.clone(), args.watch) {
+                                std::process::exit(1);
+                            }
                         } else {
                             let resolved_target_alias = resolve_legacy_target_alias(
                                 launcher,
@@ -3110,6 +3217,17 @@ pub fn main_entry() {
                             }
                         }
                     } else if let Some(code) = args.code.as_deref() {
+                        if legacy_source_prefers_native_script(&args.target, args.output.is_some())
+                        {
+                            if args.watch {
+                                eprintln!(" Watch mode is only supported for file-backed input.");
+                                std::process::exit(1);
+                            }
+                            if !run_inline_native_script("<inline>", code) {
+                                std::process::exit(1);
+                            }
+                            return;
+                        }
                         let resolved_target_alias = resolve_legacy_target_alias(
                             launcher,
                             &args.target,
@@ -3142,6 +3260,17 @@ pub fn main_entry() {
                             std::process::exit(1);
                         }
                     } else if let Some(stdin_source) = stdin_source.as_deref() {
+                        if legacy_source_prefers_native_script(&args.target, args.output.is_some())
+                        {
+                            if args.watch {
+                                eprintln!(" Watch mode is only supported for file-backed input.");
+                                std::process::exit(1);
+                            }
+                            if !run_inline_native_script("<stdin>", stdin_source) {
+                                std::process::exit(1);
+                            }
+                            return;
+                        }
                         let resolved_target_alias = resolve_legacy_target_alias(
                             launcher,
                             &args.target,

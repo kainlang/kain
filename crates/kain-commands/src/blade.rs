@@ -136,7 +136,7 @@ pub struct BladeCli {
     #[arg(long, global = true, value_enum)]
     pub color: Option<CliColorArg>,
 
-    /// Select a CLI theme: plain, slate, graphite, arctic, or sandstone
+    /// Select a CLI theme: plain, lattice, slate, graphite, arctic, or sandstone
     #[arg(long, global = true)]
     pub theme: Option<String>,
 
@@ -296,13 +296,13 @@ mod tests {
             "--color",
             "never",
             "--theme",
-            "arctic",
+            "lattice",
             "build",
             ".",
         ]);
         assert_eq!(cli.config, Some(PathBuf::from("team.toml")));
         assert_eq!(cli.color, Some(CliColorArg::Never));
-        assert_eq!(cli.theme.as_deref(), Some("arctic"));
+        assert_eq!(cli.theme.as_deref(), Some("lattice"));
     }
 
     #[test]

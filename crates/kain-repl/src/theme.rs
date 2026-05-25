@@ -1,6 +1,8 @@
-use kain_core::tooling_config::active_ui_theme_name;
+use kain_core::tooling_config::active_kain_tooling_config;
 use kain_lattice::{supported_theme_names, theme_by_name, SemanticRole};
 use ratatui::style::{Color, Modifier, Style};
+
+pub const DEFAULT_REPL_THEME: &str = "plain";
 
 #[derive(Debug, Clone, Copy)]
 pub struct ReplPalette {
@@ -31,11 +33,14 @@ pub struct ReplPalette {
 }
 
 pub fn active_repl_theme_name() -> String {
-    active_ui_theme_name()
-}
-
-pub fn active_repl_palette() -> ReplPalette {
-    repl_palette(&active_repl_theme_name())
+    let active = active_kain_tooling_config();
+    if active.ui.theme == "plain" || active.ui.theme == "lattice" {
+        return active.ui.theme;
+    }
+    if active.ui.theme == "slate" {
+        return DEFAULT_REPL_THEME.to_string();
+    }
+    active.ui.theme
 }
 
 pub fn repl_palette(theme_name: &str) -> ReplPalette {
@@ -72,6 +77,24 @@ pub fn repl_palette(theme_name: &str) -> ReplPalette {
 
 pub fn repl_theme_names() -> Vec<&'static str> {
     supported_theme_names().to_vec()
+}
+
+pub fn cycle_repl_theme_name(current: &str, reverse: bool) -> String {
+    let names = supported_theme_names();
+    let fallback_index = names
+        .iter()
+        .position(|name| *name == DEFAULT_REPL_THEME)
+        .unwrap_or(0);
+    let current_index = names
+        .iter()
+        .position(|name| *name == current)
+        .unwrap_or(fallback_index);
+    let next_index = if reverse {
+        current_index.checked_sub(1).unwrap_or(names.len() - 1)
+    } else {
+        (current_index + 1) % names.len()
+    };
+    names[next_index].to_string()
 }
 
 impl ReplPalette {

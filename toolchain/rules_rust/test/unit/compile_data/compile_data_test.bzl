@@ -1,0 +1,369 @@
+"""Unittest to verify compile_data (attribute) propagation"""
+
+load("@bazel_skylib//lib:unittest.bzl", "analysistest", "asserts")
+load("@bazel_skylib//rules:write_file.bzl", "write_file")
+load("//rust:defs.bzl", "rust_common", "rust_doc", "rust_library", "rust_proc_macro", "rust_test")
+load(
+    "//test/unit:common.bzl",
+    "assert_action_mnemonic",
+)
+
+def _target_has_compile_data(ctx, expected):
+    env = analysistest.begin(ctx)
+    target = analysistest.target_under_test(env)
+
+    # Extract compile_data from a target expected to have a `CrateInfo` provider
+    crate_info = target[rust_common.crate_info]
+    compile_data = crate_info.compile_data.to_list()
+
+    # Ensure compile data was correctly propagated to the provider
+    asserts.equals(
+        env,
+        sorted([data.short_path for data in compile_data]),
+        expected,
+    )
+
+    return analysistest.end(env)
+
+def _compile_data_propagates_to_crate_info_test_impl(ctx):
+    return _target_has_compile_data(
+        ctx,
+        ["test/unit/compile_data/compile_data.txt"],
+    )
+
+def _wrapper_rule_propagates_to_crate_info_test_impl(ctx):
+    return _target_has_compile_data(
+        ctx,
+        ["test/unit/compile_data/compile_data.txt"],
+    )
+
+def _wrapper_rule_propagates_and_joins_compile_data_test_impl(ctx):
+    return _target_has_compile_data(
+        ctx,
+        [
+            "test/unit/compile_data/compile_data.txt",
+            "test/unit/compile_data/test_compile_data.txt",
+        ],
+    )
+
+def _compile_data_propagates_to_rust_doc_test_impl(ctx):
+    env = analysistest.begin(ctx)
+    target = analysistest.target_under_test(env)
+
+    actions = target.actions
+    action = actions[0]
+    assert_action_mnemonic(env, action, "Rustdoc")
+
+    return analysistest.end(env)
+
+def _transitive_data_not_in_compile_inputs_test_impl(ctx):
+    env = analysistest.begin(ctx)
+    target = analysistest.target_under_test(env)
+
+    rustc_action = None
+    for action in target.actions:
+        if action.mnemonic == "Rustc":
+            rustc_action = action
+            break
+
+    asserts.false(env, rustc_action == None, "Expected a Rustc action")
+
+    data_inputs = [i for i in rustc_action.inputs.to_list() if "transitive_data_dep.txt" in i.path]
+    asserts.equals(
+        env,
+        0,
+        len(data_inputs),
+        "Expected transitive data dep file to NOT appear in Rustc action inputs, but found: " +
+        str([i.path for i in data_inputs]),
+    )
+
+    return analysistest.end(env)
+
+def _transitive_compile_data_not_in_compile_inputs_test_impl(ctx):
+    env = analysistest.begin(ctx)
+    target = analysistest.target_under_test(env)
+
+    rustc_action = None
+    for action in target.actions:
+        if action.mnemonic == "Rustc":
+            rustc_action = action
+            break
+
+    asserts.false(env, rustc_action == None, "Expected a Rustc action")
+
+    compile_data_inputs = [i for i in rustc_action.inputs.to_list() if "transitive_compile_data_dep.txt" in i.path]
+    asserts.equals(
+        env,
+        0,
+        len(compile_data_inputs),
+        "Expected transitive compile_data dep file to NOT appear in Rustc action inputs, but found: " +
+        str([i.path for i in compile_data_inputs]),
+    )
+
+    return analysistest.end(env)
+
+def _proc_macro_data_in_compile_inputs_test_impl(ctx):
+    env = analysistest.begin(ctx)
+    target = analysistest.target_under_test(env)
+
+    rustc_action = None
+    for action in target.actions:
+        if action.mnemonic == "Rustc":
+            rustc_action = action
+            break
+
+    asserts.false(env, rustc_action == None, "Expected a Rustc action")
+
+    data_inputs = [i for i in rustc_action.inputs.to_list() if "proc_macro_data_dep.txt" in i.path]
+    asserts.true(
+        env,
+        len(data_inputs) > 0,
+        "Expected proc-macro data dep file to appear in Rustc action inputs, but it was not found",
+    )
+
+    return analysistest.end(env)
+
+def _data_propagates_to_runfiles_test_impl(ctx):
+    env = analysistest.begin(ctx)
+    target = analysistest.target_under_test(env)
+
+    runfiles = target[DefaultInfo].default_runfiles
+    runfile_paths = [f.short_path for f in runfiles.files.to_list()]
+
+    asserts.true(
+        env,
+        any([p for p in runfile_paths if "transitive_data_dep.txt" in p]),
+        "Expected transitive data dep file to appear in runfiles, but got: " +
+        str(runfile_paths),
+    )
+
+    return analysistest.end(env)
+
+compile_data_propagates_to_crate_info_test = analysistest.make(_compile_data_propagates_to_crate_info_test_impl)
+wrapper_rule_propagates_to_crate_info_test = analysistest.make(_wrapper_rule_propagates_to_crate_info_test_impl)
+wrapper_rule_propagates_and_joins_compile_data_test = analysistest.make(_wrapper_rule_propagates_and_joins_compile_data_test_impl)
+compile_data_propagates_to_rust_doc_test = analysistest.make(_compile_data_propagates_to_rust_doc_test_impl)
+transitive_data_not_in_compile_inputs_test = analysistest.make(_transitive_data_not_in_compile_inputs_test_impl)
+transitive_compile_data_not_in_compile_inputs_test = analysistest.make(_transitive_compile_data_not_in_compile_inputs_test_impl)
+proc_macro_data_in_compile_inputs_test = analysistest.make(_proc_macro_data_in_compile_inputs_test_impl)
+data_propagates_to_runfiles_test = analysistest.make(_data_propagates_to_runfiles_test_impl)
+
+def _define_test_targets():
+    rust_library(
+        name = "compile_data",
+        srcs = ["compile_data.rs"],
+        compile_data = ["compile_data.txt"],
+        edition = "2018",
+    )
+
+    rust_test(
+        name = "compile_data_unit_test",
+        crate = ":compile_data",
+    )
+
+    rust_test(
+        name = "test_compile_data_unit_test",
+        compile_data = ["test_compile_data.txt"],
+        crate = ":compile_data",
+        rustc_flags = ["--cfg=test_compile_data"],
+    )
+
+    rust_library(
+        name = "compile_data_env",
+        srcs = ["compile_data_env.rs"],
+        compile_data = ["compile_data.txt"],
+        rustc_env = {
+            "COMPILE_DATA_PATH": "$(execpath :compile_data.txt)",
+        },
+        edition = "2018",
+    )
+
+    rust_doc(
+        name = "compile_data_env_rust_doc",
+        crate = ":compile_data_env",
+    )
+
+    write_file(
+        name = "generated_compile_data",
+        out = "generated.txt",
+        content = ["generated compile data contents", ""],
+        newline = "unix",
+    )
+
+    rust_library(
+        name = "compile_data_gen",
+        srcs = ["compile_data_gen.rs"],
+        compile_data = [":generated.txt"],
+        edition = "2021",
+    )
+
+    rust_test(
+        name = "compile_data_gen_unit_test",
+        crate = ":compile_data_gen",
+    )
+
+    write_file(
+        name = "generated_src",
+        out = "generated.rs",
+        content = ["pub const GENERATED: &str = \"generated\";", ""],
+        newline = "unix",
+    )
+
+    rust_library(
+        name = "compile_data_gen_srcs",
+        srcs = ["compile_data_gen_srcs.rs", ":generated.rs"],
+        compile_data = ["compile_data.txt"],
+        edition = "2021",
+    )
+
+    rust_test(
+        name = "compile_data_gen_srcs_unit_test",
+        crate = ":compile_data_gen_srcs",
+    )
+
+    write_file(
+        name = "transitive_data_dep_file",
+        out = "transitive_data_dep.txt",
+        content = ["transitive data dep", ""],
+        newline = "unix",
+    )
+
+    write_file(
+        name = "lib_with_data_src",
+        out = "lib_with_data.rs",
+        content = ["pub fn hello() {}", ""],
+        newline = "unix",
+    )
+
+    rust_library(
+        name = "lib_with_data",
+        srcs = [":lib_with_data.rs"],
+        data = [":transitive_data_dep.txt"],
+        edition = "2021",
+    )
+
+    write_file(
+        name = "lib_depending_on_data_src",
+        out = "lib_depending_on_data.rs",
+        content = ["extern crate lib_with_data;", ""],
+        newline = "unix",
+    )
+
+    rust_library(
+        name = "lib_depending_on_data",
+        srcs = [":lib_depending_on_data.rs"],
+        deps = [":lib_with_data"],
+        edition = "2021",
+    )
+
+    write_file(
+        name = "transitive_compile_data_dep_file",
+        out = "transitive_compile_data_dep.txt",
+        content = ["transitive compile data dep", ""],
+        newline = "unix",
+    )
+
+    write_file(
+        name = "lib_with_compile_data_src",
+        out = "lib_with_compile_data.rs",
+        content = ["pub fn hello() {}", ""],
+        newline = "unix",
+    )
+
+    rust_library(
+        name = "lib_with_compile_data",
+        srcs = [":lib_with_compile_data.rs"],
+        compile_data = [":transitive_compile_data_dep.txt"],
+        edition = "2021",
+    )
+
+    write_file(
+        name = "lib_depending_on_compile_data_src",
+        out = "lib_depending_on_compile_data.rs",
+        content = ["extern crate lib_with_compile_data;", ""],
+        newline = "unix",
+    )
+
+    rust_library(
+        name = "lib_depending_on_compile_data",
+        srcs = [":lib_depending_on_compile_data.rs"],
+        deps = [":lib_with_compile_data"],
+        edition = "2021",
+    )
+
+    rust_proc_macro(
+        name = "proc_macro_with_data",
+        srcs = ["proc_macro_with_data.rs"],
+        data = ["proc_macro_data_dep.txt"],
+        edition = "2021",
+    )
+
+    rust_library(
+        name = "lib_depending_on_proc_macro",
+        srcs = ["lib_depending_on_proc_macro.rs"],
+        proc_macro_deps = [":proc_macro_with_data"],
+        edition = "2021",
+    )
+
+def compile_data_test_suite(name):
+    """Entry-point macro called from the BUILD file.
+
+    Args:
+        name (str): Name of the macro.
+    """
+
+    _define_test_targets()
+
+    compile_data_propagates_to_crate_info_test(
+        name = "compile_data_propagates_to_crate_info_test",
+        target_under_test = ":compile_data",
+    )
+
+    wrapper_rule_propagates_to_crate_info_test(
+        name = "wrapper_rule_propagates_to_crate_info_test",
+        target_under_test = ":compile_data_unit_test",
+    )
+
+    wrapper_rule_propagates_and_joins_compile_data_test(
+        name = "wrapper_rule_propagates_and_joins_compile_data_test",
+        target_under_test = ":test_compile_data_unit_test",
+    )
+
+    compile_data_propagates_to_rust_doc_test(
+        name = "compile_data_propagates_to_rust_doc_test",
+        target_under_test = ":compile_data_env_rust_doc",
+    )
+
+    transitive_data_not_in_compile_inputs_test(
+        name = "transitive_data_not_in_compile_inputs_test",
+        target_under_test = ":lib_depending_on_data",
+    )
+
+    transitive_compile_data_not_in_compile_inputs_test(
+        name = "transitive_compile_data_not_in_compile_inputs_test",
+        target_under_test = ":lib_depending_on_compile_data",
+    )
+
+    data_propagates_to_runfiles_test(
+        name = "data_propagates_to_runfiles_test",
+        target_under_test = ":lib_depending_on_data",
+    )
+
+    proc_macro_data_in_compile_inputs_test(
+        name = "proc_macro_data_in_compile_inputs_test",
+        target_under_test = ":lib_depending_on_proc_macro",
+    )
+
+    native.test_suite(
+        name = name,
+        tests = [
+            ":compile_data_propagates_to_crate_info_test",
+            ":wrapper_rule_propagates_to_crate_info_test",
+            ":wrapper_rule_propagates_and_joins_compile_data_test",
+            ":compile_data_propagates_to_rust_doc_test",
+            ":transitive_data_not_in_compile_inputs_test",
+            ":transitive_compile_data_not_in_compile_inputs_test",
+            ":data_propagates_to_runfiles_test",
+            ":proc_macro_data_in_compile_inputs_test",
+        ],
+    )

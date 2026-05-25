@@ -1,0 +1,37 @@
+load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
+load("//rust/private:rust_analyzer.bzl", "rust_analyzer_detect_sysroot")
+
+# Exported for docs
+exports_files(["providers.bzl"])
+
+bzl_library(
+    name = "bazel_tools_bzl_lib",
+    srcs = ["@bazel_tools//tools:bzl_srcs"],
+)
+
+bzl_library(
+    name = "rules_cc_bzl_lib",
+    srcs = ["@rules_cc//cc:bzl_srcs"],
+    deps = [
+        "@rules_cc//cc/common",
+    ],
+)
+
+bzl_library(
+    name = "bzl_lib",
+    srcs = glob(["**/*.bzl"]),
+    visibility = ["//rust:__subpackages__"],
+    deps = [
+        ":bazel_tools_bzl_lib",
+        ":rules_cc_bzl_lib",
+        "//rust/platform:bzl_lib",
+        "@bazel_skylib//lib:paths",
+        "@bazel_skylib//lib:structs",
+        "@bazel_skylib//rules:common_settings",
+    ],
+)
+
+rust_analyzer_detect_sysroot(
+    name = "rust_analyzer_detect_sysroot",
+    visibility = ["//visibility:public"],
+)

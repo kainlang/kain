@@ -441,6 +441,10 @@ experimental_help = false
     fn legacy_theme_aliases_normalize_to_canonical_names() {
         let _guard = lock_tooling_config_test();
         assert_eq!(
+            normalize_ui_theme_name("lattice").expect("lattice canonical theme"),
+            "lattice"
+        );
+        assert_eq!(
             normalize_ui_theme_name("hyperpop").expect("hyperpop alias"),
             "slate"
         );

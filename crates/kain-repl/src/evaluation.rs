@@ -1,5 +1,13 @@
 use kain_core::{diagnostics::Diagnostics, CompileTarget};
 use kain_driver::DriverSession;
+use kain_run::{execute_inline_kain_source, render_compact_output, InlineKainSourceRequest};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ReplExecutionMode {
+    NativeLlvm,
+    #[cfg_attr(not(test), allow(dead_code))]
+    Interpret,
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReplEvaluation {
@@ -14,6 +22,25 @@ impl ReplEvaluation {
             None
         } else {
             Some(output)
+        };
+
+        Self {
+            visible_value,
+            execution_complete: true,
+        }
+    }
+
+    pub fn from_native_report(report: &kain_run::RunReport) -> Self {
+        let compact_output = render_compact_output(report);
+        let trimmed = compact_output.trim();
+        let visible_value = if !trimmed.is_empty() {
+            Some(trimmed.to_string())
+        } else {
+            report
+                .units
+                .first()
+                .and_then(|unit| unit.exit_code)
+                .map(|value| value.to_string())
         };
 
         Self {
@@ -36,14 +63,42 @@ impl ReplEvaluationError {
 
 pub type ReplEvaluationResult = Result<ReplEvaluation, ReplEvaluationError>;
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct ReplEvaluator {
     driver: DriverSession,
+    mode: ReplExecutionMode,
+}
+
+impl Default for ReplEvaluator {
+    fn default() -> Self {
+        Self {
+            driver: DriverSession::default(),
+            mode: ReplExecutionMode::NativeLlvm,
+        }
+    }
 }
 
 impl ReplEvaluator {
     pub fn new(driver: DriverSession) -> Self {
-        Self { driver }
+        Self {
+            driver,
+            mode: ReplExecutionMode::NativeLlvm,
+        }
+    }
+
+    #[cfg(test)]
+    pub fn interpret_only_for_testing() -> Self {
+        Self {
+            driver: DriverSession::default(),
+            mode: ReplExecutionMode::Interpret,
+        }
+    }
+
+    pub fn evaluate_source(&self, source_name: &str, source: &str) -> ReplEvaluationResult {
+        match self.mode {
+            ReplExecutionMode::NativeLlvm => self.evaluate_native_source(source_name, source),
+            ReplExecutionMode::Interpret => self.evaluate_interpret_source(source_name, source),
+        }
     }
 
     pub fn evaluate_interpret_source(
@@ -61,6 +116,47 @@ impl ReplEvaluator {
             }
         }
     }
+
+    fn evaluate_native_source(&self, source_name: &str, source: &str) -> ReplEvaluationResult {
+        let cwd = std::env::current_dir().map_err(|err| ReplEvaluationError {
+            formatted_error: format!(
+                "failed to resolve current working directory for native REPL run: {err}"
+            ),
+        })?;
+        let request = InlineKainSourceRequest::new(source_name, source, cwd);
+        match execute_inline_kain_source(&request) {
+            Ok(report) if report.is_success() => Ok(ReplEvaluation::from_native_report(&report)),
+            Ok(report) => {
+                if let Some(evaluation) = native_exit_code_evaluation(&report) {
+                    Ok(evaluation)
+                } else {
+                    Err(ReplEvaluationError {
+                        formatted_error: render_compact_output(&report),
+                    })
+                }
+            }
+            Err(error) => Err(ReplEvaluationError {
+                formatted_error: error.to_string(),
+            }),
+        }
+    }
+}
+
+fn native_exit_code_evaluation(report: &kain_run::RunReport) -> Option<ReplEvaluation> {
+    let [unit] = report.units.as_slice() else {
+        return None;
+    };
+    if !unit.stdout.trim().is_empty() || !unit.stderr.trim().is_empty() {
+        return None;
+    }
+    let error = unit.error.as_deref()?.trim();
+    if !error.starts_with("process exited with status") {
+        return None;
+    }
+    Some(ReplEvaluation {
+        visible_value: unit.exit_code.map(|value| value.to_string()),
+        execution_complete: true,
+    })
 }
 
 fn strip_ansi_sequences(input: &str) -> String {

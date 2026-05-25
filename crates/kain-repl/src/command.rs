@@ -8,13 +8,12 @@ pub enum ReplDirective {
 }
 
 pub const REPL_HELP_TEXT: &str = "\
-.run    evaluate the buffered Kain source
-.clear  discard the current buffer
-.exit   leave the REPL
-.quit   leave the REPL
-.help   show this command list
-.theme  show the current theme and available themes
-.theme <name>  switch the live REPL theme";
+.run             run buffer
+.clear           clear buffer
+.quit            quit
+.help            command list
+.theme           palette status
+.theme <name>    switch palette";
 
 impl ReplDirective {
     pub fn parse(trimmed_line: &str) -> Option<Self> {

@@ -7,6 +7,7 @@ use kain_lattice::{theme_banner_accent, theme_by_name};
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CommandUiTheme {
     Plain,
+    Lattice,
     Slate,
     Graphite,
     Arctic,
@@ -17,6 +18,7 @@ impl CommandUiTheme {
     pub fn from_name(name: &str) -> Self {
         match name.trim().to_ascii_lowercase().as_str() {
             "plain" => Self::Plain,
+            "lattice" => Self::Lattice,
             "graphite" | "oxide" => Self::Graphite,
             "arctic" | "glacier" => Self::Arctic,
             "sandstone" | "ember" => Self::Sandstone,
@@ -103,6 +105,7 @@ fn render_help_footer(preferences: CommandUiPreferences<'_>) -> String {
 fn command_theme_name(theme: CommandUiTheme) -> &'static str {
     match theme {
         CommandUiTheme::Plain => "plain",
+        CommandUiTheme::Lattice => "lattice",
         CommandUiTheme::Slate => "slate",
         CommandUiTheme::Graphite => "graphite",
         CommandUiTheme::Arctic => "arctic",

@@ -12,16 +12,18 @@ use ratatui::backend::CrosstermBackend;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span, Text};
-use ratatui::widgets::{Block, Borders, Clear, Paragraph};
+use ratatui::widgets::{Block, Borders, Clear, Paragraph, Wrap};
 use ratatui::{Frame, Terminal};
 use unicode_width::UnicodeWidthStr;
 
-use crate::command::{parse_theme_argument, ReplDirective, REPL_HELP_TEXT};
+use crate::command::{parse_theme_argument, ReplDirective};
 use crate::evaluation::{ReplEvaluation, ReplEvaluator};
 use crate::highlight::highlight_source_line;
 use crate::source::normalize_script_source;
 use crate::terminal::ReplTerminalConfig;
-use crate::theme::{active_repl_theme_name, repl_palette, repl_theme_names, ReplPalette};
+use crate::theme::{
+    active_repl_theme_name, cycle_repl_theme_name, repl_palette, repl_theme_names, ReplPalette,
+};
 
 const TAB_WIDTH: usize = 4;
 const OUTPUT_HISTORY_LIMIT: usize = 64;
@@ -92,7 +94,7 @@ struct ReplApp {
 
 impl ReplApp {
     fn new(config: ReplTerminalConfig) -> Self {
-        let mut app = Self {
+        Self {
             config,
             evaluator: ReplEvaluator::default(),
             editor: ReplEditor::default(),
@@ -101,17 +103,8 @@ impl ReplApp {
             show_help: false,
             should_quit: false,
             next_run_id: 0,
-            status: "Ready. Ctrl+Enter or F5 runs the current buffer.".to_string(),
-        };
-        app.push_output(
-            OutputKind::Info,
-            "Session opened",
-            vec![
-                "Multiline source stays live between runs so you can patch and rerun quickly."
-                    .to_string(),
-            ],
-        );
-        app
+            status: "Idle".to_string(),
+        }
     }
 
     fn handle_key(&mut self, key: KeyEvent) {
@@ -149,12 +142,17 @@ impl ReplApp {
                 ..
             } => self.show_help = !self.show_help,
             KeyEvent {
+                code: KeyCode::F(2),
+                modifiers,
+                ..
+            } => self.cycle_theme(modifiers.contains(KeyModifiers::SHIFT)),
+            KeyEvent {
                 code: KeyCode::Char('l'),
                 modifiers,
                 ..
             } if modifiers.contains(KeyModifiers::CONTROL) => {
                 self.editor.clear();
-                self.status = "Input buffer cleared.".to_string();
+                self.status = "Buffer cleared".to_string();
             }
             KeyEvent {
                 code: KeyCode::Char('k'),
@@ -162,7 +160,7 @@ impl ReplApp {
                 ..
             } if modifiers.contains(KeyModifiers::CONTROL) => {
                 self.output_log.clear();
-                self.status = "Output history wiped clean.".to_string();
+                self.status = "Output cleared".to_string();
             }
             KeyEvent {
                 code: KeyCode::Esc, ..
@@ -228,15 +226,15 @@ impl ReplApp {
     fn run_current_buffer(&mut self) {
         match collect_submission(&self.editor.buffer()) {
             Submission::Empty => {
-                self.status = "Buffer is empty. Feed it some Kain.".to_string();
+                self.status = "Empty buffer".to_string();
             }
             Submission::Help => {
                 self.show_help = true;
-                self.status = "Help overlay opened.".to_string();
+                self.status = "Commands".to_string();
             }
             Submission::Clear => {
                 self.editor.clear();
-                self.status = "Input buffer cleared.".to_string();
+                self.status = "Buffer cleared".to_string();
             }
             Submission::Theme(theme) => self.apply_theme_command(theme),
             Submission::Exit => {
@@ -265,7 +263,7 @@ impl ReplApp {
 
         match self
             .evaluator
-            .evaluate_interpret_source(&self.config.source_name, &source)
+            .evaluate_source(&self.config.source_name, &source)
         {
             Ok(evaluation) => {
                 self.push_output(OutputKind::Success, headline, evaluation_lines(&evaluation));
@@ -321,25 +319,17 @@ impl ReplApp {
     }
 
     fn render_header(&self, frame: &mut Frame<'_>, area: Rect, palette: ReplPalette) {
-        let banner = Paragraph::new(Text::from(vec![
-            Line::from(vec![
-                Span::styled(
-                    " Kain REPL Workbench ",
-                    palette.title_style(),
-                ),
-                Span::styled(
-                    self.config.metadata.banner(),
-                    Style::default().fg(palette.chrome_secondary),
-                ),
-            ]),
-            Line::from(vec![Span::styled(
-                format!(
-                    " Multiline Kain composer with {} theme, persistent buffer, and in-session diagnostics.",
-                    self.theme_name
-                ),
+        let banner = Paragraph::new(Text::from(vec![Line::from(vec![
+            Span::styled(" Kain REPL ", palette.title_style()),
+            Span::styled(
+                format!("[{}] ", self.theme_name),
+                Style::default().fg(palette.chrome_secondary),
+            ),
+            Span::styled(
+                self.config.metadata.banner(),
                 Style::default().fg(palette.text_muted),
-            )]),
-        ]))
+            ),
+        ])]))
         .block(
             Block::default()
                 .borders(Borders::ALL)
@@ -430,9 +420,10 @@ impl ReplApp {
 
     fn render_status(&self, frame: &mut Frame<'_>, area: Rect, palette: ReplPalette) {
         let status = format!(
-            " Ln {}, Col {}  |  {}  |  Ctrl+Enter/F5 run  F1 help  Ctrl+Q quit ",
+            " Ln {}, Col {} | {} | {} | Ctrl+Enter run | F2 palette | Ctrl+Q quit ",
             self.editor.cursor_row + 1,
             self.editor.cursor_col + 1,
+            self.theme_name,
             self.status
         );
         frame.render_widget(
@@ -448,36 +439,41 @@ impl ReplApp {
     }
 
     fn render_help_overlay(&self, frame: &mut Frame<'_>, area: Rect, palette: ReplPalette) {
-        let popup = centered_rect(78, 70, area);
+        let popup = centered_rect(52, 48, area);
         let help_text = Text::from(vec![
-            Line::from(Span::styled("Kain REPL Controls", palette.title_style())),
+            Line::from(Span::styled("Keys", palette.title_style())),
             Line::raw(""),
-            Line::raw("Ctrl+Enter or F5  run the current buffer"),
-            Line::raw("Enter               insert a newline"),
-            Line::raw("Tab                 insert four spaces"),
-            Line::raw("Ctrl+C / Ctrl+Shift+C copy the current buffer"),
-            Line::raw("Ctrl+V / Ctrl+Shift+V paste from the system clipboard"),
-            Line::raw("Ctrl+L              clear the composer buffer"),
-            Line::raw("Ctrl+K              clear the output pane"),
-            Line::raw("Ctrl+Q              quit the REPL"),
-            Line::raw("F1 / Esc            toggle this help"),
+            Line::raw("Ctrl+Enter / F5  run"),
+            Line::raw("F2                next palette"),
+            Line::raw("Shift+F2          previous palette"),
+            Line::raw("Ctrl+Shift+C      copy"),
+            Line::raw("Ctrl+Shift+V      paste"),
+            Line::raw("Ctrl+L            clear buffer"),
+            Line::raw("Ctrl+K            clear output"),
+            Line::raw("Ctrl+Q            quit"),
+            Line::raw("Esc / F1          close"),
             Line::raw(""),
-            Line::raw("Dot directives still work when they are the whole buffer:"),
-            Line::raw(REPL_HELP_TEXT),
+            Line::from(Span::styled("Directives", palette.title_style())),
+            Line::raw(".run"),
+            Line::raw(".clear"),
+            Line::raw(".theme"),
+            Line::raw(".theme <name>"),
+            Line::raw(".quit"),
             Line::raw(""),
-            Line::raw("If you end the buffer with `.run`, the REPL strips that line"),
-            Line::raw("before evaluation so old muscle memory still feels natural."),
+            Line::raw(format!("Palettes: {}", repl_theme_names().join(", "))),
         ]);
 
         frame.render_widget(Clear, popup);
         frame.render_widget(
-            Paragraph::new(help_text).block(
-                Block::default()
-                    .title(" Help ")
-                    .borders(Borders::ALL)
-                    .border_style(Style::default().fg(palette.border_focus))
-                    .style(Style::default().bg(palette.panel_background)),
-            ),
+            Paragraph::new(help_text)
+                .block(
+                    Block::default()
+                        .title(" Commands ")
+                        .borders(Borders::ALL)
+                        .border_style(Style::default().fg(palette.border_focus))
+                        .style(Style::default().bg(palette.panel_background)),
+                )
+                .wrap(Wrap { trim: false }),
             popup,
         );
     }
@@ -485,7 +481,7 @@ impl ReplApp {
     fn output_lines(&self, palette: ReplPalette) -> Vec<Line<'static>> {
         if self.output_log.is_empty() {
             return vec![Line::from(Span::styled(
-                "No runs yet.",
+                "No output.",
                 palette.muted_style(),
             ))];
         }
@@ -514,15 +510,12 @@ impl ReplApp {
     fn copy_buffer_to_clipboard(&mut self) {
         let text = self.editor.buffer();
         if text.trim().is_empty() {
-            self.status = "Buffer is empty. Nothing copied.".to_string();
+            self.status = "Copy skipped".to_string();
             return;
         }
         match Clipboard::new().and_then(|mut clipboard| clipboard.set_text(text)) {
             Ok(()) => {
-                self.status = format!(
-                    "Copied {} line(s) to the system clipboard.",
-                    self.editor.line_count()
-                );
+                self.status = format!("Copied {} line(s)", self.editor.line_count());
             }
             Err(err) => {
                 self.status = format!("Clipboard copy failed: {err}");
@@ -534,11 +527,11 @@ impl ReplApp {
         match Clipboard::new().and_then(|mut clipboard| clipboard.get_text()) {
             Ok(text) => {
                 if text.is_empty() {
-                    self.status = "Clipboard is empty.".to_string();
+                    self.status = "Clipboard empty".to_string();
                     return;
                 }
                 self.editor.insert_text(&text);
-                self.status = "Pasted clipboard contents into the buffer.".to_string();
+                self.status = "Pasted".to_string();
             }
             Err(err) => {
                 self.status = format!("Clipboard paste failed: {err}");
@@ -546,32 +539,32 @@ impl ReplApp {
         }
     }
 
+    fn cycle_theme(&mut self, reverse: bool) {
+        let next_theme = cycle_repl_theme_name(&self.theme_name, reverse);
+        self.theme_name = next_theme.clone();
+        self.status = format!("Palette {next_theme}");
+    }
+
     fn apply_theme_command(&mut self, requested: Option<String>) {
         match requested {
             Some(name) => match normalize_ui_theme_name(&name) {
                 Ok(theme_name) => {
                     self.theme_name = theme_name.clone();
-                    self.status = format!("Theme switched to {theme_name}.");
-                    self.push_output(
-                        OutputKind::Info,
-                        "Theme updated",
-                        vec![format!("Active REPL theme: {}", self.theme_name)],
-                    );
+                    self.status = format!("Palette {theme_name}");
                 }
                 Err(err) => {
                     self.status = err.clone();
-                    self.push_output(OutputKind::Error, "Theme update failed", vec![err]);
+                    self.push_output(OutputKind::Error, "Palette error", vec![err]);
                 }
             },
             None => {
-                self.status = format!("Current theme: {}.", self.theme_name);
+                self.status = format!("Palette {}", self.theme_name);
                 self.push_output(
                     OutputKind::Info,
-                    "Available themes",
+                    "Palette",
                     vec![
-                        format!("Current theme: {}", self.theme_name),
-                        format!("Themes: {}", repl_theme_names().join(", ")),
-                        "Use `.theme <name>` to switch the live REPL palette.".to_string(),
+                        format!("Current: {}", self.theme_name),
+                        format!("Available: {}", repl_theme_names().join(", ")),
                     ],
                 );
             }
@@ -1037,5 +1030,13 @@ mod tests {
             Submission::Theme(Some(theme)) => assert_eq!(theme, "plain"),
             other => panic!("expected theme submission, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn theme_cycle_wraps_from_plain_to_last_palette() {
+        let mut app = ReplApp::new(ReplTerminalConfig::default());
+        app.theme_name = "plain".to_string();
+        app.cycle_theme(true);
+        assert_eq!(app.theme_name, "sandstone");
     }
 }

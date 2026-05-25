@@ -7,11 +7,11 @@ use toml::Value;
 
 pub const SUPPORTED_THEME_NAMES: &[&str] = &[
     "plain",
+    "lattice",
     "slate",
     "graphite",
     "arctic",
     "sandstone",
-    "lattice",
 ];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -479,6 +479,7 @@ mod tests {
 
     #[test]
     fn normalizes_legacy_aliases() {
+        assert_eq!(normalize_theme_name("lattice").unwrap(), "lattice");
         assert_eq!(normalize_theme_name("hyperpop").unwrap(), "slate");
         assert_eq!(normalize_theme_name("oxide").unwrap(), "graphite");
         assert_eq!(normalize_theme_name("glacier").unwrap(), "arctic");

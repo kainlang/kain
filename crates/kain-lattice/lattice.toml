@@ -1,4 +1,4 @@
-theme_order = ["plain", "slate", "graphite", "arctic", "sandstone"]
+theme_order = ["plain", "lattice", "slate", "graphite", "arctic", "sandstone"]
 
 [themes.plain]
 aliases = []
@@ -40,7 +40,7 @@ syntax.family.shader = "reset"
 syntax.operator = "reset"
 
 [themes.slate]
-aliases = ["hyperpop", "lattice"]
+aliases = ["hyperpop"]
 
 [themes.slate.roles]
 ui.chrome.title = "#bbc9d8"
@@ -77,6 +77,45 @@ syntax.family.ownership = "#c6dc76"
 syntax.family.proof = "#d8c374"
 syntax.family.shader = "#8da9de"
 syntax.operator = "#b8bcc2"
+
+[themes.lattice]
+aliases = []
+
+[themes.lattice.roles]
+ui.chrome.title = "#c7d4df"
+ui.chrome.accent = "#78b8b8"
+ui.chrome.muted = "#738391"
+ui.border.base = "#435161"
+ui.border.focus = "#88c6c0"
+ui.panel.background.base = "#0d1218"
+ui.panel.background.active = "#121923"
+ui.text.primary = "#e2e8ee"
+ui.text.muted = "#c5ced6"
+ui.text.subtle = "#7b8996"
+ui.status.foreground = "#edf3f7"
+ui.status.background = "#1d2732"
+diag.error = "#c46a68"
+diag.warning = "#cfab67"
+diag.note = "#7aa4c5"
+diag.help = "#a9cac9"
+diag.gutter = "#7fb0ad"
+diag.pointer = "#c46a68"
+syntax.directive = "#98a9cf"
+syntax.invalid = "#db8b88"
+syntax.comment = "#738391"
+syntax.number = "#cda678"
+syntax.string = "#98c5b2"
+syntax.type = "#c3d2ea"
+syntax.identifier = "#e2e8ee"
+syntax.keyword.core = "#bac5d1"
+syntax.keyword.type = "#cbd6e0"
+syntax.keyword.effect = "#d1b678"
+syntax.family.actor = "#dd8a75"
+syntax.family.world = "#62ccbb"
+syntax.family.ownership = "#cae76f"
+syntax.family.proof = "#dfcb7e"
+syntax.family.shader = "#82a8ea"
+syntax.operator = "#b4bec8"
 
 [themes.graphite]
 aliases = ["oxide"]

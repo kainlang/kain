@@ -1,0 +1,11 @@
+[package]
+name = "hello_world"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[lib]
+path = "fake.rs"
+
+[lints.rust]
+dead_code = "allow"
