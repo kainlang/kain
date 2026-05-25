@@ -111,7 +111,6 @@ Those are real reserved identifiers in the parser, but they are not part of the 
 
 ## 6. Practical Notes
 
-- `syntax.md` is a good human overview, but it is not the full mechanical count.
 - `lexer.rs` is the truth for hard keywords.
 - `parser.rs` is where the contextual language words show up.
 - The biggest "easy to forget" family is the contextual one: `patch`, `law`, `world`, `entangle`, `pulse`, `teleport`, `surface`, `compute`, `uniform`, `single_writer`, and friends.

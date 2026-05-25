@@ -54,11 +54,28 @@ fn resolve_binary_name(exe_path: &Path) -> Result<&'static str, String> {
     match stem.to_ascii_lowercase().as_str() {
         "kain" => Ok("kain"),
         "kn" => Ok("kn"),
+        "blade" => Ok("blade"),
         other => Err(format!(
             "unsupported launcher name `{other}` at {}",
             exe_path.display()
         )),
     }
+}
+
+fn python_commands() -> Vec<(OsString, Vec<OsString>)> {
+    let mut candidates = Vec::new();
+    if let Some(value) = env::var_os("KAIN_BAZEL_PYTHON").filter(|value| is_non_empty(value)) {
+        candidates.push((value, Vec::new()));
+    }
+
+    if cfg!(windows) {
+        candidates.push((OsString::from("py"), vec![OsString::from("-3")]));
+        candidates.push((OsString::from("python"), Vec::new()));
+    } else {
+        candidates.push((OsString::from("python3"), Vec::new()));
+        candidates.push((OsString::from("python"), Vec::new()));
+    }
+    candidates
 }
 
 fn main() {
@@ -79,7 +96,10 @@ fn main() {
     };
 
     let repo_root = resolve_repo_root();
-    let launcher_script = repo_root.join("scripts").join("windows").join("launch-bazel-cli.ps1");
+    let launcher_script = repo_root
+        .join("scripts")
+        .join("python")
+        .join("kain_bazel_sync.py");
     if !launcher_script.exists() {
         eprintln!(
             "kain bazel launcher could not find {}",
@@ -91,37 +111,42 @@ fn main() {
     let forward_args: Vec<OsString> = env::args_os().skip(1).collect();
     let bazel_config = resolve_bazel_config();
     let launcher_dir = resolve_launcher_dir(&repo_root);
+    let mut last_error = None;
+    for (python_program, python_args) in python_commands() {
+        let status = Command::new(&python_program)
+            .args(&python_args)
+            .arg(&launcher_script)
+            .arg("launch")
+            .arg("--binary")
+            .arg(binary_name)
+            .arg("--bazel-config")
+            .arg(&bazel_config)
+            .arg("--launcher-path")
+            .arg(&launcher_path)
+            .arg("--")
+            .args(&forward_args)
+            .env("KAIN_REPO_ROOT", &repo_root)
+            .env("KAIN_BAZEL_CONFIG", &bazel_config)
+            .env("KAIN_BAZEL_LAUNCHER_DIR", &launcher_dir)
+            .env("KAIN_ACTIVE_LAUNCHER_NAME", binary_name)
+            .env("KAIN_ACTIVE_LAUNCHER_MODE", "bazel-wrapper")
+            .env("KAIN_ACTIVE_LAUNCHER_PATH", &launcher_path)
+            .status();
 
-    let status = match Command::new("powershell.exe")
-        .arg("-NoProfile")
-        .arg("-ExecutionPolicy")
-        .arg("Bypass")
-        .arg("-File")
-        .arg(&launcher_script)
-        .arg("-BinaryName")
-        .arg(binary_name)
-        .arg("-BazelConfig")
-        .arg(&bazel_config)
-        .arg("-LauncherPath")
-        .arg(&launcher_path)
-        .args(&forward_args)
-        .env("KAIN_REPO_ROOT", &repo_root)
-        .env("KAIN_BAZEL_CONFIG", &bazel_config)
-        .env("KAIN_BAZEL_LAUNCHER_DIR", &launcher_dir)
-        .env("KAIN_ACTIVE_LAUNCHER_NAME", binary_name)
-        .env("KAIN_ACTIVE_LAUNCHER_MODE", "bazel-wrapper")
-        .env("KAIN_ACTIVE_LAUNCHER_PATH", &launcher_path)
-        .status()
-    {
-        Ok(status) => status,
-        Err(error) => {
-            eprintln!(
-                "kain bazel launcher could not start PowerShell for {}: {error}",
-                launcher_script.display()
-            );
-            process::exit(1);
+        match status {
+            Ok(status) => process::exit(status.code().unwrap_or(1)),
+            Err(error) => {
+                last_error = Some(format!("{:?}: {error}", python_program));
+            }
         }
-    };
+    }
 
-    process::exit(status.code().unwrap_or(1));
+    eprintln!(
+        "kain bazel launcher could not start Python for {}{}",
+        launcher_script.display(),
+        last_error
+            .map(|error| format!("; last error was {error}"))
+            .unwrap_or_default()
+    );
+    process::exit(1);
 }

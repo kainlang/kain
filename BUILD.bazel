@@ -1,3 +1,5 @@
+load("@rules_python//python:defs.bzl", "py_test")
+
 package(default_visibility = ["//visibility:public"])
 
 alias(
@@ -152,6 +154,7 @@ test_suite(
 test_suite(
     name = "developer_smoke_tests",
     tests = [
+        ":kain_bazel_sync_test",
         ":key_crate_tests",
     ],
 )
@@ -159,7 +162,18 @@ test_suite(
 test_suite(
     name = "workspace_diagnostic_tests",
     tests = [
+        ":kain_bazel_sync_test",
         ":diagnostic_crate_tests",
         ":native_runtime_tests",
     ],
+)
+
+py_test(
+    name = "kain_bazel_sync_test",
+    srcs = [
+        "scripts/python/kain_bazel_sync.py",
+        "scripts/python/test_kain_bazel_sync.py",
+    ],
+    main = "scripts/python/test_kain_bazel_sync.py",
+    python_version = "PY3",
 )

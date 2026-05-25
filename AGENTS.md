@@ -610,7 +610,9 @@ The live benchmark truth is data, not a frozen timestamp. Start with `benchmark/
 ## First Read Order
 
 1. Read `GLOSSARY.MD` to understand the common terminology and lingo of this codebase.
-2. Search `MEMORY.md` for prior task history, unresolved risk, proof names, benchmark cases, blade names, error strings, or subsystem-specific lessons.
+2. Read `CATALOG.MD` to get the full list of keywords and semantics in Kain.
+3. Read and  Update `MEMORY.md` after noteworthy changes in the repo and search it for unresolved risk, proof names, benchmark cases, blade names, error strings, or subsystem-specific lessons. 
+4. IF needed read `TOOLCHAIN.md` in the root to see where tools are installed along with everything env path related to rust, py, bazel cache, etc. or if you need any sort of debugging tools etc. We have an entire arsenal of tools installed on this setup. Feel free to add any new tools you need considering we have a clean and organized scoop setup on f:/ (the toolchain drive)
 
 `MEMORY.md` are part of the operating system of this repo. They are the bulletin board. The rule is not "ignore them"; the rule is "search them intelligently." Use `rg` to pull the relevant sections, read what matters, then update the right durable surface when the work changes what future agents need to know.
 
@@ -797,18 +799,11 @@ python attrition/run.py --case <case> --sabotage <mode>
 ## Git And Shipping
 
 - Stay on the current branch unless the user explicitly asks for a new branch.
-- Commit and push your work always and try and keep worktree clean, do not care if the worktree is dirty however -- we have 3-5 agents working at once typically in here.
+- Git commit and push your work always and try and keep worktree clean... this is A CRITICAL REQUIREMENT.  do not care if the worktree is dirty 
 - For massive feature commits, add tags
 - Never hide uncertainty. If a proof, benchmark, attrition run, or GUI screenshot was not run, say so.
 
 ## Toolchain
 - Scoop is available and there is a dedicated drive to tools and scoop etc at F:/  --- feel free to install any tool needed if it helps with work etc, no need to ask for permission considering scoop makes it crazy easy to manage tooling etc. the C:/ drive is specifically for OS so try to keep things out of it when possible as all of our drives are on REFS and c:/ would not mesh in with the setup /speed etc 
 
-## References
-In reference/langs - if you ever need reference code or a baseline for how the other langs do it or something to compare against ->
-reference\langs\go-master
-reference\langs\otp-master
-reference\langs\roc-main
-reference\langs\rust-main
-reference\langs\TypeScript-main
-reference\langs\zig
+

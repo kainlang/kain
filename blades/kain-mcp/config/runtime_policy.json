@@ -41,6 +41,10 @@
     "shared_launcher_dir_unix": ".kain/bin",
     "shadow_launcher_dirs_windows": [],
     "shadow_launcher_dirs_unix": [],
+    "launcher_binary_names": ["kain", "kn", "blade"],
+    "bazel_binary_output_names": {
+      "blade": "blade_bin"
+    },
     "bazel_default_config_windows": "dev",
     "cargo_bazel_auto_repin_enabled": true,
     "cargo_bazel_repin_lock_relative_path": "locks/cargo-bazel-repin.lock",
@@ -55,17 +59,17 @@
     "preflight_enabled": true,
     "preflight_timeout_seconds": 20,
     "sync_command_windows": [
-      "powershell",
-      "-NoProfile",
-      "-ExecutionPolicy",
-      "Bypass",
-      "-File",
-      "scripts/windows/sync-kain-source-of-truth.ps1",
-      "-ManagedSync"
+      "py",
+      "-3",
+      "scripts/python/kain_bazel_sync.py",
+      "sync",
+      "--managed-sync"
     ],
     "sync_command_unix": [
       "python3",
-      "install_kain.py"
+      "scripts/python/kain_bazel_sync.py",
+      "sync",
+      "--managed-sync"
     ],
     "runtime_stamp_files": [
       "runtime/runtime.c",

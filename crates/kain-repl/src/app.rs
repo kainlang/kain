@@ -159,13 +159,17 @@ struct ReplApp {
     last_save_path: String,
     last_open_path: String,
     current_file_path: Option<String>,
+    recent_files: Vec<String>,
     clean_buffer_snapshot: String,
     should_quit: bool,
     next_run_id: usize,
     status: String,
     cwd_display: String,
     editor_text_area: Rect,
+    output_text_area: Rect,
     click_state: Option<ClickState>,
+    output_selection_anchor: Option<CursorPoint>,
+    output_selection_cursor: Option<CursorPoint>,
 }
 
 impl ReplApp {
@@ -181,6 +185,7 @@ impl ReplApp {
             last_save_path: "file.kn".to_string(),
             last_open_path: ".".to_string(),
             current_file_path: None,
+            recent_files: Vec::new(),
             clean_buffer_snapshot: String::new(),
             should_quit: false,
             next_run_id: 0,
@@ -190,7 +195,10 @@ impl ReplApp {
                 .display()
                 .to_string(),
             editor_text_area: Rect::default(),
+            output_text_area: Rect::default(),
             click_state: None,
+            output_selection_anchor: None,
+            output_selection_cursor: None,
         }
     }
 
@@ -274,6 +282,14 @@ impl ReplApp {
                 ..
             } => self.run_selection_or_current_block(),
             KeyEvent {
+                code: KeyCode::F(7),
+                ..
+            } => self.run_current_line(),
+            KeyEvent {
+                code: KeyCode::F(8),
+                ..
+            } => self.run_function_under_cursor(),
+            KeyEvent {
                 code: KeyCode::F(1),
                 ..
             } => self.show_help = !self.show_help,
@@ -296,6 +312,7 @@ impl ReplApp {
                 ..
             } if modifiers.contains(KeyModifiers::CONTROL) => {
                 self.output_log.clear();
+                self.clear_output_selection();
                 self.status = "Output cleared".to_string();
             }
             KeyEvent {
@@ -376,9 +393,15 @@ impl ReplApp {
             return;
         }
 
+        if self.point_in_rect(mouse.column, mouse.row, self.output_text_area) {
+            self.handle_output_mouse(mouse);
+            return;
+        }
+
         match mouse.kind {
             MouseEventKind::Down(MouseButton::Left) => {
                 if let Some(point) = self.editor_point_from_screen(mouse.column, mouse.row) {
+                    self.clear_output_selection();
                     match self.register_click(point) {
                         1 => self.editor.start_mouse_selection(point),
                         2 => self.editor.select_word_at(point),
@@ -387,13 +410,39 @@ impl ReplApp {
                 }
             }
             MouseEventKind::Drag(MouseButton::Left) => {
-                if let Some(point) = self.editor_point_from_screen(mouse.column, mouse.row) {
+                if let Some(point) = self.editor_point_from_drag(mouse.column, mouse.row) {
                     self.editor.drag_mouse_selection(point);
                 }
             }
             MouseEventKind::Up(MouseButton::Left) => self.editor.finish_mouse_selection(),
             MouseEventKind::ScrollUp => self.editor.scroll_lines(-3),
             MouseEventKind::ScrollDown => self.editor.scroll_lines(3),
+            _ => {}
+        }
+    }
+
+    fn handle_output_mouse(&mut self, mouse: MouseEvent) {
+        match mouse.kind {
+            MouseEventKind::Down(MouseButton::Left) => {
+                if let Some(point) = self.output_point_from_screen(mouse.column, mouse.row) {
+                    self.editor.clear_selection();
+                    self.output_selection_anchor = Some(point);
+                    self.output_selection_cursor = Some(point);
+                }
+            }
+            MouseEventKind::Drag(MouseButton::Left) => {
+                if let Some(point) = self.output_point_from_screen(mouse.column, mouse.row) {
+                    if self.output_selection_anchor.is_none() {
+                        self.output_selection_anchor = Some(point);
+                    }
+                    self.output_selection_cursor = Some(point);
+                }
+            }
+            MouseEventKind::Up(MouseButton::Left) => {
+                if self.output_selection_anchor == self.output_selection_cursor {
+                    self.clear_output_selection();
+                }
+            }
             _ => {}
         }
     }
@@ -464,6 +513,20 @@ impl ReplApp {
         }
     }
 
+    fn run_current_line(&mut self) {
+        match self.editor.current_line_text() {
+            Some(source) => self.evaluate_named_source("Line", source),
+            None => self.status = "Empty line".to_string(),
+        }
+    }
+
+    fn run_function_under_cursor(&mut self) {
+        match self.editor.current_function_text() {
+            Some(source) => self.evaluate_named_source("Function", source),
+            None => self.status = "No function".to_string(),
+        }
+    }
+
     fn evaluate_source(&mut self, source: String) {
         self.evaluate_named_source("Run", source);
     }
@@ -503,6 +566,7 @@ impl ReplApp {
             title: title.into(),
             body,
         });
+        self.clear_output_selection();
         if self.output_log.len() > OUTPUT_HISTORY_LIMIT {
             let drain_count = self.output_log.len() - OUTPUT_HISTORY_LIMIT;
             self.output_log.drain(0..drain_count);
@@ -515,7 +579,7 @@ impl ReplApp {
         let layout = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Length(4),
+                Constraint::Length(5),
                 Constraint::Min(10),
                 Constraint::Length(1),
             ])
@@ -549,6 +613,7 @@ impl ReplApp {
         } else {
             Style::default().fg(palette.keyword_world)
         };
+        let file_chips = self.render_file_chips(palette);
         let banner = Paragraph::new(Text::from(vec![
             Line::from(vec![
                 Span::styled(" Kain REPL ", palette.title_style()),
@@ -575,6 +640,7 @@ impl ReplApp {
                 Span::styled("  state ", Style::default().fg(palette.chrome_secondary)),
                 Span::styled(dirty_label, dirty_style),
             ]),
+            file_chips,
         ]))
         .block(
             Block::default()
@@ -583,6 +649,53 @@ impl ReplApp {
                 .style(Style::default().bg(palette.panel_background)),
         );
         frame.render_widget(banner, area);
+    }
+
+    fn render_file_chips(&self, palette: ReplPalette) -> Line<'static> {
+        let mut spans = vec![Span::styled(
+            " files ",
+            Style::default().fg(palette.chrome_secondary),
+        )];
+        let current = self
+            .current_file_path
+            .clone()
+            .unwrap_or_else(|| self.config.source_name.clone());
+        spans.push(self.file_chip_span(&current, true, palette));
+
+        for path in self
+            .recent_files
+            .iter()
+            .filter(|path| **path != current)
+            .take(4)
+        {
+            spans.push(Span::raw(" "));
+            spans.push(self.file_chip_span(path, false, palette));
+        }
+
+        Line::from(spans)
+    }
+
+    fn file_chip_span(&self, path: &str, active: bool, palette: ReplPalette) -> Span<'static> {
+        let label = short_file_chip_label(path);
+        let style = if active {
+            let text = if self.is_dirty() && self.current_file_path.as_deref() == Some(path) {
+                format!("[{label}*]")
+            } else {
+                format!("[{label}]")
+            };
+            return Span::styled(
+                text,
+                Style::default()
+                    .fg(palette.panel_background)
+                    .bg(palette.border_focus)
+                    .add_modifier(Modifier::BOLD),
+            );
+        } else {
+            Style::default()
+                .fg(palette.text_muted)
+                .bg(palette.panel_background_active)
+        };
+        Span::styled(format!("[{label}]"), style)
     }
 
     fn render_body(&mut self, frame: &mut Frame<'_>, area: Rect, palette: ReplPalette) {
@@ -644,19 +757,19 @@ impl ReplApp {
         }
     }
 
-    fn render_output(&self, frame: &mut Frame<'_>, area: Rect, palette: ReplPalette) {
+    fn render_output(&mut self, frame: &mut Frame<'_>, area: Rect, palette: ReplPalette) {
         let block = Block::default()
             .title(format!(" Output · {} entries ", self.output_log.len()))
             .borders(Borders::ALL)
             .border_style(Style::default().fg(palette.border))
             .style(Style::default().bg(palette.panel_background));
         let inner = block.inner(area);
+        self.output_text_area = inner;
         frame.render_widget(block, area);
 
-        let lines = self.output_lines(palette);
-        let scroll_y = lines
-            .len()
-            .saturating_sub(inner.height as usize)
+        let plain_lines = self.output_plain_lines();
+        let lines = self.output_lines(palette, &plain_lines);
+        let scroll_y = output_scroll_y(plain_lines.len(), inner.height as usize)
             .try_into()
             .unwrap_or(u16::MAX);
         frame.render_widget(
@@ -669,7 +782,7 @@ impl ReplApp {
 
     fn render_status(&self, frame: &mut Frame<'_>, area: Rect, palette: ReplPalette) {
         let status = format!(
-            " Ln {}, Col {} | {} | Ctrl+Enter run | Ctrl+Shift+Enter block | F2 theme | Ctrl+O open | Ctrl+S save | Ctrl+Q quit ",
+            " Ln {}, Col {} | {} | Ctrl+Enter run | Ctrl+Shift+Enter block | F7 line | F8 fn | F2 theme | Ctrl+O open | Ctrl+S save | Ctrl+Q quit ",
             self.editor.cursor_row + 1,
             self.editor.cursor_col + 1,
             self.status
@@ -694,6 +807,8 @@ impl ReplApp {
             Line::raw("Ctrl+Enter / F5  run"),
             Line::raw("Ctrl+Shift+Enter run selection or block"),
             Line::raw("F6                run selection or block"),
+            Line::raw("F7                run current line"),
+            Line::raw("F8                run function under cursor"),
             Line::raw("F2                next theme"),
             Line::raw("Shift+F2          previous theme"),
             Line::raw("Ctrl+Shift+C      copy"),
@@ -781,39 +896,52 @@ impl ReplApp {
         frame.set_cursor_position((cursor_x, cursor_y));
     }
 
-    fn output_lines(&self, palette: ReplPalette) -> Vec<Line<'static>> {
+    fn output_plain_lines(&self) -> Vec<String> {
         if self.output_log.is_empty() {
-            return vec![Line::from(Span::styled(
-                "No output.",
-                palette.muted_style(),
-            ))];
+            return vec!["No output.".to_string()];
         }
 
         let mut lines = Vec::new();
         for entry in &self.output_log {
-            lines.push(Line::from(Span::styled(
-                entry.title.clone(),
-                entry.kind.title_style(palette),
-            )));
+            lines.push(entry.title.clone());
             for line in &entry.body {
-                lines.push(Line::from(Span::styled(
-                    if line.is_empty() {
-                        " ".to_string()
-                    } else {
-                        format!("  {line}")
-                    },
-                    entry.kind.body_style(palette),
-                )));
+                lines.push(if line.is_empty() {
+                    " ".to_string()
+                } else {
+                    format!("  {line}")
+                });
             }
-            lines.push(Line::raw(""));
+            lines.push(String::new());
         }
         lines
     }
 
+    fn output_lines(&self, palette: ReplPalette, plain_lines: &[String]) -> Vec<Line<'static>> {
+        let selection = self.output_selection_range();
+        plain_lines
+            .iter()
+            .enumerate()
+            .map(|(index, text)| {
+                let style = if self.output_log.is_empty() {
+                    palette.muted_style()
+                } else {
+                    output_line_style(index, &self.output_log, palette)
+                };
+                styled_text_line(
+                    text,
+                    style,
+                    selection.and_then(|range| {
+                        output_selection_bounds_for_line(range, index, text.chars().count())
+                    }),
+                )
+            })
+            .collect()
+    }
+
     fn copy_buffer_to_clipboard(&mut self) {
         let text = self
-            .editor
-            .selected_text()
+            .selected_output_text()
+            .or_else(|| self.editor.selected_text())
             .unwrap_or_else(|| self.editor.buffer());
         if text.trim().is_empty() {
             self.status = "Copy skipped".to_string();
@@ -821,7 +949,9 @@ impl ReplApp {
         }
         match Clipboard::new().and_then(|mut clipboard| clipboard.set_text(text)) {
             Ok(()) => {
-                self.status = if self.editor.has_selection() {
+                self.status = if self.output_selection_range().is_some() {
+                    "Copied output".to_string()
+                } else if self.editor.has_selection() {
                     "Copied selection".to_string()
                 } else {
                     format!("Copied {} line(s)", self.editor.line_count())
@@ -943,10 +1073,7 @@ impl ReplApp {
         match fs::write(&absolute, source) {
             Ok(()) => {
                 let display = absolute.display().to_string();
-                self.last_save_path = display.clone();
-                self.last_open_path = display.clone();
-                self.current_file_path = Some(display.clone());
-                self.config.source_name = display.clone();
+                self.track_open_file(&display);
                 self.clean_buffer_snapshot = self.editor.buffer();
                 self.status = format!("Saved {display}");
                 self.push_output(OutputKind::Info, "Saved", vec![display]);
@@ -963,12 +1090,10 @@ impl ReplApp {
         match fs::read_to_string(&absolute) {
             Ok(source) => {
                 let display = absolute.display().to_string();
-                self.editor.set_text(&source);
+                self.editor.load_text_at_start(&source);
                 self.editor.clear_selection();
-                self.last_open_path = display.clone();
-                self.last_save_path = display.clone();
-                self.current_file_path = Some(display.clone());
-                self.config.source_name = display.clone();
+                self.clear_output_selection();
+                self.track_open_file(&display);
                 self.clean_buffer_snapshot = self.editor.buffer();
                 self.status = format!("Opened {display}");
                 self.push_output(OutputKind::Info, "Opened", vec![display]);
@@ -998,6 +1123,108 @@ impl ReplApp {
             row: target_row,
             col: target_col,
         })
+    }
+
+    fn editor_point_from_drag(&mut self, column: u16, row: u16) -> Option<CursorPoint> {
+        if self.editor_text_area.width == 0 || self.editor_text_area.height == 0 {
+            return None;
+        }
+
+        let top = self.editor_text_area.y;
+        let bottom = self.editor_text_area.y + self.editor_text_area.height.saturating_sub(1);
+        let left = self.editor_text_area.x;
+        let right = self.editor_text_area.x + self.editor_text_area.width.saturating_sub(1);
+
+        if row < top {
+            self.editor.scroll_lines(-2);
+        } else if row > bottom {
+            self.editor.scroll_lines(2);
+        }
+
+        let clamped_row = row.clamp(top, bottom);
+        let clamped_col = column.clamp(left, right);
+        self.editor_point_from_screen(clamped_col, clamped_row)
+    }
+
+    fn output_point_from_screen(&self, column: u16, row: u16) -> Option<CursorPoint> {
+        if !self.point_in_rect(column, row, self.output_text_area) {
+            return None;
+        }
+        let plain_lines = self.output_plain_lines();
+        let scroll_y = output_scroll_y(plain_lines.len(), self.output_text_area.height as usize);
+        let line_index = scroll_y + (row - self.output_text_area.y) as usize;
+        let line = plain_lines
+            .get(line_index)
+            .map(String::as_str)
+            .unwrap_or("");
+        let col = visual_width_to_cursor_col(line, (column - self.output_text_area.x) as usize);
+        Some(CursorPoint {
+            row: line_index,
+            col,
+        })
+    }
+
+    fn point_in_rect(&self, column: u16, row: u16, rect: Rect) -> bool {
+        rect.width > 0
+            && rect.height > 0
+            && column >= rect.x
+            && row >= rect.y
+            && column < rect.x + rect.width
+            && row < rect.y + rect.height
+    }
+
+    fn clear_output_selection(&mut self) {
+        self.output_selection_anchor = None;
+        self.output_selection_cursor = None;
+    }
+
+    fn selected_output_text(&self) -> Option<String> {
+        let selection = self.output_selection_range()?;
+        let plain_lines = self.output_plain_lines();
+        let mut chunks = Vec::new();
+        for row in selection.start.row..=selection.end.row {
+            let line = plain_lines.get(row).map(String::as_str).unwrap_or("");
+            let start_col = if row == selection.start.row {
+                selection.start.col.min(line_char_len(line))
+            } else {
+                0
+            };
+            let end_col = if row == selection.end.row {
+                selection.end.col.min(line_char_len(line))
+            } else {
+                line_char_len(line)
+            };
+            let start_byte = char_to_byte_index(line, start_col);
+            let end_byte = char_to_byte_index(line, end_col);
+            chunks.push(line[start_byte..end_byte].to_string());
+        }
+        Some(chunks.join("\n"))
+    }
+
+    fn output_selection_range(&self) -> Option<SelectionRange> {
+        let anchor = self.output_selection_anchor?;
+        let cursor = self.output_selection_cursor?;
+        if anchor == cursor {
+            None
+        } else {
+            Some(
+                SelectionRange {
+                    start: anchor,
+                    end: cursor,
+                }
+                .normalize(),
+            )
+        }
+    }
+
+    fn track_open_file(&mut self, path: &str) {
+        self.last_open_path = path.to_string();
+        self.last_save_path = path.to_string();
+        self.current_file_path = Some(path.to_string());
+        self.config.source_name = path.to_string();
+        self.recent_files.retain(|existing| existing != path);
+        self.recent_files.insert(0, path.to_string());
+        self.recent_files.truncate(6);
     }
 
     fn is_dirty(&self) -> bool {
@@ -1287,6 +1514,24 @@ impl ReplEditor {
     fn set_text(&mut self, text: &str) {
         self.push_undo_state();
         self.set_text_raw(text);
+    }
+
+    fn load_text_at_start(&mut self, text: &str) {
+        self.lines = if text.is_empty() {
+            vec![String::new()]
+        } else {
+            text.lines().map(|line| line.to_string()).collect()
+        };
+        if self.lines.is_empty() {
+            self.lines.push(String::new());
+        }
+        self.cursor_row = 0;
+        self.cursor_col = 0;
+        self.desired_col = 0;
+        self.scroll_x = 0;
+        self.scroll_y = 0;
+        self.follow_cursor = true;
+        self.clear_selection();
     }
 
     fn set_text_raw(&mut self, text: &str) {
@@ -1861,6 +2106,41 @@ impl ReplEditor {
         Some(self.lines[start..=end].join("\n"))
     }
 
+    fn current_line_text(&self) -> Option<String> {
+        let line = self.line_for_row(self.cursor_row);
+        if line.trim().is_empty() {
+            None
+        } else {
+            Some(line.to_string())
+        }
+    }
+
+    fn current_function_text(&self) -> Option<String> {
+        if self.lines.is_empty() {
+            return None;
+        }
+
+        let start = (0..=self.cursor_row.min(self.lines.len().saturating_sub(1)))
+            .rev()
+            .find(|row| looks_like_function_signature(self.line_for_row(*row)))?;
+
+        let base_indent = leading_space_count(self.line_for_row(start));
+        let mut end = start;
+        for row in start + 1..self.lines.len() {
+            let line = self.line_for_row(row);
+            if line.trim().is_empty() {
+                end = row;
+                continue;
+            }
+            if leading_space_count(line) <= base_indent {
+                break;
+            }
+            end = row;
+        }
+
+        Some(self.lines[start..=end].join("\n").trim_end().to_string())
+    }
+
     fn selection_or_current_block(&self) -> Option<RunSlice> {
         if let Some(selection) = self.selected_text() {
             if !selection.trim().is_empty() {
@@ -2104,6 +2384,142 @@ fn is_same_word_class(ch: char, word_class: bool) -> bool {
     }
 }
 
+fn leading_space_count(line: &str) -> usize {
+    line.chars().take_while(|ch| ch.is_whitespace()).count()
+}
+
+fn looks_like_function_signature(line: &str) -> bool {
+    let trimmed = line.trim_start();
+    trimmed.starts_with("fn ")
+        || trimmed.starts_with("pub fn ")
+        || trimmed.starts_with("async fn ")
+        || trimmed.starts_with("pub async fn ")
+}
+
+fn short_file_chip_label(path: &str) -> String {
+    let path_buf = PathBuf::from(path);
+    let file_name = path_buf
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or(path);
+    const MAX_LABEL: usize = 18;
+    if file_name.chars().count() <= MAX_LABEL {
+        file_name.to_string()
+    } else {
+        let tail = file_name
+            .chars()
+            .rev()
+            .take(MAX_LABEL - 1)
+            .collect::<Vec<_>>()
+            .into_iter()
+            .rev()
+            .collect::<String>();
+        format!("…{tail}")
+    }
+}
+
+fn slice_chars(text: &str, start: usize, len: usize) -> String {
+    text.chars().skip(start).take(len).collect()
+}
+
+fn styled_text_line(text: &str, style: Style, selection: Option<(usize, usize)>) -> Line<'static> {
+    let mut spans = Vec::new();
+    push_selected_text_spans(&mut spans, text, style, selection);
+    Line::from(spans)
+}
+
+fn push_selected_text_spans(
+    spans: &mut Vec<Span<'static>>,
+    text: &str,
+    style: Style,
+    selection: Option<(usize, usize)>,
+) {
+    match selection {
+        Some((sel_start, sel_end)) if sel_start < sel_end => {
+            let total_len = text.chars().count();
+            let prefix_len = sel_start.min(total_len);
+            let selected_len = sel_end.min(total_len).saturating_sub(prefix_len);
+            if prefix_len > 0 {
+                spans.push(Span::styled(slice_chars(text, 0, prefix_len), style));
+            }
+            if selected_len > 0 {
+                spans.push(Span::styled(
+                    slice_chars(text, prefix_len, selected_len),
+                    style.add_modifier(Modifier::REVERSED),
+                ));
+            }
+            if prefix_len + selected_len < total_len {
+                spans.push(Span::styled(
+                    slice_chars(
+                        text,
+                        prefix_len + selected_len,
+                        total_len - prefix_len - selected_len,
+                    ),
+                    style,
+                ));
+            }
+            if total_len == 0 {
+                spans.push(Span::styled(String::new(), style));
+            }
+        }
+        _ => spans.push(Span::styled(text.to_string(), style)),
+    }
+}
+
+fn output_line_style(index: usize, entries: &[OutputEntry], palette: ReplPalette) -> Style {
+    if entries.is_empty() {
+        return palette.muted_style();
+    }
+
+    let mut cursor = 0usize;
+    for entry in entries {
+        if index == cursor {
+            return entry.kind.title_style(palette);
+        }
+        cursor += 1;
+        for _ in &entry.body {
+            if index == cursor {
+                return entry.kind.body_style(palette);
+            }
+            cursor += 1;
+        }
+        if index == cursor {
+            return Style::default().fg(palette.text_muted);
+        }
+        cursor += 1;
+    }
+    Style::default().fg(palette.text_primary)
+}
+
+fn output_selection_bounds_for_line(
+    selection: SelectionRange,
+    line_index: usize,
+    display_len: usize,
+) -> Option<(usize, usize)> {
+    if line_index < selection.start.row || line_index > selection.end.row {
+        return None;
+    }
+    let start = if line_index == selection.start.row {
+        selection.start.col.min(display_len)
+    } else {
+        0
+    };
+    let end = if line_index == selection.end.row {
+        selection.end.col.min(display_len)
+    } else {
+        display_len
+    };
+    if start < end {
+        Some((start, end))
+    } else {
+        None
+    }
+}
+
+fn output_scroll_y(total_lines: usize, viewport_height: usize) -> usize {
+    total_lines.saturating_sub(viewport_height)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2238,6 +2654,40 @@ mod tests {
     }
 
     #[test]
+    fn current_line_extracts_non_empty_line() {
+        let mut editor = ReplEditor::default();
+        editor.set_text_raw("alpha\nbeta");
+        editor.cursor_row = 1;
+        assert_eq!(editor.current_line_text().as_deref(), Some("beta"));
+    }
+
+    #[test]
+    fn load_text_at_start_opens_at_top_left() {
+        let mut editor = ReplEditor::default();
+        editor.load_text_at_start("alpha\nbeta\ngamma");
+
+        assert_eq!(editor.cursor_row, 0);
+        assert_eq!(editor.cursor_col, 0);
+        assert_eq!(editor.scroll_x, 0);
+        assert_eq!(editor.scroll_y, 0);
+    }
+
+    #[test]
+    fn current_function_extracts_indented_function_body() {
+        let mut editor = ReplEditor::default();
+        editor.set_text_raw(
+            "use std::fs\n\nfn alpha() -> Int:\n    let seed = 7\n    return seed\n\nfn beta() -> Int:\n    return 9",
+        );
+        editor.cursor_row = 4;
+        editor.cursor_col = 3;
+
+        assert_eq!(
+            editor.current_function_text().as_deref(),
+            Some("fn alpha() -> Int:\n    let seed = 7\n    return seed")
+        );
+    }
+
+    #[test]
     fn selection_run_slice_wins_over_block_run() {
         let mut editor = ReplEditor::default();
         editor.set_text_raw("alpha\nbeta\ngamma");
@@ -2350,5 +2800,38 @@ mod tests {
         let triple = editor.gutter_width();
         assert_eq!(single, double);
         assert_eq!(double, triple);
+    }
+
+    #[test]
+    fn track_open_file_keeps_recent_order_without_duplicates() {
+        let mut app = ReplApp::new(ReplTerminalConfig::default());
+        app.track_open_file("X:/demo/alpha.kn");
+        app.track_open_file("X:/demo/beta.kn");
+        app.track_open_file("X:/demo/alpha.kn");
+
+        assert_eq!(
+            app.recent_files,
+            vec![
+                "X:/demo/alpha.kn".to_string(),
+                "X:/demo/beta.kn".to_string()
+            ]
+        );
+    }
+
+    #[test]
+    fn selected_output_text_spans_multiple_lines() {
+        let mut app = ReplApp::new(ReplTerminalConfig::default());
+        app.push_output(
+            OutputKind::Error,
+            "Run #1",
+            vec!["first problem".to_string(), "second problem".to_string()],
+        );
+        app.output_selection_anchor = Some(CursorPoint { row: 1, col: 2 });
+        app.output_selection_cursor = Some(CursorPoint { row: 2, col: 6 });
+
+        assert_eq!(
+            app.selected_output_text().as_deref(),
+            Some("first problem\n  seco")
+        );
     }
 }
