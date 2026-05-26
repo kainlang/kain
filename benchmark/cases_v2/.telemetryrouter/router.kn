@@ -34,7 +34,16 @@ use python_interop::python_interop_case_expected_checksum
 use python_interop::python_interop_case_group
 use python_interop::python_interop_case_id
 use python_interop::python_interop_case_iterations
+use python_interop::python_interop_case_telemetry
 use python_interop::python_interop_case_title
+use python_with_pykain::python_with_pykain_case_checksum
+use python_with_pykain::python_with_pykain_case_count
+use python_with_pykain::python_with_pykain_case_expected_checksum
+use python_with_pykain::python_with_pykain_case_group
+use python_with_pykain::python_with_pykain_case_id
+use python_with_pykain::python_with_pykain_case_iterations
+use python_with_pykain::python_with_pykain_case_telemetry
+use python_with_pykain::python_with_pykain_case_title
 use rage_runtime::rage_runtime_case_checksum
 use rage_runtime::rage_runtime_case_count
 use rage_runtime::rage_runtime_case_expected_checksum
@@ -69,6 +78,7 @@ struct RouterConfig:
     track_root: String
 
 struct BenchResult:
+    pack_id: String
     id: String
     group: String
     title: String
@@ -82,10 +92,18 @@ struct BenchResult:
     worst_ms: Int
     total_ms: Int
     average_ms: Int
+    total_work_units: Int
     ops_per_sec: Int
+    best_ops_per_sec: Int
+    worst_ops_per_sec: Int
+    average_us_per_op: Int
+    best_us_per_op: Int
+    worst_us_per_op: Int
+    jitter_ms: Int
     success: Bool
     failure_code: Int
     track_path: String
+    case_telemetry_json: String
 
 struct RouterTelemetry:
     cpu_feature_mask: Int
@@ -395,6 +413,9 @@ fn run_case_checksum(case_id: String, iterations: Int, amplify: Int) -> Int:
     let python_interop_checksum = python_interop_case_checksum(case_id, iterations, amplify, ROUTER_MODULUS)
     if python_interop_checksum >= 0:
         return python_interop_checksum
+    let python_with_pykain_checksum = python_with_pykain_case_checksum(case_id, iterations, amplify, ROUTER_MODULUS)
+    if python_with_pykain_checksum >= 0:
+        return python_with_pykain_checksum
     let rage_runtime_checksum = rage_runtime_case_checksum(case_id, iterations, amplify, ROUTER_MODULUS)
     if rage_runtime_checksum >= 0:
         return rage_runtime_checksum
@@ -414,7 +435,29 @@ fn run_case_checksum(case_id: String, iterations: Int, amplify: Int) -> Int:
         repeat = repeat + 1
     return acc
 
-fn run_case(case_id: String, group: String, title: String, iterations: Int, expected_base_checksum: Int, config: RouterConfig) -> BenchResult:
+fn case_telemetry_json(pack_id: String, case_id: String) -> String:
+    if pack_id == "python_interop":
+        return python_interop_case_telemetry(case_id)
+    if pack_id == "python_with_pykain":
+        return python_with_pykain_case_telemetry(case_id)
+    let content = "{"
+    content = content + "\"pack_id\": " + router_json_string_value(pack_id) + ", "
+    content = content + "\"case_id\": " + router_json_string_value(case_id)
+    return content + "}"
+
+fn micros_per_op(total_ms: Int, work_units: Int) -> Int:
+    if total_ms <= 0 or work_units <= 0:
+        return 0
+    return (total_ms * 1000) / work_units
+
+fn ops_per_second_for_pass(work_units: Int, elapsed_ms: Int) -> Int:
+    if work_units <= 0:
+        return 0
+    if elapsed_ms <= 0:
+        return work_units * 1000
+    return (work_units * 1000) / elapsed_ms
+
+fn run_case(pack_id: String, case_id: String, group: String, title: String, iterations: Int, expected_base_checksum: Int, config: RouterConfig) -> BenchResult:
     let warmup_index = 0
     while warmup_index < config.warmups:
         let _warmup_checksum = run_case_checksum(case_id, iterations, config.amplify)
@@ -444,12 +487,20 @@ fn run_case(case_id: String, group: String, title: String, iterations: Int, expe
         pass_index = pass_index + 1
 
     let average_ms = total_ms / config.passes
-    let total_work_units = iterations * config.passes * config.amplify
+    let work_units_per_pass = iterations * config.amplify
+    let total_work_units = work_units_per_pass * config.passes
     let ops_per_sec = total_work_units * 1000
     if total_ms > 0:
         ops_per_sec = (total_work_units * 1000) / total_ms
+    let best_ops_per_sec = ops_per_second_for_pass(work_units_per_pass, best_ms)
+    let worst_ops_per_sec = ops_per_second_for_pass(work_units_per_pass, worst_ms)
+    let average_us_per_op = micros_per_op(total_ms, total_work_units)
+    let best_us_per_op = micros_per_op(best_ms, work_units_per_pass)
+    let worst_us_per_op = micros_per_op(worst_ms, work_units_per_pass)
+    let jitter_ms = worst_ms - best_ms
 
     return BenchResult {
+        pack_id: pack_id,
         id: case_id,
         group: group,
         title: title,
@@ -463,10 +514,18 @@ fn run_case(case_id: String, group: String, title: String, iterations: Int, expe
         worst_ms: worst_ms,
         total_ms: total_ms,
         average_ms: average_ms,
+        total_work_units: total_work_units,
         ops_per_sec: ops_per_sec,
+        best_ops_per_sec: best_ops_per_sec,
+        worst_ops_per_sec: worst_ops_per_sec,
+        average_us_per_op: average_us_per_op,
+        best_us_per_op: best_us_per_op,
+        worst_us_per_op: worst_us_per_op,
+        jitter_ms: jitter_ms,
         success: success,
         failure_code: failure_code,
-        track_path: fs_path_join(config.track_root, case_id + ".json")
+        track_path: fs_path_join(config.track_root, case_id + ".json"),
+        case_telemetry_json: case_telemetry_json(pack_id, case_id)
     }
 
 fn result_status_text(result: BenchResult) -> String:
@@ -478,6 +537,7 @@ fn render_result_json(result: BenchResult) -> String:
     let content = "{\n"
     content = content + "  \"schema_version\": " + str(ROUTER_SCHEMA_VERSION) + ",\n"
     content = content + "  \"suite\": " + router_json_string_value(ROUTER_SUITE_ID) + ",\n"
+    content = content + "  \"pack_id\": " + router_json_string_value(result.pack_id) + ",\n"
     content = content + "  \"id\": " + router_json_string_value(result.id) + ",\n"
     content = content + "  \"group\": " + router_json_string_value(result.group) + ",\n"
     content = content + "  \"title\": " + router_json_string_value(result.title) + ",\n"
@@ -491,11 +551,19 @@ fn render_result_json(result: BenchResult) -> String:
     content = content + "  \"worst_ms\": " + str(result.worst_ms) + ",\n"
     content = content + "  \"total_ms\": " + str(result.total_ms) + ",\n"
     content = content + "  \"average_ms\": " + str(result.average_ms) + ",\n"
+    content = content + "  \"total_work_units\": " + str(result.total_work_units) + ",\n"
     content = content + "  \"ops_per_sec\": " + str(result.ops_per_sec) + ",\n"
+    content = content + "  \"best_ops_per_sec\": " + str(result.best_ops_per_sec) + ",\n"
+    content = content + "  \"worst_ops_per_sec\": " + str(result.worst_ops_per_sec) + ",\n"
+    content = content + "  \"average_us_per_op\": " + str(result.average_us_per_op) + ",\n"
+    content = content + "  \"best_us_per_op\": " + str(result.best_us_per_op) + ",\n"
+    content = content + "  \"worst_us_per_op\": " + str(result.worst_us_per_op) + ",\n"
+    content = content + "  \"jitter_ms\": " + str(result.jitter_ms) + ",\n"
     content = content + "  \"success\": " + router_json_bool_value(result.success) + ",\n"
     content = content + "  \"failure_code\": " + str(result.failure_code) + ",\n"
     content = content + "  \"status\": " + router_json_string_value(result_status_text(result)) + ",\n"
-    content = content + "  \"track_path\": " + router_json_string_value(result.track_path) + "\n"
+    content = content + "  \"track_path\": " + router_json_string_value(result.track_path) + ",\n"
+    content = content + "  \"case_telemetry\": " + result.case_telemetry_json + "\n"
     return content + "}"
 
 fn capture_runtime_telemetry() -> RouterTelemetry:
@@ -546,7 +614,7 @@ fn write_track_report(result: BenchResult) -> Int:
     return len(result.track_path)
 
 fn format_result_row(result: BenchResult) -> String:
-    return "| `" + result.id + "` | `" + result.group + "` | " + str(result.iterations) + " | " + str(result.best_ms) + " | " + str(result.average_ms) + " | " + str(result.worst_ms) + " | " + str(result.ops_per_sec) + " | " + str(result.checksum) + " | `" + result_status_text(result) + "` |\n"
+    return "| `" + result.pack_id + "` | `" + result.id + "` | `" + result.group + "` | " + str(result.iterations) + " | " + str(result.best_ms) + " | " + str(result.average_ms) + " | " + str(result.average_us_per_op) + " | " + str(result.jitter_ms) + " | " + str(result.ops_per_sec) + " | " + str(result.checksum) + " | `" + result_status_text(result) + "` |\n"
 
 fn build_markdown_report(case_count: Int, config: RouterConfig, telemetry: RouterTelemetry, started_ms: Int, finished_ms: Int, success_count: Int, failure_count: Int, table_rows: String) -> String:
     let selected_text = selected_filter_text(config.filter_text)
@@ -580,8 +648,8 @@ fn build_markdown_report(case_count: Int, config: RouterConfig, telemetry: Route
     content = content + "- actor_scheduler_worker_count: `" + str(telemetry.actor_scheduler_worker_count) + "`\n"
     content = content + "- actor_scheduler_busy_workers: `" + str(telemetry.actor_scheduler_busy_workers) + "`\n"
     content = content + "- track_root: `" + config.track_root + "`\n\n"
-    content = content + "| Case | Group | Iterations | Best ms | Avg ms | Worst ms | Ops/s | Checksum | Status |\n"
-    content = content + "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |\n"
+    content = content + "| Pack | Case | Group | Iterations | Best ms | Avg ms | Avg us/op | Jitter ms | Ops/s | Checksum | Status |\n"
+    content = content + "| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |\n"
     content = content + table_rows
     return content
 
@@ -637,7 +705,7 @@ fn main() -> Int:
         let case_id = classic_case_id(classic_index)
         let case_group = classic_case_group(classic_index)
         if case_selected(config.filter_text, case_id, case_group):
-            let result = run_case(case_id, case_group, classic_case_title(classic_index), classic_case_iterations(classic_index), classic_case_expected_checksum(classic_index), config)
+            let result = run_case("classic_core", case_id, case_group, classic_case_title(classic_index), classic_case_iterations(classic_index), classic_case_expected_checksum(classic_index), config)
             let _track = write_track_report(result)
             cases_json_items = append_json_item(cases_json_items, render_result_json(result))
             table_rows = table_rows + format_result_row(result)
@@ -654,7 +722,7 @@ fn main() -> Int:
         let case_id = classic_systems_case_id(classic_systems_index)
         let case_group = classic_systems_case_group(classic_systems_index)
         if case_selected(config.filter_text, case_id, case_group):
-            let result = run_case(case_id, case_group, classic_systems_case_title(classic_systems_index), classic_systems_case_iterations(classic_systems_index), classic_systems_case_expected_checksum(classic_systems_index), config)
+            let result = run_case("classic_systems", case_id, case_group, classic_systems_case_title(classic_systems_index), classic_systems_case_iterations(classic_systems_index), classic_systems_case_expected_checksum(classic_systems_index), config)
             let _track = write_track_report(result)
             cases_json_items = append_json_item(cases_json_items, render_result_json(result))
             table_rows = table_rows + format_result_row(result)
@@ -671,7 +739,7 @@ fn main() -> Int:
         let case_id = classic_core3d_case_id(classic_core3d_index)
         let case_group = classic_core3d_case_group(classic_core3d_index)
         if case_selected(config.filter_text, case_id, case_group):
-            let result = run_case(case_id, case_group, classic_core3d_case_title(classic_core3d_index), classic_core3d_case_iterations(classic_core3d_index), classic_core3d_case_expected_checksum(classic_core3d_index), config)
+            let result = run_case("classic_core3d", case_id, case_group, classic_core3d_case_title(classic_core3d_index), classic_core3d_case_iterations(classic_core3d_index), classic_core3d_case_expected_checksum(classic_core3d_index), config)
             let _track = write_track_report(result)
             cases_json_items = append_json_item(cases_json_items, render_result_json(result))
             table_rows = table_rows + format_result_row(result)
@@ -688,7 +756,7 @@ fn main() -> Int:
         let case_id = python_interop_case_id(python_interop_index)
         let case_group = python_interop_case_group(python_interop_index)
         if case_selected(config.filter_text, case_id, case_group):
-            let result = run_case(case_id, case_group, python_interop_case_title(python_interop_index), python_interop_case_iterations(python_interop_index), python_interop_case_expected_checksum(python_interop_index), config)
+            let result = run_case("python_interop", case_id, case_group, python_interop_case_title(python_interop_index), python_interop_case_iterations(python_interop_index), python_interop_case_expected_checksum(python_interop_index), config)
             let _track = write_track_report(result)
             cases_json_items = append_json_item(cases_json_items, render_result_json(result))
             table_rows = table_rows + format_result_row(result)
@@ -700,12 +768,29 @@ fn main() -> Int:
             println("[bench-v2] " + case_id + " best=" + str(result.best_ms) + "ms avg=" + str(result.average_ms) + "ms status=" + result_status_text(result))
         python_interop_index = python_interop_index + 1
 
+    let python_with_pykain_index = 0
+    while python_with_pykain_index < python_with_pykain_case_count():
+        let case_id = python_with_pykain_case_id(python_with_pykain_index)
+        let case_group = python_with_pykain_case_group(python_with_pykain_index)
+        if case_selected(config.filter_text, case_id, case_group):
+            let result = run_case("python_with_pykain", case_id, case_group, python_with_pykain_case_title(python_with_pykain_index), python_with_pykain_case_iterations(python_with_pykain_index), python_with_pykain_case_expected_checksum(python_with_pykain_index), config)
+            let _track = write_track_report(result)
+            cases_json_items = append_json_item(cases_json_items, render_result_json(result))
+            table_rows = table_rows + format_result_row(result)
+            case_count = case_count + 1
+            if result.success:
+                success_count = success_count + 1
+            else:
+                failure_count = failure_count + 1
+            println("[bench-v2] " + case_id + " best=" + str(result.best_ms) + "ms avg=" + str(result.average_ms) + "ms status=" + result_status_text(result))
+        python_with_pykain_index = python_with_pykain_index + 1
+
     let rage_runtime_index = 0
     while rage_runtime_index < rage_runtime_case_count():
         let case_id = rage_runtime_case_id(rage_runtime_index)
         let case_group = rage_runtime_case_group(rage_runtime_index)
         if case_selected(config.filter_text, case_id, case_group):
-            let result = run_case(case_id, case_group, rage_runtime_case_title(rage_runtime_index), rage_runtime_case_iterations(rage_runtime_index), rage_runtime_case_expected_checksum(rage_runtime_index), config)
+            let result = run_case("rage_runtime", case_id, case_group, rage_runtime_case_title(rage_runtime_index), rage_runtime_case_iterations(rage_runtime_index), rage_runtime_case_expected_checksum(rage_runtime_index), config)
             let _track = write_track_report(result)
             cases_json_items = append_json_item(cases_json_items, render_result_json(result))
             table_rows = table_rows + format_result_row(result)
@@ -718,7 +803,7 @@ fn main() -> Int:
         rage_runtime_index = rage_runtime_index + 1
 
     if case_selected(config.filter_text, "array_scan", "core"):
-        let result = run_case("array_scan", "core", "Array Scan", 500000, 103499994, config)
+        let result = run_case("router_core", "array_scan", "core", "Array Scan", 500000, 103499994, config)
         let _track = write_track_report(result)
         cases_json_items = append_json_item(cases_json_items, render_result_json(result))
         table_rows = table_rows + format_result_row(result)
@@ -730,7 +815,7 @@ fn main() -> Int:
         println("[bench-v2] array_scan best=" + str(result.best_ms) + "ms avg=" + str(result.average_ms) + "ms status=" + result_status_text(result))
 
     if case_selected(config.filter_text, "option_result", "semantic"):
-        let result = run_case("option_result", "semantic", "Option Result", 300000, 143207783, config)
+        let result = run_case("router_core", "option_result", "semantic", "Option Result", 300000, 143207783, config)
         let _track = write_track_report(result)
         cases_json_items = append_json_item(cases_json_items, render_result_json(result))
         table_rows = table_rows + format_result_row(result)
@@ -742,7 +827,7 @@ fn main() -> Int:
         println("[bench-v2] option_result best=" + str(result.best_ms) + "ms avg=" + str(result.average_ms) + "ms status=" + result_status_text(result))
 
     if case_selected(config.filter_text, "string_ops", "stdlib"):
-        let result = run_case("string_ops", "stdlib", "String Ops", 100000, 2050000, config)
+        let result = run_case("router_core", "string_ops", "stdlib", "String Ops", 100000, 2050000, config)
         let _track = write_track_report(result)
         cases_json_items = append_json_item(cases_json_items, render_result_json(result))
         table_rows = table_rows + format_result_row(result)
@@ -754,7 +839,7 @@ fn main() -> Int:
         println("[bench-v2] string_ops best=" + str(result.best_ms) + "ms avg=" + str(result.average_ms) + "ms status=" + result_status_text(result))
 
     if case_selected(config.filter_text, "alloc_churn", "memory"):
-        let result = run_case("alloc_churn", "memory", "Alloc Churn", 50000, 250324993, config)
+        let result = run_case("router_core", "alloc_churn", "memory", "Alloc Churn", 50000, 250324993, config)
         let _track = write_track_report(result)
         cases_json_items = append_json_item(cases_json_items, render_result_json(result))
         table_rows = table_rows + format_result_row(result)
@@ -766,7 +851,7 @@ fn main() -> Int:
         println("[bench-v2] alloc_churn best=" + str(result.best_ms) + "ms avg=" + str(result.average_ms) + "ms status=" + result_status_text(result))
 
     if case_selected(config.filter_text, "stdlib_foundations", "stdlib"):
-        let result = run_case("stdlib_foundations", "stdlib", "Stdlib Foundations", 20000, 248311071, config)
+        let result = run_case("router_core", "stdlib_foundations", "stdlib", "Stdlib Foundations", 20000, 248311071, config)
         let _track = write_track_report(result)
         cases_json_items = append_json_item(cases_json_items, render_result_json(result))
         table_rows = table_rows + format_result_row(result)
