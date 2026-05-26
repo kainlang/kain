@@ -1,9 +1,0 @@
-use kain_fmt::fmt_join_strings
-use kain_fmt::fmt_key_value
-use kain_fmt::fmt_status_line
-
-fn main() -> Int:
-    println(fmt_join_strings(["alpha", "beta", "gamma"], ","))
-    println(fmt_key_value("blade", "kain-fmt"))
-    println(fmt_status_line("kain-fmt", true))
-    return 0

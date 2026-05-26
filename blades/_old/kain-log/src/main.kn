@@ -1,6 +1,0 @@
-use kain_log::log_level_info
-use kain_log::log_stdout_message
-
-fn main() -> Int:
-    log_stdout_message(log_level_info(), "kain-log", "library ready")
-    return 0
