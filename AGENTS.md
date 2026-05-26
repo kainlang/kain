@@ -162,15 +162,20 @@ Use this style of proof aggressively. If a Kain feature claim is "Python import 
 
 ## First Read Order
 
-1. Read `GLOSSARY.MD` to understand the common terminology and lingo of this codebase.
-2. Read `CATALOG.MD` to get the full list of keywords and semantics in Kain.
-3. Read and  Update `MEMORY.md` after noteworthy changes in the repo and search it for unresolved risk, proof names, benchmark cases, blade names, error strings, or subsystem-specific lessons. 
-4. IF needed read `TOOLCHAIN.md` in the root to see where tools are installed along with everything env path related to rust, py, bazel cache, etc. or if you need any sort of debugging tools etc. We have an entire arsenal of tools installed on this setup. Feel free to add any new tools you need considering we have a clean and organized scoop setup on F:/ (the toolchain drive)
+1. Read `GLOSSARY.MD` before substantial Kain or repo work. It is required repo context, not optional flavor text, and should anchor terminology, subsystem names, and house language before you start guessing.
+2. Read `CATALOG.MD` before substantial Kain or repo work. It is required repo context for keywords, semantic surfaces, and language feature discovery.
+3. Read and update `MEMORY.md` after noteworthy changes in the repo and search it for unresolved risk, proof names, benchmark cases, blade names, error strings, or subsystem-specific lessons.
+4. Read `TOOLCHAIN.md` when toolchain, PATH, SDK, Bazel cache, Python, LLVM, or debugging setup might matter. We have an entire arsenal of tools installed on this setup. Feel free to add any new tools you need considering we have a clean and organized scoop setup on F:/ (the toolchain drive)
 
 - `AGENTS.md` is the hot boot doctrine and command surface.
+- `GLOSSARY.MD` and `CATALOG.MD` are required repo reading, not optional docs. Agents should read them early, use them actively, and help keep them alive.
 - `MEMORY.md` is the durable task/risk bulletin board. Keep it useful for handoff: what changed, why, risks, proof/report artifacts, next recommended steps, and weird traps that are not yet captured in a more local doc.
 `.agents/skills/*/SKILL.md`, and `.agents/skills/TAXONOMY.md` are the preferred homes for detailed subsystem operating knowledge and skill routing.
+- Update `GLOSSARY.MD` whenever terminology, subsystem language, important repo phrases, or practical definitions become clearer through the work. If you had to learn a term the hard way, future agents should not have to.
+- Update `CATALOG.MD` whenever new Kain keywords, semantic primitives, syntax surfaces, or compiler-owned language constructs are added or materially changed. Do not let new language truth land without catalog coverage.
 - Update `MEMORY.md` for complex or risky work when future agents need durable continuity and the lesson does not yet belong in a pipeline skill or README.
+- Update `FEEDBACK.md` more aggressively when you hit fundamental language, runtime, stdlib, toolchain, or workflow pain that future language work should learn from.
+- Update `BUGS.md` more aggressively when you confirm a real defect, sharp edge, reproducible weirdness, or solver-backed failure that should be tracked even if you are not fixing it in the same turn.
 - If you learn a durable new trick, routing rule, ownership boundary, validation loop, command surface, gotcha, or authoring pattern that future agents will likely need again, update the owning repo-local skill in the same turn. Do not leave important workflow knowledge trapped in the session.
 - If a pipeline changes significantly, update the owning namespaced repo-local skill before creating a new one. If no namespace lane fits and the pipeline is important, use `$skill-creator` at the end of the turn.
 - If skill scope or discoverability changes, update both the skill body and the agent-facing metadata (`SKILL.md` frontmatter plus `agents/openai.yaml`) so future agents can actually find and trigger the lane.
@@ -222,6 +227,7 @@ $lang-projects
 - Keep skill discovery honest: when a lane changes, refresh the agent-facing description/prompt metadata too so other agents can actually select it without a scavenger hunt.
 - Keep `wildcard-*` rare and explicit. They are authoring overrides, not substitutes for the owning `lang-*` lanes.
 - When a legacy `kain-*` skill name appears in old notes, resolve it through `.agents/skills/TAXONOMY.md` instead of reviving the old namespace.
+- If a skill teaches language semantics, workflow vocabulary, or repo doctrine that belongs in `GLOSSARY.MD` or `CATALOG.MD`, update those docs too instead of letting the knowledge live only inside the skill.
 
 ## Kain Authoring Ignition
 
@@ -247,6 +253,8 @@ bazel test //:developer_smoke_tests --config=dev
 bazel test //runtime:native_runtime_tests
 python tools/bazel/sync_rust_builds.py --check
 py -3 tools/bazel/sync_native_runtime_builds.py --check
+
+If you happen to use x:/target/debug/kain.exe KEEP IN MIND IT MAY BE old AND NOT REPRESENTATIVE OF THE CURRENT REPO - X:\.kain" is the canonical location of the kain binary however Bazel can sometimes be problematic and fight with our repo
 ```
 
 On this Windows workstation, the repo root lives on `X:\` and Bazel cache/temp/output state intentionally lives on `F:\Caches\bazel\...` and `F:\DevTemp\bazel`. Prefer Bazel-built launchers from `X:\.kain\bin` or set `KAIN_BIN` to a fresh Bazel `kain.exe` when validating blades, benchmarks, and native runtime changes.
@@ -322,10 +330,15 @@ python attrition/run.py --case <case> --sabotage <mode>
 ## Memory And Continuity
 
 - `AGENTS.md` is the hot boot doctrine and command surface.
+- `GLOSSARY.MD` and `CATALOG.MD` are required repo reading, not optional docs. Agents should read them early, use them actively, and help keep them alive.
 - `MEMORY.md` is the durable task/risk bulletin board. Keep it useful for handoff: what changed, why, risks, proof/report artifacts, next recommended steps, and weird traps that are not yet captured in a more local doc.
 - Pipeline `README.md` files, `.agents/skills/*/SKILL.md`, and `.agents/skills/TAXONOMY.md` are the preferred homes for detailed subsystem operating knowledge and skill routing.
+- Update `GLOSSARY.MD` whenever terminology, subsystem language, important repo phrases, or practical definitions become clearer through the work. If you had to learn a term the hard way, future agents should not have to.
+- Update `CATALOG.MD` whenever new Kain keywords, semantic primitives, syntax surfaces, or compiler-owned language constructs are added or materially changed. Do not let new language truth land without catalog coverage.
 - Update `MEMORY.md` for complex or risky work when future agents need durable continuity and the lesson does not yet belong in a pipeline skill or README.
 - Do not dump raw session logs into memory. Write the distilled lesson, the proof/benchmark/attrition evidence, and the next useful move.
+- Update `FEEDBACK.md` more aggressively when you hit fundamental language, runtime, stdlib, toolchain, or workflow pain that future language work should learn from.
+- Update `BUGS.md` more aggressively when you confirm a real defect, sharp edge, reproducible weirdness, or solver-backed failure that should be tracked even if you are not fixing it in the same turn.
 - If you learn a durable new trick, routing rule, ownership boundary, validation loop, command surface, gotcha, or authoring pattern that future agents will likely need again, update the owning repo-local skill in the same turn. Do not leave important workflow knowledge trapped in the session.
 - If a pipeline changes significantly, update the owning namespaced repo-local skill before creating a new one. If no namespace lane fits and the pipeline is important, use `$skill-creator` at the end of the turn.
 - If skill scope or discoverability changes, update both the skill body and the agent-facing metadata (`SKILL.md` frontmatter plus `agents/openai.yaml`) so future agents can actually find and trigger the lane.
