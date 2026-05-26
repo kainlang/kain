@@ -66,10 +66,20 @@ class PykainNativeTests(unittest.TestCase):
         self.assertEqual(gpu.policy["binding"], 2)
         self.assertEqual(gpu.descriptor()["resource_kind"], "buffer")
         self.assertEqual(shader.descriptor()["stage"], "compute")
+        frame = pykain.shader.render_fragment(shader, width=16, height=9)
+        frame_info = pykain.shader.render_info(frame)
+        self.assertTrue(frame_info["valid"])
+        self.assertEqual(frame_info["byte_length"], 16 * 9 * 4)
+        self.assertTrue(pykain.shader.render_ok(shader.source, width=8, height=4))
         self.assertEqual(world.descriptor()["state"]["score"], 42)
         self.assertEqual(link.descriptor()["policy"], "single_writer")
         self.assertEqual(msg["target_id"], 7)
         self.assertEqual(pykain.validate.version(), 1)
+
+    def test_window_auto_has_builtin_adapter_list(self) -> None:
+        info = pykain.window.backend_info('{"window_backend":"auto"}')
+        self.assertIn("configured_adapters", info)
+        self.assertIn("pyglet", info["configured_adapters"])
 
 
 if __name__ == "__main__":

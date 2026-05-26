@@ -90,13 +90,35 @@ static void json_unregister_value(KainJsonValue* value) {
     }
 }
 
+static int json_is_live_json_value(KainJsonValue* candidate) {
+    RcHeader* header;
+    if (!candidate || (((uintptr_t)candidate) & KAIN_JSON_ANY_TAG_MASK) != 0u) {
+        return 0;
+    }
+    if (!kain_rc_is_tracked_pointer(candidate)) {
+        return 0;
+    }
+    header = ((RcHeader*)candidate) - 1;
+    if (header->magic != KAIN_RC_MAGIC_ALIVE || header->type_tag != 0x4a534f4eLL) {
+        return 0;
+    }
+    return 1;
+}
+
 static KainJsonValue* json_registered_handle(int64_t handle) {
     KainJsonValue* candidate;
     KainJsonRegistryNode* node;
-    if ((handle & KAIN_JSON_ANY_TAG_MASK) != 0) {
+    int64_t tag = handle & KAIN_JSON_ANY_TAG_MASK;
+    if (tag == KAIN_JSON_ANY_TAG_INT) {
+        candidate = (KainJsonValue*)(intptr_t)(handle >> 3);
+    } else if (tag == 0) {
+        candidate = (KainJsonValue*)(intptr_t)handle;
+    } else {
         return NULL;
     }
-    candidate = (KainJsonValue*)(intptr_t)handle;
+    if (!json_is_live_json_value(candidate)) {
+        return NULL;
+    }
     for (node = g_json_registry; node; node = node->next) {
         if (node->value == candidate) {
             return candidate;
@@ -226,7 +248,13 @@ static KainJsonValue* json_value_from_any(int64_t any) {
     if (tag == KAIN_JSON_ANY_TAG_INT) {
         int64_t payload = any >> 3;
         KainJsonValue* existing = json_registered_handle(payload);
-        return existing ? json_clone_value(existing) : json_value_int(payload);
+        if (existing) {
+            return json_clone_value(existing);
+        }
+        if (kain_rc_is_tracked_pointer((void*)(intptr_t)payload)) {
+            return json_value_opaque(payload);
+        }
+        return json_value_int(payload);
     }
     if (tag == KAIN_JSON_ANY_TAG_BOOL) {
         return json_value_bool((any >> 3) != 0);

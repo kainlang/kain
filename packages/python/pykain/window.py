@@ -44,6 +44,9 @@ _IMPORTED_ADAPTERS: dict[str, _AdapterRecord] = {}
 _ACTIVE_ADAPTER: _AdapterRecord | None = None
 _ACTIVE_HANDLE: Any = None
 _ACTIVE_PLAN: dict[str, Any] = {}
+_BUILTIN_ADAPTERS: tuple[str, ...] = (
+    "pykain.adapters.pyglet_window",
+)
 
 
 def _plan(plan_text: str) -> dict[str, Any]:
@@ -152,6 +155,8 @@ def _coerce_specs(raw_specs: Any) -> list[str]:
 def _adapter_specs(plan: dict[str, Any]) -> list[str]:
     specs = _coerce_specs(plan.get("window_adapters"))
     specs.extend(_coerce_specs(os.environ.get("PYKAIN_WINDOW_ADAPTERS", "")))
+    if _str(plan, "window_backend", "auto") == "auto":
+        specs.extend(_BUILTIN_ADAPTERS)
 
     seen: set[str] = set()
     ordered: list[str] = []

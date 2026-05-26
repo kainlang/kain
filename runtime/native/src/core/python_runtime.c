@@ -47,6 +47,7 @@ typedef struct {
     int (*PyObject_IsTrue)(PyObject*);
     PyObject* (*PyTuple_New)(Py_ssize_t);
     int (*PyTuple_SetItem)(PyObject*, Py_ssize_t, PyObject*);
+    PyObject* (*PyTuple_GetItem)(PyObject*, Py_ssize_t);
     PyObject* (*PyList_New)(Py_ssize_t);
     int (*PyList_Append)(PyObject*, PyObject*);
     int (*PyList_Insert)(PyObject*, Py_ssize_t, PyObject*);
@@ -54,6 +55,7 @@ typedef struct {
     PyObject* (*PyList_GetItem)(PyObject*, Py_ssize_t);
     PyObject* (*PyDict_New)(void);
     int (*PyDict_SetItemString)(PyObject*, const char*, PyObject*);
+    PyObject* (*PyMapping_Items)(PyObject*);
     Py_ssize_t (*PySequence_Size)(PyObject*);
     PyObject* (*PySequence_GetItem)(PyObject*, Py_ssize_t);
     PyObject* (*PyUnicode_FromString)(const char*);
@@ -140,10 +142,23 @@ static RcHeader* kain_py_rc_header(const void* ptr) {
 }
 
 static int kain_py_type_tag_matches(const void* ptr, long long type_tag) {
-    RcHeader* header = kain_py_rc_header(ptr);
+    RcHeader* header;
+    if (!ptr || (((uintptr_t)ptr) & 7u) != 0u) {
+        return 0;
+    }
+    header = kain_py_rc_header(ptr);
     return header != NULL &&
         header->magic == KAIN_RC_MAGIC_ALIVE &&
         header->type_tag == type_tag;
+}
+
+static long long kain_py_unbox_tagged_handle(long long value, long long type_tag) {
+    long long payload;
+    if ((value & 7LL) != 1LL) {
+        return value;
+    }
+    payload = value >> 3;
+    return kain_py_type_tag_matches((void*)(intptr_t)payload, type_tag) ? payload : value;
 }
 
 static int kain_py_any_is_string_tag(long long value) {
@@ -373,6 +388,7 @@ static int kain_py_load_api(void) {
     KAIN_LOAD_PY_API(PyObject_IsTrue);
     KAIN_LOAD_PY_API(PyTuple_New);
     KAIN_LOAD_PY_API(PyTuple_SetItem);
+    KAIN_LOAD_PY_API(PyTuple_GetItem);
     KAIN_LOAD_PY_API(PyList_New);
     KAIN_LOAD_PY_API(PyList_Append);
     KAIN_LOAD_PY_API(PyList_Insert);
@@ -380,6 +396,7 @@ static int kain_py_load_api(void) {
     KAIN_LOAD_PY_API(PyList_GetItem);
     KAIN_LOAD_PY_API(PyDict_New);
     KAIN_LOAD_PY_API(PyDict_SetItemString);
+    KAIN_LOAD_PY_API(PyMapping_Items);
     KAIN_LOAD_PY_API(PySequence_Size);
     KAIN_LOAD_PY_API(PySequence_GetItem);
     KAIN_LOAD_PY_API(PyUnicode_FromString);
@@ -1440,18 +1457,21 @@ static int kain_py_finalize_wrap(KainPythonObjectHandle* handle, void (*destruct
 }
 
 static KainPythonObjectHandle* kain_py_as_object_handle(long long value) {
+    value = kain_py_unbox_tagged_handle(value, KAIN_RC_TYPE_PY_OBJECT);
     return kain_py_type_tag_matches((void*)(intptr_t)value, KAIN_RC_TYPE_PY_OBJECT)
         ? (KainPythonObjectHandle*)(intptr_t)value
         : NULL;
 }
 
 static KainPythonTensorHandle* kain_py_as_tensor_handle(long long value) {
+    value = kain_py_unbox_tagged_handle(value, KAIN_RC_TYPE_PY_TENSOR);
     return kain_py_type_tag_matches((void*)(intptr_t)value, KAIN_RC_TYPE_PY_TENSOR)
         ? (KainPythonTensorHandle*)(intptr_t)value
         : NULL;
 }
 
 static KainPythonImageHandle* kain_py_as_image_handle(long long value) {
+    value = kain_py_unbox_tagged_handle(value, KAIN_RC_TYPE_PY_IMAGE);
     return kain_py_type_tag_matches((void*)(intptr_t)value, KAIN_RC_TYPE_PY_IMAGE)
         ? (KainPythonImageHandle*)(intptr_t)value
         : NULL;
@@ -1602,7 +1622,7 @@ static PyObject* kain_py_resolve_target(long long value) {
     return kain_py_any_to_pyobject(value);
 }
 
-static long long kain_py_wrap_result(PyObject* object) {
+static long long kain_py_wrap_owned_object(PyObject* object) {
     KainPythonObjectHandle* handle;
     if (!object) {
         kain_py_clear_error();
@@ -1625,6 +1645,326 @@ static long long kain_py_string_tag(const char* text) {
     }
     bits = (long long)(intptr_t)owned;
     return bits | 3LL;
+}
+
+static int kain_py_copy_type_name(PyObject* object, char* dest, size_t dest_size) {
+    PyObject* klass;
+    PyObject* name;
+    const char* utf8;
+    if (!object || !dest || dest_size == 0u) {
+        return 0;
+    }
+    dest[0] = '\0';
+    klass = g_kain_python_api.PyObject_GetAttrString(object, "__class__");
+    if (!klass) {
+        kain_py_clear_error();
+        return 0;
+    }
+    name = g_kain_python_api.PyObject_GetAttrString(klass, "__name__");
+    g_kain_python_api.Py_DecRef(klass);
+    if (!name) {
+        kain_py_clear_error();
+        return 0;
+    }
+    utf8 = g_kain_python_api.PyUnicode_AsUTF8(name);
+    if (!utf8) {
+        kain_py_clear_error();
+        g_kain_python_api.Py_DecRef(name);
+        return 0;
+    }
+    snprintf(dest, dest_size, "%s", utf8);
+    g_kain_python_api.Py_DecRef(name);
+    return 1;
+}
+
+static int kain_py_type_name_is(const char* type_name, const char* expected) {
+    return type_name && expected && strcmp(type_name, expected) == 0;
+}
+
+static int kain_py_try_unicode_tag(PyObject* object, long long* out) {
+    const char* utf8;
+    if (!object || !out) {
+        return 0;
+    }
+    utf8 = g_kain_python_api.PyUnicode_AsUTF8(object);
+    if (!utf8) {
+        kain_py_clear_error();
+        return 0;
+    }
+    *out = kain_py_string_tag(utf8);
+    return 1;
+}
+
+static int kain_py_try_long_value(PyObject* object, long long* out) {
+    PyObject* coerced;
+    if (!object || !out) {
+        return 0;
+    }
+    coerced = g_kain_python_api.PyNumber_Long(object);
+    if (!coerced) {
+        kain_py_clear_error();
+        return 0;
+    }
+    *out = g_kain_python_api.PyLong_AsLongLong(coerced);
+    if (g_kain_python_api.PyErr_Occurred()) {
+        kain_py_clear_error();
+    }
+    g_kain_python_api.Py_DecRef(coerced);
+    return 1;
+}
+
+static int kain_py_try_float_tag(PyObject* object, long long* out) {
+    PyObject* coerced;
+    double value;
+    if (!object || !out) {
+        return 0;
+    }
+    coerced = g_kain_python_api.PyNumber_Float(object);
+    if (!coerced) {
+        kain_py_clear_error();
+        return 0;
+    }
+    value = g_kain_python_api.PyFloat_AsDouble(coerced);
+    if (g_kain_python_api.PyErr_Occurred()) {
+        kain_py_clear_error();
+        g_kain_python_api.Py_DecRef(coerced);
+        return 0;
+    }
+    g_kain_python_api.Py_DecRef(coerced);
+    *out = json_box_float(value);
+    return 1;
+}
+
+static int kain_py_should_keep_raw_host(PyObject* object, const char* type_name) {
+    if (!object) {
+        return 0;
+    }
+    if (kain_py_type_name_is(type_name, "ndarray")) {
+        return 1;
+    }
+    if (g_kain_python_api.PyObject_HasAttrString(object, "__array_interface__") > 0) {
+        return 1;
+    }
+    if (g_kain_python_api.PyObject_HasAttrString(object, "__cuda_array_interface__") > 0) {
+        return 1;
+    }
+    if (g_kain_python_api.PyObject_HasAttrString(object, "__dlpack__") > 0) {
+        return 1;
+    }
+    return 0;
+}
+
+static long long kain_py_materialize_result(PyObject* object, int raw_mode, int boxed_scalars);
+
+static long long kain_py_materialize_borrowed(PyObject* object, int raw_mode) {
+    if (!object) {
+        return 0;
+    }
+    g_kain_python_api.Py_IncRef(object);
+    return kain_py_materialize_result(object, raw_mode, 1);
+}
+
+static long long kain_py_sequence_to_json_array(PyObject* object, int raw_mode) {
+    Py_ssize_t len = g_kain_python_api.PySequence_Size(object);
+    long long array;
+    Py_ssize_t index;
+    if (len < 0) {
+        kain_py_clear_error();
+        return 0;
+    }
+    array = json_array_new();
+    for (index = 0; index < len; ++index) {
+        PyObject* item = g_kain_python_api.PySequence_GetItem(object, index);
+        if (!item) {
+            kain_py_clear_error();
+            return array;
+        }
+        json_array_push(array, kain_py_materialize_result(item, raw_mode, 1));
+    }
+    return array;
+}
+
+static const char* kain_py_key_utf8(PyObject* key, PyObject** owned_text) {
+    const char* utf8;
+    if (owned_text) {
+        *owned_text = NULL;
+    }
+    if (!key) {
+        return "";
+    }
+    utf8 = g_kain_python_api.PyUnicode_AsUTF8(key);
+    if (utf8) {
+        return utf8;
+    }
+    kain_py_clear_error();
+    if (!owned_text) {
+        return "";
+    }
+    *owned_text = g_kain_python_api.PyObject_Str(key);
+    if (!*owned_text) {
+        kain_py_clear_error();
+        return "";
+    }
+    utf8 = g_kain_python_api.PyUnicode_AsUTF8(*owned_text);
+    if (!utf8) {
+        kain_py_clear_error();
+        return "";
+    }
+    return utf8;
+}
+
+static long long kain_py_mapping_to_json_object(PyObject* object, int raw_mode) {
+    PyObject* items = g_kain_python_api.PyMapping_Items(object);
+    Py_ssize_t len;
+    Py_ssize_t index;
+    long long out;
+    if (!items) {
+        kain_py_clear_error();
+        return 0;
+    }
+    len = g_kain_python_api.PyList_Size(items);
+    if (len < 0) {
+        kain_py_clear_error();
+        len = g_kain_python_api.PySequence_Size(items);
+    }
+    if (len < 0) {
+        kain_py_clear_error();
+        g_kain_python_api.Py_DecRef(items);
+        return 0;
+    }
+    out = json_object_new();
+    for (index = 0; index < len; ++index) {
+        PyObject* pair = g_kain_python_api.PyList_GetItem(items, index);
+        PyObject* owned_pair = NULL;
+        PyObject* key = NULL;
+        PyObject* value = NULL;
+        PyObject* owned_key_text = NULL;
+        const char* key_text;
+        if (!pair) {
+            kain_py_clear_error();
+            owned_pair = g_kain_python_api.PySequence_GetItem(items, index);
+            pair = owned_pair;
+        }
+        if (!pair) {
+            kain_py_clear_error();
+            continue;
+        }
+        key = g_kain_python_api.PyTuple_GetItem(pair, 0);
+        value = g_kain_python_api.PyTuple_GetItem(pair, 1);
+        if (!key || !value) {
+            kain_py_clear_error();
+            if (owned_pair) {
+                g_kain_python_api.Py_DecRef(owned_pair);
+            }
+            continue;
+        }
+        key_text = kain_py_key_utf8(key, &owned_key_text);
+        json_object_set(out, key_text ? key_text : "", kain_py_materialize_borrowed(value, raw_mode));
+        if (owned_key_text) {
+            g_kain_python_api.Py_DecRef(owned_key_text);
+        }
+        if (owned_pair) {
+            g_kain_python_api.Py_DecRef(owned_pair);
+        }
+    }
+    g_kain_python_api.Py_DecRef(items);
+    return out;
+}
+
+static long long kain_py_materialize_result(PyObject* object, int raw_mode, int boxed_scalars) {
+    char type_name[96];
+    long long tagged;
+    PyObject* listed;
+    if (!object) {
+        kain_py_clear_error();
+        return 0;
+    }
+    if (!kain_py_copy_type_name(object, type_name, sizeof(type_name))) {
+        type_name[0] = '\0';
+    }
+    if (kain_py_trace_enabled()) {
+        PyObject* rendered = g_kain_python_api.PyObject_Repr(object);
+        const char* text = rendered ? g_kain_python_api.PyUnicode_AsUTF8(rendered) : NULL;
+        fprintf(stderr, "[kain-py] materialize raw=%d type=%s value=%s\n", raw_mode, type_name[0] ? type_name : "<unknown>", text ? text : "<repr>");
+        if (rendered) {
+            g_kain_python_api.Py_DecRef(rendered);
+        }
+    }
+    if (kain_py_type_name_is(type_name, "NoneType")) {
+        g_kain_python_api.Py_DecRef(object);
+        return boxed_scalars ? KAIN_PY_JSON_NULL : 0;
+    }
+    if (kain_py_type_name_is(type_name, "bool")) {
+        int truth = g_kain_python_api.PyObject_IsTrue(object);
+        if (truth < 0) {
+            kain_py_clear_error();
+            truth = 0;
+        }
+        g_kain_python_api.Py_DecRef(object);
+        return boxed_scalars ? KAIN_PY_JSON_BOOL(truth) : (truth != 0 ? 1 : 0);
+    }
+    if (kain_py_type_name_is(type_name, "str") && kain_py_try_unicode_tag(object, &tagged)) {
+        g_kain_python_api.Py_DecRef(object);
+        return tagged;
+    }
+    if (raw_mode && kain_py_should_keep_raw_host(object, type_name)) {
+        return kain_py_wrap_owned_object(object);
+    }
+    if (kain_py_type_name_is(type_name, "dict")) {
+        long long out = kain_py_mapping_to_json_object(object, raw_mode);
+        g_kain_python_api.Py_DecRef(object);
+        return out;
+    }
+    if (
+        kain_py_type_name_is(type_name, "list") ||
+        kain_py_type_name_is(type_name, "tuple") ||
+        kain_py_type_name_is(type_name, "bytes") ||
+        kain_py_type_name_is(type_name, "bytearray")
+    ) {
+        long long out = kain_py_sequence_to_json_array(object, raw_mode);
+        g_kain_python_api.Py_DecRef(object);
+        return out;
+    }
+    if (kain_py_type_name_is(type_name, "int") && kain_py_try_long_value(object, &tagged)) {
+        g_kain_python_api.Py_DecRef(object);
+        return boxed_scalars ? KAIN_PY_JSON_INT(tagged) : tagged;
+    }
+    if (kain_py_type_name_is(type_name, "float") && kain_py_try_float_tag(object, &tagged)) {
+        g_kain_python_api.Py_DecRef(object);
+        return tagged;
+    }
+    if (!raw_mode && g_kain_python_api.PyObject_HasAttrString(object, "tolist") > 0) {
+        listed = kain_py_call_method0_owned(object, "tolist");
+        if (listed) {
+            g_kain_python_api.Py_DecRef(object);
+            return kain_py_materialize_result(listed, 0, boxed_scalars);
+        }
+    }
+    if (!raw_mode) {
+        long long out = kain_py_mapping_to_json_object(object, raw_mode);
+        if (out != 0) {
+            g_kain_python_api.Py_DecRef(object);
+            return out;
+        }
+        out = kain_py_sequence_to_json_array(object, raw_mode);
+        if (out != 0) {
+            g_kain_python_api.Py_DecRef(object);
+            return out;
+        }
+    }
+    if (kain_py_try_unicode_tag(object, &tagged)) {
+        g_kain_python_api.Py_DecRef(object);
+        return tagged;
+    }
+    return kain_py_wrap_owned_object(object);
+}
+
+static long long kain_py_wrap_result(PyObject* object) {
+    return kain_py_materialize_result(object, 1, 0);
+}
+
+static long long kain_py_wrap_materialized_result(PyObject* object) {
+    return kain_py_materialize_result(object, 0, 0);
 }
 
 static long long kain_py_image_attr_value(const KainPythonImageHandle* image, const char* name) {
@@ -1679,7 +2019,7 @@ static long long kain_py_image_attr_value(const KainPythonImageHandle* image, co
     return 0;
 }
 
-static long long kain_py_call_internal(long long target, long long attr, long long args, long long kwargs) {
+static long long kain_py_call_internal(long long target, long long attr, long long args, long long kwargs, int raw_result) {
     KainPythonGilScope scope = kain_py_gil_enter();
     PyObject* callable;
     PyObject* attr_name = NULL;
@@ -1726,7 +2066,7 @@ static long long kain_py_call_internal(long long target, long long attr, long lo
         return 0;
     }
     {
-        long long wrapped = kain_py_wrap_result(result);
+        long long wrapped = raw_result ? kain_py_wrap_result(result) : kain_py_wrap_materialized_result(result);
         kain_py_gil_exit(&scope);
         return wrapped;
     }
@@ -1978,19 +2318,19 @@ long long py_import_from_with_context(char* module_name, char* member_name, char
 }
 
 long long py_call_args(long long target, long long args, long long kwargs) {
-    return kain_py_call_internal(target, 4LL, args, kwargs);
+    return kain_py_call_internal(target, 4LL, args, kwargs, 0);
 }
 
 long long py_call_attr_args(long long target, long long attr, long long args, long long kwargs) {
-    return kain_py_call_internal(target, attr, args, kwargs);
+    return kain_py_call_internal(target, attr, args, kwargs, 0);
 }
 
 long long py_call_raw_args(long long target, long long args) {
-    return kain_py_call_internal(target, 4LL, args, 4LL);
+    return kain_py_call_internal(target, 4LL, args, 4LL, 1);
 }
 
 long long py_call_raw_attr(long long target, long long attr, long long args) {
-    return kain_py_call_internal(target, attr, args, 4LL);
+    return kain_py_call_internal(target, attr, args, 4LL, 1);
 }
 
 long long py_getattr(long long target, char* name) {
@@ -2170,7 +2510,7 @@ long long kain_tensor_info(long long tensor) {
         return 0;
     }
     rc_retain(tensor_handle);
-    return tensor;
+    return (long long)(intptr_t)tensor_handle;
 }
 
 long long kain_tensor_get(long long tensor, long long indices) {
@@ -2344,46 +2684,7 @@ static PyObject* kain_py_image_pixel_key(
 }
 
 static long long kain_py_pyobject_to_any(PyObject* object) {
-    PyObject* coerced;
-    if (!object) {
-        return 0;
-    }
-    coerced = g_kain_python_api.PyNumber_Long(object);
-    if (coerced) {
-        long long value = g_kain_python_api.PyLong_AsLongLong(coerced);
-        g_kain_python_api.Py_DecRef(coerced);
-        g_kain_python_api.Py_DecRef(object);
-        return KAIN_PY_JSON_INT(value);
-    }
-    kain_py_clear_error();
-    coerced = g_kain_python_api.PyNumber_Float(object);
-    if (coerced) {
-        double value = g_kain_python_api.PyFloat_AsDouble(coerced);
-        g_kain_python_api.Py_DecRef(coerced);
-        g_kain_python_api.Py_DecRef(object);
-        return json_box_float(value);
-    }
-    kain_py_clear_error();
-    {
-        Py_ssize_t len = g_kain_python_api.PySequence_Size(object);
-        if (len >= 0) {
-            long long array = json_array_new();
-            Py_ssize_t index;
-            for (index = 0; index < len; ++index) {
-                PyObject* item = g_kain_python_api.PySequence_GetItem(object, index);
-                if (!item) {
-                    kain_py_clear_error();
-                    g_kain_python_api.Py_DecRef(object);
-                    return array;
-                }
-                json_array_push(array, kain_py_pyobject_to_any(item));
-            }
-            g_kain_python_api.Py_DecRef(object);
-            return array;
-        }
-    }
-    kain_py_clear_error();
-    return kain_py_wrap_result(object);
+    return kain_py_wrap_materialized_result(object);
 }
 
 long long kain_image_from_py(long long target) {
@@ -2463,7 +2764,7 @@ long long kain_image_info(long long image) {
         return 0;
     }
     rc_retain(image_handle);
-    return image;
+    return (long long)(intptr_t)image_handle;
 }
 
 long long kain_image_pixel(long long image, long long x, long long y) {

@@ -32,6 +32,7 @@ use std::python
 use std::runtime
 
 import pykain as pykain
+import pykain.shader as pykain_shader
 
 const PYKAIN_MODULUS: Int = 1000000007
 const PYKAIN_CONFIG_PATH: String = "data/pykain_config.json"
@@ -139,6 +140,8 @@ fn module_probe_lane(plan: Any, plan_text: String) -> Int:
         return 15
     if pykain.validate.module("pykain.window") == 0:
         return 16
+    if pykain.validate.module("pykain.shader") == 0:
+        return 17
 
     return 0
 
@@ -153,14 +156,27 @@ fn module_probe_lane(plan: Any, plan_text: String) -> Int:
 
 fn tensor_lane(plan: Any, plan_text: String) -> Int:
     let seed = config_int(plan, "authority_seed", 17)
+    let rows = config_int(plan, "tensor_rows", 3)
+    let cols = config_int(plan, "tensor_cols", 4)
 
     // --- pykain.tensor.grid: one call, backend-agnostic ---
     let tensor = pykain.tensor.grid(plan_text, seed)
-    if pykain.tensor.grid_ok(plan_text, seed) == false:
+    let tensor_info = pykain.tensor.info(tensor)
+    if json_bool_or(tensor_info, "valid", false) == false:
         return 20
+    if json_int_or(tensor_info, "byte_length", 0) != rows * cols * 4:
+        return 21
+
+    // The host tensor must stay shared-native, not flatten into a Kain list.
+    let tensor_shared = python_tensor_shared(tensor)
+    let shared_info = kain_tensor_info(tensor_shared)
+    if shared_info.shape[0] != rows or shared_info.shape[1] != cols:
+        return 22
 
     // --- pykain.tensor.signature: one call, numpy/torch unified ---
     let sig = pykain.tensor.grid_signature(plan_text, seed)
+    if sig <= 0:
+        return 23
 
     return 0
 
@@ -174,13 +190,27 @@ fn tensor_lane(plan: Any, plan_text: String) -> Int:
 //         pykain.image.signature(image) → int checksum
 
 fn image_lane(plan: Any, plan_text: String) -> Int:
+    let expected_w = config_int(plan, "image_width", 96)
+    let expected_h = config_int(plan, "image_height", 72)
+    let expected_c = config_int(plan, "image_channels", 3)
+
     // --- pykain.image.render: one call, backend-agnostic ---
     let image = pykain.image.render(plan_text)
-    if pykain.image.render_ok(plan_text) == false:
+    let image_info = pykain.image.info(image)
+    if json_bool_or(image_info, "valid", false) == false:
         return 30
+    if json_int_or(image_info, "byte_length", 0) != expected_w * expected_h * expected_c:
+        return 31
+
+    let image_shared = python_shared_image(image)
+    let shared_info = interop_shared_image_info(image_shared)
+    if shared_info.width != expected_w or shared_info.height != expected_h or shared_info.channels != expected_c:
+        return 32
 
     // --- pykain.image.signature ---
     let sig = pykain.image.render_signature(plan_text)
+    if sig <= 0:
+        return 33
 
     return 0
 
@@ -193,12 +223,24 @@ fn image_lane(plan: Any, plan_text: String) -> Int:
 
 fn buffer_lane(plan: Any, plan_text: String) -> Int:
     let seed = config_int(plan, "authority_seed", 17)
+    let rows = config_int(plan, "tensor_rows", 3)
+    let cols = config_int(plan, "tensor_cols", 4)
     let buf = pykain.buffer.grid(plan_text, seed)
-    if pykain.buffer.grid_ok(plan_text, seed) == false:
+    let buffer_info = pykain.buffer.info(buf)
+    if json_bool_or(buffer_info, "valid", false) == false:
         return 40
+    if json_int_or(buffer_info, "byte_length", 0) != rows * cols:
+        return 41
+
+    let buffer_shared = python_shared_buffer(buf)
+    let shared_info = interop_shared_buffer_info(buffer_shared)
+    if shared_info.byte_length != rows * cols or shared_info.element_size != 1:
+        return 42
 
     // --- pykain.buffer.signature ---
     let sig = pykain.buffer.grid_signature(plan_text, seed)
+    if sig <= 0:
+        return 43
 
     return 0
 
@@ -246,7 +288,32 @@ fn window_lane(plan: Any, plan_text: String) -> Int:
     return 0
 
 // ============================================================================
-//        LANE 5: ARCHITECTURE PRESSURE  (actor + pykain together)
+//        LANE 5: SHADER READBACK  (pykain.shader)
+// ============================================================================
+// Kain authors the shader-shaped source. pykain executes the readback contract
+// and returns a normal shared RGBA8 image object that the native bridge can use.
+
+fn shader_lane(plan: Any, plan_text: String) -> Int:
+    let shader_source = "shader fragment PykainSmoke(uv: Vec2) -> Vec4: return vec4(uv.x, uv.y, 1.0, 1.0)"
+    let image = pykain_shader.render_fragment(shader_source, 64, 36)
+    let info = pykain_shader.render_info(image)
+    if json_bool_or(info, "valid", false) == false:
+        return 80
+    if json_int_or(info, "byte_length", 0) != 64 * 36 * 4:
+        return 81
+
+    let shader_shared_image = python_shared_image(image)
+    let shared_info = interop_shared_image_info(shader_shared_image)
+    if shared_info.width != 64 or shared_info.height != 36 or shared_info.channels != 4:
+        return 82
+
+    if pykain_shader.render_ok(shader_source, 16, 9) == false:
+        return 83
+
+    return 0
+
+// ============================================================================
+//        LANE 6: ARCHITECTURE PRESSURE  (actor + pykain together)
 // ============================================================================
 // Kain owns the architecture (world/actor/entangle/teleport/patch).
 // pykain provides clean data. They work together.
@@ -363,15 +430,21 @@ fn main() -> Int:
         let shutdown = runtime_shutdown()
         return 600 + window_status
 
-    // Phase 6: Architecture pressure
+    // Phase 6: Shader readback
+    let shader_status = shader_lane(plan, plan_text)
+    if shader_status != 0:
+        let shutdown = runtime_shutdown()
+        return 700 + shader_status
+
+    // Phase 7: Architecture pressure
     let arch_status = architecture_lane(plan, plan_text)
     if arch_status != 0:
         let shutdown = runtime_shutdown()
-        return 700 + arch_status
+        return 800 + arch_status
 
     let shutdown = runtime_shutdown()
     if shutdown != 0:
-        return 800 + shutdown
+        return 900 + shutdown
 
     // Final gate
     if authority.health <= 0:

@@ -1,5 +1,34 @@
 # Kain Memory
 
+# 2026-05-26 - pykain Native Bridge Materialization and Shared-Object Repair
+
+Fixed the native LLVM Python bridge so first-class Python import calls can return usable Kain values instead of opaque handles for ordinary Python data. Python `dict`, `list`, `tuple`, `str`, `bool`, `int`, and `float` results now materialize through the native bridge while heavy host objects such as NumPy arrays stay as Python handles for shared tensor/image/buffer conversion. The JSON bridge now validates live RC JSON type tags before claiming a handle, and it preserves tagged foreign runtime handles as opaque values when Kain packs them into argument arrays.
+
+What changed:
+
+- `runtime/native/src/core/python_runtime.c`
+  - Adds raw-result materialization for Python scalar/container returns, raw host-object preservation for array/DLPack-style objects, tagged Python handle unboxing, and normalized `kain_tensor_info` / `kain_image_info` returns.
+- `runtime/native/src/core/json.c`
+  - Teaches JSON handle lookup to accept compiler-tagged JSON handles while rejecting stale/non-JSON RC collisions, and preserves tagged foreign handles inside JSON arrays/objects.
+- `packages/python/pykain/window.py` and `packages/python/pykain/adapters/pyglet_window.py`
+  - Adds zero-config `window_backend="auto"` discovery through a built-in optional pyglet adapter.
+- `packages/python/pykain/shader.py`
+  - Adds a script-level fragment readback lane that returns contiguous RGBA8 NumPy images for Kain-authored shader-shaped source.
+- `packages/python/smoke.kn`
+  - Replaces bool-probe-only pykain checks with exact Kain-side metadata reads, shared tensor/image/buffer conversion, auto window open/close, and shader readback.
+
+Proof:
+
+- `python -m unittest discover -s X:\packages\python\tests -v` passes.
+- Bazel runtime build from repo root: `bazel build //runtime:all --config=dev` passes.
+- Bazel-built Kain launcher checks `X:\packages\python\smoke.kn --target llvm`.
+- Bazel-built Kain launcher runs `X:\packages\python\smoke.kn --target llvm` with exit `0`; report `X:\.kain\reports\run\session-1779787946315-12828.json`.
+
+Durable lessons:
+
+- Native Kain codegen may tag runtime handles when passing them through `Any`/argument arrays. Runtime bridges must unbox tagged live handles before type-tag checks, and JSON containers must preserve tagged foreign handles as opaque values rather than interpreting them as integers.
+- Package-local generated native runtime caches, such as `packages/python/generated/native_runtime`, can keep stale C objects. If bridge behavior looks unchanged after editing `runtime/native/src/core/*.c`, clear that generated cache before rerunning the package smoke.
+
 # 2026-05-26 - pykain C Companion Package and Kain-Safe Python Probes
 
 Landed the initial `packages/python` pykain package as a pip-installable Python companion layer with a CPython C extension (`pykain._native`) for buffer/tensor/image inspection, byte signatures, and byte extraction. Added Kain-shaped semantic envelopes for buffers, tensors, images, GPU resources, shader modules, actors, worlds, entangle links, patch events, and runtime sessions.
