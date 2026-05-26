@@ -1,6 +1,6 @@
 ---
 name: runtime-gpu
-description: Use when adding, changing, debugging, validating, or reviewing runtime-side GPU and graphics execution, especially `crates/kain-gpu-runtime`, `runtime/native/include/graphics_*.h`, `renderer_*.h`, `runtime/conformance/graphics_runtime`, or native shader-bundle consumption. Not for SPIR-V/PTX codegen or blade-local Vulkan packages.
+description: Use when adding, changing, debugging, validating, or reviewing runtime-side GPU and graphics execution, especially `crates/gpu-runtime`, `runtime/native/include/graphics_*.h`, `renderer_*.h`, `runtime/conformance/graphics_runtime`, or native shader-bundle consumption. Not for SPIR-V/PTX codegen or blade-local Vulkan packages.
 ---
 
 # Runtime Gpu
@@ -9,7 +9,7 @@ Read `ARCHITECTURE.md` and `MEMORY.md`, then separate runtime execution from com
 
 ## Owns
 
-- Runtime-side GPU executors in `crates/kain-gpu-runtime/**`, including Vulkan consumption of shader bundles and the NVIDIA PTX executor.
+- Runtime-side GPU executors in `crates/gpu-runtime/**`, including Vulkan consumption of shader bundles and the NVIDIA PTX executor.
 - Native graphics/runtime ABI surfaces such as `runtime/native/include/graphics_bundle.h`, `graphics_system.h`, `renderer_backend.h`, and `renderer_session.h`.
 - Runtime graphics conformance under `runtime/conformance/graphics_runtime/**`.
 

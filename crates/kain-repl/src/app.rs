@@ -1,5 +1,6 @@
 use arboard::Clipboard;
 use kain_core::tooling_config::normalize_ui_theme_name;
+use std::collections::VecDeque;
 use std::fs;
 use std::io;
 use std::path::PathBuf;
@@ -77,23 +78,86 @@ fn run_event_loop(
     terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
     app: &mut ReplApp,
 ) -> io::Result<()> {
+    let mut pending_events = VecDeque::new();
     loop {
         terminal.draw(|frame| app.render(frame))?;
         if app.should_quit {
             return Ok(());
         }
 
+        if let Some(pending) = app.pending_execution.take() {
+            app.execute_pending_execution(pending);
+            continue;
+        }
+
         if !event::poll(Duration::from_millis(50))? {
             continue;
         }
 
-        match event::read()? {
-            Event::Key(key) if key.kind == KeyEventKind::Press => app.handle_key(key),
-            Event::Paste(content) => app.handle_paste(content),
+        let next_event = if let Some(event) = pending_events.pop_front() {
+            event
+        } else {
+            event::read()?
+        };
+
+        match next_event {
+            Event::Key(key) if key.kind == KeyEventKind::Press => {
+                if let Some(mut burst) = key_event_text_fragment(&key) {
+                    if drain_paste_like_burst(&mut burst, &mut pending_events)? {
+                        app.handle_paste(burst);
+                    } else {
+                        app.handle_key(key);
+                    }
+                } else {
+                    app.handle_key(key);
+                }
+            }
+            Event::Paste(mut content) => {
+                drain_paste_like_burst(&mut content, &mut pending_events)?;
+                app.handle_paste(content);
+            }
             Event::Mouse(mouse) => app.handle_mouse(mouse),
             Event::Resize(_, _) => {}
             _ => {}
         }
+    }
+}
+
+fn drain_paste_like_burst(
+    content: &mut String,
+    pending_events: &mut VecDeque<Event>,
+) -> io::Result<bool> {
+    let initial_len = content.len();
+    while event::poll(Duration::from_millis(0))? {
+        let next_event = event::read()?;
+        if let Some(fragment) = event_text_fragment(&next_event) {
+            content.push_str(&fragment);
+        } else {
+            pending_events.push_back(next_event);
+            break;
+        }
+    }
+    Ok(content.len() > initial_len)
+}
+
+fn event_text_fragment(event: &Event) -> Option<String> {
+    match event {
+        Event::Paste(content) => Some(content.clone()),
+        Event::Key(key) if key.kind == KeyEventKind::Press => key_event_text_fragment(key),
+        _ => None,
+    }
+}
+
+fn key_event_text_fragment(key: &KeyEvent) -> Option<String> {
+    if key.modifiers.contains(KeyModifiers::CONTROL) || key.modifiers.contains(KeyModifiers::ALT) {
+        return None;
+    }
+
+    match key.code {
+        KeyCode::Char(ch) => Some(ch.to_string()),
+        KeyCode::Enter => Some("\n".to_string()),
+        KeyCode::Tab => Some(" ".repeat(TAB_WIDTH)),
+        _ => None,
     }
 }
 
@@ -114,6 +178,20 @@ struct ClickState {
     point: CursorPoint,
     at: Instant,
     count: u8,
+}
+
+#[derive(Debug, Clone)]
+struct FileChipHit {
+    path: String,
+    start_x: u16,
+    end_x: u16,
+    row: u16,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PaneFocus {
+    Editor,
+    Output,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -147,6 +225,14 @@ enum RunSlice {
     Block(String),
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PendingExecution {
+    CurrentBuffer,
+    SelectionOrBlock,
+    CurrentLine,
+    CurrentFunction,
+}
+
 #[derive(Debug, Clone)]
 struct ReplApp {
     config: ReplTerminalConfig,
@@ -167,9 +253,14 @@ struct ReplApp {
     cwd_display: String,
     editor_text_area: Rect,
     output_text_area: Rect,
+    output_scroll_y: usize,
+    pane_focus: PaneFocus,
     click_state: Option<ClickState>,
     output_selection_anchor: Option<CursorPoint>,
     output_selection_cursor: Option<CursorPoint>,
+    pending_execution: Option<PendingExecution>,
+    file_chip_hits: Vec<FileChipHit>,
+    hovered_file_chip_path: Option<String>,
 }
 
 impl ReplApp {
@@ -196,9 +287,14 @@ impl ReplApp {
                 .to_string(),
             editor_text_area: Rect::default(),
             output_text_area: Rect::default(),
+            output_scroll_y: 0,
+            pane_focus: PaneFocus::Editor,
             click_state: None,
             output_selection_anchor: None,
             output_selection_cursor: None,
+            pending_execution: None,
+            file_chip_hits: Vec::new(),
+            hovered_file_chip_path: None,
         }
     }
 
@@ -210,7 +306,22 @@ impl ReplApp {
 
         let selecting = key.modifiers.contains(KeyModifiers::SHIFT);
 
+        if self.pane_focus == PaneFocus::Output {
+            if self.handle_output_focus_key(key) {
+                return;
+            }
+        }
+
         match key {
+            KeyEvent {
+                code: KeyCode::F(3),
+                modifiers,
+                ..
+            } if modifiers.contains(KeyModifiers::SHIFT) => self.focus_previous_pane(),
+            KeyEvent {
+                code: KeyCode::F(3),
+                ..
+            } => self.focus_next_pane(),
             KeyEvent {
                 code: KeyCode::Char('q'),
                 modifiers,
@@ -264,31 +375,31 @@ impl ReplApp {
             } if modifiers.contains(KeyModifiers::CONTROL)
                 && modifiers.contains(KeyModifiers::SHIFT) =>
             {
-                self.run_selection_or_current_block();
+                self.request_selection_or_current_block();
             }
             KeyEvent {
                 code: KeyCode::Enter,
                 modifiers,
                 ..
             } if modifiers.contains(KeyModifiers::CONTROL) => {
-                self.run_current_buffer();
+                self.request_current_buffer_run();
             }
             KeyEvent {
                 code: KeyCode::F(5),
                 ..
-            } => self.run_current_buffer(),
+            } => self.request_current_buffer_run(),
             KeyEvent {
                 code: KeyCode::F(6),
                 ..
-            } => self.run_selection_or_current_block(),
+            } => self.request_selection_or_current_block(),
             KeyEvent {
                 code: KeyCode::F(7),
                 ..
-            } => self.run_current_line(),
+            } => self.request_current_line_run(),
             KeyEvent {
                 code: KeyCode::F(8),
                 ..
-            } => self.run_function_under_cursor(),
+            } => self.request_current_function_run(),
             KeyEvent {
                 code: KeyCode::F(1),
                 ..
@@ -393,7 +504,19 @@ impl ReplApp {
             return;
         }
 
+        self.refresh_chip_hover(mouse.column, mouse.row);
+
+        if matches!(mouse.kind, MouseEventKind::Down(MouseButton::Left))
+            && self.handle_file_chip_click(mouse.column, mouse.row)
+        {
+            return;
+        }
+
         if self.point_in_rect(mouse.column, mouse.row, self.output_text_area) {
+            if matches!(mouse.kind, MouseEventKind::Down(MouseButton::Left)) {
+                self.pane_focus = PaneFocus::Output;
+                self.status = "Focus output".to_string();
+            }
             self.handle_output_mouse(mouse);
             return;
         }
@@ -401,6 +524,8 @@ impl ReplApp {
         match mouse.kind {
             MouseEventKind::Down(MouseButton::Left) => {
                 if let Some(point) = self.editor_point_from_screen(mouse.column, mouse.row) {
+                    self.pane_focus = PaneFocus::Editor;
+                    self.status = "Focus editor".to_string();
                     self.clear_output_selection();
                     match self.register_click(point) {
                         1 => self.editor.start_mouse_selection(point),
@@ -415,8 +540,28 @@ impl ReplApp {
                 }
             }
             MouseEventKind::Up(MouseButton::Left) => self.editor.finish_mouse_selection(),
-            MouseEventKind::ScrollUp => self.editor.scroll_lines(-3),
-            MouseEventKind::ScrollDown => self.editor.scroll_lines(3),
+            MouseEventKind::ScrollUp
+                if self.point_in_rect(mouse.column, mouse.row, self.editor_text_area) =>
+            {
+                self.editor
+                    .scroll_lines_with_cursor(-3, self.editor_text_area.height as usize);
+            }
+            MouseEventKind::ScrollDown
+                if self.point_in_rect(mouse.column, mouse.row, self.editor_text_area) =>
+            {
+                self.editor
+                    .scroll_lines_with_cursor(3, self.editor_text_area.height as usize);
+            }
+            MouseEventKind::ScrollLeft
+                if self.point_in_rect(mouse.column, mouse.row, self.editor_text_area) =>
+            {
+                self.editor.scroll_columns_with_cursor(-4);
+            }
+            MouseEventKind::ScrollRight
+                if self.point_in_rect(mouse.column, mouse.row, self.editor_text_area) =>
+            {
+                self.editor.scroll_columns_with_cursor(4);
+            }
             _ => {}
         }
     }
@@ -443,6 +588,8 @@ impl ReplApp {
                     self.clear_output_selection();
                 }
             }
+            MouseEventKind::ScrollUp => self.scroll_output_lines(-3),
+            MouseEventKind::ScrollDown => self.scroll_output_lines(3),
             _ => {}
         }
     }
@@ -468,6 +615,36 @@ impl ReplApp {
             count: next_count,
         });
         next_count
+    }
+
+    fn queue_execution(&mut self, execution: PendingExecution, target: &str) {
+        self.pending_execution = Some(execution);
+        self.status = format!("{} {target}...", self.evaluator.progress_verb());
+    }
+
+    fn request_current_buffer_run(&mut self) {
+        self.queue_execution(PendingExecution::CurrentBuffer, "buffer");
+    }
+
+    fn request_selection_or_current_block(&mut self) {
+        self.queue_execution(PendingExecution::SelectionOrBlock, "selection/block");
+    }
+
+    fn request_current_line_run(&mut self) {
+        self.queue_execution(PendingExecution::CurrentLine, "line");
+    }
+
+    fn request_current_function_run(&mut self) {
+        self.queue_execution(PendingExecution::CurrentFunction, "function");
+    }
+
+    fn execute_pending_execution(&mut self, pending: PendingExecution) {
+        match pending {
+            PendingExecution::CurrentBuffer => self.run_current_buffer(),
+            PendingExecution::SelectionOrBlock => self.run_selection_or_current_block(),
+            PendingExecution::CurrentLine => self.run_current_line(),
+            PendingExecution::CurrentFunction => self.run_function_under_cursor(),
+        }
     }
 
     fn run_current_buffer(&mut self) {
@@ -571,6 +748,7 @@ impl ReplApp {
             let drain_count = self.output_log.len() - OUTPUT_HISTORY_LIMIT;
             self.output_log.drain(0..drain_count);
         }
+        self.snap_output_to_bottom();
     }
 
     fn render(&mut self, frame: &mut Frame<'_>) {
@@ -596,11 +774,12 @@ impl ReplApp {
         }
     }
 
-    fn render_header(&self, frame: &mut Frame<'_>, area: Rect, palette: ReplPalette) {
+    fn render_header(&mut self, frame: &mut Frame<'_>, area: Rect, palette: ReplPalette) {
         let file_label = self
             .current_file_path
             .as_deref()
-            .unwrap_or(self.config.source_name.as_str());
+            .unwrap_or(self.config.source_name.as_str())
+            .to_string();
         let dirty_label = if self.is_dirty() {
             " modified "
         } else {
@@ -613,7 +792,7 @@ impl ReplApp {
         } else {
             Style::default().fg(palette.keyword_world)
         };
-        let file_chips = self.render_file_chips(palette);
+        let file_chips = self.render_file_chips(area, palette);
         let banner = Paragraph::new(Text::from(vec![
             Line::from(vec![
                 Span::styled(" Kain REPL ", palette.title_style()),
@@ -633,10 +812,7 @@ impl ReplApp {
                     Style::default().fg(palette.text_muted),
                 ),
                 Span::styled("  file ", Style::default().fg(palette.chrome_secondary)),
-                Span::styled(
-                    file_label.to_string(),
-                    Style::default().fg(palette.text_muted),
-                ),
+                Span::styled(file_label, Style::default().fg(palette.text_muted)),
                 Span::styled("  state ", Style::default().fg(palette.chrome_secondary)),
                 Span::styled(dirty_label, dirty_style),
             ]),
@@ -651,31 +827,61 @@ impl ReplApp {
         frame.render_widget(banner, area);
     }
 
-    fn render_file_chips(&self, palette: ReplPalette) -> Line<'static> {
+    fn render_file_chips(&mut self, area: Rect, palette: ReplPalette) -> Line<'static> {
+        self.file_chip_hits.clear();
         let mut spans = vec![Span::styled(
             " files ",
             Style::default().fg(palette.chrome_secondary),
         )];
+        let prefix_width = UnicodeWidthStr::width(" files ");
+        let mut cursor_x = area.x.saturating_add(1 + prefix_width as u16);
+        let chip_row = area.y.saturating_add(3);
         let current = self
             .current_file_path
             .clone()
             .unwrap_or_else(|| self.config.source_name.clone());
-        spans.push(self.file_chip_span(&current, true, palette));
+        let current_span = self.file_chip_span(
+            &current,
+            true,
+            self.hovered_file_chip_path.as_deref() == Some(current.as_str()),
+            palette,
+        );
+        self.push_file_chip_hit(&current, &current_span, cursor_x, chip_row);
+        cursor_x = cursor_x.saturating_add(span_width(&current_span) as u16);
+        spans.push(current_span);
 
-        for path in self
+        let recent_paths = self
             .recent_files
             .iter()
             .filter(|path| **path != current)
             .take(4)
-        {
-            spans.push(Span::raw(" "));
-            spans.push(self.file_chip_span(path, false, palette));
+            .cloned()
+            .collect::<Vec<_>>();
+        for path in recent_paths {
+            let spacer = Span::raw(" ");
+            cursor_x = cursor_x.saturating_add(span_width(&spacer) as u16);
+            spans.push(spacer);
+            let chip = self.file_chip_span(
+                &path,
+                false,
+                self.hovered_file_chip_path.as_deref() == Some(path.as_str()),
+                palette,
+            );
+            self.push_file_chip_hit(&path, &chip, cursor_x, chip_row);
+            cursor_x = cursor_x.saturating_add(span_width(&chip) as u16);
+            spans.push(chip);
         }
 
         Line::from(spans)
     }
 
-    fn file_chip_span(&self, path: &str, active: bool, palette: ReplPalette) -> Span<'static> {
+    fn file_chip_span(
+        &self,
+        path: &str,
+        active: bool,
+        hovered: bool,
+        palette: ReplPalette,
+    ) -> Span<'static> {
         let label = short_file_chip_label(path);
         let style = if active {
             let text = if self.is_dirty() && self.current_file_path.as_deref() == Some(path) {
@@ -688,8 +894,13 @@ impl ReplApp {
                 Style::default()
                     .fg(palette.panel_background)
                     .bg(palette.border_focus)
-                    .add_modifier(Modifier::BOLD),
+                    .add_modifier(Modifier::BOLD | Modifier::UNDERLINED),
             );
+        } else if hovered {
+            Style::default()
+                .fg(palette.text_primary)
+                .bg(palette.border)
+                .add_modifier(Modifier::BOLD)
         } else {
             Style::default()
                 .fg(palette.text_muted)
@@ -713,10 +924,15 @@ impl ReplApp {
             self.editor.line_count(),
             self.editor.char_count()
         );
+        let border_color = if self.pane_focus == PaneFocus::Editor {
+            palette.border_focus
+        } else {
+            palette.border
+        };
         let block = Block::default()
             .title(title)
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(palette.border_focus))
+            .border_style(Style::default().fg(border_color))
             .style(Style::default().bg(palette.panel_background));
         let inner = block.inner(area);
         frame.render_widget(block, area);
@@ -751,27 +967,52 @@ impl ReplApp {
             columns[1],
         );
 
-        if self.prompt.is_none() && !self.show_help {
+        if self.prompt.is_none() && !self.show_help && self.pane_focus == PaneFocus::Editor {
             let (cursor_x, cursor_y) = self.editor.cursor_screen_position(columns[1]);
             frame.set_cursor_position((cursor_x, cursor_y));
         }
     }
 
     fn render_output(&mut self, frame: &mut Frame<'_>, area: Rect, palette: ReplPalette) {
+        let plain_lines = self.output_plain_lines();
+        let total_lines = plain_lines.len();
+        let visible_height = area.height.saturating_sub(2) as usize;
+        self.clamp_output_scroll(total_lines, visible_height);
+        let scroll_indicator = format!(
+            "{}-{} / {}",
+            self.output_scroll_y
+                .saturating_add(1)
+                .min(total_lines.max(1)),
+            (self.output_scroll_y + visible_height).min(total_lines),
+            total_lines
+        );
+        let focus_marker = if self.pane_focus == PaneFocus::Output {
+            " focus "
+        } else {
+            ""
+        };
         let block = Block::default()
-            .title(format!(" Output · {} entries ", self.output_log.len()))
+            .title(format!(
+                " Output · {} entries · {}{} ",
+                self.output_log.len(),
+                scroll_indicator,
+                focus_marker
+            ))
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(palette.border))
+            .border_style(
+                Style::default().fg(if self.pane_focus == PaneFocus::Output {
+                    palette.border_focus
+                } else {
+                    palette.border
+                }),
+            )
             .style(Style::default().bg(palette.panel_background));
         let inner = block.inner(area);
         self.output_text_area = inner;
         frame.render_widget(block, area);
 
-        let plain_lines = self.output_plain_lines();
         let lines = self.output_lines(palette, &plain_lines);
-        let scroll_y = output_scroll_y(plain_lines.len(), inner.height as usize)
-            .try_into()
-            .unwrap_or(u16::MAX);
+        let scroll_y = self.output_scroll_y.try_into().unwrap_or(u16::MAX);
         frame.render_widget(
             Paragraph::new(Text::from(lines))
                 .scroll((scroll_y, 0))
@@ -781,10 +1022,15 @@ impl ReplApp {
     }
 
     fn render_status(&self, frame: &mut Frame<'_>, area: Rect, palette: ReplPalette) {
+        let focus = match self.pane_focus {
+            PaneFocus::Editor => "editor",
+            PaneFocus::Output => "output",
+        };
         let status = format!(
-            " Ln {}, Col {} | {} | Ctrl+Enter run | Ctrl+Shift+Enter block | F7 line | F8 fn | F2 theme | Ctrl+O open | Ctrl+S save | Ctrl+Q quit ",
+            " Ln {}, Col {} | focus {} | {} | F3 switch pane | Ctrl+Enter run | Ctrl+Shift+Enter block | F7 line | F8 fn | F2 theme | Ctrl+O open | Ctrl+S save | Ctrl+Q quit ",
             self.editor.cursor_row + 1,
             self.editor.cursor_col + 1,
+            focus,
             self.status
         );
         frame.render_widget(
@@ -811,6 +1057,8 @@ impl ReplApp {
             Line::raw("F8                run function under cursor"),
             Line::raw("F2                next theme"),
             Line::raw("Shift+F2          previous theme"),
+            Line::raw("F3 / Shift+F3     switch pane focus"),
+            Line::raw("Output focus: arrows / page keys scroll"),
             Line::raw("Ctrl+Shift+C      copy"),
             Line::raw("Ctrl+Shift+V      paste"),
             Line::raw("Ctrl+S            save file"),
@@ -1134,11 +1382,12 @@ impl ReplApp {
         let bottom = self.editor_text_area.y + self.editor_text_area.height.saturating_sub(1);
         let left = self.editor_text_area.x;
         let right = self.editor_text_area.x + self.editor_text_area.width.saturating_sub(1);
+        let viewport_height = self.editor_text_area.height as usize;
 
         if row < top {
-            self.editor.scroll_lines(-2);
+            self.editor.scroll_lines_with_cursor(-2, viewport_height);
         } else if row > bottom {
-            self.editor.scroll_lines(2);
+            self.editor.scroll_lines_with_cursor(2, viewport_height);
         }
 
         let clamped_row = row.clamp(top, bottom);
@@ -1151,8 +1400,7 @@ impl ReplApp {
             return None;
         }
         let plain_lines = self.output_plain_lines();
-        let scroll_y = output_scroll_y(plain_lines.len(), self.output_text_area.height as usize);
-        let line_index = scroll_y + (row - self.output_text_area.y) as usize;
+        let line_index = self.output_scroll_y + (row - self.output_text_area.y) as usize;
         let line = plain_lines
             .get(line_index)
             .map(String::as_str)
@@ -1176,6 +1424,39 @@ impl ReplApp {
     fn clear_output_selection(&mut self) {
         self.output_selection_anchor = None;
         self.output_selection_cursor = None;
+    }
+
+    fn scroll_output_lines(&mut self, delta: isize) {
+        let total_lines = self.output_plain_lines().len();
+        let viewport_height = self.output_text_area.height as usize;
+        let max_scroll = max_output_scroll(total_lines, viewport_height);
+        self.output_scroll_y = self
+            .output_scroll_y
+            .saturating_add_signed(delta)
+            .min(max_scroll);
+        self.status = "Output scroll".to_string();
+    }
+
+    fn scroll_output_to_start(&mut self) {
+        self.output_scroll_y = 0;
+        self.status = "Output top".to_string();
+    }
+
+    fn scroll_output_to_end(&mut self) {
+        self.snap_output_to_bottom();
+        self.status = "Output bottom".to_string();
+    }
+
+    fn snap_output_to_bottom(&mut self) {
+        let total_lines = self.output_plain_lines().len();
+        let viewport_height = self.output_text_area.height as usize;
+        self.output_scroll_y = max_output_scroll(total_lines, viewport_height);
+    }
+
+    fn clamp_output_scroll(&mut self, total_lines: usize, viewport_height: usize) {
+        self.output_scroll_y = self
+            .output_scroll_y
+            .min(max_output_scroll(total_lines, viewport_height));
     }
 
     fn selected_output_text(&self) -> Option<String> {
@@ -1227,6 +1508,34 @@ impl ReplApp {
         self.recent_files.truncate(6);
     }
 
+    fn handle_file_chip_click(&mut self, column: u16, row: u16) -> bool {
+        let Some(path) = self
+            .file_chip_hits
+            .iter()
+            .find(|chip| row == chip.row && column >= chip.start_x && column < chip.end_x)
+            .map(|chip| chip.path.clone())
+        else {
+            return false;
+        };
+        self.pane_focus = PaneFocus::Editor;
+        self.hovered_file_chip_path = Some(path.clone());
+        self.open_from_path(&path);
+        true
+    }
+
+    fn push_file_chip_hit(&mut self, path: &str, span: &Span<'static>, start_x: u16, row: u16) {
+        let width = span_width(span) as u16;
+        if width == 0 {
+            return;
+        }
+        self.file_chip_hits.push(FileChipHit {
+            path: path.to_string(),
+            start_x,
+            end_x: start_x.saturating_add(width),
+            row,
+        });
+    }
+
     fn is_dirty(&self) -> bool {
         self.editor.buffer() != self.clean_buffer_snapshot
     }
@@ -1235,6 +1544,77 @@ impl ReplApp {
         let next_theme = cycle_repl_theme_name(&self.theme_name, reverse);
         self.theme_name = next_theme.clone();
         self.status = "Theme changed".to_string();
+    }
+
+    fn focus_next_pane(&mut self) {
+        self.pane_focus = match self.pane_focus {
+            PaneFocus::Editor => PaneFocus::Output,
+            PaneFocus::Output => PaneFocus::Editor,
+        };
+        self.status = match self.pane_focus {
+            PaneFocus::Editor => "Focus editor".to_string(),
+            PaneFocus::Output => "Focus output".to_string(),
+        };
+    }
+
+    fn focus_previous_pane(&mut self) {
+        self.focus_next_pane();
+    }
+
+    fn handle_output_focus_key(&mut self, key: KeyEvent) -> bool {
+        match key {
+            KeyEvent {
+                code: KeyCode::Up, ..
+            } => {
+                self.scroll_output_lines(-1);
+                true
+            }
+            KeyEvent {
+                code: KeyCode::Down,
+                ..
+            } => {
+                self.scroll_output_lines(1);
+                true
+            }
+            KeyEvent {
+                code: KeyCode::PageUp,
+                ..
+            } => {
+                let page = (self.output_text_area.height as isize).max(1);
+                self.scroll_output_lines(-page);
+                true
+            }
+            KeyEvent {
+                code: KeyCode::PageDown,
+                ..
+            } => {
+                let page = (self.output_text_area.height as isize).max(1);
+                self.scroll_output_lines(page);
+                true
+            }
+            KeyEvent {
+                code: KeyCode::Home,
+                ..
+            } => {
+                self.scroll_output_to_start();
+                true
+            }
+            KeyEvent {
+                code: KeyCode::End, ..
+            } => {
+                self.scroll_output_to_end();
+                true
+            }
+            _ => false,
+        }
+    }
+
+    fn refresh_chip_hover(&mut self, column: u16, row: u16) {
+        self.hovered_file_chip_path = self
+            .file_chip_hits
+            .iter()
+            .find(|chip| row == chip.row && column >= chip.start_x && column < chip.end_x)
+            .map(|chip| chip.path.clone());
     }
 
     fn undo_editor_change(&mut self) {
@@ -1730,8 +2110,9 @@ impl ReplEditor {
         }
         let current_len = line_char_len(self.current_line());
         if self.cursor_col > current_len {
-            self.cursor_col -= 1;
+            self.cursor_col = current_len;
             self.desired_col = self.cursor_col;
+            self.follow_cursor = true;
             return;
         }
 
@@ -1902,13 +2283,48 @@ impl ReplEditor {
         self.follow_cursor = true;
     }
 
-    fn scroll_lines(&mut self, delta: isize) {
+    fn scroll_lines_with_cursor(&mut self, delta: isize, viewport_height: usize) {
+        if viewport_height == 0 {
+            return;
+        }
+
         self.follow_cursor = false;
+        let previous_scroll = self.scroll_y;
+        let max_scroll = max_editor_scroll(self.lines.len(), viewport_height);
         if delta < 0 {
             self.scroll_y = self.scroll_y.saturating_sub(delta.unsigned_abs());
         } else {
-            self.scroll_y =
-                (self.scroll_y + delta as usize).min(self.lines.len().saturating_sub(1));
+            self.scroll_y = (self.scroll_y + delta as usize).min(max_scroll);
+        }
+
+        let applied_delta = self.scroll_y as isize - previous_scroll as isize;
+        if applied_delta == 0 {
+            return;
+        }
+
+        let max_row = self.lines.len().saturating_sub(1);
+        self.cursor_row = self
+            .cursor_row
+            .saturating_add_signed(applied_delta)
+            .min(max_row);
+        self.cursor_col = self.desired_col;
+    }
+
+    fn scroll_columns_with_cursor(&mut self, delta: isize) {
+        if delta == 0 {
+            return;
+        }
+
+        self.follow_cursor = true;
+        let steps = delta.unsigned_abs();
+        if delta < 0 {
+            for _ in 0..steps {
+                self.move_left(false);
+            }
+        } else {
+            for _ in 0..steps {
+                self.move_right(false);
+            }
         }
     }
 
@@ -1924,6 +2340,9 @@ impl ReplEditor {
                 self.scroll_y = self.cursor_row + 1 - viewport_height;
             }
         }
+        self.scroll_y = self
+            .scroll_y
+            .min(max_editor_scroll(self.lines.len(), viewport_height));
 
         let prefix_width = cursor_prefix_width(self.current_line(), self.cursor_col);
         if prefix_width < self.scroll_x {
@@ -2520,9 +2939,131 @@ fn output_scroll_y(total_lines: usize, viewport_height: usize) -> usize {
     total_lines.saturating_sub(viewport_height)
 }
 
+fn max_editor_scroll(total_lines: usize, viewport_height: usize) -> usize {
+    total_lines.saturating_sub(viewport_height.max(1))
+}
+
+fn max_output_scroll(total_lines: usize, viewport_height: usize) -> usize {
+    output_scroll_y(total_lines, viewport_height)
+}
+
+fn span_width(span: &Span<'_>) -> usize {
+    UnicodeWidthStr::width(span.content.as_ref())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn key_event_fragment_supports_plain_text_input() {
+        let key = KeyEvent::new(KeyCode::Char('a'), KeyModifiers::NONE);
+        assert_eq!(key_event_text_fragment(&key), Some("a".to_string()));
+
+        let enter = KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE);
+        assert_eq!(key_event_text_fragment(&enter), Some("\n".to_string()));
+
+        let tab = KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE);
+        assert_eq!(key_event_text_fragment(&tab), Some(" ".repeat(TAB_WIDTH)));
+    }
+
+    #[test]
+    fn key_event_fragment_ignores_control_shortcuts() {
+        let key = KeyEvent::new(KeyCode::Char('v'), KeyModifiers::CONTROL);
+        assert_eq!(key_event_text_fragment(&key), None);
+    }
+
+    #[test]
+    fn output_scroll_moves_within_available_history() {
+        let mut app = ReplApp::new(ReplTerminalConfig::default());
+        app.output_text_area = Rect::new(0, 0, 80, 4);
+        app.push_output(
+            OutputKind::Error,
+            "Compile",
+            vec![
+                "line 1".to_string(),
+                "line 2".to_string(),
+                "line 3".to_string(),
+            ],
+        );
+        app.scroll_output_lines(-2);
+        assert_eq!(app.output_scroll_y, 0);
+        app.scroll_output_lines(-10);
+        assert_eq!(app.output_scroll_y, 0);
+        app.scroll_output_lines(10);
+        assert_eq!(app.output_scroll_y, max_output_scroll(5, 4));
+    }
+
+    #[test]
+    fn clicking_file_chip_opens_that_recent_file() {
+        let mut app = ReplApp::new(ReplTerminalConfig::default());
+        let first = PathBuf::from("chip-open-a.kn");
+        let second = PathBuf::from("chip-open-b.kn");
+        fs::write(&first, "fn first() -> Int:\n    return 1\n").unwrap();
+        fs::write(&second, "fn second() -> Int:\n    return 2\n").unwrap();
+
+        app.track_open_file(&first.display().to_string());
+        app.track_open_file(&second.display().to_string());
+        let area = Rect::new(0, 0, 120, 5);
+        let _ = app.render_file_chips(area, repl_palette(&app.theme_name));
+
+        let first_chip = app
+            .file_chip_hits
+            .iter()
+            .find(|chip| chip.path == first.display().to_string())
+            .cloned()
+            .expect("first chip");
+
+        assert!(app.handle_file_chip_click(first_chip.start_x, first_chip.row));
+        let expected = resolve_prompt_path(&first.display().to_string())
+            .display()
+            .to_string();
+        assert_eq!(app.current_file_path.as_deref(), Some(expected.as_str()));
+        assert!(app.editor.buffer().contains("fn first()"));
+
+        let _ = fs::remove_file(first);
+        let _ = fs::remove_file(second);
+    }
+
+    #[test]
+    fn focus_hotkey_switches_between_editor_and_output() {
+        let mut app = ReplApp::new(ReplTerminalConfig::default());
+        assert_eq!(app.pane_focus, PaneFocus::Editor);
+
+        app.handle_key(KeyEvent::new(KeyCode::F(3), KeyModifiers::NONE));
+        assert_eq!(app.pane_focus, PaneFocus::Output);
+
+        app.handle_key(KeyEvent::new(KeyCode::F(3), KeyModifiers::SHIFT));
+        assert_eq!(app.pane_focus, PaneFocus::Editor);
+    }
+
+    #[test]
+    fn output_focus_uses_arrow_keys_to_scroll_history() {
+        let mut app = ReplApp::new(ReplTerminalConfig::default());
+        app.output_text_area = Rect::new(0, 0, 80, 4);
+        app.push_output(
+            OutputKind::Error,
+            "Compile",
+            vec![
+                "line 1".to_string(),
+                "line 2".to_string(),
+                "line 3".to_string(),
+            ],
+        );
+        app.handle_key(KeyEvent::new(KeyCode::F(3), KeyModifiers::NONE));
+        app.handle_key(KeyEvent::new(KeyCode::Up, KeyModifiers::NONE));
+        assert_eq!(app.output_scroll_y, 0);
+        app.handle_key(KeyEvent::new(KeyCode::End, KeyModifiers::NONE));
+        assert_eq!(app.output_scroll_y, max_output_scroll(5, 4));
+    }
+
+    #[test]
+    fn plain_tab_still_inserts_spaces_in_editor_focus() {
+        let mut app = ReplApp::new(ReplTerminalConfig::default());
+        app.handle_key(KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE));
+        assert_eq!(app.editor.buffer(), " ".repeat(TAB_WIDTH));
+        assert_eq!(app.pane_focus, PaneFocus::Editor);
+    }
 
     #[test]
     fn editor_backspace_merges_lines() {
@@ -2562,6 +3103,34 @@ mod tests {
         editor.move_down(false);
         assert_eq!(editor.cursor_row, 2);
         assert_eq!(editor.cursor_col, 5);
+    }
+
+    #[test]
+    fn backspace_in_virtual_space_snaps_to_real_line_end() {
+        let mut editor = ReplEditor::default();
+        editor.set_text_raw("alpha");
+        editor.cursor_col = 100;
+        editor.desired_col = 100;
+
+        editor.backspace();
+
+        assert_eq!(editor.cursor_row, 0);
+        assert_eq!(editor.cursor_col, 5);
+        assert_eq!(editor.buffer(), "alpha");
+    }
+
+    #[test]
+    fn backspace_in_virtual_space_on_empty_line_snaps_to_column_zero() {
+        let mut editor = ReplEditor::default();
+        editor.move_down(false);
+        editor.cursor_col = 100;
+        editor.desired_col = 100;
+
+        editor.backspace();
+
+        assert_eq!(editor.cursor_row, 1);
+        assert_eq!(editor.cursor_col, 0);
+        assert_eq!(editor.buffer(), "\n");
     }
 
     #[test]
@@ -2625,19 +3194,35 @@ mod tests {
     }
 
     #[test]
-    fn wheel_scroll_stays_decoupled_from_cursor_until_cursor_moves() {
+    fn wheel_scroll_carries_cursor_and_clamps_to_last_visible_line() {
         let mut editor = ReplEditor::default();
         editor.lines = vec![String::new(); 120];
         editor.cursor_row = 10;
         editor.scroll_y = 10;
+        editor.desired_col = 7;
 
-        editor.scroll_lines(40);
+        editor.scroll_lines_with_cursor(40, 20);
         editor.ensure_visible(80, 20);
         assert_eq!(editor.scroll_y, 50);
+        assert_eq!(editor.cursor_row, 50);
+        assert_eq!(editor.cursor_col, 7);
 
-        editor.move_down(false);
+        editor.scroll_lines_with_cursor(200, 20);
         editor.ensure_visible(80, 20);
-        assert_eq!(editor.scroll_y, 11);
+        assert_eq!(editor.scroll_y, max_editor_scroll(120, 20));
+        assert_eq!(editor.cursor_row, 100);
+    }
+
+    #[test]
+    fn horizontal_scroll_behaves_like_directional_movement() {
+        let mut editor = ReplEditor::default();
+        editor.move_down(false);
+        editor.scroll_columns_with_cursor(4);
+        assert_eq!(editor.cursor_row, 1);
+        assert_eq!(editor.cursor_col, 4);
+
+        editor.scroll_columns_with_cursor(-2);
+        assert_eq!(editor.cursor_col, 2);
     }
 
     #[test]
@@ -2833,5 +3418,26 @@ mod tests {
             app.selected_output_text().as_deref(),
             Some("first problem\n  seco")
         );
+    }
+
+    #[test]
+    fn requesting_buffer_run_sets_pending_compile_status() {
+        let mut app = ReplApp::new(ReplTerminalConfig::default());
+        app.request_current_buffer_run();
+
+        assert_eq!(app.pending_execution, Some(PendingExecution::CurrentBuffer));
+        assert_eq!(app.status, "Compiling buffer...");
+    }
+
+    #[test]
+    fn requesting_selection_run_sets_pending_compile_status() {
+        let mut app = ReplApp::new(ReplTerminalConfig::default());
+        app.request_selection_or_current_block();
+
+        assert_eq!(
+            app.pending_execution,
+            Some(PendingExecution::SelectionOrBlock)
+        );
+        assert_eq!(app.status, "Compiling selection/block...");
     }
 }

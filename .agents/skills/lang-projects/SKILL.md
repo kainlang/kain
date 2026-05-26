@@ -98,12 +98,12 @@ Use these when the project flow itself needs verification:
 
 - Project authority doc: `docs/pipelines/build-kn-evidence-dag.md`.
 - Build stdlib API: `stdlib/build.kn`, `stdlib/test.kn`, `stdlib/proof.kn`, `stdlib/bench.kn`, `stdlib/attrition.kn`, `stdlib/certify.kn`.
-- Build graph extraction and task adapters: `crates/kain-build/src/workspace.rs`.
-- Workspace and package discovery: `crates/kain-blades`.
-- Run planning and watch inputs: `crates/kain-run/src/lib.rs`.
-- Command definitions: `crates/kain-commands/src/kain.rs`, `crates/kain-commands/src/blade.rs`, `crates/kain-commands/src/fabric.rs`.
-- Check and source test contract: `docs/cli/check-and-test.md`, `crates/kain-check`, `crates/kain-test`, `smoketest/kain-test`.
-- Portable capsule lane: `crates/kain-amalgamate`, `crates/cli/src/amalgamate.rs`, `blades/amalgamate-capsule-probe`.
+- Build graph extraction and task adapters: `crates/build/src/workspace.rs`.
+- Workspace and package discovery: `crates/blades`.
+- Run planning and watch inputs: `crates/run/src/lib.rs`.
+- Command definitions: `crates/commands/src/kain.rs`, `crates/commands/src/blade.rs`, `crates/commands/src/fabric.rs`.
+- Check and source test contract: `docs/cli/check-and-test.md`, `crates/check`, `crates/test`, `smoketest/kain-test`.
+- Portable capsule lane: `crates/amalgamate`, `crates/cli/src/amalgamate.rs`, `blades/amalgamate-capsule-probe`.
 - Existing dogfood DAGs: `blades/kloner/build.kn`, `blades/kaintana/build.kn`, `blades/kaintana-test/build.kn`, `blades/vulkain/build.kn`.
 
 ## Project Layouts

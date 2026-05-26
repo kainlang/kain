@@ -2,8 +2,8 @@
 name: bootstrap-ownership
 description: >-
   Use when changing compiler, frontend, or selfhost truth for `collapse`,
-  `observe`, and `decay` in `crates/kain-ownership`, `crates/kain-core`,
-  `crates/kain-sys-codegen`, or the ownership proof packs: state-lattice
+  `observe`, and `decay` in `crates/ownership`, `crates/core`,
+  `crates/sys-codegen`, or the ownership proof packs: state-lattice
   rules, parser and typechecker behavior, runtime-contract policy, or lowering
   metadata. Do not use for raw `runtime/native` ownership helpers or for
   authored ownership demos.
@@ -15,9 +15,9 @@ Use this skill when the ownership lattice or compiler-owned ownership policy is 
 
 ## Trigger Surface
 
-- `crates/kain-ownership/**` for region kinds, legal transitions, policy tables, lowering hints, and the portable ownership kernel.
-- `crates/kain-core/src/{ast.rs,parser.rs,types.rs,runtime.rs,runtime_contract.rs}` for surface syntax, type rules, interpreter guards, and reflected ownership policy.
-- `crates/kain-sys-codegen/**` for LLVM or direct-C lowering that consumes typed ownership descriptors.
+- `crates/ownership/**` for region kinds, legal transitions, policy tables, lowering hints, and the portable ownership kernel.
+- `crates/core/src/{ast.rs,parser.rs,types.rs,runtime.rs,runtime_contract.rs}` for surface syntax, type rules, interpreter guards, and reflected ownership policy.
+- `crates/sys-codegen/**` for LLVM or direct-C lowering that consumes typed ownership descriptors.
 
 ## Boundaries
 
@@ -28,8 +28,8 @@ Use this skill when the ownership lattice or compiler-owned ownership policy is 
 
 ## Workflow
 
-1. Change the lattice and policy table in `crates/kain-ownership` first. That crate remains the semantic center.
-2. Add or update a durable proof in `crates/kain-ownership/z3` before trusting tests.
+1. Change the lattice and policy table in `crates/ownership` first. That crate remains the semantic center.
+2. Add or update a durable proof in `crates/ownership/z3` before trusting tests.
 3. Thread the new policy through parser, typechecker, runtime-contract emission, and interpreter behavior.
 4. Only then touch lowering metadata or ABI-facing consequences.
 
@@ -38,14 +38,14 @@ Use this skill when the ownership lattice or compiler-owned ownership policy is 
 ```powershell
 cargo test -p kain-ownership --target-dir target\codex-bootstrap-ownership -- --nocapture
 cargo test -p kain-core --test ownership_keywords_test --target-dir target\codex-bootstrap-ownership-core -- --nocapture
-uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path crates\kain-ownership --lane full
-uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path crates\kain-core --lane keywords
+uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path crates\ownership --lane full
+uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path crates\core --lane keywords
 ```
 
 If lowering changed, also run:
 
 ```powershell
-uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path crates\kain-sys-codegen --lane llvm
+uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path crates\sys-codegen --lane llvm
 ```
 
 ## Guardrails

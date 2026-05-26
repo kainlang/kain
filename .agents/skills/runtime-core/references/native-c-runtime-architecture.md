@@ -8,8 +8,8 @@ Kain's native runtime is a lean C ABI floor consumed by emitted LLVM/direct-C co
 
 ```text
 Authored .kn
--> parser/typechecker/runtime-contract truth in crates/kain-core
--> LLVM/direct-C lowering in crates/kain-sys-codegen
+-> parser/typechecker/runtime-contract truth in crates/core
+-> LLVM/direct-C lowering in crates/sys-codegen
 -> runtime/native/include declares ABI structs/functions/constants
 -> runtime/native/src/core implements Kain-owned native services
 -> runtime/native_core_runtime.toml selects sources/services/link flags
@@ -110,7 +110,7 @@ These files are linked by the canonical lean runtime manifest unless noted.
 | `json_benchmark.c` | Focused JSON benchmark helper. | Benchmark support, not language semantics. |
 | `ray_sphere_benchmark.c` | Small native benchmark kernel. | Performance proof surface for math/runtime overhead. |
 | `machine_stones.c` | Native `axiom`, `pulse`, `shatter`, `teleport` services and telemetry. | Backs Kain-only machine semantics without moving meaning out of compiler truth. |
-| `stdlib_abi.c` | Native facade for root stdlib wrappers: runtime init/shutdown, option/result/future handles, fs/status/intent and other helper surfaces. | Public stdlib changes often touch this plus `stdlib/*.kn` and `crates/kain-core/src/stdlib.rs`. |
+| `stdlib_abi.c` | Native facade for root stdlib wrappers: runtime init/shutdown, option/result/future handles, fs/status/intent and other helper surfaces. | Public stdlib changes often touch this plus `stdlib/*.kn` and `crates/core/src/stdlib.rs`. |
 | `input_system.c` | Native input sessions/actions/axes/text/trace substrate. | Usually runtime-stdlib ownership; stays in manifest as native provider. |
 | `net_system.c` | Native TCP/HTTP/TLS/HTTP2-ish substrate. | Runtime-backed stdlib domain; keep portable semantics aligned with `kain-net`. |
 | `process_system.c` | Native process, argv/env/cwd, pipes, PTY, wait/capture substrate. | Runtime-backed stdlib domain; platform behavior must be honest. |
@@ -156,7 +156,7 @@ Actors:
 
 Ownership:
 
-- Portable language truth lives in `crates/kain-ownership`; C owns checked transitions for helper-owned heap regions and imported pointers.
+- Portable language truth lives in `crates/ownership`; C owns checked transitions for helper-owned heap regions and imported pointers.
 - States are idle, observed, collapsed, decayed.
 - Decay/free is legal only for idle heap regions unless a proof-backed helper path says otherwise.
 

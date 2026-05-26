@@ -1,6 +1,6 @@
 ---
 name: test-harness
-description: Use when running, extending, debugging, validating, or reviewing Kain's source certification harness, including `crates/kain-check`, `crates/kain-test`, the `kain check` and `kain test` CLI commands, compiletest-style directives, ignored or known-bug handling, proof evidence, JSON reports, and `smoketest/kain-test` fixtures. Use this for harness, fixture, and report behavior, not for authored Kain feature work or runtime implementation.
+description: Use when running, extending, debugging, validating, or reviewing Kain's source certification harness, including `crates/check`, `crates/test`, the `kain check` and `kain test` CLI commands, compiletest-style directives, ignored or known-bug handling, proof evidence, JSON reports, and `smoketest/kain-test` fixtures. Use this for harness, fixture, and report behavior, not for authored Kain feature work or runtime implementation.
 ---
 
 # Test Harness
@@ -16,7 +16,7 @@ Use this skill for the repo's source-certification lane. It owns harness semanti
 
 ## Ownership Boundary
 
-- This skill owns `crates/kain-check`, `crates/kain-test`, the thin CLI shell for `check` and `test`, and the smoke fixtures under `smoketest/kain-test/`.
+- This skill owns `crates/check`, `crates/test`, the thin CLI shell for `check` and `test`, and the smoke fixtures under `smoketest/test/`.
 - If a failing test reveals a parser, typechecker, lowering, or semantic-engine bug, preserve the repro here and hand the fix to `bootstrap-core`.
 - If runtime `test` execution or teardown is broken, keep the harness repro here and co-trigger `runtime-core`.
 - If the issue is authored Kain test vocabulary in `stdlib/test.kn`, co-trigger `lang-stdlib`.
@@ -24,12 +24,12 @@ Use this skill for the repo's source-certification lane. It owns harness semanti
 
 ## Source Of Truth
 
-- `crates/kain-check/src/lib.rs`: source discovery, validation flow, target naming, counts, capabilities, `CheckReport`.
-- `crates/kain-test/src/lib.rs`: directive parsing, pass/fail/proof modes, skipped and ignored semantics, suite reporting, runtime dispatch.
-- `crates/kain-core/src/runtime.rs`: execution of Kain `test` items once the harness dispatches them.
+- `crates/check/src/lib.rs`: source discovery, validation flow, target naming, counts, capabilities, `CheckReport`.
+- `crates/test/src/lib.rs`: directive parsing, pass/fail/proof modes, skipped and ignored semantics, suite reporting, runtime dispatch.
+- `crates/core/src/runtime.rs`: execution of Kain `test` items once the harness dispatches them.
 - `crates/cli/src/main.rs`: `Check` and `Test` command flags, stdin support, summaries, JSON writing.
 - `stdlib/test.kn`: authored test outcome vocabulary.
-- `smoketest/kain-test/`: small CLI-facing certification suite.
+- `smoketest/test/`: small CLI-facing certification suite.
 - `docs/cli/check-and-test.md`: operator contract.
 
 ## Working Rules
@@ -50,7 +50,7 @@ Use this skill for the repo's source-certification lane. It owns harness semanti
 cargo test -p kain-check -p kain-test --target-dir target\codex-test-harness
 cargo test -p kain-core run_tests --target-dir target\codex-test-harness
 $env:PYO3_USE_ABI3_FORWARD_COMPATIBILITY='1'; cargo build -p cli --target-dir target\codex-test-harness
-target\codex-test-harness\debug\kain.exe check smoketest\kain-test\check_pass.kn
+target\codex-test-harness\debug\kain.exe check smoketest\test\check_pass.kn
 "fn main() -> Int:`n    return 0`n" | target\codex-test-harness\debug\kain.exe check -
 target\codex-test-harness\debug\kain.exe test smoketest\kain-test --json target\codex-test-harness\kain-test-report.json
 target\codex-test-harness\debug\kain.exe test smoketest\kain-test --ignored

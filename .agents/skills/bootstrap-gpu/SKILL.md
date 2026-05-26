@@ -2,7 +2,7 @@
 name: bootstrap-gpu
 description: >-
   Use when changing compiler, frontend, or selfhost GPU truth in `crates/gpu`,
-  `crates/kain-core`, `crates/kain-driver`, or GPU artifact staging: shader
+  `crates/core`, `crates/driver`, or GPU artifact staging: shader
   and compute typing, SPIR-V or PTX emission, `CompileTarget::Cuda`,
   residency or bundle metadata, or compile-time validation. Do not use for
   `kain-gpu-runtime`, `runtime/native` graphics substrate, or authored shader
@@ -16,12 +16,12 @@ Use this skill when the compiler-owned GPU pipeline changes: frontend eligibilit
 ## Trigger Surface
 
 - `crates/gpu/src/codegen_spirv.rs`, `crates/gpu/src/codegen_ptx.rs`, and `crates/gpu/z3/**` for backend math, layout, constructor lowering, control flow, PTX parameter order, and storage-buffer bounds.
-- `crates/kain-core/**` for shader and compute typing, `CompileTarget::Cuda`, and compile-time artifact model changes.
-- `crates/kain-driver/**`, `crates/cli/src/gpu_artifacts.rs`, `crates/kain-build/src/workspace.rs`, and adjacent staging code when emitted SPIR-V or derived PTX bundle shape changes.
+- `crates/core/**` for shader and compute typing, `CompileTarget::Cuda`, and compile-time artifact model changes.
+- `crates/driver/**`, `crates/cli/src/gpu_artifacts.rs`, `crates/build/src/workspace.rs`, and adjacent staging code when emitted SPIR-V or derived PTX bundle shape changes.
 
 ## Boundaries
 
-- Co-trigger `runtime-gpu` when `crates/kain-gpu-runtime`, CUDA driver loading, Vulkan execution, or native graphics and compute substrate changes are required.
+- Co-trigger `runtime-gpu` when `crates/gpu-runtime`, CUDA driver loading, Vulkan execution, or native graphics and compute substrate changes are required.
 - Co-trigger `lang-gpu` when the deliverable is authored Kain shaders, compute kernels, or specimen blades.
 - Co-trigger `package-vulkain` when the proof surface is `blades/vulkain*` rather than the compiler-owned backend itself.
 - Co-trigger `tool-build-system` when Bazel sync, generated BUILD files, or packaging scripts must move with GPU compiler changes.

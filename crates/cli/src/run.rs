@@ -2,6 +2,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use kain_driver::discover_native_app_root_component;
+use serde_json::json;
 use kain_run::{
     execute_run, plan_run, render_text_report, RunMode, RunReport, RunRequest, RunStatus, RunTarget,
 };
@@ -76,9 +77,48 @@ pub fn execute(request: RunRequest) -> Result<(), String> {
     if let Some(config) = native_ui_dev_config_for_request(&request)? {
         return crate::native_ui_dev::run_native_ui_dev(config).map_err(|err| err.to_string());
     }
-    let report = execute_run(&request).map_err(|err| err.to_string())?;
+    let report = execute_run(&request).map_err(|err| {
+        let rendered_output = format!(" Run failed: {err}\n");
+        let _ = kain_core::diagnostic_capture::capture_event_if_enabled(
+            kain_core::diagnostic_capture::CapturedDiagnosticEventInput {
+                event_kind: "run-execute-failure".to_string(),
+                command: if request.mode == RunMode::Dev {
+                    "watch".to_string()
+                } else {
+                    "run".to_string()
+                },
+                argv: std::env::args().collect(),
+                cwd: std::env::current_dir()
+                    .unwrap_or_else(|_| PathBuf::from("."))
+                    .display()
+                    .to_string(),
+                launcher: None,
+                target: Some(format!("{:?}", request.target).to_ascii_lowercase()),
+                source_name: request
+                    .input
+                    .as_ref()
+                    .and_then(|path| path.file_name())
+                    .and_then(|value| value.to_str())
+                    .map(str::to_string),
+                source_path: request
+                    .input
+                    .as_ref()
+                    .map(|path| path.display().to_string()),
+                rendered_output,
+                structured_diagnostic: None,
+                tags: Vec::new(),
+                context: json!({
+                    "requested_mode": format!("{:?}", request.mode),
+                    "requested_target": format!("{:?}", request.target),
+                    "error_display": err.to_string(),
+                }),
+            },
+        );
+        err.to_string()
+    })?;
     print_report(&report, request.json)?;
     if report.status == RunStatus::Failed {
+        capture_run_failure(&request, &report);
         Err(format!(
             "run failed; report written to {}",
             report.report_path.display()
@@ -86,6 +126,58 @@ pub fn execute(request: RunRequest) -> Result<(), String> {
     } else {
         Ok(())
     }
+}
+
+fn capture_run_failure(request: &RunRequest, report: &RunReport) {
+    let rendered_output = kain_run::render_compact_output(report);
+    if rendered_output.trim().is_empty() {
+        return;
+    }
+    let _ = kain_core::diagnostic_capture::capture_event_if_enabled(
+        kain_core::diagnostic_capture::CapturedDiagnosticEventInput {
+            event_kind: "run-report-failure".to_string(),
+            command: if request.mode == RunMode::Dev {
+                "watch".to_string()
+            } else {
+                "run".to_string()
+            },
+            argv: std::env::args().collect(),
+            cwd: std::env::current_dir()
+                .unwrap_or_else(|_| PathBuf::from("."))
+                .display()
+                .to_string(),
+            launcher: None,
+            target: Some(format!("{:?}", request.target).to_ascii_lowercase()),
+            source_name: request
+                .input
+                .as_ref()
+                .and_then(|path| path.file_name())
+                .and_then(|value| value.to_str())
+                .map(str::to_string),
+            source_path: request
+                .input
+                .as_ref()
+                .map(|path| path.display().to_string()),
+            rendered_output,
+            structured_diagnostic: None,
+            tags: Vec::new(),
+            context: json!({
+                "requested_mode": format!("{:?}", request.mode),
+                "requested_target": format!("{:?}", request.target),
+                "report_path": report.report_path.display().to_string(),
+                "events_path": report.events_path.display().to_string(),
+                "workspace_root": report.workspace_root.display().to_string(),
+                "status": format!("{:?}", report.status),
+                "units": report.units.iter().map(|unit| json!({
+                    "id": &unit.id,
+                    "target": format!("{:?}", unit.target),
+                    "status": format!("{:?}", unit.status),
+                    "exit_code": unit.exit_code,
+                    "error": &unit.error,
+                })).collect::<Vec<_>>(),
+            }),
+        },
+    );
 }
 
 pub fn print_plan(request: RunRequest) -> Result<(), String> {

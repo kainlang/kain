@@ -1,5 +1,5 @@
 {
-  "checksum": "81a5ccdcf24cdf40063fa810668e07c4f9b90dd3d1db612274bc68a4dab735dc",
+  "checksum": "e167542182a1e4ed60c01012dab8c17a5d9b44376c6b29777314bd9ec83e2c2f",
   "crates": {
     "ab_glyph 0.2.32": {
       "name": "ab_glyph",
@@ -18907,6 +18907,10 @@
             {
               "id": "ratatui 0.30.0",
               "target": "ratatui"
+            },
+            {
+              "id": "serde_json 1.0.143",
+              "target": "serde_json"
             },
             {
               "id": "unicode-width 0.1.14",

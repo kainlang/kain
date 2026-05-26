@@ -93,7 +93,7 @@ Use this order:
 rg -n "use c::|use rust::|\[c_ffi\]|kain_dynlib|shared_lib|tier =|import platform|import-c" . agents blades benchmark library_of_kain runtime stdlib crates
 rg -n "^import |^from .* import |py_import|py_call|py_getattr|kain_(image|tensor|geometry|shared_(buffer|image))_from_py|python_(module_available|require_module)" . agents blades benchmark smoketest stdlib crates
 rg -n "numpy|fastmcp|torch|python_lab" blades smoketest stdlib crates .agents
-rg -n "abi_|platform_library|host_bridge|shared_buffer|shared_image|shared_tensor|shared_geometry" stdlib runtime/native/include runtime/native/src crates/kain-python
+rg -n "abi_|platform_library|host_bridge|shared_buffer|shared_image|shared_tensor|shared_geometry" stdlib runtime/native/include runtime/native/src crates/python
 rg --files | rg "(ffi|bridge|interop|platform|host_bridge|foreign_abi|c_ffi|crate_ffi|python|dcc)"
 ```
 
@@ -738,30 +738,30 @@ Python does not use the C FFI report lane, but the same doctrine applies:
 
 Use these when you need implementation truth:
 
-- `crates/kain-c-ffi/src/lib.rs`: `use c::` detection, resolution order, automatic runtime-owned headers, cache, bridge loading, native link inputs.
-- `crates/kain-c-ffi/src/config.rs`: `[c_ffi]`, library metadata, and interop tiers.
-- `crates/kain-c-ffi/src/extract.rs`: header parsing, regex fallback, callable/stubbed report entries, callback and named-type treatment.
-- `crates/kain-c-ffi/src/generate.rs`: generated `.kn` module, bridge crate, binding reports, packaged bridge manifests, string and byte-buffer marshaling.
-- `crates/kain-c-ffi/src/platform.rs`: `kain import platform`, target locks, generated platform modules, package discovery.
-- `crates/kain-foreign-abi/src/lib.rs`: normalized ABI type graph, scalar table, pointer direction/ownership policy, callback metadata.
-- `crates/kain-crate-ffi/src/lib.rs`: `use rust::...` and Rust crate FFI bridge generation.
-- `crates/kain-core/src/ast.rs`, `crates/kain-core/src/parser.rs`, `crates/kain-core/src/runtime.rs`, `crates/kain-core/src/types.rs`: authored Python `import` syntax, scope registration, and runtime loading behavior.
-- `crates/kain-python/src/lib.rs`: embedded Python bridge registration, local import resolution, host-object conversion, shared/owned materializers, and Python runtime helpers.
+- `crates/c-ffi/src/lib.rs`: `use c::` detection, resolution order, automatic runtime-owned headers, cache, bridge loading, native link inputs.
+- `crates/c-ffi/src/config.rs`: `[c_ffi]`, library metadata, and interop tiers.
+- `crates/c-ffi/src/extract.rs`: header parsing, regex fallback, callable/stubbed report entries, callback and named-type treatment.
+- `crates/c-ffi/src/generate.rs`: generated `.kn` module, bridge crate, binding reports, packaged bridge manifests, string and byte-buffer marshaling.
+- `crates/c-ffi/src/platform.rs`: `kain import platform`, target locks, generated platform modules, package discovery.
+- `crates/foreign-abi/src/lib.rs`: normalized ABI type graph, scalar table, pointer direction/ownership policy, callback metadata.
+- `crates/crate-ffi/src/lib.rs`: `use rust::...` and Rust crate FFI bridge generation.
+- `crates/core/src/ast.rs`, `crates/core/src/parser.rs`, `crates/core/src/runtime.rs`, `crates/core/src/types.rs`: authored Python `import` syntax, scope registration, and runtime loading behavior.
+- `crates/python/src/lib.rs`: embedded Python bridge registration, local import resolution, host-object conversion, shared/owned materializers, and Python runtime helpers.
 - `crates/cli/src/import_c.rs`, `crates/cli/src/import_platform.rs`, `crates/cli/src/import_crate.rs`, `crates/cli/src/bridge.rs`: command behavior.
 - `runtime/native/include/host_bridge.h` and `runtime/native/src/core/host_bridge.c`: host bridge registry, foreign runtime lanes, service descriptors, bridge contracts.
 - `runtime/native/include/platform_library.h` and `runtime/native/src/platform/platform_library.c`: dynamic library handle/status surface.
 - `stdlib/platform.kn`, `stdlib/js.kn`, `stdlib/interop.kn`, `stdlib/python.kn`: authored stdlib bridge vocabulary.
-- `crates/kain-import/tests/abi_corpus/manifest.json`: C ABI layout cases for pragma pack, explicit alignment, named pack stacks, bitfields, and unions.
+- `crates/import/tests/abi_corpus/manifest.json`: C ABI layout cases for pragma pack, explicit alignment, named pack stacks, bitfields, and unions.
 
 Use examples as probes:
 
 - `library_of_kain/ffi_shared_call.kn`: compact shared-library call pressure.
 - `benchmark/cases/ffi_shared_call_stress/main.kn`: benchmark version of the shared-call lane.
-- `blades/kain-test/fabric_FFI/c_ffi/beacon_math`: scalar, bool, float, string, and intentionally unsupported pointer declarations.
-- `blades/kain-test/fabric_FFI/c_ffi/miniaudio_tone_lab`: native audio file generation/probe through a small C bridge.
-- `blades/kain-test/fabric_FFI/c_ffi/cgltf_scene_probe`: handle lifecycle over a third-party parser.
+- `blades/test/fabric_FFI/c_ffi/beacon_math`: scalar, bool, float, string, and intentionally unsupported pointer declarations.
+- `blades/test/fabric_FFI/c_ffi/miniaudio_tone_lab`: native audio file generation/probe through a small C bridge.
+- `blades/test/fabric_FFI/c_ffi/cgltf_scene_probe`: handle lifecycle over a third-party parser.
 - `blades/python`: canonical first-class Python import lab using `import numpy`, `import fastmcp`, local `python_lab.bridge`, and Kain world/teleport/ownership semantics over Python-backed tensors.
-- `crates/kain-python/src/lib.rs`: executable source snippets for zero-copy NumPy/Torch materialization, shared-vs-owned mutation, and export back into Python objects.
+- `crates/python/src/lib.rs`: executable source snippets for zero-copy NumPy/Torch materialization, shared-vs-owned mutation, and export back into Python objects.
 - `smoketest/src/stdlib/interop_lane.kn`: shared-contract vocabulary and stdlib integration pressure.
 
 Do not make Vulkain the default example for generic interop. Use

@@ -490,11 +490,141 @@ def strip_ansi(text: str) -> str:
     return re.sub(r"\x1B\[[0-9;]*[A-Za-z]", "", text)
 
 
+def split_package_id(package_id: str) -> tuple[str, str]:
+    if " " not in package_id:
+        return package_id, ""
+    name, version = package_id.rsplit(" ", 1)
+    return name, version
+
+
 def git_lines(repo_root: Path, args: Sequence[str]) -> tuple[str, ...]:
     result = run_capture(["git", "-C", str(repo_root), *args], cwd=repo_root)
     if result.exit_code != 0:
         return ()
     return tuple(line.strip() for line in result.output_lines if line.strip())
+
+
+def cargo_metadata(repo_root: Path, env: dict[str, str]) -> dict[str, object]:
+    result = run_capture(
+        ["cargo", "metadata", "--format-version", "1", "--no-deps"],
+        repo_root,
+        env,
+    )
+    if result.exit_code != 0:
+        raise SyncError(f"cargo metadata failed with exit code {result.exit_code}")
+    try:
+        payload = json.loads(result.output_text)
+    except json.JSONDecodeError as error:
+        raise SyncError(f"cargo metadata returned invalid JSON: {error}") from error
+    if not isinstance(payload, dict):
+        raise SyncError("cargo metadata returned an unexpected payload shape")
+    return payload
+
+
+def cargo_bazel_lock_path(repo_root: Path) -> Path:
+    return (repo_root / "Cargo.Bazel.lock").resolve()
+
+
+def cargo_bazel_lock_data(repo_root: Path) -> dict[str, object]:
+    path = cargo_bazel_lock_path(repo_root)
+    if not path.exists():
+        raise SyncError(f"Cargo.Bazel.lock not found at {path}")
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as error:
+        raise SyncError(f"Cargo.Bazel.lock is invalid JSON: {error}") from error
+    if not isinstance(payload, dict):
+        raise SyncError("Cargo.Bazel.lock has an unexpected top-level shape")
+    return payload
+
+
+def cargo_bazel_lock_entry_dep_names(entry: dict[str, object]) -> set[str]:
+    dep_names: set[str] = set()
+    common_attrs = entry.get("common_attrs", {})
+    if not isinstance(common_attrs, dict):
+        return dep_names
+    deps = common_attrs.get("deps", {})
+    if not isinstance(deps, dict):
+        return dep_names
+
+    def add_dep_list(items: object) -> None:
+        if not isinstance(items, list):
+            return
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            raw_id = str(item.get("id", "")).strip()
+            if not raw_id:
+                continue
+            dep_name, _dep_version = split_package_id(raw_id)
+            dep_names.add(dep_name)
+
+    add_dep_list(deps.get("common"))
+    selects = deps.get("selects", {})
+    if isinstance(selects, dict):
+        for values in selects.values():
+            add_dep_list(values)
+
+    return dep_names
+
+
+def cargo_manifest_required_external_deps(package: dict[str, object]) -> set[str]:
+    required: set[str] = set()
+    dependencies = package.get("dependencies", [])
+    if not isinstance(dependencies, list):
+        return required
+
+    for dependency in dependencies:
+        if not isinstance(dependency, dict):
+            continue
+        if dependency.get("kind") not in (None, "normal"):
+            continue
+        if bool(dependency.get("optional")):
+            continue
+        if dependency.get("path"):
+            continue
+        name = str(dependency.get("name", "")).strip()
+        if not name:
+            continue
+        required.add(name)
+
+    return required
+
+
+def cargo_bazel_manifest_drift(context: SyncContext, env: dict[str, str]) -> list[str]:
+    metadata = cargo_metadata(context.repo_root, env)
+    packages = metadata.get("packages", [])
+    if not isinstance(packages, list):
+        return []
+
+    lock = cargo_bazel_lock_data(context.repo_root)
+    workspace_members = lock.get("workspace_members", {})
+    crates = lock.get("crates", {})
+    if not isinstance(workspace_members, dict) or not isinstance(crates, dict):
+        return []
+
+    drift_messages: list[str] = []
+    for package in packages:
+        if not isinstance(package, dict):
+            continue
+        name = str(package.get("name", "")).strip()
+        version = str(package.get("version", "")).strip()
+        if not name or not version:
+            continue
+        package_id = f"{name} {version}"
+        if package_id not in workspace_members:
+            continue
+        lock_entry = crates.get(package_id)
+        if not isinstance(lock_entry, dict):
+            drift_messages.append(f"{package_id}: missing crate_universe package entry")
+            continue
+        manifest_deps = cargo_manifest_required_external_deps(package)
+        lock_deps = cargo_bazel_lock_entry_dep_names(lock_entry)
+        missing = sorted(dep for dep in manifest_deps if dep not in lock_deps)
+        if missing:
+            drift_messages.append(f"{package_id}: missing {', '.join(missing)}")
+
+    return drift_messages
 
 
 def repo_head_sha(repo_root: Path) -> str:
@@ -744,22 +874,18 @@ def bazel_env(context: SyncContext) -> dict[str, str]:
     return env
 
 
-def invoke_bazel_build(context: SyncContext, binary_name: str) -> None:
-    extra_args = bazel_python_args(context)
-    env = bazel_env(context)
-    build_args = ["bazel", "build", f"//:{binary_name}", f"--config={context.bazel_config}", *extra_args]
-    result = run_live(build_args, context.repo_root, env)
-    if result.exit_code == 0:
-        return
-
-    auto_repin = bool_from_policy(context.sync_policy.get("cargo_bazel_auto_repin_enabled"), True)
-    if not auto_repin or not test_cargo_bazel_repin_mismatch(result):
-        raise SyncError(f"bazel build //:{binary_name} --config={context.bazel_config} failed with exit code {result.exit_code}")
-
+def cargo_bazel_repin(
+    context: SyncContext,
+    binary_name: str,
+    env: dict[str, str],
+    extra_args: Sequence[str],
+    *,
+    reason: str,
+) -> None:
     lock_relative = str(context.sync_policy.get("cargo_bazel_repin_lock_relative_path", "locks/cargo-bazel-repin.lock"))
     lock_timeout = int(context.sync_policy.get("cargo_bazel_repin_lock_timeout_seconds", 300))
     lock_path = context.state_root / lock_relative
-    print("[kain] Cargo.Bazel.lock drift detected; repinning crate_universe and retrying once...", flush=True)
+    print(f"[kain] {reason}; repinning crate_universe and retrying once...", flush=True)
     lock_handle = acquire_lock(lock_path, lock_timeout)
     try:
         repin_env = dict(env)
@@ -771,6 +897,40 @@ def invoke_bazel_build(context: SyncContext, binary_name: str) -> None:
     finally:
         release_lock(lock_handle)
 
+
+def invoke_bazel_build(context: SyncContext, binary_name: str) -> None:
+    extra_args = bazel_python_args(context)
+    env = bazel_env(context)
+    auto_repin = bool_from_policy(context.sync_policy.get("cargo_bazel_auto_repin_enabled"), True)
+    if auto_repin:
+        drift = cargo_bazel_manifest_drift(context, env)
+        if drift:
+            drift_preview = "; ".join(drift[:5])
+            if len(drift) > 5:
+                drift_preview += f"; ... (+{len(drift) - 5} more)"
+            cargo_bazel_repin(
+                context,
+                binary_name,
+                env,
+                extra_args,
+                reason=f"Cargo.Bazel.lock manifest drift detected ({drift_preview})",
+            )
+
+    build_args = ["bazel", "build", f"//:{binary_name}", f"--config={context.bazel_config}", *extra_args]
+    result = run_live(build_args, context.repo_root, env)
+    if result.exit_code == 0:
+        return
+
+    if not auto_repin or not test_cargo_bazel_repin_mismatch(result):
+        raise SyncError(f"bazel build //:{binary_name} --config={context.bazel_config} failed with exit code {result.exit_code}")
+
+    cargo_bazel_repin(
+        context,
+        binary_name,
+        env,
+        extra_args,
+        reason="Cargo.Bazel.lock drift detected",
+    )
     print(f"[kain] Cargo.Bazel.lock refreshed; retrying bazel build //:{binary_name} --config={context.bazel_config}...", flush=True)
     retry = run_live(build_args, context.repo_root, env)
     if retry.exit_code != 0:

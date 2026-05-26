@@ -1,6 +1,7 @@
 use kain_core::{diagnostics::Diagnostics, CompileTarget};
 use kain_driver::DriverSession;
 use kain_run::{execute_inline_kain_source, render_compact_output, InlineKainSourceRequest};
+use serde_json::json;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ReplExecutionMode {
@@ -101,6 +102,13 @@ impl ReplEvaluator {
         }
     }
 
+    pub fn progress_verb(&self) -> &'static str {
+        match self.mode {
+            ReplExecutionMode::NativeLlvm => "Compiling",
+            ReplExecutionMode::Interpret => "Interpreting",
+        }
+    }
+
     pub fn evaluate_interpret_source(
         &self,
         source_name: &str,
@@ -110,9 +118,15 @@ impl ReplEvaluator {
             Ok(output) => Ok(ReplEvaluation::from_interpret_output(output)),
             Err(error) => {
                 let diagnostics = Diagnostics::new(source, source_name);
-                Err(ReplEvaluationError {
-                    formatted_error: diagnostics.format_error(&error),
-                })
+                let formatted_error = diagnostics.format_error(&error);
+                capture_repl_failure(
+                    "interpret",
+                    source_name,
+                    source,
+                    &formatted_error,
+                    error.diagnostic_json(),
+                );
+                Err(ReplEvaluationError { formatted_error })
             }
         }
     }
@@ -130,14 +144,22 @@ impl ReplEvaluator {
                 if let Some(evaluation) = native_exit_code_evaluation(&report) {
                     Ok(evaluation)
                 } else {
-                    Err(ReplEvaluationError {
-                        formatted_error: render_compact_output(&report),
-                    })
+                    let formatted_error = render_compact_output(&report);
+                    capture_repl_failure(
+                        "native-llvm",
+                        source_name,
+                        source,
+                        &formatted_error,
+                        None,
+                    );
+                    Err(ReplEvaluationError { formatted_error })
                 }
             }
-            Err(error) => Err(ReplEvaluationError {
-                formatted_error: error.to_string(),
-            }),
+            Err(error) => {
+                let formatted_error = error.to_string();
+                capture_repl_failure("native-llvm", source_name, source, &formatted_error, None);
+                Err(ReplEvaluationError { formatted_error })
+            }
         }
     }
 }
@@ -182,6 +204,41 @@ fn strip_ansi_sequences(input: &str) -> String {
     }
 
     output
+}
+
+fn capture_repl_failure(
+    mode: &str,
+    source_name: &str,
+    source: &str,
+    formatted_error: &str,
+    structured_diagnostic: Option<serde_json::Value>,
+) {
+    if formatted_error.trim().is_empty() {
+        return;
+    }
+    let _ = kain_core::diagnostic_capture::capture_event_if_enabled(
+        kain_core::diagnostic_capture::CapturedDiagnosticEventInput {
+            event_kind: "repl-failure".to_string(),
+            command: "repl".to_string(),
+            argv: std::env::args().collect(),
+            cwd: std::env::current_dir()
+                .unwrap_or_else(|_| std::path::PathBuf::from("."))
+                .display()
+                .to_string(),
+            launcher: Some("kain".to_string()),
+            target: Some(mode.to_string()),
+            source_name: Some(source_name.to_string()),
+            source_path: None,
+            rendered_output: formatted_error.to_string(),
+            structured_diagnostic,
+            tags: Vec::new(),
+            context: json!({
+                "mode": mode,
+                "source_bytes": source.len(),
+                "source_lines": source.lines().count(),
+            }),
+        },
+    );
 }
 
 #[cfg(test)]

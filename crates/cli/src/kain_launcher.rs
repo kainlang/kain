@@ -367,6 +367,17 @@ fn run_format_command(input: Option<PathBuf>, check: bool, write: bool) -> bool 
         Ok(value) => value,
         Err(err) => {
             eprintln!(" {}", err);
+            capture_rendered_failure(
+                "command-failure",
+                "format",
+                format!(" {}\n", err),
+                None,
+                None,
+                None,
+                source_path_from_option(input.as_ref()),
+                None,
+                serde_json::json!({"phase": "read-source"}),
+            );
             return false;
         }
     };
@@ -375,7 +386,18 @@ fn run_format_command(input: Option<PathBuf>, check: bool, write: bool) -> bool 
         Ok(value) => value,
         Err(err) => {
             let diag = kain_core::diagnostics::Diagnostics::new(&source, &source_name);
-            eprint!("{}", diag.format_error(&err));
+            let rendered = diag.format_error(&err);
+            eprint!("{rendered}");
+            capture_kain_error_failure(
+                "format",
+                None,
+                None,
+                &source_name,
+                source_path.as_deref(),
+                &source,
+                &err,
+                &rendered,
+            );
             return false;
         }
     };
@@ -619,6 +641,128 @@ fn print_compact_run_report(report: &kain_run::RunReport, success: bool) {
     }
 }
 
+fn source_path_from_option(input: Option<&PathBuf>) -> Option<&Path> {
+    input.and_then(|path| {
+        if path == Path::new("-") {
+            None
+        } else {
+            Some(path.as_path())
+        }
+    })
+}
+
+fn capture_rendered_failure(
+    event_kind: &str,
+    command: &str,
+    rendered_output: impl Into<String>,
+    launcher: Option<LauncherKind>,
+    target: Option<&str>,
+    source_name: Option<&str>,
+    source_path: Option<&Path>,
+    structured_diagnostic: Option<serde_json::Value>,
+    context: serde_json::Value,
+) {
+    let _ = kain_core::diagnostic_capture::capture_event_if_enabled(
+        kain_core::diagnostic_capture::CapturedDiagnosticEventInput {
+            event_kind: event_kind.to_string(),
+            command: command.to_string(),
+            argv: std::env::args().collect(),
+            cwd: std::env::current_dir()
+                .unwrap_or_else(|_| PathBuf::from("."))
+                .display()
+                .to_string(),
+            launcher: launcher.map(|value| value.display_name().to_string()),
+            target: target.map(str::to_string),
+            source_name: source_name.map(str::to_string),
+            source_path: source_path.map(|path| path.display().to_string()),
+            rendered_output: rendered_output.into(),
+            structured_diagnostic,
+            tags: Vec::new(),
+            context,
+        },
+    );
+}
+
+fn capture_kain_error_failure(
+    command: &str,
+    launcher: Option<LauncherKind>,
+    target: Option<&str>,
+    source_name: &str,
+    source_path: Option<&Path>,
+    source: &str,
+    error: &kain_core::KainError,
+    rendered_output: &str,
+) {
+    let phase = match error {
+        kain_core::KainError::Lexer { .. } => "lexer",
+        kain_core::KainError::Parser { .. } => "parser",
+        kain_core::KainError::Type { .. } => "type",
+        kain_core::KainError::Effect { .. } => "effect",
+        kain_core::KainError::Borrow { .. } => "borrow",
+        kain_core::KainError::Codegen { .. } | kain_core::KainError::CodegenWithLocation { .. } => {
+            "codegen"
+        }
+        kain_core::KainError::Runtime { .. } => "runtime",
+        kain_core::KainError::Io(_) => "io",
+        kain_core::KainError::Enhanced { .. } => "enhanced",
+        kain_core::KainError::Rich(_) => "rich",
+        kain_core::KainError::Multi(_) => "multi",
+    };
+    capture_rendered_failure(
+        "kain-error",
+        command,
+        rendered_output,
+        launcher,
+        target,
+        Some(source_name),
+        source_path,
+        error.diagnostic_json(),
+        serde_json::json!({
+            "phase": phase,
+            "source_bytes": source.len(),
+            "source_lines": source.lines().count(),
+            "error_display": error.to_string(),
+        }),
+    );
+}
+
+fn capture_run_report_failure(
+    command: &str,
+    launcher: Option<LauncherKind>,
+    report: &kain_run::RunReport,
+) {
+    let rendered_output = kain_run::render_compact_output(report);
+    if rendered_output.trim().is_empty() {
+        return;
+    }
+    let requested_target = format!("{:?}", report.requested_target).to_ascii_lowercase();
+    capture_rendered_failure(
+        "run-report-failure",
+        command,
+        rendered_output,
+        launcher,
+        Some(&requested_target),
+        None,
+        None,
+        None,
+        serde_json::json!({
+            "report_path": report.report_path.display().to_string(),
+            "events_path": report.events_path.display().to_string(),
+            "workspace_root": report.workspace_root.display().to_string(),
+            "status": format!("{:?}", report.status),
+            "mode": format!("{:?}", report.mode),
+            "units": report.units.iter().map(|unit| serde_json::json!({
+                "id": &unit.id,
+                "target": format!("{:?}", unit.target),
+                "status": format!("{:?}", unit.status),
+                "exit_code": unit.exit_code,
+                "error": &unit.error,
+                "inputs": unit.inputs.iter().map(|path| path.display().to_string()).collect::<Vec<_>>(),
+            })).collect::<Vec<_>>(),
+        }),
+    );
+}
+
 fn run_inline_native_script(source_name: &str, source: &str) -> bool {
     let cwd = match std::env::current_dir() {
         Ok(path) => path,
@@ -635,10 +779,24 @@ fn run_inline_native_script(source_name: &str, source: &str) -> bool {
         Ok(report) => {
             let success = report.is_success();
             print_compact_run_report(&report, success);
+            if !success {
+                capture_run_report_failure("inline-script", None, &report);
+            }
             success
         }
         Err(err) => {
             eprintln!(" Inline native script failed: {}", err);
+            capture_rendered_failure(
+                "command-failure",
+                "inline-script",
+                format!(" Inline native script failed: {err}\n"),
+                None,
+                Some("llvm"),
+                Some(source_name),
+                None,
+                None,
+                serde_json::json!({"phase": "execute-inline"}),
+            );
             false
         }
     }
@@ -662,6 +820,17 @@ fn run_file_as_native_script(input: PathBuf, watch: bool) -> bool {
         Ok(request) => request,
         Err(err) => {
             eprintln!(" Native script setup failed: {}", err);
+            capture_rendered_failure(
+                "command-failure",
+                "native-script",
+                format!(" Native script setup failed: {err}\n"),
+                None,
+                Some("llvm"),
+                None,
+                None,
+                None,
+                serde_json::json!({"phase": "setup"}),
+            );
             return false;
         }
     };
@@ -669,6 +838,17 @@ fn run_file_as_native_script(input: PathBuf, watch: bool) -> bool {
     if watch {
         if let Err(err) = run_cli::execute(request) {
             eprintln!(" Native script watch failed: {}", err);
+            capture_rendered_failure(
+                "command-failure",
+                "native-script-watch",
+                format!(" Native script watch failed: {err}\n"),
+                None,
+                Some("llvm"),
+                None,
+                None,
+                None,
+                serde_json::json!({"phase": "watch"}),
+            );
             return false;
         }
         return true;
@@ -678,10 +858,24 @@ fn run_file_as_native_script(input: PathBuf, watch: bool) -> bool {
         Ok(report) => {
             let success = report.is_success();
             print_compact_run_report(&report, success);
+            if !success {
+                capture_run_report_failure("native-script", None, &report);
+            }
             success
         }
         Err(err) => {
             eprintln!(" Native script execution failed: {}", err);
+            capture_rendered_failure(
+                "command-failure",
+                "native-script",
+                format!(" Native script execution failed: {err}\n"),
+                None,
+                Some("llvm"),
+                None,
+                None,
+                None,
+                serde_json::json!({"phase": "execute-run"}),
+            );
             false
         }
     }
@@ -714,7 +908,19 @@ fn run_source_with_session(
         if let Err(err) =
             kain_c_ffi::import_libraries_for_source(&source, &import_options, &prepare)
         {
+            let target_name = format!("{target:?}").to_ascii_lowercase();
             eprintln!(" Failed to prepare C FFI source: {}", err);
+            capture_rendered_failure(
+                "command-failure",
+                "compile",
+                format!(" Failed to prepare C FFI source: {err}\n"),
+                None,
+                Some(&target_name),
+                Some(source_name),
+                source_path,
+                None,
+                serde_json::json!({"phase": "c-ffi-prepare"}),
+            );
             return false;
         }
     }
@@ -757,6 +963,16 @@ fn run_source_with_session(
             }
             Err(e) => {
                 eprintln!(" Compile error: {}", e);
+                capture_kain_error_failure(
+                    "compile",
+                    None,
+                    Some("spirv"),
+                    source_name,
+                    source_path,
+                    &source,
+                    &e,
+                    &format!(" Compile error: {e}\n"),
+                );
                 return false;
             }
         }
@@ -790,6 +1006,16 @@ fn run_source_with_session(
             }
             Err(e) => {
                 eprintln!(" Compile error: {}", e);
+                capture_kain_error_failure(
+                    "compile",
+                    None,
+                    Some("wasm"),
+                    source_name,
+                    source_path,
+                    &source,
+                    &e,
+                    &format!(" Compile error: {e}\n"),
+                );
                 return false;
             }
         }
@@ -820,6 +1046,16 @@ fn run_source_with_session(
             },
             Err(e) => {
                 eprintln!(" Compile error: {}", e);
+                capture_kain_error_failure(
+                    "compile",
+                    None,
+                    Some("hybrid"),
+                    source_name,
+                    source_path,
+                    &source,
+                    &e,
+                    &format!(" Compile error: {e}\n"),
+                );
                 return false;
             }
         }
@@ -1345,7 +1581,19 @@ fn run_source_with_session(
             true
         }
         Err(e) => {
-            eprint!("{}", session.format_error(source_name, &source, &e));
+            let rendered = session.format_error(source_name, &source, &e);
+            let target_name = format!("{target:?}").to_ascii_lowercase();
+            eprint!("{rendered}");
+            capture_kain_error_failure(
+                "compile",
+                None,
+                Some(&target_name),
+                source_name,
+                source_path,
+                &source,
+                &e,
+                &rendered,
+            );
             false
         }
     }
@@ -1707,6 +1955,40 @@ fn run_check_command(input: &Path, target: &str, fail_fast: bool, json: Option<&
             eprintln!("  {}: {}", file.path, error);
         }
     }
+    if !report.is_success() {
+        let rendered = report
+            .files
+            .iter()
+            .filter_map(|file| {
+                file.error
+                    .as_ref()
+                    .map(|error| format!("  {}: {}\n", file.path, error))
+            })
+            .collect::<String>();
+        capture_rendered_failure(
+            "check-failure",
+            "check",
+            if rendered.is_empty() {
+                " Check failed\n".to_string()
+            } else {
+                rendered
+            },
+            None,
+            Some(kain_check::compile_target_name(target)),
+            None,
+            Some(input),
+            None,
+            serde_json::json!({
+                "summary": {
+                    "target": report.target.clone(),
+                    "total": report.total,
+                    "passed": report.passed,
+                    "failed": report.failed,
+                },
+                "files": &report.files,
+            }),
+        );
+    }
     report.is_success()
 }
 
@@ -1800,6 +2082,41 @@ fn run_test_command(
         if let Some(error) = &case.error {
             eprintln!("  {} [{}]: {}", case.path, case.mode, error);
         }
+    }
+    if !report.is_success() {
+        let rendered = report
+            .cases
+            .iter()
+            .filter(|case| !case.passed() && !case.skipped())
+            .filter_map(|case| {
+                case.error
+                    .as_ref()
+                    .map(|error| format!("  {} [{}]: {}\n", case.path, case.mode, error))
+            })
+            .collect::<String>();
+        capture_rendered_failure(
+            "test-failure",
+            "test",
+            if rendered.is_empty() {
+                " Test failed\n".to_string()
+            } else {
+                rendered
+            },
+            None,
+            Some(target),
+            None,
+            Some(input),
+            None,
+            serde_json::json!({
+                "summary": {
+                    "target": target,
+                    "total": report.total,
+                    "passed": report.passed,
+                    "skipped": report.skipped,
+                },
+                "cases": &report.cases,
+            }),
+        );
     }
     report.is_success()
 }
@@ -3815,6 +4132,15 @@ fn describe_color_preference(
     }
 }
 
+fn describe_diagnostic_capture_mode(
+    mode: kain_core::tooling_config::KainDiagnosticCaptureMode,
+) -> &'static str {
+    match mode {
+        kain_core::tooling_config::KainDiagnosticCaptureMode::Off => "off",
+        kain_core::tooling_config::KainDiagnosticCaptureMode::Failures => "failures",
+    }
+}
+
 fn describe_native_toolchain_tuning(tuning: &NativeToolchainTuning) -> String {
     format!(
         "profile={} opt=O{} target-cpu={} debug-info={}",
@@ -3823,6 +4149,10 @@ fn describe_native_toolchain_tuning(tuning: &NativeToolchainTuning) -> String {
         tuning.target_cpu.as_deref().unwrap_or("default"),
         tuning.debug_info
     )
+}
+
+fn toml_string_value(value: &str) -> String {
+    value.replace('\\', "\\\\").replace('"', "\\\"")
 }
 
 fn render_default_kain_config_toml() -> String {
@@ -3844,7 +4174,11 @@ fn render_default_kain_config_toml() -> String {
             "[ui]\n",
             "color = \"{color}\"\n",
             "theme = \"{theme}\"\n",
-            "experimental_help = {experimental_help}\n"
+            "experimental_help = {experimental_help}\n\n",
+            "[diagnostics]\n",
+            "capture = \"{diagnostic_capture}\"\n",
+            "path = \"{diagnostic_path}\"\n",
+            "store_ansi = {diagnostic_store_ansi}\n"
         ),
         cargo_jobs = active.build.cargo_jobs,
         native_jobs = active.build.native_jobs,
@@ -3859,6 +4193,9 @@ fn render_default_kain_config_toml() -> String {
         color = describe_color_preference(active.ui.color),
         theme = active.ui.theme,
         experimental_help = active.ui.experimental_help,
+        diagnostic_capture = describe_diagnostic_capture_mode(active.diagnostics.capture),
+        diagnostic_path = toml_string_value(&active.diagnostics.path.display().to_string()),
+        diagnostic_store_ansi = active.diagnostics.store_ansi,
     )
 }
 
@@ -3874,6 +4211,9 @@ fn supported_config_keys() -> &'static [&'static str] {
         "ui.color",
         "ui.theme",
         "ui.experimental-help",
+        "diagnostics.capture",
+        "diagnostics.path",
+        "diagnostics.store-ansi",
     ]
 }
 
@@ -4006,6 +4346,17 @@ fn apply_config_key_value(
         "ui.experimental-help" => {
             config.ui.experimental_help = Some(parse_config_bool(value)?);
         }
+        "diagnostics.capture" => {
+            config.diagnostics.capture = Some(
+                kain_core::tooling_config::KainDiagnosticCaptureMode::parse_str(value)?,
+            );
+        }
+        "diagnostics.path" => {
+            config.diagnostics.path = Some(PathBuf::from(value.trim()));
+        }
+        "diagnostics.store-ansi" => {
+            config.diagnostics.store_ansi = Some(parse_config_bool(value)?);
+        }
         _ => {
             return Err(format!(
                 "unknown Kain config key `{}`; expected one of {}",
@@ -4060,6 +4411,12 @@ fn run_config_show(json: bool) -> Result<(), String> {
             .as_deref()
             .unwrap_or("default"),
         active.build.native_debug_info.unwrap_or(true)
+    );
+    println!(
+        " Diagnostics: capture={} path={} store-ansi={}",
+        describe_diagnostic_capture_mode(active.diagnostics.capture),
+        active.diagnostics.path.display(),
+        active.diagnostics.store_ansi
     );
     Ok(())
 }
@@ -5393,6 +5750,12 @@ mod tests {
         apply_config_key_value(&mut config, "ui.color", "never").expect("color");
         apply_config_key_value(&mut config, "ui.experimental-help", "false")
             .expect("experimental help");
+        apply_config_key_value(&mut config, "diagnostics.capture", "failures")
+            .expect("diagnostics capture");
+        apply_config_key_value(&mut config, "diagnostics.path", "logs/errors.jsonl")
+            .expect("diagnostics path");
+        apply_config_key_value(&mut config, "diagnostics.store-ansi", "false")
+            .expect("diagnostics ansi");
 
         assert_eq!(
             config.build.jobs,
@@ -5403,6 +5766,15 @@ mod tests {
         assert_eq!(config.ui.theme.as_deref(), Some("sandstone"));
         assert_eq!(config.ui.color, Some(KainColorPreference::Never));
         assert_eq!(config.ui.experimental_help, Some(false));
+        assert_eq!(
+            config.diagnostics.capture,
+            Some(kain_core::tooling_config::KainDiagnosticCaptureMode::Failures)
+        );
+        assert_eq!(
+            config.diagnostics.path,
+            Some(PathBuf::from("logs/errors.jsonl"))
+        );
+        assert_eq!(config.diagnostics.store_ansi, Some(false));
     }
 
     #[test]

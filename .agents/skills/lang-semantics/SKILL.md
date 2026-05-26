@@ -14,13 +14,13 @@ This skill is the Kain language field manual. Use it to write real Kain, preserv
 - Treat source anchors below as ownership indexes, not mandatory read orders. If paths move, search by symbol/name with `rg`.
 - Start from nearby examples, then author the smallest compileable proof before graduating to blades, benchmarks, attrition, or Z3.
 - If authored Kain exposes a compiler/runtime defect, preserve the semantic design and hand off to `bootstrap-*` or `runtime-*`; do not silently route around the feature.
-- Keep language work in this skill. If you need to change `crates/kain-core`, `crates/kain-sys-codegen`, `runtime/native`, or `crates/gpu`, co-trigger the owning bootstrap/runtime skill.
+- Keep language work in this skill. If you need to change `crates/core`, `crates/sys-codegen`, `runtime/native`, or `crates/gpu`, co-trigger the owning bootstrap/runtime skill.
 
 ## Fast Operator Loop
 
 ```powershell
 rg -n "\b(world|entangle|patch|law|converge|orchestrate|axiom|pulse|teleport|shatter|shader|component|comptime|actor|collapse|observe|decay)\b" library_of_kain blades benchmark smoketest
-rg -n "Item::(World|Entangle|Patch|Law|Converge|Orchestrate|Axiom|Pulse|Shader|Component)|Expr::(Teleport|Collapse|Observe|Decay|StageCall)|ComputeMetadata" crates/kain-core/src
+rg -n "Item::(World|Entangle|Patch|Law|Converge|Orchestrate|Axiom|Pulse|Shader|Component)|Expr::(Teleport|Collapse|Observe|Decay|StageCall)|ComputeMetadata" crates/core/src
 kain check <entry.kn> --target llvm
 kain run <entry.kn-or-blade> --target llvm
 ```
@@ -44,28 +44,28 @@ Authored Kain normally flows like this:
 
 ```text
 .kn source
--> parser and AST in crates/kain-core/src/parser.rs + ast.rs
--> type/semantic checks in crates/kain-core/src/types.rs
--> runtime contract in crates/kain-core/src/runtime_contract.rs
--> interpreter behavior in crates/kain-core/src/runtime.rs where supported
--> native/C/LLVM/GPU lowering in crates/kain-sys-codegen and crates/gpu
+-> parser and AST in crates/core/src/parser.rs + ast.rs
+-> type/semantic checks in crates/core/src/types.rs
+-> runtime contract in crates/core/src/runtime_contract.rs
+-> interpreter behavior in crates/core/src/runtime.rs where supported
+-> native/C/LLVM/GPU lowering in crates/sys-codegen and crates/gpu
 -> runtime/native C ABI kernels when the feature has native substrate
 -> benchmark/attrition/smoketest/Z3 evidence when the claim matters
 ```
 
 Core source anchors:
 
-- Parser and grammar surface: `crates/kain-core/src/parser.rs`.
-- AST shapes and feature structs: `crates/kain-core/src/ast.rs`.
-- Typechecking and semantic validation: `crates/kain-core/src/types.rs`.
-- Runtime contract emission and capability keys: `crates/kain-core/src/runtime_contract.rs`.
-- Interpreter/runtime behavior for supported authored features: `crates/kain-core/src/runtime.rs`.
-- Formatter shape: `crates/kain-core/src/formatter.rs`.
-- LLVM/native lowering: `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`.
-- C backend fallback/lane metadata: `crates/kain-sys-codegen/src/codegen_c.rs`.
-- Rust-side GPU host/artifacts: `crates/kain-sys-codegen/src/codegen_rust/gpu_artifacts.rs`, `crates/kain-sys-codegen/src/codegen_rust/gpu_host.rs`.
+- Parser and grammar surface: `crates/core/src/parser.rs`.
+- AST shapes and feature structs: `crates/core/src/ast.rs`.
+- Typechecking and semantic validation: `crates/core/src/types.rs`.
+- Runtime contract emission and capability keys: `crates/core/src/runtime_contract.rs`.
+- Interpreter/runtime behavior for supported authored features: `crates/core/src/runtime.rs`.
+- Formatter shape: `crates/core/src/formatter.rs`.
+- LLVM/native lowering: `crates/sys-codegen/src/codegen_llvm/mod.rs`.
+- C backend fallback/lane metadata: `crates/sys-codegen/src/codegen_c.rs`.
+- Rust-side GPU host/artifacts: `crates/sys-codegen/src/codegen_rust/gpu_artifacts.rs`, `crates/sys-codegen/src/codegen_rust/gpu_host.rs`.
 - SPIR-V/PTX/HLSL shader lowering: `crates/gpu/src/codegen_spirv.rs`, `crates/gpu/src/codegen_ptx.rs`, `crates/gpu/src/codegen_hlsl.rs`.
-- Runtime GPU executor: `crates/kain-gpu-runtime/src/executor.rs`, `crates/kain-gpu-runtime/src/nvidia_ptx.rs`.
+- Runtime GPU executor: `crates/gpu-runtime/src/executor.rs`, `crates/gpu-runtime/src/nvidia_ptx.rs`.
 - Native semantic kernels: `runtime/native/src/core/entangle.c`, `runtime/native/src/core/machine_stones.c`, `runtime/native/src/core/kain_runtime_native_stdlib.c`.
 - Native semantic headers: `runtime/native/include/entangle.h`, `runtime/native/include/machine_stones.h`, `runtime/native/include/converge.h`, `runtime/native/include/stdlib_abi.h`.
 - Public semantic helpers: `stdlib/intent.kn`, `stdlib/native/runtime.kn`, `stdlib/STDLIB_MAP.llm.md`.
@@ -88,17 +88,17 @@ Core source anchors:
 | `type` | Type alias | `type Checksum = Int` | `parser.rs parse_type_alias`, `ast.rs TypeAlias` |
 | `Option` / `Result` | Nullable/error-bearing values | `Option<Int>`, `Result<Int, String>`, `?` | `ast.rs Type::Option/Result`, `types.rs Expr::Try` |
 | pointers | Raw/reference/memory-heavy authored code | `ptr<Int>`, `&T`, `*ptr`, `ptr_offset`, `mem_load` | `ast.rs Type::Ptr/Ref`, `Expr::PtrOffset/MemLoad/MemStore`, `low_level_memory.rs` |
-| `collapse` | Exclusive ownership mutation region | `collapse cells: ...` | `ast.rs Expr::Collapse`, `types.rs ownership checks`, `crates/kain-ownership` |
-| `observe` | Read-only ownership observation region | `observe cells: ...` | `ast.rs Expr::Observe`, `types.rs ownership checks`, `crates/kain-ownership` |
+| `collapse` | Exclusive ownership mutation region | `collapse cells: ...` | `ast.rs Expr::Collapse`, `types.rs ownership checks`, `crates/ownership` |
+| `observe` | Read-only ownership observation region | `observe cells: ...` | `ast.rs Expr::Observe`, `types.rs ownership checks`, `crates/ownership` |
 | `decay` | Deterministic ownership destruction | `decay cells` | `ast.rs Expr::Decay`, `types.rs ownership checks`, `runtime/native/include/ownership.h` |
 | `component` | Declarative UI component | `component Panel(title: String): render <panel />` | `parser.rs parse_component_with_attrs`, `types.rs check_component`, LLVM `compile_component` |
 | JSX | Component render tree | `<panel title={name}><text /></panel>` | `ast.rs JSXNode`, `parser.rs parse_jsx_element`, LLVM `compile_jsx` |
 | `shader` | GPU program authoring | `shader fragment`, `shader vertex`, `shader compute` | `parser.rs parse_shader`, `types.rs check_shader`, `crates/gpu` |
 | compute plan | Runtime-visible compute metadata | `comptime: let compute = (...)` inside compute shader | `ast.rs ComputeMetadata`, `runtime_contract.rs gpu.compute-dispatch` |
-| `actor` | Message-oriented stateful concurrency | `actor Relay: state bias: Int = 1; on Msg(...)` | `parser.rs parse_actor_with_attrs`, `crates/kain-actor`, `stdlib/native/actor.kn` |
+| `actor` | Message-oriented stateful concurrency | `actor Relay: state bias: Int = 1; on Msg(...)` | `parser.rs parse_actor_with_attrs`, `crates/actor`, `stdlib/native/actor.kn` |
 | `spawn` / `send` / `ask` | Actor lifecycle and messaging | `spawn Relay(bias = 1)`, `send`, `ask(...)` | `ast.rs Expr::Spawn/SendMsg`, `runtime/native/include/actor.h` |
 | `world` | Named state authority/projection | `world Authority: state signal: Int = 1` | `parser.rs parse_world`, `types.rs check_world`, `runtime_contract.rs RuntimeWorldContract` |
-| `entangle` | State coupling between world fields | `entangle A.x <-> B.y with single_writer` | `crates/kain-entangle`, `runtime/native/src/core/entangle.c` |
+| `entangle` | State coupling between world fields | `entangle A.x <-> B.y with single_writer` | `crates/entangle`, `runtime/native/src/core/entangle.c` |
 | `patch` | Intentional journaled state mutation | `patch commit(world: World, value: Int) -> Int:` | `types.rs check_patch`, `runtime_contract.rs RuntimePatchContract`, `stdlib/intent.kn` |
 | `law` | Invariant predicate with Bool contract | `law in_bounds(x: Int) -> Bool:` | `types.rs check_law`, Z3 `keywords-law-runtime-accepts-only-bool-results.yaml` |
 | `converge` | Spec plus target/capability fast lanes | `spec reference`, `fast llvm_lane when target("llvm")` | `types.rs check_converge`, `runtime.rs select_converge_lane`, LLVM `compile_converge` |
@@ -107,11 +107,11 @@ Core source anchors:
 | `pulse` | First-class temporal beat | `pulse tick every 8ms jitter 1ms:` | `types.rs check_pulse`, LLVM pulse lowering, `machine_stones.c` |
 | `teleport` | Destructive cross-world ownership handoff | `teleport value from A to B via channel` | `types.rs ensure_teleport_world_reference`, LLVM `compile_teleport_expr`, `machine_stones.c` |
 | `macro` | Token/block macro definitions and calls | `macro name!(...)` | `parser.rs parse_macro`, `ast.rs MacroDef` |
-| `test` | Source-local test blocks | `test "name": ...` | `parser.rs parse_test`, `types.rs check_test`, `crates/kain-test` |
+| `test` | Source-local test blocks | `test "name": ...` | `parser.rs parse_test`, `types.rs check_test`, `crates/test` |
 | material graph | Material DSL | `@material_graph` then `material Name:` | `parser.rs parse_material_graph`, `ast.rs MaterialGraphDef` |
 | material function | Material helper DSL | `@material_function` then `fn Name(...)` | `parser.rs parse_material_function`, `ast.rs MaterialFunctionDef` |
 | graph editor/runtime | Editor graph DSLs | `@graph_editor graph Name:`, `@graph_runtime struct Name:` | `parser.rs parse_graph_editor/parse_graph_runtime` |
-| state machine | State/transition DSL | `@state_machine struct Name:` with `@state` and `@transition` | `parser.rs parse_state_machine`, `crates/kain-core/tests/test_state_machine_parser.rs` |
+| state machine | State/transition DSL | `@state_machine struct Name:` with `@state` and `@transition` | `parser.rs parse_state_machine`, `crates/core/tests/test_state_machine_parser.rs` |
 | editor module | Tooling/editor menu surface | `@editor_module struct Name:` | `parser.rs parse_editor_module` |
 | gameplay DSLs | UE-style gameplay surfaces | `@gameplay_tags`, `@ability`, `@gameplay_effect`, `@gameplay_cue`, `@ability_task`, `@target_actor` | `parser.rs parse_gameplay_*`, `stdlib/ue5/*` |
 
@@ -189,10 +189,10 @@ Component rules:
 
 Primary source anchors:
 
-- `crates/kain-core/src/ast.rs`: `Component`, `StateDecl`, `JSXNode`, `JSXAttribute`, `JSXAttrValue`.
-- `crates/kain-core/src/parser.rs`: `parse_component_with_attrs`, `parse_jsx_element`.
-- `crates/kain-core/src/types.rs`: `check_component`, `check_jsx_semantics`, `check_world_surface_projection`.
-- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`: `compile_jsx`, `compile_component`.
+- `crates/core/src/ast.rs`: `Component`, `StateDecl`, `JSXNode`, `JSXAttribute`, `JSXAttrValue`.
+- `crates/core/src/parser.rs`: `parse_component_with_attrs`, `parse_jsx_element`.
+- `crates/core/src/types.rs`: `check_component`, `check_jsx_semantics`, `check_world_surface_projection`.
+- `crates/sys-codegen/src/codegen_llvm/mod.rs`: `compile_jsx`, `compile_component`.
 - `runtime_contract.rs`: capabilities `ui.components`, `ui.runtime-bundle`, `world.native-ui`.
 - Examples: `blades/kaintana/src/kaintana.kn`, `blades/kaintana-test/src/main.kn`, `blades/kain-example/src/ui.kn`.
 
@@ -242,12 +242,12 @@ Shader rules:
 
 Primary source anchors:
 
-- `crates/kain-core/src/ast.rs`: `Shader`, `ShaderStage`, `Uniform`, `ComputeMetadata`, `ComputeTensorPlan`, `ComputeStreamPlan`, `ComputeNeuralNodePlan`.
-- `crates/kain-core/src/parser.rs`: `parse_shader`, compute metadata validation call after parse.
-- `crates/kain-core/src/types.rs`: `check_shader`.
-- `crates/kain-core/src/runtime_contract.rs`: capabilities `gpu.programs`, `gpu.compute`, `gpu.compute-dispatch`, `interop.shared-buffer`, `data.tensor-buffer`, `data.continuous-stream`, `neural.node-plan`.
+- `crates/core/src/ast.rs`: `Shader`, `ShaderStage`, `Uniform`, `ComputeMetadata`, `ComputeTensorPlan`, `ComputeStreamPlan`, `ComputeNeuralNodePlan`.
+- `crates/core/src/parser.rs`: `parse_shader`, compute metadata validation call after parse.
+- `crates/core/src/types.rs`: `check_shader`.
+- `crates/core/src/runtime_contract.rs`: capabilities `gpu.programs`, `gpu.compute`, `gpu.compute-dispatch`, `interop.shared-buffer`, `data.tensor-buffer`, `data.continuous-stream`, `neural.node-plan`.
 - `crates/gpu/src/codegen_spirv.rs`, `crates/gpu/src/codegen_ptx.rs`, `crates/gpu/src/codegen_hlsl.rs`: backend shader emitters.
-- `crates/kain-gpu-runtime/src/executor.rs`: runtime execution side.
+- `crates/gpu-runtime/src/executor.rs`: runtime execution side.
 - `crates/gpu/z3/proofs`: vector, layout, PTX, storage-buffer proof surfaces.
 - Examples: `benchmark/cases/gpu_graphics_submit/main.kn`, `library_of_kain/gpu_semantic_ping_pong.kn`, `blades/vulkain/src/vulkain.kn`.
 
@@ -308,12 +308,12 @@ Primary source anchors:
 - `ast.rs`: `WorldDef`, `WorldStateSlot`, `WorldSurfaceProjection`, `EntangleDef`, `PatchDef`, `LawDef`.
 - `parser.rs`: `parse_world`, `parse_entangle`, `parse_patch`, `parse_law`.
 - `types.rs`: `check_world`, `check_entangle`, `check_patch`, `check_law`.
-- `crates/kain-entangle/src/lib.rs`: `EntangleGraph`, `EntanglePolicy::SingleWriter`, duplicate endpoint and mirror-write policy.
+- `crates/entangle/src/lib.rs`: `EntangleGraph`, `EntanglePolicy::SingleWriter`, duplicate endpoint and mirror-write policy.
 - `runtime_contract.rs`: `RuntimeWorldContract`, `RuntimeEntangleContract`, `RuntimePatchContract`, `RuntimeLawContract`, capabilities `state.entangle`, `patch.transactions`, `law.invariants`.
 - `runtime/native/include/entangle.h`, `runtime/native/src/core/entangle.c`: native registry and bounded C strings.
 - `runtime/native/src/core/kain_runtime_native_stdlib.c`: native stdlib counters/status helpers.
 - `stdlib/intent.kn`: public Kain wrappers for patch/law/entangle helpers.
-- Z3: `crates/kain-core/z3/proofs/keywords-law-runtime-accepts-only-bool-results.yaml`, `keywords-patch-cancel-rewinds-only-when-reversible.yaml`, `runtime/native/src/core/z3/proofs/native-entangle-*.yaml`, `native-stdlib-patch-journal-count-stays-within-capacity.yaml`.
+- Z3: `crates/core/z3/proofs/keywords-law-runtime-accepts-only-bool-results.yaml`, `keywords-patch-cancel-rewinds-only-when-reversible.yaml`, `runtime/native/src/core/z3/proofs/native-entangle-*.yaml`, `native-stdlib-patch-journal-count-stays-within-capacity.yaml`.
 
 ## Converge
 
@@ -351,7 +351,7 @@ Primary source anchors:
 - `runtime_contract.rs`: `RuntimeConvergeContract`, `RuntimeConvergeLaneContract`, capability `converge.dispatch`.
 - `codegen_llvm/mod.rs`: `compile_converge`.
 - `runtime/native/include/converge.h`.
-- Z3: `crates/kain-core/z3/proofs/keywords-converge-first-fast-lane-wins-and-spec-fallback.yaml`.
+- Z3: `crates/core/z3/proofs/keywords-converge-first-fast-lane-wins-and-spec-fallback.yaml`.
 
 ## Orchestrate
 
@@ -384,7 +384,7 @@ Primary source anchors:
 - `types.rs`: `check_orchestrate`, `collect_orchestrate_stage_descriptors`, `infer_expr_type Expr::StageCall`.
 - `runtime.rs`: `execute_orchestrate_call`, `execute_stage_call`, `execute_rust_stage_call`, `execute_python_stage_call`, `execute_node_stage_call`.
 - `runtime_contract.rs`: `RuntimeOrchestrationContract`, `RuntimeOrchestrationStageContract`, capability `orchestrate.pipeline`.
-- Z3: `crates/kain-core/z3/proofs/keywords-orchestrate-rejects-invalid-stage-ordering.yaml`.
+- Z3: `crates/core/z3/proofs/keywords-orchestrate-rejects-invalid-stage-ordering.yaml`.
 
 ## Axiom, Pulse, Shatter, Teleport
 
@@ -501,10 +501,10 @@ Ownership/memory rules:
 
 Primary source anchors:
 
-- Actors: `crates/kain-core/src/ast.rs Actor/MessageHandler/Expr::Spawn/Expr::SendMsg`, `crates/kain-core/src/parser.rs parse_actor_with_attrs`, `crates/kain-actor`, `runtime/native/include/actor.h`, `stdlib/native/actor.kn`.
-- Ownership: `crates/kain-ownership/src/lib.rs`, `crates/kain-core/src/types.rs ownership checks`, `runtime/native/include/ownership.h`, `runtime/native/src/core/*ownership*`.
-- Memory: `crates/kain-core/src/low_level_memory.rs`, `ast.rs Expr::PtrOffset/MemLoad/MemStore/Alloc/Realloc`, `runtime/native/include/memory.h`, `runtime/native/src/core/*memory*`.
-- Z3: `crates/kain-ownership/z3/proofs`, `runtime/native/src/core/z3/proofs/native-ownership-*.yaml`, `native-memory-*.yaml`.
+- Actors: `crates/core/src/ast.rs Actor/MessageHandler/Expr::Spawn/Expr::SendMsg`, `crates/core/src/parser.rs parse_actor_with_attrs`, `crates/actor`, `runtime/native/include/actor.h`, `stdlib/native/actor.kn`.
+- Ownership: `crates/ownership/src/lib.rs`, `crates/core/src/types.rs ownership checks`, `runtime/native/include/ownership.h`, `runtime/native/src/core/*ownership*`.
+- Memory: `crates/core/src/low_level_memory.rs`, `ast.rs Expr::PtrOffset/MemLoad/MemStore/Alloc/Realloc`, `runtime/native/include/memory.h`, `runtime/native/src/core/*memory*`.
+- Z3: `crates/ownership/z3/proofs`, `runtime/native/src/core/z3/proofs/native-ownership-*.yaml`, `native-memory-*.yaml`.
 
 ## Comptime, Macros, Tests
 
@@ -537,7 +537,7 @@ Primary source anchors:
 - `ast.rs`: `ComptimeBlock`, `Expr::Comptime`, `MacroDef`, `MacroParamKind`, `TestDef`.
 - `comptime.rs`: comptime evaluator.
 - `types.rs`: `check_test`, macro/type paths.
-- `crates/kain-check`, `crates/kain-test`, `smoketest/kain-test`.
+- `crates/check`, `crates/test`, `smoketest/kain-test`.
 
 ## Material, Graph, Editor, Gameplay DSLs
 
@@ -598,7 +598,7 @@ When authoring a semantic feature, expect these contract capabilities:
 - Orchestrate: `orchestrate.pipeline`.
 - World UI surfaces: `world.native-ui`.
 
-Source: `crates/kain-core/src/runtime_contract.rs` capability construction.
+Source: `crates/core/src/runtime_contract.rs` capability construction.
 
 ## Validation Ladders
 
@@ -632,7 +632,7 @@ rg -n "semantic|quantum|pulse|teleport|entangle|shatter" attrition
 For proofs:
 
 - Use Z3 proof packs when changing compiler/runtime ownership, pointer arithmetic, ABI layout, lane dispatch, shatter offsets, teleport handoff, or entangle registry bounds.
-- Existing keyword proofs live under `crates/kain-core/z3/proofs`.
+- Existing keyword proofs live under `crates/core/z3/proofs`.
 - Existing GPU proofs live under `crates/gpu/z3/proofs`.
 - Existing native semantic proofs live under `runtime/native/src/core/z3/proofs`.
 

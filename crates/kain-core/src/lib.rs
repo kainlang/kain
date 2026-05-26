@@ -6,6 +6,7 @@
 pub mod asm_ir;
 pub mod ast;
 pub mod comptime;
+pub mod diagnostic_capture;
 pub mod diagnostic_registry;
 pub mod diagnostics;
 pub mod effects;

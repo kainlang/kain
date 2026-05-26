@@ -3306,6 +3306,7 @@ dependencies = [
  "kain-run",
  "logos",
  "ratatui",
+ "serde_json",
  "unicode-width 0.1.14",
 ]
 

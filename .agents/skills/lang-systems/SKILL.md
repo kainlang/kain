@@ -20,8 +20,8 @@ This is the metal-authoring field manual for Kain. Use it when the authored `.kn
 
 ```powershell
 rg -n "\b(actor|spawn|send|ask|async|await|with (Pure|IO|Async|GPU|Reactive|Unsafe)|collapse|observe|decay|ptr<|alloc_zeroed|ptr_offset|mem_load|mem_store|volatile_load|volatile_store|atomic_[a-z_]+|lfence|sfence|mfence|clflush|asm\(|shatter struct)\b" library_of_kain blades benchmark smoketest stdlib
-rg -n "Effect|EffectSet|parse_effects|parse_actor|Expr::(Spawn|SendMsg|Collapse|Observe|Decay|PtrOffset|MemLoad|MemStore|VolatileLoad|VolatileStore|Atomic[A-Za-z]+|Bitcast|CpuFence|CpuCacheFlush|InlineAsm|Alloc|Realloc|Await|AsyncBlock)" crates/kain-core/src
-rg -n "kain_actor_|__kain_ownership|kain_machine_shatter|kain_machine_teleport|mailbox|scheduler|clflush|lfence|sfence|mfence|rdtsc|cpuid|prefetch|vm_" runtime/native crates/kain-sys-codegen/src stdlib
+rg -n "Effect|EffectSet|parse_effects|parse_actor|Expr::(Spawn|SendMsg|Collapse|Observe|Decay|PtrOffset|MemLoad|MemStore|VolatileLoad|VolatileStore|Atomic[A-Za-z]+|Bitcast|CpuFence|CpuCacheFlush|InlineAsm|Alloc|Realloc|Await|AsyncBlock)" crates/core/src
+rg -n "kain_actor_|__kain_ownership|kain_machine_shatter|kain_machine_teleport|mailbox|scheduler|clflush|lfence|sfence|mfence|rdtsc|cpuid|prefetch|vm_" runtime/native crates/sys-codegen/src stdlib
 kain check <entry.kn> --target llvm
 kain run <entry.kn-or-blade> --target llvm
 ```
@@ -45,26 +45,26 @@ Systems Kain normally crosses these layers:
 
 ```text
 .kn systems source
--> effect parsing and AST in crates/kain-core/src/parser.rs + ast.rs
--> type/effect/ownership/actor validation in crates/kain-core/src/types.rs
--> portable actor/ownership truth in crates/kain-actor + crates/kain-ownership
--> interpreter behavior in crates/kain-core/src/runtime.rs where supported
--> LLVM/C/Rust lowering in crates/kain-sys-codegen
+-> effect parsing and AST in crates/core/src/parser.rs + ast.rs
+-> type/effect/ownership/actor validation in crates/core/src/types.rs
+-> portable actor/ownership truth in crates/actor + crates/ownership
+-> interpreter behavior in crates/core/src/runtime.rs where supported
+-> LLVM/C/Rust lowering in crates/sys-codegen
 -> native runtime substrate in runtime/native for actors, ownership, heap, shatter, teleport, pulse
 -> benchmark/attrition/Z3 evidence when the claim is performance, safety, or teardown
 ```
 
 Source anchors:
 
-- Effects: `crates/kain-core/src/effects.rs`, `parser.rs parse_effects`, `types.rs check_effect_call`.
+- Effects: `crates/core/src/effects.rs`, `parser.rs parse_effects`, `types.rs check_effect_call`.
 - Actor syntax: `parser.rs parse_actor_with_attrs`, `parse spawn`, `parse send`, `ast.rs Actor`, `Expr::Spawn`, `Expr::SendMsg`.
-- Actor validation: `types.rs check_actor`, `crates/kain-actor/src/validation.rs`, `crates/kain-actor/src/native.rs`.
-- Actor runtime/interpreter: `crates/kain-core/src/runtime.rs` actor helpers, `stdlib/actor.kn`.
-- Actor LLVM/native: `crates/kain-sys-codegen/src/codegen_llvm/mod.rs compile_actor`, `compile_actor_builtin_ask`, `runtime/native/include/actor.h`, `runtime/native/src/core/actor.c`.
-- Ownership model: `crates/kain-ownership/src/lib.rs`, `crates/kain-core/src/types.rs` ownership inference, `runtime/native/include/ownership.h`, `runtime/native/src/core/ownership*`.
-- Raw memory AST/type/lowering: `ast.rs Type::Ptr`, `Expr::PtrOffset`, `Expr::MemLoad`, `Expr::MemStore`, `Expr::VolatileLoad`, `Expr::VolatileStore`, `Expr::Atomic*`, `Expr::Bitcast`, `Expr::CpuFence`, `Expr::CpuCacheFlush`, `Expr::InlineAsm`, `Expr::Alloc`, `Expr::Realloc`, `crates/kain-core/src/low_level_memory.rs`, LLVM memory lowering.
+- Actor validation: `types.rs check_actor`, `crates/actor/src/validation.rs`, `crates/actor/src/native.rs`.
+- Actor runtime/interpreter: `crates/core/src/runtime.rs` actor helpers, `stdlib/actor.kn`.
+- Actor LLVM/native: `crates/sys-codegen/src/codegen_llvm/mod.rs compile_actor`, `compile_actor_builtin_ask`, `runtime/native/include/actor.h`, `runtime/native/src/core/actor.c`.
+- Ownership model: `crates/ownership/src/lib.rs`, `crates/core/src/types.rs` ownership inference, `runtime/native/include/ownership.h`, `runtime/native/src/core/ownership*`.
+- Raw memory AST/type/lowering: `ast.rs Type::Ptr`, `Expr::PtrOffset`, `Expr::MemLoad`, `Expr::MemStore`, `Expr::VolatileLoad`, `Expr::VolatileStore`, `Expr::Atomic*`, `Expr::Bitcast`, `Expr::CpuFence`, `Expr::CpuCacheFlush`, `Expr::InlineAsm`, `Expr::Alloc`, `Expr::Realloc`, `crates/core/src/low_level_memory.rs`, LLVM memory lowering.
 - Machine layout/handoff and ISA helpers: `stdlib/machine.kn`, `runtime/native/src/core/cpu.c`, `runtime/native/include/cpu.h`, `runtime/native/include/machine_stones.h`, `runtime/native/src/core/machine_stones.c`, LLVM shatter/teleport/pulse lowering.
-- Proofs: `crates/kain-ownership/z3/proofs`, `crates/kain-core/z3/proofs`, `runtime/native/src/core/z3/proofs`, subsystem benchmark cases.
+- Proofs: `crates/ownership/z3/proofs`, `crates/core/z3/proofs`, `runtime/native/src/core/z3/proofs`, subsystem benchmark cases.
 
 ## Feature Index
 
@@ -78,9 +78,9 @@ Source anchors:
 | `send` | Fire message from handler/user code | `send target.Message(value = x)` | `parser.rs send expression`, `Expr::SendMsg`, LLVM actor send |
 | `ask` | Request/reply helper | `ask(actor, "Fold", request)` | `runtime.rs ask`, LLVM `compile_actor_builtin_ask`, `stdlib/actor.kn` |
 | actor telemetry | Inspect native actor pressure | `actor_scheduler_queue_depth()` | `stdlib/actor.kn`, `runtime/native/src/core/actor.c` |
-| `collapse` | Exclusive scoped mutation | `collapse cells: ...` | `crates/kain-ownership`, `Expr::Collapse` |
-| `observe` | Read-only scoped observation | `observe cells: ...` | `crates/kain-ownership`, `Expr::Observe` |
-| `decay` | Deterministic teardown | `decay cells` | `crates/kain-ownership`, `Expr::Decay` |
+| `collapse` | Exclusive scoped mutation | `collapse cells: ...` | `crates/ownership`, `Expr::Collapse` |
+| `observe` | Read-only scoped observation | `observe cells: ...` | `crates/ownership`, `Expr::Observe` |
+| `decay` | Deterministic teardown | `decay cells` | `crates/ownership`, `Expr::Decay` |
 | raw pointer | Explicit memory region | `ptr<Int>`, `ptr<Float>` | `ast.rs Type::Ptr`, `low_level_memory.rs` |
 | allocation | Own memory from Kain | `alloc_zeroed(count, "Int")` | `Expr::Alloc`, LLVM/native memory helpers |
 | reallocation | Grow memory region | `realloc_mem(ptr, n, "Int", true)` | `Expr::Realloc`, stdlib/runtime helpers |
@@ -133,11 +133,11 @@ Effect rules:
 
 Effect source anchors:
 
-- `crates/kain-core/src/effects.rs`: `Effect`, `EffectSet`, `can_call`, `check_effect_call`.
-- `crates/kain-core/src/parser.rs`: `parse_effects`, `parse_async_function`.
-- `crates/kain-core/src/types.rs`: function/method call effect checking.
-- `crates/kain-core/src/diagnostic_registry.rs`: `effects/violation`.
-- `crates/kain-sys-codegen/src/codegen_rust/mod.rs`: effect-to-modifier behavior for Rust output.
+- `crates/core/src/effects.rs`: `Effect`, `EffectSet`, `can_call`, `check_effect_call`.
+- `crates/core/src/parser.rs`: `parse_effects`, `parse_async_function`.
+- `crates/core/src/types.rs`: function/method call effect checking.
+- `crates/core/src/diagnostic_registry.rs`: `effects/violation`.
+- `crates/sys-codegen/src/codegen_rust/mod.rs`: effect-to-modifier behavior for Rust output.
 
 ## Actors: Message-Turn Systems
 
@@ -182,7 +182,7 @@ Actor source anchors:
 - `parser.rs` send/spawn expression paths: send parses method-call shape and spawn requires named arguments.
 - `ast.rs`: `Actor`, `MessageHandler`, `Expr::Spawn`, `Expr::SendMsg`.
 - `types.rs check_actor`: state initializer type checks, handler params, self binding, actor contract validation.
-- `crates/kain-actor/src/validation.rs`: duplicate state/handler/method validation and mailbox/restart model.
+- `crates/actor/src/validation.rs`: duplicate state/handler/method validation and mailbox/restart model.
 - `runtime.rs`: interpreter actor registry, `send`, `ask`, `ask_timeout`, actor handler execution.
 - `codegen_llvm/mod.rs`: `compile_actor`, `compile_actor_builtin_ask`, native actor declarations.
 - `runtime/native/include/actor.h`, `runtime/native/src/core/actor.c`: scheduler, mailbox, reply ports, monitor/link, supervision, telemetry.
@@ -283,12 +283,12 @@ Ownership rules:
 
 Ownership source anchors:
 
-- `crates/kain-ownership/src/lib.rs`: `OwnershipState`, `OwnershipTransition`, region kinds, transition errors.
+- `crates/ownership/src/lib.rs`: `OwnershipState`, `OwnershipTransition`, region kinds, transition errors.
 - `ast.rs`: `Expr::Collapse`, `Expr::Observe`, `Expr::Decay`.
 - `types.rs`: ownership expression traversal, early-exit rejection, target type checks.
 - `runtime/native/tests/test_ownership_memory.c`: native guard behavior.
 - `runtime/native/include/ownership.h`, `runtime/native/src/core/*ownership*`.
-- `crates/kain-ownership/z3/proofs`, `runtime/native/src/core/z3/proofs/native-ownership-*.yaml`.
+- `crates/ownership/z3/proofs`, `runtime/native/src/core/z3/proofs/native-ownership-*.yaml`.
 
 ## Raw Memory And Pointer Lanes
 
@@ -332,7 +332,7 @@ Raw memory rules:
 Raw memory source anchors:
 
 - `ast.rs`: `Type::Ptr`, `PointerProvenance`, `Expr::PtrOffset`, `Expr::MemLoad`, `Expr::MemStore`, `Expr::VolatileLoad`, `Expr::VolatileStore`, `Expr::Alloc`, `Expr::Realloc`.
-- `crates/kain-core/src/low_level_memory.rs`: AST-to-low-level helper handling and memory metadata.
+- `crates/core/src/low_level_memory.rs`: AST-to-low-level helper handling and memory metadata.
 - `types.rs infer_expr_type`: pointer/memload/memstore type behavior.
 - `codegen_llvm/mod.rs`: pointer collect/forwarding, memory load/store, ownership provenance, ephemeral local/shatter handling.
 - `runtime/native/include/memory.h`, `runtime/native/src/core/*memory*`.
@@ -374,10 +374,10 @@ Metal rules:
 
 Metal source anchors:
 
-- `crates/kain-core/src/ast.rs`: `AtomicOrdering`, `Expr::VolatileLoad`, `Expr::VolatileStore`, `Expr::Atomic*`, `Expr::Bitcast`, `Expr::CpuFence`, `Expr::CpuCacheFlush`, `Expr::InlineAsm`.
-- `crates/kain-core/src/parser.rs`: builtin normalization for `volatile_*`, atomic family, `lfence` / `sfence` / `mfence`, `clflush`, and `asm`.
-- `crates/kain-core/src/types.rs`: unsafe gating, atomic ordering checks, inline-asm operand restrictions.
-- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`: LLVM volatile, `atomicrmw`, `cmpxchg`, `fence`, x86 barrier/cache-flush lowering, inline asm MVP.
+- `crates/core/src/ast.rs`: `AtomicOrdering`, `Expr::VolatileLoad`, `Expr::VolatileStore`, `Expr::Atomic*`, `Expr::Bitcast`, `Expr::CpuFence`, `Expr::CpuCacheFlush`, `Expr::InlineAsm`.
+- `crates/core/src/parser.rs`: builtin normalization for `volatile_*`, atomic family, `lfence` / `sfence` / `mfence`, `clflush`, and `asm`.
+- `crates/core/src/types.rs`: unsafe gating, atomic ordering checks, inline-asm operand restrictions.
+- `crates/sys-codegen/src/codegen_llvm/mod.rs`: LLVM volatile, `atomicrmw`, `cmpxchg`, `fence`, x86 barrier/cache-flush lowering, inline asm MVP.
 - `stdlib/machine.kn`: public authored wrappers such as `load_fence`, `store_fence`, `full_fence`, `cache_flush`, `spin_loop_hint`, VM, topology, and CPU helpers.
 - `runtime/native/src/core/memory.c` and `runtime/native/src/core/cpu.c`: native helper floor for ordered atomics, VM, affinity, `pause`, `rdtsc`, `cpuid`, and prefetch.
 
@@ -419,7 +419,7 @@ Layout source anchors:
 - `runtime_contract.rs RuntimeShatterContract`, capability `memory.shatter`.
 - `codegen_llvm/mod.rs`: `compile_shattered_array_literal`, `compile_shattered_field_ptr`, stack shatter candidate analysis.
 - `runtime/native/include/machine_stones.h`, `runtime/native/src/core/machine_stones.c`.
-- Z3: `crates/kain-core/z3/proofs/keywords-shatter-field-lane-offset-stays-in-bounds.yaml`, native machine proofs.
+- Z3: `crates/core/z3/proofs/keywords-shatter-field-lane-offset-stays-in-bounds.yaml`, native machine proofs.
 
 ## Async And Future Systems
 

@@ -12,10 +12,10 @@ This is the native C runtime field manual. Use it when Kain's compiled/native la
 
 - Treat `runtime/native` as Kain's ABI floor, not as a dumping ground for app policy, platform lore, or package experiments.
 - Keep generic runtime semantics data-driven through manifests, service descriptors, ABI headers, runtime contracts, reflection payloads, and diagnostics.
-- Preserve the layer split: `crates/kain-core` owns language meaning, `crates/kain-sys-codegen` owns lowering, and `runtime/native` owns the concrete C substrate that emitted code calls.
+- Preserve the layer split: `crates/core` owns language meaning, `crates/sys-codegen` owns lowering, and `runtime/native` owns the concrete C substrate that emitted code calls.
 - If a runtime invariant is arithmetic, layout, capacity, pointer, state-machine, or ABI compatibility shaped, prove it with Z3 or explain exactly why it cannot be modeled yet.
 - If performance is the reason for the change, produce both proof and a measured lane: Z3 for the invariant/equivalence, benchmark or conformance telemetry for the win.
-- If a native runtime change becomes public Kain surface, update the matching root `stdlib/*.kn`, native `stdlib/native/*.kn` if present, `crates/kain-core/src/stdlib.rs` declarations where needed, and regenerate `stdlib/STDLIB_MAP.llm.md`.
+- If a native runtime change becomes public Kain surface, update the matching root `stdlib/*.kn`, native `stdlib/native/*.kn` if present, `crates/core/src/stdlib.rs` declarations where needed, and regenerate `stdlib/STDLIB_MAP.llm.md`.
 
 ## Fast Operator Loop
 
@@ -54,8 +54,8 @@ When the task is broad or unfamiliar, read only the reference that matches the w
 
 ```text
 .kn source
--> crates/kain-core parses/types/emits runtime contracts
--> crates/kain-sys-codegen lowers LLVM/direct-C calls and ABI layouts
+-> crates/core parses/types/emits runtime contracts
+-> crates/sys-codegen lowers LLVM/direct-C calls and ABI layouts
 -> runtime/native_core_runtime.toml selects the lean native C source set
 -> runtime/native/include declares stable C ABI shapes
 -> runtime/native/src/core implements Kain-owned runtime substrate
@@ -119,7 +119,7 @@ For solver-discovered tables, constants, branchless rewrites, or weird hot-path 
 
 Actor runtime:
 
-- Read `runtime/native/include/actor.h`, `runtime/native/include/ACTOR_RUNTIME_OWNERSHIP.md`, `runtime/native/src/core/actor.c`, `crates/kain-actor/src/native.rs`, and the LLVM actor lowering seam if ABI layout changes.
+- Read `runtime/native/include/actor.h`, `runtime/native/include/ACTOR_RUNTIME_OWNERSHIP.md`, `runtime/native/src/core/actor.c`, `crates/actor/src/native.rs`, and the LLVM actor lowering seam if ABI layout changes.
 - Prove queue capacity, generation, reply-port stale rejection, mailbox underflow, scheduler accounting, and restart-window math.
 - Validate with `runtime/conformance/actor_runtime/run_tests.sh --verbose`, Bazel `//runtime:native_runtime_tests`, and a Kain actor fixture/benchmark when generated code behavior changes.
 
@@ -144,7 +144,7 @@ Machine stones, CPU, converge, SIMD:
 Stdlib-facing native helpers:
 
 - Co-trigger `runtime-stdlib` when the behavior is a domain API rather than generic runtime substrate.
-- Update `stdlib/*.kn`, `stdlib/native/*.kn` if relevant, `crates/kain-core/src/stdlib.rs` native declarations, canonical examples, and regenerate `stdlib/STDLIB_MAP.llm.md` when public surface changes.
+- Update `stdlib/*.kn`, `stdlib/native/*.kn` if relevant, `crates/core/src/stdlib.rs` native declarations, canonical examples, and regenerate `stdlib/STDLIB_MAP.llm.md` when public surface changes.
 
 ## Validation Ladders
 

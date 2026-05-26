@@ -618,9 +618,9 @@ The live benchmark truth is data, not a frozen timestamp. Start with `benchmark/
 
 ## Main Repo Map
 
-- `crates/kain-core`: parser, AST, typechecking, interpreter semantics, compiler-owned keywords, diagnostics, stdlib loading, core language truth
-- `crates/kain-sys-codegen`: LLVM/native lowering and direct systems codegen
-- `crates/kain-commands` and `crates/cli`: command routing and CLI surface
+- `crates/core`: parser, AST, typechecking, interpreter semantics, compiler-owned keywords, diagnostics, stdlib loading, core language truth
+- `crates/sys-codegen`: LLVM/native lowering and direct systems codegen
+- `crates/commands` and `crates/cli`: command routing and CLI surface
 - `runtime/native`: C ABI floor, native runtime manifests, core runtime systems, UI/graphics/net/process/actor/async/ownership substrate
 - `stdlib`: canonical public and native-authored Kain stdlib
 - `blades`: dogfood workspaces, reusable Kain libraries, demos, acceptance apps, and executable proof surfaces
@@ -778,9 +778,9 @@ python attrition/run.py --case <case> --sabotage <mode>
 ## Proof And Performance Gates
 
 - Low-level C/runtime/native changes: use the relevant runtime/native Z3 proof pack.
-- LLVM/codegen changes: use the relevant `crates/kain-sys-codegen/z3` proof pack when arithmetic, layout, branches, casts, or memory bridges are involved.
-- Parser/diagnostic/core language invariants: use `crates/kain-core/z3`.
-- Ownership-state changes: use `crates/kain-ownership/z3`.
+- LLVM/codegen changes: use the relevant `crates/sys-codegen/z3` proof pack when arithmetic, layout, branches, casts, or memory bridges are involved.
+- Parser/diagnostic/core language invariants: use `crates/core/z3`.
+- Ownership-state changes: use `crates/ownership/z3`.
 - GPU/SPIR-V/PTX changes: use `crates/gpu/z3`.
 - Benchmark claims go through `benchmark/run.py` or a wrapper in `benchmark/wrappers/*.json`.
 - Runtime closure claims go through `attrition/run.py`, including expected-fail sabotage when proving the harness catches the class of bug.

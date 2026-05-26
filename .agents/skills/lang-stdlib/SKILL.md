@@ -101,7 +101,7 @@ authored Kain
 -> public root import such as std::fs or std::json
 -> top-level stdlib/*.kn module
 -> private abi_* declarations and pure Kain wrappers/helpers
--> stdlib loader and import truth in crates/kain-core
+-> stdlib loader and import truth in crates/core
 -> portable Rust contract crates when present
 -> runtime/native C ABI substrate and service tables
 -> smoketest, blades, benchmark, attrition, runtime conformance, and Z3 evidence
@@ -112,11 +112,11 @@ Primary source anchors:
 - Root completion backlog: `stdlib/requirements.md`
 - Live root atlas: `stdlib/STDLIB_MAP.llm.md`, `stdlib/stdlib.map.json`
 - Atlas query helper: `query_stdlib.py`
-- Atlas generator: `crates/kain-stdlib-map`
+- Atlas generator: `crates/stdlib-map`
 - Root stdlib source: `stdlib/*.kn`
-- Stdlib loading and target profile ordering: `crates/kain-core/src/stdlib.rs`
-- Parser/typechecker import consumers: `crates/kain-core/src`
-- Portable owners: `crates/kain-fs`, `crates/kain-input`, `crates/kain-net`, `crates/kain-process`, `crates/kain-actor`
+- Stdlib loading and target profile ordering: `crates/core/src/stdlib.rs`
+- Parser/typechecker import consumers: `crates/core/src`
+- Portable owners: `crates/fs`, `crates/input`, `crates/net`, `crates/process`, `crates/actor`
 - Native runtime owners: `runtime/native/include`, `runtime/native/src/core`, `runtime/native/src/ui`, `runtime/native/src/graphics`
 - Smoketest album: `smoketest/src/main.kn`, `smoketest/build.kn`, `smoketest/src/stdlib`
 - Proof blades: `blades/stdlib-foundations`, `blades/stdlib-domains`, `blades/network-domains`, `blades/hash-domains`, `blades/math-domains`
@@ -315,7 +315,7 @@ Get-ChildItem -Name runtime\conformance
 7. Z3 when the surface relies on unsafe math, pointer/index bounds, packed layouts, branchless selectors, or queue/index invariants
 
 - Leave a code comment that points to the proof path when the proof backs a dirty fast path.
-- Prefer existing proof-pack homes in `crates/kain-core/z3/proofs`, `crates/gpu/z3/proofs`, or `runtime/native/src/core/z3/proofs`.
+- Prefer existing proof-pack homes in `crates/core/z3/proofs`, `crates/gpu/z3/proofs`, or `runtime/native/src/core/z3/proofs`.
 
 ## Donor Comparison Discipline
 

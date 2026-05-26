@@ -28,8 +28,8 @@ This catalog counts authored Kain language words, not punctuation.
 
 ## Source Of Truth
 
-- `crates/kain-core/src/lexer.rs`
-- `crates/kain-core/src/parser.rs`
+- `crates/core/src/lexer.rs`
+- `crates/core/src/parser.rs`
 - `docs/syntax-and-semantics/syntax.md`
 
 ## 1. Hard Lexer Keywords (`57`)

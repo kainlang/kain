@@ -2,7 +2,7 @@
 name: bootstrap-fs
 description: >-
   Use when changing compiler, frontend, or selfhost filesystem truth in
-  `crates/kain-fs`, `crates/kain-core`, or Rust workspace tooling that
+  `crates/fs`, `crates/core`, or Rust workspace tooling that
   consumes `kain-fs`: sandbox or capability policy, `fs://` resolution,
   interpreter `fs_*` globals, module resolution, deterministic workspace IO,
   or shared filesystem error and metadata shapes. Do not use for the native C
@@ -15,8 +15,8 @@ Use this skill when the primary work changes Kain-owned filesystem semantics on 
 
 ## Trigger Surface
 
-- `crates/kain-fs/**` for portable file operations, path normalization, metadata, hashing, sandbox and capability policy, virtual mounts, streaming, watchers, and transactional journals.
-- `crates/kain-core/src/{module_resolution.rs,runtime.rs,types.rs,stdlib.rs}` for filesystem globals, import resolution, runtime-visible types, and target-callable registry metadata.
+- `crates/fs/**` for portable file operations, path normalization, metadata, hashing, sandbox and capability policy, virtual mounts, streaming, watchers, and transactional journals.
+- `crates/core/src/{module_resolution.rs,runtime.rs,types.rs,stdlib.rs}` for filesystem globals, import resolution, runtime-visible types, and target-callable registry metadata.
 - Rust workspace and tooling crates that should consume `kain-fs` instead of forking filesystem behavior, especially `kain-build`, `kain-run`, `kain-check`, `kain-test`, `kain-blades`, and `kain-codebase`.
 
 ## Boundaries
@@ -28,7 +28,7 @@ Use this skill when the primary work changes Kain-owned filesystem semantics on 
 
 ## Workflow
 
-1. Keep `crates/kain-fs` as the portable owner. Add shared path, capability, watch, or transaction behavior there first.
+1. Keep `crates/fs` as the portable owner. Add shared path, capability, watch, or transaction behavior there first.
 2. Update `kain-core` globals, types, and module resolution deliberately. Strict helpers should fail loudly; `fs_try_*` helpers should stay structured.
 3. Route selfhost and workspace IO through `kain-fs` instead of ad hoc `std::fs` calls.
 4. When native parity is required, co-trigger `runtime-stdlib` instead of letting this skill absorb C runtime policy.
@@ -44,7 +44,7 @@ cargo check -p kain-build -p kain-run -p kain-check -p kain-test -p kain-blades 
 If module resolution or import guard math changed, also run:
 
 ```powershell
-uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path crates\kain-core --lane full
+uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path crates\core --lane full
 ```
 
 ## Guardrails

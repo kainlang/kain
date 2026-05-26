@@ -54,7 +54,7 @@ Kain .kn source
 
 CPU/native host lane:
   CompileTarget::Llvm
-  -> crates/kain-sys-codegen
+  -> crates/sys-codegen
   -> LLVM IR
   -> native runtime ABI calls
   -> std::graphics, std::gpu policy use, stdlib calls, worlds, actors, pulse, ownership, @extern bridges
@@ -70,16 +70,16 @@ GPU shader lane:
 
 Core source anchors:
 
-- Shader parser: `crates/kain-core/src/parser.rs` `parse_shader`, including `shader vertex`, `shader fragment`, contextual `shader compute`, and `uniform name: Type @binding`.
-- Shader AST: `crates/kain-core/src/ast.rs` `Shader`, `ShaderStage`, `Uniform`, `ComputeMetadata`.
-- Shader typecheck: `crates/kain-core/src/types.rs` `check_shader`; `StorageBuffer<T>` resolves as slice-like `ResolvedType::Slice`.
-- LLVM host lane: `crates/kain-sys-codegen/src/codegen_llvm/mod.rs` `generate` and `compile_module`.
+- Shader parser: `crates/core/src/parser.rs` `parse_shader`, including `shader vertex`, `shader fragment`, contextual `shader compute`, and `uniform name: Type @binding`.
+- Shader AST: `crates/core/src/ast.rs` `Shader`, `ShaderStage`, `Uniform`, `ComputeMetadata`.
+- Shader typecheck: `crates/core/src/types.rs` `check_shader`; `StorageBuffer<T>` resolves as slice-like `ResolvedType::Slice`.
+- LLVM host lane: `crates/sys-codegen/src/codegen_llvm/mod.rs` `generate` and `compile_module`.
 - SPIR-V backend: `crates/gpu/src/codegen_spirv.rs`; it uses `rspirv` directly, not LLVM SPIR-V.
 - PTX backend: `crates/gpu/src/codegen_ptx.rs`; compute-only derived NVIDIA path.
-- Artifact bundle driver: `crates/kain-driver/src/lib.rs` `compile_shader_artifact_bundle`.
+- Artifact bundle driver: `crates/driver/src/lib.rs` `compile_shader_artifact_bundle`.
 - CLI artifact writer: `crates/cli/src/gpu_artifacts.rs`.
-- Vulkan compute executor: `crates/kain-gpu-runtime/src/executor.rs`.
-- NVIDIA PTX executor: `crates/kain-gpu-runtime/src/nvidia_ptx.rs`.
+- Vulkan compute executor: `crates/gpu-runtime/src/executor.rs`.
+- NVIDIA PTX executor: `crates/gpu-runtime/src/nvidia_ptx.rs`.
 - Native graphics ABI: `runtime/native/include/graphics_system.h`, `runtime/native/src/core/graphics_system.c`.
 
 ## Layer Truth
@@ -261,9 +261,9 @@ Policy rules:
 
 The compute runtime is more concrete than the public native graphics command recorder:
 
-- `crates/kain-gpu-runtime/src/executor.rs` consumes shader bundles and compute residency sidecars.
+- `crates/gpu-runtime/src/executor.rs` consumes shader bundles and compute residency sidecars.
 - It creates a Vulkan compute shader module, sorts descriptor bindings by slot, creates host-visible/coherent buffers, builds descriptor set layout and compute pipeline, binds descriptor sets, dispatches workgroups, inserts a `COMPUTE_SHADER -> HOST` memory barrier, submits the queue, waits idle, and maps output buffers back.
-- `crates/kain-gpu-runtime/src/nvidia_ptx.rs` loads the CUDA Driver API dynamically, JIT-loads PTX in memory, uploads storage buffers, launches the kernel, calls `cuCtxSynchronize`, downloads output buffers, and does not require the CUDA toolkit.
+- `crates/gpu-runtime/src/nvidia_ptx.rs` loads the CUDA Driver API dynamically, JIT-loads PTX in memory, uploads storage buffers, launches the kernel, calls `cuCtxSynchronize`, downloads output buffers, and does not require the CUDA toolkit.
 - NVIDIA PTX supports storage-buffer compute shapes; unsupported descriptor kinds should stay in SPIR-V/Vulkan or package bridge lanes.
 
 Authoring consequence:
@@ -438,7 +438,7 @@ Z3/proof expectations:
 ## Handoff Matrix
 
 - Use `bootstrap-gpu` when changing shader parsing/type metadata only if the compiler frontend/GPU lowering truth must change: SPIR-V, PTX, HLSL, layout lowering, builtins, `StorageBuffer<T>`, local size, spec constants.
-- Use `runtime-gpu` when changing `crates/kain-gpu-runtime`, native graphics ABI, runtime-side shader bundle consumption, Vulkan compute execution, NVIDIA PTX execution, or generic graphics runtime conformance.
+- Use `runtime-gpu` when changing `crates/gpu-runtime`, native graphics ABI, runtime-side shader bundle consumption, Vulkan compute execution, NVIDIA PTX execution, or generic graphics runtime conformance.
 - Use `package-vulkain` when the task touches `blades/vulkain`, package-local Vulkan bridges, shader paths, platform locks, example windows, or screenshots.
 - Use `lang-interop` when the GPU path crosses C ABI, platform packages, vendor DLLs, driver loaders, or OS window contracts.
 - Use `lang-ui` or `package-kaintana` when GPU rendering is attached to authored UI, Kaintana surfaces, overlays, or desktop UX.

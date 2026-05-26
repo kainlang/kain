@@ -2,7 +2,7 @@
 name: bootstrap-actors
 description: >-
   Use when changing compiler, frontend, or selfhost truth for Kain actors in
-  `crates/kain-actor`, `crates/kain-core`, `crates/kain-sys-codegen`, or
+  `crates/actor`, `crates/core`, `crates/sys-codegen`, or
   adjacent proof surfaces: actor syntax, typed actor contracts, interpreter
   behavior, runtime-contract reflection, or actor lowering. Do not use for
   `runtime/native` scheduler or mailbox substrate work or for authored actor
@@ -15,9 +15,9 @@ Use this skill when the primary work changes actor semantics or contracts that t
 
 ## Trigger Surface
 
-- `crates/kain-actor/**` for actor IDs, addresses, message shapes, definitions, mailbox policy metadata, supervision metadata, scheduler policy metadata, registry snapshots, and native ABI descriptors consumed by the frontend.
-- `crates/kain-core/src/{ast.rs,parser.rs,types.rs,runtime.rs,runtime_contract.rs}` for actor syntax, typechecking, interpreter-visible behavior, and reflected contract emission.
-- `crates/kain-sys-codegen/**` for actor spawn, send, ask, reply-port, or contract lowering that follows compiler truth.
+- `crates/actor/**` for actor IDs, addresses, message shapes, definitions, mailbox policy metadata, supervision metadata, scheduler policy metadata, registry snapshots, and native ABI descriptors consumed by the frontend.
+- `crates/core/src/{ast.rs,parser.rs,types.rs,runtime.rs,runtime_contract.rs}` for actor syntax, typechecking, interpreter-visible behavior, and reflected contract emission.
+- `crates/sys-codegen/**` for actor spawn, send, ask, reply-port, or contract lowering that follows compiler truth.
 
 ## Boundaries
 
@@ -28,7 +28,7 @@ Use this skill when the primary work changes actor semantics or contracts that t
 
 ## Workflow
 
-1. Change `crates/kain-actor` contract types first when the actor model itself changed.
+1. Change `crates/actor` contract types first when the actor model itself changed.
 2. Propagate that truth through parser, typechecker, interpreter behavior, and runtime-contract reflection in `kain-core`.
 3. Update lowering only after the contract shape is settled.
 4. Keep actor contract, ask/reply typing, and actor ID behavior aligned across crate tests and proof surfaces.

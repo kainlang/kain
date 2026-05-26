@@ -32,7 +32,7 @@
 - Evidence: Historical Z3 counterexample admitted a relaxed success ordering paired with a stronger failure ordering, which violates the compare_exchange contract.
 - Historical counterexample: [native-memory-cas-failure-order-stronger-than-success-ub.yaml](/D:/Kain-Lang/runtime/native/src/core/z3/proofs/native-memory-cas-failure-order-stronger-than-success-ub.yaml)
 - Fix landed: The runtime now normalizes invalid failure-order shapes, clamps any stronger-than-success failure ordering before the C11 primitive executes, and emits warning-once diagnostics when it had to repair the request. LLVM lowering now rejects invalid failure orderings up front, and the parser preserves explicit failure orderings so the lowering validation is not silently masked.
-- Regression evidence: [native-memory-cas-failure-order-clamp-prevents-ub.yaml](/D:/Kain-Lang/runtime/native/src/core/z3/proofs/native-memory-cas-failure-order-clamp-prevents-ub.yaml), [memory-atomic-compare-exchange-validation-rejects-invalid-failure-orderings.yaml](/D:/Kain-Lang/crates/kain-sys-codegen/z3/proofs/memory-atomic-compare-exchange-validation-rejects-invalid-failure-orderings.yaml), `cargo test -p kain-core compare_exchange_ -- --nocapture`, `cargo test -p kain-sys-codegen rejects_ -- --nocapture`, `bazel test //runtime:native_test_atomic_memory_ordering`
+- Regression evidence: [native-memory-cas-failure-order-clamp-prevents-ub.yaml](/D:/Kain-Lang/runtime/native/src/core/z3/proofs/native-memory-cas-failure-order-clamp-prevents-ub.yaml), [memory-atomic-compare-exchange-validation-rejects-invalid-failure-orderings.yaml](/D:/Kain-Lang/crates/sys-codegen/z3/proofs/memory-atomic-compare-exchange-validation-rejects-invalid-failure-orderings.yaml), `cargo test -p kain-core compare_exchange_ -- --nocapture`, `cargo test -p kain-sys-codegen rejects_ -- --nocapture`, `bazel test //runtime:native_test_atomic_memory_ordering`
 
 ---
 
@@ -49,7 +49,7 @@
 - Evidence: Historical Z3 counterexample admitted the silent `ACQUIRE -> RELEASE` remap.
 - Historical counterexample: [native-memory-store-order-acquire-silently-downgrades-to-release.yaml](/D:/Kain-Lang/runtime/native/src/core/z3/proofs/native-memory-store-order-acquire-silently-downgrades-to-release.yaml)
 - Fix landed: The runtime now emits a warning once before canonicalizing invalid plain-store orderings to release semantics, and LLVM lowering rejects acquire/acq_rel orderings for plain stores instead of silently remapping them.
-- Regression evidence: [memory-atomic-store-validation-rejects-acquire-and-acqrel.yaml](/D:/Kain-Lang/crates/kain-sys-codegen/z3/proofs/memory-atomic-store-validation-rejects-acquire-and-acqrel.yaml), `cargo test -p kain-sys-codegen rejects_ -- --nocapture`, `bazel test //runtime:native_test_atomic_memory_ordering`
+- Regression evidence: [memory-atomic-store-validation-rejects-acquire-and-acqrel.yaml](/D:/Kain-Lang/crates/sys-codegen/z3/proofs/memory-atomic-store-validation-rejects-acquire-and-acqrel.yaml), `cargo test -p kain-sys-codegen rejects_ -- --nocapture`, `bazel test //runtime:native_test_atomic_memory_ordering`
 
 ---
 
@@ -166,7 +166,7 @@
 - Fix landed: The registry now uses an atomic mutation gate, lock-free read-side count snapshots, publish-after-copy semantics for `service_count`, and a batched single-lock native catalog populate path.
 - Regression evidence: [native-services-commit-gate-prevents-slot-overwrite.yaml](/D:/Kain-Lang/runtime/native/src/core/z3/proofs/native-services-commit-gate-prevents-slot-overwrite.yaml), `bash runtime/conformance/02_service_registry/compile_test.sh`, `python runtime/native/src/core/z3/scripts/05_benchmark_sync_pathways.py`
 
-## 2026-05-23 - crates/kain-sys-codegen/codegen_llvm
+## 2026-05-23 - crates/sys-codegen/codegen_llvm
 ### Double-to-Bool Truthiness Treats NaN As False On LLVM
 - Categories: correctness, soundness, miscompile
 - Severity: High
@@ -174,13 +174,13 @@
 - Surface: lowering
 - Trigger: Any LLVM-lowered `Float -> Bool` coercion or truthiness cast when the float value is `NaN`.
 - Symptom: The compiled LLVM path returns `false` while Kain semantic truth returns `true`.
-- Why this is a bug: `cast_numeric_value` lowers `double -> i1` with `fcmp one double value, 0.0`, which is an ordered comparison and therefore rejects `NaN`. The interpreter/runtime path in `crates/kain-core/src/runtime.rs` defines float truthiness as `number != 0.0`, which treats `NaN` as non-zero and therefore truthy.
+- Why this is a bug: `cast_numeric_value` lowers `double -> i1` with `fcmp one double value, 0.0`, which is an ordered comparison and therefore rejects `NaN`. The interpreter/runtime path in `crates/core/src/runtime.rs` defines float truthiness as `number != 0.0`, which treats `NaN` as non-zero and therefore truthy.
 - Minimal repro: Compile any Kain program on the LLVM path that converts a `Float` produced from a `NaN`-yielding expression such as `0.0 / 0.0` into `Bool`.
-- Evidence: `crates/kain-sys-codegen/src/codegen_llvm/mod.rs:8870`, `crates/kain-core/src/runtime.rs:119`, `crates/kain-sys-codegen/z3/generated/float_semantic_audit.md`, and `crates/kain-sys-codegen/z3/reports/20260524T000203Z-casts-double-to-bool-nan-truthiness-mismatch-pack-local.json`.
+- Evidence: `crates/sys-codegen/src/codegen_llvm/mod.rs:8870`, `crates/core/src/runtime.rs:119`, `crates/sys-codegen/z3/generated/float_semantic_audit.md`, and `crates/sys-codegen/z3/reports/20260524T000203Z-casts-double-to-bool-nan-truthiness-mismatch-pack-local.json`.
 - Z3 angle: A floating-point model proves a concrete witness `x = NaN` where runtime truthiness and LLVM truthiness disagree.
-- Z3 Proof: [casts-double-to-bool-nan-truthiness-mismatch.yaml](file:///D:/Kain-Lang/crates/kain-sys-codegen/z3/proofs/casts-double-to-bool-nan-truthiness-mismatch.yaml)
+- Z3 Proof: [casts-double-to-bool-nan-truthiness-mismatch.yaml](file:///D:/Kain-Lang/crates/sys-codegen/z3/proofs/casts-double-to-bool-nan-truthiness-mismatch.yaml)
 - Fix landed: LLVM float truthiness now lowers through `fcmp une`, and float conditions in `if` / `while` now route through the same `i1` coercion helper instead of trusting the source expression to already be boolean.
-- Regression evidence: [casts-double-to-bool-unordered-nonzero-aligns-with-runtime-truthiness.yaml](/D:/Kain-Lang/crates/kain-sys-codegen/z3/proofs/casts-double-to-bool-unordered-nonzero-aligns-with-runtime-truthiness.yaml), `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_lowers_float_truthiness_inequality_and_int_casts_through_total_ieee_paths --target-dir target\codex-float-semantics`
+- Regression evidence: [casts-double-to-bool-unordered-nonzero-aligns-with-runtime-truthiness.yaml](/D:/Kain-Lang/crates/sys-codegen/z3/proofs/casts-double-to-bool-unordered-nonzero-aligns-with-runtime-truthiness.yaml), `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_lowers_float_truthiness_inequality_and_int_casts_through_total_ieee_paths --target-dir target\codex-float-semantics`
 
 ### Raw `fptosi` Lowering Admits Undefined Double Inputs
 - Categories: correctness, soundness, UB, miscompile
@@ -191,11 +191,11 @@
 - Symptom: The backend emits LLVM IR whose `fptosi` precondition is violated, so compiled behavior is undefined or poison-prone exactly where Kain semantic casts are still total in the interpreter/runtime.
 - Why this is a bug: `cast_numeric_value`, `coerce_to_i64_storage`, `stringify_value`, `compile_numeric_floor_builtin`, and integer `pow` lowering all emit raw `fptosi double ...` with no preceding domain guard. LLVM requires the operand to be finite and representable in the destination signed integer type.
 - Minimal repro: Compile any Kain program on the LLVM path that narrows a float from `1.0 / 0.0`, `-1.0 / 0.0`, `0.0 / 0.0`, or a very large finite magnitude into `Int`; the same hazard also exists in integer `pow` and floor-based lowering.
-- Evidence: `crates/kain-sys-codegen/src/codegen_llvm/mod.rs:6514`, `:8593`, `:8858-8866`, `:14764`, `:15411`, `:16744`, `crates/kain-core/src/runtime.rs:98`, and `crates/kain-sys-codegen/z3/reports/20260524T000211Z-casts-double-to-int-unguarded-fptosi-precondition-gap-pack-local.json`.
+- Evidence: `crates/sys-codegen/src/codegen_llvm/mod.rs:6514`, `:8593`, `:8858-8866`, `:14764`, `:15411`, `:16744`, `crates/core/src/runtime.rs:98`, and `crates/sys-codegen/z3/reports/20260524T000211Z-casts-double-to-int-unguarded-fptosi-precondition-gap-pack-local.json`.
 - Z3 angle: A floating-point domain proof finds `x = +oo` as an immediate witness where the emitted LLVM `fptosi` precondition is false.
-- Z3 Proof: [casts-double-to-int-unguarded-fptosi-precondition-gap.yaml](file:///D:/Kain-Lang/crates/kain-sys-codegen/z3/proofs/casts-double-to-int-unguarded-fptosi-precondition-gap.yaml)
+- Z3 Proof: [casts-double-to-int-unguarded-fptosi-precondition-gap.yaml](file:///D:/Kain-Lang/crates/sys-codegen/z3/proofs/casts-double-to-int-unguarded-fptosi-precondition-gap.yaml)
 - Fix landed: LLVM now centralizes `double -> int` lowering through the saturating intrinsic family `llvm.fptosi.sat.*.f64`, covering shared casts, `floor(Float) -> Int`, stringification narrowing, explicit casts, and integer `pow` postprocessing.
-- Regression evidence: [casts-double-to-int-saturating-intrinsic-preserves-in-range-raw-cast.yaml](/D:/Kain-Lang/crates/kain-sys-codegen/z3/proofs/casts-double-to-int-saturating-intrinsic-preserves-in-range-raw-cast.yaml), `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_lowers_floor_builtin_with_llvm_intrinsic --target-dir target\codex-float-semantics`, `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_lowers_float_truthiness_inequality_and_int_casts_through_total_ieee_paths --target-dir target\codex-float-semantics`
+- Regression evidence: [casts-double-to-int-saturating-intrinsic-preserves-in-range-raw-cast.yaml](/D:/Kain-Lang/crates/sys-codegen/z3/proofs/casts-double-to-int-saturating-intrinsic-preserves-in-range-raw-cast.yaml), `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_lowers_floor_builtin_with_llvm_intrinsic --target-dir target\codex-float-semantics`, `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_lowers_float_truthiness_inequality_and_int_casts_through_total_ieee_paths --target-dir target\codex-float-semantics`
 
 ### Float Equality And Inequality Ignore Kain's Epsilon Semantics
 - Categories: correctness, soundness, miscompile
@@ -204,10 +204,10 @@
 - Surface: lowering
 - Trigger: Any LLVM-lowered float `==` or `!=` comparison where the operands differ by less than `f64::EPSILON`.
 - Symptom: The compiled LLVM path reports exact IEEE ordered equality/inequality while the interpreter/runtime reports equality within Kain's epsilon window.
-- Why this is a bug: The interpreter/runtime in `crates/kain-core/src/runtime.rs` evaluates float `==` with `(a - b).abs() < f64::EPSILON` and float `!=` with the complementary `>=` test. LLVM lowering in both `compile_value_eq` and `compile_expr` instead emits raw `fcmp oeq` and `fcmp one`.
+- Why this is a bug: The interpreter/runtime in `crates/core/src/runtime.rs` evaluates float `==` with `(a - b).abs() < f64::EPSILON` and float `!=` with the complementary `>=` test. LLVM lowering in both `compile_value_eq` and `compile_expr` instead emits raw `fcmp oeq` and `fcmp one`.
 - Minimal repro: Compile any Kain program on the LLVM path that compares `0.0` with `0.0000000000000001` using `==` or `!=`.
-- Evidence: `crates/kain-sys-codegen/src/codegen_llvm/mod.rs:8939`, `:16750`, `:16758`, `crates/kain-core/src/runtime.rs:8058-8062`, `crates/kain-sys-codegen/z3/generated/float_semantic_audit.md`, and `crates/kain-sys-codegen/z3/reports/20260524T000218Z-control-float-equality-ignores-epsilon-runtime-semantics-pack-local.json`.
+- Evidence: `crates/sys-codegen/src/codegen_llvm/mod.rs:8939`, `:16750`, `:16758`, `crates/core/src/runtime.rs:8058-8062`, `crates/sys-codegen/z3/generated/float_semantic_audit.md`, and `crates/sys-codegen/z3/reports/20260524T000218Z-control-float-equality-ignores-epsilon-runtime-semantics-pack-local.json`.
 - Z3 angle: A minimized arithmetic witness uses `a = 0.0` and `b = 1e-16`, which is inside the runtime epsilon window but not exactly equal, so both equality and inequality semantics diverge.
-- Z3 Proof: [control-float-equality-ignores-epsilon-runtime-semantics.yaml](file:///D:/Kain-Lang/crates/kain-sys-codegen/z3/proofs/control-float-equality-ignores-epsilon-runtime-semantics.yaml)
+- Z3 Proof: [control-float-equality-ignores-epsilon-runtime-semantics.yaml](file:///D:/Kain-Lang/crates/sys-codegen/z3/proofs/control-float-equality-ignores-epsilon-runtime-semantics.yaml)
 - Fix landed: The runtime semantic owner now uses exact IEEE float `==` / `!=`, and LLVM float inequality uses `fcmp une` so `NaN != x` stays true like the interpreter and the other compiled backends.
-- Regression evidence: [control-float-exact-equality-aligns-with-compiled-ieee-semantics.yaml](/D:/Kain-Lang/crates/kain-core/z3/proofs/control-float-exact-equality-aligns-with-compiled-ieee-semantics.yaml), `cargo test -p kain-core runtime_float --lib --target-dir target\codex-float-semantics`, `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_lowers_float_truthiness_inequality_and_int_casts_through_total_ieee_paths --target-dir target\codex-float-semantics`
+- Regression evidence: [control-float-exact-equality-aligns-with-compiled-ieee-semantics.yaml](/D:/Kain-Lang/crates/core/z3/proofs/control-float-exact-equality-aligns-with-compiled-ieee-semantics.yaml), `cargo test -p kain-core runtime_float --lib --target-dir target\codex-float-semantics`, `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_lowers_float_truthiness_inequality_and_int_casts_through_total_ieee_paths --target-dir target\codex-float-semantics`

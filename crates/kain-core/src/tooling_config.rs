@@ -13,6 +13,9 @@ use std::sync::RwLock;
 
 const CONFIG_SCHEMA_VERSION: u32 = 1;
 const DEFAULT_THEME: &str = "slate";
+pub const KAIN_DIAG_CAPTURE_ENV_VAR: &str = "KAIN_DIAG_CAPTURE";
+pub const KAIN_DIAG_CAPTURE_PATH_ENV_VAR: &str = "KAIN_DIAG_CAPTURE_PATH";
+pub const KAIN_DIAG_CAPTURE_ANSI_ENV_VAR: &str = "KAIN_DIAG_CAPTURE_ANSI";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -76,6 +79,31 @@ impl KainColorPreference {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum KainDiagnosticCaptureMode {
+    Off,
+    Failures,
+}
+
+impl Default for KainDiagnosticCaptureMode {
+    fn default() -> Self {
+        Self::Off
+    }
+}
+
+impl KainDiagnosticCaptureMode {
+    pub fn parse_str(value: &str) -> Result<Self, String> {
+        match value.trim().to_ascii_lowercase().as_str() {
+            "off" | "none" | "disabled" => Ok(Self::Off),
+            "failures" | "errors" | "on" | "enabled" => Ok(Self::Failures),
+            other => Err(format!(
+                "unknown Kain diagnostics capture mode `{other}`; expected off or failures"
+            )),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum KainParallelismSetting {
@@ -121,12 +149,21 @@ pub struct KainUiConfigFile {
     pub experimental_help: Option<bool>,
 }
 
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct KainDiagnosticsConfigFile {
+    pub capture: Option<KainDiagnosticCaptureMode>,
+    pub path: Option<PathBuf>,
+    pub store_ansi: Option<bool>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct KainToolingConfigFile {
     pub schema: u32,
     pub build: KainBuildConfigFile,
     pub ui: KainUiConfigFile,
+    pub diagnostics: KainDiagnosticsConfigFile,
 }
 
 impl Default for KainToolingConfigFile {
@@ -135,6 +172,7 @@ impl Default for KainToolingConfigFile {
             schema: CONFIG_SCHEMA_VERSION,
             build: KainBuildConfigFile::default(),
             ui: KainUiConfigFile::default(),
+            diagnostics: KainDiagnosticsConfigFile::default(),
         }
     }
 }
@@ -158,11 +196,19 @@ pub struct ResolvedKainUiConfig {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct ResolvedKainDiagnosticsConfig {
+    pub capture: KainDiagnosticCaptureMode,
+    pub path: PathBuf,
+    pub store_ansi: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ResolvedKainToolingConfig {
     pub source_path: Option<PathBuf>,
     pub loaded_from_disk: bool,
     pub build: ResolvedKainBuildConfig,
     pub ui: ResolvedKainUiConfig,
+    pub diagnostics: ResolvedKainDiagnosticsConfig,
 }
 
 impl Default for ResolvedKainToolingConfig {
@@ -172,8 +218,9 @@ impl Default for ResolvedKainToolingConfig {
             .unwrap_or(1)
             .max(1);
         let balanced_jobs = available_parallelism.saturating_sub(1).max(1);
+        let source_path = default_kain_install_layout().map(|layout| layout.config_path);
         Self {
-            source_path: default_kain_install_layout().map(|layout| layout.config_path),
+            source_path: source_path.clone(),
             loaded_from_disk: false,
             build: ResolvedKainBuildConfig {
                 available_parallelism,
@@ -188,6 +235,11 @@ impl Default for ResolvedKainToolingConfig {
                 color: KainColorPreference::Auto,
                 theme: DEFAULT_THEME.to_string(),
                 experimental_help: true,
+            },
+            diagnostics: ResolvedKainDiagnosticsConfig {
+                capture: KainDiagnosticCaptureMode::Off,
+                path: default_diagnostics_capture_path(source_path.as_deref()),
+                store_ansi: true,
             },
         }
     }
@@ -226,6 +278,7 @@ pub fn load_kain_tooling_config(
 
     let is_explicit = explicit.is_some() || std::env::var_os(KAIN_CONFIG_ENV_VAR).is_some();
     let Some(config_path) = config_path else {
+        apply_diagnostics_env_overrides(&mut resolved)?;
         return Ok(resolved);
     };
 
@@ -236,6 +289,8 @@ pub fn load_kain_tooling_config(
                 config_path.display()
             ));
         }
+        resolved.diagnostics.path = default_diagnostics_capture_path(Some(&config_path));
+        apply_diagnostics_env_overrides(&mut resolved)?;
         return Ok(resolved);
     }
 
@@ -309,6 +364,21 @@ pub fn load_kain_tooling_config(
         .ui
         .experimental_help
         .unwrap_or(resolved.ui.experimental_help);
+    resolved.diagnostics.capture = decoded
+        .diagnostics
+        .capture
+        .unwrap_or(resolved.diagnostics.capture);
+    resolved.diagnostics.path = decoded
+        .diagnostics
+        .path
+        .as_deref()
+        .map(|path| normalize_capture_path(path, Some(config_path.as_path())))
+        .unwrap_or_else(|| default_diagnostics_capture_path(Some(config_path.as_path())));
+    resolved.diagnostics.store_ansi = decoded
+        .diagnostics
+        .store_ansi
+        .unwrap_or(resolved.diagnostics.store_ansi);
+    apply_diagnostics_env_overrides(&mut resolved)?;
 
     Ok(resolved)
 }
@@ -355,6 +425,67 @@ fn normalize_theme_name(raw: &str) -> Result<String, String> {
         return Ok(DEFAULT_THEME.to_string());
     }
     normalize_lattice_theme_name(raw)
+}
+
+fn default_diagnostics_capture_path(config_path: Option<&Path>) -> PathBuf {
+    if let Some(parent) = config_path.and_then(Path::parent) {
+        return parent.join("diagnostics").join("errors.jsonl");
+    }
+    std::env::current_dir()
+        .unwrap_or_else(|_| PathBuf::from("."))
+        .join(".kain")
+        .join("diagnostics")
+        .join("errors.jsonl")
+}
+
+fn normalize_capture_path(raw: &Path, config_path: Option<&Path>) -> PathBuf {
+    if raw.is_absolute() {
+        return raw.to_path_buf();
+    }
+    if let Some(parent) = config_path.and_then(Path::parent) {
+        return parent.join(raw);
+    }
+    std::env::current_dir()
+        .unwrap_or_else(|_| PathBuf::from("."))
+        .join(raw)
+}
+
+fn apply_diagnostics_env_overrides(
+    resolved: &mut ResolvedKainToolingConfig,
+) -> Result<(), String> {
+    if let Some(raw) = std::env::var_os(KAIN_DIAG_CAPTURE_ENV_VAR) {
+        resolved.diagnostics.capture =
+            KainDiagnosticCaptureMode::parse_str(raw.to_string_lossy().as_ref())?;
+    }
+    if let Some(raw) = std::env::var_os(KAIN_DIAG_CAPTURE_PATH_ENV_VAR) {
+        let path = PathBuf::from(raw);
+        if !path.as_os_str().is_empty() {
+            resolved.diagnostics.path = if path.is_absolute() {
+                path
+            } else {
+                std::env::current_dir()
+                    .unwrap_or_else(|_| PathBuf::from("."))
+                    .join(path)
+            };
+        }
+    }
+    if let Some(raw) = std::env::var_os(KAIN_DIAG_CAPTURE_ANSI_ENV_VAR) {
+        resolved.diagnostics.store_ansi = parse_env_bool(
+            KAIN_DIAG_CAPTURE_ANSI_ENV_VAR,
+            raw.to_string_lossy().as_ref(),
+        )?;
+    }
+    Ok(())
+}
+
+fn parse_env_bool(name: &str, value: &str) -> Result<bool, String> {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "1" | "true" | "yes" | "on" => Ok(true),
+        "0" | "false" | "no" | "off" => Ok(false),
+        other => Err(format!(
+            "invalid boolean for {name}: `{other}`; expected true/false, on/off, yes/no, or 1/0"
+        )),
+    }
 }
 
 #[cfg(test)]
@@ -418,6 +549,11 @@ native_target_cpu = "native"
 color = "always"
 theme = "ember"
 experimental_help = false
+
+[diagnostics]
+capture = "failures"
+path = "logs/errors.jsonl"
+store_ansi = false
 "#,
         )
         .expect("write config");
@@ -425,7 +561,7 @@ experimental_help = false
         let config = load_kain_tooling_config(Some(&config_path)).expect("config loads");
 
         assert!(config.loaded_from_disk);
-        assert_eq!(config.source_path, Some(config_path));
+        assert_eq!(config.source_path, Some(config_path.clone()));
         assert_eq!(config.build.cargo_jobs, 3);
         assert_eq!(
             config.build.native_profile.as_deref(),
@@ -435,6 +571,16 @@ experimental_help = false
         assert_eq!(config.ui.color, KainColorPreference::Always);
         assert_eq!(config.ui.theme, "sandstone");
         assert!(!config.ui.experimental_help);
+        assert_eq!(config.diagnostics.capture, KainDiagnosticCaptureMode::Failures);
+        assert_eq!(
+            config.diagnostics.path,
+            config_path
+                .parent()
+                .expect("config parent")
+                .join("logs")
+                .join("errors.jsonl")
+        );
+        assert!(!config.diagnostics.store_ansi);
     }
 
     #[test]
@@ -490,6 +636,61 @@ experimental_help = false
 
         assert_eq!(resolved.source_path, Some(config_path));
         assert!(resolved.loaded_from_disk);
+    }
+
+    #[test]
+    fn diagnostics_env_overrides_capture_path_and_ansi() {
+        let _guard = lock_tooling_config_test();
+        let temp_dir = TempDir::new().expect("temp dir");
+        let config_path = temp_dir.path().join("config.toml");
+        fs::write(
+            &config_path,
+            r#"
+schema = 1
+
+[diagnostics]
+capture = "off"
+"#,
+        )
+        .expect("write config");
+
+        let previous_config = env::var_os(KAIN_CONFIG_ENV_VAR);
+        let previous_capture = env::var_os(KAIN_DIAG_CAPTURE_ENV_VAR);
+        let previous_path = env::var_os(KAIN_DIAG_CAPTURE_PATH_ENV_VAR);
+        let previous_ansi = env::var_os(KAIN_DIAG_CAPTURE_ANSI_ENV_VAR);
+        env::set_var(KAIN_CONFIG_ENV_VAR, &config_path);
+        env::set_var(KAIN_DIAG_CAPTURE_ENV_VAR, "failures");
+        env::set_var(KAIN_DIAG_CAPTURE_PATH_ENV_VAR, "capture\\errors.jsonl");
+        env::set_var(KAIN_DIAG_CAPTURE_ANSI_ENV_VAR, "false");
+
+        let resolved = load_kain_tooling_config(None).expect("env override config");
+
+        match previous_config {
+            Some(value) => env::set_var(KAIN_CONFIG_ENV_VAR, value),
+            None => env::remove_var(KAIN_CONFIG_ENV_VAR),
+        }
+        match previous_capture {
+            Some(value) => env::set_var(KAIN_DIAG_CAPTURE_ENV_VAR, value),
+            None => env::remove_var(KAIN_DIAG_CAPTURE_ENV_VAR),
+        }
+        match previous_path {
+            Some(value) => env::set_var(KAIN_DIAG_CAPTURE_PATH_ENV_VAR, value),
+            None => env::remove_var(KAIN_DIAG_CAPTURE_PATH_ENV_VAR),
+        }
+        match previous_ansi {
+            Some(value) => env::set_var(KAIN_DIAG_CAPTURE_ANSI_ENV_VAR, value),
+            None => env::remove_var(KAIN_DIAG_CAPTURE_ANSI_ENV_VAR),
+        }
+
+        assert_eq!(resolved.diagnostics.capture, KainDiagnosticCaptureMode::Failures);
+        assert_eq!(
+            resolved.diagnostics.path,
+            env::current_dir()
+                .expect("cwd")
+                .join("capture")
+                .join("errors.jsonl")
+        );
+        assert!(!resolved.diagnostics.store_ansi);
     }
 
     #[test]

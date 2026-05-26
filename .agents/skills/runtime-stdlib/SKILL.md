@@ -1,6 +1,6 @@
 ---
 name: runtime-stdlib
-description: Use when adding, changing, debugging, validating, or reviewing runtime-backed stdlib domains and their native bridges, especially `crates/kain-fs`, `crates/kain-input`, `crates/kain-net`, `crates/kain-process`, `stdlib/native/*.kn`, `runtime/native/src/core/*_system.c`, or UI/native-stdlib conformance lanes. Not for GPU runtime or authored Kain apps.
+description: Use when adding, changing, debugging, validating, or reviewing runtime-backed stdlib domains and their native bridges, especially `crates/fs`, `crates/input`, `crates/net`, `crates/process`, `stdlib/native/*.kn`, `runtime/native/src/core/*_system.c`, or UI/native-stdlib conformance lanes. Not for GPU runtime or authored Kain apps.
 ---
 
 # Runtime Stdlib
@@ -9,7 +9,7 @@ Read `ARCHITECTURE.md` and `MEMORY.md`, then start from the domain crate that ow
 
 ## Owns
 
-- Runtime-facing domain crates such as `crates/kain-fs`, `crates/kain-input`, `crates/kain-net`, and `crates/kain-process`.
+- Runtime-facing domain crates such as `crates/fs`, `crates/input`, `crates/net`, and `crates/process`.
 - Native stdlib wrappers in `stdlib/native/*.kn` and matching public `stdlib/*.kn` mirrors when the runtime contract changes.
 - Native bridge layers such as `runtime/native/src/core/*_system.c`, `runtime/native/src/ui/**`, and the matching headers in `runtime/native/include/**`.
 - Conformance and fixture lanes for `native_stdlib_bridge`, `input_runtime`, `net_runtime`, `process_runtime`, `ui_runtime`, and matching `runtime/fixtures/native_*`.

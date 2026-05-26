@@ -181,7 +181,7 @@ fn build(ctx: BuildContext) -> BuildGraph:
 ## Failure Routing
 
 - Parser/typechecker error in project code: fix authored Kain or escalate to `bootstrap-core` if valid Kain fails.
-- Import/module-root error: inspect `build.kn` roots first, then `crates/kain-core/src/module_resolution.rs` only if the project is correct.
+- Import/module-root error: inspect `build.kn` roots first, then `crates/core/src/module_resolution.rs` only if the project is correct.
 - Native LLVM verifier or lowering error: preserve emitted `.ll` and use `bootstrap-core` or the lowering owner.
 - Runtime service/link error: use `runtime-core`, `runtime-stdlib`, or `runtime-gpu`.
 - C ABI or platform package error: use `lang-interop` for authored design, `runtime-*` or package skill for implementation defects.
