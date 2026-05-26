@@ -276,38 +276,49 @@ impl<'a> Parser<'a> {
     }
 
     fn rich_parser_error(&self, message: impl Into<String>, span: Span) -> KainError {
-        let loc = self.span_mapper.span_to_location(span, self.filename);
-        let mut report =
-            DiagnosticReport::new(ErrorKind::Parse, DiagnosticCode::ParseGeneric, message)
-                .primary_label(span, "parser stopped here");
-        if Self::synthetic_filename(self.filename) {
-            report = report.origin(self.filename);
-        } else {
-            report = report.file(loc.file).location(loc.line, loc.col);
-        }
-        KainError::rich(report)
+        self.rich_parser_error_with_code(DiagnosticCode::ParseGeneric, message, span)
+    }
+
+    fn rich_parser_error_with_code(
+        &self,
+        code: DiagnosticCode,
+        message: impl Into<String>,
+        span: Span,
+    ) -> KainError {
+        KainError::rich(
+            self.attach_parser_source(
+                DiagnosticReport::new(ErrorKind::Parse, code, message)
+                    .primary_label(span, "parser stopped here"),
+                span,
+            ),
+        )
     }
 
     fn rich_parser_report(&self, report: DiagnosticReport) -> KainError {
         KainError::rich(report)
     }
 
-    fn parser_report_at(
+    fn parser_report_at_code(
         &self,
+        code: DiagnosticCode,
         message: impl Into<String>,
         span: Span,
         label: impl Into<String>,
     ) -> DiagnosticReport {
-        let loc = self.span_mapper.span_to_location(span, self.filename);
-        let mut report =
-            DiagnosticReport::new(ErrorKind::Parse, DiagnosticCode::ParseGeneric, message)
-                .primary_label(span, label);
-        if Self::synthetic_filename(self.filename) {
-            report = report.origin(self.filename);
+        self.attach_parser_source(
+            DiagnosticReport::new(ErrorKind::Parse, code, message).primary_label(span, label),
+            span,
+        )
+    }
+
+    fn attach_parser_source(&self, report: DiagnosticReport, span: Span) -> DiagnosticReport {
+        if self.span_mapper.span_origin_file(span).is_some()
+            || !Self::synthetic_filename(self.filename)
+        {
+            report.at_source(self.span_mapper, span, self.filename)
         } else {
-            report = report.file(loc.file).location(loc.line, loc.col);
+            report.origin(self.filename)
         }
-        report
     }
 
     fn previous_significant_span(&self) -> Option<Span> {
@@ -384,16 +395,20 @@ impl<'a> Parser<'a> {
     /// Returns an error if the identifier conflicts with a reserved keyword.
     fn validate_identifier(&self, name: &str, span: Span) -> KainResult<()> {
         if RESERVED_KEYWORDS.contains(&name) {
-            return Err(self.parser_error(
-                format!(
-                    "Identifier '{}' conflicts with reserved keyword. Please choose a different name.\n\
-                     Reserved keywords include KAIN keywords (fn, let, struct, etc.), \
-                     HLSL keywords (cbuffer, register, etc.), C++ keywords (class, virtual, etc.), \
-                     and UE5 macros (UCLASS, UPROPERTY, etc.)",
-                    name
-                ),
-                span
-            ));
+            let report = self
+                .parser_report_at_code(
+                    DiagnosticCode::ParseReservedIdentifier,
+                    format!("Identifier '{name}' conflicts with a reserved keyword"),
+                    span,
+                    format!("'{name}' cannot be used as an identifier here"),
+                )
+                .note(
+                    "Reserved identifiers include Kain keywords, shader keywords, C++ keywords, and common engine macros.",
+                )
+                .help(format!(
+                    "Rename '{name}' to something descriptive like '{name}_value' or '{name}_slot'."
+                ));
+            return Err(self.rich_parser_report(report));
         }
         Ok(())
     }
@@ -1956,10 +1971,20 @@ impl<'a> Parser<'a> {
                 WorldSurfaceKind::Ue5
             }
             _ => {
-                return Err(self.parser_error(
-                    "Expected world surface kind native_ui, viewport3d, web, or ue5",
-                    self.current_span(),
-                ))
+                let span = self.current_span();
+                let report = self
+                    .parser_report_at_code(
+                        DiagnosticCode::ParseInvalidWorldSurfaceKind,
+                        "Expected a built-in world surface kind",
+                        span,
+                        "surface kind expected here",
+                    )
+                    .note(
+                        "A surface declaration starts with a built-in surface kind, not an arbitrary identifier.",
+                    )
+                    .help("Use one of: native_ui, viewport3d, web, ue5.")
+                    .help("Example: surface native_ui => MyPanel");
+                return Err(self.rich_parser_report(report));
             }
         };
         self.expect(TokenKind::FatArrow)?;
@@ -6495,32 +6520,99 @@ impl<'a> Parser<'a> {
                 self.validate_identifier(&s, span)?;
                 Ok(s)
             }
-            TokenKind::SelfLower => { self.advance(); Ok("self".to_string()) }
-            TokenKind::SelfUpper => { self.advance(); Ok("Self".to_string()) }
+            TokenKind::SelfLower => {
+                self.advance();
+                Ok("self".to_string())
+            }
+            TokenKind::SelfUpper => {
+                self.advance();
+                Ok("Self".to_string())
+            }
             // Contextual keywords - allowed as identifiers in non-declaration contexts
-            TokenKind::Component => { self.advance(); Ok("component".to_string()) }
-            TokenKind::Shader => { self.advance(); Ok("shader".to_string()) }
-            TokenKind::Actor => { self.advance(); Ok("actor".to_string()) }
-            TokenKind::State => { self.advance(); Ok("state".to_string()) }
+            TokenKind::Component => {
+                self.advance();
+                Ok("component".to_string())
+            }
+            TokenKind::Shader => {
+                self.advance();
+                Ok("shader".to_string())
+            }
+            TokenKind::Actor => {
+                self.advance();
+                Ok("actor".to_string())
+            }
+            TokenKind::State => {
+                self.advance();
+                Ok("state".to_string())
+            }
             // Special handling for keyword tokens that users might try to use as identifiers
             // Generate clear error messages for all KAIN keyword tokens
-            k @ (TokenKind::Fn | TokenKind::Let | TokenKind::Mut | TokenKind::Var | TokenKind::Const |
-                 TokenKind::If | TokenKind::Else | TokenKind::Elif | TokenKind::Match | TokenKind::For |
-                 TokenKind::While | TokenKind::Loop | TokenKind::Break | TokenKind::Continue | TokenKind::Return |
-                 TokenKind::Await | TokenKind::In | TokenKind::With | TokenKind::As | TokenKind::TypeKw |
-                 TokenKind::Struct | TokenKind::Enum | TokenKind::Trait | TokenKind::Impl | TokenKind::Pub |
-                 TokenKind::Mod | TokenKind::Use | TokenKind::True | TokenKind::False | TokenKind::None |
-                 TokenKind::Spawn | TokenKind::Send | TokenKind::Receive | TokenKind::Emit |
-                 TokenKind::Comptime | TokenKind::Macro | TokenKind::Vertex | TokenKind::Fragment |
-                 TokenKind::Collapse | TokenKind::Observe | TokenKind::Decay | TokenKind::Share | TokenKind::Fanout |
-                 TokenKind::Test | TokenKind::Pure | TokenKind::Io | TokenKind::AsyncKw | TokenKind::Async |
-                 TokenKind::Gpu | TokenKind::Reactive | TokenKind::Unsafe) => {
-                Err(self.parser_error(
-                    format!("{} is a reserved keyword and cannot be used as an identifier. Please choose a different name.", crate::error::token_kind_to_user_string(&k)),
-                    span
-                ))
-            }
-            k => Err(self.parser_error(format!("Expected identifier, got {}", crate::error::token_kind_to_user_string(&k)), span)),
+            k @ (TokenKind::Fn
+            | TokenKind::Let
+            | TokenKind::Mut
+            | TokenKind::Var
+            | TokenKind::Const
+            | TokenKind::If
+            | TokenKind::Else
+            | TokenKind::Elif
+            | TokenKind::Match
+            | TokenKind::For
+            | TokenKind::While
+            | TokenKind::Loop
+            | TokenKind::Break
+            | TokenKind::Continue
+            | TokenKind::Return
+            | TokenKind::Await
+            | TokenKind::In
+            | TokenKind::With
+            | TokenKind::As
+            | TokenKind::TypeKw
+            | TokenKind::Struct
+            | TokenKind::Enum
+            | TokenKind::Trait
+            | TokenKind::Impl
+            | TokenKind::Pub
+            | TokenKind::Mod
+            | TokenKind::Use
+            | TokenKind::True
+            | TokenKind::False
+            | TokenKind::None
+            | TokenKind::Spawn
+            | TokenKind::Send
+            | TokenKind::Receive
+            | TokenKind::Emit
+            | TokenKind::Comptime
+            | TokenKind::Macro
+            | TokenKind::Vertex
+            | TokenKind::Fragment
+            | TokenKind::Collapse
+            | TokenKind::Observe
+            | TokenKind::Decay
+            | TokenKind::Share
+            | TokenKind::Fanout
+            | TokenKind::Test
+            | TokenKind::Pure
+            | TokenKind::Io
+            | TokenKind::AsyncKw
+            | TokenKind::Async
+            | TokenKind::Gpu
+            | TokenKind::Reactive
+            | TokenKind::Unsafe) => Err(self.rich_parser_error_with_code(
+                DiagnosticCode::ParseReservedIdentifier,
+                format!(
+                    "{} is a reserved keyword and cannot be used as an identifier.",
+                    crate::error::token_kind_to_user_string(&k)
+                ),
+                span,
+            )),
+            k => Err(self.rich_parser_error_with_code(
+                DiagnosticCode::ParseExpectedToken,
+                format!(
+                    "Expected identifier, got {}",
+                    crate::error::token_kind_to_user_string(&k)
+                ),
+                span,
+            )),
         }
     }
 
@@ -6863,12 +6955,18 @@ impl<'a> Parser<'a> {
                 let boundary_span = self.current_span();
                 let header_span = self.previous_significant_span().unwrap_or(boundary_span);
                 let report = self
-                    .parser_report_at(
+                    .parser_report_at_code(
+                        DiagnosticCode::ParseMissingDelimiterBeforeNewline,
                         "Missing ':' before line break",
                         header_span,
                         "this header or declaration ended without ':'",
                     )
-                    .label(boundary_span, "the next line started while ':' was still expected")
+                    .label_from_source(
+                        self.span_mapper,
+                        boundary_span,
+                        self.filename,
+                        "the next line started while ':' was still expected",
+                    )
                     .note(
                         "Expected ':' before newline: Kain block headers and declarations must end with ':'.",
                     )
@@ -6876,8 +6974,10 @@ impl<'a> Parser<'a> {
                         "If this was meant to be a continued expression, wrap it in parentheses or keep it on one logical line.",
                     )
                     .help("Look immediately before the highlighted line break; the following line may only be where recovery noticed the damage.")
-                    .fixit(
+                    .fixit_from_source(
+                        self.span_mapper,
                         Span::new(header_span.end, header_span.end),
+                        self.filename,
                         ":",
                         "insert ':' at the end of the header",
                     );
@@ -6885,7 +6985,8 @@ impl<'a> Parser<'a> {
             }
 
             let report = self
-                .parser_report_at(
+                .parser_report_at_code(
+                    DiagnosticCode::ParseExpectedToken,
                     format!("Expected {}, got {}", expected, actual),
                     self.current_span(),
                     format!("expected {} here", expected),
@@ -6906,7 +7007,8 @@ impl<'a> Parser<'a> {
         } else {
             let actual = crate::error::token_kind_to_user_string(&self.peek_kind());
             let report = self
-                .parser_report_at(
+                .parser_report_at_code(
+                    DiagnosticCode::ParseExpectedContextualKeyword,
                     format!("Expected contextual keyword '{}', got {}", expected, actual),
                     self.current_span(),
                     format!("expected contextual keyword '{}' here", expected),

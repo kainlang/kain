@@ -5,177 +5,8 @@ use crate::diagnostic_registry::spec_for_code;
 use crate::error::{DiagnosticReport, DiagnosticSeverity, KainError};
 use crate::span::Span;
 use crate::tooling_config::{active_color_preference, active_ui_theme_name};
+pub use kain_error::{SourceLocation, SourceOriginSegment, SpanMapper};
 use kain_lattice::{theme_by_name, LatticeTheme, SemanticRole};
-use std::path::Path;
-
-/// Source location with file, line, and column information
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SourceLocation {
-    pub file: String,
-    pub line: usize, // 1-indexed
-    pub col: usize,  // 1-indexed
-}
-
-impl SourceLocation {
-    pub fn new(file: impl Into<String>, line: usize, col: usize) -> Self {
-        Self {
-            file: file.into(),
-            line,
-            col,
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SourceOriginSegment {
-    pub file: String,
-    pub combined_span: Span,
-    pub source: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct MappedOriginSegment {
-    file: String,
-    normalized_file_key: String,
-    combined_span: Span,
-    source: String,
-    line_starts: Vec<usize>,
-}
-
-/// Maps byte offsets (spans) to human-readable source locations
-#[derive(Debug, Clone)]
-pub struct SpanMapper {
-    source: String,
-    line_starts: Vec<usize>, // Byte offset of each line start
-    origins: Vec<MappedOriginSegment>,
-}
-
-impl SpanMapper {
-    /// Create a new SpanMapper from source code
-    pub fn new(source: &str) -> Self {
-        Self::with_origins(source, Vec::new())
-    }
-
-    pub fn with_origins(source: &str, origins: Vec<SourceOriginSegment>) -> Self {
-        let line_starts = build_line_starts(source);
-        let mapped_origins = origins
-            .into_iter()
-            .map(|origin| MappedOriginSegment {
-                line_starts: build_line_starts(&origin.source),
-                normalized_file_key: normalize_origin_file_key(&origin.file),
-                file: origin.file,
-                combined_span: origin.combined_span,
-                source: origin.source,
-            })
-            .collect();
-
-        Self {
-            source: source.to_string(),
-            line_starts,
-            origins: mapped_origins,
-        }
-    }
-
-    fn line_info_from_source<'a>(
-        source: &'a str,
-        line_starts: &[usize],
-        span: Span,
-        file: &str,
-    ) -> (SourceLocation, &'a str) {
-        if line_starts.is_empty() {
-            return (SourceLocation::new(file, 1, 1), "");
-        }
-
-        let start = span.start.min(source.len());
-        let line_idx = match line_starts.binary_search(&start) {
-            Ok(idx) => idx,
-            Err(idx) => idx.saturating_sub(1),
-        };
-        let line_start = line_starts[line_idx];
-        let col = start.saturating_sub(line_start);
-        let line_end = source[start..]
-            .find('\n')
-            .map(|idx| start + idx)
-            .unwrap_or(source.len());
-        let line_content = &source[line_start.min(source.len())..line_end];
-        (
-            SourceLocation::new(file, line_idx + 1, col + 1),
-            line_content,
-        )
-    }
-
-    fn mapped_origin_for_offset(&self, offset: usize) -> Option<(&MappedOriginSegment, Span)> {
-        let offset = offset.min(self.source.len());
-        self.origins.iter().find_map(|origin| {
-            let start = origin.combined_span.start;
-            let end = origin.combined_span.end;
-            if offset < start || offset >= end {
-                return None;
-            }
-            let local = offset.saturating_sub(start);
-            Some((
-                origin,
-                Span::new(local, local.saturating_add(1).min(origin.source.len())),
-            ))
-        })
-    }
-
-    pub fn span_to_line_info(&self, span: Span, fallback_file: &str) -> (SourceLocation, &str) {
-        if let Some((origin, origin_span)) = self.mapped_origin_for_offset(span.start) {
-            return Self::line_info_from_source(
-                &origin.source,
-                &origin.line_starts,
-                origin_span,
-                &origin.file,
-            );
-        }
-
-        Self::line_info_from_source(&self.source, &self.line_starts, span, fallback_file)
-    }
-
-    pub fn span_origin_file(&self, span: Span) -> Option<&str> {
-        self.mapped_origin_for_offset(span.start)
-            .map(|(origin, _)| origin.file.as_str())
-    }
-
-    pub fn has_origin_file(&self, file: &str) -> bool {
-        let normalized_file = normalize_origin_file_key(file);
-        self.origins
-            .iter()
-            .any(|origin| origin.normalized_file_key == normalized_file)
-    }
-
-    /// Convert a span to a source location with file:line:col format
-    pub fn span_to_location(&self, span: Span, file: &str) -> SourceLocation {
-        self.span_to_line_info(span, file).0
-    }
-
-    /// Get the source string
-    pub fn source(&self) -> &str {
-        &self.source
-    }
-}
-
-fn build_line_starts(source: &str) -> Vec<usize> {
-    let mut line_starts = vec![0];
-
-    // Build line_starts vector by finding all newline positions
-    for (idx, ch) in source.char_indices() {
-        if ch == '\n' {
-            line_starts.push(idx + 1);
-        }
-    }
-
-    line_starts
-}
-
-fn normalize_origin_file_key(file: &str) -> String {
-    let path = Path::new(file);
-    std::fs::canonicalize(path)
-        .unwrap_or_else(|_| path.to_path_buf())
-        .to_string_lossy()
-        .to_string()
-}
 
 #[derive(Debug, Clone, Copy)]
 struct DiagnosticPalette {
@@ -287,10 +118,12 @@ impl Diagnostics {
                 format!("\n{}: {}\n", palette.error_text("error"), message)
             }
             KainError::Io(e) => format!("\n{}: IO error: {}\n", palette.error_text("error"), e),
-            KainError::Enhanced { .. } => {
-                // Enhanced errors format themselves via Display trait
-                format!("\n{}\n", error)
-            }
+            KainError::Enhanced { .. } => error
+                .to_diagnostic_reports()
+                .into_iter()
+                .next()
+                .map(|report| self.format_diagnostic_report(&palette, &report))
+                .unwrap_or_else(|| format!("\n{}\n", error)),
             KainError::Rich(report) => self.format_diagnostic_report(&palette, report),
             KainError::Multi(errors) => {
                 let mut output = format!(
@@ -324,33 +157,27 @@ impl Diagnostics {
         ));
 
         if let Some(span) = report.primary_span {
-            let (loc, line_content) = self
+            let (range, line_content, pointer_offset, pointer_len) = self
                 .span_mapper
-                .span_to_line_info(span, self.filename.as_str());
+                .span_to_display_context(span, self.filename.as_str());
             let file = report
                 .file
                 .as_ref()
                 .map(|path| path.display().to_string())
-                .unwrap_or_else(|| loc.file.clone());
+                .unwrap_or_else(|| range.file.clone());
             output.push_str(&format!(
                 "  {} {}:{}:{}\n",
                 palette.gutter_text("-->"),
                 file,
-                loc.line,
-                loc.col
+                range.start.line,
+                range.start.col
             ));
             output.push_str(&format!("   {}\n", palette.gutter_text("|")));
             output.push_str(&format!(
                 "{} {}\n",
-                palette.gutter_text(&format!("{:>3} |", loc.line)),
+                palette.gutter_text(&format!("{:>3} |", range.start.line)),
                 line_content
             ));
-
-            let pointer_offset = loc.col.saturating_sub(1);
-            let content_len = line_content.len();
-            let remaining_len = content_len.saturating_sub(pointer_offset);
-            let span_len = span.end.saturating_sub(span.start);
-            let pointer_len = span_len.min(remaining_len).max(1);
             let primary_label = report
                 .labels
                 .iter()
@@ -384,9 +211,14 @@ impl Diagnostics {
             .iter()
             .filter(|label| Some(label.span) != report.primary_span)
         {
-            let (loc, _) = self
-                .span_mapper
-                .span_to_line_info(label.span, self.filename.as_str());
+            let loc = label
+                .range
+                .as_ref()
+                .map(|range| range.start.clone())
+                .unwrap_or_else(|| {
+                    self.span_mapper
+                        .span_to_location(label.span, self.filename.as_str())
+                });
             output.push_str(&format!(
                 "   {} label {}:{}: {}\n",
                 palette.note_text("="),
@@ -402,14 +234,29 @@ impl Diagnostics {
             output.push_str(&format!("   {} help: {}\n", palette.note_text("="), help));
         }
         for fixit in &report.fixits {
-            output.push_str(&format!(
-                "   {} fix-it: {} at bytes {}..{} -> {:?}\n",
-                palette.note_text("="),
-                fixit.message,
-                fixit.span.start,
-                fixit.span.end,
-                fixit.replacement
-            ));
+            if let Some(range) = &fixit.range {
+                output.push_str(&format!(
+                    "   {} fix-it {}:{}:{}: {} -> {:?}\n",
+                    palette.note_text("="),
+                    range.file,
+                    range.start.line,
+                    range.start.col,
+                    fixit.message,
+                    fixit.replacement
+                ));
+            } else {
+                output.push_str(&format!(
+                    "   {} fix-it: {} at bytes {}..{} -> {:?}\n",
+                    palette.note_text("="),
+                    fixit.message,
+                    fixit.span.start,
+                    fixit.span.end,
+                    fixit.replacement
+                ));
+            }
+        }
+        for tag in &report.tags {
+            output.push_str(&format!("   {} tag: {}\n", palette.note_text("="), tag));
         }
         if let Some(default_suggestion) = spec.default_suggestion {
             output.push_str(&format!(
@@ -435,44 +282,33 @@ impl Diagnostics {
         message: &str,
         span: Span,
     ) -> String {
-        let (loc, line_content) = self
+        let (range, line_content, pointer_offset, pointer_len) = self
             .span_mapper
-            .span_to_line_info(span, self.filename.as_str());
+            .span_to_display_context(span, self.filename.as_str());
 
         let mut output = String::new();
 
-        // Error header
         output.push_str(&format!(
             "\n{}: {}\n",
             palette.error_text(&format!("error[{error_type}]")),
             message
         ));
 
-        // Location
         output.push_str(&format!(
             "  {} {}:{}:{}\n",
             palette.gutter_text("-->"),
-            loc.file,
-            loc.line,
-            loc.col
+            range.file,
+            range.start.line,
+            range.start.col
         ));
 
-        // Separator
         output.push_str(&format!("   {}\n", palette.gutter_text("|")));
 
-        // Source line
         output.push_str(&format!(
             "{} {}\n",
-            palette.gutter_text(&format!("{:>3} |", loc.line)),
+            palette.gutter_text(&format!("{:>3} |", range.start.line)),
             line_content
         ));
-
-        // Error pointer
-        let pointer_offset = loc.col.saturating_sub(1);
-        let content_len = line_content.len();
-        let remaining_len = content_len.saturating_sub(pointer_offset);
-        let span_len = span.end.saturating_sub(span.start);
-        let pointer_len = span_len.min(remaining_len).max(1);
 
         output.push_str(&format!(
             "   {} {}{}\n",
@@ -481,7 +317,6 @@ impl Diagnostics {
             palette.pointer_text(&"^".repeat(pointer_len))
         ));
 
-        // Separator
         output.push_str(&format!("   {}\n", palette.gutter_text("|")));
 
         output
@@ -611,12 +446,12 @@ mod tests {
         assert_eq!(loc.line, 1);
         assert_eq!(loc.col, 1);
 
-        // After the emoji (byte offset 12 is the newline character)
-        // "let x = " (8 bytes) + "🚀" (4 bytes) + "\n" (1 byte at position 12)
-        // Column should be 13 (1-indexed: position 12 - line_start 0 + 1 = 13)
+        // After the emoji (byte offset 12 is the newline character).
+        // Columns are character-based, while display_col tracks terminal width.
         let loc = mapper.span_to_location(Span::new(12, 13), "unicode.kn");
         assert_eq!(loc.line, 1);
-        assert_eq!(loc.col, 13); // Column is byte-based, 1-indexed
+        assert_eq!(loc.col, 10);
+        assert_eq!(loc.display_col, 11);
 
         // Second line
         let loc = mapper.span_to_location(Span::new(13, 16), "unicode.kn");
@@ -698,7 +533,7 @@ mod tests {
         let mapper = SpanMapper::new(source);
 
         // Verify line_starts vector is correct
-        assert_eq!(mapper.line_starts, vec![0, 2, 4]);
+        assert_eq!(mapper.line_starts(), &[0, 2, 4]);
 
         let loc = mapper.span_to_location(Span::new(0, 1), "test.kn");
         assert_eq!(loc.line, 1);

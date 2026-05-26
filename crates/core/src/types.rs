@@ -1258,7 +1258,8 @@ impl<'a> TypeEnv<'a> {
             &self.type_origins,
             self.types.contains_key(&name),
             "type",
-            DiagnosticCode::TypeGeneric,
+            DiagnosticCode::TypeDuplicateSymbol,
+            DiagnosticCode::TypeShadowedBuiltin,
             self.is_registering_stdlib() || self.is_stdlib_source_span(span),
         )?;
         self.types.insert(name.clone(), ty);
@@ -1280,7 +1281,8 @@ impl<'a> TypeEnv<'a> {
             &self.global_origins,
             self.globals.contains_key(&name),
             "global",
-            DiagnosticCode::TypeGeneric,
+            DiagnosticCode::TypeDuplicateSymbol,
+            DiagnosticCode::TypeShadowedBuiltin,
             self.is_registering_stdlib() || self.is_stdlib_source_span(span),
         )?;
         self.define_global(name.clone(), ty);
@@ -1306,7 +1308,7 @@ impl<'a> TypeEnv<'a> {
                     kind,
                     existing,
                     "method",
-                    DiagnosticCode::TypeGeneric,
+                    DiagnosticCode::TypeDuplicateSymbol,
                 ));
             }
         }
@@ -1321,7 +1323,7 @@ impl<'a> TypeEnv<'a> {
                 span,
                 kind,
                 "existing method slot",
-                DiagnosticCode::TypeGeneric,
+                DiagnosticCode::TypeShadowedBuiltin,
             ));
         }
         self.define_method(type_name.to_string(), method_name.clone(), ty);
@@ -1337,14 +1339,20 @@ impl<'a> TypeEnv<'a> {
         origins: &HashMap<String, SymbolOrigin>,
         already_defined: bool,
         namespace: &'static str,
-        code: DiagnosticCode,
+        duplicate_code: DiagnosticCode,
+        shadow_code: DiagnosticCode,
         allow_originless_shadow: bool,
     ) -> KainResult<()> {
         if let Some(existing) = origins.get(name) {
             if !self.same_symbol_declaration(existing, span, kind) {
-                return Err(
-                    self.duplicate_symbol_error(name, span, kind, existing, namespace, code)
-                );
+                return Err(self.duplicate_symbol_error(
+                    name,
+                    span,
+                    kind,
+                    existing,
+                    namespace,
+                    duplicate_code,
+                ));
             }
             return Ok(());
         }
@@ -1352,7 +1360,7 @@ impl<'a> TypeEnv<'a> {
             return Ok(());
         }
         if already_defined {
-            return Err(self.shadow_builtin_symbol_error(name, span, kind, namespace, code));
+            return Err(self.shadow_builtin_symbol_error(name, span, kind, namespace, shadow_code));
         }
         Ok(())
     }
@@ -1402,31 +1410,31 @@ impl<'a> TypeEnv<'a> {
         namespace: &'static str,
         code: DiagnosticCode,
     ) -> KainError {
-        let current_loc = self.span_mapper.span_to_location(span, self.filename);
         let existing_loc = self
             .span_mapper
             .span_to_location(existing.span, self.filename);
-        let report = DiagnosticReport::new(
-            ErrorKind::Type,
-            code,
-            format!(
-                "{kind} '{name}' collides with an existing {namespace} from {}",
-                existing.kind
-            ),
-        )
-        .file(PathBuf::from(current_loc.file.clone()))
-        .location(current_loc.line, current_loc.col)
-        .primary_label(span, format!("redeclared {namespace} '{name}'"))
-        .label(
-            existing.span,
-            format!(
-                "previous {} '{}' is here ({}:{}:{})",
-                existing.kind, name, existing_loc.file, existing_loc.line, existing_loc.col
-            ),
-        )
-        .help(
-            "Rename one of the declarations, or import the older symbol under an explicit alias.",
-        );
+        let report = self
+            .type_report(
+                code,
+                format!(
+                    "{kind} '{name}' collides with an existing {namespace} from {}",
+                    existing.kind
+                ),
+                span,
+                format!("redeclared {namespace} '{name}'"),
+            )
+            .label_from_source(
+                self.span_mapper,
+                existing.span,
+                self.filename,
+                format!(
+                    "previous {} '{}' is here ({}:{}:{})",
+                    existing.kind, name, existing_loc.file, existing_loc.line, existing_loc.col
+                ),
+            )
+            .help(
+                "Rename one of the declarations, or import the older symbol under an explicit alias.",
+            );
         KainError::rich(report)
     }
 
@@ -1438,16 +1446,14 @@ impl<'a> TypeEnv<'a> {
         namespace: &'static str,
         code: DiagnosticCode,
     ) -> KainError {
-        let loc = self.span_mapper.span_to_location(span, self.filename);
-        let report = DiagnosticReport::new(
-            ErrorKind::Type,
-            code,
-            format!("{kind} '{name}' shadows an existing {namespace} symbol"),
-        )
-        .file(PathBuf::from(loc.file.clone()))
-        .location(loc.line, loc.col)
-        .primary_label(span, format!("shadowed {namespace} symbol '{name}'"))
-        .help("Pick a distinct name, or import the existing symbol with an alias to keep both visible.");
+        let report = self
+            .type_report(
+                code,
+                format!("{kind} '{name}' shadows an existing {namespace} symbol"),
+                span,
+                format!("shadowed {namespace} symbol '{name}'"),
+            )
+            .help("Pick a distinct name, or import the existing symbol with an alias to keep both visible.");
         KainError::rich(report)
     }
 
@@ -1542,12 +1548,40 @@ impl<'a> TypeEnv<'a> {
 
     /// Create a type error with file:line:col format
     fn type_error(&self, message: impl Into<String>, span: Span) -> KainError {
-        let loc = self.span_mapper.span_to_location(span, self.filename);
-        let report = DiagnosticReport::new(ErrorKind::Type, DiagnosticCode::TypeGeneric, message)
-            .file(PathBuf::from(loc.file.clone()))
-            .location(loc.line, loc.col)
-            .primary_label(span, "typechecker stopped here");
-        KainError::rich(report)
+        self.type_error_with_code(DiagnosticCode::TypeGeneric, message, span)
+    }
+
+    fn type_error_with_code(
+        &self,
+        code: DiagnosticCode,
+        message: impl Into<String>,
+        span: Span,
+    ) -> KainError {
+        KainError::rich(self.type_report(code, message, span, "typechecker stopped here"))
+    }
+
+    fn type_report(
+        &self,
+        code: DiagnosticCode,
+        message: impl Into<String>,
+        span: Span,
+        label: impl Into<String>,
+    ) -> DiagnosticReport {
+        self.attach_type_source(
+            DiagnosticReport::new(ErrorKind::Type, code, message).primary_label(span, label),
+            span,
+        )
+    }
+
+    fn attach_type_source(&self, report: DiagnosticReport, span: Span) -> DiagnosticReport {
+        let report = report.at_source(self.span_mapper, span, self.filename);
+        if self.span_mapper.span_origin_file(span).is_some()
+            || !Self::synthetic_filename(self.filename)
+        {
+            report
+        } else {
+            report.origin(self.filename)
+        }
     }
 
     fn importer_file_for_span(&self, span: Span) -> Option<PathBuf> {
@@ -5197,10 +5231,16 @@ fn check_world(env: &mut TypeEnv, world: &WorldDef) -> KainResult<TypedWorld> {
     env.types.insert(world.name.clone(), world_ty.clone());
     env.define_global(world.name.clone(), world_ty);
     if world.surfaces.is_empty() {
-        return Err(env.type_error(
-            format!("world '{}' must declare at least one surface", world.name),
-            world.span,
-        ));
+        let report = env
+            .type_report(
+                DiagnosticCode::TypeWorldMissingSurface,
+                format!("world '{}' must declare at least one surface", world.name),
+                world.span,
+                "world has no surface projections",
+            )
+            .note("Worlds currently need at least one surface projection so they can materialize into a runtime-facing view.")
+            .help("Add a line like `surface native_ui => MyPanel` inside the world body.");
+        return Err(KainError::rich(report));
     }
     for surface in &world.surfaces {
         if !seen_surface_kinds.insert(surface.kind) {
@@ -6856,7 +6896,22 @@ fn infer_expr_type(
             }
             env.lookup(name)
                 .cloned()
-                .ok_or_else(|| env.type_error(format!("Unknown identifier '{}'", name), *span))
+                .ok_or_else(|| {
+                    let mut report = env.type_report(
+                        DiagnosticCode::TypeUnknownIdentifier,
+                        format!("Unknown identifier '{}'", name),
+                        *span,
+                        format!("'{name}' is not in scope"),
+                    );
+                    if name == "slice" {
+                        report = report.note(
+                            "Kain does not automatically expose Python builtins or host globals as normal identifiers.",
+                        );
+                    }
+                    KainError::rich(report.help(
+                        "Check for a misspelling, add the missing import, or explicitly bridge the value into Kain.",
+                    ))
+                })
         }
         Expr::Paren(inner, _) => infer_expr_type(env, inner, ctx),
         Expr::Block(block, _) => {

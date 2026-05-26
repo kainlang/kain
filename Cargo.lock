@@ -3022,6 +3022,7 @@ dependencies = [
  "indexmap 2.11.1",
  "kain-actor",
  "kain-entangle",
+ "kain-error",
  "kain-fs",
  "kain-input",
  "kain-lattice",
@@ -3090,6 +3091,15 @@ name = "kain-entangle"
 version = "0.1.0"
 dependencies = [
  "serde",
+]
+
+[[package]]
+name = "kain-error"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+ "thiserror 1.0.69",
+ "unicode-width 0.1.14",
 ]
 
 [[package]]

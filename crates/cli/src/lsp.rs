@@ -2,15 +2,15 @@ use std::collections::{hash_map::Entry, HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use crate::error::KainError;
+use crate::packager::{load_manifest, PackageManifest};
 use kain_core::ast::{
     Actor, Component, Const, EntangleDef, Enum, Field, Function, Impl, Item, MacroDef,
     MessageHandler, Param, Program, Shader, StateDecl, Struct, TestDef, Trait, TraitMethod, Type,
     Uniform, Variant, Visibility,
 };
 use kain_core::diagnostic_registry::spec_for_code;
-use crate::error::KainError;
 use kain_core::lexer::{Lexer, Token, TokenKind};
-use crate::packager::{load_manifest, PackageManifest};
 use kain_core::parser::Parser;
 use kain_core::span::Span;
 use kain_core::types;
@@ -2232,7 +2232,7 @@ fn diagnostics_from_error(text: &str, error: &KainError) -> Vec<Diagnostic> {
                 message: lines.join("\n"),
                 related_information: None,
                 tags: None,
-                data: None,
+                data: Some(report.to_json_value()),
             }]
         }
         KainError::Enhanced {
@@ -2277,7 +2277,11 @@ fn diagnostics_from_error(text: &str, error: &KainError) -> Vec<Diagnostic> {
                 message: lines.join("\n"),
                 related_information: None,
                 tags: None,
-                data: None,
+                data: error
+                    .to_diagnostic_reports()
+                    .into_iter()
+                    .next()
+                    .map(|report| report.to_json_value()),
             }]
         }
     }

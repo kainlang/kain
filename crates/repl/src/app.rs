@@ -35,6 +35,9 @@ const TAB_WIDTH: usize = 4;
 const OUTPUT_HISTORY_LIMIT: usize = 64;
 const MIN_GUTTER_DIGITS: usize = 4;
 const UNDO_HISTORY_LIMIT: usize = 256;
+const PASTE_BURST_INITIAL_WAIT: Duration = Duration::from_millis(4);
+const PASTE_BURST_IDLE_WAIT: Duration = Duration::from_millis(2);
+const PASTE_BURST_MAX_WAIT: Duration = Duration::from_millis(120);
 
 pub fn run_tui_repl(config: ReplTerminalConfig) -> io::Result<()> {
     let mut stdout = io::stdout();
@@ -127,17 +130,56 @@ fn drain_paste_like_burst(
     content: &mut String,
     pending_events: &mut VecDeque<Event>,
 ) -> io::Result<bool> {
-    let initial_len = content.len();
-    while event::poll(Duration::from_millis(0))? {
-        let next_event = event::read()?;
+    drain_paste_like_burst_with(
+        content,
+        pending_events,
+        PASTE_BURST_INITIAL_WAIT,
+        PASTE_BURST_IDLE_WAIT,
+        PASTE_BURST_MAX_WAIT,
+        |timeout| event::poll(timeout),
+        || event::read(),
+    )
+}
+
+fn drain_paste_like_burst_with<P, R>(
+    content: &mut String,
+    pending_events: &mut VecDeque<Event>,
+    initial_wait: Duration,
+    idle_wait: Duration,
+    max_wait: Duration,
+    mut poll_next: P,
+    mut read_next: R,
+) -> io::Result<bool>
+where
+    P: FnMut(Duration) -> io::Result<bool>,
+    R: FnMut() -> io::Result<Event>,
+{
+    let deadline = Instant::now() + max_wait;
+    let mut appended = false;
+    let mut wait = initial_wait;
+    loop {
+        let now = Instant::now();
+        if now >= deadline {
+            break;
+        }
+
+        let timeout = wait.min(deadline.saturating_duration_since(now));
+        if !poll_next(timeout)? {
+            break;
+        }
+
+        let next_event = read_next()?;
         if let Some(fragment) = event_text_fragment(&next_event) {
             content.push_str(&fragment);
+            appended = true;
+            wait = idle_wait;
         } else {
             pending_events.push_back(next_event);
             break;
         }
     }
-    Ok(content.len() > initial_len)
+
+    Ok(appended)
 }
 
 fn event_text_fragment(event: &Event) -> Option<String> {
@@ -2971,6 +3013,72 @@ mod tests {
     fn key_event_fragment_ignores_control_shortcuts() {
         let key = KeyEvent::new(KeyCode::Char('v'), KeyModifiers::CONTROL);
         assert_eq!(key_event_text_fragment(&key), None);
+    }
+
+    #[test]
+    fn paste_burst_coalescer_batches_text_and_preserves_next_non_text_event() {
+        let mut content = "a".to_string();
+        let mut pending = VecDeque::new();
+        let mut poll_calls = Vec::new();
+        let mut polls = VecDeque::from([true, true, true]);
+        let mut events = VecDeque::from([
+            Event::Key(KeyEvent::new(KeyCode::Char('b'), KeyModifiers::NONE)),
+            Event::Paste("cd".to_string()),
+            Event::Resize(120, 40),
+        ]);
+
+        let drained = drain_paste_like_burst_with(
+            &mut content,
+            &mut pending,
+            Duration::from_millis(5),
+            Duration::from_millis(1),
+            Duration::from_millis(20),
+            |timeout| {
+                poll_calls.push(timeout);
+                Ok(polls.pop_front().unwrap_or(false))
+            },
+            || Ok(events.pop_front().expect("event")),
+        )
+        .unwrap();
+
+        assert!(drained);
+        assert_eq!(content, "abcd");
+        assert_eq!(
+            poll_calls,
+            vec![
+                Duration::from_millis(5),
+                Duration::from_millis(1),
+                Duration::from_millis(1),
+            ]
+        );
+        assert_eq!(pending.len(), 1);
+        assert!(matches!(pending.pop_front(), Some(Event::Resize(120, 40))));
+    }
+
+    #[test]
+    fn paste_burst_coalescer_leaves_normal_typing_alone_when_stream_stays_quiet() {
+        let mut content = "a".to_string();
+        let mut pending = VecDeque::new();
+        let mut poll_calls = Vec::new();
+
+        let drained = drain_paste_like_burst_with(
+            &mut content,
+            &mut pending,
+            Duration::from_millis(5),
+            Duration::from_millis(1),
+            Duration::from_millis(20),
+            |timeout| {
+                poll_calls.push(timeout);
+                Ok(false)
+            },
+            || unreachable!("quiet typing should not read another event"),
+        )
+        .unwrap();
+
+        assert!(!drained);
+        assert_eq!(content, "a");
+        assert_eq!(poll_calls, vec![Duration::from_millis(5)]);
+        assert!(pending.is_empty());
     }
 
     #[test]

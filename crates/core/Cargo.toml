@@ -17,6 +17,7 @@ once_cell = { workspace = true }
 flume = { workspace = true }
 reqwest = { workspace = true }
 toml = { workspace = true }
+kain-error = { path = "../error" }
 kain-lattice = { path = "../lattice" }
 kain-actor = { path = "../actor" }
 blade = { path = "../blades" }

@@ -1,0 +1,72 @@
+  use std::math
+  use std::python
+  use std::runtime
+  use std::time
+
+  import pyglet as pyglet
+
+  fn main() -> Int:
+      let boot = runtime_init()
+      if boot != 0:
+          return 100 + boot
+
+      let window_mod = python_getattr_raw(pyglet, "window")
+      let gl = python_getattr_raw(pyglet, "gl")
+      let window = python_call_attr_raw(window_mod, "Window", [900, 520, "Kain x Pyglet // neon control card"])
+
+      let depth_test = to_int(python_getattr_raw(gl, "GL_DEPTH_TEST"))
+      let color_bit = to_int(python_getattr_raw(gl, "GL_COLOR_BUFFER_BIT"))
+      let depth_bit = to_int(python_getattr_raw(gl, "GL_DEPTH_BUFFER_BIT"))
+      let proj = to_int(python_getattr_raw(gl, "GL_PROJECTION"))
+      let model = to_int(python_getattr_raw(gl, "GL_MODELVIEW"))
+      let quads = to_int(python_getattr_raw(gl, "GL_QUADS"))
+
+      let _enable = python_call_attr_raw(gl, "glEnable", [depth_test])
+
+      var frame: Int = 0
+      var running = true
+
+      while running:
+          let _dispatch = python_call_attr_raw(window, "dispatch_events", [])
+          if to_string(python_getattr_raw(window, "has_exit")) == "True":
+              running = false
+          else:
+              let hue = ((frame * 3) % 360) as Float / 360.0
+              let accent = hsv_to_rgb(Hsv { h: hue, s: 0.78, v: 1.0 })
+              let angle = frame as Float * 1.7
+
+              let _switch = python_call_attr_raw(window, "switch_to", [])
+              let _clear_color = python_call_attr_raw(gl, "glClearColor", [0.05, 0.07, 0.10, 1.0])
+              let _clear = python_call_attr_raw(gl, "glClear", [color_bit + depth_bit])
+
+              let _proj = python_call_attr_raw(gl, "glMatrixMode", [proj])
+              let _load0 = python_call_attr_raw(gl, "glLoadIdentity", [])
+              let _ortho = python_call_attr_raw(gl, "glOrtho", [-1.8, 1.8, -1.1, 1.1, -10.0, 10.0])
+
+              let _model = python_call_attr_raw(gl, "glMatrixMode", [model])
+              let _load1 = python_call_attr_raw(gl, "glLoadIdentity", [])
+              let _rotate = python_call_attr_raw(gl, "glRotatef", [angle, 0.0, 0.0, 1.0])
+
+              let _begin = python_call_attr_raw(gl, "glBegin", [quads])
+
+              let _c0 = python_call_attr_raw(gl, "glColor3f", [accent.x * 0.24, accent.y * 0.34, accent.z * 0.72])
+              let _v0 = python_call_attr_raw(gl, "glVertex3f", [-0.72, -0.42, -0.35])
+              let _v1 = python_call_attr_raw(gl, "glVertex3f", [0.72, -0.42, 0.35])
+
+              let _c1 = python_call_attr_raw(gl, "glColor3f", [accent.x, accent.y, accent.z])
+              let _v2 = python_call_attr_raw(gl, "glVertex3f", [0.72, 0.42, 0.35])
+              let _v3 = python_call_attr_raw(gl, "glVertex3f", [-0.72, 0.42, -0.35])
+
+              let _end = python_call_attr_raw(gl, "glEnd", [])
+              let _flip = python_call_attr_raw(window, "flip", [])
+
+              sleep_millis(16)
+              frame = frame + 1
+
+      let _close = python_call_attr_raw(window, "close", [])
+      let shutdown = runtime_shutdown()
+      if shutdown != 0:
+          return 200 + shutdown
+
+      println("pyglet_card_ok")
+      return 0

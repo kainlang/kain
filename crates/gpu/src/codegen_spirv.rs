@@ -5,7 +5,8 @@
 use kain_core::ast::{
     BinaryOp, Block, CallArg, ElseBranch, Expr, Pattern, ShaderStage, Stmt, Type, UnaryOp,
 };
-use kain_core::error::{KainError, KainResult};
+use kain_core::diagnostic_registry::DiagnosticCode;
+use kain_core::error::{DiagnosticReport, ErrorKind, KainError, KainResult};
 use kain_core::types::{TypedItem, TypedProgram, TypedShader};
 use rspirv::binary::Assemble;
 use rspirv::dr::{Builder, Operand};
@@ -1218,9 +1219,19 @@ fn emit_expr(ctx: &mut ShaderContext, expr: &Expr) -> KainResult<(u32, Type)> {
                     Ok((binding.id, binding.ty))
                 }
             } else {
-                Err(KainError::codegen(
-                    format!("Unknown variable: {}", name),
-                    *span,
+                Err(KainError::rich(
+                    DiagnosticReport::new(
+                        ErrorKind::Codegen,
+                        DiagnosticCode::CodegenUnknownVariable,
+                        format!("Unknown variable: {}", name),
+                    )
+                    .primary_label(*span, "shader variable lookup failed here")
+                    .note(
+                        "The SPIR-V lowering pass could not find a value for this symbol in the current shader scope.",
+                    )
+                    .help(
+                        "Check whether the symbol is declared in the shader body, provided as a uniform, or lost during earlier lowering.",
+                    ),
                 ))
             }
         }
@@ -2167,10 +2178,25 @@ fn emit_expr(ctx: &mut ShaderContext, expr: &Expr) -> KainResult<(u32, Type)> {
                 Expr::Ident(name, _) => name.clone(),
                 _ => "<complex expression>".to_string(),
             };
-            Err(KainError::codegen(
+            let mut report = DiagnosticReport::new(
+                ErrorKind::Codegen,
+                DiagnosticCode::ShaderUnsupportedCall,
                 format!("Unsupported function call in shader: '{}'", callee_name),
-                expr.span(),
-            ))
+            )
+            .primary_label(expr.span(), "shader call is not supported here")
+            .note(
+                "SPIR-V lowering only supports a curated subset of shader-safe intrinsics and constructors.",
+            )
+            .help(
+                "Replace this call with a supported shader intrinsic or move the computation to a host-side or precomputed stage.",
+            );
+            if let Some(stripped) = callee_name.strip_prefix("fast_") {
+                report = report.help(format!(
+                    "If you intended the standard intrinsic, try '{}' without the 'fast_' prefix.",
+                    stripped
+                ));
+            }
+            Err(KainError::rich(report))
         }
         Expr::Float(f, span) => {
             let float = ctx.b.type_float(32);

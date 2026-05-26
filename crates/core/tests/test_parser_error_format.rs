@@ -120,6 +120,11 @@ fn test_rich_parse_diagnostic_has_machine_readable_json() {
     let json = err
         .diagnostic_json()
         .expect("rich parser diagnostics should expose JSON");
-    assert_eq!(json["diagnostics"][0]["code"], "KAIN-PARSE-0001");
+    assert_eq!(json["diagnostics"][0]["code"], "KAIN-PARSE-0005");
+    assert_eq!(
+        json["diagnostics"][0]["title"],
+        "Missing Delimiter Before Newline"
+    );
     assert_eq!(json["diagnostics"][0]["fixits"][0]["replacement"], ":");
+    assert_eq!(json["diagnostics"][0]["primary_range"]["start"]["line"], 1);
 }

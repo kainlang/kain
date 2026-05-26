@@ -52,6 +52,20 @@ $scriptPath = Normalize-PathValue $MyInvocation.MyCommand.Path
 $scriptDir = Split-Path -Parent $scriptPath
 $repoRoot = Resolve-NormalizedPath (Join-Path $scriptDir "..\..\..\..")
 
+function Resolve-LlvmAsBinary {
+    $pathCommand = Get-Command llvm-as -ErrorAction SilentlyContinue
+    if ($pathCommand -and $pathCommand.Source) {
+        return (Resolve-NormalizedPath $pathCommand.Source)
+    }
+
+    $repoBundled = Join-Path $repoRoot "toolchain\llvm\bin\llvm-as.exe"
+    if (Test-Path $repoBundled) {
+        return (Resolve-NormalizedPath $repoBundled)
+    }
+
+    return $null
+}
+
 function Resolve-KainBinary {
     param([string]$Requested)
 
@@ -288,11 +302,15 @@ try {
 
     $llvmPath = [System.IO.Path]::ChangeExtension($outputExe, ".ll")
     if ($VerifyLlvm -and (Test-Path $llvmPath)) {
-        $llvmAs = Join-Path $repoRoot "toolchain\llvm\bin\llvm-as.exe"
-        $bcPath = Join-Path $artifactDir ([System.IO.Path]::GetFileName([System.IO.Path]::ChangeExtension($outputExe, ".bc")))
-        & $llvmAs $llvmPath -o $bcPath
-        if ($LASTEXITCODE -ne 0) {
-            throw "llvm-as verification failed with exit code $LASTEXITCODE"
+        $llvmAs = Resolve-LlvmAsBinary
+        if ($llvmAs) {
+            $bcPath = Join-Path $artifactDir ([System.IO.Path]::GetFileName([System.IO.Path]::ChangeExtension($outputExe, ".bc")))
+            & $llvmAs $llvmPath -o $bcPath
+            if ($LASTEXITCODE -ne 0) {
+                throw "llvm-as verification failed with exit code $LASTEXITCODE"
+            }
+        } else {
+            Write-Warning "Skipping llvm-as verification because no llvm-as binary was found on PATH or in toolchain\\llvm\\bin."
         }
     }
 

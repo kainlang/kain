@@ -1,40 +1,50 @@
-fn authored_surface(session: Int, kind: String, text: String, x: Float, y: Float, width: Float, height: Float) -> Int:
-    let node = native_ui_node_create(session, kind)
-    let _rect_status = native_ui_node_set_rect(session, node, x, y, width, height)
-    let _text_status = native_ui_node_set_text(session, node, text)
-    return node
+use std::runtime
+use std::time
 
-fn draw_authored_surface(session: Int, node: Int, x: Float, y: Float, width: Float, height: Float, style: String) -> Int:
-    let _dirty = native_ui_mark_dirty(session, node, 77)
-    return native_ui_draw_rect(session, node, x, y, width, height, style)
+import pyglet as pyglet
+
+const PYGLET_WINDOW_WIDTH: Int = 960
+const PYGLET_WINDOW_HEIGHT: Int = 540
+const PYGLET_FRAME_BUDGET: Int = 18
+const PYGLET_FRAME_SLEEP_MS: Int = 50
+
+fn pump_visible_window(window: Any) -> Int:
+    var frame: Int = 0
+    while frame < PYGLET_FRAME_BUDGET:
+        let _dispatch = py_call_raw(py_getattr_raw(window, "dispatch_events"), [])
+        let _switch = py_call_raw(py_getattr_raw(window, "switch_to"), [])
+        let _flip = py_call_raw(py_getattr_raw(window, "flip"), [])
+        sleep_millis(PYGLET_FRAME_SLEEP_MS)
+        frame = frame + 1
+    return frame
 
 fn main() -> Int:
-    let _reset = native_ui_reset()
-    let session = native_ui_session_create("kain-single-file-native-ui", 960, 540)
-    let _window = native_ui_window_open(session, "Kain Native UI From One File", 960, 540)
-    let _frame = native_ui_begin_frame(session, 16.0)
-    let body_font = native_ui_font_create(session, "font.body", "Inter", 14.0)
+    let boot = runtime_init()
+    if boot != 0:
+        return 100 + boot
 
-    let root = authored_surface(session, "app.workspace.root", "root", 0.0, 0.0, 960.0, 540.0)
-    let command_strip = authored_surface(session, "author.command-strip", "Run", 16.0, 16.0, 240.0, 44.0)
-    let viewport = authored_surface(session, "author.viewport.raw-canvas", "Scene", 16.0, 72.0, 720.0, 420.0)
+    // First-class Python import syntax is intentionally present here because this
+    // fixture is meant to pressure the authored import lane, but the live native
+    // runner still resolves the module through the raw bridge for execution.
+    let pyglet_runtime = py_import("pyglet")
+    let window_module = py_getattr_raw(pyglet_runtime, "window")
+    let window_ctor = py_getattr_raw(window_module, "Window")
+    let window = py_call_raw(
+        window_ctor,
+        [PYGLET_WINDOW_WIDTH, PYGLET_WINDOW_HEIGHT, "Kain Native UI // pyglet startup proof"]
+    )
 
-    let _command_parent = native_ui_node_set_parent(session, command_strip, root)
-    let _viewport_parent = native_ui_node_set_parent(session, viewport, root)
-    let _accent = native_ui_node_set_style_string(session, command_strip, "fill", "#21d4a1")
-    let _focusable = native_ui_node_set_flag(session, command_strip, "focusable", 1)
-    let _focus = native_ui_focus(session, command_strip)
-    let _command_draw = draw_authored_surface(session, command_strip, 16.0, 16.0, 240.0, 44.0, "fill")
-    let _viewport_draw = draw_authored_surface(session, viewport, 16.0, 72.0, 720.0, 420.0, "viewport-bg")
-    let _text_draw = native_ui_draw_text(session, command_strip, body_font, 28.0, 42.0, native_ui_node_text(session, command_strip), "label")
-    let _push_event = native_ui_push_event(session, "pointer.down", command_strip, 32.0, 32.0, 0, "primary")
-    let _poll = native_ui_poll_event(session)
-    let hit = native_ui_hit_test(session, 32.0, 32.0)
-    let draw_count = native_ui_draw_command_count(session)
-    let _end = native_ui_end_frame(session)
-    let presented = native_ui_present(session)
+    let _caption = py_call_raw(
+        py_getattr_raw(window, "set_caption"),
+        ["Kain Native UI // pyglet startup proof"]
+    )
+    let _visible = py_call_raw(py_getattr_raw(window, "set_visible"), [true])
+    let pumped = pump_visible_window(window)
+    let _close = py_call_raw(py_getattr_raw(window, "close"), [])
 
-    if hit == command_strip and native_ui_focused_node(session) == command_strip and draw_count >= 3 and presented == 1:
-        return 0
-
-    return 1
+    let shutdown = runtime_shutdown()
+    if shutdown != 0:
+        return 200 + shutdown
+    if pumped != PYGLET_FRAME_BUDGET:
+        return 2
+    return 0
