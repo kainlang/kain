@@ -39,6 +39,7 @@ fn build(ctx: BuildContext) -> BuildGraph:
         .input("cases_v2/classic_core.kn")
         .input("cases_v2/classic_systems.kn")
         .input("cases_v2/classic_core3d.kn")
+        .input("cases_v2/python_interop.kn")
         .input("cases_v2/rage_runtime.kn")
         .input("build.kn")
 
@@ -50,6 +51,7 @@ fn build(ctx: BuildContext) -> BuildGraph:
         .input("cases_v2/classic_core.kn")
         .input("cases_v2/classic_systems.kn")
         .input("cases_v2/classic_core3d.kn")
+        .input("cases_v2/python_interop.kn")
         .input("cases_v2/rage_runtime.kn")
         .input("build.kn")
 
@@ -62,6 +64,7 @@ fn build(ctx: BuildContext) -> BuildGraph:
         .input("cases_v2/classic_core.kn")
         .input("cases_v2/classic_systems.kn")
         .input("cases_v2/classic_core3d.kn")
+        .input("cases_v2/python_interop.kn")
         .input("cases_v2/rage_runtime.kn")
         .input("build.kn")
         .arg("-NoProfile")

@@ -1,0 +1,182 @@
+use std::interop
+use std::python
+
+import math as py_math
+import numpy as np
+
+// ============================================================================
+// PYTHON INTEROP PACK
+// ============================================================================
+// This shelf isolates the bridge tax instead of hiding it inside a giant app:
+// cached import lookup, hot attr fetch, scalar call hops, real package object
+// construction, and Python-owned shared-buffer projection back into Kain.
+
+const PYTHON_INTEROP_MODULUS: Int = 1000000007
+const PYTHON_INTEROP_CASE_COUNT: Int = 5
+
+// ============================================================================
+// CASE REGISTRY
+// ============================================================================
+
+pub fn python_interop_case_count() -> Int:
+    return PYTHON_INTEROP_CASE_COUNT
+
+pub fn python_interop_case_id(index: Int) -> String:
+    if index == 0:
+        return "python_import_cached"
+    if index == 1:
+        return "python_math_attr"
+    if index == 2:
+        return "python_math_sqrt"
+    if index == 3:
+        return "python_numpy_scalar_box"
+    if index == 4:
+        return "python_numpy_shared_buffer"
+    return ""
+
+pub fn python_interop_case_group(index: Int) -> String:
+    if index >= 0 and index < PYTHON_INTEROP_CASE_COUNT:
+        return "python"
+    return ""
+
+pub fn python_interop_case_title(index: Int) -> String:
+    if index == 0:
+        return "Python Import Cached"
+    if index == 1:
+        return "Python Math Attr"
+    if index == 2:
+        return "Python Math Sqrt"
+    if index == 3:
+        return "Python NumPy Scalar Box"
+    if index == 4:
+        return "Python NumPy Shared Buffer"
+    return ""
+
+pub fn python_interop_case_iterations(index: Int) -> Int:
+    if index == 0:
+        return 10000
+    if index == 1:
+        return 50000
+    if index == 2:
+        return 30000
+    if index == 3:
+        return 30000
+    if index == 4:
+        return 1000
+    return 0
+
+pub fn python_interop_case_expected_checksum(index: Int) -> Int:
+    if index == 0:
+        return 149961
+    if index == 1:
+        return 849979
+    if index == 2:
+        return 1683700
+    if index == 3:
+        return 976817404
+    if index == 4:
+        return 1187982
+    return -1
+
+// ============================================================================
+// CACHED IMPORT HOP
+// ============================================================================
+
+fn python_import_cached_checksum(iterations: Int) -> Int:
+    let acc: Int = 0
+    let index: Int = 0
+    while index < iterations:
+        let math_module = python_import("math")
+        let tau_bits = to_int(python_getattr_raw(math_module, "tau"))
+        acc = (acc + tau_bits + (index % 19)) % PYTHON_INTEROP_MODULUS
+        index = index + 1
+    return acc
+
+// ============================================================================
+// MODULE ATTR LOOKUP
+// ============================================================================
+
+fn python_math_attr_checksum(iterations: Int) -> Int:
+    let acc: Int = 0
+    let index: Int = 0
+    while index < iterations:
+        let tau_bits = to_int(python_getattr_raw(py_math, "tau"))
+        acc = (acc + tau_bits + (index % 23)) % PYTHON_INTEROP_MODULUS
+        index = index + 1
+    return acc
+
+// ============================================================================
+// MODULE FUNCTION CALL
+// ============================================================================
+
+fn python_math_sqrt_checksum(iterations: Int) -> Int:
+    let acc: Int = 0
+    let index: Int = 0
+    while index < iterations:
+        let lane_value = ((index * 17) % 4096) + 1
+        let sqrt_value = to_int(python_call_attr_raw(py_math, "sqrt", [lane_value as Float]))
+        acc = (acc + sqrt_value + (index % 29)) % PYTHON_INTEROP_MODULUS
+        index = index + 1
+    return acc
+
+// ============================================================================
+// REAL PACKAGE SCALAR BOX HOP
+// ============================================================================
+
+fn python_numpy_scalar_box_checksum(iterations: Int) -> Int:
+    let acc: Int = 0
+    let index: Int = 0
+    while index < iterations:
+        let lane_value = ((index * 11) + 19) % 65536
+        let boxed = to_int(python_call_attr_raw(np, "int64", [lane_value]))
+        acc = (acc + boxed + (index % 31)) % PYTHON_INTEROP_MODULUS
+        index = index + 1
+    return acc
+
+// ============================================================================
+// PYTHON-OWNED BUFFER -> KAIN SHARED VIEW
+// ============================================================================
+
+fn python_numpy_shared_buffer_checksum(iterations: Int) -> Int:
+    let acc: Int = 0
+    let index: Int = 0
+    while index < iterations:
+        let cells = 128 + (index % 5)
+        let array = python_call_attr_raw(np, "arange", [cells])
+        let shared_buffer = python_shared_buffer(array)
+        let info = interop_shared_buffer_info(shared_buffer)
+        let bytes = interop_shared_buffer_bytes(shared_buffer)
+        let tail = bytes[len(bytes) - 1]
+        acc = (
+            acc +
+            info.byte_length +
+            info.element_count +
+            bytes[0] +
+            tail +
+            (index % 37)
+        ) % PYTHON_INTEROP_MODULUS
+        index = index + 1
+    return acc
+
+// ============================================================================
+// CHECKSUM ROUTER
+// ============================================================================
+
+pub fn python_interop_case_checksum(case_id: String, iterations: Int, amplify: Int, modulus: Int) -> Int:
+    let repeat: Int = 0
+    let acc: Int = 0
+    while repeat < amplify:
+        if case_id == "python_import_cached":
+            acc = (acc + python_import_cached_checksum(iterations)) % modulus
+        else if case_id == "python_math_attr":
+            acc = (acc + python_math_attr_checksum(iterations)) % modulus
+        else if case_id == "python_math_sqrt":
+            acc = (acc + python_math_sqrt_checksum(iterations)) % modulus
+        else if case_id == "python_numpy_scalar_box":
+            acc = (acc + python_numpy_scalar_box_checksum(iterations)) % modulus
+        else if case_id == "python_numpy_shared_buffer":
+            acc = (acc + python_numpy_shared_buffer_checksum(iterations)) % modulus
+        else:
+            return -1
+        repeat = repeat + 1
+    return acc

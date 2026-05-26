@@ -28,6 +28,13 @@ use classic_core3d::classic_core3d_case_group
 use classic_core3d::classic_core3d_case_id
 use classic_core3d::classic_core3d_case_iterations
 use classic_core3d::classic_core3d_case_title
+use python_interop::python_interop_case_checksum
+use python_interop::python_interop_case_count
+use python_interop::python_interop_case_expected_checksum
+use python_interop::python_interop_case_group
+use python_interop::python_interop_case_id
+use python_interop::python_interop_case_iterations
+use python_interop::python_interop_case_title
 use rage_runtime::rage_runtime_case_checksum
 use rage_runtime::rage_runtime_case_count
 use rage_runtime::rage_runtime_case_expected_checksum
@@ -216,10 +223,10 @@ fn json_escape(text: String) -> String:
         index = index + 1
     return escaped
 
-fn json_string_value(text: String) -> String:
+fn router_json_string_value(text: String) -> String:
     return "\"" + json_escape(text) + "\""
 
-fn json_bool_value(value: Bool) -> String:
+fn router_json_bool_value(value: Bool) -> String:
     if value:
         return "true"
     return "false"
@@ -385,6 +392,9 @@ fn run_case_checksum(case_id: String, iterations: Int, amplify: Int) -> Int:
     let classic_core3d_checksum = classic_core3d_case_checksum(case_id, iterations, amplify, ROUTER_MODULUS)
     if classic_core3d_checksum >= 0:
         return classic_core3d_checksum
+    let python_interop_checksum = python_interop_case_checksum(case_id, iterations, amplify, ROUTER_MODULUS)
+    if python_interop_checksum >= 0:
+        return python_interop_checksum
     let rage_runtime_checksum = rage_runtime_case_checksum(case_id, iterations, amplify, ROUTER_MODULUS)
     if rage_runtime_checksum >= 0:
         return rage_runtime_checksum
@@ -467,10 +477,10 @@ fn result_status_text(result: BenchResult) -> String:
 fn render_result_json(result: BenchResult) -> String:
     let content = "{\n"
     content = content + "  \"schema_version\": " + str(ROUTER_SCHEMA_VERSION) + ",\n"
-    content = content + "  \"suite\": " + json_string_value(ROUTER_SUITE_ID) + ",\n"
-    content = content + "  \"id\": " + json_string_value(result.id) + ",\n"
-    content = content + "  \"group\": " + json_string_value(result.group) + ",\n"
-    content = content + "  \"title\": " + json_string_value(result.title) + ",\n"
+    content = content + "  \"suite\": " + router_json_string_value(ROUTER_SUITE_ID) + ",\n"
+    content = content + "  \"id\": " + router_json_string_value(result.id) + ",\n"
+    content = content + "  \"group\": " + router_json_string_value(result.group) + ",\n"
+    content = content + "  \"title\": " + router_json_string_value(result.title) + ",\n"
     content = content + "  \"iterations\": " + str(result.iterations) + ",\n"
     content = content + "  \"expected_checksum\": " + str(result.expected_checksum) + ",\n"
     content = content + "  \"passes\": " + str(result.passes) + ",\n"
@@ -482,10 +492,10 @@ fn render_result_json(result: BenchResult) -> String:
     content = content + "  \"total_ms\": " + str(result.total_ms) + ",\n"
     content = content + "  \"average_ms\": " + str(result.average_ms) + ",\n"
     content = content + "  \"ops_per_sec\": " + str(result.ops_per_sec) + ",\n"
-    content = content + "  \"success\": " + json_bool_value(result.success) + ",\n"
+    content = content + "  \"success\": " + router_json_bool_value(result.success) + ",\n"
     content = content + "  \"failure_code\": " + str(result.failure_code) + ",\n"
-    content = content + "  \"status\": " + json_string_value(result_status_text(result)) + ",\n"
-    content = content + "  \"track_path\": " + json_string_value(result.track_path) + "\n"
+    content = content + "  \"status\": " + router_json_string_value(result_status_text(result)) + ",\n"
+    content = content + "  \"track_path\": " + router_json_string_value(result.track_path) + "\n"
     return content + "}"
 
 fn capture_runtime_telemetry() -> RouterTelemetry:
@@ -578,9 +588,9 @@ fn build_markdown_report(case_count: Int, config: RouterConfig, telemetry: Route
 fn render_summary_json(config: RouterConfig, telemetry: RouterTelemetry, started_ms: Int, finished_ms: Int, case_count: Int, success_count: Int, failure_count: Int, cases_json_items: String) -> String:
     let content = "{\n"
     content = content + "  \"schema_version\": " + str(ROUTER_SCHEMA_VERSION) + ",\n"
-    content = content + "  \"suite\": " + json_string_value(ROUTER_SUITE_ID) + ",\n"
-    content = content + "  \"selected\": " + json_string_value(selected_filter_text(config.filter_text)) + ",\n"
-    content = content + "  \"filter\": " + json_string_value(config.filter_text) + ",\n"
+    content = content + "  \"suite\": " + router_json_string_value(ROUTER_SUITE_ID) + ",\n"
+    content = content + "  \"selected\": " + router_json_string_value(selected_filter_text(config.filter_text)) + ",\n"
+    content = content + "  \"filter\": " + router_json_string_value(config.filter_text) + ",\n"
     content = content + "  \"passes\": " + str(config.passes) + ",\n"
     content = content + "  \"warmups\": " + str(config.warmups) + ",\n"
     content = content + "  \"amplify\": " + str(config.amplify) + ",\n"
@@ -590,7 +600,7 @@ fn render_summary_json(config: RouterConfig, telemetry: RouterTelemetry, started
     content = content + "  \"case_count\": " + str(case_count) + ",\n"
     content = content + "  \"success_count\": " + str(success_count) + ",\n"
     content = content + "  \"failure_count\": " + str(failure_count) + ",\n"
-    content = content + "  \"track_root\": " + json_string_value(config.track_root) + ",\n"
+    content = content + "  \"track_root\": " + router_json_string_value(config.track_root) + ",\n"
     content = content + "  \"telemetry\": " + render_telemetry_json(telemetry) + ",\n"
     content = content + "  \"cases\": [\n"
     content = content + cases_json_items + "\n"
@@ -672,6 +682,23 @@ fn main() -> Int:
                 failure_count = failure_count + 1
             println("[bench-v2] " + case_id + " best=" + str(result.best_ms) + "ms avg=" + str(result.average_ms) + "ms status=" + result_status_text(result))
         classic_core3d_index = classic_core3d_index + 1
+
+    let python_interop_index = 0
+    while python_interop_index < python_interop_case_count():
+        let case_id = python_interop_case_id(python_interop_index)
+        let case_group = python_interop_case_group(python_interop_index)
+        if case_selected(config.filter_text, case_id, case_group):
+            let result = run_case(case_id, case_group, python_interop_case_title(python_interop_index), python_interop_case_iterations(python_interop_index), python_interop_case_expected_checksum(python_interop_index), config)
+            let _track = write_track_report(result)
+            cases_json_items = append_json_item(cases_json_items, render_result_json(result))
+            table_rows = table_rows + format_result_row(result)
+            case_count = case_count + 1
+            if result.success:
+                success_count = success_count + 1
+            else:
+                failure_count = failure_count + 1
+            println("[bench-v2] " + case_id + " best=" + str(result.best_ms) + "ms avg=" + str(result.average_ms) + "ms status=" + result_status_text(result))
+        python_interop_index = python_interop_index + 1
 
     let rage_runtime_index = 0
     while rage_runtime_index < rage_runtime_case_count():
