@@ -171,7 +171,9 @@ Use this style of proof aggressively. If a Kain feature claim is "Python import 
 - `MEMORY.md` is the durable task/risk bulletin board. Keep it useful for handoff: what changed, why, risks, proof/report artifacts, next recommended steps, and weird traps that are not yet captured in a more local doc.
 `.agents/skills/*/SKILL.md`, and `.agents/skills/TAXONOMY.md` are the preferred homes for detailed subsystem operating knowledge and skill routing.
 - Update `MEMORY.md` for complex or risky work when future agents need durable continuity and the lesson does not yet belong in a pipeline skill or README.
+- If you learn a durable new trick, routing rule, ownership boundary, validation loop, command surface, gotcha, or authoring pattern that future agents will likely need again, update the owning repo-local skill in the same turn. Do not leave important workflow knowledge trapped in the session.
 - If a pipeline changes significantly, update the owning namespaced repo-local skill before creating a new one. If no namespace lane fits and the pipeline is important, use `$skill-creator` at the end of the turn.
+- If skill scope or discoverability changes, update both the skill body and the agent-facing metadata (`SKILL.md` frontmatter plus `agents/openai.yaml`) so future agents can actually find and trigger the lane.
 
 
 `MEMORY.md` are part of the operating system of this repo. They are the bulletin board. The rule is not "ignore them"; the rule is "search them intelligently." Use `rg` to pull the relevant sections, read what matters, then update the right durable surface when the work changes what future agents need to know.
@@ -205,7 +207,7 @@ $lang-projects
 
 ## Skill Taxonomy
 
-- SKILLS are the most important part of our agent pipeline. Without it, agents will have no idea how to write Kain without going on a scavenger hunt. Treat this pipeline as critical infrastructure. It is in .agents/skills and ensure to be UPDATING IT whenever applicable. New features, things learned, updates, new tricks, pipeline updates etc - the skills need to be updated often when it matters, especially when working on the /crates bootstrap pipeline etc.
+- SKILLS are the most important part of our agent pipeline. Without it, agents will have no idea how to write Kain without going on a scavenger hunt. Treat this pipeline as critical infrastructure. `.agents/skills` is not optional garnish; it is active operational memory for future agents.
 
 - `lang-*`: writing in Kain. Authored `.kn` code, project/build authority, stdlib usage, translation, UI, GPU, actors, ownership, and application-facing command usage.
 - `bootstrap-*`: changing compiler, parser, AST, lowering, semantic wiring, or other bootstrap truth.
@@ -215,6 +217,9 @@ $lang-projects
 - `wildcard-*`: deliberate high-freedom authoring overrides for fast intuition-first Kain drafting when broad repo pattern-matching would get in the way.
 - `tool-*`: cross-cutting operator surfaces such as repo build plumbing, exploratory Z3 black magic, exploratory bug hunting, and release gating.
 - Prefer updating an existing namespaced skill over spawning a new micro-skill. Do not create `misc-*`. 
+- Update skills aggressively when you learn something reusable. New feature shape, better proof loop, better command sequence, new caveat, new ownership rule, or new pipeline ritual all count.
+- New or materially changed pipelines should leave behind a skill update before the turn ends. If the pipeline does not fit an existing lane, create or extend the right namespaced skill instead of hoping memory or examples will carry it.
+- Keep skill discovery honest: when a lane changes, refresh the agent-facing description/prompt metadata too so other agents can actually select it without a scavenger hunt.
 - Keep `wildcard-*` rare and explicit. They are authoring overrides, not substitutes for the owning `lang-*` lanes.
 - When a legacy `kain-*` skill name appears in old notes, resolve it through `.agents/skills/TAXONOMY.md` instead of reviving the old namespace.
 
@@ -321,7 +326,9 @@ python attrition/run.py --case <case> --sabotage <mode>
 - Pipeline `README.md` files, `.agents/skills/*/SKILL.md`, and `.agents/skills/TAXONOMY.md` are the preferred homes for detailed subsystem operating knowledge and skill routing.
 - Update `MEMORY.md` for complex or risky work when future agents need durable continuity and the lesson does not yet belong in a pipeline skill or README.
 - Do not dump raw session logs into memory. Write the distilled lesson, the proof/benchmark/attrition evidence, and the next useful move.
+- If you learn a durable new trick, routing rule, ownership boundary, validation loop, command surface, gotcha, or authoring pattern that future agents will likely need again, update the owning repo-local skill in the same turn. Do not leave important workflow knowledge trapped in the session.
 - If a pipeline changes significantly, update the owning namespaced repo-local skill before creating a new one. If no namespace lane fits and the pipeline is important, use `$skill-creator` at the end of the turn.
+- If skill scope or discoverability changes, update both the skill body and the agent-facing metadata (`SKILL.md` frontmatter plus `agents/openai.yaml`) so future agents can actually find and trigger the lane.
 
 ## Git And Shipping
 
