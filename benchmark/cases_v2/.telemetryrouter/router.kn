@@ -28,6 +28,13 @@ use classic_core3d::classic_core3d_case_group
 use classic_core3d::classic_core3d_case_id
 use classic_core3d::classic_core3d_case_iterations
 use classic_core3d::classic_core3d_case_title
+use rage_runtime::rage_runtime_case_checksum
+use rage_runtime::rage_runtime_case_count
+use rage_runtime::rage_runtime_case_expected_checksum
+use rage_runtime::rage_runtime_case_group
+use rage_runtime::rage_runtime_case_id
+use rage_runtime::rage_runtime_case_iterations
+use rage_runtime::rage_runtime_case_title
 
 const ROUTER_SCHEMA_VERSION: Int = 1
 const ROUTER_MODULUS: Int = 1000000007
@@ -130,15 +137,7 @@ fn env_int_or(key: String, fallback: Int) -> Int:
     let value = env(key)
     if len(value) == 0:
         return fallback
-    let index = 0
-    let parsed = 0
-    while index < len(value):
-        let digit = digit_value(char_at(value, index))
-        if digit < 0:
-            return fallback
-        parsed = (parsed * 10) + digit
-        index = index + 1
-    return parsed
+    return to_int(value)
 
 fn router_path_parent(path: String) -> String:
     let last_slash = -1
@@ -386,6 +385,9 @@ fn run_case_checksum(case_id: String, iterations: Int, amplify: Int) -> Int:
     let classic_core3d_checksum = classic_core3d_case_checksum(case_id, iterations, amplify, ROUTER_MODULUS)
     if classic_core3d_checksum >= 0:
         return classic_core3d_checksum
+    let rage_runtime_checksum = rage_runtime_case_checksum(case_id, iterations, amplify, ROUTER_MODULUS)
+    if rage_runtime_checksum >= 0:
+        return rage_runtime_checksum
     let repeat = 0
     let acc = 0
     while repeat < amplify:
@@ -670,6 +672,23 @@ fn main() -> Int:
                 failure_count = failure_count + 1
             println("[bench-v2] " + case_id + " best=" + str(result.best_ms) + "ms avg=" + str(result.average_ms) + "ms status=" + result_status_text(result))
         classic_core3d_index = classic_core3d_index + 1
+
+    let rage_runtime_index = 0
+    while rage_runtime_index < rage_runtime_case_count():
+        let case_id = rage_runtime_case_id(rage_runtime_index)
+        let case_group = rage_runtime_case_group(rage_runtime_index)
+        if case_selected(config.filter_text, case_id, case_group):
+            let result = run_case(case_id, case_group, rage_runtime_case_title(rage_runtime_index), rage_runtime_case_iterations(rage_runtime_index), rage_runtime_case_expected_checksum(rage_runtime_index), config)
+            let _track = write_track_report(result)
+            cases_json_items = append_json_item(cases_json_items, render_result_json(result))
+            table_rows = table_rows + format_result_row(result)
+            case_count = case_count + 1
+            if result.success:
+                success_count = success_count + 1
+            else:
+                failure_count = failure_count + 1
+            println("[bench-v2] " + case_id + " best=" + str(result.best_ms) + "ms avg=" + str(result.average_ms) + "ms status=" + result_status_text(result))
+        rage_runtime_index = rage_runtime_index + 1
 
     if case_selected(config.filter_text, "array_scan", "core"):
         let result = run_case("array_scan", "core", "Array Scan", 500000, 103499994, config)
