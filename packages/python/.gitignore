@@ -1,0 +1,6 @@
+# Local editable-install and native-extension outputs.
+*.pyd
+*.pyd.pdb
+*.egg-info/
+build/
+dist/

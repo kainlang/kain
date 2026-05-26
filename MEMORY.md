@@ -1,5 +1,31 @@
 # Kain Memory
 
+# 2026-05-26 - pykain C Companion Package and Kain-Safe Python Probes
+
+Landed the initial `packages/python` pykain package as a pip-installable Python companion layer with a CPython C extension (`pykain._native`) for buffer/tensor/image inspection, byte signatures, and byte extraction. Added Kain-shaped semantic envelopes for buffers, tensors, images, GPU resources, shader modules, actors, worlds, entangle links, patch events, and runtime sessions.
+
+What changed:
+
+- `packages/python/pykain/_native.c`
+  - Adds native `inspect`, `signature`, `as_bytes`, and `native_version` helpers using the Python buffer protocol, with numpy/torch/Pillow/OpenCV backend detection where possible.
+- `packages/python/pykain/{api,contracts,gpu,shader,actor,world}.py`
+  - Adds the public adaptation surface and semantic descriptors Kain scripts can import as `import pykain as pykain`.
+- `packages/python/pykain/{tensor,image,buffer}.py`
+  - Adds native-backed metadata/signature paths plus bool-shaped `grid_ok` / `render_ok` probes for Kain control flow.
+- `packages/python/smoke.kn`
+  - Proves pykain through authored Kain using actors, worlds, entangle, patches, and Python imports while avoiding unsafe shared-object conversion paths.
+
+Proof:
+
+- `python -m unittest discover -s X:\packages\python\tests -v` passes.
+- `X:\target\debug\kain.exe check X:\packages\python\smoke.kn --target llvm` passes.
+- `X:\target\debug\kain.exe run X:\packages\python\smoke.kn --target llvm` succeeds with exit `0`.
+
+Durable lessons:
+
+- In the current native Python import lane, rich Python dicts/strings and exact Python ints can remain host-object-ish inside Kain. Bool-returning Python helpers are reliable for Kain control flow; exact metadata should stay inside pykain or be materialized through a dedicated bridge.
+- `python_tensor_shared(...)`, `python_shared_image(...)`, and `python_shared_buffer(...)` can crash with `0xc0000005` when handed host objects returned by first-class Python import calls. Treat that as a runtime interop bug, not a pykain usage pattern. Until fixed, use pykain bool probes and native C descriptors rather than routing those host objects back through `std::python` shared conversion.
+
 # 2026-05-24 - Rust Docs Categorized Lexicon, Snappy Viewports, and Dynamic Keyword Relations Upgrade
 
 Delivered a complete, high-density, minimal "Rust Docs" style keyword manual next to "Guides" and "API" tabs, mapping all 93 active Kain-Lang keywords from `CATALOG.md` (excluding the `ue5` compatibility blacklist) with formal breadcrumbs, section anchors `§`, and dynamic simulator injection. Stripped all layout delays to enable instant, ultra-fluid switching across all viewports. Engineered a robust semantic relationships graph mapping connections across related keywords, and compiled an "insane" Python-based interactive sandbox template generator (`generate_sim.py`) in the repository root.

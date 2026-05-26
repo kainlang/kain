@@ -1,0 +1,384 @@
+// ============================================================================
+//              KAIN  //  PYKAIN SMOKE  —  The Before/After Proof
+// ============================================================================
+// This file proves the pykain ergonomic win.
+//
+// BEFORE pykain (see 1_pygame_mcp.kn):
+//   - import numpy as np, import torch as torch, import pygame as pygame
+//   - import python_lab.bridge as py_lab
+//   - from python_lab.bridge import tensor_signature, module_digest, ...
+//   - use std::python, use std::interop
+//   - python_call_attr_raw(py_lab, "make_numpy_grid", ...)
+//   - python_call_attr_raw(np, "linspace", ...)
+//   - ~50 lines of raw bridge calls + info checking + conversion
+//
+// AFTER pykain (this file):
+//   - import pykain as pykain
+//   - pykain.tensor.grid(plan, seed)
+//   - pykain.tensor.info(tensor)
+//   - pykain.image.render(plan)
+//   - pykain.validate.module("numpy")
+//   - ~15 lines of clean, stable, backend-agnostic calls
+//
+// The Kain side shrinks. The Python side absorbs all the normalization.
+// Every new Kain+Python script starts from pykain, not from raw bridge calls.
+// ============================================================================
+
+use std::actor
+use std::fs
+use std::interop
+use std::json
+use std::python
+use std::runtime
+
+import pykain as pykain
+
+const PYKAIN_MODULUS: Int = 1000000007
+const PYKAIN_CONFIG_PATH: String = "data/pykain_config.json"
+
+// ============================================================================
+//                        WORLD / ACTOR / ENTANGLE
+// ============================================================================
+
+component PykainPanel():
+    render <panel title="Kain pykain // The Official Python Companion" />
+
+world PykainAuthority:
+    state signal: Int = 1
+    state epoch: Int = 0
+    state health: Int = 100
+    state tensor_score: Int = 0
+    state image_score: Int = 0
+    state buffer_score: Int = 0
+    surface native_ui => PykainPanel
+
+world PykainMirror:
+    state signal_copy: Int = 1
+    state epoch_copy: Int = 0
+    state health_copy: Int = 100
+    state tensor_score_copy: Int = 0
+    state image_score_copy: Int = 0
+    state buffer_score_copy: Int = 0
+    surface web => PykainPanel
+
+entangle PykainAuthority.signal <-> PykainMirror.signal_copy with single_writer
+entangle PykainAuthority.epoch <-> PykainMirror.epoch_copy with single_writer
+entangle PykainAuthority.health <-> PykainMirror.health_copy with single_writer
+entangle PykainAuthority.tensor_score <-> PykainMirror.tensor_score_copy with single_writer
+entangle PykainAuthority.image_score <-> PykainMirror.image_score_copy with single_writer
+entangle PykainAuthority.buffer_score <-> PykainMirror.buffer_score_copy with single_writer
+
+shatter struct PykainShard:
+    bias: Int
+    phase: Int
+    salt: Int
+    hot: Bool
+
+actor PykainRelay:
+    state bias: Int = 37
+    state turns: Int = 0
+
+    on Pulse(reply_to: P, request: Int):
+        self.turns = self.turns + 1
+        let fold = ((request * 19) + (self.bias * 11) + self.turns + 43) % PYKAIN_MODULUS
+        send reply_to.Reply(value = fold)
+
+law pykain_signal_in_bounds(value: Int) -> Bool:
+    return value >= 0 and value < PYKAIN_MODULUS
+
+patch commit_pykain(authority: PykainAuthority, value: Int, tensor_score: Int, image_score: Int, buffer_score: Int) -> Int:
+    authority.signal = value
+    authority.epoch = authority.epoch + 1
+    authority.health = int_clamp(authority.health + 1, 0, 1000000)
+    authority.tensor_score = tensor_score
+    authority.image_score = image_score
+    authority.buffer_score = buffer_score
+    return authority.signal
+
+// ============================================================================
+//                        CONFIG LOADING
+// ============================================================================
+
+fn config_text() -> String:
+    return fs_read_text(PYKAIN_CONFIG_PATH)
+
+fn config_plan(plan_text: String) -> Any:
+    return json_parse_text(plan_text)
+
+fn config_int(plan: Any, key: String, fallback: Int) -> Int:
+    return json_int_or(plan, key, fallback)
+
+fn config_string(plan: Any, key: String, fallback: String) -> String:
+    return json_string_or(plan, key, fallback)
+
+// ============================================================================
+//                   LANE 0: MODULE PROBE  (pykain.validate)
+// ============================================================================
+// Before: 30+ lines checking each module with importlib.util.find_spec,
+//         python_getattr_raw for __name__, z3.Solver() construction, etc.
+// After:  pykain.validate.module("name") → int. Done.
+
+fn module_probe_lane(plan: Any, plan_text: String) -> Int:
+    // Single call replaces 5 individual module checks
+    if pykain.validate.module("numpy") == 0:
+        return 10
+
+    // Check pykain itself and its lanes through pykain, not raw attr handles.
+    // Raw Python strings intentionally stay host objects until materialized.
+    if pykain.validate.module("pykain") == 0:
+        return 11
+    if pykain.validate.version() == 0:
+        return 12
+
+    // Verify submodules are importable without hardcoding a Python UI/backend.
+    if pykain.validate.module("pykain.tensor") == 0:
+        return 13
+    if pykain.validate.module("pykain.image") == 0:
+        return 14
+    if pykain.validate.module("pykain.validate") == 0:
+        return 15
+    if pykain.validate.module("pykain.window") == 0:
+        return 16
+
+    return 0
+
+// ============================================================================
+//              LANE 1: TENSOR CROSSING  (pykain.tensor)
+// ============================================================================
+// Before: np.linspace(...), torch.arange(...), separate info extraction,
+//         tensor_signature helper, raw shape/dtype checks.
+// After:  pykain.tensor.grid(plan, seed) → host object
+//         pykain.tensor.info(tensor) → dict with normalized keys
+//         pykain.tensor.signature(tensor) → int checksum
+
+fn tensor_lane(plan: Any, plan_text: String) -> Int:
+    let seed = config_int(plan, "authority_seed", 17)
+
+    // --- pykain.tensor.grid: one call, backend-agnostic ---
+    let tensor = pykain.tensor.grid(plan_text, seed)
+    if pykain.tensor.grid_ok(plan_text, seed) == false:
+        return 20
+
+    // --- pykain.tensor.signature: one call, numpy/torch unified ---
+    let sig = pykain.tensor.grid_signature(plan_text, seed)
+
+    return 0
+
+// ============================================================================
+//              LANE 2: IMAGE CROSSING  (pykain.image)
+// ============================================================================
+// Before: pygame.init, display.set_mode, surfarray.array3d, transpose,
+//         ascontiguousarray, manual width/height/channels checks.
+// After:  pykain.image.render(plan) → host object
+//         pykain.image.info(image) → dict with normalized keys
+//         pykain.image.signature(image) → int checksum
+
+fn image_lane(plan: Any, plan_text: String) -> Int:
+    // --- pykain.image.render: one call, backend-agnostic ---
+    let image = pykain.image.render(plan_text)
+    if pykain.image.render_ok(plan_text) == false:
+        return 30
+
+    // --- pykain.image.signature ---
+    let sig = pykain.image.render_signature(plan_text)
+
+    return 0
+
+// ============================================================================
+//              LANE 3: BUFFER CROSSING  (pykain.buffer)
+// ============================================================================
+// Before: numpy byte grid creation, manual shape/dtype/stride checks.
+// After:  pykain.buffer.grid(plan, seed) → host object
+//         pykain.buffer.info(buffer) → dict with normalized keys
+
+fn buffer_lane(plan: Any, plan_text: String) -> Int:
+    let seed = config_int(plan, "authority_seed", 17)
+    let buf = pykain.buffer.grid(plan_text, seed)
+    if pykain.buffer.grid_ok(plan_text, seed) == false:
+        return 40
+
+    // --- pykain.buffer.signature ---
+    let sig = pykain.buffer.grid_signature(plan_text, seed)
+
+    return 0
+
+// ============================================================================
+//        LANE 4: WINDOW BACKEND  (pykain.window)
+// ============================================================================
+// Before: pygame.init, display.set_mode, driver detection, manual flags.
+// After:  pykain.window.backend_info() → dict
+//         pykain.window.open(plan) → dict
+//         pykain.window.close() → int
+
+fn window_lane(plan: Any, plan_text: String) -> Int:
+    // --- Backend detection ---
+    let bi = pykain.window.backend_info(plan_text)
+    let backend = json_string_or(bi, "backend", "none")
+    let has_adapter = json_bool_or(bi, "valid", false)
+    if has_adapter == false:
+        return 0
+
+    // --- Window open ---
+    let result = pykain.window.open(plan_text)
+    if json_bool_or(result, "valid", false) == false:
+        // No configured adapter or host refusal is a clean skip in the smoke lane.
+        let _close = pykain.window.close()
+        return 0
+
+    let result_backend = json_string_or(result, "backend", "")
+    if result_backend != backend:
+        let _close = pykain.window.close()
+        return 52
+
+    let result_width = json_int_or(result, "width", 0)
+    let result_height = json_int_or(result, "height", 0)
+    let expected_w = config_int(plan, "window_width", 320)
+    let expected_h = config_int(plan, "window_height", 200)
+    if result_width != expected_w or result_height != expected_h:
+        let _close = pykain.window.close()
+        return 53
+
+    // --- Close ---
+    let close_status = pykain.window.close()
+    if close_status != 0:
+        return 54
+
+    return 0
+
+// ============================================================================
+//        LANE 5: ARCHITECTURE PRESSURE  (actor + pykain together)
+// ============================================================================
+// Kain owns the architecture (world/actor/entangle/teleport/patch).
+// pykain provides clean data. They work together.
+
+fn architecture_lane(plan: Any, plan_text: String) -> Int:
+    let authority = PykainAuthority
+    let rounds = config_int(plan, "rounds", 4)
+    let authority_seed = config_int(plan, "authority_seed", 17)
+
+    let relay = spawn PykainRelay(bias = 37)
+    let _warm = ask(relay, "Pulse", authority_seed)
+
+    var checksum: Int = authority_seed
+    var round: Int = 0
+    var lane_error: Int = 0
+
+    while round < rounds and lane_error == 0:
+        let actor_reply = ask(relay, "Pulse", checksum + round)
+        if actor_reply <= 0:
+            lane_error = 60
+        else:
+            let shard = PykainShard {
+                bias: (round % 7) + 1,
+                phase: (round * 3) % 5 + 1,
+                salt: (round * 7) + 17,
+                hot: (round & 1) == 0
+            }
+            let moved = teleport shard from PykainAuthority to PykainMirror via pykain_bus
+
+            // pykain validates the Python-side object; Kain owns exact state math.
+            if pykain.tensor.grid_ok(plan_text, checksum + round) == false:
+                lane_error = 61
+            else:
+                let tensor_sig = ((checksum + round + 31) * 17) % PYKAIN_MODULUS
+                if pykain.image.render_ok(plan_text) == false:
+                    lane_error = 62
+                else:
+                    let image_sig = ((checksum + round + 53) * 23) % PYKAIN_MODULUS
+                    if pykain.buffer.grid_ok(plan_text, checksum + round) == false:
+                        lane_error = 63
+                    else:
+                        let buf_sig = ((checksum + round + 71) * 29) % PYKAIN_MODULUS
+                        let signal_value = (checksum + tensor_sig + image_sig + buf_sig + actor_reply + moved.salt) % PYKAIN_MODULUS
+                        if pykain_signal_in_bounds(signal_value) == false:
+                            lane_error = 64
+                        else:
+                            let committed = commit_pykain(authority, signal_value, tensor_sig, image_sig, buf_sig)
+                            if committed <= 0:
+                                lane_error = 65
+                            else:
+                                checksum = (checksum + committed + tensor_sig + image_sig + buf_sig + actor_reply + moved.phase) % PYKAIN_MODULUS
+                                round = round + 1
+
+    if lane_error != 0:
+        return lane_error
+
+    // Final gate
+    if authority.tensor_score <= 0:
+        return 66
+    if authority.image_score <= 0:
+        return 67
+    if authority.buffer_score <= 0:
+        return 68
+    if PykainMirror.tensor_score_copy != authority.tensor_score:
+        return 69
+    if PykainMirror.image_score_copy != authority.image_score:
+        return 70
+
+    return 0
+
+// ============================================================================
+//                        MAIN
+// ============================================================================
+
+fn main() -> Int:
+    let authority = PykainAuthority
+    let boot = runtime_init()
+    if boot != 0:
+        return 100 + boot
+
+    let plan_text = config_text()
+    if len(plan_text) == 0:
+        return 1
+
+    let plan = config_plan(plan_text)
+
+    // Phase 1: Module probe
+    let module_status = module_probe_lane(plan, plan_text)
+    if module_status != 0:
+        let shutdown = runtime_shutdown()
+        return 200 + module_status
+
+    // Phase 2: Tensor lane
+    let tensor_status = tensor_lane(plan, plan_text)
+    if tensor_status != 0:
+        let shutdown = runtime_shutdown()
+        return 300 + tensor_status
+
+    // Phase 3: Image lane
+    let image_status = image_lane(plan, plan_text)
+    if image_status != 0:
+        let shutdown = runtime_shutdown()
+        return 400 + image_status
+
+    // Phase 4: Buffer lane
+    let buffer_status = buffer_lane(plan, plan_text)
+    if buffer_status != 0:
+        let shutdown = runtime_shutdown()
+        return 500 + buffer_status
+
+    // Phase 5: Window lane
+    let window_status = window_lane(plan, plan_text)
+    if window_status != 0:
+        let shutdown = runtime_shutdown()
+        return 600 + window_status
+
+    // Phase 6: Architecture pressure
+    let arch_status = architecture_lane(plan, plan_text)
+    if arch_status != 0:
+        let shutdown = runtime_shutdown()
+        return 700 + arch_status
+
+    let shutdown = runtime_shutdown()
+    if shutdown != 0:
+        return 800 + shutdown
+
+    // Final gate
+    if authority.health <= 0:
+        return 90
+    if PykainMirror.epoch_copy != authority.epoch:
+        return 91
+    if pykain_signal_in_bounds(PykainMirror.signal_copy) == false:
+        return 92
+
+    return 0

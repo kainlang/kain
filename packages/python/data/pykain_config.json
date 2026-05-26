@@ -1,0 +1,22 @@
+{
+  "preview_samples": 5,
+  "rounds": 4,
+  "tensor_rows": 3,
+  "tensor_cols": 4,
+  "numpy_start": -1.0,
+  "numpy_stop": 1.0,
+  "torch_scale": 1.5,
+  "authority_seed": 17,
+  "image_width": 96,
+  "image_height": 72,
+  "image_channels": 3,
+  "clear_color": [12, 18, 28],
+  "window_backend": "auto",
+  "window_adapters": [],
+  "window_width": 320,
+  "window_height": 200,
+  "window_hidden": true,
+  "bonus_numpy": 101,
+  "bonus_torch": 107,
+  "bonus_window": 113
+}
