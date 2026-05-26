@@ -30,8 +30,8 @@
   "include_loose_spirv": true,
   "scan_roots": [
     ".kain/gpu/samples",
-    "../kain-test/fabric_FFI/UI/spv_ui_surface_probe/native-app",
-    "../kain-test/fabric_FFI/UI/gpu_compute_surface_probe/native-app",
+    "../test/fabric_FFI/UI/spv_ui_surface_probe/native-app",
+    "../test/fabric_FFI/UI/gpu_compute_surface_probe/native-app",
     "../vulkain/.kain/gpu/basic_window"
   ]
 }

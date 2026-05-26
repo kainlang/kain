@@ -35,6 +35,6 @@ Both Z3 proof packs returned `unsat` for their reducer invariants.
 ## Remaining High-Value Work
 
 - `http_server_concurrency` remains the highest-value benchmark wound.
-- `ownership_memory` should be attacked in `crates/kain-sys-codegen` and `runtime/native`, not rewritten as a cosmetic benchmark trick.
+- `ownership_memory` should be attacked in `crates/sys-codegen` and `runtime/native`, not rewritten as a cosmetic benchmark trick.
 - `ffi_shared_call_stress` is close enough to justify ABI-call lowering/profiling.
 - `crypto_block_cipher` is a good candidate for `$z3-black-magic-optimizer` synthesis around round structure or table packing.

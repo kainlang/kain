@@ -54,7 +54,7 @@ Can Kain's local microcell ask path delete the enqueue/copy/dequeue round-trip a
 - Local:
   - `benchmark/out/reports/latest.llm.md`: latest row showed `actor_ownership_backpressure` at Kain `661.200 ms` vs C++ `17.708 ms` before this pass.
   - `runtime/native/src/core/actor.c`: existing ask fast path already inlined the first local microcell turn but still copied payloads into the mailbox before execution.
-  - `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`: generated actor turns always released message payloads with raw `free(...)` before this pass.
+  - `crates/sys-codegen/src/codegen_llvm/mod.rs`: generated actor turns always released message payloads with raw `free(...)` before this pass.
 - External:
   - None.
 

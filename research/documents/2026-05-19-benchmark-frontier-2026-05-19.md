@@ -84,9 +84,9 @@ source, and does canonical manual-substring recognition unlock a real win for
   - `benchmark/latest_manual_substring_probe.md`
   - `benchmark/latest_manual_substring_inline.md`
   - `benchmark/latest.md` from `2026-05-19T05:42:42.438548+00:00`
-  - `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`
-  - `crates/kain-sys-codegen/tests/llvm_codegen_test.rs`
-  - `crates/kain-sys-codegen/z3/proofs/control-inline-known-string-find-substring-window-stays-in-bounds.yaml`
+  - `crates/sys-codegen/src/codegen_llvm/mod.rs`
+  - `crates/sys-codegen/tests/llvm_codegen_test.rs`
+  - `crates/sys-codegen/z3/proofs/control-inline-known-string-find-substring-window-stays-in-bounds.yaml`
 - External:
   - None needed; this pass stayed entirely on repo-owned compiler/runtime and
     benchmark evidence.

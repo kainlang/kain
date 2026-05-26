@@ -30,7 +30,7 @@ rust_library(
     edition = "2021",
     aliases = aliases(),
     deps = [
-        "//crates/kain-core:kain-core",
+        "//crates/core:kain-core",
     ] + all_crate_deps(normal = True),
     proc_macro_deps = all_crate_deps(proc_macro = True),
     compile_data = COMMON_COMPILE_DATA,
@@ -54,7 +54,7 @@ rust_test(
     aliases = aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
     deps = [
         ":ue5-gas",
-        "//crates/kain-core:kain-core",
+        "//crates/core:kain-core",
     ] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,
@@ -72,7 +72,7 @@ rust_test(
     aliases = aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
     deps = [
         ":ue5-gas",
-        "//crates/kain-core:kain-core",
+        "//crates/core:kain-core",
     ] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,
@@ -90,7 +90,7 @@ rust_test(
     aliases = aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
     deps = [
         ":ue5-gas",
-        "//crates/kain-core:kain-core",
+        "//crates/core:kain-core",
     ] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,
@@ -108,7 +108,7 @@ rust_test(
     aliases = aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
     deps = [
         ":ue5-gas",
-        "//crates/kain-core:kain-core",
+        "//crates/core:kain-core",
     ] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,
@@ -126,7 +126,7 @@ rust_test(
     aliases = aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
     deps = [
         ":ue5-gas",
-        "//crates/kain-core:kain-core",
+        "//crates/core:kain-core",
     ] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,
@@ -144,7 +144,7 @@ rust_test(
     aliases = aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
     deps = [
         ":ue5-gas",
-        "//crates/kain-core:kain-core",
+        "//crates/core:kain-core",
     ] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,
@@ -162,7 +162,7 @@ rust_test(
     aliases = aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
     deps = [
         ":ue5-gas",
-        "//crates/kain-core:kain-core",
+        "//crates/core:kain-core",
     ] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,
@@ -180,7 +180,7 @@ rust_test(
     aliases = aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
     deps = [
         ":ue5-gas",
-        "//crates/kain-core:kain-core",
+        "//crates/core:kain-core",
     ] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,
@@ -198,7 +198,7 @@ rust_test(
     aliases = aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
     deps = [
         ":ue5-gas",
-        "//crates/kain-core:kain-core",
+        "//crates/core:kain-core",
     ] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,
@@ -216,7 +216,7 @@ rust_test(
     aliases = aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
     deps = [
         ":ue5-gas",
-        "//crates/kain-core:kain-core",
+        "//crates/core:kain-core",
     ] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,
@@ -234,7 +234,7 @@ rust_test(
     aliases = aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
     deps = [
         ":ue5-gas",
-        "//crates/kain-core:kain-core",
+        "//crates/core:kain-core",
     ] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,

@@ -4,7 +4,7 @@ This automation pass started from the full benchmark snapshot generated `2026-05
 
 ## What Changed
 
-- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`
+- `crates/sys-codegen/src/codegen_llvm/mod.rs`
   - Added `HelperAllocStorageLayout` so bounded helper buffers carry element count, stride, byte length, and zeroed state as one proof object.
   - Expanded ephemeral helper erasure from single scalar cells to bounded 1/2/4/8-byte multi-cell arrays, lowering decay-local buffers to typed stack storage such as `alloca [48 x i64]`.
   - Allowed decay-only helper traces when all remaining pointer uses are safe local `mem_load` / `mem_store` paths before final `decay`.
@@ -16,10 +16,10 @@ This automation pass started from the full benchmark snapshot generated `2026-05
 
 ## Proofs
 
-- `crates/kain-sys-codegen/z3/proofs-experimental/ownership-ephemeral-typed-array-element-offset-equivalence.smt2`
-- `crates/kain-sys-codegen/z3/proofs/memory-ephemeral-typed-array-stack-layout-keeps-element-offsets-aligned.yaml`
-- `crates/kain-sys-codegen/z3/proofs-experimental/helper-alloc-allocsize-product-matches-runtime-payload.smt2`
-- `crates/kain-sys-codegen/z3/proofs/memory-helper-alloc-allocsize-product-matches-runtime-payload.yaml`
+- `crates/sys-codegen/z3/proofs-experimental/ownership-ephemeral-typed-array-element-offset-equivalence.smt2`
+- `crates/sys-codegen/z3/proofs/memory-ephemeral-typed-array-stack-layout-keeps-element-offsets-aligned.yaml`
+- `crates/sys-codegen/z3/proofs-experimental/helper-alloc-allocsize-product-matches-runtime-payload.smt2`
+- `crates/sys-codegen/z3/proofs/memory-helper-alloc-allocsize-product-matches-runtime-payload.yaml`
 - `benchmark/cases/scalar_mix/proofs-experimental/scalar-mix-affine-checksum-equivalence.smt2`
 
 Solver results:

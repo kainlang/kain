@@ -1,0 +1,21 @@
+[package]
+name = "kain-3d"
+version = "0.1.0"
+edition = "2021"
+autobins = false
+
+[[bin]]
+name = "generic_scene_smoke"
+path = "src/bin/generic_scene_smoke.rs"
+
+[dependencies]
+bytemuck = { workspace = true }
+font8x8 = "0.3"
+kain-core = { path = "../core" }
+kain-host = { path = "../host", default-features = false }
+kain-reflect = { path = "../reflect" }
+naga = { version = "24.0.0", features = ["spv-in", "wgsl-out"] }
+pollster = { workspace = true }
+png = "0.17"
+serde_json = { workspace = true }
+wgpu = { workspace = true }

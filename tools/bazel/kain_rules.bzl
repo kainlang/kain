@@ -10,7 +10,7 @@ def kain_stdlib_map(
         name,
         srcs,
         native_manifests,
-        tool = "//crates/kain-stdlib-map:kain_stdlib_map_tool"):
+        tool = "//crates/stdlib-map:kain_stdlib_map_tool"):
     """Generate the stdlib atlas under bazel-bin."""
     json_out = name + ".json"
     llm_out = name + ".llm.md"
@@ -42,7 +42,7 @@ def kain_stdlib_map_check(
         native_manifests,
         checked_json = "stdlib.map.json",
         checked_llm = "STDLIB_MAP.llm.md",
-        tool = "//crates/kain-stdlib-map:kain_stdlib_map_tool"):
+        tool = "//crates/stdlib-map:kain_stdlib_map_tool"):
     """Fail the build when checked-in stdlib atlas files drift."""
     manifest_args = _stdlib_map_args(native_manifests)
     command = (

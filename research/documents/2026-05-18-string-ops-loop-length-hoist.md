@@ -51,9 +51,9 @@ Can Kain close the remaining string_ops gap by hoisting invariant string-paramet
 ## Evidence And Sources
 
 - Local:
-  - `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`
-  - `crates/kain-sys-codegen/tests/llvm_codegen_test.rs`
-  - `crates/kain-sys-codegen/z3/proofs-experimental/string-param-loop-length-cache-valid-under-reassign-guard.smt2`
+  - `crates/sys-codegen/src/codegen_llvm/mod.rs`
+  - `crates/sys-codegen/tests/llvm_codegen_test.rs`
+  - `crates/sys-codegen/z3/proofs-experimental/string-param-loop-length-cache-valid-under-reassign-guard.smt2`
   - `benchmark/out/reports/latest_string_ops_len_hoist.llm.md`
   - `benchmark/out/reports/latest.llm.md`
 - External:
@@ -66,7 +66,7 @@ Can Kain close the remaining string_ops gap by hoisting invariant string-paramet
 
 ## Conclusion
 
-The landed backend change primes loop-carried string parameter lengths once at function entry, guarded by a structural AST scan for loops that actually mention the parameter. The Z3 model in `crates/kain-sys-codegen/z3/proofs-experimental/string-param-loop-length-cache-valid-under-reassign-guard.smt2` remains `unsat`, and the durable proof pack run stayed green.
+The landed backend change primes loop-carried string parameter lengths once at function entry, guarded by a structural AST scan for loops that actually mention the parameter. The Z3 model in `crates/sys-codegen/z3/proofs-experimental/string-param-loop-length-cache-valid-under-reassign-guard.smt2` remains `unsat`, and the durable proof pack run stayed green.
 
 Measured outcome:
 

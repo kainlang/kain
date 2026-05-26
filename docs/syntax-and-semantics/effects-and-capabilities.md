@@ -25,7 +25,7 @@ lowering paths are valid for a given declaration or block.
 
 ## Capabilities
 
-The live capability registry in `crates/kain-core/src/language_features.rs`
+The live capability registry in `crates/core/src/language_features.rs`
 currently gates a small but important set of parser and runtime behaviors, such
 as:
 
@@ -47,10 +47,10 @@ write docs that claim that default is stable.
 
 When a feature seems missing, check the layers in this order:
 
-1. parser support in `crates/kain-core/src/ast.rs`
-2. semantic/runtime support in `crates/kain-core/src/runtime.rs`
-3. capability gating in `crates/kain-core/src/language_features.rs`
-4. target lowering in `crates/kain-driver/src/lib.rs`
+1. parser support in `crates/core/src/ast.rs`
+2. semantic/runtime support in `crates/core/src/runtime.rs`
+3. capability gating in `crates/core/src/language_features.rs`
+4. target lowering in `crates/driver/src/lib.rs`
 
 That order matters because Kain often supports a concept in the language core
 before every target is ready to consume it.

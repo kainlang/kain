@@ -79,7 +79,7 @@ subcommand. Use `reference/command-matrix.md` when you need the exact flag
 table and `reference/target-matrix.md` when you need the target aliases.
 
 Use `kain run`, `kain run dev`, `kain run plan`, or `kain watch` for the
-unified runtime loop. That path is owned by `crates/kain-run` and supports Kain
+unified runtime loop. That path is owned by `crates/run` and supports Kain
 source, native LLVM Kain source via `--target llvm` or `[run] target = "llvm"`,
 C files, Cargo crates, Fabric manifests, Node, Bun, blades, and workspace
 `[run]` metadata. It also folds `build.kn` / `platform.kn` platform package
@@ -119,18 +119,18 @@ existing platform wrapper scripts under `runtime/`.
 
 The CLI surface is defined in:
 
-- `crates/kain-commands/commands/index.toml`
-- `crates/kain-commands/commands/*.toml`
-- `crates/kain-commands/src/kain.rs`
-- `crates/kain-commands/src/blade.rs`
-- `crates/kain-commands/src/dynamic_clap.rs`
-- `crates/kain-commands/src/registry.rs`
-- `crates/kain-commands/src/runtime.rs`
-- `crates/kain-run/src/lib.rs`
+- `crates/commands/commands/index.toml`
+- `crates/commands/commands/*.toml`
+- `crates/commands/src/kain.rs`
+- `crates/commands/src/blade.rs`
+- `crates/commands/src/dynamic_clap.rs`
+- `crates/commands/src/registry.rs`
+- `crates/commands/src/runtime.rs`
+- `crates/run/src/lib.rs`
 - `crates/cli/src/main.rs` for host dispatch and handler execution
 - `crates/cli/src/run.rs` for CLI printing and exit-code handling around
   `kain-run`
-- `crates/kain-check/src/lib.rs`
-- `crates/kain-test/src/lib.rs`
+- `crates/check/src/lib.rs`
+- `crates/test/src/lib.rs`
 - `crates/cli/src/packager/`
 - `crates/cli/src/import_*.rs`

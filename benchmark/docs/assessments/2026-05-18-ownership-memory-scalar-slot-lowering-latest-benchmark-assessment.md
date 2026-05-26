@@ -4,17 +4,17 @@ The latest full multi-language snapshot before this pass (`benchmark/out/reports
 
 What landed:
 
-- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`
+- `crates/sys-codegen/src/codegen_llvm/mod.rs`
   - Supported 1/2/4/8-byte single-cell ephemeral helper allocations now lower to typed scalar stack slots (`i8` / `i16` / `i32` / `i64`) instead of `[N x i8]`.
   - `EphemeralOwnershipLocalWitness` now carries the storage LLVM type, element type, byte length, and guaranteed slot alignment.
   - `compile_ephemeral_storage_i8_pointer(...)` now preserves the same `i8*` observational lane for both scalar and byte-array storage.
   - `compile_runtime_mem_load(...)` and `compile_runtime_mem_store(...)` now clamp alignment to `min(natural_alignment(access_ty), witness.storage_alignment)` instead of hardcoding `align 1`.
-- `crates/kain-sys-codegen/tests/llvm_codegen_test.rs`
+- `crates/sys-codegen/tests/llvm_codegen_test.rs`
   - `llvm_erases_loop_local_ephemeral_single_cell_ownership_to_local_storage` now expects `alloca i64`.
   - `llvm_keeps_ephemeral_zero_init_when_first_use_is_read` now expects typed zero-init with `align 8`.
-- `crates/kain-sys-codegen/z3/proofs-experimental/ownership-ephemeral-single-cell-scalar-storage-preserves-byte-lane.smt2`
+- `crates/sys-codegen/z3/proofs-experimental/ownership-ephemeral-single-cell-scalar-storage-preserves-byte-lane.smt2`
   - Experimental SMT for the scalar-slot lane.
-- `crates/kain-sys-codegen/z3/proofs/memory-ephemeral-single-cell-scalar-storage-preserves-byte-lane-observation.yaml`
+- `crates/sys-codegen/z3/proofs/memory-ephemeral-single-cell-scalar-storage-preserves-byte-lane-observation.yaml`
   - Durable proof-pack entry for the new lane.
 
 Why this is a real compiler win:
@@ -34,7 +34,7 @@ Validation:
   - `z3/reports/20260519T011925Z-ownership_ephemeral_single_cell_scalar_storage_preserves_byte_lane.json`
   - Result: `unsat`.
 - Full `kain-sys-codegen` memory proof lane:
-  - `crates/kain-sys-codegen/z3/reports/20260519T011933Z-kain_sys_codegen_memory_lane_post_scalar_ephemeral.json`
+  - `crates/sys-codegen/z3/reports/20260519T011933Z-kain_sys_codegen_memory_lane_post_scalar_ephemeral.json`
   - Result: `9 proved, 0 counterexamples, 0 unknown, 0 errors`.
 - `bazel build //:kain --config=release`
   - Result: PASS.

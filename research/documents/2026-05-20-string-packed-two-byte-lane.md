@@ -62,18 +62,18 @@ Which honest compiler-owned move from the post-process frontier can close more o
 
 ## Z3 Claims
 
-1. `crates/kain-sys-codegen/z3/proofs/control-inline-known-string-static-two-byte-find-substring-stride-stays-in-bounds.yaml`
+1. `crates/sys-codegen/z3/proofs/control-inline-known-string-static-two-byte-find-substring-stride-stays-in-bounds.yaml`
    - Claim: after a failed packed two-byte compare, `next_offset` stays within the haystack and `next_remaining` stays non-negative while strictly shrinking.
-   - Result: `unsat` in proof-pack report `crates/kain-sys-codegen/z3/reports/20260520T171952Z-kain-sys-codegen-static-two-byte-substring-pack.json`.
-2. `crates/kain-sys-codegen/z3/proofs-experimental/inline-known-string-static-two-byte-first-match-selection.smt2`
+   - Result: `unsat` in proof-pack report `crates/sys-codegen/z3/reports/20260520T171952Z-kain-sys-codegen-static-two-byte-substring-pack.json`.
+2. `crates/sys-codegen/z3/proofs-experimental/inline-known-string-static-two-byte-first-match-selection.smt2`
    - Claim: over the current 12-byte `string_ops` shape, the packed first-match selector returns the same index as the readable left-to-right scan for every possible 2-byte needle and 12-byte text.
    - Result: `unsat` via `z3/reports/20260520T172131Z-inline-known-string-static-two-byte-selection.json`.
 
 ## Evidence And Sources
 
 - Local:
-  - `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`
-  - `crates/kain-sys-codegen/tests/llvm_codegen_test.rs`
+  - `crates/sys-codegen/src/codegen_llvm/mod.rs`
+  - `crates/sys-codegen/tests/llvm_codegen_test.rs`
   - `benchmark/latest_string_frontier_current.md`
   - `benchmark/latest_string_frontier_packed_two_byte.md`
   - `benchmark/out/reports/latest.llm.md`

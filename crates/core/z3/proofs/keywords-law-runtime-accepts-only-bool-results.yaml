@@ -1,0 +1,28 @@
+version: 1
+id: kain.core.proofs.keywords_law_runtime_accepts_only_bool_results
+kind: check_smt2
+description: execute_law_call accepts a law body result only when it is Bool; every
+  non-bool result takes the runtime error branch.
+tags:
+- law
+- runtime
+- bool
+- contract
+source:
+  path: D:\Kain-Lang\crates\core\src\runtime.rs
+  symbol: execute_law_call
+  start_line: 6185
+  reason: the success branch matches only Value::Bool and rejects all other Value
+    variants
+case:
+  smt2: '(set-logic ALL)
+
+    (declare-const is_bool_result Bool)
+
+    (define-fun accepted () Bool is_bool_result)
+
+    (assert (and (not is_bool_result) accepted))
+
+    (check-sat)'
+  include_model: false
+  include_stats: false

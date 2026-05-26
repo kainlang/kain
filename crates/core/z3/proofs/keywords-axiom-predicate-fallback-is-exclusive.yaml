@@ -1,0 +1,33 @@
+version: 1
+id: kain.core.proofs.keywords_axiom_predicate_fallback_is_exclusive
+kind: check_smt2
+description: Axiom machine predicates select the unsafe architectural lane only when
+  every predicate holds; every non-matching machine state takes the fallback lane.
+tags:
+- axiom
+- fallback
+- architecture
+- selector
+source:
+  path: D:\Kain-Lang\crates\core\src\types.rs
+  symbol: check_axiom
+  start_line: 3381
+  reason: axiom validation requires predicates, guarantees, and fallback before a
+    machine fact can enter typed metadata.
+case:
+  smt2: |
+    (set-logic ALL)
+    (declare-const target_match Bool)
+    (declare-const arch_match Bool)
+    (declare-const capability_match Bool)
+    (define-fun predicates_hold () Bool (and target_match arch_match capability_match))
+    (define-fun unsafe_lane_selected () Bool predicates_hold)
+    (define-fun fallback_selected () Bool (not predicates_hold))
+    (assert (or
+      (and (not predicates_hold) unsafe_lane_selected)
+      (and predicates_hold fallback_selected)
+      (and unsafe_lane_selected fallback_selected)
+      (and (not unsafe_lane_selected) (not fallback_selected))))
+    (check-sat)
+  include_model: false
+  include_stats: false

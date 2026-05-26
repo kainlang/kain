@@ -16,22 +16,22 @@ function Resolve-RepoRoot {
 
 function Resolve-PythonCommand {
     if (-not [string]::IsNullOrWhiteSpace($env:KAIN_BAZEL_PYTHON) -and (Test-Path $env:KAIN_BAZEL_PYTHON)) {
-        return @($env:KAIN_BAZEL_PYTHON)
+        return ,@($env:KAIN_BAZEL_PYTHON)
     }
 
     $py = Get-Command py -ErrorAction SilentlyContinue
     if ($py) {
-        return @($py.Source, "-3")
+        return ,@($py.Source, "-3")
     }
 
     $python = Get-Command python -ErrorAction SilentlyContinue
     if ($python) {
-        return @($python.Source)
+        return ,@($python.Source)
     }
 
     $python3 = Get-Command python3 -ErrorAction SilentlyContinue
     if ($python3) {
-        return @($python3.Source)
+        return ,@($python3.Source)
     }
 
     throw "Python 3 was not found. Install Python or set KAIN_BAZEL_PYTHON."
@@ -43,7 +43,7 @@ if (-not (Test-Path $syncScript)) {
     throw ("Kain Bazel sync script not found at " + $syncScript)
 }
 
-$pythonCommand = Resolve-PythonCommand
+$pythonCommand = @(Resolve-PythonCommand)
 $pythonExe = $pythonCommand[0]
 $pythonArgs = @()
 if ($pythonCommand.Count -gt 1) {

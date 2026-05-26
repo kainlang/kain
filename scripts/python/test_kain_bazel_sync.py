@@ -22,7 +22,7 @@ def run(args: list[str], cwd: Path) -> None:
 
 class KainBazelSyncTests(unittest.TestCase):
     def test_path_matching_is_directory_boundary_safe(self) -> None:
-        self.assertTrue(sync.path_matches_watch_path("crates/kain-core/src/lib.rs", ("crates",)))
+        self.assertTrue(sync.path_matches_watch_path("crates/core/src/lib.rs", ("crates",)))
         self.assertTrue(sync.path_matches_watch_path("MODULE.bazel", ("MODULE.bazel",)))
         self.assertFalse(sync.path_matches_watch_path("crates2/not-watched.rs", ("crates",)))
         self.assertFalse(sync.path_matches_watch_path("docs/crates/readme.md", ("crates",)))

@@ -27,7 +27,7 @@ How should Kain represent a full multi-language workspace or blade as a single .
 - Proof obligation: show that a transliterated mega-module can still preserve blade/build behavior for `use c::...`, `c_ffi`, imported manifests, and multi-root workspace layout.
 
 ### Unconventional
-- Mechanism: create `crates/kain-amalgamate` as a capsule pack/unpack/materialize lane. A generated `.kn` file acts as a carrier, but the packed payload materializes back into a normal workspace tree before the usual blade/build/run systems take over.
+- Mechanism: create `crates/amalgamate` as a capsule pack/unpack/materialize lane. A generated `.kn` file acts as a carrier, but the packed payload materializes back into a normal workspace tree before the usual blade/build/run systems take over.
 - Expected upside: preserves exact source trees, keeps `nuklear.h` and SQLite usable as raw foreign sources, and makes `kain run capsule.kn` feel like running an ordinary blade instead of a special importer path.
 - Likely blocker: requires a pre-parse detection/materialization seam in the CLI and run/build front doors, plus a durable capsule schema.
 - Proof obligation: prove blob layout safety, deterministic materialization, and equivalence between "mounted capsule workspace" resolution and original on-disk workspace resolution.
@@ -60,13 +60,13 @@ How should Kain represent a full multi-language workspace or blade as a single .
 ## Evidence And Sources
 
 - Local:
-  - `crates/kain-import/src/lib.rs`: current import ownership is AST translation by language lane, not workspace transport or mount orchestration.
+  - `crates/import/src/lib.rs`: current import ownership is AST translation by language lane, not workspace transport or mount orchestration.
   - `crates/cli/src/import_c.rs` and `crates/cli/src/import_rust.rs`: the operator surface already distinguishes between "single bundle" and "mirrored blades workspace", which is a strong pattern for an amalgamation command family.
-  - `crates/kain-blades/src/lib.rs`: workspace discovery already understands `KAIN.toml`, Cargo manifests, blade roots, app roots, crate roots, and `c_ffi` metadata.
-  - `crates/kain-build/src/workspace.rs`: build planning already delegates from discovered manifests and workspace structure, so a materialized capsule can reuse the same engine.
+  - `crates/blades/src/lib.rs`: workspace discovery already understands `KAIN.toml`, Cargo manifests, blade roots, app roots, crate roots, and `c_ffi` metadata.
+  - `crates/build/src/workspace.rs`: build planning already delegates from discovered manifests and workspace structure, so a materialized capsule can reuse the same engine.
   - `blades/pong/KAIN.toml` and `blades/kain-labs/KAIN.toml`: real blades are mixed trees with `src/`, `native/`, `config/`, `build.tasks`, manifests, and C bridge metadata. A faithful feature must preserve that tree shape.
   - `blades/pong/src/main.kn`: real Kain blades depend on `use c::...` plus many sibling modules, which argues against flattening everything into one mega-module.
-  - `crates/kain-amalgamate/`: an empty reserved crate namespace already exists and cleanly fits the ownership boundary.
+  - `crates/amalgamate/`: an empty reserved crate namespace already exists and cleanly fits the ownership boundary.
 - External:
   - None. This pass is fully grounded in repo-local architecture and operator surfaces.
 
@@ -77,7 +77,7 @@ How should Kain represent a full multi-language workspace or blade as a single .
 
 ## Conclusion
 
-Current thesis: the best design is not "import but bigger." It is a new `crates/kain-amalgamate` capsule system whose `.kn` output is a portable carrier for an entire blade or workspace, with the packed tree materialized back into `.kain/cache/amalgamate/<digest>/...` before normal blade/build/run logic executes.
+Current thesis: the best design is not "import but bigger." It is a new `crates/amalgamate` capsule system whose `.kn` output is a portable carrier for an entire blade or workspace, with the packed tree materialized back into `.kain/cache/amalgamate/<digest>/...` before normal blade/build/run logic executes.
 
 That keeps the real Kain graph sovereign. `kain-import` remains a helper, not the owner. If a capsule wants generated Kain facades for C/Rust/TypeScript, `kain-amalgamate` can call existing import lanes as an optional `--generate-adapters` phase while still preserving the original `nuklear.h`, SQLite amalgamation, manifests, and native assets in the payload.
 
@@ -130,4 +130,4 @@ One promising shape is:
 
 The human-facing comment prelude gives the "holy shit this is a whole project" feeling, while the attribute block gives the CLI and future LLM tooling something stable to parse. The better long-term rule is: render the prelude from the structured metadata during pack/update, never trust drifted comments over the structured block.
 
-Best next experiment: spike `crates/kain-amalgamate` against `blades/network-domains` first, then `blades/pong`, then a tiny wrapper blade that embeds `nuklear.h` plus the SQLite amalgamation. If `pong` survives intact, the direction is real instead of merely elegant.
+Best next experiment: spike `crates/amalgamate` against `blades/network-domains` first, then `blades/pong`, then a tiny wrapper blade that embeds `nuklear.h` plus the SQLite amalgamation. If `pong` survives intact, the direction is real instead of merely elegant.

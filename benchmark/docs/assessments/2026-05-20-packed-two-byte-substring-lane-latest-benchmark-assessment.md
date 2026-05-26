@@ -17,18 +17,18 @@ The row already had a compiler-owned manual substring recognizer, but the hot pa
 
 ## Landed Shape
 
-- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`
+- `crates/sys-codegen/src/codegen_llvm/mod.rs`
   - routes static two-byte needles into `compile_known_length_find_substring_inline_static_two_byte_needle(...)`
   - keeps the authored helper shape and general substring path intact
   - replaces the `memchr` call with a stride-1 packed 16-bit compare for the tiny-static-needle lane
-- `crates/kain-sys-codegen/tests/llvm_codegen_test.rs`
+- `crates/sys-codegen/tests/llvm_codegen_test.rs`
   - adds `llvm_lowers_static_two_byte_find_substring_from_to_packed_stride_one_search`
   - keeps the existing known-string and manual-helper general-path regressions green
 - Proof artifacts:
   - durable bounds proof:
-    - `crates/kain-sys-codegen/z3/proofs/control-inline-known-string-static-two-byte-find-substring-stride-stays-in-bounds.yaml`
+    - `crates/sys-codegen/z3/proofs/control-inline-known-string-static-two-byte-find-substring-stride-stays-in-bounds.yaml`
   - exploratory first-match proof:
-    - `crates/kain-sys-codegen/z3/proofs-experimental/inline-known-string-static-two-byte-first-match-selection.smt2`
+    - `crates/sys-codegen/z3/proofs-experimental/inline-known-string-static-two-byte-first-match-selection.smt2`
 - `benchmark/benchmarks.json`
   - updates the row honesty text so reports describe compiler-owned inline substring search with the packed two-byte lane
 

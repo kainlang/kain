@@ -1,0 +1,33 @@
+version: 1
+id: kain.core.proofs.keywords_shatter_field_lane_offset_stays_in_bounds
+kind: check_smt2
+description: A shattered struct field lane modeled as SoA storage keeps every
+  in-range element access inside the contiguous field-lane capacity.
+tags:
+- shatter
+- memory
+- layout
+- soa
+source:
+  path: D:\Kain-Lang\crates\core\src\runtime_contract.rs
+  symbol: collect_shatter_contracts
+  start_line: 1175
+  reason: shattered structs enter the runtime contract as field-lane metadata
+    rather than ordinary AoS-only item summaries.
+case:
+  smt2: |
+    (set-logic ALL)
+    (declare-const count Int)
+    (declare-const index Int)
+    (declare-const stride Int)
+    (declare-const capacity Int)
+    (assert (> count 0))
+    (assert (>= index 0))
+    (assert (< index count))
+    (assert (> stride 0))
+    (assert (= capacity (* count stride)))
+    (define-fun offset () Int (* index stride))
+    (assert (or (< offset 0) (> (+ offset stride) capacity)))
+    (check-sat)
+  include_model: false
+  include_stats: false

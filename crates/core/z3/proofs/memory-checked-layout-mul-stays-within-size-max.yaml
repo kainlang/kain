@@ -1,0 +1,33 @@
+version: 1
+id: kain.core.proofs.memory_checked_layout_mul_stays_within_size_max
+kind: find_counterexample
+description: checked_layout_mul only accepts factor pairs whose product fits within
+  usize.
+tags:
+- memory
+- layout
+- overflow
+- usize
+source:
+  path: D:\Kain-Lang\crates\core\src\low_level_memory.rs
+  symbol: checked_layout_mul
+  start_line: 79
+  reason: layout multiplication now succeeds only through checked_mul
+case:
+  declarations:
+  - name: lhs
+    sort:
+      kind: int
+  - name: rhs
+    sort:
+      kind: int
+  - name: size_max
+    sort:
+      kind: int
+  constraints:
+  - (= size_max 18446744073709551615)
+  - (>= lhs 0)
+  - (>= rhs 0)
+  - (<= lhs size_max)
+  - (or (= lhs 0) (<= rhs (div size_max lhs)))
+  claim: (<= (* lhs rhs) size_max)

@@ -36,7 +36,7 @@ powershell -ExecutionPolicy Bypass -File scripts/windows/sync-kain-source-of-tru
 ```
 kain/
 ├── crates/                          # Rust compiler (monorepo)
-│   ├── kain-core/                   # Parser, AST, type checker
+│   ├── core/                        # Parser, AST, type checker
 │   ├── ue5/                         # Runtime codegen (actors, components, RPCs)
 │   ├── ue5-editor/                  # Editor codegen (Slate, Details, Viewports)
 │   ├── ue5-materials/               # Material graph system
@@ -132,13 +132,13 @@ kain/
 ### 2. Key Systems
 
 #### Parser & AST (kain-core)
-- **Location:** `crates/kain-core/src/`
+- **Location:** `crates/core/src/`
 - **Key Files:** `lexer.rs`, `parser.rs`, `ast.rs`
 - **Purpose:** Converts `.kn` source into Abstract Syntax Tree
 - **Handles:** Functions, structs, enums, actors, shaders, material graphs, attributes
 
 #### Type System (kain-core)
-- **Location:** `crates/kain-core/src/types.rs`
+- **Location:** `crates/core/src/types.rs`
 - **Purpose:** Type inference, checking, and monomorphization
 - **Features:** Generics, type aliases, trait resolution
 
@@ -191,7 +191,7 @@ kain/
 
 **Example: Add `@networked` attribute for actors**
 
-1. **Update AST** (`crates/kain-core/src/ast.rs`):
+1. **Update AST** (`crates/core/src/ast.rs`):
 ```rust
 pub struct ActorDef {
     pub name: String,
@@ -201,7 +201,7 @@ pub struct ActorDef {
 }
 ```
 
-2. **Update Parser** (`crates/kain-core/src/parser.rs`):
+2. **Update Parser** (`crates/core/src/parser.rs`):
 ```rust
 fn parse_actor(&mut self) -> Result<ActorDef> {
     let attributes = self.parse_attributes()?;  // Parses @networked
@@ -340,7 +340,7 @@ cargo new --lib crates/webgpu
 ```toml
 [workspace]
 members = [
-    "crates/kain-core",
+    "crates/core",
     "crates/ue5",
     "crates/webgpu",  # New
     # ...
@@ -384,16 +384,16 @@ match target {
 | `crates/ue5-shaders/src/codegen_usf.rs` | ~1970 | USF shader generation | Shader codegen bugs, new shader features |
 | `crates/ue5-shaders/src/shader_knowledge.rs` | ~500 | Shader database (7.2K functions) | Intrinsic handling, return type inference |
 | `crates/cli/src/packager/ue5_pipeline.rs` | ~800 | Build orchestration | File output bugs, module splitting |
-| `crates/kain-core/src/parser.rs` | ~2500 | KAIN syntax parser | New syntax, parsing bugs |
-| `crates/kain-core/src/ast.rs` | ~1000 | AST definitions | New language features |
+| `crates/core/src/parser.rs` | ~2500 | KAIN syntax parser | New syntax, parsing bugs |
+| `crates/core/src/ast.rs` | ~1000 | AST definitions | New language features |
 | `unreal/metadata/*.json` | Various | Metadata databases | Re-extract when engine updates |
 
 ### Files You'll Rarely Touch
 
 | File | Purpose | When to Modify |
 |------|---------|----------------|
-| `crates/kain-core/src/lexer.rs` | Tokenization | New keywords, operators |
-| `crates/kain-core/src/types.rs` | Type system | Type inference bugs |
+| `crates/core/src/lexer.rs` | Tokenization | New keywords, operators |
+| `crates/core/src/types.rs` | Type system | Type inference bugs |
 | `crates/ue5/src/ue5/naming.rs` | UE5 prefix rules | Naming convention changes |
 | `crates/ue5/src/ue5/oracle.rs` | Semantic validation | New validation rules |
 | `crates/cli/src/packager/uplugin_gen.rs` | .uplugin generation | Plugin metadata changes |
@@ -415,7 +415,7 @@ match target {
 | `crates/ue5/tests/` | Runtime codegen tests (28 tests) |
 | `crates/ue5-editor/tests/` | Editor codegen tests (10 tests) |
 | `crates/ue5-shaders/tests/` | Shader codegen tests (18 tests) |
-| `crates/kain-core/tests/` | Parser tests (3 tests) |
+| `crates/core/tests/` | Parser tests (3 tests) |
 | `testing/Phase3/SlateTest4/` | Comprehensive integration test |
 | `testing/Phase4/` | Shader-specific tests |
 

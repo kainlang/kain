@@ -61,7 +61,7 @@ The three most important behavior-bearing item families are:
 - `Impl`, which binds methods to a concrete target type and may optionally name
   a trait
 
-These item families are typed separately in `crates/kain-core/src/types.rs` and
+These item families are typed separately in `crates/core/src/types.rs` and
 share lowering rules with method-bearing domain items such as components,
 shaders, actors, and UE5 integration items. If you need the exact function,
 trait, or impl shape, read

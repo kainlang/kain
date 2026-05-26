@@ -1,0 +1,31 @@
+version: 1
+id: kain.ownership.proofs.ownership_state_scoped_observe_returns_to_idle
+kind: check_smt2
+description: A balanced observe scope that starts from Idle must end in Idle with zero live observers.
+tags:
+- ownership
+- state
+- observe
+- scoped
+source:
+  path: D:\Kain-Lang\crates\ownership\src\lib.rs
+  symbol: OwnershipState::begin_observe/end_observe
+  start_line: 116
+  reason: begin_observe moves Idle to Observed(1), and end_observe on one reader returns Idle
+case:
+  smt2: |
+    (set-logic ALL)
+    ; states: 0=idle, 1=observed, 2=collapsed, 3=decayed
+    (declare-const final_state Int)
+    (declare-const final_observers Int)
+    (define-fun begin_observe_state () Int 1)
+    (define-fun begin_observe_count () Int 1)
+    (define-fun end_observe_state ((count Int)) Int (ite (= count 1) 0 1))
+    (define-fun end_observe_count ((count Int)) Int (ite (= count 1) 0 (- count 1)))
+    (assert (= begin_observe_state 1))
+    (assert (= final_state (end_observe_state begin_observe_count)))
+    (assert (= final_observers (end_observe_count begin_observe_count)))
+    (assert (or (not (= final_state 0)) (not (= final_observers 0))))
+    (check-sat)
+  include_model: false
+  include_stats: false

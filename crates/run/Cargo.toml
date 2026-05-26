@@ -1,0 +1,22 @@
+[package]
+name = "kain-run"
+version = "0.1.0"
+edition = "2021"
+description = "KAIN run planning, execution, watch, and telemetry"
+license = "MIT"
+
+[dependencies]
+blade = { path = "../blades" }
+kain-core = { path = "../core" }
+kain-c-ffi = { path = "../c-ffi" }
+kain-driver = { path = "../driver" }
+kain-fs = { path = "../fs" }
+kain-host = { path = "../host", default-features = false }
+kain-omni = { path = "../omni", default-features = false }
+kain-process = { path = "../process" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+tempfile = "3.8"

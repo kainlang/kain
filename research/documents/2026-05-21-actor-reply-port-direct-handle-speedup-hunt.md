@@ -13,7 +13,7 @@ After the borrowed inline ask payload lane removed the first request heap-copy f
 
 - Keep the win honest: no benchmark-only shortcut that bypasses `ask`, reply-port delivery, or scheduler-visible actor semantics.
 - Preserve stale-reply rejection and timeout rearm behavior for TLS reply ports.
-- Keep the public actor lowering contract aligned across `crates/kain-actor`, LLVM codegen, and the native runtime.
+- Keep the public actor lowering contract aligned across `crates/actor`, LLVM codegen, and the native runtime.
 - Leave a durable proof artifact and rerun the canonical benchmark suite before claiming progress.
 
 ## Hypothesis Lattice
@@ -62,10 +62,10 @@ After the borrowed inline ask payload lane removed the first request heap-copy f
   - `runtime/native/include/actor.h`
   - `runtime/native/src/core/actor.c`
   - `runtime/conformance/actor_runtime/test_actor_abi_contract.c`
-  - `crates/kain-actor/src/native.rs`
-  - `crates/kain-actor/src/tests.rs`
-  - `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`
-  - `crates/kain-sys-codegen/tests/llvm_codegen_test.rs`
+  - `crates/actor/src/native.rs`
+  - `crates/actor/src/tests.rs`
+  - `crates/sys-codegen/src/codegen_llvm/mod.rs`
+  - `crates/sys-codegen/tests/llvm_codegen_test.rs`
 - Benchmark reports:
   - pre-pass focused repro: `benchmark/out/reports/latest_frontier_probe.llm.md`
   - post-pass focused repro: `benchmark/out/reports/latest_direct_reply_probe.llm.md`

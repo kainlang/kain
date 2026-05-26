@@ -1,0 +1,16 @@
+[package]
+name = "kain-test"
+version = "0.1.0"
+edition = "2021"
+description = "Rust-inspired Kain source test harness and suite runner"
+license = "MIT"
+
+[dependencies]
+kain-check = { path = "../check" }
+kain-core = { path = "../core" }
+kain-driver = { path = "../driver", default-features = false }
+kain-fs = { path = "../fs" }
+serde = { workspace = true }
+
+[dev-dependencies]
+tempfile = "3.8"

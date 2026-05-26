@@ -5,16 +5,16 @@
 - evidence:
   - targeted probe: `benchmark/out/reports/latest_floor_probe.llm.md`
   - canonical full suite: `benchmark/out/reports/latest.llm.md`
-  - proof lane: `crates/kain-sys-codegen/z3/proofs-experimental/floor-fastpath-defined-domain.smt2`
+  - proof lane: `crates/sys-codegen/z3/proofs-experimental/floor-fastpath-defined-domain.smt2`
   - proof report: `z3/reports/20260520T195910Z-20260520T1932Z-floor-fastpath-defined-domain.json`
 
 ## What changed
 
-- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`
+- `crates/sys-codegen/src/codegen_llvm/mod.rs`
   - emits `declare double @llvm.floor.f64(double)` in the LLVM prelude
   - lowers direct stdlib `floor(Float) -> Int` calls to `llvm.floor.f64` plus `fptosi`
   - keeps the older runtime wrapper symbol available for the general runtime surface instead of deleting it blindly
-- `crates/kain-sys-codegen/tests/llvm_codegen_test.rs`
+- `crates/sys-codegen/tests/llvm_codegen_test.rs`
   - adds a regression test that proves the emitted IR uses the intrinsic path and does not call `kain_floor_i64`
 - `benchmark/cases/sim_uv_velocity_grid/main.kn`
   - touches `deadline_millis` / `deadline_elapsed` once so the row exercises the requested deadline surface without changing the checksum contract

@@ -1,0 +1,13 @@
+[package]
+name = "kain-node"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+kain-core = { path = "../core" }
+kain-interop = { path = "../interop" }
+once_cell = { workspace = true }
+regex = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+toml = { workspace = true }

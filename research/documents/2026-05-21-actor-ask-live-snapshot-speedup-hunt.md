@@ -64,8 +64,8 @@ After the borrowed inline ask payload lane and the reply-port direct-handle lane
   - `benchmark/out/reports/latest.llm.md`
 - Build plumbing:
   - `tools/bazel/sync_rust_builds.py`
-  - `crates/kain-build/BUILD.bazel`
-  - `crates/kain-core/BUILD.bazel`
+  - `crates/build/BUILD.bazel`
+  - `crates/core/BUILD.bazel`
 
 ## Results
 

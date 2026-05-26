@@ -57,20 +57,20 @@ Can native LLVM prove-and-erase helper-owned buffers whose element counts come f
 
 ## Z3 Claims
 
-1. `crates/kain-sys-codegen/z3` memory lane still proves all helper-buffer stack-lowering invariants after the helper-call relaxation.
+1. `crates/sys-codegen/z3` memory lane still proves all helper-buffer stack-lowering invariants after the helper-call relaxation.
 2. The existing typed-array offset/alignment cases remain sufficient because this change widens safe call-surface recognition rather than changing layout arithmetic.
 
 ## Evidence And Sources
 
 - Local:
-  - `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`
-  - `crates/kain-sys-codegen/tests/llvm_codegen_test.rs`
+  - `crates/sys-codegen/src/codegen_llvm/mod.rs`
+  - `crates/sys-codegen/tests/llvm_codegen_test.rs`
   - `benchmark/out/build/sim_cfd_pressure_projection/kain/sim_cfd_pressure_projection.ll`
   - `benchmark/out/build/sim_uv_velocity_grid/kain/sim_uv_velocity_grid.ll`
   - `benchmark/out/build/sim_nbody_gravity/kain/sim_nbody_gravity.ll`
   - `benchmark/out/reports/latest.llm.md`
   - `benchmark/out/reports/latest_sim_multibuffer_postsuite_sanity.llm.md`
-  - `crates/kain-sys-codegen/z3/reports/20260519T082634Z-20260519T-kain-sys-codegen-memory-after-multibuffer-ephemeral.json`
+  - `crates/sys-codegen/z3/reports/20260519T082634Z-20260519T-kain-sys-codegen-memory-after-multibuffer-ephemeral.json`
 - External:
   - None. This pass stayed inside repo code, proofs, and benchmark telemetry.
 

@@ -52,12 +52,12 @@ How can Kain's language and compiler architecture make program builds approach t
 
 ## Evidence And Sources
 
-- Local: `crates/kain-driver/src/lib.rs` currently builds a `FrontendSourceBundle` by collecting imported module sources and assembling `full_source`, then lexing/parsing/comptime/typechecking the combined program.
-- Local: `crates/kain-core/src/lib.rs` legacy `compile` also prepends target stdlib source and compiles as one source string.
-- Local: `ARCHITECTURE.md` identifies native LLVM/runtime priority, `crates/kain-run`, `crates/kain-build`, runtime contracts, realtime bundles, and proof packs as the relevant build surfaces.
-- Local: `crates/kain-blades/src/lib.rs` already owns Blade workspace discovery, `ResolvedBlade`, `BladeWorkspace::dependency_edges`, source roots, module roots, build targets, C/Rust FFI, GPU, Fabric, and synthetic Cargo blades.
-- Local: `crates/kain-build/src/workspace.rs` already owns the Blade build DAG, lane/profile/target-aware artifact roots, cacheable `BuildTask`s, stamp files, cache-hit reporting, and Kain/Cargo/C/GPU/Fabric/Node/Bun adapters.
-- Local: `crates/kain-core/src/module_resolution.rs` consumes `blade::discover_blade_module_roots_from`, so any language-level incremental system must preserve Blade-owned module discovery instead of adding a parallel scanner.
+- Local: `crates/driver/src/lib.rs` currently builds a `FrontendSourceBundle` by collecting imported module sources and assembling `full_source`, then lexing/parsing/comptime/typechecking the combined program.
+- Local: `crates/core/src/lib.rs` legacy `compile` also prepends target stdlib source and compiles as one source string.
+- Local: `ARCHITECTURE.md` identifies native LLVM/runtime priority, `crates/run`, `crates/build`, runtime contracts, realtime bundles, and proof packs as the relevant build surfaces.
+- Local: `crates/blades/src/lib.rs` already owns Blade workspace discovery, `ResolvedBlade`, `BladeWorkspace::dependency_edges`, source roots, module roots, build targets, C/Rust FFI, GPU, Fabric, and synthetic Cargo blades.
+- Local: `crates/build/src/workspace.rs` already owns the Blade build DAG, lane/profile/target-aware artifact roots, cacheable `BuildTask`s, stamp files, cache-hit reporting, and Kain/Cargo/C/GPU/Fabric/Node/Bun adapters.
+- Local: `crates/core/src/module_resolution.rs` consumes `blade::discover_blade_module_roots_from`, so any language-level incremental system must preserve Blade-owned module discovery instead of adding a parallel scanner.
 - External: none checked yet in this note; local architecture is enough for the first hypothesis split.
 
 ## Dead Ends
@@ -79,7 +79,7 @@ How can Kain's language and compiler architecture make program builds approach t
 - Risk: low. The Blade crate already centralizes discovery and the Build crate already has task stamps; this slice mostly promotes that data into the language build cache key.
 
 ### Slice 1 - Module Bundle Without Behavior Change
-- Replace `FrontendSourceBundle { full_source }` with `FrontendModuleBundle { modules, entry }` in `crates/kain-driver`, but keep an adapter that assembles the old `full_source`.
+- Replace `FrontendSourceBundle { full_source }` with `FrontendModuleBundle { modules, entry }` in `crates/driver`, but keep an adapter that assembles the old `full_source`.
 - Each module record should carry canonical path, source hash, target, imports, and prepared source.
 - Each module should also carry optional blade ownership: workspace root, blade name, blade root, source root, module root, and the build lane/profile/target that selected it.
 - Existing tests around imported stdlib/filesystem module materialization become the acceptance floor.
@@ -125,7 +125,7 @@ How can Kain's language and compiler architecture make program builds approach t
 ## Risk Assessment
 
 - Architecture fit: supported. `kain-driver` owns frontend orchestration, `kain-core` owns typed semantics, and downstream codegen already consumes `TypedProgram`.
-- Blade architecture fit: strong. `crates/kain-blades` already owns workspace/package discovery and `crates/kain-build` already owns task planning, artifacts, and stamps, so blades should be the outer incremental boundary rather than an afterthought.
+- Blade architecture fit: strong. `crates/blades` already owns workspace/package discovery and `crates/build` already owns task planning, artifacts, and stamps, so blades should be the outer incremental boundary rather than an afterthought.
 - Refactor size: bounded but real. The first four slices are additive and can be hidden behind compatibility assembly; item-level typed reuse requires changing the typechecker phase boundaries.
 - Correctness risk: nonzero. The dangerous class is stale cache hits from missing semantic dependencies. Mitigation is conservative invalidation first, then proofs for narrower reuse.
 - Backend risk: avoidable early. Do not touch LLVM/codegen first; keep producing `TypedProgram`.

@@ -15,12 +15,12 @@
   - adds `kain_actor_reply_port_send_handle(...)` so compiler-lowered reply ports can carry a live state handle alongside the synthetic actor ref.
 - `runtime/native/src/core/actor.c`
   - completes replies directly against the live reply-port state handle when present, avoiding the old actor-table lookup on the reply hot path.
-- `crates/kain-actor/src/native.rs` and `crates/kain-actor/src/tests.rs`
+- `crates/actor/src/native.rs` and `crates/actor/src/tests.rs`
   - register and test the new required native actor symbol.
-- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`
+- `crates/sys-codegen/src/codegen_llvm/mod.rs`
   - grows `%KainReplyPort` from `{ %KainActorRef }` to `{ %KainActorRef, i8* }`
   - lowers reply sends through `kain_actor_reply_port_send_handle(...)`
-- `crates/kain-sys-codegen/tests/llvm_codegen_test.rs`
+- `crates/sys-codegen/tests/llvm_codegen_test.rs`
   - updates the actor ask/reply regression test to the new reply-port contract.
 - `runtime/conformance/actor_runtime/test_actor_abi_contract.c`
   - exercises the direct-handle send helper in the ABI contract lane.

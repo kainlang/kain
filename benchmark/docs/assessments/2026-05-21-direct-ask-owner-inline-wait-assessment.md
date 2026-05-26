@@ -15,7 +15,7 @@
 
 ## What changed
 
-- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`
+- `crates/sys-codegen/src/codegen_llvm/mod.rs`
   - compiler-lowered direct asks now call `kain_actor_reply_port_prepare_direct(...)` instead of minting a synthetic actor-table reply ref through `kain_actor_reply_port_new()` plus `kain_actor_reply_port_actor_ref(...)`
 - `runtime/native/src/core/actor.c`
   - added direct-token reply-port rearm with generation bump and invalid-actor direct refs

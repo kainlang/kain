@@ -1,0 +1,28 @@
+version: 1
+id: kain.ownership.proofs.ownership_policy_imported_pointer_borrows_do_not_free
+kind: check_smt2
+description: Imported pointers may be observed or collapsed as borrowed regions, but imported decay cannot claim heap free ownership.
+tags:
+- ownership
+- policy
+- imported-pointer
+- ffi
+source:
+  path: D:\Kain-Lang\crates\ownership\src\lib.rs
+  symbol: OWNERSHIP_POLICY_TABLE
+  start_line: 367
+  reason: ImportedPointer uses readonly/scoped-noalias/lifetime-end, not free-heap
+case:
+  smt2: |
+    (set-logic ALL)
+    ; modes: observe 0=readonly_borrow, collapse 0=scoped_noalias, decay 0=lifetime_end, 1=free_heap
+    (declare-const observe_mode Int)
+    (declare-const collapse_mode Int)
+    (declare-const decay_mode Int)
+    (assert (= observe_mode 0))
+    (assert (= collapse_mode 0))
+    (assert (= decay_mode 0))
+    (assert (or (not (= observe_mode 0)) (not (= collapse_mode 0)) (= decay_mode 1)))
+    (check-sat)
+  include_model: false
+  include_stats: false

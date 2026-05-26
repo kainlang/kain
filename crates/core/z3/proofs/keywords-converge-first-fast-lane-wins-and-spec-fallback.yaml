@@ -1,0 +1,25 @@
+version: 1
+id: kain.core.proofs.keywords_converge_first_fast_lane_wins_and_spec_fallback
+kind: check_smt2
+description: select_converge_lane chooses the first matching fast lane and falls back
+  to spec when no fast lane matches.
+tags:
+- converge
+- dispatch
+- selector
+- fallback
+source:
+  path: D:\Kain-Lang\crates\core\src\runtime.rs
+  symbol: select_converge_lane
+  start_line: 6375
+  reason: the lane picker scans fast lanes in order and unwrap_or(spec) supplies the
+    fallback
+case:
+  smt2: "(set-logic ALL)\n(declare-const fast1_matches Bool)\n(declare-const fast2_matches\
+    \ Bool)\n(define-fun selected_lane () Int (ite fast1_matches 1 (ite fast2_matches\
+    \ 2 0)))\n(assert (or (and fast1_matches (not (= selected_lane 1)))\n        \
+    \    (and (not fast1_matches) fast2_matches (not (= selected_lane 2)))\n     \
+    \       (and (not fast1_matches) (not fast2_matches) (not (= selected_lane 0)))))\n\
+    (check-sat)"
+  include_model: false
+  include_stats: false

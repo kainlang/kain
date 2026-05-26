@@ -23,7 +23,7 @@ def module_digest(plan_text: str) -> int:
     if not FLET_AVAILABLE:
         return 0
     try:
-        ver = ft.version.version if hasattr(ft, "version") else "0.0.0"
+        ver = ft.__version__
         return sum(ord(c) for c in ver) % 1000003
     except Exception:
         return 0
@@ -34,7 +34,7 @@ def flet_version() -> str:
     if not FLET_AVAILABLE:
         return ""
     try:
-        return getattr(ft, "version", type("v", (), {"version": "unknown"})()).version
+        return ft.__version__
     except Exception:
         return ""
 

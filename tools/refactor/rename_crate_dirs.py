@@ -119,6 +119,17 @@ def replacement_pairs() -> list[tuple[str, str]]:
     return pairs
 
 
+def ensure_writable(path: Path) -> None:
+    if sys.platform != "win32":
+        return
+    subprocess.run(
+        ["attrib", "-h", "-r", "-s", str(path)],
+        check=False,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
+
 def rewrite_tracked_files(repo_root: Path, dry_run: bool) -> tuple[int, list[str]]:
     pairs = replacement_pairs()
     changed_files: list[str] = []
@@ -137,7 +148,11 @@ def rewrite_tracked_files(repo_root: Path, dry_run: bool) -> tuple[int, list[str
             continue
         changed_files.append(path.relative_to(repo_root).as_posix())
         if not dry_run:
-            path.write_bytes(updated.encode("utf-8"))
+            try:
+                path.write_bytes(updated.encode("utf-8"))
+            except PermissionError:
+                ensure_writable(path)
+                path.write_bytes(updated.encode("utf-8"))
     return len(changed_files), changed_files
 
 

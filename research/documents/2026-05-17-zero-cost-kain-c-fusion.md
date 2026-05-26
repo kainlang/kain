@@ -71,10 +71,10 @@ Can Kain make `use c::` behave like a zero-thickness substrate for Vulkan/runtim
 ## Evidence And Sources
 
 - Local:
-  - `crates/kain-c-ffi/src/generate.rs` emits generated `mod c` modules with `@extern fn` declarations and a separate Rust bridge for interpret/test lanes.
-  - `crates/kain-c-ffi/src/lib.rs` detects `use c::...` imports and augments source for runtime targets.
+  - `crates/c-ffi/src/generate.rs` emits generated `mod c` modules with `@extern fn` declarations and a separate Rust bridge for interpret/test lanes.
+  - `crates/c-ffi/src/lib.rs` detects `use c::...` imports and augments source for runtime targets.
   - `crates/cli/src/main.rs::resolve_c_ffi_shared_libraries_for_linking` currently requires an active C import to declare an existing `shared_lib` for LLVM linking.
-  - `crates/kain-build/src/workspace.rs::add_c_tasks` can already build C shared libraries from blade manifests; this is the natural hook for a future bitcode/static-object fusion task.
+  - `crates/build/src/workspace.rs::add_c_tasks` can already build C shared libraries from blade manifests; this is the natural hook for a future bitcode/static-object fusion task.
 - External:
   - None yet.
 

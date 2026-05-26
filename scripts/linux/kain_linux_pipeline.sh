@@ -127,19 +127,19 @@ sync_stage() {
                 stdlib \
                 runtime \
                 crates/cli \
-                crates/kain-core \
-                crates/kain-driver \
-                crates/kain-crate-ffi \
-                crates/kain-import \
-                crates/kain-host \
-                crates/kain-host-derive \
-                crates/kain-interop \
-                crates/kain-node \
-                crates/kain-python \
-                crates/kain-reflect \
-                crates/kain-asm \
-                crates/kain-omni \
-                crates/kain-selfhost \
+                crates/core \
+                crates/driver \
+                crates/crate-ffi \
+                crates/import \
+                crates/host \
+                crates/host-derive \
+                crates/interop \
+                crates/node \
+                crates/python \
+                crates/reflect \
+                crates/asm \
+                crates/omni \
+                crates/selfhost \
                 smoketest/cargo/local_crate_synth \
                 "${stage_repo}/"
         )

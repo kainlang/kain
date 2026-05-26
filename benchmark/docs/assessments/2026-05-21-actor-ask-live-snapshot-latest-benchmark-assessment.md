@@ -18,7 +18,7 @@
   - changed `kain_actor_ask_send_ref(...)` to validate a live target snapshot without taking `g_actor_table.lock` on every ask
 - `runtime/native/src/core/z3/proofs-experimental/actor-ask-live-snapshot-ref-match-equivalence.smt2`
   - proves the new snapshot predicate matches the old locked ref predicate under the stable live-slot invariant
-- `crates/kain-build/BUILD.bazel` and `crates/kain-core/BUILD.bazel`
+- `crates/build/BUILD.bazel` and `crates/core/BUILD.bazel`
   - regenerated through `python tools/bazel/sync_rust_builds.py` to repair stale Bazel/Cargo drift that blocked `kain check`
 
 ## Honest performance result

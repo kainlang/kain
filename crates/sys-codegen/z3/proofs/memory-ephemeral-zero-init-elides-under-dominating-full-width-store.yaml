@@ -1,0 +1,48 @@
+version: 1
+id: kain.sys.codegen.llvm.proofs.memory_ephemeral_zero_init_elides_under_dominating_full_width_store
+kind: check_smt2
+description: Fresh zeroed ephemeral helper cells may skip the entry zero-fill
+  when the first ownership use is a full-width dominating store before any read,
+  because the later loaded value is identical to the eager-zeroed path.
+tags:
+- llvm
+- memory
+- ownership
+- ephemeral
+- zero-init
+- lowering
+source:
+  path: D:/Kain-Lang/crates/sys-codegen/src/codegen_llvm/mod.rs
+  symbol: compile_stmt
+  start_line: 5633
+  reason: compile_stmt now distinguishes ephemeral locals whose fresh zero-fill
+    is dead because the first ownership use is a full-width dominating store,
+    and only emits `zeroinitializer` for ephemeral cells that can still observe
+    the fresh zeroed state
+case:
+  smt2: '(set-logic QF_BV)
+
+    (declare-fun stale_value () (_ BitVec 64))
+    (declare-fun written_value () (_ BitVec 64))
+    (declare-fun no_read_before_store () Bool)
+    (declare-fun full_width_store () Bool)
+
+    (assert no_read_before_store)
+    (assert full_width_store)
+
+    (define-fun eager_value_after_zero () (_ BitVec 64) #x0000000000000000)
+    (define-fun eager_value_after_store () (_ BitVec 64) written_value)
+    (define-fun eager_loaded_value () (_ BitVec 64) eager_value_after_store)
+
+    (define-fun elided_value_before_store () (_ BitVec 64) stale_value)
+    (define-fun elided_value_after_store () (_ BitVec 64) written_value)
+    (define-fun elided_loaded_value () (_ BitVec 64) elided_value_after_store)
+
+    (assert
+      (or
+        (not (= eager_value_after_store elided_value_after_store))
+        (not (= eager_loaded_value elided_loaded_value))))
+
+    (check-sat)'
+  include_model: false
+  include_stats: false

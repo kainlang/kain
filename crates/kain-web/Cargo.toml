@@ -1,9 +1,0 @@
-[package]
-name = "kain-web"
-version = "0.1.0"
-edition = "2021"
-
-[dependencies]
-kain-core = { path = "../kain-core" }
-kain-script = { path = "../kain-script" }
-kain-wasm = { path = "../kain-wasm" }

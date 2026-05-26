@@ -19,8 +19,8 @@ runtime intent directly:
 - state coupling
 - multi-stage cross-runtime pipelines
 
-Those ideas show up in both `crates/kain-core/src/runtime_contract.rs` and
-`crates/kain-core/src/realtime_app_bundle.rs`, so they need one canonical home
+Those ideas show up in both `crates/core/src/runtime_contract.rs` and
+`crates/core/src/realtime_app_bundle.rs`, so they need one canonical home
 instead of being scattered across examples.
 Those bundle types also carry required capabilities, service bindings, and
 target/compatibility metadata alongside the intent-specific sections.
@@ -48,7 +48,7 @@ The runtime contract and realtime bundle both track:
 - invalidation keys
 - replay-oriented history
 
-The runtime tests in `crates/kain-driver/src/lib.rs` show that patch history,
+The runtime tests in `crates/driver/src/lib.rs` show that patch history,
 undo, and replay are part of the runtime semantics, not just a serialized note.
 
 ## `law`
@@ -163,13 +163,13 @@ ordered list of callbacks.
 
 ## What To Check In The Code
 
-- `crates/kain-core/src/runtime_contract.rs`
-- `crates/kain-core/src/realtime_app_bundle.rs`
-- `crates/kain-entangle/src/lib.rs`
-- `crates/kain-driver/src/lib.rs`
-- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`
-- `crates/kain-sys-codegen/src/codegen_c.rs`
-- `crates/kain-core/src/ast.rs`
+- `crates/core/src/runtime_contract.rs`
+- `crates/core/src/realtime_app_bundle.rs`
+- `crates/entangle/src/lib.rs`
+- `crates/driver/src/lib.rs`
+- `crates/sys-codegen/src/codegen_llvm/mod.rs`
+- `crates/sys-codegen/src/codegen_c.rs`
+- `crates/core/src/ast.rs`
 - `runtime/native/include/kain_runtime_entangle.h`
 - `runtime/native/src/core/kain_runtime_entangle.c`
 

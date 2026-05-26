@@ -1,0 +1,15 @@
+[package]
+name = "kain-clean"
+version = "0.1.0"
+edition = "2021"
+description = "Safe generated-artifact cleanup and workspace cache hygiene for KAIN"
+license = "MIT"
+
+[dependencies]
+blade = { path = "../blades" }
+kain-fs = { path = "../fs" }
+serde = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+tempfile = "3.8"

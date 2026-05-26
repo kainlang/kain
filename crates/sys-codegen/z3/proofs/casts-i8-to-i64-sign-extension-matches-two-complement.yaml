@@ -1,0 +1,20 @@
+version: 1
+id: kain.sys.codegen.llvm.proofs.casts_i8_to_i64_sign_extension_matches_two_complement
+kind: check_smt2
+description: i8 -> i64 lowering uses sext, so the low byte is preserved and the
+  upper 56 bits are all zeros for non-negative inputs or all ones for negative
+  two's-complement inputs.
+tags:
+- llvm
+- casts
+- i8
+- sext
+source:
+  path: D:\Kain-Lang\crates\sys-codegen\src\codegen_llvm\mod.rs
+  symbol: cast_numeric_value
+  start_line: 1220
+  reason: i8 values are widened with sext both in storage coercions and explicit numeric casts
+case:
+  smt2: "(set-logic QF_BV)\n(declare-const x (_ BitVec 8))\n(define-fun widened () (_ BitVec 64) ((_ sign_extend 56) x))\n(define-fun signbit () (_ BitVec 1) ((_ extract 7 7) x))\n(assert (or (not (= ((_ extract 7 0) widened) x)) (and (= signbit #b0) (not (= ((_ extract 63 8) widened) #x00000000000000))) (and (= signbit #b1) (not (= ((_ extract 63 8) widened) #xffffffffffffff)))))\n(check-sat)"
+  include_model: false
+  include_stats: false

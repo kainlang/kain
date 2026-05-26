@@ -1,7 +1,7 @@
 # Async, Actors, And Concurrency
 
 Kain has real async and actor forms in the AST plus runtime support in
-`crates/kain-core/src/runtime.rs` and the native runtime headers.
+`crates/core/src/runtime.rs` and the native runtime headers.
 
 For lifecycle, mailbox ownership, and shutdown semantics, also read
 [guides/native-c-runtime/actor-lifecycle.md](/home/ephemara/Dev/Kain/guides/native-c-runtime/actor-lifecycle.md).

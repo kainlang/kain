@@ -61,8 +61,8 @@ Which remaining honest benchmark losses can Kain retake by widening LLVM's ephem
 ## Evidence And Sources
 
 - Local:
-  - `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`
-  - `crates/kain-sys-codegen/tests/llvm_codegen_test.rs`
+  - `crates/sys-codegen/src/codegen_llvm/mod.rs`
+  - `crates/sys-codegen/tests/llvm_codegen_test.rs`
   - `benchmark/cases/scalar_mix/main.kn`
   - `benchmark/latest_typed_stack_scalar_retake.md`
   - `benchmark/latest_typed_stack_regression_sanity.md`

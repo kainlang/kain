@@ -12,7 +12,7 @@ Kain is designed to cover four things at once:
 - cross-target lowering and materialization
 - host bridges and orchestration lanes that consume the same compiler truth
 
-The language core in `crates/kain-core` owns meaning. Backends, importers, and
+The language core in `crates/core` owns meaning. Backends, importers, and
 host bridges consume compiler-owned truth instead of redefining it.
 
 ## Mental Model
@@ -109,8 +109,8 @@ gate parser or execution support separately from target selection.
 
 If you want to understand a feature, follow this order:
 
-1. the AST shape in `crates/kain-core/src/ast.rs`
-2. the type and layout behavior in `crates/kain-core/src/types.rs`
-3. the runtime behavior in `crates/kain-core/src/runtime.rs`
-4. the target and capability rules in `crates/kain-core/src/language_features.rs`
+1. the AST shape in `crates/core/src/ast.rs`
+2. the type and layout behavior in `crates/core/src/types.rs`
+3. the runtime behavior in `crates/core/src/runtime.rs`
+4. the target and capability rules in `crates/core/src/language_features.rs`
 5. the emitted artifact or host bridge that consumes the result

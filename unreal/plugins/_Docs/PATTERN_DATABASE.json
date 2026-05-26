@@ -132,7 +132,7 @@
         },
         "backend_changes": {
           "required": true,
-          "files_modified": ["Kain/crates/kain-core/src/parser.rs", "Kain/crates/ue5/src/codegen_ue5.rs"],
+          "files_modified": ["Kain/crates/core/src/parser.rs", "Kain/crates/ue5/src/codegen_ue5.rs"],
           "description": "Add for loop support to parser and codegen"
         },
         "impact": "All 5 plugins",
@@ -194,7 +194,7 @@
         },
         "backend_changes": {
           "required": true,
-          "files_modified": ["Kain/crates/kain-core/src/parser.rs", "Kain/crates/ue5/src/codegen_ue5.rs"],
+          "files_modified": ["Kain/crates/core/src/parser.rs", "Kain/crates/ue5/src/codegen_ue5.rs"],
           "description": "Add struct literal support to parser and codegen"
         },
         "impact": "All 5 plugins",

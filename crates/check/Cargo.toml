@@ -1,0 +1,15 @@
+[package]
+name = "kain-check"
+version = "0.1.0"
+edition = "2021"
+description = "Frontend and target-aware checking pipeline for KAIN"
+license = "MIT"
+
+[dependencies]
+kain-core = { path = "../core" }
+kain-driver = { path = "../driver", default-features = false }
+kain-fs = { path = "../fs" }
+serde = { workspace = true }
+
+[dev-dependencies]
+tempfile = "3.8"

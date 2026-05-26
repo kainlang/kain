@@ -1,0 +1,21 @@
+version: 1
+id: kain.sys.codegen.llvm.proofs.layout_align_abi_size_rounds_up_under_supported_alignments
+kind: check_smt2
+description: align_abi_size only receives 1, 4, or 8 byte ABI alignments from the
+  current LLVM lowering, and with explicit usize headroom it rounds upward
+  without shrinking the size, losing alignment, or wrapping past usize::MAX.
+tags:
+- llvm
+- layout
+- abi
+- alignment
+- overflow
+source:
+  path: D:\Kain-Lang\crates\sys-codegen\src\codegen_llvm\mod.rs
+  symbol: align_abi_size
+  start_line: 769
+  reason: align_abi_size uses size.div_ceil(align) * align for struct field and final layout padding
+case:
+  smt2: "(set-logic QF_NIA)\n(declare-const size Int)\n(declare-const align Int)\n(define-fun size_max () Int 18446744073709551615)\n(assert (>= size 0))\n(assert (or (= align 1) (= align 4) (= align 8)))\n(assert (<= size (- size_max (- align 1))))\n(define-fun aligned () Int (ite (<= align 1) size (* (div (+ size (- align 1)) align) align)))\n(assert (or (< aligned size) (> aligned size_max) (not (= (mod aligned align) 0))))\n(check-sat)"
+  include_model: false
+  include_stats: false

@@ -1,0 +1,28 @@
+[pack]
+id = "stdlib"
+title = "Stdlib Commands"
+owner = "crates/stdlib-map"
+about = "Generated standard-library symbol atlas and agent-readable stdlib discovery."
+
+[[commands]]
+id = "stdlib.map"
+bins = ["kain", "kn"]
+path = ["stdlib-map"]
+about = "Generate, print, or check the Kain stdlib symbol atlas"
+handler = "builtin:stdlib-map"
+tags = ["stdlib", "llm", "compiler"]
+
+[[commands.args]]
+name = "write"
+kind = "bool"
+long = "write"
+
+[[commands.args]]
+name = "check"
+kind = "bool"
+long = "check"
+
+[[commands.args]]
+name = "json"
+kind = "bool"
+long = "json"

@@ -56,15 +56,15 @@ How far can Kain's compiler and runtime error system be upgraded beyond conventi
 
 ## Evidence And Sources
 
-- Local: `crates/kain-core/src/diagnostics.rs` has span mapping and pretty rendering; `crates/kain-core/src/error.rs` has `KainError::Enhanced`, `DiagnosticBuilder`, and readable token strings; `crates/kain-core/src/diagnostic_registry.rs` has stable compiler codes; `crates/kain-core/src/parser.rs` has recovery with `MAX_ERRORS`; `runtime/native/include/diagnostics.h` and `runtime/native/src/core/diagnostics.c` have runtime subsystem families and collectors.
-- Local: `crates/kain-core/z3/proofs/diagnostics-*.yaml` already proves parts of span/line arithmetic.
+- Local: `crates/core/src/diagnostics.rs` has span mapping and pretty rendering; `crates/core/src/error.rs` has `KainError::Enhanced`, `DiagnosticBuilder`, and readable token strings; `crates/core/src/diagnostic_registry.rs` has stable compiler codes; `crates/core/src/parser.rs` has recovery with `MAX_ERRORS`; `runtime/native/include/diagnostics.h` and `runtime/native/src/core/diagnostics.c` have runtime subsystem families and collectors.
+- Local: `crates/core/z3/proofs/diagnostics-*.yaml` already proves parts of span/line arithmetic.
 - Local Z3 attempt: `run_proof_pack` with diagnostic patterns refreshed analysis but matched zero cases, so the existing diagnostic cases may need proof-pack naming/index cleanup before this lane can report them as a focused subset.
 - Shipped vertical slice:
   - `KainError::Rich(Box<DiagnosticReport>)` with severity, kind, stable code, primary span, labels, notes, help, fix-its, origin, and JSON.
   - `Diagnostics::format_error` renders rich reports with source context and structured notes/fix-its.
   - Parser `expect` now emits rich diagnostics for expected-token failures.
   - Missing-colon-before-newline diagnostics anchor to the previous significant token, preserve the old phrase for compatibility, avoid synthetic `<frontend-import-scan>:` fake locations, and offer an insert-`:` fix-it.
-  - Durable proof: `crates/kain-core/z3/proofs/parser-colon-fixit-zero-width-span-stays-in-source-bounds.yaml`.
+  - Durable proof: `crates/core/z3/proofs/parser-colon-fixit-zero-width-span-stays-in-source-bounds.yaml`.
 - Validation:
   - `cargo test -p kain-core --test test_parser_error_format`: PASS, 5 tests.
   - `cargo test -p kain-core --test test_parser_error_quality test_missing_block_colon_reports_actionable_newline_hint`: PASS.

@@ -9,7 +9,7 @@ entry = "src/main.kn"
 source_roots = [
   "src",
   "../kain-config/src",
-  "../kain-fsx/src",
+  "../fsx/src",
   "../kain-json/src",
   "../kain-fmt/src",
   "../vulkain/src",
@@ -17,7 +17,7 @@ source_roots = [
 module_roots = [
   "src",
   "../kain-config/src",
-  "../kain-fsx/src",
+  "../fsx/src",
   "../kain-json/src",
   "../kain-fmt/src",
   "../vulkain/src",
@@ -72,7 +72,7 @@ inputs = [
   "config/spirv_visualizer.runtime.json",
   "shaders/spirv_visualizer_samples.kn",
   "../kain-config/src/kain_config.kn",
-  "../kain-fsx/src/kain_fsx.kn",
+  "../fsx/src/kain_fsx.kn",
   "../kain-json/src/kain_json.kn",
   "../vulkain/src/vulkain.kn",
   "../vulkain/native/vulkain_bridge.h",

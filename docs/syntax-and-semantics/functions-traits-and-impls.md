@@ -3,7 +3,7 @@
 Snapshot: April 12, 2026.
 
 This page is the canonical home for the behavior-bearing item families in
-`crates/kain-core/src/ast.rs` and `crates/kain-core/src/types.rs`.
+`crates/core/src/ast.rs` and `crates/core/src/types.rs`.
 
 ## Functions
 
@@ -100,9 +100,9 @@ If they need the contract shape of a function or method, use this page.
 
 ## Source Files To Consult
 
-- `crates/kain-core/src/ast.rs`
-- `crates/kain-core/src/types.rs`
-- `crates/kain-core/src/runtime.rs`
+- `crates/core/src/ast.rs`
+- `crates/core/src/types.rs`
+- `crates/core/src/runtime.rs`
 
 ## Practical Rule
 

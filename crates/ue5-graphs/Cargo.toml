@@ -6,7 +6,7 @@ authors = ["KAIN Team"]
 description = "UE5 graph editor codegen for KAIN compiler"
 
 [dependencies]
-kain-core = { path = "../kain-core" }
+kain-core = { path = "../core" }
 unreal_asset = { path = "../unreal/unreal_asset" }
 unreal_asset_base = { path = "../unreal/unreal_asset_base" }
 unreal_asset_properties = { path = "../unreal/unreal_asset_properties" }

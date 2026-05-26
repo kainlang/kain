@@ -16,7 +16,7 @@
  * - Requirement 3.6: Memory layout and ABI policy
  *
  * Source: runtime/LOW_LEVEL_HELPER_IMPLEMENTATION_CHECKLIST.md
- * Compiler: crates/kain-core/src/low_level_memory.rs
+ * Compiler: crates/core/src/low_level_memory.rs
  *
  * Bitfield Packing Rules:
  * - Bitfield unit size: always 8 bytes (uint64_t)

@@ -4,10 +4,10 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-kain-core = { path = "../kain-core" }
+kain-core = { path = "../core" }
 rspirv = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 
 [dev-dependencies]
-kain-gpu-runtime = { path = "../kain-gpu-runtime" }
+kain-gpu-runtime = { path = "../gpu-runtime" }

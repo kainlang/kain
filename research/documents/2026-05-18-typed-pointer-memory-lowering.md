@@ -64,9 +64,9 @@ Can Kain turn `ptr_offset`-based memory loops into typed, aligned LLVM memory wa
 ## Evidence And Sources
 
 - Local:
-  - `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`
-  - `crates/kain-sys-codegen/tests/llvm_codegen_test.rs`
-  - `crates/kain-sys-codegen/z3/proofs-experimental/power-of-two-ptr-offset-shift-equivalence.smt2`
+  - `crates/sys-codegen/src/codegen_llvm/mod.rs`
+  - `crates/sys-codegen/tests/llvm_codegen_test.rs`
+  - `crates/sys-codegen/z3/proofs-experimental/power-of-two-ptr-offset-shift-equivalence.smt2`
   - `benchmark/latest_typed_pointer_memory_probe.md`
   - `benchmark/latest.md`
 - External:

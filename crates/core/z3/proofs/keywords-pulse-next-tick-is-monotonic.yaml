@@ -1,0 +1,31 @@
+version: 1
+id: kain.core.proofs.keywords_pulse_next_tick_is_monotonic
+kind: check_smt2
+description: A positive pulse interval with enough 64-bit timer headroom always
+  schedules the next tick strictly after the current tick; jitter is only accepted
+  inside the interval envelope.
+tags:
+- pulse
+- time
+- timer
+- overflow
+source:
+  path: D:\Kain-Lang\crates\core\src\types.rs
+  symbol: check_pulse
+  start_line: 3425
+  reason: pulse typechecking rejects zero/negative durations and accepts bounded
+    timing metadata before the runtime contract records the pulse.
+case:
+  smt2: |
+    (set-logic QF_BV)
+    (declare-const now (_ BitVec 64))
+    (declare-const interval (_ BitVec 64))
+    (declare-const jitter (_ BitVec 64))
+    (assert (bvugt interval #x0000000000000000))
+    (assert (bvule interval (bvsub #xffffffffffffffff now)))
+    (assert (bvule jitter interval))
+    (define-fun next_tick () (_ BitVec 64) (bvadd now interval))
+    (assert (not (bvugt next_tick now)))
+    (check-sat)
+  include_model: false
+  include_stats: false

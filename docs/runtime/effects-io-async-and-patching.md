@@ -19,7 +19,7 @@ The effect lattice currently tracks eight effect kinds:
 - `Alloc`
 - `Panic`
 
-The checker in `crates/kain-core/src/effects.rs` uses those sets to decide
+The checker in `crates/core/src/effects.rs` uses those sets to decide
 whether a caller may invoke a callee.
 
 ## Call Rule

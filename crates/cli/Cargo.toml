@@ -17,26 +17,26 @@ name = "blade"
 path = "src/bin/blade.rs"
 
 [dependencies]
-kain-core = { path = "../kain-core" }
-blade = { path = "../kain-blades" }
-kain-amalgamate = { path = "../kain-amalgamate" }
-kain-build = { path = "../kain-build" }
-kain-check = { path = "../kain-check" }
-kain-clean = { path = "../kain-clean" }
-kain-test = { path = "../kain-test" }
-kain-driver = { path = "../kain-driver", default-features = false }
-kain-c-ffi = { path = "../kain-c-ffi" }
-kain-codebase = { path = "../kain-codebase" }
-kain-commands = { path = "../kain-commands" }
-kain-crate-ffi = { path = "../kain-crate-ffi" }
-kain-asm = { path = "../kain-asm" }
-kain-host = { path = "../kain-host" }
-kain-import = { path = "../kain-import", default-features = false, features = ["c", "rust", "usf"] }
-kain-omni = { path = "../kain-omni", default-features = false }
-kain-repair = { path = "../kain-repair" }
-kain-run = { path = "../kain-run" }
-kain-repl = { path = "../kain-repl" }
-kain-stdlib-map = { path = "../kain-stdlib-map" }
+kain-core = { path = "../core" }
+blade = { path = "../blades" }
+kain-amalgamate = { path = "../amalgamate" }
+kain-build = { path = "../build" }
+kain-check = { path = "../check" }
+kain-clean = { path = "../clean" }
+kain-test = { path = "../test" }
+kain-driver = { path = "../driver", default-features = false }
+kain-c-ffi = { path = "../c-ffi" }
+kain-codebase = { path = "../codebase" }
+kain-commands = { path = "../commands" }
+kain-crate-ffi = { path = "../crate-ffi" }
+kain-asm = { path = "../asm" }
+kain-host = { path = "../host" }
+kain-import = { path = "../import", default-features = false, features = ["c", "rust", "usf"] }
+kain-omni = { path = "../omni", default-features = false }
+kain-repair = { path = "../repair" }
+kain-run = { path = "../run" }
+kain-repl = { path = "../repl" }
+kain-stdlib-map = { path = "../stdlib-map" }
 ue5 = { path = "../ue5", optional = true }
 ue5-editor = { path = "../ue5-editor", optional = true }
 ue5-shaders = { path = "../ue5-shaders", optional = true }
@@ -50,8 +50,8 @@ unreal_asset_registry = { workspace = true, optional = true }
 unreal_asset_base = { workspace = true, optional = true }
 unreal_asset = { workspace = true, optional = true }
 gpu = { path = "../gpu", optional = true }
-kain-web = { path = "../kain-web", optional = true }
-kain-sys-codegen = { path = "../kain-sys-codegen", optional = true }
+kain-web = { path = "../web", optional = true }
+kain-sys-codegen = { path = "../sys-codegen", optional = true }
 
 clap = { workspace = true }
 notify = { workspace = true }

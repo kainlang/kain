@@ -14,7 +14,7 @@ The CLI entrypoints are `kain fabric init [path] --template local|polyglot`,
 
 The canonical manifest is `KAIN.fabric.toml`.
 
-The manifest model in `src/.rustimport/reference/kain-omni/fabric.kn` includes:
+The manifest model in `src/.rustimport/reference/omni/fabric.kn` includes:
 
 - `version`
 - `workspace`
@@ -171,8 +171,8 @@ after the fact.
 
 ## Source Files To Read Next
 
-- `src/.rustimport/reference/kain-omni/fabric.kn`
-- `src/.rustimport/reference/kain-host/fabric.kn`
+- `src/.rustimport/reference/omni/fabric.kn`
+- `src/.rustimport/reference/host/fabric.kn`
 - `src/.rustimport/reference/cli/fabric.kn`
 - `smoketest/fabric/`
 

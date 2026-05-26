@@ -1,0 +1,31 @@
+[package]
+name = "kain-omni"
+version = "0.1.0"
+edition = "2021"
+authors = ["KAIN Contributors"]
+description = "Import-aware multi-language orchestration for KAIN"
+license = "MIT"
+
+[features]
+default = ["typescript-import"]
+typescript-import = ["kain-import/typescript"]
+
+[dependencies]
+blade = { path = "../blades" }
+kain-core = { path = "../core" }
+kain-driver = { path = "../driver", default-features = false, features = ["ue5", "gpu", "web", "sys"] }
+kain-fs = { path = "../fs" }
+kain-import = { path = "../import", default-features = false, features = ["c", "rust", "usf"] }
+kain-asm = { path = "../asm" }
+ue5 = { path = "../ue5" }
+ue5-editor = { path = "../ue5-editor" }
+ue5-shaders = { path = "../ue5-shaders" }
+gpu = { path = "../gpu" }
+kain-sys-codegen = { path = "../sys-codegen" }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+toml = { workspace = true }
+
+[dev-dependencies]
+tempfile = "3.8"

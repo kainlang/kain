@@ -108,7 +108,7 @@ This is not a case where the lower layers know nothing.
 
 ### Build lane already has structured task truth
 
-`crates/kain-build/src/workspace.rs` already records structured build execution:
+`crates/build/src/workspace.rs` already records structured build execution:
 
 - `BladeBuildReport`
 - `BuildTaskExecution`
@@ -129,7 +129,7 @@ the build is running.
 
 ### Check lane already knows the full file set
 
-`crates/kain-check/src/lib.rs` already:
+`crates/check/src/lib.rs` already:
 
 - discovers all `.kn` and `.ks` files first
 - loops through them one by one

@@ -1,0 +1,32 @@
+version: 1
+id: kain.core.proofs.parser_path_looks_like_enum_variant_last_index_stays_nonnegative
+kind: range_check
+description: path_looks_like_enum_variant only indexes the last segment after proving
+  segments.len() >= 2, so segments.len() - 1 is always non-negative.
+tags:
+- parser
+- path
+- bounds
+- enum
+source:
+  path: D:\Kain-Lang\crates\core\src\parser.rs
+  symbol: path_looks_like_enum_variant
+  start_line: 577
+  reason: the function returns early when segments.len() < 2 before indexing segments.len()
+    - 1
+case:
+  declarations:
+  - name: segments_len
+    sort:
+      kind: int
+  constraints:
+  - op: ge
+    args:
+    - segments_len
+    - 2
+  expression:
+    op: sub
+    args:
+    - segments_len
+    - 1
+  lower: 0

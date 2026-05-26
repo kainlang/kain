@@ -3,8 +3,8 @@
 `kain check` and `kain test` are the source-level validation pipeline for Kain.
 They are backed by reusable crates instead of CLI-only code:
 
-- `crates/kain-check` owns source discovery, frontend validation, target-aware capability summaries, and structured check reports.
-- `crates/kain-test` owns Rust-inspired `//@` directives, pass/fail modes, ignored cases, test-item execution, and structured suite reports.
+- `crates/check` owns source discovery, frontend validation, target-aware capability summaries, and structured check reports.
+- `crates/test` owns Rust-inspired `//@` directives, pass/fail modes, ignored cases, test-item execution, and structured suite reports.
 - `crates/cli` parses flags, prints summaries, and writes optional JSON reports.
 
 ## Commands

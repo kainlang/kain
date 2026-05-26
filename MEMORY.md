@@ -203,8 +203,8 @@ What changed:
   - rewrote `once_do()` / `once_complete()` around explicit `UNINITIALIZED -> INITIALIZING -> DONE` state transitions and added `once_reset()` for failed initialization rollback
   - kept the MCS lock shape but changed the intrusive link to hand the successor's waiting-cell pointer across the queue instead of rebuilding a whole node pointer from raw bits
   - left code comments pointing at the durable solver artifacts:
-    - `crates/kain-core/z3/proofs/stdlib-sync-teleport-channel-index-bounds.yaml`
-    - `crates/kain-core/z3/proofs/stdlib-sync-wait-group-counter-stays-in-range.yaml`
+    - `crates/core/z3/proofs/stdlib-sync-teleport-channel-index-bounds.yaml`
+    - `crates/core/z3/proofs/stdlib-sync-wait-group-counter-stays-in-range.yaml`
 - `smoketest/src/stdlib/sync_lane.kn`
   - now proves the repaired mutex path, channel clamp/full/empty behavior, `Once` completion plus reset, and `WaitGroup` underflow rejection
 - `benchmark/cases/sync_primitives/main.kn`
@@ -228,7 +228,7 @@ Validation and repo truth:
   - `kain run attrition/cases/kain_stdlib_foundations/main.kn --target llvm`
   - `python benchmark/run.py --case sync_primitives --languages kain --runs 5 --warmups 1 --timeout 240`
   - `python attrition/run.py --case kain_stdlib_foundations --scale small --timeout 120`
-- proof artifacts were added under `crates/kain-core/z3/proofs/` for the padded ring-buffer cursor bounds and wait-group counter range guards
+- proof artifacts were added under `crates/core/z3/proofs/` for the padded ring-buffer cursor bounds and wait-group counter range guards
 - full `smoketest/src/main.kn` is currently blocked by unrelated in-flight `std::fs` work (`stdlib/fs.kn:261` refers to unknown `abi_fs_metadata_text`), not by `std::sync`
 
 Durable lessons:
@@ -366,7 +366,7 @@ What changed:
   - `smoketest/src/telemetry/report.kn`
     - now uses `std::fmt::fmt_json_string` so the new formatting surface has a non-stdlib consumer and telemetry JSON escaping is less fragile
 - atlas tooling
-  - `crates/kain-stdlib-map/src/main.rs`
+  - `crates/stdlib-map/src/main.rs`
     - now runs atlas generation on a dedicated large-stack worker thread because the richer root stdlib shape overflowed the old default-stack path
 - completion contract
   - `stdlib/requirements.md`
@@ -537,13 +537,13 @@ module files during filesystem import resolution or blade module-root discovery.
 
 What changed:
 
-- `crates/kain-core/src/module_resolution.rs`
+- `crates/core/src/module_resolution.rs`
   - removed `.god` candidate paths from shared filesystem module lookup
   - added a regression test that asserts filesystem candidates no longer include
     `.god`
-- `crates/kain-blades/src/lib.rs`
+- `crates/blades/src/lib.rs`
   - module-root discovery now treats only `.kn` files as authored Kain source
-- `crates/kain-run/src/lib.rs`
+- `crates/run/src/lib.rs`
   - removed the explicit `.god` extension match from run-target inference
 - docs / architecture
   - updated `ARCHITECTURE.md`, `docs/syntax-and-semantics/module-resolution.md`,
@@ -555,7 +555,7 @@ Validation:
 - `cargo test -p kain-core module_resolution --target-dir target/codex-no-god`
 - `cargo test -p blade infers_nested_module_roots_from_source_tree --target-dir target/codex-no-god`
 - `cargo test -p kain-run infers_targets_from_file_names --target-dir target/codex-no-god`
-  - blocked by an unrelated current workspace failure in `crates/kain-sys-codegen`
+  - blocked by an unrelated current workspace failure in `crates/sys-codegen`
     (`ConstGlobalInfo` missing `thread_local`)
 
 Durable lesson:
@@ -573,13 +573,13 @@ The `kain check` lane is less cwd-sensitive and less noisy now: frontend C FFI a
 
 What changed:
 
-- `crates/kain-driver/src/lib.rs`
+- `crates/driver/src/lib.rs`
   - `prepare_frontend_source_for_target(...)` now takes `source_path` and threads it through C FFI and Rust FFI source preparation
   - frontend import collection now prepares imported module sources relative to their own file path, not the ambient process cwd
   - added a regression test that checks a generated `.kain/cache/c_ffi/.../tiny_prelude.kn` file from outside its workspace and proves the nearest `KAIN.toml` is still honored
-- `crates/kain-driver/src/native_app.rs`
+- `crates/driver/src/native_app.rs`
   - updated the native-app helper callsite to the new `prepare_c_ffi_source(..., source_path, ...)` signature
-- `crates/kain-check/src/lib.rs`
+- `crates/check/src/lib.rs`
   - directory discovery now skips `.kain` alongside other generated roots, so workspace checks only count authored source by default
   - regression test now covers both `generated/` and `.kain/cache/`
 - `docs/cli/check-and-test.md`
@@ -639,7 +639,7 @@ The typechecker no longer mistakes its own forward predeclare placeholders for u
 
 What changed:
 
-- `crates/kain-core/src/types.rs`
+- `crates/core/src/types.rs`
   - `predeclare_item_types` now records real declaration origins for structs, enums, worlds, components, and actors when it creates the placeholder, so the later registration pass recognizes the same declaration instead of reporting self-shadowing.
   - stdlib registration now carries an explicit `stdlib_registration_depth`, and span-origin checks also recognize `stdlib/*.kn`; this lets authored stdlib wrappers such as `fs_read_text` and vector/math helpers replace originless builtin globals without granting the same privilege to user files.
   - Regression tests cover predeclared user type registration, dynamic `use std::collections` without `StringIntMap` self-shadow, dynamic `use std::fs` builtin-wrapper registration, stdlib-origin wrapper allowance, and user-origin builtin shadow rejection.
@@ -674,7 +674,7 @@ What changed:
 
 Validation:
 
-- direct Bazel-built CLI because the wrapper `kain` path is currently blocked by unrelated workspace breakage in `crates/kain-core`
+- direct Bazel-built CLI because the wrapper `kain` path is currently blocked by unrelated workspace breakage in `crates/core`
 - `D:\\Kain-Lang\\target` wrapper not required; used `D:/kain-bazel/output-user-root/ccujd7ry/execroot/_main/bazel-out/x64_windows-dbg/bin/crates/cli/kain.exe`
 - `... kain.exe check blades/kaintana/src/kaintana.kn --target llvm` -> PASS
 - `... kain.exe check blades/kaintana/src/main.kn --target llvm` -> PASS
@@ -771,7 +771,7 @@ The inline scheduler-lock cut moved the actor frontier, but hot ask/reply traffi
 
 What changed:
 
-- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`
+- `crates/sys-codegen/src/codegen_llvm/mod.rs`
   - lowered actor `ask` / `ask_timeout` setup through `kain_actor_reply_port_prepare_direct(...)` instead of `kain_actor_reply_port_new()` plus synthetic-actor ref export
 - `runtime/native/include/actor.h`
   - exported the compiler-owned `kain_actor_reply_port_prepare_direct(...)` ABI surface
@@ -780,9 +780,9 @@ What changed:
   - added the owner-thread `owner_inline_ready` completion lane so same-thread inline asks can read back completed payloads without re-taking the reply-port lock or firing a useless wake
   - kept stale direct replies observable and rejected through generation-tagged `send_handle(...)` matching
 - actor ABI / compiler validation surfaces:
-  - `crates/kain-actor/src/native.rs`
-  - `crates/kain-actor/src/tests.rs`
-  - `crates/kain-sys-codegen/tests/llvm_codegen_test.rs`
+  - `crates/actor/src/native.rs`
+  - `crates/actor/src/tests.rs`
+  - `crates/sys-codegen/tests/llvm_codegen_test.rs`
   - `runtime/conformance/actor_runtime/test_actor_abi_contract.c`
 - proof surfaces:
   - `runtime/native/src/core/z3/proofs-experimental/actor-reply-port-direct-token-rearm-invalidates-stale-generation.smt2`
@@ -889,7 +889,7 @@ What changed:
   - switched `kain_actor_ask_send_ref(...)` from locked `kain_actor_table_ref_matches_locked(...)` validation to a live-snapshot validation path that mirrors the existing lockless `kain_actor_send(...)` lookup shape
 - `runtime/native/src/core/z3/proofs-experimental/actor-ask-live-snapshot-ref-match-equivalence.smt2`
   - proves the new snapshot predicate and the old locked predicate cannot disagree under the stable live-slot invariant
-- `crates/kain-build/BUILD.bazel` and `crates/kain-core/BUILD.bazel`
+- `crates/build/BUILD.bazel` and `crates/core/BUILD.bazel`
   - regenerated via `python tools/bazel/sync_rust_builds.py` after stale BUILD drift blocked `kain check` by dropping the `kain-test` Bazel dependency
 - durable notes:
   - `research/2026-05-21-actor-ask-live-snapshot-speedup-hunt.md`
@@ -946,14 +946,14 @@ Future agents should use `$lang-projects` when the work is about Kain project au
 
 What changed:
 
-- `crates/kain-build` and `crates/kain-blades` both extract the first-class constructors, so discovery and planning agree
+- `crates/build` and `crates/blades` both extract the first-class constructors, so discovery and planning agree
 - tasks can carry matrix axes, telemetry channels, certificate subjects, and required host capabilities
 - non-dry-run builds skip tasks whose `requires_capability(...)` is not advertised by the host capability set
 - `blades/kloner`, `blades/kaintana`, and `blades/kaintana-test` now dogfood the first-class std API shape
 
 # 2026-05-21 - `build.kn` became an evidence DAG
 
-`crates/kain-build` now treats `build.kn` tasks as evidence DAG nodes, not only build DAG nodes. First-class explicit task kinds now include `test`, `proof`, `benchmark`, `attrition`, `certify`, and `native-executable`; dependency failures gate dependent tasks, and evidence-style tasks emit `kain-evidence.json`.
+`crates/build` now treats `build.kn` tasks as evidence DAG nodes, not only build DAG nodes. First-class explicit task kinds now include `test`, `proof`, `benchmark`, `attrition`, `certify`, and `native-executable`; dependency failures gate dependent tasks, and evidence-style tasks emit `kain-evidence.json`.
 
 What changed:
 
@@ -1026,18 +1026,18 @@ What changed:
 
 # 2026-05-21 - `kain test` gained a real Z3 proof lane and `std::test`
 
-Kain's source test pipeline now has a solver-backed lane instead of only Cargo/compiletest-style execution. `crates/kain-test` accepts `//@ prove-pass` and `//@ prove-sat` directives, collects repeated `//@ smt2:` lines, invokes Z3 from `PATH` or `KAIN_Z3`, and records proof evidence in JSON reports (`solver`, expected result, actual result, obligation line count). `prove-pass` expects `unsat`; `prove-sat` expects `sat`.
+Kain's source test pipeline now has a solver-backed lane instead of only Cargo/compiletest-style execution. `crates/test` accepts `//@ prove-pass` and `//@ prove-sat` directives, collects repeated `//@ smt2:` lines, invokes Z3 from `PATH` or `KAIN_Z3`, and records proof evidence in JSON reports (`solver`, expected result, actual result, obligation line count). `prove-pass` expects `unsat`; `prove-sat` expects `sat`.
 
 What changed:
 
-- `crates/kain-test/src/lib.rs`
+- `crates/test/src/lib.rs`
   - added `KainTestMode::ProvePass` / `ProveSat`, SMT2 directive parsing, Z3 process execution, and proof evidence in case reports
   - added unit coverage for live `unsat` and `sat` solver cases when Z3 is available
 - `crates/cli/src/main.rs`
   - updated the test-mode help text to include proof modes
 - `stdlib/test.kn`
   - added authored `std::test` outcome vocabulary (`TestOutcome`, pass/fail/skip/proved/witness helpers)
-- `smoketest/kain-test/prove_pass.kn` and `prove_sat.kn`
+- `smoketest/test/prove_pass.kn` and `prove_sat.kn`
   - added CLI-facing proof fixtures
 - `blades/stdlib-domains/src/main.kn`, `AGENTS.md`, `ARCHITECTURE.md`, and docs
   - wired/documented `std::test` and the solver-backed test flow
@@ -1045,7 +1045,7 @@ What changed:
 
 Validation:
 
-- `rustfmt --edition 2021 crates\\kain-test\\src\\lib.rs crates\\cli\\src\\main.rs`
+- `rustfmt --edition 2021 crates\\test\\src\\lib.rs crates\\cli\\src\\main.rs`
 - `cargo test -p kain-test --target-dir target\\codex-native-test-proof`
 - `cargo check -p cli --target-dir target\\codex-native-test-proof`
 - `cargo run -q -p kain-stdlib-map --bin kain_stdlib_map_tool -- --write`
@@ -1060,19 +1060,19 @@ Validation:
 
 What changed:
 
-- `crates/kain-blades/src/lib.rs`
+- `crates/blades/src/lib.rs`
   - added effective-manifest synthesis by overlaying `build.kn` / `platform.kn` metadata on top of `KAIN.toml`
   - added script-authority parsing for `workspace_defaults()`, `package("...")`, `blade("...")`, `build_defaults()`, `run_defaults()`, and `build_task("...")`
   - workspace discovery now honors script-authored blade patterns like `workspace_defaults().blade_pattern("packages/*")`
   - blade discovery now accepts script-only blades without `KAIN.toml` when the script declares real blade surface metadata
   - workspace markers now include `build.kn` / `platform.kn`, so blade-root and workspace-root detection can anchor on script authority
-- `crates/kain-build/src/workspace.rs`
+- `crates/build/src/workspace.rs`
   - workspace config now reads effective manifest defaults from script-or-TOML authority instead of only raw `KAIN.toml`
   - explicit blade/root tasks now work from script-only authorities instead of requiring `blade.kain_manifest`
   - blade-check inputs now include build scripts as first-class authority files
   - bumped the build adapter fingerprint version to `kain-build-v3`
   - `plan_kain_project(...)` now accepts `build.kn`-only project authority for package/build metadata and task inputs
-- `crates/kain-run/src/lib.rs`
+- `crates/run/src/lib.rs`
   - run planning now loads run defaults from effective script-or-TOML authority for workspaces and blades
   - file-target inference now honors script-authored `run_defaults().target("...")`
   - workspace-level fallback entry resolution now checks script-authored `run_defaults()` / `build_defaults()` / `blade(...).entry(...)`
@@ -1120,7 +1120,7 @@ Validation:
 
 What changed:
 
-- `crates/kain-build/src/workspace.rs`
+- `crates/build/src/workspace.rs`
   - added shared build-script discovery so `build.kn` / `platform.kn` extraction now reads both `platform_package(...)` requirements and script-authored explicit tasks
   - added `build_task("id").kind("...").entry("...").target("...").input("...").output("...").depends_on("...")` parsing with the same field surface as `[[build.tasks]]`
   - explicit task selection now prefers script tasks when at least one `build_task(...)` is present and cleanly falls back to manifest tasks when the script only declares platform packages
@@ -1149,9 +1149,9 @@ What changed:
   - important follow-up: the original `ReloadPolicy` aggregate return shape was not trustworthy on the LLVM path when it carried many `String` fields, so the public surface was narrowed to explicit getters instead of shipping a broken fat aggregate
 - `blades/kaintana/src/core/reconciliation.kn` and `runtime/fixtures/native_ui_stdlib_layer/main.kn`
   - switched authored reload calls from raw `native_ui_hot_reload_*` helpers to `std::reload`
-- `crates/kain-core/src/runtime_contract.rs`
+- `crates/core/src/runtime_contract.rs`
   - reflection payloads now emit explicit actor-state schemas (`<ActorName>State`) so reload participants can compare actor structure honestly instead of carrying actor names without fields
-- `crates/kain-driver/src/native_app.rs` and `crates/kain-driver/src/tauri_app.rs`
+- `crates/driver/src/native_app.rs` and `crates/driver/src/tauri_app.rs`
   - native and Tauri app manifests now emit `hot_reload.participants`
   - runtime snapshots now mirror that contract under `reload`
   - the participant payload inventories `std::reload`, structural migration defaults, world state schemas, actor state/message schemas, planned GPU frame-boundary/resource-graph hooks, the default restart mode, and the explicit compatibility lanes
@@ -1223,11 +1223,11 @@ This automation pass targeted the latest honest sim frontier after the packed tw
 
 What changed:
 
-- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`
+- `crates/sys-codegen/src/codegen_llvm/mod.rs`
   - emits `declare double @llvm.floor.f64(double)` once in the LLVM prelude
   - adds a compiler-owned `compile_numeric_floor_builtin(...)` lane that lowers `floor(x)` into `llvm.floor.f64` plus `fptosi`
   - wires direct stdlib `floor(...)` calls through that lane instead of always bouncing through `kain_floor_i64`
-- `crates/kain-sys-codegen/tests/llvm_codegen_test.rs`
+- `crates/sys-codegen/tests/llvm_codegen_test.rs`
   - added `llvm_lowers_floor_builtin_with_llvm_intrinsic`, which proves the generated IR contains the LLVM intrinsic path and does not call `kain_floor_i64`
 - `benchmark/cases/sim_uv_velocity_grid/main.kn`
   - now touches `deadline_millis` / `deadline_elapsed` once so the row exercises the live deadline surface requested for the automation
@@ -1235,7 +1235,7 @@ What changed:
   - `research/2026-05-20-benchmark-frontier-speedup-hunt.md`
   - `benchmark/assesments/2026-05-20-llvm-floor-fastpath-latest-benchmark-assessment.md`
 - Proof artifact:
-  - `crates/kain-sys-codegen/z3/proofs-experimental/floor-fastpath-defined-domain.smt2`
+  - `crates/sys-codegen/z3/proofs-experimental/floor-fastpath-defined-domain.smt2`
   - report `z3/reports/20260520T195910Z-20260520T1932Z-floor-fastpath-defined-domain.json`
 
 Validation:
@@ -1273,14 +1273,14 @@ This automation pass targeted the clean compiler frontier after the process/runt
 
 What changed:
 
-- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`
+- `crates/sys-codegen/src/codegen_llvm/mod.rs`
   - `compile_known_length_find_substring_inline(...)` now routes statically visible two-byte needles into `compile_known_length_find_substring_inline_static_two_byte_needle(...)`.
   - the new lane keeps the authored helper semantics but replaces the `memchr` call with a stride-1 packed 16-bit compare loop and a one-byte remaining-span update.
-- `crates/kain-sys-codegen/tests/llvm_codegen_test.rs`
+- `crates/sys-codegen/tests/llvm_codegen_test.rs`
   - added `llvm_lowers_static_two_byte_find_substring_from_to_packed_stride_one_search` and kept the prior general-path substring tests green so the new lane stays isolated to the tiny-static-needle surface.
-- `crates/kain-sys-codegen/z3/proofs/control-inline-known-string-static-two-byte-find-substring-stride-stays-in-bounds.yaml`
+- `crates/sys-codegen/z3/proofs/control-inline-known-string-static-two-byte-find-substring-stride-stays-in-bounds.yaml`
   - durable proof that the stride-1 cursor advance and `next_remaining` update stay in-bounds (`unsat` in the full pack).
-- `crates/kain-sys-codegen/z3/proofs-experimental/inline-known-string-static-two-byte-first-match-selection.smt2`
+- `crates/sys-codegen/z3/proofs-experimental/inline-known-string-static-two-byte-first-match-selection.smt2`
   - exploratory benchmark-shape proof that the packed two-byte first-match selector returns the same answer as the readable left-to-right scan (`unsat` report `z3/reports/20260520T172131Z-inline-known-string-static-two-byte-selection.json`).
 - `benchmark/benchmarks.json`
   - updated `string_ops` / `unicode_string_heavy` honesty notes so reports describe compiler-owned inline substring search with the new packed two-byte lane instead of the older `memchr/memcmp` wording.
@@ -1297,7 +1297,7 @@ Validation:
   - `cargo test -p kain-sys-codegen llvm_lowers_manual_find_substring_helpers_with_negative_one_miss_to_native_search -- --nocapture` -> PASS.
 - Proofs:
   - `mcp__z3_local__.check_smt2(...)` on the packed two-byte first-match selector -> `unsat`.
-  - `mcp__z3_local__.run_proof_pack(path="D:/Kain-Lang/crates/kain-sys-codegen/z3", report_name="kain-sys-codegen-static-two-byte-substring-pack")` -> `27 proved, 0 counterexamples, 0 unknown, 0 errors`.
+  - `mcp__z3_local__.run_proof_pack(path="D:/Kain-Lang/crates/sys-codegen/z3", report_name="kain-sys-codegen-static-two-byte-substring-pack")` -> `27 proved, 0 counterexamples, 0 unknown, 0 errors`.
 - Focused frontier retake:
   - `benchmark/latest_string_frontier_packed_two_byte.md`
   - `string_ops`: Kain `7.969 ms`, Rust `9.463 ms`, C++ `9.882 ms`
@@ -1400,9 +1400,9 @@ This pass turned the platform-package/build-graph work into the daily run path a
 
 What changed:
 
-- `crates/kain-run` plans now include `RunBuildGraphProvenance` and `RunPlatformLock` entries. `build.kn` / `platform.kn` `platform_package("...").provider("...")` declarations and manifest `[[platform.packages]]` defaults are parsed into run reports, dry-run/plan mode records platform locks as `planned`, and real runs import/lock packages before execution.
+- `crates/run` plans now include `RunBuildGraphProvenance` and `RunPlatformLock` entries. `build.kn` / `platform.kn` `platform_package("...").provider("...")` declarations and manifest `[[platform.packages]]` defaults are parsed into run reports, dry-run/plan mode records platform locks as `planned`, and real runs import/lock packages before execution.
 - `kain run dev` / `kain watch` now watch the entry inputs plus `KAIN.toml`, `kain.toml`, `build.kn`, `platform.kn`, generated lockfiles, generated platform modules, binding reports, and inherited blade C/FFI inputs.
-- `crates/kain-blades` now exposes transitive `[c_ffi]` libraries through blade dependencies. `kain-run` attaches inherited headers, sources, shared libraries, include paths, `KAIN_TRANSITIVE_C_FFI_INPUTS`, and `KAIN_TRANSITIVE_C_FFI_LIBS` to the final executable unit instead of forcing app entrypoints to restate every library-blade bridge.
+- `crates/blades` now exposes transitive `[c_ffi]` libraries through blade dependencies. `kain-run` attaches inherited headers, sources, shared libraries, include paths, `KAIN_TRANSITIVE_C_FFI_INPUTS`, and `KAIN_TRANSITIVE_C_FFI_LIBS` to the final executable unit instead of forcing app entrypoints to restate every library-blade bridge.
 - Blade module roots are inferred from nested `.kn` / `.god` files below declared `source_roots`, while generated platform modules under `.kain/platform` are made visible to module resolution. This should reduce hand-maintained `module_roots` soup for Kaintana/Vulkain-style trees.
 - Native LLVM now lowers imported builder methods with authored `_self: Self_` / `Self_` returns as the impl target storage type, skips the duplicate explicit self parameter in the emitted ABI, binds `_self` to the implicit receiver, and supports dot calls on value aggregates by taking a temporary address.
 
@@ -1414,7 +1414,7 @@ Validation:
 - `cargo test -p kain-sys-codegen lowers_impl_self_builder_methods_without_extra_self_parameter` -> PASS.
 - `cargo test -p kain-driver compile_llvm_supports_imported_impl_self_builder_methods` -> PASS.
 - `python tools/bazel/sync_rust_builds.py` and `python tools/bazel/sync_rust_builds.py --check` -> PASS, 62 generated Rust package BUILD files checked.
-- `bazel test //crates/kain-run:unit_test --config=dev` -> PASS.
+- `bazel test //crates/run:unit_test --config=dev` -> PASS.
 
 Follow-up cleanup:
 
@@ -1427,14 +1427,14 @@ Kain now has a v1 native platform package lane that favors deterministic lock/im
 What changed:
 
 - `runtime/native` added `platform.library`: fixed-table dynamic library open/resolve/close/status helpers in `platform_library.{h,c}`, exported through `stdlib/platform.kn` as `std::platform`.
-- `crates/kain-c-ffi` added `import_platform_package` and `kain import platform`, producing target-aware locks at `.kain/platform/<package>/<target-triple>/<package>.lock` with roots searched, resolved headers/libs, hashes, discovered/generated symbols, capability tags, blocked symbols, and generated module names.
+- `crates/c-ffi` added `import_platform_package` and `kain import platform`, producing target-aware locks at `.kain/platform/<package>/<target-triple>/<package>.lock` with roots searched, resolved headers/libs, hashes, discovered/generated symbols, capability tags, blocked symbols, and generated module names.
 - Vulkan is special by metadata and dispatch model: the importer records `vulkan-loader-dispatch`, prefers `vk.xml` when present, and generates loader thunk metadata instead of pretending every Vulkan command is a normal DLL export.
-- `crates/kain-build` records deterministic graph provenance from `build.kn`, `platform.kn`, or equivalent `KAIN.toml` `[[platform.packages]]`; matching TOML/script requirements produce the same graph, while overrides report explicit provenance.
+- `crates/build` records deterministic graph provenance from `build.kn`, `platform.kn`, or equivalent `KAIN.toml` `[[platform.packages]]`; matching TOML/script requirements produce the same graph, while overrides report explicit provenance.
 - `fixtures/platform_sdk/tiny_math` is the tiny SDK proof fixture for header scan, lock determinism, generated typed thunk metadata, and stable negative-surface reasons before touching real Vulkan installs.
 - `blades/platform-package-smoke` is the tiny proof blade for the lane. Its script stages `tiny_math`, imports twice, byte-compares lock/report output, checks relocatable path rendering, verifies blocked callback/opaque/unsupported reasons, checks no public `call_typed` leak, then runs the Kain `std::platform` open/resolve/close smoke.
 - `blades/vulkain` now declares Vulkan as a platform package graph requirement in both `build.kn` and `KAIN.toml`; dispatch remains package metadata owned by `platform::vulkan`, not `runtime/native`.
 - `blades/vulkain` is now the first real dogfood consumer of that lane: `build-vulkain.ps1` imports `vulkan.lock`, derives headers/tools/loader DLL from the lock, exports `KAIN_PLATFORM_VULKAN_*` env, and the bridge now prefers the lock-derived loader path instead of hardcoding only `vulkan-1.dll`.
-- `crates/kain-run` now exports package-derived env such as `KAIN_PLATFORM_<PKG>_SDK_ROOT`, `_HEADER`, `_INCLUDE`, `_DLL`, `_IMPORT_LIB`, and `_REGISTRY`, so platform package facts can feed manifests and run units directly instead of living only in ad hoc scripts.
+- `crates/run` now exports package-derived env such as `KAIN_PLATFORM_<PKG>_SDK_ROOT`, `_HEADER`, `_INCLUDE`, `_DLL`, `_IMPORT_LIB`, and `_REGISTRY`, so platform package facts can feed manifests and run units directly instead of living only in ad hoc scripts.
 
 Proof/validation:
 
@@ -1637,7 +1637,7 @@ Validation:
 
 Durable caveats:
 
-- The imported `impl Self_` dot-builder lowering blocker was fixed later on 2026-05-20 in `crates/kain-sys-codegen`; Kaintana can now reattempt the fluent `builder.key(...).rect(...).render(...)` API shape from imported modules. Keep context-heavy builders lean: pass context only to render so SlotMap/arena/native handles are not copied through every shim.
+- The imported `impl Self_` dot-builder lowering blocker was fixed later on 2026-05-20 in `crates/sys-codegen`; Kaintana can now reattempt the fluent `builder.key(...).rect(...).render(...)` API shape from imported modules. Keep context-heavy builders lean: pass context only to render so SlotMap/arena/native handles are not copied through every shim.
 - `SlotMapInsert.map.free_head` currently comes back stale in this nested imported-module path, so Kaintana normalizes append-only node maps from `count` after inserts. Remove that shim only after a focused SlotMap/native LLVM proof.
 - The public builder module is `api/kaintana_ui.kn`, not `api/ui.kn`, to avoid collisions with root `std::ui`.
 
@@ -1688,7 +1688,7 @@ What changed:
 - `stdlib/STDLIB_MAP.llm.md` and `stdlib/stdlib.map.json` were regenerated; the atlas now reports 22 modules / 1736 symbols and includes `slot_map_*`.
 - `blades/stdlib-foundations`, `benchmark/cases/stdlib_foundations`, and `attrition/cases/kain_stdlib_foundations` now exercise insert, set, remove, reuse, generation advance, and stale-key rejection.
 - `AGENTS.md` Ultimate Kain Specimen now calls SlotMap in `stdlib_probe_lane`.
-- Durable Z3 cases live at `crates/kain-core/z3/proofs/stdlib-slot-map-key-decode-bounds.yaml` and `crates/kain-core/z3/proofs/stdlib-slot-map-stale-key-rejected.yaml`.
+- Durable Z3 cases live at `crates/core/z3/proofs/stdlib-slot-map-key-decode-bounds.yaml` and `crates/core/z3/proofs/stdlib-slot-map-stale-key-rejected.yaml`.
 
 Validation:
 
@@ -1701,7 +1701,7 @@ Validation:
 - `kain stdlib-map --check`
 - `py -3 -m json.tool benchmark/benchmarks.json`
 - `py -3 -m json.tool attrition/attritions.json`
-- `mcp__z3_local__.run_proof_pack(path="crates/kain-core/z3", pattern="proofs/stdlib-slot-map*.yaml")` -> 2 proved, both `unsat`
+- `mcp__z3_local__.run_proof_pack(path="crates/core/z3", pattern="proofs/stdlib-slot-map*.yaml")` -> 2 proved, both `unsat`
 
 Durable caveat:
 
@@ -1719,7 +1719,7 @@ What changed:
 - `stdlib/crypto.kn` exposes `random_bytes` / `random_bytes_hex`, `sha256`, `hmac_sha256`, and unkeyed `blake3`; the native C ABI in `runtime/native/src/core/stdlib_abi.c` now backs SHA-256, HMAC-SHA256, CSPRNG hex bytes, and BLAKE3 digest hex.
 - `stdlib/alloc.kn` exposes bump, arena, and pool allocators over Kain-owned low-level cells with explicit destroy/reset helpers.
 - `blades/stdlib-foundations`, `benchmark/cases/stdlib_foundations`, and `attrition/cases/kain_stdlib_foundations` are the integrated proof surfaces.
-- Durable SMT cases live under `crates/kain-core/z3/proofs/stdlib-*-bounds.yaml` for text slice bounds, ring-buffer modulo bounds, allocator span bounds, and priority queue heap-index bounds.
+- Durable SMT cases live under `crates/core/z3/proofs/stdlib-*-bounds.yaml` for text slice bounds, ring-buffer modulo bounds, allocator span bounds, and priority queue heap-index bounds.
 
 Validation:
 
@@ -1744,15 +1744,15 @@ The latest benchmark automation pass moved off HTTP long enough to kill a cleane
 
 What changed:
 
-- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`
+- `crates/sys-codegen/src/codegen_llvm/mod.rs`
   - Added a closed-lane candidate analysis for shattered array locals.
   - Lowered eligible local shattered literals to entry-block stack-backed SoA lane buffers (`[N x i64]` per field lane) instead of runtime shatter handles.
   - Kept the old runtime-backed shatter path for non-closed shapes.
   - Taught shattered field lowering to use direct lane-base math for the stack-backed lane and skip runtime free on scope exit.
   - Added `len(...)` fast-path support for shattered locals with compiler-known element counts.
-- `crates/kain-sys-codegen/tests/llvm_codegen_test.rs`
+- `crates/sys-codegen/tests/llvm_codegen_test.rs`
   - Added coverage that closed-lane machine-stones lowering uses stack lane allocas and avoids `kain_machine_shatter_alloc`, `kain_machine_shatter_lane_base`, `kain_machine_shatter_lane_ptr`, and `kain_machine_shatter_free`.
-- `crates/kain-sys-codegen/z3/proofs-experimental/shatter-stack-slot-span.smt2`
+- `crates/sys-codegen/z3/proofs-experimental/shatter-stack-slot-span.smt2`
   - Proves the new 8-byte slot addressing stays within the per-lane stack buffer for all valid indices and field widths up to 8 bytes.
 - `benchmark/benchmarks.json`
   - Updated `machine_stones_shatter_loop` description/fairness note so the benchmark now honestly says Kain uses compiler-owned stack-backed shatter lane buffers for the closed local loop.
@@ -1763,7 +1763,7 @@ Validation:
 
 - formatting:
   - repo-wide `cargo fmt --all` is still blocked by pre-existing trailing whitespace in `crates/ue5-shaders/src/validation.rs`
-  - formatted touched files directly with `rustfmt crates/kain-sys-codegen/src/codegen_llvm/mod.rs crates/kain-sys-codegen/tests/llvm_codegen_test.rs`
+  - formatted touched files directly with `rustfmt crates/sys-codegen/src/codegen_llvm/mod.rs crates/sys-codegen/tests/llvm_codegen_test.rs`
 - focused codegen tests:
   - `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_lowers_closed_lane_machine_stones_to_stack_backed_shatter_lanes -- --exact`
   - `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_keeps_closed_lane_shattered_array_locals_off_runtime_cleanup_paths -- --exact`
@@ -1835,17 +1835,17 @@ The latest benchmark automation pass started from a real LLVM/codegen win and al
 
 What changed:
 
-- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`
+- `crates/sys-codegen/src/codegen_llvm/mod.rs`
   - Kept the typed helper-owned pointer lane: helper alloc/realloc results now stay as real LLVM pointers, typed `ptr_offset` access lowers through typed `getelementptr`, and helper-owned cleanup/decay routes through `__kain_ownership_*_helper`.
   - Added `expr_needs_rc_retain(...)` so helper-owned and ephemeral raw pointers never flow through `rc_retain` when passed into authored calls, returned, rebound, or reassigned through the normal `i8*` retain sites.
-- `crates/kain-sys-codegen/tests/llvm_codegen_test.rs`
+- `crates/sys-codegen/tests/llvm_codegen_test.rs`
   - Added `llvm_does_not_rc_retain_helper_owned_observe_arguments`.
   - Expanded the helper-owned ownership fast-path coverage so the retain/decode path stays locked to raw helper semantics instead of RC semantics.
 
 Validation:
 
 - `cargo test -p kain-sys-codegen --test llvm_codegen_test helper -- --nocapture`
-- `mcp__z3_local__.run_proof_pack(path="D:/Kain-Lang/crates/kain-sys-codegen/z3", lane="memory", report_name="helper-pointer-retain-regression-check")` -> `11 proved, 0 counterexamples, 0 unknown, 0 errors`
+- `mcp__z3_local__.run_proof_pack(path="D:/Kain-Lang/crates/sys-codegen/z3", lane="memory", report_name="helper-pointer-retain-regression-check")` -> `11 proved, 0 counterexamples, 0 unknown, 0 errors`
 - `bazel build //:kain --config=release`
 - Fresh native rebuild plus stress:
   - `benchmark/cases/semantic_singularity/main.kn` compiled with the Bazel `kain.exe`
@@ -1933,11 +1933,11 @@ The benchmark automation pass after `benchmark/latest.md` generated `2026-05-19T
 
 What changed:
 
-- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`
+- `crates/sys-codegen/src/codegen_llvm/mod.rs`
   - The existing typed ephemeral helper-buffer lane already discovered fixed layouts for derived-count simulation buffers, but it still rejected sibling helper-buffer traffic expressed as `__kain_mem_load` / `__kain_mem_store` calls.
   - Relaxed `expr_is_safe_for_ephemeral_local(...)` so those helper-call memory ops are accepted when they either target the active ephemeral buffer or touch another pointer expression that is otherwise side-effect-safe and non-escaping.
   - This lets the remaining-statement contract survive real multi-buffer CFD and UV loops, so the backend can erase helper heap protocol from the hot path.
-- `crates/kain-sys-codegen/tests/llvm_codegen_test.rs`
+- `crates/sys-codegen/tests/llvm_codegen_test.rs`
   - Added `llvm_erases_sim_style_derived_count_float_buffers_to_typed_local_storage`.
   - The regression uses sibling `ptr<Float>` helper buffers with `cell_count = nx * ny * nz` and nested loops, then asserts there are typed stack allocas plus raw `load double` / `store double` instructions and no helper alloc/decay calls.
 - Added durable notes:
@@ -1947,7 +1947,7 @@ What changed:
 Validation:
 
 - `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_erases_sim_style_derived_count_float_buffers_to_typed_local_storage -- --nocapture`
-- `mcp__z3_local__.run_proof_pack(path="D:/Kain-Lang/crates/kain-sys-codegen/z3", lane="memory", report_name="20260519T-kain-sys-codegen-memory-after-multibuffer-ephemeral")` -> `11 proved, 0 counterexamples, 0 unknown, 0 errors`
+- `mcp__z3_local__.run_proof_pack(path="D:/Kain-Lang/crates/sys-codegen/z3", lane="memory", report_name="20260519T-kain-sys-codegen-memory-after-multibuffer-ephemeral")` -> `11 proved, 0 counterexamples, 0 unknown, 0 errors`
 - `bazel build //:kain --config=release`
 - Full suite refresh:
   - `py benchmark/run.py --runs 9 --warmups 3 --kain-exe D:/Kain-Bazel/output-user-root/ccujd7ry/execroot/_main/bazel-out/x64_windows-opt/bin/crates/cli/kain.exe --latest-stem latest`
@@ -1978,7 +1978,7 @@ The benchmark automation pass after `benchmark/latest.md` generated `2026-05-19T
 
 What changed:
 
-- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`
+- `crates/sys-codegen/src/codegen_llvm/mod.rs`
   - Added `HelperAllocStorageLayout` so bounded helper buffer erasure reasons about element count, stride, byte span, and zeroed state in one place.
   - Expanded the ephemeral helper lane from single-cell scalars to bounded 1/2/4/8-byte multi-cell arrays, lowering them to typed stack storage such as `[N x i64]` instead of `[bytes x i8]`.
   - Relaxed the statement-order matcher so decay-only helper traces can still be erased when all remaining statements are safe local uses before final `decay`.
@@ -1988,10 +1988,10 @@ What changed:
 - `benchmark/benchmarks.json`
   - Documents the scalar reducer honestly in `fairness_note` / `language_notes`.
 - Added Z3 artifacts:
-  - `crates/kain-sys-codegen/z3/proofs/memory-ephemeral-typed-array-stack-layout-keeps-element-offsets-aligned.yaml`
-  - `crates/kain-sys-codegen/z3/proofs-experimental/ownership-ephemeral-typed-array-element-offset-equivalence.smt2`
-  - `crates/kain-sys-codegen/z3/proofs/memory-helper-alloc-allocsize-product-matches-runtime-payload.yaml`
-  - `crates/kain-sys-codegen/z3/proofs-experimental/helper-alloc-allocsize-product-matches-runtime-payload.smt2`
+  - `crates/sys-codegen/z3/proofs/memory-ephemeral-typed-array-stack-layout-keeps-element-offsets-aligned.yaml`
+  - `crates/sys-codegen/z3/proofs-experimental/ownership-ephemeral-typed-array-element-offset-equivalence.smt2`
+  - `crates/sys-codegen/z3/proofs/memory-helper-alloc-allocsize-product-matches-runtime-payload.yaml`
+  - `crates/sys-codegen/z3/proofs-experimental/helper-alloc-allocsize-product-matches-runtime-payload.smt2`
   - `benchmark/cases/scalar_mix/proofs-experimental/scalar-mix-affine-checksum-equivalence.smt2`
 - Added durable notes:
   - `research/2026-05-19-benchmark-frontier-typed-stack-sim-retake.md`
@@ -2003,7 +2003,7 @@ Validation:
 - `python -m py_compile benchmark/run.py benchmark/run_fast.py benchmark/run_sim.py benchmark/run_wrapper.py`
 - `cargo test -p kain-sys-codegen llvm_erases -- --nocapture`
 - `cargo test -p kain-sys-codegen llvm_marks_heap_alloc_helpers_as_noalias_allocsize -- --nocapture`
-- `mcp__z3_local__.run_proof_pack(path="D:/Kain-Lang/crates/kain-sys-codegen/z3", lane="memory", report_name="kain-sys-codegen-memory-lane-post-typed-stack-and-allocattrs")` -> `11 proved, 0 counterexamples, 0 unknown, 0 errors`
+- `mcp__z3_local__.run_proof_pack(path="D:/Kain-Lang/crates/sys-codegen/z3", lane="memory", report_name="kain-sys-codegen-memory-lane-post-typed-stack-and-allocattrs")` -> `11 proved, 0 counterexamples, 0 unknown, 0 errors`
 - `mcp__z3_local__.check_smt2(report_name="scalar-mix-affine-checksum-equivalence-file")` -> `unsat`
 - Focused retake `benchmark/latest_typed_stack_scalar_retake.md`
   - `scalar_mix`: Kain `8.014 ms`, Rust `16.288 ms`, C++ `15.712 ms`
@@ -2035,12 +2035,12 @@ The benchmark automation pass after `benchmark/latest.md` generated `2026-05-19T
 
 What changed:
 
-- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`
+- `crates/sys-codegen/src/codegen_llvm/mod.rs`
   - Recognizes canonical user-authored `starts_with_at` / `find_substring` helpers with signature `String, String, Int -> Int`.
   - Lowers known-string call sites to inline `memchr` plus direct tail comparison instead of calling the runtime known-length wrapper or the authored helper loop.
-- `crates/kain-sys-codegen/tests/llvm_codegen_test.rs`
+- `crates/sys-codegen/tests/llvm_codegen_test.rs`
   - Adds/updates LLVM regressions for wrapper-free inline substring lowering and manual helper recognition.
-- `crates/kain-sys-codegen/z3/proofs/control-inline-known-string-find-substring-window-stays-in-bounds.yaml`
+- `crates/sys-codegen/z3/proofs/control-inline-known-string-find-substring-window-stays-in-bounds.yaml`
   - Durable `unsat` proof for the inline `memchr` search window and loop-carried `next_remaining` bounds.
 - `benchmark/benchmarks.json`
   - Documents the compiler-owned string-loop recognizer in `string_ops` and `unicode_string_heavy` fairness notes.
@@ -2051,7 +2051,7 @@ Validation:
 
 - `cargo test -p kain-sys-codegen llvm_lowers_manual_find_substring -- --nocapture`
 - `cargo test -p kain-sys-codegen llvm_lowers_find_substring_from_on_known_strings_with_precomputed_lengths -- --nocapture`
-- Z3 MCP `run_proof_pack` on `crates/kain-sys-codegen` lane `control` returned all `unsat`.
+- Z3 MCP `run_proof_pack` on `crates/sys-codegen` lane `control` returned all `unsat`.
 - `python -m json.tool benchmark/benchmarks.json > $null`
 - `python -m py_compile benchmark/run.py benchmark/run_fast.py benchmark/run_sim.py benchmark/run_wrapper.py`
 - Focused retake `benchmark/latest_manual_substring_inline.md`: `string_ops` Kain `9.191 ms`, Rust `10.389 ms`, C++ `12.619 ms`; `unicode_string_heavy` Kain `9.663 ms`, Rust `9.211 ms`, C++ `10.600 ms`.
@@ -2152,13 +2152,13 @@ The latest full benchmark snapshot before this pass (`benchmark/latest.md` gener
 
 What changed:
 
-- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`
+- `crates/sys-codegen/src/codegen_llvm/mod.rs`
   - `ownership_pointer_provenance_for_expr(...)` now propagates helper-owned provenance through `PtrOffset` and canonical `__kain_ptr_offset` / `__kain_index_ptr` surfaces.
   - Added `compile_non_ephemeral_typed_memory_pointer(...)` so helper-owned typed `mem_load` / `mem_store` accesses lower to typed `getelementptr <ty>` plus the strongest honest natural alignment instead of repeating byte-addressed integer pointer math.
   - `Expr::PtrOffset` now uses the same power-of-two shift strength reduction path as the raw helper surface when the offset is proven non-negative.
-- `crates/kain-sys-codegen/tests/llvm_codegen_test.rs`
+- `crates/sys-codegen/tests/llvm_codegen_test.rs`
   - Added `llvm_uses_typed_gep_and_natural_alignment_for_helper_owned_ptr_offset_accesses`.
-- `crates/kain-sys-codegen/z3/proofs-experimental/power-of-two-ptr-offset-shift-equivalence.smt2`
+- `crates/sys-codegen/z3/proofs-experimental/power-of-two-ptr-offset-shift-equivalence.smt2`
   - Added the new exploratory proof that `offset * 8 == offset << 3` on the bounded non-negative 64-bit domain used by the strength reduction.
 - `research/2026-05-18-typed-pointer-memory-lowering.md`
   - Captures the hypothesis lattice, rejected benchmark-specific cheat route, and final evidence.
@@ -2236,19 +2236,19 @@ The error-system research slice is now a real compiler feature, not just a note.
 
 What changed:
 
-- `crates/kain-core/src/error.rs`
+- `crates/core/src/error.rs`
   - Added `DiagnosticReport`, `DiagnosticSeverity`, `DiagnosticLabel`, and `DiagnosticFixIt`.
   - Added `KainError::Rich(Box<DiagnosticReport>)`.
   - Rich diagnostics carry stable diagnostic code metadata, primary span, labels, notes, help, fix-its, optional synthetic origin, and JSON via `diagnostic_json()`.
-- `crates/kain-core/src/diagnostics.rs`
+- `crates/core/src/diagnostics.rs`
   - `Diagnostics::format_error` now renders rich diagnostics with source context, labels, notes, help, fix-its, and registry references.
-- `crates/kain-core/src/parser.rs`
+- `crates/core/src/parser.rs`
   - Parser errors now route through rich parse diagnostics.
   - Synthetic filenames such as `<frontend-import-scan>` are stored as origin metadata instead of being embedded as fake `file:line:col` source locations.
   - Generic `expect(...)` failures now carry structured notes; missing `:` before newline/dedent anchors to the previous significant token, explains the newline damage, preserves the old `Expected ':' before newline` phrase for compatibility, and emits an insert-`:` fix-it.
-- `crates/kain-core/tests/test_parser_error_format.rs`
+- `crates/core/tests/test_parser_error_format.rs`
   - Added regressions for rich missing-colon rendering, synthetic import-scan origin cleanup, and machine-readable parser diagnostic JSON.
-- `crates/kain-core/z3/proofs/parser-colon-fixit-zero-width-span-stays-in-source-bounds.yaml`
+- `crates/core/z3/proofs/parser-colon-fixit-zero-width-span-stays-in-source-bounds.yaml`
   - Durable proof that the zero-width colon fix-it insertion point remains within source bounds when token spans are valid.
 - `research/2026-05-18-kain-error-system-singularity.md`
   - Updated from pure research ledger into the shipped diagnostic-substrate slice.
@@ -2261,7 +2261,7 @@ Validation:
   - Result: PASS.
 - `cargo check -p kain-core`
   - Result: PASS.
-- Z3 MCP `run_proof_pack` on `crates/kain-core/z3` lane `parser`
+- Z3 MCP `run_proof_pack` on `crates/core/z3` lane `parser`
   - Result: PASS, 4 proved / 0 counterexamples / 0 unknown / 0 errors.
 
 Known boundary:
@@ -2277,11 +2277,11 @@ What changed:
 - `blades/vulkain/examples/std-math-bounce-game/src/main.kn`
   - Restored the missing `pulse ...:` body so the example no longer dies in frontend import scan on that malformed header.
   - Added the minimal world surfaces (`native_ui` / `web`) plus a tiny panel component so the file advances past the older world-surface gate and exposes its next real semantic issues.
-- `crates/kain-core/src/parser.rs`
+- `crates/core/src/parser.rs`
   - Upgraded the generic `expect(TokenKind::Colon)` failure when the parser sees newline/dedent instead of `:` to say:
     - `Expected ':' before newline. Kain block headers and declarations must end with ':'`
   - This turns a vague punctuation error into an actionable block-header hint for `pulse`, `if`, `world`, and similar colon-terminated constructs.
-- `crates/kain-core/tests/test_parser_error_quality.rs`
+- `crates/core/tests/test_parser_error_quality.rs`
   - Added a regression proving a missing `pulse` block colon produces the actionable newline hint.
 
 Validation:
@@ -2317,7 +2317,7 @@ Validation:
 
 What changed:
 
-- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`
+- `crates/sys-codegen/src/codegen_llvm/mod.rs`
   - Literal `map_set(map, "alpha", value)` now lowers to `map_set_static_prehashed(map, ptr, len, hash, prefix, value)` instead of `string_new(...)` plus generic `map_set(...)`.
   - Added an LLVM regression that proves the new lowering emits the static-prehashed helper and no heap string allocation for literal-key inserts.
 - `runtime/native/src/core/core.c`
@@ -2432,7 +2432,7 @@ Known boundary:
 
 What changed:
 
-- `crates/kain-c-ffi` and `crates/kain-blades`
+- `crates/c-ffi` and `crates/blades`
   - Manifest path expansion now supports `${env:VAR}` tokens, used by Vulkain for `${env:VULKAN_SDK}/Include`.
   - Added a C FFI test for env-expanded include paths on inline imports.
 - `blades/vulkain`
@@ -2451,8 +2451,8 @@ Proof and validation:
 - Run report: `blades/vulkain/examples/mesh-scene/.kain/run/vulkain_mesh_scene_report.txt`
   - `last_error=ok`, `frames_presented=720`, `draw_vertices=36`, `vertices_drawn=25920`.
 - `cargo fmt -p kain-c-ffi`
-- `cargo fmt --manifest-path crates/kain-blades/Cargo.toml`
-- `cargo check --manifest-path crates/kain-blades/Cargo.toml`
+- `cargo fmt --manifest-path crates/blades/Cargo.toml`
+- `cargo check --manifest-path crates/blades/Cargo.toml`
 - `cargo test -p kain-c-ffi -- --nocapture` passed 14/14.
 - `powershell -NoProfile -ExecutionPolicy Bypass -File .\blades\vulkain\build-vulkain.ps1`
 - `powershell -NoProfile -ExecutionPolicy Bypass -File .\blades\vulkain\examples\mesh-scene\run.ps1 -SkipShaderCompile`
@@ -2513,11 +2513,11 @@ Known boundary:
 
 # 2026-05-18 - C FFI bitcode/inline link lane and fused gate
 
-`crates/kain-c-ffi` now has real native link-input behavior behind the tier vocabulary. Manifest `[[c_ffi.libraries]]` entries can provide `sources`, `objects`, `static_libs`, and `bitcode`; `bitcode` and `inline` compile source files to LLVM `.bc` artifacts under the import cache, and the CLI native LLVM linker consumes those artifacts through `kain_c_ffi::prepare_native_link_inputs(...)`.
+`crates/c-ffi` now has real native link-input behavior behind the tier vocabulary. Manifest `[[c_ffi.libraries]]` entries can provide `sources`, `objects`, `static_libs`, and `bitcode`; `bitcode` and `inline` compile source files to LLVM `.bc` artifacts under the import cache, and the CLI native LLVM linker consumes those artifacts through `kain_c_ffi::prepare_native_link_inputs(...)`.
 
 What changed:
 
-- `crates/kain-c-ffi/src/config.rs`, `model.rs`, `lib.rs`, and `generate.rs`
+- `crates/c-ffi/src/config.rs`, `model.rs`, `lib.rs`, and `generate.rs`
   - `CInteropTier` now exposes classifier helpers for dynamic/native-link/bitcode/fused behavior.
   - `CLibraryConfig` accepts `sources`/`source_files`, `objects`/`object_files`, `static_libs`/`static_libraries`, and `bitcode`/`bitcode_files`.
   - Resolved imports now carry absolute source/object/static/bitcode link paths, and binding reports include those paths.
@@ -2529,7 +2529,7 @@ What changed:
 
 Proof and validation:
 
-- Z3 proof: `crates/kain-foreign-abi/z3/proofs-experimental/c-ffi-tier-link-contract.smt2`
+- Z3 proof: `crates/foreign-abi/z3/proofs-experimental/c-ffi-tier-link-contract.smt2`
 - Z3 report: `z3/reports/20260518T022601Z-c-ffi-tier-link-contract.json`
 - Result: `unsat` for any closed-domain tier that violates dynamic/native-link/fused/bitcode disjointness or exhaustiveness.
 - `cargo fmt -p kain-c-ffi -p cli`
@@ -2543,11 +2543,11 @@ Known boundary:
 
 # 2026-05-18 - Runtime-owned C header imports and C interop tiers
 
-`crates/kain-c-ffi` now has the first slice of the tiered `use c::` optimizer model: `dynamic`, `static`, `bitcode`, `inline`, and `fused`. The landed behavior is the runtime-owned static lane: Kain files can import headers from `runtime/native/include` without blade-local `[c_ffi]` metadata, and the CLI no longer demands a `shared_lib` for those imports because they link through the native runtime bundle.
+`crates/c-ffi` now has the first slice of the tiered `use c::` optimizer model: `dynamic`, `static`, `bitcode`, `inline`, and `fused`. The landed behavior is the runtime-owned static lane: Kain files can import headers from `runtime/native/include` without blade-local `[c_ffi]` metadata, and the CLI no longer demands a `shared_lib` for those imports because they link through the native runtime bundle.
 
 What changed:
 
-- `crates/kain-c-ffi/src/config.rs`, `model.rs`, `generate.rs`, and `lib.rs`
+- `crates/c-ffi/src/config.rs`, `model.rs`, `generate.rs`, and `lib.rs`
   - Added `CInteropTier`, per-library tier overrides, `runtime_owned` metadata, report output for tier/runtime ownership, and runtime header fallback resolution.
   - Runtime header imports currently support flat names like `use c::version`, `use c::net`, or `use c::net_system`; nested `use c::runtime::*` is still a grammar/import follow-up.
   - Generated extern parameter names are sanitized when C headers use Kain-reserved words such as `out`.
@@ -2566,15 +2566,15 @@ Validation:
 
 Known boundary:
 
-- Live `cargo run -p cli --bin kain -- check/build runtime\blades\runtime-abi-probe\src\main.kn --target llvm` was blocked before execution by unrelated dirty `crates/kain-stdlib-map/src/lib.rs` compile errors (`collect_native_stdlib_files`, `render_symbol_rows`, and `module_public_sections` unresolved). The C-FFI parser/unit lane is green.
+- Live `cargo run -p cli --bin kain -- check/build runtime\blades\runtime-abi-probe\src\main.kn --target llvm` was blocked before execution by unrelated dirty `crates/stdlib-map/src/lib.rs` compile errors (`collect_native_stdlib_files`, `render_symbol_rows`, and `module_public_sections` unresolved). The C-FFI parser/unit lane is green.
 
 # 2026-05-18 - `kain run --target auto` can native-run LLVM runtime blades
 
-`crates/kain-run` now has a first-class `RunTarget::Llvm` / `KainNativeLlvm` adapter. `[run] target = "llvm"` and direct file runs whose nearest `KAIN.toml` points at that entry now resolve away from the interpreter, compile through the executable-producing LLVM path, and run the cached native executable under `.kain/cache/run/llvm`.
+`crates/run` now has a first-class `RunTarget::Llvm` / `KainNativeLlvm` adapter. `[run] target = "llvm"` and direct file runs whose nearest `KAIN.toml` points at that entry now resolve away from the interpreter, compile through the executable-producing LLVM path, and run the cached native executable under `.kain/cache/run/llvm`.
 
 What changed:
 
-- `crates/kain-run/src/lib.rs`
+- `crates/run/src/lib.rs`
   - Added `llvm` / `native` / `native-llvm` run target parsing.
   - Added a native LLVM run adapter that invokes the current or sibling `kain` launcher with `--target llvm --output <cached exe>` from the workspace/blade root, preserving manifest/module-root resolution.
   - Added auto-target inference from the nearest `[run]` manifest section when the requested file matches `run.entry`.
@@ -2627,7 +2627,7 @@ Proof and validation:
 
 Known boundary:
 
-- Historical note superseded by the run-target fix above: the previous `kain run ... --target auto` interpreter fallback for `runtime-abi-probe` is fixed in `crates/kain-run`.
+- Historical note superseded by the run-target fix above: the previous `kain run ... --target auto` interpreter fallback for `runtime-abi-probe` is fixed in `crates/run`.
 
 Next useful move:
 
@@ -2685,10 +2685,10 @@ What changed:
   - Added `KAIN_JSON_FLOAT`, `json_box_float(double)`, and `json_get_float(...)`.
   - Switched JSON nodes to `kain_alloc_rc(...)` plus `KAIN_set_destructor(...)`; destructors unregister handles, free keys/strings, and release object/array children.
   - Replaced `\uXXXX` placeholder decoding with UTF-8 emission, including surrogate-pair handling.
-- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`
+- `crates/sys-codegen/src/codegen_llvm/mod.rs`
   - JSON Any lowering boxes `double` values through `json_box_float` instead of truncating through `fptosi`.
   - JSON handle locals now emit `json_release(i64)` during scope cleanup.
-- `crates/kain-core/src/{runtime.rs,stdlib.rs,types.rs}`
+- `crates/core/src/{runtime.rs,stdlib.rs,types.rs}`
   - Added interpreter/type/stdlib parity for `json_get_float`.
 - `smoketest/native_json_builtins.kn`
   - Extended the smoke with float roundtrip and `\u0041` escape fidelity.
@@ -2760,7 +2760,7 @@ What changed:
   - Added a Kain-owned C JSON tree for null/bool/int/string/object/array values.
   - Added low-bit tagged JSON Any payloads for LLVM call lowering: raw aligned JSON handles use tag `0`, integers tag `1`, bools tag `2`, strings tag `3`, null tag `4`.
   - Added a tiny native handle registry so JSON handles survive even when an upstream `Any` lowering path arrives through the integer-tag shape.
-- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`
+- `crates/sys-codegen/src/codegen_llvm/mod.rs`
   - Special-cases `json_object_set`, `json_array_push`, and `json_string` so LLVM sends the native runtime a single `i64` JSON Any payload instead of mismatched `i8*`/`i1` arguments.
   - Tracks JSON-handle locals for common `json_object_new`/`json_array_new`/`json_parse`/`json_get`/`json_array_get` flows.
 - `runtime/native_core_runtime.toml`, `runtime/native_runtime.toml`, `runtime/runtime_manifest_data.bzl`, and `runtime/native/include/stdlib_abi.h`
@@ -2824,7 +2824,7 @@ Measured result:
 
 What changed:
 
-- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`
+- `crates/sys-codegen/src/codegen_llvm/mod.rs`
   - Added loop-body assignment collection and clears loop-variant i64 literal/nonnegative facts before lowering `while`, `loop`, and `for` bodies.
   - `semantic_singularity` now lowers dynamic shatter field reads through `kain_machine_shatter_lane_ptr(..., field, lane)` instead of fixed offset zero when the index is loop-derived.
 - `benchmark/benchmarks.json` and `benchmark/run.py`
@@ -2843,7 +2843,7 @@ Validation:
   - PASS, median `61.423 ms`.
 - `python benchmark/run.py --languages kain --runs 1 --warmups 0 --timeout 900 --kain-exe target\debug\kain.exe --baseline-mode off --latest-stem latest_standard_semantic_filter_smoke --minimal-name latest_standard_semantic_filter_smoke.md`
   - PASS, 39 enabled standard Kain rows; only `semantic_singularity` remains from the semantic family.
-- `crates/kain-sys-codegen/z3` lane `llvm`, report `crates/kain-sys-codegen/z3/reports/20260517T215725Z-semantic-loop-literal-facts-final.json`
+- `crates/sys-codegen/z3` lane `llvm`, report `crates/sys-codegen/z3/reports/20260517T215725Z-semantic-loop-literal-facts-final.json`
   - 22 proved, 0 counterexamples.
 
 Next useful move: recover performance from the now-correct shatter dynamic lane. The correctness fix falls back to `kain_machine_shatter_lane_ptr` for `lane = i % 4`; a proof-backed follow-up should teach the loop analyzer bounded modulo facts (`i % 4 in [0,4)`, nonnegative) without collapsing the value to a literal, so shatter/fixed arrays can use inline scaled GEP again.
@@ -2941,13 +2941,13 @@ The `zero_copy_binary_wire` row received a second LLVM hot-path pass after fixed
 
 What changed:
 
-- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`
+- `crates/sys-codegen/src/codegen_llvm/mod.rs`
   - Added scoped `ForwardedMemSlot` tracking for compiler-owned ephemeral memory.
   - Added stable pointer-expression keys for `ptr_offset`/`__kain_ptr_offset` rooted in ephemeral locals.
   - `compile_runtime_mem_load` now returns the forwarded SSA value when the exact ephemeral address was just stored.
   - `record_stmt_nonnegative_i64_effects` now treats forwarded mem-load bindings as nonnegative when the stored value was proven nonnegative.
   - Direct alloca-to-`i8*` GEP lowering avoids the previous hot-loop `ptrtoint`/`inttoptr` soup around stack packet memory.
-- `crates/kain-sys-codegen/z3/proofs-experimental/packed_wire_store_load_forwarding.smt2`
+- `crates/sys-codegen/z3/proofs-experimental/packed_wire_store_load_forwarding.smt2`
   - New QF_AUFBV proof that packet lanes `base+0..3` are distinct, inside the 2048-byte stack buffer, and load-after-store forwarding returns the same word values.
 
 Validation and benchmark:
@@ -2957,8 +2957,8 @@ Validation and benchmark:
 - `cargo build -p cli --bin kain`
 - `cargo test -p kain-sys-codegen llvm_erases_bounded_ephemeral_ptr_offset_buffer_to_local_storage -- --nocapture`
 - `cargo test -p kain-sys-codegen llvm_lowers_safe_fixed_array_literal_to_stack_gep -- --nocapture`
-- `z3 crates\kain-sys-codegen\z3\proofs-experimental\packed_wire_store_load_forwarding.smt2` -> `unsat`
-- `z3 crates\kain-sys-codegen\z3\proofs-experimental\packed_wire_fixed_array_hotpath.smt2` -> `unsat`
+- `z3 crates\sys-codegen\z3\proofs-experimental\packed_wire_store_load_forwarding.smt2` -> `unsat`
+- `z3 crates\sys-codegen\z3\proofs-experimental\packed_wire_fixed_array_hotpath.smt2` -> `unsat`
 - `python benchmark\run.py --case zero_copy_binary_wire --languages kain,rust,cpp --runs 9 --warmups 3 --timeout 900 --kain-exe target\debug\kain.exe --baseline-mode reuse-foreign --latest-stem latest_zero_copy_forwarding_final`
 
 Measured result:
@@ -2998,9 +2998,9 @@ What changed:
 - `blades/hash-domains`
   - Added a runnable proof blade that imports `std::hash` and checks range, rotation, bucket, FNV, CRC, ordered/unordered, fingerprint, and wrapper behavior.
   - `[run]` uses target `kain`; the build task still carries the LLVM check target.
-- `crates/kain-core/z3/proofs/stdlib-hash-*.yaml`
+- `crates/core/z3/proofs/stdlib-hash-*.yaml`
   - Added durable proof cases for `rotl32` u32-range closure, power-of-two bucket bounds, and FNV byte-update u32-range closure.
-- `crates/kain-run/src/lib.rs`
+- `crates/run/src/lib.rs`
   - Fixed a real run-path glitch: relative inputs that existed under the caller cwd were stored as relative adapter paths, then `run_kain` changed cwd to the entry directory and read the wrong path. Run planning now absolutizes resolved file paths, and a regression test executes `src/main.kn` from a relative input after cwd switching.
 - `ARCHITECTURE.md`
   - Registered `std::hash` and the new `blades/hash-domains` proof surface.
@@ -3075,12 +3075,12 @@ The portable capsule lane moved from archive-first to editable-first. `kain amal
 
 What changed:
 
-- `crates/kain-amalgamate`
+- `crates/amalgamate`
   - Added `storage = "editable" | "archive"` capsule metadata.
   - Editable capsules now render one `//!kain-file` block per preserved file, keeping UTF-8 text inline and only base64-wrapping binary payloads.
   - Archive capsules keep the compressed `//!kain-capsule-payload` path and remain strict about payload/hash validation.
   - Editable capsule reads now refresh digest, directory inventory, file count, and module count from the actual inline file blocks so hand edits do not brick the artifact.
-- `crates/kain-commands` and `crates/cli`
+- `crates/commands` and `crates/cli`
   - Added `--archive` to the `kain amalgamate` typed command surface.
   - `amalgamate inspect` now reports `storage` and only prints `compression` for archive capsules.
 - Docs and the repo-local capsule skill
@@ -3206,7 +3206,7 @@ The new root `stdlib/math.kn` is now proven through the live Bazel-backed `kain`
 
 What changed:
 
-- `crates/kain-driver/src/lib.rs`
+- `crates/driver/src/lib.rs`
   - Stopped prepending the entire root stdlib source blob into frontend bundles for native builds.
   - Frontend bundling now materializes only the imported stdlib modules plus a tiny ambient native prelude (`runtime` and `actor`) so `use std::math` no longer drags unrelated root modules like `stdlib/gen_server.kn` into every native compile.
   - Added focused driver tests proving imported stdlib modules materialize without whole-root slurp and that typed frontend programs see imported `std::math` items.
@@ -3214,7 +3214,7 @@ What changed:
   - Added the canonical root math surface for vectors, quaternions, matrices, affine transforms, GPU layout wrappers, bounds/intersections, curves, color math, packing, and procedural noise.
   - Replaced root builtin `min` / `max` / `clamp` dependencies with math-local helpers and direct tuple constructors so the canonical math surface no longer depends on stale builtin numeric metadata.
   - Flattened `frustum_vs_aabb` away from array-of-struct plane iteration because the current LLVM lane mis-lowered `Plane` array element field access.
-- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`
+- `crates/sys-codegen/src/codegen_llvm/mod.rs`
   - Native LLVM now lowers numeric `abs`, `min`, `max`, and `clamp` by the actual compiled operand types instead of trusting the one-entry stdlib function map.
   - Float `abs` no longer becomes `call i64 @abs(double ...)` plus `sitofp`; it is now emitted as native float compare/select math.
   - Added a focused LLVM regression test proving float builtins do not route through integer `abs/min/max/clamp` signatures.
@@ -3239,7 +3239,7 @@ Durable lessons:
 
 # 2026-05-17 - Amalgamate should be a capsule workspace lane, not an import lane
 
-Frontier design work around "portable codebases luggable in one `.kn` file" converged on a strong boundary: this should live in `crates/kain-amalgamate`, not inside `kain-import`.
+Frontier design work around "portable codebases luggable in one `.kn` file" converged on a strong boundary: this should live in `crates/amalgamate`, not inside `kain-import`.
 
 Durable decision:
 
@@ -3249,7 +3249,7 @@ Durable decision:
 Why this survived:
 
 - Real blades such as `blades/pong` and `blades/kain-labs` are not just source files. They depend on `KAIN.toml`, `native/` headers/C files/shaders, config manifests, build tasks, and `c_ffi` metadata.
-- `crates/kain-blades` and `crates/kain-build` already know how to discover and build that tree. The cheapest truthful design is to materialize a capsule back into a normal workspace and reuse those systems.
+- `crates/blades` and `crates/build` already know how to discover and build that tree. The cheapest truthful design is to materialize a capsule back into a normal workspace and reuse those systems.
 - `crates/cli/src/import_rust.rs` already proves the operator model can distinguish bundle mode from mirrored-blades mode. An amalgamate CLI should borrow that shape rather than inventing a one-off.
 
 Current thesis:
@@ -3276,10 +3276,10 @@ The capsule plan is no longer only a design note. `kain amalgamate` now exists a
 
 What changed:
 
-- `crates/kain-amalgamate`
+- `crates/amalgamate`
   - Added the v1 capsule format, metadata parsing, preview/header generation, payload digests, pack/inspect/unpack helpers, and digest-scoped materialization under `.kain/cache/amalgamate/<digest>/workspace`.
   - Kept the artifact comment-safe and text-first: generated header comments, `//!kain-capsule` metadata, and `//!kain-capsule-payload` base64 payload.
-- `crates/kain-commands` and `crates/cli`
+- `crates/commands` and `crates/cli`
   - Added `kain amalgamate`, `kain amalgamate inspect`, and `kain amalgamate unpack`.
   - Wired `kain run`, `kain build`, and `kain check` through capsule detection plus materialize-and-delegate behavior.
   - Preserved the boundary where `kain-run`, `kain-build`, and blade/workspace discovery remain the execution truth after materialization.
@@ -3349,10 +3349,10 @@ What changed:
 
 - `stdlib/fs.kn` and `stdlib/runtime.kn`
   - Promoted the newer native implementations into the root canonical files so root `std::fs` and `std::runtime` carry the current ABI-backed surface, including the attrition/runtime helpers and len-aware filesystem writes.
-- `crates/kain-core/src/stdlib.rs`
+- `crates/core/src/stdlib.rs`
   - Native target profile order now loads the root stdlib directly for `CompileTarget::Llvm` and root plus `stdlib/c` for `CompileTarget::C`.
   - Kept `KAIN_STDLIB_PROFILE=native` working as a compatibility alias that resolves to the root stdlib path instead of requiring a second `stdlib/native` directory on disk.
-- `crates/kain-core/src/module_resolution.rs`
+- `crates/core/src/module_resolution.rs`
   - `use std::native::foo` now resolves to the same root `stdlib/foo.kn` file instead of a second native folder, so old imports can still parse while the repo carries only one real stdlib tree.
 - `blades/kain-actor-kit`, `blades/kain-http`, and `blades/kain-process-kit`
   - Moved repo-authored library blades off `std::native::*` and onto canonical root imports.
@@ -3661,12 +3661,12 @@ The last honest JSON gap was not parser logic anymore. It was ownership churn ar
 
 What changed:
 
-- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`
+- `crates/sys-codegen/src/codegen_llvm/mod.rs`
   - `compile_string_concat_expression(...)` now tracks whether each concat term is an owned temporary.
   - After `str_concatN(...)` copies its inputs, LLVM emits `rc_release(...)` for owned string temporaries such as `to_string(...)`, `substring(...)`, and call-returned string helpers.
   - The fallback nested concat path now also releases consumed owned inputs and intermediate concat accumulators as each step is copied into the next string.
   - The plain 2-term string `+` lowering now does the same release-after-copy cleanup instead of only returning the new concat result.
-- `crates/kain-sys-codegen/tests/llvm_codegen_test.rs`
+- `crates/sys-codegen/tests/llvm_codegen_test.rs`
   - The fixed-arity concat regression now asserts that `render_payload(...)` emits `str_concat9(...)` and then releases the owned `to_string(...)` / `bool_text(...)` temporaries.
   - The loop-literal pooling regression now also asserts that the owned numeric `to_string(...)` temporary inside the loop is released after `str_concat4(...)`.
 - `runtime/native/src/core/stdlib_abi.c`
@@ -3708,8 +3708,8 @@ What changed:
   - Compatibility entrypoints still exist and fall back to `strlen(...)` only for legacy callers that do not know the length.
 - `runtime/native/include/stdlib_abi.h` declares the new length-aware FS entrypoints.
 - `stdlib/native/fs.kn` now uses the length-aware FS write/append/atomic-write ABI from authored Kain code.
-- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs` now lowers `byte_at(...)` on known strings inline with a guarded direct byte load, and string-length fallback uses native `len(...)` rather than `strlen(...)`.
-- `crates/kain-sys-codegen/tests/llvm_codegen_test.rs` now asserts the inline `byte_at(...)` lowering. Exploratory proof `crates/kain-sys-codegen/z3/proofs-experimental/byte-at-fast-path-index-guard.smt2` and report `z3/reports/20260517T030441Z-byte_at_fast_path_index_guard.json` prove the signed guard implies the in-range unsigned load fact.
+- `crates/sys-codegen/src/codegen_llvm/mod.rs` now lowers `byte_at(...)` on known strings inline with a guarded direct byte load, and string-length fallback uses native `len(...)` rather than `strlen(...)`.
+- `crates/sys-codegen/tests/llvm_codegen_test.rs` now asserts the inline `byte_at(...)` lowering. Exploratory proof `crates/sys-codegen/z3/proofs-experimental/byte-at-fast-path-index-guard.smt2` and report `z3/reports/20260517T030441Z-byte_at_fast_path_index_guard.json` prove the signed guard implies the in-range unsigned load fact.
 
 Benchmark results:
 
@@ -3729,10 +3729,10 @@ The `struct_method` and `option_result` pressure rows ended up exposing two diff
 
 What changed:
 
-- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs` now tracks POD structs/tuples in `value_aggregate_structs` and lowers them by value when every field is scalar POD. `Expr::Struct`, tuple lowering, type mapping, local field access, and call signatures all respect that path, which is why `struct_method` no longer allocates `BenchPair` at all.
+- `crates/sys-codegen/src/codegen_llvm/mod.rs` now tracks POD structs/tuples in `value_aggregate_structs` and lowers them by value when every field is scalar POD. `Expr::Struct`, tuple lowering, type mapping, local field access, and call signatures all respect that path, which is why `struct_method` no longer allocates `BenchPair` at all.
 - Native `Option` / `Result` fast paths now stay on immediate tagged handles for small integer payloads and borrowed static string payloads, with `None` as `null`.
 - LLVM no longer emits unconditional external RC calls on raw `i8*` values. `emit_heap_owned_i8_guard(...)` now checks `ptr != null && ((ptr & 7) == 0)` before emitting `rc_retain(...)` or `rc_release(...)`. That deletes RC-call overhead for immediate tagged handles while preserving the heap RC path for real aligned objects.
-- `crates/kain-sys-codegen/tests/llvm_codegen_test.rs` now treats immediate tagged lowering plus heap-only RC guarding as the regression surface instead of expecting lots of tagged-temp release calls.
+- `crates/sys-codegen/tests/llvm_codegen_test.rs` now treats immediate tagged lowering plus heap-only RC guarding as the regression surface instead of expecting lots of tagged-temp release calls.
 - Exploratory proof `runtime/native/src/core/z3/proofs-experimental/tagged-immediate-lowbits-defeat-heap-rc-guard.smt2` plus Z3 report `z3/reports/20260517T030722Z-tagged-immediate-lowbits-defeat-heap-rc-guard.json` prove the core bit trick: if a carrier already had low 3 bits zero and a nonzero tag is OR-ed in, the result can never satisfy the heap-aligned RC guard.
 
 Validation and benchmark:
@@ -3758,9 +3758,9 @@ What changed:
 
 - `runtime/native/src/core/core.c` now has an exact-allocation integer formatter instead of `sprintf(...)`. `to_string(...)` computes the decimal digit count, allocates exactly `digits + sign + 1`, and writes digits backwards into the final RC string buffer.
 - `runtime/native/src/core/core.c` also gained fixed-arity `str_concat3(...)` through `str_concat10(...)` helpers backed by a shared checked-length concat routine. The shared helper computes each part length once, proves the total allocation size through checked `size_t` additions, then copies all segments into one RC string buffer instead of building a growing chain of intermediate strings.
-- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs` now flattens known string-add trees before lowering. When a chain has between 3 and 10 terms, LLVM emits one `@str_concatN(...)` call instead of nested binary `@str_concat(...)` calls.
+- `crates/sys-codegen/src/codegen_llvm/mod.rs` now flattens known string-add trees before lowering. When a chain has between 3 and 10 terms, LLVM emits one `@str_concatN(...)` call instead of nested binary `@str_concat(...)` calls.
 - The same LLVM pass now caches string lengths lazily instead of eagerly. Authored string parameters are still tracked as string locals, but `compile_string_length_value(...)` computes and memoizes `strlen(...)` only on first use. That removed dead entry `strlen(...)` calls from functions like `render_payload(...)` that never read string lengths directly.
-- `crates/kain-sys-codegen/tests/llvm_codegen_test.rs` now has a regression asserting that a benchmark-shaped JSON render chain lowers to `@str_concat9(...)` and does not emit eager parameter `strlen(...)` calls at function entry.
+- `crates/sys-codegen/tests/llvm_codegen_test.rs` now has a regression asserting that a benchmark-shaped JSON render chain lowers to `@str_concat9(...)` and does not emit eager parameter `strlen(...)` calls at function entry.
 
 Validation and benchmark:
 
@@ -3780,7 +3780,7 @@ Durable lesson:
 
 What changed:
 
-- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs` lowers literal `map_get` keys as borrowed static byte pointers and emits `map_get_prehashed(map, ptr, len, hash, prefix)` directly, so the hot loop no longer calls `string_new(...)` or recomputes hash/prefix for closed literal keys.
+- `crates/sys-codegen/src/codegen_llvm/mod.rs` lowers literal `map_get` keys as borrowed static byte pointers and emits `map_get_prehashed(map, ptr, len, hash, prefix)` directly, so the hot loop no longer calls `string_new(...)` or recomputes hash/prefix for closed literal keys.
 - `runtime/native/src/core/core.c` keeps insertion on the existing generalized search path, but `map_get_prehashed(...)` now uses a sequential linear-probe walk over the real probe chain and returns immediately on the first empty slot or exact metadata+memcmp match.
 - Exploratory proof `runtime/native/src/core/z3/proofs-experimental/map-linear-probe-empty-blocks-later-match.smt2` and durable proof `runtime/native/src/core/z3/proofs/native-map-linear-probe-empty-slot-precludes-later-match.yaml` both prove the key invariant: with linear probing and no tombstones, an empty slot in the probe order precludes any later match for the same key. The durable proof report is `runtime/native/src/core/z3/reports/20260517T001004Z-native_map_lookup_linear_probe_fast_path.json`.
 
@@ -3811,7 +3811,7 @@ Durable lesson:
 
 # 2026-05-16 - Ready-future async stopped being catastrophic and now edges Rust in the honest benchmark lane
 
-`async_ready_chain` was not losing because `await` work inside the loop was inherently expensive; it was losing because Kain paid several fixed costs at once. The runtime now has an inline-ready future payload path in `runtime/native/src/core/stdlib_abi.c`: immediately-ready futures store the copied scalar payload inside the future RC object, mark `task_id = KAIN_TASK_ID_INVALID`, and let `abi_future_state(...)` / `abi_future_await_payload_copy(...)` complete without task allocation or scheduler traffic. LLVM lowering in `crates/kain-sys-codegen/src/codegen_llvm/mod.rs` then goes one step further for obvious immediate-ready cases (`await async ...` and zero-arg functions that immediately `return async ...`) by folding the payload directly into the caller, so the hot benchmark loop no longer calls the future ABI at all.
+`async_ready_chain` was not losing because `await` work inside the loop was inherently expensive; it was losing because Kain paid several fixed costs at once. The runtime now has an inline-ready future payload path in `runtime/native/src/core/stdlib_abi.c`: immediately-ready futures store the copied scalar payload inside the future RC object, mark `task_id = KAIN_TASK_ID_INVALID`, and let `abi_future_state(...)` / `abi_future_await_payload_copy(...)` complete without task allocation or scheduler traffic. LLVM lowering in `crates/sys-codegen/src/codegen_llvm/mod.rs` then goes one step further for obvious immediate-ready cases (`await async ...` and zero-arg functions that immediately `return async ...`) by folding the payload directly into the caller, so the hot benchmark loop no longer calls the future ABI at all.
 
 The last big win came from changing the benchmark/runtime shape instead of shaving nanoseconds off dead code. `benchmark/run.py` now supports a per-case `"kain_runtime_manifest"` override in `benchmark/benchmarks.json`, and `async_ready_chain` points at `runtime/native_async_benchmark_runtime.toml` instead of the broad native core manifest. That manifest disables net/process reset work and keeps the source set narrow for the ready-future lane. On top of that, `crates/cli/src/main.rs` now enables `-ffunction-sections` / `-fdata-sections` plus linker dead-stripping (`/OPT:REF` + `/OPT:ICF` on Windows) in non-debug native builds. This lets benchmark-release builds throw away the giant unused stdlib/native wrapper forest after lowering collapses the real async work away.
 
@@ -3833,7 +3833,7 @@ The next actor dragon landed as an ask-only exact-ref fast path instead of anoth
 What changed:
 
 - Added a shared mailbox copy helper and a shared `kain_actor_execute_microcell_turn(...)` path so pooled workers and the inline ask handoff use the same stop/crash/finish-turn behavior.
-- Added `kain_actor_ask_send_ref(...)` to `runtime/native/include/actor.h`, the native actor Rust contract, LLVM declarations, and LLVM ask lowering in `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`.
+- Added `kain_actor_ask_send_ref(...)` to `runtime/native/include/actor.h`, the native actor Rust contract, LLVM declarations, and LLVM ask lowering in `crates/sys-codegen/src/codegen_llvm/mod.rs`.
 - `ask` / `ask_timeout` now lower with the full `KainActorRef` instead of degrading to a raw actor id send, which lets the runtime reject stale refs and specialize the local microcell case without changing generic `send`.
 - `runtime/conformance/actor_runtime/test_actor_abi_contract.c` now asserts the inline ask path roundtrips through a microcell turn without adding a scheduler enqueue, and two durable actor proofs pin the new exclusivity/backlog guards.
 
@@ -3867,9 +3867,9 @@ What changed:
 Compiler seam found while dogfooding:
 
 - Native LLVM functions whose body ended with a final expression, especially expression-bodied enum `match`, compiled to a PHI and then fell through to the non-main fallback `unreachable`. In benchmark-release, clang optimized that into an `int3` trap (`0x80000003`) at `crucible_control_lane`.
-- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs::compile_named_callable` now uses `compile_block_with_result`, coerces a final expression to the declared return type, emits patch commit cleanup when needed, and returns the value before the fallback unreachable path.
+- `crates/sys-codegen/src/codegen_llvm/mod.rs::compile_named_callable` now uses `compile_block_with_result`, coerces a final expression to the declared return type, emits patch commit cleanup when needed, and returns the value before the fallback unreachable path.
 - Regression test: `llvm_lowers_enum_match_parameters_as_native_enum_pointers` now asserts the expression-bodied match emits `ret i64 %...`.
-- Durable proof: `crates/kain-sys-codegen/z3/proofs/control-final-expression-return-beats-fallback-unreachable.yaml`; control lane report `D:\Kain-Lang\crates\kain-sys-codegen\z3\reports\20260516T140626Z-semantic-crucible-final-expression-return.json` proved `6/6` with `unsat`.
+- Durable proof: `crates/sys-codegen/z3/proofs/control-final-expression-return-beats-fallback-unreachable.yaml`; control lane report `D:\Kain-Lang\crates\sys-codegen\z3\reports\20260516T140626Z-semantic-crucible-final-expression-return.json` proved `6/6` with `unsat`.
 
 Current caveat:
 
@@ -3889,9 +3889,9 @@ What changed:
 Compiler/runtime seam found while dogfooding:
 
 - The first Kain executable crashed with `0xC0000005` because return-path cleanup emitted `kain_machine_shatter_free(...)` on one branch, then removed the compile-time shatter metadata and emitted generic `rc_release(i8* ...)` for the same shatter handle on a sibling return branch.
-- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs::emit_all_scopes_cleanup` must preserve `shattered_array_locals` while emitting sibling return branches. Normal lexical scope cleanup can still remove the metadata when the scope actually exits.
+- `crates/sys-codegen/src/codegen_llvm/mod.rs::emit_all_scopes_cleanup` must preserve `shattered_array_locals` while emitting sibling return branches. Normal lexical scope cleanup can still remove the metadata when the scope actually exits.
 - Regression test: `llvm_cleans_shattered_array_locals_on_each_return_path`.
-- Durable proof: `crates/kain-sys-codegen/z3/proofs/memory-shatter-return-cleanup-preserves-shatter-kind.yaml`; report `D:\Kain-Lang\crates\kain-sys-codegen\z3\reports\20260516T132655Z-quantumerlang-shatter-cleanup-final.json` returned `unsat`.
+- Durable proof: `crates/sys-codegen/z3/proofs/memory-shatter-return-cleanup-preserves-shatter-kind.yaml`; report `D:\Kain-Lang\crates\sys-codegen\z3\reports\20260516T132655Z-quantumerlang-shatter-cleanup-final.json` returned `unsat`.
 
 Latest benchmark proof:
 
@@ -3954,7 +3954,7 @@ What changed:
 
 - The benchmark combines `axiom`, `pulse`, `shatter`, `teleport`, `world`, `entangle`, `patch`, `law`, `converge`, `orchestrate`, `collapse`, `observe`, `decay`, and the modern ABI v3 actor ask/reply path.
 - The hot loop uses field-based dynamic shatter reads (`shards[lane].field`), teleports a local shard copy, patches entangled world state, validates laws, dispatches converge/orchestrate work, asks a spawned actor, mutates shared memory inside `collapse`, folds through `observe`, and releases with `decay`.
-- The first compile exposed a real LLVM/native seam bug after the native ABI prefix cleanup: compiler-owned entangle registration must call `abi_entangle_register(...)`, not the public Kain wrapper name `entangle_register(...)`. `crates/kain-sys-codegen/src/codegen_llvm/mod.rs` and `llvm_codegen_test.rs` now assert the `abi_` registration path.
+- The first compile exposed a real LLVM/native seam bug after the native ABI prefix cleanup: compiler-owned entangle registration must call `abi_entangle_register(...)`, not the public Kain wrapper name `entangle_register(...)`. `crates/sys-codegen/src/codegen_llvm/mod.rs` and `llvm_codegen_test.rs` now assert the `abi_` registration path.
 - The runtime telemetry guard now treats the patch journal as a bounded live ring instead of expecting one retained record per iteration. The hot loop still attempts 20,000 patches, but `abi_patch_journal_count()` is intentionally bounded by the native runtime.
 
 Proof and validation:
@@ -4026,7 +4026,7 @@ What changed:
 - `kain_machine_pulse_snapshot(...)` reads a monotonic high-resolution host timer, keeps per-pulse tick state in a small atomic-locked table, and reports tick, dt, and missed-beat counts.
 - `kain_machine_shatter_alloc(...)` creates one contiguous SoA buffer where each field lane is 8-byte-slotted; `kain_machine_shatter_lane_ptr(...)` provides checked lane/element pointers and `kain_machine_shatter_free(...)` releases the handle.
 - `kain_machine_teleport_ptr(...)` returns the same pointer it receives, increments telemetry, and records a destination-token hash. This is the current native zero-copy handoff seam; scalar teleports call a note hook because there is no pointer to transfer.
-- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs` now emits axiom accept functions, pulse body/fire wrappers, runtime calls at generated `main` entry, pointer teleport calls, and SoA lowering for local array literals made of direct shattered struct literals.
+- `crates/sys-codegen/src/codegen_llvm/mod.rs` now emits axiom accept functions, pulse body/fire wrappers, runtime calls at generated `main` entry, pointer teleport calls, and SoA lowering for local array literals made of direct shattered struct literals.
 - `stdlib/native/runtime.kn` and `stdlib/runtime.kn` now expose `runtime_machine_teleport_count()` and `runtime_machine_teleport_last_token()` so Kain dogfood code can inspect the native teleport seam.
 - Runtime manifests, Bazel runtime manifest data, and `runtime/BUILD.bazel` include the machine-stones C runtime source and native test.
 - `blades/machine-stones/src/main.kn` now checks shatter lane field reads and native teleport telemetry, and the generated `machine-stones.exe` runs from the blade root with sidecars under `.kain/out`.
@@ -4065,7 +4065,7 @@ What changed:
 
 - Added the native CPU capability service in `runtime/native/include/kain_runtime_cpu.h` and `runtime/native/src/core/kain_runtime_cpu.c`. It publishes x86 feature bits such as AVX, AVX2, AVX-512F/DQ/BW/VL, FMA, and BMI2 through stable `cpu.x86.*` capability keys.
 - Added the native converge selector/autotune substrate in `runtime/native/include/kain_runtime_converge.h` and `runtime/native/src/core/kain_runtime_converge.c`. The current service provides lane selection, a tiny process-local tuning cache, telemetry-ring recording, winner commits, and probe/hit counters.
-- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs` now emits one spec function plus up to eight fast-lane functions for each `converge`. Static lanes still collapse to the first eligible fast lane. CPU-gated lanes build an eligible bitmask from native capability calls and dispatch through `kain_native_converge_select_lane_for_key(...)`.
+- `crates/sys-codegen/src/codegen_llvm/mod.rs` now emits one spec function plus up to eight fast-lane functions for each `converge`. Static lanes still collapse to the first eligible fast lane. CPU-gated lanes build an eligible bitmask from native capability calls and dispatch through `kain_native_converge_select_lane_for_key(...)`.
 - Benchmark-release LLVM builds now elide `orchestrate` stage begin/end telemetry wrappers unless `KAIN_LLVM_ORCHESTRATE_TRACE=1` is set. This keeps benchmark hot loops from paying bookkeeping costs while preserving explicit trace opt-in.
 - `stdlib/native/runtime.kn` and `stdlib/runtime.kn` expose the CPU/converge runtime calls, and `stdlib/native/README.md` documents the new native runtime surface.
 - Runtime manifests and Bazel manifest data include the new CPU/converge native sources. Re-run `py -3 tools/bazel/sync_native_runtime_builds.py --check` after touching this surface.
@@ -4161,11 +4161,11 @@ Durable lesson:
 
 # 2026-05-16 - First-class networking domains now land as public `std.net`, `std.http`, `std.tls`, and `std.http2`, and the old HTTP request-capacity failure is fixed at the runtime seam
 
-This pass finished the built-in networking-domain plan without adding new syntax. The runtime and portable contract work still lives in `crates/kain-net`, `stdlib/native/*.kn`, and `runtime/native/src/core/kain_native_net_system.c`, but authored Kain source can now import the public root modules `std.net`, `std.http`, `std.tls`, and `std.http2` directly.
+This pass finished the built-in networking-domain plan without adding new syntax. The runtime and portable contract work still lives in `crates/net`, `stdlib/native/*.kn`, and `runtime/native/src/core/kain_native_net_system.c`, but authored Kain source can now import the public root modules `std.net`, `std.http`, `std.tls`, and `std.http2` directly.
 
 What changed:
 
-- `crates/kain-net` now carries the broader portable contract shape for this lane:
+- `crates/net` now carries the broader portable contract shape for this lane:
   - `HttpProtocolPreference`
   - `NetCapabilityState`
   - `NetCapability`
@@ -4219,7 +4219,7 @@ This pass added the final pre-`seal` keyword quartet as first-class Kain syntax 
 
 Important implementation seams:
 
-- `crates/kain-core/src/ast.rs`, `parser.rs`, `types.rs`, `formatter.rs`, `runtime.rs`, `runtime_contract.rs`, `low_level_memory.rs`, `comptime.rs`, and `ui.rs` now understand the quartet.
+- `crates/core/src/ast.rs`, `parser.rs`, `types.rs`, `formatter.rs`, `runtime.rs`, `runtime_contract.rs`, `low_level_memory.rs`, `comptime.rs`, and `ui.rs` now understand the quartet.
 - Native/C/Rust/C++/LLVM codegen currently lowers `teleport` as value pass-through after the typechecker has enforced the destructive ownership rule. The runtime-contract bundle carries the higher-level `world.teleport` / `interop.zero-copy-handoff` capability so future ABI/GPU/native handoff lowering has a stable contract to consume.
 - Runtime contracts now emit `axioms`, `pulses`, and `shatters`, plus item-summary/capability counts for machine axioms, hardware-timer pulse intent, SoA shatter layout, and cross-world teleport handoffs.
 - CLI/import/LSP/selfhost/UE5/GPU exhaustive clients were updated so the new AST variants do not strand downstream tools.
@@ -4227,7 +4227,7 @@ Important implementation seams:
 Dogfood and proof:
 
 - Added `blades/machine-stones`, a compact native LLVM blade proving all four forms together with a native UI surface and viewport worlds. `machine-stones.exe` is left in the blade root; generated `.ll`, `.pdb`, `.ilk`, runtime-contract JSON, and realtime bundle sidecars live under `blades/machine-stones/.kain/out/`.
-- Added durable core Z3 proofs under `crates/kain-core/z3/proofs/keywords-*` for axiom fallback exclusivity, pulse monotonic next-tick scheduling, shatter field-lane bounds, and teleport origin liveness.
+- Added durable core Z3 proofs under `crates/core/z3/proofs/keywords-*` for axiom fallback exclusivity, pulse monotonic next-tick scheduling, shatter field-lane bounds, and teleport origin liveness.
 - Validation passed: `cargo check -p kain-core`, `cargo check -p kain-sys-codegen`, `cargo check -p gpu`, `cargo check -p cli`, `cargo test -p kain-core --test ownership_keywords_test`, core Z3 `keywords` lane `8/8`, `kain check blades/machine-stones/src/main.kn --target llvm`, native compile to `blades/machine-stones/machine-stones.exe`, and running the exe from the blade root returned exit code `0`.
 
 Next recommended step:
@@ -4269,7 +4269,7 @@ The native LLVM actor lane could already `spawn` actors and `send` messages, but
 
 What changed:
 
-- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs` no longer treats reply ports as a fake `%...Reply = { i64 }` payload contract.
+- `crates/sys-codegen/src/codegen_llvm/mod.rs` no longer treats reply ports as a fake `%...Reply = { i64 }` payload contract.
 - Native LLVM `ask` / `ask_timeout` now lower through the real reply target type when codegen has target-type context:
   - `i64` replies keep the scalar fast wrapper through `kain_actor_reply_port_wait_i64`.
   - typed replies such as `Bool` use the generic `kain_actor_reply_port_wait(...)` path and load the correctly typed stack slot.
@@ -4278,7 +4278,7 @@ What changed:
   - tiny replies use inline state storage,
   - larger replies allocate once into reply-port-owned storage,
   - the synthetic reply-port actor no longer needs mailbox traffic just to complete an `ask`.
-- `runtime/native/include/kain_runtime_actor.h`, `crates/kain-actor/src/native.rs`, and actor ABI tests were updated so `kain_actor_reply_port_send`, `kain_actor_reply_port_wait`, and `kain_actor_reply_port_wait_i64` stay in sync as a real ABI surface.
+- `runtime/native/include/kain_runtime_actor.h`, `crates/actor/src/native.rs`, and actor ABI tests were updated so `kain_actor_reply_port_send`, `kain_actor_reply_port_wait`, and `kain_actor_reply_port_wait_i64` stay in sync as a real ABI surface.
 - `runtime/fixtures/native_actor_ask_roundtrip/main.kn` and `blades/actor-ask-roundtrip/src/main.kn` now prove both `Int` and `Bool` ask/reply roundtrips under native LLVM.
 
 Proof and validation:
@@ -4297,7 +4297,7 @@ Proof and validation:
 - Solver evidence:
   - `D:\\Kain-Lang\\z3\\reports\\20260516T061932Z-actor-reply-port-inline-send-bounds.json` -> `unsat`
   - `D:\\Kain-Lang\\runtime\\native\\src\\core\\z3\\reports\\20260516T061932Z-native-actor-reply-port-fastpath-pass.json` -> actor lane `7/7` proved
-  - `D:\\Kain-Lang\\crates\\kain-sys-codegen\\z3\\reports\\20260516T061932Z-llvm-codegen-reply-port-fastpath-pass.json` -> llvm lane `19/19` proved
+  - `D:\\Kain-Lang\\crates\\sys-codegen\\z3\\reports\\20260516T061932Z-llvm-codegen-reply-port-fastpath-pass.json` -> llvm lane `19/19` proved
 
 Benchmark result:
 
@@ -4311,10 +4311,10 @@ Benchmark result:
 Durable lessons:
 
 - If native LLVM ask/reply breaks again, inspect the full seam together:
-  - `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`
+  - `crates/sys-codegen/src/codegen_llvm/mod.rs`
   - `runtime/native/include/kain_runtime_actor.h`
   - `runtime/native/src/core/kain_runtime_actor.c`
-  - `crates/kain-actor/src/native.rs`
+  - `crates/actor/src/native.rs`
 - Typed ask replies are only fully honored where LLVM lowering has target-type context. Explicit typed bindings such as `let allowed: Bool = ask_timeout(...)` are the current proof shape to keep alive.
 - The return leg is now intentionally asymmetric:
   - request messages still use generic actor mailbox send,
@@ -4589,13 +4589,13 @@ Durable lessons:
 
 # 2026-05-16 - Realtime/native UI staging no longer double-registers imported `world` / `entangle` modules
 
-The imported-module failure was real, but the bug lived in driver staging, not in `world` / `entangle` semantics themselves. The bad path was `compile_realtime_app_bundle(...)` in `crates/kain-driver`: it built the typed frontend from flattened imports, then reused that flattened user source for the UI/runtime registration pass. That meant imported module items were present once as inlined top-level declarations and then loaded a second time through the original `use` import, which is why native LLVM/native UI staging surfaced `entangle endpoint '...' participates in more than one binding`.
+The imported-module failure was real, but the bug lived in driver staging, not in `world` / `entangle` semantics themselves. The bad path was `compile_realtime_app_bundle(...)` in `crates/driver`: it built the typed frontend from flattened imports, then reused that flattened user source for the UI/runtime registration pass. That meant imported module items were present once as inlined top-level declarations and then loaded a second time through the original `use` import, which is why native LLVM/native UI staging surfaced `entangle endpoint '...' participates in more than one binding`.
 
 What changed:
 
-- `crates/kain-driver/src/lib.rs` now keeps the old import-flattened path for frontend typing and bundle emission, but the UI pass uses `prepare_frontend_source_for_target(...)` instead of the flattened frontend import bundle. That preserves target preparation such as `[c_ffi]` augmentation while letting filesystem modules load exactly once through normal module resolution.
-- Added a driver regression in `crates/kain-driver/src/lib.rs`: `compile_realtime_bundle_supports_imported_world_and_entangle_modules`.
-- Added the native-app regression in `crates/kain-driver/src/native_app.rs`: `compile_native_app_bundle_supports_imported_world_and_entangle_modules`.
+- `crates/driver/src/lib.rs` now keeps the old import-flattened path for frontend typing and bundle emission, but the UI pass uses `prepare_frontend_source_for_target(...)` instead of the flattened frontend import bundle. That preserves target preparation such as `[c_ffi]` augmentation while letting filesystem modules load exactly once through normal module resolution.
+- Added a driver regression in `crates/driver/src/lib.rs`: `compile_realtime_bundle_supports_imported_world_and_entangle_modules`.
+- Added the native-app regression in `crates/driver/src/native_app.rs`: `compile_native_app_bundle_supports_imported_world_and_entangle_modules`.
 - Removed the now-dead `FrontendSourceBundle.user_source` field, which only existed to feed the broken flattened-UI path.
 
 Validation:
@@ -4672,7 +4672,7 @@ Durable lessons:
 
 - Kaintana should keep proving the architecture rule, not breaking it: runtime UI stays passive, while actual presenters and framework vocabulary live in blades.
 - `use c::...` imports are still resolved from the consuming blade's local `[[c_ffi.libraries]]` entries. Wrapping a native bridge in a library blade does not make the bridge declaration transitive yet, so consumer blades must repeat those `c_ffi` manifest entries.
-- Imported local Kain modules that contain `world` / `entangle` declarations no longer need the old self-contained-entrypoint workaround. The bug was in realtime/native UI staging replaying flattened imports plus the original `use`; if this symptom ever returns, re-check `crates/kain-driver::compile_realtime_app_bundle(...)` before treating it as an entangle semantics failure.
+- Imported local Kain modules that contain `world` / `entangle` declarations no longer need the old self-contained-entrypoint workaround. The bug was in realtime/native UI staging replaying flattened imports plus the original `use`; if this symptom ever returns, re-check `crates/driver::compile_realtime_app_bundle(...)` before treating it as an entangle semantics failure.
 - The current Vulkan proof is honest but intentionally narrow: it proves Kaintana can drive the same high-level app contract into a foreign presenter lane (`vulkain`) without runtime changes. It does not yet translate the full authored Kaintana scene graph into Vulkan draw commands.
 
 # 2026-05-15 - `blades/pong` is now a real visual state-lattice demo, and LLVM learned the scalar constructor/direct-call coercions it needed to compile it
@@ -4685,8 +4685,8 @@ What changed:
 - Replaced the old false-negative entangle self-check in `blades/pong/src/main.kn` with runtime-backed evidence from `native_entangle_registered_count()` and `native_entangle_propagation_count()`. The report and the on-screen metric now reflect the runtime's actual registration/propagation surface instead of trusting a stale mirror snapshot.
 - Added a real blade-owned Win32/WGL presenter through `[c_ffi]`: `blades/pong/native/pong_window_bridge.h`, `blades/pong/native/pong_window_bridge.c`, `blades/pong/build-pong-window.ps1`, and the `KAIN.toml`/`run.ps1` wiring. The visible window, screenshot capture, and close semantics now come from that bridge, while the passive native-UI session remains in the blade as an authored state/report surface.
 - The presenter writes `blades/pong/.kain/run/pong.bmp` and `blades/pong/.kain/run/pong_window_report.txt`. The screenshot shows the intended vector-arcade board, swarm field, trail, side telemetry bars, and score pips.
-- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs` now lowers scalar constructor/cast calls like `Float(...)`, `Int(...)`, and `Bool(...)` as real numeric coercions instead of inventing undeclared direct calls such as `@Float`. The same pass also coerces direct-call numeric arguments to the declared LLVM primitive param type when the callee expects a different scalar width/type.
-- Added LLVM regressions in `crates/kain-sys-codegen/tests/llvm_codegen_test.rs`:
+- `crates/sys-codegen/src/codegen_llvm/mod.rs` now lowers scalar constructor/cast calls like `Float(...)`, `Int(...)`, and `Bool(...)` as real numeric coercions instead of inventing undeclared direct calls such as `@Float`. The same pass also coerces direct-call numeric arguments to the declared LLVM primitive param type when the callee expects a different scalar width/type.
+- Added LLVM regressions in `crates/sys-codegen/tests/llvm_codegen_test.rs`:
   - `llvm_coerces_numeric_call_arguments_to_declared_param_types`
   - `llvm_lowers_float_constructor_calls_as_numeric_casts`
 - Added real local Pong SMT artifacts under `blades/pong/z3/proofs-experimental/`:
@@ -4716,14 +4716,14 @@ The next LLVM ownership win landed cleanly: fresh zeroed helper cells that alrea
 
 What changed:
 
-- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs` now tracks a second proof-backed nomination set beside the existing ephemeral-local candidate set: block-scoped names whose zero-fill is dead under the current statement order.
+- `crates/sys-codegen/src/codegen_llvm/mod.rs` now tracks a second proof-backed nomination set beside the existing ephemeral-local candidate set: block-scoped names whose zero-fill is dead under the current statement order.
 - Added conservative type/width inference for obvious scalar LLVM lanes (`i1`, `i8`, `i32`, `i64`, `double`, and pointer-width values) so the backend can recognize full-width stores without pretending it understands arbitrary aggregate payloads.
 - Added a dominance-style source scan for the local block: the pass only elides zero-init when the first ownership touch on the target is a `collapse` whose body begins with a full-width `mem_store` / `__kain_mem_store` to the exact pointer, and the remainder of the block still satisfies the old fresh/non-escaping ownership contract.
 - `compile_stmt` now emits the ephemeral stack slot without `store [N x i8] zeroinitializer` when that proof-backed nomination succeeds. Read-before-write shapes stay on the earlier zeroed lane.
-- Added a retained-zero regression in `crates/kain-sys-codegen/tests/llvm_codegen_test.rs`: `llvm_keeps_ephemeral_zero_init_when_first_use_is_read`.
+- Added a retained-zero regression in `crates/sys-codegen/tests/llvm_codegen_test.rs`: `llvm_keeps_ephemeral_zero_init_when_first_use_is_read`.
 - Added new proofs:
-  - `crates/kain-sys-codegen/z3/proofs/memory-ephemeral-zero-init-elides-under-dominating-full-width-store.yaml`
-  - `crates/kain-sys-codegen/z3/proofs-experimental/ownership-ephemeral-zero-init-dead-after-dominating-full-width-store.smt2`
+  - `crates/sys-codegen/z3/proofs/memory-ephemeral-zero-init-elides-under-dominating-full-width-store.yaml`
+  - `crates/sys-codegen/z3/proofs-experimental/ownership-ephemeral-zero-init-dead-after-dominating-full-width-store.smt2`
 - Updated `.agents/skills/kain-ownership-system/SKILL.md`, `ARCHITECTURE.md`, and a new benchmark note so future LLVM work treats zero-init elision as part of the ephemeral-local ownership theorem, not as a benchmark-only hack.
 
 Validation:
@@ -4734,7 +4734,7 @@ Validation:
 - `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_keeps_ephemeral_zero_init_when_first_use_is_read -- --exact --nocapture`
 - `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_routes_helper_owned_ownership_keywords_to_helper_fast_path -- --exact --nocapture`
 - `mcp__z3_local__.check_smt2(report_name="ownership-ephemeral-zero-init-dead-after-dominating-full-width-store", ...)` -> `unsat`, report `z3/reports/20260516T003258Z-ownership-ephemeral-zero-init-dead-after-dominating-full-width-store.json`
-- `mcp__z3_local__.run_proof_pack(path="D:/Kain-Lang/crates/kain-sys-codegen/z3", lane="llvm", report_name="llvm-ephemeral-zero-init-elision")` -> `19/19 proved`, report `crates/kain-sys-codegen/z3/reports/20260516T003258Z-llvm-ephemeral-zero-init-elision.json`
+- `mcp__z3_local__.run_proof_pack(path="D:/Kain-Lang/crates/sys-codegen/z3", lane="llvm", report_name="llvm-ephemeral-zero-init-elision")` -> `19/19 proved`, report `crates/sys-codegen/z3/reports/20260516T003258Z-llvm-ephemeral-zero-init-elision.json`
 - `python benchmark/run.py --case alloc_churn --languages kain,rust --runs 9 --warmups 2` -> report `benchmark/out/reports/20260516T003453Z.llm.md`
 
 Current benchmark reality:
@@ -4750,14 +4750,14 @@ Durable conclusion:
 
 # 2026-05-15 - LLVM now carries an ephemeral-local ownership witness lane that erases fresh loop-local cells into stack byte storage
 
-The moonshot branch is real now: `crates/kain-sys-codegen/src/codegen_llvm/mod.rs` has a compiler-owned `EphemeralLocal` provenance lane for fresh single-cell helper allocations whose ownership trace never escapes the local block. This is the first production lowering where the right question stopped being “how do we make heap bookkeeping cheaper?” and became “was a physical heap object ever semantically required here at all?”
+The moonshot branch is real now: `crates/sys-codegen/src/codegen_llvm/mod.rs` has a compiler-owned `EphemeralLocal` provenance lane for fresh single-cell helper allocations whose ownership trace never escapes the local block. This is the first production lowering where the right question stopped being “how do we make heap bookkeeping cheaper?” and became “was a physical heap object ever semantically required here at all?”
 
 What changed:
 
 - Added `OwnershipPointerProvenance::EphemeralLocal`, `EphemeralOwnershipLocalWitness`, and block-local candidate tracking in the LLVM backend.
 - Fresh single-cell helper allocs that stay inside a balanced `collapse -> observe -> decay` trace now lower to stack-backed `[N x i8]` storage plus direct load/store lowering instead of `__kain_alloc(...)`, `__kain_ownership_*`, and `inttoptr` helper traffic.
 - Fixed the first real benchmark-shaped bug in the candidate matcher: nested blocks originally lost outer literal facts such as `cell_count = 1`, so loop-local `alloc_zeroed(cell_count, "Int")` in `alloc_churn` could not prove the single-cell contract. The backend now carries block-scoped known-`Int` literal maps far enough for nested ephemeral nomination.
-- Added a new LLVM regression in `crates/kain-sys-codegen/tests/llvm_codegen_test.rs` for the exact loop-local `alloc_churn` shape: `llvm_erases_loop_local_ephemeral_single_cell_ownership_to_local_storage`.
+- Added a new LLVM regression in `crates/sys-codegen/tests/llvm_codegen_test.rs` for the exact loop-local `alloc_churn` shape: `llvm_erases_loop_local_ephemeral_single_cell_ownership_to_local_storage`.
 - Updated `.agents/skills/kain-ownership-system/SKILL.md` and `ARCHITECTURE.md` so future work treats the ephemeral lane as a proof-backed ownership species, not a benchmark-only trick.
 
 Validation:
@@ -4767,7 +4767,7 @@ Validation:
 - `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_routes_helper_owned_ownership_keywords_to_helper_fast_path -- --exact --nocapture`
 - `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_lowers_ownership_keywords_to_runtime_guards -- --exact --nocapture`
 - `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_consumes_lowered_alloc_and_realloc_helpers -- --exact --nocapture`
-- `mcp__z3_local__.run_proof_pack(path="D:/Kain-Lang/crates/kain-sys-codegen/z3", lane="llvm", report_name="llvm-ephemeral-loop-local-ownership-erasure")` -> `18/18 proved`, report `crates/kain-sys-codegen/z3/reports/20260516T000551Z-llvm-ephemeral-loop-local-ownership-erasure.json`
+- `mcp__z3_local__.run_proof_pack(path="D:/Kain-Lang/crates/sys-codegen/z3", lane="llvm", report_name="llvm-ephemeral-loop-local-ownership-erasure")` -> `18/18 proved`, report `crates/sys-codegen/z3/reports/20260516T000551Z-llvm-ephemeral-loop-local-ownership-erasure.json`
 - `python benchmark/run.py --case alloc_churn --languages kain,rust --runs 5 --warmups 1` -> report `benchmark/out/reports/20260516T000522Z.llm.md`
 - `python benchmark/run.py --case ownership_memory --languages kain,rust --runs 5 --warmups 1` -> report `benchmark/out/reports/20260516T000551Z.llm.md`
 - `python benchmark/run.py --case alloc_churn --languages kain,rust --runs 9 --warmups 2` -> report `benchmark/out/reports/20260516T000619Z.llm.md`
@@ -4799,7 +4799,7 @@ What changed:
 - Updated `.agents/skills/kain-benchmark-pipeline/SKILL.md` so future benchmark work does not regress into byte-style heap authoring for single-cell cases.
 - Added two solver-backed research artifacts:
   - `runtime/native/src/core/z3/proofs-experimental/helper-abi-single-int-cell-requires-one-element-count.smt2`
-  - `crates/kain-sys-codegen/z3/proofs-experimental/ownership-ephemeral-cell-store-load-decay-erases-to-ssa.smt2`
+  - `crates/sys-codegen/z3/proofs-experimental/ownership-ephemeral-cell-store-load-decay-erases-to-ssa.smt2`
 - Expanded `research/2026-05-15-ephemeral-cell-erasure.md` from a stub into the actual frontier note for the moonshot branch.
 
 Validation:
@@ -4830,7 +4830,7 @@ What changed:
 
 - `runtime/native/include/kain_runtime_ownership.h` and `runtime/native/src/core/kain_runtime_ownership.c` no longer use the generic prepare helper. Imported or unknown pointers now go through `__kain_ownership_ensure_imported(...)`, and the generic `begin_observe` / `end_observe` / `begin_collapse` / `end_collapse` / `decay` functions are registry-only and never probe helper headers.
 - The helper fast path still exists, but it is now explicit: `__kain_ownership_begin_observe_helper(...)`, `__kain_ownership_end_observe_helper(...)`, `__kain_ownership_begin_collapse_helper(...)`, `__kain_ownership_end_collapse_helper(...)`, and `__kain_ownership_decay_helper(...)` are helper-owned-only entry points that may rely on the packed slot token in the allocation header.
-- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs` now tracks helper-owned pointer provenance through lowered `alloc_zeroed` / `realloc_mem` locals. LLVM emits helper-only ownership calls for those locals and emits `__kain_ownership_ensure_imported(...)` plus the safe registry path for imported parameters and unknown pointers.
+- `crates/sys-codegen/src/codegen_llvm/mod.rs` now tracks helper-owned pointer provenance through lowered `alloc_zeroed` / `realloc_mem` locals. LLVM emits helper-only ownership calls for those locals and emits `__kain_ownership_ensure_imported(...)` plus the safe registry path for imported parameters and unknown pointers.
 - `runtime/native/tests/test_ownership_memory.c` now includes a spoofed-prefix regression: an imported stack cell with bytes that look like a helper header must still use the imported registry path and must not be mistaken for helper-owned memory.
 - Added new proofs:
   - `runtime/native/src/core/z3/proofs-experimental/ownership-generic-prepare-fake-header-bypass.smt2`
@@ -4863,7 +4863,7 @@ What changed:
 - `runtime/native/include/kain_runtime_memory.h` now defines the helper allocation header as a packed `magic_and_slot + payload_size` pair. The low 16 bits of `magic_and_slot` carry `slot + 1`, so helper allocations keep a stable ownership registry slot token without growing the header beyond 16 bytes.
 - `runtime/native/src/core/kain_runtime_memory.c` now registers helper allocations through `__kain_ownership_register_helper_allocation(...)`, stores the returned slot token in the header, and uses `__kain_ownership_helper_allocation_state(...)` plus `__kain_ownership_relocate_helper_allocation(...)` for the realloc path instead of the old `state -> maybe register missing region -> update` sequence.
 - `runtime/native/src/core/kain_runtime_ownership.c` now has a generalized registry upsert helper, direct helper-slot resolution from the packed allocation header, and `__kain_ownership_prepare_managed_pointer(...)` for LLVM lowering. Helper-owned `begin_observe`, `end_observe`, `begin_collapse`, `end_collapse`, and `decay` now resolve their registry slot directly instead of re-hashing the pointer on every runtime call.
-- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs` no longer emits `__kain_ownership_state(...)` plus `__kain_ownership_register_imported(...)` around every ownership expression. The LLVM preamble is now one `__kain_ownership_prepare_managed_pointer(...)` call and an abort-on-error branch.
+- `crates/sys-codegen/src/codegen_llvm/mod.rs` no longer emits `__kain_ownership_state(...)` plus `__kain_ownership_register_imported(...)` around every ownership expression. The LLVM preamble is now one `__kain_ownership_prepare_managed_pointer(...)` call and an abort-on-error branch.
 - Added durable proofs:
   - `runtime/native/src/core/z3/proofs/native-ownership-helper-realloc-slot-fast-path-rejects-non-idle-region.yaml`
   - `runtime/native/src/core/z3/proofs/native-ownership-helper-slot-token-stays-within-registry-capacity.yaml`
@@ -4896,7 +4896,7 @@ The `string_ops` benchmark should stay a general string-lowering test, not a sou
 
 What changed:
 
-- Kept the LLVM backend repair in `crates/kain-sys-codegen/src/codegen_llvm/mod.rs` that hoists runtime top-level string const init into the function entry preamble, caches string lengths for known string values, and preserves the earlier bytewise `char_at(...) == char_at(...)` fast path plus borrowed string parameter lowering.
+- Kept the LLVM backend repair in `crates/sys-codegen/src/codegen_llvm/mod.rs` that hoists runtime top-level string const init into the function entry preamble, caches string lengths for known string values, and preserves the earlier bytewise `char_at(...) == char_at(...)` fast path plus borrowed string parameter lowering.
 - Removed the benchmark-local two-byte substring shortcut from `benchmark/cases/string_ops/main.kn`, `main.rs`, `main.js`, and `main.py`.
 - Kept the dead `% MODULUS` removal and the boolean branch toggle in all four language lanes.
 - Updated `benchmark/benchmarks.json` and `.agents/skills/kain-benchmark-pipeline/SKILL.md` so the fairness note explicitly says `string_ops` stays on the general substring path and the intended specialization belongs in the compiler/backend, not benchmark-only case code.
@@ -4907,7 +4907,7 @@ Validation:
 - `node --check benchmark/cases/string_ops/main.js`
 - `python -m py_compile benchmark/cases/string_ops/main.py`
 - `mcp__z3_local__.run_proof_pack(path="D:/Kain-Lang/benchmark/z3", lane="full", report_name="benchmark-string-ops-general-path-fairness")`
-- `mcp__z3_local__.run_proof_pack(path="D:/Kain-Lang/crates/kain-sys-codegen/z3", lane="llvm", report_name="llvm-entry-hoisted-const-init-string-ops-general-path")`
+- `mcp__z3_local__.run_proof_pack(path="D:/Kain-Lang/crates/sys-codegen/z3", lane="llvm", report_name="llvm-entry-hoisted-const-init-string-ops-general-path")`
 - `python benchmark/run.py --case string_ops --languages kain,rust,javascript,python --runs 5 --warmups 1 --timeout 300`
 
 Current benchmark reality after this pass:
@@ -4958,7 +4958,7 @@ Recommended next step:
 
 # 2026-05-15 - LLVM string hot path no longer loses to JavaScript because authored string helpers now stay on byte math instead of RC churn
 
-The LLVM backend's `string_ops` path was materially repaired in `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`. The old benchmark loss was mostly self-inflicted lowering tax: repeated `len` calls became repeated `strlen`, `char_at(lhs) == char_at(rhs)` allocated temporary one-character strings and called `deep_eq`, and direct authored helper calls paid caller retain plus callee release on every string argument.
+The LLVM backend's `string_ops` path was materially repaired in `crates/sys-codegen/src/codegen_llvm/mod.rs`. The old benchmark loss was mostly self-inflicted lowering tax: repeated `len` calls became repeated `strlen`, `char_at(lhs) == char_at(rhs)` allocated temporary one-character strings and called `deep_eq`, and direct authored helper calls paid caller retain plus callee release on every string argument.
 
 What changed:
 
@@ -4966,13 +4966,13 @@ What changed:
 - Added `string_length_values` plus direct `strlen` entry caching for authored non-extern string parameters. `len(x)` on those parameters now reuses cached SSA values instead of re-emitting runtime string-length work inside loops.
 - Added a char-at equality fast path in LLVM lowering. When the source shape is `char_at(lhs, i) == char_at(rhs, j)` or `!=`, the backend now emits validity checks plus direct byte loads instead of allocating temporary one-character heap strings and calling `deep_eq`.
 - Split internal string parameter ownership from general RC ownership. Direct authored function calls now skip caller-side retain for known string params, and the callee marks those params as borrowed locals so scope exit does not release them.
-- Added durable Z3 proofs in `crates/kain-sys-codegen/z3/proofs/` for the char-at equality fast path and for borrowed-string call-frame refcount neutrality.
+- Added durable Z3 proofs in `crates/sys-codegen/z3/proofs/` for the char-at equality fast path and for borrowed-string call-frame refcount neutrality.
 
 Validation:
 
 - `cargo test -p kain-sys-codegen --lib --no-run`
 - `python benchmark/run.py --case string_ops --languages kain,rust,javascript,python --runs 3 --warmups 1 --timeout 300`
-- `mcp__z3_local__.run_proof_pack(path="D:/Kain-Lang/crates/kain-sys-codegen/z3", lane="llvm", report_name="llvm-string-ops-fast-path-and-borrowed-call")`
+- `mcp__z3_local__.run_proof_pack(path="D:/Kain-Lang/crates/sys-codegen/z3", lane="llvm", report_name="llvm-string-ops-fast-path-and-borrowed-call")`
 
 Current benchmark reality after this pass:
 
@@ -4989,7 +4989,7 @@ What changed:
 
 - Archived the old runtime-owned vendor/app trees under `.zarchive/runtime_devendor_2026-05-15/`, including `runtime/native/src/vendor/`, `runtime/native/src/asset/`, `runtime/native/src/gfx/opengl/`, `runtime/native/third_party/`, `runtime/3rdparty/`, and the old vendor bridge headers.
 - `runtime/native_core_runtime.toml` is now the only canonical production runtime manifest. `runtime/native_runtime.toml` and `runtime/native_runtime_metadata.json` are lean compatibility mirrors so older lookup paths cannot silently revive the archived lane.
-- `crates/kain-core/src/runtime_contract.rs` now emits a lean raw-native default service set and only binds host/UI/graphics/actor services when the authored program shape actually requires them.
+- `crates/core/src/runtime_contract.rs` now emits a lean raw-native default service set and only binds host/UI/graphics/actor services when the authored program shape actually requires them.
 - The active runtime service registry is now the 31-service raw-native catalog. Vendor-era keys such as `ui.layout.yoga`, `ui.backend.imgui`, `gfx.backend.bgfx`, `script.quickjs`, audio vendor services, wasm vendor services, and allocator vendor services are gone from the supported production registry.
 - CLI/bootstrap lookup, runtime pairing policy, Bazel sync, and the core conformance harnesses now all resolve to the lean runtime surface.
 
@@ -5146,7 +5146,7 @@ What changed:
 - `src/main.kn` now launches the Vulkan window through `use c::kquantum_vulkan_bridge`, records counters in `.kain/run/kquantum_vulkan_report.txt`, shows Vulkan status in the native UI, and keeps all Kain runtime reports relative to the blade root (`.kain/run`).
 - The C FFI import header intentionally exposes only numeric/status/report functions. C-owned `const char*` accessors caused a heap-corruption crash when called from Kain, so text diagnostics now cross the boundary through report files until foreign string ownership is explicitly modeled.
 - Patched `.agents/skills/kain-blade-workspace/scripts/compile_kain_blade_to_root.ps1` to run check/compile from the blade root, default blade builds to `runtime/native_core_runtime.toml`, and move `.lib`/`.exp` linker sidecars under `.kain/out/<exe>/`.
-- Patched `crates/kain-sys-codegen/src/codegen_llvm/mod.rs` so LLVM signature pre-scan and item lowering recurse into generated `mod c: mod <library>:` blocks; without this, `[c_ffi]` externs could exist in augmented source but not be declared/lowered in LLVM.
+- Patched `crates/sys-codegen/src/codegen_llvm/mod.rs` so LLVM signature pre-scan and item lowering recurse into generated `mod c: mod <library>:` blocks; without this, `[c_ffi]` externs could exist in augmented source but not be declared/lowered in LLVM.
 
 Validation:
 
@@ -5154,7 +5154,7 @@ Validation:
 - `spirv-val --target-env vulkan1.3` accepts `.kain/gpu/kquantum_kernels/kernels.spv`, `.kain/gpu/vulkan_window/kquantum_particles.vert.spv`, and `.kain/gpu/vulkan_window/kquantum_particles.frag.spv`.
 - Direct C Vulkan harness under `.kain/native/` reports `probe=1 rc=0 frames=16 drawn=4194304`.
 - Added durable solver source at `blades/kain-labs/native/z3/kquantum_vulkan_bridge_bounds.smt2`; Z3 MCP returned four `unsat` checks for particle budget, draw-counter overflow, safe swapchain cleanup index, and shader byte/word bounds.
-- `mcp__z3_local__.run_proof_pack(path="D:/Kain-Lang/crates/kain-sys-codegen/z3", lane="llvm")` proved `14/14`.
+- `mcp__z3_local__.run_proof_pack(path="D:/Kain-Lang/crates/sys-codegen/z3", lane="llvm")` proved `14/14`.
 - `cargo test -p kain-sys-codegen lowers_extern_cffi_declarations --target-dir target\codex-kquantum-vulkan-llvm -- --nocapture` passes, including the generated-module C FFI extern regression.
 - UI screenshot proof exists at `blades/kain-labs/.kain/run/kquantum_ui.bmp`, 1440x860, about 4.95 MB, with nonzero sampled payload bytes.
 - `samply --help` confirms this Windows host can load profiles but cannot record new profiles; no fresh samply profile was possible here.
@@ -5241,11 +5241,11 @@ Validation:
 
 # 2026-05-15 - Foreign ABI core and C FFI v2 raw API classification
 
-`kain-c-ffi` now has a shared ABI brain instead of owning scalar/pointer policy locally. The new `crates/kain-foreign-abi` crate models foreign ABI types, normalized C scalar tables, pointer/callback/aggregate bridge classes, external raw-pointer ownership tags, safety reports, and a local Z3 pack.
+`kain-c-ffi` now has a shared ABI brain instead of owning scalar/pointer policy locally. The new `crates/foreign-abi` crate models foreign ABI types, normalized C scalar tables, pointer/callback/aggregate bridge classes, external raw-pointer ownership tags, safety reports, and a local Z3 pack.
 
 What changed:
 
-- Added `crates/kain-foreign-abi` to the Cargo/Bazel workspace with `ForeignAbiType`, `ForeignBridgeClass`, `ScalarTypeTable`, `ForeignAbiLoweringPolicy`, `CBridgeTypeShape`, and `BridgeSafetyReport`.
+- Added `crates/foreign-abi` to the Cargo/Bazel workspace with `ForeignAbiType`, `ForeignBridgeClass`, `ScalarTypeTable`, `ForeignAbiLoweringPolicy`, `CBridgeTypeShape`, and `BridgeSafetyReport`.
 - `kain-c-ffi` now consumes `kain-foreign-abi` for C type classification instead of rejecting function pointers, arrays, multi-level pointers, and raw scalar pointers in ad hoc extractor branches.
 - The extractor now keeps a small typedef registry, so callback typedefs and pointer typedef aliases can affect later function signatures. This is important for Vulkan/D3D12-style `PFN_*` callbacks and handle typedefs.
 - Generated bridge code now supports raw pointer handles, callback-pointer null/handle passthrough, multi-level pointer handles, and byte-buffer pointer returns as host objects. The Kain surface remains `Any` for those unsafe raw shapes because ownership/lifetime must stay explicit at the boundary.
@@ -5262,9 +5262,9 @@ Validation:
 - `cargo test -p kain-foreign-abi --target-dir target\codex-foreign-abi -- --nocapture`
 - `cargo test -p kain-c-ffi --target-dir target\codex-foreign-abi -- --test-threads=1 --nocapture`
 - `python tools/foreign_abi/mine_c_abi_shapes.py smoketest/fabric_FFI/c_ffi --out target/codex-foreign-abi/ffi_shape_report.json`
-- `mcp__z3_local__.run_proof_pack(path="D:/Kain-Lang/crates/kain-foreign-abi/z3", report_name="foreign-abi-proof-pack-full")` proved `1/1`.
+- `mcp__z3_local__.run_proof_pack(path="D:/Kain-Lang/crates/foreign-abi/z3", report_name="foreign-abi-proof-pack-full")` proved `1/1`.
 - `python tools/bazel/sync_rust_builds.py --check`
-- `bazel test //crates/kain-foreign-abi:unit_test --config=dev` passed. Bazel still prints the known Windows `rules_swift` local-config `name 'arch' is not defined` analysis warning, but the Rust target completes.
+- `bazel test //crates/foreign-abi:unit_test --config=dev` passed. Bazel still prints the known Windows `rules_swift` local-config `name 'arch' is not defined` analysis warning, but the Rust target completes.
 
 Recommended next step:
 
@@ -5462,7 +5462,7 @@ Validation:
 
 Durable proof added:
 
-- `crates/kain-sys-codegen/z3/proofs/control-top-level-const-lazy-load-follows-initializer.yaml`
+- `crates/sys-codegen/z3/proofs/control-top-level-const-lazy-load-follows-initializer.yaml`
 
 # 2026-05-14 - Native ownership collapse guards now use a pointer index and occupancy-word allocator
 
@@ -5501,7 +5501,7 @@ Validation:
 - direct Z3 returned `unsat` for all three new experimental proof artifacts.
 - `mcp__z3_local__.run_proof_pack(path="D:\\Kain-Lang\\runtime\\native\\src\\core\\z3", lane="ownership", report_name="native-ownership-lane-after-pointer-index-pass")` proved `3/3`.
 - `mcp__z3_local__.run_proof_pack(path="D:\\Kain-Lang\\runtime\\native\\src\\core\\z3", lane="full", report_name="native-core-full-after-ownership-pointer-index")` proved `38/38`.
-- `mcp__z3_local__.run_proof_pack(path="D:\\Kain-Lang\\crates\\kain-ownership\\z3", lane="full", report_name="kain-ownership-semantic-lane-after-native-index-pass")` proved `7/7`.
+- `mcp__z3_local__.run_proof_pack(path="D:\\Kain-Lang\\crates\\ownership\\z3", lane="full", report_name="kain-ownership-semantic-lane-after-native-index-pass")` proved `7/7`.
 - `clang -fsyntax-only -I runtime/native/include runtime/native/src/core/kain_runtime_ownership.c`
 - `powershell -NoProfile -ExecutionPolicy Bypass -File runtime\\compile_native_runtime.ps1`
 - `target/native_test_ownership_memory.exe`
@@ -5777,10 +5777,10 @@ The interactive `blades/kain-example` Win32/GL workbench no longer crashes at th
 
 What changed:
 
-- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs` now routes backend stack slots through `emit_entry_alloca`, which inserts textual LLVM `alloca` instructions immediately after the active function's `entry:` label instead of the current loop/control block.
+- `crates/sys-codegen/src/codegen_llvm/mod.rs` now routes backend stack slots through `emit_entry_alloca`, which inserts textual LLVM `alloca` instructions immediately after the active function's `entry:` label instead of the current loop/control block.
 - `next_reg()` now emits named locals (`%rN`) rather than ordered unnamed numeric locals (`%0`, `%1`, ...). This avoids invalid LLVM when later entry-block insertion places a higher-numbered alloca before an earlier emitted temporary.
-- `crates/kain-sys-codegen/tests/llvm_codegen_test.rs` now has `llvm_hoists_loop_local_allocas_to_function_entry`, which checks a loop-heavy function and verifies the generated LLVM with repo `llvm-as`.
-- `crates/kain-sys-codegen/z3/proofs/memory-entry-alloca-hoist-keeps-loop-stack-growth-zero.yaml` is the durable Z3 proof that frame count cannot create stack overflow once loop-stack contribution is zero and fixed entry allocation fits.
+- `crates/sys-codegen/tests/llvm_codegen_test.rs` now has `llvm_hoists_loop_local_allocas_to_function_entry`, which checks a loop-heavy function and verifies the generated LLVM with repo `llvm-as`.
+- `crates/sys-codegen/z3/proofs/memory-entry-alloca-hoist-keeps-loop-stack-growth-zero.yaml` is the durable Z3 proof that frame count cannot create stack overflow once loop-stack contribution is zero and fixed entry allocation fits.
 - Ownership keyword integration holes exposed by the full build were patched across `kain-core`, `kain-sys-codegen`, `gpu`, `ue5`, and CLI importer/selfhost walkers so `observe`/`collapse`/`decay` are not parser-only surface.
 
 Validation:
@@ -5806,10 +5806,10 @@ The ownership model moved from semantic-kernel design into the language/runtime 
 What changed:
 
 - `kain-core` now owns `Expr::Observe`, `Expr::Collapse`, and `Expr::Decay`, parser support, formatter support, comptime/runtime traversal, typechecking, backend memory validation, runtime-contract capability emission, and interpreter guard transitions.
-- `crates/kain-sys-codegen` now lowers ownership expressions to `__kain_ownership_*` runtime calls. Untracked LLVM pointers are lazily registered as imported regions before guard transitions, so FFI/local pointers can participate without claiming Kain heap ownership.
+- `crates/sys-codegen` now lowers ownership expressions to `__kain_ownership_*` runtime calls. Untracked LLVM pointers are lazily registered as imported regions before guard transitions, so FFI/local pointers can participate without claiming Kain heap ownership.
 - `runtime/native` now has `kain_runtime_ownership.h/.c`, a serialized C11-atomic registry for observe/collapse/decay transitions, heap allocation registration from `__kain_alloc`, pre-move registration for `__kain_realloc`, and `__kain_free` behind heap decay.
 - `runtime/BUILD.bazel`, `tools/bazel/sync_native_runtime_builds.py`, and `runtime/runtime_manifest_data.bzl` now include `native_test_ownership_memory`, which proves the C runtime guard surface under Bazel.
-- `crates/kain-ownership` policy now treats imported pointers as borrowed observe/collapse/lifetime-end regions, not heap-free regions.
+- `crates/ownership` policy now treats imported pointers as borrowed observe/collapse/lifetime-end regions, not heap-free regions.
 
 Formal proof gathered with Z3:
 
@@ -5836,16 +5836,16 @@ Recommended next step:
 
 - Add a small `.kn` native executable fixture that allocates, observes, collapses, and decays a heap pointer end-to-end through the real LLVM linker path, then promote it into the native LLVM proving-ground blade once the sample surface is stable.
 
-# 2026-05-14 - `crates/kain-ownership` landed as the proof-backed memory ownership kernel
+# 2026-05-14 - `crates/ownership` landed as the proof-backed memory ownership kernel
 
 The first vertical slice of the `collapse` / `observe` / `decay` ownership model now exists as a dedicated semantic crate instead of remaining a design note.
 
 What changed:
 
-- Added `crates/kain-ownership` to the workspace with a portable ownership-state lattice: `Idle`, `Observed(n)`, `Collapsed`, and `Decayed`.
+- Added `crates/ownership` to the workspace with a portable ownership-state lattice: `Idle`, `Observed(n)`, `Collapsed`, and `Decayed`.
 - Added conservative region policy for local alloca, heap allocations, RC objects, world state, entangled authority endpoints, entangled mirrors, and imported pointers.
 - Added lowering hints for future LLVM/native work, including readonly, noalias, lifetime-end, runtime guard, snapshot, and release/free implications.
-- Added `crates/kain-ownership/z3` with focused lanes for state and policy proofs.
+- Added `crates/ownership/z3` with focused lanes for state and policy proofs.
 - Added `.agents/skills/kain-ownership-system/SKILL.md` so future agents have a targeted guide for this pipeline.
 
 Design decisions:
@@ -5902,15 +5902,15 @@ Durable note:
 - On this workstation, future agents should treat `kain` as a Bazel launcher shim, not as a copied Cargo binary. If MCP or shell commands ever start hitting a stale CLI again, the first repair step is rerunning `scripts/windows/sync-kain-source-of-truth.ps1 -PersistUserEnv`, not manually rebuilding `cargo build -p cli` and copying exes around.
 - The wrapper now exposes Cargo-to-Bazel drift immediately. If `kain` fails during Bazel analysis with a `crate_universe` digest mismatch, repin with `$env:CARGO_BAZEL_REPIN='1'; bazel fetch //:kain --config=dev` and keep the resulting `MODULE.bazel.lock` update with the Cargo manifest change that caused it.
 
-# 2026-05-14 - `crates/kain-sys-codegen` now has a durable LLVM Z3 proof pack
+# 2026-05-14 - `crates/sys-codegen` now has a durable LLVM Z3 proof pack
 
-The LLVM backend in `crates/kain-sys-codegen/src/codegen_llvm/mod.rs` now has
-its own durable solver workspace at `crates/kain-sys-codegen/z3`, so future
+The LLVM backend in `crates/sys-codegen/src/codegen_llvm/mod.rs` now has
+its own durable solver workspace at `crates/sys-codegen/z3`, so future
 backend math and CFG work no longer has to start from ad hoc chat-only proofs.
 
 What changed:
 
-- Added `crates/kain-sys-codegen/z3/z3.toml` and `README.md` with focused lanes
+- Added `crates/sys-codegen/z3/z3.toml` and `README.md` with focused lanes
   for `layout`, `control`, `casts`, `memory`, `llvm`, `full`, and workspace
   `smoke`.
 - Added 12 curated proof cases that cover the current solver-friendly LLVM seams:
@@ -5918,7 +5918,7 @@ What changed:
   literal `len + 1` headroom, `next_label`, `next_reg`, match guard-fail target
   shape, `i1/i8/i32/i64` integer/bool cast semantics, and runtime
   base-address-plus-size bridge preconditions.
-- Added `crates/kain-sys-codegen/z3/scripts/analyze_codegen_llvm_targets.py`,
+- Added `crates/sys-codegen/z3/scripts/analyze_codegen_llvm_targets.py`,
   which scans `src/codegen_llvm/mod.rs` and emits
   `generated/codegen_llvm_target_inventory.{json,md}` so future agents can keep
   mining proof targets even when the parser-based analyzer is noisy on this
@@ -5936,13 +5936,13 @@ Why it changed:
 - The repo already had durable solver packs for `kain-core`, GPU codegen, and
   the native C runtime, but the LLVM lowering lane had recently produced real
   ownership and CFG bugs without having its own proof workspace.
-- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs` is large, high churn, and
+- `crates/sys-codegen/src/codegen_llvm/mod.rs` is large, high churn, and
   full of arithmetic and control-flow seams that are cheap to regress but also
   cheap to prove once the pack exists.
 
 Validation:
 
-- `python crates/kain-sys-codegen/z3/scripts/analyze_codegen_llvm_targets.py`
+- `python crates/sys-codegen/z3/scripts/analyze_codegen_llvm_targets.py`
 - `mcp__z3_local__.run_proof_pack(path="D:\\Kain-Lang\\crates\\kain-sys-codegen", lane="layout", report_name="llvm-codegen-layout-rerun")` proved 3/3
 - `mcp__z3_local__.run_proof_pack(path="D:\\Kain-Lang\\crates\\kain-sys-codegen", lane="full", report_name="llvm-codegen-proof-pack-clean")` proved 12/12
 - `mcp__z3_local__.check_smt2(report_name="llvm-double-to-bool-nan-counterexample", ...)` returned `sat` with `x = NaN`
@@ -5950,7 +5950,7 @@ Validation:
 
 Durable operator notes:
 
-- After touching `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`, rerun the
+- After touching `crates/sys-codegen/src/codegen_llvm/mod.rs`, rerun the
   focused lane that matches the seam:
   - `layout` for `align_abi_size`, `abi_layout_for_ty`, and literal byte counts
   - `control` for `next_label`, `next_reg`, match CFG work, and PHI shape
@@ -5976,10 +5976,10 @@ The repo now has a canonical one-file native LLVM example at `blades/kain-exampl
 What changed:
 
 - Added `blades/kain-example/KAIN.toml` plus a broad `src/main.kn` that intentionally exercises native Kain surface area in one place: low-level memory helpers, `Option`/`Result`/`Future`, `patch`/`law`/`converge`/`world`/`entangle`/`orchestrate`, actors, filesystem, input, networking, process, native stdlib UI, native graphics, shader declarations, and heap-health checkpoints.
-- `crates/cli/src/llvm_native_stage.rs` no longer extracts shader source from mixed native+shader files by slicing raw spans. It now rebuilds shader-only source from the AST via the new formatter entrypoints in `crates/kain-core/src/formatter.rs`, which fixed mixed-file native LLVM staging for the example blade.
-- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs` now retains borrowed `String` arguments before non-extern direct calls. This fixes the real ownership bug where stdlib/native wrappers and authored Kain callables released parameter locals on scope exit and could steal the caller's only live reference, which showed up as Windows heap corruption in the filesystem lane.
-- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs` now lowers `print`/`println` through `stdout_write`, lowers `vec!` and `format!` in the native LLVM lane, registers enum layouts for native enum-pointer parameters, and repairs `Expr::Match` control flow so condition blocks, guard-fail cleanup, no-match fallback, and merge/PHI blocks are emitted as valid LLVM IR instead of aliasing the merge label into the last condition arm.
-- `crates/kain-sys-codegen/tests/llvm_codegen_test.rs` now includes direct coverage for `println`, enum-parameter `match`, `vec!`/`format!`, and a new `llvm-as` verifier test that exercises guarded string-returning `match` lowering. That verifier test exists because the broken `match` lowering still looked fine to string-based assertions while producing invalid LLVM IR.
+- `crates/cli/src/llvm_native_stage.rs` no longer extracts shader source from mixed native+shader files by slicing raw spans. It now rebuilds shader-only source from the AST via the new formatter entrypoints in `crates/core/src/formatter.rs`, which fixed mixed-file native LLVM staging for the example blade.
+- `crates/sys-codegen/src/codegen_llvm/mod.rs` now retains borrowed `String` arguments before non-extern direct calls. This fixes the real ownership bug where stdlib/native wrappers and authored Kain callables released parameter locals on scope exit and could steal the caller's only live reference, which showed up as Windows heap corruption in the filesystem lane.
+- `crates/sys-codegen/src/codegen_llvm/mod.rs` now lowers `print`/`println` through `stdout_write`, lowers `vec!` and `format!` in the native LLVM lane, registers enum layouts for native enum-pointer parameters, and repairs `Expr::Match` control flow so condition blocks, guard-fail cleanup, no-match fallback, and merge/PHI blocks are emitted as valid LLVM IR instead of aliasing the merge label into the last condition arm.
+- `crates/sys-codegen/tests/llvm_codegen_test.rs` now includes direct coverage for `println`, enum-parameter `match`, `vec!`/`format!`, and a new `llvm-as` verifier test that exercises guarded string-returning `match` lowering. That verifier test exists because the broken `match` lowering still looked fine to string-based assertions while producing invalid LLVM IR.
 - `runtime/native/src/core/kain_runtime_memory.c` was hardened again: low-level helper allocation math still uses explicit size overflow guards, and pointer helpers now reject signed stride multiplication or uintptr address rebuild overflow instead of relying on UB-prone raw C pointer arithmetic. `runtime/native/include/kain_runtime_memory.h` now documents the `ERANGE` failure mode for helper arithmetic overflow.
 - `runtime/native/src/core/kain_runtime_native_stdlib.c`, `runtime/native/include/kain_runtime_native_stdlib.h`, and `stdlib/native/runtime.kn` now expose `native_runtime_heap_validate()` on Windows so the proving-ground example can assert heap health between major native subsystems.
 - `runtime/native/src/core/z3/z3.toml` and `README.md` now include a focused `memory` lane, and five durable `native-memory-*` proof cases now cover low-level allocation-header math plus pointer-address rebuild arithmetic.
@@ -6019,7 +6019,7 @@ Additional validation from the follow-up LLVM-lowering repair:
 
 Durable operator notes:
 
-- If a native LLVM-only heap corruption shows up after a stdlib/native call, inspect `compile_direct_call` in `crates/kain-sys-codegen/src/codegen_llvm/mod.rs` before assuming the C runtime is wrong. The current contract is that non-extern callees own parameter locals and release them on scope exit, so borrowed `String` arguments must be retained at the callsite.
+- If a native LLVM-only heap corruption shows up after a stdlib/native call, inspect `compile_direct_call` in `crates/sys-codegen/src/codegen_llvm/mod.rs` before assuming the C runtime is wrong. The current contract is that non-extern callees own parameter locals and release them on scope exit, so borrowed `String` arguments must be retained at the callsite.
 - Treat `blades/kain-example/src/main.kn` as the first defacto native regression file, not as throwaway sample code. When it fails, either the language example drifted or the native lane regressed; both are real bugs.
 - If a `match`-heavy native LLVM file compiles through parsing/typechecking but dies during link or LLVM verification, inspect `Expr::Match` lowering before assuming the authored source is wrong. The known failure class was merge-block reuse plus missing guard-fail cleanup, and the durable tripwire is the `llvm_match_ir_verifies_with_guarded_string_results` test plus `llvm-as` verification of emitted `.ll`.
 - On this Windows workstation, use `cmd /c "start /wait "" <exe> & echo EXITCODE:%ERRORLEVEL%"` to verify generated native executable exits. `Start-Process` can misreport `-2147483645` for this lane even when the executable really returns `0`.
@@ -6053,15 +6053,15 @@ Validation:
 
 - `bazel test //:key_crate_tests --config=dev`
 - `bazel test //:developer_smoke_tests --config=dev`
-- `bazel test //crates/kain-build:unit_test --config=dev`
-- `bazel test //crates/kain-core:unit_test --config=dev`
+- `bazel test //crates/build:unit_test --config=dev`
+- `bazel test //crates/core:unit_test --config=dev`
 - `bazel test //runtime:native_runtime_tests --config=dev`
 - `bazel test //crates/cli:unit_test --config=dev --test_timeout=1200`
 
 Current state:
 
 - `//:developer_smoke_tests` is green under Bazel on this host.
-- `//crates/kain-core:unit_test` fails for three source-level tests:
+- `//crates/core:unit_test` fails for three source-level tests:
   - `language_features::tests::default_profile_keeps_struct_literals_disabled`
   - `realtime_app_bundle::tests::emits_bundle_owned_camera_and_presentation_metadata_for_viewports`
   - `realtime_app_bundle::tests::emits_realtime_bundle_with_viewport_scene_binding`
@@ -6099,7 +6099,7 @@ Validation:
 - `bazel build //:kain --config=dev`
 - `bazel build //:kn --config=dev`
 - `bazel build //:blade --config=dev`
-- `bazel test //crates/kain-build:unit_test --config=dev`
+- `bazel test //crates/build:unit_test --config=dev`
 
 Known issues:
 
@@ -6204,7 +6204,7 @@ What changed:
 Why it changed:
 
 - The current language split matters: compiler-owned intent items live as top-level declarations, while low-level memory work lives as expression-level forms. The triad matches the second category more naturally than the first.
-- `crates/kain-sys-codegen` currently emits no `noalias`, `readonly`, `alias.scope`, `llvm.lifetime.*`, or `llvm.invariant.*` markers, so the LLVM-side guarantees the triad wants are not present yet.
+- `crates/sys-codegen` currently emits no `noalias`, `readonly`, `alias.scope`, `llvm.lifetime.*`, or `llvm.invariant.*` markers, so the LLVM-side guarantees the triad wants are not present yet.
 - The native runtime already has a useful destruction substrate through `rc_release` and custom destructors, but there is no surfaced Kain-level ownership state machine or canonical `free`/`decay` helper path yet.
 
 Formal proof gathered with Z3:
@@ -6217,7 +6217,7 @@ Formal proof gathered with Z3:
 Design decisions:
 
 - Treat `collapse`, `observe`, and `decay` as one ownership-state subsystem, not as three isolated peer crates with duplicated state logic.
-- Prefer a shared crate such as `crates/kain-ownership` or `crates/kain-memory-state`, then expose thin syntax/lowering hooks for the three surface forms.
+- Prefer a shared crate such as `crates/ownership` or `crates/kain-memory-state`, then expose thin syntax/lowering hooks for the three surface forms.
 - Prefer expression/block-scoped semantics over new top-level intent-item declarations. That keeps them aligned with the existing low-level memory model rather than forcing them into the `patch`/`law`/`world` item family.
 - `observe` likely needs snapshot, freeze, or epoch semantics across an entangled component. `collapse` likely needs an explicit exclusive token. `decay` should be expressed as a zero-outstanding-capability transition, not as a blind free.
 
@@ -6288,7 +6288,7 @@ What changed:
 - Rewired `blades/kain-mcp` to depend on the shared blade layer instead of keeping all formatting/config/process/path helpers local.
 - Renamed the process wrapper blade from `kain-process` to `kain-process-kit` to avoid colliding with the existing Rust crate blade named `kain-process`.
 - Fixed `blade::discover_blade_module_roots_from` so it merges module roots from ancestor workspaces. This is the key behavior that lets `kain run blades/<blade>` resolve sibling blade imports when the interpreter current directory is `blades/<blade>/src`.
-- Added regression coverage in `crates/kain-blades` for ancestor-workspace module-root discovery and in `crates/kain-run` for executing a blade that imports a sibling blade dependency.
+- Added regression coverage in `crates/blades` for ancestor-workspace module-root discovery and in `crates/run` for executing a blade that imports a sibling blade dependency.
 
 Design decisions:
 
@@ -6340,14 +6340,14 @@ What changed:
 - Kept SPIR-V as the canonical shader bundle payload while adding optional
   derived PTX sidecars for compute-only shader bundles. HLSL remains a derived
   output too.
-- Added `.ptx` artifact materialization in `crates/cli`, `crates/kain-build`,
-  and `crates/kain-omni` so GPU artifact flows can write PTX beside the existing
+- Added `.ptx` artifact materialization in `crates/cli`, `crates/build`,
+  and `crates/omni` so GPU artifact flows can write PTX beside the existing
   SPIR-V/HLSL bundle outputs.
-- Added `crates/kain-gpu-runtime/src/nvidia_ptx.rs`, which dynamically loads
+- Added `crates/gpu-runtime/src/nvidia_ptx.rs`, which dynamically loads
   `nvcuda.dll` on Windows, resolves CUDA Driver API symbols, loads PTX in
   memory with `cuModuleLoadDataEx`, launches compute kernels, and copies
   storage-buffer results back without external NVIDIA tooling.
-- Added scalar type-constructor handling in `crates/kain-core/src/types.rs` so
+- Added scalar type-constructor handling in `crates/core/src/types.rs` so
   generated shader code such as `Float(i)` typechecks before backend lowering.
 
 Design decisions:
@@ -6432,7 +6432,7 @@ Validation:
 # 2026-05-13 - `kain build` now uses a Rust-style planned artifact graph
 
 The Kain build surface now routes normal file, project, Rust-output, and
-native-ui builds through `crates/kain-build` instead of keeping separate CLI
+native-ui builds through `crates/build` instead of keeping separate CLI
 branches for each artifact family. The design goal is Rust/Cargo-grade build
 quality with stronger lane isolation and explicit artifact identity.
 
@@ -6453,7 +6453,7 @@ What changed:
   `dev` and `bootstrap` stay debug-oriented.
 - Native app and GPU-runtime helper builds now pass isolated Cargo target dirs
   instead of writing through ambient Cargo defaults.
-- `crates/kain-build/z3` is the durable proof pack for output-collision,
+- `crates/build/z3` is the durable proof pack for output-collision,
   lane-isolation, and bounded DAG-cycle invariants.
 
 Design decisions:
@@ -6471,7 +6471,7 @@ Validation:
 - `cargo check -p kain-build --target-dir target\codex-kain-build-system`
 - `cargo test -p kain-build --target-dir target\codex-kain-build-system -- --nocapture`
 - `cargo check -p kain-commands -p cli --target-dir target\codex-kain-build-system-cli`
-- `mcp__z3_local__.run_proof_pack(path="D:\Kain-Lang\crates\kain-build", lane="build")`
+- `mcp__z3_local__.run_proof_pack(path="D:\Kain-Lang\crates\build", lane="build")`
 
 # 2026-05-13 - `kain_mcp` now boots directly from compiled `kain.exe` without the Python shim
 
@@ -6639,8 +6639,8 @@ blades-style directory tree.
 What changed:
 
 - Added the built-in `kain import crates` command metadata and typed routing in
-  `crates/kain-commands/commands/import.toml`,
-  `crates/kain-commands/src/kain.rs`, and `crates/cli/src/main.rs`.
+  `crates/commands/commands/import.toml`,
+  `crates/commands/src/kain.rs`, and `crates/cli/src/main.rs`.
 - Extended `crates/cli/src/import_rust.rs` with workspace root/source-root
   resolution, Cargo crate discovery, shared directory import helpers, combined
   bundle emission, and `--blades` mirroring.
@@ -6794,13 +6794,13 @@ Validation:
 Current known blocker in this checkout:
 
 - `cargo check -p cli --bins` / `cargo build -p cli` currently fails in pre-existing
-  `crates/kain-build/src/workspace.rs` compile errors unrelated to this sync pass.
+  `crates/build/src/workspace.rs` compile errors unrelated to this sync pass.
   Because of that repo-wide breakage, full binary-level doctor verification from a
   freshly rebuilt CLI was blocked in this turn.
 
 # 2026-05-13 - `kain-core` keyword contracts gained a dedicated Z3 lane
 
-The `crates/kain-core/z3` pack now has a focused `keywords` lane for the compiler-owned
+The `crates/core/z3` pack now has a focused `keywords` lane for the compiler-owned
 `patch`, `law`, `converge`, and `orchestrate` forms. These proofs stay separate from the
 existing arithmetic/parser lanes so future agents can run branch-ordering and runtime
 contract checks without digging through the low-level memory suites.
@@ -6816,8 +6816,8 @@ What changed:
 - Added `proofs/keywords-orchestrate-rejects-invalid-stage-ordering.yaml` to prove
   orchestrate stage collection rejects late stage declarations, nested items, and bare
   stage calls.
-- Wired a new `keywords` lane into `crates/kain-core/z3/z3.toml` and documented it in
-  `crates/kain-core/z3/README.md`.
+- Wired a new `keywords` lane into `crates/core/z3/z3.toml` and documented it in
+  `crates/core/z3/README.md`.
 
 Validation:
 
@@ -6940,8 +6940,8 @@ runtime bundle.
 
 What changed:
 
-- Added a dedicated `runtime` command pack at `crates/kain-commands/commands/runtime.toml` and registered it in the built-in command-pack index.
-- Added typed `RuntimeCommand` parsing in `crates/kain-commands/src/kain.rs` for `kain runtime build` and `kain runtime validate`, including aggregate validation skip flags.
+- Added a dedicated `runtime` command pack at `crates/commands/commands/runtime.toml` and registered it in the built-in command-pack index.
+- Added typed `RuntimeCommand` parsing in `crates/commands/src/kain.rs` for `kain runtime build` and `kain runtime validate`, including aggregate validation skip flags.
 - Added `crates/cli/src/runtime_tools.rs` as the thin execution host. It resolves the repo root from `KAIN_REPO_ROOT`, the current working tree, or the repo-built binary location, then forwards to the existing bash/PowerShell runtime wrappers instead of reimplementing runtime policy in Rust.
 - Updated the registry and dynamic help tests so `kain commands list --bin kain` and `kain commands help --bin kain` now expose the `runtime` command family.
 - Updated runtime/operator docs and metadata so `kain runtime build` / `kain runtime validate` are the preferred front door, while the bash/PowerShell scripts remain the underlying implementation truth.
@@ -6984,23 +6984,23 @@ Durable design note:
 
 # 2026-05-12 - kain-core Z3 proof pack landed and low-level memory layout math was hardened
 
-`crates/kain-core` now has its own durable proof pack at `crates/kain-core/z3`. The pack is scoped at compiler/frontend arithmetic and indexing seams instead of the native C runtime: low-level memory layout lowering in `src/low_level_memory.rs`, signed `usize -> i64` literal conversions used by lowered helpers, diagnostics span/line-end math in `src/diagnostics.rs`, and parser slice/index guards in `src/parser.rs`.
+`crates/core` now has its own durable proof pack at `crates/core/z3`. The pack is scoped at compiler/frontend arithmetic and indexing seams instead of the native C runtime: low-level memory layout lowering in `src/low_level_memory.rs`, signed `usize -> i64` literal conversions used by lowered helpers, diagnostics span/line-end math in `src/diagnostics.rs`, and parser slice/index guards in `src/parser.rs`.
 
 What changed:
 
 - Added the `kain.core.proofs` pack with lanes `memory`, `diagnostics`, `literals`, `parser`, `smoke`, and `full`.
-- Hardened `crates/kain-core/src/low_level_memory.rs` so layout addition, multiplication, align-up steps, fallback array sizing, fallback tuple sizing, and lowered signed literal conversions now fail explicitly instead of silently wrapping.
-- Added `DiagnosticCode::MemoryLayoutOverflow` (`KAIN-MEM-0004`) in `crates/kain-core/src/diagnostic_registry.rs` and routed layout overflow failures through a dedicated validation diagnostic with a concrete suggestion.
+- Hardened `crates/core/src/low_level_memory.rs` so layout addition, multiplication, align-up steps, fallback array sizing, fallback tuple sizing, and lowered signed literal conversions now fail explicitly instead of silently wrapping.
+- Added `DiagnosticCode::MemoryLayoutOverflow` (`KAIN-MEM-0004`) in `crates/core/src/diagnostic_registry.rs` and routed layout overflow failures through a dedicated validation diagnostic with a concrete suggestion.
 - Seeded durable proofs for checked layout addition, checked layout multiplication, align-up wrap prevention, tuple and array fallback sizing, signed literal bounds, diagnostics span/line-end bounds, and parser indexing/slicing preconditions.
 
 Validation:
 
 - `cargo check -p kain-core`
-- `run_proof_pack(path="D:\Kain-Lang\crates\kain-core", lane="memory")` proved 5/5.
-- `run_proof_pack(path="D:\Kain-Lang\crates\kain-core", lane="diagnostics")` proved 3/3.
-- `run_proof_pack(path="D:\Kain-Lang\crates\kain-core", lane="literals")` proved 1/1.
-- `run_proof_pack(path="D:\Kain-Lang\crates\kain-core", lane="parser")` proved 3/3.
-- `run_proof_pack(path="D:\Kain-Lang\crates\kain-core", lane="full")` proved 12/12.
+- `run_proof_pack(path="D:\Kain-Lang\crates\core", lane="memory")` proved 5/5.
+- `run_proof_pack(path="D:\Kain-Lang\crates\core", lane="diagnostics")` proved 3/3.
+- `run_proof_pack(path="D:\Kain-Lang\crates\core", lane="literals")` proved 1/1.
+- `run_proof_pack(path="D:\Kain-Lang\crates\core", lane="parser")` proved 3/3.
+- `run_proof_pack(path="D:\Kain-Lang\crates\core", lane="full")` proved 12/12.
 - `run_workspace_proofs(project_root="D:\Kain-Lang", lane="smoke")` proved both repo packs for 32/32 total cases.
 
 Current unrelated test status:
@@ -7090,11 +7090,11 @@ Validation:
 
 # 2026-05-12 - Command manifests split into packs with dynamic registry help
 
-`crates/kain-commands` now uses an indexed command-pack layout instead of a
+`crates/commands` now uses an indexed command-pack layout instead of a
 mega `kain.toml` plus separate `blade.toml`. The build script reads
-`crates/kain-commands/commands/index.toml`, validates each top-level pack file,
+`crates/commands/commands/index.toml`, validates each top-level pack file,
 and generates built-in pack plus command definitions. The pack files stay flat
-under `crates/kain-commands/commands/` so a future agent can scan `core.toml`,
+under `crates/commands/commands/` so a future agent can scan `core.toml`,
 `build.toml`, `run.toml`, `blade.toml`, `import.toml`, `unreal.toml`,
 `registry.toml`, and the smaller domain packs directly.
 
@@ -7147,20 +7147,20 @@ Recommended next step:
 
 # 2026-05-12 - Unified kain-run pipeline landed
 
-Kain now has `crates/kain-run` as the explicit immediate-execution crate behind `kain run`, `kain run dev`, `kain run plan`, `kain watch`, `kain blades run`, and standalone `blade run`. This moved the old birth-era run behavior out of the CLI and into a reusable pipeline shaped like the other first-class Kain systems (`kain-fs`, `kain-process`, `kain-actor`, `kain-build`).
+Kain now has `crates/run` as the explicit immediate-execution crate behind `kain run`, `kain run dev`, `kain run plan`, `kain watch`, `kain blades run`, and standalone `blade run`. This moved the old birth-era run behavior out of the CLI and into a reusable pipeline shaped like the other first-class Kain systems (`kain-fs`, `kain-process`, `kain-actor`, `kain-build`).
 
 The new run crate owns:
 
 - `RunRequest`, `RunPlan`, `RunUnit`, `RunAdapter`, `RunReport`, and JSONL run events.
 - Target inference for Kain source, C, Cargo, Fabric, Node, and Bun.
-- Blade and workspace resolution through `crates/kain-blades`.
+- Blade and workspace resolution through `crates/blades`.
 - `[run]` manifest metadata: `entry`, `blade`, `target`, `args`, `env`, `cwd`, and `watch`.
 - Hidden cached C execution through Clang with outputs under `.kain/cache/run/c`.
 - Cargo run execution with isolated target dirs under `.kain/cache/run/cargo`.
 - Run reports under `.kain/reports/run` and watcher polling through `kain-fs`.
 - Process-backed report metadata using `kain-process::ProcessSpec`.
 
-`crates/kain-commands` now exposes the new command surface for `run`, `run dev`, `run plan`, `watch`, `blades run`, and standalone `blade run`; `crates/cli/src/run.rs` is only the CLI print/exit wrapper. `crates/kain-core/src/types.rs` also registers stdlib registry globals in the type environment so raw stdlib bridge names such as `kain_input_reset` are visible during source checking and runtime compilation.
+`crates/commands` now exposes the new command surface for `run`, `run dev`, `run plan`, `watch`, `blades run`, and standalone `blade run`; `crates/cli/src/run.rs` is only the CLI print/exit wrapper. `crates/core/src/types.rs` also registers stdlib registry globals in the type environment so raw stdlib bridge names such as `kain_input_reset` are visible during source checking and runtime compilation.
 
 Validation for this pass:
 
@@ -7185,11 +7185,11 @@ Current limits and next recommended step:
 
 # 2026-05-12 - Kain command platform crate landed
 
-Kain now has `crates/kain-commands` as the command brain for `kain`, `kn`, and standalone `blade`. The crate owns built-in command manifests under `crates/kain-commands/commands/`, typed Clap routers under `crates/kain-commands/src/`, shared argument structs, launcher helpers, registry serialization, conflict detection, and a first runtime `[[commands]]` contribution loader/fallback. The workspace `Cargo.toml` now includes the crate and `crates/cli` depends on it.
+Kain now has `crates/commands` as the command brain for `kain`, `kn`, and standalone `blade`. The crate owns built-in command manifests under `crates/commands/commands/`, typed Clap routers under `crates/commands/src/`, shared argument structs, launcher helpers, registry serialization, conflict detection, and a first runtime `[[commands]]` contribution loader/fallback. The workspace `Cargo.toml` now includes the crate and `crates/cli` depends on it.
 
 The ownership split is now deliberate:
 
-- `crates/kain-commands` owns command shape, metadata, aliases, bin exposure, registry views, and runtime contribution resolution.
+- `crates/commands` owns command shape, metadata, aliases, bin exposure, registry views, and runtime contribution resolution.
 - `crates/cli` is the host binary/execution shell: parse, dispatch, print, set exit codes, and call domain crates.
 - Domain crates such as `kain-driver`, `kain-build`, `blade`, `kain-check`, `kain-test`, `kain-repair`, `kain-repl`, `kain-omni`, and `kain-codebase` still own actual behavior.
 
@@ -7219,7 +7219,7 @@ Recommended next step:
 
 # 2026-05-12 - Native TCP and HTTP substrate landed
 
-Kain now has a first-class network lane instead of relying on tiny interpreter-only `http_get`/`http_post_json` helpers or raw legacy `socket_*` functions. `crates/kain-net` owns the portable contract for TCP endpoints, HTTP request/response specs, headers, route specs, handles, lifecycle state, and typed errors. LLVM/direct-C builds load `stdlib/native/net.kn`, backed by `runtime/native/include/kain_native_net_system.h` and `runtime/native/src/core/kain_native_net_system.c`.
+Kain now has a first-class network lane instead of relying on tiny interpreter-only `http_get`/`http_post_json` helpers or raw legacy `socket_*` functions. `crates/net` owns the portable contract for TCP endpoints, HTTP request/response specs, headers, route specs, handles, lifecycle state, and typed errors. LLVM/direct-C builds load `stdlib/native/net.kn`, backed by `runtime/native/include/kain_native_net_system.h` and `runtime/native/src/core/kain_native_net_system.c`.
 
 The native ABI is handle-driven and primitive-friendly so current LLVM/direct-C lowering can use it without aggregate ABI work. The v1 flow is TCP connect/listen/accept/read/write plus HTTP request/response handles, HTTP client send, local HTTP server listen/pump, actor route registration, request inspection, response writes, local URL helpers, reset, and diagnostics.
 
@@ -7246,7 +7246,7 @@ Recommended next step:
 
 # 2026-05-12 - Native child-process and PTY substrate landed
 
-Kain now has a first-class process lane instead of only ad hoc host-side command helpers. `crates/kain-process` owns the portable contract for process specs, stdio modes, cwd/env overrides, process/PTY handles, lifecycle state, and captured output. LLVM/direct-C builds load `stdlib/native/process.kn`, backed by `runtime/native/include/kain_native_process_system.h` and `runtime/native/src/core/kain_native_process_system.c`.
+Kain now has a first-class process lane instead of only ad hoc host-side command helpers. `crates/process` owns the portable contract for process specs, stdio modes, cwd/env overrides, process/PTY handles, lifecycle state, and captured output. LLVM/direct-C builds load `stdlib/native/process.kn`, backed by `runtime/native/include/kain_native_process_system.h` and `runtime/native/src/core/kain_native_process_system.c`.
 
 The native ABI is intentionally handle-driven and primitive-friendly so current LLVM/direct-C lowering can use it without aggregate ABI tricks. The flow is:
 
@@ -7350,7 +7350,7 @@ Recommended next step:
 
 # 2026-05-12 - Canonical Kain input semantics landed
 
-Kain now has a first-class input semantics lane instead of treating input as scattered stdin/UI/native helper calls. `crates/kain-input` owns typed source provenance, events, data-driven action/axis bindings, frame reduction, text commits, first-class `agent.intent` events, and deterministic trace serialization/replay. `crates/kain-core` registers interpreter bridge builtins under `kain_input_*`, with root `stdlib/input.kn` exposing the public `input_*` helpers.
+Kain now has a first-class input semantics lane instead of treating input as scattered stdin/UI/native helper calls. `crates/input` owns typed source provenance, events, data-driven action/axis bindings, frame reduction, text commits, first-class `agent.intent` events, and deterministic trace serialization/replay. `crates/core` registers interpreter bridge builtins under `kain_input_*`, with root `stdlib/input.kn` exposing the public `input_*` helpers.
 
 Native LLVM/direct-C builds now load `stdlib/native/input.kn`, backed by `runtime/native/include/kain_native_input_system.h` and `runtime/native/src/core/kain_native_input_system.c`. The native kernel exposes sessions, bindings, event injection, frame reduction, action/axis/text queries, agent intent injection, trace export/replay, and last-status diagnostics. `runtime/native_core_runtime.toml` and `runtime/native_runtime.toml` include the input kernel, and `platform.input` service metadata now describes canonical Kain input sessions rather than only Win32 capture.
 
@@ -7441,7 +7441,7 @@ Recommended next step:
 
 # 2026-05-11 - kain-ui-native archive and legacy feature were removed
 
-Follow-up cleanup removed the `crates/kain-ui-native/src/archive` museum, the `legacy-egui` Cargo feature, and the optional egui/wgpu/font/image/nalgebra/kain-3D dependencies from `kain-ui-native`. The active crate should only carry `app.rs`, `session.rs`, `qt_host.rs`, `lib.rs`, and `main.rs`; old host implementations should be deleted, not archived in this crate.
+Follow-up cleanup removed the `crates/ui-native/src/archive` museum, the `legacy-egui` Cargo feature, and the optional egui/wgpu/font/image/nalgebra/kain-3D dependencies from `kain-ui-native`. The active crate should only carry `app.rs`, `session.rs`, `qt_host.rs`, `lib.rs`, and `main.rs`; old host implementations should be deleted, not archived in this crate.
 
 Validation:
 
@@ -7451,11 +7451,11 @@ Validation:
 
 # 2026-05-11 - Blade resolver crate import surface renamed to `blade`
 
-The Blade workspace resolver package now imports as `blade`, so Rust call sites use `use blade::...` instead of `use kain_blades::...` or `use kain_blade::...`. The source folder remains `crates/kain-blades`, the workspace member path remains `crates/kain-blades`, and user/workspace folders remain plural (`blades/*`). CLI naming also remains plural where it refers to collections: `kain blades ...`; the standalone executable remains `blade`.
+The Blade workspace resolver package now imports as `blade`, so Rust call sites use `use blade::...` instead of `use kain_blades::...` or `use kain_blade::...`. The source folder remains `crates/blades`, the workspace member path remains `crates/blades`, and user/workspace folders remain plural (`blades/*`). CLI naming also remains plural where it refers to collections: `kain blades ...`; the standalone executable remains `blade`.
 
 Design decision:
 
-- Treat `blade` as the public Rust crate identity for Blade discovery/resolution APIs. Treat `crates/kain-blades` as only the repository folder name.
+- Treat `blade` as the public Rust crate identity for Blade discovery/resolution APIs. Treat `crates/blades` as only the repository folder name.
 - Do not rename workspace folder conventions from `blades/*`; only the Rust crate/package identity changed.
 
 Validation:
@@ -7465,7 +7465,7 @@ Validation:
 
 # 2026-05-11 - kain-ui-native became an authored UI host instead of a demo catalog
 
-`crates/kain-ui-native` now follows the same ownership rule as `kain-3D`: Kain source owns UI structure and intent; Rust/native owns host launch, manifest projection, validation, and low-level rendering/diagnostics. The active non-egui path is split into `app.rs`, `session.rs`, and `qt_host.rs`; the old demo/catalog Qt path and legacy egui monolith were deleted from the crate after the follow-up cleanup.
+`crates/ui-native` now follows the same ownership rule as `kain-3D`: Kain source owns UI structure and intent; Rust/native owns host launch, manifest projection, validation, and low-level rendering/diagnostics. The active non-egui path is split into `app.rs`, `session.rs`, and `qt_host.rs`; the old demo/catalog Qt path and legacy egui monolith were deleted from the crate after the follow-up cleanup.
 
 Design decisions:
 
@@ -7508,11 +7508,11 @@ Validation:
 
 # 2026-05-11 - kain-3D primitives moved to Kain-authored mesh ingestion
 
-`crates/kain-3D` no longer carries a Rust-backed primitive catalog or procedural shape builders. Primitive support is now an authored mesh pipeline: Kain/source data owns the actual vertices, indices, normals, UVs, and primitive recipes; Rust validates and converts that data into `Geometry`, `Mesh`, scene metadata, and host/runtime values.
+`crates/3d` no longer carries a Rust-backed primitive catalog or procedural shape builders. Primitive support is now an authored mesh pipeline: Kain/source data owns the actual vertices, indices, normals, UVs, and primitive recipes; Rust validates and converts that data into `Geometry`, `Mesh`, scene metadata, and host/runtime values.
 
 What changed:
 
-- Replaced the old Rust shape-definition/default-library stack with `AuthoredPrimitive`, `AuthoredPrimitiveRegistry`, and validation errors in `crates/kain-3D/src/primitive.rs`.
+- Replaced the old Rust shape-definition/default-library stack with `AuthoredPrimitive`, `AuthoredPrimitiveRegistry`, and validation errors in `crates/3d/src/primitive.rs`.
 - Removed Rust shape factories for box, plane, spheres, cylinder, cone, capsule, and torus. Generic mesh helpers such as `Geometry::indexed_triangle_mesh` remain because they do not encode product primitives.
 - Replaced the Kain prelude's shape-specific native functions with `triangle_geometry(...)` / `mesh_geometry(...)` over explicit authored arrays, backed by the generic `__zen3d_triangle_geometry` runtime native.
 - Updated `Scene` to register authored primitive registries without manufacturing default shape definitions.
@@ -7615,7 +7615,7 @@ Kain's native actor lane now has an executable ABI contract instead of relying o
 
 What changed:
 
-- Expanded `crates/kain-actor/src/native.rs` into the canonical Rust-side native actor ABI descriptor: ABI version, actor ID width, invalid ID, mailbox defaults, ask/shutdown timing, supervision restart window, actor name/table/registry/scheduler capacities, monitor notification tag base, required C runtime symbols, required native stdlib actor symbols, and the native message/spawn-config layout.
+- Expanded `crates/actor/src/native.rs` into the canonical Rust-side native actor ABI descriptor: ABI version, actor ID width, invalid ID, mailbox defaults, ask/shutdown timing, supervision restart window, actor name/table/registry/scheduler capacities, monitor notification tag base, required C runtime symbols, required native stdlib actor symbols, and the native message/spawn-config layout.
 - Added actor header parity tests in `kain-actor` that read `runtime/native/include/kain_runtime_actor.h` and `kain_runtime_native_stdlib.h`, so Rust model constants and C ABI symbols drift loudly.
 - Added `KainActorAbiDescriptor`, `kain_actor_abi_descriptor`, and `kain_actor_abi_descriptor_is_compatible` to the native actor runtime.
 - Added explicit `retain_user_data` ownership to `KainActorSpawnConfig` and `KainActorSpawnConfigStored`. Native C/C++ callers now default to plain borrowed `user_data`, while LLVM actor lowering sets `retain_user_data = 1` for Kain RC-managed actor state.
@@ -7623,7 +7623,7 @@ What changed:
 - Hardened shutdown-before-first-run behavior: actors closed while still queued now finalize lifecycle side effects, including monitor notifications, supervisor observations, and link propagation when appropriate.
 - Added `runtime/conformance/actor_runtime/test_actor_abi_contract.c` and wired it into the actor runtime conformance runner. The test covers ABI descriptor compatibility, spawn defaults, message size retention, registry, monitor notification tags, links, supervision snapshots, and scheduler stats.
 - Exposed native actor constants through `runtime/native/include/kain_runtime_native_stdlib.h`, `runtime/native/src/core/kain_runtime_native_stdlib.c`, and `stdlib/native/actor.kn`, then updated `runtime/fixtures/native_world_actor_intent/main.kn` to prove them through LLVM and direct C.
-- Updated LLVM actor spawn layout to include `retain_user_data` and made `crates/kain-sys-codegen` depend directly on `kain-actor` for actor ABI sizing.
+- Updated LLVM actor spawn layout to include `retain_user_data` and made `crates/sys-codegen` depend directly on `kain-actor` for actor ABI sizing.
 
 Design decisions:
 
@@ -7663,9 +7663,9 @@ Kain's filesystem lane now has a real v2 substrate on top of the initial `kain-f
 
 What changed:
 
-- Added focused `crates/kain-fs` modules for scoped capabilities and virtual mounts (`capabilities.rs`), range/chunk streaming IO (`streaming.rs`), portable polling watchers (`watch.rs`), and best-effort transactional journals with rollback (`transaction.rs`).
-- Extended `crates/kain-core/src/runtime.rs` with runtime-owned `FsSandbox`, watcher, and transaction registries plus globals for capability grants/revokes, `fs://` mount resolution, ranged text/byte IO, hex-encoded byte helpers, streaming copy, watcher polling/close, and transaction begin/write/append/remove/copy/move/commit/rollback.
-- Registered the new filesystem-facing types and globals in `crates/kain-core/src/types.rs` and `crates/kain-core/src/stdlib.rs`, including `FsChunk`, `FsWatchEvent`, and `FsJournalEntry`.
+- Added focused `crates/fs` modules for scoped capabilities and virtual mounts (`capabilities.rs`), range/chunk streaming IO (`streaming.rs`), portable polling watchers (`watch.rs`), and best-effort transactional journals with rollback (`transaction.rs`).
+- Extended `crates/core/src/runtime.rs` with runtime-owned `FsSandbox`, watcher, and transaction registries plus globals for capability grants/revokes, `fs://` mount resolution, ranged text/byte IO, hex-encoded byte helpers, streaming copy, watcher polling/close, and transaction begin/write/append/remove/copy/move/commit/rollback.
+- Registered the new filesystem-facing types and globals in `crates/core/src/types.rs` and `crates/core/src/stdlib.rs`, including `FsChunk`, `FsWatchEvent`, and `FsJournalEntry`.
 - Expanded `stdlib/native/fs.kn` and the native C facade in `runtime/native/include/kain_runtime_native_stdlib.h` / `runtime/native/src/core/kain_runtime_native_stdlib.c` with ranged text reads, byte hex reads/writes, metadata text, newline-delimited directory/walk path listings, and streaming copy.
 - Updated `runtime/conformance/native_stdlib_bridge/test_native_stdlib_bridge.c` and `runtime/fixtures/native_fs/main.kn` so direct C, LLVM, and the raw C facade prove the richer filesystem surface.
 - Updated the local `kain-fs-pipeline` skill so future agents know the v2 source files, validation commands, and native ABI caveats.
@@ -7709,12 +7709,12 @@ Kain now has a real filesystem substrate instead of scattered file/path helpers.
 
 What changed:
 
-- Added `crates/kain-fs` as a workspace crate for portable file operations, path helpers, metadata, directory entries, directory walks, temp paths, atomic writes, copy/move/remove operations, SHA-256 file hashes, and typed `FsError` values.
-- Wired `crates/kain-core` to depend on `kain-fs` and expose first-class `fs_*` runtime globals. Strict variants raise runtime errors, while `fs_try_*` variants return structured `Result` values.
-- Added typed filesystem registry data in `crates/kain-core/src/types.rs` and `crates/kain-core/src/stdlib.rs` so interpreter, type metadata, and native codegen see the same global function surface.
+- Added `crates/fs` as a workspace crate for portable file operations, path helpers, metadata, directory entries, directory walks, temp paths, atomic writes, copy/move/remove operations, SHA-256 file hashes, and typed `FsError` values.
+- Wired `crates/core` to depend on `kain-fs` and expose first-class `fs_*` runtime globals. Strict variants raise runtime errors, while `fs_try_*` variants return structured `Result` values.
+- Added typed filesystem registry data in `crates/core/src/types.rs` and `crates/core/src/stdlib.rs` so interpreter, type metadata, and native codegen see the same global function surface.
 - Added `stdlib/native/fs.kn` plus native C facade functions in `runtime/native/include/kain_runtime_native_stdlib.h` and `runtime/native/src/core/kain_runtime_native_stdlib.c` so LLVM and direct C builds can perform real file operations without depending on the generic root stdlib.
 - Extended `runtime/conformance/native_stdlib_bridge/test_native_stdlib_bridge.c` and added `runtime/fixtures/native_fs/main.kn` to prove temp directories, path joins, text writes/appends/reads, copy/move/atomic write, SHA-256 hashing, and recursive removal through native C and generated LLVM/direct-C executables.
-- Tightened `crates/kain-sys-codegen` so the C backend lowers string equality through `strcmp`, and LLVM trusts explicit target-stdlib wrapper signatures instead of inferring wrong ABIs for Kain-defined native wrappers.
+- Tightened `crates/sys-codegen` so the C backend lowers string equality through `strcmp`, and LLVM trusts explicit target-stdlib wrapper signatures instead of inferring wrong ABIs for Kain-defined native wrappers.
 
 Design decisions:
 
@@ -7754,7 +7754,7 @@ Kain now has a real blade workspace build orchestrator instead of lab-local buil
 
 What changed:
 
-- Added `crates/kain-build/src/workspace.rs` as the typed Blade build planner/executor. It discovers a blade workspace through `kain-blades`, builds a DAG, topologically orders tasks, stamps cacheable work, and emits JSON/JSONL build reports.
+- Added `crates/build/src/workspace.rs` as the typed Blade build planner/executor. It discovers a blade workspace through `kain-blades`, builds a DAG, topologically orders tasks, stamps cacheable work, and emits JSON/JSONL build reports.
 - `kain-build` now owns adapters for C shared libraries, Cargo manifests, GPU shader artifacts, Kain source checks, Fabric validation/runs, and explicit Node/Bun/custom tasks declared in `[[build.tasks]]`.
 - Extended `KAIN.toml` blade metadata with `[build] artifact_root`, `cache_root`, `profile`, and `[[build.tasks]]`, and extended C FFI library metadata with `sources`.
 - Added `kain blades build .` plus a standalone `blade build .` binary. Both support `--json`, `--dry-run`, `--clean`, `--profile`, `--target`, and `--include-vulkan`.
@@ -7791,11 +7791,11 @@ Recommended next step:
 
 # 2026-05-11 - Dedicated kain-actor crate landed as actor-system foundation
 
-Kain now has a real `crates/kain-actor` crate instead of keeping all actor-system vocabulary hidden inside `kain-core`.
+Kain now has a real `crates/actor` crate instead of keeping all actor-system vocabulary hidden inside `kain-core`.
 
 What changed:
 
-- Added `crates/kain-actor` to the workspace with focused modules for actor IDs, addresses/paths, messages, actor definitions, mailbox policy, lifecycle, supervision, scheduler policy, behavior contracts, registry snapshots, actor-system validation, runtime snapshots/events, and native ABI descriptors.
+- Added `crates/actor` to the workspace with focused modules for actor IDs, addresses/paths, messages, actor definitions, mailbox policy, lifecycle, supervision, scheduler policy, behavior contracts, registry snapshots, actor-system validation, runtime snapshots/events, and native ABI descriptors.
 - Kept `kain-actor/src/lib.rs` as a public index only. Future actor work should extend the focused module that owns the concept instead of growing a giant lib file.
 - Wired `kain-core` to consume `kain-actor` for `ActorId`, `ActorIdAllocator`, `MessageEnvelope<Value>`, default ask timeout, and typed actor contracts.
 - `TypedActor` now carries `actor_contract: kain_actor::ActorDefinition`, built during typechecking from resolved actor state slots, handler message parameters, and actor method signatures.
@@ -7833,12 +7833,12 @@ Kain now has a target-scoped native stdlib profile and C ABI facade that let act
 
 What changed:
 
-- Added `stdlib/native` as the shared native target stdlib profile for LLVM and direct C, plus `stdlib/c` as the direct C bridge layer. `crates/kain-core/src/stdlib.rs` loads all matching profiles for a target, so C gets `native` then `c`, while LLVM gets `native` only.
+- Added `stdlib/native` as the shared native target stdlib profile for LLVM and direct C, plus `stdlib/c` as the direct C bridge layer. `crates/core/src/stdlib.rs` loads all matching profiles for a target, so C gets `native` then `c`, while LLVM gets `native` only.
 - Added `runtime/native/include/kain_runtime_native_stdlib.h` and `runtime/native/src/core/kain_runtime_native_stdlib.c` as the narrow C ABI facade for native Kain stdlib calls. It wraps runtime init/shutdown, actor registry/spawn/send/scheduler helpers, entangle registry helpers, status/diagnostics, and timing.
 - Added `runtime/native_core_runtime.toml` as the default lean native runtime manifest for normal LLVM/direct-C file builds. `runtime/native_runtime.toml` now survives only as the lean compatibility mirror and also includes the native stdlib facade source.
 - Updated `crates/cli/src/main.rs` so native builds prefer `runtime/native_core_runtime.toml` before the broad manifest, and only stage the GPU runtime DLL when the LLVM artifact stage actually produced compute residency payloads.
 - Updated `crates/cli/src/llvm_native_stage.rs` so shader artifact staging only runs for source that declares shader items, avoiding shader/GPU sidecar work for native stdlib-only actor/intent programs.
-- Updated `crates/kain-sys-codegen/src/codegen_c.rs` so `@extern` functions become declarations only, `spawn`/`send` lower to the native actor facade, `main` emits a valid C `int`, unsigned integer casts map to C integer types, and direct C entangle metadata registers with the native runtime through a generated `__kain_register_entanglements()` thunk.
+- Updated `crates/sys-codegen/src/codegen_c.rs` so `@extern` functions become declarations only, `spawn`/`send` lower to the native actor facade, `main` emits a valid C `int`, unsigned integer casts map to C integer types, and direct C entangle metadata registers with the native runtime through a generated `__kain_register_entanglements()` thunk.
 - Added `runtime/fixtures/native_world_actor_intent/main.kn` as the all-in-one native proof for `world`, `entangle`, `actor`, `patch`, `law`, `converge`, `orchestrate`, and the native stdlib facade.
 - Added `runtime/conformance/native_stdlib_bridge/test_native_stdlib_bridge.c` to exercise the facade directly from C.
 
@@ -7915,9 +7915,9 @@ The reusable source validation pipeline now has a sturdier first-class shape ins
 
 What changed:
 
-- `crates/kain-core/src/runtime.rs` now recursively executes `test` items nested inside typed modules, so module-scoped tests are not merely counted and silently skipped.
-- `crates/kain-test` now reports `skipped` cases separately from `passed` and `failed`, parses `//@ ignore`, `//@ skip`, and `//@ known-bug` directives, and supports `run_ignored` so CLI `--ignored` can burn down known-bug inventory.
-- `crates/kain-test` now reports the real execution lane for run/test modes (`run` for run-pass/run-fail, `test` for Kain test items) even when a target directive exists for check modes.
+- `crates/core/src/runtime.rs` now recursively executes `test` items nested inside typed modules, so module-scoped tests are not merely counted and silently skipped.
+- `crates/test` now reports `skipped` cases separately from `passed` and `failed`, parses `//@ ignore`, `//@ skip`, and `//@ known-bug` directives, and supports `run_ignored` so CLI `--ignored` can burn down known-bug inventory.
+- `crates/test` now reports the real execution lane for run/test modes (`run` for run-pass/run-fail, `test` for Kain test items) even when a target directive exists for check modes.
 - `kain check -` now honors the documented stdin path and emits the same structured report shape as file/directory checks.
 - `kain test` now exposes `--ignored`, prints skipped reasons, and keeps JSON reports explicit through `skipped` and `skip_reason`.
 - Added `smoketest/kain-test` as a tiny directive suite covering check-pass, check-fail, run-fail, nested module tests, and ignored cases.
@@ -7931,12 +7931,12 @@ Design decisions:
 
 Validation:
 
-- `rustfmt --edition 2021 crates\\kain-test\\src\\lib.rs crates\\kain-core\\src\\runtime.rs crates\\cli\\src\\main.rs`
+- `rustfmt --edition 2021 crates\\test\\src\\lib.rs crates\\core\\src\\runtime.rs crates\\cli\\src\\main.rs`
 - `cargo test -p kain-test -p kain-check --target-dir target\\codex-check-test`
 - `cargo test -p kain-core run_tests --target-dir target\\codex-check-test`
 - `cargo test -p kain-test --target-dir target\\codex-check-test`
 - `$env:PYO3_USE_ABI3_FORWARD_COMPATIBILITY='1'; cargo build -p cli --target-dir target\\codex-check-test`
-- `target\\codex-check-test\\debug\\kain.exe check smoketest\\kain-test\\check_pass.kn`
+- `target\\codex-check-test\\debug\\kain.exe check smoketest\\test\\check_pass.kn`
 - `"fn main() -> Int:`n    return 0`n" | target\\codex-check-test\\debug\\kain.exe check -`
 - `target\\codex-check-test\\debug\\kain.exe test smoketest\\kain-test --json target\\codex-check-test\\kain-test-report.json`
 - `target\\codex-check-test\\debug\\kain.exe test smoketest\\kain-test --ignored` was expected to fail because the ignored parser-bad fixture is intentionally executed under `--ignored`.
@@ -7957,7 +7957,7 @@ Kain now has a first-class `kain-blades` crate that makes the "blades" idea real
 
 What changed:
 
-- Added `crates/kain-blades` as the typed discovery/resolution layer for local blade workspaces. It discovers default `blades/*`, `apps/*`, and `crates/*` roots, honors `[workspace] blades`, `blade_roots`, and `members` from `KAIN.toml`, parses `[blade]` metadata, and treats plain `Cargo.toml` packages as synthetic Rust blades.
+- Added `crates/blades` as the typed discovery/resolution layer for local blade workspaces. It discovers default `blades/*`, `apps/*`, and `crates/*` roots, honors `[workspace] blades`, `blade_roots`, and `members` from `KAIN.toml`, parses `[blade]` metadata, and treats plain `Cargo.toml` packages as synthetic Rust blades.
 - Added `kain blades list`, `kain blades graph`, `kain blades check`, and `kain equip <blade>` to the CLI, with text and JSON output.
 - Committed the existing `kain-check` and `kain-test` crates as the reusable libraries behind the already-planned `kain check` and `kain test` CLI commands; their stale failure fixtures were updated to use syntax errors instead of type mismatch cases that the current frontend accepts.
 - Wired blade module roots into `kain-core` filesystem module candidates so a blade can expose Kain modules without callers hardcoding folder paths.
@@ -7973,7 +7973,7 @@ Design decisions:
 
 Validation:
 
-- `rustfmt --edition 2021 crates/kain-blades/src/lib.rs crates/cli/src/blades.rs crates/kain-core/src/module_resolution.rs crates/kain-crate-ffi/src/resolve.rs crates/kain-c-ffi/src/lib.rs crates/kain-omni/src/fabric.rs crates/kain-host/src/fabric.rs`
+- `rustfmt --edition 2021 crates/blades/src/lib.rs crates/cli/src/blades.rs crates/core/src/module_resolution.rs crates/crate-ffi/src/resolve.rs crates/c-ffi/src/lib.rs crates/omni/src/fabric.rs crates/host/src/fabric.rs`
 - `cargo test -p kain-blades --target-dir target\\codex-blades`
 - `cargo test -p kain-core blade_module_roots_extend_filesystem_candidates --target-dir target\\codex-blades`
 - `cargo test -p kain-omni validate_default_polyglot_template_succeeds --target-dir target\\codex-blades`
@@ -8001,10 +8001,10 @@ Kain's native backend path now handles the compiler-owned intent suite more hone
 
 What changed:
 
-- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs` now registers and emits `law` declarations as real LLVM callables, records parameter types for `patch`/`law`/`converge`/`orchestrate`, preserves orchestrate stage runtime comments, and emits an entangle registration function that calls the C runtime from `main`.
+- `crates/sys-codegen/src/codegen_llvm/mod.rs` now registers and emits `law` declarations as real LLVM callables, records parameter types for `patch`/`law`/`converge`/`orchestrate`, preserves orchestrate stage runtime comments, and emits an entangle registration function that calls the C runtime from `main`.
 - `runtime/native/include/kain_runtime_entangle.h` and `runtime/native/src/core/kain_runtime_entangle.c` add a small fixed-capacity native entangle registry. `runtime/native_runtime.toml` now includes that source in the manifest-driven C runtime bundle.
-- `crates/kain-sys-codegen/src/codegen_c.rs` now lowers worlds to C structs/static world instances, emits `patch`, `law`, `converge`, and `orchestrate` as callable functions, preserves entangles as a static metadata table, supports stage calls, and maps world parameters/fields through pointer-style C access.
-- `crates/kain-core/src/stdlib.rs` now routes `CompileTarget::C` through `stdlib/c` before root fallback, keeping the experimental C backend away from the full generic stdlib unless the C profile is absent.
+- `crates/sys-codegen/src/codegen_c.rs` now lowers worlds to C structs/static world instances, emits `patch`, `law`, `converge`, and `orchestrate` as callable functions, preserves entangles as a static metadata table, supports stage calls, and maps world parameters/fields through pointer-style C access.
+- `crates/core/src/stdlib.rs` now routes `CompileTarget::C` through `stdlib/c` before root fallback, keeping the experimental C backend away from the full generic stdlib unless the C profile is absent.
 - The Rust backend bootstrap intrinsic tests were corrected after missing `CallArg.span` fields were restored; those intrinsics now assert the rendered intrinsic behavior instead of stale raw-call fallback text.
 
 Design decisions:
@@ -8037,10 +8037,10 @@ Kain now has a v1 first-class `entangle` declaration for compiler-owned Topologi
 
 What changed:
 
-- Added `crates/kain-entangle` as the shared semantic/runtime metadata crate. It owns `state.entangle`, `EntangleGraph`, endpoint ids, single-writer binding descriptors, duplicate endpoint checks, self-entanglement rejection, mirror lookup, and mirror-write denial.
+- Added `crates/entangle` as the shared semantic/runtime metadata crate. It owns `state.entangle`, `EntangleGraph`, endpoint ids, single-writer binding descriptors, duplicate endpoint checks, self-entanglement rejection, mirror lookup, and mirror-write denial.
 - Added parser, AST, typechecker, formatter, interpreter, runtime contract, realtime app bundle, LSP, and UE5-codegen awareness for:
   - `entangle Physics.player_health <-> UI.health_display with single_writer`
-- `crates/kain-core` now lowers entanglements into typed metadata, `RuntimeContractBundle.entanglements`, `RealtimeAppBundle.entanglements`, the reflection payload, and required capability/service-binding metadata.
+- `crates/core` now lowers entanglements into typed metadata, `RuntimeContractBundle.entanglements`, `RealtimeAppBundle.entanglements`, the reflection payload, and required capability/service-binding metadata.
 - The interpreter registers entanglements during program setup, treats the left endpoint as the authority, propagates authority writes into the right mirror endpoint, and rejects direct mirror writes under the v1 `single_writer` policy.
 - Docs now list entangle as the sixth compiler-owned intent family and describe the v1 syntax, capability, contract shape, interpreter semantics, and current limits.
 
@@ -8102,7 +8102,7 @@ Kain now treats local workspace control as an explicit trusted execution lane in
 
 What changed:
 
-- Added `crates/kain-codebase` as the trusted-local workspace authority layer. It discovers roots from `KAIN.toml`, `package.json`, `Cargo.toml`, `.git`, and explicit paths; scans, hashes, creates, writes, copies, moves, and deletes files/directories; round-trips JSON/TOML; and captures commands with structured stdout/stderr/status.
+- Added `crates/codebase` as the trusted-local workspace authority layer. It discovers roots from `KAIN.toml`, `package.json`, `Cargo.toml`, `.git`, and explicit paths; scans, hashes, creates, writes, copies, moves, and deletes files/directories; round-trips JSON/TOML; and captures commands with structured stdout/stderr/status.
 - Exposed `kain codebase inspect <path> --json` and `kain codebase run <cwd> -- <command> ...`. `codebase run` exits successfully when Kain captured the child process correctly, even if the child command itself returned nonzero; inspect the JSON `success` and `status` fields for the child result.
 - Registered the new codebase APIs in host-backed Kain execution: `codebase_*`, `cargo_*`, `python_*`, `c_*`, and `ts_*` bridge functions now typecheck and dispatch in interpreted/test host lanes.
 - Fixed the Node/Fabric raw bridge regression by keeping `@extern` declarations from shadowing native bridge functions, preserving raw Node module handles through raw import/call paths, adding CJS `js_require_raw`/`node_require`, and adding `node_package_run` for package-script execution from the Node bridge cwd.
@@ -8137,8 +8137,8 @@ The TypeScript import pipeline now uses an embedded ambient manifest instead of 
 What changed:
 
 - Added `tools/typescript_import/extract_ambient_manifest.py` and `tools/typescript_import/typescript_ambient_overrides.json`.
-- The extractor reads `reference/TypeScript-main/src/lib/*.d.ts`, merges Kain-specific aliases/helpers from the JSON override file, and writes `crates/kain-import/src/typescript/data/typescript_ambient_manifest.json`.
-- `crates/kain-import/src/typescript/ambient.rs` embeds that manifest and exposes lookup helpers for ambient value names and TypeScript utility-type fallbacks.
+- The extractor reads `reference/TypeScript-main/src/lib/*.d.ts`, merges Kain-specific aliases/helpers from the JSON override file, and writes `crates/import/src/typescript/data/typescript_ambient_manifest.json`.
+- `crates/import/src/typescript/ambient.rs` embeds that manifest and exposes lookup helpers for ambient value names and TypeScript utility-type fallbacks.
 - `kain import-ts` now writes the global TS prelude from the manifest, not from hardcoded DOM/JS arrays in `crates/cli/src/import_typescript.rs`.
 - Global runtime constructor aliases such as `Array -> ts_Array` and ecosystem helpers such as Node/test-runner globals live in data, so future additions should update the override JSON and regenerate the manifest.
 - Generated `.kn` validation for the TypeScript importer now uses the TS backend instead of the interpreter target; interpreter validation is not representative for TS imports with external stubs.
@@ -8193,7 +8193,7 @@ Kain now handles the import shape that blocked the first GreebleFS Kain control-
 
 What changed:
 
-- Added `crates/kain-core/src/module_resolution.rs` as the shared lookup helper for stdlib roots and authored filesystem module candidates.
+- Added `crates/core/src/module_resolution.rs` as the shared lookup helper for stdlib roots and authored filesystem module candidates.
 - Updated the interpreter runtime import path so named filesystem imports can select one top-level item from a fallback module file and honor `as` aliases.
 - Updated the typechecker to best-effort register symbols from cleanly parsed filesystem modules, while preserving the older `Unknown` fallback when imported modules are absent or not safe to register during typechecking.
 - Added focused `kain-core` runtime tests for the GreebleFS-shaped imports: `use host_reflection::build_control_plane_catalog` and `use plugin_authoring::*`.
@@ -8203,7 +8203,7 @@ Validation:
 
 - `cargo test -p kain-core filesystem_ -- --nocapture` passes.
 - `cargo build -p cli --target-dir target\codex-cli-build` passes; the alternate target dir avoids the local `target/debug` PyO3 artifact lock.
-- `git diff --check -- crates\kain-core\src\module_resolution.rs crates\kain-core\src\lib.rs crates\kain-core\src\runtime.rs crates\kain-core\src\types.rs crates\kain-core\src\runtime_tests.rs` passes with line-ending warnings only.
+- `git diff --check -- crates\core\src\module_resolution.rs crates\core\src\lib.rs crates\core\src\runtime.rs crates\core\src\types.rs crates\core\src\runtime_tests.rs` passes with line-ending warnings only.
 
 Current risk:
 
@@ -8220,9 +8220,9 @@ The repo now has a real Tauri 2 desktop host path for Kain-authored UI instead o
 
 What changed:
 
-- `crates/kain-ui` and `crates/kain-core` now recognize `UiHostBackendKind::Tauri`, including authored `host_backend="tauri"` and `host_backend="webview"` aliases.
-- `crates/kain-ui-tauri` now owns the generated Tauri host lane: plugin/capability/permission presets, bridge-manifest construction, merged reflection metadata, hybrid frontend bridge JS, and generated `src-tauri/*` project files.
-- `crates/kain-driver` now has a dedicated Tauri bundle/materialization path that combines native runtime-contract truth with hybrid frontend artifacts and emits a generated Tauri app root with `frontend/`, `generated/`, `config/`, `state/`, and `src-tauri/`.
+- `crates/ui` and `crates/core` now recognize `UiHostBackendKind::Tauri`, including authored `host_backend="tauri"` and `host_backend="webview"` aliases.
+- `crates/ui-tauri` now owns the generated Tauri host lane: plugin/capability/permission presets, bridge-manifest construction, merged reflection metadata, hybrid frontend bridge JS, and generated `src-tauri/*` project files.
+- `crates/driver` now has a dedicated Tauri bundle/materialization path that combines native runtime-contract truth with hybrid frontend artifacts and emits a generated Tauri app root with `frontend/`, `generated/`, `config/`, `state/`, and `src-tauri/`.
 - `crates/cli/src/native_ui_build.rs` now exposes `NativeUiHostKind::{Qt,Tauri}` plus typed Tauri config, and `crates/cli/src/native_ui_dev.rs` now abstracts launch targets so the same dev loop can launch either a packaged Qt executable or `cargo run --manifest-path src-tauri/Cargo.toml`.
 - Hot-reload metadata for generated Tauri apps now preserves the resolved custom bundle identifier instead of silently falling back to a derived default, and new tests pin both the Tauri alias parsing path and the generated bundle-id propagation.
 
@@ -8251,28 +8251,28 @@ Recommended next step:
 - Add a smoketest app under `smoketest/UI/` that is materialized and launched through `--host tauri`, then validate one real plugin namespace such as dialog/fs/store end to end against the generated bridge.
 
 - New Kain 3D pass (2026-04-17): `SceneCatalog::picker_entries()` now orders canonical scenes semantically, keeping the default scene first, then ranking remaining canonicals by scene role and scene scale before appending aliases. This makes native scene browsers and inspectors surface showcase/environment scenes more intentionally instead of only following raw name order.
-- Validation note: `rustfmt --edition 2021 crates\kain-3D\src\scene.rs` completed cleanly, but `cargo test -p kain-3d picker_entries_prioritize_default_then_semantic_canonicals_then_aliases -- --nocapture` is still blocked by the repo-local Windows GNU linker gap (`x86_64-w64-mingw32-gcc` missing `-lgcc_eh` and `-lgcc`).
+- Validation note: `rustfmt --edition 2021 crates\3d\src\scene.rs` completed cleanly, but `cargo test -p kain-3d picker_entries_prioritize_default_then_semantic_canonicals_then_aliases -- --nocapture` is still blocked by the repo-local Windows GNU linker gap (`x86_64-w64-mingw32-gcc` missing `-lgcc_eh` and `-lgcc`).
 
 - New Kain 3D pass (2026-04-17): `SceneCatalogEntry::picker_label()` now includes the authored `viewport_summary` alongside the resolved scene name and composition labels, so native scene browsers can show the scene's launch/context cue instead of hiding it in the struct.
-- Validation note: `rustfmt --edition 2021 crates\kain-3D\src\scene.rs` completed cleanly, but `cargo test -p kain-3d catalog_entries_surface_picker_ready_metadata -- --nocapture` is still blocked by the repo-local Windows GNU linker gap (`x86_64-w64-mingw32-gcc` missing `-lgcc_eh` and `-lgcc`).
+- Validation note: `rustfmt --edition 2021 crates\3d\src\scene.rs` completed cleanly, but `cargo test -p kain-3d catalog_entries_surface_picker_ready_metadata -- --nocapture` is still blocked by the repo-local Windows GNU linker gap (`x86_64-w64-mingw32-gcc` missing `-lgcc_eh` and `-lgcc`).
 
 - New Kain 3D pass (2026-04-17): `SceneCatalogEntry` now carries `scene_focus` alongside role/scale/profile/density/stage, so native scene browsers get the dominant composition cue without re-deriving it from `SceneCompositionSummary`.
-- Validation note: `rustfmt --edition 2021 crates\kain-3D\src\scene.rs` completed cleanly, but `cargo test -p kain-3d catalog_entries_surface_picker_ready_metadata -- --nocapture` is still blocked by the repo-local Windows GNU linker gap (`x86_64-w64-mingw32-gcc` missing `-lgcc_eh` and `-lgcc`).
+- Validation note: `rustfmt --edition 2021 crates\3d\src\scene.rs` completed cleanly, but `cargo test -p kain-3d catalog_entries_surface_picker_ready_metadata -- --nocapture` is still blocked by the repo-local Windows GNU linker gap (`x86_64-w64-mingw32-gcc` missing `-lgcc_eh` and `-lgcc`).
 
 - New Kain 3D pass (2026-04-17): `material_atrium_smoke` now embeds `SceneCatalog::summary()` data in the structured smoke JSON, including default scene, canonical scene count, alias count, total scene names, and picker entry count. The header copy also now calls out catalog coverage so the smoke reports scene-browser context without re-deriving it in downstream tooling.
-- Validation note: `rustfmt --edition 2021 crates\kain-3D\src\bin\material_atrium_smoke.rs` completed cleanly, but `cargo test -p kain-3d catalog_summary_reports_canonical_and_alias_counts -- --nocapture` is still blocked by the repo-local Windows GNU linker gap (`x86_64-w64-mingw32-gcc` missing `-lgcc_eh` and `-lgcc`).
+- Validation note: `rustfmt --edition 2021 crates\3d\src\bin\material_atrium_smoke.rs` completed cleanly, but `cargo test -p kain-3d catalog_summary_reports_canonical_and_alias_counts -- --nocapture` is still blocked by the repo-local Windows GNU linker gap (`x86_64-w64-mingw32-gcc` missing `-lgcc_eh` and `-lgcc`).
 
 - New Kain 3D pass (2026-04-17): `SceneCatalog::picker_entries()` now emits a picker-ordered scene list with the default scene first, followed by canonical scenes and then aliases. This gives native scene browsers and inspectors a direct, data-driven ordering instead of making each host re-sort the catalog itself.
-- Validation note: `rustfmt --edition 2021 crates\kain-3D\src\scene.rs` completed cleanly, but `cargo test -p kain-3d picker_entries_prioritize_default_scene_before_aliases -- --nocapture` is still blocked by the repo-local Windows GNU linker gap (`x86_64-w64-mingw32-gcc` missing `-lgcc_eh` and `-lgcc`).
+- Validation note: `rustfmt --edition 2021 crates\3d\src\scene.rs` completed cleanly, but `cargo test -p kain-3d picker_entries_prioritize_default_scene_before_aliases -- --nocapture` is still blocked by the repo-local Windows GNU linker gap (`x86_64-w64-mingw32-gcc` missing `-lgcc_eh` and `-lgcc`).
 
 - New Kain 3D pass (2026-04-17): `SceneCompositionSummary` now exposes a structured `scene_focus` cue (`geometry-led`, `instance-led`, `material-led`, `lighting-led`, `environment-led`, `anomaly-led`) and `FrameDiagnostics` carries it through the CPU/WGPU frame path. `material_atrium_smoke` now preserves the cue in its JSON payload, so scene tooling can tell what dominates a composition instead of only reading size and density.
-- Validation note: `rustfmt --edition 2021 crates\kain-3D\src\scene.rs crates\kain-3D\src\renderer.rs crates\kain-3D\src\bin\material_atrium_smoke.rs` completed cleanly, but `cargo test -p kain-3d scene::tests::scene_focus_label_tracks_scene_dominant_authoring_signal -- --nocapture` is still blocked by the repo-local Windows GNU linker gap (`x86_64-w64-mingw32-gcc` missing `-lgcc_eh` and `-lgcc`).
+- Validation note: `rustfmt --edition 2021 crates\3d\src\scene.rs crates\3d\src\renderer.rs crates\3d\src\bin\material_atrium_smoke.rs` completed cleanly, but `cargo test -p kain-3d scene::tests::scene_focus_label_tracks_scene_dominant_authoring_signal -- --nocapture` is still blocked by the repo-local Windows GNU linker gap (`x86_64-w64-mingw32-gcc` missing `-lgcc_eh` and `-lgcc`).
 
 - New Kain 3D pass (2026-04-17): `SceneCatalog` now exposes a structured `summary()` with canonical scene count, alias count, and default scene name. This gives native tooling a cheap, stable way to present catalog coverage without re-deriving totals from map sizes in multiple places.
-- Validation note: `rustfmt --edition 2021 crates\kain-3D\src\scene.rs` completed cleanly, but `cargo test -p kain-3d catalog_summary_reports_canonical_and_alias_counts -- --nocapture` is still blocked by the repo-local Windows GNU linker gap (`x86_64-w64-mingw32-gcc` missing `-lgcc_eh` and `-lgcc`).
+- Validation note: `rustfmt --edition 2021 crates\3d\src\scene.rs` completed cleanly, but `cargo test -p kain-3d catalog_summary_reports_canonical_and_alias_counts -- --nocapture` is still blocked by the repo-local Windows GNU linker gap (`x86_64-w64-mingw32-gcc` missing `-lgcc_eh` and `-lgcc`).
 
 - New Kain 3D pass (2026-04-17): extracted the scene-composition-to-frame-diagnostics mapping into `SceneCompositionSummary::populate_frame_diagnostics(...)` and switched both CPU and WGPU renderers to call it. This removes duplicated diagnostics wiring, keeps `FrameDiagnostics` fields aligned across backends, and gives future 3D tooling a single place to extend when new summary fields should surface in native frame logs.
-- Validation note: `rustfmt --edition 2021 crates\kain-3D\src\scene.rs crates\kain-3D\src\renderer.rs crates\kain-3D\src\wgpu_renderer.rs` completed cleanly, but `cargo test -p kain-3d scene::tests::scene_bounds_and_framed_camera_follow_scene_composition -- --nocapture` is still blocked by the repo-local Windows GNU linker gap (`x86_64-w64-mingw32-gcc` missing `-lgcc_eh` and `-lgcc`).
+- Validation note: `rustfmt --edition 2021 crates\3d\src\scene.rs crates\3d\src\renderer.rs crates\3d\src\wgpu_renderer.rs` completed cleanly, but `cargo test -p kain-3d scene::tests::scene_bounds_and_framed_camera_follow_scene_composition -- --nocapture` is still blocked by the repo-local Windows GNU linker gap (`x86_64-w64-mingw32-gcc` missing `-lgcc_eh` and `-lgcc`).
 
 - New Kain 3D pass (2026-04-16): `FrameDiagnostics` now carries `scene_density` alongside the existing role/scale/profile/camera-fit diagnostics, and both the CPU and WGPU renderers populate it from `SceneCompositionSummary::density_label()`. This keeps the dense/sparse/balanced cue available to native inspectors without forcing them to re-derive it from the brief label.
 - Validation note: `cargo test -p kain-3d renderer::tests::default_camera_auto_frames_off_center_scene -- --nocapture` was still blocked by the repo-local Windows GNU toolchain, not by the 3D change. `x86_64-w64-mingw32-gcc` failed while linking build scripts because `lld` could not find `-lgcc_eh` and `-lgcc`.
@@ -8284,7 +8284,7 @@ Recommended next step:
 - The new C backend is intentionally an honest subset today. It covers the target plumbing plus an initial emitter for structs, unit enums, functions, basic statements, casts, pointer/ref syntax, struct literals, and `print`/`println` helpers, while failing explicitly on unsupported semantic surface such as generic/function types from the full stdlib and many richer expression forms.
 - Validation note: `cargo check -p kain-core -p kain-c-ffi -p kain-sys-codegen -p kain-driver -p cli` is green here only with `PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1` because the local Python is 3.14 while repo PyO3 is pinned below that. A direct `target/debug/kain.exe -c ... -t c` smoke now reaches the C backend and reports backend-specific unsupported-type errors instead of rejecting the target, so the current blocker is C semantic coverage rather than CLI wiring.
 - New Kain 3D pass (2026-04-16): renderer frame diagnostics now expose an explicit `camera_fit_ratio` string alongside the existing framing hint, and the `material_atrium_smoke` JSON payload preserves it. This gives scene tooling a sharper read on how tightly a scene is framed without recomputing the fit math downstream, and it keeps CPU/WGPU 3D diagnostics aligned on the same framing signal.
-- Validation note: `cargo test -p kain-3d renderer::tests::render_scene_autoframes_off_center_geometry_and_tracks_diagnostics -- --nocapture` was blocked by the repo-local Windows GNU toolchain, not by the 3D code. `x86_64-w64-mingw32-gcc` could not resolve `-lgcc_eh` and `-lgcc` while linking build scripts. `rustfmt --edition 2021 crates\\kain-3D\\src\\renderer.rs crates\\kain-3D\\src\\wgpu_renderer.rs crates\\kain-3D\\src\\bin\\material_atrium_smoke.rs` completed cleanly.
+- Validation note: `cargo test -p kain-3d renderer::tests::render_scene_autoframes_off_center_geometry_and_tracks_diagnostics -- --nocapture` was blocked by the repo-local Windows GNU toolchain, not by the 3D code. `x86_64-w64-mingw32-gcc` could not resolve `-lgcc_eh` and `-lgcc` while linking build scripts. `rustfmt --edition 2021 crates\\3d\\src\\renderer.rs crates\\3d\\src\\wgpu_renderer.rs crates\\3d\\src\\bin\\material_atrium_smoke.rs` completed cleanly.
 - New selfhost bootstrap pass (2026-04-16): the owned `--emit-llvm-only` lane now gets past the previous parser-hostile support modules in `src/core/span.kn`, `src/core/error.kn`, `src/core/diagnostic.kn`, and `src/core/effects.kn` by collapsing those files to declaration-only bootstrap-safe surfaces. The latest validated command is `$env:PYO3_USE_ABI3_FORWARD_COMPATIBILITY='1'; cargo run -q -p cli --bin kain -- selfhost bootstrap --manifest-path src/KAIN.toml --emit-llvm-only`, and it now fails later with `Unknown identifier 'tokenize_source'` at `<input>:922:16`, which maps to the lexer/kainc bootstrap seam rather than the old impl/match parser failures.
 
 - New Kain 3D direction update (2026-04-16): the next wave should pivot away from smoke/report polish and into core 3D power features. Treat SPIR-V compilation strength as a major asset, then build outward into renderer architecture, scene/runtime systems, GPU compute, and other high-leverage capabilities that move Kain toward UE5-class power instead of demo-only output.
@@ -8311,7 +8311,7 @@ Recommended next step:
 - Validation attempt: `cargo test -p kain-3d renderer::tests -- --nocapture` still hits the repo-local Windows GNU linker gap before the test binary can link, because `x86_64-w64-mingw32-gcc` cannot resolve `-lgcc_eh` and `-lgcc`.
 
 - New Kain 3D pass (2026-04-16): `SceneCompositionSummary::brief_label()` now includes an explicit scene-scale cue (`miniature` / `room-scale` / `studio-scale` / `world-scale`), and the `material_atrium_smoke` JSON payload now carries that scale as structured metadata. This gives 3D tooling one more quick-read signal for composition quality without re-deriving bounds heuristics downstream.
-- Validation attempt: `cargo test -p kain-3d scene::tests::scene_scale_label_tracks_bounds_radius -- --nocapture` and `rustfmt --edition 2021 --check crates\\kain-3D\\src\\scene.rs crates\\kain-3D\\src\\lib.rs crates\\kain-3D\\src\\bin\\material_atrium_smoke.rs` both hit repo-local/environment issues before a clean green could be proven. The test run failed at link time because `x86_64-w64-mingw32-gcc` could not find `-lgcc_eh` and `-lgcc`; the rustfmt check also surfaced pre-existing formatting differences elsewhere in `crates/kain-3D` and `crates/kain-ui-native` plus trailing whitespace in `crates/ue5-shaders/src/validation.rs`.
+- Validation attempt: `cargo test -p kain-3d scene::tests::scene_scale_label_tracks_bounds_radius -- --nocapture` and `rustfmt --edition 2021 --check crates\\3d\\src\\scene.rs crates\\3d\\src\\lib.rs crates\\3d\\src\\bin\\material_atrium_smoke.rs` both hit repo-local/environment issues before a clean green could be proven. The test run failed at link time because `x86_64-w64-mingw32-gcc` could not find `-lgcc_eh` and `-lgcc`; the rustfmt check also surfaced pre-existing formatting differences elsewhere in `crates/3d` and `crates/ui-native` plus trailing whitespace in `crates/ue5-shaders/src/validation.rs`.
 
 - New Kain 3D pass (2026-04-16): `material_atrium_smoke` now emits a structured `diagnostics.composition` payload alongside the existing brief label, including summary counts, framing distance, viewport aspect ratio, and bounds span/center data. This makes the 3D smoke report much easier for tooling to consume without re-deriving scene structure from screenshots or renderer internals.
 - Validation attempt: `cargo check -p kain-3D --bin material_atrium_smoke` still fails in this repo-local Windows GNU toolchain before the crate can finish compiling because build-script linking cannot resolve `-lgcc_eh` and `-lgcc` from `x86_64-w64-mingw32-gcc`.
@@ -8331,10 +8331,10 @@ Recommended next step:
 - Validation attempt: `cargo test -p kain-3d scene::tests -- --nocapture` still hits the repo-local Windows GNU linker gap (`x86_64-w64-mingw32-gcc` missing `-lgcc_eh` and `-lgcc`) before the `kain-3d` test binary can link.
 - 2026-04-15 bootstrap update: `kain selfhost bootstrap` now exists as the owned hand-written lane entrypoint, `src/KAIN.toml` is the manifest contract, `src/build_selfhost.sh` is just a wrapper, and the bootstrap report machinery now emits JSON/Markdown under `src/.selfhost/reports/`.
 - The bootstrap harness is partially green: `--combine-only` passes and writes the combined source artifact, but `--emit-llvm-only` currently hard-fails inside the owned `src/core` source set with parser errors concentrated in `runtime.kn` and `types.kn`. The immediate blocker is language/source compatibility, not the CLI wrapper or report plumbing.
-- Added a 3D platform uplift in `crates/kain-3D`: primitive libraries now export richer scene metadata (`definition_count`, `definition_ids`, and startup primitive display name) when registered into an authoring scene, which makes the library more self-describing for tooling and runtime composition.
-- Added `SceneDescription::composition_summary(...)` plus a shared bounds helper in `crates/kain-3D`, so tooling can ask a scene for counts and framing data in one pass instead of re-deriving it ad hoc.
+- Added a 3D platform uplift in `crates/3d`: primitive libraries now export richer scene metadata (`definition_count`, `definition_ids`, and startup primitive display name) when registered into an authoring scene, which makes the library more self-describing for tooling and runtime composition.
+- Added `SceneDescription::composition_summary(...)` plus a shared bounds helper in `crates/3d`, so tooling can ask a scene for counts and framing data in one pass instead of re-deriving it ad hoc.
 - Validation was blocked by the local Windows GNU toolchain, not by the change itself. `cargo test -p kain-3d scene::tests::scene_bounds_and_framed_camera_follow_scene_composition -- --nocapture` failed while linking build scripts because `x86_64-w64-mingw32-gcc` could not find `-lgcc_eh` and `-lgcc`.
-- New Kain 3D pass (2026-04-14): tightened default scene framing in `crates/kain-3D` so the auto-camera distance now scales with field of view instead of using a fixed radius multiplier. Added a regression test for the new framing helper to prove tighter FOVs push the camera farther back. Validation hit a repo-env Windows GNU linker gap, not a code failure: `cargo test -p kain-3d framed_camera_distance_scales_with_field_of_view` failed while building dependencies because `x86_64-w64-mingw32-gcc` could not find `-lgcc_eh` and `-lgcc`.
+- New Kain 3D pass (2026-04-14): tightened default scene framing in `crates/3d` so the auto-camera distance now scales with field of view instead of using a fixed radius multiplier. Added a regression test for the new framing helper to prove tighter FOVs push the camera farther back. Validation hit a repo-env Windows GNU linker gap, not a code failure: `cargo test -p kain-3d framed_camera_distance_scales_with_field_of_view` failed while building dependencies because `x86_64-w64-mingw32-gcc` could not find `-lgcc_eh` and `-lgcc`.
 - New Kain 3D pass (2026-04-17): the template viewport contract now exposes explicit `composition_policy` and `framing_policy` fields, and the scene-spine validator checks that those policy tokens stay present in `viewport_runtime.kn`. This keeps the documented launch/framing policy aligned with the authored 3D runtime contract instead of letting it drift back into implicit renderer behavior.
 - New Kain 3D pass (2026-04-14): scene bounds now include particle emitters, not just meshes/terrain/black holes, so auto-framing keeps volumetric FX inside the camera composition. Added a regression test proving an emitter-only scene still produces bounds and a framed camera pose. Validation was blocked by the same local Windows GNU linker gap, not by the scene logic: `cargo test -p kain-3d scene::tests` failed while building dependencies because `x86_64-w64-mingw32-gcc` could not find `-lgcc_eh` and `-lgcc`.
 - New Kain 3D pass (2026-04-14): `SceneCompositionSummary` now has a human-readable `brief_label()`/`Display` form, so 3D tooling and logs can describe a scene's composition without reformatting counts ad hoc. Added a regression assertion that `to_string()` matches the brief label. Validation was again blocked by the local Windows GNU linker gap, not the code change: `cargo test -p kain-3d scene::tests::scene_bounds_and_framed_camera_follow_scene_composition -- --nocapture` failed while building dependencies because `x86_64-w64-mingw32-gcc` could not find `-lgcc_eh` and `-lgcc`.
@@ -8343,18 +8343,18 @@ Recommended next step:
 - New Kain 3D pass (2026-04-14): auto-framing now respects per-view instance transform overrides through `SceneDescription::bounds_with_overrides(...)` and `framed_camera_pose_with_overrides(...)`, and the software renderer uses that override-aware camera when no explicit view camera is supplied. Added a regression test proving the frame target follows an overridden material_atrium node. Validation is still blocked locally by the Windows GNU linker gap (`-lgcc_eh` / `-lgcc` missing from `x86_64-w64-mingw32-gcc`).
 - New Kain 3D pass (2026-04-14): hardened zero-length vector handling in the 3D math/render path by adding `Vec3::normalized_or(...)` and using it for particle emitter axes, orbit rotation, and basis construction in the CPU and WGPU renderers. This prevents zero-axis scene data from producing brittle normalization behavior and keeps particle/orbit math stable. Added regression tests for zero-axis particle emitters and zero-axis rotation. Validation is still blocked by the repo-local Windows GNU linker gap, and `cargo fmt --all` is currently blocked by unrelated trailing whitespace in `crates/ue5-shaders/src/validation.rs`.
 - New Kain 3D pass (2026-04-14): added explicit scene resolution metadata to `SceneCatalog` via `resolve_scene(...)`, so tools can distinguish exact hits, aliases, and default fallbacks instead of treating every lookup as a plain `scene(...)` fetch. The `material_atrium_smoke` report now records requested vs resolved scene names plus the resolution kind, which makes smoke output much more useful for alias/debug triage. Validation is still blocked by the local Windows GNU linker gap (`x86_64-w64-mingw32-gcc` missing `-lgcc_eh` and `-lgcc`) before the test binary can link.
-- New Kain 3D pass (2026-04-14): auto-framed camera poses now compute near/far clip planes from scene bounds, which should reduce clipping in large or shallow compositions while preserving the bounds-driven framing target. Also cleaned up a stray syntax brace in `crates/kain-3D/src/scene.rs` that `rustfmt` surfaced during validation. Validation remains blocked by the same local Windows GNU linker gap, so `cargo test -p kain-3d scene::tests::framed_camera_clip_planes_expand_with_bounds -- --nocapture` could not link because `x86_64-w64-mingw32-gcc` could not find `-lgcc_eh` and `-lgcc`.
+- New Kain 3D pass (2026-04-14): auto-framed camera poses now compute near/far clip planes from scene bounds, which should reduce clipping in large or shallow compositions while preserving the bounds-driven framing target. Also cleaned up a stray syntax brace in `crates/3d/src/scene.rs` that `rustfmt` surfaced during validation. Validation remains blocked by the same local Windows GNU linker gap, so `cargo test -p kain-3d scene::tests::framed_camera_clip_planes_expand_with_bounds -- --nocapture` could not link because `x86_64-w64-mingw32-gcc` could not find `-lgcc_eh` and `-lgcc`.
 - New Kain 3D pass (2026-04-14): `SceneCompositionSummary` now includes an explicit `framed_camera_distance` derived from the scene bounds and camera FOV, and the brief label reports that fit distance alongside bounds. This gives 3D tooling a direct framing cue instead of forcing it to recompute camera fit from the raw summary. Validation on the focused `scene_bounds_and_framed_camera_follow_scene_composition` test is still blocked by the local Windows GNU linker gap (`-lgcc_eh` / `-lgcc`).
 - New Kain 3D pass (2026-04-14): the software renderer now forwards scene/tooling metadata through `FrameDiagnostics` (`scene_name`, `viewport_summary`, and a brief `composition_summary`), so hosts can label 3D frames without re-deriving context from pixels. Added a regression assertion that the framed-camera smoke scene reports those fields. Validation was blocked by the same local Windows GNU linker gap, because `cargo test -p kain-3d` could not link build scripts while `x86_64-w64-mingw32-gcc` lacked `-lgcc_eh` and `-lgcc`.
-- New Kain 3D pass (2026-04-14): auto-framing now takes viewport aspect ratio into account in `crates/kain-3D`, and both the software and WGPU renderers pass their actual aspect ratio into the scene camera fit. This should reduce clipping on wide or tall viewports without changing authored scene meaning. Added a regression test that wide viewports demand a farther camera fit than square ones. Validation is pending, but the repo-local Windows GNU linker gap has been the recurring blocker for `cargo test -p kain-3d` on this machine (`x86_64-w64-mingw32-gcc` missing `-lgcc_eh` / `-lgcc`).
+- New Kain 3D pass (2026-04-14): auto-framing now takes viewport aspect ratio into account in `crates/3d`, and both the software and WGPU renderers pass their actual aspect ratio into the scene camera fit. This should reduce clipping on wide or tall viewports without changing authored scene meaning. Added a regression test that wide viewports demand a farther camera fit than square ones. Validation is pending, but the repo-local Windows GNU linker gap has been the recurring blocker for `cargo test -p kain-3d` on this machine (`x86_64-w64-mingw32-gcc` missing `-lgcc_eh` / `-lgcc`).
 - New Kain 3D pass (2026-04-14): the `material_atrium_smoke` report now serializes each tile's frame diagnostics (`camera_source`, scene name, viewport summary, composition summary, and visible/culled instance lists), so tooling can inspect the actual framing decision instead of inferring it from screenshots alone. This is a tooling uplift that makes the 3D smoke output more self-describing for future debugging and scene-composition work.
-- New Kain 3D pass (2026-04-14): scene composition summaries are now aspect-ratio aware in `crates/kain-3D`, so renderer diagnostics report a framing distance that matches the actual viewport instead of assuming a square view. The software renderer now feeds its real aspect ratio into the summary path, which makes frame metadata and logs more trustworthy for wide native viewports. Added a regression test for the new aspect-aware summary helper. Validation was blocked by the same local Windows GNU linker gap before the test binary could finish linking (`x86_64-w64-mingw32-gcc` missing `-lgcc_eh` / `-lgcc`).
-- New Kain 3D pass (2026-04-14): `templates/3D/src-kain/stdlib/three_d_runtime/viewport_runtime.kn` now carries explicit `composition_policy` and `framing_policy` fields on `ViewportDescriptor`, with the default profile bound to `scene_summary_driven_and_launch_preset_bound` and `bounds_fov_and_aspect_ratio_fit`. This makes viewport launch contracts line up with the scene-summary/framing work already landing in `crates/kain-3D`, and the template README now calls out the policy explicitly for future authors.
+- New Kain 3D pass (2026-04-14): scene composition summaries are now aspect-ratio aware in `crates/3d`, so renderer diagnostics report a framing distance that matches the actual viewport instead of assuming a square view. The software renderer now feeds its real aspect ratio into the summary path, which makes frame metadata and logs more trustworthy for wide native viewports. Added a regression test for the new aspect-aware summary helper. Validation was blocked by the same local Windows GNU linker gap before the test binary could finish linking (`x86_64-w64-mingw32-gcc` missing `-lgcc_eh` / `-lgcc`).
+- New Kain 3D pass (2026-04-14): `templates/3D/src-kain/stdlib/three_d_runtime/viewport_runtime.kn` now carries explicit `composition_policy` and `framing_policy` fields on `ViewportDescriptor`, with the default profile bound to `scene_summary_driven_and_launch_preset_bound` and `bounds_fov_and_aspect_ratio_fit`. This makes viewport launch contracts line up with the scene-summary/framing work already landing in `crates/3d`, and the template README now calls out the policy explicitly for future authors.
 - New Kain 3D pass (2026-04-14): `SceneBounds` now exposes a dominant-axis label, and `SceneCompositionSummary::brief_label()` appends a simple wide/tall/deep cue next to the span, so tooling can read scene proportions faster from logs and frame metadata. This is a small but practical authoring/tooling improvement for 3D composition debugging. Validation hit the same environment blocker as other local runs: `cargo test -p kain-3d scene::tests::scene_bounds_and_framed_camera_follow_scene_composition -- --nocapture` failed during dependency linking because `x86_64-w64-mingw32-gcc` could not find `-lgcc_eh` and `-lgcc`.
 - New Kain 3D pass (2026-04-14): `SceneCompositionSummary` now carries the viewport aspect ratio and includes it in `brief_label()`, so frame diagnostics can report the actual render shape alongside bounds and camera fit instead of leaving aspect implicit. Added a regression assertion that the summary label includes `aspect 1.00:1` for the default path. Validation pending.
 - New Kain 3D pass (2026-04-16): `SceneCompositionSummary::density_label()` now accounts for materials, animations, and black-hole presence in addition to meshes, instances, emitters, and terrain, so the sparse/balanced/dense cue better reflects actual scene complexity. The regression test now covers material/animation-heavy balanced scenes and black-hole-heavy dense scenes. Validation was blocked by the same local Windows GNU linker gap before the focused test binary could link: `cargo test -p kain-3d scene::tests::composition_summary_density_label_tracks_authoring_scale -- --nocapture` failed because `x86_64-w64-mingw32-gcc` could not find `-lgcc_eh` and `-lgcc`.
-- New Kain 3D pass (2026-04-16): `crates/kain-3D` now carries catalog resolution metadata through `FrameDiagnostics` for catalog renders, so frame logs can distinguish exact scene hits from aliases and default fallbacks instead of dropping that context after resolution. The software renderer also now preserves that metadata on the returned frame, which makes alias/default debugging easier for tooling and smoke reports. Validation hit the same local Windows GNU linker gap before the focused test binary could finish linking: `cargo test -p kain-3d renderer::tests -- --nocapture` failed while building dependencies because `x86_64-w64-mingw32-gcc` could not find `-lgcc_eh` and `-lgcc`.
-- New Kain 3D pass (2026-04-16): auto-framed camera placement now uses an aspect-aware framing direction helper in `crates/kain-3D`, so the camera bias adapts more predictably to wide vs. tall compositions instead of using one hardcoded diagonal. Added a regression test for the direction helper. Validation was blocked by the repo-local Windows GNU linker gap when trying to run `cargo test -p kain-3d scene::tests`, and repo-wide `cargo fmt --all --check` is still blocked by trailing whitespace in `crates/ue5-shaders/src/validation.rs`.
+- New Kain 3D pass (2026-04-16): `crates/3d` now carries catalog resolution metadata through `FrameDiagnostics` for catalog renders, so frame logs can distinguish exact scene hits from aliases and default fallbacks instead of dropping that context after resolution. The software renderer also now preserves that metadata on the returned frame, which makes alias/default debugging easier for tooling and smoke reports. Validation hit the same local Windows GNU linker gap before the focused test binary could finish linking: `cargo test -p kain-3d renderer::tests -- --nocapture` failed while building dependencies because `x86_64-w64-mingw32-gcc` could not find `-lgcc_eh` and `-lgcc`.
+- New Kain 3D pass (2026-04-16): auto-framed camera placement now uses an aspect-aware framing direction helper in `crates/3d`, so the camera bias adapts more predictably to wide vs. tall compositions instead of using one hardcoded diagonal. Added a regression test for the direction helper. Validation was blocked by the repo-local Windows GNU linker gap when trying to run `cargo test -p kain-3d scene::tests`, and repo-wide `cargo fmt --all --check` is still blocked by trailing whitespace in `crates/ue5-shaders/src/validation.rs`.
 - Superseded Kain 3D primitive note (2026-04-16): the old Rust-authored primitive catalog metadata was removed on 2026-05-11. Future primitive work should use the Kain-authored mesh ingestion registry instead of reviving catalog-policy metadata.
 - New Kain 3D pass (2026-04-16): the `material_atrium_smoke` report now preserves catalog-resolution diagnostics in its JSON payload (`requested_name`, `resolved_name`, and resolution kind), so smoke consumers can distinguish exact, alias, and default scene resolution without re-parsing renderer internals. Validation of the crate still hits the local Windows GNU linker gap before the test binary can link (`x86_64-w64-mingw32-gcc` missing `-lgcc_eh` and `-lgcc`).
 - New Kain 3D pass (2026-04-16): fixed the WGPU renderer's camera-resolution plumbing by passing `RenderResolution` into the internal camera resolver, so the GPU 3D path can auto-frame scenes using the actual viewport size instead of a missing local variable. The WGPU frame diagnostics now also mirror the CPU renderer's structured composition cues (`scene_role`, `scene_scale`, `scene_profile`, and `framing_hint`), so GPU-backed frames are just as self-describing for scene tooling. The repo-local Windows GNU toolchain still blocks full `cargo check` / `cargo test` validation here (`x86_64-w64-mingw32-gcc` missing `-lgcc_eh` and `-lgcc`), so the next best follow-up is to run the same crate checks in a host with a working Windows GNU or compatible toolchain.
@@ -8592,7 +8592,7 @@ Windows setup was restored from `D:\Kain-Lang` using the root installer with LLV
 
 What changed:
 
-- Repaired `crates/kain-3D` workspace build drift by re-exporting `SceneResolution`, `SceneResolutionKind`, and `SceneCatalogSummary`, adding `Vec3::normalized_or` to match the existing `Vec2` fallback-normalization API, and making catalog entry composition diagnostics sample time explicitly at `0.0`.
+- Repaired `crates/3d` workspace build drift by re-exporting `SceneResolution`, `SceneResolutionKind`, and `SceneCatalogSummary`, adding `Vec3::normalized_or` to match the existing `Vec2` fallback-normalization API, and making catalog entry composition diagnostics sample time explicitly at `0.0`.
 - Promoted `camera_fit_ratio` into `SceneCompositionDiagnostics` so `material_atrium_smoke` can serialize the same composition payload truth that frame diagnostics already carry.
 - Updated the `material_atrium_smoke` composition payload test to the current live scene metadata: `world-scale`, `volumetric`, `staged-volume`, `instance-led`, and `dense`.
 
@@ -8611,11 +8611,11 @@ Current risks:
 
 # 2026-05-11 - Kain 3D hardcoded demo cleanup
 
-`crates/kain-3D` no longer owns built-in showcase/demo scenes. `SceneCatalog` is now explicit data: callers construct it with authored `SceneDescription` values and optional aliases, while `SceneCatalog::empty()` is the honest no-scene host fallback. The old embedded catalog, terrain/black-hole special cases, and demo-specific frame diagnostics were removed so Kain source, realtime bundles, or assets own scene identity.
+`crates/3d` no longer owns built-in showcase/demo scenes. `SceneCatalog` is now explicit data: callers construct it with authored `SceneDescription` values and optional aliases, while `SceneCatalog::empty()` is the honest no-scene host fallback. The old embedded catalog, terrain/black-hole special cases, and demo-specific frame diagnostics were removed so Kain source, realtime bundles, or assets own scene identity.
 
 The Win32 native viewport now carries one neutral `default_viewport` fallback profile and a generic fallback draw path. Raw native labs that need a fallback profile should set `KAIN_NATIVE_SCENE_PROFILE=default_viewport`; authored viewport scenes should still travel through Kain UI/runtime bundle data such as `geometry_fixture`.
 
-The 3D smoke binary is now `generic_scene_smoke` and the package disables Cargo auto-bin discovery so the legacy demo-named local file is not part of the crate surface. The local filesystem ACL prevented deleting/renaming that old file in place, so future cleanup may need an elevated shell to physically remove it from this checkout; the intended repo path is `crates/kain-3D/src/bin/generic_scene_smoke.rs`.
+The 3D smoke binary is now `generic_scene_smoke` and the package disables Cargo auto-bin discovery so the legacy demo-named local file is not part of the crate surface. The local filesystem ACL prevented deleting/renaming that old file in place, so future cleanup may need an elevated shell to physically remove it from this checkout; the intended repo path is `crates/3d/src/bin/generic_scene_smoke.rs`.
 
 Validation:
 
@@ -8720,7 +8720,7 @@ The zero-copy binary wire and array-scan benchmark gaps were real compiler/runti
 
 Proof and validation:
 
-- Added `crates/kain-sys-codegen/z3/proofs-experimental/packed_wire_fixed_array_hotpath.smt2`.
+- Added `crates/sys-codegen/z3/proofs-experimental/packed_wire_fixed_array_hotpath.smt2`.
 - Z3 MCP report `z3/reports/20260517T123050Z-sys_codegen_packed_wire_fixed_array_hotpath_file.json` returned `unsat`, proving no counterexample for the modeled power-of-two div/rem rewrite, packed header roundtrip, or 64-packet fixed-buffer bounds.
 - `cargo check -p kain-sys-codegen` passes.
 - `cargo build -p cli --bin kain` passes; repo-wide warnings are pre-existing/noisy.
@@ -8747,7 +8747,7 @@ Kain now has a generated native/LLVM stdlib map so agents do not need training-d
 
 What changed:
 
-- Added `crates/kain-stdlib-map`, the generator behind `kain stdlib-map`.
+- Added `crates/stdlib-map`, the generator behind `kain stdlib-map`.
 - The generator emits:
   - `stdlib/stdlib.map.json`
   - `stdlib/STDLIB_MAP.llm.md`
@@ -8781,12 +8781,12 @@ Durable notes:
 
 What changed:
 
-- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`
+- `crates/sys-codegen/src/codegen_llvm/mod.rs`
   - Added a structural loop scan over blocks / statements / expressions so string parameter caching only activates when a parameter is genuinely loop-carried.
   - Added `prime_string_param_length_cache(...)` and wired it into named callables plus methods, using a single entry-time `call i64 @len(i8* ...)` for eligible string params.
-- `crates/kain-sys-codegen/tests/llvm_codegen_test.rs`
+- `crates/sys-codegen/tests/llvm_codegen_test.rs`
   - Added `llvm_hoists_loop_carried_string_param_lengths_out_of_loop_bodies`.
-- `crates/kain-sys-codegen/z3/proofs-experimental/string-param-loop-length-cache-valid-under-reassign-guard.smt2`
+- `crates/sys-codegen/z3/proofs-experimental/string-param-loop-length-cache-valid-under-reassign-guard.smt2`
   - Captures the reassignment guard model for the hoisted cache.
 - `research/2026-05-18-string-ops-loop-length-hoist.md`
 - `benchmark/assesments/2026-05-18-string-ops-hoist-latest-benchmark-assessment.md`
@@ -8794,7 +8794,7 @@ What changed:
 Proof and validation:
 
 - `z3/reports/20260518T161321Z-llvm-string-param-loop-length-cache-guard.json` -> `unsat`
-- `crates/kain-sys-codegen/z3/reports/20260518T161322Z-llvm-string-param-loop-len-hoist.json` -> full proof pack stayed green
+- `crates/sys-codegen/z3/reports/20260518T161322Z-llvm-string-param-loop-len-hoist.json` -> full proof pack stayed green
 - `bazel build //:kain --config=release`
 - `cargo test -p kain-sys-codegen llvm_hoists_loop_carried_string_param_lengths_out_of_loop_bodies -- --nocapture`
 - Focused benchmark:
@@ -8848,7 +8848,7 @@ The next compiler-owned benchmark wound after the typed helper-pointer memory wi
 
 What changed:
 
-- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`
+- `crates/sys-codegen/src/codegen_llvm/mod.rs`
   - Supported 1/2/4/8-byte single-cell ephemeral helper allocations now lower to typed scalar allocas (`i8` / `i16` / `i32` / `i64`) instead of `[N x i8]`.
   - The ephemeral witness now carries storage type plus guaranteed alignment.
   - `compile_ephemeral_storage_i8_pointer(...)` preserves the old `i8*` view through reversible bitcasts, so the scalar lane stays observationally compatible with the earlier byte-lane lowering.
@@ -8858,10 +8858,10 @@ What changed:
   - `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_keeps_ephemeral_zero_init_when_first_use_is_read -- --nocapture`
   - Both PASS.
 - Proofs:
-  - `crates/kain-sys-codegen/z3/proofs-experimental/ownership-ephemeral-single-cell-scalar-storage-preserves-byte-lane.smt2`
+  - `crates/sys-codegen/z3/proofs-experimental/ownership-ephemeral-single-cell-scalar-storage-preserves-byte-lane.smt2`
   - `z3/reports/20260519T011925Z-ownership_ephemeral_single_cell_scalar_storage_preserves_byte_lane.json` -> `unsat`
-  - `crates/kain-sys-codegen/z3/proofs/memory-ephemeral-single-cell-scalar-storage-preserves-byte-lane-observation.yaml`
-  - `crates/kain-sys-codegen/z3/reports/20260519T011933Z-kain_sys_codegen_memory_lane_post_scalar_ephemeral.json` -> `9 proved, 0 counterexamples, 0 unknown, 0 errors`
+  - `crates/sys-codegen/z3/proofs/memory-ephemeral-single-cell-scalar-storage-preserves-byte-lane-observation.yaml`
+  - `crates/sys-codegen/z3/reports/20260519T011933Z-kain_sys_codegen_memory_lane_post_scalar_ephemeral.json` -> `9 proved, 0 counterexamples, 0 unknown, 0 errors`
 
 Measured impact:
 
@@ -8932,10 +8932,10 @@ The `StringIntMap shadows an existing type symbol` failure was a real compiler/t
 
 What changed:
 
-- `crates/kain-core/src/types.rs`
+- `crates/core/src/types.rs`
   - Preserves the stdlib registration guard and same-declaration check for idempotent stdlib/native extern re-registration.
   - Added `typecheck_real_stdlib_runtime_declarations_do_not_self_collide` over the actual `stdlib/runtime.kn` source so wrapper/extern declarations cannot regress into self-shadowing.
-- `crates/kain-driver/src/lib.rs`
+- `crates/driver/src/lib.rs`
   - `FrontendImportCollector::collect_target_stdlib_prelude` now canonicalizes ambient stdlib module paths and skips the module when it is already the entry file.
   - Added `frontend_bundle_does_not_duplicate_ambient_stdlib_entry_file`, proving `kain check stdlib/runtime.kn --target llvm` bundles `stdlib/runtime.kn` once.
 - `smoketest/src/gpu/compute.kn`
@@ -8975,11 +8975,11 @@ The phase-4/5 systems pass originally landed `@thread_local` plus `@section`, bu
 
 What changed:
 
-- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`
+- `crates/sys-codegen/src/codegen_llvm/mod.rs`
   - Added `windows_tls_subsection_is_live(...)`, `normalize_windows_tls_section_name_for_coff(...)`, and `const_section_name(...)`.
   - Windows `@thread_local` const globals now normalize unsafe authored TLS sections into a stable `.tls$KAIN...` subsection band that sorts before the CRT `.tls$ZZZ` terminator.
   - Exact expert-authored subsections are still preserved when they already live inside the initialized TLS range, e.g. `.tls$B`.
-- `crates/kain-sys-codegen/tests/llvm_codegen_test.rs`
+- `crates/sys-codegen/tests/llvm_codegen_test.rs`
   - Expanded `llvm_lowers_systems_abi_control_attributes` to cover four real edge cases:
     - `.tls`
     - `.tls.kain.smoke`
@@ -8988,7 +8988,7 @@ What changed:
 - `smoketest/src/systems/abi_control.kn`
   - Rejoined the combined systems surface instead of the earlier bypass.
   - The lane now validates four live TLS forms plus section/link-name/callconv together inside the full smoketest album.
-- `crates/kain-sys-codegen/z3/proofs/control-windows-custom-tls-prefix-sorts-before-crt-terminator.yaml`
+- `crates/sys-codegen/z3/proofs/control-windows-custom-tls-prefix-sorts-before-crt-terminator.yaml`
   - Added a proof breadcrumb for the COFF ordering rule behind the `.tls$KAIN...` canonical prefix.
 
 Why this matters:
@@ -9053,7 +9053,7 @@ Follow-up to the earlier `PARTIAL` note: `std::json` is now fully closed. The bu
 
 What changed:
 
-- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`
+- `crates/sys-codegen/src/codegen_llvm/mod.rs`
   - taught generic direct-call lowering to preserve JSON tags for string/bool/float/object/array value lanes
   - tracked JSON-carrying params and returns so ordinary helper wrappers stop flattening live JSON values into raw `i64`
   - retained owned JSON handles across `return` cleanup before scope release
@@ -9067,8 +9067,8 @@ What changed:
 Proof + validation:
 
 - Z3 proofs:
-  - `crates/kain-sys-codegen/z3/proofs/json_any_tag_partition.smt2`
-  - `crates/kain-sys-codegen/z3/proofs/json_owned_return_transfer.smt2`
+  - `crates/sys-codegen/z3/proofs/json_any_tag_partition.smt2`
+  - `crates/sys-codegen/z3/proofs/json_owned_return_transfer.smt2`
   - both produced `unsat` reports under `z3/reports/20260524T012653Z-*`
 - Old broken behavior still has a saved `sat` witness in `z3/reports/20260524T012706Z-json-old-return-transfer-counterexample.json`
 - Focused runtime checks now pass:

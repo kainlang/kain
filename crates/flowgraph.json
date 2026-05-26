@@ -171,13 +171,13 @@
       "id": "file_kain_ui_native_src_main_rs",
       "label": "kain-ui-native/src/main.rs",
       "kind": "file",
-      "path": "M:\\Code\\Kain\\crates\\kain-ui-native\\src\\main.rs"
+      "path": "M:\\Code\\Kain\\crates\\ui-native\\src\\main.rs"
     },
     {
       "id": "file_kain_fast3d_runtime_src_main_rs",
       "label": "kain-fast3d-runtime/src/main.rs",
       "kind": "file",
-      "path": "M:\\Code\\Kain\\crates\\kain-fast3d-runtime\\src\\main.rs"
+      "path": "M:\\Code\\Kain\\crates\\fast3d-runtime\\src\\main.rs"
     },
     {
       "id": "file_cli_src_main_rs",

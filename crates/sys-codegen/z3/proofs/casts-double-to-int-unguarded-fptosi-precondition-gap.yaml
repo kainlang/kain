@@ -1,0 +1,31 @@
+version: 1
+id: kain.sys.codegen.llvm.proofs.casts_double_to_int_unguarded_fptosi_precondition_gap
+kind: check_smt2
+description: Multiple LLVM lowering sites emit raw `fptosi double` without guarding
+  the operand into the signed target domain. The solver finds legal double values
+  such as +infinity that violate LLVM's `fptosi` precondition immediately.
+tags:
+- llvm
+- casts
+- float
+- int
+- fptosi
+- ub
+- miscompile
+source:
+  path: D:\Kain-Lang\crates\sys-codegen\src\codegen_llvm\mod.rs
+  symbol: cast_numeric_value
+  start_line: 8776
+  reason: the shared numeric cast helper and sibling helpers such as `coerce_to_i64_storage`,
+    `stringify_value`, `compile_numeric_floor_builtin`, and integer `pow` lowering
+    all emit raw `fptosi double` with no explicit domain guard
+case:
+  smt2: "(set-logic QF_FP)\n(declare-const x (_ FloatingPoint 11 53))\n(define-fun\
+    \ min_i64 () (_ FloatingPoint 11 53) ((_ to_fp 11 53) RNE (- 9223372036854775808.0)))\n\
+    (define-fun max_i64_exclusive () (_ FloatingPoint 11 53) ((_ to_fp 11 53) RNE\
+    \ 9223372036854775808.0))\n(define-fun llvm_fptosi_defined () Bool\n  (and (not\
+    \ (fp.isNaN x))\n       (not (fp.isInfinite x))\n       (fp.geq x min_i64)\n \
+    \      (fp.lt x max_i64_exclusive)))\n(assert (not llvm_fptosi_defined))\n(check-sat)\n\
+    (get-model)\n"
+  include_model: true
+  include_stats: false

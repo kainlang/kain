@@ -69,7 +69,7 @@ Can a fresh helper-owned non-escaping Kain cell used only by alloc -> collapse(s
 1. `runtime/native/src/core/z3/proofs-experimental/helper-abi-single-int-cell-requires-one-element-count.smt2`
    - status: `unsat`
    - claim: in the bounded benchmark-style domain, the only element count that yields one `Int` payload is `1`.
-2. `crates/kain-sys-codegen/z3/proofs-experimental/ownership-ephemeral-cell-store-load-decay-erases-to-ssa.smt2`
+2. `crates/sys-codegen/z3/proofs-experimental/ownership-ephemeral-cell-store-load-decay-erases-to-ssa.smt2`
    - status: `unsat`
    - claim: under fresh, non-escaping, single-store, no-alias preconditions, the observed value and final decayed state match scalar SSA erasure.
 
@@ -84,7 +84,7 @@ Can a fresh helper-owned non-escaping Kain cell used only by alloc -> collapse(s
   - `runtime/native/include/kain_runtime_memory.h`
   - `runtime/native/src/core/kain_runtime_memory.c`
   - `runtime/native/src/core/kain_runtime_ownership.c`
-  - `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`
+  - `crates/sys-codegen/src/codegen_llvm/mod.rs`
 - External:
   - None. This branch is repo-internal and proof-backed.
 

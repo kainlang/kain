@@ -243,7 +243,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output",
         type=Path,
-        default=Path("crates/kain-import/src/typescript/data/typescript_ambient_manifest.json"),
+        default=Path("crates/import/src/typescript/data/typescript_ambient_manifest.json"),
         help="Manifest JSON path embedded by the Rust importer.",
     )
     return parser.parse_args()

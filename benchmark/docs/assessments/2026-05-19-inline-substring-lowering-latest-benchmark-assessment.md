@@ -7,7 +7,7 @@ removing runtime wrapper/helper-call overhead from the hot `string_ops` path.
 
 What landed:
 
-- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`
+- `crates/sys-codegen/src/codegen_llvm/mod.rs`
   - Added `expr_static_string_bytes(...)`.
   - Added `compile_known_length_find_substring_inline(...)`.
   - Retargeted both `find_substring_from` fast-path lowering and canonical
@@ -16,10 +16,10 @@ What landed:
     mandatory `memcmp`.
   - Requires the recognized helper signature to be `String, String, Int -> Int`
     before the call-site bypass can fire.
-- `crates/kain-sys-codegen/tests/llvm_codegen_test.rs`
+- `crates/sys-codegen/tests/llvm_codegen_test.rs`
   - Updated substring fast-path tests to assert inline `memchr`/`memcmp`
     lowering rather than a runtime wrapper call.
-- `crates/kain-sys-codegen/z3/proofs/control-inline-known-string-find-substring-window-stays-in-bounds.yaml`
+- `crates/sys-codegen/z3/proofs/control-inline-known-string-find-substring-window-stays-in-bounds.yaml`
   - Added a durable proof case for the `search_window` and `next_remaining`
     arithmetic used by the inline search loop.
 - `benchmark/benchmarks.json`

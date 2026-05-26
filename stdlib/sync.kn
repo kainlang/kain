@@ -105,7 +105,7 @@ fn sync_clamp_channel_capacity(capacity: Int) -> Int:
 
 pub fn teleport_channel_new(capacity: Int) -> TeleportChannel:
     let requested_capacity = sync_clamp_channel_capacity(capacity)
-    # Proof: crates/kain-core/z3/proofs/stdlib-sync-teleport-channel-index-bounds.yaml
+    # Proof: crates/core/z3/proofs/stdlib-sync-teleport-channel-index-bounds.yaml
     let safe_capacity = requested_capacity + TELEPORT_CHANNEL_PADDING_SLOTS
     let buffer = alloc_zeroed(safe_capacity, "Int")
     let control = alloc_zeroed(TELEPORT_CHANNEL_CONTROL_WORDS, "Int")
@@ -222,7 +222,7 @@ pub fn wait_group_count(wg: WaitGroup) -> Int with Unsafe:
     return atomic_load_acquire(wg.counter)
 
 pub fn wait_group_add(wg: WaitGroup, delta: Int) -> Int with Unsafe:
-    # Proof: crates/kain-core/z3/proofs/stdlib-sync-wait-group-counter-stays-in-range.yaml
+    # Proof: crates/core/z3/proofs/stdlib-sync-wait-group-counter-stays-in-range.yaml
     while true:
         let current = atomic_load_acquire(wg.counter)
         let status = wait_group_delta_status(current, delta)

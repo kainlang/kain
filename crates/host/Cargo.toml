@@ -1,0 +1,31 @@
+[package]
+name = "kain-host"
+version = "0.1.0"
+edition = "2021"
+description = "Native Rust host runtime for calling KAIN and exposing Rust functions to KAIN"
+license = "MIT"
+
+[features]
+default = ["derive"]
+derive = ["dep:kain-host-derive"]
+
+[dependencies]
+blade = { path = "../blades" }
+kain-c-ffi = { path = "../c-ffi" }
+kain-codebase = { path = "../codebase" }
+kain-crate-ffi = { path = "../crate-ffi" }
+kain-core = { path = "../core" }
+kain-driver = { path = "../driver", default-features = false }
+kain-fs = { path = "../fs" }
+kain-interop = { path = "../interop" }
+kain-node = { path = "../node" }
+kain-python = { path = "../python" }
+kain-host-derive = { path = "../host-derive", optional = true }
+kain-omni = { path = "../omni", default-features = false }
+kain-gpu-runtime = { path = "../gpu-runtime" }
+kain-reflect = { path = "../reflect" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+[dev-dependencies]
+tempfile = "3.8"

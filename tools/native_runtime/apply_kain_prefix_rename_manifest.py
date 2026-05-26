@@ -34,9 +34,9 @@ TEXT_EXTENSIONS = {
 DEFAULT_ROOTS = (
     "runtime",
     "stdlib",
-    "crates/kain-sys-codegen",
+    "crates/sys-codegen",
     "crates/cli",
-    "crates/kain-build",
+    "crates/build",
     "tools",
     "blades",
 )

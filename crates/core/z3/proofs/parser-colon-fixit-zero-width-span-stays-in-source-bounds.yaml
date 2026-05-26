@@ -1,0 +1,40 @@
+version: 1
+id: kain.core.proofs.parser_colon_fixit_zero_width_span_stays_in_source_bounds
+kind: range_check
+description: The missing-colon parser diagnostic emits a zero-width fix-it at
+  header_span.end. Because parser token spans are inside the source, the insertion
+  point remains within the source bounds.
+tags:
+- parser
+- diagnostics
+- fixit
+- bounds
+source:
+  path: D:\Kain-Lang\crates\core\src\parser.rs
+  symbol: expect
+  start_line: 6277
+  reason: the colon fix-it uses Span::new(header_span.end, header_span.end)
+case:
+  declarations:
+  - name: header_end
+    sort:
+      kind: int
+  - name: source_len
+    sort:
+      kind: int
+  constraints:
+  - op: ge
+    args:
+    - source_len
+    - 0
+  - op: ge
+    args:
+    - header_end
+    - 0
+  - op: le
+    args:
+    - header_end
+    - source_len
+  expression: header_end
+  lower: 0
+  upper: source_len

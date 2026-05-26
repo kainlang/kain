@@ -30,7 +30,7 @@ rust_library(
     edition = "2021",
     aliases = aliases(),
     deps = [
-        "//crates/kain-core:kain-core",
+        "//crates/core:kain-core",
         "//crates/ue5-shaders:ue5-shaders",
     ] + all_crate_deps(normal = True),
     proc_macro_deps = all_crate_deps(proc_macro = True),
@@ -55,7 +55,7 @@ rust_test(
     aliases = aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
     deps = [
         ":ue5",
-        "//crates/kain-core:kain-core",
+        "//crates/core:kain-core",
         "//crates/ue5-shaders:ue5-shaders",
     ] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
@@ -74,7 +74,7 @@ rust_test(
     aliases = aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
     deps = [
         ":ue5",
-        "//crates/kain-core:kain-core",
+        "//crates/core:kain-core",
         "//crates/ue5-shaders:ue5-shaders",
     ] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
@@ -93,7 +93,7 @@ rust_test(
     aliases = aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
     deps = [
         ":ue5",
-        "//crates/kain-core:kain-core",
+        "//crates/core:kain-core",
         "//crates/ue5-shaders:ue5-shaders",
     ] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
@@ -112,7 +112,7 @@ rust_test(
     aliases = aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
     deps = [
         ":ue5",
-        "//crates/kain-core:kain-core",
+        "//crates/core:kain-core",
         "//crates/ue5-shaders:ue5-shaders",
     ] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
@@ -131,7 +131,7 @@ rust_test(
     aliases = aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
     deps = [
         ":ue5",
-        "//crates/kain-core:kain-core",
+        "//crates/core:kain-core",
         "//crates/ue5-shaders:ue5-shaders",
     ] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
@@ -150,7 +150,7 @@ rust_test(
     aliases = aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
     deps = [
         ":ue5",
-        "//crates/kain-core:kain-core",
+        "//crates/core:kain-core",
         "//crates/ue5-shaders:ue5-shaders",
     ] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
@@ -169,7 +169,7 @@ rust_test(
     aliases = aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
     deps = [
         ":ue5",
-        "//crates/kain-core:kain-core",
+        "//crates/core:kain-core",
         "//crates/ue5-shaders:ue5-shaders",
     ] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),

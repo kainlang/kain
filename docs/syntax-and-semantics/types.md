@@ -1,6 +1,6 @@
 # Types
 
-This is the type-form inventory from `crates/kain-core/src/ast.rs` and the
+This is the type-form inventory from `crates/core/src/ast.rs` and the
 layout-sensitive type system that sits behind it.
 
 ## Language Type Forms
@@ -35,12 +35,12 @@ That matters for lowering, diagnostics, and native ABI work.
 
 ## Typechecker And Layout
 
-The typechecker in `crates/kain-core/src/types.rs` resolves concrete forms and
+The typechecker in `crates/core/src/types.rs` resolves concrete forms and
 feeds the memory and ABI layers. The low-level memory pipeline then uses:
 
 - `ResolvedType` and target-specific size/alignment rules
-- C ABI policy selection from `crates/kain-core/src/low_level_abi.rs`
-- struct and union layout tracking from `crates/kain-core/src/low_level_memory.rs`
+- C ABI policy selection from `crates/core/src/low_level_abi.rs`
+- struct and union layout tracking from `crates/core/src/low_level_memory.rs`
 
 ## Practical Rule
 

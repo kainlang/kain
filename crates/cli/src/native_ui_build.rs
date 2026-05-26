@@ -758,7 +758,7 @@ component App():
     fn explicit_runtime_path_is_rebased_relative_to_project() {
         let temp = TempDir::new().expect("temp dir");
         let project_dir = temp.path().join("build").join("app");
-        let runtime_dir = temp.path().join("vendor").join("kain-ui-native");
+        let runtime_dir = temp.path().join("vendor").join("ui-native");
 
         let dependency = resolve_runtime_dependency(
             &project_dir,
@@ -773,7 +773,7 @@ component App():
                 PathBuf::from("..")
                     .join("..")
                     .join("vendor")
-                    .join("kain-ui-native")
+                    .join("ui-native")
             )
         );
     }

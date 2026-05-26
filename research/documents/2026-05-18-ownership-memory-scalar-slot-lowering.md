@@ -64,10 +64,10 @@ Can Kain close the remaining `ownership_memory` gap by changing the erased singl
 ## Evidence And Sources
 
 - Local:
-  - `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`
-  - `crates/kain-sys-codegen/tests/llvm_codegen_test.rs`
-  - `crates/kain-sys-codegen/z3/proofs-experimental/ownership-ephemeral-single-cell-scalar-storage-preserves-byte-lane.smt2`
-  - `crates/kain-sys-codegen/z3/proofs/memory-ephemeral-single-cell-scalar-storage-preserves-byte-lane-observation.yaml`
+  - `crates/sys-codegen/src/codegen_llvm/mod.rs`
+  - `crates/sys-codegen/tests/llvm_codegen_test.rs`
+  - `crates/sys-codegen/z3/proofs-experimental/ownership-ephemeral-single-cell-scalar-storage-preserves-byte-lane.smt2`
+  - `crates/sys-codegen/z3/proofs/memory-ephemeral-single-cell-scalar-storage-preserves-byte-lane-observation.yaml`
   - `benchmark/out/reports/latest_ownership_memory_scalar_ephemeral.llm.md`
   - `benchmark/out/reports/latest.llm.md`
   - `benchmark/out/reports/latest_scalar_ephemeral_regression_sanity.llm.md`

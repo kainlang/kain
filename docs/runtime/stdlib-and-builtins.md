@@ -2,8 +2,8 @@
 
 Kain has two related builtin layers:
 
-1. the source-loaded stdlib registry in `crates/kain-core/src/stdlib.rs`
-2. the runtime-native function registry in `crates/kain-core/src/runtime.rs`
+1. the source-loaded stdlib registry in `crates/core/src/stdlib.rs`
+2. the runtime-native function registry in `crates/core/src/runtime.rs`
 
 They overlap, but they are not the same thing.
 
@@ -11,9 +11,9 @@ They overlap, but they are not the same thing.
 
 | Family | Source file | What it means |
 | --- | --- | --- |
-| Source-loaded stdlib registry | `crates/kain-core/src/stdlib.rs` | Helpers loaded from stdlib roots and profiles before execution |
-| Runtime-native function registry | `crates/kain-core/src/runtime.rs` | Helpers registered directly on the interpreter/runtime surface |
-| Loader and profile selection | `crates/kain-core/src/stdlib.rs`, `crates/kain-core/src/runtime.rs` | Search paths and profile resolution for the stdlib layer |
+| Source-loaded stdlib registry | `crates/core/src/stdlib.rs` | Helpers loaded from stdlib roots and profiles before execution |
+| Runtime-native function registry | `crates/core/src/runtime.rs` | Helpers registered directly on the interpreter/runtime surface |
+| Loader and profile selection | `crates/core/src/stdlib.rs`, `crates/core/src/runtime.rs` | Search paths and profile resolution for the stdlib layer |
 
 ## Stdlib Loader
 
@@ -24,7 +24,7 @@ The stdlib loader searches in this order:
 3. a workspace `stdlib/`
 
 It also respects `KAIN_STDLIB_PROFILE`, and otherwise uses target profiles
-defined in `crates/kain-core/src/stdlib.rs`.
+defined in `crates/core/src/stdlib.rs`.
 
 For `CompileTarget::Llvm` and `CompileTarget::C`, the practical surface is the
 same root `stdlib/*` profile used by authored `std.*` imports, with

@@ -46,7 +46,7 @@ Which latest benchmark frontier yields the biggest honest Kain win next?
 
 ## Z3 Claims
 
-1. `crates/kain-sys-codegen/z3/proofs-experimental/shatter-stack-slot-span.smt2` asks whether any valid closed-lane slot access with width <= 8 can overrun the stack lane span. Result: `unsat`.
+1. `crates/sys-codegen/z3/proofs-experimental/shatter-stack-slot-span.smt2` asks whether any valid closed-lane slot access with width <= 8 can overrun the stack lane span. Result: `unsat`.
 2. The solver result is enough for the landed transform because separate lanes use separate allocas; the only new arithmetic claim is per-lane slot span safety.
 
 ## Evidence And Sources
@@ -54,8 +54,8 @@ Which latest benchmark frontier yields the biggest honest Kain win next?
 - Local:
   - `benchmark/latest.md` and `benchmark/out/reports/latest.llm.md` before the pass showed `machine_stones_shatter_loop` as the worst honest implemented ratio loss and `http_server_concurrency` as the biggest absolute delta.
   - `benchmark/cases/machine_stones_shatter_loop/main.kn`
-  - `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`
-  - `crates/kain-sys-codegen/tests/llvm_codegen_test.rs`
+  - `crates/sys-codegen/src/codegen_llvm/mod.rs`
+  - `crates/sys-codegen/tests/llvm_codegen_test.rs`
   - `benchmark/out/build/machine_stones_shatter_loop/kain/machine_stones_shatter_loop.ll` before the pass showed `kain_machine_shatter_alloc` / `kain_machine_shatter_lane_base` still present for a tiny fixed local literal.
   - Focused retake after the pass: `benchmark/latest.md` generated `2026-05-20T02:16:21.084251+00:00` with `machine_stones_shatter_loop` Kain `12.797 ms`, Rust `13.332 ms`, C++ `13.232 ms`.
   - Full-suite refresh after the pass: `benchmark/latest.md` generated `2026-05-20T02:19:06.967886+00:00`, status `PASS`.
@@ -69,7 +69,7 @@ Which latest benchmark frontier yields the biggest honest Kain win next?
 
 ## Conclusion
 
-Landed the unconventional lane. Closed local `shatter struct` array literals now lower to stack-backed SoA lane buffers in LLVM when the remaining block stays in len/field-projection form. The proof artifact is `crates/kain-sys-codegen/z3/proofs-experimental/shatter-stack-slot-span.smt2`, checked `unsat`.
+Landed the unconventional lane. Closed local `shatter struct` array literals now lower to stack-backed SoA lane buffers in LLVM when the remaining block stays in len/field-projection form. The proof artifact is `crates/sys-codegen/z3/proofs-experimental/shatter-stack-slot-span.smt2`, checked `unsat`.
 
 The focused benchmark flipped `machine_stones_shatter_loop` from the previous Kain loss (`19.082 ms` in the prior canonical snapshot) to a clean Kain win at `12.797 ms` versus Rust `13.332 ms` and C++ `13.232 ms`. The canonical full suite stayed green and now reports `machine_stones_shatter_loop` as an effective tie (`13.765 ms` Kain vs `13.742 ms` C++) with one large Kain outlier sample, so the speedup is real but the row is now noise-sensitive instead of structurally behind.
 

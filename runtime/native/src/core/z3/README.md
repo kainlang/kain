@@ -19,7 +19,7 @@ Use this pack for small, sharp proof obligations that future agents should be ab
 - low-level native runtime allocation and pointer-address arithmetic that protects Kain ABI contracts
 - native ownership observer, decay/free, and realloc registry invariants for `collapse`, `observe`, and `decay`
 
-The pack intentionally lives under `runtime/native/src/core/z3` because the first proof targets are the low-level C ABI floor. Treat these as runtime substrate proofs for Kain-owned semantics: they protect the native execution lane without moving language meaning out of `crates/kain-core`, `crates/kain-actor`, or authored `.kn` stdlib surfaces.
+The pack intentionally lives under `runtime/native/src/core/z3` because the first proof targets are the low-level C ABI floor. Treat these as runtime substrate proofs for Kain-owned semantics: they protect the native execution lane without moving language meaning out of `crates/core`, `crates/actor`, or authored `.kn` stdlib surfaces.
 
 Common commands:
 

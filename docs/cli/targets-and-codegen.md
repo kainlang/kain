@@ -89,13 +89,13 @@ Keep those workflows separate when you document or debug them.
 
 ## Source Files To Consult
 
-- `crates/kain-core/src/lib.rs`
-- `crates/kain-driver/src/lib.rs`
+- `crates/core/src/lib.rs`
+- `crates/driver/src/lib.rs`
 - `crates/cli/src/main.rs`
-- `crates/kain-sys-codegen/src/codegen_c.rs`
+- `crates/sys-codegen/src/codegen_c.rs`
 - `crates/cli/src/native_ui_build.rs`
 - `crates/cli/src/packager/`
-- `crates/kain-script/src/codegen_ks.rs`
+- `crates/script/src/codegen_ks.rs`
 
 ## Practical Rule
 

@@ -4,13 +4,13 @@ The latest full multi-language snapshot before this pass (`benchmark/latest.md` 
 
 What landed:
 
-- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`
+- `crates/sys-codegen/src/codegen_llvm/mod.rs`
   - `ownership_pointer_provenance_for_expr(...)` now propagates helper-owned provenance through `PtrOffset` and canonical `__kain_ptr_offset` / `__kain_index_ptr` surfaces.
   - Added `compile_non_ephemeral_typed_memory_pointer(...)`, which lowers helper-owned typed accesses to `getelementptr <ty>` plus the strongest honest alignment instead of round-tripping through byte-addressed `i64` math for every `mem_load` / `mem_store`.
   - `Expr::PtrOffset` now uses the same power-of-two shift strength reduction as the raw helper path when the offset is proven non-negative.
-- `crates/kain-sys-codegen/tests/llvm_codegen_test.rs`
+- `crates/sys-codegen/tests/llvm_codegen_test.rs`
   - Added `llvm_uses_typed_gep_and_natural_alignment_for_helper_owned_ptr_offset_accesses`.
-- `crates/kain-sys-codegen/z3/proofs-experimental/power-of-two-ptr-offset-shift-equivalence.smt2`
+- `crates/sys-codegen/z3/proofs-experimental/power-of-two-ptr-offset-shift-equivalence.smt2`
   - Proves `offset * 8 == offset << 3` on the bounded non-negative 64-bit domain used by the strength reduction.
 - `research/2026-05-18-typed-pointer-memory-lowering.md`
   - Captures the research lattice, rejected benchmark-cheat route, and measured result.

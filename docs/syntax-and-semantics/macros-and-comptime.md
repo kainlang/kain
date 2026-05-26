@@ -39,7 +39,7 @@ The shader pipeline recognizes `compute` or `compute_plan` bindings inside a
 - neural node plans
 
 The default compute tensor and stream contract strings live in
-`crates/kain-core/src/ast.rs`.
+`crates/core/src/ast.rs`.
 
 ## Practical Rule
 

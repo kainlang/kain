@@ -1,0 +1,23 @@
+version: 1
+id: kain.sys.codegen.llvm.proofs.control_final_expression_return_beats_fallback_unreachable
+kind: check_smt2
+description: Non-void callable lowering must emit `ret <ty> <value>` when a
+  block's final expression yields a value. This prevents expression-bodied match
+  functions from falling through to the fallback `unreachable`, which optimized
+  benchmark-release builds lower to an `int3` trap.
+tags:
+- llvm
+- control
+- match
+- return
+- cfg
+source:
+  path: D:\Kain-Lang\crates\sys-codegen\src\codegen_llvm\mod.rs
+  symbol: compile_named_callable
+  start_line: 6293
+  reason: compile_named_callable now consumes compile_block_with_result and
+    emits a typed return before the non-main fallback unreachable path.
+case:
+  smt2: "(set-logic QF_LIA)\n(declare-const block_has_final_expression Int)\n(declare-const return_type_is_non_void Int)\n(declare-const compile_block_with_result_used Int)\n(declare-const final_result_emits_ret Int)\n(assert (= block_has_final_expression 1))\n(assert (= return_type_is_non_void 1))\n(assert (= compile_block_with_result_used 1))\n(assert (= final_result_emits_ret (ite (and (= block_has_final_expression 1) (= return_type_is_non_void 1) (= compile_block_with_result_used 1)) 1 0)))\n(define-fun falls_to_fallback_unreachable () Int\n  (ite (and (= block_has_final_expression 1) (= return_type_is_non_void 1) (= final_result_emits_ret 0)) 1 0))\n(assert (= falls_to_fallback_unreachable 1))\n(check-sat)"
+  include_model: false
+  include_stats: false

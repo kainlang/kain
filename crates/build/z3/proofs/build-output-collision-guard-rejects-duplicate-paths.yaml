@@ -1,0 +1,27 @@
+version: 1
+id: kain.build.proofs.build_output_collision_guard_rejects_duplicate_paths
+kind: check_smt2
+description: validate_plan_safety accepts a task-output set only when no two distinct tasks resolve to the same stable output key.
+tags:
+- build
+- graph
+- outputs
+- collision
+source:
+  path: D:\Kain-Lang\crates\build\src\workspace.rs
+  symbol: validate_plan_safety
+  start_line: 2609
+  reason: the output map rejects a second task that inserts an already-seen stable path key
+case:
+  smt2: |
+    (set-logic ALL)
+    (declare-const task_a Int)
+    (declare-const task_b Int)
+    (declare-const output_a Int)
+    (declare-const output_b Int)
+    (define-fun distinct_tasks () Bool (not (= task_a task_b)))
+    (define-fun guard_accepts_second_output () Bool (not (= output_a output_b)))
+    (assert (and distinct_tasks guard_accepts_second_output (= output_a output_b)))
+    (check-sat)
+  include_model: false
+  include_stats: false

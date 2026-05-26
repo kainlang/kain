@@ -30,7 +30,7 @@ rust_library(
     edition = "2021",
     aliases = aliases(),
     deps = [
-        "//crates/kain-core:kain-core",
+        "//crates/core:kain-core",
         "//crates/ue5-asset-utils:ue5-asset-utils",
         "//crates/unreal/unreal_asset:unreal_asset",
         "//crates/unreal/unreal_asset_base:unreal_asset_base",
@@ -59,7 +59,7 @@ rust_binary(
     aliases = aliases(),
     deps = [
         ":ue5-materials",
-        "//crates/kain-core:kain-core",
+        "//crates/core:kain-core",
         "//crates/ue5-asset-utils:ue5-asset-utils",
         "//crates/unreal/unreal_asset:unreal_asset",
         "//crates/unreal/unreal_asset_base:unreal_asset_base",
@@ -79,7 +79,7 @@ rust_test(
     aliases = aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
     deps = [
         ":ue5-materials",
-        "//crates/kain-core:kain-core",
+        "//crates/core:kain-core",
         "//crates/ue5-asset-utils:ue5-asset-utils",
         "//crates/unreal/unreal_asset:unreal_asset",
         "//crates/unreal/unreal_asset_base:unreal_asset_base",

@@ -1,0 +1,101 @@
+[pack]
+id = "blade"
+title = "Blade Commands"
+owner = "crates/blades"
+about = "Blade workspace discovery, graphing, checks, builds, execution, and standalone blade.exe commands."
+
+[[commands]]
+id = "blades.list"
+bins = ["kain", "kn"]
+path = ["blades", "list"]
+about = "List registered blades"
+handler = "builtin:blades-list"
+tags = ["blade", "workspace"]
+
+[[commands]]
+id = "blades.graph"
+bins = ["kain", "kn"]
+path = ["blades", "graph"]
+about = "Print the blade dependency graph"
+handler = "builtin:blades-graph"
+tags = ["blade", "workspace", "diagnostics"]
+
+[[commands]]
+id = "blades.check"
+bins = ["kain", "kn"]
+path = ["blades", "check"]
+about = "Validate blade metadata and dependency edges"
+handler = "builtin:blades-check"
+tags = ["blade", "workspace", "diagnostics"]
+
+[[commands]]
+id = "blades.build"
+bins = ["kain", "kn"]
+path = ["blades", "build"]
+about = "Build one or more blades"
+handler = "builtin:blades-build"
+tags = ["blade", "build"]
+
+[[commands]]
+id = "blades.run"
+bins = ["kain", "kn"]
+path = ["blades", "run"]
+about = "Run a blade entrypoint"
+handler = "builtin:blades-run"
+tags = ["blade", "execute"]
+
+[[commands]]
+id = "equip"
+bins = ["kain", "kn"]
+path = ["equip"]
+about = "Equip a blade into the current Kain workspace"
+handler = "builtin:equip"
+tags = ["blade", "workspace"]
+
+[[commands]]
+id = "blade.build"
+bins = ["blade"]
+path = ["build"]
+about = "Build a blade"
+handler = "builtin:blade-build"
+tags = ["blade", "build"]
+
+[[commands]]
+id = "blade.run"
+bins = ["blade"]
+path = ["run"]
+about = "Run a blade command"
+handler = "builtin:blade-run"
+tags = ["blade", "execute"]
+
+[[commands]]
+id = "blade.list"
+bins = ["blade"]
+path = ["list"]
+about = "List known blades"
+handler = "builtin:blade-list"
+tags = ["blade", "workspace"]
+
+[[commands]]
+id = "blade.graph"
+bins = ["blade"]
+path = ["graph"]
+about = "Print the blade dependency graph"
+handler = "builtin:blade-graph"
+tags = ["blade", "workspace", "diagnostics"]
+
+[[commands]]
+id = "blade.check"
+bins = ["blade"]
+path = ["check"]
+about = "Validate blade metadata and dependencies"
+handler = "builtin:blade-check"
+tags = ["blade", "diagnostics"]
+
+[[commands]]
+id = "blade.equip"
+bins = ["blade"]
+path = ["equip"]
+about = "Equip a blade into a Kain workspace"
+handler = "builtin:blade-equip"
+tags = ["blade", "workspace"]

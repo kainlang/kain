@@ -13,7 +13,7 @@ The CLI entrypoints are `kain omni init [path]` and `kain omni build
 
 The canonical manifest is `KAIN.omni.toml`.
 
-The manifest model in `src/.rustimport/reference/kain-omni/lib.kn` is:
+The manifest model in `src/.rustimport/reference/omni/lib.kn` is:
 
 - `project`
   - `entry`
@@ -117,7 +117,7 @@ became a concrete set of generated files.
 
 ## Source Files To Read Next
 
-- `src/.rustimport/reference/kain-omni/lib.kn`
+- `src/.rustimport/reference/omni/lib.kn`
 - `src/.rustimport/reference/cli/omni.kn`
 - `smoketest/allinone/fixtures/omni/KAIN.omni.toml`
 - `smoketest/allinone/README.md`

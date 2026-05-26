@@ -11,11 +11,11 @@ How should Kain evolve beyond cargo-test-style execution into a build.kn-native 
 
 ## Constraints
 
-- `crates/kain-test` is currently a compiletest-style harness with modes for `check-pass`, `check-fail`, `run-pass`, `run-fail`, `kain-test`, `prove-pass`, and `prove-sat`. Proof mode today is raw `//@ smt2:` text piped to `z3`, not Kain-authored proof intent.
+- `crates/test` is currently a compiletest-style harness with modes for `check-pass`, `check-fail`, `run-pass`, `run-fail`, `kain-test`, `prove-pass`, and `prove-sat`. Proof mode today is raw `//@ smt2:` text piped to `z3`, not Kain-authored proof intent.
 - `stdlib/test.kn` currently only models authored outcome values (`test_pass`, `test_fail`, `test_skip`, `test_proved`, `test_witness`). It does not yet expose solver construction, symbolic variables, assumptions, witnesses, or proof families.
-- `crates/kain-core/src/runtime.rs` already streams per-runtime-test names (`test foo ... ok`), but `crates/cli/src/main.rs` only prints a final suite summary for `kain test`; it does not yet surface cargo-style suite progress like `17/54`.
+- `crates/core/src/runtime.rs` already streams per-runtime-test names (`test foo ... ok`), but `crates/cli/src/main.rs` only prints a final suite summary for `kain test`; it does not yet surface cargo-style suite progress like `17/54`.
 - `build.kn` and `[[build.tasks]]` already exist as the workspace authority layer, but explicit task kinds only cover `check`, Cargo, C shared library, GPU, Fabric, Node, and Bun. There is no first-class `test`, `proof`, `benchmark`, `attrition`, or aggregate `certify` task kind yet.
-- The repo already has durable Z3 proof packs under `crates/kain-core/z3`, `crates/kain-sys-codegen/z3`, `crates/kain-build/z3`, `crates/kain-ownership/z3`, `crates/kain-foreign-abi/z3`, `crates/gpu/z3`, and `runtime/native/src/core/z3`. Any new test story must compose with those instead of replacing them.
+- The repo already has durable Z3 proof packs under `crates/core/z3`, `crates/sys-codegen/z3`, `crates/build/z3`, `crates/ownership/z3`, `crates/foreign-abi/z3`, `crates/gpu/z3`, and `runtime/native/src/core/z3`. Any new test story must compose with those instead of replacing them.
 - `benchmark/` and `attrition/` are already rich telemetry lanes with reports, replay artifacts, and machine-readable outputs. The missing piece is orchestration and shared certification vocabulary, not raw measurement capability.
 - Z3 is not currently a first-class runtime/compiler subsystem in the language itself. That is good. The testing pipeline should use solver power without making ordinary Kain program execution depend on solver presence.
 
@@ -37,7 +37,7 @@ How should Kain evolve beyond cargo-test-style execution into a build.kn-native 
 - Mechanism: elevate `build.kn` into a certification DAG where `test`, `proof`, `benchmark`, `attrition`, and `certify` are first-class task kinds. A blade or workspace declares its own certification recipe. `kain test` becomes one operator inside a larger Kain-native validation graph.
 - Expected upside: the repo stops thinking in terms of "a tests folder" and starts thinking in terms of "evidence lanes". Every serious blade can declare: prove these invariants, run these runtime tests, run this attrition profile, hit these benchmark floors, emit LLM-readable telemetry.
 - Likely blocker: orchestration complexity. The build DAG needs report schemas, cache keys, replay semantics, failure policy, and opt-in policy for expensive lanes.
-- Proof obligation: the certification DAG must stay acyclic, deterministic, cache-valid, and compositional. Existing `crates/kain-build/z3` DAG proofs already give a foothold for this.
+- Proof obligation: the certification DAG must stay acyclic, deterministic, cache-valid, and compositional. Existing `crates/build/z3` DAG proofs already give a foothold for this.
 
 ## Mathematical Model
 
@@ -78,12 +78,12 @@ How should Kain evolve beyond cargo-test-style execution into a build.kn-native 
 ## Evidence And Sources
 
 - Local:
-  - `crates/kain-test/src/lib.rs`: current directive modes, raw `//@ smt2:` proof handling, and proof evidence report shape.
+  - `crates/test/src/lib.rs`: current directive modes, raw `//@ smt2:` proof handling, and proof evidence report shape.
   - `stdlib/test.kn`: current authored `TestOutcome` vocabulary with no solver binding surface yet.
-  - `crates/kain-core/src/runtime.rs`: runtime `test foo ... ok` per-test streaming already exists for typed Kain tests.
+  - `crates/core/src/runtime.rs`: runtime `test foo ... ok` per-test streaming already exists for typed Kain tests.
   - `crates/cli/src/main.rs`: `kain test` currently prints only the final suite summary and failure list.
-  - `crates/kain-blades/src/lib.rs`: `KainBuildTaskSection` already provides a generic task schema suitable for certification-lane expansion.
-  - `crates/kain-build/src/workspace.rs`: build task kinds are currently missing first-class test/proof/benchmark/attrition/certify variants.
+  - `crates/blades/src/lib.rs`: `KainBuildTaskSection` already provides a generic task schema suitable for certification-lane expansion.
+  - `crates/build/src/workspace.rs`: build task kinds are currently missing first-class test/proof/benchmark/attrition/certify variants.
   - `benchmark/README.md`: benchmark already has rich telemetry, report generation, case manifests, and wrapper workflows.
   - `attrition/README.md`: attrition already has deterministic replay, sabotage profiles, minimization, and certification-shaped telemetry.
   - `runtime/native/src/core/z3/README.md`: runtime already treats durable Z3 packs as first-class substrate verification.

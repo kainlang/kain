@@ -19,7 +19,7 @@
  * - Requirement 3.6: Pointer and allocation helper behavior
  *
  * Source: runtime/LOW_LEVEL_HELPER_IMPLEMENTATION_CHECKLIST.md
- * Compiler: crates/kain-core/src/low_level_memory.rs
+ * Compiler: crates/core/src/low_level_memory.rs
  */
 
 #ifdef __cplusplus

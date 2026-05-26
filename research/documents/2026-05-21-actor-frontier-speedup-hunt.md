@@ -61,10 +61,10 @@ After the live-snapshot ask path and inline scheduler-lock cut, is the next hone
 - Runtime/compiler surface:
   - `runtime/native/src/core/actor.c`
   - `runtime/native/include/actor.h`
-  - `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`
-  - `crates/kain-actor/src/native.rs`
-  - `crates/kain-actor/src/tests.rs`
-  - `crates/kain-sys-codegen/tests/llvm_codegen_test.rs`
+  - `crates/sys-codegen/src/codegen_llvm/mod.rs`
+  - `crates/actor/src/native.rs`
+  - `crates/actor/src/tests.rs`
+  - `crates/sys-codegen/tests/llvm_codegen_test.rs`
   - `runtime/conformance/actor_runtime/test_actor_abi_contract.c`
 - Benchmark lane:
   - `benchmark/out/reports/latest_actor_frontier_baseline.llm.md`
@@ -74,7 +74,7 @@ After the live-snapshot ask path and inline scheduler-lock cut, is the next hone
 
 ## What Changed
 
-- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`
+- `crates/sys-codegen/src/codegen_llvm/mod.rs`
   - direct ask lowering now calls `kain_actor_reply_port_prepare_direct(...)` and receives the generation-tagged reply ref in one step
 - `runtime/native/include/actor.h`
   - exported the direct-prepare reply-port ABI

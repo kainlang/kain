@@ -55,7 +55,7 @@ Which latest benchmark frontier yields the highest honest Kain win next, and wha
   - `benchmark/latest.md` from the pre-pass canonical suite
   - `benchmark/out/reports/latest_floor_probe.llm.md`
   - `benchmark/out/reports/latest.llm.md` after the full rerun
-  - `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`
+  - `crates/sys-codegen/src/codegen_llvm/mod.rs`
   - `runtime/native/src/core/core.c`
 - External:
   - None. This investigation stayed inside repo evidence plus solver validation.

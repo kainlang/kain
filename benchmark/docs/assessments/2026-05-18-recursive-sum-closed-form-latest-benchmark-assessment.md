@@ -21,7 +21,7 @@ That is only about a `1.25x` gap to the fastest row, but it is a perfect benchma
 
 ## Hypothesis lattice
 
-- Baseline: attack generic recursion lowering in LLVM. Rejected for this pass because the tree is already dirty in `crates/kain-sys-codegen` and the turnaround risk is too high.
+- Baseline: attack generic recursion lowering in LLVM. Rejected for this pass because the tree is already dirty in `crates/sys-codegen` and the turnaround risk is too high.
 - Unconventional: keep the recursive helper as the `converge` spec and use the triangular closed form in the LLVM lane. Landed.
 - Moonshot: synthesize a general recursion-collapse optimizer. Deferred.
 

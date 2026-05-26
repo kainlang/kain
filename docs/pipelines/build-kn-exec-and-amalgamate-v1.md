@@ -450,7 +450,7 @@ The implemented order ended up being:
 1. add `BuildTaskKind::Exec` and `std::build::exec_task(...)`
 2. add `BuildTaskKind::Amalgamate` and `std::build::amalgamate_capsule(...)`
 3. extend `BuildTaskSpec` with env, timeout, stdout, stderr, and capsule metadata
-4. add planner and executor coverage in `crates/kain-build`
+4. add planner and executor coverage in `crates/build`
 5. dogfood both tasks in `smoketest/build.kn`
 6. normalize Windows process-bound paths at child execution boundaries
 7. validate the full smoketest DAG and emit the editable smoketest capsule

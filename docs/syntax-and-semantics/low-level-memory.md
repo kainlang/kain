@@ -72,7 +72,7 @@ Allocation count rule:
 
 ## Ownership Keywords
 
-`crates/kain-ownership` is the shared semantic home for the first-class
+`crates/ownership` is the shared semantic home for the first-class
 `collapse`, `observe`, and `decay` memory model.
 
 The parser, typechecker, interpreter, LLVM backend, and native C runtime now
@@ -121,7 +121,7 @@ ownership to Kain.
 
 ## Layout Rules
 
-`crates/kain-core/src/low_level_memory.rs` is the layout engine for Kain
+`crates/core/src/low_level_memory.rs` is the layout engine for Kain
 memory lowering. It builds struct layout information by walking typed items,
 then uses that registry to decide:
 
@@ -132,7 +132,7 @@ then uses that registry to decide:
 - size and alignment fallbacks
 - how to treat nested modules that contain layout-sensitive types
 
-The ABI policy in `crates/kain-core/src/low_level_abi.rs` supplies the
+The ABI policy in `crates/core/src/low_level_abi.rs` supplies the
 platform-facing rules for things like:
 
 - LP64 vs LLP64 behavior
@@ -149,10 +149,10 @@ That means some forms are legal in the language core but only lower on targets
 that advertise the necessary memory support. The docs should always say which
 layer owns the limitation:
 
-1. parser support in `crates/kain-core/src/ast.rs`
-2. layout and lowering support in `crates/kain-core/src/low_level_memory.rs`
-3. ABI policy in `crates/kain-core/src/low_level_abi.rs`
-4. target support in `crates/kain-driver/src/lib.rs`
+1. parser support in `crates/core/src/ast.rs`
+2. layout and lowering support in `crates/core/src/low_level_memory.rs`
+3. ABI policy in `crates/core/src/low_level_abi.rs`
+4. target support in `crates/driver/src/lib.rs`
 
 ## Canonical Helper Boundary
 
@@ -167,9 +167,9 @@ The key rule is simple:
 
 ## Source Files To Read Next
 
-- `crates/kain-core/src/ast.rs`
-- `crates/kain-core/src/low_level_memory.rs`
-- `crates/kain-core/src/low_level_abi.rs`
+- `crates/core/src/ast.rs`
+- `crates/core/src/low_level_memory.rs`
+- `crates/core/src/low_level_abi.rs`
 - `guides/native-c-runtime/helper-abi.md`
 - `guides/reference/feature-matrix.md`
 

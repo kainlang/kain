@@ -6803,7 +6803,7 @@ fn untouched_afterwards():
     #[test]
     fn build_file_mirror_plans_preserves_file_level_paths() {
         let span = kain_core::span::Span::default();
-        let crate_root = PathBuf::from("/tmp/kain/crates/kain-import");
+        let crate_root = PathBuf::from("/tmp/kain/crates/import");
         let module_programs = vec![
             RustSelfHostModuleProgram {
                 module: kain_import::rust::RustModuleNode {
@@ -6850,15 +6850,15 @@ fn untouched_afterwards():
         assert_eq!(plans.len(), 3);
         assert_eq!(
             plans[0].canonical_kain_path,
-            PathBuf::from("/repo/src/.rustimport/phase2/kain-import/lib.kn")
+            PathBuf::from("/repo/src/.rustimport/phase2/import/lib.kn")
         );
         assert_eq!(
             plans[1].canonical_kain_path,
-            PathBuf::from("/repo/src/.rustimport/phase2/kain-import/rust/mod.kn")
+            PathBuf::from("/repo/src/.rustimport/phase2/import/rust/mod.kn")
         );
         assert_eq!(
             plans[2].canonical_kain_path,
-            PathBuf::from("/repo/src/.rustimport/phase2/kain-import/rust/transformer.kn")
+            PathBuf::from("/repo/src/.rustimport/phase2/import/rust/transformer.kn")
         );
         assert_eq!(plans[0].module_path, Vec::<String>::new());
         assert_eq!(plans[1].module_path, vec!["rust".to_string()]);
@@ -6879,7 +6879,7 @@ fn untouched_afterwards():
         let temp_dir = tempfile::tempdir().expect("temp dir");
         let repo_root = temp_dir.path();
         fs::create_dir_all(repo_root.join("crates/cli")).expect("cli dir");
-        fs::create_dir_all(repo_root.join("crates/kain-core")).expect("kain-core dir");
+        fs::create_dir_all(repo_root.join("crates/core")).expect("kain-core dir");
         fs::create_dir_all(repo_root.join("crates/not-a-crate")).expect("non-crate dir");
         fs::write(
             repo_root.join("crates/cli/Cargo.toml"),
@@ -6887,7 +6887,7 @@ fn untouched_afterwards():
         )
         .expect("cli cargo");
         fs::write(
-            repo_root.join("crates/kain-core/Cargo.toml"),
+            repo_root.join("crates/core/Cargo.toml"),
             "[package]\nname = \"kain-core\"\n",
         )
         .expect("kain-core cargo");
@@ -6955,60 +6955,60 @@ fn main() {}
         let file_plans = vec![
             SelfHostFileMirrorPlan {
                 module_name: "crate".to_string(),
-                rust_source_path: PathBuf::from("/repo/crates/kain-core/src/lib.rs"),
+                rust_source_path: PathBuf::from("/repo/crates/core/src/lib.rs"),
                 rust_source_relative_path: PathBuf::from("src/lib.rs"),
                 canonical_kain_path: temp_dir
                     .path()
-                    .join("src/.rustimport/phase2/kain-core/lib.kn"),
-                output_kain_path: temp_dir.path().join("mirror/src/kain-core/lib.kn"),
+                    .join("src/.rustimport/phase2/core/lib.kn"),
+                output_kain_path: temp_dir.path().join("mirror/src/core/lib.kn"),
                 stage2_roundtrip_rust_path: roundtrip_root.join("kain-core/src/lib.rs"),
                 module_path: Vec::new(),
                 source_kind: SelfHostRustSourceKind::LibRoot,
             },
             SelfHostFileMirrorPlan {
                 module_name: "main".to_string(),
-                rust_source_path: PathBuf::from("/repo/crates/kain-core/src/main.rs"),
+                rust_source_path: PathBuf::from("/repo/crates/core/src/main.rs"),
                 rust_source_relative_path: PathBuf::from("src/main.rs"),
                 canonical_kain_path: temp_dir
                     .path()
-                    .join("src/.rustimport/phase2/kain-core/main.kn"),
-                output_kain_path: temp_dir.path().join("mirror/src/kain-core/main.kn"),
+                    .join("src/.rustimport/phase2/core/main.kn"),
+                output_kain_path: temp_dir.path().join("mirror/src/core/main.kn"),
                 stage2_roundtrip_rust_path: roundtrip_root.join("kain-core/src/main.rs"),
                 module_path: Vec::new(),
                 source_kind: SelfHostRustSourceKind::MainRoot,
             },
             SelfHostFileMirrorPlan {
                 module_name: "parser".to_string(),
-                rust_source_path: PathBuf::from("/repo/crates/kain-core/src/parser.rs"),
+                rust_source_path: PathBuf::from("/repo/crates/core/src/parser.rs"),
                 rust_source_relative_path: PathBuf::from("src/parser.rs"),
                 canonical_kain_path: temp_dir
                     .path()
-                    .join("src/.rustimport/phase2/kain-core/parser.kn"),
-                output_kain_path: temp_dir.path().join("mirror/src/kain-core/parser.kn"),
+                    .join("src/.rustimport/phase2/core/parser.kn"),
+                output_kain_path: temp_dir.path().join("mirror/src/core/parser.kn"),
                 stage2_roundtrip_rust_path: roundtrip_root.join("kain-core/src/parser.rs"),
                 module_path: vec!["parser".to_string()],
                 source_kind: SelfHostRustSourceKind::ModuleFile,
             },
             SelfHostFileMirrorPlan {
                 module_name: "nested".to_string(),
-                rust_source_path: PathBuf::from("/repo/crates/kain-core/src/nested/mod.rs"),
+                rust_source_path: PathBuf::from("/repo/crates/core/src/nested/mod.rs"),
                 rust_source_relative_path: PathBuf::from("src/nested/mod.rs"),
                 canonical_kain_path: temp_dir
                     .path()
-                    .join("src/.rustimport/phase2/kain-core/nested/mod.kn"),
-                output_kain_path: temp_dir.path().join("mirror/src/kain-core/nested/mod.kn"),
+                    .join("src/.rustimport/phase2/core/nested/mod.kn"),
+                output_kain_path: temp_dir.path().join("mirror/src/core/nested/mod.kn"),
                 stage2_roundtrip_rust_path: roundtrip_root.join("kain-core/src/nested/mod.rs"),
                 module_path: vec!["nested".to_string()],
                 source_kind: SelfHostRustSourceKind::ModuleDirectoryRoot,
             },
             SelfHostFileMirrorPlan {
                 module_name: "nested::deep".to_string(),
-                rust_source_path: PathBuf::from("/repo/crates/kain-core/src/nested/deep.rs"),
+                rust_source_path: PathBuf::from("/repo/crates/core/src/nested/deep.rs"),
                 rust_source_relative_path: PathBuf::from("src/nested/deep.rs"),
                 canonical_kain_path: temp_dir
                     .path()
-                    .join("src/.rustimport/phase2/kain-core/nested/deep.kn"),
-                output_kain_path: temp_dir.path().join("mirror/src/kain-core/nested/deep.kn"),
+                    .join("src/.rustimport/phase2/core/nested/deep.kn"),
+                output_kain_path: temp_dir.path().join("mirror/src/core/nested/deep.kn"),
                 stage2_roundtrip_rust_path: roundtrip_root.join("kain-core/src/nested/deep.rs"),
                 module_path: vec!["nested".to_string(), "deep".to_string()],
                 source_kind: SelfHostRustSourceKind::ModuleFile,
@@ -7017,7 +7017,7 @@ fn main() {}
 
         let artifacts = write_roundtrip_rust_tree(
             "kain-core",
-            Path::new("/repo/crates/kain-core"),
+            Path::new("/repo/crates/core"),
             &roundtrip_root,
             &aggregate_path,
             rust_source,

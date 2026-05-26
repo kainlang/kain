@@ -1,0 +1,29 @@
+[pack]
+id = "amalgamate"
+title = "Amalgamate Commands"
+owner = "crates/amalgamate"
+about = "Portable Kain capsule pack, inspect, unpack, editable, and archive workflows."
+
+[[commands]]
+id = "amalgamate"
+bins = ["kain", "kn"]
+path = ["amalgamate"]
+about = "Pack a file or directory into an editable portable Kain capsule"
+handler = "builtin:amalgamate-pack"
+tags = ["capsule", "editable", "archive", "distribution"]
+
+[[commands]]
+id = "amalgamate.inspect"
+bins = ["kain", "kn"]
+path = ["amalgamate", "inspect"]
+about = "Inspect a Kain capsule"
+handler = "builtin:amalgamate-inspect"
+tags = ["capsule", "diagnostics", "archive"]
+
+[[commands]]
+id = "amalgamate.unpack"
+bins = ["kain", "kn"]
+path = ["amalgamate", "unpack"]
+about = "Unpack a Kain capsule into a directory tree"
+handler = "builtin:amalgamate-unpack"
+tags = ["capsule", "archive"]

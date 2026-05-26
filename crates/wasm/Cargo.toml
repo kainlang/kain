@@ -1,0 +1,8 @@
+[package]
+name = "kain-wasm"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+kain-core = { path = "../core" }
+walrus = { workspace = true }

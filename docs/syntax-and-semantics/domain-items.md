@@ -119,7 +119,7 @@ the appropriate example lane so readers can see the generated output shape.
 
 ## Source Files To Consult
 
-- `crates/kain-core/src/ast.rs`
-- `crates/kain-core/src/runtime_contract.rs`
-- `crates/kain-core/src/realtime_app_bundle.rs`
-- `crates/kain-core/src/ui.rs`
+- `crates/core/src/ast.rs`
+- `crates/core/src/runtime_contract.rs`
+- `crates/core/src/realtime_app_bundle.rs`
+- `crates/core/src/ui.rs`

@@ -23,7 +23,7 @@ Can Kain turn the ray_sphere_intersection benchmark from a 1.48x C++ loss into a
 - Mechanism: reach fair scalar parity with C++ by restoring native LLVM literal float-array indexing, hoisting seeded ray/sphere generation out of the `round` loop, lowering `sqrt`/`floor` as cheap LLVM/libm intrinsics, and exposing reciprocal `1/(2a)` reuse.
 - Expected upside: likely enough to move Kain from 111 ms toward Rust/C++ territory; this fixes an unfair hot-loop regeneration tax but does not create 10x dominance.
 - Likely blocker: Kain source currently avoids arrays because the compiler lane did not safely handle literal float-array indexing.
-- Proof obligation: array indexing bounds and literal float element layout in `crates/kain-sys-codegen/z3` or `crates/kain-core/z3`, plus focused benchmark rerun.
+- Proof obligation: array indexing bounds and literal float element layout in `crates/sys-codegen/z3` or `crates/core/z3`, plus focused benchmark rerun.
 
 ### Unconventional
 - Mechanism: finite-domain geometry table. The benchmark has only 12 rays x 8 spheres. Compute/classify the 96 distances once, keep per-pair bucket/miss contributions, then reduce each round to `base + hit_count * phase`.

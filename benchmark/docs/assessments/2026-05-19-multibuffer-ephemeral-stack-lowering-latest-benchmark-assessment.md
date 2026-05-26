@@ -8,17 +8,17 @@ This automation pass started from the full benchmark snapshot generated `2026-05
 
 ## What Changed
 
-- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`
+- `crates/sys-codegen/src/codegen_llvm/mod.rs`
   - The typed ephemeral helper-buffer path already handled derived-count layouts, but the remaining-statement theorem still rejected sibling helper-buffer traffic when it appeared through helper-call memory surfaces.
   - Relaxed helper-call handling so `__kain_mem_load` and `__kain_mem_store` are accepted when they either target the active ephemeral buffer or use a non-target pointer expression that is otherwise safe and non-escaping.
   - This activates typed stack lowering in the real sim hot loops instead of leaving those buffers on the helper heap.
-- `crates/kain-sys-codegen/tests/llvm_codegen_test.rs`
+- `crates/sys-codegen/tests/llvm_codegen_test.rs`
   - Added `llvm_erases_sim_style_derived_count_float_buffers_to_typed_local_storage` to lock in the multi-buffer `ptr<Float>` case with `nx * ny * nz` sizing and nested loops.
 
 ## Proofs
 
 - Sys-codegen memory lane report:
-  - `crates/kain-sys-codegen/z3/reports/20260519T082634Z-20260519T-kain-sys-codegen-memory-after-multibuffer-ephemeral.json`
+  - `crates/sys-codegen/z3/reports/20260519T082634Z-20260519T-kain-sys-codegen-memory-after-multibuffer-ephemeral.json`
   - Result: `11 proved, 0 counterexamples, 0 unknown, 0 errors`
 
 ## Validation

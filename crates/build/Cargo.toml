@@ -1,0 +1,28 @@
+[package]
+name = "kain-build"
+version = "0.1.0"
+edition = "2021"
+description = "KAIN build orchestration and Cargo build.rs helpers"
+license = "MIT"
+
+[dependencies]
+blade = { path = "../blades" }
+kain-amalgamate = { path = "../amalgamate" }
+kain-check = { path = "../check" }
+kain-clean = { path = "../clean" }
+kain-core = { path = "../core" }
+kain-driver = { path = "../driver" }
+kain-fs = { path = "../fs" }
+kain-host = { path = "../host", default-features = false }
+kain-omni = { path = "../omni", default-features = false }
+kain-sys-codegen = { path = "../sys-codegen" }
+kain-test = { path = "../test" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = "0.10"
+thiserror = { workspace = true }
+toml = { workspace = true }
+
+[features]
+default = []
+tauri = ["kain-driver/tauri"]

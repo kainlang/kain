@@ -5,7 +5,7 @@
 - evidence:
   - targeted CFD probe: `benchmark/out/reports/latest_sim_cfd_after_typed_ephemeral.llm.md`
   - full suite snapshot: `benchmark/out/reports/latest.llm.md`
-  - proof lane: `crates/kain-sys-codegen/z3` memory lane report `20260520T052151Z-2026-05-20-typed-ephemeral-float-stack-lowering.json`
+  - proof lane: `crates/sys-codegen/z3` memory lane report `20260520T052151Z-2026-05-20-typed-ephemeral-float-stack-lowering.json`
 
 ## What changed
 

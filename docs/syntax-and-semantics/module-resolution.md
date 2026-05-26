@@ -71,7 +71,7 @@ and a missing authored module are different failures.
 ## Filesystem Module Lookup
 
 The runtime and typechecker share authored filesystem lookup through
-`crates/kain-core/src/module_resolution.rs`.
+`crates/core/src/module_resolution.rs`.
 
 For non-stdlib imports, Kain first treats the whole import path as a module
 file:
@@ -108,11 +108,11 @@ when the module is unavailable or not type-registration friendly.
 
 ## Source Files To Consult
 
-- `crates/kain-core/src/runtime.rs`
-- `crates/kain-core/src/types.rs`
-- `crates/kain-core/src/module_resolution.rs`
-- `crates/kain-core/src/stdlib.rs`
-- `crates/kain-core/src/runtime_contract.rs`
+- `crates/core/src/runtime.rs`
+- `crates/core/src/types.rs`
+- `crates/core/src/module_resolution.rs`
+- `crates/core/src/stdlib.rs`
+- `crates/core/src/runtime_contract.rs`
 
 ## Practical Rule
 

@@ -321,7 +321,7 @@ fn find_workspace_root_for_gpu_runtime() -> Option<PathBuf> {
         loop {
             if cursor
                 .join("crates")
-                .join("kain-gpu-runtime")
+                .join("gpu-runtime")
                 .join("Cargo.toml")
                 .exists()
             {

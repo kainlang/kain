@@ -1,9 +1,0 @@
-[package]
-name = "kain-python"
-version = "0.1.0"
-edition = "2021"
-
-[dependencies]
-kain-core = { path = "../kain-core" }
-kain-interop = { path = "../kain-interop" }
-pyo3 = { workspace = true }

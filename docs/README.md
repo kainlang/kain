@@ -26,20 +26,20 @@ standalone marketing layer.
 
 These files define the truth that the guides are derived from:
 
-- `crates/kain-core/src/ast.rs`
-- `crates/kain-core/src/runtime.rs`
-- `crates/kain-core/src/stdlib.rs`
-- `crates/kain-core/src/language_features.rs`
-- `crates/kain-core/src/low_level_memory.rs`
-- `crates/kain-core/src/low_level_abi.rs`
-- `crates/kain-check/src/lib.rs`
-- `crates/kain-test/src/lib.rs`
+- `crates/core/src/ast.rs`
+- `crates/core/src/runtime.rs`
+- `crates/core/src/stdlib.rs`
+- `crates/core/src/language_features.rs`
+- `crates/core/src/low_level_memory.rs`
+- `crates/core/src/low_level_abi.rs`
+- `crates/check/src/lib.rs`
+- `crates/test/src/lib.rs`
 - `crates/cli/src/main.rs`
 - `crates/cli/src/packager/`
 - `src/.rustimport/reference/cli/`
 - `src/.rustimport/reference/cli/packager/`
-- `src/.rustimport/reference/kain-omni/`
-- `src/.rustimport/reference/kain-host/`
+- `src/.rustimport/reference/omni/`
+- `src/.rustimport/reference/host/`
 - `src/.rustimport/reference/ue5/`
 - `src/.rustimport/reference/ue5-shaders/`
 - `src/.rustimport/reference/ue5-config/`

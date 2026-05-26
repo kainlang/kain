@@ -5,7 +5,7 @@ edition = "2021"
 description = "KAIN → UE5 Blueprint .uasset generator. Emits real .uasset files (via unreal_asset) and C++ factory fallbacks."
 
 [dependencies]
-kain-core       = { path = "../kain-core" }
+kain-core       = { path = "../core" }
 ue5-asset-utils = { path = "../ue5-asset-utils" }
 serde           = { workspace = true }
 serde_json      = { workspace = true }

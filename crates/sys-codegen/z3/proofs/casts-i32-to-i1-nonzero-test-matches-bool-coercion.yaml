@@ -1,0 +1,20 @@
+version: 1
+id: kain.sys.codegen.llvm.proofs.casts_i32_to_i1_nonzero_test_matches_bool_coercion
+kind: check_smt2
+description: i32 -> i1 lowering also uses icmp ne value, 0, so the boolean result
+  is exactly a non-zero test over the source integer.
+tags:
+- llvm
+- casts
+- i32
+- bool
+- icmp
+source:
+  path: D:\Kain-Lang\crates\sys-codegen\src\codegen_llvm\mod.rs
+  symbol: cast_numeric_value
+  start_line: 1196
+  reason: 32-bit integers are coerced to bool with an explicit non-zero comparison
+case:
+  smt2: "(set-logic QF_BV)\n(declare-const x (_ BitVec 32))\n(define-fun result () (_ BitVec 1) (ite (distinct x #x00000000) #b1 #b0))\n(assert (or (and (= x #x00000000) (not (= result #b0))) (and (distinct x #x00000000) (not (= result #b1)))))\n(check-sat)"
+  include_model: false
+  include_stats: false

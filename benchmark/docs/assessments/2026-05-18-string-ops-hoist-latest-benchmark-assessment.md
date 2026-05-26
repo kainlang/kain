@@ -4,13 +4,13 @@ The LLVM backend now primes loop-carried string parameter lengths at function en
 
 What landed:
 
-- `crates/kain-sys-codegen/src/codegen_llvm/mod.rs`
+- `crates/sys-codegen/src/codegen_llvm/mod.rs`
   - Added a structural loop scan for identifiers inside blocks/expressions/statements.
   - Added `prime_string_param_length_cache(...)` so loop-carried string params get a single entry-time `@len(i8*)` call.
   - Wired the priming into named callables and methods only when the parameter is actually loop-mentioned.
-- `crates/kain-sys-codegen/tests/llvm_codegen_test.rs`
+- `crates/sys-codegen/tests/llvm_codegen_test.rs`
   - Added `llvm_hoists_loop_carried_string_param_lengths_out_of_loop_bodies`.
-- `crates/kain-sys-codegen/z3/proofs-experimental/string-param-loop-length-cache-valid-under-reassign-guard.smt2`
+- `crates/sys-codegen/z3/proofs-experimental/string-param-loop-length-cache-valid-under-reassign-guard.smt2`
   - Encodes the reassignment guard and proves the emitted length agrees with semantic `len(current_ptr)`.
 
 Validation:

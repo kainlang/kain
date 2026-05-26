@@ -19,7 +19,7 @@ Can the recursive_sum benchmark collapse its closed domain into a proof-backed t
 ## Hypothesis Lattice
 
 ### Baseline
-- Mechanism: Keep the benchmark source unchanged and hunt for backend recursion/inlining wins in `crates/kain-sys-codegen`.
+- Mechanism: Keep the benchmark source unchanged and hunt for backend recursion/inlining wins in `crates/sys-codegen`.
 - Expected upside: Preserves the original fairness shape.
 - Likely blocker: The current tree is already dirty in the LLVM backend, and broad recursion-lowering work is unlikely to land, prove, and benchmark cleanly inside one automation pass.
 - Proof obligation: Show the backend change, not the benchmark, is what erased the gap.

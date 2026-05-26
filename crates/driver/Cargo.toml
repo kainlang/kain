@@ -1,0 +1,39 @@
+[package]
+name = "kain-driver"
+version = "0.1.0"
+edition = "2021"
+description = "Embeddable Rust-native compiler driver for KAIN"
+license = "MIT"
+
+[dependencies]
+kain-c-ffi = { path = "../c-ffi" }
+kain-codebase = { path = "../codebase" }
+kain-core = { path = "../core" }
+kain-crate-ffi = { path = "../crate-ffi" }
+kain-interop = { path = "../interop" }
+kain-node = { path = "../node" }
+kain-python = { path = "../python" }
+kain-reflect = { path = "../reflect" }
+kain-ui = { path = "../ui" }
+kain-ui-tauri = { path = "../ui-tauri", optional = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = "0.10"
+toml = { workspace = true }
+ue5 = { path = "../ue5", optional = true }
+ue5-editor = { path = "../ue5-editor", optional = true }
+ue5-shaders = { path = "../ue5-shaders", optional = true }
+gpu = { path = "../gpu", optional = true }
+kain-web = { path = "../web", optional = true }
+kain-sys-codegen = { path = "../sys-codegen", optional = true }
+
+[features]
+default = ["ue5", "gpu", "web", "sys"]
+ue5 = ["dep:ue5", "dep:ue5-editor", "dep:ue5-shaders"]
+gpu = ["dep:gpu"]
+web = ["dep:kain-web"]
+sys = ["dep:kain-sys-codegen"]
+tauri = ["sys", "web", "dep:kain-ui-tauri"]
+
+[dev-dependencies]
+tempfile = "3.8"
