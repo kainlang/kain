@@ -14,6 +14,10 @@ use kain_core::lexer::Lexer;
 use kain_core::parser::Parser;
 use kain_core::tooling_config::apply_cargo_command_defaults;
 use kain_core::CompileTarget;
+use kain_driver::{
+    DriverSession, ToolingProgressEvent, ToolingProgressRecord, ToolingProgressSink,
+    ToolingProgressStatus,
+};
 use kain_fs as kfs;
 use kain_omni::fabric::{FabricRuntimeKind, FabricSessionStatus};
 use serde::{Deserialize, Serialize};
@@ -24,6 +28,7 @@ use std::ffi::OsStr;
 use std::io::Read;
 use std::path::{Component, Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
@@ -112,6 +117,7 @@ pub struct BladeBuildOptions {
     pub clean: bool,
     pub include_vulkan: bool,
     pub fail_fast: bool,
+    pub progress: Option<ToolingProgressSink>,
 }
 
 impl BladeBuildOptions {
@@ -125,6 +131,7 @@ impl BladeBuildOptions {
             clean: false,
             include_vulkan: false,
             fail_fast: true,
+            progress: None,
         }
     }
 }
@@ -443,6 +450,7 @@ pub struct KainFileBuildOptions {
     pub dry_run: bool,
     pub clean: bool,
     pub fail_fast: bool,
+    pub progress: Option<ToolingProgressSink>,
 }
 
 impl KainFileBuildOptions {
@@ -456,6 +464,7 @@ impl KainFileBuildOptions {
             dry_run: false,
             clean: false,
             fail_fast: true,
+            progress: None,
         }
     }
 }
@@ -470,6 +479,7 @@ pub struct KainRustBuildOptions {
     pub clean: bool,
     pub fail_fast: bool,
     pub include_spirv: bool,
+    pub progress: Option<ToolingProgressSink>,
 }
 
 impl KainRustBuildOptions {
@@ -483,6 +493,7 @@ impl KainRustBuildOptions {
             clean: false,
             fail_fast: true,
             include_spirv: true,
+            progress: None,
         }
     }
 }
@@ -508,6 +519,7 @@ pub struct KainNativeUiBuildOptions {
     pub dry_run: bool,
     pub clean: bool,
     pub fail_fast: bool,
+    pub progress: Option<ToolingProgressSink>,
 }
 
 impl KainNativeUiBuildOptions {
@@ -532,6 +544,7 @@ impl KainNativeUiBuildOptions {
             dry_run: false,
             clean: false,
             fail_fast: true,
+            progress: None,
         }
     }
 }
@@ -546,6 +559,7 @@ pub struct KainProjectBuildOptions {
     pub dry_run: bool,
     pub clean: bool,
     pub fail_fast: bool,
+    pub progress: Option<ToolingProgressSink>,
 }
 
 impl KainProjectBuildOptions {
@@ -559,6 +573,7 @@ impl KainProjectBuildOptions {
             dry_run: false,
             clean: false,
             fail_fast: true,
+            progress: None,
         }
     }
 }
@@ -836,9 +851,9 @@ pub fn plan_kain_file(options: &KainFileBuildOptions) -> BuildResult<BladeBuildP
         kind: BuildTaskKind::KainCompile,
         blade: None,
         description: format!(
-            "Compile {} to {}",
+            "Compile {} for {}",
             source.display(),
-            kain_driver::target_extension(options.target)
+            kain_driver::compile_target_name(options.target)
         ),
         depends_on: Vec::new(),
         inputs: vec![source.clone()],
@@ -856,7 +871,7 @@ pub fn plan_kain_file(options: &KainFileBuildOptions) -> BuildResult<BladeBuildP
             root_component: None,
         },
     }];
-    let plan = config.into_plan(kain_driver::target_extension(options.target), tasks);
+    let plan = config.into_plan(kain_driver::compile_target_name(options.target), tasks);
     validate_plan_safety(&plan)?;
     Ok(plan)
 }
@@ -1164,6 +1179,7 @@ struct BuildExecutionOptions {
     dry_run: bool,
     clean: bool,
     fail_fast: bool,
+    progress: Option<ToolingProgressSink>,
 }
 
 impl From<&BladeBuildOptions> for BuildExecutionOptions {
@@ -1172,6 +1188,7 @@ impl From<&BladeBuildOptions> for BuildExecutionOptions {
             dry_run: options.dry_run,
             clean: options.clean,
             fail_fast: options.fail_fast,
+            progress: options.progress.clone(),
         }
     }
 }
@@ -1182,6 +1199,7 @@ impl From<&KainFileBuildOptions> for BuildExecutionOptions {
             dry_run: options.dry_run,
             clean: options.clean,
             fail_fast: options.fail_fast,
+            progress: options.progress.clone(),
         }
     }
 }
@@ -1192,6 +1210,7 @@ impl From<&KainRustBuildOptions> for BuildExecutionOptions {
             dry_run: options.dry_run,
             clean: options.clean,
             fail_fast: options.fail_fast,
+            progress: options.progress.clone(),
         }
     }
 }
@@ -1202,6 +1221,7 @@ impl From<&KainNativeUiBuildOptions> for BuildExecutionOptions {
             dry_run: options.dry_run,
             clean: options.clean,
             fail_fast: options.fail_fast,
+            progress: options.progress.clone(),
         }
     }
 }
@@ -1212,6 +1232,7 @@ impl From<&KainProjectBuildOptions> for BuildExecutionOptions {
             dry_run: options.dry_run,
             clean: options.clean,
             fail_fast: options.fail_fast,
+            progress: options.progress.clone(),
         }
     }
 }
@@ -2627,14 +2648,26 @@ fn execute_plan(
         std::process::id()
     ));
     let events_path = report_path.with_extension("jsonl");
-    let mut event_writer = EventWriter::new(&events_path)?;
+    let event_writer = Arc::new(Mutex::new(EventWriter::new(&events_path)?));
+    let driver_progress =
+        build_driver_progress_sink(event_writer.clone(), options.progress.clone());
     let mut executions = Vec::new();
     let mut task_statuses = BTreeMap::<String, BuildTaskStatus>::new();
     let mut failed = false;
     let workspace = discover_workspace(&plan.workspace_root)?;
     let host_capabilities = build_host_capability_set(&plan);
+    publish_progress_event(
+        &event_writer,
+        options.progress.as_ref(),
+        &ToolingProgressEvent::BuildPlanReady {
+            workspace_root: plan.workspace_root.clone(),
+            lane: plan.lane.as_str().to_string(),
+            target: plan.target.clone(),
+            total_tasks: plan.tasks.len(),
+        },
+    )?;
 
-    for task in &plan.tasks {
+    for (index, task) in plan.tasks.iter().enumerate() {
         let execution = if options.dry_run {
             BuildTaskExecution {
                 id: task.id.clone(),
@@ -2703,9 +2736,36 @@ fn execute_plan(
                 error: None,
             }
         } else {
-            execute_task(task, &plan, &workspace)?
+            publish_progress_event(
+                &event_writer,
+                options.progress.as_ref(),
+                &ToolingProgressEvent::BuildTaskStarted {
+                    current: index + 1,
+                    total: plan.tasks.len(),
+                    task_id: task.id.clone(),
+                    description: task.description.clone(),
+                    task_kind: task.kind.as_str().to_string(),
+                    blade: task.blade.clone(),
+                },
+            )?;
+            execute_task(task, &plan, &workspace, Some(&driver_progress))?
         };
-        event_writer.write(&execution)?;
+        publish_progress_event(
+            &event_writer,
+            options.progress.as_ref(),
+            &ToolingProgressEvent::BuildTaskFinished {
+                current: index + 1,
+                total: plan.tasks.len(),
+                task_id: task.id.clone(),
+                description: task.description.clone(),
+                task_kind: task.kind.as_str().to_string(),
+                blade: task.blade.clone(),
+                status: tooling_status_for_build_status(execution.status),
+                cache_hit: execution.cache_hit,
+                message: execution.message.clone(),
+                error: execution.error.clone(),
+            },
+        )?;
         if execution.status == BuildTaskStatus::Failed {
             failed = true;
             if options.fail_fast {
@@ -2718,8 +2778,9 @@ fn execute_plan(
     }
 
     if failed && !options.fail_fast {
-        for task in plan.tasks.iter().skip(executions.len()) {
-            executions.push(BuildTaskExecution {
+        let skipped_start = executions.len();
+        for (offset, task) in plan.tasks.iter().skip(skipped_start).enumerate() {
+            let execution = BuildTaskExecution {
                 id: task.id.clone(),
                 kind: task.kind,
                 blade: task.blade.clone(),
@@ -2735,7 +2796,24 @@ fn execute_plan(
                 certifies: task.certifies.clone(),
                 message: "skipped after previous failure".to_string(),
                 error: None,
-            });
+            };
+            publish_progress_event(
+                &event_writer,
+                options.progress.as_ref(),
+                &ToolingProgressEvent::BuildTaskFinished {
+                    current: skipped_start + offset + 1,
+                    total: plan.tasks.len(),
+                    task_id: task.id.clone(),
+                    description: task.description.clone(),
+                    task_kind: task.kind.as_str().to_string(),
+                    blade: task.blade.clone(),
+                    status: ToolingProgressStatus::Skipped,
+                    cache_hit: false,
+                    message: execution.message.clone(),
+                    error: execution.error.clone(),
+                },
+            )?;
+            executions.push(execution);
         }
     }
 
@@ -2780,6 +2858,7 @@ fn execute_task(
     task: &BuildTask,
     plan: &BladeBuildPlan,
     workspace: &BladeWorkspace,
+    progress: Option<&ToolingProgressSink>,
 ) -> BuildResult<BuildTaskExecution> {
     let started_unix_ms = unix_timestamp_ms();
     if task.cacheable && task_is_cached(task, plan)? {
@@ -2804,7 +2883,7 @@ fn execute_task(
 
     let result = match &task.adapter {
         BuildTaskAdapter::BladeCheck => run_blade_check(workspace),
-        BuildTaskAdapter::KainCheck { entry, target } => run_kain_check(entry, *target),
+        BuildTaskAdapter::KainCheck { entry, target } => run_kain_check(entry, *target, progress),
         BuildTaskAdapter::KainCompile {
             source,
             target,
@@ -2819,6 +2898,7 @@ fn execute_task(
             primary_output,
             materialized_primary_output.as_ref(),
             root_component.as_deref(),
+            progress,
         ),
         BuildTaskAdapter::NativeExecutable {
             entry,
@@ -2864,6 +2944,7 @@ fn execute_task(
             output_base,
             materialized_output_base.as_ref(),
             *include_spirv,
+            progress,
         ),
         BuildTaskAdapter::NativeUiApp {
             source,
@@ -3040,8 +3121,13 @@ fn run_blade_check(workspace: &BladeWorkspace) -> BuildResult<String> {
     }
 }
 
-fn run_kain_check(entry: &Path, target: CompileTarget) -> BuildResult<String> {
-    let options = kain_check::CheckOptions::new(target);
+fn run_kain_check(
+    entry: &Path,
+    target: CompileTarget,
+    progress: Option<&ToolingProgressSink>,
+) -> BuildResult<String> {
+    let mut options = kain_check::CheckOptions::new(target);
+    options.progress = progress.cloned();
     let report = kain_check::check_file(entry, &options);
     if report.passed() {
         Ok(format!("checked {}", entry.display()))
@@ -3269,8 +3355,10 @@ fn run_kain_compile(
     primary_output: &Path,
     materialized_primary_output: Option<&PathBuf>,
     root_component: Option<&str>,
+    progress: Option<&ToolingProgressSink>,
 ) -> BuildResult<String> {
     let source = kfs::read_text(source_path)?;
+    let session = DriverSession::default();
     let mut artifacts = Vec::new();
     if let Some(parent) = primary_output.parent() {
         kfs::create_dir_all(parent)?;
@@ -3278,21 +3366,26 @@ fn run_kain_compile(
 
     match target {
         CompileTarget::Wasm => {
-            let bytes = kain_driver::compile_wasm_binary(&source)?;
+            let bytes = session.compile_wasm_binary_with_progress(&source, progress)?;
             kfs::atomic_write_bytes(primary_output, &bytes)?;
             artifacts.push(record_artifact("primary", primary_output)?);
         }
         CompileTarget::Spirv => {
-            let bytes = kain_driver::compile_spirv_binary(&source)?;
+            let bytes = session.compile_spirv_binary_with_progress(&source, progress)?;
             kfs::atomic_write_bytes(primary_output, &bytes)?;
             artifacts.push(record_artifact("primary", primary_output)?);
         }
         CompileTarget::Hybrid => {
-            let hybrid = kain_driver::compile_hybrid_artifacts(&source)?;
+            let hybrid = session.compile_hybrid_artifacts_with_progress(&source, progress)?;
             artifacts.extend(write_hybrid_artifacts(primary_output, hybrid)?);
         }
         _ => {
-            let compiled = kain_driver::compile(&source, target)?;
+            let compiled = session.compile_with_source_path_and_progress(
+                &source,
+                Some(source_path),
+                target,
+                progress,
+            )?;
             kfs::atomic_write_text(primary_output, &compiled)?;
             artifacts.push(record_artifact("primary", primary_output)?);
         }
@@ -3332,12 +3425,19 @@ fn run_rust_artifacts(
     output_base: &Path,
     materialized_output_base: Option<&PathBuf>,
     include_spirv: bool,
+    progress: Option<&ToolingProgressSink>,
 ) -> BuildResult<String> {
     let source = kfs::read_text(source_path)?;
+    let session = DriverSession::default();
     if let Some(parent) = output_base.parent() {
         kfs::create_dir_all(parent)?;
     }
-    let typed = kain_driver::frontend_to_typed_program(&source, CompileTarget::Rust)?;
+    let typed = session.frontend_to_typed_program_with_source_path_and_progress(
+        &source,
+        Some(source_path),
+        CompileTarget::Rust,
+        progress,
+    )?;
     let bundle = kain_sys_codegen::generate_rust_artifact_bundle(&typed)
         .map_err(|err| BuildError::Config(err.to_string()))?;
     let mut artifacts = Vec::new();
@@ -3369,7 +3469,7 @@ fn run_rust_artifacts(
             .as_ref()
             .is_some_and(|metadata| !metadata.shaders.is_empty())
     {
-        let spirv = kain_driver::compile_spirv_binary(&source)?;
+        let spirv = session.compile_spirv_binary_with_progress(&source, progress)?;
         let path = output_base.with_extension("spv");
         kfs::atomic_write_bytes(&path, &spirv)?;
         artifacts.push(record_artifact("spirv", &path)?);
@@ -5444,6 +5544,46 @@ fn unix_timestamp_ms() -> u128 {
         .unwrap_or(0)
 }
 
+fn tooling_status_for_build_status(status: BuildTaskStatus) -> ToolingProgressStatus {
+    match status {
+        BuildTaskStatus::Planned => ToolingProgressStatus::Planned,
+        BuildTaskStatus::Cached => ToolingProgressStatus::Cached,
+        BuildTaskStatus::Succeeded => ToolingProgressStatus::Succeeded,
+        BuildTaskStatus::Failed => ToolingProgressStatus::Failed,
+        BuildTaskStatus::Skipped => ToolingProgressStatus::Skipped,
+    }
+}
+
+fn publish_progress_event(
+    event_writer: &Arc<Mutex<EventWriter>>,
+    forward: Option<&ToolingProgressSink>,
+    event: &ToolingProgressEvent,
+) -> BuildResult<()> {
+    let mut writer = event_writer
+        .lock()
+        .map_err(|_| BuildError::Config("build progress writer lock was poisoned".to_string()))?;
+    writer.write_progress(event)?;
+    drop(writer);
+    if let Some(forward) = forward {
+        forward.emit(event);
+    }
+    Ok(())
+}
+
+fn build_driver_progress_sink(
+    event_writer: Arc<Mutex<EventWriter>>,
+    forward: Option<ToolingProgressSink>,
+) -> ToolingProgressSink {
+    ToolingProgressSink::new(move |event| {
+        if let Ok(mut writer) = event_writer.lock() {
+            let _ = writer.write_progress(event);
+        }
+        if let Some(forward) = forward.as_ref() {
+            forward.emit(event);
+        }
+    })
+}
+
 struct EventWriter {
     path: PathBuf,
 }
@@ -5459,16 +5599,11 @@ impl EventWriter {
         })
     }
 
-    fn write(&mut self, execution: &BuildTaskExecution) -> BuildResult<()> {
-        let encoded = serde_json::to_string(&json!({
-            "timestamp_unix_ms": unix_timestamp_ms(),
-            "task": execution.id,
-            "kind": execution.kind,
-            "status": execution.status,
-            "cache_hit": execution.cache_hit,
-            "message": execution.message,
-            "error": execution.error,
-        }))
+    fn write_progress(&mut self, event: &ToolingProgressEvent) -> BuildResult<()> {
+        let encoded = serde_json::to_string(&ToolingProgressRecord::new(
+            unix_timestamp_ms(),
+            event.clone(),
+        ))
         .map_err(|err| BuildError::Config(format!("failed to serialize build event: {err}")))?;
         kfs::append_text(&self.path, &format!("{encoded}\n"))?;
         Ok(())
@@ -5478,6 +5613,21 @@ impl EventWriter {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::{Arc, Mutex};
+
+    fn capture_progress() -> (Arc<Mutex<Vec<ToolingProgressEvent>>>, ToolingProgressSink) {
+        let events = Arc::new(Mutex::new(Vec::new()));
+        let capture = events.clone();
+        (
+            events,
+            ToolingProgressSink::new(move |event| {
+                capture
+                    .lock()
+                    .expect("capture progress")
+                    .push(event.clone());
+            }),
+        )
+    }
 
     #[test]
     fn orders_dependencies_before_dependents() {
@@ -5501,6 +5651,49 @@ mod tests {
     fn detects_duplicate_task_ids() {
         let tasks = vec![test_task("a", Vec::new()), test_task("a", Vec::new())];
         assert!(order_tasks(tasks).is_err());
+    }
+
+    #[test]
+    fn build_kain_file_emits_task_and_compiler_progress() {
+        let root = unique_test_dir("progress-events");
+        let entry = root.join("main.kn");
+        kfs::write_text(&entry, "fn main() -> Int:\n    return 7\n").expect("entry source");
+        let (events, sink) = capture_progress();
+        let mut options = KainFileBuildOptions::new(entry, CompileTarget::Interpret);
+        options.progress = Some(sink);
+
+        let report = build_kain_file(&options).expect("build report");
+
+        assert!(report.is_success());
+        let events = events.lock().expect("lock events");
+        assert!(events.iter().any(|event| matches!(
+            event,
+            ToolingProgressEvent::BuildPlanReady { total_tasks: 1, .. }
+        )));
+        assert!(events
+            .iter()
+            .any(|event| matches!(event, ToolingProgressEvent::BuildTaskStarted { .. })));
+        assert!(events.iter().any(|event| matches!(
+            event,
+            ToolingProgressEvent::CompilerPhase {
+                phase: kain_driver::CompilerProgressPhase::Parse,
+                ..
+            }
+        )));
+        assert!(events.iter().any(|event| matches!(
+            event,
+            ToolingProgressEvent::CompilerPhase {
+                phase: kain_driver::CompilerProgressPhase::Interpret,
+                ..
+            }
+        )));
+        assert!(events.iter().any(|event| matches!(
+            event,
+            ToolingProgressEvent::BuildTaskFinished {
+                status: ToolingProgressStatus::Succeeded,
+                ..
+            }
+        )));
     }
 
     #[test]
@@ -6276,7 +6469,10 @@ fn build(ctx: BuildContext) -> BuildGraph:
             r"\\server\share\album.kn"
         );
         assert_eq!(
-            process_portable_path(Path::new(&format!(r"\\?\{}\repo\smoketest\smoketest.exe", drive))),
+            process_portable_path(Path::new(&format!(
+                r"\\?\{}\repo\smoketest\smoketest.exe",
+                drive
+            ))),
             PathBuf::from(format!(r"{}\repo\smoketest\smoketest.exe", drive))
         );
     }
@@ -6479,7 +6675,7 @@ fn build(ctx: BuildContext) -> BuildGraph:
 
     #[test]
     fn shader_artifact_source_extracts_kain_example_shaders_without_native_body() {
-        let source = include_str!("../../../blades/kain-example/src/main.kn");
+        let source = include_str!("../../../blades/_old/kain-example/src/main.kn");
 
         let extracted = shader_artifact_source(source)
             .expect("kain-example native source should yield shader-only source");

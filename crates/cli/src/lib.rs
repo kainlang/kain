@@ -6,13 +6,13 @@
 extern crate self as cli;
 
 // Re-export core compiler
+pub use kain_core::error::{KainError, KainResult};
+pub use kain_core::runtime_contract::RuntimeContractBundle;
+pub use kain_core::types::TypedProgram;
 pub use kain_core::*;
 pub use kain_core::{
     ast, diagnostic_registry, diagnostics, lexer, parser, span, types, CompileTarget,
 };
-pub use kain_core::error::{KainError, KainResult};
-pub use kain_core::runtime_contract::RuntimeContractBundle;
-pub use kain_core::types::TypedProgram;
 
 // CLI-specific modules
 pub mod amalgamate;
@@ -35,8 +35,8 @@ pub mod import_rust;
 pub mod import_typescript;
 #[cfg(not(feature = "typescript-import"))]
 pub mod import_typescript {
-    use std::path::{Path, PathBuf};
     use crate::{KainError, KainResult};
+    use std::path::{Path, PathBuf};
 
     #[derive(Debug, Clone)]
     pub struct ImportTypeScriptBatchOptions {
@@ -89,6 +89,7 @@ pub mod native_ui_dev;
 pub mod omni;
 pub mod packager;
 pub mod packages;
+pub mod progress;
 pub mod repair;
 pub mod run;
 pub mod runtime_tools;

@@ -4,6 +4,10 @@ use blade::{
 };
 use kain_core::tooling_config::apply_cargo_command_defaults;
 use kain_core::CompileTarget;
+use kain_driver::{
+    DriverSession, ToolingProgressEvent, ToolingProgressRecord, ToolingProgressSink,
+    ToolingProgressStatus,
+};
 use kain_fs as kfs;
 use kain_omni::fabric::FabricSessionStatus;
 use kain_process::{ProcessEnvironmentEntry, ProcessSpec, ProcessStdioMode};
@@ -106,6 +110,7 @@ pub struct RunRequest {
     pub dry_run: bool,
     pub watch_limit: Option<usize>,
     pub poll_interval: Duration,
+    pub progress: Option<ToolingProgressSink>,
 }
 
 impl RunRequest {
@@ -123,6 +128,7 @@ impl RunRequest {
             dry_run: false,
             watch_limit: None,
             poll_interval: Duration::from_millis(250),
+            progress: None,
         }
     }
 
@@ -159,6 +165,7 @@ pub struct InlineKainSourceRequest {
     pub cwd: PathBuf,
     pub target: RunTarget,
     pub args: Vec<String>,
+    pub progress: Option<ToolingProgressSink>,
 }
 
 impl InlineKainSourceRequest {
@@ -173,6 +180,7 @@ impl InlineKainSourceRequest {
             cwd: cwd.into(),
             target: RunTarget::Llvm,
             args: Vec::new(),
+            progress: None,
         }
     }
 
@@ -342,14 +350,6 @@ pub struct RunUnitExecution {
     pub error: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RunEvent {
-    pub event: String,
-    pub unix_ms: u128,
-    pub unit_id: Option<String>,
-    pub message: String,
-}
-
 pub fn plan_run(request: &RunRequest) -> RunResult<RunPlan> {
     let workspace_root = discover_workspace_root(request)?;
     let cache_root = workspace_root.join(DEFAULT_RUN_CACHE_ROOT);
@@ -418,6 +418,8 @@ pub fn execute_inline_kain_source(request: &InlineKainSourceRequest) -> RunResul
         .with_target(request.target)
         .with_args(request.args.clone())
         .with_workspace_path(request.cwd.clone());
+    let mut run_request = run_request;
+    run_request.progress = request.progress.clone();
     let result = execute_run(&run_request);
 
     let _cleanup = kfs::remove_file(&entry);
@@ -433,18 +435,21 @@ pub fn execute_plan(plan: RunPlan, request: &RunRequest) -> RunResult<RunReport>
         std::process::id()
     ));
     let events_path = report_path.with_extension("jsonl");
+    kfs::atomic_write_text(&events_path, "")?;
+    let driver_progress = run_driver_progress_sink(events_path.clone(), request.progress.clone());
     let mut executions = Vec::new();
-    write_event(
+    publish_progress_event(
         &events_path,
-        &RunEvent {
-            event: "plan".to_string(),
-            unix_ms: started_unix_ms,
-            unit_id: None,
-            message: format!("planned {} run unit(s)", plan.units.len()),
+        request.progress.as_ref(),
+        &ToolingProgressEvent::RunPlanReady {
+            workspace_root: plan.workspace_root.clone(),
+            mode: format!("{:?}", plan.mode).to_ascii_lowercase(),
+            target: run_target_name(plan.requested_target).to_string(),
+            total_units: plan.units.len(),
         },
     )?;
 
-    for unit in &plan.units {
+    for (index, unit) in plan.units.iter().enumerate() {
         let execution = if request.dry_run || matches!(request.mode, RunMode::Plan) {
             RunUnitExecution {
                 id: unit.id.clone(),
@@ -461,15 +466,31 @@ pub fn execute_plan(plan: RunPlan, request: &RunRequest) -> RunResult<RunReport>
                 error: None,
             }
         } else {
-            execute_unit(unit)?
+            publish_progress_event(
+                &events_path,
+                request.progress.as_ref(),
+                &ToolingProgressEvent::RunUnitStarted {
+                    current: index + 1,
+                    total: plan.units.len(),
+                    unit_id: unit.id.clone(),
+                    label: unit.label.clone(),
+                    target: run_target_name(unit.target).to_string(),
+                },
+            )?;
+            execute_unit(unit, Some(&driver_progress))?
         };
-        write_event(
+        publish_progress_event(
             &events_path,
-            &RunEvent {
-                event: "unit".to_string(),
-                unix_ms: unix_timestamp_ms(),
-                unit_id: Some(unit.id.clone()),
-                message: format!("{:?}", execution.status),
+            request.progress.as_ref(),
+            &ToolingProgressEvent::RunUnitFinished {
+                current: index + 1,
+                total: plan.units.len(),
+                unit_id: unit.id.clone(),
+                label: unit.label.clone(),
+                target: run_target_name(unit.target).to_string(),
+                status: tooling_status_for_run_status(execution.status),
+                exit_code: execution.exit_code,
+                error: execution.error.clone(),
             },
         )?;
         executions.push(execution);
@@ -1236,16 +1257,21 @@ fn node_unit(kind: NodeRuntimeKind, workspace_root: &Path, entry: &Path) -> RunR
     })
 }
 
-fn execute_unit(unit: &RunUnit) -> RunResult<RunUnitExecution> {
+fn execute_unit(
+    unit: &RunUnit,
+    progress: Option<&ToolingProgressSink>,
+) -> RunResult<RunUnitExecution> {
     let started_unix_ms = unix_timestamp_ms();
     let result = match &unit.adapter {
-        RunAdapter::KainInterpreter { entry } => run_kain(entry, unit),
-        RunAdapter::KainNativeLlvm { entry, executable } => run_llvm(entry, executable, unit),
+        RunAdapter::KainInterpreter { entry } => run_kain(entry, unit, progress),
+        RunAdapter::KainNativeLlvm { entry, executable } => {
+            run_llvm(entry, executable, unit, progress)
+        }
         RunAdapter::CExecutable {
             source,
             executable,
             compiler,
-        } => run_c(source, executable, compiler, unit),
+        } => run_c(source, executable, compiler, unit, progress),
         RunAdapter::Cargo {
             manifest_path,
             package,
@@ -1257,9 +1283,12 @@ fn execute_unit(unit: &RunUnit) -> RunResult<RunUnitExecution> {
             *release,
             target_dir,
             unit,
+            progress,
         ),
         RunAdapter::Fabric { manifest_path } => run_fabric(manifest_path),
-        RunAdapter::NodeLike { entry, program, .. } => run_node_like(program, entry, unit),
+        RunAdapter::NodeLike { entry, program, .. } => {
+            run_node_like(program, entry, unit, progress)
+        }
     };
     let finished_unix_ms = unix_timestamp_ms();
     Ok(match result {
@@ -1285,18 +1314,41 @@ fn execute_unit(unit: &RunUnit) -> RunResult<RunUnitExecution> {
     })
 }
 
-fn run_llvm(entry: &Path, executable: &Path, unit: &RunUnit) -> RunResult<RunUnitExecution> {
+fn run_llvm(
+    entry: &Path,
+    executable: &Path,
+    unit: &RunUnit,
+    progress: Option<&ToolingProgressSink>,
+) -> RunResult<RunUnitExecution> {
     compile_llvm_if_needed(entry, executable, unit)?;
-    run_process(command_for_process(executable, unit, &unit.args), unit)
+    run_process(
+        command_for_process(executable, unit, &unit.args),
+        unit,
+        progress,
+    )
 }
 
-fn run_kain(entry: &Path, unit: &RunUnit) -> RunResult<RunUnitExecution> {
+fn run_kain(
+    entry: &Path,
+    unit: &RunUnit,
+    progress: Option<&ToolingProgressSink>,
+) -> RunResult<RunUnitExecution> {
     with_temporary_process_context(&unit.cwd, &unit.env, || {
         let source = kfs::read_text(entry)?;
-        let value = kain_driver::DriverSession::default().compile_with_source_path(
+        emit_progress(
+            progress,
+            &ToolingProgressEvent::RunHandOff {
+                unit_id: unit.id.clone(),
+                label: unit.label.clone(),
+                target: run_target_name(unit.target).to_string(),
+                command: None,
+            },
+        );
+        let value = DriverSession::default().compile_with_source_path_and_progress(
             &source,
             Some(entry),
             CompileTarget::Interpret,
+            progress,
         )?;
         Ok(RunUnitExecution {
             id: "kain".to_string(),
@@ -1375,9 +1427,14 @@ fn run_c(
     executable: &Path,
     compiler: &Path,
     unit: &RunUnit,
+    progress: Option<&ToolingProgressSink>,
 ) -> RunResult<RunUnitExecution> {
     compile_c_if_needed(source, executable, compiler)?;
-    run_process(command_for_process(executable, unit, &unit.args), unit)
+    run_process(
+        command_for_process(executable, unit, &unit.args),
+        unit,
+        progress,
+    )
 }
 
 fn run_cargo(
@@ -1386,6 +1443,7 @@ fn run_cargo(
     release: bool,
     target_dir: &Path,
     unit: &RunUnit,
+    progress: Option<&ToolingProgressSink>,
 ) -> RunResult<RunUnitExecution> {
     kfs::create_dir_all(target_dir)?;
     let mut command = Command::new("cargo");
@@ -1409,7 +1467,7 @@ fn run_cargo(
             command.arg(arg);
         }
     }
-    run_process(command, unit)
+    run_process(command, unit, progress)
 }
 
 fn run_fabric(manifest_path: &Path) -> RunResult<RunUnitExecution> {
@@ -1439,19 +1497,37 @@ fn run_fabric(manifest_path: &Path) -> RunResult<RunUnitExecution> {
     })
 }
 
-fn run_node_like(program: &str, entry: &Path, unit: &RunUnit) -> RunResult<RunUnitExecution> {
+fn run_node_like(
+    program: &str,
+    entry: &Path,
+    unit: &RunUnit,
+    progress: Option<&ToolingProgressSink>,
+) -> RunResult<RunUnitExecution> {
     let mut command = Command::new(program);
     command.arg(entry).current_dir(unit.cwd.clone());
     apply_unit_environment(&mut command, unit);
     for arg in &unit.args {
         command.arg(arg);
     }
-    run_process(command, unit)
+    run_process(command, unit, progress)
 }
 
-fn run_process(mut command: Command, unit: &RunUnit) -> RunResult<RunUnitExecution> {
+fn run_process(
+    mut command: Command,
+    unit: &RunUnit,
+    progress: Option<&ToolingProgressSink>,
+) -> RunResult<RunUnitExecution> {
     command.stdout(Stdio::piped()).stderr(Stdio::piped());
     let process = process_spec_for_command(&command, unit);
+    emit_progress(
+        progress,
+        &ToolingProgressEvent::RunHandOff {
+            unit_id: unit.id.clone(),
+            label: unit.label.clone(),
+            target: run_target_name(unit.target).to_string(),
+            command: Some(process.executable.clone()),
+        },
+    );
     let output = command.output().map_err(|err| {
         RunError::Process(format!("failed to invoke {}: {err}", process.executable))
     })?;
@@ -2215,10 +2291,64 @@ fn sanitize_id(value: &str) -> String {
     }
 }
 
-fn write_event(path: &Path, event: &RunEvent) -> RunResult<()> {
-    let encoded = serde_json::to_string(event)?;
+fn write_progress_event(path: &Path, event: &ToolingProgressEvent) -> RunResult<()> {
+    let encoded = serde_json::to_string(&ToolingProgressRecord::new(
+        unix_timestamp_ms(),
+        event.clone(),
+    ))?;
     kfs::append_text(path, &(encoded + "\n"))?;
     Ok(())
+}
+
+fn publish_progress_event(
+    events_path: &Path,
+    forward: Option<&ToolingProgressSink>,
+    event: &ToolingProgressEvent,
+) -> RunResult<()> {
+    write_progress_event(events_path, event)?;
+    if let Some(forward) = forward {
+        forward.emit(event);
+    }
+    Ok(())
+}
+
+fn run_driver_progress_sink(
+    events_path: PathBuf,
+    forward: Option<ToolingProgressSink>,
+) -> ToolingProgressSink {
+    ToolingProgressSink::new(move |event| {
+        let _ = write_progress_event(&events_path, event);
+        if let Some(forward) = forward.as_ref() {
+            forward.emit(event);
+        }
+    })
+}
+
+fn tooling_status_for_run_status(status: RunStatus) -> ToolingProgressStatus {
+    match status {
+        RunStatus::Succeeded => ToolingProgressStatus::Succeeded,
+        RunStatus::Failed => ToolingProgressStatus::Failed,
+        RunStatus::Planned => ToolingProgressStatus::Planned,
+    }
+}
+
+fn emit_progress(progress: Option<&ToolingProgressSink>, event: &ToolingProgressEvent) {
+    if let Some(progress) = progress {
+        progress.emit(event);
+    }
+}
+
+fn run_target_name(target: RunTarget) -> &'static str {
+    match target {
+        RunTarget::Auto => "auto",
+        RunTarget::Kain => "kain",
+        RunTarget::Llvm => "llvm",
+        RunTarget::C => "c",
+        RunTarget::Cargo => "cargo",
+        RunTarget::Fabric => "fabric",
+        RunTarget::Node => "node",
+        RunTarget::Bun => "bun",
+    }
 }
 
 fn unix_timestamp_ms() -> u128 {
@@ -2300,7 +2430,7 @@ fn inline_source_entry_file_name(source_name: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::{Mutex, MutexGuard, OnceLock};
+    use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
 
     fn process_context_test_lock() -> &'static Mutex<()> {
         static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
@@ -2348,6 +2478,20 @@ TinyPair tiny_make_pair(int left, int right);
             b"fake dynamic library bytes for run-plan platform env tests",
         )
         .unwrap();
+    }
+
+    fn capture_progress() -> (Arc<Mutex<Vec<ToolingProgressEvent>>>, ToolingProgressSink) {
+        let events = Arc::new(Mutex::new(Vec::new()));
+        let capture = events.clone();
+        (
+            events,
+            ToolingProgressSink::new(move |event| {
+                capture
+                    .lock()
+                    .expect("capture progress")
+                    .push(event.clone());
+            }),
+        )
     }
 
     #[test]
@@ -2845,6 +2989,53 @@ fn main() -> String:
         assert!(report.is_success(), "{report:#?}");
         assert_eq!(report.units.len(), 1);
         assert!(report.units[0].output.contains("one,two"));
+    }
+
+    #[test]
+    fn execute_run_emits_plan_unit_handoff_and_compiler_progress() {
+        let _guard = lock_process_context();
+        let temp = tempfile::tempdir().expect("tempdir");
+        let entry = temp.path().join("main.kn");
+        kfs::write_text(&entry, "fn main() -> Int:\n    return 5\n").expect("entry source");
+        let (events, sink) = capture_progress();
+        let mut request = RunRequest::new(Some(entry));
+        request.progress = Some(sink);
+
+        let report = execute_run(&request).expect("run report");
+
+        assert!(report.is_success());
+        let events = events.lock().expect("lock events");
+        assert!(events.iter().any(|event| matches!(
+            event,
+            ToolingProgressEvent::RunPlanReady { total_units: 1, .. }
+        )));
+        assert!(events
+            .iter()
+            .any(|event| matches!(event, ToolingProgressEvent::RunUnitStarted { .. })));
+        assert!(events
+            .iter()
+            .any(|event| matches!(event, ToolingProgressEvent::RunHandOff { .. })));
+        assert!(events.iter().any(|event| matches!(
+            event,
+            ToolingProgressEvent::CompilerPhase {
+                phase: kain_driver::CompilerProgressPhase::Parse,
+                ..
+            }
+        )));
+        assert!(events.iter().any(|event| matches!(
+            event,
+            ToolingProgressEvent::CompilerPhase {
+                phase: kain_driver::CompilerProgressPhase::Interpret,
+                ..
+            }
+        )));
+        assert!(events.iter().any(|event| matches!(
+            event,
+            ToolingProgressEvent::RunUnitFinished {
+                status: ToolingProgressStatus::Succeeded,
+                ..
+            }
+        )));
     }
 
     #[test]

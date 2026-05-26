@@ -2,10 +2,10 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use kain_driver::discover_native_app_root_component;
-use serde_json::json;
 use kain_run::{
     execute_run, plan_run, render_text_report, RunMode, RunReport, RunRequest, RunStatus, RunTarget,
 };
+use serde_json::json;
 
 use crate::native_ui_build::{NativeUiBuildConfig, NativeUiRuntimeDependencyConfig};
 
@@ -70,12 +70,15 @@ pub fn make_blade_request(
         }))
 }
 
-pub fn execute(request: RunRequest) -> Result<(), String> {
+pub fn execute(mut request: RunRequest) -> Result<(), String> {
     if request.mode == RunMode::Plan {
         return print_plan(request);
     }
     if let Some(config) = native_ui_dev_config_for_request(&request)? {
         return crate::native_ui_dev::run_native_ui_dev(config).map_err(|err| err.to_string());
+    }
+    if request.progress.is_none() {
+        request.progress = crate::progress::stderr_progress_sink(!request.json);
     }
     let report = execute_run(&request).map_err(|err| {
         let rendered_output = format!(" Run failed: {err}\n");

@@ -5,15 +5,19 @@
 //! IDE/test harnesses do not need to duplicate checking logic.
 
 use kain_core::{emit_runtime_contract_bundle, CompileTarget, TypedItem, TypedProgram};
-use kain_driver::DriverSession;
+use kain_driver::{
+    DriverSession, ToolingProgressEvent, ToolingProgressSink, ToolingProgressStatus,
+};
 use kain_fs as kfs;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CheckOptions {
     pub target: CompileTargetName,
     pub fail_fast: bool,
+    #[serde(skip)]
+    pub progress: Option<ToolingProgressSink>,
 }
 
 impl CheckOptions {
@@ -21,6 +25,7 @@ impl CheckOptions {
         Self {
             target: CompileTargetName::from(target),
             fail_fast: false,
+            progress: None,
         }
     }
 
@@ -101,7 +106,29 @@ impl CheckReport {
 
 pub fn check_source(source_name: &str, source: &str, options: &CheckOptions) -> CheckFileReport {
     let session = DriverSession::default();
-    check_source_with_session(&session, source_name, None, source, options)
+    let source_path = PathBuf::from(source_name);
+    emit_progress(
+        options,
+        ToolingProgressEvent::CheckFileStarted {
+            current: 1,
+            total: 1,
+            path: source_path.clone(),
+            target: compile_target_name(options.target()).to_string(),
+        },
+    );
+    let report = check_source_with_session(&session, source_name, None, source, options);
+    emit_progress(
+        options,
+        ToolingProgressEvent::CheckFileFinished {
+            current: 1,
+            total: 1,
+            path: source_path,
+            target: compile_target_name(options.target()).to_string(),
+            status: tooling_status_for_report(&report),
+            error: report.error.clone(),
+        },
+    );
+    report
 }
 
 pub fn check_source_with_session(
@@ -112,7 +139,12 @@ pub fn check_source_with_session(
     options: &CheckOptions,
 ) -> CheckFileReport {
     let target = options.target();
-    match session.frontend_to_checked_program_with_source_path(source, source_path, target) {
+    match session.frontend_to_checked_program_with_source_path_and_progress(
+        source,
+        source_path,
+        target,
+        options.progress.as_ref(),
+    ) {
         Ok(checked) => {
             let bundle = emit_runtime_contract_bundle(&checked.typed, target);
             CheckFileReport {
@@ -151,6 +183,35 @@ pub fn check_file_with_session(
     path: &Path,
     options: &CheckOptions,
 ) -> CheckFileReport {
+    emit_progress(
+        options,
+        ToolingProgressEvent::CheckFileStarted {
+            current: 1,
+            total: 1,
+            path: path.to_path_buf(),
+            target: compile_target_name(options.target()).to_string(),
+        },
+    );
+    let report = check_file_with_session_raw(session, path, options);
+    emit_progress(
+        options,
+        ToolingProgressEvent::CheckFileFinished {
+            current: 1,
+            total: 1,
+            path: path.to_path_buf(),
+            target: compile_target_name(options.target()).to_string(),
+            status: tooling_status_for_report(&report),
+            error: report.error.clone(),
+        },
+    );
+    report
+}
+
+fn check_file_with_session_raw(
+    session: &DriverSession,
+    path: &Path,
+    options: &CheckOptions,
+) -> CheckFileReport {
     match kfs::read_text(path) {
         Ok(source) => check_source_with_session(
             session,
@@ -172,6 +233,13 @@ pub fn check_file_with_session(
 }
 
 pub fn check_path(path: &Path, options: &CheckOptions) -> CheckReport {
+    emit_progress(
+        options,
+        ToolingProgressEvent::CheckDiscoveryStarted {
+            root: path.to_path_buf(),
+            target: compile_target_name(options.target()).to_string(),
+        },
+    );
     let files = match discover_kain_files(path) {
         Ok(files) => files,
         Err(error) => {
@@ -192,12 +260,41 @@ pub fn check_path(path: &Path, options: &CheckOptions) -> CheckReport {
             };
         }
     };
+    emit_progress(
+        options,
+        ToolingProgressEvent::CheckDiscoveryFinished {
+            root: path.to_path_buf(),
+            target: compile_target_name(options.target()).to_string(),
+            total_files: files.len(),
+        },
+    );
 
     let mut reports = Vec::new();
     let session = DriverSession::default();
-    for file in files {
-        let report = check_file_with_session(&session, &file, options);
+    let total_files = files.len();
+    for (index, file) in files.into_iter().enumerate() {
+        emit_progress(
+            options,
+            ToolingProgressEvent::CheckFileStarted {
+                current: index + 1,
+                total: total_files,
+                path: file.clone(),
+                target: compile_target_name(options.target()).to_string(),
+            },
+        );
+        let report = check_file_with_session_raw(&session, &file, options);
         let failed = !report.passed();
+        emit_progress(
+            options,
+            ToolingProgressEvent::CheckFileFinished {
+                current: index + 1,
+                total: total_files,
+                path: file,
+                target: compile_target_name(options.target()).to_string(),
+                status: tooling_status_for_report(&report),
+                error: report.error.clone(),
+            },
+        );
         reports.push(report);
         if failed && options.fail_fast {
             break;
@@ -252,6 +349,20 @@ pub fn compile_target_name(target: CompileTarget) -> &'static str {
         CompileTarget::Interpret => "run",
         CompileTarget::Test => "test",
         CompileTarget::Ks => "ks",
+    }
+}
+
+fn tooling_status_for_report(report: &CheckFileReport) -> ToolingProgressStatus {
+    if report.passed() {
+        ToolingProgressStatus::Succeeded
+    } else {
+        ToolingProgressStatus::Failed
+    }
+}
+
+fn emit_progress(options: &CheckOptions, event: ToolingProgressEvent) {
+    if let Some(progress) = options.progress.as_ref() {
+        progress.emit(&event);
     }
 }
 
@@ -339,6 +450,21 @@ fn count_typed_tests_in_slice(items: &[TypedItem]) -> usize {
 mod tests {
     use super::*;
     use std::fs;
+    use std::sync::{Arc, Mutex};
+
+    fn capture_progress() -> (Arc<Mutex<Vec<ToolingProgressEvent>>>, ToolingProgressSink) {
+        let events = Arc::new(Mutex::new(Vec::new()));
+        let capture = events.clone();
+        (
+            events,
+            ToolingProgressSink::new(move |event| {
+                capture
+                    .lock()
+                    .expect("capture progress")
+                    .push(event.clone());
+            }),
+        )
+    }
 
     #[test]
     fn check_source_reports_item_and_capability_summary() {
@@ -449,5 +575,50 @@ pub fn four() -> Int:
             report.error
         );
         assert!(report.item_count >= 1);
+    }
+
+    #[test]
+    fn check_path_emits_discovery_and_file_progress() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        kfs::write_text(
+            temp.path().join("alpha.kn"),
+            "fn main() -> Int:\n    return 0\n",
+        )
+        .expect("alpha source");
+        kfs::write_text(
+            temp.path().join("beta.kn"),
+            "fn main() -> Int:\n    return 1\n",
+        )
+        .expect("beta source");
+        let (events, sink) = capture_progress();
+        let mut options = CheckOptions::new(CompileTarget::Interpret);
+        options.progress = Some(sink);
+
+        let report = check_path(temp.path(), &options);
+
+        assert!(report.is_success());
+        let events = events.lock().expect("lock events");
+        assert!(matches!(
+            events.first(),
+            Some(ToolingProgressEvent::CheckDiscoveryStarted { .. })
+        ));
+        assert!(events.iter().any(|event| matches!(
+            event,
+            ToolingProgressEvent::CheckDiscoveryFinished { total_files: 2, .. }
+        )));
+        assert_eq!(
+            events
+                .iter()
+                .filter(|event| matches!(event, ToolingProgressEvent::CheckFileStarted { .. }))
+                .count(),
+            2
+        );
+        assert_eq!(
+            events
+                .iter()
+                .filter(|event| matches!(event, ToolingProgressEvent::CheckFileFinished { .. }))
+                .count(),
+            2
+        );
     }
 }

@@ -774,7 +774,8 @@ fn run_inline_native_script(source_name: &str, source: &str) -> bool {
             return false;
         }
     };
-    let request = kain_run::InlineKainSourceRequest::new(source_name, source, cwd);
+    let mut request = kain_run::InlineKainSourceRequest::new(source_name, source, cwd);
+    request.progress = cli::progress::stderr_progress_sink(true);
     match kain_run::execute_inline_kain_source(&request) {
         Ok(report) => {
             let success = report.is_success();
@@ -1894,6 +1895,7 @@ fn run_check_command(input: &Path, target: &str, fail_fast: bool, json: Option<&
     };
     let mut options = kain_check::CheckOptions::new(target);
     options.fail_fast = fail_fast;
+    options.progress = cli::progress::stderr_progress_sink(json.is_none());
 
     let report = if input == Path::new("-") {
         match read_source_from_path(input) {
@@ -2887,6 +2889,7 @@ pub fn main_entry() {
                         options.runtime_dependency = runtime_dependency;
                         options.tauri_bundle_identifier = tauri_bundle_id;
                         options.tauri_window_label = tauri_window_label;
+                        options.progress = cli::progress::stderr_progress_sink(true);
 
                         match kain_build::build_kain_native_ui(&options) {
                             Ok(report) => print_kain_build_report(&report),
@@ -2917,6 +2920,7 @@ pub fn main_entry() {
                                         options.output = output.clone();
                                         options.lane = lane;
                                         options.clean = clean;
+                                        options.progress = cli::progress::stderr_progress_sink(true);
                                         match kain_build::build_kain_rust_file(&options) {
                                             Ok(report) => print_kain_build_report(&report),
                                             Err(e) => {
@@ -2937,6 +2941,7 @@ pub fn main_entry() {
                                         options.rust_only = true;
                                         options.lane = lane;
                                         options.clean = clean;
+                                        options.progress = cli::progress::stderr_progress_sink(true);
                                         if let Err(e) = kain_build::build_kain_project(&options)
                                             .map(|report| print_kain_build_report(&report))
                                         {
@@ -2957,6 +2962,7 @@ pub fn main_entry() {
                                 options.rust_only = true;
                                 options.lane = lane;
                                 options.clean = clean;
+                                options.progress = cli::progress::stderr_progress_sink(true);
                                 if let Err(e) = kain_build::build_kain_project(&options)
                                     .map(|report| print_kain_build_report(&report))
                                 {
@@ -2987,6 +2993,7 @@ pub fn main_entry() {
                                         options.output = output.clone();
                                         options.lane = lane;
                                         options.clean = clean;
+                                        options.progress = cli::progress::stderr_progress_sink(true);
                                         match kain_build::build_kain_file(&options) {
                                             Ok(report) => print_kain_build_report(&report),
                                             Err(e) => {
@@ -3012,6 +3019,7 @@ pub fn main_entry() {
                                         options.target_overrides = target_overrides;
                                         options.lane = lane;
                                         options.clean = clean;
+                                        options.progress = cli::progress::stderr_progress_sink(true);
                                         match kain_build::build_kain_project(&options) {
                                             Ok(report) => print_kain_build_report(&report),
                                             Err(e) => {
@@ -3039,6 +3047,7 @@ pub fn main_entry() {
                                 options.target_overrides = target_overrides;
                                 options.lane = lane;
                                 options.clean = clean;
+                                options.progress = cli::progress::stderr_progress_sink(true);
                                 match kain_build::build_kain_project(&options) {
                                     Ok(report) => print_kain_build_report(&report),
                                     Err(e) => {
@@ -4347,9 +4356,8 @@ fn apply_config_key_value(
             config.ui.experimental_help = Some(parse_config_bool(value)?);
         }
         "diagnostics.capture" => {
-            config.diagnostics.capture = Some(
-                kain_core::tooling_config::KainDiagnosticCaptureMode::parse_str(value)?,
-            );
+            config.diagnostics.capture =
+                Some(kain_core::tooling_config::KainDiagnosticCaptureMode::parse_str(value)?);
         }
         "diagnostics.path" => {
             config.diagnostics.path = Some(PathBuf::from(value.trim()));

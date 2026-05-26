@@ -6,10 +6,11 @@
 
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
+use std::fmt;
 use std::path::{Path, PathBuf};
 #[cfg(test)]
 use std::sync::Mutex;
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
 use std::time::Instant;
 
 use kain_core::ast::{
@@ -29,6 +30,7 @@ use kain_core::{
     ResolvedType, RuntimeContractBundle, ShaderArtifactBundle, TypedItem, TypedProgram,
 };
 use serde::Deserialize;
+use serde::Serialize;
 
 #[cfg(all(feature = "gpu", feature = "sys"))]
 use kain_core::{
@@ -217,6 +219,156 @@ pub struct HybridArtifactOutput {
     pub wasm_export_names: Vec<String>,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+pub enum ToolingProgressStatus {
+    Planned,
+    Started,
+    Succeeded,
+    Failed,
+    Skipped,
+    Cached,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+pub enum CompilerProgressPhase {
+    Resolve,
+    Parse,
+    Comptime,
+    Typecheck,
+    Monomorphize,
+    Codegen,
+    Interpret,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(tag = "kind", rename_all = "kebab-case")]
+pub enum ToolingProgressEvent {
+    CheckDiscoveryStarted {
+        root: PathBuf,
+        target: String,
+    },
+    CheckDiscoveryFinished {
+        root: PathBuf,
+        target: String,
+        total_files: usize,
+    },
+    CheckFileStarted {
+        current: usize,
+        total: usize,
+        path: PathBuf,
+        target: String,
+    },
+    CheckFileFinished {
+        current: usize,
+        total: usize,
+        path: PathBuf,
+        target: String,
+        status: ToolingProgressStatus,
+        error: Option<String>,
+    },
+    BuildPlanReady {
+        workspace_root: PathBuf,
+        lane: String,
+        target: String,
+        total_tasks: usize,
+    },
+    BuildTaskStarted {
+        current: usize,
+        total: usize,
+        task_id: String,
+        description: String,
+        task_kind: String,
+        blade: Option<String>,
+    },
+    BuildTaskFinished {
+        current: usize,
+        total: usize,
+        task_id: String,
+        description: String,
+        task_kind: String,
+        blade: Option<String>,
+        status: ToolingProgressStatus,
+        cache_hit: bool,
+        message: String,
+        error: Option<String>,
+    },
+    RunPlanReady {
+        workspace_root: PathBuf,
+        mode: String,
+        target: String,
+        total_units: usize,
+    },
+    RunUnitStarted {
+        current: usize,
+        total: usize,
+        unit_id: String,
+        label: String,
+        target: String,
+    },
+    RunUnitFinished {
+        current: usize,
+        total: usize,
+        unit_id: String,
+        label: String,
+        target: String,
+        status: ToolingProgressStatus,
+        exit_code: Option<i64>,
+        error: Option<String>,
+    },
+    RunHandOff {
+        unit_id: String,
+        label: String,
+        target: String,
+        command: Option<String>,
+    },
+    CompilerPhase {
+        source_path: Option<PathBuf>,
+        target: String,
+        phase: CompilerProgressPhase,
+    },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ToolingProgressRecord {
+    pub unix_ms: u128,
+    #[serde(flatten)]
+    pub event: ToolingProgressEvent,
+}
+
+impl ToolingProgressRecord {
+    pub fn new(unix_ms: u128, event: ToolingProgressEvent) -> Self {
+        Self { unix_ms, event }
+    }
+}
+
+#[derive(Clone)]
+pub struct ToolingProgressSink {
+    inner: Arc<dyn Fn(&ToolingProgressEvent) + Send + Sync>,
+}
+
+impl ToolingProgressSink {
+    pub fn new<F>(callback: F) -> Self
+    where
+        F: Fn(&ToolingProgressEvent) + Send + Sync + 'static,
+    {
+        Self {
+            inner: Arc::new(callback),
+        }
+    }
+
+    pub fn emit(&self, event: &ToolingProgressEvent) {
+        (self.inner)(event);
+    }
+}
+
+impl fmt::Debug for ToolingProgressSink {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("ToolingProgressSink(..)")
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct CheckedFrontend {
     pub ast: Program,
@@ -335,11 +487,27 @@ impl DriverSession {
         source_path: Option<&Path>,
         target: CompileTarget,
     ) -> Result<CheckedFrontend, KainError> {
-        self.frontend_to_checked_program_with_extra_globals(
+        self.frontend_to_checked_program_with_source_path_and_progress(
+            source,
+            source_path,
+            target,
+            None,
+        )
+    }
+
+    pub fn frontend_to_checked_program_with_source_path_and_progress(
+        &self,
+        source: &str,
+        source_path: Option<&Path>,
+        target: CompileTarget,
+        progress: Option<&ToolingProgressSink>,
+    ) -> Result<CheckedFrontend, KainError> {
+        self.frontend_to_checked_program_with_extra_globals_and_progress(
             source,
             source_path,
             target,
             std::iter::empty::<(String, ResolvedType)>(),
+            progress,
         )
     }
 
@@ -353,9 +521,36 @@ impl DriverSession {
     where
         I: IntoIterator<Item = (String, ResolvedType)>,
     {
+        self.frontend_to_checked_program_with_extra_globals_and_progress(
+            source,
+            source_path,
+            target,
+            extra_globals,
+            None,
+        )
+    }
+
+    pub fn frontend_to_checked_program_with_extra_globals_and_progress<I>(
+        &self,
+        source: &str,
+        source_path: Option<&Path>,
+        target: CompileTarget,
+        extra_globals: I,
+        progress: Option<&ToolingProgressSink>,
+    ) -> Result<CheckedFrontend, KainError>
+    where
+        I: IntoIterator<Item = (String, ResolvedType)>,
+    {
         register_frontend_extensions_for_target(target);
+        emit_compiler_phase(
+            progress,
+            source_path,
+            target,
+            CompilerProgressPhase::Resolve,
+        );
         let frontend = build_frontend_source_bundle(self, source, source_path, target)?;
 
+        emit_compiler_phase(progress, source_path, target, CompilerProgressPhase::Parse);
         let tokens = Lexer::new(&frontend.full_source).tokenize()?;
         let span_mapper =
             diagnostics::SpanMapper::with_origins(&frontend.full_source, frontend.origins.clone());
@@ -363,7 +558,19 @@ impl DriverSession {
             .map(|path| path.display().to_string())
             .unwrap_or_else(|| "<input>".to_string());
         let mut ast = Parser::new(&tokens, &span_mapper, &filename).parse()?;
+        emit_compiler_phase(
+            progress,
+            source_path,
+            target,
+            CompilerProgressPhase::Comptime,
+        );
         comptime::eval_program(&mut ast)?;
+        emit_compiler_phase(
+            progress,
+            source_path,
+            target,
+            CompilerProgressPhase::Typecheck,
+        );
         let typed = types::check_with_extra_globals(&ast, &span_mapper, &filename, extra_globals)?;
         Ok(CheckedFrontend { ast, typed })
     }
@@ -382,8 +589,33 @@ impl DriverSession {
         source_path: Option<&Path>,
         target: CompileTarget,
     ) -> Result<MonomorphizedProgram, KainError> {
-        let checked =
-            self.frontend_to_checked_program_with_source_path(source, source_path, target)?;
+        self.frontend_to_monomorphized_program_with_source_path_and_progress(
+            source,
+            source_path,
+            target,
+            None,
+        )
+    }
+
+    pub fn frontend_to_monomorphized_program_with_source_path_and_progress(
+        &self,
+        source: &str,
+        source_path: Option<&Path>,
+        target: CompileTarget,
+        progress: Option<&ToolingProgressSink>,
+    ) -> Result<MonomorphizedProgram, KainError> {
+        let checked = self.frontend_to_checked_program_with_source_path_and_progress(
+            source,
+            source_path,
+            target,
+            progress,
+        )?;
+        emit_compiler_phase(
+            progress,
+            source_path,
+            target,
+            CompilerProgressPhase::Monomorphize,
+        );
         monomorphize::monomorphize(&checked.typed)
     }
 
@@ -401,8 +633,28 @@ impl DriverSession {
         source_path: Option<&Path>,
         target: CompileTarget,
     ) -> Result<TypedProgram, KainError> {
+        self.frontend_to_typed_program_with_source_path_and_progress(
+            source,
+            source_path,
+            target,
+            None,
+        )
+    }
+
+    pub fn frontend_to_typed_program_with_source_path_and_progress(
+        &self,
+        source: &str,
+        source_path: Option<&Path>,
+        target: CompileTarget,
+        progress: Option<&ToolingProgressSink>,
+    ) -> Result<TypedProgram, KainError> {
         Ok(self
-            .frontend_to_checked_program_with_source_path(source, source_path, target)?
+            .frontend_to_checked_program_with_source_path_and_progress(
+                source,
+                source_path,
+                target,
+                progress,
+            )?
             .typed)
     }
 
@@ -417,11 +669,12 @@ impl DriverSession {
         I: IntoIterator<Item = (String, ResolvedType)>,
     {
         Ok(self
-            .frontend_to_checked_program_with_extra_globals(
+            .frontend_to_checked_program_with_extra_globals_and_progress(
                 source,
                 source_path,
                 target,
                 extra_globals,
+                None,
             )?
             .typed)
     }
@@ -607,60 +860,167 @@ impl DriverSession {
         source_path: Option<&Path>,
         target: CompileTarget,
     ) -> Result<String, KainError> {
+        self.compile_with_source_path_and_progress(source, source_path, target, None)
+    }
+
+    pub fn compile_with_source_path_and_progress(
+        &self,
+        source: &str,
+        source_path: Option<&Path>,
+        target: CompileTarget,
+        progress: Option<&ToolingProgressSink>,
+    ) -> Result<String, KainError> {
         match target {
             #[cfg(feature = "ue5")]
             CompileTarget::Ue5 => {
-                let mono_for_codegen = self.frontend_to_monomorphized_program_with_source_path(
-                    source,
+                let mono_for_codegen = self
+                    .frontend_to_monomorphized_program_with_source_path_and_progress(
+                        source,
+                        source_path,
+                        target,
+                        progress,
+                    )?;
+                emit_compiler_phase(
+                    progress,
                     source_path,
                     target,
-                )?;
+                    CompilerProgressPhase::Codegen,
+                );
                 let output = ue5::generate(&mono_for_codegen, None, None)?;
                 Ok(format!("{}\n{}", output.header, output.source))
             }
             _ => {
                 #[allow(unused_variables)]
-                let typed_for_codegen =
-                    self.frontend_to_typed_program_with_source_path(source, source_path, target)?;
+                let typed_for_codegen = self
+                    .frontend_to_typed_program_with_source_path_and_progress(
+                        source,
+                        source_path,
+                        target,
+                        progress,
+                    )?;
 
                 match target {
                     #[cfg(feature = "ue5")]
-                    CompileTarget::Usf => ue5_shaders::generate_usf(&typed_for_codegen),
+                    CompileTarget::Usf => {
+                        emit_compiler_phase(
+                            progress,
+                            source_path,
+                            target,
+                            CompilerProgressPhase::Codegen,
+                        );
+                        ue5_shaders::generate_usf(&typed_for_codegen)
+                    }
 
                     #[cfg(feature = "gpu")]
-                    CompileTarget::Spirv => gpu::generate_spirv(&typed_for_codegen)
-                        .map(|bytes| format!("{} bytes", bytes.len())),
+                    CompileTarget::Spirv => {
+                        emit_compiler_phase(
+                            progress,
+                            source_path,
+                            target,
+                            CompilerProgressPhase::Codegen,
+                        );
+                        gpu::generate_spirv(&typed_for_codegen)
+                            .map(|bytes| format!("{} bytes", bytes.len()))
+                    }
 
                     #[cfg(feature = "gpu")]
-                    CompileTarget::Hlsl => gpu::generate_hlsl(&typed_for_codegen),
+                    CompileTarget::Hlsl => {
+                        emit_compiler_phase(
+                            progress,
+                            source_path,
+                            target,
+                            CompilerProgressPhase::Codegen,
+                        );
+                        gpu::generate_hlsl(&typed_for_codegen)
+                    }
 
                     #[cfg(feature = "gpu")]
-                    CompileTarget::Cuda => gpu::generate_ptx(&typed_for_codegen),
+                    CompileTarget::Cuda => {
+                        emit_compiler_phase(
+                            progress,
+                            source_path,
+                            target,
+                            CompilerProgressPhase::Codegen,
+                        );
+                        gpu::generate_ptx(&typed_for_codegen)
+                    }
 
                     #[cfg(feature = "web")]
-                    CompileTarget::Wasm => kain_web::generate_wasm(&typed_for_codegen)
-                        .map(|bytes| format!("{} bytes", bytes.len())),
+                    CompileTarget::Wasm => {
+                        emit_compiler_phase(
+                            progress,
+                            source_path,
+                            target,
+                            CompilerProgressPhase::Codegen,
+                        );
+                        kain_web::generate_wasm(&typed_for_codegen)
+                            .map(|bytes| format!("{} bytes", bytes.len()))
+                    }
 
                     #[cfg(feature = "web")]
-                    CompileTarget::Js => kain_web::generate_js(&typed_for_codegen),
+                    CompileTarget::Js => {
+                        emit_compiler_phase(
+                            progress,
+                            source_path,
+                            target,
+                            CompilerProgressPhase::Codegen,
+                        );
+                        kain_web::generate_js(&typed_for_codegen)
+                    }
 
                     #[cfg(feature = "web")]
-                    CompileTarget::Ts => kain_web::generate_ts(&typed_for_codegen),
+                    CompileTarget::Ts => {
+                        emit_compiler_phase(
+                            progress,
+                            source_path,
+                            target,
+                            CompilerProgressPhase::Codegen,
+                        );
+                        kain_web::generate_ts(&typed_for_codegen)
+                    }
 
                     #[cfg(feature = "web")]
-                    CompileTarget::Ks => kain_web::generate_ks(&typed_for_codegen),
+                    CompileTarget::Ks => {
+                        emit_compiler_phase(
+                            progress,
+                            source_path,
+                            target,
+                            CompilerProgressPhase::Codegen,
+                        );
+                        kain_web::generate_ks(&typed_for_codegen)
+                    }
 
                     #[cfg(feature = "web")]
                     CompileTarget::Hybrid => {
+                        emit_compiler_phase(
+                            progress,
+                            source_path,
+                            target,
+                            CompilerProgressPhase::Codegen,
+                        );
                         let output = kain_web::generate_hybrid(&typed_for_codegen)?;
                         Ok(output.js)
                     }
 
                     #[cfg(feature = "sys")]
-                    CompileTarget::C => sys::generate_c(&typed_for_codegen),
+                    CompileTarget::C => {
+                        emit_compiler_phase(
+                            progress,
+                            source_path,
+                            target,
+                            CompilerProgressPhase::Codegen,
+                        );
+                        sys::generate_c(&typed_for_codegen)
+                    }
 
                     #[cfg(feature = "sys")]
                     CompileTarget::Llvm => {
+                        emit_compiler_phase(
+                            progress,
+                            source_path,
+                            target,
+                            CompilerProgressPhase::Codegen,
+                        );
                         sys::generate_llvm(&typed_for_codegen).and_then(|bytes| {
                             String::from_utf8(bytes).map_err(|err| {
                                 KainError::codegen(
@@ -672,17 +1032,45 @@ impl DriverSession {
                     }
 
                     #[cfg(feature = "sys")]
-                    CompileTarget::Rust => sys::generate_rust(&typed_for_codegen),
+                    CompileTarget::Rust => {
+                        emit_compiler_phase(
+                            progress,
+                            source_path,
+                            target,
+                            CompilerProgressPhase::Codegen,
+                        );
+                        sys::generate_rust(&typed_for_codegen)
+                    }
 
                     #[cfg(feature = "sys")]
-                    CompileTarget::Cpp => sys::generate_cpp(&typed_for_codegen),
+                    CompileTarget::Cpp => {
+                        emit_compiler_phase(
+                            progress,
+                            source_path,
+                            target,
+                            CompilerProgressPhase::Codegen,
+                        );
+                        sys::generate_cpp(&typed_for_codegen)
+                    }
 
                     CompileTarget::Interpret => {
+                        emit_compiler_phase(
+                            progress,
+                            source_path,
+                            target,
+                            CompilerProgressPhase::Interpret,
+                        );
                         let value = runtime::interpret(&typed_for_codegen)?;
                         Ok(value.to_string())
                     }
 
                     CompileTarget::Test => {
+                        emit_compiler_phase(
+                            progress,
+                            source_path,
+                            target,
+                            CompilerProgressPhase::Interpret,
+                        );
                         runtime::run_tests(&typed_for_codegen)?;
                         Ok("Tests passed".to_string())
                     }
@@ -710,7 +1098,27 @@ impl DriverSession {
 
     #[cfg(feature = "gpu")]
     pub fn compile_spirv_binary(&self, source: &str) -> Result<Vec<u8>, KainError> {
-        let typed_for_codegen = self.frontend_to_typed_program(source, CompileTarget::Spirv)?;
+        self.compile_spirv_binary_with_progress(source, None)
+    }
+
+    #[cfg(feature = "gpu")]
+    pub fn compile_spirv_binary_with_progress(
+        &self,
+        source: &str,
+        progress: Option<&ToolingProgressSink>,
+    ) -> Result<Vec<u8>, KainError> {
+        let typed_for_codegen = self.frontend_to_typed_program_with_source_path_and_progress(
+            source,
+            None,
+            CompileTarget::Spirv,
+            progress,
+        )?;
+        emit_compiler_phase(
+            progress,
+            None,
+            CompileTarget::Spirv,
+            CompilerProgressPhase::Codegen,
+        );
         gpu::generate_spirv(&typed_for_codegen)
     }
 
@@ -732,7 +1140,27 @@ impl DriverSession {
 
     #[cfg(feature = "web")]
     pub fn compile_wasm_binary(&self, source: &str) -> Result<Vec<u8>, KainError> {
-        let typed_for_codegen = self.frontend_to_typed_program(source, CompileTarget::Wasm)?;
+        self.compile_wasm_binary_with_progress(source, None)
+    }
+
+    #[cfg(feature = "web")]
+    pub fn compile_wasm_binary_with_progress(
+        &self,
+        source: &str,
+        progress: Option<&ToolingProgressSink>,
+    ) -> Result<Vec<u8>, KainError> {
+        let typed_for_codegen = self.frontend_to_typed_program_with_source_path_and_progress(
+            source,
+            None,
+            CompileTarget::Wasm,
+            progress,
+        )?;
+        emit_compiler_phase(
+            progress,
+            None,
+            CompileTarget::Wasm,
+            CompilerProgressPhase::Codegen,
+        );
         kain_web::generate_wasm(&typed_for_codegen)
     }
 
@@ -746,7 +1174,27 @@ impl DriverSession {
         &self,
         source: &str,
     ) -> Result<HybridArtifactOutput, KainError> {
-        let typed_for_codegen = self.frontend_to_typed_program(source, CompileTarget::Hybrid)?;
+        self.compile_hybrid_artifacts_with_progress(source, None)
+    }
+
+    #[cfg(feature = "web")]
+    pub fn compile_hybrid_artifacts_with_progress(
+        &self,
+        source: &str,
+        progress: Option<&ToolingProgressSink>,
+    ) -> Result<HybridArtifactOutput, KainError> {
+        let typed_for_codegen = self.frontend_to_typed_program_with_source_path_and_progress(
+            source,
+            None,
+            CompileTarget::Hybrid,
+            progress,
+        )?;
+        emit_compiler_phase(
+            progress,
+            None,
+            CompileTarget::Hybrid,
+            CompilerProgressPhase::Codegen,
+        );
         let output = kain_web::generate_hybrid(&typed_for_codegen)?;
         Ok(HybridArtifactOutput {
             js: output.js,
@@ -2169,6 +2617,28 @@ pub fn parse_compile_target(alias: &str) -> Option<CompileTarget> {
     find_target_spec_by_alias(alias).map(|spec| spec.target)
 }
 
+pub fn compile_target_name(target: CompileTarget) -> &'static str {
+    match target {
+        CompileTarget::Wasm => "wasm",
+        CompileTarget::Llvm => "llvm",
+        CompileTarget::C => "c",
+        CompileTarget::Spirv => "spirv",
+        CompileTarget::Hlsl => "hlsl",
+        CompileTarget::Cuda => "cuda",
+        CompileTarget::Usf => "usf",
+        CompileTarget::Js => "js",
+        CompileTarget::Ts => "ts",
+        CompileTarget::Rust => "rust",
+        CompileTarget::Hybrid => "hybrid",
+        CompileTarget::Cpp => "cpp",
+        CompileTarget::Ue5 => "ue5",
+        CompileTarget::Ue5Editor => "ue5-editor",
+        CompileTarget::Interpret => "interpret",
+        CompileTarget::Test => "test",
+        CompileTarget::Ks => "ks",
+    }
+}
+
 pub fn target_extension(target: CompileTarget) -> &'static str {
     find_target_spec_by_target(target)
         .map(|spec| spec.extension)
@@ -2202,6 +2672,21 @@ pub fn frontend_to_typed_program(
     target: CompileTarget,
 ) -> Result<TypedProgram, KainError> {
     DriverSession::default().frontend_to_typed_program(source, target)
+}
+
+fn emit_compiler_phase(
+    progress: Option<&ToolingProgressSink>,
+    source_path: Option<&Path>,
+    target: CompileTarget,
+    phase: CompilerProgressPhase,
+) {
+    if let Some(progress) = progress {
+        progress.emit(&ToolingProgressEvent::CompilerPhase {
+            source_path: source_path.map(Path::to_path_buf),
+            target: compile_target_name(target).to_string(),
+            phase,
+        });
+    }
 }
 
 pub fn compile(source: &str, target: CompileTarget) -> Result<String, KainError> {
