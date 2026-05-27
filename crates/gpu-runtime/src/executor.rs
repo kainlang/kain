@@ -154,6 +154,35 @@ pub enum ComputeExecutorError {
         actual: usize,
         path: String,
     },
+    #[error("PTX source did not declare a .target sm_* architecture")]
+    MissingPtxTargetArch,
+    #[error(
+        "PTX target directive {directive} did not contain a supported sm_* architecture token"
+    )]
+    InvalidPtxTargetArch { directive: String },
+    #[error("PTX target {required} requires newer NVIDIA capability than {device_name} ({device}) provides")]
+    UnsupportedPtxTargetForDevice {
+        required: String,
+        device_name: String,
+        device: String,
+    },
+    #[error("compute residency binding {binding} reuses slot @{slot}; PTX runtime requires unique binding slots")]
+    DuplicateBindingSlot { binding: String, slot: u32 },
+    #[error("compute residency binding {binding} declared {expected} bytes but sidecar {path} contained {actual}")]
+    BindingPayloadLengthMismatch {
+        binding: String,
+        expected: usize,
+        actual: usize,
+        path: String,
+    },
+    #[error("compute residency binding {binding} used unsupported residency role {value}")]
+    UnsupportedResidencyRole { binding: String, value: String },
+    #[error("compute residency binding {binding} used residency role {role} but access mode {access} does not match")]
+    InvalidResidencyRoleForAccess {
+        binding: String,
+        role: String,
+        access: String,
+    },
 }
 
 pub type GpuComputeExecutor = VulkanComputeExecutor;

@@ -6,7 +6,12 @@ use crate::executor::{
     ComputeExecutorError, GpuRuntimeDispatchRequest, GpuRuntimeDispatchResult,
 };
 use kain_core::{shader_artifact_bundle_from_json, ShaderArtifactFormat};
+use kain_interop::{
+    shared_buffer_gpu_binding_view, GpuBindingAccess as InteropAccess,
+    GpuDescriptorKind as InteropDescriptorKind, KainSharedBuffer, SharedBufferMetadata,
+};
 use serde::Deserialize;
+use std::collections::HashSet;
 use std::ffi::{c_char, c_void, CStr, CString};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -23,6 +28,9 @@ type CUjitOption = i32;
 
 type CuInit = unsafe extern "system" fn(u32) -> CUresult;
 type CuDeviceGet = unsafe extern "system" fn(*mut CUdevice, i32) -> CUresult;
+type CuDeviceGetName = unsafe extern "system" fn(*mut c_char, i32, CUdevice) -> CUresult;
+type CuDeviceComputeCapability =
+    unsafe extern "system" fn(*mut i32, *mut i32, CUdevice) -> CUresult;
 type CuCtxCreate = unsafe extern "system" fn(*mut CUcontext, u32, CUdevice) -> CUresult;
 type CuCtxDestroy = unsafe extern "system" fn(CUcontext) -> CUresult;
 type CuCtxSynchronize = unsafe extern "system" fn() -> CUresult;
@@ -55,9 +63,45 @@ type CuLaunchKernel = unsafe extern "system" fn(
 ) -> CUresult;
 type CuGetErrorString = unsafe extern "system" fn(CUresult, *mut *const c_char) -> CUresult;
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct NvidiaPtxDeviceInfo {
+    ordinal: i32,
+    name: String,
+    compute_capability_major: u32,
+    compute_capability_minor: u32,
+}
+
+impl NvidiaPtxDeviceInfo {
+    fn sm_arch_rank(&self) -> u32 {
+        self.compute_capability_major.saturating_mul(10) + self.compute_capability_minor
+    }
+
+    fn capability_label(&self) -> String {
+        format!(
+            "{}.{}",
+            self.compute_capability_major, self.compute_capability_minor
+        )
+    }
+
+    fn sm_arch_label(&self) -> String {
+        format_sm_arch(self.sm_arch_rank())
+    }
+
+    fn describe(&self) -> String {
+        format!(
+            "{} (device {}, cc {}, {})",
+            self.name,
+            self.ordinal,
+            self.capability_label(),
+            self.sm_arch_label()
+        )
+    }
+}
+
 pub struct NvidiaPtxExecutor {
     driver: CudaDriver,
     context: CUcontext,
+    device_info: NvidiaPtxDeviceInfo,
 }
 
 impl NvidiaPtxExecutor {
@@ -65,14 +109,17 @@ impl NvidiaPtxExecutor {
         unsafe {
             let driver = CudaDriver::load()?;
             driver.check((driver.cu_init)(0), "cuInit")?;
-            let mut device = 0;
-            driver.check((driver.cu_device_get)(&mut device, 0), "cuDeviceGet")?;
+            let (device, device_info) = driver.primary_device_info(0)?;
             let mut context = ptr::null_mut();
             driver.check(
                 (driver.cu_ctx_create)(&mut context, 0, device),
                 "cuCtxCreate_v2",
             )?;
-            Ok(Self { driver, context })
+            Ok(Self {
+                driver,
+                context,
+                device_info,
+            })
         }
     }
 
@@ -111,6 +158,8 @@ impl NvidiaPtxExecutor {
         ptx_source: &str,
         request: &GpuDispatchRequest,
     ) -> Result<GpuDispatchResult, ComputeExecutorError> {
+        ensure_device_supports_ptx_target(&self.device_info, ptx_source)?;
+        validate_ptx_dispatch_request(request)?;
         let ptx = CString::new(ptx_source).map_err(|_| ComputeExecutorError::PtxContainsNul)?;
         let entry = CString::new(request.entry_point.as_str())
             .map_err(|_| ComputeExecutorError::InvalidPtxEntryName)?;
@@ -249,7 +298,14 @@ pub extern "C" fn kain_gpu_runtime_dispatch_nvidia_ptx_primary_compute_persisted
         &compute_key,
     ) {
         Ok(dispatch) => {
-            populate_dispatch_result(result, &dispatch, "nvidia ptx dispatch ok");
+            populate_dispatch_result(
+                result,
+                &dispatch,
+                &format!(
+                    "nvidia ptx dispatch ok on {}",
+                    executor.device_info.describe()
+                ),
+            );
             0
         }
         Err(err) => {
@@ -347,6 +403,8 @@ struct CudaDriver {
     _library: DynamicLibrary,
     cu_init: CuInit,
     cu_device_get: CuDeviceGet,
+    cu_device_get_name: CuDeviceGetName,
+    cu_device_compute_capability: CuDeviceComputeCapability,
     cu_ctx_create: CuCtxCreate,
     cu_ctx_destroy: CuCtxDestroy,
     cu_ctx_synchronize: CuCtxSynchronize,
@@ -367,6 +425,8 @@ impl CudaDriver {
         Ok(Self {
             cu_init: library.symbol("cuInit")?,
             cu_device_get: library.symbol("cuDeviceGet")?,
+            cu_device_get_name: library.symbol("cuDeviceGetName")?,
+            cu_device_compute_capability: library.symbol("cuDeviceComputeCapability")?,
             cu_ctx_create: library.symbol("cuCtxCreate_v2")?,
             cu_ctx_destroy: library.symbol("cuCtxDestroy_v2")?,
             cu_ctx_synchronize: library.symbol("cuCtxSynchronize")?,
@@ -381,6 +441,43 @@ impl CudaDriver {
             cu_get_error_string: library.symbol("cuGetErrorString")?,
             _library: library,
         })
+    }
+
+    unsafe fn primary_device_info(
+        &self,
+        ordinal: i32,
+    ) -> Result<(CUdevice, NvidiaPtxDeviceInfo), ComputeExecutorError> {
+        let mut device = 0;
+        self.check((self.cu_device_get)(&mut device, ordinal), "cuDeviceGet")?;
+
+        let mut name_buffer = [0 as c_char; 256];
+        self.check(
+            (self.cu_device_get_name)(name_buffer.as_mut_ptr(), name_buffer.len() as i32, device),
+            "cuDeviceGetName",
+        )?;
+
+        let mut major = 0;
+        let mut minor = 0;
+        self.check(
+            (self.cu_device_compute_capability)(&mut major, &mut minor, device),
+            "cuDeviceComputeCapability",
+        )?;
+
+        let name = CStr::from_ptr(name_buffer.as_ptr())
+            .to_string_lossy()
+            .trim()
+            .to_string();
+        let device_info = NvidiaPtxDeviceInfo {
+            ordinal,
+            name: if name.is_empty() {
+                format!("NVIDIA device {ordinal}")
+            } else {
+                name
+            },
+            compute_capability_major: major.max(0) as u32,
+            compute_capability_minor: minor.max(0) as u32,
+        };
+        Ok((device, device_info))
     }
 
     unsafe fn check(
@@ -500,16 +597,22 @@ struct ComputeResidencyBinding {
     shape: Vec<i64>,
     strides: Vec<i64>,
     access_mode: String,
+    #[serde(default)]
+    residency_role: String,
     slot: u32,
+    #[serde(default)]
+    byte_length: usize,
     payload_file: String,
 }
 
+#[derive(Debug)]
 struct OutputBindingTarget {
     slot: u32,
     payload_path: PathBuf,
     byte_length: usize,
 }
 
+#[derive(Debug)]
 struct PtxSidecarDispatchPlan {
     ptx: String,
     request: GpuDispatchRequest,
@@ -599,18 +702,35 @@ fn ptx_dispatch_plan_from_sidecars(
             path: payload_path.display().to_string(),
             message: err.to_string(),
         })?;
+        if binding.byte_length != 0 && bytes.len() != binding.byte_length {
+            return Err(ComputeExecutorError::BindingPayloadLengthMismatch {
+                binding: binding.key.clone(),
+                expected: binding.byte_length,
+                actual: bytes.len(),
+                path: payload_path.display().to_string(),
+            });
+        }
+        let descriptor_kind = parse_descriptor_kind(&binding.descriptor_kind)?;
         let access = parse_access_mode(&binding.access_mode)?;
+        validate_residency_role(&binding.key, &binding.residency_role, access)?;
+        validate_shared_buffer_binding(
+            &residency.target,
+            binding,
+            &bytes,
+            descriptor_kind,
+            access,
+        )?;
         if access.is_output() {
             output_targets.push(OutputBindingTarget {
                 slot: binding.slot,
                 payload_path: payload_path.clone(),
-                byte_length: bytes.len(),
+                byte_length: binding.byte_length.max(bytes.len()),
             });
         }
         bindings.push(GpuDispatchBinding {
             key: binding.key.clone(),
             binding_slot: binding.slot,
-            descriptor_kind: parse_descriptor_kind(&binding.descriptor_kind)?,
+            descriptor_kind,
             access,
             bytes,
             element_type: binding.element_type.clone(),
@@ -702,6 +822,155 @@ fn persist_output_bindings_to_sidecars(
     Ok(())
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct PtxTargetArch {
+    label: String,
+    rank: u32,
+}
+
+fn ensure_device_supports_ptx_target(
+    device_info: &NvidiaPtxDeviceInfo,
+    ptx_source: &str,
+) -> Result<PtxTargetArch, ComputeExecutorError> {
+    let target = parse_ptx_target_arch(ptx_source)?;
+    if device_info.sm_arch_rank() < target.rank {
+        return Err(ComputeExecutorError::UnsupportedPtxTargetForDevice {
+            required: target.label.clone(),
+            device_name: device_info.name.clone(),
+            device: format!(
+                "cc {} / {}",
+                device_info.capability_label(),
+                device_info.sm_arch_label()
+            ),
+        });
+    }
+    Ok(target)
+}
+
+fn parse_ptx_target_arch(ptx_source: &str) -> Result<PtxTargetArch, ComputeExecutorError> {
+    for line in ptx_source.lines() {
+        let directive = line.split("//").next().unwrap_or("").trim();
+        if !directive.starts_with(".target") {
+            continue;
+        }
+        let rest = directive.trim_start_matches(".target").trim();
+        let arch_token = rest
+            .split(',')
+            .next()
+            .unwrap_or("")
+            .split_whitespace()
+            .next()
+            .unwrap_or("");
+        return parse_sm_arch_token(arch_token).ok_or_else(|| {
+            ComputeExecutorError::InvalidPtxTargetArch {
+                directive: directive.to_string(),
+            }
+        });
+    }
+    Err(ComputeExecutorError::MissingPtxTargetArch)
+}
+
+fn parse_sm_arch_token(token: &str) -> Option<PtxTargetArch> {
+    let trimmed = token.trim();
+    let suffix = trimmed.strip_prefix("sm_")?;
+    let digits = suffix
+        .chars()
+        .take_while(|ch| ch.is_ascii_digit())
+        .collect::<String>();
+    if digits.is_empty() {
+        return None;
+    }
+    Some(PtxTargetArch {
+        label: trimmed.to_string(),
+        rank: digits.parse().ok()?,
+    })
+}
+
+fn validate_ptx_dispatch_request(request: &GpuDispatchRequest) -> Result<(), ComputeExecutorError> {
+    let mut seen = HashSet::with_capacity(request.bindings.len());
+    for binding in &request.bindings {
+        if !seen.insert(binding.binding_slot) {
+            return Err(ComputeExecutorError::DuplicateBindingSlot {
+                binding: binding.key.clone(),
+                slot: binding.binding_slot,
+            });
+        }
+    }
+    Ok(())
+}
+
+fn validate_residency_role(
+    binding_key: &str,
+    residency_role: &str,
+    access: GpuBindingAccess,
+) -> Result<(), ComputeExecutorError> {
+    let normalized = residency_role.trim().to_ascii_lowercase();
+    if normalized.is_empty() {
+        return Ok(());
+    }
+
+    let valid = match normalized.as_str() {
+        "input" | "required_input" => access == GpuBindingAccess::Read,
+        "output" | "required_output" => access.is_output(),
+        "scratch" | "scratch_state" => access == GpuBindingAccess::ReadWrite,
+        other => {
+            return Err(ComputeExecutorError::UnsupportedResidencyRole {
+                binding: binding_key.to_string(),
+                value: other.to_string(),
+            })
+        }
+    };
+
+    if valid {
+        Ok(())
+    } else {
+        Err(ComputeExecutorError::InvalidResidencyRoleForAccess {
+            binding: binding_key.to_string(),
+            role: residency_role.to_string(),
+            access: access.as_str().to_string(),
+        })
+    }
+}
+
+fn validate_shared_buffer_binding(
+    residency_target: &str,
+    binding: &ComputeResidencyBinding,
+    bytes: &[u8],
+    descriptor_kind: GpuDescriptorKind,
+    access: GpuBindingAccess,
+) -> Result<(), ComputeExecutorError> {
+    let metadata = SharedBufferMetadata {
+        element_type: binding.element_type.clone(),
+        element_size: infer_element_size(&binding.element_type),
+        shape: binding.shape.clone(),
+        strides: binding.strides.clone(),
+        format: Some(binding.element_type.clone()),
+        mime_type: Some("application/octet-stream".to_string()),
+        source_runtime: "compute-residency".to_string(),
+        source_backend: Some(residency_target.to_string()),
+        ownership: "owned".to_string(),
+        labels: vec![binding.key.clone()],
+    };
+    let shared = KainSharedBuffer::owned(metadata, bytes.to_vec());
+    let _view = shared_buffer_gpu_binding_view(
+        &shared,
+        match descriptor_kind {
+            GpuDescriptorKind::StorageBuffer => InteropDescriptorKind::StorageBuffer,
+            GpuDescriptorKind::UniformBuffer => InteropDescriptorKind::UniformBuffer,
+        },
+        match access {
+            GpuBindingAccess::Read => InteropAccess::Read,
+            GpuBindingAccess::Write => InteropAccess::Write,
+            GpuBindingAccess::ReadWrite => InteropAccess::ReadWrite,
+        },
+    )
+    .map_err(|err| ComputeExecutorError::InvalidSharedBufferBinding {
+        binding: binding.key.clone(),
+        message: err.to_string(),
+    })?;
+    Ok(())
+}
+
 fn is_ptx_compatible_residency_target(target: &str) -> bool {
     matches!(
         target.trim().to_ascii_lowercase().as_str(),
@@ -730,6 +999,23 @@ fn parse_access_mode(value: &str) -> Result<GpuBindingAccess, ComputeExecutorErr
     }
 }
 
+fn infer_element_size(element_type: &str) -> i64 {
+    match element_type {
+        "u8" | "i8" | "bool" => 1,
+        "u16" | "i16" => 2,
+        "u32" | "i32" | "f32" => 4,
+        "u64" | "i64" | "f64" => 8,
+        "vec2<f32>" | "vec2<i32>" | "vec2<u32>" => 8,
+        "vec3<f32>" | "vec3<i32>" | "vec3<u32>" => 12,
+        "vec4<f32>" | "vec4<i32>" | "vec4<u32>" => 16,
+        _ => 4,
+    }
+}
+
+fn format_sm_arch(rank: u32) -> String {
+    format!("sm_{rank}")
+}
+
 fn dispatch_group_count(dispatch: u32, workgroup: u32) -> u32 {
     let safe_dispatch = dispatch.max(1);
     let safe_workgroup = workgroup.max(1);
@@ -741,6 +1027,90 @@ mod tests {
     use super::*;
     use serde_json::json;
 
+    fn sample_device_info(major: u32, minor: u32) -> NvidiaPtxDeviceInfo {
+        NvidiaPtxDeviceInfo {
+            ordinal: 0,
+            name: "Unit Test GPU".to_string(),
+            compute_capability_major: major,
+            compute_capability_minor: minor,
+        }
+    }
+
+    fn write_sample_ptx_bundle(
+        path: &Path,
+        ptx_contents: &str,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        fs::write(
+            path,
+            serde_json::to_string_pretty(&json!({
+                "schema_version": 1,
+                "canonical_native_payload": "spirv",
+                "spirv_modules": [],
+                "reflection": {
+                    "emitted": true,
+                    "shaders": [],
+                    "notes": []
+                },
+                "resource_layouts": [],
+                "entry_points": [
+                    {
+                        "shader": "CudaFieldKernel",
+                        "module_name": "CudaFieldKernel__CudaBlurKernel__CudaColorizeKernel",
+                        "entry_point": "CudaFieldKernel",
+                        "stage": "compute"
+                    }
+                ],
+                "stage_metadata": [],
+                "specialization_constants": [],
+                "debug": {
+                    "source_map": [],
+                    "notes": []
+                },
+                "derived_outputs": [
+                    {
+                        "format": "ptx",
+                        "module_name": "CudaFieldKernel__CudaBlurKernel__CudaColorizeKernel",
+                        "contents": ptx_contents
+                    }
+                ]
+            }))?,
+        )?;
+        Ok(())
+    }
+
+    fn write_sample_ptx_residency(
+        path: &Path,
+        bindings: serde_json::Value,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        fs::write(
+            path,
+            serde_json::to_string_pretty(&json!({
+                "schema_version": 1,
+                "target": "llvm",
+                "compute_shader_count": 1,
+                "compute_shaders": [
+                    {
+                        "key": "shader::CudaFieldKernel::compute",
+                        "shader": "CudaFieldKernel",
+                        "module_name": "CudaFieldKernel",
+                        "stage": "compute",
+                        "entry_point": "main",
+                        "source": "kain-core",
+                        "execution_domain": "tensor-stream",
+                        "workgroup_size": [8, 8, 1],
+                        "dispatch_size": [8, 8, 1],
+                        "resource_binding_count": 1,
+                        "tensor_binding_count": 1,
+                        "stream_binding_count": 1,
+                        "neural_node_count": 0,
+                        "bindings": bindings
+                    }
+                ]
+            }))?,
+        )?;
+        Ok(())
+    }
+
     #[test]
     fn ptx_dispatch_group_count_rounds_up() {
         assert_eq!(dispatch_group_count(1, 8), 1);
@@ -750,11 +1120,42 @@ mod tests {
     }
 
     #[test]
+    fn parse_ptx_target_arch_accepts_arch_suffixes() {
+        let target = parse_ptx_target_arch(".version 8.0\n.target sm_90a, texmode_independent\n")
+            .expect("ptx target");
+
+        assert_eq!(
+            target,
+            PtxTargetArch {
+                label: "sm_90a".to_string(),
+                rank: 90,
+            }
+        );
+    }
+
+    #[test]
+    fn ensure_device_supports_ptx_target_rejects_newer_arch() {
+        let err = ensure_device_supports_ptx_target(
+            &sample_device_info(7, 5),
+            ".version 7.8\n.target sm_80\n.address_size 64\n",
+        )
+        .expect_err("sm_80 should not run on a 7.5 device");
+
+        let message = err.to_string();
+        assert!(message.contains("sm_80"));
+        assert!(message.contains("Unit Test GPU"));
+        assert!(message.contains("7.5"));
+    }
+
+    #[test]
     fn nvidia_ptx_executor_can_launch_tiny_kernel_when_driver_is_available() {
         let Ok(executor) = NvidiaPtxExecutor::try_new() else {
             eprintln!("skipping NVIDIA PTX launch smoke because CUDA Driver API is unavailable");
             return;
         };
+
+        assert!(!executor.device_info.name.is_empty());
+        assert!(executor.device_info.sm_arch_rank() >= 50);
 
         let ptx = r#"
 .version 7.8
@@ -841,83 +1242,28 @@ mod tests {
         let payload_path = temp.path().join("payload.bin");
 
         fs::write(&payload_path, [1u8, 2, 3, 4]).expect("payload");
-        fs::write(
+        write_sample_ptx_bundle(
             &shader_bundle_path,
-            serde_json::to_string_pretty(&json!({
-                "schema_version": 1,
-                "canonical_native_payload": "spirv",
-                "spirv_modules": [],
-                "reflection": {
-                    "emitted": true,
-                    "shaders": [],
-                    "notes": []
-                },
-                "resource_layouts": [],
-                "entry_points": [
-                    {
-                        "shader": "CudaFieldKernel",
-                        "module_name": "CudaFieldKernel__CudaBlurKernel__CudaColorizeKernel",
-                        "entry_point": "CudaFieldKernel",
-                        "stage": "compute"
-                    }
-                ],
-                "stage_metadata": [],
-                "specialization_constants": [],
-                "debug": {
-                    "source_map": [],
-                    "notes": []
-                },
-                "derived_outputs": [
-                    {
-                        "format": "ptx",
-                        "module_name": "CudaFieldKernel__CudaBlurKernel__CudaColorizeKernel",
-                        "contents": ".visible .entry CudaFieldKernel() { ret; }"
-                    }
-                ]
-            }))
-            .expect("bundle json"),
+            ".visible .entry CudaFieldKernel() { ret; }",
         )
         .expect("write bundle");
-        fs::write(
+        write_sample_ptx_residency(
             &compute_residency_path,
-            serde_json::to_string_pretty(&json!({
-                "schema_version": 1,
-                "target": "llvm",
-                "compute_shader_count": 1,
-                "compute_shaders": [
-                    {
-                        "key": "shader::CudaFieldKernel::compute",
-                        "shader": "CudaFieldKernel",
-                        "module_name": "CudaFieldKernel",
-                        "stage": "compute",
-                        "entry_point": "main",
-                        "source": "kain-core",
-                        "execution_domain": "tensor-stream",
-                        "workgroup_size": [8, 8, 1],
-                        "dispatch_size": [8, 8, 1],
-                        "resource_binding_count": 1,
-                        "tensor_binding_count": 1,
-                        "stream_binding_count": 1,
-                        "neural_node_count": 0,
-                        "bindings": [
-                            {
-                                "key": "field",
-                                "contract": "kain.shared.buffer",
-                                "descriptor_kind": "storage_buffer",
-                                "element_type": "u32",
-                                "shape": [1],
-                                "strides": [1],
-                                "access_mode": "write",
-                                "residency_role": "output",
-                                "slot": 1,
-                                "byte_length": 4,
-                                "payload_file": "payload.bin"
-                            }
-                        ]
-                    }
-                ]
-            }))
-            .expect("residency json"),
+            json!([
+                {
+                    "key": "field",
+                    "contract": "kain.shared.buffer",
+                    "descriptor_kind": "storage_buffer",
+                    "element_type": "u32",
+                    "shape": [1],
+                    "strides": [1],
+                    "access_mode": "write",
+                    "residency_role": "output",
+                    "slot": 1,
+                    "byte_length": 4,
+                    "payload_file": "payload.bin"
+                }
+            ]),
         )
         .expect("write residency");
 
@@ -934,5 +1280,86 @@ mod tests {
         );
         assert_eq!(plan.request.entry_point, "CudaFieldKernel");
         assert_eq!(plan.ptx, ".visible .entry CudaFieldKernel() { ret; }");
+    }
+
+    #[test]
+    fn ptx_dispatch_plan_rejects_declared_byte_length_mismatch() {
+        let temp = tempfile::TempDir::new().expect("temp dir");
+        let shader_bundle_path = temp.path().join("bundle.json");
+        let compute_residency_path = temp.path().join("residency.json");
+        let payload_path = temp.path().join("payload.bin");
+
+        fs::write(&payload_path, [1u8, 2, 3, 4]).expect("payload");
+        write_sample_ptx_bundle(
+            &shader_bundle_path,
+            ".visible .entry CudaFieldKernel() { ret; }",
+        )
+        .expect("write bundle");
+        write_sample_ptx_residency(
+            &compute_residency_path,
+            json!([
+                {
+                    "key": "field",
+                    "contract": "kain.shared.buffer",
+                    "descriptor_kind": "storage_buffer",
+                    "element_type": "u32",
+                    "shape": [1],
+                    "strides": [1],
+                    "access_mode": "write",
+                    "residency_role": "required_output",
+                    "slot": 1,
+                    "byte_length": 8,
+                    "payload_file": "payload.bin"
+                }
+            ]),
+        )
+        .expect("write residency");
+
+        let err = ptx_dispatch_plan_from_sidecars(
+            &shader_bundle_path,
+            &compute_residency_path,
+            "shader::CudaFieldKernel::compute",
+        )
+        .expect_err("payload length mismatch should fail");
+
+        assert!(err.to_string().contains("declared 8 bytes"));
+    }
+
+    #[test]
+    fn ptx_dispatch_request_rejects_duplicate_binding_slots() {
+        let err = validate_ptx_dispatch_request(&GpuDispatchRequest {
+            module_name: "dup".to_string(),
+            entry_point: "dup".to_string(),
+            workgroup_size: [1, 1, 1],
+            dispatch_size: [1, 1, 1],
+            bindings: vec![
+                GpuDispatchBinding {
+                    key: "a".to_string(),
+                    binding_slot: 3,
+                    descriptor_kind: GpuDescriptorKind::StorageBuffer,
+                    access: GpuBindingAccess::Read,
+                    bytes: vec![1, 2, 3, 4],
+                    element_type: "u32".to_string(),
+                    shape: vec![1],
+                    strides: vec![1],
+                },
+                GpuDispatchBinding {
+                    key: "b".to_string(),
+                    binding_slot: 3,
+                    descriptor_kind: GpuDescriptorKind::StorageBuffer,
+                    access: GpuBindingAccess::Write,
+                    bytes: vec![0, 0, 0, 0],
+                    element_type: "u32".to_string(),
+                    shape: vec![1],
+                    strides: vec![1],
+                },
+            ],
+            tensor_binding_count: 0,
+            stream_binding_count: 0,
+            neural_node_count: 0,
+        })
+        .expect_err("duplicate slots should fail");
+
+        assert!(err.to_string().contains("reuses slot @3"));
     }
 }
