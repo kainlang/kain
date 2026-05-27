@@ -21,17 +21,23 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define KAIN_ALLOC_CACHE_BUCKETS 64u
-#define KAIN_ALLOC_CACHE_MIN_PAYLOAD 2048u
+#define KAIN_ALLOC_CACHE_HASH_BUCKETS 64u
+#define KAIN_ALLOC_CACHE_SMALL_QUANTUM 16u
+#define KAIN_ALLOC_CACHE_SMALL_MAX_PAYLOAD 8192u
+#define KAIN_ALLOC_CACHE_SMALL_BIN_COUNT \
+    (KAIN_ALLOC_CACHE_SMALL_MAX_PAYLOAD / KAIN_ALLOC_CACHE_SMALL_QUANTUM)
+#define KAIN_ALLOC_CACHE_LARGE_MIN_PAYLOAD 2048u
 #define KAIN_ALLOC_CACHE_MAX_PAYLOAD 262144u
 #define KAIN_ALLOC_CACHE_MAX_BYTES (8u * 1024u * 1024u)
 #define KAIN_ALLOC_CACHE_MAX_NODES 256u
 #define KAIN_ALLOC_VIRTUAL_THRESHOLD_MAIN (1024u * 1024u)
 #define KAIN_ALLOC_VIRTUAL_THRESHOLD_GPU (256u * 1024u)
+#define KAIN_ALLOC_DEFERRED_DECAY_FLUSH_SIZE_THRESHOLD (KAIN_ALLOC_CACHE_MAX_PAYLOAD + 1u)
 #define KAIN_DEFERRED_DECAY_FLUSH_WATERMARK 1024u
 
 typedef struct {
-    KainAllocHeader* buckets[KAIN_ALLOC_CACHE_BUCKETS];
+    KainAllocHeader* small_bins[KAIN_MEMTYPE_COUNT][KAIN_ALLOC_CACHE_SMALL_BIN_COUNT];
+    KainAllocHeader* large_buckets[KAIN_ALLOC_CACHE_HASH_BUCKETS];
     size_t bytes;
     size_t nodes;
     atomic_flag lock;
@@ -45,9 +51,15 @@ typedef struct {
     KainAllocArenaCache cache;
 } KainAllocatorArenaState;
 
-#define KAIN_ALLOC_ARENA_CACHE_INIT { {0}, 0u, 0u, ATOMIC_FLAG_INIT }
+#define KAIN_ALLOC_ARENA_CACHE_INIT { .lock = ATOMIC_FLAG_INIT }
 #define KAIN_ALLOC_ARENA_STATE_INIT(arena_id_, memtype_, threshold_) \
-    { (uint8_t)(arena_id_), (uint8_t)(memtype_), 0u, (threshold_), KAIN_ALLOC_ARENA_CACHE_INIT }
+    { \
+        .arena_id = (uint8_t)(arena_id_), \
+        .default_memtype = (uint8_t)(memtype_), \
+        .reserved16 = 0u, \
+        .virtual_threshold = (threshold_), \
+        .cache = KAIN_ALLOC_ARENA_CACHE_INIT \
+    }
 
 static KainAllocatorArenaState KAIN_ALLOCATOR_ARENAS[KAIN_ARENA_MAX] = {
     KAIN_ALLOC_ARENA_STATE_INIT(
@@ -72,6 +84,9 @@ static atomic_flag KAIN_ATOMIC_COMPARE_EXCHANGE_FAILURE_SHAPE_WARNED = ATOMIC_FL
 static atomic_flag KAIN_ATOMIC_COMPARE_EXCHANGE_FAILURE_CLAMP_WARNED = ATOMIC_FLAG_INIT;
 
 _Static_assert(sizeof(KainAllocHeader) == 16u, "KainAllocHeader proof constants require 16-byte header accounting.");
+_Static_assert((KAIN_ALLOC_CACHE_HASH_BUCKETS & (KAIN_ALLOC_CACHE_HASH_BUCKETS - 1u)) == 0u, "alloc cache hash buckets require a power-of-two mask.");
+_Static_assert((KAIN_ALLOC_CACHE_SMALL_QUANTUM & (KAIN_ALLOC_CACHE_SMALL_QUANTUM - 1u)) == 0u, "alloc cache small quantum requires a power-of-two alignment.");
+_Static_assert((KAIN_ALLOC_CACHE_SMALL_MAX_PAYLOAD % KAIN_ALLOC_CACHE_SMALL_QUANTUM) == 0u, "alloc cache small payload ceiling must divide by the small quantum.");
 _Static_assert((KAIN_ALLOC_HEADER_SLOT_TOKEN_MASK & KAIN_ALLOC_HEADER_ARENA_ID_MASK) == 0u, "alloc header slot/arena overlap");
 _Static_assert((KAIN_ALLOC_HEADER_SLOT_TOKEN_MASK & KAIN_ALLOC_HEADER_MEMTYPE_MASK) == 0u, "alloc header slot/memtype overlap");
 _Static_assert((KAIN_ALLOC_HEADER_SLOT_TOKEN_MASK & KAIN_ALLOC_HEADER_FLAGS_MASK) == 0u, "alloc header slot/flags overlap");
@@ -89,7 +104,7 @@ static KainAllocatorArenaState* kain_allocator_state_for_arena(uint8_t arena_id)
 }
 
 static int kain_alloc_should_flush_deferred_decay(size_t payload_size) {
-    if (payload_size >= KAIN_ALLOC_CACHE_MIN_PAYLOAD) {
+    if (payload_size >= KAIN_ALLOC_DEFERRED_DECAY_FLUSH_SIZE_THRESHOLD) {
         return 1;
     }
     return __kain_ownership_deferred_decay_count() >= KAIN_DEFERRED_DECAY_FLUSH_WATERMARK;
@@ -104,17 +119,29 @@ static void kain_alloc_cache_unlock(KainAllocArenaCache* cache) {
     atomic_flag_clear_explicit(&cache->lock, memory_order_release);
 }
 
-static int kain_alloc_cache_eligible(size_t payload_size, uint8_t flags) {
+static int kain_alloc_cache_small_eligible(size_t payload_size, uint8_t flags) {
     return (flags & KAIN_ALLOC_HEADER_FLAG_VIRTUAL) == 0u &&
-        payload_size >= KAIN_ALLOC_CACHE_MIN_PAYLOAD &&
+        payload_size >= sizeof(KainAllocHeader*) &&
+        payload_size <= KAIN_ALLOC_CACHE_SMALL_MAX_PAYLOAD &&
+        (payload_size & (KAIN_ALLOC_CACHE_SMALL_QUANTUM - 1u)) == 0u;
+}
+
+static int kain_alloc_cache_large_eligible(size_t payload_size, uint8_t flags) {
+    return (flags & KAIN_ALLOC_HEADER_FLAG_VIRTUAL) == 0u &&
+        payload_size >= KAIN_ALLOC_CACHE_LARGE_MIN_PAYLOAD &&
         payload_size <= KAIN_ALLOC_CACHE_MAX_PAYLOAD &&
         payload_size >= sizeof(KainAllocHeader*);
 }
 
-static size_t kain_alloc_cache_bucket(size_t payload_size) {
+static size_t kain_alloc_cache_small_bin(size_t payload_size) {
+    /* Proof: runtime/native/src/core/z3/proofs-experimental/memory-small-cache-bin-bounds.smt2 */
+    return (payload_size >> 4u) - 1u;
+}
+
+static size_t kain_alloc_cache_large_bucket(size_t payload_size) {
     uint64_t mixed = (uint64_t)payload_size * UINT64_C(11400714819323198485);
     mixed ^= mixed >> 33u;
-    return (size_t)(mixed & (KAIN_ALLOC_CACHE_BUCKETS - 1u));
+    return (size_t)(mixed & (KAIN_ALLOC_CACHE_HASH_BUCKETS - 1u));
 }
 
 static KainAllocHeader** kain_alloc_cache_next_cell(KainAllocHeader* header) {
@@ -122,28 +149,43 @@ static KainAllocHeader** kain_alloc_cache_next_cell(KainAllocHeader* header) {
 }
 
 static KainAllocHeader* kain_alloc_cache_take(uint8_t arena_id, size_t payload_size, uint8_t memtype) {
-    if (!kain_alloc_cache_eligible(payload_size, 0u)) {
+    if (memtype >= KAIN_MEMTYPE_COUNT) {
         return NULL;
     }
 
     KainAllocatorArenaState* arena_state = kain_allocator_state_for_arena(arena_id);
     KainAllocArenaCache* cache = &arena_state->cache;
     KainAllocHeader* result = NULL;
-    size_t bucket = kain_alloc_cache_bucket(payload_size);
     kain_alloc_cache_lock(cache);
-    KainAllocHeader** link = &cache->buckets[bucket];
-    while (*link != NULL) {
-        KainAllocHeader* candidate = *link;
-        KainAllocHeader** next = kain_alloc_cache_next_cell(candidate);
-        if (candidate->metadata.payload_size == payload_size &&
-            __kain_alloc_header_memtype(candidate) == memtype) {
-            *link = *next;
+    if (kain_alloc_cache_small_eligible(payload_size, 0u)) {
+        size_t small_bin = kain_alloc_cache_small_bin(payload_size);
+        KainAllocHeader** link = &cache->small_bins[memtype][small_bin];
+        result = *link;
+        if (result != NULL) {
+            *link = *kain_alloc_cache_next_cell(result);
             cache->nodes -= 1u;
             cache->bytes -= sizeof(KainAllocHeader) + payload_size;
-            result = candidate;
-            break;
         }
-        link = next;
+        kain_alloc_cache_unlock(cache);
+        return result;
+    }
+
+    if (kain_alloc_cache_large_eligible(payload_size, 0u)) {
+        size_t bucket = kain_alloc_cache_large_bucket(payload_size);
+        KainAllocHeader** link = &cache->large_buckets[bucket];
+        while (*link != NULL) {
+            KainAllocHeader* candidate = *link;
+            KainAllocHeader** next = kain_alloc_cache_next_cell(candidate);
+            if (candidate->metadata.payload_size == payload_size &&
+                __kain_alloc_header_memtype(candidate) == memtype) {
+                *link = *next;
+                cache->nodes -= 1u;
+                cache->bytes -= sizeof(KainAllocHeader) + payload_size;
+                result = candidate;
+                break;
+            }
+            link = next;
+        }
     }
     kain_alloc_cache_unlock(cache);
     return result;
@@ -156,14 +198,15 @@ static int kain_alloc_cache_release(
     uint8_t memtype
 ) {
     size_t allocation_size = 0;
-    if (header == NULL || !kain_alloc_cache_eligible(payload_size, __kain_alloc_header_flags(header)) ||
+    if (header == NULL || memtype >= KAIN_MEMTYPE_COUNT ||
+        (!kain_alloc_cache_small_eligible(payload_size, __kain_alloc_header_flags(header)) &&
+            !kain_alloc_cache_large_eligible(payload_size, __kain_alloc_header_flags(header))) ||
         kain_add_overflow_size(sizeof(KainAllocHeader), payload_size, &allocation_size)) {
         return 0;
     }
 
     KainAllocatorArenaState* arena_state = kain_allocator_state_for_arena(arena_id);
     KainAllocArenaCache* cache = &arena_state->cache;
-    size_t bucket = kain_alloc_cache_bucket(payload_size);
     kain_alloc_cache_lock(cache);
     /* Proof: runtime/native/src/core/z3/proofs/native-memory-helper-allocation-cache-bounds.yaml */
     if (cache->nodes >= KAIN_ALLOC_CACHE_MAX_NODES ||
@@ -179,8 +222,15 @@ static int kain_alloc_cache_release(
         memtype,
         KAIN_ALLOC_HEADER_FLAG_CACHED);
     header->metadata.payload_size = payload_size;
-    *kain_alloc_cache_next_cell(header) = cache->buckets[bucket];
-    cache->buckets[bucket] = header;
+    if (kain_alloc_cache_small_eligible(payload_size, 0u)) {
+        size_t small_bin = kain_alloc_cache_small_bin(payload_size);
+        *kain_alloc_cache_next_cell(header) = cache->small_bins[memtype][small_bin];
+        cache->small_bins[memtype][small_bin] = header;
+    } else {
+        size_t bucket = kain_alloc_cache_large_bucket(payload_size);
+        *kain_alloc_cache_next_cell(header) = cache->large_buckets[bucket];
+        cache->large_buckets[bucket] = header;
+    }
     cache->nodes += 1u;
     cache->bytes += allocation_size;
     kain_alloc_cache_unlock(cache);

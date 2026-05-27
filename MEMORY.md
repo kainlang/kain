@@ -9543,3 +9543,22 @@ Charlie owned the control/relocation finish pass under `plans/rage-runtime-strik
 - Validation intentionally deferred by strike contract:
   - no Bazel build/test, runtime validation script, or benchmark rerun was executed in-lane
   - only narrow Z3 checks and the manifest mirror sync were run during this pass
+
+# 2026-05-27 - RAGE allocator second pass recovered alloc/frame rows with exact small-bin caching
+
+Follow-up work on the RAGE release lane focused only on `rage_alloc_ladder` and `rage_frame_burst`, using the fresh Bazel release `kain.exe` directly against `benchmark/cases_v2/.telemetryrouter/rage_direct.kn`.
+
+- Runtime changes landed in `runtime/native/src/core/memory.c`:
+  - helper-allocation cache now has an exact 16-byte-quantized small-bin path up to `8192` bytes, keyed by memtype, instead of forcing those sizes through the old hashed large-object cache shape
+  - the old hashed cache remains for larger eligible payloads, so the optimization is additive rather than a destructive rewrite
+  - deferred-decay flush triggering is now decoupled from cache eligibility and only trips above the cacheable/immediate-release lane instead of on every `2048+` byte helper alloc
+- Solver/proof evidence:
+  - added `runtime/native/src/core/z3/proofs-experimental/memory-small-cache-bin-bounds.smt2`
+  - checked unsat in `X:\z3\reports\20260527T210133Z-memory-small-cache-bin-bounds.json`
+- Benchmark evidence with the fresh Bazel release binary:
+  - focused baseline in `benchmark/latest_v2_rage_release_preopt_allocframe.md`: `rage_alloc_ladder` `49 ms`, `rage_frame_burst` `27 ms`
+  - optimized full-lane snapshot in `benchmark/latest_v2_rage_release_opt5_full.md`: `rage_alloc_ladder` `43 ms`, `rage_frame_burst` `23 ms`, `rage_realloc_growth` `23 ms`, `rage_async_ready_chain` `353 ms`, `rage_patch_mirror_mesh` `34 ms`
+- Validation:
+  - `bazel test //runtime:native_runtime_tests --config=dev --test_output=errors` passed `10/10`
+- Useful negative result:
+  - a thread-local small-cache front layer for the main/default arena was prototyped and benchmarked, but it regressed both target rows, so it was explicitly backed out instead of being left as cargo cult "optimization"
