@@ -254,7 +254,7 @@ bazel test //:crate_tests --config=dev
 bazel test //:key_crate_tests --config=dev
 bazel test //:developer_smoke_tests --config=dev
 bazel test //runtime:native_runtime_tests
-python tools/bazel/sync_rust_builds.py --check
+bazel query @kain_workspace_rust//:kain
 py -3 tools/bazel/sync_native_runtime_builds.py --check
 
 If you happen to use x:/target/debug/kain.exe KEEP IN MIND IT MAY BE old AND NOT REPRESENTATIVE OF THE CURRENT REPO - X:\.kain" is the canonical location of the kain binary however Bazel can sometimes be problematic and fight with our repo

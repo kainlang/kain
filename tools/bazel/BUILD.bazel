@@ -1,0 +1,8 @@
+package(default_visibility = ["//visibility:public"])
+
+exports_files([
+    "kain_public_targets.bzl",
+    "kain_rust_workspace.bzl",
+    "kain_rust_workspace_generator.py",
+    "sync_rust_builds.py",
+])

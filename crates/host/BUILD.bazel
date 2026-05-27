@@ -51,6 +51,7 @@ rust_library(
         "//crates/host-derive:kain-host-derive",
     ] + all_crate_deps(proc_macro = True),
     compile_data = COMMON_COMPILE_DATA,
+    force_all_deps_direct = True,
 )
 rust_test(
     name = "unit_test",
@@ -79,6 +80,7 @@ rust_test(
         "//crates/host-derive:kain-host-derive",
     ] + all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,
+    force_all_deps_direct = True,
 )
 
 rust_test(
@@ -111,6 +113,7 @@ rust_test(
         "//crates/host-derive:kain-host-derive",
     ] + all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,
+    force_all_deps_direct = True,
     tags = [
         "manual",
     ],

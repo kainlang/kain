@@ -408,8 +408,7 @@ Typical commands:
 - `kain --strict import-ts <input>` to fail on degraded generated Kain output while still writing the structured import report JSON
 - `kain runtime build`
 - `kain runtime validate`
-- `python tools/bazel/sync_rust_builds.py`
-- `python tools/bazel/sync_rust_builds.py --check`
+- `bazel query @kain_workspace_rust//:kain`
 - `bazel build //:kain --config=dev`
 - `bazel build //:kn --config=dev`
 - `bazel build //:blade --config=dev`

@@ -1,95 +1,13 @@
 load("@rules_python//python:defs.bzl", "py_test")
+load("//tools/bazel:kain_public_targets.bzl", "declare_kain_public_targets")
 
 package(default_visibility = ["//visibility:public"])
 
-alias(
-    name = "kain",
-    actual = "//crates/cli:kain",
-)
-
-alias(
-    name = "kn",
-    actual = "//crates/cli:kn",
-)
-
-alias(
-    name = "kain_core",
-    actual = "//crates/core:kain-core",
-)
-
-alias(
-    name = "kain_build",
-    actual = "//crates/build:kain-build",
-)
-
-alias(
-    name = "kain_actor",
-    actual = "//crates/actor:kain-actor",
-)
-
-alias(
-    name = "kain_blades",
-    actual = "//crates/blades:kain-blades",
-)
-
-alias(
-    name = "kain_check",
-    actual = "//crates/check:kain-check",
-)
-
-alias(
-    name = "kain_codebase",
-    actual = "//crates/codebase:kain-codebase",
-)
-
-alias(
-    name = "kain_commands",
-    actual = "//crates/commands:kain-commands",
-)
-
-alias(
-    name = "kain_stdlib_map",
-    actual = "//crates/stdlib-map:kain-stdlib-map",
-)
+declare_kain_public_targets(target_prefix = "@kain_workspace_rust")
 
 alias(
     name = "stdlib_map_check",
     actual = "//stdlib:stdlib_map_check",
-)
-
-alias(
-    name = "kain_entangle",
-    actual = "//crates/entangle:kain-entangle",
-)
-
-alias(
-    name = "kain_fs",
-    actual = "//crates/fs:kain-fs",
-)
-
-alias(
-    name = "kain_input",
-    actual = "//crates/input:kain-input",
-)
-
-alias(
-    name = "kain_net",
-    actual = "//crates/net:kain-net",
-)
-
-alias(
-    name = "kain_process",
-    actual = "//crates/process:kain-process",
-)
-
-alias(
-    name = "kain_run",
-    actual = "//crates/run:kain-run",
-)
-
-alias(
-    name = "kain_test",
-    actual = "//crates/test:kain-test",
 )
 
 alias(
@@ -100,43 +18,6 @@ alias(
 alias(
     name = "native_runtime",
     actual = "//runtime:native_runtime",
-)
-
-test_suite(
-    name = "crate_tests",
-    tests = [
-        "//crates/core:unit_test",
-        "//crates/build:unit_test",
-        "//crates/commands:unit_test",
-        "//crates/cli:unit_test",
-    ],
-)
-
-test_suite(
-    name = "key_crate_tests",
-    tests = [
-        "//crates/actor:unit_test",
-        "//crates/blades:unit_test",
-        "//crates/build:unit_test",
-        "//crates/check:unit_test",
-        "//crates/codebase:unit_test",
-        "//crates/commands:unit_test",
-        "//crates/entangle:unit_test",
-        "//crates/fs:unit_test",
-        "//crates/input:unit_test",
-        "//crates/net:unit_test",
-        "//crates/process:unit_test",
-        "//crates/run:unit_test",
-        "//crates/test:unit_test",
-    ],
-)
-
-test_suite(
-    name = "diagnostic_crate_tests",
-    tests = [
-        "//crates/core:unit_test",
-        "//crates/cli:unit_test",
-    ],
 )
 
 test_suite(

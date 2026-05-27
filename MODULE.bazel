@@ -74,3 +74,13 @@ crate.from_cargo(
     ],
 )
 use_repo(crate, "crates")
+
+kain_rust = use_extension("//tools/bazel:kain_rust_workspace.bzl", "kain_rust")
+kain_rust.workspace(
+    name = "kain_workspace_rust",
+    workspace_manifest = "//:Cargo.toml",
+    cargo_lockfile = "//:Cargo.lock",
+    generator = "//tools/bazel:kain_rust_workspace_generator.py",
+    legacy_generator = "//tools/bazel:sync_rust_builds.py",
+)
+use_repo(kain_rust, "kain_workspace_rust")

@@ -36,6 +36,7 @@ rust_library(
         "//crates/unreal/unreal_asset_proc_macro:unreal_asset_proc_macro",
     ] + all_crate_deps(proc_macro = True),
     compile_data = COMMON_COMPILE_DATA,
+    force_all_deps_direct = True,
 )
 rust_test(
     name = "unit_test",
@@ -49,4 +50,5 @@ rust_test(
         "//crates/unreal/unreal_asset_proc_macro:unreal_asset_proc_macro",
     ] + all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,
+    force_all_deps_direct = True,
 )

@@ -32,4 +32,5 @@ rust_binary(
     deps = all_crate_deps(normal = True),
     proc_macro_deps = all_crate_deps(proc_macro = True),
     compile_data = COMMON_COMPILE_DATA,
+    force_all_deps_direct = True,
 )

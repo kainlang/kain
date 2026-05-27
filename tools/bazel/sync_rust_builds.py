@@ -122,10 +122,13 @@ def main() -> int:
     return 0
 
 
-def load_workspace_packages() -> list[Package]:
+def load_workspace_packages(
+    repo_root: Path = REPO_ROOT,
+    cargo_bin: str = "cargo",
+) -> list[Package]:
     metadata = subprocess.check_output(
-        ["cargo", "metadata", "--format-version", "1", "--no-deps"],
-        cwd=REPO_ROOT,
+        [cargo_bin, "metadata", "--format-version", "1", "--no-deps"],
+        cwd=repo_root,
         text=True,
     )
     decoded = json.loads(metadata)
@@ -168,9 +171,12 @@ def load_workspace_packages() -> list[Package]:
     return sorted(packages, key=lambda package: package.manifest_path.as_posix().lower())
 
 
-def workspace_package_labels(packages: list[Package]) -> dict[Path, str]:
+def workspace_package_labels(
+    packages: list[Package],
+    repo_root: Path = REPO_ROOT,
+) -> dict[Path, str]:
     return {
-        package.directory: f"//{package.directory.relative_to(REPO_ROOT).as_posix()}:{package.name}"
+        package.directory: f"//{package.directory.relative_to(repo_root).as_posix()}:{package.name}"
         for package in packages
     }
 
@@ -362,6 +368,8 @@ def render_library(
         ),
         "compile_data": "COMMON_COMPILE_DATA",
     }
+    if rule != "rust_proc_macro":
+        attrs["force_all_deps_direct"] = True
     rendered = render_rule(rule, attrs)
     if "proc-macro" not in target.crate_types:
         rendered += render_unit_test(
@@ -409,6 +417,7 @@ def render_unit_test(
             "all_crate_deps(proc_macro = True, proc_macro_dev = True)",
         ),
         "compile_data": "COMMON_COMPILE_DATA",
+        "force_all_deps_direct": True,
     }
     return render_rule("rust_test", attrs)
 
@@ -448,6 +457,7 @@ def render_binary(
             "all_crate_deps(proc_macro = True)",
         ),
         "compile_data": "COMMON_COMPILE_DATA",
+        "force_all_deps_direct": True,
     }
     rendered = render_rule("rust_binary", attrs)
     if name != target.name:
@@ -502,6 +512,7 @@ def render_integration_test(
             "all_crate_deps(proc_macro = True, proc_macro_dev = True)",
         ),
         "compile_data": "COMMON_COMPILE_DATA",
+        "force_all_deps_direct": True,
         "tags": ["manual"],
     }
     return render_rule("rust_test", attrs)

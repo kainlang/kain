@@ -659,6 +659,68 @@ def _stage_proc_macro_dependency_symlinks(actions, crate_info, dep_info):
         proc_macro_symlinks.append(staged_dylib)
     return proc_macro_symlinks
 
+def _compact_dependency_search_artifacts(dep_crate_info):
+    artifacts = [dep_crate_info.output]
+    if dep_crate_info.metadata and dep_crate_info.metadata.path != dep_crate_info.output.path:
+        artifacts.append(dep_crate_info.metadata)
+    return artifacts
+
+def _stage_compact_dependency_search_roots(actions, crate_info, dep_info):
+    """Stage transitive Rust dependency artifacts into a small set of loader-friendly roots."""
+
+    stageable_artifacts = {}
+    for dep_crate in dep_info.transitive_crates.to_list():
+        dep_crate_info = dep_crate.dep if hasattr(dep_crate, "dep") else dep_crate
+        for artifact in _compact_dependency_search_artifacts(dep_crate_info):
+            artifacts_for_basename = stageable_artifacts.get(artifact.basename)
+            if not artifacts_for_basename:
+                artifacts_for_basename = {}
+                stageable_artifacts[artifact.basename] = artifacts_for_basename
+            artifacts_for_basename[artifact.path] = artifact
+
+    if not stageable_artifacts:
+        return struct(
+            artifacts = [],
+            search_roots = [],
+        )
+
+    artifact_paths_by_basename = {}
+    max_root_count = 0
+    for basename, artifacts_for_basename in stageable_artifacts.items():
+        artifact_paths = sorted(artifacts_for_basename.keys())
+        artifact_paths_by_basename[basename] = artifact_paths
+        if len(artifact_paths) > max_root_count:
+            max_root_count = len(artifact_paths)
+
+    staged_artifacts = []
+    search_roots = []
+    sorted_basenames = sorted(stageable_artifacts.keys())
+    for root_index in range(max_root_count):
+        staged_root = None
+        for basename in sorted_basenames:
+            artifact_paths = artifact_paths_by_basename[basename]
+            if root_index >= len(artifact_paths):
+                continue
+            artifact = stageable_artifacts[basename][artifact_paths[root_index]]
+            staged_artifact = actions.declare_file(
+                "_compact_dependency_search/{}/{}/{}".format(crate_info.output.basename, root_index, basename),
+            )
+            actions.symlink(
+                output = staged_artifact,
+                target_file = artifact,
+                progress_message = "Staging dependency artifact: {}".format(artifact.path),
+            )
+            if not staged_root:
+                staged_root = staged_artifact.dirname
+            staged_artifacts.append(staged_artifact)
+        if staged_root:
+            search_roots.append(staged_root)
+
+    return struct(
+        artifacts = staged_artifacts,
+        search_roots = search_roots,
+    )
+
 def _depend_on_metadata(crate_info, force_depend_on_objects):
     """Determines if we can depend on metadata for this crate.
 
@@ -939,6 +1001,7 @@ def construct_arguments(
         emit = ["dep-info", "link"],
         force_all_deps_direct = False,
         extra_dependency_search_paths = [],
+        replace_transitive_dependency_search_paths = False,
         add_flags_for_binary = False,
         include_link_flags = True,
         stamp = False,
@@ -1008,6 +1071,8 @@ def construct_arguments(
             to the commandline as opposed to -L.
         extra_dependency_search_paths (list, optional): Additional dependency search root
             directories to pass through `-Ldependency`.
+        replace_transitive_dependency_search_paths (bool, optional): Whether extra
+            dependency search roots should replace the normal transitive `-Ldependency` fanout.
         add_flags_for_binary (bool, optional): Whether to add "bin" link flags to the command regardless of `emit` and `crate_type`.
         include_link_flags (bool, optional): Whether to include flags like `-l` that instruct the linker to search for a library.
         stamp (bool, optional): Whether or not workspace status stamping is enabled. For more details see
@@ -1334,6 +1399,7 @@ def construct_arguments(
         force_all_deps_direct,
         use_metadata,
         extra_dependency_search_paths,
+        replace_transitive_dependency_search_paths,
     )
 
     needs_extern_proc_macro_flag = _is_proc_macro(crate_info) and crate_info.edition != "2015"
@@ -1591,11 +1657,18 @@ def rustc_compile_action(
         experimental_use_cc_common_link = experimental_use_cc_common_link,
     )
     extra_dependency_search_paths = []
-    if force_all_deps_direct:
-        staged_proc_macro_dylibs = _stage_proc_macro_dependency_symlinks(ctx.actions, crate_info, dep_info)
-        if staged_proc_macro_dylibs:
-            compile_inputs = depset(staged_proc_macro_dylibs, transitive = [compile_inputs])
-            extra_dependency_search_paths = [staged_proc_macro_dylibs[0].dirname]
+    replace_transitive_dependency_search_paths = False
+    if force_all_deps_direct and toolchain.target_os.startswith("windows"):
+        staged_dependency_search = _stage_compact_dependency_search_roots(ctx.actions, crate_info, dep_info)
+        if staged_dependency_search.search_roots:
+            compile_inputs = depset(staged_dependency_search.artifacts, transitive = [compile_inputs])
+            extra_dependency_search_paths = staged_dependency_search.search_roots
+            replace_transitive_dependency_search_paths = True
+        else:
+            staged_proc_macro_dylibs = _stage_proc_macro_dependency_symlinks(ctx.actions, crate_info, dep_info)
+            if staged_proc_macro_dylibs:
+                compile_inputs = depset(staged_proc_macro_dylibs, transitive = [compile_inputs])
+                extra_dependency_search_paths = [staged_proc_macro_dylibs[0].dirname]
 
     # The types of rustc outputs to emit.
     # If we build metadata, we need to keep the command line of the two invocations
@@ -1641,6 +1714,7 @@ def rustc_compile_action(
         build_flags_files = build_flags_files,
         force_all_deps_direct = force_all_deps_direct,
         extra_dependency_search_paths = extra_dependency_search_paths,
+        replace_transitive_dependency_search_paths = replace_transitive_dependency_search_paths,
         stamp = stamp,
         use_json_output = bool(build_metadata) or bool(rustc_output) or bool(rustc_rmeta_output),
         skip_expanding_rustc_env = skip_expanding_rustc_env,
@@ -1670,6 +1744,7 @@ def rustc_compile_action(
             build_flags_files = build_flags_files,
             force_all_deps_direct = force_all_deps_direct,
             extra_dependency_search_paths = extra_dependency_search_paths,
+            replace_transitive_dependency_search_paths = replace_transitive_dependency_search_paths,
             stamp = stamp,
             use_json_output = True,
             build_metadata = True,
@@ -2370,7 +2445,8 @@ def add_crate_link_flags(
         dep_info,
         force_all_deps_direct = False,
         use_metadata = False,
-        extra_dependency_search_paths = []):
+        extra_dependency_search_paths = [],
+        replace_transitive_dependency_search_paths = False):
     """Adds link flags to an Args object reference
 
     Args:
@@ -2381,6 +2457,8 @@ def add_crate_link_flags(
         use_metadata (bool, optional): Build command line arguments using metadata for crates that provide it.
         extra_dependency_search_paths (list, optional): Extra directory paths to forward with
             `-Ldependency`.
+        replace_transitive_dependency_search_paths (bool, optional): Whether the staged
+            dependency search roots should replace the normal transitive search roots.
     """
 
     crate_to_link_flags = _crate_to_link_flag_metadata if use_metadata else _crate_to_link_flag
@@ -2408,21 +2486,24 @@ def add_crate_link_flags(
 
     dependency_search_roots = dep_info.transitive_crates
     if force_all_deps_direct:
-        # Rust still resolves dependency-of-dependency metadata from
-        # `-Ldependency` roots, but proc-macro DLL directories are what blow up
-        # Windows loader state on huge graphs. Keep the normal non-macro crate
-        # search surface and strip the macro dylib directories out.
-        dependency_search_roots = []
-        seen_search_root_paths = {}
-        for crate in dep_info.transitive_crates.to_list():
-            crate_info = crate.dep if hasattr(crate, "dep") else crate
-            if _is_proc_macro(crate_info):
-                continue
-            crate_dir = crate_info.output.dirname
-            if crate_dir in seen_search_root_paths:
-                continue
-            seen_search_root_paths[crate_dir] = True
-            dependency_search_roots.append(crate)
+        if replace_transitive_dependency_search_paths:
+            dependency_search_roots = []
+        else:
+            # Rust still resolves dependency-of-dependency metadata from
+            # `-Ldependency` roots, but proc-macro DLL directories are what blow up
+            # Windows loader state on huge graphs. Keep the normal non-macro crate
+            # search surface and strip the macro dylib directories out.
+            dependency_search_roots = []
+            seen_search_root_paths = {}
+            for crate in dep_info.transitive_crates.to_list():
+                crate_info = crate.dep if hasattr(crate, "dep") else crate
+                if _is_proc_macro(crate_info):
+                    continue
+                crate_dir = crate_info.output.dirname
+                if crate_dir in seen_search_root_paths:
+                    continue
+                seen_search_root_paths[crate_dir] = True
+                dependency_search_roots.append(crate)
 
     args.add_all(
         dependency_search_roots,

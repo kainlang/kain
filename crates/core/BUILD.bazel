@@ -45,6 +45,7 @@ rust_library(
     ] + all_crate_deps(normal = True),
     proc_macro_deps = all_crate_deps(proc_macro = True),
     compile_data = COMMON_COMPILE_DATA,
+    force_all_deps_direct = True,
 )
 rust_test(
     name = "unit_test",
@@ -67,6 +68,7 @@ rust_test(
     ] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,
+    force_all_deps_direct = True,
 )
 
 rust_test(
@@ -93,6 +95,7 @@ rust_test(
     ] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,
+    force_all_deps_direct = True,
     tags = [
         "manual",
     ],
@@ -122,6 +125,7 @@ rust_test(
     ] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,
+    force_all_deps_direct = True,
     tags = [
         "manual",
     ],
@@ -151,6 +155,7 @@ rust_test(
     ] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,
+    force_all_deps_direct = True,
     tags = [
         "manual",
     ],
@@ -180,6 +185,7 @@ rust_test(
     ] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,
+    force_all_deps_direct = True,
     tags = [
         "manual",
     ],
@@ -209,6 +215,7 @@ rust_test(
     ] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,
+    force_all_deps_direct = True,
     tags = [
         "manual",
     ],
@@ -238,6 +245,7 @@ rust_test(
     ] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,
+    force_all_deps_direct = True,
     tags = [
         "manual",
     ],
@@ -267,6 +275,7 @@ rust_test(
     ] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,
+    force_all_deps_direct = True,
     tags = [
         "manual",
     ],
@@ -296,6 +305,7 @@ rust_test(
     ] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,
+    force_all_deps_direct = True,
     tags = [
         "manual",
     ],
@@ -325,6 +335,7 @@ rust_test(
     ] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,
+    force_all_deps_direct = True,
     tags = [
         "manual",
     ],
@@ -354,6 +365,7 @@ rust_test(
     ] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,
+    force_all_deps_direct = True,
     tags = [
         "manual",
     ],
@@ -383,6 +395,7 @@ rust_test(
     ] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,
+    force_all_deps_direct = True,
     tags = [
         "manual",
     ],
@@ -412,6 +425,7 @@ rust_test(
     ] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,
+    force_all_deps_direct = True,
     tags = [
         "manual",
     ],
@@ -441,6 +455,7 @@ rust_test(
     ] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,
+    force_all_deps_direct = True,
     tags = [
         "manual",
     ],
@@ -470,6 +485,7 @@ rust_test(
     ] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,
+    force_all_deps_direct = True,
     tags = [
         "manual",
     ],
@@ -499,6 +515,7 @@ rust_test(
     ] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,
+    force_all_deps_direct = True,
     tags = [
         "manual",
     ],
@@ -528,6 +545,7 @@ rust_test(
     ] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,
+    force_all_deps_direct = True,
     tags = [
         "manual",
     ],
@@ -557,6 +575,7 @@ rust_test(
     ] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,
+    force_all_deps_direct = True,
     tags = [
         "manual",
     ],
@@ -586,6 +605,7 @@ rust_test(
     ] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,
+    force_all_deps_direct = True,
     tags = [
         "manual",
     ],
@@ -615,6 +635,7 @@ rust_test(
     ] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,
+    force_all_deps_direct = True,
     tags = [
         "manual",
     ],

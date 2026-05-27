@@ -499,6 +499,7 @@ def _rust_test_impl(ctx):
         crate_info_dict = crate_info_dict,
         output_hash = output_hash,
         rust_flags = get_rust_test_flags(ctx.attr),
+        force_all_deps_direct = getattr(ctx.attr, "force_all_deps_direct", False),
         skip_expanding_rustc_env = True,
     )
     data = getattr(ctx.attr, "data", [])
@@ -914,6 +915,14 @@ _RUST_TEST_ATTRS = {
             Whether to use `libtest`. For targets using this flag, individual tests can be run by using the
             [--test_arg](https://docs.bazel.build/versions/4.0.0/command-line-reference.html#flag--test_arg) flag.
             E.g. `bazel test //src:rust_test --test_arg=foo::test::test_fn`.
+        """),
+    ),
+    "force_all_deps_direct": attr.bool(
+        default = False,
+        doc = dedent("""\
+            Forces the full transitive Rust dependency closure to be passed with `--extern`
+            instead of relying on transitive `-Ldependency` search roots. Useful on large
+            Windows graphs where proc-macro DLL loading can exhaust the OS DLL-directory budget.
         """),
     ),
 } | _COVERAGE_ATTRS | _EXPERIMENTAL_USE_CC_COMMON_LINK_ATTRS
