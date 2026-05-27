@@ -22,12 +22,13 @@
 #include <string.h>
 
 #define KAIN_ALLOC_CACHE_BUCKETS 64u
-#define KAIN_ALLOC_CACHE_MIN_PAYLOAD 4096u
+#define KAIN_ALLOC_CACHE_MIN_PAYLOAD 2048u
 #define KAIN_ALLOC_CACHE_MAX_PAYLOAD 262144u
 #define KAIN_ALLOC_CACHE_MAX_BYTES (8u * 1024u * 1024u)
 #define KAIN_ALLOC_CACHE_MAX_NODES 256u
 #define KAIN_ALLOC_VIRTUAL_THRESHOLD_MAIN (1024u * 1024u)
 #define KAIN_ALLOC_VIRTUAL_THRESHOLD_GPU (256u * 1024u)
+#define KAIN_DEFERRED_DECAY_FLUSH_WATERMARK 1024u
 
 typedef struct {
     KainAllocHeader* buckets[KAIN_ALLOC_CACHE_BUCKETS];
@@ -85,6 +86,13 @@ static KainAllocatorArenaState* kain_allocator_state_for_arena(uint8_t arena_id)
         return &KAIN_ALLOCATOR_ARENAS[KAIN_ARENA_MAIN];
     }
     return &KAIN_ALLOCATOR_ARENAS[arena_id];
+}
+
+static int kain_alloc_should_flush_deferred_decay(size_t payload_size) {
+    if (payload_size >= KAIN_ALLOC_CACHE_MIN_PAYLOAD) {
+        return 1;
+    }
+    return __kain_ownership_deferred_decay_count() >= KAIN_DEFERRED_DECAY_FLUSH_WATERMARK;
 }
 
 static void kain_alloc_cache_lock(KainAllocArenaCache* cache) {
@@ -882,6 +890,9 @@ void* __kain_alloc(size_t size, size_t stride, int zeroed) {
         return NULL;
     }
 
+    if (kain_alloc_should_flush_deferred_decay(payload_size)) {
+        __kain_ownership_flush_deferred_decay();
+    }
     header = kain_alloc_raw(payload_size, zeroed, arena_id, memtype, &header_flags);
     if (header == NULL) {
         return NULL;
@@ -957,6 +968,9 @@ void* __kain_realloc(void* ptr, size_t size, size_t stride, int zeroed_new) {
         return ptr;
     }
 
+    if (kain_alloc_should_flush_deferred_decay(new_payload_size)) {
+        __kain_ownership_flush_deferred_decay();
+    }
     new_header = kain_alloc_raw(new_payload_size, 0, arena_id, memtype, &header_flags);
     if (new_header == NULL) {
         return NULL;

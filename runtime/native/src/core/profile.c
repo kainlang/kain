@@ -27,8 +27,16 @@ void kain_profile_scope_begin(
     const char* file,
     uint32_t line
 ) {
-#if KAIN_RUNTIME_PROFILE_TIER == KAIN_RUNTIME_TIER_NOOP
-    (void)scope;
+#if KAIN_RUNTIME_PROFILE_TIER != KAIN_RUNTIME_TIER_FULL
+    if (scope) {
+        scope->label = label;
+        scope->file = file;
+        scope->line = line;
+        scope->depth = 0u;
+        scope->token = 0u;
+        scope->start_ns = 0u;
+        scope->active = 0u;
+    }
     (void)label;
     (void)file;
     (void)line;
@@ -62,7 +70,7 @@ void kain_profile_scope_begin(
 }
 
 void kain_profile_scope_end(KainProfileScope* scope) {
-#if KAIN_RUNTIME_PROFILE_TIER == KAIN_RUNTIME_TIER_NOOP
+#if KAIN_RUNTIME_PROFILE_TIER != KAIN_RUNTIME_TIER_FULL
     (void)scope;
 #else
     uint64_t end_ns;

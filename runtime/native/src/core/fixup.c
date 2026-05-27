@@ -9,6 +9,9 @@
 
 #define KAIN_FIXUP_MAX_OBJECTS 4096u
 #define KAIN_FIXUP_MAX_REFS 16384u
+#define KAIN_FIXUP_BASE_INDEX_CAPACITY 8192u
+#define KAIN_FIXUP_BASE_INDEX_MASK (KAIN_FIXUP_BASE_INDEX_CAPACITY - 1u)
+#define KAIN_FIXUP_BASE_INDEX_TOMBSTONE UINT32_MAX
 #define KAIN_FIXUP_REF_NONE UINT32_MAX
 
 typedef struct {
@@ -32,6 +35,7 @@ static KainHandleSlot KAIN_FIXUP_HANDLE_SLOTS[KAIN_FIXUP_MAX_OBJECTS];
 static KainHandleTable KAIN_FIXUP_HANDLE_TABLE;
 static KainFixupObject KAIN_FIXUP_OBJECTS[KAIN_FIXUP_MAX_OBJECTS];
 static KainFixupKnownRef KAIN_FIXUP_REFS[KAIN_FIXUP_MAX_REFS];
+static uint32_t KAIN_FIXUP_BASE_INDEX[KAIN_FIXUP_BASE_INDEX_CAPACITY];
 static KainLruRangeEntry KAIN_FIXUP_LAST_RANGE;
 static atomic_flag KAIN_FIXUP_LOCK = ATOMIC_FLAG_INIT;
 static atomic_int KAIN_FIXUP_INITIALIZED;
@@ -39,6 +43,10 @@ static uint32_t KAIN_FIXUP_FIRST_FREE_REF = KAIN_FIXUP_REF_NONE;
 static uint64_t KAIN_FIXUP_REF_COUNT = 0u;
 static atomic_uint_fast64_t KAIN_FIXUP_RELOCATION_COUNT;
 static atomic_uint_fast64_t KAIN_FIXUP_LAST_HANDLE;
+
+#if (KAIN_FIXUP_BASE_INDEX_CAPACITY & KAIN_FIXUP_BASE_INDEX_MASK) != 0
+#error "KAIN_FIXUP_BASE_INDEX_CAPACITY must stay a power of two for masked probing."
+#endif
 
 static void kain_fixup_lock(void) {
     while (atomic_flag_test_and_set_explicit(&KAIN_FIXUP_LOCK, memory_order_acquire)) {
@@ -58,6 +66,108 @@ static int kain_fixup_try_range_limit(uintptr_t base, size_t size, uintptr_t* ou
     }
     *out_limit = base + (uintptr_t)size;
     return 1;
+}
+
+static uint64_t kain_fixup_mix_pointer(const void* ptr) {
+    uint64_t x = (uint64_t)(uintptr_t)ptr;
+    x ^= x >> 30u;
+    x *= UINT64_C(0xbf58476d1ce4e5b9);
+    x ^= x >> 27u;
+    x *= UINT64_C(0x94d049bb133111eb);
+    x ^= x >> 31u;
+    return x;
+}
+
+static uint32_t kain_fixup_base_index_slot(const void* ptr) {
+    return (uint32_t)(kain_fixup_mix_pointer(ptr) & KAIN_FIXUP_BASE_INDEX_MASK);
+}
+
+static KainFixupObject* kain_fixup_find_exact_object_by_base_unlocked(const void* base) {
+    uint32_t index;
+    if (!base) {
+        return 0;
+    }
+    index = kain_fixup_base_index_slot(base);
+    for (uint32_t probe = 0u; probe < KAIN_FIXUP_BASE_INDEX_CAPACITY; ++probe) {
+        uint32_t candidate_index = (index + probe) & KAIN_FIXUP_BASE_INDEX_MASK;
+        uint32_t encoded_slot = KAIN_FIXUP_BASE_INDEX[candidate_index];
+        uint32_t slot;
+        if (encoded_slot == 0u) {
+            return 0;
+        }
+        if (encoded_slot == KAIN_FIXUP_BASE_INDEX_TOMBSTONE) {
+            continue;
+        }
+        slot = encoded_slot - 1u;
+        if (slot < KAIN_FIXUP_MAX_OBJECTS &&
+            KAIN_FIXUP_OBJECTS[slot].live &&
+            KAIN_FIXUP_OBJECTS[slot].base == base) {
+            return &KAIN_FIXUP_OBJECTS[slot];
+        }
+    }
+    return 0;
+}
+
+static int kain_fixup_base_index_insert_unlocked(const void* base, uint32_t slot) {
+    uint32_t index;
+    uint32_t encoded_slot;
+    uint32_t first_tombstone = KAIN_FIXUP_BASE_INDEX_CAPACITY;
+    if (!base || slot >= KAIN_FIXUP_MAX_OBJECTS) {
+        return -1;
+    }
+    index = kain_fixup_base_index_slot(base);
+    encoded_slot = slot + 1u;
+    for (uint32_t probe = 0u; probe < KAIN_FIXUP_BASE_INDEX_CAPACITY; ++probe) {
+        uint32_t candidate_index = (index + probe) & KAIN_FIXUP_BASE_INDEX_MASK;
+        uint32_t candidate = KAIN_FIXUP_BASE_INDEX[candidate_index];
+        if (candidate == KAIN_FIXUP_BASE_INDEX_TOMBSTONE) {
+            if (first_tombstone == KAIN_FIXUP_BASE_INDEX_CAPACITY) {
+                first_tombstone = candidate_index;
+            }
+            continue;
+        }
+        if (candidate == encoded_slot) {
+            return 0;
+        }
+        if (candidate == 0u) {
+            KAIN_FIXUP_BASE_INDEX[
+                first_tombstone == KAIN_FIXUP_BASE_INDEX_CAPACITY
+                    ? candidate_index
+                    : first_tombstone
+            ] = encoded_slot;
+            return 0;
+        }
+    }
+    if (first_tombstone != KAIN_FIXUP_BASE_INDEX_CAPACITY) {
+        KAIN_FIXUP_BASE_INDEX[first_tombstone] = encoded_slot;
+        return 0;
+    }
+    return -1;
+}
+
+static int kain_fixup_base_index_remove_unlocked(const void* base, uint32_t slot) {
+    uint32_t index;
+    uint32_t encoded_slot;
+    if (!base || slot >= KAIN_FIXUP_MAX_OBJECTS) {
+        return -1;
+    }
+    index = kain_fixup_base_index_slot(base);
+    encoded_slot = slot + 1u;
+    for (uint32_t probe = 0u; probe < KAIN_FIXUP_BASE_INDEX_CAPACITY; ++probe) {
+        uint32_t candidate_index = (index + probe) & KAIN_FIXUP_BASE_INDEX_MASK;
+        uint32_t candidate = KAIN_FIXUP_BASE_INDEX[candidate_index];
+        if (candidate == 0u) {
+            return -1;
+        }
+        if (candidate == KAIN_FIXUP_BASE_INDEX_TOMBSTONE) {
+            continue;
+        }
+        if (candidate == encoded_slot) {
+            KAIN_FIXUP_BASE_INDEX[candidate_index] = KAIN_FIXUP_BASE_INDEX_TOMBSTONE;
+            return 0;
+        }
+    }
+    return -1;
 }
 
 static void kain_fixup_refresh_range_cache_unlocked(KainFixupObject* object) {
@@ -100,6 +210,7 @@ static void kain_fixup_init_unlocked(void) {
         KAIN_FIXUP_REFS[index].next_free = index + 1u < KAIN_FIXUP_MAX_REFS ? index + 1u : KAIN_FIXUP_REF_NONE;
         KAIN_FIXUP_REFS[index].occupied = 0u;
     }
+    memset(KAIN_FIXUP_BASE_INDEX, 0, sizeof(KAIN_FIXUP_BASE_INDEX));
     KAIN_FIXUP_FIRST_FREE_REF = 0u;
     KAIN_FIXUP_REF_COUNT = 0u;
     kain_lru_range_clear(&KAIN_FIXUP_LAST_RANGE);
@@ -136,9 +247,15 @@ static KainFixupObject* kain_fixup_object_for_handle_unlocked(KainRuntimeHandle 
 static KainFixupObject* kain_fixup_find_object_by_pointer_unlocked(const void* ptr) {
     uintptr_t address;
     KainFixupObject* cached;
+    KainFixupObject* exact;
     uint32_t slot;
     if (!ptr) {
         return 0;
+    }
+    exact = kain_fixup_find_exact_object_by_base_unlocked(ptr);
+    if (exact) {
+        kain_fixup_refresh_range_cache_unlocked(exact);
+        return exact;
     }
     address = (uintptr_t)ptr;
     cached = (KainFixupObject*)kain_lru_range_lookup(&KAIN_FIXUP_LAST_RANGE, address);
@@ -215,7 +332,7 @@ KainRuntimeHandle kain_fixup_track_allocation(void* base, size_t size) {
     kain_profile_scope_begin(&scope, "fixup.track", __FILE__, (uint32_t)__LINE__);
     kain_fixup_lock();
     kain_fixup_init_unlocked();
-    existing = kain_fixup_find_object_by_pointer_unlocked(base);
+    existing = kain_fixup_find_exact_object_by_base_unlocked(base);
     if (existing && existing->base == base) {
         existing->size = size;
         handle = existing->handle;
@@ -241,6 +358,20 @@ KainRuntimeHandle kain_fixup_track_allocation(void* base, size_t size) {
     object->size = size;
     object->first_ref = KAIN_FIXUP_REF_NONE;
     object->live = 1u;
+    if (kain_fixup_base_index_insert_unlocked(base, slot) != 0) {
+        object->live = 0u;
+        object->base = 0;
+        object->size = 0u;
+        object->handle = KAIN_RUNTIME_HANDLE_INVALID;
+        (void)kain_handle_table_release(
+            &KAIN_FIXUP_HANDLE_TABLE,
+            handle,
+            KAIN_HANDLE_KIND_FIXUP_OBJECT
+        );
+        kain_fixup_unlock();
+        kain_profile_scope_end(&scope);
+        return KAIN_RUNTIME_HANDLE_INVALID;
+    }
     (void)kain_handle_table_rebind(
         &KAIN_FIXUP_HANDLE_TABLE,
         handle,
@@ -425,6 +556,7 @@ int kain_fixup_relocate_allocation(
 ) {
     KainFixupObject* object;
     uint32_t ref_index;
+    uint32_t slot;
     uintptr_t range_limit;
     KainProfileScope scope;
     if (!KAIN_RUNTIME_FIXUP_ENABLED() || handle == KAIN_RUNTIME_HANDLE_INVALID || !new_base || size == 0u) {
@@ -445,6 +577,20 @@ int kain_fixup_relocate_allocation(
         return -1;
     }
     (void)range_limit;
+    slot = kain_handle_slot(handle);
+    if (object->base != new_base) {
+        if (object->base) {
+            (void)kain_fixup_base_index_remove_unlocked(object->base, slot);
+        }
+        if (kain_fixup_base_index_insert_unlocked(new_base, slot) != 0) {
+            if (object->base) {
+                (void)kain_fixup_base_index_insert_unlocked(object->base, slot);
+            }
+            kain_fixup_unlock();
+            kain_profile_scope_end(&scope);
+            return -1;
+        }
+    }
     object->base = new_base;
     object->size = size;
     ref_index = object->first_ref;
@@ -478,6 +624,12 @@ int kain_fixup_unregister_allocation(KainRuntimeHandle handle) {
         kain_fixup_unlock();
         kain_profile_scope_end(&scope);
         return -1;
+    }
+    if (object->base) {
+        (void)kain_fixup_base_index_remove_unlocked(
+            object->base,
+            kain_handle_slot(handle)
+        );
     }
     ref_index = object->first_ref;
     while (ref_index != KAIN_FIXUP_REF_NONE) {

@@ -46,6 +46,60 @@ fn py_actor_callback_close(callback: Any) -> Int
 @extern
 fn py_actor_callback_delivered_count(callback: Any) -> Int
 
+@extern
+fn py_region_begin() -> Any
+
+@extern
+fn py_region_end(region: Any) -> Int
+
+@extern
+fn py_region_import(region: Any, name: String) -> Any
+
+@extern
+fn py_region_getattr_raw(region: Any, target: Any, name: String) -> Any
+
+@extern
+fn py_region_call_raw_args(region: Any, target: Any, args: Any) -> Any
+
+@extern
+fn py_region_call_raw_attr(region: Any, target: Any, attr: String, args: Any) -> Any
+
+@extern
+fn py_region_call_raw_f64_trunc_i64(region: Any, target: Any, arg: Float) -> Int
+
+@extern
+fn py_region_call_attr_raw_f64_trunc_i64(region: Any, target: Any, attr: String, arg: Float) -> Int
+
+@extern
+fn py_region_buffer_view(region: Any, target: Any) -> Any
+
+@extern
+fn py_region_import_cache_hits(region: Any) -> Int
+
+@extern
+fn py_region_import_cache_misses(region: Any) -> Int
+
+@extern
+fn py_region_attr_cache_hits(region: Any) -> Int
+
+@extern
+fn py_region_attr_cache_misses(region: Any) -> Int
+
+@extern
+fn py_region_views_opened(region: Any) -> Int
+
+@extern
+fn py_region_views_released(region: Any) -> Int
+
+@extern
+fn py_region_call_count(region: Any) -> Int
+
+@extern
+fn py_region_generic_call_count(region: Any) -> Int
+
+@extern
+fn py_region_fast_call_count(region: Any) -> Int
+
 pub fn python_bootstrap():
     py_exec("import importlib.util\n\ndef __kain_module_available(name):\n    return importlib.util.find_spec(name) is not None\n")
 

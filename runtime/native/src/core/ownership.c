@@ -44,10 +44,15 @@ typedef struct KainOwnershipRegion {
     int occupied;
 } KainOwnershipRegion;
 
+typedef struct KainDeferredDecayRecord {
+    void* ptr;
+    KainRuntimeHandle relocation_handle;
+} KainDeferredDecayRecord;
+
 static KainOwnershipRegion KAIN_OWNERSHIP_REGIONS[KAIN_OWNERSHIP_MAX_REGIONS];
 static uint64_t KAIN_OWNERSHIP_OCCUPANCY_WORDS[KAIN_OWNERSHIP_WORD_COUNT];
 static uint32_t KAIN_OWNERSHIP_POINTER_INDEX[KAIN_OWNERSHIP_INDEX_CAPACITY];
-static uint16_t KAIN_OWNERSHIP_DEFERRED_DECAY_RING[KAIN_OWNERSHIP_MAX_REGIONS];
+static KainDeferredDecayRecord KAIN_OWNERSHIP_DEFERRED_DECAY_RING[KAIN_OWNERSHIP_MAX_REGIONS];
 static uint32_t KAIN_OWNERSHIP_DEFERRED_DECAY_HEAD = 0u;
 static uint32_t KAIN_OWNERSHIP_DEFERRED_DECAY_TAIL = 0u;
 static uint32_t KAIN_OWNERSHIP_DEFERRED_DECAY_COUNT = 0u;
@@ -203,23 +208,19 @@ static void kain_ownership_rebuild_pointer_index_unlocked(void) {
     }
 }
 
-static int kain_ownership_enqueue_deferred_decay_unlocked(int slot) {
-    KainOwnershipRegion* region;
-    if (slot < 0 || (uint32_t)slot >= KAIN_OWNERSHIP_MAX_REGIONS) {
+static int kain_ownership_enqueue_deferred_decay_unlocked(const KainOwnershipRegion* region) {
+    if (region == NULL || region->ptr == NULL) {
         return KAIN_OWNERSHIP_ERR_INVALID;
-    }
-    region = &KAIN_OWNERSHIP_REGIONS[slot];
-    if (region->decay_queued) {
-        return KAIN_OWNERSHIP_OK;
     }
     if (KAIN_OWNERSHIP_DEFERRED_DECAY_COUNT >= KAIN_OWNERSHIP_MAX_REGIONS) {
         return KAIN_OWNERSHIP_ERR_CAPACITY;
     }
-    KAIN_OWNERSHIP_DEFERRED_DECAY_RING[KAIN_OWNERSHIP_DEFERRED_DECAY_TAIL] = (uint16_t)slot;
+    KAIN_OWNERSHIP_DEFERRED_DECAY_RING[KAIN_OWNERSHIP_DEFERRED_DECAY_TAIL].ptr = region->ptr;
+    KAIN_OWNERSHIP_DEFERRED_DECAY_RING[KAIN_OWNERSHIP_DEFERRED_DECAY_TAIL].relocation_handle =
+        region->relocation_handle;
     KAIN_OWNERSHIP_DEFERRED_DECAY_TAIL =
         (KAIN_OWNERSHIP_DEFERRED_DECAY_TAIL + 1u) % KAIN_OWNERSHIP_MAX_REGIONS;
     KAIN_OWNERSHIP_DEFERRED_DECAY_COUNT += 1u;
-    region->decay_queued = 1u;
     return KAIN_OWNERSHIP_OK;
 }
 
@@ -899,9 +900,16 @@ static int kain_ownership_decay_slot_unlocked(void* ptr, int slot, int reclaim_h
     }
 
     if (kain_ownership_region_is_heap(region)) {
+        KainOwnershipRegion deferred_region = *region;
+        int enqueue_status;
         region->state = KAIN_OWNERSHIP_STATE_DECAYED;
         region->observers = 0u;
-        return kain_ownership_enqueue_deferred_decay_unlocked(slot);
+        enqueue_status = kain_ownership_enqueue_deferred_decay_unlocked(&deferred_region);
+        if (enqueue_status != KAIN_OWNERSHIP_OK) {
+            return enqueue_status;
+        }
+        kain_ownership_clear_slot_unlocked(slot);
+        return KAIN_OWNERSHIP_OK;
     }
 
     region->state = KAIN_OWNERSHIP_STATE_DECAYED;
@@ -963,41 +971,32 @@ void __kain_ownership_flush_deferred_decay(void) {
         (uint32_t)__LINE__
     );
     for (;;) {
-        int slot = -1;
         void* ptr = NULL;
         KainRuntimeHandle handle = KAIN_RUNTIME_HANDLE_INVALID;
-        KainOwnershipRegion* region;
+        KainDeferredDecayRecord record;
         kain_ownership_lock();
         if (KAIN_OWNERSHIP_DEFERRED_DECAY_COUNT == 0u) {
             kain_ownership_unlock();
             break;
         }
-        slot = (int)KAIN_OWNERSHIP_DEFERRED_DECAY_RING[KAIN_OWNERSHIP_DEFERRED_DECAY_HEAD];
+        record = KAIN_OWNERSHIP_DEFERRED_DECAY_RING[KAIN_OWNERSHIP_DEFERRED_DECAY_HEAD];
+        KAIN_OWNERSHIP_DEFERRED_DECAY_RING[KAIN_OWNERSHIP_DEFERRED_DECAY_HEAD].ptr = NULL;
+        KAIN_OWNERSHIP_DEFERRED_DECAY_RING[KAIN_OWNERSHIP_DEFERRED_DECAY_HEAD].relocation_handle =
+            KAIN_RUNTIME_HANDLE_INVALID;
         KAIN_OWNERSHIP_DEFERRED_DECAY_HEAD =
             (KAIN_OWNERSHIP_DEFERRED_DECAY_HEAD + 1u) % KAIN_OWNERSHIP_MAX_REGIONS;
         KAIN_OWNERSHIP_DEFERRED_DECAY_COUNT -= 1u;
-        region = &KAIN_OWNERSHIP_REGIONS[slot];
-        if (!region->occupied || !region->decay_queued || !kain_ownership_region_is_heap(region)) {
-            region->decay_queued = 0u;
-            kain_ownership_unlock();
-            continue;
-        }
-        region->decay_queued = 0u;
-        ptr = region->ptr;
-        handle = region->relocation_handle;
+        ptr = record.ptr;
+        handle = record.relocation_handle;
         kain_ownership_unlock();
 
+        if (ptr == NULL) {
+            continue;
+        }
         if (handle != KAIN_RUNTIME_HANDLE_INVALID) {
             (void)kain_fixup_unregister_allocation(handle);
         }
         (void)__kain_free(ptr);
-
-        kain_ownership_lock();
-        region = &KAIN_OWNERSHIP_REGIONS[slot];
-        if (region->occupied && region->ptr == ptr && region->state == KAIN_OWNERSHIP_STATE_DECAYED) {
-            kain_ownership_clear_slot_unlocked(slot);
-        }
-        kain_ownership_unlock();
     }
     kain_profile_scope_end(&scope);
 }
