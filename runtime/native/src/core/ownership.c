@@ -23,6 +23,7 @@
 #define KAIN_OWNERSHIP_INDEX_CAPACITY 8192u
 #define KAIN_OWNERSHIP_INDEX_MASK (KAIN_OWNERSHIP_INDEX_CAPACITY - 1u)
 #define KAIN_OWNERSHIP_INDEX_TOMBSTONE UINT32_MAX
+#define KAIN_OWNERSHIP_IMMEDIATE_RELEASE_MAX_BYTES 262144u
 #if (KAIN_OWNERSHIP_MAX_REGIONS % KAIN_OWNERSHIP_WORD_BITS) != 0
 #error "KAIN_OWNERSHIP_MAX_REGIONS must be divisible by 64 for occupancy-word indexing."
 #endif
@@ -56,6 +57,7 @@ static KainDeferredDecayRecord KAIN_OWNERSHIP_DEFERRED_DECAY_RING[KAIN_OWNERSHIP
 static uint32_t KAIN_OWNERSHIP_DEFERRED_DECAY_HEAD = 0u;
 static uint32_t KAIN_OWNERSHIP_DEFERRED_DECAY_TAIL = 0u;
 static uint32_t KAIN_OWNERSHIP_DEFERRED_DECAY_COUNT = 0u;
+static atomic_uint_fast64_t KAIN_OWNERSHIP_DEFERRED_DECAY_COUNT_ATOMIC;
 static atomic_flag KAIN_OWNERSHIP_REGISTRY_LOCK = ATOMIC_FLAG_INIT;
 
 static void kain_ownership_lock(void) {
@@ -107,6 +109,17 @@ static uint64_t kain_ownership_mix_pointer(const void* ptr) {
 
 static uint32_t kain_ownership_pointer_index_slot(const void* ptr) {
     return (uint32_t)(kain_ownership_mix_pointer(ptr) & KAIN_OWNERSHIP_INDEX_MASK);
+}
+
+static int kain_ownership_try_range_limit(uintptr_t base, size_t size, uintptr_t* out_limit) {
+    if (!out_limit) {
+        return 0;
+    }
+    if (size > (size_t)(UINTPTR_MAX - base)) {
+        return 0;
+    }
+    *out_limit = base + (uintptr_t)size;
+    return 1;
 }
 
 static uint64_t kain_ownership_isolate_low_bit_u64(uint64_t value) {
@@ -196,16 +209,28 @@ static int kain_ownership_index_remove_unlocked(const void* ptr, int slot) {
     return KAIN_OWNERSHIP_ERR_NOT_FOUND;
 }
 
-static void kain_ownership_rebuild_pointer_index_unlocked(void) {
-    memset(KAIN_OWNERSHIP_POINTER_INDEX, 0, sizeof(KAIN_OWNERSHIP_POINTER_INDEX));
-    for (uint32_t slot = 0u; slot < KAIN_OWNERSHIP_MAX_REGIONS; ++slot) {
-        if (KAIN_OWNERSHIP_REGIONS[slot].occupied) {
-            (void)kain_ownership_index_insert_unlocked(
-                KAIN_OWNERSHIP_REGIONS[slot].ptr,
-                (int)slot
-            );
-        }
+static int kain_ownership_pointer_index_rebind_unlocked(
+    const void* old_ptr,
+    const void* new_ptr,
+    int slot
+) {
+    int removed_old = 0;
+    int status;
+    if (new_ptr == NULL || slot < 0 || (uint32_t)slot >= KAIN_OWNERSHIP_MAX_REGIONS) {
+        return KAIN_OWNERSHIP_ERR_INVALID;
     }
+    if (old_ptr == new_ptr) {
+        return KAIN_OWNERSHIP_OK;
+    }
+    if (old_ptr != NULL &&
+        kain_ownership_index_remove_unlocked(old_ptr, slot) == KAIN_OWNERSHIP_OK) {
+        removed_old = 1;
+    }
+    status = kain_ownership_index_insert_unlocked(new_ptr, slot);
+    if (status != KAIN_OWNERSHIP_OK && removed_old) {
+        (void)kain_ownership_index_insert_unlocked(old_ptr, slot);
+    }
+    return status;
 }
 
 static int kain_ownership_enqueue_deferred_decay_unlocked(const KainOwnershipRegion* region) {
@@ -221,6 +246,11 @@ static int kain_ownership_enqueue_deferred_decay_unlocked(const KainOwnershipReg
     KAIN_OWNERSHIP_DEFERRED_DECAY_TAIL =
         (KAIN_OWNERSHIP_DEFERRED_DECAY_TAIL + 1u) % KAIN_OWNERSHIP_MAX_REGIONS;
     KAIN_OWNERSHIP_DEFERRED_DECAY_COUNT += 1u;
+    atomic_fetch_add_explicit(
+        &KAIN_OWNERSHIP_DEFERRED_DECAY_COUNT_ATOMIC,
+        1u,
+        memory_order_relaxed
+    );
     return KAIN_OWNERSHIP_OK;
 }
 
@@ -250,6 +280,38 @@ static int kain_ownership_find_slot(const void* ptr) {
         }
     }
 
+    return -1;
+}
+
+static int kain_ownership_find_range_slot_unlocked(const void* ptr) {
+    uintptr_t address;
+    if (ptr == NULL) {
+        return -1;
+    }
+
+    {
+        int exact_slot = kain_ownership_find_slot(ptr);
+        if (exact_slot >= 0) {
+            return exact_slot;
+        }
+    }
+
+    address = (uintptr_t)ptr;
+    for (uint32_t slot = 0u; slot < KAIN_OWNERSHIP_MAX_REGIONS; ++slot) {
+        KainOwnershipRegion* region = &KAIN_OWNERSHIP_REGIONS[slot];
+        uintptr_t base;
+        uintptr_t limit;
+        if (!region->occupied || region->ptr == NULL) {
+            continue;
+        }
+        base = (uintptr_t)region->ptr;
+        if (!kain_ownership_try_range_limit(base, region->size, &limit)) {
+            continue;
+        }
+        if (address >= base && address < limit) {
+            return (int)slot;
+        }
+    }
     return -1;
 }
 
@@ -401,6 +463,47 @@ static int kain_ownership_upsert_unlocked(
     return KAIN_OWNERSHIP_OK;
 }
 
+static int kain_ownership_register_helper_allocation_unlocked(
+    void* ptr,
+    size_t size,
+    int* out_slot
+) {
+    uint32_t word_index;
+    uint64_t bit;
+    int slot;
+    int index_status;
+    KainOwnershipRegion* region;
+    if (ptr == NULL) {
+        return kain_ownership_fail(KAIN_OWNERSHIP_ERR_INVALID);
+    }
+    slot = kain_ownership_find_free_slot();
+    if (slot < 0) {
+        return kain_ownership_fail(KAIN_OWNERSHIP_ERR_CAPACITY);
+    }
+    region = &KAIN_OWNERSHIP_REGIONS[slot];
+    region->ptr = ptr;
+    region->size = size;
+    region->kind = KAIN_OWNERSHIP_REGION_HEAP_ALLOCATION;
+    region->state = KAIN_OWNERSHIP_STATE_IDLE;
+    region->observers = 0u;
+    region->relocation_handle = KAIN_RUNTIME_HANDLE_INVALID;
+    region->decay_queued = 0u;
+    region->occupied = 1;
+    word_index = (uint32_t)slot / KAIN_OWNERSHIP_WORD_BITS;
+    bit = UINT64_C(1) << ((uint32_t)slot % KAIN_OWNERSHIP_WORD_BITS);
+    KAIN_OWNERSHIP_OCCUPANCY_WORDS[word_index] |= bit;
+    index_status = kain_ownership_index_insert_unlocked(ptr, slot);
+    if (index_status != KAIN_OWNERSHIP_OK) {
+        region->occupied = 0;
+        KAIN_OWNERSHIP_OCCUPANCY_WORDS[word_index] &= ~bit;
+        return kain_ownership_fail(index_status);
+    }
+    if (out_slot != NULL) {
+        *out_slot = slot;
+    }
+    return KAIN_OWNERSHIP_OK;
+}
+
 int __kain_ownership_register(void* ptr, int64_t region_kind, size_t size) {
     kain_ownership_lock();
     int status = kain_ownership_upsert_unlocked(
@@ -432,22 +535,9 @@ int __kain_ownership_register_imported(void* ptr, size_t size) {
 int __kain_ownership_register_helper_allocation(void* ptr, size_t size, uint16_t* out_slot_token) {
     int slot = -1;
     kain_ownership_lock();
-    int status = kain_ownership_upsert_unlocked(
-        ptr,
-        KAIN_OWNERSHIP_REGION_HEAP_ALLOCATION,
-        size,
-        KAIN_OWNERSHIP_STATE_IDLE,
-        0u,
-        &slot
-    );
+    int status = kain_ownership_register_helper_allocation_unlocked(ptr, size, &slot);
     if (status == KAIN_OWNERSHIP_OK && slot >= 0) {
-        KainRuntimeHandle handle = kain_fixup_track_allocation(ptr, size);
-        if (KAIN_RUNTIME_FIXUP_ENABLED() && handle == KAIN_RUNTIME_HANDLE_INVALID) {
-            kain_ownership_clear_slot_unlocked(slot);
-            status = kain_ownership_fail(KAIN_OWNERSHIP_ERR_CAPACITY);
-        } else {
-            KAIN_OWNERSHIP_REGIONS[slot].relocation_handle = handle;
-        }
+        KAIN_OWNERSHIP_REGIONS[slot].relocation_handle = KAIN_RUNTIME_HANDLE_INVALID;
     }
     kain_ownership_unlock();
     if (status == KAIN_OWNERSHIP_OK && out_slot_token != NULL) {
@@ -516,62 +606,41 @@ int __kain_ownership_relocate_helper_allocation(
         kain_ownership_unlock();
         return kain_ownership_fail(KAIN_OWNERSHIP_ERR_INVALID);
     }
+    if (new_ptr != old_ptr) {
+        int index_status = kain_ownership_pointer_index_rebind_unlocked(old_ptr, new_ptr, slot);
+        if (index_status != KAIN_OWNERSHIP_OK) {
+            kain_ownership_unlock();
+            return kain_ownership_fail(index_status);
+        }
+    }
     region->ptr = new_ptr;
     region->size = size;
     region->kind = KAIN_OWNERSHIP_REGION_HEAP_ALLOCATION;
-    if (new_ptr != old_ptr) {
-        kain_ownership_rebuild_pointer_index_unlocked();
-    }
     kain_ownership_unlock();
     return KAIN_OWNERSHIP_OK;
 }
 
 static int kain_ownership_update_unlocked(void* old_ptr, void* new_ptr, size_t size) {
     int slot = -1;
-    KainRuntimeHandle handle = KAIN_RUNTIME_HANDLE_INVALID;
     if (new_ptr == NULL) {
         return kain_ownership_fail(KAIN_OWNERSHIP_ERR_INVALID);
     }
     if (old_ptr == NULL) {
-        int status = kain_ownership_upsert_unlocked(
-            new_ptr,
-            KAIN_OWNERSHIP_REGION_HEAP_ALLOCATION,
-            size,
-            KAIN_OWNERSHIP_STATE_IDLE,
-            0u,
-            &slot
-        );
+        int status = kain_ownership_register_helper_allocation_unlocked(new_ptr, size, &slot);
         if (status != KAIN_OWNERSHIP_OK) {
             return status;
         }
-        handle = kain_fixup_track_allocation(new_ptr, size);
-        if (KAIN_RUNTIME_FIXUP_ENABLED() && handle == KAIN_RUNTIME_HANDLE_INVALID) {
-            kain_ownership_clear_slot_unlocked(slot);
-            return kain_ownership_fail(KAIN_OWNERSHIP_ERR_CAPACITY);
-        }
-        KAIN_OWNERSHIP_REGIONS[slot].relocation_handle = handle;
+        KAIN_OWNERSHIP_REGIONS[slot].relocation_handle = KAIN_RUNTIME_HANDLE_INVALID;
         return KAIN_OWNERSHIP_OK;
     }
 
     slot = kain_ownership_find_slot(old_ptr);
     if (slot < 0) {
-        int status = kain_ownership_upsert_unlocked(
-            new_ptr,
-            KAIN_OWNERSHIP_REGION_HEAP_ALLOCATION,
-            size,
-            KAIN_OWNERSHIP_STATE_IDLE,
-            0u,
-            &slot
-        );
+        int status = kain_ownership_register_helper_allocation_unlocked(new_ptr, size, &slot);
         if (status != KAIN_OWNERSHIP_OK) {
             return status;
         }
-        handle = kain_fixup_track_allocation(new_ptr, size);
-        if (KAIN_RUNTIME_FIXUP_ENABLED() && handle == KAIN_RUNTIME_HANDLE_INVALID) {
-            kain_ownership_clear_slot_unlocked(slot);
-            return kain_ownership_fail(KAIN_OWNERSHIP_ERR_CAPACITY);
-        }
-        KAIN_OWNERSHIP_REGIONS[slot].relocation_handle = handle;
+        KAIN_OWNERSHIP_REGIONS[slot].relocation_handle = KAIN_RUNTIME_HANDLE_INVALID;
         return KAIN_OWNERSHIP_OK;
     }
 
@@ -584,17 +653,16 @@ static int kain_ownership_update_unlocked(void* old_ptr, void* new_ptr, size_t s
         if (kain_fixup_relocate_allocation(region->relocation_handle, old_ptr, new_ptr, size) != 0) {
             return kain_ownership_fail(KAIN_OWNERSHIP_ERR_INVALID);
         }
-    } else {
-        handle = kain_fixup_track_allocation(new_ptr, size);
-        if (KAIN_RUNTIME_FIXUP_ENABLED() && handle == KAIN_RUNTIME_HANDLE_INVALID) {
-            return kain_ownership_fail(KAIN_OWNERSHIP_ERR_CAPACITY);
+    }
+    if (new_ptr != old_ptr) {
+        int index_status = kain_ownership_pointer_index_rebind_unlocked(old_ptr, new_ptr, slot);
+        if (index_status != KAIN_OWNERSHIP_OK) {
+            return kain_ownership_fail(index_status);
         }
-        region->relocation_handle = handle;
     }
     region->ptr = new_ptr;
     region->size = size;
     region->kind = KAIN_OWNERSHIP_REGION_HEAP_ALLOCATION;
-    kain_ownership_rebuild_pointer_index_unlocked();
     return KAIN_OWNERSHIP_OK;
 }
 
@@ -878,10 +946,33 @@ int __kain_ownership_end_share_helper(void* ptr) {
     return status;
 }
 
-static int kain_ownership_decay_slot_unlocked(void* ptr, int slot, int reclaim_helper_slot) {
+static void kain_ownership_release_heap_record(KainDeferredDecayRecord record) {
+    if (record.ptr == NULL) {
+        return;
+    }
+    if (record.relocation_handle != KAIN_RUNTIME_HANDLE_INVALID) {
+        (void)kain_fixup_unregister_allocation(record.relocation_handle);
+    }
+    (void)__kain_free(record.ptr);
+}
+
+static int kain_ownership_decay_slot_unlocked(
+    void* ptr,
+    int slot,
+    int reclaim_helper_slot,
+    KainDeferredDecayRecord* out_release_now,
+    int* out_release_immediately
+) {
     (void)reclaim_helper_slot;
     if (slot < 0) {
         return kain_ownership_fail(KAIN_OWNERSHIP_ERR_NOT_FOUND);
+    }
+    if (out_release_now) {
+        out_release_now->ptr = NULL;
+        out_release_now->relocation_handle = KAIN_RUNTIME_HANDLE_INVALID;
+    }
+    if (out_release_immediately) {
+        *out_release_immediately = 0;
     }
 
     KainOwnershipRegion* region = &KAIN_OWNERSHIP_REGIONS[slot];
@@ -901,9 +992,22 @@ static int kain_ownership_decay_slot_unlocked(void* ptr, int slot, int reclaim_h
 
     if (kain_ownership_region_is_heap(region)) {
         KainOwnershipRegion deferred_region = *region;
+        int release_immediately =
+            deferred_region.size <= KAIN_OWNERSHIP_IMMEDIATE_RELEASE_MAX_BYTES;
         int enqueue_status;
         region->state = KAIN_OWNERSHIP_STATE_DECAYED;
         region->observers = 0u;
+        if (release_immediately) {
+            if (out_release_now) {
+                out_release_now->ptr = deferred_region.ptr;
+                out_release_now->relocation_handle = deferred_region.relocation_handle;
+            }
+            if (out_release_immediately) {
+                *out_release_immediately = 1;
+            }
+            kain_ownership_clear_slot_unlocked(slot);
+            return KAIN_OWNERSHIP_OK;
+        }
         enqueue_status = kain_ownership_enqueue_deferred_decay_unlocked(&deferred_region);
         if (enqueue_status != KAIN_OWNERSHIP_OK) {
             return enqueue_status;
@@ -922,28 +1026,55 @@ static int kain_ownership_decay_registered_unlocked(void* ptr) {
     if (slot < 0) {
         return kain_ownership_fail(KAIN_OWNERSHIP_ERR_NOT_FOUND);
     }
-    return kain_ownership_decay_slot_unlocked(ptr, slot, 0);
+    return kain_ownership_decay_slot_unlocked(ptr, slot, 0, NULL, NULL);
 }
 
 static int kain_ownership_decay_helper_unlocked(void* ptr) {
     return kain_ownership_decay_slot_unlocked(
         ptr,
         kain_ownership_find_helper_slot_unlocked(ptr),
-        1
+        1,
+        NULL,
+        NULL
     );
 }
 
 int __kain_ownership_decay(void* ptr) {
+    KainDeferredDecayRecord release_now;
+    int release_immediately = 0;
     kain_ownership_lock();
-    int status = kain_ownership_decay_registered_unlocked(ptr);
+    int slot = kain_ownership_find_slot(ptr);
+    int status = slot < 0
+        ? kain_ownership_fail(KAIN_OWNERSHIP_ERR_NOT_FOUND)
+        : kain_ownership_decay_slot_unlocked(
+            ptr,
+            slot,
+            0,
+            &release_now,
+            &release_immediately
+        );
     kain_ownership_unlock();
+    if (status == KAIN_OWNERSHIP_OK && release_immediately) {
+        kain_ownership_release_heap_record(release_now);
+    }
     return status;
 }
 
 int __kain_ownership_decay_helper(void* ptr) {
+    KainDeferredDecayRecord release_now;
+    int release_immediately = 0;
     kain_ownership_lock();
-    int status = kain_ownership_decay_helper_unlocked(ptr);
+    int status = kain_ownership_decay_slot_unlocked(
+        ptr,
+        kain_ownership_find_helper_slot_unlocked(ptr),
+        1,
+        &release_now,
+        &release_immediately
+    );
     kain_ownership_unlock();
+    if (status == KAIN_OWNERSHIP_OK && release_immediately) {
+        kain_ownership_release_heap_record(release_now);
+    }
     return status;
 }
 
@@ -960,6 +1091,37 @@ int __kain_ownership_state(const void* ptr) {
     int state = kain_ownership_state_unlocked(ptr);
     kain_ownership_unlock();
     return state;
+}
+
+int __kain_ownership_locate_registered_range(const void* ptr, void** out_base, size_t* out_size) {
+    int slot;
+    if (ptr == NULL || out_base == NULL || out_size == NULL) {
+        return KAIN_OWNERSHIP_ERR_INVALID;
+    }
+    *out_base = NULL;
+    *out_size = 0u;
+    kain_ownership_lock();
+    slot = kain_ownership_find_range_slot_unlocked(ptr);
+    if (slot >= 0) {
+        *out_base = KAIN_OWNERSHIP_REGIONS[slot].ptr;
+        *out_size = KAIN_OWNERSHIP_REGIONS[slot].size;
+    }
+    kain_ownership_unlock();
+    return slot >= 0 ? KAIN_OWNERSHIP_OK : KAIN_OWNERSHIP_ERR_NOT_FOUND;
+}
+
+int __kain_ownership_bind_relocation_handle(const void* ptr, KainRuntimeHandle handle) {
+    int slot;
+    if (ptr == NULL) {
+        return KAIN_OWNERSHIP_ERR_INVALID;
+    }
+    kain_ownership_lock();
+    slot = kain_ownership_find_range_slot_unlocked(ptr);
+    if (slot >= 0) {
+        KAIN_OWNERSHIP_REGIONS[slot].relocation_handle = handle;
+    }
+    kain_ownership_unlock();
+    return slot >= 0 ? KAIN_OWNERSHIP_OK : KAIN_OWNERSHIP_ERR_NOT_FOUND;
 }
 
 void __kain_ownership_flush_deferred_decay(void) {
@@ -986,6 +1148,11 @@ void __kain_ownership_flush_deferred_decay(void) {
         KAIN_OWNERSHIP_DEFERRED_DECAY_HEAD =
             (KAIN_OWNERSHIP_DEFERRED_DECAY_HEAD + 1u) % KAIN_OWNERSHIP_MAX_REGIONS;
         KAIN_OWNERSHIP_DEFERRED_DECAY_COUNT -= 1u;
+        atomic_fetch_sub_explicit(
+            &KAIN_OWNERSHIP_DEFERRED_DECAY_COUNT_ATOMIC,
+            1u,
+            memory_order_relaxed
+        );
         ptr = record.ptr;
         handle = record.relocation_handle;
         kain_ownership_unlock();
@@ -1002,9 +1169,8 @@ void __kain_ownership_flush_deferred_decay(void) {
 }
 
 uint64_t __kain_ownership_deferred_decay_count(void) {
-    uint64_t count;
-    kain_ownership_lock();
-    count = (uint64_t)KAIN_OWNERSHIP_DEFERRED_DECAY_COUNT;
-    kain_ownership_unlock();
-    return count;
+    return atomic_load_explicit(
+        &KAIN_OWNERSHIP_DEFERRED_DECAY_COUNT_ATOMIC,
+        memory_order_relaxed
+    );
 }

@@ -4,6 +4,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "handle.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -66,6 +68,8 @@ int __kain_ownership_begin_share_helper(void* ptr);
 int __kain_ownership_end_share_helper(void* ptr);
 int __kain_ownership_decay_helper(void* ptr);
 int __kain_ownership_state(const void* ptr);
+int __kain_ownership_locate_registered_range(const void* ptr, void** out_base, size_t* out_size);
+int __kain_ownership_bind_relocation_handle(const void* ptr, KainRuntimeHandle handle);
 void __kain_ownership_flush_deferred_decay(void);
 uint64_t __kain_ownership_deferred_decay_count(void);
 

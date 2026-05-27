@@ -1,6 +1,7 @@
 #include "../../include/fixup.h"
 #include "../../include/base.h"
 #include "../../include/lru.h"
+#include "../../include/ownership.h"
 #include "../../include/profile.h"
 #include "../../include/runtime_tiers.h"
 
@@ -384,6 +385,24 @@ KainRuntimeHandle kain_fixup_track_allocation(void* base, size_t size) {
     return handle;
 }
 
+static KainRuntimeHandle kain_fixup_track_pointer_backed_by_ownership(const void* ptr) {
+    void* base = NULL;
+    size_t size = 0u;
+    KainRuntimeHandle handle;
+    if (!KAIN_RUNTIME_FIXUP_ENABLED() || !ptr) {
+        return KAIN_RUNTIME_HANDLE_INVALID;
+    }
+    if (__kain_ownership_locate_registered_range(ptr, &base, &size) != KAIN_OWNERSHIP_OK ||
+        !base || size == 0u) {
+        return KAIN_RUNTIME_HANDLE_INVALID;
+    }
+    handle = kain_fixup_track_allocation(base, size);
+    if (handle != KAIN_RUNTIME_HANDLE_INVALID) {
+        (void)__kain_ownership_bind_relocation_handle(base, handle);
+    }
+    return handle;
+}
+
 KainRuntimeHandle kain_fixup_handle_for_pointer(const void* ptr) {
     KainRuntimeHandle handle = KAIN_RUNTIME_HANDLE_INVALID;
     if (!KAIN_RUNTIME_FIXUP_ENABLED() || !ptr) {
@@ -398,6 +417,9 @@ KainRuntimeHandle kain_fixup_handle_for_pointer(const void* ptr) {
         }
     }
     kain_fixup_unlock();
+    if (handle == KAIN_RUNTIME_HANDLE_INVALID) {
+        handle = kain_fixup_track_pointer_backed_by_ownership(ptr);
+    }
     return handle;
 }
 
@@ -462,6 +484,7 @@ int kain_fixup_view(KainRuntimeHandle handle, KainFixupTrackedView* out_view) {
 }
 
 int kain_fixup_register_known_ref(void** location) {
+    KainRuntimeHandle handle;
     KainFixupObject* object;
     uint32_t ref_index;
     uintptr_t target_addr;
@@ -470,11 +493,15 @@ int kain_fixup_register_known_ref(void** location) {
     if (!KAIN_RUNTIME_FIXUP_ENABLED() || !location || !*location) {
         return -1;
     }
+    handle = kain_fixup_handle_for_pointer(*location);
+    if (handle == KAIN_RUNTIME_HANDLE_INVALID) {
+        return -1;
+    }
     kain_profile_scope_begin(&scope, "fixup.register_ref", __FILE__, (uint32_t)__LINE__);
     kain_fixup_lock();
     kain_fixup_init_unlocked();
-    object = kain_fixup_find_object_by_pointer_unlocked(*location);
-    if (!object || KAIN_FIXUP_FIRST_FREE_REF == KAIN_FIXUP_REF_NONE) {
+    object = kain_fixup_object_for_handle_unlocked(handle);
+    if (!object || !object->base || KAIN_FIXUP_FIRST_FREE_REF == KAIN_FIXUP_REF_NONE) {
         kain_fixup_unlock();
         kain_profile_scope_end(&scope);
         return -1;
@@ -484,9 +511,14 @@ int kain_fixup_register_known_ref(void** location) {
     KAIN_FIXUP_FIRST_FREE_REF = KAIN_FIXUP_REFS[ref_index].next_free;
     target_addr = (uintptr_t)(*location);
     base_addr = (uintptr_t)object->base;
+    if (target_addr < base_addr || target_addr - base_addr >= object->size) {
+        kain_fixup_unlock();
+        kain_profile_scope_end(&scope);
+        return -1;
+    }
     KAIN_FIXUP_REFS[ref_index].occupied = 1u;
     KAIN_FIXUP_REFS[ref_index].location = location;
-    KAIN_FIXUP_REFS[ref_index].handle = object->handle;
+    KAIN_FIXUP_REFS[ref_index].handle = handle;
     KAIN_FIXUP_REFS[ref_index].offset = target_addr - base_addr;
     KAIN_FIXUP_REFS[ref_index].next = object->first_ref;
     KAIN_FIXUP_REFS[ref_index].next_free = KAIN_FIXUP_REF_NONE;
@@ -511,8 +543,15 @@ int kain_fixup_unregister_known_ref(void** location) {
 
 int kain_fixup_update_known_ref(void** location, void* value) {
     int status = 0;
+    KainRuntimeHandle handle = KAIN_RUNTIME_HANDLE_INVALID;
     if (!KAIN_RUNTIME_FIXUP_ENABLED() || !location) {
         return -1;
+    }
+    if (value) {
+        handle = kain_fixup_handle_for_pointer(value);
+        if (handle == KAIN_RUNTIME_HANDLE_INVALID) {
+            return -1;
+        }
     }
     kain_fixup_lock();
     kain_fixup_init_unlocked();
@@ -523,11 +562,11 @@ int kain_fixup_update_known_ref(void** location, void* value) {
         return 0;
     }
     {
-        KainFixupObject* object = kain_fixup_find_object_by_pointer_unlocked(value);
+        KainFixupObject* object = kain_fixup_object_for_handle_unlocked(handle);
         uint32_t ref_index;
         uintptr_t target_addr;
         uintptr_t base_addr;
-        if (!object || KAIN_FIXUP_FIRST_FREE_REF == KAIN_FIXUP_REF_NONE) {
+        if (!object || !object->base || KAIN_FIXUP_FIRST_FREE_REF == KAIN_FIXUP_REF_NONE) {
             kain_fixup_unlock();
             return -1;
         }
@@ -535,9 +574,13 @@ int kain_fixup_update_known_ref(void** location, void* value) {
         KAIN_FIXUP_FIRST_FREE_REF = KAIN_FIXUP_REFS[ref_index].next_free;
         target_addr = (uintptr_t)value;
         base_addr = (uintptr_t)object->base;
+        if (target_addr < base_addr || target_addr - base_addr >= object->size) {
+            kain_fixup_unlock();
+            return -1;
+        }
         KAIN_FIXUP_REFS[ref_index].occupied = 1u;
         KAIN_FIXUP_REFS[ref_index].location = location;
-        KAIN_FIXUP_REFS[ref_index].handle = object->handle;
+        KAIN_FIXUP_REFS[ref_index].handle = handle;
         KAIN_FIXUP_REFS[ref_index].offset = target_addr - base_addr;
         KAIN_FIXUP_REFS[ref_index].next = object->first_ref;
         KAIN_FIXUP_REFS[ref_index].next_free = KAIN_FIXUP_REF_NONE;
