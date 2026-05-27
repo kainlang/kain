@@ -12,5 +12,9 @@ pub use executor::{
     GpuRuntimeDispatchResult, VulkanComputeExecutor,
 };
 pub use nvidia_ptx::{
-    kain_gpu_runtime_dispatch_nvidia_ptx_primary_compute_persisted, NvidiaPtxExecutor,
+    kain_gpu_runtime_create_nvidia_ptx_primary,
+    kain_gpu_runtime_destroy_nvidia_ptx_primary,
+    kain_gpu_runtime_dispatch_nvidia_ptx_primary_compute_persisted,
+    kain_gpu_runtime_dispatch_nvidia_ptx_primary_compute_persisted_with_handle,
+    NvidiaPtxExecutor,
 };

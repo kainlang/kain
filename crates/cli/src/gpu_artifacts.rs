@@ -1,17 +1,20 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::{compile_shader_artifact_bundle, target_extension, CompileTarget};
+use crate::{target_extension, CompileTarget};
 use kain_core::error::KainError;
 #[cfg(all(feature = "gpu", feature = "sys"))]
-use kain_driver::{compile_realtime_app_bundle, write_compute_residency_sidecars};
+use kain_driver::{
+    compile_gpu_artifacts as compile_gpu_artifacts_from_driver, compile_realtime_app_bundle,
+    write_compute_residency_sidecars,
+};
 
 #[cfg(all(feature = "gpu", feature = "sys"))]
 pub type GpuArtifactOutput = kain_driver::ShaderArtifactBundleOutput;
 
 #[cfg(all(feature = "gpu", feature = "sys"))]
 pub fn compile_gpu_artifacts(source: &str) -> Result<GpuArtifactOutput, KainError> {
-    compile_shader_artifact_bundle(source)
+    compile_gpu_artifacts_from_driver(source)
 }
 
 #[cfg(not(all(feature = "gpu", feature = "sys")))]
@@ -57,13 +60,6 @@ pub fn write_gpu_artifacts_bundle(
         }
     }
 
-    fs::write(&spirv_path, &artifacts.spirv).map_err(|err| {
-        KainError::runtime(format!(
-            "Failed to write SPIR-V output {}: {}",
-            spirv_path.display(),
-            err
-        ))
-    })?;
     fs::write(&rust_path, artifacts.rust_host.as_bytes()).map_err(|err| {
         KainError::runtime(format!(
             "Failed to write Rust GPU host output {}: {}",
@@ -85,7 +81,17 @@ pub fn write_gpu_artifacts_bundle(
             err
         ))
     })?;
-    let mut written = vec![spirv_path, rust_path, json_path, bundle_path];
+    let mut written = vec![rust_path, json_path, bundle_path];
+    if !artifacts.spirv.is_empty() {
+        fs::write(&spirv_path, &artifacts.spirv).map_err(|err| {
+            KainError::runtime(format!(
+                "Failed to write SPIR-V output {}: {}",
+                spirv_path.display(),
+                err
+            ))
+        })?;
+        written.push(spirv_path);
+    }
     if let Some(hlsl) = &artifacts.derived_hlsl {
         fs::write(&hlsl_path, hlsl.as_bytes()).map_err(|err| {
             KainError::runtime(format!(

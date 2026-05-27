@@ -1256,7 +1256,8 @@ impl DriverSession {
         };
         let bundle = build_shader_artifact_bundle(
             &reflection,
-            &spirv,
+            ShaderArtifactFormat::Spirv,
+            Some(&spirv),
             derived_hlsl.as_deref(),
             derived_ptx.as_deref(),
             ptx_note.as_deref(),
@@ -1279,6 +1280,46 @@ impl DriverSession {
         })
     }
 
+    #[cfg(all(feature = "gpu", feature = "sys"))]
+    fn compile_cuda_artifact_bundle(
+        &self,
+        source: &str,
+    ) -> Result<ShaderArtifactBundleOutput, KainError> {
+        let typed_program = self.frontend_to_typed_program(source, CompileTarget::Cuda)?;
+        let ptx = gpu::generate_ptx(&typed_program)?;
+        let rust_host = sys::generate_rust_gpu_host_wrappers(&typed_program)?;
+        let reflection = sys::collect_gpu_artifacts(&typed_program);
+        let reflection_json = sys::collect_gpu_artifacts_json(&typed_program).map_err(|err| {
+            KainError::runtime(format!("Failed to serialize GPU reflection JSON: {err}"))
+        })?;
+        let bundle = build_shader_artifact_bundle(
+            &reflection,
+            ShaderArtifactFormat::Ptx,
+            None,
+            None,
+            Some(&ptx),
+            Some(
+                "PTX-first shader artifact bundle emitted because the authored kernel requested CUDA-native intrinsics.",
+            ),
+            "<input>",
+        );
+        let bundle_json = shader_artifact_bundle_to_json(&bundle).map_err(|err| {
+            KainError::runtime(format!(
+                "Failed to serialize shader artifact bundle JSON: {err}"
+            ))
+        })?;
+
+        Ok(ShaderArtifactBundleOutput {
+            bundle,
+            bundle_json,
+            spirv: Vec::new(),
+            rust_host,
+            reflection_json,
+            derived_hlsl: None,
+            derived_ptx: Some(ptx),
+        })
+    }
+
     #[cfg(not(all(feature = "gpu", feature = "sys")))]
     pub fn compile_shader_artifact_bundle(
         &self,
@@ -1291,7 +1332,17 @@ impl DriverSession {
 
     #[cfg(all(feature = "gpu", feature = "sys"))]
     pub fn compile_gpu_artifacts(&self, source: &str) -> Result<GpuArtifactOutput, KainError> {
-        self.compile_shader_artifact_bundle(source)
+        match self.compile_shader_artifact_bundle(source) {
+            Ok(output) => Ok(output),
+            Err(err) if source_requests_cuda_device_artifacts(source) => {
+                self.compile_cuda_artifact_bundle(source).map_err(|fallback| {
+                    KainError::runtime(format!(
+                        "GPU artifact generation failed through both the canonical SPIR-V lane and the CUDA-native fallback.\nSPIR-V lane: {err}\nCUDA fallback: {fallback}"
+                    ))
+                })
+            }
+            Err(err) => Err(err),
+        }
     }
 
     #[cfg(not(all(feature = "gpu", feature = "sys")))]
@@ -3278,6 +3329,13 @@ fn typed_program_ptx_eligible(program: &TypedProgram) -> bool {
 }
 
 #[cfg(all(feature = "gpu", feature = "sys"))]
+fn source_requests_cuda_device_artifacts(source: &str) -> bool {
+    source.contains("use std::cuda")
+        || source.contains("use std::cuda\n")
+        || source.contains("cuda_")
+}
+
+#[cfg(all(feature = "gpu", feature = "sys"))]
 fn parse_ptx_artifact_metadata(ptx: &str) -> Option<PtxArtifactMetadata> {
     let ptx_version = parse_ptx_directive_value(ptx, ".version")?;
     let required_target_arch = parse_ptx_directive_value(ptx, ".target")?;
@@ -3319,7 +3377,8 @@ fn compute_capability_for_ptx_arch(required_target_arch: &str) -> Option<String>
 #[cfg(all(feature = "gpu", feature = "sys"))]
 fn build_shader_artifact_bundle(
     reflection: &sys::RustGpuArtifactOutput,
-    spirv: &[u8],
+    canonical_native_payload: ShaderArtifactFormat,
+    spirv: Option<&[u8]>,
     derived_hlsl: Option<&str>,
     derived_ptx: Option<&str>,
     ptx_note: Option<&str>,
@@ -3486,17 +3545,21 @@ fn build_shader_artifact_bundle(
 
     ShaderArtifactBundle {
         schema_version: SHADER_ARTIFACT_SCHEMA_VERSION,
-        canonical_native_payload: ShaderArtifactFormat::Spirv,
-        spirv_modules: vec![SpirvModuleArtifact {
-            module_name: module_name.clone(),
-            byte_len: spirv.len(),
-            bytes_hex: bytes_to_hex(spirv),
-            entry_points: entry_points
-                .iter()
-                .map(|entry| entry.entry_point.clone())
-                .collect(),
-            stage_hints,
-        }],
+        canonical_native_payload,
+        spirv_modules: spirv
+            .map(|spirv| {
+                vec![SpirvModuleArtifact {
+                    module_name: module_name.clone(),
+                    byte_len: spirv.len(),
+                    bytes_hex: bytes_to_hex(spirv),
+                    entry_points: entry_points
+                        .iter()
+                        .map(|entry| entry.entry_point.clone())
+                        .collect(),
+                    stage_hints,
+                }]
+            })
+            .unwrap_or_default(),
         reflection: ShaderReflectionSummary {
             emitted: !reflection_shaders.is_empty(),
             shaders: reflection_shaders,
@@ -5091,5 +5154,46 @@ shader compute stream_pulse(id: UVec3) -> Vec4:
         assert_eq!(output.bundle.entry_points.len(), 1);
         assert_eq!(output.bundle.entry_points[0].stage, "compute");
         assert!(output.derived_ptx.is_some());
+    }
+
+    #[cfg(all(feature = "gpu", feature = "sys"))]
+    #[test]
+    fn compile_gpu_artifacts_falls_back_to_ptx_first_bundle_for_cuda_intrinsics() {
+        let output = DriverSession::default()
+            .compile_gpu_artifacts(
+                r#"
+use std::cuda
+
+shader compute cuda_lane_probe(id: UVec3) -> Void:
+    uniform output: StorageBuffer<UInt> @0
+    let idx = id.x
+    output[idx] = cuda_lane_id()
+    return
+"#,
+            )
+            .expect("cuda-native artifact bundle should compile");
+
+        assert_eq!(output.bundle.canonical_native_payload, ShaderArtifactFormat::Ptx);
+        assert!(output.bundle.spirv_modules.is_empty());
+        assert!(output.derived_hlsl.is_none());
+        assert!(output.derived_ptx.is_some());
+        assert!(output.bundle_json.contains("\"canonical_native_payload\": \"ptx\""));
+        assert!(output.bundle_json.contains("\"spirv_modules\": []"));
+        let ptx_artifact = output
+            .bundle
+            .derived_outputs
+            .iter()
+            .find(|artifact| artifact.format == ShaderArtifactFormat::Ptx)
+            .expect("ptx sidecar");
+        assert_eq!(ptx_artifact.entry_points, vec!["cuda_lane_probe".to_string()]);
+        assert_eq!(ptx_artifact.binding_slots, vec![0]);
+        assert_eq!(
+            ptx_artifact
+                .ptx
+                .as_ref()
+                .expect("ptx metadata")
+                .required_target_arch,
+            "sm_50"
+        );
     }
 }

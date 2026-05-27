@@ -8,9 +8,14 @@
       "title": "Warp reduce sum",
       "ml_lane": "reduce-sum",
       "description": "One warp folds Float lanes through Kain CUDA shuffle/reduce intrinsics and writes one partial per warp.",
-      "maturity": "ptx-intrinsic-compile",
+      "maturity": "live-dispatch-correctness",
       "work_items": 1048576,
       "target_arch": "sm_75",
+      "params": {
+        "count": 4096,
+        "workgroup_size": [128, 1, 1],
+        "cuda_stream_policy": "non_blocking"
+      },
       "languages": {
         "kain": {
           "shader": "cases/cuda_warp_reduce_sum/kain.kn",
@@ -30,9 +35,15 @@
       "title": "Packed embedding gather",
       "ml_lane": "embedding-gather",
       "description": "A packed u8 embedding table is gathered through Kain StorageBuffer<u8> and widened to UInt output without library kernels.",
-      "maturity": "packed-numeric-compile",
+      "maturity": "live-dispatch-correctness",
       "work_items": 262144,
       "target_arch": "sm_75",
+      "params": {
+        "source_rows": 256,
+        "row_count": 96,
+        "dim": 24,
+        "workgroup_size": [8, 8, 1]
+      },
       "languages": {
         "kain": {
           "shader": "cases/cuda_packed_embedding_gather/kain.kn",
@@ -51,9 +62,14 @@
       "title": "Attention score tile",
       "ml_lane": "attention-score-gemv",
       "description": "A dot-product tile computes query-key scores with scalar Kain PTX loops as the pre-shared-memory baseline for future GEMV/GEMM tuning.",
-      "maturity": "ptx-loop-compile",
+      "maturity": "live-dispatch-correctness",
       "work_items": 131072,
       "target_arch": "sm_75",
+      "params": {
+        "key_count": 192,
+        "dim": 64,
+        "workgroup_size": [64, 1, 1]
+      },
       "languages": {
         "kain": {
           "shader": "cases/cuda_attention_score_tile/kain.kn",

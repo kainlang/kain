@@ -1,7 +1,8 @@
 use serde::{Deserialize, Serialize};
 
 use crate::ast::{
-    ComputeMetadata, ConvergeSelector, ShaderStage, Type, WorldSurfaceKind,
+    Block, ComputeMetadata, ConvergeSelector, ElseBranch, Expr, ShaderStage, Stmt, Type,
+    WorldSurfaceKind,
     COMPUTE_PLAN_CAPABILITY_KEY,
 };
 use crate::types::{
@@ -14,7 +15,7 @@ use kain_ui::{
     UiNodeId, UiSurfaceCompositionMode, UiSurfaceKind, UiSurfaceRendererPreference, UiValue,
     UiWidgetKind, UiWorkspaceLayout,
 };
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 pub const REALTIME_APP_BUNDLE_SCHEMA_VERSION: u32 = 1;
 
@@ -1354,6 +1355,7 @@ fn collect_shader_resource_bindings(
     stage: &str,
 ) -> Vec<RealtimeResourceBinding> {
     let mut bindings = Vec::new();
+    let storage_access = shader_storage_access_map(shader);
 
     for uniform in &shader.ast.uniforms {
         if matches!(shader.ast.stage, ShaderStage::Compute)
@@ -1366,7 +1368,13 @@ fn collect_shader_resource_bindings(
         }
 
         let resource_type = shader_resource_type(&uniform.ty).to_string();
-        let access = shader_resource_access(&uniform.ty, stage, &uniform.name).to_string();
+        let access = shader_resource_access(
+            &uniform.ty,
+            stage,
+            &uniform.name,
+            storage_access.get(&uniform.name).copied(),
+        )
+        .to_string();
         bindings.push(RealtimeResourceBinding {
             key: uniform.name.clone(),
             resource_type,
@@ -1388,7 +1396,18 @@ fn shader_resource_type(ty: &Type) -> &'static str {
     }
 }
 
-fn shader_resource_access(ty: &Type, stage: &str, name: &str) -> &'static str {
+#[derive(Debug, Clone, Copy, Default)]
+struct ShaderStorageAccess {
+    reads: bool,
+    writes: bool,
+}
+
+fn shader_resource_access(
+    ty: &Type,
+    stage: &str,
+    name: &str,
+    observed_access: Option<ShaderStorageAccess>,
+) -> &'static str {
     match ty {
         Type::Named {
             name: type_name, ..
@@ -1396,12 +1415,23 @@ fn shader_resource_access(ty: &Type, stage: &str, name: &str) -> &'static str {
         Type::Named {
             name: type_name, ..
         } if type_name == "StorageBuffer" && stage == "compute" => {
-            infer_storage_buffer_access(name)
+            observed_access
+                .map(storage_access_mode)
+                .unwrap_or_else(|| infer_storage_buffer_access(name))
         }
         Type::Named {
             name: type_name, ..
         } if type_name == "StorageBuffer" => "read",
         _ => "read",
+    }
+}
+
+fn storage_access_mode(access: ShaderStorageAccess) -> &'static str {
+    match (access.reads, access.writes) {
+        (true, true) => "read_write",
+        (true, false) => "read",
+        (false, true) => "write",
+        (false, false) => "read_write",
     }
 }
 
@@ -1424,6 +1454,249 @@ fn infer_storage_buffer_access(name: &str) -> &'static str {
         "read"
     } else {
         "read_write"
+    }
+}
+
+fn shader_storage_access_map(shader: &TypedShader) -> HashMap<String, ShaderStorageAccess> {
+    if !matches!(shader.ast.stage, ShaderStage::Compute) {
+        return HashMap::new();
+    }
+
+    let storage_uniforms = shader
+        .ast
+        .uniforms
+        .iter()
+        .filter(|uniform| matches!(uniform.ty, Type::Named { ref name, .. } if name == "StorageBuffer"))
+        .map(|uniform| uniform.name.clone())
+        .collect::<HashSet<_>>();
+    if storage_uniforms.is_empty() {
+        return HashMap::new();
+    }
+
+    let mut access = HashMap::new();
+    scan_shader_block_for_storage_access(&shader.ast.body, &storage_uniforms, &mut access);
+    access
+}
+
+fn scan_shader_block_for_storage_access(
+    block: &Block,
+    storage_uniforms: &HashSet<String>,
+    access: &mut HashMap<String, ShaderStorageAccess>,
+) {
+    for stmt in &block.stmts {
+        scan_shader_stmt_for_storage_access(stmt, storage_uniforms, access);
+    }
+}
+
+fn scan_shader_stmt_for_storage_access(
+    stmt: &Stmt,
+    storage_uniforms: &HashSet<String>,
+    access: &mut HashMap<String, ShaderStorageAccess>,
+) {
+    match stmt {
+        Stmt::Let { value: Some(value), .. } => {
+            scan_shader_expr_for_storage_access(value, storage_uniforms, access);
+        }
+        Stmt::Expr(expr) => {
+            scan_shader_expr_for_storage_access(expr, storage_uniforms, access);
+        }
+        Stmt::Return(Some(expr), _) | Stmt::Break(Some(expr), _) => {
+            scan_shader_expr_for_storage_access(expr, storage_uniforms, access);
+        }
+        Stmt::For { iter, body, .. } | Stmt::Fanout { iter, body, .. } => {
+            scan_shader_expr_for_storage_access(iter, storage_uniforms, access);
+            scan_shader_block_for_storage_access(body, storage_uniforms, access);
+        }
+        Stmt::While { condition, body, .. } => {
+            scan_shader_expr_for_storage_access(condition, storage_uniforms, access);
+            scan_shader_block_for_storage_access(body, storage_uniforms, access);
+        }
+        Stmt::Loop { body, .. } => {
+            scan_shader_block_for_storage_access(body, storage_uniforms, access);
+        }
+        Stmt::Item(_) | Stmt::Continue(_) | Stmt::Return(None, _) | Stmt::Break(None, _) => {}
+        Stmt::Let { value: None, .. } => {}
+    }
+}
+
+fn scan_shader_expr_for_storage_access(
+    expr: &Expr,
+    storage_uniforms: &HashSet<String>,
+    access: &mut HashMap<String, ShaderStorageAccess>,
+) {
+    match expr {
+        Expr::Assign { target, value, .. } => {
+            mark_storage_write_target(target, storage_uniforms, access);
+            scan_shader_expr_for_storage_access(value, storage_uniforms, access);
+        }
+        Expr::Index { object, index, .. } => {
+            if let Some(name) = storage_uniform_ident(object, storage_uniforms) {
+                access.entry(name.to_string()).or_default().reads = true;
+            } else {
+                scan_shader_expr_for_storage_access(object, storage_uniforms, access);
+            }
+            scan_shader_expr_for_storage_access(index, storage_uniforms, access);
+        }
+        Expr::Binary { left, right, .. } => {
+            scan_shader_expr_for_storage_access(left, storage_uniforms, access);
+            scan_shader_expr_for_storage_access(right, storage_uniforms, access);
+        }
+        Expr::Unary { operand, .. }
+        | Expr::Ref { value: operand, .. }
+        | Expr::AddrOf { value: operand, .. }
+        | Expr::Deref(operand, _) => {
+            scan_shader_expr_for_storage_access(operand, storage_uniforms, access);
+        }
+        Expr::Call { callee, args, .. } => {
+            scan_shader_expr_for_storage_access(callee, storage_uniforms, access);
+            for arg in args {
+                scan_shader_expr_for_storage_access(&arg.value, storage_uniforms, access);
+            }
+        }
+        Expr::StageCall { args, .. } => {
+            for arg in args {
+                scan_shader_expr_for_storage_access(&arg.value, storage_uniforms, access);
+            }
+        }
+        Expr::MethodCall { receiver, args, .. } => {
+            scan_shader_expr_for_storage_access(receiver, storage_uniforms, access);
+            for arg in args {
+                scan_shader_expr_for_storage_access(&arg.value, storage_uniforms, access);
+            }
+        }
+        Expr::Field { object, .. } => {
+            scan_shader_expr_for_storage_access(object, storage_uniforms, access);
+        }
+        Expr::Struct { fields, rest, .. } => {
+            for (_, value) in fields {
+                scan_shader_expr_for_storage_access(value, storage_uniforms, access);
+            }
+            if let Some(rest) = rest {
+                scan_shader_expr_for_storage_access(rest, storage_uniforms, access);
+            }
+        }
+        Expr::AggregateInit { fields, .. } => {
+            for (_, value) in fields {
+                scan_shader_expr_for_storage_access(value, storage_uniforms, access);
+            }
+        }
+        Expr::EnumVariant { fields, .. } => match fields {
+            crate::ast::EnumVariantFields::Tuple(values) => {
+                for value in values {
+                    scan_shader_expr_for_storage_access(value, storage_uniforms, access);
+                }
+            }
+            crate::ast::EnumVariantFields::Struct(fields) => {
+                for (_, value) in fields {
+                    scan_shader_expr_for_storage_access(value, storage_uniforms, access);
+                }
+            }
+            crate::ast::EnumVariantFields::Unit => {}
+        },
+        Expr::Array(values, _) | Expr::Tuple(values, _) | Expr::FString(values, _) => {
+            for value in values {
+                scan_shader_expr_for_storage_access(value, storage_uniforms, access);
+            }
+        }
+        Expr::Range { start, end, .. } => {
+            if let Some(start) = start {
+                scan_shader_expr_for_storage_access(start, storage_uniforms, access);
+            }
+            if let Some(end) = end {
+                scan_shader_expr_for_storage_access(end, storage_uniforms, access);
+            }
+        }
+        Expr::If {
+            condition,
+            then_branch,
+            else_branch,
+            ..
+        } => {
+            scan_shader_expr_for_storage_access(condition, storage_uniforms, access);
+            scan_shader_block_for_storage_access(then_branch, storage_uniforms, access);
+            if let Some(else_branch) = else_branch {
+                scan_shader_else_branch_for_storage_access(else_branch, storage_uniforms, access);
+            }
+        }
+        Expr::Match {
+            scrutinee, arms, ..
+        } => {
+            scan_shader_expr_for_storage_access(scrutinee, storage_uniforms, access);
+            for arm in arms {
+                if let Some(guard) = &arm.guard {
+                    scan_shader_expr_for_storage_access(guard, storage_uniforms, access);
+                }
+                scan_shader_expr_for_storage_access(&arm.body, storage_uniforms, access);
+            }
+        }
+        Expr::Lambda { body, .. } => {
+            scan_shader_expr_for_storage_access(body, storage_uniforms, access);
+        }
+        Expr::MacroCall { args, .. } => {
+            for arg in args {
+                scan_shader_expr_for_storage_access(arg, storage_uniforms, access);
+            }
+        }
+        Expr::PtrOffset { pointer, offset, .. } => {
+            scan_shader_expr_for_storage_access(pointer, storage_uniforms, access);
+            scan_shader_expr_for_storage_access(offset, storage_uniforms, access);
+        }
+        Expr::Int(_, _)
+        | Expr::Float(_, _)
+        | Expr::String(_, _)
+        | Expr::Bool(_, _)
+        | Expr::None(_)
+        | Expr::Ident(_, _) => {}
+        _ => {}
+    }
+}
+
+fn scan_shader_else_branch_for_storage_access(
+    else_branch: &ElseBranch,
+    storage_uniforms: &HashSet<String>,
+    access: &mut HashMap<String, ShaderStorageAccess>,
+) {
+    match else_branch {
+        ElseBranch::Else(block) => {
+            scan_shader_block_for_storage_access(block, storage_uniforms, access);
+        }
+        ElseBranch::ElseIf(condition, block, next) => {
+            scan_shader_expr_for_storage_access(condition, storage_uniforms, access);
+            scan_shader_block_for_storage_access(block, storage_uniforms, access);
+            if let Some(next) = next {
+                scan_shader_else_branch_for_storage_access(next, storage_uniforms, access);
+            }
+        }
+    }
+}
+
+fn mark_storage_write_target(
+    expr: &Expr,
+    storage_uniforms: &HashSet<String>,
+    access: &mut HashMap<String, ShaderStorageAccess>,
+) {
+    match expr {
+        Expr::Index { object, index, .. } => {
+            if let Some(name) = storage_uniform_ident(object, storage_uniforms) {
+                access.entry(name.to_string()).or_default().writes = true;
+            } else {
+                scan_shader_expr_for_storage_access(object, storage_uniforms, access);
+            }
+            scan_shader_expr_for_storage_access(index, storage_uniforms, access);
+        }
+        Expr::Field { object, .. } => mark_storage_write_target(object, storage_uniforms, access),
+        Expr::Deref(value, _) => mark_storage_write_target(value, storage_uniforms, access),
+        _ => scan_shader_expr_for_storage_access(expr, storage_uniforms, access),
+    }
+}
+
+fn storage_uniform_ident<'a>(
+    expr: &'a Expr,
+    storage_uniforms: &HashSet<String>,
+) -> Option<&'a str> {
+    match expr {
+        Expr::Ident(name, _) if storage_uniforms.contains(name) => Some(name.as_str()),
+        _ => None,
     }
 }
 
@@ -2610,5 +2883,43 @@ shader compute TensorBlend() -> Void:
             .tool_caps
             .iter()
             .any(|entry| entry == "gpu.compute-plan"));
+    }
+
+    #[test]
+    fn infers_storage_buffer_access_from_shader_usage_not_names() {
+        let source = r#"
+shader compute AccessProbe() -> Void:
+    uniform table: StorageBuffer<Float> @0
+    uniform indices: StorageBuffer<UInt> @1
+    uniform scores: StorageBuffer<Float> @2
+    uniform count: UInt @3
+
+    let idx = dispatch_thread_id.x
+    if idx >= count:
+        return
+    let source_idx = indices[idx]
+    let sample = table[source_idx]
+    scores[idx] = sample
+    return
+"#;
+        let tokens = Lexer::new(source).tokenize().expect("tokens");
+        let span_mapper = diagnostics::SpanMapper::new(source);
+        let ast = Parser::new(&tokens, &span_mapper, "<input>")
+            .parse()
+            .expect("ast");
+        let typed = types::check(&ast, &span_mapper, "<input>").expect("typed");
+
+        let bundle = emit_realtime_app_bundle(&typed, None, CompileTarget::Llvm);
+        let shader = &bundle.shader_bundle_refs[0];
+        let access = shader
+            .resource_bindings
+            .iter()
+            .map(|binding| (binding.key.clone(), binding.access.clone()))
+            .collect::<std::collections::HashMap<_, _>>();
+
+        assert_eq!(access.get("table").map(String::as_str), Some("read"));
+        assert_eq!(access.get("indices").map(String::as_str), Some("read"));
+        assert_eq!(access.get("scores").map(String::as_str), Some("write"));
+        assert_eq!(access.get("count").map(String::as_str), Some("read"));
     }
 }

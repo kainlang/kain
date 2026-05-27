@@ -202,20 +202,15 @@ impl NvidiaPtxExecutor {
 
             let mut sorted_bindings = request.bindings.iter().collect::<Vec<_>>();
             sorted_bindings.sort_by_key(|binding| binding.binding_slot);
-            let buffers = sorted_bindings
+            let mut backings = sorted_bindings
                 .iter()
                 .enumerate()
-                .map(|(index, binding)| CudaDeviceBuffer::upload(&self.driver, index, binding))
+                .map(|(index, binding)| BindingBacking::upload(&self.driver, index, binding))
                 .collect::<Result<Vec<_>, _>>()?;
-
-            let mut device_ptrs = buffers
-                .iter()
-                .map(|buffer| buffer.device_ptr)
-                .collect::<Vec<_>>();
-            let mut kernel_params = device_ptrs
-                .iter_mut()
-                .map(|ptr| ptr as *mut CUdeviceptr as *mut c_void)
-                .collect::<Vec<_>>();
+            let mut kernel_params = Vec::new();
+            for backing in &mut backings {
+                backing.push_kernel_params(&mut kernel_params);
+            }
 
             self.driver.check(
                 (self.driver.cu_launch_kernel)(
@@ -236,10 +231,11 @@ impl NvidiaPtxExecutor {
             launch_stream.synchronize()?;
 
             let mut output_bindings = Vec::new();
-            for (binding, buffer) in sorted_bindings.iter().zip(buffers.iter()) {
+            for (binding, backing) in sorted_bindings.iter().zip(backings.iter()) {
                 if binding.access.is_output() {
-                    output_bindings
-                        .push((binding.binding_slot, buffer.download(binding.bytes.len())?));
+                    if let Some(bytes) = backing.download_output(binding.bytes.len())? {
+                        output_bindings.push((binding.binding_slot, bytes));
+                    }
                 }
             }
 
@@ -273,6 +269,100 @@ pub extern "C" fn kain_gpu_runtime_dispatch_nvidia_ptx_primary_compute_persisted
         return -1;
     }
 
+    let executor = match NvidiaPtxExecutor::try_new() {
+        Ok(executor) => executor,
+        Err(err) => {
+            write_result_message(result, &err.to_string());
+            return -1;
+        }
+    };
+
+    dispatch_nvidia_ptx_persisted_request(&executor, request, result)
+}
+
+#[no_mangle]
+pub extern "C" fn kain_gpu_runtime_create_nvidia_ptx_primary() -> *mut c_void {
+    match NvidiaPtxExecutor::try_new() {
+        Ok(executor) => Box::into_raw(Box::new(executor)) as *mut c_void,
+        Err(_) => ptr::null_mut(),
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn kain_gpu_runtime_destroy_nvidia_ptx_primary(handle: *mut c_void) {
+    if handle.is_null() {
+        return;
+    }
+    unsafe {
+        drop(Box::from_raw(handle as *mut NvidiaPtxExecutor));
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn kain_gpu_runtime_dispatch_nvidia_ptx_primary_compute_persisted_with_handle(
+    handle: *mut c_void,
+    request: *const GpuRuntimeDispatchRequest,
+    out_result: *mut GpuRuntimeDispatchResult,
+) -> i32 {
+    let Some(result) = (unsafe { out_result.as_mut() }) else {
+        return -1;
+    };
+    *result = empty_dispatch_result();
+
+    if handle.is_null() {
+        write_result_message(result, "nvidia ptx executor handle was null");
+        return -1;
+    }
+    if request.is_null() {
+        write_result_message(result, "dispatch request was null");
+        return -1;
+    }
+
+    let executor = unsafe { &*(handle as *mut NvidiaPtxExecutor) };
+    dispatch_nvidia_ptx_persisted_request(executor, request, result)
+}
+
+impl Drop for NvidiaPtxExecutor {
+    fn drop(&mut self) {
+        unsafe {
+            let _ = (self.driver.cu_ctx_destroy)(self.context);
+        }
+    }
+}
+
+struct CudaModule<'a> {
+    driver: &'a CudaDriver,
+    module: CUmodule,
+}
+
+impl Drop for CudaModule<'_> {
+    fn drop(&mut self) {
+        unsafe {
+            let _ = (self.driver.cu_module_unload)(self.module);
+        }
+    }
+}
+
+struct CudaDeviceBuffer<'a> {
+    driver: &'a CudaDriver,
+    device_ptr: CUdeviceptr,
+}
+
+enum BindingBacking<'a> {
+    DeviceBuffer {
+        buffer: CudaDeviceBuffer<'a>,
+        kernel_param_value: CUdeviceptr,
+    },
+    InlineUniform {
+        param_chunks: Vec<Vec<u8>>,
+    },
+}
+
+fn dispatch_nvidia_ptx_persisted_request(
+    executor: &NvidiaPtxExecutor,
+    request: *const GpuRuntimeDispatchRequest,
+    result: &mut GpuRuntimeDispatchResult,
+) -> i32 {
     let request = unsafe { &*request };
     let shader_bundle_path = match c_string_arg(request.shader_bundle_path) {
         Ok(value) => PathBuf::from(value),
@@ -290,14 +380,6 @@ pub extern "C" fn kain_gpu_runtime_dispatch_nvidia_ptx_primary_compute_persisted
     };
     let compute_key = match c_string_arg(request.compute_key) {
         Ok(value) => value,
-        Err(err) => {
-            write_result_message(result, &err.to_string());
-            return -1;
-        }
-    };
-
-    let executor = match NvidiaPtxExecutor::try_new() {
-        Ok(executor) => executor,
         Err(err) => {
             write_result_message(result, &err.to_string());
             return -1;
@@ -328,32 +410,6 @@ pub extern "C" fn kain_gpu_runtime_dispatch_nvidia_ptx_primary_compute_persisted
     }
 }
 
-impl Drop for NvidiaPtxExecutor {
-    fn drop(&mut self) {
-        unsafe {
-            let _ = (self.driver.cu_ctx_destroy)(self.context);
-        }
-    }
-}
-
-struct CudaModule<'a> {
-    driver: &'a CudaDriver,
-    module: CUmodule,
-}
-
-impl Drop for CudaModule<'_> {
-    fn drop(&mut self) {
-        unsafe {
-            let _ = (self.driver.cu_module_unload)(self.module);
-        }
-    }
-}
-
-struct CudaDeviceBuffer<'a> {
-    driver: &'a CudaDriver,
-    device_ptr: CUdeviceptr,
-}
-
 impl<'a> CudaDeviceBuffer<'a> {
     unsafe fn upload(
         driver: &'a CudaDriver,
@@ -365,7 +421,10 @@ impl<'a> CudaDeviceBuffer<'a> {
                 binding: binding_index,
             });
         }
-        if binding.descriptor_kind != GpuDescriptorKind::StorageBuffer {
+        if !matches!(
+            binding.descriptor_kind,
+            GpuDescriptorKind::StorageBuffer | GpuDescriptorKind::UniformBuffer
+        ) {
             return Err(ComputeExecutorError::UnsupportedPtxBinding {
                 binding: binding.binding_slot,
                 kind: binding.descriptor_kind.as_str().to_string(),
@@ -400,6 +459,86 @@ impl<'a> CudaDeviceBuffer<'a> {
             "cuMemcpyDtoH_v2",
         )?;
         Ok(bytes)
+    }
+}
+
+impl<'a> BindingBacking<'a> {
+    unsafe fn upload(
+        driver: &'a CudaDriver,
+        binding_index: usize,
+        binding: &GpuDispatchBinding,
+    ) -> Result<Self, ComputeExecutorError> {
+        match binding.descriptor_kind {
+            GpuDescriptorKind::StorageBuffer => {
+                let buffer = CudaDeviceBuffer::upload(driver, binding_index, binding)?;
+                Ok(Self::DeviceBuffer {
+                    kernel_param_value: buffer.device_ptr,
+                    buffer,
+                })
+            }
+            GpuDescriptorKind::UniformBuffer => Ok(Self::InlineUniform {
+                param_chunks: split_uniform_param_bytes(binding)?,
+            }),
+        }
+    }
+
+    fn push_kernel_params(&mut self, kernel_params: &mut Vec<*mut c_void>) {
+        match self {
+            Self::DeviceBuffer {
+                kernel_param_value, ..
+            } => kernel_params.push(kernel_param_value as *mut CUdeviceptr as *mut c_void),
+            Self::InlineUniform { param_chunks } => {
+                for chunk in param_chunks {
+                    kernel_params.push(chunk.as_mut_ptr() as *mut c_void);
+                }
+            }
+        }
+    }
+
+    unsafe fn download_output(
+        &self,
+        byte_len: usize,
+    ) -> Result<Option<Vec<u8>>, ComputeExecutorError> {
+        match self {
+            Self::DeviceBuffer { buffer, .. } => Ok(Some(buffer.download(byte_len)?)),
+            Self::InlineUniform { .. } => Ok(None),
+        }
+    }
+}
+
+fn split_uniform_param_bytes(
+    binding: &GpuDispatchBinding,
+) -> Result<Vec<Vec<u8>>, ComputeExecutorError> {
+    if binding.bytes.is_empty() {
+        return Err(ComputeExecutorError::EmptyBindingPayload {
+            binding: binding.binding_slot as usize,
+        });
+    }
+
+    let scalar_width = infer_uniform_scalar_width_bytes(&binding.element_type);
+    if binding.bytes.len() % scalar_width != 0 {
+        return Err(ComputeExecutorError::InvalidPtxUniformBinding {
+            binding: binding.key.clone(),
+            message: format!(
+                "payload length {} is not divisible by scalar width {} for element type {}",
+                binding.bytes.len(),
+                scalar_width,
+                binding.element_type
+            ),
+        });
+    }
+
+    Ok(binding
+        .bytes
+        .chunks_exact(scalar_width)
+        .map(|chunk| chunk.to_vec())
+        .collect())
+}
+
+fn infer_uniform_scalar_width_bytes(element_type: &str) -> usize {
+    match element_type.trim().to_ascii_lowercase().as_str() {
+        "u64" | "i64" | "double" | "f64" => 8,
+        _ => 4,
     }
 }
 
@@ -1120,7 +1259,7 @@ fn validate_residency_role(
             matches!(access, GpuBindingAccess::Read | GpuBindingAccess::ReadWrite)
         }
         "output" | "required_output" => access.is_output(),
-        "scratch" | "scratch_state" => access == GpuBindingAccess::ReadWrite,
+        "state" | "scratch" | "scratch_state" => access == GpuBindingAccess::ReadWrite,
         other => {
             return Err(ComputeExecutorError::UnsupportedResidencyRole {
                 binding: binding_key.to_string(),
@@ -1464,6 +1603,77 @@ mod tests {
         assert_eq!(
             result.output_bindings,
             vec![(0, 42u32.to_le_bytes().to_vec())]
+        );
+    }
+
+    #[test]
+    fn nvidia_ptx_executor_accepts_uniform_buffer_scalar_kernel_params() {
+        let Ok(executor) = NvidiaPtxExecutor::try_new() else {
+            eprintln!("skipping NVIDIA PTX uniform-buffer smoke because CUDA Driver API is unavailable");
+            return;
+        };
+
+        let ptx = r#"
+.version 7.8
+.target sm_50
+.address_size 64
+
+.visible .entry write_uniform_scalar(
+    .param .u64 _kain_param_dst,
+    .param .u32 _kain_param_factor
+)
+{
+    .reg .u32 %r<2>;
+    .reg .u64 %rd<2>;
+    ld.param.u64 %rd1, [_kain_param_dst];
+    ld.param.u32 %r1, [_kain_param_factor];
+    st.global.u32 [%rd1], %r1;
+    ret;
+}
+"#;
+
+        let result = executor
+            .run_dispatch_request(
+                ptx,
+                &GpuDispatchRequest {
+                    module_name: "write_uniform_scalar".to_string(),
+                    entry_point: "write_uniform_scalar".to_string(),
+                    workgroup_size: [1, 1, 1],
+                    dispatch_size: [1, 1, 1],
+                    cuda_launch: GpuCudaLaunchOptions::default(),
+                    bindings: vec![
+                        GpuDispatchBinding {
+                            key: "dst".to_string(),
+                            binding_slot: 0,
+                            descriptor_kind: GpuDescriptorKind::StorageBuffer,
+                            access: GpuBindingAccess::Write,
+                            bytes: vec![0, 0, 0, 0],
+                            element_type: "UInt".to_string(),
+                            shape: vec![1],
+                            strides: vec![4],
+                        },
+                        GpuDispatchBinding {
+                            key: "factor".to_string(),
+                            binding_slot: 1,
+                            descriptor_kind: GpuDescriptorKind::UniformBuffer,
+                            access: GpuBindingAccess::Read,
+                            bytes: 37u32.to_le_bytes().to_vec(),
+                            element_type: "UInt".to_string(),
+                            shape: vec![1],
+                            strides: vec![4],
+                        },
+                    ],
+                    tensor_binding_count: 0,
+                    stream_binding_count: 0,
+                    neural_node_count: 0,
+                },
+            )
+            .expect("uniform-buffer scalar PTX kernel should launch through the NVIDIA driver");
+
+        assert_eq!(result.dispatch_invocations, 1);
+        assert_eq!(
+            result.output_bindings,
+            vec![(0, 37u32.to_le_bytes().to_vec())]
         );
     }
 

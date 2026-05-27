@@ -144,10 +144,12 @@ pub enum ComputeExecutorError {
     PtxContainsNul,
     #[error("PTX kernel entry name contains an interior NUL byte")]
     InvalidPtxEntryName,
-    #[error("PTX runtime currently supports storage-buffer bindings only; binding {binding} used {kind}")]
+    #[error("PTX runtime currently supports buffer-backed bindings only; binding {binding} used {kind}")]
     UnsupportedPtxBinding { binding: u32, kind: String },
     #[error("unsupported descriptor kind {value}")]
     UnsupportedDescriptorKind { value: String },
+    #[error("invalid PTX uniform binding {binding}: {message}")]
+    InvalidPtxUniformBinding { binding: String, message: String },
     #[error("unsupported access mode {value}")]
     UnsupportedAccessMode { value: String },
     #[error("unsupported compute residency target {value}")]
