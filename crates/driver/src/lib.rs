@@ -5173,11 +5173,16 @@ shader compute cuda_lane_probe(id: UVec3) -> Void:
             )
             .expect("cuda-native artifact bundle should compile");
 
-        assert_eq!(output.bundle.canonical_native_payload, ShaderArtifactFormat::Ptx);
+        assert_eq!(
+            output.bundle.canonical_native_payload,
+            ShaderArtifactFormat::Ptx
+        );
         assert!(output.bundle.spirv_modules.is_empty());
         assert!(output.derived_hlsl.is_none());
         assert!(output.derived_ptx.is_some());
-        assert!(output.bundle_json.contains("\"canonical_native_payload\": \"ptx\""));
+        assert!(output
+            .bundle_json
+            .contains("\"canonical_native_payload\": \"ptx\""));
         assert!(output.bundle_json.contains("\"spirv_modules\": []"));
         let ptx_artifact = output
             .bundle
@@ -5185,7 +5190,10 @@ shader compute cuda_lane_probe(id: UVec3) -> Void:
             .iter()
             .find(|artifact| artifact.format == ShaderArtifactFormat::Ptx)
             .expect("ptx sidecar");
-        assert_eq!(ptx_artifact.entry_points, vec!["cuda_lane_probe".to_string()]);
+        assert_eq!(
+            ptx_artifact.entry_points,
+            vec!["cuda_lane_probe".to_string()]
+        );
         assert_eq!(ptx_artifact.binding_slots, vec![0]);
         assert_eq!(
             ptx_artifact

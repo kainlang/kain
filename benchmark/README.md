@@ -14,7 +14,7 @@ UPDATE MAY25TH -- FUTURE BENCHMARKS SHOULD NOW RUN IN cases_v2 as we can now mak
 - `benchmark/cases/`: multi-language main-suite source cases.
 - `benchmark/compiler/`: dedicated Kain-vs-Rust compile-time lane with generated workloads and separate history.
 - `benchmark/runners/`: runner ownership namespace (current and future extracted modules).
-- `benchmark/lanes/gpu/`: dedicated GPU/SPIR-V lane.
+- `benchmark/lanes/gpu/`: dedicated GPU lane for both Vulkan/SPIR-V parity work and the live CUDA/PTX gauntlet.
 - `benchmark/lanes/wasm/`: dedicated WASM parity lane.
 - `benchmark/lanes/ffi_boundary/`: dedicated FFI boundary lane.
 - `benchmark/out/`: generated artifacts only (`reports/`, `build/`, `baselines/`, `history/`, `snapshots/`, etc).

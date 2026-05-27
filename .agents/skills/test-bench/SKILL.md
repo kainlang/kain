@@ -107,7 +107,8 @@ description: >-
 - Use `cases_v2` first for new Kain-only rows, runtime probes, stdlib probes, semantic fused rows, or grouped benchmark packs where multiple related cases belong in one file.
 - Stay in the legacy `benchmark/cases/<case>/...` plus `benchmark/catalog/benchmarks.main.json` flow when the row is meant to compare Kain against Rust/C++/Go/Zig/JS/Python/Erlang or otherwise belongs in the cross-language main suite.
 - Keep dedicated special lanes in their existing homes: GPU under `benchmark/lanes/gpu/`, WASM under `benchmark/lanes/wasm/`, FFI boundary under `benchmark/lanes/ffi_boundary/`.
-- CUDA/PTX GPU work uses the dedicated sibling runner under `benchmark/lanes/gpu/run_cuda.py` with manifest `benchmark/lanes/gpu/cuda_cases.json`. It invokes `kain build <shader> --target cuda`, reads the emitted build report, copies PTX into `benchmark/out/build/gpu-cuda/<case>/kain/`, and writes `benchmark/out/reports/latest_cuda_gpu.*`.
+- CUDA/PTX GPU work uses the dedicated sibling runner under `benchmark/lanes/gpu/run_cuda.py` with manifest `benchmark/lanes/gpu/cuda_cases.json`. It invokes `kain gpu-artifacts <shader> --output ...`, stages shader bundle + PTX + compute residency sidecars under `benchmark/out/build/gpu-cuda/<case>/kain/`, runs live NVIDIA driver dispatch through `kain_gpu_runtime.dll`, persists outputs back to sidecars, validates them against CPU references, and writes `benchmark/out/reports/latest_cuda_gpu.*`.
+- On this workstation, stale `X:\target\debug\kain.exe` / `kain_gpu_runtime.dll` artifacts can be misleading. Prefer a fresh Bazel-built launcher or pass a known-fresh Cargo binary with `--kain-bin`; the CUDA runner now probes multiple runtime DLL candidates and selects the freshest compatible export surface.
 - For a focused CUDA gauntlet run after backend work, prefer:
 
 ```powershell

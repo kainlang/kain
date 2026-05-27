@@ -50,6 +50,13 @@ class GpuRuntimeDispatchResult(ctypes.Structure):
     ]
 
 
+def optional_ctypes_symbol(dll: ctypes.CDLL, name: str):
+    try:
+        return getattr(dll, name)
+    except AttributeError:
+        return None
+
+
 def repo_relative(path: Path) -> str:
     try:
         return str(path.resolve().relative_to(REPO_ROOT)).replace("\\", "/")
@@ -406,25 +413,51 @@ class CudaRuntimeLibrary:
     def __init__(self, library_path: Path):
         self.library_path = library_path
         self.dll = ctypes.CDLL(str(library_path))
-        self.dll.kain_gpu_runtime_create_nvidia_ptx_primary.restype = ctypes.c_void_p
-        self.dll.kain_gpu_runtime_destroy_nvidia_ptx_primary.argtypes = [ctypes.c_void_p]
-        self.dll.kain_gpu_runtime_destroy_nvidia_ptx_primary.restype = None
-        self.dll.kain_gpu_runtime_dispatch_nvidia_ptx_primary_compute_persisted.argtypes = [
+        self.create_handle = optional_ctypes_symbol(
+            self.dll, "kain_gpu_runtime_create_nvidia_ptx_primary"
+        )
+        self.destroy_handle = optional_ctypes_symbol(
+            self.dll, "kain_gpu_runtime_destroy_nvidia_ptx_primary"
+        )
+        self.dispatch_with_handle = optional_ctypes_symbol(
+            self.dll, "kain_gpu_runtime_dispatch_nvidia_ptx_primary_compute_persisted_with_handle"
+        )
+        self.dispatch_once = optional_ctypes_symbol(
+            self.dll, "kain_gpu_runtime_dispatch_nvidia_ptx_primary_compute_persisted"
+        )
+        if self.dispatch_once is None:
+            raise RuntimeError(
+                f"{library_path} does not export kain_gpu_runtime_dispatch_nvidia_ptx_primary_compute_persisted"
+            )
+        if self.create_handle is not None:
+            self.create_handle.restype = ctypes.c_void_p
+        if self.destroy_handle is not None:
+            self.destroy_handle.argtypes = [ctypes.c_void_p]
+            self.destroy_handle.restype = None
+        self.dispatch_once.argtypes = [
             ctypes.POINTER(GpuRuntimeDispatchRequest),
             ctypes.POINTER(GpuRuntimeDispatchResult),
         ]
-        self.dll.kain_gpu_runtime_dispatch_nvidia_ptx_primary_compute_persisted.restype = ctypes.c_int32
-        self.dll.kain_gpu_runtime_dispatch_nvidia_ptx_primary_compute_persisted_with_handle.argtypes = [
-            ctypes.c_void_p,
-            ctypes.POINTER(GpuRuntimeDispatchRequest),
-            ctypes.POINTER(GpuRuntimeDispatchResult),
-        ]
-        self.dll.kain_gpu_runtime_dispatch_nvidia_ptx_primary_compute_persisted_with_handle.restype = ctypes.c_int32
-        self.handle = self.dll.kain_gpu_runtime_create_nvidia_ptx_primary()
+        self.dispatch_once.restype = ctypes.c_int32
+        if self.dispatch_with_handle is not None:
+            self.dispatch_with_handle.argtypes = [
+                ctypes.c_void_p,
+                ctypes.POINTER(GpuRuntimeDispatchRequest),
+                ctypes.POINTER(GpuRuntimeDispatchResult),
+            ]
+            self.dispatch_with_handle.restype = ctypes.c_int32
+        self.handle = None
+        if (
+            self.create_handle is not None
+            and self.destroy_handle is not None
+            and self.dispatch_with_handle is not None
+        ):
+            self.handle = self.create_handle()
+        self.handle_reuse_enabled = self.handle is not None
 
     def close(self) -> None:
-        if self.handle:
-            self.dll.kain_gpu_runtime_destroy_nvidia_ptx_primary(self.handle)
+        if self.handle and self.destroy_handle is not None:
+            self.destroy_handle(self.handle)
             self.handle = None
 
     def dispatch(self, shader_bundle_path: Path, compute_residency_path: Path, compute_key: str) -> dict[str, Any]:
@@ -435,14 +468,14 @@ class CudaRuntimeLibrary:
         )
         result = GpuRuntimeDispatchResult()
         start = time.perf_counter()
-        if self.handle:
-            status = self.dll.kain_gpu_runtime_dispatch_nvidia_ptx_primary_compute_persisted_with_handle(
+        if self.handle and self.dispatch_with_handle is not None:
+            status = self.dispatch_with_handle(
                 self.handle,
                 ctypes.byref(request),
                 ctypes.byref(result),
             )
         else:
-            status = self.dll.kain_gpu_runtime_dispatch_nvidia_ptx_primary_compute_persisted(
+            status = self.dispatch_once(
                 ctypes.byref(request),
                 ctypes.byref(result),
             )
@@ -459,6 +492,10 @@ class CudaRuntimeLibrary:
             "message": decode_message(result),
             "elapsed_ms": elapsed_ms,
         }
+
+    @property
+    def handle_api_enabled(self) -> bool:
+        return self.handle_reuse_enabled
 
 
 def gpu_runtime_library_candidates(kain_bin: str) -> list[Path]:
@@ -496,6 +533,46 @@ def gpu_runtime_library_candidates(kain_bin: str) -> list[Path]:
     return ordered
 
 
+def probe_gpu_runtime_library(path: Path) -> dict[str, Any] | None:
+    try:
+        dll = ctypes.CDLL(str(path))
+    except OSError:
+        return None
+    dispatch_once = optional_ctypes_symbol(
+        dll, "kain_gpu_runtime_dispatch_nvidia_ptx_primary_compute_persisted"
+    )
+    if dispatch_once is None:
+        return None
+    return {
+        "path": path,
+        "mtime_ns": path.stat().st_mtime_ns,
+        "size": path.stat().st_size,
+        "has_handle_api": all(
+            optional_ctypes_symbol(dll, symbol) is not None
+            for symbol in [
+                "kain_gpu_runtime_create_nvidia_ptx_primary",
+                "kain_gpu_runtime_destroy_nvidia_ptx_primary",
+                "kain_gpu_runtime_dispatch_nvidia_ptx_primary_compute_persisted_with_handle",
+            ]
+        ),
+    }
+
+
+def select_gpu_runtime_library(candidates: list[Path]) -> Path | None:
+    viable = [probe for probe in (probe_gpu_runtime_library(path) for path in candidates) if probe]
+    if not viable:
+        return None
+    viable.sort(
+        key=lambda probe: (
+            bool(probe["has_handle_api"]),
+            int(probe["mtime_ns"]),
+            int(probe["size"]),
+        ),
+        reverse=True,
+    )
+    return viable[0]["path"]
+
+
 def ensure_gpu_runtime_library(args: argparse.Namespace, kain_bin: str) -> Path:
     if args.gpu_runtime_library:
         path = Path(args.gpu_runtime_library)
@@ -503,9 +580,10 @@ def ensure_gpu_runtime_library(args: argparse.Namespace, kain_bin: str) -> Path:
             return path
         raise SystemExit(f"requested GPU runtime library does not exist: {path}")
 
-    for candidate in gpu_runtime_library_candidates(kain_bin):
-        if candidate.is_file():
-            return candidate
+    existing = [candidate for candidate in gpu_runtime_library_candidates(kain_bin) if candidate.is_file()]
+    selected = select_gpu_runtime_library(existing)
+    if selected is not None:
+        return selected
 
     build = run_command(["cargo", "build", "-p", "kain-gpu-runtime"], os.environ.copy(), REPO_ROOT)
     if build["returncode"] != 0:
@@ -515,9 +593,10 @@ def ensure_gpu_runtime_library(args: argparse.Namespace, kain_bin: str) -> Path:
             + "\n"
             + build["stderr"]
         )
-    for candidate in gpu_runtime_library_candidates(kain_bin):
-        if candidate.is_file():
-            return candidate
+    existing = [candidate for candidate in gpu_runtime_library_candidates(kain_bin) if candidate.is_file()]
+    selected = select_gpu_runtime_library(existing)
+    if selected is not None:
+        return selected
     raise SystemExit(f"unable to locate {GPU_RUNTIME_LIBRARY_NAME} after cargo build")
 
 
@@ -689,7 +768,11 @@ def run_case(
     }
 
 
-def write_reports(results: list[dict[str, Any]], manifest: dict[str, Any], runtime_library: Path) -> None:
+def write_reports(
+    results: list[dict[str, Any]],
+    manifest: dict[str, Any],
+    runtime: CudaRuntimeLibrary,
+) -> None:
     REPORT_ROOT.mkdir(parents=True, exist_ok=True)
     SNAPSHOT_ROOT.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
@@ -698,7 +781,8 @@ def write_reports(results: list[dict[str, Any]], manifest: dict[str, Any], runti
         "generated_at": stamp,
         "case_count": len(results),
         "ok_count": sum(1 for result in results if result.get("status") == "ok"),
-        "runtime_library": repo_relative(runtime_library),
+        "runtime_library": repo_relative(runtime.library_path),
+        "runtime_handle_api": runtime.handle_api_enabled,
         "results": results,
     }
     latest_json = REPORT_ROOT / "latest_cuda_gpu.json"
@@ -714,7 +798,8 @@ def write_reports(results: list[dict[str, Any]], manifest: dict[str, Any], runti
         f"- generated_at: {stamp}",
         f"- cases: {len(results)}",
         f"- ok: {report['ok_count']}",
-        f"- runtime_library: {repo_relative(runtime_library)}",
+        f"- runtime_library: {repo_relative(runtime.library_path)}",
+        f"- runtime_handle_api: {runtime.handle_api_enabled}",
         "",
     ]
     for result in results:
@@ -764,7 +849,7 @@ def main() -> int:
     finally:
         runtime.close()
 
-    write_reports(results, manifest, runtime_library)
+    write_reports(results, manifest, runtime)
     failed = [result for result in results if result.get("status") != "ok"]
     return 1 if failed else 0
 

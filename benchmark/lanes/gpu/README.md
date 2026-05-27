@@ -47,8 +47,21 @@ Common dispatcher env vars:
 ## CUDA/PTX Gauntlet
 
 `cuda_cases.json` is the CUDA-native sibling to the Vulkan/SPIR-V lane. It uses
-`kain build <shader> --target cuda`, reads the emitted build report, and copies
-the PTX into `benchmark/out/build/gpu-cuda/<case>/kain/` for artifact-density
-checks. The first cases cover warp reduction, packed u8 embedding gather, and an
-attention-score/GEMV tile; add GEMM, softmax, layernorm, RoPE, KV-cache, top-k,
-and reduce-max rows here as their Kain PTX lowering becomes real.
+`kain gpu-artifacts <shader> --output ...` to emit the shader bundle, PTX sidecar,
+and compute residency payloads, then runs a live NVIDIA driver dispatch through
+`kain_gpu_runtime.dll`, persists output buffers back to sidecars, validates them
+against CPU references, and records separate compile-vs-dispatch timing in
+`benchmark/out/reports/latest_cuda_gpu.*`.
+
+Operator notes:
+
+- Prefer a fresh compiler binary via `--kain-bin` or `KAIN_BIN`. On this workstation,
+  old `X:\target\debug\kain.exe` artifacts can silently lie; the gauntlet should
+  be driven by a known-fresh Bazel or Cargo build.
+- The runner probes multiple `kain_gpu_runtime.dll` candidates and selects the
+  freshest compatible CUDA runtime export surface instead of blindly taking the
+  first stale DLL it finds.
+- Current live rows cover warp reduction, packed `u8` embedding gather, and an
+  attention-score/GEMV tile. Future growth should stay in this live-dispatch
+  shape: real payloads, persisted output, CPU/reference comparison, and real
+  dispatch timing rather than PTX-token checks alone.

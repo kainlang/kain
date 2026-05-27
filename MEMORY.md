@@ -1,5 +1,33 @@
 # Kain Memory
 
+# 2026-05-27 - Live CUDA/PTX Gauntlet Now Dispatches Real Kernels
+
+The CUDA benchmark lane under `benchmark/lanes/gpu/run_cuda.py` is no longer a
+compile-only PTX token check. It now drives `kain gpu-artifacts`, stages real
+compute residency payloads, dispatches through `kain_gpu_runtime.dll`, persists
+output buffers, validates them against CPU references, and reports separate
+compile-vs-dispatch timing in `benchmark/out/reports/latest_cuda_gpu.*`.
+
+The two sharp edges that mattered:
+
+- Stale Windows artifacts can lie. `X:\target\debug\kain.exe` and older
+  `X:\target\debug\deps\kain_gpu_runtime.dll` copies were stale on this host and
+  caused fake CUDA failures. The runner now probes multiple DLL candidates and
+  selects the freshest compatible runtime export surface; operators should still
+  prefer a known-fresh Bazel or Cargo compiler binary via `--kain-bin` / `KAIN_BIN`.
+- Packed storage-buffer element types must come from `StorageBuffer<T>` generics,
+  not binding-name heuristics. `StorageBuffer<u8>` / `StorageBuffer<UInt>` was
+  being downcast to `f32` in the realtime tensor metadata path, which made the
+  PTX runtime correctly reject payload byte lengths. `crates/core/src/realtime_app_bundle.rs`
+  now preserves `u8/u32/f32` from the authored shader surface.
+
+Fresh proof:
+
+- `cargo test -p kain-core preserves_storage_buffer_element_types_for_tensor_bindings -- --nocapture`
+- `cargo test -p kain-core infers_storage_buffer_access_from_shader_usage_not_names -- --nocapture`
+- `python benchmark/lanes/gpu/run_cuda.py --runs 1 --warmups 0 --kain-bin F:\DevTools\kain-agent\cargo-target\debug\kain.exe`
+- Latest live report: `benchmark/out/reports/latest_cuda_gpu.llm.md` with all `3/3` CUDA rows passing on `sm_75`.
+
 # 2026-05-27 - RAGE release-binary ownership/fixup hot-path recovery
 
 After the first full RAGE runtime strike, the honest release-binary benchmark truth on this workstation was not the older `latest_v2_rage_direct.md` snapshot; it was the fresh Bazel release lane captured with the direct router at `benchmark/latest_v2_rage_release_preopt.md`. That pre-opt release baseline was:

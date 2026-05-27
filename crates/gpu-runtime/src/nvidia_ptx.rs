@@ -1609,7 +1609,9 @@ mod tests {
     #[test]
     fn nvidia_ptx_executor_accepts_uniform_buffer_scalar_kernel_params() {
         let Ok(executor) = NvidiaPtxExecutor::try_new() else {
-            eprintln!("skipping NVIDIA PTX uniform-buffer smoke because CUDA Driver API is unavailable");
+            eprintln!(
+                "skipping NVIDIA PTX uniform-buffer smoke because CUDA Driver API is unavailable"
+            );
             return;
         };
 

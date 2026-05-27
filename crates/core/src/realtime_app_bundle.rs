@@ -2,8 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::ast::{
     Block, ComputeMetadata, ConvergeSelector, ElseBranch, Expr, ShaderStage, Stmt, Type,
-    WorldSurfaceKind,
-    COMPUTE_PLAN_CAPABILITY_KEY,
+    WorldSurfaceKind, COMPUTE_PLAN_CAPABILITY_KEY,
 };
 use crate::types::{
     PatchUndoMode, TypedConverge, TypedEntangle, TypedLaw, TypedOrchestrate, TypedPatch, TypedWorld,
@@ -1278,8 +1277,11 @@ fn shader_bundle_ref(shader: &TypedShader) -> RealtimeShaderBundleRef {
     let key = format!("shader::{}::{}", shader.ast.name, stage);
     let resource_bindings = collect_shader_resource_bindings(shader, &stage);
     let explicit_compute_metadata = shader.ast.explicit_compute_metadata().ok().flatten();
-    let tensor_bindings =
-        collect_tensor_bindings(&resource_bindings, explicit_compute_metadata.as_ref());
+    let tensor_bindings = collect_tensor_bindings(
+        shader,
+        &resource_bindings,
+        explicit_compute_metadata.as_ref(),
+    );
     let stream_bindings =
         collect_stream_bindings(&resource_bindings, explicit_compute_metadata.as_ref());
     let neural_nodes = collect_neural_nodes(
@@ -1414,11 +1416,9 @@ fn shader_resource_access(
         } if type_name == "Sampler2D" => "sample",
         Type::Named {
             name: type_name, ..
-        } if type_name == "StorageBuffer" && stage == "compute" => {
-            observed_access
-                .map(storage_access_mode)
-                .unwrap_or_else(|| infer_storage_buffer_access(name))
-        }
+        } if type_name == "StorageBuffer" && stage == "compute" => observed_access
+            .map(storage_access_mode)
+            .unwrap_or_else(|| infer_storage_buffer_access(name)),
         Type::Named {
             name: type_name, ..
         } if type_name == "StorageBuffer" => "read",
@@ -1466,7 +1466,9 @@ fn shader_storage_access_map(shader: &TypedShader) -> HashMap<String, ShaderStor
         .ast
         .uniforms
         .iter()
-        .filter(|uniform| matches!(uniform.ty, Type::Named { ref name, .. } if name == "StorageBuffer"))
+        .filter(
+            |uniform| matches!(uniform.ty, Type::Named { ref name, .. } if name == "StorageBuffer"),
+        )
         .map(|uniform| uniform.name.clone())
         .collect::<HashSet<_>>();
     if storage_uniforms.is_empty() {
@@ -1494,7 +1496,9 @@ fn scan_shader_stmt_for_storage_access(
     access: &mut HashMap<String, ShaderStorageAccess>,
 ) {
     match stmt {
-        Stmt::Let { value: Some(value), .. } => {
+        Stmt::Let {
+            value: Some(value), ..
+        } => {
             scan_shader_expr_for_storage_access(value, storage_uniforms, access);
         }
         Stmt::Expr(expr) => {
@@ -1507,7 +1511,9 @@ fn scan_shader_stmt_for_storage_access(
             scan_shader_expr_for_storage_access(iter, storage_uniforms, access);
             scan_shader_block_for_storage_access(body, storage_uniforms, access);
         }
-        Stmt::While { condition, body, .. } => {
+        Stmt::While {
+            condition, body, ..
+        } => {
             scan_shader_expr_for_storage_access(condition, storage_uniforms, access);
             scan_shader_block_for_storage_access(body, storage_uniforms, access);
         }
@@ -1637,7 +1643,9 @@ fn scan_shader_expr_for_storage_access(
                 scan_shader_expr_for_storage_access(arg, storage_uniforms, access);
             }
         }
-        Expr::PtrOffset { pointer, offset, .. } => {
+        Expr::PtrOffset {
+            pointer, offset, ..
+        } => {
             scan_shader_expr_for_storage_access(pointer, storage_uniforms, access);
             scan_shader_expr_for_storage_access(offset, storage_uniforms, access);
         }
@@ -1701,6 +1709,7 @@ fn storage_uniform_ident<'a>(
 }
 
 fn collect_tensor_bindings(
+    shader: &TypedShader,
     bindings: &[RealtimeResourceBinding],
     explicit_metadata: Option<&ComputeMetadata>,
 ) -> Vec<RealtimeTensorBinding> {
@@ -1725,7 +1734,13 @@ fn collect_tensor_bindings(
         .filter(|binding| binding.resource_type == "storage_buffer")
         .map(|binding| RealtimeTensorBinding {
             key: binding.key.clone(),
-            element_type: infer_tensor_element_type(binding).to_string(),
+            element_type: shader
+                .ast
+                .uniforms
+                .iter()
+                .find(|uniform| uniform.name == binding.key)
+                .and_then(|uniform| storage_buffer_element_type_name(&uniform.ty))
+                .unwrap_or_else(|| infer_tensor_element_type(binding).to_string()),
             shape: vec!["dispatch.x".to_string()],
             role: tensor_role_from_access(&binding.access).to_string(),
             contract: "kain.shared.buffer".to_string(),
@@ -2921,5 +2936,101 @@ shader compute AccessProbe() -> Void:
         assert_eq!(access.get("indices").map(String::as_str), Some("read"));
         assert_eq!(access.get("scores").map(String::as_str), Some("write"));
         assert_eq!(access.get("count").map(String::as_str), Some("read"));
+    }
+
+    #[test]
+    fn preserves_storage_buffer_element_types_for_tensor_bindings() {
+        let source = r#"
+shader compute PackedProbe() -> Void:
+    uniform table: StorageBuffer<u8> @0
+    uniform indices: StorageBuffer<UInt> @1
+    uniform scores: StorageBuffer<Float> @2
+
+    let idx = dispatch_thread_id.x
+    let source_idx = indices[idx]
+    let _sample = table[source_idx]
+    return
+"#;
+        let tokens = Lexer::new(source).tokenize().expect("tokens");
+        let span_mapper = diagnostics::SpanMapper::new(source);
+        let ast = Parser::new(&tokens, &span_mapper, "<input>")
+            .parse()
+            .expect("ast");
+        let typed = types::check(&ast, &span_mapper, "<input>").expect("typed");
+
+        let bundle = emit_realtime_app_bundle(&typed, None, CompileTarget::Llvm);
+        let shader = &bundle.shader_bundle_refs[0];
+        let element_types = shader
+            .tensor_bindings
+            .iter()
+            .map(|binding| (binding.key.clone(), binding.element_type.clone()))
+            .collect::<std::collections::HashMap<_, _>>();
+
+        assert_eq!(element_types.get("table").map(String::as_str), Some("u8"));
+        assert_eq!(
+            element_types.get("indices").map(String::as_str),
+            Some("u32")
+        );
+        assert_eq!(element_types.get("scores").map(String::as_str), Some("f32"));
+    }
+}
+
+fn storage_buffer_element_type_name(ty: &Type) -> Option<String> {
+    match ty {
+        Type::Named { name, generics, .. } if name == "StorageBuffer" => {
+            generics.first().and_then(normalize_gpu_element_type_name)
+        }
+        _ => None,
+    }
+}
+
+fn normalize_gpu_element_type_name(ty: &Type) -> Option<String> {
+    match ty {
+        Type::Named { name, generics, .. } => match name.as_str() {
+            "Bool" | "bool" => Some("bool".to_string()),
+            "u8" | "U8" | "Byte" => Some("u8".to_string()),
+            "i8" | "I8" | "SByte" => Some("i8".to_string()),
+            "u16" | "U16" => Some("u16".to_string()),
+            "i16" | "I16" => Some("i16".to_string()),
+            "u32" | "U32" | "UInt" => Some("u32".to_string()),
+            "i32" | "I32" | "Int" => Some("i32".to_string()),
+            "u64" | "U64" | "ULong" => Some("u64".to_string()),
+            "i64" | "I64" | "Long" => Some("i64".to_string()),
+            "f32" | "Float" => Some("f32".to_string()),
+            "f64" | "Double" => Some("f64".to_string()),
+            "f16" | "Half" => Some("f16".to_string()),
+            "bf16" | "BFloat16" => Some("bf16".to_string()),
+            "Vec2" => Some(format!(
+                "vec2<{}>",
+                vector_scalar_lane_name(generics.first()).unwrap_or("f32")
+            )),
+            "Vec3" => Some(format!(
+                "vec3<{}>",
+                vector_scalar_lane_name(generics.first()).unwrap_or("f32")
+            )),
+            "Vec4" => Some(format!(
+                "vec4<{}>",
+                vector_scalar_lane_name(generics.first()).unwrap_or("f32")
+            )),
+            "IVec2" => Some("vec2<i32>".to_string()),
+            "IVec3" => Some("vec3<i32>".to_string()),
+            "IVec4" => Some("vec4<i32>".to_string()),
+            "UVec2" => Some("vec2<u32>".to_string()),
+            "UVec3" => Some("vec3<u32>".to_string()),
+            "UVec4" => Some("vec4<u32>".to_string()),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+fn vector_scalar_lane_name(ty: Option<&Type>) -> Option<&'static str> {
+    match ty {
+        Some(Type::Named { name, .. }) => match name.as_str() {
+            "Int" | "I32" | "i32" => Some("i32"),
+            "UInt" | "U32" | "u32" => Some("u32"),
+            _ => Some("f32"),
+        },
+        _ => None,
     }
 }
