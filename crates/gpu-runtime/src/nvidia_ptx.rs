@@ -585,7 +585,20 @@ struct ComputeResidencyEntry {
     tensor_binding_count: usize,
     stream_binding_count: usize,
     neural_node_count: usize,
+    #[serde(default)]
+    ptx_sidecar: Option<ComputeResidencyPtxSidecar>,
     bindings: Vec<ComputeResidencyBinding>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct ComputeResidencyPtxSidecar {
+    module_name: String,
+    entry_point: String,
+    ptx_version: String,
+    required_target_arch: String,
+    minimum_compute_capability: String,
+    #[serde(default)]
+    binding_slots: Vec<u32>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -664,12 +677,17 @@ fn ptx_dispatch_plan_from_sidecars(
         })?;
     let (resolved_module_name, resolved_entry_point) =
         resolve_ptx_shader_entry(&shader_bundle, entry);
-    let ptx = shader_bundle
+    let ptx_artifact = shader_bundle
         .derived_outputs
         .iter()
         .find(|artifact| {
             artifact.format == ShaderArtifactFormat::Ptx
                 && artifact.module_name == resolved_module_name
+                && (artifact.entry_points.is_empty()
+                    || artifact
+                        .entry_points
+                        .iter()
+                        .any(|value| value == resolved_entry_point))
         })
         .or_else(|| {
             let mut ptx_artifacts = shader_bundle
@@ -679,11 +697,17 @@ fn ptx_dispatch_plan_from_sidecars(
             let first = ptx_artifacts.next()?;
             ptx_artifacts.next().is_none().then_some(first)
         })
-        .map(|artifact| artifact.contents.clone())
         .ok_or_else(|| ComputeExecutorError::MissingPtxModule {
             module_name: resolved_module_name.to_string(),
             path: shader_bundle_path.display().to_string(),
         })?;
+    validate_ptx_sidecar_contract(
+        entry,
+        resolved_module_name,
+        resolved_entry_point,
+        ptx_artifact,
+    )?;
+    let ptx = ptx_artifact.contents.clone();
 
     let residency_root = compute_residency_path
         .parent()
@@ -759,6 +783,11 @@ fn resolve_ptx_shader_entry<'a>(
     shader_bundle: &'a kain_core::ShaderArtifactBundle,
     entry: &'a ComputeResidencyEntry,
 ) -> (&'a str, &'a str) {
+    if let Some(sidecar) = entry.ptx_sidecar.as_ref() {
+        if !sidecar.module_name.is_empty() && !sidecar.entry_point.is_empty() {
+            return (sidecar.module_name.as_str(), sidecar.entry_point.as_str());
+        }
+    }
     let entry_stage = if entry.stage.is_empty() {
         "compute"
     } else {
@@ -792,6 +821,101 @@ fn resolve_ptx_shader_entry<'a>(
         entry.entry_point.as_str()
     };
     (entry.module_name.as_str(), fallback_entry_point)
+}
+
+fn validate_ptx_sidecar_contract(
+    entry: &ComputeResidencyEntry,
+    resolved_module_name: &str,
+    resolved_entry_point: &str,
+    artifact: &kain_core::DerivedShaderArtifact,
+) -> Result<(), ComputeExecutorError> {
+    let Some(sidecar) = entry.ptx_sidecar.as_ref() else {
+        return Ok(());
+    };
+
+    if sidecar.module_name != resolved_module_name {
+        return Err(ComputeExecutorError::PtxSidecarMismatch {
+            compute_key: entry.key.clone(),
+            field: "module_name",
+            expected: sidecar.module_name.clone(),
+            actual: resolved_module_name.to_string(),
+        });
+    }
+    if sidecar.entry_point != resolved_entry_point {
+        return Err(ComputeExecutorError::PtxSidecarMismatch {
+            compute_key: entry.key.clone(),
+            field: "entry_point",
+            expected: sidecar.entry_point.clone(),
+            actual: resolved_entry_point.to_string(),
+        });
+    }
+    if !artifact.entry_points.is_empty()
+        && !artifact
+            .entry_points
+            .iter()
+            .any(|value| value == resolved_entry_point)
+    {
+        return Err(ComputeExecutorError::PtxSidecarMismatch {
+            compute_key: entry.key.clone(),
+            field: "entry_point",
+            expected: resolved_entry_point.to_string(),
+            actual: artifact.entry_points.join(","),
+        });
+    }
+    let Some(ptx_metadata) = artifact.ptx.as_ref() else {
+        return Err(ComputeExecutorError::PtxSidecarMismatch {
+            compute_key: entry.key.clone(),
+            field: "ptx_metadata",
+            expected: "present".to_string(),
+            actual: "missing".to_string(),
+        });
+    };
+    if sidecar.ptx_version != ptx_metadata.ptx_version {
+        return Err(ComputeExecutorError::PtxSidecarMismatch {
+            compute_key: entry.key.clone(),
+            field: "ptx_version",
+            expected: sidecar.ptx_version.clone(),
+            actual: ptx_metadata.ptx_version.clone(),
+        });
+    }
+    if sidecar.required_target_arch != ptx_metadata.required_target_arch {
+        return Err(ComputeExecutorError::PtxSidecarMismatch {
+            compute_key: entry.key.clone(),
+            field: "required_target_arch",
+            expected: sidecar.required_target_arch.clone(),
+            actual: ptx_metadata.required_target_arch.clone(),
+        });
+    }
+    if sidecar.minimum_compute_capability != ptx_metadata.minimum_compute_capability {
+        return Err(ComputeExecutorError::PtxSidecarMismatch {
+            compute_key: entry.key.clone(),
+            field: "minimum_compute_capability",
+            expected: sidecar.minimum_compute_capability.clone(),
+            actual: ptx_metadata.minimum_compute_capability.clone(),
+        });
+    }
+
+    let mut expected_slots = sidecar.binding_slots.clone();
+    expected_slots.sort_unstable();
+    expected_slots.dedup();
+    if !expected_slots.is_empty() {
+        let mut actual_slots = entry
+            .bindings
+            .iter()
+            .map(|binding| binding.slot)
+            .collect::<Vec<_>>();
+        actual_slots.sort_unstable();
+        actual_slots.dedup();
+        if expected_slots != actual_slots {
+            return Err(ComputeExecutorError::PtxSidecarBindingSlotsMismatch {
+                compute_key: entry.key.clone(),
+                expected: expected_slots,
+                actual: actual_slots,
+            });
+        }
+    }
+
+    Ok(())
 }
 
 fn persist_output_bindings_to_sidecars(
@@ -910,7 +1034,9 @@ fn validate_residency_role(
     }
 
     let valid = match normalized.as_str() {
-        "input" | "required_input" => access == GpuBindingAccess::Read,
+        "input" | "required_input" => {
+            matches!(access, GpuBindingAccess::Read | GpuBindingAccess::ReadWrite)
+        }
         "output" | "required_output" => access.is_output(),
         "scratch" | "scratch_state" => access == GpuBindingAccess::ReadWrite,
         other => {
@@ -974,7 +1100,17 @@ fn validate_shared_buffer_binding(
 fn is_ptx_compatible_residency_target(target: &str) -> bool {
     matches!(
         target.trim().to_ascii_lowercase().as_str(),
-        "spirv" | "spv" | "gpu" | "cuda" | "ptx" | "nvptx" | "llvm"
+        "spirv"
+            | "spv"
+            | "gpu"
+            | "cuda"
+            | "ptx"
+            | "nvptx"
+            | "llvm"
+            | "kain"
+            | "ks"
+            | "kainscript"
+            | "kscript"
     )
 }
 
@@ -1070,7 +1206,14 @@ mod tests {
                     {
                         "format": "ptx",
                         "module_name": "CudaFieldKernel__CudaBlurKernel__CudaColorizeKernel",
-                        "contents": ptx_contents
+                        "contents": ptx_contents,
+                        "entry_points": ["CudaFieldKernel"],
+                        "binding_slots": [1],
+                        "ptx": {
+                            "ptx_version": "7.8",
+                            "required_target_arch": "sm_50",
+                            "minimum_compute_capability": "5.0"
+                        }
                     }
                 ]
             }))?,
@@ -1131,6 +1274,16 @@ mod tests {
                 rank: 90,
             }
         );
+    }
+
+    #[test]
+    fn ptx_compatible_residency_target_accepts_kain_source_aliases() {
+        for target in ["ks", "kainscript", "kscript", "kain"] {
+            assert!(
+                is_ptx_compatible_residency_target(target),
+                "target alias {target} should be accepted because PTX compatibility is validated by the sidecar metadata"
+            );
+        }
     }
 
     #[test]
@@ -1326,6 +1479,85 @@ mod tests {
     }
 
     #[test]
+    fn ptx_dispatch_plan_prefers_explicit_ptx_sidecar_metadata(
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let temp = tempfile::TempDir::new().expect("temp dir");
+        let shader_bundle_path = temp.path().join("bundle.json");
+        let compute_residency_path = temp.path().join("residency.json");
+        let payload_path = temp.path().join("payload.bin");
+
+        fs::write(&payload_path, [1u8, 2, 3, 4]).expect("payload");
+        write_sample_ptx_bundle(
+            &shader_bundle_path,
+            ".visible .entry CudaFieldKernel() { ret; }",
+        )
+        .expect("write bundle");
+        fs::write(
+            &compute_residency_path,
+            serde_json::to_string_pretty(&json!({
+                "schema_version": 1,
+                "target": "llvm",
+                "compute_shader_count": 1,
+                "compute_shaders": [
+                    {
+                        "key": "shader::CudaFieldKernel::compute",
+                        "shader": "CudaFieldKernel",
+                        "module_name": "LegacyMainModule",
+                        "stage": "compute",
+                        "entry_point": "main",
+                        "source": "kain-core",
+                        "execution_domain": "tensor-stream",
+                        "workgroup_size": [8, 8, 1],
+                        "dispatch_size": [8, 8, 1],
+                        "resource_binding_count": 1,
+                        "tensor_binding_count": 1,
+                        "stream_binding_count": 1,
+                        "neural_node_count": 0,
+                        "ptx_sidecar": {
+                            "module_name": "CudaFieldKernel__CudaBlurKernel__CudaColorizeKernel",
+                            "entry_point": "CudaFieldKernel",
+                            "ptx_version": "7.8",
+                            "required_target_arch": "sm_50",
+                            "minimum_compute_capability": "5.0",
+                            "binding_slots": [1]
+                        },
+                        "bindings": [
+                            {
+                                "key": "field",
+                                "contract": "kain.shared.buffer",
+                                "descriptor_kind": "storage_buffer",
+                                "element_type": "u32",
+                                "shape": [1],
+                                "strides": [1],
+                                "access_mode": "write",
+                                "residency_role": "output",
+                                "slot": 1,
+                                "byte_length": 4,
+                                "payload_file": "payload.bin"
+                            }
+                        ]
+                    }
+                ]
+            }))?,
+        )
+        .expect("write residency");
+
+        let plan = ptx_dispatch_plan_from_sidecars(
+            &shader_bundle_path,
+            &compute_residency_path,
+            "shader::CudaFieldKernel::compute",
+        )
+        .expect("ptx dispatch plan");
+
+        assert_eq!(
+            plan.request.module_name,
+            "CudaFieldKernel__CudaBlurKernel__CudaColorizeKernel"
+        );
+        assert_eq!(plan.request.entry_point, "CudaFieldKernel");
+        Ok(())
+    }
+
+    #[test]
     fn ptx_dispatch_request_rejects_duplicate_binding_slots() {
         let err = validate_ptx_dispatch_request(&GpuDispatchRequest {
             module_name: "dup".to_string(),
@@ -1361,5 +1593,15 @@ mod tests {
         .expect_err("duplicate slots should fail");
 
         assert!(err.to_string().contains("reuses slot @3"));
+    }
+
+    #[test]
+    fn residency_role_validation_accepts_readwrite_seed_inputs() {
+        validate_residency_role("query_embed", "input", GpuBindingAccess::ReadWrite)
+            .expect("read_write inputs should be allowed for seeded storage buffers");
+        validate_residency_role("query_norm_data", "required_input", GpuBindingAccess::ReadWrite)
+            .expect("required_input should tolerate read_write payload staging");
+        validate_residency_role("scores", "output", GpuBindingAccess::ReadWrite)
+            .expect("read_write outputs remain valid");
     }
 }

@@ -137,3 +137,35 @@ shader compute turing_kernel(id: UVec3) -> Void:
     assert!(ptx.contains(".target sm_75"));
     assert!(ptx.contains(".visible .entry turing_kernel"));
 }
+
+#[test]
+fn ptx_updates_loop_carried_locals_in_place() {
+    let src = r#"
+shader compute loop_update_kernel(id: UVec3) -> Void:
+    uniform src: StorageBuffer<Float> @0
+    uniform dst: StorageBuffer<Float> @1
+    uniform count_data: StorageBuffer<UInt> @2
+
+    let count = count_data[0]
+    let idx = id.x
+    if idx >= UInt(1):
+        return
+
+    var total: Float = 0.0
+    var i: UInt = UInt(0)
+    while i < count:
+        total = total + src[i]
+        i = i + UInt(1)
+
+    dst[idx] = total
+    return
+"#;
+
+    let typed = typed_program_for_target(src, CompileTarget::Cuda);
+    let ptx = generate_ptx(&typed).expect("ptx generation with loop-carried locals should succeed");
+
+    assert!(ptx.contains("add.f32 %f3, %f1, %f2;"));
+    assert!(ptx.contains("mov.f32 %f1, %f3;"));
+    assert!(ptx.contains("add.u32 %r14, %r11, %r13;"));
+    assert!(ptx.contains("mov.u32 %r11, %r14;"));
+}

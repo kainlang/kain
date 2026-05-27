@@ -1069,7 +1069,11 @@ fn emit_assignment(
     match target {
         Expr::Ident(name, _) => {
             let value = emit_expr(ctx, value)?;
-            bind_value(ctx, name, value, span)?;
+            if let Some(existing) = ctx.vars.get(name).cloned() {
+                assign_existing_binding(ctx, name, existing, value, span)?;
+            } else {
+                bind_value(ctx, name, value, span)?;
+            }
             Ok(PtxValue::Void)
         }
         Expr::Index { object, index, .. } => {
@@ -1080,6 +1084,67 @@ fn emit_assignment(
             "PTX backend only supports assignment to locals and storage-buffer indices",
             span,
         )),
+    }
+}
+
+fn assign_existing_binding(
+    ctx: &mut PtxContext,
+    name: &str,
+    existing: BindingValue,
+    value: PtxValue,
+    span: Span,
+) -> KainResult<()> {
+    match existing {
+        BindingValue::Scalar(slot) => {
+            let value = value.into_scalar(span)?;
+            let value = coerce_scalar(ctx, value, slot.kind)?;
+            if value.reg != slot.reg {
+                ctx.line(format!(
+                    "mov.{} {}, {};",
+                    slot.kind.op_suffix(),
+                    slot.reg,
+                    value.reg
+                ));
+            }
+            ctx.vars.insert(name.to_string(), BindingValue::Scalar(slot));
+            Ok(())
+        }
+        BindingValue::Vector(slots) => {
+            let values = match value {
+                PtxValue::Vector(values) if values.len() == slots.len() => values,
+                _ => {
+                    return Err(KainError::codegen(
+                        format!(
+                            "PTX backend cannot assign a non-matching value shape to vector local '{name}'"
+                        ),
+                        span,
+                    ))
+                }
+            };
+            for (slot, value) in slots.iter().zip(values.into_iter()) {
+                let value = coerce_scalar(ctx, value, slot.kind)?;
+                if value.reg != slot.reg {
+                    ctx.line(format!(
+                        "mov.{} {}, {};",
+                        slot.kind.op_suffix(),
+                        slot.reg,
+                        value.reg
+                    ));
+                }
+            }
+            ctx.vars.insert(name.to_string(), BindingValue::Vector(slots));
+            Ok(())
+        }
+        BindingValue::StorageBuffer { .. } => Err(KainError::codegen(
+            format!("PTX backend cannot assign a new value to storage buffer '{name}'"),
+            span,
+        )),
+        BindingValue::BuiltinVector(_) | BindingValue::BuiltinScalar(_) | BindingValue::ConstU32(_) => {
+            Err(KainError::codegen(
+                format!("PTX backend cannot assign to compiler-owned binding '{name}'"),
+                span,
+            ))
+        }
     }
 }
 

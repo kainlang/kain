@@ -229,19 +229,8 @@ fn stdlib_function_uses_borrowed_string_param(name: &str, index: usize) -> bool 
     matches!(
         (name, index),
         ("map_get", 1)
-            | ("len", 0)
             | ("trim", 0)
-            | ("to_upper", 0)
-            | ("to_lower", 0)
-            | ("contains", 0 | 1)
             | ("replace", 0 | 1 | 2)
-            | ("starts_with", 0 | 1)
-            | ("ends_with", 0 | 1)
-            | ("substring", 0)
-            | ("find_substring_from", 0 | 1)
-            | ("char_at", 0)
-            | ("byte_at", 0)
-            | ("ord", 0)
     )
 }
 
@@ -13235,6 +13224,8 @@ impl LlvmGenerator {
         self.emit("declare i64 @py_region_call_attr_args(i64, i64, i8*, i64, i64)");
         self.emit("declare i64 @py_region_call_raw_args(i64, i64, i64)");
         self.emit("declare i64 @py_region_call_raw_attr(i64, i64, i8*, i64)");
+        self.emit("declare i64 @py_region_call_raw_f64_trunc_i64(i64, i64, double)");
+        self.emit("declare i64 @py_region_call_attr_raw_f64_trunc_i64(i64, i64, i8*, double)");
         self.emit("declare i64 @py_region_buffer_view(i64, i64)");
         self.emit("declare i64 @py_buffer_view_byte_length(i64)");
         self.emit("declare i64 @py_buffer_view_element_count(i64)");
@@ -13247,6 +13238,9 @@ impl LlvmGenerator {
         self.emit("declare i64 @py_region_attr_cache_misses(i64)");
         self.emit("declare i64 @py_region_views_opened(i64)");
         self.emit("declare i64 @py_region_views_released(i64)");
+        self.emit("declare i64 @py_region_call_count(i64)");
+        self.emit("declare i64 @py_region_generic_call_count(i64)");
+        self.emit("declare i64 @py_region_fast_call_count(i64)");
         self.emit("declare void @py_buffer_view_release(i64)");
         self.emit("declare i64 @kain_shared_buffer_byte_length(i64)");
         self.emit("declare i64 @kain_shared_buffer_element_count_value(i64)");
@@ -18833,6 +18827,48 @@ fn main() -> Int:
         let window = &llvm[window_start..call_index];
 
         assert!(window.contains("call void @rc_retain(i8*"));
+    }
+
+    #[test]
+    fn stdlib_string_predicates_materialize_owned_literals_before_runtime_calls() {
+        let source = r#"
+fn main() -> Int:
+    let a = starts_with("sm_50", "sm_")
+    let b = contains("sm_50", "sm_")
+    let c = ends_with("sm_50", "50")
+    if a and b and c:
+        return 0
+    return 1
+"#;
+        let tokens = Lexer::new(source).tokenize().expect("tokens");
+        let mapper = SpanMapper::new(source);
+        let ast = Parser::new(&tokens, &mapper, "<llvm-stdlib-string-predicate-literal-test>")
+            .parse()
+            .expect("parse");
+        let typed = types::check(&ast, &mapper, "<llvm-stdlib-string-predicate-literal-test>")
+            .expect("typecheck");
+        let llvm = String::from_utf8(generate(&typed).expect("llvm generation"))
+            .expect("utf8 llvm output");
+
+        for callee in ["starts_with", "contains", "ends_with"] {
+            let needle = format!("call i1 @{callee}(i8*");
+            let call_index = llvm
+                .find(&needle)
+                .unwrap_or_else(|| panic!("{callee} call should be present in LLVM"));
+            let window_start = call_index.saturating_sub(160);
+            let window = &llvm[window_start..call_index];
+
+            assert!(
+                window.matches("load i8*, i8** %__kain_pooled_literal_").count() >= 2,
+                "{callee} should receive pooled owned string literals instead of raw C-string pointers:\n{}",
+                window
+            );
+            assert!(
+                !window.contains("getelementptr inbounds ["),
+                "{callee} should not receive direct static C-string addresses in the final call window:\n{}",
+                window
+            );
+        }
     }
 
     #[test]

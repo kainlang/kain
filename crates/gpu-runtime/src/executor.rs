@@ -122,6 +122,19 @@ pub enum ComputeExecutorError {
     MissingSpirvModule { module_name: String, path: String },
     #[error("PTX module {module_name} was not found in shader bundle {path}")]
     MissingPtxModule { module_name: String, path: String },
+    #[error("compute key {compute_key} PTX sidecar {field} expected {expected} but artifact reported {actual}")]
+    PtxSidecarMismatch {
+        compute_key: String,
+        field: &'static str,
+        expected: String,
+        actual: String,
+    },
+    #[error("compute key {compute_key} PTX sidecar binding slots {expected:?} do not match resolved binding slots {actual:?}")]
+    PtxSidecarBindingSlotsMismatch {
+        compute_key: String,
+        expected: Vec<u32>,
+        actual: Vec<u32>,
+    },
     #[error("invalid hex payload for SPIR-V module {module_name}: {message}")]
     InvalidSpirvHex {
         module_name: String,

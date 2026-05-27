@@ -146,14 +146,22 @@ fn build_compute_residency_bundle(
         .into_iter()
         .enumerate()
         .map(|(_index, shader)| {
+            let resolved_bundle_entry =
+                shader_bundle.and_then(|bundle| resolve_shader_bundle_entry(bundle, &shader));
             let bindings = build_binding_residency_entries(&shader);
-            let ptx_sidecar = resolve_ptx_sidecar(shader_bundle, &shader);
+            let ptx_sidecar = resolve_ptx_sidecar(shader_bundle, &shader, resolved_bundle_entry);
+            let module_name = resolved_bundle_entry
+                .map(|entry| entry.module_name.clone())
+                .unwrap_or_else(|| shader.module_name.clone());
+            let entry_point = resolved_bundle_entry
+                .map(|entry| entry.entry_point.clone())
+                .unwrap_or_else(|| shader.entry_point.clone());
             ComputeResidencyEntry {
                 key: shader.key.clone(),
                 shader: shader.shader.clone(),
-                module_name: shader.module_name.clone(),
+                module_name,
                 stage: shader.stage.clone(),
-                entry_point: shader.entry_point.clone(),
+                entry_point,
                 source: shader.source.clone(),
                 execution_domain: shader.execution_domain.clone(),
                 workgroup_size: shader.workgroup_size,
@@ -228,13 +236,18 @@ fn build_binding_residency_entry(
 fn resolve_ptx_sidecar(
     shader_bundle: Option<&ShaderArtifactBundle>,
     shader: &RealtimeShaderBundleRef,
+    bundle_entry: Option<&kain_core::ShaderEntryPoint>,
 ) -> Option<ComputeResidencyPtxSidecar> {
     if !shader.stage.eq_ignore_ascii_case("compute") {
         return None;
     }
     let bundle = shader_bundle?;
-    let entry = resolve_shader_bundle_entry(bundle, shader)?;
-    let artifact = resolve_ptx_artifact(bundle, entry.module_name.as_str(), entry.entry_point.as_str())?;
+    let entry = bundle_entry.or_else(|| resolve_shader_bundle_entry(bundle, shader))?;
+    let artifact = resolve_ptx_artifact(
+        bundle,
+        entry.module_name.as_str(),
+        entry.entry_point.as_str(),
+    )?;
     let ptx = artifact.ptx.as_ref()?;
     let mut binding_slots = shader
         .resource_bindings
@@ -288,7 +301,10 @@ fn resolve_ptx_artifact<'a>(
             artifact.format == ShaderArtifactFormat::Ptx
                 && artifact.module_name == module_name
                 && (artifact.entry_points.is_empty()
-                    || artifact.entry_points.iter().any(|value| value == entry_point))
+                    || artifact
+                        .entry_points
+                        .iter()
+                        .any(|value| value == entry_point))
         })
         .or_else(|| {
             let mut artifacts = bundle
@@ -430,9 +446,15 @@ shader compute SampleCompute(id: UVec3) -> Vec4:
         )
         .expect("bundle should compile");
 
-        let built_a = build_compute_residency_bundle(&bundle.realtime)
+        let built_a = build_compute_residency_bundle(
+            &bundle.realtime,
+            bundle.shader_bundle.as_ref().map(|output| &output.bundle),
+        )
             .expect("expected compute residency bundle");
-        let built_b = build_compute_residency_bundle(&bundle.realtime)
+        let built_b = build_compute_residency_bundle(
+            &bundle.realtime,
+            bundle.shader_bundle.as_ref().map(|output| &output.bundle),
+        )
             .expect("expected compute residency bundle");
         assert_eq!(built_a, built_b);
 
@@ -441,7 +463,7 @@ shader compute SampleCompute(id: UVec3) -> Vec4:
             bundle.shader_bundle.as_ref().map(|output| &output.bundle),
             &artifact_root,
         )
-            .expect("compute residency sidecars should write");
+        .expect("compute residency sidecars should write");
         assert_eq!(written.len(), 3);
 
         let main_path = artifact_root.join(COMPUTE_RESIDENCY_FILE_NAME);
@@ -456,8 +478,26 @@ shader compute SampleCompute(id: UVec3) -> Vec4:
             main_bundle.compute_shaders[0].key,
             "shader::SampleCompute::compute"
         );
+        assert_eq!(main_bundle.compute_shaders[0].module_name, "SampleCompute");
+        assert_eq!(main_bundle.compute_shaders[0].entry_point, "SampleCompute");
         assert_eq!(main_bundle.compute_shaders[0].resource_binding_count, 2);
         assert_eq!(main_bundle.compute_shaders[0].bindings.len(), 2);
+        assert_eq!(
+            main_bundle.compute_shaders[0]
+                .ptx_sidecar
+                .as_ref()
+                .expect("ptx sidecar")
+                .module_name,
+            main_bundle.compute_shaders[0].module_name
+        );
+        assert_eq!(
+            main_bundle.compute_shaders[0]
+                .ptx_sidecar
+                .as_ref()
+                .expect("ptx sidecar")
+                .entry_point,
+            main_bundle.compute_shaders[0].entry_point
+        );
         assert_eq!(
             main_bundle.compute_shaders[0]
                 .ptx_sidecar

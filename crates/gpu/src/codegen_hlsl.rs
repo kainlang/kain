@@ -302,8 +302,23 @@ fn emit_stmt(ctx: &mut HLSLContext, stmt: &Stmt) -> KainResult<String> {
             output.push_str(&format!("{}return;\n", ctx.indent()));
         }
         Stmt::Expr(expr) => {
-            let (expr_code, _) = emit_expr(ctx, expr)?;
-            output.push_str(&format!("{}{};\n", ctx.indent(), expr_code));
+            if let Expr::If {
+                condition,
+                then_branch,
+                else_branch,
+                ..
+            } = expr
+            {
+                output.push_str(&emit_if_statement(
+                    ctx,
+                    condition,
+                    then_branch,
+                    else_branch.as_deref(),
+                )?);
+            } else {
+                let (expr_code, _) = emit_expr(ctx, expr)?;
+                output.push_str(&format!("{}{};\n", ctx.indent(), expr_code));
+            }
         }
         // If expressions are handled in Expr::If, not Stmt::If
         Stmt::While {
@@ -347,6 +362,61 @@ fn emit_stmt(ctx: &mut HLSLContext, stmt: &Stmt) -> KainResult<String> {
             output.push_str(&format!("{}continue;\n", ctx.indent()));
         }
         _ => {}
+    }
+
+    Ok(output)
+}
+
+fn emit_if_statement(
+    ctx: &mut HLSLContext,
+    condition: &Expr,
+    then_branch: &Block,
+    else_branch: Option<&kain_core::ast::ElseBranch>,
+) -> KainResult<String> {
+    let mut output = String::new();
+    let (cond_code, _) = emit_expr(ctx, condition)?;
+
+    output.push_str(&format!("{}if ({})\n", ctx.indent(), cond_code));
+    output.push_str(&format!("{}{{\n", ctx.indent()));
+    ctx.push_indent();
+    output.push_str(&emit_block(ctx, then_branch)?);
+    ctx.pop_indent();
+    output.push_str(&format!("{}}}\n", ctx.indent()));
+
+    if let Some(else_branch) = else_branch {
+        output.push_str(&emit_else_branch(ctx, else_branch)?);
+    }
+
+    Ok(output)
+}
+
+fn emit_else_branch(
+    ctx: &mut HLSLContext,
+    else_branch: &kain_core::ast::ElseBranch,
+) -> KainResult<String> {
+    let mut output = String::new();
+
+    match else_branch {
+        kain_core::ast::ElseBranch::Else(block) => {
+            output.push_str(&format!("{}else\n", ctx.indent()));
+            output.push_str(&format!("{}{{\n", ctx.indent()));
+            ctx.push_indent();
+            output.push_str(&emit_block(ctx, block)?);
+            ctx.pop_indent();
+            output.push_str(&format!("{}}}\n", ctx.indent()));
+        }
+        kain_core::ast::ElseBranch::ElseIf(condition, block, next_else) => {
+            let (cond_code, _) = emit_expr(ctx, condition)?;
+            output.push_str(&format!("{}else if ({})\n", ctx.indent(), cond_code));
+            output.push_str(&format!("{}{{\n", ctx.indent()));
+            ctx.push_indent();
+            output.push_str(&emit_block(ctx, block)?);
+            ctx.pop_indent();
+            output.push_str(&format!("{}}}\n", ctx.indent()));
+            if let Some(next_else) = next_else.as_deref() {
+                output.push_str(&emit_else_branch(ctx, next_else)?);
+            }
+        }
     }
 
     Ok(output)
