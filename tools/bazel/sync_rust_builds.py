@@ -32,13 +32,6 @@ COMMON_DATA_GLOBS = [
     "vendor/**/*",
     "generated/**/*",
 ]
-FORCE_DIRECT_LIBRARY_PACKAGES = {"cli"}
-FORCE_DIRECT_BINARY_TARGETS = {
-    ("cli", "kain"),
-    ("cli", "kn"),
-}
-
-
 @dataclass(frozen=True)
 class RustTarget:
     name: str
@@ -369,8 +362,6 @@ def render_library(
         ),
         "compile_data": "COMMON_COMPILE_DATA",
     }
-    if rule == "rust_library" and package.name in FORCE_DIRECT_LIBRARY_PACKAGES:
-        attrs["force_all_deps_direct"] = "True"
     rendered = render_rule(rule, attrs)
     if "proc-macro" not in target.crate_types:
         rendered += render_unit_test(
@@ -458,8 +449,6 @@ def render_binary(
         ),
         "compile_data": "COMMON_COMPILE_DATA",
     }
-    if (package.name, target.name) in FORCE_DIRECT_BINARY_TARGETS:
-        attrs["force_all_deps_direct"] = "True"
     rendered = render_rule("rust_binary", attrs)
     if name != target.name:
         rendered += render_rule(

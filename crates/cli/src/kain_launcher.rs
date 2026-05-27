@@ -272,6 +272,7 @@ struct NativeRuntimeArchiver {
     archive_ext: &'static str,
 }
 
+#[derive(Debug)]
 enum ResolvedBuildInput {
     File(PathBuf),
     Project(PathBuf),
