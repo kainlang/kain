@@ -15,6 +15,12 @@ int64_t kain_shared_buffer_from_bytes(
     char* mime_type
 );
 int64_t kain_shared_buffer_info(int64_t target);
+int64_t kain_shared_buffer_byte_length(int64_t target);
+int64_t kain_shared_buffer_element_count_value(int64_t target);
+int64_t kain_shared_buffer_element_size(int64_t target);
+int64_t kain_shared_buffer_zero_copy_flag(int64_t target);
+int64_t kain_shared_buffer_shared_ownership(int64_t target);
+void kain_shared_buffer_release(int64_t target);
 int64_t kain_shared_buffer_bytes(int64_t target);
 void kain_shared_buffer_replace_bytes(int64_t target, int64_t bytes);
 

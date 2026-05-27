@@ -85,6 +85,11 @@ description: >-
 - `benchmark/cases_v2/` is now the canonical Kain-native growth lane for new benchmark work when the row does not need the legacy cross-language manifest runner.
 - The v2 lane is a single Kain router executable rooted at `benchmark/cases_v2/.telemetryrouter/router.kn`. It emits one markdown summary, one JSON summary, and one JSON track file per case.
 - Build and run ownership lives in `benchmark/build.kn`. The root executable is `benchmark/kain-benchmark-v2.exe`.
+- For Python interop work, distinguish three different comparison surfaces:
+  - `python_shared_buffer` / `python_shared_image` / `python_shared_tensor` measure full first-class contract adoption and metadata materialization.
+  - `py_buffer_view` measures the lightweight borrowed-buffer lane that should be compared directly against PyO3 `PyBuffer<T>`.
+  - `py_call_raw_*` rows measure raw callable crossing costs and should be kept separate from full contract or pykain workflow rows.
+- When adding a Python interop benchmark, prefer a pair of rows: one Kain-native raw lane and one PyO3 row with both a `scoped` ceiling run and a `per_boundary` run. That gives both the “best plausible ceiling” and the “apples-to-apples bridge shape” view.
 - Default v2 outputs are:
   - `benchmark/latest_v2.md`
   - `benchmark/out/reports/latest_v2.json`

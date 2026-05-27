@@ -166,6 +166,7 @@ fn python_pykain_buffer_workflow_checksum(iterations: Int) -> Int:
         let buffer_handle = python_shared_buffer(buffer)
         let shared_info = interop_shared_buffer_info(buffer_handle)
         let lane = json_int_or(info, "byte_length", 0) + json_int_or(info, "element_count", 0) + pykain_bool_score(json_bool_or(info, "is_contiguous", false)) + pykain_bool_score(json_bool_or(validation, "valid", false)) + contract + shared_info.byte_length + shared_info.element_count + shared_info.element_size + pykain_bool_score(shared_info.zero_copy) + pykain_bool_score(shared_info.ownership == "shared") + (index % 43)
+        kain_shared_buffer_release(buffer_handle)
         acc = (acc + lane) % PYTHON_PYKAIN_MODULUS
         index = index + 1
     return acc
@@ -258,6 +259,18 @@ pub fn python_with_pykain_case_telemetry(case_id: String) -> String:
         content = content + "\"pykain_version_ok\":" + version_ok + ","
         content = content + "\"edge_case\":" + edge_case + ","
         content = content + "\"plan\":" + pykain_json_string_value("tensor") + ","
+        content = content + "\"pykain_calls_per_iteration\":4,"
+        content = content + "\"validation_calls_per_iteration\":1,"
+        content = content + "\"interop_adoptions_per_iteration\":1,"
+        content = content + "\"contract_reads_per_iteration\":1,"
+        content = content + "\"shape_rank\":2,"
+        if case_id == "python_pykain_tensor_edge_contract":
+            content = content + "\"payload_bytes_per_iteration\":68,"
+        else:
+            content = content + "\"payload_bytes_per_iteration\":308,"
+        content = content + "\"creator_reuse\":false,"
+        content = content + "\"materialization_lane\":" + pykain_json_string_value("pykain-json-plus-shared-handle") + ","
+        content = content + "\"bench_intent\":" + pykain_json_string_value("normalized-tensor-workflow") + ","
         content = content + "\"pack_focus\":" + pykain_json_string_value("workflow")
         return content + "}"
     if case_id == "python_pykain_buffer_workflow":
@@ -267,6 +280,15 @@ pub fn python_with_pykain_case_telemetry(case_id: String) -> String:
         content = content + "\"pykain_version_ok\":" + version_ok + ","
         content = content + "\"element_type\":" + pykain_json_string_value("uint8") + ","
         content = content + "\"shape\":" + pykain_json_string_value("7x11") + ","
+        content = content + "\"pykain_calls_per_iteration\":4,"
+        content = content + "\"validation_calls_per_iteration\":1,"
+        content = content + "\"interop_adoptions_per_iteration\":1,"
+        content = content + "\"contract_reads_per_iteration\":1,"
+        content = content + "\"payload_bytes_per_iteration\":77,"
+        content = content + "\"creator_reuse\":false,"
+        content = content + "\"buffer_protocol_expected\":true,"
+        content = content + "\"contiguous_expected\":true,"
+        content = content + "\"bench_intent\":" + pykain_json_string_value("normalized-buffer-workflow") + ","
         content = content + "\"expected_zero_copy\":true,"
         content = content + "\"expected_ownership\":" + pykain_json_string_value("shared") + ","
         content = content + "\"pack_focus\":" + pykain_json_string_value("workflow")
@@ -279,6 +301,18 @@ pub fn python_with_pykain_case_telemetry(case_id: String) -> String:
         content = content + "\"pykain_version_ok\":" + version_ok + ","
         content = content + "\"edge_case\":" + edge_case + ","
         content = content + "\"layout\":" + pykain_json_string_value("HWC") + ","
+        content = content + "\"pykain_calls_per_iteration\":4,"
+        content = content + "\"validation_calls_per_iteration\":1,"
+        content = content + "\"interop_adoptions_per_iteration\":1,"
+        content = content + "\"contract_reads_per_iteration\":1,"
+        if case_id == "python_pykain_image_rgba_edge":
+            content = content + "\"payload_bytes_per_iteration\":2508,"
+        else:
+            content = content + "\"payload_bytes_per_iteration\":20736,"
+        content = content + "\"creator_reuse\":false,"
+        content = content + "\"buffer_protocol_expected\":true,"
+        content = content + "\"contiguous_expected\":true,"
+        content = content + "\"bench_intent\":" + pykain_json_string_value("normalized-image-workflow") + ","
         content = content + "\"expected_zero_copy\":true,"
         content = content + "\"expected_ownership\":" + pykain_json_string_value("shared") + ","
         content = content + "\"pack_focus\":" + pykain_json_string_value("workflow")
@@ -289,6 +323,15 @@ pub fn python_with_pykain_case_telemetry(case_id: String) -> String:
         content = content + "\"width\":64,"
         content = content + "\"height\":36,"
         content = content + "\"channels\":4,"
+        content = content + "\"pykain_calls_per_iteration\":3,"
+        content = content + "\"interop_adoptions_per_iteration\":1,"
+        content = content + "\"contract_reads_per_iteration\":1,"
+        content = content + "\"payload_bytes_min\":2304,"
+        content = content + "\"payload_bytes_max\":7680,"
+        content = content + "\"creator_reuse\":false,"
+        content = content + "\"buffer_protocol_expected\":true,"
+        content = content + "\"contiguous_expected\":true,"
+        content = content + "\"bench_intent\":" + pykain_json_string_value("shader-readback-workflow") + ","
         content = content + "\"expected_zero_copy\":true,"
         content = content + "\"expected_ownership\":" + pykain_json_string_value("shared") + ","
         content = content + "\"pack_focus\":" + pykain_json_string_value("shader")
@@ -300,6 +343,9 @@ pub fn python_with_pykain_case_telemetry(case_id: String) -> String:
         content = content + "\"boundary_kind\":\"pykain-smoke\","
         content = content + "\"pykain_version_ok\":" + version_ok + ","
         content = content + "\"smoke_score\":" + str(smoke) + ","
+        content = content + "\"pykain_calls_per_iteration\":2,"
+        content = content + "\"creator_reuse\":true,"
+        content = content + "\"bench_intent\":" + pykain_json_string_value("package-health-probe") + ","
         content = content + "\"pack_focus\":" + pykain_json_string_value("host-health")
         return content + "}"
     if case_id == "python_pykain_validate_modules":
@@ -315,6 +361,10 @@ pub fn python_with_pykain_case_telemetry(case_id: String) -> String:
         content = content + "\"z3\":" + z3_ok + ","
         content = content + "\"flet\":" + flet_ok + ","
         content = content + "\"pykain_version_ok\":" + version_ok + ","
+        content = content + "\"validation_calls_per_iteration\":3,"
+        content = content + "\"module_probe_count\":4,"
+        content = content + "\"creator_reuse\":true,"
+        content = content + "\"bench_intent\":" + pykain_json_string_value("package-correctness-probe") + ","
         content = content + "\"pack_focus\":" + pykain_json_string_value("correctness")
         return content + "}"
     let content = "{"

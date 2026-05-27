@@ -22,6 +22,7 @@
 #define KAIN_RC_TYPE_PY_OBJECT  UINT64_C(0x4b50594f424a0001)
 #define KAIN_RC_TYPE_PY_TENSOR  UINT64_C(0x4b505954454e0001)
 #define KAIN_RC_TYPE_PY_IMAGE   UINT64_C(0x4b5059494d470001)
+#define KAIN_RC_TYPE_PY_BUFFER_VIEW UINT64_C(0x4b50594256490001)
 #define KAIN_PY_JSON_INT(value)  ((((int64_t)(value)) << 3) | 1LL)
 #define KAIN_PY_JSON_BOOL(value) ((((int64_t)((value) != 0)) << 3) | 2LL)
 #define KAIN_PY_JSON_NULL        4LL
@@ -98,6 +99,14 @@ typedef struct {
 typedef struct {
     PyObject* object;
 } KainPythonObjectHandle;
+
+typedef struct {
+    Py_buffer view;
+    long long item_count;
+    long long item_size;
+    int c_contiguous;
+    int writable;
+} KainPythonBufferViewHandle;
 
 typedef struct {
     PyObject* object;
@@ -1713,6 +1722,13 @@ static KainPythonImageHandle* kain_py_as_image_handle(long long value) {
         : NULL;
 }
 
+static KainPythonBufferViewHandle* kain_py_as_buffer_view_handle(long long value) {
+    value = kain_py_unbox_tagged_handle(value, KAIN_RC_TYPE_PY_BUFFER_VIEW);
+    return kain_py_type_tag_matches((void*)(intptr_t)value, KAIN_RC_TYPE_PY_BUFFER_VIEW)
+        ? (KainPythonBufferViewHandle*)(intptr_t)value
+        : NULL;
+}
+
 static PyObject* kain_py_lookup_name(const char* name) {
     PyObject* main_module;
     PyObject* attr;
@@ -2567,6 +2583,210 @@ long long py_call_raw_args(long long target, long long args) {
 
 long long py_call_raw_attr(long long target, long long attr, long long args) {
     return kain_py_call_internal(target, attr, args, 4LL, 1);
+}
+
+long long py_call_raw_f64_trunc_i64(long long target, double arg) {
+    KainPythonGilScope scope = kain_py_gil_enter();
+    PyObject* callable;
+    PyObject* positional = NULL;
+    PyObject* arg_obj = NULL;
+    PyObject* result = NULL;
+    PyObject* coerced = NULL;
+    long long value = 0;
+    if (!scope.active) {
+        return 0;
+    }
+    callable = kain_py_resolve_target(target);
+    if (!callable) {
+        kain_py_gil_exit(&scope);
+        return 0;
+    }
+    positional = g_kain_python_api.PyTuple_New(1);
+    if (!positional) {
+        g_kain_python_api.Py_DecRef(callable);
+        kain_py_clear_error();
+        kain_py_gil_exit(&scope);
+        return 0;
+    }
+    arg_obj = g_kain_python_api.PyFloat_FromDouble(arg);
+    if (!arg_obj) {
+        g_kain_python_api.Py_DecRef(positional);
+        g_kain_python_api.Py_DecRef(callable);
+        kain_py_clear_error();
+        kain_py_gil_exit(&scope);
+        return 0;
+    }
+    if (g_kain_python_api.PyTuple_SetItem(positional, 0, arg_obj) != 0) {
+        g_kain_python_api.Py_DecRef(arg_obj);
+        g_kain_python_api.Py_DecRef(positional);
+        g_kain_python_api.Py_DecRef(callable);
+        kain_py_clear_error();
+        kain_py_gil_exit(&scope);
+        return 0;
+    }
+    result = g_kain_python_api.PyObject_Call(callable, positional, NULL);
+    g_kain_python_api.Py_DecRef(positional);
+    g_kain_python_api.Py_DecRef(callable);
+    if (!result) {
+        kain_py_clear_error();
+        kain_py_gil_exit(&scope);
+        return 0;
+    }
+    coerced = g_kain_python_api.PyNumber_Long(result);
+    g_kain_python_api.Py_DecRef(result);
+    if (!coerced) {
+        kain_py_clear_error();
+        kain_py_gil_exit(&scope);
+        return 0;
+    }
+    value = g_kain_python_api.PyLong_AsLongLong(coerced);
+    g_kain_python_api.Py_DecRef(coerced);
+    kain_py_gil_exit(&scope);
+    return value;
+}
+
+static int kain_py_buffer_view_item_count_from_view(const Py_buffer* view, long long* out_count) {
+    long long count = 0;
+    if (out_count) {
+        *out_count = 0;
+    }
+    if (!view || !out_count || view->len < 0) {
+        return 0;
+    }
+    if (view->ndim > 0 && view->shape) {
+        Py_ssize_t index;
+        count = 1;
+        for (index = 0; index < view->ndim; ++index) {
+            long long dim = (long long)view->shape[index];
+            if (dim < 0) {
+                return 0;
+            }
+            if (!kain_py_checked_mul_i64(count, dim, &count)) {
+                return 0;
+            }
+        }
+        *out_count = count;
+        return 1;
+    }
+    if (view->itemsize <= 0) {
+        *out_count = (long long)view->len;
+        return 1;
+    }
+    if ((view->len % view->itemsize) != 0) {
+        return 0;
+    }
+    *out_count = (long long)(view->len / view->itemsize);
+    return 1;
+}
+
+static void kain_py_buffer_view_destructor(void* payload) {
+    KainPythonBufferViewHandle* handle = (KainPythonBufferViewHandle*)payload;
+    KainPythonGilScope scope;
+    if (!handle) {
+        return;
+    }
+    scope = kain_py_gil_enter();
+    if (scope.active && g_kain_python_api.PyBuffer_Release && handle->view.obj) {
+        g_kain_python_api.PyBuffer_Release(&handle->view);
+        memset(&handle->view, 0, sizeof(handle->view));
+    }
+    kain_py_gil_exit(&scope);
+}
+
+long long py_buffer_view(long long target) {
+    KainPythonGilScope scope = kain_py_gil_enter();
+    PyObject* object;
+    PyObject* export_target;
+    KainPythonBufferViewHandle* handle = NULL;
+    long long item_count = 0;
+    Py_buffer borrowed_view;
+    if (!scope.active) {
+        return 0;
+    }
+    memset(&borrowed_view, 0, sizeof(borrowed_view));
+    object = kain_py_resolve_target(target);
+    if (!object) {
+        kain_py_gil_exit(&scope);
+        return 0;
+    }
+    export_target = kain_py_export_buffer_target(object, NULL, 0u);
+    g_kain_python_api.Py_DecRef(object);
+    if (!export_target) {
+        kain_py_gil_exit(&scope);
+        return 0;
+    }
+    if (!g_kain_python_api.PyObject_GetBuffer ||
+        g_kain_python_api.PyObject_GetBuffer(export_target, &borrowed_view, KAIN_PYBUF_STRIDES) != 0) {
+        g_kain_python_api.Py_DecRef(export_target);
+        kain_py_clear_error();
+        kain_py_gil_exit(&scope);
+        return 0;
+    }
+    g_kain_python_api.Py_DecRef(export_target);
+    if (borrowed_view.len < 0 || (borrowed_view.len > 0 && borrowed_view.buf == NULL)) {
+        g_kain_python_api.PyBuffer_Release(&borrowed_view);
+        kain_py_gil_exit(&scope);
+        return 0;
+    }
+    if (borrowed_view.itemsize <= 0) {
+        borrowed_view.itemsize = 1;
+    }
+    if (!kain_py_buffer_view_item_count_from_view(&borrowed_view, &item_count)) {
+        g_kain_python_api.PyBuffer_Release(&borrowed_view);
+        kain_py_gil_exit(&scope);
+        return 0;
+    }
+    handle = (KainPythonBufferViewHandle*)kain_alloc_rc(
+        sizeof(KainPythonBufferViewHandle),
+        KAIN_RC_TYPE_PY_BUFFER_VIEW
+    );
+    if (!handle) {
+        g_kain_python_api.PyBuffer_Release(&borrowed_view);
+        kain_py_gil_exit(&scope);
+        return 0;
+    }
+    memset(handle, 0, sizeof(*handle));
+    handle->view = borrowed_view;
+    handle->item_count = item_count;
+    handle->item_size = (long long)borrowed_view.itemsize;
+    handle->c_contiguous = kain_py_buffer_view_is_c_contiguous(&borrowed_view);
+    handle->writable = borrowed_view.readonly ? 0 : 1;
+    KAIN_set_destructor(handle, kain_py_buffer_view_destructor);
+    kain_py_gil_exit(&scope);
+    return (long long)(intptr_t)handle;
+}
+
+long long py_buffer_view_byte_length(long long target) {
+    KainPythonBufferViewHandle* handle = kain_py_as_buffer_view_handle(target);
+    return handle ? (long long)handle->view.len : 0;
+}
+
+long long py_buffer_view_element_count(long long target) {
+    KainPythonBufferViewHandle* handle = kain_py_as_buffer_view_handle(target);
+    return handle ? handle->item_count : 0;
+}
+
+long long py_buffer_view_element_size(long long target) {
+    KainPythonBufferViewHandle* handle = kain_py_as_buffer_view_handle(target);
+    return handle ? handle->item_size : 0;
+}
+
+long long py_buffer_view_c_contiguous(long long target) {
+    KainPythonBufferViewHandle* handle = kain_py_as_buffer_view_handle(target);
+    return (handle && handle->c_contiguous) ? 1 : 0;
+}
+
+long long py_buffer_view_writable(long long target) {
+    KainPythonBufferViewHandle* handle = kain_py_as_buffer_view_handle(target);
+    return (handle && handle->writable) ? 1 : 0;
+}
+
+void py_buffer_view_release(long long target) {
+    KainPythonBufferViewHandle* handle = kain_py_as_buffer_view_handle(target);
+    if (!handle) {
+        return;
+    }
+    rc_release(handle);
 }
 
 long long py_getattr(long long target, char* name) {

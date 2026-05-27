@@ -206,6 +206,7 @@ fn python_numpy_shared_buffer_checksum(iterations: Int) -> Int:
         let bytes = interop_shared_buffer_bytes(shared_buffer)
         let tail = bytes[len(bytes) - 1]
         let lane = info.byte_length + info.element_count + info.element_size + bytes[0] + tail + interop_bool_score(info.zero_copy) + interop_bool_score(info.ownership == "shared") + (index % 37)
+        kain_shared_buffer_release(shared_buffer)
         acc = (acc + lane) % PYTHON_INTEROP_MODULUS
         index = index + 1
     return acc
@@ -248,6 +249,7 @@ fn python_numpy_shared_buffer_tiny_checksum(iterations: Int) -> Int:
         let bytes = interop_shared_buffer_bytes(shared_buffer)
         let tail = bytes[len(bytes) - 1]
         let lane = info.byte_length + info.element_count + info.element_size + bytes[0] + tail + interop_bool_score(info.byte_length == cells) + interop_bool_score(info.zero_copy) + interop_bool_score(info.ownership == "shared") + (index % 47)
+        kain_shared_buffer_release(shared_buffer)
         acc = (acc + lane) % PYTHON_INTEROP_MODULUS
         index = index + 1
     return acc
@@ -258,6 +260,13 @@ pub fn python_interop_case_telemetry(case_id: String) -> String:
         content = content + "\"boundary_kind\":\"import-cache\","
         content = content + "\"module\":" + interop_json_string_value("math") + ","
         content = content + "\"attr\":" + interop_json_string_value("tau") + ","
+        content = content + "\"python_imports_per_iteration\":1,"
+        content = content + "\"python_getattrs_per_iteration\":1,"
+        content = content + "\"total_bridge_ops_per_iteration\":2,"
+        content = content + "\"expected_module_cache_hit\":true,"
+        content = content + "\"creator_reuse\":true,"
+        content = content + "\"materialization_lane\":" + interop_json_string_value("float-truncate-int") + ","
+        content = content + "\"bench_intent\":" + interop_json_string_value("cache-hit-import-tax") + ","
         content = content + "\"iterations_default\":10000,"
         content = content + "\"pack_focus\":" + interop_json_string_value("primitive")
         return content + "}"
@@ -266,6 +275,11 @@ pub fn python_interop_case_telemetry(case_id: String) -> String:
         content = content + "\"boundary_kind\":\"module-attr\","
         content = content + "\"module\":" + interop_json_string_value("math") + ","
         content = content + "\"attr\":" + interop_json_string_value("tau") + ","
+        content = content + "\"python_getattrs_per_iteration\":1,"
+        content = content + "\"total_bridge_ops_per_iteration\":1,"
+        content = content + "\"creator_reuse\":true,"
+        content = content + "\"materialization_lane\":" + interop_json_string_value("float-truncate-int") + ","
+        content = content + "\"bench_intent\":" + interop_json_string_value("attribute-lookup-tax") + ","
         content = content + "\"iterations_default\":50000,"
         content = content + "\"pack_focus\":" + interop_json_string_value("primitive")
         return content + "}"
@@ -274,6 +288,12 @@ pub fn python_interop_case_telemetry(case_id: String) -> String:
         content = content + "\"boundary_kind\":\"module-call\","
         content = content + "\"module\":" + interop_json_string_value("math") + ","
         content = content + "\"call\":" + interop_json_string_value("sqrt") + ","
+        content = content + "\"python_calls_per_iteration\":1,"
+        content = content + "\"total_bridge_ops_per_iteration\":1,"
+        content = content + "\"creator_reuse\":true,"
+        content = content + "\"argument_shape\":" + interop_json_string_value("scalar-float64") + ","
+        content = content + "\"materialization_lane\":" + interop_json_string_value("float-truncate-int") + ","
+        content = content + "\"bench_intent\":" + interop_json_string_value("call-hot-loop-tax") + ","
         content = content + "\"sample_input\":144,"
         content = content + "\"iterations_default\":30000,"
         content = content + "\"pack_focus\":" + interop_json_string_value("primitive")
@@ -283,6 +303,13 @@ pub fn python_interop_case_telemetry(case_id: String) -> String:
         content = content + "\"boundary_kind\":\"scalar-box\","
         content = content + "\"module\":" + interop_json_string_value("numpy") + ","
         content = content + "\"scalar_type\":" + interop_json_string_value("int64") + ","
+        content = content + "\"python_calls_per_iteration\":1,"
+        content = content + "\"total_bridge_ops_per_iteration\":1,"
+        content = content + "\"creator_reuse\":false,"
+        content = content + "\"value_min\":0,"
+        content = content + "\"value_max\":65535,"
+        content = content + "\"materialization_lane\":" + interop_json_string_value("boxed-scalar-to-int") + ","
+        content = content + "\"bench_intent\":" + interop_json_string_value("scalar-boxing-tax") + ","
         content = content + "\"iterations_default\":30000,"
         content = content + "\"pack_focus\":" + interop_json_string_value("primitive")
         return content + "}"
@@ -292,6 +319,21 @@ pub fn python_interop_case_telemetry(case_id: String) -> String:
         content = content + "\"element_type\":" + interop_json_string_value("uint8") + ","
         content = content + "\"shape_kind\":" + interop_json_string_value("linear") + ","
         content = content + "\"edge_case\":" + interop_json_bool_text(case_id == "python_numpy_shared_buffer_tiny") + ","
+        content = content + "\"python_creator_calls_per_iteration\":4,"
+        content = content + "\"interop_adoptions_per_iteration\":1,"
+        content = content + "\"contract_reads_per_iteration\":1,"
+        content = content + "\"readback_copies_per_iteration\":1,"
+        content = content + "\"shape_rank\":1,"
+        if case_id == "python_numpy_shared_buffer_tiny":
+            content = content + "\"payload_bytes_min\":1,"
+            content = content + "\"payload_bytes_max\":3,"
+        else:
+            content = content + "\"payload_bytes_min\":128,"
+            content = content + "\"payload_bytes_max\":132,"
+        content = content + "\"creator_reuse\":false,"
+        content = content + "\"buffer_protocol_expected\":true,"
+        content = content + "\"contiguous_expected\":true,"
+        content = content + "\"bench_intent\":" + interop_json_string_value("adoption-plus-readback") + ","
         content = content + "\"expected_zero_copy\":true,"
         content = content + "\"expected_ownership\":" + interop_json_string_value("shared") + ","
         content = content + "\"pack_focus\":" + interop_json_string_value("shared-buffer")
@@ -301,7 +343,14 @@ pub fn python_interop_case_telemetry(case_id: String) -> String:
         content = content + "\"boundary_kind\":\"shared-tensor\","
         content = content + "\"rows\":" + str(RAW_TENSOR_ROWS) + ","
         content = content + "\"cols\":" + str(RAW_TENSOR_COLS) + ","
+        content = content + "\"shape_rank\":2,"
         content = content + "\"dtype\":" + interop_json_string_value("float32") + ","
+        content = content + "\"python_creator_calls_per_iteration\":4,"
+        content = content + "\"interop_adoptions_per_iteration\":1,"
+        content = content + "\"contract_reads_per_iteration\":1,"
+        content = content + "\"payload_bytes_per_iteration\":" + str(RAW_TENSOR_ROWS * RAW_TENSOR_COLS * 4) + ","
+        content = content + "\"creator_reuse\":false,"
+        content = content + "\"bench_intent\":" + interop_json_string_value("tensor-adoption-metadata") + ","
         content = content + "\"zero_copy_domain\":" + interop_json_string_value("tensor-runtime-handle") + ","
         content = content + "\"pack_focus\":" + interop_json_string_value("workflow")
         return content + "}"
@@ -312,6 +361,15 @@ pub fn python_interop_case_telemetry(case_id: String) -> String:
         content = content + "\"height\":" + str(RAW_IMAGE_H) + ","
         content = content + "\"channels\":" + str(RAW_IMAGE_C) + ","
         content = content + "\"layout\":" + interop_json_string_value("HWC") + ","
+        content = content + "\"python_creator_calls_per_iteration\":6,"
+        content = content + "\"interop_adoptions_per_iteration\":1,"
+        content = content + "\"contract_reads_per_iteration\":1,"
+        content = content + "\"readback_copies_per_iteration\":1,"
+        content = content + "\"payload_bytes_per_iteration\":" + str(RAW_IMAGE_W * RAW_IMAGE_H * RAW_IMAGE_C) + ","
+        content = content + "\"creator_reuse\":false,"
+        content = content + "\"buffer_protocol_expected\":true,"
+        content = content + "\"contiguous_expected\":true,"
+        content = content + "\"bench_intent\":" + interop_json_string_value("image-adoption-plus-readback") + ","
         content = content + "\"expected_zero_copy\":true,"
         content = content + "\"expected_ownership\":" + interop_json_string_value("shared") + ","
         content = content + "\"pack_focus\":" + interop_json_string_value("workflow")

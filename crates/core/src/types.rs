@@ -2020,6 +2020,33 @@ fn register_builtin_global_functions(env: &mut TypeEnv<'_>) {
             ),
         );
     }
+    env.define_global(
+        "py_call_raw_f64_trunc_i64".into(),
+        builtin_function_type(
+            vec![ResolvedType::Unknown, ResolvedType::Float(FloatSize::F64)],
+            ResolvedType::Int(IntSize::I64),
+        ),
+    );
+    env.define_global(
+        "py_buffer_view".into(),
+        builtin_function_type(vec![ResolvedType::Unknown], ResolvedType::Unknown),
+    );
+    for name in [
+        "py_buffer_view_byte_length",
+        "py_buffer_view_element_count",
+        "py_buffer_view_element_size",
+        "py_buffer_view_c_contiguous",
+        "py_buffer_view_writable",
+    ] {
+        env.define_global(
+            name.into(),
+            builtin_function_type(vec![ResolvedType::Unknown], ResolvedType::Int(IntSize::I64)),
+        );
+    }
+    env.define_global(
+        "py_buffer_view_release".into(),
+        builtin_function_type(vec![ResolvedType::Unknown], ResolvedType::Unit),
+    );
     for name in [
         "js_buffer_info",
         "js_buffer_bytes",
@@ -2041,6 +2068,22 @@ fn register_builtin_global_functions(env: &mut TypeEnv<'_>) {
             builtin_function_type(vec![ResolvedType::Unknown], ResolvedType::Unknown),
         );
     }
+    for name in [
+        "kain_shared_buffer_byte_length",
+        "kain_shared_buffer_element_count_value",
+        "kain_shared_buffer_element_size",
+        "kain_shared_buffer_zero_copy_flag",
+        "kain_shared_buffer_shared_ownership",
+    ] {
+        env.define_global(
+            name.into(),
+            builtin_function_type(vec![ResolvedType::Unknown], ResolvedType::Int(IntSize::I64)),
+        );
+    }
+    env.define_global(
+        "kain_shared_buffer_release".into(),
+        builtin_function_type(vec![ResolvedType::Unknown], ResolvedType::Unit),
+    );
     env.define_global(
         "kain_shared_buffer_from_bytes".into(),
         builtin_function_type(

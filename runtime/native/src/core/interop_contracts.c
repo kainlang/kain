@@ -896,6 +896,45 @@ int64_t kain_shared_buffer_info(int64_t target) {
     return info;
 }
 
+int64_t kain_shared_buffer_byte_length(int64_t target) {
+    KainSharedBufferHandle* buffer = kain_shared_as_buffer_handle(target);
+    return buffer ? buffer->byte_length : 0;
+}
+
+int64_t kain_shared_buffer_element_count_value(int64_t target) {
+    KainSharedBufferHandle* buffer = kain_shared_as_buffer_handle(target);
+    return buffer ? kain_shared_buffer_element_count(buffer) : 0;
+}
+
+int64_t kain_shared_buffer_element_size(int64_t target) {
+    KainSharedBufferHandle* buffer = kain_shared_as_buffer_handle(target);
+    return buffer ? buffer->element_size : 0;
+}
+
+int64_t kain_shared_buffer_zero_copy_flag(int64_t target) {
+    KainSharedBufferHandle* buffer = kain_shared_as_buffer_handle(target);
+    return (buffer && buffer->storage_mode == KAIN_SHARED_STORAGE_BORROWED) ? 1 : 0;
+}
+
+int64_t kain_shared_buffer_shared_ownership(int64_t target) {
+    KainSharedBufferHandle* buffer = kain_shared_as_buffer_handle(target);
+    if (!buffer) {
+        return 0;
+    }
+    if (!buffer->ownership) {
+        return 0;
+    }
+    return strcmp(buffer->ownership, "shared") == 0 ? 1 : 0;
+}
+
+void kain_shared_buffer_release(int64_t target) {
+    KainSharedBufferHandle* buffer = kain_shared_as_buffer_handle(target);
+    if (!buffer) {
+        return;
+    }
+    rc_release(buffer);
+}
+
 int64_t kain_shared_buffer_bytes(int64_t target) {
     KainSharedBufferHandle* buffer = kain_shared_as_buffer_handle(target);
     KainArray* bytes;

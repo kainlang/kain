@@ -1635,6 +1635,310 @@
       ]
     },
     {
+      "id": "python_call_hotloop_pyo3_scoped",
+      "title": "Python Call Hotloop PyO3 Scoped",
+      "description": "Cached Python math callable hot loop. Kain uses the current std::python raw call surface; Rust uses PyO3 with one outer GIL scope and cached callable plus constant handles.",
+      "maturity": "implemented",
+      "fairness_note": "Both rows cache `math.sqrt` and `math.tau` before timing. Rust intentionally holds one GIL scope across the full loop to show the PyO3 ceiling; Kain uses the current first-class raw bridge surface, which still reacquires the runtime GIL per raw call.",
+      "language_notes": {
+        "kain": "Caches the Python callable handle once and repeatedly crosses the raw call boundary through the native Python bridge.",
+        "rust": "Cargo release build with PyO3 auto-initialize; keeps one outer `Python::with_gil` scope around the entire timed loop."
+      },
+      "telemetry": {
+        "primary_metric_id": "python_calls_per_second",
+        "metrics": [
+          {
+            "id": "python_calls_per_second",
+            "label": "python calls/s",
+            "unit": "calls/s",
+            "work_items": 150000
+          },
+          {
+            "id": "bridge_rounds_per_second",
+            "label": "bridge rounds/s",
+            "unit": "rounds/s",
+            "work_items": 150000
+          }
+        ]
+      },
+      "languages": {
+        "kain": "cases/python_call_hotloop/main.kn",
+        "rust": "cases/python_call_hotloop_pyo3_scoped/src/main.rs"
+      },
+      "rust_manifest": "cases/python_call_hotloop_pyo3_scoped/Cargo.toml",
+      "rust_package": "python-call-hotloop-pyo3-scoped",
+      "rust_binary": "python-call-hotloop-pyo3-scoped",
+      "tags": [
+        "interop",
+        "python",
+        "runtime"
+      ],
+      "suites": [
+        "full"
+      ]
+    },
+    {
+      "id": "python_call_hotloop_pyo3_per_boundary",
+      "title": "Python Call Hotloop PyO3 Per Boundary",
+      "description": "Cached Python math callable hot loop with one host bridge crossing per iteration. Kain uses std::python raw calls; Rust uses PyO3 but deliberately reacquires the GIL for each timed loop turn.",
+      "maturity": "implemented",
+      "fairness_note": "Both rows cache `math.sqrt` and `math.tau` before timing. Rust reacquires the GIL once per iteration so this case lines up with Kain's current raw bridge shape instead of the best-case PyO3 batching ceiling.",
+      "language_notes": {
+        "kain": "Caches the Python callable handle once and repeatedly crosses the raw call boundary through the native Python bridge.",
+        "rust": "Cargo release build with PyO3 auto-initialize; reacquires `Python::with_gil` once per timed iteration while reusing a cached callable handle."
+      },
+      "telemetry": {
+        "primary_metric_id": "python_calls_per_second",
+        "metrics": [
+          {
+            "id": "python_calls_per_second",
+            "label": "python calls/s",
+            "unit": "calls/s",
+            "work_items": 150000
+          },
+          {
+            "id": "bridge_rounds_per_second",
+            "label": "bridge rounds/s",
+            "unit": "rounds/s",
+            "work_items": 150000
+          },
+          {
+            "id": "gil_scope_entries_per_second",
+            "label": "GIL scope entries/s",
+            "unit": "scopes/s",
+            "work_items": 150000
+          }
+        ]
+      },
+      "languages": {
+        "kain": "cases/python_call_hotloop/main.kn",
+        "rust": "cases/python_call_hotloop_pyo3_per_boundary/src/main.rs"
+      },
+      "rust_manifest": "cases/python_call_hotloop_pyo3_per_boundary/Cargo.toml",
+      "rust_package": "python-call-hotloop-pyo3-per-boundary",
+      "rust_binary": "python-call-hotloop-pyo3-per-boundary",
+      "tags": [
+        "interop",
+        "python",
+        "runtime"
+      ],
+      "suites": [
+        "full"
+      ]
+    },
+    {
+      "id": "python_buffer_view_pyo3_scoped",
+      "title": "Python Buffer View PyO3 Scoped",
+      "description": "Repeated borrowed buffer-protocol probe of one cached contiguous NumPy uint8 array. Kain uses a lightweight native `py_buffer_view` handle; Rust uses PyO3 `PyBuffer<u8>` inside one outer GIL scope.",
+      "maturity": "implemented",
+      "fairness_note": "Both rows create one contiguous NumPy source array before timing and then repeatedly borrow metadata from the same live Python owner without readback copies or shared-contract materialization. Rust keeps one outer GIL scope to show the PyO3 ceiling; Kain measures the new raw borrowed-buffer view lane.",
+      "language_notes": {
+        "kain": "Measures repeated `py_buffer_view` open/read/release cycles against the same cached Python owner with no shared-buffer contract allocation.",
+        "rust": "Cargo release build with PyO3 auto-initialize; repeatedly acquires `PyBuffer<u8>` from the same cached Python object while holding one outer GIL scope."
+      },
+      "telemetry": {
+        "primary_metric_id": "buffer_view_probes_per_second",
+        "metrics": [
+          {
+            "id": "buffer_view_probes_per_second",
+            "label": "buffer view probes/s",
+            "unit": "probes/s",
+            "work_items": 20000
+          },
+          {
+            "id": "borrowed_bytes_per_second",
+            "label": "borrowed bytes/s",
+            "unit": "bytes/s",
+            "work_items": 10240000
+          },
+          {
+            "id": "metadata_reads_per_second",
+            "label": "metadata reads/s",
+            "unit": "reads/s",
+            "work_items": 20000
+          }
+        ]
+      },
+      "languages": {
+        "kain": "cases/python_buffer_view_probe/main.kn",
+        "rust": "cases/python_zero_copy_buffer_pyo3_scoped/src/main.rs"
+      },
+      "rust_manifest": "cases/python_zero_copy_buffer_pyo3_scoped/Cargo.toml",
+      "rust_package": "python-zero-copy-buffer-pyo3-scoped",
+      "rust_binary": "python-zero-copy-buffer-pyo3-scoped",
+      "tags": [
+        "interop",
+        "python",
+        "runtime",
+        "zero-copy"
+      ],
+      "suites": [
+        "full"
+      ]
+    },
+    {
+      "id": "python_buffer_view_pyo3_per_boundary",
+      "title": "Python Buffer View PyO3 Per Boundary",
+      "description": "Repeated borrowed buffer-protocol probe of one cached contiguous NumPy uint8 array with one host bridge entry per timed turn. Kain uses `py_buffer_view`; Rust uses PyO3 but reacquires the GIL each iteration.",
+      "maturity": "implemented",
+      "fairness_note": "Both rows create one contiguous NumPy source array before timing and then repeatedly borrow metadata from the same live Python owner without readback copies or shared-contract materialization. Rust reacquires the GIL once per iteration so this case mirrors Kain's raw bridge shape instead of the best-case PyO3 batching ceiling.",
+      "language_notes": {
+        "kain": "Measures repeated `py_buffer_view` open/read/release cycles against the same cached Python owner with no shared-buffer contract allocation.",
+        "rust": "Cargo release build with PyO3 auto-initialize; reacquires `Python::with_gil` once per timed iteration while reusing the same cached Python object."
+      },
+      "telemetry": {
+        "primary_metric_id": "buffer_view_probes_per_second",
+        "metrics": [
+          {
+            "id": "buffer_view_probes_per_second",
+            "label": "buffer view probes/s",
+            "unit": "probes/s",
+            "work_items": 20000
+          },
+          {
+            "id": "borrowed_bytes_per_second",
+            "label": "borrowed bytes/s",
+            "unit": "bytes/s",
+            "work_items": 10240000
+          },
+          {
+            "id": "metadata_reads_per_second",
+            "label": "metadata reads/s",
+            "unit": "reads/s",
+            "work_items": 20000
+          },
+          {
+            "id": "gil_scope_entries_per_second",
+            "label": "GIL scope entries/s",
+            "unit": "scopes/s",
+            "work_items": 20000
+          }
+        ]
+      },
+      "languages": {
+        "kain": "cases/python_buffer_view_probe/main.kn",
+        "rust": "cases/python_zero_copy_buffer_pyo3_per_boundary/src/main.rs"
+      },
+      "rust_manifest": "cases/python_zero_copy_buffer_pyo3_per_boundary/Cargo.toml",
+      "rust_package": "python-zero-copy-buffer-pyo3-per-boundary",
+      "rust_binary": "python-zero-copy-buffer-pyo3-per-boundary",
+      "tags": [
+        "interop",
+        "python",
+        "runtime",
+        "zero-copy"
+      ],
+      "suites": [
+        "full"
+      ]
+    },
+    {
+      "id": "python_zero_copy_buffer_pyo3_scoped",
+      "title": "Python Zero Copy Buffer PyO3 Scoped",
+      "description": "Repeated zero-copy buffer-protocol adoption of one cached contiguous NumPy uint8 array. Kain uses `python_shared_buffer` plus shared contract reads; Rust uses PyO3 `PyBuffer<u8>` inside one outer GIL scope.",
+      "maturity": "implemented",
+      "fairness_note": "Both rows create one contiguous NumPy source array before timing and then repeatedly adopt metadata from the same live Python owner without explicit readback copies. Rust keeps one outer GIL scope to show the PyO3 ceiling; Kain exercises the current shared-buffer bridge surface directly.",
+      "language_notes": {
+        "kain": "Measures repeated `python_shared_buffer` adoption plus shared-contract metadata reads against the same cached Python owner.",
+        "rust": "Cargo release build with PyO3 auto-initialize; repeatedly acquires `PyBuffer<u8>` from the same cached Python object while holding one outer GIL scope."
+      },
+      "telemetry": {
+        "primary_metric_id": "buffer_adoptions_per_second",
+        "metrics": [
+          {
+            "id": "buffer_adoptions_per_second",
+            "label": "buffer adoptions/s",
+            "unit": "adoptions/s",
+            "work_items": 20000
+          },
+          {
+            "id": "shared_bytes_adopted_per_second",
+            "label": "shared bytes/s",
+            "unit": "bytes/s",
+            "work_items": 10240000
+          },
+          {
+            "id": "metadata_reads_per_second",
+            "label": "metadata reads/s",
+            "unit": "reads/s",
+            "work_items": 20000
+          }
+        ]
+      },
+      "languages": {
+        "kain": "cases/python_zero_copy_buffer_adoption/main.kn",
+        "rust": "cases/python_zero_copy_buffer_pyo3_scoped/src/main.rs"
+      },
+      "rust_manifest": "cases/python_zero_copy_buffer_pyo3_scoped/Cargo.toml",
+      "rust_package": "python-zero-copy-buffer-pyo3-scoped",
+      "rust_binary": "python-zero-copy-buffer-pyo3-scoped",
+      "tags": [
+        "interop",
+        "python",
+        "runtime",
+        "zero-copy"
+      ],
+      "suites": [
+        "full"
+      ]
+    },
+    {
+      "id": "python_zero_copy_buffer_pyo3_per_boundary",
+      "title": "Python Zero Copy Buffer PyO3 Per Boundary",
+      "description": "Repeated zero-copy buffer-protocol adoption of one cached contiguous NumPy uint8 array with one host bridge entry per timed turn. Kain uses `python_shared_buffer`; Rust uses PyO3 but reacquires the GIL each iteration.",
+      "maturity": "implemented",
+      "fairness_note": "Both rows create one contiguous NumPy source array before timing and then repeatedly adopt metadata from the same live Python owner without explicit readback copies. Rust reacquires the GIL once per iteration so this case mirrors Kain's current raw bridge shape instead of the best-case PyO3 batching ceiling.",
+      "language_notes": {
+        "kain": "Measures repeated `python_shared_buffer` adoption plus shared-contract metadata reads against the same cached Python owner.",
+        "rust": "Cargo release build with PyO3 auto-initialize; reacquires `Python::with_gil` once per timed iteration while reusing the same cached Python object."
+      },
+      "telemetry": {
+        "primary_metric_id": "buffer_adoptions_per_second",
+        "metrics": [
+          {
+            "id": "buffer_adoptions_per_second",
+            "label": "buffer adoptions/s",
+            "unit": "adoptions/s",
+            "work_items": 20000
+          },
+          {
+            "id": "shared_bytes_adopted_per_second",
+            "label": "shared bytes/s",
+            "unit": "bytes/s",
+            "work_items": 10240000
+          },
+          {
+            "id": "metadata_reads_per_second",
+            "label": "metadata reads/s",
+            "unit": "reads/s",
+            "work_items": 20000
+          },
+          {
+            "id": "gil_scope_entries_per_second",
+            "label": "GIL scope entries/s",
+            "unit": "scopes/s",
+            "work_items": 20000
+          }
+        ]
+      },
+      "languages": {
+        "kain": "cases/python_zero_copy_buffer_adoption/main.kn",
+        "rust": "cases/python_zero_copy_buffer_pyo3_per_boundary/src/main.rs"
+      },
+      "rust_manifest": "cases/python_zero_copy_buffer_pyo3_per_boundary/Cargo.toml",
+      "rust_package": "python-zero-copy-buffer-pyo3-per-boundary",
+      "rust_binary": "python-zero-copy-buffer-pyo3-per-boundary",
+      "tags": [
+        "interop",
+        "python",
+        "runtime",
+        "zero-copy"
+      ],
+      "suites": [
+        "full"
+      ]
+    },
+    {
       "id": "ffi_shared_call_stress",
       "title": "FFI Shared Call Stress",
       "description": "Repeated native shared-library calls through one tiny C ABI function. This is the direct FFI-call half of the missing callback/FFI category.",

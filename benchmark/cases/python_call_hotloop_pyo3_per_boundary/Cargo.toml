@@ -1,0 +1,10 @@
+[package]
+name = "python-call-hotloop-pyo3-per-boundary"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+pyo3 = { version = "0.20.3", features = ["auto-initialize"] }
+
+[workspace]
