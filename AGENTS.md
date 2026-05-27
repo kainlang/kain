@@ -19,6 +19,7 @@ When a proof unlocks a faster dirty path, take the path. Unsafe Rust, C pointer 
 - Do not perform broad refactors just because they are tempting. If the refactor is not on the critical path, surface it as a follow-up or prove that it unlocks the current work.
 - Prefer full implementations over scaffolding. Placeholders are only acceptable when they are honest, labeled, and unblock a larger verified path.
 - Prefer new capability over familiar shape. A clean conventional implementation that leaves 10x performance or a new semantic primitive on the table is not clean in this repo.
+- If a path involves performance, treat JSON as banned from the hot lane. JSON is acceptable for human-facing diagnostics, config, web boundaries, and offline tooling; it is not acceptable for hot-path transport, runtime IPC, actor message floods, benchmark-critical data movement, GPU staging, or zero-copy boundaries.
 - If the normal solution feels obvious, pause and ask what a solver, a compiler, a GPU, a cache line, or Kain's ownership/world model could do that the normal solution cannot.
 - Feel free to make new files in and entire new modules in both the /runtime and /crates whenever if need be if it means we can fine tune it better for future performance - you have no limits in this codebase.
 
@@ -26,6 +27,8 @@ When a proof unlocks a faster dirty path, take the path. Unsafe Rust, C pointer 
 
 - Native LLVM and `runtime/native` are the priority. Rust remains the bootstrap and tooling substrate, but Kain must increasingly own its own semantics.
 - Bazel is the canonical build and test lane for this repo. Agents should use `bazel build` and `bazel test` first for compiler/runtime/CLI work, including Rust crate validation.
+- Performance transport is a hard requirement surface. Do not route performance-sensitive data through JSON just because it is familiar. Prefer fixed-layout binary schemas, custom packed ABI structs, Cap'n Proto, FlatBuffers, SBE, Arrow IPC, shared-memory ring buffers, memory-mapped columnar buffers, zero-copy slices/views, or other typed binary lanes that match the actual throughput and latency target.
+- If the goal is to beat Rust/C++ class systems, stop importing JavaScript habits into the hot path. JSON belongs in web glue, developer tooling, logs, and debug export lanes, not in the runtime fast path.
 - Keep authored behavior in Kain when it belongs to Kain semantics. - New PRIORITY EFFECTIVE MAY 22: when authoring KAIN try and leave useful non robotic comments in the code etc so that way we can start getting fire examples for humans to read etc -- also in a kain file if you are building out a full on system etc, section dividers that look like this would be superb (HOWEVER DO NOT CRAZY WITH THESE, ONLY for sexy code and complex ass systems you would be proud of) (AND IF YOU REALLY WANT TO CRAZY, DEVISE SOME ASCII ART/ flow charts IN THE CODE OF HOW SOMETHING WORKS IF you truly want to flex your skills lol)
 -  
 // ============================================================================
@@ -152,12 +155,13 @@ Authoring guidance for this loop:
 - Use these paths first for stdlib, Python import, actors, worlds, entangle, patch, ownership, shader-authoring, and general language-surface pressure.
 - If authored Kain fails in these paths, treat it as a real language/toolchain bug unless you can prove the snippet itself is wrong.
 - Do not assume REPL or inline mode is a toy interpreter lane anymore. Verify the current behavior with a tiny script before reaching for Rust/C changes.
+- If the feature or pipeline has performance goals, design the transport/storage lane accordingly from the start. Do not prototype the hot path in JSON and hope to "optimize it later."
 
 Use this style of proof aggressively. If a Kain feature claim is "Python import works", "std::fs works", "shader syntax works", or "actors/worlds/ownership work together", show it with a tiny native script first and then graduate it into `smoketest/`, `blades/`, `benchmark/`, or `attrition/` as the claim hardens.
 - Use the root `stdlib/` surface aggressively. Prefer public root imports such as `std.actor`, `std.fs`, `std.http`, `std.net`, `std.process`, `std.graphics`, and `std.ui`. Do not recreate a parallel live `std.native.*` tree. -- `\stdlib\STDLIB_MAP.llm.md` for the full map
 - If Kain code hits a real compiler/runtime bug, patch the compiler or runtime. Do not just route around it in the demo.
 - If a pipeline or language surface is touched, prefer proving it in `smoketest/` first; use `blades/` for package, app, and reusable dogfood when practical.
-- If performance is part of the claim, prove it in `benchmark/`.
+- If performance is part of the claim, prove it in `benchmark/`, and do not smuggle JSON through the measured lane unless the benchmark is explicitly about JSON.
 - If runtime cleanliness or long-horizon stability is part of the claim, prove it in `attrition/`.
 
 ## First Read Order
