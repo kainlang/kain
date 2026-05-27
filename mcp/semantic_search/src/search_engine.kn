@@ -192,8 +192,13 @@ fn write_padded_payload_from_file(src: String, dest: String, expected_bytes: Int
     let padding = expected_bytes - meta.len
     if padding > 0:
         append_zero_bytes(dest, padding)
-    let final_meta = fs_metadata(dest)
-    return final_meta.len == expected_bytes
+    var final_len = fs_metadata(dest).len
+    var retry = 0
+    while final_len < expected_bytes and retry < 4:
+        append_zero_bytes(dest, expected_bytes - final_len)
+        final_len = fs_metadata(dest).len
+        retry = retry + 1
+    return final_len == expected_bytes
 
 fn append_zero_bytes(path: String, count: Int) -> Unit:
     var remaining = count

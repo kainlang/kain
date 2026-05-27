@@ -252,3 +252,37 @@
 - Minimal repro: return a tuple containing a struct plus scalar values from a helper, destructure it in another function, then compare `kain check <project> --target llvm` with `kain run <entry> --target llvm`.
 - Evidence: `X:\mcp\semantic_search\.kain\reports\run\session-1779861427025-8704.json`
 - Suggested direction: either teach LLVM lowering this tuple storage shape or make `check --target llvm` reject unsupported tuple destructuring with the same diagnostic before run/build.
+
+---
+
+## 2026-05-27 - semantic_search CUDA dogfood
+
+### `fs_copy_file_streaming` returns byte count while adjacent fs APIs expose status codes
+- Categories: developer-experience, stdlib, correctness
+- Status: Active
+- Surface: stdlib
+- Symptom: `fs_copy_file_streaming(src, dest, 1048576)` returns the copied byte count, while nearby helpers such as `fs_last_status()` and many fs mutators use status-code semantics.
+- Workflow impact: The semantic_search CUDA payload stager treated a successful 191232-byte copy as failure, aborting before padding the runtime sidecar to the declared 38400000 bytes.
+- Minimal repro: In Kain, copy any non-empty file with `fs_copy_file_streaming` and compare the return value to `0`.
+- Evidence: `kain run X:\mcp\semantic_search\src\main.kn --target llvm -- search kain cuda 5` initially failed with `ERROR: failed to stage packed index matrix payload`; an inline probe printed `copy=191232`.
+- Suggested direction: Rename/document the function as byte-count-returning or add a boolean/status wrapper so authors do not infer the wrong contract from adjacent fs APIs.
+
+### `to_string(Float)` currently truncates sub-1 scores to `0`
+- Categories: developer-experience, stdlib, correctness
+- Status: Active
+- Surface: stdlib
+- Symptom: `to_string(0.5)`, `to_string(0.875)`, and `to_string(50000.0 / 97920.0)` print `0`.
+- Workflow impact: CUDA ranking scores were valid in the binary sidecar, but CLI/MCP output looked like every result scored zero until semantic_search added a local fixed-point formatter.
+- Minimal repro: `kain -c "fn main() -> Int:\n    println(to_string(0.5))\n    return 0"`
+- Evidence: Inline probe during semantic_search CUDA validation printed `0` for `0.5`, `0.875`, and a nonzero division result.
+- Suggested direction: Fix runtime/std float formatting or expose a standard fixed-precision formatter for CLI and JSON surfaces.
+
+### CUDA shader lowering rejects explicit `UInt(u8_storage_load)` widening
+- Categories: developer-experience, gpu, correctness
+- Status: Active
+- Surface: gpu
+- Symptom: `let q = UInt(query_embed[lane])` in a CUDA shader failed artifact generation with `Invalid cast in shader: source/target dimensions or categories are incompatible`.
+- Workflow impact: The packed u8 semantic_search kernel had to rely on implicit widening patterns instead of an explicit cast, which is less obvious for authors writing byte-packed CUDA kernels.
+- Minimal repro: A `shader compute` with `uniform data: StorageBuffer<u8> @0` and `let x = UInt(data[id.x])`, then `kain gpu-artifacts <file> --output <out>`.
+- Evidence: `kain gpu-artifacts X:\mcp\semantic_search\src\search_kernel.kn --output .\kain` failed until the explicit cast was removed.
+- Suggested direction: Teach GPU lowering an explicit scalar integer widening cast from `u8`/`i8` to `UInt`/`Int`, or emit a targeted diagnostic recommending the supported widening idiom.

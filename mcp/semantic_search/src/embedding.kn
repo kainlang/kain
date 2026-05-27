@@ -67,8 +67,9 @@ fn add_token_ngrams(vec: Array<Int>, token: String, dim: Int) -> Unit:
         gram_len = gram_len + 1
 
 fn set_feature(vec: Array<Int>, feature_hash: Int, dim: Int) -> Unit:
-    let lane = feature_hash % dim
-    var fingerprint = ((feature_hash >> 11) & 255)
+    let safe_hash = feature_hash & 2147483647
+    let lane = safe_hash % dim
+    var fingerprint = ((safe_hash >> 11) & 255)
     if fingerprint == 0:
         fingerprint = 1
     if lane >= 0 and lane < len(vec):
