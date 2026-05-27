@@ -581,17 +581,113 @@ long long kain_parse_i64_string(char* src) {
     return value;
 }
 
-void* kain_alloc_rc(size_t size, long long type_tag) {
-    size_t total_size = sizeof(RcHeader) + size;
-    RcHeader* header = (RcHeader*)kain_attrition_heap_alloc(total_size);
-    void* payload;
-    if (!header) {
+double kain_parse_f64_string(char* src) {
+    size_t len;
+    char* scratch;
+    char* end = NULL;
+    double value;
+    if (!src) {
+        emit_diagnostic(
+            KAIN_DIAG_SUBSYSTEM_PLATFORM,
+            KAIN_DIAG_SEVERITY_ERROR,
+            KAIN_DIAG_CODE_PLATFORM_INVALID_ARGUMENT,
+            "Invalid to_float input",
+            "to_float expects a non-null string"
+        );
+        return 0.0;
+    }
+    len = kain_string_len_rc(src);
+    if (len == 0u) {
+        emit_diagnostic(
+            KAIN_DIAG_SUBSYSTEM_PLATFORM,
+            KAIN_DIAG_SEVERITY_ERROR,
+            KAIN_DIAG_CODE_PLATFORM_INVALID_ARGUMENT,
+            "Invalid to_float input",
+            "to_float cannot parse an empty string"
+        );
+        return 0.0;
+    }
+    scratch = (char*)malloc(len + 1u);
+    if (!scratch) {
         emit_diagnostic(
             KAIN_DIAG_SUBSYSTEM_MEMORY,
             KAIN_DIAG_SEVERITY_ERROR,
             KAIN_DIAG_CODE_MEMORY_ALLOC_FAILED,
             "Memory allocation failed",
-            "Failed to allocate memory with reference counting header"
+            "Failed to allocate a parse scratch buffer for to_float"
+        );
+        return 0.0;
+    }
+    memcpy(scratch, src, len);
+    scratch[len] = '\0';
+    if (kain_char_is_space(scratch[0]) || kain_char_is_space(scratch[len - 1u])) {
+        free(scratch);
+        emit_diagnostic(
+            KAIN_DIAG_SUBSYSTEM_PLATFORM,
+            KAIN_DIAG_SEVERITY_ERROR,
+            KAIN_DIAG_CODE_PLATFORM_INVALID_ARGUMENT,
+            "Invalid to_float input",
+            "to_float rejects surrounding whitespace"
+        );
+        return 0.0;
+    }
+    errno = 0;
+    value = strtod(scratch, &end);
+    if (errno == ERANGE || end == scratch || (size_t)(end - scratch) != len) {
+        free(scratch);
+        emit_diagnostic(
+            KAIN_DIAG_SUBSYSTEM_PLATFORM,
+            KAIN_DIAG_SEVERITY_ERROR,
+            KAIN_DIAG_CODE_PLATFORM_INVALID_ARGUMENT,
+            "Invalid to_float input",
+            "to_float could not parse the provided string as a base-10 float"
+        );
+        return 0.0;
+    }
+    free(scratch);
+    return value;
+}
+
+void* kain_alloc_rc(size_t size, long long type_tag) {
+    size_t total_size;
+    RcHeader* header;
+    void* payload;
+    char detail[192];
+    if (size > SIZE_MAX - sizeof(RcHeader)) {
+        snprintf(
+            detail,
+            sizeof(detail),
+            "RC allocation size overflow: payload=%zu header=%zu type_tag=%lld",
+            size,
+            sizeof(RcHeader),
+            type_tag
+        );
+        emit_diagnostic(
+            KAIN_DIAG_SUBSYSTEM_MEMORY,
+            KAIN_DIAG_SEVERITY_ERROR,
+            KAIN_DIAG_CODE_MEMORY_ALLOC_FAILED,
+            "Memory allocation failed",
+            detail
+        );
+        return NULL;
+    }
+    total_size = sizeof(RcHeader) + size;
+    header = (RcHeader*)kain_attrition_heap_alloc(total_size);
+    if (!header) {
+        snprintf(
+            detail,
+            sizeof(detail),
+            "Failed to allocate RC block: payload=%zu total=%zu type_tag=%lld",
+            size,
+            total_size,
+            type_tag
+        );
+        emit_diagnostic(
+            KAIN_DIAG_SUBSYSTEM_MEMORY,
+            KAIN_DIAG_SEVERITY_ERROR,
+            KAIN_DIAG_CODE_MEMORY_ALLOC_FAILED,
+            "Memory allocation failed",
+            detail
         );
         return NULL;
     }
@@ -607,12 +703,20 @@ void* kain_alloc_rc(size_t size, long long type_tag) {
         if (!kain_attrition_heap_release(header, total_size)) {
             free(header);
         }
+        snprintf(
+            detail,
+            sizeof(detail),
+            "Failed to register RC provenance: payload=%zu total=%zu type_tag=%lld",
+            size,
+            total_size,
+            type_tag
+        );
         emit_diagnostic(
             KAIN_DIAG_SUBSYSTEM_MEMORY,
             KAIN_DIAG_SEVERITY_ERROR,
             KAIN_DIAG_CODE_MEMORY_ALLOC_FAILED,
             "Memory allocation failed",
-            "Failed to register runtime RC provenance for a new allocation."
+            detail
         );
         return NULL;
     }
@@ -1117,6 +1221,14 @@ long long clock_wrapper() {
 
 void array_free_elems(void* ptr) {
     KainArray* arr = (KainArray*)ptr;
+    long long i;
+    if (!arr) return;
+    for (i = 0; i < arr->len; i++) {
+        KainRcTrackedPointer tracked = kain_rc_registry_lookup((void*)(intptr_t)arr->data[i]);
+        if (tracked.state == KAIN_RC_TRACK_LIVE && tracked.header != NULL) {
+            rc_release((void*)(intptr_t)arr->data[i]);
+        }
+    }
     free(arr->data);
 }
 
@@ -1169,6 +1281,8 @@ long long array_get(KainArray* arr, long long index) {
 }
 
 void array_set(KainArray* arr, long long index, long long val) {
+    long long previous;
+    KainRcTrackedPointer tracked;
     if (index < 0 || index >= arr->len) {
         char detail[128];
         snprintf(detail, sizeof(detail), "Index %lld out of bounds for array of length %lld", index, arr->len);
@@ -1181,11 +1295,33 @@ void array_set(KainArray* arr, long long index, long long val) {
         );
         exit(1);
     }
+    previous = arr->data[index];
+    if (previous != val) {
+        tracked = kain_rc_registry_lookup((void*)(intptr_t)previous);
+        if (tracked.state == KAIN_RC_TRACK_LIVE && tracked.header != NULL) {
+            rc_release((void*)(intptr_t)previous);
+        }
+    }
     arr->data[index] = val;
 }
 
-long long array_len(KainArray* arr) {
-    return arr->len;
+long long array_len(void* value) {
+    KainRcTrackedPointer tracked;
+    if (!value) return 0;
+    tracked = kain_rc_registry_lookup(value);
+    if (tracked.state != KAIN_RC_TRACK_LIVE || tracked.header == NULL) {
+        return 0;
+    }
+    if (tracked.header->type_tag == 2) {
+        return ((KainArray*)value)->len;
+    }
+    if (tracked.header->type_tag == 1) {
+        return (long long)tracked.header->string_length;
+    }
+    if (tracked.header->type_tag == 3) {
+        return ((KainMap*)value)->count;
+    }
+    return 0;
 }
 
 long long pop(void* arr_ptr) {

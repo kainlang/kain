@@ -130,6 +130,7 @@ int64_t abi_fs_atomic_write_text_len(const char* path, const char* content, int6
 const char* abi_fs_read_bytes_hex(const char* path);
 const char* abi_fs_read_byte_range_hex(const char* path, int64_t offset, int64_t length);
 int64_t abi_fs_write_bytes_hex(const char* path, const char* hex);
+int64_t abi_fs_write_bytes_hex_at(const char* path, int64_t offset, const char* hex);
 int64_t abi_fs_append_bytes_hex(const char* path, const char* hex);
 int64_t abi_fs_atomic_write_bytes_hex(const char* path, const char* hex);
 int abi_fs_exists(const char* path);

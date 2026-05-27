@@ -1,0 +1,29 @@
+version: 1
+id: kain.native.core.proofs.native_array_owned_element_release_bounds
+kind: check_smt2
+description: Native array element release only reads initialized slots when len stays inside capacity.
+tags:
+- native-runtime
+- memory
+- rc
+- arrays
+- bounds
+source:
+  path: X:\runtime\native\src\core\core.c
+  symbol: array_free_elems
+  reason: array_free_elems iterates i from 0 inclusive to len exclusive over the data buffer.
+case:
+  smt2: |
+    (set-logic ALL)
+    (declare-const i Int)
+    (declare-const len Int)
+    (declare-const cap Int)
+    (assert (>= cap 0))
+    (assert (>= len 0))
+    (assert (<= len cap))
+    (assert (>= i 0))
+    (assert (< i len))
+    (assert (not (and (>= i 0) (< i cap))))
+    (check-sat)
+  include_model: false
+  include_stats: false

@@ -239,3 +239,16 @@
 - Minimal repro: from `D:\Kain-Lang`, run `kain test blades/test/fabric_FFI/python/python_import_gauntlet --target interpret` and compare with `kain run blades/test/fabric_FFI/python/python_import_gauntlet/smoke.kn --target interpret`. The direct run succeeds; the repo-root test fails. Running `kain test smoke.kn --target interpret` from inside the blade directory passes.
 - Evidence: direct run emitted the full gauntlet report and artifacts under `blades/test/fabric_FFI/python/python_import_gauntlet/outputs/`, while repo-root test failed with `ModuleNotFoundError: No module named 'ecosystem_local'`.
 - Suggested direction: preserve/import `source_file` context into the source-test harness for Python `import` items, or teach the harness to seed importer-relative search roots before evaluating tests so blade-local sibling `.py` and package imports behave the same in `test` and `run`.
+
+---
+
+## 2026-05-27 - semantic_search native dogfood
+### `check --target llvm` accepts tuple destructuring shape that native LLVM lowering rejects
+- Categories: correctness, developer-experience, lowering
+- Status: Bypass-Applied
+- Surface: lowering
+- Symptom: `kain check X:\mcp\semantic_search --target llvm` passed after adding `let (meta, norm, next_cursor, ok) = parse_one_meta(...)`, but native `kain run ... --target llvm` failed in codegen with `Unknown tuple storage type for pattern: __kain_tuple__IndexMeta__double_i64_i1`.
+- Workflow impact: validation looked green until executable build, so the semantic-search reader fix had to be reshaped from tuple return into a named `ParsedMeta` struct before native proof could continue.
+- Minimal repro: return a tuple containing a struct plus scalar values from a helper, destructure it in another function, then compare `kain check <project> --target llvm` with `kain run <entry> --target llvm`.
+- Evidence: `X:\mcp\semantic_search\.kain\reports\run\session-1779861427025-8704.json`
+- Suggested direction: either teach LLVM lowering this tuple storage shape or make `check --target llvm` reject unsupported tuple destructuring with the same diagnostic before run/build.

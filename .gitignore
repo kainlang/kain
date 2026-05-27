@@ -15,7 +15,6 @@ tidus/
 /research
 research/
 /.zarchive/
-/z3-mcp
 /smoketest/3D/
 reference/
 library_of_kain/
@@ -128,8 +127,6 @@ target_selfhost_probe/**
 *target_selfhost_probe*
 /node_modules/*
 # Third-party vendored deps
-third_party/
-third_party/modular_mojo/
 
 # Materialized app outputs and runtime-state sidecars
 /generated/
@@ -154,6 +151,10 @@ website/
 /.reference/
 zender
 zender
+
+
+/plans
+plans/
 
 # Native runtime build artifacts
 *.obj.fingerprint

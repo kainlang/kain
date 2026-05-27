@@ -3592,6 +3592,23 @@ impl Env {
             runtime_fs_strict_unit("fs_write_bytes_hex", kain_fs::write_bytes(path, &bytes))
         });
 
+        self.define_native("fs_write_bytes_hex_at", |_env, args| {
+            let path = runtime_expect_scoped_path(
+                &args,
+                0,
+                "fs_write_bytes_hex_at",
+                FsCapability::Write,
+            )?;
+            let offset =
+                runtime_expect_non_negative_int_arg(&args, 1, "fs_write_bytes_hex_at", "offset")?;
+            let hex = runtime_expect_string_arg(&args, 2, "fs_write_bytes_hex_at", "hex")?;
+            let bytes = runtime_hex_decode(hex)?;
+            runtime_fs_strict_unit(
+                "fs_write_bytes_hex_at",
+                kain_fs::write_bytes_at(path, offset as u64, &bytes),
+            )
+        });
+
         self.define_native("fs_metadata_text", |_env, args| {
             let path =
                 runtime_expect_scoped_path(&args, 0, "fs_metadata_text", FsCapability::Metadata)?;

@@ -76,6 +76,9 @@ pub fn abi_fs_read_byte_range_hex(path: String, offset: Int, length: Int) -> Str
 pub fn abi_fs_write_bytes_hex(path: String, hex: String) -> Int
 
 @extern
+pub fn abi_fs_write_bytes_hex_at(path: String, offset: Int, hex: String) -> Int
+
+@extern
 pub fn abi_fs_append_bytes_hex(path: String, hex: String) -> Int
 
 @extern
@@ -178,21 +181,44 @@ pub fn fs_parse_int_or_zero(value: String) -> Int:
     return to_int(value)
 
 pub fn fs_hex_to_bytes(hex: String) -> Array<Int>:
-    let decoded = hex_decode(hex)
     let mut bytes: Array<Int> = []
     var index = 0
-    while index < len(decoded):
-        push(bytes, byte_at(decoded, index))
-        index = index + 1
+    if (len(hex) % 2) != 0:
+        return bytes
+    while index + 1 < len(hex):
+        let high = fs_hex_digit_value(char_at(hex, index))
+        let low = fs_hex_digit_value(char_at(hex, index + 1))
+        if high < 0 or low < 0:
+            return []
+        push(bytes, ((high << 4) | low) & 255)
+        index = index + 2
     return bytes
 
 pub fn fs_bytes_to_hex(bytes: Array<Int>) -> String:
-    var text = ""
+    var hex = ""
     var index = 0
     while index < len(bytes):
-        text = text + chr(bytes[index] & 255)
+        let value = bytes[index] & 255
+        hex = hex + fs_hex_digit_char((value >> 4) & 15)
+        hex = hex + fs_hex_digit_char(value & 15)
         index = index + 1
-    return hex_encode(text)
+    return hex
+
+fn fs_hex_digit_value(ch: String) -> Int:
+    let code = ord(ch)
+    if code >= 48 and code <= 57:
+        return code - 48
+    if code >= 97 and code <= 102:
+        return code - 87
+    if code >= 65 and code <= 70:
+        return code - 55
+    return -1
+
+fn fs_hex_digit_char(value: Int) -> String:
+    let nibble = value & 15
+    if nibble < 10:
+        return chr(48 + nibble)
+    return chr(87 + nibble)
 
 pub fn fs_nonempty_lines(text: String) -> Array<String>:
     let raw_lines = text_split_lines(text)
@@ -331,22 +357,10 @@ pub fn fs_atomic_write_text(path: String, content: String) -> Unit:
     let _status = abi_fs_atomic_write_text_len(path, content, len(content))
 
 pub fn fs_read_bytes(path: String) -> Array<Int>:
-    let decoded = hex_decode(abi_fs_read_bytes_hex(path))
-    let mut bytes: Array<Int> = []
-    var index = 0
-    while index < len(decoded):
-        push(bytes, byte_at(decoded, index))
-        index = index + 1
-    return bytes
+    return fs_hex_to_bytes(abi_fs_read_bytes_hex(path))
 
 pub fn fs_read_bytes_range(path: String, offset: Int, length: Int) -> Array<Int>:
-    let decoded = hex_decode(abi_fs_read_byte_range_hex(path, offset, length))
-    let mut bytes: Array<Int> = []
-    var index = 0
-    while index < len(decoded):
-        push(bytes, byte_at(decoded, index))
-        index = index + 1
-    return bytes
+    return fs_hex_to_bytes(abi_fs_read_byte_range_hex(path, offset, length))
 
 pub fn fs_read_bytes_hex(path: String) -> String:
     return abi_fs_read_bytes_hex(path)
@@ -357,29 +371,26 @@ pub fn fs_read_byte_range_hex(path: String, offset: Int, length: Int) -> String:
 pub fn fs_write_bytes_hex(path: String, hex: String) -> Unit:
     let _status = abi_fs_write_bytes_hex(path, hex)
 
+pub fn fs_write_bytes_hex_at(path: String, offset: Int, hex: String) -> Unit:
+    let _status = abi_fs_write_bytes_hex_at(path, offset, hex)
+
+pub fn fs_append_bytes_hex(path: String, hex: String) -> Unit:
+    let _status = abi_fs_append_bytes_hex(path, hex)
+
+pub fn fs_write_text_at(path: String, offset: Int, content: String) -> Unit:
+    let _status = abi_fs_write_bytes_hex_at(path, offset, hex_encode(content))
+
 pub fn fs_write_bytes(path: String, bytes: Array<Int>) -> Unit:
-    var text = ""
-    var index = 0
-    while index < len(bytes):
-        text = text + chr(bytes[index] & 255)
-        index = index + 1
-    let _status = abi_fs_write_bytes_hex(path, hex_encode(text))
+    let _status = abi_fs_write_bytes_hex(path, fs_bytes_to_hex(bytes))
+
+pub fn fs_write_bytes_at(path: String, offset: Int, bytes: Array<Int>) -> Unit:
+    let _status = abi_fs_write_bytes_hex_at(path, offset, fs_bytes_to_hex(bytes))
 
 pub fn fs_append_bytes(path: String, bytes: Array<Int>) -> Unit:
-    var text = ""
-    var index = 0
-    while index < len(bytes):
-        text = text + chr(bytes[index] & 255)
-        index = index + 1
-    let _status = abi_fs_append_bytes_hex(path, hex_encode(text))
+    let _status = abi_fs_append_bytes_hex(path, fs_bytes_to_hex(bytes))
 
 pub fn fs_atomic_write_bytes(path: String, bytes: Array<Int>) -> Unit:
-    var text = ""
-    var index = 0
-    while index < len(bytes):
-        text = text + chr(bytes[index] & 255)
-        index = index + 1
-    let _status = abi_fs_atomic_write_bytes_hex(path, hex_encode(text))
+    let _status = abi_fs_atomic_write_bytes_hex(path, fs_bytes_to_hex(bytes))
 
 pub fn fs_exists(path: String) -> Bool:
     return abi_fs_exists(path)

@@ -1,0 +1,28 @@
+version: 1
+id: kain.native.core.proofs.native_memory_rc_allocation_total_size_guard
+kind: check_smt2
+description: The RC allocation header addition cannot overflow after the payload-size guard accepts the request.
+tags:
+- native-runtime
+- memory
+- rc
+- allocation
+- bounds
+source:
+  path: X:\runtime\native\src\core\core.c
+  symbol: kain_alloc_rc
+  reason: size is rejected when it exceeds SIZE_MAX - sizeof(RcHeader) before total_size is computed
+case:
+  smt2: |
+    (set-logic ALL)
+    (declare-const size Int)
+    (declare-const header Int)
+    (declare-const size_max Int)
+    (assert (> header 0))
+    (assert (> size_max header))
+    (assert (>= size 0))
+    (assert (<= size (- size_max header)))
+    (assert (not (<= (+ header size) size_max)))
+    (check-sat)
+  include_model: false
+  include_stats: false

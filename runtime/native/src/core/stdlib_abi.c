@@ -26,6 +26,7 @@
 #include <string.h>
 #include <time.h>
 #include <sys/stat.h>
+#include <limits.h>
 
 #ifdef _WIN32
 #include <direct.h>
@@ -1993,6 +1994,52 @@ static int64_t abi_fs_write_bytes_hex_mode(const char* path, const char* hex, co
 
 int64_t abi_fs_write_bytes_hex(const char* path, const char* hex) {
     return abi_fs_write_bytes_hex_mode(path, hex, "wb", "write_bytes_hex");
+}
+
+int64_t abi_fs_write_bytes_hex_at(const char* path, int64_t offset, const char* hex) {
+    FILE* file = 0;
+    size_t length;
+    size_t index;
+    if (path == 0 || path[0] == '\0' || hex == 0 || offset < 0 || offset > (int64_t)LONG_MAX) {
+        errno = EINVAL;
+        return abi_fs_fail("write_bytes_hex_at", path);
+    }
+    length = strlen(hex);
+    if ((length % 2) != 0) {
+        errno = EINVAL;
+        return abi_fs_fail("write_bytes_hex_at", path);
+    }
+#ifdef _WIN32
+    if (fopen_s(&file, path, "r+b") != 0) file = 0;
+#else
+    file = fopen(path, "r+b");
+#endif
+    if (file == 0) {
+        if (abi_fs_open_write_retry_parent_dirs(path, "w+b", &file) != 0 || file == 0) {
+            return abi_fs_fail("write_bytes_hex_at", path);
+        }
+    }
+    if (fseek(file, (long)offset, SEEK_SET) != 0) {
+        fclose(file);
+        return abi_fs_fail("write_bytes_hex_at", path);
+    }
+    for (index = 0; index < length; index += 2) {
+        int hi = abi_fs_hex_value(hex[index]);
+        int lo = abi_fs_hex_value(hex[index + 1]);
+        unsigned char byte;
+        if (hi < 0 || lo < 0) {
+            fclose(file);
+            errno = EINVAL;
+            return abi_fs_fail("write_bytes_hex_at", path);
+        }
+        byte = (unsigned char)((hi << 4) | lo);
+        if (fwrite(&byte, 1, 1, file) != 1) {
+            fclose(file);
+            return abi_fs_fail("write_bytes_hex_at", path);
+        }
+    }
+    fclose(file);
+    return abi_fs_ok();
 }
 
 int64_t abi_fs_append_bytes_hex(const char* path, const char* hex) {

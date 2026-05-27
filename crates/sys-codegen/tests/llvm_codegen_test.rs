@@ -3531,11 +3531,15 @@ fn rebuild_byte(value: Int) -> String:
 fn parse_int_text(text: String) -> Int:
     return to_int(text)
 
+fn parse_float_text(text: String) -> Float:
+    return to_float(text)
+
 fn main() -> Int:
     let parsed = parse_byte("A")
     let rebuilt = rebuild_byte(0)
     let int_text = parse_int_text("123")
-    if parsed == 65 and len(rebuilt) == 1 and byte_at(rebuilt, 0) == 0 and int_text == 123:
+    let float_text = parse_float_text("0.25")
+    if parsed == 65 and len(rebuilt) == 1 and byte_at(rebuilt, 0) == 0 and int_text == 123 and float_text > 0.2:
         return 0
     return 1
 "#;
@@ -3546,6 +3550,8 @@ fn main() -> Int:
     let parse_byte_ir = llvm_function_ir(&llvm, "define internal i64 @parse_byte(i8* %arg0)");
     let rebuild_byte_ir = llvm_function_ir(&llvm, "define internal i8* @rebuild_byte(i64 %arg0)");
     let parse_int_ir = llvm_function_ir(&llvm, "define internal i64 @parse_int_text(i8* %arg0)");
+    let parse_float_ir =
+        llvm_function_ir(&llvm, "define internal double @parse_float_text(i8* %arg0)");
 
     assert!(
         parse_byte_ir.contains("call i64 @kain_ord(i8*"),
@@ -3561,6 +3567,11 @@ fn main() -> Int:
         parse_int_ir.contains("call i64 @kain_parse_i64_string(i8*"),
         "to_int(String) should lower to the native parse helper:\n{}",
         parse_int_ir
+    );
+    assert!(
+        parse_float_ir.contains("call double @kain_parse_f64_string(i8*"),
+        "to_float(String) should lower to the native float parse helper:\n{}",
+        parse_float_ir
     );
     verify_llvm_ir_with_repo_llvm_as(&llvm, "ord-chr-to-int-native-builtins");
 }

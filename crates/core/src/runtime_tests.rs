@@ -228,6 +228,7 @@ fn main() -> Int:
     fs_write_text_at(path, 0, "abcdef")
     let slice = fs_read_text_range(path, 1, 3)
     fs_write_text_at(path, 3, "XYZ")
+    fs_write_bytes_hex_at(path, 0, "4b4e")
     let rewritten = fs_read_text_range(path, 0, 6)
     let chunks = fs_stream_chunks(path, 2)
     let copied = fs_copy_file_streaming(path, "fs://v2test/copy.txt", 2)
@@ -243,7 +244,7 @@ fn main() -> Int:
     let journal = fs_tx_commit(tx)
     let tx_text = fs_read_text_range("fs://v2test/tx.txt", 0, 7)
 
-    if slice == "bcd" && rewritten == "abcXYZ" && len(chunks) == 3 && copied == 6 && len(events) == 1 && closed && len(journal) == 2 && tx_text == "one two" && fs_capability_has("fs.read"):
+    if slice == "bcd" && rewritten == "KNcXYZ" && len(chunks) == 3 && copied == 6 && len(events) == 1 && closed && len(journal) == 2 && tx_text == "one two" && fs_capability_has("fs.read"):
         return 1
     return 0
 "#

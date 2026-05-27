@@ -1,0 +1,28 @@
+version: 1
+id: kain.native.core.proofs.native_stdlib_fs_write_bytes_hex_at_loop_bounds
+kind: check_smt2
+description: The hex-at-offset write loop never reads the low nibble past the end when the hex string has even length.
+tags:
+- native-runtime
+- stdlib
+- filesystem
+- binary
+- bounds
+source:
+  path: X:\runtime\native\src\core\stdlib_abi.c
+  symbol: abi_fs_write_bytes_hex_at
+  reason: length parity is checked before the loop reads hex[index] and hex[index + 1]
+case:
+  smt2: |
+    (set-logic ALL)
+    (declare-const length Int)
+    (declare-const index Int)
+    (assert (>= length 0))
+    (assert (= (mod length 2) 0))
+    (assert (>= index 0))
+    (assert (= (mod index 2) 0))
+    (assert (< index length))
+    (assert (not (< (+ index 1) length)))
+    (check-sat)
+  include_model: false
+  include_stats: false

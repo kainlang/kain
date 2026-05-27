@@ -1,30 +1,30 @@
-# Cargo build configuration for the repo.
+# Cargo build configuration for the Kain repo.
 #
-# Keep workstation-specific parallelism in user-level Cargo config or
-# `CARGO_BUILD_JOBS`; the repo should not hard-force full CPU saturation.
+# Machine-specific parallelism, sccache, and LIB paths live in
+#   %USERPROFILE%\.cargo\config.toml
+# — keep them there, not here.
 
-# Use faster linker on Windows
-[target.x86_64-pc-windows-msvc]
-rustflags = ["-C", "link-arg=-fuse-ld=lld"]
+# ── Linker note ──────────────────────────────────────────────
+# link.exe is symlinked to lld-link 22.1.6 (F:\Scoop\apps\llvm\current\bin\)
+# No rustflags needed — the symlink takes care of it.
 
-[target.x86_64-pc-windows-gnu]
-rustflags = ["-C", "link-arg=-fuse-ld=lld"]
-
-# Incremental compilation (enabled by default in dev, but explicit)
+# ── Dev profile ──────────────────────────────────────────────
 [profile.dev]
 incremental = true
+# line-tables-only = backtraces work, debug info doesn't — 2-3× faster compiles
+debug = "line-tables-only"
 
-# Use shared generics for faster compilation
+# Faster dependency builds (shared generics in deps get opt-level=2)
 [profile.dev.build-override]
 opt-level = 2
 
-# Cache settings
+# ── Net ──────────────────────────────────────────────────────
 [net]
 git-fetch-with-cli = false
 
-# Custom aliases
+# ── Aliases ──────────────────────────────────────────────────
 [alias]
-# Build and auto-install to cargo bin (use: cargo bi)
+# Build release + install
 bi = "build --release"
-# Release build with warnings suppressed so only errors stand out
-br = "build --release --config target.x86_64-pc-windows-msvc.rustflags=['-Awarnings','-C','link-arg=-fuse-ld=lld'] --config target.x86_64-pc-windows-gnu.rustflags=['-Awarnings','-C','link-arg=-fuse-ld=lld']"
+# Release build, warnings silenced, only errors surface
+br = "build --release --config target.x86_64-pc-windows-msvc.rustflags=['-Awarnings']"

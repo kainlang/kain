@@ -936,6 +936,12 @@ impl StdLib {
             "Write lowercase hex-encoded bytes to a file",
         );
         lib.add_fn(
+            "fs_write_bytes_hex_at",
+            &[("path", "String"), ("offset", "Int"), ("hex", "String")],
+            "Unit",
+            "Write lowercase hex-encoded bytes at a byte offset",
+        );
+        lib.add_fn(
             "fs_watch",
             &[("path", "String"), ("recursive", "Bool")],
             "Int",

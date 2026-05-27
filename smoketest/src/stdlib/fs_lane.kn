@@ -15,5 +15,14 @@ pub fn smoke_fs_lane() -> Int:
     let byte_hex = fs_read_byte_range_hex(temp, 0, 4)
     if byte_hex != "6b61696e":
         return 4
+    fs_write_text_at(temp, 5, "STONE")
+    if fs_read_text(temp) != "kain-STONE":
+        return 5
+    fs_write_bytes_at(temp, 0, [75, 78])
+    if fs_read_byte_range_hex(temp, 0, 4) != "4b4e696e":
+        return 6
+    fs_write_bytes_hex_at(temp, 2, "2d2d")
+    if fs_read_text(temp) != "KN--STONE":
+        return 7
     fs_remove_file(temp)
     return 0
