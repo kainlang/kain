@@ -1,0 +1,125 @@
+use std::cuda
+use std::fs
+use std::json
+use std::process
+
+// Standalone PTX contract probe:
+// run this after `kain gpu-artifacts` so it can inspect emitted bundle/residency sidecars
+// without forcing the full smoketest album to synthesize CUDA artifacts on every check.
+
+fn probe_user_arg(index: Int) -> String:
+    let values = process_user_args()
+    if index < len(values):
+        return values[index]
+    return ""
+
+fn probe_shader_bundle_path() -> String:
+    let from_arg = probe_user_arg(0)
+    if from_arg != "":
+        return from_arg
+    let from_env = process_environment(CUDA_SHADER_BUNDLE_ENV)
+    if from_env != "":
+        return from_env
+    return cuda_shader_bundle_path()
+
+fn probe_compute_residency_path() -> String:
+    let from_arg = probe_user_arg(1)
+    if from_arg != "":
+        return from_arg
+    let from_env = process_environment(CUDA_COMPUTE_RESIDENCY_ENV)
+    if from_env != "":
+        return from_env
+    return cuda_compute_residency_path()
+
+fn probe_json_object(path: String) -> JsonObject:
+    if path == "" or fs_exists(path) == false:
+        return json_object()
+    let parsed = json_parse_text(fs_read_text(path))
+    if json_is_object(parsed):
+        return parsed
+    return json_object()
+
+fn probe_first_ptx_artifact(bundle: JsonObject) -> JsonObject:
+    let derived = json_array_field(bundle, "derived_outputs")
+    if derived.ok == false:
+        return json_object()
+    var index = 0
+    while index < json_array_length(derived.value):
+        let artifact = json_array_value_at(derived.value, index)
+        let format = json_string_field(artifact, "format")
+        if format.ok and format.value == "ptx":
+            return artifact
+        index = index + 1
+    return json_object()
+
+fn probe_first_compute_entry(manifest: JsonObject) -> JsonObject:
+    let entries = json_array_field(manifest, "compute_shaders")
+    if entries.ok == false or json_array_length(entries.value) < 1:
+        return json_object()
+    return json_array_value_at(entries.value, 0)
+
+pub fn smoke_cuda_ptx_artifact_contract(shader_bundle_path: String, compute_residency_path: String) -> Int:
+    let bundle = probe_json_object(shader_bundle_path)
+    let ptx_artifact = probe_first_ptx_artifact(bundle)
+    let ptx_module = json_string_field(ptx_artifact, "module_name")
+    if ptx_module.ok == false or ptx_module.value == "":
+        return 10
+    let ptx_entry_points = json_string_array_field_result(ptx_artifact, "entry_points")
+    if ptx_entry_points.ok == false or len(ptx_entry_points.value) < 1:
+        return 11
+    let ptx_binding_slots = json_int_array_field_result(ptx_artifact, "binding_slots")
+    if ptx_binding_slots.ok == false or len(ptx_binding_slots.value) < 1:
+        return 12
+    let ptx_meta = json_object_field(ptx_artifact, "ptx")
+    if ptx_meta.ok == false:
+        return 13
+    let ptx_version = json_string_field(ptx_meta.value, "ptx_version")
+    let ptx_arch = json_string_field(ptx_meta.value, "required_target_arch")
+    let ptx_capability = json_string_field(ptx_meta.value, "minimum_compute_capability")
+    if ptx_version.ok == false or ptx_version.value == "":
+        return 14
+    if ptx_arch.ok == false or starts_with(ptx_arch.value, "sm_") == false:
+        return 15
+    if ptx_capability.ok == false or contains(ptx_capability.value, ".") == false:
+        return 16
+
+    let manifest = cuda_compute_manifest_from_path(compute_residency_path)
+    let compute_entry = probe_first_compute_entry(manifest)
+    let ptx_sidecar = json_object_field(compute_entry, "ptx_sidecar")
+    if ptx_sidecar.ok == false:
+        return 20
+    let sidecar_module = json_string_field(ptx_sidecar.value, "module_name")
+    let sidecar_entry = json_string_field(ptx_sidecar.value, "entry_point")
+    let sidecar_arch = json_string_field(ptx_sidecar.value, "required_target_arch")
+    let sidecar_capability = json_string_field(ptx_sidecar.value, "minimum_compute_capability")
+    let sidecar_slots = json_int_array_field_result(ptx_sidecar.value, "binding_slots")
+    if sidecar_module.ok == false or sidecar_module.value != ptx_module.value:
+        return 21
+    if sidecar_entry.ok == false or sidecar_entry.value != ptx_entry_points.value[0]:
+        return 22
+    if sidecar_arch.ok == false or sidecar_arch.value != ptx_arch.value:
+        return 23
+    if sidecar_capability.ok == false or sidecar_capability.value != ptx_capability.value:
+        return 24
+    if sidecar_slots.ok == false or len(sidecar_slots.value) != len(ptx_binding_slots.value):
+        return 25
+
+    let bindings = json_array_field(compute_entry, "bindings")
+    if bindings.ok == false or json_array_length(bindings.value) < len(sidecar_slots.value):
+        return 26
+    if json_string_field(compute_entry, "entry_point").value != sidecar_entry.value:
+        return 27
+
+    return 0
+
+fn main() -> Int:
+    let shader_bundle_path = probe_shader_bundle_path()
+    let compute_residency_path = probe_compute_residency_path()
+    if shader_bundle_path == "" or fs_exists(shader_bundle_path) == false:
+        return 1
+    if compute_residency_path == "" or fs_exists(compute_residency_path) == false:
+        return 2
+    let status = smoke_cuda_ptx_artifact_contract(shader_bundle_path, compute_residency_path)
+    if status == 0:
+        println("cuda_artifact_probe_ok")
+    return status

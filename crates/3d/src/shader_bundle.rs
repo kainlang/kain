@@ -69,6 +69,20 @@ pub fn default_viewport_shader_bundle() -> ShaderArtifactBundle {
             format: ShaderArtifactFormat::Wgsl,
             module_name: VIEWPORT_SHADER_MODULE_NAME.to_string(),
             contents: VIEWPORT_SHADER_SOURCE.to_string(),
+            entry_points: vec![
+                "scene_vs_main".to_string(),
+                "background_vs_main".to_string(),
+                "pick_vs_main".to_string(),
+                "gizmo_vs_main".to_string(),
+                "particle_vs_main".to_string(),
+                "scene_fs_main".to_string(),
+                "background_fs_main".to_string(),
+                "pick_fs_main".to_string(),
+                "gizmo_fs_main".to_string(),
+                "particle_fs_main".to_string(),
+            ],
+            binding_slots: vec![0],
+            ptx: None,
         }],
     }
 }

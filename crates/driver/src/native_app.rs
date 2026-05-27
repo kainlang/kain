@@ -669,10 +669,13 @@ impl DriverSession {
             .map_err(io_error("write native app realtime bundle"))?;
         artifact_paths.push(realtime_bundle_path.clone());
 
-        let compute_residency_paths =
-            write_compute_residency_sidecars(&bundle.realtime, &artifact_root)?;
+        let compute_residency_paths = write_compute_residency_sidecars(
+            &bundle.realtime,
+            bundle.shader_bundle.as_ref().map(|output| &output.bundle),
+            &artifact_root,
+        )?;
         artifact_paths.extend(compute_residency_paths.iter().cloned());
-        if let Some(runtime_dll_path) = materialize_gpu_runtime_library(
+        if let Some(runtime_dll_path) = crate::stage_gpu_runtime_library_sidecar(
             &artifact_root,
             config.release,
             Some(&gpu_runtime_cargo_target_dir),
@@ -2099,59 +2102,6 @@ fn copy_runtime_sidecars_to_executable_dir(
     Ok(())
 }
 
-fn materialize_gpu_runtime_library(
-    artifact_root: &Path,
-    release: bool,
-    cargo_target_dir: Option<&Path>,
-) -> Result<Option<PathBuf>, KainError> {
-    let Some(workspace_root) = find_workspace_root_with_gpu_runtime() else {
-        return Ok(None);
-    };
-    let runtime_library_file_name = gpu_runtime_library_file_name();
-
-    let mut command = Command::new("cargo");
-    command.arg("build").arg("-p").arg("kain-gpu-runtime");
-    apply_cargo_command_defaults(&mut command);
-    if release {
-        command.arg("--release");
-    }
-    if let Some(cargo_target_dir) = cargo_target_dir {
-        fs::create_dir_all(cargo_target_dir)
-            .map_err(io_error("create kain-gpu-runtime cargo target directory"))?;
-        command.env("CARGO_TARGET_DIR", cargo_target_dir);
-    }
-    command.current_dir(&workspace_root);
-    let output = command.output().map_err(|err| {
-        KainError::runtime(format!(
-            "Failed to invoke cargo to build kain-gpu-runtime at {}: {}",
-            workspace_root.display(),
-            err
-        ))
-    })?;
-    if !output.status.success() {
-        return Err(KainError::runtime(format!(
-            "kain-gpu-runtime cargo build failed for {}:\n{}\n{}",
-            workspace_root.display(),
-            String::from_utf8_lossy(&output.stdout),
-            String::from_utf8_lossy(&output.stderr)
-        )));
-    }
-
-    let built_library = cargo_target_dir
-        .map(Path::to_path_buf)
-        .unwrap_or_else(|| workspace_root.join("target"))
-        .join(if release { "release" } else { "debug" })
-        .join(runtime_library_file_name);
-    if !built_library.exists() {
-        return Ok(None);
-    }
-
-    let destination = artifact_root.join(runtime_library_file_name);
-    fs::copy(&built_library, &destination)
-        .map_err(io_error("copy kain-gpu-runtime shared library"))?;
-    Ok(Some(destination))
-}
-
 fn gpu_runtime_library_file_name() -> &'static str {
     if cfg!(windows) {
         "kain_gpu_runtime.dll"
@@ -2160,35 +2110,6 @@ fn gpu_runtime_library_file_name() -> &'static str {
     } else {
         "libkain_gpu_runtime.so"
     }
-}
-
-fn find_workspace_root_with_gpu_runtime() -> Option<PathBuf> {
-    let mut roots = Vec::new();
-    if let Ok(dir) = std::env::current_dir() {
-        roots.push(dir);
-    }
-    if let Ok(exe) = std::env::current_exe() {
-        if let Some(dir) = exe.parent() {
-            roots.push(dir.to_path_buf());
-        }
-    }
-
-    for mut dir in roots {
-        for _ in 0..12 {
-            if dir
-                .join("crates")
-                .join("gpu-runtime")
-                .join("Cargo.toml")
-                .exists()
-            {
-                return Some(dir);
-            }
-            if !dir.pop() {
-                break;
-            }
-        }
-    }
-    None
 }
 
 fn build_native_app_executable(
@@ -3346,6 +3267,14 @@ shader compute SampleCompute(id: UVec3) -> Vec4:
         assert_eq!(compute_residency.compute_shader_count, 1);
         assert_eq!(compute_residency.compute_shaders.len(), 1);
         assert!(compute_residency_json.contains("SampleCompute"));
+        assert_eq!(
+            compute_residency.compute_shaders[0]
+                .ptx_sidecar
+                .as_ref()
+                .expect("ptx sidecar")
+                .required_target_arch,
+            "sm_50"
+        );
         assert_eq!(compute_residency.compute_shaders[0].bindings.len(), 2);
         assert_eq!(
             compute_residency.compute_shaders[0].bindings[0].descriptor_kind,

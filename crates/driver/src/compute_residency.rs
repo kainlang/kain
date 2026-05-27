@@ -2,7 +2,10 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use kain_core::error::KainError;
-use kain_core::{RealtimeAppBundle, RealtimeResourceBinding, RealtimeShaderBundleRef};
+use kain_core::{
+    RealtimeAppBundle, RealtimeResourceBinding, RealtimeShaderBundleRef, ShaderArtifactBundle,
+    ShaderArtifactFormat,
+};
 use serde::{Deserialize, Serialize};
 
 pub const COMPUTE_RESIDENCY_FILE_NAME: &str = "kain_compute_residency.json";
@@ -34,7 +37,20 @@ pub struct ComputeResidencyEntry {
     pub tensor_binding_count: usize,
     pub stream_binding_count: usize,
     pub neural_node_count: usize,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ptx_sidecar: Option<ComputeResidencyPtxSidecar>,
     pub bindings: Vec<ComputeResidencyBinding>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ComputeResidencyPtxSidecar {
+    pub module_name: String,
+    pub entry_point: String,
+    pub ptx_version: String,
+    pub required_target_arch: String,
+    pub minimum_compute_capability: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub binding_slots: Vec<u32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -54,9 +70,10 @@ pub struct ComputeResidencyBinding {
 
 pub fn write_compute_residency_sidecars(
     realtime: &RealtimeAppBundle,
+    shader_bundle: Option<&ShaderArtifactBundle>,
     artifact_root: &Path,
 ) -> Result<Vec<PathBuf>, KainError> {
-    let Some(bundle) = build_compute_residency_bundle(realtime) else {
+    let Some(bundle) = build_compute_residency_bundle(realtime, shader_bundle) else {
         return Ok(Vec::new());
     };
 
@@ -103,7 +120,10 @@ pub fn write_compute_residency_sidecars(
     Ok(written)
 }
 
-fn build_compute_residency_bundle(realtime: &RealtimeAppBundle) -> Option<ComputeResidencyBundle> {
+fn build_compute_residency_bundle(
+    realtime: &RealtimeAppBundle,
+    shader_bundle: Option<&ShaderArtifactBundle>,
+) -> Option<ComputeResidencyBundle> {
     let mut compute_shaders = realtime
         .shader_bundle_refs
         .iter()
@@ -127,6 +147,7 @@ fn build_compute_residency_bundle(realtime: &RealtimeAppBundle) -> Option<Comput
         .enumerate()
         .map(|(_index, shader)| {
             let bindings = build_binding_residency_entries(&shader);
+            let ptx_sidecar = resolve_ptx_sidecar(shader_bundle, &shader);
             ComputeResidencyEntry {
                 key: shader.key.clone(),
                 shader: shader.shader.clone(),
@@ -141,6 +162,7 @@ fn build_compute_residency_bundle(realtime: &RealtimeAppBundle) -> Option<Comput
                 tensor_binding_count: shader.tensor_bindings.len(),
                 stream_binding_count: shader.stream_bindings.len(),
                 neural_node_count: shader.neural_nodes.len(),
+                ptx_sidecar,
                 bindings,
             }
         })
@@ -201,6 +223,81 @@ fn build_binding_residency_entry(
         byte_length,
         payload_file: compute_binding_payload_file_name(shader, binding),
     }
+}
+
+fn resolve_ptx_sidecar(
+    shader_bundle: Option<&ShaderArtifactBundle>,
+    shader: &RealtimeShaderBundleRef,
+) -> Option<ComputeResidencyPtxSidecar> {
+    if !shader.stage.eq_ignore_ascii_case("compute") {
+        return None;
+    }
+    let bundle = shader_bundle?;
+    let entry = resolve_shader_bundle_entry(bundle, shader)?;
+    let artifact = resolve_ptx_artifact(bundle, entry.module_name.as_str(), entry.entry_point.as_str())?;
+    let ptx = artifact.ptx.as_ref()?;
+    let mut binding_slots = shader
+        .resource_bindings
+        .iter()
+        .map(|binding| binding.slot)
+        .collect::<Vec<_>>();
+    if binding_slots.is_empty() {
+        binding_slots = artifact.binding_slots.clone();
+    } else {
+        binding_slots.sort_unstable();
+        binding_slots.dedup();
+    }
+
+    Some(ComputeResidencyPtxSidecar {
+        module_name: artifact.module_name.clone(),
+        entry_point: entry.entry_point.clone(),
+        ptx_version: ptx.ptx_version.clone(),
+        required_target_arch: ptx.required_target_arch.clone(),
+        minimum_compute_capability: ptx.minimum_compute_capability.clone(),
+        binding_slots,
+    })
+}
+
+fn resolve_shader_bundle_entry<'a>(
+    bundle: &'a ShaderArtifactBundle,
+    shader: &RealtimeShaderBundleRef,
+) -> Option<&'a kain_core::ShaderEntryPoint> {
+    bundle
+        .entry_points
+        .iter()
+        .find(|entry| {
+            entry.stage.eq_ignore_ascii_case(shader.stage.as_str()) && entry.shader == shader.shader
+        })
+        .or_else(|| {
+            bundle.entry_points.iter().find(|entry| {
+                entry.stage.eq_ignore_ascii_case(shader.stage.as_str())
+                    && entry.module_name == shader.module_name
+            })
+        })
+}
+
+fn resolve_ptx_artifact<'a>(
+    bundle: &'a ShaderArtifactBundle,
+    module_name: &str,
+    entry_point: &str,
+) -> Option<&'a kain_core::DerivedShaderArtifact> {
+    bundle
+        .derived_outputs
+        .iter()
+        .find(|artifact| {
+            artifact.format == ShaderArtifactFormat::Ptx
+                && artifact.module_name == module_name
+                && (artifact.entry_points.is_empty()
+                    || artifact.entry_points.iter().any(|value| value == entry_point))
+        })
+        .or_else(|| {
+            let mut artifacts = bundle
+                .derived_outputs
+                .iter()
+                .filter(|artifact| artifact.format == ShaderArtifactFormat::Ptx);
+            let first = artifacts.next()?;
+            artifacts.next().is_none().then_some(first)
+        })
 }
 
 fn sanitize_sidecar_stem(value: &str) -> String {
@@ -339,7 +436,11 @@ shader compute SampleCompute(id: UVec3) -> Vec4:
             .expect("expected compute residency bundle");
         assert_eq!(built_a, built_b);
 
-        let written = write_compute_residency_sidecars(&bundle.realtime, &artifact_root)
+        let written = write_compute_residency_sidecars(
+            &bundle.realtime,
+            bundle.shader_bundle.as_ref().map(|output| &output.bundle),
+            &artifact_root,
+        )
             .expect("compute residency sidecars should write");
         assert_eq!(written.len(), 3);
 
@@ -357,6 +458,30 @@ shader compute SampleCompute(id: UVec3) -> Vec4:
         );
         assert_eq!(main_bundle.compute_shaders[0].resource_binding_count, 2);
         assert_eq!(main_bundle.compute_shaders[0].bindings.len(), 2);
+        assert_eq!(
+            main_bundle.compute_shaders[0]
+                .ptx_sidecar
+                .as_ref()
+                .expect("ptx sidecar")
+                .required_target_arch,
+            "sm_50"
+        );
+        assert_eq!(
+            main_bundle.compute_shaders[0]
+                .ptx_sidecar
+                .as_ref()
+                .expect("ptx sidecar")
+                .minimum_compute_capability,
+            "5.0"
+        );
+        assert_eq!(
+            main_bundle.compute_shaders[0]
+                .ptx_sidecar
+                .as_ref()
+                .expect("ptx sidecar")
+                .binding_slots,
+            vec![0, 1]
+        );
         assert_eq!(
             main_bundle.compute_shaders[0].bindings[0].descriptor_kind,
             "storage_buffer"

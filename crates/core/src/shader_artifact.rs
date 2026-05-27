@@ -127,6 +127,12 @@ pub struct DerivedShaderArtifact {
     pub format: ShaderArtifactFormat,
     pub module_name: String,
     pub contents: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub entry_points: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub binding_slots: Vec<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ptx: Option<PtxArtifactMetadata>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -135,6 +141,13 @@ pub struct ShaderArtifactRef {
     pub module_name: String,
     pub entry_point: String,
     pub stage: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct PtxArtifactMetadata {
+    pub ptx_version: String,
+    pub required_target_arch: String,
+    pub minimum_compute_capability: String,
 }
 
 pub fn shader_artifact_bundle_to_json(
@@ -219,11 +232,21 @@ mod tests {
                     format: ShaderArtifactFormat::Hlsl,
                     module_name: "viewport".to_string(),
                     contents: "// hlsl".to_string(),
+                    entry_points: vec!["main".to_string()],
+                    binding_slots: Vec::new(),
+                    ptx: None,
                 },
                 DerivedShaderArtifact {
                     format: ShaderArtifactFormat::Ptx,
                     module_name: "viewport".to_string(),
                     contents: "// ptx".to_string(),
+                    entry_points: vec!["main".to_string()],
+                    binding_slots: vec![0, 1],
+                    ptx: Some(PtxArtifactMetadata {
+                        ptx_version: "7.8".to_string(),
+                        required_target_arch: "sm_50".to_string(),
+                        minimum_compute_capability: "5.0".to_string(),
+                    }),
                 },
             ],
         };
@@ -233,6 +256,7 @@ mod tests {
         assert!(json.contains("\"module_name\": \"viewport\""));
         assert!(json.contains("\"format\": \"hlsl\""));
         assert!(json.contains("\"format\": \"ptx\""));
+        assert!(json.contains("\"required_target_arch\": \"sm_50\""));
     }
 
     #[test]

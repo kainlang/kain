@@ -3,7 +3,6 @@ use kain_core::diagnostics::SpanMapper;
 use kain_core::format_program;
 use kain_core::lexer::Lexer;
 use kain_core::parser::Parser;
-use kain_core::tooling_config::apply_cargo_command_defaults;
 use kain_core::CompileTarget;
 use kain_driver::{write_compute_residency_sidecars, COMPUTE_RESIDENCY_FILE_NAME};
 use std::fs;
@@ -81,8 +80,37 @@ pub fn stage_native_backend_artifacts_with_session(
         "realtime app",
     )?;
 
+    let shader_bundle_output = if source_declares_shader_item(source) {
+        let extracted_shader_source;
+        let shader_source = match shader_artifact_source(source) {
+            Some(source) => {
+                extracted_shader_source = source;
+                extracted_shader_source.as_str()
+            }
+            None => source,
+        };
+
+        match session.compile_shader_artifact_bundle(shader_source) {
+            Ok(bundle_output) => Some(bundle_output),
+            Err(err) => {
+                let message = err.to_string();
+                if message.contains("no entry points")
+                    || message.contains("expected a shader item")
+                    || message.contains("SPIR-V backend emitted no entry points")
+                {
+                    None
+                } else {
+                    return Err(message);
+                }
+            }
+        }
+    } else {
+        None
+    };
+
     let compute_artifact_paths = write_compute_residency_sidecars(
         &realtime_bundle.bundle,
+        shader_bundle_output.as_ref().map(|output| &output.bundle),
         output_path.parent().unwrap_or_else(|| Path::new(".")),
     )
     .map_err(|err| err.to_string())?;
@@ -99,34 +127,10 @@ pub fn stage_native_backend_artifacts_with_session(
         })
         .collect::<Vec<_>>();
 
-    let shader_bundle_path = if source_declares_shader_item(source) {
-        let extracted_shader_source;
-        let shader_source = match shader_artifact_source(source) {
-            Some(source) => {
-                extracted_shader_source = source;
-                extracted_shader_source.as_str()
-            }
-            None => source,
-        };
-
-        match session.compile_shader_artifact_bundle(shader_source) {
-            Ok(bundle_output) => {
-                let shader_path = shader_bundle_artifact_path(output_path);
-                write_json_artifact(&shader_path, &bundle_output.bundle_json, "shader bundle")?;
-                Some(shader_path)
-            }
-            Err(err) => {
-                let message = err.to_string();
-                if message.contains("no entry points")
-                    || message.contains("expected a shader item")
-                    || message.contains("SPIR-V backend emitted no entry points")
-                {
-                    None
-                } else {
-                    return Err(message);
-                }
-            }
-        }
+    let shader_bundle_path = if let Some(bundle_output) = shader_bundle_output {
+        let shader_path = shader_bundle_artifact_path(output_path);
+        write_json_artifact(&shader_path, &bundle_output.bundle_json, "shader bundle")?;
+        Some(shader_path)
     } else {
         None
     };
@@ -211,58 +215,18 @@ pub fn stage_gpu_runtime_dll(executable_path: &Path) -> Result<Option<PathBuf>, 
         return Ok(None);
     }
 
-    let Some(workspace_root) = find_workspace_root_for_gpu_runtime() else {
-        return Ok(None);
-    };
     let cargo_target_dir = executable_path
         .parent()
         .unwrap_or_else(|| Path::new("."))
         .join(".kain")
         .join("cargo-target")
         .join("gpu-runtime");
-    fs::create_dir_all(&cargo_target_dir).map_err(|err| {
-        format!(
-            "unable to create kain-gpu-runtime cargo target dir {}: {}",
-            cargo_target_dir.display(),
-            err
-        )
-    })?;
-
-    let mut command = std::process::Command::new("cargo");
-    command
-        .arg("build")
-        .arg("-p")
-        .arg("kain-gpu-runtime")
-        .env("CARGO_TARGET_DIR", &cargo_target_dir)
-        .current_dir(&workspace_root);
-    apply_cargo_command_defaults(&mut command);
-    let status = command
-        .status()
-        .map_err(|err| format!("unable to invoke cargo for kain-gpu-runtime: {err}"))?;
-    if !status.success() {
-        return Err("cargo build -p kain-gpu-runtime failed".to_string());
-    }
-
-    let built_dll = cargo_target_dir
-        .join("debug")
-        .join(GPU_RUNTIME_WINDOWS_DLL_FILE_NAME);
-    if !built_dll.exists() {
-        return Ok(None);
-    }
-
-    let destination = executable_path
-        .parent()
-        .unwrap_or_else(|| Path::new("."))
-        .join(GPU_RUNTIME_WINDOWS_DLL_FILE_NAME);
-    fs::copy(&built_dll, &destination).map_err(|err| {
-        format!(
-            "unable to copy kain-gpu-runtime dll {} -> {}: {}",
-            built_dll.display(),
-            destination.display(),
-            err
-        )
-    })?;
-    Ok(Some(destination))
+    kain_driver::stage_gpu_runtime_library_sidecar(
+        executable_path.parent().unwrap_or_else(|| Path::new(".")),
+        false,
+        Some(&cargo_target_dir),
+    )
+    .map_err(|err| err.to_string())
 }
 
 pub fn runtime_contract_artifact_path(output_path: &Path) -> PathBuf {
@@ -300,40 +264,6 @@ fn write_json_artifact(path: &Path, contents: &str, label: &str) -> Result<(), S
         )
     })?;
     Ok(())
-}
-
-fn find_workspace_root_for_gpu_runtime() -> Option<PathBuf> {
-    let mut roots = Vec::new();
-    if let Ok(cwd) = std::env::current_dir() {
-        roots.push(cwd);
-    }
-    if let Ok(exe) = std::env::current_exe() {
-        if let Some(dir) = exe.parent() {
-            roots.push(dir.to_path_buf());
-        }
-    }
-    if let Ok(manifest_dir) = std::env::var("CARGO_MANIFEST_DIR") {
-        roots.push(PathBuf::from(manifest_dir));
-    }
-
-    for root in roots {
-        let mut cursor = root.clone();
-        loop {
-            if cursor
-                .join("crates")
-                .join("gpu-runtime")
-                .join("Cargo.toml")
-                .exists()
-            {
-                return Some(cursor);
-            }
-            if !cursor.pop() {
-                break;
-            }
-        }
-    }
-
-    None
 }
 
 #[cfg(test)]
@@ -394,6 +324,8 @@ shader compute SampleCompute(id: UVec3) -> Vec4:
         )
         .expect("residency json");
         assert!(residency_json.contains("SampleCompute"));
+        assert!(residency_json.contains("\"ptx_sidecar\""));
+        assert!(residency_json.contains("\"required_target_arch\": \"sm_50\""));
     }
 
     #[test]

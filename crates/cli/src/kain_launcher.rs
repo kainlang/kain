@@ -10,6 +10,8 @@ use cli::import_crate;
 use cli::import_platform;
 use cli::import_rust;
 use cli::import_typescript;
+#[cfg(all(feature = "gpu", feature = "sys"))]
+use cli::gpu_artifacts;
 use cli::llvm_native_stage;
 use cli::lsp;
 use cli::native_ui_build;
@@ -20,7 +22,6 @@ use cli::packages;
 use cli::repair;
 use cli::run as run_cli;
 use cli::runtime_tools;
-use cli::rust_build;
 use cli::selfhost;
 use cli::{
     detect_launcher_from_path, format_source, parse_compile_target, render_launcher_menu,
@@ -3360,29 +3361,15 @@ pub fn main_entry() {
                     }
                 }
                 Some(Commands::GpuArtifacts { input, output }) => {
-                    let config = packager::RustBuildConfig {
-                        output: None,
-                        artifacts: vec![
-                            packager::RustBuildArtifact::ShaderHost,
-                            packager::RustBuildArtifact::ShaderReflection,
-                            packager::RustBuildArtifact::Spirv,
-                        ],
-                        native_ui: None,
-                    };
-
-                    match rust_build::run_rust_build_pipeline(
-                        &input,
-                        output.as_ref(),
-                        Some(&config),
-                    ) {
+                    match gpu_artifacts::run_gpu_artifact_pipeline(&input, output.as_ref()) {
                         Ok(paths) => {
-                            println!(" Generated {} Rust shader artifact files:", paths.len());
+                            println!(" Generated {} GPU artifact files:", paths.len());
                             for path in paths {
                                 println!("   - {}", path.display());
                             }
                         }
                         Err(e) => {
-                            eprintln!(" Rust shader artifact generation failed: {}", e);
+                            eprintln!(" GPU artifact generation failed: {}", e);
                             std::process::exit(1);
                         }
                     }

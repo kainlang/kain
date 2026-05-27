@@ -3848,14 +3848,6 @@ fn stage_native_backend_artifacts(
     kfs::atomic_write_text(&realtime_app_path, &realtime_bundle.bundle_json)?;
     artifacts.push(record_artifact("realtime-app", &realtime_app_path)?);
 
-    let sidecar_root = output_path.parent().unwrap_or_else(|| Path::new("."));
-    let compute_paths =
-        kain_driver::write_compute_residency_sidecars(&realtime_bundle.bundle, sidecar_root)?;
-    artifacts.extend(record_existing_artifacts(
-        "compute-residency",
-        &compute_paths,
-    )?);
-
     let shader_bundle_source;
     let shader_source = match shader_artifact_source(source) {
         Some(source) => {
@@ -3865,11 +3857,13 @@ fn stage_native_backend_artifacts(
         None => source,
     };
 
+    let mut shader_bundle_for_residency = None;
     match kain_driver::compile_shader_artifact_bundle(shader_source) {
         Ok(bundle) => {
             let shader_path = output_path.with_extension("shader_bundle.json");
             kfs::atomic_write_text(&shader_path, &bundle.bundle_json)?;
             artifacts.push(record_artifact("shader-bundle", &shader_path)?);
+            shader_bundle_for_residency = Some(bundle.bundle);
         }
         Err(err) => {
             let message = err.to_string();
@@ -3881,6 +3875,17 @@ fn stage_native_backend_artifacts(
             }
         }
     }
+
+    let sidecar_root = output_path.parent().unwrap_or_else(|| Path::new("."));
+    let compute_paths = kain_driver::write_compute_residency_sidecars(
+        &realtime_bundle.bundle,
+        shader_bundle_for_residency.as_ref(),
+        sidecar_root,
+    )?;
+    artifacts.extend(record_existing_artifacts(
+        "compute-residency",
+        &compute_paths,
+    )?);
 
     Ok(artifacts)
 }
@@ -4071,6 +4076,18 @@ fn run_gpu_artifacts(source: &Path, output_base: &Path) -> BuildResult<String> {
     }
     if let Some(ptx) = artifacts.derived_ptx {
         kfs::atomic_write_text(output_base.with_extension("ptx"), &ptx)?;
+    }
+    let realtime_bundle =
+        kain_driver::compile_realtime_app_bundle(&source_text, CompileTarget::Cuda, None)?;
+    let compute_paths = kain_driver::write_compute_residency_sidecars(
+        &realtime_bundle.bundle,
+        Some(&artifacts.bundle),
+        output_base.parent().unwrap_or_else(|| Path::new(".")),
+    )?;
+    for path in compute_paths {
+        if path.exists() {
+            let _ = record_artifact("compute-residency", &path)?;
+        }
     }
     Ok(format!("emitted GPU artifacts for {}", source.display()))
 }

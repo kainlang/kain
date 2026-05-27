@@ -3,6 +3,8 @@ use std::path::{Path, PathBuf};
 
 use crate::{compile_shader_artifact_bundle, target_extension, CompileTarget};
 use kain_core::error::KainError;
+#[cfg(all(feature = "gpu", feature = "sys"))]
+use kain_driver::{compile_realtime_app_bundle, write_compute_residency_sidecars};
 
 #[cfg(all(feature = "gpu", feature = "sys"))]
 pub type GpuArtifactOutput = kain_driver::ShaderArtifactBundleOutput;
@@ -117,7 +119,19 @@ pub fn run_gpu_artifact_pipeline(
         KainError::runtime(format!("Failed to read {}: {}", input.display(), err))
     })?;
     let artifacts = compile_gpu_artifacts(&source)?;
-    write_gpu_artifacts_bundle(input, output, &artifacts)
+    let mut written = write_gpu_artifacts_bundle(input, output, &artifacts)?;
+    let base_path = output
+        .cloned()
+        .unwrap_or_else(|| input.with_extension(target_extension(CompileTarget::Spirv)));
+    let sidecar_root = base_path.parent().unwrap_or_else(|| Path::new("."));
+    let realtime_bundle = compile_realtime_app_bundle(&source, CompileTarget::Cuda, None)?;
+    let compute_sidecars = write_compute_residency_sidecars(
+        &realtime_bundle.bundle,
+        Some(&artifacts.bundle),
+        sidecar_root,
+    )?;
+    written.extend(compute_sidecars);
+    Ok(written)
 }
 
 fn with_file_name_suffix(base: &Path, suffix: &str, extension: &str) -> PathBuf {

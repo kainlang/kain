@@ -38,6 +38,7 @@ use kain_core::{
     ShaderDebugBundle, ShaderEntryPoint, ShaderIoField, ShaderReflectionShader,
     ShaderReflectionSummary, ShaderResourceLayout, ShaderSourceMapEntry,
     ShaderSpecializationConstant, ShaderStageMetadata, SpirvModuleArtifact,
+    PtxArtifactMetadata,
     SHADER_ARTIFACT_SCHEMA_VERSION,
 };
 
@@ -50,6 +51,8 @@ mod tauri_app;
 
 #[cfg(feature = "sys")]
 use kain_core::Span;
+#[cfg(feature = "sys")]
+use kain_core::tooling_config::apply_cargo_command_defaults;
 
 #[cfg(feature = "gpu")]
 use gpu;
@@ -60,7 +63,8 @@ use kain_sys_codegen as sys;
 #[cfg(feature = "sys")]
 pub use compute_residency::{
     write_compute_residency_sidecars, ComputeResidencyBinding, ComputeResidencyBundle,
-    ComputeResidencyEntry, COMPUTE_RESIDENCY_ENV_VAR, COMPUTE_RESIDENCY_FILE_NAME,
+    ComputeResidencyEntry, ComputeResidencyPtxSidecar, COMPUTE_RESIDENCY_ENV_VAR,
+    COMPUTE_RESIDENCY_FILE_NAME,
 };
 #[cfg(feature = "tauri")]
 pub use kain_ui_tauri::{TauriCapabilityPreset, TauriPermissionPreset, TauriPluginPreset};
@@ -204,6 +208,11 @@ pub struct ShaderArtifactBundleOutput {
 }
 
 pub type GpuArtifactOutput = ShaderArtifactBundleOutput;
+
+#[cfg(feature = "sys")]
+pub const GPU_RUNTIME_LIBRARY_ENV_VAR: &str = "KAIN_GPU_RUNTIME_LIBRARY";
+#[cfg(feature = "sys")]
+pub const GPU_RUNTIME_ALLOW_CARGO_BUILD_ENV_VAR: &str = "KAIN_GPU_RUNTIME_ALLOW_CARGO_BUILD";
 
 #[derive(Debug, Clone)]
 pub struct RealtimeAppBundleOutput {
@@ -3032,6 +3041,216 @@ pub fn compile_gpu_artifacts(source: &str) -> Result<GpuArtifactOutput, KainErro
     DriverSession::default().compile_gpu_artifacts(source)
 }
 
+#[cfg(feature = "sys")]
+pub fn stage_gpu_runtime_library_sidecar(
+    artifact_root: &Path,
+    release: bool,
+    cargo_target_dir: Option<&Path>,
+) -> Result<Option<PathBuf>, KainError> {
+    let runtime_library_file_name = gpu_runtime_library_file_name();
+    if let Some(existing) = resolve_existing_gpu_runtime_library(release, cargo_target_dir) {
+        return copy_gpu_runtime_library_to_artifact_root(
+            &existing,
+            artifact_root,
+            runtime_library_file_name,
+        );
+    }
+
+    if !gpu_runtime_cargo_build_is_allowed() {
+        return Err(KainError::runtime(format!(
+            "No prebuilt {runtime_library_file_name} was found for PTX staging. The hot path now prefers cached sidecars and will not silently run cargo. Set {GPU_RUNTIME_LIBRARY_ENV_VAR} to an existing library, stage one under .kain/cache/run/llvm, or set {GPU_RUNTIME_ALLOW_CARGO_BUILD_ENV_VAR}=1 to permit a cold-path `cargo build -p kain-gpu-runtime`."
+        )));
+    }
+
+    let Some(workspace_root) = find_workspace_root_with_gpu_runtime() else {
+        return Ok(None);
+    };
+    let mut command = std::process::Command::new("cargo");
+    command.arg("build").arg("-p").arg("kain-gpu-runtime");
+    apply_cargo_command_defaults(&mut command);
+    if release {
+        command.arg("--release");
+    }
+    if let Some(cargo_target_dir) = cargo_target_dir {
+        std::fs::create_dir_all(cargo_target_dir)
+            .map_err(|err| KainError::runtime(format!(
+                "Failed to create kain-gpu-runtime cargo target directory {}: {}",
+                cargo_target_dir.display(),
+                err
+            )))?;
+        command.env("CARGO_TARGET_DIR", cargo_target_dir);
+    }
+    command.current_dir(&workspace_root);
+    let output = command.output().map_err(|err| {
+        KainError::runtime(format!(
+            "Failed to invoke cargo to build kain-gpu-runtime at {}: {}",
+            workspace_root.display(),
+            err
+        ))
+    })?;
+    if !output.status.success() {
+        return Err(KainError::runtime(format!(
+            "kain-gpu-runtime cargo build failed for {}:\n{}\n{}",
+            workspace_root.display(),
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        )));
+    }
+
+    let built_library = resolve_existing_gpu_runtime_library(release, cargo_target_dir)
+        .ok_or_else(|| {
+            KainError::runtime(format!(
+                "Cargo reported success for kain-gpu-runtime but no {} was found in the staged search roots",
+                runtime_library_file_name
+            ))
+        })?;
+    copy_gpu_runtime_library_to_artifact_root(
+        &built_library,
+        artifact_root,
+        runtime_library_file_name,
+    )
+}
+
+#[cfg(feature = "sys")]
+fn resolve_existing_gpu_runtime_library(
+    release: bool,
+    cargo_target_dir: Option<&Path>,
+) -> Option<PathBuf> {
+    if let Some(explicit) = std::env::var_os(GPU_RUNTIME_LIBRARY_ENV_VAR) {
+        let candidate = PathBuf::from(explicit);
+        if candidate.is_file() {
+            return Some(candidate);
+        }
+    }
+
+    let profile = if release { "release" } else { "debug" };
+    let mut candidates = Vec::new();
+    if let Some(target_dir) = cargo_target_dir {
+        candidates.push(target_dir.join(profile).join(gpu_runtime_library_file_name()));
+        candidates.push(
+            target_dir
+                .join(profile)
+                .join("deps")
+                .join(gpu_runtime_library_file_name()),
+        );
+    }
+    if let Some(layout) = kain_core::install_layout::default_kain_install_layout() {
+        candidates.push(layout.bin_dir.join(gpu_runtime_library_file_name()));
+        candidates.push(
+            layout
+                .cache_dir
+                .join("run")
+                .join("llvm")
+                .join(gpu_runtime_library_file_name()),
+        );
+    }
+    if let Some(workspace_root) = find_workspace_root_with_gpu_runtime() {
+        candidates.push(
+            workspace_root
+                .join(".kain")
+                .join("cache")
+                .join("run")
+                .join("llvm")
+                .join(gpu_runtime_library_file_name()),
+        );
+        candidates.push(
+            workspace_root
+                .join("target")
+                .join(profile)
+                .join(gpu_runtime_library_file_name()),
+        );
+        candidates.push(
+            workspace_root
+                .join("target")
+                .join(profile)
+                .join("deps")
+                .join(gpu_runtime_library_file_name()),
+        );
+    }
+
+    candidates.into_iter().find(|candidate| candidate.is_file())
+}
+
+#[cfg(feature = "sys")]
+fn copy_gpu_runtime_library_to_artifact_root(
+    source: &Path,
+    artifact_root: &Path,
+    runtime_library_file_name: &str,
+) -> Result<Option<PathBuf>, KainError> {
+    std::fs::create_dir_all(artifact_root).map_err(|err| {
+        KainError::runtime(format!(
+            "Failed to create GPU runtime artifact directory {}: {}",
+            artifact_root.display(),
+            err
+        ))
+    })?;
+    let destination = artifact_root.join(runtime_library_file_name);
+    if source != destination {
+        std::fs::copy(source, &destination).map_err(|err| {
+            KainError::runtime(format!(
+                "Failed to copy GPU runtime library {} -> {}: {}",
+                source.display(),
+                destination.display(),
+                err
+            ))
+        })?;
+    }
+    Ok(Some(destination))
+}
+
+#[cfg(feature = "sys")]
+fn gpu_runtime_cargo_build_is_allowed() -> bool {
+    std::env::var(GPU_RUNTIME_ALLOW_CARGO_BUILD_ENV_VAR)
+        .map(|value| {
+            matches!(
+                value.trim().to_ascii_lowercase().as_str(),
+                "1" | "true" | "yes" | "on"
+            )
+        })
+        .unwrap_or(false)
+}
+
+#[cfg(feature = "sys")]
+fn gpu_runtime_library_file_name() -> &'static str {
+    if cfg!(windows) {
+        "kain_gpu_runtime.dll"
+    } else if cfg!(target_os = "macos") {
+        "libkain_gpu_runtime.dylib"
+    } else {
+        "libkain_gpu_runtime.so"
+    }
+}
+
+#[cfg(feature = "sys")]
+fn find_workspace_root_with_gpu_runtime() -> Option<PathBuf> {
+    let mut roots = Vec::new();
+    if let Ok(dir) = std::env::current_dir() {
+        roots.push(dir);
+    }
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(dir) = exe.parent() {
+            roots.push(dir.to_path_buf());
+        }
+    }
+
+    for mut dir in roots {
+        for _ in 0..12 {
+            if dir
+                .join("crates")
+                .join("gpu-runtime")
+                .join("Cargo.toml")
+                .exists()
+            {
+                return Some(dir);
+            }
+            if !dir.pop() {
+                break;
+            }
+        }
+    }
+    None
+}
+
 #[cfg(all(feature = "gpu", feature = "sys"))]
 fn typed_program_has_shader(program: &TypedProgram) -> bool {
     program
@@ -3052,6 +3271,45 @@ fn typed_program_ptx_eligible(program: &TypedProgram) -> bool {
         }
     }
     saw_shader
+}
+
+#[cfg(all(feature = "gpu", feature = "sys"))]
+fn parse_ptx_artifact_metadata(ptx: &str) -> Option<PtxArtifactMetadata> {
+    let ptx_version = parse_ptx_directive_value(ptx, ".version")?;
+    let required_target_arch = parse_ptx_directive_value(ptx, ".target")?;
+    let minimum_compute_capability = compute_capability_for_ptx_arch(&required_target_arch)
+        .unwrap_or_else(|| "unknown".to_string());
+    Some(PtxArtifactMetadata {
+        ptx_version,
+        required_target_arch,
+        minimum_compute_capability,
+    })
+}
+
+#[cfg(all(feature = "gpu", feature = "sys"))]
+fn parse_ptx_directive_value(ptx: &str, directive: &str) -> Option<String> {
+    for line in ptx.lines() {
+        let trimmed = line.trim();
+        let Some(rest) = trimmed.strip_prefix(directive) else {
+            continue;
+        };
+        let rest = rest.trim();
+        if rest.is_empty() {
+            continue;
+        }
+        let value = rest
+            .split(|ch: char| ch == ',' || ch.is_ascii_whitespace())
+            .find(|segment| !segment.is_empty())?;
+        return Some(value.to_string());
+    }
+    None
+}
+
+#[cfg(all(feature = "gpu", feature = "sys"))]
+fn compute_capability_for_ptx_arch(required_target_arch: &str) -> Option<String> {
+    let digits = required_target_arch.strip_prefix("sm_")?;
+    let value = digits.parse::<u32>().ok()?;
+    Some(format!("{}.{}", value / 10, value % 10))
 }
 
 #[cfg(all(feature = "gpu", feature = "sys"))]
@@ -3157,12 +3415,49 @@ fn build_shader_artifact_bundle(
     stage_hints.sort();
     stage_hints.dedup();
 
+    let all_entry_points = entry_points
+        .iter()
+        .map(|entry| entry.entry_point.clone())
+        .collect::<Vec<_>>();
+    let mut all_binding_slots = resource_layouts
+        .iter()
+        .map(|layout| layout.binding)
+        .collect::<Vec<_>>();
+    all_binding_slots.sort_unstable();
+    all_binding_slots.dedup();
+    let compute_entry_points = entry_points
+        .iter()
+        .filter(|entry| entry.stage.eq_ignore_ascii_case("compute"))
+        .map(|entry| entry.entry_point.clone())
+        .collect::<Vec<_>>();
+    let mut compute_binding_slots = resource_layouts
+        .iter()
+        .filter(|layout| {
+            reflection_shaders.iter().any(|shader| {
+                shader.stage.eq_ignore_ascii_case("compute")
+                    && shader.shader == layout.shader
+                    && shader.bindings.iter().any(|binding| {
+                        binding.binding == layout.binding
+                            && binding.descriptor_set == layout.descriptor_set
+                            && binding.name == layout.name
+                    })
+            })
+        })
+        .map(|layout| layout.binding)
+        .collect::<Vec<_>>();
+    compute_binding_slots.sort_unstable();
+    compute_binding_slots.dedup();
+    let derived_ptx_metadata = derived_ptx.and_then(parse_ptx_artifact_metadata);
+
     let mut derived_outputs = Vec::new();
     if let Some(hlsl) = derived_hlsl {
         derived_outputs.push(DerivedShaderArtifact {
             format: ShaderArtifactFormat::Hlsl,
             module_name: module_name.clone(),
             contents: hlsl.to_string(),
+            entry_points: all_entry_points.clone(),
+            binding_slots: all_binding_slots.clone(),
+            ptx: None,
         });
     }
     if let Some(ptx) = derived_ptx {
@@ -3170,6 +3465,9 @@ fn build_shader_artifact_bundle(
             format: ShaderArtifactFormat::Ptx,
             module_name: module_name.clone(),
             contents: ptx.to_string(),
+            entry_points: compute_entry_points,
+            binding_slots: compute_binding_slots,
+            ptx: derived_ptx_metadata,
         });
     }
 
@@ -4728,6 +5026,22 @@ shader compute sample_gpu_kernel(id: UVec3) -> Vec4:
         assert!(output.derived_hlsl.is_some());
         assert!(output.derived_ptx.is_some());
         assert!(output.bundle_json.contains("\"format\": \"ptx\""));
+        let ptx_artifact = output
+            .bundle
+            .derived_outputs
+            .iter()
+            .find(|artifact| artifact.format == ShaderArtifactFormat::Ptx)
+            .expect("ptx sidecar");
+        assert_eq!(
+            ptx_artifact
+                .ptx
+                .as_ref()
+                .expect("ptx metadata")
+                .required_target_arch,
+            "sm_50"
+        );
+        assert_eq!(ptx_artifact.entry_points, vec!["sample_gpu_kernel".to_string()]);
+        assert_eq!(ptx_artifact.binding_slots, vec![0, 1, 2, 100, 101]);
     }
 
     #[cfg(all(feature = "gpu", feature = "sys"))]
