@@ -29,6 +29,8 @@ POSIX_CPP_COPTS = [
 
 RUNTIME_PRIVATE_HEADERS = [
     "native/src/**/*.h",
+    # Runtime seam fragments are textually included from the owning C lane.
+    "native/src/core/python_runtime_*.c",
     "third_party/**/*.h",
     "third_party/**/*.hpp",
 ]
