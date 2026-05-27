@@ -46,6 +46,22 @@ int64_t kain_shared_buffer_create_owned(
     int64_t labels
 );
 
+int64_t kain_shared_buffer_create_borrowed(
+    const unsigned char* bytes,
+    int64_t byte_length,
+    const char* element_type,
+    int64_t element_size,
+    int64_t shape,
+    int64_t strides,
+    const char* format,
+    const char* mime_type,
+    const char* source_runtime,
+    const char* source_backend,
+    const char* ownership,
+    int64_t labels,
+    int64_t zero_copy_owner
+);
+
 int64_t kain_shared_image_create_owned(
     const unsigned char* bytes,
     int64_t byte_length,
@@ -65,6 +81,28 @@ int64_t kain_shared_image_create_owned(
     int64_t labels,
     int64_t shape,
     int64_t strides
+);
+
+int64_t kain_shared_image_create_borrowed(
+    const unsigned char* bytes,
+    int64_t byte_length,
+    int64_t width,
+    int64_t height,
+    int64_t channels,
+    const char* layout,
+    const char* pixel_format,
+    const char* mime_type,
+    int64_t row_stride,
+    const char* representation,
+    const char* color_space,
+    const char* alpha_mode,
+    const char* source_runtime,
+    const char* source_backend,
+    const char* ownership,
+    int64_t labels,
+    int64_t shape,
+    int64_t strides,
+    int64_t zero_copy_owner
 );
 
 #ifdef __cplusplus

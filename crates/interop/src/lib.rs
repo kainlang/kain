@@ -325,6 +325,10 @@ pub fn shared_buffer_info_value(buffer: &KainSharedBuffer) -> Value {
         "element_count".to_string(),
         Value::Int(element_count(&buffer.metadata.shape)),
     );
+    fields.insert(
+        "zero_copy".to_string(),
+        Value::Bool(buffer.metadata.ownership != "owned"),
+    );
     Value::Struct(
         "KainSharedBufferInfo".to_string(),
         Arc::new(RwLock::new(fields)),
@@ -391,6 +395,10 @@ pub fn shared_image_info_value(image: &KainSharedImage) -> Value {
     fields.insert(
         "byte_length".to_string(),
         Value::Int(image.buffer.byte_length() as i64),
+    );
+    fields.insert(
+        "zero_copy".to_string(),
+        Value::Bool(image.buffer.metadata.ownership != "owned"),
     );
     Value::Struct(
         "KainSharedImageInfo".to_string(),

@@ -161,6 +161,7 @@ X:\benchmark\kain-benchmark-v2.exe
 - The current router filter matches exact case ids or exact group ids from `KAIN_BENCH_V2_FILTER`; it is not substring matching.
 - In this checkout, string/path env overrides are working, but the numeric knobs `KAIN_BENCH_V2_PASSES`, `KAIN_BENCH_V2_WARMUPS`, and `KAIN_BENCH_V2_AMPLIFY` appear to be ignored at runtime even though the router reads them. Treat that as a live caveat until proven fixed.
 - Per-case track files under `benchmark/out/reports/v2_tracks/` are the easiest machine-readable artifact for focused before/after comparisons on one row.
+- When a v2 checksum changes unexpectedly after telemetry or scoring edits, inspect the authoritative router-side track first at `benchmark/cases_v2/.telemetryrouter/out/reports/v2_tracks/<case>.json`. The root `benchmark/out/reports/...` mirrors are useful, but the telemetryrouter track shows the live checksum delta and current case telemetry closest to execution.
 
 ## Dedicated WASM Parity Lane
 

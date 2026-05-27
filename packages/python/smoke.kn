@@ -206,11 +206,13 @@ fn image_lane(plan: Any, plan_text: String) -> Int:
     let shared_info = interop_shared_image_info(image_shared)
     if shared_info.width != expected_w or shared_info.height != expected_h or shared_info.channels != expected_c:
         return 32
+    if shared_info.zero_copy == false or shared_info.ownership != "shared":
+        return 33
 
     // --- pykain.image.signature ---
     let sig = pykain.image.render_signature(plan_text)
     if sig <= 0:
-        return 33
+        return 34
 
     return 0
 
@@ -236,11 +238,13 @@ fn buffer_lane(plan: Any, plan_text: String) -> Int:
     let shared_info = interop_shared_buffer_info(buffer_shared)
     if shared_info.byte_length != rows * cols or shared_info.element_size != 1:
         return 42
+    if shared_info.zero_copy == false or shared_info.ownership != "shared":
+        return 43
 
     // --- pykain.buffer.signature ---
     let sig = pykain.buffer.grid_signature(plan_text, seed)
     if sig <= 0:
-        return 43
+        return 44
 
     return 0
 
@@ -306,9 +310,11 @@ fn shader_lane(plan: Any, plan_text: String) -> Int:
     let shared_info = interop_shared_image_info(shader_shared_image)
     if shared_info.width != 64 or shared_info.height != 36 or shared_info.channels != 4:
         return 82
+    if shared_info.zero_copy == false or shared_info.ownership != "shared":
+        return 83
 
     if pykain_shader.render_ok(shader_source, 16, 9) == false:
-        return 83
+        return 84
 
     return 0
 

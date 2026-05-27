@@ -147,13 +147,13 @@ pub fn python_interop_case_expected_checksum(index: Int) -> Int:
     if index == 3:
         return 976817404
     if index == 4:
-        return 531462
+        return 533462
     if index == 5:
         return 91276
     if index == 6:
-        return 10034971
+        return 10037971
     if index == 7:
-        return 1122932
+        return 1130932
     return -1
 
 fn python_import_cached_checksum(iterations: Int) -> Int:
@@ -205,7 +205,7 @@ fn python_numpy_shared_buffer_checksum(iterations: Int) -> Int:
         let info = interop_shared_buffer_info(shared_buffer)
         let bytes = interop_shared_buffer_bytes(shared_buffer)
         let tail = bytes[len(bytes) - 1]
-        let lane = info.byte_length + info.element_count + info.element_size + bytes[0] + tail + (index % 37)
+        let lane = info.byte_length + info.element_count + info.element_size + bytes[0] + tail + interop_bool_score(info.zero_copy) + interop_bool_score(info.ownership == "shared") + (index % 37)
         acc = (acc + lane) % PYTHON_INTEROP_MODULUS
         index = index + 1
     return acc
@@ -232,7 +232,7 @@ fn python_raw_image_workflow_checksum(iterations: Int) -> Int:
         let info = interop_shared_image_info(image_handle)
         let bytes = interop_shared_image_bytes(image_handle)
         let tail = bytes[len(bytes) - 1]
-        let lane = info.width + info.height + info.channels + info.row_stride + info.byte_length + bytes[0] + tail + (index % 43)
+        let lane = info.width + info.height + info.channels + info.row_stride + info.byte_length + bytes[0] + tail + interop_bool_score(info.zero_copy) + interop_bool_score(info.ownership == "shared") + (index % 43)
         acc = (acc + lane) % PYTHON_INTEROP_MODULUS
         index = index + 1
     return acc
@@ -247,7 +247,7 @@ fn python_numpy_shared_buffer_tiny_checksum(iterations: Int) -> Int:
         let info = interop_shared_buffer_info(shared_buffer)
         let bytes = interop_shared_buffer_bytes(shared_buffer)
         let tail = bytes[len(bytes) - 1]
-        let lane = info.byte_length + info.element_count + info.element_size + bytes[0] + tail + interop_bool_score(info.byte_length == cells) + (index % 47)
+        let lane = info.byte_length + info.element_count + info.element_size + bytes[0] + tail + interop_bool_score(info.byte_length == cells) + interop_bool_score(info.zero_copy) + interop_bool_score(info.ownership == "shared") + (index % 47)
         acc = (acc + lane) % PYTHON_INTEROP_MODULUS
         index = index + 1
     return acc
@@ -292,6 +292,8 @@ pub fn python_interop_case_telemetry(case_id: String) -> String:
         content = content + "\"element_type\":" + interop_json_string_value("uint8") + ","
         content = content + "\"shape_kind\":" + interop_json_string_value("linear") + ","
         content = content + "\"edge_case\":" + interop_json_bool_text(case_id == "python_numpy_shared_buffer_tiny") + ","
+        content = content + "\"expected_zero_copy\":true,"
+        content = content + "\"expected_ownership\":" + interop_json_string_value("shared") + ","
         content = content + "\"pack_focus\":" + interop_json_string_value("shared-buffer")
         return content + "}"
     if case_id == "python_raw_tensor_workflow":
@@ -300,6 +302,7 @@ pub fn python_interop_case_telemetry(case_id: String) -> String:
         content = content + "\"rows\":" + str(RAW_TENSOR_ROWS) + ","
         content = content + "\"cols\":" + str(RAW_TENSOR_COLS) + ","
         content = content + "\"dtype\":" + interop_json_string_value("float32") + ","
+        content = content + "\"zero_copy_domain\":" + interop_json_string_value("tensor-runtime-handle") + ","
         content = content + "\"pack_focus\":" + interop_json_string_value("workflow")
         return content + "}"
     if case_id == "python_raw_image_workflow":
@@ -309,6 +312,8 @@ pub fn python_interop_case_telemetry(case_id: String) -> String:
         content = content + "\"height\":" + str(RAW_IMAGE_H) + ","
         content = content + "\"channels\":" + str(RAW_IMAGE_C) + ","
         content = content + "\"layout\":" + interop_json_string_value("HWC") + ","
+        content = content + "\"expected_zero_copy\":true,"
+        content = content + "\"expected_ownership\":" + interop_json_string_value("shared") + ","
         content = content + "\"pack_focus\":" + interop_json_string_value("workflow")
         return content + "}"
     let content = "{"

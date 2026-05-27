@@ -187,7 +187,7 @@ fn shared_contract_lane(plan: Any, plan_text: String) -> Int:
     let buffer_info = interop_shared_buffer_info(shared_buffer)
     if buffer_info.contract != "kain.shared.buffer":
         return 40
-    if buffer_info.source_runtime != "python" or buffer_info.ownership != "owned":
+    if buffer_info.source_runtime != "python" or buffer_info.ownership != "shared" or buffer_info.zero_copy == false:
         return 41
     if buffer_info.element_type != "u8" or buffer_info.element_size != 1:
         return 42
@@ -214,7 +214,7 @@ fn shared_contract_lane(plan: Any, plan_text: String) -> Int:
     let image_info = interop_shared_image_info(shared_image)
     if image_info.contract != "kain.shared.image":
         return 49
-    if image_info.source_runtime != "python" or image_info.ownership != "owned":
+    if image_info.source_runtime != "python" or image_info.ownership != "shared" or image_info.zero_copy == false:
         return 50
     if to_string(image_info.source_backend) != "numpy":
         return 51

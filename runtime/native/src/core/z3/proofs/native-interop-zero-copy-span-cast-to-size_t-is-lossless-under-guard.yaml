@@ -1,0 +1,29 @@
+version: 1
+id: kain.native.core.proofs.native_interop_zero_copy_span_cast_to_size_t_is_lossless_under_guard
+kind: check_smt2
+description: The zero-copy imported-span guard rejects negative signed lengths and, on narrower 32-bit size_t hosts, forces the high 32 bits to zero before the size_t cast.
+tags:
+- native-runtime
+- interop
+- zero-copy
+- size_t
+- cast
+- overflow
+source:
+  path: X:\runtime\native\src\core\interop_zero_copy.c
+  symbol: kain_interop_zero_copy_prepare_imported_span
+  start_line: 97
+  reason: the borrowed-span lane casts a signed int64 byte length into size_t only after the nonnegative and SIZE_MAX guards pass.
+case:
+  smt2: |
+    (set-logic QF_BV)
+    (declare-const byte_length (_ BitVec 64))
+    ; The first guard rejects negative signed 64-bit lengths.
+    (assert (= ((_ extract 63 63) byte_length) #b0))
+    ; The second guard models a narrower 32-bit size_t host where SIZE_MAX = 0xffffffff.
+    (assert (bvule byte_length #x00000000ffffffff))
+    ; If either guard were insufficient, a lossy cast could retain non-zero high bits.
+    (assert (not (= ((_ extract 63 32) byte_length) #x00000000)))
+    (check-sat)
+  include_model: false
+  include_stats: false

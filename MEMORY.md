@@ -1,5 +1,59 @@
 # Kain Memory
 
+# 2026-05-26 - Native Python Zero-Copy Shared Buffer/Image Lane and v2 Benchmark Truth
+
+Landed a reusable native zero-copy substrate for foreign shared spans and rewired the C Python bridge to adopt contiguous Python buffer-protocol exports without `tobytes()` copies in the hot buffer/image lane. The bridge now caches default `sys.path` import context once, preserves borrowed Python owners through RC-backed zero-copy handles, exposes `zero_copy` through the neutral shared contracts, and updates the Python v2 benchmark packs to assert truthful `ownership == "shared"` / `zero_copy == true` metadata.
+
+What changed:
+
+- `runtime/native/include/interop_zero_copy.h`
+- `runtime/native/src/core/interop_zero_copy.c`
+  - Adds the reusable RC-backed foreign-owner substrate plus guarded signed-int64-to-`size_t` span validation for borrowed interop memory.
+  - The final hot path intentionally does not register imported spans in `ownership.c`; the owner handle is the lifetime authority, and imported-pointer registration was shown to poison long Python benchmark loops.
+- `runtime/native/include/interop_contracts.h`
+- `runtime/native/src/core/interop_contracts.c`
+  - Adds borrowed shared-buffer/shared-image constructors, borrowed-owner release on teardown/detach, and a surfaced `zero_copy` metadata bit.
+- `runtime/native/src/core/python_runtime.c`
+  - Adds `PyObject_GetBuffer` / `PyBuffer_Release` loading, one-time default import-context caching, contiguous `Py_buffer` adoption, dtype inference from buffer formats, zero-copy borrowed shared-buffer/shared-image creation, and copy fallback only when the buffer path is not eligible.
+- `stdlib/interop.kn`
+- `crates/interop/src/lib.rs`
+  - Adds `zero_copy: Bool` to the neutral shared buffer/image info surface for both native runtime and Rust host-object lanes.
+- `benchmark/cases_v2/python_interop.kn`
+- `benchmark/cases_v2/python_with_pykain.kn`
+- `packages/python/smoke.kn`
+- `blades/python/py_c/src/main.kn`
+- `blades/python/library/1_pygame_mcp.kn`
+  - Updates authored proofs and benchmark checksums to expect truthful shared/zero-copy metadata instead of the old copy-owned contract.
+- `runtime/native/src/core/z3/proofs/native-interop-zero-copy-span-cast-to-size_t-is-lossless-under-guard.yaml`
+  - Adds the durable proof artifact for the borrowed-span cast guard.
+
+Proof:
+
+- Z3 MCP:
+  - `prove(kind=check_smt2, report_name=native-interop-zero-copy-span-cast-to-size_t-is-lossless-under-guard)` returns `unsat`; report `X:\z3\reports\20260527T015435Z-native-interop-zero-copy-span-cast-to-size_t-is-lossless-under-guard.json`.
+- Runtime:
+  - `py -3 tools/bazel/sync_native_runtime_builds.py`
+  - `bazel build //runtime:all`
+  - `bazel test //runtime:native_runtime_tests`
+- Bazel-built compiler / authored Kain:
+  - `bazel build //:kain --config=dev`
+  - Bazel-built `kain.exe check X:\packages\python\smoke.kn --target llvm`
+  - Bazel-built `kain.exe run X:\packages\python\smoke.kn --target llvm` with exit `0`; report `X:\.kain\reports\run\session-1779847007288-30640.json`.
+- Python v2 benchmark lane:
+  - `$env:KAIN_BENCH_V2_FILTER='python,python_pykain'; <bazel-built kain.exe> run X:\benchmark --target llvm --json`
+  - Succeeds with report `X:\benchmark\.kain\reports\run\session-1779847324894-19568.json`.
+  - Notable raw-lane numbers after the zero-copy pass:
+    - `python_import_cached`: best `38 ms`, avg `40 ms`
+    - `python_numpy_shared_buffer`: best `57 ms`, avg `63 ms`
+    - `python_raw_image_workflow`: best `265 ms`, avg `448 ms`
+    - `python_pykain_shader_readback`: best `281 ms`, avg `304 ms`
+
+Durable lessons:
+
+- For neutral Python shared buffer/image adoption, the owner-retain/release handle is the real lifetime primitive. Imported-pointer registry writes in the hot lane were not just unnecessary; they caused benchmark failure under sustained Python pressure by exhausting imported-pointer capacity.
+- The authoritative per-case v2 Python track files for this lane currently land under `benchmark/cases_v2/.telemetryrouter/out/reports/v2_tracks/`, not only the root `benchmark/out/reports/` mirror. When a checksum flips after changing telemetry math, inspect the track JSON first and update the pack-local expected checksum constants there instead of hunting the router.
+- `blades/python/library/1_pygame_mcp.kn` still has an unrelated `python_lab_bridge` C-import resolution issue when checked standalone from repo root. Treat that as pre-existing blade packaging debt, not evidence against the zero-copy bridge.
+
 # 2026-05-26 - pykain Native Bridge Materialization and Shared-Object Repair
 
 Fixed the native LLVM Python bridge so first-class Python import calls can return usable Kain values instead of opaque handles for ordinary Python data. Python `dict`, `list`, `tuple`, `str`, `bool`, `int`, and `float` results now materialize through the native bridge while heavy host objects such as NumPy arrays stay as Python handles for shared tensor/image/buffer conversion. The JSON bridge now validates live RC JSON type tags before claiming a handle, and it preserves tagged foreign runtime handles as opaque values when Kain packs them into argument arrays.

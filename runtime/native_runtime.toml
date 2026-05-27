@@ -32,6 +32,7 @@ sources = [
     "native/src/core/async.c",
     "native/src/core/compatibility.c",
     "native/src/core/host_bridge.c",
+    "native/src/core/interop_zero_copy.c",
     "native/src/core/interop_contracts.c",
     "native/src/core/python_runtime.c",
     "native/src/core/fanout.c",

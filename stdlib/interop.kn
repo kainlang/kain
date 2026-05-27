@@ -20,6 +20,7 @@ pub struct KainSharedBufferInfo:
     labels: Any
     byte_length: Int
     element_count: Int
+    zero_copy: Bool
 
 pub struct KainSharedImageInfo:
     contract: String
@@ -39,6 +40,7 @@ pub struct KainSharedImageInfo:
     ownership: String
     labels: Any
     byte_length: Int
+    zero_copy: Bool
 
 pub fn interop_shared_buffer_info(target: Any) -> KainSharedBufferInfo:
     let payload = kain_shared_buffer_info(target)
@@ -56,7 +58,8 @@ pub fn interop_shared_buffer_info(target: Any) -> KainSharedBufferInfo:
         ownership: json_get_string(payload, "ownership"),
         labels: json_get(payload, "labels"),
         byte_length: json_get_int(payload, "byte_length"),
-        element_count: json_get_int(payload, "element_count")
+        element_count: json_get_int(payload, "element_count"),
+        zero_copy: json_get_bool(payload, "zero_copy")
     }
 
 pub fn interop_shared_buffer_bytes(target: Any) -> Array<Int>:
@@ -87,7 +90,8 @@ pub fn interop_shared_image_info(target: Any) -> KainSharedImageInfo:
         source_backend: json_get(payload, "source_backend"),
         ownership: json_get_string(payload, "ownership"),
         labels: json_get(payload, "labels"),
-        byte_length: json_get_int(payload, "byte_length")
+        byte_length: json_get_int(payload, "byte_length"),
+        zero_copy: json_get_bool(payload, "zero_copy")
     }
 
 pub fn interop_shared_image_bytes(target: Any) -> Array<Int>:

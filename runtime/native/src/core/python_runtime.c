@@ -1,5 +1,6 @@
 #include "../../include/base.h"
 #include "../../include/interop_contracts.h"
+#include "../../include/interop_zero_copy.h"
 #include "../../include/json.h"
 
 #include <limits.h>
@@ -12,6 +13,11 @@
 
 #define KAIN_PY_FILE_INPUT 257
 #define KAIN_PY_EVAL_INPUT 258
+#define KAIN_PY_IMPORT_DIR_CACHE 4096
+#define KAIN_PYBUF_WRITABLE 0x0001
+#define KAIN_PYBUF_FORMAT   0x0004
+#define KAIN_PYBUF_ND       0x0008
+#define KAIN_PYBUF_STRIDES  0x0018
 
 #define KAIN_RC_TYPE_PY_OBJECT  UINT64_C(0x4b50594f424a0001)
 #define KAIN_RC_TYPE_PY_TENSOR  UINT64_C(0x4b505954454e0001)
@@ -23,6 +29,19 @@
 typedef intptr_t Py_ssize_t;
 typedef struct _object PyObject;
 typedef int PyGILState_STATE;
+typedef struct {
+    void* buf;
+    PyObject* obj;
+    Py_ssize_t len;
+    Py_ssize_t itemsize;
+    int readonly;
+    int ndim;
+    char* format;
+    Py_ssize_t* shape;
+    Py_ssize_t* strides;
+    Py_ssize_t* suboffsets;
+    void* internal;
+} Py_buffer;
 
 typedef struct {
     int ready;
@@ -72,6 +91,8 @@ typedef struct {
     void (*PyErr_Clear)(void);
     void (*Py_IncRef)(PyObject*);
     void (*Py_DecRef)(PyObject*);
+    int (*PyObject_GetBuffer)(PyObject*, Py_buffer*, int);
+    void (*PyBuffer_Release)(Py_buffer*);
 } KainPythonApi;
 
 typedef struct {
@@ -109,8 +130,14 @@ typedef struct {
     PyGILState_STATE state;
 } KainPythonGilScope;
 
+typedef struct {
+    Py_buffer view;
+} KainPythonBorrowedBufferOwner;
+
 static KainPythonApi g_kain_python_api;
 static int g_kain_python_load_attempted = 0;
+static int g_kain_python_default_import_context_ready = 0;
+static char g_kain_python_last_importer_dir[KAIN_PY_IMPORT_DIR_CACHE];
 
 void* kain_alloc_rc(size_t size, long long type_tag);
 void rc_retain(void* ptr);
@@ -122,6 +149,9 @@ long long py_getattr_raw(long long target, char* name);
 long long kain_tensor_from_py_shared(long long target);
 long long kain_image_from_py_shared(long long target);
 static int kain_py_copy_source_backend(PyObject* object, char* dest, size_t dest_size);
+static int kain_py_checked_mul_i64(long long left, long long right, long long* out_value);
+static int64_t kain_py_array_handle_from_values(const long long* values, long long len);
+static int64_t kain_py_compact_strides_handle(const long long* shape, long long len);
 
 static int kain_py_trace_enabled(void) {
 #ifdef _WIN32
@@ -413,6 +443,8 @@ static int kain_py_load_api(void) {
     KAIN_LOAD_PY_API(PyErr_Clear);
     KAIN_LOAD_PY_API(Py_IncRef);
     KAIN_LOAD_PY_API(Py_DecRef);
+    KAIN_LOAD_PY_API(PyObject_GetBuffer);
+    KAIN_LOAD_PY_API(PyBuffer_Release);
 
 #undef KAIN_LOAD_PY_API
 
@@ -510,8 +542,19 @@ static void kain_py_prepend_sys_path(const char* root) {
 static void kain_py_prepare_import_context(const char* importer_file) {
     char* parent = kain_py_parent_dir(importer_file);
     if (parent) {
-        kain_py_prepend_sys_path(parent);
+        if (strcmp(parent, g_kain_python_last_importer_dir) != 0) {
+            kain_py_prepend_sys_path(parent);
+            strncpy_s(
+                g_kain_python_last_importer_dir,
+                sizeof(g_kain_python_last_importer_dir),
+                parent,
+                _TRUNCATE
+            );
+        }
         free(parent);
+    }
+    if (g_kain_python_default_import_context_ready) {
+        return;
     }
 #ifdef _WIN32
     {
@@ -535,6 +578,199 @@ static void kain_py_prepare_import_context(const char* importer_file) {
         }
     }
 #endif
+    g_kain_python_default_import_context_ready = 1;
+}
+
+static const char* kain_py_dtype_from_buffer_format(const char* format) {
+    if (!format) {
+        return NULL;
+    }
+    while (*format == '@' || *format == '=' || *format == '<' || *format == '>' || *format == '!') {
+        format += 1;
+    }
+    switch (*format) {
+        case '?':
+            return "bool";
+        case 'b':
+            return "int8";
+        case 'B':
+            return "uint8";
+        case 'h':
+            return "int16";
+        case 'H':
+            return "uint16";
+        case 'i':
+            return "int32";
+        case 'I':
+            return "uint32";
+        case 'l':
+            return "int64";
+        case 'L':
+            return "uint64";
+        case 'q':
+            return "int64";
+        case 'Q':
+            return "uint64";
+        case 'f':
+            return "float32";
+        case 'd':
+            return "float64";
+        default:
+            return NULL;
+    }
+}
+
+static int kain_py_buffer_view_is_c_contiguous(const Py_buffer* view) {
+    long long expected_stride;
+    int index;
+    if (!view || view->len < 0) {
+        return 0;
+    }
+    if (view->itemsize <= 0) {
+        return view->len == 0;
+    }
+    if (view->ndim <= 0 || !view->shape) {
+        return 1;
+    }
+    if (!view->strides) {
+        return 1;
+    }
+    expected_stride = (long long)view->itemsize;
+    index = view->ndim - 1;
+    while (index >= 0) {
+        long long dim = (long long)view->shape[index];
+        long long stride = (long long)view->strides[index];
+        if (dim < 0) {
+            return 0;
+        }
+        if (dim == 0) {
+            return 1;
+        }
+        if (dim > 1 && stride != expected_stride) {
+            return 0;
+        }
+        if (!kain_py_checked_mul_i64(expected_stride, dim > 0 ? dim : 1, &expected_stride)) {
+            return 0;
+        }
+        if (index == 0) {
+            break;
+        }
+        index -= 1;
+    }
+    return 1;
+}
+
+static int kain_py_buffer_shape_handles_from_view(
+    const Py_buffer* view,
+    long long item_size,
+    int64_t* out_shape_handle,
+    int64_t* out_strides_handle
+) {
+    long long* shape_values = NULL;
+    long long ndim = 0;
+    int ok = 0;
+    if (out_shape_handle) {
+        *out_shape_handle = 0;
+    }
+    if (out_strides_handle) {
+        *out_strides_handle = 0;
+    }
+    if (!view || !out_shape_handle || !out_strides_handle) {
+        return 0;
+    }
+    if (view->ndim > 0 && view->shape) {
+        Py_ssize_t index;
+        ndim = (long long)view->ndim;
+        shape_values = (long long*)calloc((size_t)ndim, sizeof(long long));
+        if (!shape_values) {
+            return 0;
+        }
+        for (index = 0; index < view->ndim; ++index) {
+            long long dim = (long long)view->shape[index];
+            if (dim < 0) {
+                free(shape_values);
+                return 0;
+            }
+            shape_values[index] = dim;
+        }
+    } else {
+        long long inferred[1];
+        long long byte_length = (long long)view->len;
+        if (item_size <= 0) {
+            item_size = 1;
+        }
+        if (byte_length < 0) {
+            return 0;
+        }
+        if (item_size > 0 && byte_length > 0 && (byte_length % item_size) != 0) {
+            return 0;
+        }
+        inferred[0] = (item_size > 0 && byte_length > 0) ? (byte_length / item_size) : byte_length;
+        *out_shape_handle = kain_py_array_handle_from_values(inferred, 1);
+        *out_strides_handle = kain_py_compact_strides_handle(inferred, 1);
+        return *out_shape_handle != 0 && *out_strides_handle != 0;
+    }
+    *out_shape_handle = kain_py_array_handle_from_values(shape_values, ndim);
+    *out_strides_handle = kain_py_compact_strides_handle(shape_values, ndim);
+    ok = *out_shape_handle != 0 && *out_strides_handle != 0;
+    free(shape_values);
+    return ok;
+}
+
+static void kain_py_borrowed_buffer_owner_release(void* state) {
+    KainPythonBorrowedBufferOwner* owner = (KainPythonBorrowedBufferOwner*)state;
+    KainPythonGilScope scope;
+    if (!owner) {
+        return;
+    }
+    scope = kain_py_gil_enter();
+    if (scope.active && g_kain_python_api.PyBuffer_Release) {
+        g_kain_python_api.PyBuffer_Release(&owner->view);
+    }
+    kain_py_gil_exit(&scope);
+    free(owner);
+}
+
+static int64_t kain_py_borrowed_buffer_owner_create(PyObject* object, Py_buffer* out_view) {
+    KainPythonBorrowedBufferOwner* owner;
+    int64_t owner_handle;
+    if (out_view) {
+        memset(out_view, 0, sizeof(*out_view));
+    }
+    if (!object || !g_kain_python_api.PyObject_GetBuffer || !g_kain_python_api.PyBuffer_Release) {
+        return 0;
+    }
+    owner = (KainPythonBorrowedBufferOwner*)calloc(1u, sizeof(KainPythonBorrowedBufferOwner));
+    if (!owner) {
+        return 0;
+    }
+    if (g_kain_python_api.PyObject_GetBuffer(
+            object,
+            &owner->view,
+            KAIN_PYBUF_STRIDES | KAIN_PYBUF_FORMAT
+        ) != 0) {
+        kain_py_clear_error();
+        free(owner);
+        return 0;
+    }
+    if (owner->view.itemsize <= 0) {
+        owner->view.itemsize = 1;
+    }
+    if (owner->view.len < 0 ||
+        (owner->view.len > 0 && owner->view.buf == NULL) ||
+        !kain_py_buffer_view_is_c_contiguous(&owner->view)) {
+        g_kain_python_api.PyBuffer_Release(&owner->view);
+        free(owner);
+        return 0;
+    }
+    if (out_view) {
+        *out_view = owner->view;
+    }
+    owner_handle = kain_interop_zero_copy_owner_create(owner, kain_py_borrowed_buffer_owner_release);
+    if (!owner_handle) {
+        return 0;
+    }
+    return owner_handle;
 }
 
 static KainPythonObjectHandle* kain_py_wrap_object(PyObject* object) {
@@ -2846,7 +3082,8 @@ long long kain_shared_buffer_from_py(long long target) {
     KainPythonGilScope scope = kain_py_gil_enter();
     PyObject* object;
     PyObject* export_target;
-    PyObject* bytes_obj;
+    PyObject* bytes_obj = NULL;
+    Py_buffer borrowed_view;
     unsigned char* byte_values = NULL;
     long long byte_length = 0;
     long long* shape_values = NULL;
@@ -2856,6 +3093,7 @@ long long kain_shared_buffer_from_py(long long target) {
     long long labels = 0;
     long long handle = 0;
     long long item_size = 1;
+    long long zero_copy_owner = 0;
     char backend[32];
     char dtype[24];
     const char* element_type;
@@ -2880,66 +3118,128 @@ long long kain_shared_buffer_from_py(long long target) {
         return 0;
     }
     dtype[0] = '\0';
+    memset(&borrowed_view, 0, sizeof(borrowed_view));
     kain_py_copy_dtype_name(export_target, dtype, sizeof(dtype));
     item_size = kain_py_attr_int(export_target, "itemsize", 1);
-    if (!kain_py_read_shape(export_target, &shape_values, &shape_len) || shape_len <= 0) {
-        long long inferred[1];
-        long long nbytes = kain_py_attr_int(export_target, "nbytes", 0);
-        inferred[0] = (item_size > 0 && nbytes > 0) ? (nbytes / item_size) : nbytes;
-        shape_len = 1;
-        shape_handle = kain_py_array_handle_from_values(inferred, 1);
-        strides_handle = kain_py_compact_strides_handle(inferred, 1);
-    } else {
-        shape_handle = kain_py_array_handle_from_values(shape_values, shape_len);
-        strides_handle = kain_py_compact_strides_handle(shape_values, shape_len);
+    zero_copy_owner = kain_py_borrowed_buffer_owner_create(export_target, &borrowed_view);
+    if (zero_copy_owner) {
+        if (borrowed_view.itemsize > 0) {
+            item_size = (long long)borrowed_view.itemsize;
+        }
+        if (!dtype[0]) {
+            const char* view_dtype = kain_py_dtype_from_buffer_format(borrowed_view.format);
+            if (view_dtype) {
+                strncpy_s(dtype, sizeof(dtype), view_dtype, _TRUNCATE);
+            }
+        }
+        if (kain_py_buffer_shape_handles_from_view(
+                &borrowed_view,
+                item_size > 0 ? item_size : 1,
+                &shape_handle,
+                &strides_handle
+            )) {
+            labels = kain_py_build_shared_labels("python", backend[0] ? backend : "buffer");
+            element_type = kain_py_storage_from_dtype(dtype);
+            handle = kain_shared_buffer_create_borrowed(
+                (const unsigned char*)borrowed_view.buf,
+                (long long)borrowed_view.len,
+                element_type,
+                item_size > 0 ? item_size : 1,
+                shape_handle,
+                strides_handle,
+                dtype[0] ? dtype : NULL,
+                "application/octet-stream",
+                "python",
+                backend[0] ? backend : NULL,
+                "shared",
+                labels,
+                zero_copy_owner
+            );
+        }
     }
-    bytes_obj = kain_py_call_method0_owned(export_target, "tobytes");
-    if (kain_py_trace_enabled()) {
-        fprintf(
-            stderr,
-            "[kain-py] shared_buffer: backend=%s dtype=%s item_size=%lld shape_len=%lld shape_handle=%p strides_handle=%p bytes_obj=%p\n",
-            backend[0] ? backend : "<none>",
-            dtype[0] ? dtype : "<none>",
-            item_size,
-            shape_len,
-            (void*)(intptr_t)shape_handle,
-            (void*)(intptr_t)strides_handle,
-            (void*)bytes_obj
-        );
-    }
-    if (bytes_obj && kain_py_extract_byte_sequence(bytes_obj, &byte_values, &byte_length) && shape_handle) {
-        labels = kain_py_build_shared_labels("python", backend[0] ? backend : "buffer");
-        element_type = kain_py_storage_from_dtype(dtype);
-        handle = kain_shared_buffer_create_owned(
-            byte_values,
-            byte_length,
-            element_type,
-            item_size > 0 ? item_size : 1,
-            shape_handle,
-            strides_handle,
-            dtype[0] ? dtype : NULL,
-            "application/octet-stream",
-            "python",
-            backend[0] ? backend : NULL,
-            "owned",
-            labels
-        );
+    if (!handle) {
+        if (!shape_handle || !strides_handle) {
+            if (!kain_py_read_shape(export_target, &shape_values, &shape_len) || shape_len <= 0) {
+                long long inferred[1];
+                long long nbytes = kain_py_attr_int(export_target, "nbytes", 0);
+                inferred[0] = (item_size > 0 && nbytes > 0) ? (nbytes / item_size) : nbytes;
+                shape_len = 1;
+                if (!shape_handle) {
+                    shape_handle = kain_py_array_handle_from_values(inferred, 1);
+                }
+                if (!strides_handle) {
+                    strides_handle = kain_py_compact_strides_handle(inferred, 1);
+                }
+            } else {
+                if (!shape_handle) {
+                    shape_handle = kain_py_array_handle_from_values(shape_values, shape_len);
+                }
+                if (!strides_handle) {
+                    strides_handle = kain_py_compact_strides_handle(shape_values, shape_len);
+                }
+            }
+        }
+        bytes_obj = kain_py_call_method0_owned(export_target, "tobytes");
+        if (!labels) {
+            labels = kain_py_build_shared_labels("python", backend[0] ? backend : "buffer");
+        }
         if (kain_py_trace_enabled()) {
             fprintf(
                 stderr,
-                "[kain-py] shared_buffer: extracted_bytes=%lld labels=%p handle=%p element_type=%s\n",
+                "[kain-py] shared_buffer: backend=%s dtype=%s item_size=%lld shape_len=%lld shape_handle=%p strides_handle=%p zero_copy_owner=%p bytes_obj=%p\n",
+                backend[0] ? backend : "<none>",
+                dtype[0] ? dtype : "<none>",
+                item_size,
+                shape_len,
+                (void*)(intptr_t)shape_handle,
+                (void*)(intptr_t)strides_handle,
+                (void*)(intptr_t)zero_copy_owner,
+                (void*)bytes_obj
+            );
+        }
+        if (bytes_obj && kain_py_extract_byte_sequence(bytes_obj, &byte_values, &byte_length) && shape_handle) {
+            element_type = kain_py_storage_from_dtype(dtype);
+            handle = kain_shared_buffer_create_owned(
+                byte_values,
                 byte_length,
-                (void*)(intptr_t)labels,
-                (void*)(intptr_t)handle,
-                element_type ? element_type : "<null>"
+                element_type,
+                item_size > 0 ? item_size : 1,
+                shape_handle,
+                strides_handle,
+                dtype[0] ? dtype : NULL,
+                "application/octet-stream",
+                "python",
+                backend[0] ? backend : NULL,
+                "owned",
+                labels
+            );
+            if (kain_py_trace_enabled()) {
+                fprintf(
+                    stderr,
+                    "[kain-py] shared_buffer: extracted_bytes=%lld labels=%p handle=%p element_type=%s\n",
+                    byte_length,
+                    (void*)(intptr_t)labels,
+                    (void*)(intptr_t)handle,
+                    element_type ? element_type : "<null>"
+                );
+            }
+        } else if (kain_py_trace_enabled()) {
+            fprintf(
+                stderr,
+                "[kain-py] shared_buffer: extraction gate failed bytes_obj=%p shape_handle=%p\n",
+                (void*)bytes_obj,
+                (void*)(intptr_t)shape_handle
             );
         }
     } else if (kain_py_trace_enabled()) {
         fprintf(
             stderr,
-            "[kain-py] shared_buffer: extraction gate failed bytes_obj=%p shape_handle=%p\n",
-            (void*)bytes_obj,
-            (void*)(intptr_t)shape_handle
+            "[kain-py] shared_buffer: zero-copy adopted backend=%s dtype=%s bytes=%lld owner=%p handle=%p\n",
+            backend[0] ? backend : "<none>",
+            dtype[0] ? dtype : "<none>",
+            (long long)borrowed_view.len,
+            (void*)(intptr_t)zero_copy_owner,
+            (void*)(intptr_t)handle
         );
     }
     if (labels) {
@@ -2956,6 +3256,9 @@ long long kain_shared_buffer_from_py(long long target) {
     if (bytes_obj) {
         g_kain_python_api.Py_DecRef(bytes_obj);
     }
+    if (zero_copy_owner) {
+        kain_interop_zero_copy_owner_release(zero_copy_owner);
+    }
     g_kain_python_api.Py_DecRef(export_target);
     g_kain_python_api.Py_DecRef(object);
     kain_py_gil_exit(&scope);
@@ -2966,7 +3269,8 @@ long long kain_shared_image_from_py(long long target) {
     KainPythonGilScope scope = kain_py_gil_enter();
     PyObject* object;
     PyObject* export_target;
-    PyObject* bytes_obj;
+    PyObject* bytes_obj = NULL;
+    Py_buffer borrowed_view;
     KainPythonImageHandle* image;
     unsigned char* byte_values = NULL;
     long long byte_length = 0;
@@ -2976,6 +3280,7 @@ long long kain_shared_image_from_py(long long target) {
     long long handle = 0;
     long long item_size = 1;
     long long row_stride = 0;
+    long long zero_copy_owner = 0;
     char backend[32];
     const char* storage;
     const char* pixel_format;
@@ -2999,7 +3304,8 @@ long long kain_shared_image_from_py(long long target) {
         kain_py_gil_exit(&scope);
         return 0;
     }
-    image = kain_py_wrap_image(export_target, "owned");
+    memset(&borrowed_view, 0, sizeof(borrowed_view));
+    image = kain_py_wrap_image(export_target, "shared");
     if (!image) {
         g_kain_python_api.Py_DecRef(export_target);
         g_kain_python_api.Py_DecRef(object);
@@ -3012,36 +3318,19 @@ long long kain_shared_image_from_py(long long target) {
     if (strcmp(storage, "u8") == 0) {
         shape_handle = kain_py_image_shape_handle(image);
         strides_handle = kain_py_image_strides_handle(image);
-        row_stride = kain_py_default_image_row_stride(
+        row_stride = image->row_stride > 0 ? image->row_stride : kain_py_default_image_row_stride(
             image->layout,
             image->width,
             image->channels,
             item_size > 0 ? item_size : 1
         );
-        bytes_obj = kain_py_call_method0_owned(image->object, "tobytes");
-        if (kain_py_trace_enabled()) {
-            fprintf(
-                stderr,
-                "[kain-py] shared_image: backend=%s layout=%s dtype=%s item_size=%lld row_stride=%lld shape_handle=%p strides_handle=%p bytes_obj=%p\n",
-                backend[0] ? backend : "<none>",
-                image->layout,
-                image->dtype,
-                item_size,
-                row_stride,
-                (void*)(intptr_t)shape_handle,
-                (void*)(intptr_t)strides_handle,
-                (void*)bytes_obj
-            );
-        }
-        if (bytes_obj &&
-            kain_py_extract_byte_sequence(bytes_obj, &byte_values, &byte_length) &&
-            shape_handle &&
-            row_stride > 0) {
+        zero_copy_owner = kain_py_borrowed_buffer_owner_create(image->object, &borrowed_view);
+        if (zero_copy_owner && shape_handle && row_stride > 0) {
             labels = kain_py_build_shared_labels("python", backend[0] ? backend : "image");
             pixel_format = kain_py_pixel_format(image->channels, image->dtype);
-            handle = kain_shared_image_create_owned(
-                byte_values,
-                byte_length,
+            handle = kain_shared_image_create_borrowed(
+                (const unsigned char*)borrowed_view.buf,
+                (long long)borrowed_view.len,
                 image->width,
                 image->height,
                 image->channels,
@@ -3054,22 +3343,82 @@ long long kain_shared_image_from_py(long long target) {
                 image->channels == 4 ? "straight" : "opaque",
                 "python",
                 backend[0] ? backend : NULL,
-                "owned",
+                "shared",
                 labels,
                 shape_handle,
-                strides_handle
+                strides_handle,
+                zero_copy_owner
             );
             if (kain_py_trace_enabled()) {
                 fprintf(
                     stderr,
-                    "[kain-py] shared_image: extracted_bytes=%lld labels=%p handle=%p pixel_format=%s\n",
-                    byte_length,
+                    "[kain-py] shared_image: zero-copy adopted bytes=%lld labels=%p owner=%p handle=%p pixel_format=%s\n",
+                    (long long)borrowed_view.len,
                     (void*)(intptr_t)labels,
+                    (void*)(intptr_t)zero_copy_owner,
                     (void*)(intptr_t)handle,
                     pixel_format ? pixel_format : "<null>"
                 );
             }
-        } else if (kain_py_trace_enabled()) {
+        }
+        if (!handle) {
+            bytes_obj = kain_py_call_method0_owned(image->object, "tobytes");
+            if (kain_py_trace_enabled()) {
+                fprintf(
+                    stderr,
+                    "[kain-py] shared_image: backend=%s layout=%s dtype=%s item_size=%lld row_stride=%lld shape_handle=%p strides_handle=%p zero_copy_owner=%p bytes_obj=%p\n",
+                    backend[0] ? backend : "<none>",
+                    image->layout,
+                    image->dtype,
+                    item_size,
+                    row_stride,
+                    (void*)(intptr_t)shape_handle,
+                    (void*)(intptr_t)strides_handle,
+                    (void*)(intptr_t)zero_copy_owner,
+                    (void*)bytes_obj
+                );
+            }
+            if (bytes_obj &&
+                kain_py_extract_byte_sequence(bytes_obj, &byte_values, &byte_length) &&
+                shape_handle &&
+                row_stride > 0) {
+                if (!labels) {
+                    labels = kain_py_build_shared_labels("python", backend[0] ? backend : "image");
+                }
+                pixel_format = kain_py_pixel_format(image->channels, image->dtype);
+                handle = kain_shared_image_create_owned(
+                    byte_values,
+                    byte_length,
+                    image->width,
+                    image->height,
+                    image->channels,
+                    image->layout,
+                    pixel_format,
+                    "image/x-kain-raster",
+                    row_stride,
+                    "raster",
+                    "srgb",
+                    image->channels == 4 ? "straight" : "opaque",
+                    "python",
+                    backend[0] ? backend : NULL,
+                    "owned",
+                    labels,
+                    shape_handle,
+                    strides_handle
+                );
+                if (kain_py_trace_enabled()) {
+                    fprintf(
+                        stderr,
+                        "[kain-py] shared_image: extracted_bytes=%lld labels=%p handle=%p pixel_format=%s\n",
+                        byte_length,
+                        (void*)(intptr_t)labels,
+                        (void*)(intptr_t)handle,
+                        pixel_format ? pixel_format : "<null>"
+                    );
+                }
+            }
+        }
+        if (!handle && kain_py_trace_enabled()) {
             fprintf(
                 stderr,
                 "[kain-py] shared_image: extraction gate failed bytes_obj=%p shape_handle=%p row_stride=%lld\n",
@@ -3091,6 +3440,9 @@ long long kain_shared_image_from_py(long long target) {
     free(byte_values);
     if (bytes_obj) {
         g_kain_python_api.Py_DecRef(bytes_obj);
+    }
+    if (zero_copy_owner) {
+        kain_interop_zero_copy_owner_release(zero_copy_owner);
     }
     rc_release(image);
     g_kain_python_api.Py_DecRef(object);

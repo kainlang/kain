@@ -3,6 +3,7 @@
 #include "../../include/base.h"
 #include "../../include/diagnostics.h"
 #include "../../include/json.h"
+#include "../../include/interop_zero_copy.h"
 
 #include <limits.h>
 #include <stdint.h>
@@ -14,6 +15,8 @@
 #define KAIN_SHARED_JSON_INT(value)  ((((int64_t)(value)) << 3) | 1LL)
 #define KAIN_SHARED_JSON_NULL        4LL
 #define KAIN_SHARED_CONTRACT_VERSION 1LL
+#define KAIN_SHARED_STORAGE_OWNED    0
+#define KAIN_SHARED_STORAGE_BORROWED 1
 
 typedef struct KainSharedBufferHandle {
     unsigned char* bytes;
@@ -28,6 +31,8 @@ typedef struct KainSharedBufferHandle {
     char* source_backend;
     char* ownership;
     int64_t labels;
+    int64_t zero_copy_owner;
+    int storage_mode;
 } KainSharedBufferHandle;
 
 typedef struct KainSharedImageHandle {
@@ -326,12 +331,37 @@ static void kain_shared_json_set_string_optional(int64_t object, const char* key
     kain_shared_json_set_string_required(object, key, value);
 }
 
+static void kain_shared_buffer_set_ownership(KainSharedBufferHandle* buffer, const char* ownership) {
+    char* next_ownership;
+    if (!buffer) {
+        return;
+    }
+    next_ownership = kain_shared_dup_cstr(ownership ? ownership : "owned");
+    if (!next_ownership && ownership && ownership[0]) {
+        return;
+    }
+    free(buffer->ownership);
+    buffer->ownership = next_ownership;
+}
+
+static void kain_shared_buffer_drop_zero_copy_owner(KainSharedBufferHandle* buffer) {
+    if (!buffer || buffer->zero_copy_owner == 0) {
+        return;
+    }
+    kain_interop_zero_copy_owner_release(buffer->zero_copy_owner);
+    buffer->zero_copy_owner = 0;
+}
+
 static void kain_shared_buffer_destructor(void* payload) {
     KainSharedBufferHandle* buffer = (KainSharedBufferHandle*)payload;
     if (!buffer) {
         return;
     }
-    free(buffer->bytes);
+    if (buffer->storage_mode == KAIN_SHARED_STORAGE_OWNED) {
+        free(buffer->bytes);
+    } else {
+        kain_shared_buffer_drop_zero_copy_owner(buffer);
+    }
     free(buffer->element_type);
     free(buffer->format);
     free(buffer->mime_type);
@@ -472,6 +502,7 @@ int64_t kain_shared_buffer_create_owned(
     int64_t labels
 ) {
     KainSharedBufferHandle* buffer;
+    size_t owned_size = 0u;
     if (!shape) {
         kain_shared_emit_error(
             KAIN_DIAG_CODE_PLATFORM_INVALID_ARGUMENT,
@@ -488,13 +519,22 @@ int64_t kain_shared_buffer_create_owned(
         )) {
         return 0;
     }
+    if (byte_length < 0 || (uint64_t)byte_length > (uint64_t)SIZE_MAX) {
+        kain_shared_emit_error(
+            KAIN_DIAG_CODE_PLATFORM_INVALID_ARGUMENT,
+            "Shared buffer byte length does not fit the native size_t domain",
+            "kain_shared_buffer_create_owned"
+        );
+        return 0;
+    }
+    owned_size = (size_t)byte_length;
     buffer = (KainSharedBufferHandle*)kain_alloc_rc(sizeof(KainSharedBufferHandle), KAIN_RC_TYPE_SHARED_BUFFER);
     if (!buffer) {
         return 0;
     }
     memset(buffer, 0, sizeof(*buffer));
     if (byte_length > 0) {
-        buffer->bytes = (unsigned char*)malloc((size_t)byte_length);
+        buffer->bytes = (unsigned char*)malloc(owned_size);
         if (!buffer->bytes) {
             rc_release(buffer);
             kain_shared_emit_error(
@@ -504,7 +544,7 @@ int64_t kain_shared_buffer_create_owned(
             );
             return 0;
         }
-        memcpy(buffer->bytes, bytes, (size_t)byte_length);
+        memcpy(buffer->bytes, bytes, owned_size);
     }
     buffer->byte_length = byte_length;
     buffer->element_type = kain_shared_dup_cstr(element_type ? element_type : "u8");
@@ -517,9 +557,79 @@ int64_t kain_shared_buffer_create_owned(
     buffer->source_backend = kain_shared_dup_cstr(source_backend);
     buffer->ownership = kain_shared_dup_cstr(ownership ? ownership : "owned");
     buffer->labels = labels;
+    buffer->zero_copy_owner = 0;
+    buffer->storage_mode = KAIN_SHARED_STORAGE_OWNED;
     kain_shared_retain_any_handle(buffer->shape);
     kain_shared_retain_any_handle(buffer->strides);
     kain_shared_retain_any_handle(buffer->labels);
+    KAIN_set_destructor(buffer, kain_shared_buffer_destructor);
+    return (int64_t)(intptr_t)buffer;
+}
+
+int64_t kain_shared_buffer_create_borrowed(
+    const unsigned char* bytes,
+    int64_t byte_length,
+    const char* element_type,
+    int64_t element_size,
+    int64_t shape,
+    int64_t strides,
+    const char* format,
+    const char* mime_type,
+    const char* source_runtime,
+    const char* source_backend,
+    const char* ownership,
+    int64_t labels,
+    int64_t zero_copy_owner
+) {
+    KainSharedBufferHandle* buffer;
+    size_t borrowed_size = 0u;
+    if (!shape) {
+        kain_shared_emit_error(
+            KAIN_DIAG_CODE_PLATFORM_INVALID_ARGUMENT,
+            "Shared buffer shape is required",
+            "kain_shared_buffer_create_borrowed requires a shape handle"
+        );
+        return 0;
+    }
+    if (!kain_shared_validate_buffer_length(
+            shape,
+            element_size,
+            byte_length,
+            "kain_shared_buffer_create_borrowed"
+        )) {
+        return 0;
+    }
+    if (!kain_interop_zero_copy_prepare_imported_span(
+            bytes,
+            byte_length,
+            "kain_shared_buffer_create_borrowed",
+            &borrowed_size
+        )) {
+        return 0;
+    }
+    buffer = (KainSharedBufferHandle*)kain_alloc_rc(sizeof(KainSharedBufferHandle), KAIN_RC_TYPE_SHARED_BUFFER);
+    if (!buffer) {
+        return 0;
+    }
+    memset(buffer, 0, sizeof(*buffer));
+    buffer->bytes = (unsigned char*)bytes;
+    buffer->byte_length = (int64_t)borrowed_size;
+    buffer->element_type = kain_shared_dup_cstr(element_type ? element_type : "u8");
+    buffer->element_size = element_size > 0 ? element_size : 1;
+    buffer->shape = shape;
+    buffer->strides = strides;
+    buffer->format = kain_shared_dup_cstr(format);
+    buffer->mime_type = kain_shared_dup_cstr(mime_type);
+    buffer->source_runtime = kain_shared_dup_cstr(source_runtime ? source_runtime : "kain");
+    buffer->source_backend = kain_shared_dup_cstr(source_backend);
+    buffer->ownership = kain_shared_dup_cstr(ownership ? ownership : "shared");
+    buffer->labels = labels;
+    buffer->zero_copy_owner = zero_copy_owner;
+    buffer->storage_mode = KAIN_SHARED_STORAGE_BORROWED;
+    kain_shared_retain_any_handle(buffer->shape);
+    kain_shared_retain_any_handle(buffer->strides);
+    kain_shared_retain_any_handle(buffer->labels);
+    kain_interop_zero_copy_owner_retain(buffer->zero_copy_owner);
     KAIN_set_destructor(buffer, kain_shared_buffer_destructor);
     return (int64_t)(intptr_t)buffer;
 }
@@ -570,6 +680,80 @@ int64_t kain_shared_image_create_owned(
         source_backend,
         ownership,
         labels
+    );
+    if (!buffer_handle_value) {
+        return 0;
+    }
+    buffer_handle = (KainSharedBufferHandle*)(intptr_t)buffer_handle_value;
+    image = (KainSharedImageHandle*)kain_alloc_rc(sizeof(KainSharedImageHandle), KAIN_RC_TYPE_SHARED_IMAGE);
+    if (!image) {
+        rc_release(buffer_handle);
+        return 0;
+    }
+    memset(image, 0, sizeof(*image));
+    image->buffer = buffer_handle;
+    image->width = width;
+    image->height = height;
+    image->channels = channels;
+    image->row_stride = row_stride;
+    image->layout = kain_shared_dup_cstr(layout ? layout : "HWC");
+    image->pixel_format = kain_shared_dup_cstr(pixel_format ? pixel_format : "rgba8");
+    image->mime_type = kain_shared_dup_cstr(mime_type ? mime_type : "image/x-kain-raster");
+    image->representation = kain_shared_dup_cstr(representation ? representation : "raster");
+    image->color_space = kain_shared_dup_cstr(color_space ? color_space : "srgb");
+    image->alpha_mode = kain_shared_dup_cstr(alpha_mode ? alpha_mode : "opaque");
+    KAIN_set_destructor(image, kain_shared_image_destructor);
+    return (int64_t)(intptr_t)image;
+}
+
+int64_t kain_shared_image_create_borrowed(
+    const unsigned char* bytes,
+    int64_t byte_length,
+    int64_t width,
+    int64_t height,
+    int64_t channels,
+    const char* layout,
+    const char* pixel_format,
+    const char* mime_type,
+    int64_t row_stride,
+    const char* representation,
+    const char* color_space,
+    const char* alpha_mode,
+    const char* source_runtime,
+    const char* source_backend,
+    const char* ownership,
+    int64_t labels,
+    int64_t shape,
+    int64_t strides,
+    int64_t zero_copy_owner
+) {
+    KainSharedImageHandle* image;
+    int64_t buffer_handle_value;
+    KainSharedBufferHandle* buffer_handle;
+    if (!kain_shared_validate_image_length(
+            width,
+            height,
+            channels,
+            row_stride,
+            byte_length,
+            "kain_shared_image_create_borrowed"
+        )) {
+        return 0;
+    }
+    buffer_handle_value = kain_shared_buffer_create_borrowed(
+        bytes,
+        byte_length,
+        "u8",
+        1,
+        shape,
+        strides,
+        pixel_format,
+        mime_type,
+        source_runtime,
+        source_backend,
+        ownership,
+        labels,
+        zero_copy_owner
     );
     if (!buffer_handle_value) {
         return 0;
@@ -704,6 +888,11 @@ int64_t kain_shared_buffer_info(int64_t target) {
     kain_shared_json_set_string_optional(info, "format", buffer->format);
     kain_shared_json_set_string_optional(info, "mime_type", buffer->mime_type);
     kain_shared_json_set_string_optional(info, "source_backend", buffer->source_backend);
+    json_object_set(
+        info,
+        "zero_copy",
+        ((((int64_t)(buffer->storage_mode == KAIN_SHARED_STORAGE_BORROWED)) << 3) | 2LL)
+    );
     return info;
 }
 
@@ -743,7 +932,13 @@ void kain_shared_buffer_replace_bytes(int64_t target, int64_t bytes) {
         free(byte_data);
         return;
     }
-    free(buffer->bytes);
+    if (buffer->storage_mode == KAIN_SHARED_STORAGE_OWNED) {
+        free(buffer->bytes);
+    } else {
+        kain_shared_buffer_drop_zero_copy_owner(buffer);
+        buffer->storage_mode = KAIN_SHARED_STORAGE_OWNED;
+        kain_shared_buffer_set_ownership(buffer, "owned");
+    }
     buffer->bytes = byte_data;
     buffer->byte_length = byte_length;
 }
@@ -921,6 +1116,11 @@ int64_t kain_shared_image_info(int64_t target) {
         image->buffer->ownership ? image->buffer->ownership : "owned"
     );
     kain_shared_json_set_string_optional(info, "source_backend", image->buffer->source_backend);
+    json_object_set(
+        info,
+        "zero_copy",
+        ((((int64_t)(image->buffer->storage_mode == KAIN_SHARED_STORAGE_BORROWED)) << 3) | 2LL)
+    );
     return info;
 }
 
