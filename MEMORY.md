@@ -1,5 +1,46 @@
 # Kain Memory
 
+# 2026-05-27 - RAGE release-binary ownership/fixup hot-path recovery
+
+After the first full RAGE runtime strike, the honest release-binary benchmark truth on this workstation was not the older `latest_v2_rage_direct.md` snapshot; it was the fresh Bazel release lane captured with the direct router at `benchmark/latest_v2_rage_release_preopt.md`. That pre-opt release baseline was:
+
+- `rage_alloc_ladder`: `79 ms`
+- `rage_frame_burst`: `49 ms`
+- `rage_realloc_growth`: `544 ms`
+- `rage_async_ready_chain`: `356 ms`
+- `rage_patch_mirror_mesh`: `32 ms`
+
+The winning native fixes were all in the ownership/fixup seam, not in the async row:
+
+- `runtime/native/src/core/ownership.c`
+  - helper realloc no longer rebuilds the entire pointer index for one moved slot; it now rebinds just the touched pointer-index entry
+  - deferred-decay count now has an atomic read path so alloc hot loops stop taking the ownership lock just to ask whether the decay queue is non-empty
+  - cacheable heap `decay` now clears ownership state under lock and releases the actual allocation immediately after unlock instead of needlessly round-tripping through deferred decay
+  - helper-allocation registration now uses a dedicated fast path instead of the generic upsert/exact-lookup route
+- `runtime/native/src/core/fixup.c`
+  - allocation tracking is lazy now: known-ref / teleport paths can materialize a fixup handle from ownership range metadata on first use instead of making every helper alloc pay fixup registration up front
+  - lazy fixup handle creation rebinds the handle back into ownership so later realloc still patches self-updating refs correctly
+
+Measured result on the same fresh Bazel release lane at `benchmark/latest_v2_rage_release_opt3.md`:
+
+- `rage_alloc_ladder`: `51 ms`
+- `rage_frame_burst`: `26 ms`
+- `rage_realloc_growth`: `27 ms`
+- `rage_async_ready_chain`: `342 ms`
+- `rage_patch_mirror_mesh`: `32 ms`
+
+Durable lessons:
+
+- If a user asks whether the RAGE runtime pass helped, compare against the fresh release-binary baseline from `latest_v2_rage_release_preopt.md`, not the older pre-instruction snapshot. On that apples-to-apples lane, the ownership/fixup hot-path work was a major win.
+- The huge dragon was `realloc_growth`, and the real cause was full ownership-index rebuilds plus eager fixup tracking, not allocator math.
+- The remaining honest regression versus the old historical direct snapshot is allocator-heavy microchurn (`alloc_ladder` still above the older `42 ms`, `frame_burst` still above `23 ms`). If future agents want to close that last gap, the next likely frontier is allocation-cache/arena microcost, not fixup or ownership-range semantics.
+- Proof breadcrumbs for this pass now live at:
+  - `runtime/native/src/core/z3/proofs-experimental/ownership-pointer-range-limit-no-wrap.smt2`
+  - `runtime/native/src/core/z3/proofs-experimental/ownership-deferred-decay-pop-no-underflow.smt2`
+  - Z3 reports:
+    - `X:\z3\reports\20260527T204525Z-ownership-pointer-range-limit-no-wrap.json`
+    - `X:\z3\reports\20260527T204525Z-ownership-deferred-decay-pop-no-underflow.json`
+
 # 2026-05-27 - Python Tensor GPU Contract Lane via `kain_tensor_info`
 
 Landed the Theta-side Python GPU interop contract without touching Alpha's shared-buffer adoption internals. The key design move was to enrich `python_tensor_shared(...)` / `kain_tensor_info(...)` with truthful device metadata instead of adding a new native builtin just for GPU routing. Authored Kain can now turn a Python tensor into a `GpuBuffer`-shaped contract through `std::python` while preserving whether the source is host-visible, DLPack-capable, CUDA-array-interface-backed, and shared versus copied.
