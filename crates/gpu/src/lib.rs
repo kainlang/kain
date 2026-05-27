@@ -1,6 +1,7 @@
 pub mod codegen_hlsl;
 pub mod codegen_ptx;
 pub mod codegen_spirv;
+pub mod ptx_module;
 
 pub use codegen_hlsl::generate as generate_hlsl;
 pub use codegen_ptx::generate as generate_ptx;
