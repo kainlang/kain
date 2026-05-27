@@ -12,7 +12,7 @@ This is the one explicit skill for repo build plumbing. If the question is Bazel
 - Rust Bazel sync: `.bazelrc`, `MODULE.bazel`, root `BUILD.bazel`, `Cargo.Bazel.lock`, `tools/bazel/sync_rust_builds.py`, and generated crate `BUILD.bazel` files.
 - Native runtime Bazel sync: `runtime/BUILD.bazel`, `runtime/native_runtime_rules.bzl`, `runtime/runtime_manifest_data.bzl`, `runtime/native_core_runtime.toml`, `runtime/native_runtime.toml`, and `tools/bazel/sync_native_runtime_builds.py`.
 - Launcher and provenance plumbing: `scripts/windows/sync-kain-source-of-truth.ps1`, `scripts/windows/launch-bazel-cli.ps1`, managed PATH wrappers, and `kain doctor` build/source-of-truth status.
-- Build/operator entrypoints for producing the repo binaries and runtime bundle: `bazel build //:kain //:kn //:blade`, `kain runtime build`, and `kain runtime validate`.
+- Build/operator entrypoints for producing the repo binaries and runtime bundle: `bazel build //:kain //:kn`, `kain runtime build`, and `kain runtime validate`.
 
 ## Does Not Own
 
@@ -34,7 +34,6 @@ python tools/bazel/sync_rust_builds.py --check
 py -3 tools/bazel/sync_native_runtime_builds.py --check
 bazel build //:kain --config=dev
 bazel build //:kn --config=dev
-bazel build //:blade --config=dev
 bazel test //:developer_smoke_tests --config=dev
 powershell -ExecutionPolicy Bypass -File scripts/windows/sync-kain-source-of-truth.ps1 -PersistUserEnv
 kain doctor

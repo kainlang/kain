@@ -1,7 +1,6 @@
 use clap::{Parser as ClapParser, Subcommand, ValueEnum};
 use std::path::PathBuf;
 
-use crate::blade::BladesCommand;
 use crate::codebase::CodebaseCommand;
 use crate::fabric::FabricCommand;
 use crate::omni::OmniCommand;
@@ -528,7 +527,7 @@ pub enum KainCommand {
 
     /// Publish a local Kain package as one or more portable source capsules
     Publish {
-        /// Package root, blade root, workspace path, or entry file to publish
+        /// Package root, project root, workspace path, or entry file to publish
         input: PathBuf,
 
         /// Output source capsule path. Defaults to <input>/.kain/publish/<name>-<version>.kn
@@ -759,32 +758,12 @@ pub enum KainCommand {
         module_index: String,
     },
 
-    /// Resolve and inspect local Kain blade workspaces
-    Blades {
-        #[command(subcommand)]
-        command: BladesCommand,
-    },
-
-    /// Equip a local blade by name and print its resolved build/import plan
-    Equip {
-        /// Blade name to resolve
-        blade: String,
-
-        /// Path inside the workspace to inspect
-        #[arg(long, default_value = ".")]
-        path: PathBuf,
-
-        /// Emit JSON instead of text
-        #[arg(long)]
-        json: bool,
-    },
-
-    /// Build project or file. Without input, reads KAIN.toml for multi-target build.
+    /// Build a file, project, or build authority. Without input, builds the current project.
     Build {
         #[command(subcommand)]
         command: Option<BuildCommand>,
 
-        /// Optional input file. If omitted, builds all targets from KAIN.toml
+        /// Optional input file or project path. If omitted, builds the current project root.
         input: Option<PathBuf>,
 
         /// Output file path
@@ -871,7 +850,7 @@ pub enum KainCommand {
         #[command(subcommand)]
         command: Option<RunCommand>,
 
-        /// Entry file, Cargo manifest, Fabric manifest, blade root, or workspace path
+        /// Entry file, Cargo manifest, Fabric manifest, project root, or workspace path
         input: Option<PathBuf>,
 
         /// Run target override
@@ -901,7 +880,7 @@ pub enum KainCommand {
 
     /// Watch a run plan and re-run it when inputs change
     Watch {
-        /// Entry file, Cargo manifest, Fabric manifest, blade root, or workspace path
+        /// Entry file, Cargo manifest, Fabric manifest, project root, or workspace path
         input: Option<PathBuf>,
 
         /// Run target override
@@ -1251,6 +1230,24 @@ mod tests {
                 assert!(command.is_none());
             }
             other => panic!("expected build command, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_build_project_path() {
+        let cli = KainCli::parse_from(["kain", "build", "smoketest", "--clean"]);
+        match cli.command {
+            Some(KainCommand::Build {
+                input,
+                clean,
+                command,
+                ..
+            }) => {
+                assert_eq!(input, Some(PathBuf::from("smoketest")));
+                assert!(clean);
+                assert!(command.is_none());
+            }
+            other => panic!("expected project build command, got {other:?}"),
         }
     }
 

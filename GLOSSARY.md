@@ -24,11 +24,11 @@ Location rule: paths in this glossary are live in this checkout. Older docs may 
 
 ## B
 
-**Bazel** - The serious repo-scale build lane for fresh `kain`, `kn`, `blade`, compiler, and runtime binaries. Cargo is still used for local Rust iteration, but Bazel is the heavyweight truth lane. Location: `BUILD.bazel`, `MODULE.bazel`, `tools/bazel/`, `.bazelrc` behavior described in `AGENTS.md`.
+**Bazel** - The serious repo-scale build lane for fresh `kain`, `kn`, compiler, and runtime binaries. Cargo is still used for local Rust iteration, but Bazel is the heavyweight truth lane. Location: `BUILD.bazel`, `MODULE.bazel`, `tools/bazel/`, `.bazelrc` behavior described in `AGENTS.md`.
 
 **Benchmark** - The performance truth lane under `benchmark/`. This is where Kain rows fight C++, Rust, Zig, Go, Erlang, JS, and Python on measurable work instead of vibes. Location: `benchmark/`.
 
-**Blade** - A local Kain package or app workspace, usually under `blades/`, but conceptually also mirrored by blade discovery rules in the workspace graph. Blades are the repo's dogfood and proving-ground packages, not the only way Kain code can exist. Location: `blades/`, resolved by `crates/blades/`.
+**Blade** - A legacy Kain package/app term that still survives in internal discovery and compatibility plumbing, usually around projects under `blades/`. It is no longer the preferred public CLI mental model; `build.kn` project authority and package/project wording are the modern surface. Location: `blades/`, compatibility/discovery helpers in `crates/blades/`.
 
 **build.kn** - The preferred project-authority file for modern Kain workspaces. It is Kain source, not shell glue: package metadata, run defaults, platform requirements, evidence DAG tasks, and certification gates belong here. Location: blade roots, project roots, and `stdlib/build.kn` plus `docs/pipelines/build-kn-evidence-dag.md`.
 
@@ -112,7 +112,7 @@ Location rule: paths in this glossary are live in this checkout. Older docs may 
 
 **kain-process** - The portable child-process and PTY contract crate. Root `std.process` rides on this model plus native process ABI surfaces. Location: `crates/process/`, public authored surface `stdlib/process.kn`.
 
-**kain-run** - The unified immediate execution planner behind `kain run`, `kain run dev`, `kain watch`, and blade run flows. It resolves files, blades, manifests, Cargo/C/Node/Fabric inputs, and run metadata through one pipeline. Location: `crates/run/`.
+**kain-run** - The unified immediate execution planner behind `kain run`, `kain run dev`, and `kain watch`. It resolves files, projects, manifests, Cargo/C/Node/Fabric inputs, and run metadata through one pipeline, while still carrying some legacy blade compatibility internally. Location: `crates/run/`.
 
 **kain-stdlib-map** - The crate behind `kain stdlib-map`. It generates the root stdlib atlas consumed by agents, docs, and build checks. Location: `crates/stdlib-map/`.
 

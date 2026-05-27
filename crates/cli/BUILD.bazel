@@ -101,30 +101,9 @@ rust_test(
         "ue5",
         "web",
     ],
-    aliases = aliases(normal_dev = True, proc_macro_dev = True),
+    aliases = aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
     deps = [
         ":build_script",
-    ] + all_crate_deps(normal_dev = True),
-    proc_macro_deps = all_crate_deps(proc_macro_dev = True),
-    compile_data = COMMON_COMPILE_DATA,
-)
-
-rust_binary(
-    name = "blade_bin",
-    crate_name = "blade",
-    crate_root = "src/bin/blade.rs",
-    srcs = glob(["src/**/*.rs"]),
-    edition = "2021",
-    crate_features = [
-        "gpu",
-        "sys",
-        "ue5",
-        "web",
-    ],
-    aliases = aliases(),
-    deps = [
-        ":build_script",
-        ":cli",
         "//crates/amalgamate:kain-amalgamate",
         "//crates/asm:kain-asm",
         "//crates/blades:blade",
@@ -160,14 +139,9 @@ rust_binary(
         "//crates/unreal/unreal_asset_base:unreal_asset_base",
         "//crates/unreal/unreal_asset_registry:unreal_asset_registry",
         "//crates/web:kain-web",
-    ] + all_crate_deps(normal = True),
-    proc_macro_deps = all_crate_deps(proc_macro = True),
+    ] + all_crate_deps(normal = True, normal_dev = True),
+    proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,
-    force_all_deps_direct = True,
-)
-alias(
-    name = "blade",
-    actual = ":blade_bin",
 )
 
 rust_binary(

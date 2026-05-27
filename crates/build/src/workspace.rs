@@ -2846,7 +2846,7 @@ fn execute_plan(
     kfs::atomic_write_text(&report_path, &encoded)?;
     if failed {
         Err(BuildError::Command(format!(
-            "blade build failed; report written to {}",
+            "project build failed; report written to {}",
             report_path.display()
         )))
     } else {
@@ -4749,12 +4749,12 @@ fn visit_task(
     }
     if !temporary.insert(id.to_string()) {
         return Err(BuildError::Config(format!(
-            "cycle detected in blade build task graph at '{id}'"
+            "cycle detected in build authority task graph at '{id}'"
         )));
     }
     let task = by_id
         .get(id)
-        .ok_or_else(|| BuildError::Config(format!("unknown blade build task '{id}'")))?;
+        .ok_or_else(|| BuildError::Config(format!("unknown build task '{id}'")))?;
     for dependency in &task.depends_on {
         if by_id.contains_key(dependency) {
             visit_task(dependency, by_id, temporary, permanent, ordered)?;

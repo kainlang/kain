@@ -254,7 +254,7 @@ mod tests {
     }
 
     #[test]
-    fn registry_exposes_kain_kn_and_blade_views() {
+    fn registry_exposes_kain_and_kn_views() {
         let registry = builtin_registry();
         assert!(registry
             .for_bin("kain")
@@ -271,11 +271,6 @@ mod tests {
             .commands
             .iter()
             .any(|command| command.path == ["run"]));
-        assert!(registry
-            .for_bin("blade")
-            .commands
-            .iter()
-            .any(|command| command.path == ["build"]));
     }
 
     #[test]

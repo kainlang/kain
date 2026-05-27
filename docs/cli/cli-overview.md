@@ -43,11 +43,11 @@ snippets when the binary help output disagrees.
 
 ## Command Registry
 
-Use `kain commands list --bin kain|kn|blade` to inspect the command registry and
-`kain commands export --bin kain|kn|blade` for JSON. Add `--runtime` to include
-`[[commands]]` contributions discovered from the current blade workspace.
+Use `kain commands list --bin kain|kn` to inspect the command registry and
+`kain commands export --bin kain|kn` for JSON. Add `--runtime` to include
+`[[commands]]` contributions discovered from the current project workspace.
 Use `kain commands packs` to inspect the top-level manifest packs and
-`kain commands help --bin kain|kn|blade` to render the registry-backed dynamic
+`kain commands help --bin kain|kn` to render the registry-backed dynamic
 Clap view.
 
 ## Global Flags

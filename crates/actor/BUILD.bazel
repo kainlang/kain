@@ -37,8 +37,8 @@ rust_test(
     name = "unit_test",
     crate = ":kain-actor",
     edition = "2021",
-    aliases = aliases(normal_dev = True, proc_macro_dev = True),
-    deps = all_crate_deps(normal_dev = True),
-    proc_macro_deps = all_crate_deps(proc_macro_dev = True),
+    aliases = aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
+    deps = all_crate_deps(normal = True, normal_dev = True),
+    proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,
 )

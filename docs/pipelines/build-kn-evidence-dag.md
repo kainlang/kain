@@ -1,6 +1,6 @@
 # build.kn Evidence DAG
 
-`build.kn` is no longer only a build script sidecar. It can now describe the evidence DAG for a blade: source checks, `std::test` suites, Z3 proof obligations, benchmark runs, attrition runs, root executables, and final certification gates all sit in one typed task graph.
+`build.kn` is no longer only a build script sidecar. It can now describe the evidence DAG for a Kain project or package: source checks, `std::test` suites, Z3 proof obligations, benchmark runs, attrition runs, root executables, and final certification gates all sit in one typed task graph.
 
 The preferred surface is now first-class Kain API shape:
 
@@ -17,13 +17,13 @@ The planner treats these constructors as build intrinsics today. That means `bui
 
 ## Agent Loop
 
-Use this when changing a blade, package, or workspace pipeline:
+Use this when changing a project, package, or workspace pipeline:
 
-1. Put blade/package/build/run authority in `build.kn` with `package(...)`, `blade(...)`, `build_defaults(...)`, and `run_defaults(...)`.
+1. Put project/package/build/run authority in `build.kn` with `package(...)`, `blade(...)`, `build_defaults(...)`, and `run_defaults(...)`.
 2. Declare every evidence edge with first-class constructors such as `build_check(...)`, `test_suite(...)`, `proof_obligation(...)`, `bench_case(...)`, `attrition_case(...)`, `native_executable(...)`, and `certify_gate(...)`.
 3. Use `depends_on(...)` to make certification depend on the evidence, not on vibes.
 4. Use explicit `.input(...)` and `.output(...)` paths so cache keys and reports explain what mattered.
-5. Run `kain blades build . --json` or `blade build . --json` from the blade root when you want the whole DAG.
+5. Run `kain build .` from the project root when you want the whole DAG.
 
 `KAIN.toml` still works and still owns compatibility metadata not yet promoted into script authority, especially current C-FFI library declarations. When both exist, `build.kn` is the explicit task authority and `KAIN.toml` contributes defaults/legacy metadata.
 

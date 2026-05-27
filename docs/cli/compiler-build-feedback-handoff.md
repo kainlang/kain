@@ -21,7 +21,7 @@ Observed terminal behavior:
 - then emitted one final line:
 
 ```text
-Build failed: command failed: blade build failed; report written to \\?\X:\smoketest\.kain\reports\build\session-1779744656905-19796.json
+Build failed: command failed: project build failed; report written to \\?\X:\smoketest\.kain\reports\build\session-1779744656905-19796.json
 ```
 
 The corresponding report showed a single task:

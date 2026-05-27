@@ -84,7 +84,7 @@ that the native launcher consumes.
 
 ## `run`
 
-`kain run [input]` resolves an entry file, blade, manifest, or workspace through
+`kain run [input]` resolves an entry file, project root, package root, manifest, or workspace through
 the `kain-run` crate and executes it through the right adapter.
 
 Current adapters:
@@ -111,12 +111,12 @@ Useful flags:
 mode and re-run when planned inputs change. Use `--dry-run` on either command
 to print the resolved plan without entering the resident loop. Watch inputs now
 include manifest defaults, `build.kn` / `platform.kn`, generated platform locks,
-binding reports, generated modules, and transitive blade C/FFI bridge inputs when
+binding reports, generated modules, and transitive package-local C/FFI bridge inputs when
 they are part of the resolved run graph.
 
 `kain run plan [input]` prints the resolved plan without executing it. This is
-the quickest way to debug target inference, blade selection, manifest run
-metadata, platform lock provenance, and inherited blade foreign requirements.
+the quickest way to debug target inference, project selection, manifest run
+metadata, platform lock provenance, and inherited foreign requirements.
 
 When a workspace declares platform packages through `build.kn`, `platform.kn`,
 or `[[platform.packages]]`, `kain run` resolves the deterministic package lock

@@ -23,10 +23,6 @@ id = "run"
 path = "run.toml"
 
 [[packs]]
-id = "blade"
-path = "blade.toml"
-
-[[packs]]
 id = "import"
 path = "import.toml"
 

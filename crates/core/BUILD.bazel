@@ -53,9 +53,19 @@ rust_test(
     crate_features = [
         "runtime",
     ],
-    aliases = aliases(normal_dev = True, proc_macro_dev = True),
-    deps = all_crate_deps(normal_dev = True),
-    proc_macro_deps = all_crate_deps(proc_macro_dev = True),
+    aliases = aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
+    deps = [
+        "//crates/actor:kain-actor",
+        "//crates/blades:blade",
+        "//crates/entangle:kain-entangle",
+        "//crates/error:kain-error",
+        "//crates/fs:kain-fs",
+        "//crates/input:kain-input",
+        "//crates/lattice:kain-lattice",
+        "//crates/ownership:kain-ownership",
+        "//crates/ui:kain-ui",
+    ] + all_crate_deps(normal = True, normal_dev = True),
+    proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,
 )
 

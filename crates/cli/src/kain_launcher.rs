@@ -1,7 +1,6 @@
 // KAIN Compiler CLI
 
 use cli::amalgamate;
-use cli::blades;
 use cli::clean;
 use cli::codebase;
 use cli::fabric;
@@ -2020,8 +2019,60 @@ fn resolve_build_input(input: &Path) -> Result<ResolvedBuildInput, String> {
                 Err("capsule does not expose an entry file or KAIN.toml anchor".to_string())
             }
         }
-        None => Ok(ResolvedBuildInput::File(input.to_path_buf())),
+        None => {
+            if let Some(project_root) = project_authority_root_for_input(input) {
+                Ok(ResolvedBuildInput::Project(project_root))
+            } else {
+                Ok(ResolvedBuildInput::File(input.to_path_buf()))
+            }
+        }
     }
+}
+
+fn project_authority_root_for_input(input: &Path) -> Option<PathBuf> {
+    if input.is_dir() {
+        return Some(input.to_path_buf());
+    }
+
+    let name = input.file_name()?.to_str()?.to_ascii_lowercase();
+    if matches!(name.as_str(), "build.kn" | "platform.kn" | "kain.toml") {
+        return input.parent().map(Path::to_path_buf);
+    }
+
+    None
+}
+
+fn project_build_uses_build_authority(
+    project_root: &Path,
+    target_overrides: Option<&Vec<String>>,
+) -> bool {
+    target_overrides.is_none() && blade::find_build_script_in(project_root).is_some()
+}
+
+fn run_project_build_command(
+    project_root: PathBuf,
+    target_overrides: Option<Vec<String>>,
+    lane: Option<kain_build::BuildLane>,
+    clean: bool,
+) -> Result<(), String> {
+    if project_build_uses_build_authority(&project_root, target_overrides.as_ref()) {
+        let mut options = kain_build::BladeBuildOptions::new(project_root);
+        options.lane = lane;
+        options.clean = clean;
+        options.progress = cli::progress::stderr_progress_sink(true);
+        return kain_build::build_blade_workspace(&options)
+            .map(|report| print_kain_build_report(&report))
+            .map_err(|error| error.to_string());
+    }
+
+    let mut options = kain_build::KainProjectBuildOptions::new(project_root);
+    options.target_overrides = target_overrides;
+    options.lane = lane;
+    options.clean = clean;
+    options.progress = cli::progress::stderr_progress_sink(true);
+    kain_build::build_kain_project(&options)
+        .map(|report| print_kain_build_report(&report))
+        .map_err(|error| error.to_string())
 }
 
 fn run_test_command(
@@ -2314,6 +2365,78 @@ fn external_command_argv(
     argv
 }
 
+fn removed_legacy_command_error(argv: &[String]) -> Option<String> {
+    let command = argv.first()?;
+    match command.as_str() {
+        "blades" | "equip" => Some(
+            "legacy blade commands were removed from the public CLI. Use `kain build`, `kain run`, `kain check`, `kain test`, `kain clean`, or `kain amalgamate` from the project root instead.".to_string(),
+        ),
+        _ => None,
+    }
+}
+
+#[cfg(test)]
+mod build_command_tests {
+    use super::{
+        project_authority_root_for_input, project_build_uses_build_authority,
+        removed_legacy_command_error, resolve_build_input, ResolvedBuildInput,
+    };
+    use std::fs;
+
+    #[test]
+    fn build_input_treats_project_roots_and_build_scripts_as_projects() {
+        let temp_dir = tempfile::tempdir().expect("temp dir");
+        let root = temp_dir.path().join("demo");
+        fs::create_dir_all(root.join("src")).expect("create src");
+        fs::write(root.join("build.kn"), "fn build(ctx: BuildContext) -> BuildGraph:\n    return build_graph()\n")
+            .expect("write build.kn");
+        fs::write(root.join("KAIN.toml"), "[package]\nname = \"demo\"\n").expect("write manifest");
+
+        assert_eq!(
+            project_authority_root_for_input(&root),
+            Some(root.clone())
+        );
+        assert_eq!(
+            project_authority_root_for_input(&root.join("build.kn")),
+            Some(root.clone())
+        );
+        assert_eq!(
+            project_authority_root_for_input(&root.join("KAIN.toml")),
+            Some(root.clone())
+        );
+
+        match resolve_build_input(&root).expect("resolve project root") {
+            ResolvedBuildInput::Project(path) => assert_eq!(path, root),
+            other => panic!("expected project input, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn build_authority_pipeline_only_triggers_without_target_overrides() {
+        let temp_dir = tempfile::tempdir().expect("temp dir");
+        let root = temp_dir.path().join("demo");
+        fs::create_dir_all(&root).expect("create root");
+        fs::write(root.join("build.kn"), "fn build(ctx: BuildContext) -> BuildGraph:\n    return build_graph()\n")
+            .expect("write build.kn");
+
+        assert!(project_build_uses_build_authority(&root, None));
+        assert!(!project_build_uses_build_authority(
+            &root,
+            Some(&vec!["llvm".to_string()])
+        ));
+    }
+
+    #[test]
+    fn removed_blade_commands_return_a_migration_hint() {
+        assert!(removed_legacy_command_error(&["blades".to_string(), "build".to_string()])
+            .is_some());
+        assert!(removed_legacy_command_error(&["equip".to_string(), "demo".to_string()])
+            .is_some());
+        assert!(removed_legacy_command_error(&["run".to_string(), "demo.kn".to_string()])
+            .is_none());
+    }
+}
+
 fn watch_mode(
     input: PathBuf,
     target: CompileTarget,
@@ -2409,6 +2532,11 @@ pub fn main_entry() {
 
     let handler = builder
         .spawn(|| {
+            let raw_argv = std::env::args().collect::<Vec<_>>();
+            if let Some(message) = removed_legacy_command_error(raw_argv.get(1..).unwrap_or(&[])) {
+                eprintln!(" {message}");
+                std::process::exit(2);
+            }
             let launcher = detect_launcher_from_path(std::env::current_exe().ok().as_deref());
             let (args, _tooling_config, external_command_name) =
                 cli::cli_boot::parse_kain_cli(launcher).unwrap_or_else(|error| {
@@ -2810,18 +2938,6 @@ pub fn main_entry() {
                         std::process::exit(1);
                     }
                 }
-                Some(Commands::Blades { command }) => {
-                    if let Err(e) = blades::run(command) {
-                        eprintln!(" Blades command failed: {}", e);
-                        std::process::exit(1);
-                    }
-                }
-                Some(Commands::Equip { blade, path, json }) => {
-                    if let Err(e) = blades::run_equip(blade, path, json) {
-                        eprintln!(" Equip failed: {}", e);
-                        std::process::exit(1);
-                    }
-                }
                 Some(Commands::Build {
                     command,
                     input,
@@ -3014,18 +3130,14 @@ pub fn main_entry() {
                                         } else {
                                             targets.clone()
                                         };
-                                        let mut options =
-                                            kain_build::KainProjectBuildOptions::new(project_root);
-                                        options.target_overrides = target_overrides;
-                                        options.lane = lane;
-                                        options.clean = clean;
-                                        options.progress = cli::progress::stderr_progress_sink(true);
-                                        match kain_build::build_kain_project(&options) {
-                                            Ok(report) => print_kain_build_report(&report),
-                                            Err(e) => {
-                                                eprintln!(" Build failed: {}", e);
-                                                std::process::exit(1);
-                                            }
+                                        if let Err(e) = run_project_build_command(
+                                            project_root,
+                                            target_overrides,
+                                            lane,
+                                            clean,
+                                        ) {
+                                            eprintln!(" Build failed: {}", e);
+                                            std::process::exit(1);
                                         }
                                     }
                                     Err(error) => {
@@ -3041,19 +3153,14 @@ pub fn main_entry() {
                                 } else {
                                     targets.clone()
                                 };
-                                let mut options = kain_build::KainProjectBuildOptions::new(
+                                if let Err(e) = run_project_build_command(
                                     std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
-                                );
-                                options.target_overrides = target_overrides;
-                                options.lane = lane;
-                                options.clean = clean;
-                                options.progress = cli::progress::stderr_progress_sink(true);
-                                match kain_build::build_kain_project(&options) {
-                                    Ok(report) => print_kain_build_report(&report),
-                                    Err(e) => {
-                                        eprintln!(" Build failed: {}", e);
-                                        std::process::exit(1);
-                                    }
+                                    target_overrides,
+                                    lane,
+                                    clean,
+                                ) {
+                                    eprintln!(" Build failed: {}", e);
+                                    std::process::exit(1);
                                 }
                             }
                         }
@@ -3478,6 +3585,10 @@ pub fn main_entry() {
                 }
                 Some(Commands::External(argv)) => {
                     let argv = external_command_argv(external_command_name.as_deref(), argv);
+                    if let Some(message) = removed_legacy_command_error(&argv) {
+                        eprintln!(" {}", message);
+                        std::process::exit(1);
+                    }
                     if let Err(err) = run_runtime_command_fallback(launcher, &argv) {
                         eprintln!(" Runtime command failed: {}", err);
                         std::process::exit(1);

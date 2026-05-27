@@ -34,7 +34,6 @@ COMMON_DATA_GLOBS = [
 ]
 FORCE_DIRECT_LIBRARY_PACKAGES = {"cli"}
 FORCE_DIRECT_BINARY_TARGETS = {
-    ("cli", "blade"),
     ("cli", "kain"),
     ("cli", "kn"),
 }
@@ -391,26 +390,36 @@ def render_unit_test(
     workspace_features: dict[Path, list[str]],
     proc_macro_packages: set[str],
 ) -> str:
-    local_deps = internal_deps(package, workspace_labels, proc_macro_packages, {"dev"}, False)
+    local_deps = internal_deps(
+        package,
+        workspace_labels,
+        proc_macro_packages,
+        {None, "dev"},
+        False,
+    )
     if has_build_script:
         local_deps = [":build_script"] + local_deps
-    deps = deps_expression(local_deps, "all_crate_deps(normal_dev = True)")
-    return render_rule(
-        "rust_test",
-        {
-            "name": string_literal("unit_test"),
-            "crate": string_literal(f":{package.name}"),
-            "edition": string_literal(package.targets[0].edition),
-            "crate_features": workspace_features[package.directory],
-            "aliases": "aliases(normal_dev = True, proc_macro_dev = True)",
-            "deps": deps,
-            "proc_macro_deps": deps_expression(
-                internal_deps(package, workspace_labels, proc_macro_packages, {"dev"}, True),
-                "all_crate_deps(proc_macro_dev = True)",
+    deps = deps_expression(local_deps, "all_crate_deps(normal = True, normal_dev = True)")
+    attrs = {
+        "name": string_literal("unit_test"),
+        "crate": string_literal(f":{package.name}"),
+        "edition": string_literal(package.targets[0].edition),
+        "crate_features": workspace_features[package.directory],
+        "aliases": "aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True)",
+        "deps": deps,
+        "proc_macro_deps": deps_expression(
+            internal_deps(
+                package,
+                workspace_labels,
+                proc_macro_packages,
+                {None, "dev"},
+                True,
             ),
-            "compile_data": "COMMON_COMPILE_DATA",
-        },
-    )
+            "all_crate_deps(proc_macro = True, proc_macro_dev = True)",
+        ),
+        "compile_data": "COMMON_COMPILE_DATA",
+    }
+    return render_rule("rust_test", attrs)
 
 
 def render_binary(

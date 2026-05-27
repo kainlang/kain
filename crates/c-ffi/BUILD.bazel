@@ -44,8 +44,15 @@ rust_test(
     name = "unit_test",
     crate = ":kain-c-ffi",
     edition = "2021",
-    aliases = aliases(normal_dev = True, proc_macro_dev = True),
-    deps = all_crate_deps(normal_dev = True),
-    proc_macro_deps = all_crate_deps(proc_macro_dev = True),
+    aliases = aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
+    deps = [
+        "//crates/blades:blade",
+        "//crates/core:kain-core",
+        "//crates/foreign-abi:kain-foreign-abi",
+        "//crates/fs:kain-fs",
+        "//crates/import:kain-import",
+        "//crates/interop:kain-interop",
+    ] + all_crate_deps(normal = True, normal_dev = True),
+    proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,
 )

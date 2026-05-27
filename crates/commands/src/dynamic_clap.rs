@@ -45,7 +45,6 @@ pub fn dynamic_command_for_bin_with_ui(
     }
 
     let about = match bin {
-        "blade" => "Standalone Kain blade workspace tool",
         "kn" => "Kain run-first launcher",
         _ => "Kain compiler and toolchain",
     };

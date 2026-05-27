@@ -54,7 +54,10 @@ fn resolve_binary_name(exe_path: &Path) -> Result<&'static str, String> {
     match stem.to_ascii_lowercase().as_str() {
         "kain" => Ok("kain"),
         "kn" => Ok("kn"),
-        "blade" => Ok("blade"),
+        "blade" => Err(
+            "the standalone blade launcher was removed; use `kain` or `kn` from the project root instead"
+                .to_string(),
+        ),
         other => Err(format!(
             "unsupported launcher name `{other}` at {}",
             exe_path.display()

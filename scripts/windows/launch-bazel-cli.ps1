@@ -1,7 +1,7 @@
 #!/usr/bin/env pwsh
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("kain", "kn", "blade")]
+    [ValidateSet("kain", "kn")]
     [string]$BinaryName,
 
     [string]$BazelConfig = "",

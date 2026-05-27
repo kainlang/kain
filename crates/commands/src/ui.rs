@@ -60,7 +60,6 @@ fn styles_for_theme(theme: CommandUiTheme) -> Styles {
 fn render_help_banner(preferences: CommandUiPreferences<'_>) -> String {
     if !should_emit_manual_color(preferences.color_choice) {
         let tagline = match preferences.bin {
-            "blade" => "workspace forge / build graph blade runner",
             "kn" => "run-first launcher / hot authoring lane",
             _ => "compiler / interop / native weirdness",
         };
@@ -72,7 +71,6 @@ fn render_help_banner(preferences: CommandUiPreferences<'_>) -> String {
 
     if matches!(preferences.theme, CommandUiTheme::Plain) {
         let tagline = match preferences.bin {
-            "blade" => "workspace forge / build graph blade runner",
             "kn" => "run-first launcher / hot authoring lane",
             _ => "compiler / interop / native weirdness",
         };
@@ -85,7 +83,6 @@ fn render_help_banner(preferences: CommandUiPreferences<'_>) -> String {
     let (accent, lead) = theme_banner_accent(command_theme_name(preferences.theme));
     let reset = "\x1b[0m";
     let tagline = match preferences.bin {
-        "blade" => "workspace forge / build graph blade runner",
         "kn" => "run-first launcher / hot authoring lane",
         _ => "compiler / interop / native weirdness",
     };

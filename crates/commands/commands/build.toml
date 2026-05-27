@@ -2,7 +2,7 @@
 id = "build"
 title = "Build Commands"
 owner = "crates/build"
-about = "Project, native, and UI build entrypoints for Kain source and blade workspaces."
+about = "Project, native, and UI build entrypoints for Kain source and build authority roots."
 
 [[commands]]
 id = "build"

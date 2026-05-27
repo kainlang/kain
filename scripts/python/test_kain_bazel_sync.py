@@ -77,7 +77,7 @@ class KainBazelSyncTests(unittest.TestCase):
                 source_filesystem_watch_paths=(),
                 runtime_stamp_files=(),
                 launcher_dir=repo / ".kain" / "bin",
-                binary_names=("kain", "kn", "blade"),
+                binary_names=("kain", "kn"),
                 repo_kain_home=repo / ".kain",
                 repo_kain_config=repo / ".kain" / "config.toml",
                 clang_path=None,
@@ -116,7 +116,7 @@ class KainBazelSyncTests(unittest.TestCase):
         self.assertTrue(decision.should_build)
         self.assertEqual(decision.reason, "binary source stamp changed")
 
-    def test_policy_binary_names_include_blade(self) -> None:
+    def test_policy_binary_names_ignore_removed_blade(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
             repo = Path(raw)
             policy_path = repo / "blades" / "kain-mcp" / "config" / "runtime_policy.json"
@@ -126,15 +126,15 @@ class KainBazelSyncTests(unittest.TestCase):
                 encoding="utf-8",
             )
             context = sync.resolve_sync_context(repo)
-            self.assertEqual(context.binary_names, ("kain", "kn", "blade"))
+            self.assertEqual(context.binary_names, ("kain", "kn"))
 
-    def test_blade_bazel_output_name_is_data_driven(self) -> None:
+    def test_bazel_output_binary_name_uses_configured_value(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)
             context = sync.SyncContext(
                 repo_root=root,
                 policy={},
-                sync_policy={"bazel_binary_output_names": {"blade": "blade_bin"}},
+                sync_policy={"bazel_binary_output_names": {"kn": "kn_custom"}},
                 state_root=root / ".kain" / "state",
                 stamp_path=root / ".kain" / "state" / "state" / "kain_sync_stamp.json",
                 bazel_config="dev",
@@ -142,13 +142,13 @@ class KainBazelSyncTests(unittest.TestCase):
                 source_filesystem_watch_paths=(),
                 runtime_stamp_files=(),
                 launcher_dir=root / ".kain" / "bin",
-                binary_names=("kain", "kn", "blade"),
+                binary_names=("kain", "kn"),
                 repo_kain_home=root / ".kain",
                 repo_kain_config=root / ".kain" / "config.toml",
                 clang_path=None,
                 python_path=None,
             )
-            self.assertEqual(sync.bazel_output_binary_name(context, "blade"), "blade_bin")
+            self.assertEqual(sync.bazel_output_binary_name(context, "kn"), "kn_custom")
             self.assertEqual(sync.bazel_output_binary_name(context, "kain"), "kain")
 
     def test_install_launcher_files_writes_all_windows_wrappers_when_windows(self) -> None:
@@ -169,7 +169,7 @@ class KainBazelSyncTests(unittest.TestCase):
                 source_filesystem_watch_paths=(),
                 runtime_stamp_files=(),
                 launcher_dir=root / ".kain" / "bin",
-                binary_names=("kain", "kn", "blade"),
+                binary_names=("kain", "kn"),
                 repo_kain_home=root / ".kain",
                 repo_kain_config=root / ".kain" / "config.toml",
                 clang_path=None,
@@ -178,8 +178,8 @@ class KainBazelSyncTests(unittest.TestCase):
             sync.install_launcher_files(context, shim)
             self.assertTrue((context.launcher_dir / "kain.exe").exists())
             self.assertTrue((context.launcher_dir / "kn.exe").exists())
-            self.assertTrue((context.launcher_dir / "blade.exe").exists())
-            self.assertTrue((context.launcher_dir / "blade.cmd").exists())
+            self.assertFalse((context.launcher_dir / "blade.exe").exists())
+            self.assertFalse((context.launcher_dir / "blade.cmd").exists())
 
     def test_launch_uses_child_process_and_returns_child_status(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
@@ -198,7 +198,7 @@ class KainBazelSyncTests(unittest.TestCase):
                 source_filesystem_watch_paths=(),
                 runtime_stamp_files=(),
                 launcher_dir=root / ".kain" / "bin",
-                binary_names=("kain", "kn", "blade"),
+                binary_names=("kain", "kn"),
                 repo_kain_home=root / ".kain",
                 repo_kain_config=root / ".kain" / "config.toml",
                 clang_path=None,

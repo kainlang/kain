@@ -248,7 +248,6 @@ If the installed CLI is stale, refresh the Bazel-backed launchers instead of usi
 
 bazel build //:kain --config=dev
 bazel build //:kn --config=dev
-bazel build //:blade --config=dev
 bazel build //:kain --config=release
 bazel build //runtime:all
 bazel test //:crate_tests --config=dev
@@ -275,7 +274,8 @@ kain build <file.kn> --target wasm
 kain build <shader.kn> --target spirv
 kain build <cudashader.kn> --target cuda
 kain build native-ui <file.kn> --bundle-only
-kain run <file-or-blade>
+kain build <project-or-dir>
+kain run <file-or-project>
 kain check <file-or-dir>
 kain test <file-or-dir>
 kain selfhost phase1
@@ -288,19 +288,6 @@ kain import-rust
 kain import-ts
 kain import-asm
 kain import-crate
-```
-
-Blade workspace:
-
-```powershell
-kain blades list
-kain blades graph
-kain blades check
-kain blades build . --json
-kain blades run <blade>
-kain equip <blade>
-blade build . --json
-blade run <blade> --target auto -- <args>
 ```
 
 Benchmark:

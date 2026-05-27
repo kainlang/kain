@@ -26,7 +26,8 @@ PYTHON_POLLUTION_ENV_KEYS = (
     "__PYVENV_LAUNCHER__",
 )
 
-DEFAULT_BINARY_NAMES = ("kain", "kn", "blade")
+DEFAULT_BINARY_NAMES = ("kain", "kn")
+SUPPORTED_BINARY_NAMES = frozenset(DEFAULT_BINARY_NAMES)
 DEFAULT_SOURCE_WATCH_PATHS = (
     "crates",
     "runtime",
@@ -120,6 +121,11 @@ def as_string_list(value: object, default: Sequence[str] = ()) -> tuple[str, ...
         result = tuple(str(item) for item in value if str(item).strip())
         return result if result else tuple(default)
     return tuple(default)
+
+
+def sanitize_binary_names(values: Sequence[str]) -> tuple[str, ...]:
+    filtered = tuple(name for name in values if name in SUPPORTED_BINARY_NAMES)
+    return filtered if filtered else DEFAULT_BINARY_NAMES
 
 
 def bool_from_policy(value: object, default: bool = False) -> bool:
@@ -365,7 +371,9 @@ def resolve_sync_context(
     launcher_value = launcher_dir or os.environ.get("KAIN_BAZEL_LAUNCHER_DIR") or str(
         sync_policy.get(launcher_key, ".kain/bin")
     )
-    binary_names = as_string_list(sync_policy.get("launcher_binary_names"), DEFAULT_BINARY_NAMES)
+    binary_names = sanitize_binary_names(
+        as_string_list(sync_policy.get("launcher_binary_names"), DEFAULT_BINARY_NAMES)
+    )
     repo_kain_home = (repo_root / ".kain").resolve()
     return SyncContext(
         repo_root=repo_root,
@@ -439,8 +447,6 @@ def bazel_output_binary_name(context: SyncContext, binary_name: str) -> str:
         value = configured.get(binary_name)
         if value:
             return str(value)
-    if binary_name == "blade":
-        return "blade_bin"
     return binary_name
 
 

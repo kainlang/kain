@@ -80,6 +80,88 @@ description: >-
 - HTML is no longer a report format. If `benchmark/out/reports/latest.html` appears, treat it as stale-output cleanup debt.
 - The preferred extension point for new categories is `benchmark/wrappers/*.json`, not new hardcoded branches in `run.py`. Wrapper configs are data-driven plugins that can inject `before_args` and `after_args` around user-supplied CLI flags.
 
+## Cases V2 Router Lane
+
+- `benchmark/cases_v2/` is now the canonical Kain-native growth lane for new benchmark work when the row does not need the legacy cross-language manifest runner.
+- The v2 lane is a single Kain router executable rooted at `benchmark/cases_v2/.telemetryrouter/router.kn`. It emits one markdown summary, one JSON summary, and one JSON track file per case.
+- Build and run ownership lives in `benchmark/build.kn`. The root executable is `benchmark/kain-benchmark-v2.exe`.
+- Default v2 outputs are:
+  - `benchmark/latest_v2.md`
+  - `benchmark/out/reports/latest_v2.json`
+  - `benchmark/out/reports/v2_tracks/<case>.json`
+- The router currently imports pack modules such as `classic_core.kn`, `classic_systems.kn`, `classic_core3d.kn`, `python_interop.kn`, and `rage_runtime.kn`. Treat each file as a benchmark pack that can expose multiple rows from one authored Kain file.
+
+### When To Use V2
+
+- Use `cases_v2` first for new Kain-only rows, runtime probes, stdlib probes, semantic fused rows, or grouped benchmark packs where multiple related cases belong in one file.
+- Stay in the legacy `benchmark/cases/<case>/...` plus `benchmark/catalog/benchmarks.main.json` flow when the row is meant to compare Kain against Rust/C++/Go/Zig/JS/Python/Erlang or otherwise belongs in the cross-language main suite.
+- Keep dedicated special lanes in their existing homes: GPU under `benchmark/lanes/gpu/`, WASM under `benchmark/lanes/wasm/`, FFI boundary under `benchmark/lanes/ffi_boundary/`.
+
+### How To Run V2
+
+- Preferred compile-and-run command from repo root: `kain run X:\benchmark --target llvm --json`
+- The build graph entry is `benchmark/build.kn`, so `kain run X:\benchmark --target llvm` executes the v2 router lane rather than the legacy Python suite.
+- The router accepts these environment variables:
+  - `KAIN_BENCH_V2_FILTER`: comma-separated case ids or group ids
+  - `KAIN_BENCH_V2_MARKDOWN`: override markdown output path
+  - `KAIN_BENCH_V2_JSON`: override JSON summary path
+  - `KAIN_BENCH_V2_TRACK_ROOT`: override per-case track directory
+  - `KAIN_BENCH_V2_PASSES`
+  - `KAIN_BENCH_V2_WARMUPS`
+  - `KAIN_BENCH_V2_AMPLIFY`
+- PowerShell example for a focused run:
+
+```powershell
+$env:KAIN_BENCH_V2_FILTER="rage,rage_realloc_growth"
+$env:KAIN_BENCH_V2_MARKDOWN="X:\benchmark\latest_v2_rage.md"
+$env:KAIN_BENCH_V2_JSON="X:\benchmark\out\reports\latest_v2_rage.json"
+$env:KAIN_BENCH_V2_TRACK_ROOT="X:\benchmark\out\reports\v2_tracks_rage"
+kain run X:\benchmark --target llvm --json
+```
+
+- If you need to rerun without recompiling, execute the root artifact directly after a successful build:
+
+```powershell
+$env:KAIN_BENCH_V2_FILTER="classic_core"
+X:\benchmark\kain-benchmark-v2.exe
+```
+
+- The router prints one `[bench-v2]` line per case and returns non-zero when any checksum fails or when the filter selects no cases.
+
+### Adding A New V2 Pack
+
+- Add a new Kain file under `benchmark/cases_v2/`, for example `benchmark/cases_v2/my_runtime_pack.kn`.
+- Follow the pack pattern already used by `classic_core.kn` and `rage_runtime.kn`: expose pack-level helpers so the router can enumerate cases and evaluate them by id.
+- A pack should normally export:
+  - `<pack>_case_count()`
+  - `<pack>_case_id(index: Int)`
+  - `<pack>_case_group(index: Int)`
+  - `<pack>_case_title(index: Int)`
+  - `<pack>_case_iterations(index: Int)`
+  - `<pack>_case_expected_checksum(index: Int)`
+  - `<pack>_case_checksum(case_id: String, iterations: Int, amplify: Int, modulus: Int)`
+- Keep benchmark constants and expected checksums inside the pack unless the row truly belongs in the router core.
+- Every row still needs a deterministic checksum guard. The v2 router treats checksum mismatch as a benchmark failure, not a soft warning.
+
+### Wiring A New V2 Pack
+
+- Import the new pack symbols in `benchmark/cases_v2/.telemetryrouter/router.kn`.
+- Extend `run_case_checksum(...)` so the router asks the new pack for a checksum before falling through to built-in rows.
+- Add a new enumeration loop in `main()` modeled after the existing `classic_*`, `python_interop`, or `rage_runtime` loops so selected cases get executed, printed, and written to track files.
+- Register the new file in `benchmark/build.kn`:
+  - add it as an `.input(...)` to `check-llvm`
+  - add it as an `.input(...)` to `root-executable`
+  - add it as an `.input(...)` to `telemetry-v2`
+- If the pack becomes part of the standard v2 suite, also add any needed `use <pack>::...` imports near the top of the router.
+
+### V2 Workflow Notes
+
+- `benchmark/README.md` now explicitly says future benchmark growth should prefer `cases_v2` because one file can hold multiple rows cleanly.
+- V2 is intentionally telemetry-rich but Kain-only. Use it for fast local runtime iteration before graduating a row into the cross-language catalog.
+- The current router filter matches exact case ids or exact group ids from `KAIN_BENCH_V2_FILTER`; it is not substring matching.
+- In this checkout, string/path env overrides are working, but the numeric knobs `KAIN_BENCH_V2_PASSES`, `KAIN_BENCH_V2_WARMUPS`, and `KAIN_BENCH_V2_AMPLIFY` appear to be ignored at runtime even though the router reads them. Treat that as a live caveat until proven fixed.
+- Per-case track files under `benchmark/out/reports/v2_tracks/` are the easiest machine-readable artifact for focused before/after comparisons on one row.
+
 ## Dedicated WASM Parity Lane
 
 - Command: `python benchmark/run_wasm.py --warmups 1 --runs 3 --timeout 300`

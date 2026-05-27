@@ -13,11 +13,6 @@ alias(
 )
 
 alias(
-    name = "blade",
-    actual = "//crates/cli:blade",
-)
-
-alias(
     name = "kain_core",
     actual = "//crates/core:kain-core",
 )

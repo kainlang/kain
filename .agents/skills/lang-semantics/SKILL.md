@@ -609,11 +609,11 @@ kain check <entry.kn> --target llvm
 kain run <entry.kn-or-blade> --target llvm
 ```
 
-For blades:
+For projects:
 
 ```powershell
-kain blade check <blade-dir>
-kain blade run <blade-dir>
+kain check <project-dir> --target llvm
+kain run <project-dir> --target llvm
 ```
 
 For language feature pressure:

@@ -39,12 +39,9 @@ kain test path\to\suite --target llvm --json .kain\reports\kain-test.json
 For project DAGs:
 
 ```powershell
-kain blades build . --dry-run --json
-kain blades build . --json
-blade build . --dry-run --json
-blade build . --json
-kain blades run <name-or-path> --target auto --json
-blade run <name-or-path> --target auto -- <args>
+kain run plan . --target auto --json
+kain build .
+kain run .
 ```
 
 For portable project capsules:
@@ -72,9 +69,9 @@ Kain project shape is a scale ladder, not one mandatory workspace system:
 | --- | --- | --- | --- |
 | One-file script | Quick automation, proof, CLI-ish utility, algorithm, importer output | `tool.kn` | `kain check`, `kain run`, `kain build` |
 | Small folder | App with modules, config, data, native bridge, shaders, tests | `src/*.kn`, `config/*`, `native/*`, `build.kn` | `kain run path`, `kain run plan`, `kain test` |
-| Build authority project | Any source tree that needs reproducible evidence and outputs | `build.kn`, optional `platform.kn`, optional `KAIN.toml` | `kain blades build . --json`, `blade build . --json` |
-| Blade package | Reusable Kain package or app inside a larger local workspace | `build.kn`, `src/`, `native/`, `.kain/`, maybe `KAIN.toml` | `kain blades list`, `graph`, `check`, `build`, `run`, `equip` |
-| Monorepo workspace | Many packages, sibling dependencies, platform packages, native bridges | `blades/*`, `apps/*`, package roots | `kain blades graph`, `kain equip`, `blade build` |
+| Build authority project | Any source tree that needs reproducible evidence and outputs | `build.kn`, optional `platform.kn`, optional `KAIN.toml` | `kain build .`, `kain run .`, `kain run plan . --json` |
+| Blade package | Reusable Kain package or app inside a larger local workspace | `build.kn`, `src/`, `native/`, `.kain/`, maybe `KAIN.toml` | `kain build .`, `kain run .`, `kain run plan . --json` |
+| Monorepo workspace | Many packages, sibling dependencies, platform packages, native bridges | `blades/*`, `apps/*`, package roots | `kain build .`, `kain run .`, `kain run plan . --json` |
 | Capsule | Portable source/project blob for handoff, inspection, or replay | one `.kn` capsule with comment-safe metadata and payload | `kain amalgamate`, `inspect`, `unpack`, transparent `check/run/build` |
 | Fabric or Omni | Existing polyglot orchestration lanes, especially older mixed Rust/C/Node workflows | `KAIN.fabric.toml`, Omni manifests | `kain fabric validate/run`, `kain omni ...` |
 
@@ -505,18 +502,13 @@ Use a blade when:
 - The code is a large app proof that should live under `blades/` for dogfooding.
 - The code needs package-local `.kain/` artifacts and repeatable root executable proofs.
 
-Blade commands:
+Project-first commands:
 
 ```powershell
-kain blades list . --json
-kain blades graph . --json
-kain blades check . --json
-kain blades build . --dry-run --json
-kain blades build . --json
-kain blades run <blade> --target auto --json
-kain equip <blade> --json
-blade build . --json
-blade run <blade> --target auto -- <args>
+kain build .
+kain run .
+kain run plan . --target auto --json
+kain clean .
 ```
 
 Blade design rules:
@@ -568,7 +560,7 @@ When entering an existing Kain codebase:
 
 1. Search `ARCHITECTURE.md` and `MEMORY.md` for the project, feature, command, or error.
 2. Inspect `build.kn`, `platform.kn`, and only then `KAIN.toml`.
-3. Run `kain run plan . --target auto --json` or `kain blades build . --dry-run --json` when resolution is unclear.
+3. Run `kain run plan . --target auto --json` when resolution is unclear, then `kain build .` when you want the full build authority DAG.
 4. Query the stdlib map instead of reading the whole atlas.
 5. Read only the source modules that the graph, imports, or failing task actually touches.
 6. Add or update evidence tasks when the project gains a claim.
