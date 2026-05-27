@@ -1,13 +1,11 @@
 use gpu::{generate_ptx, generate_spirv};
 use kain_core::comptime;
 use kain_core::diagnostics::SpanMapper;
-use kain_core::stdlib;
 use kain_core::types;
 use kain_core::{CompileTarget, Lexer, Parser, TypedProgram};
 
-fn typed_program_for_target(source: &str, target: CompileTarget) -> TypedProgram {
-    let stdlib_src = stdlib::load_stdlib_for_target(target);
-    let full_source = format!("{}\n{}", stdlib_src, source);
+fn typed_program_for_target(source: &str, _target: CompileTarget) -> TypedProgram {
+    let full_source = source.to_string();
     let span_mapper = SpanMapper::new(&full_source);
     let tokens = Lexer::new(&full_source)
         .tokenize()

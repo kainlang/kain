@@ -12,6 +12,10 @@ use kain_core::span::Span;
 use kain_core::types::{TypedItem, TypedProgram, TypedShader};
 use std::collections::{HashMap, HashSet};
 
+#[path = "ptx_surface.rs"]
+mod ptx_surface;
+use ptx_surface::{binary_op_inst, cmp_inst, cvt_inst, SuffixMode};
+
 const PTX_VERSION: &str = "7.8";
 const PTX_TARGET_SM: &str = "sm_50";
 const DEFAULT_LOCAL_SIZE: [u32; 3] = [8, 8, 1];
@@ -43,7 +47,7 @@ pub fn generate(program: &TypedProgram) -> KainResult<String> {
     Ok(output)
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 enum PtxScalarKind {
     U32,
     S32,
@@ -72,8 +76,16 @@ impl PtxScalarKind {
         }
     }
 
-    fn is_int32(self) -> bool {
-        matches!(self, Self::U32 | Self::S32)
+    fn width_bits(self) -> u8 {
+        match self {
+            Self::Pred => 1,
+            Self::U64 => 64,
+            Self::U32 | Self::S32 | Self::F32 => 32,
+        }
+    }
+
+    fn is_float(self) -> bool {
+        matches!(self, Self::F32)
     }
 }
 
@@ -111,6 +123,8 @@ enum BuiltinVector {
     DispatchThreadId,
     GroupThreadId,
     GroupId,
+    BlockDim,
+    GridDim,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -176,6 +190,22 @@ impl PtxContext {
         vars.insert(
             "workgroup_id".to_string(),
             BindingValue::BuiltinVector(BuiltinVector::GroupId),
+        );
+        vars.insert(
+            "block_idx".to_string(),
+            BindingValue::BuiltinVector(BuiltinVector::GroupId),
+        );
+        vars.insert(
+            "thread_idx".to_string(),
+            BindingValue::BuiltinVector(BuiltinVector::GroupThreadId),
+        );
+        vars.insert(
+            "block_dim".to_string(),
+            BindingValue::BuiltinVector(BuiltinVector::BlockDim),
+        );
+        vars.insert(
+            "grid_dim".to_string(),
+            BindingValue::BuiltinVector(BuiltinVector::GridDim),
         );
         vars.insert(
             "group_index".to_string(),
@@ -940,7 +970,7 @@ fn emit_binary_scalar(
 ) -> KainResult<ScalarValue> {
     match op {
         BinaryOp::Eq | BinaryOp::Ne | BinaryOp::Lt | BinaryOp::Le | BinaryOp::Gt | BinaryOp::Ge => {
-            emit_compare(ctx, left, op, right)
+            emit_compare(ctx, left, op, right, span)
         }
         BinaryOp::And | BinaryOp::Or => emit_logical(ctx, left, op, right),
         BinaryOp::Add
@@ -972,76 +1002,13 @@ fn emit_arithmetic(
     let right = coerce_scalar(ctx, right, kind)?;
     let out = ctx.alloc_scalar(kind);
 
-    let instr = match op {
-        BinaryOp::Add => format!(
-            "add.{} {}, {}, {};",
-            kind.op_suffix(),
-            out.reg,
-            left.reg,
-            right.reg
-        ),
-        BinaryOp::Sub => format!(
-            "sub.{} {}, {}, {};",
-            kind.op_suffix(),
-            out.reg,
-            left.reg,
-            right.reg
-        ),
-        BinaryOp::Mul if kind == PtxScalarKind::F32 => {
-            format!("mul.rn.f32 {}, {}, {};", out.reg, left.reg, right.reg)
-        }
-        BinaryOp::Mul => format!(
-            "mul.lo.{} {}, {}, {};",
-            kind.op_suffix(),
-            out.reg,
-            left.reg,
-            right.reg
-        ),
-        BinaryOp::Div if kind == PtxScalarKind::F32 => {
-            format!("div.rn.f32 {}, {}, {};", out.reg, left.reg, right.reg)
-        }
-        BinaryOp::Div => format!(
-            "div.{} {}, {}, {};",
-            kind.op_suffix(),
-            out.reg,
-            left.reg,
-            right.reg
-        ),
-        BinaryOp::Mod if kind.is_int32() => {
-            format!(
-                "rem.{} {}, {}, {};",
-                kind.op_suffix(),
-                out.reg,
-                left.reg,
-                right.reg
-            )
-        }
-        BinaryOp::BitAnd if kind.is_int32() => {
-            format!("and.b32 {}, {}, {};", out.reg, left.reg, right.reg)
-        }
-        BinaryOp::BitOr if kind.is_int32() => {
-            format!("or.b32 {}, {}, {};", out.reg, left.reg, right.reg)
-        }
-        BinaryOp::BitXor if kind.is_int32() => {
-            format!("xor.b32 {}, {}, {};", out.reg, left.reg, right.reg)
-        }
-        BinaryOp::Shl if kind.is_int32() => {
-            format!("shl.b32 {}, {}, {};", out.reg, left.reg, right.reg)
-        }
-        BinaryOp::Shr if kind == PtxScalarKind::S32 => {
-            format!("shr.s32 {}, {}, {};", out.reg, left.reg, right.reg)
-        }
-        BinaryOp::Shr if kind == PtxScalarKind::U32 => {
-            format!("shr.u32 {}, {}, {};", out.reg, left.reg, right.reg)
-        }
-        _ => {
-            return Err(KainError::codegen(
-                "PTX backend does not support this arithmetic/type combination",
-                span,
-            ));
-        }
-    };
-    ctx.line(instr);
+    let def = binary_op_inst(op, kind).ok_or_else(|| {
+        KainError::codegen(
+            "PTX backend does not support this arithmetic/type combination",
+            span,
+        )
+    })?;
+    emit_inst(ctx, def.mnemonic, def.suffix, &out, &[&left, &right]);
     Ok(out)
 }
 
@@ -1050,22 +1017,16 @@ fn emit_compare(
     left: ScalarValue,
     op: BinaryOp,
     right: ScalarValue,
+    span: Span,
 ) -> KainResult<ScalarValue> {
-    let kind = arithmetic_kind(left.kind, right.kind, Span::default())?;
+    let kind = arithmetic_kind(left.kind, right.kind, span)?;
     let left = coerce_scalar(ctx, left, kind)?;
     let right = coerce_scalar(ctx, right, kind)?;
     let out = ctx.alloc_scalar(PtxScalarKind::Pred);
-    let cmp = match op {
-        BinaryOp::Eq => "eq",
-        BinaryOp::Ne => "ne",
-        BinaryOp::Lt => "lt",
-        BinaryOp::Le => "le",
-        BinaryOp::Gt => "gt",
-        BinaryOp::Ge => "ge",
-        _ => unreachable!(),
-    };
+    let cmp = cmp_inst(op)
+        .ok_or_else(|| KainError::codegen("PTX backend does not support this comparison", span))?;
     ctx.line(format!(
-        "setp.{cmp}.{} {}, {}, {};",
+        "{cmp}.{} {}, {}, {};",
         kind.op_suffix(),
         out.reg,
         left.reg,
@@ -1102,10 +1063,23 @@ fn emit_unary(
     match op {
         UnaryOp::Neg => {
             let out = ctx.alloc_scalar(value.kind);
-            let instr = if value.kind == PtxScalarKind::F32 {
-                format!("neg.f32 {}, {};", out.reg, value.reg)
-            } else {
-                format!("neg.s32 {}, {};", out.reg, value.reg)
+            let instr = match value.kind {
+                PtxScalarKind::F32 => format!("neg.f32 {}, {};", out.reg, value.reg),
+                PtxScalarKind::S32 | PtxScalarKind::U32 => {
+                    format!("neg.s32 {}, {};", out.reg, value.reg)
+                }
+                PtxScalarKind::U64 => {
+                    return Err(KainError::codegen(
+                        "PTX backend does not support unary negation for 64-bit integers",
+                        span,
+                    ));
+                }
+                PtxScalarKind::Pred => {
+                    return Err(KainError::codegen(
+                        "PTX backend does not support unary negation for predicates",
+                        span,
+                    ));
+                }
             };
             ctx.line(instr);
             Ok(PtxValue::Scalar(out))
@@ -1117,9 +1091,19 @@ fn emit_unary(
             Ok(PtxValue::Scalar(out))
         }
         UnaryOp::BitNot => {
-            let value = coerce_scalar(ctx, value, PtxScalarKind::U32)?;
-            let out = ctx.alloc_scalar(PtxScalarKind::U32);
-            ctx.line(format!("not.b32 {}, {};", out.reg, value.reg));
+            let target = if value.kind == PtxScalarKind::U64 {
+                PtxScalarKind::U64
+            } else {
+                PtxScalarKind::U32
+            };
+            let value = coerce_scalar(ctx, value, target)?;
+            let out = ctx.alloc_scalar(target);
+            ctx.line(format!(
+                "not.b{} {}, {};",
+                target.width_bits(),
+                out.reg,
+                value.reg
+            ));
             Ok(PtxValue::Scalar(out))
         }
         UnaryOp::Ref | UnaryOp::RefMut | UnaryOp::Deref => Err(KainError::codegen(
@@ -1160,6 +1144,14 @@ fn emit_call(
                 ctx,
                 value,
                 PtxScalarKind::U32,
+            )?))
+        }
+        "UInt64" | "uint64" | "u64" if args.len() == 1 => {
+            let value = emit_expr(ctx, &args[0].value)?.into_scalar(span)?;
+            Ok(PtxValue::Scalar(coerce_scalar(
+                ctx,
+                value,
+                PtxScalarKind::U64,
             )?))
         }
         "Bool" | "bool" if args.len() == 1 => {
@@ -1247,6 +1239,31 @@ fn emit_min_max_scalar(
     Ok(out)
 }
 
+fn emit_inst(
+    ctx: &mut PtxContext,
+    mnemonic: &str,
+    suffix: SuffixMode,
+    result: &ScalarValue,
+    operands: &[&ScalarValue],
+) {
+    let ty_suffix = match suffix {
+        SuffixMode::Append | SuffixMode::Rounding => {
+            format!(".{}", result.kind.op_suffix())
+        }
+        SuffixMode::Fixed | SuffixMode::None => String::new(),
+        SuffixMode::Width => format!(".b{}", result.kind.width_bits()),
+    };
+    let operands = operands
+        .iter()
+        .map(|value| value.reg.as_str())
+        .collect::<Vec<_>>()
+        .join(", ");
+    ctx.line(format!(
+        "{mnemonic}{ty_suffix} {}, {};",
+        result.reg, operands
+    ));
+}
+
 fn emit_vector_constructor(
     ctx: &mut PtxContext,
     name: &str,
@@ -1309,6 +1326,16 @@ fn emit_builtin_vector_component(
         BuiltinVector::GroupId => {
             let out = ctx.alloc_scalar(PtxScalarKind::U32);
             ctx.line(format!("mov.u32 {}, %ctaid.{axis};", out.reg));
+            out
+        }
+        BuiltinVector::BlockDim => {
+            let out = ctx.alloc_scalar(PtxScalarKind::U32);
+            ctx.line(format!("mov.u32 {}, %ntid.{axis};", out.reg));
+            out
+        }
+        BuiltinVector::GridDim => {
+            let out = ctx.alloc_scalar(PtxScalarKind::U32);
+            ctx.line(format!("mov.u32 {}, %nctaid.{axis};", out.reg));
             out
         }
         BuiltinVector::DispatchThreadId => {
@@ -1387,20 +1414,22 @@ fn scalar_to_pred(ctx: &mut PtxContext, value: ScalarValue) -> ScalarValue {
         return value;
     }
     let pred = ctx.alloc_scalar(PtxScalarKind::Pred);
-    match value.kind {
-        PtxScalarKind::F32 => ctx.line(format!(
-            "setp.ne.f32 {}, {}, 0f00000000;",
-            pred.reg, value.reg
-        )),
-        PtxScalarKind::S32 => ctx.line(format!("setp.ne.s32 {}, {}, 0;", pred.reg, value.reg)),
-        PtxScalarKind::U32 | PtxScalarKind::U64 => ctx.line(format!(
-            "setp.ne.{} {}, {}, 0;",
-            value.kind.op_suffix(),
-            pred.reg,
-            value.reg
-        )),
-        PtxScalarKind::Pred => unreachable!(),
-    }
+    let zero = if value.kind.is_float() {
+        if value.kind.width_bits() == 64 {
+            "0d0000000000000000"
+        } else {
+            "0f00000000"
+        }
+    } else {
+        "0"
+    };
+    ctx.line(format!(
+        "setp.ne.{} {}, {}, {};",
+        value.kind.op_suffix(),
+        pred.reg,
+        value.reg,
+        zero
+    ));
     pred
 }
 
@@ -1421,23 +1450,27 @@ fn coerce_scalar(
         return Ok(scalar_to_pred(ctx, value));
     }
 
-    let out = ctx.alloc_scalar(target);
-    let instr = match (value.kind, target) {
-        (PtxScalarKind::S32, PtxScalarKind::U32) => "cvt.u32.s32",
-        (PtxScalarKind::U32, PtxScalarKind::S32) => "cvt.s32.u32",
-        (PtxScalarKind::S32, PtxScalarKind::F32) => "cvt.rn.f32.s32",
-        (PtxScalarKind::U32, PtxScalarKind::F32) => "cvt.rn.f32.u32",
-        (PtxScalarKind::F32, PtxScalarKind::S32) => "cvt.rzi.s32.f32",
-        (PtxScalarKind::F32, PtxScalarKind::U32) => "cvt.rzi.u32.f32",
-        _ => {
-            return Err(KainError::codegen(
-                format!("PTX backend cannot coerce {:?} to {:?}", value.kind, target),
-                Span::default(),
-            ));
-        }
-    };
-    ctx.line(format!("{instr} {}, {};", out.reg, value.reg));
-    Ok(out)
+    if let Some(instr) = cvt_inst(value.kind, target) {
+        let out = ctx.alloc_scalar(target);
+        ctx.line(format!("{instr} {}, {};", out.reg, value.reg));
+        return Ok(out);
+    }
+
+    if value.kind.width_bits() == target.width_bits() {
+        let out = ctx.alloc_scalar(target);
+        ctx.line(format!(
+            "mov.b{} {}, {};",
+            target.width_bits(),
+            out.reg,
+            value.reg
+        ));
+        return Ok(out);
+    }
+
+    Err(KainError::codegen(
+        format!("PTX backend cannot coerce {:?} to {:?}", value.kind, target),
+        Span::default(),
+    ))
 }
 
 fn arithmetic_kind(
@@ -1445,8 +1478,11 @@ fn arithmetic_kind(
     right: PtxScalarKind,
     span: Span,
 ) -> KainResult<PtxScalarKind> {
-    if left == PtxScalarKind::F32 || right == PtxScalarKind::F32 {
+    if left.is_float() || right.is_float() {
         return Ok(PtxScalarKind::F32);
+    }
+    if left == PtxScalarKind::U64 || right == PtxScalarKind::U64 {
+        return Ok(PtxScalarKind::U64);
     }
     if left == PtxScalarKind::S32 || right == PtxScalarKind::S32 {
         return Ok(PtxScalarKind::S32);
@@ -1517,6 +1553,11 @@ fn type_shape(ty: &Type) -> Option<TypeShape> {
                 scalar: PtxScalarKind::U32,
                 lanes: 1,
                 stride: 4,
+            }),
+            "UInt64" | "u64" => Some(TypeShape {
+                scalar: PtxScalarKind::U64,
+                lanes: 1,
+                stride: 8,
             }),
             "Vec2" => vector_shape(PtxScalarKind::F32, 2),
             "Vec3" => vector_shape(PtxScalarKind::F32, 3),
@@ -1660,7 +1701,14 @@ fn is_local_size_param(name: &str) -> bool {
 }
 
 fn is_uint_type(ty: &Type) -> bool {
-    matches!(ty, Type::Named { name, .. } if name == "UInt" || name == "u32")
+    matches!(
+        ty,
+        Type::Named { name, .. }
+            if name == "UInt"
+                || name == "u32"
+                || name == "UInt64"
+                || name == "u64"
+    )
 }
 
 fn type_name(ty: &Type) -> String {
