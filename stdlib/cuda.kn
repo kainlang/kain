@@ -51,6 +51,63 @@ struct CudaTextRange:
     start: Int
     end: Int
 
+// ============================================================================
+//                    CUDA device-side PTX intrinsic surface
+// ============================================================================
+// These are intentionally extern-only: the CUDA/PTX backend owns the lowering,
+// while normal host/runtime CUDA helpers below stay in Kain.
+
+@extern
+pub fn cuda_lane_id() -> UInt
+
+@extern
+pub fn cuda_warp_id() -> UInt
+
+@extern
+pub fn cuda_active_mask() -> UInt
+
+@extern
+pub fn cuda_block_sync() -> Void
+
+@extern
+pub fn cuda_barrier_sync() -> Void
+
+@extern
+pub fn cuda_warp_sync(mask: UInt) -> Void
+
+@extern
+pub fn cuda_ballot(predicate: Bool) -> UInt
+
+@extern
+pub fn cuda_warp_any(predicate: Bool) -> Bool
+
+@extern
+pub fn cuda_warp_all(predicate: Bool) -> Bool
+
+@extern
+pub fn cuda_shfl_xor_u32(value: UInt, lane_mask: UInt) -> UInt
+
+@extern
+pub fn cuda_shfl_xor_f32(value: Float, lane_mask: UInt) -> Float
+
+@extern
+pub fn cuda_warp_reduce_sum_u32(value: UInt) -> UInt
+
+@extern
+pub fn cuda_warp_reduce_sum_f32(value: Float) -> Float
+
+@extern
+pub fn cuda_cp_async_commit_group() -> Void
+
+@extern
+pub fn cuda_cp_async_wait_group_0() -> Void
+
+@extern
+pub fn cuda_require_tensor_cores() -> Void
+
+@extern
+pub fn cuda_require_wgmma() -> Void
+
 @extern
 pub fn abi_cuda_driver_available() -> Bool
 

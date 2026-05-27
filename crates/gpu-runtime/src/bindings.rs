@@ -146,10 +146,32 @@ pub struct GpuDispatchRequest {
     pub entry_point: String,
     pub workgroup_size: [u32; 3],
     pub dispatch_size: [u32; 3],
+    pub cuda_launch: GpuCudaLaunchOptions,
     pub bindings: Vec<GpuDispatchBinding>,
     pub tensor_binding_count: usize,
     pub stream_binding_count: usize,
     pub neural_node_count: usize,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct GpuCudaLaunchOptions {
+    pub dynamic_shared_memory_bytes: u32,
+    pub stream_policy: GpuCudaStreamPolicy,
+    pub graph_policy: GpuCudaGraphPolicy,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum GpuCudaStreamPolicy {
+    #[default]
+    Default,
+    NonBlocking,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum GpuCudaGraphPolicy {
+    #[default]
+    Disabled,
+    CaptureOnce,
 }
 
 #[derive(Clone, Debug, Default)]

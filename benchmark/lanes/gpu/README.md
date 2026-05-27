@@ -10,6 +10,8 @@ python benchmark/bench.py suite gpu -- --case vec3_storage_copy --languages kain
 python benchmark/bench.py suite gpu -- --case semantic_ping_pong --languages kain,cpp --runs 3 --warmups 1
 python benchmark/run_gpu.py --case semantic_ping_pong --languages kain,cpp --runs 3 --warmups 1
 python benchmark/run_spirv.py --case vec3_storage_copy --languages kain,cpp --runs 3 --warmups 1
+python benchmark/lanes/gpu/run_cuda.py --list
+python benchmark/lanes/gpu/run_cuda.py --case cuda_warp_reduce_sum --runs 3 --warmups 1
 ```
 
 ## Reports
@@ -19,6 +21,8 @@ python benchmark/run_spirv.py --case vec3_storage_copy --languages kain,cpp --ru
 - `benchmark/out/reports/latest_gpu.json`
 - timestamped `benchmark/out/reports/<stamp>.gpu.llm.md`
 - timestamped `benchmark/out/reports/<stamp>.gpu.json`
+- CUDA/PTX gauntlet: `benchmark/out/reports/latest_cuda_gpu.json`
+- CUDA/PTX gauntlet: `benchmark/out/reports/latest_cuda_gpu.llm.md`
 
 ## Contract
 
@@ -39,3 +43,12 @@ Common dispatcher env vars:
 - `KAIN_GPU_WORK_ITEMS`
 - `KAIN_GPU_WIDTH`
 - `KAIN_GPU_TELEMETRY_PATH`
+
+## CUDA/PTX Gauntlet
+
+`cuda_cases.json` is the CUDA-native sibling to the Vulkan/SPIR-V lane. It uses
+`kain build <shader> --target cuda`, reads the emitted build report, and copies
+the PTX into `benchmark/out/build/gpu-cuda/<case>/kain/` for artifact-density
+checks. The first cases cover warp reduction, packed u8 embedding gather, and an
+attention-score/GEMV tile; add GEMM, softmax, layernorm, RoPE, KV-cache, top-k,
+and reduce-max rows here as their Kain PTX lowering becomes real.

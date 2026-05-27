@@ -8,7 +8,9 @@ use crate::ptx_module::{
     PtxAddressSpace as ModuleAddressSpace, PtxArch as ModuleArch,
     PtxKernelParam as ModuleKernelParam, PtxKernelParamEncoding as ModuleKernelParamEncoding,
     PtxKernelPlan as ModuleKernelPlan, PtxLaunchConfig as ModuleLaunchConfig,
-    PtxScalarKind as ModuleScalarKind, DEFAULT_PTX_ARCH, DEFAULT_PTX_VERSION,
+    PtxScalarKind as ModuleScalarKind, PtxSharedOpKind as ModuleSharedOpKind,
+    PtxTensorFixedKind as ModuleTensorFixedKind, PtxTensorOpRequest as ModuleTensorOpRequest,
+    PtxWarpOpKind as ModuleWarpOpKind, DEFAULT_PTX_ARCH, DEFAULT_PTX_VERSION,
 };
 use kain_core::ast::{
     BinaryOp, Block, CallArg, ElseBranch, Expr, Pattern, ShaderStage, Stmt, Type, UnaryOp,
@@ -261,6 +263,9 @@ struct PtxContext {
     vars: HashMap<String, BindingValue>,
     params: Vec<PtxParam>,
     instructions: Vec<String>,
+    shared_ops: Vec<ModuleSharedOpKind>,
+    warp_ops: Vec<ModuleWarpOpKind>,
+    tensor_ops: Vec<ModuleTensorOpRequest>,
     indent_level: usize,
     next_r: usize,
     next_rd: usize,
@@ -353,6 +358,9 @@ impl PtxContext {
             vars,
             params: Vec::new(),
             instructions: Vec::new(),
+            shared_ops: Vec::new(),
+            warp_ops: Vec::new(),
+            tensor_ops: Vec::new(),
             indent_level: 1,
             next_r: 1,
             next_rd: 1,
@@ -373,6 +381,18 @@ impl PtxContext {
     fn line(&mut self, line: impl Into<String>) {
         self.instructions
             .push(format!("{}{}", self.indent(), line.into()));
+    }
+
+    fn record_shared_op(&mut self, op: ModuleSharedOpKind) {
+        self.shared_ops.push(op);
+    }
+
+    fn record_warp_op(&mut self, op: ModuleWarpOpKind) {
+        self.warp_ops.push(op);
+    }
+
+    fn record_tensor_op(&mut self, op: ModuleTensorOpRequest) {
+        self.tensor_ops.push(op);
     }
 
     fn label(&mut self, label: &str) {
@@ -589,6 +609,16 @@ fn build_kernel_plan(
                 shader.ast.span,
             ));
         }
+    }
+
+    for op in &ctx.shared_ops {
+        plan.add_shared_op(*op);
+    }
+    for op in &ctx.warp_ops {
+        plan.add_warp_op(*op);
+    }
+    for op in &ctx.tensor_ops {
+        plan.add_tensor_op(*op);
     }
 
     Ok(plan)
@@ -1037,22 +1067,23 @@ fn emit_index_load(
         let out = ctx.alloc_scalar(elem_shape.scalar);
         ctx.line(format!(
             "ld.global.{} {}, [{}];",
-            elem_shape.scalar.op_suffix(),
-            out.reg,
-            address.reg
+            elem_shape.load_suffix, out.reg, address.reg
         ));
         Ok(PtxValue::Scalar(out))
     } else {
         let mut lanes = Vec::with_capacity(elem_shape.lanes);
         for lane in 0..elem_shape.lanes {
-            let address =
-                emit_storage_address(ctx, &ptr, &index, elem_shape.stride, (lane * 4) as u32);
+            let address = emit_storage_address(
+                ctx,
+                &ptr,
+                &index,
+                elem_shape.stride,
+                (lane as u32) * elem_shape.component_stride,
+            );
             let out = ctx.alloc_scalar(elem_shape.scalar);
             ctx.line(format!(
                 "ld.global.{} {}, [{}];",
-                elem_shape.scalar.op_suffix(),
-                out.reg,
-                address.reg
+                elem_shape.load_suffix, out.reg, address.reg
             ));
             lanes.push(out);
         }
@@ -1106,7 +1137,8 @@ fn assign_existing_binding(
                     value.reg
                 ));
             }
-            ctx.vars.insert(name.to_string(), BindingValue::Scalar(slot));
+            ctx.vars
+                .insert(name.to_string(), BindingValue::Scalar(slot));
             Ok(())
         }
         BindingValue::Vector(slots) => {
@@ -1132,19 +1164,20 @@ fn assign_existing_binding(
                     ));
                 }
             }
-            ctx.vars.insert(name.to_string(), BindingValue::Vector(slots));
+            ctx.vars
+                .insert(name.to_string(), BindingValue::Vector(slots));
             Ok(())
         }
         BindingValue::StorageBuffer { .. } => Err(KainError::codegen(
             format!("PTX backend cannot assign a new value to storage buffer '{name}'"),
             span,
         )),
-        BindingValue::BuiltinVector(_) | BindingValue::BuiltinScalar(_) | BindingValue::ConstU32(_) => {
-            Err(KainError::codegen(
-                format!("PTX backend cannot assign to compiler-owned binding '{name}'"),
-                span,
-            ))
-        }
+        BindingValue::BuiltinVector(_)
+        | BindingValue::BuiltinScalar(_)
+        | BindingValue::ConstU32(_) => Err(KainError::codegen(
+            format!("PTX backend cannot assign to compiler-owned binding '{name}'"),
+            span,
+        )),
     }
 }
 
@@ -1186,21 +1219,22 @@ fn emit_index_store(
             let address = emit_storage_address(ctx, &ptr, &index, elem_shape.stride, 0);
             ctx.line(format!(
                 "st.global.{} [{}], {};",
-                elem_shape.scalar.op_suffix(),
-                address.reg,
-                value.reg
+                elem_shape.store_suffix, address.reg, value.reg
             ));
         }
         PtxValue::Vector(values) if values.len() == elem_shape.lanes => {
             for (lane, value) in values.into_iter().enumerate() {
                 let value = coerce_scalar(ctx, value, elem_shape.scalar)?;
-                let address =
-                    emit_storage_address(ctx, &ptr, &index, elem_shape.stride, (lane * 4) as u32);
+                let address = emit_storage_address(
+                    ctx,
+                    &ptr,
+                    &index,
+                    elem_shape.stride,
+                    (lane as u32) * elem_shape.component_stride,
+                );
                 ctx.line(format!(
                     "st.global.{} [{}], {};",
-                    elem_shape.scalar.op_suffix(),
-                    address.reg,
-                    value.reg
+                    elem_shape.store_suffix, address.reg, value.reg
                 ));
             }
         }
@@ -1401,6 +1435,10 @@ fn emit_call(
     args: &[CallArg],
     span: Span,
 ) -> KainResult<PtxValue> {
+    if let Some(value) = emit_cuda_intrinsic_call(ctx, name, args, span)? {
+        return Ok(value);
+    }
+
     match name {
         "max" if args.len() == 2 => emit_min_max_call(ctx, args, span, true),
         "min" if args.len() == 2 => emit_min_max_call(ctx, args, span, false),
@@ -1450,6 +1488,213 @@ fn emit_call(
             span,
         )),
     }
+}
+
+fn emit_cuda_intrinsic_call(
+    ctx: &mut PtxContext,
+    name: &str,
+    args: &[CallArg],
+    span: Span,
+) -> KainResult<Option<PtxValue>> {
+    match name {
+        "cuda_lane_id" => {
+            expect_cuda_arg_count(name, args, 0, span)?;
+            let out = ctx.alloc_scalar(PtxScalarKind::U32);
+            ctx.line(format!("mov.u32 {}, %laneid;", out.reg));
+            Ok(Some(PtxValue::Scalar(out)))
+        }
+        "cuda_warp_id" => {
+            expect_cuda_arg_count(name, args, 0, span)?;
+            let out = ctx.alloc_scalar(PtxScalarKind::U32);
+            ctx.line(format!("mov.u32 {}, %warpid;", out.reg));
+            Ok(Some(PtxValue::Scalar(out)))
+        }
+        "cuda_active_mask" => {
+            expect_cuda_arg_count(name, args, 0, span)?;
+            ctx.record_warp_op(ModuleWarpOpKind::Activemask);
+            let out = ctx.alloc_scalar(PtxScalarKind::U32);
+            ctx.line(format!("activemask.b32 {};", out.reg));
+            Ok(Some(PtxValue::Scalar(out)))
+        }
+        "cuda_block_sync" | "cuda_barrier_sync" => {
+            expect_cuda_arg_count(name, args, 0, span)?;
+            ctx.record_shared_op(ModuleSharedOpKind::BarSync);
+            ctx.line("bar.sync 0;");
+            Ok(Some(PtxValue::Void))
+        }
+        "cuda_warp_sync" => {
+            expect_cuda_arg_count(name, args, 1, span)?;
+            ctx.record_warp_op(ModuleWarpOpKind::BarWarpSync);
+            let mask = emit_expr(ctx, &args[0].value)?.into_scalar(span)?;
+            let mask = coerce_scalar(ctx, mask, PtxScalarKind::U32)?;
+            ctx.line(format!("bar.warp.sync {};", mask.reg));
+            Ok(Some(PtxValue::Void))
+        }
+        "cuda_ballot" => {
+            expect_cuda_arg_count(name, args, 1, span)?;
+            ctx.record_warp_op(ModuleWarpOpKind::BallotSync);
+            let pred = emit_expr(ctx, &args[0].value)?.into_scalar(span)?;
+            let pred = scalar_to_pred(ctx, pred);
+            let mask = ctx.mov_u32_immediate(u32::MAX);
+            let out = ctx.alloc_scalar(PtxScalarKind::U32);
+            ctx.line(format!(
+                "vote.sync.ballot.b32 {}, {}, {};",
+                out.reg, pred.reg, mask.reg
+            ));
+            Ok(Some(PtxValue::Scalar(out)))
+        }
+        "cuda_warp_any" => {
+            expect_cuda_arg_count(name, args, 1, span)?;
+            ctx.record_warp_op(ModuleWarpOpKind::AnySync);
+            let pred = emit_expr(ctx, &args[0].value)?.into_scalar(span)?;
+            let pred = scalar_to_pred(ctx, pred);
+            let mask = ctx.mov_u32_immediate(u32::MAX);
+            let out = ctx.alloc_scalar(PtxScalarKind::Pred);
+            ctx.line(format!(
+                "vote.sync.any.pred {}, {}, {};",
+                out.reg, pred.reg, mask.reg
+            ));
+            Ok(Some(PtxValue::Scalar(out)))
+        }
+        "cuda_warp_all" => {
+            expect_cuda_arg_count(name, args, 1, span)?;
+            ctx.record_warp_op(ModuleWarpOpKind::AllSync);
+            let pred = emit_expr(ctx, &args[0].value)?.into_scalar(span)?;
+            let pred = scalar_to_pred(ctx, pred);
+            let mask = ctx.mov_u32_immediate(u32::MAX);
+            let out = ctx.alloc_scalar(PtxScalarKind::Pred);
+            ctx.line(format!(
+                "vote.sync.all.pred {}, {}, {};",
+                out.reg, pred.reg, mask.reg
+            ));
+            Ok(Some(PtxValue::Scalar(out)))
+        }
+        "cuda_shfl_xor_u32" => {
+            expect_cuda_arg_count(name, args, 2, span)?;
+            let value = emit_expr(ctx, &args[0].value)?.into_scalar(span)?;
+            let value = coerce_scalar(ctx, value, PtxScalarKind::U32)?;
+            let lane_mask = emit_expr(ctx, &args[1].value)?.into_scalar(span)?;
+            let lane_mask = coerce_scalar(ctx, lane_mask, PtxScalarKind::U32)?;
+            Ok(Some(PtxValue::Scalar(emit_cuda_shfl_xor_b32(
+                ctx, value, lane_mask,
+            ))))
+        }
+        "cuda_shfl_xor_f32" => {
+            expect_cuda_arg_count(name, args, 2, span)?;
+            let value = emit_expr(ctx, &args[0].value)?.into_scalar(span)?;
+            let value = coerce_scalar(ctx, value, PtxScalarKind::F32)?;
+            let lane_mask = emit_expr(ctx, &args[1].value)?.into_scalar(span)?;
+            let lane_mask = coerce_scalar(ctx, lane_mask, PtxScalarKind::U32)?;
+            Ok(Some(PtxValue::Scalar(emit_cuda_shfl_xor_f32(
+                ctx, value, lane_mask,
+            ))))
+        }
+        "cuda_warp_reduce_sum_u32" => {
+            expect_cuda_arg_count(name, args, 1, span)?;
+            let value = emit_expr(ctx, &args[0].value)?.into_scalar(span)?;
+            let mut acc = coerce_scalar(ctx, value, PtxScalarKind::U32)?;
+            for mask in [16, 8, 4, 2, 1] {
+                let lane_mask = ctx.mov_u32_immediate(mask);
+                let shuffled = emit_cuda_shfl_xor_b32(ctx, acc.clone(), lane_mask);
+                let out = ctx.alloc_scalar(PtxScalarKind::U32);
+                ctx.line(format!(
+                    "add.u32 {}, {}, {};",
+                    out.reg, acc.reg, shuffled.reg
+                ));
+                acc = out;
+            }
+            Ok(Some(PtxValue::Scalar(acc)))
+        }
+        "cuda_warp_reduce_sum_f32" => {
+            expect_cuda_arg_count(name, args, 1, span)?;
+            let value = emit_expr(ctx, &args[0].value)?.into_scalar(span)?;
+            let mut acc = coerce_scalar(ctx, value, PtxScalarKind::F32)?;
+            for mask in [16, 8, 4, 2, 1] {
+                let lane_mask = ctx.mov_u32_immediate(mask);
+                let shuffled = emit_cuda_shfl_xor_f32(ctx, acc.clone(), lane_mask);
+                let out = ctx.alloc_scalar(PtxScalarKind::F32);
+                ctx.line(format!(
+                    "add.f32 {}, {}, {};",
+                    out.reg, acc.reg, shuffled.reg
+                ));
+                acc = out;
+            }
+            Ok(Some(PtxValue::Scalar(acc)))
+        }
+        "cuda_cp_async_commit_group" => {
+            expect_cuda_arg_count(name, args, 0, span)?;
+            ctx.record_shared_op(ModuleSharedOpKind::CpAsyncCommitGroup);
+            ctx.line("cp.async.commit_group;");
+            Ok(Some(PtxValue::Void))
+        }
+        "cuda_cp_async_wait_group_0" => {
+            expect_cuda_arg_count(name, args, 0, span)?;
+            ctx.record_shared_op(ModuleSharedOpKind::CpAsyncWaitGroup);
+            ctx.line("cp.async.wait_group 0;");
+            Ok(Some(PtxValue::Void))
+        }
+        "cuda_require_tensor_cores" => {
+            expect_cuda_arg_count(name, args, 0, span)?;
+            ctx.record_tensor_op(ModuleTensorOpRequest::Fixed(ModuleTensorFixedKind::MmaSync));
+            ctx.line("// kain.cuda: require tensor cores (mma.sync sm_75+)");
+            Ok(Some(PtxValue::Void))
+        }
+        "cuda_require_wgmma" => {
+            expect_cuda_arg_count(name, args, 0, span)?;
+            ctx.record_tensor_op(ModuleTensorOpRequest::Fixed(
+                ModuleTensorFixedKind::WgmmaFence,
+            ));
+            ctx.line("// kain.cuda: require warpgroup MMA (wgmma sm_90+)");
+            Ok(Some(PtxValue::Void))
+        }
+        _ => Ok(None),
+    }
+}
+
+fn expect_cuda_arg_count(
+    name: &str,
+    args: &[CallArg],
+    expected: usize,
+    span: Span,
+) -> KainResult<()> {
+    if args.len() == expected {
+        return Ok(());
+    }
+    Err(KainError::codegen(
+        format!(
+            "CUDA intrinsic '{name}' expected {expected} argument(s), got {}",
+            args.len()
+        ),
+        span,
+    ))
+}
+
+fn emit_cuda_shfl_xor_b32(
+    ctx: &mut PtxContext,
+    value: ScalarValue,
+    lane_mask: ScalarValue,
+) -> ScalarValue {
+    ctx.record_warp_op(ModuleWarpOpKind::ShflXorSync);
+    let member_mask = ctx.mov_u32_immediate(u32::MAX);
+    let out = ctx.alloc_scalar(PtxScalarKind::U32);
+    ctx.line(format!(
+        "shfl.sync.bfly.b32 {}, {}, {}, 31, {};",
+        out.reg, value.reg, lane_mask.reg, member_mask.reg
+    ));
+    out
+}
+
+fn emit_cuda_shfl_xor_f32(
+    ctx: &mut PtxContext,
+    value: ScalarValue,
+    lane_mask: ScalarValue,
+) -> ScalarValue {
+    let bits = ctx.alloc_scalar(PtxScalarKind::U32);
+    ctx.line(format!("mov.b32 {}, {};", bits.reg, value.reg));
+    let shuffled_bits = emit_cuda_shfl_xor_b32(ctx, bits, lane_mask);
+    let out = ctx.alloc_scalar(PtxScalarKind::F32);
+    ctx.line(format!("mov.b32 {}, {};", out.reg, shuffled_bits.reg));
+    out
 }
 
 fn emit_min_max_call(
@@ -1863,31 +2108,23 @@ struct TypeShape {
     scalar: PtxScalarKind,
     lanes: usize,
     stride: u32,
+    component_stride: u32,
+    load_suffix: &'static str,
+    store_suffix: &'static str,
 }
 
 fn type_shape(ty: &Type) -> Option<TypeShape> {
     match ty {
         Type::Named { name, .. } => match name.as_str() {
-            "Float" | "f32" => Some(TypeShape {
-                scalar: PtxScalarKind::F32,
-                lanes: 1,
-                stride: 4,
-            }),
-            "Int" | "i32" => Some(TypeShape {
-                scalar: PtxScalarKind::S32,
-                lanes: 1,
-                stride: 4,
-            }),
-            "UInt" | "u32" | "Bool" => Some(TypeShape {
-                scalar: PtxScalarKind::U32,
-                lanes: 1,
-                stride: 4,
-            }),
-            "UInt64" | "u64" => Some(TypeShape {
-                scalar: PtxScalarKind::U64,
-                lanes: 1,
-                stride: 8,
-            }),
+            "Float" | "f32" | "F32" => scalar_shape(PtxScalarKind::F32, 4, "f32", "f32"),
+            "Int" | "i32" | "I32" => scalar_shape(PtxScalarKind::S32, 4, "s32", "s32"),
+            "UInt" | "u32" | "U32" | "Bool" => scalar_shape(PtxScalarKind::U32, 4, "u32", "u32"),
+            "UInt64" | "u64" | "U64" => scalar_shape(PtxScalarKind::U64, 8, "u64", "u64"),
+            "i8" | "I8" => scalar_shape(PtxScalarKind::S32, 1, "s8", "u8"),
+            "u8" | "U8" => scalar_shape(PtxScalarKind::U32, 1, "u8", "u8"),
+            "i16" | "I16" => scalar_shape(PtxScalarKind::S32, 2, "s16", "u16"),
+            "u16" | "U16" => scalar_shape(PtxScalarKind::U32, 2, "u16", "u16"),
+            "f16" | "F16" | "bf16" | "BF16" => scalar_shape(PtxScalarKind::U32, 2, "u16", "u16"),
             "Vec2" => vector_shape(PtxScalarKind::F32, 2),
             "Vec3" => vector_shape(PtxScalarKind::F32, 3),
             "Vec4" => vector_shape(PtxScalarKind::F32, 4),
@@ -1903,9 +2140,28 @@ fn type_shape(ty: &Type) -> Option<TypeShape> {
             scalar: PtxScalarKind::U32,
             lanes: 0,
             stride: 0,
+            component_stride: 0,
+            load_suffix: "u32",
+            store_suffix: "u32",
         }),
         _ => None,
     }
+}
+
+fn scalar_shape(
+    scalar: PtxScalarKind,
+    bytes: u32,
+    load_suffix: &'static str,
+    store_suffix: &'static str,
+) -> Option<TypeShape> {
+    Some(TypeShape {
+        scalar,
+        lanes: 1,
+        stride: bytes,
+        component_stride: bytes,
+        load_suffix,
+        store_suffix,
+    })
 }
 
 fn vector_shape(scalar: PtxScalarKind, lanes: usize) -> Option<TypeShape> {
@@ -1913,6 +2169,9 @@ fn vector_shape(scalar: PtxScalarKind, lanes: usize) -> Option<TypeShape> {
         scalar,
         lanes,
         stride: if lanes == 3 { 16 } else { (lanes as u32) * 4 },
+        component_stride: 4,
+        load_suffix: scalar.op_suffix(),
+        store_suffix: scalar.op_suffix(),
     })
 }
 

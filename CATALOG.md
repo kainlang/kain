@@ -1,6 +1,6 @@
 # Kain Keyword Catalog
 
-Snapshot: 2026-05-23
+Snapshot: 2026-05-27
 
 This file is the quick "what words does Kain actually own right now?" sheet.
 It is meant to stop the constant rediscovery loop.
@@ -90,6 +90,19 @@ If you just want one big memory dump, this is the current authored Kain word sur
 `fn`, `let`, `mut`, `var`, `const`, `if`, `else`, `elif`, `match`, `for`, `while`, `loop`, `break`, `continue`, `return`, `await`, `in`, `with`, `as`, `type`, `struct`, `enum`, `trait`, `impl`, `pub`, `mod`, `use`, `self`, `Self`, `true`, `false`, `none`, `component`, `shader`, `actor`, `state`, `spawn`, `send`, `receive`, `emit`, `comptime`, `macro`, `vertex`, `fragment`, `collapse`, `observe`, `decay`, `share`, `fanout`, `test`, `Pure`, `IO`, `async`, `Async`, `GPU`, `Reactive`, `Unsafe`, `patch`, `law`, `axiom`, `pulse`, `orchestrate`, `converge`, `world`, `entangle`, `shatter`, `teleport`, `every`, `when`, `guarantee`, `fallback`, `spec`, `fast`, `verify`, `random`, `jitter`, `target`, `capability`, `from`, `to`, `via`, `surface`, `native_ui`, `viewport3d`, `web`, `ue5`, `compute`, `uniform`, `render`, `on`, `weak`, `single_writer`, `and`, `or`
 
 ## 5. What This Catalog Deliberately Excludes
+
+### Builtin And Stdlib Function Surfaces
+
+CUDA device intrinsics are not counted as keywords because they are imported
+function names under `std::cuda`, but they are compiler-owned during PTX
+lowering. The current authored CUDA surface includes:
+
+`cuda_lane_id`, `cuda_warp_id`, `cuda_active_mask`, `cuda_block_sync`,
+`cuda_barrier_sync`, `cuda_warp_sync`, `cuda_ballot`, `cuda_warp_any`,
+`cuda_warp_all`, `cuda_shfl_xor_u32`, `cuda_shfl_xor_f32`,
+`cuda_warp_reduce_sum_u32`, `cuda_warp_reduce_sum_f32`,
+`cuda_cp_async_commit_group`, `cuda_cp_async_wait_group_0`,
+`cuda_require_tensor_cores`, `cuda_require_wgmma`
 
 ### Symbol-Only Surface
 

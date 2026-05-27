@@ -1,0 +1,16 @@
+use std::cuda
+
+shader compute cuda_warp_reduce_sum(id: UVec3) -> Void:
+    uniform input: StorageBuffer<Float> @0
+    uniform output: StorageBuffer<Float> @1
+    uniform count: UInt @2
+
+    let idx = id.x
+    if idx >= count:
+        return
+
+    let lane = cuda_lane_id()
+    let folded = cuda_warp_reduce_sum_f32(input[idx])
+    if lane == UInt(0):
+        output[idx / UInt(32)] = folded
+    return

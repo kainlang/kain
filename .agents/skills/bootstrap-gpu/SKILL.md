@@ -32,6 +32,8 @@ Use this skill when the compiler-owned GPU pipeline changes: frontend eligibilit
 2. Keep SPIR-V canonical. PTX is a derived compute-only peer output, not a separate semantic model.
 3. Put layout, indexing, and parameter-order invariants in `crates/gpu/z3` before trusting green tests or benchmark rows.
 4. Keep bundle metadata compiler-owned. If executors must adapt, co-trigger `runtime-gpu` instead of moving runtime policy into this skill.
+5. For CUDA device intrinsics, keep the public authored names in `stdlib/cuda.kn` and the actual lowering in `crates/gpu/src/codegen_ptx.rs`. Each intrinsic should record the matching `PtxKernelPlan` op (`shared_ops`, `warp_ops`, or `tensor_ops`) so arch validation rejects too-old targets.
+6. Narrow numeric storage support is implemented as packed PTX load/store shape, not as fake 8-bit registers. `StorageBuffer<u8/i8/u16/i16/f16/bf16>` should load/store with byte-accurate PTX suffixes while widening arithmetic into 32-bit registers until real half/bfloat arithmetic lands.
 
 ## Validation Loop
 
@@ -39,6 +41,8 @@ Use this skill when the compiler-owned GPU pipeline changes: frontend eligibilit
 cargo test -p gpu --lib storage_buffer_stride_matches_vulkan_base_alignment_for_common_types --target-dir target\codex-bootstrap-gpu-lib -- --nocapture
 cargo test -p gpu --test spirv_layout --target-dir target\codex-bootstrap-gpu-spirv -- --nocapture
 cargo test -p gpu --test ptx_codegen --target-dir target\codex-bootstrap-gpu-ptx -- --nocapture
+cargo test -p gpu --test ptx_codegen ptx_lowers_cuda_warp_intrinsics_and_tensor_arch_floor -- --nocapture
+cargo test -p gpu --test ptx_codegen ptx_packs_narrow_storage_buffer_numeric_lanes -- --nocapture
 uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path crates\gpu --lane layout
 uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path crates\gpu --lane ptx
 uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path crates\gpu --lane full

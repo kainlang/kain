@@ -169,3 +169,106 @@ shader compute loop_update_kernel(id: UVec3) -> Void:
     assert!(ptx.contains("add.u32 %r14, %r11, %r13;"));
     assert!(ptx.contains("mov.u32 %r11, %r14;"));
 }
+
+#[test]
+fn ptx_lowers_cuda_warp_intrinsics_and_tensor_arch_floor() {
+    let src = r#"
+use std::cuda
+
+shader compute cuda_intrinsic_kernel(id: UVec3) -> Void:
+    uniform src: StorageBuffer<UInt> @0
+    uniform dst: StorageBuffer<UInt> @1
+    uniform count: UInt @2
+
+    let idx = id.x
+    if idx >= count:
+        return
+
+    cuda_require_tensor_cores()
+    let lane = cuda_lane_id()
+    let mask = cuda_active_mask()
+    let ballot = cuda_ballot(lane < UInt(16))
+    let folded = cuda_warp_reduce_sum_u32(cuda_shfl_xor_u32(src[idx], UInt(1)) + (ballot & mask))
+    cuda_warp_sync(mask)
+    cuda_block_sync()
+    dst[idx] = folded
+    return
+"#;
+
+    let typed = typed_program_for_target(src, CompileTarget::Cuda);
+    let ptx = generate_ptx(&typed).expect("cuda warp intrinsic lowering should succeed");
+
+    assert!(ptx.contains(".target sm_75"));
+    assert!(ptx.contains("mov.u32"));
+    assert!(ptx.contains("%laneid"));
+    assert!(ptx.contains("activemask.b32"));
+    assert!(ptx.contains("vote.sync.ballot.b32"));
+    assert!(ptx.contains("shfl.sync.bfly.b32"));
+    assert!(ptx.contains("bar.warp.sync"));
+    assert!(ptx.contains("bar.sync 0"));
+    assert!(ptx.contains("require tensor cores"));
+}
+
+#[test]
+fn ptx_rejects_tensor_core_intrinsic_below_sm75() {
+    let src = r#"
+use std::cuda
+
+shader compute cuda_tensor_floor(id: UVec3) -> Void:
+    cuda_require_tensor_cores()
+    return
+"#;
+
+    let typed = typed_program_for_target(src, CompileTarget::Cuda);
+    let err = generate_with_options(&typed, PtxCodegenOptions::with_target_arch(PtxArch::Sm50))
+        .expect_err("tensor core requirements should reject sm_50");
+
+    assert!(err.to_string().contains("too old"));
+    assert!(err.to_string().contains("sm_75"));
+}
+
+#[test]
+fn ptx_packs_narrow_storage_buffer_numeric_lanes() {
+    let src = r#"
+shader compute packed_numeric_kernel(id: UVec3) -> Void:
+    uniform src8: StorageBuffer<u8> @0
+    uniform src16: StorageBuffer<i16> @1
+    uniform dst: StorageBuffer<UInt> @2
+    uniform count: UInt @3
+
+    let idx = id.x
+    if idx >= count:
+        return
+
+    let a = src8[idx]
+    let b = src16[idx]
+    dst[idx] = a + UInt(b)
+    return
+"#;
+
+    let typed = typed_program_for_target(src, CompileTarget::Cuda);
+    let ptx = generate_ptx(&typed).expect("packed numeric storage should lower to PTX");
+
+    assert!(ptx.contains("ld.global.u8"));
+    assert!(ptx.contains("ld.global.s16"));
+    assert!(ptx.contains("st.global.u32"));
+}
+
+#[test]
+fn ptx_async_shared_group_intrinsics_raise_sm80_floor() {
+    let src = r#"
+use std::cuda
+
+shader compute cuda_async_group_kernel(id: UVec3) -> Void:
+    cuda_cp_async_commit_group()
+    cuda_cp_async_wait_group_0()
+    return
+"#;
+
+    let typed = typed_program_for_target(src, CompileTarget::Cuda);
+    let ptx = generate_ptx(&typed).expect("cp.async group intrinsics should lower");
+
+    assert!(ptx.contains(".target sm_80"));
+    assert!(ptx.contains("cp.async.commit_group"));
+    assert!(ptx.contains("cp.async.wait_group 0"));
+}

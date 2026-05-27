@@ -1,0 +1,19 @@
+shader compute cuda_attention_score_tile(id: UVec3) -> Void:
+    uniform query: StorageBuffer<Float> @0
+    uniform keys: StorageBuffer<Float> @1
+    uniform scores: StorageBuffer<Float> @2
+    uniform key_count: UInt @3
+    uniform dim: UInt @4
+
+    let row = id.x
+    if row >= key_count:
+        return
+
+    var acc: Float = 0.0
+    var k: UInt = UInt(0)
+    while k < dim:
+        acc = acc + query[k] * keys[row * dim + k]
+        k = k + UInt(1)
+
+    scores[row] = acc
+    return

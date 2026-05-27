@@ -1,0 +1,82 @@
+{
+  "suite": "gpu-cuda",
+  "description": "CUDA/PTX benchmark gauntlet for Kain-authored GPU kernels. This lane starts with PTX compile and artifact-density evidence, then grows into persisted CUDA driver dispatch as each case gets sidecar payloads.",
+  "default_target_arch": "sm_75",
+  "cases": [
+    {
+      "id": "cuda_warp_reduce_sum",
+      "title": "Warp reduce sum",
+      "ml_lane": "reduce-sum",
+      "description": "One warp folds Float lanes through Kain CUDA shuffle/reduce intrinsics and writes one partial per warp.",
+      "maturity": "ptx-intrinsic-compile",
+      "work_items": 1048576,
+      "target_arch": "sm_75",
+      "languages": {
+        "kain": {
+          "shader": "cases/cuda_warp_reduce_sum/kain.kn",
+          "target": "cuda",
+          "stage": "compute",
+          "entry_point": "cuda_warp_reduce_sum"
+        }
+      },
+      "tracked_ptx": [
+        "shfl.sync.bfly.b32",
+        "%laneid",
+        "add.f32"
+      ]
+    },
+    {
+      "id": "cuda_packed_embedding_gather",
+      "title": "Packed embedding gather",
+      "ml_lane": "embedding-gather",
+      "description": "A packed u8 embedding table is gathered through Kain StorageBuffer<u8> and widened to UInt output without library kernels.",
+      "maturity": "packed-numeric-compile",
+      "work_items": 262144,
+      "target_arch": "sm_75",
+      "languages": {
+        "kain": {
+          "shader": "cases/cuda_packed_embedding_gather/kain.kn",
+          "target": "cuda",
+          "stage": "compute",
+          "entry_point": "cuda_packed_embedding_gather"
+        }
+      },
+      "tracked_ptx": [
+        "ld.global.u8",
+        "st.global.u32"
+      ]
+    },
+    {
+      "id": "cuda_attention_score_tile",
+      "title": "Attention score tile",
+      "ml_lane": "attention-score-gemv",
+      "description": "A dot-product tile computes query-key scores with scalar Kain PTX loops as the pre-shared-memory baseline for future GEMV/GEMM tuning.",
+      "maturity": "ptx-loop-compile",
+      "work_items": 131072,
+      "target_arch": "sm_75",
+      "languages": {
+        "kain": {
+          "shader": "cases/cuda_attention_score_tile/kain.kn",
+          "target": "cuda",
+          "stage": "compute",
+          "entry_point": "cuda_attention_score_tile"
+        }
+      },
+      "tracked_ptx": [
+        "mul.rn.f32",
+        "add.f32",
+        "bra"
+      ]
+    }
+  ],
+  "future_gauntlet_rows": [
+    "gemm",
+    "gemv",
+    "softmax",
+    "layernorm",
+    "rope",
+    "kv-cache-append",
+    "top-k",
+    "reduce-max"
+  ]
+}

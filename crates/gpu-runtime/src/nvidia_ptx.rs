@@ -1,5 +1,6 @@
 use crate::bindings::{
-    GpuBindingAccess, GpuDescriptorKind, GpuDispatchBinding, GpuDispatchRequest, GpuDispatchResult,
+    GpuBindingAccess, GpuCudaGraphPolicy, GpuCudaLaunchOptions, GpuCudaStreamPolicy,
+    GpuDescriptorKind, GpuDispatchBinding, GpuDispatchRequest, GpuDispatchResult,
 };
 use crate::executor::{
     c_string_arg, empty_dispatch_result, populate_dispatch_result, write_result_message,
@@ -48,6 +49,9 @@ type CuMemAlloc = unsafe extern "system" fn(*mut CUdeviceptr, usize) -> CUresult
 type CuMemFree = unsafe extern "system" fn(CUdeviceptr) -> CUresult;
 type CuMemcpyHtoD = unsafe extern "system" fn(CUdeviceptr, *const c_void, usize) -> CUresult;
 type CuMemcpyDtoH = unsafe extern "system" fn(*mut c_void, CUdeviceptr, usize) -> CUresult;
+type CuStreamCreate = unsafe extern "system" fn(*mut CUstream, u32) -> CUresult;
+type CuStreamDestroy = unsafe extern "system" fn(CUstream) -> CUresult;
+type CuStreamSynchronize = unsafe extern "system" fn(CUstream) -> CUresult;
 type CuLaunchKernel = unsafe extern "system" fn(
     CUfunction,
     u32,
@@ -62,6 +66,8 @@ type CuLaunchKernel = unsafe extern "system" fn(
     *mut *mut c_void,
 ) -> CUresult;
 type CuGetErrorString = unsafe extern "system" fn(CUresult, *mut *const c_char) -> CUresult;
+
+const CU_STREAM_NON_BLOCKING: u32 = 1;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct NvidiaPtxDeviceInfo {
@@ -160,11 +166,18 @@ impl NvidiaPtxExecutor {
     ) -> Result<GpuDispatchResult, ComputeExecutorError> {
         ensure_device_supports_ptx_target(&self.device_info, ptx_source)?;
         validate_ptx_dispatch_request(request)?;
+        if request.cuda_launch.graph_policy != GpuCudaGraphPolicy::Disabled {
+            return Err(ComputeExecutorError::UnsupportedCudaGraphPolicy {
+                value: format!("{:?}", request.cuda_launch.graph_policy),
+            });
+        }
         let ptx = CString::new(ptx_source).map_err(|_| ComputeExecutorError::PtxContainsNul)?;
         let entry = CString::new(request.entry_point.as_str())
             .map_err(|_| ComputeExecutorError::InvalidPtxEntryName)?;
 
         unsafe {
+            let launch_stream =
+                CudaLaunchStream::new(&self.driver, request.cuda_launch.stream_policy)?;
             let mut module = ptr::null_mut();
             self.driver.check(
                 (self.driver.cu_module_load_data_ex)(
@@ -213,15 +226,14 @@ impl NvidiaPtxExecutor {
                     request.workgroup_size[0].max(1),
                     request.workgroup_size[1].max(1),
                     request.workgroup_size[2].max(1),
-                    0,
-                    ptr::null_mut(),
+                    request.cuda_launch.dynamic_shared_memory_bytes,
+                    launch_stream.raw(),
                     kernel_params.as_mut_ptr(),
                     ptr::null_mut(),
                 ),
                 "cuLaunchKernel",
             )?;
-            self.driver
-                .check((self.driver.cu_ctx_synchronize)(), "cuCtxSynchronize")?;
+            launch_stream.synchronize()?;
 
             let mut output_bindings = Vec::new();
             for (binding, buffer) in sorted_bindings.iter().zip(buffers.iter()) {
@@ -399,6 +411,59 @@ impl Drop for CudaDeviceBuffer<'_> {
     }
 }
 
+struct CudaLaunchStream<'a> {
+    driver: &'a CudaDriver,
+    stream: CUstream,
+}
+
+impl<'a> CudaLaunchStream<'a> {
+    unsafe fn new(
+        driver: &'a CudaDriver,
+        policy: GpuCudaStreamPolicy,
+    ) -> Result<Self, ComputeExecutorError> {
+        match policy {
+            GpuCudaStreamPolicy::Default => Ok(Self {
+                driver,
+                stream: ptr::null_mut(),
+            }),
+            GpuCudaStreamPolicy::NonBlocking => {
+                let mut stream = ptr::null_mut();
+                driver.check(
+                    (driver.cu_stream_create)(&mut stream, CU_STREAM_NON_BLOCKING),
+                    "cuStreamCreate",
+                )?;
+                Ok(Self { driver, stream })
+            }
+        }
+    }
+
+    fn raw(&self) -> CUstream {
+        self.stream
+    }
+
+    unsafe fn synchronize(&self) -> Result<(), ComputeExecutorError> {
+        if self.stream.is_null() {
+            self.driver
+                .check((self.driver.cu_ctx_synchronize)(), "cuCtxSynchronize")
+        } else {
+            self.driver.check(
+                (self.driver.cu_stream_synchronize)(self.stream),
+                "cuStreamSynchronize",
+            )
+        }
+    }
+}
+
+impl Drop for CudaLaunchStream<'_> {
+    fn drop(&mut self) {
+        if !self.stream.is_null() {
+            unsafe {
+                let _ = (self.driver.cu_stream_destroy)(self.stream);
+            }
+        }
+    }
+}
+
 struct CudaDriver {
     _library: DynamicLibrary,
     cu_init: CuInit,
@@ -415,6 +480,9 @@ struct CudaDriver {
     cu_mem_free: CuMemFree,
     cu_memcpy_htod: CuMemcpyHtoD,
     cu_memcpy_dtoh: CuMemcpyDtoH,
+    cu_stream_create: CuStreamCreate,
+    cu_stream_destroy: CuStreamDestroy,
+    cu_stream_synchronize: CuStreamSynchronize,
     cu_launch_kernel: CuLaunchKernel,
     cu_get_error_string: CuGetErrorString,
 }
@@ -437,6 +505,9 @@ impl CudaDriver {
             cu_mem_free: library.symbol("cuMemFree_v2")?,
             cu_memcpy_htod: library.symbol("cuMemcpyHtoD_v2")?,
             cu_memcpy_dtoh: library.symbol("cuMemcpyDtoH_v2")?,
+            cu_stream_create: library.symbol("cuStreamCreate")?,
+            cu_stream_destroy: library.symbol("cuStreamDestroy_v2")?,
+            cu_stream_synchronize: library.symbol("cuStreamSynchronize")?,
             cu_launch_kernel: library.symbol("cuLaunchKernel")?,
             cu_get_error_string: library.symbol("cuGetErrorString")?,
             _library: library,
@@ -582,6 +653,12 @@ struct ComputeResidencyEntry {
     entry_point: String,
     workgroup_size: Option<[u32; 3]>,
     dispatch_size: Option<[u32; 3]>,
+    #[serde(default)]
+    dynamic_shared_memory_bytes: u32,
+    #[serde(default)]
+    cuda_stream_policy: String,
+    #[serde(default)]
+    cuda_graph_policy: String,
     tensor_binding_count: usize,
     stream_binding_count: usize,
     neural_node_count: usize,
@@ -770,6 +847,11 @@ fn ptx_dispatch_plan_from_sidecars(
             entry_point: resolved_entry_point.to_string(),
             workgroup_size: entry.workgroup_size.unwrap_or([8, 1, 1]),
             dispatch_size: entry.dispatch_size.unwrap_or([1, 1, 1]),
+            cuda_launch: GpuCudaLaunchOptions {
+                dynamic_shared_memory_bytes: entry.dynamic_shared_memory_bytes,
+                stream_policy: parse_cuda_stream_policy(&entry.cuda_stream_policy)?,
+                graph_policy: parse_cuda_graph_policy(&entry.cuda_graph_policy)?,
+            },
             bindings,
             tensor_binding_count: entry.tensor_binding_count,
             stream_binding_count: entry.stream_binding_count,
@@ -1135,6 +1217,30 @@ fn parse_access_mode(value: &str) -> Result<GpuBindingAccess, ComputeExecutorErr
     }
 }
 
+fn parse_cuda_stream_policy(value: &str) -> Result<GpuCudaStreamPolicy, ComputeExecutorError> {
+    let normalized = value.trim().to_ascii_lowercase();
+    match normalized.as_str() {
+        "" | "default" | "legacy_default" | "legacy-default" | "null" => {
+            Ok(GpuCudaStreamPolicy::Default)
+        }
+        "non_blocking" | "non-blocking" | "nonblocking" => Ok(GpuCudaStreamPolicy::NonBlocking),
+        other => Err(ComputeExecutorError::UnsupportedCudaStreamPolicy {
+            value: other.to_string(),
+        }),
+    }
+}
+
+fn parse_cuda_graph_policy(value: &str) -> Result<GpuCudaGraphPolicy, ComputeExecutorError> {
+    let normalized = value.trim().to_ascii_lowercase();
+    match normalized.as_str() {
+        "" | "disabled" | "off" | "none" => Ok(GpuCudaGraphPolicy::Disabled),
+        "capture_once" | "capture-once" | "captureonce" => Ok(GpuCudaGraphPolicy::CaptureOnce),
+        other => Err(ComputeExecutorError::UnsupportedCudaGraphPolicy {
+            value: other.to_string(),
+        }),
+    }
+}
+
 fn infer_element_size(element_type: &str) -> i64 {
     match element_type {
         "u8" | "i8" | "bool" => 1,
@@ -1336,6 +1442,7 @@ mod tests {
                     entry_point: "write_one".to_string(),
                     workgroup_size: [1, 1, 1],
                     dispatch_size: [1, 1, 1],
+                    cuda_launch: GpuCudaLaunchOptions::default(),
                     bindings: vec![GpuDispatchBinding {
                         key: "dst".to_string(),
                         binding_slot: 0,
@@ -1558,12 +1665,87 @@ mod tests {
     }
 
     #[test]
+    fn ptx_dispatch_plan_reads_cuda_launch_policy() {
+        let temp = tempfile::TempDir::new().expect("temp dir");
+        let shader_bundle_path = temp.path().join("bundle.json");
+        let compute_residency_path = temp.path().join("residency.json");
+        let payload_path = temp.path().join("payload.bin");
+
+        fs::write(&payload_path, [0u8; 4]).expect("payload");
+        write_sample_ptx_bundle(
+            &shader_bundle_path,
+            ".visible .entry CudaFieldKernel() { ret; }",
+        )
+        .expect("write bundle");
+        fs::write(
+            &compute_residency_path,
+            serde_json::to_string_pretty(&json!({
+                "schema_version": 1,
+                "target": "cuda",
+                "compute_shader_count": 1,
+                "compute_shaders": [
+                    {
+                        "key": "shader::CudaFieldKernel::compute",
+                        "shader": "CudaFieldKernel",
+                        "module_name": "CudaFieldKernel",
+                        "stage": "compute",
+                        "entry_point": "CudaFieldKernel",
+                        "workgroup_size": [32, 1, 1],
+                        "dispatch_size": [1024, 1, 1],
+                        "dynamic_shared_memory_bytes": 2048,
+                        "cuda_stream_policy": "non_blocking",
+                        "cuda_graph_policy": "disabled",
+                        "tensor_binding_count": 0,
+                        "stream_binding_count": 1,
+                        "neural_node_count": 0,
+                        "bindings": [
+                            {
+                                "key": "dst",
+                                "contract": "kain.shared.buffer",
+                                "descriptor_kind": "storage_buffer",
+                                "element_type": "u32",
+                                "shape": [1],
+                                "strides": [4],
+                                "access_mode": "write",
+                                "residency_role": "output",
+                                "slot": 0,
+                                "byte_length": 4,
+                                "payload_file": "payload.bin"
+                            }
+                        ]
+                    }
+                ]
+            }))
+            .expect("json"),
+        )
+        .expect("write residency");
+
+        let plan = ptx_dispatch_plan_from_sidecars(
+            &shader_bundle_path,
+            &compute_residency_path,
+            "shader::CudaFieldKernel::compute",
+        )
+        .expect("plan");
+
+        assert_eq!(plan.request.cuda_launch.dynamic_shared_memory_bytes, 2048);
+        assert_eq!(
+            plan.request.cuda_launch.stream_policy,
+            GpuCudaStreamPolicy::NonBlocking
+        );
+        assert_eq!(
+            plan.request.cuda_launch.graph_policy,
+            GpuCudaGraphPolicy::Disabled
+        );
+    }
+
+    #[test]
     fn ptx_dispatch_request_rejects_duplicate_binding_slots() {
         let err = validate_ptx_dispatch_request(&GpuDispatchRequest {
             module_name: "dup".to_string(),
             entry_point: "dup".to_string(),
             workgroup_size: [1, 1, 1],
             dispatch_size: [1, 1, 1],
+            cuda_launch: GpuCudaLaunchOptions::default(),
             bindings: vec![
                 GpuDispatchBinding {
                     key: "a".to_string(),
@@ -1599,8 +1781,12 @@ mod tests {
     fn residency_role_validation_accepts_readwrite_seed_inputs() {
         validate_residency_role("query_embed", "input", GpuBindingAccess::ReadWrite)
             .expect("read_write inputs should be allowed for seeded storage buffers");
-        validate_residency_role("query_norm_data", "required_input", GpuBindingAccess::ReadWrite)
-            .expect("required_input should tolerate read_write payload staging");
+        validate_residency_role(
+            "query_norm_data",
+            "required_input",
+            GpuBindingAccess::ReadWrite,
+        )
+        .expect("required_input should tolerate read_write payload staging");
         validate_residency_role("scores", "output", GpuBindingAccess::ReadWrite)
             .expect("read_write outputs remain valid");
     }

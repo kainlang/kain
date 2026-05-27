@@ -107,6 +107,13 @@ description: >-
 - Use `cases_v2` first for new Kain-only rows, runtime probes, stdlib probes, semantic fused rows, or grouped benchmark packs where multiple related cases belong in one file.
 - Stay in the legacy `benchmark/cases/<case>/...` plus `benchmark/catalog/benchmarks.main.json` flow when the row is meant to compare Kain against Rust/C++/Go/Zig/JS/Python/Erlang or otherwise belongs in the cross-language main suite.
 - Keep dedicated special lanes in their existing homes: GPU under `benchmark/lanes/gpu/`, WASM under `benchmark/lanes/wasm/`, FFI boundary under `benchmark/lanes/ffi_boundary/`.
+- CUDA/PTX GPU work uses the dedicated sibling runner under `benchmark/lanes/gpu/run_cuda.py` with manifest `benchmark/lanes/gpu/cuda_cases.json`. It invokes `kain build <shader> --target cuda`, reads the emitted build report, copies PTX into `benchmark/out/build/gpu-cuda/<case>/kain/`, and writes `benchmark/out/reports/latest_cuda_gpu.*`.
+- For a focused CUDA gauntlet run after backend work, prefer:
+
+```powershell
+python benchmark/lanes/gpu/run_cuda.py --list
+python benchmark/lanes/gpu/run_cuda.py --case cuda_warp_reduce_sum --runs 1 --warmups 0
+```
 
 ### How To Run V2
 

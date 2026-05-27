@@ -1,0 +1,18 @@
+shader compute cuda_packed_embedding_gather(id: UVec3) -> Void:
+    uniform table: StorageBuffer<u8> @0
+    uniform indices: StorageBuffer<UInt> @1
+    uniform output: StorageBuffer<UInt> @2
+    uniform row_count: UInt @3
+    uniform dim: UInt @4
+
+    let row = id.x
+    let col = id.y
+    if row >= row_count:
+        return
+    if col >= dim:
+        return
+
+    let source_row = indices[row]
+    let packed = table[source_row * dim + col]
+    output[row * dim + col] = packed
+    return

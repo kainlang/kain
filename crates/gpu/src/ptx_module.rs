@@ -1098,9 +1098,9 @@ impl PtxWarpOpKind {
     pub const fn mnemonic(self) -> &'static str {
         match self {
             Self::Activemask => "activemask.b32",
-            Self::BallotSync => "vote.ballot.sync.b32",
-            Self::AnySync => "vote.any.sync.pred",
-            Self::AllSync => "vote.all.sync.pred",
+            Self::BallotSync => "vote.sync.ballot.b32",
+            Self::AnySync => "vote.sync.any.pred",
+            Self::AllSync => "vote.sync.all.pred",
             Self::ShflIdxSync => "shfl.sync.idx.b32",
             Self::ShflUpSync => "shfl.sync.up.b32",
             Self::ShflDownSync => "shfl.sync.down.b32",
@@ -1159,19 +1159,19 @@ pub static WARP_OPS: &[PtxWarpOpSpec] = &[
     ),
     PtxWarpOpSpec::new(
         PtxWarpOpKind::BallotSync,
-        "vote.ballot.sync.b32",
+        "vote.sync.ballot.b32",
         PtxScalarKind::U32,
         PtxArch::Sm50,
     ),
     PtxWarpOpSpec::new(
         PtxWarpOpKind::AnySync,
-        "vote.any.sync.pred",
+        "vote.sync.any.pred",
         PtxScalarKind::Pred,
         PtxArch::Sm50,
     ),
     PtxWarpOpSpec::new(
         PtxWarpOpKind::AllSync,
-        "vote.all.sync.pred",
+        "vote.sync.all.pred",
         PtxScalarKind::Pred,
         PtxArch::Sm50,
     ),

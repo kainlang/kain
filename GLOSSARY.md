@@ -48,6 +48,8 @@ Location rule: paths in this glossary are live in this checkout. Older docs may 
 
 **Crates** - The Rust workspace where compiler, runtime bridges, import lanes, UI/GPU systems, and toolchain support live. If Kain source meaning changes, the relevant owning crate is usually here. Location: `crates/`.
 
+**CUDA/PTX lane** - The NVIDIA-specific GPU path for Kain compute shaders. Authored kernels can import `std::cuda` for device intrinsics such as lane id, warp collectives, cp.async group gates, and tensor-core capability assertions; lowering lives in the PTX backend and execution lives in the NVIDIA driver runtime. Location: `stdlib/cuda.kn`, `crates/gpu/src/codegen_ptx.rs`, `crates/gpu/src/ptx_module.rs`, `crates/gpu-runtime/src/nvidia_ptx.rs`, `benchmark/lanes/gpu/run_cuda.py`.
+
 ## D
 
 **Decay** - The deterministic ownership teardown operation in Kain. If `collapse` is exclusive mutation and `observe` is scoped reading, `decay` is the terminal cleanup step. Location: `crates/core/`, `crates/ownership/`, `runtime/native/`.

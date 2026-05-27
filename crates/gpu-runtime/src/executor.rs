@@ -1,6 +1,6 @@
 use crate::bindings::{
-    ComputeCase, GpuBindingAccess, GpuDescriptorKind, GpuDispatchBinding, GpuDispatchRequest,
-    GpuDispatchResult,
+    ComputeCase, GpuBindingAccess, GpuCudaLaunchOptions, GpuDescriptorKind, GpuDispatchBinding,
+    GpuDispatchRequest, GpuDispatchResult,
 };
 use ash::{vk, Entry};
 use kain_core::shader_artifact_bundle_from_json;
@@ -196,6 +196,10 @@ pub enum ComputeExecutorError {
         role: String,
         access: String,
     },
+    #[error("unsupported CUDA stream policy {value}")]
+    UnsupportedCudaStreamPolicy { value: String },
+    #[error("unsupported CUDA graph policy {value}")]
+    UnsupportedCudaGraphPolicy { value: String },
 }
 
 pub type GpuComputeExecutor = VulkanComputeExecutor;
@@ -611,6 +615,7 @@ impl VulkanComputeExecutor {
             entry_point: entry_name.to_string(),
             workgroup_size: [DEFAULT_WORKGROUP_SIZE_X, 1, 1],
             dispatch_size: [case.invocation_count.max(1), 1, 1],
+            cuda_launch: GpuCudaLaunchOptions::default(),
             bindings: case
                 .bindings
                 .iter()
@@ -960,6 +965,7 @@ fn dispatch_request_from_sidecars(
                 .workgroup_size
                 .unwrap_or([DEFAULT_WORKGROUP_SIZE_X, 1, 1]),
             dispatch_size: entry.dispatch_size.unwrap_or([1, 1, 1]),
+            cuda_launch: GpuCudaLaunchOptions::default(),
             bindings,
             tensor_binding_count: entry.tensor_binding_count,
             stream_binding_count: entry.stream_binding_count,

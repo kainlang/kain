@@ -9361,6 +9361,36 @@ Current runtime blocker is pre-existing and not caused by the visual lane:
 - launching `D:\Kain-Lang\smoketest\smoketest.exe` in normal `full` mode exits early at `stdlib.text_lane`
   - `telemetry/full/summary.json` reports `failure_code=2515` and `failure_track="stdlib.text_lane"`
   - because the album stops there, the new `ui.*` tracks do not execute during that run until the existing text/fmt effect issue is fixed
+# 2026-05-27 - CUDA/PTX intrinsic surface, runtime launch policy, and gauntlet lane
+
+Kain now has a real authored CUDA device-intrinsic surface under `std::cuda` that the PTX backend lowers directly instead of treating as ordinary unsupported calls.
+
+- Compiler/PTX surfaces landed:
+  - `stdlib/cuda.kn` exposes device intrinsics for lane/warp id, active mask, block/warp sync, ballot/any/all, shuffle-xor, warp reduce sum, cp.async group commit/wait, and tensor/WGMMA capability assertions.
+  - `crates/gpu/src/codegen_ptx.rs` lowers those calls to PTX and records `PtxKernelPlan` shared/warp/tensor ops so arch validation raises the target floor (`sm_75` for tensor cores, `sm_80` for cp.async group ops).
+  - packed storage-buffer numerics now handle `u8/i8/u16/i16/f16/bf16` as byte-accurate global load/store lanes widened into 32-bit registers until real half/bfloat arithmetic lands.
+  - `crates/gpu/src/ptx_module.rs` now uses modern `vote.sync.*` PTX mnemonics for warp vote ops.
+- Runtime/sidecar surfaces landed:
+  - compute residency entries emit `dynamic_shared_memory_bytes`, `cuda_stream_policy`, and `cuda_graph_policy`.
+  - `kain-gpu-runtime` consumes those fields for NVIDIA PTX dispatch: dynamic shared bytes flow into `cuLaunchKernel`, `cuda_stream_policy="non_blocking"` creates a CUDA Driver API stream, and graph policy is represented but rejected until capture/instantiate/launch is implemented.
+  - the NVIDIA PTX unit lane successfully launched the tiny live CUDA driver kernel on this machine.
+- Benchmark lane landed:
+  - `benchmark/lanes/gpu/cuda_cases.json`
+  - `benchmark/lanes/gpu/run_cuda.py`
+  - authored Kain cases for `cuda_warp_reduce_sum`, `cuda_packed_embedding_gather`, and `cuda_attention_score_tile`
+  - reports write to `benchmark/out/reports/latest_cuda_gpu.*` and PTX copies land under `benchmark/out/build/gpu-cuda/<case>/kain/`
+- Validation evidence:
+  - `cargo test -p gpu --test ptx_codegen -- --nocapture`
+  - `cargo test -p kain-gpu-runtime nvidia_ptx --lib -- --nocapture`
+  - `cargo test -p kain-driver compute_residency --lib -- --nocapture`
+  - `cargo build -p cli --bin kain`
+  - `python benchmark/lanes/gpu/run_cuda.py --kain-bin F:\DevTools\kain-agent\cargo-target\debug\kain.exe --runs 1`
+  - `cargo run -q -p kain-stdlib-map --bin kain_stdlib_map_tool -- --write`
+  - `cargo run -q -p kain-stdlib-map --bin kain_stdlib_map_tool -- --check`
+  - `python query_stdlib.py --module cuda --contains cuda_ --limit 40`
+- Current caveat:
+  - `.kain\bin\kain.exe` is still blocked by unrelated Bazel crate-universe analysis failures (`kain_driver`, `kain_omni`, `kain_host`, etc. missing in Bazel rust rules after repin); the CUDA gauntlet passed with the fresh Cargo binary at `F:\DevTools\kain-agent\cargo-target\debug\kain.exe`.
+
 # 2026-05-24 - added an optional root `std::z3` host-solver lane
 
 `use std::z3` now exists as a thin, Python-backed solver surface for authored Kain. It is intentionally optional: callers should gate on `z3_available()` when they want a soft dependency, or call `z3_require()` when they want the flow to fail loudly if `z3-solver` is missing from the active Python environment.

@@ -33,6 +33,12 @@ pub struct ComputeResidencyEntry {
     pub workgroup_size: Option<[u32; 3]>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub dispatch_size: Option<[u32; 3]>,
+    #[serde(default)]
+    pub dynamic_shared_memory_bytes: u32,
+    #[serde(default = "default_cuda_stream_policy")]
+    pub cuda_stream_policy: String,
+    #[serde(default = "default_cuda_graph_policy")]
+    pub cuda_graph_policy: String,
     pub resource_binding_count: usize,
     pub tensor_binding_count: usize,
     pub stream_binding_count: usize,
@@ -66,6 +72,14 @@ pub struct ComputeResidencyBinding {
     pub slot: u32,
     pub byte_length: usize,
     pub payload_file: String,
+}
+
+fn default_cuda_stream_policy() -> String {
+    "default".to_string()
+}
+
+fn default_cuda_graph_policy() -> String {
+    "disabled".to_string()
 }
 
 pub fn write_compute_residency_sidecars(
@@ -166,6 +180,9 @@ fn build_compute_residency_bundle(
                 execution_domain: shader.execution_domain.clone(),
                 workgroup_size: shader.workgroup_size,
                 dispatch_size: shader.dispatch_size,
+                dynamic_shared_memory_bytes: 0,
+                cuda_stream_policy: "default".to_string(),
+                cuda_graph_policy: "disabled".to_string(),
                 resource_binding_count: shader.resource_bindings.len(),
                 tensor_binding_count: shader.tensor_bindings.len(),
                 stream_binding_count: shader.stream_bindings.len(),
@@ -450,12 +467,12 @@ shader compute SampleCompute(id: UVec3) -> Vec4:
             &bundle.realtime,
             bundle.shader_bundle.as_ref().map(|output| &output.bundle),
         )
-            .expect("expected compute residency bundle");
+        .expect("expected compute residency bundle");
         let built_b = build_compute_residency_bundle(
             &bundle.realtime,
             bundle.shader_bundle.as_ref().map(|output| &output.bundle),
         )
-            .expect("expected compute residency bundle");
+        .expect("expected compute residency bundle");
         assert_eq!(built_a, built_b);
 
         let written = write_compute_residency_sidecars(
@@ -481,6 +498,12 @@ shader compute SampleCompute(id: UVec3) -> Vec4:
         assert_eq!(main_bundle.compute_shaders[0].module_name, "SampleCompute");
         assert_eq!(main_bundle.compute_shaders[0].entry_point, "SampleCompute");
         assert_eq!(main_bundle.compute_shaders[0].resource_binding_count, 2);
+        assert_eq!(
+            main_bundle.compute_shaders[0].dynamic_shared_memory_bytes,
+            0
+        );
+        assert_eq!(main_bundle.compute_shaders[0].cuda_stream_policy, "default");
+        assert_eq!(main_bundle.compute_shaders[0].cuda_graph_policy, "disabled");
         assert_eq!(main_bundle.compute_shaders[0].bindings.len(), 2);
         assert_eq!(
             main_bundle.compute_shaders[0]
