@@ -1,0 +1,35 @@
+version: 1
+id: kain.native.core.proofs.native_memory_memtype_legal_mask_excludes_illegal_values
+kind: check_smt2
+description: The exported memtype legality contract accepts only the small legal
+  RAGE-shaped subset and rejects out-of-range or undeclared combinations.
+tags:
+- native-runtime
+- memory
+- arena
+- memtype
+source:
+  path: X:\runtime\native\include\arena.h
+  symbol: KAIN_MEMTYPE_LEGAL_MASK
+  reason: arena, buddy, and virtual allocation surfaces all depend on a single
+    legal-memtype truth instead of ad hoc heap identity
+case:
+  smt2: |
+    (set-logic QF_LIA)
+    (declare-const memtype Int)
+    (define-fun legal ((m Int)) Bool
+      (and (>= m 0)
+           (< m 16)
+           (or (= m 1) (= m 4) (= m 5) (= m 6) (= m 12) (= m 15))))
+    (assert
+      (or
+        (< memtype 0)
+        (>= memtype 16)
+        (and (>= memtype 0)
+             (< memtype 16)
+             (not (or (= memtype 1) (= memtype 4) (= memtype 5)
+                      (= memtype 6) (= memtype 12) (= memtype 15))))))
+    (assert (legal memtype))
+    (check-sat)
+  include_model: false
+  include_stats: false

@@ -1,0 +1,38 @@
+version: 1
+id: kain.native.core.proofs.native_memory_deferred_free_flush_preserves_node_count
+kind: check_smt2
+description: Flushing the deferred-free queue back into the active free list
+  conserves the number of reusable nodes and cannot manufacture or lose capacity.
+tags:
+- native-runtime
+- memory
+- deferred-free
+- list
+source:
+  path: X:\runtime\native\src\core\deferred_free.c
+  symbol: kain_deferred_free_list_flush
+  reason: CHARLIE will consume this structure from ownership decay paths, so the
+    splice must preserve node accounting
+case:
+  smt2: |
+    (set-logic QF_LIA)
+    (declare-const capacity Int)
+    (declare-const active_before Int)
+    (declare-const deferred_before Int)
+    (assert (>= capacity 0))
+    (assert (>= active_before 0))
+    (assert (>= deferred_before 0))
+    (assert (<= (+ active_before deferred_before) capacity))
+    (define-fun active_after () Int (+ active_before deferred_before))
+    (define-fun deferred_after () Int 0)
+    (assert
+      (or
+        (< active_after 0)
+        (> active_after capacity)
+        (< deferred_after 0)
+        (> (+ active_after deferred_after) capacity)
+        (not (= (+ active_after deferred_after)
+                (+ active_before deferred_before)))))
+    (check-sat)
+  include_model: false
+  include_stats: false

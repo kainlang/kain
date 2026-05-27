@@ -1,0 +1,30 @@
+version: 1
+id: kain.native.core.proofs.native_memory_arena_low_bump_cursor_stays_before_high_water
+kind: check_smt2
+description: When the arena low allocator validates `aligned_low + size <= high`,
+  the new low cursor stays inside the current frame and cannot cross the high-water
+  pointer.
+tags:
+- native-runtime
+- memory
+- arena
+- frame
+- overflow
+source:
+  path: X:\runtime\native\src\core\arena.c
+  symbol: kain_arena_alloc_lo
+  reason: the low bump path is the core collapse-shaped frame allocator guard and
+    must preserve low <= high after each allocation
+case:
+  smt2: |
+    (set-logic QF_BV)
+    (declare-const aligned_low (_ BitVec 64))
+    (declare-const size (_ BitVec 64))
+    (declare-const high (_ BitVec 64))
+    (assert (bvule aligned_low high))
+    (assert (bvule size (bvsub high aligned_low)))
+    (define-fun next_low () (_ BitVec 64) (bvadd aligned_low size))
+    (assert (or (bvult next_low aligned_low) (bvugt next_low high)))
+    (check-sat)
+  include_model: false
+  include_stats: false

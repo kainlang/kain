@@ -1,0 +1,39 @@
+version: 1
+id: kain.native.core.proofs.native_memory_alloc_header_packed_fields_do_not_overlap
+kind: check_smt2
+description: Slot token, arena id, memtype, flags, and the magic tag occupy
+  disjoint regions in the packed helper-allocation header word.
+tags:
+- native-runtime
+- memory
+- allocation
+- header
+- bitfield
+source:
+  path: X:\runtime\native\include\memory.h
+  symbol: KainAllocHeader
+  reason: helper-allocation relocation and cache routing both depend on a dense
+    header word whose fields do not alias each other
+case:
+  smt2: |
+    (set-logic QF_BV)
+    (define-fun SLOT () (_ BitVec 64) #x000000000000ffff)
+    (define-fun ARENA () (_ BitVec 64) #x0000000000030000)
+    (define-fun MEMTYPE () (_ BitVec 64) #x00000000003c0000)
+    (define-fun FLAGS () (_ BitVec 64) #x000000003fc00000)
+    (define-fun MAGIC () (_ BitVec 64) #xffffffff00000000)
+    (assert
+      (or
+        (not (= (bvand SLOT ARENA) (_ bv0 64)))
+        (not (= (bvand SLOT MEMTYPE) (_ bv0 64)))
+        (not (= (bvand SLOT FLAGS) (_ bv0 64)))
+        (not (= (bvand SLOT MAGIC) (_ bv0 64)))
+        (not (= (bvand ARENA MEMTYPE) (_ bv0 64)))
+        (not (= (bvand ARENA FLAGS) (_ bv0 64)))
+        (not (= (bvand ARENA MAGIC) (_ bv0 64)))
+        (not (= (bvand MEMTYPE FLAGS) (_ bv0 64)))
+        (not (= (bvand MEMTYPE MAGIC) (_ bv0 64)))
+        (not (= (bvand FLAGS MAGIC) (_ bv0 64)))))
+    (check-sat)
+  include_model: false
+  include_stats: false

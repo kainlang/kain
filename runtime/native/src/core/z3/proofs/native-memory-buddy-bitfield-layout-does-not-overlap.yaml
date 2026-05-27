@@ -1,0 +1,38 @@
+version: 1
+id: kain.native.core.proofs.native_memory_buddy_bitfield_layout_does_not_overlap
+kind: check_smt2
+description: The packed buddy node lanes for used bit, free links, memtype, and
+  height occupy disjoint ranges inside the single 64-bit metadata word.
+tags:
+- native-runtime
+- memory
+- buddy
+- bitfield
+source:
+  path: X:\runtime\native\include\buddy.h
+  symbol: KainBuddyNode
+  reason: single-word buddy metadata only stays trustworthy if its logical lanes
+    never alias each other
+case:
+  smt2: |
+    (set-logic QF_BV)
+    (define-fun USED () (_ BitVec 64) #x0000000000000001)
+    (define-fun NEXT () (_ BitVec 64) #x00000000003ffffe)
+    (define-fun PREV () (_ BitVec 64) #x000007ffffc00000)
+    (define-fun MEMTYPE () (_ BitVec 64) #x0000780000000000)
+    (define-fun HEIGHT () (_ BitVec 64) #x001f800000000000)
+    (assert
+      (or
+        (not (= (bvand USED NEXT) (_ bv0 64)))
+        (not (= (bvand USED PREV) (_ bv0 64)))
+        (not (= (bvand USED MEMTYPE) (_ bv0 64)))
+        (not (= (bvand USED HEIGHT) (_ bv0 64)))
+        (not (= (bvand NEXT PREV) (_ bv0 64)))
+        (not (= (bvand NEXT MEMTYPE) (_ bv0 64)))
+        (not (= (bvand NEXT HEIGHT) (_ bv0 64)))
+        (not (= (bvand PREV MEMTYPE) (_ bv0 64)))
+        (not (= (bvand PREV HEIGHT) (_ bv0 64)))
+        (not (= (bvand MEMTYPE HEIGHT) (_ bv0 64)))))
+    (check-sat)
+  include_model: false
+  include_stats: false

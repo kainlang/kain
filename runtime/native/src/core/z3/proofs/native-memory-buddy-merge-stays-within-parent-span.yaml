@@ -1,0 +1,42 @@
+version: 1
+id: kain.native.core.proofs.native_memory_buddy_merge_stays_within_parent_span
+kind: check_smt2
+description: Merging two same-height sibling buddy blocks produces the parent base
+  and keeps both children inside the parent span of `2 * block_units`.
+tags:
+- native-runtime
+- memory
+- buddy
+- merge
+source:
+  path: X:\runtime\native\src\core\buddy.c
+  symbol: kain_buddy_free
+  reason: free-time buddy coalescing is only correct if the merged index covers
+    both sibling children and returns the parent origin
+case:
+  smt2: |
+    (set-logic QF_LIA)
+    (declare-const parent Int)
+    (declare-const block_units Int)
+    (declare-const child_selector Int)
+    (assert (>= parent 0))
+    (assert (> block_units 0))
+    (assert (or (= child_selector 0) (= child_selector 1)))
+    (define-fun left_child () Int parent)
+    (define-fun right_child () Int (+ parent block_units))
+    (define-fun current () Int
+      (ite (= child_selector 0) left_child right_child))
+    (define-fun buddy () Int
+      (ite (= child_selector 0) right_child left_child))
+    (define-fun merged_parent () Int
+      (ite (< current buddy) current buddy))
+    (assert
+      (or
+        (not (= merged_parent parent))
+        (< current parent)
+        (>= current (+ parent (* 2 block_units)))
+        (< buddy parent)
+        (>= buddy (+ parent (* 2 block_units)))))
+    (check-sat)
+  include_model: false
+  include_stats: false

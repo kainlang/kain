@@ -1,0 +1,32 @@
+version: 1
+id: kain.native.core.proofs.native_memory_arena_align_up_does_not_wrap_before_bump
+kind: check_smt2
+description: The arena bump allocator only rounds the low cursor upward after
+  proving the power-of-two alignment add cannot wrap, so the aligned cursor never
+  overflows size_t before the bump-range guard runs.
+tags:
+- native-runtime
+- memory
+- arena
+- alignment
+- overflow
+source:
+  path: X:\runtime\native\src\core\arena.c
+  symbol: kain_align_up_size
+  reason: arena low/high bump math depends on power-of-two alignment and must not
+    wrap while building an aligned cursor
+case:
+  smt2: |
+    (set-logic QF_BV)
+    (declare-const value (_ BitVec 64))
+    (declare-const alignment (_ BitVec 64))
+    (assert (distinct alignment (_ bv0 64)))
+    (assert (= (bvand alignment (bvsub alignment (_ bv1 64))) (_ bv0 64)))
+    (define-fun mask () (_ BitVec 64) (bvsub alignment (_ bv1 64)))
+    (assert (bvule value (bvsub (_ bv18446744073709551615 64) mask)))
+    (define-fun aligned () (_ BitVec 64)
+      (bvand (bvadd value mask) (bvnot mask)))
+    (assert (bvult aligned value))
+    (check-sat)
+  include_model: false
+  include_stats: false

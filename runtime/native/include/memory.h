@@ -3,6 +3,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include "arena.h"
 #include "bitfield.h"
 #include "union.h"
 
@@ -34,29 +35,122 @@ typedef union KainAllocHeader {
     long double alignment;
 } KainAllocHeader;
 
+#define KAIN_ALLOC_HEADER_SLOT_TOKEN_SHIFT 0u
 #define KAIN_ALLOC_HEADER_SLOT_TOKEN_MASK UINT64_C(0x000000000000ffff)
-#define KAIN_ALLOC_HEADER_MAGIC_TAG UINT64_C(0x4b41494e4d450000)
+#define KAIN_ALLOC_HEADER_ARENA_ID_SHIFT 16u
+#define KAIN_ALLOC_HEADER_ARENA_ID_MASK UINT64_C(0x0000000000030000)
+#define KAIN_ALLOC_HEADER_MEMTYPE_SHIFT 18u
+#define KAIN_ALLOC_HEADER_MEMTYPE_MASK UINT64_C(0x00000000003c0000)
+#define KAIN_ALLOC_HEADER_FLAGS_SHIFT 22u
+#define KAIN_ALLOC_HEADER_FLAGS_MASK UINT64_C(0x000000003fc00000)
+#define KAIN_ALLOC_HEADER_MAGIC_SHIFT 32u
+#define KAIN_ALLOC_HEADER_MAGIC_MASK UINT64_C(0xffffffff00000000)
+#define KAIN_ALLOC_HEADER_MAGIC_TAG UINT64_C(0x4b41494e00000000)
+
+enum {
+    KAIN_ALLOC_HEADER_FLAG_VIRTUAL = 1u << 0,
+    KAIN_ALLOC_HEADER_FLAG_CACHED = 1u << 1,
+    KAIN_ALLOC_HEADER_FLAG_ZEROED = 1u << 2,
+};
+
+static inline uint64_t __kain_alloc_header_magic_with_fields(
+    uint16_t slot_token,
+    uint8_t arena_id,
+    uint8_t memtype,
+    uint8_t flags
+) {
+    return KAIN_ALLOC_HEADER_MAGIC_TAG |
+        (((uint64_t)slot_token << KAIN_ALLOC_HEADER_SLOT_TOKEN_SHIFT) &
+            KAIN_ALLOC_HEADER_SLOT_TOKEN_MASK) |
+        (((uint64_t)arena_id << KAIN_ALLOC_HEADER_ARENA_ID_SHIFT) &
+            KAIN_ALLOC_HEADER_ARENA_ID_MASK) |
+        (((uint64_t)memtype << KAIN_ALLOC_HEADER_MEMTYPE_SHIFT) &
+            KAIN_ALLOC_HEADER_MEMTYPE_MASK) |
+        (((uint64_t)flags << KAIN_ALLOC_HEADER_FLAGS_SHIFT) &
+            KAIN_ALLOC_HEADER_FLAGS_MASK);
+}
 
 static inline uint64_t __kain_alloc_header_magic_with_slot(uint16_t slot_token) {
-    return KAIN_ALLOC_HEADER_MAGIC_TAG | (uint64_t)slot_token;
+    return __kain_alloc_header_magic_with_fields(
+        slot_token,
+        KAIN_ARENA_MAIN,
+        KAIN_MEMTYPE_DEFAULT,
+        0u
+    );
+}
+
+static inline void __kain_alloc_header_set_fields(
+    KainAllocHeader* header,
+    uint16_t slot_token,
+    uint8_t arena_id,
+    uint8_t memtype,
+    uint8_t flags
+) {
+    header->metadata.magic_and_slot = __kain_alloc_header_magic_with_fields(
+        slot_token,
+        arena_id,
+        memtype,
+        flags
+    );
 }
 
 static inline void __kain_alloc_header_set_magic_and_slot(
     KainAllocHeader* header,
     uint16_t slot_token
 ) {
-    header->metadata.magic_and_slot = __kain_alloc_header_magic_with_slot(slot_token);
+    __kain_alloc_header_set_fields(
+        header,
+        slot_token,
+        KAIN_ARENA_MAIN,
+        KAIN_MEMTYPE_DEFAULT,
+        0u
+    );
 }
 
 static inline uint16_t __kain_alloc_header_slot_token(const KainAllocHeader* header) {
     if (header == NULL) {
         return 0u;
     }
-    if ((header->metadata.magic_and_slot & ~KAIN_ALLOC_HEADER_SLOT_TOKEN_MASK)
+    if ((header->metadata.magic_and_slot & KAIN_ALLOC_HEADER_MAGIC_MASK)
         != KAIN_ALLOC_HEADER_MAGIC_TAG) {
         return 0u;
     }
-    return (uint16_t)(header->metadata.magic_and_slot & KAIN_ALLOC_HEADER_SLOT_TOKEN_MASK);
+    return (uint16_t)((header->metadata.magic_and_slot & KAIN_ALLOC_HEADER_SLOT_TOKEN_MASK) >>
+        KAIN_ALLOC_HEADER_SLOT_TOKEN_SHIFT);
+}
+
+static inline uint8_t __kain_alloc_header_arena_id(const KainAllocHeader* header) {
+    if (header == NULL ||
+        (header->metadata.magic_and_slot & KAIN_ALLOC_HEADER_MAGIC_MASK) !=
+            KAIN_ALLOC_HEADER_MAGIC_TAG) {
+        return KAIN_ARENA_MAIN;
+    }
+    return (uint8_t)((header->metadata.magic_and_slot & KAIN_ALLOC_HEADER_ARENA_ID_MASK) >>
+        KAIN_ALLOC_HEADER_ARENA_ID_SHIFT);
+}
+
+static inline uint8_t __kain_alloc_header_memtype(const KainAllocHeader* header) {
+    if (header == NULL ||
+        (header->metadata.magic_and_slot & KAIN_ALLOC_HEADER_MAGIC_MASK) !=
+            KAIN_ALLOC_HEADER_MAGIC_TAG) {
+        return KAIN_MEMTYPE_DEFAULT;
+    }
+    return (uint8_t)((header->metadata.magic_and_slot & KAIN_ALLOC_HEADER_MEMTYPE_MASK) >>
+        KAIN_ALLOC_HEADER_MEMTYPE_SHIFT);
+}
+
+static inline uint8_t __kain_alloc_header_flags(const KainAllocHeader* header) {
+    if (header == NULL ||
+        (header->metadata.magic_and_slot & KAIN_ALLOC_HEADER_MAGIC_MASK) !=
+            KAIN_ALLOC_HEADER_MAGIC_TAG) {
+        return 0u;
+    }
+    return (uint8_t)((header->metadata.magic_and_slot & KAIN_ALLOC_HEADER_FLAGS_MASK) >>
+        KAIN_ALLOC_HEADER_FLAGS_SHIFT);
+}
+
+static inline int __kain_alloc_header_has_flag(const KainAllocHeader* header, uint8_t flag) {
+    return (__kain_alloc_header_flags(header) & flag) != 0u;
 }
 
 static inline int __kain_alloc_header_is_valid(const KainAllocHeader* header) {
