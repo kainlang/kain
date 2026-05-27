@@ -7,6 +7,9 @@ sources = [
     "native/src/core/core.c",
     "native/src/core/version.c",
     "native/src/core/diagnostics.c",
+    "native/src/core/profile.c",
+    "native/src/core/handle.c",
+    "native/src/core/fixup.c",
     "native/src/core/services.c",
     "native/src/core/contract.c",
     "native/src/core/entangle.c",
@@ -28,6 +31,7 @@ sources = [
     "native/src/core/scene.c",
     "native/src/core/reflection.c",
     "native/src/core/realtime.c",
+    "native/src/core/cuda_runtime.c",
     "native/src/core/attrition.c",
     "native/src/core/async.c",
     "native/src/core/compatibility.c",
@@ -134,6 +138,38 @@ provider = "native-core"
 requirement = "required"
 status = "available"
 description = "Structured diagnostics and error reporting"
+
+[[services]]
+key = "control.runtime-tiers"
+name = "Runtime Control Tiers"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+description = "Compile-time no-op, gated, and full-cost control tiers for diagnostics, profiling, and relocation bookkeeping"
+
+[[services]]
+key = "runtime.profile"
+name = "Runtime Profiling Zones"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+description = "Scoped push/pop profiling zones with compile-out tiers and fixed-cost native timing telemetry"
+
+[[services]]
+key = "memory.handles"
+name = "Generation Tagged Runtime Handles"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+description = "Index plus magic runtime handles for stale rejection across relocation and control-plane surfaces"
+
+[[services]]
+key = "memory.fixup"
+name = "Relocation Fixup Registry"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+description = "Known-ref registration, self-updating pointer patching, and handle-aware relocation tracking for helper-owned allocations"
 
 [[services]]
 key = "cpu.capabilities"
@@ -381,6 +417,15 @@ provider = "native-core"
 requirement = "optional"
 status = "available"
 description = "Compute bundle validation, dispatch planning, and native runtime handoff"
+
+[[services]]
+key = "gfx.compute.cuda"
+name = "CUDA PTX Dispatch"
+provider = "native-core"
+requirement = "optional"
+status = "degraded"
+platforms = ["windows", "linux"]
+description = "Windows-first NVIDIA PTX sidecar dispatch bridge backed by the external kain-gpu-runtime driver lane"
 
 [[services]]
 key = "ui.component"

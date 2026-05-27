@@ -66,6 +66,8 @@ int __kain_ownership_begin_share_helper(void* ptr);
 int __kain_ownership_end_share_helper(void* ptr);
 int __kain_ownership_decay_helper(void* ptr);
 int __kain_ownership_state(const void* ptr);
+void __kain_ownership_flush_deferred_decay(void);
+uint64_t __kain_ownership_deferred_decay_count(void);
 
 #ifdef __cplusplus
 }

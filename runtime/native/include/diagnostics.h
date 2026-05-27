@@ -2,6 +2,9 @@
 #define DIAGNOSTICS_H
 
 #include <stddef.h>
+#include <stdint.h>
+
+#include "runtime_tiers.h"
 
 /*
  * KAIN Native Runtime Diagnostics Service
@@ -37,6 +40,9 @@ typedef enum {
     KAIN_DIAG_SUBSYSTEM_HOST_BRIDGE,
     KAIN_DIAG_SUBSYSTEM_MEMORY,
     KAIN_DIAG_SUBSYSTEM_COMPATIBILITY,
+    KAIN_DIAG_SUBSYSTEM_FIXUP,
+    KAIN_DIAG_SUBSYSTEM_PROFILE,
+    KAIN_DIAG_SUBSYSTEM_MACHINE,
 } KainDiagSubsystem;
 
 /* Diagnostic Severity Levels */
@@ -150,6 +156,18 @@ typedef struct {
     unsigned int runtime_abi_version;
 } KainDiagnostic;
 
+typedef struct {
+    KainDiagSubsystem subsystem;
+    uint8_t file_level;
+    uint8_t tty_level;
+    uint8_t popup_level;
+    uint8_t emit_level;
+    uint8_t runtime_tier;
+} KainDiagChannel;
+
+#define KAIN_DIAG_EMIT_IF(subsystem, severity) \
+    kain_diagnostic_channel_should_emit((subsystem), (severity))
+
 /*
  * Initialize Diagnostic Record
  *
@@ -191,6 +209,15 @@ int kain_diagnostic_format(
  * Prints a diagnostic to stderr with appropriate formatting.
  */
 void kain_diagnostic_print(const KainDiagnostic* diag);
+
+const KainDiagChannel* kain_diagnostic_channel(KainDiagSubsystem subsystem);
+int kain_diagnostic_channel_should_emit(KainDiagSubsystem subsystem, KainDiagSeverity severity);
+int kain_diagnostic_channel_set_levels(
+    KainDiagSubsystem subsystem,
+    KainDiagSeverity file_level,
+    KainDiagSeverity tty_level,
+    KainDiagSeverity popup_level
+);
 
 /*
  * Get Subsystem Name

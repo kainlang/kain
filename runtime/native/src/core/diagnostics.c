@@ -5,6 +5,106 @@
 #include <string.h>
 #include <stdio.h>
 
+static KainDiagSeverity kain_diag_clamp_severity(int severity) {
+    if (severity < KAIN_DIAG_SEVERITY_INFO) {
+        return KAIN_DIAG_SEVERITY_INFO;
+    }
+    if (severity > KAIN_DIAG_SEVERITY_FATAL) {
+        return KAIN_DIAG_SEVERITY_FATAL;
+    }
+    return (KainDiagSeverity)severity;
+}
+
+static void kain_diag_normalize_channel(KainDiagChannel* channel) {
+    KainDiagSeverity file_level;
+    KainDiagSeverity tty_level;
+    KainDiagSeverity popup_level;
+    if (!channel) {
+        return;
+    }
+    file_level = kain_diag_clamp_severity(channel->file_level);
+    tty_level = kain_diag_clamp_severity(channel->tty_level);
+    popup_level = kain_diag_clamp_severity(channel->popup_level);
+    if (tty_level < file_level) {
+        tty_level = file_level;
+    }
+    if (popup_level < tty_level) {
+        popup_level = tty_level;
+    }
+    channel->file_level = (uint8_t)file_level;
+    channel->tty_level = (uint8_t)tty_level;
+    channel->popup_level = (uint8_t)popup_level;
+    channel->emit_level = (uint8_t)file_level;
+}
+
+static KainDiagChannel KAIN_DIAG_CHANNELS[] = {
+    { KAIN_DIAG_SUBSYSTEM_UNKNOWN,       KAIN_DIAG_SEVERITY_WARNING, KAIN_DIAG_SEVERITY_WARNING, KAIN_DIAG_SEVERITY_ERROR,   KAIN_DIAG_SEVERITY_WARNING, KAIN_RUNTIME_TIER_GATED },
+    { KAIN_DIAG_SUBSYSTEM_CONTRACT,      KAIN_DIAG_SEVERITY_INFO,    KAIN_DIAG_SEVERITY_WARNING, KAIN_DIAG_SEVERITY_ERROR,   KAIN_DIAG_SEVERITY_INFO,    KAIN_RUNTIME_TIER_GATED },
+    { KAIN_DIAG_SUBSYSTEM_REFLECTION,    KAIN_DIAG_SEVERITY_INFO,    KAIN_DIAG_SEVERITY_WARNING, KAIN_DIAG_SEVERITY_ERROR,   KAIN_DIAG_SEVERITY_INFO,    KAIN_RUNTIME_TIER_GATED },
+    { KAIN_DIAG_SUBSYSTEM_ACTOR,         KAIN_DIAG_SEVERITY_INFO,    KAIN_DIAG_SEVERITY_WARNING, KAIN_DIAG_SEVERITY_ERROR,   KAIN_DIAG_SEVERITY_INFO,    KAIN_RUNTIME_TIER_GATED },
+    { KAIN_DIAG_SUBSYSTEM_ASYNC,         KAIN_DIAG_SEVERITY_INFO,    KAIN_DIAG_SEVERITY_WARNING, KAIN_DIAG_SEVERITY_ERROR,   KAIN_DIAG_SEVERITY_INFO,    KAIN_RUNTIME_TIER_GATED },
+    { KAIN_DIAG_SUBSYSTEM_UI,            KAIN_DIAG_SEVERITY_INFO,    KAIN_DIAG_SEVERITY_WARNING, KAIN_DIAG_SEVERITY_ERROR,   KAIN_DIAG_SEVERITY_INFO,    KAIN_RUNTIME_TIER_GATED },
+    { KAIN_DIAG_SUBSYSTEM_GFX,           KAIN_DIAG_SEVERITY_INFO,    KAIN_DIAG_SEVERITY_WARNING, KAIN_DIAG_SEVERITY_ERROR,   KAIN_DIAG_SEVERITY_INFO,    KAIN_RUNTIME_TIER_GATED },
+    { KAIN_DIAG_SUBSYSTEM_PLATFORM,      KAIN_DIAG_SEVERITY_WARNING, KAIN_DIAG_SEVERITY_WARNING, KAIN_DIAG_SEVERITY_ERROR,   KAIN_DIAG_SEVERITY_WARNING, KAIN_RUNTIME_TIER_GATED },
+    { KAIN_DIAG_SUBSYSTEM_HOST_BRIDGE,   KAIN_DIAG_SEVERITY_INFO,    KAIN_DIAG_SEVERITY_WARNING, KAIN_DIAG_SEVERITY_ERROR,   KAIN_DIAG_SEVERITY_INFO,    KAIN_RUNTIME_TIER_GATED },
+    { KAIN_DIAG_SUBSYSTEM_MEMORY,        KAIN_DIAG_SEVERITY_WARNING, KAIN_DIAG_SEVERITY_WARNING, KAIN_DIAG_SEVERITY_ERROR,   KAIN_DIAG_SEVERITY_WARNING, KAIN_RUNTIME_TIER_GATED },
+    { KAIN_DIAG_SUBSYSTEM_COMPATIBILITY, KAIN_DIAG_SEVERITY_WARNING, KAIN_DIAG_SEVERITY_WARNING, KAIN_DIAG_SEVERITY_ERROR,   KAIN_DIAG_SEVERITY_WARNING, KAIN_RUNTIME_TIER_GATED },
+    { KAIN_DIAG_SUBSYSTEM_FIXUP,         KAIN_DIAG_SEVERITY_WARNING, KAIN_DIAG_SEVERITY_WARNING, KAIN_DIAG_SEVERITY_ERROR,   KAIN_DIAG_SEVERITY_WARNING, KAIN_RUNTIME_TIER_GATED },
+    { KAIN_DIAG_SUBSYSTEM_PROFILE,       KAIN_DIAG_SEVERITY_ERROR,   KAIN_DIAG_SEVERITY_ERROR,   KAIN_DIAG_SEVERITY_FATAL,   KAIN_DIAG_SEVERITY_ERROR,   KAIN_RUNTIME_TIER_FULL },
+    { KAIN_DIAG_SUBSYSTEM_MACHINE,       KAIN_DIAG_SEVERITY_WARNING, KAIN_DIAG_SEVERITY_WARNING, KAIN_DIAG_SEVERITY_ERROR,   KAIN_DIAG_SEVERITY_WARNING, KAIN_RUNTIME_TIER_GATED },
+};
+
+static size_t kain_diag_channel_count(void) {
+    return sizeof(KAIN_DIAG_CHANNELS) / sizeof(KAIN_DIAG_CHANNELS[0]);
+}
+
+static KainDiagChannel* kain_diag_channel_mutable(KainDiagSubsystem subsystem) {
+    size_t index;
+    for (index = 0u; index < kain_diag_channel_count(); ++index) {
+        if (KAIN_DIAG_CHANNELS[index].subsystem == subsystem) {
+            return &KAIN_DIAG_CHANNELS[index];
+        }
+    }
+    return &KAIN_DIAG_CHANNELS[0];
+}
+
+const KainDiagChannel* kain_diagnostic_channel(KainDiagSubsystem subsystem) {
+    return kain_diag_channel_mutable(subsystem);
+}
+
+int kain_diagnostic_channel_should_emit(KainDiagSubsystem subsystem, KainDiagSeverity severity) {
+    const KainDiagChannel* channel;
+#if KAIN_RUNTIME_DIAG_TIER == KAIN_RUNTIME_TIER_NOOP
+    return severity >= KAIN_DIAG_SEVERITY_FATAL;
+#else
+    channel = kain_diagnostic_channel(subsystem);
+    if (!channel) {
+        return severity >= KAIN_DIAG_SEVERITY_WARNING;
+    }
+    if (!KAIN_RUNTIME_TIER_AT_LEAST(KAIN_RUNTIME_DIAG_TIER, channel->runtime_tier)) {
+        return severity >= KAIN_DIAG_SEVERITY_FATAL;
+    }
+    return severity >= (KainDiagSeverity)channel->emit_level;
+#endif
+}
+
+int kain_diagnostic_channel_set_levels(
+    KainDiagSubsystem subsystem,
+    KainDiagSeverity file_level,
+    KainDiagSeverity tty_level,
+    KainDiagSeverity popup_level
+) {
+    KainDiagChannel* channel = kain_diag_channel_mutable(subsystem);
+    if (!channel) {
+        return -1;
+    }
+    channel->file_level = (uint8_t)file_level;
+    channel->tty_level = (uint8_t)tty_level;
+    channel->popup_level = (uint8_t)popup_level;
+    kain_diag_normalize_channel(channel);
+    return 0;
+}
+
 static void kain_copy_text(char* out, size_t out_size, const char* text) {
     size_t length;
 
@@ -104,8 +204,18 @@ int kain_diagnostic_format(
 
 void kain_diagnostic_print(const KainDiagnostic* diag) {
     char buffer[2048];
+    const KainDiagChannel* channel;
 
     if (!diag) {
+        return;
+    }
+
+    if (!kain_diagnostic_channel_should_emit(diag->subsystem, diag->severity)) {
+        return;
+    }
+
+    channel = kain_diagnostic_channel(diag->subsystem);
+    if (!channel || diag->severity < (KainDiagSeverity)channel->tty_level) {
         return;
     }
 
@@ -131,6 +241,9 @@ const char* kain_diagnostic_subsystem_name(KainDiagSubsystem subsystem) {
         case KAIN_DIAG_SUBSYSTEM_HOST_BRIDGE:   return "HOST_BRIDGE";
         case KAIN_DIAG_SUBSYSTEM_MEMORY:        return "MEMORY";
         case KAIN_DIAG_SUBSYSTEM_COMPATIBILITY: return "COMPATIBILITY";
+        case KAIN_DIAG_SUBSYSTEM_FIXUP:         return "FIXUP";
+        case KAIN_DIAG_SUBSYSTEM_PROFILE:       return "PROFILE";
+        case KAIN_DIAG_SUBSYSTEM_MACHINE:       return "MACHINE";
         case KAIN_DIAG_SUBSYSTEM_UNKNOWN:
         default:                                 return "UNKNOWN";
     }
@@ -262,8 +375,17 @@ void kain_diagnostic_collector_print_all(const KainDiagnosticCollector* collecto
         collector->error_count, collector->warning_count, collector->fatal_count);
 
     for (i = 0; i < collector->count; i++) {
-        kain_diagnostic_print(&collector->diagnostics[i]);
-        printf("\n");
+        const KainDiagChannel* channel =
+            kain_diagnostic_channel(collector->diagnostics[i].subsystem);
+        if (channel &&
+            kain_diagnostic_channel_should_emit(
+                collector->diagnostics[i].subsystem,
+                collector->diagnostics[i].severity
+            ) &&
+            collector->diagnostics[i].severity >= (KainDiagSeverity)channel->tty_level) {
+            kain_diagnostic_print(&collector->diagnostics[i]);
+            printf("\n");
+        }
     }
 }
 

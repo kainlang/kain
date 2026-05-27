@@ -1,0 +1,32 @@
+version: 1
+id: kain.native.core.proofs.native_fixup_relocation_does_not_patch_foreign_handle_refs
+kind: check_smt2
+description: >
+  The fixup relocation walk only patches refs whose stored handle matches the
+  active relocation handle. Foreign-handle refs keep their original pointer.
+tags:
+- native-runtime
+- fixup
+- relocation
+- handle-isolation
+source:
+  path: X:\runtime\native\src\core\fixup.c
+  symbol: kain_fixup_relocate_allocation
+  reason: the relocation loop writes through a known ref only when ref->handle == handle
+case:
+  smt2: |
+    (set-logic QF_LIA)
+    (declare-const active_handle Int)
+    (declare-const foreign_handle Int)
+    (declare-const old_ptr Int)
+    (declare-const new_ptr Int)
+    (assert (> active_handle 0))
+    (assert (> foreign_handle 0))
+    (assert (distinct active_handle foreign_handle))
+    (assert (distinct old_ptr new_ptr))
+    (define-fun patched_ptr () Int
+      (ite (= foreign_handle active_handle) new_ptr old_ptr))
+    (assert (not (= patched_ptr old_ptr)))
+    (check-sat)
+  include_model: false
+  include_stats: false

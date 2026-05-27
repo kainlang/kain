@@ -8,6 +8,10 @@
 
 #include "../../include/machine_stones.h"
 #include "../../include/cpu.h"
+#include "../../include/diagnostics.h"
+#include "../../include/fixup.h"
+#include "../../include/ownership.h"
+#include "../../include/profile.h"
 
 #include <errno.h>
 #include <stdint.h>
@@ -69,6 +73,8 @@ static atomic_int g_machine_pulse_atexit_registered;
 static atomic_uint_fast64_t g_machine_pulse_total_fire_count;
 static atomic_uint_fast64_t g_machine_teleport_count;
 static atomic_uint_fast64_t g_machine_teleport_last_token;
+static atomic_uint_fast64_t g_machine_teleport_last_handle;
+static atomic_flag g_machine_teleport_untracked_warned = ATOMIC_FLAG_INIT;
 
 #ifdef _WIN32
 static HANDLE g_machine_pulse_thread;
@@ -471,13 +477,49 @@ void* kain_machine_teleport_ptr(
     const char* target_world,
     const char* channel
 ) {
+    KainProfileScope profile_scope;
+    KainRuntimeHandle handle = KAIN_RUNTIME_HANDLE_INVALID;
+    void* result = ptr;
     /* Proof: runtime/native/src/core/z3/proofs/native-machine-teleport-token-handoff-is-exclusive.yaml */
     uint64_t token = kain_machine_hash_text((uintptr_t)ptr, source_world);
     token ^= kain_machine_hash_text(token, target_world);
     token ^= kain_machine_hash_text(token, channel);
+    kain_profile_scope_begin(&profile_scope, "machine.teleport", __FILE__, (uint32_t)__LINE__);
+    __kain_ownership_flush_deferred_decay();
+    if (ptr != NULL) {
+        handle = kain_fixup_handle_for_pointer(ptr);
+        if (handle != KAIN_RUNTIME_HANDLE_INVALID) {
+            KainFixupTrackedView view;
+            if (kain_fixup_view(handle, &view) == 0 && view.base != NULL && view.size != 0u) {
+                uintptr_t base_addr = (uintptr_t)view.base;
+                uintptr_t ptr_addr = (uintptr_t)ptr;
+                uintptr_t offset = ptr_addr >= base_addr ? ptr_addr - base_addr : 0u;
+                (void)kain_fixup_relocate_allocation(handle, view.base, view.base, view.size);
+                result = offset < view.size ? (void*)(base_addr + offset) : view.base;
+            }
+        } else if (!atomic_flag_test_and_set_explicit(
+                       &g_machine_teleport_untracked_warned,
+                       memory_order_relaxed
+                   ) &&
+                   KAIN_DIAG_EMIT_IF(KAIN_DIAG_SUBSYSTEM_MACHINE, KAIN_DIAG_SEVERITY_WARNING)) {
+            KainDiagnostic diag;
+            kain_diagnostic_create(
+                &diag,
+                KAIN_DIAG_SUBSYSTEM_MACHINE,
+                KAIN_DIAG_SEVERITY_WARNING,
+                KAIN_DIAG_CODE_GENERIC_ERROR,
+                "teleport fell back to token-only handoff",
+                "No relocation handle or known-fixup range was registered for this pointer.",
+                "runtime/native/src/core/machine_stones.c"
+            );
+            kain_diagnostic_print(&diag);
+        }
+    }
     atomic_fetch_add_explicit(&g_machine_teleport_count, 1u, memory_order_relaxed);
     atomic_store_explicit(&g_machine_teleport_last_token, token, memory_order_release);
-    return ptr;
+    atomic_store_explicit(&g_machine_teleport_last_handle, handle, memory_order_release);
+    kain_profile_scope_end(&profile_scope);
+    return result;
 }
 
 void kain_machine_teleport_note(
@@ -494,6 +536,10 @@ uint64_t kain_machine_teleport_count(void) {
 
 uint64_t kain_machine_teleport_last_token(void) {
     return atomic_load_explicit(&g_machine_teleport_last_token, memory_order_acquire);
+}
+
+uint64_t kain_machine_teleport_last_handle(void) {
+    return atomic_load_explicit(&g_machine_teleport_last_handle, memory_order_acquire);
 }
 
 static int kain_machine_mul_overflow_u64(uint64_t a, uint64_t b, uint64_t* out) {

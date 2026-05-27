@@ -1,0 +1,31 @@
+version: 1
+id: kain.native.core.proofs.native_self_updating_ptr_rebind_keeps_pointer_inside_relocated_range
+kind: check_smt2
+description: >
+  A self-updating pointer that stores an in-object offset with 0 <= offset < size
+  always rebounds to a location inside the relocated allocation range.
+tags:
+- native-runtime
+- fixup
+- self-updating-pointer
+- relocation
+source:
+  path: X:\runtime\native\include\self_updating_ptr.h
+  symbol: kain_self_updating_ptr_rebind
+  reason: the wrapper recomputes current as relocated_base plus a previously validated in-range offset
+case:
+  smt2: |
+    (set-logic QF_LIA)
+    (declare-const relocated_base Int)
+    (declare-const size Int)
+    (declare-const offset Int)
+    (assert (>= relocated_base 0))
+    (assert (> size 0))
+    (assert (>= offset 0))
+    (assert (< offset size))
+    (define-fun rebound_ptr () Int (+ relocated_base offset))
+    (assert (or (< rebound_ptr relocated_base)
+                (>= rebound_ptr (+ relocated_base size))))
+    (check-sat)
+  include_model: false
+  include_stats: false

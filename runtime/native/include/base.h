@@ -37,6 +37,16 @@ typedef unsigned int GLuint;
 #define ZeroMemory(Destination, Length) memset((Destination), 0, (Length))
 #endif
 
+#ifndef KAIN_LIKELY
+#if defined(__clang__) || defined(__GNUC__)
+#define KAIN_LIKELY(condition) __builtin_expect(!!(condition), 1)
+#define KAIN_UNLIKELY(condition) __builtin_expect(!!(condition), 0)
+#else
+#define KAIN_LIKELY(condition) (!!(condition))
+#define KAIN_UNLIKELY(condition) (!!(condition))
+#endif
+#endif
+
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
 #endif

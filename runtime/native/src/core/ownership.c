@@ -8,7 +8,10 @@
  */
 
 #include "../../include/ownership.h"
+#include "../../include/fixup.h"
 #include "../../include/memory.h"
+#include "../../include/profile.h"
+#include "../../include/runtime_tiers.h"
 #include <errno.h>
 #include <stdint.h>
 #include <stdatomic.h>
@@ -36,12 +39,18 @@ typedef struct KainOwnershipRegion {
     int64_t kind;
     int state;
     uint32_t observers;
+    KainRuntimeHandle relocation_handle;
+    uint8_t decay_queued;
     int occupied;
 } KainOwnershipRegion;
 
 static KainOwnershipRegion KAIN_OWNERSHIP_REGIONS[KAIN_OWNERSHIP_MAX_REGIONS];
 static uint64_t KAIN_OWNERSHIP_OCCUPANCY_WORDS[KAIN_OWNERSHIP_WORD_COUNT];
 static uint32_t KAIN_OWNERSHIP_POINTER_INDEX[KAIN_OWNERSHIP_INDEX_CAPACITY];
+static uint16_t KAIN_OWNERSHIP_DEFERRED_DECAY_RING[KAIN_OWNERSHIP_MAX_REGIONS];
+static uint32_t KAIN_OWNERSHIP_DEFERRED_DECAY_HEAD = 0u;
+static uint32_t KAIN_OWNERSHIP_DEFERRED_DECAY_TAIL = 0u;
+static uint32_t KAIN_OWNERSHIP_DEFERRED_DECAY_COUNT = 0u;
 static atomic_flag KAIN_OWNERSHIP_REGISTRY_LOCK = ATOMIC_FLAG_INIT;
 
 static void kain_ownership_lock(void) {
@@ -194,6 +203,26 @@ static void kain_ownership_rebuild_pointer_index_unlocked(void) {
     }
 }
 
+static int kain_ownership_enqueue_deferred_decay_unlocked(int slot) {
+    KainOwnershipRegion* region;
+    if (slot < 0 || (uint32_t)slot >= KAIN_OWNERSHIP_MAX_REGIONS) {
+        return KAIN_OWNERSHIP_ERR_INVALID;
+    }
+    region = &KAIN_OWNERSHIP_REGIONS[slot];
+    if (region->decay_queued) {
+        return KAIN_OWNERSHIP_OK;
+    }
+    if (KAIN_OWNERSHIP_DEFERRED_DECAY_COUNT >= KAIN_OWNERSHIP_MAX_REGIONS) {
+        return KAIN_OWNERSHIP_ERR_CAPACITY;
+    }
+    KAIN_OWNERSHIP_DEFERRED_DECAY_RING[KAIN_OWNERSHIP_DEFERRED_DECAY_TAIL] = (uint16_t)slot;
+    KAIN_OWNERSHIP_DEFERRED_DECAY_TAIL =
+        (KAIN_OWNERSHIP_DEFERRED_DECAY_TAIL + 1u) % KAIN_OWNERSHIP_MAX_REGIONS;
+    KAIN_OWNERSHIP_DEFERRED_DECAY_COUNT += 1u;
+    region->decay_queued = 1u;
+    return KAIN_OWNERSHIP_OK;
+}
+
 static int kain_ownership_find_slot(const void* ptr) {
     uint32_t index;
 
@@ -238,6 +267,8 @@ static void kain_ownership_clear_slot_unlocked(int slot) {
     region->size = 0;
     region->kind = 0;
     region->observers = 0;
+    region->relocation_handle = KAIN_RUNTIME_HANDLE_INVALID;
+    region->decay_queued = 0u;
     /* Keep OCCUPIED=0 ahead of DECAYED so future lock-free readers cannot see
      * an alive-looking slot that already published terminal state.
      * Proof: runtime/native/src/core/z3/proofs/native-ownership-clear-slot-clears-occupied-before-decayed.yaml
@@ -343,6 +374,13 @@ static int kain_ownership_upsert_unlocked(
     region->kind = region_kind;
     region->state = state;
     region->observers = observers;
+    if (is_new_slot) {
+        region->relocation_handle = KAIN_RUNTIME_HANDLE_INVALID;
+    }
+    if (region_kind != KAIN_OWNERSHIP_REGION_HEAP_ALLOCATION) {
+        region->relocation_handle = KAIN_RUNTIME_HANDLE_INVALID;
+    }
+    region->decay_queued = 0u;
     region->occupied = 1;
     if (is_new_slot) {
         uint32_t word_index = (uint32_t)slot / KAIN_OWNERSHIP_WORD_BITS;
@@ -401,6 +439,15 @@ int __kain_ownership_register_helper_allocation(void* ptr, size_t size, uint16_t
         0u,
         &slot
     );
+    if (status == KAIN_OWNERSHIP_OK && slot >= 0) {
+        KainRuntimeHandle handle = kain_fixup_track_allocation(ptr, size);
+        if (KAIN_RUNTIME_FIXUP_ENABLED() && handle == KAIN_RUNTIME_HANDLE_INVALID) {
+            kain_ownership_clear_slot_unlocked(slot);
+            status = kain_ownership_fail(KAIN_OWNERSHIP_ERR_CAPACITY);
+        } else {
+            KAIN_OWNERSHIP_REGIONS[slot].relocation_handle = handle;
+        }
+    }
     kain_ownership_unlock();
     if (status == KAIN_OWNERSHIP_OK && out_slot_token != NULL) {
         *out_slot_token = (uint16_t)((uint32_t)slot + 1u);
@@ -463,6 +510,11 @@ int __kain_ownership_relocate_helper_allocation(
         return status;
     }
 
+    if (region->relocation_handle != KAIN_RUNTIME_HANDLE_INVALID &&
+        kain_fixup_relocate_allocation(region->relocation_handle, old_ptr, new_ptr, size) != 0) {
+        kain_ownership_unlock();
+        return kain_ownership_fail(KAIN_OWNERSHIP_ERR_INVALID);
+    }
     region->ptr = new_ptr;
     region->size = size;
     region->kind = KAIN_OWNERSHIP_REGION_HEAP_ALLOCATION;
@@ -474,30 +526,52 @@ int __kain_ownership_relocate_helper_allocation(
 }
 
 static int kain_ownership_update_unlocked(void* old_ptr, void* new_ptr, size_t size) {
+    int slot = -1;
+    KainRuntimeHandle handle = KAIN_RUNTIME_HANDLE_INVALID;
     if (new_ptr == NULL) {
         return kain_ownership_fail(KAIN_OWNERSHIP_ERR_INVALID);
     }
     if (old_ptr == NULL) {
-        return kain_ownership_upsert_unlocked(
+        int status = kain_ownership_upsert_unlocked(
             new_ptr,
             KAIN_OWNERSHIP_REGION_HEAP_ALLOCATION,
             size,
             KAIN_OWNERSHIP_STATE_IDLE,
             0u,
-            NULL
+            &slot
         );
+        if (status != KAIN_OWNERSHIP_OK) {
+            return status;
+        }
+        handle = kain_fixup_track_allocation(new_ptr, size);
+        if (KAIN_RUNTIME_FIXUP_ENABLED() && handle == KAIN_RUNTIME_HANDLE_INVALID) {
+            kain_ownership_clear_slot_unlocked(slot);
+            return kain_ownership_fail(KAIN_OWNERSHIP_ERR_CAPACITY);
+        }
+        KAIN_OWNERSHIP_REGIONS[slot].relocation_handle = handle;
+        return KAIN_OWNERSHIP_OK;
     }
 
-    int slot = kain_ownership_find_slot(old_ptr);
+    slot = kain_ownership_find_slot(old_ptr);
     if (slot < 0) {
-        return kain_ownership_upsert_unlocked(
+        int status = kain_ownership_upsert_unlocked(
             new_ptr,
             KAIN_OWNERSHIP_REGION_HEAP_ALLOCATION,
             size,
             KAIN_OWNERSHIP_STATE_IDLE,
             0u,
-            NULL
+            &slot
         );
+        if (status != KAIN_OWNERSHIP_OK) {
+            return status;
+        }
+        handle = kain_fixup_track_allocation(new_ptr, size);
+        if (KAIN_RUNTIME_FIXUP_ENABLED() && handle == KAIN_RUNTIME_HANDLE_INVALID) {
+            kain_ownership_clear_slot_unlocked(slot);
+            return kain_ownership_fail(KAIN_OWNERSHIP_ERR_CAPACITY);
+        }
+        KAIN_OWNERSHIP_REGIONS[slot].relocation_handle = handle;
+        return KAIN_OWNERSHIP_OK;
     }
 
     KainOwnershipRegion* region = &KAIN_OWNERSHIP_REGIONS[slot];
@@ -505,6 +579,17 @@ static int kain_ownership_update_unlocked(void* old_ptr, void* new_ptr, size_t s
         return kain_ownership_fail(kain_ownership_status_for_busy_region(region));
     }
 
+    if (region->relocation_handle != KAIN_RUNTIME_HANDLE_INVALID) {
+        if (kain_fixup_relocate_allocation(region->relocation_handle, old_ptr, new_ptr, size) != 0) {
+            return kain_ownership_fail(KAIN_OWNERSHIP_ERR_INVALID);
+        }
+    } else {
+        handle = kain_fixup_track_allocation(new_ptr, size);
+        if (KAIN_RUNTIME_FIXUP_ENABLED() && handle == KAIN_RUNTIME_HANDLE_INVALID) {
+            return kain_ownership_fail(KAIN_OWNERSHIP_ERR_CAPACITY);
+        }
+        region->relocation_handle = handle;
+    }
     region->ptr = new_ptr;
     region->size = size;
     region->kind = KAIN_OWNERSHIP_REGION_HEAP_ALLOCATION;
@@ -814,14 +899,9 @@ static int kain_ownership_decay_slot_unlocked(void* ptr, int slot, int reclaim_h
     }
 
     if (kain_ownership_region_is_heap(region)) {
-        int free_status = __kain_free(ptr);
-        if (free_status != 0) {
-            return kain_ownership_fail(KAIN_OWNERSHIP_ERR_INVALID);
-        }
-        /* Heap decay consumes the helper allocation, so the registry entry must
-         * vanish with it instead of pinning a freed pointer. */
-        kain_ownership_clear_slot_unlocked(slot);
-        return KAIN_OWNERSHIP_OK;
+        region->state = KAIN_OWNERSHIP_STATE_DECAYED;
+        region->observers = 0u;
+        return kain_ownership_enqueue_deferred_decay_unlocked(slot);
     }
 
     region->state = KAIN_OWNERSHIP_STATE_DECAYED;
@@ -872,4 +952,60 @@ int __kain_ownership_state(const void* ptr) {
     int state = kain_ownership_state_unlocked(ptr);
     kain_ownership_unlock();
     return state;
+}
+
+void __kain_ownership_flush_deferred_decay(void) {
+    KainProfileScope scope;
+    kain_profile_scope_begin(
+        &scope,
+        "ownership.deferred_decay_flush",
+        __FILE__,
+        (uint32_t)__LINE__
+    );
+    for (;;) {
+        int slot = -1;
+        void* ptr = NULL;
+        KainRuntimeHandle handle = KAIN_RUNTIME_HANDLE_INVALID;
+        KainOwnershipRegion* region;
+        kain_ownership_lock();
+        if (KAIN_OWNERSHIP_DEFERRED_DECAY_COUNT == 0u) {
+            kain_ownership_unlock();
+            break;
+        }
+        slot = (int)KAIN_OWNERSHIP_DEFERRED_DECAY_RING[KAIN_OWNERSHIP_DEFERRED_DECAY_HEAD];
+        KAIN_OWNERSHIP_DEFERRED_DECAY_HEAD =
+            (KAIN_OWNERSHIP_DEFERRED_DECAY_HEAD + 1u) % KAIN_OWNERSHIP_MAX_REGIONS;
+        KAIN_OWNERSHIP_DEFERRED_DECAY_COUNT -= 1u;
+        region = &KAIN_OWNERSHIP_REGIONS[slot];
+        if (!region->occupied || !region->decay_queued || !kain_ownership_region_is_heap(region)) {
+            region->decay_queued = 0u;
+            kain_ownership_unlock();
+            continue;
+        }
+        region->decay_queued = 0u;
+        ptr = region->ptr;
+        handle = region->relocation_handle;
+        kain_ownership_unlock();
+
+        if (handle != KAIN_RUNTIME_HANDLE_INVALID) {
+            (void)kain_fixup_unregister_allocation(handle);
+        }
+        (void)__kain_free(ptr);
+
+        kain_ownership_lock();
+        region = &KAIN_OWNERSHIP_REGIONS[slot];
+        if (region->occupied && region->ptr == ptr && region->state == KAIN_OWNERSHIP_STATE_DECAYED) {
+            kain_ownership_clear_slot_unlocked(slot);
+        }
+        kain_ownership_unlock();
+    }
+    kain_profile_scope_end(&scope);
+}
+
+uint64_t __kain_ownership_deferred_decay_count(void) {
+    uint64_t count;
+    kain_ownership_lock();
+    count = (uint64_t)KAIN_OWNERSHIP_DEFERRED_DECAY_COUNT;
+    kain_ownership_unlock();
+    return count;
 }

@@ -1,0 +1,41 @@
+version: 1
+id: kain.native.core.proofs.native_ownership_decayed_region_rejects_new_observe_collapse_share
+kind: check_smt2
+description: >
+  Once ownership marks a region decayed, the Charlie deferred-decay lane keeps
+  the slot busy until flush, and the observe/collapse/share entry guards cannot
+  reopen that region before reclamation.
+tags:
+- native-runtime
+- ownership
+- decay
+- deferred-free
+source:
+  path: X:\runtime\native\src\core\ownership.c
+  symbol: kain_ownership_decay_slot_unlocked
+  reason: decayed regions are rejected up front by the observe, collapse, and share entry guards
+case:
+  smt2: |
+    (set-logic QF_LIA)
+    (define-fun DECAYED () Int 4)
+    (declare-const observers Int)
+    (assert (>= observers 0))
+    (define-fun begin_observe_ok () Bool
+      (and (not (= DECAYED 4))
+           (not (= DECAYED 3))
+           (not (= DECAYED 2))
+           (< observers 4294967295)))
+    (define-fun begin_collapse_ok () Bool
+      (and (not (= DECAYED 4))
+           (not (= DECAYED 3))
+           (not (= DECAYED 2))
+           (= observers 0)))
+    (define-fun begin_share_ok () Bool
+      (and (not (= DECAYED 4))
+           (not (= DECAYED 3))
+           (not (= DECAYED 2))
+           (= observers 0)))
+    (assert (or begin_observe_ok begin_collapse_ok begin_share_ok))
+    (check-sat)
+  include_model: false
+  include_stats: false

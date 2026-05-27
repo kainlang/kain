@@ -53,6 +53,7 @@ void* kain_machine_shatter_lane_base(void* handle, uint64_t lane_index);
 void kain_machine_shatter_free(void* handle);
 uint64_t kain_machine_teleport_count(void);
 uint64_t kain_machine_teleport_last_token(void);
+uint64_t kain_machine_teleport_last_handle(void);
 
 #ifdef __cplusplus
 }

@@ -1,0 +1,29 @@
+version: 1
+id: kain.native.core.proofs.native_handle_release_bumps_magic_so_stale_handle_rejects
+kind: check_smt2
+description: >
+  Releasing a runtime handle always changes the live slot magic before the slot
+  can be reused, so an old index+magic handle cannot validate against the new
+  live slot state.
+tags:
+- native-runtime
+- handles
+- stale-reject
+- magic
+source:
+  path: X:\runtime\native\src\core\handle.c
+  symbol: kain_handle_table_release
+  reason: release increments the 24-bit magic and skips zero before the slot re-enters the free list
+case:
+  smt2: |
+    (set-logic QF_BV)
+    (declare-const old_magic (_ BitVec 24))
+    (assert (not (= old_magic #x000000)))
+    (define-fun bumped_magic () (_ BitVec 24)
+      (ite (= old_magic #xffffff)
+           #x000001
+           (bvadd old_magic #x000001)))
+    (assert (= old_magic bumped_magic))
+    (check-sat)
+  include_model: false
+  include_stats: false

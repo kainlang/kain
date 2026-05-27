@@ -1,0 +1,31 @@
+version: 1
+id: kain.native.core.proofs.native_fixup_relocation_rewrites_known_ref_into_new_range
+kind: check_smt2
+description: >
+  A known ref registered with offset < size and patched as new_base + offset
+  after relocation always lands back inside the relocated allocation range.
+tags:
+- native-runtime
+- fixup
+- relocation
+- self-updating-pointer
+source:
+  path: X:\runtime\native\src\core\fixup.c
+  symbol: kain_fixup_relocate_allocation
+  reason: the relocation walk patches each registered location to new_base plus the stored in-object offset
+case:
+  smt2: |
+    (set-logic QF_LIA)
+    (declare-const new_base Int)
+    (declare-const size Int)
+    (declare-const offset Int)
+    (assert (>= new_base 0))
+    (assert (> size 0))
+    (assert (>= offset 0))
+    (assert (< offset size))
+    (define-fun patched () Int (+ new_base offset))
+    (assert (or (< patched new_base)
+                (>= patched (+ new_base size))))
+    (check-sat)
+  include_model: false
+  include_stats: false

@@ -1,0 +1,42 @@
+version: 1
+id: kain.native.core.proofs.native_diagnostics_threshold_normalization_blocks_below_emit_severity
+kind: check_smt2
+description: >
+  The Charlie diagnostic channel normalization keeps file, tty, and popup
+  thresholds monotonic in Kain's ascending severity scale, and any severity
+  below the emit level cannot satisfy any sink gate after normalization.
+tags:
+- native-runtime
+- diagnostics
+- thresholds
+- tiers
+source:
+  path: X:\runtime\native\src\core\diagnostics.c
+  symbol: kain_diagnostic_channel_set_levels
+  reason: channel normalization clamps raw thresholds and enforces file <= tty <= popup before output gating
+case:
+  smt2: |
+    (set-logic QF_LIA)
+    (declare-const file_raw Int)
+    (declare-const tty_raw Int)
+    (declare-const popup_raw Int)
+    (declare-const severity Int)
+    (define-fun clamp ((x Int)) Int
+      (ite (< x 0) 0
+      (ite (> x 3) 3 x)))
+    (define-fun file_n () Int (clamp file_raw))
+    (define-fun tty_0 () Int (clamp tty_raw))
+    (define-fun tty_n () Int (ite (< tty_0 file_n) file_n tty_0))
+    (define-fun popup_0 () Int (clamp popup_raw))
+    (define-fun popup_n () Int (ite (< popup_0 tty_n) tty_n popup_0))
+    (assert (>= severity 0))
+    (assert (<= severity 3))
+    (assert (< severity file_n))
+    (assert (or (> file_n tty_n)
+                (> tty_n popup_n)
+                (>= severity file_n)
+                (>= severity tty_n)
+                (>= severity popup_n)))
+    (check-sat)
+  include_model: false
+  include_stats: false

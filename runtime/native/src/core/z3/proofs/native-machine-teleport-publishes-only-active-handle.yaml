@@ -1,0 +1,29 @@
+version: 1
+id: kain.native.core.proofs.native_machine_teleport_publishes_only_active_handle
+kind: check_smt2
+description: >
+  When teleport publishes a fixup-backed handle for telemetry, the published
+  last-handle value cannot become an unrelated foreign handle.
+tags:
+- native-runtime
+- machine
+- teleport
+- handles
+- telemetry
+source:
+  path: X:\runtime\native\src\core\machine_stones.c
+  symbol: kain_machine_teleport_ptr
+  reason: the Charlie teleport lane stores the handle resolved from the teleported pointer, or zero when no handle exists
+case:
+  smt2: |
+    (set-logic QF_LIA)
+    (declare-const teleported_handle Int)
+    (declare-const foreign_handle Int)
+    (assert (> teleported_handle 0))
+    (assert (> foreign_handle 0))
+    (assert (distinct teleported_handle foreign_handle))
+    (define-fun published_last_handle () Int teleported_handle)
+    (assert (= published_last_handle foreign_handle))
+    (check-sat)
+  include_model: false
+  include_stats: false

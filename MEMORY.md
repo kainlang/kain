@@ -9434,3 +9434,41 @@ Known repo truth:
   - `kain run X:\mcp\semantic_search\src\main.kn --target llvm -- search kain "actor world" 5` exited 0 with `diag_count=0`, `total indexed: 485`
 
 Remaining systemic feedback was logged in `FEEDBACK.md`: `check --target llvm` currently accepts tuple destructuring containing a struct plus scalars, but native LLVM lowering rejects that tuple storage shape. The semantic-search reader uses a named `ParsedMeta` struct until that lowering gap is closed.
+
+# 2026-05-27 - RAGE runtime strike Charlie lane landed tiered control, fixups, and teleport wiring
+
+Charlie owned the control/relocation finish pass under `plans/rage-runtime-strike/CHARLIE.md` and kept to the frozen runtime boundary while Alpha/Delta worked in parallel.
+
+- Runtime control-plane surfaces added:
+  - `runtime/native/include/runtime_tiers.h`
+  - `runtime/native/include/handle.h`
+  - `runtime/native/include/lru.h`
+  - `runtime/native/include/fixup.h`
+  - `runtime/native/include/profile.h`
+  - `runtime/native/include/self_updating_ptr.h`
+  - `runtime/native/src/core/handle.c`
+  - `runtime/native/src/core/fixup.c`
+  - `runtime/native/src/core/profile.c`
+- Existing Charlie-owned files now consume that substrate:
+  - diagnostics now gate on per-subsystem channels before formatting and expose `KAIN_DIAG_EMIT_IF(...)`
+  - ownership now tracks relocation handles, defers heap-backed decay, and exposes `__kain_ownership_flush_deferred_decay()` / `__kain_ownership_deferred_decay_count()`
+  - `kain_machine_teleport_ptr(...)` now flushes deferred decay, resolves fixup handles, emits a one-shot warning when it falls back to token-only teleport, and publishes `kain_machine_teleport_last_handle()`
+- Manifest stitch landed in:
+  - `runtime/native_core_runtime.toml`
+  - `runtime/native_runtime.toml`
+  - `runtime/runtime_manifest_data.bzl`
+- Important repo truth from the stitch:
+  - regenerating the runtime manifest mirror also surfaced pre-existing `cuda_runtime.c` / `gfx.compute.cuda` drift in `runtime/native_runtime.toml` and `runtime/runtime_manifest_data.bzl`; that was observed during Charlie’s pass, not introduced as a new runtime feature decision in this lane
+- Proof artifacts added and checked during the lane:
+  - `native-diagnostics-threshold-normalization-blocks-below-emit-severity.yaml`
+  - `native-handle-release-bumps-magic-so-stale-handle-rejects.yaml`
+  - `native-fixup-relocation-rewrites-known-ref-into-new-range.yaml`
+  - `native-fixup-relocation-does-not-patch-foreign-handle-refs.yaml`
+  - `native-ownership-decayed-region-rejects-new-observe-collapse-share.yaml`
+  - `native-machine-teleport-publishes-only-active-handle.yaml`
+  - `native-self-updating-ptr-rebind-keeps-pointer-inside-relocated-range.yaml`
+- Useful edge-case lesson:
+  - the self-updating pointer wrapper must reject `offset >= size`, preserve the previous binding on failed rebind/bind attempts, and only commit relocated pointer math after validating the new range does not overflow `uintptr_t`
+- Validation intentionally deferred by strike contract:
+  - no Bazel build/test, runtime validation script, or benchmark rerun was executed in-lane
+  - only narrow Z3 checks and the manifest mirror sync were run during this pass
