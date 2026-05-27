@@ -1,0 +1,32 @@
+version: 1
+id: kain.native.core.proofs.native_python_region_open_view_slot_stays_within_live_range
+kind: check_smt2
+description: The region-owned borrowed-view unregister path only indexes the live open-view range when `slot < open_view_count`, and the derived `last_slot = open_view_count - 1` stays in range whenever the region is nonempty.
+tags:
+- native-runtime
+- python
+- interop
+- region
+- buffer-view
+- bounds
+source:
+  path: X:\runtime\native\src\core\python_runtime.c
+  symbol: kain_py_buffer_view_unregister_region
+  reason: the region-scoped borrowed-view fast path swaps one live slot with the last live slot before decrementing the open-view count.
+case:
+  smt2: |
+    (set-logic QF_LIA)
+    (declare-const open_view_count Int)
+    (declare-const slot Int)
+    (assert (> open_view_count 0))
+    (assert (>= slot 0))
+    (assert (< slot open_view_count))
+    (define-fun last_slot () Int (- open_view_count 1))
+    ; If the implementation guards are honest, neither live index can escape
+    ; the old open-view range before the decrement happens.
+    (assert (or (< last_slot 0)
+                (>= last_slot open_view_count)
+                (> slot last_slot)))
+    (check-sat)
+  include_model: false
+  include_stats: false

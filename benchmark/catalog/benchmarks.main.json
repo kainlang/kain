@@ -1833,6 +1833,57 @@
       ]
     },
     {
+      "id": "python_buffer_view_pyo3_region",
+      "title": "Python Buffer View PyO3 Region",
+      "description": "Repeated borrowed buffer-protocol probe of one cached contiguous NumPy uint8 array while Kain keeps one explicit Python region alive for the whole timed run. Rust uses PyO3 `PyBuffer<u8>` inside one outer GIL scope.",
+      "maturity": "implemented",
+      "fairness_note": "Both rows create one contiguous NumPy source array before timing and then repeatedly borrow metadata from the same live Python owner without readback copies or shared-contract materialization. Rust keeps one outer GIL scope to show the PyO3 ceiling; Kain keeps one explicit `python_region_begin()` scope open and drives `python_region_buffer_view(...)` through it.",
+      "language_notes": {
+        "kain": "Measures repeated `python_region_buffer_view` open/read/release cycles against the same cached Python owner while reusing one region-scoped GIL entry and region-owned borrowed-view telemetry.",
+        "rust": "Cargo release build with PyO3 auto-initialize; repeatedly acquires `PyBuffer<u8>` from the same cached Python object while holding one outer GIL scope."
+      },
+      "telemetry": {
+        "primary_metric_id": "buffer_view_probes_per_second",
+        "metrics": [
+          {
+            "id": "buffer_view_probes_per_second",
+            "label": "buffer view probes/s",
+            "unit": "probes/s",
+            "work_items": 20000
+          },
+          {
+            "id": "borrowed_bytes_per_second",
+            "label": "borrowed bytes/s",
+            "unit": "bytes/s",
+            "work_items": 10240000
+          },
+          {
+            "id": "metadata_reads_per_second",
+            "label": "metadata reads/s",
+            "unit": "reads/s",
+            "work_items": 20000
+          }
+        ]
+      },
+      "languages": {
+        "kain": "cases/python_buffer_view_region_probe/main.kn",
+        "rust": "cases/python_zero_copy_buffer_pyo3_scoped/src/main.rs"
+      },
+      "rust_manifest": "cases/python_zero_copy_buffer_pyo3_scoped/Cargo.toml",
+      "rust_package": "python-zero-copy-buffer-pyo3-scoped",
+      "rust_binary": "python-zero-copy-buffer-pyo3-scoped",
+      "tags": [
+        "interop",
+        "python",
+        "runtime",
+        "zero-copy",
+        "region"
+      ],
+      "suites": [
+        "full"
+      ]
+    },
+    {
       "id": "python_zero_copy_buffer_pyo3_scoped",
       "title": "Python Zero Copy Buffer PyO3 Scoped",
       "description": "Repeated zero-copy buffer-protocol adoption of one cached contiguous NumPy uint8 array. Kain uses `python_shared_buffer` plus shared contract reads; Rust uses PyO3 `PyBuffer<u8>` inside one outer GIL scope.",

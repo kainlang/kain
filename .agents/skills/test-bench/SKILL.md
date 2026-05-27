@@ -88,8 +88,14 @@ description: >-
 - For Python interop work, distinguish three different comparison surfaces:
   - `python_shared_buffer` / `python_shared_image` / `python_shared_tensor` measure full first-class contract adoption and metadata materialization.
   - `py_buffer_view` measures the lightweight borrowed-buffer lane that should be compared directly against PyO3 `PyBuffer<T>`.
+  - `python_region_*` measures the scoped native batching lane where one Kain-owned Python region amortizes import/attr/view setup across many operations. Treat this as the native ceiling lane before claiming the raw per-boundary bridge is the whole story.
   - `py_call_raw_*` rows measure raw callable crossing costs and should be kept separate from full contract or pykain workflow rows.
 - When adding a Python interop benchmark, prefer a pair of rows: one Kain-native raw lane and one PyO3 row with both a `scoped` ceiling run and a `per_boundary` run. That gives both the “best plausible ceiling” and the “apples-to-apples bridge shape” view.
+- If the native runtime gains region batching, add a third row shape:
+  - raw per-boundary Kain
+  - region-scoped Kain
+  - scoped and per-boundary PyO3
+  This makes it obvious whether the remaining gap is in boundary churn or in the underlying borrowed-buffer primitive itself.
 - Default v2 outputs are:
   - `benchmark/latest_v2.md`
   - `benchmark/out/reports/latest_v2.json`
@@ -114,6 +120,14 @@ description: >-
   - `KAIN_BENCH_V2_PASSES`
   - `KAIN_BENCH_V2_WARMUPS`
   - `KAIN_BENCH_V2_AMPLIFY`
+- PowerShell example for a focused run:
+- PowerShell example for a focused Python region run:
+
+```powershell
+$env:KAIN_BENCH_V2_FILTER="python_region_import_cached,python_region_math_attr,python_region_math_sqrt,python_region_numpy_buffer_view"
+kain run X:\benchmark --target llvm --json
+```
+
 - PowerShell example for a focused run:
 
 ```powershell
@@ -167,6 +181,12 @@ X:\benchmark\kain-benchmark-v2.exe
 - In this checkout, string/path env overrides are working, but the numeric knobs `KAIN_BENCH_V2_PASSES`, `KAIN_BENCH_V2_WARMUPS`, and `KAIN_BENCH_V2_AMPLIFY` appear to be ignored at runtime even though the router reads them. Treat that as a live caveat until proven fixed.
 - Per-case track files under `benchmark/out/reports/v2_tracks/` are the easiest machine-readable artifact for focused before/after comparisons on one row.
 - When a v2 checksum changes unexpectedly after telemetry or scoring edits, inspect the authoritative router-side track first at `benchmark/cases_v2/.telemetryrouter/out/reports/v2_tracks/<case>.json`. The root `benchmark/out/reports/...` mirrors are useful, but the telemetryrouter track shows the live checksum delta and current case telemetry closest to execution.
+- For Python region rows specifically, capture and compare the region telemetry counters, not just time:
+  - import cache hits/misses
+  - attr cache hits/misses
+  - views opened/released
+  - zero-copy vs fallback counters when available
+  A timing win without sane region telemetry is usually a measurement lie.
 
 ## Dedicated WASM Parity Lane
 

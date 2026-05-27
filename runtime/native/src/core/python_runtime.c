@@ -23,6 +23,9 @@
 #define KAIN_RC_TYPE_PY_TENSOR  UINT64_C(0x4b505954454e0001)
 #define KAIN_RC_TYPE_PY_IMAGE   UINT64_C(0x4b5059494d470001)
 #define KAIN_RC_TYPE_PY_BUFFER_VIEW UINT64_C(0x4b50594256490001)
+#define KAIN_RC_TYPE_PY_REGION UINT64_C(0x4b50595245470001)
+#define KAIN_PY_REGION_IMPORT_CACHE 64u
+#define KAIN_PY_REGION_ATTR_CACHE 128u
 #define KAIN_PY_JSON_INT(value)  ((((int64_t)(value)) << 3) | 1LL)
 #define KAIN_PY_JSON_BOOL(value) ((((int64_t)((value) != 0)) << 3) | 2LL)
 #define KAIN_PY_JSON_NULL        4LL
@@ -101,12 +104,33 @@ typedef struct {
 } KainPythonObjectHandle;
 
 typedef struct {
+    int active;
+    PyGILState_STATE state;
+} KainPythonGilScope;
+
+typedef struct KainPythonRegionHandle KainPythonRegionHandle;
+typedef struct KainPythonBufferViewHandle KainPythonBufferViewHandle;
+
+typedef struct {
+    char* module_name;
+    PyObject* module;
+} KainPythonRegionImportCacheEntry;
+
+typedef struct {
+    PyObject* owner;
+    char* attr_name;
+    PyObject* value;
+} KainPythonRegionAttrCacheEntry;
+
+struct KainPythonBufferViewHandle {
     Py_buffer view;
     long long item_count;
     long long item_size;
     int c_contiguous;
     int writable;
-} KainPythonBufferViewHandle;
+    KainPythonRegionHandle* region_owner;
+    size_t region_slot;
+};
 
 typedef struct {
     PyObject* object;
@@ -135,13 +159,26 @@ typedef struct {
 } KainPythonImageHandle;
 
 typedef struct {
-    int active;
-    PyGILState_STATE state;
-} KainPythonGilScope;
-
-typedef struct {
     Py_buffer view;
 } KainPythonBorrowedBufferOwner;
+
+struct KainPythonRegionHandle {
+    KainPythonGilScope scope;
+    int active;
+    KainPythonRegionImportCacheEntry imports[KAIN_PY_REGION_IMPORT_CACHE];
+    size_t import_count;
+    KainPythonRegionAttrCacheEntry attrs[KAIN_PY_REGION_ATTR_CACHE];
+    size_t attr_count;
+    KainPythonBufferViewHandle** open_views;
+    size_t open_view_count;
+    size_t open_view_capacity;
+    uint64_t import_cache_hits;
+    uint64_t import_cache_misses;
+    uint64_t attr_cache_hits;
+    uint64_t attr_cache_misses;
+    uint64_t views_opened;
+    uint64_t views_released;
+};
 
 static KainPythonApi g_kain_python_api;
 static int g_kain_python_load_attempted = 0;
@@ -161,6 +198,8 @@ static int kain_py_copy_source_backend(PyObject* object, char* dest, size_t dest
 static int kain_py_checked_mul_i64(long long left, long long right, long long* out_value);
 static int64_t kain_py_array_handle_from_values(const long long* values, long long len);
 static int64_t kain_py_compact_strides_handle(const long long* shape, long long len);
+static long long kain_py_getattr_internal_active(long long target, const char* name, KainPythonRegionHandle* region);
+static long long kain_py_buffer_view_from_target_active(long long target, KainPythonRegionHandle* region);
 
 static int kain_py_trace_enabled(void) {
 #ifdef _WIN32
@@ -780,6 +819,257 @@ static int64_t kain_py_borrowed_buffer_owner_create(PyObject* object, Py_buffer*
         return 0;
     }
     return owner_handle;
+}
+
+static KainPythonRegionHandle* kain_py_as_region_handle(long long value) {
+    value = kain_py_unbox_tagged_handle(value, KAIN_RC_TYPE_PY_REGION);
+    return kain_py_type_tag_matches((void*)(intptr_t)value, KAIN_RC_TYPE_PY_REGION)
+        ? (KainPythonRegionHandle*)(intptr_t)value
+        : NULL;
+}
+
+static void kain_py_region_import_entry_clear(KainPythonRegionImportCacheEntry* entry) {
+    if (!entry) {
+        return;
+    }
+    if (entry->module) {
+        g_kain_python_api.Py_DecRef(entry->module);
+        entry->module = NULL;
+    }
+    if (entry->module_name) {
+        free(entry->module_name);
+        entry->module_name = NULL;
+    }
+}
+
+static void kain_py_region_attr_entry_clear(KainPythonRegionAttrCacheEntry* entry) {
+    if (!entry) {
+        return;
+    }
+    if (entry->owner) {
+        g_kain_python_api.Py_DecRef(entry->owner);
+        entry->owner = NULL;
+    }
+    if (entry->value) {
+        g_kain_python_api.Py_DecRef(entry->value);
+        entry->value = NULL;
+    }
+    if (entry->attr_name) {
+        free(entry->attr_name);
+        entry->attr_name = NULL;
+    }
+}
+
+static void kain_py_buffer_view_unregister_region(KainPythonBufferViewHandle* handle) {
+    KainPythonRegionHandle* region;
+    size_t slot;
+    size_t last_slot;
+    if (!handle || !handle->region_owner) {
+        return;
+    }
+    region = handle->region_owner;
+    slot = handle->region_slot;
+    if (!region->open_views || region->open_view_count == 0u) {
+        handle->region_owner = NULL;
+        handle->region_slot = 0u;
+        return;
+    }
+    if (slot >= region->open_view_count || region->open_views[slot] != handle) {
+        size_t index;
+        slot = region->open_view_count;
+        for (index = 0u; index < region->open_view_count; ++index) {
+            if (region->open_views[index] == handle) {
+                slot = index;
+                break;
+            }
+        }
+        if (slot == region->open_view_count) {
+            handle->region_owner = NULL;
+            handle->region_slot = 0u;
+            return;
+        }
+    }
+    last_slot = region->open_view_count - 1u;
+    if (slot != last_slot) {
+        KainPythonBufferViewHandle* moved = region->open_views[last_slot];
+        region->open_views[slot] = moved;
+        if (moved) {
+            moved->region_slot = slot;
+        }
+    }
+    region->open_views[last_slot] = NULL;
+    region->open_view_count -= 1u;
+    handle->region_owner = NULL;
+    handle->region_slot = 0u;
+}
+
+static void kain_py_buffer_view_close_active(KainPythonBufferViewHandle* handle) {
+    if (!handle) {
+        return;
+    }
+    kain_py_buffer_view_unregister_region(handle);
+    if (handle->view.obj && g_kain_python_api.PyBuffer_Release) {
+        g_kain_python_api.PyBuffer_Release(&handle->view);
+        memset(&handle->view, 0, sizeof(handle->view));
+    }
+}
+
+static int kain_py_region_track_view(KainPythonRegionHandle* region, KainPythonBufferViewHandle* handle) {
+    KainPythonBufferViewHandle** grown;
+    size_t new_capacity;
+    if (!region || !handle || !region->active) {
+        return 0;
+    }
+    if (region->open_view_count == region->open_view_capacity) {
+        new_capacity = region->open_view_capacity == 0u ? 16u : region->open_view_capacity * 2u;
+        grown = (KainPythonBufferViewHandle**)realloc(
+            region->open_views,
+            new_capacity * sizeof(KainPythonBufferViewHandle*)
+        );
+        if (!grown) {
+            return 0;
+        }
+        memset(
+            grown + region->open_view_capacity,
+            0,
+            (new_capacity - region->open_view_capacity) * sizeof(KainPythonBufferViewHandle*)
+        );
+        region->open_views = grown;
+        region->open_view_capacity = new_capacity;
+    }
+    region->open_views[region->open_view_count] = handle;
+    handle->region_owner = region;
+    handle->region_slot = region->open_view_count;
+    region->open_view_count += 1u;
+    region->views_opened += 1u;
+    return 1;
+}
+
+static long long kain_py_region_close(KainPythonRegionHandle* region) {
+    long long auto_released = 0;
+    if (!region || !region->active) {
+        return 0;
+    }
+    while (region->open_view_count > 0u) {
+        KainPythonBufferViewHandle* handle = region->open_views[region->open_view_count - 1u];
+        region->open_views[region->open_view_count - 1u] = NULL;
+        region->open_view_count -= 1u;
+        if (!handle) {
+            continue;
+        }
+        handle->region_owner = NULL;
+        handle->region_slot = 0u;
+        if (handle->view.obj && g_kain_python_api.PyBuffer_Release) {
+            g_kain_python_api.PyBuffer_Release(&handle->view);
+            memset(&handle->view, 0, sizeof(handle->view));
+            auto_released += 1;
+            region->views_released += 1u;
+        }
+    }
+    while (region->import_count > 0u) {
+        region->import_count -= 1u;
+        kain_py_region_import_entry_clear(&region->imports[region->import_count]);
+    }
+    while (region->attr_count > 0u) {
+        region->attr_count -= 1u;
+        kain_py_region_attr_entry_clear(&region->attrs[region->attr_count]);
+    }
+    if (region->scope.active) {
+        g_kain_python_api.PyGILState_Release(region->scope.state);
+        region->scope.active = 0;
+    }
+    region->active = 0;
+    return auto_released;
+}
+
+static void kain_py_region_destructor(void* payload) {
+    KainPythonRegionHandle* region = (KainPythonRegionHandle*)payload;
+    if (!region) {
+        return;
+    }
+    (void)kain_py_region_close(region);
+    if (region->open_views) {
+        free(region->open_views);
+        region->open_views = NULL;
+    }
+    region->open_view_capacity = 0u;
+}
+
+static PyObject* kain_py_region_cached_import(
+    KainPythonRegionHandle* region,
+    const char* module_name,
+    const char* importer_file
+) {
+    size_t index;
+    PyObject* module;
+    if (!region || !region->active || !module_name || !module_name[0]) {
+        return NULL;
+    }
+    for (index = 0u; index < region->import_count; ++index) {
+        KainPythonRegionImportCacheEntry* entry = &region->imports[index];
+        if (entry->module && entry->module_name && strcmp(entry->module_name, module_name) == 0) {
+            region->import_cache_hits += 1u;
+            g_kain_python_api.Py_IncRef(entry->module);
+            return entry->module;
+        }
+    }
+    region->import_cache_misses += 1u;
+    kain_py_prepare_import_context(importer_file);
+    module = g_kain_python_api.PyImport_ImportModule(module_name);
+    if (!module) {
+        kain_py_clear_error();
+        return NULL;
+    }
+    if (region->import_count < KAIN_PY_REGION_IMPORT_CACHE) {
+        char* owned_name = kain_py_dup_cstr(module_name);
+        if (owned_name) {
+            KainPythonRegionImportCacheEntry* entry = &region->imports[region->import_count];
+            entry->module_name = owned_name;
+            entry->module = module;
+            region->import_count += 1u;
+            g_kain_python_api.Py_IncRef(module);
+        }
+    }
+    return module;
+}
+
+static PyObject* kain_py_region_cached_attr(
+    KainPythonRegionHandle* region,
+    PyObject* owner,
+    const char* attr_name
+) {
+    size_t index;
+    PyObject* value;
+    if (!region || !region->active || !owner || !attr_name || !attr_name[0]) {
+        return NULL;
+    }
+    for (index = 0u; index < region->attr_count; ++index) {
+        KainPythonRegionAttrCacheEntry* entry = &region->attrs[index];
+        if (entry->value && entry->owner == owner && entry->attr_name && strcmp(entry->attr_name, attr_name) == 0) {
+            region->attr_cache_hits += 1u;
+            g_kain_python_api.Py_IncRef(entry->value);
+            return entry->value;
+        }
+    }
+    region->attr_cache_misses += 1u;
+    value = g_kain_python_api.PyObject_GetAttrString(owner, attr_name);
+    if (!value) {
+        kain_py_clear_error();
+        return NULL;
+    }
+    if (region->attr_count < KAIN_PY_REGION_ATTR_CACHE) {
+        char* owned_name = kain_py_dup_cstr(attr_name);
+        if (owned_name) {
+            KainPythonRegionAttrCacheEntry* entry = &region->attrs[region->attr_count];
+            g_kain_python_api.Py_IncRef(owner);
+            entry->owner = owner;
+            entry->attr_name = owned_name;
+            entry->value = value;
+            region->attr_count += 1u;
+            g_kain_python_api.Py_IncRef(value);
+        }
+    }
+    return value;
 }
 
 static KainPythonObjectHandle* kain_py_wrap_object(PyObject* object) {
@@ -2271,38 +2561,37 @@ static long long kain_py_image_attr_value(const KainPythonImageHandle* image, co
     return 0;
 }
 
-static long long kain_py_call_internal(long long target, long long attr, long long args, long long kwargs, int raw_result) {
-    KainPythonGilScope scope = kain_py_gil_enter();
+static long long kain_py_call_internal_active(
+    long long target,
+    const char* attr_name,
+    long long args,
+    long long kwargs,
+    int raw_result,
+    KainPythonRegionHandle* region
+) {
     PyObject* callable;
-    PyObject* attr_name = NULL;
     PyObject* positional = NULL;
     PyObject* keyword = NULL;
     PyObject* result = NULL;
-    if (!scope.active) {
-        return 0;
-    }
     callable = kain_py_resolve_target(target);
     if (!callable) {
-        kain_py_gil_exit(&scope);
         return 0;
     }
-    if (!kain_py_any_is_null_tag(attr)) {
-        char* attr_text = json_any_to_string(attr);
-        PyObject* attr_target = g_kain_python_api.PyObject_GetAttrString(callable, attr_text ? attr_text : "");
+    if (attr_name && attr_name[0]) {
+        PyObject* attr_target = region
+            ? kain_py_region_cached_attr(region, callable, attr_name)
+            : g_kain_python_api.PyObject_GetAttrString(callable, attr_name);
         g_kain_python_api.Py_DecRef(callable);
         callable = attr_target;
         if (!callable) {
             kain_py_clear_error();
-            kain_py_gil_exit(&scope);
             return 0;
         }
-        attr_name = NULL;
     }
     positional = kain_py_any_to_tuple(args);
     keyword = kain_py_any_to_kwargs(kwargs);
     if (!positional) {
         g_kain_python_api.Py_DecRef(callable);
-        kain_py_gil_exit(&scope);
         return 0;
     }
     result = g_kain_python_api.PyObject_Call(callable, positional, keyword);
@@ -2311,37 +2600,67 @@ static long long kain_py_call_internal(long long target, long long attr, long lo
     if (keyword) {
         g_kain_python_api.Py_DecRef(keyword);
     }
-    (void)attr_name;
     if (!result) {
         kain_py_clear_error();
-        kain_py_gil_exit(&scope);
         return 0;
     }
-    {
-        long long wrapped = raw_result ? kain_py_wrap_result(result) : kain_py_wrap_materialized_result(result);
-        kain_py_gil_exit(&scope);
-        return wrapped;
+    return raw_result ? kain_py_wrap_result(result) : kain_py_wrap_materialized_result(result);
+}
+
+static long long kain_py_call_internal(long long target, long long attr, long long args, long long kwargs, int raw_result) {
+    KainPythonGilScope scope = kain_py_gil_enter();
+    long long wrapped = 0;
+    char* attr_text = NULL;
+    if (!scope.active) {
+        return 0;
     }
+    if (!kain_py_any_is_null_tag(attr)) {
+        attr_text = json_any_to_string(attr);
+    }
+    wrapped = kain_py_call_internal_active(
+        target,
+        attr_text ? attr_text : NULL,
+        args,
+        kwargs,
+        raw_result,
+        NULL
+    );
+    kain_py_gil_exit(&scope);
+    return wrapped;
+}
+
+static long long kain_py_import_internal_active(
+    const char* module_name,
+    const char* importer_file,
+    KainPythonRegionHandle* region
+) {
+    PyObject* module;
+    if (!module_name || !module_name[0]) {
+        return 0;
+    }
+    module = region
+        ? kain_py_region_cached_import(region, module_name, importer_file)
+        : NULL;
+    if (!module) {
+        kain_py_prepare_import_context(importer_file);
+        module = g_kain_python_api.PyImport_ImportModule(module_name);
+    }
+    if (!module) {
+        kain_py_clear_error();
+        return 0;
+    }
+    return kain_py_wrap_result(module);
 }
 
 static long long kain_py_import_internal(const char* module_name, const char* importer_file) {
     KainPythonGilScope scope = kain_py_gil_enter();
-    PyObject* module;
+    long long wrapped = 0;
     if (!scope.active || !module_name || !module_name[0]) {
         return 0;
     }
-    kain_py_prepare_import_context(importer_file);
-    module = g_kain_python_api.PyImport_ImportModule(module_name);
-    if (!module) {
-        kain_py_clear_error();
-        kain_py_gil_exit(&scope);
-        return 0;
-    }
-    {
-        long long wrapped = kain_py_wrap_result(module);
-        kain_py_gil_exit(&scope);
-        return wrapped;
-    }
+    wrapped = kain_py_import_internal_active(module_name, importer_file, NULL);
+    kain_py_gil_exit(&scope);
+    return wrapped;
 }
 
 static long long kain_py_import_member_internal(const char* module_name, const char* member_name, const char* importer_file) {
@@ -2585,6 +2904,120 @@ long long py_call_raw_attr(long long target, long long attr, long long args) {
     return kain_py_call_internal(target, attr, args, 4LL, 1);
 }
 
+long long py_region_begin(void) {
+    KainPythonRegionHandle* region =
+        (KainPythonRegionHandle*)kain_alloc_rc(sizeof(KainPythonRegionHandle), KAIN_RC_TYPE_PY_REGION);
+    if (!region) {
+        return 0;
+    }
+    memset(region, 0, sizeof(*region));
+    region->scope = kain_py_gil_enter();
+    if (!region->scope.active) {
+        rc_release(region);
+        return 0;
+    }
+    region->active = 1;
+    KAIN_set_destructor(region, kain_py_region_destructor);
+    return (long long)(intptr_t)region;
+}
+
+long long py_region_end(long long region_value) {
+    KainPythonRegionHandle* region = kain_py_as_region_handle(region_value);
+    long long auto_released = 0;
+    if (!region) {
+        return 0;
+    }
+    auto_released = kain_py_region_close(region);
+    rc_release(region);
+    return auto_released;
+}
+
+long long py_region_import(long long region_value, char* module_name) {
+    KainPythonRegionHandle* region = kain_py_as_region_handle(region_value);
+    if (!region || !region->active) {
+        return 0;
+    }
+    return kain_py_import_internal_active(module_name, NULL, region);
+}
+
+long long py_region_getattr_raw(long long region_value, long long target, char* name) {
+    KainPythonRegionHandle* region = kain_py_as_region_handle(region_value);
+    if (!region || !region->active || !name) {
+        return 0;
+    }
+    return kain_py_getattr_internal_active(target, name, region);
+}
+
+long long py_region_call_args(long long region_value, long long target, long long args, long long kwargs) {
+    KainPythonRegionHandle* region = kain_py_as_region_handle(region_value);
+    if (!region || !region->active) {
+        return 0;
+    }
+    return kain_py_call_internal_active(target, NULL, args, kwargs, 0, region);
+}
+
+long long py_region_call_attr_args(long long region_value, long long target, char* attr, long long args, long long kwargs) {
+    KainPythonRegionHandle* region = kain_py_as_region_handle(region_value);
+    if (!region || !region->active || !attr) {
+        return 0;
+    }
+    return kain_py_call_internal_active(target, attr, args, kwargs, 0, region);
+}
+
+long long py_region_call_raw_args(long long region_value, long long target, long long args) {
+    KainPythonRegionHandle* region = kain_py_as_region_handle(region_value);
+    if (!region || !region->active) {
+        return 0;
+    }
+    return kain_py_call_internal_active(target, NULL, args, 4LL, 1, region);
+}
+
+long long py_region_call_raw_attr(long long region_value, long long target, char* attr, long long args) {
+    KainPythonRegionHandle* region = kain_py_as_region_handle(region_value);
+    if (!region || !region->active || !attr) {
+        return 0;
+    }
+    return kain_py_call_internal_active(target, attr, args, 4LL, 1, region);
+}
+
+long long py_region_buffer_view(long long region_value, long long target) {
+    KainPythonRegionHandle* region = kain_py_as_region_handle(region_value);
+    if (!region || !region->active) {
+        return 0;
+    }
+    return kain_py_buffer_view_from_target_active(target, region);
+}
+
+long long py_region_import_cache_hits(long long region_value) {
+    KainPythonRegionHandle* region = kain_py_as_region_handle(region_value);
+    return region ? (long long)region->import_cache_hits : 0;
+}
+
+long long py_region_import_cache_misses(long long region_value) {
+    KainPythonRegionHandle* region = kain_py_as_region_handle(region_value);
+    return region ? (long long)region->import_cache_misses : 0;
+}
+
+long long py_region_attr_cache_hits(long long region_value) {
+    KainPythonRegionHandle* region = kain_py_as_region_handle(region_value);
+    return region ? (long long)region->attr_cache_hits : 0;
+}
+
+long long py_region_attr_cache_misses(long long region_value) {
+    KainPythonRegionHandle* region = kain_py_as_region_handle(region_value);
+    return region ? (long long)region->attr_cache_misses : 0;
+}
+
+long long py_region_views_opened(long long region_value) {
+    KainPythonRegionHandle* region = kain_py_as_region_handle(region_value);
+    return region ? (long long)region->views_opened : 0;
+}
+
+long long py_region_views_released(long long region_value) {
+    KainPythonRegionHandle* region = kain_py_as_region_handle(region_value);
+    return region ? (long long)region->views_released : 0;
+}
+
 long long py_call_raw_f64_trunc_i64(long long target, double arg) {
     KainPythonGilScope scope = kain_py_gil_enter();
     PyObject* callable;
@@ -2681,51 +3114,95 @@ static int kain_py_buffer_view_item_count_from_view(const Py_buffer* view, long 
 
 static void kain_py_buffer_view_destructor(void* payload) {
     KainPythonBufferViewHandle* handle = (KainPythonBufferViewHandle*)payload;
-    KainPythonGilScope scope;
     if (!handle) {
         return;
     }
-    scope = kain_py_gil_enter();
-    if (scope.active && g_kain_python_api.PyBuffer_Release && handle->view.obj) {
-        g_kain_python_api.PyBuffer_Release(&handle->view);
-        memset(&handle->view, 0, sizeof(handle->view));
+    if (handle->region_owner && handle->region_owner->active) {
+        kain_py_buffer_view_close_active(handle);
+        return;
     }
-    kain_py_gil_exit(&scope);
+    {
+        KainPythonGilScope scope = kain_py_gil_enter();
+        if (scope.active) {
+            kain_py_buffer_view_close_active(handle);
+        }
+        kain_py_gil_exit(&scope);
+    }
 }
 
-long long py_buffer_view(long long target) {
-    KainPythonGilScope scope = kain_py_gil_enter();
+static long long kain_py_getattr_internal_active(
+    long long target,
+    const char* name,
+    KainPythonRegionHandle* region
+) {
+    KainPythonTensorHandle* tensor_handle = kain_py_as_tensor_handle(target);
+    KainPythonImageHandle* image_handle = kain_py_as_image_handle(target);
+    PyObject* object;
+    PyObject* attr;
+    if (!name) {
+        return 0;
+    }
+    if (tensor_handle) {
+        if (strcmp(name, "shape") == 0) {
+            return (long long)(intptr_t)tensor_handle->shape;
+        }
+        if (strcmp(name, "ownership") == 0) {
+            return kain_py_string_tag(tensor_handle->ownership);
+        }
+        object = tensor_handle->object;
+        g_kain_python_api.Py_IncRef(object);
+    } else if (image_handle) {
+        long long tagged = kain_py_image_attr_value(image_handle, name);
+        if (tagged != 0 || strcmp(name, "source_backend") == 0) {
+            return tagged;
+        }
+        object = image_handle->object;
+        g_kain_python_api.Py_IncRef(object);
+    } else {
+        object = kain_py_resolve_target(target);
+    }
+    if (!object) {
+        return 0;
+    }
+    attr = region
+        ? kain_py_region_cached_attr(region, object, name)
+        : g_kain_python_api.PyObject_GetAttrString(object, name);
+    g_kain_python_api.Py_DecRef(object);
+    if (!attr) {
+        kain_py_clear_error();
+        return 0;
+    }
+    return kain_py_wrap_result(attr);
+}
+
+static long long kain_py_buffer_view_from_target_active(
+    long long target,
+    KainPythonRegionHandle* region
+) {
     PyObject* object;
     PyObject* export_target;
     KainPythonBufferViewHandle* handle = NULL;
     long long item_count = 0;
     Py_buffer borrowed_view;
-    if (!scope.active) {
-        return 0;
-    }
     memset(&borrowed_view, 0, sizeof(borrowed_view));
     object = kain_py_resolve_target(target);
     if (!object) {
-        kain_py_gil_exit(&scope);
         return 0;
     }
     export_target = kain_py_export_buffer_target(object, NULL, 0u);
     g_kain_python_api.Py_DecRef(object);
     if (!export_target) {
-        kain_py_gil_exit(&scope);
         return 0;
     }
     if (!g_kain_python_api.PyObject_GetBuffer ||
         g_kain_python_api.PyObject_GetBuffer(export_target, &borrowed_view, KAIN_PYBUF_STRIDES) != 0) {
         g_kain_python_api.Py_DecRef(export_target);
         kain_py_clear_error();
-        kain_py_gil_exit(&scope);
         return 0;
     }
     g_kain_python_api.Py_DecRef(export_target);
     if (borrowed_view.len < 0 || (borrowed_view.len > 0 && borrowed_view.buf == NULL)) {
         g_kain_python_api.PyBuffer_Release(&borrowed_view);
-        kain_py_gil_exit(&scope);
         return 0;
     }
     if (borrowed_view.itemsize <= 0) {
@@ -2733,7 +3210,6 @@ long long py_buffer_view(long long target) {
     }
     if (!kain_py_buffer_view_item_count_from_view(&borrowed_view, &item_count)) {
         g_kain_python_api.PyBuffer_Release(&borrowed_view);
-        kain_py_gil_exit(&scope);
         return 0;
     }
     handle = (KainPythonBufferViewHandle*)kain_alloc_rc(
@@ -2742,7 +3218,6 @@ long long py_buffer_view(long long target) {
     );
     if (!handle) {
         g_kain_python_api.PyBuffer_Release(&borrowed_view);
-        kain_py_gil_exit(&scope);
         return 0;
     }
     memset(handle, 0, sizeof(*handle));
@@ -2751,9 +3226,22 @@ long long py_buffer_view(long long target) {
     handle->item_size = (long long)borrowed_view.itemsize;
     handle->c_contiguous = kain_py_buffer_view_is_c_contiguous(&borrowed_view);
     handle->writable = borrowed_view.readonly ? 0 : 1;
+    if (region) {
+        (void)kain_py_region_track_view(region, handle);
+    }
     KAIN_set_destructor(handle, kain_py_buffer_view_destructor);
-    kain_py_gil_exit(&scope);
     return (long long)(intptr_t)handle;
+}
+
+long long py_buffer_view(long long target) {
+    KainPythonGilScope scope = kain_py_gil_enter();
+    long long result = 0;
+    if (!scope.active) {
+        return 0;
+    }
+    result = kain_py_buffer_view_from_target_active(target, NULL);
+    kain_py_gil_exit(&scope);
+    return result;
 }
 
 long long py_buffer_view_byte_length(long long target) {
@@ -2786,6 +3274,10 @@ void py_buffer_view_release(long long target) {
     if (!handle) {
         return;
     }
+    if (handle->region_owner && handle->region_owner->active) {
+        handle->region_owner->views_released += 1u;
+    }
+    kain_py_buffer_view_close_active(handle);
     rc_release(handle);
 }
 
@@ -2795,53 +3287,13 @@ long long py_getattr(long long target, char* name) {
 
 long long py_getattr_raw(long long target, char* name) {
     KainPythonGilScope scope = kain_py_gil_enter();
-    KainPythonTensorHandle* tensor_handle = kain_py_as_tensor_handle(target);
-    KainPythonImageHandle* image_handle = kain_py_as_image_handle(target);
-    PyObject* object;
-    PyObject* attr;
+    long long wrapped = 0;
     if (!scope.active || !name) {
         return 0;
     }
-    if (tensor_handle) {
-        if (strcmp(name, "shape") == 0) {
-            long long raw = (long long)(intptr_t)tensor_handle->shape;
-            kain_py_gil_exit(&scope);
-            return raw;
-        }
-        if (strcmp(name, "ownership") == 0) {
-            long long tagged = kain_py_string_tag(tensor_handle->ownership);
-            kain_py_gil_exit(&scope);
-            return tagged;
-        }
-        object = tensor_handle->object;
-        g_kain_python_api.Py_IncRef(object);
-    } else if (image_handle) {
-        long long tagged = kain_py_image_attr_value(image_handle, name);
-        if (tagged != 0 || strcmp(name, "source_backend") == 0) {
-            kain_py_gil_exit(&scope);
-            return tagged;
-        }
-        object = image_handle->object;
-        g_kain_python_api.Py_IncRef(object);
-    } else {
-        object = kain_py_resolve_target(target);
-    }
-    if (!object) {
-        kain_py_gil_exit(&scope);
-        return 0;
-    }
-    attr = g_kain_python_api.PyObject_GetAttrString(object, name);
-    g_kain_python_api.Py_DecRef(object);
-    if (!attr) {
-        kain_py_clear_error();
-        kain_py_gil_exit(&scope);
-        return 0;
-    }
-    {
-        long long wrapped = kain_py_wrap_result(attr);
-        kain_py_gil_exit(&scope);
-        return wrapped;
-    }
+    wrapped = kain_py_getattr_internal_active(target, name, NULL);
+    kain_py_gil_exit(&scope);
+    return wrapped;
 }
 
 void py_setattr(long long target, char* name, long long value) {

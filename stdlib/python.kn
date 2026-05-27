@@ -29,6 +29,48 @@ pub fn python_require_module(name: String) -> Any:
     assert(python_module_available(name), "python module missing: " + name)
     return py_import(name)
 
+pub fn python_region_begin() -> Any:
+    return py_region_begin()
+
+pub fn python_region_end(region: Any) -> Int:
+    return py_region_end(region)
+
+pub fn python_region_import(region: Any, name: String) -> Any:
+    return py_region_import(region, name)
+
+pub fn python_region_getattr(region: Any, target: Any, name: String) -> Any:
+    return py_region_getattr_raw(region, target, name)
+
+pub fn python_region_getattr_raw(region: Any, target: Any, name: String) -> Any:
+    return py_region_getattr_raw(region, target, name)
+
+pub fn python_region_call_raw(region: Any, target: Any, args: Any) -> Any:
+    return py_region_call_raw_args(region, target, args)
+
+pub fn python_region_call_attr_raw(region: Any, target: Any, attr: String, args: Any) -> Any:
+    return py_region_call_raw_attr(region, target, attr, args)
+
+pub fn python_region_buffer_view(region: Any, target: Any) -> Any:
+    return py_region_buffer_view(region, target)
+
+pub fn python_region_import_cache_hits(region: Any) -> Int:
+    return py_region_import_cache_hits(region)
+
+pub fn python_region_import_cache_misses(region: Any) -> Int:
+    return py_region_import_cache_misses(region)
+
+pub fn python_region_attr_cache_hits(region: Any) -> Int:
+    return py_region_attr_cache_hits(region)
+
+pub fn python_region_attr_cache_misses(region: Any) -> Int:
+    return py_region_attr_cache_misses(region)
+
+pub fn python_region_views_opened(region: Any) -> Int:
+    return py_region_views_opened(region)
+
+pub fn python_region_views_released(region: Any) -> Int:
+    return py_region_views_released(region)
+
 pub fn python_call(target: Any, args: Any) -> Any:
     return py_call(target, args)
 

@@ -2031,12 +2031,95 @@ fn register_builtin_global_functions(env: &mut TypeEnv<'_>) {
         "py_buffer_view".into(),
         builtin_function_type(vec![ResolvedType::Unknown], ResolvedType::Unknown),
     );
+    env.define_global(
+        "py_region_begin".into(),
+        builtin_function_type(vec![], ResolvedType::Unknown),
+    );
+    env.define_global(
+        "py_region_end".into(),
+        builtin_function_type(vec![ResolvedType::Unknown], ResolvedType::Int(IntSize::I64)),
+    );
+    env.define_global(
+        "py_region_import".into(),
+        builtin_function_type(
+            vec![ResolvedType::Unknown, ResolvedType::String],
+            ResolvedType::Unknown,
+        ),
+    );
+    env.define_global(
+        "py_region_getattr_raw".into(),
+        builtin_function_type(
+            vec![ResolvedType::Unknown, ResolvedType::Unknown, ResolvedType::String],
+            ResolvedType::Unknown,
+        ),
+    );
+    env.define_global(
+        "py_region_call_args".into(),
+        builtin_function_type(
+            vec![
+                ResolvedType::Unknown,
+                ResolvedType::Unknown,
+                ResolvedType::Unknown,
+                ResolvedType::Unknown,
+            ],
+            ResolvedType::Unknown,
+        ),
+    );
+    env.define_global(
+        "py_region_call_attr_args".into(),
+        builtin_function_type(
+            vec![
+                ResolvedType::Unknown,
+                ResolvedType::Unknown,
+                ResolvedType::String,
+                ResolvedType::Unknown,
+                ResolvedType::Unknown,
+            ],
+            ResolvedType::Unknown,
+        ),
+    );
+    env.define_global(
+        "py_region_call_raw_args".into(),
+        builtin_function_type(
+            vec![
+                ResolvedType::Unknown,
+                ResolvedType::Unknown,
+                ResolvedType::Unknown,
+            ],
+            ResolvedType::Unknown,
+        ),
+    );
+    env.define_global(
+        "py_region_call_raw_attr".into(),
+        builtin_function_type(
+            vec![
+                ResolvedType::Unknown,
+                ResolvedType::Unknown,
+                ResolvedType::String,
+                ResolvedType::Unknown,
+            ],
+            ResolvedType::Unknown,
+        ),
+    );
+    env.define_global(
+        "py_region_buffer_view".into(),
+        builtin_function_type(
+            vec![ResolvedType::Unknown, ResolvedType::Unknown],
+            ResolvedType::Unknown,
+        ),
+    );
     for name in [
         "py_buffer_view_byte_length",
         "py_buffer_view_element_count",
         "py_buffer_view_element_size",
         "py_buffer_view_c_contiguous",
         "py_buffer_view_writable",
+        "py_region_import_cache_hits",
+        "py_region_import_cache_misses",
+        "py_region_attr_cache_hits",
+        "py_region_attr_cache_misses",
+        "py_region_views_opened",
+        "py_region_views_released",
     ] {
         env.define_global(
             name.into(),
@@ -2838,6 +2921,17 @@ fn register_filesystem_global_functions(env: &mut TypeEnv<'_>) {
         "fs_write_bytes_hex".into(),
         builtin_function_type(
             vec![ResolvedType::String, ResolvedType::String],
+            ResolvedType::Unit,
+        ),
+    );
+    env.define_global(
+        "fs_write_bytes_hex_at".into(),
+        builtin_function_type(
+            vec![
+                ResolvedType::String,
+                ResolvedType::Int(IntSize::I64),
+                ResolvedType::String,
+            ],
             ResolvedType::Unit,
         ),
     );

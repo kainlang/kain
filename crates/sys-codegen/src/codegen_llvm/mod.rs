@@ -5561,8 +5561,7 @@ impl LlvmGenerator {
         }
 
         let ptr = self.compile_string_data_pointer_for_byte_view(expr)?;
-        let len = self.next_reg();
-        self.emit(&format!("  {} = call i64 @len(i8* {})", len, ptr));
+        let len = self.emit_len_for_pointer_value(&ptr);
         if let Expr::Ident(name, _) = expr {
             if self.string_locals.contains(name) {
                 self.string_length_values.insert(name.clone(), len.clone());
@@ -5577,10 +5576,17 @@ impl LlvmGenerator {
         }
         let ptr = self.next_reg();
         self.emit(&format!("  {} = load i8*, i8** {}", ptr, addr_reg));
-        let len = self.next_reg();
-        self.emit(&format!("  {} = call i64 @len(i8* {})", len, ptr));
+        let len = self.emit_len_for_pointer_value(&ptr);
         self.string_length_values
             .insert(param_name.to_string(), len);
+    }
+
+    fn emit_len_for_pointer_value(&mut self, ptr: &str) -> String {
+        let bits = self.next_reg();
+        self.emit(&format!("  {} = ptrtoint i8* {} to i64", bits, ptr));
+        let len = self.next_reg();
+        self.emit(&format!("  {} = call i64 @len(i64 {})", len, bits));
+        len
     }
 
     fn compile_expr_as_i64(&mut self, expr: &Expr) -> KainResult<String> {
@@ -5676,11 +5682,10 @@ impl LlvmGenerator {
             "i8*" => {
                 let parsed = self.next_reg();
                 self.emit(&format!(
-                    "  {} = call i64 @kain_parse_i64_string(i8* {})",
+                    "  {} = call double @kain_parse_f64_string(i8* {})",
                     parsed, value
                 ));
-                let cast = self.cast_numeric_value(parsed, "i64", "double")?;
-                Ok((cast, "double".to_string()))
+                Ok((parsed, "double".to_string()))
             }
             _ => Err(KainError::codegen(
                 format!("to_float cannot lower values of type {}", value_ty),
@@ -13222,11 +13227,26 @@ impl LlvmGenerator {
         self.emit("declare i64 @py_call_raw_attr(i64, i64, i64)");
         self.emit("declare i64 @py_call_raw_f64_trunc_i64(i64, double)");
         self.emit("declare i64 @py_buffer_view(i64)");
+        self.emit("declare i64 @py_region_begin()");
+        self.emit("declare i64 @py_region_end(i64)");
+        self.emit("declare i64 @py_region_import(i64, i8*)");
+        self.emit("declare i64 @py_region_getattr_raw(i64, i64, i8*)");
+        self.emit("declare i64 @py_region_call_args(i64, i64, i64, i64)");
+        self.emit("declare i64 @py_region_call_attr_args(i64, i64, i8*, i64, i64)");
+        self.emit("declare i64 @py_region_call_raw_args(i64, i64, i64)");
+        self.emit("declare i64 @py_region_call_raw_attr(i64, i64, i8*, i64)");
+        self.emit("declare i64 @py_region_buffer_view(i64, i64)");
         self.emit("declare i64 @py_buffer_view_byte_length(i64)");
         self.emit("declare i64 @py_buffer_view_element_count(i64)");
         self.emit("declare i64 @py_buffer_view_element_size(i64)");
         self.emit("declare i64 @py_buffer_view_c_contiguous(i64)");
         self.emit("declare i64 @py_buffer_view_writable(i64)");
+        self.emit("declare i64 @py_region_import_cache_hits(i64)");
+        self.emit("declare i64 @py_region_import_cache_misses(i64)");
+        self.emit("declare i64 @py_region_attr_cache_hits(i64)");
+        self.emit("declare i64 @py_region_attr_cache_misses(i64)");
+        self.emit("declare i64 @py_region_views_opened(i64)");
+        self.emit("declare i64 @py_region_views_released(i64)");
         self.emit("declare void @py_buffer_view_release(i64)");
         self.emit("declare i64 @kain_shared_buffer_byte_length(i64)");
         self.emit("declare i64 @kain_shared_buffer_element_count_value(i64)");
@@ -13242,6 +13262,7 @@ impl LlvmGenerator {
         self.emit("declare i64 @kain_ord(i8*)");
         self.emit("declare i8* @kain_chr(i64)");
         self.emit("declare i64 @kain_parse_i64_string(i8*)");
+        self.emit("declare double @kain_parse_f64_string(i8*)");
         self.emit("declare i8* @array_new(i64)");
         self.emit("declare void @array_push(i8*, i64)");
         self.emit("declare i64 @array_get(i8*, i64)");
@@ -16021,11 +16042,7 @@ impl LlvmGenerator {
             }
             let (value, value_ty) = self.compile_expr(&args[0].value)?;
             if value_ty == "i8*" {
-                let len_reg = self.next_reg();
-                self.emit(&format!(
-                    "  {} = call i64 @array_len(i8* {})",
-                    len_reg, value
-                ));
+                let len_reg = self.emit_len_for_pointer_value(&value);
                 return Ok((len_reg, "i64".to_string()));
             }
         }
@@ -16168,6 +16185,7 @@ impl LlvmGenerator {
                 } else {
                     self.compile_expr(&args[1].value)?
                 };
+                self.emit_heap_owned_retain_for_transfer(&args[1].value, &value, &value_ty);
                 let stored = self.coerce_runtime_array_storage_from_compiled(&value, &value_ty);
                 self.emit(&format!(
                     "  call void @array_push(i8* {}, i64 {})",
@@ -16458,6 +16476,7 @@ impl LlvmGenerator {
                 ));
                 for item in args {
                     let (val, ty) = self.compile_expr(item)?;
+                    self.emit_heap_owned_retain_for_transfer(item, &val, &ty);
                     let stored = self.coerce_runtime_array_storage_from_compiled(&val, &ty);
                     self.emit(&format!(
                         "  call void @array_push(i8* {}, i64 {})",
@@ -17027,6 +17046,30 @@ impl LlvmGenerator {
                     {
                         self.emit_patch_record_i64(path, old_value, &rhs);
                     }
+                    if field_ty == "i8*" {
+                        if self.expr_needs_shared_value_retain(value, "i8*") {
+                            self.emit_rc_retain_if_heap_i8(&rhs);
+                        }
+                        let previous_value = self.next_reg();
+                        self.emit(&format!(
+                            "  {} = load i8*, i8** {}",
+                            previous_value, field_ptr
+                        ));
+                        self.emit_rc_release_if_heap_i8(&previous_value);
+                    } else if field_ty.starts_with('%') && field_ty.ends_with('*') {
+                        self.emit_heap_owned_retain_for_transfer(value, &rhs, &field_ty);
+                        let previous_value = self.next_reg();
+                        self.emit(&format!(
+                            "  {} = load {}, {}* {}",
+                            previous_value, field_ty, field_ty, field_ptr
+                        ));
+                        let previous_raw = self.next_reg();
+                        self.emit(&format!(
+                            "  {} = bitcast {} {} to i8*",
+                            previous_raw, field_ty, previous_value
+                        ));
+                        self.emit_rc_release_if_heap_i8(&previous_raw);
+                    }
                     self.emit(&format!(
                         "  store {}{} {}, {}* {}",
                         if is_mmio_volatile { "volatile " } else { "" },
@@ -17055,6 +17098,7 @@ impl LlvmGenerator {
                             } else {
                                 self.compile_expr(value)?
                             };
+                        self.emit_heap_owned_retain_for_transfer(value, &rhs, &rhs_ty);
                         let stored =
                             self.coerce_runtime_array_storage_from_compiled(&rhs, &rhs_ty);
                         self.emit(&format!(
@@ -17204,6 +17248,7 @@ impl LlvmGenerator {
                 ));
                 for item in items {
                     let (val, ty) = self.compile_expr(item)?;
+                    self.emit_heap_owned_retain_for_transfer(item, &val, &ty);
                     let stored = self.coerce_runtime_array_storage_from_compiled(&val, &ty);
                     self.emit(&format!(
                         "  call void @array_push(i8* {}, i64 {})",
@@ -18788,6 +18833,96 @@ fn main() -> Int:
         let window = &llvm[window_start..call_index];
 
         assert!(window.contains("call void @rc_retain(i8*"));
+    }
+
+    #[test]
+    fn lowers_len_of_runtime_string_result_to_rc_len_not_array_len() {
+        let source = r#"
+@extern fn native_text() -> String
+
+fn main() -> Int:
+    let walked = native_text()
+    return len(walked)
+"#;
+        let tokens = Lexer::new(source).tokenize().expect("tokens");
+        let mapper = SpanMapper::new(source);
+        let ast = Parser::new(&tokens, &mapper, "<llvm-string-len-result-test>")
+            .parse()
+            .expect("parse");
+        let typed =
+            types::check(&ast, &mapper, "<llvm-string-len-result-test>").expect("typecheck");
+        let llvm = String::from_utf8(generate(&typed).expect("llvm generation"))
+            .expect("utf8 llvm output");
+        let call_index = llvm
+            .find("call i8* @native_text()")
+            .expect("native text call should be present in LLVM");
+        let window = &llvm[call_index..llvm.len().min(call_index + 320)];
+
+        assert!(window.contains("ptrtoint i8*"));
+        assert!(window.contains("call i64 @len(i64"));
+        assert!(!window.contains("call i64 @array_len(i8*"));
+    }
+
+    #[test]
+    fn retains_string_field_assignment_before_releasing_previous_field() {
+        let source = r#"
+struct Box:
+    value: String
+
+fn update(box: Box, next: String) -> Box:
+    box.value = next
+    return box
+"#;
+        let tokens = Lexer::new(source).tokenize().expect("tokens");
+        let mapper = SpanMapper::new(source);
+        let ast = Parser::new(&tokens, &mapper, "<llvm-field-assignment-retain-test>")
+            .parse()
+            .expect("parse");
+        let typed =
+            types::check(&ast, &mapper, "<llvm-field-assignment-retain-test>").expect("typecheck");
+        let llvm = String::from_utf8(generate(&typed).expect("llvm generation"))
+            .expect("utf8 llvm output");
+        let update_start = llvm
+            .find("define internal %Box* @update(")
+            .expect("update function should be present in LLVM");
+        let update_end = llvm[update_start..]
+            .find("ret %Box*")
+            .expect("update should return the box")
+            + update_start;
+        let window = &llvm[update_start..update_end];
+
+        assert!(window.contains("call void @rc_retain(i8*"));
+        assert!(window.contains("call void @rc_release(i8*"));
+    }
+
+    #[test]
+    fn retains_shared_string_when_storing_in_runtime_array() {
+        let source = r#"
+fn capture(text: String) -> Int:
+    let values = [text]
+    return len(values)
+"#;
+        let tokens = Lexer::new(source).tokenize().expect("tokens");
+        let mapper = SpanMapper::new(source);
+        let ast = Parser::new(&tokens, &mapper, "<llvm-array-store-retain-test>")
+            .parse()
+            .expect("parse");
+        let typed =
+            types::check(&ast, &mapper, "<llvm-array-store-retain-test>").expect("typecheck");
+        let llvm = String::from_utf8(generate(&typed).expect("llvm generation"))
+            .expect("utf8 llvm output");
+        let capture_start = llvm
+            .find("define internal i64 @capture(")
+            .expect("capture function should be present in LLVM");
+        let window = &llvm[capture_start..llvm.len().min(capture_start + 900)];
+        let retain_index = window
+            .find("call void @rc_retain(i8*")
+            .expect("shared string should be retained before array storage");
+        let push_index = window
+            .find("call void @array_push")
+            .expect("runtime array push should be present");
+
+        assert!(retain_index < push_index);
     }
 
     #[test]

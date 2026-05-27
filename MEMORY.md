@@ -1,5 +1,62 @@
 # Kain Memory
 
+# 2026-05-27 - Native Python Region Batching Lane and PyO3 Region Comparison
+
+Landed the next Python interop upgrade as a first-class native region lane. Kain can now open a scoped Python region once, cache imports and attribute lookups inside that region, keep borrowed `py_buffer_view` handles tied to the region lifetime, and close the whole scope with exact release accounting. This is the runtime shape that should be treated as the ceiling lane before chasing more micro-optimizations in the per-boundary bridge.
+
+What changed:
+
+- `runtime/native/src/core/python_runtime.c`
+  - Adds RC-backed `KainPythonRegionHandle` support plus region-local import and attribute caches.
+  - Adds `py_region_begin`, `py_region_end`, `py_region_import`, `py_region_getattr_raw`, `py_region_call_args`, `py_region_call_attr_args`, `py_region_call_raw_args`, `py_region_call_raw_attr`, and `py_region_buffer_view`.
+  - Teaches `py_buffer_view` to participate in region-owned release tracking so borrowed Python buffers can be opened many times inside one scoped Python session and released exactly once on close.
+  - Adds region telemetry getters: import cache hits/misses, attr cache hits/misses, views opened, and views released.
+- `stdlib/python.kn`
+- `crates/core/src/types.rs`
+- `crates/sys-codegen/src/codegen_llvm/mod.rs`
+  - Wires the new region primitives through the public `std::python` surface and the LLVM builtin table.
+- `benchmark/cases_v2/python_interop.kn`
+  - Adds four new Kain-native region rows:
+    - `python_region_import_cached`
+    - `python_region_math_attr`
+    - `python_region_math_sqrt`
+    - `python_region_numpy_buffer_view`
+  - Each row now emits region cache and view telemetry instead of only raw timing.
+- `benchmark/cases/python_buffer_view_region_probe/main.kn`
+- `benchmark/catalog/benchmarks.main.json`
+  - Adds the cross-language `python_buffer_view_pyo3_region` row so the scoped Kain region lane can be measured directly against the scoped PyO3 borrowed-buffer ceiling.
+- `runtime/native/src/core/z3/proofs/native-python-region-open-view-slot-stays-within-live-range.yaml`
+  - Adds the durable proof that region view-slot unregister math stays in-range while compacting the open-view table.
+
+Proof:
+
+- Z3 MCP:
+  - `prove(kind=check_smt2, report_name=native-python-region-open-view-slot-stays-within-live-range)` returns `unsat`; report `X:\z3\reports\20260527T052007Z-native-python-region-open-view-slot-stays-within-live-range.json`.
+- Runtime/compiler:
+  - `bazel build //:kain --config=dev`
+  - `bazel build //runtime:all`
+  - `bazel test //runtime:native_runtime_tests`
+- Authored Kain benchmark surfaces:
+  - Bazel-built `kain.exe check X:\benchmark\cases_v2\python_interop.kn --target llvm`
+  - `$env:KAIN_BENCH_V2_FILTER='python_region_import_cached,python_region_math_attr,python_region_math_sqrt,python_region_numpy_buffer_view'; <bazel-built kain.exe> run X:\benchmark --target llvm --json`
+  - Succeeds with report `X:\benchmark\.kain\reports\run\session-1779859093971-4792.json`.
+- Cross-language PyO3 comparison:
+  - `python X:\benchmark\run.py --case python_buffer_view_pyo3_region --languages kain,rust --runs 3 --warmups 1 --baseline-mode refresh-foreign --latest-stem latest_python_region_probe --minimal-name latest_python_region_probe.md --kain-exe <bazel-built kain.exe>`
+  - Succeeds with report `X:\benchmark\out\reports\latest_python_region_probe.llm.md`.
+  - Current median result:
+    - Kain region `151.850 ms`, `131,709.010 probes/s`
+    - Rust PyO3 scoped `147.991 ms`, `135,142.988 probes/s`
+    - Kain region is about `1.03x` slower than the scoped PyO3 ceiling on this hardware.
+
+Durable lessons:
+
+- The right Python-ceiling shape is now explicit:
+  - per-boundary raw rows for primitive bridge tax
+  - region rows for the realistic native-Kain ceiling
+  - PyO3 scoped rows as the foreign reference ceiling
+- If a Python interop checksum flips after changing region telemetry, inspect `benchmark/cases_v2/.telemetryrouter/out/reports/v2_tracks/<case>.json` first. The router-side track files show the authoritative checksum and telemetry payload closest to execution.
+- The next speed path is not “make `pykain` thinner.” It is deeper native-region batching: small-arity call packing, cached callable stubs, and region-backed image/tensor borrowed-view lanes that avoid re-materializing metadata in the hot path.
+
 # 2026-05-26 - Native Python Zero-Copy Shared Buffer/Image Lane and v2 Benchmark Truth
 
 Landed a reusable native zero-copy substrate for foreign shared spans and rewired the C Python bridge to adopt contiguous Python buffer-protocol exports without `tobytes()` copies in the hot buffer/image lane. The bridge now caches default `sys.path` import context once, preserves borrowed Python owners through RC-backed zero-copy handles, exposes `zero_copy` through the neutral shared contracts, and updates the Python v2 benchmark packs to assert truthful `ownership == "shared"` / `zero_copy == true` metadata.
@@ -9317,3 +9374,30 @@ Validation:
 Known repo truth:
 
 - The workspace `kain`/`kn` launchers are currently blocked by the pre-existing Bazel crate-universe lock drift (`Cargo.Bazel.lock` digest mismatch asking for `CARGO_BAZEL_REPIN=true`), so stdlib/source validation should use cargo-owned lanes or direct tool binaries until that repo-level blocker is cleared.
+
+# 2026-05-27 - semantic_search hardening exposed and patched core native/stdlib/codegen issues
+
+`X:\mcp\semantic_search` now builds and runs its native LLVM index/search loop against the Bazel-built Kain CLI. The useful dogfood lesson is that the failures were mostly universal Kain/runtime issues, not only app mistakes.
+
+- Patched universal surfaces:
+  - root fs gained `fs_write_bytes_hex_at`/offset binary write support through the native ABI, plus direct byte-array hex encode/decode so `fs_read_bytes` and byte writes no longer route binary NULs through `String`.
+  - native RC allocation now guards total-size overflow and reports allocation/provenance failures with useful detail.
+  - runtime arrays now release owned live heap elements when replaced/freed, and LLVM lowering now retains shared heap values before storing them into runtime arrays.
+  - LLVM `len(String)` lowering now calls the RC string length path instead of `array_len`, while `array_len` is hardened to return sensible lengths for tracked arrays, strings, and maps.
+  - `to_float(String)` now lowers to a native `kain_parse_f64_string` helper instead of going through the integer parser.
+- Semantic-search-specific shape changes:
+  - the indexer streams one pass, writes a placeholder header, then patches the chunk count at offset zero.
+  - metadata append now uses byte arrays and the streamed reader consumes the actual `embedding, metadata` layout.
+  - giant raw `StringBuilder`/hex-string hot paths were avoided for serializer/indexer byte layout.
+- Validation evidence:
+  - `bazel build //:kain --config=dev`
+  - `bazel build //runtime:all --config=dev`
+  - `py -3 tools/bazel/sync_native_runtime_builds.py --check`
+  - `cargo test -p kain-sys-codegen codegen_llvm::tests:: -- --nocapture`
+  - `cargo test -p kain-sys-codegen llvm_lowers_ord_chr_and_to_int_to_native_owned_builtins -- --nocapture`
+  - `cargo run -q -p kain-stdlib-map --bin kain_stdlib_map_tool -- --check`
+  - native inline Kain binary fs proof wrote/read `[0, 1, 2, 255, 0, 75]`
+  - `kain run X:\mcp\semantic_search\src\main.kn --target llvm -- index kain` exited 0 with `diag_count=0`, `chunks=485`
+  - `kain run X:\mcp\semantic_search\src\main.kn --target llvm -- search kain "actor world" 5` exited 0 with `diag_count=0`, `total indexed: 485`
+
+Remaining systemic feedback was logged in `FEEDBACK.md`: `check --target llvm` currently accepts tuple destructuring containing a struct plus scalars, but native LLVM lowering rejects that tuple storage shape. The semantic-search reader uses a named `ParsedMeta` struct until that lowering gap is closed.

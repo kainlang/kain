@@ -13,12 +13,13 @@ import numpy as np
 // Kain with stable shared-buffer / shared-image / shared-tensor contracts.
 
 const PYTHON_INTEROP_MODULUS: Int = 1000000007
-const PYTHON_INTEROP_CASE_COUNT: Int = 8
+const PYTHON_INTEROP_CASE_COUNT: Int = 12
 const RAW_TENSOR_ROWS: Int = 7
 const RAW_TENSOR_COLS: Int = 11
 const RAW_IMAGE_W: Int = 48
 const RAW_IMAGE_H: Int = 32
 const RAW_IMAGE_C: Int = 4
+const RAW_BUFFER_VIEW_CELLS: Int = 512
 
 fn interop_bool_score(value: Bool) -> Int:
     if value:
@@ -92,6 +93,14 @@ pub fn python_interop_case_id(index: Int) -> String:
         return "python_raw_image_workflow"
     if index == 7:
         return "python_numpy_shared_buffer_tiny"
+    if index == 8:
+        return "python_region_import_cached"
+    if index == 9:
+        return "python_region_math_attr"
+    if index == 10:
+        return "python_region_math_sqrt"
+    if index == 11:
+        return "python_region_numpy_buffer_view"
     return ""
 
 pub fn python_interop_case_group(index: Int) -> String:
@@ -116,6 +125,14 @@ pub fn python_interop_case_title(index: Int) -> String:
         return "Python Raw Image Workflow"
     if index == 7:
         return "Python NumPy Shared Buffer Tiny"
+    if index == 8:
+        return "Python Region Import Cached"
+    if index == 9:
+        return "Python Region Math Attr"
+    if index == 10:
+        return "Python Region Math Sqrt"
+    if index == 11:
+        return "Python Region NumPy Buffer View"
     return ""
 
 pub fn python_interop_case_iterations(index: Int) -> Int:
@@ -135,6 +152,14 @@ pub fn python_interop_case_iterations(index: Int) -> Int:
         return 1500
     if index == 7:
         return 4000
+    if index == 8:
+        return 10000
+    if index == 9:
+        return 50000
+    if index == 10:
+        return 30000
+    if index == 11:
+        return 20000
     return 0
 
 pub fn python_interop_case_expected_checksum(index: Int) -> Int:
@@ -154,6 +179,14 @@ pub fn python_interop_case_expected_checksum(index: Int) -> Int:
         return 10037971
     if index == 7:
         return 1130932
+    if index == 8:
+        return 170005
+    if index == 9:
+        return 900009
+    if index == 10:
+        return 1713736
+    if index == 11:
+        return 20939830
     return -1
 
 fn python_import_cached_checksum(iterations: Int) -> Int:
@@ -253,6 +286,65 @@ fn python_numpy_shared_buffer_tiny_checksum(iterations: Int) -> Int:
         acc = (acc + lane) % PYTHON_INTEROP_MODULUS
         index = index + 1
     return acc
+
+fn python_region_import_cached_checksum(iterations: Int) -> Int:
+    let region = python_region_begin()
+    let acc: Int = 0
+    let index: Int = 0
+    while index < iterations:
+        let math_module = python_region_import(region, "math")
+        let tau_bits = to_int(python_region_getattr_raw(region, math_module, "tau"))
+        acc = (acc + tau_bits + (index % 19)) % PYTHON_INTEROP_MODULUS
+        index = index + 1
+    let import_hits = python_region_import_cache_hits(region)
+    let import_misses = python_region_import_cache_misses(region)
+    let attr_hits = python_region_attr_cache_hits(region)
+    let attr_misses = python_region_attr_cache_misses(region)
+    let auto_released = python_region_end(region)
+    return (acc + import_hits + (import_misses * 17) + attr_hits + (attr_misses * 29) + auto_released) % PYTHON_INTEROP_MODULUS
+
+fn python_region_math_attr_checksum(iterations: Int) -> Int:
+    let region = python_region_begin()
+    let acc: Int = 0
+    let index: Int = 0
+    while index < iterations:
+        let tau_bits = to_int(python_region_getattr_raw(region, py_math, "tau"))
+        acc = (acc + tau_bits + (index % 23)) % PYTHON_INTEROP_MODULUS
+        index = index + 1
+    let attr_hits = python_region_attr_cache_hits(region)
+    let attr_misses = python_region_attr_cache_misses(region)
+    let auto_released = python_region_end(region)
+    return (acc + attr_hits + (attr_misses * 31) + auto_released) % PYTHON_INTEROP_MODULUS
+
+fn python_region_math_sqrt_checksum(iterations: Int) -> Int:
+    let region = python_region_begin()
+    let acc: Int = 0
+    let index: Int = 0
+    while index < iterations:
+        let lane_value = ((index * 17) % 4096) + 1
+        let sqrt_value = to_int(python_region_call_attr_raw(region, py_math, "sqrt", [lane_value as Float]))
+        acc = (acc + sqrt_value + (index % 29)) % PYTHON_INTEROP_MODULUS
+        index = index + 1
+    let attr_hits = python_region_attr_cache_hits(region)
+    let attr_misses = python_region_attr_cache_misses(region)
+    let auto_released = python_region_end(region)
+    return (acc + attr_hits + (attr_misses * 37) + auto_released) % PYTHON_INTEROP_MODULUS
+
+fn python_region_numpy_buffer_view_checksum(iterations: Int) -> Int:
+    let region = python_region_begin()
+    let source = make_raw_uint8_buffer(RAW_BUFFER_VIEW_CELLS, 0)
+    let acc: Int = 0
+    let index: Int = 0
+    while index < iterations:
+        let view = python_region_buffer_view(region, source)
+        let lane = py_buffer_view_byte_length(view) + py_buffer_view_element_count(view) + py_buffer_view_element_size(view) + py_buffer_view_c_contiguous(view) + py_buffer_view_writable(view) + (index % 37)
+        py_buffer_view_release(view)
+        acc = (acc + lane) % PYTHON_INTEROP_MODULUS
+        index = index + 1
+    let views_opened = python_region_views_opened(region)
+    let views_released = python_region_views_released(region)
+    let auto_released = python_region_end(region)
+    return (acc + views_opened + views_released + (auto_released * 41)) % PYTHON_INTEROP_MODULUS
 
 pub fn python_interop_case_telemetry(case_id: String) -> String:
     if case_id == "python_import_cached":
@@ -374,6 +466,68 @@ pub fn python_interop_case_telemetry(case_id: String) -> String:
         content = content + "\"expected_ownership\":" + interop_json_string_value("shared") + ","
         content = content + "\"pack_focus\":" + interop_json_string_value("workflow")
         return content + "}"
+    if case_id == "python_region_import_cached":
+        let content = "{"
+        content = content + "\"boundary_kind\":\"python-region-import-cache\","
+        content = content + "\"module\":" + interop_json_string_value("math") + ","
+        content = content + "\"attr\":" + interop_json_string_value("tau") + ","
+        content = content + "\"region_scope_entries_per_run\":1,"
+        content = content + "\"region_scope_exits_per_run\":1,"
+        content = content + "\"python_imports_per_iteration\":1,"
+        content = content + "\"python_getattrs_per_iteration\":1,"
+        content = content + "\"bridge_entries_per_iteration\":0,"
+        content = content + "\"expected_import_cache_hits_min\":9999,"
+        content = content + "\"expected_import_cache_misses_max\":1,"
+        content = content + "\"expected_attr_cache_hits_min\":9999,"
+        content = content + "\"expected_attr_cache_misses_max\":1,"
+        content = content + "\"bench_intent\":" + interop_json_string_value("region-amortized-import-tax") + ","
+        content = content + "\"pack_focus\":" + interop_json_string_value("python-region")
+        return content + "}"
+    if case_id == "python_region_math_attr":
+        let content = "{"
+        content = content + "\"boundary_kind\":\"python-region-attr\","
+        content = content + "\"module\":" + interop_json_string_value("math") + ","
+        content = content + "\"attr\":" + interop_json_string_value("tau") + ","
+        content = content + "\"region_scope_entries_per_run\":1,"
+        content = content + "\"region_scope_exits_per_run\":1,"
+        content = content + "\"python_getattrs_per_iteration\":1,"
+        content = content + "\"bridge_entries_per_iteration\":0,"
+        content = content + "\"expected_attr_cache_hits_min\":49999,"
+        content = content + "\"expected_attr_cache_misses_max\":1,"
+        content = content + "\"bench_intent\":" + interop_json_string_value("region-attr-cache-tax") + ","
+        content = content + "\"pack_focus\":" + interop_json_string_value("python-region")
+        return content + "}"
+    if case_id == "python_region_math_sqrt":
+        let content = "{"
+        content = content + "\"boundary_kind\":\"python-region-call\","
+        content = content + "\"module\":" + interop_json_string_value("math") + ","
+        content = content + "\"call\":" + interop_json_string_value("sqrt") + ","
+        content = content + "\"region_scope_entries_per_run\":1,"
+        content = content + "\"region_scope_exits_per_run\":1,"
+        content = content + "\"python_calls_per_iteration\":1,"
+        content = content + "\"bridge_entries_per_iteration\":0,"
+        content = content + "\"expected_attr_cache_hits_min\":29999,"
+        content = content + "\"expected_attr_cache_misses_max\":1,"
+        content = content + "\"bench_intent\":" + interop_json_string_value("region-call-cache-tax") + ","
+        content = content + "\"pack_focus\":" + interop_json_string_value("python-region")
+        return content + "}"
+    if case_id == "python_region_numpy_buffer_view":
+        let content = "{"
+        content = content + "\"boundary_kind\":\"python-region-buffer-view\","
+        content = content + "\"element_type\":" + interop_json_string_value("uint8") + ","
+        content = content + "\"payload_bytes_per_iteration\":" + str(RAW_BUFFER_VIEW_CELLS) + ","
+        content = content + "\"region_scope_entries_per_run\":1,"
+        content = content + "\"region_scope_exits_per_run\":1,"
+        content = content + "\"buffer_views_per_iteration\":1,"
+        content = content + "\"buffer_view_releases_per_iteration\":1,"
+        content = content + "\"bridge_entries_per_iteration\":0,"
+        content = content + "\"contiguous_expected\":true,"
+        content = content + "\"writable_expected\":true,"
+        content = content + "\"expected_views_opened\":20000,"
+        content = content + "\"expected_views_released\":20000,"
+        content = content + "\"bench_intent\":" + interop_json_string_value("region-borrowed-buffer-hot-lane") + ","
+        content = content + "\"pack_focus\":" + interop_json_string_value("python-region")
+        return content + "}"
     let content = "{"
     content = content + "\"boundary_kind\":\"unknown\","
     content = content + "\"pack_focus\":" + interop_json_string_value("raw")
@@ -399,6 +553,14 @@ pub fn python_interop_case_checksum(case_id: String, iterations: Int, amplify: I
             acc = (acc + python_raw_image_workflow_checksum(iterations)) % modulus
         else if case_id == "python_numpy_shared_buffer_tiny":
             acc = (acc + python_numpy_shared_buffer_tiny_checksum(iterations)) % modulus
+        else if case_id == "python_region_import_cached":
+            acc = (acc + python_region_import_cached_checksum(iterations)) % modulus
+        else if case_id == "python_region_math_attr":
+            acc = (acc + python_region_math_attr_checksum(iterations)) % modulus
+        else if case_id == "python_region_math_sqrt":
+            acc = (acc + python_region_math_sqrt_checksum(iterations)) % modulus
+        else if case_id == "python_region_numpy_buffer_view":
+            acc = (acc + python_region_numpy_buffer_view_checksum(iterations)) % modulus
         else:
             return -1
         repeat = repeat + 1
