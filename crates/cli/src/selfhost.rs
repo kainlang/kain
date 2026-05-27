@@ -6957,9 +6957,7 @@ fn main() {}
                 module_name: "crate".to_string(),
                 rust_source_path: PathBuf::from("/repo/crates/core/src/lib.rs"),
                 rust_source_relative_path: PathBuf::from("src/lib.rs"),
-                canonical_kain_path: temp_dir
-                    .path()
-                    .join("src/.rustimport/phase2/core/lib.kn"),
+                canonical_kain_path: temp_dir.path().join("src/.rustimport/phase2/core/lib.kn"),
                 output_kain_path: temp_dir.path().join("mirror/src/core/lib.kn"),
                 stage2_roundtrip_rust_path: roundtrip_root.join("kain-core/src/lib.rs"),
                 module_path: Vec::new(),
@@ -6969,9 +6967,7 @@ fn main() {}
                 module_name: "main".to_string(),
                 rust_source_path: PathBuf::from("/repo/crates/core/src/main.rs"),
                 rust_source_relative_path: PathBuf::from("src/main.rs"),
-                canonical_kain_path: temp_dir
-                    .path()
-                    .join("src/.rustimport/phase2/core/main.kn"),
+                canonical_kain_path: temp_dir.path().join("src/.rustimport/phase2/core/main.kn"),
                 output_kain_path: temp_dir.path().join("mirror/src/core/main.kn"),
                 stage2_roundtrip_rust_path: roundtrip_root.join("kain-core/src/main.rs"),
                 module_path: Vec::new(),

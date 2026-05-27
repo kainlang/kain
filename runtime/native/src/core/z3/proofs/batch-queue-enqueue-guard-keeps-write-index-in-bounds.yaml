@@ -1,0 +1,38 @@
+name: batch-queue-enqueue-guard-keeps-write-index-in-bounds
+surface: runtime
+subsystem: batch_queue
+source_file: runtime/native/src/core/batch_queue.c
+source_function: kain_batch_queue_enqueue
+source_lines: "76-83"
+
+description: |
+  batch_queue.c:76 rejects any enqueue where *target_count >= queue->capacity.
+  The write then uses target_entries[*target_count] only after the guard.
+
+  The proof obligation is the classic bounded-queue write rule:
+  if count < capacity, writing at index count is in bounds.
+
+claim: |
+  Given queue capacity >= 1 and target_count >= 0, the enqueue guard
+  target_count < capacity implies target_count is a valid array index.
+
+expected: unsat
+
+smt2: |
+  (set-logic QF_LIA)
+  (declare-const target_count Int)
+  (declare-const capacity Int)
+  (assert (>= capacity 1))
+  (assert (>= target_count 0))
+  (assert (< target_count capacity))
+  (assert (or (< target_count 0) (>= target_count capacity)))
+  (check-sat)
+
+result: unsat
+severity: None
+categories: [correctness, bounds, queue]
+status: Formally-Verified-Safe
+note: |
+  This proof is intentionally small and local: it protects the exact write
+  index the new batch queue uses before CHARLIE stitches the helper into the
+  manifest.

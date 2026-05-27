@@ -82,11 +82,35 @@ typedef struct {
     atomic_uint poll_count;
     atomic_uint wake_count;
     atomic_uint timer_count;
+    atomic_uint child_wait_count;
+    atomic_uint dependency_wait_count;
     atomic_int wake_requested;
     atomic_int timer_fired;
     atomic_int cancelled;
+    atomic_int continuation_blocked;
+    atomic_int completion_deferred;
     atomic_int state_snapshot;
 } KainTaskRuntimeState;
+
+/* Dependency Wait Mode */
+typedef enum {
+    KAIN_TASK_WAIT_MODE_ALL = 0,
+    KAIN_TASK_WAIT_MODE_ANY = 1,
+} KainTaskWaitMode;
+
+/*
+ * Completion Callback
+ *
+ * Invoked exactly once when a task transitions into a terminal state. The
+ * callback fires for success, cancellation, and failure after the runtime
+ * has updated its graph bookkeeping for that task.
+ */
+typedef void (*KainTaskCompletionCallback)(
+    KainTaskId task_id,
+    KainTaskState final_state,
+    void* result,
+    void* user_data
+);
 
 /*
  * Async Task Function
@@ -117,6 +141,11 @@ typedef struct {
     KainAsyncTaskFn task_fn;
     void* user_data;
     size_t result_size;
+    KainTaskId parent_task_id;
+    KainTaskId continuation_of_task_id;
+    KainTaskWaitMode child_wait_mode;
+    KainTaskCompletionCallback completion_callback;
+    void* completion_user_data;
 } KainTaskSpawnConfig;
 
 /*
@@ -171,6 +200,80 @@ int kain_task_cancel(
     KainTaskId task_id,
     KainDiagnostic* diag
 );
+
+/*
+ * Register Completion Callback
+ *
+ * Installs or replaces the completion callback for a live task. The callback
+ * will fire exactly once when the task becomes completed, cancelled, or
+ * failed.
+ */
+int kain_task_set_completion_callback(
+    KainTaskId task_id,
+    KainTaskCompletionCallback completion_callback,
+    void* completion_user_data,
+    KainDiagnostic* diag
+);
+
+/*
+ * Add Child Task Relationship
+ *
+ * Links a child to a parent task. The parent will sleep until the child wait
+ * condition is satisfied.
+ *
+ * Parameters:
+ *   parent_task_id - Parent task to block on child completion
+ *   child_task_id - Child task that contributes to the parent's child wait
+ *   wait_mode - ALL waits for every child; ANY resumes after one child
+ */
+int kain_task_add_child(
+    KainTaskId parent_task_id,
+    KainTaskId child_task_id,
+    KainTaskWaitMode wait_mode,
+    KainDiagnostic* diag
+);
+
+/*
+ * Add Continuation Relationship
+ *
+ * Schedules continuation_task_id to run once antecedent_task_id reaches a
+ * terminal state. If the antecedent has already completed, the continuation
+ * is scheduled immediately.
+ */
+int kain_task_add_continuation(
+    KainTaskId antecedent_task_id,
+    KainTaskId continuation_task_id,
+    KainDiagnostic* diag
+);
+
+/*
+ * Add Wait Dependencies
+ *
+ * Puts waiter_task_id to sleep until its dependency wait condition is
+ * satisfied by one or more dependency tasks reaching a terminal state.
+ *
+ * Parameters:
+ *   waiter_task_id - Task that should be resumed later
+ *   dependency_task_ids - Array of task ids the waiter depends on
+ *   dependency_task_count - Number of entries in dependency_task_ids
+ *   wait_mode - ALL waits for every dependency; ANY resumes after one
+ */
+int kain_task_add_wait_dependencies(
+    KainTaskId waiter_task_id,
+    const KainTaskId* dependency_task_ids,
+    size_t dependency_task_count,
+    KainTaskWaitMode wait_mode,
+    KainDiagnostic* diag
+);
+
+/*
+ * Batch Lock / Unlock
+ *
+ * Defers async queue fanout until the outermost unlock so callers can mutate
+ * multiple graph edges without interleaving wake and callback drains.
+ */
+int kain_task_batch_lock(KainDiagnostic* diag);
+int kain_task_batch_unlock(KainDiagnostic* diag);
 
 /*
  * Get Task State

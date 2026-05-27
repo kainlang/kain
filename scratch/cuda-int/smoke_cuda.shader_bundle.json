@@ -1,0 +1,206 @@
+{
+  "schema_version": 1,
+  "canonical_native_payload": "spirv",
+  "spirv_modules": [
+    {
+      "module_name": "SmokeParticleStep__SmokeReductionKernel",
+      "byte_len": 1632,
+      "bytes_hex": "030223070006010000000f003f0000000000000011000200010000000e00030000000000010000000f000e000500000014000000536d6f6b655061727469636c65537465700000000a0000000b0000000f0000001000000011000000120000000f000f00050000002e000000536d6f6b65526564756374696f6e4b65726e656c00000000260000002700000028000000290000002a0000002b000000100006001400000011000000080000000800000001000000100006002e00000011000000080000000800000001000000470004000700000006000000100000004700030008000000020000004800050008000000000000002300000000000000470004000a0000002200000000000000470004000a0000002100000000000000470004000b0000002200000000000000470004000b0000002100000001000000470004000f0000000b0000001c00000047000400100000000b0000001b00000047000400110000000b0000001a00000047000400120000000b0000001d0000004700040023000000060000000400000047000300240000000200000048000500240000000000000023000000000000004700040026000000220000000000000047000400260000002100000000000000470004002700000022000000000000004700040027000000210000000100000047000400280000000b0000001c00000047000400290000000b0000001b000000470004002a0000000b0000001a000000470004002b0000000b0000001d00000013000200010000002100030002000000010000001600030003000000200000001500040004000000200000000100000015000400050000002000000000000000170004000600000003000000040000001d00030007000000060000001e000300080000000700000020000400090000000c000000080000003b000400090000000a0000000c0000003b000400090000000b0000000c000000170004000c0000000500000003000000200004000d000000010000000c000000200004000e00000001000000050000003b0004000d0000000f000000010000003b0004000d00000010000000010000003b0004000d00000011000000010000003b0004000e000000120000000100000020000400130000000700000006000000200004001a0000000c000000060000002b000400050000001b000000000000002b0004000500000020000000000000001d00030023000000030000001e000300240000002300000020000400250000000c000000240000003b00040025000000260000000c0000003b00040025000000270000000c0000003b0004000d00000028000000010000003b0004000d00000029000000010000003b0004000d0000002a000000010000003b0004000e0000002b00000001000000200004002c0000000700000005000000200004002d000000070000000300000020000400350000000c000000030000002b0004000500000036000000000000002b000400030000003a0000000000003f2b000400050000003d000000000000003600050001000000140000000000000002000000f8000200150000003b0004001300000016000000070000003b0004001300000017000000070000003d0004000c000000180000000f0000005100050005000000190000001800000000000000410006001a0000001c0000000a0000001b000000190000003d000400060000001d0000001c0000003e000300170000001d0000003d0004000c0000001e0000000f00000051000500050000001f0000001e00000000000000410006001a000000210000000b000000200000001f0000003d0004000600000022000000210000003e0003001600000022000000fd0001003800010036000500010000002e0000000000000002000000f80002002f0000003b0004002d00000030000000070000003b0004002c00000031000000070000003d0004000c000000320000002800000051000500050000003300000032000000000000003e00030031000000330000003d0004000500000034000000310000004100060035000000370000002600000036000000340000003d0004000300000038000000370000003e00030030000000380000003d00040003000000390000003000000085000500030000003b000000390000003a0000003d000400050000003c0000003100000041000600350000003e000000270000003d0000003c0000003e0003003e0000003b000000fd00010038000100",
+      "entry_points": [
+        "SmokeParticleStep",
+        "SmokeReductionKernel"
+      ],
+      "stage_hints": [
+        "compute"
+      ]
+    }
+  ],
+  "reflection": {
+    "emitted": true,
+    "shaders": [
+      {
+        "shader": "SmokeParticleStep",
+        "stage": "compute",
+        "entry_point": "SmokeParticleStep",
+        "inputs": [
+          {
+            "name": "id",
+            "ty": "UVec3"
+          }
+        ],
+        "bindings": [
+          {
+            "shader": "SmokeParticleStep",
+            "name": "particles",
+            "binding": 0,
+            "descriptor_set": 0,
+            "ty": "StorageBuffer<Vec4>",
+            "kind": "storage_buffer"
+          },
+          {
+            "shader": "SmokeParticleStep",
+            "name": "field",
+            "binding": 1,
+            "descriptor_set": 0,
+            "ty": "StorageBuffer<Vec4>",
+            "kind": "storage_buffer"
+          }
+        ],
+        "output_type": "Vec4"
+      },
+      {
+        "shader": "SmokeReductionKernel",
+        "stage": "compute",
+        "entry_point": "SmokeReductionKernel",
+        "inputs": [
+          {
+            "name": "id",
+            "ty": "UVec3"
+          }
+        ],
+        "bindings": [
+          {
+            "shader": "SmokeReductionKernel",
+            "name": "src",
+            "binding": 0,
+            "descriptor_set": 0,
+            "ty": "StorageBuffer<Float>",
+            "kind": "storage_buffer"
+          },
+          {
+            "shader": "SmokeReductionKernel",
+            "name": "dst",
+            "binding": 1,
+            "descriptor_set": 0,
+            "ty": "StorageBuffer<Float>",
+            "kind": "storage_buffer"
+          }
+        ],
+        "output_type": "Vec4"
+      }
+    ],
+    "notes": [
+      "Compiler-owned shader artifact bundle emitted from kain-driver.",
+      "SPIR-V is the canonical native GPU payload; backend text shaders are derived outputs."
+    ]
+  },
+  "resource_layouts": [
+    {
+      "shader": "SmokeParticleStep",
+      "name": "particles",
+      "binding": 0,
+      "descriptor_set": 0,
+      "ty": "StorageBuffer<Vec4>",
+      "kind": "storage_buffer"
+    },
+    {
+      "shader": "SmokeParticleStep",
+      "name": "field",
+      "binding": 1,
+      "descriptor_set": 0,
+      "ty": "StorageBuffer<Vec4>",
+      "kind": "storage_buffer"
+    },
+    {
+      "shader": "SmokeReductionKernel",
+      "name": "src",
+      "binding": 0,
+      "descriptor_set": 0,
+      "ty": "StorageBuffer<Float>",
+      "kind": "storage_buffer"
+    },
+    {
+      "shader": "SmokeReductionKernel",
+      "name": "dst",
+      "binding": 1,
+      "descriptor_set": 0,
+      "ty": "StorageBuffer<Float>",
+      "kind": "storage_buffer"
+    }
+  ],
+  "entry_points": [
+    {
+      "shader": "SmokeParticleStep",
+      "module_name": "SmokeParticleStep__SmokeReductionKernel",
+      "entry_point": "SmokeParticleStep",
+      "stage": "compute"
+    },
+    {
+      "shader": "SmokeReductionKernel",
+      "module_name": "SmokeParticleStep__SmokeReductionKernel",
+      "entry_point": "SmokeReductionKernel",
+      "stage": "compute"
+    }
+  ],
+  "stage_metadata": [
+    {
+      "shader": "SmokeParticleStep",
+      "stage": "compute",
+      "entry_point": "SmokeParticleStep",
+      "input_count": 1,
+      "binding_count": 2,
+      "output_type": "Vec4"
+    },
+    {
+      "shader": "SmokeReductionKernel",
+      "stage": "compute",
+      "entry_point": "SmokeReductionKernel",
+      "input_count": 1,
+      "binding_count": 2,
+      "output_type": "Vec4"
+    }
+  ],
+  "specialization_constants": [],
+  "debug": {
+    "source_map": [
+      {
+        "shader": "SmokeParticleStep",
+        "source_origin": "<input>",
+        "module_name": "SmokeParticleStep__SmokeReductionKernel",
+        "entry_point": "SmokeParticleStep"
+      },
+      {
+        "shader": "SmokeReductionKernel",
+        "source_origin": "<input>",
+        "module_name": "SmokeParticleStep__SmokeReductionKernel",
+        "entry_point": "SmokeReductionKernel"
+      }
+    ],
+    "notes": [
+      "Shader bundle source map is currently scoped to shader entry points."
+    ]
+  },
+  "derived_outputs": [
+    {
+      "format": "hlsl",
+      "module_name": "SmokeParticleStep__SmokeReductionKernel",
+      "contents": "// Generated by KAIN Compiler\n// Derived HLSL output from the KAIN shader artifact pipeline\n\ncbuffer ShaderParams : register(b0)\n{\n    float4 particles;\n    float4 field;\n};\n\n[numthreads(8, 8, 1)]\nvoid CSMain(uint3 dispatchThreadID : SV_DispatchThreadID,\n            uint3 groupThreadID : SV_GroupThreadID,\n            uint3 groupID : SV_GroupID,\n            uint groupIndex : SV_GroupIndex)\n{\n    float p = particles[id.x];\n    float v = field[id.x];\n    PSOutput _result;\n    _result.color = float4((p.x + v.x), (p.y + v.y), (p.z + v.z), 1.000000);\n    return _result;\n}\ncbuffer ShaderParams : register(b0)\n{\n    float4 src;\n    float4 dst;\n};\n\n[numthreads(8, 8, 1)]\nvoid CSMain(uint3 dispatchThreadID : SV_DispatchThreadID,\n            uint3 groupThreadID : SV_GroupThreadID,\n            uint3 groupID : SV_GroupID,\n            uint groupIndex : SV_GroupIndex)\n{\n    float index = id.x;\n    float value = src[index];\n    dst[index] = (value * 0.500000);\n    PSOutput _result;\n    _result.color = float4(value, 0.000000, 0.000000, 1.000000);\n    return _result;\n}\n",
+      "entry_points": [
+        "SmokeParticleStep",
+        "SmokeReductionKernel"
+      ],
+      "binding_slots": [
+        0,
+        1
+      ]
+    },
+    {
+      "format": "ptx",
+      "module_name": "SmokeParticleStep__SmokeReductionKernel",
+      "contents": "// Generated by KAIN Compiler\n// Raw PTX compute output; load with the CUDA Driver API.\n\n.version 7.8\n.target sm_50\n.address_size 64\n\n.visible .entry SmokeParticleStep(\n    .param .u64 _kain_param_particles,\n    .param .u64 _kain_param_field\n)\n{\n    .reg .b32 %r<9>;\n    .reg .b64 %rd<25>;\n    .reg .f32 %f<13>;\n\n    ld.param.u64 %rd1, [_kain_param_particles];\n    ld.param.u64 %rd2, [_kain_param_field];\n    mov.u32 %r1, %ctaid.x;\n    mov.u32 %r2, %ntid.x;\n    mov.u32 %r3, %tid.x;\n    mad.lo.u32 %r4, %r1, %r2, %r3;\n    mul.wide.u32 %rd3, %r4, 16;\n    add.u64 %rd4, %rd1, %rd3;\n    ld.global.f32 %f1, [%rd4];\n    mul.wide.u32 %rd5, %r4, 16;\n    add.u64 %rd6, %rd1, %rd5;\n    add.u64 %rd7, %rd6, 4;\n    ld.global.f32 %f2, [%rd7];\n    mul.wide.u32 %rd8, %r4, 16;\n    add.u64 %rd9, %rd1, %rd8;\n    add.u64 %rd10, %rd9, 8;\n    ld.global.f32 %f3, [%rd10];\n    mul.wide.u32 %rd11, %r4, 16;\n    add.u64 %rd12, %rd1, %rd11;\n    add.u64 %rd13, %rd12, 12;\n    ld.global.f32 %f4, [%rd13];\n    mov.u32 %r5, %ctaid.x;\n    mov.u32 %r6, %ntid.x;\n    mov.u32 %r7, %tid.x;\n    mad.lo.u32 %r8, %r5, %r6, %r7;\n    mul.wide.u32 %rd14, %r8, 16;\n    add.u64 %rd15, %rd2, %rd14;\n    ld.global.f32 %f5, [%rd15];\n    mul.wide.u32 %rd16, %r8, 16;\n    add.u64 %rd17, %rd2, %rd16;\n    add.u64 %rd18, %rd17, 4;\n    ld.global.f32 %f6, [%rd18];\n    mul.wide.u32 %rd19, %r8, 16;\n    add.u64 %rd20, %rd2, %rd19;\n    add.u64 %rd21, %rd20, 8;\n    ld.global.f32 %f7, [%rd21];\n    mul.wide.u32 %rd22, %r8, 16;\n    add.u64 %rd23, %rd2, %rd22;\n    add.u64 %rd24, %rd23, 12;\n    ld.global.f32 %f8, [%rd24];\n    add.f32 %f9, %f1, %f5;\n    add.f32 %f10, %f2, %f6;\n    add.f32 %f11, %f3, %f7;\n    mov.f32 %f12, 0f3f800000;\n    bra $kain_exit;\n$kain_exit:\n    ret;\n}\n\n.visible .entry SmokeReductionKernel(\n    .param .u64 _kain_param_src,\n    .param .u64 _kain_param_dst\n)\n{\n    .reg .b32 %r<5>;\n    .reg .b64 %rd<7>;\n    .reg .f32 %f<7>;\n\n    ld.param.u64 %rd1, [_kain_param_src];\n    ld.param.u64 %rd2, [_kain_param_dst];\n    mov.u32 %r1, %ctaid.x;\n    mov.u32 %r2, %ntid.x;\n    mov.u32 %r3, %tid.x;\n    mad.lo.u32 %r4, %r1, %r2, %r3;\n    mul.wide.u32 %rd3, %r4, 4;\n    add.u64 %rd4, %rd1, %rd3;\n    ld.global.f32 %f1, [%rd4];\n    mov.f32 %f2, 0f3f000000;\n    mul.rn.f32 %f3, %f1, %f2;\n    mul.wide.u32 %rd5, %r4, 4;\n    add.u64 %rd6, %rd2, %rd5;\n    st.global.f32 [%rd6], %f3;\n    mov.f32 %f4, 0f00000000;\n    mov.f32 %f5, 0f00000000;\n    mov.f32 %f6, 0f3f800000;\n    bra $kain_exit;\n$kain_exit:\n    ret;\n}\n\n",
+      "entry_points": [
+        "SmokeParticleStep",
+        "SmokeReductionKernel"
+      ],
+      "binding_slots": [
+        0,
+        1
+      ],
+      "ptx": {
+        "ptx_version": "7.8",
+        "required_target_arch": "sm_50",
+        "minimum_compute_capability": "5.0"
+      }
+    }
+  ]
+}

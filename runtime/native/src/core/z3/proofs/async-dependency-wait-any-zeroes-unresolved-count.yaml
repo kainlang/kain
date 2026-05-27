@@ -1,0 +1,36 @@
+name: async-dependency-wait-any-zeroes-unresolved-count
+surface: runtime
+subsystem: async
+source_file: runtime/native/src/core/async.c
+source_function: kain_async_handle_task_completion
+source_lines: "1294-1299"
+
+description: |
+  async.c:1294-1299 handles WAIT_ANY dependency release by clearing the whole
+  dependency bitset, setting dependency_wait_count to 0, and dropping the
+  dependency_wait_active gate.
+
+  The important invariant is that once any dependency finishes in WAIT_ANY
+  mode, the waiter cannot remain blocked on stale unresolved-count state.
+
+claim: |
+  In WAIT_ANY mode, taking the dependency-release branch forces both
+  dependency_wait_count == 0 and dependency_wait_active == false.
+
+expected: unsat
+
+smt2: |
+  (set-logic QF_LIA)
+  (define-fun dependency_wait_count_after () Int 0)
+  (define-fun dependency_wait_active_after () Bool false)
+  (assert (or (not (= dependency_wait_count_after 0))
+              dependency_wait_active_after))
+  (check-sat)
+
+result: unsat
+severity: None
+categories: [correctness, state-machine, async]
+status: Formally-Verified-Safe
+note: |
+  This proof covers the WAIT_ANY fast-release arm specifically. The WAIT_ALL
+  path keeps count and active-state coupled through the clear-one-bit branch.

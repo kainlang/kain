@@ -2049,7 +2049,11 @@ fn register_builtin_global_functions(env: &mut TypeEnv<'_>) {
     env.define_global(
         "py_region_getattr_raw".into(),
         builtin_function_type(
-            vec![ResolvedType::Unknown, ResolvedType::Unknown, ResolvedType::String],
+            vec![
+                ResolvedType::Unknown,
+                ResolvedType::Unknown,
+                ResolvedType::String,
+            ],
             ResolvedType::Unknown,
         ),
     );
@@ -2102,6 +2106,29 @@ fn register_builtin_global_functions(env: &mut TypeEnv<'_>) {
         ),
     );
     env.define_global(
+        "py_region_call_raw_f64_trunc_i64".into(),
+        builtin_function_type(
+            vec![
+                ResolvedType::Unknown,
+                ResolvedType::Unknown,
+                ResolvedType::Float(FloatSize::F64),
+            ],
+            ResolvedType::Int(IntSize::I64),
+        ),
+    );
+    env.define_global(
+        "py_region_call_attr_raw_f64_trunc_i64".into(),
+        builtin_function_type(
+            vec![
+                ResolvedType::Unknown,
+                ResolvedType::Unknown,
+                ResolvedType::String,
+                ResolvedType::Float(FloatSize::F64),
+            ],
+            ResolvedType::Int(IntSize::I64),
+        ),
+    );
+    env.define_global(
         "py_region_buffer_view".into(),
         builtin_function_type(
             vec![ResolvedType::Unknown, ResolvedType::Unknown],
@@ -2120,6 +2147,9 @@ fn register_builtin_global_functions(env: &mut TypeEnv<'_>) {
         "py_region_attr_cache_misses",
         "py_region_views_opened",
         "py_region_views_released",
+        "py_region_call_count",
+        "py_region_generic_call_count",
+        "py_region_fast_call_count",
     ] {
         env.define_global(
             name.into(),

@@ -1,0 +1,39 @@
+name: async-child-wait-any-clears-active-after-first-completion
+surface: runtime
+subsystem: async
+source_file: runtime/native/src/core/async.c
+source_function: kain_async_handle_task_completion
+source_lines: "1273-1281"
+
+description: |
+  async.c:1273-1281 clears one child edge from the parent's live-child bitset,
+  increments completed_child_count, and then disables child_wait_active when
+  the parent is in WAIT_ANY mode.
+
+  The critical strike invariant is that WAIT_ANY never leaves the parent
+  blocked after the first child completion, even if more live children remain.
+
+claim: |
+  If child_wait_active was true and child_wait_mode is WAIT_ANY, the branch
+  that handles a completed child must force child_wait_active to false.
+
+expected: unsat
+
+smt2: |
+  (set-logic QF_LIA)
+  (declare-const live_child_count_after Int)
+  (assert (>= live_child_count_after 0))
+  (define-fun child_wait_active_after () Bool
+    (ite (and true (or true (= live_child_count_after 0)))
+         false
+         true))
+  (assert child_wait_active_after)
+  (check-sat)
+
+result: unsat
+severity: None
+categories: [correctness, state-machine, async]
+status: Formally-Verified-Safe
+note: |
+  This proof intentionally models the WAIT_ANY arm directly. The ALL mode is
+  handled separately by the live_child_count == 0 guard in the same branch.

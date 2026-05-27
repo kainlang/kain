@@ -4,14 +4,14 @@ use cli::amalgamate;
 use cli::clean;
 use cli::codebase;
 use cli::fabric;
+#[cfg(all(feature = "gpu", feature = "sys"))]
+use cli::gpu_artifacts;
 use cli::import_asm;
 use cli::import_c;
 use cli::import_crate;
 use cli::import_platform;
 use cli::import_rust;
 use cli::import_typescript;
-#[cfg(all(feature = "gpu", feature = "sys"))]
-use cli::gpu_artifacts;
 use cli::llvm_native_stage;
 use cli::lsp;
 use cli::native_ui_build;
@@ -2390,14 +2390,14 @@ mod build_command_tests {
         let temp_dir = tempfile::tempdir().expect("temp dir");
         let root = temp_dir.path().join("demo");
         fs::create_dir_all(root.join("src")).expect("create src");
-        fs::write(root.join("build.kn"), "fn build(ctx: BuildContext) -> BuildGraph:\n    return build_graph()\n")
-            .expect("write build.kn");
+        fs::write(
+            root.join("build.kn"),
+            "fn build(ctx: BuildContext) -> BuildGraph:\n    return build_graph()\n",
+        )
+        .expect("write build.kn");
         fs::write(root.join("KAIN.toml"), "[package]\nname = \"demo\"\n").expect("write manifest");
 
-        assert_eq!(
-            project_authority_root_for_input(&root),
-            Some(root.clone())
-        );
+        assert_eq!(project_authority_root_for_input(&root), Some(root.clone()));
         assert_eq!(
             project_authority_root_for_input(&root.join("build.kn")),
             Some(root.clone())
@@ -2418,8 +2418,11 @@ mod build_command_tests {
         let temp_dir = tempfile::tempdir().expect("temp dir");
         let root = temp_dir.path().join("demo");
         fs::create_dir_all(&root).expect("create root");
-        fs::write(root.join("build.kn"), "fn build(ctx: BuildContext) -> BuildGraph:\n    return build_graph()\n")
-            .expect("write build.kn");
+        fs::write(
+            root.join("build.kn"),
+            "fn build(ctx: BuildContext) -> BuildGraph:\n    return build_graph()\n",
+        )
+        .expect("write build.kn");
 
         assert!(project_build_uses_build_authority(&root, None));
         assert!(!project_build_uses_build_authority(
@@ -2430,12 +2433,13 @@ mod build_command_tests {
 
     #[test]
     fn removed_blade_commands_return_a_migration_hint() {
-        assert!(removed_legacy_command_error(&["blades".to_string(), "build".to_string()])
-            .is_some());
-        assert!(removed_legacy_command_error(&["equip".to_string(), "demo".to_string()])
-            .is_some());
-        assert!(removed_legacy_command_error(&["run".to_string(), "demo.kn".to_string()])
-            .is_none());
+        assert!(
+            removed_legacy_command_error(&["blades".to_string(), "build".to_string()]).is_some()
+        );
+        assert!(removed_legacy_command_error(&["equip".to_string(), "demo".to_string()]).is_some());
+        assert!(
+            removed_legacy_command_error(&["run".to_string(), "demo.kn".to_string()]).is_none()
+        );
     }
 }
 

@@ -1,0 +1,51 @@
+name: async-cancel-propagation-follows-parent-or-continuation-edge
+surface: runtime
+subsystem: async
+source_file: runtime/native/src/core/async.c
+source_function: kain_task_cancel
+source_lines: "1929-1945"
+
+description: |
+  async.c:1929-1945 computes should_cancel for the fixed-point propagation loop:
+
+    should_cancel =
+      root_task ||
+      parent.runtime_state.cancelled != 0 ||
+      antecedent.runtime_state.cancelled != 0
+
+  When that guard is true for a non-terminal task that was not already marked,
+  the loop sets cancel_requested and runtime_state.cancelled for that task.
+
+claim: |
+  Under the propagation-branch preconditions, the descendant task cannot leave
+  the branch with cancel_requested still false.
+
+expected: unsat
+
+smt2: |
+  (set-logic QF_LIA)
+  (declare-const root_task Bool)
+  (declare-const parent_cancelled Bool)
+  (declare-const antecedent_cancelled Bool)
+  (declare-const cancel_requested_before Bool)
+  (declare-const terminal_before Bool)
+  (define-fun should_cancel () Bool
+    (or root_task parent_cancelled antecedent_cancelled))
+  (define-fun cancel_requested_after () Bool
+    (ite (and should_cancel (not cancel_requested_before) (not terminal_before))
+         true
+         cancel_requested_before))
+  (assert should_cancel)
+  (assert (not cancel_requested_before))
+  (assert (not terminal_before))
+  (assert (= cancel_requested_after false))
+  (check-sat)
+
+result: unsat
+severity: None
+categories: [correctness, state-machine, async]
+status: Formally-Verified-Safe
+note: |
+  This is the graph-propagation contract DELTA adds: cancellation must cross
+  both parent/child and antecedent/continuation edges in the same fixed-point
+  loop.

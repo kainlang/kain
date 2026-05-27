@@ -9,6 +9,7 @@
 
 #include "../../include/async.h"
 #include "../../include/attrition.h"
+#include "../../include/batch_queue.h"
 #include "../../include/base.h"
 #include <errno.h>
 #include <stdint.h>
@@ -31,6 +32,8 @@
 #define KAIN_ASYNC_TASK_INDEX_MASK (KAIN_ASYNC_TASK_INDEX_CAPACITY - 1u)
 #define KAIN_ASYNC_TIMER_INDEX_CAPACITY 512u
 #define KAIN_ASYNC_TIMER_INDEX_MASK (KAIN_ASYNC_TIMER_INDEX_CAPACITY - 1u)
+#define KAIN_ASYNC_BATCH_QUEUE_CAPACITY 4096u
+#define KAIN_ASYNC_REF_INVALID_SLOT UINT32_MAX
 #if (KAIN_ASYNC_MAX_TASKS % KAIN_ASYNC_SLOT_WORD_BITS) != 0
 #error "KAIN_ASYNC_MAX_TASKS must be divisible by 64 for occupancy-word indexing."
 #endif
@@ -71,17 +74,45 @@ typedef pthread_mutex_t KainAsyncMutex;
 typedef pthread_cond_t KainAsyncCondVar;
 #endif
 
+typedef struct {
+    uint32_t slot;
+    KainTaskId id;
+} KainAsyncTaskRef;
+
+typedef enum {
+    KAIN_ASYNC_BATCH_OP_RUN_TASK = 1u,
+    KAIN_ASYNC_BATCH_OP_COMPLETE_TASK = 2u,
+} KainAsyncBatchOpKind;
+
 typedef struct KainAsyncTaskRecord {
     int in_use;
     KainTaskId id;
     KainTaskSpawnConfig config;
     KainTaskState state;
     int cancel_requested;
+    int run_enqueued;
+    int completion_enqueued;
+    int completion_fired;
+    int completion_deferred;
+    int continuation_blocked;
+    int child_wait_active;
+    int dependency_wait_active;
     void* result;
     KainFutureContext future_context;
     KainTaskRuntimeState runtime_state;
     KainTaskHandle handle;
     KainAsyncSleepState sleep_state;
+    KainAsyncTaskRef parent_ref;
+    KainAsyncTaskRef continuation_ref;
+    uint64_t wait_dependency_bits[KAIN_ASYNC_TASK_WORD_COUNT];
+    uint64_t live_child_bits[KAIN_ASYNC_TASK_WORD_COUNT];
+    unsigned int dependency_wait_count;
+    unsigned int live_child_count;
+    unsigned int completed_child_count;
+    KainTaskWaitMode dependency_wait_mode;
+    KainTaskWaitMode child_wait_mode;
+    KainTaskCompletionCallback completion_callback;
+    void* completion_user_data;
     KainAsyncMutex lock;
     KainAsyncCondVar cond;
 } KainAsyncTaskRecord;
@@ -107,6 +138,9 @@ static uint64_t g_async_task_occupancy_words[KAIN_ASYNC_TASK_WORD_COUNT];
 static uint64_t g_async_timer_occupancy_words[KAIN_ASYNC_TIMER_WORD_COUNT];
 static uint32_t g_async_task_index[KAIN_ASYNC_TASK_INDEX_CAPACITY];
 static uint32_t g_async_timer_index[KAIN_ASYNC_TIMER_INDEX_CAPACITY];
+static KainBatchQueue g_async_batch_queue;
+static KainBatchQueueEntry g_async_batch_active_entries[KAIN_ASYNC_BATCH_QUEUE_CAPACITY];
+static KainBatchQueueEntry g_async_batch_pending_entries[KAIN_ASYNC_BATCH_QUEUE_CAPACITY];
 static KainAsyncMutex g_async_global_lock;
 static KainTaskId g_async_next_task_id = 1;
 static KainTimerId g_async_next_timer_id = 1;
@@ -128,6 +162,8 @@ static INIT_ONCE g_async_init_once = INIT_ONCE_STATIC_INIT;
 #else
 static pthread_once_t g_async_init_once = PTHREAD_ONCE_INIT;
 #endif
+
+static int kain_async_task_is_terminal(KainTaskState state);
 
 static void kain_async_attrition_update_peak(
     atomic_uint_least64_t* peak_counter,
@@ -199,6 +235,168 @@ static void kain_async_cond_wait(KainAsyncCondVar* cond, KainAsyncMutex* mutex) 
 #endif
 }
 
+static KainAsyncTaskRef kain_async_task_ref_invalid(void) {
+    KainAsyncTaskRef ref;
+    ref.slot = KAIN_ASYNC_REF_INVALID_SLOT;
+    ref.id = KAIN_TASK_ID_INVALID;
+    return ref;
+}
+
+static uint32_t kain_async_task_slot(const KainAsyncTaskRecord* task) {
+    return (uint32_t)(task - g_async_tasks);
+}
+
+static uint64_t kain_async_task_slot_bit(uint32_t slot) {
+    return UINT64_C(1) << (slot & 63u);
+}
+
+static int kain_async_task_ref_is_valid(KainAsyncTaskRef ref) {
+    return ref.slot != KAIN_ASYNC_REF_INVALID_SLOT && ref.id != KAIN_TASK_ID_INVALID;
+}
+
+static KainAsyncTaskRef kain_async_task_ref_from_task(const KainAsyncTaskRecord* task) {
+    KainAsyncTaskRef ref = kain_async_task_ref_invalid();
+    if (task != NULL) {
+        ref.slot = kain_async_task_slot(task);
+        ref.id = task->id;
+    }
+    return ref;
+}
+
+static KainAsyncTaskRecord* kain_async_task_from_ref_locked(KainAsyncTaskRef ref) {
+    if (!kain_async_task_ref_is_valid(ref) || ref.slot >= KAIN_ASYNC_MAX_TASKS) {
+        return NULL;
+    }
+    if (!g_async_tasks[ref.slot].in_use || g_async_tasks[ref.slot].id != ref.id) {
+        return NULL;
+    }
+    return &g_async_tasks[ref.slot];
+}
+
+static int kain_async_task_bitset_test(const uint64_t* bitset, uint32_t slot) {
+    return bitset != NULL &&
+           slot < KAIN_ASYNC_MAX_TASKS &&
+           (bitset[slot / KAIN_ASYNC_SLOT_WORD_BITS] & kain_async_task_slot_bit(slot)) != 0u;
+}
+
+static int kain_async_task_bitset_set(uint64_t* bitset, uint32_t slot) {
+    uint64_t* word;
+    uint64_t bit;
+    if (bitset == NULL || slot >= KAIN_ASYNC_MAX_TASKS) {
+        return 0;
+    }
+    word = &bitset[slot / KAIN_ASYNC_SLOT_WORD_BITS];
+    bit = kain_async_task_slot_bit(slot);
+    if ((*word & bit) != 0u) {
+        return 0;
+    }
+    *word |= bit;
+    return 1;
+}
+
+static int kain_async_task_bitset_clear(uint64_t* bitset, uint32_t slot) {
+    uint64_t* word;
+    uint64_t bit;
+    if (bitset == NULL || slot >= KAIN_ASYNC_MAX_TASKS) {
+        return 0;
+    }
+    word = &bitset[slot / KAIN_ASYNC_SLOT_WORD_BITS];
+    bit = kain_async_task_slot_bit(slot);
+    if ((*word & bit) == 0u) {
+        return 0;
+    }
+    *word &= ~bit;
+    return 1;
+}
+
+static void kain_async_task_sync_runtime_flags_locked(KainAsyncTaskRecord* task) {
+    if (task == NULL) {
+        return;
+    }
+    atomic_store_explicit(&task->runtime_state.child_wait_count, task->live_child_count, memory_order_release);
+    atomic_store_explicit(
+        &task->runtime_state.dependency_wait_count,
+        task->dependency_wait_count,
+        memory_order_release);
+    atomic_store_explicit(
+        &task->runtime_state.continuation_blocked,
+        task->continuation_blocked != 0,
+        memory_order_release);
+    atomic_store_explicit(
+        &task->runtime_state.completion_deferred,
+        task->completion_deferred != 0,
+        memory_order_release);
+}
+
+static int kain_async_task_is_blocked_locked(const KainAsyncTaskRecord* task) {
+    return task != NULL &&
+           (task->continuation_blocked ||
+            task->dependency_wait_active ||
+            task->child_wait_active ||
+            task->completion_deferred);
+}
+
+static void kain_async_task_mark_ready_locked(KainAsyncTaskRecord* task) {
+    if (task == NULL || kain_async_task_is_terminal(task->state)) {
+        return;
+    }
+    task->state = KAIN_TASK_STATE_READY;
+    atomic_store_explicit(&task->runtime_state.state_snapshot, KAIN_TASK_STATE_READY, memory_order_release);
+    kain_async_cond_signal(&task->cond);
+}
+
+static void kain_async_task_mark_pending_locked(KainAsyncTaskRecord* task) {
+    if (task == NULL || kain_async_task_is_terminal(task->state)) {
+        return;
+    }
+    task->state = KAIN_TASK_STATE_PENDING;
+    atomic_store_explicit(&task->runtime_state.state_snapshot, KAIN_TASK_STATE_PENDING, memory_order_release);
+}
+
+static void kain_async_batch_drain_entry(const KainBatchQueueEntry* entry, void* user_data);
+
+static int kain_async_schedule_task_run_locked(KainAsyncTaskRecord* task) {
+    KainBatchQueueEntry entry;
+    if (task == NULL || task->run_enqueued || kain_async_task_is_terminal(task->state)) {
+        return 0;
+    }
+    task->run_enqueued = 1;
+    entry.kind = KAIN_ASYNC_BATCH_OP_RUN_TASK;
+    entry.arg0 = (uint64_t)task->id;
+    entry.arg1 = 0u;
+    entry.ptr0 = NULL;
+    if (kain_batch_queue_enqueue(&g_async_batch_queue, &entry) != 0) {
+        task->run_enqueued = 0;
+        return -1;
+    }
+    return 0;
+}
+
+static int kain_async_schedule_task_completion_locked(KainAsyncTaskRecord* task) {
+    KainBatchQueueEntry entry;
+    if (task == NULL || task->completion_enqueued || task->completion_fired == 1) {
+        return 0;
+    }
+    task->completion_enqueued = 1;
+    entry.kind = KAIN_ASYNC_BATCH_OP_COMPLETE_TASK;
+    entry.arg0 = (uint64_t)task->id;
+    entry.arg1 = 0u;
+    entry.ptr0 = NULL;
+    if (kain_batch_queue_enqueue(&g_async_batch_queue, &entry) != 0) {
+        task->completion_enqueued = 0;
+        return -1;
+    }
+    return 0;
+}
+
+static void kain_async_batch_begin(void) {
+    kain_batch_queue_lock(&g_async_batch_queue);
+}
+
+static void kain_async_batch_end(void) {
+    kain_batch_queue_unlock_and_drain(&g_async_batch_queue, kain_async_batch_drain_entry, NULL);
+}
+
 static void kain_async_sleep_for_ms(unsigned long long delay_ms) {
     kain_attrition_sleep_for_millis(delay_ms);
 }
@@ -233,6 +431,12 @@ static void kain_async_runtime_init_impl(void) {
     memset(g_async_task_index, 0, sizeof(g_async_task_index));
     memset(g_async_timer_index, 0, sizeof(g_async_timer_index));
     kain_async_mutex_init(&g_async_global_lock);
+    kain_batch_queue_init(
+        &g_async_batch_queue,
+        g_async_batch_active_entries,
+        g_async_batch_pending_entries,
+        KAIN_ASYNC_BATCH_QUEUE_CAPACITY
+    );
     g_async_next_task_id = 1;
     g_async_next_timer_id = 1;
 }
@@ -467,11 +671,14 @@ static void kain_async_destroy_task_sync_primitives(KainAsyncTaskRecord* task) {
 static void kain_async_release_task_record_locked(KainAsyncTaskRecord* task) {
     uint32_t slot;
     uint64_t bit;
+    KainAsyncTaskRef released_ref;
+    uint32_t scan_slot;
     if (task == NULL || !task->in_use) {
         return;
     }
     slot = (uint32_t)(task - g_async_tasks);
     bit = UINT64_C(1) << (slot & 63u);
+    released_ref = kain_async_task_ref_from_task(task);
     if (task->sleep_state.timer_id != KAIN_TIMER_ID_INVALID) {
         KainAsyncTimerRecord* timer = kain_async_find_timer_locked(task->sleep_state.timer_id);
         if (timer != NULL && timer->wake_handle == &task->handle) {
@@ -485,6 +692,44 @@ static void kain_async_release_task_record_locked(KainAsyncTaskRecord* task) {
     if (task->result != NULL) {
         kain_task_result_cleanup(task->result);
         task->result = NULL;
+    }
+    for (scan_slot = 0u; scan_slot < KAIN_ASYNC_MAX_TASKS; ++scan_slot) {
+        KainAsyncTaskRecord* other = &g_async_tasks[scan_slot];
+        if (!other->in_use || other == task) {
+            continue;
+        }
+        kain_async_mutex_lock(&other->lock);
+        if (kain_async_task_ref_is_valid(other->parent_ref) &&
+            other->parent_ref.slot == released_ref.slot &&
+            other->parent_ref.id == released_ref.id) {
+            other->parent_ref = kain_async_task_ref_invalid();
+        }
+        if (kain_async_task_ref_is_valid(other->continuation_ref) &&
+            other->continuation_ref.slot == released_ref.slot &&
+            other->continuation_ref.id == released_ref.id) {
+            other->continuation_ref = kain_async_task_ref_invalid();
+            other->continuation_blocked = 0;
+        }
+        if (kain_async_task_bitset_clear(other->wait_dependency_bits, slot)) {
+            if (other->dependency_wait_count != 0u) {
+                other->dependency_wait_count -= 1u;
+            }
+            if (other->dependency_wait_count == 0u) {
+                other->dependency_wait_active = 0;
+            }
+        }
+        if (kain_async_task_bitset_clear(other->live_child_bits, slot) &&
+            other->live_child_count != 0u) {
+            other->live_child_count -= 1u;
+            if (other->child_wait_active &&
+                (other->live_child_count == 0u ||
+                 (other->child_wait_mode == KAIN_TASK_WAIT_MODE_ANY &&
+                  other->completed_child_count != 0u))) {
+                other->child_wait_active = 0;
+            }
+        }
+        kain_async_task_sync_runtime_flags_locked(other);
+        kain_async_mutex_unlock(&other->lock);
     }
     g_async_task_occupancy_words[slot / KAIN_ASYNC_SLOT_WORD_BITS] &= ~bit;
     kain_async_destroy_task_sync_primitives(task);
@@ -550,15 +795,23 @@ static KainAsyncTaskRecord* kain_async_allocate_task_record(void) {
         record->state = KAIN_TASK_STATE_READY;
         record->handle.id = record->id;
         record->handle.owner = record;
+        record->parent_ref = kain_async_task_ref_invalid();
+        record->continuation_ref = kain_async_task_ref_invalid();
+        record->dependency_wait_mode = KAIN_TASK_WAIT_MODE_ALL;
+        record->child_wait_mode = KAIN_TASK_WAIT_MODE_ALL;
         kain_async_mutex_init(&record->lock);
         kain_async_cond_init(&record->cond);
 
         atomic_init(&record->runtime_state.poll_count, 0);
         atomic_init(&record->runtime_state.wake_count, 0);
         atomic_init(&record->runtime_state.timer_count, 0);
+        atomic_init(&record->runtime_state.child_wait_count, 0);
+        atomic_init(&record->runtime_state.dependency_wait_count, 0);
         atomic_init(&record->runtime_state.wake_requested, 0);
         atomic_init(&record->runtime_state.timer_fired, 0);
         atomic_init(&record->runtime_state.cancelled, 0);
+        atomic_init(&record->runtime_state.continuation_blocked, 0);
+        atomic_init(&record->runtime_state.completion_deferred, 0);
         atomic_init(&record->runtime_state.state_snapshot, KAIN_TASK_STATE_READY);
         record->runtime_state.task_id = record->id;
 
@@ -680,10 +933,44 @@ static int kain_async_task_is_terminal(KainTaskState state) {
            state == KAIN_TASK_STATE_FAILED;
 }
 
+static void kain_async_complete_task_locked(
+    KainAsyncTaskRecord* task,
+    KainTaskState final_state,
+    void* produced_result,
+    void** result
+) {
+    if (task == NULL) {
+        return;
+    }
+    if (final_state == KAIN_TASK_STATE_CANCELLED || final_state == KAIN_TASK_STATE_FAILED) {
+        if (produced_result != NULL) {
+            kain_task_result_cleanup(produced_result);
+            produced_result = NULL;
+        }
+        if (task->result != NULL) {
+            kain_task_result_cleanup(task->result);
+            task->result = NULL;
+        }
+    } else {
+        task->result = produced_result;
+    }
+    task->completion_deferred = 0;
+    task->child_wait_active = 0;
+    task->dependency_wait_active = 0;
+    task->continuation_blocked = 0;
+    task->state = final_state;
+    kain_async_task_sync_runtime_flags_locked(task);
+    atomic_store_explicit(&task->runtime_state.state_snapshot, final_state, memory_order_release);
+    if (result != NULL) {
+        *result = final_state == KAIN_TASK_STATE_COMPLETED ? task->result : NULL;
+    }
+    kain_async_cond_signal(&task->cond);
+    (void)kain_async_schedule_task_completion_locked(task);
+}
+
 static KainPollResult kain_async_execute_task(KainAsyncTaskRecord* task, void** result, KainDiagnostic* diag) {
     KainPollResult poll_result;
     void* produced_result = NULL;
-    KainTaskState post_state = KAIN_TASK_STATE_FAILED;
     int wake_requested = 0;
 
     if (!task || !task->config.task_fn) {
@@ -698,21 +985,6 @@ static KainPollResult kain_async_execute_task(KainAsyncTaskRecord* task, void** 
     }
 
     kain_async_mutex_lock(&task->lock);
-    if (task->state == KAIN_TASK_STATE_CANCELLED) {
-        kain_async_mutex_unlock(&task->lock);
-        if (result) {
-            *result = NULL;
-        }
-        kain_async_set_diag(
-            diag,
-            KAIN_DIAG_SEVERITY_ERROR,
-            KAIN_DIAG_CODE_ASYNC_TASK_CANCELLED,
-            "Async task is cancelled",
-            "Polling a cancelled async task is not allowed."
-        );
-        return KAIN_POLL_ERROR;
-    }
-
     if (task->state == KAIN_TASK_STATE_COMPLETED) {
         if (result) {
             *result = task->result;
@@ -736,9 +1008,48 @@ static KainPollResult kain_async_execute_task(KainAsyncTaskRecord* task, void** 
         return KAIN_POLL_ERROR;
     }
 
+    if (task->state == KAIN_TASK_STATE_RUNNING) {
+        if (result) {
+            *result = NULL;
+        }
+        kain_async_mutex_unlock(&task->lock);
+        return KAIN_POLL_PENDING;
+    }
+
+    if ((task->cancel_requested ||
+         atomic_load_explicit(&task->runtime_state.cancelled, memory_order_acquire) != 0) &&
+        task->state != KAIN_TASK_STATE_RUNNING) {
+        kain_async_complete_task_locked(task, KAIN_TASK_STATE_CANCELLED, NULL, result);
+        kain_async_mutex_unlock(&task->lock);
+        kain_async_set_diag(
+            diag,
+            KAIN_DIAG_SEVERITY_ERROR,
+            KAIN_DIAG_CODE_ASYNC_TASK_CANCELLED,
+            "Async task cancelled",
+            "The task was cancelled before it could continue executing."
+        );
+        return KAIN_POLL_ERROR;
+    }
+
+    if (task->completion_deferred && !task->child_wait_active) {
+        kain_async_complete_task_locked(task, KAIN_TASK_STATE_COMPLETED, task->result, result);
+        kain_async_mutex_unlock(&task->lock);
+        return KAIN_POLL_READY;
+    }
+
+    if (task->continuation_blocked || task->dependency_wait_active || task->child_wait_active) {
+        if (result) {
+            *result = NULL;
+        }
+        kain_async_task_mark_pending_locked(task);
+        kain_async_mutex_unlock(&task->lock);
+        return KAIN_POLL_PENDING;
+    }
+
     task->state = KAIN_TASK_STATE_RUNNING;
     atomic_store_explicit(&task->runtime_state.state_snapshot, KAIN_TASK_STATE_RUNNING, memory_order_release);
     atomic_fetch_add_explicit(&task->runtime_state.poll_count, 1, memory_order_relaxed);
+    atomic_store_explicit(&task->runtime_state.wake_requested, 0, memory_order_release);
     g_async_current_task_id = task->id;
     kain_async_mutex_unlock(&task->lock);
 
@@ -748,17 +1059,8 @@ static KainPollResult kain_async_execute_task(KainAsyncTaskRecord* task, void** 
     kain_async_mutex_lock(&task->lock);
 
     if (task->cancel_requested || atomic_load_explicit(&task->runtime_state.cancelled, memory_order_acquire) != 0) {
-        task->state = KAIN_TASK_STATE_CANCELLED;
-        atomic_store_explicit(&task->runtime_state.state_snapshot, KAIN_TASK_STATE_CANCELLED, memory_order_release);
         atomic_store_explicit(&task->runtime_state.cancelled, 1, memory_order_release);
-        if (produced_result != NULL) {
-            kain_task_result_cleanup(produced_result);
-            produced_result = NULL;
-        }
-        if (result) {
-            *result = NULL;
-        }
-        kain_async_cond_signal(&task->cond);
+        kain_async_complete_task_locked(task, KAIN_TASK_STATE_CANCELLED, produced_result, result);
         kain_async_mutex_unlock(&task->lock);
         kain_async_set_diag(
             diag,
@@ -771,38 +1073,38 @@ static KainPollResult kain_async_execute_task(KainAsyncTaskRecord* task, void** 
     }
 
     if (poll_result == KAIN_POLL_READY) {
-        task->result = produced_result;
-        task->state = KAIN_TASK_STATE_COMPLETED;
-        atomic_store_explicit(&task->runtime_state.state_snapshot, KAIN_TASK_STATE_COMPLETED, memory_order_release);
-        if (result) {
-            *result = produced_result;
+        if (task->child_wait_active) {
+            task->result = produced_result;
+            task->completion_deferred = 1;
+            kain_async_task_sync_runtime_flags_locked(task);
+            if (result) {
+                *result = NULL;
+            }
+            kain_async_task_mark_pending_locked(task);
+            kain_async_mutex_unlock(&task->lock);
+            return KAIN_POLL_PENDING;
         }
-        kain_async_cond_signal(&task->cond);
+        kain_async_complete_task_locked(task, KAIN_TASK_STATE_COMPLETED, produced_result, result);
         kain_async_mutex_unlock(&task->lock);
         return KAIN_POLL_READY;
     }
 
     if (poll_result == KAIN_POLL_PENDING) {
         wake_requested = atomic_load_explicit(&task->runtime_state.wake_requested, memory_order_acquire) != 0;
-        post_state = wake_requested ? KAIN_TASK_STATE_READY : KAIN_TASK_STATE_PENDING;
-        task->state = post_state;
-        atomic_store_explicit(&task->runtime_state.state_snapshot, post_state, memory_order_release);
+        if (wake_requested && !kain_async_task_is_blocked_locked(task)) {
+            kain_async_task_mark_ready_locked(task);
+        } else {
+            kain_async_task_mark_pending_locked(task);
+        }
+        kain_async_task_sync_runtime_flags_locked(task);
         if (result) {
             *result = NULL;
-        }
-        if (wake_requested) {
-            kain_async_cond_signal(&task->cond);
         }
         kain_async_mutex_unlock(&task->lock);
         return KAIN_POLL_PENDING;
     }
 
-    task->state = KAIN_TASK_STATE_FAILED;
-    atomic_store_explicit(&task->runtime_state.state_snapshot, KAIN_TASK_STATE_FAILED, memory_order_release);
-    if (result) {
-        *result = NULL;
-    }
-    kain_async_cond_signal(&task->cond);
+    kain_async_complete_task_locked(task, KAIN_TASK_STATE_FAILED, produced_result, result);
     kain_async_mutex_unlock(&task->lock);
     kain_async_set_diag(
         diag,
@@ -856,8 +1158,8 @@ static int kain_async_task_signal_handle(void* wake_handle, KainDiagnostic* diag
     atomic_fetch_add_explicit(&task->runtime_state.wake_count, 1, memory_order_relaxed);
     atomic_store_explicit(&task->runtime_state.wake_requested, 1, memory_order_release);
     if (task->state != KAIN_TASK_STATE_RUNNING) {
-        task->state = KAIN_TASK_STATE_READY;
-        atomic_store_explicit(&task->runtime_state.state_snapshot, KAIN_TASK_STATE_READY, memory_order_release);
+        kain_async_task_mark_ready_locked(task);
+        (void)kain_async_schedule_task_run_locked(task);
     }
     kain_async_cond_signal(&task->cond);
     kain_async_mutex_unlock(&task->lock);
@@ -912,12 +1214,494 @@ static void* kain_async_timer_thread_proc(void* parameter) {
 #endif
 }
 
+static void kain_async_destroy_new_task_record(KainAsyncTaskRecord* task) {
+    KainTaskId task_id;
+    if (task == NULL || !task->in_use) {
+        return;
+    }
+    task_id = task->id;
+    kain_async_mutex_lock(&g_async_global_lock);
+    if (task->in_use && task->id == task_id) {
+        kain_async_release_task_record_locked(task);
+    }
+    kain_async_mutex_unlock(&g_async_global_lock);
+    atomic_fetch_sub_explicit(&g_attrition_async_task_live_count, 1u, memory_order_relaxed);
+    atomic_fetch_add_explicit(&g_attrition_async_task_exit_count, 1u, memory_order_relaxed);
+    kain_attrition_note_async_task_exit((uint64_t)task_id);
+}
+
+static void kain_async_handle_task_completion(KainTaskId task_id) {
+    KainAsyncTaskRecord* task = NULL;
+    KainTaskCompletionCallback completion_callback = NULL;
+    void* completion_user_data = NULL;
+    void* completion_result = NULL;
+    KainTaskState final_state = KAIN_TASK_STATE_FAILED;
+    KainAsyncTaskRef completed_ref = kain_async_task_ref_invalid();
+    uint32_t completed_slot = KAIN_ASYNC_REF_INVALID_SLOT;
+    uint32_t slot;
+
+    kain_async_mutex_lock(&g_async_global_lock);
+    task = kain_async_find_task_locked(task_id);
+    if (task == NULL) {
+        kain_async_mutex_unlock(&g_async_global_lock);
+        return;
+    }
+    kain_async_mutex_lock(&task->lock);
+    if (!kain_async_task_is_terminal(task->state) || task->completion_fired) {
+        task->completion_enqueued = 0;
+        kain_async_mutex_unlock(&task->lock);
+        kain_async_mutex_unlock(&g_async_global_lock);
+        return;
+    }
+    task->completion_fired = 1;
+    task->completion_enqueued = 0;
+    completion_callback = task->completion_callback;
+    completion_user_data = task->completion_user_data;
+    completion_result = task->result;
+    final_state = task->state;
+    completed_ref = kain_async_task_ref_from_task(task);
+    completed_slot = kain_async_task_slot(task);
+    kain_async_mutex_unlock(&task->lock);
+    for (slot = 0u; slot < KAIN_ASYNC_MAX_TASKS; ++slot) {
+        KainAsyncTaskRecord* other = &g_async_tasks[slot];
+        int touched = 0;
+        if (!other->in_use || other == task) {
+            continue;
+        }
+        kain_async_mutex_lock(&other->lock);
+
+        if (kain_async_task_bitset_clear(other->live_child_bits, completed_slot)) {
+            if (other->live_child_count != 0u) {
+                other->live_child_count -= 1u;
+            }
+            other->completed_child_count += 1u;
+            if (other->child_wait_active &&
+                (other->child_wait_mode == KAIN_TASK_WAIT_MODE_ANY ||
+                 other->live_child_count == 0u)) {
+                other->child_wait_active = 0;
+            }
+            touched = 1;
+        }
+
+        if (kain_async_task_ref_is_valid(other->continuation_ref) &&
+            other->continuation_ref.slot == completed_ref.slot &&
+            other->continuation_ref.id == completed_ref.id) {
+            other->continuation_ref = kain_async_task_ref_invalid();
+            other->continuation_blocked = 0;
+            touched = 1;
+        }
+
+        if (other->dependency_wait_active &&
+            kain_async_task_bitset_test(other->wait_dependency_bits, completed_slot)) {
+            if (other->dependency_wait_mode == KAIN_TASK_WAIT_MODE_ANY) {
+                memset(other->wait_dependency_bits, 0, sizeof(other->wait_dependency_bits));
+                other->dependency_wait_count = 0u;
+                other->dependency_wait_active = 0;
+            } else {
+                if (kain_async_task_bitset_clear(other->wait_dependency_bits, completed_slot) &&
+                    other->dependency_wait_count != 0u) {
+                    other->dependency_wait_count -= 1u;
+                }
+                if (other->dependency_wait_count == 0u) {
+                    other->dependency_wait_active = 0;
+                }
+            }
+            touched = 1;
+        }
+
+        if (touched) {
+            kain_async_task_sync_runtime_flags_locked(other);
+            if (other->completion_deferred && !other->child_wait_active) {
+                kain_async_complete_task_locked(other, KAIN_TASK_STATE_COMPLETED, other->result, NULL);
+            } else if (!kain_async_task_is_terminal(other->state) &&
+                       other->state != KAIN_TASK_STATE_RUNNING &&
+                       (other->cancel_requested || !kain_async_task_is_blocked_locked(other))) {
+                kain_async_task_mark_ready_locked(other);
+                (void)kain_async_schedule_task_run_locked(other);
+            }
+        }
+        kain_async_mutex_unlock(&other->lock);
+    }
+    kain_async_mutex_unlock(&g_async_global_lock);
+
+    if (completion_callback != NULL) {
+        completion_callback(task_id, final_state, completion_result, completion_user_data);
+    }
+}
+
+static void kain_async_batch_drain_entry(const KainBatchQueueEntry* entry, void* user_data) {
+    (void)user_data;
+    if (entry == NULL) {
+        return;
+    }
+
+    if (entry->kind == KAIN_ASYNC_BATCH_OP_RUN_TASK) {
+        KainAsyncTaskRecord* task = kain_async_find_task((KainTaskId)entry->arg0);
+        if (task == NULL) {
+            return;
+        }
+        kain_async_mutex_lock(&task->lock);
+        task->run_enqueued = 0;
+        kain_async_mutex_unlock(&task->lock);
+        (void)kain_async_execute_task(task, NULL, NULL);
+    } else if (entry->kind == KAIN_ASYNC_BATCH_OP_COMPLETE_TASK) {
+        kain_async_handle_task_completion((KainTaskId)entry->arg0);
+    }
+}
+
 void kain_task_spawn_config_init(KainTaskSpawnConfig* config) {
     if (!config) {
         return;
     }
 
     memset(config, 0, sizeof(*config));
+    config->child_wait_mode = KAIN_TASK_WAIT_MODE_ALL;
+}
+
+int kain_task_batch_lock(KainDiagnostic* diag) {
+    (void)diag;
+    kain_async_ensure_initialized();
+    kain_async_batch_begin();
+    return 0;
+}
+
+int kain_task_batch_unlock(KainDiagnostic* diag) {
+    (void)diag;
+    kain_async_ensure_initialized();
+    kain_async_batch_end();
+    return 0;
+}
+
+int kain_task_set_completion_callback(
+    KainTaskId task_id,
+    KainTaskCompletionCallback completion_callback,
+    void* completion_user_data,
+    KainDiagnostic* diag
+) {
+    KainAsyncTaskRecord* task = kain_async_find_task(task_id);
+    if (task == NULL) {
+        kain_async_set_diag(
+            diag,
+            KAIN_DIAG_SEVERITY_ERROR,
+            KAIN_DIAG_CODE_ASYNC_TASK_SPAWN_FAILED,
+            "Async task callback registration failed",
+            "The requested task id does not exist."
+        );
+        return -1;
+    }
+
+    kain_async_mutex_lock(&task->lock);
+    task->completion_callback = completion_callback;
+    task->completion_user_data = completion_user_data;
+    kain_async_mutex_unlock(&task->lock);
+    return 0;
+}
+
+int kain_task_add_child(
+    KainTaskId parent_task_id,
+    KainTaskId child_task_id,
+    KainTaskWaitMode wait_mode,
+    KainDiagnostic* diag
+) {
+    KainAsyncTaskRecord* parent = NULL;
+    KainAsyncTaskRecord* child = NULL;
+    int status = -1;
+
+    if (parent_task_id == KAIN_TASK_ID_INVALID ||
+        child_task_id == KAIN_TASK_ID_INVALID ||
+        parent_task_id == child_task_id) {
+        kain_async_set_diag(
+            diag,
+            KAIN_DIAG_SEVERITY_ERROR,
+            KAIN_DIAG_CODE_ASYNC_TASK_SPAWN_FAILED,
+            "Async child link failed",
+            "Parent and child ids must both be live and distinct."
+        );
+        return -1;
+    }
+
+    kain_async_ensure_initialized();
+    kain_async_batch_begin();
+    kain_async_mutex_lock(&g_async_global_lock);
+    parent = kain_async_find_task_locked(parent_task_id);
+    child = kain_async_find_task_locked(child_task_id);
+    if (parent == NULL || child == NULL) {
+        kain_async_set_diag(
+            diag,
+            KAIN_DIAG_SEVERITY_ERROR,
+            KAIN_DIAG_CODE_ASYNC_TASK_SPAWN_FAILED,
+            "Async child link failed",
+            "The parent or child task no longer exists."
+        );
+        goto finish;
+    }
+
+    if (parent < child) {
+        kain_async_mutex_lock(&parent->lock);
+        kain_async_mutex_lock(&child->lock);
+    } else {
+        kain_async_mutex_lock(&child->lock);
+        kain_async_mutex_lock(&parent->lock);
+    }
+
+    if (kain_async_task_is_terminal(parent->state)) {
+        kain_async_set_diag(
+            diag,
+            KAIN_DIAG_SEVERITY_ERROR,
+            KAIN_DIAG_CODE_ASYNC_TASK_SPAWN_FAILED,
+            "Async child link failed",
+            "Cannot attach a child to a terminal parent task."
+        );
+        goto finish_with_locks;
+    }
+
+    if (kain_async_task_ref_is_valid(child->parent_ref) &&
+        (child->parent_ref.id != parent->id ||
+         child->parent_ref.slot != kain_async_task_slot(parent))) {
+        kain_async_set_diag(
+            diag,
+            KAIN_DIAG_SEVERITY_ERROR,
+            KAIN_DIAG_CODE_ASYNC_TASK_SPAWN_FAILED,
+            "Async child link failed",
+            "The child is already attached to a different parent."
+        );
+        goto finish_with_locks;
+    }
+
+    child->parent_ref = kain_async_task_ref_from_task(parent);
+    parent->child_wait_mode = wait_mode;
+    if (!kain_async_task_is_terminal(child->state)) {
+        if (kain_async_task_bitset_set(parent->live_child_bits, kain_async_task_slot(child))) {
+            parent->live_child_count += 1u;
+        }
+        parent->child_wait_active =
+            wait_mode == KAIN_TASK_WAIT_MODE_ANY
+                ? (parent->completed_child_count == 0u && parent->live_child_count != 0u)
+                : (parent->live_child_count != 0u);
+        if (parent->child_wait_active && parent->state != KAIN_TASK_STATE_RUNNING) {
+            kain_async_task_mark_pending_locked(parent);
+        }
+    } else {
+        parent->completed_child_count += 1u;
+        if (wait_mode == KAIN_TASK_WAIT_MODE_ANY) {
+            parent->child_wait_active = 0;
+        }
+    }
+    kain_async_task_sync_runtime_flags_locked(parent);
+    status = 0;
+
+finish_with_locks:
+    if (parent < child) {
+        kain_async_mutex_unlock(&child->lock);
+        kain_async_mutex_unlock(&parent->lock);
+    } else {
+        kain_async_mutex_unlock(&parent->lock);
+        kain_async_mutex_unlock(&child->lock);
+    }
+
+finish:
+    kain_async_mutex_unlock(&g_async_global_lock);
+    kain_async_batch_end();
+    return status;
+}
+
+int kain_task_add_continuation(
+    KainTaskId antecedent_task_id,
+    KainTaskId continuation_task_id,
+    KainDiagnostic* diag
+) {
+    KainAsyncTaskRecord* antecedent = NULL;
+    KainAsyncTaskRecord* continuation = NULL;
+    KainTaskId inherited_parent_id = KAIN_TASK_ID_INVALID;
+    int antecedent_terminal = 0;
+    int status = -1;
+
+    if (antecedent_task_id == KAIN_TASK_ID_INVALID ||
+        continuation_task_id == KAIN_TASK_ID_INVALID ||
+        antecedent_task_id == continuation_task_id) {
+        kain_async_set_diag(
+            diag,
+            KAIN_DIAG_SEVERITY_ERROR,
+            KAIN_DIAG_CODE_ASYNC_TASK_SPAWN_FAILED,
+            "Async continuation link failed",
+            "Antecedent and continuation ids must both be live and distinct."
+        );
+        return -1;
+    }
+
+    kain_async_ensure_initialized();
+    kain_async_batch_begin();
+    kain_async_mutex_lock(&g_async_global_lock);
+    antecedent = kain_async_find_task_locked(antecedent_task_id);
+    continuation = kain_async_find_task_locked(continuation_task_id);
+    if (antecedent == NULL || continuation == NULL) {
+        kain_async_set_diag(
+            diag,
+            KAIN_DIAG_SEVERITY_ERROR,
+            KAIN_DIAG_CODE_ASYNC_TASK_SPAWN_FAILED,
+            "Async continuation link failed",
+            "The antecedent or continuation task no longer exists."
+        );
+        goto finish_continuation;
+    }
+
+    if (antecedent < continuation) {
+        kain_async_mutex_lock(&antecedent->lock);
+        kain_async_mutex_lock(&continuation->lock);
+    } else {
+        kain_async_mutex_lock(&continuation->lock);
+        kain_async_mutex_lock(&antecedent->lock);
+    }
+
+    if (kain_async_task_ref_is_valid(continuation->continuation_ref) &&
+        (continuation->continuation_ref.id != antecedent->id ||
+         continuation->continuation_ref.slot != kain_async_task_slot(antecedent))) {
+        kain_async_set_diag(
+            diag,
+            KAIN_DIAG_SEVERITY_ERROR,
+            KAIN_DIAG_CODE_ASYNC_TASK_SPAWN_FAILED,
+            "Async continuation link failed",
+            "The continuation is already chained to a different antecedent."
+        );
+        goto finish_continuation_with_locks;
+    }
+
+    continuation->continuation_ref = kain_async_task_ref_from_task(antecedent);
+    antecedent_terminal = kain_async_task_is_terminal(antecedent->state);
+    continuation->continuation_blocked = antecedent_terminal ? 0 : 1;
+    if (continuation->continuation_blocked) {
+        kain_async_task_mark_pending_locked(continuation);
+    } else if (!kain_async_task_is_terminal(continuation->state) &&
+               continuation->state != KAIN_TASK_STATE_RUNNING &&
+               !kain_async_task_is_blocked_locked(continuation)) {
+        kain_async_task_mark_ready_locked(continuation);
+        (void)kain_async_schedule_task_run_locked(continuation);
+    }
+    kain_async_task_sync_runtime_flags_locked(continuation);
+    if (!kain_async_task_ref_is_valid(continuation->parent_ref) &&
+        kain_async_task_ref_is_valid(antecedent->parent_ref)) {
+        inherited_parent_id = antecedent->parent_ref.id;
+    }
+    status = 0;
+
+finish_continuation_with_locks:
+    if (antecedent < continuation) {
+        kain_async_mutex_unlock(&continuation->lock);
+        kain_async_mutex_unlock(&antecedent->lock);
+    } else {
+        kain_async_mutex_unlock(&antecedent->lock);
+        kain_async_mutex_unlock(&continuation->lock);
+    }
+
+finish_continuation:
+    kain_async_mutex_unlock(&g_async_global_lock);
+    if (status == 0 && inherited_parent_id != KAIN_TASK_ID_INVALID) {
+        status = kain_task_add_child(
+            inherited_parent_id,
+            continuation_task_id,
+            KAIN_TASK_WAIT_MODE_ALL,
+            diag
+        );
+    }
+    kain_async_batch_end();
+    return status;
+}
+
+int kain_task_add_wait_dependencies(
+    KainTaskId waiter_task_id,
+    const KainTaskId* dependency_task_ids,
+    size_t dependency_task_count,
+    KainTaskWaitMode wait_mode,
+    KainDiagnostic* diag
+) {
+    KainAsyncTaskRecord* waiter = NULL;
+    int status = -1;
+    int any_terminal = 0;
+    size_t index;
+
+    if (waiter_task_id == KAIN_TASK_ID_INVALID ||
+        dependency_task_ids == NULL ||
+        dependency_task_count == 0u) {
+        kain_async_set_diag(
+            diag,
+            KAIN_DIAG_SEVERITY_ERROR,
+            KAIN_DIAG_CODE_ASYNC_TASK_SPAWN_FAILED,
+            "Async dependency link failed",
+            "A waiter and at least one dependency task id are required."
+        );
+        return -1;
+    }
+
+    kain_async_ensure_initialized();
+    kain_async_batch_begin();
+    kain_async_mutex_lock(&g_async_global_lock);
+    waiter = kain_async_find_task_locked(waiter_task_id);
+    if (waiter == NULL) {
+        kain_async_set_diag(
+            diag,
+            KAIN_DIAG_SEVERITY_ERROR,
+            KAIN_DIAG_CODE_ASYNC_TASK_SPAWN_FAILED,
+            "Async dependency link failed",
+            "The waiter task no longer exists."
+        );
+        goto finish_wait;
+    }
+
+    kain_async_mutex_lock(&waiter->lock);
+    memset(waiter->wait_dependency_bits, 0, sizeof(waiter->wait_dependency_bits));
+    waiter->dependency_wait_mode = wait_mode;
+    waiter->dependency_wait_count = 0u;
+    waiter->dependency_wait_active = 0;
+
+    for (index = 0u; index < dependency_task_count; ++index) {
+        KainAsyncTaskRecord* dependency;
+        int dependency_terminal = 0;
+        if (dependency_task_ids[index] == KAIN_TASK_ID_INVALID ||
+            dependency_task_ids[index] == waiter_task_id) {
+            continue;
+        }
+        dependency = kain_async_find_task_locked(dependency_task_ids[index]);
+        if (dependency == NULL) {
+            continue;
+        }
+        kain_async_mutex_lock(&dependency->lock);
+        dependency_terminal = kain_async_task_is_terminal(dependency->state);
+        kain_async_mutex_unlock(&dependency->lock);
+        if (dependency_terminal) {
+            any_terminal = 1;
+            if (wait_mode == KAIN_TASK_WAIT_MODE_ANY) {
+                break;
+            }
+            continue;
+        }
+        if (kain_async_task_bitset_set(waiter->wait_dependency_bits, kain_async_task_slot(dependency))) {
+            waiter->dependency_wait_count += 1u;
+        }
+    }
+
+    if (wait_mode == KAIN_TASK_WAIT_MODE_ANY && any_terminal) {
+        memset(waiter->wait_dependency_bits, 0, sizeof(waiter->wait_dependency_bits));
+        waiter->dependency_wait_count = 0u;
+        waiter->dependency_wait_active = 0;
+    } else {
+        waiter->dependency_wait_active = waiter->dependency_wait_count != 0u;
+    }
+    if (waiter->dependency_wait_active) {
+        kain_async_task_mark_pending_locked(waiter);
+    } else if (!kain_async_task_is_terminal(waiter->state) &&
+               waiter->state != KAIN_TASK_STATE_RUNNING &&
+               !kain_async_task_is_blocked_locked(waiter)) {
+        kain_async_task_mark_ready_locked(waiter);
+        (void)kain_async_schedule_task_run_locked(waiter);
+    }
+    kain_async_task_sync_runtime_flags_locked(waiter);
+    kain_async_mutex_unlock(&waiter->lock);
+    status = 0;
+
+finish_wait:
+    kain_async_mutex_unlock(&g_async_global_lock);
+    kain_async_batch_end();
+    return status;
 }
 
 KainTaskId kain_task_spawn(
@@ -925,6 +1709,7 @@ KainTaskId kain_task_spawn(
     KainDiagnostic* diag
 ) {
     KainAsyncTaskRecord* task;
+    KainTaskId task_id;
 
     kain_async_ensure_initialized();
     if (!config || !config->task_fn) {
@@ -950,12 +1735,40 @@ KainTaskId kain_task_spawn(
         return KAIN_TASK_ID_INVALID;
     }
 
+    kain_async_mutex_lock(&task->lock);
     task->config = *config;
     task->state = KAIN_TASK_STATE_READY;
     task->cancel_requested = 0;
     task->result = NULL;
+    task->dependency_wait_mode = KAIN_TASK_WAIT_MODE_ALL;
+    task->child_wait_mode = config->child_wait_mode;
+    task->completion_callback = config->completion_callback;
+    task->completion_user_data = config->completion_user_data;
+    kain_async_task_sync_runtime_flags_locked(task);
     atomic_store_explicit(&task->runtime_state.state_snapshot, KAIN_TASK_STATE_READY, memory_order_release);
-    return task->id;
+    task_id = task->id;
+    kain_async_mutex_unlock(&task->lock);
+
+    kain_async_batch_begin();
+    if (config->parent_task_id != KAIN_TASK_ID_INVALID &&
+        kain_task_add_child(config->parent_task_id, task_id, config->child_wait_mode, diag) != 0) {
+        kain_async_batch_end();
+        kain_async_destroy_new_task_record(task);
+        return KAIN_TASK_ID_INVALID;
+    }
+    if (config->continuation_of_task_id != KAIN_TASK_ID_INVALID &&
+        kain_task_add_continuation(config->continuation_of_task_id, task_id, diag) != 0) {
+        kain_async_batch_end();
+        kain_async_destroy_new_task_record(task);
+        return KAIN_TASK_ID_INVALID;
+    }
+    kain_async_mutex_lock(&task->lock);
+    if (!kain_async_task_is_blocked_locked(task) && !kain_async_task_is_terminal(task->state)) {
+        (void)kain_async_schedule_task_run_locked(task);
+    }
+    kain_async_mutex_unlock(&task->lock);
+    kain_async_batch_end();
+    return task_id;
 }
 
 KainPollResult kain_task_poll(
@@ -1064,10 +1877,10 @@ int kain_task_cancel(
     KainTaskId task_id,
     KainDiagnostic* diag
 ) {
-    KainAsyncTaskRecord* task = kain_async_find_task(task_id);
-    KainTimerId timer_id_to_cancel = KAIN_TIMER_ID_INVALID;
+    KainAsyncTaskRecord* task = NULL;
+    int changed = 0;
 
-    if (!task) {
+    if (task_id == KAIN_TASK_ID_INVALID) {
         atomic_fetch_add_explicit(&g_attrition_async_task_stale_reject_count, 1u, memory_order_relaxed);
         kain_attrition_note_async_task_stale_reject((uint64_t)task_id);
         kain_async_set_diag(
@@ -1080,35 +1893,87 @@ int kain_task_cancel(
         return -1;
     }
 
-    kain_async_mutex_lock(&task->lock);
-    if (kain_async_task_is_terminal(task->state)) {
-        kain_async_mutex_unlock(&task->lock);
-        return 0;
-    }
-    task->cancel_requested = 1;
-    if (task->sleep_state.timer_id != KAIN_TIMER_ID_INVALID) {
-        timer_id_to_cancel = task->sleep_state.timer_id;
-        task->sleep_state.timer_id = KAIN_TIMER_ID_INVALID;
-        task->sleep_state.armed = 0;
-    }
-    task->state = KAIN_TASK_STATE_CANCELLED;
-    atomic_store_explicit(&task->runtime_state.cancelled, 1, memory_order_release);
-    atomic_store_explicit(&task->runtime_state.state_snapshot, KAIN_TASK_STATE_CANCELLED, memory_order_release);
-    kain_async_cond_signal(&task->cond);
-    kain_async_mutex_unlock(&task->lock);
-
-    if (timer_id_to_cancel != KAIN_TIMER_ID_INVALID) {
-        kain_async_mutex_lock(&g_async_global_lock);
-        {
-            KainAsyncTimerRecord* timer = kain_async_find_timer_locked(timer_id_to_cancel);
-            if (timer != NULL && timer->id == timer_id_to_cancel) {
-                atomic_store_explicit(&timer->cancelled, 1, memory_order_release);
-                atomic_fetch_add_explicit(&g_attrition_async_timer_cancel_count, 1u, memory_order_relaxed);
-                kain_attrition_note_async_timer_cancel((uint64_t)timer_id_to_cancel);
-            }
-        }
+    kain_async_ensure_initialized();
+    kain_async_batch_begin();
+    kain_async_mutex_lock(&g_async_global_lock);
+    task = kain_async_find_task_locked(task_id);
+    if (task == NULL) {
         kain_async_mutex_unlock(&g_async_global_lock);
+        kain_async_batch_end();
+        atomic_fetch_add_explicit(&g_attrition_async_task_stale_reject_count, 1u, memory_order_relaxed);
+        kain_attrition_note_async_task_stale_reject((uint64_t)task_id);
+        kain_async_set_diag(
+            diag,
+            KAIN_DIAG_SEVERITY_ERROR,
+            KAIN_DIAG_CODE_ASYNC_TASK_CANCELLED,
+            "Async task not found",
+            "The requested task id does not exist."
+        );
+        return -1;
     }
+
+    do {
+        uint32_t slot;
+        changed = 0;
+        for (slot = 0u; slot < KAIN_ASYNC_MAX_TASKS; ++slot) {
+            KainAsyncTaskRecord* other = &g_async_tasks[slot];
+            KainAsyncTaskRecord* parent = NULL;
+            KainAsyncTaskRecord* antecedent = NULL;
+            int should_cancel = 0;
+            if (!other->in_use) {
+                continue;
+            }
+
+            kain_async_mutex_lock(&other->lock);
+            if (slot == kain_async_task_slot(task)) {
+                should_cancel = 1;
+            } else if (!other->cancel_requested) {
+                parent = kain_async_task_from_ref_locked(other->parent_ref);
+                antecedent = kain_async_task_from_ref_locked(other->continuation_ref);
+                should_cancel =
+                    (parent != NULL &&
+                     atomic_load_explicit(&parent->runtime_state.cancelled, memory_order_acquire) != 0) ||
+                    (antecedent != NULL &&
+                     atomic_load_explicit(&antecedent->runtime_state.cancelled, memory_order_acquire) != 0);
+            }
+
+            if (should_cancel && !other->cancel_requested && !kain_async_task_is_terminal(other->state)) {
+                KainTimerId timer_id_to_cancel = KAIN_TIMER_ID_INVALID;
+                other->cancel_requested = 1;
+                atomic_store_explicit(&other->runtime_state.cancelled, 1, memory_order_release);
+                if (other->sleep_state.timer_id != KAIN_TIMER_ID_INVALID) {
+                    timer_id_to_cancel = other->sleep_state.timer_id;
+                    other->sleep_state.timer_id = KAIN_TIMER_ID_INVALID;
+                    other->sleep_state.armed = 0;
+                }
+                if (timer_id_to_cancel != KAIN_TIMER_ID_INVALID) {
+                    KainAsyncTimerRecord* timer = kain_async_find_timer_locked(timer_id_to_cancel);
+                    if (timer != NULL && timer->id == timer_id_to_cancel) {
+                        atomic_store_explicit(&timer->cancelled, 1, memory_order_release);
+                        atomic_fetch_add_explicit(&g_attrition_async_timer_cancel_count, 1u, memory_order_relaxed);
+                        kain_attrition_note_async_timer_cancel((uint64_t)timer_id_to_cancel);
+                    }
+                }
+                kain_async_task_sync_runtime_flags_locked(other);
+                if (other->state != KAIN_TASK_STATE_RUNNING) {
+                    kain_async_task_mark_ready_locked(other);
+                    (void)kain_async_schedule_task_run_locked(other);
+                }
+                changed = 1;
+            } else if (slot == kain_async_task_slot(task) && !kain_async_task_is_terminal(other->state)) {
+                other->cancel_requested = 1;
+                atomic_store_explicit(&other->runtime_state.cancelled, 1, memory_order_release);
+                kain_async_task_sync_runtime_flags_locked(other);
+                if (other->state != KAIN_TASK_STATE_RUNNING) {
+                    kain_async_task_mark_ready_locked(other);
+                    (void)kain_async_schedule_task_run_locked(other);
+                }
+            }
+            kain_async_mutex_unlock(&other->lock);
+        }
+    } while (changed != 0);
+    kain_async_mutex_unlock(&g_async_global_lock);
+    kain_async_batch_end();
 
     kain_async_set_diag(
         diag,

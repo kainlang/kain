@@ -1,0 +1,35 @@
+version: 1
+id: kain.native.core.proofs.native_python_region_call_telemetry_partition
+kind: check_smt2
+description: Region call telemetry stays partitioned so every recorded region call lands in exactly one bucket: generic or fast.
+tags:
+- native-runtime
+- python
+- interop
+- region
+- telemetry
+- accounting
+source:
+  path: X:\runtime\native\src\core\python_runtime_region.c
+  symbol: py_region_call_raw_f64_trunc_i64
+  reason: Charlie's fast-call lane and the generic region wrappers both update shared counters that benchmarks use to explain the hot path.
+case:
+  smt2: |
+    (set-logic QF_LIA)
+    (declare-const call_count Int)
+    (declare-const generic_call_count Int)
+    (declare-const fast_call_count Int)
+    (declare-const took_fast Bool)
+    (assert (>= call_count 0))
+    (assert (>= generic_call_count 0))
+    (assert (>= fast_call_count 0))
+    (assert (= call_count (+ generic_call_count fast_call_count)))
+    (define-fun call_count_next () Int (+ call_count 1))
+    (define-fun generic_next () Int (ite took_fast generic_call_count (+ generic_call_count 1)))
+    (define-fun fast_next () Int (ite took_fast (+ fast_call_count 1) fast_call_count))
+    ; After one region call attempt, the aggregate counter must still equal
+    ; the sum of the generic and fast buckets regardless of which lane fired.
+    (assert (not (= call_count_next (+ generic_next fast_next))))
+    (check-sat)
+  include_model: false
+  include_stats: false

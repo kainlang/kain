@@ -249,6 +249,78 @@ static PyObject* kain_py_region_cached_attr(
     return value;
 }
 
+static long long kain_py_region_call_f64_trunc_i64_active(
+    KainPythonRegionHandle* region,
+    long long target,
+    const char* attr_name,
+    double arg
+) {
+    PyObject* callable;
+    PyObject* positional = NULL;
+    PyObject* arg_obj = NULL;
+    PyObject* result = NULL;
+    PyObject* coerced = NULL;
+    long long value = 0;
+    if (!region || !region->active) {
+        return 0;
+    }
+    region->call_count += 1u;
+    region->fast_call_count += 1u;
+    callable = kain_py_resolve_target(target);
+    if (!callable) {
+        return 0;
+    }
+    if (attr_name && attr_name[0]) {
+        PyObject* attr_target = kain_py_region_cached_attr(region, callable, attr_name);
+        g_kain_python_api.Py_DecRef(callable);
+        callable = attr_target;
+        if (!callable) {
+            kain_py_clear_error();
+            return 0;
+        }
+    }
+    positional = g_kain_python_api.PyTuple_New(1);
+    if (!positional) {
+        g_kain_python_api.Py_DecRef(callable);
+        kain_py_clear_error();
+        return 0;
+    }
+    arg_obj = g_kain_python_api.PyFloat_FromDouble(arg);
+    if (!arg_obj) {
+        g_kain_python_api.Py_DecRef(positional);
+        g_kain_python_api.Py_DecRef(callable);
+        kain_py_clear_error();
+        return 0;
+    }
+    if (g_kain_python_api.PyTuple_SetItem(positional, 0, arg_obj) != 0) {
+        g_kain_python_api.Py_DecRef(arg_obj);
+        g_kain_python_api.Py_DecRef(positional);
+        g_kain_python_api.Py_DecRef(callable);
+        kain_py_clear_error();
+        return 0;
+    }
+    result = g_kain_python_api.PyObject_Call(callable, positional, NULL);
+    g_kain_python_api.Py_DecRef(positional);
+    g_kain_python_api.Py_DecRef(callable);
+    if (!result) {
+        kain_py_clear_error();
+        return 0;
+    }
+    coerced = g_kain_python_api.PyNumber_Long(result);
+    g_kain_python_api.Py_DecRef(result);
+    if (!coerced) {
+        kain_py_clear_error();
+        return 0;
+    }
+    value = g_kain_python_api.PyLong_AsLongLong(coerced);
+    if (g_kain_python_api.PyErr_Occurred()) {
+        value = 0;
+        kain_py_clear_error();
+    }
+    g_kain_python_api.Py_DecRef(coerced);
+    return value;
+}
+
 long long py_region_begin(void) {
     KainPythonRegionHandle* region =
         (KainPythonRegionHandle*)kain_alloc_rc(sizeof(KainPythonRegionHandle), KAIN_RC_TYPE_PY_REGION);
@@ -298,6 +370,8 @@ long long py_region_call_args(long long region_value, long long target, long lon
     if (!region || !region->active) {
         return 0;
     }
+    region->call_count += 1u;
+    region->generic_call_count += 1u;
     return kain_py_call_internal_active(target, NULL, args, kwargs, 0, region);
 }
 
@@ -306,6 +380,8 @@ long long py_region_call_attr_args(long long region_value, long long target, cha
     if (!region || !region->active || !attr) {
         return 0;
     }
+    region->call_count += 1u;
+    region->generic_call_count += 1u;
     return kain_py_call_internal_active(target, attr, args, kwargs, 0, region);
 }
 
@@ -314,6 +390,8 @@ long long py_region_call_raw_args(long long region_value, long long target, long
     if (!region || !region->active) {
         return 0;
     }
+    region->call_count += 1u;
+    region->generic_call_count += 1u;
     return kain_py_call_internal_active(target, NULL, args, 4LL, 1, region);
 }
 
@@ -322,7 +400,22 @@ long long py_region_call_raw_attr(long long region_value, long long target, char
     if (!region || !region->active || !attr) {
         return 0;
     }
+    region->call_count += 1u;
+    region->generic_call_count += 1u;
     return kain_py_call_internal_active(target, attr, args, 4LL, 1, region);
+}
+
+long long py_region_call_raw_f64_trunc_i64(long long region_value, long long target, double arg) {
+    KainPythonRegionHandle* region = kain_py_as_region_handle(region_value);
+    return kain_py_region_call_f64_trunc_i64_active(region, target, NULL, arg);
+}
+
+long long py_region_call_attr_raw_f64_trunc_i64(long long region_value, long long target, char* attr, double arg) {
+    KainPythonRegionHandle* region = kain_py_as_region_handle(region_value);
+    if (!attr) {
+        return 0;
+    }
+    return kain_py_region_call_f64_trunc_i64_active(region, target, attr, arg);
 }
 
 long long py_region_buffer_view(long long region_value, long long target) {
@@ -361,4 +454,19 @@ long long py_region_views_opened(long long region_value) {
 long long py_region_views_released(long long region_value) {
     KainPythonRegionHandle* region = kain_py_as_region_handle(region_value);
     return region ? (long long)region->views_released : 0;
+}
+
+long long py_region_call_count(long long region_value) {
+    KainPythonRegionHandle* region = kain_py_as_region_handle(region_value);
+    return region ? (long long)region->call_count : 0;
+}
+
+long long py_region_generic_call_count(long long region_value) {
+    KainPythonRegionHandle* region = kain_py_as_region_handle(region_value);
+    return region ? (long long)region->generic_call_count : 0;
+}
+
+long long py_region_fast_call_count(long long region_value) {
+    KainPythonRegionHandle* region = kain_py_as_region_handle(region_value);
+    return region ? (long long)region->fast_call_count : 0;
 }

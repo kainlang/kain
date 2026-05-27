@@ -34,11 +34,10 @@ use serde::Serialize;
 
 #[cfg(all(feature = "gpu", feature = "sys"))]
 use kain_core::{
-    bytes_to_hex, shader_artifact_bundle_to_json, DerivedShaderArtifact, ShaderArtifactFormat,
-    ShaderDebugBundle, ShaderEntryPoint, ShaderIoField, ShaderReflectionShader,
-    ShaderReflectionSummary, ShaderResourceLayout, ShaderSourceMapEntry,
+    bytes_to_hex, shader_artifact_bundle_to_json, DerivedShaderArtifact, PtxArtifactMetadata,
+    ShaderArtifactFormat, ShaderDebugBundle, ShaderEntryPoint, ShaderIoField,
+    ShaderReflectionShader, ShaderReflectionSummary, ShaderResourceLayout, ShaderSourceMapEntry,
     ShaderSpecializationConstant, ShaderStageMetadata, SpirvModuleArtifact,
-    PtxArtifactMetadata,
     SHADER_ARTIFACT_SCHEMA_VERSION,
 };
 
@@ -50,9 +49,9 @@ mod native_app;
 mod tauri_app;
 
 #[cfg(feature = "sys")]
-use kain_core::Span;
-#[cfg(feature = "sys")]
 use kain_core::tooling_config::apply_cargo_command_defaults;
+#[cfg(feature = "sys")]
+use kain_core::Span;
 
 #[cfg(feature = "gpu")]
 use gpu;
@@ -3072,12 +3071,13 @@ pub fn stage_gpu_runtime_library_sidecar(
         command.arg("--release");
     }
     if let Some(cargo_target_dir) = cargo_target_dir {
-        std::fs::create_dir_all(cargo_target_dir)
-            .map_err(|err| KainError::runtime(format!(
+        std::fs::create_dir_all(cargo_target_dir).map_err(|err| {
+            KainError::runtime(format!(
                 "Failed to create kain-gpu-runtime cargo target directory {}: {}",
                 cargo_target_dir.display(),
                 err
-            )))?;
+            ))
+        })?;
         command.env("CARGO_TARGET_DIR", cargo_target_dir);
     }
     command.current_dir(&workspace_root);
@@ -3126,7 +3126,11 @@ fn resolve_existing_gpu_runtime_library(
     let profile = if release { "release" } else { "debug" };
     let mut candidates = Vec::new();
     if let Some(target_dir) = cargo_target_dir {
-        candidates.push(target_dir.join(profile).join(gpu_runtime_library_file_name()));
+        candidates.push(
+            target_dir
+                .join(profile)
+                .join(gpu_runtime_library_file_name()),
+        );
         candidates.push(
             target_dir
                 .join(profile)
@@ -5040,7 +5044,10 @@ shader compute sample_gpu_kernel(id: UVec3) -> Vec4:
                 .required_target_arch,
             "sm_50"
         );
-        assert_eq!(ptx_artifact.entry_points, vec!["sample_gpu_kernel".to_string()]);
+        assert_eq!(
+            ptx_artifact.entry_points,
+            vec!["sample_gpu_kernel".to_string()]
+        );
         assert_eq!(ptx_artifact.binding_slots, vec![0, 1, 2, 100, 101]);
     }
 

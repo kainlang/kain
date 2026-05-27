@@ -3593,12 +3593,8 @@ impl Env {
         });
 
         self.define_native("fs_write_bytes_hex_at", |_env, args| {
-            let path = runtime_expect_scoped_path(
-                &args,
-                0,
-                "fs_write_bytes_hex_at",
-                FsCapability::Write,
-            )?;
+            let path =
+                runtime_expect_scoped_path(&args, 0, "fs_write_bytes_hex_at", FsCapability::Write)?;
             let offset =
                 runtime_expect_non_negative_int_arg(&args, 1, "fs_write_bytes_hex_at", "offset")?;
             let hex = runtime_expect_string_arg(&args, 2, "fs_write_bytes_hex_at", "hex")?;

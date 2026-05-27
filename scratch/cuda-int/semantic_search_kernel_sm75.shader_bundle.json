@@ -1,0 +1,227 @@
+{
+  "schema_version": 1,
+  "canonical_native_payload": "spirv",
+  "spirv_modules": [
+    {
+      "module_name": "SemanticCosineSimilarity",
+      "byte_len": 2772,
+      "bytes_hex": "030223070006010000000f007a0000000000000011000200010000000e00030000000000010000000f001500050000001c00000053656d616e746963436f73696e6553696d696c617269747900000000090000000a0000000b0000000c00000010000000110000001200000016000000170000001800000019000000100006001c000000110000000800000008000000010000004700040006000000060000000400000047000300070000000200000048000500070000000000000023000000000000004700040009000000220000000000000047000400090000002100000000000000470004000a0000002200000000000000470004000a0000002100000001000000470004000b0000002200000000000000470004000b0000002100000002000000470004000c0000002200000000000000470004000c0000002100000003000000470004000d0000000600000004000000470003000e00000002000000480005000e00000000000000230000000000000047000400100000002200000000000000470004001000000021000000040000004700040011000000220000000000000047000400110000002100000005000000470004001200000022000000000000004700040012000000210000000600000047000400160000000b0000001c00000047000400170000000b0000001b00000047000400180000000b0000001a00000047000400190000000b0000001d000000130002000100000021000300020000000100000016000300030000002000000015000400040000002000000001000000150004000500000020000000000000001d00030006000000030000001e000300070000000600000020000400080000000c000000070000003b00040008000000090000000c0000003b000400080000000a0000000c0000003b000400080000000b0000000c0000003b000400080000000c0000000c0000001d0003000d000000050000001e0003000e0000000d000000200004000f0000000c0000000e0000003b0004000f000000100000000c0000003b0004000f000000110000000c0000003b00040008000000120000000c0000001700040013000000050000000300000020000400140000000100000013000000200004001500000001000000050000003b0004001400000016000000010000003b0004001400000017000000010000003b0004001400000018000000010000003b000400150000001900000001000000200004001a0000000700000005000000200004001b00000007000000030000002b00040004000000270000000000000020000400290000000c000000050000002b000400050000002a000000000000002b000400040000002d000000000000002b000400050000002f000000000000002b00040004000000320000000000000020000400340000000c000000030000002b000400050000003500000000000000140002003c0000002b0004000300000041000000000000002b0004000400000042000000000000002b000400050000004f000000000000002b0004000500000057000000000000002b000400040000005d000000010000002b0004000500000061000000000000002b0004000300000064000000000000002b0004000300000066000000000000002b000400030000006c000000000000002b00040005000000780000000000000036000500010000001c0000000000000002000000f80002001d0000003b0004001a0000001e000000070000003b0004001a0000001f000000070000003b0004001b00000020000000070000003b0004001a00000021000000070000003b0004001a00000022000000070000003b0004001b00000023000000070000003b0004001b00000024000000070000003b0004001a00000025000000070000003b0004001b00000026000000070000007c00040005000000280000002700000041000600290000002b000000100000002a000000280000003d000400050000002c0000002b0000003e0003001e0000002c0000007c000400050000002e0000002d000000410006002900000030000000110000002f0000002e0000003d0004000500000031000000300000003e00030022000000310000007c0004000500000033000000320000004100060034000000360000001200000035000000330000003d0004000300000037000000360000003e00030023000000370000003d00040013000000380000001600000051000500050000003900000038000000000000003e00030021000000390000003d000400050000003a000000210000003d000400050000003b00000022000000ae0005003c0000003d0000003a0000003b000000f70003004000000000000000fa0004003d0000003e0000003f000000f80002003e000000fd000100f80002003f000000f900020040000000f8000200400000003e00030020000000410000007c0004000500000043000000420000003e00030025000000430000003d00040005000000440000001e0000003e0003001f00000044000000f900020045000000f800020045000000f6000400490000004800000000000000f900020046000000f8000200460000003d000400050000004a000000250000003d000400050000004b0000001f000000b00005003c0000004c0000004a0000004b000000fa0004004c0000004700000049000000f8000200470000003d000400030000004d000000200000003d000400050000004e00000025000000410006003400000050000000090000004f0000004e0000003d0004000300000051000000500000003d0004000500000052000000210000003d00040005000000530000001f00000084000500050000005400000052000000530000003d00040005000000550000002500000080000500050000005600000054000000550000004100060034000000580000000a00000057000000560000003d00040003000000590000005800000085000500030000005a000000510000005900000081000500030000005b0000004d0000005a0000003e000300200000005b0000003d000400050000005c000000250000007c000400050000005e0000005d00000080000500050000005f0000005c0000005e0000003e000300250000005f000000f900020048000000f800020048000000f900020045000000f8000200490000003d0004000500000060000000210000004100060034000000620000000b00000061000000600000003d0004000300000063000000620000003e00030024000000630000003e00030026000000640000003d000400030000006500000023000000ba0005003c000000670000006500000066000000f70003006a00000000000000fa000400670000006800000069000000f8000200680000003d000400030000006b00000024000000ba0005003c0000006d0000006b0000006c000000f70003007000000000000000fa0004006d0000006e0000006f000000f80002006e0000003d0004000300000071000000200000003d0004000300000072000000230000003d000400030000007300000024000000850005000300000074000000720000007300000088000500030000007500000071000000740000003e0003002600000075000000f900020070000000f80002006f000000f900020070000000f800020070000000f90002006a000000f800020069000000f90002006a000000f80002006a0000003d0004000300000076000000260000003d0004000500000077000000210000004100060034000000790000000c00000078000000770000003e0003007900000076000000fd00010038000100",
+      "entry_points": [
+        "SemanticCosineSimilarity"
+      ],
+      "stage_hints": [
+        "compute"
+      ]
+    }
+  ],
+  "reflection": {
+    "emitted": true,
+    "shaders": [
+      {
+        "shader": "SemanticCosineSimilarity",
+        "stage": "compute",
+        "entry_point": "SemanticCosineSimilarity",
+        "inputs": [
+          {
+            "name": "id",
+            "ty": "UVec3"
+          }
+        ],
+        "bindings": [
+          {
+            "shader": "SemanticCosineSimilarity",
+            "name": "query_embed",
+            "binding": 0,
+            "descriptor_set": 0,
+            "ty": "StorageBuffer<Float>",
+            "kind": "storage_buffer"
+          },
+          {
+            "shader": "SemanticCosineSimilarity",
+            "name": "index_matrix",
+            "binding": 1,
+            "descriptor_set": 0,
+            "ty": "StorageBuffer<Float>",
+            "kind": "storage_buffer"
+          },
+          {
+            "shader": "SemanticCosineSimilarity",
+            "name": "index_norms",
+            "binding": 2,
+            "descriptor_set": 0,
+            "ty": "StorageBuffer<Float>",
+            "kind": "storage_buffer"
+          },
+          {
+            "shader": "SemanticCosineSimilarity",
+            "name": "scores",
+            "binding": 3,
+            "descriptor_set": 0,
+            "ty": "StorageBuffer<Float>",
+            "kind": "storage_buffer"
+          },
+          {
+            "shader": "SemanticCosineSimilarity",
+            "name": "dim_data",
+            "binding": 4,
+            "descriptor_set": 0,
+            "ty": "StorageBuffer<UInt>",
+            "kind": "storage_buffer"
+          },
+          {
+            "shader": "SemanticCosineSimilarity",
+            "name": "num_chunks_data",
+            "binding": 5,
+            "descriptor_set": 0,
+            "ty": "StorageBuffer<UInt>",
+            "kind": "storage_buffer"
+          },
+          {
+            "shader": "SemanticCosineSimilarity",
+            "name": "query_norm_data",
+            "binding": 6,
+            "descriptor_set": 0,
+            "ty": "StorageBuffer<Float>",
+            "kind": "storage_buffer"
+          }
+        ],
+        "output_type": "Void"
+      }
+    ],
+    "notes": [
+      "Compiler-owned shader artifact bundle emitted from kain-driver.",
+      "SPIR-V is the canonical native GPU payload; backend text shaders are derived outputs."
+    ]
+  },
+  "resource_layouts": [
+    {
+      "shader": "SemanticCosineSimilarity",
+      "name": "query_embed",
+      "binding": 0,
+      "descriptor_set": 0,
+      "ty": "StorageBuffer<Float>",
+      "kind": "storage_buffer"
+    },
+    {
+      "shader": "SemanticCosineSimilarity",
+      "name": "index_matrix",
+      "binding": 1,
+      "descriptor_set": 0,
+      "ty": "StorageBuffer<Float>",
+      "kind": "storage_buffer"
+    },
+    {
+      "shader": "SemanticCosineSimilarity",
+      "name": "index_norms",
+      "binding": 2,
+      "descriptor_set": 0,
+      "ty": "StorageBuffer<Float>",
+      "kind": "storage_buffer"
+    },
+    {
+      "shader": "SemanticCosineSimilarity",
+      "name": "scores",
+      "binding": 3,
+      "descriptor_set": 0,
+      "ty": "StorageBuffer<Float>",
+      "kind": "storage_buffer"
+    },
+    {
+      "shader": "SemanticCosineSimilarity",
+      "name": "dim_data",
+      "binding": 4,
+      "descriptor_set": 0,
+      "ty": "StorageBuffer<UInt>",
+      "kind": "storage_buffer"
+    },
+    {
+      "shader": "SemanticCosineSimilarity",
+      "name": "num_chunks_data",
+      "binding": 5,
+      "descriptor_set": 0,
+      "ty": "StorageBuffer<UInt>",
+      "kind": "storage_buffer"
+    },
+    {
+      "shader": "SemanticCosineSimilarity",
+      "name": "query_norm_data",
+      "binding": 6,
+      "descriptor_set": 0,
+      "ty": "StorageBuffer<Float>",
+      "kind": "storage_buffer"
+    }
+  ],
+  "entry_points": [
+    {
+      "shader": "SemanticCosineSimilarity",
+      "module_name": "SemanticCosineSimilarity",
+      "entry_point": "SemanticCosineSimilarity",
+      "stage": "compute"
+    }
+  ],
+  "stage_metadata": [
+    {
+      "shader": "SemanticCosineSimilarity",
+      "stage": "compute",
+      "entry_point": "SemanticCosineSimilarity",
+      "input_count": 1,
+      "binding_count": 7,
+      "output_type": "Void"
+    }
+  ],
+  "specialization_constants": [],
+  "debug": {
+    "source_map": [
+      {
+        "shader": "SemanticCosineSimilarity",
+        "source_origin": "<input>",
+        "module_name": "SemanticCosineSimilarity",
+        "entry_point": "SemanticCosineSimilarity"
+      }
+    ],
+    "notes": [
+      "Shader bundle source map is currently scoped to shader entry points."
+    ]
+  },
+  "derived_outputs": [
+    {
+      "format": "hlsl",
+      "module_name": "SemanticCosineSimilarity",
+      "contents": "// Generated by KAIN Compiler\n// Derived HLSL output from the KAIN shader artifact pipeline\n\ncbuffer ShaderParams : register(b0)\n{\n    float4 query_embed;\n    float4 index_matrix;\n    float4 index_norms;\n    float4 scores;\n    float4 dim_data;\n    float4 num_chunks_data;\n    float4 query_norm_data;\n};\n\n[numthreads(8, 8, 1)]\nvoid CSMain(uint3 dispatchThreadID : SV_DispatchThreadID,\n            uint3 groupThreadID : SV_GroupThreadID,\n            uint3 groupID : SV_GroupID,\n            uint groupIndex : SV_GroupIndex)\n{\n    float dim = dim_data[0];\n    float num_chunks = num_chunks_data[0];\n    float query_norm = query_norm_data[0];\n    float chunk_idx = id.x;\n    if ((chunk_idx >= num_chunks))\n    {\n        return;\n    }\n    float dot = 0.000000;\n    uint d = uint(0);\n    float4 safe_dim = dim;\n    while ((d < safe_dim))\n    {\n        dot = (dot + (query_embed[d] * index_matrix[((chunk_idx * safe_dim) + d)]));\n        d = (d + uint(1));\n    }\n    float norm = index_norms[chunk_idx];\n    float score = 0.000000;\n    if ((query_norm > float(0.000000)))\n    {\n        if ((norm > float(0.000000)))\n        {\n            score = (dot / ((query_norm * norm)));\n        }\n    }\n    scores[chunk_idx] = score;\n}\n",
+      "entry_points": [
+        "SemanticCosineSimilarity"
+      ],
+      "binding_slots": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ]
+    },
+    {
+      "format": "ptx",
+      "module_name": "SemanticCosineSimilarity",
+      "contents": "// Generated by KAIN Compiler\n// Raw PTX compute output; load with the CUDA Driver API.\n\n.version 7.8\n.target sm_75\n.address_size 64\n\n.visible .entry SemanticCosineSimilarity(\n    .param .u64 _kain_param_query_embed,\n    .param .u64 _kain_param_index_matrix,\n    .param .u64 _kain_param_index_norms,\n    .param .u64 _kain_param_scores,\n    .param .u64 _kain_param_dim_data,\n    .param .u64 _kain_param_num_chunks_data,\n    .param .u64 _kain_param_query_norm_data\n)\n{\n    .reg .pred %p<5>;\n    .reg .b32 %r<20>;\n    .reg .b64 %rd<22>;\n    .reg .f32 %f<13>;\n\n    ld.param.u64 %rd1, [_kain_param_query_embed];\n    ld.param.u64 %rd2, [_kain_param_index_matrix];\n    ld.param.u64 %rd3, [_kain_param_index_norms];\n    ld.param.u64 %rd4, [_kain_param_scores];\n    ld.param.u64 %rd5, [_kain_param_dim_data];\n    ld.param.u64 %rd6, [_kain_param_num_chunks_data];\n    ld.param.u64 %rd7, [_kain_param_query_norm_data];\n    mov.s32 %r1, 0;\n    cvt.u32.s32 %r2, %r1;\n    mul.wide.u32 %rd8, %r2, 4;\n    add.u64 %rd9, %rd5, %rd8;\n    ld.global.u32 %r3, [%rd9];\n    mov.s32 %r4, 0;\n    cvt.u32.s32 %r5, %r4;\n    mul.wide.u32 %rd10, %r5, 4;\n    add.u64 %rd11, %rd6, %rd10;\n    ld.global.u32 %r6, [%rd11];\n    mov.s32 %r7, 0;\n    cvt.u32.s32 %r8, %r7;\n    mul.wide.u32 %rd12, %r8, 4;\n    add.u64 %rd13, %rd7, %rd12;\n    ld.global.f32 %f1, [%rd13];\n    mov.u32 %r9, %ctaid.x;\n    mov.u32 %r10, %ntid.x;\n    mov.u32 %r11, %tid.x;\n    mad.lo.u32 %r12, %r9, %r10, %r11;\n    setp.ge.u32 %p1, %r12, %r6;\n    @!%p1 bra $if_else_0;\n    bra $kain_exit;\n    bra $if_end_1;\n$if_else_0:\n$if_end_1:\n    mov.f32 %f2, 0f00000000;\n    mov.s32 %r13, 0;\n    cvt.u32.s32 %r14, %r13;\n$while_cond_2:\n    setp.lt.u32 %p2, %r14, %r3;\n    @!%p2 bra $while_end_3;\n    mul.wide.u32 %rd14, %r14, 4;\n    add.u64 %rd15, %rd1, %rd14;\n    ld.global.f32 %f3, [%rd15];\n    mul.lo.u32 %r15, %r12, %r3;\n    add.u32 %r16, %r15, %r14;\n    mul.wide.u32 %rd16, %r16, 4;\n    add.u64 %rd17, %rd2, %rd16;\n    ld.global.f32 %f4, [%rd17];\n    mul.rn.f32 %f5, %f3, %f4;\n    add.f32 %f6, %f2, %f5;\n    mov.f32 %f2, %f6;\n    mov.s32 %r17, 1;\n    cvt.u32.s32 %r18, %r17;\n    add.u32 %r19, %r14, %r18;\n    mov.u32 %r14, %r19;\n    bra $while_cond_2;\n$while_end_3:\n    mul.wide.u32 %rd18, %r12, 4;\n    add.u64 %rd19, %rd3, %rd18;\n    ld.global.f32 %f7, [%rd19];\n    mov.f32 %f8, 0f00000000;\n    mov.f32 %f9, 0f00000000;\n    setp.gt.f32 %p3, %f1, %f9;\n    @!%p3 bra $if_else_4;\n    mov.f32 %f10, 0f00000000;\n    setp.gt.f32 %p4, %f7, %f10;\n    @!%p4 bra $if_else_6;\n    mul.rn.f32 %f11, %f1, %f7;\n    div.rn.f32 %f12, %f2, %f11;\n    mov.f32 %f8, %f12;\n    bra $if_end_7;\n$if_else_6:\n$if_end_7:\n    bra $if_end_5;\n$if_else_4:\n$if_end_5:\n    mul.wide.u32 %rd20, %r12, 4;\n    add.u64 %rd21, %rd4, %rd20;\n    st.global.f32 [%rd21], %f8;\n$kain_exit:\n    ret;\n}\n\n",
+      "entry_points": [
+        "SemanticCosineSimilarity"
+      ],
+      "binding_slots": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "ptx": {
+        "ptx_version": "7.8",
+        "required_target_arch": "sm_75",
+        "minimum_compute_capability": "7.5"
+      }
+    }
+  ]
+}

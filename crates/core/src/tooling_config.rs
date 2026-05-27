@@ -450,9 +450,7 @@ fn normalize_capture_path(raw: &Path, config_path: Option<&Path>) -> PathBuf {
         .join(raw)
 }
 
-fn apply_diagnostics_env_overrides(
-    resolved: &mut ResolvedKainToolingConfig,
-) -> Result<(), String> {
+fn apply_diagnostics_env_overrides(resolved: &mut ResolvedKainToolingConfig) -> Result<(), String> {
     if let Some(raw) = std::env::var_os(KAIN_DIAG_CAPTURE_ENV_VAR) {
         resolved.diagnostics.capture =
             KainDiagnosticCaptureMode::parse_str(raw.to_string_lossy().as_ref())?;
@@ -571,7 +569,10 @@ store_ansi = false
         assert_eq!(config.ui.color, KainColorPreference::Always);
         assert_eq!(config.ui.theme, "sandstone");
         assert!(!config.ui.experimental_help);
-        assert_eq!(config.diagnostics.capture, KainDiagnosticCaptureMode::Failures);
+        assert_eq!(
+            config.diagnostics.capture,
+            KainDiagnosticCaptureMode::Failures
+        );
         assert_eq!(
             config.diagnostics.path,
             config_path
@@ -682,7 +683,10 @@ capture = "off"
             None => env::remove_var(KAIN_DIAG_CAPTURE_ANSI_ENV_VAR),
         }
 
-        assert_eq!(resolved.diagnostics.capture, KainDiagnosticCaptureMode::Failures);
+        assert_eq!(
+            resolved.diagnostics.capture,
+            KainDiagnosticCaptureMode::Failures
+        );
         assert_eq!(
             resolved.diagnostics.path,
             env::current_dir()
