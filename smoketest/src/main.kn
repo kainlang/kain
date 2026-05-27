@@ -48,6 +48,7 @@ use json_lane::smoke_json_lane
 use math_lane::smoke_math_lane
 use cuda_lane::smoke_cuda_lane
 use interop_lane::smoke_interop_lane
+use python_async_lane::smoke_python_async_lane
 use platform_lane::smoke_platform_lane
 use process_lane::smoke_process_lane
 use text_lane::smoke_text_lane
@@ -138,7 +139,7 @@ fn smoke_run_full_album(mode: String) -> Int with Unsafe:
         return 10 + boot
 
     let started_ms = now_millis()
-    let total_tracks: Int = 57
+    let total_tracks: Int = 58
     var succeeded_tracks: Int = 0
     var composition_checksum: Int = 0
 
@@ -482,6 +483,15 @@ fn smoke_run_full_album(mode: String) -> Int with Unsafe:
     let e_interop_stdlib = smoke_first_error(3450, lane_interop_stdlib)
     if e_interop_stdlib != 0:
         return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_interop_stdlib, "stdlib.interop_lane")
+    succeeded_tracks = succeeded_tracks + 1
+
+    let started_python_async = now_millis()
+    let lane_python_async = smoke_python_async_lane()
+    let ended_python_async = now_millis()
+    composition_checksum = smoke_record_track(mode, "stdlib", "stdlib.python_async_lane", "python_async", 58, 3452, lane_python_async, started_python_async, ended_python_async, composition_checksum)
+    let e_python_async = smoke_first_error(3452, lane_python_async)
+    if e_python_async != 0:
+        return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_python_async, "stdlib.python_async_lane")
     succeeded_tracks = succeeded_tracks + 1
 
     let started_z3 = now_millis()

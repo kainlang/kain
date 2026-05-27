@@ -316,6 +316,9 @@ static void kain_py_any_retain(long long value) {
     if (value == 0 || kain_py_any_is_null_tag(value)) {
         return;
     }
+    if ((value & 7LL) == 3LL) {
+        return;
+    }
     if ((value & 7LL) == 0LL) {
         rc_retain((void*)(intptr_t)value);
         return;
@@ -325,6 +328,10 @@ static void kain_py_any_retain(long long value) {
 
 static void kain_py_any_release(long long value) {
     if (value == 0 || kain_py_any_is_null_tag(value)) {
+        return;
+    }
+    if ((value & 7LL) == 3LL) {
+        free((void*)(intptr_t)(value & ~7LL));
         return;
     }
     if ((value & 7LL) == 0LL) {

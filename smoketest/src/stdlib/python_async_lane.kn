@@ -1,0 +1,79 @@
+use std::actor
+use std::json
+use std::python
+use std::time
+
+actor PythonAsyncRelay:
+    state turns: Int = 0
+
+    on Spin(reply_to: P, base: Int):
+        self.turns = self.turns + 1
+        send reply_to.Reply(value = base + self.turns)
+
+fn smoke_python_async_cleanup(future: Any, callback: Any, actor_id: Int):
+    let _future_close = python_future_close(future)
+    let _callback_close = python_actor_callback_close(callback)
+    if actor_id_is_valid(actor_id):
+        let _actor_shutdown = actor_shutdown(actor_id)
+
+pub fn smoke_python_async_lane() -> Int:
+    python_exec(
+        "import asyncio\n" +
+        "async def __kain_smoke_python_async(callback):\n" +
+        "    await asyncio.sleep(0.01)\n" +
+        "    callback('tick', stage=1)\n" +
+        "    await asyncio.sleep(0.01)\n" +
+        "    return {'value': 73, 'kind': 'async-ok'}\n"
+    )
+
+    let native_actor = actor_spawn("smoke.python.async.callback", "")
+    if actor_id_is_valid(native_actor) == false:
+        return 1
+
+    let callback = python_actor_callback(native_actor, "PyAsyncTick")
+    let python_callback = python_actor_callback_callable(callback)
+    let future = python_call_async("__kain_smoke_python_async", [python_callback])
+    if python_future_state(future) < 0:
+        smoke_python_async_cleanup(future, callback, native_actor)
+        return 2
+
+    let relay = spawn PythonAsyncRelay()
+    var relay_ticks: Int = 0
+    var spins: Int = 0
+    while python_future_done(future) == false and spins < 48:
+        let reply = ask(relay, "Spin", spins)
+        if reply <= spins:
+            smoke_python_async_cleanup(future, callback, native_actor)
+            return 3
+        relay_ticks = relay_ticks + 1
+        let _nap = sleep_millis(2)
+        spins = spins + 1
+
+    let settled = python_future_await(future)
+    if json_string_required(settled, "status") != "ok":
+        smoke_python_async_cleanup(future, callback, native_actor)
+        return 4
+
+    let value_result = json_object_field(settled, "value")
+    if value_result.ok == false:
+        smoke_python_async_cleanup(future, callback, native_actor)
+        return 5
+
+    if json_int_required(value_result.value, "value") != 73:
+        smoke_python_async_cleanup(future, callback, native_actor)
+        return 6
+
+    if json_string_required(value_result.value, "kind") != "async-ok":
+        smoke_python_async_cleanup(future, callback, native_actor)
+        return 7
+
+    if python_actor_callback_delivered(callback) < 1:
+        smoke_python_async_cleanup(future, callback, native_actor)
+        return 8
+
+    if relay_ticks < 1:
+        smoke_python_async_cleanup(future, callback, native_actor)
+        return 9
+
+    smoke_python_async_cleanup(future, callback, native_actor)
+    return 0

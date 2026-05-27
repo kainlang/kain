@@ -10,6 +10,42 @@ use std::gpu
 use std::interop
 use std::json
 
+@extern
+fn py_call_async_args(target: Any, args: Any) -> Any
+
+@extern
+fn py_call_async_attr(target: Any, attr: String, args: Any) -> Any
+
+@extern
+fn py_awaitable_future(awaitable: Any) -> Any
+
+@extern
+fn py_future_state(future: Any) -> Int
+
+@extern
+fn py_future_done(future: Any) -> Bool
+
+@extern
+fn py_future_await(future: Any) -> Any
+
+@extern
+fn py_future_cancel(future: Any) -> Int
+
+@extern
+fn py_future_close(future: Any) -> Int
+
+@extern
+fn py_actor_callback_register(actor_id: Int, message_name: String) -> Any
+
+@extern
+fn py_actor_callback_function(callback: Any) -> Any
+
+@extern
+fn py_actor_callback_close(callback: Any) -> Int
+
+@extern
+fn py_actor_callback_delivered_count(callback: Any) -> Int
+
 pub fn python_bootstrap():
     py_exec("import importlib.util\n\ndef __kain_module_available(name):\n    return importlib.util.find_spec(name) is not None\n")
 
@@ -122,6 +158,42 @@ pub fn python_setattr(target: Any, name: String, value: Any):
 
 pub fn python_hasattr(target: Any, name: String) -> Bool:
     return py_hasattr(target, name)
+
+pub fn python_call_async(target: Any, args: Any) -> Any:
+    return py_call_async_args(target, args)
+
+pub fn python_call_attr_async(target: Any, attr: String, args: Any) -> Any:
+    return py_call_async_attr(target, attr, args)
+
+pub fn python_future_from_awaitable(awaitable: Any) -> Any:
+    return py_awaitable_future(awaitable)
+
+pub fn python_future_state(future: Any) -> Int:
+    return py_future_state(future)
+
+pub fn python_future_done(future: Any) -> Bool:
+    return py_future_done(future)
+
+pub fn python_future_await(future: Any) -> Any:
+    return py_future_await(future)
+
+pub fn python_future_cancel(future: Any) -> Int:
+    return py_future_cancel(future)
+
+pub fn python_future_close(future: Any) -> Int:
+    return py_future_close(future)
+
+pub fn python_actor_callback(actor_id: Int, message_name: String) -> Any:
+    return py_actor_callback_register(actor_id, message_name)
+
+pub fn python_actor_callback_callable(callback: Any) -> Any:
+    return py_actor_callback_function(callback)
+
+pub fn python_actor_callback_close(callback: Any) -> Int:
+    return py_actor_callback_close(callback)
+
+pub fn python_actor_callback_delivered(callback: Any) -> Int:
+    return py_actor_callback_delivered_count(callback)
 
 pub fn python_shared_buffer(target: Any) -> Any:
     return kain_shared_buffer_from_py(target)
