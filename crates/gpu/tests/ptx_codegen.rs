@@ -1,3 +1,5 @@
+use gpu::codegen_ptx::{generate_with_options, PtxCodegenOptions};
+use gpu::ptx_module::PtxArch;
 use gpu::{generate_ptx, generate_spirv};
 use kain_core::comptime;
 use kain_core::diagnostics::SpanMapper;
@@ -111,4 +113,27 @@ shader compute min_max_kernel(id: UVec3) -> Void:
     assert!(ptx.contains(".visible .entry min_max_kernel"));
     assert!(ptx.contains("setp.lt.u32"));
     assert!(ptx.contains("selp.u32"));
+}
+
+#[test]
+fn ptx_can_target_turing_explicitly() {
+    let src = r#"
+shader compute turing_kernel(id: UVec3) -> Void:
+    uniform src: StorageBuffer<Float> @0
+    uniform dst: StorageBuffer<Float> @1
+    uniform LOCAL_SIZE_X: UInt @100
+    uniform LOCAL_SIZE_Y: UInt @101
+    uniform LOCAL_SIZE_Z: UInt @102
+
+    let idx = id.x
+    dst[idx] = src[idx]
+    return
+"#;
+
+    let typed = typed_program_for_target(src, CompileTarget::Cuda);
+    let ptx = generate_with_options(&typed, PtxCodegenOptions::with_target_arch(PtxArch::Sm75))
+        .expect("ptx generation for sm_75 should succeed");
+
+    assert!(ptx.contains(".target sm_75"));
+    assert!(ptx.contains(".visible .entry turing_kernel"));
 }

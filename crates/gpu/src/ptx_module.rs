@@ -14,44 +14,297 @@ use std::fmt::{self, Write};
 // ============================================================================
 
 pub const DEFAULT_PTX_VERSION: &str = "7.8";
+pub const DEFAULT_PTX_ARCH: PtxArch = PtxArch::Sm50;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum PtxArch {
     Sm50,
+    Sm52,
     Sm60,
+    Sm61,
     Sm70,
+    Sm72,
+    Sm75,
     Sm80,
+    Sm86,
+    Sm89,
     Sm90,
     Sm100,
     Sm120,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PtxArchSpec {
+    pub arch: PtxArch,
+    pub sm: &'static str,
+    pub rank: u16,
+    pub compute_capability: &'static str,
+    pub aliases: &'static [&'static str],
+}
+
+impl PtxArchSpec {
+    pub const fn new(
+        arch: PtxArch,
+        sm: &'static str,
+        rank: u16,
+        compute_capability: &'static str,
+        aliases: &'static [&'static str],
+    ) -> Self {
+        Self {
+            arch,
+            sm,
+            rank,
+            compute_capability,
+            aliases,
+        }
+    }
+}
+
+pub const PTX_ARCH_SPECS: &[PtxArchSpec] = &[
+    PtxArchSpec::new(
+        PtxArch::Sm50,
+        "sm_50",
+        50,
+        "5.0",
+        &[
+            "sm_50",
+            "sm50",
+            "50",
+            "5.0",
+            "compute_50",
+            "compute50",
+            "compute_5_0",
+        ],
+    ),
+    PtxArchSpec::new(
+        PtxArch::Sm52,
+        "sm_52",
+        52,
+        "5.2",
+        &[
+            "sm_52",
+            "sm52",
+            "52",
+            "5.2",
+            "compute_52",
+            "compute52",
+            "compute_5_2",
+        ],
+    ),
+    PtxArchSpec::new(
+        PtxArch::Sm60,
+        "sm_60",
+        60,
+        "6.0",
+        &[
+            "sm_60",
+            "sm60",
+            "60",
+            "6.0",
+            "compute_60",
+            "compute60",
+            "compute_6_0",
+        ],
+    ),
+    PtxArchSpec::new(
+        PtxArch::Sm61,
+        "sm_61",
+        61,
+        "6.1",
+        &[
+            "sm_61",
+            "sm61",
+            "61",
+            "6.1",
+            "compute_61",
+            "compute61",
+            "compute_6_1",
+        ],
+    ),
+    PtxArchSpec::new(
+        PtxArch::Sm70,
+        "sm_70",
+        70,
+        "7.0",
+        &[
+            "sm_70",
+            "sm70",
+            "70",
+            "7.0",
+            "compute_70",
+            "compute70",
+            "compute_7_0",
+        ],
+    ),
+    PtxArchSpec::new(
+        PtxArch::Sm72,
+        "sm_72",
+        72,
+        "7.2",
+        &[
+            "sm_72",
+            "sm72",
+            "72",
+            "7.2",
+            "compute_72",
+            "compute72",
+            "compute_7_2",
+        ],
+    ),
+    PtxArchSpec::new(
+        PtxArch::Sm75,
+        "sm_75",
+        75,
+        "7.5",
+        &[
+            "sm_75",
+            "sm75",
+            "75",
+            "7.5",
+            "compute_75",
+            "compute75",
+            "compute_7_5",
+        ],
+    ),
+    PtxArchSpec::new(
+        PtxArch::Sm80,
+        "sm_80",
+        80,
+        "8.0",
+        &[
+            "sm_80",
+            "sm80",
+            "80",
+            "8.0",
+            "compute_80",
+            "compute80",
+            "compute_8_0",
+        ],
+    ),
+    PtxArchSpec::new(
+        PtxArch::Sm86,
+        "sm_86",
+        86,
+        "8.6",
+        &[
+            "sm_86",
+            "sm86",
+            "86",
+            "8.6",
+            "compute_86",
+            "compute86",
+            "compute_8_6",
+        ],
+    ),
+    PtxArchSpec::new(
+        PtxArch::Sm89,
+        "sm_89",
+        89,
+        "8.9",
+        &[
+            "sm_89",
+            "sm89",
+            "89",
+            "8.9",
+            "compute_89",
+            "compute89",
+            "compute_8_9",
+        ],
+    ),
+    PtxArchSpec::new(
+        PtxArch::Sm90,
+        "sm_90",
+        90,
+        "9.0",
+        &[
+            "sm_90",
+            "sm90",
+            "90",
+            "9.0",
+            "compute_90",
+            "compute90",
+            "compute_9_0",
+        ],
+    ),
+    PtxArchSpec::new(
+        PtxArch::Sm100,
+        "sm_100",
+        100,
+        "10.0",
+        &[
+            "sm_100",
+            "sm100",
+            "100",
+            "10.0",
+            "compute_100",
+            "compute100",
+            "compute_10_0",
+        ],
+    ),
+    PtxArchSpec::new(
+        PtxArch::Sm120,
+        "sm_120",
+        120,
+        "12.0",
+        &[
+            "sm_120",
+            "sm120",
+            "120",
+            "12.0",
+            "compute_120",
+            "compute120",
+            "compute_12_0",
+        ],
+    ),
+];
+
 impl PtxArch {
-    pub const fn as_sm(self) -> &'static str {
-        match self {
-            Self::Sm50 => "sm_50",
-            Self::Sm60 => "sm_60",
-            Self::Sm70 => "sm_70",
-            Self::Sm80 => "sm_80",
-            Self::Sm90 => "sm_90",
-            Self::Sm100 => "sm_100",
-            Self::Sm120 => "sm_120",
-        }
+    pub fn spec(self) -> &'static PtxArchSpec {
+        PTX_ARCH_SPECS
+            .iter()
+            .find(|spec| spec.arch == self)
+            .expect("PTX arch spec must exist for every enum variant")
     }
 
-    pub const fn rank(self) -> u8 {
-        match self {
-            Self::Sm50 => 50,
-            Self::Sm60 => 60,
-            Self::Sm70 => 70,
-            Self::Sm80 => 80,
-            Self::Sm90 => 90,
-            Self::Sm100 => 100,
-            Self::Sm120 => 120,
-        }
+    pub fn as_sm(self) -> &'static str {
+        self.spec().sm
     }
 
-    pub const fn supports(self, feature: PtxFeature) -> bool {
+    pub fn rank(self) -> u16 {
+        self.spec().rank
+    }
+
+    pub fn compute_capability(self) -> &'static str {
+        self.spec().compute_capability
+    }
+
+    pub fn parse(raw: &str) -> Option<Self> {
+        let normalized = raw.trim().to_ascii_lowercase();
+        PTX_ARCH_SPECS.iter().find_map(|spec| {
+            spec.aliases
+                .iter()
+                .any(|alias| *alias == normalized)
+                .then_some(spec.arch)
+        })
+    }
+
+    pub fn from_compute_capability(major: u32, minor: u32) -> Option<Self> {
+        let capability = format!("{major}.{minor}");
+        PTX_ARCH_SPECS
+            .iter()
+            .find(|spec| spec.compute_capability == capability)
+            .map(|spec| spec.arch)
+    }
+
+    pub fn supported_target_examples() -> String {
+        PTX_ARCH_SPECS
+            .iter()
+            .map(|spec| spec.sm)
+            .collect::<Vec<_>>()
+            .join(", ")
+    }
+
+    pub fn supports(self, feature: PtxFeature) -> bool {
         self.rank() >= feature.min_arch().rank()
     }
 }
@@ -79,7 +332,7 @@ impl PtxFeature {
             Self::MBarrier => PtxArch::Sm90,
             Self::CpAsync => PtxArch::Sm80,
             Self::ClusterLaunch => PtxArch::Sm90,
-            Self::TensorCores => PtxArch::Sm80,
+            Self::TensorCores => PtxArch::Sm75,
             Self::Wgmma => PtxArch::Sm90,
             Self::Tma => PtxArch::Sm90,
             Self::Tcgen05 => PtxArch::Sm100,
@@ -491,6 +744,14 @@ impl PtxAtomicSequence {
         }
     }
 
+    pub fn minimum_arch(self) -> PtxArch {
+        if self.scope == PtxScope::Cluster {
+            std::cmp::max(self.op.arch_min, PtxFeature::ClusterLaunch.min_arch())
+        } else {
+            self.op.arch_min
+        }
+    }
+
     pub fn validate(self, arch: PtxArch) -> PtxResult<()> {
         if arch < self.op.arch_min {
             return Err(PtxSurfaceError::UnsupportedAtomic {
@@ -797,6 +1058,21 @@ impl PtxSharedMemoryPlan {
         }
         Ok(())
     }
+
+    pub fn minimum_arch(&self) -> PtxArch {
+        let mut arch = PtxArch::Sm50;
+        if self.barrier_slots > 0 {
+            arch = std::cmp::max(arch, PtxFeature::MBarrier.min_arch());
+        }
+        if self
+            .static_segments
+            .iter()
+            .any(|segment| segment.space == PtxAddressSpace::SharedCluster)
+        {
+            arch = std::cmp::max(arch, PtxFeature::ClusterLaunch.min_arch());
+        }
+        arch
+    }
 }
 
 // ============================================================================
@@ -975,7 +1251,7 @@ impl PtxTensorFixedKind {
 
     pub const fn arch_min(self) -> PtxArch {
         match self {
-            Self::MmaSync => PtxArch::Sm80,
+            Self::MmaSync => PtxArch::Sm75,
             Self::WgmmaFence
             | Self::WgmmaCommitGroup
             | Self::CpAsyncBulkTensor2d
@@ -1067,7 +1343,7 @@ pub static TENSOR_OPS: &[PtxTensorOpSpec] = &[
     PtxTensorOpSpec::new(
         PtxTensorFixedKind::MmaSync,
         "mma.sync.aligned.m16n8k16",
-        PtxArch::Sm80,
+        PtxArch::Sm75,
         32,
         true,
         false,
@@ -1222,6 +1498,14 @@ impl PtxLaunchConfig {
         self
     }
 
+    pub fn minimum_arch(self) -> PtxArch {
+        if self.cluster.is_some() {
+            PtxFeature::ClusterLaunch.min_arch()
+        } else {
+            PtxArch::Sm50
+        }
+    }
+
     pub fn validate(self, arch: PtxArch) -> PtxResult<()> {
         for (axis, value) in self.grid_dim.iter().copied().enumerate() {
             if value == 0 {
@@ -1373,6 +1657,26 @@ impl PtxKernelPlan {
 
     pub fn add_tensor_op(&mut self, op: PtxTensorOpRequest) {
         self.tensor_ops.push(op);
+    }
+
+    pub fn minimum_arch(&self) -> PtxArch {
+        let mut arch = std::cmp::max(
+            self.launch.minimum_arch(),
+            self.shared_memory.minimum_arch(),
+        );
+        for atomic in &self.atomics {
+            arch = std::cmp::max(arch, atomic.minimum_arch());
+        }
+        for op in &self.shared_ops {
+            arch = std::cmp::max(arch, op.arch_min());
+        }
+        for op in &self.warp_ops {
+            arch = std::cmp::max(arch, op.arch_min());
+        }
+        for op in &self.tensor_ops {
+            arch = std::cmp::max(arch, op.arch_min());
+        }
+        arch
     }
 
     pub fn validate(&self, arch: PtxArch) -> PtxResult<()> {
@@ -1551,6 +1855,15 @@ mod tests {
     }
 
     #[test]
+    fn ptx_arch_parses_common_compute_capability_aliases() {
+        assert_eq!(PtxArch::parse("sm_75"), Some(PtxArch::Sm75));
+        assert_eq!(PtxArch::parse("7.5"), Some(PtxArch::Sm75));
+        assert_eq!(PtxArch::parse("compute_8_6"), Some(PtxArch::Sm86));
+        assert_eq!(PtxArch::from_compute_capability(8, 9), Some(PtxArch::Sm89));
+        assert_eq!(PtxArch::parse("sm_77"), None);
+    }
+
+    #[test]
     fn cluster_launch_requires_sm90() {
         let cfg = PtxLaunchConfig::new([1, 1, 1], [8, 8, 1], 0)
             .with_cluster(PtxClusterLaunchConfig::new([2, 1, 1]));
@@ -1610,5 +1923,31 @@ mod tests {
             request.validate(PtxArch::Sm80),
             Err(PtxSurfaceError::UnsupportedTensorOp { .. })
         ));
+    }
+
+    #[test]
+    fn mma_sync_tracks_turing_min_arch() {
+        let request = PtxTensorOpRequest::Fixed(PtxTensorFixedKind::MmaSync);
+        assert!(request.validate(PtxArch::Sm75).is_ok());
+        assert!(matches!(
+            request.validate(PtxArch::Sm70),
+            Err(PtxSurfaceError::UnsupportedTensorOp { .. })
+        ));
+    }
+
+    #[test]
+    fn kernel_plan_minimum_arch_tracks_tensor_and_cluster_requirements() {
+        let mut kernel = PtxKernelPlan::new(
+            "mma_kernel",
+            "mma_kernel",
+            PtxLaunchConfig::new([1, 1, 1], [8, 8, 1], 0),
+        );
+        kernel.add_tensor_op(PtxTensorOpRequest::Fixed(PtxTensorFixedKind::MmaSync));
+        assert_eq!(kernel.minimum_arch(), PtxArch::Sm75);
+
+        kernel.launch = kernel
+            .launch
+            .with_cluster(PtxClusterLaunchConfig::new([2, 1, 1]));
+        assert_eq!(kernel.minimum_arch(), PtxArch::Sm90);
     }
 }

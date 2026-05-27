@@ -1,0 +1,18 @@
+version: 1
+id: kain.gpu.proofs.ptx_auto_target_selection_never_undercuts_required_arch
+kind: check_smt2
+description: PTX auto target selection chooses the max of the default backend floor and the minimum kernel arch, so the emitted module target never falls below the required architecture rank.
+tags:
+- gpu
+- ptx
+- cuda
+- arch
+- targeting
+source:
+  path: X:\crates\gpu\src\codegen_ptx.rs
+  symbol: resolve_module_target_arch
+  reason: auto PTX targeting should never emit a module header that undershoots the minimum arch required by any prepared kernel plan.
+case:
+  smt2: "(set-logic QF_LIA)\n(declare-const default_rank Int)\n(declare-const required_rank Int)\n(assert (>= default_rank 0))\n(assert (>= required_rank 0))\n(define-fun selected_rank () Int (ite (>= default_rank required_rank) default_rank required_rank))\n(assert (< selected_rank required_rank))\n(check-sat)"
+  include_model: false
+  include_stats: false
