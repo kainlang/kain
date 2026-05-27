@@ -30,6 +30,8 @@ typedef struct KainSharedBufferHandle {
     char* source_runtime;
     char* source_backend;
     char* ownership;
+    char* adoption_path;
+    char* fallback_reason;
     int64_t labels;
     int64_t zero_copy_owner;
     int storage_mode;
@@ -344,6 +346,34 @@ static void kain_shared_buffer_set_ownership(KainSharedBufferHandle* buffer, con
     buffer->ownership = next_ownership;
 }
 
+static void kain_shared_buffer_set_optional_text(char** slot, const char* value) {
+    char* next_value = NULL;
+    if (!slot) {
+        return;
+    }
+    if (value && value[0]) {
+        next_value = kain_shared_dup_cstr(value);
+        if (!next_value) {
+            return;
+        }
+    }
+    free(*slot);
+    *slot = next_value;
+}
+
+void kain_shared_buffer_set_adoption_metadata(
+    int64_t target,
+    const char* adoption_path,
+    const char* fallback_reason
+) {
+    KainSharedBufferHandle* buffer = kain_shared_as_buffer_handle(target);
+    if (!buffer) {
+        return;
+    }
+    kain_shared_buffer_set_optional_text(&buffer->adoption_path, adoption_path);
+    kain_shared_buffer_set_optional_text(&buffer->fallback_reason, fallback_reason);
+}
+
 static void kain_shared_buffer_drop_zero_copy_owner(KainSharedBufferHandle* buffer) {
     if (!buffer || buffer->zero_copy_owner == 0) {
         return;
@@ -368,6 +398,8 @@ static void kain_shared_buffer_destructor(void* payload) {
     free(buffer->source_runtime);
     free(buffer->source_backend);
     free(buffer->ownership);
+    free(buffer->adoption_path);
+    free(buffer->fallback_reason);
     kain_shared_release_any_handle(buffer->shape);
     kain_shared_release_any_handle(buffer->strides);
     kain_shared_release_any_handle(buffer->labels);
@@ -888,6 +920,8 @@ int64_t kain_shared_buffer_info(int64_t target) {
     kain_shared_json_set_string_optional(info, "format", buffer->format);
     kain_shared_json_set_string_optional(info, "mime_type", buffer->mime_type);
     kain_shared_json_set_string_optional(info, "source_backend", buffer->source_backend);
+    kain_shared_json_set_string_optional(info, "adoption_path", buffer->adoption_path);
+    kain_shared_json_set_string_optional(info, "fallback_reason", buffer->fallback_reason);
     json_object_set(
         info,
         "zero_copy",
@@ -980,6 +1014,8 @@ void kain_shared_buffer_replace_bytes(int64_t target, int64_t bytes) {
     }
     buffer->bytes = byte_data;
     buffer->byte_length = byte_length;
+    kain_shared_buffer_set_optional_text(&buffer->adoption_path, "manual_replace_bytes");
+    kain_shared_buffer_set_optional_text(&buffer->fallback_reason, NULL);
 }
 
 static int64_t kain_shared_image_default_shape(

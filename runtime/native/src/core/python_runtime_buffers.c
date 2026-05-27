@@ -156,6 +156,107 @@ void py_buffer_view_release(long long target) {
     rc_release(handle);
 }
 
+static const char* kain_py_shared_buffer_adoption_path_from_flags(int flags) {
+    if (flags == (KAIN_PYBUF_STRIDES | KAIN_PYBUF_FORMAT)) {
+        return "buffer_protocol_strides_format";
+    }
+    if (flags == KAIN_PYBUF_STRIDES) {
+        return "buffer_protocol_strides";
+    }
+    if (flags == (KAIN_PYBUF_ND | KAIN_PYBUF_FORMAT)) {
+        return "buffer_protocol_nd_format";
+    }
+    if (flags == KAIN_PYBUF_ND) {
+        return "buffer_protocol_nd";
+    }
+    return "buffer_protocol_simple";
+}
+
+static int64_t kain_py_borrowed_buffer_owner_create_relaxed(
+    PyObject* object,
+    Py_buffer* out_view,
+    const char** out_adoption_path,
+    const char** out_failure_reason
+) {
+    static const int candidate_flags[] = {
+        KAIN_PYBUF_STRIDES | KAIN_PYBUF_FORMAT,
+        KAIN_PYBUF_STRIDES,
+        KAIN_PYBUF_ND | KAIN_PYBUF_FORMAT,
+        KAIN_PYBUF_ND,
+        0
+    };
+    size_t candidate_index;
+    if (out_view) {
+        memset(out_view, 0, sizeof(*out_view));
+    }
+    if (out_adoption_path) {
+        *out_adoption_path = NULL;
+    }
+    if (out_failure_reason) {
+        *out_failure_reason = "buffer_protocol_unavailable";
+    }
+    if (!object || !g_kain_python_api.PyObject_GetBuffer || !g_kain_python_api.PyBuffer_Release) {
+        return 0;
+    }
+    for (candidate_index = 0; candidate_index < (sizeof(candidate_flags) / sizeof(candidate_flags[0])); ++candidate_index) {
+        KainPythonBorrowedBufferOwner* owner;
+        int64_t owner_handle;
+        int flags = candidate_flags[candidate_index];
+        owner = (KainPythonBorrowedBufferOwner*)calloc(1u, sizeof(KainPythonBorrowedBufferOwner));
+        if (!owner) {
+            if (out_failure_reason) {
+                *out_failure_reason = "buffer_owner_alloc_failed";
+            }
+            return 0;
+        }
+        if (g_kain_python_api.PyObject_GetBuffer(object, &owner->view, flags) != 0) {
+            kain_py_clear_error();
+            free(owner);
+            continue;
+        }
+        if (owner->view.itemsize <= 0) {
+            owner->view.itemsize = 1;
+        }
+        if (owner->view.len < 0 || (owner->view.len > 0 && owner->view.buf == NULL)) {
+            g_kain_python_api.PyBuffer_Release(&owner->view);
+            free(owner);
+            if (out_failure_reason) {
+                *out_failure_reason = "buffer_invalid_span";
+            }
+            continue;
+        }
+        if (!kain_py_buffer_view_is_c_contiguous(&owner->view)) {
+            g_kain_python_api.PyBuffer_Release(&owner->view);
+            free(owner);
+            if (out_failure_reason) {
+                *out_failure_reason = "buffer_not_c_contiguous";
+            }
+            continue;
+        }
+        if (out_view) {
+            *out_view = owner->view;
+        }
+        owner_handle = kain_interop_zero_copy_owner_create(owner, kain_py_borrowed_buffer_owner_release);
+        if (!owner_handle) {
+            if (out_view) {
+                memset(out_view, 0, sizeof(*out_view));
+            }
+            if (out_failure_reason) {
+                *out_failure_reason = "buffer_owner_handle_alloc_failed";
+            }
+            return 0;
+        }
+        if (out_adoption_path) {
+            *out_adoption_path = kain_py_shared_buffer_adoption_path_from_flags(flags);
+        }
+        if (out_failure_reason) {
+            *out_failure_reason = NULL;
+        }
+        return owner_handle;
+    }
+    return 0;
+}
+
 long long kain_shared_buffer_from_py(long long target) {
     KainPythonGilScope scope = kain_py_gil_enter();
     PyObject* object;
@@ -175,6 +276,9 @@ long long kain_shared_buffer_from_py(long long target) {
     char backend[32];
     char dtype[24];
     const char* element_type;
+    const char* adoption_path = NULL;
+    const char* fallback_reason = NULL;
+    int extracted_bytes = 0;
     if (!scope.active) {
         return 0;
     }
@@ -199,7 +303,12 @@ long long kain_shared_buffer_from_py(long long target) {
     memset(&borrowed_view, 0, sizeof(borrowed_view));
     kain_py_copy_dtype_name(export_target, dtype, sizeof(dtype));
     item_size = kain_py_attr_int(export_target, "itemsize", 1);
-    zero_copy_owner = kain_py_borrowed_buffer_owner_create(export_target, &borrowed_view);
+    zero_copy_owner = kain_py_borrowed_buffer_owner_create_relaxed(
+        export_target,
+        &borrowed_view,
+        &adoption_path,
+        &fallback_reason
+    );
     if (zero_copy_owner) {
         if (borrowed_view.itemsize > 0) {
             item_size = (long long)borrowed_view.itemsize;
@@ -233,6 +342,11 @@ long long kain_shared_buffer_from_py(long long target) {
                 labels,
                 zero_copy_owner
             );
+            if (!handle && !fallback_reason) {
+                fallback_reason = "borrowed_handle_create_failed";
+            }
+        } else if (!fallback_reason) {
+            fallback_reason = "buffer_shape_metadata_unavailable";
         }
     }
     if (!handle) {
@@ -257,14 +371,20 @@ long long kain_shared_buffer_from_py(long long target) {
                 }
             }
         }
+        if (!shape_handle && !fallback_reason) {
+            fallback_reason = "copy_shape_metadata_unavailable";
+        }
         bytes_obj = kain_py_call_method0_owned(export_target, "tobytes");
+        if (!bytes_obj && !fallback_reason) {
+            fallback_reason = "copy_bytes_unavailable";
+        }
         if (!labels) {
             labels = kain_py_build_shared_labels("python", backend[0] ? backend : "buffer");
         }
         if (kain_py_trace_enabled()) {
             fprintf(
                 stderr,
-                "[kain-py] shared_buffer: backend=%s dtype=%s item_size=%lld shape_len=%lld shape_handle=%p strides_handle=%p zero_copy_owner=%p bytes_obj=%p\n",
+                "[kain-py] shared_buffer: backend=%s dtype=%s item_size=%lld shape_len=%lld shape_handle=%p strides_handle=%p zero_copy_owner=%p bytes_obj=%p adoption_path=%s fallback_reason=%s\n",
                 backend[0] ? backend : "<none>",
                 dtype[0] ? dtype : "<none>",
                 item_size,
@@ -272,10 +392,16 @@ long long kain_shared_buffer_from_py(long long target) {
                 (void*)(intptr_t)shape_handle,
                 (void*)(intptr_t)strides_handle,
                 (void*)(intptr_t)zero_copy_owner,
-                (void*)bytes_obj
+                (void*)bytes_obj,
+                adoption_path ? adoption_path : "<none>",
+                fallback_reason ? fallback_reason : "<none>"
             );
         }
-        if (bytes_obj && kain_py_extract_byte_sequence(bytes_obj, &byte_values, &byte_length) && shape_handle) {
+        extracted_bytes = bytes_obj ? kain_py_extract_byte_sequence(bytes_obj, &byte_values, &byte_length) : 0;
+        if (bytes_obj && !extracted_bytes && !fallback_reason) {
+            fallback_reason = "copy_extract_failed";
+        }
+        if (bytes_obj && extracted_bytes && shape_handle) {
             element_type = kain_py_storage_from_dtype(dtype);
             handle = kain_shared_buffer_create_owned(
                 byte_values,
@@ -291,33 +417,54 @@ long long kain_shared_buffer_from_py(long long target) {
                 "owned",
                 labels
             );
+            if (handle) {
+                adoption_path = "owned_copy_tobytes";
+            } else if (!fallback_reason) {
+                fallback_reason = "copy_handle_create_failed";
+            }
             if (kain_py_trace_enabled()) {
                 fprintf(
                     stderr,
-                    "[kain-py] shared_buffer: extracted_bytes=%lld labels=%p handle=%p element_type=%s\n",
+                    "[kain-py] shared_buffer: extracted_bytes=%lld labels=%p handle=%p element_type=%s adoption_path=%s fallback_reason=%s\n",
                     byte_length,
                     (void*)(intptr_t)labels,
                     (void*)(intptr_t)handle,
-                    element_type ? element_type : "<null>"
+                    element_type ? element_type : "<null>",
+                    adoption_path ? adoption_path : "<none>",
+                    fallback_reason ? fallback_reason : "<none>"
                 );
             }
         } else if (kain_py_trace_enabled()) {
             fprintf(
                 stderr,
-                "[kain-py] shared_buffer: extraction gate failed bytes_obj=%p shape_handle=%p\n",
+                "[kain-py] shared_buffer: extraction gate failed bytes_obj=%p shape_handle=%p adoption_path=%s fallback_reason=%s\n",
                 (void*)bytes_obj,
-                (void*)(intptr_t)shape_handle
+                (void*)(intptr_t)shape_handle,
+                adoption_path ? adoption_path : "<none>",
+                fallback_reason ? fallback_reason : "<none>"
             );
         }
     } else if (kain_py_trace_enabled()) {
         fprintf(
             stderr,
-            "[kain-py] shared_buffer: zero-copy adopted backend=%s dtype=%s bytes=%lld owner=%p handle=%p\n",
+            "[kain-py] shared_buffer: zero-copy adopted backend=%s dtype=%s bytes=%lld owner=%p handle=%p adoption_path=%s\n",
             backend[0] ? backend : "<none>",
             dtype[0] ? dtype : "<none>",
             (long long)borrowed_view.len,
             (void*)(intptr_t)zero_copy_owner,
-            (void*)(intptr_t)handle
+            (void*)(intptr_t)handle,
+            adoption_path ? adoption_path : "<none>"
+        );
+    }
+    if (handle) {
+        kain_shared_buffer_set_adoption_metadata(handle, adoption_path, fallback_reason);
+    } else if (kain_py_trace_enabled()) {
+        fprintf(
+            stderr,
+            "[kain-py] shared_buffer: final failure backend=%s adoption_path=%s fallback_reason=%s\n",
+            backend[0] ? backend : "<none>",
+            adoption_path ? adoption_path : "<none>",
+            fallback_reason ? fallback_reason : "<none>"
         );
     }
     if (labels) {

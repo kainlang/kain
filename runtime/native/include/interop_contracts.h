@@ -23,6 +23,11 @@ int64_t kain_shared_buffer_shared_ownership(int64_t target);
 void kain_shared_buffer_release(int64_t target);
 int64_t kain_shared_buffer_bytes(int64_t target);
 void kain_shared_buffer_replace_bytes(int64_t target, int64_t bytes);
+void kain_shared_buffer_set_adoption_metadata(
+    int64_t target,
+    const char* adoption_path,
+    const char* fallback_reason
+);
 
 int64_t kain_shared_image_from_bytes(
     int64_t bytes,

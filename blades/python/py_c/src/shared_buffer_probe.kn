@@ -1,18 +1,95 @@
-use std::fs
 use std::interop
 use std::python
 
-import python_lab.bridge as py_lab
+import numpy as np
+import torch as torch
+
+fn make_numpy_source() -> Any:
+    let base = python_call_attr_raw(np, "arange", [8])
+    let lane = python_call_attr_raw(base, "astype", ["uint8"])
+    return python_call_attr_raw(np, "ascontiguousarray", [lane])
+
+fn make_torch_source() -> Any:
+    let dtype = python_getattr_raw(torch, "uint8")
+    let base = python_call_attr_raw(torch, "arange", [0, 8])
+    let lane = python_call_attr_raw(base, "to", [dtype])
+    return python_call_attr_raw(lane, "contiguous", [])
+
+fn make_replacement_bytes(length: Int, seed: Int) -> Array<Int>:
+    let out = []
+    let index = 0
+    while index < length:
+        push(out, (seed + (index * 17)) % 251)
+        index = index + 1
+    return out
+
+fn probe_shared_buffer(label: String, source: Any, mutate_index: Int, mutate_value: Int, replace_seed: Int) -> Int:
+    let handle = python_shared_buffer(source)
+    if handle == 0:
+        print(label + ".handle=0")
+        return 10
+
+    let info = interop_shared_buffer_info(handle)
+    print(label + ".ownership=" + info.ownership)
+    print(label + ".zero_copy=" + to_string(info.zero_copy))
+    print(label + ".adoption_path=" + to_string(info.adoption_path))
+    print(label + ".fallback_reason=" + to_string(info.fallback_reason))
+    print(label + ".byte_length=" + to_string(info.byte_length))
+    print(label + ".source_backend=" + to_string(info.source_backend))
+    if info.ownership != "shared" or info.zero_copy == false:
+        kain_shared_buffer_release(handle)
+        return 11
+
+    let python_before = to_int(python_call_attr_raw(source, "__getitem__", [mutate_index]))
+    let before_bytes = interop_shared_buffer_bytes(handle)
+    if len(before_bytes) != info.byte_length:
+        kain_shared_buffer_release(handle)
+        return 12
+
+    let _python_write = python_call_attr_raw(source, "__setitem__", [mutate_index, mutate_value])
+    let after_python_bytes = interop_shared_buffer_bytes(handle)
+    let python_after = to_int(python_call_attr_raw(source, "__getitem__", [mutate_index]))
+    print(label + ".python_before=" + to_string(python_before))
+    print(label + ".python_after=" + to_string(python_after))
+    print(label + ".kain_after_python=" + to_string(after_python_bytes[mutate_index]))
+    if after_python_bytes[mutate_index] != mutate_value or python_after != mutate_value:
+        kain_shared_buffer_release(handle)
+        return 13
+
+    let replacement = make_replacement_bytes(info.byte_length, replace_seed)
+    interop_shared_buffer_replace_bytes(handle, replacement)
+    let replaced_info = interop_shared_buffer_info(handle)
+    let replaced_bytes = interop_shared_buffer_bytes(handle)
+    let python_after_replace = to_int(python_call_attr_raw(source, "__getitem__", [mutate_index]))
+    print(label + ".post_replace.ownership=" + replaced_info.ownership)
+    print(label + ".post_replace.zero_copy=" + to_string(replaced_info.zero_copy))
+    print(label + ".post_replace.adoption_path=" + to_string(replaced_info.adoption_path))
+    print(label + ".post_replace.fallback_reason=" + to_string(replaced_info.fallback_reason))
+    print(label + ".post_replace.kain_byte0=" + to_string(replaced_bytes[0]))
+    print(label + ".post_replace.python_index=" + to_string(python_after_replace))
+    if replaced_info.ownership != "owned" or replaced_info.zero_copy:
+        kain_shared_buffer_release(handle)
+        return 14
+    if to_string(replaced_info.adoption_path) != "manual_replace_bytes":
+        kain_shared_buffer_release(handle)
+        return 15
+    if replaced_bytes[0] != replacement[0]:
+        kain_shared_buffer_release(handle)
+        return 16
+    if python_after_replace != mutate_value:
+        kain_shared_buffer_release(handle)
+        return 17
+
+    kain_shared_buffer_release(handle)
+    return 0
 
 fn main() -> Int:
-    let plan_text = fs_read_text("data/lab_config.json")
-    let source = python_call_attr_raw(py_lab, "make_numpy_byte_grid", [plan_text, 17])
-    let handle = python_shared_buffer(source)
-    let info = interop_shared_buffer_info(handle)
-    print("contract=" + info.contract)
-    print("element_type=" + info.element_type)
-    print("byte_length=" + to_string(info.byte_length))
-    print("shape_len=" + to_string(len(info.shape)))
-    print("stride_len=" + to_string(len(info.strides)))
-    print("backend=" + to_string(info.source_backend))
+    let numpy_status = probe_shared_buffer("numpy", make_numpy_source(), 3, 199, 41)
+    if numpy_status != 0:
+        return 100 + numpy_status
+
+    let torch_status = probe_shared_buffer("torch", make_torch_source(), 4, 177, 73)
+    if torch_status != 0:
+        return 200 + torch_status
+
     return 0

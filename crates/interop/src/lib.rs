@@ -313,6 +313,8 @@ pub fn shared_buffer_info_value(buffer: &KainSharedBuffer) -> Value {
         "ownership".to_string(),
         Value::String(buffer.metadata.ownership.clone()),
     );
+    fields.insert("adoption_path".to_string(), Value::None);
+    fields.insert("fallback_reason".to_string(), Value::None);
     fields.insert(
         "labels".to_string(),
         string_list_to_value(&buffer.metadata.labels),

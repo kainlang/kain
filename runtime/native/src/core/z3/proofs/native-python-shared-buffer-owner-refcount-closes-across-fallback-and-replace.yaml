@@ -1,0 +1,65 @@
+version: 1
+id: kain.native.core.proofs.native_python_shared_buffer_owner_refcount_closes_across_fallback_and_replace
+kind: check_smt2
+description: The Python shared-buffer zero-copy owner cannot leak or double-release across the two Alpha lanes. `kain_shared_buffer_from_py` always drops its local owner reference in the epilogue, borrowed shared-buffer creation retains exactly one extra reference, and later either `kain_shared_buffer_replace_bytes` or the shared-buffer destructor releases that buffer-owned reference, never both.
+tags:
+- native-runtime
+- python
+- interop
+- shared-buffer
+- zero-copy
+- refcount
+- lifetime
+source:
+  path: X:\runtime\native\src\core\python_runtime_buffers.c
+  symbol: kain_shared_buffer_from_py
+  start_line: 260
+  reason: the Alpha zero-copy lane creates a local owner handle, optionally hands one retained reference into the borrowed shared-buffer contract, and relies on `kain_shared_buffer_replace_bytes` or `kain_shared_buffer_destructor` to close the remaining reference.
+case:
+  smt2: |
+    (set-logic QF_LIA)
+    (declare-const owner_created Bool)
+    (declare-const borrowed_handle_created Bool)
+    (declare-const replace_before_destructor Bool)
+
+    ; A borrowed shared-buffer handle cannot exist without first creating
+    ; the local Python zero-copy owner handle.
+    (assert (=> borrowed_handle_created owner_created))
+
+    (define-fun b2i ((b Bool)) Int (ite b 1 0))
+
+    ; Local owner creation contributes one reference. Successful borrowed
+    ; handle creation retains one additional reference into the contract.
+    (define-fun initial_refs () Int (+ (b2i owner_created) (b2i borrowed_handle_created)))
+
+    ; `kain_shared_buffer_from_py` always drops the local owner ref in the
+    ; epilogue when the owner exists, regardless of whether fallback happened.
+    (define-fun epilogue_releases () Int (b2i owner_created))
+    (define-fun refs_after_epilogue () Int (- initial_refs epilogue_releases))
+
+    ; A borrowed buffer promoted through `kain_shared_buffer_replace_bytes`
+    ; releases the remaining contract-owned ref and clears the borrowed state
+    ; before the destructor runs.
+    (define-fun replace_releases () Int (b2i (and borrowed_handle_created replace_before_destructor)))
+    (define-fun refs_after_replace () Int (- refs_after_epilogue replace_releases))
+
+    ; If replacement did not happen first, the destructor releases the one
+    ; remaining contract-owned ref for the borrowed handle.
+    (define-fun destructor_releases () Int (b2i (and borrowed_handle_created (not replace_before_destructor))))
+
+    (define-fun final_refs () Int (- refs_after_replace destructor_releases))
+    (define-fun total_releases () Int (+ epilogue_releases replace_releases destructor_releases))
+
+    ; Any negative intermediate count, leaked final ref, or extra release
+    ; means the ownership story is wrong.
+    (assert
+      (or
+        (< refs_after_epilogue 0)
+        (< refs_after_replace 0)
+        (< final_refs 0)
+        (not (= final_refs 0))
+        (not (= total_releases initial_refs))))
+
+    (check-sat)
+  include_model: false
+  include_stats: false

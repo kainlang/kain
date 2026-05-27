@@ -17,6 +17,8 @@ pub struct KainSharedBufferInfo:
     source_runtime: String
     source_backend: Any
     ownership: String
+    adoption_path: Any
+    fallback_reason: Any
     labels: Any
     byte_length: Int
     element_count: Int
@@ -56,6 +58,8 @@ pub fn interop_shared_buffer_info(target: Any) -> KainSharedBufferInfo:
         source_runtime: json_get_string(payload, "source_runtime"),
         source_backend: json_get(payload, "source_backend"),
         ownership: json_get_string(payload, "ownership"),
+        adoption_path: json_get(payload, "adoption_path"),
+        fallback_reason: json_get(payload, "fallback_reason"),
         labels: json_get(payload, "labels"),
         byte_length: json_get_int(payload, "byte_length"),
         element_count: json_get_int(payload, "element_count"),
