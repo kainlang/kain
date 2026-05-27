@@ -1835,9 +1835,7 @@ static int kain_py_tensor_capture_cuda_array_interface(PyObject* object, KainPyt
     }
     tensor->device_type_code = 2;
     tensor->host_accessible = 0;
-    if (!tensor->interop_lane[0]) {
-        strncpy_s(tensor->interop_lane, sizeof(tensor->interop_lane), "cuda_array_interface", _TRUNCATE);
-    }
+    strncpy_s(tensor->interop_lane, sizeof(tensor->interop_lane), "cuda_array_interface", _TRUNCATE);
     g_kain_python_api.Py_DecRef(interface_obj);
     return 1;
 }

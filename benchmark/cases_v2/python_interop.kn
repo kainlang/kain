@@ -76,12 +76,12 @@ fn make_raw_image(seed: Int) -> Any:
     return python_call_attr_raw(np, "ascontiguousarray", [image])
 
 fn ensure_fake_cuda_tensor_factory():
-    python_exec("if '__kain_theta_make_fake_cuda_tensor' not in globals():\n    class __KainThetaFlags:\n        def __init__(self):\n            self.writeable = True\n    class __KainThetaFakeCudaTensor:\n        def __init__(self, pointer_value):\n            self.shape = (4, 8)\n            self.dtype = 'float32'\n            self.itemsize = 4\n            self.nbytes = 128\n            self.device = 'cuda:7'\n            self.flags = __KainThetaFlags()\n            self.__cuda_array_interface__ = {\n                'version': 3,\n                'shape': self.shape,\n                'strides': None,\n                'typestr': '<f4',\n                'data': (pointer_value, False),\n            }\n        def __dlpack__(self, stream=None):\n            return ('fake-dlpack', stream)\n        def __dlpack_device__(self):\n            return (2, 7)\n        def is_contiguous(self):\n            return True\n        def stride(self):\n            return (8, 1)\n        def numel(self):\n            return 32\n    def __kain_theta_make_fake_cuda_tensor(pointer_value):\n        return __KainThetaFakeCudaTensor(pointer_value)\n")
+    python_exec("if 'kain_theta_make_fake_cuda_tensor' not in globals():\n    class KainThetaFlags:\n        def __init__(self):\n            self.writeable = True\n    class KainThetaFakeCudaTensor:\n        def __init__(self, pointer_value):\n            self.shape = (4, 8)\n            self.dtype = 'float32'\n            self.itemsize = 4\n            self.nbytes = 128\n            self.device = 'cuda:7'\n            self.flags = KainThetaFlags()\n            self.__cuda_array_interface__ = {\n                'version': 3,\n                'shape': self.shape,\n                'strides': None,\n                'typestr': '<f4',\n                'data': (pointer_value, False),\n            }\n        def __dlpack__(self, stream=None):\n            return ('fake-dlpack', stream)\n        def __dlpack_device__(self):\n            return (2, 7)\n        def is_contiguous(self):\n            return True\n        def stride(self):\n            return (8, 1)\n        def numel(self):\n            return 32\n    def kain_theta_make_fake_cuda_tensor(pointer_value):\n        return KainThetaFakeCudaTensor(pointer_value)\n")
 
 fn make_fake_cuda_tensor(seed: Int) -> Any:
     ensure_fake_cuda_tensor_factory()
     let pointer_value = 281474976710656 + (seed * 4096)
-    return python_call("__kain_theta_make_fake_cuda_tensor", [pointer_value])
+    return python_call_raw("kain_theta_make_fake_cuda_tensor", [pointer_value])
 
 pub fn python_interop_case_count() -> Int:
     return PYTHON_INTEROP_CASE_COUNT

@@ -107,7 +107,7 @@ pub struct GpuBindingPlan:
 
 pub struct GpuBuffer:
     handle: Any
-    info: Any
+    info: KainSharedBufferInfo
     byte_length: Int
     element_type: String
     element_size: Int
@@ -116,7 +116,7 @@ pub struct GpuBuffer:
 
 pub struct GpuImage:
     handle: Any
-    info: Any
+    info: KainSharedImageInfo
     byte_length: Int
     width: Int
     height: Int
@@ -516,8 +516,6 @@ pub fn gpu_image_descriptor(image: GpuImage) -> Any:
     json_object_set(payload, "source_backend", image.info.source_backend)
     json_object_set(payload, "ownership", image.info.ownership)
     json_object_set(payload, "labels", image.info.labels)
-    json_object_set(payload, "shape", image.info.shape)
-    json_object_set(payload, "strides", image.info.strides)
     json_object_set(payload, "descriptor_kind", image.policy.memory.descriptor_kind)
     json_object_set(payload, "layout_kind", image.policy.memory.layout_kind)
     json_object_set(payload, "usage_flags", image.policy.usage_flags)

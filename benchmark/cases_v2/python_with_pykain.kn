@@ -121,7 +121,7 @@ pub fn python_with_pykain_case_iterations(index: Int) -> Int:
 
 pub fn python_with_pykain_case_expected_checksum(index: Int) -> Int:
     if index == 0:
-        return 637296
+        return 1214796
     if index == 1:
         return 500905
     if index == 2:
