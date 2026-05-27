@@ -100,6 +100,27 @@ fn py_region_generic_call_count(region: Any) -> Int
 @extern
 fn py_region_fast_call_count(region: Any) -> Int
 
+@extern
+fn py_buffer_view(target: Any) -> Any
+
+@extern
+fn py_buffer_view_byte_length(view: Any) -> Int
+
+@extern
+fn py_buffer_view_element_count(view: Any) -> Int
+
+@extern
+fn py_buffer_view_element_size(view: Any) -> Int
+
+@extern
+fn py_buffer_view_c_contiguous(view: Any) -> Int
+
+@extern
+fn py_buffer_view_writable(view: Any) -> Int
+
+@extern
+fn py_buffer_view_release(view: Any)
+
 pub fn python_bootstrap():
     py_exec("import importlib.util\n\ndef __kain_module_available(name):\n    return importlib.util.find_spec(name) is not None\n")
 
@@ -182,6 +203,27 @@ pub fn python_region_generic_call_count(region: Any) -> Int:
 
 pub fn python_region_fast_call_count(region: Any) -> Int:
     return py_region_fast_call_count(region)
+
+pub fn python_buffer_view(target: Any) -> Any:
+    return py_buffer_view(target)
+
+pub fn python_buffer_view_byte_length(view: Any) -> Int:
+    return py_buffer_view_byte_length(view)
+
+pub fn python_buffer_view_element_count(view: Any) -> Int:
+    return py_buffer_view_element_count(view)
+
+pub fn python_buffer_view_element_size(view: Any) -> Int:
+    return py_buffer_view_element_size(view)
+
+pub fn python_buffer_view_c_contiguous(view: Any) -> Int:
+    return py_buffer_view_c_contiguous(view)
+
+pub fn python_buffer_view_writable(view: Any) -> Int:
+    return py_buffer_view_writable(view)
+
+pub fn python_buffer_view_release(view: Any):
+    py_buffer_view_release(view)
 
 pub fn python_call(target: Any, args: Any) -> Any:
     return py_call(target, args)
@@ -293,44 +335,83 @@ fn python_tensor_interop_adoption_path(interop_lane: String) -> String:
         return interop_lane
     return "python_tensor_shared"
 
-fn python_tensor_interop_labels(info: Any) -> Any:
+fn python_tensor_attr_value(tensor: Any, name: String) -> Any:
+    return python_getattr_raw(tensor, name)
+
+fn python_tensor_attr_int(tensor: Any, name: String) -> Int:
+    return json_any_to_int(python_tensor_attr_value(tensor, name))
+
+fn python_tensor_attr_bool(tensor: Any, name: String) -> Bool:
+    return python_tensor_attr_int(tensor, name) != 0
+
+fn python_tensor_attr_string(tensor: Any, name: String) -> String:
+    return json_any_to_string(python_tensor_attr_value(tensor, name))
+
+fn python_tensor_attr_optional_string(tensor: Any, name: String) -> String:
+    let value = python_tensor_attr_value(tensor, name)
+    if json_any_kind(value) == JSON_KIND_CODE_NULL:
+        return ""
+    return json_any_to_string(value)
+
+fn python_tensor_interop_labels(source_backend: Any, device_kind: String, interop_lane: String) -> Any:
     let labels = json_object()
-    json_object_set(labels, "source_backend", info.source_backend)
-    json_object_set(labels, "device_kind", info.device_kind)
-    json_object_set(labels, "interop_lane", info.interop_lane)
+    json_object_set(labels, "source_backend", source_backend)
+    json_object_set(labels, "device_kind", device_kind)
+    json_object_set(labels, "interop_lane", interop_lane)
     return labels
 
 fn python_tensor_interop_info_from_tensor(tensor: Any) -> KainSharedBufferInfo:
     let info = kain_tensor_info(tensor)
+    let shape = python_tensor_attr_value(info, "shape")
+    let strides = python_tensor_attr_value(info, "strides")
+    let element_type = python_tensor_attr_string(info, "element_type")
+    let element_size = python_tensor_attr_int(info, "element_size")
+    let dtype = python_tensor_attr_string(info, "dtype")
+    let source_runtime = python_tensor_attr_string(info, "source_runtime")
+    let source_backend = python_tensor_attr_value(info, "source_backend")
+    let ownership = python_tensor_attr_string(info, "ownership")
+    let byte_length = python_tensor_attr_int(info, "byte_length")
+    let element_count = python_tensor_attr_int(info, "element_count")
+    let device = python_tensor_attr_optional_string(info, "device")
+    let device_kind = python_tensor_attr_optional_string(info, "device_kind")
+    let device_ordinal = python_tensor_attr_int(info, "device_ordinal")
+    let device_pointer = python_tensor_attr_int(info, "device_pointer")
+    let device_type_code = python_tensor_attr_int(info, "device_type_code")
+    let host_accessible = python_tensor_attr_bool(info, "host_accessible")
+    let writable = python_tensor_attr_bool(info, "writable")
+    let contiguous = python_tensor_attr_bool(info, "is_contiguous")
+    let dlpack_capable = python_tensor_attr_bool(info, "dlpack_capable")
+    let cuda_array_interface_version = python_tensor_attr_int(info, "cuda_array_interface_version")
+    let interop_lane = python_tensor_attr_optional_string(info, "interop_lane")
     return KainSharedBufferInfo {
         contract: "kain.python.tensor.interop",
         contract_version: 1,
-        element_type: info.element_type,
-        element_size: info.element_size,
-        shape: info.shape,
-        strides: info.strides,
-        format: info.dtype,
-        mime_type: python_tensor_interop_mime_type(info.device_kind, info.interop_lane),
-        source_runtime: info.source_runtime,
-        source_backend: info.source_backend,
-        ownership: info.ownership,
-        adoption_path: python_tensor_interop_adoption_path(info.interop_lane),
+        element_type: element_type,
+        element_size: element_size,
+        shape: shape,
+        strides: strides,
+        format: dtype,
+        mime_type: python_tensor_interop_mime_type(device_kind, interop_lane),
+        source_runtime: source_runtime,
+        source_backend: source_backend,
+        ownership: ownership,
+        adoption_path: python_tensor_interop_adoption_path(interop_lane),
         fallback_reason: "",
-        labels: python_tensor_interop_labels(info),
-        byte_length: info.byte_length,
-        element_count: info.element_count,
-        zero_copy: info.ownership == "shared",
-        device: info.device,
-        device_kind: info.device_kind,
-        device_ordinal: info.device_ordinal,
-        device_pointer: info.device_pointer,
-        device_type_code: info.device_type_code,
-        host_accessible: info.host_accessible,
-        writable: info.writable,
-        contiguous: info.is_contiguous,
-        dlpack_capable: info.dlpack_capable,
-        cuda_array_interface_version: info.cuda_array_interface_version,
-        interop_lane: info.interop_lane
+        labels: python_tensor_interop_labels(source_backend, device_kind, interop_lane),
+        byte_length: byte_length,
+        element_count: element_count,
+        zero_copy: ownership == "shared",
+        device: device,
+        device_kind: device_kind,
+        device_ordinal: device_ordinal,
+        device_pointer: device_pointer,
+        device_type_code: device_type_code,
+        host_accessible: host_accessible,
+        writable: writable,
+        contiguous: contiguous,
+        dlpack_capable: dlpack_capable,
+        cuda_array_interface_version: cuda_array_interface_version,
+        interop_lane: interop_lane
     }
 
 fn python_tensor_gpu_residency_flags(info: KainSharedBufferInfo) -> Int:
@@ -347,6 +428,13 @@ fn python_tensor_gpu_queue_flags(info: KainSharedBufferInfo) -> Int:
         return flags | GPU_QUEUE_HOST
     return flags
 
+fn python_tensor_info_array_dim(value: Any, index: Int) -> Int:
+    if json_any_kind(value) != JSON_KIND_CODE_ARRAY:
+        return 0
+    if index < 0 or index >= json_array_len(value):
+        return 0
+    return json_any_to_int(json_array_get(value, index))
+
 fn python_gpu_buffer_from_tensor_info(tensor: Any, info: KainSharedBufferInfo, policy: GpuResourcePolicy) -> GpuBuffer:
     return GpuBuffer {
         handle: tensor,
@@ -361,6 +449,12 @@ fn python_gpu_buffer_from_tensor_info(tensor: Any, info: KainSharedBufferInfo, p
 pub fn python_tensor_interop_info(target: Any) -> KainSharedBufferInfo:
     let tensor = python_tensor_shared(target)
     return python_tensor_interop_info_from_tensor(tensor)
+
+pub fn python_tensor_shape_dim(info: KainSharedBufferInfo, index: Int) -> Int:
+    return python_tensor_info_array_dim(info.shape, index)
+
+pub fn python_tensor_stride_dim(info: KainSharedBufferInfo, index: Int) -> Int:
+    return python_tensor_info_array_dim(info.strides, index)
 
 pub fn python_shared_buffer_gpu(target: Any, policy: GpuResourcePolicy) -> GpuBuffer:
     return gpu_import_shared_buffer(python_shared_buffer(target), policy)

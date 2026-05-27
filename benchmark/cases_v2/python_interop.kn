@@ -60,7 +60,8 @@ fn make_raw_tensor(seed: Int) -> Any:
     let base = python_call_attr_raw(np, "linspace", [-1.0, 1.0, total, "float32"])
     let reshaped = python_call_attr_raw(base, "reshape", [[RAW_TENSOR_ROWS, RAW_TENSOR_COLS]])
     let shifted = python_call_attr_raw(np, "add", [reshaped, seed as Float])
-    return python_call_attr_raw(np, "ascontiguousarray", [shifted])
+    let narrowed = python_call_attr_raw(shifted, "astype", ["float32"])
+    return python_call_attr_raw(np, "ascontiguousarray", [narrowed])
 
 fn make_raw_uint8_buffer(cells: Int, seed: Int) -> Any:
     let base = python_call_attr_raw(np, "arange", [cells])
@@ -264,7 +265,6 @@ fn python_numpy_shared_buffer_checksum(iterations: Int) -> Int:
         let bytes = interop_shared_buffer_bytes(shared_buffer)
         let tail = bytes[len(bytes) - 1]
         let lane = info.byte_length + info.element_count + info.element_size + bytes[0] + tail + interop_bool_score(info.zero_copy) + interop_bool_score(info.ownership == "shared") + (index % 37)
-        kain_shared_buffer_release(shared_buffer)
         acc = (acc + lane) % PYTHON_INTEROP_MODULUS
         index = index + 1
     return acc
@@ -275,9 +275,8 @@ fn python_raw_tensor_workflow_checksum(iterations: Int) -> Int:
     while index < iterations:
         let seed = 17 + (index % 13)
         let tensor = make_raw_tensor(seed)
-        let tensor_handle = python_tensor_shared(tensor)
-        let info = kain_tensor_info(tensor_handle)
-        let lane = info.shape[0] + info.shape[1] + info.element_count + info.byte_length + seed + (index % 41)
+        let info = python_tensor_interop_info(tensor)
+        let lane = python_tensor_shape_dim(info, 0) + python_tensor_shape_dim(info, 1) + info.element_count + info.byte_length + seed + (index % 41)
         acc = (acc + lane) % PYTHON_INTEROP_MODULUS
         index = index + 1
     return acc
@@ -288,7 +287,7 @@ fn python_gpu_tensor_contract_checksum(iterations: Int) -> Int:
     while index < iterations:
         let tensor = make_fake_cuda_tensor(index % 17)
         let buffer = python_gpu_storage_buffer(tensor, "bench.python.theta.fake_cuda")
-        let descriptor = gpu_buffer_descriptor(buffer)
+        let descriptor = gpu_buffer_descriptor_info(buffer)
         let lane = descriptor.byte_length + descriptor.element_count + descriptor.element_size + descriptor.residency_flags + descriptor.queue_flags + descriptor.access_flags + descriptor.usage_flags + descriptor.device_ordinal + descriptor.cuda_array_interface_version + interop_bool_score(descriptor.zero_copy) + interop_bool_score(descriptor.dlpack_capable) + interop_bool_score(descriptor.host_accessible == false) + interop_bool_score(descriptor.device_kind == "cuda") + interop_bool_score(descriptor.device_pointer > 0) + (index % 53)
         acc = (acc + lane) % PYTHON_INTEROP_MODULUS
         index = index + 1
@@ -319,7 +318,6 @@ fn python_numpy_shared_buffer_tiny_checksum(iterations: Int) -> Int:
         let bytes = interop_shared_buffer_bytes(shared_buffer)
         let tail = bytes[len(bytes) - 1]
         let lane = info.byte_length + info.element_count + info.element_size + bytes[0] + tail + interop_bool_score(info.byte_length == cells) + interop_bool_score(info.zero_copy) + interop_bool_score(info.ownership == "shared") + (index % 47)
-        kain_shared_buffer_release(shared_buffer)
         acc = (acc + lane) % PYTHON_INTEROP_MODULUS
         index = index + 1
     return acc
@@ -399,8 +397,8 @@ fn python_region_numpy_buffer_view_checksum(iterations: Int) -> Int:
     let index: Int = 0
     while index < iterations:
         let view = python_region_buffer_view(region, source)
-        let lane = py_buffer_view_byte_length(view) + py_buffer_view_element_count(view) + py_buffer_view_element_size(view) + py_buffer_view_c_contiguous(view) + py_buffer_view_writable(view) + (index % 37)
-        py_buffer_view_release(view)
+        let lane = python_buffer_view_byte_length(view) + python_buffer_view_element_count(view) + python_buffer_view_element_size(view) + python_buffer_view_c_contiguous(view) + python_buffer_view_writable(view) + (index % 37)
+        python_buffer_view_release(view)
         acc = (acc + lane) % PYTHON_INTEROP_MODULUS
         index = index + 1
     let views_opened = python_region_views_opened(region)

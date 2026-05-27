@@ -227,6 +227,7 @@ long long kain_image_from_py_shared(long long target);
 static int kain_py_copy_source_backend(PyObject* object, char* dest, size_t dest_size);
 static int kain_py_checked_mul_i64(long long left, long long right, long long* out_value);
 static int64_t kain_py_array_handle_from_values(const long long* values, long long len);
+static int64_t kain_py_json_array_from_values(const long long* values, long long len);
 static int64_t kain_py_compact_strides_handle(const long long* shape, long long len);
 static int64_t kain_py_tensor_shape_handle(const KainPythonTensorHandle* tensor);
 static int64_t kain_py_tensor_strides_handle(const KainPythonTensorHandle* tensor);
@@ -1931,14 +1932,14 @@ static int64_t kain_py_tensor_shape_handle(const KainPythonTensorHandle* tensor)
     if (!tensor || !tensor->shape || tensor->ndim <= 0) {
         return 0;
     }
-    return kain_py_array_handle_from_values(tensor->shape, tensor->ndim);
+    return kain_py_json_array_from_values(tensor->shape, tensor->ndim);
 }
 
 static int64_t kain_py_tensor_strides_handle(const KainPythonTensorHandle* tensor) {
     if (!tensor || !tensor->strides || tensor->stride_count <= 0) {
         return 0;
     }
-    return kain_py_array_handle_from_values(tensor->strides, tensor->stride_count);
+    return kain_py_json_array_from_values(tensor->strides, tensor->stride_count);
 }
 
 static int kain_py_tensor_has_virtual_attr(const char* name) {
@@ -2053,6 +2054,19 @@ static int64_t kain_py_array_handle_from_values(const long long* values, long lo
         array_push(array, values[index]);
     }
     return (int64_t)(intptr_t)array;
+}
+
+static int64_t kain_py_json_array_from_values(const long long* values, long long len) {
+    int64_t array;
+    long long index;
+    array = json_array_new();
+    if (!array) {
+        return 0;
+    }
+    for (index = 0; index < len; ++index) {
+        json_array_push(array, KAIN_PY_JSON_INT(values[index]));
+    }
+    return array;
 }
 
 static int64_t kain_py_build_shared_labels(const char* first, const char* second) {
@@ -3172,7 +3186,7 @@ static long long kain_py_image_attr_value(const KainPythonImageHandle* image, co
         return 0;
     }
     if (strcmp(name, "shape") == 0) {
-        return (long long)(intptr_t)image->shape;
+        return kain_py_json_array_from_values(image->shape, image->ndim);
     }
     if (strcmp(name, "ownership") == 0) {
         return kain_py_string_tag(image->ownership);

@@ -1,3 +1,4 @@
+use std::interop
 use std::python
 
 import numpy as np
@@ -24,8 +25,8 @@ fn main() -> Int:
 
     while index < ITERATIONS:
         let shared_buffer = python_shared_buffer(source)
-        let lane = kain_shared_buffer_byte_length(shared_buffer) + kain_shared_buffer_element_count_value(shared_buffer) + kain_shared_buffer_element_size(shared_buffer) + kain_shared_buffer_zero_copy_flag(shared_buffer) + kain_shared_buffer_shared_ownership(shared_buffer) + (index % 37)
-        kain_shared_buffer_release(shared_buffer)
+        let info = interop_shared_buffer_info(shared_buffer)
+        let lane = info.byte_length + info.element_count + info.element_size + bool_score(info.zero_copy) + bool_score(info.ownership == "shared") + (index % 37)
         acc = (acc + lane) % MODULUS
         index = index + 1
 

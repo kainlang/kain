@@ -18,9 +18,9 @@ fn main() -> Int:
     let index: Int = 0
 
     while index < ITERATIONS:
-        let view = py_buffer_view(source)
-        let lane = py_buffer_view_byte_length(view) + py_buffer_view_element_count(view) + py_buffer_view_element_size(view) + py_buffer_view_c_contiguous(view) + py_buffer_view_writable(view) + (index % 37)
-        py_buffer_view_release(view)
+        let view = python_buffer_view(source)
+        let lane = python_buffer_view_byte_length(view) + python_buffer_view_element_count(view) + python_buffer_view_element_size(view) + python_buffer_view_c_contiguous(view) + python_buffer_view_writable(view) + (index % 37)
+        python_buffer_view_release(view)
         acc = (acc + lane) % MODULUS
         index = index + 1
 

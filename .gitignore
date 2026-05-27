@@ -3,8 +3,6 @@
 **/*target*/
 **/*target*/**
 /packages/ephemaris
-/mcp
-mcp/
 **/debug/
 tidus/
 /$recycle.bin

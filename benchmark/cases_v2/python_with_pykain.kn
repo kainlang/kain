@@ -147,9 +147,8 @@ fn python_pykain_tensor_workflow_checksum(iterations: Int) -> Int:
         let info = pykain.tensor.info(tensor)
         let validation = pykain.tensor.validate(tensor)
         let contract = pykain.tensor.grid_contract(PYKAIN_PLAN_MAIN, seed)
-        let tensor_handle = python_tensor_shared(tensor)
-        let shared_info = kain_tensor_info(tensor_handle)
-        let lane = json_int_or(info, "byte_length", 0) + json_int_or(info, "element_count", 0) + pykain_bool_score(json_bool_or(validation, "is_contiguous", false)) + pykain_bool_score(json_bool_or(validation, "is_writeable", false)) + contract + shared_info.shape[0] + shared_info.shape[1] + shared_info.byte_length + shared_info.element_count + (index % 41)
+        let shared_info = python_tensor_interop_info(tensor)
+        let lane = json_int_or(info, "byte_length", 0) + json_int_or(info, "element_count", 0) + pykain_bool_score(json_bool_or(validation, "is_contiguous", false)) + pykain_bool_score(json_bool_or(validation, "is_writeable", false)) + contract + python_tensor_shape_dim(shared_info, 0) + python_tensor_shape_dim(shared_info, 1) + shared_info.byte_length + shared_info.element_count + (index % 41)
         acc = (acc + lane) % PYTHON_PYKAIN_MODULUS
         index = index + 1
     return acc
@@ -166,7 +165,6 @@ fn python_pykain_buffer_workflow_checksum(iterations: Int) -> Int:
         let buffer_handle = python_shared_buffer(buffer)
         let shared_info = interop_shared_buffer_info(buffer_handle)
         let lane = json_int_or(info, "byte_length", 0) + json_int_or(info, "element_count", 0) + pykain_bool_score(json_bool_or(info, "is_contiguous", false)) + pykain_bool_score(json_bool_or(validation, "valid", false)) + contract + shared_info.byte_length + shared_info.element_count + shared_info.element_size + pykain_bool_score(shared_info.zero_copy) + pykain_bool_score(shared_info.ownership == "shared") + (index % 43)
-        kain_shared_buffer_release(buffer_handle)
         acc = (acc + lane) % PYTHON_PYKAIN_MODULUS
         index = index + 1
     return acc
@@ -217,11 +215,10 @@ fn python_pykain_tensor_edge_contract_checksum(iterations: Int) -> Int:
         let seed = 5 + (index % 7)
         let tensor = pykain.tensor.grid(PYKAIN_PLAN_TENSOR_EDGE, seed)
         let info = pykain.tensor.info(tensor)
-        let tensor_handle = python_tensor_shared(tensor)
-        let shared_info = kain_tensor_info(tensor_handle)
+        let shared_info = python_tensor_interop_info(tensor)
         let shape_ok = pykain.validate.tensor_shape(tensor, [1, 17])
         let contract = pykain.tensor.grid_contract(PYKAIN_PLAN_TENSOR_EDGE, seed)
-        let lane = json_int_or(info, "byte_length", 0) + json_int_or(info, "element_count", 0) + shared_info.shape[0] + shared_info.shape[1] + shape_ok + contract + (index % 61)
+        let lane = json_int_or(info, "byte_length", 0) + json_int_or(info, "element_count", 0) + python_tensor_shape_dim(shared_info, 0) + python_tensor_shape_dim(shared_info, 1) + shape_ok + contract + (index % 61)
         acc = (acc + lane) % PYTHON_PYKAIN_MODULUS
         index = index + 1
     return acc
