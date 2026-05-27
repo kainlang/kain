@@ -5,6 +5,7 @@
 
 #include <limits.h>
 #include <stddef.h>
+#include <stdatomic.h>
 
 #ifndef _WIN32
 #include <dlfcn.h>
@@ -24,6 +25,8 @@
 #define KAIN_RC_TYPE_PY_IMAGE   UINT64_C(0x4b5059494d470001)
 #define KAIN_RC_TYPE_PY_BUFFER_VIEW UINT64_C(0x4b50594256490001)
 #define KAIN_RC_TYPE_PY_REGION UINT64_C(0x4b50595245470001)
+#define KAIN_RC_TYPE_PY_ASYNC_FUTURE UINT64_C(0x4b50594153594e01)
+#define KAIN_RC_TYPE_PY_ACTOR_CALLBACK UINT64_C(0x4b50594143544201)
 #define KAIN_PY_REGION_IMPORT_CACHE 64u
 #define KAIN_PY_REGION_ATTR_CACHE 128u
 #define KAIN_PY_JSON_INT(value)  ((((int64_t)(value)) << 3) | 1LL)
@@ -103,6 +106,9 @@ typedef struct {
     PyObject* object;
 } KainPythonObjectHandle;
 
+typedef struct KainPythonAsyncFutureHandle KainPythonAsyncFutureHandle;
+typedef struct KainPythonActorCallbackHandle KainPythonActorCallbackHandle;
+
 typedef struct {
     int active;
     PyGILState_STATE state;
@@ -110,6 +116,8 @@ typedef struct {
 
 typedef struct KainPythonRegionHandle KainPythonRegionHandle;
 typedef struct KainPythonBufferViewHandle KainPythonBufferViewHandle;
+
+static long long kain_py_string_tag(const char* text);
 
 typedef struct {
     char* module_name;
@@ -135,8 +143,27 @@ struct KainPythonBufferViewHandle {
 typedef struct {
     PyObject* object;
     long long* shape;
+    long long* strides;
     long long ndim;
+    long long stride_count;
+    long long element_size;
+    long long element_count;
+    long long byte_length;
+    long long device_ordinal;
+    long long device_pointer;
+    long long device_type_code;
+    int host_accessible;
+    int contiguous;
+    int writable;
+    int dlpack_capable;
+    int cuda_array_interface_version;
     char ownership[8];
+    char dtype[24];
+    char element_type[24];
+    char source_backend[32];
+    char device[32];
+    char device_kind[24];
+    char interop_lane[32];
 } KainPythonTensorHandle;
 
 typedef struct {
@@ -178,6 +205,9 @@ struct KainPythonRegionHandle {
     uint64_t attr_cache_misses;
     uint64_t views_opened;
     uint64_t views_released;
+    uint64_t call_count;
+    uint64_t generic_call_count;
+    uint64_t fast_call_count;
 };
 
 static KainPythonApi g_kain_python_api;
@@ -198,6 +228,13 @@ static int kain_py_copy_source_backend(PyObject* object, char* dest, size_t dest
 static int kain_py_checked_mul_i64(long long left, long long right, long long* out_value);
 static int64_t kain_py_array_handle_from_values(const long long* values, long long len);
 static int64_t kain_py_compact_strides_handle(const long long* shape, long long len);
+static int64_t kain_py_tensor_shape_handle(const KainPythonTensorHandle* tensor);
+static int64_t kain_py_tensor_strides_handle(const KainPythonTensorHandle* tensor);
+static int kain_py_tensor_has_virtual_attr(const char* name);
+static long long kain_py_tensor_attr_value(const KainPythonTensorHandle* tensor, const char* name);
+static const char* kain_py_storage_from_dtype(const char* dtype);
+static PyObject* kain_py_resolve_target(long long value);
+static PyObject* kain_py_call_method0_owned(PyObject* object, const char* name);
 static long long kain_py_call_internal_active(
     long long target,
     const char* attr_name,
@@ -211,8 +248,23 @@ static long long kain_py_import_internal_active(
     const char* importer_file,
     KainPythonRegionHandle* region
 );
+static int kain_py_copy_dtype_name(PyObject* object, char* dest, size_t dest_size);
+static int kain_py_read_attr_int_sequence(PyObject* object, const char* name, long long** out_values, long long* out_len);
+static long long kain_py_element_size_from_storage(const char* element_type);
+static int kain_py_read_sequence_int_values(PyObject* sequence, long long** out_values, long long* out_len);
+static long long kain_py_method0_int(PyObject* object, const char* name, long long fallback);
+static int kain_py_shape_element_count(const long long* shape, long long len, long long* out_count);
+static long long* kain_py_copy_long_long_buffer(const long long* values, long long len);
+static long long* kain_py_compact_strides_values(const long long* shape, long long len);
+static int kain_py_stride_values_look_like_bytes(const long long* values, long long len, long long element_size);
+static void kain_py_stride_values_to_elements(long long* values, long long len, long long element_size);
+static int kain_py_tensor_strides_are_compact(const KainPythonTensorHandle* tensor);
+static void kain_py_tensor_capture_device_metadata(PyObject* object, KainPythonTensorHandle* tensor);
+static long long kain_py_attr_int(PyObject* object, const char* name, long long fallback);
 static long long kain_py_getattr_internal_active(long long target, const char* name, KainPythonRegionHandle* region);
 static long long kain_py_buffer_view_from_target_active(long long target, KainPythonRegionHandle* region);
+static void kain_py_any_retain(long long value);
+static void kain_py_any_release(long long value);
 
 static int kain_py_trace_enabled(void) {
 #ifdef _WIN32
@@ -258,6 +310,28 @@ static int kain_py_any_is_string_tag(long long value) {
 
 static int kain_py_any_is_null_tag(long long value) {
     return (value & 7LL) == 4LL;
+}
+
+static void kain_py_any_retain(long long value) {
+    if (value == 0 || kain_py_any_is_null_tag(value)) {
+        return;
+    }
+    if ((value & 7LL) == 0LL) {
+        rc_retain((void*)(intptr_t)value);
+        return;
+    }
+    json_retain(value);
+}
+
+static void kain_py_any_release(long long value) {
+    if (value == 0 || kain_py_any_is_null_tag(value)) {
+        return;
+    }
+    if ((value & 7LL) == 0LL) {
+        rc_release((void*)(intptr_t)value);
+        return;
+    }
+    json_release(value);
 }
 
 static char* kain_py_dup_cstr(const char* text) {
@@ -868,9 +942,8 @@ static void kain_py_object_destructor(void* payload) {
 
 static KainPythonTensorHandle* kain_py_wrap_tensor(PyObject* object, const char* ownership) {
     KainPythonTensorHandle* tensor;
-    PyObject* shape_obj;
-    Py_ssize_t shape_len;
-    Py_ssize_t index;
+    PyObject* flags_obj;
+    PyObject* writable_obj;
     if (!object) {
         return NULL;
     }
@@ -880,39 +953,140 @@ static KainPythonTensorHandle* kain_py_wrap_tensor(PyObject* object, const char*
     }
     memset(tensor, 0, sizeof(*tensor));
     tensor->object = object;
+    tensor->host_accessible = 1;
+    tensor->contiguous = 1;
+    tensor->writable = 1;
+    tensor->device_type_code = 1;
     strncpy_s(tensor->ownership, sizeof(tensor->ownership), ownership ? ownership : "shared", _TRUNCATE);
-    shape_obj = g_kain_python_api.PyObject_GetAttrString(object, "shape");
-    if (!shape_obj) {
-        kain_py_clear_error();
-        shape_len = 0;
-    } else {
-        shape_len = g_kain_python_api.PySequence_Size(shape_obj);
-        if (shape_len < 0) {
-            kain_py_clear_error();
-            shape_len = 0;
+    if (!kain_py_read_attr_int_sequence(object, "shape", &tensor->shape, &tensor->ndim)) {
+        tensor->shape = NULL;
+        tensor->ndim = 0;
+    }
+    if (!kain_py_copy_dtype_name(object, tensor->dtype, sizeof(tensor->dtype))) {
+        strncpy_s(tensor->dtype, sizeof(tensor->dtype), "unknown", _TRUNCATE);
+    }
+    strncpy_s(
+        tensor->element_type,
+        sizeof(tensor->element_type),
+        kain_py_storage_from_dtype(tensor->dtype),
+        _TRUNCATE
+    );
+    tensor->element_size = kain_py_attr_int(object, "itemsize", 0);
+    if (tensor->element_size <= 0) {
+        tensor->element_size = kain_py_method0_int(object, "element_size", 0);
+    }
+    if (tensor->element_size <= 0) {
+        tensor->element_size = kain_py_element_size_from_storage(tensor->element_type);
+    }
+    if (!kain_py_copy_source_backend(object, tensor->source_backend, sizeof(tensor->source_backend)) ||
+        tensor->source_backend[0] == '\0' ||
+        strcmp(tensor->source_backend, "__main__") == 0) {
+        strncpy_s(tensor->source_backend, sizeof(tensor->source_backend), "python", _TRUNCATE);
+    }
+    if (!kain_py_read_attr_int_sequence(object, "strides", &tensor->strides, &tensor->stride_count)) {
+        tensor->strides = NULL;
+        tensor->stride_count = 0;
+    }
+    if (!tensor->strides && g_kain_python_api.PyObject_HasAttrString(object, "stride") > 0) {
+        PyObject* stride_result = kain_py_call_method0_owned(object, "stride");
+        if (stride_result) {
+            if (!kain_py_read_sequence_int_values(stride_result, &tensor->strides, &tensor->stride_count)) {
+                tensor->strides = NULL;
+                tensor->stride_count = 0;
+            }
+            g_kain_python_api.Py_DecRef(stride_result);
         }
     }
-    tensor->ndim = (long long)shape_len;
-    if (shape_len > 0) {
-        tensor->shape = (long long*)calloc((size_t)shape_len, sizeof(long long));
-        for (index = 0; index < shape_len; ++index) {
-            PyObject* item = g_kain_python_api.PySequence_GetItem(shape_obj, index);
-            if (item) {
-                PyObject* coerced = g_kain_python_api.PyNumber_Long(item);
-                if (coerced) {
-                    tensor->shape[index] = g_kain_python_api.PyLong_AsLongLong(coerced);
-                    g_kain_python_api.Py_DecRef(coerced);
-                } else {
-                    kain_py_clear_error();
-                }
-                g_kain_python_api.Py_DecRef(item);
-            } else {
+    if (tensor->strides &&
+        tensor->stride_count == tensor->ndim &&
+        kain_py_stride_values_look_like_bytes(tensor->strides, tensor->stride_count, tensor->element_size)) {
+        kain_py_stride_values_to_elements(tensor->strides, tensor->stride_count, tensor->element_size);
+    }
+    if (!tensor->strides && tensor->shape && tensor->ndim > 0) {
+        tensor->strides = kain_py_compact_strides_values(tensor->shape, tensor->ndim);
+        tensor->stride_count = tensor->strides ? tensor->ndim : 0;
+    }
+    if (tensor->shape && tensor->ndim > 0) {
+        (void)kain_py_shape_element_count(tensor->shape, tensor->ndim, &tensor->element_count);
+    }
+    if (tensor->element_count <= 0) {
+        tensor->element_count = kain_py_attr_int(object, "size", 0);
+    }
+    if (tensor->element_count <= 0) {
+        tensor->element_count = kain_py_method0_int(object, "numel", 0);
+    }
+    if (!tensor->shape && tensor->element_count > 0) {
+        long long inferred[1];
+        inferred[0] = tensor->element_count;
+        tensor->shape = kain_py_copy_long_long_buffer(inferred, 1);
+        tensor->ndim = tensor->shape ? 1 : 0;
+        if (!tensor->strides) {
+            tensor->strides = kain_py_compact_strides_values(inferred, 1);
+            tensor->stride_count = tensor->strides ? 1 : 0;
+        }
+    }
+    tensor->byte_length = kain_py_attr_int(object, "nbytes", 0);
+    if (tensor->byte_length <= 0 &&
+        tensor->element_count > 0 &&
+        tensor->element_size > 0) {
+        (void)kain_py_checked_mul_i64(
+            tensor->element_count,
+            tensor->element_size,
+            &tensor->byte_length
+        );
+    }
+    if (g_kain_python_api.PyObject_HasAttrString(object, "is_contiguous") > 0) {
+        PyObject* contiguous_obj = kain_py_call_method0_owned(object, "is_contiguous");
+        if (contiguous_obj) {
+            int truth = g_kain_python_api.PyObject_IsTrue(contiguous_obj);
+            tensor->contiguous = truth > 0 ? 1 : 0;
+            if (truth < 0) {
                 kain_py_clear_error();
             }
+            g_kain_python_api.Py_DecRef(contiguous_obj);
         }
+    } else if (tensor->strides) {
+        tensor->contiguous = kain_py_tensor_strides_are_compact(tensor);
     }
-    if (shape_obj) {
-        g_kain_python_api.Py_DecRef(shape_obj);
+    flags_obj = g_kain_python_api.PyObject_GetAttrString(object, "flags");
+    if (flags_obj) {
+        writable_obj = g_kain_python_api.PyObject_GetAttrString(flags_obj, "writeable");
+        if (writable_obj) {
+            int truth = g_kain_python_api.PyObject_IsTrue(writable_obj);
+            tensor->writable = truth > 0 ? 1 : 0;
+            if (truth < 0) {
+                kain_py_clear_error();
+            }
+            g_kain_python_api.Py_DecRef(writable_obj);
+        } else {
+            kain_py_clear_error();
+        }
+        g_kain_python_api.Py_DecRef(flags_obj);
+    } else {
+        kain_py_clear_error();
+    }
+    kain_py_tensor_capture_device_metadata(object, tensor);
+    if (!tensor->strides && tensor->shape && tensor->ndim > 0) {
+        tensor->strides = kain_py_compact_strides_values(tensor->shape, tensor->ndim);
+        tensor->stride_count = tensor->strides ? tensor->ndim : 0;
+    }
+    if (tensor->element_count <= 0 && tensor->shape && tensor->ndim > 0) {
+        (void)kain_py_shape_element_count(tensor->shape, tensor->ndim, &tensor->element_count);
+    }
+    if (tensor->byte_length <= 0 &&
+        tensor->element_count > 0 &&
+        tensor->element_size > 0) {
+        (void)kain_py_checked_mul_i64(
+            tensor->element_count,
+            tensor->element_size,
+            &tensor->byte_length
+        );
+    }
+    if (tensor->strides && g_kain_python_api.PyObject_HasAttrString(object, "is_contiguous") <= 0) {
+        tensor->contiguous = kain_py_tensor_strides_are_compact(tensor);
+    }
+    if (tensor->dlpack_capable && !tensor->interop_lane[0]) {
+        strncpy_s(tensor->interop_lane, sizeof(tensor->interop_lane), "dlpack", _TRUNCATE);
     }
     KAIN_set_destructor(tensor, NULL);
     return tensor;
@@ -927,6 +1101,10 @@ static void kain_py_tensor_destructor(void* payload) {
     if (tensor->shape) {
         free(tensor->shape);
         tensor->shape = NULL;
+    }
+    if (tensor->strides) {
+        free(tensor->strides);
+        tensor->strides = NULL;
     }
     if (!tensor->object) {
         return;
@@ -1063,6 +1241,42 @@ static PyObject* kain_py_call_method0_owned(PyObject* object, const char* name) 
     return result;
 }
 
+static PyObject* kain_py_call_method1_owned(PyObject* object, const char* name, PyObject* arg0) {
+    PyObject* method;
+    PyObject* args;
+    PyObject* result;
+    if (!object || !name || !arg0) {
+        return NULL;
+    }
+    method = g_kain_python_api.PyObject_GetAttrString(object, name);
+    if (!method) {
+        kain_py_clear_error();
+        return NULL;
+    }
+    args = g_kain_python_api.PyTuple_New(1);
+    if (!args) {
+        g_kain_python_api.Py_DecRef(method);
+        kain_py_clear_error();
+        return NULL;
+    }
+    g_kain_python_api.Py_IncRef(arg0);
+    if (g_kain_python_api.PyTuple_SetItem(args, 0, arg0) != 0) {
+        g_kain_python_api.Py_DecRef(arg0);
+        g_kain_python_api.Py_DecRef(args);
+        g_kain_python_api.Py_DecRef(method);
+        kain_py_clear_error();
+        return NULL;
+    }
+    result = g_kain_python_api.PyObject_Call(method, args, NULL);
+    g_kain_python_api.Py_DecRef(args);
+    g_kain_python_api.Py_DecRef(method);
+    if (!result) {
+        kain_py_clear_error();
+        return NULL;
+    }
+    return result;
+}
+
 static int kain_py_copy_dtype_name(PyObject* object, char* dest, size_t dest_size) {
     PyObject* dtype;
     int ok = 0;
@@ -1149,6 +1363,676 @@ static int kain_py_read_attr_int_sequence(
         *out_len = (long long)len;
     }
     return 1;
+}
+
+static long long kain_py_element_size_from_storage(const char* element_type) {
+    if (!element_type || !element_type[0]) {
+        return 1;
+    }
+    if (strcmp(element_type, "bool") == 0 ||
+        strcmp(element_type, "u8") == 0 ||
+        strcmp(element_type, "i8") == 0) {
+        return 1;
+    }
+    if (strcmp(element_type, "u16") == 0 ||
+        strcmp(element_type, "i16") == 0) {
+        return 2;
+    }
+    if (strcmp(element_type, "u32") == 0 ||
+        strcmp(element_type, "i32") == 0 ||
+        strcmp(element_type, "f32") == 0) {
+        return 4;
+    }
+    if (strcmp(element_type, "u64") == 0 ||
+        strcmp(element_type, "i64") == 0 ||
+        strcmp(element_type, "f64") == 0) {
+        return 8;
+    }
+    return 1;
+}
+
+static int kain_py_read_sequence_int_values(
+    PyObject* sequence,
+    long long** out_values,
+    long long* out_len
+) {
+    Py_ssize_t len;
+    Py_ssize_t index;
+    long long* values = NULL;
+    if (out_values) {
+        *out_values = NULL;
+    }
+    if (out_len) {
+        *out_len = 0;
+    }
+    if (!sequence) {
+        return 0;
+    }
+    len = g_kain_python_api.PySequence_Size(sequence);
+    if (len < 0) {
+        kain_py_clear_error();
+        return 0;
+    }
+    if (len > 0) {
+        values = (long long*)calloc((size_t)len, sizeof(long long));
+        if (!values) {
+            return 0;
+        }
+        for (index = 0; index < len; ++index) {
+            PyObject* item = g_kain_python_api.PySequence_GetItem(sequence, index);
+            PyObject* coerced;
+            if (!item) {
+                free(values);
+                kain_py_clear_error();
+                return 0;
+            }
+            coerced = g_kain_python_api.PyNumber_Long(item);
+            g_kain_python_api.Py_DecRef(item);
+            if (!coerced) {
+                free(values);
+                kain_py_clear_error();
+                return 0;
+            }
+            values[index] = g_kain_python_api.PyLong_AsLongLong(coerced);
+            g_kain_python_api.Py_DecRef(coerced);
+        }
+    }
+    if (out_values) {
+        *out_values = values;
+    } else if (values) {
+        free(values);
+    }
+    if (out_len) {
+        *out_len = (long long)len;
+    }
+    return 1;
+}
+
+static PyObject* kain_py_mapping_get_item_string_owned(PyObject* mapping, const char* key) {
+    PyObject* py_key;
+    PyObject* value;
+    if (!mapping || !key) {
+        return NULL;
+    }
+    py_key = g_kain_python_api.PyUnicode_FromString(key);
+    if (!py_key) {
+        kain_py_clear_error();
+        return NULL;
+    }
+    value = g_kain_python_api.PyObject_GetItem(mapping, py_key);
+    g_kain_python_api.Py_DecRef(py_key);
+    if (!value) {
+        kain_py_clear_error();
+        return NULL;
+    }
+    return value;
+}
+
+static long long kain_py_method0_int(PyObject* object, const char* name, long long fallback) {
+    PyObject* result;
+    PyObject* coerced;
+    long long value = fallback;
+    if (!object || !name) {
+        return fallback;
+    }
+    result = kain_py_call_method0_owned(object, name);
+    if (!result) {
+        return fallback;
+    }
+    coerced = g_kain_python_api.PyNumber_Long(result);
+    g_kain_python_api.Py_DecRef(result);
+    if (!coerced) {
+        kain_py_clear_error();
+        return fallback;
+    }
+    value = g_kain_python_api.PyLong_AsLongLong(coerced);
+    g_kain_python_api.Py_DecRef(coerced);
+    return value;
+}
+
+static int kain_py_copy_typestr_dtype(const char* typestr, char* dest, size_t dest_size) {
+    size_t len;
+    size_t index = 0u;
+    char kind = '\0';
+    int width;
+    if (!dest || dest_size == 0u) {
+        return 0;
+    }
+    dest[0] = '\0';
+    if (!typestr || !typestr[0]) {
+        return 0;
+    }
+    len = strlen(typestr);
+    while (index < len) {
+        char ch = typestr[index];
+        if (ch == 'f' || ch == 'i' || ch == 'u' || ch == 'b' || ch == '?') {
+            kind = ch;
+            index += 1u;
+            break;
+        }
+        index += 1u;
+    }
+    if (kind == '\0') {
+        return 0;
+    }
+    if (kind == '?') {
+        kind = 'b';
+        width = 1;
+    } else {
+        if (index >= len) {
+            return 0;
+        }
+        width = atoi(typestr + index);
+        if (width <= 0) {
+            return 0;
+        }
+    }
+    if (kind == 'f' && width == 4) {
+        strncpy_s(dest, dest_size, "float32", _TRUNCATE);
+        return 1;
+    }
+    if (kind == 'f' && width == 8) {
+        strncpy_s(dest, dest_size, "float64", _TRUNCATE);
+        return 1;
+    }
+    if (kind == 'i' && width == 1) {
+        strncpy_s(dest, dest_size, "int8", _TRUNCATE);
+        return 1;
+    }
+    if (kind == 'i' && width == 2) {
+        strncpy_s(dest, dest_size, "int16", _TRUNCATE);
+        return 1;
+    }
+    if (kind == 'i' && width == 4) {
+        strncpy_s(dest, dest_size, "int32", _TRUNCATE);
+        return 1;
+    }
+    if (kind == 'i' && width == 8) {
+        strncpy_s(dest, dest_size, "int64", _TRUNCATE);
+        return 1;
+    }
+    if (kind == 'u' && width == 1) {
+        strncpy_s(dest, dest_size, "uint8", _TRUNCATE);
+        return 1;
+    }
+    if (kind == 'u' && width == 2) {
+        strncpy_s(dest, dest_size, "uint16", _TRUNCATE);
+        return 1;
+    }
+    if (kind == 'u' && width == 4) {
+        strncpy_s(dest, dest_size, "uint32", _TRUNCATE);
+        return 1;
+    }
+    if (kind == 'u' && width == 8) {
+        strncpy_s(dest, dest_size, "uint64", _TRUNCATE);
+        return 1;
+    }
+    if (kind == 'b' && width == 1) {
+        strncpy_s(dest, dest_size, "bool", _TRUNCATE);
+        return 1;
+    }
+    return 0;
+}
+
+static int kain_py_parse_device_string(
+    const char* device_text,
+    char* device_kind,
+    size_t device_kind_size,
+    long long* out_ordinal
+) {
+    const char* colon;
+    if (out_ordinal) {
+        *out_ordinal = 0;
+    }
+    if (!device_text || !device_text[0] || !device_kind || device_kind_size == 0u) {
+        return 0;
+    }
+    device_kind[0] = '\0';
+    colon = strchr(device_text, ':');
+    if (colon) {
+        size_t prefix_len = (size_t)(colon - device_text);
+        if (prefix_len > 0u) {
+            snprintf(device_kind, device_kind_size, "%.*s", (int)prefix_len, device_text);
+        }
+        if (out_ordinal) {
+            *out_ordinal = _strtoi64(colon + 1, NULL, 10);
+        }
+        return 1;
+    }
+    strncpy_s(device_kind, device_kind_size, device_text, _TRUNCATE);
+    return 1;
+}
+
+static const char* kain_py_device_kind_from_dlpack_code(long long code) {
+    if (code == 1) {
+        return "cpu";
+    }
+    if (code == 2) {
+        return "cuda";
+    }
+    return "";
+}
+
+static int kain_py_shape_element_count(const long long* shape, long long len, long long* out_count) {
+    long long index;
+    long long count = 1;
+    if (out_count) {
+        *out_count = 0;
+    }
+    if (!shape || len <= 0 || !out_count) {
+        return 0;
+    }
+    for (index = 0; index < len; ++index) {
+        long long dim = shape[index];
+        if (dim < 0) {
+            return 0;
+        }
+        if (!kain_py_checked_mul_i64(count, dim, &count)) {
+            return 0;
+        }
+    }
+    *out_count = count;
+    return 1;
+}
+
+static long long* kain_py_copy_long_long_buffer(const long long* values, long long len) {
+    long long* copy;
+    if (!values || len <= 0) {
+        return NULL;
+    }
+    copy = (long long*)calloc((size_t)len, sizeof(long long));
+    if (!copy) {
+        return NULL;
+    }
+    memcpy(copy, values, (size_t)len * sizeof(long long));
+    return copy;
+}
+
+static long long* kain_py_compact_strides_values(const long long* shape, long long len) {
+    long long* values;
+    long long stride = 1;
+    long long index;
+    if (!shape || len <= 0) {
+        return NULL;
+    }
+    values = (long long*)calloc((size_t)len, sizeof(long long));
+    if (!values) {
+        return NULL;
+    }
+    index = len - 1;
+    while (index >= 0) {
+        values[index] = stride;
+        if (!kain_py_checked_mul_i64(stride, shape[index] > 0 ? shape[index] : 1, &stride)) {
+            free(values);
+            return NULL;
+        }
+        if (index == 0) {
+            break;
+        }
+        index -= 1;
+    }
+    return values;
+}
+
+static int kain_py_stride_values_look_like_bytes(
+    const long long* values,
+    long long len,
+    long long element_size
+) {
+    long long index;
+    if (!values || len <= 0 || element_size <= 1) {
+        return 0;
+    }
+    for (index = 0; index < len; ++index) {
+        if (values[index] > 0 && (values[index] % element_size) != 0) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+static void kain_py_stride_values_to_elements(long long* values, long long len, long long element_size) {
+    long long index;
+    if (!values || len <= 0 || element_size <= 1) {
+        return;
+    }
+    for (index = 0; index < len; ++index) {
+        if (values[index] > 0) {
+            values[index] /= element_size;
+        }
+    }
+}
+
+static int kain_py_tensor_strides_are_compact(const KainPythonTensorHandle* tensor) {
+    long long* expected;
+    long long index;
+    int matches = 1;
+    if (!tensor || !tensor->shape || !tensor->strides || tensor->ndim <= 0 || tensor->stride_count != tensor->ndim) {
+        return 0;
+    }
+    expected = kain_py_compact_strides_values(tensor->shape, tensor->ndim);
+    if (!expected) {
+        return 0;
+    }
+    for (index = 0; index < tensor->ndim; ++index) {
+        if (expected[index] != tensor->strides[index]) {
+            matches = 0;
+            break;
+        }
+    }
+    free(expected);
+    return matches;
+}
+
+static int kain_py_tensor_capture_cuda_array_interface(PyObject* object, KainPythonTensorHandle* tensor) {
+    const char* storage;
+    PyObject* interface_obj;
+    PyObject* data_obj;
+    PyObject* shape_obj;
+    PyObject* strides_obj;
+    PyObject* version_obj;
+    PyObject* typestr_obj;
+    if (!object || !tensor || g_kain_python_api.PyObject_HasAttrString(object, "__cuda_array_interface__") <= 0) {
+        return 0;
+    }
+    interface_obj = g_kain_python_api.PyObject_GetAttrString(object, "__cuda_array_interface__");
+    if (!interface_obj) {
+        kain_py_clear_error();
+        return 0;
+    }
+    version_obj = kain_py_mapping_get_item_string_owned(interface_obj, "version");
+    if (version_obj) {
+        PyObject* coerced = g_kain_python_api.PyNumber_Long(version_obj);
+        if (coerced) {
+            tensor->cuda_array_interface_version = (int)g_kain_python_api.PyLong_AsLongLong(coerced);
+            g_kain_python_api.Py_DecRef(coerced);
+        } else {
+            kain_py_clear_error();
+        }
+        g_kain_python_api.Py_DecRef(version_obj);
+    }
+    data_obj = kain_py_mapping_get_item_string_owned(interface_obj, "data");
+    if (data_obj) {
+        PyObject* pointer_obj = g_kain_python_api.PySequence_GetItem(data_obj, 0);
+        if (pointer_obj) {
+            PyObject* coerced = g_kain_python_api.PyNumber_Long(pointer_obj);
+            if (coerced) {
+                tensor->device_pointer = g_kain_python_api.PyLong_AsLongLong(coerced);
+                g_kain_python_api.Py_DecRef(coerced);
+            } else {
+                kain_py_clear_error();
+            }
+            g_kain_python_api.Py_DecRef(pointer_obj);
+        } else {
+            kain_py_clear_error();
+        }
+        g_kain_python_api.Py_DecRef(data_obj);
+    }
+    shape_obj = kain_py_mapping_get_item_string_owned(interface_obj, "shape");
+    if (shape_obj && !tensor->shape) {
+        (void)kain_py_read_sequence_int_values(shape_obj, &tensor->shape, &tensor->ndim);
+        g_kain_python_api.Py_DecRef(shape_obj);
+    } else if (shape_obj) {
+        g_kain_python_api.Py_DecRef(shape_obj);
+    }
+    strides_obj = kain_py_mapping_get_item_string_owned(interface_obj, "strides");
+    if (strides_obj && !tensor->strides) {
+        if (kain_py_read_sequence_int_values(strides_obj, &tensor->strides, &tensor->stride_count) &&
+            kain_py_stride_values_look_like_bytes(tensor->strides, tensor->stride_count, tensor->element_size)) {
+            kain_py_stride_values_to_elements(tensor->strides, tensor->stride_count, tensor->element_size);
+        }
+        g_kain_python_api.Py_DecRef(strides_obj);
+    } else if (strides_obj) {
+        g_kain_python_api.Py_DecRef(strides_obj);
+    }
+    typestr_obj = kain_py_mapping_get_item_string_owned(interface_obj, "typestr");
+    if (typestr_obj && !tensor->dtype[0]) {
+        const char* utf8 = g_kain_python_api.PyUnicode_AsUTF8(typestr_obj);
+        if (utf8) {
+            (void)kain_py_copy_typestr_dtype(utf8, tensor->dtype, sizeof(tensor->dtype));
+        } else {
+            kain_py_clear_error();
+        }
+        g_kain_python_api.Py_DecRef(typestr_obj);
+    } else if (typestr_obj) {
+        g_kain_python_api.Py_DecRef(typestr_obj);
+    }
+    if (tensor->dtype[0]) {
+        storage = kain_py_storage_from_dtype(tensor->dtype);
+        if (!tensor->element_type[0] || strcmp(tensor->element_type, "unknown") == 0) {
+            strncpy_s(tensor->element_type, sizeof(tensor->element_type), storage, _TRUNCATE);
+        }
+        if (tensor->element_size <= 0) {
+            tensor->element_size = kain_py_element_size_from_storage(storage);
+        }
+    }
+    if (!tensor->strides && tensor->shape && tensor->ndim > 0) {
+        tensor->strides = kain_py_compact_strides_values(tensor->shape, tensor->ndim);
+        tensor->stride_count = tensor->strides ? tensor->ndim : 0;
+    }
+    if (tensor->element_count <= 0 && tensor->shape && tensor->ndim > 0) {
+        (void)kain_py_shape_element_count(tensor->shape, tensor->ndim, &tensor->element_count);
+    }
+    if (tensor->byte_length <= 0 &&
+        tensor->element_count > 0 &&
+        tensor->element_size > 0) {
+        (void)kain_py_checked_mul_i64(
+            tensor->element_count,
+            tensor->element_size,
+            &tensor->byte_length
+        );
+    }
+    if (!tensor->device_kind[0]) {
+        strncpy_s(tensor->device_kind, sizeof(tensor->device_kind), "cuda", _TRUNCATE);
+    }
+    tensor->device_type_code = 2;
+    tensor->host_accessible = 0;
+    if (!tensor->interop_lane[0]) {
+        strncpy_s(tensor->interop_lane, sizeof(tensor->interop_lane), "cuda_array_interface", _TRUNCATE);
+    }
+    g_kain_python_api.Py_DecRef(interface_obj);
+    return 1;
+}
+
+static void kain_py_tensor_capture_device_metadata(PyObject* object, KainPythonTensorHandle* tensor) {
+    PyObject* device_attr;
+    if (!object || !tensor) {
+        return;
+    }
+    tensor->dlpack_capable = g_kain_python_api.PyObject_HasAttrString(object, "__dlpack__") > 0 ? 1 : 0;
+    if (g_kain_python_api.PyObject_HasAttrString(object, "__dlpack_device__") > 0) {
+        PyObject* device_tuple = kain_py_call_method0_owned(object, "__dlpack_device__");
+        if (device_tuple) {
+            PyObject* type_obj = g_kain_python_api.PySequence_GetItem(device_tuple, 0);
+            PyObject* ordinal_obj = g_kain_python_api.PySequence_GetItem(device_tuple, 1);
+            if (type_obj) {
+                PyObject* coerced = g_kain_python_api.PyNumber_Long(type_obj);
+                if (coerced) {
+                    tensor->device_type_code = g_kain_python_api.PyLong_AsLongLong(coerced);
+                    g_kain_python_api.Py_DecRef(coerced);
+                } else {
+                    kain_py_clear_error();
+                }
+                g_kain_python_api.Py_DecRef(type_obj);
+            } else {
+                kain_py_clear_error();
+            }
+            if (ordinal_obj) {
+                PyObject* coerced = g_kain_python_api.PyNumber_Long(ordinal_obj);
+                if (coerced) {
+                    tensor->device_ordinal = g_kain_python_api.PyLong_AsLongLong(coerced);
+                    g_kain_python_api.Py_DecRef(coerced);
+                } else {
+                    kain_py_clear_error();
+                }
+                g_kain_python_api.Py_DecRef(ordinal_obj);
+            } else {
+                kain_py_clear_error();
+            }
+            if (!tensor->device_kind[0]) {
+                const char* kind = kain_py_device_kind_from_dlpack_code(tensor->device_type_code);
+                if (kind[0]) {
+                    strncpy_s(tensor->device_kind, sizeof(tensor->device_kind), kind, _TRUNCATE);
+                }
+            }
+            if (!tensor->interop_lane[0]) {
+                strncpy_s(tensor->interop_lane, sizeof(tensor->interop_lane), "dlpack_device", _TRUNCATE);
+            }
+            if (tensor->device_type_code == 2) {
+                tensor->host_accessible = 0;
+            }
+            g_kain_python_api.Py_DecRef(device_tuple);
+        }
+    }
+    device_attr = g_kain_python_api.PyObject_GetAttrString(object, "device");
+    if (device_attr) {
+        if (kain_py_copy_python_text(device_attr, tensor->device, sizeof(tensor->device))) {
+            (void)kain_py_parse_device_string(
+                tensor->device,
+                tensor->device_kind,
+                sizeof(tensor->device_kind),
+                &tensor->device_ordinal
+            );
+            if (_stricmp(tensor->device_kind, "cuda") == 0) {
+                tensor->device_type_code = 2;
+                tensor->host_accessible = 0;
+            }
+        }
+        g_kain_python_api.Py_DecRef(device_attr);
+    } else {
+        kain_py_clear_error();
+    }
+    if (kain_py_tensor_capture_cuda_array_interface(object, tensor)) {
+        if (!tensor->device[0]) {
+            if (tensor->device_ordinal > 0) {
+                snprintf(tensor->device, sizeof(tensor->device), "%s:%lld", tensor->device_kind, tensor->device_ordinal);
+            } else {
+                strncpy_s(tensor->device, sizeof(tensor->device), tensor->device_kind, _TRUNCATE);
+            }
+        }
+        return;
+    }
+    if (!tensor->device_kind[0]) {
+        strncpy_s(tensor->device_kind, sizeof(tensor->device_kind), "cpu", _TRUNCATE);
+    }
+    if (!tensor->device[0]) {
+        strncpy_s(tensor->device, sizeof(tensor->device), tensor->device_kind, _TRUNCATE);
+    }
+}
+
+static int64_t kain_py_tensor_shape_handle(const KainPythonTensorHandle* tensor) {
+    if (!tensor || !tensor->shape || tensor->ndim <= 0) {
+        return 0;
+    }
+    return kain_py_array_handle_from_values(tensor->shape, tensor->ndim);
+}
+
+static int64_t kain_py_tensor_strides_handle(const KainPythonTensorHandle* tensor) {
+    if (!tensor || !tensor->strides || tensor->stride_count <= 0) {
+        return 0;
+    }
+    return kain_py_array_handle_from_values(tensor->strides, tensor->stride_count);
+}
+
+static int kain_py_tensor_has_virtual_attr(const char* name) {
+    if (!name) {
+        return 0;
+    }
+    return strcmp(name, "shape") == 0 ||
+        strcmp(name, "strides") == 0 ||
+        strcmp(name, "ownership") == 0 ||
+        strcmp(name, "dtype") == 0 ||
+        strcmp(name, "element_type") == 0 ||
+        strcmp(name, "source_runtime") == 0 ||
+        strcmp(name, "source_backend") == 0 ||
+        strcmp(name, "device") == 0 ||
+        strcmp(name, "device_kind") == 0 ||
+        strcmp(name, "interop_lane") == 0 ||
+        strcmp(name, "ndim") == 0 ||
+        strcmp(name, "element_size") == 0 ||
+        strcmp(name, "element_count") == 0 ||
+        strcmp(name, "byte_length") == 0 ||
+        strcmp(name, "device_ordinal") == 0 ||
+        strcmp(name, "device_pointer") == 0 ||
+        strcmp(name, "device_type_code") == 0 ||
+        strcmp(name, "host_accessible") == 0 ||
+        strcmp(name, "is_contiguous") == 0 ||
+        strcmp(name, "writable") == 0 ||
+        strcmp(name, "dlpack_capable") == 0 ||
+        strcmp(name, "cuda_array_interface_version") == 0;
+}
+
+static long long kain_py_tensor_attr_value(const KainPythonTensorHandle* tensor, const char* name) {
+    if (!tensor || !name) {
+        return 0;
+    }
+    if (strcmp(name, "shape") == 0) {
+        return kain_py_tensor_shape_handle(tensor);
+    }
+    if (strcmp(name, "strides") == 0) {
+        return kain_py_tensor_strides_handle(tensor);
+    }
+    if (strcmp(name, "ownership") == 0) {
+        return kain_py_string_tag(tensor->ownership);
+    }
+    if (strcmp(name, "dtype") == 0) {
+        return kain_py_string_tag(tensor->dtype);
+    }
+    if (strcmp(name, "element_type") == 0) {
+        return kain_py_string_tag(tensor->element_type);
+    }
+    if (strcmp(name, "source_runtime") == 0) {
+        return kain_py_string_tag("python");
+    }
+    if (strcmp(name, "source_backend") == 0) {
+        return tensor->source_backend[0] ? kain_py_string_tag(tensor->source_backend) : KAIN_PY_JSON_NULL;
+    }
+    if (strcmp(name, "device") == 0) {
+        return tensor->device[0] ? kain_py_string_tag(tensor->device) : KAIN_PY_JSON_NULL;
+    }
+    if (strcmp(name, "device_kind") == 0) {
+        return tensor->device_kind[0] ? kain_py_string_tag(tensor->device_kind) : KAIN_PY_JSON_NULL;
+    }
+    if (strcmp(name, "interop_lane") == 0) {
+        return tensor->interop_lane[0] ? kain_py_string_tag(tensor->interop_lane) : KAIN_PY_JSON_NULL;
+    }
+    if (strcmp(name, "ndim") == 0) {
+        return KAIN_PY_JSON_INT(tensor->ndim);
+    }
+    if (strcmp(name, "element_size") == 0) {
+        return KAIN_PY_JSON_INT(tensor->element_size);
+    }
+    if (strcmp(name, "element_count") == 0) {
+        return KAIN_PY_JSON_INT(tensor->element_count);
+    }
+    if (strcmp(name, "byte_length") == 0) {
+        return KAIN_PY_JSON_INT(tensor->byte_length);
+    }
+    if (strcmp(name, "device_ordinal") == 0) {
+        return KAIN_PY_JSON_INT(tensor->device_ordinal);
+    }
+    if (strcmp(name, "device_pointer") == 0) {
+        return KAIN_PY_JSON_INT(tensor->device_pointer);
+    }
+    if (strcmp(name, "device_type_code") == 0) {
+        return KAIN_PY_JSON_INT(tensor->device_type_code);
+    }
+    if (strcmp(name, "host_accessible") == 0) {
+        return KAIN_PY_JSON_BOOL(tensor->host_accessible);
+    }
+    if (strcmp(name, "is_contiguous") == 0) {
+        return KAIN_PY_JSON_BOOL(tensor->contiguous);
+    }
+    if (strcmp(name, "writable") == 0) {
+        return KAIN_PY_JSON_BOOL(tensor->writable);
+    }
+    if (strcmp(name, "dlpack_capable") == 0) {
+        return KAIN_PY_JSON_BOOL(tensor->dlpack_capable);
+    }
+    if (strcmp(name, "cuda_array_interface_version") == 0) {
+        return KAIN_PY_JSON_INT(tensor->cuda_array_interface_version);
+    }
+    return 0;
 }
 
 static int64_t kain_py_array_handle_from_values(const long long* values, long long len) {

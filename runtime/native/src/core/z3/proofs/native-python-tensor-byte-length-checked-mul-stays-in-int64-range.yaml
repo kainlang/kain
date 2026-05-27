@@ -1,0 +1,29 @@
+version: 1
+id: kain.native.core.proofs.native_python_tensor_byte_length_checked_mul_stays_in_int64_range
+kind: check_smt2
+description: Python tensor byte-length synthesis only accepts non-negative element counts and positive element sizes whose checked product stays within signed 64-bit range before the byte-length metadata is materialized.
+tags:
+- native-runtime
+- python
+- tensor
+- interop
+- byte-length
+- overflow
+source:
+  path: X:\runtime\native\src\core\python_runtime.c
+  symbol: kain_py_checked_mul_i64
+  reason: The Python tensor metadata lane synthesizes `byte_length = element_count * element_size` only through the checked signed-64 multiplication guard.
+case:
+  smt2: |
+    (set-logic QF_NIA)
+    (declare-const element_count Int)
+    (declare-const element_size Int)
+    (define-fun int64_max () Int 9223372036854775807)
+    (assert (>= element_count 0))
+    (assert (> element_size 0))
+    (assert (<= element_count (div int64_max element_size)))
+    ; Under the guard, the synthesized byte length cannot escape signed int64.
+    (assert (> (* element_count element_size) int64_max))
+    (check-sat)
+  include_model: false
+  include_stats: false

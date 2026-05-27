@@ -1,5 +1,38 @@
 # Kain Memory
 
+# 2026-05-27 - Python Tensor GPU Contract Lane via `kain_tensor_info`
+
+Landed the Theta-side Python GPU interop contract without touching Alpha's shared-buffer adoption internals. The key design move was to enrich `python_tensor_shared(...)` / `kain_tensor_info(...)` with truthful device metadata instead of adding a new native builtin just for GPU routing. Authored Kain can now turn a Python tensor into a `GpuBuffer`-shaped contract through `std::python` while preserving whether the source is host-visible, DLPack-capable, CUDA-array-interface-backed, and shared versus copied.
+
+What changed:
+
+- `runtime/native/src/core/python_runtime.c`
+- `runtime/native/src/core/python_runtime_async.c`
+  - Extends `KainPythonTensorHandle` metadata to include strides, element sizing/count, byte length, device identity, host accessibility, DLPack capability, CUDA Array Interface version, and interop-lane labeling.
+  - Routes tensor virtual attrs through one shared dispatch path so `kain_tensor_info(...)` exposes `shape`, `strides`, `device`, `device_kind`, `device_pointer`, `dlpack_capable`, `byte_length`, and related fields directly to authored Kain.
+  - Hardens CUDA Array Interface dtype parsing and backfills tensor shape/count/byte-length math when the device contract is the first place those fields appear.
+- `stdlib/interop.kn`
+- `stdlib/gpu.kn`
+- `stdlib/python.kn`
+  - Adds the authored Theta surface:
+    - `python_tensor_interop_info(target)`
+    - `python_shared_buffer_gpu(target, policy)`
+    - `python_gpu_buffer(target, policy)`
+    - `python_gpu_storage_buffer(target, debug_name)`
+    - `python_gpu_uniform_buffer(target, debug_name)`
+  - Extends GPU descriptors so imported Python tensor contracts preserve device/interop metadata instead of collapsing to generic host-buffer fields.
+- `benchmark/cases_v2/python_interop.kn`
+  - Adds the Theta smoke/benchmark row `python_gpu_tensor_contract`, driven by a fake CUDA Array Interface + DLPack Python object so the descriptor truth lane can run without a physical GPU.
+  - Refreshes `python_raw_tensor_workflow` expected checksum now that tensor `element_count` and `byte_length` are surfaced.
+- `runtime/native/src/core/z3/proofs/native-python-tensor-byte-length-checked-mul-stays-in-int64-range.yaml`
+  - Adds the durable guard proof for synthesized tensor byte-length math.
+
+Durable lessons:
+
+- The clean Theta ownership boundary is: native tensor metadata in `python_runtime.c`, authored contract assembly in `std::python`, and generic descriptor emission in `std::gpu`. Do not add a second GPU-only tensor builtin unless the runtime executor truly needs a new host ABI.
+- A fake CUDA/DLPack Python object is the right first smoke lane for this repo. It proves the contract shape and metadata truth without turning every interop pass into a workstation-GPU dependency hunt.
+- Existing CPU shared-buffer adoption remains Alpha-owned. Theta can wrap it, but should not rewrite its fallback policy while the strike is still parallelized.
+
 # 2026-05-27 - Native Python Region Batching Lane and PyO3 Region Comparison
 
 Landed the next Python interop upgrade as a first-class native region lane. Kain can now open a scoped Python region once, cache imports and attribute lookups inside that region, keep borrowed `py_buffer_view` handles tied to the region lifetime, and close the whole scope with exact release accounting. This is the runtime shape that should be treated as the ceiling lane before chasing more micro-optimizations in the per-boundary bridge.

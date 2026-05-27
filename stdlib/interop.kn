@@ -23,6 +23,17 @@ pub struct KainSharedBufferInfo:
     byte_length: Int
     element_count: Int
     zero_copy: Bool
+    device: String
+    device_kind: String
+    device_ordinal: Int
+    device_pointer: Int
+    device_type_code: Int
+    host_accessible: Bool
+    writable: Bool
+    contiguous: Bool
+    dlpack_capable: Bool
+    cuda_array_interface_version: Int
+    interop_lane: String
 
 pub struct KainSharedImageInfo:
     contract: String
@@ -63,7 +74,18 @@ pub fn interop_shared_buffer_info(target: Any) -> KainSharedBufferInfo:
         labels: json_get(payload, "labels"),
         byte_length: json_get_int(payload, "byte_length"),
         element_count: json_get_int(payload, "element_count"),
-        zero_copy: json_get_bool(payload, "zero_copy")
+        zero_copy: json_get_bool(payload, "zero_copy"),
+        device: json_string_or(payload, "device", ""),
+        device_kind: json_string_or(payload, "device_kind", ""),
+        device_ordinal: json_int_or(payload, "device_ordinal", 0),
+        device_pointer: json_int_or(payload, "device_pointer", 0),
+        device_type_code: json_int_or(payload, "device_type_code", 0),
+        host_accessible: json_bool_or(payload, "host_accessible", true),
+        writable: json_bool_or(payload, "writable", true),
+        contiguous: json_bool_or(payload, "contiguous", true),
+        dlpack_capable: json_bool_or(payload, "dlpack_capable", false),
+        cuda_array_interface_version: json_int_or(payload, "cuda_array_interface_version", 0),
+        interop_lane: json_string_or(payload, "interop_lane", "")
     }
 
 pub fn interop_shared_buffer_bytes(target: Any) -> Array<Int>:

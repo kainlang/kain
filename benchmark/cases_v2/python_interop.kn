@@ -1,4 +1,5 @@
 use std::interop
+use std::gpu
 use std::json
 use std::python
 
@@ -13,7 +14,7 @@ import numpy as np
 // Kain with stable shared-buffer / shared-image / shared-tensor contracts.
 
 const PYTHON_INTEROP_MODULUS: Int = 1000000007
-const PYTHON_INTEROP_CASE_COUNT: Int = 12
+const PYTHON_INTEROP_CASE_COUNT: Int = 14
 const RAW_TENSOR_ROWS: Int = 7
 const RAW_TENSOR_COLS: Int = 11
 const RAW_IMAGE_W: Int = 48
@@ -73,6 +74,14 @@ fn make_raw_image(seed: Int) -> Any:
     let image = python_call_attr_raw(base, "reshape", [[RAW_IMAGE_H, RAW_IMAGE_W, RAW_IMAGE_C]])
     return python_call_attr_raw(np, "ascontiguousarray", [image])
 
+fn ensure_fake_cuda_tensor_factory():
+    python_exec("if '__kain_theta_make_fake_cuda_tensor' not in globals():\n    class __KainThetaFlags:\n        def __init__(self):\n            self.writeable = True\n    class __KainThetaFakeCudaTensor:\n        def __init__(self, pointer_value):\n            self.shape = (4, 8)\n            self.dtype = 'float32'\n            self.itemsize = 4\n            self.nbytes = 128\n            self.device = 'cuda:7'\n            self.flags = __KainThetaFlags()\n            self.__cuda_array_interface__ = {\n                'version': 3,\n                'shape': self.shape,\n                'strides': None,\n                'typestr': '<f4',\n                'data': (pointer_value, False),\n            }\n        def __dlpack__(self, stream=None):\n            return ('fake-dlpack', stream)\n        def __dlpack_device__(self):\n            return (2, 7)\n        def is_contiguous(self):\n            return True\n        def stride(self):\n            return (8, 1)\n        def numel(self):\n            return 32\n    def __kain_theta_make_fake_cuda_tensor(pointer_value):\n        return __KainThetaFakeCudaTensor(pointer_value)\n")
+
+fn make_fake_cuda_tensor(seed: Int) -> Any:
+    ensure_fake_cuda_tensor_factory()
+    let pointer_value = 281474976710656 + (seed * 4096)
+    return python_call("__kain_theta_make_fake_cuda_tensor", [pointer_value])
+
 pub fn python_interop_case_count() -> Int:
     return PYTHON_INTEROP_CASE_COUNT
 
@@ -101,6 +110,10 @@ pub fn python_interop_case_id(index: Int) -> String:
         return "python_region_math_sqrt"
     if index == 11:
         return "python_region_numpy_buffer_view"
+    if index == 12:
+        return "python_region_bound_sqrt_fast"
+    if index == 13:
+        return "python_gpu_tensor_contract"
     return ""
 
 pub fn python_interop_case_group(index: Int) -> String:
@@ -133,6 +146,10 @@ pub fn python_interop_case_title(index: Int) -> String:
         return "Python Region Math Sqrt"
     if index == 11:
         return "Python Region NumPy Buffer View"
+    if index == 12:
+        return "Python Region Bound Sqrt Fast"
+    if index == 13:
+        return "Python GPU Tensor Contract"
     return ""
 
 pub fn python_interop_case_iterations(index: Int) -> Int:
@@ -160,6 +177,10 @@ pub fn python_interop_case_iterations(index: Int) -> Int:
         return 30000
     if index == 11:
         return 20000
+    if index == 12:
+        return 150000
+    if index == 13:
+        return 2048
     return 0
 
 pub fn python_interop_case_expected_checksum(index: Int) -> Int:
@@ -174,7 +195,7 @@ pub fn python_interop_case_expected_checksum(index: Int) -> Int:
     if index == 4:
         return 533462
     if index == 5:
-        return 91276
+        return 668776
     if index == 6:
         return 10037971
     if index == 7:
@@ -184,9 +205,13 @@ pub fn python_interop_case_expected_checksum(index: Int) -> Int:
     if index == 9:
         return 900009
     if index == 10:
-        return 1713736
+        return 1773736
     if index == 11:
         return 20939830
+    if index == 12:
+        return 9625410
+    if index == 13:
+        return 1017533
     return -1
 
 fn python_import_cached_checksum(iterations: Int) -> Int:
@@ -257,6 +282,18 @@ fn python_raw_tensor_workflow_checksum(iterations: Int) -> Int:
         index = index + 1
     return acc
 
+fn python_gpu_tensor_contract_checksum(iterations: Int) -> Int:
+    let acc: Int = 0
+    let index: Int = 0
+    while index < iterations:
+        let tensor = make_fake_cuda_tensor(index % 17)
+        let buffer = python_gpu_storage_buffer(tensor, "bench.python.theta.fake_cuda")
+        let descriptor = gpu_buffer_descriptor(buffer)
+        let lane = descriptor.byte_length + descriptor.element_count + descriptor.element_size + descriptor.residency_flags + descriptor.queue_flags + descriptor.access_flags + descriptor.usage_flags + descriptor.device_ordinal + descriptor.cuda_array_interface_version + interop_bool_score(descriptor.zero_copy) + interop_bool_score(descriptor.dlpack_capable) + interop_bool_score(descriptor.host_accessible == false) + interop_bool_score(descriptor.device_kind == "cuda") + interop_bool_score(descriptor.device_pointer > 0) + (index % 53)
+        acc = (acc + lane) % PYTHON_INTEROP_MODULUS
+        index = index + 1
+    return acc
+
 fn python_raw_image_workflow_checksum(iterations: Int) -> Int:
     let acc: Int = 0
     let index: Int = 0
@@ -322,13 +359,38 @@ fn python_region_math_sqrt_checksum(iterations: Int) -> Int:
     let index: Int = 0
     while index < iterations:
         let lane_value = ((index * 17) % 4096) + 1
-        let sqrt_value = to_int(python_region_call_attr_raw(region, py_math, "sqrt", [lane_value as Float]))
+        let sqrt_value = python_region_call_attr_raw_f64_trunc_i64(region, py_math, "sqrt", lane_value as Float)
         acc = (acc + sqrt_value + (index % 29)) % PYTHON_INTEROP_MODULUS
         index = index + 1
     let attr_hits = python_region_attr_cache_hits(region)
     let attr_misses = python_region_attr_cache_misses(region)
+    let call_count = python_region_call_count(region)
+    let generic_calls = python_region_generic_call_count(region)
+    let fast_calls = python_region_fast_call_count(region)
     let auto_released = python_region_end(region)
-    return (acc + attr_hits + (attr_misses * 37) + auto_released) % PYTHON_INTEROP_MODULUS
+    return (acc + attr_hits + (attr_misses * 37) + call_count + (generic_calls * 41) + fast_calls + auto_released) % PYTHON_INTEROP_MODULUS
+
+fn python_region_bound_sqrt_fast_checksum(iterations: Int) -> Int:
+    let region = python_region_begin()
+    let math_region = python_region_import(region, "math")
+    let sqrt_fn = python_region_bind_attr(region, math_region, "sqrt")
+    let tau_bias = to_int(python_region_getattr_raw(region, math_region, "tau"))
+    let acc: Int = 0
+    let index: Int = 0
+    while index < iterations:
+        let lane_value = ((index * 17) % 4096) + 1
+        let sqrt_value = python_region_call_raw_f64_trunc_i64(region, sqrt_fn, lane_value as Float)
+        acc = (acc + tau_bias + sqrt_value + (index % 29)) % PYTHON_INTEROP_MODULUS
+        index = index + 1
+    let import_hits = python_region_import_cache_hits(region)
+    let import_misses = python_region_import_cache_misses(region)
+    let attr_hits = python_region_attr_cache_hits(region)
+    let attr_misses = python_region_attr_cache_misses(region)
+    let call_count = python_region_call_count(region)
+    let generic_calls = python_region_generic_call_count(region)
+    let fast_calls = python_region_fast_call_count(region)
+    let auto_released = python_region_end(region)
+    return (acc + import_hits + (import_misses * 17) + attr_hits + (attr_misses * 43) + call_count + (generic_calls * 47) + fast_calls + auto_released) % PYTHON_INTEROP_MODULUS
 
 fn python_region_numpy_buffer_view_checksum(iterations: Int) -> Int:
     let region = python_region_begin()
@@ -508,6 +570,10 @@ pub fn python_interop_case_telemetry(case_id: String) -> String:
         content = content + "\"bridge_entries_per_iteration\":0,"
         content = content + "\"expected_attr_cache_hits_min\":29999,"
         content = content + "\"expected_attr_cache_misses_max\":1,"
+        content = content + "\"expected_region_call_count\":30000,"
+        content = content + "\"expected_region_generic_call_count\":0,"
+        content = content + "\"expected_region_fast_call_count\":30000,"
+        content = content + "\"fast_numeric_lane\":" + interop_json_string_value("region-call-f64-trunc-i64") + ","
         content = content + "\"bench_intent\":" + interop_json_string_value("region-call-cache-tax") + ","
         content = content + "\"pack_focus\":" + interop_json_string_value("python-region")
         return content + "}"
@@ -527,6 +593,41 @@ pub fn python_interop_case_telemetry(case_id: String) -> String:
         content = content + "\"expected_views_released\":20000,"
         content = content + "\"bench_intent\":" + interop_json_string_value("region-borrowed-buffer-hot-lane") + ","
         content = content + "\"pack_focus\":" + interop_json_string_value("python-region")
+        return content + "}"
+    if case_id == "python_region_bound_sqrt_fast":
+        let content = "{"
+        content = content + "\"boundary_kind\":\"python-region-bound-call\","
+        content = content + "\"module\":" + interop_json_string_value("math") + ","
+        content = content + "\"call\":" + interop_json_string_value("sqrt") + ","
+        content = content + "\"callable_binds_per_run\":1,"
+        content = content + "\"region_scope_entries_per_run\":1,"
+        content = content + "\"region_scope_exits_per_run\":1,"
+        content = content + "\"python_calls_per_iteration\":1,"
+        content = content + "\"bridge_entries_per_iteration\":0,"
+        content = content + "\"expected_import_cache_hits_min\":0,"
+        content = content + "\"expected_import_cache_misses_max\":1,"
+        content = content + "\"expected_attr_cache_hits_min\":0,"
+        content = content + "\"expected_attr_cache_misses_max\":2,"
+        content = content + "\"expected_region_call_count\":150000,"
+        content = content + "\"expected_region_generic_call_count\":0,"
+        content = content + "\"expected_region_fast_call_count\":150000,"
+        content = content + "\"fast_numeric_lane\":" + interop_json_string_value("region-call-f64-trunc-i64") + ","
+        content = content + "\"bench_intent\":" + interop_json_string_value("region-bound-call-ceiling") + ","
+        content = content + "\"pack_focus\":" + interop_json_string_value("python-region")
+        return content + "}"
+    if case_id == "python_gpu_tensor_contract":
+        let content = "{"
+        content = content + "\"boundary_kind\":\"python-gpu-contract\","
+        content = content + "\"resource_kind\":\"tensor\","
+        content = content + "\"descriptor_kind\":" + interop_json_string_value("storage_buffer") + ","
+        content = content + "\"device_kind\":" + interop_json_string_value("cuda") + ","
+        content = content + "\"interop_lane\":" + interop_json_string_value("cuda_array_interface") + ","
+        content = content + "\"dlpack_capable\":true,"
+        content = content + "\"host_accessible\":false,"
+        content = content + "\"expected_device_pointer_nonzero\":true,"
+        content = content + "\"comparison_case\":" + interop_json_string_value("python_raw_tensor_workflow") + ","
+        content = content + "\"bench_intent\":" + interop_json_string_value("python-tensor-gpu-contract") + ","
+        content = content + "\"pack_focus\":" + interop_json_string_value("python-gpu")
         return content + "}"
     let content = "{"
     content = content + "\"boundary_kind\":\"unknown\","
@@ -561,6 +662,10 @@ pub fn python_interop_case_checksum(case_id: String, iterations: Int, amplify: I
             acc = (acc + python_region_math_sqrt_checksum(iterations)) % modulus
         else if case_id == "python_region_numpy_buffer_view":
             acc = (acc + python_region_numpy_buffer_view_checksum(iterations)) % modulus
+        else if case_id == "python_region_bound_sqrt_fast":
+            acc = (acc + python_region_bound_sqrt_fast_checksum(iterations)) % modulus
+        else if case_id == "python_gpu_tensor_contract":
+            acc = (acc + python_gpu_tensor_contract_checksum(iterations)) % modulus
         else:
             return -1
         repeat = repeat + 1

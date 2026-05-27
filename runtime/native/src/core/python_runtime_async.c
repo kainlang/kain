@@ -389,11 +389,8 @@ static long long kain_py_getattr_internal_active(
         return 0;
     }
     if (tensor_handle) {
-        if (strcmp(name, "shape") == 0) {
-            return (long long)(intptr_t)tensor_handle->shape;
-        }
-        if (strcmp(name, "ownership") == 0) {
-            return kain_py_string_tag(tensor_handle->ownership);
+        if (kain_py_tensor_has_virtual_attr(name)) {
+            return kain_py_tensor_attr_value(tensor_handle, name);
         }
         object = tensor_handle->object;
         g_kain_python_api.Py_IncRef(object);
