@@ -1,0 +1,126 @@
+// ============================================================================
+//                    semantic-search :: main entry point
+// ============================================================================
+
+use std::runtime
+use std::fs
+use std::process
+use config::SemanticSearchConfig
+use config::load_config
+use indexer::build_index
+use mcp_server::start_server
+use search_engine::search
+use utils::int_to_str
+use utils::float_to_str
+use utils::bool_to_str
+
+fn main() -> Int with Unsafe:
+    let _boot = runtime_init()
+    let args = process_user_args()
+    let cfg = load_tool_config()
+    println("=== semantic-search mcp ===")
+    println("  index dir:   " + cfg.index_dir)
+    println("  model:       " + cfg.model_name)
+    println("  dim:         " + int_to_str(cfg.dim))
+    println("  gpu enabled: " + bool_to_str(cfg.gpu_enabled))
+    println("")
+    let mut command = "help"
+    if len(args) > 0:
+        command = args[0]
+    let mut result = 0
+    if command == "index":
+        result = handle_index(args, cfg)
+    else:
+        if command == "serve":
+            result = handle_serve(cfg)
+        else:
+            if command == "search":
+                result = handle_search_once(args, cfg)
+            else:
+                handle_help()
+                result = 0
+    let _shutdown = runtime_shutdown()
+    return result
+
+fn load_tool_config() -> SemanticSearchConfig:
+    if fs_exists("config.toml"):
+        return load_config("config.toml")
+    if fs_exists("..\\config.toml"):
+        return load_config("..\\config.toml")
+    return load_config("config.toml")
+
+fn handle_index(args: Array<String>, cfg: SemanticSearchConfig) -> Int with Unsafe:
+    let mut target = "all"
+    if len(args) > 1:
+        target = args[1]
+    if target == "all" or target == "code":
+        println("--- building code index ---")
+        let ok_code = build_index("code", cfg)
+        if ok_code == false:
+            println("WARNING: code index build failed")
+        println("")
+    if target == "all" or target == "kain":
+        println("--- building kain index ---")
+        let ok_kain = build_index("kain", cfg)
+        if ok_kain == false:
+            println("WARNING: kain index build failed")
+        println("")
+    println("indexing complete")
+    return 0
+
+fn handle_serve(cfg: SemanticSearchConfig) -> Int:
+    let code_path = index_path("code", cfg)
+    let kain_path = index_path("kain", cfg)
+    if fs_exists(code_path) == false and fs_exists(kain_path) == false:
+        println("ERROR: no indices found. Run 'index' first.")
+        return 1
+    if fs_exists(code_path):
+        println("  code index: " + code_path)
+    if fs_exists(kain_path):
+        println("  kain index: " + kain_path)
+    return start_server(cfg)
+
+fn handle_search_once(args: Array<String>, cfg: SemanticSearchConfig) -> Int:
+    if len(args) < 2:
+        println("usage: search <index_name> <query> [top_k]")
+        return 1
+    let index_name = args[1]
+    let mut query = ""
+    if len(args) > 2:
+        query = args[2]
+    let mut top_k = cfg.default_top_k
+    if len(args) > 3:
+        top_k = to_int(args[3])
+    if query == "":
+        println("usage: search <index_name> <query> [top_k]")
+        return 1
+    let resp = search(query, index_name, top_k, cfg)
+    if resp.error != "":
+        println("ERROR: " + resp.error)
+        return 1
+    println("results for '" + query + "' (" + index_name + "):")
+    println("  total indexed: " + int_to_str(resp.total_indexed))
+    var i: Int = 0
+    while i < len(resp.results):
+        let r = resp.results[i]
+        println("  " + int_to_str(i + 1) + ". [" + float_to_str(r.score) + "] " + r.file_path + ":" + int_to_str(r.line_start) + " " + r.kind + " " + r.symbol)
+        i = i + 1
+    return 0
+
+fn handle_help() -> Int:
+    println("semantic-search — GPU semantic search MCP tool")
+    println("")
+    println("commands:")
+    println("  index [code|kain|all]   Build search indices")
+    println("  serve                    Start MCP HTTP server")
+    println("  search <index> <query>   Run a single search")
+    println("")
+    println("MCP tool endpoints (when serving):")
+    println("  POST /tools/semantic_search  Search index")
+    println("  GET  /health                 Health check")
+    return 0
+
+fn index_path(index_name: String, cfg: SemanticSearchConfig) -> String:
+    return fs_path_join(fs_path_join(cfg.index_dir, index_name), "index.kaindex")
+
+

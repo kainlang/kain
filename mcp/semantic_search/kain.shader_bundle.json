@@ -1,0 +1,342 @@
+{
+  "schema_version": 1,
+  "canonical_native_payload": "spirv",
+  "spirv_modules": [
+    {
+      "module_name": "SemanticPackedScore__SemanticGpuTopK",
+      "byte_len": 7108,
+      "bytes_hex": "030223070006010000000f00480100000000000011000200010000000e00030000000000010000000f001200050000001d00000053656d616e7469635061636b656453636f726500090000000a0000000e0000000f00000012000000130000001700000018000000190000001a0000000f001100050000007600000053656d616e746963477075546f704b006c0000006d0000006e0000006f000000700000007100000072000000730000007400000075000000100006001d000000110000000800000008000000010000001000060076000000110000000800000008000000010000004700040006000000060000000400000047000300070000000200000048000500070000000000000023000000000000004700040009000000220000000000000047000400090000002100000000000000470004000a0000002200000000000000470004000a0000002100000001000000470004000b0000000600000004000000470003000c00000002000000480005000c000000000000002300000000000000470004000e0000002200000000000000470004000e0000002100000002000000470004000f0000002200000000000000470004000f000000210000000300000047000300100000000200000048000500100000000000000023000000000000004700040012000000220000000000000047000400120000002100000004000000470004001300000022000000000000004700040013000000210000000500000047000400170000000b0000001c00000047000400180000000b0000001b00000047000400190000000b0000001a000000470004001a0000000b0000001d000000470004006c0000002200000000000000470004006c0000002100000000000000470004006d0000002200000000000000470004006d0000002100000001000000470004006e0000002200000000000000470004006e0000002100000002000000470004006f0000002200000000000000470004006f00000021000000030000004700040070000000220000000000000047000400700000002100000004000000470004007100000022000000000000004700040071000000210000000500000047000400720000000b0000001c00000047000400730000000b0000001b00000047000400740000000b0000001a00000047000400750000000b0000001d000000130002000100000021000300020000000100000016000300030000002000000015000400040000002000000001000000150004000500000020000000000000001d00030006000000010000001e000300070000000600000020000400080000000c000000070000003b00040008000000090000000c0000003b000400080000000a0000000c0000001d0003000b000000050000001e0003000c0000000b000000200004000d0000000c0000000c0000003b0004000d0000000e0000000c0000003b0004000d0000000f0000000c0000001e0003001000000005000000200004001100000002000000100000003b0004001100000012000000020000003b0004001100000013000000020000001700040014000000050000000300000020000400150000000100000014000000200004001600000001000000050000003b0004001500000017000000010000003b0004001500000018000000010000003b0004001500000019000000010000003b000400160000001a00000001000000200004001b0000000700000005000000200004001c0000000700000001000000200004002800000002000000050000002b000400050000002900000000000000140002002c0000002b0004000400000031000000000000002b0004000400000033000000000000002b000400050000003b0000000000000020000400400000000c000000010000002b0004000500000041000000000000002b0004000500000045000000000000002b000400050000004b000000000000002b000400040000004f000000000000002b000400040000005c000000000400002b00040004000000600000000100000020000400640000000c000000050000002b0004000500000065000000000000002b000400050000006a000000000000003b0004000d0000006c0000000c0000003b0004000d0000006d0000000c0000003b0004000d0000006e0000000c0000003b000400110000006f000000020000003b0004001100000070000000020000003b0004001100000071000000020000003b0004001500000072000000010000003b0004001500000073000000010000003b0004001500000074000000010000003b0004001600000075000000010000002b0004000400000084000000000000002b000400050000008a000000000000002b000400040000008d000000000000002b0004000400000093000000000000002b000400050000009b000000000000002b000400040000009f000000000000002b00040005000000a2000000000000002b00040004000000a4000000000000002b00040005000000a7000000000000002b00040004000000aa000000010000002b00040004000000ad000000000000002b00040005000000b5000000000000002b00040005000000ba000000000000002b00040005000000be000000000000002b00040004000000c5000000000000002b00040004000000c7000000000000002b00040005000000c9000000000000002b00040004000000cc000000010000002b00040005000000d4000000000000002b00040005000000d9000000000000002b00040005000000e2000000000000002b00040004000000e7000000010000002b00040005000000f2000000000000002b00040005000000f6000000000000002b00040004000000f9000000010000002b00040004000000fc000000000000002b0004000500000004010000000000002b0004000400000009010000010000002b0004000500000012010000000000002b0004000500000017010000000000002b000400050000001b010000000000002b0004000500000023010000000000002b0004000500000027010000000000002b000400050000002b010000000000002b000400050000002f010000000000002b0004000500000032010000000000002b0004000500000036010000000000002b000400050000003a010000000000002b000400050000003e010000000000002b0004000400000041010000010000002b00040004000000450100000100000036000500010000001d0000000000000002000000f80002001e0000003b0004001b0000001f000000070000003b0004001c00000020000000070000003b0004001b00000021000000070000003b0004001b00000022000000070000003b0004001c00000023000000070000003b0004001b00000024000000070000003d00040014000000250000001700000051000500050000002600000025000000000000003e0003001f000000260000003d00040005000000270000001f00000041000500280000002a00000013000000290000003d000400050000002b0000002a000000ae0005002c0000002d000000270000002b000000f70003003000000000000000fa0004002d0000002e0000002f000000f80002002e000000fd000100f80002002f000000f900020030000000f8000200300000007c0004000500000032000000310000003e00030024000000320000007c0004000500000034000000330000003e0003002100000034000000f900020035000000f800020035000000f6000400390000003800000000000000f900020036000000f8000200360000003d000400050000003a0000002100000041000500280000003c000000120000003b0000003d000400050000003d0000003c000000b00005002c0000003e0000003a0000003d000000fa0004003e0000003700000039000000f8000200370000003d000400050000003f0000002100000041000600400000004200000009000000410000003f0000003d0004000100000043000000420000003e00030020000000430000003d00040005000000440000001f00000041000500280000004600000012000000450000003d00040005000000470000004600000084000500050000004800000044000000470000003d00040005000000490000002100000080000500050000004a000000480000004900000041000600400000004c0000000a0000004b0000004a0000003d000400010000004d0000004c0000003e000300230000004d0000003d000400010000004e000000200000007c00040005000000500000004f000000ab0005002c000000510000004e00000050000000f70003005400000000000000fa000400510000005200000053000000f8000200520000003d0004000100000055000000200000003d000400010000005600000023000000aa0005002c000000570000005500000056000000f70003005a00000000000000fa000400570000005800000059000000f8000200580000003d000400050000005b000000240000007c000400050000005d0000005c00000080000500050000005e0000005b0000005d0000003e000300240000005e000000f90002005a000000f800020059000000f90002005a000000f80002005a000000f900020054000000f800020053000000f900020054000000f8000200540000003d000400050000005f000000210000007c0004000500000061000000600000008000050005000000620000005f000000610000003e0003002100000062000000f900020038000000f800020038000000f900020035000000f8000200390000003d00040005000000630000001f0000004100060064000000660000000e00000065000000630000003d0004000500000067000000660000003e00030022000000670000003d0004000500000068000000240000003d00040005000000690000001f00000041000600640000006b0000000f0000006a000000690000003e0003006b00000068000000fd000100380001003600050001000000760000000000000002000000f8000200770000003b0004001b00000078000000070000003b0004001b00000079000000070000003b0004001b0000007a000000070000003b0004001b0000007b000000070000003b0004001b0000007c000000070000003b0004001b0000007d000000070000003b0004001b0000007e000000070000003b0004001b0000007f000000070000003b0004001b00000080000000070000003b0004001b00000081000000070000003d00040014000000820000007200000051000500050000008300000082000000000000007c000400050000008500000084000000ab0005002c000000860000008300000085000000f70003008900000000000000fa000400860000008700000088000000f800020087000000fd000100f800020088000000f900020089000000f80002008900000041000500280000008b000000700000008a0000003d000400050000008c0000008b0000007c000400050000008e0000008d000000aa0005002c0000008f0000008c0000008e000000f70003009200000000000000fa0004008f0000009000000091000000f800020090000000fd000100f800020091000000f900020092000000f8000200920000007c0004000500000094000000930000003e0003007e00000094000000f900020095000000f800020095000000f6000400990000009800000000000000f900020096000000f8000200960000003d000400050000009a0000007e00000041000500280000009c000000700000009b0000003d000400050000009d0000009c000000b00005002c0000009e0000009a0000009d000000fa0004009e0000009700000099000000f8000200970000007c00040005000000a00000009f0000003d00040005000000a10000007e0000004100060064000000a30000006d000000a2000000a10000003e000300a3000000a00000007c00040005000000a5000000a40000003d00040005000000a60000007e0000004100060064000000a80000006e000000a7000000a60000003e000300a8000000a50000003d00040005000000a90000007e0000007c00040005000000ab000000aa0000008000050005000000ac000000a9000000ab0000003e0003007e000000ac000000f900020098000000f800020098000000f900020095000000f8000200990000007c00040005000000ae000000ad0000003e0003007d000000ae000000f9000200af000000f8000200af000000f6000400b3000000b200000000000000f9000200b0000000f8000200b00000003d00040005000000b40000007d0000004100050028000000b60000006f000000b50000003d00040005000000b7000000b6000000b00005002c000000b8000000b4000000b7000000fa000400b8000000b1000000b3000000f8000200b10000003d00040005000000b90000007d0000004100060064000000bb0000006c000000ba000000b90000003d00040005000000bc000000bb0000003e0003007a000000bc0000003d00040005000000bd0000007a0000004100050028000000bf00000071000000be0000003d00040005000000c0000000bf000000ae0005002c000000c1000000bd000000c0000000f7000300c400000000000000fa000400c1000000c2000000c3000000f8000200c20000007c00040005000000c6000000c50000003e00030078000000c60000007c00040005000000c8000000c70000004100060064000000ca0000006e000000c9000000c80000003d00040005000000cb000000ca0000003e0003007b000000cb0000007c00040005000000cd000000cc0000003e0003007c000000cd000000f9000200ce000000f8000200ce000000f6000400d2000000d100000000000000f9000200cf000000f8000200cf0000003d00040005000000d30000007c0000004100050028000000d500000070000000d40000003d00040005000000d6000000d5000000b00005002c000000d7000000d3000000d6000000fa000400d7000000d0000000d2000000f8000200d00000003d00040005000000d80000007c0000004100060064000000da0000006e000000d9000000d80000003d00040005000000db000000da0000003d00040005000000dc0000007b000000b00005002c000000dd000000db000000dc000000f7000300e000000000000000fa000400dd000000de000000df000000f8000200de0000003d00040005000000e10000007c0000004100060064000000e30000006e000000e2000000e10000003d00040005000000e4000000e30000003e0003007b000000e40000003d00040005000000e50000007c0000003e00030078000000e5000000f9000200e0000000f8000200df000000f9000200e0000000f8000200e00000003d00040005000000e60000007c0000007c00040005000000e8000000e70000008000050005000000e9000000e6000000e80000003e0003007c000000e9000000f9000200d1000000f8000200d1000000f9000200ce000000f8000200d20000003d00040005000000ea0000007a0000003d00040005000000eb0000007b000000ac0005002c000000ec000000ea000000eb000000f7000300ef00000000000000fa000400ec000000ed000000ee000000f8000200ed0000003d00040005000000f00000007a0000003d00040005000000f1000000780000004100060064000000f30000006e000000f2000000f10000003e000300f3000000f00000003d00040005000000f40000007d0000003d00040005000000f5000000780000004100060064000000f70000006d000000f6000000f50000003e000300f7000000f4000000f9000200ef000000f8000200ee000000f9000200ef000000f8000200ef000000f9000200c4000000f8000200c3000000f9000200c4000000f8000200c40000003d00040005000000f80000007d0000007c00040005000000fa000000f90000008000050005000000fb000000f8000000fa0000003e0003007d000000fb000000f9000200b2000000f8000200b2000000f9000200af000000f8000200b30000007c00040005000000fd000000fc0000003e00030080000000fd000000f9000200fe000000f8000200fe000000f6000400020100000101000000000000f9000200ff000000f8000200ff0000003d00040005000000030100008000000041000500280000000501000070000000040100003d000400050000000601000005010000b00005002c000000070100000301000006010000fa000400070100000001000002010000f8000200000100003d0004000500000008010000800000007c000400050000000a0100000901000080000500050000000b010000080100000a0100003e000300790000000b010000f90002000c010000f80002000c010000f6000400100100000f01000000000000f90002000d010000f80002000d0100003d00040005000000110100007900000041000500280000001301000070000000120100003d000400050000001401000013010000b00005002c000000150100001101000014010000fa000400150100000e01000010010000f80002000e0100003d0004000500000016010000790000004100060064000000180100006e00000017010000160100003d0004000500000019010000180100003d000400050000001a0100008000000041000600640000001c0100006e0000001b0100001a0100003d000400050000001d0100001c010000ac0005002c0000001e010000190100001d010000f70003002101000000000000fa0004001e0100001f01000020010000f80002001f0100003d0004000500000022010000800000004100060064000000240100006e00000023010000220100003d0004000500000025010000240100003e0003007f000000250100003d0004000500000026010000800000004100060064000000280100006d00000027010000260100003d0004000500000029010000280100003e00030081000000290100003d000400050000002a0100007900000041000600640000002c0100006e0000002b0100002a0100003d000400050000002d0100002c0100003d000400050000002e010000800000004100060064000000300100006e0000002f0100002e0100003e000300300100002d0100003d0004000500000031010000790000004100060064000000330100006d00000032010000310100003d0004000500000034010000330100003d0004000500000035010000800000004100060064000000370100006d00000036010000350100003e00030037010000340100003d00040005000000380100007f0000003d00040005000000390100007900000041000600640000003b0100006e0000003a010000390100003e0003003b010000380100003d000400050000003c010000810000003d000400050000003d0100007900000041000600640000003f0100006d0000003e0100003d0100003e0003003f0100003c010000f900020021010000f800020020010000f900020021010000f8000200210100003d0004000500000040010000790000007c00040005000000420100004101000080000500050000004301000040010000420100003e0003007900000043010000f90002000f010000f80002000f010000f90002000c010000f8000200100100003d0004000500000044010000800000007c00040005000000460100004501000080000500050000004701000044010000460100003e0003008000000047010000f900020001010000f800020001010000f9000200fe000000f800020002010000fd00010038000100",
+      "entry_points": [
+        "SemanticPackedScore",
+        "SemanticGpuTopK"
+      ],
+      "stage_hints": [
+        "compute"
+      ]
+    }
+  ],
+  "reflection": {
+    "emitted": true,
+    "shaders": [
+      {
+        "shader": "SemanticPackedScore",
+        "stage": "compute",
+        "entry_point": "SemanticPackedScore",
+        "inputs": [
+          {
+            "name": "id",
+            "ty": "UVec3"
+          }
+        ],
+        "bindings": [
+          {
+            "shader": "SemanticPackedScore",
+            "name": "query_embed",
+            "binding": 0,
+            "descriptor_set": 0,
+            "ty": "StorageBuffer<u8>",
+            "kind": "storage_buffer"
+          },
+          {
+            "shader": "SemanticPackedScore",
+            "name": "index_matrix",
+            "binding": 1,
+            "descriptor_set": 0,
+            "ty": "StorageBuffer<u8>",
+            "kind": "storage_buffer"
+          },
+          {
+            "shader": "SemanticPackedScore",
+            "name": "index_weights",
+            "binding": 2,
+            "descriptor_set": 0,
+            "ty": "StorageBuffer<UInt>",
+            "kind": "storage_buffer"
+          },
+          {
+            "shader": "SemanticPackedScore",
+            "name": "scores",
+            "binding": 3,
+            "descriptor_set": 0,
+            "ty": "StorageBuffer<UInt>",
+            "kind": "storage_buffer"
+          },
+          {
+            "shader": "SemanticPackedScore",
+            "name": "dim",
+            "binding": 4,
+            "descriptor_set": 0,
+            "ty": "UInt",
+            "kind": "uniform"
+          },
+          {
+            "shader": "SemanticPackedScore",
+            "name": "num_chunks",
+            "binding": 5,
+            "descriptor_set": 0,
+            "ty": "UInt",
+            "kind": "uniform"
+          }
+        ],
+        "output_type": "Void"
+      },
+      {
+        "shader": "SemanticGpuTopK",
+        "stage": "compute",
+        "entry_point": "SemanticGpuTopK",
+        "inputs": [
+          {
+            "name": "id",
+            "ty": "UVec3"
+          }
+        ],
+        "bindings": [
+          {
+            "shader": "SemanticGpuTopK",
+            "name": "scores",
+            "binding": 0,
+            "descriptor_set": 0,
+            "ty": "StorageBuffer<UInt>",
+            "kind": "storage_buffer"
+          },
+          {
+            "shader": "SemanticGpuTopK",
+            "name": "top_indices",
+            "binding": 1,
+            "descriptor_set": 0,
+            "ty": "StorageBuffer<UInt>",
+            "kind": "storage_buffer"
+          },
+          {
+            "shader": "SemanticGpuTopK",
+            "name": "top_scores",
+            "binding": 2,
+            "descriptor_set": 0,
+            "ty": "StorageBuffer<UInt>",
+            "kind": "storage_buffer"
+          },
+          {
+            "shader": "SemanticGpuTopK",
+            "name": "num_chunks",
+            "binding": 3,
+            "descriptor_set": 0,
+            "ty": "UInt",
+            "kind": "uniform"
+          },
+          {
+            "shader": "SemanticGpuTopK",
+            "name": "top_k",
+            "binding": 4,
+            "descriptor_set": 0,
+            "ty": "UInt",
+            "kind": "uniform"
+          },
+          {
+            "shader": "SemanticGpuTopK",
+            "name": "min_score",
+            "binding": 5,
+            "descriptor_set": 0,
+            "ty": "UInt",
+            "kind": "uniform"
+          }
+        ],
+        "output_type": "Void"
+      }
+    ],
+    "notes": [
+      "Compiler-owned shader artifact bundle emitted from kain-driver.",
+      "SPIR-V is the canonical native GPU payload; backend text shaders are derived outputs."
+    ]
+  },
+  "resource_layouts": [
+    {
+      "shader": "SemanticPackedScore",
+      "name": "query_embed",
+      "binding": 0,
+      "descriptor_set": 0,
+      "ty": "StorageBuffer<u8>",
+      "kind": "storage_buffer"
+    },
+    {
+      "shader": "SemanticPackedScore",
+      "name": "index_matrix",
+      "binding": 1,
+      "descriptor_set": 0,
+      "ty": "StorageBuffer<u8>",
+      "kind": "storage_buffer"
+    },
+    {
+      "shader": "SemanticPackedScore",
+      "name": "index_weights",
+      "binding": 2,
+      "descriptor_set": 0,
+      "ty": "StorageBuffer<UInt>",
+      "kind": "storage_buffer"
+    },
+    {
+      "shader": "SemanticPackedScore",
+      "name": "scores",
+      "binding": 3,
+      "descriptor_set": 0,
+      "ty": "StorageBuffer<UInt>",
+      "kind": "storage_buffer"
+    },
+    {
+      "shader": "SemanticPackedScore",
+      "name": "dim",
+      "binding": 4,
+      "descriptor_set": 0,
+      "ty": "UInt",
+      "kind": "uniform"
+    },
+    {
+      "shader": "SemanticPackedScore",
+      "name": "num_chunks",
+      "binding": 5,
+      "descriptor_set": 0,
+      "ty": "UInt",
+      "kind": "uniform"
+    },
+    {
+      "shader": "SemanticGpuTopK",
+      "name": "scores",
+      "binding": 0,
+      "descriptor_set": 0,
+      "ty": "StorageBuffer<UInt>",
+      "kind": "storage_buffer"
+    },
+    {
+      "shader": "SemanticGpuTopK",
+      "name": "top_indices",
+      "binding": 1,
+      "descriptor_set": 0,
+      "ty": "StorageBuffer<UInt>",
+      "kind": "storage_buffer"
+    },
+    {
+      "shader": "SemanticGpuTopK",
+      "name": "top_scores",
+      "binding": 2,
+      "descriptor_set": 0,
+      "ty": "StorageBuffer<UInt>",
+      "kind": "storage_buffer"
+    },
+    {
+      "shader": "SemanticGpuTopK",
+      "name": "num_chunks",
+      "binding": 3,
+      "descriptor_set": 0,
+      "ty": "UInt",
+      "kind": "uniform"
+    },
+    {
+      "shader": "SemanticGpuTopK",
+      "name": "top_k",
+      "binding": 4,
+      "descriptor_set": 0,
+      "ty": "UInt",
+      "kind": "uniform"
+    },
+    {
+      "shader": "SemanticGpuTopK",
+      "name": "min_score",
+      "binding": 5,
+      "descriptor_set": 0,
+      "ty": "UInt",
+      "kind": "uniform"
+    }
+  ],
+  "entry_points": [
+    {
+      "shader": "SemanticPackedScore",
+      "module_name": "SemanticPackedScore__SemanticGpuTopK",
+      "entry_point": "SemanticPackedScore",
+      "stage": "compute"
+    },
+    {
+      "shader": "SemanticGpuTopK",
+      "module_name": "SemanticPackedScore__SemanticGpuTopK",
+      "entry_point": "SemanticGpuTopK",
+      "stage": "compute"
+    }
+  ],
+  "stage_metadata": [
+    {
+      "shader": "SemanticPackedScore",
+      "stage": "compute",
+      "entry_point": "SemanticPackedScore",
+      "input_count": 1,
+      "binding_count": 6,
+      "output_type": "Void"
+    },
+    {
+      "shader": "SemanticGpuTopK",
+      "stage": "compute",
+      "entry_point": "SemanticGpuTopK",
+      "input_count": 1,
+      "binding_count": 6,
+      "output_type": "Void"
+    }
+  ],
+  "specialization_constants": [],
+  "debug": {
+    "source_map": [
+      {
+        "shader": "SemanticPackedScore",
+        "source_origin": "<input>",
+        "module_name": "SemanticPackedScore__SemanticGpuTopK",
+        "entry_point": "SemanticPackedScore"
+      },
+      {
+        "shader": "SemanticGpuTopK",
+        "source_origin": "<input>",
+        "module_name": "SemanticPackedScore__SemanticGpuTopK",
+        "entry_point": "SemanticGpuTopK"
+      }
+    ],
+    "notes": [
+      "Shader bundle source map is currently scoped to shader entry points."
+    ]
+  },
+  "derived_outputs": [
+    {
+      "format": "hlsl",
+      "module_name": "SemanticPackedScore__SemanticGpuTopK",
+      "contents": "// Generated by KAIN Compiler\n// Derived HLSL output from the KAIN shader artifact pipeline\n\ncbuffer ShaderParams : register(b0)\n{\n    float4 query_embed;\n    float4 index_matrix;\n    float4 index_weights;\n    float4 scores;\n    uint dim;\n    uint num_chunks;\n};\n\n[numthreads(8, 8, 1)]\nvoid CSMain(uint3 dispatchThreadID : SV_DispatchThreadID,\n            uint3 groupThreadID : SV_GroupThreadID,\n            uint3 groupID : SV_GroupID,\n            uint groupIndex : SV_GroupIndex)\n{\n    float chunk = id.x;\n    if ((chunk >= num_chunks))\n    {\n        return;\n    }\n    uint acc = uint(0);\n    uint lane = uint(0);\n    while ((lane < dim))\n    {\n        float q = query_embed[lane];\n        float v = index_matrix[((chunk * dim) + lane)];\n        if ((q != uint(0)))\n        {\n            if ((q == v))\n            {\n                acc = (acc + uint(1024));\n            }\n        }\n        lane = (lane + uint(1));\n    }\n    float _weight = index_weights[chunk];\n    scores[chunk] = acc;\n    return;\n}\ncbuffer ShaderParams : register(b0)\n{\n    float4 scores;\n    float4 top_indices;\n    float4 top_scores;\n    uint num_chunks;\n    uint top_k;\n    uint min_score;\n};\n\n[numthreads(8, 8, 1)]\nvoid CSMain(uint3 dispatchThreadID : SV_DispatchThreadID,\n            uint3 groupThreadID : SV_GroupThreadID,\n            uint3 groupID : SV_GroupID,\n            uint groupIndex : SV_GroupIndex)\n{\n    if ((id.x != uint(0)))\n    {\n        return;\n    }\n    if ((top_k == uint(0)))\n    {\n        return;\n    }\n    uint init = uint(0);\n    while ((init < top_k))\n    {\n        top_indices[init] = uint(0);\n        top_scores[init] = uint(0);\n        init = (init + uint(1));\n    }\n    uint chunk = uint(0);\n    while ((chunk < num_chunks))\n    {\n        float score = scores[chunk];\n        if ((score >= min_score))\n        {\n            uint weakest_slot = uint(0);\n            float weakest_score = top_scores[0];\n            uint probe = uint(1);\n            while ((probe < top_k))\n            {\n                if ((top_scores[probe] < weakest_score))\n                {\n                    weakest_score = top_scores[probe];\n                    weakest_slot = probe;\n                }\n                probe = (probe + uint(1));\n            }\n            if ((score > weakest_score))\n            {\n                top_scores[weakest_slot] = score;\n                top_indices[weakest_slot] = chunk;\n            }\n        }\n        chunk = (chunk + uint(1));\n    }\n    uint left = uint(0);\n    while ((left < top_k))\n    {\n        float4 right = (left + uint(1));\n        while ((right < top_k))\n        {\n            if ((top_scores[right] > top_scores[left]))\n            {\n                float score_tmp = top_scores[left];\n                float index_tmp = top_indices[left];\n                top_scores[left] = top_scores[right];\n                top_indices[left] = top_indices[right];\n                top_scores[right] = score_tmp;\n                top_indices[right] = index_tmp;\n            }\n            right = (right + uint(1));\n        }\n        left = (left + uint(1));\n    }\n    return;\n}\n",
+      "entry_points": [
+        "SemanticPackedScore",
+        "SemanticGpuTopK"
+      ],
+      "binding_slots": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5
+      ]
+    },
+    {
+      "format": "ptx",
+      "module_name": "SemanticPackedScore__SemanticGpuTopK",
+      "contents": "// Generated by KAIN Compiler\n// Raw PTX compute output; load with the CUDA Driver API.\n\n.version 7.8\n.target sm_75\n.address_size 64\n\n.visible .entry SemanticPackedScore(\n    .param .u64 _kain_param_query_embed,\n    .param .u64 _kain_param_index_matrix,\n    .param .u64 _kain_param_index_weights,\n    .param .u64 _kain_param_scores,\n    .param .u32 _kain_param_dim,\n    .param .u32 _kain_param_num_chunks\n)\n{\n    .reg .pred %p<5>;\n    .reg .b32 %r<24>;\n    .reg .b64 %rd<13>;\n\n    ld.param.u64 %rd1, [_kain_param_query_embed];\n    ld.param.u64 %rd2, [_kain_param_index_matrix];\n    ld.param.u64 %rd3, [_kain_param_index_weights];\n    ld.param.u64 %rd4, [_kain_param_scores];\n    ld.param.u32 %r1, [_kain_param_dim];\n    ld.param.u32 %r2, [_kain_param_num_chunks];\n    mov.u32 %r3, %ctaid.x;\n    mov.u32 %r4, %ntid.x;\n    mov.u32 %r5, %tid.x;\n    mad.lo.u32 %r6, %r3, %r4, %r5;\n    setp.ge.u32 %p1, %r6, %r2;\n    @!%p1 bra $if_else_0;\n    bra $kain_exit;\n    bra $if_end_1;\n$if_else_0:\n$if_end_1:\n    mov.s32 %r7, 0;\n    cvt.u32.s32 %r8, %r7;\n    mov.s32 %r9, 0;\n    cvt.u32.s32 %r10, %r9;\n$while_cond_2:\n    setp.lt.u32 %p2, %r10, %r1;\n    @!%p2 bra $while_end_3;\n    mul.wide.u32 %rd5, %r10, 1;\n    add.u64 %rd6, %rd1, %rd5;\n    ld.global.u8 %r11, [%rd6];\n    mul.lo.u32 %r12, %r6, %r1;\n    add.u32 %r13, %r12, %r10;\n    mul.wide.u32 %rd7, %r13, 1;\n    add.u64 %rd8, %rd2, %rd7;\n    ld.global.u8 %r14, [%rd8];\n    mov.s32 %r15, 0;\n    cvt.u32.s32 %r16, %r15;\n    setp.ne.u32 %p3, %r11, %r16;\n    @!%p3 bra $if_else_4;\n    setp.eq.u32 %p4, %r11, %r14;\n    @!%p4 bra $if_else_6;\n    mov.s32 %r17, 1024;\n    cvt.u32.s32 %r18, %r17;\n    add.u32 %r19, %r8, %r18;\n    mov.u32 %r8, %r19;\n    bra $if_end_7;\n$if_else_6:\n$if_end_7:\n    bra $if_end_5;\n$if_else_4:\n$if_end_5:\n    mov.s32 %r20, 1;\n    cvt.u32.s32 %r21, %r20;\n    add.u32 %r22, %r10, %r21;\n    mov.u32 %r10, %r22;\n    bra $while_cond_2;\n$while_end_3:\n    mul.wide.u32 %rd9, %r6, 4;\n    add.u64 %rd10, %rd3, %rd9;\n    ld.global.u32 %r23, [%rd10];\n    mul.wide.u32 %rd11, %r6, 4;\n    add.u64 %rd12, %rd4, %rd11;\n    st.global.u32 [%rd12], %r8;\n    bra $kain_exit;\n$kain_exit:\n    ret;\n}\n\n.visible .entry SemanticGpuTopK(\n    .param .u64 _kain_param_scores,\n    .param .u64 _kain_param_top_indices,\n    .param .u64 _kain_param_top_scores,\n    .param .u32 _kain_param_num_chunks,\n    .param .u32 _kain_param_top_k,\n    .param .u32 _kain_param_min_score\n)\n{\n    .reg .pred %p<12>;\n    .reg .b32 %r<56>;\n    .reg .b64 %rd<40>;\n\n    ld.param.u64 %rd1, [_kain_param_scores];\n    ld.param.u64 %rd2, [_kain_param_top_indices];\n    ld.param.u64 %rd3, [_kain_param_top_scores];\n    ld.param.u32 %r1, [_kain_param_num_chunks];\n    ld.param.u32 %r2, [_kain_param_top_k];\n    ld.param.u32 %r3, [_kain_param_min_score];\n    mov.u32 %r4, %ctaid.x;\n    mov.u32 %r5, %ntid.x;\n    mov.u32 %r6, %tid.x;\n    mad.lo.u32 %r7, %r4, %r5, %r6;\n    mov.s32 %r8, 0;\n    cvt.u32.s32 %r9, %r8;\n    setp.ne.u32 %p1, %r7, %r9;\n    @!%p1 bra $if_else_0;\n    bra $kain_exit;\n    bra $if_end_1;\n$if_else_0:\n$if_end_1:\n    mov.s32 %r10, 0;\n    cvt.u32.s32 %r11, %r10;\n    setp.eq.u32 %p2, %r2, %r11;\n    @!%p2 bra $if_else_2;\n    bra $kain_exit;\n    bra $if_end_3;\n$if_else_2:\n$if_end_3:\n    mov.s32 %r12, 0;\n    cvt.u32.s32 %r13, %r12;\n$while_cond_4:\n    setp.lt.u32 %p3, %r13, %r2;\n    @!%p3 bra $while_end_5;\n    mov.s32 %r14, 0;\n    cvt.u32.s32 %r15, %r14;\n    mul.wide.u32 %rd4, %r13, 4;\n    add.u64 %rd5, %rd2, %rd4;\n    st.global.u32 [%rd5], %r15;\n    mov.s32 %r16, 0;\n    cvt.u32.s32 %r17, %r16;\n    mul.wide.u32 %rd6, %r13, 4;\n    add.u64 %rd7, %rd3, %rd6;\n    st.global.u32 [%rd7], %r17;\n    mov.s32 %r18, 1;\n    cvt.u32.s32 %r19, %r18;\n    add.u32 %r20, %r13, %r19;\n    mov.u32 %r13, %r20;\n    bra $while_cond_4;\n$while_end_5:\n    mov.s32 %r21, 0;\n    cvt.u32.s32 %r22, %r21;\n$while_cond_6:\n    setp.lt.u32 %p4, %r22, %r1;\n    @!%p4 bra $while_end_7;\n    mul.wide.u32 %rd8, %r22, 4;\n    add.u64 %rd9, %rd1, %rd8;\n    ld.global.u32 %r23, [%rd9];\n    setp.ge.u32 %p5, %r23, %r3;\n    @!%p5 bra $if_else_8;\n    mov.s32 %r24, 0;\n    cvt.u32.s32 %r25, %r24;\n    mov.s32 %r26, 0;\n    cvt.u32.s32 %r27, %r26;\n    mul.wide.u32 %rd10, %r27, 4;\n    add.u64 %rd11, %rd3, %rd10;\n    ld.global.u32 %r28, [%rd11];\n    mov.s32 %r29, 1;\n    cvt.u32.s32 %r30, %r29;\n$while_cond_10:\n    setp.lt.u32 %p6, %r30, %r2;\n    @!%p6 bra $while_end_11;\n    mul.wide.u32 %rd12, %r30, 4;\n    add.u64 %rd13, %rd3, %rd12;\n    ld.global.u32 %r31, [%rd13];\n    setp.lt.u32 %p7, %r31, %r28;\n    @!%p7 bra $if_else_12;\n    mul.wide.u32 %rd14, %r30, 4;\n    add.u64 %rd15, %rd3, %rd14;\n    ld.global.u32 %r32, [%rd15];\n    mov.u32 %r28, %r32;\n    mov.u32 %r25, %r30;\n    bra $if_end_13;\n$if_else_12:\n$if_end_13:\n    mov.s32 %r33, 1;\n    cvt.u32.s32 %r34, %r33;\n    add.u32 %r35, %r30, %r34;\n    mov.u32 %r30, %r35;\n    bra $while_cond_10;\n$while_end_11:\n    setp.gt.u32 %p8, %r23, %r28;\n    @!%p8 bra $if_else_14;\n    mul.wide.u32 %rd16, %r25, 4;\n    add.u64 %rd17, %rd3, %rd16;\n    st.global.u32 [%rd17], %r23;\n    mul.wide.u32 %rd18, %r25, 4;\n    add.u64 %rd19, %rd2, %rd18;\n    st.global.u32 [%rd19], %r22;\n    bra $if_end_15;\n$if_else_14:\n$if_end_15:\n    bra $if_end_9;\n$if_else_8:\n$if_end_9:\n    mov.s32 %r36, 1;\n    cvt.u32.s32 %r37, %r36;\n    add.u32 %r38, %r22, %r37;\n    mov.u32 %r22, %r38;\n    bra $while_cond_6;\n$while_end_7:\n    mov.s32 %r39, 0;\n    cvt.u32.s32 %r40, %r39;\n$while_cond_16:\n    setp.lt.u32 %p9, %r40, %r2;\n    @!%p9 bra $while_end_17;\n    mov.s32 %r41, 1;\n    cvt.u32.s32 %r42, %r41;\n    add.u32 %r43, %r40, %r42;\n$while_cond_18:\n    setp.lt.u32 %p10, %r43, %r2;\n    @!%p10 bra $while_end_19;\n    mul.wide.u32 %rd20, %r43, 4;\n    add.u64 %rd21, %rd3, %rd20;\n    ld.global.u32 %r44, [%rd21];\n    mul.wide.u32 %rd22, %r40, 4;\n    add.u64 %rd23, %rd3, %rd22;\n    ld.global.u32 %r45, [%rd23];\n    setp.gt.u32 %p11, %r44, %r45;\n    @!%p11 bra $if_else_20;\n    mul.wide.u32 %rd24, %r40, 4;\n    add.u64 %rd25, %rd3, %rd24;\n    ld.global.u32 %r46, [%rd25];\n    mul.wide.u32 %rd26, %r40, 4;\n    add.u64 %rd27, %rd2, %rd26;\n    ld.global.u32 %r47, [%rd27];\n    mul.wide.u32 %rd28, %r43, 4;\n    add.u64 %rd29, %rd3, %rd28;\n    ld.global.u32 %r48, [%rd29];\n    mul.wide.u32 %rd30, %r40, 4;\n    add.u64 %rd31, %rd3, %rd30;\n    st.global.u32 [%rd31], %r48;\n    mul.wide.u32 %rd32, %r43, 4;\n    add.u64 %rd33, %rd2, %rd32;\n    ld.global.u32 %r49, [%rd33];\n    mul.wide.u32 %rd34, %r40, 4;\n    add.u64 %rd35, %rd2, %rd34;\n    st.global.u32 [%rd35], %r49;\n    mul.wide.u32 %rd36, %r43, 4;\n    add.u64 %rd37, %rd3, %rd36;\n    st.global.u32 [%rd37], %r46;\n    mul.wide.u32 %rd38, %r43, 4;\n    add.u64 %rd39, %rd2, %rd38;\n    st.global.u32 [%rd39], %r47;\n    bra $if_end_21;\n$if_else_20:\n$if_end_21:\n    mov.s32 %r50, 1;\n    cvt.u32.s32 %r51, %r50;\n    add.u32 %r52, %r43, %r51;\n    mov.u32 %r43, %r52;\n    bra $while_cond_18;\n$while_end_19:\n    mov.s32 %r53, 1;\n    cvt.u32.s32 %r54, %r53;\n    add.u32 %r55, %r40, %r54;\n    mov.u32 %r40, %r55;\n    bra $while_cond_16;\n$while_end_17:\n    bra $kain_exit;\n$kain_exit:\n    ret;\n}\n\n",
+      "entry_points": [
+        "SemanticPackedScore",
+        "SemanticGpuTopK"
+      ],
+      "binding_slots": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "ptx": {
+        "ptx_version": "7.8",
+        "required_target_arch": "sm_75",
+        "minimum_compute_capability": "7.5"
+      }
+    }
+  ]
+}

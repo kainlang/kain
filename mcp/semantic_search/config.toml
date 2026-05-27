@@ -1,0 +1,72 @@
+# Semantic Search MCP — Configuration
+# =============================================================================
+
+[paths]
+# Repo root for indexing (absolute or relative to this config)
+repo_root = "..\\.."
+
+# Directories to index for the "code" index (Rust/C/runtime)
+code_dirs = [
+    "crates",
+    "runtime",
+]
+
+# Directories to index for the "kain" index (authored .kn files)
+kain_dirs = [
+    "stdlib",
+    "blades",
+    "smoketest",
+    "benchmark",
+    "library_of_kain",
+]
+
+# File extensions per index
+code_extensions = ["rs", "c", "h", "cpp", "hpp", "toml", "bazel", "bzl"]
+kain_extensions = ["kn"]
+
+# Output directory for generated indices (absolute or relative to this config)
+# Stored inside .kain/ to stay out of the repo tree
+index_dir = ".kain/indices"
+
+[embedding]
+# Python model to use via sentence-transformers
+model_name = "all-MiniLM-L6-v2"
+# Embedding dimension (must match model)
+dim = 384
+# Batch size for Python embedding calls
+batch_size = 64
+
+[chunking]
+# Max characters per chunk (soft limit — respects code boundaries)
+max_chunk_chars = 2048
+# Min characters per chunk (merge tiny chunks with neighbors)
+min_chunk_chars = 128
+# Overlap between chunks (characters)
+overlap_chars = 256
+
+[search]
+# Default number of results
+default_top_k = 10
+# Max results
+max_top_k = 100
+# Minimum normalized CUDA packed-byte closeness score (0.0 to 1.0)
+min_score = 0.0
+
+[server]
+# HTTP host for the MCP server
+host = "127.0.0.1"
+port = 9020
+# Max concurrent search requests
+max_concurrent = 8
+# Request timeout in milliseconds
+request_timeout_ms = 30000
+
+[gpu]
+# Whether to use GPU acceleration (CUDA)
+enabled = true
+# CUDA device index (0 = first GPU)
+device_index = 0
+# Threads per block for the CUDA scoring kernel
+threads_per_block = 256
+# Max chunks to GPU-search at once (larger indices are batched)
+gpu_batch_chunks = 100000

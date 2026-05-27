@@ -1,0 +1,82 @@
+// ============================================================================
+//                    semantic-search :: packed token embeddings
+// ============================================================================
+// This is intentionally tiny and dependency-free: a Kain-native feature hash
+// lane that turns source chunks and queries into packed u8 vectors for CUDA.
+
+use std::text
+use utils::simple_hash
+
+pub fn build_packed_embedding_bytes(material: String, dim: Int) -> Array<Int>:
+    let mut vec = zero_embedding(dim)
+    var token = ""
+    var prev = ""
+    var i: Int = 0
+    while i < len(material):
+        let ch = substring(material, i, i + 1)
+        if embedding_token_char(ch):
+            token = token + text_lower(ch)
+        else:
+            if token != "":
+                add_token_features(vec, token, prev, dim)
+                prev = token
+                token = ""
+        i = i + 1
+    if token != "":
+        add_token_features(vec, token, prev, dim)
+    return vec
+
+pub fn packed_embedding_weight(vec: Array<Int>) -> Int:
+    var total: Int = 0
+    var i: Int = 0
+    while i < len(vec):
+        if vec[i] != 0:
+            total = total + 1
+        i = i + 1
+    if total <= 0:
+        return 1
+    return total
+
+fn zero_embedding(dim: Int) -> Array<Int>:
+    let mut vec: Array<Int> = []
+    var i: Int = 0
+    while i < dim:
+        push(vec, 0)
+        i = i + 1
+    return vec
+
+fn add_token_features(vec: Array<Int>, token: String, prev: String, dim: Int) -> Unit:
+    let h = simple_hash(token) & 2147483647
+    set_feature(vec, h, dim)
+    set_feature(vec, h ^ (len(token) * 131071), dim)
+    set_feature(vec, (h >> 5) ^ (len(token) * 524287), dim)
+    add_token_ngrams(vec, token, dim)
+    if prev != "":
+        let pair_hash = simple_hash(prev + "_" + token) & 2147483647
+        set_feature(vec, pair_hash, dim)
+
+fn add_token_ngrams(vec: Array<Int>, token: String, dim: Int) -> Unit:
+    var gram_len: Int = 2
+    while gram_len <= 4 and gram_len <= len(token):
+        var start: Int = 0
+        while start + gram_len <= len(token):
+            let gram = substring(token, start, start + gram_len)
+            let h = simple_hash("ng:" + gram) & 2147483647
+            set_feature(vec, h ^ (gram_len * 8191), dim)
+            start = start + 1
+        gram_len = gram_len + 1
+
+fn set_feature(vec: Array<Int>, feature_hash: Int, dim: Int) -> Unit:
+    let lane = feature_hash % dim
+    var fingerprint = ((feature_hash >> 11) & 255)
+    if fingerprint == 0:
+        fingerprint = 1
+    if lane >= 0 and lane < len(vec):
+        if vec[lane] == 0:
+            vec[lane] = fingerprint
+
+fn embedding_token_char(ch: String) -> Bool:
+    let c = char_at(ch, 0)
+    let is_alpha = (c >= "a" and c <= "z") or (c >= "A" and c <= "Z")
+    let is_digit = c >= "0" and c <= "9"
+    return is_alpha or is_digit or c == "_"

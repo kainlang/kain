@@ -27,6 +27,7 @@ smoketest/3D/
 .tmp/
 zender/
 /zender/
+*.bin
 /target_selfhost_probe*/
 *.exe
 *.pdb
@@ -38,7 +39,6 @@ zender/
 *.so
 *.dylib
 *.dll
-/mcp/*
 !/mcp/kain-agent-mcp/
 !/mcp/kain-agent-mcp/KAIN.toml
 !/mcp/kain-agent-mcp/config/

@@ -1,0 +1,22 @@
+[package]
+name = "semantic-search"
+version = "0.1.0"
+description = "GPU-accelerated semantic search MCP tool for the Kain repository with Kain-authored CUDA scoring and top-k kernels."
+
+[blade]
+name = "semantic-search"
+kind = "kain_app"
+entry = "src/main.kn"
+source_roots = ["src"]
+module_roots = ["src"]
+build_targets = ["llvm"]
+
+[run]
+entry = "src/main.kn"
+target = "llvm"
+
+[build]
+entry = "src/main.kn"
+artifact_root = ".kain/out"
+cache_root = ".kain/cache/build"
+profile = "debug"

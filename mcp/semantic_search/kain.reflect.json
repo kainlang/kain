@@ -1,0 +1,116 @@
+{
+  "shaders": [
+    {
+      "name": "SemanticPackedScore",
+      "stage": "compute",
+      "entry_point": "SemanticPackedScore",
+      "inputs": [
+        {
+          "name": "id",
+          "ty": "UVec3"
+        }
+      ],
+      "bindings": [
+        {
+          "name": "query_embed",
+          "binding": 0,
+          "descriptor_set": 0,
+          "ty": "StorageBuffer<u8>",
+          "kind": "storage_buffer"
+        },
+        {
+          "name": "index_matrix",
+          "binding": 1,
+          "descriptor_set": 0,
+          "ty": "StorageBuffer<u8>",
+          "kind": "storage_buffer"
+        },
+        {
+          "name": "index_weights",
+          "binding": 2,
+          "descriptor_set": 0,
+          "ty": "StorageBuffer<UInt>",
+          "kind": "storage_buffer"
+        },
+        {
+          "name": "scores",
+          "binding": 3,
+          "descriptor_set": 0,
+          "ty": "StorageBuffer<UInt>",
+          "kind": "storage_buffer"
+        },
+        {
+          "name": "dim",
+          "binding": 4,
+          "descriptor_set": 0,
+          "ty": "UInt",
+          "kind": "uniform"
+        },
+        {
+          "name": "num_chunks",
+          "binding": 5,
+          "descriptor_set": 0,
+          "ty": "UInt",
+          "kind": "uniform"
+        }
+      ],
+      "output_type": "Void"
+    },
+    {
+      "name": "SemanticGpuTopK",
+      "stage": "compute",
+      "entry_point": "SemanticGpuTopK",
+      "inputs": [
+        {
+          "name": "id",
+          "ty": "UVec3"
+        }
+      ],
+      "bindings": [
+        {
+          "name": "scores",
+          "binding": 0,
+          "descriptor_set": 0,
+          "ty": "StorageBuffer<UInt>",
+          "kind": "storage_buffer"
+        },
+        {
+          "name": "top_indices",
+          "binding": 1,
+          "descriptor_set": 0,
+          "ty": "StorageBuffer<UInt>",
+          "kind": "storage_buffer"
+        },
+        {
+          "name": "top_scores",
+          "binding": 2,
+          "descriptor_set": 0,
+          "ty": "StorageBuffer<UInt>",
+          "kind": "storage_buffer"
+        },
+        {
+          "name": "num_chunks",
+          "binding": 3,
+          "descriptor_set": 0,
+          "ty": "UInt",
+          "kind": "uniform"
+        },
+        {
+          "name": "top_k",
+          "binding": 4,
+          "descriptor_set": 0,
+          "ty": "UInt",
+          "kind": "uniform"
+        },
+        {
+          "name": "min_score",
+          "binding": 5,
+          "descriptor_set": 0,
+          "ty": "UInt",
+          "kind": "uniform"
+        }
+      ],
+      "output_type": "Void"
+    }
+  ]
+}

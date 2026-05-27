@@ -1,0 +1,281 @@
+// ============================================================================
+//                    semantic-search :: CUDA search engine
+// ============================================================================
+// CPU search is intentionally gone. The host lane stages packed bytes, launches
+// Kain-authored CUDA score + top-k kernels, and formats the returned winners.
+
+use std::fs
+use std::cuda
+use types::SearchResult
+use types::SearchResponse
+use types::LoadedIndex
+use types::empty_search_response
+use config::SemanticSearchConfig
+use serialize::read_index
+use indexer::index_matrix_path
+use indexer::index_weight_path
+use embedding::build_packed_embedding_bytes
+use utils::int_to_str
+
+const CUDA_SCORE_KEY: String = "shader::SemanticPackedScore::compute"
+const CUDA_TOPK_KEY: String = "shader::SemanticGpuTopK::compute"
+const CUDA_FIXED_DIM: Int = 384
+const CUDA_MAX_CHUNKS: Int = 100000
+const CUDA_MAX_TOP_K: Int = 100
+const CUDA_ZERO_APPEND_CHUNK: Int = 4096
+
+struct CudaRankedHits:
+    indices: Array<Int>
+    scores: Array<Float>
+    error: String
+
+pub fn search(query: String, index_name: String, top_k: Int, cfg: SemanticSearchConfig) -> SearchResponse:
+    if query == "":
+        return error_response("empty query")
+    if cfg.gpu_enabled == false:
+        return error_response("CUDA is required for semantic-search; CPU scorer/ranker has been removed")
+    if cfg.dim != CUDA_FIXED_DIM:
+        return error_response("CUDA semantic-search artifacts are compiled for dim=" + int_to_str(CUDA_FIXED_DIM) + ", config dim=" + int_to_str(cfg.dim))
+
+    let index_path = index_file_path(index_name, cfg)
+    if fs_exists(index_path) == false:
+        return error_response("index not found: " + index_name + " (run 'index' first)")
+    let matrix_path = index_matrix_path(index_path)
+    if fs_exists(matrix_path) == false:
+        return error_response("CUDA matrix payload missing for " + index_name + " (run 'index' again)")
+    let weight_path = index_weight_path(index_path)
+    if fs_exists(weight_path) == false:
+        return error_response("CUDA weight payload missing for " + index_name + " (run 'index' again)")
+
+    let index = read_index(index_path, cfg)
+    if index.header.num_chunks == 0:
+        return error_response("index is empty or stale: " + index_name + " (run 'index' again)")
+    if index.header.num_chunks > CUDA_MAX_CHUNKS:
+        return error_response("index has " + int_to_str(index.header.num_chunks) + " chunks; CUDA kernel capacity is " + int_to_str(CUDA_MAX_CHUNKS))
+
+    var k = top_k
+    if k <= 0:
+        k = cfg.default_top_k
+    if k > cfg.max_top_k:
+        k = cfg.max_top_k
+    if k > CUDA_MAX_TOP_K:
+        k = CUDA_MAX_TOP_K
+    if k > index.header.num_chunks:
+        k = index.header.num_chunks
+
+    let ranked = cuda_rank(query, index_path, matrix_path, weight_path, index, k, cfg)
+    if ranked.error != "":
+        return error_response(ranked.error)
+    let results = build_results(ranked.indices, ranked.scores, index, k)
+    return SearchResponse {
+        results: results,
+        query_ms: 0.0,
+        total_indexed: index.header.num_chunks,
+        index_name: index_name,
+        error: "",
+    }
+
+fn cuda_rank(query: String, index_path: String, matrix_path: String, weight_path: String, index: LoadedIndex, top_k: Int, cfg: SemanticSearchConfig) -> CudaRankedHits:
+    let _index_path = index_path
+    let bundle = cuda_search_shader_bundle_path()
+    let residency = cuda_search_residency_path()
+    if bundle == "" or residency == "":
+        return cuda_error("CUDA artifacts missing; run `kain gpu-artifacts src/search_kernel.kn --output kain` from X:\\mcp\\semantic_search")
+    if cuda_driver_available() == false:
+        return cuda_error("CUDA driver is not available")
+    if cuda_runtime_library_available() == false:
+        return cuda_error("kain-gpu-runtime CUDA runtime library is not available")
+    if cuda_has_compute_key_from_path(residency, CUDA_SCORE_KEY) == false:
+        return cuda_error("CUDA score kernel missing from residency sidecar; regenerate search_kernel artifacts")
+    if cuda_has_compute_key_from_path(residency, CUDA_TOPK_KEY) == false:
+        return cuda_error("CUDA top-k kernel missing from residency sidecar; regenerate search_kernel artifacts")
+
+    let query_bytes = build_query_embedding_bytes(query, cfg.dim)
+    let stage_error = stage_score_payloads(residency, query_bytes, matrix_path, weight_path, index.header.num_chunks, cfg)
+    if stage_error != "":
+        return cuda_error(stage_error)
+    let score_stats = cuda_dispatch(bundle, residency, CUDA_SCORE_KEY)
+    if score_stats.ok == false:
+        return cuda_error("CUDA score dispatch failed: " + score_stats.message)
+
+    let capacity = query_match_capacity(query_bytes)
+    let threshold = score_threshold(cfg, capacity)
+    let top_error = stage_topk_payloads(residency, index.header.num_chunks, top_k, threshold)
+    if top_error != "":
+        return cuda_error(top_error)
+    let top_stats = cuda_dispatch(bundle, residency, CUDA_TOPK_KEY)
+    if top_stats.ok == false:
+        return cuda_error("CUDA top-k dispatch failed: " + top_stats.message)
+    return read_ranked_hits(residency, top_k, index.header.num_chunks, threshold, capacity)
+
+fn stage_score_payloads(residency: String, query_bytes: Array<Int>, matrix_path: String, weight_path: String, num_chunks: Int, cfg: SemanticSearchConfig) -> String:
+    if cuda_write_binding_payload_bytes_from_path(residency, CUDA_SCORE_KEY, "query_embed", query_bytes) == false:
+        return "failed to stage query embedding payload"
+    let matrix_locator = cuda_binding_locator_from_path(residency, CUDA_SCORE_KEY, "index_matrix")
+    if matrix_locator.ok == false:
+        return "index_matrix binding missing in CUDA residency"
+    if write_padded_payload_from_file(matrix_path, matrix_locator.payload_path, matrix_locator.byte_length) == false:
+        return "failed to stage packed index matrix payload"
+    let weight_locator = cuda_binding_locator_from_path(residency, CUDA_SCORE_KEY, "index_weights")
+    if weight_locator.ok == false:
+        return "index_weights binding missing in CUDA residency"
+    if write_padded_payload_from_file(weight_path, weight_locator.payload_path, weight_locator.byte_length) == false:
+        return "failed to stage packed index weight payload"
+    if cuda_zero_binding_payload_from_path(residency, CUDA_SCORE_KEY, "scores") == false:
+        return "failed to zero score payload"
+    if cuda_write_binding_payload_bytes_from_path(residency, CUDA_SCORE_KEY, "dim", cuda_pack_u32_array_le([cfg.dim])) == false:
+        return "failed to stage dim payload"
+    if cuda_write_binding_payload_bytes_from_path(residency, CUDA_SCORE_KEY, "num_chunks", cuda_pack_u32_array_le([num_chunks])) == false:
+        return "failed to stage num_chunks payload"
+    return ""
+
+fn stage_topk_payloads(residency: String, num_chunks: Int, top_k: Int, threshold: Int) -> String:
+    if cuda_copy_binding_payload_from_path(residency, CUDA_SCORE_KEY, "scores", CUDA_TOPK_KEY, "scores") == false:
+        return "failed to copy score payload into top-k kernel"
+    if cuda_zero_binding_payload_from_path(residency, CUDA_TOPK_KEY, "top_indices") == false:
+        return "failed to zero top_indices payload"
+    if cuda_zero_binding_payload_from_path(residency, CUDA_TOPK_KEY, "top_scores") == false:
+        return "failed to zero top_scores payload"
+    if cuda_write_binding_payload_bytes_from_path(residency, CUDA_TOPK_KEY, "num_chunks", cuda_pack_u32_array_le([num_chunks])) == false:
+        return "failed to stage top-k num_chunks payload"
+    if cuda_write_binding_payload_bytes_from_path(residency, CUDA_TOPK_KEY, "top_k", cuda_pack_u32_array_le([top_k])) == false:
+        return "failed to stage top_k payload"
+    if cuda_write_binding_payload_bytes_from_path(residency, CUDA_TOPK_KEY, "min_score", cuda_pack_u32_array_le([threshold])) == false:
+        return "failed to stage min_score payload"
+    return ""
+
+fn read_ranked_hits(residency: String, top_k: Int, total_chunks: Int, threshold: Int, max_score_raw: Int) -> CudaRankedHits:
+    let index_bytes = cuda_binding_payload_bytes_from_path(residency, CUDA_TOPK_KEY, "top_indices")
+    let score_bytes = cuda_binding_payload_bytes_from_path(residency, CUDA_TOPK_KEY, "top_scores")
+    let raw_indices = cuda_unpack_u32_array_le(index_bytes)
+    let raw_scores = cuda_unpack_u32_array_le(score_bytes)
+    let mut indices: Array<Int> = []
+    let mut scores: Array<Float> = []
+    let max_score = to_float(max_score_raw)
+    var slot: Int = 0
+    while slot < top_k and slot < len(raw_indices) and slot < len(raw_scores):
+        let idx = raw_indices[slot]
+        let raw_score = raw_scores[slot]
+        if idx >= 0 and idx < total_chunks and raw_score >= threshold:
+            push(indices, idx)
+            push(scores, to_float(raw_score) / max_score)
+        slot = slot + 1
+    return CudaRankedHits {
+        indices: indices,
+        scores: scores,
+        error: "",
+    }
+
+fn build_query_embedding_bytes(query: String, dim: Int) -> Array<Int>:
+    return build_packed_embedding_bytes(query, dim)
+
+fn query_match_capacity(query_bytes: Array<Int>) -> Int:
+    var count: Int = 0
+    var i: Int = 0
+    while i < len(query_bytes):
+        if query_bytes[i] != 0:
+            count = count + 1
+        i = i + 1
+    if count <= 0:
+        return 1024
+    return count * 1024
+
+fn write_padded_payload_from_file(src: String, dest: String, expected_bytes: Int) -> Bool:
+    if fs_exists(src) == false:
+        return false
+    let meta = fs_metadata(src)
+    if meta.len > expected_bytes:
+        return false
+    let copied = fs_copy_file_streaming(src, dest, 1048576)
+    if copied != meta.len:
+        return false
+    let padding = expected_bytes - meta.len
+    if padding > 0:
+        append_zero_bytes(dest, padding)
+    let final_meta = fs_metadata(dest)
+    return final_meta.len == expected_bytes
+
+fn append_zero_bytes(path: String, count: Int) -> Unit:
+    var remaining = count
+    while remaining > 0:
+        var chunk = CUDA_ZERO_APPEND_CHUNK
+        if remaining < chunk:
+            chunk = remaining
+        fs_append_bytes(path, zero_bytes(chunk))
+        remaining = remaining - chunk
+
+fn zero_bytes(count: Int) -> Array<Int>:
+    let mut bytes: Array<Int> = []
+    var i: Int = 0
+    while i < count:
+        push(bytes, 0)
+        i = i + 1
+    return bytes
+
+fn score_threshold(cfg: SemanticSearchConfig, max_score_raw: Int) -> Int:
+    if cfg.min_score <= 0.0:
+        return 0
+    let max_score = to_float(max_score_raw)
+    return Int(cfg.min_score * max_score)
+
+fn cuda_search_shader_bundle_path() -> String:
+    if fs_exists("kain.shader_bundle.json"):
+        return "kain.shader_bundle.json"
+    if fs_exists("kain_shader_bundle.json"):
+        return "kain_shader_bundle.json"
+    if fs_exists("mcp\\semantic_search\\kain.shader_bundle.json"):
+        return "mcp\\semantic_search\\kain.shader_bundle.json"
+    if fs_exists("mcp\\semantic_search\\kain_shader_bundle.json"):
+        return "mcp\\semantic_search\\kain_shader_bundle.json"
+    if fs_exists("X:\\mcp\\semantic_search\\kain.shader_bundle.json"):
+        return "X:\\mcp\\semantic_search\\kain.shader_bundle.json"
+    if fs_exists("X:\\mcp\\semantic_search\\kain_shader_bundle.json"):
+        return "X:\\mcp\\semantic_search\\kain_shader_bundle.json"
+    return ""
+
+fn cuda_search_residency_path() -> String:
+    if fs_exists("kain_compute_residency.json"):
+        return "kain_compute_residency.json"
+    if fs_exists("mcp\\semantic_search\\kain_compute_residency.json"):
+        return "mcp\\semantic_search\\kain_compute_residency.json"
+    if fs_exists("X:\\mcp\\semantic_search\\kain_compute_residency.json"):
+        return "X:\\mcp\\semantic_search\\kain_compute_residency.json"
+    return ""
+
+fn cuda_error(msg: String) -> CudaRankedHits:
+    return CudaRankedHits {
+        indices: [],
+        scores: [],
+        error: msg,
+    }
+
+fn build_results(indices: Array<Int>, scores: Array<Float>, index: LoadedIndex, top_k: Int) -> Array<SearchResult>:
+    let mut results: Array<SearchResult> = []
+    var ri: Int = 0
+    while ri < len(indices) and ri < top_k and ri < len(scores):
+        let idx = indices[ri]
+        if idx >= 0 and idx < len(index.metas):
+            let meta = index.metas[idx]
+            let loc = meta.file_path + ":" + int_to_str(meta.line_start)
+            var desc = loc
+            if meta.symbol != "":
+                desc = desc + " (" + meta.kind + " " + meta.symbol + ")"
+            push(results, SearchResult {
+                file_path: meta.file_path,
+                line_start: meta.line_start,
+                line_end: meta.line_end,
+                kind: meta.kind,
+                symbol: meta.symbol,
+                score: scores[ri],
+                snippet: desc,
+            })
+        ri = ri + 1
+    return results
+
+fn error_response(msg: String) -> SearchResponse:
+    let mut resp = empty_search_response()
+    resp.error = msg
+    return resp
+
+fn index_file_path(index_name: String, cfg: SemanticSearchConfig) -> String:
+    return fs_path_join(fs_path_join(cfg.index_dir, index_name), "index.kaindex")
