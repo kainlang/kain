@@ -1,0 +1,67 @@
+use orchestrate::advance_along_path
+use std::actor
+
+const RAT_ACTOR_MODULUS: Int = 1000000007
+const RAT_REQUEST_SHIFT: Int = 16
+const RAT_REQUEST_MASK: Int = 65535
+
+fn pack_rat_request(distance: Int, target_pos: Int) -> Int:
+    return (distance << RAT_REQUEST_SHIFT) | (target_pos & RAT_REQUEST_MASK)
+
+fn unpack_rat_distance(request: Int) -> Int:
+    return request >> RAT_REQUEST_SHIFT
+
+fn unpack_rat_target(request: Int) -> Int:
+    return request & RAT_REQUEST_MASK
+
+actor CheeseOracle:
+    state bias: Int = 19
+    state turns: Int = 0
+
+    on Taste(reply_to: P, frame: Int):
+        self.turns = self.turns + 1
+        let offset = ((frame * 7) + self.bias + self.turns) % 5
+        send reply_to.Reply(value = offset)
+
+actor SchrodingersRat:
+    state current_pos: Int = 0
+    state turns: Int = 0
+    state last_distance: Int = 0
+    state last_target: Int = 0
+    state grid_width: Int = 28
+    state grid_height: Int = 18
+
+    on Pulse(reply_to: P, request: Int):
+        self.turns = self.turns + 1
+        let distance = unpack_rat_distance(request)
+        let target_pos = unpack_rat_target(request)
+        self.last_distance = distance
+        self.last_target = target_pos
+        self.current_pos = advance_along_path(
+            self.current_pos,
+            target_pos,
+            self.grid_width,
+            self.grid_height,
+            distance
+        )
+        send reply_to.Reply(value = self.current_pos)
+
+actor TrailArchivist:
+    state samples: Int = 0
+    state checksum: Int = 0
+
+    on Record(reply_to: P, sample: Int):
+        self.samples = self.samples + 1
+        self.checksum = ((self.checksum * 31) + sample + self.samples) % RAT_ACTOR_MODULUS
+        send reply_to.Reply(value = self.checksum)
+
+pub fn actor_lane_smoke() -> Int:
+    let oracle = spawn CheeseOracle(bias = 19)
+    let rat = spawn SchrodingersRat(current_pos = 0, grid_width = 28, grid_height = 18)
+    let archivist = spawn TrailArchivist()
+    let bias = ask(oracle, "Taste", 3)
+    let rat_reply = ask(rat, "Pulse", pack_rat_request(4, 9 + bias))
+    let record = ask(archivist, "Record", bias + rat_reply)
+    if record < 0:
+        return 1
+    return 0

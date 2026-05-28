@@ -1,0 +1,145 @@
+use std::alloc
+use std::runtime
+use std::python
+use std::time
+use actors::CheeseOracle
+use actors::SchrodingersRat
+use actors::TrailArchivist
+use actors::pack_rat_request
+use laws::rat_law_lane
+use laws::rat_validate_world
+use orchestrate::build_maze
+use orchestrate::clamp_int
+use orchestrate::maze_snapshot
+use orchestrate::rat_frame_step
+use orchestrate::trail_snapshot
+use patch::seed_telemetry
+use patch::seal_frame
+use shatter::TrailSample
+use world::RatTelemetry
+
+import convergence_view as convergence_view
+
+const RAT_WIDTH: Int = 28
+const RAT_HEIGHT: Int = 18
+const RAT_CELL_COUNT: Int = RAT_WIDTH * RAT_HEIGHT
+const RAT_CELL_SIZE: Int = 24
+const RAT_TRAIL_CAPACITY: Int = RAT_CELL_COUNT
+const RAT_FRAME_LIMIT: Int = 120
+const RAT_START_INDEX: Int = (1 * RAT_WIDTH) + 1
+const RAT_TARGET_INDEX: Int = ((RAT_HEIGHT - 2) * RAT_WIDTH) + (RAT_WIDTH - 2)
+
+fn main() -> Int with Unsafe:
+    let boot = runtime_init()
+    if boot != 0:
+        return 100 + boot
+
+    let law_probe = rat_law_lane()
+    if law_probe != 0:
+        let shutdown_probe = runtime_shutdown()
+        if shutdown_probe != 0:
+            return 200 + shutdown_probe
+        return 10 + law_probe
+
+    if rat_validate_world(RAT_WIDTH, RAT_HEIGHT, RAT_CELL_COUNT, RAT_TRAIL_CAPACITY) == false:
+        let shutdown_world = runtime_shutdown()
+        if shutdown_world != 0:
+            return 210 + shutdown_world
+        return 11
+
+    let telemetry = RatTelemetry
+    let maze = build_maze(RAT_WIDTH, RAT_HEIGHT)
+    let pure_trail: ptr<Int> = alloc_zeroed(RAT_TRAIL_CAPACITY, "Int")
+    let greedy_trail: ptr<Int> = alloc_zeroed(RAT_TRAIL_CAPACITY, "Int")
+    let chaos_trail: ptr<Int> = alloc_zeroed(RAT_TRAIL_CAPACITY, "Int")
+
+    let setup_status = seed_telemetry(
+        telemetry,
+        maze,
+        pure_trail,
+        greedy_trail,
+        chaos_trail,
+        RAT_WIDTH,
+        RAT_HEIGHT,
+        RAT_CELL_COUNT,
+        RAT_TRAIL_CAPACITY,
+        RAT_START_INDEX,
+        RAT_TARGET_INDEX
+    )
+    if setup_status != 0:
+        let shutdown_setup = runtime_shutdown()
+        if shutdown_setup != 0:
+            return 220 + shutdown_setup
+        return setup_status
+
+    let maze_view = maze_snapshot(maze, RAT_CELL_COUNT)
+    let oracle = spawn CheeseOracle(bias = 19)
+    let rat = spawn SchrodingersRat(current_pos = RAT_START_INDEX, grid_width = RAT_WIDTH, grid_height = RAT_HEIGHT)
+    let archivist = spawn TrailArchivist()
+    let window = python_call_attr_raw(convergence_view, "launch", [RAT_WIDTH, RAT_HEIGHT, RAT_CELL_SIZE, "Convergence Rats"])
+
+    // ============================================================================
+    //                         converge lanes, then paint
+    // ============================================================================
+    var frame: Int = 0
+    var status: Int = 0
+    var current_pos: Int = RAT_START_INDEX
+    var last_signature: Int = 0
+
+    while frame < RAT_FRAME_LIMIT and status == 0:
+        let oracle_bias = ask(oracle, "Taste", frame)
+        let target = clamp_int(RAT_TARGET_INDEX + oracle_bias - 2, 0, RAT_CELL_COUNT - 1)
+        let frame_mix = rat_frame_step(maze, current_pos, target, telemetry)
+        let rat_reply = ask(rat, "Pulse", pack_rat_request(telemetry.best_distance, target))
+        let scent = TrailSample { cell: rat_reply, step: frame, lane: telemetry.best_lane, heat: oracle_bias }
+        let pure_snapshot = trail_snapshot(telemetry.pure_trail, telemetry.trail_capacity)
+        let greedy_snapshot = trail_snapshot(telemetry.greedy_trail, telemetry.trail_capacity)
+        let chaos_snapshot = trail_snapshot(telemetry.chaos_trail, telemetry.trail_capacity)
+        let frame_signature = python_call_attr_raw(
+            window,
+            "draw_frame",
+            [
+                maze_view,
+                pure_snapshot,
+                greedy_snapshot,
+                chaos_snapshot,
+                RAT_START_INDEX,
+                target,
+                telemetry.best_distance,
+                telemetry.best_lane,
+                frame,
+                rat_reply,
+                oracle_bias
+            ]
+        )
+        let pump_open = to_int(python_call_attr_raw(window, "pump", []))
+        let audit_seed = scent.cell + scent.step + scent.lane + scent.heat + frame_mix
+        let audit = ask(archivist, "Record", frame_signature + rat_reply + audit_seed)
+        let seal = seal_frame(
+            telemetry,
+            rat_reply,
+            frame_signature,
+            len(pure_snapshot),
+            len(greedy_snapshot),
+            len(chaos_snapshot),
+            pump_open,
+            audit
+        )
+        last_signature = frame_signature
+        current_pos = rat_reply
+        status = seal
+        frame = frame + 1
+        sleep_millis(16)
+
+    let _close = python_call_attr_raw(window, "close", [])
+
+    let shutdown = runtime_shutdown()
+    if shutdown != 0:
+        return 300 + shutdown
+
+    if status != 0:
+        return status
+
+    if telemetry.frame_signature <= 0 and last_signature <= 0:
+        return 4
+    return 0

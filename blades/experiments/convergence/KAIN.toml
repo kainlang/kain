@@ -1,0 +1,22 @@
+[package]
+name = "convergence"
+version = "0.1.0"
+description = "Experimental convergence blade: competing rat lanes painted through a tiny pygame host window."
+
+[blade]
+name = "convergence"
+entry = "src/main.kn"
+source_roots = ["src"]
+module_roots = ["src"]
+build_targets = ["llvm"]
+
+[run]
+entry = "src/main.kn"
+target = "llvm"
+
+[build]
+entry = "src/main.kn"
+artifact_root = ".kain/out"
+cache_root = ".kain/cache/build"
+profile = "debug"
+

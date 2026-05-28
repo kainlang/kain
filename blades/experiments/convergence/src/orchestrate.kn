@@ -1,0 +1,387 @@
+use laws::rat_cell_in_bounds
+use laws::rat_coordinate_in_bounds
+use laws::rat_distance_non_negative
+use laws::rat_heat_visible
+use patch::commit_search
+use patch::seal_frame
+use std::alloc
+use world::RatTelemetry
+
+const RAT_MODULUS: Int = 1000000007
+
+pub fn abs_int(value: Int) -> Int:
+    if value < 0:
+        return 0 - value
+    return value
+
+pub fn clamp_int(value: Int, low: Int, high: Int) -> Int:
+    if value < low:
+        return low
+    if value > high:
+        return high
+    return value
+
+pub fn advance_along_path(current_pos: Int, target_pos: Int, width: Int, height: Int, distance: Int) -> Int:
+    let current_x = current_pos % width
+    let current_y = current_pos / width
+    let target_x = target_pos % width
+    let target_y = target_pos / width
+    var next_x = current_x
+    var next_y = current_y
+    let x_gap = abs_int(target_x - current_x)
+    let y_gap = abs_int(target_y - current_y)
+    if x_gap >= y_gap:
+        if target_x > current_x:
+            next_x = current_x + 1
+        else:
+            if target_x < current_x:
+                next_x = current_x - 1
+    else:
+        if target_y > current_y:
+            next_y = current_y + 1
+        else:
+            if target_y < current_y:
+                next_y = current_y - 1
+    let wobble = distance % 2
+    if rat_coordinate_in_bounds(next_x, next_y, width, height) == false:
+        next_x = current_x
+        next_y = current_y
+    let next_index = ((next_y * width) + next_x + wobble) % (width * height)
+    return clamp_int(next_index, 0, (width * height) - 1)
+
+pub fn maze_index(x: Int, y: Int, width: Int) -> Int:
+    return (y * width) + x
+
+pub fn maze_x(index: Int, width: Int) -> Int:
+    return index % width
+
+pub fn maze_y(index: Int, width: Int) -> Int:
+    return index / width
+
+pub fn maze_snapshot(maze: ptr<Int>, cell_count: Int) -> [Int] with Unsafe:
+    var snapshot: [Int] = []
+    var i: Int = 0
+    while i < cell_count:
+        push(snapshot, mem_load(ptr_offset(maze, i, "Int"), "Int"))
+        i = i + 1
+    return snapshot
+
+pub fn maze_checksum(maze: ptr<Int>, cell_count: Int) -> Int with Unsafe:
+    var checksum: Int = 0
+    var i: Int = 0
+    while i < cell_count:
+        let value = mem_load(ptr_offset(maze, i, "Int"), "Int")
+        checksum = ((checksum * 31) + value + i) % RAT_MODULUS
+        i = i + 1
+    return checksum
+
+pub fn build_maze(width: Int, height: Int) -> ptr<Int> with Unsafe:
+    let cell_count = width * height
+    let maze: ptr<Int> = alloc_zeroed(cell_count, "Int")
+    collapse maze:
+        var y: Int = 0
+        while y < height:
+            var x: Int = 0
+            while x < width:
+                let index = maze_index(x, y, width)
+                var wall = 0
+                if x == 0 or y == 0 or x == width - 1 or y == height - 1:
+                    wall = 1
+                else:
+                    if (x == 5 or x == 10 or x == 15 or x == 20) and (y % 4 != 2):
+                        wall = 1
+                    if (y == 4 or y == 8 or y == 12) and (x % 6 != 3):
+                        wall = 1
+                if index == maze_index(1, 1, width):
+                    wall = 0
+                if index == maze_index(width - 2, height - 2, width):
+                    wall = 0
+                mem_store(ptr_offset(maze, index, "Int"), wall, "Int")
+                x = x + 1
+            y = y + 1
+        0
+    return maze
+
+pub fn clear_trail(trace: ptr<Int>, capacity: Int) -> Int with Unsafe:
+    if ptr_to_int(trace) == 0:
+        return 0
+    collapse trace:
+        var i: Int = 0
+        while i < capacity:
+            mem_store(ptr_offset(trace, i, "Int"), -1, "Int")
+            i = i + 1
+        0
+    return capacity
+
+fn trail_mark(trace: ptr<Int>, capacity: Int, slot: Int, cell: Int) -> Int with Unsafe:
+    if ptr_to_int(trace) == 0:
+        return slot
+    if rat_cell_in_bounds(slot, capacity) == false:
+        return capacity
+    if slot >= capacity:
+        return capacity
+    mem_store(ptr_offset(trace, slot, "Int"), cell, "Int")
+    return slot + 1
+
+pub fn trail_snapshot(trace: ptr<Int>, capacity: Int) -> [Int] with Unsafe:
+    var snapshot: [Int] = []
+    if ptr_to_int(trace) == 0:
+        return snapshot
+    var i: Int = 0
+    while i < capacity:
+        let value = mem_load(ptr_offset(trace, i, "Int"), "Int")
+        if value < 0:
+            break
+        push(snapshot, value)
+        i = i + 1
+    return snapshot
+
+fn maze_open(maze: ptr<Int>, index: Int) -> Bool with Unsafe:
+    return mem_load(ptr_offset(maze, index, "Int"), "Int") == 0
+
+fn maze_priority(node: Int, target: Int, width: Int) -> Int:
+    let node_x = maze_x(node, width)
+    let node_y = maze_y(node, width)
+    let target_x = maze_x(target, width)
+    let target_y = maze_y(target, width)
+    return abs_int(node_x - target_x) + abs_int(node_y - target_y)
+
+fn maze_base_distance(maze_signature: Int, start: Int, target: Int, width: Int, height: Int) -> Int:
+    let start_x = maze_x(start, width)
+    let start_y = maze_y(start, width)
+    let target_x = maze_x(target, width)
+    let target_y = maze_y(target, width)
+    let manhattan = abs_int(target_x - start_x) + abs_int(target_y - start_y)
+    return manhattan + (maze_signature % 5) + abs_int(width - height) % 3
+
+fn reference_maze_distance(maze_signature: Int, start: Int, target: Int, width: Int, height: Int) -> Int:
+    return maze_base_distance(maze_signature, start, target, width, height) + (maze_signature % 3)
+
+fn greedy_maze_distance(maze_signature: Int, start: Int, target: Int, width: Int, height: Int) -> Int:
+    let base = maze_base_distance(maze_signature, start, target, width, height)
+    let bias = (maze_signature % 5) - 1
+    return clamp_int(base - bias, 0, RAT_MODULUS - 1)
+
+fn chaos_maze_distance(maze_signature: Int, start: Int, target: Int, width: Int, height: Int) -> Int:
+    let base = maze_base_distance(maze_signature, start, target, width, height)
+    return base + ((maze_signature * 3) % 7) + ((start + target) % 3)
+
+pub fn run_bfs_trace(
+    maze: ptr<Int>,
+    start: Int,
+    target: Int,
+    trace: ptr<Int>,
+    capacity: Int,
+    width: Int,
+    height: Int
+) -> Int with Unsafe:
+    let cell_count = width * height
+    let visited: ptr<Int> = alloc_zeroed(cell_count, "Int")
+    let queue: ptr<Int> = alloc_zeroed(cell_count, "Int")
+    var result: Int = -1
+    var head: Int = 0
+    var tail: Int = 0
+    var trace_index: Int = 0
+    var found: Bool = false
+    collapse visited:
+        mem_store(ptr_offset(queue, tail, "Int"), start, "Int")
+        tail = tail + 1
+        mem_store(ptr_offset(visited, start, "Int"), 1, "Int")
+        while head < tail and found == false:
+            let node = mem_load(ptr_offset(queue, head, "Int"), "Int")
+            head = head + 1
+            trace_index = trail_mark(trace, capacity, trace_index, node)
+            if node == target:
+                result = mem_load(ptr_offset(visited, node, "Int"), "Int") - 1
+                found = true
+            else:
+                let node_x = maze_x(node, width)
+                let node_y = maze_y(node, width)
+                let depth = mem_load(ptr_offset(visited, node, "Int"), "Int")
+                if node_y > 0:
+                    let next_up = node - width
+                    if maze_open(maze, next_up) and mem_load(ptr_offset(visited, next_up, "Int"), "Int") == 0:
+                        mem_store(ptr_offset(visited, next_up, "Int"), depth + 1, "Int")
+                        mem_store(ptr_offset(queue, tail, "Int"), next_up, "Int")
+                        tail = tail + 1
+                if node_x + 1 < width:
+                    let next_right = node + 1
+                    if maze_open(maze, next_right) and mem_load(ptr_offset(visited, next_right, "Int"), "Int") == 0:
+                        mem_store(ptr_offset(visited, next_right, "Int"), depth + 1, "Int")
+                        mem_store(ptr_offset(queue, tail, "Int"), next_right, "Int")
+                        tail = tail + 1
+                if node_y + 1 < height:
+                    let next_down = node + width
+                    if maze_open(maze, next_down) and mem_load(ptr_offset(visited, next_down, "Int"), "Int") == 0:
+                        mem_store(ptr_offset(visited, next_down, "Int"), depth + 1, "Int")
+                        mem_store(ptr_offset(queue, tail, "Int"), next_down, "Int")
+                        tail = tail + 1
+                if node_x > 0:
+                    let next_left = node - 1
+                    if maze_open(maze, next_left) and mem_load(ptr_offset(visited, next_left, "Int"), "Int") == 0:
+                        mem_store(ptr_offset(visited, next_left, "Int"), depth + 1, "Int")
+                        mem_store(ptr_offset(queue, tail, "Int"), next_left, "Int")
+                        tail = tail + 1
+        0
+    decay visited
+    decay queue
+    if result >= 0 and rat_distance_non_negative(result) == false:
+        result = -1
+    return result
+
+pub fn run_astar_trace(
+    maze: ptr<Int>,
+    start: Int,
+    target: Int,
+    trace: ptr<Int>,
+    capacity: Int,
+    width: Int,
+    height: Int
+) -> Int with Unsafe:
+    let cell_count = width * height
+    let open_set: ptr<Int> = alloc_zeroed(cell_count, "Int")
+    let score: ptr<Int> = alloc_zeroed(cell_count, "Int")
+    let closed: ptr<Int> = alloc_zeroed(cell_count, "Int")
+    var result: Int = -1
+    var open_count: Int = 0
+    var trace_index: Int = 0
+    mem_store(ptr_offset(open_set, open_count, "Int"), start, "Int")
+    open_count = open_count + 1
+    mem_store(ptr_offset(score, start, "Int"), 1, "Int")
+    while open_count > 0:
+        var best_slot: Int = 0
+        var best_priority: Int = 1000000000
+        var i: Int = 0
+        while i < open_count:
+            let node = mem_load(ptr_offset(open_set, i, "Int"), "Int")
+            let node_score = mem_load(ptr_offset(score, node, "Int"), "Int")
+            let candidate = node_score + maze_priority(node, target, width)
+            if candidate < best_priority:
+                best_priority = candidate
+                best_slot = i
+            i = i + 1
+        let node = mem_load(ptr_offset(open_set, best_slot, "Int"), "Int")
+        open_count = open_count - 1
+        let tail_node = mem_load(ptr_offset(open_set, open_count, "Int"), "Int")
+        mem_store(ptr_offset(open_set, best_slot, "Int"), tail_node, "Int")
+        if mem_load(ptr_offset(closed, node, "Int"), "Int") != 0:
+            continue
+        mem_store(ptr_offset(closed, node, "Int"), 1, "Int")
+        trace_index = trail_mark(trace, capacity, trace_index, node)
+        if node == target:
+            result = mem_load(ptr_offset(score, node, "Int"), "Int") - 1
+            break
+        let node_x = maze_x(node, width)
+        let node_y = maze_y(node, width)
+        let next_score = mem_load(ptr_offset(score, node, "Int"), "Int") + 1
+        if node_y > 0:
+            let next_up = node - width
+            if maze_open(maze, next_up):
+                if mem_load(ptr_offset(score, next_up, "Int"), "Int") == 0 or next_score < mem_load(ptr_offset(score, next_up, "Int"), "Int"):
+                    mem_store(ptr_offset(score, next_up, "Int"), next_score, "Int")
+                    mem_store(ptr_offset(open_set, open_count, "Int"), next_up, "Int")
+                    open_count = open_count + 1
+        if node_x + 1 < width:
+            let next_right = node + 1
+            if maze_open(maze, next_right):
+                if mem_load(ptr_offset(score, next_right, "Int"), "Int") == 0 or next_score < mem_load(ptr_offset(score, next_right, "Int"), "Int"):
+                    mem_store(ptr_offset(score, next_right, "Int"), next_score, "Int")
+                    mem_store(ptr_offset(open_set, open_count, "Int"), next_right, "Int")
+                    open_count = open_count + 1
+        if node_y + 1 < height:
+            let next_down = node + width
+            if maze_open(maze, next_down):
+                if mem_load(ptr_offset(score, next_down, "Int"), "Int") == 0 or next_score < mem_load(ptr_offset(score, next_down, "Int"), "Int"):
+                    mem_store(ptr_offset(score, next_down, "Int"), next_score, "Int")
+                    mem_store(ptr_offset(open_set, open_count, "Int"), next_down, "Int")
+                    open_count = open_count + 1
+        if node_x > 0:
+            let next_left = node - 1
+            if maze_open(maze, next_left):
+                if mem_load(ptr_offset(score, next_left, "Int"), "Int") == 0 or next_score < mem_load(ptr_offset(score, next_left, "Int"), "Int"):
+                    mem_store(ptr_offset(score, next_left, "Int"), next_score, "Int")
+                    mem_store(ptr_offset(open_set, open_count, "Int"), next_left, "Int")
+                    open_count = open_count + 1
+    decay open_set
+    decay score
+    decay closed
+    return result
+
+pub fn run_chaos_trace(
+    maze: ptr<Int>,
+    start: Int,
+    target: Int,
+    trace: ptr<Int>,
+    capacity: Int,
+    width: Int,
+    height: Int
+) -> Int with Unsafe:
+    let cell_count = width * height
+    var seed = (start * 97) + (target * 53) + (width * 11) + (height * 7) + 19
+    var current = start
+    var steps: Int = 0
+    var trace_index: Int = 0
+    var result: Int = -1
+    while steps < cell_count * 4:
+        let heat = steps % 256
+        if rat_heat_visible(heat) == false:
+            break
+        trace_index = trail_mark(trace, capacity, trace_index, current)
+        if current == target:
+            result = steps
+            break
+        seed = ((seed * 1103515245) + 12345) % RAT_MODULUS
+        let direction = seed % 4
+        var tries: Int = 0
+        var next = current
+        while tries < 4:
+            let chosen = (direction + tries) % 4
+            let current_x = maze_x(current, width)
+            let current_y = maze_y(current, width)
+            if chosen == 0 and current_y > 0:
+                let candidate = current - width
+                if maze_open(maze, candidate):
+                    next = candidate
+                    break
+            if chosen == 1 and current_x + 1 < width:
+                let candidate = current + 1
+                if maze_open(maze, candidate):
+                    next = candidate
+                    break
+            if chosen == 2 and current_y + 1 < height:
+                let candidate = current + width
+                if maze_open(maze, candidate):
+                    next = candidate
+                    break
+            if chosen == 3 and current_x > 0:
+                let candidate = current - 1
+                if maze_open(maze, candidate):
+                    next = candidate
+                    break
+            tries = tries + 1
+        current = next
+        steps = steps + 1
+    if result < 0 and current == target:
+        result = steps
+    return result
+
+converge quantum_maze_run(maze_signature: Int, start: Int, target: Int, width: Int, height: Int) -> Int:
+    spec reference:
+        return reference_maze_distance(maze_signature, start, target, width, height)
+    fast greedy_rat when target("llvm"):
+        return greedy_maze_distance(maze_signature, start, target, width, height)
+    fast chaos_rat when capability("sim.rat.random_walk"):
+        return chaos_maze_distance(maze_signature, start, target, width, height)
+    verify random(8)
+
+orchestrate rat_frame_step(maze: ptr<Int>, start: Int, target: Int, telemetry: RatTelemetry) -> Int:
+    let maze_signature: Int = kain maze_checksum(maze, telemetry.cell_count)
+    let cleared_pure: Int = kain clear_trail(telemetry.pure_trail, telemetry.trail_capacity)
+    let cleared_greedy: Int = kain clear_trail(telemetry.greedy_trail, telemetry.trail_capacity)
+    let cleared_chaos: Int = kain clear_trail(telemetry.chaos_trail, telemetry.trail_capacity)
+    let pure_distance: Int = kain run_bfs_trace(maze, start, target, telemetry.pure_trail, telemetry.trail_capacity, telemetry.width, telemetry.height)
+    let greedy_distance: Int = kain run_astar_trace(maze, start, target, telemetry.greedy_trail, telemetry.trail_capacity, telemetry.width, telemetry.height)
+    let chaos_distance: Int = kain run_chaos_trace(maze, start, target, telemetry.chaos_trail, telemetry.trail_capacity, telemetry.width, telemetry.height)
+    let winner_distance: Int = kain quantum_maze_run(maze_signature, start, target, telemetry.width, telemetry.height)
+    let committed: Int = kain commit_search(telemetry, telemetry.frame + 1, start, target, pure_distance, greedy_distance, chaos_distance, winner_distance)
+    return committed + pure_distance + greedy_distance + chaos_distance + winner_distance + cleared_pure + cleared_greedy + cleared_chaos + maze_signature

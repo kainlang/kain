@@ -1,0 +1,23 @@
+component SpeculativeScentVisualizer():
+    render <panel title="Convergence // RatTelemetry" />
+
+world RatTelemetry:
+    state maze: ptr<Int> = int_to_ptr(0, "Int")
+    state pure_trail: ptr<Int> = int_to_ptr(0, "Int")
+    state greedy_trail: ptr<Int> = int_to_ptr(0, "Int")
+    state chaos_trail: ptr<Int> = int_to_ptr(0, "Int")
+    state width: Int = 0
+    state height: Int = 0
+    state cell_count: Int = 0
+    state trail_capacity: Int = 0
+    state start_index: Int = 0
+    state target_index: Int = 0
+    state frame: Int = 0
+    state best_distance: Int = 0
+    state best_lane: Int = 0
+    state pure_count: Int = 0
+    state greedy_count: Int = 0
+    state chaos_count: Int = 0
+    state frame_signature: Int = 0
+    state status: Int = 0
+    surface native_ui => SpeculativeScentVisualizer

@@ -1,0 +1,18 @@
+shatter struct TrailSample:
+    cell: Int
+    step: Int
+    lane: Int
+    heat: Int
+
+shatter struct MazeTile:
+    wall: Int
+    scent: Int
+    visit: Int
+    seen: Bool
+
+shatter struct RatPulseEcho:
+    current: Int
+    target: Int
+    distance: Int
+    turn: Int
+

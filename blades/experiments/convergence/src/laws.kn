@@ -1,0 +1,43 @@
+use std::intent
+
+law rat_cell_in_bounds(index: Int, cell_count: Int) -> Bool:
+    return index >= 0 and index < cell_count
+
+law rat_coordinate_in_bounds(x: Int, y: Int, width: Int, height: Int) -> Bool:
+    return x >= 0 and y >= 0 and x < width and y < height
+
+law rat_trail_within_capacity(count: Int, capacity: Int) -> Bool:
+    return count >= 0 and count <= capacity
+
+law rat_distance_non_negative(distance: Int) -> Bool:
+    return distance >= 0
+
+law rat_lane_kind_valid(lane: Int) -> Bool:
+    return lane >= 0 and lane <= 2
+
+law rat_frame_within_budget(frame: Int, limit: Int) -> Bool:
+    return frame >= 0 and frame < limit
+
+law rat_heat_visible(heat: Int) -> Bool:
+    return heat >= 0 and heat < 256
+
+law rat_maze_geometry_valid(width: Int, height: Int) -> Bool:
+    return width >= 4 and height >= 4
+
+law rat_start_target_distinct(start_index: Int, target_index: Int, cell_count: Int) -> Bool:
+    return rat_cell_in_bounds(start_index, cell_count) and rat_cell_in_bounds(target_index, cell_count) and start_index != target_index
+
+pub fn rat_validate_world(width: Int, height: Int, cell_count: Int, trail_capacity: Int) -> Bool:
+    return rat_maze_geometry_valid(width, height) and rat_trail_within_capacity(cell_count, trail_capacity)
+
+pub fn rat_law_lane() -> Int:
+    if law_status(rat_cell_in_bounds(0, 4)) < 0:
+        return 1
+    if law_status(rat_coordinate_in_bounds(1, 1, 4, 4)) < 0:
+        return 2
+    if law_status(rat_start_target_distinct(1, 2, 4)) < 0:
+        return 3
+    if rat_heat_visible(42) == false:
+        return 4
+    return 0
+
