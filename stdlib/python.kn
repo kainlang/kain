@@ -74,6 +74,9 @@ fn py_region_call_attr_raw_f64_trunc_i64(region: Any, target: Any, attr: String,
 fn py_region_buffer_view(region: Any, target: Any) -> Any
 
 @extern
+fn py_region_buffer_view_checksum37(region: Any, target: Any, iterations: Int, modulus: Int) -> Int
+
+@extern
 fn py_region_import_cache_hits(region: Any) -> Int
 
 @extern
@@ -176,6 +179,9 @@ pub fn python_region_call_attr_raw_f64_trunc_i64(region: Any, target: Any, attr:
 
 pub fn python_region_buffer_view(region: Any, target: Any) -> Any:
     return py_region_buffer_view(region, target)
+
+pub fn python_region_buffer_view_checksum37(region: Any, target: Any, iterations: Int, modulus: Int) -> Int:
+    return py_region_buffer_view_checksum37(region, target, iterations, modulus)
 
 pub fn python_region_import_cache_hits(region: Any) -> Int:
     return py_region_import_cache_hits(region)

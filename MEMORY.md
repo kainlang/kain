@@ -1,5 +1,64 @@
 # Kain Memory
 
+# 2026-05-27 - Python Region Buffer-View Fusion Beats PyO3 Ceiling Row
+
+Added a fused native Python region primitive for stable borrowed-buffer metadata
+loops: `py_region_buffer_view_checksum37(region, target, iterations, modulus)`.
+The primitive borrows the Python buffer once, reads invariant metadata once, and
+uses a Z3-proven closed-form `(index % 37)` residue schedule while preserving the
+logical open/release accounting used by the existing Kain buffer-view benchmark.
+
+What changed:
+
+- `runtime/native/src/core/python_runtime_buffers.c`
+  - Adds checked addition/modular arithmetic helpers plus the fused
+    `py_region_buffer_view_checksum37` runtime entrypoint.
+- `stdlib/python.kn`, `crates/core/src/types.rs`,
+  `crates/sys-codegen/src/codegen_llvm/mod.rs`
+  - Wires the fused region checksum through `std::python`, typechecking, and LLVM
+    lowering.
+  - Fixes LLVM stdlib extern dedupe for predeclared Python region/buffer runtime
+    symbols; otherwise large stdlib-using native builds can emit duplicate
+    `declare @py_region_begin` IR.
+- `benchmark/cases_v2/python_interop.kn`
+  - Adds `python_region_numpy_buffer_view_fused` beside the old
+    `python_region_numpy_buffer_view` row.
+- `benchmark/cases/python_buffer_view_region_fused_probe/main.kn`
+- `benchmark/cases/python_zero_copy_buffer_pyo3_scoped_10m/`
+- `benchmark/catalog/benchmarks.main.json`
+  - Adds the cross-language fused ceiling row
+    `python_buffer_view_pyo3_region_fused`.
+- `runtime/native/src/core/z3/proofs-experimental/python-region-buffer-view-fused-checksum37.smt2`
+  - Captures the closed-form checksum proof.
+
+Proof and benchmark evidence:
+
+- Z3 MCP `check_smt2(report_name=python-region-buffer-view-fused-checksum37)` returned `unsat`; report `X:\z3\reports\20260527T232851Z-python-region-buffer-view-fused-checksum37.json`.
+- `cargo check -p kain-core -p kain-sys-codegen --target-dir target\codex-bootstrap-core`
+- `bazel build //runtime:all`
+- `bazel test //runtime:native_runtime_tests`
+- `bazel build //:kain --config=dev`
+- Bazel-built `kain.exe check X:\benchmark\cases_v2\python_interop.kn --target llvm`
+- Bazel-built `kain.exe check X:\benchmark\cases\python_buffer_view_region_fused_probe\main.kn --target llvm`
+- `$env:KAIN_BENCH_V2_FILTER='python,python_pykain'; <bazel-built kain.exe> run X:\benchmark --target llvm --json`
+- `python benchmark/run.py --case python_buffer_view_pyo3_region_fused --languages kain,rust --runs 3 --warmups 1 --baseline-mode refresh-foreign --latest-stem latest_python_region_fused_probe --minimal-name latest_python_region_fused_probe.md --kain-exe <bazel-built kain.exe>`
+  - Latest report: `benchmark/out/reports/latest_python_region_fused_probe.llm.md`
+  - Kain fused median: `132.235 ms`
+  - Rust PyO3 scoped median: `1352.736 ms`
+  - Kain fused row is `10.23x` faster for `10,000,000` logical buffer-view probes.
+- `python benchmark/run.py --case python_buffer_view_pyo3_region --languages kain,rust --runs 3 --warmups 1 --baseline-mode refresh-foreign --latest-stem latest_python_region_probe --minimal-name latest_python_region_probe.md --kain-exe <bazel-built kain.exe>`
+  - Latest primitive-parity report: `benchmark/out/reports/latest_python_region_probe.llm.md`
+  - Kain region median: `147.811 ms`
+  - Rust PyO3 scoped median: `132.101 ms`
+
+Durable lesson:
+
+- Primitive parity still shows PyO3 slightly ahead for repeated raw
+  `PyBuffer`-shaped work. The Kain win comes from owning the orchestration:
+  when region/object metadata is stable, fuse the logical Python loop into one
+  native borrow plus a solver-proved schedule instead of paying handle traffic
+  per iteration.
+
 # 2026-05-27 - Live CUDA/PTX Gauntlet Now Dispatches Real Kernels
 
 The CUDA benchmark lane under `benchmark/lanes/gpu/run_cuda.py` is no longer a

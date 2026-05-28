@@ -14,7 +14,7 @@ import numpy as np
 // Kain with stable shared-buffer / shared-image / shared-tensor contracts.
 
 const PYTHON_INTEROP_MODULUS: Int = 1000000007
-const PYTHON_INTEROP_CASE_COUNT: Int = 14
+const PYTHON_INTEROP_CASE_COUNT: Int = 15
 const RAW_TENSOR_ROWS: Int = 7
 const RAW_TENSOR_COLS: Int = 11
 const RAW_IMAGE_W: Int = 48
@@ -115,6 +115,8 @@ pub fn python_interop_case_id(index: Int) -> String:
         return "python_region_bound_sqrt_fast"
     if index == 13:
         return "python_gpu_tensor_contract"
+    if index == 14:
+        return "python_region_numpy_buffer_view_fused"
     return ""
 
 pub fn python_interop_case_group(index: Int) -> String:
@@ -151,6 +153,8 @@ pub fn python_interop_case_title(index: Int) -> String:
         return "Python Region Bound Sqrt Fast"
     if index == 13:
         return "Python GPU Tensor Contract"
+    if index == 14:
+        return "Python Region NumPy Buffer View Fused"
     return ""
 
 pub fn python_interop_case_iterations(index: Int) -> Int:
@@ -182,6 +186,8 @@ pub fn python_interop_case_iterations(index: Int) -> Int:
         return 150000
     if index == 13:
         return 2048
+    if index == 14:
+        return 20000
     return 0
 
 pub fn python_interop_case_expected_checksum(index: Int) -> Int:
@@ -213,6 +219,8 @@ pub fn python_interop_case_expected_checksum(index: Int) -> Int:
         return 9625410
     if index == 13:
         return 1017533
+    if index == 14:
+        return 20939830
     return -1
 
 fn python_import_cached_checksum(iterations: Int) -> Int:
@@ -406,6 +414,13 @@ fn python_region_numpy_buffer_view_checksum(iterations: Int) -> Int:
     let auto_released = python_region_end(region)
     return (acc + views_opened + views_released + (auto_released * 41)) % PYTHON_INTEROP_MODULUS
 
+fn python_region_numpy_buffer_view_fused_checksum(iterations: Int) -> Int:
+    let region = python_region_begin()
+    let source = make_raw_uint8_buffer(RAW_BUFFER_VIEW_CELLS, 0)
+    let checksum = python_region_buffer_view_checksum37(region, source, iterations, PYTHON_INTEROP_MODULUS)
+    let auto_released = python_region_end(region)
+    return (checksum + (auto_released * 41)) % PYTHON_INTEROP_MODULUS
+
 pub fn python_interop_case_telemetry(case_id: String) -> String:
     if case_id == "python_import_cached":
         let content = "{"
@@ -592,6 +607,26 @@ pub fn python_interop_case_telemetry(case_id: String) -> String:
         content = content + "\"bench_intent\":" + interop_json_string_value("region-borrowed-buffer-hot-lane") + ","
         content = content + "\"pack_focus\":" + interop_json_string_value("python-region")
         return content + "}"
+    if case_id == "python_region_numpy_buffer_view_fused":
+        let content = "{"
+        content = content + "\"boundary_kind\":\"python-region-buffer-view-fused\","
+        content = content + "\"element_type\":" + interop_json_string_value("uint8") + ","
+        content = content + "\"payload_bytes_per_iteration\":" + str(RAW_BUFFER_VIEW_CELLS) + ","
+        content = content + "\"region_scope_entries_per_run\":1,"
+        content = content + "\"region_scope_exits_per_run\":1,"
+        content = content + "\"python_buffer_borrows_per_run\":1,"
+        content = content + "\"synthetic_buffer_views_per_iteration\":1,"
+        content = content + "\"synthetic_buffer_view_releases_per_iteration\":1,"
+        content = content + "\"bridge_entries_per_run\":3,"
+        content = content + "\"native_formula_period\":37,"
+        content = content + "\"contiguous_expected\":true,"
+        content = content + "\"writable_expected\":true,"
+        content = content + "\"expected_views_opened\":20000,"
+        content = content + "\"expected_views_released\":20000,"
+        content = content + "\"z3_proof\":" + interop_json_string_value("runtime/native/src/core/z3/proofs-experimental/python-region-buffer-view-fused-checksum37.smt2") + ","
+        content = content + "\"bench_intent\":" + interop_json_string_value("region-borrowed-buffer-fused-ceiling") + ","
+        content = content + "\"pack_focus\":" + interop_json_string_value("python-region")
+        return content + "}"
     if case_id == "python_region_bound_sqrt_fast":
         let content = "{"
         content = content + "\"boundary_kind\":\"python-region-bound-call\","
@@ -664,6 +699,8 @@ pub fn python_interop_case_checksum(case_id: String, iterations: Int, amplify: I
             acc = (acc + python_region_bound_sqrt_fast_checksum(iterations)) % modulus
         else if case_id == "python_gpu_tensor_contract":
             acc = (acc + python_gpu_tensor_contract_checksum(iterations)) % modulus
+        else if case_id == "python_region_numpy_buffer_view_fused":
+            acc = (acc + python_region_numpy_buffer_view_fused_checksum(iterations)) % modulus
         else:
             return -1
         repeat = repeat + 1

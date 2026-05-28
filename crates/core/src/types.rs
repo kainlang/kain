@@ -2135,6 +2135,18 @@ fn register_builtin_global_functions(env: &mut TypeEnv<'_>) {
             ResolvedType::Unknown,
         ),
     );
+    env.define_global(
+        "py_region_buffer_view_checksum37".into(),
+        builtin_function_type(
+            vec![
+                ResolvedType::Unknown,
+                ResolvedType::Unknown,
+                ResolvedType::Int(IntSize::I64),
+                ResolvedType::Int(IntSize::I64),
+            ],
+            ResolvedType::Int(IntSize::I64),
+        ),
+    );
     for name in [
         "py_buffer_view_byte_length",
         "py_buffer_view_element_count",

@@ -89,6 +89,7 @@ description: >-
   - `python_shared_buffer` / `python_shared_image` / `python_shared_tensor` measure full first-class contract adoption and metadata materialization.
   - `py_buffer_view` measures the lightweight borrowed-buffer lane that should be compared directly against PyO3 `PyBuffer<T>`.
   - `python_region_*` measures the scoped native batching lane where one Kain-owned Python region amortizes import/attr/view setup across many operations. Treat this as the native ceiling lane before claiming the raw per-boundary bridge is the whole story.
+  - `python_region_*_fused` measures Kain-owned orchestration fusion where a stable Python owner is borrowed once and the logical hot loop is executed natively. Pair these with PyO3 scoped rows only as ceiling research rows, not primitive-parity claims.
   - `py_call_raw_*` rows measure raw callable crossing costs and should be kept separate from full contract or pykain workflow rows.
 - When adding a Python interop benchmark, prefer a pair of rows: one Kain-native raw lane and one PyO3 row with both a `scoped` ceiling run and a `per_boundary` run. That gives both the “best plausible ceiling” and the “apples-to-apples bridge shape” view.
 - If the native runtime gains region batching, add a third row shape:
@@ -133,6 +134,13 @@ python benchmark/lanes/gpu/run_cuda.py --case cuda_warp_reduce_sum --runs 1 --wa
 
 ```powershell
 $env:KAIN_BENCH_V2_FILTER="python_region_import_cached,python_region_math_attr,python_region_math_sqrt,python_region_numpy_buffer_view"
+kain run X:\benchmark --target llvm --json
+```
+
+For the fused borrowed-buffer ceiling row:
+
+```powershell
+$env:KAIN_BENCH_V2_FILTER="python_region_numpy_buffer_view,python_region_numpy_buffer_view_fused"
 kain run X:\benchmark --target llvm --json
 ```
 

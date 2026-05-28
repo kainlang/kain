@@ -228,9 +228,7 @@ fn runtime_symbol_for_stdlib_function(name: &str) -> &str {
 fn stdlib_function_uses_borrowed_string_param(name: &str, index: usize) -> bool {
     matches!(
         (name, index),
-        ("map_get", 1)
-            | ("trim", 0)
-            | ("replace", 0 | 1 | 2)
+        ("map_get", 1) | ("trim", 0) | ("replace", 0 | 1 | 2)
     )
 }
 
@@ -336,6 +334,35 @@ fn llvm_runtime_declaration_is_preemitted(name: &str) -> bool {
             | "py_call_attr_args"
             | "py_call_raw_args"
             | "py_call_raw_attr"
+            | "py_call_raw_f64_trunc_i64"
+            | "py_buffer_view"
+            | "py_buffer_view_byte_length"
+            | "py_buffer_view_element_count"
+            | "py_buffer_view_element_size"
+            | "py_buffer_view_c_contiguous"
+            | "py_buffer_view_writable"
+            | "py_buffer_view_release"
+            | "py_region_begin"
+            | "py_region_end"
+            | "py_region_import"
+            | "py_region_getattr_raw"
+            | "py_region_call_args"
+            | "py_region_call_attr_args"
+            | "py_region_call_raw_args"
+            | "py_region_call_raw_attr"
+            | "py_region_call_raw_f64_trunc_i64"
+            | "py_region_call_attr_raw_f64_trunc_i64"
+            | "py_region_buffer_view"
+            | "py_region_buffer_view_checksum37"
+            | "py_region_import_cache_hits"
+            | "py_region_import_cache_misses"
+            | "py_region_attr_cache_hits"
+            | "py_region_attr_cache_misses"
+            | "py_region_views_opened"
+            | "py_region_views_released"
+            | "py_region_call_count"
+            | "py_region_generic_call_count"
+            | "py_region_fast_call_count"
     )
 }
 
@@ -13227,6 +13254,7 @@ impl LlvmGenerator {
         self.emit("declare i64 @py_region_call_raw_f64_trunc_i64(i64, i64, double)");
         self.emit("declare i64 @py_region_call_attr_raw_f64_trunc_i64(i64, i64, i8*, double)");
         self.emit("declare i64 @py_region_buffer_view(i64, i64)");
+        self.emit("declare i64 @py_region_buffer_view_checksum37(i64, i64, i64, i64)");
         self.emit("declare i64 @py_buffer_view_byte_length(i64)");
         self.emit("declare i64 @py_buffer_view_element_count(i64)");
         self.emit("declare i64 @py_buffer_view_element_size(i64)");
@@ -18842,9 +18870,13 @@ fn main() -> Int:
 "#;
         let tokens = Lexer::new(source).tokenize().expect("tokens");
         let mapper = SpanMapper::new(source);
-        let ast = Parser::new(&tokens, &mapper, "<llvm-stdlib-string-predicate-literal-test>")
-            .parse()
-            .expect("parse");
+        let ast = Parser::new(
+            &tokens,
+            &mapper,
+            "<llvm-stdlib-string-predicate-literal-test>",
+        )
+        .parse()
+        .expect("parse");
         let typed = types::check(&ast, &mapper, "<llvm-stdlib-string-predicate-literal-test>")
             .expect("typecheck");
         let llvm = String::from_utf8(generate(&typed).expect("llvm generation"))

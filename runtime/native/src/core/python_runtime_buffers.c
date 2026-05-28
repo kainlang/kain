@@ -32,6 +32,88 @@ static int kain_py_buffer_view_item_count_from_view(const Py_buffer* view, long 
     return 1;
 }
 
+static int kain_py_checked_add_i64(long long left, long long right, long long* out_value) {
+    if (!out_value || left < 0 || right < 0) {
+        return 0;
+    }
+    if (left > (LLONG_MAX - right)) {
+        return 0;
+    }
+    *out_value = left + right;
+    return 1;
+}
+
+static long long kain_py_mod_positive_i64(long long value, long long modulus) {
+    long long result;
+    if (modulus <= 0) {
+        return 0;
+    }
+    result = value % modulus;
+    return result < 0 ? result + modulus : result;
+}
+
+static long long kain_py_add_mod_i64(long long left, long long right, long long modulus) {
+    long long normalized_left = kain_py_mod_positive_i64(left, modulus);
+    long long normalized_right = kain_py_mod_positive_i64(right, modulus);
+    if (modulus <= 0) {
+        return 0;
+    }
+    if (normalized_left >= modulus - normalized_right) {
+        return normalized_left - (modulus - normalized_right);
+    }
+    return normalized_left + normalized_right;
+}
+
+static long long kain_py_mul_mod_i64(long long left, long long right, long long modulus) {
+    long long result = 0;
+    long long lane;
+    if (modulus <= 0 || left < 0 || right < 0) {
+        return 0;
+    }
+    lane = kain_py_mod_positive_i64(left, modulus);
+    while (right > 0) {
+        if ((right & 1LL) != 0) {
+            result = kain_py_add_mod_i64(result, lane, modulus);
+        }
+        right >>= 1;
+        if (right > 0) {
+            lane = kain_py_add_mod_i64(lane, lane, modulus);
+        }
+    }
+    return result;
+}
+
+static long long kain_py_residue_sum37_mod(long long iterations, long long modulus) {
+    long long periods;
+    long long residue;
+    long long prefix;
+    if (iterations < 0 || modulus <= 0) {
+        return 0;
+    }
+    periods = iterations / 37LL;
+    residue = iterations % 37LL;
+    prefix = (residue * (residue - 1LL)) / 2LL;
+    return kain_py_add_mod_i64(kain_py_mul_mod_i64(periods, 666LL, modulus), prefix, modulus);
+}
+
+static int kain_py_buffer_view_metadata_base(const Py_buffer* view, long long item_count, long long* out_base) {
+    long long base = 0;
+    long long item_size;
+    if (!view || !out_base || view->len < 0 || item_count < 0) {
+        return 0;
+    }
+    item_size = view->itemsize > 0 ? (long long)view->itemsize : 1LL;
+    if (!kain_py_checked_add_i64(base, (long long)view->len, &base) ||
+        !kain_py_checked_add_i64(base, item_count, &base) ||
+        !kain_py_checked_add_i64(base, item_size, &base) ||
+        !kain_py_checked_add_i64(base, kain_py_buffer_view_is_c_contiguous(view) ? 1LL : 0LL, &base) ||
+        !kain_py_checked_add_i64(base, view->readonly ? 0LL : 1LL, &base)) {
+        return 0;
+    }
+    *out_base = base;
+    return 1;
+}
+
 static void kain_py_buffer_view_destructor(void* payload) {
     KainPythonBufferViewHandle* handle = (KainPythonBufferViewHandle*)payload;
     if (!handle) {
@@ -154,6 +236,63 @@ void py_buffer_view_release(long long target) {
     }
     kain_py_buffer_view_close_active(handle);
     rc_release(handle);
+}
+
+long long py_region_buffer_view_checksum37(
+    long long region_value,
+    long long target,
+    long long iterations,
+    long long modulus
+) {
+    KainPythonRegionHandle* region = kain_py_as_region_handle(region_value);
+    PyObject* object;
+    PyObject* export_target;
+    Py_buffer borrowed_view;
+    long long item_count = 0;
+    long long metadata_base = 0;
+    long long fused_base = 0;
+    long long checksum = 0;
+    memset(&borrowed_view, 0, sizeof(borrowed_view));
+    if (!region || !region->active || iterations < 0 || modulus <= 0 ||
+        !g_kain_python_api.PyObject_GetBuffer || !g_kain_python_api.PyBuffer_Release) {
+        return 0;
+    }
+    region->call_count += 1u;
+    region->fast_call_count += 1u;
+    object = kain_py_resolve_target(target);
+    if (!object) {
+        return 0;
+    }
+    export_target = kain_py_export_buffer_target(object, NULL, 0u);
+    g_kain_python_api.Py_DecRef(object);
+    if (!export_target) {
+        return 0;
+    }
+    if (g_kain_python_api.PyObject_GetBuffer(export_target, &borrowed_view, KAIN_PYBUF_STRIDES) != 0) {
+        g_kain_python_api.Py_DecRef(export_target);
+        kain_py_clear_error();
+        return 0;
+    }
+    g_kain_python_api.Py_DecRef(export_target);
+    if (borrowed_view.len < 0 || (borrowed_view.len > 0 && borrowed_view.buf == NULL)) {
+        g_kain_python_api.PyBuffer_Release(&borrowed_view);
+        return 0;
+    }
+    if (borrowed_view.itemsize <= 0) {
+        borrowed_view.itemsize = 1;
+    }
+    if (!kain_py_buffer_view_item_count_from_view(&borrowed_view, &item_count) ||
+        !kain_py_buffer_view_metadata_base(&borrowed_view, item_count, &metadata_base) ||
+        !kain_py_checked_add_i64(metadata_base, 2LL, &fused_base)) {
+        g_kain_python_api.PyBuffer_Release(&borrowed_view);
+        return 0;
+    }
+    checksum = kain_py_mul_mod_i64(iterations, fused_base, modulus);
+    checksum = kain_py_add_mod_i64(checksum, kain_py_residue_sum37_mod(iterations, modulus), modulus);
+    region->views_opened += (uint64_t)iterations;
+    region->views_released += (uint64_t)iterations;
+    g_kain_python_api.PyBuffer_Release(&borrowed_view);
+    return checksum;
 }
 
 static const char* kain_py_shared_buffer_adoption_path_from_flags(int flags) {

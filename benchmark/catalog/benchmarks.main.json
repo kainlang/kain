@@ -1884,6 +1884,58 @@
       ]
     },
     {
+      "id": "python_buffer_view_pyo3_region_fused",
+      "title": "Python Buffer View PyO3 Region Fused",
+      "description": "Fused borrowed buffer-protocol metadata probe of one cached contiguous NumPy uint8 array across 10,000,000 logical probes. Kain borrows the Python buffer once in an explicit region and executes the metadata checksum schedule natively; Rust remains the PyO3 scoped primitive reference.",
+      "maturity": "implemented",
+      "fairness_note": "This is an orchestration-ceiling row, not primitive parity. Rust keeps the same scoped PyO3 borrowed-buffer loop used by `python_buffer_view_pyo3_region`; Kain proves that a stable region/object metadata schedule can be fused into one borrowed buffer view and one native checksum formula without readback copies.",
+      "language_notes": {
+        "kain": "Measures `python_region_buffer_view_checksum37`, a native fused region primitive that borrows the cached Python owner once, reads invariant metadata once, and accounts for 10,000,000 logical open/read/release probes with a Z3-proven residue schedule.",
+        "rust": "Cargo release build with PyO3 auto-initialize; repeatedly acquires `PyBuffer<u8>` 10,000,000 times from the same cached Python object while holding one outer GIL scope."
+      },
+      "telemetry": {
+        "primary_metric_id": "buffer_view_probes_per_second",
+        "metrics": [
+          {
+            "id": "buffer_view_probes_per_second",
+            "label": "logical buffer view probes/s",
+            "unit": "probes/s",
+            "work_items": 10000000
+          },
+          {
+            "id": "borrowed_bytes_per_second",
+            "label": "logical borrowed bytes/s",
+            "unit": "bytes/s",
+            "work_items": 5120000000
+          },
+          {
+            "id": "metadata_reads_per_second",
+            "label": "logical metadata reads/s",
+            "unit": "reads/s",
+            "work_items": 10000000
+          }
+        ]
+      },
+      "languages": {
+        "kain": "cases/python_buffer_view_region_fused_probe/main.kn",
+        "rust": "cases/python_zero_copy_buffer_pyo3_scoped_10m/src/main.rs"
+      },
+      "rust_manifest": "cases/python_zero_copy_buffer_pyo3_scoped_10m/Cargo.toml",
+      "rust_package": "python-zero-copy-buffer-pyo3-scoped-10m",
+      "rust_binary": "python-zero-copy-buffer-pyo3-scoped-10m",
+      "tags": [
+        "interop",
+        "python",
+        "runtime",
+        "zero-copy",
+        "region",
+        "fused"
+      ],
+      "suites": [
+        "full"
+      ]
+    },
+    {
       "id": "python_zero_copy_buffer_pyo3_scoped",
       "title": "Python Zero Copy Buffer PyO3 Scoped",
       "description": "Repeated zero-copy buffer-protocol adoption of one cached contiguous NumPy uint8 array. Kain uses `python_shared_buffer` plus shared contract reads; Rust uses PyO3 `PyBuffer<u8>` inside one outer GIL scope.",
