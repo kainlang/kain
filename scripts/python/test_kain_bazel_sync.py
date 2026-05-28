@@ -243,7 +243,7 @@ class KainBazelSyncTests(unittest.TestCase):
             self.assertEqual(calls["args"], [str(staged.resolve()), "--help"])
             kwargs = calls["kwargs"]
             self.assertIsInstance(kwargs, dict)
-            self.assertEqual(kwargs["cwd"], str(root))
+            self.assertNotIn("cwd", kwargs)
             self.assertEqual(kwargs["env"]["KAIN_ACTIVE_LAUNCHER_NAME"], "kain")
 
 

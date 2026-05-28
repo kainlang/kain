@@ -1086,7 +1086,9 @@ def launch_binary(
         raise SyncError(f"no runnable staged binary is available for {binary_name}; run without --skip-build")
 
     args = strip_forward_separator(forward_args)
-    result = subprocess.run([str(active_binary_path), *args], cwd=str(context.repo_root), env=env, check=False)
+    # Preserve the user's invocation directory for the actual binary so Kain
+    # can resolve the nearest project/workspace from where the command was run.
+    result = subprocess.run([str(active_binary_path), *args], env=env, check=False)
     return int(result.returncode)
 
 
