@@ -1,0 +1,9 @@
+// ERROR: Duplicate function definition
+fn helper() -> Int:
+    return 1
+
+fn helper() -> Int:
+    return 2
+
+fn main() -> Int:
+    return helper()

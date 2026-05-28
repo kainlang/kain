@@ -1,0 +1,13 @@
+// ERROR: Pattern match inexhaustive
+enum Color:
+    Red
+    Green
+    Blue
+
+fn describe(c: Color) -> String:
+    match c:
+        Color::Red => return "red"
+        Color::Green => return "green"
+
+fn main() -> Int:
+    return 0

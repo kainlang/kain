@@ -1,0 +1,6 @@
+// ERROR: Cyclic type definition
+struct Node:
+    child: Node
+
+fn main() -> Int:
+    return 0

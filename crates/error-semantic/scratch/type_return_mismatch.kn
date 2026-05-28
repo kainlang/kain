@@ -1,0 +1,6 @@
+// ERROR: fn returning nothing when Int expected
+fn empty() -> Int:
+    return
+
+fn main() -> Int:
+    return empty()

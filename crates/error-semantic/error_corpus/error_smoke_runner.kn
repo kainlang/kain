@@ -1,0 +1,187 @@
+// ============================================================================
+//                    ERROR SMOKE RUNNER — Kain Dogfood Edition
+// ============================================================================
+// Spawns `kain check` on every .kn error-fixture in ../scratch,
+// captures stdout+stderr, and writes a dated markdown report.
+//
+// Run:   kain run error_smoke_runner.kn --target llvm
+// Build: kain build error_smoke_runner.kn --target llvm
+// ============================================================================
+
+use std::process
+use std::fs
+use std::time
+
+const KAIN_EXE: String = "X:\\.kain\\bin\\kain.exe"
+const SCRATCH_DIR: String = "X:\\crates\\error-semantic\\scratch"
+const REPORT_DIR: String = "X:\\crates\\error-semantic\\scratch"
+const TARGET: String = "llvm"
+const PROCESS_TIMEOUT_MS: Int = 30000
+
+fn test_files() -> Array<Array<String>>:
+    return [
+        ["parse_missing_colon.kn",       "PARSE"],
+        ["parse_unclosed_paren.kn",      "PARSE"],
+        ["parse_mismatched_delim.kn",    "PARSE"],
+        ["parse_unexpected_token.kn",    "PARSE"],
+        ["parse_reserved_ident.kn",      "PARSE"],
+        ["type_unknown_identifier.kn",   "TYPE"],
+        ["type_duplicate_symbol.kn",     "TYPE"],
+        ["type_mismatch.kn",             "TYPE"],
+        ["type_missing_annotation.kn",   "TYPE"],
+        ["type_cyclic.kn",               "TYPE"],
+        ["type_inexhaustive_match.kn",   "TYPE"],
+        ["type_return_mismatch.kn",      "TYPE"],
+        ["type_wrong_arg_count.kn",      "TYPE"],
+        ["borrow_mismatch.kn",           "BORROW"],
+        ["borrow_use_after_move.kn",     "BORROW"],
+        ["borrow_mutability_conflict.kn","BORROW"],
+        ["effect_pure_calls_io.kn",      "EFFECT"],
+        ["world_missing_surface.kn",     "WORLD"],
+        ["import_unresolved.kn",         "IMPORT"],
+        ["multi_error.kn",               "MULTI"],
+        ["typo_math.kn",                 "TYPE"],
+    ]
+
+fn run_kain_check(file_path: String) -> Array<String>:
+    let spec = process_spec_create_piped(KAIN_EXE)
+    let _a0 = process_spec_add_arg(spec, "check")
+    let _a1 = process_spec_add_arg(spec, file_path)
+    let _a2 = process_spec_add_arg(spec, "--target")
+    let _a3 = process_spec_add_arg(spec, TARGET)
+    let child = process_spawn(spec)
+    if child <= 0:
+        return ["SPAWN_FAILED", "", ""]
+    let waited = process_wait(child, PROCESS_TIMEOUT_MS)
+    let stdout_text = process_stdout_capture_text(child)
+    let stderr_text = process_stderr_capture_text(child)
+    let ec = process_exit_code(child)
+    let _close = process_close(child)
+    return [text_to_string(ec), stdout_text, stderr_text]
+
+fn main() -> Int:
+    let boot = runtime_init()
+    if boot != 0:
+        return 100 + boot
+
+    let files = test_files()
+    let total = len(files)
+    let ts = text_to_string(now_millis())
+    let out_name = "error_smoke_report_" + ts + ".md"
+    let out_path = fs_path_join(REPORT_DIR, out_name)
+
+    var lines: Array<String> = []
+    var passed: Int = 0
+    var failed: Int = 0
+    var failed_list: Array<String> = []
+
+    push(lines, "# Kain Error System Smoke Test Report")
+    push(lines, "")
+    push(lines, "**Generated:** " + ts + "  ")
+    push(lines, "**Kain binary:** " + KAIN_EXE + "  ")
+    push(lines, "**Target:** " + TARGET + "  ")
+    push(lines, "**Files tested:** " + text_to_string(total) + "  ")
+    push(lines, "")
+    push(lines, "---")
+    push(lines, "")
+    push(lines, "## Detailed Results")
+    push(lines, "")
+
+    var i: Int = 0
+    while i < total:
+        let entry = files[i]
+        let name = entry[0]
+        let expected = entry[1]
+        let full_path = fs_path_join(SCRATCH_DIR, name)
+
+        let result = run_kain_check(full_path)
+        let exit_str = result[0]
+        let stdout_txt = result[1]
+        let stderr_txt = result[2]
+        let combined = stdout_txt + stderr_txt
+
+        let status = if exit_str == "0": "PASS" else: "FAIL (exit " + exit_str + ")"
+
+        push(lines, "### " + name + " -- " + status)
+        push(lines, "")
+        push(lines, "**Expected category:** " + expected + "  ")
+        push(lines, "")
+        push(lines, "```")
+        push(lines, combined)
+        push(lines, "```")
+        push(lines, "")
+        push(lines, "---")
+        push(lines, "")
+
+        if exit_str != "0":
+            failed = failed + 1
+            push(failed_list, "- **" + name + "** (expected " + expected + ", exit " + exit_str + ")")
+        else:
+            passed = passed + 1
+
+        i = i + 1
+
+    var final_lines: Array<String> = []
+    push(final_lines, "# Kain Error System Smoke Test Report")
+    push(final_lines, "")
+    push(final_lines, "**Generated:** " + ts + "  ")
+    push(final_lines, "**Kain binary:** " + KAIN_EXE + "  ")
+    push(final_lines, "**Target:** " + TARGET + "  ")
+    push(final_lines, "**Files tested:** " + text_to_string(total) + " (" + text_to_string(passed) + " passed, " + text_to_string(failed) + " failed)")
+    push(final_lines, "")
+    push(final_lines, "---")
+    push(final_lines, "")
+    push(final_lines, "## Summary")
+    push(final_lines, "")
+    push(final_lines, "| Status | Count |")
+    push(final_lines, "|--------|-------|")
+    push(final_lines, "| Passed | " + text_to_string(passed) + " |")
+    push(final_lines, "| Failed | " + text_to_string(failed) + " |")
+    push(final_lines, "| Total  | " + text_to_string(total) + " |")
+    push(final_lines, "")
+    push(final_lines, "---")
+    push(final_lines, "")
+
+    var j: Int = 10
+    while j < len(lines):
+        push(final_lines, lines[j])
+        j = j + 1
+
+    push(final_lines, "## Failed Files")
+    push(final_lines, "")
+    if len(failed_list) == 0:
+        push(final_lines, "All files passed. No errors to report.")
+    else:
+        var k: Int = 0
+        while k < len(failed_list):
+            push(final_lines, failed_list[k])
+            k = k + 1
+
+    push(final_lines, "")
+    push(final_lines, "## Notes")
+    push(final_lines, "")
+    push(final_lines, "- Exit 0 = check passed (no errors detected by the compiler)")
+    push(final_lines, "- Exit 1 = check failed (errors found)")
+    push(final_lines, "- Exit 2 = usage error")
+    push(final_lines, "- Exit other = compiler crash or internal error")
+    push(final_lines, "- PASS does NOT mean the test is correct -- it means the compiler did NOT detect the intentional error.")
+    push(final_lines, "  These are **gaps in Kain's error detection** that need attention.")
+    push(final_lines, "")
+
+    var report: String = ""
+    var li: Int = 0
+    while li < len(final_lines):
+        report = report + final_lines[li] + "\n"
+        li = li + 1
+
+    fs_write_text(out_path, report)
+
+    let shutdown = runtime_shutdown()
+    if shutdown != 0:
+        return 200 + shutdown
+
+    println("error_smoke_ok")
+    println("report=" + out_path)
+    println("passed=" + text_to_string(passed))
+    println("failed=" + text_to_string(failed))
+    return 0

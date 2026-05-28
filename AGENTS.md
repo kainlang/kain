@@ -76,6 +76,12 @@ Agents should assume they can now pressure authored Kain almost immediately with
 
 Fast proof surfaces:
 
+
+ENSURE YOU RUN COMMANDS WITH THE FLAT
+
+"kain"
+stop trying to use .kain/ directly from the binary -- it causes issues and causes syncing problems with the repo as the language evolves constantly. Kain is always in path and bazel ensures it stays fresh 
+
 ```powershell
 # Run a normal Kain file through the native lane
 kn .\demo.kn

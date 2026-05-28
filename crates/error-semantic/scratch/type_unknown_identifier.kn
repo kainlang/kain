@@ -1,0 +1,4 @@
+// ERROR: Unknown identifier - typo in function name
+fn main() -> Int:
+    let result = prntln("hello")
+    return 0

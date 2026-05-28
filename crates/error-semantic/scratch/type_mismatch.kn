@@ -1,0 +1,4 @@
+// ERROR: Type mismatch - assigning string to Int
+fn main() -> Int:
+    let x: Int = "hello"
+    return x

@@ -1,0 +1,5 @@
+// ERROR: Import path does not exist
+use nonexistent_module::fake_fn
+
+fn main() -> Int:
+    return 0

@@ -40,16 +40,14 @@ Read one extra skill only when the task obviously requires it:
 After that, stop loading repo context unless a concrete blocker forces a surgical lookup.
 
 ## Wildcard Contract
-
-- Start authoring after the core skill read. Do not tour `blades/`, `benchmark/`, `smoketest/`, `library_of_kain/`, `ARCHITECTURE.md`, `MEMORY.md`, or broad stdlib maps just to get more examples.
+- If the user provided examples with the skill in the prompt, utilize those as the baseline
+- Start authoring after the core skill read. Do not tour  `benchmark/`, `smoketest/`, `library_of_kain/`, `ARCHITECTURE.md`, `MEMORY.md`, or broad stdlib maps just to get more examples.
 - Prefer first-principles Kain. Invent the shape that best fits the problem instead of imitating the nearest existing file.
 - Use strong Kain constructs when they fit: `world`, `entangle`, `patch`, `law`, `converge`, `orchestrate`, `actor`, `pulse`, `teleport`, `collapse`, `observe`, `decay`, shaders, raw memory lanes, and stdlib surfaces.
 - Preserve ambition. The point of this mode is to let agents write surprising, high-ceiling Kain instead of collapsing to safe repo-pattern cargo cult.
 - Keep extra repo reads exceptional, tiny, and justified by a real blocker.
 
 ## Write Loop
-
-1. Infer the smallest believable contract from the user request and the target file or project.
 2. Start writing Kain immediately.
 3. Validate with the narrowest useful command, usually `kain check <entry.kn> --target llvm`, `kain run <entry.kn-or-blade> --target llvm`, or the closest project-local check loop.
 4. Repair errors by iterating on the authored code first.
