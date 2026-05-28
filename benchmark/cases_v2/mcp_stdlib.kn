@@ -1,0 +1,160 @@
+use std::json
+use std::mcp
+
+const MCP_MODULUS: Int = 1000000007
+const MCP_CASE_COUNT: Int = 3
+
+pub fn mcp_stdlib_case_count() -> Int:
+    return MCP_CASE_COUNT
+
+pub fn mcp_stdlib_case_id(index: Int) -> String:
+    if index == 0:
+        return "mcp_initialize"
+    if index == 1:
+        return "mcp_catalog"
+    if index == 2:
+        return "mcp_content"
+    return ""
+
+pub fn mcp_stdlib_case_group(index: Int) -> String:
+    if index == 0:
+        return "protocol"
+    if index == 1:
+        return "catalog"
+    if index == 2:
+        return "content"
+    return ""
+
+pub fn mcp_stdlib_case_title(index: Int) -> String:
+    if index == 0:
+        return "MCP Initialize"
+    if index == 1:
+        return "MCP Catalog"
+    if index == 2:
+        return "MCP Content"
+    return ""
+
+pub fn mcp_stdlib_case_iterations(index: Int) -> Int:
+    if index == 0:
+        return 12000
+    if index == 1:
+        return 9000
+    if index == 2:
+        return 10000
+    return 0
+
+pub fn mcp_stdlib_case_expected_checksum(index: Int) -> Int:
+    return mcp_stdlib_case_checksum(mcp_stdlib_case_id(index), mcp_stdlib_case_iterations(index), 1, MCP_MODULUS)
+
+fn mcp_catalog_payload_json() -> String:
+    let server = mcp_server_with_instructions(
+        "semantic-search",
+        "0.1.0",
+        "GPU-backed semantic search over the local Kain checkout."
+    )
+
+    let search_schema = "{\"type\":\"object\",\"properties\":{\"query\":{\"type\":\"string\"},\"index\":{\"type\":\"string\"},\"top_k\":{\"type\":\"integer\"}},\"required\":[\"query\"]}"
+    let search_tool = mcp_tool_def(
+        "semantic_search",
+        "Search the local Kain checkout with the CUDA-backed semantic-search lane.",
+        search_schema
+    )
+    let health_tool = mcp_tool_def_no_args(
+        "semantic_search_health",
+        "Inspect semantic-search readiness, including CUDA/runtime and index presence."
+    )
+    let resource = mcp_resource_def(
+        "resource://kain/semantic-search/index",
+        "kain-semantic-index",
+        "Synthetic resource record for the embedded semantic-search index.",
+        "application/json"
+    )
+    let prompt = mcp_prompt_def(
+        "semantic-search-help",
+        "Explain how to use the semantic-search MCP server."
+    )
+
+    let init = json_stringify(mcp_build_initialize_result(server, true, true, true, true))
+    let tools = json_stringify(mcp_build_tools_list([search_tool, health_tool]))
+    let resources = json_stringify(mcp_build_resources_list([resource]))
+    let prompts = json_stringify(mcp_build_prompts_list([prompt]))
+    let escaped = mcp_json_escape("mcp \"kain\" \\ lane")
+    return init + tools + resources + prompts + escaped
+
+fn mcp_content_payload_json() -> String:
+    let text_block = mcp_content_text("Hello, Kain.")
+    let image_block = mcp_content_image("ZmFrZS1pbWFnZQ==", "image/png")
+    let audio_block = mcp_content_audio("ZmFrZS1hdWRpbw==", "audio/wav")
+    let resource_text_block = mcp_content_embedded_resource_text(
+        "resource://kain/semantic-search/index",
+        "text/plain",
+        "resource payload"
+    )
+    let resource_blob_block = mcp_content_embedded_resource_blob(
+        "resource://kain/semantic-search/blob",
+        "application/octet-stream",
+        "AAEC"
+    )
+    let call_block = json_stringify(mcp_build_call_result(mcp_text_result("semantic-search-ok")))
+    return text_block + image_block + audio_block + resource_text_block + resource_blob_block + call_block
+
+fn mcp_initialize_checksum(iterations: Int, modulus: Int) -> Int:
+    let payload = mcp_catalog_payload_json()
+    let payload_len = len(payload)
+    let acc = payload_len % modulus
+    let index = 0
+    while index < iterations:
+        acc = (acc + payload_len + (index % 11)) % modulus
+        index = index + 1
+    return acc
+
+fn mcp_catalog_checksum(iterations: Int, modulus: Int) -> Int:
+    let payload = mcp_catalog_payload_json()
+    let payload_len = len(payload)
+    let acc = (payload_len * 3) % modulus
+    let index = 0
+    while index < iterations:
+        let gate = index % 3
+        if gate == 0:
+            acc = (acc + payload_len + len("protocol")) % modulus
+        else if gate == 1:
+            acc = (acc + payload_len + len("catalog")) % modulus
+        else:
+            acc = (acc + payload_len + len("content")) % modulus
+        index = index + 1
+    return acc
+
+fn mcp_content_checksum(iterations: Int, modulus: Int) -> Int:
+    let payload = mcp_content_payload_json()
+    let payload_len = len(payload)
+    let acc = (payload_len * 5) % modulus
+    let index = 0
+    while index < iterations:
+        let gate = index % 5
+        if gate == 0:
+            acc = (acc + len(mcp_content_text("Hello, Kain."))) % modulus
+        else if gate == 1:
+            acc = (acc + len(mcp_content_image("ZmFrZS1pbWFnZQ==", "image/png"))) % modulus
+        else if gate == 2:
+            acc = (acc + len(mcp_content_audio("ZmFrZS1hdWRpbw==", "audio/wav"))) % modulus
+        else if gate == 3:
+            acc = (acc + len(mcp_content_embedded_resource_text("resource://kain/semantic-search/index", "text/plain", "resource payload"))) % modulus
+        else:
+            acc = (acc + len(mcp_content_embedded_resource_blob("resource://kain/semantic-search/blob", "application/octet-stream", "AAEC"))) % modulus
+        index = index + 1
+    return acc
+
+pub fn mcp_stdlib_case_checksum(case_id: String, iterations: Int, amplify: Int, modulus: Int) -> Int:
+    let repeat = 0
+    let acc = 0
+    while repeat < amplify:
+        if case_id == "mcp_initialize":
+            acc = (acc + mcp_initialize_checksum(iterations, modulus)) % modulus
+        else if case_id == "mcp_catalog":
+            acc = (acc + mcp_catalog_checksum(iterations, modulus)) % modulus
+        else if case_id == "mcp_content":
+            acc = (acc + mcp_content_checksum(iterations, modulus)) % modulus
+        else:
+            return -1
+        repeat = repeat + 1
+    return acc

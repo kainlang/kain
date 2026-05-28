@@ -22,17 +22,17 @@ pub mod span;
 pub mod spec;
 pub mod trace;
 
-// Legacy-compatible public surface.
-pub use diagnostic_registry::*;
-pub use error::*;
-pub use source::*;
-pub use span::*;
-
-// Rich scratch-native helpers remain available from their module paths,
-// and a few high-value free helpers stay re-exported at the root.
+// Legacy-compatible module paths still exist under `error` and
+// `diagnostic_registry`, but the crate root stays scratch-native.
 pub use builder::*;
 pub use chain::*;
+pub use code::DiagnosticCode;
+pub use error::*;
 pub use explain::*;
 pub use json::*;
+pub use registry::{registry, spec_for_code};
 pub use render::*;
+pub use source::*;
+pub use span::*;
+pub use spec::DiagnosticSpec;
 pub use trace::*;

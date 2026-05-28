@@ -1,5 +1,58 @@
 # Kain Memory
 
+# 2026-05-27 - scratch error crate drop-in compatibility pass and replacement probe
+
+Hardened `scratch/crates/error` toward real replacement viability without leaving the live workspace on the new crate yet. The key move was to keep the scratch data-driven engine (`builder`, `report`, `registry`, `json`, `render`, `trace`, TOML specs) while grafting back the legacy public seams that `kain-core` compiles against.
+
+What changed in `scratch/crates/error`:
+
+- Added a legacy-compatible `src/error.rs` facade so `kain_error::error::*` still exposes:
+  - `KainError`
+  - `KainResult`
+  - `DiagnosticReport`
+  - `DiagnosticSeverity`
+  - `DiagnosticLabel`
+  - `DiagnosticFixIt`
+  - `ErrorKind`
+  - `DiagnosticBuilder`
+  - `ErrorContext`
+- Added `src/diagnostic_registry.rs` facade so `kain_error::diagnostic_registry::*` still exposes old-style code/spec lookup while the scratch registry remains TOML-driven under `src/registry.rs`.
+- Restored enum-like associated constants on the string-backed `DiagnosticCode` surface (for example `DiagnosticCode::ParseGeneric`, `DiagnosticCode::MemoryLayoutOverflow`) so `crates/core` did not need a repo-wide refactor.
+- Moved the scratch crate root back to a scratch-native public surface (`registry()` / optional `spec_for_code()` at the root for scratch tests), while preserving legacy compatibility under the explicit legacy module paths.
+- Fixed real scratch issues found during standalone validation:
+  - `chain.rs` budget path used `reports` after move
+  - `registry.rs` generated include scope was missing `GeneratedSpec`
+  - `explain.rs` was leaking code strings just to look up registry entries
+  - `code.rs` used a non-const `starts_with` inside a `const fn`
+- Added missing generic specs:
+  - `specs/validation.toml` for `KAIN-VALIDATE-0001`
+  - `specs/internal.toml` for `KAIN-INTERNAL-0001`
+- Corrected overlapping code truth in `specs/type.toml`:
+  - restored `KAIN-TYPE-0003` to the legacy world-surface meaning
+  - moved scratch `Type Mismatch` to `KAIN-TYPE-0025`
+  - shifted `Index Not Supported` to `KAIN-TYPE-0026`
+- Added/kept integration coverage in the scratch candidate for registry, builders, JSON, renderer, explain, chains, and debug traces.
+
+Validation performed:
+
+- Standalone scratch-lane validation via temp copy outside the repo workspace:
+  - `cargo test --manifest-path /f/DevTemp/kain-error-scratch/Cargo.toml`
+  - `cargo check --manifest-path /f/DevTemp/kain-error-scratch/Cargo.toml`
+  - both passed after the compatibility fixes
+- Real drop-in probe:
+  - backed up `X:/crates/error`
+  - copied the scratch crate into `X:/crates/error`
+  - `cargo test -p kain-error` passed on the swapped-in scratch crate
+  - `cargo check -p kain-core` passed on the swapped-in scratch crate
+- Restored the original live crate after the probe, then sanity-checked the live tree again:
+  - `cargo test -p kain-error`
+  - `cargo check -p kain-core`
+
+Durable lesson:
+
+- The scratch error system can now survive a real `kain-core` swap as a Cargo drop-in if we keep the legacy `error` and `diagnostic_registry` facades. The risky seam was not spans or rendering; it was the public API shape plus one semantic code collision (`KAIN-TYPE-0003`).
+- The live workspace crate was restored after the probe. The current replacement candidate now lives in `scratch/crates/error`, not `crates/error`.
+
 # 2026-05-27 - Python Region Buffer-View Fusion Beats PyO3 Ceiling Row
 
 Added a fused native Python region primitive for stable borrowed-buffer metadata

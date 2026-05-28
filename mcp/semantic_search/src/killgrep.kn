@@ -464,9 +464,10 @@ fn kg_dispatch_candidate_path(state_in: KgDispatchState, path: String, include_h
         return state_in
     if kg_path_is_ignored(path, include_hidden):
         return state_in
-    let metadata = fs_metadata_text(path)
-    if fs_last_status() != 0:
+    let metadata_result = fs_try_metadata_text(path)
+    if metadata_result.ok == false:
         return state_in
+    let metadata = metadata_result.value
     if kg_metadata_file_type(metadata) != "file":
         return state_in
     let file_len = kg_metadata_len(metadata)
@@ -508,10 +509,11 @@ fn kg_walk_and_dispatch_dir(current_path: String, include_hidden: Bool, max_file
         if kg_path_is_ignored(entry, include_hidden):
             entry_index = entry_index + 1
             continue
-        let metadata = fs_metadata_text(entry)
-        if fs_last_status() != 0:
+        let metadata_result = fs_try_metadata_text(entry)
+        if metadata_result.ok == false:
             entry_index = entry_index + 1
             continue
+        let metadata = metadata_result.value
         if kg_metadata_file_type(metadata) == "dir":
             state = kg_walk_and_dispatch_dir(entry, include_hidden, max_file_bytes, actual_workers, worker0, worker1, worker2, worker3, worker4, worker5, worker6, worker7, state)
         else:
@@ -522,9 +524,10 @@ fn kg_walk_and_dispatch_dir(current_path: String, include_hidden: Bool, max_file
 fn kg_scan_file(path: String, file_len: Int, normalized_needle: String, ignore_case: Bool, files_only: Bool, count_only: Bool, line_numbers: Bool, max_file_bytes: Int) -> KgFileReport:
     if max_file_bytes > 0 and file_len > max_file_bytes:
         return KgFileReport { output: "", matched_files: 0, matched_lines: 0, bytes_scanned: 0, errors: 0 }
-    let contents = fs_read_text(path)
-    if fs_last_status() != 0:
+    let read_result = fs_try_read_text(path)
+    if read_result.ok == false:
         return KgFileReport { output: "", matched_files: 0, matched_lines: 0, bytes_scanned: 0, errors: 1 }
+    let contents = read_result.value
     let bytes_scanned = len(contents)
     if kg_looks_binaryish(contents):
         return KgFileReport { output: "", matched_files: 0, matched_lines: 0, bytes_scanned: bytes_scanned, errors: 0 }

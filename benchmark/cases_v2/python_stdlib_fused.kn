@@ -1,0 +1,285 @@
+use std::json
+use std::python
+
+import asyncio as py_asyncio
+import json as py_json
+import os as py_os
+import sys as py_sys
+
+// ============================================================================
+// PYTHON STDLIB FUSED CEILING PACK
+// ============================================================================
+// This pack is the breadth lane for Python's cross-platform surface.
+// It keeps the hot work inside a Kain region, exercises the stdlib modules
+// directly, and mixes path, json, and asyncio pressure into one benchmark pack.
+
+const PYTHON_STDLIB_FUSED_MODULUS: Int = 1000000007
+const PYTHON_STDLIB_FUSED_CASE_COUNT: Int = 4
+
+const PYTHON_STDLIB_FUSED_PATH_A: String = "a"
+const PYTHON_STDLIB_FUSED_PATH_B: String = "b"
+const PYTHON_STDLIB_FUSED_PATH_C: String = "c"
+
+fn stdlib_asyncio_bridge_source() -> String:
+    return "import asyncio\nasync def __kain_stdlib_asyncio_echo(value):\n    await asyncio.sleep(0)\n    return value\n"
+
+fn stdlib_bool_score(value: Bool) -> Int:
+    if value:
+        return 1
+    return 0
+
+fn stdlib_json_escape(text: String) -> String:
+    let escaped = ""
+    let index = 0
+    while index < len(text):
+        let ch = char_at(text, index)
+        if ch == "\\":
+            escaped = escaped + "\\\\"
+        else if ch == "\"":
+            escaped = escaped + "\\\""
+        else if ch == "\n":
+            escaped = escaped + "\\n"
+        else if ch == "\r":
+            escaped = escaped + "\\r"
+        else if ch == "\t":
+            escaped = escaped + "\\t"
+        else:
+            escaped = escaped + ch
+        index = index + 1
+    return escaped
+
+fn stdlib_json_string_value(text: String) -> String:
+    return "\"" + stdlib_json_escape(text) + "\""
+
+pub fn python_stdlib_fused_case_count() -> Int:
+    return PYTHON_STDLIB_FUSED_CASE_COUNT
+
+pub fn python_stdlib_fused_case_id(index: Int) -> String:
+    if index == 0:
+        return "python_stdlib_module_probe"
+    if index == 1:
+        return "python_stdlib_path_json_mix"
+    if index == 2:
+        return "python_stdlib_asyncio_bridge"
+    if index == 3:
+        return "python_stdlib_ceiling_fused"
+    return ""
+
+pub fn python_stdlib_fused_case_group(index: Int) -> String:
+    if index >= 0 and index < PYTHON_STDLIB_FUSED_CASE_COUNT:
+        return "python_stdlib"
+    return ""
+
+pub fn python_stdlib_fused_case_title(index: Int) -> String:
+    if index == 0:
+        return "Python Stdlib Module Probe"
+    if index == 1:
+        return "Python Stdlib Path Json Mix"
+    if index == 2:
+        return "Python Stdlib Asyncio Bridge"
+    if index == 3:
+        return "Python Stdlib Ceiling Fused"
+    return ""
+
+pub fn python_stdlib_fused_case_iterations(index: Int) -> Int:
+    if index == 0:
+        return 10000
+    if index == 1:
+        return 10000
+    if index == 2:
+        return 8000
+    if index == 3:
+        return 10000
+    return 0
+
+pub fn python_stdlib_fused_case_expected_checksum(index: Int) -> Int:
+    if index == 0:
+        return 619961
+    if index == 1:
+        return 389955
+    if index == 2:
+        return 191988
+    if index == 3:
+        return 789986
+    return -1
+
+fn stdlib_module_probe_checksum(iterations: Int) -> Int:
+    let getdefaultencoding_fn = python_getattr_raw(py_sys, "getdefaultencoding")
+    let dumps_fn = python_getattr_raw(py_json, "dumps")
+    let acc = 0
+    let index = 0
+    while index < iterations:
+        let sys_name = python_getattr_raw(py_sys, "__name__")
+        let sys_encoding = python_call_raw(getdefaultencoding_fn, [])
+        let os_name = python_getattr_raw(py_os, "__name__")
+        let json_name = python_getattr_raw(py_json, "__name__")
+        let asyncio_name = python_getattr_raw(py_asyncio, "__name__")
+        let module_dump = python_call_raw(dumps_fn, [["sys", "os", "json", "asyncio"]])
+        let lane = len(to_string(sys_name)) + len(to_string(sys_encoding)) + len(to_string(os_name)) + len(to_string(json_name)) + len(to_string(asyncio_name)) + len(to_string(module_dump)) + (index % 19)
+        acc = (acc + lane) % PYTHON_STDLIB_FUSED_MODULUS
+        index = index + 1
+    return acc
+
+fn stdlib_path_json_mix_checksum(iterations: Int) -> Int:
+    let path_mod = python_getattr_raw(py_os, "path")
+    let join_fn = python_getattr_raw(path_mod, "join")
+    let dirname_fn = python_getattr_raw(path_mod, "dirname")
+    let basename_fn = python_getattr_raw(path_mod, "basename")
+    let dumps_fn = python_getattr_raw(py_json, "dumps")
+    let loads_fn = python_getattr_raw(py_json, "loads")
+    let acc = 0
+    let index = 0
+    while index < iterations:
+        let sep = python_getattr_raw(py_os, "sep")
+        let joined = python_call_raw(join_fn, [PYTHON_STDLIB_FUSED_PATH_A, PYTHON_STDLIB_FUSED_PATH_B, PYTHON_STDLIB_FUSED_PATH_C])
+        let dirname = python_call_raw(dirname_fn, [joined])
+        let basename = python_call_raw(basename_fn, [joined])
+        let dumped = python_call_raw(dumps_fn, [[1, 2, 3]])
+        let parsed = python_call_raw(loads_fn, [dumped])
+        let roundtrip = python_call_raw(dumps_fn, [parsed])
+        let lane = len(to_string(joined)) + len(to_string(dirname)) + len(to_string(basename)) + len(to_string(sep)) + len(to_string(dumped)) + len(to_string(roundtrip)) + (index % 23)
+        acc = (acc + lane) % PYTHON_STDLIB_FUSED_MODULUS
+        index = index + 1
+    return acc
+
+fn ensure_stdlib_asyncio_bridge_setup():
+    python_exec(stdlib_asyncio_bridge_source())
+
+fn stdlib_asyncio_bridge_checksum(iterations: Int) -> Int:
+    ensure_stdlib_asyncio_bridge_setup()
+    let acc = 0
+    let index = 0
+    while index < iterations:
+        let future = python_call_async("__kain_stdlib_asyncio_echo", [17 + (index % 11)])
+        let settled = python_future_await(future)
+        let status_ok = stdlib_bool_score(json_string_required(settled, "status") == "ok")
+        let value = json_int_required(settled, "value")
+        let done_ok = stdlib_bool_score(python_future_done(future))
+        let _close = python_future_close(future)
+        acc = (acc + value + status_ok + done_ok) % PYTHON_STDLIB_FUSED_MODULUS
+        index = index + 1
+    return acc
+
+fn stdlib_ceiling_fused_checksum(iterations: Int) -> Int:
+    let getdefaultencoding_fn = python_getattr_raw(py_sys, "getdefaultencoding")
+    let path_mod = python_getattr_raw(py_os, "path")
+    let join_fn = python_getattr_raw(path_mod, "join")
+    let dirname_fn = python_getattr_raw(path_mod, "dirname")
+    let basename_fn = python_getattr_raw(path_mod, "basename")
+    let dumps_fn = python_getattr_raw(py_json, "dumps")
+    let loads_fn = python_getattr_raw(py_json, "loads")
+    let acc = 0
+    let index = 0
+    while index < iterations:
+        let sys_name = python_getattr_raw(py_sys, "__name__")
+        let sys_encoding = python_call_raw(getdefaultencoding_fn, [])
+        let os_name = python_getattr_raw(py_os, "__name__")
+        let json_name = python_getattr_raw(py_json, "__name__")
+        let asyncio_name = python_getattr_raw(py_asyncio, "__name__")
+        let sep = python_getattr_raw(py_os, "sep")
+        let joined = python_call_raw(join_fn, [PYTHON_STDLIB_FUSED_PATH_A, PYTHON_STDLIB_FUSED_PATH_B, PYTHON_STDLIB_FUSED_PATH_C])
+        let dirname = python_call_raw(dirname_fn, [joined])
+        let basename = python_call_raw(basename_fn, [joined])
+        let dumped = python_call_raw(dumps_fn, [[1, 2, 3]])
+        let parsed = python_call_raw(loads_fn, [dumped])
+        let roundtrip = python_call_raw(dumps_fn, [parsed])
+        let asyncio_loop = python_call_attr_raw(py_asyncio, "new_event_loop", [])
+        let future = python_call_attr_raw(asyncio_loop, "create_future", [])
+        let _set_result = python_call_attr_raw(future, "set_result", [23 + (index % 13)])
+        let done_ok = stdlib_bool_score(python_call_attr_raw(future, "done", []))
+        let cancelled_ok = stdlib_bool_score(python_call_attr_raw(future, "cancelled", []))
+        let future_value = to_int(python_call_attr_raw(future, "result", []))
+        let _close_loop = python_call_attr_raw(asyncio_loop, "close", [])
+        let loop_closed = stdlib_bool_score(python_call_attr_raw(asyncio_loop, "is_closed", []))
+        let lane = len(to_string(sys_name)) + len(to_string(sys_encoding)) + len(to_string(os_name)) + len(to_string(json_name)) + len(to_string(asyncio_name)) + len(to_string(sep)) + len(to_string(joined)) + len(to_string(dirname)) + len(to_string(basename)) + len(to_string(dumped)) + len(to_string(roundtrip)) + future_value + done_ok + cancelled_ok + loop_closed + (index % 13)
+        acc = (acc + lane) % PYTHON_STDLIB_FUSED_MODULUS
+        index = index + 1
+    return acc
+
+pub fn python_stdlib_fused_case_telemetry(case_id: String) -> String:
+    if case_id == "python_stdlib_module_probe":
+        let content = "{"
+        content = content + "\"boundary_kind\":" + stdlib_json_string_value("python-stdlib-module-probe") + ","
+        content = content + "\"modules\":" + stdlib_json_string_value("sys,os,json,asyncio") + ","
+        content = content + "\"region_scope_entries_per_run\":1,"
+        content = content + "\"region_scope_exits_per_run\":1,"
+        content = content + "\"top_level_imports\":4,"
+        content = content + "\"python_imports_per_iteration\":0,"
+        content = content + "\"python_getattrs_per_iteration\":4,"
+        content = content + "\"python_calls_per_iteration\":2,"
+        content = content + "\"bridge_entries_per_iteration\":0,"
+        content = content + "\"module_probe_lane\":" + stdlib_json_string_value("cached-module-name-and-json-dump") + ","
+        content = content + "\"bench_intent\":" + stdlib_json_string_value("cached-stdlib-module-probe") + ","
+        content = content + "\"pack_focus\":" + stdlib_json_string_value("python-stdlib-fused")
+        return content + "}"
+    if case_id == "python_stdlib_path_json_mix":
+        let content = "{"
+        content = content + "\"boundary_kind\":" + stdlib_json_string_value("python-stdlib-path-json") + ","
+        content = content + "\"modules\":" + stdlib_json_string_value("os,json") + ","
+        content = content + "\"region_scope_entries_per_run\":1,"
+        content = content + "\"region_scope_exits_per_run\":1,"
+        content = content + "\"top_level_imports\":4,"
+        content = content + "\"python_imports_per_iteration\":0,"
+        content = content + "\"python_getattrs_per_iteration\":1,"
+        content = content + "\"python_calls_per_iteration\":6,"
+        content = content + "\"json_roundtrips_per_iteration\":1,"
+        content = content + "\"os_path_ops_per_iteration\":3,"
+        content = content + "\"bridge_entries_per_iteration\":0,"
+        content = content + "\"module_probe_lane\":" + stdlib_json_string_value("path-join-json-roundtrip") + ","
+        content = content + "\"bench_intent\":" + stdlib_json_string_value("path-json-roundtrip-tax") + ","
+        content = content + "\"pack_focus\":" + stdlib_json_string_value("python-stdlib-fused")
+        return content + "}"
+    if case_id == "python_stdlib_asyncio_bridge":
+        let content = "{"
+        content = content + "\"boundary_kind\":" + stdlib_json_string_value("python-stdlib-asyncio-bridge") + ","
+        content = content + "\"modules\":" + stdlib_json_string_value("asyncio") + ","
+        content = content + "\"top_level_imports\":4,"
+        content = content + "\"python_imports_per_iteration\":0,"
+        content = content + "\"python_exec_setup_per_run\":1,"
+        content = content + "\"python_call_async_per_iteration\":1,"
+        content = content + "\"python_future_await_per_iteration\":1,"
+        content = content + "\"python_future_done_checks_per_iteration\":1,"
+        content = content + "\"python_future_close_per_iteration\":1,"
+        content = content + "\"awaitable_result_shape\":" + stdlib_json_string_value("envelope-status-value") + ","
+        content = content + "\"bench_intent\":" + stdlib_json_string_value("asyncio-awaitable-bridge-tax") + ","
+        content = content + "\"pack_focus\":" + stdlib_json_string_value("python-stdlib-fused")
+        return content + "}"
+    if case_id == "python_stdlib_ceiling_fused":
+        let content = "{"
+        content = content + "\"boundary_kind\":" + stdlib_json_string_value("python-stdlib-fused-ceiling") + ","
+        content = content + "\"modules\":" + stdlib_json_string_value("sys,os,json,asyncio") + ","
+        content = content + "\"region_scope_entries_per_run\":1,"
+        content = content + "\"region_scope_exits_per_run\":1,"
+        content = content + "\"top_level_imports\":4,"
+        content = content + "\"python_imports_per_iteration\":0,"
+        content = content + "\"python_getattrs_per_iteration\":8,"
+        content = content + "\"python_calls_per_iteration\":15,"
+        content = content + "\"json_roundtrips_per_iteration\":1,"
+        content = content + "\"os_path_ops_per_iteration\":3,"
+        content = content + "\"asyncio_future_ops_per_iteration\":5,"
+        content = content + "\"bridge_entries_per_iteration\":0,"
+        content = content + "\"module_probe_lane\":" + stdlib_json_string_value("cross-platform-breadth-plus-future-lifecycle") + ","
+        content = content + "\"bench_intent\":" + stdlib_json_string_value("cross-platform-fused-ceiling") + ","
+        content = content + "\"pack_focus\":" + stdlib_json_string_value("python-stdlib-fused")
+        return content + "}"
+    let content = "{"
+    content = content + "\"boundary_kind\":" + stdlib_json_string_value("unknown") + ","
+    content = content + "\"pack_focus\":" + stdlib_json_string_value("python-stdlib-fused")
+    return content + "}"
+
+pub fn python_stdlib_fused_case_checksum(case_id: String, iterations: Int, amplify: Int, modulus: Int) -> Int:
+    let repeat = 0
+    let acc = 0
+    while repeat < amplify:
+        if case_id == "python_stdlib_module_probe":
+            acc = (acc + stdlib_module_probe_checksum(iterations)) % modulus
+        else if case_id == "python_stdlib_path_json_mix":
+            acc = (acc + stdlib_path_json_mix_checksum(iterations)) % modulus
+        else if case_id == "python_stdlib_asyncio_bridge":
+            acc = (acc + stdlib_asyncio_bridge_checksum(iterations)) % modulus
+        else if case_id == "python_stdlib_ceiling_fused":
+            acc = (acc + stdlib_ceiling_fused_checksum(iterations)) % modulus
+        else:
+            return -1
+        repeat = repeat + 1
+    return acc

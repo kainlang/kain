@@ -113,6 +113,11 @@ pub struct JsonBoolArrayResult:
     value: Array<Bool>
     status: JsonStatus
 
+pub struct JsonParseResult:
+    ok: Bool
+    value: JsonValue
+    status: JsonStatus
+
 pub struct JsonScanReport:
     ok: Bool
     code: Int
@@ -291,6 +296,25 @@ fn json_bool_array_result_error(status: JsonStatus) -> JsonBoolArrayResult:
         status: status
     }
 
+fn json_parse_result_error(status: JsonStatus) -> JsonParseResult:
+    return JsonParseResult {
+        ok: false,
+        value: json_object_new(),
+        status: status
+    }
+
+fn json_status_from_scan_report(report: JsonScanReport) -> JsonStatus:
+    if report.ok:
+        return json_status_ok()
+    return json_status_error(
+        report.code,
+        "",
+        "",
+        "",
+        report.token_index,
+        report.message
+    )
+
 fn json_match_literal(text: String, start: Int, literal: String) -> Bool:
     if start + len(literal) > len(text):
         return false
@@ -432,6 +456,22 @@ fn json_field_rendered(object: JsonObject, key: String) -> JsonStringResult:
 pub fn json_parse_text(text: String) -> JsonValue:
     return json_parse(text)
 
+pub fn json_parse_text_result(text: String) -> JsonParseResult:
+    let report = json_scan_report(text)
+    if report.ok == false:
+        return json_parse_result_error(json_status_from_scan_report(report))
+    return JsonParseResult {
+        ok: true,
+        value: json_parse(text),
+        status: json_status_ok()
+    }
+
+pub fn json_parse_text_or(text: String, fallback: JsonValue) -> JsonValue:
+    let parsed = json_parse_text_result(text)
+    if parsed.ok == false:
+        return fallback
+    return parsed.value
+
 pub fn json_stringify(value: JsonValue) -> String:
     return json_string(value)
 
@@ -564,10 +604,9 @@ pub fn json_object_field(object: JsonObject, key: String) -> JsonObjectResult:
     if actual_kind_code != JSON_KIND_CODE_OBJECT:
         let actual_kind = json_native_kind_name(actual_kind_code)
         return json_object_result_error(json_wrong_kind_status(key, JSON_KIND_OBJECT, actual_kind, -1))
-    let rendered = json_stringify(value)
     return JsonObjectResult {
         ok: true,
-        value: json_parse_text(rendered),
+        value: value,
         status: json_status_ok()
     }
 
@@ -579,10 +618,9 @@ pub fn json_array_field(object: JsonObject, key: String) -> JsonArrayResult:
     if actual_kind_code != JSON_KIND_CODE_ARRAY:
         let actual_kind = json_native_kind_name(actual_kind_code)
         return json_array_result_error(json_wrong_kind_status(key, JSON_KIND_ARRAY, actual_kind, -1))
-    let rendered = json_stringify(value)
     return JsonArrayResult {
         ok: true,
-        value: json_parse_text(rendered),
+        value: value,
         status: json_status_ok()
     }
 

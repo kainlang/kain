@@ -44,6 +44,14 @@ use python_with_pykain::python_with_pykain_case_id
 use python_with_pykain::python_with_pykain_case_iterations
 use python_with_pykain::python_with_pykain_case_telemetry
 use python_with_pykain::python_with_pykain_case_title
+use python_stdlib_fused::python_stdlib_fused_case_checksum
+use python_stdlib_fused::python_stdlib_fused_case_count
+use python_stdlib_fused::python_stdlib_fused_case_expected_checksum
+use python_stdlib_fused::python_stdlib_fused_case_group
+use python_stdlib_fused::python_stdlib_fused_case_id
+use python_stdlib_fused::python_stdlib_fused_case_iterations
+use python_stdlib_fused::python_stdlib_fused_case_telemetry
+use python_stdlib_fused::python_stdlib_fused_case_title
 use rage_runtime::rage_runtime_case_checksum
 use rage_runtime::rage_runtime_case_count
 use rage_runtime::rage_runtime_case_expected_checksum
@@ -51,6 +59,13 @@ use rage_runtime::rage_runtime_case_group
 use rage_runtime::rage_runtime_case_id
 use rage_runtime::rage_runtime_case_iterations
 use rage_runtime::rage_runtime_case_title
+use mcp_stdlib::mcp_stdlib_case_checksum
+use mcp_stdlib::mcp_stdlib_case_count
+use mcp_stdlib::mcp_stdlib_case_expected_checksum
+use mcp_stdlib::mcp_stdlib_case_group
+use mcp_stdlib::mcp_stdlib_case_id
+use mcp_stdlib::mcp_stdlib_case_iterations
+use mcp_stdlib::mcp_stdlib_case_title
 
 const ROUTER_SCHEMA_VERSION: Int = 1
 const ROUTER_MODULUS: Int = 1000000007
@@ -416,9 +431,15 @@ fn run_case_checksum(case_id: String, iterations: Int, amplify: Int) -> Int:
     let python_with_pykain_checksum = python_with_pykain_case_checksum(case_id, iterations, amplify, ROUTER_MODULUS)
     if python_with_pykain_checksum >= 0:
         return python_with_pykain_checksum
+    let python_stdlib_fused_checksum = python_stdlib_fused_case_checksum(case_id, iterations, amplify, ROUTER_MODULUS)
+    if python_stdlib_fused_checksum >= 0:
+        return python_stdlib_fused_checksum
     let rage_runtime_checksum = rage_runtime_case_checksum(case_id, iterations, amplify, ROUTER_MODULUS)
     if rage_runtime_checksum >= 0:
         return rage_runtime_checksum
+    let mcp_stdlib_checksum = mcp_stdlib_case_checksum(case_id, iterations, amplify, ROUTER_MODULUS)
+    if mcp_stdlib_checksum >= 0:
+        return mcp_stdlib_checksum
     let repeat = 0
     let acc = 0
     while repeat < amplify:
@@ -440,6 +461,8 @@ fn case_telemetry_json(pack_id: String, case_id: String) -> String:
         return python_interop_case_telemetry(case_id)
     if pack_id == "python_with_pykain":
         return python_with_pykain_case_telemetry(case_id)
+    if pack_id == "python_stdlib_fused":
+        return python_stdlib_fused_case_telemetry(case_id)
     let content = "{"
     content = content + "\"pack_id\": " + router_json_string_value(pack_id) + ", "
     content = content + "\"case_id\": " + router_json_string_value(case_id)
@@ -785,6 +808,23 @@ fn main() -> Int:
             println("[bench-v2] " + case_id + " best=" + str(result.best_ms) + "ms avg=" + str(result.average_ms) + "ms status=" + result_status_text(result))
         python_with_pykain_index = python_with_pykain_index + 1
 
+    let python_stdlib_fused_index = 0
+    while python_stdlib_fused_index < python_stdlib_fused_case_count():
+        let case_id = python_stdlib_fused_case_id(python_stdlib_fused_index)
+        let case_group = python_stdlib_fused_case_group(python_stdlib_fused_index)
+        if case_selected(config.filter_text, case_id, case_group):
+            let result = run_case("python_stdlib_fused", case_id, case_group, python_stdlib_fused_case_title(python_stdlib_fused_index), python_stdlib_fused_case_iterations(python_stdlib_fused_index), python_stdlib_fused_case_expected_checksum(python_stdlib_fused_index), config)
+            let _track = write_track_report(result)
+            cases_json_items = append_json_item(cases_json_items, render_result_json(result))
+            table_rows = table_rows + format_result_row(result)
+            case_count = case_count + 1
+            if result.success:
+                success_count = success_count + 1
+            else:
+                failure_count = failure_count + 1
+            println("[bench-v2] " + case_id + " best=" + str(result.best_ms) + "ms avg=" + str(result.average_ms) + "ms status=" + result_status_text(result))
+        python_stdlib_fused_index = python_stdlib_fused_index + 1
+
     let rage_runtime_index = 0
     while rage_runtime_index < rage_runtime_case_count():
         let case_id = rage_runtime_case_id(rage_runtime_index)
@@ -801,6 +841,23 @@ fn main() -> Int:
                 failure_count = failure_count + 1
             println("[bench-v2] " + case_id + " best=" + str(result.best_ms) + "ms avg=" + str(result.average_ms) + "ms status=" + result_status_text(result))
         rage_runtime_index = rage_runtime_index + 1
+
+    let mcp_stdlib_index = 0
+    while mcp_stdlib_index < mcp_stdlib_case_count():
+        let case_id = mcp_stdlib_case_id(mcp_stdlib_index)
+        let case_group = mcp_stdlib_case_group(mcp_stdlib_index)
+        if case_selected(config.filter_text, case_id, case_group):
+            let result = run_case("mcp_stdlib", case_id, case_group, mcp_stdlib_case_title(mcp_stdlib_index), mcp_stdlib_case_iterations(mcp_stdlib_index), mcp_stdlib_case_expected_checksum(mcp_stdlib_index), config)
+            let _track = write_track_report(result)
+            cases_json_items = append_json_item(cases_json_items, render_result_json(result))
+            table_rows = table_rows + format_result_row(result)
+            case_count = case_count + 1
+            if result.success:
+                success_count = success_count + 1
+            else:
+                failure_count = failure_count + 1
+            println("[bench-v2] " + case_id + " best=" + str(result.best_ms) + "ms avg=" + str(result.average_ms) + "ms status=" + result_status_text(result))
+        mcp_stdlib_index = mcp_stdlib_index + 1
 
     if case_selected(config.filter_text, "array_scan", "core"):
         let result = run_case("router_core", "array_scan", "core", "Array Scan", 500000, 103499994, config)

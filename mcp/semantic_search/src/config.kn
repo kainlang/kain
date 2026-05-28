@@ -90,7 +90,10 @@ pub fn default_config() -> SemanticSearchConfig:
 pub fn load_config(path: String) -> SemanticSearchConfig:
     if fs_exists(path) == false:
         return default_config()
-    let raw = fs_read_text(path)
+    let loaded = fs_try_read_text(path)
+    if loaded.ok == false:
+        return default_config()
+    let raw = loaded.value
     let parsed = parse_config_text(raw)
     return resolve_config_paths(sanitize_config(parsed), path)
 
@@ -124,8 +127,10 @@ pub fn config_runtime_root() -> String:
 fn parse_config_text(raw: String) -> SemanticSearchConfig:
     python_bootstrap_config_decoder()
     let payload = to_string(python_call_raw("__kain_semantic_search_toml_to_json", [raw]))
-    let root = json_parse_text(payload)
-    return config_from_json(root)
+    let parsed = json_parse_text_result(payload)
+    if parsed.ok == false or json_is_object(parsed.value) == false:
+        return default_config()
+    return config_from_json(parsed.value)
 
 fn python_bootstrap_config_decoder():
     python_exec(
@@ -188,10 +193,10 @@ fn config_from_json(root: JsonObject) -> SemanticSearchConfig:
     return cfg
 
 fn config_json_string_array_or(object: JsonObject, key: String, fallback: Array<String>) -> Array<String>:
-    let values = json_string_array_field(object, key)
-    if len(values) == 0:
+    let values = json_string_array_field_result(object, key)
+    if values.ok == false:
         return fallback
-    return values
+    return values.value
 
 fn toml_strip_quotes(s: String) -> String:
     if len(s) >= 2 and text_starts_with_string(s, "\"") and text_ends_with_string(s, "\""):

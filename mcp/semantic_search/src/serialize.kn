@@ -33,21 +33,17 @@ pub fn write_index(index: LoadedIndex, path: String) -> Bool with Unsafe:
 
 pub fn write_index_header(header: IndexHeader, path: String) -> Bool with Unsafe:
     let header_hex = bytes_to_hex_string(build_header(header))
-    fs_write_bytes_hex(path, header_hex)
-    return fs_last_status() == 0
+    return fs_try_write_bytes_hex(path, header_hex).ok
 
 pub fn patch_index_header(header: IndexHeader, path: String) -> Bool with Unsafe:
     let header_hex = bytes_to_hex_string(build_header(header))
-    fs_write_bytes_hex_at(path, 0, header_hex)
-    return fs_last_status() == 0
+    return fs_try_write_bytes_hex_at(path, 0, header_hex).ok
 
 pub fn append_index_hex(path: String, hex: String) -> Bool with Unsafe:
-    fs_append_bytes_hex(path, hex)
-    return fs_last_status() == 0
+    return fs_try_append_bytes_hex(path, hex).ok
 
 pub fn append_index_bytes(path: String, bytes: Array<Int>) -> Bool with Unsafe:
-    fs_append_bytes(path, bytes)
-    return fs_last_status() == 0
+    return fs_try_append_bytes(path, bytes).ok
 
 pub fn write_index_bytes(header: IndexHeader, embed_hex: String, meta_hex: String, path: String) -> Bool with Unsafe:
     let header_hex = bytes_to_hex_string(build_header(header))
@@ -55,13 +51,15 @@ pub fn write_index_bytes(header: IndexHeader, embed_hex: String, meta_hex: Strin
 
 fn write_index_hex_payload(path: String, header_hex: String, embed_hex: String, meta_hex: String) -> Bool with Unsafe:
     let payload_hex = header_hex + embed_hex + meta_hex
-    fs_write_bytes_hex(path, payload_hex)
-    return fs_last_status() == 0
+    return fs_try_write_bytes_hex(path, payload_hex).ok
 
 pub fn read_index(path: String, cfg: SemanticSearchConfig) -> LoadedIndex:
     if fs_exists(path) == false:
         return empty_loaded_index()
-    let raw = fs_read_bytes(path)
+    let raw_result = fs_try_read_bytes(path)
+    if raw_result.ok == false:
+        return empty_loaded_index()
+    let raw = raw_result.value
     if len(raw) < HEADER_SIZE:
         return empty_loaded_index()
     let header = parse_header(raw)

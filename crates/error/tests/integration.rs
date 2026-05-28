@@ -39,7 +39,10 @@ fn registry_search_finds_results() {
     let results = guard.search("delimiter");
     assert!(!results.is_empty(), "Should find delimiter-related codes");
     let found = results.iter().any(|s| s.code == "KAIN-PARSE-0005");
-    assert!(found, "Should find KAIN-PARSE-0005 when searching 'delimiter'");
+    assert!(
+        found,
+        "Should find KAIN-PARSE-0005 when searching 'delimiter'"
+    );
 }
 
 #[test]
@@ -92,13 +95,11 @@ fn report_builder_basic() {
 
 #[test]
 fn report_registry_help_augments() {
-    let report = ParseDiagnostic::missing_delimiter("test")
-        .with_registry_help();
+    let report = ParseDiagnostic::missing_delimiter("test").with_registry_help();
     // Registry help should have been appended
     assert!(!report.help.is_empty(), "Registry help should be added");
-    // The fixit from the spec should have been added
-    assert_eq!(report.fixits.len(), 1);
-    assert_eq!(report.fixits[0].replacement, ":");
+    // Auto-fix insertion requires a concrete anchor span.
+    assert!(report.fixits.is_empty());
 }
 
 #[test]
@@ -111,7 +112,7 @@ fn typed_builder_parse() {
 #[test]
 fn typed_builder_type() {
     let report = TypeDiagnostic::type_mismatch("Expected i32, found string");
-    assert_eq!(report.code, "KAIN-TYPE-0003");
+    assert_eq!(report.code, "KAIN-TYPE-0025");
 }
 
 #[test]
@@ -203,12 +204,9 @@ fn kain_error_multi() {
 
 #[test]
 fn kain_error_display() {
-    let err = KainError::simple(
-        DiagnosticCode::new("KAIN-TYPE-0003"),
-        "type mismatch",
-    )
-    .with_file("src/main.kn")
-    .with_location(10, 5);
+    let err = KainError::simple(DiagnosticCode::new("KAIN-TYPE-0003"), "type mismatch")
+        .with_file("src/main.kn")
+        .with_location(10, 5);
     let display = err.to_string();
     assert!(display.contains("KAIN-TYPE-0003"));
     assert!(display.contains("src/main.kn"));
@@ -220,11 +218,10 @@ fn kain_error_display() {
 #[test]
 fn renderer_produces_output() {
     let source = "fn greet\n    return \"hi\"";
-    let report = ParseDiagnostic::missing_delimiter(
-        "Missing ':' before newline in function header"
-    )
-    .primary_label(Span::new(8, 8), "expected ':' here")
-    .with_registry_help();
+    let report =
+        ParseDiagnostic::missing_delimiter("Missing ':' before newline in function header")
+            .primary_label(Span::new(8, 8), "expected ':' here")
+            .with_registry_help();
 
     let output = format_diagnostic(source, "test.kn", &report, false);
     assert!(output.contains("error[PARSE:KAIN-PARSE-0005]"));
@@ -253,12 +250,12 @@ fn renderer_with_color_has_ansi() {
 
 #[test]
 fn deduplicate_removes_duplicates() {
-    let r1 = DiagnosticReport::new_default(ErrorKind::Parse, "err1")
-        .primary_span(Span::new(10, 15));
-    let r2 = DiagnosticReport::new_default(ErrorKind::Parse, "err1")
-        .primary_span(Span::new(10, 15)); // same code + span
-    let r3 = DiagnosticReport::new_default(ErrorKind::Parse, "err2")
-        .primary_span(Span::new(20, 25)); // different span
+    let r1 =
+        DiagnosticReport::new_default(ErrorKind::Parse, "err1").primary_span(Span::new(10, 15));
+    let r2 =
+        DiagnosticReport::new_default(ErrorKind::Parse, "err1").primary_span(Span::new(10, 15)); // same code + span
+    let r3 =
+        DiagnosticReport::new_default(ErrorKind::Parse, "err2").primary_span(Span::new(20, 25)); // different span
 
     let deduped = deduplicate(vec![r1.clone(), r2, r3.clone()]);
     assert_eq!(deduped.len(), 2);

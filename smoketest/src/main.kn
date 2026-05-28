@@ -61,6 +61,7 @@ use sync_lane::smoke_sync_lane
 use io_lane::smoke_io_lane
 use meta_lane::smoke_meta_lane
 use thread_lane::smoke_thread_lane
+use mcp_lane::smoke_mcp_lane
 
 // Interop track
 use c_bridge::smoke_c_bridge_lane
@@ -139,7 +140,7 @@ fn smoke_run_full_album(mode: String) -> Int with Unsafe:
         return 10 + boot
 
     let started_ms = now_millis()
-    let total_tracks: Int = 58
+    let total_tracks: Int = 59
     var succeeded_tracks: Int = 0
     var composition_checksum: Int = 0
 
@@ -483,6 +484,15 @@ fn smoke_run_full_album(mode: String) -> Int with Unsafe:
     let e_interop_stdlib = smoke_first_error(3450, lane_interop_stdlib)
     if e_interop_stdlib != 0:
         return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_interop_stdlib, "stdlib.interop_lane")
+    succeeded_tracks = succeeded_tracks + 1
+
+    let started_mcp = now_millis()
+    let lane_mcp = smoke_mcp_lane()
+    let ended_mcp = now_millis()
+    composition_checksum = smoke_record_track(mode, "stdlib", "stdlib.mcp_lane", "mcp", 59, 3454, lane_mcp, started_mcp, ended_mcp, composition_checksum)
+    let e_mcp = smoke_first_error(3454, lane_mcp)
+    if e_mcp != 0:
+        return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_mcp, "stdlib.mcp_lane")
     succeeded_tracks = succeeded_tracks + 1
 
     let started_python_async = now_millis()

@@ -129,6 +129,12 @@ impl From<std::io::Error> for KainError {
     }
 }
 
+impl From<DiagnosticReport> for KainError {
+    fn from(report: DiagnosticReport) -> Self {
+        KainError::Rich(Box::new(report))
+    }
+}
+
 impl KainError {
     pub fn lexer(message: impl Into<String>, span: Span) -> Self {
         KainError::Lexer {
@@ -194,12 +200,44 @@ impl KainError {
         }
     }
 
-    pub fn multi(errors: Vec<KainError>) -> Self {
+    pub fn multi<E>(errors: Vec<E>) -> Self
+    where
+        E: Into<KainError>,
+    {
         debug_assert!(
             !errors.is_empty(),
             "Multi error must contain at least one error"
         );
-        KainError::Multi(errors)
+        KainError::Multi(errors.into_iter().map(Into::into).collect())
+    }
+
+    pub fn simple(code: DiagnosticCode, message: impl Into<String>) -> Self {
+        KainError::Enhanced {
+            kind: kind_from_code(code),
+            code,
+            file: None,
+            location: None,
+            context: String::new(),
+            message: message.into(),
+            suggestion: None,
+        }
+    }
+
+    pub fn with_file(mut self, path: impl Into<PathBuf>) -> Self {
+        let path = path.into();
+        match &mut self {
+            KainError::Enhanced { file, .. } => *file = Some(path),
+            _ => {}
+        }
+        self
+    }
+
+    pub fn with_location(mut self, line: usize, col: usize) -> Self {
+        match &mut self {
+            KainError::Enhanced { location, .. } => *location = Some((line, col)),
+            _ => {}
+        }
+        self
     }
 
     pub fn parse_error(message: impl Into<String>) -> Self {
@@ -307,6 +345,10 @@ impl KainError {
         } else {
             Some(diagnostics_to_json(&diagnostics))
         }
+    }
+
+    pub fn to_json_value(&self) -> JsonValue {
+        diagnostics_to_json(&self.to_diagnostic_reports())
     }
 
     fn as_diagnostic_report(&self) -> Option<DiagnosticReport> {
@@ -759,6 +801,28 @@ fn make_enhanced(
         context,
         message: message.into(),
         suggestion,
+    }
+}
+
+fn kind_from_code(code: DiagnosticCode) -> ErrorKind {
+    match code.category_prefix() {
+        "PARSE" => ErrorKind::Parse,
+        "TYPE" => ErrorKind::Type,
+        "VALIDATE" => ErrorKind::Validation,
+        "CODEGEN" => ErrorKind::Codegen,
+        "SHADER" => ErrorKind::Shader,
+        "IO" => ErrorKind::Io,
+        "CONFIG" => ErrorKind::Config,
+        "EFFECT" => ErrorKind::Effect,
+        "BORROW" => ErrorKind::Borrow,
+        "RUNTIME" => ErrorKind::Runtime,
+        "MEM" => ErrorKind::Memory,
+        "WORLD" => ErrorKind::World,
+        "ACTOR" => ErrorKind::Component,
+        "COMPTIME" => ErrorKind::Comptime,
+        "STATE" => ErrorKind::State,
+        "TEST" => ErrorKind::Test,
+        _ => ErrorKind::Internal,
     }
 }
 

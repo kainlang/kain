@@ -4,6 +4,8 @@
 **/*target*/**
 /packages/ephemaris
 **/debug/
+mcp/.config/
+.config/*
 tidus/
 /$recycle.bin
 **/debug/**

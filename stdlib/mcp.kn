@@ -111,6 +111,36 @@ pub fn mcp_tool_def_no_args(name: String, description: String) -> McpToolDef:
         input_schema_json: "{\"type\":\"object\",\"properties\":{}}"
     }
 
+// Create a resource definition for the catalog/list surface.
+pub fn mcp_resource_def(uri: String, name: String, description: String, mime_type: String) -> McpResourceDef:
+    return McpResourceDef {
+        uri: uri,
+        name: name,
+        description: description,
+        mime_type: mime_type
+    }
+
+// Create a prompt definition for the catalog/list surface.
+pub fn mcp_prompt_def(name: String, description: String) -> McpPromptDef:
+    return McpPromptDef {
+        name: name,
+        description: description
+    }
+
+// Set a field on a JsonObject where the value may be any JSON type.
+// MCP ids and tool payloads can be string, numeric, object, array, or null.
+fn mcp_object_set_any(obj: JsonObject, key: String, value: JsonValue) -> JsonObject:
+    return json_object_set_value(obj, key, value)
+
+// JSON kind code constants (matching std::json JSON_KIND_CODE_*)
+const MCP_KIND_NULL:   Int = 0
+const MCP_KIND_BOOL:   Int = 1
+const MCP_KIND_INT:    Int = 2
+const MCP_KIND_FLOAT:  Int = 3
+const MCP_KIND_STRING: Int = 4
+const MCP_KIND_OBJECT: Int = 5
+const MCP_KIND_ARRAY:  Int = 6
+
 // ===========================================================================
 //  JSON-RPC 2.0 message builders
 // ===========================================================================
@@ -141,53 +171,6 @@ pub fn mcp_build_notification(method: String, params: JsonObject) -> JsonObject:
     let _b = json_object_set_string(notif, "method", method)
     let _c = json_object_set_object(notif, "params", params)
     return notif
-
-// Set a field on a JsonObject where the value may be any JSON type (string, int, bool, object, array, null).
-// The JSON-RPC "id" field can be a string OR a number, so we need this dispatch.
-fn mcp_object_set_any(obj: JsonObject, key: String, value: JsonValue) -> JsonObject:
-    let kind = json_value_kind_code(value)
-    if kind == MCP_KIND_NULL:
-        // null: use int 0 as placeholder — JSON-RPC id should never be null in practice
-        return json_object_set_int(obj, key, 0)
-    if kind == MCP_KIND_BOOL:
-        return json_object_set_bool(obj, key, mcp_value_as_bool(value))
-    if kind == MCP_KIND_INT:
-        return json_object_set_int(obj, key, mcp_value_as_int(value))
-    if kind == MCP_KIND_FLOAT:
-        return json_object_set_float(obj, key, mcp_value_as_float(value))
-    if kind == MCP_KIND_STRING:
-        return json_object_set_string(obj, key, mcp_value_as_string(value))
-    if kind == MCP_KIND_OBJECT:
-        return json_object_set_object(obj, key, value)
-    if kind == MCP_KIND_ARRAY:
-        return json_object_set_object(obj, key, value)
-    return json_object_set_string(obj, key, "")
-
-// JSON kind code constants (matching std::json JSON_KIND_CODE_*)
-const MCP_KIND_NULL:   Int = 0
-const MCP_KIND_BOOL:   Int = 1
-const MCP_KIND_INT:    Int = 2
-const MCP_KIND_FLOAT:  Int = 3
-const MCP_KIND_STRING: Int = 4
-const MCP_KIND_OBJECT: Int = 5
-const MCP_KIND_ARRAY:  Int = 6
-
-// Extract typed values from JsonValue (via json_stringify + parse)
-fn mcp_value_as_string(value: JsonValue) -> String:
-    let s = json_stringify(value)
-    if len(s) >= 2:
-        if char_at(s, 0) == "\"" and char_at(s, len(s) - 1) == "\"":
-            return substring(s, 1, len(s) - 1)
-    return s
-
-fn mcp_value_as_int(value: JsonValue) -> Int:
-    return mcp_str_to_int(json_stringify(value))
-
-fn mcp_value_as_bool(value: JsonValue) -> Bool:
-    return json_stringify(value) == "true"
-
-fn mcp_value_as_float(value: JsonValue) -> Float:
-    return mcp_str_to_float(json_stringify(value))
 
 // ===========================================================================
 //  MCP initialize handshake
@@ -254,6 +237,65 @@ pub fn mcp_build_tools_list(tools: Array<McpToolDef>) -> JsonObject:
     let _e = json_object_set_array(result, "tools", arr)
     return result
 
+// Build a {"resources":[...]} JSON object from resource definitions.
+pub fn mcp_build_resources_list(resources: Array<McpResourceDef>) -> JsonObject:
+    let result = json_object()
+    let arr = json_array()
+    var i: Int = 0
+    while i < len(resources):
+        let r = json_object()
+        let _a = json_object_set_string(r, "uri", resources[i].uri)
+        let _b = json_object_set_string(r, "name", resources[i].name)
+        let _c = json_object_set_string(r, "description", resources[i].description)
+        let _d = json_object_set_string(r, "mimeType", resources[i].mime_type)
+        let _e = json_array_push_object(arr, r)
+        i = i + 1
+    let _f = json_object_set_array(result, "resources", arr)
+    return result
+
+// Build a {"prompts":[...]} JSON object from prompt definitions.
+pub fn mcp_build_prompts_list(prompts: Array<McpPromptDef>) -> JsonObject:
+    let result = json_object()
+    let arr = json_array()
+    var i: Int = 0
+    while i < len(prompts):
+        let p = json_object()
+        let _a = json_object_set_string(p, "name", prompts[i].name)
+        let _b = json_object_set_string(p, "description", prompts[i].description)
+        let _c = json_array_push_object(arr, p)
+        i = i + 1
+    let _d = json_object_set_array(result, "prompts", arr)
+    return result
+
+// ===========================================================================
+//  JSON string escaping (for safe embedding inside JSON strings)
+// ===========================================================================
+
+pub fn mcp_json_escape(s: String) -> String:
+    var escaped = "\""
+    var i: Int = 0
+    while i < len(s):
+        let ch = char_at(s, i)
+        if ch == "\"":
+            escaped = escaped + "\\\""
+        else:
+            if ch == "\\":
+                escaped = escaped + "\\\\"
+            else:
+                if ch == "\n":
+                    escaped = escaped + "\\n"
+                else:
+                    if ch == "\r":
+                        escaped = escaped + "\\r"
+                    else:
+                        if ch == "\t":
+                            escaped = escaped + "\\t"
+                        else:
+                            escaped = escaped + ch
+        i = i + 1
+    escaped = escaped + "\""
+    return escaped
+
 // ===========================================================================
 //  Content type constructors
 // ===========================================================================
@@ -264,7 +306,19 @@ pub fn mcp_content_text(text: String) -> String:
 
 // Build a {"type":"image","data":"...","mimeType":"..."} JSON fragment string.
 pub fn mcp_content_image(base64_data: String, mime_type: String) -> String:
-    return "{\"type\":\"image\",\"data\":\"" + base64_data + "\",\"mimeType\":\"" + mime_type + "\"}"
+    return "{\"type\":\"image\",\"data\":" + mcp_json_escape(base64_data) + ",\"mimeType\":" + mcp_json_escape(mime_type) + "}"
+
+// Build a {"type":"audio","data":"...","mimeType":"..."} JSON fragment string.
+pub fn mcp_content_audio(base64_data: String, mime_type: String) -> String:
+    return "{\"type\":\"audio\",\"data\":" + mcp_json_escape(base64_data) + ",\"mimeType\":" + mcp_json_escape(mime_type) + "}"
+
+// Build a {"type":"resource","resource":{...}} JSON fragment string for embedded text content.
+pub fn mcp_content_embedded_resource_text(uri: String, mime_type: String, text: String) -> String:
+    return "{\"type\":\"resource\",\"resource\":{\"uri\":" + mcp_json_escape(uri) + ",\"mimeType\":" + mcp_json_escape(mime_type) + ",\"text\":" + mcp_json_escape(text) + "}}"
+
+// Build a {"type":"resource","resource":{...}} JSON fragment string for embedded binary content.
+pub fn mcp_content_embedded_resource_blob(uri: String, mime_type: String, blob_base64: String) -> String:
+    return "{\"type\":\"resource\",\"resource\":{\"uri\":" + mcp_json_escape(uri) + ",\"mimeType\":" + mcp_json_escape(mime_type) + ",\"blob\":" + mcp_json_escape(blob_base64) + "}}"
 
 // Build a content array from a single text item: [{"type":"text","text":"..."}]
 pub fn mcp_content_array_text(text: String) -> String:
@@ -273,6 +327,18 @@ pub fn mcp_content_array_text(text: String) -> String:
 // Build a content array from a single image item.
 pub fn mcp_content_array_image(base64_data: String, mime_type: String) -> String:
     return "[" + mcp_content_image(base64_data, mime_type) + "]"
+
+// Build a content array from a single audio item.
+pub fn mcp_content_array_audio(base64_data: String, mime_type: String) -> String:
+    return "[" + mcp_content_audio(base64_data, mime_type) + "]"
+
+// Build a content array from a single embedded text resource item.
+pub fn mcp_content_array_embedded_resource_text(uri: String, mime_type: String, text: String) -> String:
+    return "[" + mcp_content_embedded_resource_text(uri, mime_type, text) + "]"
+
+// Build a content array from a single embedded binary resource item.
+pub fn mcp_content_array_embedded_resource_blob(uri: String, mime_type: String, blob_base64: String) -> String:
+    return "[" + mcp_content_embedded_resource_blob(uri, mime_type, blob_base64) + "]"
 
 // ===========================================================================
 //  McpCallResult constructors (for tools/call responses)
@@ -303,35 +369,6 @@ pub fn mcp_build_call_result(cr: McpCallResult) -> JsonObject:
     let _a = mcp_object_set_any(result, "content", content_val)
     let _b = json_object_set_bool(result, "isError", cr.is_error)
     return result
-
-// ===========================================================================
-//  JSON string escaping (for safe embedding inside JSON strings)
-// ===========================================================================
-
-pub fn mcp_json_escape(s: String) -> String:
-    var out = "\""
-    var i: Int = 0
-    while i < len(s):
-        let ch = char_at(s, i)
-        if ch == "\"":
-            out = out + "\\\""
-        else:
-            if ch == "\\":
-                out = out + "\\\\"
-            else:
-                if ch == "\n":
-                    out = out + "\\n"
-                else:
-                    if ch == "\r":
-                        out = out + "\\r"
-                    else:
-                        if ch == "\t":
-                            out = out + "\\t"
-                        else:
-                            out = out + ch
-        i = i + 1
-    out = out + "\""
-    return out
 
 // ===========================================================================
 //  Transport: stdio message I/O
@@ -397,13 +434,13 @@ pub fn mcp_run_stdio(server: McpServer, tools: Array<McpToolDef>) -> Int:
              to_string(len(tools)) + " tools registered)")
 
     while running:
-        let line = read_line()
-        if line == "":
+        let raw_line = read_line()
+        if raw_line == "":
             mcp_info("stdin closed — shutting down")
             running = false
             continue
 
-        let request = json_parse_text(line)
+        let request = json_parse_text(raw_line)
         let kind = json_value_kind_code(request)
         if kind != MCP_KIND_OBJECT:
             mcp_warn("non-object JSON on stdin — ignoring")
@@ -411,8 +448,7 @@ pub fn mcp_run_stdio(server: McpServer, tools: Array<McpToolDef>) -> Int:
 
         let req_obj = request  // JsonValue as JsonObject (same underlying type)
 
-        let method_res = json_get_string(req_obj, "method")
-        let method = method_res.value
+        let method = json_string_required(req_obj, "method")
         let has_id = json_has_key(req_obj, "id")
         var id_val: JsonValue = json_parse_text("null")
         if has_id:
@@ -478,19 +514,18 @@ pub fn mcp_run_stdio(server: McpServer, tools: Array<McpToolDef>) -> Int:
 // Read and parse one request.  Returns McpRequest with method/id/params extracted.
 // On EOF or parse failure, method will be "".
 pub fn mcp_read_request() -> McpRequest:
-    let line = read_line()
+    let raw_line = read_line()
     var req_obj: JsonObject = json_object()
     var method = ""
     var has_id = false
     var id_val: JsonValue = json_parse_text("null")
     var params_val: JsonValue = json_parse_text("null")
 
-    if line != "":
-        let parsed = json_parse_text(line)
+    if raw_line != "":
+        let parsed = json_parse_text(raw_line)
         if json_value_kind_code(parsed) == MCP_KIND_OBJECT:
             req_obj = parsed
-            let mr = json_get_string(req_obj, "method")
-            method = mr.value
+            method = json_string_required(req_obj, "method")
             has_id = json_has_key(req_obj, "id")
             if has_id:
                 id_val = json_get_value(req_obj, "id")
@@ -498,7 +533,7 @@ pub fn mcp_read_request() -> McpRequest:
                 params_val = json_get_value(req_obj, "params")
 
     return McpRequest {
-        raw_json: line,
+        raw_json: raw_line,
         method: method,
         has_id: has_id,
         id_value: id_val,
@@ -549,8 +584,7 @@ pub fn mcp_tool_call_name(req: McpRequest) -> String:
     if json_has_key(req.request_obj, "params"):
         let params_val = json_get_value(req.request_obj, "params")
         if json_value_kind_code(params_val) == MCP_KIND_OBJECT:
-            let name_res = json_get_string(params_val, "name")
-            return name_res.value
+            return json_string_required(params_val, "name")
     return ""
 
 // Extract the tool arguments from a tools/call request params.

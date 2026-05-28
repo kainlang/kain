@@ -9,6 +9,23 @@ pub struct FsError:
     message: String
     raw_code: Int
 
+pub struct FsOpResult:
+    ok: Bool
+    status: Int
+    error: FsError
+
+pub struct FsTextResult:
+    ok: Bool
+    value: String
+    status: Int
+    error: FsError
+
+pub struct FsBytesResult:
+    ok: Bool
+    value: Array<Int>
+    status: Int
+    error: FsError
+
 pub struct FsMetadata:
     file_type: String
     len: Int
@@ -16,6 +33,12 @@ pub struct FsMetadata:
     created_millis: Int
     modified_millis: Int
     accessed_millis: Int
+
+pub struct FsMetadataResult:
+    ok: Bool
+    value: FsMetadata
+    status: Int
+    error: FsError
 
 pub struct FsDirEntry:
     path: String
@@ -242,38 +265,12 @@ pub fn fs_metadata_line_value(metadata_text: String, key: String) -> String:
     return ""
 
 pub fn fs_parse_metadata_text(metadata_text: String) -> FsMetadata:
-    var file_type = ""
-    var len_value = 0
-    var readonly = false
-    var created_millis = 0
-    var modified_millis = 0
-    var accessed_millis = 0
-    let lines = text_split_lines(metadata_text)
-    var index = 0
-    while index < len(lines):
-        let metadata_row = lines[index]
-        if metadata_row != "":
-            if text_starts_with_string(metadata_row, "file_type="):
-                file_type = text_substring_string(metadata_row, 10, len(metadata_row) - 10)
-            if text_starts_with_string(metadata_row, "len="):
-                let value = text_substring_string(metadata_row, 4, len(metadata_row) - 4)
-                if value != "":
-                    len_value = to_int(value)
-            if text_starts_with_string(metadata_row, "readonly="):
-                readonly = text_substring_string(metadata_row, 9, len(metadata_row) - 9) == "1"
-            if text_starts_with_string(metadata_row, "created_millis="):
-                let value = text_substring_string(metadata_row, 15, len(metadata_row) - 15)
-                if value != "":
-                    created_millis = to_int(value)
-            if text_starts_with_string(metadata_row, "modified_millis="):
-                let value = text_substring_string(metadata_row, 16, len(metadata_row) - 16)
-                if value != "":
-                    modified_millis = to_int(value)
-            if text_starts_with_string(metadata_row, "accessed_millis="):
-                let value = text_substring_string(metadata_row, 16, len(metadata_row) - 16)
-                if value != "":
-                    accessed_millis = to_int(value)
-        index = index + 1
+    let file_type = fs_metadata_line_value(metadata_text, "file_type")
+    let len_value = fs_parse_int_or_zero(fs_metadata_line_value(metadata_text, "len"))
+    let readonly = fs_metadata_line_value(metadata_text, "readonly") == "1"
+    let created_millis = fs_parse_int_or_zero(fs_metadata_line_value(metadata_text, "created_millis"))
+    let modified_millis = fs_parse_int_or_zero(fs_metadata_line_value(metadata_text, "modified_millis"))
+    let accessed_millis = fs_parse_int_or_zero(fs_metadata_line_value(metadata_text, "accessed_millis"))
     return FsMetadata {
         file_type: file_type,
         len: len_value,
@@ -284,47 +281,7 @@ pub fn fs_parse_metadata_text(metadata_text: String) -> FsMetadata:
     }
 
 pub fn fs_dir_entry_for_path(path: String) -> FsDirEntry:
-    let metadata_text = abi_fs_metadata_text(path)
-    var file_type = ""
-    var len_value = 0
-    var readonly = false
-    var created_millis = 0
-    var modified_millis = 0
-    var accessed_millis = 0
-    let lines = text_split_lines(metadata_text)
-    var index = 0
-    while index < len(lines):
-        let metadata_row = lines[index]
-        if metadata_row != "":
-            if text_starts_with_string(metadata_row, "file_type="):
-                file_type = text_substring_string(metadata_row, 10, len(metadata_row) - 10)
-            if text_starts_with_string(metadata_row, "len="):
-                let value = text_substring_string(metadata_row, 4, len(metadata_row) - 4)
-                if value != "":
-                    len_value = to_int(value)
-            if text_starts_with_string(metadata_row, "readonly="):
-                readonly = text_substring_string(metadata_row, 9, len(metadata_row) - 9) == "1"
-            if text_starts_with_string(metadata_row, "created_millis="):
-                let value = text_substring_string(metadata_row, 15, len(metadata_row) - 15)
-                if value != "":
-                    created_millis = to_int(value)
-            if text_starts_with_string(metadata_row, "modified_millis="):
-                let value = text_substring_string(metadata_row, 16, len(metadata_row) - 16)
-                if value != "":
-                    modified_millis = to_int(value)
-            if text_starts_with_string(metadata_row, "accessed_millis="):
-                let value = text_substring_string(metadata_row, 16, len(metadata_row) - 16)
-                if value != "":
-                    accessed_millis = to_int(value)
-        index = index + 1
-    let metadata = FsMetadata {
-        file_type: file_type,
-        len: len_value,
-        readonly: readonly,
-        created_millis: created_millis,
-        modified_millis: modified_millis,
-        accessed_millis: accessed_millis
-    }
+    let metadata = fs_parse_metadata_text(abi_fs_metadata_text(path))
     return FsDirEntry {
         path: path,
         file_name: abi_fs_path_file_name(path),
@@ -341,56 +298,205 @@ pub fn native_fs_last_error_kind() -> String:
 pub fn native_fs_last_error_message() -> String:
     return abi_fs_last_error_message()
 
+fn fs_error_empty() -> FsError:
+    return FsError {
+        kind: "",
+        operation: "",
+        path: "",
+        other_path: "",
+        message: "",
+        raw_code: 0
+    }
+
+fn fs_metadata_empty() -> FsMetadata:
+    return FsMetadata {
+        file_type: "",
+        len: 0,
+        readonly: false,
+        created_millis: 0,
+        modified_millis: 0,
+        accessed_millis: 0
+    }
+
+fn fs_error_from_status(operation: String, path: String, other_path: String, status: Int) -> FsError:
+    if status == 0:
+        return fs_error_empty()
+    return FsError {
+        kind: abi_fs_last_error_kind(),
+        operation: operation,
+        path: path,
+        other_path: other_path,
+        message: abi_fs_last_error_message(),
+        raw_code: status
+    }
+
+fn fs_op_result(operation: String, path: String, other_path: String, status: Int) -> FsOpResult:
+    return FsOpResult {
+        ok: status == 0,
+        status: status,
+        error: fs_error_from_status(operation, path, other_path, status)
+    }
+
+pub fn fs_try_read_text(path: String) -> FsTextResult:
+    let value = abi_fs_read_text(path)
+    let status = abi_fs_last_status()
+    return FsTextResult {
+        ok: status == 0,
+        value: if status == 0: value else: "",
+        status: status,
+        error: fs_error_from_status("read_text", path, "", status)
+    }
+
+pub fn fs_try_read_text_range(path: String, offset: Int, length: Int) -> FsTextResult:
+    let value = abi_fs_read_text_range(path, offset, length)
+    let status = abi_fs_last_status()
+    return FsTextResult {
+        ok: status == 0,
+        value: if status == 0: value else: "",
+        status: status,
+        error: fs_error_from_status("read_text_range", path, "", status)
+    }
+
+pub fn fs_try_write_text(path: String, content: String) -> FsOpResult:
+    return fs_op_result("write_text", path, "", abi_fs_write_text_len(path, content, len(content)))
+
+pub fn fs_try_append_text(path: String, content: String) -> FsOpResult:
+    return fs_op_result("append_text", path, "", abi_fs_append_text_len(path, content, len(content)))
+
+pub fn fs_try_atomic_write_text(path: String, content: String) -> FsOpResult:
+    return fs_op_result("atomic_write_text", path, "", abi_fs_atomic_write_text_len(path, content, len(content)))
+
+pub fn fs_try_read_bytes_hex(path: String) -> FsTextResult:
+    let value = abi_fs_read_bytes_hex(path)
+    let status = abi_fs_last_status()
+    return FsTextResult {
+        ok: status == 0,
+        value: if status == 0: value else: "",
+        status: status,
+        error: fs_error_from_status("read_bytes_hex", path, "", status)
+    }
+
+pub fn fs_try_read_byte_range_hex(path: String, offset: Int, length: Int) -> FsTextResult:
+    let value = abi_fs_read_byte_range_hex(path, offset, length)
+    let status = abi_fs_last_status()
+    return FsTextResult {
+        ok: status == 0,
+        value: if status == 0: value else: "",
+        status: status,
+        error: fs_error_from_status("read_byte_range_hex", path, "", status)
+    }
+
+pub fn fs_try_read_bytes(path: String) -> FsBytesResult:
+    let raw = fs_try_read_bytes_hex(path)
+    return FsBytesResult {
+        ok: raw.ok,
+        value: if raw.ok: fs_hex_to_bytes(raw.value) else: [],
+        status: raw.status,
+        error: raw.error
+    }
+
+pub fn fs_try_read_bytes_range(path: String, offset: Int, length: Int) -> FsBytesResult:
+    let raw = fs_try_read_byte_range_hex(path, offset, length)
+    return FsBytesResult {
+        ok: raw.ok,
+        value: if raw.ok: fs_hex_to_bytes(raw.value) else: [],
+        status: raw.status,
+        error: raw.error
+    }
+
+pub fn fs_try_write_bytes_hex(path: String, hex: String) -> FsOpResult:
+    return fs_op_result("write_bytes_hex", path, "", abi_fs_write_bytes_hex(path, hex))
+
+pub fn fs_try_write_bytes_hex_at(path: String, offset: Int, hex: String) -> FsOpResult:
+    return fs_op_result("write_bytes_hex_at", path, "", abi_fs_write_bytes_hex_at(path, offset, hex))
+
+pub fn fs_try_append_bytes_hex(path: String, hex: String) -> FsOpResult:
+    return fs_op_result("append_bytes_hex", path, "", abi_fs_append_bytes_hex(path, hex))
+
+pub fn fs_try_write_text_at(path: String, offset: Int, content: String) -> FsOpResult:
+    return fs_op_result("write_text_at", path, "", abi_fs_write_bytes_hex_at(path, offset, hex_encode(content)))
+
+pub fn fs_try_write_bytes(path: String, bytes: Array<Int>) -> FsOpResult:
+    return fs_try_write_bytes_hex(path, fs_bytes_to_hex(bytes))
+
+pub fn fs_try_write_bytes_at(path: String, offset: Int, bytes: Array<Int>) -> FsOpResult:
+    return fs_try_write_bytes_hex_at(path, offset, fs_bytes_to_hex(bytes))
+
+pub fn fs_try_append_bytes(path: String, bytes: Array<Int>) -> FsOpResult:
+    return fs_try_append_bytes_hex(path, fs_bytes_to_hex(bytes))
+
+pub fn fs_try_atomic_write_bytes(path: String, bytes: Array<Int>) -> FsOpResult:
+    return fs_op_result("atomic_write_bytes", path, "", abi_fs_atomic_write_bytes_hex(path, fs_bytes_to_hex(bytes)))
+
+pub fn fs_try_metadata_text(path: String) -> FsTextResult:
+    let value = abi_fs_metadata_text(path)
+    let status = abi_fs_last_status()
+    return FsTextResult {
+        ok: status == 0,
+        value: if status == 0: value else: "",
+        status: status,
+        error: fs_error_from_status("metadata_text", path, "", status)
+    }
+
+pub fn fs_try_metadata(path: String) -> FsMetadataResult:
+    let raw = fs_try_metadata_text(path)
+    return FsMetadataResult {
+        ok: raw.ok,
+        value: if raw.ok: fs_parse_metadata_text(raw.value) else: fs_metadata_empty(),
+        status: raw.status,
+        error: raw.error
+    }
+
 pub fn fs_read_text(path: String) -> String:
-    return abi_fs_read_text(path)
+    return fs_try_read_text(path).value
 
 pub fn fs_read_text_range(path: String, offset: Int, length: Int) -> String:
-    return abi_fs_read_text_range(path, offset, length)
+    return fs_try_read_text_range(path, offset, length).value
 
 pub fn fs_write_text(path: String, content: String) -> Unit:
-    let _status = abi_fs_write_text_len(path, content, len(content))
+    let _result = fs_try_write_text(path, content)
 
 pub fn fs_append_text(path: String, content: String) -> Unit:
-    let _status = abi_fs_append_text_len(path, content, len(content))
+    let _result = fs_try_append_text(path, content)
 
 pub fn fs_atomic_write_text(path: String, content: String) -> Unit:
-    let _status = abi_fs_atomic_write_text_len(path, content, len(content))
+    let _result = fs_try_atomic_write_text(path, content)
 
 pub fn fs_read_bytes(path: String) -> Array<Int>:
-    return fs_hex_to_bytes(abi_fs_read_bytes_hex(path))
+    return fs_try_read_bytes(path).value
 
 pub fn fs_read_bytes_range(path: String, offset: Int, length: Int) -> Array<Int>:
-    return fs_hex_to_bytes(abi_fs_read_byte_range_hex(path, offset, length))
+    return fs_try_read_bytes_range(path, offset, length).value
 
 pub fn fs_read_bytes_hex(path: String) -> String:
-    return abi_fs_read_bytes_hex(path)
+    return fs_try_read_bytes_hex(path).value
 
 pub fn fs_read_byte_range_hex(path: String, offset: Int, length: Int) -> String:
-    return abi_fs_read_byte_range_hex(path, offset, length)
+    return fs_try_read_byte_range_hex(path, offset, length).value
 
 pub fn fs_write_bytes_hex(path: String, hex: String) -> Unit:
-    let _status = abi_fs_write_bytes_hex(path, hex)
+    let _result = fs_try_write_bytes_hex(path, hex)
 
 pub fn fs_write_bytes_hex_at(path: String, offset: Int, hex: String) -> Unit:
-    let _status = abi_fs_write_bytes_hex_at(path, offset, hex)
+    let _result = fs_try_write_bytes_hex_at(path, offset, hex)
 
 pub fn fs_append_bytes_hex(path: String, hex: String) -> Unit:
-    let _status = abi_fs_append_bytes_hex(path, hex)
+    let _result = fs_try_append_bytes_hex(path, hex)
 
 pub fn fs_write_text_at(path: String, offset: Int, content: String) -> Unit:
-    let _status = abi_fs_write_bytes_hex_at(path, offset, hex_encode(content))
+    let _result = fs_try_write_text_at(path, offset, content)
 
 pub fn fs_write_bytes(path: String, bytes: Array<Int>) -> Unit:
-    let _status = abi_fs_write_bytes_hex(path, fs_bytes_to_hex(bytes))
+    let _result = fs_try_write_bytes(path, bytes)
 
 pub fn fs_write_bytes_at(path: String, offset: Int, bytes: Array<Int>) -> Unit:
-    let _status = abi_fs_write_bytes_hex_at(path, offset, fs_bytes_to_hex(bytes))
+    let _result = fs_try_write_bytes_at(path, offset, bytes)
 
 pub fn fs_append_bytes(path: String, bytes: Array<Int>) -> Unit:
-    let _status = abi_fs_append_bytes_hex(path, fs_bytes_to_hex(bytes))
+    let _result = fs_try_append_bytes(path, bytes)
 
 pub fn fs_atomic_write_bytes(path: String, bytes: Array<Int>) -> Unit:
-    let _status = abi_fs_atomic_write_bytes_hex(path, fs_bytes_to_hex(bytes))
+    let _result = fs_try_atomic_write_bytes(path, bytes)
 
 pub fn fs_exists(path: String) -> Bool:
     return abi_fs_exists(path)
@@ -402,50 +508,10 @@ pub fn fs_is_dir(path: String) -> Bool:
     return abi_fs_is_dir(path)
 
 pub fn fs_metadata_text(path: String) -> String:
-    return abi_fs_metadata_text(path)
+    return fs_try_metadata_text(path).value
 
 pub fn fs_metadata(path: String) -> FsMetadata:
-    let metadata_text = abi_fs_metadata_text(path)
-    var file_type = ""
-    var len_value = 0
-    var readonly = false
-    var created_millis = 0
-    var modified_millis = 0
-    var accessed_millis = 0
-    let lines = text_split_lines(metadata_text)
-    var index = 0
-    while index < len(lines):
-        let metadata_row = lines[index]
-        if metadata_row != "":
-            if text_starts_with_string(metadata_row, "file_type="):
-                file_type = text_substring_string(metadata_row, 10, len(metadata_row) - 10)
-            if text_starts_with_string(metadata_row, "len="):
-                let value = text_substring_string(metadata_row, 4, len(metadata_row) - 4)
-                if value != "":
-                    len_value = to_int(value)
-            if text_starts_with_string(metadata_row, "readonly="):
-                readonly = text_substring_string(metadata_row, 9, len(metadata_row) - 9) == "1"
-            if text_starts_with_string(metadata_row, "created_millis="):
-                let value = text_substring_string(metadata_row, 15, len(metadata_row) - 15)
-                if value != "":
-                    created_millis = to_int(value)
-            if text_starts_with_string(metadata_row, "modified_millis="):
-                let value = text_substring_string(metadata_row, 16, len(metadata_row) - 16)
-                if value != "":
-                    modified_millis = to_int(value)
-            if text_starts_with_string(metadata_row, "accessed_millis="):
-                let value = text_substring_string(metadata_row, 16, len(metadata_row) - 16)
-                if value != "":
-                    accessed_millis = to_int(value)
-        index = index + 1
-    return FsMetadata {
-        file_type: file_type,
-        len: len_value,
-        readonly: readonly,
-        created_millis: created_millis,
-        modified_millis: modified_millis,
-        accessed_millis: accessed_millis
-    }
+    return fs_try_metadata(path).value
 
 pub fn fs_read_dir_paths_text(path: String) -> String:
     return abi_fs_read_dir_paths_text(path)
@@ -467,53 +533,7 @@ pub fn fs_read_dir(path: String) -> Array<FsDirEntry>:
     while index < len(raw_lines):
         let entry_path = raw_lines[index]
         if entry_path != "":
-            let metadata_text = abi_fs_metadata_text(entry_path)
-            var file_type = ""
-            var len_value = 0
-            var readonly = false
-            var created_millis = 0
-            var modified_millis = 0
-            var accessed_millis = 0
-            let metadata_lines = text_split_lines(metadata_text)
-            var metadata_index = 0
-            while metadata_index < len(metadata_lines):
-                let metadata_row = metadata_lines[metadata_index]
-                if metadata_row != "":
-                    if text_starts_with_string(metadata_row, "file_type="):
-                        file_type = text_substring_string(metadata_row, 10, len(metadata_row) - 10)
-                    if text_starts_with_string(metadata_row, "len="):
-                        let value = text_substring_string(metadata_row, 4, len(metadata_row) - 4)
-                        if value != "":
-                            len_value = to_int(value)
-                    if text_starts_with_string(metadata_row, "readonly="):
-                        readonly = text_substring_string(metadata_row, 9, len(metadata_row) - 9) == "1"
-                    if text_starts_with_string(metadata_row, "created_millis="):
-                        let value = text_substring_string(metadata_row, 15, len(metadata_row) - 15)
-                        if value != "":
-                            created_millis = to_int(value)
-                    if text_starts_with_string(metadata_row, "modified_millis="):
-                        let value = text_substring_string(metadata_row, 16, len(metadata_row) - 16)
-                        if value != "":
-                            modified_millis = to_int(value)
-                    if text_starts_with_string(metadata_row, "accessed_millis="):
-                        let value = text_substring_string(metadata_row, 16, len(metadata_row) - 16)
-                        if value != "":
-                            accessed_millis = to_int(value)
-                metadata_index = metadata_index + 1
-            let metadata = FsMetadata {
-                file_type: file_type,
-                len: len_value,
-                readonly: readonly,
-                created_millis: created_millis,
-                modified_millis: modified_millis,
-                accessed_millis: accessed_millis
-            }
-            push(entries, FsDirEntry {
-                path: entry_path,
-                file_name: abi_fs_path_file_name(entry_path),
-                file_type: metadata.file_type,
-                metadata: metadata
-            })
+            push(entries, fs_dir_entry_for_path(entry_path))
         index = index + 1
     return entries
 
@@ -527,77 +547,29 @@ pub fn fs_walk(path: String) -> Array<FsDirEntry>:
     while index < len(paths):
         let entry_path = paths[index]
         if entry_path != "":
-            let metadata_text = abi_fs_metadata_text(entry_path)
-            var file_type = ""
-            var len_value = 0
-            var readonly = false
-            var created_millis = 0
-            var modified_millis = 0
-            var accessed_millis = 0
-            let metadata_lines = text_split_lines(metadata_text)
-            var metadata_index = 0
-            while metadata_index < len(metadata_lines):
-                let metadata_row = metadata_lines[metadata_index]
-                if metadata_row != "":
-                    if text_starts_with_string(metadata_row, "file_type="):
-                        file_type = text_substring_string(metadata_row, 10, len(metadata_row) - 10)
-                    if text_starts_with_string(metadata_row, "len="):
-                        let value = text_substring_string(metadata_row, 4, len(metadata_row) - 4)
-                        if value != "":
-                            len_value = to_int(value)
-                    if text_starts_with_string(metadata_row, "readonly="):
-                        readonly = text_substring_string(metadata_row, 9, len(metadata_row) - 9) == "1"
-                    if text_starts_with_string(metadata_row, "created_millis="):
-                        let value = text_substring_string(metadata_row, 15, len(metadata_row) - 15)
-                        if value != "":
-                            created_millis = to_int(value)
-                    if text_starts_with_string(metadata_row, "modified_millis="):
-                        let value = text_substring_string(metadata_row, 16, len(metadata_row) - 16)
-                        if value != "":
-                            modified_millis = to_int(value)
-                    if text_starts_with_string(metadata_row, "accessed_millis="):
-                        let value = text_substring_string(metadata_row, 16, len(metadata_row) - 16)
-                        if value != "":
-                            accessed_millis = to_int(value)
-                metadata_index = metadata_index + 1
-            let metadata = FsMetadata {
-                file_type: file_type,
-                len: len_value,
-                readonly: readonly,
-                created_millis: created_millis,
-                modified_millis: modified_millis,
-                accessed_millis: accessed_millis
-            }
-            push(entries, FsDirEntry {
-                path: entry_path,
-                file_name: abi_fs_path_file_name(entry_path),
-                file_type: metadata.file_type,
-                metadata: metadata
-            })
+            push(entries, fs_dir_entry_for_path(entry_path))
         index = index + 1
     return entries
 
+pub fn fs_try_create_dir_all(path: String) -> FsOpResult:
+    return fs_op_result("create_dir_all", path, "", abi_fs_create_dir_all(path))
+
 pub fn fs_create_dir_all(path: String) -> Unit:
-    let _status = abi_fs_create_dir_all(path)
+    let _result = fs_try_create_dir_all(path)
+
+pub fn fs_try_copy_file(src: String, dest: String) -> FsOpResult:
+    return fs_op_result("copy_file", src, dest, abi_fs_copy_file(src, dest))
 
 pub fn fs_copy_file(src: String, dest: String) -> Unit:
-    let _status = abi_fs_copy_file(src, dest)
+    let _result = fs_try_copy_file(src, dest)
 
 pub fn fs_copy_file_streaming(src: String, dest: String, chunk_size: Int) -> Int:
     return abi_fs_copy_file_streaming(src, dest, chunk_size)
 
 pub fn fs_stream_chunks(path: String, chunk_size: Int) -> Array<FsChunk>:
-    let metadata_text = abi_fs_metadata_text(path)
-    var total_len = 0
-    let metadata_lines = text_split_lines(metadata_text)
-    var metadata_index = 0
-    while metadata_index < len(metadata_lines):
-        let metadata_row = metadata_lines[metadata_index]
-        if metadata_row != "" and text_starts_with_string(metadata_row, "len="):
-            let value = text_substring_string(metadata_row, 4, len(metadata_row) - 4)
-            if value != "":
-                total_len = to_int(value)
-        metadata_index = metadata_index + 1
+    let total_len = fs_metadata(path).len
+    if total_len <= 0:
+        return []
     let safe_chunk_size = if chunk_size > 1: chunk_size else: 1
     let mut chunks: Array<FsChunk> = []
     var index = 0
@@ -621,14 +593,23 @@ pub fn fs_stream_chunks(path: String, chunk_size: Int) -> Array<FsChunk>:
         offset = offset + current_size
     return chunks
 
+pub fn fs_try_move_path(src: String, dest: String) -> FsOpResult:
+    return fs_op_result("move_path", src, dest, abi_fs_move_path(src, dest))
+
 pub fn fs_move_path(src: String, dest: String) -> Unit:
-    let _status = abi_fs_move_path(src, dest)
+    let _result = fs_try_move_path(src, dest)
+
+pub fn fs_try_remove_file(path: String) -> FsOpResult:
+    return fs_op_result("remove_file", path, "", abi_fs_remove_file(path))
 
 pub fn fs_remove_file(path: String) -> Unit:
-    let _status = abi_fs_remove_file(path)
+    let _result = fs_try_remove_file(path)
+
+pub fn fs_try_remove_dir_all(path: String) -> FsOpResult:
+    return fs_op_result("remove_dir_all", path, "", abi_fs_remove_dir_all(path))
 
 pub fn fs_remove_dir_all(path: String) -> Unit:
-    let _status = abi_fs_remove_dir_all(path)
+    let _result = fs_try_remove_dir_all(path)
 
 pub fn fs_temp_file(prefix: String) -> String:
     return abi_fs_temp_file(prefix)

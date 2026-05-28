@@ -63,12 +63,12 @@ pub fn build_index(index_name: String, cfg: SemanticSearchConfig) -> Bool with U
     if ok_header == false:
         println("  ERROR: failed to write index header")
         return false
-    fs_write_bytes(matrix_path, [])
-    if fs_last_status() != 0:
+    let init_matrix = fs_try_write_bytes(matrix_path, [])
+    if init_matrix.ok == false:
         println("  ERROR: failed to create CUDA matrix payload")
         return false
-    fs_write_bytes(weight_path, [])
-    if fs_last_status() != 0:
+    let init_weight = fs_try_write_bytes(weight_path, [])
+    if init_weight.ok == false:
         println("  ERROR: failed to create CUDA weight payload")
         return false
 
@@ -121,12 +121,12 @@ fn stream_all_chunks(files: Array<String>, root: String, cfg: SemanticSearchConf
             if ok_embed == false:
                 println("  ERROR: failed to append embedding block")
                 return -1
-            fs_append_bytes(matrix_path, embedding_bytes)
-            if fs_last_status() != 0:
+            let append_matrix = fs_try_append_bytes(matrix_path, embedding_bytes)
+            if append_matrix.ok == false:
                 println("  ERROR: failed to append CUDA matrix block")
                 return -1
-            fs_append_bytes(weight_path, pack_u32_le(packed_embedding_weight(embedding_bytes)))
-            if fs_last_status() != 0:
+            let append_weight = fs_try_append_bytes(weight_path, pack_u32_le(packed_embedding_weight(embedding_bytes)))
+            if append_weight.ok == false:
                 println("  ERROR: failed to append CUDA weight block")
                 return -1
             let ok_meta = append_index_bytes(index_path, meta_bytes)

@@ -3,26 +3,38 @@ use std::fs
 
 pub fn smoke_fs_lane() -> Int:
     let temp = fs_temp_file("smoke-fs-lane")
-    fs_write_text(temp, "kain")
-    fs_append_text(temp, "-smoke")
-    let content = fs_read_text(temp)
-    if content != "kain-smoke":
+    let write_result = fs_try_write_text(temp, "kain")
+    if write_result.ok == false:
         return 1
-    if fs_exists(temp) == false:
+    let append_result = fs_try_append_text(temp, "-smoke")
+    if append_result.ok == false:
         return 2
-    if fs_is_file(temp) == false:
+    let read_result = fs_try_read_text(temp)
+    if read_result.ok == false:
         return 3
+    let content = read_result.value
+    if content != "kain-smoke":
+        return 4
+    if fs_exists(temp) == false:
+        return 5
+    if fs_is_file(temp) == false:
+        return 6
+    let meta_result = fs_try_metadata(temp)
+    if meta_result.ok == false or meta_result.value.len != len(content):
+        return 7
     let byte_hex = fs_read_byte_range_hex(temp, 0, 4)
     if byte_hex != "6b61696e":
-        return 4
+        return 8
     fs_write_text_at(temp, 5, "STONE")
     if fs_read_text(temp) != "kain-STONE":
-        return 5
+        return 9
     fs_write_bytes_at(temp, 0, [75, 78])
     if fs_read_byte_range_hex(temp, 0, 4) != "4b4e696e":
-        return 6
+        return 10
     fs_write_bytes_hex_at(temp, 2, "2d2d")
     if fs_read_text(temp) != "KN--STONE":
-        return 7
-    fs_remove_file(temp)
+        return 11
+    let remove_result = fs_try_remove_file(temp)
+    if remove_result.ok == false:
+        return 12
     return 0

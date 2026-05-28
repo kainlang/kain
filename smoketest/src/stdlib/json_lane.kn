@@ -112,4 +112,19 @@ pub fn smoke_json_lane() -> Int with Unsafe:
     if tokens[1].kind != JSON_TOKEN_STRING:
         return 25
 
+    let parsed_result = json_parse_text_result(rendered)
+    if parsed_result.ok == false:
+        return 26
+    if json_is_object(parsed_result.value) == false:
+        return 27
+
+    let invalid_parse = json_parse_text_result("{\"ok\"=true}")
+    if invalid_parse.ok or invalid_parse.status.code != JSON_STATUS_SCAN_UNKNOWN_TOKEN:
+        return 28
+
+    let fallback_value = json_parse_text_or("{\"ok\"=true}", payload)
+    let fallback_name = json_string_field(fallback_value, "name")
+    if fallback_name.ok == false or fallback_name.value != "kain":
+        return 29
+
     return 0

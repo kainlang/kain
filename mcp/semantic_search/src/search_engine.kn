@@ -186,31 +186,34 @@ fn write_padded_payload_from_file(src: String, dest: String, expected_bytes: Int
     let meta = fs_metadata(src)
     if meta.len > expected_bytes:
         return false
-    fs_write_bytes(dest, [])
-    if fs_last_status() != 0:
+    if fs_try_write_bytes(dest, []).ok == false:
         return false
     let copied = fs_copy_file_streaming(src, dest, 1048576)
     if copied != meta.len:
         return false
     let padding = expected_bytes - meta.len
     if padding > 0:
-        append_zero_bytes(dest, padding)
+        if append_zero_bytes(dest, padding) == false:
+            return false
     var final_len = fs_metadata(dest).len
     var retry = 0
     while final_len < expected_bytes and retry < 4:
-        append_zero_bytes(dest, expected_bytes - final_len)
+        if append_zero_bytes(dest, expected_bytes - final_len) == false:
+            return false
         final_len = fs_metadata(dest).len
         retry = retry + 1
     return final_len == expected_bytes
 
-fn append_zero_bytes(path: String, count: Int) -> Unit:
+fn append_zero_bytes(path: String, count: Int) -> Bool:
     var remaining = count
     while remaining > 0:
         var chunk = CUDA_ZERO_APPEND_CHUNK
         if remaining < chunk:
             chunk = remaining
-        fs_append_bytes(path, zero_bytes(chunk))
+        if fs_try_append_bytes(path, zero_bytes(chunk)).ok == false:
+            return false
         remaining = remaining - chunk
+    return true
 
 fn zero_bytes(count: Int) -> Array<Int>:
     let mut bytes: Array<Int> = []

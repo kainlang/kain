@@ -1,5 +1,5 @@
 {
-  "checksum": "142362b0022f4582ae5e895aa959cd58e61f5f7f24b8cd55572a549249fa9609",
+  "checksum": "62e6001a71750a5edcd19cabca8b41d97cda1bfdda45f9900526b77b56e42f93",
   "crates": {
     "ab_glyph 0.2.32": {
       "name": "ab_glyph",
@@ -17905,9 +17905,9 @@
       "license_ids": [],
       "license_file": null
     },
-    "kain-error 0.1.0": {
+    "kain-error 0.2.0": {
       "name": "kain-error",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "package_url": null,
       "repository": null,
       "targets": [
@@ -17922,6 +17922,18 @@
               ]
             }
           }
+        },
+        {
+          "BuildScript": {
+            "crate_name": "build_script_build",
+            "crate_root": "build.rs",
+            "srcs": {
+              "allow_empty": true,
+              "include": [
+                "**/*.rs"
+              ]
+            }
+          }
         }
       ],
       "library_target_name": "kain_error",
@@ -17929,15 +17941,30 @@
         "compile_data_glob": [
           "**"
         ],
+        "crate_features": {
+          "common": [
+            "default",
+            "toml-registry"
+          ],
+          "selects": {}
+        },
         "deps": {
           "common": [
             {
-              "id": "serde_json 1.0.143",
-              "target": "serde_json"
+              "id": "kain-error 0.2.0",
+              "target": "build_script_build"
             },
             {
-              "id": "thiserror 1.0.69",
-              "target": "thiserror"
+              "id": "once_cell 1.21.3",
+              "target": "once_cell"
+            },
+            {
+              "id": "serde 1.0.228",
+              "target": "serde"
+            },
+            {
+              "id": "serde_json 1.0.143",
+              "target": "serde_json"
             },
             {
               "id": "unicode-width 0.1.14",
@@ -17947,7 +17974,31 @@
           "selects": {}
         },
         "edition": "2021",
-        "version": "0.1.0"
+        "version": "0.2.0"
+      },
+      "build_script_attrs": {
+        "compile_data_glob": [
+          "**"
+        ],
+        "compile_data_glob_excludes": [
+          "**/*.rs"
+        ],
+        "data_glob": [
+          "**"
+        ],
+        "deps": {
+          "common": [
+            {
+              "id": "serde 1.0.228",
+              "target": "serde"
+            },
+            {
+              "id": "toml 0.8.23",
+              "target": "toml"
+            }
+          ],
+          "selects": {}
+        }
       },
       "license": null,
       "license_ids": [],
@@ -51914,7 +51965,7 @@
     "kain-crate-ffi 0.1.0": "crates/crate-ffi",
     "kain-driver 0.1.0": "crates/driver",
     "kain-entangle 0.1.0": "crates/entangle",
-    "kain-error 0.1.0": "crates/error",
+    "kain-error 0.2.0": "crates/error",
     "kain-fast3d-runtime 0.1.0": "crates/fast3d-runtime",
     "kain-foreign-abi 0.1.0": "crates/foreign-abi",
     "kain-fs 0.1.0": "crates/fs",
