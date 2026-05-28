@@ -37,24 +37,33 @@ fn main() {
     let dest_path = Path::new(&out_dir).join("registry_data.rs");
 
     let specs_dir = Path::new("specs");
+    assert!(
+        specs_dir.is_dir(),
+        "diagnostic specs directory missing: {}",
+        specs_dir.display()
+    );
+
     let mut all_specs: Vec<TomlDiagnostic> = Vec::new();
+    let mut entries: Vec<_> = fs::read_dir(specs_dir)
+        .expect("failed to read specs dir")
+        .filter_map(|e| e.ok())
+        .filter(|e| e.path().extension().map_or(false, |ext| ext == "toml"))
+        .collect();
+    entries.sort_by_key(|e| e.file_name());
 
-    if specs_dir.is_dir() {
-        let mut entries: Vec<_> = fs::read_dir(specs_dir)
-            .expect("failed to read specs dir")
-            .filter_map(|e| e.ok())
-            .filter(|e| e.path().extension().map_or(false, |ext| ext == "toml"))
-            .collect();
-        entries.sort_by_key(|e| e.file_name());
-
-        for entry in &entries {
-            let content = fs::read_to_string(entry.path())
-                .unwrap_or_else(|e| panic!("failed to read {:?}: {e}", entry.path()));
-            let parsed: TomlFile = toml::from_str(&content)
-                .unwrap_or_else(|e| panic!("failed to parse {:?}: {e}", entry.path()));
-            all_specs.extend(parsed.diagnostics);
-        }
+    for entry in &entries {
+        let content = fs::read_to_string(entry.path())
+            .unwrap_or_else(|e| panic!("failed to read {:?}: {e}", entry.path()));
+        let parsed: TomlFile = toml::from_str(&content)
+            .unwrap_or_else(|e| panic!("failed to parse {:?}: {e}", entry.path()));
+        all_specs.extend(parsed.diagnostics);
     }
+
+    assert!(
+        !all_specs.is_empty(),
+        "no diagnostic specs were loaded from {}",
+        specs_dir.display()
+    );
 
     // Sort by code for deterministic output
     all_specs.sort_by(|a, b| a.code.cmp(&b.code));
@@ -108,9 +117,15 @@ fn main() {
              \x20       fixit: {},\n\
              \x20       see_also: {see_also_arr},\n\
              \x20   }},\n",
-            example_bad.map(|s| format!("Some(\"{s}\")")).unwrap_or_else(|| "None".to_string()),
-            example_good.map(|s| format!("Some(\"{s}\")")).unwrap_or_else(|| "None".to_string()),
-            fixit.map(|s| format!("Some(\"{s}\")")).unwrap_or_else(|| "None".to_string()),
+            example_bad
+                .map(|s| format!("Some(\"{s}\")"))
+                .unwrap_or_else(|| "None".to_string()),
+            example_good
+                .map(|s| format!("Some(\"{s}\")"))
+                .unwrap_or_else(|| "None".to_string()),
+            fixit
+                .map(|s| format!("Some(\"{s}\")"))
+                .unwrap_or_else(|| "None".to_string()),
         ));
     }
 

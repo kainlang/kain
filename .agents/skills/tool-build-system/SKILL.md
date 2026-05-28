@@ -23,6 +23,7 @@ This is the one explicit skill for repo build plumbing. If the question is Bazel
 ## Working Rules
 
 - Cargo manifests and runtime manifests are the sources of truth. First-party Rust Bazel targets come from the generated `@kain_workspace_rust` overlay repo, not from hand-maintained checked-in crate `BUILD.bazel` files.
+- If a first-party Rust crate uses `build.rs` to read package-local manifests, spec packs, or generated-data inputs outside the usual `src/tests/examples/...` tree, teach `tools/bazel/sync_rust_builds.py` to mirror that directory into `COMMON_COMPILE_DATA` or Bazel can compile a lying build-script output with missing inputs.
 - Keep heavy Bazel outputs on `D:` and preserve the launcher contract that `kain`/`kn` resolve to Bazel-backed wrappers on this workstation.
 - When a change touches build provenance, prove it through `kain doctor`, not just by eyeballing `bazel-bin`.
 - If the problem is "runtime build wrapper fails" or "fresh Kain binary is stale", keep it here rather than scattering that guidance across runtime or package skills.

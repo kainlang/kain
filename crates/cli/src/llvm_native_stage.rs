@@ -354,7 +354,7 @@ fn main() -> Int:
 
     #[test]
     fn shader_artifact_source_extracts_kain_example_shaders_without_native_body() {
-        let source = include_str!("../../../blades/kain-example/src/main.kn");
+        let source = include_str!("../../../blades/_old/kain-example/src/main.kn");
 
         let extracted = super::shader_artifact_source(source)
             .expect("kain-example native source should yield shader-only source");

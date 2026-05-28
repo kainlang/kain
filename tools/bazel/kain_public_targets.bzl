@@ -11,6 +11,7 @@ _RUST_PUBLIC_ALIASES = {
     "kain_commands": "//crates/commands:kain-commands",
     "kain_core": "//crates/core:kain-core",
     "kain_entangle": "//crates/entangle:kain-entangle",
+    "kain_error": "//crates/error:kain-error",
     "kain_fs": "//crates/fs:kain-fs",
     "kain_input": "//crates/input:kain-input",
     "kain_net": "//crates/net:kain-net",
@@ -35,6 +36,8 @@ _RUST_PUBLIC_TEST_SUITES = {
         "//crates/codebase:unit_test",
         "//crates/commands:unit_test",
         "//crates/entangle:unit_test",
+        "//crates/error:unit_test",
+        "//crates/error:integration_test",
         "//crates/fs:unit_test",
         "//crates/input:unit_test",
         "//crates/net:unit_test",
@@ -45,6 +48,8 @@ _RUST_PUBLIC_TEST_SUITES = {
     "diagnostic_crate_tests": [
         "//crates/core:unit_test",
         "//crates/cli:unit_test",
+        "//crates/error:unit_test",
+        "//crates/error:integration_test",
     ],
 }
 

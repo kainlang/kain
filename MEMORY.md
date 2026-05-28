@@ -1,5 +1,59 @@
 # Kain Memory
 
+# 2026-05-27 - CLI Bazel no longer hardcodes pre-archive `blades/kain-example`
+
+The broader Bazel diagnostic lane stopped failing at compile time on a dead example path. `crates/cli/src/llvm_native_stage.rs` had a unit test using `include_str!("../../../blades/kain-example/src/main.kn")`, but that legacy example now lives under `blades/_old/kain-example`. The Bazel compile failure was a stale repo-path assumption, not an error-system regression.
+
+What changed:
+
+- `crates/cli/src/llvm_native_stage.rs`
+  - Switched the archived shader-extraction test fixture from `blades/kain-example` to `blades/_old/kain-example`.
+
+Validation:
+
+- `bazel test //crates/cli:unit_test --config=dev`
+  - The old compile-time `include_str!(...)` path failure is gone; the target now builds and runs tests.
+  - Remaining failing CLI unit tests are runtime assertions in unrelated `import_rust` / `selfhost` tests, not the archived example-path compile break.
+
+Durable lesson:
+
+- When repo examples are intentionally archived under `blades/_old`, any `include_str!`-style test fixtures must move with them or Bazel will surface the stale path as a build failure immediately.
+
+# 2026-05-27 - live crates/error Bazel + build-script wiring for the new diagnostic engine
+
+The swapped-in `crates/error` is now live on the repo Bazel lane instead of only surviving Cargo-side validation. The key Bazel bug was not the Rust API facade; it was that the Rust BUILD generator did not know about package-local `specs/` inputs, so a build-script crate like `kain-error` could silently lose its TOML registry data under Bazel while still compiling an empty generated registry.
+
+What changed:
+
+- `tools/bazel/sync_rust_builds.py`
+  - Adds package-local compile/build data globs for crates that own a `specs/` directory, so generated Bazel targets now carry `specs/**/*` into `cargo_build_script(...)` and normal compile data only where needed.
+- `crates/error/build.rs`
+  - Now fails hard if `specs/` is missing or if zero diagnostic specs are loaded, so Bazel/runfiles drift cannot quietly produce an empty registry.
+- `crates/error/BUILD.bazel`
+  - Regenerated via `python tools/bazel/sync_rust_builds.py`; now includes a Bazel `cargo_build_script`, the `kain-error` library target, `unit_test`, and `integration_test`, all with `specs/**/*` in `COMMON_COMPILE_DATA`.
+- `tools/bazel/kain_public_targets.bzl`
+  - Exposes root alias `kain_error` and adds `//crates/error:{unit_test,integration_test}` to both `key_crate_tests` and `diagnostic_crate_tests`, so the new error system is on the shared Bazel certification surface.
+- `Cargo.Bazel.lock`
+  - Repinned through `CARGO_BAZEL_REPIN=1 bazel fetch //:kain --config=dev` so crate-universe matches `kain-error 0.2.0` and its build-script deps.
+
+Validation:
+
+- `python tools/bazel/sync_rust_builds.py`
+- `python tools/bazel/sync_rust_builds.py --check`
+- `cargo test -p kain-error`
+- `cargo check -p kain-core`
+- `CARGO_BAZEL_REPIN=1 bazel fetch //:kain --config=dev`
+- `bazel query @kain_workspace_rust//:kain_error`
+- `bazel query //crates/error:all`
+- `bazel test //crates/error:unit_test --config=dev`
+- `bazel test //crates/error:integration_test --config=dev`
+- `bazel query "tests(//:key_crate_tests)"`
+- `bazel query "tests(//:diagnostic_crate_tests)"`
+
+Durable lesson:
+
+- For first-party Rust crates that generate code from package-local manifests/spec packs, the Bazel sync layer must mirror those directories into `COMMON_COMPILE_DATA` or build scripts can lie by omission. `specs/` is now the live proof for this rule in `crates/error`.
+
 # 2026-05-27 - scratch error crate drop-in compatibility pass and replacement probe
 
 Hardened `scratch/crates/error` toward real replacement viability without leaving the live workspace on the new crate yet. The key move was to keep the scratch data-driven engine (`builder`, `report`, `registry`, `json`, `render`, `trace`, TOML specs) while grafting back the legacy public seams that `kain-core` compiles against.

@@ -29,8 +29,7 @@ fn main() -> Int with Unsafe:
     let mut args: Array<String> = []
     if command == "":
         args = tool_args()
-        if len(args) > 0:
-            command = args[0]
+        command = command_from_args(args)
     if command == "":
         command = "mcp"
     let cfg = load_tool_config()
@@ -61,17 +60,29 @@ fn main() -> Int with Unsafe:
     return result
 
 fn tool_args() -> Array<String>:
-    let exe_path = process_current_executable_path()
-    let mut values: Array<String> = []
-    let count = process_arg_count()
+    return raw_args()
+
+fn command_from_args(args: Array<String>) -> String:
     var i: Int = 0
-    while i < count:
-        let value = process_arg(i)
-        if value != "":
-            if len(values) > 0 or arg_looks_like_bootstrap(value, exe_path) == false:
-                push(values, value)
+    while i < len(args):
+        let candidate = args[i]
+        if command_is_known(candidate):
+            return candidate
         i = i + 1
-    return values
+    return first_non_bootstrap_arg(args)
+
+fn command_is_known(value: String) -> Bool:
+    return value == "index" or value == "serve" or value == "mcp" or value == "search" or value == "__mcp_search_json" or value == "__mcp_health_json" or value == "__mcp_args_json"
+
+fn first_non_bootstrap_arg(args: Array<String>) -> String:
+    let exe_path = process_current_executable_path()
+    var i: Int = 0
+    while i < len(args):
+        let candidate = args[i]
+        if candidate != "" and arg_looks_like_bootstrap(candidate, exe_path) == false:
+            return candidate
+        i = i + 1
+    return ""
 
 fn arg_looks_like_bootstrap(arg: String, exe_path: String) -> Bool:
     if arg == "":

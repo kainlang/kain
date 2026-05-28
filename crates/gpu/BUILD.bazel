@@ -51,6 +51,26 @@ rust_test(
 )
 
 rust_test(
+    name = "hlsl_codegen_test",
+    crate_name = "hlsl_codegen",
+    crate_root = "tests/hlsl_codegen.rs",
+    srcs = glob(["src/**/*.rs", "tests/**/*.rs"]),
+    edition = "2021",
+    aliases = aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
+    deps = [
+        ":gpu",
+        "//crates/core:kain-core",
+        "//crates/gpu-runtime:kain-gpu-runtime",
+    ] + all_crate_deps(normal = True, normal_dev = True),
+    proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
+    compile_data = COMMON_COMPILE_DATA,
+    force_all_deps_direct = True,
+    tags = [
+        "manual",
+    ],
+)
+
+rust_test(
     name = "ptx_codegen_test",
     crate_name = "ptx_codegen",
     crate_root = "tests/ptx_codegen.rs",
