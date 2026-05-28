@@ -1,0 +1,71 @@
+# ── Kain IO Error Codes ────────────────────────────────────────────────
+# File I/O, network, asset loading, filesystem operations.
+
+[[diagnostics]]
+code = "KAIN-IO-0001"
+title = "IO Error"
+severity = "error"
+docs_key = "io/general"
+help = "A filesystem or network I/O operation failed."
+
+[[diagnostics]]
+code = "KAIN-IO-0002"
+title = "File Not Found"
+severity = "error"
+docs_key = "io/file-not-found"
+help = """
+The specified file does not exist or is not accessible. Check the file
+path, permissions, and working directory.
+
+Fix: verify the file path and ensure the file exists.
+"""
+
+[[diagnostics]]
+code = "KAIN-IO-0003"
+title = "File Read Error"
+severity = "error"
+docs_key = "io/read-error"
+help = """
+A file could not be read. Possible causes: permission denied, file
+locked by another process, or filesystem corruption.
+
+Fix: check file permissions and that the file is not locked.
+"""
+
+[[diagnostics]]
+code = "KAIN-IO-0004"
+title = "File Write Error"
+severity = "error"
+docs_key = "io/write-error"
+help = """
+A file could not be written. Possible causes: disk full, permission
+denied, or the parent directory does not exist.
+
+Fix: check disk space, permissions, and parent directory existence.
+"""
+
+[[diagnostics]]
+code = "KAIN-IO-0005"
+title = "Network Request Failed"
+severity = "error"
+docs_key = "io/network-failed"
+help = """
+A network operation (HTTP, WebSocket, etc.) failed. The remote host may
+be unreachable, the request may have timed out, or the response may be
+malformed.
+
+Fix: check network connectivity and the request configuration.
+"""
+
+[[diagnostics]]
+code = "KAIN-IO-0006"
+title = "Asset Import Failed"
+severity = "error"
+docs_key = "io/asset-import"
+help = """
+An asset (texture, mesh, sound, data file) could not be imported. The
+file format may be unsupported, the asset may be corrupt, or the
+importer may have encountered an error.
+
+Fix: check the asset file format and integrity.
+"""

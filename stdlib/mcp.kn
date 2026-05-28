@@ -1,0 +1,621 @@
+// ============================================================================
+//                          std::mcp — Model Context Protocol
+// ============================================================================
+// Kain-native MCP server construction for the 2025-03-26 protocol revision.
+//
+// This module provides universal JSON-RPC 2.0 framing, the lifecycle handshake,
+// content-type constructors, stdio transport I/O, structured logging to stderr,
+// and a reference event loop.  Streamable HTTP transport is a future lane.
+//
+// Import:  use std::mcp
+//
+// Runtime primitives used directly (no @extern wrappers needed):
+//   read_line()       — block until newline on stdin, return line ("" on EOF)
+//   stdout_write(s)   — write to stdout, flush
+//   stderr_write(s)   — write to stderr, flush
+
+use std::json
+
+// ===========================================================================
+//  Protocol constants
+// ===========================================================================
+
+pub const MCP_PROTOCOL_VERSION: String = "2025-03-26"
+pub const MCP_JSONRPC_VERSION:  String = "2.0"
+
+// JSON-RPC 2.0 standard error codes
+pub const MCP_ERROR_PARSE:            Int = -32700
+pub const MCP_ERROR_INVALID_REQUEST:  Int = -32600
+pub const MCP_ERROR_METHOD_NOT_FOUND: Int = -32601
+pub const MCP_ERROR_INVALID_PARAMS:   Int = -32602
+pub const MCP_ERROR_INTERNAL:         Int = -32603
+
+// MCP server-defined error codes
+pub const MCP_ERROR_TOOL_NOT_FOUND:     Int = -32001
+pub const MCP_ERROR_RESOURCE_NOT_FOUND: Int = -32002
+pub const MCP_ERROR_PROMPT_NOT_FOUND:   Int = -32003
+
+// ===========================================================================
+//  Type definitions
+// ===========================================================================
+
+pub struct McpServer:
+    name: String
+    version: String
+    instructions: String
+
+pub struct McpToolDef:
+    name: String
+    description: String
+    input_schema_json: String   // pre-serialized JSON Schema string, e.g. "{\"type\":\"object\",\"properties\":{}}"
+
+pub struct McpCallResult:
+    content_json: String        // pre-built JSON content array, e.g. "[{\"type\":\"text\",\"text\":\"...\"}]"
+    is_error: Bool
+
+pub struct McpResourceDef:
+    uri: String
+    name: String
+    description: String
+    mime_type: String
+
+pub struct McpPromptDef:
+    name: String
+    description: String
+
+// Parsed incoming request (for manual dispatch loops)
+pub struct McpRequest:
+    raw_json: String
+    method: String
+    has_id: Bool
+    id_value: JsonValue
+    params_value: JsonValue
+    request_obj: JsonObject
+
+// ===========================================================================
+//  Server lifecycle
+// ===========================================================================
+
+pub fn mcp_server_new(name: String, version: String) -> McpServer:
+    return McpServer {
+        name: name,
+        version: version,
+        instructions: ""
+    }
+
+pub fn mcp_server_with_instructions(name: String, version: String, instructions: String) -> McpServer:
+    return McpServer {
+        name: name,
+        version: version,
+        instructions: instructions
+    }
+
+// ===========================================================================
+//  Tool definition helpers
+// ===========================================================================
+
+// Create a tool definition.  schema_json is a JSON Schema string like:
+//   {"type":"object","properties":{"city":{"type":"string","description":"City name"}},"required":["city"]}
+pub fn mcp_tool_def(name: String, description: String, schema_json: String) -> McpToolDef:
+    return McpToolDef {
+        name: name,
+        description: description,
+        input_schema_json: schema_json
+    }
+
+// Create a tool definition with no input parameters.
+pub fn mcp_tool_def_no_args(name: String, description: String) -> McpToolDef:
+    return McpToolDef {
+        name: name,
+        description: description,
+        input_schema_json: "{\"type\":\"object\",\"properties\":{}}"
+    }
+
+// ===========================================================================
+//  JSON-RPC 2.0 message builders
+// ===========================================================================
+
+// Build a success response: {"jsonrpc":"2.0","id":<id_val>,"result":<result_obj>}
+pub fn mcp_build_response(id_value: JsonValue, result: JsonObject) -> JsonObject:
+    let resp = json_object()
+    let _a = json_object_set_string(resp, "jsonrpc", MCP_JSONRPC_VERSION)
+    let _b = mcp_object_set_any(resp, "id", id_value)
+    let _c = json_object_set_object(resp, "result", result)
+    return resp
+
+// Build an error response: {"jsonrpc":"2.0","id":<id_val>,"error":{"code":<c>,"message":<m>}}
+pub fn mcp_build_error(id_value: JsonValue, code: Int, message: String) -> JsonObject:
+    let err = json_object()
+    let _a = json_object_set_int(err, "code", code)
+    let _b = json_object_set_string(err, "message", message)
+    let resp = json_object()
+    let _c = json_object_set_string(resp, "jsonrpc", MCP_JSONRPC_VERSION)
+    let _d = mcp_object_set_any(resp, "id", id_value)
+    let _e = json_object_set_object(resp, "error", err)
+    return resp
+
+// Build a notification (no id field): {"jsonrpc":"2.0","method":<m>,"params":<p>}
+pub fn mcp_build_notification(method: String, params: JsonObject) -> JsonObject:
+    let notif = json_object()
+    let _a = json_object_set_string(notif, "jsonrpc", MCP_JSONRPC_VERSION)
+    let _b = json_object_set_string(notif, "method", method)
+    let _c = json_object_set_object(notif, "params", params)
+    return notif
+
+// Set a field on a JsonObject where the value may be any JSON type (string, int, bool, object, array, null).
+// The JSON-RPC "id" field can be a string OR a number, so we need this dispatch.
+fn mcp_object_set_any(obj: JsonObject, key: String, value: JsonValue) -> JsonObject:
+    let kind = json_value_kind_code(value)
+    if kind == MCP_KIND_NULL:
+        // null: use int 0 as placeholder — JSON-RPC id should never be null in practice
+        return json_object_set_int(obj, key, 0)
+    if kind == MCP_KIND_BOOL:
+        return json_object_set_bool(obj, key, mcp_value_as_bool(value))
+    if kind == MCP_KIND_INT:
+        return json_object_set_int(obj, key, mcp_value_as_int(value))
+    if kind == MCP_KIND_FLOAT:
+        return json_object_set_float(obj, key, mcp_value_as_float(value))
+    if kind == MCP_KIND_STRING:
+        return json_object_set_string(obj, key, mcp_value_as_string(value))
+    if kind == MCP_KIND_OBJECT:
+        return json_object_set_object(obj, key, value)
+    if kind == MCP_KIND_ARRAY:
+        return json_object_set_object(obj, key, value)
+    return json_object_set_string(obj, key, "")
+
+// JSON kind code constants (matching std::json JSON_KIND_CODE_*)
+const MCP_KIND_NULL:   Int = 0
+const MCP_KIND_BOOL:   Int = 1
+const MCP_KIND_INT:    Int = 2
+const MCP_KIND_FLOAT:  Int = 3
+const MCP_KIND_STRING: Int = 4
+const MCP_KIND_OBJECT: Int = 5
+const MCP_KIND_ARRAY:  Int = 6
+
+// Extract typed values from JsonValue (via json_stringify + parse)
+fn mcp_value_as_string(value: JsonValue) -> String:
+    let s = json_stringify(value)
+    if len(s) >= 2:
+        if char_at(s, 0) == "\"" and char_at(s, len(s) - 1) == "\"":
+            return substring(s, 1, len(s) - 1)
+    return s
+
+fn mcp_value_as_int(value: JsonValue) -> Int:
+    return mcp_str_to_int(json_stringify(value))
+
+fn mcp_value_as_bool(value: JsonValue) -> Bool:
+    return json_stringify(value) == "true"
+
+fn mcp_value_as_float(value: JsonValue) -> Float:
+    return mcp_str_to_float(json_stringify(value))
+
+// ===========================================================================
+//  MCP initialize handshake
+// ===========================================================================
+
+// Build the initialize response result.  Pass to mcp_build_response() with the id.
+pub fn mcp_build_initialize_result(
+    server: McpServer,
+    supports_tools: Bool,
+    supports_resources: Bool,
+    supports_prompts: Bool,
+    supports_logging: Bool
+) -> JsonObject:
+    let result = json_object()
+    let _a = json_object_set_string(result, "protocolVersion", MCP_PROTOCOL_VERSION)
+
+    // capabilities object
+    let caps = json_object()
+    if supports_tools:
+        let tc = json_object()
+        let _t1 = json_object_set_bool(tc, "listChanged", false)
+        let _t2 = json_object_set_object(caps, "tools", tc)
+    if supports_resources:
+        let rc = json_object()
+        let _r1 = json_object_set_bool(rc, "subscribe", false)
+        let _r2 = json_object_set_bool(rc, "listChanged", false)
+        let _r3 = json_object_set_object(caps, "resources", rc)
+    if supports_prompts:
+        let pc = json_object()
+        let _p1 = json_object_set_bool(pc, "listChanged", false)
+        let _p2 = json_object_set_object(caps, "prompts", pc)
+    if supports_logging:
+        let _l1 = json_object_set_object(caps, "logging", json_object())
+    let _b = json_object_set_object(result, "capabilities", caps)
+
+    // serverInfo
+    let info = json_object()
+    let _i1 = json_object_set_string(info, "name", server.name)
+    let _i2 = json_object_set_string(info, "version", server.version)
+    let _c = json_object_set_object(result, "serverInfo", info)
+
+    // instructions
+    if len(server.instructions) > 0:
+        let _d = json_object_set_string(result, "instructions", server.instructions)
+
+    return result
+
+// ===========================================================================
+//  MCP tools/list result builder
+// ===========================================================================
+
+pub fn mcp_build_tools_list(tools: Array<McpToolDef>) -> JsonObject:
+    let result = json_object()
+    let arr = json_array()
+    var i: Int = 0
+    while i < len(tools):
+        let t = json_object()
+        let _a = json_object_set_string(t, "name", tools[i].name)
+        let _b = json_object_set_string(t, "description", tools[i].description)
+        let schema_val = json_parse_text(tools[i].input_schema_json)
+        let _c = mcp_object_set_any(t, "inputSchema", schema_val)
+        let _d = json_array_push_object(arr, t)
+        i = i + 1
+    let _e = json_object_set_array(result, "tools", arr)
+    return result
+
+// ===========================================================================
+//  Content type constructors
+// ===========================================================================
+
+// Build a {"type":"text","text":"..."} JSON fragment string.
+pub fn mcp_content_text(text: String) -> String:
+    return "{\"type\":\"text\",\"text\":" + mcp_json_escape(text) + "}"
+
+// Build a {"type":"image","data":"...","mimeType":"..."} JSON fragment string.
+pub fn mcp_content_image(base64_data: String, mime_type: String) -> String:
+    return "{\"type\":\"image\",\"data\":\"" + base64_data + "\",\"mimeType\":\"" + mime_type + "\"}"
+
+// Build a content array from a single text item: [{"type":"text","text":"..."}]
+pub fn mcp_content_array_text(text: String) -> String:
+    return "[" + mcp_content_text(text) + "]"
+
+// Build a content array from a single image item.
+pub fn mcp_content_array_image(base64_data: String, mime_type: String) -> String:
+    return "[" + mcp_content_image(base64_data, mime_type) + "]"
+
+// ===========================================================================
+//  McpCallResult constructors (for tools/call responses)
+// ===========================================================================
+
+pub fn mcp_text_result(text: String) -> McpCallResult:
+    return McpCallResult {
+        content_json: mcp_content_array_text(text),
+        is_error: false
+    }
+
+pub fn mcp_error_result(message: String) -> McpCallResult:
+    return McpCallResult {
+        content_json: mcp_content_array_text(message),
+        is_error: true
+    }
+
+pub fn mcp_image_result(base64_data: String, mime_type: String) -> McpCallResult:
+    return McpCallResult {
+        content_json: mcp_content_array_image(base64_data, mime_type),
+        is_error: false
+    }
+
+// Build the full tools/call response result object from an McpCallResult.
+pub fn mcp_build_call_result(cr: McpCallResult) -> JsonObject:
+    let result = json_object()
+    let content_val = json_parse_text(cr.content_json)
+    let _a = mcp_object_set_any(result, "content", content_val)
+    let _b = json_object_set_bool(result, "isError", cr.is_error)
+    return result
+
+// ===========================================================================
+//  JSON string escaping (for safe embedding inside JSON strings)
+// ===========================================================================
+
+pub fn mcp_json_escape(s: String) -> String:
+    var out = "\""
+    var i: Int = 0
+    while i < len(s):
+        let ch = char_at(s, i)
+        if ch == "\"":
+            out = out + "\\\""
+        else:
+            if ch == "\\":
+                out = out + "\\\\"
+            else:
+                if ch == "\n":
+                    out = out + "\\n"
+                else:
+                    if ch == "\r":
+                        out = out + "\\r"
+                    else:
+                        if ch == "\t":
+                            out = out + "\\t"
+                        else:
+                            out = out + ch
+        i = i + 1
+    out = out + "\""
+    return out
+
+// ===========================================================================
+//  Transport: stdio message I/O
+// ===========================================================================
+
+// Read one newline-delimited JSON-RPC message from stdin.  Returns "" on EOF.
+pub fn mcp_read_message() -> String:
+    return read_line()
+
+// Write one JSON-RPC message to stdout.  Appends newline, flushes.
+// The message MUST be compact single-line JSON with no embedded newlines.
+pub fn mcp_write_message(msg: String) -> Unit:
+    stdout_write(msg + "\n")
+
+// Serialize a JsonObject and write it to stdout as a JSON-RPC message.
+pub fn mcp_write_response(obj: JsonObject) -> Unit:
+    mcp_write_message(json_stringify(obj))
+
+// ===========================================================================
+//  Logging (all output goes to STDERR — never touches stdout)
+// ===========================================================================
+
+pub const MCP_LOG_DEBUG:     String = "debug"
+pub const MCP_LOG_INFO:      String = "info"
+pub const MCP_LOG_NOTICE:    String = "notice"
+pub const MCP_LOG_WARNING:   String = "warning"
+pub const MCP_LOG_ERROR:     String = "error"
+pub const MCP_LOG_CRITICAL:  String = "critical"
+pub const MCP_LOG_ALERT:     String = "alert"
+pub const MCP_LOG_EMERGENCY: String = "emergency"
+
+pub fn mcp_log(level: String, message: String) -> Unit:
+    stderr_write("[mcp:" + level + "] " + message + "\n")
+
+pub fn mcp_debug(msg: String) -> Unit:
+    mcp_log(MCP_LOG_DEBUG, msg)
+
+pub fn mcp_info(msg: String) -> Unit:
+    mcp_log(MCP_LOG_INFO, msg)
+
+pub fn mcp_warn(msg: String) -> Unit:
+    mcp_log(MCP_LOG_WARNING, msg)
+
+pub fn mcp_error_log(msg: String) -> Unit:
+    mcp_log(MCP_LOG_ERROR, msg)
+
+// ===========================================================================
+//  Reference stdio event loop (batteries-included)
+// ===========================================================================
+
+// Run a complete MCP stdio server.  Blocks until stdin EOF.
+//
+// The server handles: initialize, ping, tools/list.
+// tools/call is STUBBED — the caller must replace the dispatch in their own
+// loop, or use the manual dispatch API below.
+//
+// Returns 0 on clean shutdown, non-zero on fatal error.
+pub fn mcp_run_stdio(server: McpServer, tools: Array<McpToolDef>) -> Int:
+    var running = true
+    var initialized = false
+
+    mcp_info(server.name + " v" + server.version + " starting (" +
+             to_string(len(tools)) + " tools registered)")
+
+    while running:
+        let line = read_line()
+        if line == "":
+            mcp_info("stdin closed — shutting down")
+            running = false
+            continue
+
+        let request = json_parse_text(line)
+        let kind = json_value_kind_code(request)
+        if kind != MCP_KIND_OBJECT:
+            mcp_warn("non-object JSON on stdin — ignoring")
+            continue
+
+        let req_obj = request  // JsonValue as JsonObject (same underlying type)
+
+        let method_res = json_get_string(req_obj, "method")
+        let method = method_res.value
+        let has_id = json_has_key(req_obj, "id")
+        var id_val: JsonValue = json_parse_text("null")
+        if has_id:
+            id_val = json_get_value(req_obj, "id")
+
+        // ---- initialize ----
+        if method == "initialize":
+            mcp_info("initialize request")
+            let result = mcp_build_initialize_result(
+                server,
+                len(tools) > 0,   // tools capability if we have tools
+                false,             // resources: not yet
+                false,             // prompts: not yet
+                true               // logging: always
+            )
+            mcp_write_response(mcp_build_response(id_val, result))
+            initialized = true
+
+        // ---- notifications/initialized ----
+        else:
+            if method == "notifications/initialized":
+                mcp_info("client ready — entering operation phase")
+                // notification — no response
+
+            // ---- ping ----
+            else:
+                if method == "ping":
+                    mcp_write_response(mcp_build_response(id_val, json_object()))
+
+                // ---- tools/list ----
+                else:
+                    if method == "tools/list":
+                        let tl = mcp_build_tools_list(tools)
+                        mcp_write_response(mcp_build_response(id_val, tl))
+
+                    // ---- tools/call (STUB — caller must override) ----
+                    else:
+                        if method == "tools/call":
+                            let stub_result = mcp_error_result(
+                                "Tool dispatch not configured. Use the manual dispatch API " +
+                                "(mcp_read_request / mcp_send_response) to wire your own handlers."
+                            )
+                            let cr = mcp_build_call_result(stub_result)
+                            mcp_write_response(mcp_build_response(id_val, cr))
+
+                        // ---- unknown method ----
+                        else:
+                            if method != "":
+                                mcp_warn("unknown method: " + method)
+                            if has_id and method != "":
+                                mcp_write_response(
+                                    mcp_build_error(id_val, MCP_ERROR_METHOD_NOT_FOUND,
+                                        "Method not found: " + method)
+                                )
+
+    mcp_info("server stopped")
+    return 0
+
+// ===========================================================================
+//  Manual dispatch API (for custom tool routing)
+// ===========================================================================
+
+// Read and parse one request.  Returns McpRequest with method/id/params extracted.
+// On EOF or parse failure, method will be "".
+pub fn mcp_read_request() -> McpRequest:
+    let line = read_line()
+    var req_obj: JsonObject = json_object()
+    var method = ""
+    var has_id = false
+    var id_val: JsonValue = json_parse_text("null")
+    var params_val: JsonValue = json_parse_text("null")
+
+    if line != "":
+        let parsed = json_parse_text(line)
+        if json_value_kind_code(parsed) == MCP_KIND_OBJECT:
+            req_obj = parsed
+            let mr = json_get_string(req_obj, "method")
+            method = mr.value
+            has_id = json_has_key(req_obj, "id")
+            if has_id:
+                id_val = json_get_value(req_obj, "id")
+            if json_has_key(req_obj, "params"):
+                params_val = json_get_value(req_obj, "params")
+
+    return McpRequest {
+        raw_json: line,
+        method: method,
+        has_id: has_id,
+        id_value: id_val,
+        params_value: params_val,
+        request_obj: req_obj
+    }
+
+// Send a success response for a request.
+pub fn mcp_send_response(req: McpRequest, result: JsonObject) -> Unit:
+    if req.has_id:
+        mcp_write_response(mcp_build_response(req.id_value, result))
+
+// Send an error response for a request.
+pub fn mcp_send_error(req: McpRequest, code: Int, message: String) -> Unit:
+    if req.has_id:
+        mcp_write_response(mcp_build_error(req.id_value, code, message))
+
+// Check if a request is the "initialize" method.
+pub fn mcp_is_initialize(req: McpRequest) -> Bool:
+    return req.method == "initialize"
+
+// Check if a request is the "tools/list" method.
+pub fn mcp_is_tools_list(req: McpRequest) -> Bool:
+    return req.method == "tools/list"
+
+// Check if a request is the "tools/call" method.
+pub fn mcp_is_tools_call(req: McpRequest) -> Bool:
+    return req.method == "tools/call"
+
+// Check if a request is the "ping" method.
+pub fn mcp_is_ping(req: McpRequest) -> Bool:
+    return req.method == "ping"
+
+// Check if a request is a notification (no id field).
+pub fn mcp_is_notification(req: McpRequest) -> Bool:
+    return req.has_id == false and req.method != ""
+
+// Check if the request is an EOF/disconnect (empty method, empty raw_json).
+pub fn mcp_is_eof(req: McpRequest) -> Bool:
+    return req.raw_json == ""
+
+// ===========================================================================
+//  Parameter extraction helpers (for tools/call dispatch)
+// ===========================================================================
+
+// Extract the tool name from a tools/call request params.
+pub fn mcp_tool_call_name(req: McpRequest) -> String:
+    if json_has_key(req.request_obj, "params"):
+        let params_val = json_get_value(req.request_obj, "params")
+        if json_value_kind_code(params_val) == MCP_KIND_OBJECT:
+            let name_res = json_get_string(params_val, "name")
+            return name_res.value
+    return ""
+
+// Extract the tool arguments from a tools/call request params.
+// Returns a JsonObject (empty object if extraction fails).
+pub fn mcp_tool_call_args(req: McpRequest) -> JsonObject:
+    if json_has_key(req.request_obj, "params"):
+        let params_val = json_get_value(req.request_obj, "params")
+        if json_value_kind_code(params_val) == MCP_KIND_OBJECT:
+            if json_has_key(params_val, "arguments"):
+                let args_val = json_get_value(params_val, "arguments")
+                if json_value_kind_code(args_val) == MCP_KIND_OBJECT:
+                    return args_val
+    return json_object()
+
+// ===========================================================================
+//  Internal: string parsers (no dependency on std::math etc.)
+// ===========================================================================
+
+fn mcp_str_to_int(s: String) -> Int:
+    var result: Int = 0
+    var sign: Int = 1
+    var i: Int = 0
+    var started = false
+    if len(s) == 0:
+        return 0
+    while i < len(s):
+        let ch = char_at(s, i)
+        if ch == "-" and started == false:
+            sign = -1
+            started = true
+        else:
+            if ch >= "0" and ch <= "9":
+                result = result * 10 + (ord(ch) - 48)
+                started = true
+        i = i + 1
+    return result * sign
+
+fn mcp_str_to_float(s: String) -> Float:
+    var whole: Float = 0.0
+    var frac: Float = 0.0
+    var divisor: Float = 1.0
+    var sign: Float = 1.0
+    var in_frac = false
+    var i: Int = 0
+    var started = false
+    if len(s) == 0:
+        return 0.0
+    while i < len(s):
+        let ch = char_at(s, i)
+        if ch == "-" and started == false:
+            sign = -1.0
+            started = true
+        else:
+            if ch == ".":
+                in_frac = true
+            else:
+                if ch >= "0" and ch <= "9":
+                    let d = Float(ord(ch) - 48)
+                    if in_frac:
+                        divisor = divisor * 10.0
+                        frac = frac * 10.0 + d
+                    else:
+                        whole = whole * 10.0 + d
+                    started = true
+        i = i + 1
+    if divisor > 1.0:
+        whole = whole + frac / divisor
+    return whole * sign

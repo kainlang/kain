@@ -12,6 +12,7 @@ tidus/
 
 /research
 research/
+scratch/*
 /.zarchive/
 /smoketest/3D/
 reference/

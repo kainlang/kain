@@ -1,0 +1,173 @@
+# ── Kain Effect Error Codes ────────────────────────────────────────────
+# Effect system: Pure, IO, async, Async, GPU, Reactive, Unsafe.
+
+[[diagnostics]]
+code = "KAIN-EFFECT-0001"
+title = "Effect Violation"
+severity = "error"
+docs_key = "effects/violation"
+help = """
+A function or block performs an operation that is not permitted by its
+declared effect annotation. The effect system tracks side-effect
+capabilities (IO, GPU, async, etc.) and ensures they are explicitly
+declared.
+
+Fix: either add the required effect annotation to the enclosing function,
+or move the violating operation behind a compatible effect boundary.
+"""
+see_also = ["KAIN-EFFECT-0002"]
+
+[[diagnostics]]
+code = "KAIN-EFFECT-0002"
+title = "Missing Effect Capability"
+severity = "error"
+docs_key = "effects/missing-capability"
+help = """
+A function is annotated with an effect (e.g., `GPU`) but the caller
+does not have that capability in its own effect set. Effect capabilities
+flow upward — callers must declare at least the effects of their callees.
+
+Fix: propagate the effect annotation to the caller, or gate the call
+behind a `capability` check.
+"""
+see_also = ["KAIN-EFFECT-0001", "KAIN-EFFECT-0005"]
+
+[[diagnostics]]
+code = "KAIN-EFFECT-0003"
+title = "Effect Polymorphism Mismatch"
+severity = "error"
+docs_key = "effects/polymorphism-mismatch"
+help = """
+A generic effect-polymorphic function was instantiated with effect
+parameters that conflict. Effect variables must unify consistently
+across all call sites.
+
+Fix: align the effect parameters or make the function more permissive.
+"""
+
+[[diagnostics]]
+code = "KAIN-EFFECT-0004"
+title = "Pure Function With Side Effect"
+severity = "error"
+docs_key = "effects/pure-side-effect"
+help = """
+A function annotated `Pure` (or implicitly pure by default) contains an
+operation with observable side effects (IO, mutation of shared state,
+GPU dispatch, async scheduling).
+
+Fix: remove the side effect, or change the annotation to the appropriate
+effect (e.g., `IO`, `GPU`).
+"""
+example_bad = "Pure fn compute: {\n    print(\"hello\")\n}"
+example_good = "IO fn compute: {\n    print(\"hello\")\n}"
+
+[[diagnostics]]
+code = "KAIN-EFFECT-0005"
+title = "Capability Gate Failure"
+severity = "error"
+docs_key = "effects/capability-gate"
+help = """
+A `capability` check guards access to an effect-gated operation, but
+the required capability is not available at the call site. Capabilities
+are intrinsic permissions granted by the runtime or platform.
+
+Fix: acquire the needed capability before the gate, or restructure the
+code to run in a context where the capability is present.
+"""
+see_also = ["KAIN-EFFECT-0002"]
+
+[[diagnostics]]
+code = "KAIN-EFFECT-0006"
+title = "Async In Sync Context"
+severity = "error"
+docs_key = "effects/async-in-sync"
+help = """
+An `async` function or `await` expression appears in a non-async context
+that cannot suspend. Async can only be called from other async contexts
+or from an async runtime entry point.
+
+Fix: mark the enclosing function `async` or use a blocking adapter.
+"""
+see_also = ["KAIN-EFFECT-0007"]
+
+[[diagnostics]]
+code = "KAIN-EFFECT-0007"
+title = "Await Outside Async"
+severity = "error"
+docs_key = "effects/await-outside-async"
+help = """
+`await` was used in a function that is not marked `async`. Only async
+functions can suspend at await points.
+
+Fix: add the `async` annotation to the enclosing function.
+"""
+example_bad = "fn fetch: {\n    await http.get(\"...\")\n}"
+example_good = "async fn fetch: {\n    await http.get(\"...\")\n}"
+
+[[diagnostics]]
+code = "KAIN-EFFECT-0008"
+title = "GPU Effect In Host Context"
+severity = "error"
+docs_key = "effects/gpu-in-host"
+help = """
+A function annotated `GPU` (or containing GPU intrinsics) is being
+called from a host-only context without GPU dispatch capability.
+
+Fix: wrap the call in a `shader` or `compute` block, or use a GPU
+dispatch primitive.
+"""
+see_also = ["KAIN-SHADER-0001"]
+
+[[diagnostics]]
+code = "KAIN-EFFECT-0009"
+title = "Reactive Cycle Detected"
+severity = "error"
+docs_key = "effects/reactive-cycle"
+help = """
+Reactive state dependencies form a cycle. The reactive runtime cannot
+resolve circular update chains.
+
+Fix: break the cycle by introducing an explicit delay, a `decay`
+transition, or restructuring to a directed acyclic graph.
+"""
+see_also = ["KAIN-STATE-0003"]
+
+[[diagnostics]]
+code = "KAIN-EFFECT-0010"
+title = "Unsafe Block Not Allowed"
+severity = "error"
+docs_key = "effects/unsafe-disallowed"
+help = """
+An `Unsafe` block or function is prohibited by the current compilation
+profile or security policy. Some Kain targets (e.g., web, sandboxed
+runtimes) disallow unsafe operations entirely.
+
+Fix: remove the unsafe block, or change the compilation target.
+"""
+
+[[diagnostics]]
+code = "KAIN-EFFECT-0011"
+title = "Effect Leakage Through Public API"
+severity = "warning"
+docs_key = "effects/public-leakage"
+help = """
+A `pub` function exposes an effect annotation that may be an
+implementation detail. Public APIs should use effect polymorphism or
+explicitly document the required capabilities.
+
+Fix: consider making the function effect-polymorphic or hiding the
+effect behind a trait abstraction.
+"""
+
+[[diagnostics]]
+code = "KAIN-EFFECT-0012"
+title = "Conflicting Effect Annotations"
+severity = "error"
+docs_key = "effects/conflicting"
+help = """
+Multiple effect annotations on the same item conflict (e.g., marking a
+function both `Pure` and `IO`).
+
+Fix: choose the single correct annotation. If the function does both pure
+computation and IO, it is `IO` (IO subsumes pure computation).
+"""

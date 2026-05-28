@@ -1,0 +1,83 @@
+# ── Kain Test/Spec Error Codes ─────────────────────────────────────────
+# test, spec, fast, verify, random, jitter.
+
+[[diagnostics]]
+code = "KAIN-TEST-0001"
+title = "Test Error"
+severity = "error"
+docs_key = "test/general"
+help = "A test or specification framework invariant has been violated."
+
+[[diagnostics]]
+code = "KAIN-TEST-0002"
+title = "Assertion Failed"
+severity = "error"
+docs_key = "test/assertion-failed"
+help = """
+An `assert` expression evaluated to `false` inside a `test` or `spec`
+block. The condition is not satisfied for the given inputs.
+
+Fix: correct the code or adjust the test expectation.
+"""
+
+[[diagnostics]]
+code = "KAIN-TEST-0003"
+title = "Spec Property Violated"
+severity = "error"
+docs_key = "test/spec-violated"
+help = """
+A `spec` block defines a property that does not hold. The property was
+falsified by a counterexample found through `random` or `jitter` testing.
+
+Fix: correct the implementation or narrow the spec to match the intended
+behavior.
+"""
+
+[[diagnostics]]
+code = "KAIN-TEST-0004"
+title = "Fast Test Exceeded Time Budget"
+severity = "warning"
+docs_key = "test/fast-timeout"
+help = """
+A `fast` test exceeded its time budget. Fast tests should complete in
+under 1ms — this test may be too heavy for the fast suite.
+
+Fix: move the test to the standard suite or optimize the test body.
+"""
+
+[[diagnostics]]
+code = "KAIN-TEST-0005"
+title = "Verify Block Infallible"
+severity = "warning"
+docs_key = "test/verify-infallible"
+help = """
+A `verify` block can never fail — its condition is always true. This
+may indicate a missing check or an over-constrained spec.
+
+Fix: check that the verify condition is actually testing something
+meaningful.
+"""
+
+[[diagnostics]]
+code = "KAIN-TEST-0006"
+title = "Random Seed Not Reproducible"
+severity = "warning"
+docs_key = "test/seed-missing"
+help = """
+`random` testing is used without an explicit seed. Failing runs may not
+be reproducible. Add a seed for deterministic replay.
+
+Fix: set a seed value or use `--test-seed` to capture the failing seed.
+"""
+
+[[diagnostics]]
+code = "KAIN-TEST-0007"
+title = "Jitter Range Invalid"
+severity = "error"
+docs_key = "test/jitter-range"
+help = """
+`jitter` specifies an invalid timing perturbation range. Jitter bounds
+must be non-negative and within the test's timing tolerance.
+
+Fix: adjust the jitter range to valid values.
+"""

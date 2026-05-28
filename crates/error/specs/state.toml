@@ -1,0 +1,101 @@
+# ── Kain State Machine Error Codes ─────────────────────────────────────
+# state, every, when, guarantee, fallback, pulse.
+
+[[diagnostics]]
+code = "KAIN-STATE-0001"
+title = "State Error"
+severity = "error"
+docs_key = "state/general"
+help = "A state machine well-formedness rule has been violated."
+
+[[diagnostics]]
+code = "KAIN-STATE-0002"
+title = "State Machine Inexhaustive"
+severity = "error"
+docs_key = "state/inexhaustive"
+help = """
+A `state` machine does not handle all possible transitions. Every state
+must have a defined transition for every possible input event, or a
+`fallback` handler must be present.
+
+Fix: add missing `when` clauses or a `fallback` handler.
+"""
+see_also = ["KAIN-TYPE-0013"]
+
+[[diagnostics]]
+code = "KAIN-STATE-0003"
+title = "State Transition Cycle"
+severity = "error"
+docs_key = "state/cycle"
+help = """
+State transitions form a directed cycle without an escape path. The
+state machine may loop indefinitely — every cycle should have a
+reachable terminal state or a `decay` path.
+
+Fix: add an exit condition, a `guarantee` of termination, or a decay
+transition out of the cycle.
+"""
+see_also = ["KAIN-EFFECT-0009"]
+
+[[diagnostics]]
+code = "KAIN-STATE-0004"
+title = "Invalid State Transition"
+severity = "error"
+docs_key = "state/invalid-transition"
+help = """
+A `when` clause references a target state that does not exist in the
+state machine definition.
+
+Fix: ensure the target state is declared.
+"""
+see_also = ["KAIN-STATE-0002"]
+
+[[diagnostics]]
+code = "KAIN-STATE-0005"
+title = "Pulse Without State"
+severity = "error"
+docs_key = "state/pulse-no-state"
+help = """
+`pulse` triggers a state machine event, but the target component does
+not have an active state machine or the state machine does not handle
+the pulsed event.
+
+Fix: ensure the target has a state machine that handles the event.
+"""
+
+[[diagnostics]]
+code = "KAIN-STATE-0006"
+title = "Guarantee Violation"
+severity = "error"
+docs_key = "state/guarantee-violation"
+help = """
+A `guarantee` clause asserts a property that does not hold. Guarantees
+are verified statically, and this one cannot be proven by the compiler.
+
+Fix: strengthen the precondition or weaken the guarantee, or restructure
+the code to make the property provable.
+"""
+
+[[diagnostics]]
+code = "KAIN-STATE-0007"
+title = "Every Clause Unbounded"
+severity = "warning"
+docs_key = "state/every-unbounded"
+help = """
+An `every` clause defines a periodic behavior without an upper bound or
+termination condition. This may run indefinitely.
+
+Fix: add a termination guard or a bound on the iteration count.
+"""
+
+[[diagnostics]]
+code = "KAIN-STATE-0008"
+title = "Fallback Handler Unreachable"
+severity = "warning"
+docs_key = "state/fallback-unreachable"
+help = """
+A `fallback` handler is declared but all possible events are already
+explicitly handled by `when` clauses. The fallback is dead code.
+
+Fix: remove the unnecessary fallback or ensure it covers a real case.
+"""

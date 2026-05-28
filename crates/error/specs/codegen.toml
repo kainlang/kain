@@ -1,0 +1,142 @@
+# ── Kain Codegen Error Codes ───────────────────────────────────────────
+# Code generation, lowering, backend compilation, linking.
+
+[[diagnostics]]
+code = "KAIN-CODEGEN-0001"
+title = "Codegen Error"
+severity = "error"
+docs_key = "codegen/general"
+help = "A code generation or lowering pass failed."
+see_also = ["KAIN-CODEGEN-0002"]
+
+[[diagnostics]]
+code = "KAIN-CODEGEN-0002"
+title = "Unknown Codegen Variable"
+severity = "error"
+docs_key = "codegen/unknown-variable"
+help = """
+The lowered backend could not find a value for this symbol. The frontend
+may have accepted invalid code, or a lowering pass lost a binding.
+
+Fix: check whether the frontend should have rejected this earlier or
+whether the lowering pass dropped the binding.
+"""
+
+[[diagnostics]]
+code = "KAIN-CODEGEN-0003"
+title = "Lowering Pass Failed"
+severity = "error"
+docs_key = "codegen/lowering-failed"
+help = """
+An IR lowering pass could not transform the intermediate representation.
+This typically occurs when a Kain construct has no direct lowering path
+to the target backend.
+
+Fix: simplify the construct or add a lowering rule for the target.
+"""
+
+[[diagnostics]]
+code = "KAIN-CODEGEN-0004"
+title = "Backend Compilation Failed"
+severity = "error"
+docs_key = "codegen/backend-failed"
+help = """
+The native code backend (LLVM, C, or target-specific compiler) could not
+compile the generated code. Check the backend compiler output for
+specifics.
+
+Fix: check target compatibility, reduce optimization level, or simplify
+the generated code.
+"""
+
+[[diagnostics]]
+code = "KAIN-CODEGEN-0005"
+title = "Linking Failed"
+severity = "error"
+docs_key = "codegen/linking-failed"
+help = """
+The linker could not resolve all symbols or encountered a conflict.
+This may indicate missing libraries, duplicate symbols, or
+target-incompatible object files.
+
+Fix: check library paths, symbol names, and target architecture.
+"""
+
+[[diagnostics]]
+code = "KAIN-CODEGEN-0006"
+title = "Unsupported Target Architecture"
+severity = "error"
+docs_key = "codegen/unsupported-target"
+help = """
+The specified compilation target (CPU architecture, OS, GPU, or runtime)
+is not supported by the current Kain backend configuration.
+
+Fix: choose a supported target or enable the required backend feature.
+"""
+see_also = ["KAIN-CODEGEN-0007"]
+
+[[diagnostics]]
+code = "KAIN-CODEGEN-0007"
+title = "Target Capability Missing"
+severity = "error"
+docs_key = "codegen/capability-missing"
+help = """
+The code uses a `target` or `capability` that the current compilation
+target does not provide. Capabilities are feature-gated by the target
+specification.
+
+Fix: guard the capability-dependent code with `if capability(...)` or
+change the compilation target.
+"""
+
+[[diagnostics]]
+code = "KAIN-CODEGEN-0008"
+title = "Foreign ABI Mismatch"
+severity = "error"
+docs_key = "codegen/foreign-abi-mismatch"
+help = """
+A foreign function interface (FFI) declaration does not match the actual
+symbol in the linked library. Type layouts, calling conventions, or
+symbol names may differ.
+
+Fix: align the Kain FFI declaration with the native library's ABI.
+"""
+
+[[diagnostics]]
+code = "KAIN-CODEGEN-0009"
+title = "Codegen Intrinsic Not Found"
+severity = "error"
+docs_key = "codegen/intrinsic-not-found"
+help = """
+A compiler intrinsic required by the generated code is not available
+for the target platform. Some intrinsics are platform-specific.
+
+Fix: use a portable alternative or add a platform-specific
+implementation.
+"""
+
+[[diagnostics]]
+code = "KAIN-CODEGEN-0010"
+title = "Optimization Pass Failed"
+severity = "warning"
+docs_key = "codegen/optimization-failed"
+help = """
+An optimization pass encountered an unexpected IR state and was skipped.
+The generated code is correct but may be slower than optimal.
+
+Fix: this is typically a compiler bug — report the issue with a
+reproduction.
+"""
+
+[[diagnostics]]
+code = "KAIN-CODEGEN-0011"
+title = "Codegen Budget Exceeded"
+severity = "error"
+docs_key = "codegen/budget-exceeded"
+help = """
+Code generation exceeded a resource budget (time, memory, or output
+size limit). The generated code is too large or complex for the target.
+
+Fix: split the compilation unit, reduce inlining, or increase the budget
+via compiler flags.
+"""

@@ -1,0 +1,161 @@
+# ── Kain Shader/GPU Error Codes ────────────────────────────────────────
+# Shader blocks, compute kernels, vertex/fragment stages, GPU intrinsics.
+
+[[diagnostics]]
+code = "KAIN-SHADER-0001"
+title = "Unsupported Shader Call"
+severity = "error"
+docs_key = "shader/unsupported-call"
+help = """
+A function or intrinsic is not available in the current shader stage.
+Different shader stages (vertex, fragment, compute) expose different
+intrinsic sets.
+
+Fix: replace the call with a supported shader intrinsic or move the
+computation to a compatible stage.
+"""
+see_also = ["KAIN-SHADER-0002"]
+
+[[diagnostics]]
+code = "KAIN-SHADER-0002"
+title = "Shader Stage Mismatch"
+severity = "error"
+docs_key = "shader/stage-mismatch"
+help = """
+A value or operation that is only valid in one shader stage is being
+used in a different stage. For example, vertex inputs cannot be
+accessed from a fragment shader directly.
+
+Fix: pass data through the appropriate stage interface (varying
+parameters, uniform buffers, or shared memory).
+"""
+
+[[diagnostics]]
+code = "KAIN-SHADER-0003"
+title = "Uniform Binding Error"
+severity = "error"
+docs_key = "shader/uniform-binding"
+help = """
+A `uniform` declaration cannot be bound — the name conflicts with an
+existing binding, the type is not GPU-compatible, or the binding slot
+is already occupied.
+
+Fix: use a unique binding name, ensure the type is GPU-compatible, and
+check for slot conflicts.
+"""
+
+[[diagnostics]]
+code = "KAIN-SHADER-0004"
+title = "Compute Dispatch Dimension Error"
+severity = "error"
+docs_key = "shader/compute-dispatch"
+help = """
+A `compute` block specifies invalid dispatch dimensions. Compute shaders
+require explicit thread group dimensions that must be positive and
+within platform limits.
+
+Fix: provide valid thread group counts within the platform's
+maxComputeWorkGroupSize limits.
+"""
+
+[[diagnostics]]
+code = "KAIN-SHADER-0005"
+title = "Shader Resource Not GPU-Compatible"
+severity = "error"
+docs_key = "shader/resource-compat"
+help = """
+A resource (texture, buffer, sampler) used in a shader has a type or
+format that is not supported by the GPU backend.
+
+Fix: use a GPU-compatible format or convert the resource before binding.
+"""
+
+[[diagnostics]]
+code = "KAIN-SHADER-0006"
+title = "Vertex Input Layout Error"
+severity = "error"
+docs_key = "shader/vertex-input"
+help = """
+A `vertex` shader's input layout does not match the mesh or buffer
+providing vertex data. Input attributes must agree in type, offset,
+and count.
+
+Fix: align the vertex input declaration with the mesh data layout.
+"""
+
+[[diagnostics]]
+code = "KAIN-SHADER-0007"
+title = "Fragment Output Layout Error"
+severity = "error"
+docs_key = "shader/fragment-output"
+help = """
+A `fragment` shader's output does not match the render target format.
+Output color/depth attachments must have compatible pixel formats.
+
+Fix: match the fragment output type to the render target configuration.
+"""
+
+[[diagnostics]]
+code = "KAIN-SHADER-0008"
+title = "Collapse Target Invalid"
+severity = "error"
+docs_key = "shader/collapse-invalid"
+help = """
+`collapse` reduces a parallel computation into a scalar, but the
+reduction target or operator is not valid for the current shader model.
+
+Fix: ensure the reduction operator is supported and the target type is
+scalar-compatible.
+"""
+
+[[diagnostics]]
+code = "KAIN-SHADER-0009"
+title = "Fanout Width Exceeded"
+severity = "error"
+docs_key = "shader/fanout-width"
+help = """
+`fanout` distributes work across parallel lanes, but the fanout width
+exceeds the GPU's wavefront/warp size or thread group limit.
+
+Fix: reduce the fanout width or split across multiple waves.
+"""
+
+[[diagnostics]]
+code = "KAIN-SHADER-0010"
+title = "Shader Compilation Failed"
+severity = "error"
+docs_key = "shader/compilation"
+help = """
+The shader backend (HLSL/SPIR-V/Metal) could not compile the generated
+shader code. This usually indicates the Kain lowering produced invalid
+target code — check the shader output log for details.
+
+Fix: simplify the shader code, check for target-specific restrictions,
+or report the issue with the generated shader source.
+"""
+
+[[diagnostics]]
+code = "KAIN-SHADER-0011"
+title = "GPU Memory Budget Exceeded"
+severity = "error"
+docs_key = "shader/memory-budget"
+help = """
+The shader uses more GPU memory (registers, shared memory, constant
+buffers) than the target hardware allows.
+
+Fix: reduce register pressure by simplifying the shader, splitting into
+multiple passes, or lowering the occupancy target.
+"""
+
+[[diagnostics]]
+code = "KAIN-SHADER-0012"
+title = "Shared Memory Bank Conflict"
+severity = "warning"
+docs_key = "shader/bank-conflict"
+help = """
+`share` memory access pattern may cause GPU shared memory bank
+conflicts, reducing throughput. Reorganize data layout to avoid
+concurrent access to the same bank.
+
+Fix: pad shared memory arrays or restructure access patterns.
+"""

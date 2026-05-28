@@ -1,0 +1,99 @@
+# ── Kain Component/Actor Error Codes ───────────────────────────────────
+# Components, actors, spawn, send, receive, emit, observe, decay, on.
+
+[[diagnostics]]
+code = "KAIN-ACTOR-0001"
+title = "Component/Actor Error"
+severity = "error"
+docs_key = "actor/general"
+help = "A component or actor system invariant has been violated."
+
+[[diagnostics]]
+code = "KAIN-ACTOR-0002"
+title = "Actor Spawn Failed"
+severity = "error"
+docs_key = "actor/spawn-failed"
+help = """
+`spawn` could not create the actor or component. Common causes:
+- The target world does not exist or has been torn down.
+- The actor type is not registered with the world.
+- Resource limits have been exceeded.
+
+Fix: ensure the world is alive and the actor type is registered.
+"""
+
+[[diagnostics]]
+code = "KAIN-ACTOR-0003"
+title = "Send To Invalid Actor"
+severity = "error"
+docs_key = "actor/send-invalid"
+help = """
+`send` targets an actor that does not exist, has been destroyed, or
+does not accept messages of the given type.
+
+Fix: check that the target actor is alive and handles the message type.
+"""
+see_also = ["KAIN-BORROW-0009"]
+
+[[diagnostics]]
+code = "KAIN-ACTOR-0004"
+title = "Receive Handler Missing"
+severity = "error"
+docs_key = "actor/receive-missing"
+help = """
+An actor or component receives messages but does not have a `receive`
+handler for one or more of the message types sent to it.
+
+Fix: add a `receive` block for the unhandled message type.
+"""
+
+[[diagnostics]]
+code = "KAIN-ACTOR-0005"
+title = "Emit Without Listener"
+severity = "warning"
+docs_key = "actor/emit-no-listener"
+help = """
+`emit` sends an event, but no component or actor is `observe`-ing the
+event. The emission has no effect.
+
+Fix: add an observer for the event, or remove the dead emit.
+"""
+
+[[diagnostics]]
+code = "KAIN-ACTOR-0006"
+title = "Decay Transition Invalid"
+severity = "error"
+docs_key = "actor/decay-invalid"
+help = """
+A `decay` state transition targets an invalid state or occurs in a
+context where decay is not meaningful.
+
+Fix: ensure the decay target state exists in the state machine.
+"""
+see_also = ["KAIN-STATE-0004"]
+
+[[diagnostics]]
+code = "KAIN-ACTOR-0007"
+title = "Component Lifecycle Violation"
+severity = "error"
+docs_key = "actor/lifecycle-violation"
+help = """
+An operation on a component is invalid for its current lifecycle stage.
+Components have distinct phases: created, active, decaying, destroyed.
+Operations must align with the current phase.
+
+Fix: check the component lifecycle phase before the operation.
+"""
+
+[[diagnostics]]
+code = "KAIN-ACTOR-0008"
+title = "On Handler Duplicate"
+severity = "error"
+docs_key = "actor/on-duplicate"
+help = """
+Multiple `on` handlers are registered for the same event on the same
+actor or component. Only one handler per event type is allowed per
+component.
+
+Fix: consolidate the handlers or use different event types.
+"""

@@ -1,0 +1,108 @@
+# ── Kain Memory Error Codes ────────────────────────────────────────────
+# Memory layout, pointers, bitfields, alignment, address spaces.
+
+[[diagnostics]]
+code = "KAIN-MEM-0001"
+title = "Memory Lowering Required"
+severity = "error"
+docs_key = "memory/lowering"
+help = """
+The code uses raw memory semantics (pointers, bitfields, etc.) but no
+lowering policy has been selected for the target backend.
+
+Fix: add a lowering policy or select a backend with native memory
+support.
+"""
+
+[[diagnostics]]
+code = "KAIN-MEM-0002"
+title = "Memory Semantics Unsupported By Backend"
+severity = "error"
+docs_key = "memory/backend-capabilities"
+help = """
+The backend does not support the memory operations used in this code
+(e.g., raw pointers on a GPU target, or bitfield addressing on WASM).
+
+Fix: choose a compatible backend or lower the memory operations.
+"""
+see_also = ["KAIN-MEM-0001"]
+
+[[diagnostics]]
+code = "KAIN-MEM-0003"
+title = "Illegal Bitfield Address"
+severity = "error"
+docs_key = "memory/bitfields"
+help = """
+Taking the address of a C-compatible bitfield is not allowed. Bitfields
+may not occupy whole bytes and do not have stable addresses.
+
+Fix: lower the bitfield access into load/store/mask operations.
+"""
+
+[[diagnostics]]
+code = "KAIN-MEM-0004"
+title = "Memory Layout Overflow"
+severity = "error"
+docs_key = "memory/layout-overflow"
+help = """
+The computed memory layout for a type exceeds the maximum representable
+size or alignment for the target address space (32-bit vs 64-bit).
+
+Fix: reduce the aggregate size, split the layout, or use a 64-bit target.
+"""
+
+[[diagnostics]]
+code = "KAIN-MEM-0005"
+title = "Alignment Requirement Not Satisfied"
+severity = "error"
+docs_key = "memory/alignment"
+help = """
+A value requires a stricter alignment than the allocated memory
+provides. This can cause undefined behavior on some platforms.
+
+Fix: increase the allocation alignment or use an unaligned access
+primitive if the platform supports it.
+"""
+
+[[diagnostics]]
+code = "KAIN-MEM-0006"
+title = "Null Pointer Dereference"
+severity = "error"
+docs_key = "memory/null-deref"
+help = """
+A pointer that may be null is being dereferenced without a null check.
+Kain requires explicit null guards for nullable pointers.
+
+Fix: wrap the dereference in an `if ptr != none:` block or use the
+`?.` safe-access operator.
+"""
+example_bad = "let value = *ptr"
+example_good = "let value = ptr?.*value"
+
+[[diagnostics]]
+code = "KAIN-MEM-0007"
+title = "Out Of Bounds Access"
+severity = "error"
+docs_key = "memory/out-of-bounds"
+help = """
+An array or buffer access uses an index that is not provably within
+bounds. Kain requires bounds checks or proofs for all indexed access.
+
+Fix: add a bounds check before the access or use an iterator.
+"""
+example_bad = "let x = arr[100]"
+example_good = "if arr.len() > 100: let x = arr[100]"
+
+[[diagnostics]]
+code = "KAIN-MEM-0008"
+title = "Address Space Mismatch"
+severity = "error"
+docs_key = "memory/address-space"
+help = """
+A pointer in one address space (e.g., GPU global memory) is being used
+in a context that expects a different address space (e.g., GPU shared
+memory).
+
+Fix: use the correct address space qualifier or copy data to the
+expected space.
+"""

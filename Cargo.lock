@@ -3095,10 +3095,12 @@ dependencies = [
 
 [[package]]
 name = "kain-error"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
+ "once_cell",
+ "serde",
  "serde_json",
- "thiserror 1.0.69",
+ "toml",
  "unicode-width 0.1.14",
 ]
 

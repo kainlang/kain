@@ -1,0 +1,16 @@
+# ── Kain Validation Error Codes ─────────────────────────────────────────
+# Cross-pass validation and structural certification failures.
+
+[[diagnostics]]
+code = "KAIN-VALIDATE-0001"
+title = "Validation Error"
+severity = "error"
+docs_key = "validation/general"
+help = """
+A structural validation pass rejected the program. This is the generic
+validation fallback used when a later pass proves a construct is not
+well-formed even though parsing and basic typing succeeded.
+
+Fix: inspect the attached validation context and repair the violated
+invariant before lowering or runtime codegen continues.
+"""

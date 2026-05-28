@@ -1,0 +1,113 @@
+# ── Kain World/Surface Error Codes ─────────────────────────────────────
+# World declarations, surface projections, entanglement, teleportation.
+
+[[diagnostics]]
+code = "KAIN-WORLD-0001"
+title = "World Missing Surface"
+severity = "error"
+docs_key = "world/missing-surface"
+help = """
+A `world` block must contain at least one `surface` projection that maps
+Kain UI components to a rendering backend (native_ui, viewport3d, web,
+ue5).
+
+Fix: add at least one surface projection inside the world body.
+"""
+example_bad = "world MyWorld: {}"
+example_good = "world MyWorld:\n    surface native_ui => MainPanel"
+
+[[diagnostics]]
+code = "KAIN-WORLD-0002"
+title = "Duplicate Surface Kind"
+severity = "error"
+docs_key = "world/duplicate-surface"
+help = """
+Multiple surfaces of the same kind have been declared in one world. Each
+surface kind may only appear once per world.
+
+Fix: merge the surface projections or use separate worlds for different
+surface instances of the same kind.
+"""
+
+[[diagnostics]]
+code = "KAIN-WORLD-0003"
+title = "Surface Component Type Error"
+severity = "error"
+docs_key = "world/surface-component-type"
+help = """
+The type projected onto a surface must be a valid Kain `component` that
+implements the surface's rendering protocol. The supplied type is either
+not a component or does not satisfy the required trait bounds.
+
+Fix: ensure the projected type is a `component` with appropriate
+rendering implementations.
+"""
+
+[[diagnostics]]
+code = "KAIN-WORLD-0004"
+title = "World Orphan"
+severity = "error"
+docs_key = "world/orphan"
+help = """
+A `world` declaration is not referenced by any entry point, `spawn`
+site, or host embedding. Unreferenced worlds are dead code.
+
+Fix: spawn the world from a `main` function or export it for host
+consumption.
+"""
+
+[[diagnostics]]
+code = "KAIN-WORLD-0005"
+title = "Entanglement Target Invalid"
+severity = "error"
+docs_key = "world/entanglement-invalid"
+help = """
+`entangle` creates a bidirectional link between two components, but the
+target component does not exist in the world or does not support
+entanglement.
+
+Fix: ensure both components exist in the same world and implement the
+Entangle trait.
+"""
+see_also = ["KAIN-WORLD-0006"]
+
+[[diagnostics]]
+code = "KAIN-WORLD-0006"
+title = "Teleport Destination Invalid"
+severity = "error"
+docs_key = "world/teleport-invalid"
+help = """
+`teleport` moves a component to a different world or surface, but the
+destination world/surface does not exist or does not accept the
+component type.
+
+Fix: ensure the destination world is declared and accepts the component
+type being teleported.
+"""
+
+[[diagnostics]]
+code = "KAIN-WORLD-0007"
+title = "World Cross-Reference Cycle"
+severity = "error"
+docs_key = "world/cross-reference"
+help = """
+Two or more worlds reference each other in a way that creates a
+dependency cycle (e.g., through entanglement or teleport targets).
+
+Fix: break the cycle by introducing an intermediary or making one
+reference directional.
+"""
+
+[[diagnostics]]
+code = "KAIN-WORLD-0008"
+title = "Surface Kind Platform Mismatch"
+severity = "error"
+docs_key = "world/platform-mismatch"
+help = """
+A surface kind (e.g., `ue5`, `native_ui`) is not supported on the
+current compilation target or platform. Surface kinds are
+target-gated — `ue5` only works on UE5 host targets, `web` only on
+WASM/web targets.
+
+Fix: change the surface kind or the compilation target.
+"""

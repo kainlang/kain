@@ -1,14 +1,27 @@
+//! Source-file mapping: byte spans → line:column locations.
+//!
+//! `SpanMapper` is the bridge between the byte-offset world of the lexer/
+//! parser and the human-readable line:column world of diagnostics. It
+//! handles multi-file origins (e.g., expanded macros, included files) and
+//! Unicode display-width calculations for correct terminal highlight
+//! placement.
+
 use crate::span::Span;
 use std::path::Path;
 use unicode_width::UnicodeWidthStr;
 
-/// A source location using character columns and terminal display columns.
+/// A resolved source location with both character and display columns.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SourceLocation {
+    /// Canonical file path or synthetic name (e.g. `<comptime>`).
     pub file: String,
+    /// 1-based line number.
     pub line: usize,
+    /// 1-based character column (codepoints).
     pub col: usize,
+    /// 1-based display column (terminal cells, accounting for wide chars).
     pub display_col: usize,
+    /// Byte offset from the start of the file.
     pub offset: usize,
 }
 
@@ -30,6 +43,7 @@ impl SourceLocation {
     }
 }
 
+/// A contiguous range of source text with resolved start/end locations.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SourceRange {
     pub file: String,
@@ -37,10 +51,15 @@ pub struct SourceRange {
     pub end: SourceLocation,
 }
 
+/// Describes a segment of combined source that originated from a
+/// different file (e.g., a macro expansion or `include!`).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SourceOriginSegment {
+    /// Original file path.
     pub file: String,
+    /// Byte span in the combined source where this origin appears.
     pub combined_span: Span,
+    /// The original source text of this segment.
     pub source: String,
 }
 
@@ -53,7 +72,9 @@ struct MappedOriginSegment {
     line_starts: Vec<usize>,
 }
 
-/// Maps byte spans back to source files, lines, columns, and display widths.
+/// Maps byte spans back to source files, lines, columns, and display
+/// widths. Supports multi-origin combined sources (e.g., post-expansion
+/// or concatenated files).
 #[derive(Debug, Clone)]
 pub struct SpanMapper {
     source: String,
@@ -62,10 +83,12 @@ pub struct SpanMapper {
 }
 
 impl SpanMapper {
+    /// Create a mapper for a single source file.
     pub fn new(source: &str) -> Self {
         Self::with_origins(source, Vec::new())
     }
 
+    /// Create a mapper for a combined source with origin segments.
     pub fn with_origins(source: &str, origins: Vec<SourceOriginSegment>) -> Self {
         let line_starts = build_line_starts(source);
         let mapped_origins = origins
@@ -86,15 +109,18 @@ impl SpanMapper {
         }
     }
 
+    /// Resolve a span to a (location, line_content) pair.
     pub fn span_to_line_info(&self, span: Span, fallback_file: &str) -> (SourceLocation, &str) {
         let (range, line_content, _) = self.span_to_line_context(span, fallback_file);
         (range.start, line_content)
     }
 
+    /// Resolve a span to a `SourceLocation` (start only).
     pub fn span_to_location(&self, span: Span, fallback_file: &str) -> SourceLocation {
         self.span_to_range(span, fallback_file).start
     }
 
+    /// Resolve a span to a full `SourceRange`.
     pub fn span_to_range(&self, span: Span, fallback_file: &str) -> SourceRange {
         if let Some((origin, local_span)) = self.mapped_origin_for_span(span) {
             return range_from_source(
@@ -104,10 +130,10 @@ impl SpanMapper {
                 &origin.file,
             );
         }
-
         range_from_source(&self.source, &self.line_starts, span, fallback_file)
     }
 
+    /// Resolve a span to (range, line_content, local_span_within_line).
     pub fn span_to_line_context(
         &self,
         span: Span,
@@ -121,10 +147,12 @@ impl SpanMapper {
                 &origin.file,
             );
         }
-
         line_context_from_source(&self.source, &self.line_starts, span, fallback_file)
     }
 
+    /// Resolve a span to (range, line_content, display_offset, display_width).
+    /// The display offset/width account for Unicode wide characters so
+    /// terminal `^~~~` highlights align correctly.
     pub fn span_to_display_context(
         &self,
         span: Span,
@@ -144,11 +172,13 @@ impl SpanMapper {
         )
     }
 
+    /// Return the origin file for a span if it comes from an origin segment.
     pub fn span_origin_file(&self, span: Span) -> Option<&str> {
         self.mapped_origin_for_span(span)
             .map(|(origin, _)| origin.file.as_str())
     }
 
+    /// Check whether the mapper has an origin segment for the given file.
     pub fn has_origin_file(&self, file: &str) -> bool {
         let normalized_file = normalize_origin_file_key(file);
         self.origins
@@ -183,6 +213,8 @@ impl SpanMapper {
         })
     }
 }
+
+// ── Internal helpers ──────────────────────────────────────────────────
 
 fn build_line_starts(source: &str) -> Vec<usize> {
     let mut line_starts = vec![0];
@@ -282,6 +314,11 @@ fn line_context_from_source<'a>(
     (range, line_content, Span::new(local_start, local_end))
 }
 
+/// True when a filename is synthetic (e.g. `<comptime>`, `<macro>`).
+pub fn is_synthetic_filename(file: &str) -> bool {
+    file.starts_with('<') && file.ends_with('>')
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -298,9 +335,19 @@ mod tests {
     #[test]
     fn display_context_uses_terminal_width_for_highlight() {
         let mapper = SpanMapper::new("a🚀z");
-        let (_range, line, offset, width) = mapper.span_to_display_context(Span::new(1, 5), "x.kn");
+        let (_range, line, offset, width) =
+            mapper.span_to_display_context(Span::new(1, 5), "x.kn");
         assert_eq!(line, "a🚀z");
         assert_eq!(offset, 1);
         assert_eq!(width, 2);
+    }
+
+    #[test]
+    fn span_to_range_maps_entire_file() {
+        let source = "line1\nline2\nline3";
+        let mapper = SpanMapper::new(source);
+        let range = mapper.span_to_range(Span::new(0, source.len()), "test.kn");
+        assert_eq!(range.start.line, 1);
+        assert_eq!(range.end.line, 3);
     }
 }

@@ -1,0 +1,158 @@
+# ── Kain Borrow Error Codes ────────────────────────────────────────────
+# Ownership, borrowing, single_writer, weak references, shared state.
+
+[[diagnostics]]
+code = "KAIN-BORROW-0001"
+title = "Borrow Error"
+severity = "error"
+docs_key = "borrow/general"
+help = """
+A borrow-checking rule has been violated. Kain's ownership system
+enforces single-writer or multiple-reader semantics on shared state.
+"""
+see_also = ["KAIN-BORROW-0002", "KAIN-BORROW-0003"]
+
+[[diagnostics]]
+code = "KAIN-BORROW-0002"
+title = "Multiple Mutable Borrows"
+severity = "error"
+docs_key = "borrow/multiple-mutable"
+help = """
+A mutable reference to shared state overlaps with another active mutable
+or immutable reference. Kain enforces `single_writer` semantics — only
+one writer OR multiple readers may be active at a time.
+
+Fix: restructure the code so borrows do not overlap, or use an explicit
+scope to shorten one of the borrow lifetimes.
+"""
+example_bad = "let mut x = 0\nlet a = &mut x\nlet b = &mut x"
+example_good = "let mut x = 0\n{\n    let a = &mut x\n}\nlet b = &mut x"
+
+[[diagnostics]]
+code = "KAIN-BORROW-0003"
+title = "Borrow And Mutation Conflict"
+severity = "error"
+docs_key = "borrow/borrow-mutation-conflict"
+help = """
+A value is borrowed (either mutably or immutably) while a mutation
+occurs through another path. This violates the single-writer invariant.
+
+Fix: complete all borrows before mutating, or clone the value.
+"""
+see_also = ["KAIN-BORROW-0002"]
+
+[[diagnostics]]
+code = "KAIN-BORROW-0004"
+title = "Use After Move"
+severity = "error"
+docs_key = "borrow/use-after-move"
+help = """
+A value has been moved (ownership transferred) and is used afterwards.
+By default, Kain moves values into function arguments, assignments, and
+return positions.
+
+Fix: clone the value before the move, or restructure to borrow instead.
+"""
+example_bad = "let x = [1, 2, 3]\nlet y = x\nprint(x)"
+example_good = "let x = [1, 2, 3]\nlet y = x.clone()\nprint(x)"
+
+[[diagnostics]]
+code = "KAIN-BORROW-0005"
+title = "Shared State Without Annotation"
+severity = "error"
+docs_key = "borrow/missing-shared-annotation"
+help = """
+State that is accessed from multiple actors, components, or threads must
+be explicitly annotated with `shared` or `single_writer`. The compiler
+detected cross-actor access without the required annotation.
+
+Fix: add the `shared` keyword to the state declaration, or use
+appropriate synchronization primitives.
+"""
+see_also = ["KAIN-BORROW-0006"]
+
+[[diagnostics]]
+code = "KAIN-BORROW-0006"
+title = "Single Writer Violation"
+severity = "error"
+docs_key = "borrow/single-writer-violation"
+help = """
+State annotated `single_writer` is being mutated from multiple locations
+simultaneously. Only one writer may exist at any time for
+single_writer-protected state.
+
+Fix: serialize writes through a single owner, or upgrade to a more
+permissive sharing model.
+"""
+see_also = ["KAIN-BORROW-0005"]
+
+[[diagnostics]]
+code = "KAIN-BORROW-0007"
+title = "Weak Reference Upgraded Unsafely"
+severity = "error"
+docs_key = "borrow/weak-upgrade"
+help = """
+A `weak` reference was upgraded to a strong reference, but the target
+has already been dropped. Weak references must check for liveness before
+upgrading.
+
+Fix: use the `?` operator or an `if let` pattern when upgrading weak
+references.
+"""
+example_bad = "let strong = weak_ref.upgrade()"
+example_good = "if let Some(strong) = weak_ref.upgrade(): ..."
+
+[[diagnostics]]
+code = "KAIN-BORROW-0008"
+title = "Lifetime Mismatch"
+severity = "error"
+docs_key = "borrow/lifetime-mismatch"
+help = """
+A reference outlives the value it points to. Kain tracks lifetimes
+implicitly for most references and detected that the borrow outlasts
+the owned value.
+
+Fix: restructure to keep the owned value alive longer than its borrows,
+or clone the value so the borrow is not needed.
+"""
+example_bad = """
+let ref: &i32
+{
+    let x = 5
+    ref = &x
+}
+print(ref)
+"""
+example_good = """
+let x = 5
+let ref = &x
+print(ref)
+"""
+
+[[diagnostics]]
+code = "KAIN-BORROW-0009"
+title = "Send Constraint Violation"
+severity = "error"
+docs_key = "borrow/send-violation"
+help = """
+A value is being `send` to another actor or component but its type does
+not satisfy the `Send` trait (it contains non-sendable state such as
+raw pointers or actor-local references).
+
+Fix: ensure all fields of the sent type satisfy `Send`, or use a
+serialization boundary.
+"""
+see_also = ["KAIN-ACTOR-0003"]
+
+[[diagnostics]]
+code = "KAIN-BORROW-0010"
+title = "Implicit Clone On Large Value"
+severity = "warning"
+docs_key = "borrow/large-clone"
+help = """
+A potentially large value is being implicitly cloned. Consider passing
+by reference or using `shared` to avoid the copy.
+
+Fix: use `&value` to borrow, or add an explicit `.clone()` if the copy
+is intentional.
+"""

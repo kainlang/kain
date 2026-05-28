@@ -1,408 +1,46 @@
-//! Error types for the KAIN compiler
+//! Legacy-compatible public error surface for drop-in replacement.
+//!
+//! The scratch crate keeps the richer data-driven internals (`report`,
+//! `registry`, `render`, `json`, etc.) but this module preserves the
+//! historical API shape that `kain-core` and friends compile against.
 
 use crate::diagnostic_registry::{default_code_for_kind, spec_for_code, DiagnosticCode};
-use crate::source::{SourceRange, SpanMapper};
+use crate::json::diagnostics_to_json;
 use crate::span::Span;
-use serde_json::{json, Value as JsonValue};
+use serde_json::Value as JsonValue;
 use std::fmt;
 use std::path::PathBuf;
-use thiserror::Error;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum DiagnosticSeverity {
-    Error,
-    Warning,
-    Note,
-    Help,
-}
+pub use crate::label::{DiagnosticFixIt, DiagnosticLabel};
+pub use crate::report::{CompilerPhase, DebugTraceEntry, DiagnosticReport, ErrorKind};
+pub use crate::severity::DiagnosticSeverity;
 
-impl fmt::Display for DiagnosticSeverity {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            DiagnosticSeverity::Error => write!(f, "error"),
-            DiagnosticSeverity::Warning => write!(f, "warning"),
-            DiagnosticSeverity::Note => write!(f, "note"),
-            DiagnosticSeverity::Help => write!(f, "help"),
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct DiagnosticLabel {
-    pub span: Span,
-    pub range: Option<SourceRange>,
-    pub message: String,
-    pub primary: bool,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct DiagnosticFixIt {
-    pub span: Span,
-    pub range: Option<SourceRange>,
-    pub replacement: String,
-    pub message: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct DiagnosticReport {
-    pub kind: ErrorKind,
-    pub code: DiagnosticCode,
-    pub severity: DiagnosticSeverity,
-    pub message: String,
-    pub file: Option<PathBuf>,
-    pub location: Option<(usize, usize)>,
-    pub primary_span: Option<Span>,
-    pub primary_range: Option<SourceRange>,
-    pub labels: Vec<DiagnosticLabel>,
-    pub notes: Vec<String>,
-    pub help: Vec<String>,
-    pub fixits: Vec<DiagnosticFixIt>,
-    pub origin: Option<String>,
-    pub tags: Vec<String>,
-}
-
-impl DiagnosticReport {
-    pub fn new(kind: ErrorKind, code: DiagnosticCode, message: impl Into<String>) -> Self {
-        Self {
-            kind,
-            code,
-            severity: DiagnosticSeverity::Error,
-            message: message.into(),
-            file: None,
-            location: None,
-            primary_span: None,
-            primary_range: None,
-            labels: Vec::new(),
-            notes: Vec::new(),
-            help: Vec::new(),
-            fixits: Vec::new(),
-            origin: None,
-            tags: Vec::new(),
-        }
-    }
-
-    pub fn severity(mut self, severity: DiagnosticSeverity) -> Self {
-        self.severity = severity;
-        self
-    }
-
-    pub fn file(mut self, path: impl Into<PathBuf>) -> Self {
-        self.file = Some(path.into());
-        self
-    }
-
-    pub fn location(mut self, line: usize, col: usize) -> Self {
-        self.location = Some((line, col));
-        self
-    }
-
-    pub fn primary_span(mut self, span: Span) -> Self {
-        self.primary_span = Some(span);
-        self
-    }
-
-    pub fn primary_range(mut self, range: SourceRange) -> Self {
-        self.adopt_range_metadata(&range);
-        self.primary_range = Some(range);
-        self
-    }
-
-    pub fn at_source(mut self, mapper: &SpanMapper, span: Span, fallback_file: &str) -> Self {
-        let range = mapper.span_to_range(span, fallback_file);
-        self.primary_span = Some(span);
-        self.adopt_range_metadata(&range);
-        self.primary_range = Some(range.clone());
-        for label in &mut self.labels {
-            if label.primary && label.span == span && label.range.is_none() {
-                label.range = Some(range.clone());
-            }
-        }
-        self
-    }
-
-    pub fn label(mut self, span: Span, message: impl Into<String>) -> Self {
-        self.labels.push(DiagnosticLabel {
-            span,
-            range: None,
-            message: message.into(),
-            primary: false,
-        });
-        self
-    }
-
-    pub fn label_with_range(
-        mut self,
-        span: Span,
-        range: SourceRange,
-        message: impl Into<String>,
-    ) -> Self {
-        self.labels.push(DiagnosticLabel {
-            span,
-            range: Some(range),
-            message: message.into(),
-            primary: false,
-        });
-        self
-    }
-
-    pub fn label_from_source(
-        self,
-        mapper: &SpanMapper,
-        span: Span,
-        fallback_file: &str,
-        message: impl Into<String>,
-    ) -> Self {
-        self.label_with_range(span, mapper.span_to_range(span, fallback_file), message)
-    }
-
-    pub fn primary_label(mut self, span: Span, message: impl Into<String>) -> Self {
-        self.primary_span = Some(span);
-        self.labels.push(DiagnosticLabel {
-            span,
-            range: None,
-            message: message.into(),
-            primary: true,
-        });
-        self
-    }
-
-    pub fn primary_label_with_range(
-        mut self,
-        span: Span,
-        range: SourceRange,
-        message: impl Into<String>,
-    ) -> Self {
-        self.primary_span = Some(span);
-        self.adopt_range_metadata(&range);
-        self.primary_range = Some(range.clone());
-        self.labels.push(DiagnosticLabel {
-            span,
-            range: Some(range),
-            message: message.into(),
-            primary: true,
-        });
-        self
-    }
-
-    pub fn primary_label_from_source(
-        self,
-        mapper: &SpanMapper,
-        span: Span,
-        fallback_file: &str,
-        message: impl Into<String>,
-    ) -> Self {
-        self.primary_label_with_range(span, mapper.span_to_range(span, fallback_file), message)
-    }
-
-    pub fn note(mut self, note: impl Into<String>) -> Self {
-        self.notes.push(note.into());
-        self
-    }
-
-    pub fn help(mut self, help: impl Into<String>) -> Self {
-        self.help.push(help.into());
-        self
-    }
-
-    pub fn fixit(
-        mut self,
-        span: Span,
-        replacement: impl Into<String>,
-        message: impl Into<String>,
-    ) -> Self {
-        self.fixits.push(DiagnosticFixIt {
-            span,
-            range: None,
-            replacement: replacement.into(),
-            message: message.into(),
-        });
-        self
-    }
-
-    pub fn fixit_with_range(
-        mut self,
-        span: Span,
-        range: SourceRange,
-        replacement: impl Into<String>,
-        message: impl Into<String>,
-    ) -> Self {
-        self.fixits.push(DiagnosticFixIt {
-            span,
-            range: Some(range),
-            replacement: replacement.into(),
-            message: message.into(),
-        });
-        self
-    }
-
-    pub fn fixit_from_source(
-        self,
-        mapper: &SpanMapper,
-        span: Span,
-        fallback_file: &str,
-        replacement: impl Into<String>,
-        message: impl Into<String>,
-    ) -> Self {
-        self.fixit_with_range(
-            span,
-            mapper.span_to_range(span, fallback_file),
-            replacement,
-            message,
-        )
-    }
-
-    pub fn origin(mut self, origin: impl Into<String>) -> Self {
-        self.origin = Some(origin.into());
-        self
-    }
-
-    pub fn tag(mut self, tag: impl Into<String>) -> Self {
-        self.tags.push(tag.into());
-        self
-    }
-
-    pub fn to_json_value(&self) -> JsonValue {
-        let spec = spec_for_code(self.code);
-        let labels: Vec<JsonValue> = self
-            .labels
-            .iter()
-            .map(|label| {
-                json!({
-                    "span": {"start": label.span.start, "end": label.span.end},
-                    "range": label.range.as_ref().map(range_to_json),
-                    "message": label.message,
-                    "primary": label.primary,
-                })
-            })
-            .collect();
-        let fixits: Vec<JsonValue> = self
-            .fixits
-            .iter()
-            .map(|fixit| {
-                json!({
-                    "span": {"start": fixit.span.start, "end": fixit.span.end},
-                    "range": fixit.range.as_ref().map(range_to_json),
-                    "replacement": fixit.replacement,
-                    "message": fixit.message,
-                })
-            })
-            .collect();
-
-        json!({
-            "severity": self.severity.to_string(),
-            "kind": self.kind.to_string(),
-            "code": spec.code_str,
-            "title": spec.title,
-            "category": spec.category.to_string(),
-            "message": self.message,
-            "file": self.file.as_ref().map(|path| path.display().to_string()),
-            "location": self.location.map(|(line, col)| json!({"line": line, "column": col})),
-            "primary_span": self.primary_span.map(|span| json!({"start": span.start, "end": span.end})),
-            "primary_range": self.primary_range.as_ref().map(range_to_json),
-            "labels": labels,
-            "notes": self.notes,
-            "help": self.help,
-            "fixits": fixits,
-            "origin": self.origin,
-            "tags": self.tags,
-            "docs_key": spec.docs_key,
-            "default_help": spec.default_suggestion,
-        })
-    }
-
-    fn adopt_range_metadata(&mut self, range: &SourceRange) {
-        if self.file.is_none() {
-            self.file = Some(PathBuf::from(range.file.clone()));
-        }
-        if self.location.is_none() {
-            self.location = Some((range.start.line, range.start.col));
-        }
-    }
-}
-
-impl fmt::Display for DiagnosticReport {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let spec = spec_for_code(self.code);
-        write!(
-            f,
-            "{}[{}:{}]: {}",
-            self.severity, self.kind, spec.code_str, self.message
-        )?;
-
-        if let Some(path) = &self.file {
-            write!(f, "\n  --> {}", path.display())?;
-            if let Some((line, col)) = self.location {
-                write!(f, ":{}:{}", line, col)?;
-            }
-        } else if let Some(origin) = &self.origin {
-            write!(f, "\n  = origin: {}", origin)?;
-        }
-
-        for label in &self.labels {
-            let marker = if label.primary { "primary" } else { "label" };
-            write!(
-                f,
-                "\n  = {}[{}..{}]: {}",
-                marker, label.span.start, label.span.end, label.message
-            )?;
-            if let Some(range) = &label.range {
-                if !synthetic_filename(&range.file) {
-                    write!(
-                        f,
-                        " ({}:{}:{}-{}:{})",
-                        range.file,
-                        range.start.line,
-                        range.start.col,
-                        range.end.line,
-                        range.end.col
-                    )?;
-                }
-            }
-        }
-        for note in &self.notes {
-            write!(f, "\n  = note: {}", note)?;
-        }
-        for help in &self.help {
-            write!(f, "\n  = help: {}", help)?;
-        }
-        for fixit in &self.fixits {
-            write!(
-                f,
-                "\n  = fix-it[{}..{}]: {} -> {:?}",
-                fixit.span.start, fixit.span.end, fixit.message, fixit.replacement
-            )?;
-        }
-        if let Some(default_suggestion) = spec.default_suggestion {
-            write!(f, "\n  = help: {}", default_suggestion)?;
-        }
-        if let Some(docs_key) = spec.docs_key {
-            write!(f, "\n  = reference: {}", docs_key)?;
-        }
-        Ok(())
-    }
-}
-
-#[derive(Error, Debug)]
+#[derive(Debug)]
 pub enum KainError {
-    #[error("Lexer error at {span:?}: {message}")]
-    Lexer { message: String, span: Span },
-
-    #[error("Parser error at {span:?}: {message}")]
-    Parser { message: String, span: Span },
-
-    #[error("Type error at {span:?}: {message}")]
-    Type { message: String, span: Span },
-
-    #[error("Effect error at {span:?}: {message}")]
-    Effect { message: String, span: Span },
-
-    #[error("Borrow error at {span:?}: {message}")]
-    Borrow { message: String, span: Span },
-
-    #[error("Codegen error at {span:?}: {message}")]
-    Codegen { message: String, span: Span },
-
-    #[error("{file}:{line}:{col}: {message}")]
+    Lexer {
+        message: String,
+        span: Span,
+    },
+    Parser {
+        message: String,
+        span: Span,
+    },
+    Type {
+        message: String,
+        span: Span,
+    },
+    Effect {
+        message: String,
+        span: Span,
+    },
+    Borrow {
+        message: String,
+        span: Span,
+    },
+    Codegen {
+        message: String,
+        span: Span,
+    },
     CodegenWithLocation {
         message: String,
         file: String,
@@ -410,14 +48,10 @@ pub enum KainError {
         col: usize,
         span: Span,
     },
-
-    #[error("Runtime error: {message}")]
-    Runtime { message: String },
-
-    #[error("IO error: {0}")]
-    Io(#[from] std::io::Error),
-
-    #[error("{}", format_enhanced_error(.kind, .code, .file, .location, .context, .message, .suggestion))]
+    Runtime {
+        message: String,
+    },
+    Io(std::io::Error),
     Enhanced {
         kind: ErrorKind,
         code: DiagnosticCode,
@@ -427,90 +61,72 @@ pub enum KainError {
         message: String,
         suggestion: Option<String>,
     },
-
-    #[error("{0}")]
     Rich(Box<DiagnosticReport>),
-
-    #[error("{}", format_multi_errors(.0))]
     Multi(Vec<KainError>),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ErrorKind {
-    Parse,
-    Type,
-    Validation,
-    Codegen,
-    Io,
-    Config,
-    Effect,
-    Borrow,
-    Runtime,
-}
-
-impl fmt::Display for ErrorKind {
+impl fmt::Display for KainError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ErrorKind::Parse => write!(f, "PARSE"),
-            ErrorKind::Type => write!(f, "TYPE"),
-            ErrorKind::Validation => write!(f, "VALIDATION"),
-            ErrorKind::Codegen => write!(f, "CODEGEN"),
-            ErrorKind::Io => write!(f, "IO"),
-            ErrorKind::Config => write!(f, "CONFIG"),
-            ErrorKind::Effect => write!(f, "EFFECT"),
-            ErrorKind::Borrow => write!(f, "BORROW"),
-            ErrorKind::Runtime => write!(f, "RUNTIME"),
+            KainError::Lexer { message, span } => {
+                write!(f, "Lexer error at {span:?}: {message}")
+            }
+            KainError::Parser { message, span } => {
+                write!(f, "Parser error at {span:?}: {message}")
+            }
+            KainError::Type { message, span } => {
+                write!(f, "Type error at {span:?}: {message}")
+            }
+            KainError::Effect { message, span } => {
+                write!(f, "Effect error at {span:?}: {message}")
+            }
+            KainError::Borrow { message, span } => {
+                write!(f, "Borrow error at {span:?}: {message}")
+            }
+            KainError::Codegen { message, span } => {
+                write!(f, "Codegen error at {span:?}: {message}")
+            }
+            KainError::CodegenWithLocation {
+                message,
+                file,
+                line,
+                col,
+                ..
+            } => write!(f, "{file}:{line}:{col}: {message}"),
+            KainError::Runtime { message } => write!(f, "Runtime error: {message}"),
+            KainError::Io(err) => write!(f, "IO error: {err}"),
+            KainError::Enhanced {
+                kind,
+                code,
+                file,
+                location,
+                context,
+                message,
+                suggestion,
+            } => write!(
+                f,
+                "{}",
+                format_enhanced_error(kind, code, file, location, context, message, suggestion)
+            ),
+            KainError::Rich(report) => write!(f, "{report}"),
+            KainError::Multi(errors) => write!(f, "{}", format_multi_errors(errors)),
         }
     }
 }
 
-fn format_enhanced_error(
-    kind: &ErrorKind,
-    code: &DiagnosticCode,
-    file: &Option<PathBuf>,
-    location: &Option<(usize, usize)>,
-    context: &str,
-    message: &str,
-    suggestion: &Option<String>,
-) -> String {
-    let spec = spec_for_code(*code);
-    let mut output = String::new();
-
-    output.push_str(&format!("❌ [{}:{}] {}", kind, spec.code_str, spec.title));
-
-    if let Some(path) = file {
-        output.push_str(&format!(" in {}", path.display()));
-        if let Some((line, col)) = location {
-            output.push_str(&format!(":{}:{}", line, col));
+impl std::error::Error for KainError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            KainError::Io(err) => Some(err),
+            _ => None,
         }
     }
-
-    output.push_str("\n\n");
-
-    if !context.is_empty() {
-        output.push_str(&format!("   Context: {}\n", context));
-    }
-
-    output.push_str(&format!("   {}\n", message));
-
-    if let Some(suggestion) = suggestion.as_deref().or(spec.default_suggestion) {
-        output.push_str(&format!("\n   Help: {}\n", suggestion));
-    }
-
-    if let Some(docs_key) = spec.docs_key {
-        output.push_str(&format!("\n   Reference: {}\n", docs_key));
-    }
-
-    output
 }
 
-fn format_multi_errors(errors: &[KainError]) -> String {
-    let mut output = String::new();
-    output.push_str(&format!("Found {} error(s):\n", errors.len()));
-    for (i, err) in errors.iter().enumerate() {
-        output.push_str(&format!("\n[{}/{}] {}\n", i + 1, errors.len(), err));
+impl From<std::io::Error> for KainError {
+    fn from(err: std::io::Error) -> Self {
+        KainError::Io(err)
     }
-    output
 }
 
 impl KainError {
@@ -685,15 +301,11 @@ impl KainError {
     }
 
     pub fn diagnostic_json(&self) -> Option<JsonValue> {
-        let diagnostics = self
-            .to_diagnostic_reports()
-            .into_iter()
-            .map(|report| report.to_json_value())
-            .collect::<Vec<_>>();
+        let diagnostics = self.to_diagnostic_reports();
         if diagnostics.is_empty() {
             None
         } else {
-            Some(json!({ "diagnostics": diagnostics }))
+            Some(diagnostics_to_json(&diagnostics))
         }
     }
 
@@ -803,6 +415,55 @@ impl KainError {
     }
 }
 
+fn format_enhanced_error(
+    kind: &ErrorKind,
+    code: &DiagnosticCode,
+    file: &Option<PathBuf>,
+    location: &Option<(usize, usize)>,
+    context: &str,
+    message: &str,
+    suggestion: &Option<String>,
+) -> String {
+    let spec = spec_for_code(*code);
+    let mut output = String::new();
+
+    output.push_str(&format!("❌ [{}:{}] {}", kind, spec.code_str, spec.title));
+
+    if let Some(path) = file {
+        output.push_str(&format!(" in {}", path.display()));
+        if let Some((line, col)) = location {
+            output.push_str(&format!(":{}:{}", line, col));
+        }
+    }
+
+    output.push_str("\n\n");
+
+    if !context.is_empty() {
+        output.push_str(&format!("   Context: {}\n", context));
+    }
+
+    output.push_str(&format!("   {}\n", message));
+
+    if let Some(help) = suggestion.as_deref().or(spec.default_suggestion) {
+        output.push_str(&format!("\n   Help: {}\n", help));
+    }
+
+    if let Some(docs_key) = spec.docs_key {
+        output.push_str(&format!("\n   Reference: {}\n", docs_key));
+    }
+
+    output
+}
+
+fn format_multi_errors(errors: &[KainError]) -> String {
+    let mut output = String::new();
+    output.push_str(&format!("Found {} error(s):\n", errors.len()));
+    for (i, err) in errors.iter().enumerate() {
+        output.push_str(&format!("\n[{}/{}] {}\n", i + 1, errors.len(), err));
+    }
+    output
+}
+
 pub type KainResult<T> = Result<T, KainError>;
 
 pub struct DiagnosticBuilder {
@@ -863,11 +524,8 @@ impl DiagnosticBuilder {
 
 pub trait ErrorContext<T> {
     fn with_file(self, path: PathBuf) -> Result<T, KainError>;
-
     fn with_location(self, line: usize, col: usize) -> Result<T, KainError>;
-
     fn with_context(self, ctx: impl Into<String>) -> Result<T, KainError>;
-
     fn with_suggestion(self, suggestion: impl Into<String>) -> Result<T, KainError>;
 }
 
@@ -885,99 +543,91 @@ impl<T> ErrorContext<T> for Result<T, KainError> {
             } => KainError::Enhanced {
                 kind,
                 code,
-                file: Some(path),
+                file: Some(path.clone()),
                 location,
                 context,
                 message,
                 suggestion,
             },
-            KainError::Lexer { message, .. } => KainError::Enhanced {
-                kind: ErrorKind::Parse,
-                code: default_code_for_kind(ErrorKind::Parse),
-                file: Some(path),
-                location: None,
-                context: String::new(),
+            KainError::Lexer { message, .. } => make_enhanced(
+                ErrorKind::Parse,
                 message,
-                suggestion: None,
-            },
-            KainError::Parser { message, .. } => KainError::Enhanced {
-                kind: ErrorKind::Parse,
-                code: default_code_for_kind(ErrorKind::Parse),
-                file: Some(path),
-                location: None,
-                context: String::new(),
+                Some(path.clone()),
+                None,
+                String::new(),
+                None,
+            ),
+            KainError::Parser { message, .. } => make_enhanced(
+                ErrorKind::Parse,
                 message,
-                suggestion: None,
-            },
-            KainError::Type { message, .. } => KainError::Enhanced {
-                kind: ErrorKind::Type,
-                code: default_code_for_kind(ErrorKind::Type),
-                file: Some(path),
-                location: None,
-                context: String::new(),
+                Some(path.clone()),
+                None,
+                String::new(),
+                None,
+            ),
+            KainError::Type { message, .. } => make_enhanced(
+                ErrorKind::Type,
                 message,
-                suggestion: None,
-            },
-            KainError::Effect { message, .. } => KainError::Enhanced {
-                kind: ErrorKind::Effect,
-                code: default_code_for_kind(ErrorKind::Effect),
-                file: Some(path),
-                location: None,
-                context: String::new(),
+                Some(path.clone()),
+                None,
+                String::new(),
+                None,
+            ),
+            KainError::Effect { message, .. } => make_enhanced(
+                ErrorKind::Effect,
                 message,
-                suggestion: None,
-            },
-            KainError::Borrow { message, .. } => KainError::Enhanced {
-                kind: ErrorKind::Borrow,
-                code: default_code_for_kind(ErrorKind::Borrow),
-                file: Some(path),
-                location: None,
-                context: String::new(),
+                Some(path.clone()),
+                None,
+                String::new(),
+                None,
+            ),
+            KainError::Borrow { message, .. } => make_enhanced(
+                ErrorKind::Borrow,
                 message,
-                suggestion: None,
-            },
-            KainError::Codegen { message, .. } => KainError::Enhanced {
-                kind: ErrorKind::Codegen,
-                code: default_code_for_kind(ErrorKind::Codegen),
-                file: Some(path),
-                location: None,
-                context: String::new(),
+                Some(path.clone()),
+                None,
+                String::new(),
+                None,
+            ),
+            KainError::Codegen { message, .. } => make_enhanced(
+                ErrorKind::Codegen,
                 message,
-                suggestion: None,
-            },
+                Some(path.clone()),
+                None,
+                String::new(),
+                None,
+            ),
             KainError::CodegenWithLocation {
                 message,
                 file,
                 line,
                 col,
-                span: _,
+                ..
             } => KainError::Enhanced {
                 kind: ErrorKind::Codegen,
                 code: default_code_for_kind(ErrorKind::Codegen),
-                file: Some(PathBuf::from(file.clone())),
+                file: Some(PathBuf::from(file)),
                 location: Some((line, col)),
                 context: String::new(),
                 message,
                 suggestion: None,
             },
-            KainError::Runtime { message } => KainError::Enhanced {
-                kind: ErrorKind::Runtime,
-                code: default_code_for_kind(ErrorKind::Runtime),
-                file: Some(path),
-                location: None,
-                context: String::new(),
+            KainError::Runtime { message } => make_enhanced(
+                ErrorKind::Runtime,
                 message,
-                suggestion: None,
-            },
-            KainError::Io(io_err) => KainError::Enhanced {
-                kind: ErrorKind::Io,
-                code: default_code_for_kind(ErrorKind::Io),
-                file: Some(path),
-                location: None,
-                context: String::new(),
-                message: io_err.to_string(),
-                suggestion: None,
-            },
+                Some(path),
+                None,
+                String::new(),
+                None,
+            ),
+            KainError::Io(io_err) => make_enhanced(
+                ErrorKind::Io,
+                io_err.to_string(),
+                Some(path),
+                None,
+                String::new(),
+                None,
+            ),
             other => other,
         })
     }
@@ -1025,98 +675,51 @@ impl<T> ErrorContext<T> for Result<T, KainError> {
                 message,
                 suggestion,
             },
-            KainError::Lexer { message, .. } => KainError::Enhanced {
-                kind: ErrorKind::Parse,
-                code: default_code_for_kind(ErrorKind::Parse),
-                file: None,
-                location: None,
-                context: ctx.clone(),
-                message,
-                suggestion: None,
-            },
-            KainError::Parser { message, .. } => KainError::Enhanced {
-                kind: ErrorKind::Parse,
-                code: default_code_for_kind(ErrorKind::Parse),
-                file: None,
-                location: None,
-                context: ctx.clone(),
-                message,
-                suggestion: None,
-            },
-            KainError::Type { message, .. } => KainError::Enhanced {
-                kind: ErrorKind::Type,
-                code: default_code_for_kind(ErrorKind::Type),
-                file: None,
-                location: None,
-                context: ctx.clone(),
-                message,
-                suggestion: None,
-            },
-            KainError::Effect { message, .. } => KainError::Enhanced {
-                kind: ErrorKind::Effect,
-                code: default_code_for_kind(ErrorKind::Effect),
-                file: None,
-                location: None,
-                context: ctx.clone(),
-                message,
-                suggestion: None,
-            },
-            KainError::Borrow { message, .. } => KainError::Enhanced {
-                kind: ErrorKind::Borrow,
-                code: default_code_for_kind(ErrorKind::Borrow),
-                file: None,
-                location: None,
-                context: ctx.clone(),
-                message,
-                suggestion: None,
-            },
-            KainError::Codegen { message, .. } => KainError::Enhanced {
-                kind: ErrorKind::Codegen,
-                code: default_code_for_kind(ErrorKind::Codegen),
-                file: None,
-                location: None,
-                context: ctx.clone(),
-                message,
-                suggestion: None,
-            },
+            KainError::Lexer { message, .. } => {
+                make_enhanced(ErrorKind::Parse, message, None, None, ctx.clone(), None)
+            }
+            KainError::Parser { message, .. } => {
+                make_enhanced(ErrorKind::Parse, message, None, None, ctx.clone(), None)
+            }
+            KainError::Type { message, .. } => {
+                make_enhanced(ErrorKind::Type, message, None, None, ctx.clone(), None)
+            }
+            KainError::Effect { message, .. } => {
+                make_enhanced(ErrorKind::Effect, message, None, None, ctx.clone(), None)
+            }
+            KainError::Borrow { message, .. } => {
+                make_enhanced(ErrorKind::Borrow, message, None, None, ctx.clone(), None)
+            }
+            KainError::Codegen { message, .. } => {
+                make_enhanced(ErrorKind::Codegen, message, None, None, ctx.clone(), None)
+            }
             KainError::CodegenWithLocation {
                 message,
                 file,
                 line,
                 col,
-                span: _,
+                ..
             } => KainError::Enhanced {
                 kind: ErrorKind::Codegen,
                 code: default_code_for_kind(ErrorKind::Codegen),
-                file: Some(PathBuf::from(file.clone())),
+                file: Some(PathBuf::from(file)),
                 location: Some((line, col)),
                 context: ctx.clone(),
                 message,
                 suggestion: None,
             },
-            KainError::Runtime { message } => KainError::Enhanced {
-                kind: ErrorKind::Runtime,
-                code: default_code_for_kind(ErrorKind::Runtime),
-                file: None,
-                location: None,
-                context: ctx.clone(),
-                message,
-                suggestion: None,
-            },
-            KainError::Io(io_err) => KainError::Enhanced {
-                kind: ErrorKind::Io,
-                code: default_code_for_kind(ErrorKind::Io),
-                file: None,
-                location: None,
-                context: ctx,
-                message: io_err.to_string(),
-                suggestion: None,
-            },
+            KainError::Runtime { message } => {
+                make_enhanced(ErrorKind::Runtime, message, None, None, ctx.clone(), None)
+            }
+            KainError::Io(io_err) => {
+                make_enhanced(ErrorKind::Io, io_err.to_string(), None, None, ctx, None)
+            }
             other => other,
         })
     }
 
     fn with_suggestion(self, suggestion: impl Into<String>) -> Result<T, KainError> {
+        let suggestion = suggestion.into();
         self.map_err(|e| match e {
             KainError::Enhanced {
                 kind,
@@ -1133,39 +736,35 @@ impl<T> ErrorContext<T> for Result<T, KainError> {
                 location,
                 context,
                 message,
-                suggestion: Some(suggestion.into()),
+                suggestion: Some(suggestion.clone()),
             },
             other => other,
         })
     }
 }
 
-fn range_to_json(range: &SourceRange) -> JsonValue {
-    json!({
-        "file": range.file,
-        "start": {
-            "line": range.start.line,
-            "column": range.start.col,
-            "display_column": range.start.display_col,
-            "offset": range.start.offset,
-        },
-        "end": {
-            "line": range.end.line,
-            "column": range.end.col,
-            "display_column": range.end.display_col,
-            "offset": range.end.offset,
-        }
-    })
-}
-
-fn synthetic_filename(file: &str) -> bool {
-    file.starts_with('<') && file.ends_with('>')
+fn make_enhanced(
+    kind: ErrorKind,
+    message: impl Into<String>,
+    file: Option<PathBuf>,
+    location: Option<(usize, usize)>,
+    context: String,
+    suggestion: Option<String>,
+) -> KainError {
+    KainError::Enhanced {
+        kind,
+        code: default_code_for_kind(kind),
+        file,
+        location,
+        context,
+        message: message.into(),
+        suggestion,
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::diagnostic_registry::DiagnosticCode;
 
     #[test]
     fn enhanced_diagnostic_uses_registry_metadata() {

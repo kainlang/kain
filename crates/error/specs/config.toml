@@ -1,0 +1,71 @@
+# ── Kain Config Error Codes ────────────────────────────────────────────
+# Configuration, manifests, toolchain, project setup.
+
+[[diagnostics]]
+code = "KAIN-CONFIG-0001"
+title = "Config Error"
+severity = "error"
+docs_key = "config/general"
+help = "A configuration or manifest validation error occurred."
+
+[[diagnostics]]
+code = "KAIN-CONFIG-0002"
+title = "Manifest Parse Error"
+severity = "error"
+docs_key = "config/manifest-parse"
+help = """
+A Kain manifest (kain.toml, fabric.toml, blade.toml) could not be
+parsed. The file may have invalid TOML syntax or missing required fields.
+
+Fix: validate the manifest file against the expected schema.
+"""
+
+[[diagnostics]]
+code = "KAIN-CONFIG-0003"
+title = "Toolchain Not Found"
+severity = "error"
+docs_key = "config/toolchain-not-found"
+help = """
+A required external toolchain (LLVM, MSVC, GCC, GPU SDK, UE5) is not
+installed or not detected on the system PATH.
+
+Fix: install the required toolchain and ensure it is on the PATH.
+"""
+
+[[diagnostics]]
+code = "KAIN-CONFIG-0004"
+title = "Target Specification Invalid"
+severity = "error"
+docs_key = "config/target-invalid"
+help = """
+The build target specification (target triple, platform, GPU, runtime)
+is invalid or contradictory.
+
+Fix: provide a valid target specification. Use `kain targets` to list
+available targets.
+"""
+
+[[diagnostics]]
+code = "KAIN-CONFIG-0005"
+title = "Feature Flag Conflict"
+severity = "error"
+docs_key = "config/feature-conflict"
+help = """
+Two or more enabled feature flags are mutually exclusive or conflict.
+Check the feature flag documentation for compatibility.
+
+Fix: disable one of the conflicting features.
+"""
+
+[[diagnostics]]
+code = "KAIN-CONFIG-0006"
+title = "Dependency Resolution Failed"
+severity = "error"
+docs_key = "config/dependency-failed"
+help = """
+A project dependency could not be resolved. The package may not exist,
+the version constraint may be unsatisfiable, or there may be a
+dependency cycle.
+
+Fix: check the dependency name, version, and source.
+"""

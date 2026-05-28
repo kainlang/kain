@@ -1,0 +1,499 @@
+//! The DiagnosticReport — the core error object.
+//!
+//! A `DiagnosticReport` bundles everything needed to display a compiler
+//! diagnostic: severity, error code, message, source spans, labels,
+//! fix-its, notes, help text, phase attribution, and debug traces.
+//!
+//! It uses a builder pattern for ergonomic construction and supports
+//! both terminal rendering and JSON serialization.
+
+use crate::code::DiagnosticCode;
+use crate::diagnostic_registry::{
+    default_code_for_kind as compat_default_code_for_kind, spec_for_code as compat_spec_for_code,
+};
+use crate::label::{DiagnosticFixIt, DiagnosticLabel, FixItConfidence, LabelKind};
+use crate::registry::spec_for_code;
+use crate::severity::DiagnosticSeverity;
+use crate::source::{SourceRange, SpanMapper};
+use crate::span::Span;
+use std::fmt;
+use std::path::PathBuf;
+
+/// The phase or pass in the compiler pipeline that produced this diagnostic.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum CompilerPhase {
+    Lexer,
+    Parser,
+    NameResolution,
+    TypeChecking,
+    EffectChecking,
+    BorrowChecking,
+    StateValidation,
+    WorldValidation,
+    ComptimeEval,
+    MacroExpansion,
+    Lowering,
+    Codegen,
+    Linking,
+    Runtime,
+    Unknown,
+}
+
+impl fmt::Display for CompilerPhase {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Lexer => write!(f, "lexer"),
+            Self::Parser => write!(f, "parser"),
+            Self::NameResolution => write!(f, "name-resolution"),
+            Self::TypeChecking => write!(f, "type-checking"),
+            Self::EffectChecking => write!(f, "effect-checking"),
+            Self::BorrowChecking => write!(f, "borrow-checking"),
+            Self::StateValidation => write!(f, "state-validation"),
+            Self::WorldValidation => write!(f, "world-validation"),
+            Self::ComptimeEval => write!(f, "comptime-eval"),
+            Self::MacroExpansion => write!(f, "macro-expansion"),
+            Self::Lowering => write!(f, "lowering"),
+            Self::Codegen => write!(f, "codegen"),
+            Self::Linking => write!(f, "linking"),
+            Self::Runtime => write!(f, "runtime"),
+            Self::Unknown => write!(f, "unknown"),
+        }
+    }
+}
+
+/// A trace entry for debugging compiler decisions.
+#[derive(Debug, Clone)]
+pub struct DebugTraceEntry {
+    pub phase: CompilerPhase,
+    pub message: String,
+    pub span: Option<Span>,
+}
+
+/// The main diagnostic report structure.
+#[derive(Debug, Clone)]
+pub struct DiagnosticReport {
+    pub kind: ErrorKind,
+    pub code: DiagnosticCode,
+    pub severity: DiagnosticSeverity,
+    pub message: String,
+    pub file: Option<PathBuf>,
+    pub location: Option<(usize, usize)>,
+    pub primary_span: Option<Span>,
+    pub primary_range: Option<SourceRange>,
+    pub labels: Vec<DiagnosticLabel>,
+    pub notes: Vec<String>,
+    pub help: Vec<String>,
+    pub fixits: Vec<DiagnosticFixIt>,
+    pub origin: Option<String>,
+    pub tags: Vec<String>,
+    /// Which compiler phase produced this diagnostic.
+    pub phase: CompilerPhase,
+    /// Debug trace entries for developer investigation.
+    pub debug_trace: Vec<DebugTraceEntry>,
+}
+
+/// Broad error category (maps to a set of diagnostic codes).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ErrorKind {
+    Parse,
+    Type,
+    Effect,
+    Borrow,
+    World,
+    Shader,
+    Component,
+    Comptime,
+    State,
+    Test,
+    Codegen,
+    Memory,
+    Runtime,
+    Io,
+    Config,
+    Validation,
+    Internal,
+}
+
+impl fmt::Display for ErrorKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Parse => write!(f, "PARSE"),
+            Self::Type => write!(f, "TYPE"),
+            Self::Effect => write!(f, "EFFECT"),
+            Self::Borrow => write!(f, "BORROW"),
+            Self::World => write!(f, "WORLD"),
+            Self::Shader => write!(f, "SHADER"),
+            Self::Component => write!(f, "ACTOR"),
+            Self::Comptime => write!(f, "COMPTIME"),
+            Self::State => write!(f, "STATE"),
+            Self::Test => write!(f, "TEST"),
+            Self::Codegen => write!(f, "CODEGEN"),
+            Self::Memory => write!(f, "MEM"),
+            Self::Runtime => write!(f, "RUNTIME"),
+            Self::Io => write!(f, "IO"),
+            Self::Config => write!(f, "CONFIG"),
+            Self::Validation => write!(f, "VALIDATION"),
+            Self::Internal => write!(f, "INTERNAL"),
+        }
+    }
+}
+
+impl DiagnosticReport {
+    /// Create a new report with the given code and message.
+    pub fn new(kind: ErrorKind, code: DiagnosticCode, message: impl Into<String>) -> Self {
+        Self {
+            kind,
+            code,
+            severity: DiagnosticSeverity::Error,
+            message: message.into(),
+            file: None,
+            location: None,
+            primary_span: None,
+            primary_range: None,
+            labels: Vec::new(),
+            notes: Vec::new(),
+            help: Vec::new(),
+            fixits: Vec::new(),
+            origin: None,
+            tags: Vec::new(),
+            phase: CompilerPhase::Unknown,
+            debug_trace: Vec::new(),
+        }
+    }
+
+    /// Create a report using the default code for an error kind.
+    pub fn new_default(kind: ErrorKind, message: impl Into<String>) -> Self {
+        let code = default_code_for_kind(kind);
+        Self::new(kind, code, message)
+    }
+
+    // ── Builder methods ──────────────────────────────────────────────
+
+    pub fn severity(mut self, severity: DiagnosticSeverity) -> Self {
+        self.severity = severity;
+        self
+    }
+
+    pub fn file(mut self, path: impl Into<PathBuf>) -> Self {
+        self.file = Some(path.into());
+        self
+    }
+
+    pub fn location(mut self, line: usize, col: usize) -> Self {
+        self.location = Some((line, col));
+        self
+    }
+
+    pub fn primary_span(mut self, span: Span) -> Self {
+        self.primary_span = Some(span);
+        self
+    }
+
+    pub fn primary_range(mut self, range: SourceRange) -> Self {
+        self.adopt_range_metadata(&range);
+        self.primary_range = Some(range);
+        self
+    }
+
+    /// Attach source-file context by resolving a span through a SpanMapper.
+    pub fn at_source(mut self, mapper: &SpanMapper, span: Span, fallback_file: &str) -> Self {
+        let range = mapper.span_to_range(span, fallback_file);
+        self.primary_span = Some(span);
+        self.adopt_range_metadata(&range);
+        self.primary_range = Some(range.clone());
+        for label in &mut self.labels {
+            if label.primary && label.span == span && label.range.is_none() {
+                label.range = Some(range.clone());
+            }
+        }
+        self
+    }
+
+    pub fn label(mut self, span: Span, message: impl Into<String>) -> Self {
+        self.labels.push(DiagnosticLabel::new(span, message));
+        self
+    }
+
+    pub fn label_kind(mut self, span: Span, kind: LabelKind, message: impl Into<String>) -> Self {
+        self.labels
+            .push(DiagnosticLabel::new(span, message).kind(kind));
+        self
+    }
+
+    pub fn label_with_range(
+        mut self,
+        span: Span,
+        range: SourceRange,
+        message: impl Into<String>,
+    ) -> Self {
+        self.labels
+            .push(DiagnosticLabel::new(span, message).with_range(range));
+        self
+    }
+
+    pub fn label_from_source(
+        self,
+        mapper: &SpanMapper,
+        span: Span,
+        fallback_file: &str,
+        message: impl Into<String>,
+    ) -> Self {
+        self.label_with_range(span, mapper.span_to_range(span, fallback_file), message)
+    }
+
+    pub fn primary_label(mut self, span: Span, message: impl Into<String>) -> Self {
+        self.primary_span = Some(span);
+        self.labels
+            .push(DiagnosticLabel::new(span, message).primary());
+        self
+    }
+
+    pub fn primary_label_with_range(
+        mut self,
+        span: Span,
+        range: SourceRange,
+        message: impl Into<String>,
+    ) -> Self {
+        self.primary_span = Some(span);
+        self.adopt_range_metadata(&range);
+        self.primary_range = Some(range.clone());
+        self.labels.push(
+            DiagnosticLabel::new(span, message)
+                .primary()
+                .with_range(range),
+        );
+        self
+    }
+
+    pub fn primary_label_from_source(
+        self,
+        mapper: &SpanMapper,
+        span: Span,
+        fallback_file: &str,
+        message: impl Into<String>,
+    ) -> Self {
+        self.primary_label_with_range(span, mapper.span_to_range(span, fallback_file), message)
+    }
+
+    pub fn note(mut self, note: impl Into<String>) -> Self {
+        self.notes.push(note.into());
+        self
+    }
+
+    pub fn help(mut self, help: impl Into<String>) -> Self {
+        self.help.push(help.into());
+        self
+    }
+
+    pub fn fixit(
+        mut self,
+        span: Span,
+        replacement: impl Into<String>,
+        message: impl Into<String>,
+    ) -> Self {
+        self.fixits
+            .push(DiagnosticFixIt::new(span, replacement, message));
+        self
+    }
+
+    pub fn fixit_certain(
+        mut self,
+        span: Span,
+        replacement: impl Into<String>,
+        message: impl Into<String>,
+    ) -> Self {
+        self.fixits.push(
+            DiagnosticFixIt::new(span, replacement, message).confidence(FixItConfidence::Certain),
+        );
+        self
+    }
+
+    pub fn fixit_with_range(
+        mut self,
+        span: Span,
+        range: SourceRange,
+        replacement: impl Into<String>,
+        message: impl Into<String>,
+    ) -> Self {
+        self.fixits
+            .push(DiagnosticFixIt::new(span, replacement, message).with_range(range));
+        self
+    }
+
+    pub fn fixit_from_source(
+        self,
+        mapper: &SpanMapper,
+        span: Span,
+        fallback_file: &str,
+        replacement: impl Into<String>,
+        message: impl Into<String>,
+    ) -> Self {
+        self.fixit_with_range(
+            span,
+            mapper.span_to_range(span, fallback_file),
+            replacement,
+            message,
+        )
+    }
+
+    pub fn origin(mut self, origin: impl Into<String>) -> Self {
+        self.origin = Some(origin.into());
+        self
+    }
+
+    pub fn tag(mut self, tag: impl Into<String>) -> Self {
+        self.tags.push(tag.into());
+        self
+    }
+
+    pub fn phase(mut self, phase: CompilerPhase) -> Self {
+        self.phase = phase;
+        self
+    }
+
+    /// Add a debug trace entry for compiler developer investigation.
+    pub fn debug_trace(mut self, phase: CompilerPhase, message: impl Into<String>) -> Self {
+        self.debug_trace.push(DebugTraceEntry {
+            phase,
+            message: message.into(),
+            span: None,
+        });
+        self
+    }
+
+    /// Add a span-attached debug trace entry.
+    pub fn debug_trace_span(
+        mut self,
+        phase: CompilerPhase,
+        span: Span,
+        message: impl Into<String>,
+    ) -> Self {
+        self.debug_trace.push(DebugTraceEntry {
+            phase,
+            message: message.into(),
+            span: Some(span),
+        });
+        self
+    }
+
+    pub fn to_json_value(&self) -> serde_json::Value {
+        crate::json::report_to_json(self)
+    }
+
+    /// Populate file/location metadata from a SourceRange if not already set.
+    fn adopt_range_metadata(&mut self, range: &SourceRange) {
+        if self.file.is_none() {
+            self.file = Some(PathBuf::from(range.file.clone()));
+        }
+        if self.location.is_none() {
+            self.location = Some((range.start.line, range.start.col));
+        }
+    }
+
+    // ── Help text from registry ──────────────────────────────────────
+
+    /// Add the help text from the diagnostic registry spec to this report.
+    pub fn with_registry_help(mut self) -> Self {
+        if let Some(spec) = spec_for_code(self.code) {
+            if self.help.is_empty() && !spec.help.is_empty() {
+                self.help.push(spec.help.clone());
+            }
+            if let Some(ref fix) = spec.fixit {
+                if self.fixits.is_empty() {
+                    if let Some(span) = self.primary_span {
+                        self.fixits.push(
+                            DiagnosticFixIt::new(span, fix.clone(), "auto-fix")
+                                .confidence(FixItConfidence::Certain),
+                        );
+                    }
+                }
+            }
+        }
+        self
+    }
+}
+
+impl fmt::Display for DiagnosticReport {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let spec = compat_spec_for_code(self.code);
+        write!(
+            f,
+            "{}[{}:{}]: {}",
+            self.severity, self.kind, spec.code_str, self.message
+        )?;
+
+        if let Some(path) = &self.file {
+            write!(f, "\n  --> {}", path.display())?;
+            if let Some((line, col)) = self.location {
+                write!(f, ":{}:{}", line, col)?;
+            }
+        } else if let Some(origin) = &self.origin {
+            write!(f, "\n  = origin: {origin}")?;
+        }
+
+        for label in &self.labels {
+            let marker = if label.primary { "primary" } else { "label" };
+            write!(
+                f,
+                "\n  = {marker}[{}..{}]: {}",
+                label.span.start, label.span.end, label.message
+            )?;
+            if let Some(range) = &label.range {
+                if !crate::source::is_synthetic_filename(&range.file) {
+                    write!(
+                        f,
+                        " ({}:{}:{}-{}:{})",
+                        range.file,
+                        range.start.line,
+                        range.start.col,
+                        range.end.line,
+                        range.end.col
+                    )?;
+                }
+            }
+        }
+        for note in &self.notes {
+            write!(f, "\n  = note: {note}")?;
+        }
+        for help in &self.help {
+            write!(f, "\n  = help: {help}")?;
+        }
+        for fixit in &self.fixits {
+            write!(
+                f,
+                "\n  = fix-it[{}..{}]: {} -> {:?}",
+                fixit.span.start, fixit.span.end, fixit.message, fixit.replacement
+            )?;
+        }
+        if let Some(suggestion) = spec.default_suggestion {
+            write!(f, "\n  = help: {suggestion}")?;
+        }
+        if let Some(docs_key) = spec.docs_key {
+            write!(f, "\n  = reference: {docs_key}")?;
+        }
+        Ok(())
+    }
+}
+
+/// Map an ErrorKind to its default generic diagnostic code.
+pub fn default_code_for_kind(kind: ErrorKind) -> DiagnosticCode {
+    match kind {
+        ErrorKind::Parse => compat_default_code_for_kind(ErrorKind::Parse),
+        ErrorKind::Type => compat_default_code_for_kind(ErrorKind::Type),
+        ErrorKind::Effect => compat_default_code_for_kind(ErrorKind::Effect),
+        ErrorKind::Borrow => compat_default_code_for_kind(ErrorKind::Borrow),
+        ErrorKind::World => compat_default_code_for_kind(ErrorKind::World),
+        ErrorKind::Shader => compat_default_code_for_kind(ErrorKind::Shader),
+        ErrorKind::Component => compat_default_code_for_kind(ErrorKind::Component),
+        ErrorKind::Comptime => compat_default_code_for_kind(ErrorKind::Comptime),
+        ErrorKind::State => compat_default_code_for_kind(ErrorKind::State),
+        ErrorKind::Test => compat_default_code_for_kind(ErrorKind::Test),
+        ErrorKind::Codegen => compat_default_code_for_kind(ErrorKind::Codegen),
+        ErrorKind::Memory => compat_default_code_for_kind(ErrorKind::Memory),
+        ErrorKind::Runtime => compat_default_code_for_kind(ErrorKind::Runtime),
+        ErrorKind::Io => compat_default_code_for_kind(ErrorKind::Io),
+        ErrorKind::Config => compat_default_code_for_kind(ErrorKind::Config),
+        ErrorKind::Validation => compat_default_code_for_kind(ErrorKind::Validation),
+        ErrorKind::Internal => compat_default_code_for_kind(ErrorKind::Internal),
+    }
+}

@@ -185,6 +185,11 @@ This is where Kain should stop merely catching up and start having surfaces othe
 | `PARTIAL` | `KX` | `std::gpu`, `std::graphics`, `std::graphics::shared`, `std::ui` | Keep the strong rendering/resource surface, but add more typed bridges between semantic state, resource graphs, UI data, and runtime ownership rules where that lowers repeated boilerplate. |
 | `PARTIAL` | `KX` | new `std::z3` | Add an optional host-solver lane over Python `z3-solver` so authored Kain can build SMT constraints, inspect models, and pressure proof/test workflows without pretending the runtime bundles Z3. Keep the surface Kain-shaped, gateable, and honest about the external Python dependency. |
 | `PARTIAL` | `KX` | `std::test` and `std::proof` | Expand from task constructors and basic outcomes into richer authored assertions, property-style helpers, structured witness/proof result records, and solver-friendly harness helpers. Declarative `ProofCase` / `ProofAssessment` / suite-summary records now exist, and `std::test` can assert named proof cases over the optional `std::z3` backend, but the broader proof DSL, property generators, and durable harness/report story are still incomplete. |
+| `TODO` | `KX` | new `std::mcp` | Add native MCP (Model Context Protocol) server construction for the 2025-03-26 spec: JSON-RPC 2.0 framing, lifecycle handshake, tool/resource/prompt registration, content-type constructors (text/image/audio/embedded-resource), stdio transport I/O, structured stderr logging, and a reference event loop. Streamable HTTP transport is a deferred lane. This is Kain-exclusive AI-tooling leverage — no other systems language ships a native MCP stdlib. |
+
+## P2 - Archives, Compression, Binary Formats, And Deep Systems Tooling
+
+These are still part of a serious stdlib story. They may land after the `P0` floor, but they belong on the board until they are real or honestly waived./proof result records, and solver-friendly harness helpers. Declarative `ProofCase` / `ProofAssessment` / suite-summary records now exist, and `std::test` can assert named proof cases over the optional `std::z3` backend, but the broader proof DSL, property generators, and durable harness/report story are still incomplete. |
 
 ## P2 - Archives, Compression, Binary Formats, And Deep Systems Tooling
 

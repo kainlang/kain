@@ -1,0 +1,132 @@
+# ── Kain Comptime/Macro Error Codes ────────────────────────────────────
+# comptime evaluation, macro expansion, patch, law, axiom, orchestrate,
+# converge, shatter.
+
+[[diagnostics]]
+code = "KAIN-COMPTIME-0001"
+title = "Comptime Error"
+severity = "error"
+docs_key = "comptime/general"
+help = "A compile-time evaluation failed. This is the generic comptime fallback."
+
+[[diagnostics]]
+code = "KAIN-COMPTIME-0002"
+title = "Comptime Evaluation Exceeded Recursion Limit"
+severity = "error"
+docs_key = "comptime/recursion-limit"
+help = """
+A `comptime` expression recursed beyond the compile-time evaluation
+limit (default: 1000 steps). This prevents infinite loops during
+compilation.
+
+Fix: increase the recursion depth or restructure the comptime logic
+to terminate earlier.
+"""
+
+[[diagnostics]]
+code = "KAIN-COMPTIME-0003"
+title = "Comptime Access To Runtime Value"
+severity = "error"
+docs_key = "comptime/runtime-value"
+help = """
+A `comptime` block attempts to access a value that is only available at
+runtime (e.g., user input, file I/O result, actor state). Compile-time
+evaluation can only use constants, type information, and comptime-known
+values.
+
+Fix: move the runtime-dependent logic out of the comptime block.
+"""
+
+[[diagnostics]]
+code = "KAIN-COMPTIME-0004"
+title = "Macro Expansion Error"
+severity = "error"
+docs_key = "comptime/macro-expansion"
+help = """
+A `macro` failed to expand — either the macro body produced invalid
+syntax, the argument count mismatched, or an expansion recursion limit
+was hit.
+
+Fix: check the macro definition and call site for consistency.
+"""
+see_also = ["KAIN-COMPTIME-0002"]
+
+[[diagnostics]]
+code = "KAIN-COMPTIME-0005"
+title = "Patch Target Not Found"
+severity = "error"
+docs_key = "comptime/patch-target"
+help = """
+A `patch` declaration targets a function, type, or module that does not
+exist or is not patchable. Only items explicitly marked as patchable can
+be modified by patches.
+
+Fix: ensure the target exists and is declared in a patchable context.
+"""
+
+[[diagnostics]]
+code = "KAIN-COMPTIME-0006"
+title = "Law Violation"
+severity = "error"
+docs_key = "comptime/law-violation"
+help = """
+A `law` invariant has been violated. Laws are compile-time assertions
+about types, values, or structural properties that must hold for the
+program to be valid.
+
+Fix: adjust the code to satisfy the law, or modify the law if it is
+too restrictive.
+"""
+
+[[diagnostics]]
+code = "KAIN-COMPTIME-0007"
+title = "Axiom Contradiction"
+severity = "error"
+docs_key = "comptime/axiom-contradiction"
+help = """
+An `axiom` (assumed truth) contradicts another axiom or a proven law.
+The axiom set is inconsistent — the compiler cannot proceed.
+
+Fix: remove or weaken one of the conflicting axioms.
+"""
+see_also = ["KAIN-COMPTIME-0006"]
+
+[[diagnostics]]
+code = "KAIN-COMPTIME-0008"
+title = "Orchestrate Dependency Cycle"
+severity = "error"
+docs_key = "comptime/orchestrate-cycle"
+help = """
+`orchestrate` defines a compile-time pipeline of transformations, but
+the pipeline contains a dependency cycle (a step depends on its own
+output, directly or transitively).
+
+Fix: break the cycle by reordering or splitting pipeline steps.
+"""
+
+[[diagnostics]]
+code = "KAIN-COMPTIME-0009"
+title = "Converge Failed"
+severity = "error"
+docs_key = "comptime/converge-failed"
+help = """
+`converge` attempts to unify multiple code variants but the variants
+are not structurally compatible — they produce different types, effect
+sets, or control flow.
+
+Fix: align the variants so they converge to a consistent interface.
+"""
+
+[[diagnostics]]
+code = "KAIN-COMPTIME-0010"
+title = "Shatter Pattern Incomplete"
+severity = "error"
+docs_key = "comptime/shatter-incomplete"
+help = """
+`shatter` splits a generic function into specialized variants, but the
+pattern does not cover all concrete type combinations used at call
+sites.
+
+Fix: add the missing specialization pattern or provide a fallback
+generic implementation.
+"""

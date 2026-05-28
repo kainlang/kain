@@ -1,0 +1,16 @@
+# ── Kain Internal Error Codes ───────────────────────────────────────────
+# Compiler bugs, impossible states, and unclassified hard failures.
+
+[[diagnostics]]
+code = "KAIN-INTERNAL-0001"
+title = "Internal Error"
+severity = "error"
+docs_key = "internal/general"
+help = """
+The compiler or runtime hit an internal invariant failure. This is not a
+normal user-authored language error; it usually means the toolchain hit
+an unsupported state, stale assumption, or outright bug.
+
+Fix: capture the repro, the active pass, and the surrounding diagnostic
+context so the owning subsystem can patch the invariant.
+"""

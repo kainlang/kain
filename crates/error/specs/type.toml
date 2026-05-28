@@ -1,0 +1,364 @@
+# ── Kain Type Error Codes ──────────────────────────────────────────────
+# Type-checking, name resolution, trait solving, and unification errors.
+
+[[diagnostics]]
+code = "KAIN-TYPE-0001"
+title = "Type Error"
+severity = "error"
+docs_key = "types/general"
+help = """
+A type mismatch or type-inference failure occurred. This is the generic
+fallback for type errors.
+"""
+see_also = ["KAIN-TYPE-0002"]
+
+[[diagnostics]]
+code = "KAIN-TYPE-0002"
+title = "Unknown Identifier"
+severity = "error"
+docs_key = "types/unknown-identifier"
+help = """
+The name is not visible in the current scope. Common causes:
+- Misspelling of a variable, function, or type name.
+- Missing `use` import.
+- The symbol exists only on the host/engine side and has not been
+  bridged into Kain via the foreign-ABI layer.
+- The symbol is defined inside a module that has not been imported.
+
+Fix: check spelling, add a `use` statement, or bridge the host symbol.
+"""
+see_also = ["KAIN-TYPE-0004", "KAIN-TYPE-0010"]
+
+[[diagnostics]]
+code = "KAIN-TYPE-0003"
+title = "World Requires Surface"
+severity = "error"
+docs_key = "world/missing-surface"
+help = """
+A `world` declaration must expose at least one surface projection so the
+world can map components into a live host presentation surface.
+
+Fix: add at least one surface projection such as `surface native_ui => MyPanel`
+inside the world body.
+"""
+see_also = ["KAIN-WORLD-0001"]
+
+[[diagnostics]]
+code = "KAIN-TYPE-0004"
+title = "Duplicate Symbol"
+severity = "error"
+docs_key = "types/duplicate-symbol"
+help = """
+The same name has been defined more than once in the same namespace.
+Kain requires each visible symbol to have a unique name within its
+scope.
+
+Fix: rename one declaration or use an explicit alias on import.
+"""
+see_also = ["KAIN-TYPE-0005"]
+
+[[diagnostics]]
+code = "KAIN-TYPE-0005"
+title = "Builtin Symbol Shadowed"
+severity = "warning"
+docs_key = "types/shadowed-builtin"
+help = """
+A user-defined name shadows a Kain builtin symbol. While allowed, this
+can cause confusion — the builtin is no longer accessible under its
+original name in this scope.
+
+Fix: choose a distinct local name, or import the builtin under an alias.
+"""
+
+[[diagnostics]]
+code = "KAIN-TYPE-0006"
+title = "Missing Type Annotation"
+severity = "error"
+docs_key = "types/missing-annotation"
+help = """
+Kain requires explicit type annotations in positions where the type
+cannot be inferred from context (top-level declarations, function
+parameters without defaults, trait associated types in some positions).
+
+Fix: add an explicit type annotation (`: TypeName`).
+"""
+example_bad = "let x"
+example_good = "let x: i32 = 5"
+see_also = ["KAIN-TYPE-0003"]
+
+[[diagnostics]]
+code = "KAIN-TYPE-0007"
+title = "Trait Not Satisfied"
+severity = "error"
+docs_key = "types/trait-not-satisfied"
+help = """
+A type does not implement a required trait. Traits in Kain define
+capability contracts that types must fulfill before they can be used
+in generic contexts, effect-polymorphic functions, or GPU dispatch.
+
+Fix: implement the missing trait methods for the type, or add a
+`derive` annotation if the trait is derivable.
+"""
+see_also = ["KAIN-TYPE-0008", "KAIN-TYPE-0016"]
+
+[[diagnostics]]
+code = "KAIN-TYPE-0008"
+title = "Trait Method Missing"
+severity = "error"
+docs_key = "types/trait-method-missing"
+help = """
+An `impl` block for a trait is missing one or more required methods.
+Every method declared in the trait definition must have a concrete
+implementation.
+
+Fix: add the missing method(s) to the impl block.
+"""
+see_also = ["KAIN-TYPE-0007"]
+
+[[diagnostics]]
+code = "KAIN-TYPE-0009"
+title = "Ambiguous Trait Implementation"
+severity = "error"
+docs_key = "types/ambiguous-trait"
+help = """
+Multiple trait implementations could satisfy a trait bound, and the
+compiler cannot choose between them. This is the "coherence" problem.
+
+Fix: use a fully-qualified path or add a type annotation to
+disambiguate.
+"""
+see_also = ["KAIN-TYPE-0007"]
+
+[[diagnostics]]
+code = "KAIN-TYPE-0010"
+title = "Unresolved Import"
+severity = "error"
+docs_key = "types/unresolved-import"
+help = """
+A `use` statement references a path that does not resolve to any known
+module or symbol. The module may not exist, or the symbol may not be
+`pub`.
+
+Fix: check the module path and visibility of the target symbol.
+"""
+see_also = ["KAIN-TYPE-0002"]
+
+[[diagnostics]]
+code = "KAIN-TYPE-0011"
+title = "Cyclic Type Definition"
+severity = "error"
+docs_key = "types/cyclic-definition"
+help = """
+A type definition refers to itself in a way that would require infinite
+size. Kain detects cycles in struct fields, enum variants, and type
+aliases.
+
+Fix: break the cycle with indirection (e.g., a pointer or boxed type).
+"""
+
+[[diagnostics]]
+code = "KAIN-TYPE-0012"
+title = "Mutable/Immutable Conflict"
+severity = "error"
+docs_key = "types/mutability-conflict"
+help = """
+A value declared `let` (immutable) is being used in a position that
+requires mutation, or vice versa.
+
+Fix: change `let` to `let mut` if mutation is required, or remove the
+mutation site.
+"""
+example_bad = "let x = 5\nx = 10"
+example_good = "let mut x = 5\nx = 10"
+see_also = ["KAIN-BORROW-0003"]
+
+[[diagnostics]]
+code = "KAIN-TYPE-0013"
+title = "Pattern Match Inexhaustive"
+severity = "error"
+docs_key = "types/inexhaustive-match"
+help = """
+A `match` expression does not cover all possible variants of the
+matched enum type. Kain requires exhaustive matching unless a wildcard
+branch (`_`) or a `fallback` clause is present.
+
+Fix: add missing variant arms or a wildcard catch-all.
+"""
+see_also = ["KAIN-STATE-0002"]
+
+[[diagnostics]]
+code = "KAIN-TYPE-0014"
+title = "Recursive Type Without Indirection"
+severity = "error"
+docs_key = "types/recursive-without-indirection"
+help = """
+A struct or enum contains itself as a direct field, which would require
+infinite memory. Use a pointer-like indirection (shared, weak, or a
+reference) to break the cycle.
+
+Fix: wrap the recursive field in a `shared` or heap-allocated container.
+"""
+
+[[diagnostics]]
+code = "KAIN-TYPE-0015"
+title = "Type Alias Cycle"
+severity = "error"
+docs_key = "types/alias-cycle"
+help = """
+A `type` alias expands to itself, directly or through a chain of other
+aliases. Kain resolves aliases eagerly and detects cycles.
+
+Fix: break the alias cycle.
+"""
+
+[[diagnostics]]
+code = "KAIN-TYPE-0016"
+title = "Impl On Foreign Type"
+severity = "error"
+docs_key = "types/foreign-impl"
+help = """
+An `impl` block implements a trait for a type that is not defined in
+the current crate. By Kain's coherence rules, you can only implement
+your own traits for foreign types, or foreign traits for your own types
+— not both foreign.
+
+Fix: create a newtype wrapper or define the trait in your crate.
+"""
+
+[[diagnostics]]
+code = "KAIN-TYPE-0017"
+title = "Self Type In Static Context"
+severity = "error"
+docs_key = "types/self-in-static"
+help = """
+`Self` or `self` was used outside of a trait, impl block, or method
+context where it has no meaning.
+
+Fix: use a concrete type name instead of `Self`.
+"""
+
+[[diagnostics]]
+code = "KAIN-TYPE-0018"
+title = "Invalid Type Parameter Count"
+severity = "error"
+docs_key = "types/param-count"
+help = """
+A generic type or function was supplied with the wrong number of type
+arguments. Check the definition for the expected arity.
+
+Fix: provide the correct number of type arguments.
+"""
+
+[[diagnostics]]
+code = "KAIN-TYPE-0019"
+title = "Type Argument Kind Mismatch"
+severity = "error"
+docs_key = "types/arg-kind-mismatch"
+help = """
+A type argument does not satisfy the kind constraints of the generic
+parameter. For example, a type parameter constrained by a trait was
+given a type that does not implement that trait.
+
+Fix: ensure the type argument satisfies all bounds.
+"""
+see_also = ["KAIN-TYPE-0007"]
+
+[[diagnostics]]
+code = "KAIN-TYPE-0020"
+title = "Return Type Mismatch"
+severity = "error"
+docs_key = "types/return-mismatch"
+help = """
+The body of a function produces a value whose type does not match the
+declared return type. Every exit path (including early returns and the
+implicit tail expression) must agree with the annotation.
+
+Fix: correct the return type annotation or the returned value.
+"""
+example_bad = "fn answer: i32 { \"forty-two\" }"
+example_good = "fn answer: i32 { 42 }"
+
+[[diagnostics]]
+code = "KAIN-TYPE-0021"
+title = "Missing Return In Non-Void Function"
+severity = "error"
+docs_key = "types/missing-return"
+help = """
+A function with a non-void return type does not return a value on at
+least one control-flow path. Every branch must either return, diverge,
+or produce a tail expression.
+
+Fix: add a return statement or ensure the tail expression matches the
+declared type.
+"""
+
+[[diagnostics]]
+code = "KAIN-TYPE-0022"
+title = "Void Value Used In Expression"
+severity = "error"
+docs_key = "types/void-in-expression"
+help = """
+A value of type `void` or `none` is being used in a position that
+expects a meaningful value (e.g., assigned to a typed variable, passed
+as a non-void argument).
+
+Fix: remove the void-producing expression or wrap it in a block that
+returns a meaningful value.
+"""
+
+[[diagnostics]]
+code = "KAIN-TYPE-0023"
+title = "Callable Type Expected"
+severity = "error"
+docs_key = "types/not-callable"
+help = """
+A value was used in a function-call position but its type is not
+callable (not a function, closure, or object with an `invoke` method).
+
+Fix: check that the name refers to a function, not a non-callable
+variable.
+"""
+example_bad = "let x = 5\nx()"
+example_good = "let x = fn: { 5 }\nx()"
+
+[[diagnostics]]
+code = "KAIN-TYPE-0024"
+title = "Field Not Found"
+severity = "error"
+docs_key = "types/field-not-found"
+help = """
+The struct or component type does not have a field with the given name.
+Check the type definition for the correct field names.
+
+Fix: use a field that exists on the type, or check for misspelling.
+"""
+see_also = ["KAIN-TYPE-0002"]
+
+[[diagnostics]]
+code = "KAIN-TYPE-0025"
+title = "Type Mismatch"
+severity = "error"
+docs_key = "types/mismatch"
+help = """
+The inferred type does not match the expected type in this position.
+Kain uses structural typing for most constructs but enforces nominal
+matching for traits and effect-polymorphic boundaries.
+
+Fix: check whether a type annotation is needed, or whether the value
+needs an explicit conversion (via `as`).
+"""
+example_bad = "let x: i32 = \"hello\""
+example_good = "let x: i32 = 42"
+see_also = ["KAIN-TYPE-0005", "KAIN-TYPE-0012"]
+
+[[diagnostics]]
+code = "KAIN-TYPE-0026"
+title = "Index Not Supported"
+severity = "error"
+docs_key = "types/index-not-supported"
+help = """
+The type does not support indexing with `[]`. Only arrays, maps, and
+types that implement the `Index` trait can be indexed.
+
+Fix: use a supported container type or implement the `Index` trait.
+"""

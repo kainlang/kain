@@ -1,0 +1,304 @@
+# ── Kain Parse Error Codes ─────────────────────────────────────────────
+# Data-driven diagnostic specs for the lexer and parser phases.
+# Every code maps to a KAIN-PARSE-NNNN identifier consumed by the
+# registry, the terminal renderer, JSON output, and `kain explain`.
+
+[[diagnostics]]
+code = "KAIN-PARSE-0001"
+title = "Parse Error"
+severity = "error"
+docs_key = "parser/general"
+help = """
+The parser encountered input it cannot understand. This is the generic
+fallback — most parse errors produce a more specific code.
+"""
+see_also = ["KAIN-PARSE-0002", "KAIN-PARSE-0003"]
+
+[[diagnostics]]
+code = "KAIN-PARSE-0002"
+title = "Expected Token"
+severity = "error"
+docs_key = "parser/expected-token"
+help = """
+The parser expected a specific token at this position but found something
+else.  Kain grammar is whitespace-sensitive around block delimiters and
+uses `:` after block headers.
+
+Fix: insert the missing token before continuing, or restructure the
+surrounding syntax so the expected token appears in a valid grammar slot.
+"""
+example_bad = "fn main {\n    return\n}"
+example_good = "fn main: {\n    return\n}"
+see_also = ["KAIN-PARSE-0005", "KAIN-PARSE-0007"]
+
+[[diagnostics]]
+code = "KAIN-PARSE-0003"
+title = "Unexpected Token"
+severity = "error"
+docs_key = "parser/unexpected-token"
+help = """
+A token appeared in a position where the Kain grammar does not allow it.
+This often happens when a delimiter is missing, causing the parser to
+interpret the next construct incorrectly.
+
+Fix: remove the stray token or add the missing delimiter so the token
+lands in a valid grammar position.
+"""
+example_bad = "let x = 5\n  let y = 10"
+example_good = "let x = 5\nlet y = 10"
+see_also = ["KAIN-PARSE-0002"]
+
+[[diagnostics]]
+code = "KAIN-PARSE-0004"
+title = "Reserved Identifier"
+severity = "error"
+docs_key = "parser/reserved-identifiers"
+help = """
+The identifier you used collides with a word reserved by Kain, HLSL,
+C++, or an engine host runtime. Reserved identifiers cannot be used as
+user-defined names.
+
+Fix: rename the identifier. A common convention is to append an
+underscore or choose a domain-specific synonym.
+"""
+see_also = ["KAIN-PARSE-0007"]
+
+[[diagnostics]]
+code = "KAIN-PARSE-0005"
+title = "Missing Delimiter Before Newline"
+severity = "error"
+docs_key = "parser/missing-delimiter-before-newline"
+help = """
+Kain block headers (fn, if, match, for, while, component, world, etc.)
+require a `:` before the body. A newline appeared before the expected
+delimiter.
+
+Fix: insert `:` at the end of the header line, or keep the expression
+on one logical line.
+"""
+example_bad = "fn greet\n    return \"hi\""
+example_good = "fn greet:\n    return \"hi\""
+fixit = ":"
+see_also = ["KAIN-PARSE-0002"]
+
+[[diagnostics]]
+code = "KAIN-PARSE-0006"
+title = "Invalid World Surface Kind"
+severity = "error"
+docs_key = "world/surface-kind"
+help = """
+`surface` declarations inside a `world` block must use one of the four
+built-in surface kinds: native_ui, viewport3d, web, or ue5.
+
+Fix: replace the unknown kind with a valid surface projection kind.
+"""
+example_bad = "surface desktop => MyPanel"
+example_good = "surface native_ui => MyPanel"
+see_also = ["KAIN-WORLD-0001"]
+
+[[diagnostics]]
+code = "KAIN-PARSE-0007"
+title = "Expected Contextual Keyword"
+severity = "error"
+docs_key = "parser/contextual-keywords"
+help = """
+Contextual keywords (patch, law, axiom, pulse, orchestrate, converge,
+world, entangle, shatter, teleport, every, when, guarantee, fallback,
+spec, fast, verify, random, jitter, target, capability, from, to, via,
+surface, compute, uniform, render, on, weak, single_writer) only become
+special in specific grammar slots.
+
+Fix: check whether a nearby identifier or missing delimiter shifted the
+parser out of the keyword slot.
+"""
+see_also = ["KAIN-PARSE-0002", "KAIN-PARSE-0004"]
+
+[[diagnostics]]
+code = "KAIN-PARSE-0008"
+title = "Unclosed Delimiter"
+severity = "error"
+docs_key = "parser/unclosed-delimiter"
+help = """
+A bracket, brace, or parenthesis was opened but never closed. Kain
+tracks delimiter pairs through the lexer and requires all scopes to be
+explicitly terminated.
+
+Fix: add the matching closing delimiter at the appropriate nesting level.
+"""
+example_bad = "let x = (a + b"
+example_good = "let x = (a + b)"
+see_also = ["KAIN-PARSE-0002"]
+
+[[diagnostics]]
+code = "KAIN-PARSE-0009"
+title = "Mismatched Delimiter"
+severity = "error"
+docs_key = "parser/mismatched-delimiter"
+help = """
+A closing delimiter did not match its opening counterpart (e.g., `]`
+closing `{`). The lexer tracks delimiter pairs and detected a mismatch.
+
+Fix: align the closing delimiter with the expected opening pair.
+"""
+example_bad = "let arr = [1, 2, 3}"
+example_good = "let arr = [1, 2, 3]"
+see_also = ["KAIN-PARSE-0008"]
+
+[[diagnostics]]
+code = "KAIN-PARSE-0010"
+title = "Invalid Numeric Literal"
+severity = "error"
+docs_key = "parser/numeric-literal"
+help = """
+A numeric literal could not be parsed. Kain supports integers (decimal,
+hex 0x, binary 0b, octal 0o), floats (with `.` or exponent), and
+type suffixes (u8, i32, f32, f64).
+
+Fix: ensure the literal conforms to the supported formats.
+"""
+example_bad = "let x = 0xZZZ"
+example_good = "let x = 0xFF"
+
+[[diagnostics]]
+code = "KAIN-PARSE-0011"
+title = "Invalid String Literal"
+severity = "error"
+docs_key = "parser/string-literal"
+help = """
+A string literal is malformed. Kain strings use double quotes with
+backslash escapes (\\n, \\t, \\\", \\\\, \\u{XXXX}).
+
+Fix: ensure proper escaping and that the string is terminated.
+"""
+example_bad = 'let s = "hello\nworld"'
+example_good = 'let s = "hello\\nworld"'
+
+[[diagnostics]]
+code = "KAIN-PARSE-0012"
+title = "Invalid Character Literal"
+severity = "error"
+docs_key = "parser/char-literal"
+help = """
+A character literal must contain exactly one codepoint (or one escape
+sequence) between single quotes.
+
+Fix: use a string literal for multi-character sequences.
+"""
+example_bad = "let c = 'ab'"
+example_good = "let c = 'a'"
+
+[[diagnostics]]
+code = "KAIN-PARSE-0013"
+title = "Attribute Syntax Error"
+severity = "error"
+docs_key = "parser/attribute"
+help = """
+Kain attributes use `@name` or `@name(args...)` syntax. The attribute
+could not be parsed — check the attribute name and argument list.
+
+Fix: ensure the attribute conforms to `@identifier` or
+`@identifier(arg, ...)` syntax.
+"""
+example_bad = "@ material_graph"
+example_good = "@material_graph"
+
+[[diagnostics]]
+code = "KAIN-PARSE-0014"
+title = "Effect Annotation Syntax Error"
+severity = "error"
+docs_key = "parser/effect-annotation"
+help = """
+Effect annotations (`Pure`, `IO`, `async`, `Async`, `GPU`, `Reactive`,
+`Unsafe`) must appear in specific positions on function signatures or
+type definitions. The parser could not interpret the annotation in this
+position.
+
+Fix: move the effect annotation to the correct position (before the
+function return type or on the type definition).
+"""
+see_also = ["KAIN-EFFECT-0001", "KAIN-EFFECT-0002"]
+
+[[diagnostics]]
+code = "KAIN-PARSE-0015"
+title = "Module Declaration Error"
+severity = "error"
+docs_key = "parser/module"
+help = """
+`mod` declarations must be followed by an identifier and optionally a
+body block (`{ ... }`) or a file path string. The parser could not
+complete the module declaration.
+
+Fix: ensure the module has a valid name and a body or path.
+"""
+example_bad = "mod"
+example_good = "mod graphics { ... }"
+
+[[diagnostics]]
+code = "KAIN-PARSE-0016"
+title = "Use/Import Syntax Error"
+severity = "error"
+docs_key = "parser/use-import"
+help = """
+`use` declarations import symbols with path syntax (`use a::b::c` or
+`use a::{b, c}`). The import path could not be parsed.
+
+Fix: ensure the import path uses `::` separators and valid identifiers.
+"""
+example_bad = "use std..math"
+example_good = "use std::math"
+
+[[diagnostics]]
+code = "KAIN-PARSE-0017"
+title = "Visibility Modifier Error"
+severity = "error"
+docs_key = "parser/visibility"
+help = """
+`pub` must be followed by a declaration (fn, struct, enum, type, mod,
+const, etc.). It cannot stand alone.
+
+Fix: attach `pub` to a valid declaration.
+"""
+example_bad = "pub"
+example_good = "pub fn greet: ..."
+
+[[diagnostics]]
+code = "KAIN-PARSE-0018"
+title = "Comptime Block Syntax Error"
+severity = "error"
+docs_key = "parser/comptime"
+help = """
+`comptime` blocks must contain valid Kain expressions that can be
+evaluated at compile time. The block could not be parsed.
+
+Fix: ensure the comptime block body contains valid, evaluable
+expressions.
+"""
+see_also = ["KAIN-COMPTIME-0001"]
+
+[[diagnostics]]
+code = "KAIN-PARSE-0019"
+title = "Macro Invocation Syntax Error"
+severity = "error"
+docs_key = "parser/macro"
+help = """
+`macro` definitions and invocations use a specific syntax. The macro
+could not be parsed — check the macro name, parameter list, and body.
+
+Fix: macros take the form `macro name(params...): { body }`.
+"""
+see_also = ["KAIN-COMPTIME-0002"]
+
+[[diagnostics]]
+code = "KAIN-PARSE-0020"
+title = "Test Declaration Syntax Error"
+severity = "error"
+docs_key = "parser/test"
+help = """
+`test` blocks must define a named test with an optional body. The test
+declaration could not be parsed.
+
+Fix: `test "name": { body }` or `test "name" { body }`.
+"""
+example_bad = "test: {}"
+example_good = 'test "my test": { assert true }'
+see_also = ["KAIN-TEST-0001"]

@@ -1,0 +1,96 @@
+# ── Kain Runtime Error Codes ───────────────────────────────────────────
+# Runtime errors: dispatch, actor messaging, resource exhaustion.
+
+[[diagnostics]]
+code = "KAIN-RUNTIME-0001"
+title = "Runtime Error"
+severity = "error"
+docs_key = "runtime/general"
+help = "A runtime invariant has been violated."
+
+[[diagnostics]]
+code = "KAIN-RUNTIME-0002"
+title = "Actor Panic"
+severity = "error"
+docs_key = "runtime/actor-panic"
+help = """
+An actor or component panicked at runtime. The panic may be caused by
+an assertion failure, an unhandled message, or a resource error.
+
+Fix: check the panic message and trace to identify the root cause.
+"""
+
+[[diagnostics]]
+code = "KAIN-RUNTIME-0003"
+title = "Message Delivery Failed"
+severity = "error"
+docs_key = "runtime/message-delivery"
+help = """
+A message could not be delivered to its target actor. The target may
+have been destroyed, its mailbox may be full, or the message type may
+not be accepted.
+
+Fix: check the target actor's lifecycle and message handling.
+"""
+see_also = ["KAIN-ACTOR-0003"]
+
+[[diagnostics]]
+code = "KAIN-RUNTIME-0004"
+title = "Resource Exhausted"
+severity = "error"
+docs_key = "runtime/resource-exhausted"
+help = """
+A runtime resource (memory, file handles, GPU memory, actor capacity)
+has been exhausted. The program cannot continue.
+
+Fix: reduce resource consumption, increase limits, or add backpressure.
+"""
+
+[[diagnostics]]
+code = "KAIN-RUNTIME-0005"
+title = "Deadlock Detected"
+severity = "error"
+docs_key = "runtime/deadlock"
+help = """
+The runtime detected a deadlock — two or more actors are waiting on each
+other in a cycle, and no progress can be made.
+
+Fix: restructure the message flow to avoid circular waits, or use
+timeouts.
+"""
+
+[[diagnostics]]
+code = "KAIN-RUNTIME-0006"
+title = "World Initialization Failed"
+severity = "error"
+docs_key = "runtime/world-init"
+help = """
+A `world` could not be initialized. Surface creation, component
+registration, or resource allocation may have failed.
+
+Fix: check the world configuration and surface backend availability.
+"""
+
+[[diagnostics]]
+code = "KAIN-RUNTIME-0007"
+title = "Shader Dispatch Failed"
+severity = "error"
+docs_key = "runtime/shader-dispatch"
+help = """
+A GPU shader dispatch command failed. The GPU may be unavailable, the
+shader may have crashed, or dispatch parameters may be invalid.
+
+Fix: check GPU availability, shader validity, and dispatch dimensions.
+"""
+
+[[diagnostics]]
+code = "KAIN-RUNTIME-0008"
+title = "Timeout Exceeded"
+severity = "error"
+docs_key = "runtime/timeout"
+help = """
+An operation exceeded its time budget and was cancelled. This applies
+to async operations, actor message waits, and compute dispatches.
+
+Fix: increase the timeout budget or optimize the operation.
+"""
