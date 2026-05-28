@@ -1,5 +1,68 @@
 # Kain Memory
 
+# 2026-05-28 - error-semantic packet unification + corpus identity polish
+
+Tightened the new `crates/error-semantic` lane so it is no longer split-brained between its own packet schema and the canonical diagnostic packet in `kain-error`, and so the baked corpus now preserves source ownership instead of collapsing everything to file-stem guesses.
+
+What changed:
+
+- `crates/error/src/report.rs`
+  - Extended canonical `DiagnosticSemanticPacket` builders with:
+    - `nearest_scope_matches(...)`
+    - `add_scope_match(...)`
+    - `contextual_flags(...)`
+    - `add_downstream(...)`
+- `crates/error-semantic/src/packet.rs`
+  - Now re-exports `kain_error::{DiagnosticSemanticPacket, DeterministicRepair}` instead of owning a divergent duplicate packet schema.
+- `crates/error-semantic/build.rs`
+  - Switched `KAIN_CORPUS_PATH` parsing to `std::env::split_paths(...)` for platform-safe external corpus roots.
+  - Added `cargo:rerun-if-changed` coverage for all scan roots.
+  - Corpus entries now carry `module_path`, `source_path`, `source_lane`, and optional `canonical_import_path` instead of only a file-stem module name.
+  - Canonical stdlib root imports are now derived directly from stdlib file ownership (`stdlib/fs.kn` => `std::fs`) rather than only string heuristics.
+  - Kept supplemental `use std::...` import seeds so Bazel build-script sandboxes still retain useful import priors even when only the baked corpus is visible.
+- `crates/error-semantic/src/corpus_db.rs`
+  - Corpus matches now expose source identity and canonical import ownership.
+  - Import suggestion first uses canonical import ownership, then falls back to prefix-shaped module seeds.
+  - Added tests for `std::fs` import suggestion and source identity coverage.
+- `crates/error-semantic/src/expert.rs`
+  - Unknown-identifier classification now prefers scope-local typo matches, then missing-import classification, then corpus-global typo guesses; this avoids misclassifying `fs_read_text`-style missing imports as generic typos.
+  - Literal scoring constants now use explicit `f32` suffixes to keep editor/type-analysis quiet.
+  - Tests now use the canonical `DiagnosticCode` / `CompilerPhase` packet contract.
+- `tools/bazel/sync_rust_builds.py`
+  - Generated Rust Bazel targets now mirror package-local `corpus/**/*` into `COMMON_COMPILE_DATA` the same way `specs/**/*` was already handled.
+- `crates/error-semantic/BUILD.bazel`
+  - Generated and validated; includes build-script support plus `corpus/**/*` as Bazel-visible inputs.
+
+Validation:
+
+- `python tools/bazel/sync_rust_builds.py`
+- `python tools/bazel/sync_rust_builds.py --check`
+- `cargo check -p kain-error -p kain-error-semantic`
+- `cargo test -p kain-error-semantic`
+- `CARGO_BAZEL_REPIN=1 bazel fetch //crates/error-semantic:unit_test --config=dev`
+- `bazel test //crates/error-semantic:unit_test --config=dev`
+
+Durable lesson:
+
+- For semantic-diagnostic corpora, symbol names alone are not enough. Preserve lane/path ownership and derive canonical stdlib imports from module ownership first; use heuristic prefix/import seeds only as a secondary fallback so the system stays useful under Bazel/build-script sandboxing too.
+
+# 2026-05-27 - `kain -c` diagnostic proof works, but bare inline execution still rides the legacy native-script lane
+
+Validated the new `crates/error` engine through the real CLI using intentionally bad inline Kain. The trustworthy proof path on this workstation is `kain -c <source> -o <artifact>` so the inline source goes through the normal compile lane and surfaces frontend/type diagnostics directly instead of dropping into executable-link work.
+
+What was verified:
+
+- `kain -c 'fn main() -> Int\n    return 0\n' -o ...`
+  - surfaces `KAIN-PARSE-0005` (`Missing ':' before line break`)
+- `kain -c 'fn main() -> Int:\n    return missing_name\n' -o ...`
+  - surfaces `KAIN-TYPE-0002` (`Unknown identifier 'missing_name'`)
+- `kain -c 'world Demo:\n    state hp: Int = 3\n\nfn main() -> Int:\n    return 0\n' -o ...`
+  - surfaces `KAIN-TYPE-0003` (`world 'Demo' must declare at least one surface`)
+
+Durable lesson:
+
+- In `crates/cli/src/kain_launcher.rs`, bare `-c/--code` with no output still hits `legacy_source_prefers_native_script(...)` for the default target set (`wasm`, `llvm`, `native`, `n`). On this workstation that means the inline source may route into the native run/link lane instead of acting like a pure compiler-diagnostic `python -c` path. If the goal is to pressure diagnostics specifically, add `-o <artifact>` (or otherwise avoid the native-script shortcut) so the new error engine is what you are actually observing.
+
 # 2026-05-27 - CLI Bazel no longer hardcodes pre-archive `blades/kain-example`
 
 The broader Bazel diagnostic lane stopped failing at compile time on a dead example path. `crates/cli/src/llvm_native_stage.rs` had a unit test using `include_str!("../../../blades/kain-example/src/main.kn")`, but that legacy example now lives under `blades/_old/kain-example`. The Bazel compile failure was a stale repo-path assumption, not an error-system regression.

@@ -9,7 +9,8 @@ Kain syntax is built from these families:
 
 - top-level items: functions, patches, laws, converges, worlds, entanglements,
   orchestrates, components, shaders, actors, structs, enums, traits, impls,
-  aliases, uses, modules, consts, comptime blocks, macros, tests, and domain items
+  aliases, uses, natural C includes, modules, consts, comptime blocks, macros,
+  tests, and domain items
 - statements: `let`, expression statements, `return`, `break`, `continue`,
   `for`, `while`, `loop`, nested items
 - expressions: literals, calls, binary/unary operators, field/index access,
@@ -24,7 +25,7 @@ The parser and LSP both treat these as language keywords or keyword-like forms:
 
 `fn`, `let`, `mut`, `var`, `const`, `if`, `else`, `elif`, `match`, `for`,
 `while`, `loop`, `break`, `continue`, `return`, `await`, `in`, `with`, `as`,
-`type`, `struct`, `enum`, `trait`, `impl`, `pub`, `mod`, `use`, `self`, `Self`,
+`type`, `struct`, `enum`, `trait`, `impl`, `pub`, `mod`, `use`, `include`, `self`, `Self`,
 `true`, `false`, `none`, `component`, `patch`, `law`, `converge`, `world`,
 `entangle`, `orchestrate`, `shader`, `actor`, `state`, `spawn`, `send`,
 `receive`, `emit`, `comptime`, `macro`, `vertex`, `fragment`, `test`

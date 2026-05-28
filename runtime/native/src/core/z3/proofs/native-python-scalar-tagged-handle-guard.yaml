@@ -1,0 +1,41 @@
+version: 1
+id: kain.native.core.proofs.native_python_scalar_tagged_handle_guard
+kind: check_smt2
+description: Python raw scalar results use JSON-style low-bit tags, so a boxed int whose payload happens to be aligned must not reach the RC header read unless the unboxed payload is a tracked runtime pointer.
+tags:
+- native-runtime
+- python
+- interop
+- tagged-any
+- rc
+- crash
+source:
+  path: X:\runtime\native\src\core\python_runtime.c
+  symbol: kain_py_type_tag_matches
+  reason: `kain_py_unbox_tagged_handle` can see `(value & 7) == 1` for both boxed scalar ints and tagged RC handles; the tracked-pointer guard keeps scalar payloads from masquerading as heap objects.
+case:
+  smt2: |
+    (set-logic QF_BV)
+    (declare-fun value () (_ BitVec 64))
+    (declare-fun tracked_payload () Bool)
+    (define-fun low3 ((v (_ BitVec 64))) (_ BitVec 64)
+      (bvand v #x0000000000000007))
+    (define-fun payload ((v (_ BitVec 64))) (_ BitVec 64)
+      (bvashr v #x0000000000000003))
+    (define-fun aligned ((v (_ BitVec 64))) Bool
+      (= (low3 v) #x0000000000000000))
+    (define-fun scalar-int-tag ((v (_ BitVec 64))) Bool
+      (= (low3 v) #x0000000000000001))
+    (define-fun may-read-rc-header ((v (_ BitVec 64))) Bool
+      (and (scalar-int-tag v)
+           (aligned (payload v))
+           tracked_payload))
+    (assert (scalar-int-tag value))
+    (assert (aligned (payload value)))
+    (assert (not tracked_payload))
+    ; New guard: an aligned unboxed scalar payload cannot reach the RC header
+    ; read unless the registry first proves it is a tracked runtime pointer.
+    (assert (may-read-rc-header value))
+    (check-sat)
+  include_model: false
+  include_stats: false

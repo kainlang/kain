@@ -1,0 +1,32 @@
+use std::runtime
+
+fn smoke_maybe(flag: Bool) -> Option<Int>:
+    if flag:
+        return Some(41)
+    return None
+
+fn smoke_parse(flag: Bool) -> Result<Int, String>:
+    if flag:
+        return Result::Ok(23)
+    return Result::Err("smoke parse rejected")
+
+fn smoke_use_question_mark() -> Result<Int, String>:
+    let parsed: Int = smoke_parse(true)?
+    return Result::Ok(parsed + 1)
+
+pub fn smoke_option_result_lane() -> Int:
+    let fallback: Int = smoke_maybe(false).unwrap_or(19)
+    let present: Int = smoke_maybe(true).unwrap_or(0)
+    if fallback != 19:
+        return 1
+    if present != 41:
+        return 2
+    if smoke_maybe(true).is_some() == false:
+        return 3
+    if smoke_parse(false).is_err() == false:
+        return 4
+    let qm_result = smoke_use_question_mark()
+    let qm_value = qm_result.unwrap()
+    if qm_value != 24:
+        return 5
+    return 0

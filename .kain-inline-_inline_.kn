@@ -1,0 +1,44 @@
+use std::python
+import asyncio as py_asyncio
+import json as py_json
+import os as py_os
+import sys as py_sys
+fn main() -> Int:
+    let modulus = 1000000007
+    let getdefaultencoding_fn = python_getattr_raw(py_sys, "getdefaultencoding")
+    let path_mod = python_getattr_raw(py_os, "path")
+    let join_fn = python_getattr_raw(path_mod, "join")
+    let dirname_fn = python_getattr_raw(path_mod, "dirname")
+    let basename_fn = python_getattr_raw(path_mod, "basename")
+    let dumps_fn = python_getattr_raw(py_json, "dumps")
+    let loads_fn = python_getattr_raw(py_json, "loads")
+    let acc = 0
+    let index = 0
+    while index < 10000:
+        let sys_name = python_getattr_raw(py_sys, "__name__")
+        let sys_encoding = python_call_raw(getdefaultencoding_fn, [])
+        let os_name = python_getattr_raw(py_os, "__name__")
+        let json_name = python_getattr_raw(py_json, "__name__")
+        let asyncio_name = python_getattr_raw(py_asyncio, "__name__")
+        let sep = python_getattr_raw(py_os, "sep")
+        let joined = python_call_raw(join_fn, ["a", "b", "c"])
+        let dirname = python_call_raw(dirname_fn, [joined])
+        let basename = python_call_raw(basename_fn, [joined])
+        let dumped = python_call_raw(dumps_fn, [[1, 2, 3]])
+        let parsed = python_call_raw(loads_fn, [dumped])
+        let roundtrip = python_call_raw(dumps_fn, [parsed])
+        let asyncio_loop = python_call_attr_raw(py_asyncio, "new_event_loop", [])
+        let future = python_call_attr_raw(asyncio_loop, "create_future", [])
+        let future_seed = 23 + (index % 13)
+        let _set_result = python_call_attr_raw(future, "set_result", [future_seed])
+        let done_ok = to_int(python_call_attr_raw(future, "done", []))
+        let cancelled_ok = to_int(python_call_attr_raw(future, "cancelled", []))
+        let future_value = to_int(python_call_attr_raw(future, "result", []))
+        let _close_loop = python_call_attr_raw(asyncio_loop, "close", [])
+        let loop_closed = to_int(python_call_attr_raw(asyncio_loop, "is_closed", []))
+        let lane = len(to_string(sys_name)) + len(to_string(sys_encoding)) + len(to_string(os_name)) + len(to_string(json_name)) + len(to_string(asyncio_name)) + len(to_string(sep)) + len(to_string(joined)) + len(to_string(dirname)) + len(to_string(basename)) + len(to_string(dumped)) + len(to_string(roundtrip)) + future_value + done_ok + cancelled_ok + loop_closed + (index % 13)
+        acc = (acc + lane) % modulus
+        index = index + 1
+    println("ceiling_acc=" + str(acc))
+    return 0
+// ceiling-full-guarded

@@ -1,7 +1,0 @@
-fn repro() -> Int:
-    if true:
-        let x = (
-            1 +
-            2
-        )
-    return 0

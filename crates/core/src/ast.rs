@@ -1335,8 +1335,15 @@ pub struct Use {
     pub path: Vec<String>,
     pub alias: Option<String>,
     pub glob: bool,
+    pub origin: UseOrigin,
     pub source_file: Option<String>,
     pub span: Span,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UseOrigin {
+    Use,
+    CInclude,
 }
 
 #[derive(Debug, Clone, PartialEq)]

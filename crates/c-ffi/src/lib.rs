@@ -43,6 +43,19 @@ struct LoadedBridge {
     register: RegisterBridgeFn,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CLibraryImportSpec {
+    pub import_name: String,
+    pub alias: Option<String>,
+    pub origin: CLibraryImportOrigin,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CLibraryImportOrigin {
+    UseC,
+    Include,
+}
+
 pub fn register() {
     REGISTER_EXTENSION_ONCE.call_once(|| {
         register_env_extension("kain_c_ffi", apply_loaded_bridges);
@@ -54,10 +67,10 @@ pub fn import_libraries_for_source(
     options: &ImportCOptions,
     prepare: &PrepareContext,
 ) -> Result<Vec<ImportCOutput>, KainError> {
-    let imports = detect_c_library_imports(source);
+    let imports = detect_c_library_import_specs(source);
     let mut outputs = Vec::new();
-    for import_name in imports {
-        outputs.push(import_library(&import_name, options, prepare)?);
+    for spec in imports {
+        outputs.push(import_library(&spec.import_name, options, prepare)?);
     }
     Ok(outputs)
 }
@@ -256,7 +269,7 @@ pub fn augment_source_for_runtime(
     target: CompileTarget,
     prepare: &PrepareContext,
 ) -> Result<String, KainError> {
-    let imports = detect_c_library_imports(source);
+    let imports = detect_c_library_import_specs(source);
     if imports.is_empty() {
         return Ok(source.to_string());
     }
@@ -267,40 +280,176 @@ pub fn augment_source_for_runtime(
         )
     })?;
     let mut outputs = Vec::with_capacity(imports.len());
-    for import_name in imports {
-        outputs.push(import_library(
-            &import_name,
-            &ImportCOptions {
-                mode,
-                ..ImportCOptions::default()
-            },
-            prepare,
-        )?);
+    for spec in &imports {
+        outputs.push((
+            spec.clone(),
+            import_library(
+                &spec.import_name,
+                &ImportCOptions {
+                    mode,
+                    ..ImportCOptions::default()
+                },
+                prepare,
+            )?,
+        ));
     }
 
     let mut sections = Vec::new();
-    for output in outputs {
-        sections.push(output.canonical_module_source);
+    for (spec, output) in outputs {
+        sections.push(output.canonical_module_source.clone());
+        if spec.origin == CLibraryImportOrigin::Include {
+            if let Some(alias) = spec.alias.as_deref() {
+                if let Some(alias_source) = render_include_alias_source(&output, alias) {
+                    sections.push(alias_source);
+                }
+            }
+        }
     }
     sections.push(source.to_string());
     Ok(sections.join("\n"))
 }
 
 pub fn detect_c_library_imports(source: &str) -> Vec<String> {
-    static IMPORT_REGEX: Lazy<Regex> = Lazy::new(|| {
+    detect_c_library_import_specs(source)
+        .into_iter()
+        .map(|spec| spec.import_name)
+        .collect()
+}
+
+pub fn detect_c_library_import_specs(source: &str) -> Vec<CLibraryImportSpec> {
+    static USE_C_REGEX: Lazy<Regex> = Lazy::new(|| {
         Regex::new(r"(?m)^\s*use\s+c(?:::|/)([A-Za-z_][A-Za-z0-9_]*)").expect("regex")
+    });
+    static INCLUDE_REGEX: Lazy<Regex> = Lazy::new(|| {
+        Regex::new(
+            r#"(?m)^\s*include\s+(?:"([^"]+)"|([A-Za-z_][A-Za-z0-9_]*(?:[./][A-Za-z_][A-Za-z0-9_]*)*(?:\.h)?))(?:\s+as\s+([A-Za-z_][A-Za-z0-9_]*))?"#,
+        )
+        .expect("regex")
     });
     let mut seen = BTreeSet::new();
     let mut imports = Vec::new();
-    for captures in IMPORT_REGEX.captures_iter(source) {
+    for captures in USE_C_REGEX.captures_iter(source) {
         if let Some(value) = captures.get(1) {
             let import_name = value.as_str().to_string();
             if seen.insert(import_name.clone()) {
-                imports.push(import_name);
+                imports.push(CLibraryImportSpec {
+                    import_name,
+                    alias: None,
+                    origin: CLibraryImportOrigin::UseC,
+                });
             }
         }
     }
+    for captures in INCLUDE_REGEX.captures_iter(source) {
+        let include_target = captures
+            .get(1)
+            .or_else(|| captures.get(2))
+            .map(|value| value.as_str())
+            .unwrap_or_default();
+        let import_name = natural_include_import_name(include_target);
+        if import_name.is_empty() {
+            continue;
+        }
+        if seen.insert(import_name.clone()) {
+            imports.push(CLibraryImportSpec {
+                import_name,
+                alias: captures.get(3).map(|value| value.as_str().to_string()),
+                origin: CLibraryImportOrigin::Include,
+            });
+        }
+    }
     imports
+}
+
+fn natural_include_import_name(target: &str) -> String {
+    let normalized = target.replace('\\', "/");
+    let file_name = normalized.rsplit('/').next().unwrap_or(&normalized);
+    let stem = file_name
+        .rsplit_once('.')
+        .map(|(left, _)| left)
+        .unwrap_or(file_name);
+    let mut output = String::with_capacity(stem.len());
+    for ch in stem.chars() {
+        if ch.is_ascii_alphanumeric() || ch == '_' {
+            output.push(ch);
+        } else if !output.ends_with('_') {
+            output.push('_');
+        }
+    }
+    output.trim_matches('_').to_string()
+}
+
+fn canonical_or_self(path: &Path) -> PathBuf {
+    std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
+}
+
+fn render_include_alias_source(output: &ImportCOutput, alias: &str) -> Option<String> {
+    if alias.is_empty() {
+        return None;
+    }
+
+    let mut rendered_aliases = Vec::new();
+    let generated_prefix = format!("c_{}_", output.resolved.import_name);
+    for line in output.canonical_module_source.lines() {
+        let trimmed = line.trim_start();
+        let Some(signature) = trimmed.strip_prefix("@extern fn ") else {
+            continue;
+        };
+        let Some(paren_index) = signature.find('(') else {
+            continue;
+        };
+        let raw_name = &signature[..paren_index];
+        if raw_name.starts_with(&generated_prefix) {
+            continue;
+        }
+        let Some(alias_name) =
+            include_alias_function_name(&output.resolved.import_name, alias, raw_name)
+        else {
+            continue;
+        };
+        let signature_tail = &signature[paren_index..];
+        rendered_aliases.push(format!(
+            "@link_name(\"{}\")\n@extern fn {}{}",
+            raw_name, alias_name, signature_tail
+        ));
+    }
+
+    if rendered_aliases.is_empty() {
+        return None;
+    }
+
+    let mut output_source = String::new();
+    output_source.push_str(&format!(
+        "# Generated include alias surface for {} as {}\n",
+        output.resolved.import_name, alias
+    ));
+    output_source.push_str(&rendered_aliases.join("\n"));
+    output_source.push('\n');
+    Some(output_source)
+}
+
+fn include_alias_function_name(import_name: &str, alias: &str, raw_name: &str) -> Option<String> {
+    let local = raw_name
+        .strip_prefix(import_name)
+        .map(|value| value.trim_start_matches('_'))
+        .filter(|value| !value.is_empty())
+        .unwrap_or(raw_name);
+    let mut sanitized = String::with_capacity(alias.len() + local.len() + 1);
+    sanitized.push_str(alias);
+    sanitized.push('_');
+    for ch in local.chars() {
+        if ch.is_ascii_alphanumeric() || ch == '_' {
+            sanitized.push(ch);
+        } else if !sanitized.ends_with('_') {
+            sanitized.push('_');
+        }
+    }
+    let sanitized = sanitized.trim_end_matches('_').to_string();
+    if sanitized == format!("{alias}_") {
+        None
+    } else {
+        Some(sanitized)
+    }
 }
 
 fn apply_loaded_bridges(env: &mut Env) {
@@ -586,13 +735,172 @@ fn resolve_library(
         }
     }
 
+    if let Some(resolved) = resolve_natural_local_include(import_name, &start_dir)? {
+        return Ok(resolved);
+    }
+
     if let Some(resolved) = resolve_runtime_owned_header(import_name, &start_dir) {
         return Ok(resolved);
     }
 
     Err(KainError::runtime(format!(
-        "Could not resolve C FFI import '{import_name}' from nearest KAIN.toml, discovered blades, or runtime/native/include"
+        "Could not resolve C FFI import '{import_name}' from nearest KAIN.toml, discovered blades, local headers, or runtime/native/include"
     )))
+}
+
+fn resolve_natural_local_include(
+    import_name: &str,
+    start_dir: &Path,
+) -> Result<Option<(ResolvedCLibrary, model::ManifestContext)>, KainError> {
+    let Some(header_path) = find_natural_local_header(import_name, start_dir) else {
+        return Ok(None);
+    };
+    let include_dir = header_path
+        .parent()
+        .map(Path::to_path_buf)
+        .unwrap_or_else(|| start_dir.to_path_buf());
+    let source_paths = natural_local_c_sources(&header_path);
+    if source_paths.is_empty() {
+        return Err(KainError::runtime(format!(
+            "Natural C include '{}' found header '{}' but no sibling .c source file to link",
+            import_name,
+            header_path.display()
+        )));
+    }
+
+    let library = config::CLibraryConfig {
+        name: import_name.to_string(),
+        header: header_path.clone(),
+        shared_lib: None,
+        symbols: BTreeMap::new(),
+        include_paths: vec![include_dir.clone()],
+        defines: Vec::new(),
+        link_libs: Vec::new(),
+        sources: source_paths.clone(),
+        objects: Vec::new(),
+        static_libs: Vec::new(),
+        bitcode: Vec::new(),
+        cpp_options: Vec::new(),
+        cpp_command: None,
+        tier: Some(config::CInteropTier::Inline),
+        runtime_owned: false,
+    };
+    let global_config = config::CFfiConfig {
+        include_paths: vec![include_dir],
+        defines: Vec::new(),
+        link_libs: Vec::new(),
+        cpp_options: Vec::new(),
+        cpp_command: None,
+        tier: config::CInteropTier::Inline,
+        libraries: vec![library.clone()],
+    };
+    let manifest_root =
+        find_kain_manifest_root(start_dir).unwrap_or_else(|| start_dir.to_path_buf());
+
+    Ok(Some((
+        ResolvedCLibrary {
+            import_name: import_name.to_string(),
+            manifest_root,
+            header_path,
+            shared_lib_path: None,
+            source_paths,
+            object_paths: Vec::new(),
+            static_lib_paths: Vec::new(),
+            bitcode_paths: Vec::new(),
+            config: library,
+            global_config: global_config.clone(),
+            tier: config::CInteropTier::Inline,
+            runtime_owned: false,
+        },
+        model::ManifestContext {
+            root_dir: None,
+            config: Some(global_config),
+        },
+    )))
+}
+
+fn find_natural_local_header(import_name: &str, start_dir: &Path) -> Option<PathBuf> {
+    let wanted = format!("{import_name}.h");
+    let direct_roots = [
+        start_dir.to_path_buf(),
+        start_dir.join("native"),
+        start_dir.join("include"),
+        start_dir.join("src"),
+    ];
+    for root in direct_roots {
+        let candidate = root.join(&wanted);
+        if candidate.is_file() {
+            return Some(canonical_or_self(&candidate));
+        }
+    }
+
+    let search_root = find_kain_manifest_root(start_dir).unwrap_or_else(|| start_dir.to_path_buf());
+    let mut matches = Vec::new();
+    collect_natural_header_candidates(&search_root, &wanted, &mut matches, 4096);
+    matches.sort_by(|left, right| {
+        left.components()
+            .count()
+            .cmp(&right.components().count())
+            .then_with(|| left.display().to_string().cmp(&right.display().to_string()))
+    });
+    matches.into_iter().next()
+}
+
+fn collect_natural_header_candidates(
+    dir: &Path,
+    wanted: &str,
+    matches: &mut Vec<PathBuf>,
+    mut budget: usize,
+) -> usize {
+    if budget == 0 || should_skip_natural_include_dir(dir) {
+        return budget;
+    }
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return budget;
+    };
+    for entry in entries.flatten() {
+        if budget == 0 {
+            break;
+        }
+        budget -= 1;
+        let path = entry.path();
+        if path.is_dir() {
+            budget = collect_natural_header_candidates(&path, wanted, matches, budget);
+        } else if path
+            .file_name()
+            .and_then(|value| value.to_str())
+            .is_some_and(|name| name.eq_ignore_ascii_case(wanted))
+        {
+            matches.push(canonical_or_self(&path));
+        }
+    }
+    budget
+}
+
+fn should_skip_natural_include_dir(path: &Path) -> bool {
+    path.file_name()
+        .and_then(|value| value.to_str())
+        .is_some_and(|name| {
+            matches!(
+                name,
+                ".git" | ".kain" | "target" | "node_modules" | ".venv" | "__pycache__"
+            ) || name.starts_with("bazel-")
+        })
+}
+
+fn natural_local_c_sources(header_path: &Path) -> Vec<PathBuf> {
+    let Some(parent) = header_path.parent() else {
+        return Vec::new();
+    };
+    let Some(stem) = header_path.file_stem().and_then(|value| value.to_str()) else {
+        return Vec::new();
+    };
+    let candidate = parent.join(format!("{stem}.c"));
+    if candidate.is_file() {
+        vec![canonical_or_self(&candidate)]
+    } else {
+        Vec::new()
+    }
 }
 
 fn resolve_library_from_manifest_root(
@@ -935,11 +1243,18 @@ mod tests {
 
     #[test]
     fn detects_c_imports() {
-        let source = "use c::beacon_math\nuse c::image_fx\n";
+        let source = "use c::beacon_math\nuse c::image_fx\ninclude native/tiny_math.h as tm\n";
         assert_eq!(
             detect_c_library_imports(source),
-            vec!["beacon_math".to_string(), "image_fx".to_string()]
+            vec![
+                "beacon_math".to_string(),
+                "image_fx".to_string(),
+                "tiny_math".to_string()
+            ]
         );
+        let specs = detect_c_library_import_specs(source);
+        assert_eq!(specs[2].alias.as_deref(), Some("tm"));
+        assert_eq!(specs[2].origin, CLibraryImportOrigin::Include);
     }
 
     #[test]
@@ -1024,6 +1339,61 @@ mod tests {
         assert!(augmented.contains("@extern fn"));
         assert!(augmented.contains("beacon_add"));
         assert!(augmented.contains("beacon_ping"));
+    }
+
+    #[test]
+    fn natural_include_resolves_local_header_and_sibling_c_source() {
+        let temp = TempDir::new().expect("temp dir");
+        let root = temp.path();
+        let src_dir = root.join("src");
+        let native_dir = src_dir.join("native");
+        kfs::create_dir_all(&native_dir).expect("native dir");
+        let header_path = native_dir.join("tiny_math.h");
+        let source_path = native_dir.join("tiny_math.c");
+        kfs::write_text(&header_path, "int tiny_math_add(int a, int b);\n").expect("header");
+        kfs::write_text(
+            &source_path,
+            "#include \"tiny_math.h\"\nint tiny_math_add(int a, int b) { return a + b; }\n",
+        )
+        .expect("source");
+
+        let augmented = augment_source_for_runtime(
+            "include native/tiny_math.h as tm\nfn main() -> Int:\n    return tiny_math_add(2, 3)\n",
+            CompileTarget::Llvm,
+            &PrepareContext {
+                current_dir: Some(src_dir),
+                manifest_path: None,
+            },
+        )
+        .expect("natural include should prepare local header");
+
+        assert!(augmented.contains("mod c:"));
+        assert!(augmented.contains("tiny_math_add"));
+        assert!(augmented.contains("@link_name(\"tiny_math_add\")"));
+        assert!(augmented.contains("@extern fn tm_add"));
+
+        let outputs = import_libraries_for_source(
+            "include native/tiny_math.h as tm\n",
+            &ImportCOptions {
+                mode: ArtifactMode::Generate,
+                ..ImportCOptions::default()
+            },
+            &PrepareContext {
+                current_dir: Some(root.join("src")),
+                manifest_path: None,
+            },
+        )
+        .expect("natural include output");
+        assert_eq!(outputs.len(), 1);
+        assert_eq!(
+            outputs[0].resolved.header_path,
+            canonical_or_self(&header_path)
+        );
+        assert_eq!(
+            outputs[0].resolved.source_paths,
+            vec![canonical_or_self(&source_path)]
+        );
+        assert_eq!(outputs[0].resolved.tier, CInteropTier::Inline);
     }
 
     #[test]

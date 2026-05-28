@@ -1,0 +1,8 @@
+use std::runtime
+use std::intent
+
+pub fn smoke_entangle_lane() -> Int:
+    let propagation_count = entangle_propagation_count()
+    if propagation_count < 0:
+        return 1
+    return 0

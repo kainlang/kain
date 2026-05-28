@@ -1,0 +1,28 @@
+use std::math
+
+shader vertex SmokeVertex(position: Vec3, uv: Vec2) -> Vec4:
+    uniform offset: Vec3 @0
+    let lane = position.x + offset.x
+    let bias = uv.x + uv.y
+    return vec4(lane, position.y + offset.y + bias, position.z + offset.z, 1.0)
+
+shader fragment SmokeGradient(uv: Vec2) -> Vec4:
+    uniform accent: Vec3 @0
+    let wave_x: Float = uv.x * (1.0 - uv.x)
+    let wave_y: Float = uv.y * (1.0 - uv.y)
+    let ring: Float = (wave_x + wave_y) * 2.0
+    return vec4(accent.x * ring, accent.y * (0.5 + wave_x), accent.z * (0.5 + wave_y), 1.0)
+
+shader fragment SmokeVignette(uv: Vec2) -> Vec4:
+    uniform tint: Vec3 @0
+    let center_x: Float = uv.x - 0.5
+    let center_y: Float = uv.y - 0.5
+    let dist: Float = center_x * center_x + center_y * center_y
+    let edge: Float = (uv.x * (1.0 - uv.x) + uv.y * (1.0 - uv.y)) * 2.0
+    return vec4(tint.x * (1.0 - dist), tint.y * (1.0 - dist), tint.z * edge, 1.0)
+
+pub fn smoke_vertex_lane() -> Int:
+    let ridge = vec3(1.0, 2.0, 2.0)
+    if abs(vec3_length(ridge) - 3.0) > 0.01:
+        return 1
+    return 0

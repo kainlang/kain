@@ -3,6 +3,7 @@ members = [
     # ── KAIN pipeline ────────────────────────────────────────────────────────
     "crates/core",
     "crates/error",
+    "crates/error-semantic",
     "crates/actor",
     "crates/blades",
     "crates/entangle",

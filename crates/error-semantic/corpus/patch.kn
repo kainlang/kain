@@ -1,0 +1,52 @@
+use std::runtime
+use std::intent
+use std::collections
+use law::smoke_validate_range
+use types::SmokePacket
+use types::SmokeLane
+use types::smoke_weighted_checksum
+
+component SmokePatchPanel():
+    render <panel title="Smoke Patch" />
+
+world SmokePatchAuthority:
+    state signal: Int = 1
+    state epoch: Int = 0
+    state health: Int = 100
+    surface web => SmokePatchPanel
+
+world SmokePatchMirror:
+    state signal_copy: Int = 1
+    state epoch_copy: Int = 0
+    state health_copy: Int = 100
+    surface web => SmokePatchPanel
+
+entangle SmokePatchAuthority.signal <-> SmokePatchMirror.signal_copy with single_writer
+entangle SmokePatchAuthority.epoch <-> SmokePatchMirror.epoch_copy with single_writer
+entangle SmokePatchAuthority.health <-> SmokePatchMirror.health_copy with single_writer
+
+patch smoke_commit_signal(authority: SmokePatchAuthority, value: Int) -> Int:
+    authority.signal = value
+    authority.epoch = authority.epoch + 1
+    authority.health = int_clamp(authority.health + 1, 0, 1000000)
+    return authority.signal
+
+pub fn smoke_patch_lane() -> Int:
+    let authority = SmokePatchAuthority
+    let committed = smoke_commit_signal(authority, 77)
+
+    // Cross-file call: validate committed signal via law.kn's range validator
+    if smoke_validate_range(committed, 0, 1000000007) == false:
+        return 1
+    if patch_journal_count() < 1:
+        return 2
+    if entangle_propagation_count() < 1:
+        return 3
+
+    // Cross-file call: compute weighted checksum via types.kn
+    let probe = SmokePacket { id: committed, lane: SmokeLane::Patch, payload: committed + 1, tag: "patch", hot: false }
+    let wc = smoke_weighted_checksum(probe)
+    if wc < 0:
+        return 4
+
+    return 0

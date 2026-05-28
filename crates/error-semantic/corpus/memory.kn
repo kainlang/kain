@@ -1,0 +1,37 @@
+use std::runtime
+use std::memory
+
+pub fn smoke_alloc_cells(count: Int) -> ptr<Int>:
+    return alloc_zeroed(count, "Int")
+
+pub fn smoke_memory_lane() -> Int with Unsafe:
+    let mut raw: ptr<Int> = alloc_zeroed(1, "Int")
+    mem_store(raw, 7, "Int")
+
+    let mut grown: ptr<Int> = realloc_mem(raw, 2, "Int", true)
+    let collapsed: Int = collapse grown:
+        let first: Int = mem_load(grown, "Int")
+        let second: Int = mem_load(ptr_offset(grown, 1, "Int"), "Int")
+        if first != 7:
+            -1
+        else:
+            if second != 0:
+                -2
+            else:
+                mem_store(ptr_offset(grown, 1, "Int"), 13, "Int")
+                mem_load(grown, "Int") + mem_load(ptr_offset(grown, 1, "Int"), "Int")
+
+    if collapsed != 20:
+        decay grown
+        if collapsed == -1:
+            return 1
+        if collapsed == -2:
+            return 2
+        return 3
+
+    let observed: Int = observe grown:
+        mem_load(grown, "Int") + mem_load(ptr_offset(grown, 1, "Int"), "Int")
+    decay grown
+    if observed != 20:
+        return 4
+    return 0

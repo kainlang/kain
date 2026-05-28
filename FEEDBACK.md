@@ -298,3 +298,13 @@
 - Minimal repro: A `shader compute` with `uniform data: StorageBuffer<u8> @0` and `let x = UInt(data[id.x])`, then `kain gpu-artifacts <file> --output <out>`.
 - Evidence: `kain gpu-artifacts X:\mcp\semantic_search\src\search_kernel.kn --output .\kain` failed until the explicit cast was removed.
 - Suggested direction: Teach GPU lowering an explicit scalar integer widening cast from `u8`/`i8` to `UInt`/`Int`, or emit a targeted diagnostic recommending the supported widening idiom.
+
+### Large binary sidecar writes need a more reliable byte API than append loops
+- Categories: correctness, runtime, stdlib, performance
+- Status: Patched
+- Surface: stdlib
+- Symptom: `fs_try_append_bytes_hex` failed repeatedly while padding a 38MB CUDA residency matrix payload, and `fs_read_bytes` returned empty for the top-k payloads even though the files existed on disk.
+- Workflow impact: semantic_search had to be rewritten to use `fs_read_bytes_hex` for manifest/payload reads and `fs_try_write_bytes_hex_at` for offset padding before the MCP search path could return real ranked hits.
+- Minimal repro: stage a large binary sidecar with many append calls, or read a populated sidecar via `fs_read_bytes` instead of the hex-safe byte lane.
+- Evidence: `semantic-search.exe search kain kain 8` first hung in the matrix padding loop, then returned empty ranked arrays until the payload reader/writer was switched to hex-safe offset writes; trace output showed `padding_copy append_failed` and later `ranked_raw_indices_len=0`.
+- Suggested direction: either make the raw byte read/write/append helpers consistent and reliable for large sidecars, or document the hex-safe file path as the expected contract for large binary payloads.

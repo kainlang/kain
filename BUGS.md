@@ -211,3 +211,15 @@
 - Z3 Proof: [control-float-equality-ignores-epsilon-runtime-semantics.yaml](file:///D:/Kain-Lang/crates/sys-codegen/z3/proofs/control-float-equality-ignores-epsilon-runtime-semantics.yaml)
 - Fix landed: The runtime semantic owner now uses exact IEEE float `==` / `!=`, and LLVM float inequality uses `fcmp une` so `NaN != x` stays true like the interpreter and the other compiled backends.
 - Regression evidence: [control-float-exact-equality-aligns-with-compiled-ieee-semantics.yaml](/D:/Kain-Lang/crates/core/z3/proofs/control-float-exact-equality-aligns-with-compiled-ieee-semantics.yaml), `cargo test -p kain-core runtime_float --lib --target-dir target\codex-float-semantics`, `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_lowers_float_truthiness_inequality_and_int_casts_through_total_ieee_paths --target-dir target\codex-float-semantics`
+
+### `asyncio.Future.result()` Crashes The Native Python Bridge
+- Categories: runtime, interop, crash
+- Severity: High
+- Status: Fixed in tree (2026-05-27)
+- Surface: native Python bridge / `std::python` / `asyncio`
+- Trigger: Calling `python_call_attr_raw(future, "result", [])` on an `asyncio.Future` created from `new_event_loop()` and `create_future()`, even after `set_result(...)`.
+- Symptom: The process exited with `0xc0000005` instead of returning the Python value. `create_future`, `set_result`, `done`, `cancelled`, `set_event_loop`, and `close` all survived the same probe.
+- Root cause: raw Python ints and bools were materialized as values that later traveled through Kain's tagged `Any` lane. Boxed ints use low tag `1`, so payloads such as `24` can become aligned after `value >> 3`; `kain_py_unbox_tagged_handle` then allowed `kain_py_type_tag_matches` to read an RC header before proving the payload was tracked.
+- Fix landed: raw scalar materialization now returns tagged bool/int values, and `kain_py_type_tag_matches` verifies `kain_rc_is_tracked_pointer(ptr)` before reading the RC header.
+- Z3 Proof: [native-python-scalar-tagged-handle-guard.yaml](/X:/runtime/native/src/core/z3/proofs/native-python-scalar-tagged-handle-guard.yaml)
+- Regression evidence: direct Kain probe crossing the old crash value (`Future.result()` returning values through `24`), `kain check benchmark/cases_v2/python_stdlib_fused.kn --target llvm`, and filtered v2 benchmark run `KAIN_BENCH_V2_FILTER=python_stdlib ... kain run X:\benchmark --target llvm --json` with all four rows `status=ok`.

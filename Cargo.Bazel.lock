@@ -1,5 +1,5 @@
 {
-  "checksum": "62e6001a71750a5edcd19cabca8b41d97cda1bfdda45f9900526b77b56e42f93",
+  "checksum": "2c68bccce24f3950c0f7f1b167a7f543ee0069e3c105c86278a825aecd5dc184",
   "crates": {
     "ab_glyph 0.2.32": {
       "name": "ab_glyph",
@@ -17995,6 +17995,109 @@
             {
               "id": "toml 0.8.23",
               "target": "toml"
+            }
+          ],
+          "selects": {}
+        }
+      },
+      "license": null,
+      "license_ids": [],
+      "license_file": null
+    },
+    "kain-error-semantic 0.1.0": {
+      "name": "kain-error-semantic",
+      "version": "0.1.0",
+      "package_url": null,
+      "repository": null,
+      "targets": [
+        {
+          "Library": {
+            "crate_name": "kain_error_semantic",
+            "crate_root": "src/lib.rs",
+            "srcs": {
+              "allow_empty": true,
+              "include": [
+                "**/*.rs"
+              ]
+            }
+          }
+        },
+        {
+          "BuildScript": {
+            "crate_name": "build_script_build",
+            "crate_root": "build.rs",
+            "srcs": {
+              "allow_empty": true,
+              "include": [
+                "**/*.rs"
+              ]
+            }
+          }
+        }
+      ],
+      "library_target_name": "kain_error_semantic",
+      "common_attrs": {
+        "compile_data_glob": [
+          "**"
+        ],
+        "crate_features": {
+          "common": [
+            "corpus-bake",
+            "default"
+          ],
+          "selects": {}
+        },
+        "deps": {
+          "common": [
+            {
+              "id": "kain-error-semantic 0.1.0",
+              "target": "build_script_build"
+            },
+            {
+              "id": "serde 1.0.228",
+              "target": "serde"
+            },
+            {
+              "id": "serde_json 1.0.143",
+              "target": "serde_json"
+            },
+            {
+              "id": "strsim 0.11.1",
+              "target": "strsim"
+            }
+          ],
+          "selects": {}
+        },
+        "edition": "2021",
+        "version": "0.1.0"
+      },
+      "build_script_attrs": {
+        "compile_data_glob": [
+          "**"
+        ],
+        "compile_data_glob_excludes": [
+          "**/*.rs"
+        ],
+        "data_glob": [
+          "**"
+        ],
+        "deps": {
+          "common": [
+            {
+              "id": "regex 1.12.3",
+              "target": "regex"
+            },
+            {
+              "id": "serde 1.0.228",
+              "target": "serde"
+            },
+            {
+              "id": "serde_json 1.0.143",
+              "target": "serde_json"
+            },
+            {
+              "id": "walkdir 2.5.0",
+              "target": "walkdir"
             }
           ],
           "selects": {}
@@ -51966,6 +52069,7 @@
     "kain-driver 0.1.0": "crates/driver",
     "kain-entangle 0.1.0": "crates/entangle",
     "kain-error 0.2.0": "crates/error",
+    "kain-error-semantic 0.1.0": "crates/error-semantic",
     "kain-fast3d-runtime 0.1.0": "crates/fast3d-runtime",
     "kain-foreign-abi 0.1.0": "crates/foreign-abi",
     "kain-fs 0.1.0": "crates/fs",
@@ -52265,6 +52369,7 @@
     "sha2 0.10.9",
     "slab 0.4.12",
     "smallvec 1.15.1",
+    "strsim 0.11.1",
     "swc_common 0.38.0",
     "swc_ecma_ast 0.119.0",
     "swc_ecma_parser 0.150.0",
@@ -52278,6 +52383,7 @@
     "tree-sitter 0.24.7",
     "tree-sitter-hlsl 0.2.0",
     "unicode-width 0.1.14",
+    "walkdir 2.5.0",
     "walrus 0.21.3",
     "wgpu 24.0.5",
     "which 6.0.3",

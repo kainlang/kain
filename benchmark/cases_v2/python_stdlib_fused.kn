@@ -97,7 +97,7 @@ pub fn python_stdlib_fused_case_expected_checksum(index: Int) -> Int:
     if index == 2:
         return 183989
     if index == 3:
-        return 789986
+        return 859970
     return -1
 
 fn stdlib_module_probe_checksum(iterations: Int) -> Int:
@@ -148,12 +148,13 @@ fn stdlib_asyncio_future_checksum(iterations: Int) -> Int:
         let future = python_call_attr_raw(asyncio_loop, "create_future", [])
         let future_seed = 17 + (index % 11)
         let _set_result = python_call_attr_raw(future, "set_result", [future_seed])
-        let done_ok = stdlib_bool_score(python_call_attr_raw(future, "done", []))
-        let cancelled_ok = stdlib_bool_score(python_call_attr_raw(future, "cancelled", []))
-        acc = (acc + future_seed + done_ok + cancelled_ok) % PYTHON_STDLIB_FUSED_MODULUS
+        let done_ok = to_int(python_call_attr_raw(future, "done", []))
+        let cancelled_ok = to_int(python_call_attr_raw(future, "cancelled", []))
+        let future_value = to_int(python_call_attr_raw(future, "result", []))
+        acc = (acc + future_value + done_ok + cancelled_ok) % PYTHON_STDLIB_FUSED_MODULUS
         index = index + 1
     let _close_loop = python_call_attr_raw(asyncio_loop, "close", [])
-    let loop_closed = stdlib_bool_score(python_call_attr_raw(asyncio_loop, "is_closed", []))
+    let loop_closed = to_int(python_call_attr_raw(asyncio_loop, "is_closed", []))
     acc = (acc + loop_closed) % PYTHON_STDLIB_FUSED_MODULUS
     return acc
 
@@ -184,11 +185,12 @@ fn stdlib_ceiling_fused_checksum(iterations: Int) -> Int:
         let future = python_call_attr_raw(asyncio_loop, "create_future", [])
         let future_seed = 23 + (index % 13)
         let _set_result = python_call_attr_raw(future, "set_result", [future_seed])
-        let done_ok = stdlib_bool_score(python_call_attr_raw(future, "done", []))
-        let cancelled_ok = stdlib_bool_score(python_call_attr_raw(future, "cancelled", []))
+        let done_ok = to_int(python_call_attr_raw(future, "done", []))
+        let cancelled_ok = to_int(python_call_attr_raw(future, "cancelled", []))
+        let future_value = to_int(python_call_attr_raw(future, "result", []))
         let _close_loop = python_call_attr_raw(asyncio_loop, "close", [])
-        let loop_closed = stdlib_bool_score(python_call_attr_raw(asyncio_loop, "is_closed", []))
-        let lane = len(to_string(sys_name)) + len(to_string(sys_encoding)) + len(to_string(os_name)) + len(to_string(json_name)) + len(to_string(asyncio_name)) + len(to_string(sep)) + len(to_string(joined)) + len(to_string(dirname)) + len(to_string(basename)) + len(to_string(dumped)) + len(to_string(roundtrip)) + future_seed + done_ok + cancelled_ok + loop_closed + (index % 13)
+        let loop_closed = to_int(python_call_attr_raw(asyncio_loop, "is_closed", []))
+        let lane = len(to_string(sys_name)) + len(to_string(sys_encoding)) + len(to_string(os_name)) + len(to_string(json_name)) + len(to_string(asyncio_name)) + len(to_string(sep)) + len(to_string(joined)) + len(to_string(dirname)) + len(to_string(basename)) + len(to_string(dumped)) + len(to_string(roundtrip)) + future_value + done_ok + cancelled_ok + loop_closed + (index % 13)
         acc = (acc + lane) % PYTHON_STDLIB_FUSED_MODULUS
         index = index + 1
     return acc
@@ -239,9 +241,10 @@ pub fn python_stdlib_fused_case_telemetry(case_id: String) -> String:
         content = content + "\"asyncio_future_set_result_per_iteration\":1,"
         content = content + "\"asyncio_future_done_checks_per_iteration\":1,"
         content = content + "\"asyncio_future_cancelled_checks_per_iteration\":1,"
-        content = content + "\"python_calls_per_iteration\":4,"
+        content = content + "\"asyncio_future_result_reads_per_iteration\":1,"
+        content = content + "\"python_calls_per_iteration\":5,"
         content = content + "\"bridge_entries_per_iteration\":0,"
-        content = content + "\"awaitable_result_shape\":" + stdlib_json_string_value("future-state-flag") + ","
+        content = content + "\"awaitable_result_shape\":" + stdlib_json_string_value("future-value-result") + ","
         content = content + "\"bench_intent\":" + stdlib_json_string_value("asyncio-loop-future-tax") + ","
         content = content + "\"pack_focus\":" + stdlib_json_string_value("python-stdlib-fused")
         return content + "}"
@@ -254,10 +257,10 @@ pub fn python_stdlib_fused_case_telemetry(case_id: String) -> String:
         content = content + "\"top_level_imports\":4,"
         content = content + "\"python_imports_per_iteration\":0,"
         content = content + "\"python_getattrs_per_iteration\":5,"
-        content = content + "\"python_calls_per_iteration\":14,"
+        content = content + "\"python_calls_per_iteration\":15,"
         content = content + "\"json_roundtrips_per_iteration\":1,"
         content = content + "\"os_path_ops_per_iteration\":3,"
-        content = content + "\"asyncio_future_ops_per_iteration\":4,"
+        content = content + "\"asyncio_future_ops_per_iteration\":5,"
         content = content + "\"bridge_entries_per_iteration\":0,"
         content = content + "\"module_probe_lane\":" + stdlib_json_string_value("cross-platform-breadth-plus-future-lifecycle") + ","
         content = content + "\"bench_intent\":" + stdlib_json_string_value("cross-platform-fused-ceiling") + ","

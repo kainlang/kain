@@ -1,4 +1,5 @@
 use std::fs
+use std::bytes
 use std::json
 
 pub const CUDA_SHADER_BUNDLE_ENV: String = "KAIN_CUDA_SHADER_BUNDLE"
@@ -175,7 +176,13 @@ fn cuda_empty_binding_locator(compute_key: String, binding_key: String) -> CudaB
 fn cuda_manifest_text(path: String) -> String:
     if path == "" or fs_exists(path) == false:
         return ""
-    return fs_read_text(path)
+    let raw_hex = fs_read_bytes_hex(path)
+    if fs_last_status() != 0:
+        return ""
+    let decoded = bytes_from_hex(raw_hex)
+    if decoded.ok == false:
+        return ""
+    return decoded.value
 
 fn cuda_manifest_from_text(text: String) -> JsonObject:
     if text == "":
@@ -596,28 +603,28 @@ pub fn cuda_manifest_debug() -> String:
     return cuda_manifest_debug_from_path(cuda_compute_residency_path())
 
 pub fn cuda_compute_keys_from_path(path: String) -> Array<String>:
-    let text = cuda_manifest_text(path)
+    let manifest = cuda_compute_manifest_from_path(path)
     let mut keys: Array<String> = []
-    let entries = cuda_compute_shaders_range_from_text(text)
-    if entries.ok == false:
+    let entries = cuda_compute_entries(manifest)
+    if json_array_length(entries) == 0:
         return keys
-    var cursor = entries.start + 1
-    while true:
-        let entry = cuda_next_object_in_array(text, entries, cursor)
-        if entry.ok == false:
-            return keys
-        let key = cuda_field_string_in_object(text, entry.start, entry.end, "key")
-        if key != "":
-            push(keys, key)
-        cursor = entry.end
+    var index = 0
+    while index < json_array_length(entries):
+        let entry = json_array_value_at(entries, index)
+        let key_field = json_string_field(entry, "key")
+        if key_field.ok and key_field.value != "":
+            push(keys, key_field.value)
+        index = index + 1
     return keys
 
 pub fn cuda_compute_keys() -> Array<String>:
     return cuda_compute_keys_from_path(cuda_compute_residency_path())
 
 pub fn cuda_has_compute_key_from_path(path: String, compute_key: String) -> Bool:
-    let text = cuda_manifest_text(path)
-    return cuda_compute_entry_range_from_text(text, compute_key).ok
+    let manifest = cuda_compute_manifest_from_path(path)
+    let entry = cuda_compute_entry_from_manifest(manifest, compute_key)
+    let key_field = json_string_field(entry, "key")
+    return key_field.ok and key_field.value == compute_key
 
 pub fn cuda_has_compute_key(compute_key: String) -> Bool:
     return cuda_has_compute_key_from_path(cuda_compute_residency_path(), compute_key)
@@ -679,25 +686,8 @@ pub fn cuda_output_binding_keys(compute_key: String) -> Array<String>:
     return cuda_output_binding_keys_from_path(cuda_compute_residency_path(), compute_key)
 
 pub fn cuda_binding_locator_from_path(path: String, compute_key: String, binding_key: String) -> CudaBindingLocator:
-    let text = cuda_manifest_text(path)
-    let binding = cuda_binding_range_from_text(text, compute_key, binding_key)
-    if binding.ok == false:
-        return cuda_empty_binding_locator(compute_key, binding_key)
-    let root_dir = fs_path_parent(path)
-    let payload_file = cuda_field_string_in_object(text, binding.start, binding.end, "payload_file")
-    if payload_file == "":
-        return cuda_empty_binding_locator(compute_key, binding_key)
-    return CudaBindingLocator {
-        ok: true,
-        compute_key: compute_key,
-        binding_key: binding_key,
-        payload_path: fs_path_join(root_dir, payload_file),
-        descriptor_kind: cuda_field_string_in_object(text, binding.start, binding.end, "descriptor_kind"),
-        access_mode: cuda_field_string_in_object(text, binding.start, binding.end, "access_mode"),
-        element_type: cuda_field_string_in_object(text, binding.start, binding.end, "element_type"),
-        slot: cuda_field_int_in_object(text, binding.start, binding.end, "slot"),
-        byte_length: cuda_field_int_in_object(text, binding.start, binding.end, "byte_length")
-    }
+    let manifest = cuda_compute_manifest_from_path(path)
+    return cuda_binding_locator_from_manifest_path(path, manifest, compute_key, binding_key)
 
 pub fn cuda_binding_locator(compute_key: String, binding_key: String) -> CudaBindingLocator:
     let path = cuda_compute_residency_path()
@@ -716,7 +706,10 @@ pub fn cuda_binding_payload_bytes_from_path(path: String, compute_key: String, b
     let locator = cuda_binding_locator_from_path(path, compute_key, binding_key)
     if locator.ok == false or locator.payload_path == "" or fs_exists(locator.payload_path) == false:
         return []
-    return fs_read_bytes(locator.payload_path)
+    let raw_hex = fs_read_bytes_hex(locator.payload_path)
+    if fs_last_status() != 0:
+        return []
+    return fs_hex_to_bytes(raw_hex)
 
 pub fn cuda_binding_payload_bytes(compute_key: String, binding_key: String) -> Array<Int>:
     return cuda_binding_payload_bytes_from_path(cuda_compute_residency_path(), compute_key, binding_key)

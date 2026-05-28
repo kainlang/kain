@@ -1,0 +1,11 @@
+// Natural C include smoke: one Kain file names the header like a source file,
+// while the compiler keeps `nm` as alias provenance for the C ABI graph.
+include native/native_math.h as nm
+
+fn main() -> Int:
+    let mixed = nm_mix(7, 11)
+    let folded = nm_fold(mixed, 3)
+    if folded != 131:
+        return folded
+    println("include_native_ok")
+    return 0

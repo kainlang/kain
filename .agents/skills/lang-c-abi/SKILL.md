@@ -2,9 +2,9 @@
 name: lang-c-abi
 description: >-
   Use when authoring, explaining, reviewing, or repairing Kain-side native and
-  foreign ABI boundaries: automatic `use c::...` imports, optional explicit
-  blade/package bridge metadata, `kain import-c`, `kain import platform`,
-  `use rust::...`, Rust crate FFI, host JSON bridges, shared
+  foreign ABI boundaries: natural `include ... as ...` C header imports,
+  automatic `use c::...` imports, optional explicit blade/package bridge
+  metadata, `kain import-c`, `kain import platform`, `use rust::...`, Rust crate FFI, host JSON bridges, shared
   buffers/images/tensors/geometry, OS or vendor DLL contracts, handles,
   callbacks, strings, buffers, ABI/lifetime/status design, and app-level
   native package surfaces without changing compiler or runtime ABI internals.
@@ -32,10 +32,10 @@ or `std::python` materialization, co-read `lang-python`.
 
 Use this skill for:
 
-- Kain source with `use c::...`, `use rust::...`, `use std::platform`, bridge calls, or generated native package modules.
+- Kain source with `include native/foo.h as f`, `use c::...`, `use rust::...`, `use std::platform`, bridge calls, or generated native package modules.
 - A task that mentions C ABI, FFI, DLL, dylib, shared library, object file, static library, bitcode, inline C, package bridge, platform SDK, OS API, Vulkan/Win32/CUDA/etc. boundary, callback, raw buffer, native handle, or host bridge.
 - Designing the authored Kain facade around a native library, Rust crate bridge, or host-facing package contract.
-- Deciding whether a boundary should be `use c::...`, `use rust::...`, `use std::platform`, `use std::interop`, `kain import-c`, or `kain import platform`.
+- Deciding whether a boundary should be `include ... as ...`, `use c::...`, `use rust::...`, `use std::platform`, `use std::interop`, `kain import-c`, or `kain import platform`.
 - Reviewing whether a native boundary has correct status, lifetime, buffer, handle, ownership, string, JSON, and teardown shape.
 - Explaining why Kain can touch OS and vendor surfaces without letting those surfaces own the application.
 
@@ -59,6 +59,7 @@ If those answers are fuzzy, the code will work once and rot.
 
 Kain has several layers that make native interop more than a dumb foreign call:
 
+- `include <local-header> as <alias>` is detected from source, resolved through the C FFI import lane, and tracked as alias-aware include provenance in the AST/runtime contract.
 - `use c::<module>` is detected from source and resolved through the C FFI import lane.
 - `use rust::<module>` is resolved through the Rust crate FFI lane.
 - Runtime-owned headers under `runtime/native/include` can resolve automatically. Do not require manifest ceremony for those.
@@ -77,19 +78,20 @@ underneath.
 
 Use this order:
 
-1. **Runtime-owned native ABI:** if the header lives under `runtime/native/include`, start with plain `use c::<name>` or the public `std.*` wrapper.
-2. **Public stdlib wrapper:** if `std.fs`, `std.net`, `std.process`, `std.graphics`, `std.ui`, `std.platform`, or `std.dcc` already expresses the need, author against `std.*` first.
-3. **Blade/package-owned bridge:** if the app/package owns a small C wrapper, use `use c::<bridge>` plus optional `[c_ffi]` metadata near that blade/package.
-4. **Generated import preflight:** if the header shape is unknown, run `kain import-c` to inspect what Kain can represent before hand-authoring the final facade.
-5. **Platform package lock:** if the target is a vendor/system SDK, use `kain import platform` to produce target-aware lock and generated thunk artifacts.
-6. **Rust crate or host bridge lane:** if the boundary is already owned by a Rust crate or a host bridge entrypoint, use `use rust::...`, `kain import-crate`, or `kain bridge serve` before inventing a C detour.
-7. **Mixed Python boundary:** if a Python package is also part of the public surface, co-trigger `lang-python`.
-8. **Runtime/compiler handoff:** if the authored shape is good but import/lowering/loading/dispatch is broken, stop blaming the Kain file and fix the substrate with the owner skill.
+1. **Local header/source pair:** if the Kain file owns a nearby C wrapper, prefer `include native/foo.h as f`; the import lane resolves the local header, requires the sibling `.c` source for native linking, and emits alias externs such as `f_call` via `@link_name`.
+2. **Runtime-owned native ABI:** if the header lives under `runtime/native/include`, start with plain `use c::<name>` or the public `std.*` wrapper.
+3. **Public stdlib wrapper:** if `std.fs`, `std.net`, `std.process`, `std.graphics`, `std.ui`, `std.platform`, or `std.dcc` already expresses the need, author against `std.*` first.
+4. **Blade/package-owned bridge with explicit metadata:** if the wrapper needs non-sibling sources, objects, bitcode, static libs, link libs, defines, or vendor include paths, use `use c::<bridge>` plus `[c_ffi]` metadata near that blade/package.
+5. **Generated import preflight:** if the header shape is unknown, run `kain import-c` to inspect what Kain can represent before hand-authoring the final facade.
+6. **Platform package lock:** if the target is a vendor/system SDK, use `kain import platform` to produce target-aware lock and generated thunk artifacts.
+7. **Rust crate or host bridge lane:** if the boundary is already owned by a Rust crate or a host bridge entrypoint, use `use rust::...`, `kain import-crate`, or `kain bridge serve` before inventing a C detour.
+8. **Mixed Python boundary:** if a Python package is also part of the public surface, co-trigger `lang-python`.
+9. **Runtime/compiler handoff:** if the authored shape is good but import/lowering/loading/dispatch is broken, stop blaming the Kain file and fix the substrate with the owner skill.
 
 ## Fast Discovery
 
 ```powershell
-rg -n "use c::|use rust::|\\[c_ffi\\]|kain_dynlib|shared_lib|tier =|import platform|import-c" . agents blades benchmark library_of_kain runtime stdlib crates
+rg -n "include .* as |use c::|use rust::|\\[c_ffi\\]|kain_dynlib|shared_lib|tier =|import platform|import-c" . agents blades benchmark library_of_kain runtime stdlib crates
 rg -n "abi_|platform_library|host_bridge|shared_buffer|shared_image|shared_tensor|shared_geometry" stdlib runtime/native/include runtime/native/src crates
 rg --files | rg "(ffi|bridge|interop|platform|host_bridge|foreign_abi|c_ffi|crate_ffi|dcc)"
 ```
@@ -132,6 +134,24 @@ python benchmark/run.py --case ffi_shared_call_stress --languages kain --runs 1 
 
 Use the real runtime target you are authoring for. Start with the smallest
 import smoke, then graduate to the larger lane only when the claim requires it.
+
+## Natural Header Include Pattern
+
+Use this when a Kain example or package owns a nearby C wrapper and should feel
+like importing a sibling source file, not writing a manifest first:
+
+```kn
+include native/native_math.h as nm
+
+fn native_probe() -> Int:
+    return nm_mix(7, 11)
+```
+
+The include alias is first-class provenance. The current C-FFI lane maps the
+header to an import name (`native_math`), finds `native/native_math.c`, emits the
+canonical `c::native_math` extern module, and also emits `nm_*` alias externs
+linked to the real C symbols through `@link_name`. True dot namespaces can grow
+on this AST shape later without flattening the provenance graph.
 
 ## Default `use c::...` Pattern
 

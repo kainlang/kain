@@ -1,0 +1,76 @@
+use std::runtime
+use std::memory
+use memory::smoke_alloc_cells
+use converge::smoke_mix_pair
+use law::smoke_validate_range
+
+pub fn smoke_ownership_lane() -> Int:
+    let mut heap_cell: ptr<Int> = alloc_zeroed(1, "Int")
+    mem_store(heap_cell, 21, "Int")
+
+    let heap_observed: Int = observe heap_cell:
+        mem_load(heap_cell, "Int")
+    if heap_observed != 21:
+        return 1
+
+    let heap_collapsed: Int = collapse heap_cell:
+        let current: Int = mem_load(heap_cell, "Int")
+        mem_store(heap_cell, current + 21, "Int")
+        mem_load(heap_cell, "Int")
+    if heap_collapsed != 42:
+        return 2
+
+    let heap_reobserved: Int = observe heap_cell:
+        mem_load(heap_cell, "Int")
+    if heap_reobserved != 42:
+        return 3
+
+    decay heap_cell
+
+    var imported_value: Int = 5
+    let imported_cell: ptr<Int> = addr_of(imported_value, "Int")
+    let imported_observed: Int = observe imported_cell:
+        mem_load(imported_cell, "Int")
+    if imported_observed != 5:
+        return 4
+
+    let imported_collapsed: Int = collapse imported_cell:
+        mem_store(imported_cell, imported_observed + 8, "Int")
+        mem_load(imported_cell, "Int")
+    if imported_collapsed != 13:
+        return 5
+
+    decay imported_cell
+    if imported_value != 13:
+        return 6
+
+    // Cross-file: allocate via memory.kn helper, then run converge mix over the cells
+    let count: Int = 8
+    let mut cells: ptr<Int> = smoke_alloc_cells(count)
+
+    collapse cells:
+        var i: Int = 0
+        while i < count:
+            mem_store(ptr_offset(cells, i, "Int"), (i * 7 + 3) % 1000000007, "Int")
+            i = i + 1
+        0
+
+    let observed_sum: Int = observe cells:
+        var acc: Int = 0
+        var j: Int = 0
+        while j < count:
+            acc = (acc + mem_load(ptr_offset(cells, j, "Int"), "Int")) % 1000000007
+            j = j + 1
+        acc
+
+    // Cross-file: run the two-cell mix through converge.kn's smoke_mix_pair
+    let mixed = smoke_mix_pair(observed_sum, count)
+    if mixed < 0:
+        return 7
+
+    // Cross-file: validate the mix result is in range via law.kn
+    if smoke_validate_range(mixed, 0, 1000000007) == false:
+        return 8
+
+    decay cells
+    return 0

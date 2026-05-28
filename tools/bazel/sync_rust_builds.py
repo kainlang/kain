@@ -237,6 +237,8 @@ def package_compile_data_globs(package: Package) -> list[str]:
     globs = list(BASE_COMMON_DATA_GLOBS)
     if (package.directory / "specs").is_dir():
         globs.append("specs/**/*")
+    if (package.directory / "corpus").is_dir():
+        globs.append("corpus/**/*")
     return globs
 
 

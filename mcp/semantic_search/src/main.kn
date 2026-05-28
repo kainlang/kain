@@ -25,11 +25,16 @@ use utils::bool_to_str
 fn main() -> Int with Unsafe:
     let _boot = runtime_init()
     let internal_mode = env("KAIN_SEMANTIC_SEARCH_MODE")
+    if internal_mode == "debug_args":
+        let shutdown = runtime_shutdown()
+        let result = handle_args_json()
+        if shutdown != 0:
+            return 200 + shutdown
+        return result
     let mut command = command_from_internal_mode(internal_mode)
-    let mut args: Array<String> = []
     if command == "":
-        args = tool_args()
-        command = command_from_args(args)
+        if process_arg_count() > 1:
+            command = process_arg(1)
     if command == "":
         command = "mcp"
     let cfg = load_tool_config()
@@ -37,67 +42,27 @@ fn main() -> Int with Unsafe:
         print_intro(cfg)
     let mut result = 0
     if command == "index":
-        result = handle_index(args, cfg)
+        result = handle_index(cfg)
     else:
         if command == "serve" or command == "mcp":
             result = handle_serve(cfg)
         else:
             if command == "search":
-                result = handle_search_once(args, cfg)
+                result = handle_search_once(cfg)
             else:
                 if command == "__mcp_search_json":
-                    result = handle_search_json(args, cfg)
+                    result = handle_search_json(cfg)
                 else:
                     if command == "__mcp_health_json":
                         result = handle_health_json(cfg)
                     else:
                         if command == "__mcp_args_json":
-                            result = handle_args_json(args)
+                            result = handle_args_json()
                         else:
                             handle_help()
                             result = 0
     let _shutdown = runtime_shutdown()
     return result
-
-fn tool_args() -> Array<String>:
-    return raw_args()
-
-fn command_from_args(args: Array<String>) -> String:
-    var i: Int = 0
-    while i < len(args):
-        let candidate = args[i]
-        if command_is_known(candidate):
-            return candidate
-        i = i + 1
-    return first_non_bootstrap_arg(args)
-
-fn command_is_known(value: String) -> Bool:
-    return value == "index" or value == "serve" or value == "mcp" or value == "search" or value == "__mcp_search_json" or value == "__mcp_health_json" or value == "__mcp_args_json"
-
-fn first_non_bootstrap_arg(args: Array<String>) -> String:
-    let exe_path = process_current_executable_path()
-    var i: Int = 0
-    while i < len(args):
-        let candidate = args[i]
-        if candidate != "" and arg_looks_like_bootstrap(candidate, exe_path) == false:
-            return candidate
-        i = i + 1
-    return ""
-
-fn arg_looks_like_bootstrap(arg: String, exe_path: String) -> Bool:
-    if arg == "":
-        return false
-    if exe_path != "" and (arg == exe_path or same_file_name(arg, exe_path)):
-        return true
-    let lower = to_lower(arg)
-    if ends_with(lower, ".exe"):
-        return true
-    if ends_with(lower, ".kn"):
-        return true
-    return contains(arg, "\\") or contains(arg, "/")
-
-fn same_file_name(left: String, right: String) -> Bool:
-    return to_lower(fs_path_file_name(left)) == to_lower(fs_path_file_name(right))
 
 fn load_tool_config() -> SemanticSearchConfig:
     let forced = env("KAIN_SEMANTIC_SEARCH_CONFIG")
@@ -110,6 +75,8 @@ fn command_from_internal_mode(mode: String) -> String:
         return "__mcp_search_json"
     if mode == "health_json":
         return "__mcp_health_json"
+    if mode == "debug_args":
+        return "__mcp_args_json"
     if mode == "index":
         return "index"
     return ""
@@ -131,14 +98,14 @@ fn print_intro(cfg: SemanticSearchConfig) -> Unit:
     println("  gpu enabled: " + bool_to_str(cfg.gpu_enabled))
     println("")
 
-fn handle_index(args: Array<String>, cfg: SemanticSearchConfig) -> Int with Unsafe:
+fn handle_index(cfg: SemanticSearchConfig) -> Int with Unsafe:
     let mut target = "all"
     let forced = env("KAIN_SEMANTIC_SEARCH_INDEX_NAME")
     if forced != "":
         target = forced
     else:
-        if len(args) > 1:
-            target = args[1]
+        if process_arg_count() > 2:
+            target = process_arg(2)
     if target == "all" or target == "code":
         println("--- building code index ---")
         let ok_code = build_index("code", cfg)
@@ -157,17 +124,17 @@ fn handle_index(args: Array<String>, cfg: SemanticSearchConfig) -> Int with Unsa
 fn handle_serve(cfg: SemanticSearchConfig) -> Int with Unsafe:
     return start_server(cfg)
 
-fn handle_search_once(args: Array<String>, cfg: SemanticSearchConfig) -> Int:
-    if len(args) < 2:
+fn handle_search_once(cfg: SemanticSearchConfig) -> Int:
+    if process_arg_count() < 3:
         println("usage: search <index_name> <query> [top_k]")
         return 1
-    let index_name = args[1]
+    let index_name = process_arg(2)
     let mut query = ""
-    if len(args) > 2:
-        query = args[2]
+    if process_arg_count() > 3:
+        query = process_arg(3)
     let mut top_k = cfg.default_top_k
-    if len(args) > 3:
-        top_k = to_int(args[3])
+    if process_arg_count() > 4:
+        top_k = to_int(process_arg(4))
     if query == "":
         println("usage: search <index_name> <query> [top_k]")
         return 1
@@ -199,22 +166,22 @@ fn handle_help() -> Int:
     println("  semantic_search_health")
     return 0
 
-fn handle_search_json(args: Array<String>, cfg: SemanticSearchConfig) -> Int:
+fn handle_search_json(cfg: SemanticSearchConfig) -> Int:
     let mut index_name = env("KAIN_SEMANTIC_SEARCH_INDEX")
     if index_name == "":
         index_name = "kain"
-    if index_name == "kain" and len(args) > 1:
-        index_name = args[1]
+    if index_name == "kain" and process_arg_count() > 2:
+        index_name = process_arg(2)
     let mut query = env("KAIN_SEMANTIC_SEARCH_QUERY")
-    if query == "" and len(args) > 2:
-        query = args[2]
+    if query == "" and process_arg_count() > 3:
+        query = process_arg(3)
     let mut top_k = cfg.default_top_k
     let env_top_k = env("KAIN_SEMANTIC_SEARCH_TOP_K")
     if env_top_k != "":
         top_k = to_int(env_top_k)
     else:
-        if len(args) > 3:
-            top_k = to_int(args[3])
+        if process_arg_count() > 4:
+            top_k = to_int(process_arg(4))
     let resp = search(query, index_name, top_k, cfg)
     println(search_response_to_json(resp))
     return 0
@@ -225,6 +192,7 @@ fn handle_health_json(cfg: SemanticSearchConfig) -> Int:
     let exe_path = process_current_executable_path()
     let bundle_path = cuda_search_shader_bundle_path()
     let residency_path = cuda_search_residency_path()
+    let kain_debug = index_header_debug(kain_path)
     var json = "{"
     json = json + "\"status\": \"ok\","
     json = json + "\"service\": \"semantic-search\","
@@ -242,18 +210,21 @@ fn handle_health_json(cfg: SemanticSearchConfig) -> Int:
     json = json + "\"cuda_bundle_present\": " + json_bool(bundle_path != "") + ","
     json = json + "\"cuda_residency_present\": " + json_bool(residency_path != "") + ","
     json = json + "\"cuda_bundle_path\": \"" + json_escape(bundle_path) + "\","
-    json = json + "\"cuda_residency_path\": \"" + json_escape(residency_path) + "\""
+    json = json + "\"cuda_residency_path\": \"" + json_escape(residency_path) + "\","
+    json = json + "\"kain_index_debug\": " + index_header_debug_json(kain_debug)
     json = json + "}"
     println(json)
     return 0
 
-fn handle_args_json(args: Array<String>) -> Int:
+fn handle_args_json() -> Int:
     let raw = raw_args()
+    let count = process_arg_count()
     let exe = process_current_executable_path()
     var json = "{"
     json = json + "\"executable\": \"" + json_escape(exe) + "\","
     json = json + "\"raw_args\": " + string_array_to_json(raw) + ","
-    json = json + "\"tool_args\": " + string_array_to_json(args)
+    json = json + "\"user_args\": " + string_array_to_json_from_process_args(1, count) + ","
+    json = json + "\"tool_args\": " + string_array_to_json_from_process_args(1, count)
     json = json + "}"
     println(json)
     return 0
@@ -271,6 +242,107 @@ fn string_array_to_json(values: Array<String>) -> String:
         i = i + 1
     json = json + "]"
     return json
+
+fn string_array_to_json_from_process_args(start: Int, end: Int) -> String:
+    var json = "["
+    var i: Int = start
+    var first = true
+    while i < end:
+        if first == false:
+            json = json + ","
+        json = json + "\"" + json_escape(process_arg(i)) + "\""
+        first = false
+        i = i + 1
+    json = json + "]"
+    return json
+
+struct IndexHeaderDebug:
+    exists: Bool
+    read_ok: Bool
+    status: Int
+    raw_len: Int
+    magic_ok: Bool
+    version: Int
+    num_chunks: Int
+    dim: Int
+    flags: Int
+    error_kind: String
+    error_message: String
+
+fn index_header_debug(path: String) -> IndexHeaderDebug:
+    if fs_exists(path) == false:
+        return IndexHeaderDebug {
+            exists: false,
+            read_ok: false,
+            status: -1,
+            raw_len: 0,
+            magic_ok: false,
+            version: 0,
+            num_chunks: 0,
+            dim: 0,
+            flags: 0,
+            error_kind: "",
+            error_message: "",
+        }
+    let raw_hex = fs_read_bytes_hex(path)
+    let status = fs_last_status()
+    if status != 0:
+        return IndexHeaderDebug {
+            exists: true,
+            read_ok: false,
+            status: status,
+            raw_len: 0,
+            magic_ok: false,
+            version: 0,
+            num_chunks: 0,
+            dim: 0,
+            flags: 0,
+            error_kind: fs_last_error_kind(),
+            error_message: fs_last_error_message(),
+        }
+    let raw = fs_hex_to_bytes(raw_hex)
+    let mut magic_ok = false
+    if len(raw) >= 10:
+        magic_ok = raw_has_index_magic(raw)
+    return IndexHeaderDebug {
+        exists: true,
+        read_ok: true,
+        status: status,
+        raw_len: len(raw),
+        magic_ok: magic_ok,
+        version: read_u32_le(raw, 10),
+        num_chunks: read_u32_le(raw, 16),
+        dim: read_u32_le(raw, 24),
+        flags: read_u16_le(raw, 28),
+        error_kind: "",
+        error_message: "",
+    }
+
+fn index_header_debug_json(debug: IndexHeaderDebug) -> String:
+    var json = "{"
+    json = json + "\"exists\": " + json_bool(debug.exists) + ","
+    json = json + "\"read_ok\": " + json_bool(debug.read_ok) + ","
+    json = json + "\"status\": " + int_to_str(debug.status) + ","
+    json = json + "\"raw_len\": " + int_to_str(debug.raw_len) + ","
+    json = json + "\"magic_ok\": " + json_bool(debug.magic_ok) + ","
+    json = json + "\"version\": " + int_to_str(debug.version) + ","
+    json = json + "\"num_chunks\": " + int_to_str(debug.num_chunks) + ","
+    json = json + "\"dim\": " + int_to_str(debug.dim) + ","
+    json = json + "\"flags\": " + int_to_str(debug.flags) + ","
+    json = json + "\"error_kind\": \"" + json_escape(debug.error_kind) + "\","
+    json = json + "\"error_message\": \"" + json_escape(debug.error_message) + "\""
+    json = json + "}"
+    return json
+
+fn read_u16_le(raw: Array<Int>, offset: Int) -> Int:
+    if offset < 0 or offset + 1 >= len(raw):
+        return 0
+    return (raw[offset] & 255) | ((raw[offset + 1] & 255) << 8)
+
+fn read_u32_le(raw: Array<Int>, offset: Int) -> Int:
+    if offset < 0 or offset + 3 >= len(raw):
+        return 0
+    return (raw[offset] & 255) | ((raw[offset + 1] & 255) << 8) | ((raw[offset + 2] & 255) << 16) | ((raw[offset + 3] & 255) << 24)
 
 fn raw_args() -> Array<String>:
     let count = process_arg_count()

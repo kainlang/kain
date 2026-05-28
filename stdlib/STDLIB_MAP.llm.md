@@ -362,50 +362,50 @@ summary: modules=62 | public_symbols=2857 | total_symbols=3628 | rust_builtins=2
 ### `std::cuda` (stdlib/cuda.kn, public=91, private=29)
 
 - constants:
-  - const CUDA_SHADER_BUNDLE_ENV: String @4, const CUDA_COMPUTE_RESIDENCY_ENV: String @5
-  - const CUDA_RUNTIME_LIBRARY_ENV: String @6, const CUDA_SHADER_BUNDLE_FILE_NAME: String @7
-  - const CUDA_COMPUTE_RESIDENCY_FILE_NAME: String @8
+  - const CUDA_SHADER_BUNDLE_ENV: String @5, const CUDA_COMPUTE_RESIDENCY_ENV: String @6
+  - const CUDA_RUNTIME_LIBRARY_ENV: String @7, const CUDA_SHADER_BUNDLE_FILE_NAME: String @8
+  - const CUDA_COMPUTE_RESIDENCY_FILE_NAME: String @9
 - types:
-  - struct CudaPaths @10, struct CudaRuntimeState @15, struct CudaDispatchStats @24, struct CudaBindingLocator @38
+  - struct CudaPaths @11, struct CudaRuntimeState @16, struct CudaDispatchStats @25, struct CudaBindingLocator @39
 - functions:
-  - fn cuda_paths() -> CudaPaths @514, fn cuda_runtime_state() -> CudaRuntimeState @521
-  - fn cuda_driver_available() -> Bool @532, fn cuda_runtime_library_available() -> Bool @535
-  - fn cuda_runtime_ready() -> Bool @538, fn cuda_runtime_library_path() -> String @541
-  - fn cuda_shader_bundle_path() -> String @544, fn cuda_compute_residency_path() -> String @547
-  - fn cuda_last_status() -> Int @550, fn cuda_last_error_kind() -> String @553
-  - fn cuda_last_error_message() -> String @556, fn cuda_compute_manifest_from_path(path: String) -> JsonObject @559
-  - fn cuda_compute_manifest() -> JsonObject @562, fn cuda_manifest_debug_from_path(path: String) -> String @565
-  - fn cuda_manifest_debug() -> String @595, fn cuda_compute_keys_from_path(path: String) -> Array<String> @598
-  - fn cuda_compute_keys() -> Array<String> @615
-  - fn cuda_has_compute_key_from_path(path: String, compute_key: String) -> Bool @618
-  - fn cuda_has_compute_key(compute_key: String) -> Bool @622
-  - fn cuda_first_compute_key_from_path(path: String) -> String @625, fn cuda_first_compute_key() -> String @631
-  - fn cuda_binding_keys_from_path(path: String, compute_key: String) -> Array<String> @634
-  - fn cuda_binding_keys(compute_key: String) -> Array<String> @654
-  - fn cuda_output_binding_keys_from_path(path: String, compute_key: String) -> Array<String> @657
-  - fn cuda_output_binding_keys(compute_key: String) -> Array<String> @678
-  - fn cuda_binding_locator_from_path(path: String, compute_key: String, binding_key: String) -> CudaBindingLocator @681
-  - fn cuda_binding_locator(compute_key: String, binding_key: String) -> CudaBindingLocator @702
-  - fn cuda_binding_payload_path_from_path(path: String, compute_key: String, binding_key: String) -> String @706
-  - fn cuda_binding_payload_path(compute_key: String, binding_key: String) -> String @712
-  - fn cuda_binding_payload_bytes_from_path(path: String, compute_key: String, binding_key: String) -> Array<Int> @715
-  - fn cuda_binding_payload_bytes(compute_key: String, binding_key: String) -> Array<Int> @721
-  - fn cuda_write_binding_payload_bytes_from_path(path: String, compute_key: String, binding_key: String, bytes: Array<Int>) -> Bool @724
-  - fn cuda_write_binding_payload_bytes(compute_key: String, binding_key: String, bytes: Array<Int>) -> Bool @731
-  - fn cuda_zero_binding_payload_from_path(path: String, compute_key: String, binding_key: String) -> Bool @734
-  - fn cuda_zero_binding_payload(compute_key: String, binding_key: String) -> Bool @741
-  - fn cuda_zero_output_payloads_from_path(path: String, compute_key: String) -> Int @744
-  - fn cuda_zero_output_payloads(compute_key: String) -> Int @768
-  - fn cuda_copy_binding_payload_from_path(path: String, from_compute_key: String, from_binding_key: String, to_compute_key: String, to_binding_key: String) -> Bool @771
-  - fn cuda_copy_binding_payload(from_compute_key: String, from_binding_key: String, to_compute_key: String, to_binding_key: String) -> Bool @779
-  - fn cuda_pack_u32_le(value: Int) -> Array<Int> @788, fn cuda_pack_i32_le(value: Int) -> Array<Int> @797
-  - fn cuda_pack_u32_array_le(values: Array<Int>) -> Array<Int> @800
-  - fn cuda_pack_i32_array_le(values: Array<Int>) -> Array<Int> @812
-  - fn cuda_unpack_u32_le(bytes: Array<Int>, offset: Int) -> Int @815
-  - fn cuda_unpack_u32_array_le(bytes: Array<Int>) -> Array<Int> @824
-  - fn cuda_unpack_i32_array_le(bytes: Array<Int>) -> Array<Int> @832
-  - fn cuda_dispatch_primary_compute(compute_key: String) -> CudaDispatchStats @835
-  - fn cuda_dispatch(shader_bundle_path: String, compute_residency_path: String, compute_key: String) -> CudaDispatchStats @839
+  - fn cuda_paths() -> CudaPaths @521, fn cuda_runtime_state() -> CudaRuntimeState @528
+  - fn cuda_driver_available() -> Bool @539, fn cuda_runtime_library_available() -> Bool @542
+  - fn cuda_runtime_ready() -> Bool @545, fn cuda_runtime_library_path() -> String @548
+  - fn cuda_shader_bundle_path() -> String @551, fn cuda_compute_residency_path() -> String @554
+  - fn cuda_last_status() -> Int @557, fn cuda_last_error_kind() -> String @560
+  - fn cuda_last_error_message() -> String @563, fn cuda_compute_manifest_from_path(path: String) -> JsonObject @566
+  - fn cuda_compute_manifest() -> JsonObject @569, fn cuda_manifest_debug_from_path(path: String) -> String @572
+  - fn cuda_manifest_debug() -> String @602, fn cuda_compute_keys_from_path(path: String) -> Array<String> @605
+  - fn cuda_compute_keys() -> Array<String> @620
+  - fn cuda_has_compute_key_from_path(path: String, compute_key: String) -> Bool @623
+  - fn cuda_has_compute_key(compute_key: String) -> Bool @629
+  - fn cuda_first_compute_key_from_path(path: String) -> String @632, fn cuda_first_compute_key() -> String @638
+  - fn cuda_binding_keys_from_path(path: String, compute_key: String) -> Array<String> @641
+  - fn cuda_binding_keys(compute_key: String) -> Array<String> @661
+  - fn cuda_output_binding_keys_from_path(path: String, compute_key: String) -> Array<String> @664
+  - fn cuda_output_binding_keys(compute_key: String) -> Array<String> @685
+  - fn cuda_binding_locator_from_path(path: String, compute_key: String, binding_key: String) -> CudaBindingLocator @688
+  - fn cuda_binding_locator(compute_key: String, binding_key: String) -> CudaBindingLocator @692
+  - fn cuda_binding_payload_path_from_path(path: String, compute_key: String, binding_key: String) -> String @696
+  - fn cuda_binding_payload_path(compute_key: String, binding_key: String) -> String @702
+  - fn cuda_binding_payload_bytes_from_path(path: String, compute_key: String, binding_key: String) -> Array<Int> @705
+  - fn cuda_binding_payload_bytes(compute_key: String, binding_key: String) -> Array<Int> @714
+  - fn cuda_write_binding_payload_bytes_from_path(path: String, compute_key: String, binding_key: String, bytes: Array<Int>) -> Bool @717
+  - fn cuda_write_binding_payload_bytes(compute_key: String, binding_key: String, bytes: Array<Int>) -> Bool @724
+  - fn cuda_zero_binding_payload_from_path(path: String, compute_key: String, binding_key: String) -> Bool @727
+  - fn cuda_zero_binding_payload(compute_key: String, binding_key: String) -> Bool @734
+  - fn cuda_zero_output_payloads_from_path(path: String, compute_key: String) -> Int @737
+  - fn cuda_zero_output_payloads(compute_key: String) -> Int @761
+  - fn cuda_copy_binding_payload_from_path(path: String, from_compute_key: String, from_binding_key: String, to_compute_key: String, to_binding_key: String) -> Bool @764
+  - fn cuda_copy_binding_payload(from_compute_key: String, from_binding_key: String, to_compute_key: String, to_binding_key: String) -> Bool @772
+  - fn cuda_pack_u32_le(value: Int) -> Array<Int> @781, fn cuda_pack_i32_le(value: Int) -> Array<Int> @790
+  - fn cuda_pack_u32_array_le(values: Array<Int>) -> Array<Int> @793
+  - fn cuda_pack_i32_array_le(values: Array<Int>) -> Array<Int> @805
+  - fn cuda_unpack_u32_le(bytes: Array<Int>, offset: Int) -> Int @808
+  - fn cuda_unpack_u32_array_le(bytes: Array<Int>) -> Array<Int> @817
+  - fn cuda_unpack_i32_array_le(bytes: Array<Int>) -> Array<Int> @825
+  - fn cuda_dispatch_primary_compute(compute_key: String) -> CudaDispatchStats @828
+  - fn cuda_dispatch(shader_bundle_path: String, compute_residency_path: String, compute_key: String) -> CudaDispatchStats @832
 
 ### `std::diagnostics` (stdlib/diagnostics.kn, public=25, private=0)
 

@@ -56,15 +56,15 @@ fn write_index_hex_payload(path: String, header_hex: String, embed_hex: String, 
 pub fn read_index(path: String, cfg: SemanticSearchConfig) -> LoadedIndex:
     if fs_exists(path) == false:
         return empty_loaded_index()
-    let raw_result = fs_try_read_bytes(path)
-    if raw_result.ok == false:
+    let raw_hex = fs_read_bytes_hex(path)
+    if fs_last_status() != 0:
         return empty_loaded_index()
-    let raw = raw_result.value
+    let raw = fs_hex_to_bytes(raw_hex)
     if len(raw) < HEADER_SIZE:
         return empty_loaded_index()
-    let header = parse_header(raw)
-    if header.magic != "KAINSEARCH":
+    if raw_has_index_magic(raw) == false:
         return empty_loaded_index()
+    let header = parse_header(raw)
     if header.version != INDEX_VERSION:
         return empty_loaded_index()
     if (header.flags & INDEX_FLAG_PACKED_U8) == 0:
@@ -78,6 +78,16 @@ pub fn read_index(path: String, cfg: SemanticSearchConfig) -> LoadedIndex:
         metas: metas,
         norms: norms,
     }
+
+fn raw_has_index_magic(raw: Array<Int>) -> Bool:
+    if len(raw) < 10:
+        return false
+    var j: Int = 0
+    while j < 10:
+        if (raw[j] & 255) != INDEX_MAGIC[j]:
+            return false
+        j = j + 1
+    return true
 
 // ---- header ----------------------------------------------------------------
 

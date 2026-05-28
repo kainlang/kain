@@ -3105,6 +3105,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "kain-error-semantic"
+version = "0.1.0"
+dependencies = [
+ "kain-error",
+ "regex",
+ "serde",
+ "serde_json",
+ "strsim",
+ "walkdir",
+]
+
+[[package]]
 name = "kain-fast3d-runtime"
 version = "0.1.0"
 dependencies = [

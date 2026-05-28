@@ -1,0 +1,35 @@
+use fs_lane::smoke_fs_lane
+use platform_lane::smoke_platform_lane
+
+pub fn smoke_native_cli_lane() -> Int:
+    let argv = args()
+    if len(argv) < 1:
+        return 1
+
+    let cwd_path = cwd()
+    if len(cwd_path) == 0:
+        return 2
+
+    let probe = path_join(cwd_path, "smoketest.exe")
+    if path_parent(probe) != cwd_path:
+        return 3
+    if path_file_name(probe) != "smoketest.exe":
+        return 4
+    if path_extension(probe) != "exe":
+        return 5
+    if path_stem(probe) != "smoketest":
+        return 6
+
+    let entries = read_dir(cwd_path)
+    if len(entries) < 1:
+        return 7
+
+    let fs_status = smoke_fs_lane()
+    if fs_status != 0:
+        return 20 + fs_status
+
+    let platform_status = smoke_platform_lane()
+    if platform_status != 0:
+        return 40 + platform_status
+
+    return 0

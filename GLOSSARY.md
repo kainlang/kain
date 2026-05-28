@@ -34,7 +34,7 @@ Location rule: paths in this glossary are live in this checkout. Older docs may 
 
 ## C
 
-**C ABI** - The native foreign-function boundary Kain uses for runtime services, OS contracts, platform SDKs, and external libraries. In authored Kain this normally appears as `use c::...`. Location: import lane in `crates/c-ffi/`; native floor in `runtime/native/include/`.
+**C ABI** - The native foreign-function boundary Kain uses for runtime services, OS contracts, platform SDKs, and external libraries. In authored Kain this normally appears as `use c::...`; local header/source pairs can now use the natural alias-aware form `include native/header.h as alias`, which preserves import provenance while generating C extern bindings. Location: import lane in `crates/c-ffi/`; native floor in `runtime/native/include/`.
 
 **Capsule** - A portable `.kn` container produced by `kain amalgamate`. Editable capsules keep file blocks inline; archive capsules keep a sealed payload block. Location: owned by `crates/amalgamate/`; materialized under `.kain/cache/amalgamate/`.
 

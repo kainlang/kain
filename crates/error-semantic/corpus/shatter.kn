@@ -1,0 +1,40 @@
+use std::runtime
+use types::SmokeLane
+use types::smoke_lane_rank
+use types::smoke_weighted_checksum
+use types::SmokePacket
+
+shatter struct SmokeShard:
+    bias: Int
+    phase: Int
+    salt: Int
+    alive: Bool
+
+// Exported so teleport.kn and pulse.kn can pass shards around across worlds.
+pub fn smoke_shard_score(shard: SmokeShard) -> Int:
+    let rank = smoke_lane_rank(SmokeLane::Shatter)
+    return (shard.bias * rank + shard.phase + shard.salt) % 1000000007
+
+pub fn smoke_shatter_lane() -> Int:
+    let shard = SmokeShard { bias: 7, phase: 13, salt: 29, alive: true }
+    if shard.bias != 7:
+        return 1
+    if shard.phase != 13:
+        return 2
+    if shard.salt != 29:
+        return 3
+    if shard.alive != true:
+        return 4
+
+    // Cross-file: compute score using types.kn lane rank
+    let score = smoke_shard_score(shard)
+    if score < 0:
+        return 5
+
+    // Cross-file: build a SmokePacket and run weighted checksum from types.kn
+    let probe = SmokePacket { id: shard.bias, lane: SmokeLane::Shatter, payload: score, tag: "shard", hot: shard.alive }
+    let wc = smoke_weighted_checksum(probe)
+    if wc < 0:
+        return 6
+
+    return 0

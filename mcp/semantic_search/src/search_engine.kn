@@ -6,6 +6,7 @@
 
 use std::fs
 use std::cuda
+use std::process
 use types::SearchResult
 use types::SearchResponse
 use types::LoadedIndex
@@ -22,12 +23,19 @@ const CUDA_TOPK_KEY: String = "shader::SemanticGpuTopK::compute"
 const CUDA_FIXED_DIM: Int = 384
 const CUDA_MAX_CHUNKS: Int = 100000
 const CUDA_MAX_TOP_K: Int = 100
-const CUDA_ZERO_APPEND_CHUNK: Int = 4096
+const CUDA_ZERO_APPEND_CHUNK: Int = 65536
 
 struct CudaRankedHits:
     indices: Array<Int>
     scores: Array<Float>
     error: String
+
+fn trace_enabled() -> Bool:
+    return env("KAIN_SEMANTIC_SEARCH_TRACE") != ""
+
+fn trace(msg: String) -> Unit:
+    if trace_enabled():
+        println("[semantic-search][trace] " + msg)
 
 pub fn search(query: String, index_name: String, top_k: Int, cfg: SemanticSearchConfig) -> SearchResponse:
     if query == "":
@@ -47,6 +55,10 @@ pub fn search(query: String, index_name: String, top_k: Int, cfg: SemanticSearch
     if fs_exists(weight_path) == false:
         return error_response("CUDA weight payload missing for " + index_name + " (run 'index' again)")
 
+    trace("index_path=" + index_path)
+    trace("matrix_path=" + matrix_path)
+    trace("weight_path=" + weight_path)
+
     let index = read_index(index_path, cfg)
     if index.header.num_chunks == 0:
         return error_response("index is empty or stale: " + index_name + " (run 'index' again)")
@@ -62,6 +74,9 @@ pub fn search(query: String, index_name: String, top_k: Int, cfg: SemanticSearch
         k = CUDA_MAX_TOP_K
     if k > index.header.num_chunks:
         k = index.header.num_chunks
+
+    trace("query_len=" + int_to_str(len(query)))
+    trace("index_chunks=" + int_to_str(index.header.num_chunks))
 
     let ranked = cuda_rank(query, index_path, matrix_path, weight_path, index, k, cfg)
     if ranked.error != "":
@@ -79,46 +94,53 @@ fn cuda_rank(query: String, index_path: String, matrix_path: String, weight_path
     let _index_path = index_path
     let bundle = cuda_search_shader_bundle_path()
     let residency = cuda_search_residency_path()
+    trace("bundle_path=" + bundle)
+    trace("residency_path=" + residency)
     if bundle == "" or residency == "":
         return cuda_error("CUDA artifacts missing; run `kain gpu-artifacts src/search_kernel.kn --output kain` from X:\\mcp\\semantic_search")
     if cuda_driver_available() == false:
         return cuda_error("CUDA driver is not available")
     if cuda_runtime_library_available() == false:
         return cuda_error("kain-gpu-runtime CUDA runtime library is not available")
-    if cuda_has_compute_key_from_path(residency, CUDA_SCORE_KEY) == false:
-        return cuda_error("CUDA score kernel missing from residency sidecar; regenerate search_kernel artifacts")
-    if cuda_has_compute_key_from_path(residency, CUDA_TOPK_KEY) == false:
-        return cuda_error("CUDA top-k kernel missing from residency sidecar; regenerate search_kernel artifacts")
+    trace("residency_manifest_debug:\n" + cuda_manifest_debug_from_path(residency))
 
     let query_bytes = build_query_embedding_bytes(query, cfg.dim)
+    trace("query_bytes_len=" + int_to_str(len(query_bytes)))
     let stage_error = stage_score_payloads(residency, query_bytes, matrix_path, weight_path, index.header.num_chunks, cfg)
     if stage_error != "":
         return cuda_error(stage_error)
+    trace("score payloads staged")
     let score_stats = cuda_dispatch(bundle, residency, CUDA_SCORE_KEY)
     if score_stats.ok == false:
         return cuda_error("CUDA score dispatch failed: " + score_stats.message)
+    trace("score dispatch ok")
 
     let capacity = query_match_capacity(query_bytes)
     let threshold = score_threshold(cfg, capacity)
     let top_error = stage_topk_payloads(residency, index.header.num_chunks, top_k, threshold)
     if top_error != "":
         return cuda_error(top_error)
+    trace("topk payloads staged")
     let top_stats = cuda_dispatch(bundle, residency, CUDA_TOPK_KEY)
     if top_stats.ok == false:
         return cuda_error("CUDA top-k dispatch failed: " + top_stats.message)
+    trace("topk dispatch ok")
     return read_ranked_hits(residency, top_k, index.header.num_chunks, threshold, capacity)
 
 fn stage_score_payloads(residency: String, query_bytes: Array<Int>, matrix_path: String, weight_path: String, num_chunks: Int, cfg: SemanticSearchConfig) -> String:
+    trace("staging query_embed -> " + cuda_binding_payload_path_from_path(residency, CUDA_SCORE_KEY, "query_embed"))
     if cuda_write_binding_payload_bytes_from_path(residency, CUDA_SCORE_KEY, "query_embed", query_bytes) == false:
         return "failed to stage query embedding payload"
     let matrix_locator = cuda_binding_locator_from_path(residency, CUDA_SCORE_KEY, "index_matrix")
     if matrix_locator.ok == false:
         return "index_matrix binding missing in CUDA residency"
+    trace("staging index_matrix -> " + matrix_locator.payload_path)
     if write_padded_payload_from_file(matrix_path, matrix_locator.payload_path, matrix_locator.byte_length) == false:
         return "failed to stage packed index matrix payload"
     let weight_locator = cuda_binding_locator_from_path(residency, CUDA_SCORE_KEY, "index_weights")
     if weight_locator.ok == false:
         return "index_weights binding missing in CUDA residency"
+    trace("staging index_weights -> " + weight_locator.payload_path)
     if write_padded_payload_from_file(weight_path, weight_locator.payload_path, weight_locator.byte_length) == false:
         return "failed to stage packed index weight payload"
     if cuda_zero_binding_payload_from_path(residency, CUDA_SCORE_KEY, "scores") == false:
@@ -160,6 +182,9 @@ fn read_ranked_hits(residency: String, top_k: Int, total_chunks: Int, threshold:
             push(indices, idx)
             push(scores, to_float(raw_score) / max_score)
         slot = slot + 1
+    trace("ranked_raw_indices_len=" + int_to_str(len(raw_indices)))
+    trace("ranked_raw_scores_len=" + int_to_str(len(raw_scores)))
+    trace("ranked_accepted_len=" + int_to_str(len(indices)))
     return CudaRankedHits {
         indices: indices,
         scores: scores,
@@ -183,45 +208,32 @@ fn query_match_capacity(query_bytes: Array<Int>) -> Int:
 fn write_padded_payload_from_file(src: String, dest: String, expected_bytes: Int) -> Bool:
     if fs_exists(src) == false:
         return false
-    let meta = fs_metadata(src)
-    if meta.len > expected_bytes:
+    let raw_hex = fs_read_bytes_hex(src)
+    if fs_last_status() != 0:
         return false
-    if fs_try_write_bytes(dest, []).ok == false:
+    let src_bytes = len(raw_hex) / 2
+    if src_bytes > expected_bytes:
         return false
-    let copied = fs_copy_file_streaming(src, dest, 1048576)
-    if copied != meta.len:
+    trace("padding_copy src_bytes=" + int_to_str(src_bytes) + " expected_bytes=" + int_to_str(expected_bytes) + " dest=" + dest)
+    if fs_try_write_bytes_hex(dest, raw_hex).ok == false:
+        trace("padding_copy write_failed dest=" + dest)
         return false
-    let padding = expected_bytes - meta.len
-    if padding > 0:
-        if append_zero_bytes(dest, padding) == false:
-            return false
-    var final_len = fs_metadata(dest).len
-    var retry = 0
-    while final_len < expected_bytes and retry < 4:
-        if append_zero_bytes(dest, expected_bytes - final_len) == false:
-            return false
-        final_len = fs_metadata(dest).len
-        retry = retry + 1
-    return final_len == expected_bytes
-
-fn append_zero_bytes(path: String, count: Int) -> Bool:
-    var remaining = count
+    trace("padding_copy raw_write_ok dest=" + dest)
+    var remaining = expected_bytes - src_bytes
+    var write_offset = src_bytes
+    let zero_block = cuda_zero_hex(CUDA_ZERO_APPEND_CHUNK)
     while remaining > 0:
         var chunk = CUDA_ZERO_APPEND_CHUNK
         if remaining < chunk:
             chunk = remaining
-        if fs_try_append_bytes(path, zero_bytes(chunk)).ok == false:
+        let pad_hex = if chunk == CUDA_ZERO_APPEND_CHUNK: zero_block else: cuda_zero_hex(chunk)
+        if fs_try_write_bytes_hex_at(dest, write_offset, pad_hex).ok == false:
+            trace("padding_copy offset_write_failed dest=" + dest + " offset=" + int_to_str(write_offset))
             return false
+        write_offset = write_offset + chunk
         remaining = remaining - chunk
+    trace("padding_copy complete dest=" + dest)
     return true
-
-fn zero_bytes(count: Int) -> Array<Int>:
-    let mut bytes: Array<Int> = []
-    var i: Int = 0
-    while i < count:
-        push(bytes, 0)
-        i = i + 1
-    return bytes
 
 fn score_threshold(cfg: SemanticSearchConfig, max_score_raw: Int) -> Int:
     if cfg.min_score <= 0.0:
@@ -281,6 +293,7 @@ fn build_results(indices: Array<Int>, scores: Array<Float>, index: LoadedIndex, 
                 snippet: desc,
             })
         ri = ri + 1
+    trace("build_results_count=" + int_to_str(len(results)))
     return results
 
 fn error_response(msg: String) -> SearchResponse:

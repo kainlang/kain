@@ -769,6 +769,21 @@ impl SourceFormatter {
     }
 
     fn format_use(&self, value: &Use) -> String {
+        if value.origin == UseOrigin::CInclude {
+            let include_segments = if value.path.first().is_some_and(|segment| segment == "c") {
+                &value.path[1..]
+            } else {
+                &value.path[..]
+            };
+            let include_name = include_segments.join("/");
+            let mut output = format!("include {}", include_name);
+            if let Some(alias) = &value.alias {
+                output.push_str(" as ");
+                output.push_str(alias);
+            }
+            return output;
+        }
+
         let mut output = format!("use {}", value.path.join("::"));
         if value.glob {
             output.push_str("::*");
@@ -3231,6 +3246,14 @@ struct Pair:
 "#;
         assert_eq!(formatted, expected);
         parse(&formatted).expect("formatted output should parse");
+    }
+
+    #[test]
+    fn formats_c_include_with_alias_provenance() {
+        let source = "include native/nuklear.h as nk\n";
+        let formatted = format_source(source).expect("format");
+        assert_eq!(formatted, "include nuklear as nk\n");
+        parse(&formatted).expect("formatted include should parse");
     }
 
     #[test]

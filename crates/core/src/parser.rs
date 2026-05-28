@@ -227,6 +227,24 @@ fn parse_orchestrate_stage_runtime(name: &str) -> Option<OrchestrateStageRuntime
     }
 }
 
+fn c_include_import_name(target: &str) -> String {
+    let normalized = target.replace('\\', "/");
+    let file_name = normalized.rsplit('/').next().unwrap_or(&normalized);
+    let stem = file_name
+        .rsplit_once('.')
+        .map(|(left, _)| left)
+        .unwrap_or(file_name);
+    let mut output = String::with_capacity(stem.len());
+    for ch in stem.chars() {
+        if ch.is_ascii_alphanumeric() || ch == '_' {
+            output.push(ch);
+        } else if !output.ends_with('_') {
+            output.push('_');
+        }
+    }
+    output.trim_matches('_').to_string()
+}
+
 pub struct Parser<'a> {
     tokens: &'a [Token],
     pos: usize,
@@ -626,6 +644,7 @@ impl<'a> Parser<'a> {
                 | "orchestrate"
                 | "pulse"
                 | "shatter"
+                | "include"
                 | "import"
                 | "from"
         )
@@ -923,6 +942,7 @@ impl<'a> Parser<'a> {
             TokenKind::Test => self.parse_test(),
             TokenKind::Mod => self.parse_mod(vis),
             TokenKind::Use => self.parse_use(),
+            TokenKind::Ident(ref name) if name == "include" => self.parse_include(),
             TokenKind::Ident(ref name) if name == "import" => self.parse_import(),
             TokenKind::Ident(ref name) if name == "from" => self.parse_from_import(),
             TokenKind::Trait => self.parse_trait(vis),
@@ -947,7 +967,7 @@ impl<'a> Parser<'a> {
             }
             _ => Err(self.parser_error(
                 format!(
-                    "Expected item (fn, patch, law, axiom, converge, world, entangle, orchestrate, pulse, shatter struct, struct, enum, actor, component, shader, material, trait, impl, mod, use, import, const, test), found {}",
+                    "Expected item (fn, patch, law, axiom, converge, world, entangle, orchestrate, pulse, shatter struct, struct, enum, actor, component, shader, material, trait, impl, mod, use, include, import, const, test), found {}",
                     self.token_to_user_string(&self.peek_kind())
                 ),
                 self.current_span()
@@ -1260,6 +1280,7 @@ impl<'a> Parser<'a> {
                     path,
                     alias: None,
                     glob: true,
+                    origin: UseOrigin::Use,
                     source_file: self.current_source_file(),
                     span: start.merge(self.current_span()),
                 }));
@@ -1280,9 +1301,60 @@ impl<'a> Parser<'a> {
             path,
             alias,
             glob: false,
+            origin: UseOrigin::Use,
             source_file: self.current_source_file(),
             span: start.merge(self.current_span()),
         }))
+    }
+
+    fn parse_include(&mut self) -> KainResult<Item> {
+        let start = self.current_span();
+        self.expect_contextual_ident("include")?;
+
+        let include_target = self.parse_c_include_target()?;
+        let import_name = c_include_import_name(&include_target);
+        if import_name.is_empty() {
+            return Err(self.parser_error(
+                "Expected C include target such as `nuklear`, `native/nuklear`, or `\"../native/nuklear.h\"`",
+                start,
+            ));
+        }
+
+        let alias = if self.check(TokenKind::As) {
+            self.advance();
+            Some(self.parse_ident()?)
+        } else {
+            None
+        };
+
+        Ok(Item::Use(Use {
+            path: vec!["c".to_string(), import_name],
+            alias,
+            glob: false,
+            origin: UseOrigin::CInclude,
+            source_file: self.current_source_file(),
+            span: start.merge(self.current_span()),
+        }))
+    }
+
+    fn parse_c_include_target(&mut self) -> KainResult<String> {
+        if let TokenKind::String(value) = self.peek_kind() {
+            self.advance();
+            return Ok(value);
+        }
+
+        let mut parts = vec![self.parse_use_path_segment()?];
+        while self.check(TokenKind::Slash) || self.check(TokenKind::Dot) {
+            let separator = if self.check(TokenKind::Slash) {
+                "/"
+            } else {
+                "."
+            };
+            self.advance();
+            parts.push(separator.to_string());
+            parts.push(self.parse_use_path_segment()?);
+        }
+        Ok(parts.join(""))
     }
 
     fn parse_import(&mut self) -> KainResult<Item> {
@@ -10337,6 +10409,26 @@ from torch.utils import data as torch_data
                 assert_eq!(import.members[0].alias.as_deref(), Some("torch_data"));
             }
             other => panic!("expected second item to be Import, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_c_include_items_with_alias_provenance() {
+        let program = parse_program(
+            r#"
+include native/nuklear.h as nk
+"#,
+        )
+        .expect("c include syntax should parse");
+
+        assert_eq!(program.items.len(), 1);
+        match &program.items[0] {
+            Item::Use(include) => {
+                assert_eq!(include.path, vec!["c".to_string(), "nuklear".to_string()]);
+                assert_eq!(include.alias.as_deref(), Some("nk"));
+                assert_eq!(include.origin, UseOrigin::CInclude);
+            }
+            other => panic!("expected include to lower to a C Use item, got {other:?}"),
         }
     }
 }

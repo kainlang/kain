@@ -2484,6 +2484,7 @@ impl RustTransformer {
                             path,
                             alias: None,
                             glob: false,
+                            origin: UseOrigin::Use,
                             span: S,
                             source_file: None,
                         }));
@@ -2498,6 +2499,7 @@ impl RustTransformer {
                             path,
                             alias: None,
                             glob: false,
+                            origin: UseOrigin::Use,
                             span: S,
                             source_file: None,
                         }));
@@ -2515,6 +2517,7 @@ impl RustTransformer {
                         path,
                         alias: Some(rename.rename.to_string()),
                         glob: false,
+                        origin: UseOrigin::Use,
                         span: S,
                         source_file: None,
                     }));
@@ -2527,6 +2530,7 @@ impl RustTransformer {
                         path,
                         alias: None,
                         glob: true,
+                        origin: UseOrigin::Use,
                         span: S,
                         source_file: None,
                     }));
@@ -4405,6 +4409,7 @@ impl RustTransformer {
                     path: path.clone(),
                     alias: None,
                     glob: false,
+                    origin: UseOrigin::Use,
                     span: S,
                     source_file: None,
                 })

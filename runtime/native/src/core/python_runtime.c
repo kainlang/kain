@@ -290,6 +290,13 @@ static int kain_py_type_tag_matches(const void* ptr, long long type_tag) {
     if (!ptr || (((uintptr_t)ptr) & 7u) != 0u) {
         return 0;
     }
+    /* Tagged Python scalars reuse the low-bit space for immediates.
+       Values like ((24 << 3) | 1) would otherwise look like an aligned
+       pointer once unboxed, so guard the RC-header read with the tracked
+       pointer registry first. */
+    if (!kain_rc_is_tracked_pointer(ptr)) {
+        return 0;
+    }
     header = kain_py_rc_header(ptr);
     return header != NULL &&
         header->magic == KAIN_RC_MAGIC_ALIVE &&
@@ -3113,7 +3120,11 @@ static long long kain_py_materialize_result(PyObject* object, int raw_mode, int 
             truth = 0;
         }
         g_kain_python_api.Py_DecRef(object);
-        return boxed_scalars ? KAIN_PY_JSON_BOOL(truth) : (truth != 0 ? 1 : 0);
+        /* Raw Python bridge lanes still travel through Kain's tagged Any path.
+           Returning plain 0/1 here aliases the null/immediate tag space. */
+        return (boxed_scalars || raw_mode)
+            ? KAIN_PY_JSON_BOOL(truth)
+            : (truth != 0 ? 1 : 0);
     }
     if (kain_py_type_name_is(type_name, "str") && kain_py_try_unicode_tag(object, &tagged)) {
         g_kain_python_api.Py_DecRef(object);
@@ -3139,7 +3150,9 @@ static long long kain_py_materialize_result(PyObject* object, int raw_mode, int 
     }
     if (kain_py_type_name_is(type_name, "int") && kain_py_try_long_value(object, &tagged)) {
         g_kain_python_api.Py_DecRef(object);
-        return boxed_scalars ? KAIN_PY_JSON_INT(tagged) : tagged;
+        return (boxed_scalars || raw_mode)
+            ? KAIN_PY_JSON_INT(tagged)
+            : tagged;
     }
     if (kain_py_type_name_is(type_name, "float") && kain_py_try_float_tag(object, &tagged)) {
         g_kain_python_api.Py_DecRef(object);

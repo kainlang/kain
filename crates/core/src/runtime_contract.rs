@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::ast::{
     AxiomPredicate, Block, ConvergeSelector, Expr, PulseDuration, ShaderStage, Stmt, Type,
-    WorldSurfaceKind, COMPUTE_PLAN_CAPABILITY_KEY,
+    UseOrigin, WorldSurfaceKind, COMPUTE_PLAN_CAPABILITY_KEY,
 };
 use crate::low_level_memory::backend_memory_capabilities;
 use crate::types::{
@@ -1003,7 +1003,28 @@ fn collect_runtime_items(
                 output.push(runtime_contract_item("macro", &macro_def.ast.name));
             }
             TypedItem::Use(use_def) => {
-                output.push(runtime_contract_item("use", &use_def.ast.path.join("::")));
+                let label = if use_def.ast.origin == UseOrigin::CInclude {
+                    let include_name = use_def
+                        .ast
+                        .path
+                        .get(1..)
+                        .unwrap_or(&use_def.ast.path)
+                        .join("/");
+                    match &use_def.ast.alias {
+                        Some(alias) => format!("{include_name} as {alias}"),
+                        None => include_name,
+                    }
+                } else {
+                    use_def.ast.path.join("::")
+                };
+                output.push(runtime_contract_item(
+                    if use_def.ast.origin == UseOrigin::CInclude {
+                        "include"
+                    } else {
+                        "use"
+                    },
+                    &label,
+                ));
             }
             TypedItem::Import(import_def) => {
                 let label = if import_def.ast.members.is_empty() {
