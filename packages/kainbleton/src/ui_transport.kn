@@ -1,0 +1,80 @@
+// ============================================================================
+//                         kainbleton :: ui_transport
+// ============================================================================
+// Transport bar: play, stop, record, loop, metro, BPM, time, device selector.
+// Builds widgets into the given QToolBar and returns the handle struct.
+
+import PyQt6.QtWidgets as qtw
+
+pub struct TransportWidgets:
+    play_btn: Any
+    stop_btn: Any
+    record_btn: Any
+    loop_btn: Any
+    metro_btn: Any
+    bpm_label: Any
+    time_label: Any
+    device_combo: Any
+
+pub fn build_transport_bar(toolbar: Any, bpm: Int, device_names: Array<String>) -> TransportWidgets:
+    let _tb_move = python_call_attr_raw(toolbar, "setMovable", [false])
+
+    // rewind
+    let _rw = python_call_attr_raw(toolbar, "addWidget", [python_call_attr_raw(qtw, "QPushButton", ["\u23EE"])])
+
+    let stop_btn = python_call_attr_raw(qtw, "QPushButton", ["\u25A0"])
+    let _stop_obj = python_call_attr_raw(stop_btn, "setObjectName", ["stop_btn"])
+    let _stop_add = python_call_attr_raw(toolbar, "addWidget", [stop_btn])
+
+    let play_btn = python_call_attr_raw(qtw, "QPushButton", ["\u25B6"])
+    let _play_obj = python_call_attr_raw(play_btn, "setObjectName", ["play_btn"])
+    let _play_add = python_call_attr_raw(toolbar, "addWidget", [play_btn])
+
+    let record_btn = python_call_attr_raw(qtw, "QPushButton", ["\u25CF"])
+    let _rec_obj = python_call_attr_raw(record_btn, "setObjectName", ["record_btn"])
+    let _rec_check = python_call_attr_raw(record_btn, "setCheckable", [true])
+    let _rec_add = python_call_attr_raw(toolbar, "addWidget", [record_btn])
+
+    let _sep1 = python_call_attr_raw(toolbar, "addWidget", [python_call_attr_raw(qtw, "QLabel", [" | "])])
+
+    let loop_btn = python_call_attr_raw(qtw, "QPushButton", ["\uD83D\uDD01 LOOP"])
+    let _loop_check = python_call_attr_raw(loop_btn, "setCheckable", [true])
+    let _loop_add = python_call_attr_raw(toolbar, "addWidget", [loop_btn])
+
+    let metro_btn = python_call_attr_raw(qtw, "QPushButton", ["\u266A METRO"])
+    let _metro_check = python_call_attr_raw(metro_btn, "setCheckable", [true])
+    let _metro_add = python_call_attr_raw(toolbar, "addWidget", [metro_btn])
+
+    let _sep2 = python_call_attr_raw(toolbar, "addWidget", [python_call_attr_raw(qtw, "QLabel", [" | "])])
+
+    let bpm_label = python_call_attr_raw(qtw, "QLabel", [str(bpm) + " BPM"])
+    let _bpm_obj = python_call_attr_raw(bpm_label, "setObjectName", ["bpm_label"])
+    let _bpm_add = python_call_attr_raw(toolbar, "addWidget", [bpm_label])
+
+    let time_label = python_call_attr_raw(qtw, "QLabel", ["00:00.00"])
+    let _time_obj = python_call_attr_raw(time_label, "setObjectName", ["time_label"])
+    let _time_add = python_call_attr_raw(toolbar, "addWidget", [time_label])
+
+    let _sep3 = python_call_attr_raw(toolbar, "addWidget", [python_call_attr_raw(qtw, "QLabel", [" | "])])
+
+    let dev_lbl = python_call_attr_raw(qtw, "QLabel", ["OUTPUT:"])
+    let _dev_obj = python_call_attr_raw(dev_lbl, "setObjectName", ["device_label"])
+    let _dev_add = python_call_attr_raw(toolbar, "addWidget", [dev_lbl])
+
+    let device_combo = python_call_attr_raw(qtw, "QComboBox", [])
+    var d: Int = 0
+    while d < len(device_names):
+        let _add_dev = python_call_attr_raw(device_combo, "addItem", [device_names[d]])
+        d = d + 1
+    let _combo_add = python_call_attr_raw(toolbar, "addWidget", [device_combo])
+
+    return TransportWidgets {
+        play_btn: play_btn,
+        stop_btn: stop_btn,
+        record_btn: record_btn,
+        loop_btn: loop_btn,
+        metro_btn: metro_btn,
+        bpm_label: bpm_label,
+        time_label: time_label,
+        device_combo: device_combo,
+    }

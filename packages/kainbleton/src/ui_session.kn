@@ -1,0 +1,30 @@
+// ============================================================================
+//                         kainbleton :: ui_session
+// ============================================================================
+// Session types. No widget construction here — just the structs
+// that the component builders and orchestrator consume.
+
+// ---- session type ----
+
+pub struct KainbletonUiSession:
+    app: Any
+    main_window: Any
+    play_btn: Any
+    stop_btn: Any
+    record_btn: Any
+    loop_btn: Any
+    metro_btn: Any
+    bpm_label: Any
+    time_label: Any
+    device_combo: Any
+    screenshot_path: String
+    frame_count: Int
+    frame_hash: Int
+    native_session: Int
+    native_root: Int
+    native_transport: Int
+
+pub struct KainbletonNativeUiMirror:
+    session_id: Int
+    root_node: Int
+    transport_node: Int

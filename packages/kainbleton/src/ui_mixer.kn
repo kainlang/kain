@@ -1,0 +1,67 @@
+// ============================================================================
+//                         kainbleton :: ui_mixer
+// ============================================================================
+// Bottom mixer strip: per-track level meters, vertical faders, dB readouts.
+// Each channel strip is color-coded to match its track.
+
+import PyQt6.QtWidgets as qtw
+import PyQt6.QtCore as qtc
+
+use model::KainbletonProject
+use ui_helpers::color_int_to_hex
+use ui_helpers::db_label_text
+use ui_styles::style_meter_bar
+
+pub fn build_mixer_strip(parent_layout: Any, project: KainbletonProject):
+    let _mxl_sp = python_call_attr_raw(parent_layout, "setSpacing", [6])
+    let _mxl_m = python_call_attr_raw(parent_layout, "setContentsMargins", [10, 6, 10, 6])
+
+    // master label
+    let mstr = python_call_attr_raw(qtw, "QLabel", ["MASTER"])
+    let _mstr_s = python_call_attr_raw(mstr, "setStyleSheet", ["QLabel { color: #484f58; font-size: 9px; font-weight: 700; letter-spacing: 1px; }"])
+    let _mstr_a = python_call_attr_raw(parent_layout, "addWidget", [mstr])
+
+    // one strip per track
+    var mt: Int = 0
+    while mt < len(project.tracks):
+        let mtrack = project.tracks[mt]
+        let mch = color_int_to_hex(mtrack.color)
+
+        let mstrip = python_call_attr_raw(qtw, "QWidget", [])
+        let msl = python_call_attr_raw(qtw, "QVBoxLayout", [mstrip])
+        let _msl_sp = python_call_attr_raw(msl, "setSpacing", [2])
+        let _msl_m = python_call_attr_raw(msl, "setContentsMargins", [4, 2, 4, 2])
+
+        // track name
+        let mn = python_call_attr_raw(qtw, "QLabel", [mtrack.name])
+        let _mn_s = python_call_attr_raw(mn, "setStyleSheet", ["QLabel { color: " + mch + "; font-size: 9px; font-weight: 700; }"])
+        let _mn_a = python_call_attr_raw(msl, "addWidget", [mn])
+
+        // level meter
+        let meter = python_call_attr_raw(qtw, "QProgressBar", [])
+        let _meter_r = python_call_attr_raw(meter, "setRange", [0, 100])
+        let _meter_v = python_call_attr_raw(meter, "setValue", [Int(mtrack.gain * 100.0)])
+        let _meter_t = python_call_attr_raw(meter, "setTextVisible", [false])
+        let _meter_f = python_call_attr_raw(meter, "setFixedHeight", [8])
+        let _meter_s = python_call_attr_raw(meter, "setStyleSheet", [style_meter_bar(mch)])
+        let _meter_a = python_call_attr_raw(msl, "addWidget", [meter])
+
+        // vertical fader
+        let fader = python_call_attr_raw(qtw, "QSlider", [qtc.Qt_Orientation.Vertical])
+        let _fader_r = python_call_attr_raw(fader, "setRange", [0, 127])
+        let _fader_v = python_call_attr_raw(fader, "setValue", [Int(mtrack.gain * 127.0)])
+        let _fader_f = python_call_attr_raw(fader, "setFixedHeight", [40])
+        let _fader_a = python_call_attr_raw(msl, "addWidget", [fader])
+
+        // dB label
+        let db_lbl = python_call_attr_raw(qtw, "QLabel", [db_label_text(mtrack.gain)])
+        let _db_s = python_call_attr_raw(db_lbl, "setStyleSheet", ["QLabel { color: #8b949e; font-size: 8px; font-family: 'Consolas', monospace; }"])
+        let _db_a = python_call_attr_raw(msl, "addWidget", [db_lbl])
+
+        let _mstrip_a = python_call_attr_raw(parent_layout, "addWidget", [mstrip])
+        mt = mt + 1
+
+    // right spacer
+    let mxs = python_call_attr_raw(qtw, "QWidget", [])
+    let _mxs_p = python_call_attr_raw(mxs, "setSizePolicy", [qtw.QSizePolicy.Policy.Expanding, qtw.QSizePolicy.Policy.Preferred])
+    let _mxs_a = python_call_attr_raw(parent_layout, "addWidget", [mxs])

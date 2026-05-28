@@ -1,0 +1,112 @@
+// ============================================================================
+//                         kainbleton :: ui_track_header
+// ============================================================================
+// Left-panel track headers: color strip, track name, R/M/S buttons,
+// volume slider, pan slider. Driven by the project model.
+
+import PyQt6.QtWidgets as qtw
+import PyQt6.QtCore as qtc
+
+use model::KainbletonProject
+use ui_helpers::color_int_to_hex
+use ui_helpers::pan_label_text
+use ui_styles::style_button_arm
+use ui_styles::style_button_mute
+use ui_styles::style_button_solo
+use ui_styles::style_slider_pan
+
+pub fn build_track_header_panel(parent_layout: Any, project: KainbletonProject):
+    let _hdr_sp = python_call_attr_raw(parent_layout, "setSpacing", [2])
+
+    // section label
+    let count_lbl = python_call_attr_raw(qtw, "QLabel", ["TRACKS (" + str(len(project.tracks)) + ")"])
+    let _count_s = python_call_attr_raw(count_lbl, "setStyleSheet", ["QLabel { color: #484f58; font-size: 10px; font-weight: 700; letter-spacing: 1px; padding: 4px 6px; }"])
+    let _count_a = python_call_attr_raw(parent_layout, "addWidget", [count_lbl])
+
+    // one row per track
+    var t: Int = 0
+    while t < len(project.tracks):
+        let track = project.tracks[t]
+        let ch = color_int_to_hex(track.color)
+
+        let row = python_call_attr_raw(qtw, "QWidget", [])
+        let _row_s = python_call_attr_raw(row, "setStyleSheet", ["QWidget { background-color: #161b22; border-radius: 5px; margin: 1px 0px; }"])
+        let rl = python_call_attr_raw(qtw, "QHBoxLayout", [row])
+        let _rl_sp = python_call_attr_raw(rl, "setSpacing", [4])
+        let _rl_m = python_call_attr_raw(rl, "setContentsMargins", [6, 3, 6, 3])
+
+        // color strip
+        let strip = python_call_attr_raw(qtw, "QLabel", [" "])
+        let _strip_s = python_call_attr_raw(strip, "setStyleSheet", ["QLabel { background-color: " + ch + "; border-radius: 2px; min-width: 4px; max-width: 4px; min-height: 50px; }"])
+        let _strip_a = python_call_attr_raw(rl, "addWidget", [strip])
+
+        // control stack
+        let cs = python_call_attr_raw(qtw, "QWidget", [])
+        let csl = python_call_attr_raw(qtw, "QVBoxLayout", [cs])
+        let _csl_sp = python_call_attr_raw(csl, "setSpacing", [1])
+        let _csl_m = python_call_attr_raw(csl, "setContentsMargins", [0, 0, 0, 0])
+
+        // track name
+        let name_l = python_call_attr_raw(qtw, "QLabel", [track.name])
+        let _name_s = python_call_attr_raw(name_l, "setStyleSheet", ["QLabel { color: " + ch + "; font-size: 12px; font-weight: 700; }"])
+        let _name_a = python_call_attr_raw(csl, "addWidget", [name_l])
+
+        // R / M / S buttons
+        let br = python_call_attr_raw(qtw, "QWidget", [])
+        let brl = python_call_attr_raw(qtw, "QHBoxLayout", [br])
+        let _brl_sp = python_call_attr_raw(brl, "setSpacing", [3])
+        let _brl_m = python_call_attr_raw(brl, "setContentsMargins", [0, 0, 0, 0])
+
+        let arm_b = python_call_attr_raw(qtw, "QPushButton", ["R"])
+        let _arm_chk = python_call_attr_raw(arm_b, "setCheckable", [true])
+        let _arm_set = python_call_attr_raw(arm_b, "setChecked", [track.armed])
+        let _arm_s = python_call_attr_raw(arm_b, "setStyleSheet", [style_button_arm(track.armed)])
+        let _arm_t = python_call_attr_raw(arm_b, "setToolTip", ["Arm " + track.name])
+        let _arm_a = python_call_attr_raw(brl, "addWidget", [arm_b])
+
+        let mute_b = python_call_attr_raw(qtw, "QPushButton", ["M"])
+        let _mute_chk = python_call_attr_raw(mute_b, "setCheckable", [true])
+        let _mute_set = python_call_attr_raw(mute_b, "setChecked", [track.muted])
+        let _mute_s = python_call_attr_raw(mute_b, "setStyleSheet", [style_button_mute(track.muted)])
+        let _mute_t = python_call_attr_raw(mute_b, "setToolTip", ["Mute " + track.name])
+        let _mute_a = python_call_attr_raw(brl, "addWidget", [mute_b])
+
+        let solo_b = python_call_attr_raw(qtw, "QPushButton", ["S"])
+        let _solo_chk = python_call_attr_raw(solo_b, "setCheckable", [true])
+        let _solo_set = python_call_attr_raw(solo_b, "setChecked", [track.solo])
+        let _solo_s = python_call_attr_raw(solo_b, "setStyleSheet", [style_button_solo(track.solo)])
+        let _solo_t = python_call_attr_raw(solo_b, "setToolTip", ["Solo " + track.name])
+        let _solo_a = python_call_attr_raw(brl, "addWidget", [solo_b])
+
+        let _br_a = python_call_attr_raw(csl, "addWidget", [br])
+
+        // volume slider
+        let vol = python_call_attr_raw(qtw, "QSlider", [qtc.Qt_Orientation.Horizontal])
+        let _vol_r = python_call_attr_raw(vol, "setRange", [0, 100])
+        let _vol_v = python_call_attr_raw(vol, "setValue", [Int(track.gain * 100.0)])
+        let _vol_a = python_call_attr_raw(csl, "addWidget", [vol])
+
+        let _cs_a = python_call_attr_raw(rl, "addWidget", [cs])
+
+        // pan
+        let pw = python_call_attr_raw(qtw, "QWidget", [])
+        let pl = python_call_attr_raw(qtw, "QVBoxLayout", [pw])
+        let _pl_sp = python_call_attr_raw(pl, "setSpacing", [0])
+        let _pl_m = python_call_attr_raw(pl, "setContentsMargins", [0, 0, 0, 0])
+        let plbl = python_call_attr_raw(qtw, "QLabel", ["PAN"])
+        let _plbl_s = python_call_attr_raw(plbl, "setStyleSheet", ["QLabel { color: #484f58; font-size: 8px; }"])
+        let _plbl_a = python_call_attr_raw(pl, "addWidget", [plbl])
+        let pan = python_call_attr_raw(qtw, "QSlider", [qtc.Qt_Orientation.Horizontal])
+        let _pan_r = python_call_attr_raw(pan, "setRange", [-100, 100])
+        let _pan_v = python_call_attr_raw(pan, "setValue", [Int(track.pan * 100.0)])
+        let _pan_s = python_call_attr_raw(pan, "setStyleSheet", [style_slider_pan()])
+        let _pan_a = python_call_attr_raw(pl, "addWidget", [pan])
+        let _pw_a = python_call_attr_raw(rl, "addWidget", [pw])
+
+        let _row_a = python_call_attr_raw(parent_layout, "addWidget", [row])
+        t = t + 1
+
+    // bottom spacer
+    let hs = python_call_attr_raw(qtw, "QWidget", [])
+    let _hs_p = python_call_attr_raw(hs, "setSizePolicy", [qtw.QSizePolicy.Policy.Expanding, qtw.QSizePolicy.Policy.Expanding])
+    let _hs_a = python_call_attr_raw(parent_layout, "addWidget", [hs])

@@ -1,0 +1,68 @@
+// ============================================================================
+//                         kainbleton :: ui_arrangement
+// ============================================================================
+// Right-panel arrangement view: beat ruler + per-track waveform lanes.
+// Waveforms are pyqtgraph PlotWidgets driven by audio preview data.
+
+import pyqtgraph as pg
+import PyQt6.QtWidgets as qtw
+
+use audio_engine::KainbletonAudioReport
+use model::KainbletonProject
+use ui_helpers::color_int_to_hex
+
+pub fn build_arrangement_view(parent_layout: Any, project: KainbletonProject, audio: KainbletonAudioReport):
+    let _arr_sp = python_call_attr_raw(parent_layout, "setSpacing", [0])
+    let _arr_m = python_call_attr_raw(parent_layout, "setContentsMargins", [0, 0, 0, 0])
+
+    // ---- beat ruler ----
+    let ruler = python_call_attr_raw(qtw, "QWidget", [])
+    let _ruler_s = python_call_attr_raw(ruler, "setStyleSheet", ["QWidget { background-color: #0d1117; border-bottom: 1px solid #21262d; }"])
+    let _ruler_f = python_call_attr_raw(ruler, "setFixedHeight", [28])
+    let rl = python_call_attr_raw(qtw, "QHBoxLayout", [ruler])
+    let _rl_sp = python_call_attr_raw(rl, "setSpacing", [0])
+    let _rl_m = python_call_attr_raw(rl, "setContentsMargins", [8, 0, 8, 0])
+    var beat: Int = 0
+    while beat < 17:
+        let mk = python_call_attr_raw(qtw, "QLabel", [str(beat + 1)])
+        if beat % 4 == 0:
+            let _mk_s = python_call_attr_raw(mk, "setStyleSheet", ["QLabel { color: #484f58; font-size: 10px; font-weight: 700; min-width: 40px; }"])
+        else:
+            let _mk_s = python_call_attr_raw(mk, "setStyleSheet", ["QLabel { color: #30363d; font-size: 9px; min-width: 40px; }"])
+        let _mk_a = python_call_attr_raw(rl, "addWidget", [mk])
+        beat = beat + 1
+    let _ruler_a = python_call_attr_raw(parent_layout, "addWidget", [ruler])
+
+    // ---- waveform lanes ----
+    let wf_area = python_call_attr_raw(qtw, "QWidget", [])
+    let wfl = python_call_attr_raw(qtw, "QVBoxLayout", [wf_area])
+    let _wfl_sp = python_call_attr_raw(wfl, "setSpacing", [1])
+    let _wfl_m = python_call_attr_raw(wfl, "setContentsMargins", [0, 0, 0, 0])
+
+    var wt: Int = 0
+    while wt < len(project.tracks):
+        let wt_ch = color_int_to_hex(project.tracks[wt].color)
+        let plot = python_call_attr_raw(pg, "PlotWidget", [])
+        let _plot_bg = python_call_attr_raw(plot, "setBackground", ["#0d1117"])
+        let _hide_l = python_call_attr_raw(python_call_attr_raw(plot, "getAxis", ["left"]), "hide", [])
+        let _hide_b = python_call_attr_raw(python_call_attr_raw(plot, "getAxis", ["bottom"]), "hide", [])
+        let _hide_btn = python_call_attr_raw(plot, "hideButtons", [])
+        let _pxr = python_call_attr_raw(plot, "setXRange", [0.0, 1.0])
+        let _pyr = python_call_attr_raw(plot, "setYRange", [-1.2, 1.2])
+        let _pmin = python_call_attr_raw(plot, "setMinimumHeight", [52])
+        let _pmax = python_call_attr_raw(plot, "setMaximumHeight", [52])
+        let _pmouse = python_call_attr_raw(plot, "setMouseEnabled", [false, false])
+        let _pmenu = python_call_attr_raw(plot, "setMenuEnabled", [false])
+        let curve = python_call_attr_raw(plot, "plot", [])
+        let pen = python_call_attr_raw(pg, "mkPen", [wt_ch, 2])
+        let _cp = python_call_attr_raw(curve, "setPen", [pen])
+        let _seed = python_call_attr_raw(curve, "setData", [audio.preview_x, audio.preview_y])
+        let _plot_a = python_call_attr_raw(wfl, "addWidget", [plot])
+        wt = wt + 1
+
+    let _wfa = python_call_attr_raw(parent_layout, "addWidget", [wf_area])
+
+    // bottom spacer
+    let as2 = python_call_attr_raw(qtw, "QWidget", [])
+    let _as2_p = python_call_attr_raw(as2, "setSizePolicy", [qtw.QSizePolicy.Policy.Expanding, qtw.QSizePolicy.Policy.Expanding])
+    let _as2_a = python_call_attr_raw(parent_layout, "addWidget", [as2])
