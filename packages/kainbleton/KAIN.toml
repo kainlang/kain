@@ -39,12 +39,3 @@ inputs = [
   "build.kn",
   "KAIN.toml",
 ]
-
-[c_ffi]
-tier = "inline"
-
-[[c_ffi.libraries]]
-name = "kainbleton_bridge"
-header = "native/kainbleton_bridge.h"
-sources = ["native/kainbleton_bridge.c"]
-include_paths = ["native"]

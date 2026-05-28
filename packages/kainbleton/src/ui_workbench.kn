@@ -25,7 +25,12 @@ pub struct KainbletonUiSession:
     screenshot_path: String
     frame_hash: Int
 
-pub fn kb_native_ui_boot(project: KainbletonProject) -> (Int, Int, Int):
+pub struct KainbletonNativeUiMirror:
+    session_id: Int
+    root_node: Int
+    transport_node: Int
+
+pub fn kb_native_ui_boot(project: KainbletonProject) -> KainbletonNativeUiMirror:
     let _reset = native_ui_reset()
     let session = native_ui_session_create("kainbleton", 1280, 760)
     let _open = native_ui_window_open(session, "kainbleton native mirror", 1280, 760)
@@ -40,15 +45,19 @@ pub fn kb_native_ui_boot(project: KainbletonProject) -> (Int, Int, Int):
     let _transport_text = native_ui_node_set_text(session, transport, "BPM " + str(Int(project.bpm)) + " // Kain transport authority")
     let _style = native_ui_node_set_style_string(session, root, "accent", "#ff5f2e")
     let _dirty = native_ui_mark_dirty(session, root, 1)
-    return (session, root, transport)
+    return KainbletonNativeUiMirror {
+        session_id: session,
+        root_node: root,
+        transport_node: transport,
+    }
 
 pub fn kb_ui_open(project: KainbletonProject, audio: KainbletonAudioReport, screenshot_path: String) -> KainbletonUiSession:
     fs_create_dir_all(".kain/out")
 
     let native = kb_native_ui_boot(project)
-    let session_id = native.0
-    let root = native.1
-    let transport = native.2
+    let session_id = native.session_id
+    let root = native.root_node
+    let transport = native.transport_node
 
     let app = python_call_attr_raw(qt_widgets, "QApplication", [[]])
     let widget = python_call_attr_raw(pg, "GraphicsLayoutWidget", [])

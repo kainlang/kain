@@ -39,8 +39,8 @@ world KainbletonTransportMirror:
     surface web => KainbletonMixerDeck("kainbleton mirror", "mirrored", checksum)
 
 entangle KainbletonAuthority.playhead <-> KainbletonTransportMirror.playhead with single_writer
-entangle KainbletonAuthority.energy <-> KainbletonTransportMirror.energy with eventual
-entangle KainbletonAuthority.checksum <-> KainbletonTransportMirror.checksum with invariant
+entangle KainbletonAuthority.energy <-> KainbletonTransportMirror.energy with single_writer
+entangle KainbletonAuthority.checksum <-> KainbletonTransportMirror.checksum with single_writer
 
 shatter struct KainbletonMeterShard:
     track: Int
@@ -52,10 +52,10 @@ actor KainbletonRenderConductor:
     state salt: Int = 41
     state frames: Int = 0
 
-    on RenderFrame(frame: Int, checksum: Int) -> Int:
-        frames = frames + 1
-        salt = salt + frame + checksum % 257
-        return salt + frames * 17
+    on RenderFrame(reply_to: P, request: Int):
+        self.frames = self.frames + 1
+        self.salt = self.salt + request % 257
+        send reply_to.Reply(value = self.salt + self.frames * 17)
 
 law kb_transport_is_sane(frame: Int, project_checksum: Int) -> Bool:
     return frame >= 0 and project_checksum > 0
@@ -72,31 +72,20 @@ converge kb_transport_mix(seed: Int) -> Int:
         return seed * 31 + 7
     fast llvm_lane when target("llvm"):
         return seed * 33 + 11 - seed * 2 - 4
+    verify random(8)
 
 pub struct KainbletonSemanticProbe:
-    authority: KainbletonAuthority
-    mirror: KainbletonTransportMirror
     conductor: Any
     checksum: Int
     track_deck: String
 
 pub fn kb_semantic_boot(project: KainbletonProject) -> KainbletonSemanticProbe:
-    let authority = KainbletonAuthority {
-        frame: 0,
-        checksum: project.checksum,
-        playhead: 0.0,
-        energy: 0.0,
-    }
-    let mirror = KainbletonTransportMirror {
-        frame: 0,
-        checksum: project.checksum,
-        playhead: 0.0,
-        energy: 0.0,
-    }
+    let authority = KainbletonAuthority
+    let mirror = KainbletonTransportMirror
+    let boot_state = kb_frame_state(project, 0)
+    let _boot_commit = kb_commit_frame(authority, boot_state)
     let conductor = spawn KainbletonRenderConductor(salt = project.checksum % 97, frames = 0)
     return KainbletonSemanticProbe {
-        authority: authority,
-        mirror: mirror,
         conductor: conductor,
         checksum: project.checksum,
         track_deck: kb_track_name_deck(project),
@@ -106,8 +95,9 @@ pub fn kb_semantic_frame(probe: KainbletonSemanticProbe, project: KainbletonProj
     let state = kb_frame_state(project, frame)
     if not kb_transport_is_sane(frame, project.checksum):
         return 0
-    let committed = kb_commit_frame(probe.authority, state)
-    let actor_mix = ask(probe.conductor, "RenderFrame", frame, committed)
+    let authority = KainbletonAuthority
+    let committed = kb_commit_frame(authority, state)
+    let actor_mix = ask(probe.conductor, "RenderFrame", committed + frame)
     return kb_transport_mix(committed + actor_mix)
 
 pub fn kb_semantic_telemetry_score(frame_score: Int) -> Int:

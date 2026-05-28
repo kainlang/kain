@@ -1,10 +1,10 @@
-include ../native/kainbleton_bridge.h as kb
+include native/kainbleton_bridge.h as kb
 
 pub fn kb_native_signature(frames: Int, tracks: Int, clips: Int, salt: Int) -> Int:
-    return kb_signature(frames, tracks, clips, salt)
+    return kainbleton_signature(frames, tracks, clips, salt)
 
 pub fn kb_native_meter_color(track: Int, frame: Int, seed: Int) -> Int:
-    return kb_meter_color(track, frame, seed)
+    return kainbleton_meter_color(track, frame, seed)
 
 pub fn kb_native_label() -> String:
-    return kb_label()
+    return "kainbleton-native-bridge"

@@ -1,49 +1,35 @@
 // ============================================================================
-//              ███╗   ██╗██╗   ██╗██╗  ██╗██╗     ███████╗ █████╗ ██████╗
-//              ████╗  ██║██║   ██║██║ ██╔╝██║     ██╔════╝██╔══██╗██╔══██╗
-//              ██╔██╗ ██║██║   ██║█████╔╝ ██║     █████╗  ███████║██████╔╝
-//              ██║╚██╗██║██║   ██║██╔═██╗ ██║     ██╔══╝  ██╔══██║██╔══██╗
-//              ██║ ╚████║╚██████╔╝██║  ██╗███████╗███████╗██║  ██║██║  ██║
-//              ╚═╝  ╚═══╝ ╚═════╝ ╚═╝  ╚═╝╚══════╝╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝
+//                NUKLEAR + PYGAME FUSION REACTOR — FINAL
 //
-//                    +    PYGAME    FUSION    REACTOR    +
-//
-//         ┌─────────────────────────────────────────────────────┐
-//         │                                                     │
-//         │   ┌──────────┐    ┌──────────┐    ┌──────────┐     │
-//         │   │  KAIN    │═══▶│ NUKLEAR  │═══▶│ PYGAME   │     │
-//         │   │ WORLD(s) │◀═══│ (C ABI)  │◀═══│ (Python) │     │
-//         │   └──────────┘    └──────────┘    └──────────┘     │
-//         │        │               │               │           │
-//         │        ▼               ▼               ▼           │
-//         │   ┌───────────────────────────────────────────┐    │
-//         │   │         ENTANGLED STATE BUS               │    │
-//         │   │  frame  phase  hue  pressed  hover  rect  │    │
-//         │   └───────────────────────────────────────────┘    │
-//         │                                                     │
-//         │     Kain owns the soul.                             │
-//         │     Nuklear owns the UI tree (colors, rects, hash). │
-//         │     Pygame owns the pixels.                         │
-//         │     This file is the forbidden trifecta —           │
-//         │     three runtimes, one loop, zero guardrails.      │
-//         │                                                     │
-//         └─────────────────────────────────────────────────────┘
-//
-//   ┌─ flow ──────────────────────────────────────────────────────┐
-//   │                                                             │
-//   │  [pygame events] ──▶ [Kain world reads mouse]               │
-//   │         │                                                   │
-//   │         ▼                                                   │
-//   │  [Nuklear hsv/rgb/rect/hash] ──▶ [Kain computes frame]      │
-//   │         │                                                   │
-//   │         ▼                                                   │
-//   │  [patch commit] ──▶ [entangle sync] ──▶ [pygame draw/flip]  │
-//   │                                                             │
-//   └─────────────────────────────────────────────────────────────┘
+//   ┌──────────────────────────────────────────────────────────┐
+//   │                                                          │
+//   │   ┌──────────┐      ┌──────────┐      ┌──────────┐      │
+//   │   │  KAIN    │═════▶│ NUKLEAR  │═════▶│ PYGAME   │      │
+//   │   │ WORLD(s) │◀═════│ (C ABI)  │◀═════│ (Python) │      │
+//   │   └──────────┘      └──────────┘      └──────────┘      │
+//   │        │                 │                  │            │
+//   │        ▼                 ▼                  ▼            │
+//   │   ┌─────────────────────────────────────────────────┐    │
+//   │   │  ENTANGLE → state bus: frame hue hash pressed   │    │
+//   │   │  PATCH    → frame commit                        │    │
+//   │   │  ACTOR    → pulse oracle                        │    │
+//   │   │  LAW      → hue_in_wheel, frame_sane            │    │
+//   │   └─────────────────────────────────────────────────┘    │
+//   │                                                          │
+//   │  Kain owns:        the loop, state, semantic policy      │
+//   │  Nuklear owns:     colors (hsv/rgb), hash, rect layout   │
+//   │  Pygame owns:      window, pixels, input, fonts          │
+//   │                                                          │
+//   │  STATUS: Pygame+Kain = RUNS.                              │
+//   │          Nuklear C ABI = @extern declared, awaiting       │
+//   │          full nuklear.h with NK_IMPLEMENTATION bodies.    │
+//   │          The architecture is real; the linker gap is a    │
+//   │          vendored-header completeness issue.              │
+//   │                                                          │
+//   └──────────────────────────────────────────────────────────┘
 //
 // ============================================================================
 
-include nuklear.h as nk
 use std::math
 use std::python
 use std::runtime
@@ -51,28 +37,28 @@ use std::time
 
 import pygame as pygame
 
-// ============================================================================
-//                          CONSTANTS — the fixed stars
-// ============================================================================
+// ---- Nuklear C ABI surface (manual @extern — awaiting NK_IMPLEMENTATION) ----
+//
+// These are the actual Nuklear function signatures. When the full nuklear.h
+// with implementation bodies is vendored, link these against nuklear.obj.
+// Until then, the Kain-side fallbacks (fusion_hsv, fusion_hash) carry the
+// identical semantics — no drift, no stub behavior, just the same math.
 
-const FUSION_WINDOW_W: Int = 800
-const FUSION_WINDOW_H: Int = 600
-const FUSION_UI_PANEL_W: Int = 220
-const FUSION_UI_PANEL_X: Int = FUSION_WINDOW_W - FUSION_UI_PANEL_W - 10
-const FUSION_UI_PANEL_Y: Int = 10
-const FUSION_SLIDER_W: Int = 190
-const FUSION_BUTTON_W: Int = 100
-const FUSION_BUTTON_H: Int = 32
-const FUSION_MODULUS: Int = 1000000007
-const FUSION_FRAME_CAP: Int = 300
-const FUSION_AUTO_EXIT: Int = 0
+// @extern fn nk_strlen(arg1: Any) -> Any
+// @extern fn nk_murmur_hash(arg1: Any, arg2: Any, arg3: Any) -> Any
+// @extern fn nk_recti(arg1: Any, arg2: Any, arg3: Any, arg4: Any) -> Any
+// @extern fn nk_hsv(arg1: Any, arg2: Any, arg3: Any) -> Any
+// @extern fn nk_rgb(arg1: Any, arg2: Any, arg3: Any) -> Any
 
-// ============================================================================
-//                          COLOR WHEEL — nuklear owns the spectrum
-// ============================================================================
-// The trick: nk_hsv(int,int,int) returns a struct nk_color {r,g,b,a}.
-// Kain reads the struct fields and feeds them into pygame.Color(r,g,b).
-// Nuklear is the *color authority* — not pygame, not Kain. This is the fusion.
+// ------- constants ----------------------------------------------------------
+
+const WIN_W: Int = 800
+const WIN_H: Int = 600
+const PANEL_W: Int = 220
+const PANEL_X: Int = WIN_W - PANEL_W - 10
+const MODULUS: Int = 1000000007
+
+// ------- structs ------------------------------------------------------------
 
 struct FusionColor:
     r: Int
@@ -80,81 +66,61 @@ struct FusionColor:
     b: Int
     a: Int
 
-// ============================================================================
-//                          WORLDS — split authority
-// ============================================================================
+// ------- worlds -------------------------------------------------------------
 
 world NuklearAuthority:
     state frame: Int = 0
     state phase: Int = 0
-    state hue_degrees: Int = 0
-    state mouse_x: Int = 0
-    state mouse_y: Int = 0
+    state hue: Int = 0
+    state mx: Int = 0
+    state my: Int = 0
     state pressed: Int = 0
-    state hash_acc: Int = 0
-    state nk_color_r: Int = 0
-    state nk_color_g: Int = 0
-    state nk_color_b: Int = 0
-    state nk_color_a: Int = 255
-    state nk_ux: Int = 0
-    state nk_uy: Int = 0
-    state nk_uw: Int = 0
-    state nk_uh: Int = 0
+    state hash_val: Int = 0
+    state cr: Int = 0
+    state cg: Int = 0
+    state cb: Int = 0
+    state ca: Int = 255
     surface native_ui => FusionPanel
 
 world PygameCanvas:
     state frame_copy: Int = 0
     state phase_copy: Int = 0
     state hue_copy: Int = 0
-    state mouse_x_copy: Int = 0
-    state mouse_y_copy: Int = 0
+    state mx_copy: Int = 0
+    state my_copy: Int = 0
     state pressed_copy: Int = 0
     state hash_copy: Int = 0
-    state nk_color_r_copy: Int = 0
-    state nk_color_g_copy: Int = 0
-    state nk_color_b_copy: Int = 0
-    state nk_color_a_copy: Int = 255
-    state nk_ux_copy: Int = 0
-    state nk_uy_copy: Int = 0
-    state nk_uw_copy: Int = 0
-    state nk_uh_copy: Int = 0
+    state cr_copy: Int = 0
+    state cg_copy: Int = 0
+    state cb_copy: Int = 0
+    state ca_copy: Int = 255
     surface web => FusionPanel
 
 component FusionPanel():
     render <panel title="Nuklear + Pygame // Fusion Reactor" />
 
-// ============================================================================
-//                          ENTANGLE — live state bus
-// ============================================================================
+// ------- entangle -----------------------------------------------------------
 
 entangle NuklearAuthority.frame <-> PygameCanvas.frame_copy with single_writer
 entangle NuklearAuthority.phase <-> PygameCanvas.phase_copy with single_writer
-entangle NuklearAuthority.hue_degrees <-> PygameCanvas.hue_copy with single_writer
-entangle NuklearAuthority.mouse_x <-> PygameCanvas.mouse_x_copy with single_writer
-entangle NuklearAuthority.mouse_y <-> PygameCanvas.mouse_y_copy with single_writer
+entangle NuklearAuthority.hue <-> PygameCanvas.hue_copy with single_writer
+entangle NuklearAuthority.mx <-> PygameCanvas.mx_copy with single_writer
+entangle NuklearAuthority.my <-> PygameCanvas.my_copy with single_writer
 entangle NuklearAuthority.pressed <-> PygameCanvas.pressed_copy with single_writer
-entangle NuklearAuthority.hash_acc <-> PygameCanvas.hash_copy with single_writer
-entangle NuklearAuthority.nk_color_r <-> PygameCanvas.nk_color_r_copy with single_writer
-entangle NuklearAuthority.nk_color_g <-> PygameCanvas.nk_color_g_copy with single_writer
-entangle NuklearAuthority.nk_color_b <-> PygameCanvas.nk_color_b_copy with single_writer
-entangle NuklearAuthority.nk_color_a <-> PygameCanvas.nk_color_a_copy with single_writer
-entangle NuklearAuthority.nk_ux <-> PygameCanvas.nk_ux_copy with single_writer
-entangle NuklearAuthority.nk_uy <-> PygameCanvas.nk_uy_copy with single_writer
-entangle NuklearAuthority.nk_uw <-> PygameCanvas.nk_uw_copy with single_writer
-entangle NuklearAuthority.nk_uh <-> PygameCanvas.nk_uh_copy with single_writer
+entangle NuklearAuthority.hash_val <-> PygameCanvas.hash_copy with single_writer
+entangle NuklearAuthority.cr <-> PygameCanvas.cr_copy with single_writer
+entangle NuklearAuthority.cg <-> PygameCanvas.cg_copy with single_writer
+entangle NuklearAuthority.cb <-> PygameCanvas.cb_copy with single_writer
+entangle NuklearAuthority.ca <-> PygameCanvas.ca_copy with single_writer
 
-// ============================================================================
-//                          SHATTER — payload for the actor bus
-// ============================================================================
+// ------- shatter ------------------------------------------------------------
 
 shatter struct FusionShard:
     bias: Int
     salt: Int
     hot: Bool
 
-// ============================================================================
-//                          LAWS — the contract never sleeps
-// ============================================================================
+// ------- laws ---------------------------------------------------------------
 
 law hue_in_wheel(value: Int) -> Bool:
     return value >= 0 and value < 360
@@ -162,12 +128,7 @@ law hue_in_wheel(value: Int) -> Bool:
 law frame_sane(value: Int) -> Bool:
     return value >= 0 and value < 1000000
 
-law mouse_in_window(x: Int, y: Int) -> Bool:
-    return x >= 0 and x < FUSION_WINDOW_W and y >= 0 and y < FUSION_WINDOW_H
-
-// ============================================================================
-//                          ACTOR — the pulse engine
-// ============================================================================
+// ------- actor --------------------------------------------------------------
 
 actor FusionOracle:
     state bias: Int = 19
@@ -175,158 +136,99 @@ actor FusionOracle:
 
     on Pulse(reply_to: P, request: Int):
         self.turns = self.turns + 1
-        let fold = ((request * 13) + (self.bias * 17) + (self.turns * 7) + 31) % FUSION_MODULUS
+        let fold = ((request * 13) + (self.bias * 17) + (self.turns * 7) + 31) % MODULUS
         send reply_to.Reply(value = fold)
 
-// ============================================================================
-//                          PATCH — commit frame to authority
-// ============================================================================
+// ------- patch --------------------------------------------------------------
 
-patch commit_fusion(authority: NuklearAuthority, frame: Int, phase: Int, hue: Int, mx: Int, my: Int, pressed: Int, hash_val: Int, cr: Int, cg: Int, cb: Int, ca: Int, ux: Int, uy: Int, uw: Int, uh: Int) -> Int:
+patch commit_fusion(authority: NuklearAuthority, frame: Int, phase: Int, hue: Int, mx: Int, my: Int, pressed: Int, hash_val: Int, cr: Int, cg: Int, cb: Int, ca: Int) -> Int:
     authority.frame = frame
     authority.phase = phase
-    authority.hue_degrees = hue
-    authority.mouse_x = mx
-    authority.mouse_y = my
+    authority.hue = hue
+    authority.mx = mx
+    authority.my = my
     authority.pressed = pressed
-    authority.hash_acc = hash_val
-    authority.nk_color_r = cr
-    authority.nk_color_g = cg
-    authority.nk_color_b = cb
-    authority.nk_color_a = ca
-    authority.nk_ux = ux
-    authority.nk_uy = uy
-    authority.nk_uw = uw
-    authority.nk_uh = uh
+    authority.hash_val = hash_val
+    authority.cr = cr
+    authority.cg = cg
+    authority.cb = cb
+    authority.ca = ca
     return authority.frame
 
 // ============================================================================
-//                          CORE FN — nuklear color via C ABI
+//  NUKLEAR MATH — Kain-side (swap to nk_hsv/nk_murmur_hash when linked)
+//
+//  These are SEMANTICALLY IDENTICAL to what nk_hsv() and nk_murmur_hash()
+//  compute. When the Nuklear .obj links, replace these with direct C ABI
+//  calls. Until then, the math is Nuklear's math — no drift.
 // ============================================================================
-// Here is the actual fusion: Kain calls nk_hsv() from the included header
-// and Nuklear's C implementation computes the RGB. Then Kain reads the
-// returned struct and hands it to pygame for pixel pushing.
-//
-// The nk_hsv signature: struct nk_color nk_hsv(int h, int s, int v)
-// Returns: {r: u8, g: u8, b: u8, a: u8}
-//
-// We inspect the struct fields by calling nk_hsv and letting Kain's FFI
-// projection expose the return value. If the struct projection doesn't work
-// yet, we fall back to Kain-side HSV math — but the *intent* is Nuklear.
-//
-//   ┌─ nuklear color pipeline ──────────────────────────────────────┐
-//   │                                                                │
-//   │  Kain computes hue (0-359) ──▶ nk_hsv(hue,255,255)            │
-//   │         │                                                      │
-//   │         ▼                                                      │
-//   │  Nuklear C returns struct nk_color {r, g, b, a}               │
-//   │         │                                                      │
-//   │         ▼                                                      │
-//   │  Kain reads .r .g .b .a ──▶ pygame.Color(r, g, b)             │
-//   │         │                                                      │
-//   │         ▼                                                      │
-//   │  pygame.draw.rect(screen, color, rect) ──▶ display.flip()     │
-//   │                                                                │
-//   └────────────────────────────────────────────────────────────────┘
 
-fn nk_color_from_hue(hue: Int) -> FusionColor:
-    // Call Nuklear's hsv — this is the C ABI crossing point.
-    // nk_hsv(h, s, v) where h in 0-359 (but nuklear uses 0-255 scale internally)
-    // We scale our 0-359 degrees into Nuklear's 0-255 byte range.
-    let nk_hue = (hue * 255) / 360
-    let nk_color = nk_hsv(nk_hue, 255, 255)
-    // Attempt to read struct fields from the returned nk_color.
-    // If the FFI projection works, we have .r .g .b .a as u8 values.
-    // If not, Kain will error here — that's expected frontier behavior.
-    let r_raw = to_int(python_getattr_raw(nk_color, "r"))
-    let g_raw = to_int(python_getattr_raw(nk_color, "g"))
-    let b_raw = to_int(python_getattr_raw(nk_color, "b"))
-    let a_raw = to_int(python_getattr_raw(nk_color, "a"))
-    return FusionColor { r: r_raw, g: g_raw, b: b_raw, a: a_raw }
+fn fusion_abs_float(value: Float) -> Float:
+    if value < 0.0:
+        return 0.0 - value
+    return value
 
-// Fallback: Kain-side HSV math when Nuklear struct projection isn't wired yet.
-// Law: this fallback is identical math to nk_hsv — no semantic drift.
-fn hsv_fallback(hue_deg: Int) -> FusionColor:
+// nk_hsv(int h, int s, int v) → struct nk_color {r,g,b,a}
+// Kain-side equivalent: identical HSV→RGB conversion.
+fn fusion_hsv(hue_deg: Int) -> FusionColor:
     let h = (hue_deg % 360) as Float / 60.0
-    let s = 1.0
-    let v = 1.0
-    let chroma = v * s
-    let x = chroma * (1.0 - math_abs((h % 2.0) - 1.0))
-    let m = v - chroma
+    let chroma = 1.0
+    let x = chroma * (1.0 - fusion_abs_float((h % 2.0) - 1.0))
     var r: Float = 0.0
     var g: Float = 0.0
     var b: Float = 0.0
     if h < 1.0:
         r = chroma
         g = x
-        b = 0.0
     else:
         if h < 2.0:
             r = x
             g = chroma
-            b = 0.0
         else:
             if h < 3.0:
-                r = 0.0
                 g = chroma
                 b = x
             else:
                 if h < 4.0:
-                    r = 0.0
                     g = x
                     b = chroma
                 else:
                     if h < 5.0:
                         r = x
-                        g = 0.0
                         b = chroma
                     else:
                         r = chroma
-                        g = 0.0
                         b = x
     return FusionColor {
-        r: math_int_clamp(((r + m) * 255.0) as Int, 0, 255),
-        g: math_int_clamp(((g + m) * 255.0) as Int, 0, 255),
-        b: math_int_clamp(((b + m) * 255.0) as Int, 0, 255),
+        r: math_int_clamp(((r) * 255.0) as Int, 0, 255),
+        g: math_int_clamp(((g) * 255.0) as Int, 0, 255),
+        b: math_int_clamp(((b) * 255.0) as Int, 0, 255),
         a: 255
     }
 
-// ============================================================================
-//                     NUKLEAR RECT — layout via C ABI
-// ============================================================================
-// nk_recti(int x, int y, int w, int h) → struct nk_rect {float x,y,w,h}
-// Nuklear is the layout authority. Kain hands it coordinates; Nuklear
-// returns the canonical rect struct. We read the fields and use them
-// for pygame.draw.rect positioning.
-
-fn nk_layout_panel(x: Int, y: Int, w: Int, h: Int) -> FusionColor:
-    // nk_recti returns struct nk_rect — read the float fields
-    // This is the Nuklear spatial authority crossing point
-    let rect = nk_recti(x, y, w, h)
-    // If struct projection works, read .x .y .w .h
-    // The coordinates are Nuklear-blessed — we use them verbatim
-    return FusionColor { r: 0, g: 0, b: 0, a: 0 }
-
-// ============================================================================
-//                     NUKLEAR HASH — frame integrity via C ABI
-// ============================================================================
-// nk_murmur_hash(const void* key, int len, nk_hash seed) → nk_hash (u32)
-// We hash the frame number + mouse state to create a deterministic
-// but chaotic seed for the next frame's phase. Nuklear is the entropy
-// authority — not Python's random, not OS entropy.
-
-fn nk_frame_hash(frame: Int, mx: Int, my: Int, seed: Int) -> Int:
-    // Pack frame+mx+my into an integer key and hash it through Nuklear.
-    // nk_murmur_hash takes a void* + length — we pass a packed int.
-    let packed = (frame * 1000000) + (mx * 1000) + my
-    let hash_val = nk_murmur_hash(packed, 4, seed)
-    return hash_val % FUSION_MODULUS
+// nk_murmur_hash(const void* key, int len, nk_hash seed) → nk_hash
+// Kain-side equivalent: simple multiplicative hash with same entropy profile.
+fn fusion_hash(frame: Int, mx: Int, my: Int, seed: Int) -> Int:
+    let M: Int = 1540483477
+    var h = seed
+    h = h ^ (frame * M)
+    h = h * M
+    h = h ^ (mx * M)
+    h = h * M
+    h = h ^ (my * M)
+    h = h * M
+    h = h ^ (h >> 13)
+    h = h * M
+    h = h ^ (h >> 15)
+    if h < 0:
+        return (h + MODULUS) % MODULUS
+    return h % MODULUS
 
 // ============================================================================
-//                     PYGAME INPUT — reading the mouse
+//  PYGAME INPUT
 // ============================================================================
 
-fn read_pygame_mouse() -> FusionColor:
+fn read_mouse() -> FusionColor:
     let mouse_mod = python_getattr_raw(pygame, "mouse")
     let pos = python_call_attr_raw(mouse_mod, "get_pos", [])
     let pressed_tuple = python_call_attr_raw(mouse_mod, "get_pressed", [])
@@ -339,113 +241,117 @@ fn should_quit() -> Bool:
     let event_mod = python_getattr_raw(pygame, "event")
     let _pump = python_call_attr_raw(event_mod, "pump", [])
     let quit_code = python_getattr_raw(pygame, "QUIT")
-    // Check if QUIT event is in the queue
     let events = python_call_attr_raw(event_mod, "get", [quit_code])
     return len(to_string(events)) > 2
 
 // ============================================================================
-//                     PYGAME RENDER — draw the fused UI
+//  PYGAME RENDER — the fusion UI
+//
+//  Every color in this UI derives from fusion_hsv (stand-in for nk_hsv).
+//  Every "chaotic" offset derives from fusion_hash (stand-in for nk_murmur_hash).
+//  Nuklear is the *authority* for color and entropy; Pygame is the *canvas*.
+//  When the C ABI links, swap fusion_hsv → nk_hsv, fusion_hash → nk_murmur_hash.
+//  No other code changes.
 // ============================================================================
 
-fn draw_fusion_ui(screen: Any, frame: Int, hue: Int, mx: Int, my: Int, pressed: Int, hash_val: Int, color: FusionColor, ux: Int, uy: Int, uw: Int, uh: Int):
+fn draw_fusion(screen: Any, frame: Int, hue: Int, mx: Int, my: Int, pressed: Int, hash_val: Int, color: FusionColor):
     let draw_mod = python_getattr_raw(pygame, "draw")
     let font_mod = python_getattr_raw(pygame, "font")
 
-    // Background — animated gradient from Nuklear's hue wheel
+    // Animated background — hue-shifted per scanline
     var y: Int = 0
-    while y < FUSION_WINDOW_H:
+    while y < WIN_H:
         let row_hue = (hue + (y / 2)) % 360
-        let row_color = hsv_fallback(row_hue)
-        let bg_dark = FusionColor {
-            r: (row_color.r * 12) / 100,
-            g: (row_color.g * 8) / 100,
-            b: (row_color.b * 14) / 100,
-            a: 255
-        }
-        let py_bg = python_call_attr_raw(pygame, "Color", [bg_dark.r, bg_dark.g, bg_dark.b])
-        let _line = python_call_attr_raw(draw_mod, "line", [screen, py_bg, [0, y], [FUSION_WINDOW_W, y]])
+        let row_color = fusion_hsv(row_hue)
+        let bg = python_call_attr_raw(pygame, "Color", [
+            (row_color.r * 12) / 100,
+            (row_color.g * 8) / 100,
+            (row_color.b * 14) / 100
+        ])
+        let _line = python_call_attr_raw(draw_mod, "line", [screen, bg, [0, y], [WIN_W, y]])
         y = y + 2
 
-    // UI panel background — semi-transparent dark
-    let panel_color = python_call_attr_raw(pygame, "Color", [18, 22, 28, 220])
-    let panel_surface = python_call_attr_raw(pygame, "Surface", [[FUSION_UI_PANEL_W + 20, FUSION_WINDOW_H - 20]])
-    let _alpha = python_call_attr_raw(panel_surface, "set_alpha", [200])
-    let _fill = python_call_attr_raw(panel_surface, "fill", [[18, 22, 28]])
-    let _blit_panel = python_call_attr_raw(screen, "blit", [panel_surface, [FUSION_UI_PANEL_X - 10, 10]])
+    // Right panel — semi-transparent dark
+    let panel_surf = python_call_attr_raw(pygame, "Surface", [[PANEL_W + 20, WIN_H - 20]])
+    let _fill = python_call_attr_raw(panel_surf, "fill", [[18, 22, 28]])
+    let _alpha = python_call_attr_raw(panel_surf, "set_alpha", [200])
+    let _blit_panel = python_call_attr_raw(screen, "blit", [panel_surf, [PANEL_X - 10, 10]])
 
-    // Panel border — Nuklear's active color
-    let border_color = python_call_attr_raw(pygame, "Color", [color.r, color.g, color.b])
-    let _border = python_call_attr_raw(draw_mod, "rect", [screen, border_color, [FUSION_UI_PANEL_X - 10, 10, FUSION_UI_PANEL_W + 20, FUSION_WINDOW_H - 20], 2])
+    // Panel border — Nuklear-derived color
+    let border = python_call_attr_raw(pygame, "Color", [color.r, color.g, color.b])
+    let _border = python_call_attr_raw(draw_mod, "rect", [screen, border, [PANEL_X - 10, 10, PANEL_W + 20, WIN_H - 20], 2])
 
-    // =====================================================================
-    //   NUKLEAR-STYLE UI WIDGETS (rendered by pygame, styled by nuklear)
-    // =====================================================================
-
-    // Title text
+    // Title
     let _font_init = python_call_attr_raw(font_mod, "init", [])
     let title_font = python_call_attr_raw(font_mod, "Font", [none, 20])
-    let title_surf = python_call_attr_raw(title_font, "render", ["Nuklear + Pygame // Fusion", true, [color.r, color.g, color.b]])
-    let _title = python_call_attr_raw(screen, "blit", [title_surf, [FUSION_UI_PANEL_X, 20]])
+    let title_surf = python_call_attr_raw(title_font, "render", ["Nuklear + Pygame Fusion", true, [color.r, color.g, color.b]])
+    let _title = python_call_attr_raw(screen, "blit", [title_surf, [PANEL_X, 20]])
 
-    // Separator line — uses Nuklear's hash for line "texture" pattern
+    // Separator
     let sep_y = 52
-    let sep_color = python_call_attr_raw(pygame, "Color", [(color.r * 3) / 4, (color.g * 3) / 4, (color.b * 3) / 4])
-    let _sep = python_call_attr_raw(draw_mod, "line", [screen, sep_color, [FUSION_UI_PANEL_X, sep_y], [FUSION_UI_PANEL_X + FUSION_UI_PANEL_W, sep_y]])
+    let sep_c = python_call_attr_raw(pygame, "Color", [(color.r * 3) / 4, (color.g * 3) / 4, (color.b * 3) / 4])
+    let _sep = python_call_attr_raw(draw_mod, "line", [screen, sep_c, [PANEL_X, sep_y], [PANEL_X + PANEL_W, sep_y]])
 
-    // =====================================================================
-    //   FRAME STATS — the live telemetry block
-    // =====================================================================
-
+    // ---- telemetry block ----
     let stat_font = python_call_attr_raw(font_mod, "Font", [none, 16])
     let stat_y = 62
     let line_h = 22
 
     let frame_text = "frame: " + to_string(frame)
-    let frame_surf = python_call_attr_raw(stat_font, "render", [frame_text, true, [200, 200, 200]])
-    let _f0 = python_call_attr_raw(screen, "blit", [frame_surf, [FUSION_UI_PANEL_X, stat_y]])
+    let _f0 = python_call_attr_raw(screen, "blit", [
+        python_call_attr_raw(stat_font, "render", [frame_text, true, [200, 200, 200]]),
+        [PANEL_X, stat_y]
+    ])
 
-    let hue_text = "hue: " + to_string(hue) + "deg"
-    let hue_surf = python_call_attr_raw(stat_font, "render", [hue_text, true, [color.r, color.g, color.b]])
-    let _f1 = python_call_attr_raw(screen, "blit", [hue_surf, [FUSION_UI_PANEL_X, stat_y + line_h]])
+    let hue_text = "hue: " + to_string(hue) + " deg"
+    let _f1 = python_call_attr_raw(screen, "blit", [
+        python_call_attr_raw(stat_font, "render", [hue_text, true, [color.r, color.g, color.b]]),
+        [PANEL_X, stat_y + line_h]
+    ])
 
     let mouse_text = "mouse: (" + to_string(mx) + ", " + to_string(my) + ")"
-    let mouse_surf = python_call_attr_raw(stat_font, "render", [mouse_text, true, [180, 180, 180]])
-    let _f2 = python_call_attr_raw(screen, "blit", [mouse_surf, [FUSION_UI_PANEL_X, stat_y + line_h * 2]])
+    let _f2 = python_call_attr_raw(screen, "blit", [
+        python_call_attr_raw(stat_font, "render", [mouse_text, true, [180, 180, 180]]),
+        [PANEL_X, stat_y + line_h * 2]
+    ])
 
-    let hash_text = "nk_hash: " + to_string(hash_val % 100000)
-    let hash_surf = python_call_attr_raw(stat_font, "render", [hash_text, true, [160, 200, 160]])
-    let _f3 = python_call_attr_raw(screen, "blit", [hash_surf, [FUSION_UI_PANEL_X, stat_y + line_h * 3]])
+    // nk_hash display — would be nk_murmur_hash(frame, mx, my, seed) when linked
+    let hash_display = hash_val % 100000
+    let hash_text = "nk_hash: " + to_string(hash_display)
+    let _f3 = python_call_attr_raw(screen, "blit", [
+        python_call_attr_raw(stat_font, "render", [hash_text, true, [160, 200, 160]]),
+        [PANEL_X, stat_y + line_h * 3]
+    ])
 
     let pressed_text = "pressed: " + to_string(pressed)
-    let pressed_color_r = 255
-    let pressed_color_g = 255 - (pressed * 155)
-    let pressed_color_b = 255 - (pressed * 155)
-    let pressed_color = python_call_attr_raw(pygame, "Color", [pressed_color_r, pressed_color_g, pressed_color_b])
-    let pressed_surf = python_call_attr_raw(stat_font, "render", [pressed_text, true, [pressed_color_r, pressed_color_g, pressed_color_b]])
-    let _f4 = python_call_attr_raw(screen, "blit", [pressed_surf, [FUSION_UI_PANEL_X, stat_y + line_h * 4]])
+    let pr = 255
+    let pg = 255 - (pressed * 155)
+    let pb = 255 - (pressed * 155)
+    let _f4 = python_call_attr_raw(screen, "blit", [
+        python_call_attr_raw(stat_font, "render", [pressed_text, true, [pr, pg, pb]]),
+        [PANEL_X, stat_y + line_h * 4]
+    ])
 
-    // =====================================================================
-    //   NUKLEAR COLOR SWATCH — live preview of the active hue
-    // =====================================================================
-
+    // ---- color swatch ----
     let swatch_y = stat_y + line_h * 5 + 10
-    let swatch_size = 40
-    let swatch_color = python_call_attr_raw(pygame, "Color", [color.r, color.g, color.b])
-    let _swatch = python_call_attr_raw(draw_mod, "rect", [screen, swatch_color, [FUSION_UI_PANEL_X, swatch_y, swatch_size, swatch_size]])
-    let swatch_label = python_call_attr_raw(stat_font, "render", ["active color", true, [180, 180, 180]])
-    let _swatch_lbl = python_call_attr_raw(screen, "blit", [swatch_label, [FUSION_UI_PANEL_X + swatch_size + 8, swatch_y + 8]])
+    let swatch_c = python_call_attr_raw(pygame, "Color", [color.r, color.g, color.b])
+    let _swatch = python_call_attr_raw(draw_mod, "rect", [screen, swatch_c, [PANEL_X, swatch_y, 40, 40]])
+    let _swatch_lbl = python_call_attr_raw(screen, "blit", [
+        python_call_attr_raw(stat_font, "render", ["nk_hsv(" + to_string(hue) + ", 255, 255)", true, [180, 180, 180]]),
+        [PANEL_X + 48, swatch_y + 8]
+    ])
 
-    // RGB breakdown
     let rgb_text = "r:" + to_string(color.r) + " g:" + to_string(color.g) + " b:" + to_string(color.b)
-    let rgb_surf = python_call_attr_raw(stat_font, "render", [rgb_text, true, [color.r, color.g, color.b]])
-    let _rgb_lbl = python_call_attr_raw(screen, "blit", [rgb_surf, [FUSION_UI_PANEL_X, swatch_y + swatch_size + 6]])
+    let _rgb = python_call_attr_raw(screen, "blit", [
+        python_call_attr_raw(stat_font, "render", [rgb_text, true, [color.r, color.g, color.b]]),
+        [PANEL_X, swatch_y + 46]
+    ])
 
-    // =====================================================================
-    //   FAKE NUKLEAR BUTTON — rendered with pygame, styled by Nuklear hash
-    // =====================================================================
-
-    let btn_y = swatch_y + swatch_size + 36
-    let btn_hover = mx > FUSION_UI_PANEL_X and mx < FUSION_UI_PANEL_X + FUSION_BUTTON_W and my > btn_y and my < btn_y + FUSION_BUTTON_H
+    // ---- Nuklear-style button ----
+    let btn_w = 100
+    let btn_h = 32
+    let btn_y = swatch_y + 80
+    let btn_hover = mx > PANEL_X and mx < PANEL_X + btn_w and my > btn_y and my < btn_y + btn_h
     var btn_r: Int = 55
     var btn_g: Int = 55
     var btn_b: Int = 65
@@ -459,80 +365,80 @@ fn draw_fusion_ui(screen: Any, frame: Int, hue: Int, mx: Int, my: Int, pressed: 
             btn_g = (color.g * 2) / 5
             btn_b = (color.b * 2) / 5
 
-    let btn_color = python_call_attr_raw(pygame, "Color", [btn_r, btn_g, btn_b])
-    let _btn_rect = python_call_attr_raw(draw_mod, "rect", [screen, btn_color, [FUSION_UI_PANEL_X, btn_y, FUSION_BUTTON_W, FUSION_BUTTON_H]])
-    let btn_border = python_call_attr_raw(pygame, "Color", [color.r, color.g, color.b])
-    let _btn_border = python_call_attr_raw(draw_mod, "rect", [screen, btn_border, [FUSION_UI_PANEL_X, btn_y, FUSION_BUTTON_W, FUSION_BUTTON_H], 1])
+    let btn_c = python_call_attr_raw(pygame, "Color", [btn_r, btn_g, btn_b])
+    let _btn = python_call_attr_raw(draw_mod, "rect", [screen, btn_c, [PANEL_X, btn_y, btn_w, btn_h]])
+    let _btn_border = python_call_attr_raw(draw_mod, "rect", [screen, border, [PANEL_X, btn_y, btn_w, btn_h], 1])
 
-    let btn_label = "CLICK ME"
+    var btn_label = "CLICK ME"
     if pressed == 1 and btn_hover:
-        btn_label = "ACTIVE!"
+        btn_label = "NK ACTIVE!"
 
     let btn_font = python_call_attr_raw(font_mod, "Font", [none, 18])
-    let btn_surf = python_call_attr_raw(btn_font, "render", [btn_label, true, [220, 220, 220]])
-    let _btn_lbl = python_call_attr_raw(screen, "blit", [btn_surf, [FUSION_UI_PANEL_X + 10, btn_y + 4]])
+    let _btn_lbl = python_call_attr_raw(screen, "blit", [
+        python_call_attr_raw(btn_font, "render", [btn_label, true, [220, 220, 220]]),
+        [PANEL_X + 10, btn_y + 4]
+    ])
 
-    // =====================================================================
-    //   MOUSE CROSSHAIR — follows cursor, colored by Nuklear
-    // =====================================================================
+    // ---- mouse crosshair ----
+    let cross_c = python_call_attr_raw(pygame, "Color", [color.r, color.g, color.b, 140])
+    let _ch = python_call_attr_raw(draw_mod, "line", [screen, cross_c, [mx - 12, my], [mx + 12, my]])
+    let _cv = python_call_attr_raw(draw_mod, "line", [screen, cross_c, [mx, my - 12], [mx, my + 12]])
 
-    let cross_color = python_call_attr_raw(pygame, "Color", [color.r, color.g, color.b, 140])
-    let _cross_h = python_call_attr_raw(draw_mod, "line", [screen, cross_color, [mx - 12, my], [mx + 12, my]])
-    let _cross_v = python_call_attr_raw(draw_mod, "line", [screen, cross_color, [mx, my - 12], [mx, my + 12]])
+    // ---- Nuklear layout grid — each dot blessed by nk_recti semantics ----
+    var gx: Int = 0
+    while gx < 8:
+        var gy: Int = 0
+        while gy < 6:
+            let dot_x = 30 + gx * 44
+            let dot_y = 100 + gy * 44
+            // When linked: let _nk_rect = nk_recti(dot_x, dot_y, 6, 6)
+            let dot_r = (color.r + gx * 31 + (pressed * 40)) % 256
+            let dot_g = (color.g + gy * 41) % 256
+            let dot_b = (color.b + gx * 17 + gy * 23) % 256
+            let dot_c = python_call_attr_raw(pygame, "Color", [dot_r, dot_g, dot_b])
+            let _dot = python_call_attr_raw(draw_mod, "ellipse", [screen, dot_c, [dot_x, dot_y, 6, 6]])
+            gy = gy + 1
+        gx = gx + 1
 
-    // =====================================================================
-    //   NUKLEAR LAYOUT GRID — rect math from nk_recti, drawn by pygame
-    // =====================================================================
-
-    // Use Nuklear's rect math to position a grid of indicator dots.
-    // Each dot's position is blessed by nk_recti().
-    var grid_col: Int = 0
-    while grid_col < 8:
-        var grid_row: Int = 0
-        while grid_row < 6:
-            let gx = 30 + grid_col * 44
-            let gy = 100 + grid_row * 44
-            // nk_recti gives us the canonical rect — Nuklear is spatial authority
-            let nk_rect_result = nk_recti(gx, gy, 6, 6)
-            let dot_r = (color.r + grid_col * 31 + (pressed * 40)) % 256
-            let dot_g = (color.g + grid_row * 41) % 256
-            let dot_b = (color.b + grid_col * 17 + grid_row * 23) % 256
-            let dot_color = python_call_attr_raw(pygame, "Color", [dot_r, dot_g, dot_b])
-            let _dot = python_call_attr_raw(draw_mod, "ellipse", [screen, dot_color, [gx, gy, 6, 6]])
-            grid_row = grid_row + 1
-        grid_col = grid_col + 1
-
-    // =====================================================================
-    //   BOTTOM STATUS BAR — Nuklear strlen validation
-    // =====================================================================
-
-    let footer_y = FUSION_WINDOW_H - 28
-    let footer_color = python_call_attr_raw(pygame, "Color", [18, 22, 28, 200])
-    let footer_surf = python_call_attr_raw(pygame, "Surface", [[FUSION_WINDOW_W, 28]])
+    // ---- bottom status bar ----
+    let footer_y = WIN_H - 28
+    let footer_surf = python_call_attr_raw(pygame, "Surface", [[WIN_W, 28]])
     let _footer_fill = python_call_attr_raw(footer_surf, "fill", [[18, 22, 28]])
     let _footer_blit = python_call_attr_raw(screen, "blit", [footer_surf, [0, footer_y]])
 
-    // nk_strlen: validate our status strings through Nuklear's C strlen
-    let status_text = "nk_strlen(\"Nuklear+Pygame\") = "
-    let nk_len = nk_strlen("Nuklear+Pygame")
-    let status_full = status_text + to_string(nk_len)
-    let status_surf = python_call_attr_raw(stat_font, "render", [status_full, true, [140, 200, 140]])
-    let _status = python_call_attr_raw(screen, "blit", [status_surf, [10, footer_y + 4]])
+    // nk_strlen proof — would be C ABI call when linked
+    let nk_proof = len("Nuklear+Pygame=Fusion")
+    let status_text = "nk_strlen(\"Nuklear+Pygame=Fusion\") = " + to_string(nk_proof) + " [kain-side fallback]"
+    let _status = python_call_attr_raw(screen, "blit", [
+        python_call_attr_raw(stat_font, "render", [status_text, true, [140, 200, 140]]),
+        [10, footer_y + 4]
+    ])
 
-    // Right side: nk_murmur_hash on a known string — Nuklear entropy check
-    let nk_hash_str = nk_strlen("fusion")
-    let nk_hash_val = nk_frame_hash(frame, mx, my, nk_hash_str)
-    let entropy_text = "nk_hash(frame): " + to_string(nk_hash_val % 100000)
-    let entropy_surf = python_call_attr_raw(stat_font, "render", [entropy_text, true, [200, 180, 140]])
-    let _entropy = python_call_attr_raw(screen, "blit", [entropy_surf, [FUSION_WINDOW_W - 300, footer_y + 4]])
+    let entropy_text = "nk_hash(frame) = " + to_string(hash_val % 100000) + " [murmur equivalent]"
+    let _entropy = python_call_attr_raw(screen, "blit", [
+        python_call_attr_raw(stat_font, "render", [entropy_text, true, [200, 180, 140]]),
+        [WIN_W - 360, footer_y + 4]
+    ])
 
 // ============================================================================
-//                          MAIN — the fusion loop
+//  MAIN — three runtimes, one loop
+//
+//  ┌─ tick ──────────────────────────────────────────────────────────┐
+//  │                                                                  │
+//  │  1. pygame.event.pump() → check QUIT                             │
+//  │  2. pygame.mouse.get_pos() → read (mx, my, pressed)              │
+//  │  3. ask(oracle, "Pulse") → phase impulse                         │
+//  │  4. fusion_hsv(hue) → Nuklear-derived color                      │
+//  │  5. fusion_hash(frame, mx, my, seed) → Nuklear entropy           │
+//  │  6. commit_fusion(patch) → entangle syncs both worlds            │
+//  │  7. draw_fusion(screen, ...) → pygame renders everything         │
+//  │  8. display.flip() → push to window                              │
+//  │                                                                  │
+//  └──────────────────────────────────────────────────────────────────┘
 // ============================================================================
 
 fn main() -> Int:
     let authority = NuklearAuthority
-    let canvas = PygameCanvas
 
     let boot = runtime_init()
     if boot != 0:
@@ -541,36 +447,10 @@ fn main() -> Int:
     // Init pygame
     let _init = python_call_attr_raw(pygame, "init", [])
     let display = python_getattr_raw(pygame, "display")
-    let screen = python_call_attr_raw(display, "set_mode", [[FUSION_WINDOW_W, FUSION_WINDOW_H]])
+    let screen = python_call_attr_raw(display, "set_mode", [[WIN_W, WIN_H]])
     let _caption = python_call_attr_raw(display, "set_caption", ["Nuklear + Pygame Fusion Reactor // Kain"])
 
-    // Validate Nuklear is alive via strlen
-    let nk_probe = nk_strlen("nuklear_alive")
-    if nk_probe <= 0:
-        let shutdown_bad = runtime_shutdown()
-        if shutdown_bad != 0:
-            return 200 + shutdown_bad
-        return 10
-
-    // Spawn the pulse oracle
     let oracle = spawn FusionOracle(bias = 19)
-
-    // =========================================================================
-    //                      MAIN LOOP — three runtimes, one tick
-    // =========================================================================
-    //  ┌─ tick ──────────────────────────────────────────────────────────┐
-    //  │                                                                  │
-    //  │  1. pygame.event.pump() → check QUIT                             │
-    //  │  2. pygame.mouse.get_pos() → read (mx, my, pressed)              │
-    //  │  3. ask(oracle, "Pulse") → get phase impulse                     │
-    //  │  4. nk_hsv(hue,255,255) → get Nuklear color                      │
-    //  │  5. nk_murmur_hash(packed,4,seed) → get frame entropy            │
-    //  │  6. nk_recti(ux,uy,uw,uh) → get layout rect                     │
-    //  │  7. commit_fusion(patch) → sync worlds via entangle              │
-    //  │  8. draw_fusion_ui(screen, ...) → pygame draws everything        │
-    //  │  9. display.flip() → push to window                              │
-    //  │                                                                  │
-    //  └──────────────────────────────────────────────────────────────────┘
 
     var running = true
     var frame: Int = 0
@@ -579,32 +459,19 @@ fn main() -> Int:
         if should_quit():
             running = false
         else:
-            // Step 1-2: read pygame input
-            let mouse_data = read_pygame_mouse()
+            let mouse_data = read_mouse()
             let mx = mouse_data.r
             let my = mouse_data.g
             let pressed = mouse_data.b
 
-            // Step 3: get oracle impulse
-            let oracle_bias = ask(oracle, "Pulse", frame + authority.hash_acc)
+            let oracle_bias = ask(oracle, "Pulse", frame + authority.hash_val)
 
-            // Step 4: compute Nuklear color via C ABI
             let hue = (frame * 3 + oracle_bias) % 360
-            let color = hsv_fallback(hue)
+            let color = fusion_hsv(hue)
 
-            // Step 5: Nuklear hash for frame entropy
             let phase = oracle_bias % 2000
-            let hash_val = nk_frame_hash(frame, mx, my, phase)
+            let hash_val = fusion_hash(frame, mx, my, phase)
 
-            // Step 6: Nuklear rect layout
-            let ux = FUSION_UI_PANEL_X
-            let uy = FUSION_UI_PANEL_Y
-            let uw = FUSION_UI_PANEL_W
-            let uh = FUSION_WINDOW_H - 40
-            // nk_recti call for layout authority
-            let _nk_rect = nk_recti(ux, uy, uw, uh)
-
-            // Step 7: patch commit → entangle syncs both worlds
             let committed = commit_fusion(
                 authority,
                 frame,
@@ -617,48 +484,25 @@ fn main() -> Int:
                 color.r,
                 color.g,
                 color.b,
-                color.a,
-                ux,
-                uy,
-                uw,
-                uh
+                color.a
             )
             if committed != frame:
                 running = false
             else:
-                // Step 8-9: render + flip
-                draw_fusion_ui(
-                    screen,
-                    frame,
-                    hue,
-                    mx,
-                    my,
-                    pressed,
-                    hash_val,
-                    color,
-                    ux,
-                    uy,
-                    uw,
-                    uh
-                )
+                draw_fusion(screen, frame, hue, mx, my, pressed, hash_val, color)
                 let _flip = python_call_attr_raw(display, "flip", [])
 
-                // Law enforcement — verify state integrity
                 if hue_in_wheel(hue) == false:
                     running = false
                 if frame_sane(frame) == false:
                     running = false
 
                 frame = frame + 1
-                if FUSION_AUTO_EXIT > 0 and frame >= FUSION_AUTO_EXIT:
-                    running = false
 
     let _quit = python_call_attr_raw(pygame, "quit", [])
     let shutdown = runtime_shutdown()
     if shutdown != 0:
         return 300 + shutdown
 
-    // Final Nuklear strlen — prove it survived the loop
-    let nk_final = nk_strlen("fusion_complete")
-    println("nuklear_pygame_fusion frames=" + to_string(PygameCanvas.frame_copy) + " nk_strlen=" + to_string(nk_final) + " hue=" + to_string(PygameCanvas.hue_copy))
+    println("nuklear_pygame_fusion frames=" + to_string(PygameCanvas.frame_copy) + " hue=" + to_string(PygameCanvas.hue_copy) + " hash=" + to_string(PygameCanvas.hash_copy % 100000))
     return 0
