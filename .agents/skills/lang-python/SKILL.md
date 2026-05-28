@@ -89,6 +89,32 @@ Start from the live proof surfaces and runtime seams, not older examples.
 - `runtime/native/src/core/python_runtime.c`, `runtime/native/src/core/python_runtime_region.c`, `runtime/native/src/core/python_runtime_buffers.c`, `runtime/native/src/core/python_runtime_async.c`, and `runtime/native/src/core/python_runtime_gpu.c` are the owning native seams.
 - `crates/python/src/lib.rs` is the Kain-facing bridge and materialization implementation.
 - The live surface includes `python_region_*` caching and call helpers, `python_call_async`, `python_call_attr_async`, `python_future_await`, `python_actor_callback`, `python_actor_callback_close`, `python_shared_buffer`, `python_shared_image`, `python_tensor_shared`, `python_tensor_owned`, `python_shared_buffer_gpu`, and `python_gpu_storage_buffer`.
+- `blades/python/library/2_pygame.kn`, `blades/python/library/3_pygame_shader.kn`, `blades/python/library/5_pyglet.kn`, and `blades/python/library/6_py_shader3.kn` are the visible-window proof lane. They show the intended shape: `import ...` real Python packages, keep live host objects in Kain, pump the event loop from Kain, and wrap the run in `runtime_init()` / `runtime_shutdown()`.
+- `blades/python/library/4_flet.kn` is the architecture-plus-facade lane. Kain owns the world, actor, teleport, and control-plane shape; Python/Flet owns the widget tree.
+- `mcp/semantic_search/src/mcp_server.kn` is a constrained `python_exec` helper case. The server still lives in Kain, but FastMCP's decorator-heavy stdio bootstrap is easier to express as a small host-side helper than as raw repeated attribute calls.
+
+## Runtime Capability Map
+
+Use the owning runtime seam to choose the right authored shape instead of
+guessing from old examples:
+
+- `runtime/native/src/core/python_runtime_async.c`: base import/call/attr/exec lane. This is where `py_exec`, `py_import`, `py_import_with_context`, `py_import_from_with_context`, `py_call_raw`, `py_getattr_raw`, `python_call_async`, `python_future_*`, and `python_actor_callback_*` ultimately come from.
+- `runtime/native/src/core/python_runtime_region.c`: hot-loop region lane. This is where `python_region_begin`, `python_region_import`, region attr caches, fast numeric call helpers, and region call telemetry come from.
+- `runtime/native/src/core/python_runtime_buffers.c`: borrowed buffer and shared-buffer adoption lane. This is where `python_buffer_view`, `python_region_buffer_view`, `python_region_buffer_view_checksum37`, and `kain_shared_buffer_from_py` live.
+- `runtime/native/src/core/python_runtime_gpu.c`: shared image, tensor/image adoption, and GPU bridge lane. This is where `kain_shared_image_from_py`, `kain_tensor_from_py_shared`, `kain_tensor_from_py_owned`, and the shared-image/image-tensor export helpers live.
+- `runtime/native/src/core/python_runtime.c`: the owning umbrella seam. It holds the embedded interpreter lifetime, tagged handle types, import-context plumbing, tensor/image metadata capture, and includes the split region/buffer/async/gpu seams.
+
+That means `lang-python` should not stop at "imports work." The real lane spans:
+
+- first-class imports
+- live host objects
+- importer-aware local `.py` resolution
+- small helper bootstrap code when Python syntax is the better fit
+- region-cached hot loops
+- zero-copy borrowed/shared buffers
+- shared or owned image/tensor adoption
+- async futures and actor callbacks
+- GPU tensor/storage-buffer contracts
 
 ## Boundary Decision Flow
 
@@ -360,6 +386,105 @@ Raw bridge helpers still matter for sharp work:
 - `py_setattr`, `py_hasattr`
 - `py_eval`, `py_exec`
 
+## Python Authoring Shapes
+
+Choose the shape that matches the real boundary instead of forcing every task
+through `python_exec`.
+
+### 1. Direct Imported Host Objects
+
+Use this for windows, event loops, simple package APIs, and "Kain drives the
+toolkit" flows.
+
+This is the intended dogfood shape for UI-ish proofs:
+
+```kn
+use std::python
+use std::runtime
+use std::time
+
+import pyglet as pyglet
+
+fn main() -> Int:
+    let boot = runtime_init()
+    if boot != 0:
+        return 100 + boot
+
+    let window_mod = python_getattr_raw(pyglet, "window")
+    let window = python_call_attr_raw(window_mod, "Window", [320, 180, "kain pyglet lane"])
+
+    var frame: Int = 0
+    while frame < 20:
+        let _dispatch = python_call_attr_raw(window, "dispatch_events", [])
+        let _switch = python_call_attr_raw(window, "switch_to", [])
+        let _clear = python_call_attr_raw(window, "clear", [])
+        let _flip = python_call_attr_raw(window, "flip", [])
+        sleep_millis(16)
+        frame = frame + 1
+
+    let _close = python_call_attr_raw(window, "close", [])
+    let shutdown = runtime_shutdown()
+    if shutdown != 0:
+        return 200 + shutdown
+    return 0
+```
+
+For this shape, Kain owns:
+
+- run lifecycle
+- event pumping cadence
+- app state and policy
+- integration with actors, worlds, ownership, telemetry, and reports
+
+Python owns:
+
+- the package object model
+- widget/window/toolkit objects
+- package-specific rendering internals
+
+### 2. Real Local `.py` Helper Module
+
+Use this when the Python side is substantial, callback-heavy, or wants normal
+Python syntax, but you still want first-class Kain imports instead of string
+assembly.
+
+Prefer this over constructing hundreds of lines of Python source in Kain:
+
+```text
+tools/
+  bazel_gui.py
+  main.kn
+```
+
+```python
+# tools/bazel_gui.py
+def launch(repo_root, output_base):
+    return {"repo_root": str(repo_root), "output_base": str(output_base)}
+```
+
+```kn
+import tools.bazel_gui as bazel_gui
+
+fn launch_probe(repo_root: String, output_base: String) -> Any:
+    return bazel_gui.launch(repo_root, output_base)
+```
+
+This works because the runtime already supports importer-aware local module
+resolution. If the helper grows beyond a few bridge calls, a real sibling `.py`
+file is usually the cleanest choice.
+
+### 3. Tiny `python_exec` Bootstrap
+
+Use `python_exec` for short helper definitions that are awkward to express as
+raw attr calls:
+
+- decorator-heavy registration such as FastMCP
+- tiny synthetic factories for benchmark probes
+- narrowly scoped callback glue when a toolkit demands Python-owned closures
+
+Do not default to `python_exec` for the whole feature. The acceptable shape is
+"small helper, Kain-owned app," not "entire Python program hidden in a string."
+
 Use the `*_raw` variants when you explicitly want the result to stay a foreign
 host object instead of auto-materializing into a Kain scalar/array/struct-ish
 value.
@@ -434,6 +559,30 @@ Avoid:
 If the package also depends on native callbacks or platform event sources,
 co-trigger `lang-c-abi`.
 
+## Window And Tool Surface Doctrine
+
+For desktop windows, control panels, inspectors, and tooling shells:
+
+- prefer `import pygame`, `import pyglet`, `import tkinter`, `import flet`, or the real package name directly
+- keep the window/session object as a live Python host object in Kain
+- let Kain own the run loop, status text, process orchestration, actor/world state, and shutdown policy
+- use a sibling `.py` helper module when the toolkit wants a lot of decorators, closures, or keyword-heavy widget construction
+- use `python_exec` only for a small bootstrap, not as a source-code transport format for the whole app
+
+Bad shape:
+
+- import Python modules at top level
+- ignore those live imports
+- rebuild the whole GUI as a giant `code = code + "...\\n"` string
+- `python_exec(...)` the whole app
+- then call one bootstrap symbol and pretend Kain authored the feature
+
+Good shape:
+
+- direct imported host objects for the simple path
+- real local `.py` helper modules for substantial host-side logic
+- Kain-owned app semantics either way
+
 ## Python Use Cases
 
 Python is the right answer for:
@@ -489,6 +638,12 @@ Use these when you need implementation truth:
 - `benchmark/cases_v2/python_interop.kn`: raw import, shared-buffer/image/tensor, region-cache, and GPU tensor proof cases.
 - `benchmark/cases_v2/python_stdlib_fused.kn`: stdlib breadth, `asyncio`, path, and JSON proof cases.
 - `benchmark/build.kn` and `benchmark/cases_v2/.telemetryrouter/router.kn`: benchmark wiring and current case routing.
+- `blades/python/library/2_pygame.kn`: direct imported package + report-writing proof.
+- `blades/python/library/3_pygame_shader.kn`: Kain-authored shader/control-plane logic with a Python-hosted window.
+- `blades/python/library/4_flet.kn`: Flet widget tree facade where Kain still owns the architecture.
+- `blades/python/library/5_pyglet.kn`: smallest clean visible-window lane for direct event pumping from Kain.
+- `blades/python/library/6_py_shader3.kn`: another direct Python-window proof lane for authored graphics/control-flow.
+- `mcp/semantic_search/src/mcp_server.kn`: acceptable small-helper `python_exec` bootstrap for decorator-heavy FastMCP wiring.
 - `crates/core/src/ast.rs`, `crates/core/src/parser.rs`, `crates/core/src/runtime.rs`, `crates/core/src/types.rs`: authored Python `import` syntax, scope registration, and runtime loading behavior.
 - `crates/python/src/lib.rs`: embedded Python bridge registration, local import resolution, host-object conversion, shared/owned materializers, and Python runtime helpers.
 - `crates/cli/src/bridge.rs`: bridge command behavior.
@@ -515,13 +670,14 @@ For authored Python import work:
 1. Decide whether the right shape is raw `import ...`, `use std::python`, `use std::interop`, direct `kain_*_from_py` helpers, region-cached bridge calls, async future helpers, actor callbacks, or GPU tensor/storage-buffer adoption.
 2. Prove the import shape first with the smallest real on-disk case.
 3. If the claim is about current repo truth, validate against `benchmark/cases_v2/python_interop.kn` or `benchmark/cases_v2/python_stdlib_fused.kn` rather than older glue examples.
-4. If local resolution matters, use a real sibling `.kn` + `.py` or package directory with `__init__.py`.
-5. If region cache behavior matters, use `python_region_import_cached`, `python_region_math_attr`, `python_region_math_sqrt`, `python_region_numpy_buffer_view`, `python_region_bound_sqrt_fast`, or `python_region_numpy_buffer_view_fused`.
-6. If async or actor behavior matters, use `python_stdlib_asyncio_future` or the current `python_call_async` and `python_actor_callback` helpers.
-7. If the result is supposed to stay foreign, keep it as a host object and prove the member/call path.
-8. If the result is supposed to become Kain-owned, materialize it and inspect ownership metadata with `kain_tensor_info`, `kain_image_info`, or `interop_shared_*_info`.
-9. If the claim includes zero-copy sync, mutate one side and prove visibility on the other side.
-10. Run the package/benchmark/attrition lane only when the change claims package health, performance, or long-horizon runtime cleanliness.
+4. If the feature is windowed, toolkit-backed, or visually interactive, prove it with a real visible window or real server/tool surface, not just `kain check`.
+5. If local resolution matters, use a real sibling `.kn` + `.py` or package directory with `__init__.py`.
+6. If region cache behavior matters, use `python_region_import_cached`, `python_region_math_attr`, `python_region_math_sqrt`, `python_region_numpy_buffer_view`, `python_region_bound_sqrt_fast`, or `python_region_numpy_buffer_view_fused`.
+7. If async or actor behavior matters, use `python_stdlib_asyncio_future` or the current `python_call_async` and `python_actor_callback` helpers.
+8. If the result is supposed to stay foreign, keep it as a host object and prove the member/call path.
+9. If the result is supposed to become Kain-owned, materialize it and inspect ownership metadata with `kain_tensor_info`, `kain_image_info`, or `interop_shared_*_info`.
+10. If the claim includes zero-copy sync, mutate one side and prove visibility on the other side.
+11. Run the package/benchmark/attrition lane only when the change claims package health, performance, or long-horizon runtime cleanliness.
 
 For low-level memory or mixed-boundary math:
 
@@ -555,6 +711,8 @@ For low-level memory or mixed-boundary math:
 - Forgetting aliases when imported Python names collide with Kain syntax or read badly in authored code.
 - Using raw host objects forever when the actual requirement is explicit Kain-owned image/tensor/geometry state.
 - Routing first-class Python imports through dead bridge folders or one-off host harnesses when a local `.py` module plus `import ...` already expresses the boundary.
+- Building an entire Python UI/tool/app as a giant `python_exec` string when direct imports or a sibling `.py` helper module would keep the feature honest.
+- Importing real Python modules at the top of a `.kn` file and then ignoring them because the actual app is hidden inside a `python_exec` bootstrap blob.
 - Using Python to hide a compiler/runtime bug.
 - Smuggling performance-critical data through JSON host glue when a typed shared buffer/image/tensor lane exists.
 
@@ -565,6 +723,7 @@ A good Kain Python result should read like:
 ```text
 Kain policy and semantics are obvious.
 Python is a real ecosystem lane, not a fake static module tree or toy py03 shim.
+The chosen authored shape is obvious: direct host objects, sibling .py helper, or tiny bootstrap.
 Region caching, async/future lifecycle, actor callbacks, and shared/owned adoption are named.
 Host-object vs materialized ownership is named.
 The smallest on-disk probe and the current benchmark packs prove the boundary.
