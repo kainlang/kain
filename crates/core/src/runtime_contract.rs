@@ -2834,6 +2834,23 @@ component App():
     }
 
     #[test]
+    fn runtime_contract_preserves_c_include_alias_provenance() {
+        let source = "include native/nuklear.h as nk\n";
+        let tokens = Lexer::new(source).tokenize().expect("tokens");
+        let span_mapper = SpanMapper::new(source);
+        let ast = Parser::new(&tokens, &span_mapper, "<test>")
+            .parse()
+            .expect("parse");
+        let typed = types::check(&ast, &span_mapper, "<test>").expect("typecheck");
+
+        let bundle = emit_runtime_contract_bundle(&typed, CompileTarget::Llvm);
+        assert!(bundle
+            .items
+            .iter()
+            .any(|item| item.kind == "include" && item.name == "nuklear as nk"));
+    }
+
+    #[test]
     fn reflection_payload_emits_actor_state_schemas() {
         let source = r#"
 actor Chronos:
