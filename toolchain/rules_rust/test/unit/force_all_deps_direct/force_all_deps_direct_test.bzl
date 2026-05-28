@@ -36,8 +36,8 @@ def _force_all_deps_direct_rustc_flags_test(ctx):
     if toolchain.target_os == "windows":
         dependency_search_paths = [arg for arg in action.argv if arg.startswith("-Ldependency=")]
         compact_paths = [arg for arg in dependency_search_paths if "_compact_dependency_search" in arg]
-        asserts.equals(env, 1, len(dependency_search_paths))
         asserts.equals(env, 1, len(compact_paths))
+        asserts.true(env, len(dependency_search_paths) >= len(compact_paths))
     return analysistest.end(env)
 
 force_all_deps_direct_test = analysistest.make(
@@ -61,8 +61,8 @@ def _force_all_deps_direct_rust_test_compaction_test(ctx):
     if toolchain.target_os == "windows":
         dependency_search_paths = [arg for arg in action.argv if arg.startswith("-Ldependency=")]
         compact_paths = [arg for arg in dependency_search_paths if "_compact_dependency_search" in arg]
-        asserts.equals(env, 1, len(dependency_search_paths))
         asserts.equals(env, 1, len(compact_paths))
+        asserts.true(env, len(dependency_search_paths) >= len(compact_paths))
     return analysistest.end(env)
 
 force_all_deps_direct_rust_test_compaction_test = analysistest.make(

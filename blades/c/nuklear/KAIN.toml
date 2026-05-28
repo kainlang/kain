@@ -1,0 +1,23 @@
+[package]
+name = "nuklear-natural-include"
+version = "0.1.0"
+description = "Nuklear header-only smoke for natural C header imports in Kain."
+
+[blade]
+name = "nuklear-natural-include"
+kind = "kain_binary"
+entry = "main.kn"
+source_roots = ["."]
+module_roots = ["."]
+build_targets = ["llvm"]
+
+[run]
+entry = "main.kn"
+target = "llvm"
+
+[build]
+entry = "main.kn"
+artifact_root = ".kain/out"
+cache_root = ".kain/cache/build"
+profile = "debug"
+

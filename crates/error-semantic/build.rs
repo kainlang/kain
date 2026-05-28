@@ -1,6 +1,6 @@
 //! Build-time corpus indexer for kain-error-semantic.
 //!
-//! Scans `.kn` files from `corpus/`, `stdlib/`, `smoketest/src/`, and any
+//! Scans `.kn` files from `symbol_corpus/`, `error_corpus/`, `stdlib/`, `smoketest/src/`, and any
 //! extra roots from `KAIN_CORPUS_PATH`. Extracts lightweight symbol metadata
 //! via regex, preserves lane/path ownership, and bakes a zero-cost corpus into
 //! `$OUT_DIR/corpus_data.rs` for runtime typo/import queries.
@@ -49,8 +49,12 @@ fn main() {
 
     let mut scan_roots = vec![
         ScanRoot {
-            path: crate_dir.join("corpus"),
-            source_lane: "corpus".to_string(),
+            path: crate_dir.join("symbol_corpus"),
+            source_lane: "symbol_corpus".to_string(),
+        },
+        ScanRoot {
+            path: crate_dir.join("error_corpus"),
+            source_lane: "error_corpus".to_string(),
         },
         ScanRoot {
             path: repo_root.join("stdlib"),

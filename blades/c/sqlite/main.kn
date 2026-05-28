@@ -1,0 +1,22 @@
+// ============================================================================
+//                         SQLite natural include
+// ============================================================================
+// This is the zero-manifest C path: Kain sees sqlite3.h, keeps `sql` as the
+// alias provenance, discovers sqlite3.c beside it, and links the amalgamation.
+include sqlite3.h as sql
+
+fn main() -> Int:
+    let version = sql_libversion_number(())
+    let threadsafe = sql_threadsafe(())
+    let complete = sql_complete("select 1;")
+
+    if version < 3000000:
+        return 10
+    if threadsafe < 0:
+        return 11
+    if complete != 1:
+        return 12
+
+    println("sqlite_include_ok")
+    return 0
+

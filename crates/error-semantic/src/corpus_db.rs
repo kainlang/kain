@@ -1,6 +1,6 @@
 //! Corpus database — zero-allocation query layer over build-time baked symbol data.
 //!
-//! The build-time indexer scans `.kn` files from the corpus directory,
+//! The build-time indexer scans `.kn` files from symbol_corpus, error_corpus,
 //! stdlib, smoketest, and any paths in `KAIN_CORPUS_PATH`, then codegens
 //! static arrays that this module queries at near-zero cost.
 

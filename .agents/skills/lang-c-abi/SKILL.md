@@ -153,6 +153,13 @@ canonical `c::native_math` extern module, and also emits `nm_*` alias externs
 linked to the real C symbols through `@link_name`. True dot namespaces can grow
 on this AST shape later without flattening the provenance graph.
 
+If the C library already uses the alias as its own prefix, keep that spelling.
+For example, `include nuklear.h as nk` exposes `nk_strlen` rather than
+`nk_nk_strlen`, while `include sqlite3.h as sql` exposes `sql_libversion_number`.
+Header-only C libraries still need one sibling implementation translation unit,
+such as `nuklear.c` with `#define NK_IMPLEMENTATION`, so the native link has real
+symbols to bind.
+
 ## Default `use c::...` Pattern
 
 Runtime-owned imports should be boring:

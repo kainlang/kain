@@ -1,0 +1,23 @@
+[package]
+name = "sqlite-natural-include"
+version = "0.1.0"
+description = "SQLite amalgamation smoke for natural C header imports in Kain."
+
+[blade]
+name = "sqlite-natural-include"
+kind = "kain_binary"
+entry = "main.kn"
+source_roots = ["."]
+module_roots = ["."]
+build_targets = ["llvm"]
+
+[run]
+entry = "main.kn"
+target = "llvm"
+
+[build]
+entry = "main.kn"
+artifact_root = ".kain/out"
+cache_root = ".kain/cache/build"
+profile = "debug"
+

@@ -660,6 +660,11 @@ def _stage_proc_macro_dependency_symlinks(actions, crate_info, dep_info):
     return proc_macro_symlinks
 
 def _compact_dependency_search_artifacts(dep_crate_info):
+    if _is_proc_macro(dep_crate_info):
+        # Proc macros are loaded through explicit `--extern=name=...dll`.
+        # Re-staging those DLLs into a compact `-Ldependency` root gives rustc a
+        # second candidate path and has proven toxic on Windows loader pressure.
+        return []
     artifacts = [dep_crate_info.output]
     if dep_crate_info.metadata and dep_crate_info.metadata.path != dep_crate_info.output.path:
         artifacts.append(dep_crate_info.metadata)
@@ -703,7 +708,7 @@ def _stage_compact_dependency_search_roots(actions, crate_info, dep_info):
                 continue
             artifact = stageable_artifacts[basename][artifact_paths[root_index]]
             staged_artifact = actions.declare_file(
-                "_compact_dependency_search/{}/{}/{}".format(crate_info.output.basename, root_index, basename),
+                "_compact_dependency_search_nomacro/{}/{}/{}".format(crate_info.output.basename, root_index, basename),
             )
             actions.symlink(
                 output = staged_artifact,
@@ -1663,7 +1668,11 @@ def rustc_compile_action(
         if staged_dependency_search.search_roots:
             compile_inputs = depset(staged_dependency_search.artifacts, transitive = [compile_inputs])
             extra_dependency_search_paths = staged_dependency_search.search_roots
-            replace_transitive_dependency_search_paths = True
+            # Keep the normal non-proc-macro crate roots. On Windows, Bazel can
+            # stage some rlib symlinks as link artifacts that rustc will not
+            # accept as real crate files, so the compact root is a DLL/search
+            # pressure reducer rather than the sole crate metadata authority.
+            replace_transitive_dependency_search_paths = False
         else:
             staged_proc_macro_dylibs = _stage_proc_macro_dependency_symlinks(ctx.actions, crate_info, dep_info)
             if staged_proc_macro_dylibs:
@@ -2488,22 +2497,6 @@ def add_crate_link_flags(
     if force_all_deps_direct:
         if replace_transitive_dependency_search_paths:
             dependency_search_roots = []
-        else:
-            # Rust still resolves dependency-of-dependency metadata from
-            # `-Ldependency` roots, but proc-macro DLL directories are what blow up
-            # Windows loader state on huge graphs. Keep the normal non-macro crate
-            # search surface and strip the macro dylib directories out.
-            dependency_search_roots = []
-            seen_search_root_paths = {}
-            for crate in dep_info.transitive_crates.to_list():
-                crate_info = crate.dep if hasattr(crate, "dep") else crate
-                if _is_proc_macro(crate_info):
-                    continue
-                crate_dir = crate_info.output.dirname
-                if crate_dir in seen_search_root_paths:
-                    continue
-                seen_search_root_paths[crate_dir] = True
-                dependency_search_roots.append(crate)
 
     args.add_all(
         dependency_search_roots,

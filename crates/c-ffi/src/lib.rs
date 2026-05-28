@@ -429,10 +429,8 @@ fn render_include_alias_source(output: &ImportCOutput, alias: &str) -> Option<St
 }
 
 fn include_alias_function_name(import_name: &str, alias: &str, raw_name: &str) -> Option<String> {
-    let local = raw_name
-        .strip_prefix(import_name)
-        .map(|value| value.trim_start_matches('_'))
-        .filter(|value| !value.is_empty())
+    let local = c_symbol_without_namespace_prefix(raw_name, import_name)
+        .or_else(|| c_symbol_without_namespace_prefix(raw_name, alias))
         .unwrap_or(raw_name);
     let mut sanitized = String::with_capacity(alias.len() + local.len() + 1);
     sanitized.push_str(alias);
@@ -450,6 +448,13 @@ fn include_alias_function_name(import_name: &str, alias: &str, raw_name: &str) -
     } else {
         Some(sanitized)
     }
+}
+
+fn c_symbol_without_namespace_prefix<'a>(raw_name: &'a str, prefix: &str) -> Option<&'a str> {
+    raw_name
+        .strip_prefix(prefix)
+        .map(|value| value.trim_start_matches('_'))
+        .filter(|value| !value.is_empty())
 }
 
 fn apply_loaded_bridges(env: &mut Env) {
@@ -1255,6 +1260,22 @@ mod tests {
         let specs = detect_c_library_import_specs(source);
         assert_eq!(specs[2].alias.as_deref(), Some("tm"));
         assert_eq!(specs[2].origin, CLibraryImportOrigin::Include);
+    }
+
+    #[test]
+    fn include_alias_names_strip_import_or_alias_prefixes() {
+        assert_eq!(
+            include_alias_function_name("sqlite3", "sql", "sqlite3_open").as_deref(),
+            Some("sql_open")
+        );
+        assert_eq!(
+            include_alias_function_name("nuklear", "nk", "nk_strlen").as_deref(),
+            Some("nk_strlen")
+        );
+        assert_eq!(
+            include_alias_function_name("tiny_math", "tm", "native_add").as_deref(),
+            Some("tm_native_add")
+        );
     }
 
     #[test]

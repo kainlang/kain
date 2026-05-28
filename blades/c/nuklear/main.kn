@@ -1,0 +1,15 @@
+// ============================================================================
+//                         Nuklear natural include
+// ============================================================================
+// Nuklear is header-first C. The tiny nuklear.c beside it supplies the one
+// NK_IMPLEMENTATION translation unit while Kain keeps the natural `nk` alias.
+include nuklear.h as nk
+
+fn main() -> Int:
+    let length = nk_strlen("kain+nuklear")
+    if length != 12:
+        return length
+
+    println("nuklear_include_ok")
+    return 0
+
