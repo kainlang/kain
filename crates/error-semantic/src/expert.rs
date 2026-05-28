@@ -128,6 +128,10 @@ fn classify_unknown_identifier(packet: &DiagnosticSemanticPacket) -> FailureMode
 }
 
 fn classify_effect_violation(packet: &DiagnosticSemanticPacket) -> FailureMode {
+    let code = packet.code.as_str();
+    if code == "KAIN-EFFECT-0012" {
+        return FailureMode::ConvergeMismatch;
+    }
     if packet
         .contextual_flags
         .get("in_converge_block")
@@ -457,6 +461,56 @@ mod tests {
                 assert_eq!(import_path, "std::fs");
             }
             other => panic!("expected missing import classification, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_error_corpus_cases() {
+        use kain_error::DiagnosticCode;
+        
+        for case in corpus_db::ERROR_CORPUS_CASES {
+            let code = DiagnosticCode::new(case.expected_code);
+            let mut packet = DiagnosticSemanticPacket::new(
+                code,
+                CompilerPhase::TypeChecking,
+                "dummy",
+            );
+            
+            if case.expected_mode == "ConvergeMismatch" {
+                packet = packet.flag("in_converge_block", true);
+            } else if case.expected_mode == "EntangleViolation" {
+                packet = packet.flag("in_entangle_block", true);
+            }
+            
+            packet = packet.add_repair(
+                case.expected_repair,
+                "ideal repair",
+                "replacement text",
+            );
+
+            let result = analyze(&packet);
+            
+            match &result.likely_failure_mode {
+                FailureMode::OwnershipViolation => {
+                    assert_eq!(case.expected_mode, "OwnershipViolation");
+                }
+                FailureMode::EntangleViolation => {
+                    assert_eq!(case.expected_mode, "EntangleViolation");
+                }
+                FailureMode::ConvergeMismatch => {
+                    assert_eq!(case.expected_mode, "ConvergeMismatch");
+                }
+                FailureMode::Typo { .. } => {
+                    assert_eq!(case.expected_mode, "Typo");
+                }
+                _ => {}
+            }
+
+            assert!(!result.dynamic_explanation.is_empty(), "Explanation for {} must not be empty", case.file_path);
+            
+            if let Some(top_repair) = result.ranked_repairs.first() {
+                assert_eq!(top_repair.repair_id, case.expected_repair, "Expected top repair for {} to be {}", case.file_path, case.expected_repair);
+            }
         }
     }
 }

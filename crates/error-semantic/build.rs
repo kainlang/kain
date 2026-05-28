@@ -38,6 +38,14 @@ struct RawImport {
     source_lane: String,
 }
 
+#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
+struct RawErrorCase {
+    file_path: String,
+    expected_code: String,
+    expected_mode: String,
+    expected_repair: String,
+}
+
 fn main() {
     let crate_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR"));
     let repo_root = crate_dir
@@ -92,9 +100,13 @@ fn main() {
     let re_world = Regex::new(r"(?m)^[ \t]*world\s+([A-Za-z_][A-Za-z0-9_]*)").unwrap();
     let re_trait = Regex::new(r"(?m)^[ \t]*trait\s+([A-Za-z_][A-Za-z0-9_]*)").unwrap();
     let re_use_std = Regex::new(r"(?m)^[ \t]*use\s+std::([A-Za-z_][A-Za-z0-9_]*)").unwrap();
+    let re_exp_code = Regex::new(r"(?m)^//\s*@expected_code:\s*([A-Za-z0-9-]+)").unwrap();
+    let re_exp_mode = Regex::new(r"(?m)^//\s*@expected_mode:\s*([A-Za-z0-9_]+)").unwrap();
+    let re_exp_repair = Regex::new(r"(?m)^//\s*@expected_repair:\s*([A-Za-z0-9_]+)").unwrap();
 
     let mut symbols: BTreeSet<RawSymbol> = BTreeSet::new();
     let mut imports: BTreeSet<RawImport> = BTreeSet::new();
+    let mut error_cases: BTreeSet<RawErrorCase> = BTreeSet::new();
     let mut file_count: usize = 0;
 
     for root in &scan_roots {
@@ -146,6 +158,20 @@ fn main() {
                     source_path: source_path.clone(),
                     source_lane: root.source_lane.clone(),
                 });
+            }
+
+            if root.source_lane == "error_corpus" {
+                let exp_code = re_exp_code.captures(&src).map(|c| c[1].to_string()).unwrap_or_default();
+                let exp_mode = re_exp_mode.captures(&src).map(|c| c[1].to_string()).unwrap_or_default();
+                let exp_repair = re_exp_repair.captures(&src).map(|c| c[1].to_string()).unwrap_or_default();
+                if !exp_code.is_empty() {
+                    error_cases.insert(RawErrorCase {
+                        file_path: source_path.clone(),
+                        expected_code: exp_code,
+                        expected_mode: exp_mode,
+                        expected_repair: exp_repair,
+                    });
+                }
             }
 
             file_count += 1;
@@ -300,6 +326,30 @@ fn main() {
             i.import_path,
             i.source_path,
             i.source_lane,
+        )
+        .unwrap();
+    }
+    writeln!(f, "];").unwrap();
+    writeln!(f).unwrap();
+
+    writeln!(f, "pub struct ErrorCorpusCase {{").unwrap();
+    writeln!(f, "    pub file_path: &'static str,").unwrap();
+    writeln!(f, "    pub expected_code: &'static str,").unwrap();
+    writeln!(f, "    pub expected_mode: &'static str,").unwrap();
+    writeln!(f, "    pub expected_repair: &'static str,").unwrap();
+    writeln!(f, "}}").unwrap();
+    writeln!(f).unwrap();
+
+    let err_vec: Vec<&RawErrorCase> = error_cases.iter().collect();
+    writeln!(f, "pub static ERROR_CORPUS_CASES: &[ErrorCorpusCase] = &[").unwrap();
+    for c in &err_vec {
+        writeln!(
+            f,
+            "    ErrorCorpusCase {{ file_path: {:?}, expected_code: {:?}, expected_mode: {:?}, expected_repair: {:?} }},",
+            c.file_path,
+            c.expected_code,
+            c.expected_mode,
+            c.expected_repair,
         )
         .unwrap();
     }

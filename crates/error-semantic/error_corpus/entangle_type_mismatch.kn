@@ -1,0 +1,13 @@
+// @expected_code: KAIN-WORLD-0008
+// @expected_mode: EntangleViolation
+// @expected_repair: align_types
+
+world Master:
+    state val: Int = 1
+    surface web => Panel
+
+world Mirror:
+    state copy: Bool = false
+    surface native_ui => Panel
+
+entangle Master.val <-> Mirror.copy with single_writer

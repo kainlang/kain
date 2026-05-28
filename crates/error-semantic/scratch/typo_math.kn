@@ -1,0 +1,7 @@
+// @expected_code: KAIN-TYPE-0002
+// @expected_mode: Typo
+// @expected_repair: mix_scalar
+
+fn main() -> Int:
+    let result = mix_scalr(42)
+    return result

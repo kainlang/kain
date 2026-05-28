@@ -2472,9 +2472,11 @@ def add_crate_link_flags(
 
     crate_to_link_flags = _crate_to_link_flag_metadata if use_metadata else _crate_to_link_flag
     crate_link_inputs = dep_info.direct_crates
+    proc_macro_dependency_search_roots = []
     if force_all_deps_direct:
         crate_link_inputs = []
         seen_link_flags = {}
+        seen_proc_macro_search_roots = {}
         for crate in dep_info.direct_crates.to_list():
             crate_link_flag = crate_to_link_flags(crate)[0]
             if crate_link_flag in seen_link_flags:
@@ -2490,6 +2492,15 @@ def add_crate_link_flags(
                 continue
             seen_link_flags[crate_link_flag] = True
             crate_link_inputs.append(crate)
+        for crate in crate_link_inputs:
+            crate_info = crate.dep if hasattr(crate, "dep") else crate
+            if not _is_proc_macro(crate_info):
+                continue
+            crate_dir = crate_info.output.dirname
+            if crate_dir in seen_proc_macro_search_roots:
+                continue
+            seen_proc_macro_search_roots[crate_dir] = True
+            proc_macro_dependency_search_roots.append(crate)
 
     args.add_all(crate_link_inputs, uniquify = True, map_each = crate_to_link_flags)
 
@@ -2500,6 +2511,12 @@ def add_crate_link_flags(
 
     args.add_all(
         dependency_search_roots,
+        map_each = _get_crate_dirname,
+        uniquify = True,
+        format_each = "-Ldependency=%s",
+    )
+    args.add_all(
+        proc_macro_dependency_search_roots,
         map_each = _get_crate_dirname,
         uniquify = True,
         format_each = "-Ldependency=%s",
