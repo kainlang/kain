@@ -6,7 +6,6 @@ This folder holds Python-side helpers, scripts, and bridge utilities that suppor
 
 - Python scripts that assist import, packaging, or validation
 - bridge helpers that connect Kain to Python-hosted tools
-- `bazel_tray.py` watches the Bazel server state from the Windows tray and can shut it down from the context menu
 - `validate_dcc_parity_matrix.py` validates the flagship KSculpt/KPainter
   parity inventory under
   `apps/kain-fabric-dcc-suite/config/dcc_parity_matrix.json`

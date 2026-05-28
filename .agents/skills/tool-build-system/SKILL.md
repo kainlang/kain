@@ -12,7 +12,7 @@ This is the one explicit skill for repo build plumbing. If the question is Bazel
 - Rust Bazel graph ownership: `.bazelrc`, `MODULE.bazel`, root `BUILD.bazel`, `Cargo.Bazel.lock`, `tools/bazel/kain_public_targets.bzl`, `tools/bazel/sync_rust_builds.py`, and the generated in-tree `crates/*/BUILD.bazel` files.
 - Native runtime Bazel sync: `runtime/BUILD.bazel`, `runtime/native_runtime_rules.bzl`, `runtime/runtime_manifest_data.bzl`, `runtime/native_core_runtime.toml`, `runtime/native_runtime.toml`, and `tools/bazel/sync_native_runtime_builds.py`.
 - Launcher and provenance plumbing: `scripts/windows/sync-kain-source-of-truth.ps1`, `scripts/windows/launch-bazel-cli.ps1`, managed PATH wrappers, and `kain doctor` build/source-of-truth status.
-- Windows Bazel operator helpers: `scripts/python/bazel_tray.py` and `scripts/windows/start-bazel-tray.ps1` for live server status and shutdown.
+- Windows Bazel operator GUI: root `bazel_server_gui.kn`, compiled to `X:\bazel_server_gui.exe`, for live server status, start, stop, refresh, and output-base inspection.
 - Build/operator entrypoints for producing the repo binaries and runtime bundle: `bazel build //:kain //:kn`, `kain runtime build`, and `kain runtime validate`.
 
 ## Does Not Own
