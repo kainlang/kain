@@ -3,10 +3,11 @@ name: lang-python
 description: >-
   Use when authoring, explaining, reviewing, or repairing Kain-side Python
   interop: first-class `import ...` and `from ... import ...`, local sibling
-  `.py` or package resolution, `use std::python`, Python host objects, shared
-  or owned materialization into Kain images/tensors/buffers/geometry, CPython
-  runtime behavior, and Python-package facades without changing compiler or
-  runtime bridge internals. If the task is mainly `use c::...`, DLLs, platform
+  `.py` or package resolution, `use std::python`, region-cached bridge calls,
+  async futures, actor callbacks, Python host objects, shared or owned
+  materialization into Kain images/tensors/buffers/geometry, GPU tensor
+  contracts, and Python-package facades without changing compiler or runtime
+  bridge internals. If the task is mainly `use c::...`, DLLs, platform
   packages, or native bridge metadata, use `lang-c-abi` instead; load both
   when Python and native ABI work are fused.
 ---
@@ -14,7 +15,11 @@ description: >-
 # Lang Python
 
 Use this skill when Kain code crosses into live Python modules, local `.py`
-helpers, or Python-owned objects.
+helpers, Python-owned objects, region-cached bridge calls, async futures,
+actor callbacks, or shared/owned buffer, image, tensor, and GPU adoption
+paths.
+
+This is the current repo truth, not a tiny py03-style import/call shim.
 
 The goal is not "pretend Python modules are Kain modules." The goal is:
 
@@ -34,7 +39,8 @@ Use this skill for:
 
 - Kain source with Python imports such as `import numpy as np`, `import fastmcp as fastmcp`, `from python_lab.bridge import tensor_signature as py_tensor_signature`, or `import python_lab.bridge as py_lab`.
 - Kain source with `use std::python`, `use std::interop`, `python_*`, `py_*`, or `kain_*_from_py` helpers.
-- A task that mentions Python packages, local `.py` helpers, CPython behavior, host objects, materialization, NumPy, Torch, FastMCP, DCC libraries, or Python-owned buffers/images/tensors/geometry.
+- A task that mentions `benchmark/cases_v2/python_interop.kn`, `benchmark/cases_v2/python_stdlib_fused.kn`, Python packages, local `.py` helpers, CPython behavior, host objects, materialization, NumPy, Torch, FastMCP, DCC libraries, or Python-owned buffers/images/tensors/geometry.
+- A task that mentions `python_interop`, `python_stdlib_fused`, `python_region_*`, `python_call_async`, `python_future_*`, `python_actor_callback_*`, `python_shared_buffer`, `python_shared_image`, `python_tensor_*`, or `python_gpu_storage_buffer`.
 - Designing the authored Kain facade around a Python package.
 - Deciding whether a boundary should be raw `import ...`, `use std::python`, `use std::interop`, or explicit `kain_*_from_py` helpers.
 - Reviewing whether a Python boundary has correct status, lifetime, host-object, materialization, aliasing, ownership, and teardown shape.
@@ -66,11 +72,23 @@ Kain has several layers that make Python interop more than a dumb foreign call:
 - Imported Python names are registered in the Kain type environment as dynamic/unknown bindings, so authored code can use them without lying about static Kain types.
 - `stdlib/python.kn` and `stdlib/interop.kn` expose bridge vocabulary instead of forcing every project into one-off host shims.
 - The registered `kain_*_from_py` and `kain_*_to_py` builtins expose shared-buffer/image/tensor/geometry lanes with explicit ownership policy.
+- The runtime also exposes region-scoped import and attr caches, region-bounded call helpers, async futures, actor callbacks, buffer views, and GPU storage-buffer adoption so Python stays a real bridge lane instead of a toy FFI.
 - The embedded Python scope is persistent for the Kain execution, which means repeated `import`, `py_exec`, `py_call`, and host-object access share one live Python world instead of cold-starting on every call.
 
 That stack means agents should not treat Python as one-off glue. The authored
 Kain surface should look like a Kain API with the Python boundary hidden
 underneath.
+
+## Current Repo Truth
+
+Start from the live proof surfaces and runtime seams, not older examples.
+
+- `benchmark/cases_v2/python_interop.kn` is the raw interop pack. It covers `python_import_cached`, `python_math_attr`, `python_math_sqrt`, `python_numpy_scalar_box`, `python_numpy_shared_buffer`, `python_raw_tensor_workflow`, `python_raw_image_workflow`, `python_numpy_shared_buffer_tiny`, `python_region_import_cached`, `python_region_math_attr`, `python_region_math_sqrt`, `python_region_numpy_buffer_view`, `python_region_bound_sqrt_fast`, `python_gpu_tensor_contract`, and `python_region_numpy_buffer_view_fused`.
+- `benchmark/cases_v2/python_stdlib_fused.kn` is the breadth pack. It covers `python_stdlib_module_probe`, `python_stdlib_path_json_mix`, `python_stdlib_asyncio_future`, and `python_stdlib_ceiling_fused`.
+- `benchmark/build.kn` and `benchmark/cases_v2/.telemetryrouter/router.kn` wire both packs into the live benchmark lane.
+- `runtime/native/src/core/python_runtime.c`, `runtime/native/src/core/python_runtime_region.c`, `runtime/native/src/core/python_runtime_buffers.c`, `runtime/native/src/core/python_runtime_async.c`, and `runtime/native/src/core/python_runtime_gpu.c` are the owning native seams.
+- `crates/python/src/lib.rs` is the Kain-facing bridge and materialization implementation.
+- The live surface includes `python_region_*` caching and call helpers, `python_call_async`, `python_call_attr_async`, `python_future_await`, `python_actor_callback`, `python_actor_callback_close`, `python_shared_buffer`, `python_shared_image`, `python_tensor_shared`, `python_tensor_owned`, `python_shared_buffer_gpu`, and `python_gpu_storage_buffer`.
 
 ## Boundary Decision Flow
 
@@ -78,7 +96,7 @@ Use this order:
 
 1. **Public stdlib wrapper:** if `std::python`, `std::interop`, or another root `std.*` surface already expresses the need, author against `std.*` first.
 2. **First-class Python import lane:** if the task is "I want to use a Python module like a Python module," prefer `import ...` or `from ... import ...` in authored Kain instead of inventing `use python::...`.
-3. **Python bridge/materialization lane:** if the task needs explicit bridge calls, attribute dispatch, or shared-vs-owned data control, move from raw `import ...` to `use std::python`, `use std::interop`, and the `kain_*_from_py` helpers.
+3. **Python bridge/materialization lane:** if the task needs explicit bridge calls, attribute dispatch, shared-vs-owned data control, or region-cached bridge behavior, move from raw `import ...` to `use std::python`, `use std::interop`, and the `kain_*_from_py` helpers.
 4. **Kain facade:** once the import shape is proven, wrap the package vocabulary in a small Kain function/module so the rest of the app does not speak raw host-object dialect.
 5. **Mixed native boundary:** if the Python package also hides DLL, C ABI, platform SDK, or bridge-metadata work, co-trigger `lang-c-abi`.
 6. **Runtime/compiler handoff:** if the authored shape is good but import/lowering/loading/host-object dispatch is broken, stop blaming the Kain file and fix the substrate with the owner skill.
@@ -86,9 +104,9 @@ Use this order:
 ## Fast Discovery
 
 ```powershell
-rg -n "^import |^from .* import |py_import|py_call|py_getattr|kain_(image|tensor|geometry|shared_(buffer|image))_from_py|python_(module_available|require_module)" . agents blades benchmark smoketest stdlib crates
-rg -n "numpy|fastmcp|torch|python_lab|pyglet|mypyfile" blades smoketest stdlib crates .agents
-rg -n "shared_buffer|shared_image|shared_tensor|shared_geometry|python_region_|python_buffer_view_" stdlib runtime/native/include runtime/native/src crates/python
+rg -n "python_interop|python_stdlib_fused|python_region_|python_call_async|python_future_|python_actor_callback|python_shared_buffer|python_shared_image|python_tensor_|python_gpu_storage_buffer" benchmark crates runtime/native stdlib .agents
+rg -n "python_interop.kn|python_stdlib_fused.kn|python_runtime_region|python_runtime_async|python_runtime_buffers|python_runtime_gpu|kain_shared_buffer_from_py|kain_shared_image_from_py" benchmark crates/python runtime/native stdlib
+rg --files benchmark/cases_v2 runtime/native/src/core crates/python stdlib | rg "(python_interop|python_stdlib_fused|python_runtime_region|python_runtime_async|python_runtime_buffers|python_runtime_gpu|lib.rs)"
 rg --files | rg "(python|interop|host_bridge|dcc)"
 ```
 
@@ -117,6 +135,13 @@ cargo test -p kain-python python_bridge_exec_scope_persists_between_calls -- --n
 
 Use the smallest real on-disk `.kn` + `.py` proof first, then graduate to a
 blade, benchmark, or attrition lane only when the claim requires it.
+
+Benchmark proof lane:
+
+```powershell
+python benchmark/run.py --case python_interop --languages kain
+python benchmark/run.py --case python_stdlib_fused --languages kain
+```
 
 ## Python Import Lane
 
@@ -375,6 +400,14 @@ If the task is "bring bytes, pixels, tensor values, or geometry under Kain's
 ownership model," graduate into `use std::python`, `use std::interop`, and the
 `kain_*_from_py` helpers.
 
+Current live helpers that often matter:
+
+- Region-scoped helpers: `python_region_begin`, `python_region_end`, `python_region_import`, `python_region_getattr_raw`, `python_region_call_args`, `python_region_call_attr_args`, `python_region_call_raw_args`, `python_region_call_raw_attr`, `python_region_call_raw_f64_trunc_i64`, `python_region_call_attr_raw_f64_trunc_i64`, `python_region_buffer_view`, `python_region_import_cache_hits`, `python_region_import_cache_misses`, `python_region_attr_cache_hits`, `python_region_attr_cache_misses`, `python_region_views_opened`, `python_region_views_released`, `python_region_call_count`, `python_region_generic_call_count`, and `python_region_fast_call_count`.
+- Async and actor helpers: `python_call_async`, `python_call_attr_async`, `python_future_from_awaitable`, `python_future_state`, `python_future_done`, `python_future_await`, `python_future_cancel`, `python_future_close`, `python_actor_callback`, `python_actor_callback_callable`, `python_actor_callback_close`, and `python_actor_callback_delivered`.
+- Shared and owned materializers: `python_shared_buffer`, `python_shared_image`, `python_image`, `python_image_shared`, `python_image_owned`, `python_image_to`, `python_tensor`, `python_tensor_shared`, `python_tensor_owned`, `python_tensor_to`, `python_tensor_interop_info`, `python_tensor_shape_dim`, and `python_tensor_stride_dim`.
+- GPU bridge helpers: `python_shared_buffer_gpu` and `python_gpu_storage_buffer`.
+- Native adoption helpers: `kain_shared_buffer_from_py` and `kain_shared_image_from_py`.
+
 ## Python Callback And Event Pump Pattern
 
 Callbacks are where the Python lane goes feral. Keep the host side boring:
@@ -405,15 +438,20 @@ co-trigger `lang-c-abi`.
 
 Python is the right answer for:
 
+- The current proof surfaces in `benchmark/cases_v2/python_interop.kn` and `benchmark/cases_v2/python_stdlib_fused.kn`.
 - Numeric, image, simulation, DCC, scientific, MCP, ML, and tooling ecosystems that already exist and are expensive to re-create.
+- Region-cached module, attribute, and bound-call paths when the benchmark needs to prove the bridge tax honestly.
+- Async future lifecycles and actor callback flows when the package exposes evented Python control flow.
 - Local helper modules that are naturally expressed as `.py` siblings during a package or smoketest proof.
 - Host-object retention when Kain wants to orchestrate a package rather than copy every value back immediately.
 - Shared or owned materialization benchmarks that honestly measure the Kain-to-Python boundary.
+- GPU tensor and storage-buffer contract checks when the Python package already owns the data producer side.
 
 Python is not the right answer for:
 
 - Reimplementing Kain semantics in Python.
 - Turning a Kain app into a bag of raw host-object calls.
+- Pretending the lane is only a tiny py03-style import/call shim.
 - Avoiding a real compiler/runtime fix.
 - Using Python when the real boundary is a native ABI package that `lang-c-abi` should own.
 
@@ -440,19 +478,28 @@ throughout a feature. One Python package should feel like one Kain capability.
 Python does not use the C FFI report lane, so make your own tiny probes:
 
 - keep the first authored probe tiny
-- prove local resolution with a real on-disk `.kn` + `.py` pair
-- move to wrappers/materializers only after the import shape itself is solid
+- prove local resolution with a real on-disk `.kn` + `.py` pair or the current benchmark pack when the claim is about live runtime truth
+- move to wrappers/materializers only after the import, region, async, or materialization shape itself is solid
 - if the package also needs native import locks, platform SDK setup, or `use c::...`, switch to `lang-c-abi` for that half
 
 ## Source Anchors
 
 Use these when you need implementation truth:
 
+- `benchmark/cases_v2/python_interop.kn`: raw import, shared-buffer/image/tensor, region-cache, and GPU tensor proof cases.
+- `benchmark/cases_v2/python_stdlib_fused.kn`: stdlib breadth, `asyncio`, path, and JSON proof cases.
+- `benchmark/build.kn` and `benchmark/cases_v2/.telemetryrouter/router.kn`: benchmark wiring and current case routing.
 - `crates/core/src/ast.rs`, `crates/core/src/parser.rs`, `crates/core/src/runtime.rs`, `crates/core/src/types.rs`: authored Python `import` syntax, scope registration, and runtime loading behavior.
 - `crates/python/src/lib.rs`: embedded Python bridge registration, local import resolution, host-object conversion, shared/owned materializers, and Python runtime helpers.
 - `crates/cli/src/bridge.rs`: bridge command behavior.
+- `runtime/native/src/core/python_runtime.c`: base Python runtime seam and shared buffer/view plumbing.
+- `runtime/native/src/core/python_runtime_region.c`: region caches, bounded imports and attrs, and fast-call counters.
+- `runtime/native/src/core/python_runtime_buffers.c`: buffer views and shared-buffer adoption.
+- `runtime/native/src/core/python_runtime_async.c`: async futures and actor callbacks.
+- `runtime/native/src/core/python_runtime_gpu.c`: shared image and GPU tensor adoption.
 - `runtime/native/include/host_bridge.h` and `runtime/native/src/core/host_bridge.c`: host bridge registry, foreign runtime lanes, service descriptors, bridge contracts.
 - `stdlib/python.kn`, `stdlib/interop.kn`: authored stdlib bridge vocabulary.
+- `stdlib/STDLIB_MAP.llm.md`: public `std::python` surface names and current helper map.
 - `blades/python`: canonical first-class Python import lab using `import numpy`, `import fastmcp`, local `python_lab.bridge`, and Kain world/teleport/ownership semantics over Python-backed tensors.
 - `crates/python/src/lib.rs`: executable source snippets for zero-copy NumPy/Torch materialization, shared-vs-owned mutation, and export back into Python objects.
 - `smoketest/src/stdlib/interop_lane.kn`: shared-contract vocabulary and stdlib integration pressure.
@@ -465,13 +512,16 @@ Use `lang-c-abi` when the truth you need lives in `crates/c-ffi`,
 
 For authored Python import work:
 
-1. Decide whether the right shape is raw `import ...`, `use std::python`, `use std::interop`, or direct `kain_*_from_py` helpers.
+1. Decide whether the right shape is raw `import ...`, `use std::python`, `use std::interop`, direct `kain_*_from_py` helpers, region-cached bridge calls, async future helpers, actor callbacks, or GPU tensor/storage-buffer adoption.
 2. Prove the import shape first with the smallest real on-disk case.
-3. If local resolution matters, use a real sibling `.kn` + `.py` or package directory with `__init__.py`.
-4. If the result is supposed to stay foreign, keep it as a host object and prove the member/call path.
-5. If the result is supposed to become Kain-owned, materialize it and inspect ownership metadata with `kain_tensor_info`, `kain_image_info`, or `interop_shared_*_info`.
-6. If the claim includes zero-copy sync, mutate one side and prove visibility on the other side.
-7. Run the package/benchmark/attrition lane only when the change claims package health, performance, or long-horizon runtime cleanliness.
+3. If the claim is about current repo truth, validate against `benchmark/cases_v2/python_interop.kn` or `benchmark/cases_v2/python_stdlib_fused.kn` rather than older glue examples.
+4. If local resolution matters, use a real sibling `.kn` + `.py` or package directory with `__init__.py`.
+5. If region cache behavior matters, use `python_region_import_cached`, `python_region_math_attr`, `python_region_math_sqrt`, `python_region_numpy_buffer_view`, `python_region_bound_sqrt_fast`, or `python_region_numpy_buffer_view_fused`.
+6. If async or actor behavior matters, use `python_stdlib_asyncio_future` or the current `python_call_async` and `python_actor_callback` helpers.
+7. If the result is supposed to stay foreign, keep it as a host object and prove the member/call path.
+8. If the result is supposed to become Kain-owned, materialize it and inspect ownership metadata with `kain_tensor_info`, `kain_image_info`, or `interop_shared_*_info`.
+9. If the claim includes zero-copy sync, mutate one side and prove visibility on the other side.
+10. Run the package/benchmark/attrition lane only when the change claims package health, performance, or long-horizon runtime cleanliness.
 
 For low-level memory or mixed-boundary math:
 
@@ -496,10 +546,11 @@ For low-level memory or mixed-boundary math:
 
 ## Anti-Patterns
 
-- Documenting Python support as "Kain has Python imports now" without explaining runtime scope, local resolution, ownership, and host-object behavior.
+- Documenting Python support as "Kain has Python imports now" without explaining runtime scope, local resolution, ownership, host-object behavior, and the current benchmark packs.
+- Treating the lane as `py03`-style baby FFI or a one-call import/call shim when the repo already proves region caches, buffer views, async futures, actor callbacks, and GPU tensor contracts.
 - Forcing Python ecosystem access through invented `use python::...` syntax instead of the real `import ...` lane.
 - Pretending Python modules are static Kain modules with static types.
-- Assuming sibling `.py` support is real without proving it with a real file-on-disk smoke.
+- Assuming sibling `.py` support is real without proving it with a real file-on-disk smoke or the current benchmark packs.
 - Expecting `from pkg import *` to work in this lane.
 - Forgetting aliases when imported Python names collide with Kain syntax or read badly in authored code.
 - Using raw host objects forever when the actual requirement is explicit Kain-owned image/tensor/geometry state.
@@ -513,9 +564,10 @@ A good Kain Python result should read like:
 
 ```text
 Kain policy and semantics are obvious.
-Python is a real ecosystem lane, not a fake static module tree.
+Python is a real ecosystem lane, not a fake static module tree or toy py03 shim.
+Region caching, async/future lifecycle, actor callbacks, and shared/owned adoption are named.
 Host-object vs materialized ownership is named.
-The smallest on-disk probe proves the boundary.
+The smallest on-disk probe and the current benchmark packs prove the boundary.
 The larger benchmark/package/attrition lane is available when the claim needs it.
 ```
 
