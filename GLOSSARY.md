@@ -136,7 +136,7 @@ Location rule: paths in this glossary are live in this checkout. Older docs may 
 
 **Machine stones** - The machine-facing semantic quartet `axiom`, `pulse`, `shatter`, and `teleport`, plus the native substrate that backs them. This is where Kain talks directly about machine truth, cadence, layout intent, and destructive handoff. Location: `runtime/native/include/machine_stones.h`, `runtime/native/src/core/machine_stones.c`, public counters in `stdlib/runtime.kn`.
 
-**MCP** - The repo's model-context-protocol workspace lane. This is where the permanent repo MCP server is meant to live instead of only treating MCP as an experimental blade. Location: `mcp/`, especially `mcp/kain-agent-mcp/`.
+**MCP** - The repo's model-context-protocol workspace lane and root `std::mcp` stdlib surface. This is where the permanent repo MCP server is meant to live instead of only treating MCP as an experimental blade. Locations: `mcp/`, especially `mcp/kain-agent-mcp/`, and `stdlib/mcp.kn`.
 
 **MEMORY.md** - The repo's durable task memory board. Search it for prior fixes, proof names, regressions, commands, and subsystem lessons before you rediscover history the hard way. Location: `MEMORY.md`.
 

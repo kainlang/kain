@@ -1,5 +1,17 @@
 # Kain Feedback Log
 
+## 2026-05-27 - std::mcp / identifier and JSON helper sharp edges
+
+### `std::mcp` dogfood hit two surprising language traps while wiring the stdlib
+- Categories: correctness, developer-experience, stdlib, parser
+- Status: Active
+- Surface: stdlib / typechecker
+- Symptom: the root MCP stdlib module compiled only after renaming locals that used the identifiers `out` and `line`, and after swapping direct `json_get_string` calls for the public `json_string_required` wrapper. Those names and API shapes triggered compat-registry panics instead of a normal diagnostic when checked in isolation.
+- Workflow impact: debugging the new `std::mcp` surface was slowed by non-obvious identifier sensitivity and by the gap between the internal JSON getter surface and the public root stdlib wrapper surface. The resulting panic path made the failure look like a parser crash rather than a normal type/API mismatch.
+- Minimal repro: `fn main() -> Int:\n    var out = "abc"` and `let line = read_line()` in the same style of code path, plus direct use of `json_get_string(...)` from authored Kain.
+- Evidence: `kain check stdlib/mcp.kn --target llvm` originally panicked with missing compat-registry entries until the locals were renamed and the public JSON wrapper was used.
+- Suggested direction: either reserve and document identifier names like `line`/`out` if they are semantically special, or make the diagnostic pipeline render the actual mismatch instead of panicking when compat-registry coverage is incomplete. Also surface a clear public accessor story for JSON object field reads so authors don’t reach for internal helpers by accident.
+
 ## 2026-05-24 - std::z3 / std::proof runtime dogfood
 
 ### Running a proof-heavy Kain lane trips RC release-after-free in the LLVM runtime
