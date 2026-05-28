@@ -5,15 +5,16 @@ common --curses=yes
 common --experimental_convenience_symlinks=ignore
 # This repo lives at X:\ root, so Bazel caches cannot live under the workspace
 # itself without tripping Bazel's "cache inside main repo" guard. Keep the
-# heavy mutable state on the F: toolchain/cache drive instead.
-common --repository_cache=F:/Caches/bazel/repository-cache
-startup --output_user_root=F:/Caches/bazel/output-user-root
-common --repo_env=TMP=F:/DevTemp/bazel
-common --repo_env=TEMP=F:/DevTemp/bazel
-common --repo_env=TMPDIR=F:/DevTemp/bazel
-common --action_env=TMP=F:/DevTemp/bazel
-common --action_env=TEMP=F:/DevTemp/bazel
-common --action_env=TMPDIR=F:/DevTemp/bazel
+# heavy mutable state on the F: toolchain/cache drive under a short root; Rust
+# external repo names get long enough on Windows that every path segment matters.
+common --repository_cache=F:/_b/repository-cache
+startup --output_user_root=F:/_b/output-user-root
+common --repo_env=TMP=F:/_b/tmp
+common --repo_env=TEMP=F:/_b/tmp
+common --repo_env=TMPDIR=F:/_b/tmp
+common --action_env=TMP=F:/_b/tmp
+common --action_env=TEMP=F:/_b/tmp
+common --action_env=TMPDIR=F:/_b/tmp
 # rules_rust's Windows process wrapper reconstructs the rustc child environment
 # from Bazel's action env, so we must explicitly preserve the normal loader and
 # per-user process variables that MSVC-target proc-macro DLLs expect.
@@ -37,7 +38,7 @@ common --action_env=NUMBER_OF_PROCESSORS
 common --action_env=PROCESSOR_ARCHITECTURE
 common --action_env=PROCESSOR_IDENTIFIER
 
-build --disk_cache=F:/Caches/bazel/disk-cache
+build --disk_cache=F:/_b/disk-cache
 build --jobs=HOST_CPUS*.625
 build --loading_phase_threads=HOST_CPUS*.5
 build --local_resources=cpu=HOST_CPUS*.625
@@ -56,9 +57,9 @@ build:warnings --@rules_rust//rust/settings:extra_rustc_flags=-Dwarnings
 test --test_output=errors
 test --test_summary=short
 test --local_test_jobs=HOST_CPUS*.25
-test --test_env=TMP=F:/DevTemp/bazel
-test --test_env=TEMP=F:/DevTemp/bazel
-test --test_env=TMPDIR=F:/DevTemp/bazel
+test --test_env=TMP=F:/_b/tmp
+test --test_env=TEMP=F:/_b/tmp
+test --test_env=TMPDIR=F:/_b/tmp
 test --test_env=PATH
 test --test_env=PATHEXT
 

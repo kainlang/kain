@@ -918,10 +918,12 @@ def collect_inputs(
         ],
     )
 
+    build_script_include_link_search_paths = include_link_flags and crate_info.type not in ("lib", "rlib")
     build_script_compile_inputs, out_dir, build_env_file, build_flags_files = _process_build_scripts(
         build_info = build_info,
         dep_info = dep_info,
         include_link_flags = include_link_flags,
+        include_link_search_paths = build_script_include_link_search_paths,
         include_transitive_data = not toolchain._incompatible_do_not_include_transitive_data_in_compile_inputs,
     )
 
@@ -2318,13 +2320,15 @@ def _process_build_scripts(
         build_info,
         dep_info,
         include_link_flags = True,
+        include_link_search_paths = True,
         include_transitive_data = False):
     """Gathers the outputs from a target's `cargo_build_script` action.
 
     Args:
         build_info (BuildInfo): The target Build's dependency info.
         dep_info (DepInfo): The Depinfo provider form the target Crate's set of inputs.
-        include_link_flags (bool, optional): Whether to include flags like `-l` that instruct the linker to search for a library.
+        include_link_flags (bool, optional): Whether to include direct build-script flags like `-l`.
+        include_link_search_paths (bool, optional): Whether to include transitive build-script link search paths.
         include_transitive_data (bool, optional): Whether to include transitive data dependencies in compile inputs.
 
     Returns:
@@ -2339,7 +2343,11 @@ def _process_build_scripts(
             - (depset[File]): All direct and transitive build flags from the current build info.
     """
     direct_inputs = []
-    transitive_inputs = [dep_info.link_search_path_files]
+    transitive_inputs = []
+    transitive_build_flags_files = []
+    if include_link_search_paths:
+        transitive_inputs.append(dep_info.link_search_path_files)
+        transitive_build_flags_files.append(dep_info.link_search_path_files)
     if include_transitive_data:
         transitive_inputs.append(dep_info.transitive_data)
 
@@ -2360,6 +2368,9 @@ def _process_build_scripts(
         if build_info.linker_flags and include_link_flags:
             build_flags_files.append(build_info.linker_flags)
             direct_inputs.append(build_info.linker_flags)
+        if build_info.link_search_paths and include_link_flags:
+            build_flags_files.append(build_info.link_search_paths)
+            direct_inputs.append(build_info.link_search_paths)
 
         transitive_inputs.append(build_info.compile_data)
 
@@ -2379,7 +2390,7 @@ def _process_build_scripts(
         out_dir_compile_inputs,
         out_dir,
         build_env_file,
-        depset(build_flags_files, transitive = [dep_info.link_search_path_files]),
+        depset(build_flags_files, transitive = transitive_build_flags_files),
     )
 
 def _compute_rpaths(toolchain, output_dir, dep_info, use_pic):

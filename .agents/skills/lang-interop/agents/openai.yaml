@@ -1,7 +1,0 @@
-interface:
-  display_name: "Lang Interop Legacy"
-  short_description: "Legacy router to lang-python or lang-c-abi"
-  default_prompt: "Use $lang-interop only to route an old interop request to $lang-python, $lang-c-abi, or both."
-
-policy:
-  allow_implicit_invocation: false

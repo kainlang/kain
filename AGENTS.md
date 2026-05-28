@@ -260,7 +260,13 @@ py -3 tools/bazel/sync_native_runtime_builds.py --check
 If you happen to use x:/target/debug/kain.exe KEEP IN MIND IT MAY BE old AND NOT REPRESENTATIVE OF THE CURRENT REPO - X:\.kain" is the canonical location of the kain binary however Bazel can sometimes be problematic and fight with our repo
 ```
 
-On this Windows workstation, the repo root lives on `X:\` and Bazel cache/temp/output state intentionally lives on `F:\Caches\bazel\...` and `F:\DevTemp\bazel`. Prefer Bazel-built launchers from `X:\.kain\bin` or set `KAIN_BIN` to a fresh Bazel `kain.exe` when validating blades, benchmarks, and native runtime changes.
+On this Windows workstation, the repo root lives on `X:\` and Bazel cache/temp/output state intentionally lives under the short root `F:\_b\...`. Prefer Bazel-built launchers from `X:\.kain\bin` or set `KAIN_BIN` to a fresh Bazel `kain.exe` when validating blades, benchmarks, and native runtime changes.
+
+Bazel/Rust Windows trap notes:
+
+- If Bazel appears hung or keeps reporting old paths after cache migration, check for stale Bazel servers before trusting the result: `Get-Process bazel,bazelisk,java -ErrorAction SilentlyContinue | Select-Object ProcessName,Id,Path`. Old servers rooted under `F:\Caches\bazel\...` can survive while the new config points at `F:\_b\...`; `bazel shutdown` handles the current root, but an old-root Java server may need to be killed explicitly.
+- Use `bazel info output_base repository_cache --config=dev` as the first truth check after any cache/output change. It must report `F:/_b/output-user-root/...` and `F:/_b/repository-cache`.
+- The Rust CLI graph is sensitive to `rules_rust` build-script flag placement on Windows. Do not pass full transitive build-script link-search argfiles into normal `rlib`/`lib` compile actions; that can corrupt crate/proc-macro resolution and show up as fake missing-crate errors like `can't find crate for ue5_gas` even when the params file contains the right `--extern` entries. Current-crate build-script flags/search paths still belong on that crate, and transitive link search still belongs on real link actions.
 
 Core CLI:
 

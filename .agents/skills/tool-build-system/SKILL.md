@@ -9,7 +9,7 @@ This is the one explicit skill for repo build plumbing. If the question is Bazel
 
 ## Owns
 
-- Rust Bazel graph ownership: `.bazelrc`, `MODULE.bazel`, root `BUILD.bazel`, `Cargo.Bazel.lock`, `tools/bazel/kain_public_targets.bzl`, `tools/bazel/kain_rust_workspace.bzl`, `tools/bazel/kain_rust_workspace_generator.py`, `tools/bazel/sync_rust_builds.py`, and the generated first-party overlay repo `@kain_workspace_rust`.
+- Rust Bazel graph ownership: `.bazelrc`, `MODULE.bazel`, root `BUILD.bazel`, `Cargo.Bazel.lock`, `tools/bazel/kain_public_targets.bzl`, `tools/bazel/sync_rust_builds.py`, and the generated in-tree `crates/*/BUILD.bazel` files.
 - Native runtime Bazel sync: `runtime/BUILD.bazel`, `runtime/native_runtime_rules.bzl`, `runtime/runtime_manifest_data.bzl`, `runtime/native_core_runtime.toml`, `runtime/native_runtime.toml`, and `tools/bazel/sync_native_runtime_builds.py`.
 - Launcher and provenance plumbing: `scripts/windows/sync-kain-source-of-truth.ps1`, `scripts/windows/launch-bazel-cli.ps1`, managed PATH wrappers, and `kain doctor` build/source-of-truth status.
 - Build/operator entrypoints for producing the repo binaries and runtime bundle: `bazel build //:kain //:kn`, `kain runtime build`, and `kain runtime validate`.
@@ -22,17 +22,17 @@ This is the one explicit skill for repo build plumbing. If the question is Bazel
 
 ## Working Rules
 
-- Cargo manifests and runtime manifests are the sources of truth. First-party Rust Bazel targets come from the generated `@kain_workspace_rust` overlay repo, not from hand-maintained checked-in crate `BUILD.bazel` files.
+- Cargo manifests and runtime manifests are the sources of truth. First-party Rust Bazel targets come from generated in-tree `crates/*/BUILD.bazel` files; do not reintroduce the legacy `@kain_workspace_rust` overlay as a second first-party graph.
 - If a first-party Rust crate uses `build.rs` to read package-local manifests, spec packs, or generated-data inputs outside the usual `src/tests/examples/...` tree, teach `tools/bazel/sync_rust_builds.py` to mirror that directory into `COMMON_COMPILE_DATA` or Bazel can compile a lying build-script output with missing inputs.
 - On Windows, `force_all_deps_direct` should add a compact `_compact_dependency_search` root without replacing the normal non-proc-macro dependency roots. Bazel can stage some rlib symlinks as link artifacts that rustc will not accept as crate files, so the compact root reduces proc-macro/DLL search pressure but must not become sole metadata authority.
-- Keep heavy Bazel outputs on `D:` and preserve the launcher contract that `kain`/`kn` resolve to Bazel-backed wrappers on this workstation.
+- Keep heavy Bazel outputs under the short Windows root `F:\_b\...` and preserve the launcher contract that `kain`/`kn` resolve to Bazel-backed wrappers on this workstation.
 - When a change touches build provenance, prove it through `kain doctor`, not just by eyeballing `bazel-bin`.
 - If the problem is "runtime build wrapper fails" or "fresh Kain binary is stale", keep it here rather than scattering that guidance across runtime or package skills.
 
 ## Validation
 
 ```powershell
-bazel query @kain_workspace_rust//:kain
+bazel query //:kain
 py -3 tools/bazel/sync_native_runtime_builds.py --check
 bazel build //:kain --config=dev
 bazel build //:kn --config=dev

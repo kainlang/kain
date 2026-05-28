@@ -2,8 +2,9 @@
 name: lang-c-abi
 description: >-
   Use when authoring, explaining, reviewing, or repairing Kain-side native and
-  foreign ABI boundaries: natural `include ... as ...` C header imports,
-  automatic `use c::...` imports, optional explicit blade/package bridge
+  foreign ABI boundaries: canonical natural `include ... as ...` C header imports,
+  companion `.c` source discovery, legacy/explicit `use c::...` imports,
+  optional explicit blade/package bridge
   metadata, `kain import-c`, `kain import platform`, `use rust::...`, Rust crate FFI, host JSON bridges, shared
   buffers/images/tensors/geometry, OS or vendor DLL contracts, handles,
   callbacks, strings, buffers, ABI/lifetime/status design, and app-level
@@ -16,6 +17,13 @@ description: >-
 
 Use this skill when Kain code crosses out of Kain into a native, OS, driver,
 vendor, package, or general foreign-ABI boundary.
+
+Canonical authored C interop starts with `include path/to/header.h as alias`.
+That is the future-facing Kain shape for local headers and natural C file
+imports. `use c::...` remains valid for runtime-owned ABI modules and explicit
+bridge metadata, but do not present it as the default for new local C examples.
+Treat old `usec::` wording as deprecated legacy vocabulary: mention it only
+when repairing or migrating old code.
 
 The goal is not "write C from Kain." The goal is:
 
@@ -32,10 +40,10 @@ or `std::python` materialization, co-read `lang-python`.
 
 Use this skill for:
 
-- Kain source with `include native/foo.h as f`, `use c::...`, `use rust::...`, `use std::platform`, bridge calls, or generated native package modules.
+- Kain source with canonical `include native/foo.h as f`, companion `.c` sources, `use c::...`, `use rust::...`, `use std::platform`, bridge calls, or generated native package modules.
 - A task that mentions C ABI, FFI, DLL, dylib, shared library, object file, static library, bitcode, inline C, package bridge, platform SDK, OS API, Vulkan/Win32/CUDA/etc. boundary, callback, raw buffer, native handle, or host bridge.
 - Designing the authored Kain facade around a native library, Rust crate bridge, or host-facing package contract.
-- Deciding whether a boundary should be `include ... as ...`, `use c::...`, `use rust::...`, `use std::platform`, `use std::interop`, `kain import-c`, or `kain import platform`.
+- Deciding whether a boundary should be canonical `include ... as ...`, explicit/runtime `use c::...`, `use rust::...`, `use std::platform`, `use std::interop`, `kain import-c`, or `kain import platform`.
 - Reviewing whether a native boundary has correct status, lifetime, buffer, handle, ownership, string, JSON, and teardown shape.
 - Explaining why Kain can touch OS and vendor surfaces without letting those surfaces own the application.
 
@@ -59,8 +67,8 @@ If those answers are fuzzy, the code will work once and rot.
 
 Kain has several layers that make native interop more than a dumb foreign call:
 
-- `include <local-header> as <alias>` is detected from source, resolved through the C FFI import lane, and tracked as alias-aware include provenance in the AST/runtime contract.
-- `use c::<module>` is detected from source and resolved through the C FFI import lane.
+- `include <local-header> as <alias>` is the canonical authored C import shape. It is detected from source, resolved through the C FFI import lane, discovers nearby companion C sources, and is tracked as alias-aware include provenance in the AST/runtime contract.
+- `use c::<module>` is detected from source and resolved through the C FFI import lane, but new local-header examples should prefer `include ... as ...` unless they are targeting runtime-owned ABI or explicit bridge metadata.
 - `use rust::<module>` is resolved through the Rust crate FFI lane.
 - Runtime-owned headers under `runtime/native/include` can resolve automatically. Do not require manifest ceremony for those.
 - Blade/package-owned bridges can declare explicit metadata when they own headers, sources, objects, static libs, bitcode, or shared libs.
@@ -78,10 +86,10 @@ underneath.
 
 Use this order:
 
-1. **Local header/source pair:** if the Kain file owns a nearby C wrapper, prefer `include native/foo.h as f`; the import lane resolves the local header, requires the sibling `.c` source for native linking, and emits alias externs such as `f_call` via `@link_name`.
+1. **Local header/source pair:** if the Kain file owns a nearby C wrapper, use `include native/foo.h as f`; this is the canonical path. The import lane resolves the local header, requires the sibling `.c` source for native linking, and emits alias externs such as `f_call` via `@link_name`.
 2. **Runtime-owned native ABI:** if the header lives under `runtime/native/include`, start with plain `use c::<name>` or the public `std.*` wrapper.
 3. **Public stdlib wrapper:** if `std.fs`, `std.net`, `std.process`, `std.graphics`, `std.ui`, `std.platform`, or `std.dcc` already expresses the need, author against `std.*` first.
-4. **Blade/package-owned bridge with explicit metadata:** if the wrapper needs non-sibling sources, objects, bitcode, static libs, link libs, defines, or vendor include paths, use `use c::<bridge>` plus `[c_ffi]` metadata near that blade/package.
+4. **Blade/package-owned bridge with explicit metadata:** if the wrapper needs non-sibling sources, objects, bitcode, static libs, link libs, defines, or vendor include paths, use `use c::<bridge>` plus `[c_ffi]` metadata near that blade/package. This is the explicit bridge path, not the default for simple local C files.
 5. **Generated import preflight:** if the header shape is unknown, run `kain import-c` to inspect what Kain can represent before hand-authoring the final facade.
 6. **Platform package lock:** if the target is a vendor/system SDK, use `kain import platform` to produce target-aware lock and generated thunk artifacts.
 7. **Rust crate or host bridge lane:** if the boundary is already owned by a Rust crate or a host bridge entrypoint, use `use rust::...`, `kain import-crate`, or `kain bridge serve` before inventing a C detour.
@@ -138,7 +146,8 @@ import smoke, then graduate to the larger lane only when the claim requires it.
 ## Natural Header Include Pattern
 
 Use this when a Kain example or package owns a nearby C wrapper and should feel
-like importing a sibling source file, not writing a manifest first:
+like importing a sibling source file, not writing a manifest first. This is the
+default pattern future examples should teach:
 
 ```kn
 include native/native_math.h as nm
@@ -146,6 +155,51 @@ include native/native_math.h as nm
 fn native_probe() -> Int:
     return nm_mix(7, 11)
 ```
+
+Literal companion-file layout:
+
+```text
+my_blade/
+  src/main.kn
+  native/native_math.h
+  native/native_math.c
+```
+
+```c
+// native/native_math.h
+#pragma once
+
+int native_math_mix(int a, int b);
+const char *native_math_label(void);
+```
+
+```c
+// native/native_math.c
+#include "native_math.h"
+
+int native_math_mix(int a, int b) {
+    return (a * 31) ^ (b * 17);
+}
+
+const char *native_math_label(void) {
+    return "native-math";
+}
+```
+
+```kn
+// src/main.kn
+include ../native/native_math.h as nm
+
+fn main() -> Int:
+    let score = nm_mix(7, 11)
+    println("C says " + nm_label() + " score=" + score)
+    return 0
+```
+
+The sibling `.c` file is not decoration. It is the implementation translation
+unit that gives the native linker real symbols. For local C interop examples,
+show both files unless the code is intentionally consuming an already-built
+library through explicit bridge metadata.
 
 The include alias is first-class provenance. The current C-FFI lane maps the
 header to an import name (`native_math`), finds `native/native_math.c`, emits the
@@ -162,7 +216,8 @@ symbols to bind.
 
 ## Default `use c::...` Pattern
 
-Runtime-owned imports should be boring:
+Runtime-owned imports should be boring. This is still supported, but it is not
+the canonical teaching pattern for local C headers:
 
 ```kn
 use c::version
@@ -176,6 +231,11 @@ fn runtime_abi_ok() -> Int:
 No TOML is required for the runtime-owned lane. If an agent adds a manifest for
 `runtime/native/include/version.h` just to make `use c::version` work, it is
 probably fighting the current pipeline.
+
+Do not write new docs or examples with `usec::...`; that spelling is deprecated
+legacy vocabulary. When encountered, migrate the design toward
+`include header.h as alias` for local C or `use c::module` for runtime/explicit
+bridge imports.
 
 ## Blade/Package Shared Bridge Pattern
 
@@ -501,7 +561,7 @@ bridge you wish existed, not a 20,000-line vendor header dump.
 
 Use these when you need implementation truth:
 
-- `crates/c-ffi/src/lib.rs`: `use c::` detection, resolution order, automatic runtime-owned headers, cache, bridge loading, native link inputs.
+- `crates/c-ffi/src/lib.rs`: canonical `include ... as ...` detection, `use c::` detection, resolution order, automatic runtime-owned headers, cache, bridge loading, native link inputs.
 - `crates/c-ffi/src/config.rs`: `[c_ffi]`, library metadata, and interop tiers.
 - `crates/c-ffi/src/extract.rs`: header parsing, regex fallback, callable/stubbed report entries, callback and named-type treatment.
 - `crates/c-ffi/src/generate.rs`: generated `.kn` module, bridge crate, binding reports, packaged bridge manifests, string and byte-buffer marshaling.
@@ -568,6 +628,8 @@ use `lang-python` for that half instead of jamming both models into one skill.
 ## Anti-Patterns
 
 - Requiring `KAIN.toml` for runtime-owned `use c::...`.
+- Teaching `use c::...` or deprecated `usec::...` as the default path for new local C wrappers when `include header.h as alias` is the canonical shape.
+- Showing a local header import without the companion `.c` source or an explicit already-built library path.
 - Copying a large package bridge as the default shape for a new native package.
 - Calling native functions everywhere instead of writing one Kain facade.
 - Returning raw pointers without length, ownership, and destroy policy.
