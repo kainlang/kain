@@ -151,6 +151,48 @@ pub fn resolve_bundled_libclang_path() -> Option<PathBuf> {
     )
 }
 
+pub fn apply_windows_msvc_link_env(command: &mut std::process::Command) {
+    #[cfg(windows)]
+    {
+        let mut search_paths = resolve_windows_msvc_link_search_paths();
+        for existing in split_env_paths("LIB") {
+            push_existing_unique_path(&mut search_paths, existing);
+        }
+        if !search_paths.is_empty() {
+            if let Ok(joined) = std::env::join_paths(search_paths) {
+                command.env("LIB", joined);
+            }
+        }
+    }
+}
+
+#[cfg(windows)]
+pub fn resolve_windows_msvc_link_search_paths() -> Vec<PathBuf> {
+    let mut paths = Vec::new();
+
+    if let Some(vc_tools_dir) = existing_env_path("VCToolsInstallDir") {
+        push_existing_unique_path(&mut paths, vc_tools_dir.join("lib").join("x64"));
+    }
+
+    if let Some(windows_sdk_dir) = env_path("WindowsSdkDir") {
+        let version = std::env::var("WindowsSDKLibVersion")
+            .ok()
+            .map(|value| value.trim().trim_end_matches('\\').trim_end_matches('/').to_string())
+            .filter(|value| !value.is_empty());
+        append_windows_sdk_lib_dirs(&mut paths, &windows_sdk_dir, version.as_deref());
+    }
+
+    append_visual_studio_msvc_lib_dirs(&mut paths);
+    append_windows_kits_lib_dirs(&mut paths);
+
+    paths
+}
+
+#[cfg(not(windows))]
+pub fn resolve_windows_msvc_link_search_paths() -> Vec<PathBuf> {
+    Vec::new()
+}
+
 pub fn is_path_within_kain_home_bin(path: &Path) -> bool {
     default_kain_install_layout()
         .map(|layout| path.starts_with(layout.bin_dir))
@@ -269,6 +311,96 @@ fn env_path(name: &str) -> Option<PathBuf> {
         return None;
     }
     Some(PathBuf::from(trimmed))
+}
+
+#[cfg(windows)]
+fn split_env_paths(name: &str) -> Vec<PathBuf> {
+    let Some(raw) = std::env::var_os(name) else {
+        return Vec::new();
+    };
+    std::env::split_paths(&raw)
+        .filter(|path| !path.as_os_str().is_empty())
+        .collect()
+}
+
+#[cfg(windows)]
+fn push_existing_unique_path(paths: &mut Vec<PathBuf>, candidate: PathBuf) {
+    if candidate.is_dir() && !paths.iter().any(|path| path == &candidate) {
+        paths.push(candidate);
+    }
+}
+
+#[cfg(windows)]
+fn discover_latest_child_dir(root: &Path) -> Option<PathBuf> {
+    let mut candidates = std::fs::read_dir(root)
+        .ok()?
+        .filter_map(|entry| entry.ok())
+        .map(|entry| entry.path())
+        .filter(|path| path.is_dir())
+        .collect::<Vec<_>>();
+    candidates.sort_by(|left, right| {
+        right
+            .file_name()
+            .unwrap_or_default()
+            .cmp(left.file_name().unwrap_or_default())
+    });
+    candidates.into_iter().next()
+}
+
+#[cfg(windows)]
+fn append_visual_studio_msvc_lib_dirs(paths: &mut Vec<PathBuf>) {
+    let mut roots = Vec::new();
+    for root in [
+        PathBuf::from(r"C:\Program Files (x86)\Microsoft Visual Studio\2022"),
+        PathBuf::from(r"C:\Program Files\Microsoft Visual Studio\2022"),
+    ] {
+        if root.is_dir() && !roots.iter().any(|value| value == &root) {
+            roots.push(root);
+        }
+    }
+
+    for root in roots {
+        for edition in ["BuildTools", "Community", "Professional", "Enterprise", "Preview"] {
+            let tools_root = root.join(edition).join("VC").join("Tools").join("MSVC");
+            if let Some(version_dir) = discover_latest_child_dir(&tools_root) {
+                push_existing_unique_path(paths, version_dir.join("lib").join("x64"));
+            }
+        }
+    }
+}
+
+#[cfg(windows)]
+fn append_windows_sdk_lib_dirs(paths: &mut Vec<PathBuf>, sdk_root: &Path, explicit_version: Option<&str>) {
+    let lib_root = sdk_root.join("Lib");
+    if !lib_root.is_dir() {
+        return;
+    }
+
+    if let Some(version) = explicit_version {
+        let version_root = lib_root.join(version);
+        if version_root.is_dir() {
+            push_existing_unique_path(paths, version_root.join("ucrt").join("x64"));
+            push_existing_unique_path(paths, version_root.join("um").join("x64"));
+            return;
+        }
+    }
+
+    if let Some(version_root) = discover_latest_child_dir(&lib_root) {
+        push_existing_unique_path(paths, version_root.join("ucrt").join("x64"));
+        push_existing_unique_path(paths, version_root.join("um").join("x64"));
+    }
+}
+
+#[cfg(windows)]
+fn append_windows_kits_lib_dirs(paths: &mut Vec<PathBuf>) {
+    for root in [
+        PathBuf::from(r"C:\Program Files (x86)\Windows Kits\10"),
+        PathBuf::from(r"C:\Program Files\Windows Kits\10"),
+    ] {
+        if root.is_dir() {
+            append_windows_sdk_lib_dirs(paths, &root, None);
+        }
+    }
 }
 
 fn existing_env_path(name: &str) -> Option<PathBuf> {

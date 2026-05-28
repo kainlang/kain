@@ -4020,6 +4020,7 @@ fn run_c_shared_library(
         kfs::create_dir_all(parent)?;
     }
     let mut command = Command::new(&clang);
+    kain_core::install_layout::apply_windows_msvc_link_env(&mut command);
     command.arg("-shared").arg("-O2");
     if !cfg!(target_os = "windows") {
         command.arg("-fPIC");

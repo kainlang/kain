@@ -1463,6 +1463,7 @@ fn run_source_with_session(
                         }
                     };
                     let mut cmd = std::process::Command::new(&clang_cmd);
+                    kain_core::install_layout::apply_windows_msvc_link_env(&mut cmd);
                     let mut runtime_link_libs = Vec::new();
                     let mut runtime_artifacts = NativeRuntimeCompiledArtifacts::default();
                     let cffi_source = session
@@ -5218,6 +5219,7 @@ fn compile_native_runtime_object(
         clear_native_runtime_object_cache_slot(cache_paths)?;
 
         let mut compile_cmd = std::process::Command::new(clang_cmd);
+        kain_core::install_layout::apply_windows_msvc_link_env(&mut compile_cmd);
         compile_cmd
             .arg("-c")
             .arg(source)
@@ -5610,6 +5612,7 @@ fn build_native_runtime_static_archive(
     }
 
     let mut command = std::process::Command::new(&archiver.command);
+    kain_core::install_layout::apply_windows_msvc_link_env(&mut command);
     match archiver.flavor {
         NativeRuntimeArchiverFlavor::GnuAr => {
             command.arg("rcs").arg(archive_path);

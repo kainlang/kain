@@ -1,216 +1,385 @@
+use std::fs
 use std::process
 use std::python
 use std::runtime
+use std::text
+use std::time
 
 import ctypes as py_ctypes
 import os as py_os
-import pathlib as py_pathlib
-import subprocess as py_subprocess
-import sys as py_sys
 import tkinter as tk
-import tkinter.ttk as ttk
 
 // ============================================================================
-//                         bazel server control panel
+//                         Kain Bazel server panel
 // ============================================================================
-// Kain owns the executable and launch policy. Python owns the native Tk widgets
-// and Windows process probes because that is the platform surface we need here.
+//
+// Kain owns the control plane here: path discovery, Bazel lifecycle, pid-file
+// truth, the event loop, and shutdown behavior. Python only owns the Tkinter
+// widget objects and the tiny callback queue bootstrap those widgets need.
 
-fn bazel_gui_bootstrap_code() -> String:
+const PROCESS_QUERY_LIMITED_INFORMATION: Int = 4096
+const STILL_ACTIVE: Int = 259
+const DEFAULT_REPO_ROOT: String = "X:/"
+const DEFAULT_OUTPUT_USER_ROOT: String = "F:/_b/output-user-root"
+const DEFAULT_OUTPUT_BASE: String = "F:/_b/output-user-root/n2kwlvv2"
+
+fn callback_bootstrap_code() -> String:
     var code = ""
-    code = code + "import ctypes\n"
-    code = code + "import os\n"
-    code = code + "import pathlib\n"
-    code = code + "import subprocess\n"
-    code = code + "import sys\n"
-    code = code + "import threading\n"
-    code = code + "import time\n"
-    code = code + "import tkinter as tk\n"
-    code = code + "from tkinter import ttk\n"
-    code = code + "\n"
-    code = code + "PROCESS_QUERY_LIMITED_INFORMATION = 0x1000\n"
-    code = code + "STILL_ACTIVE = 259\n"
-    code = code + "\n"
-    code = code + "def __kain_bazel_gui_repo_root(exe_path, cwd):\n"
-    code = code + "    candidates = []\n"
-    code = code + "    env_root = os.environ.get('KAIN_REPO_ROOT')\n"
-    code = code + "    if env_root:\n"
-    code = code + "        candidates.append(pathlib.Path(env_root))\n"
-    code = code + "    if exe_path:\n"
-    code = code + "        candidates.append(pathlib.Path(exe_path).resolve().parent)\n"
-    code = code + "    if cwd:\n"
-    code = code + "        candidates.append(pathlib.Path(cwd))\n"
-    code = code + "    for root in candidates:\n"
-    code = code + "        try:\n"
-    code = code + "            root = root.resolve()\n"
-    code = code + "        except Exception:\n"
-    code = code + "            continue\n"
-    code = code + "        if (root / 'MODULE.bazel').exists() or (root / '.git').exists():\n"
-    code = code + "            return root\n"
-    code = code + "    return pathlib.Path('X:/').resolve()\n"
-    code = code + "\n"
-    code = code + "def __kain_bazel_gui_command():\n"
-    code = code + "    override = os.environ.get('KAIN_BAZEL_COMMAND', '').strip()\n"
-    code = code + "    if override:\n"
-    code = code + "        return override\n"
-    code = code + "    for name in ('bazel', 'bazelisk'):\n"
-    code = code + "        resolved = shutil_which(name)\n"
-    code = code + "        if resolved:\n"
-    code = code + "            return resolved\n"
-    code = code + "    return 'bazel'\n"
-    code = code + "\n"
-    code = code + "def shutil_which(name):\n"
-    code = code + "    for entry in os.environ.get('PATH', '').split(os.pathsep):\n"
-    code = code + "        if not entry:\n"
-    code = code + "            continue\n"
-    code = code + "        for suffix in ('', '.exe', '.cmd', '.bat'):\n"
-    code = code + "            candidate = pathlib.Path(entry) / (name + suffix)\n"
-    code = code + "            if candidate.exists():\n"
-    code = code + "                return str(candidate)\n"
-    code = code + "    return ''\n"
-    code = code + "\n"
-    code = code + "def __kain_bazel_output_user_root(repo_root):\n"
-    code = code + "    rc = repo_root / '.bazelrc'\n"
+    code = code + "import queue\n"
+    code = code + "__kain_bazel_gui_commands = queue.Queue()\n"
+    code = code + "def __kain_bazel_gui_push(name):\n"
+    code = code + "    def _inner(*args):\n"
+    code = code + "        __kain_bazel_gui_commands.put(str(name))\n"
+    code = code + "    return _inner\n"
+    code = code + "def __kain_bazel_gui_pop():\n"
     code = code + "    try:\n"
-    code = code + "        for line in rc.read_text(encoding='utf-8').splitlines():\n"
-    code = code + "            line = line.strip()\n"
-    code = code + "            if line.startswith('startup --output_user_root='):\n"
-    code = code + "                return pathlib.Path(line.split('=', 1)[1]).resolve()\n"
-    code = code + "    except Exception:\n"
-    code = code + "        pass\n"
-    code = code + "    return pathlib.Path('F:/_b/output-user-root').resolve()\n"
-    code = code + "\n"
-    code = code + "def __kain_bazel_output_base(repo_root, bazel_cmd, start_server=False):\n"
-    code = code + "    override = os.environ.get('KAIN_BAZEL_OUTPUT_BASE', '').strip()\n"
-    code = code + "    if override:\n"
-    code = code + "        return pathlib.Path(override).resolve()\n"
-    code = code + "    if start_server:\n"
-    code = code + "        completed = subprocess.run([bazel_cmd, 'info', 'output_base', '--config=dev'], cwd=str(repo_root), text=True, capture_output=True, check=False)\n"
-    code = code + "        for line in completed.stdout.splitlines():\n"
-    code = code + "            line = line.strip()\n"
-    code = code + "            if line:\n"
-    code = code + "                return pathlib.Path(line).resolve()\n"
-    code = code + "    output_user_root = __kain_bazel_output_user_root(repo_root)\n"
-    code = code + "    candidates = []\n"
-    code = code + "    try:\n"
-    code = code + "        for child in output_user_root.iterdir():\n"
-    code = code + "            if (child / 'execroot' / '_main').exists() or (child / 'server' / 'server.pid.txt').exists():\n"
-    code = code + "                try:\n"
-    code = code + "                    candidates.append((child.stat().st_mtime, child))\n"
-    code = code + "                except Exception:\n"
-    code = code + "                    candidates.append((0, child))\n"
-    code = code + "    except Exception:\n"
-    code = code + "        pass\n"
-    code = code + "    if candidates:\n"
-    code = code + "        candidates.sort(key=lambda item: item[0], reverse=True)\n"
-    code = code + "        return candidates[0][1].resolve()\n"
-    code = code + "    return (output_user_root / 'n2kwlvv2').resolve()\n"
-    code = code + "\n"
-    code = code + "def __kain_pid_running(pid):\n"
-    code = code + "    if os.name != 'nt':\n"
-    code = code + "        return False\n"
-    code = code + "    kernel32 = ctypes.windll.kernel32\n"
-    code = code + "    handle = kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, int(pid))\n"
-    code = code + "    if not handle:\n"
-    code = code + "        return False\n"
-    code = code + "    try:\n"
-    code = code + "        exit_code = ctypes.c_ulong()\n"
-    code = code + "        if not kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code)):\n"
-    code = code + "            return False\n"
-    code = code + "        return exit_code.value == STILL_ACTIVE\n"
-    code = code + "    finally:\n"
-    code = code + "        kernel32.CloseHandle(handle)\n"
-    code = code + "\n"
-    code = code + "def __kain_read_status(output_base):\n"
-    code = code + "    pid_file = output_base / 'server' / 'server.pid.txt'\n"
-    code = code + "    if not pid_file.exists():\n"
-    code = code + "        return {'state': 'stopped', 'pid': '', 'summary': 'Bazel server is stopped', 'pid_file': str(pid_file)}\n"
-    code = code + "    try:\n"
-    code = code + "        pid = int(pid_file.read_text(encoding='utf-8').strip())\n"
-    code = code + "    except Exception:\n"
-    code = code + "        return {'state': 'stale', 'pid': '', 'summary': 'Bazel pid file is unreadable', 'pid_file': str(pid_file)}\n"
-    code = code + "    if __kain_pid_running(pid):\n"
-    code = code + "        return {'state': 'running', 'pid': str(pid), 'summary': 'Bazel server is running', 'pid_file': str(pid_file)}\n"
-    code = code + "    return {'state': 'stale', 'pid': str(pid), 'summary': 'Bazel pid file is stale', 'pid_file': str(pid_file)}\n"
-    code = code + "\n"
-    code = code + "def __kain_bazel_server_gui_main(exe_path, cwd):\n"
-    code = code + "    repo_root = __kain_bazel_gui_repo_root(exe_path, cwd)\n"
-    code = code + "    bazel_cmd = __kain_bazel_gui_command()\n"
-    code = code + "    output_base = __kain_bazel_output_base(repo_root, bazel_cmd, False)\n"
-    code = code + "    root = tk.Tk()\n"
-    code = code + "    root.title('Kain Bazel Server')\n"
-    code = code + "    root.geometry('520x270')\n"
-    code = code + "    root.minsize(480, 250)\n"
-    code = code + "    root.configure(bg='#101418')\n"
-    code = code + "    style = ttk.Style(root)\n"
-    code = code + "    try:\n"
-    code = code + "        style.theme_use('clam')\n"
-    code = code + "    except Exception:\n"
-    code = code + "        pass\n"
-    code = code + "    style.configure('TFrame', background='#101418')\n"
-    code = code + "    style.configure('Title.TLabel', background='#101418', foreground='#f2f6f8', font=('Segoe UI', 17, 'bold'))\n"
-    code = code + "    style.configure('Body.TLabel', background='#101418', foreground='#a9b7bf', font=('Segoe UI', 10))\n"
-    code = code + "    style.configure('Status.TLabel', background='#101418', foreground='#f2f6f8', font=('Segoe UI', 13, 'bold'))\n"
-    code = code + "    style.configure('TButton', font=('Segoe UI', 10), padding=(12, 7))\n"
-    code = code + "    shell = ttk.Frame(root, padding=18)\n"
-    code = code + "    shell.pack(fill='both', expand=True)\n"
-    code = code + "    title = ttk.Label(shell, text='Kain Bazel Server', style='Title.TLabel')\n"
-    code = code + "    title.pack(anchor='w')\n"
-    code = code + "    status = ttk.Label(shell, text='Checking...', style='Status.TLabel')\n"
-    code = code + "    status.pack(anchor='w', pady=(18, 4))\n"
-    code = code + "    detail = ttk.Label(shell, text='', style='Body.TLabel', wraplength=470, justify='left')\n"
-    code = code + "    detail.pack(anchor='w', fill='x')\n"
-    code = code + "    buttons = ttk.Frame(shell)\n"
-    code = code + "    buttons.pack(anchor='w', pady=(22, 0))\n"
-    code = code + "    log = ttk.Label(shell, text='', style='Body.TLabel', wraplength=470, justify='left')\n"
-    code = code + "    log.pack(anchor='w', fill='x', pady=(14, 0))\n"
-    code = code + "    def paint():\n"
-    code = code + "        state = __kain_read_status(output_base)\n"
-    code = code + "        color = {'running': '#33d17a', 'stopped': '#ff6b6b', 'stale': '#f6c85f'}.get(state['state'], '#f2f6f8')\n"
-    code = code + "        status.configure(text=state['summary'] + (('  pid ' + state['pid']) if state['pid'] else ''), foreground=color)\n"
-    code = code + "        detail.configure(text='repo: ' + str(repo_root) + '\\noutput base: ' + str(output_base))\n"
-    code = code + "        return state\n"
-    code = code + "    def threaded(label, fn):\n"
-    code = code + "        def run():\n"
-    code = code + "            root.after(0, lambda: log.configure(text=label + '...'))\n"
-    code = code + "            try:\n"
-    code = code + "                message = fn()\n"
-    code = code + "            except Exception as exc:\n"
-    code = code + "                message = type(exc).__name__ + ': ' + str(exc)\n"
-    code = code + "            root.after(0, lambda: (paint(), log.configure(text=message)))\n"
-    code = code + "        threading.Thread(target=run, daemon=True).start()\n"
-    code = code + "    def start_bazel():\n"
-    code = code + "        nonlocal output_base\n"
-    code = code + "        output_base = __kain_bazel_output_base(repo_root, bazel_cmd, True)\n"
-    code = code + "        return 'Started or contacted Bazel server.'\n"
-    code = code + "    def stop_bazel():\n"
-    code = code + "        subprocess.run([bazel_cmd, 'shutdown'], cwd=str(repo_root), text=True, capture_output=True, check=False, timeout=35)\n"
-    code = code + "        state = __kain_read_status(output_base)\n"
-    code = code + "        if state['state'] == 'running' and state['pid']:\n"
-    code = code + "            subprocess.run(['taskkill', '/PID', state['pid'], '/T', '/F'], text=True, capture_output=True, check=False)\n"
-    code = code + "            return 'Stopped Bazel server with taskkill fallback.'\n"
-    code = code + "        return 'Stopped Bazel server.'\n"
-    code = code + "    ttk.Button(buttons, text='Start Bazel', command=lambda: threaded('Starting Bazel', start_bazel)).grid(row=0, column=0, padx=(0, 8))\n"
-    code = code + "    ttk.Button(buttons, text='Stop Bazel', command=lambda: threaded('Stopping Bazel', stop_bazel)).grid(row=0, column=1, padx=(0, 8))\n"
-    code = code + "    ttk.Button(buttons, text='Refresh', command=lambda: (paint(), log.configure(text='Refreshed.'))).grid(row=0, column=2, padx=(0, 8))\n"
-    code = code + "    ttk.Button(buttons, text='Open F:/_b', command=lambda: os.startfile(str(output_base))).grid(row=0, column=3)\n"
-    code = code + "    def tick():\n"
-    code = code + "        paint()\n"
-    code = code + "        root.after(1500, tick)\n"
-    code = code + "    paint()\n"
-    code = code + "    root.after(1500, tick)\n"
-    code = code + "    root.mainloop()\n"
-    code = code + "    return 0\n"
+    code = code + "        return __kain_bazel_gui_commands.get_nowait()\n"
+    code = code + "    except queue.Empty:\n"
+    code = code + "        return ''\n"
     return code
+
+fn env_or_default(name: String, fallback: String) -> String:
+    let value = text_trim_string(process_environment(name))
+    if value != "":
+        return value
+    return fallback
+
+fn gui_trace_enabled() -> Bool:
+    return text_trim_string(process_environment("KAIN_BAZEL_GUI_TRACE")) != ""
+
+fn gui_trace(message: String):
+    if gui_trace_enabled():
+        println("[bazel-gui] " + message)
+
+fn gui_exit_after_ticks() -> Int:
+    let value = text_trim_string(process_environment("KAIN_BAZEL_GUI_EXIT_AFTER_TICKS"))
+    if value == "":
+        return -1
+    return to_int(value)
+
+fn bazel_path_join(base: String, child: String) -> String:
+    return fs_path_join(base, child)
+
+fn repo_root() -> String:
+    let env_root = text_trim_string(process_environment("KAIN_REPO_ROOT"))
+    if env_root != "":
+        return env_root
+    let cwd = process_current_working_directory()
+    if fs_exists(bazel_path_join(cwd, "MODULE.bazel")):
+        return cwd
+    let exe_parent = fs_path_parent(process_current_executable_path())
+    if fs_exists(bazel_path_join(exe_parent, "MODULE.bazel")):
+        return exe_parent
+    return DEFAULT_REPO_ROOT
+
+fn bazel_command() -> String:
+    return env_or_default("KAIN_BAZEL_COMMAND", "bazel")
+
+fn configured_output_user_root(root: String) -> String:
+    let override_value = text_trim_string(process_environment("KAIN_BAZEL_OUTPUT_USER_ROOT"))
+    if override_value != "":
+        return override_value
+    let rc_path = bazel_path_join(root, ".bazelrc")
+    if fs_exists(rc_path):
+        let lines = text_split_lines(fs_read_text(rc_path))
+        var index = 0
+        while index < len(lines):
+            let line_value = text_trim_string(lines[index])
+            let prefix = "startup --output_user_root="
+            if text_starts_with_string(line_value, prefix):
+                return text_substring_string(line_value, len(prefix), len(line_value) - len(prefix))
+            index = index + 1
+    return DEFAULT_OUTPUT_USER_ROOT
+
+fn newest_output_base_under(root: String) -> String:
+    let output_user_root = configured_output_user_root(root)
+    if fs_is_dir(output_user_root):
+        let children = fs_read_dir(output_user_root)
+        var best_path = ""
+        var best_mtime = -1
+        var index = 0
+        while index < len(children):
+            let child = children[index]
+            let server_pid = bazel_path_join(bazel_path_join(child.path, "server"), "server.pid.txt")
+            let execroot = bazel_path_join(bazel_path_join(child.path, "execroot"), "_main")
+            if fs_exists(server_pid) or fs_is_dir(execroot):
+                if child.metadata.modified_millis > best_mtime:
+                    best_path = child.path
+                    best_mtime = child.metadata.modified_millis
+            index = index + 1
+        if best_path != "":
+            return best_path
+    return DEFAULT_OUTPUT_BASE
+
+fn output_base(root: String) -> String:
+    let override_value = text_trim_string(process_environment("KAIN_BAZEL_OUTPUT_BASE"))
+    if override_value != "":
+        return override_value
+    return newest_output_base_under(root)
+
+fn run_repo_command(root: String, executable: String, args: Array<String>, timeout_ms: Int, pipe: Bool) -> Int:
+    let spec = process_spec_create(executable)
+    let _cwd = process_spec_set_cwd(spec, root)
+    let _env = process_spec_set_inherit_environment(spec, 1)
+    if pipe:
+        let _stdio = process_spec_set_pipe_stdio(spec)
+    else:
+        let _stdio = process_spec_set_stdio_modes(spec, process_stdio_null(), process_stdio_null(), process_stdio_null())
+    var index = 0
+    while index < len(args):
+        let _arg = process_spec_add_arg(spec, args[index])
+        index = index + 1
+    let child = process_spawn(spec)
+    if child < 0:
+        let _destroy_fail = process_spec_destroy(spec)
+        return -1
+    let _wait = process_wait(child, timeout_ms)
+    if pipe:
+        let _stdout = process_stdout_capture_text(child)
+        let _stderr = process_stderr_capture_text(child)
+    let code = process_exit_code(child)
+    let _close = process_close(child)
+    let _destroy = process_spec_destroy(spec)
+    return code
+
+fn start_bazel_server(root: String, command: String) -> String:
+    let status = run_repo_command(root, command, ["info", "output_base", "--config=dev"], 35000, true)
+    if status == 0:
+        return "Bazel contacted. Server should now be warm."
+    return "Bazel start/contact returned status " + to_string(status) + "."
+
+fn stop_bazel_server(root: String, command: String, pid: Int, state: String) -> String:
+    let status = run_repo_command(root, command, ["shutdown"], 35000, true)
+    if status == 0:
+        return "Bazel shutdown completed."
+    if state == "running" and pid > 0:
+        let kill_status = run_repo_command(root, "taskkill", ["/PID", to_string(pid), "/T", "/F"], 15000, true)
+        return "Bazel shutdown returned " + to_string(status) + "; taskkill returned " + to_string(kill_status) + "."
+    return "Bazel shutdown returned status " + to_string(status) + "."
+
+fn pid_is_running(pid: Int) -> Bool:
+    if pid <= 0:
+        return false
+    let windll = python_getattr_raw(py_ctypes, "windll")
+    let kernel32 = python_getattr_raw(windll, "kernel32")
+    let handle = to_int(python_call_attr_raw(kernel32, "OpenProcess", [PROCESS_QUERY_LIMITED_INFORMATION, false, pid]))
+    if handle == 0:
+        return false
+    let exit_code = python_call_attr_raw(py_ctypes, "c_ulong", [])
+    let exit_ref = python_call_attr_raw(py_ctypes, "byref", [exit_code])
+    let ok = to_int(python_call_attr_raw(kernel32, "GetExitCodeProcess", [handle, exit_ref]))
+    let _close = python_call_attr_raw(kernel32, "CloseHandle", [handle])
+    if ok == 0:
+        return false
+    return to_int(python_getattr_raw(exit_code, "value")) == STILL_ACTIVE
+
+fn bazel_pid_file(base: String) -> String:
+    return bazel_path_join(bazel_path_join(base, "server"), "server.pid.txt")
+
+fn bazel_pid(base: String) -> Int:
+    let pid_file = bazel_pid_file(base)
+    if fs_exists(pid_file) == false:
+        return 0
+    let raw_pid = text_trim_string(fs_read_text(pid_file))
+    if raw_pid == "":
+        return 0
+    return to_int(raw_pid)
+
+fn bazel_state(base: String) -> String:
+    let pid_file = bazel_pid_file(base)
+    if fs_exists(pid_file) == false:
+        return "stopped"
+    let pid = bazel_pid(base)
+    if pid <= 0:
+        return "stale"
+    if pid_is_running(pid):
+        return "running"
+    return "stale"
+
+fn bazel_summary(base: String) -> String:
+    let status_state = bazel_state(base)
+    if status_state == "running":
+        return "Bazel server is running"
+    if status_state == "stale":
+        let pid_file = bazel_pid_file(base)
+        if fs_exists(pid_file):
+            if bazel_pid(base) <= 0:
+                return "Bazel pid file is empty"
+            return "Bazel pid file is stale"
+    return "Bazel server is stopped"
+
+fn status_color(state: String) -> String:
+    if state == "running":
+        return "#33d17a"
+    if state == "stale":
+        return "#f6c85f"
+    return "#ff6b6b"
 
 fn main() -> Int:
     let boot = runtime_init()
     if boot != 0:
         return 100 + boot
 
-    python_exec(bazel_gui_bootstrap_code())
-    let result = python_call_raw("__kain_bazel_server_gui_main", [process_current_executable_path(), process_current_working_directory()])
+    gui_trace("main:start")
+    python_exec(callback_bootstrap_code())
+    gui_trace("callback_bootstrap:done")
+
+    let root_path = repo_root()
+    var base = output_base(root_path)
+    gui_trace("paths: root=" + root_path + " base=" + base)
+
+    gui_trace("root:create")
+    let root = python_call_attr_raw(tk, "Tk", [])
+    gui_trace("root:title")
+    let _title = python_call_attr_raw(root, "title", ["Kain Bazel Server"])
+    gui_trace("root:geometry")
+    let _geometry = python_call_attr_raw(root, "geometry", ["520x270"])
+    gui_trace("root:minsize")
+    let _minsize = python_call_attr_raw(root, "minsize", [480, 250])
+    gui_trace("root:built")
+
+    let close_command = python_call_raw("__kain_bazel_gui_push", ["exit"])
+    gui_trace("root:protocol")
+    let _close_hook = python_call_attr_raw(root, "protocol", ["WM_DELETE_WINDOW", close_command])
+
+    gui_trace("shell:create")
+    let shell = python_call_attr_raw(tk, "Frame", [root])
+    gui_trace("shell:pack")
+    let _shell_pack = python_call_attr_raw(shell, "pack", [])
+
+    gui_trace("title_label:create")
+    let title_label = python_call_attr_raw(tk, "Label", [shell])
+    let _title_text = python_call_attr_raw(title_label, "__setitem__", ["text", "Kain Bazel Server"])
+    let _title_justify = python_call_attr_raw(title_label, "__setitem__", ["justify", "left"])
+    let _title_wrap = python_call_attr_raw(title_label, "__setitem__", ["wraplength", 470])
+    let _title_font = python_call_attr_raw(title_label, "__setitem__", ["font", ["Segoe UI", 17, "bold"]])
+    let _title_pack = python_call_attr_raw(title_label, "pack", [])
+    gui_trace("status_label:create")
+    let status_label = python_call_attr_raw(tk, "Label", [shell])
+    let _status_text = python_call_attr_raw(status_label, "__setitem__", ["text", "Checking..."])
+    let _status_justify = python_call_attr_raw(status_label, "__setitem__", ["justify", "left"])
+    let _status_wrap = python_call_attr_raw(status_label, "__setitem__", ["wraplength", 470])
+    let _status_font = python_call_attr_raw(status_label, "__setitem__", ["font", ["Segoe UI", 13, "bold"]])
+    let _status_pack = python_call_attr_raw(status_label, "pack", [])
+    gui_trace("detail_label:create")
+    let detail_label = python_call_attr_raw(tk, "Label", [shell])
+    let _detail_text = python_call_attr_raw(detail_label, "__setitem__", ["text", ""])
+    let _detail_justify = python_call_attr_raw(detail_label, "__setitem__", ["justify", "left"])
+    let _detail_wrap = python_call_attr_raw(detail_label, "__setitem__", ["wraplength", 470])
+    let _detail_font = python_call_attr_raw(detail_label, "__setitem__", ["font", ["Segoe UI", 10, "normal"]])
+    let _detail_pack = python_call_attr_raw(detail_label, "pack", [])
+
+    gui_trace("buttons:create")
+    let buttons = python_call_attr_raw(tk, "Frame", [shell])
+    gui_trace("buttons:pack")
+    let _buttons_pack = python_call_attr_raw(buttons, "pack", [])
+
+    gui_trace("start_button:create")
+    let start_button = python_call_attr_raw(tk, "Button", [buttons])
+    let start_callback = python_call_raw("__kain_bazel_gui_push", ["start"])
+    let _start_text = python_call_attr_raw(start_button, "__setitem__", ["text", "Start Bazel"])
+    let _start_command = python_call_attr_raw(start_button, "__setitem__", ["command", start_callback])
+    let _start_padx = python_call_attr_raw(start_button, "__setitem__", ["padx", 12])
+    let _start_pady = python_call_attr_raw(start_button, "__setitem__", ["pady", 7])
+    let _start_pack = python_call_attr_raw(start_button, "pack", [])
+    gui_trace("stop_button:create")
+    let stop_button = python_call_attr_raw(tk, "Button", [buttons])
+    let stop_callback = python_call_raw("__kain_bazel_gui_push", ["stop"])
+    let _stop_text = python_call_attr_raw(stop_button, "__setitem__", ["text", "Stop Bazel"])
+    let _stop_command = python_call_attr_raw(stop_button, "__setitem__", ["command", stop_callback])
+    let _stop_padx = python_call_attr_raw(stop_button, "__setitem__", ["padx", 12])
+    let _stop_pady = python_call_attr_raw(stop_button, "__setitem__", ["pady", 7])
+    let _stop_pack = python_call_attr_raw(stop_button, "pack", [])
+    gui_trace("refresh_button:create")
+    let refresh_button = python_call_attr_raw(tk, "Button", [buttons])
+    let refresh_callback = python_call_raw("__kain_bazel_gui_push", ["refresh"])
+    let _refresh_text = python_call_attr_raw(refresh_button, "__setitem__", ["text", "Refresh"])
+    let _refresh_command = python_call_attr_raw(refresh_button, "__setitem__", ["command", refresh_callback])
+    let _refresh_padx = python_call_attr_raw(refresh_button, "__setitem__", ["padx", 12])
+    let _refresh_pady = python_call_attr_raw(refresh_button, "__setitem__", ["pady", 7])
+    let _refresh_pack = python_call_attr_raw(refresh_button, "pack", [])
+    gui_trace("open_button:create")
+    let open_button = python_call_attr_raw(tk, "Button", [buttons])
+    let open_callback = python_call_raw("__kain_bazel_gui_push", ["open"])
+    let _open_text = python_call_attr_raw(open_button, "__setitem__", ["text", "Open F:/_b"])
+    let _open_command = python_call_attr_raw(open_button, "__setitem__", ["command", open_callback])
+    let _open_padx = python_call_attr_raw(open_button, "__setitem__", ["padx", 12])
+    let _open_pady = python_call_attr_raw(open_button, "__setitem__", ["pady", 7])
+    let _open_pack = python_call_attr_raw(open_button, "pack", [])
+
+    gui_trace("log_label:create")
+    let log_label = python_call_attr_raw(tk, "Label", [shell])
+    let _log_text = python_call_attr_raw(log_label, "__setitem__", ["text", ""])
+    let _log_justify = python_call_attr_raw(log_label, "__setitem__", ["justify", "left"])
+    let _log_wrap = python_call_attr_raw(log_label, "__setitem__", ["wraplength", 470])
+    let _log_font = python_call_attr_raw(log_label, "__setitem__", ["font", ["Segoe UI", 10, "normal"]])
+    let _log_pack = python_call_attr_raw(log_label, "pack", [])
+    gui_trace("widgets:built")
+
+    let exit_after_ticks = gui_exit_after_ticks()
+    var running = true
+    var tick = 0
+    while running:
+        if exit_after_ticks >= 0 and tick >= exit_after_ticks:
+            gui_trace("loop:exit_after_ticks")
+            break
+
+        let command = to_string(python_call_raw("__kain_bazel_gui_pop", []))
+        gui_trace("loop:command=" + command)
+        if command == "exit":
+            running = false
+        else:
+            if command == "start":
+                let _log_start = python_call_attr_raw(
+                    log_label,
+                    "__setitem__",
+                    ["text", start_bazel_server(root_path, bazel_command())]
+                )
+                base = output_base(root_path)
+            else:
+                if command == "stop":
+                    let _log_stop = python_call_attr_raw(
+                        log_label,
+                        "__setitem__",
+                        ["text", stop_bazel_server(root_path, bazel_command(), bazel_pid(base), bazel_state(base))]
+                    )
+                else:
+                    if command == "refresh":
+                        let _log_refresh = python_call_attr_raw(log_label, "__setitem__", ["text", "Refreshed."])
+                    else:
+                        if command == "open":
+                            let _open = python_call_attr_raw(py_os, "startfile", [base])
+                            let _log_open = python_call_attr_raw(log_label, "__setitem__", ["text", "Opened " + base + "."])
+
+        if running == false:
+            gui_trace("loop:stop")
+            break
+
+        if tick == 0:
+            gui_trace("loop:paint")
+            let status_state = bazel_state(base)
+            let pid = bazel_pid(base)
+            var text_value = bazel_summary(base)
+            if pid > 0:
+                text_value = text_value + "  pid " + to_string(pid)
+            let _status_text_paint = python_call_attr_raw(status_label, "__setitem__", ["text", text_value])
+            let _status_fg_paint = python_call_attr_raw(status_label, "__setitem__", ["fg", status_color(status_state)])
+            let _detail_text_paint = python_call_attr_raw(
+                detail_label,
+                "__setitem__",
+                ["text", "repo: " + root_path + "\noutput base: " + base + "\npid file: " + bazel_pid_file(base)]
+            )
+            gui_trace("loop:paint_done")
+
+        let _update = python_call_attr_raw(root, "update", [])
+        gui_trace("loop:update_done")
+        sleep_millis(120)
+        tick = (tick + 1) % 8
+
+    gui_trace("main:destroy")
+    let _destroy = python_call_attr_raw(root, "destroy", [])
     let shutdown = runtime_shutdown()
     if shutdown != 0:
         return 200 + shutdown
-    return to_int(result)
+    gui_trace("main:done")
+    return 0

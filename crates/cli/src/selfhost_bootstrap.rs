@@ -930,6 +930,7 @@ fn link_native_output(
     }
 
     let mut command = Command::new(&clang);
+    kain_core::install_layout::apply_windows_msvc_link_env(&mut command);
     if backend == BootstrapBackend::C {
         command.arg("-std=c11");
     }

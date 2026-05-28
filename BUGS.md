@@ -223,3 +223,14 @@
 - Fix landed: raw scalar materialization now returns tagged bool/int values, and `kain_py_type_tag_matches` verifies `kain_rc_is_tracked_pointer(ptr)` before reading the RC header.
 - Z3 Proof: [native-python-scalar-tagged-handle-guard.yaml](/X:/runtime/native/src/core/z3/proofs/native-python-scalar-tagged-handle-guard.yaml)
 - Regression evidence: direct Kain probe crossing the old crash value (`Future.result()` returning values through `24`), `kain check benchmark/cases_v2/python_stdlib_fused.kn --target llvm`, and filtered v2 benchmark run `KAIN_BENCH_V2_FILTER=python_stdlib ... kain run X:\benchmark --target llvm --json` with all four rows `status=ok`.
+
+### Native LLVM exes can crash when Python host objects cross helper-function boundaries
+- Categories: runtime, interop, crash, codegen
+- Severity: High
+- Status: Active workaround in tree (2026-05-28)
+- Surface: native Python bridge / authored Kain / LLVM executable lane
+- Trigger: Passing a live Python host object through a Kain helper boundary, even for simple widget operations such as `pack(widget)` or `set_item(widget, "text", "...")`, inside a compiled native exe.
+- Symptom: The process exits with `0x80000003` during otherwise valid Tkinter work. The same host-object operations survive when invoked inline in one Kain scope, and the same Python modules (`math`, `tkinter`) import and execute correctly.
+- Minimal repro: A native LLVM program that creates `let frame = python_call_attr_raw(tk, "Frame", [root])`, then calls a helper like `fn pack(target: Any): python_call_attr_raw(target, "pack", [])`; compiled exe crashes, while direct `python_call_attr_raw(frame, "pack", [])` survives.
+- Evidence: `X:\bazel_server_gui.kn` originally crashed before first paint whenever Tk widgets were created and manipulated through helper functions returning or accepting `Any`; flattening the same operations inline made the exe survive a real 5-second GUI smoke. Inline repros also showed `Tk()`, `Frame()`, `Button()`, callbacks, ctypes pid probes, and queue bootstrap all surviving when the host-object calls stayed in one scope.
+- Suggested direction: Audit Python-host-object ownership and retain/release semantics when `Any` values cross Kain function-call boundaries on the LLVM lane. The current authored workaround is to keep Python host-object mutation and method calls inline instead of routing them through Kain helper functions.
