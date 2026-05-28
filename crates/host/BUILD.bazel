@@ -80,14 +80,15 @@ rust_test(
         "//crates/host-derive:kain-host-derive",
     ] + all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,
-    force_all_deps_direct = True,
 )
 
 rust_test(
     name = "derive_roundtrip_test",
     crate_name = "derive_roundtrip",
     crate_root = "tests/derive_roundtrip.rs",
-    srcs = glob(["src/**/*.rs", "tests/**/*.rs"]),
+    srcs = [
+        "tests/derive_roundtrip.rs",
+    ],
     edition = "2021",
     crate_features = [
         "derive",
@@ -113,7 +114,6 @@ rust_test(
         "//crates/host-derive:kain-host-derive",
     ] + all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,
-    force_all_deps_direct = True,
     tags = [
         "manual",
     ],

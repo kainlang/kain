@@ -50,14 +50,15 @@ rust_test(
     ] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,
-    force_all_deps_direct = True,
 )
 
 rust_test(
     name = "c_codegen_test_test",
     crate_name = "c_codegen_test",
     crate_root = "tests/c_codegen_test.rs",
-    srcs = glob(["src/**/*.rs", "tests/**/*.rs"]),
+    srcs = [
+        "tests/c_codegen_test.rs",
+    ],
     edition = "2021",
     aliases = aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
     deps = [
@@ -68,7 +69,6 @@ rust_test(
     ] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,
-    force_all_deps_direct = True,
     tags = [
         "manual",
     ],
@@ -78,7 +78,9 @@ rust_test(
     name = "cpp_helper_documentation_test_test",
     crate_name = "cpp_helper_documentation_test",
     crate_root = "tests/cpp_helper_documentation_test.rs",
-    srcs = glob(["src/**/*.rs", "tests/**/*.rs"]),
+    srcs = [
+        "tests/cpp_helper_documentation_test.rs",
+    ],
     edition = "2021",
     aliases = aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
     deps = [
@@ -89,7 +91,6 @@ rust_test(
     ] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,
-    force_all_deps_direct = True,
     tags = [
         "manual",
     ],
@@ -99,7 +100,9 @@ rust_test(
     name = "gpu_artifacts_test_test",
     crate_name = "gpu_artifacts_test",
     crate_root = "tests/gpu_artifacts_test.rs",
-    srcs = glob(["src/**/*.rs", "tests/**/*.rs"]),
+    srcs = [
+        "tests/gpu_artifacts_test.rs",
+    ],
     edition = "2021",
     aliases = aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
     deps = [
@@ -110,7 +113,6 @@ rust_test(
     ] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,
-    force_all_deps_direct = True,
     tags = [
         "manual",
     ],
@@ -120,7 +122,9 @@ rust_test(
     name = "llvm_codegen_test_test",
     crate_name = "llvm_codegen_test",
     crate_root = "tests/llvm_codegen_test.rs",
-    srcs = glob(["src/**/*.rs", "tests/**/*.rs"]),
+    srcs = [
+        "tests/llvm_codegen_test.rs",
+    ],
     edition = "2021",
     aliases = aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
     deps = [
@@ -131,7 +135,6 @@ rust_test(
     ] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,
-    force_all_deps_direct = True,
     tags = [
         "manual",
     ],

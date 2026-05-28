@@ -54,14 +54,15 @@ rust_test(
     deps = all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,
-    force_all_deps_direct = True,
 )
 
 rust_test(
     name = "bitvec_test",
     crate_name = "bitvec",
     crate_root = "tests/bitvec.rs",
-    srcs = glob(["src/**/*.rs", "tests/**/*.rs"]),
+    srcs = [
+        "tests/bitvec.rs",
+    ],
     edition = "2021",
     crate_features = [
         "bitvec",
@@ -75,7 +76,6 @@ rust_test(
     ] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,
-    force_all_deps_direct = True,
     tags = [
         "manual",
     ],
@@ -85,7 +85,9 @@ rust_test(
     name = "bool_test",
     crate_name = "bool",
     crate_root = "tests/bool.rs",
-    srcs = glob(["src/**/*.rs", "tests/**/*.rs"]),
+    srcs = [
+        "tests/bool.rs",
+    ],
     edition = "2021",
     crate_features = [
         "bitvec",
@@ -99,7 +101,6 @@ rust_test(
     ] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,
-    force_all_deps_direct = True,
     tags = [
         "manual",
     ],
@@ -109,7 +110,9 @@ rust_test(
     name = "fstring_test",
     crate_name = "fstring",
     crate_root = "tests/fstring.rs",
-    srcs = glob(["src/**/*.rs", "tests/**/*.rs"]),
+    srcs = [
+        "tests/fstring.rs",
+    ],
     edition = "2021",
     crate_features = [
         "bitvec",
@@ -123,7 +126,6 @@ rust_test(
     ] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,
-    force_all_deps_direct = True,
     tags = [
         "manual",
     ],
@@ -133,7 +135,9 @@ rust_test(
     name = "path_test",
     crate_name = "path",
     crate_root = "tests/path.rs",
-    srcs = glob(["src/**/*.rs", "tests/**/*.rs"]),
+    srcs = [
+        "tests/path.rs",
+    ],
     edition = "2021",
     crate_features = [
         "bitvec",
@@ -147,7 +151,6 @@ rust_test(
     ] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,
-    force_all_deps_direct = True,
     tags = [
         "manual",
     ],

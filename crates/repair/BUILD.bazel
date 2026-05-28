@@ -42,14 +42,15 @@ rust_test(
     deps = all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,
-    force_all_deps_direct = True,
 )
 
 rust_test(
     name = "repair_fixtures_test",
     crate_name = "repair_fixtures",
     crate_root = "tests/repair_fixtures.rs",
-    srcs = glob(["src/**/*.rs", "tests/**/*.rs"]),
+    srcs = [
+        "tests/repair_fixtures.rs",
+    ],
     edition = "2021",
     aliases = aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
     deps = [
@@ -57,7 +58,6 @@ rust_test(
     ] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,
-    force_all_deps_direct = True,
     tags = [
         "manual",
     ],

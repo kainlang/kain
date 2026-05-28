@@ -62,7 +62,7 @@ def declare_kain_public_targets(target_prefix = ""):
     """Emit the shared public Rust alias and test-suite surface.
 
     Args:
-        target_prefix: Optional repository prefix, such as `@kain_workspace_rust`.
+        target_prefix: Optional repository prefix (legacy; kept empty for in-tree targets).
     """
     for name, actual in sorted(_RUST_PUBLIC_ALIASES.items()):
         native.alias(

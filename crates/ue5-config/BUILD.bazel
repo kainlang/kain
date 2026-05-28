@@ -48,14 +48,15 @@ rust_test(
     ] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,
-    force_all_deps_direct = True,
 )
 
 rust_test(
     name = "blueprint_accessor_tests_test",
     crate_name = "blueprint_accessor_tests",
     crate_root = "tests/blueprint_accessor_tests.rs",
-    srcs = glob(["src/**/*.rs", "tests/**/*.rs"]),
+    srcs = [
+        "tests/blueprint_accessor_tests.rs",
+    ],
     edition = "2021",
     aliases = aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
     deps = [
@@ -65,7 +66,6 @@ rust_test(
     ] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,
-    force_all_deps_direct = True,
     tags = [
         "manual",
     ],
@@ -75,7 +75,9 @@ rust_test(
     name = "config_ir_tests_test",
     crate_name = "config_ir_tests",
     crate_root = "tests/config_ir_tests.rs",
-    srcs = glob(["src/**/*.rs", "tests/**/*.rs"]),
+    srcs = [
+        "tests/config_ir_tests.rs",
+    ],
     edition = "2021",
     aliases = aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
     deps = [
@@ -85,7 +87,6 @@ rust_test(
     ] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,
-    force_all_deps_direct = True,
     tags = [
         "manual",
     ],
@@ -95,7 +96,9 @@ rust_test(
     name = "cvar_tests_test",
     crate_name = "cvar_tests",
     crate_root = "tests/cvar_tests.rs",
-    srcs = glob(["src/**/*.rs", "tests/**/*.rs"]),
+    srcs = [
+        "tests/cvar_tests.rs",
+    ],
     edition = "2021",
     aliases = aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
     deps = [
@@ -105,7 +108,6 @@ rust_test(
     ] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,
-    force_all_deps_direct = True,
     tags = [
         "manual",
     ],
@@ -115,7 +117,9 @@ rust_test(
     name = "developer_settings_tests_test",
     crate_name = "developer_settings_tests",
     crate_root = "tests/developer_settings_tests.rs",
-    srcs = glob(["src/**/*.rs", "tests/**/*.rs"]),
+    srcs = [
+        "tests/developer_settings_tests.rs",
+    ],
     edition = "2021",
     aliases = aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
     deps = [
@@ -125,7 +129,6 @@ rust_test(
     ] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,
-    force_all_deps_direct = True,
     tags = [
         "manual",
     ],
@@ -135,7 +138,9 @@ rust_test(
     name = "ini_file_tests_test",
     crate_name = "ini_file_tests",
     crate_root = "tests/ini_file_tests.rs",
-    srcs = glob(["src/**/*.rs", "tests/**/*.rs"]),
+    srcs = [
+        "tests/ini_file_tests.rs",
+    ],
     edition = "2021",
     aliases = aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
     deps = [
@@ -145,7 +150,6 @@ rust_test(
     ] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,
-    force_all_deps_direct = True,
     tags = [
         "manual",
     ],
@@ -155,7 +159,9 @@ rust_test(
     name = "integration_tests_test",
     crate_name = "integration_tests",
     crate_root = "tests/integration_tests.rs",
-    srcs = glob(["src/**/*.rs", "tests/**/*.rs"]),
+    srcs = [
+        "tests/integration_tests.rs",
+    ],
     edition = "2021",
     aliases = aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
     deps = [
@@ -165,7 +171,6 @@ rust_test(
     ] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,
-    force_all_deps_direct = True,
     tags = [
         "manual",
     ],
@@ -175,7 +180,9 @@ rust_test(
     name = "parser_tests_test",
     crate_name = "parser_tests",
     crate_root = "tests/parser_tests.rs",
-    srcs = glob(["src/**/*.rs", "tests/**/*.rs"]),
+    srcs = [
+        "tests/parser_tests.rs",
+    ],
     edition = "2021",
     aliases = aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
     deps = [
@@ -185,7 +192,6 @@ rust_test(
     ] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,
-    force_all_deps_direct = True,
     tags = [
         "manual",
     ],

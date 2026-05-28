@@ -3,7 +3,7 @@ load("//tools/bazel:kain_public_targets.bzl", "declare_kain_public_targets")
 
 package(default_visibility = ["//visibility:public"])
 
-declare_kain_public_targets(target_prefix = "@kain_workspace_rust")
+declare_kain_public_targets()
 
 alias(
     name = "stdlib_map_check",

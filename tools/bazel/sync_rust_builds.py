@@ -448,7 +448,6 @@ def render_unit_test(
             "all_crate_deps(proc_macro = True, proc_macro_dev = True)",
         ),
         "compile_data": "COMMON_COMPILE_DATA",
-        "force_all_deps_direct": True,
     }
     return render_rule("rust_test", attrs)
 
@@ -531,7 +530,7 @@ def render_integration_test(
         "name": string_literal(f"{target.name}_test"),
         "crate_name": string_literal(target.name),
         "crate_root": relpath(target.src_path, package.directory),
-        "srcs": 'glob(["src/**/*.rs", "tests/**/*.rs"])',
+        "srcs": [str(target.src_path.relative_to(package.directory)).replace(os.sep, "/")],
         "edition": string_literal(target.edition),
         "crate_features": workspace_features[package.directory],
         "aliases": "aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True)",
@@ -547,7 +546,6 @@ def render_integration_test(
             "all_crate_deps(proc_macro = True, proc_macro_dev = True)",
         ),
         "compile_data": "COMMON_COMPILE_DATA",
-        "force_all_deps_direct": True,
         "tags": ["manual"],
     }
     return render_rule("rust_test", attrs)

@@ -60,14 +60,15 @@ rust_test(
     ] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,
-    force_all_deps_direct = True,
 )
 
 rust_test(
     name = "c_abi_conformance_test",
     crate_name = "c_abi_conformance",
     crate_root = "tests/c_abi_conformance.rs",
-    srcs = glob(["src/**/*.rs", "tests/**/*.rs"]),
+    srcs = [
+        "tests/c_abi_conformance.rs",
+    ],
     edition = "2021",
     crate_features = [
         "c",
@@ -83,7 +84,6 @@ rust_test(
     ] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,
-    force_all_deps_direct = True,
     tags = [
         "manual",
     ],
@@ -93,7 +93,9 @@ rust_test(
     name = "c_abi_corpus_test",
     crate_name = "c_abi_corpus",
     crate_root = "tests/c_abi_corpus.rs",
-    srcs = glob(["src/**/*.rs", "tests/**/*.rs"]),
+    srcs = [
+        "tests/c_abi_corpus.rs",
+    ],
     edition = "2021",
     crate_features = [
         "c",
@@ -109,7 +111,6 @@ rust_test(
     ] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,
-    force_all_deps_direct = True,
     tags = [
         "manual",
     ],

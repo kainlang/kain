@@ -142,7 +142,6 @@ rust_test(
     ] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,
-    force_all_deps_direct = True,
 )
 
 rust_binary(
@@ -199,7 +198,6 @@ rust_binary(
     ] + all_crate_deps(normal = True),
     proc_macro_deps = all_crate_deps(proc_macro = True),
     compile_data = COMMON_COMPILE_DATA,
-    force_all_deps_direct = True,
 )
 
 rust_binary(
@@ -256,14 +254,15 @@ rust_binary(
     ] + all_crate_deps(normal = True),
     proc_macro_deps = all_crate_deps(proc_macro = True),
     compile_data = COMMON_COMPILE_DATA,
-    force_all_deps_direct = True,
 )
 
 rust_test(
     name = "codegen_verify_test",
     crate_name = "codegen_verify",
     crate_root = "tests/codegen_verify.rs",
-    srcs = glob(["src/**/*.rs", "tests/**/*.rs"]),
+    srcs = [
+        "tests/codegen_verify.rs",
+    ],
     edition = "2021",
     crate_features = [
         "gpu",
@@ -313,7 +312,6 @@ rust_test(
     ] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,
-    force_all_deps_direct = True,
     tags = [
         "manual",
     ],
@@ -323,7 +321,9 @@ rust_test(
     name = "dependency_resolver_test_test",
     crate_name = "dependency_resolver_test",
     crate_root = "tests/dependency_resolver_test.rs",
-    srcs = glob(["src/**/*.rs", "tests/**/*.rs"]),
+    srcs = [
+        "tests/dependency_resolver_test.rs",
+    ],
     edition = "2021",
     crate_features = [
         "gpu",
@@ -373,7 +373,6 @@ rust_test(
     ] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,
-    force_all_deps_direct = True,
     tags = [
         "manual",
     ],
@@ -383,7 +382,9 @@ rust_test(
     name = "factory_plugin_compilation_bug_test_test",
     crate_name = "factory_plugin_compilation_bug_test",
     crate_root = "tests/factory_plugin_compilation_bug_test.rs",
-    srcs = glob(["src/**/*.rs", "tests/**/*.rs"]),
+    srcs = [
+        "tests/factory_plugin_compilation_bug_test.rs",
+    ],
     edition = "2021",
     crate_features = [
         "gpu",
@@ -433,7 +434,6 @@ rust_test(
     ] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,
-    force_all_deps_direct = True,
     tags = [
         "manual",
     ],
@@ -443,7 +443,9 @@ rust_test(
     name = "factory_plugin_preservation_test_test",
     crate_name = "factory_plugin_preservation_test",
     crate_root = "tests/factory_plugin_preservation_test.rs",
-    srcs = glob(["src/**/*.rs", "tests/**/*.rs"]),
+    srcs = [
+        "tests/factory_plugin_preservation_test.rs",
+    ],
     edition = "2021",
     crate_features = [
         "gpu",
@@ -493,7 +495,6 @@ rust_test(
     ] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,
-    force_all_deps_direct = True,
     tags = [
         "manual",
     ],
@@ -503,7 +504,9 @@ rust_test(
     name = "import_asm_test_test",
     crate_name = "import_asm_test",
     crate_root = "tests/import_asm_test.rs",
-    srcs = glob(["src/**/*.rs", "tests/**/*.rs"]),
+    srcs = [
+        "tests/import_asm_test.rs",
+    ],
     edition = "2021",
     crate_features = [
         "gpu",
@@ -553,7 +556,6 @@ rust_test(
     ] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,
-    force_all_deps_direct = True,
     tags = [
         "manual",
     ],
@@ -563,7 +565,9 @@ rust_test(
     name = "launcher_kn_test_test",
     crate_name = "launcher_kn_test",
     crate_root = "tests/launcher_kn_test.rs",
-    srcs = glob(["src/**/*.rs", "tests/**/*.rs"]),
+    srcs = [
+        "tests/launcher_kn_test.rs",
+    ],
     edition = "2021",
     crate_features = [
         "gpu",
@@ -613,7 +617,6 @@ rust_test(
     ] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,
-    force_all_deps_direct = True,
     tags = [
         "manual",
     ],
@@ -623,7 +626,9 @@ rust_test(
     name = "packager_regression_fixtures_test",
     crate_name = "packager_regression_fixtures",
     crate_root = "tests/packager_regression_fixtures.rs",
-    srcs = glob(["src/**/*.rs", "tests/**/*.rs"]),
+    srcs = [
+        "tests/packager_regression_fixtures.rs",
+    ],
     edition = "2021",
     crate_features = [
         "gpu",
@@ -673,7 +678,6 @@ rust_test(
     ] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,
-    force_all_deps_direct = True,
     tags = [
         "manual",
     ],
@@ -683,7 +687,9 @@ rust_test(
     name = "test_uplugin_shader_support_test",
     crate_name = "test_uplugin_shader_support",
     crate_root = "tests/test_uplugin_shader_support.rs",
-    srcs = glob(["src/**/*.rs", "tests/**/*.rs"]),
+    srcs = [
+        "tests/test_uplugin_shader_support.rs",
+    ],
     edition = "2021",
     crate_features = [
         "gpu",
@@ -733,7 +739,6 @@ rust_test(
     ] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,
-    force_all_deps_direct = True,
     tags = [
         "manual",
     ],
@@ -743,7 +748,9 @@ rust_test(
     name = "typescript_codegen_test_test",
     crate_name = "typescript_codegen_test",
     crate_root = "tests/typescript_codegen_test.rs",
-    srcs = glob(["src/**/*.rs", "tests/**/*.rs"]),
+    srcs = [
+        "tests/typescript_codegen_test.rs",
+    ],
     edition = "2021",
     crate_features = [
         "gpu",
@@ -793,7 +800,6 @@ rust_test(
     ] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,
-    force_all_deps_direct = True,
     tags = [
         "manual",
     ],
