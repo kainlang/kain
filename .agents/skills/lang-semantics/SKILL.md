@@ -376,7 +376,7 @@ Rules:
 - Nested stage calls, bare stage calls, untyped stage lets, and late stage declarations are rejected.
 - `rust` stages must resolve to native functions in the interpreter.
 - `python` and `node` stages require registered bridge helpers.
-- Direct `c` stage syntax is not currently an orchestrate runtime. Use `use c::...` and normal calls in `lang-c-abi-ffi`, or escalate to `bootstrap-core` if the language should grow `c` as a stage runtime.
+- Direct `c` stage syntax is not currently an orchestrate runtime. Use `use c::...` and normal calls in `lang-c-abi`, or escalate to `bootstrap-core` if the language should grow `c` as a stage runtime.
 
 Primary source anchors:
 
@@ -643,7 +643,7 @@ For proofs:
 - Use `runtime-core` when native actor/ownership/entangle/realtime core substrate changes.
 - Use `runtime-gpu` when GPU executor, graphics runtime, or native shader bundle consumption changes.
 - Use `runtime-stdlib` when stdlib-backed native bridge behavior changes.
-- Use `lang-actors`, `lang-ownership`, `lang-gpu`, `lang-ui`, or `lang-c-abi-ffi` alongside this skill when the authored feature is centered in those domains.
+- Use `lang-actors`, `lang-ownership`, `lang-gpu`, `lang-ui`, or `lang-c-abi` alongside this skill when the authored feature is centered in those domains.
 - Use `test-bench`, `test-attrition`, `test-crash-forensics`, or `test-harness` when the work is validation/certification rather than authoring.
 
 ## Anti-Patterns
@@ -653,5 +653,5 @@ For proofs:
 - Do not replace `law` with a random `if` when the invariant is part of runtime proof shape.
 - Do not use `orchestrate` as fake syntax for unsupported runtimes; current runtimes are `kain`, `rust`, `python`, and `node`.
 - Do not advertise `verify exhaustive` in `converge` unless the current parser supports it.
-- Do not put C-ABI package usage into `orchestrate`; use `use c::...` and `lang-c-abi-ffi`.
+- Do not put C-ABI package usage into `orchestrate`; use `use c::...` and `lang-c-abi`.
 - Do not tell future agents to read a random fixed file as the only source of truth. Give source anchors and examples, then verify with `rg`.

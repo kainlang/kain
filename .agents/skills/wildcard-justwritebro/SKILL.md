@@ -5,8 +5,9 @@ description: >-
   intuition-first mode instead of scanning large parts of the repo for
   examples. This is the wildcard anti-scavenger-hunt lane: load the core Kain
   authoring skills (`lang-semantics`, `lang-stdlib`, `lang-projects`,
-  `lang-gpu`, and `lang-systems`), optionally add `lang-interop` or
-  `lang-translation` only when the task explicitly needs them, then start
+  `lang-gpu`, and `lang-systems`), optionally add `lang-python`,
+  `lang-c-abi`, or `lang-translation` only when the task explicitly needs
+  them, then start
   writing immediately from first principles. Best for greenfield Kain files,
   speculative prototypes, creative semantic demos, and bold first passes where
   originality and speed matter more than matching existing repo patterns. Do
@@ -32,7 +33,8 @@ Read these skills first and treat them as the whole starting context:
 
 Read one extra skill only when the task obviously requires it:
 
-- `lang-interop` for C/native/foreign boundary work
+- `lang-python` for Python interop work
+- `lang-c-abi` for C/native/foreign boundary work
 - `lang-translation` for ports from Rust, C, C++, JS, TS, or Python into Kain
 
 After that, stop loading repo context unless a concrete blocker forces a surgical lookup.

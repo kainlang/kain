@@ -48,7 +48,7 @@ When the task is broad or unfamiliar, read only the reference that matches the w
 - Domain stdlib contract crates and native stdlib domain bridges such as fs/input/net/process/ui when the work is primarily public stdlib behavior. Use `runtime-stdlib`.
 - GPU executor, shader-bundle consumption, graphics backend execution, or Vulkain package bridges. Use `runtime-gpu` or `package-vulkain`.
 - Bazel/rules/generated BUILD drift not coupled to runtime semantics. Use `tool-build-system`.
-- Package-local native libraries, platform package lock/import behavior, or authored C ABI usage. Use `lang-interop`, `lang-c-abi-ffi`, or the relevant package skill.
+- Package-local native libraries, platform package lock/import behavior, or authored C ABI usage. Use `lang-c-abi` or the relevant package skill.
 
 ## Core Runtime Flow
 

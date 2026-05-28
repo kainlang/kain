@@ -449,7 +449,7 @@ For authored imports:
 - Keep module roots explicit in `build.kn` for larger projects so agents do not fake import paths.
 - Use `kain import-c`, `kain import-rust`, `kain import platform`, and related importers to generate starting surfaces when crossing ecosystems.
 
-Escalate to `lang-interop` for OS, DLL, C ABI, Rust crate, host JSON, or platform package design. Escalate to `bootstrap-core` only when import resolution or compiler-owned module semantics are broken.
+Escalate to `lang-c-abi` for OS, DLL, C ABI, Rust crate, host JSON, or platform package design. Escalate to `bootstrap-core` only when import resolution or compiler-owned module semantics are broken.
 
 ## Amalgamate Capsules
 
@@ -544,7 +544,7 @@ Use sibling skills when the core work is domain-specific:
 | --- | --- |
 | First-class Kain semantics, worlds, laws, patches, effects, components | `lang-semantics` |
 | Actors, async, raw memory, ownership, zero-copy systems code | `lang-systems` |
-| C ABI, DLLs, platform packages, Rust crate bridges | `lang-interop` |
+| C ABI, DLLs, platform packages, Rust crate bridges | `lang-c-abi` |
 | GPU shaders, compute, graphics resources, render loops | `lang-gpu` |
 | UI components, native UI, framework surfaces | `lang-ui`, maybe `package-kaintana` |
 | Stdlib usage or std domain selection | `lang-stdlib` |

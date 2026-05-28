@@ -440,7 +440,7 @@ Z3/proof expectations:
 - Use `bootstrap-gpu` when changing shader parsing/type metadata only if the compiler frontend/GPU lowering truth must change: SPIR-V, PTX, HLSL, layout lowering, builtins, `StorageBuffer<T>`, local size, spec constants.
 - Use `runtime-gpu` when changing `crates/gpu-runtime`, native graphics ABI, runtime-side shader bundle consumption, Vulkan compute execution, NVIDIA PTX execution, or generic graphics runtime conformance.
 - Use `package-vulkain` when the task touches `blades/vulkain`, package-local Vulkan bridges, shader paths, platform locks, example windows, or screenshots.
-- Use `lang-interop` when the GPU path crosses C ABI, platform packages, vendor DLLs, driver loaders, or OS window contracts.
+- Use `lang-c-abi` when the GPU path crosses C ABI, platform packages, vendor DLLs, driver loaders, or OS window contracts.
 - Use `lang-ui` or `package-kaintana` when GPU rendering is attached to authored UI, Kaintana surfaces, overlays, or desktop UX.
 - Use `lang-semantics` when GPU code fuses with `world`, `entangle`, `pulse`, `converge`, `axiom`, `shatter`, `teleport`, `law`, or `patch`.
 - Use `lang-systems` when raw memory, packed buffers, ownership regions, cache layout, branchless route math, or low-level staging dominates the task.

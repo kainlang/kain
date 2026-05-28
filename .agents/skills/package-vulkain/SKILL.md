@@ -1,6 +1,6 @@
 ---
 name: package-vulkain
-description: Use when creating, extending, debugging, validating, or reviewing the Vulkain package under `blades/vulkain`, including Kain GPU authoring, blade-local C bridge/shaders/platform lock scripts, and package examples. Always co-trigger `lang-gpu` and `lang-c-abi-ffi`; do not use this skill for generic GPU backend or runtime work.
+description: Use when creating, extending, debugging, validating, or reviewing the Vulkain package under `blades/vulkain`, including Kain GPU authoring, blade-local C bridge/shaders/platform lock scripts, and package examples. Always co-trigger `lang-gpu` and `lang-c-abi`; do not use this skill for generic GPU backend or runtime work.
 ---
 
 # Package Vulkain
@@ -15,7 +15,7 @@ Use this skill for the Vulkain package family and examples under `blades/vulkain
 
 ## Co-Trigger And Boundaries
 
-- Always co-trigger `lang-gpu` and `lang-c-abi-ffi`.
+- Always co-trigger `lang-gpu` and `lang-c-abi`.
 - Escalate to `runtime-gpu` only when the change leaves the package and touches generic executors, graphics runtime ABI, or shader-bundle runtime consumption.
 - Escalate to `bootstrap-gpu` when the change is really SPIR-V/PTX emission or compiler target behavior.
 - Do not let package convenience scripts become the source of truth for repo-wide build plumbing; that belongs in `tool-build-system`.

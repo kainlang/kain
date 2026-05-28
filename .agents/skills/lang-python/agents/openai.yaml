@@ -1,0 +1,4 @@
+interface:
+  display_name: "Lang Python"
+  short_description: "First-class Python interop in Kain"
+  default_prompt: "Use $lang-python to design or repair authored Kain that imports Python modules, resolves local .py helpers, manages host objects, and chooses the right std::python or materialization path."

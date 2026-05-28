@@ -1,4 +1,7 @@
 interface:
-  display_name: "Lang Interop"
-  short_description: "Native, Python, and host-language interop in Kain"
-  default_prompt: "Use $lang-interop to design Kain-side native/foreign boundaries, including C ABI imports, first-class Python `import ...` and local `.py` module resolution, bridge metadata, OS/package contracts, handles, host objects, buffers, strings, ownership/materialization policy, validation, and correct handoff to runtime or bootstrap owners."
+  display_name: "Lang Interop Legacy"
+  short_description: "Legacy router to lang-python or lang-c-abi"
+  default_prompt: "Use $lang-interop only to route an old interop request to $lang-python, $lang-c-abi, or both."
+
+policy:
+  allow_implicit_invocation: false

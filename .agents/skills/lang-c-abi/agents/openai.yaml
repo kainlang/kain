@@ -1,0 +1,4 @@
+interface:
+  display_name: "Lang C ABI"
+  short_description: "C ABI and native package interop in Kain"
+  default_prompt: "Use $lang-c-abi to design or repair authored Kain that crosses C ABI boundaries, including use c:: imports, platform packages, DLLs, bridge metadata, handles, buffers, and native facade design."

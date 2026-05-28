@@ -135,17 +135,17 @@ Use this family map before opening large files:
 | Actors, registry, supervision, scheduler telemetry | `std::actor` | `actor_spawn`, `actor_send`, `actor_monitor`, `actor_scheduler_queue_depth` | `lang-systems`, `runtime-core` |
 | Tiny OTP-shaped services | `std::gen_server` | `gen_server_start`, `gen_server_call`, `gen_server_cast` | `lang-systems` |
 | Build/proof/bench/attrition/certify DAG work | `std::build`, `std::proof`, `std::bench`, `std::attrition`, `std::certify`, `std::test` | `build_graph`, `proof_obligation`, `bench_case`, `attrition_case`, `certify_gate`, `test_bool` | `lang-projects`, `test-harness`, `test-bench`, `test-attrition` |
-| Explicit CPython interop and bridge control | `std::python` | `python_import`, `python_module_available`, `python_region_*`, `python_buffer_view_*`, `python_call_async` | `lang-interop`, `runtime-stdlib` |
+| Explicit CPython interop and bridge control | `std::python` | `python_import`, `python_module_available`, `python_region_*`, `python_buffer_view_*`, `python_call_async` | `lang-python`, `runtime-stdlib` |
 | Typed maps, queues, slot maps, clamps | `std::collections` | `typed_map_*`, `queue_*`, `priority_queue_*`, `slot_map_*`, `int_clamp` | `lang-systems` |
 | Arena, bump, and pool allocation | `std::alloc` | `arena_create`, `arena_alloc`, `bump_alloc`, `pool_alloc` | `lang-systems` |
 | String views and zero-copy text slicing | `std::text` | `text_slice`, `text_trim`, `text_find`, `text_materialize`, `string_view_*` | `lang-systems` |
-| Digests and random bytes | `std::crypto` | `sha256`, `hmac_sha256`, `blake3`, `random_bytes_hex` | `runtime-stdlib`, `lang-interop` |
+| Digests and random bytes | `std::crypto` | `sha256`, `hmac_sha256`, `blake3`, `random_bytes_hex` | `runtime-stdlib` |
 | Low-level memory fences and int atomics | `std::memory` | `volatile_*`, `atomic_load_*`, `atomic_store_*`, `atomic_compare_exchange_seqcst`, `atomic_fence_*` | `lang-systems`, `runtime-core` |
 | Files, temp, metadata, path helpers | `std::fs` | `fs_read_text`, `fs_write_text`, `fs_temp_file`, `fs_hash_file`, `fs_path_join` | `runtime-stdlib`, `bootstrap-fs` |
 | Child processes and PTYs | `std::process` | `process_spec_create`, `process_spawn`, `process_wait`, `process_stdout_capture_text` | `runtime-stdlib` |
-| Platform identity and dynamic libraries | `std::platform` | `platform_current_name`, `platform_library_open`, `platform_library_resolve` | `lang-interop`, `runtime-stdlib` |
+| Platform identity and dynamic libraries | `std::platform` | `platform_current_name`, `platform_library_open`, `platform_library_resolve` | `lang-c-abi`, `runtime-stdlib` |
 | TCP and network state | `std::net` | `net_reset`, `tcp_connect`, `tcp_listen`, `tcp_read_text`, `tcp_write_text` | `runtime-stdlib` |
-| HTTP request/response/server work | `std::http` | `request_create`, `server_create_localhost`, `respond_text`, `route_actor` | `lang-interop`, `runtime-stdlib` |
+| HTTP request/response/server work | `std::http` | `request_create`, `server_create_localhost`, `respond_text`, `route_actor` | `runtime-stdlib` |
 | GPU resource contracts and shared buffers/images | `std::gpu` | `gpu_resource_policy`, `gpu_shared_buffer_zeroed`, descriptor constants | `lang-gpu`, `runtime-gpu` |
 | Native graphics sessions and draw calls | `std::graphics`, `std::graphics::shared` | `graphics_session_create`, `graphics_shader_spirv_from_hex`, `graphics_draw_mesh`, `graphics_shared_vertex_buffer` | `lang-gpu`, `runtime-gpu` |
 | Native UI sessions, nodes, styles, events, dialogs | `std::ui` | `ui_session_create`, `ui_node_create`, `ui_node_set_rect`, `ui_push_event`, `ui_draw_command_count` | `lang-ui`, `package-kaintana` |
@@ -233,7 +233,8 @@ Get-ChildItem -Name runtime\conformance
 - Use `lang-semantics` when stdlib work is really semantic fusion (`world`, `entangle`, `patch`, `law`, `converge`, `orchestrate`, `axiom`, `pulse`, `teleport`, `shatter`).
 - Use `lang-systems` when stdlib work is really ownership, raw memory, pointer math, atomics, or low-level throughput.
 - Use `lang-gpu` for authored Kain work centered on `std::gpu`, `std::graphics`, or `std::graphics::shared`.
-- Use `lang-interop` for `std::python`, `std::platform`, host bridges, DLL seams, and native package surfaces.
+- Use `lang-python` for `std::python` and Python host-object surfaces.
+- Use `lang-c-abi` for `std::platform`, host bridges, DLL seams, and native package surfaces.
 - Use `lang-projects` when the stdlib change must be surfaced through `build.kn`, blades, or evidence DAG authoring.
 - Use `bootstrap-core` when stdlib loading, import resolution, parser/typechecker truth, or lowering behavior is wrong.
 - Use `bootstrap-fs`, `bootstrap-actors`, `bootstrap-gpu`, or `bootstrap-ownership` when compiler/frontend ownership changes for those domains.

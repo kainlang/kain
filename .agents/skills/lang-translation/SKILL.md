@@ -51,5 +51,5 @@ converge mix(value: Int) -> Int:
 
 ## Hand Off When
 
-- Co-trigger the specific authored domain skill once the translation clearly becomes `lang-stdlib`, `lang-semantics`, `lang-systems`, `lang-actors`, `lang-ownership`, `lang-ui`, `lang-gpu`, `lang-interop`, or `lang-c-abi-ffi`.
+- Co-trigger the specific authored domain skill once the translation clearly becomes `lang-stdlib`, `lang-semantics`, `lang-systems`, `lang-actors`, `lang-ownership`, `lang-ui`, `lang-gpu`, `lang-python`, or `lang-c-abi`.
 - Use `bootstrap-core` or `runtime-*` only when the translation is blocked by missing engine capability rather than authored design.
