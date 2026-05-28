@@ -7,10 +7,10 @@ fn build(ctx: BuildContext) -> BuildGraph:
 
     let defaults = build_defaults().entry("src/main.kn").artifact_root(".kain/out").cache_root(".kain/cache/build").profile("debug").target("llvm")
 
-    let run = run_defaults().entry("src/main.kn").target("llvm").watch("src").watch("native")
+    let run = run_defaults().entry("src/main.kn").target("llvm").watch("src").watch("src/native")
 
-    let check = build_check("check-llvm").entry("src/main.kn").target("llvm").input("src/model.kn").input("src/semantics.kn").input("src/native_bridge.kn").input("src/audio_engine.kn").input("src/ui_workbench.kn").input("src/interaction.kn").input("src/proof.kn").input("src/main.kn").input("native/kainbleton_bridge.h").input("native/kainbleton_bridge.c").input("build.kn").input("KAIN.toml")
+    let check = build_check("check-llvm").entry("src/main.kn").target("llvm").input("src/model.kn").input("src/semantics.kn").input("src/native_bridge.kn").input("src/paths.kn").input("src/audio_engine.kn").input("src/ui_workbench.kn").input("src/interaction.kn").input("src/proof.kn").input("src/main.kn").input("src/native/kainbleton_bridge.h").input("src/native/kainbleton_bridge.c").input("build.kn").input("KAIN.toml")
 
-    let root_exe = native_executable("root-executable").entry("src/main.kn").root_output("$root/kainbleton.exe").arg("--no-verify-llvm").requires("check-llvm").input("src/model.kn").input("src/semantics.kn").input("src/native_bridge.kn").input("src/audio_engine.kn").input("src/ui_workbench.kn").input("src/interaction.kn").input("src/proof.kn").input("src/main.kn").input("native/kainbleton_bridge.h").input("native/kainbleton_bridge.c").input("build.kn").input("KAIN.toml")
+    let root_exe = native_executable("root-executable").entry("src/main.kn").root_output("$root/kainbleton.exe").arg("--no-verify-llvm").requires("check-llvm").input("src/model.kn").input("src/semantics.kn").input("src/native_bridge.kn").input("src/paths.kn").input("src/audio_engine.kn").input("src/ui_workbench.kn").input("src/interaction.kn").input("src/proof.kn").input("src/main.kn").input("src/native/kainbleton_bridge.h").input("src/native/kainbleton_bridge.c").input("build.kn").input("KAIN.toml")
 
     return build_graph().package(pkg).blade(app).defaults(defaults).run(run).task(check).task(root_exe)

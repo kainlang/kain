@@ -63,7 +63,7 @@ struct ConstGlobalInfo {
     string_literal: Option<String>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 enum PythonImportInitKind {
     Module {
         full_module_name: String,
@@ -581,6 +581,7 @@ struct LlvmGenerator {
     world_globals: HashMap<String, WorldGlobalInfo>,
     const_globals: HashMap<String, ConstGlobalInfo>,
     python_import_globals: HashMap<String, PythonImportGlobalInfo>,
+    emitted_python_import_initializers: HashSet<String>,
     string_locals: HashSet<String>,
     runtime_array_locals: HashMap<String, String>,
     runtime_array_function_returns: HashMap<String, String>,
@@ -719,6 +720,7 @@ impl LlvmGenerator {
             world_globals: HashMap::new(),
             const_globals: HashMap::new(),
             python_import_globals: HashMap::new(),
+            emitted_python_import_initializers: HashSet::new(),
             string_locals: HashSet::new(),
             runtime_array_locals: HashMap::new(),
             runtime_array_function_returns: HashMap::new(),
@@ -1994,13 +1996,57 @@ impl LlvmGenerator {
         name.starts_with("json_object_set") || name.starts_with("json_array_push")
     }
 
+    fn runtime_array_bridge_any_marker() -> &'static str {
+        "__kain_runtime_array_bridge_any__"
+    }
+
+    fn scalar_runtime_array_literal_llvm_ty(ty: &str) -> Option<String> {
+        match ty {
+            "i1" => Some("i1".to_string()),
+            "double" => Some("double".to_string()),
+            "i8*" => Some("i8*".to_string()),
+            "i8" | "i16" | "i32" | "i64" => Some("i64".to_string()),
+            _ => None,
+        }
+    }
+
+    fn ast_runtime_array_bridge_any(ty: &Type) -> bool {
+        match ty {
+            Type::Array(_, _, _) | Type::Slice(_, _) | Type::Tuple(_, _) => true,
+            Type::Named { name, generics, .. } => {
+                name == "Any" || ((name == "Array" || name == "Slice") && generics.len() == 1)
+            }
+            _ => false,
+        }
+    }
+
+    fn resolved_runtime_array_bridge_any(ty: &ResolvedType) -> bool {
+        matches!(
+            ty,
+            ResolvedType::Array(_, _)
+                | ResolvedType::Slice(_)
+                | ResolvedType::Tuple(_)
+                | ResolvedType::Unknown
+        )
+    }
+
     fn ast_runtime_array_element_llvm_ty(&self, ty: &Type) -> Option<String> {
         match ty {
-            Type::Array(inner, _, _) | Type::Slice(inner, _) => Some(self.map_type_from_ast(inner)),
+            Type::Array(inner, _, _) | Type::Slice(inner, _) => {
+                if Self::ast_runtime_array_bridge_any(inner) {
+                    Some(Self::runtime_array_bridge_any_marker().to_string())
+                } else {
+                    Some(self.map_type_from_ast(inner))
+                }
+            }
             Type::Named { name, generics, .. }
                 if (name == "Array" || name == "Slice") && generics.len() == 1 =>
             {
-                Some(self.map_type_from_ast(&generics[0]))
+                if Self::ast_runtime_array_bridge_any(&generics[0]) {
+                    Some(Self::runtime_array_bridge_any_marker().to_string())
+                } else {
+                    Some(self.map_type_from_ast(&generics[0]))
+                }
             }
             _ => None,
         }
@@ -2237,7 +2283,11 @@ impl LlvmGenerator {
     fn resolved_runtime_array_element_llvm_ty(&self, ty: &ResolvedType) -> Option<String> {
         match ty {
             ResolvedType::Array(inner, _) | ResolvedType::Slice(inner) => {
-                Some(self.map_type(inner))
+                if Self::resolved_runtime_array_bridge_any(inner) {
+                    Some(Self::runtime_array_bridge_any_marker().to_string())
+                } else {
+                    Some(self.map_type(inner))
+                }
             }
             _ => None,
         }
@@ -2253,7 +2303,80 @@ impl LlvmGenerator {
     fn stringified_runtime_array_element_llvm_ty(&self, ty: &str) -> Option<String> {
         Self::single_generic_payload(ty, "Array")
             .or_else(|| Self::single_generic_payload(ty, "Slice"))
-            .map(|inner| self.map_type_from_str(inner))
+            .map(|inner| {
+                let trimmed = inner.trim();
+                if trimmed == "Any"
+                    || trimmed.starts_with("Array<")
+                    || trimmed.starts_with("Slice<")
+                    || trimmed.starts_with('(')
+                {
+                    Self::runtime_array_bridge_any_marker().to_string()
+                } else {
+                    self.map_type_from_str(trimmed)
+                }
+            })
+    }
+
+    fn runtime_array_literal_item_llvm_ty(&self, expr: &Expr) -> Option<String> {
+        if self.expr_carries_runtime_any_value(expr) || self.expr_carries_json_value(expr) {
+            return Some(Self::runtime_array_bridge_any_marker().to_string());
+        }
+
+        match Self::expr_strip_parens(expr) {
+            Expr::Array(_, _) | Expr::Tuple(_, _) => {
+                Some(Self::runtime_array_bridge_any_marker().to_string())
+            }
+            Expr::Ident(name, _) => {
+                if self.runtime_array_locals.contains_key(name) {
+                    return Some(Self::runtime_array_bridge_any_marker().to_string());
+                }
+                self.locals
+                    .get(name)
+                    .and_then(|(_, ty)| Self::scalar_runtime_array_literal_llvm_ty(ty))
+            }
+            Expr::Field { object, field, .. } => {
+                let struct_name = self.field_parent_struct_name(object)?;
+                if self
+                    .struct_runtime_array_field_elements
+                    .contains_key(&(struct_name.clone(), field.clone()))
+                {
+                    return Some(Self::runtime_array_bridge_any_marker().to_string());
+                }
+                self.struct_defs
+                    .get(&struct_name)
+                    .and_then(|fields| fields.iter().find(|(name, _)| name == field))
+                    .and_then(|(_, ty)| Self::scalar_runtime_array_literal_llvm_ty(ty))
+            }
+            Expr::Call { callee, .. } => match Self::expr_strip_parens(callee) {
+                Expr::Ident(name, _) if self.runtime_array_function_returns.contains_key(name) => {
+                    Some(Self::runtime_array_bridge_any_marker().to_string())
+                }
+                _ => None,
+            },
+            Expr::Cast { value, .. } | Expr::Bitcast { value, .. } => {
+                self.runtime_array_literal_item_llvm_ty(value)
+            }
+            Expr::Bool(_, _) => Some("i1".to_string()),
+            Expr::Float(_, _) => Some("double".to_string()),
+            Expr::Int(_, _) => Some("i64".to_string()),
+            Expr::String(_, _) => Some("i8*".to_string()),
+            _ => None,
+        }
+    }
+
+    fn runtime_array_literal_element_llvm_ty(&self, items: &[Expr]) -> Option<String> {
+        let mut inferred: Option<String> = None;
+        for item in items {
+            let item_ty = self.runtime_array_literal_item_llvm_ty(item)?;
+            if let Some(existing) = inferred.as_ref() {
+                if existing != &item_ty {
+                    return None;
+                }
+            } else {
+                inferred = Some(item_ty);
+            }
+        }
+        inferred
     }
 
     fn callable_return_runtime_array_element_llvm_ty(
@@ -2273,6 +2396,9 @@ impl LlvmGenerator {
 
     fn runtime_array_expr_element_llvm_ty(&self, expr: &Expr) -> Option<String> {
         match Self::expr_strip_parens(expr) {
+            Expr::Array(items, _) | Expr::Tuple(items, _) => {
+                self.runtime_array_literal_element_llvm_ty(items)
+            }
             Expr::Ident(name, _) => self.runtime_array_locals.get(name).cloned(),
             Expr::Call { callee, .. } => match Self::expr_strip_parens(callee) {
                 Expr::Ident(name, _) => self.runtime_array_function_returns.get(name).cloned(),
@@ -9246,6 +9372,28 @@ impl LlvmGenerator {
             _ => {}
         }
 
+        if let Some(element_ty) = self.runtime_array_expr_element_llvm_ty(expr) {
+            let (value, value_ty) = self.compile_expr(expr)?;
+            if value_ty == "i8*" {
+                let mode = match element_ty.as_str() {
+                    marker if marker == Self::runtime_array_bridge_any_marker() => "5",
+                    "i1" => "2",
+                    "double" => "3",
+                    "i8*" => "4",
+                    _ => "1",
+                };
+                let boxed = self.next_reg();
+                self.emit(&format!(
+                    "  {} = call i64 @json_box_runtime_array(i8* {}, i64 {})",
+                    boxed, value, mode
+                ));
+                return Ok(JsonAnyArgument {
+                    value: boxed,
+                    release_after_call: true,
+                });
+            }
+        }
+
         if self.expr_carries_json_value(expr) || self.expr_carries_runtime_any_value(expr) {
             let (value, ty) = self.compile_expr(expr)?;
             return Ok(JsonAnyArgument {
@@ -12482,7 +12630,20 @@ impl LlvmGenerator {
         binding_name: &str,
         init_kind: PythonImportInitKind,
         importer_source_file: Option<String>,
-    ) {
+        span: Span,
+    ) -> KainResult<()> {
+        if let Some(existing) = self.python_import_globals.get(binding_name) {
+            if existing.init_kind == init_kind {
+                return Ok(());
+            }
+            return Err(KainError::codegen(
+                format!(
+                    "conflicting python import binding '{}' across modules; import distinct modules under explicit aliases",
+                    binding_name
+                ),
+                span,
+            ));
+        }
         let symbol_fragment = Self::sanitize_symbol_fragment(binding_name);
         let info = PythonImportGlobalInfo {
             global_symbol: format!("@__kain_py_import_{}", symbol_fragment),
@@ -12495,15 +12656,17 @@ impl LlvmGenerator {
         self.emit(&format!("{} = internal global i1 0", info.init_flag_symbol));
         self.python_import_globals
             .insert(binding_name.to_string(), info);
+        Ok(())
     }
 
-    fn register_python_import_globals(&mut self, items: &[TypedItem]) {
-        if self.register_python_import_globals_recursive(items) {
+    fn register_python_import_globals(&mut self, items: &[TypedItem]) -> KainResult<()> {
+        if self.register_python_import_globals_recursive(items)? {
             self.emit("");
         }
+        Ok(())
     }
 
-    fn register_python_import_globals_recursive(&mut self, items: &[TypedItem]) -> bool {
+    fn register_python_import_globals_recursive(&mut self, items: &[TypedItem]) -> KainResult<bool> {
         let mut saw_import = false;
         for item in items {
             match item {
@@ -12513,17 +12676,18 @@ impl LlvmGenerator {
                             &binding_name,
                             init_kind,
                             import.ast.source_file.clone(),
-                        );
+                            import.ast.span,
+                        )?;
                         saw_import = true;
                     }
                 }
                 TypedItem::Mod(module) => {
-                    saw_import |= self.register_python_import_globals_recursive(&module.items);
+                    saw_import |= self.register_python_import_globals_recursive(&module.items)?;
                 }
                 _ => {}
             }
         }
-        saw_import
+        Ok(saw_import)
     }
 
     fn register_const_globals(&mut self, items: &[TypedItem]) {
@@ -12719,6 +12883,13 @@ impl LlvmGenerator {
                 ));
             };
 
+            if !self
+                .emitted_python_import_initializers
+                .insert(info.init_fn_name.clone())
+            {
+                continue;
+            }
+
             self.reg_count = 0;
             self.locals.clear();
             self.authored_pointer_locals.clear();
@@ -12839,7 +13010,7 @@ impl LlvmGenerator {
         // 2a. Pre-scan Structs and other type definitions, including nested modules.
         self.register_type_definitions_recursive(&program.items)?;
 
-        self.register_python_import_globals(&program.items);
+        self.register_python_import_globals(&program.items)?;
         self.register_const_globals(&program.items);
 
         // 2b. Pre-scan functions to register return types.
@@ -13230,6 +13401,7 @@ impl LlvmGenerator {
         self.emit("declare void @rc_release(i8*)");
         self.emit("declare i8* @string_new(i8*)");
         self.emit("declare i64 @json_box_float(double)");
+        self.emit("declare i64 @json_box_runtime_array(i8*, i64)");
         self.emit("declare void @json_retain(i64)");
         self.emit("declare void @json_release(i64)");
         self.emit("declare i64 @py_import_with_context(i8*, i8*)");

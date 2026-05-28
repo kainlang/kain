@@ -3,7 +3,6 @@ use std::json
 use std::time
 
 use audio_engine::KainbletonAudioReport
-use interaction::KainbletonInteractionReport
 use model::KainbletonProject
 
 pub struct KainbletonProofReport:
@@ -20,16 +19,20 @@ pub struct KainbletonProofReport:
 pub fn kb_write_proof(
     project: KainbletonProject,
     audio: KainbletonAudioReport,
-    interaction: KainbletonInteractionReport,
     proof_path: String,
     screenshot_path: String,
     frames: Int,
     frame_hash: Int,
     native_signature: Int,
     semantic_score: Int,
+    input_events: Int,
+    qt_clicks: Int,
+    transport_armed: Int,
+    elapsed_ms: Int,
+    approx_fps: Float,
     screenshot_status: Int,
 ) -> KainbletonProofReport:
-    fs_create_dir_all(".kain/out")
+    fs_create_dir_all(fs_path_parent(proof_path))
 
     let root = json_object()
     let with_project = json_object_set_string(root, "project", project.name)
@@ -44,14 +47,17 @@ pub fn kb_write_proof(
     let with_peak = json_object_set_float(with_rms, "peak", audio.peak)
     let with_shape = json_object_set_string(with_peak, "dawdreamer_shape", audio.daw_shape_text)
     let with_module_score = json_object_set_int(with_shape, "module_score", audio.module_score)
-    let with_event_count = json_object_set_int(with_module_score, "input_events", interaction.event_count)
-    let with_clicked = json_object_set_int(with_event_count, "qt_clicks", interaction.clicked)
-    let with_frame_hash = json_object_set_int(with_clicked, "frame_hash", frame_hash)
+    let with_event_count = json_object_set_int(with_module_score, "input_events", input_events)
+    let with_clicked = json_object_set_int(with_event_count, "qt_clicks", qt_clicks)
+    let with_armed = json_object_set_int(with_clicked, "transport_armed", transport_armed)
+    let with_elapsed = json_object_set_int(with_armed, "frame_loop_ms", elapsed_ms)
+    let with_fps = json_object_set_float(with_elapsed, "approx_fps", approx_fps)
+    let with_frame_hash = json_object_set_int(with_fps, "frame_hash", frame_hash)
     let with_native = json_object_set_int(with_frame_hash, "native_signature", native_signature)
     let with_semantic = json_object_set_int(with_native, "semantic_score", semantic_score)
     let with_screenshot = json_object_set_int(with_semantic, "screenshot_status", screenshot_status)
     let with_written_at = json_object_set_int(with_screenshot, "written_at_ms", now_millis())
-    fs_write_text(proof_path, json_stringify_pretty(with_written_at))
+    fs_write_text(proof_path, json_stringify(with_written_at))
 
     return KainbletonProofReport {
         proof_path: proof_path,

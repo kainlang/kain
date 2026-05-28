@@ -15,6 +15,7 @@ use native_bridge::kb_native_label
 use native_bridge::kb_native_signature
 use proof::KainbletonProofReport
 use proof::kb_write_proof
+use paths::kb_artifact_path
 use semantics::KainbletonSemanticProbe
 use semantics::kb_semantic_boot
 use semantics::kb_semantic_frame
@@ -37,17 +38,17 @@ use ui_workbench::kb_ui_screenshot
 //
 // Python is a quarry. C is a pocket knife. Kain is the conductor.
 
+const KB_FRAME_HASH_MODULUS: Int = 2147483629
+
 fn main() -> Int:
     let boot = runtime_init()
     if boot != 0:
         return 100 + boot
 
-    fs_create_dir_all(".kain/out")
-
     let project: KainbletonProject = kb_default_project()
-    let audio_path = ".kain/out/kainbleton-bounce.wav"
-    let screenshot_path = ".kain/out/kainbleton-ui.png"
-    let proof_path = ".kain/out/kainbleton-proof.json"
+    let audio_path = kb_artifact_path("kainbleton-bounce.wav")
+    let screenshot_path = kb_artifact_path("kainbleton-ui.png")
+    let proof_path = kb_artifact_path("kainbleton-proof.json")
 
     let audio: KainbletonAudioReport = kb_render_audio(project, audio_path)
     let probe: KainbletonSemanticProbe = kb_semantic_boot(project)
@@ -57,29 +58,30 @@ fn main() -> Int:
     var frame: Int = 0
     var frame_hash: Int = 0
     var semantic_score: Int = 0
+    var total_input_events: Int = 0
+    var total_qt_clicks: Int = 0
+    var transport_armed: Int = 0
     var interaction: KainbletonInteractionReport = kb_interaction_frame(input_session, ui, 0)
+    let frame_begin_ms = now_millis()
 
     while frame < KB_UI_FRAMES:
         let score = kb_semantic_frame(probe, project, frame)
         semantic_score = kb_semantic_telemetry_score(score)
-        frame_hash = frame_hash + kb_ui_pump(ui, project, audio, frame, semantic_score)
+        frame_hash = (frame_hash + kb_ui_pump(ui, project, audio, frame, semantic_score)) % KB_FRAME_HASH_MODULUS
         interaction = kb_interaction_frame(input_session, ui, frame)
+        total_input_events = total_input_events + interaction.event_count
+        total_qt_clicks = total_qt_clicks + interaction.clicked
+        if interaction.armed > transport_armed:
+            transport_armed = interaction.armed
         frame = frame + 1
+    var elapsed_ms = now_millis() - frame_begin_ms
+    if elapsed_ms <= 0:
+        elapsed_ms = 1
+    let approx_fps = Float(KB_UI_FRAMES) * 1000.0 / Float(elapsed_ms)
 
     let screenshot_status = kb_ui_screenshot(ui)
     let native_signature = kb_native_signature(KB_UI_FRAMES, len(project.tracks), len(project.clips), project.checksum)
-    let proof: KainbletonProofReport = kb_write_proof(
-        project,
-        audio,
-        interaction,
-        proof_path,
-        screenshot_path,
-        KB_UI_FRAMES,
-        frame_hash,
-        native_signature,
-        semantic_score,
-        screenshot_status,
-    )
+    let proof: KainbletonProofReport = kb_write_proof(project, audio, proof_path, screenshot_path, KB_UI_FRAMES, frame_hash, native_signature, semantic_score, total_input_events, total_qt_clicks, transport_armed, elapsed_ms, approx_fps, screenshot_status)
 
     let _close_ui = kb_ui_close(ui)
     let _input_close = kb_interaction_shutdown(input_session)
@@ -93,6 +95,7 @@ fn main() -> Int:
     println("screenshot=" + proof.screenshot_path)
     println("audio=" + proof.audio_path)
     println("frames=" + str(proof.frames))
+    println("fps=" + str(Int(approx_fps * 100.0)))
     println("frame_hash=" + str(proof.frame_hash))
     println("semantic_score=" + str(proof.semantic_score))
     println("module_score=" + str(proof.module_score))

@@ -18,6 +18,7 @@ pub struct KainbletonUiSession:
     transport_node: Int
     app: Any
     widget: Any
+    arm_checkbox: Any
     waveform_curve: Any
     meter_curve: Any
     fft_curve: Any
@@ -29,6 +30,11 @@ pub struct KainbletonNativeUiMirror:
     session_id: Int
     root_node: Int
     transport_node: Int
+
+pub fn kb_checkbox_checked_int(checkbox: Any) -> Int:
+    if str(python_call_attr_raw(checkbox, "isChecked", [])) == "true":
+        return 1
+    return 0
 
 pub fn kb_native_ui_boot(project: KainbletonProject) -> KainbletonNativeUiMirror:
     let _reset = native_ui_reset()
@@ -52,7 +58,7 @@ pub fn kb_native_ui_boot(project: KainbletonProject) -> KainbletonNativeUiMirror
     }
 
 pub fn kb_ui_open(project: KainbletonProject, audio: KainbletonAudioReport, screenshot_path: String) -> KainbletonUiSession:
-    fs_create_dir_all(".kain/out")
+    fs_create_dir_all(fs_path_parent(screenshot_path))
 
     let native = kb_native_ui_boot(project)
     let session_id = native.session_id
@@ -72,21 +78,37 @@ pub fn kb_ui_open(project: KainbletonProject, audio: KainbletonAudioReport, scre
     let waveform_plot = python_call_attr_raw(widget, "addPlot", [])
     let _wave_title = python_call_attr_raw(waveform_plot, "setTitle", ["DawDreamer + SciPy bounce waveform"])
     let _wave_grid = python_call_attr_raw(waveform_plot, "showGrid", [true, true, 0.25])
+    let _wave_x = python_call_attr_raw(waveform_plot, "setXRange", [0.0, 1.0])
+    let _wave_y = python_call_attr_raw(waveform_plot, "setYRange", [-1.2, 1.2])
+    let waveform_curve = python_call_attr_raw(waveform_plot, "plot", [])
     let waveform_pen = python_call_attr_raw(pg, "mkPen", ["#ff5f2e", 3])
-    let waveform_curve = python_call_attr_raw(waveform_plot, "plot", [audio.preview_x, audio.preview_y, waveform_pen])
+    let _wave_pen = python_call_attr_raw(waveform_curve, "setPen", [waveform_pen])
+    let _wave_seed = python_call_attr_raw(waveform_curve, "setData", [audio.preview_x, audio.preview_y])
 
     let meter_plot = python_call_attr_raw(widget, "addPlot", [])
     let _meter_title = python_call_attr_raw(meter_plot, "setTitle", ["C bridge meter colors + Kain frame pressure"])
     let _meter_grid = python_call_attr_raw(meter_plot, "showGrid", [true, true, 0.25])
+    let _meter_x = python_call_attr_raw(meter_plot, "setXRange", [0.0, Float(len(project.tracks))])
+    let _meter_y = python_call_attr_raw(meter_plot, "setYRange", [0.0, 1.1])
+    let meter_curve = python_call_attr_raw(meter_plot, "plot", [])
     let meter_pen = python_call_attr_raw(pg, "mkPen", ["#06d6a0", 3])
-    let meter_curve = python_call_attr_raw(meter_plot, "plot", [[0.0, 1.0, 2.0, 3.0, 4.0, 5.0], [0.2, 0.4, 0.3, 0.8, 0.5, 0.7], meter_pen])
+    let _meter_pen = python_call_attr_raw(meter_curve, "setPen", [meter_pen])
+    let _meter_seed = python_call_attr_raw(meter_curve, "setData", [[0.0, 1.0, 2.0, 3.0, 4.0, 5.0], [0.2, 0.4, 0.3, 0.8, 0.5, 0.7]])
 
     let _row2 = python_call_attr_raw(widget, "nextRow", [])
     let fft_plot = python_call_attr_raw(widget, "addPlot", [])
     let _fft_title = python_call_attr_raw(fft_plot, "setTitle", ["semantic transport / shared-buffer proof lanes"])
     let _fft_grid = python_call_attr_raw(fft_plot, "showGrid", [true, true, 0.25])
+    let _fft_x = python_call_attr_raw(fft_plot, "setXRange", [0.0, 1.0])
+    let fft_curve = python_call_attr_raw(fft_plot, "plot", [])
     let fft_pen = python_call_attr_raw(pg, "mkPen", ["#8ecae6", 2])
-    let fft_curve = python_call_attr_raw(fft_plot, "plot", [audio.preview_x, audio.preview_y, fft_pen])
+    let _fft_pen = python_call_attr_raw(fft_curve, "setPen", [fft_pen])
+    let _fft_seed = python_call_attr_raw(fft_curve, "setData", [audio.spectrum_x, audio.spectrum_y])
+
+    let arm_checkbox = python_call_attr_raw(qt_widgets, "QCheckBox", ["ARM SCENE A", widget])
+    let _arm_move = python_call_attr_raw(arm_checkbox, "move", [1030, 62])
+    let _arm_resize = python_call_attr_raw(arm_checkbox, "resize", [180, 28])
+    let _arm_style = python_call_attr_raw(arm_checkbox, "setStyleSheet", ["QCheckBox { color: #ffd166; font-size: 13px; background: rgba(8,11,16,220); padding: 4px 8px; border: 1px solid #ff5f2e; border-radius: 6px; }"])
 
     let _show = python_call_attr_raw(widget, "show", [])
     let _process = python_call_attr_raw(app, "processEvents", [])
@@ -97,6 +119,7 @@ pub fn kb_ui_open(project: KainbletonProject, audio: KainbletonAudioReport, scre
         transport_node: transport,
         app: app,
         widget: widget,
+        arm_checkbox: arm_checkbox,
         waveform_curve: waveform_curve,
         meter_curve: meter_curve,
         fft_curve: fft_curve,
@@ -115,9 +138,18 @@ pub fn kb_meter_values(project: KainbletonProject, frame: Int) -> Array<Float>:
         i = i + 1
     return values
 
+pub fn kb_meter_axis(project: KainbletonProject) -> Array<Float>:
+    let axis: Array<Float> = []
+    var i: Int = 0
+    while i < len(project.tracks):
+        push(axis, Float(i))
+        i = i + 1
+    return axis
+
 pub fn kb_ui_pump(session: KainbletonUiSession, project: KainbletonProject, audio: KainbletonAudioReport, frame: Int, semantic_score: Int) -> Int:
+    let armed = kb_checkbox_checked_int(session.arm_checkbox)
     let _begin = native_ui_begin_frame(session.ui_session_id, 16.666)
-    let _text = native_ui_node_set_text(session.transport_node, "frame " + str(frame) + " // score " + str(semantic_score) + " // rms " + str(Int(audio.rms * 100000.0)))
+    let _text = native_ui_node_set_text(session.ui_session_id, session.transport_node, "frame " + str(frame) + " // score " + str(semantic_score) + " // rms " + str(Int(audio.rms * 100000.0)) + " // armed " + str(armed))
     let _event = native_ui_push_event(session.ui_session_id, "frame", session.transport_node, Float(frame % 1280), 44.0, 0, "tick")
     let _draw_a = native_ui_draw_rect(session.ui_session_id, session.root_node, 20.0, 20.0, 1240.0, 720.0, "accent")
     let _draw_b = native_ui_draw_text(session.ui_session_id, session.transport_node, 0, 42.0, 68.0, "Kain owns transport, Python draws pretty", "accent")
@@ -125,8 +157,9 @@ pub fn kb_ui_pump(session: KainbletonUiSession, project: KainbletonProject, audi
     let _present = native_ui_present(session.ui_session_id)
     let _host = native_ui_host_present(session.ui_session_id)
 
+    let meter_axis = kb_meter_axis(project)
     let meters = kb_meter_values(project, frame)
-    let _meter = python_call_attr_raw(session.meter_curve, "setData", [[0.0, 1.0, 2.0, 3.0, 4.0, 5.0], meters])
+    let _meter = python_call_attr_raw(session.meter_curve, "setData", [meter_axis, meters])
 
     let wobble: Array<Float> = []
     var i: Int = 0
@@ -136,12 +169,15 @@ pub fn kb_ui_pump(session: KainbletonUiSession, project: KainbletonProject, audi
         push(wobble, source * gain)
         i = i + 1
     let _wave = python_call_attr_raw(session.waveform_curve, "setData", [audio.preview_x, wobble])
-    let _fft = python_call_attr_raw(session.fft_curve, "setData", [audio.preview_x, audio.preview_y])
+    let _fft = python_call_attr_raw(session.fft_curve, "setData", [audio.spectrum_x, audio.spectrum_y])
+    let _repaint = python_call_attr_raw(session.widget, "repaint", [])
     let _process = python_call_attr_raw(session.app, "processEvents", [])
     sleep_millis(16)
     return native_ui_host_frame_hash(session.ui_session_id) + native_ui_draw_command_count(session.ui_session_id)
 
 pub fn kb_ui_screenshot(session: KainbletonUiSession) -> Int:
+    let _repaint = python_call_attr_raw(session.widget, "repaint", [])
+    let _process = python_call_attr_raw(session.app, "processEvents", [])
     let grab = python_call_attr_raw(session.widget, "grab", [])
     let saved = python_call_attr_raw(grab, "save", [session.screenshot_path])
     return to_int(saved)

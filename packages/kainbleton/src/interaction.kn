@@ -2,6 +2,7 @@ use std::input
 use std::python
 
 use ui_workbench::KainbletonUiSession
+use ui_workbench::kb_checkbox_checked_int
 
 import PyQt6.QtCore as qt_core
 import PyQt6.QtTest as qt_test
@@ -12,6 +13,7 @@ pub struct KainbletonInteractionReport:
     frame_index: Int
     action_down: Int
     clicked: Int
+    armed: Int
     trace: String
 
 pub fn kb_interaction_boot() -> Int:
@@ -32,9 +34,11 @@ pub fn kb_interaction_frame(session_id: Int, ui: KainbletonUiSession, frame: Int
     if frame == 24:
         let mouse_button = python_getattr_raw(python_getattr_raw(python_getattr_raw(qt_core, "Qt"), "MouseButton"), "LeftButton")
         let qtest = python_getattr_raw(qt_test, "QTest")
-        let _click_py = python_call_attr_raw(qtest, "mouseClick", [ui.widget, mouse_button])
-        let _event = input_push_event(session_id, input_source_pointer(), "qt:0", "press", "Left", 1.0, "clip-grid", 0.99)
-        clicked = 1
+        let _click_py = python_call_attr_raw(qtest, "mouseClick", [ui.arm_checkbox, mouse_button])
+        let _repaint = python_call_attr_raw(ui.widget, "repaint", [])
+        let _pump = python_call_attr_raw(ui.app, "processEvents", [])
+        let _event = input_push_event(session_id, input_source_pointer(), "qt:0", "press", "Left", 1.0, "scene-arm", 0.99)
+        clicked = kb_checkbox_checked_int(ui.arm_checkbox)
     if frame % 30 == 0:
         let _agent = input_push_agent_intent(session_id, "codex", "scene.launch", "launch scene " + str(frame / 30), 0.94)
 
@@ -45,6 +49,7 @@ pub fn kb_interaction_frame(session_id: Int, ui: KainbletonUiSession, frame: Int
         frame_index: input_frame_index(session_id),
         action_down: input_action_down(session_id, "transport.toggle"),
         clicked: clicked,
+        armed: kb_checkbox_checked_int(ui.arm_checkbox),
         trace: trace,
     }
 

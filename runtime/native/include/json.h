@@ -32,6 +32,7 @@ int64_t json_array_new(void);
 void json_array_push(int64_t array, int64_t value);
 int64_t json_array_len(int64_t array);
 int64_t json_array_get(int64_t array, int64_t index);
+int64_t json_box_runtime_array(void* array_ptr, int64_t mode);
 int64_t json_box_float(double value);
 int json_any_kind(int64_t value);
 int64_t json_any_to_int(int64_t value);

@@ -1,107 +1,83 @@
 use std::actor
 use std::intent
-use std::runtime
 
 use model::KainbletonProject
-use model::KainbletonFrameState
-use model::kb_frame_state
 use model::kb_track_name_deck
 
 // ============================================================================
-//                      semantic rack: worlds / actors / laws
+//                     semantic rack: proven grammar lane
 // ============================================================================
-// The UI and audio engines are ordinary host objects; this is the Kain-only
-// control voltage that decides what they are allowed to do each frame.
+// Same ambition, tighter syntax: keep the semantic pressure real, but stay
+// close to the world/actor/patch/converge shapes the repo already proves.
 
-component KainbletonMixerDeck(title: String, status: String, checksum: Int):
-    state armed_track: Int = 0
+const KB_SEMANTIC_MODULUS: Int = 1000000007
 
-    fn label(_self: Self_) -> String:
-        return title + " :: " + status + " :: " + str(checksum)
-
-    render <panel title={title}>
-        <text value={label()} />
-        <text value={"world-owned audio timeline"} />
-    </panel>
+component KainbletonMixerDeck():
+    render <panel title="kainbleton semantic deck" />
 
 world KainbletonAuthority:
-    state frame: Int = 0
-    state checksum: Int = 0
-    state playhead: Float = 0.0
-    state energy: Float = 0.0
-    surface native_ui => KainbletonMixerDeck("kainbleton authority", "armed", checksum)
+    state signal: Int = 1
+    state epoch: Int = 0
+    surface native_ui => KainbletonMixerDeck
 
 world KainbletonTransportMirror:
-    state frame: Int = 0
-    state checksum: Int = 0
-    state playhead: Float = 0.0
-    state energy: Float = 0.0
-    surface web => KainbletonMixerDeck("kainbleton mirror", "mirrored", checksum)
+    state signal_copy: Int = 1
+    state epoch_copy: Int = 0
+    surface web => KainbletonMixerDeck
 
-entangle KainbletonAuthority.playhead <-> KainbletonTransportMirror.playhead with single_writer
-entangle KainbletonAuthority.energy <-> KainbletonTransportMirror.energy with single_writer
-entangle KainbletonAuthority.checksum <-> KainbletonTransportMirror.checksum with single_writer
-
-shatter struct KainbletonMeterShard:
-    track: Int
-    frame: Int
-    peak: Float
-    color: Int
+entangle KainbletonAuthority.signal <-> KainbletonTransportMirror.signal_copy with single_writer
+entangle KainbletonAuthority.epoch <-> KainbletonTransportMirror.epoch_copy with single_writer
 
 actor KainbletonRenderConductor:
-    state salt: Int = 41
-    state frames: Int = 0
+    state bias: Int = 11
 
-    on RenderFrame(reply_to: P, request: Int):
-        self.frames = self.frames + 1
-        self.salt = self.salt + request % 257
-        send reply_to.Reply(value = self.salt + self.frames * 17)
+    on Fold(reply_to: P, request: Int):
+        send reply_to.Reply(value = ((request * 17) + self.bias + 23) % KB_SEMANTIC_MODULUS)
 
-law kb_transport_is_sane(frame: Int, project_checksum: Int) -> Bool:
-    return frame >= 0 and project_checksum > 0
+law kb_transport_is_sane(value: Int) -> Bool:
+    return value >= 0 and value < KB_SEMANTIC_MODULUS
 
-patch kb_commit_frame(authority: KainbletonAuthority, frame_state: KainbletonFrameState) -> Int:
-    authority.frame = frame_state.frame
-    authority.playhead = frame_state.playhead
-    authority.energy = frame_state.energy
-    authority.checksum = frame_state.checksum
-    return authority.checksum
+patch kb_commit_signal(authority: KainbletonAuthority, value: Int) -> Int:
+    authority.signal = value
+    authority.epoch = authority.epoch + 1
+    return authority.signal
 
-converge kb_transport_mix(seed: Int) -> Int:
+fn kb_transport_scalar(value: Int) -> Int:
+    return ((value * 31) + 7) % KB_SEMANTIC_MODULUS
+
+converge kb_transport_mix(value: Int) -> Int:
     spec reference:
-        return seed * 31 + 7
+        return kb_transport_scalar(value)
     fast llvm_lane when target("llvm"):
-        return seed * 33 + 11 - seed * 2 - 4
+        return ((value * 31) + 7) % KB_SEMANTIC_MODULUS
+    fast interpret_lane when target("interpret"):
+        return ((value * 31) + 7) % KB_SEMANTIC_MODULUS
     verify random(8)
 
 pub struct KainbletonSemanticProbe:
-    conductor: Any
     checksum: Int
     track_deck: String
 
 pub fn kb_semantic_boot(project: KainbletonProject) -> KainbletonSemanticProbe:
     let authority = KainbletonAuthority
-    let mirror = KainbletonTransportMirror
-    let boot_state = kb_frame_state(project, 0)
-    let _boot_commit = kb_commit_frame(authority, boot_state)
-    let conductor = spawn KainbletonRenderConductor(salt = project.checksum % 97, frames = 0)
+    let _boot = kb_commit_signal(authority, project.checksum % KB_SEMANTIC_MODULUS)
     return KainbletonSemanticProbe {
-        conductor: conductor,
         checksum: project.checksum,
         track_deck: kb_track_name_deck(project),
     }
 
 pub fn kb_semantic_frame(probe: KainbletonSemanticProbe, project: KainbletonProject, frame: Int) -> Int:
-    let state = kb_frame_state(project, frame)
-    if not kb_transport_is_sane(frame, project.checksum):
-        return 0
     let authority = KainbletonAuthority
-    let committed = kb_commit_frame(authority, state)
-    let actor_mix = ask(probe.conductor, "RenderFrame", committed + frame)
-    return kb_transport_mix(committed + actor_mix)
+    let value = (project.checksum + (frame * 131) + probe.checksum) % KB_SEMANTIC_MODULUS
+    if kb_transport_is_sane(value) == false:
+        return 0
+    let committed = kb_commit_signal(authority, value)
+    let conductor = spawn KainbletonRenderConductor(bias = (probe.checksum % 97) + 11)
+    let actor_mix = ask(conductor, "Fold", committed)
+    return kb_transport_mix((committed + actor_mix + frame) % KB_SEMANTIC_MODULUS)
 
 pub fn kb_semantic_telemetry_score(frame_score: Int) -> Int:
     let journal = patch_journal_count()
     let entangled = entangle_propagation_count()
-    let converged = runtime_converge_telemetry_count()
+    let converged = converge_mismatch_count()
     return frame_score + journal * 3 + entangled * 5 + converged * 7

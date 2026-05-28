@@ -1,0 +1,15 @@
+use std::fs
+use std::process
+use std::text
+
+pub fn kb_package_root() -> String:
+    let cwd = process_current_working_directory()
+    if text_ends_with_string(cwd, "\\src") or text_ends_with_string(cwd, "/src"):
+        return fs_path_parent(cwd)
+    return cwd
+
+pub fn kb_artifact_root() -> String:
+    return fs_path_join(kb_package_root(), ".kain/out")
+
+pub fn kb_artifact_path(name: String) -> String:
+    return fs_path_join(kb_artifact_root(), name)

@@ -49,6 +49,7 @@ use math_lane::smoke_math_lane
 use cuda_lane::smoke_cuda_lane
 use interop_lane::smoke_interop_lane
 use python_async_lane::smoke_python_async_lane
+use python_bridge_arrays_lane::smoke_python_bridge_arrays_lane
 use platform_lane::smoke_platform_lane
 use process_lane::smoke_process_lane
 use text_lane::smoke_text_lane
@@ -140,7 +141,7 @@ fn smoke_run_full_album(mode: String) -> Int with Unsafe:
         return 10 + boot
 
     let started_ms = now_millis()
-    let total_tracks: Int = 59
+    let total_tracks: Int = 60
     var succeeded_tracks: Int = 0
     var composition_checksum: Int = 0
 
@@ -484,6 +485,15 @@ fn smoke_run_full_album(mode: String) -> Int with Unsafe:
     let e_interop_stdlib = smoke_first_error(3450, lane_interop_stdlib)
     if e_interop_stdlib != 0:
         return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_interop_stdlib, "stdlib.interop_lane")
+    succeeded_tracks = succeeded_tracks + 1
+
+    let started_python_bridge_arrays = now_millis()
+    let lane_python_bridge_arrays = smoke_python_bridge_arrays_lane()
+    let ended_python_bridge_arrays = now_millis()
+    composition_checksum = smoke_record_track(mode, "stdlib", "stdlib.python_bridge_arrays_lane", "python_bridge_arrays", 60, 3451, lane_python_bridge_arrays, started_python_bridge_arrays, ended_python_bridge_arrays, composition_checksum)
+    let e_python_bridge_arrays = smoke_first_error(3451, lane_python_bridge_arrays)
+    if e_python_bridge_arrays != 0:
+        return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_python_bridge_arrays, "stdlib.python_bridge_arrays_lane")
     succeeded_tracks = succeeded_tracks + 1
 
     let started_mcp = now_millis()

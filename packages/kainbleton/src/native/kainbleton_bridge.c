@@ -4,7 +4,7 @@ static unsigned int kb_rotl32(unsigned int x, int r) {
     return (x << r) | (x >> (32 - r));
 }
 
-int kainbleton_signature(int frames, int tracks, int clips, int salt) {
+int kainbleton_bridge_signature(int frames, int tracks, int clips, int salt) {
     unsigned int x = 0x9e3779b9u ^ (unsigned int)frames;
     x ^= kb_rotl32((unsigned int)tracks * 0x85ebca6bu, 7);
     x ^= kb_rotl32((unsigned int)clips * 0xc2b2ae35u, 13);
@@ -15,7 +15,7 @@ int kainbleton_signature(int frames, int tracks, int clips, int salt) {
     return (int)(x & 0x7fffffffu);
 }
 
-int kainbleton_meter_color(int track, int frame, int seed) {
+int kainbleton_bridge_meter_color(int track, int frame, int seed) {
     unsigned int x = (unsigned int)(track * 131 + frame * 17 + seed * 257);
     unsigned int r = 80u + (x * 29u % 176u);
     unsigned int g = 60u + (x * 47u % 170u);

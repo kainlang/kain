@@ -13,6 +13,12 @@
 #define KAIN_JSON_ANY_TAG_STRING 3LL
 #define KAIN_JSON_ANY_TAG_NULL 4LL
 
+#define KAIN_JSON_RUNTIME_ARRAY_MODE_INT 1LL
+#define KAIN_JSON_RUNTIME_ARRAY_MODE_BOOL 2LL
+#define KAIN_JSON_RUNTIME_ARRAY_MODE_F64 3LL
+#define KAIN_JSON_RUNTIME_ARRAY_MODE_STRING 4LL
+#define KAIN_JSON_RUNTIME_ARRAY_MODE_NESTED_ANY 5LL
+
 typedef enum KainJsonKind {
     KAIN_JSON_NULL = 0,
     KAIN_JSON_BOOL = 1,
@@ -230,6 +236,7 @@ static KainJsonValue* json_value_from_handle(int64_t handle) {
 }
 
 static KainJsonValue* json_clone_value(const KainJsonValue* value);
+static int json_array_reserve(KainJsonValue* array, int64_t needed);
 
 static KainJsonValue* json_value_from_any(int64_t any) {
     int64_t tag = any & KAIN_JSON_ANY_TAG_MASK;
@@ -264,6 +271,74 @@ static KainJsonValue* json_value_from_any(int64_t any) {
         return json_value_string_copy(text);
     }
     return json_value_new(KAIN_JSON_NULL);
+}
+
+static int json_runtime_array_is_live_handle(int64_t raw) {
+    RcHeader* header;
+    void* ptr;
+    if (raw == 0) {
+        return 0;
+    }
+    ptr = (void*)(intptr_t)raw;
+    if (!kain_rc_is_tracked_pointer(ptr)) {
+        return 0;
+    }
+    header = ((RcHeader*)ptr) - 1;
+    return header->magic == KAIN_RC_MAGIC_ALIVE && header->type_tag == 2;
+}
+
+static KainJsonValue* json_value_from_runtime_array_mode(void* array_ptr, int64_t mode);
+
+static KainJsonValue* json_value_from_runtime_array_slot(int64_t raw, int64_t mode) {
+    switch (mode) {
+        case KAIN_JSON_RUNTIME_ARRAY_MODE_BOOL:
+            return json_value_bool(raw != 0);
+        case KAIN_JSON_RUNTIME_ARRAY_MODE_F64: {
+            double value = 0.0;
+            memcpy(&value, &raw, sizeof(double));
+            return json_value_float(value);
+        }
+        case KAIN_JSON_RUNTIME_ARRAY_MODE_STRING:
+            if (raw == 0) {
+                return json_value_new(KAIN_JSON_NULL);
+            }
+            return json_value_string_copy((const char*)(intptr_t)raw);
+        case KAIN_JSON_RUNTIME_ARRAY_MODE_NESTED_ANY:
+            if (json_runtime_array_is_live_handle(raw)) {
+                return json_value_from_runtime_array_mode(
+                    (void*)(intptr_t)raw,
+                    KAIN_JSON_RUNTIME_ARRAY_MODE_NESTED_ANY
+                );
+            }
+            return json_value_from_any(raw);
+        case KAIN_JSON_RUNTIME_ARRAY_MODE_INT:
+        default:
+            return json_value_int(raw);
+    }
+}
+
+static KainJsonValue* json_value_from_runtime_array_mode(void* array_ptr, int64_t mode) {
+    KainArray* array = (KainArray*)array_ptr;
+    KainJsonValue* out;
+    int64_t index;
+    if (!array || !json_runtime_array_is_live_handle((int64_t)(intptr_t)array)) {
+        return json_value_new(KAIN_JSON_ARRAY);
+    }
+    out = json_value_new(KAIN_JSON_ARRAY);
+    if (!out) {
+        return NULL;
+    }
+    if (!json_array_reserve(out, array->len)) {
+        return out;
+    }
+    for (index = 0; index < array->len; ++index) {
+        KainJsonValue* boxed = json_value_from_runtime_array_slot(array->data[index], mode);
+        if (!boxed) {
+            continue;
+        }
+        out->items[out->item_count++] = boxed;
+    }
+    return out;
 }
 
 static KainJsonValue* json_clone_value(const KainJsonValue* value) {
@@ -1113,6 +1188,10 @@ bool json_get_bool(int64_t object, const char* key) {
 
 int64_t json_array_new(void) {
     return json_handle_from_value(json_value_new(KAIN_JSON_ARRAY));
+}
+
+int64_t json_box_runtime_array(void* array_ptr, int64_t mode) {
+    return json_handle_from_value(json_value_from_runtime_array_mode(array_ptr, mode));
 }
 
 void json_array_push(int64_t array, int64_t value) {

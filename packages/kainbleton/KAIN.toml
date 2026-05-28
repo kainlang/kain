@@ -29,13 +29,23 @@ inputs = [
   "src/model.kn",
   "src/semantics.kn",
   "src/native_bridge.kn",
+  "src/paths.kn",
   "src/audio_engine.kn",
   "src/ui_workbench.kn",
   "src/interaction.kn",
   "src/proof.kn",
   "src/main.kn",
-  "native/kainbleton_bridge.h",
-  "native/kainbleton_bridge.c",
+  "src/native/kainbleton_bridge.h",
+  "src/native/kainbleton_bridge.c",
   "build.kn",
   "KAIN.toml",
 ]
+
+[c_ffi]
+tier = "inline"
+
+[[c_ffi.libraries]]
+name = "kainbleton_bridge"
+header = "src/native/kainbleton_bridge.h"
+sources = ["src/native/kainbleton_bridge.c"]
+include_paths = ["src/native"]

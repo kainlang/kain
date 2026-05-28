@@ -26,6 +26,8 @@ pub struct KainbletonAudioReport:
     peak: Float
     preview_x: Array<Float>
     preview_y: Array<Float>
+    spectrum_x: Array<Float>
+    spectrum_y: Array<Float>
     wave_object: Any
     shared_preview: Any
 
@@ -74,17 +76,19 @@ pub fn kb_preview_from_python(wave_object: Any, frames: Int) -> Array<Float>:
     return preview
 
 pub fn kb_render_audio(project: KainbletonProject, output_path: String) -> KainbletonAudioReport:
-    fs_create_dir_all(".kain/out")
+    fs_create_dir_all(fs_path_parent(output_path))
 
     let engine = python_call_attr_raw(dd, "RenderEngine", [project.sample_rate, 128])
     let _bpm = python_call_attr_raw(engine, "set_bpm", [project.bpm])
     let osc = python_call_attr_raw(engine, "make_oscillator_processor", ["kainbleton.osc", 110.0])
-    let graph = [[osc, []]]
-    let _graph = python_call_attr_raw(engine, "load_graph", [graph])
+    let _graph = python_call_attr_raw(engine, "load_graph", [[[osc, []]]])
     let duration = Float(project.render_frames) / Float(project.sample_rate)
     let _render = python_call_attr_raw(engine, "render", [duration])
     let daw_audio = python_call_attr_raw(engine, "get_audio", [])
     let daw_shape = python_call_attr_raw(python_getattr_raw(daw_audio, "shape"), "__str__", [])
+    let daw_left = python_call_attr_raw(daw_audio, "__getitem__", [0])
+    let daw_right = python_call_attr_raw(daw_audio, "__getitem__", [1])
+    let daw_mix = python_call_attr_raw(np, "multiply", [python_call_attr_raw(np, "add", [daw_left, daw_right]), 0.5])
 
     let t = python_call_attr_raw(np, "linspace", [0.0, duration, project.render_frames, false])
     let bass_phase = python_call_attr_raw(np, "multiply", [t, 6.283185307179586 * 55.0])
@@ -97,16 +101,25 @@ pub fn kb_render_audio(project: KainbletonProject, output_path: String) -> Kainb
     let mixed_b = python_call_attr_raw(np, "multiply", [lead, 0.18])
     let mixed_c = python_call_attr_raw(np, "multiply", [saw, 0.12])
     let wave_ab = python_call_attr_raw(np, "add", [mixed_a, mixed_b])
-    let wave = python_call_attr_raw(np, "add", [wave_ab, mixed_c])
-    let smoothed = python_call_attr_raw(scipy_signal, "savgol_filter", [wave, 31, 3])
+    let synth_wave = python_call_attr_raw(np, "add", [wave_ab, mixed_c])
+    let fused_a = python_call_attr_raw(np, "multiply", [daw_mix, 0.78])
+    let fused_b = python_call_attr_raw(np, "multiply", [synth_wave, 0.22])
+    let fused = python_call_attr_raw(np, "add", [fused_a, fused_b])
+    let smoothed = python_call_attr_raw(scipy_signal, "savgol_filter", [fused, 31, 3])
 
     let _write = python_call_attr_raw(sf, "write", [output_path, smoothed, project.sample_rate])
     let peak = to_float(python_call_attr_raw(np, "max", [python_call_attr_raw(np, "abs", [smoothed])]))
-    let rms_array = python_call_attr_raw(python_getattr_raw(librosa, "feature"), "rms", [smoothed])
-    let rms_value = to_float(python_call_attr_raw(np, "mean", [rms_array]))
+    let squared = python_call_attr_raw(np, "square", [smoothed])
+    let mean_square = python_call_attr_raw(np, "mean", [squared])
+    let rms_value = to_float(python_call_attr_raw(np, "sqrt", [mean_square]))
 
     let preview_y = kb_preview_from_python(smoothed, project.render_frames)
     let preview_x = kb_preview_axis(len(preview_y))
+    let spectrum_full = python_call_attr_raw(python_getattr_raw(np, "fft"), "rfft", [smoothed])
+    let spectrum_mag = python_call_attr_raw(np, "log1p", [python_call_attr_raw(np, "abs", [spectrum_full])])
+    let spectrum_frames = to_int(python_call_attr_raw(spectrum_mag, "__len__", []))
+    let spectrum_y = kb_preview_from_python(spectrum_mag, spectrum_frames)
+    let spectrum_x = kb_preview_axis(len(spectrum_y))
     let shared_preview = python_shared_buffer(smoothed, "float32", [project.render_frames], "audio/waveform")
     let shared_info = interop_shared_buffer_info(shared_preview)
     let module_score = kb_audio_module_score() + shared_info.byte_length
@@ -121,6 +134,8 @@ pub fn kb_render_audio(project: KainbletonProject, output_path: String) -> Kainb
         peak: peak,
         preview_x: preview_x,
         preview_y: preview_y,
+        spectrum_x: spectrum_x,
+        spectrum_y: spectrum_y,
         wave_object: smoothed,
         shared_preview: shared_preview,
     }
