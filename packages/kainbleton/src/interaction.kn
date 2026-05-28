@@ -4,7 +4,7 @@ use std::python
 use ui_workbench::KainbletonUiSession
 use ui_workbench::kb_checkbox_checked_int
 
-import PyQt6.QtCore as qt_core
+import PyQt6.QtCore as qtc
 import PyQt6.QtTest as qt_test
 
 pub struct KainbletonInteractionReport:
@@ -21,26 +21,42 @@ pub fn kb_interaction_boot() -> Int:
     let session = input_session_create("kainbleton-input")
     let _space = input_bind_action(session, input_source_keyboard(), "down", "Space", "transport.toggle")
     let _click = input_bind_action(session, input_source_pointer(), "press", "Left", "clip.fire")
+    let _rkey = input_bind_action(session, input_source_keyboard(), "down", "R", "track.arm")
     let _wheel = input_bind_axis(session, input_source_pointer(), "axis", "WheelY", "timeline.zoom", 0.01)
     return session
 
 pub fn kb_interaction_frame(session_id: Int, ui: KainbletonUiSession, frame: Int) -> KainbletonInteractionReport:
     let _begin = input_begin_frame(session_id, 16.666)
     var clicked: Int = 0
+    var transport_armed: Int = 0
+
+    // space bar toggle at frame 12
     if frame == 12:
         let _down = input_push_key_down(session_id, "keyboard:0", "Space")
     if frame == 13:
         let _up = input_push_key_up(session_id, "keyboard:0", "Space")
+
+    // R key arm at frame 40
+    if frame == 40:
+        let _r_down = input_push_key_down(session_id, "keyboard:0", "R")
+    if frame == 41:
+        let _r_up = input_push_key_up(session_id, "keyboard:0", "R")
+
+    // click transport record button at frame 24
     if frame == 24:
-        let mouse_button = python_getattr_raw(python_getattr_raw(python_getattr_raw(qt_core, "Qt"), "MouseButton"), "LeftButton")
+        let mouse_button = python_getattr_raw(python_getattr_raw(python_getattr_raw(qtc, "Qt"), "MouseButton"), "LeftButton")
         let qtest = python_getattr_raw(qt_test, "QTest")
-        let _click_py = python_call_attr_raw(qtest, "mouseClick", [ui.arm_checkbox, mouse_button])
-        let _repaint = python_call_attr_raw(ui.widget, "repaint", [])
+        let _click_py = python_call_attr_raw(qtest, "mouseClick", [ui.record_btn, mouse_button])
+        let _repaint = python_call_attr_raw(ui.main_window, "repaint", [])
         let _pump = python_call_attr_raw(ui.app, "processEvents", [])
-        let _event = input_push_event(session_id, input_source_pointer(), "qt:0", "press", "Left", 1.0, "scene-arm", 0.99)
-        clicked = kb_checkbox_checked_int(ui.arm_checkbox)
+        let _event = input_push_event(session_id, input_source_pointer(), "qt:0", "press", "Left", 1.0, "transport-record", 0.99)
+        clicked = kb_checkbox_checked_int(ui.record_btn)
+
+    // agent intent every 30 frames
     if frame % 30 == 0:
         let _agent = input_push_agent_intent(session_id, "codex", "scene.launch", "launch scene " + str(frame / 30), 0.94)
+
+    transport_armed = kb_checkbox_checked_int(ui.record_btn)
 
     let trace = input_trace_json(session_id)
     return KainbletonInteractionReport {
@@ -49,7 +65,7 @@ pub fn kb_interaction_frame(session_id: Int, ui: KainbletonUiSession, frame: Int
         frame_index: input_frame_index(session_id),
         action_down: input_action_down(session_id, "transport.toggle"),
         clicked: clicked,
-        armed: kb_checkbox_checked_int(ui.arm_checkbox),
+        armed: transport_armed,
         trace: trace,
     }
 
