@@ -495,11 +495,13 @@ fn kg_dispatch_walked_paths_text(walked: String, include_hidden: Bool, max_file_
 
 fn kg_walk_and_dispatch_dir(current_path: String, include_hidden: Bool, max_file_bytes: Int, actual_workers: Int, worker0: KgWorker, worker1: KgWorker, worker2: KgWorker, worker3: KgWorker, worker4: KgWorker, worker5: KgWorker, worker6: KgWorker, worker7: KgWorker, state_in: KgDispatchState) -> KgDispatchState:
     var state = state_in
-    let walked = fs_walk_paths_text(current_path)
+    let walked_result = fs_try_walk_paths_text(current_path)
+    let walked = if walked_result.ok: walked_result.value else: ""
     if len(walked) > 0:
         return kg_dispatch_walked_paths_text(walked, include_hidden, max_file_bytes, actual_workers, worker0, worker1, worker2, worker3, worker4, worker5, worker6, worker7, state)
-    let walked = fs_read_dir_paths_text(current_path)
-    let entries = kg_split_lines(walked)
+    let direct_result = fs_try_read_dir_paths_text(current_path)
+    let direct = if direct_result.ok: direct_result.value else: ""
+    let entries = kg_split_lines(direct)
     var entry_index = 0
     while entry_index < len(entries):
         let entry = entries[entry_index]

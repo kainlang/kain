@@ -447,6 +447,26 @@ pub fn fs_try_metadata(path: String) -> FsMetadataResult:
         error: raw.error
     }
 
+pub fn fs_try_read_dir_paths_text(path: String) -> FsTextResult:
+    let value = abi_fs_read_dir_paths_text(path)
+    let status = abi_fs_last_status()
+    return FsTextResult {
+        ok: status == 0,
+        value: if status == 0: value else: "",
+        status: status,
+        error: fs_error_from_status("read_dir_paths_text", path, "", status)
+    }
+
+pub fn fs_try_walk_paths_text(path: String) -> FsTextResult:
+    let value = abi_fs_walk_paths_text(path)
+    let status = abi_fs_last_status()
+    return FsTextResult {
+        ok: status == 0,
+        value: if status == 0: value else: "",
+        status: status,
+        error: fs_error_from_status("walk_paths_text", path, "", status)
+    }
+
 pub fn fs_read_text(path: String) -> String:
     return fs_try_read_text(path).value
 
@@ -514,20 +534,13 @@ pub fn fs_metadata(path: String) -> FsMetadata:
     return fs_try_metadata(path).value
 
 pub fn fs_read_dir_paths_text(path: String) -> String:
-    return abi_fs_read_dir_paths_text(path)
+    return fs_try_read_dir_paths_text(path).value
 
 pub fn fs_read_dir_paths(path: String) -> Array<String>:
-    let raw_lines = text_split_lines(abi_fs_read_dir_paths_text(path))
-    let mut lines: Array<String> = []
-    var index = 0
-    while index < len(raw_lines):
-        if raw_lines[index] != "":
-            push(lines, raw_lines[index])
-        index = index + 1
-    return lines
+    return fs_nonempty_lines(fs_read_dir_paths_text(path))
 
 pub fn fs_read_dir(path: String) -> Array<FsDirEntry>:
-    let raw_lines = text_split_lines(abi_fs_read_dir_paths_text(path))
+    let raw_lines = fs_read_dir_paths(path)
     let mut entries: Array<FsDirEntry> = []
     var index = 0
     while index < len(raw_lines):
@@ -538,10 +551,10 @@ pub fn fs_read_dir(path: String) -> Array<FsDirEntry>:
     return entries
 
 pub fn fs_walk_paths_text(path: String) -> String:
-    return abi_fs_walk_paths_text(path)
+    return fs_try_walk_paths_text(path).value
 
 pub fn fs_walk(path: String) -> Array<FsDirEntry>:
-    let paths = text_split_lines(abi_fs_walk_paths_text(path))
+    let paths = fs_nonempty_lines(fs_walk_paths_text(path))
     let mut entries: Array<FsDirEntry> = []
     var index = 0
     while index < len(paths):

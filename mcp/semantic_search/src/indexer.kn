@@ -164,12 +164,16 @@ fn collect_index_dir(files: Array<String>, root: String, dir_name: String, index
             i = i + 1
 
 fn collect_native_files_from_dir(dir: String, index_name: String) -> Array<String>:
-    let walked = fs_walk_paths_text(dir)
-    println("      walk len: " + int_to_str(len(walked)))
-    if len(walked) > 0:
-        return collect_files_from_paths_text(walked, index_name)
-    let direct = fs_read_dir_paths_text(dir)
-    println("      dir len:  " + int_to_str(len(direct)))
+    let walked = fs_try_walk_paths_text(dir)
+    let walked_text = if walked.ok: walked.value else: ""
+    println("      walk len: " + int_to_str(len(walked_text)))
+    if len(walked_text) > 0:
+        return collect_files_from_paths_text(walked_text, index_name)
+    let direct = fs_try_read_dir_paths_text(dir)
+    let direct_text = if direct.ok: direct.value else: ""
+    println("      dir len:  " + int_to_str(len(direct_text)))
+    if len(direct_text) > 0:
+        return collect_files_from_paths_text(direct_text, index_name)
     return collect_files_recursive(dir, index_name)
 
 fn collect_files_from_paths_text(paths_text: String, index_name: String) -> Array<String>:
