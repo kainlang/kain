@@ -11826,10 +11826,7 @@ impl LlvmGenerator {
             ));
         };
 
-        let mut ret_type = self.map_type(ret);
-        if ret_type == "void" && callable_name != "main" {
-            ret_type = "i64".to_string();
-        }
+        let ret_type = self.map_type(ret);
 
         Ok((params.clone(), ret_type))
     }
@@ -13620,14 +13617,11 @@ impl LlvmGenerator {
         self.entry_hoisted_const_inits.clear();
 
         let self_ty = format!("%{}*", target_name);
-        let mut ret_type = method
+        let ret_type = method
             .return_type
             .as_ref()
             .map(|ty| self.map_impl_type_from_ast(target_name, ty))
             .unwrap_or_else(|| "void".to_string());
-        if ret_type == "void" {
-            ret_type = "i64".to_string();
-        }
         self.current_return_type = Some(ret_type.clone());
 
         let mut params = Vec::new();
@@ -15524,6 +15518,12 @@ impl LlvmGenerator {
                 let actor_return_slot = self.actor_return_slot.clone();
 
                 if let Some(e) = expr {
+                    if self.current_return_type.as_deref() == Some("void") {
+                        return Err(KainError::codegen(
+                            "cannot return a value from a callable without an explicit non-void return type",
+                            e.span(),
+                        ));
+                    }
                     let (val, ty) = if let Some(target_ty) = self.current_return_type.clone() {
                         self.compile_expr_for_target_type(e, &target_ty)?
                     } else {

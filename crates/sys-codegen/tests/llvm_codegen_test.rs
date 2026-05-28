@@ -3090,6 +3090,67 @@ fn main() -> Int:
 }
 
 #[test]
+fn llvm_lowers_implicit_void_helpers_as_void_callables() {
+    let source = r#"
+fn note():
+    let _text = "hi"
+
+fn main() -> Int:
+    note()
+    return 0
+"#;
+
+    let typed = typed_program_from_source(source);
+    let llvm = String::from_utf8(generate_llvm(&typed).expect("llvm generation should succeed"))
+        .expect("llvm output should be utf8");
+
+    assert!(llvm.contains("define internal void @note()"));
+    assert!(llvm.contains("call void @note()"));
+    let note_ir = llvm_function_ir(&llvm, "define internal void @note()");
+    assert!(!note_ir.trim_end().ends_with("unreachable\n}"));
+}
+
+#[test]
+fn llvm_lowers_implicit_void_any_helpers_as_void_callables() {
+    let source = r#"
+fn relay(value: Any):
+    let _mirror = value
+
+fn main() -> Int:
+    relay(1)
+    return 0
+"#;
+
+    let typed = typed_program_from_source(source);
+    let llvm = String::from_utf8(generate_llvm(&typed).expect("llvm generation should succeed"))
+        .expect("llvm output should be utf8");
+
+    assert!(llvm.contains("define internal void @relay(i64 %arg0)"));
+    assert!(llvm.contains("call void @relay(i64 "));
+    let relay_ir = llvm_function_ir(&llvm, "define internal void @relay(i64 %arg0)");
+    assert!(!relay_ir.trim_end().ends_with("unreachable\n}"));
+}
+
+#[test]
+fn llvm_rejects_value_returns_from_implicit_void_helpers() {
+    let source = r#"
+fn make_frame(root: Any):
+    return root
+
+fn main() -> Int:
+    return 0
+"#;
+
+    let typed = typed_program_from_source(source);
+    let err = generate_llvm(&typed).expect_err(
+        "llvm generation should fail when an implicit void helper returns a value",
+    );
+
+    let message = err.to_string();
+    assert!(message.contains("cannot return a value from a callable without an explicit non-void return type"));
+}
+
+#[test]
 fn llvm_flattens_long_string_concat_chains_into_fixed_arity_runtime_calls() {
     let source = r#"
 fn bool_text(flag: Bool) -> String:

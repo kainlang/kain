@@ -227,10 +227,11 @@
 ### Native LLVM exes can crash when Python host objects cross helper-function boundaries
 - Categories: runtime, interop, crash, codegen
 - Severity: High
-- Status: Active workaround in tree (2026-05-28)
+- Status: Fixed in tree (2026-05-28)
 - Surface: native Python bridge / authored Kain / LLVM executable lane
-- Trigger: Passing a live Python host object through a Kain helper boundary, even for simple widget operations such as `pack(widget)` or `set_item(widget, "text", "...")`, inside a compiled native exe.
-- Symptom: The process exits with `0x80000003` during otherwise valid Tkinter work. The same host-object operations survive when invoked inline in one Kain scope, and the same Python modules (`math`, `tkinter`) import and execute correctly.
-- Minimal repro: A native LLVM program that creates `let frame = python_call_attr_raw(tk, "Frame", [root])`, then calls a helper like `fn pack(target: Any): python_call_attr_raw(target, "pack", [])`; compiled exe crashes, while direct `python_call_attr_raw(frame, "pack", [])` survives.
-- Evidence: `X:\bazel_server_gui.kn` originally crashed before first paint whenever Tk widgets were created and manipulated through helper functions returning or accepting `Any`; flattening the same operations inline made the exe survive a real 5-second GUI smoke. Inline repros also showed `Tk()`, `Frame()`, `Button()`, callbacks, ctypes pid probes, and queue bootstrap all surviving when the host-object calls stayed in one scope.
-- Suggested direction: Audit Python-host-object ownership and retain/release semantics when `Any` values cross Kain function-call boundaries on the LLVM lane. The current authored workaround is to keep Python host-object mutation and method calls inline instead of routing them through Kain helper functions.
+- Trigger: Historical LLVM lowering forced non-`main` callables whose semantic return type was `void` into `i64`, including ordinary authored helpers such as `fn pack(target: Any): ...` and `impl` methods with no explicit `->`.
+- Symptom: The process exited with `0x80000003` during otherwise valid Tkinter work because the helper body finished, cleaned up locals, and then hit an emitted `unreachable` instead of `ret void`.
+- Minimal repro: A native LLVM program that creates `let frame = python_call_attr_raw(tk, "Frame", [root])`, then calls a helper like `fn pack(target: Any): let _pack = python_call_attr_raw(target, "pack", [])`; old LLVM lowered `define internal i64 @pack(...)` and ended the helper with `unreachable`.
+- Root cause: `crates/sys-codegen/src/codegen_llvm/mod.rs` historically rewrote resolved `void` callable signatures to `i64` for non-`main` functions and `impl` methods. Side-effect-only helpers with no explicit return therefore compiled as value-returning callables even when their bodies had no final expression result.
+- Fix landed: LLVM callable lowering now preserves semantic `void` for ordinary helpers and `impl` methods, while `main` still widens to `i64` at the ABI boundary. The old helper repros now lower to `define internal void @...` and return normally.
+- Regression evidence: `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_lowers_implicit_void_ -- --nocapture`, compiled native repro `X:\tmp_python_helper_boundary_repro.kn` printing `ok`, and compiled native helper-return repro `X:\tmp_python_helper_return_repro.kn` printing `return_ok`.
