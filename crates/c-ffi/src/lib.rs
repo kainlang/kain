@@ -1418,6 +1418,54 @@ mod tests {
     }
 
     #[test]
+    fn natural_include_alias_surface_typechecks_without_use_c_imports() {
+        let temp = TempDir::new().expect("temp dir");
+        let root = temp.path();
+        let src_dir = root.join("src");
+        let native_dir = src_dir.join("native");
+        kfs::create_dir_all(&native_dir).expect("native dir");
+        kfs::write_text(
+            native_dir.join("tiny_math.h"),
+            "int tiny_math_add(int a, int b);\nint tiny_math_ping(void);\n",
+        )
+        .expect("header");
+        kfs::write_text(
+            native_dir.join("tiny_math.c"),
+            "#include \"tiny_math.h\"\nint tiny_math_add(int a, int b) { return a + b; }\nint tiny_math_ping(void) { return 1; }\n",
+        )
+        .expect("source");
+
+        let source = "\
+include native/tiny_math.h as tm
+
+fn main() -> Int:
+    let ping = tm_ping()
+    return tm_add(ping, 3)
+";
+        let augmented = augment_source_for_runtime(
+            source,
+            CompileTarget::Llvm,
+            &PrepareContext {
+                current_dir: Some(src_dir),
+                manifest_path: None,
+            },
+        )
+        .expect("natural include should prepare alias surface");
+
+        assert!(augmented.contains("@extern fn tm_add"));
+        assert!(augmented.contains("@extern fn tm_ping"));
+        assert!(!augmented.contains("use c::tiny_math"));
+
+        let tokens = Lexer::new(&augmented).tokenize().expect("tokens");
+        let mapper = SpanMapper::new(&augmented);
+        let ast = Parser::new(&tokens, &mapper, "<include-alias-surface>")
+            .parse()
+            .expect("parse");
+        types::check(&ast, &mapper, "<include-alias-surface>")
+            .expect("include alias surface should typecheck");
+    }
+
+    #[test]
     fn inline_tier_compiles_c_sources_to_llvm_bitcode_link_inputs() {
         let temp = TempDir::new().expect("temp dir");
         let root = temp.path();

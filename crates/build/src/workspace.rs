@@ -3393,7 +3393,9 @@ fn run_kain_compile(
 
     if matches!(target, CompileTarget::Llvm | CompileTarget::C) {
         artifacts.extend(stage_native_backend_artifacts(
+            &session,
             &source,
+            Some(source_path),
             target,
             primary_output,
             root_component,
@@ -3827,13 +3829,16 @@ fn patch_hybrid_wasm_reference(source: String, wasm_file_name: &str) -> String {
 }
 
 fn stage_native_backend_artifacts(
+    session: &DriverSession,
     source: &str,
+    source_path: Option<&Path>,
     target: CompileTarget,
     output_path: &Path,
     root_component: Option<&str>,
 ) -> BuildResult<Vec<BuildArtifactRecord>> {
     let mut artifacts = Vec::new();
-    let contract_bundle = kain_driver::compile_runtime_contract_bundle(source, target)?;
+    let contract_bundle =
+        session.compile_runtime_contract_bundle_with_source_path(source, source_path, target)?;
     let runtime_contract_path = output_path.with_extension("runtime_contract.json");
     kfs::atomic_write_text(
         &runtime_contract_path,
@@ -3843,35 +3848,33 @@ fn stage_native_backend_artifacts(
     )?;
     artifacts.push(record_artifact("runtime-contract", &runtime_contract_path)?);
 
-    let realtime_bundle = kain_driver::compile_realtime_app_bundle(source, target, root_component)?;
+    let realtime_bundle = session.compile_realtime_app_bundle_with_source_path(
+        source,
+        source_path,
+        target,
+        root_component,
+    )?;
     let realtime_app_path = output_path.with_extension("realtime_app.json");
     kfs::atomic_write_text(&realtime_app_path, &realtime_bundle.bundle_json)?;
     artifacts.push(record_artifact("realtime-app", &realtime_app_path)?);
 
-    let shader_bundle_source;
-    let shader_source = match shader_artifact_source(source) {
-        Some(source) => {
-            shader_bundle_source = source;
-            shader_bundle_source.as_str()
-        }
-        None => source,
-    };
-
     let mut shader_bundle_for_residency = None;
-    match kain_driver::compile_shader_artifact_bundle(shader_source) {
-        Ok(bundle) => {
-            let shader_path = output_path.with_extension("shader_bundle.json");
-            kfs::atomic_write_text(&shader_path, &bundle.bundle_json)?;
-            artifacts.push(record_artifact("shader-bundle", &shader_path)?);
-            shader_bundle_for_residency = Some(bundle.bundle);
-        }
-        Err(err) => {
-            let message = err.to_string();
-            if !(message.contains("no entry points")
-                || message.contains("expected a shader item")
-                || message.contains("SPIR-V backend emitted no entry points"))
-            {
-                return Err(BuildError::Kain(err));
+    if let Some(shader_source) = shader_artifact_source(source) {
+        match session.compile_shader_artifact_bundle(&shader_source) {
+            Ok(bundle) => {
+                let shader_path = output_path.with_extension("shader_bundle.json");
+                kfs::atomic_write_text(&shader_path, &bundle.bundle_json)?;
+                artifacts.push(record_artifact("shader-bundle", &shader_path)?);
+                shader_bundle_for_residency = Some(bundle.bundle);
+            }
+            Err(err) => {
+                let message = err.to_string();
+                if !(message.contains("no entry points")
+                    || message.contains("expected a shader item")
+                    || message.contains("SPIR-V backend emitted no entry points"))
+                {
+                    return Err(BuildError::Kain(err));
+                }
             }
         }
     }
@@ -5711,6 +5714,49 @@ mod tests {
                 ..
             }
         )));
+    }
+
+    #[test]
+    fn build_kain_file_keeps_c_include_aliases_visible_to_native_sidecar_staging() {
+        let root = unique_test_dir("c-include-sidecars");
+        let native_dir = root.join("native");
+        kfs::create_dir_all(&native_dir).expect("native dir");
+        kfs::write_text(
+            native_dir.join("tiny_math.h"),
+            "int tiny_math_add(int a, int b);\nint tiny_math_ping(void);\n",
+        )
+        .expect("header");
+        kfs::write_text(
+            native_dir.join("tiny_math.c"),
+            "#include \"tiny_math.h\"\nint tiny_math_add(int a, int b) { return a + b; }\nint tiny_math_ping(void) { return 1; }\n",
+        )
+        .expect("source");
+        let entry = root.join("main.kn");
+        kfs::write_text(
+            &entry,
+            "\
+include native/tiny_math.h as tm
+
+fn main() -> Int:
+    let ping = tm_ping()
+    return tm_add(ping, 41)
+",
+        )
+        .expect("entry source");
+
+        let report = build_kain_file(&KainFileBuildOptions::new(entry, CompileTarget::Llvm))
+            .expect("build report");
+
+        assert!(report.is_success(), "{:#?}", report.tasks);
+        let manifest_path = report.tasks[0]
+            .outputs
+            .iter()
+            .find(|path| path.file_name().and_then(OsStr::to_str) == Some("kain-artifacts.json"))
+            .expect("artifact manifest output");
+        let manifest = kfs::read_text(manifest_path).expect("artifact manifest");
+        assert!(manifest.contains("runtime-contract"));
+        assert!(manifest.contains("realtime-app"));
+        assert!(!manifest.contains("shader-bundle"));
     }
 
     #[test]
