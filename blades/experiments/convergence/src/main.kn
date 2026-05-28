@@ -25,7 +25,7 @@ const RAT_HEIGHT: Int = 18
 const RAT_CELL_COUNT: Int = RAT_WIDTH * RAT_HEIGHT
 const RAT_CELL_SIZE: Int = 24
 const RAT_TRAIL_CAPACITY: Int = RAT_CELL_COUNT
-const RAT_FRAME_LIMIT: Int = 120
+const RAT_FRAME_LIMIT: Int = 2147483647 // effectively unbounded for live preview
 const RAT_START_INDEX: Int = (1 * RAT_WIDTH) + 1
 const RAT_TARGET_INDEX: Int = ((RAT_HEIGHT - 2) * RAT_WIDTH) + (RAT_WIDTH - 2)
 

@@ -53,11 +53,23 @@ patch commit_search(
     authority.target_index = target_index
     authority.best_distance = winner_distance
     authority.best_lane = 1
-    if pure_distance <= greedy_distance and pure_distance <= chaos_distance:
+    var safe_pure: Int = 1000000000
+    var safe_greedy: Int = 1000000000
+    var safe_chaos: Int = 1000000000
+    if pure_distance >= 0:
+        safe_pure = pure_distance
+    if greedy_distance >= 0:
+        safe_greedy = greedy_distance
+    if chaos_distance >= 0:
+        safe_chaos = chaos_distance
+    if safe_pure <= safe_greedy and safe_pure <= safe_chaos:
         authority.best_distance = pure_distance
         authority.best_lane = 0
     else:
-        if chaos_distance < greedy_distance and chaos_distance <= pure_distance:
+        if safe_greedy <= safe_chaos:
+            authority.best_distance = greedy_distance
+            authority.best_lane = 1
+        else:
             authority.best_distance = chaos_distance
             authority.best_lane = 2
     authority.frame_signature = ((frame * 31) + authority.best_distance + start_index + target_index) % 1000000007
@@ -91,4 +103,3 @@ patch seal_frame(
     if rat_trail_within_capacity(chaos_count, authority.trail_capacity) == false:
         authority.status = 16
     return authority.status
-
