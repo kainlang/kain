@@ -1,132 +1,56 @@
 // ============================================================================
-//                    semantic-search :: MCP server
+//                    semantic-search :: MCP stdio server
 // ============================================================================
-// HTTP server exposing the semantic_search MCP tool.
+// Kain owns the server shape, command routing, and JSON payload truth.
+// FastMCP is embedded through Kain's Python bridge so the final artifact is a
+// single executable rather than a sidecar Python launcher.
 
-use std::net
-use std::fs
-use std::text
+use std::python
+use std::process
 use types::SearchResult
 use types::SearchResponse
 use config::SemanticSearchConfig
-use search_engine::search
-use utils::int_to_str
-use utils::float_to_str
+use config::config_runtime_root
+use config::locate_config_path
 
-pub fn start_server(cfg: SemanticSearchConfig) -> Int:
-    let host = cfg.server_host
-    let port = cfg.server_port
+import fastmcp as mcp
 
-    println("starting MCP semantic search server...")
-    println("  host: " + host + ":" + int_to_str(port))
-    println("  endpoints:")
-    println("    POST /tools/semantic_search")
-    println("    GET  /health")
+pub fn start_server(cfg: SemanticSearchConfig) -> Int with Unsafe:
+    if python_hasattr(mcp, "FastMCP") == false:
+        return 91
 
-    let server_id = http_server_create(host, port)
-    if server_id < 0:
-        println("ERROR: failed to create HTTP server (code " + int_to_str(server_id) + ")")
-        return 1
+    let exe_path = process_current_executable_path()
+    if exe_path == "":
+        return 92
 
-    let listen_status = http_server_listen(server_id)
-    if listen_status != 0:
-        println("ERROR: failed to listen (code " + int_to_str(listen_status) + ")")
-        return 1
-
-    println("  server started, listening on " + host + ":" + int_to_str(port))
-
-    var running: Bool = true
-    while running:
-        let pumped = http_server_pump(server_id, 100)
-        if pumped < 0:
-            println("WARN: server pump returned " + int_to_str(pumped))
-
-        let pending = http_server_pending_request_count(server_id)
-        var processed: Int = 0
-        while processed < pending and processed < 100:
-            let req_id = http_server_next_request(server_id)
-            if req_id < 0:
-                break
-            handle_request(req_id, cfg)
-            processed = processed + 1
-
-    http_server_close(server_id)
+    let workdir = config_runtime_root()
+    let config_path = locate_config_path()
+    python_exec(mcp_bootstrap_code())
+    let _probe = python_call_attr_raw(mcp, "FastMCP", ["semantic-search-probe"])
+    let _server = python_call_raw(
+        "__kain_semantic_search_run_stdio",
+        [exe_path, workdir, config_path, cfg.default_top_k, "kain"]
+    )
     return 0
 
-// ---- routing ---------------------------------------------------------------
+pub fn search_response_to_json(resp: SearchResponse) -> String:
+    var json = "{"
+    json = json + "\"results\": ["
+    var i: Int = 0
+    while i < len(resp.results):
+        if i > 0:
+            json = json + ","
+        json = json + search_result_to_json(resp.results[i])
+        i = i + 1
+    json = json + "],"
+    json = json + "\"query_ms\": " + mcp_float_to_string(resp.query_ms) + ","
+    json = json + "\"total_indexed\": " + to_string(resp.total_indexed) + ","
+    json = json + "\"index_name\": \"" + json_escape(resp.index_name) + "\","
+    json = json + "\"error\": \"" + json_escape(resp.error) + "\""
+    json = json + "}"
+    return json
 
-fn handle_request(req_id: Int, cfg: SemanticSearchConfig) -> Unit:
-    let method = http_request_method(req_id)
-    let path = http_request_path(req_id)
-
-    if method == "GET" and path == "/health":
-        let response = "{ \"status\": \"ok\", \"service\": \"semantic-search-mcp\" }"
-        http_respond_text(req_id, 200, response)
-    else:
-        if method == "POST" and (path == "/tools/semantic_search" or path == "/semantic_search"):
-            let body = http_request_body_text(req_id)
-            if body == "":
-                let err = "{ \"error\": \"empty request body\" }"
-                http_respond_text(req_id, 400, err)
-            else:
-                let query = json_field(body, "query")
-                if query == "":
-                    let err = "{ \"error\": \"missing 'query' field\" }"
-                    http_respond_text(req_id, 400, err)
-                else:
-                    let index_name = json_field_or(body, "index", "kain")
-                    let top_k_str = json_field_or(body, "top_k", "10")
-                    let top_k = to_int(top_k_str)
-                    if top_k <= 0:
-                        top_k = cfg.default_top_k
-                    if top_k > cfg.max_top_k:
-                        top_k = cfg.max_top_k
-
-                    let resp = search(query, index_name, top_k, cfg)
-                    let json = response_to_json(resp)
-                    http_respond_text(req_id, 200, json)
-        else:
-            let body = "{ \"error\": \"not found\", \"method\": \"" + method + "\", \"path\": \"" + path + "\" }"
-            http_respond_text(req_id, 404, body)
-
-// ---- minimal JSON parser ---------------------------------------------------
-
-fn json_field(json_text: String, key: String) -> String:
-    let search_key = "\"" + key + "\""
-    let key_pos = text_find(text_slice(json_text, 0, len(json_text)), search_key)
-    if key_pos < 0:
-        return ""
-    var cursor = key_pos + len(search_key)
-    while cursor < len(json_text) and (char_at(json_text, cursor) == " " or char_at(json_text, cursor) == ":" or char_at(json_text, cursor) == "\t"):
-        cursor = cursor + 1
-    if cursor >= len(json_text):
-        return ""
-    let ch = char_at(json_text, cursor)
-    if ch == "\"":
-        let start = cursor + 1
-        var end = start
-        while end < len(json_text) and char_at(json_text, end) != "\"":
-            if char_at(json_text, end) == "\\":
-                end = end + 2
-            else:
-                end = end + 1
-        return substring(json_text, start, end)
-    var num_end = cursor
-    while num_end < len(json_text):
-        let nc = char_at(json_text, num_end)
-        if (nc >= "0" and nc <= "9") or nc == "." or nc == "-":
-            num_end = num_end + 1
-        else:
-            break
-    return substring(json_text, cursor, num_end)
-
-fn json_field_or(json_text: String, key: String, fallback: String) -> String:
-    let val = json_field(json_text, key)
-    if val == "":
-        return fallback
-    return val
-
-fn json_escape(s: String) -> String:
+pub fn json_escape(s: String) -> String:
     var result = ""
     var i: Int = 0
     while i < len(s):
@@ -140,39 +64,166 @@ fn json_escape(s: String) -> String:
                 if ch == "\n":
                     result = result + "\\n"
                 else:
-                    result = result + ch
+                    if ch == "\r":
+                        result = result + "\\r"
+                    else:
+                        if ch == "\t":
+                            result = result + "\\t"
+                        else:
+                            result = result + ch
         i = i + 1
     return result
 
-// ---- response serialization ------------------------------------------------
+pub fn json_bool(value: Bool) -> String:
+    if value:
+        return "true"
+    return "false"
 
-fn response_to_json(resp: SearchResponse) -> String:
+fn search_result_to_json(result: SearchResult) -> String:
     var json = "{"
-    json = json + "\"results\": ["
-    var i: Int = 0
-    while i < len(resp.results):
-        if i > 0:
-            json = json + ","
-        let r = resp.results[i]
-        json = json + "{"
-        json = json + "\"file\": \"" + json_escape(r.file_path) + "\","
-        json = json + "\"line_start\": " + int_to_str(r.line_start) + ","
-        json = json + "\"line_end\": " + int_to_str(r.line_end) + ","
-        json = json + "\"kind\": \"" + json_escape(r.kind) + "\","
-        json = json + "\"symbol\": \"" + json_escape(r.symbol) + "\","
-        json = json + "\"score\": " + float_to_str(r.score) + ","
-        json = json + "\"snippet\": \"" + json_escape(r.snippet) + "\""
-        json = json + "}"
-        i = i + 1
-    json = json + "],"
-    json = json + "\"query_ms\": " + float_to_str(resp.query_ms) + ","
-    json = json + "\"total_indexed\": " + int_to_str(resp.total_indexed) + ","
-    json = json + "\"index_name\": \"" + json_escape(resp.index_name) + "\","
-    json = json + "\"error\": \"" + json_escape(resp.error) + "\""
+    json = json + "\"file\": \"" + json_escape(result.file_path) + "\","
+    json = json + "\"line_start\": " + to_string(result.line_start) + ","
+    json = json + "\"line_end\": " + to_string(result.line_end) + ","
+    json = json + "\"kind\": \"" + json_escape(result.kind) + "\","
+    json = json + "\"symbol\": \"" + json_escape(result.symbol) + "\","
+    json = json + "\"score\": " + mcp_float_to_string(result.score) + ","
+    json = json + "\"snippet\": \"" + json_escape(result.snippet) + "\""
     json = json + "}"
     return json
 
+fn mcp_float_to_string(value: Float) -> String:
+    let mut prefix = ""
+    let mut lane = value
+    if lane < 0.0:
+        prefix = "-"
+        lane = 0.0 - lane
+    let scaled = Int(lane * 1000.0 + 0.5)
+    let whole = scaled / 1000
+    let frac = scaled - whole * 1000
+    return prefix + to_string(whole) + "." + mcp_pad3(frac)
 
+fn mcp_pad3(value: Int) -> String:
+    if value < 10:
+        return "00" + to_string(value)
+    if value < 100:
+        return "0" + to_string(value)
+    return to_string(value)
 
-
-
+fn mcp_bootstrap_code() -> String:
+    var code = ""
+    code = code + "import json\n"
+    code = code + "import os\n"
+    code = code + "import subprocess\n"
+    code = code + "import fastmcp as mcp\n"
+    code = code + "os.environ.setdefault('FASTMCP_LOG_LEVEL', 'ERROR')\n"
+    code = code + "os.environ.setdefault('FASTMCP_SHOW_SERVER_BANNER', '0')\n"
+    code = code + "\n"
+    code = code + "def __kain_semantic_search_tail(text, limit=4000):\n"
+    code = code + "    if text is None:\n"
+    code = code + "        return ''\n"
+    code = code + "    text = str(text)\n"
+    code = code + "    if len(text) <= limit:\n"
+    code = code + "        return text\n"
+    code = code + "    return text[-limit:]\n"
+    code = code + "\n"
+    code = code + "def __kain_semantic_search_spawn(exe_path, workdir, config_path, mode, extra_env=None):\n"
+    code = code + "    env = os.environ.copy()\n"
+    code = code + "    env.setdefault('PYTHONUTF8', '1')\n"
+    code = code + "    env['KAIN_SEMANTIC_SEARCH_CONFIG'] = str(config_path)\n"
+    code = code + "    env['KAIN_SEMANTIC_SEARCH_MODE'] = str(mode)\n"
+    code = code + "    if extra_env:\n"
+    code = code + "        for key, value in extra_env.items():\n"
+    code = code + "            env[str(key)] = str(value)\n"
+    code = code + "    creationflags = getattr(subprocess, 'CREATE_NO_WINDOW', 0)\n"
+    code = code + "    return subprocess.run(\n"
+    code = code + "        [exe_path],\n"
+    code = code + "        cwd=workdir,\n"
+    code = code + "        env=env,\n"
+    code = code + "        text=True,\n"
+    code = code + "        capture_output=True,\n"
+    code = code + "        creationflags=creationflags,\n"
+    code = code + "        check=False,\n"
+    code = code + "    )\n"
+    code = code + "\n"
+    code = code + "def __kain_semantic_search_json_call(exe_path, workdir, config_path, mode, extra_env=None):\n"
+    code = code + "    completed = __kain_semantic_search_spawn(exe_path, workdir, config_path, mode, extra_env)\n"
+    code = code + "    payload_text = completed.stdout.strip()\n"
+    code = code + "    if payload_text == '':\n"
+    code = code + "        raise RuntimeError(\n"
+    code = code + "            'semantic-search returned no JSON; status=' + str(int(completed.returncode)) +\n"
+    code = code + "            ' stderr=' + __kain_semantic_search_tail(completed.stderr)\n"
+    code = code + "        )\n"
+    code = code + "    try:\n"
+    code = code + "        payload = json.loads(payload_text)\n"
+    code = code + "    except Exception as exc:\n"
+    code = code + "        raise RuntimeError(\n"
+    code = code + "            'semantic-search emitted invalid JSON: ' + str(exc) +\n"
+    code = code + "            ' stdout=' + __kain_semantic_search_tail(payload_text) +\n"
+    code = code + "            ' stderr=' + __kain_semantic_search_tail(completed.stderr)\n"
+    code = code + "        )\n"
+    code = code + "    payload.setdefault('transport', 'kain-fastmcp-embedded')\n"
+    code = code + "    payload.setdefault('backend', 'same-exe-hidden-command')\n"
+    code = code + "    payload['exit_status'] = int(completed.returncode)\n"
+    code = code + "    return payload\n"
+    code = code + "\n"
+    code = code + "def __kain_semantic_search_reindex(exe_path, workdir, config_path, index_name):\n"
+    code = code + "    completed = __kain_semantic_search_spawn(\n"
+    code = code + "        exe_path,\n"
+    code = code + "        workdir,\n"
+    code = code + "        config_path,\n"
+    code = code + "        'index',\n"
+    code = code + "        {'KAIN_SEMANTIC_SEARCH_INDEX_NAME': str(index_name)},\n"
+    code = code + "    )\n"
+    code = code + "    return {\n"
+    code = code + "        'status': 'ok' if completed.returncode == 0 else 'error',\n"
+    code = code + "        'index': str(index_name),\n"
+    code = code + "        'exit_status': int(completed.returncode),\n"
+    code = code + "        'stdout_tail': __kain_semantic_search_tail(completed.stdout),\n"
+    code = code + "        'stderr_tail': __kain_semantic_search_tail(completed.stderr),\n"
+    code = code + "        'transport': 'kain-fastmcp-embedded',\n"
+    code = code + "        'backend': 'same-exe-index-command',\n"
+    code = code + "    }\n"
+    code = code + "\n"
+    code = code + "def __kain_semantic_search_run_stdio(exe_path, workdir, config_path, default_top_k, default_index):\n"
+    code = code + "    app = mcp.FastMCP(\n"
+    code = code + "        'semantic-search',\n"
+    code = code + "        instructions=(\n"
+    code = code + "            'GPU-backed search over the local Kain checkout. '\n"
+    code = code + "            'Use semantic_search for queries, semantic_search_reindex when the '\n"
+    code = code + "            'local code or Kain indices need to be rebuilt, and semantic_search_health '\n"
+    code = code + "            'to inspect CUDA/runtime readiness.'\n"
+    code = code + "        ),\n"
+    code = code + "    )\n"
+    code = code + "\n"
+    code = code + "    @app.tool(name='semantic_search', description='Search the local Kain codebase with the CUDA-backed semantic-search lane.')\n"
+    code = code + "    def semantic_search(query: str, index: str = default_index, top_k: int = default_top_k):\n"
+    code = code + "        lane_top_k = int(top_k)\n"
+    code = code + "        if lane_top_k <= 0:\n"
+    code = code + "            lane_top_k = int(default_top_k)\n"
+    code = code + "        return __kain_semantic_search_json_call(\n"
+    code = code + "            exe_path,\n"
+    code = code + "            workdir,\n"
+    code = code + "            config_path,\n"
+    code = code + "            'search_json',\n"
+    code = code + "            {\n"
+    code = code + "                'KAIN_SEMANTIC_SEARCH_INDEX': str(index),\n"
+    code = code + "                'KAIN_SEMANTIC_SEARCH_QUERY': str(query),\n"
+    code = code + "                'KAIN_SEMANTIC_SEARCH_TOP_K': str(lane_top_k),\n"
+    code = code + "            },\n"
+    code = code + "        )\n"
+    code = code + "\n"
+    code = code + "    @app.tool(name='semantic_search_reindex', description='Rebuild the semantic-search indices from the local Kain checkout.')\n"
+    code = code + "    def semantic_search_reindex(index: str = 'all'):\n"
+    code = code + "        return __kain_semantic_search_reindex(exe_path, workdir, config_path, index)\n"
+    code = code + "\n"
+    code = code + "    @app.tool(name='semantic_search_health', description='Inspect semantic-search readiness, including CUDA artifacts and index presence.')\n"
+    code = code + "    def semantic_search_health():\n"
+    code = code + "        return __kain_semantic_search_json_call(\n"
+    code = code + "            exe_path,\n"
+    code = code + "            workdir,\n"
+    code = code + "            config_path,\n"
+    code = code + "            'health_json',\n"
+    code = code + "        )\n"
+    code = code + "\n"
+    code = code + "    app.run('stdio', show_banner=False)\n"
+    return code

@@ -6,8 +6,10 @@
 // we defined in config.toml, not full TOML compliance.
 
 use std::fs
+use std::process
 use std::text
 use std::json
+use std::python
 
 pub struct SemanticSearchConfig:
     repo_root: String
@@ -92,39 +94,104 @@ pub fn load_config(path: String) -> SemanticSearchConfig:
     let parsed = parse_config_text(raw)
     return resolve_config_paths(sanitize_config(parsed), path)
 
+pub fn locate_config_path() -> String:
+    let candidates = config_candidate_paths()
+    var i: Int = 0
+    while i < len(candidates):
+        let candidate = candidates[i]
+        if candidate != "" and fs_exists(candidate):
+            if config_path_is_absolute(candidate):
+                return candidate
+            let cwd = process_current_working_directory()
+            if cwd != "":
+                return fs_path_join(cwd, candidate)
+            return candidate
+        i = i + 1
+    return "config.toml"
+
+pub fn config_runtime_root() -> String:
+    let config_path = locate_config_path()
+    let parent = fs_path_parent(config_path)
+    if parent != "":
+        return parent
+    let cwd = process_current_working_directory()
+    if cwd != "":
+        return cwd
+    return "."
+
 // ---- minimal TOML parser ---------------------------------------------------
 
 fn parse_config_text(raw: String) -> SemanticSearchConfig:
+    python_bootstrap_config_decoder()
+    let payload = to_string(python_call_raw("__kain_semantic_search_toml_to_json", [raw]))
+    let root = json_parse_text(payload)
+    return config_from_json(root)
+
+fn python_bootstrap_config_decoder():
+    python_exec(
+        "import json\n" +
+        "import tomllib\n" +
+        "\n" +
+        "def __kain_semantic_search_toml_to_json(text):\n" +
+        "    return json.dumps(tomllib.loads(text))\n"
+    )
+
+fn config_from_json(root: JsonObject) -> SemanticSearchConfig:
     let mut cfg = default_config()
-    let lines = text_split_lines(raw)
-    var section: String = ""
-    var i: Int = 0
-    while i < len(lines):
-        let src_line = text_trim_string(lines[i])
-        i = i + 1
-        if src_line == "" or text_starts_with_string(src_line, "#"):
-            continue
-        if text_starts_with_string(src_line, "[") and text_ends_with_string(src_line, "]"):
-            section = substring(src_line, 1, len(src_line) - 1)
-            continue
-        let eq = text_find(text_slice(src_line, 0, len(src_line)), "=")
-        if eq < 0:
-            continue
-        let key = text_trim_string(substring(src_line, 0, eq))
-        let val_raw = text_trim_string(substring(src_line, eq + 1, len(src_line)))
-        let mut val = val_raw
-        if text_starts_with_string(val_raw, "[") and text_ends_with_string(val_raw, "]") == false:
-            while i < len(lines):
-                let next_line = text_trim_string(lines[i])
-                i = i + 1
-                if next_line == "" or text_starts_with_string(next_line, "#"):
-                    continue
-                val = val + next_line
-                if text_ends_with_string(next_line, "]"):
-                    break
-        val = toml_strip_quotes(val)
-        cfg = apply_toml_key(cfg, section, key, val)
+
+    let paths_result = json_object_field(root, "paths")
+    if paths_result.ok:
+        let paths = paths_result.value
+        cfg.repo_root = json_string_or(paths, "repo_root", cfg.repo_root)
+        cfg.index_dir = json_string_or(paths, "index_dir", cfg.index_dir)
+        cfg.code_dirs = config_json_string_array_or(paths, "code_dirs", cfg.code_dirs)
+        cfg.kain_dirs = config_json_string_array_or(paths, "kain_dirs", cfg.kain_dirs)
+        cfg.code_extensions = config_json_string_array_or(paths, "code_extensions", cfg.code_extensions)
+        cfg.kain_extensions = config_json_string_array_or(paths, "kain_extensions", cfg.kain_extensions)
+
+    let embedding_result = json_object_field(root, "embedding")
+    if embedding_result.ok:
+        let embedding = embedding_result.value
+        cfg.model_name = json_string_or(embedding, "model_name", cfg.model_name)
+        cfg.dim = json_int_or(embedding, "dim", cfg.dim)
+        cfg.batch_size = json_int_or(embedding, "batch_size", cfg.batch_size)
+
+    let chunking_result = json_object_field(root, "chunking")
+    if chunking_result.ok:
+        let chunking = chunking_result.value
+        cfg.max_chunk_chars = json_int_or(chunking, "max_chunk_chars", cfg.max_chunk_chars)
+        cfg.min_chunk_chars = json_int_or(chunking, "min_chunk_chars", cfg.min_chunk_chars)
+        cfg.overlap_chars = json_int_or(chunking, "overlap_chars", cfg.overlap_chars)
+
+    let search_result = json_object_field(root, "search")
+    if search_result.ok:
+        let search_cfg = search_result.value
+        cfg.default_top_k = json_int_or(search_cfg, "default_top_k", cfg.default_top_k)
+        cfg.max_top_k = json_int_or(search_cfg, "max_top_k", cfg.max_top_k)
+        cfg.min_score = json_float_or(search_cfg, "min_score", cfg.min_score)
+
+    let server_result = json_object_field(root, "server")
+    if server_result.ok:
+        let server = server_result.value
+        cfg.server_host = json_string_or(server, "host", cfg.server_host)
+        cfg.server_port = json_int_or(server, "port", cfg.server_port)
+        cfg.max_concurrent = json_int_or(server, "max_concurrent", cfg.max_concurrent)
+        cfg.request_timeout_ms = json_int_or(server, "request_timeout_ms", cfg.request_timeout_ms)
+
+    let gpu_result = json_object_field(root, "gpu")
+    if gpu_result.ok:
+        let gpu = gpu_result.value
+        cfg.gpu_enabled = json_bool_or(gpu, "enabled", cfg.gpu_enabled)
+        cfg.gpu_device_index = json_int_or(gpu, "device_index", cfg.gpu_device_index)
+        cfg.gpu_threads_per_block = json_int_or(gpu, "threads_per_block", cfg.gpu_threads_per_block)
+        cfg.gpu_batch_chunks = json_int_or(gpu, "gpu_batch_chunks", cfg.gpu_batch_chunks)
     return cfg
+
+fn config_json_string_array_or(object: JsonObject, key: String, fallback: Array<String>) -> Array<String>:
+    let values = json_string_array_field(object, key)
+    if len(values) == 0:
+        return fallback
+    return values
 
 fn toml_strip_quotes(s: String) -> String:
     if len(s) >= 2 and text_starts_with_string(s, "\"") and text_ends_with_string(s, "\""):
@@ -286,6 +353,26 @@ fn config_path_is_absolute(path: String) -> Bool:
     if text_starts_with_string(path, "/"):
         return true
     return false
+
+fn config_candidate_paths() -> Array<String>:
+    let mut paths: Array<String> = []
+    push(paths, "config.toml")
+    push(paths, "..\\config.toml")
+
+    let cwd = process_current_working_directory()
+    if cwd != "":
+        push(paths, fs_path_join(cwd, "config.toml"))
+        push(paths, fs_path_join(fs_path_parent(cwd), "config.toml"))
+
+    let exe_path = process_current_executable_path()
+    if exe_path != "":
+        let exe_dir = fs_path_parent(exe_path)
+        if exe_dir != "":
+            push(paths, fs_path_join(exe_dir, "config.toml"))
+            let exe_parent = fs_path_parent(exe_dir)
+            if exe_parent != "":
+                push(paths, fs_path_join(exe_parent, "config.toml"))
+    return paths
 
 
 

@@ -186,6 +186,9 @@ fn write_padded_payload_from_file(src: String, dest: String, expected_bytes: Int
     let meta = fs_metadata(src)
     if meta.len > expected_bytes:
         return false
+    fs_write_bytes(dest, [])
+    if fs_last_status() != 0:
+        return false
     let copied = fs_copy_file_streaming(src, dest, 1048576)
     if copied != meta.len:
         return false
@@ -223,7 +226,7 @@ fn score_threshold(cfg: SemanticSearchConfig, max_score_raw: Int) -> Int:
     let max_score = to_float(max_score_raw)
     return Int(cfg.min_score * max_score)
 
-fn cuda_search_shader_bundle_path() -> String:
+pub fn cuda_search_shader_bundle_path() -> String:
     if fs_exists("kain.shader_bundle.json"):
         return "kain.shader_bundle.json"
     if fs_exists("kain_shader_bundle.json"):
@@ -238,7 +241,7 @@ fn cuda_search_shader_bundle_path() -> String:
         return "X:\\mcp\\semantic_search\\kain_shader_bundle.json"
     return ""
 
-fn cuda_search_residency_path() -> String:
+pub fn cuda_search_residency_path() -> String:
     if fs_exists("kain_compute_residency.json"):
         return "kain_compute_residency.json"
     if fs_exists("mcp\\semantic_search\\kain_compute_residency.json"):
