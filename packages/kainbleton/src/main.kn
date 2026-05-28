@@ -1,0 +1,99 @@
+use std::fs
+use std::runtime
+use std::time
+
+use audio_engine::KainbletonAudioReport
+use audio_engine::kb_render_audio
+use interaction::KainbletonInteractionReport
+use interaction::kb_interaction_boot
+use interaction::kb_interaction_frame
+use interaction::kb_interaction_shutdown
+use model::KainbletonProject
+use model::KB_UI_FRAMES
+use model::kb_default_project
+use native_bridge::kb_native_label
+use native_bridge::kb_native_signature
+use proof::KainbletonProofReport
+use proof::kb_write_proof
+use semantics::KainbletonSemanticProbe
+use semantics::kb_semantic_boot
+use semantics::kb_semantic_frame
+use semantics::kb_semantic_telemetry_score
+use ui_workbench::KainbletonUiSession
+use ui_workbench::kb_ui_close
+use ui_workbench::kb_ui_open
+use ui_workbench::kb_ui_pump
+use ui_workbench::kb_ui_screenshot
+
+// ============================================================================
+//                              kainbleton
+// ============================================================================
+// A tiny vertical slice of a real DAW:
+//
+//   Kain project model -> semantic transport -> DawDreamer/SciPy bounce
+//          |                     |                       |
+//          v                     v                       v
+//     native C bridge      std::ui/input proof      PyQtGraph frame pump
+//
+// Python is a quarry. C is a pocket knife. Kain is the conductor.
+
+fn main() -> Int:
+    let boot = runtime_init()
+    if boot != 0:
+        return 100 + boot
+
+    fs_create_dir_all(".kain/out")
+
+    let project: KainbletonProject = kb_default_project()
+    let audio_path = ".kain/out/kainbleton-bounce.wav"
+    let screenshot_path = ".kain/out/kainbleton-ui.png"
+    let proof_path = ".kain/out/kainbleton-proof.json"
+
+    let audio: KainbletonAudioReport = kb_render_audio(project, audio_path)
+    let probe: KainbletonSemanticProbe = kb_semantic_boot(project)
+    let input_session = kb_interaction_boot()
+    let ui: KainbletonUiSession = kb_ui_open(project, audio, screenshot_path)
+
+    var frame: Int = 0
+    var frame_hash: Int = 0
+    var semantic_score: Int = 0
+    var interaction: KainbletonInteractionReport = kb_interaction_frame(input_session, ui, 0)
+
+    while frame < KB_UI_FRAMES:
+        let score = kb_semantic_frame(probe, project, frame)
+        semantic_score = kb_semantic_telemetry_score(score)
+        frame_hash = frame_hash + kb_ui_pump(ui, project, audio, frame, semantic_score)
+        interaction = kb_interaction_frame(input_session, ui, frame)
+        frame = frame + 1
+
+    let screenshot_status = kb_ui_screenshot(ui)
+    let native_signature = kb_native_signature(KB_UI_FRAMES, len(project.tracks), len(project.clips), project.checksum)
+    let proof: KainbletonProofReport = kb_write_proof(
+        project,
+        audio,
+        interaction,
+        proof_path,
+        screenshot_path,
+        KB_UI_FRAMES,
+        frame_hash,
+        native_signature,
+        semantic_score,
+        screenshot_status,
+    )
+
+    let _close_ui = kb_ui_close(ui)
+    let _input_close = kb_interaction_shutdown(input_session)
+    let shutdown = runtime_shutdown()
+    if shutdown != 0:
+        return 200 + shutdown
+
+    println("kainbleton_ok")
+    println("native=" + kb_native_label())
+    println("proof=" + proof.proof_path)
+    println("screenshot=" + proof.screenshot_path)
+    println("audio=" + proof.audio_path)
+    println("frames=" + str(proof.frames))
+    println("frame_hash=" + str(proof.frame_hash))
+    println("semantic_score=" + str(proof.semantic_score))
+    println("module_score=" + str(proof.module_score))
+    return 0

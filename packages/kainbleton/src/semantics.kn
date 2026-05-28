@@ -1,0 +1,117 @@
+use std::actor
+use std::intent
+use std::runtime
+
+use model::KainbletonProject
+use model::KainbletonFrameState
+use model::kb_frame_state
+use model::kb_track_name_deck
+
+// ============================================================================
+//                      semantic rack: worlds / actors / laws
+// ============================================================================
+// The UI and audio engines are ordinary host objects; this is the Kain-only
+// control voltage that decides what they are allowed to do each frame.
+
+component KainbletonMixerDeck(title: String, status: String, checksum: Int):
+    state armed_track: Int = 0
+
+    fn label(_self: Self_) -> String:
+        return title + " :: " + status + " :: " + str(checksum)
+
+    render <panel title={title}>
+        <text value={label()} />
+        <text value={"world-owned audio timeline"} />
+    </panel>
+
+world KainbletonAuthority:
+    state frame: Int = 0
+    state checksum: Int = 0
+    state playhead: Float = 0.0
+    state energy: Float = 0.0
+    surface native_ui => KainbletonMixerDeck("kainbleton authority", "armed", checksum)
+
+world KainbletonTransportMirror:
+    state frame: Int = 0
+    state checksum: Int = 0
+    state playhead: Float = 0.0
+    state energy: Float = 0.0
+    surface web => KainbletonMixerDeck("kainbleton mirror", "mirrored", checksum)
+
+entangle KainbletonAuthority.playhead <-> KainbletonTransportMirror.playhead with single_writer
+entangle KainbletonAuthority.energy <-> KainbletonTransportMirror.energy with eventual
+entangle KainbletonAuthority.checksum <-> KainbletonTransportMirror.checksum with invariant
+
+shatter struct KainbletonMeterShard:
+    track: Int
+    frame: Int
+    peak: Float
+    color: Int
+
+actor KainbletonRenderConductor:
+    state salt: Int = 41
+    state frames: Int = 0
+
+    on RenderFrame(frame: Int, checksum: Int) -> Int:
+        frames = frames + 1
+        salt = salt + frame + checksum % 257
+        return salt + frames * 17
+
+law kb_transport_is_sane(frame: Int, project_checksum: Int) -> Bool:
+    return frame >= 0 and project_checksum > 0
+
+patch kb_commit_frame(authority: KainbletonAuthority, frame_state: KainbletonFrameState) -> Int:
+    authority.frame = frame_state.frame
+    authority.playhead = frame_state.playhead
+    authority.energy = frame_state.energy
+    authority.checksum = frame_state.checksum
+    return authority.checksum
+
+converge kb_transport_mix(seed: Int) -> Int:
+    spec reference:
+        return seed * 31 + 7
+    fast llvm_lane when target("llvm"):
+        return seed * 33 + 11 - seed * 2 - 4
+
+pub struct KainbletonSemanticProbe:
+    authority: KainbletonAuthority
+    mirror: KainbletonTransportMirror
+    conductor: Any
+    checksum: Int
+    track_deck: String
+
+pub fn kb_semantic_boot(project: KainbletonProject) -> KainbletonSemanticProbe:
+    let authority = KainbletonAuthority {
+        frame: 0,
+        checksum: project.checksum,
+        playhead: 0.0,
+        energy: 0.0,
+    }
+    let mirror = KainbletonTransportMirror {
+        frame: 0,
+        checksum: project.checksum,
+        playhead: 0.0,
+        energy: 0.0,
+    }
+    let conductor = spawn KainbletonRenderConductor(salt = project.checksum % 97, frames = 0)
+    return KainbletonSemanticProbe {
+        authority: authority,
+        mirror: mirror,
+        conductor: conductor,
+        checksum: project.checksum,
+        track_deck: kb_track_name_deck(project),
+    }
+
+pub fn kb_semantic_frame(probe: KainbletonSemanticProbe, project: KainbletonProject, frame: Int) -> Int:
+    let state = kb_frame_state(project, frame)
+    if not kb_transport_is_sane(frame, project.checksum):
+        return 0
+    let committed = kb_commit_frame(probe.authority, state)
+    let actor_mix = ask(probe.conductor, "RenderFrame", frame, committed)
+    return kb_transport_mix(committed + actor_mix)
+
+pub fn kb_semantic_telemetry_score(frame_score: Int) -> Int:
+    let journal = patch_journal_count()
+    let entangled = entangle_propagation_count()
+    let converged = runtime_converge_telemetry_count()
+    return frame_score + journal * 3 + entangled * 5 + converged * 7

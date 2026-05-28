@@ -1,0 +1,52 @@
+use std::input
+use std::python
+
+use ui_workbench::KainbletonUiSession
+
+import PyQt6.QtCore as qt_core
+import PyQt6.QtTest as qt_test
+
+pub struct KainbletonInteractionReport:
+    session_id: Int
+    event_count: Int
+    frame_index: Int
+    action_down: Int
+    clicked: Int
+    trace: String
+
+pub fn kb_interaction_boot() -> Int:
+    let _reset = input_reset()
+    let session = input_session_create("kainbleton-input")
+    let _space = input_bind_action(session, input_source_keyboard(), "down", "Space", "transport.toggle")
+    let _click = input_bind_action(session, input_source_pointer(), "press", "Left", "clip.fire")
+    let _wheel = input_bind_axis(session, input_source_pointer(), "axis", "WheelY", "timeline.zoom", 0.01)
+    return session
+
+pub fn kb_interaction_frame(session_id: Int, ui: KainbletonUiSession, frame: Int) -> KainbletonInteractionReport:
+    let _begin = input_begin_frame(session_id, 16.666)
+    var clicked: Int = 0
+    if frame == 12:
+        let _down = input_push_key_down(session_id, "keyboard:0", "Space")
+    if frame == 13:
+        let _up = input_push_key_up(session_id, "keyboard:0", "Space")
+    if frame == 24:
+        let mouse_button = python_getattr_raw(python_getattr_raw(python_getattr_raw(qt_core, "Qt"), "MouseButton"), "LeftButton")
+        let qtest = python_getattr_raw(qt_test, "QTest")
+        let _click_py = python_call_attr_raw(qtest, "mouseClick", [ui.widget, mouse_button])
+        let _event = input_push_event(session_id, input_source_pointer(), "qt:0", "press", "Left", 1.0, "clip-grid", 0.99)
+        clicked = 1
+    if frame % 30 == 0:
+        let _agent = input_push_agent_intent(session_id, "codex", "scene.launch", "launch scene " + str(frame / 30), 0.94)
+
+    let trace = input_trace_json(session_id)
+    return KainbletonInteractionReport {
+        session_id: session_id,
+        event_count: input_event_count(session_id),
+        frame_index: input_frame_index(session_id),
+        action_down: input_action_down(session_id, "transport.toggle"),
+        clicked: clicked,
+        trace: trace,
+    }
+
+pub fn kb_interaction_shutdown(session_id: Int) -> Int:
+    return input_session_destroy(session_id)

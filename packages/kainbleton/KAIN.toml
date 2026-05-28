@@ -1,0 +1,50 @@
+[package]
+name = "kainbleton"
+version = "0.1.0"
+description = "A Kain-owned DAW workbench that hijacks Python audio/UI ecosystems without surrendering orchestration."
+
+[blade]
+name = "kainbleton"
+entry = "src/main.kn"
+source_roots = ["src"]
+module_roots = ["src"]
+build_targets = ["llvm"]
+
+[run]
+entry = "src/main.kn"
+target = "llvm"
+
+[build]
+entry = "src/main.kn"
+artifact_root = ".kain/out"
+cache_root = ".kain/cache/build"
+profile = "debug"
+
+[[build.tasks]]
+id = "check-llvm"
+kind = "check"
+entry = "src/main.kn"
+target = "llvm"
+inputs = [
+  "src/model.kn",
+  "src/semantics.kn",
+  "src/native_bridge.kn",
+  "src/audio_engine.kn",
+  "src/ui_workbench.kn",
+  "src/interaction.kn",
+  "src/proof.kn",
+  "src/main.kn",
+  "native/kainbleton_bridge.h",
+  "native/kainbleton_bridge.c",
+  "build.kn",
+  "KAIN.toml",
+]
+
+[c_ffi]
+tier = "inline"
+
+[[c_ffi.libraries]]
+name = "kainbleton_bridge"
+header = "native/kainbleton_bridge.h"
+sources = ["native/kainbleton_bridge.c"]
+include_paths = ["native"]
