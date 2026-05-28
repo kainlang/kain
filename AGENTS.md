@@ -267,6 +267,7 @@ Bazel/Rust Windows trap notes:
 - If Bazel appears hung or keeps reporting old paths after cache migration, check for stale Bazel servers before trusting the result: `Get-Process bazel,bazelisk,java -ErrorAction SilentlyContinue | Select-Object ProcessName,Id,Path`. Old servers rooted under `F:\Caches\bazel\...` can survive while the new config points at `F:\_b\...`; `bazel shutdown` handles the current root, but an old-root Java server may need to be killed explicitly.
 - Use `bazel info output_base repository_cache --config=dev` as the first truth check after any cache/output change. It must report `F:/_b/output-user-root/...` and `F:/_b/repository-cache`.
 - The Rust CLI graph is sensitive to `rules_rust` build-script flag placement on Windows. Do not pass full transitive build-script link-search argfiles into normal `rlib`/`lib` compile actions; that can corrupt crate/proc-macro resolution and show up as fake missing-crate errors like `can't find crate for ue5_gas` even when the params file contains the right `--extern` entries. Current-crate build-script flags/search paths still belong on that crate, and transitive link search still belongs on real link actions.
+- `scripts/python/bazel_tray.py` and `scripts/windows/start-bazel-tray.ps1` are the quick Windows operator lane for Bazel server status. Use them when you want a tray icon that reports `running` versus `stale` and can shut down the server from the context menu without digging through terminal state.
 
 Core CLI:
 
