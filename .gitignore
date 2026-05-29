@@ -170,6 +170,8 @@ plans/
 /bazel-*
 /.bazel-cache/
 /.bazelrc.local
+# WSL-backed Bazel cache root on this machine
+/F/_b/
 smoketest/telemetry/attrition/tracks/attrition.iter.6.json
 /smoketest/telemetry
 /smoketest/telemetry/attrition/tracks
