@@ -207,6 +207,13 @@ canonical `c::native_math` extern module, and also emits `nm_*` alias externs
 linked to the real C symbols through `@link_name`. True dot namespaces can grow
 on this AST shape later without flattening the provenance graph.
 
+When a natural include exposes a raw C string result such as `const char *`,
+the generated extern surface should carry `@c_string_return` on both the
+canonical import and the include-alias externs. The LLVM lane materializes that
+raw `i8*` into owned Kain string storage before normal string semantics touch
+it, so authored Kain can treat `nm_label()` or `sql_*` string returns like real
+Kain strings instead of borrowed native pointers.
+
 If the C library already uses the alias as its own prefix, keep that spelling.
 For example, `include nuklear.h as nk` exposes `nk_strlen` rather than
 `nk_nk_strlen`, while `include sqlite3.h as sql` exposes `sql_libversion_number`.

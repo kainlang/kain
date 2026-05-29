@@ -6,6 +6,7 @@ use std::fs
 use std::intent
 use std::time
 use actor::SmokeRelay
+use c_abi_album::smoke_c_abi_album_signature
 use c_abi_album::smoke_c_abi_album_score
 use c_bridge::smoke_c_bridge_score
 use shatter::SmokeShard
@@ -156,24 +157,48 @@ pub fn smoke_novel_flow_score(rounds: Int) -> Int with Unsafe:
         selected_lane
     )
 
-    let digest = sha256(str(checksum) + ":" + str(observed) + ":" + str(queue_len(queue)) + ":" + str(actor_scheduler_total_enqueued()))
+    let queue_score = queue_peek(queue) + queue_len(queue)
+    let sqlite_signature = smoke_c_abi_album_signature(checksum + observed + queue_score, (rounds % 7) + 5)
+    let sqlite_signature_span = len(sqlite_signature)
+    let digest = sha256(
+        str(checksum)
+        + ":"
+        + str(observed)
+        + ":"
+        + sqlite_signature
+        + ":"
+        + str(queue_len(queue))
+        + ":"
+        + str(actor_scheduler_total_enqueued())
+    )
     fs_write_text(flow_path, digest)
     let readback = fs_read_text(flow_path)
-    let queue_score = queue_peek(queue) + queue_len(queue)
     let _queue_destroy = queue_destroy(queue)
     fs_remove_file(flow_path)
     fs_remove_dir_all(temp_dir)
 
     if len(readback) != 64:
         return -1
-    if smoke_validate_range(observed, 0, SMOKE_FLOW_MODULUS) == false:
+    if sqlite_signature_span < 32:
         return -2
-    if runtime_converge_telemetry_count() < 1:
+    if smoke_validate_range(observed, 0, SMOKE_FLOW_MODULUS) == false:
         return -3
+    if runtime_converge_telemetry_count() < 1:
+        return -4
 
     let album_score = smoke_c_abi_album_score(checksum + observed + queue_score, (rounds % 7) + 5)
     let bridge_tail = smoke_c_bridge_score(checksum + observed + album_score, selected_lane + queue_score + 1)
-    return (checksum + observed + album_score + bridge_tail + queue_score + selected_lane + len(readback) + actor_scheduler_total_enqueued()) % SMOKE_FLOW_MODULUS
+    return (
+        checksum
+        + observed
+        + album_score
+        + bridge_tail
+        + queue_score
+        + selected_lane
+        + len(readback)
+        + sqlite_signature_span
+        + actor_scheduler_total_enqueued()
+    ) % SMOKE_FLOW_MODULUS
 
 pub fn smoke_telemetry_flow_lane(mode: String) -> Int with Unsafe:
     let score = smoke_novel_flow_score(48)
@@ -254,6 +279,7 @@ pub fn smoke_run_benchmark_mode() -> Int with Unsafe:
             note_fail = note_fail + "  \"passes\": " + str(passes) + ",\n"
             note_fail = note_fail + "  \"best_ms\": " + str(best_ms) + ",\n"
             note_fail = note_fail + "  \"worst_ms\": " + str(worst_ms) + ",\n"
+            note_fail = note_fail + "  \"score\": " + str(score) + ",\n"
             note_fail = note_fail + "  \"composition_checksum\": " + str(composition_checksum) + ",\n"
             note_fail = note_fail + "  \"failed_track\": \"" + track_name + "\"\n"
             note_fail = note_fail + "}\n"

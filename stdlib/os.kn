@@ -1,0 +1,511 @@
+// ============================================================================
+//                          std::os  —  The Mothership OS Module
+// ============================================================================
+//  Zig-flavored OS substrate meets Python ergonomics.
+//  Uses the 'import os' mental model: one module, everything the OS gives you.
+//
+//  Architecture:
+//    Layer 0 ─ raw @extern ABIs (fs, process, machine, platform, runtime, time)
+//    Layer 1 ─ this module: Python-like unified facade
+//    Layer 2 ─ std::os::path (os_path.kn) for path manipulation
+//
+//  Usage:
+//    use std::os
+//    let cwd = os_getcwd()
+//    let files = os_listdir(".")
+//    let home = os_getenv("HOME")
+//    os_makedirs("a/b/c")
+//
+//  Zig inspiration per X:\reference\zigos:
+//    - Platform-specific raw bindings → os.linux.zig / os.windows.zig pattern
+//    - Sub-modules for syscall/DLL imports → kernel32.zig, ntdll.zig
+//    - Cross-platform posix layer atop raw os → our wrappers here
+//    - Higher stdlib (fs, process, net) consume os as substrate
+// ============================================================================
+
+use std::target
+use std::platform
+use std::fs
+use std::process
+use std::machine
+use std::time
+use std::path
+
+// ============================================================================
+//                          SECTION 1: Platform Constants & Detection
+// ============================================================================
+
+// ─── Path & line separators ──────────────────────────────────────────────
+pub const OS_SEP: String = "/"
+pub const OS_ALT_SEP: String = "\\"
+pub const OS_LINESEP: String = "\n"
+pub const OS_PATHSEP: String = ":"
+pub const OS_DEVNULL: String = "/dev/null"
+
+// ─── Platform enums ──────────────────────────────────────────────────────
+pub enum OsKind:
+    Windows
+    Linux
+    Macos
+    Wasi
+    Freestanding
+    Unknown
+
+pub enum ArchKind:
+    X86_64
+    Aarch64
+    Wasm32
+    Unknown
+
+// ─── Platform name (Python: os.name) ─────────────────────────────────────
+pub fn os_name() -> String:
+    let tgt = target_current()
+    var name = "unknown"
+    match tgt.os:
+        OS::Windows => name = "nt"
+        OS::Linux => name = "posix"
+        OS::Macos => name = "posix"
+        OS::Wasi => name = "wasi"
+        _ => name = "unknown"
+    return name
+
+pub fn os_platform_name() -> String:
+    let tgt = target_current()
+    var name = "unknown"
+    match tgt.os:
+        OS::Windows => name = "windows"
+        OS::Linux => name = "linux"
+        OS::Macos => name = "darwin"
+        OS::Wasi => name = "wasi"
+        _ => name = "unknown"
+    return name
+
+pub fn os_arch_name() -> String:
+    let tgt = target_current()
+    var name = "unknown"
+    match tgt.arch:
+        Arch::X86_64 => name = "x86_64"
+        Arch::Aarch64 => name = "aarch64"
+        Arch::Wasm32 => name = "wasm32"
+        _ => name = "unknown"
+    return name
+
+// ─── Boolean platform checks ─────────────────────────────────────────────
+pub fn os_is_windows() -> Bool:
+    let tgt = target_current()
+    return tgt.os == OS::Windows
+
+pub fn os_is_linux() -> Bool:
+    let tgt = target_current()
+    return tgt.os == OS::Linux
+
+pub fn os_is_macos() -> Bool:
+    let tgt = target_current()
+    return tgt.os == OS::Macos
+
+pub fn os_is_wasi() -> Bool:
+    let tgt = target_current()
+    return tgt.os == OS::Wasi
+
+pub fn os_is_64bit() -> Bool:
+    let tgt = target_current()
+    return tgt.is_64bit
+
+// ─── Version / uname ─────────────────────────────────────────────────────
+pub struct OsUname:
+    sysname: String
+    release: String
+    version: String
+    machine: String
+    nodename: String
+
+pub fn os_uname() -> OsUname:
+    let tgt = target_current()
+    var sysname = "Unknown"
+    var machine_name = "Unknown"
+
+    match tgt.os:
+        OS::Windows => sysname = "Windows"
+        OS::Linux => sysname = "Linux"
+        OS::Macos => sysname = "Darwin"
+        _ => sysname = "Unknown"
+
+    match tgt.arch:
+        Arch::X86_64 => machine_name = "x86_64"
+        Arch::Aarch64 => machine_name = "aarch64"
+        Arch::Wasm32 => machine_name = "wasm32"
+        _ => machine_name = "unknown"
+
+    return OsUname {
+        sysname: sysname,
+        release: platform_current_name(),
+        version: platform_current_name(),
+        machine: machine_name,
+        nodename: ""
+    }
+
+// ============================================================================
+//                          SECTION 2: Environment Variables
+// ============================================================================
+//  Python: os.environ, os.getenv(), os.putenv(), os.unsetenv()
+
+pub fn os_getenv(key: String) -> String:
+    return process_environment(key)
+
+pub fn os_getenv_default(key: String, default_value: String) -> String:
+    let val = process_environment(key)
+    if len(val) == 0:
+        return default_value
+    return val
+
+// ─── Set/unset environment ───────────────────────────────────────────────
+// TODO: requires runtime ABI for abi_os_setenv / abi_os_unsetenv
+// pub fn os_setenv(key: String, value: String) -> Bool: ...
+// pub fn os_unsetenv(key: String) -> Bool: ...
+
+// ============================================================================
+//                          SECTION 3: Process Identity
+// ============================================================================
+//  Python: os.getpid(), os.getppid(), os.getuid(), os.getgid(), os.getlogin()
+
+pub fn os_getpid() -> Int:
+    return process_current_id()
+
+// TODO: requires runtime ABI implementations
+// pub fn os_getppid() -> Int: ...
+// pub fn os_getlogin() -> String: ...
+// pub fn os_getuid() -> Int: ...
+// pub fn os_getgid() -> Int: ...
+
+// ============================================================================
+//                          SECTION 4: Working Directory
+// ============================================================================
+//  Python: os.getcwd(), os.chdir()
+
+pub fn os_getcwd() -> String:
+    return process_current_working_directory()
+
+// TODO: requires runtime ABI for abi_os_chdir
+// pub fn os_chdir(path: String) -> Bool: ...
+
+// ============================================================================
+//                          SECTION 5: Filesystem Operations
+// ============================================================================
+//  Python: os.listdir, os.scandir, os.mkdir, os.makedirs, os.remove, os.rmdir,
+//          os.rename, os.replace, os.stat, os.lstat, os.symlink, os.readlink
+
+// ─── Directory listing ───────────────────────────────────────────────────
+pub struct OsDirEntry:
+    name: String
+    path: String
+    is_file: Bool
+    is_dir: Bool
+    is_symlink: Bool
+    size: Int
+    modified_millis: Int
+
+pub fn os_listdir(path: String) -> Array<String>:
+    let raw_paths = fs_read_dir_paths(path)
+    var names: Array<String> = []
+    var i: Int = 0
+    while i < len(raw_paths):
+        let full = raw_paths[i]
+        var name = full
+        var sep_idx = len(full) - 1
+        while sep_idx >= 0:
+            let ch = char_at(full, sep_idx)
+            if ch == "/" or ch == "\\":
+                name = substring(full, sep_idx + 1, len(full))
+                sep_idx = -1
+            sep_idx = sep_idx - 1
+        push(names, name)
+        i = i + 1
+    return names
+
+pub fn os_scandir(path: String) -> Array<OsDirEntry>:
+    var result: Array<OsDirEntry> = []
+    let raw_paths = fs_read_dir_paths(path)
+    var i: Int = 0
+    while i < len(raw_paths):
+        let full = raw_paths[i]
+        if len(full) > 0:
+            // Use text-based metadata to avoid fs_metadata struct parse crash
+            let raw_text = fs_metadata_text(full)
+            let file_type = _meta_field(raw_text, "file_type")
+            let len_val = _meta_int(raw_text, "len")
+            let modified = _meta_int(raw_text, "modified_millis")
+            var name = full
+            var sep_idx = len(full) - 1
+            while sep_idx >= 0:
+                let ch = char_at(full, sep_idx)
+                if ch == "/" or ch == "\\":
+                    name = substring(full, sep_idx + 1, len(full))
+                    sep_idx = -1
+                sep_idx = sep_idx - 1
+            let entry = OsDirEntry {
+                name: name,
+                path: full,
+                is_file: file_type == "file",
+                is_dir: file_type == "dir",
+                is_symlink: file_type == "symlink",
+                size: len_val,
+                modified_millis: modified
+            }
+            push(result, entry)
+        i = i + 1
+    return result
+
+// ─── Directory creation ──────────────────────────────────────────────────
+pub fn os_mkdir(path: String) -> Bool:
+    return abi_fs_create_dir_all(path) == 0
+
+pub fn os_makedirs(path: String) -> Bool:
+    return abi_fs_create_dir_all(path) == 0
+
+// ─── File/directory removal ──────────────────────────────────────────────
+pub fn os_remove(path: String) -> Bool:
+    return abi_fs_remove_file(path) == 0
+
+pub fn os_rmdir(path: String) -> Bool:
+    return abi_fs_remove_dir_all(path) == 0
+
+pub fn os_removedirs(path: String) -> Bool:
+    return abi_fs_remove_dir_all(path) == 0
+
+// ─── Rename / move ───────────────────────────────────────────────────────
+pub fn os_rename(src: String, dst: String) -> Bool:
+    return abi_fs_move_path(src, dst) == 0
+
+pub fn os_replace(src: String, dst: String) -> Bool:
+    return abi_fs_move_path(src, dst) == 0
+
+// ─── File stat ───────────────────────────────────────────────────────────
+pub struct OsStatResult:
+    size: Int
+    mode: Int
+    is_file: Bool
+    is_dir: Bool
+    is_symlink: Bool
+    created_millis: Int
+    modified_millis: Int
+    accessed_millis: Int
+
+pub fn os_stat(path: String) -> OsStatResult:
+    // Use text-based metadata to avoid fs_metadata struct parse crash (runtime bug)
+    let raw_text = fs_metadata_text(path)
+    let file_type = _meta_field(raw_text, "file_type")
+    let len_val = _meta_int(raw_text, "len")
+    let created = _meta_int(raw_text, "created_millis")
+    let modified = _meta_int(raw_text, "modified_millis")
+    let accessed = _meta_int(raw_text, "accessed_millis")
+    return OsStatResult {
+        size: len_val,
+        mode: 0,
+        is_file: file_type == "file",
+        is_dir: file_type == "dir",
+        is_symlink: file_type == "symlink",
+        created_millis: created,
+        modified_millis: modified,
+        accessed_millis: accessed
+    }
+
+fn _meta_field(text: String, key: String) -> String:
+    let prefix = key + "="
+    var i: Int = 0
+    while i < len(text):
+        // Check if this line starts with the prefix
+        if i + len(prefix) <= len(text):
+            var matched = true
+            var j: Int = 0
+            while j < len(prefix):
+                if char_at(text, i + j) != char_at(prefix, j):
+                    matched = false
+                    j = len(prefix)
+                j = j + 1
+            if matched:
+                var start = i + len(prefix)
+                var end = start
+                while end < len(text) and char_at(text, end) != "\n":
+                    end = end + 1
+                return substring(text, start, end)
+        // Skip to next line
+        while i < len(text) and char_at(text, i) != "\n":
+            i = i + 1
+        i = i + 1
+    return ""
+
+fn _meta_int(text: String, key: String) -> Int:
+    let val = _meta_field(text, key)
+    if len(val) == 0:
+        return 0
+    var result: Int = 0
+    var sign: Int = 1
+    var i: Int = 0
+    if char_at(val, 0) == "-":
+        sign = -1
+        i = 1
+    while i < len(val):
+        let ch = char_at(val, i)
+        if ch >= "0" and ch <= "9":
+            result = result * 10 + (ord(ch) - ord("0"))
+        i = i + 1
+    return result * sign
+
+// ─── Symlinks ────────────────────────────────────────────────────────────
+// TODO: requires runtime ABI for abi_os_symlink / abi_os_readlink
+// pub fn os_symlink(src: String, dst: String) -> Bool: ...
+// pub fn os_readlink(path: String) -> String: ...
+
+// ─── Convenience: existence checks ───────────────────────────────────────
+pub fn os_exists(path: String) -> Bool:
+    return fs_exists(path)
+
+pub fn os_isfile(path: String) -> Bool:
+    return fs_is_file(path)
+
+pub fn os_isdir(path: String) -> Bool:
+    return fs_is_dir(path)
+
+// ─── Temp files ──────────────────────────────────────────────────────────
+pub fn os_tmpfile(prefix: String) -> String:
+    return fs_temp_file(prefix)
+
+pub fn os_tmpdir(prefix: String) -> String:
+    return fs_temp_dir(prefix)
+
+// ─── Text I/O convenience ────────────────────────────────────────────────
+pub fn os_read_text(path: String) -> String:
+    return fs_read_text(path)
+
+pub fn os_write_text(path: String, content: String) -> Bool:
+    let status = abi_fs_write_text(path, content)
+    return status == 0
+
+pub fn os_append_text(path: String, content: String) -> Bool:
+    let status = abi_fs_append_text(path, content)
+    return status == 0
+
+pub fn os_atomic_write_text(path: String, content: String) -> Bool:
+    let status = abi_fs_atomic_write_text(path, content)
+    return status == 0
+
+// ============================================================================
+//                          SECTION 6: Process Execution
+// ============================================================================
+//  Python: os.system(), os.popen()
+
+pub fn os_system(command: String) -> Int:
+    var shell = "cmd.exe"
+    var shell_arg = "/c"
+    let tgt = target_current()
+    if tgt.os == OS::Linux or tgt.os == OS::Macos:
+        shell = "/bin/sh"
+        shell_arg = "-c"
+    let _result = process_output_text(shell, shell_arg, command, "", 30000)
+    return process_last_status()
+
+pub fn os_popen_read(command: String, timeout_ms: Int) -> String:
+    var shell = "cmd.exe"
+    var shell_arg = "/c"
+    let tgt = target_current()
+    if tgt.os == OS::Linux or tgt.os == OS::Macos:
+        shell = "/bin/sh"
+        shell_arg = "-c"
+    return process_output_text(shell, shell_arg, command, "", timeout_ms)
+
+pub fn os_popen_status(command: String, timeout_ms: Int) -> Int:
+    let _output = os_popen_read(command, timeout_ms)
+    return process_last_status()
+
+// ============================================================================
+//                          SECTION 7: System Information
+// ============================================================================
+//  Python: os.cpu_count(), os.urandom(), os.get_terminal_size()
+
+pub fn os_cpu_count() -> Int:
+    return cpu_logical_count()
+
+pub fn os_cpu_core_count() -> Int:
+    return cpu_core_count()
+
+pub fn os_cpu_package_count() -> Int:
+    return cpu_package_count()
+
+// ─── Random bytes ────────────────────────────────────────────────────────
+// TODO: requires runtime ABI for abi_os_urandom
+// pub fn os_urandom(byte_count: Int) -> String: ...
+// pub fn os_urandom_bytes(byte_count: Int) -> Array<Int>: ...
+
+// ─── Terminal size ───────────────────────────────────────────────────────
+pub struct OsTerminalSize:
+    columns: Int
+    rows: Int
+
+pub fn os_get_terminal_size() -> OsTerminalSize:
+    return OsTerminalSize { columns: 80, rows: 24 }
+
+// ─── Page size ───────────────────────────────────────────────────────────
+pub fn os_getpagesize() -> Int:
+    return vm_page_size()
+
+// ============================================================================
+//                          SECTION 8: Time Utilities
+// ============================================================================
+
+pub fn os_sleep_millis(ms: Int) -> Unit:
+    let _ = sleep_millis(ms)
+
+pub fn os_now_millis() -> Int:
+    return now_millis()
+
+// ============================================================================
+//                          SECTION 9: File Descriptor / Handle Operations
+// ============================================================================
+//  Zig-style: fd_t operations for the low-level crowd.
+
+pub struct OsFile:
+    handle: ptr<Int>
+    path: String
+    mode: String
+
+pub fn os_open(path: String, mode: String) -> OsFile:
+    let h = abi_fs_open(path, mode)
+    return OsFile { handle: h, path: path, mode: mode }
+
+pub fn os_close(file: OsFile) -> Int:
+    return abi_fs_close(file.handle)
+
+pub fn os_read(file: OsFile, buffer: ptr<Int>, byte_count: Int) -> Int:
+    return abi_fs_read(file.handle, buffer, byte_count)
+
+pub fn os_write(file: OsFile, buffer: ptr<Int>, byte_count: Int) -> Int:
+    return abi_fs_write(file.handle, buffer, byte_count)
+
+pub fn os_seek(file: OsFile, offset: Int, origin: Int) -> Int:
+    return abi_fs_seek(file.handle, offset, origin)
+
+pub fn os_tell(file: OsFile) -> Int:
+    return abi_fs_tell(file.handle)
+
+pub fn os_flush(file: OsFile) -> Int:
+    return abi_fs_flush(file.handle)
+
+// ============================================================================
+//                          SECTION 10: Error Utilities
+// ============================================================================
+
+pub struct OsError:
+    kind: String
+    code: Int
+    message: String
+
+pub fn os_last_error() -> OsError:
+    return OsError {
+        kind: fs_last_error_kind(),
+        code: fs_last_status(),
+        message: fs_last_error_message()
+    }
+
+// ============================================================================
+//                          SECTION 10: Error Utilities
+// ============================================================================

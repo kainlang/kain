@@ -1,0 +1,507 @@
+// ============================================================================
+//                          std::os::path  —  Path Manipulation Powerhouse
+// ============================================================================
+//  Python os.path + pathlib vibes, Kain performance.
+//  Extends std::path with richer cross-platform path operations.
+//
+//  Usage:
+//    use std::os::path
+//    let full = os_path_join("a", "b", "c.txt")     // "a/b/c.txt"
+//    let (dir, name) = os_path_split(full)           // ("a/b", "c.txt")
+//    let ext = os_path_splitext("file.tar.gz")       // ("file.tar", ".gz")
+//    if os_path_exists("/some/path"): ...
+//
+//  Architecture note:
+//    This is the Kain equivalent of os_path_*.kn → std::os::path.
+//    The underscore convention maps to :: in the import path.
+// ============================================================================
+
+use std::target
+use std::fs
+use std::path
+use std::process
+
+// ============================================================================
+//                          SECTION 1: Path Constants & Separators
+// ============================================================================
+
+pub fn os_path_sep() -> String:
+    return path_sep()
+
+pub fn os_path_altsep() -> String:
+    // Windows: "\"  (the alt is "/" on Windows)
+    // Linux:   ""   (no alt separator)
+    let tgt = target_current()
+    var sep = ""
+    match tgt.os:
+        OS::Windows => sep = "/"
+        _ => sep = ""
+    return sep
+
+pub fn os_path_extsep() -> String:
+    return "."
+
+pub fn os_path_pathsep() -> String:
+    return path_delimiter()
+
+pub fn os_path_devnull() -> String:
+    let tgt = target_current()
+    var devnull = "/dev/null"
+    match tgt.os:
+        OS::Windows => devnull = "nul"
+        _ => devnull = "/dev/null"
+    return devnull
+
+// ============================================================================
+//                          SECTION 2: Path Assembly & Decomposition
+// ============================================================================
+
+// ─── join(components...) → combined path ─────────────────────────────────
+pub fn os_path_join(a: String, b: String) -> String:
+    return path_join(a, b)
+
+// ─── split(path) → (head, tail) ──────────────────────────────────────────
+pub fn os_path_split(path: String) -> (String, String):
+    let dir = path_parent(path)
+    let name = path_file_name(path)
+    return (dir, name)
+
+// ─── dirname / basename ──────────────────────────────────────────────────
+pub fn os_path_dirname(path: String) -> String:
+    return path_parent(path)
+
+pub fn os_path_basename(path: String) -> String:
+    return path_file_name(path)
+
+// ─── splitext(path) → (root, ext) ────────────────────────────────────────
+//  "file.tar.gz" → ("file.tar", ".gz")
+pub fn os_path_splitext(path: String) -> (String, String):
+    let base = path_file_name(path)
+    if len(base) == 0:
+        return (path, "")
+
+    // Find last dot
+    var dot_idx = -1
+    var i = len(base) - 1
+    while i >= 0:
+        let ch = char_at(base, i)
+        if ch == ".":
+            dot_idx = i
+            i = -1
+        i = i - 1
+
+    if dot_idx <= 0:
+        return (path, "")
+
+    let root = substring(path, 0, len(path) - (len(base) - dot_idx))
+    let ext = substring(path, len(path) - (len(base) - dot_idx), len(path))
+    return (root, ext)
+
+// ─── splitdrive(path) → (drive, tail) ────────────────────────────────────
+//  Windows: "C:/foo" → ("C:", "/foo")
+//  Linux:   "/foo"   → ("", "/foo")
+pub fn os_path_splitdrive(path: String) -> (String, String):
+    if len(path) >= 2:
+        let second = char_at(path, 1)
+        if second == ":":
+            return (substring(path, 0, 2), substring(path, 2, len(path)))
+    return ("", path)
+
+// ─── commonpath(paths) → longest common parent ───────────────────────────
+pub fn os_path_commonpath(paths: Array<String>) -> String:
+    if len(paths) == 0:
+        return ""
+    if len(paths) == 1:
+        let (dir, _) = os_path_split(paths[0])
+        return dir
+
+    // Split all into components
+    var components_list: Array<Array<String>> = []
+    var min_len = 999999
+    var i: Int = 0
+    while i < len(paths):
+        let comps = os_path_split_components(paths[i])
+        push(components_list, comps)
+        if len(comps) < min_len:
+            min_len = len(comps)
+        i = i + 1
+
+    // Find common prefix
+    var common_idx = 0
+    while common_idx < min_len:
+        let first_comp = components_list[0][common_idx]
+        var match_all = true
+        var j: Int = 1
+        while j < len(components_list):
+            let other_comp = components_list[j][common_idx]
+            if first_comp != other_comp:
+                match_all = false
+                j = len(components_list)
+            j = j + 1
+        if match_all == false:
+            common_idx = min_len       // break
+        else:
+            common_idx = common_idx + 1
+
+    if common_idx == 0:
+        return ""
+
+    // Rebuild path from common components
+    var result = ""
+    var k: Int = 0
+    while k < common_idx:
+        if k > 0:
+            let sep = path_sep()
+            result = result + sep
+        result = result + components_list[0][k]
+        k = k + 1
+
+    return result
+
+// ─── split_components(path) → Array of path parts ────────────────────────
+fn os_path_split_components(path: String) -> Array<String>:
+    var result: Array<String> = []
+    if len(path) == 0:
+        return result
+
+    var start = 0
+    var i = 0
+    // Handle leading slash / drive letter
+    if char_at(path, 0) == "/" or char_at(path, 0) == "\\":
+        push(result, substring(path, 0, 1))
+        start = 1
+        i = 1
+
+    while i < len(path):
+        let ch = char_at(path, i)
+        if ch == "/" or ch == "\\":
+            if i > start:
+                push(result, substring(path, start, i))
+            start = i + 1
+        i = i + 1
+
+    if start < len(path):
+        push(result, substring(path, start, len(path)))
+
+    return result
+
+// ============================================================================
+//                          SECTION 3: Path Normalization & Resolution
+// ============================================================================
+
+// ─── normpath(path) → clean normalized path ──────────────────────────────
+//  "a//b/./c/../d" → "a/b/d"
+pub fn os_path_normpath(path: String) -> String:
+    let comps = os_path_split_components(path)
+    var stack: Array<String> = []
+
+    var i: Int = 0
+    while i < len(comps):
+        let comp = comps[i]
+        if comp == "." or len(comp) == 0:
+            // skip
+            i = i + 1
+        elif comp == "..":
+            // pop if possible
+            if len(stack) > 0:
+                let last = stack[len(stack) - 1]
+                if last != ".." and last != "/" and last != "\\":
+                    // Remove last element
+                    var new_stack: Array<String> = []
+                    var j: Int = 0
+                    while j < len(stack) - 1:
+                        push(new_stack, stack[j])
+                        j = j + 1
+                    stack = new_stack
+            else:
+                push(stack, comp)
+            i = i + 1
+        else:
+            push(stack, comp)
+            i = i + 1
+
+    // Rebuild
+    var result = ""
+    var k: Int = 0
+    while k < len(stack):
+        if k > 0:
+            result = result + path_sep()
+        result = result + stack[k]
+        k = k + 1
+
+    if len(result) == 0 and os_path_isabs(path):
+        return path_sep()
+    return result
+
+// ─── abspath(path) → absolute path ───────────────────────────────────────
+pub fn os_path_abspath(path: String) -> String:
+    if os_path_isabs(path):
+        return os_path_normpath(path)
+    let cwd = os_path_getcwd()
+    let joined = path_join(cwd, path)
+    return os_path_normpath(joined)
+
+// Helper: getcwd (uses process module to avoid duplicate @extern)
+fn os_path_getcwd() -> String:
+    return process_current_working_directory()
+
+// ─── relpath(path, start) → relative path ────────────────────────────────
+pub fn os_path_relpath(path: String, start: String) -> String:
+    // Simplified implementation
+    let abs_path = os_path_abspath(path)
+    let abs_start = os_path_abspath(start)
+
+    let path_comps = os_path_split_components(abs_path)
+    let start_comps = os_path_split_components(abs_start)
+
+    // Find common prefix
+    var common_len = 0
+    while common_len < len(path_comps) and common_len < len(start_comps):
+        if path_comps[common_len] == start_comps[common_len]:
+            common_len = common_len + 1
+        else:
+            common_len = len(path_comps) + 1
+
+    // Build "../" for each remaining start component
+    var result = ""
+    var ups = len(start_comps) - common_len
+    var u: Int = 0
+    while u < ups:
+        if len(result) > 0:
+            result = result + path_sep()
+        result = result + ".."
+        u = u + 1
+
+    // Append remaining path components
+    var p: Int = common_len
+    while p < len(path_comps):
+        if len(result) > 0:
+            result = result + path_sep()
+        result = result + path_comps[p]
+        p = p + 1
+
+    if len(result) == 0:
+        return "."
+    return result
+
+// ─── realpath(path) → canonical absolute path with symlinks resolved ─────
+pub fn os_path_realpath(path: String) -> String:
+    // Best-effort: normalize absolute path (true symlink resolution needs OS ABI)
+    return os_path_abspath(path)
+
+// ============================================================================
+//                          SECTION 4: Path Predicates
+// ============================================================================
+
+pub fn os_path_isabs(path: String) -> Bool:
+    return path_is_absolute(path)
+
+pub fn os_path_exists(path: String) -> Bool:
+    return fs_exists(path)
+
+pub fn os_path_isfile(path: String) -> Bool:
+    return fs_is_file(path)
+
+pub fn os_path_isdir(path: String) -> Bool:
+    return fs_is_dir(path)
+
+// ─── ismount ─────────────────────────────────────────────────────────────
+pub fn os_path_ismount(path: String) -> Bool:
+    let tgt = target_current()
+    if tgt.os == OS::Windows:
+        if len(path) == 3:
+            let second = char_at(path, 1)
+            let third = char_at(path, 2)
+            if second == ":" and (third == "\\" or third == "/"):
+                return true
+        return false
+    return path == "/" or path == "//"
+
+// ─── islink ──────────────────────────────────────────────────────────────
+pub fn os_path_islink(path: String) -> Bool:
+    // Use text-based metadata to avoid fs_metadata struct parse crash
+    let raw_text = fs_metadata_text(path)
+    return _ospath_meta_field(raw_text, "file_type") == "symlink"
+
+// ─── samefile ────────────────────────────────────────────────────────────
+pub fn os_path_samefile(path_a: String, path_b: String) -> Bool:
+    let a = os_path_normpath(os_path_abspath(path_a))
+    let b = os_path_normpath(os_path_abspath(path_b))
+    return a == b
+
+// ============================================================================
+//                          SECTION 5: Path Metadata
+// ============================================================================
+
+pub fn os_path_getsize(path: String) -> Int:
+    let raw_text = fs_metadata_text(path)
+    return _ospath_meta_int(raw_text, "len")
+
+pub fn os_path_getmtime(path: String) -> Int:
+    let raw_text = fs_metadata_text(path)
+    return _ospath_meta_int(raw_text, "modified_millis")
+
+pub fn os_path_getctime(path: String) -> Int:
+    let raw_text = fs_metadata_text(path)
+    return _ospath_meta_int(raw_text, "created_millis")
+
+pub fn os_path_getatime(path: String) -> Int:
+    let raw_text = fs_metadata_text(path)
+    return _ospath_meta_int(raw_text, "accessed_millis")
+
+// ============================================================================
+//                          SECTION 6: Path Expansion
+// ============================================================================
+
+// ─── expanduser(path) → expand ~ and ~user ───────────────────────────────
+pub fn os_path_expanduser(path: String) -> String:
+    if len(path) == 0:
+        return path
+
+    let first = char_at(path, 0)
+    if first != "~":
+        return path
+
+    if len(path) == 1 or char_at(path, 1) == "/" or char_at(path, 1) == "\\":
+        var home = ""
+        let tgt = target_current()
+        if tgt.os == OS::Windows:
+            let home_drive = os_path_getenv("HOMEDRIVE")
+            let home_path = os_path_getenv("HOMEPATH")
+            if len(home_drive) > 0 and len(home_path) > 0:
+                home = home_drive + home_path
+            else:
+                home = os_path_getenv("USERPROFILE")
+        else:
+            home = os_path_getenv("HOME")
+        if len(home) > 0:
+            if len(path) > 1:
+                return home + substring(path, 1, len(path))
+            return home
+    return path
+
+// ─── expandvars(path) → expand $VAR / %VAR% ──────────────────────────────
+pub fn os_path_expandvars(path: String) -> String:
+    // Simplified: expand $NAME and %NAME% patterns
+    var result = ""
+    var i = 0
+    while i < len(path):
+        let ch = char_at(path, i)
+        if ch == "%":
+            // Windows style: %VAR%
+            var end = i + 1
+            while end < len(path) and char_at(path, end) != "%":
+                end = end + 1
+            if end < len(path):
+                let var_name = substring(path, i + 1, end)
+                let var_val = os_path_getenv(var_name)
+                result = result + var_val
+                i = end + 1
+            else:
+                result = result + substring(path, i, i + 1)
+                i = i + 1
+        elif ch == "$":
+            // Unix style: $VAR or ${VAR}
+            if i + 1 < len(path):
+                var end = i + 1
+                let next = char_at(path, i + 1)
+                if next == "{":
+                    while end < len(path) and char_at(path, end) != "}":
+                        end = end + 1
+                    if end < len(path):
+                        let var_name = substring(path, i + 2, end)
+                        let var_val = os_path_getenv(var_name)
+                        result = result + var_val
+                        i = end + 1
+                    else:
+                        i = i + 1
+                else:
+                    while end < len(path) and _is_path_var_char(char_at(path, end)):
+                        end = end + 1
+                    if end > i + 1:
+                        let var_name = substring(path, i + 1, end)
+                        let var_val = os_path_getenv(var_name)
+                        result = result + var_val
+                        i = end
+                    else:
+                        result = result + substring(path, i, i + 1)
+                        i = i + 1
+            else:
+                result = result + substring(path, i, i + 1)
+                i = i + 1
+        else:
+            result = result + substring(path, i, i + 1)
+            i = i + 1
+    return result
+
+fn _is_path_var_char(ch: String) -> Bool:
+    return (ch >= "a" and ch <= "z") or (ch >= "A" and ch <= "Z") or (ch >= "0" and ch <= "9") or ch == "_"
+
+// Helper: getenv (forward to process module)
+fn os_path_getenv(key: String) -> String:
+    return process_environment(key)
+
+// ============================================================================
+//                          SECTION 7: Convenience Composition
+// ============================================================================
+
+// ─── with_suffix(path, new_suffix) → path with extension swapped ─────────
+pub fn os_path_with_suffix(path: String, suffix: String) -> String:
+    let (root, _) = os_path_splitext(path)
+    return root + suffix
+
+// ─── with_name(path, new_name) → path with filename swapped ──────────────
+pub fn os_path_with_name(path: String, name: String) -> String:
+    let dir = path_parent(path)
+    if len(dir) == 0:
+        return name
+    return path_join(dir, name)
+
+// ─── with_stem(path, new_stem) → keep extension, swap stem ───────────────
+pub fn os_path_with_stem(path: String, stem: String) -> String:
+    let (root, ext) = os_path_splitext(path)
+    return stem + ext
+
+// ============================================================================
+//                          INTERNAL: Metadata Helpers
+// ============================================================================
+
+fn _ospath_meta_field(text: String, key: String) -> String:
+    let prefix = key + "="
+    var i: Int = 0
+    while i < len(text):
+        if i + len(prefix) <= len(text):
+            var matched = true
+            var j: Int = 0
+            while j < len(prefix):
+                if char_at(text, i + j) != char_at(prefix, j):
+                    matched = false
+                    j = len(prefix)
+                j = j + 1
+            if matched:
+                var start = i + len(prefix)
+                var end = start
+                while end < len(text) and char_at(text, end) != "\n":
+                    end = end + 1
+                return substring(text, start, end)
+        while i < len(text) and char_at(text, i) != "\n":
+            i = i + 1
+        i = i + 1
+    return ""
+
+fn _ospath_meta_int(text: String, key: String) -> Int:
+    let val = _ospath_meta_field(text, key)
+    if len(val) == 0:
+        return 0
+    var result: Int = 0
+    var sign: Int = 1
+    var i: Int = 0
+    if char_at(val, 0) == "-":
+        sign = -1
+        i = 1
+    while i < len(val):
+        let ch = char_at(val, i)
+        if ch >= "0" and ch <= "9":
+            result = result * 10 + (ord(ch) - ord("0"))
+        i = i + 1
+    return result * sign

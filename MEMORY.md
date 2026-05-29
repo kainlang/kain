@@ -1,5 +1,121 @@
 # Kain Memory
 
+# 2026-05-29 — std::os + std::os::path: Python-ergonomic OS substrate
+
+New modules `stdlib/os.kn` and `stdlib/os_path.kn` implementing a Zig-inspired, Python-ergonomic
+OS abstraction layer. Pattern: `use std::os` → `os_getcwd()`, `os_listdir()`, etc.
+
+What changed:
+
+- `stdlib/os.kn` — Main OS module (the `import os` equivalent)
+  - Platform detection: os_name(), os_platform_name(), os_arch_name(), os_is_windows/linux/macos/wasi()
+  - Environment: os_getenv(), os_getenv_default()
+  - Process: os_getpid(), os_getcwd()
+  - Filesystem: os_listdir(), os_scandir(), os_mkdir(), os_makedirs(), os_remove(), os_rmdir(), os_rename()
+  - File stat: os_stat(), os_exists(), os_isfile(), os_isdir()
+  - Text I/O: os_read_text(), os_write_text(), os_append_text(), os_atomic_write_text()
+  - Process exec: os_system(), os_popen_read(), os_popen_status()
+  - System info: os_cpu_count(), os_getpagesize()
+  - File handles: os_open/close/read/write/seek/tell/flush (Zig-style fd_t ops)
+  - Temp files: os_tmpfile(), os_tmpdir()
+  - uname: os_uname() → OsUname struct
+  - Errors: os_last_error() → OsError
+
+- `stdlib/os_path.kn` — OS path utilities (the `os.path` equivalent)
+  - Assembly: os_path_join, split, dirname, basename
+  - Decompose: os_path_splitext, splitdrive, commonpath, split_components
+  - Normalize: os_path_normpath, abspath, relpath, realpath
+  - Predicates: os_path_isabs, exists, isfile, isdir, ismount, islink, samefile
+  - Metadata: os_path_getsize, getmtime, getctime, getatime
+  - Expansion: os_path_expanduser, expandvars
+  - Composition: os_path_with_suffix, with_name, with_stem
+
+- `smoketest/src/os_basics.kn` — 7-test smoketest proving the modules (all pass, `--target llvm`)
+
+Architecture notes:
+
+- Built on existing ABI layer (fs.kn, process.kn, machine.kn, target.kn, platform.kn, time.kn)
+- Wraps ABI functions with Python-like names (os_listdir wraps fs_read_dir_paths)
+- Workaround: fs_metadata struct parse crashes (runtime bug), so os_stat/os_scandir use text-based
+  metadata parsing via fs_metadata_text + manual key=value extraction
+- @extern declarations for new ABIs (chdir, symlink, urandom, setenv, etc.) are commented out
+  as TODO stubs — they need runtime implementations
+- match arms with return statements are unsupported in LLVM codegen; use var assignment pattern
+- Kain uses array[index] syntax, not get(array, index)
+- 'match' and 'default' are reserved keywords; use 'matched' and 'default_value'
+- Module-level var is not accessible inside functions; no caching pattern needed
+
+Validation: `kain run smoketest/src/os_basics.kn --target llvm` → ALL PASSED
+
+# 2026-05-29 - KDOOM scratch lane: Doomgeneric build + Kain C ABI probe
+
+New scratch proving lane under `scratch/kdoom` to test whether a real C game can be pulled into current Kain-era workflows.
+
+What changed:
+
+- Cloned Doomgeneric into `scratch/kdoom/doomgeneric`.
+- Added `scratch/kdoom/doomgeneric/doomgeneric/Makefile.win` using `x86_64-w64-mingw32-gcc` and produced:
+  - `scratch/kdoom/doomgeneric/doomgeneric/doomgeneric_win_gnu.exe`
+- Downloaded Freedoom 0.13.0 assets and validated launch using:
+  - `scratch/kdoom/freedoom-0.13.0/freedoom-0.13.0/freedoom1.wad`
+- Added reproducible scripts/docs:
+  - `scratch/kdoom/build_doomgeneric_win.sh`
+  - `scratch/kdoom/run_doomgeneric_freedoom1.sh`
+  - `scratch/kdoom/README.md`
+- Added Kain C ABI bridge probe that includes Doomgeneric header through a dynamic-tier bridge artifact:
+  - `scratch/kdoom/interop/KAIN.toml`
+  - `scratch/kdoom/interop/native/kdoom_bridge.h`
+  - `scratch/kdoom/interop/native/kdoom_bridge.c`
+  - `scratch/kdoom/interop/main_usec.kn`
+
+Validation evidence:
+
+- Native game compile succeeds with `make -f Makefile.win`.
+- Running `doomgeneric_win_gnu.exe -iwad .../freedoom1.wad` initializes and enters the game loop (timed out intentionally during active run).
+- `kain run scratch/kdoom/interop/main_usec.kn --target llvm` prints `kdoom_usec_bridge_ok` after building both `kdoom_bridge.dll` and `kdoom_bridge.lib` (Windows linker wants import-lib, runtime wants dll).
+
+Important importer observations:
+
+- `kain import-c scratch/kdoom/doomgeneric/doomgeneric` imported only a subset (`95` discovered, `9` imported, `86` failed), mostly due macro-heavy parser gaps.
+- Natural include lane (`include ... as ...`) hit duplicate LLVM declarations in this bridge shape; explicit `use c::...` + `[c_ffi] tier="dynamic"` with dll+import-lib worked.
+
+Durable lesson:
+
+- For large C game ports, fastest proving path today is: native C build first, then narrow C ABI bridges into Kain, then incrementally expand bridge coverage. Treat bulk `import-c` as reconnaissance, not final ingestion.
+
+# 2026-05-29 - SUPERKAIN64 SM64 C import refresh with current `kain import-c`
+
+User-requested refresh lane: imported `scratch/SUPERKAIN64/supermario64-c` into `scratch/SUPERKAIN64/superkain64` using the current native importer instead of old pre-LLVM-era flow.
+
+What changed:
+
+- Added generated import artifacts:
+  - `scratch/SUPERKAIN64/superkain64/sm64_src_import.kn`
+  - `scratch/SUPERKAIN64/superkain64/sm64_src_import.report.json`
+  - `scratch/SUPERKAIN64/superkain64/sm64_full_import.kn`
+  - `scratch/SUPERKAIN64/superkain64/sm64_full_import.report.json`
+- Added dedupe helper and rerun tooling:
+  - `scratch/SUPERKAIN64/superkain64/dedupe_generated_kn.py`
+  - `scratch/SUPERKAIN64/superkain64/import_sm64.ps1`
+  - `scratch/SUPERKAIN64/superkain64/README.md`
+- Produced deduped artifact:
+  - `scratch/SUPERKAIN64/superkain64/sm64_full_import.dedup.kn`
+
+Observed import stats:
+
+- `src` pass: discovered `336`, imported `164`, failed `172`
+- full-tree pass: discovered `2746`, imported `881`, failed `1865`
+
+Failure profile worth remembering:
+
+- Heavy `.inc.c` macro/data files under `actors/*` and `src/game/behaviors/*` dominate parser failures.
+- Some files hit `KAIN-MEM-0001` (unsupported pointer arithmetic forms).
+- Generated Kain still collides on global symbol space (duplicate type/function names and builtin-shadowing names like `clamp`) even after first-pass dedupe.
+
+Durable lesson:
+
+- For giant legacy C codebases with repeated forward declarations and macro-heavy include fragments, `kain import-c` is currently a strong bulk-ingest step but not a one-command typecheck lane. Practical flow is import -> report triage -> targeted wrappers/shims (especially `.inc.c` macro domains) -> staged check passes.
+
 # 2026-05-28 - error-semantic packet unification + corpus identity polish
 
 Tightened the new `crates/error-semantic` lane so it is no longer split-brained between its own packet schema and the canonical diagnostic packet in `kain-error`, and so the baked corpus now preserves source ownership instead of collapsing everything to file-stem guesses.

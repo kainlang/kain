@@ -45,30 +45,3 @@ entry = "src/main.kn"
 artifact_root = ".kain/out/llvm"
 cache_root = ".kain/cache/build"
 profile = "debug"
-
-[c_ffi]
-
-[[c_ffi.libraries]]
-name = "smoketest_interop_bridge"
-tier = "inline"
-header = "native/smoketest_interop_bridge.h"
-sources = ["native/smoketest_interop_bridge.c"]
-include_paths = ["native"]
-defines = ["_CRT_SECURE_NO_WARNINGS"]
-
-[[c_ffi.libraries]]
-name = "smoketest_c_abi_album"
-tier = "inline"
-header = "native/smoketest_c_abi_album.h"
-sources = ["native/smoketest_c_abi_album.c"]
-include_paths = ["native"]
-defines = ["_CRT_SECURE_NO_WARNINGS"]
-
-[[c_ffi.libraries]]
-name = "smoketest_visualizer_bridge"
-tier = "inline"
-header = "native/smoketest_visualizer_bridge.h"
-sources = ["native/smoketest_visualizer_bridge.c"]
-include_paths = ["native"]
-defines = ["_CRT_SECURE_NO_WARNINGS"]
-link_libs = ["user32", "gdi32", "opengl32"]

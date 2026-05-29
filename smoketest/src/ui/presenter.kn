@@ -1,8 +1,8 @@
+include "../../native/smoketest_visualizer_bridge.h" as viz
 use std::actor
 use std::fs
 use std::intent
 use std::runtime
-use c::smoketest_visualizer_bridge
 use dashboard::SmokeUiAlbumSnapshot
 use report::smoke_telemetry_output_root
 use report::smoke_write_note_report
@@ -16,19 +16,19 @@ const SMOKE_PRESENT_TELEMETRY_TRACKS: Int = 2
 const SMOKE_PRESENT_UI_TRACKS: Int = 2
 
 pub fn smoke_visualizer_probe() -> Int:
-    return smoketest_visualizer_native_probe()
+    return viz_probe()
 
 pub fn smoke_visualizer_run_window(title: String, width: Int, height: Int, frame_budget: Int, input_path: String) -> Int:
-    return smoketest_visualizer_native_run_window(title, width, height, frame_budget, input_path)
+    return viz_run_window(title, width, height, frame_budget, input_path)
 
 pub fn smoke_visualizer_frames() -> Int:
-    return smoketest_visualizer_native_frames_presented()
+    return viz_frames_presented()
 
 pub fn smoke_visualizer_cells() -> Int:
-    return smoketest_visualizer_native_cells_drawn()
+    return viz_cells_drawn()
 
 pub fn smoke_visualizer_write_report(path: String) -> Int:
-    return smoketest_visualizer_native_write_report(path)
+    return viz_write_report(path)
 
 fn smoke_visual_frame_budget(mode: String) -> Int:
     if mode == "visual":

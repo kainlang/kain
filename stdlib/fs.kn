@@ -468,10 +468,16 @@ pub fn fs_try_walk_paths_text(path: String) -> FsTextResult:
     }
 
 pub fn fs_read_text(path: String) -> String:
-    return fs_try_read_text(path).value
+    // Keep the fast helper pinned to the raw ABI string lane for now.
+    // `abi_fs_read_text` returns the correct owned Kain string, while the
+    // richer `FsTextResult` wrapper path is currently mispacking success
+    // results under native LLVM in smoketest pressure.
+    return abi_fs_read_text(path)
 
 pub fn fs_read_text_range(path: String, offset: Int, length: Int) -> String:
-    return fs_try_read_text_range(path, offset, length).value
+    // Same temporary pin as `fs_read_text`: the raw ABI string return is
+    // correct, while the richer result wrapper still needs a substrate fix.
+    return abi_fs_read_text_range(path, offset, length)
 
 pub fn fs_write_text(path: String, content: String) -> Unit:
     let _result = fs_try_write_text(path, content)

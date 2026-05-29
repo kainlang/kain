@@ -390,28 +390,44 @@ fn render_include_alias_source(output: &ImportCOutput, alias: &str) -> Option<St
 
     let mut rendered_aliases = Vec::new();
     let generated_prefix = format!("c_{}_", output.resolved.import_name);
+    let mut pending_attributes = Vec::new();
     for line in output.canonical_module_source.lines() {
         let trimmed = line.trim_start();
+        if trimmed.starts_with('@') && !trimmed.starts_with("@extern fn ") {
+            pending_attributes.push(trimmed.to_string());
+            continue;
+        }
         let Some(signature) = trimmed.strip_prefix("@extern fn ") else {
+            pending_attributes.clear();
             continue;
         };
         let Some(paren_index) = signature.find('(') else {
+            pending_attributes.clear();
             continue;
         };
         let raw_name = &signature[..paren_index];
         if raw_name.starts_with(&generated_prefix) {
+            pending_attributes.clear();
             continue;
         }
         let Some(alias_name) =
             include_alias_function_name(&output.resolved.import_name, alias, raw_name)
         else {
+            pending_attributes.clear();
             continue;
         };
         let signature_tail = &signature[paren_index..];
-        rendered_aliases.push(format!(
+        let mut alias_decl = String::new();
+        if !pending_attributes.is_empty() {
+            alias_decl.push_str(&pending_attributes.join("\n"));
+            alias_decl.push('\n');
+        }
+        alias_decl.push_str(&format!(
             "@link_name(\"{}\")\n@extern fn {}{}",
             raw_name, alias_name, signature_tail
         ));
+        rendered_aliases.push(alias_decl);
+        pending_attributes.clear();
     }
 
     if rendered_aliases.is_empty() {
@@ -1463,6 +1479,39 @@ fn main() -> Int:
             .expect("parse");
         types::check(&ast, &mapper, "<include-alias-surface>")
             .expect("include alias surface should typecheck");
+    }
+
+    #[test]
+    fn natural_include_marks_c_string_returns_on_canonical_and_alias_surfaces() {
+        let temp = TempDir::new().expect("temp dir");
+        let root = temp.path();
+        let src_dir = root.join("src");
+        let native_dir = src_dir.join("native");
+        kfs::create_dir_all(&native_dir).expect("native dir");
+        kfs::write_text(
+            native_dir.join("tiny_math.h"),
+            "const char* tiny_math_label(int id);\n",
+        )
+        .expect("header");
+        kfs::write_text(
+            native_dir.join("tiny_math.c"),
+            "#include \"tiny_math.h\"\nconst char* tiny_math_label(int id) { (void)id; return \"tiny-math\"; }\n",
+        )
+        .expect("source");
+
+        let augmented = augment_source_for_runtime(
+            "include native/tiny_math.h as tm\nfn main() -> Int:\n    return len(tm_label(7))\n",
+            CompileTarget::Llvm,
+            &PrepareContext {
+                current_dir: Some(src_dir),
+                manifest_path: None,
+            },
+        )
+        .expect("natural include should prepare c string return surface");
+
+        assert!(augmented.contains("@c_string_return\n        @extern fn tiny_math_label"));
+        assert!(augmented
+            .contains("@c_string_return\n@link_name(\"tiny_math_label\")\n@extern fn tm_label"));
     }
 
     #[test]

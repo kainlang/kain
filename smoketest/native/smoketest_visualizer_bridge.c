@@ -2,6 +2,12 @@
 
 #ifdef _WIN32
 
+#if defined(_MSC_VER) || defined(__clang__)
+#pragma comment(lib, "user32.lib")
+#pragma comment(lib, "gdi32.lib")
+#pragma comment(lib, "opengl32.lib")
+#endif
+
 #include <windows.h>
 #include <windowsx.h>
 #include <GL/gl.h>
@@ -884,3 +890,29 @@ int smoketest_visualizer_native_write_report(const char* path) {
 }
 
 #endif
+
+int smoketest_visualizer_bridge_probe(void) {
+    return smoketest_visualizer_native_probe();
+}
+
+int smoketest_visualizer_bridge_run_window(
+    const char* title,
+    int width,
+    int height,
+    int frame_budget,
+    const char* input_path
+) {
+    return smoketest_visualizer_native_run_window(title, width, height, frame_budget, input_path);
+}
+
+int smoketest_visualizer_bridge_frames_presented(void) {
+    return smoketest_visualizer_native_frames_presented();
+}
+
+int smoketest_visualizer_bridge_cells_drawn(void) {
+    return smoketest_visualizer_native_cells_drawn();
+}
+
+int smoketest_visualizer_bridge_write_report(const char* path) {
+    return smoketest_visualizer_native_write_report(path);
+}

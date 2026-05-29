@@ -181,6 +181,9 @@ fn render_canonical_module_source(resolved: &ResolvedCLibrary, bundle: &BindingB
     output.push_str(&format!("    mod {}:\n", resolved.import_name));
     for binding in &bundle.functions {
         for alias in &binding.exported_aliases {
+            if matches!(binding.return_type, BridgeType::CString) {
+                output.push_str("        @c_string_return\n");
+            }
             output.push_str("        @extern fn ");
             output.push_str(alias);
             output.push('(');
