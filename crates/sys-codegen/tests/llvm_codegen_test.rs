@@ -454,6 +454,27 @@ fn main() -> Int:
 }
 
 #[test]
+fn llvm_dedupes_extern_declarations_that_share_a_link_name() {
+    let source = r#"
+@link_name("dup_probe")
+@extern fn left() -> Int
+
+@link_name("dup_probe")
+@extern fn right() -> Int
+
+fn main() -> Int:
+    return left() + right()
+"#;
+
+    let program = typed_program_from_source(source);
+    let llvm = String::from_utf8(generate_llvm(&program).expect("llvm generation should succeed"))
+        .expect("llvm output should be utf8");
+
+    assert_eq!(llvm.matches("declare i64 @dup_probe()").count(), 1);
+    assert!(llvm.contains("call i64 @dup_probe()"));
+}
+
+#[test]
 fn llvm_lowers_x86_64_naked_and_interrupt_lanes() {
     let source = r#"
 @naked

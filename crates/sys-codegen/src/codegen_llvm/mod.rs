@@ -23,6 +23,7 @@ use std::collections::{HashMap, HashSet};
 
 const ATTR_SECTION: &str = "section";
 const ATTR_LINK_NAME: &str = "link_name";
+const ATTR_C_STRING_RETURN: &str = "c_string_return";
 const ATTR_CALLCONV: &str = "callconv";
 const ATTR_THREAD_LOCAL: &str = "thread_local";
 const ATTR_PACKED: &str = "packed";
@@ -537,12 +538,18 @@ struct LlvmGenerator {
     /// Functions whose return lane already carries the runtime Any / foreign
     /// handle encoding used by Python and native bridge surfaces.
     runtime_any_function_returns: HashSet<String>,
+    /// Extern callables whose `String` return is a raw C string and must be
+    /// copied into owned Kain storage before the value enters normal string
+    /// semantics.
+    c_string_function_returns: HashSet<String>,
     /// Authored function names mapped to their emitted LLVM symbol spelling.
     function_symbols: HashMap<String, String>,
     /// Authored function names mapped to their emitted LLVM calling convention.
     function_calling_conventions: HashMap<String, String>,
     /// Functions that were emitted as extern declarations.
     extern_functions: HashSet<String>,
+    /// Linked LLVM symbols that already have an extern declaration emitted.
+    emitted_extern_symbols: HashSet<String>,
     /// Callable names defined by the lowered program itself, including target stdlib wrappers.
     defined_functions: HashSet<String>,
     /// User-authored substring-search helpers whose bodies match the canonical
@@ -694,9 +701,11 @@ impl LlvmGenerator {
             json_carrying_function_returns: HashSet::new(),
             json_owning_function_returns: HashSet::new(),
             runtime_any_function_returns: HashSet::new(),
+            c_string_function_returns: HashSet::new(),
             function_symbols: HashMap::new(),
             function_calling_conventions: HashMap::new(),
             extern_functions: HashSet::new(),
+            emitted_extern_symbols: HashSet::new(),
             defined_functions: HashSet::new(),
             manual_find_substring_functions: HashMap::new(),
             immediate_ready_future_payloads: HashMap::new(),
@@ -1420,6 +1429,10 @@ impl LlvmGenerator {
 
     fn callable_link_name(attributes: &[Attribute]) -> Option<String> {
         Self::find_attribute(attributes, ATTR_LINK_NAME).and_then(Self::attribute_string_arg)
+    }
+
+    fn callable_has_attribute(attributes: &[Attribute], name: &str) -> bool {
+        Self::find_attribute(attributes, name).is_some()
     }
 
     fn callable_is_naked(attributes: &[Attribute]) -> bool {
@@ -12160,6 +12173,11 @@ impl LlvmGenerator {
                     } else {
                         self.runtime_any_function_returns.remove(&func.ast.name);
                     }
+                    if Self::callable_has_attribute(&func.ast.attributes, ATTR_C_STRING_RETURN) {
+                        self.c_string_function_returns.insert(func.ast.name.clone());
+                    } else {
+                        self.c_string_function_returns.remove(&func.ast.name);
+                    }
                     self.function_symbols.insert(
                         func.ast.name.clone(),
                         Self::callable_link_name(&func.ast.attributes)
@@ -14894,6 +14912,9 @@ impl LlvmGenerator {
         }
 
         let emitted_symbol = self.callable_symbol_for_name(&func.ast.name);
+        if !self.emitted_extern_symbols.insert(emitted_symbol.clone()) {
+            return Ok(());
+        }
         let callconv_prefix = self.callable_callconv_prefix_for_name(&func.ast.name);
         self.emit(&format!(
             "declare {}{} @{}({})",
@@ -16528,6 +16549,34 @@ impl LlvmGenerator {
             ));
             for value in json_release_after_call {
                 self.emit(&format!("  call void @json_release(i64 {})", value));
+            }
+            if ret_ty == "i8*" && self.c_string_function_returns.contains(func_name) {
+                let is_null = self.next_reg();
+                let copy_label = self.next_label();
+                let empty_label = self.next_label();
+                let merge_label = self.next_label();
+                self.emit(&format!("  {} = icmp eq i8* {}, null", is_null, res));
+                self.emit(&format!(
+                    "  br i1 {}, label %{}, label %{}",
+                    is_null, empty_label, copy_label
+                ));
+
+                self.emit_label(&copy_label);
+                let copied = self.next_reg();
+                self.emit(&format!("  {} = call i8* @string_new(i8* {})", copied, res));
+                self.emit(&format!("  br label %{}", merge_label));
+
+                self.emit_label(&empty_label);
+                let (empty_owned, _) = self.compile_string_literal("");
+                self.emit(&format!("  br label %{}", merge_label));
+
+                self.emit_label(&merge_label);
+                let materialized = self.next_reg();
+                self.emit(&format!(
+                    "  {} = phi i8* [ {}, %{} ], [ {}, %{} ]",
+                    materialized, copied, copy_label, empty_owned, empty_label
+                ));
+                return Ok((materialized, ret_ty));
             }
             Ok((res, ret_ty))
         }
@@ -19101,6 +19150,27 @@ fn main() -> Int:
         assert!(window.contains("ptrtoint i8*"));
         assert!(window.contains("call i64 @len(i64"));
         assert!(!window.contains("call i64 @array_len(i8*"));
+    }
+
+    #[test]
+    fn materializes_c_string_extern_returns_into_owned_kain_strings() {
+        let source = r#"
+@c_string_return
+@extern fn native_label() -> String
+
+fn main() -> Int:
+    let label = native_label()
+    return len(label)
+"#;
+        let llvm = generate_llvm_or_error(source).expect("llvm generation");
+        let call_index = llvm
+            .find("call i8* @native_label()")
+            .expect("native label call should be present in LLVM");
+        let window = &llvm[call_index..llvm.len().min(call_index + 720)];
+
+        assert!(window.contains("icmp eq i8*"));
+        assert!(window.contains("call i8* @string_new(i8*"));
+        assert!(window.contains("phi i8*"));
     }
 
     #[test]
