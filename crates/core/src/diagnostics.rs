@@ -54,6 +54,14 @@ fn active_diagnostic_palette() -> DiagnosticPalette {
     }
 }
 
+fn normalize_diag_text(text: &str) -> String {
+    text.split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .trim()
+        .to_ascii_lowercase()
+}
+
 /// Diagnostic renderer for pretty error messages
 pub struct Diagnostics {
     span_mapper: SpanMapper,
@@ -126,6 +134,9 @@ impl Diagnostics {
                 .unwrap_or_else(|| format!("\n{}\n", error)),
             KainError::Rich(report) => self.format_diagnostic_report(&palette, report),
             KainError::Multi(errors) => {
+                if errors.len() == 1 {
+                    return self.format_error(&errors[0]);
+                }
                 let mut output = format!(
                     "\n{}: {} error(s) found:\n",
                     palette.error_text("error"),
@@ -230,6 +241,51 @@ impl Diagnostics {
         for note in &report.notes {
             output.push_str(&format!("   {} note: {}\n", palette.note_text("="), note));
         }
+        let normalized_notes = report
+            .notes
+            .iter()
+            .map(|note| normalize_diag_text(note))
+            .collect::<Vec<_>>();
+        let normalized_help = report
+            .help
+            .iter()
+            .map(|help| normalize_diag_text(help))
+            .collect::<Vec<_>>();
+        if let Some(semantic) = &report.semantic {
+            let normalized_explanation = normalize_diag_text(&semantic.explanation);
+            if !normalized_explanation.is_empty()
+                && !normalized_notes.contains(&normalized_explanation)
+            {
+                output.push_str(&format!(
+                    "   {} note: {}\n",
+                    palette.note_text("="),
+                    semantic.explanation
+                ));
+            }
+            if semantic.cascade_probability >= 0.55 {
+                output.push_str(&format!(
+                    "   {} note: later diagnostics may cascade from this root error.\n",
+                    palette.note_text("=")
+                ));
+            }
+            if let Some(repair) = semantic.repairs.first() {
+                let normalized_repair = normalize_diag_text(&repair.description);
+                let fixit_duplicate = report
+                    .fixits
+                    .iter()
+                    .any(|fixit| normalize_diag_text(&fixit.message) == normalized_repair);
+                if !normalized_repair.is_empty()
+                    && !normalized_help.contains(&normalized_repair)
+                    && !fixit_duplicate
+                {
+                    output.push_str(&format!(
+                        "   {} help: {}\n",
+                        palette.note_text("="),
+                        repair.description
+                    ));
+                }
+            }
+        }
         for help in &report.help {
             output.push_str(&format!("   {} help: {}\n", palette.note_text("="), help));
         }
@@ -245,12 +301,16 @@ impl Diagnostics {
                     fixit.replacement
                 ));
             } else {
+                let loc = self
+                    .span_mapper
+                    .span_to_location(fixit.span, self.filename.as_str());
                 output.push_str(&format!(
-                    "   {} fix-it: {} at bytes {}..{} -> {:?}\n",
+                    "   {} fix-it {}:{}:{}: {} -> {:?}\n",
                     palette.note_text("="),
+                    loc.file,
+                    loc.line,
+                    loc.col,
                     fixit.message,
-                    fixit.span.start,
-                    fixit.span.end,
                     fixit.replacement
                 ));
             }
@@ -258,12 +318,20 @@ impl Diagnostics {
         for tag in &report.tags {
             output.push_str(&format!("   {} tag: {}\n", palette.note_text("="), tag));
         }
-        if let Some(default_suggestion) = spec.default_suggestion {
-            output.push_str(&format!(
-                "   {} help: {}\n",
-                palette.note_text("="),
-                default_suggestion
-            ));
+        let semantic_help_available = report
+            .semantic
+            .as_ref()
+            .and_then(|semantic| semantic.repairs.first())
+            .map(|repair| !normalize_diag_text(&repair.description).is_empty())
+            .unwrap_or(false);
+        if report.help.is_empty() && !semantic_help_available {
+            if let Some(default_suggestion) = spec.default_suggestion {
+                output.push_str(&format!(
+                    "   {} help: {}\n",
+                    palette.note_text("="),
+                    default_suggestion
+                ));
+            }
         }
         if let Some(docs_key) = spec.docs_key {
             output.push_str(&format!(

@@ -4,10 +4,13 @@ use crate::ast::*;
 use crate::diagnostic_registry::DiagnosticCode;
 use crate::diagnostics::SpanMapper;
 use crate::effects::Effect;
-use crate::error::{DiagnosticReport, ErrorKind, KainError, KainResult};
+use crate::error::{
+    CompilerPhase, DiagnosticReport, DiagnosticSemanticPacket, ErrorKind, KainError, KainResult,
+};
 use crate::language_features::{default_language_capabilities, LanguageCapabilities};
 use crate::lexer::{Lexer, Token, TokenKind};
 use crate::span::Span;
+use kain_error_semantic::enrich_report as enrich_semantic_report;
 use kain_ownership::{COLLAPSE_KEYWORD, OBSERVE_KEYWORD, SHARE_KEYWORD};
 
 /// Maximum number of errors to accumulate before bailing out.
@@ -293,6 +296,48 @@ impl<'a> Parser<'a> {
         filename.starts_with('<') && filename.ends_with('>')
     }
 
+    fn diagnostic_primary_text(&self, span: Span) -> String {
+        let safe_start = span.start.min(self.span_mapper.source().len());
+        let safe_end = span
+            .end
+            .min(self.span_mapper.source().len())
+            .max(safe_start);
+        self.span_mapper
+            .source()
+            .get(safe_start..safe_end)
+            .unwrap_or_default()
+            .trim()
+            .to_string()
+    }
+
+    fn diagnostic_source_window(&self, span: Span) -> String {
+        let (_, line_content) = self.span_mapper.span_to_line_info(span, self.filename);
+        line_content.trim_end().to_string()
+    }
+
+    fn semantic_packet_for_span(
+        &self,
+        code: DiagnosticCode,
+        span: Span,
+    ) -> DiagnosticSemanticPacket {
+        DiagnosticSemanticPacket::new(
+            code,
+            CompilerPhase::Parser,
+            self.diagnostic_primary_text(span),
+        )
+        .source_window(self.diagnostic_source_window(span))
+    }
+
+    fn enrich_parser_report(
+        &self,
+        report: DiagnosticReport,
+        code: DiagnosticCode,
+        span: Span,
+    ) -> DiagnosticReport {
+        let report = self.attach_parser_source(report.phase(CompilerPhase::Parser), span);
+        enrich_semantic_report(report, &self.semantic_packet_for_span(code, span))
+    }
+
     fn rich_parser_error(&self, message: impl Into<String>, span: Span) -> KainError {
         self.rich_parser_error_with_code(DiagnosticCode::ParseGeneric, message, span)
     }
@@ -304,9 +349,10 @@ impl<'a> Parser<'a> {
         span: Span,
     ) -> KainError {
         KainError::rich(
-            self.attach_parser_source(
+            self.enrich_parser_report(
                 DiagnosticReport::new(ErrorKind::Parse, code, message)
                     .primary_label(span, "parser stopped here"),
+                code,
                 span,
             ),
         )
@@ -323,8 +369,9 @@ impl<'a> Parser<'a> {
         span: Span,
         label: impl Into<String>,
     ) -> DiagnosticReport {
-        self.attach_parser_source(
+        self.enrich_parser_report(
             DiagnosticReport::new(ErrorKind::Parse, code, message).primary_label(span, label),
+            code,
             span,
         )
     }

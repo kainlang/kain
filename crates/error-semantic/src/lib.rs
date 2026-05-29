@@ -12,6 +12,9 @@ pub mod expert;
 pub mod packet;
 
 pub use expert::analyze;
+use kain_error::{
+    DiagnosticReport, DiagnosticSemanticRepair, DiagnosticSemanticSummary, DiagnosticSeverity,
+};
 pub use packet::DiagnosticSemanticPacket;
 
 /// The failure mode taxonomy for Kain diagnostics.
@@ -30,12 +33,31 @@ pub enum FailureMode {
     GenericUnknown,
 }
 
+impl FailureMode {
+    fn as_key(&self) -> &'static str {
+        match self {
+            Self::Typo { .. } => "typo",
+            Self::MissingImport { .. } => "missing_import",
+            Self::MissingSurface => "missing_surface",
+            Self::OwnershipViolation => "ownership_violation",
+            Self::ShaderStageMismatch => "shader_stage_mismatch",
+            Self::WorldDeclarationError => "world_declaration_error",
+            Self::ActorMessageMismatch => "actor_message_mismatch",
+            Self::ParserDelimiterDamage => "parser_delimiter_damage",
+            Self::ConvergeMismatch => "converge_mismatch",
+            Self::EntangleViolation => "entangle_violation",
+            Self::GenericUnknown => "generic_unknown",
+        }
+    }
+}
+
 /// A scored repair suggestion.
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct RankedRepair {
     pub repair_id: String,
     pub description: String,
     pub score: f32,
+    pub replacement_text: Option<String>,
 }
 
 /// The full analysis report produced by the semantic coprocessor.
@@ -47,6 +69,28 @@ pub struct SemanticAnalysisReport {
     pub dynamic_explanation: String,
     pub cascade_probability: f32,
     pub explanation_style: String,
+}
+
+impl SemanticAnalysisReport {
+    pub fn to_summary(&self) -> DiagnosticSemanticSummary {
+        DiagnosticSemanticSummary {
+            failure_mode: self.likely_failure_mode.as_key().to_string(),
+            explanation_style: self.explanation_style.clone(),
+            explanation: self.dynamic_explanation.clone(),
+            root_cause_confidence: self.root_cause_confidence,
+            cascade_probability: self.cascade_probability,
+            repairs: self
+                .ranked_repairs
+                .iter()
+                .map(|repair| DiagnosticSemanticRepair {
+                    repair_id: repair.repair_id.clone(),
+                    description: repair.description.clone(),
+                    score: repair.score,
+                    replacement_text: repair.replacement_text.clone(),
+                })
+                .collect(),
+        }
+    }
 }
 
 /// Top-level semantic coprocessor. Stateless for now — all intelligence
@@ -61,4 +105,43 @@ impl SemanticCoprocessor {
     pub fn analyze(&self, packet: &DiagnosticSemanticPacket) -> SemanticAnalysisReport {
         expert::analyze(packet)
     }
+}
+
+pub fn enrich_report(
+    report: DiagnosticReport,
+    packet: &DiagnosticSemanticPacket,
+) -> DiagnosticReport {
+    let analysis = analyze(packet);
+    let summary = analysis.to_summary();
+    let is_tentative = summary.failure_mode == "generic_unknown"
+        && summary.explanation.is_empty()
+        && summary.repairs.is_empty();
+    if is_tentative {
+        return report;
+    }
+
+    let mut report = report.semantic_summary(summary.clone());
+
+    if report.fixits.is_empty()
+        && report.severity == DiagnosticSeverity::Error
+        && summary.failure_mode == "typo"
+    {
+        if let (Some(primary_span), Some(repair)) = (
+            report.primary_span,
+            summary
+                .repairs
+                .iter()
+                .find(|repair| repair.replacement_text.is_some()),
+        ) {
+            if let Some(replacement) = &repair.replacement_text {
+                report = report.fixit_certain(
+                    primary_span,
+                    replacement.clone(),
+                    format!("replace with '{}'", replacement),
+                );
+            }
+        }
+    }
+
+    report
 }

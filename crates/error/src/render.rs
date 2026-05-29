@@ -78,6 +78,14 @@ impl TerminalPalette {
     }
 }
 
+fn normalize_diag_text(text: &str) -> String {
+    text.split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .trim()
+        .to_ascii_lowercase()
+}
+
 // ── Renderer ──────────────────────────────────────────────────────────
 
 /// Terminal diagnostic renderer.
@@ -247,6 +255,51 @@ impl DiagnosticRenderer {
         for note in &report.notes {
             out.push_str(&format!("   {} note: {}\n", p.cyan("="), note));
         }
+        let normalized_notes = report
+            .notes
+            .iter()
+            .map(|note| normalize_diag_text(note))
+            .collect::<Vec<_>>();
+        let normalized_help = report
+            .help
+            .iter()
+            .map(|help| normalize_diag_text(help))
+            .collect::<Vec<_>>();
+        if let Some(semantic) = &report.semantic {
+            let normalized_explanation = normalize_diag_text(&semantic.explanation);
+            if !normalized_explanation.is_empty()
+                && !normalized_notes.contains(&normalized_explanation)
+            {
+                out.push_str(&format!(
+                    "   {} note: {}\n",
+                    p.cyan("="),
+                    semantic.explanation
+                ));
+            }
+            if semantic.cascade_probability >= 0.55 {
+                out.push_str(&format!(
+                    "   {} note: later diagnostics may cascade from this root error.\n",
+                    p.cyan("=")
+                ));
+            }
+            if let Some(repair) = semantic.repairs.first() {
+                let normalized_repair = normalize_diag_text(&repair.description);
+                let fixit_duplicate = report
+                    .fixits
+                    .iter()
+                    .any(|fixit| normalize_diag_text(&fixit.message) == normalized_repair);
+                if !normalized_repair.is_empty()
+                    && !normalized_help.contains(&normalized_repair)
+                    && !fixit_duplicate
+                {
+                    out.push_str(&format!(
+                        "   {} help: {}\n",
+                        p.green("="),
+                        repair.description
+                    ));
+                }
+            }
+        }
 
         // ── Help ───────────────────────────────────────────────────
         for help in &report.help {
@@ -288,9 +341,15 @@ impl DiagnosticRenderer {
                     fixit.replacement
                 ));
             } else {
+                let loc = self
+                    .span_mapper
+                    .span_to_location(fixit.span, self.filename.as_str());
                 out.push_str(&format!(
-                    "   {} fix-it{confidence}: {} -> {:?}\n",
+                    "   {} fix-it{confidence} {}:{}:{}: {} -> {:?}\n",
                     p.green("="),
+                    loc.file,
+                    loc.line,
+                    loc.col,
                     fixit.message,
                     fixit.replacement
                 ));

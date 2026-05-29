@@ -1,9 +1,9 @@
 // ERROR: Pure function calling IO
-fn read_file() -> String with IO:
+fn load_data() -> String with IO:
     return "data"
 
 fn process() -> Int with Pure:
-    let data = read_file()
+    let data = load_data()
     return 0
 
 fn main() -> Int:

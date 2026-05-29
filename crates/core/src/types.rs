@@ -4,7 +4,9 @@ use crate::ast::*;
 use crate::diagnostic_registry::DiagnosticCode;
 use crate::diagnostics::SpanMapper;
 use crate::effects::{check_effect_call, Effect, EffectSet};
-use crate::error::{DiagnosticReport, ErrorKind, KainError, KainResult};
+use crate::error::{
+    CompilerPhase, DiagnosticReport, DiagnosticSemanticPacket, ErrorKind, KainError, KainResult,
+};
 use crate::lexer::Lexer;
 use crate::low_level_abi::{default_c_abi_policy, CAbiPolicy};
 use crate::module_resolution::{
@@ -18,6 +20,7 @@ use kain_actor::{
     validate_actor_definition, ActorDefinition, ActorHandlerSignature, ActorMethodSignature,
     ActorStateSlot, MessageParameter, MessageSignature,
 };
+use kain_error_semantic::enrich_report as enrich_semantic_report;
 use kain_ownership::{
     OwnershipPolicy, OwnershipRegionKind, COLLAPSE_KEYWORD, DECAY_KEYWORD, OBSERVE_KEYWORD,
     SHARE_KEYWORD,
@@ -1466,6 +1469,31 @@ impl<'a> TypeEnv<'a> {
         self.globals.get(name).or_else(|| self.types.get(name))
     }
 
+    fn visible_symbol_names(&self) -> Vec<String> {
+        let mut seen = HashSet::new();
+        let mut names = Vec::new();
+
+        for scope in self.scopes.iter().rev() {
+            for name in scope.keys() {
+                if seen.insert(name.clone()) {
+                    names.push(name.clone());
+                }
+            }
+        }
+        for name in self.globals.keys() {
+            if seen.insert(name.clone()) {
+                names.push(name.clone());
+            }
+        }
+        for name in self.types.keys() {
+            if seen.insert(name.clone()) {
+                names.push(name.clone());
+            }
+        }
+
+        names
+    }
+
     pub fn is_moved(&self, name: &str) -> bool {
         self.moved_scopes
             .iter()
@@ -1551,6 +1579,50 @@ impl<'a> TypeEnv<'a> {
         self.type_error_with_code(DiagnosticCode::TypeGeneric, message, span)
     }
 
+    fn diagnostic_primary_text(&self, span: Span) -> String {
+        let safe_start = span.start.min(self.span_mapper.source().len());
+        let safe_end = span
+            .end
+            .min(self.span_mapper.source().len())
+            .max(safe_start);
+        let span = Span::new(safe_start, safe_end);
+        self.span_mapper
+            .source()
+            .get(span.start..span.end)
+            .unwrap_or_default()
+            .trim()
+            .to_string()
+    }
+
+    fn diagnostic_source_window(&self, span: Span) -> String {
+        let (_, line_content) = self.span_mapper.span_to_line_info(span, self.filename);
+        line_content.trim_end().to_string()
+    }
+
+    fn semantic_packet_for_span(
+        &self,
+        code: DiagnosticCode,
+        span: Span,
+        phase: CompilerPhase,
+    ) -> DiagnosticSemanticPacket {
+        DiagnosticSemanticPacket::new(code, phase, self.diagnostic_primary_text(span))
+            .source_window(self.diagnostic_source_window(span))
+            .visible_symbols(self.visible_symbol_names())
+    }
+
+    fn enrich_type_report(
+        &self,
+        report: DiagnosticReport,
+        code: DiagnosticCode,
+        span: Span,
+    ) -> DiagnosticReport {
+        let report = self.attach_type_source(report.phase(CompilerPhase::TypeChecking), span);
+        enrich_semantic_report(
+            report,
+            &self.semantic_packet_for_span(code, span, CompilerPhase::TypeChecking),
+        )
+    }
+
     fn type_error_with_code(
         &self,
         code: DiagnosticCode,
@@ -1567,8 +1639,9 @@ impl<'a> TypeEnv<'a> {
         span: Span,
         label: impl Into<String>,
     ) -> DiagnosticReport {
-        self.attach_type_source(
+        self.enrich_type_report(
             DiagnosticReport::new(ErrorKind::Type, code, message).primary_label(span, label),
+            code,
             span,
         )
     }
@@ -1581,6 +1654,16 @@ impl<'a> TypeEnv<'a> {
             report
         } else {
             report.origin(self.filename)
+        }
+    }
+
+    fn attach_effect_source(&self, error: KainError, span: Span) -> KainError {
+        match error {
+            KainError::Rich(report) => KainError::rich(
+                self.attach_type_source(*report, span)
+                    .phase(CompilerPhase::EffectChecking),
+            ),
+            other => other,
         }
     }
 
@@ -7272,7 +7355,8 @@ fn infer_expr_type(
                             &ctx.function_name,
                             callee_name,
                             *span,
-                        )?;
+                        )
+                        .map_err(|error| env.attach_effect_source(error, *span))?;
                     }
                     Ok(*ret)
                 }
@@ -9980,7 +10064,8 @@ fn infer_named_method_call_type(
                 let _ = infer_expr_type(env, &arg.value, ctx)?;
             }
             if let Some(ctx) = ctx {
-                check_effect_call(&ctx.effects, &effects, &ctx.function_name, method, span)?;
+                check_effect_call(&ctx.effects, &effects, &ctx.function_name, method, span)
+                    .map_err(|error| env.attach_effect_source(error, span))?;
             }
             Ok(*ret)
         } else {

@@ -13,7 +13,10 @@ use std::path::PathBuf;
 
 pub use crate::label::{DiagnosticFixIt, DiagnosticLabel};
 pub use crate::report::{CompilerPhase, DebugTraceEntry, DiagnosticReport, ErrorKind};
-pub use crate::report::{DeterministicRepair, DiagnosticSemanticPacket};
+pub use crate::report::{
+    DeterministicRepair, DiagnosticSemanticPacket, DiagnosticSemanticRepair,
+    DiagnosticSemanticSummary,
+};
 pub use crate::severity::DiagnosticSeverity;
 
 #[derive(Debug)]

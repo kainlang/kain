@@ -64,11 +64,7 @@ pub fn report_to_json(report: &DiagnosticReport) -> JsonValue {
         })
         .collect();
 
-    let fixits: Vec<JsonValue> = report
-        .fixits
-        .iter()
-        .map(fixit_to_json)
-        .collect();
+    let fixits: Vec<JsonValue> = report.fixits.iter().map(fixit_to_json).collect();
 
     json!({
         "severity": report.severity.to_string(),
@@ -88,6 +84,7 @@ pub fn report_to_json(report: &DiagnosticReport) -> JsonValue {
         "phase": report.phase.to_string(),
         "origin": report.origin,
         "tags": report.tags,
+        "semantic": report.semantic.as_ref().map(semantic_to_json),
         "docs_key": spec.docs_key.unwrap_or(""),
     })
 }
@@ -96,10 +93,7 @@ pub fn report_to_json(report: &DiagnosticReport) -> JsonValue {
 pub fn diagnostics_to_json(reports: &[DiagnosticReport]) -> JsonValue {
     let diags: Vec<JsonValue> = reports.iter().map(report_to_json).collect();
     let total = reports.len();
-    let errors = reports
-        .iter()
-        .filter(|r| r.severity.is_error())
-        .count();
+    let errors = reports.iter().filter(|r| r.severity.is_error()).count();
     let warnings = reports
         .iter()
         .filter(|r| r.severity == crate::severity::DiagnosticSeverity::Warning)
@@ -154,5 +148,21 @@ fn fixit_to_json(fixit: &DiagnosticFixIt) -> JsonValue {
         "message": fixit.message,
         "primary": fixit.primary,
         "confidence": format!("{:?}", fixit.confidence),
+    })
+}
+
+fn semantic_to_json(semantic: &crate::report::DiagnosticSemanticSummary) -> JsonValue {
+    json!({
+        "failure_mode": semantic.failure_mode,
+        "explanation_style": semantic.explanation_style,
+        "explanation": semantic.explanation,
+        "root_cause_confidence": semantic.root_cause_confidence,
+        "cascade_probability": semantic.cascade_probability,
+        "repairs": semantic.repairs.iter().map(|repair| json!({
+            "repair_id": repair.repair_id,
+            "description": repair.description,
+            "score": repair.score,
+            "replacement_text": repair.replacement_text,
+        })).collect::<Vec<_>>(),
     })
 }

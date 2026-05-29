@@ -1,8 +1,7 @@
 //! KAIN Effect System - Track side effects at compile time
 
 use crate::diagnostic_registry::DiagnosticCode;
-use crate::error::KainResult;
-use crate::error::{DiagnosticBuilder, ErrorKind};
+use crate::error::{CompilerPhase, DiagnosticReport, ErrorKind, KainError, KainResult};
 use crate::span::Span;
 use std::collections::HashSet;
 
@@ -100,65 +99,42 @@ pub fn check_effect_call(
     callee: &EffectSet,
     caller_name: &str,
     callee_name: &str,
-    _span: Span,
+    span: Span,
 ) -> KainResult<()> {
     if !caller.can_call(callee) {
         let caller_effect_str = effect_set_to_string(caller);
         let callee_effect_str = effect_set_to_string(callee);
 
-        return Err(DiagnosticBuilder::new(
-            ErrorKind::Validation,
+        let report = DiagnosticReport::new(
+            ErrorKind::Effect,
             DiagnosticCode::EffectViolation,
             format!(
-                "Effect violation: {} function '{}' cannot call {} function '{}'.
-
-Effect System Rules:
-  • Pure functions: No side effects, can only call Pure functions
-  • IO functions: Can perform I/O (file/network/console), can call Pure or IO functions
-  • Async functions: Can perform async operations, can call Pure, IO, or Async functions
-  • GPU functions: Run on graphics hardware, can call Pure or GPU functions
-  • Unsafe functions: Can break safety guarantees, can call any function
-
-Current situation:
-  • Caller '{}' is marked as {}
-  • Callee '{}' is marked as {}
-
-How to fix:
-  1. Add effect annotation to caller: fn {}() -> RetType with {}
-  2. OR mark callee as Pure if it has no side effects
-  3. OR change your call chain to avoid mixing incompatible effects
-
-Example (Pure calling IO - INVALID):
-  fn read_config() -> String with IO:
-      let data = load_from_disk()  # OK: IO can call IO
-      return data
-  
-  fn calculate_score() -> Int with Pure:
-      let config = read_config()   # ERROR: Pure cannot call IO
-      return 42
-
-Example (Fixed):
-  fn calculate_score() -> Int with IO:  # Changed to IO
-      let config = read_config()   # OK: IO can call IO
-      return 42
-",
-                caller_effect_str,
-                caller_name,
-                callee_effect_str,
-                callee_name,
-                caller_name,
-                caller_effect_str,
-                callee_name,
-                callee_effect_str,
-                caller_name,
-                callee_effect_str
+                "{} function '{}' cannot call {} function '{}'",
+                caller_effect_str, caller_name, callee_effect_str, callee_name
             ),
         )
-        .context(format!(
-            "Caller '{}' ({}) attempted to call '{}' ({})",
+        .phase(CompilerPhase::EffectChecking)
+        .primary_label(
+            span,
+            format!(
+                "'{}' requires {}, but '{}' is only {}",
+                callee_name, callee_effect_str, caller_name, caller_effect_str
+            ),
+        )
+        .note(format!(
+            "Caller '{}' is marked {} while '{}' is marked {}.",
             caller_name, caller_effect_str, callee_name, callee_effect_str
         ))
-        .build());
+        .help(format!(
+            "Broaden '{}' to {} if this call is intentional.",
+            caller_name, callee_effect_str
+        ))
+        .help(format!(
+            "Keep '{}' {} and move the effectful work behind a helper or different call path.",
+            caller_name, caller_effect_str
+        ));
+
+        return Err(KainError::rich(report));
     }
     Ok(())
 }

@@ -16,6 +16,7 @@ use crate::registry::spec_for_code;
 use crate::severity::DiagnosticSeverity;
 use crate::source::{SourceRange, SpanMapper};
 use crate::span::Span;
+use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::path::PathBuf;
 
@@ -90,6 +91,8 @@ pub struct DiagnosticReport {
     pub phase: CompilerPhase,
     /// Debug trace entries for developer investigation.
     pub debug_trace: Vec<DebugTraceEntry>,
+    /// Optional semantic coprocessor summary for richer CLI and JSON output.
+    pub semantic: Option<DiagnosticSemanticSummary>,
 }
 
 // ── Semantic Coprocessor Packet ──────────────────────────────────────
@@ -134,6 +137,27 @@ pub struct DeterministicRepair {
     pub description: String,
     /// The replacement source text.
     pub replacement_text: String,
+}
+
+/// A ranked semantic repair suggestion folded back into the canonical report.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct DiagnosticSemanticRepair {
+    pub repair_id: String,
+    pub description: String,
+    pub score: f32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub replacement_text: Option<String>,
+}
+
+/// Compact semantic coprocessor output preserved on the canonical report.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct DiagnosticSemanticSummary {
+    pub failure_mode: String,
+    pub explanation_style: String,
+    pub explanation: String,
+    pub root_cause_confidence: f32,
+    pub cascade_probability: f32,
+    pub repairs: Vec<DiagnosticSemanticRepair>,
 }
 
 impl DiagnosticSemanticPacket {
@@ -284,6 +308,7 @@ impl DiagnosticReport {
             tags: Vec::new(),
             phase: CompilerPhase::Unknown,
             debug_trace: Vec::new(),
+            semantic: None,
         }
     }
 
@@ -499,6 +524,11 @@ impl DiagnosticReport {
             message: message.into(),
             span: Some(span),
         });
+        self
+    }
+
+    pub fn semantic_summary(mut self, summary: DiagnosticSemanticSummary) -> Self {
+        self.semantic = Some(summary);
         self
     }
 

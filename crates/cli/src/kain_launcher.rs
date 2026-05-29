@@ -947,7 +947,7 @@ fn run_source_with_session(
                     return false;
                 }
             };
-        match cli::compile_spirv_binary(&source) {
+        match session.compile_spirv_binary(&source) {
             Ok(spv_bytes) => {
                 if !ensure_parent_dir(&output_path) {
                     return false;
@@ -964,7 +964,8 @@ fn run_source_with_session(
                 return true;
             }
             Err(e) => {
-                eprintln!(" Compile error: {}", e);
+                let rendered = session.format_error(source_name, &source, &e);
+                eprint!("{rendered}");
                 capture_kain_error_failure(
                     "compile",
                     None,
@@ -973,7 +974,7 @@ fn run_source_with_session(
                     source_path,
                     &source,
                     &e,
-                    &format!(" Compile error: {e}\n"),
+                    &rendered,
                 );
                 return false;
             }
@@ -990,7 +991,7 @@ fn run_source_with_session(
                     return false;
                 }
             };
-        match cli::compile_wasm_binary(&source) {
+        match session.compile_wasm_binary(&source) {
             Ok(wasm_bytes) => {
                 if !ensure_parent_dir(&output_path) {
                     return false;
@@ -1007,7 +1008,8 @@ fn run_source_with_session(
                 return true;
             }
             Err(e) => {
-                eprintln!(" Compile error: {}", e);
+                let rendered = session.format_error(source_name, &source, &e);
+                eprint!("{rendered}");
                 capture_kain_error_failure(
                     "compile",
                     None,
@@ -1016,7 +1018,7 @@ fn run_source_with_session(
                     source_path,
                     &source,
                     &e,
-                    &format!(" Compile error: {e}\n"),
+                    &rendered,
                 );
                 return false;
             }
@@ -1032,7 +1034,7 @@ fn run_source_with_session(
                     return false;
                 }
             };
-        match cli::compile_hybrid_artifacts(&source) {
+        match session.compile_hybrid_artifacts(&source) {
             Ok(artifacts) => match write_hybrid_bundle(&descriptor_path, artifacts) {
                 Ok(written) => {
                     println!(" Compiled to: {}", written.descriptor_path.display());
@@ -1047,7 +1049,8 @@ fn run_source_with_session(
                 }
             },
             Err(e) => {
-                eprintln!(" Compile error: {}", e);
+                let rendered = session.format_error(source_name, &source, &e);
+                eprint!("{rendered}");
                 capture_kain_error_failure(
                     "compile",
                     None,
@@ -1056,7 +1059,7 @@ fn run_source_with_session(
                     source_path,
                     &source,
                     &e,
-                    &format!(" Compile error: {e}\n"),
+                    &rendered,
                 );
                 return false;
             }
