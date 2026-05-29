@@ -9,6 +9,12 @@ use world::RatTelemetry
 
 const RAT_MODULUS: Int = 1000000007
 
+fn maze_seed(width: Int, height: Int) -> Int:
+    return ((width * 733) + (height * 977) + ((width * height) * 31) + 19) % RAT_MODULUS
+
+fn maze_step(seed: Int) -> Int:
+    return ((seed * 1664525) + 1013904223) % RAT_MODULUS
+
 pub fn abs_int(value: Int) -> Int:
     if value < 0:
         return 0 - value
@@ -78,31 +84,72 @@ pub fn maze_checksum(maze: ptr<Int>, cell_count: Int) -> Int with Unsafe:
 pub fn build_maze(width: Int, height: Int) -> ptr<Int> with Unsafe:
     let cell_count = width * height
     let maze: ptr<Int> = alloc_zeroed(cell_count, "Int")
+    let stack: ptr<Int> = alloc_zeroed(cell_count, "Int")
+    var top: Int = 0
+    var seed: Int = maze_seed(width, height)
     collapse maze:
         var y: Int = 0
         while y < height:
             var x: Int = 0
             while x < width:
                 let index = maze_index(x, y, width)
-                var wall = 0
-                if x == 0 or y == 0 or x == width - 1 or y == height - 1:
-                    wall = 1
-                if (x == 5 or x == 10 or x == 15 or x == 20) and (y % 4 != 2):
-                    wall = 1
-                if (y == 4 or y == 8 or y == 12) and (x % 6 != 3):
-                    wall = 1
-                if y == 1 and x >= 1 and x <= width - 2:
-                    wall = 0
-                if x == width - 2 and y >= 1 and y <= height - 2:
-                    wall = 0
-                if index == maze_index(1, 1, width):
-                    wall = 0
-                if index == maze_index(width - 2, height - 2, width):
-                    wall = 0
+                var wall = 1
                 mem_store(ptr_offset(maze, index, "Int"), wall, "Int")
                 x = x + 1
             y = y + 1
-        0
+
+        let start = maze_index(1, 1, width)
+        mem_store(ptr_offset(maze, start, "Int"), 0, "Int")
+        mem_store(ptr_offset(stack, top, "Int"), start, "Int")
+        top = top + 1
+
+        while top > 0:
+            let current = mem_load(ptr_offset(stack, top - 1, "Int"), "Int")
+            var carved: Bool = false
+            var tries: Int = 0
+            let start_dir = seed % 4
+            while tries < 4 and carved == false:
+                let chosen = (start_dir + tries) % 4
+                let current_x = maze_x(current, width)
+                let current_y = maze_y(current, width)
+                var next_x = current_x
+                var next_y = current_y
+                var wall_x = current_x
+                var wall_y = current_y
+
+                if chosen == 0:
+                    next_y = current_y - 2
+                    wall_y = current_y - 1
+                if chosen == 1:
+                    next_x = current_x + 2
+                    wall_x = current_x + 1
+                if chosen == 2:
+                    next_y = current_y + 2
+                    wall_y = current_y + 1
+                if chosen == 3:
+                    next_x = current_x - 2
+                    wall_x = current_x - 1
+
+                if next_x > 0 and next_x < width - 1 and next_y > 0 and next_y < height - 1:
+                    let next_index = maze_index(next_x, next_y, width)
+                    if maze_open(maze, next_index) == false:
+                        let wall_index = maze_index(wall_x, wall_y, width)
+                        mem_store(ptr_offset(maze, wall_index, "Int"), 0, "Int")
+                        mem_store(ptr_offset(maze, next_index, "Int"), 0, "Int")
+                        mem_store(ptr_offset(stack, top, "Int"), next_index, "Int")
+                        top = top + 1
+                        carved = true
+                tries = tries + 1
+
+            if carved == false:
+                top = top - 1
+            seed = maze_step(seed + current + top)
+
+        maze_carve_room(maze, width, height, 1, 1, 2, 2)
+        maze_carve_room(maze, width, height, (width / 2) - 1, (height / 2) - 1, 2, 2)
+        maze_carve_room(maze, width, height, width - 4, height - 3, 4, 2)
+        maze_carve_spine(maze, width, height)
+    decay stack
     return maze
 
 pub fn clear_trail(trace: ptr<Int>, capacity: Int) -> Int with Unsafe:
@@ -141,6 +188,48 @@ pub fn trail_snapshot(trace: ptr<Int>, capacity: Int) -> [Int] with Unsafe:
 
 fn maze_open(maze: ptr<Int>, index: Int) -> Bool with Unsafe:
     return mem_load(ptr_offset(maze, index, "Int"), "Int") == 0
+
+fn maze_carve_room(
+    maze: ptr<Int>,
+    width: Int,
+    height: Int,
+    origin_x: Int,
+    origin_y: Int,
+    room_w: Int,
+    room_h: Int
+) -> Int with Unsafe:
+    var y: Int = 0
+    while y < room_h:
+        var x: Int = 0
+        while x < room_w:
+            let px = clamp_int(origin_x + x, 0, width - 1)
+            let py = clamp_int(origin_y + y, 0, height - 1)
+            let index = maze_index(px, py, width)
+            mem_store(ptr_offset(maze, index, "Int"), 0, "Int")
+            x = x + 1
+        y = y + 1
+    return 0
+
+fn maze_carve_spine(maze: ptr<Int>, width: Int, height: Int) -> Int with Unsafe:
+    let hub_x = width / 2
+    let hub_y = height / 2
+    let spine_x = width - 4
+    let spine_top = hub_y
+    let spine_bottom = height - 2
+
+    var x: Int = hub_x
+    while x <= spine_x:
+        let index = maze_index(x, hub_y, width)
+        mem_store(ptr_offset(maze, index, "Int"), 0, "Int")
+        x = x + 1
+
+    var y: Int = spine_top
+    while y <= spine_bottom:
+        let index = maze_index(spine_x, y, width)
+        mem_store(ptr_offset(maze, index, "Int"), 0, "Int")
+        y = y + 1
+
+    return 0
 
 fn maze_priority(node: Int, target: Int, width: Int) -> Int:
     let node_x = maze_x(node, width)
