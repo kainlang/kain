@@ -1,0 +1,4 @@
+use fluid_studio_sim::*
+
+fn main() -> Int:
+    return 0

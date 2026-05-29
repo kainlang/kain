@@ -1,18 +1,28 @@
+// ============================================================================
+//                         kainbleton :: project model
+// ============================================================================
+// Kain owns the DAW state. Tracks carry real audio buffers, not hardcoded toys.
+
 use std::collections
 use std::math
-use std::text
 
-// ============================================================================
-//                         kainbleton :: project graph
-// ============================================================================
-// Kain owns the DAW state. Python and C get called like conquered instruments:
-// useful, loud, and absolutely not in charge.
+// ---- constants ----
 
 pub const KB_SAMPLE_RATE: Int = 44100
 pub const KB_RENDER_FRAMES: Int = 4096
-pub const KB_UI_FRAMES: Int = 180
 pub const KB_TRACKS: Int = 6
 pub const KB_CLIPS: Int = 18
+pub const KB_MAX_RECORD_SECS: Float = 30.0
+pub const KB_PLAYHEAD_MAX_SECS: Float = 60.0
+
+// ---- transport state ----
+
+pub const TRANSPORT_STOPPED: Int = 0
+pub const TRANSPORT_PLAYING: Int = 1
+pub const TRANSPORT_RECORDING: Int = 2
+pub const TRANSPORT_PAUSED: Int = 3
+
+// ---- types ----
 
 pub struct KainbletonTrack:
     id: Int
@@ -24,6 +34,9 @@ pub struct KainbletonTrack:
     armed: Bool
     muted: Bool
     solo: Bool
+    has_audio: Int
+    audio_frame_count: Int
+    audio_peak: Float
 
 pub struct KainbletonClip:
     id: Int
@@ -47,17 +60,18 @@ pub struct KainbletonProject:
     bpm: Float
     sample_rate: Int
     render_frames: Int
-    ui_frames: Int
     tracks: Array<KainbletonTrack>
     clips: Array<KainbletonClip>
     scenes: Array<KainbletonScene>
     checksum: Int
+    // transport
+    transport_state: Int
+    playhead_seconds: Float
+    playhead_beats: Float
+    loop_start_beat: Float
+    loop_end_beat: Float
 
-pub struct KainbletonFrameState:
-    frame: Int
-    playhead: Float
-    energy: Float
-    checksum: Int
+// ---- constructors ----
 
 pub fn kb_track(id: Int, name: String, color: Int, gain: Float, pan: Float, armed: Bool) -> KainbletonTrack:
     return KainbletonTrack {
@@ -70,6 +84,9 @@ pub fn kb_track(id: Int, name: String, color: Int, gain: Float, pan: Float, arme
         armed: armed,
         muted: false,
         solo: false,
+        has_audio: 0,
+        audio_frame_count: 0,
+        audio_peak: 0.0,
     }
 
 pub fn kb_clip(id: Int, track_id: Int, name: String, start_beat: Float, length_beats: Float, pitch: Int, lane: String) -> KainbletonClip:
@@ -93,6 +110,8 @@ pub fn kb_scene(id: Int, name: String, bpm: Float, swing: Float, seed: Int) -> K
         seed: seed,
     }
 
+// ---- checksum ----
+
 pub fn kb_project_checksum(project: KainbletonProject) -> Int:
     var acc: Int = 17
     var i: Int = 0
@@ -101,30 +120,29 @@ pub fn kb_project_checksum(project: KainbletonProject) -> Int:
         acc = acc * 31 + track.id * 7 + track.clip_count * 13 + Int(track.gain * 100.0)
         acc = acc + (track.color % 997)
         i = i + 1
-
     var c: Int = 0
     while c < len(project.clips):
         let clip = project.clips[c]
         acc = acc * 33 + clip.id * 5 + clip.pitch * 3 + Int(clip.start_beat * 11.0)
         c = c + 1
-
     var s: Int = 0
     while s < len(project.scenes):
         let scene = project.scenes[s]
         acc = acc * 37 + scene.id + scene.seed + Int(scene.bpm * 10.0)
         s = s + 1
-
     if acc < 0:
         acc = 0 - acc
     return acc
 
+// ---- default project ----
+
 pub fn kb_default_project() -> KainbletonProject:
     let tracks: Array<KainbletonTrack> = []
-    push(tracks, kb_track(0, "Nova Drums", 16744256, 0.92, -0.15, true))
+    push(tracks, kb_track(0, "Nova Drums", 16744256, 0.92, -0.15, false))
     push(tracks, kb_track(1, "Glass Bass", 4500479, 0.86, 0.10, false))
     push(tracks, kb_track(2, "Orbit Keys", 9238783, 0.74, -0.05, false))
     push(tracks, kb_track(3, "Rust Choir", 14454015, 0.68, 0.20, false))
-    push(tracks, kb_track(4, "Knife Lead", 16762112, 0.80, 0.00, true))
+    push(tracks, kb_track(4, "Knife Lead", 16762112, 0.80, 0.00, false))
     push(tracks, kb_track(5, "Bus Glue", 7372944, 0.71, 0.00, false))
 
     let clips: Array<KainbletonClip> = []
@@ -149,11 +167,15 @@ pub fn kb_default_project() -> KainbletonProject:
         bpm: 128.0,
         sample_rate: KB_SAMPLE_RATE,
         render_frames: KB_RENDER_FRAMES,
-        ui_frames: KB_UI_FRAMES,
         tracks: tracks,
         clips: clips,
         scenes: scenes,
         checksum: 0,
+        transport_state: TRANSPORT_STOPPED,
+        playhead_seconds: 0.0,
+        playhead_beats: 0.0,
+        loop_start_beat: 0.0,
+        loop_end_beat: 16.0,
     }
 
     return KainbletonProject {
@@ -161,23 +183,18 @@ pub fn kb_default_project() -> KainbletonProject:
         bpm: project.bpm,
         sample_rate: project.sample_rate,
         render_frames: project.render_frames,
-        ui_frames: project.ui_frames,
         tracks: project.tracks,
         clips: project.clips,
         scenes: project.scenes,
         checksum: kb_project_checksum(project),
+        transport_state: TRANSPORT_STOPPED,
+        playhead_seconds: 0.0,
+        playhead_beats: 0.0,
+        loop_start_beat: 0.0,
+        loop_end_beat: 16.0,
     }
 
-pub fn kb_frame_state(project: KainbletonProject, frame: Int) -> KainbletonFrameState:
-    let playhead = Float(frame % project.ui_frames) / Float(project.ui_frames)
-    let beat_window = playhead * 16.0
-    let energy = 0.35 + Float((project.checksum + frame * 17) % 61) / 100.0
-    return KainbletonFrameState {
-        frame: frame,
-        playhead: beat_window,
-        energy: energy,
-        checksum: project.checksum + frame * 131,
-    }
+// ---- helpers ----
 
 pub fn kb_track_name_deck(project: KainbletonProject) -> String:
     var deck: String = ""

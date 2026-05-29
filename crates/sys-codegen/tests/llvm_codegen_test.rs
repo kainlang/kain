@@ -2672,6 +2672,26 @@ fn forward(result: JsonArrayResult) -> Int:
 }
 
 #[test]
+fn llvm_allows_push_into_array_any_returned_from_function() {
+    let source = r#"
+fn make() -> Array<Any>:
+    return json_array_new()
+
+fn grow() -> Array<Any>:
+    let values = make()
+    push(values, 1)
+    return values
+"#;
+
+    let typed = typed_program_from_source(source);
+    let llvm = String::from_utf8(generate_llvm(&typed).expect("llvm generation should succeed"))
+        .expect("llvm output should be utf8");
+    let grow_ir = llvm_function_ir(&llvm, "define internal i8* @grow()");
+
+    assert!(grow_ir.contains("call void @array_push(i8*"));
+}
+
+#[test]
 fn llvm_specializes_push_for_typed_int_arrays() {
     let source = r#"
 fn main() -> Int:
@@ -3163,12 +3183,13 @@ fn main() -> Int:
 "#;
 
     let typed = typed_program_from_source(source);
-    let err = generate_llvm(&typed).expect_err(
-        "llvm generation should fail when an implicit void helper returns a value",
-    );
+    let err = generate_llvm(&typed)
+        .expect_err("llvm generation should fail when an implicit void helper returns a value");
 
     let message = err.to_string();
-    assert!(message.contains("cannot return a value from a callable without an explicit non-void return type"));
+    assert!(message.contains(
+        "cannot return a value from a callable without an explicit non-void return type"
+    ));
 }
 
 #[test]

@@ -24,20 +24,15 @@ use utils::file_extension_lower
 const MAX_INDEX_FILE_BYTES: Int = 1024 * 1024
 
 pub fn build_index(index_name: String, cfg: SemanticSearchConfig) -> Bool with Unsafe:
-    let mut dir_count = 5
-    let mut extension_label = "kn"
-    if index_name == "code":
-        dir_count = 2
-        extension_label = "rs,c,h,cpp,hpp,toml,bazel,bzl"
+    let scan_dirs = if index_name == "code": cfg.code_dirs else: cfg.kain_dirs
     let root = cfg.repo_root
 
     println("building " + index_name + " index...")
     println("  root:       " + root)
-    println("  dirs:       " + int_to_str(dir_count) + " directories")
-    println("  extensions: " + extension_label)
+    println("  dirs:       " + int_to_str(len(scan_dirs)) + " directories")
     println("  model:      " + cfg.model_name)
 
-    let files = collect_files(index_name, root)
+    let files = collect_files(index_name, root, cfg)
     println("  found:      " + int_to_str(len(files)) + " files")
     if len(files) == 0:
         println("  ERROR: no files found")
@@ -138,17 +133,13 @@ fn stream_all_chunks(files: Array<String>, root: String, cfg: SemanticSearchConf
         fi = fi + 1
     return total
 
-fn collect_files(index_name: String, root: String) -> Array<String>:
+fn collect_files(index_name: String, root: String, cfg: SemanticSearchConfig) -> Array<String>:
     let mut files: Array<String> = []
-    if index_name == "code":
-        collect_index_dir(files, root, "crates", index_name)
-        collect_index_dir(files, root, "runtime", index_name)
-    else:
-        collect_index_dir(files, root, "stdlib", index_name)
-        collect_index_dir(files, root, "blades", index_name)
-        collect_index_dir(files, root, "smoketest", index_name)
-        collect_index_dir(files, root, "benchmark", index_name)
-        collect_index_dir(files, root, "library_of_kain", index_name)
+    let dirs = if index_name == "code": cfg.code_dirs else: cfg.kain_dirs
+    var i: Int = 0
+    while i < len(dirs):
+        collect_index_dir(files, root, dirs[i], index_name)
+        i = i + 1
     return files
 
 fn collect_index_dir(files: Array<String>, root: String, dir_name: String, index_name: String) -> Unit:
@@ -285,7 +276,11 @@ pub fn index_weight_path(index_path: String) -> String:
     return index_path + ".weights.u32"
 
 fn build_chunk_embedding_bytes(chunk: Chunk, dim: Int) -> Array<Int>:
-    let material = chunk.kind + "|" + chunk.symbol + "|" + chunk.file_path + "|" + chunk.text
+    var material = chunk.text
+    if chunk.symbol != "":
+        material = chunk.symbol + " " + material
+    if chunk.kind != CHUNK_KIND_GENERIC:
+        material = chunk.kind + " " + material
     return build_packed_embedding_bytes(material, dim)
 
 fn pack_u32_le(value: Int) -> Array<Int>:

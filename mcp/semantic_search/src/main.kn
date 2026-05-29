@@ -13,14 +13,15 @@ use config::config_runtime_root
 use indexer::build_index
 use mcp_server::start_server
 use mcp_server::search_response_to_json
-use mcp_server::json_escape
-use mcp_server::json_bool
 use search_engine::search
 use search_engine::cuda_search_shader_bundle_path
 use search_engine::cuda_search_residency_path
 use utils::int_to_str
 use utils::float_to_str
 use utils::bool_to_str
+use mcp_json::json_escape
+use mcp_json::json_bool
+use mcp_tools::semantic_search_mcp_tool_help_text
 
 fn main() -> Int with Unsafe:
     let _boot = runtime_init()
@@ -59,7 +60,7 @@ fn main() -> Int with Unsafe:
                         if command == "__mcp_args_json":
                             result = handle_args_json()
                         else:
-                            handle_help()
+                            handle_help(cfg)
                             result = 0
     let _shutdown = runtime_shutdown()
     return result
@@ -144,6 +145,7 @@ fn handle_search_once(cfg: SemanticSearchConfig) -> Int:
         return 1
     println("results for '" + query + "' (" + index_name + "):")
     println("  total indexed: " + int_to_str(resp.total_indexed))
+    println("  query time:    " + float_to_str(resp.query_ms) + " ms")
     var i: Int = 0
     while i < len(resp.results):
         let r = resp.results[i]
@@ -151,19 +153,16 @@ fn handle_search_once(cfg: SemanticSearchConfig) -> Int:
         i = i + 1
     return 0
 
-fn handle_help() -> Int:
-    println("semantic-search — GPU semantic search MCP tool")
+fn handle_help(cfg: SemanticSearchConfig) -> Int:
+    println("semantic-search - GPU semantic search MCP tool")
     println("")
     println("commands:")
-    println("  mcp                      Start the embedded FastMCP stdio server (default)")
+    println("  mcp                      Start the manifest-driven MCP stdio server (default)")
     println("  serve                    Alias for mcp")
     println("  index [code|kain|all]    Build search indices")
     println("  search <index> <query>   Run a single search")
     println("")
-    println("FastMCP tools:")
-    println("  semantic_search")
-    println("  semantic_search_reindex")
-    println("  semantic_search_health")
+    println(semantic_search_mcp_tool_help_text(cfg))
     return 0
 
 fn handle_search_json(cfg: SemanticSearchConfig) -> Int:
@@ -196,7 +195,7 @@ fn handle_health_json(cfg: SemanticSearchConfig) -> Int:
     var json = "{"
     json = json + "\"status\": \"ok\","
     json = json + "\"service\": \"semantic-search\","
-    json = json + "\"transport\": \"kain-fastmcp-embedded\","
+    json = json + "\"transport\": \"kain-mcp-bridge\","
     json = json + "\"config_path\": \"" + json_escape(locate_config_path()) + "\","
     json = json + "\"runtime_root\": \"" + json_escape(config_runtime_root()) + "\","
     json = json + "\"executable\": \"" + json_escape(exe_path) + "\","
@@ -223,8 +222,7 @@ fn handle_args_json() -> Int:
     var json = "{"
     json = json + "\"executable\": \"" + json_escape(exe) + "\","
     json = json + "\"raw_args\": " + string_array_to_json(raw) + ","
-    json = json + "\"user_args\": " + string_array_to_json_from_process_args(1, count) + ","
-    json = json + "\"tool_args\": " + string_array_to_json_from_process_args(1, count)
+    json = json + "\"user_args\": " + string_array_to_json_from_process_args(1, count)
     json = json + "}"
     println(json)
     return 0

@@ -7,6 +7,7 @@
 use std::fs
 use std::cuda
 use std::process
+use std::time
 use types::SearchResult
 use types::SearchResponse
 use types::LoadedIndex
@@ -17,6 +18,7 @@ use indexer::index_matrix_path
 use indexer::index_weight_path
 use embedding::build_packed_embedding_bytes
 use utils::int_to_str
+use utils::float_to_str
 
 const CUDA_SCORE_KEY: String = "shader::SemanticPackedScore::compute"
 const CUDA_TOPK_KEY: String = "shader::SemanticGpuTopK::compute"
@@ -78,13 +80,15 @@ pub fn search(query: String, index_name: String, top_k: Int, cfg: SemanticSearch
     trace("query_len=" + int_to_str(len(query)))
     trace("index_chunks=" + int_to_str(index.header.num_chunks))
 
+    let t0 = now_millis()
     let ranked = cuda_rank(query, index_path, matrix_path, weight_path, index, k, cfg)
+    let t1 = now_millis()
     if ranked.error != "":
         return error_response(ranked.error)
     let results = build_results(ranked.indices, ranked.scores, index, k)
     return SearchResponse {
         results: results,
-        query_ms: 0.0,
+        query_ms: to_float(t1 - t0),
         total_indexed: index.header.num_chunks,
         index_name: index_name,
         error: "",

@@ -4,8 +4,6 @@
 // Session types. No widget construction here — just the structs
 // that the component builders and orchestrator consume.
 
-// ---- session type ----
-
 pub struct KainbletonUiSession:
     app: Any
     main_window: Any
@@ -23,6 +21,9 @@ pub struct KainbletonUiSession:
     native_session: Int
     native_root: Int
     native_transport: Int
+    arr_playhead: Any
+    arr_ruler: Any
+    arr_curves: Any
 
 pub struct KainbletonNativeUiMirror:
     session_id: Int

@@ -1,0 +1,47 @@
+use std::math
+use types::KaintanaRect
+use types::kaintana_rect
+
+pub fn kaintana_inset(rect: KaintanaRect, left: Float, top: Float, right: Float, bottom: Float) -> KaintanaRect:
+    return kaintana_rect(
+        rect.x + left,
+        rect.y + top,
+        math_max(0.0, rect.width - left - right),
+        math_max(0.0, rect.height - top - bottom)
+    )
+
+pub fn kaintana_split_left(rect: KaintanaRect, fraction: Float, gap: Float) -> KaintanaRect:
+    let clamped = math_clamp(fraction, 0.0, 1.0)
+    return kaintana_rect(rect.x, rect.y, math_max(0.0, (rect.width - gap) * clamped), rect.height)
+
+pub fn kaintana_split_right(rect: KaintanaRect, fraction: Float, gap: Float) -> KaintanaRect:
+    let left = kaintana_split_left(rect, fraction, gap)
+    return kaintana_rect(left.x + left.width + gap, rect.y, math_max(0.0, rect.width - left.width - gap), rect.height)
+
+pub fn kaintana_split_top(rect: KaintanaRect, fraction: Float, gap: Float) -> KaintanaRect:
+    let clamped = math_clamp(fraction, 0.0, 1.0)
+    return kaintana_rect(rect.x, rect.y, rect.width, math_max(0.0, (rect.height - gap) * clamped))
+
+pub fn kaintana_split_bottom(rect: KaintanaRect, fraction: Float, gap: Float) -> KaintanaRect:
+    let top = kaintana_split_top(rect, fraction, gap)
+    return kaintana_rect(rect.x, top.y + top.height + gap, rect.width, math_max(0.0, rect.height - top.height - gap))
+
+pub fn kaintana_column_slot(rect: KaintanaRect, index_offset: Float, item_height: Float, gap: Float) -> KaintanaRect:
+    return kaintana_rect(rect.x, rect.y + ((item_height + gap) * index_offset), rect.width, item_height)
+
+pub fn kaintana_row_slot(rect: KaintanaRect, index_offset: Float, item_width: Float, gap: Float) -> KaintanaRect:
+    return kaintana_rect(rect.x + ((item_width + gap) * index_offset), rect.y, item_width, rect.height)
+
+pub fn kaintana_grid_cell(rect: KaintanaRect, columns: Float, rows: Float, column_index: Float, row_index: Float, gap_x: Float, gap_y: Float) -> KaintanaRect:
+    let safe_columns = math_max(columns, 1.0)
+    let safe_rows = math_max(rows, 1.0)
+    let total_gap_x = math_max(0.0, safe_columns - 1.0) * gap_x
+    let total_gap_y = math_max(0.0, safe_rows - 1.0) * gap_y
+    let cell_width = math_max(0.0, (rect.width - total_gap_x) / safe_columns)
+    let cell_height = math_max(0.0, (rect.height - total_gap_y) / safe_rows)
+    return kaintana_rect(
+        rect.x + ((cell_width + gap_x) * column_index),
+        rect.y + ((cell_height + gap_y) * row_index),
+        cell_width,
+        cell_height
+    )

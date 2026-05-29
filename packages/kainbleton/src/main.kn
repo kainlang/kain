@@ -1,4 +1,5 @@
 use std::fs
+use std::python
 use std::runtime
 use std::time
 
@@ -9,7 +10,9 @@ use interaction::kb_interaction_boot
 use interaction::kb_interaction_frame
 use interaction::kb_interaction_shutdown
 use model::KainbletonProject
-use model::KB_UI_FRAMES
+use model::TRANSPORT_STOPPED
+use model::TRANSPORT_PLAYING
+use model::TRANSPORT_RECORDING
 use model::kb_default_project
 use native_bridge::kb_native_label
 use native_bridge::kb_native_signature
@@ -29,14 +32,9 @@ use ui_workbench::kb_ui_screenshot
 // ============================================================================
 //                              kainbleton
 // ============================================================================
-// A tiny vertical slice of a real DAW:
-//
-//   Kain project model -> semantic transport -> DawDreamer/SciPy bounce
-//          |                     |                       |
-//          v                     v                       v
-//     native C bridge      std::ui/input proof      PyQtGraph frame pump
-//
-// Python is a quarry. C is a pocket knife. Kain is the conductor.
+// A Kain-owned DAW workbench. Transport-driven — play to advance the
+// playhead across the timeline, record to capture audio from your mic.
+// No frame budget, no artificial stop. Runs until you close the window.
 
 const KB_FRAME_HASH_MODULUS: Int = 2147483629
 
@@ -50,7 +48,7 @@ fn main() -> Int:
     let screenshot_path = kb_artifact_path("kainbleton-ui.png")
     let proof_path = kb_artifact_path("kainbleton-proof.json")
 
-    let audio: KainbletonAudioReport = kb_render_audio(project, audio_path)
+    let audio: KainbletonAudioReport = kb_render_audio(audio_path)
     let probe: KainbletonSemanticProbe = kb_semantic_boot(project)
     let input_session = kb_interaction_boot()
     let ui: KainbletonUiSession = kb_ui_open(project, audio, screenshot_path)
@@ -64,7 +62,11 @@ fn main() -> Int:
     var interaction: KainbletonInteractionReport = kb_interaction_frame(input_session, ui, 0)
     let frame_begin_ms = now_millis()
 
-    while frame < KB_UI_FRAMES:
+    // Transport-driven main loop.
+    // Play button = advance playhead. Record+Play = capture audio.
+    // Runs until the user closes the DAW window.
+    var window_open: Int = 1
+    while window_open == 1:
         let score = kb_semantic_frame(probe, project, frame)
         semantic_score = kb_semantic_telemetry_score(score)
         frame_hash = (frame_hash + kb_ui_pump(ui, project, audio, frame, semantic_score)) % KB_FRAME_HASH_MODULUS
@@ -74,14 +76,20 @@ fn main() -> Int:
         if interaction.armed > transport_armed:
             transport_armed = interaction.armed
         frame = frame + 1
+
+        let vis = str(python_call_attr_raw(ui.main_window, "isVisible", []))
+        if vis == "False":
+            window_open = 0
+
     var elapsed_ms = now_millis() - frame_begin_ms
     if elapsed_ms <= 0:
         elapsed_ms = 1
-    let approx_fps = Float(KB_UI_FRAMES) * 1000.0 / Float(elapsed_ms)
+    let approx_fps = Float(frame) * 1000.0 / Float(elapsed_ms)
 
+    // Graceful shutdown.
     let screenshot_status = kb_ui_screenshot(ui)
-    let native_signature = kb_native_signature(KB_UI_FRAMES, len(project.tracks), len(project.clips), project.checksum)
-    let proof: KainbletonProofReport = kb_write_proof(project, audio, proof_path, screenshot_path, KB_UI_FRAMES, frame_hash, native_signature, semantic_score, total_input_events, total_qt_clicks, transport_armed, elapsed_ms, approx_fps, screenshot_status)
+    let native_signature = kb_native_signature(frame, len(project.tracks), len(project.clips), project.checksum)
+    let proof: KainbletonProofReport = kb_write_proof(project, audio, proof_path, screenshot_path, frame, frame_hash, native_signature, semantic_score, total_input_events, total_qt_clicks, transport_armed, elapsed_ms, approx_fps, screenshot_status)
 
     let _close_ui = kb_ui_close(ui)
     let _input_close = kb_interaction_shutdown(input_session)

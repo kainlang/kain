@@ -1,68 +1,153 @@
 // ============================================================================
 //                         kainbleton :: ui_arrangement
 // ============================================================================
-// Right-panel arrangement view: beat ruler + per-track waveform lanes.
-// Waveforms are pyqtgraph PlotWidgets driven by audio preview data.
+// Right-panel DAW timeline. Beat ruler, per-track waveform lanes with
+// real audio data, moving playhead cursor. Uses pyqtgraph for
+// efficient rendering + built-in pan/zoom.
 
 import pyqtgraph as pg
 import PyQt6.QtWidgets as qtw
+import PyQt6.QtCore as qtc
+import numpy as np
 
-use audio_engine::KainbletonAudioReport
 use model::KainbletonProject
-use ui_helpers::color_int_to_hex
+use model::TRANSPORT_STOPPED
+use model::TRANSPORT_PLAYING
+use model::TRANSPORT_RECORDING
 
-pub fn build_arrangement_view(parent_layout: Any, project: KainbletonProject, audio: KainbletonAudioReport):
+// ---- returned handle so the orchestrator can update the playhead ----
+
+pub struct ArrangementHandle:
+    timeline_widget: Any
+    ruler_plot: Any
+    track_plots: Array<Any>
+    track_curves: Array<Any>
+    playhead_line: Any
+    visible_seconds: Float
+
+pub fn build_arrangement_view(parent_layout: Any, project: KainbletonProject) -> ArrangementHandle:
     let _arr_sp = python_call_attr_raw(parent_layout, "setSpacing", [0])
     let _arr_m = python_call_attr_raw(parent_layout, "setContentsMargins", [0, 0, 0, 0])
 
-    // ---- beat ruler ----
-    let ruler = python_call_attr_raw(qtw, "QWidget", [])
-    let _ruler_s = python_call_attr_raw(ruler, "setStyleSheet", ["QWidget { background-color: #0d1117; border-bottom: 1px solid #21262d; }"])
-    let _ruler_f = python_call_attr_raw(ruler, "setFixedHeight", [28])
-    let rl = python_call_attr_raw(qtw, "QHBoxLayout", [ruler])
-    let _rl_sp = python_call_attr_raw(rl, "setSpacing", [0])
-    let _rl_m = python_call_attr_raw(rl, "setContentsMargins", [8, 0, 8, 0])
-    var beat: Int = 0
-    while beat < 17:
-        let mk = python_call_attr_raw(qtw, "QLabel", [str(beat + 1)])
-        if beat % 4 == 0:
-            let _mk_s = python_call_attr_raw(mk, "setStyleSheet", ["QLabel { color: #484f58; font-size: 10px; font-weight: 700; min-width: 40px; }"])
-        else:
-            let _mk_s = python_call_attr_raw(mk, "setStyleSheet", ["QLabel { color: #30363d; font-size: 9px; min-width: 40px; }"])
-        let _mk_a = python_call_attr_raw(rl, "addWidget", [mk])
-        beat = beat + 1
-    let _ruler_a = python_call_attr_raw(parent_layout, "addWidget", [ruler])
+    let total_beats = 64.0
+    let total_seconds = total_beats / (project.bpm / 60.0)
 
-    // ---- waveform lanes ----
-    let wf_area = python_call_attr_raw(qtw, "QWidget", [])
-    let wfl = python_call_attr_raw(qtw, "QVBoxLayout", [wf_area])
-    let _wfl_sp = python_call_attr_raw(wfl, "setSpacing", [1])
-    let _wfl_m = python_call_attr_raw(wfl, "setContentsMargins", [0, 0, 0, 0])
+    // ---- timeline: pyqtgraph GraphicsLayoutWidget ----
+    let timeline = python_call_attr_raw(pg, "GraphicsLayoutWidget", [])
+    let _tl_bg = python_call_attr_raw(timeline, "setBackground", ["#0d1117"])
 
-    var wt: Int = 0
-    while wt < len(project.tracks):
-        let wt_ch = color_int_to_hex(project.tracks[wt].color)
-        let plot = python_call_attr_raw(pg, "PlotWidget", [])
-        let _plot_bg = python_call_attr_raw(plot, "setBackground", ["#0d1117"])
-        let _hide_l = python_call_attr_raw(python_call_attr_raw(plot, "getAxis", ["left"]), "hide", [])
-        let _hide_b = python_call_attr_raw(python_call_attr_raw(plot, "getAxis", ["bottom"]), "hide", [])
-        let _hide_btn = python_call_attr_raw(plot, "hideButtons", [])
-        let _pxr = python_call_attr_raw(plot, "setXRange", [0.0, 1.0])
-        let _pyr = python_call_attr_raw(plot, "setYRange", [-1.2, 1.2])
-        let _pmin = python_call_attr_raw(plot, "setMinimumHeight", [52])
-        let _pmax = python_call_attr_raw(plot, "setMaximumHeight", [52])
-        let _pmouse = python_call_attr_raw(plot, "setMouseEnabled", [false, false])
-        let _pmenu = python_call_attr_raw(plot, "setMenuEnabled", [false])
-        let curve = python_call_attr_raw(plot, "plot", [])
-        let pen = python_call_attr_raw(pg, "mkPen", [wt_ch, 2])
-        let _cp = python_call_attr_raw(curve, "setPen", [pen])
-        let _seed = python_call_attr_raw(curve, "setData", [audio.preview_x, audio.preview_y])
-        let _plot_a = python_call_attr_raw(wfl, "addWidget", [plot])
-        wt = wt + 1
+    // ruler row
+    let ruler_plot = python_call_attr_raw(timeline, "addPlot", [0, 0])
+    let _rp_title = python_call_attr_raw(ruler_plot, "setTitle", [])
+    let _rp_x = python_call_attr_raw(ruler_plot, "setXRange", [0.0, total_seconds])
+    let _rp_y = python_call_attr_raw(ruler_plot, "setYRange", [-0.1, 1.1])
+    let _rp_fixed = python_call_attr_raw(ruler_plot, "setFixedHeight", [36])
+    let _rp_mouse_y = python_call_attr_raw(ruler_plot, "setMouseEnabled", [true, false])
+    let _rp_btn = python_call_attr_raw(ruler_plot, "hideButtons", [])
+    let _rp_left = python_call_attr_raw(python_call_attr_raw(ruler_plot, "getAxis", ["left"]), "setStyle", [kb_axis_hidden()])
+    let _rp_bottom = python_call_attr_raw(python_call_attr_raw(ruler_plot, "getAxis", ["bottom"]), "setLabel", ["seconds"])
 
-    let _wfa = python_call_attr_raw(parent_layout, "addWidget", [wf_area])
+    // beat tick marks on ruler
+    let beat_count = Int(total_beats)
+    var b: Int = 0
+    while b <= beat_count:
+        let beat_sec = Float(b) / (project.bpm / 60.0)
+        let is_bar = b % 4 == 0
+        let tick_opts = kb_tick_dict(beat_sec, is_bar)
+        let _tick = python_call_attr_raw(ruler_plot, "addItem", [python_call_attr_raw(pg, "InfiniteLine", [beat_sec, 90, tick_opts])])
+        b = b + 1
 
-    // bottom spacer
-    let as2 = python_call_attr_raw(qtw, "QWidget", [])
-    let _as2_p = python_call_attr_raw(as2, "setSizePolicy", [qtw.QSizePolicy.Policy.Expanding, qtw.QSizePolicy.Policy.Expanding])
-    let _as2_a = python_call_attr_raw(parent_layout, "addWidget", [as2])
+    // ---- per-track waveform lanes ----
+    let track_plots: Array<Any> = []
+    let track_curves: Array<Any> = []
+
+    var t: Int = 0
+    while t < len(project.tracks):
+        let row = t + 1
+        let plot = python_call_attr_raw(timeline, "addPlot", [row, 0])
+        let _p_title = python_call_attr_raw(plot, "setTitle", [])
+        let _p_x = python_call_attr_raw(plot, "setXRange", [0.0, total_seconds])
+        let _p_y = python_call_attr_raw(plot, "setYRange", [-1.2, 1.2])
+        let _p_fixed = python_call_attr_raw(plot, "setFixedHeight", [56])
+        let _p_mouse = python_call_attr_raw(plot, "setMouseEnabled", [true, false])
+        let _p_btn = python_call_attr_raw(plot, "hideButtons", [])
+        let _p_left = python_call_attr_raw(python_call_attr_raw(plot, "getAxis", ["left"]), "setStyle", [kb_axis_hidden()])
+
+        // link x-axis to ruler so they scroll/zoom together
+        let _link = python_call_attr_raw(plot, "setXLink", [ruler_plot])
+
+        // empty waveform curve (populated when audio is recorded)
+        let curve = python_call_attr_raw(plot, "plot", [[]])
+        let pen = python_call_attr_raw(pg, "mkPen", [kb_track_hex(project.tracks[t].color), 2])
+        let _cpen = python_call_attr_raw(curve, "setPen", [pen])
+
+        // zero line
+        let _zero = python_call_attr_raw(plot, "addItem", [python_call_attr_raw(pg, "InfiniteLine", [0.0, 0])])
+
+        push(track_plots, plot)
+        push(track_curves, curve)
+        t = t + 1
+
+    // ---- playhead (shared across all plots via x-link) ----
+    let playhead = python_call_attr_raw(pg, "InfiniteLine", [0.0, 90, kb_playhead_style()])
+    let _ph_add = python_call_attr_raw(ruler_plot, "addItem", [playhead])
+
+    let _tl_add = python_call_attr_raw(parent_layout, "addWidget", [timeline])
+
+    return ArrangementHandle {
+        timeline_widget: timeline,
+        ruler_plot: ruler_plot,
+        track_plots: track_plots,
+        track_curves: track_curves,
+        playhead_line: playhead,
+        visible_seconds: total_seconds,
+    }
+
+// ---- playhead update ----
+
+pub fn arrangement_set_playhead(handle: ArrangementHandle, seconds: Float):
+    let _set = python_call_attr_raw(handle.playhead_line, "setPos", [seconds])
+
+pub fn arrangement_update_waveform(handle: ArrangementHandle, track_index: Int, preview_x: Array<Float>, preview_y: Array<Float>):
+    if track_index >= 0 and track_index < len(handle.track_curves):
+        let _set = python_call_attr_raw(handle.track_curves[track_index], "setData", [preview_x, preview_y])
+
+// ---- style helpers ----
+
+fn kb_track_hex(color: Int) -> String:
+    let r = (color >> 16) & 255
+    let g = (color >> 8) & 255
+    let b = color & 255
+    return "#" + kb_hex2(r) + kb_hex2(g) + kb_hex2(b)
+
+fn kb_hex2(v: Int) -> String:
+    let n = kb_nib(v >> 4) + kb_nib(v & 15)
+    return n
+
+fn kb_nib(v: Int) -> String:
+    if v < 10:
+        return str(v)
+    if v == 10:
+        return "a"
+    if v == 11:
+        return "b"
+    if v == 12:
+        return "c"
+    if v == 13:
+        return "d"
+    if v == 14:
+        return "e"
+    return "f"
+
+fn kb_axis_hidden() -> Any:
+    let d = python_call_attr_raw(python_getattr_raw(pg, "PlotWidget"), "__dict__", [])
+    return python_call_attr_raw(pg, "mkPen", ["#21262d", 1])
+
+fn kb_tick_dict(pos: Float, is_bar: Bool) -> Any:
+    let pen_color = "#484f58"
+    if is_bar:
+        pen_color = "#8b949e"
+    return python_call_attr_raw(pg, "mkPen", [pen_color, 1])
+
+fn kb_playhead_style() -> Any:
+    return python_call_attr_raw(pg, "mkPen", ["#ff5f2e", 2])

@@ -1,0 +1,6 @@
+A subdirectory or file src\ui already exists.
+Error occurred while processing: src\ui.
+The filename, directory name, or volume label syntax is incorrect.
+Error occurred while processing: use ui::test_mod; fn main() -> Int: return 0.
+A subdirectory or file src\ui\test_mod.kn already exists.
+Error occurred while processing: src\ui\test_mod.kn.

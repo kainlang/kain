@@ -62,6 +62,15 @@ fn normalize_source_path(path: String) -> String:
 fn normalize_compare_path(path: String) -> String:
     return to_lower(normalize_source_path(path))
 
+fn leading_spaces(src_line: String) -> Int:
+    var count: Int = 0
+    while count < len(src_line):
+        let ch = char_at(src_line, count)
+        if ch != " " and ch != "\t":
+            return count
+        count = count + 1
+    return count
+
 fn chunk_kain(raw: String, rel_path: String, cfg: SemanticSearchConfig) -> Array<Chunk>:
     let mut chunks: Array<Chunk> = []
     let src_lines = text_split_lines(raw)
@@ -149,21 +158,32 @@ fn kain_collect_block(src_lines: Array<String>, start: Int, max_chars: Int) -> (
     var depth: Int = 0
     var started: Bool = false
     var chars: Int = 0
+    let start_indent = leading_spaces(src_lines[start])
     while i < n:
         let src_line = src_lines[i]
         body = body + src_line + "\n"
         chars = chars + len(src_line) + 1
         let trimmed = text_trim_string(src_line)
-        if text_contains_string(trimmed, "{") or text_ends_with_string(trimmed, "{"):
-            depth = depth + 1
-            started = true
         let opens = count_char(trimmed, "{")
         let closes = count_char(trimmed, "}")
+        if opens > 0 and started == false:
+            started = true
         depth = depth + opens - closes
         if started and depth <= 0:
             return (i, body)
         if started and chars >= max_chars and depth <= 1:
             return (i, body)
+        if started == false and i > start:
+            let (next_kind, _) = kain_declaration_kind(src_line)
+            if next_kind != "":
+                body = substring(body, 0, len(body) - len(src_line) - 1)
+                return (i - 1, body)
+            let line_indent = leading_spaces(src_line)
+            if trimmed != "" and line_indent <= start_indent:
+                body = substring(body, 0, len(body) - len(src_line) - 1)
+                return (i - 1, body)
+            if chars >= max_chars:
+                return (i, body)
         i = i + 1
     return (n - 1, body)
 
@@ -346,7 +366,7 @@ fn chunk_generic(raw: String, rel_path: String, cfg: SemanticSearchConfig) -> Ar
         push(chunks, Chunk {
             file_path: rel_path,
             line_start: current_line,
-            line_end: current_line,
+            line_end: current_line + count_newlines_before(chunk_text, len(chunk_text)),
             kind: CHUNK_KIND_GENERIC,
             symbol: "",
             text: chunk_text,
@@ -354,7 +374,7 @@ fn chunk_generic(raw: String, rel_path: String, cfg: SemanticSearchConfig) -> Ar
         if end >= n:
             break
         start = end - overlap
-        current_line = current_line + count_newlines_before(raw, start)
+        current_line = 1 + count_newlines_before(raw, start)
     return chunks
 
 fn raw_text_window(raw: String, max_chars: Int) -> String:

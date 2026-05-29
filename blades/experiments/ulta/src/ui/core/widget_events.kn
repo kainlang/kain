@@ -1,0 +1,107 @@
+use std::math
+use std::ui
+use types::KaintanaRect
+
+pub fn kaintana_widget_pointer_capture_node(session_id: Int, root_native_id: Int, fallback_target: Int) -> Int:
+    let captured = ui_state_i64(session_id, root_native_id, "kaintana.pointer.capture.node", 0)
+    if captured > 0:
+        return captured
+    return fallback_target
+
+pub fn kaintana_widget_update_hover(session_id: Int, root_native_id: Int, target_node_id: Int, x: Float, y: Float) -> Int:
+    let previous_hover = ui_state_i64(session_id, root_native_id, "kaintana.pointer.hover.node", 0)
+    if previous_hover > 0 and previous_hover != target_node_id:
+        let _clear_previous = ui_node_set_flag(session_id, previous_hover, "hovered", 0)
+    if target_node_id > 0:
+        let hovered = ui_apply_hover_flag(session_id, target_node_id, x, y)
+        if hovered == 1:
+            let _hovered = ui_state_reference(session_id, root_native_id, "kaintana.pointer.hover.node", target_node_id)
+            return hovered
+    let _hover_none = ui_state_reference(session_id, root_native_id, "kaintana.pointer.hover.node", 0)
+    return 0
+
+pub fn kaintana_widget_store_pointer(session_id: Int, node_id: Int, x: Float, y: Float) -> Int:
+    let _x = ui_state_set_f64(session_id, node_id, "kaintana.pointer.x", x)
+    return ui_state_set_f64(session_id, node_id, "kaintana.pointer.y", y)
+
+pub fn kaintana_widget_pointer_down(session_id: Int, root_native_id: Int, target_node_id: Int, x: Float, y: Float) -> Int:
+    if target_node_id <= 0:
+        return 0
+    let _capture = ui_state_reference(session_id, root_native_id, "kaintana.pointer.capture.node", target_node_id)
+    let _focus = ui_focus(session_id, target_node_id)
+    let _pressed = ui_node_set_flag(session_id, target_node_id, "pressed", 1)
+    let _dragging = ui_state_set_bool(session_id, target_node_id, "kaintana.pointer.dragging", 1)
+    let _down_count = ui_state_counter(session_id, target_node_id, "kaintana.pointer.down.count", 1)
+    let _pointer = kaintana_widget_store_pointer(session_id, target_node_id, x, y)
+    return target_node_id
+
+pub fn kaintana_widget_pointer_move(session_id: Int, root_native_id: Int, fallback_target: Int, x: Float, y: Float) -> Int:
+    let owner = kaintana_widget_pointer_capture_node(session_id, root_native_id, fallback_target)
+    if owner <= 0:
+        return 0
+    let _move_count = ui_state_counter(session_id, owner, "kaintana.pointer.move.count", 1)
+    let _pointer = kaintana_widget_store_pointer(session_id, owner, x, y)
+    return owner
+
+pub fn kaintana_widget_pointer_up(session_id: Int, root_native_id: Int, fallback_target: Int, x: Float, y: Float) -> Int:
+    let owner = kaintana_widget_pointer_capture_node(session_id, root_native_id, fallback_target)
+    let _capture_clear = ui_state_reference(session_id, root_native_id, "kaintana.pointer.capture.node", 0)
+    if owner <= 0:
+        return 0
+    let _up_count = ui_state_counter(session_id, owner, "kaintana.pointer.up.count", 1)
+    let _pointer = kaintana_widget_store_pointer(session_id, owner, x, y)
+    let was_pressed = ui_node_has_flag(session_id, owner, "pressed")
+    let inside = ui_node_contains_point(session_id, owner, x, y)
+    if was_pressed != 0 and inside == 1:
+        let _activate = ui_state_counter(session_id, owner, "kaintana.pointer.activate.count", 1)
+    let _pressed = ui_node_set_flag(session_id, owner, "pressed", 0)
+    let _dragging = ui_state_set_bool(session_id, owner, "kaintana.pointer.dragging", 0)
+    return owner
+
+pub fn kaintana_widget_sync_events(session_id: Int, root_native_id: Int) -> Int:
+    let _pump = ui_host_pump(session_id)
+    var handled: Int = 0
+    while ui_poll_event(session_id) == 1:
+        let kind = ui_event_kind(session_id)
+        let target = ui_event_target(session_id)
+        let x = ui_event_x(session_id)
+        let y = ui_event_y(session_id)
+        let _hover = kaintana_widget_update_hover(session_id, root_native_id, target, x, y)
+        if kind == "pointer.down":
+            let _down = kaintana_widget_pointer_down(session_id, root_native_id, target, x, y)
+        if kind == "pointer.move":
+            let _move = kaintana_widget_pointer_move(session_id, root_native_id, target, x, y)
+        if kind == "pointer.up":
+            let _up = kaintana_widget_pointer_up(session_id, root_native_id, target, x, y)
+        handled = handled + 1
+    return handled
+
+pub fn kaintana_widget_take_counter(session_id: Int, node_id: Int, counter_key: String, ack_key: String) -> Int:
+    let current = ui_state_i64(session_id, node_id, counter_key, 0)
+    let previous = ui_state_i64(session_id, node_id, ack_key, 0)
+    if current > previous:
+        let _ack = ui_state_set_i64(session_id, node_id, ack_key, current)
+        return current - previous
+    return 0
+
+pub fn kaintana_widget_take_activation(session_id: Int, node_id: Int) -> Int:
+    let delta = kaintana_widget_take_counter(session_id, node_id, "kaintana.pointer.activate.count", "kaintana.pointer.activate.ack")
+    if delta > 0:
+        return 1
+    return 0
+
+pub fn kaintana_widget_slider_value(session_id: Int, node_id: Int, value: Float, min_value: Float, max_value: Float, track: KaintanaRect) -> Float:
+    let dragging = ui_state_bool(session_id, node_id, "kaintana.pointer.dragging", 0)
+    let down_delta = kaintana_widget_take_counter(session_id, node_id, "kaintana.pointer.down.count", "kaintana.slider.down.ack")
+    let move_delta = kaintana_widget_take_counter(session_id, node_id, "kaintana.pointer.move.count", "kaintana.slider.move.ack")
+    let up_delta = kaintana_widget_take_counter(session_id, node_id, "kaintana.pointer.up.count", "kaintana.slider.up.ack")
+    if dragging != 0 or down_delta > 0 or move_delta > 0 or up_delta > 0:
+        let span = math_max(0.001, max_value - min_value)
+        let track_span = math_max(0.001, track.width)
+        let pointer_x = ui_state_f64(session_id, node_id, "kaintana.pointer.x", track.x)
+        let ratio = math_clamp((pointer_x - track.x) / track_span, 0.0, 1.0)
+        let next_value = min_value + (span * ratio)
+        let _state = ui_state_set_f64(session_id, node_id, "kaintana.slider.value", next_value)
+        return next_value
+    let _state = ui_state_set_f64(session_id, node_id, "kaintana.slider.value", value)
+    return value

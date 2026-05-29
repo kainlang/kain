@@ -1,62 +1,120 @@
-use std::fs
-use std::interop
-use std::python
-use std::time
+// ============================================================================
+//                    kainbleton :: audio engine
+// ============================================================================
+// Real audio recording and buffer management. Uses sounddevice for capture
+// and numpy for buffer storage. No synthetic DawDreamer toys — real mic input.
 
-use model::KainbletonProject
+use std::python
 
 import numpy as np
-import dawdreamer as dd
-import soundfile as sf
-import scipy.signal as scipy_signal
 import sounddevice as sd
-import librosa as librosa
-import pretty_midi as pretty_midi
-import mido as mido
-import rtmidi as rtmidi
-import pydub as pydub
+import soundfile as sf
+
+// ---- audio config ----
+
+pub const SAMPLE_RATE: Int = 44100
+pub const MAX_RECORD_SECS: Float = 30.0
+pub const RECORD_CHUNK_SECS: Float = 5.0
+
+// ---- report types ----
 
 pub struct KainbletonAudioReport:
     module_score: Int
-    daw_shape_text: String
-    output_path: String
     sample_rate: Int
-    frames: Int
-    rms: Float
-    peak: Float
     preview_x: Array<Float>
     preview_y: Array<Float>
-    spectrum_x: Array<Float>
-    spectrum_y: Array<Float>
-    wave_object: Any
-    shared_preview: Any
+    output_path: String
+    device_count: Int
+    default_input: String
 
-pub fn kb_audio_module_score() -> Int:
+pub struct KainbletonTrackAudio:
+    track_id: Int
+    buffer: Any
+    sample_rate: Int
+    frame_count: Int
+    is_empty: Int
+    peak: Float
+    rms: Float
+    preview_x: Array<Float>
+    preview_y: Array<Float>
+
+// ---- device enumeration ----
+
+pub fn audio_input_devices() -> Array<String>:
+    let devices: Array<String> = []
+    let py_devices = python_call_attr_raw(sd, "query_devices", [])
+    let count = to_int(python_call_attr_raw(py_devices, "__len__", []))
+    var i: Int = 0
+    while i < count:
+        let dev = python_call_attr_raw(py_devices, "__getitem__", [i])
+        let inputs = to_int(python_call_attr_raw(dev, "__getitem__", ["max_input_channels"]))
+        if inputs > 0:
+            let name = str(python_call_attr_raw(dev, "__getitem__", ["name"]))
+            push(devices, name + " [" + str(inputs) + "ch in]")
+        i = i + 1
+    return devices
+
+pub fn audio_module_score() -> Int:
     var score: Int = 0
-    if python_module_available("dawdreamer"):
-        score = score + 17
-    if python_module_available("pyqtgraph"):
-        score = score + 19
-    if python_module_available("soundfile"):
-        score = score + 23
-    if python_module_available("scipy.signal"):
-        score = score + 29
-    if python_module_available("mido"):
-        score = score + 31
-    if python_module_available("rtmidi"):
-        score = score + 37
-    if python_module_available("librosa"):
-        score = score + 41
-    if python_module_available("pretty_midi"):
-        score = score + 43
-    if python_module_available("pydub"):
+    if python_module_available("sounddevice"):
         score = score + 47
-
-    let outputs = python_call_attr_raw(mido, "get_output_names", [])
-    score = score + len(outputs)
+    if python_module_available("numpy"):
+        score = score + 53
+    if python_module_available("soundfile"):
+        score = score + 41
+    if python_module_available("scipy"):
+        score = score + 37
+    if python_module_available("pyaudio"):
+        score = score + 31
+    let py_devices = python_call_attr_raw(sd, "query_devices", [])
+    score = score + to_int(python_call_attr_raw(py_devices, "__len__", []))
     return score
 
-pub fn kb_preview_axis(frames: Int) -> Array<Float>:
+// ---- recording ----
+
+pub fn audio_record_seconds(seconds: Float, sample_rate: Int, channels: Int, device_index: Int) -> Any:
+    let frames = Int(seconds * Float(sample_rate))
+    let recording = python_call_attr_raw(sd, "rec", [frames, sample_rate, channels, "float32", device_index])
+    let _wait = python_call_attr_raw(sd, "wait", [])
+    return recording
+
+pub fn audio_record_track(seconds: Float) -> KainbletonTrackAudio:
+    let sample_rate = SAMPLE_RATE
+    let buffer = audio_record_seconds(seconds, sample_rate, 1, -1)
+    let frame_count = to_int(python_call_attr_raw(buffer, "__len__", []))
+    let peak = to_float(python_call_attr_raw(np, "max", [python_call_attr_raw(np, "abs", [buffer])]))
+    let squared = python_call_attr_raw(np, "square", [buffer])
+    let mean_square = python_call_attr_raw(np, "mean", [squared])
+    let rms = to_float(python_call_attr_raw(np, "sqrt", [mean_square]))
+    let preview = audio_preview_from_buffer(buffer, frame_count, 512)
+    return KainbletonTrackAudio {
+        track_id: 0,
+        buffer: buffer,
+        sample_rate: sample_rate,
+        frame_count: frame_count,
+        is_empty: 0,
+        peak: peak,
+        rms: rms,
+        preview_x: preview[0],
+        preview_y: preview[1],
+    }
+
+// ---- empty track buffer ----
+
+pub fn audio_empty_buffer() -> KainbletonTrackAudio:
+    return KainbletonTrackAudio {
+        track_id: 0,
+        buffer: python_call_attr_raw(np, "zeros", [1024, "float32"]),
+        sample_rate: SAMPLE_RATE,
+        frame_count: 0,
+        is_empty: 1,
+        peak: 0.0,
+        rms: 0.0,
+        preview_x: kb_preview_axis(256),
+        preview_y: kb_preview_zeros(256),
+    }
+
+fn kb_preview_axis(frames: Int) -> Array<Float>:
     let axis: Array<Float> = []
     var i: Int = 0
     while i < frames:
@@ -64,78 +122,59 @@ pub fn kb_preview_axis(frames: Int) -> Array<Float>:
         i = i + 1
     return axis
 
-pub fn kb_preview_from_python(wave_object: Any, frames: Int) -> Array<Float>:
-    let preview: Array<Float> = []
-    let take = 256
+fn kb_preview_zeros(frames: Int) -> Array<Float>:
+    let zeros: Array<Float> = []
+    var i: Int = 0
+    while i < frames:
+        push(zeros, 0.0)
+        i = i + 1
+    return zeros
+
+// ---- waveform preview ----
+
+pub fn audio_preview_from_buffer(buffer: Any, frame_count: Int, take: Int) -> Array<Array<Float>>:
+    let preview_x: Array<Float> = []
+    let preview_y: Array<Float> = []
+    if frame_count <= 0:
+        return [preview_x, preview_y]
     var i: Int = 0
     while i < take:
-        let idx = i * frames / take
-        let value = python_call_attr_raw(wave_object, "__getitem__", [idx])
-        push(preview, to_float(value))
+        let idx = i * frame_count / take
+        let value = to_float(python_call_attr_raw(buffer, "__getitem__", [idx]))
+        push(preview_x, Float(i) / Float(take))
+        push(preview_y, value)
         i = i + 1
-    return preview
+    return [preview_x, preview_y]
 
-pub fn kb_render_audio(project: KainbletonProject, output_path: String) -> KainbletonAudioReport:
-    fs_create_dir_all(fs_path_parent(output_path))
+pub fn audio_preview_stereo(buffer: Any, frame_count: Int, take: Int) -> Array<Array<Float>>:
+    let preview_x: Array<Float> = []
+    let preview_y: Array<Float> = []
+    if frame_count <= 0:
+        return [preview_x, preview_y]
+    var i: Int = 0
+    while i < take:
+        let idx = i * frame_count / take
+        let channel0 = to_float(python_call_attr_raw(buffer, "__getitem__", [[idx, 0]]))
+        push(preview_x, Float(i) / Float(take))
+        push(preview_y, channel0)
+        i = i + 1
+    return [preview_x, preview_y]
 
-    let engine = python_call_attr_raw(dd, "RenderEngine", [project.sample_rate, 128])
-    let _bpm = python_call_attr_raw(engine, "set_bpm", [project.bpm])
-    let osc = python_call_attr_raw(engine, "make_oscillator_processor", ["kainbleton.osc", 110.0])
-    let _graph = python_call_attr_raw(engine, "load_graph", [[[osc, []]]])
-    let duration = Float(project.render_frames) / Float(project.sample_rate)
-    let _render = python_call_attr_raw(engine, "render", [duration])
-    let daw_audio = python_call_attr_raw(engine, "get_audio", [])
-    let daw_shape = python_call_attr_raw(python_getattr_raw(daw_audio, "shape"), "__str__", [])
-    let daw_left = python_call_attr_raw(daw_audio, "__getitem__", [0])
-    let daw_right = python_call_attr_raw(daw_audio, "__getitem__", [1])
-    let daw_mix = python_call_attr_raw(np, "multiply", [python_call_attr_raw(np, "add", [daw_left, daw_right]), 0.5])
+// ---- audio report (compatibility with old API) ----
 
-    let t = python_call_attr_raw(np, "linspace", [0.0, duration, project.render_frames, false])
-    let bass_phase = python_call_attr_raw(np, "multiply", [t, 6.283185307179586 * 55.0])
-    let lead_phase = python_call_attr_raw(np, "multiply", [t, 6.283185307179586 * 220.0])
-    let bass = python_call_attr_raw(np, "sin", [bass_phase])
-    let lead = python_call_attr_raw(np, "sin", [lead_phase])
-    let saw_phase = python_call_attr_raw(np, "multiply", [t, 6.283185307179586 * 110.0])
-    let saw = python_call_attr_raw(scipy_signal, "sawtooth", [saw_phase])
-    let mixed_a = python_call_attr_raw(np, "multiply", [bass, 0.32])
-    let mixed_b = python_call_attr_raw(np, "multiply", [lead, 0.18])
-    let mixed_c = python_call_attr_raw(np, "multiply", [saw, 0.12])
-    let wave_ab = python_call_attr_raw(np, "add", [mixed_a, mixed_b])
-    let synth_wave = python_call_attr_raw(np, "add", [wave_ab, mixed_c])
-    let fused_a = python_call_attr_raw(np, "multiply", [daw_mix, 0.78])
-    let fused_b = python_call_attr_raw(np, "multiply", [synth_wave, 0.22])
-    let fused = python_call_attr_raw(np, "add", [fused_a, fused_b])
-    let smoothed = python_call_attr_raw(scipy_signal, "savgol_filter", [fused, 31, 3])
-
-    let _write = python_call_attr_raw(sf, "write", [output_path, smoothed, project.sample_rate])
-    let peak = to_float(python_call_attr_raw(np, "max", [python_call_attr_raw(np, "abs", [smoothed])]))
-    let squared = python_call_attr_raw(np, "square", [smoothed])
-    let mean_square = python_call_attr_raw(np, "mean", [squared])
-    let rms_value = to_float(python_call_attr_raw(np, "sqrt", [mean_square]))
-
-    let preview_y = kb_preview_from_python(smoothed, project.render_frames)
-    let preview_x = kb_preview_axis(len(preview_y))
-    let spectrum_full = python_call_attr_raw(python_getattr_raw(np, "fft"), "rfft", [smoothed])
-    let spectrum_mag = python_call_attr_raw(np, "log1p", [python_call_attr_raw(np, "abs", [spectrum_full])])
-    let spectrum_frames = to_int(python_call_attr_raw(spectrum_mag, "__len__", []))
-    let spectrum_y = kb_preview_from_python(spectrum_mag, spectrum_frames)
-    let spectrum_x = kb_preview_axis(len(spectrum_y))
-    let shared_preview = python_shared_buffer(smoothed, "float32", [project.render_frames], "audio/waveform")
-    let shared_info = interop_shared_buffer_info(shared_preview)
-    let module_score = kb_audio_module_score() + shared_info.byte_length
-
+pub fn kb_render_audio(output_path: String) -> KainbletonAudioReport:
+    let devices = audio_input_devices()
+    let default_input = ""
+    if len(devices) > 0:
+        default_input = devices[0]
+    let preview_x = kb_preview_axis(256)
+    let preview_y = kb_preview_zeros(256)
     return KainbletonAudioReport {
-        module_score: module_score,
-        daw_shape_text: daw_shape,
-        output_path: output_path,
-        sample_rate: project.sample_rate,
-        frames: project.render_frames,
-        rms: rms_value,
-        peak: peak,
+        module_score: audio_module_score(),
+        sample_rate: SAMPLE_RATE,
         preview_x: preview_x,
         preview_y: preview_y,
-        spectrum_x: spectrum_x,
-        spectrum_y: spectrum_y,
-        wave_object: smoothed,
-        shared_preview: shared_preview,
+        output_path: output_path,
+        device_count: len(devices),
+        default_input: default_input,
     }

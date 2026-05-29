@@ -1,0 +1,106 @@
+use c::kaintana_desktop_bridge
+use c::vulkain_bridge
+use fluid_studio_scene::*
+use fluid_studio_sim::*
+use fluid_studio_state::*
+use fluid_studio_ui_types::*
+use fluid_studio_ui::*
+use fluid_studio_views::*
+use kaintana_ui::*
+use reconciliation::kaintana_context_destroy
+use std::fs
+use std::intent
+use std::runtime
+use std::ui
+
+fn fluid_make_fonts(session: Int) -> FluidUiFonts:
+    return FluidUiFonts {
+        body_font: native_ui_font_create(session, "font.fluid.body", "IBM Plex Sans", 16.0),
+        title_font: native_ui_font_create(session, "font.fluid.title", "Space Grotesk", 28.0),
+        badge_font: native_ui_font_create(session, "font.fluid.badge", "IBM Plex Sans", 14.0),
+        micro_font: native_ui_font_create(session, "font.fluid.micro", "IBM Plex Mono", 12.0),
+    }
+
+fn main() -> Int:
+    let boot = native_runtime_init()
+    if boot != 0:
+        return 100 + boot
+
+    fs_create_dir_all(".kain")
+
+    var session = fluid_session_open()
+    fs_create_dir_all(session.settings.run_root)
+    fs_create_dir_all(session.settings.shader_output_root)
+
+    let spec = fluid_build_window_spec(session.settings)
+    let theme = fluid_theme(session.settings.theme_name)
+    var ctx = kaintana_context("fluid-studio.same-window", spec, theme, false)
+    let fonts = fluid_make_fonts(ctx.session_id)
+
+    ctx = kaintana_begin(ctx, session.settings.revision_key, 8.333)
+    let ui_request = fluid_ui_request(session)
+    let ui_frame = fluid_render_ui(ctx, spec, ui_request, fonts)
+    ctx = kaintana_commit(ui_frame.ctx)
+    session = fluid_session_apply_ui_frame(session, ui_frame)
+
+    let sim = fluid_reference_simulation(session.controls, session.settings.frame_count)
+    let draw_vertices = fluid_draw_vertices_from_budget(sim.particle_budget)
+    session = fluid_session_capture_runtime(
+        session,
+        ctx,
+        sim.checksum,
+        sim.sim_energy,
+        sim.pulse_count,
+        sim.teleport_count,
+        sim.mesh_scale_milli,
+        sim.mesh_twist_milli,
+        sim.camera_yaw_milli,
+        sim.camera_pitch_milli,
+        draw_vertices
+    )
+
+    let scene_request = fluid_scene_request(session)
+    let presenter = fluid_present_scene(scene_request)
+    let frame_report = fluid_session_frame_report_text(session, presenter.status)
+    let scene_report = fluid_scene_report_text(scene_request, presenter)
+    let host_report = fluid_host_report_text(scene_request, presenter)
+    let export_json = fluid_session_export_json(session)
+
+    fs_write_text(session.settings.frame_report_path, frame_report)
+    fs_write_text(session.settings.scene_report_path, scene_report)
+    fs_write_text(session.settings.host_report_path, host_report)
+    fs_write_text(session.settings.export_json_path, export_json)
+
+    var exit_code = 0
+    if !fluid_validate_particle_budget(session.controls.particle_count):
+        exit_code = 20
+    if !fluid_validate_solver_iterations(session.controls.solver_iterations):
+        exit_code = 21
+    if ctx.draw_count < 18:
+        exit_code = 22
+    if ctx.command_checksum <= 0:
+        exit_code = 23
+    if patch_journal_count() < 4:
+        exit_code = 24
+    if entangle_propagation_count() < 1:
+        exit_code = 25
+    if sim.teleport_count < 1:
+        exit_code = 26
+    if presenter.vulkan_available != 1:
+        exit_code = 34
+    if presenter.status != 0:
+        exit_code = 35
+    if presenter.frames_presented < 1:
+        exit_code = 36
+    if presenter.vertices_drawn < session.runtime.draw_vertices:
+        exit_code = 37
+    if !fs_exists(session.settings.frame_report_path) or !fs_exists(session.settings.scene_report_path) or !fs_exists(session.settings.host_report_path) or !fs_exists(session.settings.export_json_path):
+        exit_code = 38
+
+    let _destroy = kaintana_context_destroy(ctx)
+    let shutdown = native_runtime_shutdown()
+    if shutdown != 0:
+        return 200 + shutdown
+    if exit_code != 0:
+        return exit_code
+    return 0

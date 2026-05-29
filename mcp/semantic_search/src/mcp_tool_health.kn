@@ -1,0 +1,27 @@
+// ============================================================================
+//                    semantic-search :: MCP health tool
+// ============================================================================
+// Health stays a separate tool so readiness checks remain explicit data.
+
+use mcp_tool_types::McpToolSpec
+
+const SEMANTIC_SEARCH_HEALTH_TOOL_NAME: String = "semantic_search_health"
+const SEMANTIC_SEARCH_HEALTH_TOOL_TITLE: String = "Semantic Search Health"
+const SEMANTIC_SEARCH_HEALTH_TOOL_DESCRIPTION: String = "Inspect semantic-search readiness, including CUDA artifacts and index presence."
+const SEMANTIC_SEARCH_HEALTH_TOOL_MODE: String = "health_json"
+
+pub fn semantic_search_health_tool_spec() -> McpToolSpec:
+    return McpToolSpec {
+        name: SEMANTIC_SEARCH_HEALTH_TOOL_NAME,
+        title: SEMANTIC_SEARCH_HEALTH_TOOL_TITLE,
+        description: SEMANTIC_SEARCH_HEALTH_TOOL_DESCRIPTION,
+        backend_mode: SEMANTIC_SEARCH_HEALTH_TOOL_MODE,
+        input_schema_json: semantic_search_health_input_schema_json(),
+        argument_env_map_json: semantic_search_health_argument_env_map_json(),
+    }
+
+fn semantic_search_health_input_schema_json() -> String:
+    return "{\"type\": \"object\", \"properties\": {}, \"additionalProperties\": false}"
+
+fn semantic_search_health_argument_env_map_json() -> String:
+    return "{}"

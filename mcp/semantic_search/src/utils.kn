@@ -12,16 +12,6 @@ pub fn min_int(a: Int, b: Int) -> Int:
         return a
     return b
 
-pub fn sqrt_float(x: Float) -> Float:
-    if x <= 0.0:
-        return 0.0
-    var guess = x
-    var i: Int = 0
-    while i < 10:
-        guess = (guess + x / guess) * 0.5
-        i = i + 1
-    return guess
-
 pub fn int_to_str(n: Int) -> String:
     return to_string(n)
 
@@ -130,16 +120,6 @@ pub fn ensure_dir(path: String) -> Unit:
         if parent != "" and fs_exists(parent) == false:
             fs_create_dir_all(parent)
         fs_create_dir_all(path)
-
-pub fn compute_norm(vec: Array<Float>) -> Float:
-    var sum_sq: Float = 0.0
-    var i: Int = 0
-    while i < len(vec):
-        sum_sq = sum_sq + vec[i] * vec[i]
-        i = i + 1
-    if sum_sq <= 0.0:
-        return 0.0
-    return sqrt_float(sum_sq)
 
 pub fn range_array(n: Int) -> Array<Int>:
     let mut arr: Array<Int> = []

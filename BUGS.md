@@ -1,4 +1,46 @@
 # Kain Bug Log
+
+## 2026-05-29 - c-ffi/include-lane
+### Natural `include ... as ...` C bridge can emit duplicate LLVM declarations at link time
+
+- Categories: importer, c-ffi, llvm, codegen
+- Severity: Medium
+- Status: Open in tree (2026-05-29)
+- Surface: natural local-header include lane for C bridges.
+- Trigger: Running a Kain file that uses natural include for a local bridge header (repro in `scratch/kdoom/interop/main.kn`).
+- Symptom: `kain run --target llvm` fails in LLVM parse/link phase with duplicate declarations like:
+  - `error: invalid redefinition of function 'kdoom_bridge_pixel_count'`
+- Why this is a bug: generated LLVM IR includes duplicated `declare` entries for the same symbol in one module, making valid C bridge contracts non-runnable through this path.
+- Minimal repro:
+  - `kain run scratch/kdoom/interop/main.kn --target llvm`
+- Evidence:
+  - `.kain/cache/run/llvm/main-7d38610ca5ada4de.ll` contains repeated declarations for `kdoom_bridge_*` symbols.
+- Current workaround:
+  - Use explicit `use c::...` with `[c_ffi] tier = "dynamic"` and a bridge dll+import-lib pair (`scratch/kdoom/interop/main_usec.kn` + `kdoom_bridge.dll/.lib`), which runs successfully.
+
+---
+
+## 2026-05-29 - import/c-ffi
+### Duplicate declaration inflation from `kain import-c` causes immediate type collisions on large legacy C trees
+
+- Categories: importer, c-ffi, parser, type-system
+- Severity: Medium
+- Status: Open in tree (2026-05-29)
+- Surface: `kain import-c` output hygiene for macro-heavy C codebases (repro'd with SM64).
+- Trigger: Importing large C trees with repeated forward declarations and header fanout, e.g. `scratch/SUPERKAIN64/supermario64-c`.
+- Symptom: Generated `.kn` contains many duplicate type/function declarations (`OSMesgQueue`, `Animation`, etc.), then `kain check` fails quickly on duplicate-symbol and shadowing diagnostics before deeper semantic validation.
+- Why this is a bug: C allows repeated forward declarations under one tag namespace, but generated Kain currently materializes those repetitions as colliding declarations instead of coalescing/aliasing them.
+- Minimal repro:
+  - `kain import-c scratch/SUPERKAIN64/supermario64-c ... -o scratch/SUPERKAIN64/superkain64/sm64_full_import.kn`
+  - `kain check scratch/SUPERKAIN64/superkain64/sm64_full_import.kn --target llvm`
+- Evidence:
+  - Duplicate-type error examples observed: `Animation`, `OSMesgQueue`, `fu`.
+  - After first-pass post-dedupe, additional global conflicts remain (e.g. imported `clamp` shadowing builtins/global names).
+- Suggested direction:
+  - Add importer-side declaration coalescing keyed by ABI-equivalent type/function signatures before emitting `.kn`.
+  - Preserve module ownership while avoiding global symbol collisions (auto-prefixing or namespaced lowering for repeated external C tags/functions).
+
+---
 ## 2026-05-24 - runtime/stdlib_abi — patch journal audit (tool-z3-bug-hunter)
 
 ### Concurrent Slot Overwrite and Lost Update in Native Patch Journal

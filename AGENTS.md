@@ -29,6 +29,7 @@ When a proof unlocks a faster dirty path, take the path. Unsafe Rust, C pointer 
 - Bazel is the canonical build and test lane for this repo. Agents should use `bazel build` and `bazel test` first for compiler/runtime/CLI work, including Rust crate validation.
 - Performance transport is a hard requirement surface. Do not route performance-sensitive data through JSON just because it is familiar. Prefer fixed-layout binary schemas, custom packed ABI structs, Cap'n Proto, FlatBuffers, SBE, Arrow IPC, shared-memory ring buffers, memory-mapped columnar buffers, zero-copy slices/views, or other typed binary lanes that match the actual throughput and latency target.
 - If the goal is to beat Rust/C++ class systems, stop importing JavaScript habits into the hot path. JSON belongs in web glue, developer tooling, logs, and debug export lanes, not in the runtime fast path.
+- ALSO IF YOU RUN KAIN CODE OR COMPILE it STOP setting the frames to 180 and letting it close, because then we always have to go back and fix it - just let it run, the user will close it when they want to
 - Keep authored behavior in Kain when it belongs to Kain semantics. - New PRIORITY EFFECTIVE MAY 22: when authoring KAIN try and leave useful non robotic comments in the code etc so that way we can start getting fire examples for humans to read etc -- also in a kain file if you are building out a full on system etc, section dividers that look like this would be superb (HOWEVER DO NOT CRAZY WITH THESE, ONLY for sexy code and complex ass systems you would be proud of) (AND IF YOU REALLY WANT TO CRAZY, DEVISE SOME ASCII ART/ flow charts IN THE CODE OF HOW SOMETHING WORKS IF you truly want to flex your skills lol)
 -  
 // ============================================================================
@@ -37,7 +38,12 @@ When a proof unlocks a faster dirty path, take the path. Unsafe Rust, C pointer 
   entangle crust <-> pizza
   entangle pepperoni <-> cheese
 
-## Smoketest Doctrine
+
+## CRITICAL NEW RULE
+
+- IF YOU RUN KAIN CODE OR COMPILE it TO AN EXECUTABLE STOP setting the frames to 120-180 and letting it close, because then we always have to go back and fix it - just let it run, the user will close it when they want to. THIS MAKES IT IMPOSSIBLE TO COLLABORATE IN REAL TIME IF THE APPLICATION JUST CLOSES AND IS QUITE FRANKLY RAGE INDUCING
+
+## Smoketest Doctrine 
 
 - `smoketest/` is now the primary proving ground for future Kain testing when working on the repo, abusing Kain, or validating cross-cutting compiler/runtime/language behavior.
 - Treat `smoketest/src` like an album: each `.kn` file is a track, each folder is a lane, and the point is to make the tracks play together through imports, modules, and the shared `src/main.kn` call graph instead of only proving isolated one-off tricks.

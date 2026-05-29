@@ -1,0 +1,198 @@
+use kaintana_ui::*
+use kloner_session::*
+use kloner_state::*
+use types::KaintanaContext
+use types::KaintanaRect
+use types::KaintanaRenderResult
+use types::KaintanaWindowSpec
+use types::kaintana_rect
+
+pub struct KlonerUiLayout:
+    shell: KaintanaRect
+    top: KaintanaRect
+    left: KaintanaRect
+    viewport: KaintanaRect
+    right: KaintanaRect
+    bottom: KaintanaRect
+    left_inner: KaintanaRect
+    viewport_inner: KaintanaRect
+    right_inner: KaintanaRect
+    bottom_inner: KaintanaRect
+
+fn kloner_rect_max(value: Float, fallback: Float) -> Float:
+    if value >= fallback:
+        return value
+    return fallback
+
+fn kloner_window_rect(spec: KaintanaWindowSpec) -> KaintanaRect:
+    return kaintana_rect(0.0, 0.0, Float(spec.width), Float(spec.height))
+
+fn kloner_inset(rect: KaintanaRect, left: Float, top: Float, right: Float, bottom: Float) -> KaintanaRect:
+    return kaintana_rect(rect.x + left, rect.y + top, kloner_rect_max(rect.width - left - right, 0.0), kloner_rect_max(rect.height - top - bottom, 0.0))
+
+fn kloner_split_left(rect: KaintanaRect, fraction: Float, gap: Float) -> KaintanaRect:
+    return kaintana_rect(rect.x, rect.y, kloner_rect_max((rect.width - gap) * fraction, 0.0), rect.height)
+
+fn kloner_split_right(rect: KaintanaRect, fraction: Float, gap: Float) -> KaintanaRect:
+    let left = kloner_split_left(rect, fraction, gap)
+    return kaintana_rect(left.x + left.width + gap, rect.y, kloner_rect_max(rect.width - left.width - gap, 0.0), rect.height)
+
+fn kloner_column_slot(rect: KaintanaRect, index_offset: Float, item_height: Float, gap: Float) -> KaintanaRect:
+    return kaintana_rect(rect.x, rect.y + ((item_height + gap) * index_offset), rect.width, item_height)
+
+fn kloner_row_slot(rect: KaintanaRect, index_offset: Float, item_width: Float, gap: Float) -> KaintanaRect:
+    return kaintana_rect(rect.x + ((item_width + gap) * index_offset), rect.y, item_width, rect.height)
+
+fn kloner_grid_cell(rect: KaintanaRect, columns: Float, rows: Float, column_index: Float, row_index: Float, gap_x: Float, gap_y: Float) -> KaintanaRect:
+    let safe_columns = kloner_rect_max(columns, 1.0)
+    let safe_rows = kloner_rect_max(rows, 1.0)
+    let cell_width = kloner_rect_max((rect.width - ((safe_columns - 1.0) * gap_x)) / safe_columns, 0.0)
+    let cell_height = kloner_rect_max((rect.height - ((safe_rows - 1.0) * gap_y)) / safe_rows, 0.0)
+    return kaintana_rect(rect.x + ((cell_width + gap_x) * column_index), rect.y + ((cell_height + gap_y) * row_index), cell_width, cell_height)
+
+pub fn kloner_ui_layout(spec: KaintanaWindowSpec) -> KlonerUiLayout:
+    let shell = kloner_inset(kloner_window_rect(spec), 28.0, 24.0, 28.0, 24.0)
+    let top = kaintana_rect(shell.x, shell.y, shell.width, 72.0)
+    let body = kaintana_rect(shell.x, shell.y + 88.0, shell.width, shell.height - 210.0)
+    let bottom = kaintana_rect(shell.x, shell.y + shell.height - 104.0, shell.width, 104.0)
+    let left = kloner_split_left(body, 0.235, 18.0)
+    let right = kloner_split_right(body, 0.775, 18.0)
+    let viewport = kaintana_rect(left.x + left.width + 18.0, body.y, right.x - (left.x + left.width + 36.0), body.height)
+    return KlonerUiLayout {
+        shell: shell,
+        top: top,
+        left: left,
+        viewport: viewport,
+        right: right,
+        bottom: bottom,
+        left_inner: kloner_inset(left, 18.0, 18.0, 18.0, 18.0),
+        viewport_inner: kloner_inset(viewport, 20.0, 18.0, 20.0, 18.0),
+        right_inner: kloner_inset(right, 18.0, 18.0, 18.0, 18.0),
+        bottom_inner: kloner_inset(bottom, 18.0, 16.0, 18.0, 16.0),
+    }
+
+fn kloner_panel(ctx: KaintanaContext, key: String, label: String, rect: KaintanaRect, font: Int, baseline: Float) -> KaintanaContext:
+    var builder = kaintana_panel(ui(ctx), label)
+    builder = kaintana_panel_key(builder, key)
+    builder = kaintana_panel_rect(builder, rect)
+    builder = kaintana_panel_font(builder, font, baseline)
+    let result = kaintana_panel_render(ctx, builder)
+    return result.ctx
+
+fn kloner_label(ctx: KaintanaContext, key: String, text: String, rect: KaintanaRect, font: Int, baseline: Float) -> KaintanaContext:
+    var builder = kaintana_label(ui(ctx), text)
+    builder = kaintana_label_key(builder, key)
+    builder = kaintana_label_rect(builder, rect)
+    builder = kaintana_label_font(builder, font, baseline)
+    let result = kaintana_label_render(ctx, builder)
+    return result.ctx
+
+fn kloner_muted_label(ctx: KaintanaContext, key: String, text: String, rect: KaintanaRect, font: Int, baseline: Float) -> KaintanaContext:
+    var builder = kaintana_label(ui(ctx), text)
+    builder = kaintana_label_key(builder, key)
+    builder = kaintana_label_rect(builder, rect)
+    builder = kaintana_label_font(builder, font, baseline)
+    builder = kaintana_label_muted(builder)
+    let result = kaintana_label_render(ctx, builder)
+    return result.ctx
+
+fn kloner_button(ctx: KaintanaContext, key: String, label: String, rect: KaintanaRect, font: Int, baseline: Float) -> KaintanaRenderResult:
+    var builder = kaintana_button(ui(ctx), label)
+    builder = kaintana_button_key(builder, key)
+    builder = kaintana_button_rect(builder, rect)
+    builder = kaintana_button_font(builder, font, baseline)
+    return kaintana_button_render(ctx, builder)
+
+fn kloner_slider(ctx: KaintanaContext, key: String, label: String, value: Float, min_value: Float, max_value: Float, rect: KaintanaRect, font: Int, baseline: Float) -> KaintanaRenderResult:
+    var builder = kaintana_slider(ui(ctx), label, value, min_value, max_value)
+    builder = kaintana_slider_key(builder, key)
+    builder = kaintana_slider_rect(builder, rect)
+    builder = kaintana_slider_font(builder, font, baseline)
+    return kaintana_slider_render(ctx, builder)
+
+fn kloner_metric(ctx: KaintanaContext, key: String, label: String, value: String, rect: KaintanaRect, font: Int) -> KaintanaContext:
+    var next = kloner_muted_label(ctx, key + ".k", label, kaintana_rect(rect.x, rect.y, rect.width * 0.40, rect.height), font, 16.0)
+    next = kloner_label(next, key + ".v", value, kaintana_rect(rect.x + rect.width * 0.42, rect.y, rect.width * 0.58, rect.height), font, 16.0)
+    return next
+
+pub fn kloner_render_ui(ctx: KaintanaContext, spec: KaintanaWindowSpec, session: KlonerSession, fonts: KlonerUiFonts) -> KlonerUiFrame:
+    let settings = session.settings
+    let controls = session.controls
+    let draft_state = session.runtime
+    let reference = session.reference
+    let layout = kloner_ui_layout(spec)
+    var next = ctx
+    next = kloner_panel(next, "kloner.top", "KLONER // KAINTANA x VULKAIN", layout.top, fonts.title_font, 40.0)
+    next = kloner_muted_label(next, "kloner.top.subtitle", "single Vulkan window, Kaintana-authored session graph, lock-backed platform::vulkan package, procedural million-sphere presenter", kaintana_rect(layout.top.x + 520.0, layout.top.y + 24.0, layout.top.width - 548.0, 24.0), fonts.body_font, 20.0)
+
+    next = kloner_panel(next, "kloner.left", "CLONER CONTROLS", layout.left, fonts.badge_font, 24.0)
+    let clone_slider = kloner_slider(next, "slider.clone_count", "Clone Count // 1..1,000,000", Float(controls.clone_count), 1.0, 1000000.0, kloner_column_slot(layout.left_inner, 1.0, 58.0, 10.0), fonts.micro_font, 18.0)
+    next = clone_slider.ctx
+    let layout_slider = kloner_slider(next, "slider.layout", "Layout // 1 grid / 2 radial / 3 honey / 4 helix", Float(controls.layout_mode), 1.0, 4.0, kloner_column_slot(layout.left_inner, 2.0, 58.0, 10.0), fonts.micro_font, 18.0)
+    next = layout_slider.ctx
+    let spacing_slider = kloner_slider(next, "slider.spacing", "Spacing", controls.spacing, 0.10, 2.20, kloner_column_slot(layout.left_inner, 3.0, 58.0, 10.0), fonts.micro_font, 18.0)
+    next = spacing_slider.ctx
+    let radius_slider = kloner_slider(next, "slider.radius", "Radial Radius", controls.radial_radius, 2.0, 80.0, kloner_column_slot(layout.left_inner, 4.0, 58.0, 10.0), fonts.micro_font, 18.0)
+    next = radius_slider.ctx
+    let sphere_slider = kloner_slider(next, "slider.sphere", "Sphere Radius", controls.sphere_radius, 0.04, 0.75, kloner_column_slot(layout.left_inner, 5.0, 58.0, 10.0), fonts.micro_font, 18.0)
+    next = sphere_slider.ctx
+    let wave_slider = kloner_slider(next, "slider.wave", "Wave Amount", controls.wave_amount, 0.0, 1.20, kloner_column_slot(layout.left_inner, 6.0, 58.0, 10.0), fonts.micro_font, 18.0)
+    next = wave_slider.ctx
+    let speed_slider = kloner_slider(next, "slider.speed", "Animation Speed", controls.animation_speed, 0.10, 4.0, kloner_column_slot(layout.left_inner, 7.0, 58.0, 10.0), fonts.micro_font, 18.0)
+    next = speed_slider.ctx
+
+    let mode_band = kaintana_rect(layout.left_inner.x, layout.left_inner.y + 562.0, layout.left_inner.width, 82.0)
+    let mode_grid = kloner_button(next, "mode.grid", "GRID", kloner_grid_cell(mode_band, 2.0, 2.0, 0.0, 0.0, 10.0, 10.0), fonts.micro_font, 20.0)
+    next = mode_grid.ctx
+    let mode_radial = kloner_button(next, "mode.radial", "RADIAL", kloner_grid_cell(mode_band, 2.0, 2.0, 1.0, 0.0, 10.0, 10.0), fonts.micro_font, 20.0)
+    next = mode_radial.ctx
+    let mode_honey = kloner_button(next, "mode.honey", "HONEY", kloner_grid_cell(mode_band, 2.0, 2.0, 0.0, 1.0, 10.0, 10.0), fonts.micro_font, 20.0)
+    next = mode_honey.ctx
+    let mode_helix = kloner_button(next, "mode.helix", "HELIX", kloner_grid_cell(mode_band, 2.0, 2.0, 1.0, 1.0, 10.0, 10.0), fonts.micro_font, 20.0)
+    next = mode_helix.ctx
+
+    next = kloner_panel(next, "kloner.viewport", "3D CLONE VIEWPORT", layout.viewport, fonts.badge_font, 24.0)
+    next = kloner_label(next, "viewport.headline", kloner_headline(draft_state), kaintana_rect(layout.viewport_inner.x, layout.viewport_inner.y + 46.0, layout.viewport_inner.width, 28.0), fonts.title_font, 26.0)
+    next = kloner_muted_label(next, "viewport.copy", "The Vulkain presenter consumes this exact control packet and draws the sphere field behind this overlay in the same OS window.", kaintana_rect(layout.viewport_inner.x, layout.viewport_inner.y + 86.0, layout.viewport_inner.width, 28.0), fonts.body_font, 20.0)
+    next = kloner_muted_label(next, "viewport.camera", "camera // RMB orbit, W/S dolly, arrows + Q/E pan, 1..4 layout hotkeys remain live in the host lane", kaintana_rect(layout.viewport_inner.x, layout.viewport_inner.y + 112.0, layout.viewport_inner.width, 22.0), fonts.micro_font, 16.0)
+    next = kloner_metric(next, "viewport.metric.clones", "logical clones", str(controls.clone_count), kaintana_rect(layout.viewport_inner.x, layout.viewport_inner.y + 136.0, 260.0, 24.0), fonts.micro_font)
+    next = kloner_metric(next, "viewport.metric.layout", "layout", kloner_layout_name(controls.layout_mode), kaintana_rect(layout.viewport_inner.x + 280.0, layout.viewport_inner.y + 136.0, 240.0, 24.0), fonts.micro_font)
+    next = kloner_metric(next, "viewport.metric.grid", "grid", str(controls.grid_width) + " x " + str(controls.grid_rows), kaintana_rect(layout.viewport_inner.x + 540.0, layout.viewport_inner.y + 136.0, 260.0, 24.0), fonts.micro_font)
+
+    next = kloner_panel(next, "kloner.right", "INSPECTOR", layout.right, fonts.badge_font, 24.0)
+    next = kloner_metric(next, "inspector.fps", "target fps", str(settings.target_fps), kloner_column_slot(layout.right_inner, 1.0, 24.0, 8.0), fonts.micro_font)
+    next = kloner_metric(next, "inspector.frame", "frame budget", str(settings.frame_budget), kloner_column_slot(layout.right_inner, 2.0, 24.0, 8.0), fonts.micro_font)
+    next = kloner_metric(next, "inspector.reference", "reference", kloner_reference_label(), kloner_column_slot(layout.right_inner, 3.0, 24.0, 8.0), fonts.micro_font)
+    next = kloner_metric(next, "inspector.platform", "platform", kloner_session_platform_status(session), kloner_column_slot(layout.right_inner, 4.0, 24.0, 8.0), fonts.micro_font)
+    next = kloner_metric(next, "inspector.transport", "transport ms", str(session.transport_ms), kloner_column_slot(layout.right_inner, 5.0, 24.0, 8.0), fonts.micro_font)
+    next = kloner_metric(next, "inspector.hash", "preview hash", str(draft_state.preview_hash), kloner_column_slot(layout.right_inner, 6.0, 24.0, 8.0), fonts.micro_font)
+    next = kloner_metric(next, "inspector.export", "export sig", str(draft_state.export_signature), kloner_column_slot(layout.right_inner, 7.0, 24.0, 8.0), fonts.micro_font)
+    next = kloner_metric(next, "inspector.lines", "reference lines", str(reference.line_count), kloner_column_slot(layout.right_inner, 8.0, 24.0, 8.0), fonts.micro_font)
+    next = kloner_metric(next, "inspector.bytes", "reference bytes", str(reference.byte_count), kloner_column_slot(layout.right_inner, 9.0, 24.0, 8.0), fonts.micro_font)
+    next = kloner_muted_label(next, "inspector.note", "Kaintana owns widget/session composition, Kloner owns session policy, Vulkain only consumes the final Kain packet.", kaintana_rect(layout.right_inner.x, layout.right_inner.y + 332.0, layout.right_inner.width, 52.0), fonts.micro_font, 16.0)
+    next = kloner_muted_label(next, "inspector.lane", kloner_session_lane_summary(session), kaintana_rect(layout.right_inner.x, layout.right_inner.y + 396.0, layout.right_inner.width, 48.0), fonts.micro_font, 16.0)
+
+    next = kloner_panel(next, "kloner.bottom", "MOGRAPH TIMELINE", layout.bottom, fonts.badge_font, 24.0)
+    let timeline_slider = kloner_slider(next, "timeline.time", "Transport // 120fps proof lane", Float(session.transport_ms), 0.0, 8000.0, kloner_row_slot(layout.bottom_inner, 0.0, 420.0, 18.0), fonts.micro_font, 18.0)
+    next = timeline_slider.ctx
+    let density_slider = kloner_slider(next, "timeline.density", "GPU Density LOD", Float(controls.clone_count), 1.0, 1000000.0, kloner_row_slot(layout.bottom_inner, 1.0, 420.0, 18.0), fonts.micro_font, 18.0)
+    next = density_slider.ctx
+    let commit_button = kloner_button(next, "timeline.commit", "COMMIT PREVIEW PACKET", kaintana_rect(layout.bottom_inner.x + layout.bottom_inner.width - 300.0, layout.bottom_inner.y + 6.0, 282.0, 54.0), fonts.body_font, 28.0)
+    next = commit_button.ctx
+    return KlonerUiFrame {
+        ctx: next,
+        clone_count_value: clone_slider.value,
+        layout_mode_value: layout_slider.value,
+        spacing_value: spacing_slider.value,
+        radial_radius_value: radius_slider.value,
+        sphere_radius_value: sphere_slider.value,
+        wave_value: wave_slider.value,
+        speed_value: speed_slider.value,
+        timeline_time_value: timeline_slider.value,
+        density_value: density_slider.value,
+        mode_grid_activated: mode_grid.activated,
+        mode_radial_activated: mode_radial.activated,
+        mode_honey_activated: mode_honey.activated,
+        mode_helix_activated: mode_helix.activated,
+        commit_activated: commit_button.activated,
+    }

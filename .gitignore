@@ -2,6 +2,7 @@
 /target/
 **/*target*/
 **/*target*/**
+*.exe
 /packages/ephemaris
 **/debug/
 mcp/.config/
@@ -10,7 +11,7 @@ tidus/
 /$recycle.bin
 **/debug/**
 /.playground
-
+temp/*
 
 /research
 research/

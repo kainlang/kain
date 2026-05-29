@@ -1,0 +1,76 @@
+use fluid_studio_views::*
+use std::math
+use vulkain::vulkain_frames_presented
+use vulkain::vulkain_probe
+use vulkain::vulkain_run_mesh_scene_with_entrypoints
+use vulkain::vulkain_vertices_drawn
+use vulkain::vulkain_write_report
+
+pub struct FluidStudioPresenterResult:
+    status: Int
+    vulkan_available: Int
+    frames_presented: Int
+    vertices_drawn: Int
+    math_score: Int
+
+pub fn fluid_draw_vertices_from_budget(particle_budget: Int) -> Int:
+    let bands = math_int_clamp(particle_budget / 65536, 1, 8)
+    return 36 * bands
+
+pub fn fluid_scene_math_score(scene: FluidSceneRequest) -> Int:
+    let axis = vec3_normalize_or_zero(vec3(scene.swirl_gain + 0.01, scene.buoyancy + 0.03, scene.impulse + 0.07))
+    let orbit = quat_from_axis_angle(vec3_up(), Float(scene.camera_yaw_milli) / 1000.0)
+    let rotated = quat_rotate_vec3(orbit, axis)
+    let transform = mat4_from_trs(vec3(scene.swirl_gain, scene.buoyancy, scene.impulse), orbit, vec3_one())
+    let point = mat4_transform_point(transform, rotated)
+    let color = hsv_to_rgb(Hsv { h: scene.hue, s: 0.78, v: 1.0 })
+    let score = vec3_length(point) + vec3_length(color) + Float(scene.sim_energy % 2048) / 1024.0
+    return Int(score * 1000.0)
+
+pub fn fluid_present_scene(scene: FluidSceneRequest) -> FluidStudioPresenterResult:
+    let available = vulkain_probe()
+    if available != 1:
+        return FluidStudioPresenterResult {
+            status: 91,
+            vulkan_available: available,
+            frames_presented: 0,
+            vertices_drawn: 0,
+            math_score: fluid_scene_math_score(scene),
+        }
+    let status = vulkain_run_mesh_scene_with_entrypoints(
+        scene.title,
+        scene.width,
+        scene.height,
+        scene.present_frames,
+        scene.clear_red,
+        scene.clear_green,
+        scene.clear_blue,
+        scene.accent_red,
+        scene.accent_green,
+        scene.accent_blue,
+        scene.draw_vertices,
+        scene.camera_yaw_milli,
+        scene.camera_pitch_milli,
+        scene.mesh_scale_milli,
+        scene.mesh_twist_milli,
+        180,
+        scene.sim_energy,
+        scene.vertex_shader_path,
+        scene.fragment_shader_path,
+        "main",
+        scene.fragment_entry_point
+    )
+    let _report = vulkain_write_report(scene.vulkain_report_path)
+    return FluidStudioPresenterResult {
+        status: status,
+        vulkan_available: available,
+        frames_presented: vulkain_frames_presented(),
+        vertices_drawn: vulkain_vertices_drawn(),
+        math_score: fluid_scene_math_score(scene),
+    }
+
+pub fn fluid_scene_report_text(scene: FluidSceneRequest, presenter: FluidStudioPresenterResult) -> String:
+    return "scene=fluid-studio.mesh_scene\nbackend=vulkan\nplatform=" + scene.platform_status + "\nauthoring_lane=" + scene.lane_summary + "\npreset=" + scene.preset_id + "\ngrid=" + scene.grid_label + "\nframes_presented=" + str(presenter.frames_presented) + "\nvertices_drawn=" + str(presenter.vertices_drawn) + "\ndraw_vertices=" + str(scene.draw_vertices) + "\nmesh_scale_milli=" + str(scene.mesh_scale_milli) + "\nmesh_twist_milli=" + str(scene.mesh_twist_milli) + "\ncamera_yaw_milli=" + str(scene.camera_yaw_milli) + "\ncamera_pitch_milli=" + str(scene.camera_pitch_milli) + "\nmath_score=" + str(presenter.math_score) + "\nstatus=" + str(presenter.status) + "\n"
+
+pub fn fluid_host_report_text(scene: FluidSceneRequest, presenter: FluidStudioPresenterResult) -> String:
+    return "host=fluid-studio\nfragment_shader=" + scene.fragment_shader_path + "\nfragment_entry=" + scene.fragment_entry_point + "\ncompute_entry=" + scene.compute_entry_path + "\nui_draw_count=" + str(scene.ui_draw_count) + "\nui_checksum=" + str(scene.ui_checksum) + "\npulse_count=" + str(scene.pulse_count) + "\nteleport_count=" + str(scene.teleport_count) + "\nmesh_vertices=" + str(scene.draw_vertices) + "\nframes_presented=" + str(presenter.frames_presented) + "\n"

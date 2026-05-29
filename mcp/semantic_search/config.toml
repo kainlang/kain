@@ -29,12 +29,11 @@ kain_extensions = ["kn"]
 index_dir = ".kain/indices"
 
 [embedding]
-# Python model to use via sentence-transformers
-model_name = "all-MiniLM-L6-v2"
-# Embedding dimension (must match model)
+# Feature-hash embedding dimension. This drives the packed u8 vectors that the
+# CUDA kernels consume. Changing this requires regenerating the shader bundle.
 dim = 384
-# Batch size for Python embedding calls
-batch_size = 64
+# Legacy field kept for compatibility. Embeddings are now Kain-native feature-hash.
+model_name = "kain-native-feature-hash"
 
 [chunking]
 # Max characters per chunk (soft limit — respects code boundaries)

@@ -2429,6 +2429,22 @@ impl LlvmGenerator {
         }
     }
 
+    fn compile_runtime_array_write_value(
+        &mut self,
+        expr: &Expr,
+        element_ty: &str,
+    ) -> KainResult<(String, String)> {
+        if element_ty == Self::runtime_array_bridge_any_marker() {
+            // Array<Any> and other boxed runtime-array lanes store Any payloads as
+            // i64 slots, so box through the generic Any lane instead of trying to
+            // coerce the sentinel marker as if it were a real LLVM type.
+            let any = self.compile_runtime_any_argument(expr)?;
+            return Ok((any.value, "i64".to_string()));
+        }
+
+        self.compile_expr_for_target_type(expr, element_ty)
+    }
+
     fn record_runtime_array_local_element_ty(&mut self, name: &str, element_ty: Option<String>) {
         if let Some(element_ty) = element_ty {
             self.runtime_array_locals
@@ -12684,7 +12700,10 @@ impl LlvmGenerator {
         Ok(())
     }
 
-    fn register_python_import_globals_recursive(&mut self, items: &[TypedItem]) -> KainResult<bool> {
+    fn register_python_import_globals_recursive(
+        &mut self,
+        items: &[TypedItem],
+    ) -> KainResult<bool> {
         let mut saw_import = false;
         for item in items {
             match item {
@@ -16396,7 +16415,7 @@ impl LlvmGenerator {
                 let (value, value_ty) = if let Some(element_ty) =
                     self.runtime_array_expr_element_llvm_ty(&args[0].value)
                 {
-                    self.compile_expr_for_target_type(&args[1].value, &element_ty)?
+                    self.compile_runtime_array_write_value(&args[1].value, &element_ty)?
                 } else {
                     self.compile_expr(&args[1].value)?
                 };
@@ -17337,7 +17356,7 @@ impl LlvmGenerator {
                         let (rhs, rhs_ty) =
                             if let Some(element_ty) = self.runtime_array_expr_element_llvm_ty(object)
                             {
-                                self.compile_expr_for_target_type(value, &element_ty)?
+                                self.compile_runtime_array_write_value(value, &element_ty)?
                             } else {
                                 self.compile_expr(value)?
                             };

@@ -1,0 +1,8 @@
+use c::vulkain_bridge
+use fluid_studio_scene::*
+use fluid_studio_sim::*
+use fluid_studio_state::*
+use std::ui
+
+fn main() -> Int:
+    return 0
