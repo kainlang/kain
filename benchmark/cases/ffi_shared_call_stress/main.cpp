@@ -1,6 +1,6 @@
 #include <cstdint>
 
-#include "../../ffi_boundary/native/ffi_boundary.h"
+#include "../../lanes/ffi_boundary/native/ffi_boundary.h"
 
 constexpr std::int64_t ITERATIONS = 5'000'000;
 constexpr std::int64_t EXPECTED = 374'126'489;

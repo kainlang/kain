@@ -26,6 +26,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from windows_toolchain import windows_msvc_link_env_overrides
+
 
 BENCHMARK_ROOT = Path(__file__).resolve().parent
 REPO_ROOT = BENCHMARK_ROOT.parent
@@ -827,7 +829,7 @@ def prepare_case_support(
             ]
         )
 
-    result = run_command(command, timeout=timeout)
+    result = run_command(command, timeout=timeout, env_overrides=windows_msvc_link_env_overrides())
     if result.returncode != 0 or not paths["shared"].exists() or not paths["link"].exists():
         raise RuntimeError(
             "Failed to build ffi shared support.\n"
@@ -1233,9 +1235,11 @@ def build_cpp_case(
             "error": "" if exe_path.exists() else f"missing existing executable {exe_path}",
         }
 
+    env_overrides = windows_msvc_link_env_overrides()
     result = run_build_command_with_retries(
         command,
         timeout=timeout,
+        env_overrides=env_overrides,
         output_paths=sidecar_paths_for_executable(exe_path),
     )
     wait_for_build_output(exe_path)

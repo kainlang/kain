@@ -8,7 +8,9 @@ sources = [
     "native/src/core/stdlib_abi.c",
     "native/src/core/attrition.c",
     "native/src/core/process_system.c",
+    "native/src/core/batch_queue.c",
     "native/src/core/async.c",
+    "native/src/core/fanout.c",
     "native/src/core/actor.c",
 ]
 
@@ -38,6 +40,6 @@ linux_defines = [
 ]
 
 [link]
-windows = ["legacy_stdio_definitions"]
+windows = ["legacy_stdio_definitions", "user32", "gdi32", "shell32", "ws2_32", "winhttp"]
 linux = ["pthread", "dl", "rt", "m"]
 macos = []

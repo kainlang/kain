@@ -24,6 +24,7 @@ from pathlib import Path
 
 
 CASE_ROOT = Path(__file__).resolve().parent
+BENCHMARK_ROOT = CASE_ROOT.parent.parent
 REPO_ROOT = CASE_ROOT.parent.parent.parent
 OUT_ROOT = REPO_ROOT / "benchmark" / "out"
 BUILD_ROOT = OUT_ROOT / "build" / "ffi_boundary"
@@ -33,6 +34,11 @@ GENERATED_NATIVE_ROOT = BUILD_ROOT / "native"
 SOURCE_ROOT = CASE_ROOT / "sources"
 MANIFEST_PATH = CASE_ROOT / "KAIN.toml"
 NATIVE_RUNTIME_MANIFEST = REPO_ROOT / "runtime" / "native_core_runtime.toml"
+
+if str(BENCHMARK_ROOT) not in sys.path:
+    sys.path.insert(0, str(BENCHMARK_ROOT))
+
+from windows_toolchain import windows_msvc_link_env_overrides
 
 
 @dataclass(frozen=True)
@@ -267,7 +273,12 @@ def compile_native_artifacts(clang: Path, timeout: int) -> dict[str, Path]:
         shared_command.extend(
             ["-shared", "-fPIC", "-O3", str(source_path), "-o", str(shared_path)]
         )
-    shared_result = run_command(shared_command, cwd=CASE_ROOT, timeout=timeout)
+    shared_result = run_command(
+        shared_command,
+        cwd=CASE_ROOT,
+        timeout=timeout,
+        env_overrides=windows_msvc_link_env_overrides(),
+    )
     if shared_result.returncode != 0 or not shared_path.exists():
         raise RuntimeError(
             "Failed to compile ffi boundary shared library.\n"
