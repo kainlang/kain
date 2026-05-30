@@ -1,5 +1,5 @@
 {
-  "checksum": "80a29676818cb190713cf6dbaa8fdda96604eb62660c5494a2142b5f5e966a2c",
+  "checksum": "496e7059c66d8242c54a9c85c4853b01778bfbe91f7c2f612fcbcfd71f7653be",
   "crates": {
     "ab_glyph 0.2.32": {
       "name": "ab_glyph",
@@ -18021,18 +18021,6 @@
               ]
             }
           }
-        },
-        {
-          "BuildScript": {
-            "crate_name": "build_script_build",
-            "crate_root": "build.rs",
-            "srcs": {
-              "allow_empty": true,
-              "include": [
-                "**/*.rs"
-              ]
-            }
-          }
         }
       ],
       "library_target_name": "kain_error_semantic",
@@ -18040,68 +18028,8 @@
         "compile_data_glob": [
           "**"
         ],
-        "crate_features": {
-          "common": [
-            "corpus-bake",
-            "default"
-          ],
-          "selects": {}
-        },
-        "deps": {
-          "common": [
-            {
-              "id": "kain-error-semantic 0.1.0",
-              "target": "build_script_build"
-            },
-            {
-              "id": "serde 1.0.228",
-              "target": "serde"
-            },
-            {
-              "id": "serde_json 1.0.143",
-              "target": "serde_json"
-            },
-            {
-              "id": "strsim 0.11.1",
-              "target": "strsim"
-            }
-          ],
-          "selects": {}
-        },
         "edition": "2021",
         "version": "0.1.0"
-      },
-      "build_script_attrs": {
-        "compile_data_glob": [
-          "**"
-        ],
-        "compile_data_glob_excludes": [
-          "**/*.rs"
-        ],
-        "data_glob": [
-          "**"
-        ],
-        "deps": {
-          "common": [
-            {
-              "id": "regex 1.12.3",
-              "target": "regex"
-            },
-            {
-              "id": "serde 1.0.228",
-              "target": "serde"
-            },
-            {
-              "id": "serde_json 1.0.143",
-              "target": "serde_json"
-            },
-            {
-              "id": "walkdir 2.5.0",
-              "target": "walkdir"
-            }
-          ],
-          "selects": {}
-        }
       },
       "license": null,
       "license_ids": [],
@@ -19323,6 +19251,109 @@
         },
         "edition": "2021",
         "version": "0.1.0"
+      },
+      "license": null,
+      "license_ids": [],
+      "license_file": null
+    },
+    "kain-semantic 0.1.0": {
+      "name": "kain-semantic",
+      "version": "0.1.0",
+      "package_url": null,
+      "repository": null,
+      "targets": [
+        {
+          "Library": {
+            "crate_name": "kain_semantic",
+            "crate_root": "src/lib.rs",
+            "srcs": {
+              "allow_empty": true,
+              "include": [
+                "**/*.rs"
+              ]
+            }
+          }
+        },
+        {
+          "BuildScript": {
+            "crate_name": "build_script_build",
+            "crate_root": "build.rs",
+            "srcs": {
+              "allow_empty": true,
+              "include": [
+                "**/*.rs"
+              ]
+            }
+          }
+        }
+      ],
+      "library_target_name": "kain_semantic",
+      "common_attrs": {
+        "compile_data_glob": [
+          "**"
+        ],
+        "crate_features": {
+          "common": [
+            "corpus-bake",
+            "default"
+          ],
+          "selects": {}
+        },
+        "deps": {
+          "common": [
+            {
+              "id": "kain-semantic 0.1.0",
+              "target": "build_script_build"
+            },
+            {
+              "id": "serde 1.0.228",
+              "target": "serde"
+            },
+            {
+              "id": "serde_json 1.0.143",
+              "target": "serde_json"
+            },
+            {
+              "id": "strsim 0.11.1",
+              "target": "strsim"
+            }
+          ],
+          "selects": {}
+        },
+        "edition": "2021",
+        "version": "0.1.0"
+      },
+      "build_script_attrs": {
+        "compile_data_glob": [
+          "**"
+        ],
+        "compile_data_glob_excludes": [
+          "**/*.rs"
+        ],
+        "data_glob": [
+          "**"
+        ],
+        "deps": {
+          "common": [
+            {
+              "id": "regex 1.12.3",
+              "target": "regex"
+            },
+            {
+              "id": "serde 1.0.228",
+              "target": "serde"
+            },
+            {
+              "id": "serde_json 1.0.143",
+              "target": "serde_json"
+            },
+            {
+              "id": "walkdir 2.5.0",
+              "target": "walkdir"
+            }
+          ],
+          "selects": {}
+        }
       },
       "license": null,
       "license_ids": [],
@@ -52106,6 +52137,7 @@
     "kain-script 0.1.0": "crates/script",
     "kain-sdk 0.1.0": "crates/sdk",
     "kain-selfhost 0.1.0": "crates/selfhost",
+    "kain-semantic 0.1.0": "crates/semantic",
     "kain-stdlib-map 0.1.0": "crates/stdlib-map",
     "kain-sys-codegen 0.1.0": "crates/sys-codegen",
     "kain-test 0.1.0": "crates/test",

@@ -1,5 +1,5 @@
 // ============================================================================
-//                 error-semantic :: binary oracle serializer
+//                 semantic :: binary oracle serializer
 // ============================================================================
 // Reads and writes the packed index format for fast GPU upload and later
 // zero-copy Rust-side diagnostic oracle consumption.

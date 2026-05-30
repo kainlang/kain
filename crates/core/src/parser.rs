@@ -10,7 +10,7 @@ use crate::error::{
 use crate::language_features::{default_language_capabilities, LanguageCapabilities};
 use crate::lexer::{Lexer, Token, TokenKind};
 use crate::span::Span;
-use kain_error_semantic::enrich_report as enrich_semantic_report;
+use kain_semantic::enrich_report as enrich_semantic_report;
 use kain_ownership::{COLLAPSE_KEYWORD, OBSERVE_KEYWORD, SHARE_KEYWORD};
 
 /// Maximum number of errors to accumulate before bailing out.

@@ -13,8 +13,8 @@ use std::fs
 use std::time
 
 const KAIN_EXE: String = "X:\\.kain\\bin\\kain.exe"
-const SCRATCH_DIR: String = "X:\\crates\\error-semantic\\scratch"
-const REPORT_DIR: String = "X:\\crates\\error-semantic\\scratch"
+const SCRATCH_DIR: String = "X:\\crates\\semantic\\scratch"
+const REPORT_DIR: String = "X:\\crates\\semantic\\scratch"
 const TARGET: String = "llvm"
 const PROCESS_TIMEOUT_MS: Int = 30000
 

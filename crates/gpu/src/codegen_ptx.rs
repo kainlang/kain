@@ -21,7 +21,7 @@ use kain_core::span::Span;
 use kain_core::types::{TypedItem, TypedProgram, TypedShader};
 use kain_core::DiagnosticCode;
 use kain_core::DiagnosticSemanticPacket;
-use kain_error_semantic::enrich_report as enrich_semantic_report;
+use kain_semantic::enrich_report as enrich_semantic_report;
 use std::collections::{HashMap, HashSet};
 
 #[path = "ptx_surface.rs"]

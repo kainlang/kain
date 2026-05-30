@@ -6,7 +6,7 @@ edition = "2021"
 [dependencies]
 kain-core = { path = "../core" }
 kain-error = { path = "../error" }
-kain-error-semantic = { path = "../error-semantic" }
+kain-semantic = { path = "../semantic" }
 rspirv = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

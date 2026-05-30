@@ -1,7 +1,7 @@
 use std::cuda
 
 // ============================================================================
-//            error-semantic :: error-corpus CUDA diagnosis kernels
+//            semantic :: error-corpus CUDA diagnosis kernels
 // ============================================================================
 // This pack is specialized for compiler diagnostics, not generic search.
 // It keeps retrieval and diagnosis metadata together in one GPU path:

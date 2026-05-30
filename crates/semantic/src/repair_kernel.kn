@@ -1,7 +1,7 @@
 use std::cuda
 
 // ============================================================================
-//            error-semantic :: repair-oriented CUDA oracle kernels
+//            semantic :: repair-oriented CUDA oracle kernels
 // ============================================================================
 // Experimental lane:
 // - fused retrieval + repair priors

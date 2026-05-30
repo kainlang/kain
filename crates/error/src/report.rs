@@ -100,7 +100,7 @@ pub struct DiagnosticReport {
 /// Structured semantic facts extracted from the compiler at an error site.
 ///
 /// This is the input contract for the semantic diagnostic coprocessor
-/// (`crates/error-semantic`). The compiler fills this packet with everything
+/// (`crates/semantic`). The compiler fills this packet with everything
 /// it already knows — AST context, visible symbols, scope metadata,
 /// ownership/world/effect flags, candidate repairs — so the coprocessor
 /// can rank, explain, and suppress without rediscovering language truth.

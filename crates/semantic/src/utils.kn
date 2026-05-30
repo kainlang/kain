@@ -5,7 +5,7 @@ use std::io
 use std::text
 
 // ============================================================================
-//                 error-semantic :: oracle shared utilities
+//                 semantic :: oracle shared utilities
 // ============================================================================
 
 pub fn normalize_slashes(path: String) -> String:

@@ -1,21 +1,21 @@
 use std::build
 
 fn build(ctx: BuildContext) -> BuildGraph:
-    let pkg = package("kain-error-semantic-oracle").version("0.1.0").description("Kain-authored offline compiler-oracle forge for semantic diagnostics. Builds packed binary priors and CUDA search artifacts consumed by the Rust diagnostic coprocessor.")
+    let pkg = package("kain-semantic-oracle").version("0.1.0").description("Kain-authored offline compiler-oracle forge for semantic diagnostics. Builds packed binary priors and CUDA search artifacts consumed by the Rust diagnostic coprocessor.")
 
-    let oracle = blade("kain-error-semantic-oracle").kind("kain_tool").entry("src/main.kn").source_root("src").module_root("src").build_target("llvm").build_target("cuda")
+    let oracle = blade("kain-semantic-oracle").kind("kain_tool").entry("src/main.kn").source_root("src").module_root("src").build_target("llvm").build_target("cuda")
 
     let defaults = build_defaults().entry("src/main.kn").artifact_root(".kain/out").cache_root(".kain/cache/build").profile("debug").target("llvm")
 
     let run = run_defaults().entry("src/main.kn").target("llvm").arg("forge").watch("src").watch("error_corpus").watch("symbol_corpus").watch("build.kn")
 
-    let check_llvm = build_check("check-oracle-host").entry("src/main.kn").target("llvm").axis("target", "llvm").telemetry("llm.error-semantic.oracle").input("src/main.kn").input("src/types.kn").input("src/config.kn").input("src/chunker.kn").input("src/embedding.kn").input("src/serialize.kn").input("src/indexer.kn").input("src/utils.kn").input("build.kn")
+    let check_llvm = build_check("check-oracle-host").entry("src/main.kn").target("llvm").axis("target", "llvm").telemetry("llm.semantic.oracle").input("src/main.kn").input("src/types.kn").input("src/config.kn").input("src/chunker.kn").input("src/embedding.kn").input("src/serialize.kn").input("src/indexer.kn").input("src/utils.kn").input("build.kn")
 
-    let check_cuda = build_check("check-oracle-cuda").entry("src/search_kernel.kn").target("cuda").axis("target", "cuda").telemetry("llm.error-semantic.oracle.cuda").input("src/search_kernel.kn").input("build.kn")
+    let check_cuda = build_check("check-oracle-cuda").entry("src/search_kernel.kn").target("cuda").axis("target", "cuda").telemetry("llm.semantic.oracle.cuda").input("src/search_kernel.kn").input("build.kn")
 
     let cuda_artifacts = exec_task("emit-oracle-cuda-artifacts").command("kain").arg("gpu-artifacts").arg("src/search_kernel.kn").arg("--output").arg(".kain/oracle/gpu/search_kernel").arg("--target").arg("cuda").requires("check-oracle-cuda").input("src/search_kernel.kn").output(".kain/oracle/gpu/search_kernel.derived.ptx").output(".kain/oracle/gpu/search_kernel.gpu.rs").output(".kain/oracle/gpu/search_kernel.reflect.json").output(".kain/oracle/gpu/search_kernel.shader_bundle.json").output(".kain/oracle/gpu/search_kernel_compute_residency.json")
 
-    let check_error_cuda = build_check("check-oracle-error-cuda").entry("src/error_kernel.kn").target("cuda").axis("target", "cuda").telemetry("llm.error-semantic.oracle.error.cuda").input("src/error_kernel.kn").input("build.kn")
+    let check_error_cuda = build_check("check-oracle-error-cuda").entry("src/error_kernel.kn").target("cuda").axis("target", "cuda").telemetry("llm.semantic.oracle.error.cuda").input("src/error_kernel.kn").input("build.kn")
 
     let error_cuda_artifacts = exec_task("emit-oracle-error-cuda-artifacts").command("kain").arg("gpu-artifacts").arg("src/error_kernel.kn").arg("--output").arg(".kain/oracle/gpu/error_kernel").arg("--target").arg("cuda").requires("check-oracle-error-cuda").input("src/error_kernel.kn").output(".kain/oracle/gpu/error_kernel.derived.ptx").output(".kain/oracle/gpu/error_kernel.gpu.rs").output(".kain/oracle/gpu/error_kernel.reflect.json").output(".kain/oracle/gpu/error_kernel.shader_bundle.json").output(".kain/oracle/gpu/error_kernel_compute_residency.json")
 

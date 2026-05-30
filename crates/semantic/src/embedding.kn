@@ -1,5 +1,5 @@
 // ============================================================================
-//              error-semantic :: packed token oracle embeddings
+//              semantic :: packed token oracle embeddings
 // ============================================================================
 // Tiny and dependency-free by design: a Kain-native feature-hash lane that
 // turns compiler/source chunks into packed u8 vectors for CUDA oracle forging.

@@ -3,6 +3,7 @@
 
 load("@crates//:defs.bzl", "aliases", "all_crate_deps")
 load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_library", "rust_proc_macro", "rust_test")
+load("@rules_rust//cargo:defs.bzl", "cargo_build_script")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -17,20 +18,39 @@ COMMON_COMPILE_DATA = glob(
         "templates/**/*",
         "vendor/**/*",
         "generated/**/*",
+        "symbol_corpus/**/*",
+        "error_corpus/**/*",
     ],
     exclude = ["**/*.rs"],
     allow_empty = True,
 )
 
+cargo_build_script(
+    name = "build_script",
+    srcs = [
+        "build.rs",
+    ],
+    edition = "2021",
+    aliases = aliases(build = True, build_proc_macro = True),
+    deps = all_crate_deps(build = True),
+    proc_macro_deps = all_crate_deps(build_proc_macro = True),
+    data = COMMON_COMPILE_DATA,
+    pkg_name = "kain-semantic",
+)
+
 rust_library(
-    name = "kain-error-semantic",
-    crate_name = "kain_error_semantic",
+    name = "kain-semantic",
+    crate_name = "kain_semantic",
     crate_root = "src/lib.rs",
     srcs = glob(["src/**/*.rs"]),
     edition = "2021",
+    crate_features = [
+        "corpus-bake",
+    ],
     aliases = aliases(),
     deps = [
-        "//crates/semantic:kain-semantic",
+        ":build_script",
+        "//crates/error:kain-error",
     ] + all_crate_deps(normal = True),
     proc_macro_deps = all_crate_deps(proc_macro = True),
     compile_data = COMMON_COMPILE_DATA,
@@ -38,11 +58,15 @@ rust_library(
 )
 rust_test(
     name = "unit_test",
-    crate = ":kain-error-semantic",
+    crate = ":kain-semantic",
     edition = "2021",
+    crate_features = [
+        "corpus-bake",
+    ],
     aliases = aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
     deps = [
-        "//crates/semantic:kain-semantic",
+        ":build_script",
+        "//crates/error:kain-error",
     ] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,

@@ -1,5 +1,5 @@
 // ============================================================================
-//                  error-semantic :: compiler oracle forge
+//                  semantic :: compiler oracle forge
 // ============================================================================
 // Offline dataset builder for the Rust diagnostic coprocessor. The compiler
 // user never sees corpus machinery; this tool distills the monorepo into packed
@@ -94,7 +94,7 @@ fn normalize_command(command: String) -> String:
     return command
 
 fn print_intro(cfg: SemanticSearchConfig) -> Unit:
-    println("=== kain error-semantic oracle forge ===")
+    println("=== kain semantic oracle forge ===")
     println("  config:      " + locate_config_path())
     println("  runtime dir: " + config_runtime_root())
     println("  repo root:   " + cfg.repo_root)
@@ -150,7 +150,7 @@ fn handle_health(cfg: SemanticSearchConfig, json_mode: Bool) -> Int:
     return 0
 
 fn handle_help(cfg: SemanticSearchConfig) -> Int:
-    println("error-semantic oracle forge")
+    println("semantic oracle forge")
     println("")
     println("commands:")
     println("  forge                 Build code + Kain indices and the packed oracle bin")

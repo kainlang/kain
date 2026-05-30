@@ -31,7 +31,8 @@ rust_library(
     aliases = aliases(),
     deps = [
         "//crates/core:kain-core",
-        "//crates/error-semantic:kain-error-semantic",
+        "//crates/error:kain-error",
+        "//crates/semantic:kain-semantic",
     ] + all_crate_deps(normal = True),
     proc_macro_deps = all_crate_deps(proc_macro = True),
     compile_data = COMMON_COMPILE_DATA,
@@ -44,7 +45,9 @@ rust_test(
     aliases = aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
     deps = [
         "//crates/core:kain-core",
+        "//crates/error:kain-error",
         "//crates/gpu-runtime:kain-gpu-runtime",
+        "//crates/semantic:kain-semantic",
     ] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,
@@ -62,7 +65,9 @@ rust_test(
     deps = [
         ":gpu",
         "//crates/core:kain-core",
+        "//crates/error:kain-error",
         "//crates/gpu-runtime:kain-gpu-runtime",
+        "//crates/semantic:kain-semantic",
     ] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,
@@ -83,7 +88,9 @@ rust_test(
     deps = [
         ":gpu",
         "//crates/core:kain-core",
+        "//crates/error:kain-error",
         "//crates/gpu-runtime:kain-gpu-runtime",
+        "//crates/semantic:kain-semantic",
     ] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,
@@ -104,7 +111,9 @@ rust_test(
     deps = [
         ":gpu",
         "//crates/core:kain-core",
+        "//crates/error:kain-error",
         "//crates/gpu-runtime:kain-gpu-runtime",
+        "//crates/semantic:kain-semantic",
     ] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,
@@ -125,7 +134,9 @@ rust_test(
     deps = [
         ":gpu",
         "//crates/core:kain-core",
+        "//crates/error:kain-error",
         "//crates/gpu-runtime:kain-gpu-runtime",
+        "//crates/semantic:kain-semantic",
     ] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,
@@ -146,7 +157,9 @@ rust_test(
     deps = [
         ":gpu",
         "//crates/core:kain-core",
+        "//crates/error:kain-error",
         "//crates/gpu-runtime:kain-gpu-runtime",
+        "//crates/semantic:kain-semantic",
     ] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,

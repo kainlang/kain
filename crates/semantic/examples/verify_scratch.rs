@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::Path;
 use kain_error::{CompilerPhase, DiagnosticCode, DiagnosticSemanticPacket};
-use kain_error_semantic::SemanticCoprocessor;
+use kain_semantic::SemanticCoprocessor;
 
 fn main() {
     let scratch_dir = Path::new("scratch");
@@ -123,10 +123,10 @@ fn main() {
 
         // Verifications
         let mode_correct = match expected_mode.as_str() {
-            "OwnershipViolation" => matches!(report.likely_failure_mode, kain_error_semantic::FailureMode::OwnershipViolation),
-            "Typo" => matches!(report.likely_failure_mode, kain_error_semantic::FailureMode::Typo { .. }),
-            "ConvergeMismatch" => matches!(report.likely_failure_mode, kain_error_semantic::FailureMode::ConvergeMismatch),
-            "EntangleViolation" => matches!(report.likely_failure_mode, kain_error_semantic::FailureMode::EntangleViolation),
+            "OwnershipViolation" => matches!(report.likely_failure_mode, kain_semantic::FailureMode::OwnershipViolation),
+            "Typo" => matches!(report.likely_failure_mode, kain_semantic::FailureMode::Typo { .. }),
+            "ConvergeMismatch" => matches!(report.likely_failure_mode, kain_semantic::FailureMode::ConvergeMismatch),
+            "EntangleViolation" => matches!(report.likely_failure_mode, kain_semantic::FailureMode::EntangleViolation),
             _ => false,
         };
 

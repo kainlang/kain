@@ -2,7 +2,7 @@
 # Runs every .kn file through `kain check` and captures output into .md report.
 param(
     [string]$KainBin = "X:\.kain\bin\kain.exe",
-    [string]$ScratchDir = "X:\crates\error-semantic\scratch",
+    [string]$ScratchDir = "X:\crates\semantic\scratch",
     [string]$OutFile = $null,
     [string]$Target = "llvm"
 )

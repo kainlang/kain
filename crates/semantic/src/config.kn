@@ -1,5 +1,5 @@
 // ============================================================================
-//                 error-semantic :: offline oracle configuration
+//                      semantic :: offline oracle configuration
 // ============================================================================
 // The Rust crate will eventually consume the binary oracle this Kain lane
 // forges. Keep the paths boring and local: no root litter
@@ -37,16 +37,16 @@ pub struct SemanticSearchConfig:
 
 pub fn default_config() -> SemanticSearchConfig:
     let mut code_dirs: Array<String> = []
-    push(code_dirs, "crates/error-semantic/src")
+    push(code_dirs, "crates/semantic/src")
     push(code_dirs, "crates/error/src")
     push(code_dirs, "crates/core/src")
     push(code_dirs, "crates/check/src")
     push(code_dirs, "crates/driver/src")
 
     let mut kain_dirs: Array<String> = []
-    push(kain_dirs, "crates/error-semantic/src")
-    push(kain_dirs, "crates/error-semantic/error_corpus")
-    push(kain_dirs, "crates/error-semantic/symbol_corpus")
+    push(kain_dirs, "crates/semantic/src")
+    push(kain_dirs, "crates/semantic/error_corpus")
+    push(kain_dirs, "crates/semantic/symbol_corpus")
 
     let mut code_extensions: Array<String> = []
     push(code_extensions, "rs")
@@ -141,7 +141,7 @@ fn default_repo_root() -> String:
 fn repo_root_from_project(project_root: String) -> String:
     let normalized = replace(project_root, "/", "\\")
     let lower = to_lower(normalized)
-    let suffix = "crates\\error-semantic"
+    let suffix = "crates\\semantic"
     if text_ends_with_string(lower, suffix):
         return substring(normalized, 0, len(normalized) - len(suffix))
     return fs_path_join(project_root, "..\\..")
@@ -157,9 +157,9 @@ fn oracle_project_root() -> String:
     if cwd == "":
         return "."
     let lower = to_lower(replace(cwd, "/", "\\"))
-    if text_ends_with_string(lower, "\\crates\\error-semantic\\src"):
+    if text_ends_with_string(lower, "\\crates\\semantic\\src"):
         return fs_path_parent(cwd)
-    if text_ends_with_string(lower, "\\crates\\error-semantic"):
+    if text_ends_with_string(lower, "\\crates\\semantic"):
         return cwd
     return cwd
 

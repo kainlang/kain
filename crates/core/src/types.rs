@@ -20,7 +20,7 @@ use kain_actor::{
     validate_actor_definition, ActorDefinition, ActorHandlerSignature, ActorMethodSignature,
     ActorStateSlot, MessageParameter, MessageSignature,
 };
-use kain_error_semantic::enrich_report as enrich_semantic_report;
+use kain_semantic::enrich_report as enrich_semantic_report;
 use kain_ownership::{
     OwnershipPolicy, OwnershipRegionKind, COLLAPSE_KEYWORD, DECAY_KEYWORD, OBSERVE_KEYWORD,
     SHARE_KEYWORD,

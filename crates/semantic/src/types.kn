@@ -1,5 +1,5 @@
 // ============================================================================
-//                 error-semantic :: oracle shared types
+//                 semantic :: oracle shared types
 // ============================================================================
 // Core data structures for the offline compiler-oracle pipeline. Every Kain
 // module imports from here so chunks, embeddings, indices, and future repair

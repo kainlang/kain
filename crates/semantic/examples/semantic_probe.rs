@@ -1,5 +1,5 @@
 use kain_error::{CompilerPhase, DiagnosticCode, DiagnosticSemanticPacket};
-use kain_error_semantic::SemanticCoprocessor;
+use kain_semantic::SemanticCoprocessor;
 
 fn print_case(name: &str, packet: DiagnosticSemanticPacket) {
     let coprocessor = SemanticCoprocessor::new();

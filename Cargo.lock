@@ -2130,8 +2130,8 @@ version = "0.1.0"
 dependencies = [
  "kain-core",
  "kain-error",
- "kain-error-semantic",
  "kain-gpu-runtime",
+ "kain-semantic",
  "rspirv",
  "serde",
  "serde_json",
@@ -3025,11 +3025,11 @@ dependencies = [
  "kain-actor",
  "kain-entangle",
  "kain-error",
- "kain-error-semantic",
  "kain-fs",
  "kain-input",
  "kain-lattice",
  "kain-ownership",
+ "kain-semantic",
  "kain-ui",
  "logos",
  "once_cell",
@@ -3111,12 +3111,7 @@ dependencies = [
 name = "kain-error-semantic"
 version = "0.1.0"
 dependencies = [
- "kain-error",
- "regex",
- "serde",
- "serde_json",
- "strsim",
- "walkdir",
+ "kain-semantic",
 ]
 
 [[package]]
@@ -3385,6 +3380,18 @@ version = "0.1.0"
 dependencies = [
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "kain-semantic"
+version = "0.1.0"
+dependencies = [
+ "kain-error",
+ "regex",
+ "serde",
+ "serde_json",
+ "strsim",
+ "walkdir",
 ]
 
 [[package]]
