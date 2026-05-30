@@ -8,7 +8,6 @@ package(default_visibility = ["//visibility:public"])
 
 COMMON_COMPILE_DATA = glob(
 [
-        "lattice.toml",
         "src/**/*",
         "tests/**/*",
         "examples/**/*",

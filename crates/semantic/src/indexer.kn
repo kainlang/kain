@@ -140,164 +140,76 @@ fn stream_all_chunks(files: Array<String>, root: String, cfg: SemanticSearchConf
 
 fn collect_files(index_name: String, root: String, cfg: SemanticSearchConfig) -> Array<String>:
     let mut files: Array<String> = []
+    let allowed_extensions = index_extensions(index_name, cfg)
     let dirs = if index_name == "code": cfg.code_dirs else: cfg.kain_dirs
     var i: Int = 0
     while i < len(dirs):
-        collect_index_dir(files, root, dirs[i], index_name)
+        collect_index_dir(files, root, dirs[i], allowed_extensions)
         i = i + 1
-    return files
+    return dedupe_paths(files)
 
-fn collect_index_dir(files: Array<String>, root: String, dir_name: String, index_name: String) -> Unit:
+fn index_extensions(index_name: String, cfg: SemanticSearchConfig) -> Array<String>:
+    if index_name == "code":
+        return normalize_extensions(cfg.code_extensions)
+    return normalize_extensions(cfg.kain_extensions)
+
+fn normalize_extensions(values: Array<String>) -> Array<String>:
+    let mut normalized: Array<String> = []
+    var i: Int = 0
+    while i < len(values):
+        let mut ext = to_lower(values[i])
+        if text_starts_with_string(ext, "."):
+            ext = substring(ext, 1, len(ext))
+        if ext != "":
+            push(normalized, ext)
+        i = i + 1
+    return normalized
+
+fn dedupe_paths(paths: Array<String>) -> Array<String>:
+    let mut unique: Array<String> = []
+    var i: Int = 0
+    while i < len(paths):
+        if array_contains_string(unique, paths[i]) == false:
+            push(unique, paths[i])
+        i = i + 1
+    return unique
+
+fn array_contains_string(values: Array<String>, needle: String) -> Bool:
+    var i: Int = 0
+    while i < len(values):
+        if values[i] == needle:
+            return true
+        i = i + 1
+    return false
+
+fn collect_index_dir(files: Array<String>, root: String, dir_name: String, allowed_extensions: Array<String>) -> Unit:
     let dir_path = normalize_slashes(fs_path_join(root, dir_name))
     println("    seed dir:   " + dir_path)
-    let nested = collect_seed_files_for_dir(root, dir_name, index_name)
+    let mut nested: Array<String> = []
+    if fs_is_dir(dir_path):
+        nested = collect_files_recursive(dir_path, allowed_extensions)
+    else:
+        let one = collect_file_candidate_path(dir_path, allowed_extensions)
+        if one != "":
+            push(nested, one)
     println("      matches:  " + int_to_str(len(nested)))
     var i: Int = 0
     while i < len(nested):
         push(files, nested[i])
         i = i + 1
 
-fn collect_seed_files_for_dir(root: String, dir_name: String, index_name: String) -> Array<String>:
-    let mut files: Array<String> = []
-    if dir_name == "crates/semantic/src":
-        push_seed(files, root, "crates/semantic/src/lib.rs", index_name)
-        push_seed(files, root, "crates/semantic/src/expert.rs", index_name)
-        push_seed(files, root, "crates/semantic/src/corpus_db.rs", index_name)
-        push_seed(files, root, "crates/semantic/src/packet.rs", index_name)
-        push_seed(files, root, "crates/semantic/src/main.kn", index_name)
-        push_seed(files, root, "crates/semantic/src/types.kn", index_name)
-        push_seed(files, root, "crates/semantic/src/chunker.kn", index_name)
-        push_seed(files, root, "crates/semantic/src/embedding.kn", index_name)
-        push_seed(files, root, "crates/semantic/src/serialize.kn", index_name)
-        push_seed(files, root, "crates/semantic/src/indexer.kn", index_name)
-        push_seed(files, root, "crates/semantic/src/search_kernel.kn", index_name)
-        push_seed(files, root, "crates/semantic/src/error_kernel.kn", index_name)
-    if dir_name == "crates/error/src":
-        push_seed(files, root, "crates/error/src/lib.rs", index_name)
-    if dir_name == "crates/core/src":
-        push_seed(files, root, "crates/core/src/lib.rs", index_name)
-        push_seed(files, root, "crates/core/src/parser.rs", index_name)
-        push_seed(files, root, "crates/core/src/types.rs", index_name)
-        push_seed(files, root, "crates/core/src/runtime.rs", index_name)
-        push_seed(files, root, "crates/core/src/ast.rs", index_name)
-    if dir_name == "crates/check/src":
-        push_seed(files, root, "crates/check/src/lib.rs", index_name)
-    if dir_name == "crates/driver/src":
-        push_seed(files, root, "crates/driver/src/lib.rs", index_name)
-    if dir_name == "crates/semantic/error_corpus":
-        push_error_corpus_seeds(files, root, index_name)
-    if dir_name == "crates/semantic/symbol_corpus":
-        push_symbol_corpus_seeds(files, root, index_name)
-    return files
-
-fn push_error_corpus_seeds(files: Array<String>, root: String, index_name: String) -> Unit:
-    push_seed(files, root, "crates/semantic/error_corpus/borrow_mismatch.kn", index_name)
-    push_seed(files, root, "crates/semantic/error_corpus/borrow_mutability_conflict.kn", index_name)
-    push_seed(files, root, "crates/semantic/error_corpus/borrow_use_after_move.kn", index_name)
-    push_seed(files, root, "crates/semantic/error_corpus/effect_pure_calls_io.kn", index_name)
-    push_seed(files, root, "crates/semantic/error_corpus/entangle_type_mismatch.kn", index_name)
-    push_seed(files, root, "crates/semantic/error_corpus/error_smoke_runner.kn", index_name)
-    push_seed(files, root, "crates/semantic/error_corpus/import_unresolved.kn", index_name)
-    push_seed(files, root, "crates/semantic/error_corpus/multi_error.kn", index_name)
-    push_seed(files, root, "crates/semantic/error_corpus/orchestrate_stage_order.kn", index_name)
-    push_seed(files, root, "crates/semantic/error_corpus/ownership_violation.kn", index_name)
-    push_seed(files, root, "crates/semantic/error_corpus/parse_mismatched_delim.kn", index_name)
-    push_seed(files, root, "crates/semantic/error_corpus/parse_missing_colon.kn", index_name)
-    push_seed(files, root, "crates/semantic/error_corpus/parse_reserved_ident.kn", index_name)
-    push_seed(files, root, "crates/semantic/error_corpus/parse_unclosed_paren.kn", index_name)
-    push_seed(files, root, "crates/semantic/error_corpus/parse_unexpected_token.kn", index_name)
-    push_seed(files, root, "crates/semantic/error_corpus/shader_collapse_target_invalid.kn", index_name)
-    push_seed(files, root, "crates/semantic/error_corpus/shader_compilation_failed.kn", index_name)
-    push_seed(files, root, "crates/semantic/error_corpus/shader_compute_dispatch_dim.kn", index_name)
-    push_seed(files, root, "crates/semantic/error_corpus/shader_compute_sync_in_vertex.kn", index_name)
-    push_seed(files, root, "crates/semantic/error_corpus/shader_fanout_width_exceeded.kn", index_name)
-    push_seed(files, root, "crates/semantic/error_corpus/shader_fragment_output_layout.kn", index_name)
-    push_seed(files, root, "crates/semantic/error_corpus/shader_gpu_memory_budget.kn", index_name)
-    push_seed(files, root, "crates/semantic/error_corpus/shader_ptx_arch_too_old.kn", index_name)
-    push_seed(files, root, "crates/semantic/error_corpus/shader_resource_not_gpu_compatible.kn", index_name)
-    push_seed(files, root, "crates/semantic/error_corpus/shader_shared_memory_bank.kn", index_name)
-    push_seed(files, root, "crates/semantic/error_corpus/shader_stage_mismatch.kn", index_name)
-    push_seed(files, root, "crates/semantic/error_corpus/shader_uniform_binding_conflict.kn", index_name)
-    push_seed(files, root, "crates/semantic/error_corpus/shader_unsupported_host_call.kn", index_name)
-    push_seed(files, root, "crates/semantic/error_corpus/shader_unsupported_intrinsic_call.kn", index_name)
-    push_seed(files, root, "crates/semantic/error_corpus/shader_vertex_input_layout.kn", index_name)
-    push_seed(files, root, "crates/semantic/error_corpus/shader_warp_op_wrong_stage.kn", index_name)
-    push_seed(files, root, "crates/semantic/error_corpus/type_cyclic.kn", index_name)
-    push_seed(files, root, "crates/semantic/error_corpus/type_duplicate_symbol.kn", index_name)
-    push_seed(files, root, "crates/semantic/error_corpus/type_inexhaustive_match.kn", index_name)
-    push_seed(files, root, "crates/semantic/error_corpus/type_mismatch.kn", index_name)
-    push_seed(files, root, "crates/semantic/error_corpus/type_missing_annotation.kn", index_name)
-    push_seed(files, root, "crates/semantic/error_corpus/type_return_mismatch.kn", index_name)
-    push_seed(files, root, "crates/semantic/error_corpus/type_unknown_identifier.kn", index_name)
-    push_seed(files, root, "crates/semantic/error_corpus/type_wrong_arg_count.kn", index_name)
-    push_seed(files, root, "crates/semantic/error_corpus/typo_math.kn", index_name)
-    push_seed(files, root, "crates/semantic/error_corpus/world_missing_surface.kn", index_name)
-
-fn push_symbol_corpus_seeds(files: Array<String>, root: String, index_name: String) -> Unit:
-    push_seed(files, root, "crates/semantic/symbol_corpus/1_pygame_mcp.kn", index_name)
-    push_seed(files, root, "crates/semantic/symbol_corpus/2_pygame.kn", index_name)
-    push_seed(files, root, "crates/semantic/symbol_corpus/3_pygame_shader.kn", index_name)
-    push_seed(files, root, "crates/semantic/symbol_corpus/4_flet.kn", index_name)
-    push_seed(files, root, "crates/semantic/symbol_corpus/5_pyglet.kn", index_name)
-    push_seed(files, root, "crates/semantic/symbol_corpus/6_py_shader3.kn", index_name)
-    push_seed(files, root, "crates/semantic/symbol_corpus/abi_control.kn", index_name)
-    push_seed(files, root, "crates/semantic/symbol_corpus/actor.kn", index_name)
-    push_seed(files, root, "crates/semantic/symbol_corpus/async_future.kn", index_name)
-    push_seed(files, root, "crates/semantic/symbol_corpus/axiom.kn", index_name)
-    push_seed(files, root, "crates/semantic/symbol_corpus/classic_core.kn", index_name)
-    push_seed(files, root, "crates/semantic/symbol_corpus/classic_core3d.kn", index_name)
-    push_seed(files, root, "crates/semantic/symbol_corpus/classic_systems.kn", index_name)
-    push_seed(files, root, "crates/semantic/symbol_corpus/comptime.kn", index_name)
-    push_seed(files, root, "crates/semantic/symbol_corpus/compute.kn", index_name)
-    push_seed(files, root, "crates/semantic/symbol_corpus/control.kn", index_name)
-    push_seed(files, root, "crates/semantic/symbol_corpus/converge.kn", index_name)
-    push_seed(files, root, "crates/semantic/symbol_corpus/effects.kn", index_name)
-    push_seed(files, root, "crates/semantic/symbol_corpus/entangle.kn", index_name)
-    push_seed(files, root, "crates/semantic/symbol_corpus/fragment.kn", index_name)
-    push_seed(files, root, "crates/semantic/symbol_corpus/keyword_mesh.kn", index_name)
-    push_seed(files, root, "crates/semantic/symbol_corpus/law.kn", index_name)
-    push_seed(files, root, "crates/semantic/symbol_corpus/main.kn", index_name)
-    push_seed(files, root, "crates/semantic/symbol_corpus/memory.kn", index_name)
-    push_seed(files, root, "crates/semantic/symbol_corpus/mmio_interrupt.kn", index_name)
-    push_seed(files, root, "crates/semantic/symbol_corpus/native_cli.kn", index_name)
-    push_seed(files, root, "crates/semantic/symbol_corpus/option_result.kn", index_name)
-    push_seed(files, root, "crates/semantic/symbol_corpus/orchestrate.kn", index_name)
-    push_seed(files, root, "crates/semantic/symbol_corpus/ownership.kn", index_name)
-    push_seed(files, root, "crates/semantic/symbol_corpus/patch.kn", index_name)
-    push_seed(files, root, "crates/semantic/symbol_corpus/pulse.kn", index_name)
-    push_seed(files, root, "crates/semantic/symbol_corpus/python_interop.kn", index_name)
-    push_seed(files, root, "crates/semantic/symbol_corpus/python_with_pykain.kn", index_name)
-    push_seed(files, root, "crates/semantic/symbol_corpus/rage_runtime.kn", index_name)
-    push_seed(files, root, "crates/semantic/symbol_corpus/seed_symbols.kn", index_name)
-    push_seed(files, root, "crates/semantic/symbol_corpus/share_fanout.kn", index_name)
-    push_seed(files, root, "crates/semantic/symbol_corpus/shatter.kn", index_name)
-    push_seed(files, root, "crates/semantic/symbol_corpus/smoke.kn", index_name)
-    push_seed(files, root, "crates/semantic/symbol_corpus/teleport.kn", index_name)
-    push_seed(files, root, "crates/semantic/symbol_corpus/types.kn", index_name)
-    push_seed(files, root, "crates/semantic/symbol_corpus/vm_topology.kn", index_name)
-    push_seed(files, root, "crates/semantic/symbol_corpus/world.kn", index_name)
-
-fn push_seed(files: Array<String>, root: String, rel_path: String, index_name: String) -> Unit:
-    let path = normalize_slashes(fs_path_join(root, rel_path))
-    let ext = file_extension_lower(path)
-    if path_matches_index(ext, index_name):
-        push(files, path)
-
-fn collect_native_files_from_dir(dir: String, index_name: String) -> Array<String>:
-    return []
-
-fn collect_files_from_paths_text(paths_text: String, index_name: String) -> Array<String>:
+fn collect_files_from_paths_text(paths_text: String, allowed_extensions: Array<String>) -> Array<String>:
     let mut files: Array<String> = []
     let paths = text_split_lines(paths_text)
     var i: Int = 0
     while i < len(paths):
-        let path = collect_file_candidate_path(paths[i], index_name)
+        let path = collect_file_candidate_path(paths[i], allowed_extensions)
         if path != "":
             push(files, path)
         i = i + 1
     return files
 
-fn collect_file_candidate_path(raw_path: String, index_name: String) -> String:
+fn collect_file_candidate_path(raw_path: String, allowed_extensions: Array<String>) -> String:
     let path = normalize_index_path(raw_path)
     if path == "":
         return ""
@@ -306,14 +218,14 @@ fn collect_file_candidate_path(raw_path: String, index_name: String) -> String:
     if fs_is_file(path) == false:
         return ""
     let ext = file_extension_lower(path)
-    if path_matches_index(ext, index_name) == false:
+    if path_matches_index(ext, allowed_extensions) == false:
         return ""
     let meta = fs_metadata(path)
     if should_skip_index_path(path, meta.len):
         return ""
     return path
 
-fn collect_files_recursive(dir: String, index_name: String) -> Array<String>:
+fn collect_files_recursive(dir: String, allowed_extensions: Array<String>) -> Array<String>:
     let mut files: Array<String> = []
     let entries = text_split_lines(fs_read_dir_paths_text(dir))
     var i: Int = 0
@@ -323,7 +235,7 @@ fn collect_files_recursive(dir: String, index_name: String) -> Array<String>:
             i = i + 1
             continue
         if fs_is_dir(entry):
-            let nested = collect_files_recursive(entry, index_name)
+            let nested = collect_files_recursive(entry, allowed_extensions)
             var ni: Int = 0
             while ni < len(nested):
                 push(files, nested[ni])
@@ -331,17 +243,23 @@ fn collect_files_recursive(dir: String, index_name: String) -> Array<String>:
         else:
             if fs_is_file(entry):
                 let ext = file_extension_lower(entry)
-                if path_matches_index(ext, index_name):
+                if path_matches_index(ext, allowed_extensions):
                     let meta = fs_metadata(entry)
                     if should_skip_index_path(entry, meta.len) == false:
                         push(files, entry)
         i = i + 1
     return files
 
-fn path_matches_index(ext: String, index_name: String) -> Bool:
-    if index_name == "code":
-        return ext == "rs" or ext == "c" or ext == "h" or ext == "cpp" or ext == "hpp" or ext == "toml" or ext == "bazel" or ext == "bzl"
-    return ext == "kn"
+fn path_matches_index(ext: String, allowed_extensions: Array<String>) -> Bool:
+    if len(allowed_extensions) == 0:
+        return false
+    let query = to_lower(ext)
+    var i: Int = 0
+    while i < len(allowed_extensions):
+        if query == allowed_extensions[i]:
+            return true
+        i = i + 1
+    return false
 
 fn should_skip_index_path(path: String, byte_length: Int) -> Bool:
     let lower = normalized_index_match_key(path)

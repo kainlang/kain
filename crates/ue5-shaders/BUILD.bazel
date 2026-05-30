@@ -33,7 +33,7 @@ rust_library(
         "//crates/core:kain-core",
     ] + all_crate_deps(normal = True),
     proc_macro_deps = all_crate_deps(proc_macro = True),
-    compile_data = COMMON_COMPILE_DATA + ["//unreal/metadata:shader_knowledge.json"],
+    compile_data = COMMON_COMPILE_DATA,
     force_all_deps_direct = True,
 )
 rust_test(
@@ -45,5 +45,5 @@ rust_test(
         "//crates/core:kain-core",
     ] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
-    compile_data = COMMON_COMPILE_DATA + ["//unreal/metadata:shader_knowledge.json"],
+    compile_data = COMMON_COMPILE_DATA,
 )
