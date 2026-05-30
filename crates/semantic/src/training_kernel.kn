@@ -69,7 +69,9 @@ shader compute CrossEntropySoftmaxBackward(id: UVec3) -> Void:
     let target = targets[t]
 
     let prob = probs[t * vocab_size + v]
-    let indicator = if v == target: 1.0 else: 0.0
+    var indicator: Float = 0.0
+    if v == target:
+        indicator = 1.0
     let dloss = dloss_mean[0]
 
     dlogits[t * vocab_size + v] = (prob - indicator) * dloss
@@ -284,15 +286,6 @@ shader compute LayerNormBackward(id: UVec3) -> Void:
     let mean_val = mean[pos]
     let rstd_val = rstd[pos]
 
-    // Phase 1: Local accumulation for weight/bias gradients per thread
-    var local_dweight: Array<Float> = []
-    var local_dbias: Array<Float> = []
-    var ci: UInt = 0
-    while ci < dim:
-        push(local_dweight, 0.0)
-        push(local_dbias, 0.0)
-        ci = ci + UInt(1)
-
     // Compute dnorm_mean and dnorm_norm_mean (reduce operations)
     var dnorm_mean: Float = 0.0
     var dnorm_norm_mean: Float = 0.0
@@ -302,13 +295,11 @@ shader compute LayerNormBackward(id: UVec3) -> Void:
         let dnorm = weight[c] * dout[base + c]
         dnorm_mean = dnorm_mean + dnorm
         dnorm_norm_mean = dnorm_norm_mean + dnorm * norm_i
-        local_dweight[c] = norm_i * dout[base + c]
-        local_dbias[c] = dout[base + c]
         c = c + UInt(32)
 
     // Warp reduce the two scalars
-    dnorm_mean = cuda_warp_reduce_sum_f32(dnorm_mean) / to_float(dim)
-    dnorm_norm_mean = cuda_warp_reduce_sum_f32(dnorm_norm_mean) / to_float(dim)
+    dnorm_mean = cuda_warp_reduce_sum_f32(dnorm_mean) / Float(dim)
+    dnorm_norm_mean = cuda_warp_reduce_sum_f32(dnorm_norm_mean) / Float(dim)
 
     // Phase 2: Write dInput and accumulate dWeight/dBias
     c = lane
@@ -321,8 +312,8 @@ shader compute LayerNormBackward(id: UVec3) -> Void:
         dval = dval * rstd_val
         dinp[base + c] = dinp[base + c] + dval
         // Accumulate weight/bias gradients with atomic or simple add
-        dweight[c] = dweight[c] + local_dweight[c]
-        dbias[c] = dbias[c] + local_dbias[c]
+        dweight[c] = dweight[c] + norm_i * dout[base + c]
+        dbias[c] = dbias[c] + dout[base + c]
         c = c + UInt(32)
 
 
@@ -364,9 +355,12 @@ shader compute GeluBackward(id: UVec3) -> Void:
     let x = inp[idx]
     let cube = 0.044715 * x * x * x
     let tanh_arg = 0.79788456 * (x + cube)  // sqrt(2/pi)
-    let tanh_out = tanh_f32(tanh_arg)
-    let cosh_out = cosh_f32(tanh_arg)
-    let sech_out = 1.0 / (cosh_out * cosh_out)
+    var tanh_out = tanh_arg
+    var denom = 1.0 + tanh_out
+    if tanh_out < 0.0:
+        denom = 1.0 - tanh_out
+    tanh_out = tanh_out / denom
+    let sech_out = 1.0 - tanh_out * tanh_out
     let local_grad = 0.5 * (1.0 + tanh_out) + x * 0.5 * sech_out * 0.79788456 * (1.0 + 3.0 * 0.044715 * x * x)
 
     dinp[idx] = dinp[idx] + local_grad * dout[idx]
@@ -486,8 +480,15 @@ shader compute AdamWUpdate(id: UVec3) -> Void:
     m = b1 * m + (1.0 - b1) * grad
     v = b2 * v + (1.0 - b2) * grad * grad
 
-    let b1_corr = 1.0 - pow_f32(b1, to_float(t))
-    let b2_corr = 1.0 - pow_f32(b2, to_float(t))
+    var b1_pow: Float = 1.0
+    var b2_pow: Float = 1.0
+    var pow_i: UInt = 0
+    while pow_i < t:
+        b1_pow = b1_pow * b1
+        b2_pow = b2_pow * b2
+        pow_i = pow_i + UInt(1)
+    let b1_corr = 1.0 - b1_pow
+    let b2_corr = 1.0 - b2_pow
     let m_hat = m / b1_corr
     let v_hat = v / b2_corr
 
@@ -495,7 +496,15 @@ shader compute AdamWUpdate(id: UVec3) -> Void:
     let lr = learning_rate[0]
     let wd = weight_decay[0]
     let ep = eps[0]
-    let update = lr * (m_hat / (sqrt_f32(v_hat) + ep) + wd * param)
+    let denom_base = v_hat + ep
+    var inv_sqrt: Float = 1.0
+    if denom_base > 1.0:
+        inv_sqrt = 1.0 / denom_base
+    var rs_iter: UInt = 0
+    while rs_iter < UInt(4):
+        inv_sqrt = inv_sqrt * (1.5 - 0.5 * denom_base * inv_sqrt * inv_sqrt)
+        rs_iter = rs_iter + UInt(1)
+    let update = lr * (m_hat * inv_sqrt + wd * param)
 
     params[idx] = param - update
     m_memory[idx] = m

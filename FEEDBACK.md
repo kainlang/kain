@@ -308,3 +308,24 @@
 - Minimal repro: stage a large binary sidecar with many append calls, or read a populated sidecar via `fs_read_bytes` instead of the hex-safe byte lane.
 - Evidence: `semantic-search.exe search kain kain 8` first hung in the matrix padding loop, then returned empty ranked arrays until the payload reader/writer was switched to hex-safe offset writes; trace output showed `padding_copy append_failed` and later `ranked_raw_indices_len=0`.
 - Suggested direction: either make the raw byte read/write/append helpers consistent and reliable for large sidecars, or document the hex-safe file path as the expected contract for large binary payloads.
+
+## 2026-05-30 - semantic oracle manifest forge
+### LLVM native `fs_read_dir_paths_text` crashed during recursive source indexing
+- Categories: correctness, runtime, stdlib, developer-experience
+- Status: Bypass-Applied
+- Surface: stdlib
+- Symptom: `kain run src/main.kn --target llvm -- forge` crashed with `0xc0000005` immediately after printing the first seed directory while the Kain indexer called `fs_read_dir_paths_text` from a recursive directory walk.
+- Workflow impact: The semantic oracle could not forge its corpus from Kain-owned recursive filesystem discovery and had to switch to a manifest-driven scan path.
+- Minimal repro: From `X:\crates\semantic`, run `kain run src/main.kn --target llvm -- forge` without `KAIN_SEMANTIC_FILE_MANIFEST` after enabling recursive directory scanning in `src/indexer.kn`.
+- Evidence: `X:\crates\semantic\.kain\reports\run\session-1780139230122-17560.json` and later repeats exited `-1073741819` after `seed dir: X:\crates\semantic\src`.
+- Suggested direction: Add a focused native FS conformance case for `fs_read_dir_paths_text` on Windows absolute paths and recursive consumption, then fix the native LLVM/runtime path or return a safe status/error instead of crashing.
+
+### LLVM native process output returned status `-5` for source scanner commands
+- Categories: correctness, runtime, stdlib, developer-experience
+- Status: Bypass-Applied
+- Surface: stdlib
+- Symptom: Both `process_output_text` and `os_popen_read` returned empty output with `process_last_status() == -5` when the semantic indexer tried to invoke `rg --files <dir>` through the LLVM native executable.
+- Workflow impact: The Kain forge could not self-generate its source manifest via the process stdlib and needed an externally generated manifest passed through `KAIN_SEMANTIC_FILE_MANIFEST`.
+- Minimal repro: In `X:\crates\semantic`, set `KAIN_SEMANTIC_FILE_SCANNER=F:\Scoop\apps\rustup\current\.cargo\bin\rg.exe` and run `kain run src/main.kn --target llvm -- index code` with the scanner path enabled.
+- Evidence: The run printed `scanner: F:\Scoop\apps\rustup\current\.cargo\bin\rg.exe`, `status: -5`, and `manifest: 0 bytes` for every configured seed directory.
+- Suggested direction: Add a native process conformance test for Windows absolute executables plus quoted absolute path arguments and report the underlying OS error in `process_last_status`/stderr instead of only `-5`.

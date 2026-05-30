@@ -34,6 +34,18 @@ pub struct SemanticSearchConfig:
     gpu_device_index: Int
     gpu_threads_per_block: Int
     gpu_batch_chunks: Int
+    gpu_artifact_dir: String
+    search_artifact_stem: String
+    search_fused_artifact_stem: String
+    transformer_artifact_stem: String
+    training_artifact_stem: String
+    error_artifact_stem: String
+    repair_artifact_stem: String
+    transformer_enabled: Bool
+    transformer_dim: Int
+    transformer_max_seq_len: Int
+    transformer_vocab_size: Int
+    transformer_seed_rounds: Int
 
 pub fn default_config() -> SemanticSearchConfig:
     let mut code_dirs: Array<String> = []
@@ -83,6 +95,18 @@ pub fn default_config() -> SemanticSearchConfig:
         gpu_device_index: 0,
         gpu_threads_per_block: 256,
         gpu_batch_chunks: 100000,
+        gpu_artifact_dir: ".kain/oracle/gpu",
+        search_artifact_stem: "search_kernel",
+        search_fused_artifact_stem: "search_kernel_god",
+        transformer_artifact_stem: "transformer",
+        training_artifact_stem: "training",
+        error_artifact_stem: "error_kernel",
+        repair_artifact_stem: "repair_kernel",
+        transformer_enabled: true,
+        transformer_dim: 384,
+        transformer_max_seq_len: 512,
+        transformer_vocab_size: 256,
+        transformer_seed_rounds: 4,
     }
 
 pub fn load_config(path: String) -> SemanticSearchConfig:
@@ -98,10 +122,38 @@ pub fn load_config(path: String) -> SemanticSearchConfig:
         cfg.dim = to_int(env_dim)
     if cfg.dim <= 0:
         cfg.dim = 384
+    let env_gpu_dir = env("KAIN_SEMANTIC_GPU_ARTIFACT_DIR")
+    if env_gpu_dir != "":
+        cfg.gpu_artifact_dir = env_gpu_dir
+    let env_transformer = env("KAIN_SEMANTIC_TRANSFORMER_ENABLED")
+    if env_transformer != "":
+        cfg.transformer_enabled = config_env_bool(env_transformer, cfg.transformer_enabled)
+    let env_transformer_dim = env("KAIN_SEMANTIC_TRANSFORMER_DIM")
+    if env_transformer_dim != "":
+        cfg.transformer_dim = to_int(env_transformer_dim)
+    let env_seq = env("KAIN_SEMANTIC_TRANSFORMER_MAX_SEQ_LEN")
+    if env_seq != "":
+        cfg.transformer_max_seq_len = to_int(env_seq)
+    let env_vocab = env("KAIN_SEMANTIC_TRANSFORMER_VOCAB_SIZE")
+    if env_vocab != "":
+        cfg.transformer_vocab_size = to_int(env_vocab)
+    let env_seed_rounds = env("KAIN_SEMANTIC_TRANSFORMER_SEED_ROUNDS")
+    if env_seed_rounds != "":
+        cfg.transformer_seed_rounds = to_int(env_seed_rounds)
+    if cfg.transformer_dim <= 0:
+        cfg.transformer_dim = cfg.dim
+    if cfg.transformer_max_seq_len <= 0:
+        cfg.transformer_max_seq_len = 512
+    if cfg.transformer_vocab_size <= 0:
+        cfg.transformer_vocab_size = 256
+    if cfg.transformer_seed_rounds <= 0:
+        cfg.transformer_seed_rounds = 4
     if config_path_is_absolute(cfg.index_dir) == false:
         cfg.index_dir = normalize_slashes(fs_path_join(config_runtime_root_from(path), cfg.index_dir))
     if config_path_is_absolute(cfg.repo_root) == false:
         cfg.repo_root = normalize_slashes(fs_path_join(config_runtime_root_from(path), cfg.repo_root))
+    if config_path_is_absolute(cfg.gpu_artifact_dir) == false:
+        cfg.gpu_artifact_dir = normalize_slashes(fs_path_join(config_runtime_root_from(path), cfg.gpu_artifact_dir))
     return cfg
 
 pub fn locate_config_path() -> String:
@@ -132,6 +184,12 @@ pub fn oracle_pack_path(cfg: SemanticSearchConfig) -> String:
 pub fn oracle_manifest_path(cfg: SemanticSearchConfig) -> String:
     return normalize_slashes(fs_path_join(oracle_root(cfg), "kain_error_oracle.manifest.json"))
 
+pub fn gpu_artifact_bundle_path(cfg: SemanticSearchConfig, stem: String) -> String:
+    return normalize_slashes(fs_path_join(fs_path_join(cfg.gpu_artifact_dir, stem), stem + ".shader_bundle.json"))
+
+pub fn gpu_artifact_residency_path(cfg: SemanticSearchConfig, stem: String) -> String:
+    return normalize_slashes(fs_path_join(fs_path_join(cfg.gpu_artifact_dir, stem), "kain_compute_residency.json"))
+
 fn default_repo_root() -> String:
     let env_root = env("KAIN_HOME")
     if env_root != "" and text_ends_with_string(to_lower(env_root), "\\.kain") == false and text_ends_with_string(to_lower(env_root), "/.kain") == false:
@@ -161,6 +219,9 @@ fn oracle_project_root() -> String:
         return fs_path_parent(cwd)
     if text_ends_with_string(lower, "\\crates\\semantic"):
         return cwd
+    let semantic_from_repo = fs_path_join(cwd, "crates\\semantic")
+    if fs_exists(fs_path_join(semantic_from_repo, "src\\main.kn")):
+        return semantic_from_repo
     return cwd
 
 fn config_path_is_absolute(path: String) -> Bool:
@@ -171,3 +232,11 @@ fn config_path_is_absolute(path: String) -> Bool:
     if text_starts_with_string(path, "/"):
         return true
     return false
+
+fn config_env_bool(value: String, fallback: Bool) -> Bool:
+    let lower = to_lower(value)
+    if lower == "1" or lower == "true" or lower == "yes" or lower == "on":
+        return true
+    if lower == "0" or lower == "false" or lower == "no" or lower == "off":
+        return false
+    return fallback

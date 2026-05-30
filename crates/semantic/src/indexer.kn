@@ -10,6 +10,7 @@ use std::os
 use std::memory
 use std::io
 use std::text
+use std::process
 use types::Chunk
 use types::IndexHeader
 use types::INDEX_VERSION
@@ -140,7 +141,7 @@ fn stream_all_chunks(files: Array<String>, root: String, cfg: SemanticSearchConf
 
 fn collect_files(index_name: String, root: String, cfg: SemanticSearchConfig) -> Array<String>:
     let mut files: Array<String> = []
-    let allowed_extensions = index_extensions(index_name, cfg)
+    let allowed_extensions = index_extensions_key(index_name, cfg)
     let dirs = if index_name == "code": cfg.code_dirs else: cfg.kain_dirs
     var i: Int = 0
     while i < len(dirs):
@@ -148,20 +149,20 @@ fn collect_files(index_name: String, root: String, cfg: SemanticSearchConfig) ->
         i = i + 1
     return dedupe_paths(files)
 
-fn index_extensions(index_name: String, cfg: SemanticSearchConfig) -> Array<String>:
+fn index_extensions_key(index_name: String, cfg: SemanticSearchConfig) -> String:
     if index_name == "code":
-        return normalize_extensions(cfg.code_extensions)
-    return normalize_extensions(cfg.kain_extensions)
+        return normalize_extensions_key(cfg.code_extensions)
+    return normalize_extensions_key(cfg.kain_extensions)
 
-fn normalize_extensions(values: Array<String>) -> Array<String>:
-    let mut normalized: Array<String> = []
+fn normalize_extensions_key(values: Array<String>) -> String:
+    var normalized = "|"
     var i: Int = 0
     while i < len(values):
         let mut ext = to_lower(values[i])
         if text_starts_with_string(ext, "."):
             ext = substring(ext, 1, len(ext))
         if ext != "":
-            push(normalized, ext)
+            normalized = normalized + ext + "|"
         i = i + 1
     return normalized
 
@@ -182,12 +183,25 @@ fn array_contains_string(values: Array<String>, needle: String) -> Bool:
         i = i + 1
     return false
 
-fn collect_index_dir(files: Array<String>, root: String, dir_name: String, allowed_extensions: Array<String>) -> Unit:
+fn collect_index_dir(files: Array<String>, root: String, dir_name: String, allowed_extensions: String) -> Unit:
     let dir_path = normalize_slashes(fs_path_join(root, dir_name))
     println("    seed dir:   " + dir_path)
     let mut nested: Array<String> = []
     if fs_is_dir(dir_path):
-        nested = collect_files_recursive(dir_path, allowed_extensions)
+        var manifest_text = manifest_text_for_dir(dir_path)
+        if manifest_text == "":
+            let scanner = file_scanner_executable()
+            println("      scanner:  " + scanner)
+            manifest_text = os_popen_read(quote_cmd_arg(scanner) + " --files " + quote_cmd_arg(dir_path), 60000)
+            println("      status:   " + int_to_str(process_last_status()))
+        println("      manifest: " + int_to_str(len(manifest_text)) + " bytes")
+        if manifest_text != "":
+            nested = collect_files_from_paths_text(manifest_text, allowed_extensions)
+        else:
+            if env("KAIN_SEMANTIC_ALLOW_FS_WALK") == "1":
+                nested = collect_files_recursive(dir_path, allowed_extensions)
+            else:
+                println("      warning: scanner returned no file manifest; set KAIN_SEMANTIC_FILE_SCANNER or KAIN_SEMANTIC_ALLOW_FS_WALK=1")
     else:
         let one = collect_file_candidate_path(dir_path, allowed_extensions)
         if one != "":
@@ -198,18 +212,61 @@ fn collect_index_dir(files: Array<String>, root: String, dir_name: String, allow
         push(files, nested[i])
         i = i + 1
 
-fn collect_files_from_paths_text(paths_text: String, allowed_extensions: Array<String>) -> Array<String>:
+fn file_scanner_executable() -> String:
+    let scanner = env("KAIN_SEMANTIC_FILE_SCANNER")
+    if scanner != "":
+        return scanner
+    return "rg"
+
+fn quote_cmd_arg(value: String) -> String:
+    return "\"" + value + "\""
+
+fn manifest_text_for_dir(dir_path: String) -> String:
+    let manifest_path = env("KAIN_SEMANTIC_FILE_MANIFEST")
+    if manifest_path == "":
+        return ""
+    if fs_exists(manifest_path) == false:
+        println("      manifest file missing: " + manifest_path)
+        return ""
+    let raw = fs_read_text(manifest_path)
+    let lines = text_split_lines(raw)
+    let dir_key = normalized_index_match_key(dir_path)
+    let dir_prefix = dir_key + "\\"
+    var out_text = ""
+    var i: Int = 0
+    while i < len(lines):
+        let path = normalize_index_path(lines[i])
+        let key = normalized_index_match_key(path)
+        if key == dir_key or text_starts_with_string(key, dir_prefix):
+            out_text = out_text + path + "\n"
+        i = i + 1
+    return out_text
+
+fn collect_files_from_paths_text(paths_text: String, allowed_extensions: String) -> Array<String>:
     let mut files: Array<String> = []
     let paths = text_split_lines(paths_text)
     var i: Int = 0
     while i < len(paths):
-        let path = collect_file_candidate_path(paths[i], allowed_extensions)
+        let path = collect_manifest_file_candidate_path(paths[i], allowed_extensions)
         if path != "":
             push(files, path)
         i = i + 1
     return files
 
-fn collect_file_candidate_path(raw_path: String, allowed_extensions: Array<String>) -> String:
+fn collect_manifest_file_candidate_path(raw_path: String, allowed_extensions: String) -> String:
+    let path = normalize_index_path(raw_path)
+    if path == "":
+        return ""
+    if should_skip_index_dir(path):
+        return ""
+    let ext = file_extension_lower(path)
+    if path_matches_index(ext, allowed_extensions) == false:
+        return ""
+    if should_skip_index_path(path, 0):
+        return ""
+    return path
+
+fn collect_file_candidate_path(raw_path: String, allowed_extensions: String) -> String:
     let path = normalize_index_path(raw_path)
     if path == "":
         return ""
@@ -225,7 +282,7 @@ fn collect_file_candidate_path(raw_path: String, allowed_extensions: Array<Strin
         return ""
     return path
 
-fn collect_files_recursive(dir: String, allowed_extensions: Array<String>) -> Array<String>:
+fn collect_files_recursive(dir: String, allowed_extensions: String) -> Array<String>:
     let mut files: Array<String> = []
     let entries = text_split_lines(fs_read_dir_paths_text(dir))
     var i: Int = 0
@@ -250,16 +307,11 @@ fn collect_files_recursive(dir: String, allowed_extensions: Array<String>) -> Ar
         i = i + 1
     return files
 
-fn path_matches_index(ext: String, allowed_extensions: Array<String>) -> Bool:
-    if len(allowed_extensions) == 0:
+fn path_matches_index(ext: String, allowed_extensions: String) -> Bool:
+    if allowed_extensions == "":
         return false
     let query = to_lower(ext)
-    var i: Int = 0
-    while i < len(allowed_extensions):
-        if query == allowed_extensions[i]:
-            return true
-        i = i + 1
-    return false
+    return text_contains_string(allowed_extensions, "|" + query + "|")
 
 fn should_skip_index_path(path: String, byte_length: Int) -> Bool:
     let lower = normalized_index_match_key(path)

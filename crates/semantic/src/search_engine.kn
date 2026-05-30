@@ -13,16 +13,19 @@ use types::SearchResponse
 use types::LoadedIndex
 use types::empty_search_response
 use config::SemanticSearchConfig
+use config::gpu_artifact_bundle_path
+use config::gpu_artifact_residency_path
 use serialize::read_index
 use indexer::index_matrix_path
 use indexer::index_weight_path
 use indexer::index_bias_path
 use embedding::build_packed_embedding_bytes
+use tokenizer::tokenize_with_limit
 use utils::int_to_str
 use utils::float_to_str
 
-const CUDA_SCORE_KEY: String = "shader::SemanticPackedScore::compute"
-const CUDA_TOPK_KEY: String = "shader::SemanticGpuTopK::compute"
+const CUDA_SCORE_KEY: String = "shader::SemanticBitpackDotProduct::compute"
+const CUDA_TOPK_KEY: String = "shader::SemanticWarpTopK::compute"
 const CUDA_FUSED_KEY: String = "shader::SemanticFusedScoreTopK::compute"
 const CUDA_BITPACK_KEY: String = "shader::SemanticBitpackDotProduct::compute"
 const CUDA_WARP_TOPK_KEY: String = "shader::SemanticWarpTopK::compute"
@@ -91,7 +94,7 @@ pub fn search(query: String, index_name: String, top_k: Int, cfg: SemanticSearch
     trace("index_chunks=" + int_to_str(index.header.num_chunks))
 
     let t0 = now_millis()
-    let ranked = if cuda_has_fused_kernel(): cuda_fused_rank(query, index_path, matrix_path, weight_path, bias_path, index, k, cfg) else: cuda_rank(query, index_path, matrix_path, weight_path, bias_path, index, k, cfg)
+    let ranked = if cuda_has_fused_kernel(cfg): cuda_fused_rank(query, index_path, matrix_path, weight_path, bias_path, index, k, cfg) else: cuda_rank(query, index_path, matrix_path, weight_path, bias_path, index, k, cfg)
     let t1 = now_millis()
     if ranked.error != "":
         return error_response(ranked.error)
@@ -104,45 +107,33 @@ pub fn search(query: String, index_name: String, top_k: Int, cfg: SemanticSearch
         error: "",
     }
 
-fn cuda_has_fused_kernel() -> Bool:
-    let residency = cuda_god_residency_path()
+fn cuda_has_fused_kernel(cfg: SemanticSearchConfig) -> Bool:
+    let residency = cuda_search_residency_path(cfg)
     if residency == "":
         return false
     return cuda_has_compute_key_from_path(residency, CUDA_FUSED_KEY)
 
-pub fn cuda_god_shader_bundle_path() -> String:
-    if fs_exists("kain_god.shader_bundle.json"):
-        return "kain_god.shader_bundle.json"
-    if fs_exists("mcp\\semantic_search\\kain_god.shader_bundle.json"):
-        return "mcp\\semantic_search\\kain_god.shader_bundle.json"
-    if fs_exists("X:\\mcp\\semantic_search\\kain_god.shader_bundle.json"):
-        return "X:\\mcp\\semantic_search\\kain_god.shader_bundle.json"
-    return ""
+pub fn cuda_god_shader_bundle_path(cfg: SemanticSearchConfig) -> String:
+    return cuda_artifact_bundle_if_present(cfg, cfg.search_fused_artifact_stem)
 
-pub fn cuda_god_residency_path() -> String:
-    if fs_exists("kain_god_compute_residency.json"):
-        return "kain_god_compute_residency.json"
-    if fs_exists("mcp\\semantic_search\\kain_god_compute_residency.json"):
-        return "mcp\\semantic_search\\kain_god_compute_residency.json"
-    if fs_exists("X:\\mcp\\semantic_search\\kain_god_compute_residency.json"):
-        return "X:\\mcp\\semantic_search\\kain_god_compute_residency.json"
-    return ""
+pub fn cuda_god_residency_path(cfg: SemanticSearchConfig) -> String:
+    return cuda_artifact_residency_if_present(cfg, cfg.search_fused_artifact_stem)
 
 fn cuda_rank(query: String, index_path: String, matrix_path: String, weight_path: String, bias_path: String, index: LoadedIndex, top_k: Int, cfg: SemanticSearchConfig) -> CudaRankedHits:
     let _index_path = index_path
-    let bundle = cuda_search_shader_bundle_path()
-    let residency = cuda_search_residency_path()
+    let bundle = cuda_search_shader_bundle_path(cfg)
+    let residency = cuda_search_residency_path(cfg)
     trace("bundle_path=" + bundle)
     trace("residency_path=" + residency)
     if bundle == "" or residency == "":
-        return cuda_error("CUDA artifacts missing; run `kain gpu-artifacts src/search_kernel.kn --output kain` from X:\\mcp\\semantic_search")
+        return cuda_error("CUDA search artifacts missing under " + cfg.gpu_artifact_dir + "; run `kain gpu-artifacts src/search_kernel.kn --output .kain/oracle/gpu/" + cfg.search_artifact_stem + " --target cuda`")
     if cuda_driver_available() == false:
         return cuda_error("CUDA driver is not available")
     if cuda_runtime_library_available() == false:
         return cuda_error("kain-gpu-runtime CUDA runtime library is not available")
     trace("residency_manifest_debug:\n" + cuda_manifest_debug_from_path(residency))
 
-    let query_bytes = build_query_embedding_bytes(query, cfg.dim)
+    let query_bytes = build_query_embedding_bytes(query, cfg)
     trace("query_bytes_len=" + int_to_str(len(query_bytes)))
     let stage_error = stage_score_payloads(residency, query_bytes, matrix_path, weight_path, bias_path, index.header.num_chunks, cfg)
     if stage_error != "":
@@ -172,18 +163,18 @@ fn cuda_rank(query: String, index_path: String, matrix_path: String, weight_path
 
 fn cuda_fused_rank(query: String, index_path: String, matrix_path: String, weight_path: String, bias_path: String, index: LoadedIndex, top_k: Int, cfg: SemanticSearchConfig) -> CudaRankedHits:
     let _index_path = index_path
-    let bundle = cuda_god_shader_bundle_path()
-    let residency = cuda_god_residency_path()
+    let bundle = cuda_search_shader_bundle_path(cfg)
+    let residency = cuda_search_residency_path(cfg)
     trace("fused_bundle_path=" + bundle)
     trace("fused_residency_path=" + residency)
     if bundle == "" or residency == "":
-        return cuda_error("CUDA artifacts missing; run `kain gpu-artifacts src/search_kernel_god.kn --output kain_god` from X:\\mcp\\semantic_search")
+        return cuda_error("CUDA search artifacts missing under " + cfg.gpu_artifact_dir + "; run `kain gpu-artifacts src/search_kernel.kn --output .kain/oracle/gpu/" + cfg.search_artifact_stem + "/" + cfg.search_artifact_stem + " --target cuda`")
     if cuda_driver_available() == false:
         return cuda_error("CUDA driver is not available")
     if cuda_runtime_library_available() == false:
         return cuda_error("kain-gpu-runtime CUDA runtime library is not available")
 
-    let query_bytes = build_query_embedding_bytes(query, cfg.dim)
+    let query_bytes = build_query_embedding_bytes(query, cfg)
     trace("fused_query_bytes_len=" + int_to_str(len(query_bytes)))
 
     let num_chunks = index.header.num_chunks
@@ -423,8 +414,54 @@ fn read_ranked_hits(residency: String, top_k: Int, total_chunks: Int, threshold:
         error: "",
     }
 
-fn build_query_embedding_bytes(query: String, dim: Int) -> Array<Int>:
-    return build_packed_embedding_bytes(query, dim)
+fn build_query_embedding_bytes(query: String, cfg: SemanticSearchConfig) -> Array<Int>:
+    if cfg.transformer_enabled:
+        return build_transformer_seed_embedding_bytes(query, cfg)
+    return build_packed_embedding_bytes(query, cfg.dim)
+
+pub fn query_embedding_preview_json(query: String, cfg: SemanticSearchConfig, count: Int) -> String:
+    let bytes = build_query_embedding_bytes(query, cfg)
+    var limit = count
+    if limit <= 0:
+        limit = 16
+    if limit > len(bytes):
+        limit = len(bytes)
+    var json = "{\"dim\":" + int_to_str(len(bytes)) + ",\"transformer_enabled\":" + search_json_bool(cfg.transformer_enabled) + ",\"preview\":["
+    var i: Int = 0
+    while i < limit:
+        if i > 0:
+            json = json + ","
+        json = json + int_to_str(bytes[i])
+        i = i + 1
+    json = json + "]}"
+    return json
+
+fn build_transformer_seed_embedding_bytes(query: String, cfg: SemanticSearchConfig) -> Array<Int>:
+    let tokens = tokenize_with_limit(query, cfg.transformer_max_seq_len)
+    let mut bytes: Array<Int> = []
+    var lane: Int = 0
+    while lane < cfg.dim:
+        var state = (lane * 131 + len(tokens) * 17 + cfg.transformer_vocab_size) & 255
+        var i: Int = 0
+        while i < len(tokens):
+            let token = tokens[i] & 255
+            let pos_mix = ((i + 1) * (lane + 3)) & 255
+            let scale = (lane % 13) + 1
+            state = (state + ((token ^ pos_mix) * scale)) & 255
+            state = ((state << 3) | (state >> 5)) & 255
+            i = i + 1
+        var round: Int = 0
+        while round < cfg.transformer_seed_rounds:
+            state = (state + ((state << 1) ^ (lane + round * 29))) & 255
+            round = round + 1
+        push(bytes, state)
+        lane = lane + 1
+    return bytes
+
+fn search_json_bool(value: Bool) -> String:
+    if value:
+        return "true"
+    return "false"
 
 fn query_match_capacity(query_bytes: Array<Int>) -> Int:
     var count: Int = 0
@@ -473,28 +510,44 @@ fn score_threshold(cfg: SemanticSearchConfig, max_score_raw: Int) -> Int:
     let max_score = to_float(max_score_raw)
     return Int(cfg.min_score * max_score)
 
-pub fn cuda_search_shader_bundle_path() -> String:
-    if fs_exists("kain.shader_bundle.json"):
-        return "kain.shader_bundle.json"
-    if fs_exists("kain_shader_bundle.json"):
-        return "kain_shader_bundle.json"
-    if fs_exists("mcp\\semantic_search\\kain.shader_bundle.json"):
-        return "mcp\\semantic_search\\kain.shader_bundle.json"
-    if fs_exists("mcp\\semantic_search\\kain_shader_bundle.json"):
-        return "mcp\\semantic_search\\kain_shader_bundle.json"
-    if fs_exists("X:\\mcp\\semantic_search\\kain.shader_bundle.json"):
-        return "X:\\mcp\\semantic_search\\kain.shader_bundle.json"
-    if fs_exists("X:\\mcp\\semantic_search\\kain_shader_bundle.json"):
-        return "X:\\mcp\\semantic_search\\kain_shader_bundle.json"
+pub fn cuda_search_shader_bundle_path(cfg: SemanticSearchConfig) -> String:
+    return cuda_artifact_bundle_if_present(cfg, cfg.search_artifact_stem)
+
+pub fn cuda_search_residency_path(cfg: SemanticSearchConfig) -> String:
+    return cuda_artifact_residency_if_present(cfg, cfg.search_artifact_stem)
+
+fn cuda_artifact_bundle_if_present(cfg: SemanticSearchConfig, stem: String) -> String:
+    if stem == "":
+        return ""
+    let configured = gpu_artifact_bundle_path(cfg, stem)
+    if fs_exists(configured):
+        return configured
+    let flat_configured = fs_path_join(cfg.gpu_artifact_dir, stem + ".shader_bundle.json")
+    if fs_exists(flat_configured):
+        return flat_configured
+    let local = stem + ".shader_bundle.json"
+    if fs_exists(local):
+        return local
     return ""
 
-pub fn cuda_search_residency_path() -> String:
+fn cuda_artifact_residency_if_present(cfg: SemanticSearchConfig, stem: String) -> String:
+    if stem == "":
+        return ""
+    let configured = gpu_artifact_residency_path(cfg, stem)
+    if fs_exists(configured):
+        return configured
+    if stem == cfg.search_artifact_stem:
+        let flat_generic = fs_path_join(cfg.gpu_artifact_dir, "kain_compute_residency.json")
+        if fs_exists(flat_generic):
+            return flat_generic
+    let flat_named = fs_path_join(cfg.gpu_artifact_dir, stem + "_compute_residency.json")
+    if fs_exists(flat_named):
+        return flat_named
+    let local = stem + "_compute_residency.json"
+    if fs_exists(local):
+        return local
     if fs_exists("kain_compute_residency.json"):
         return "kain_compute_residency.json"
-    if fs_exists("mcp\\semantic_search\\kain_compute_residency.json"):
-        return "mcp\\semantic_search\\kain_compute_residency.json"
-    if fs_exists("X:\\mcp\\semantic_search\\kain_compute_residency.json"):
-        return "X:\\mcp\\semantic_search\\kain_compute_residency.json"
     return ""
 
 fn cuda_error(msg: String) -> CudaRankedHits:

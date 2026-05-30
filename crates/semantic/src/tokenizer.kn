@@ -16,9 +16,17 @@ pub const TOKEN_MAX_SEQ_LEN: Int = 512
 // ── Text → Array<Int> token ids ────────────────────────────────────────
 
 pub fn tokenize(text: String) -> Array<Int>:
+    return tokenize_with_limit(text, TOKEN_MAX_SEQ_LEN)
+
+pub fn tokenize_with_limit(text: String, limit: Int) -> Array<Int>:
     let mut tokens: Array<Int> = []
     var i: Int = 0
-    let max_len = if len(text) < TOKEN_MAX_SEQ_LEN: len(text) else: TOKEN_MAX_SEQ_LEN
+    var cap = limit
+    if cap <= 0:
+        cap = TOKEN_MAX_SEQ_LEN
+    if cap > TOKEN_MAX_SEQ_LEN:
+        cap = TOKEN_MAX_SEQ_LEN
+    let max_len = if len(text) < cap: len(text) else: cap
     while i < max_len:
         let ch = char_at(text, i)
         let byte_val = ord(ch) & 255
@@ -47,12 +55,7 @@ pub fn tokenize_chunk(chunk: Chunk) -> Array<Int>:
     let mut tokens: Array<Int> = []
 
     // Start-of-chunk marker
-    let marker_start = if chunk.kind == "fn": 253
-        else: if chunk.kind == "struct": 254
-        else: if chunk.kind == "actor": 250
-        else: if chunk.kind == "world": 251
-        else: if chunk.kind == "shader": 252
-        else: 255
+    let marker_start = chunk_kind_marker(chunk.kind)
     push(tokens, marker_start)
 
     // Symbol name as lowercase tokens
@@ -135,3 +138,16 @@ pub fn pad_tokens(tokens: Array<Int>, target_len: Int) -> Array<Int>:
         i = i + 1
 
     return padded
+
+fn chunk_kind_marker(kind: String) -> Int:
+    if kind == "fn":
+        return 253
+    if kind == "struct":
+        return 254
+    if kind == "actor":
+        return 250
+    if kind == "world":
+        return 251
+    if kind == "shader":
+        return 252
+    return 255

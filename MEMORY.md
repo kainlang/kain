@@ -10134,3 +10134,29 @@ This pass was a root-stdlib connectivity cleanup rather than a status-type redes
   - the pass exercised the `ui/input/reload` seam natively, but it did not complete a separate visible-window proof; use a dedicated native-visible run next time if the goal is host-window confirmation rather than API/runtime seam validation
 - Requirement-board note:
   - `stdlib/requirements.md` was intentionally left unchanged because this pass materially improved `std::process`, `std::net`, `std::http`, `std::tls`, `std::http2`, `std::hash`, `std::ui`, and `std::reload`, but did not fully close their remaining `PARTIAL` backlog rows yet
+
+# 2026-05-30 - semantic oracle Kain/CUDA pipeline wired and proven through manifest-driven forge
+
+The reusable `crates/semantic` oracle lane now treats tokenizer, transformer, training, search, error, and repair kernels as one data-driven pipeline instead of one-off error-only scaffolding.
+
+- Kain-side changes:
+  - `src/config.kn` owns GPU artifact roots/stems plus transformer seed settings (`KAIN_SEMANTIC_TRANSFORMER_*`, `KAIN_SEMANTIC_GPU_ARTIFACT_DIR`) instead of hardcoded artifact paths
+  - `src/main.kn` exposes `forge`, `index`, `health`, `health-json`, `embed`, and `search` commands; health reports all CUDA artifact families
+  - `src/search_engine.kn` now uses tokenizer/transformer seed embeddings by default, reads nested per-kernel artifact dirs, and uses the actual search kernel keys (`SemanticBitpackDotProduct`, `SemanticWarpTopK`, `SemanticFusedScoreTopK`)
+  - `src/indexer.kn` can consume a source manifest through `KAIN_SEMANTIC_FILE_MANIFEST`; this avoids a native LLVM crash in recursive `fs_read_dir_paths_text` and keeps file discovery data-driven
+  - `build.kn` emits per-kernel CUDA artifacts into isolated dirs like `.kain/oracle/gpu/search_kernel/search_kernel`, because `gpu-artifacts` writes residency as `kain_compute_residency.json` inside the output dir
+- Proof loop that worked:
+  - generate manifest with `rg --files ... > crates/semantic/.kain/oracle/source_manifest.txt`
+  - set `KAIN_SEMANTIC_FILE_MANIFEST=X:\crates\semantic\.kain\oracle\source_manifest.txt`
+  - set `TMP`, `TEMP`, and `TMPDIR` to `Z:\_b\tmp` before `kain run` so Clang/MSVC do not hit full `F:\DevTemp`
+  - `kain check` passed for `src/main.kn`, `src/tokenizer.kn`, all CUDA kernels, and `build.kn`
+  - `kain gpu-artifacts` succeeded for `search_kernel`, `transformer`, `training`, `error_kernel`, and `repair_kernel`
+  - `kain run src/main.kn --target llvm -- forge` produced `2372` code chunks and `635` Kain chunks plus `.kain/oracle/kain_error_oracle.bin`
+  - `kain run src/main.kn --target llvm -- health` confirmed pack/index/matrix and all CUDA bundle/residency artifacts present
+  - `kain run src/main.kn --target llvm -- embed ...` confirmed transformer-enabled 384-byte query preview
+  - `kain run src/main.kn --target llvm -- search` staged and dispatched the fused CUDA search kernel with the fresh GPU runtime DLL
+- Important trap:
+  - the cached `X:\.kain\cache\run\llvm\kain_gpu_runtime.dll` rejected residency target `ks`; rebuilding `kain-gpu-runtime` with `CARGO_TARGET_DIR=Z:\_b\cargo-target\kain-semantic-gpu-runtime` produced a fresh DLL at `Z:\_b\cargo-target\kain-semantic-gpu-runtime\debug\kain_gpu_runtime.dll` that dispatched successfully
+  - Cargo may warn that its global cache database on `F:` is full; the build still succeeds when `CARGO_TARGET_DIR` is moved to `Z:`
+- Real compiler proof:
+  - direct Bazel-built `kain.exe` checks on `crates/semantic/error_corpus/type_unknown_identifier.kn`, `parse_missing_colon.kn`, and `world_missing_surface.kn` failed with enriched diagnostics, notes, and fix-its as expected

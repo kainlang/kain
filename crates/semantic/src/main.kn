@@ -14,12 +14,16 @@ use config::locate_config_path
 use config::config_runtime_root
 use config::oracle_pack_path
 use config::oracle_manifest_path
+use config::gpu_artifact_bundle_path
+use config::gpu_artifact_residency_path
 use indexer::build_index
 use indexer::build_oracle_dataset
 use indexer::index_path
 use indexer::index_matrix_path
 use indexer::index_weight_path
 use indexer::index_bias_path
+use search_engine::search
+use search_engine::query_embedding_preview_json
 use utils::int_to_str
 use utils::bool_to_str
 use utils::normalize_slashes
@@ -48,13 +52,19 @@ fn main() -> Int with Unsafe:
         if command == "index":
             result = handle_index(cfg)
         else:
-            if command == "health" or command == "health-json":
-                result = handle_health(cfg, command == "health-json")
+            if command == "search" or command == "probe":
+                result = handle_search(cfg)
             else:
-                if command == "args-json":
-                    result = handle_args_json()
+                if command == "embed" or command == "embed-json":
+                    result = handle_embed_probe(cfg)
                 else:
-                    result = handle_help(cfg)
+                    if command == "health" or command == "health-json":
+                        result = handle_health(cfg, command == "health-json")
+                    else:
+                        if command == "args-json":
+                            result = handle_args_json()
+                        else:
+                            result = handle_help(cfg)
 
     let shutdown = runtime_shutdown()
     if shutdown != 0:
@@ -133,10 +143,8 @@ fn handle_health(cfg: SemanticSearchConfig, json_mode: Bool) -> Int:
     let kain_index = index_path("kain", cfg)
     let pack = oracle_pack_path(cfg)
     let manifest = oracle_manifest_path(cfg)
-    let error_bundle = normalize_slashes(fs_path_join(config_runtime_root(), ".kain/oracle/gpu/error_kernel.shader_bundle.json"))
-    let error_residency = normalize_slashes(fs_path_join(config_runtime_root(), ".kain/oracle/gpu/error_kernel_compute_residency.json"))
     if json_mode:
-        println(health_json(cfg, code_index, kain_index, pack, manifest, error_bundle, error_residency))
+        println(health_json(cfg, code_index, kain_index, pack, manifest))
     else:
         println("oracle health")
         println("  pack:      " + pack + " present=" + bool_to_str(fs_exists(pack)))
@@ -145,8 +153,36 @@ fn handle_health(cfg: SemanticSearchConfig, json_mode: Bool) -> Int:
         println("  kain idx:  " + kain_index + " present=" + bool_to_str(fs_exists(kain_index)))
         println("  code mat:  " + index_matrix_path(code_index) + " present=" + bool_to_str(fs_exists(index_matrix_path(code_index))))
         println("  kain mat:  " + index_matrix_path(kain_index) + " present=" + bool_to_str(fs_exists(index_matrix_path(kain_index))))
-        println("  error bundle: " + error_bundle + " present=" + bool_to_str(fs_exists(error_bundle)))
-        println("  error resid:  " + error_residency + " present=" + bool_to_str(fs_exists(error_residency)))
+        println("  transformer lane: enabled=" + bool_to_str(cfg.transformer_enabled) + " dim=" + int_to_str(cfg.transformer_dim) + " seq=" + int_to_str(cfg.transformer_max_seq_len))
+        print_gpu_artifact_status("search", cfg, cfg.search_artifact_stem)
+        print_gpu_artifact_status("transformer", cfg, cfg.transformer_artifact_stem)
+        print_gpu_artifact_status("training", cfg, cfg.training_artifact_stem)
+        print_gpu_artifact_status("error", cfg, cfg.error_artifact_stem)
+        print_gpu_artifact_status("repair", cfg, cfg.repair_artifact_stem)
+    return 0
+
+fn handle_search(cfg: SemanticSearchConfig) -> Int:
+    let index_name = search_index_arg()
+    let query = search_query_arg()
+    let top_k = search_top_k_arg()
+    println("search index: " + index_name)
+    println("search query: " + query)
+    println("embedding:    " + query_embedding_preview_json(query, cfg, 12))
+    let response = search(query, index_name, top_k, cfg)
+    if response.error != "":
+        println("search error: " + response.error)
+        return 1
+    println("search results: " + int_to_str(len(response.results)) + " / indexed=" + int_to_str(response.total_indexed) + " ms=" + int_to_str(Int(response.query_ms)))
+    var i: Int = 0
+    while i < len(response.results):
+        let hit = response.results[i]
+        println("  [" + int_to_str(i) + "] score=" + int_to_str(Int(hit.score)) + " " + hit.file_path + ":" + int_to_str(hit.line_start) + " " + hit.kind + " " + hit.symbol)
+        i = i + 1
+    return 0
+
+fn handle_embed_probe(cfg: SemanticSearchConfig) -> Int:
+    let query = search_query_arg()
+    println(query_embedding_preview_json(query, cfg, 24))
     return 0
 
 fn handle_help(cfg: SemanticSearchConfig) -> Int:
@@ -155,6 +191,8 @@ fn handle_help(cfg: SemanticSearchConfig) -> Int:
     println("commands:")
     println("  forge                 Build code + Kain indices and the packed oracle bin")
     println("  index [code|kain|all] Build one or both raw indices")
+    println("  embed [query]         Emit tokenizer/transformer seed embedding preview")
+    println("  search [index] [query] Run CUDA semantic search against a forged index")
     println("  health                Show artifact presence")
     println("  health-json           Emit artifact presence as JSON")
     println("")
@@ -164,27 +202,74 @@ fn handle_help(cfg: SemanticSearchConfig) -> Int:
     println("  " + oracle_pack_path(cfg))
     return 0
 
+fn print_gpu_artifact_status(label: String, cfg: SemanticSearchConfig, stem: String) -> Unit:
+    let bundle = gpu_artifact_bundle_path(cfg, stem)
+    let residency = gpu_artifact_residency_path(cfg, stem)
+    println("  " + label + " bundle: " + bundle + " present=" + bool_to_str(fs_exists(bundle)))
+    println("  " + label + " resid:  " + residency + " present=" + bool_to_str(fs_exists(residency)))
+
 fn handle_args_json() -> Int:
     let raw = raw_args()
     var json = "{\"raw_args\":" + string_array_to_json(raw) + "}"
     println(json)
     return 0
 
-fn health_json(cfg: SemanticSearchConfig, code_index: String, kain_index: String, pack: String, manifest: String, error_bundle: String, error_residency: String) -> String:
+fn health_json(cfg: SemanticSearchConfig, code_index: String, kain_index: String, pack: String, manifest: String) -> String:
     var json = "{"
     json = json + "\"schema\":\"kain.error.semantic.oracle.health.v1\","
     json = json + "\"repo_root\":\"" + health_json_escape(cfg.repo_root) + "\","
     json = json + "\"index_dir\":\"" + health_json_escape(cfg.index_dir) + "\","
+    json = json + "\"gpu_artifact_dir\":\"" + health_json_escape(cfg.gpu_artifact_dir) + "\","
+    json = json + "\"transformer_enabled\":" + json_bool(cfg.transformer_enabled) + ","
+    json = json + "\"transformer_dim\":" + int_to_str(cfg.transformer_dim) + ","
+    json = json + "\"transformer_max_seq_len\":" + int_to_str(cfg.transformer_max_seq_len) + ","
     json = json + "\"pack_present\":" + json_bool(fs_exists(pack)) + ","
     json = json + "\"manifest_present\":" + json_bool(fs_exists(manifest)) + ","
     json = json + "\"code_index_present\":" + json_bool(fs_exists(code_index)) + ","
     json = json + "\"kain_index_present\":" + json_bool(fs_exists(kain_index)) + ","
     json = json + "\"code_matrix_present\":" + json_bool(fs_exists(index_matrix_path(code_index))) + ","
-    json = json + "\"kain_matrix_present\":" + json_bool(fs_exists(index_matrix_path(kain_index))) + ","
-    json = json + "\"error_bundle_present\":" + json_bool(fs_exists(error_bundle)) + ","
-    json = json + "\"error_residency_present\":" + json_bool(fs_exists(error_residency))
+    json = json + "\"kain_matrix_present\":" + json_bool(fs_exists(index_matrix_path(kain_index)))
+    json = append_gpu_artifact_json(json, "search", cfg, cfg.search_artifact_stem)
+    json = append_gpu_artifact_json(json, "transformer", cfg, cfg.transformer_artifact_stem)
+    json = append_gpu_artifact_json(json, "training", cfg, cfg.training_artifact_stem)
+    json = append_gpu_artifact_json(json, "error", cfg, cfg.error_artifact_stem)
+    json = append_gpu_artifact_json(json, "repair", cfg, cfg.repair_artifact_stem)
     json = json + "}"
     return json
+
+fn append_gpu_artifact_json(json: String, name: String, cfg: SemanticSearchConfig, stem: String) -> String:
+    let bundle = gpu_artifact_bundle_path(cfg, stem)
+    let residency = gpu_artifact_residency_path(cfg, stem)
+    var out_json = json
+    out_json = out_json + ",\"" + name + "_bundle_present\":" + json_bool(fs_exists(bundle))
+    out_json = out_json + ",\"" + name + "_residency_present\":" + json_bool(fs_exists(residency))
+    return out_json
+
+fn search_index_arg() -> String:
+    let env_index = env("KAIN_ERROR_ORACLE_SEARCH_INDEX")
+    if env_index != "":
+        return env_index
+    if process_arg_count() > 2:
+        return process_arg(2)
+    return "kain"
+
+fn search_query_arg() -> String:
+    let env_query = env("KAIN_ERROR_ORACLE_QUERY")
+    if env_query != "":
+        return env_query
+    if process_arg_count() > 3:
+        return process_arg(3)
+    if process_arg_count() > 2:
+        return process_arg(2)
+    return "unknown identifier prntln expected println"
+
+fn search_top_k_arg() -> Int:
+    let env_top = env("KAIN_ERROR_ORACLE_TOP_K")
+    if env_top != "":
+        return to_int(env_top)
+    if process_arg_count() > 4:
+        return to_int(process_arg(4))
+    return 5
 
 fn string_array_to_json(values: Array<String>) -> String:
     var json = "["
