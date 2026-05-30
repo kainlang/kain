@@ -169,6 +169,42 @@ impl ShaderDiagnostic {
     pub fn compilation_failed(message: impl Into<String>) -> DiagnosticReport {
         DiagnosticReport::new(ErrorKind::Shader, code("KAIN-SHADER-0010"), message)
     }
+
+    pub fn uniform_binding_error(message: impl Into<String>) -> DiagnosticReport {
+        DiagnosticReport::new(ErrorKind::Shader, code("KAIN-SHADER-0003"), message)
+    }
+
+    pub fn compute_dispatch_dimension(message: impl Into<String>) -> DiagnosticReport {
+        DiagnosticReport::new(ErrorKind::Shader, code("KAIN-SHADER-0004"), message)
+    }
+
+    pub fn resource_not_compatible(message: impl Into<String>) -> DiagnosticReport {
+        DiagnosticReport::new(ErrorKind::Shader, code("KAIN-SHADER-0005"), message)
+    }
+
+    pub fn vertex_input_layout(message: impl Into<String>) -> DiagnosticReport {
+        DiagnosticReport::new(ErrorKind::Shader, code("KAIN-SHADER-0006"), message)
+    }
+
+    pub fn fragment_output_layout(message: impl Into<String>) -> DiagnosticReport {
+        DiagnosticReport::new(ErrorKind::Shader, code("KAIN-SHADER-0007"), message)
+    }
+
+    pub fn collapse_target_invalid(message: impl Into<String>) -> DiagnosticReport {
+        DiagnosticReport::new(ErrorKind::Shader, code("KAIN-SHADER-0008"), message)
+    }
+
+    pub fn fanout_width_exceeded(message: impl Into<String>) -> DiagnosticReport {
+        DiagnosticReport::new(ErrorKind::Shader, code("KAIN-SHADER-0009"), message)
+    }
+
+    pub fn gpu_memory_budget_exceeded(message: impl Into<String>) -> DiagnosticReport {
+        DiagnosticReport::new(ErrorKind::Shader, code("KAIN-SHADER-0011"), message)
+    }
+
+    pub fn shared_memory_bank_conflict(message: impl Into<String>) -> DiagnosticReport {
+        DiagnosticReport::new(ErrorKind::Shader, code("KAIN-SHADER-0012"), message)
+    }
 }
 
 // ── Memory ────────────────────────────────────────────────────────────
@@ -216,6 +252,52 @@ impl CodegenDiagnostic {
 
     pub fn linking_failed(message: impl Into<String>) -> DiagnosticReport {
         DiagnosticReport::new(ErrorKind::Codegen, code("KAIN-CODEGEN-0005"), message)
+    }
+
+    pub fn unsupported_target(message: impl Into<String>) -> DiagnosticReport {
+        DiagnosticReport::new(ErrorKind::Codegen, code("KAIN-CODEGEN-0006"), message)
+    }
+
+    pub fn capability_missing(message: impl Into<String>) -> DiagnosticReport {
+        DiagnosticReport::new(ErrorKind::Codegen, code("KAIN-CODEGEN-0007"), message)
+    }
+
+    pub fn foreign_abi_mismatch(message: impl Into<String>) -> DiagnosticReport {
+        DiagnosticReport::new(ErrorKind::Codegen, code("KAIN-CODEGEN-0008"), message)
+    }
+
+    pub fn intrinsic_not_found(message: impl Into<String>) -> DiagnosticReport {
+        DiagnosticReport::new(ErrorKind::Codegen, code("KAIN-CODEGEN-0009"), message)
+    }
+
+    pub fn optimization_failed(message: impl Into<String>) -> DiagnosticReport {
+        DiagnosticReport::new(ErrorKind::Codegen, code("KAIN-CODEGEN-0010"), message)
+    }
+
+    pub fn budget_exceeded(message: impl Into<String>) -> DiagnosticReport {
+        DiagnosticReport::new(ErrorKind::Codegen, code("KAIN-CODEGEN-0011"), message)
+    }
+}
+
+// ── Runtime ───────────────────────────────────────────────────────────
+
+pub struct RuntimeDiagnostic;
+
+impl RuntimeDiagnostic {
+    pub fn generic(message: impl Into<String>) -> DiagnosticReport {
+        DiagnosticReport::new_default(ErrorKind::Runtime, message)
+    }
+
+    pub fn resource_exhausted(message: impl Into<String>) -> DiagnosticReport {
+        DiagnosticReport::new(ErrorKind::Runtime, code("KAIN-RUNTIME-0004"), message)
+    }
+
+    pub fn shader_dispatch_failed(message: impl Into<String>) -> DiagnosticReport {
+        DiagnosticReport::new(ErrorKind::Runtime, code("KAIN-RUNTIME-0007"), message)
+    }
+
+    pub fn timeout_exceeded(message: impl Into<String>) -> DiagnosticReport {
+        DiagnosticReport::new(ErrorKind::Runtime, code("KAIN-RUNTIME-0008"), message)
     }
 }
 

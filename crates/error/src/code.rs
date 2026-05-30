@@ -37,8 +37,28 @@ impl DiagnosticCode {
 
     pub const CodegenGeneric: Self = Self::new("KAIN-CODEGEN-0001");
     pub const CodegenUnknownVariable: Self = Self::new("KAIN-CODEGEN-0002");
+    pub const CodegenLoweringFailed: Self = Self::new("KAIN-CODEGEN-0003");
+    pub const CodegenBackendFailed: Self = Self::new("KAIN-CODEGEN-0004");
+    pub const CodegenLinkingFailed: Self = Self::new("KAIN-CODEGEN-0005");
+    pub const CodegenUnsupportedTarget: Self = Self::new("KAIN-CODEGEN-0006");
+    pub const CodegenCapabilityMissing: Self = Self::new("KAIN-CODEGEN-0007");
+    pub const CodegenForeignAbiMismatch: Self = Self::new("KAIN-CODEGEN-0008");
+    pub const CodegenIntrinsicNotFound: Self = Self::new("KAIN-CODEGEN-0009");
+    pub const CodegenOptimizationFailed: Self = Self::new("KAIN-CODEGEN-0010");
+    pub const CodegenBudgetExceeded: Self = Self::new("KAIN-CODEGEN-0011");
 
     pub const ShaderUnsupportedCall: Self = Self::new("KAIN-SHADER-0001");
+    pub const ShaderStageMismatch: Self = Self::new("KAIN-SHADER-0002");
+    pub const ShaderUniformBindingError: Self = Self::new("KAIN-SHADER-0003");
+    pub const ShaderComputeDispatchDimension: Self = Self::new("KAIN-SHADER-0004");
+    pub const ShaderResourceNotGpuCompatible: Self = Self::new("KAIN-SHADER-0005");
+    pub const ShaderVertexInputLayout: Self = Self::new("KAIN-SHADER-0006");
+    pub const ShaderFragmentOutputLayout: Self = Self::new("KAIN-SHADER-0007");
+    pub const ShaderCollapseTargetInvalid: Self = Self::new("KAIN-SHADER-0008");
+    pub const ShaderFanoutWidthExceeded: Self = Self::new("KAIN-SHADER-0009");
+    pub const ShaderCompilationFailed: Self = Self::new("KAIN-SHADER-0010");
+    pub const ShaderGpuMemoryBudgetExceeded: Self = Self::new("KAIN-SHADER-0011");
+    pub const ShaderSharedMemoryBankConflict: Self = Self::new("KAIN-SHADER-0012");
 
     pub const IoGeneric: Self = Self::new("KAIN-IO-0001");
     pub const ConfigGeneric: Self = Self::new("KAIN-CONFIG-0001");
