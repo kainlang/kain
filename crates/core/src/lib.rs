@@ -46,6 +46,7 @@ pub use diagnostic_registry::*;
 pub use effects::*;
 pub use error::*;
 pub use formatter::*;
+pub use kain_error::code::DiagnosticCode;
 pub use language_features::*;
 pub use lexer::Lexer;
 pub use low_level_abi::*;
