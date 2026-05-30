@@ -116,6 +116,10 @@ Location rule: paths in this glossary are live in this checkout. Older docs may 
 
 **kain-run** - The unified immediate execution planner behind `kain run`, `kain run dev`, and `kain watch`. It resolves files, projects, manifests, Cargo/C/Node/Fabric inputs, and run metadata through one pipeline, while still carrying some legacy blade compatibility internally. Location: `crates/run/`.
 
+**kain-semantic** - The reusable semantic coprocessor crate for compiler diagnostics, corpus intelligence, and oracle tooling. This is the primary crate path after the `error-semantic` rename. Location: `crates/semantic/`.
+
+**kain-error-semantic** - Compatibility shim crate that re-exports `kain-semantic` for legacy dependency paths. Use this only for transition; new code should depend on `kain-semantic` directly. Location: `crates/error-semantic/`.
+
 **kain-stdlib-map** - The crate behind `kain stdlib-map`. It generates the root stdlib atlas consumed by agents, docs, and build checks. Location: `crates/stdlib-map/`.
 
 **kain-sys-codegen** - The backend emitter crate. LLVM lowering lives here, along with other codegen lanes such as direct C and target-specific lowerings. Location: `crates/sys-codegen/`.

@@ -1,5 +1,32 @@
 # Kain Memory
 
+# 2026-05-30 — semantic crate rename + cross-crate reuse shim
+
+What changed:
+
+- Renamed the primary semantic coprocessor crate from `crates/error-semantic` to `crates/semantic`.
+  - Primary crate/package is now `kain-semantic` (`crate_name = kain_semantic`).
+  - Legacy path `crates/error-semantic` is now a thin compatibility shim crate `kain-error-semantic` that re-exports `kain_semantic::*`.
+- Updated workspace and dependency edges:
+  - `Cargo.toml` workspace members now include `crates/semantic`.
+  - `crates/core` and `crates/gpu` now depend on `kain-semantic` directly (Cargo + source imports + Bazel labels).
+- Updated semantic oracle Kain lane paths from `crates/error-semantic/...` to `crates/semantic/...` in:
+  - `crates/semantic/src/config.kn`
+  - `crates/semantic/src/indexer.kn`
+  - related scratch/error-smoke path helpers.
+- Updated Rust Bazel graph state (`Cargo.Bazel.lock` + generated Rust `BUILD.bazel` files) after crate rename.
+
+Validation:
+
+- `bazel build //crates/semantic:kain-semantic --config=dev` passes.
+- `bazel build //crates/error-semantic:kain-error-semantic //crates/core:kain-core //crates/gpu:gpu --config=dev` passes.
+- `kain check crates/semantic/src/main.kn --target llvm` passes.
+- `kain check crates/semantic/src/repair_kernel.kn --target cuda` passes.
+
+Operational note:
+
+- Cargo host checks were blocked on this workstation by disk pressure in `F:\DevTools\kain-agent\cargo-target` and `F:\DevTemp` (`os error 112`, `LNK1108`). Bazel lane remained healthy via `Z:\_b\tmp`.
+
 # 2026-05-30 — error-semantic oracle forge: LLVM-native binary forge proven
 
 What changed:
