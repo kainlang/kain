@@ -1,0 +1,525 @@
+use std::cuda
+
+// ============================================================================
+//    training_kernel.kn — Backward pass + AdamW optimizer for transformer
+// ============================================================================
+// GPU kernels that train the transformer defined in transformer_kernel.kn.
+// Each kernel processes elements in parallel using the same warp pattern
+// as the forward kernels.
+//
+// Training flow per step:
+//   1. Forward pass (transformer_kernel.kn)
+//   2. CrossEntropySoftmaxBackward — start chain rule from loss
+//   3. MatMulBackward — dInput, dWeight accumulation
+//   4. LayerNormBackward — dInput, dGamma, dBeta
+//   5. GeluBackward — elementwise gradient
+//   6. ResidualBackward — elementwise copy
+//   7. EncoderBackward — accumulate into dWTE, dWPE
+//   8. AdamWUpdate — parameter update step
+//
+// Gradient accumulation: weight gradients accumulate across batches via
+// the GPU kernel (dWeight += new_gradient). Zero before each step.
+// ============================================================================
+
+
+// -------------------------------------------------------------------------
+// KERNEL 1 :: CrossEntropySoftmaxBackward
+// -------------------------------------------------------------------------
+// dlogits[i] = (probs[i] - one_hot(targets[i])) / (B*T)
+// Called after the forward pass produced probs.
+// Writes directly into dlogits, overwriting the probs buffer.
+
+shader compute CrossEntropySoftmaxBackward(id: UVec3) -> Void:
+    uniform probs: StorageBuffer<Float> @0
+    uniform dlogits: StorageBuffer<Float> @1
+    uniform targets: StorageBuffer<Int> @2
+    uniform num_tokens: UInt @3
+    uniform vocab_size: UInt @4
+    uniform dloss_mean: StorageBuffer<Float> @5
+
+    comptime:
+        let compute = (
+            [256, 1, 1],
+            [131072, 1, 1],
+            [
+                ("probs", "f32", ["512", "256"], "input", "kain.shared.buffer"),
+                ("dlogits", "f32", ["512", "256"], "output", "kain.shared.buffer"),
+                ("targets", "i32", ["512"], "input", "kain.shared.buffer"),
+                ("num_tokens", "u32", ["1"], "input", "kain.shared.buffer"),
+                ("vocab_size", "u32", ["1"], "input", "kain.shared.buffer"),
+                ("dloss_mean", "f32", ["1"], "input", "kain.shared.buffer"),
+            ],
+            [
+                ("probs", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("dlogits", "egress", "per-dispatch", "kain.shared.buffer"),
+                ("targets", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("num_tokens", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("vocab_size", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("dloss_mean", "ingress", "per-dispatch", "kain.shared.buffer"),
+            ],
+            [],
+        )
+
+    let flat_idx = id.x
+    if flat_idx >= num_tokens * vocab_size:
+        return
+
+    let t = flat_idx / vocab_size
+    let v = flat_idx % vocab_size
+    let target = targets[t]
+
+    let prob = probs[t * vocab_size + v]
+    let indicator = if v == target: 1.0 else: 0.0
+    let dloss = dloss_mean[0]
+
+    dlogits[t * vocab_size + v] = (prob - indicator) * dloss
+
+
+// -------------------------------------------------------------------------
+// KERNEL 2 :: MatMulBackward — dInput = dOut @ W^T
+// -------------------------------------------------------------------------
+// Computes gradient w.r.t. input: dInp[M, K] = dOut[M, N] @ W[N, K]^T
+// Each thread handles one element of dInp.
+
+shader compute MatMulBackward_DInput(id: UVec3) -> Void:
+    uniform dout: StorageBuffer<Float> @0
+    uniform weight: StorageBuffer<Float> @1
+    uniform dinp: StorageBuffer<Float> @2
+    uniform M: UInt @3
+    uniform N: UInt @4
+    uniform K: UInt @5
+
+    comptime:
+        let compute = (
+            [256, 1, 1],
+            [131072, 1, 1],
+            [
+                ("dout", "f32", ["512", "1152"], "input", "kain.shared.buffer"),
+                ("weight", "f32", ["1152", "384"], "input", "kain.shared.buffer"),
+                ("dinp", "f32", ["512", "384"], "output", "kain.shared.buffer"),
+                ("M", "u32", ["1"], "input", "kain.shared.buffer"),
+                ("N", "u32", ["1"], "input", "kain.shared.buffer"),
+                ("K", "u32", ["1"], "input", "kain.shared.buffer"),
+            ],
+            [
+                ("dout", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("weight", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("dinp", "egress", "per-dispatch", "kain.shared.buffer"),
+                ("M", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("N", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("K", "ingress", "per-dispatch", "kain.shared.buffer"),
+            ],
+            [],
+        )
+
+    let m = id.x / K
+    let k = id.x % K
+    if m >= M or k >= K:
+        return
+
+    var acc: Float = 0.0
+    var n: UInt = 0
+    while n < N:
+        acc = acc + dout[m * N + n] * weight[n * K + k]
+        n = n + UInt(1)
+
+    dinp[m * K + k] = acc
+
+
+// -------------------------------------------------------------------------
+// KERNEL 3 :: MatMulBackward — dWeight = inp^T @ dOut (accumulate)
+// -------------------------------------------------------------------------
+// Computes gradient w.r.t. weight: dW[N, K] += inp[M, K]^T @ dOut[M, N]
+// Each thread handles one element of dWeight.
+// ACCUMULATES — does not overwrite. Call ZeroGrad kernel before training step.
+
+shader compute MatMulBackward_DWeight(id: UVec3) -> Void:
+    uniform inp: StorageBuffer<Float> @0
+    uniform dout: StorageBuffer<Float> @1
+    uniform dweight: StorageBuffer<Float> @2
+    uniform M: UInt @3
+    uniform N: UInt @4
+    uniform K: UInt @5
+
+    comptime:
+        let compute = (
+            [256, 1, 1],
+            [131072, 1, 1],
+            [
+                ("inp", "f32", ["512", "384"], "input", "kain.shared.buffer"),
+                ("dout", "f32", ["512", "1152"], "input", "kain.shared.buffer"),
+                ("dweight", "f32", ["1152", "384"], "output", "kain.shared.buffer"),
+                ("M", "u32", ["1"], "input", "kain.shared.buffer"),
+                ("N", "u32", ["1"], "input", "kain.shared.buffer"),
+                ("K", "u32", ["1"], "input", "kain.shared.buffer"),
+            ],
+            [
+                ("inp", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("dout", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("dweight", "egress", "per-dispatch", "kain.shared.buffer"),
+                ("M", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("N", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("K", "ingress", "per-dispatch", "kain.shared.buffer"),
+            ],
+            [],
+        )
+
+    let n = id.x / K
+    let k = id.x % K
+    if n >= N or k >= K:
+        return
+
+    var acc: Float = 0.0
+    var m: UInt = 0
+    while m < M:
+        acc = acc + inp[m * K + k] * dout[m * N + n]
+        m = m + UInt(1)
+
+    let idx = n * K + k
+    dweight[idx] = dweight[idx] + acc
+
+
+// -------------------------------------------------------------------------
+// KERNEL 4 :: MatMulBackward — dBias = sum(dOut, axis=0) (accumulate)
+// -------------------------------------------------------------------------
+// dBias[n] += sum_m(dOut[m, n])
+
+shader compute MatMulBackward_DBias(id: UVec3) -> Void:
+    uniform dout: StorageBuffer<Float> @0
+    uniform dbias: StorageBuffer<Float> @1
+    uniform M: UInt @2
+    uniform N: UInt @3
+
+    comptime:
+        let compute = (
+            [32, 1, 1],
+            [128, 1, 1],
+            [
+                ("dout", "f32", ["512", "1152"], "input", "kain.shared.buffer"),
+                ("dbias", "f32", ["1152"], "output", "kain.shared.buffer"),
+                ("M", "u32", ["1"], "input", "kain.shared.buffer"),
+                ("N", "u32", ["1"], "input", "kain.shared.buffer"),
+            ],
+            [
+                ("dout", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("dbias", "egress", "per-dispatch", "kain.shared.buffer"),
+                ("M", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("N", "ingress", "per-dispatch", "kain.shared.buffer"),
+            ],
+            [],
+        )
+
+    let n = id.x
+    if n >= N:
+        return
+
+    let lane = cuda_lane_id()
+    var sum: Float = 0.0
+    var m = lane
+    while m < M:
+        sum = sum + dout[m * N + n]
+        m = m + UInt(32)
+
+    let block_sum = cuda_warp_reduce_sum_f32(sum)
+    if lane == UInt(0):
+        dbias[n] = dbias[n] + block_sum
+
+
+// -------------------------------------------------------------------------
+// KERNEL 5 :: LayerNormBackward
+// -------------------------------------------------------------------------
+// Backward through LayerNorm.
+// dInp[(b,t), c], dWeight[c], dBias[c] from dOut, weight, inp, mean, rstd.
+// Each thread handles one position.
+
+shader compute LayerNormBackward(id: UVec3) -> Void:
+    uniform dout: StorageBuffer<Float> @0
+    uniform inp: StorageBuffer<Float> @1
+    uniform weight: StorageBuffer<Float> @2
+    uniform mean: StorageBuffer<Float> @3
+    uniform rstd: StorageBuffer<Float> @4
+    uniform dinp: StorageBuffer<Float> @5
+    uniform dweight: StorageBuffer<Float> @6
+    uniform dbias: StorageBuffer<Float> @7
+    uniform num_positions: UInt @8
+    uniform dim: UInt @9
+
+    comptime:
+        let compute = (
+            [256, 1, 1],
+            [32768, 1, 1],
+            [
+                ("dout", "f32", ["512", "384"], "input", "kain.shared.buffer"),
+                ("inp", "f32", ["512", "384"], "input", "kain.shared.buffer"),
+                ("weight", "f32", ["384"], "input", "kain.shared.buffer"),
+                ("mean", "f32", ["512"], "input", "kain.shared.buffer"),
+                ("rstd", "f32", ["512"], "input", "kain.shared.buffer"),
+                ("dinp", "f32", ["512", "384"], "output", "kain.shared.buffer"),
+                ("dweight", "f32", ["384"], "output", "kain.shared.buffer"),
+                ("dbias", "f32", ["384"], "output", "kain.shared.buffer"),
+                ("num_positions", "u32", ["1"], "input", "kain.shared.buffer"),
+                ("dim", "u32", ["1"], "input", "kain.shared.buffer"),
+            ],
+            [
+                ("dout", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("inp", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("weight", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("mean", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("rstd", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("dinp", "egress", "per-dispatch", "kain.shared.buffer"),
+                ("dweight", "egress", "per-dispatch", "kain.shared.buffer"),
+                ("dbias", "egress", "per-dispatch", "kain.shared.buffer"),
+                ("num_positions", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("dim", "ingress", "per-dispatch", "kain.shared.buffer"),
+            ],
+            [],
+        )
+
+    let pos = id.x
+    if pos >= num_positions:
+        return
+
+    let base = pos * dim
+    let lane = cuda_lane_id()
+    let mean_val = mean[pos]
+    let rstd_val = rstd[pos]
+
+    // Phase 1: Local accumulation for weight/bias gradients per thread
+    var local_dweight: Array<Float> = []
+    var local_dbias: Array<Float> = []
+    var ci: UInt = 0
+    while ci < dim:
+        push(local_dweight, 0.0)
+        push(local_dbias, 0.0)
+        ci = ci + UInt(1)
+
+    // Compute dnorm_mean and dnorm_norm_mean (reduce operations)
+    var dnorm_mean: Float = 0.0
+    var dnorm_norm_mean: Float = 0.0
+    var c = lane
+    while c < dim:
+        let norm_i = (inp[base + c] - mean_val) * rstd_val
+        let dnorm = weight[c] * dout[base + c]
+        dnorm_mean = dnorm_mean + dnorm
+        dnorm_norm_mean = dnorm_norm_mean + dnorm * norm_i
+        local_dweight[c] = norm_i * dout[base + c]
+        local_dbias[c] = dout[base + c]
+        c = c + UInt(32)
+
+    // Warp reduce the two scalars
+    dnorm_mean = cuda_warp_reduce_sum_f32(dnorm_mean) / to_float(dim)
+    dnorm_norm_mean = cuda_warp_reduce_sum_f32(dnorm_norm_mean) / to_float(dim)
+
+    // Phase 2: Write dInput and accumulate dWeight/dBias
+    c = lane
+    while c < dim:
+        let norm_i = (inp[base + c] - mean_val) * rstd_val
+        let dnorm = weight[c] * dout[base + c]
+        var dval: Float = dnorm
+        dval = dval - dnorm_mean
+        dval = dval - norm_i * dnorm_norm_mean
+        dval = dval * rstd_val
+        dinp[base + c] = dinp[base + c] + dval
+        // Accumulate weight/bias gradients with atomic or simple add
+        dweight[c] = dweight[c] + local_dweight[c]
+        dbias[c] = dbias[c] + local_dbias[c]
+        c = c + UInt(32)
+
+
+// -------------------------------------------------------------------------
+// KERNEL 6 :: GeluBackward — elementwise gradient
+// -------------------------------------------------------------------------
+// dInp[i] += local_grad(x_i) * dOut[i]
+// ACCUMULATES into dInp.
+
+shader compute GeluBackward(id: UVec3) -> Void:
+    uniform inp: StorageBuffer<Float> @0
+    uniform dout: StorageBuffer<Float> @1
+    uniform dinp: StorageBuffer<Float> @2
+    uniform num_elements: UInt @3
+
+    comptime:
+        let compute = (
+            [256, 1, 1],
+            [131072, 1, 1],
+            [
+                ("inp", "f32", ["196608"], "input", "kain.shared.buffer"),
+                ("dout", "f32", ["196608"], "input", "kain.shared.buffer"),
+                ("dinp", "f32", ["196608"], "output", "kain.shared.buffer"),
+                ("num_elements", "u32", ["1"], "input", "kain.shared.buffer"),
+            ],
+            [
+                ("inp", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("dout", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("dinp", "egress", "per-dispatch", "kain.shared.buffer"),
+                ("num_elements", "ingress", "per-dispatch", "kain.shared.buffer"),
+            ],
+            [],
+        )
+
+    let idx = id.x
+    if idx >= num_elements:
+        return
+
+    let x = inp[idx]
+    let cube = 0.044715 * x * x * x
+    let tanh_arg = 0.79788456 * (x + cube)  // sqrt(2/pi)
+    let tanh_out = tanh_f32(tanh_arg)
+    let cosh_out = cosh_f32(tanh_arg)
+    let sech_out = 1.0 / (cosh_out * cosh_out)
+    let local_grad = 0.5 * (1.0 + tanh_out) + x * 0.5 * sech_out * 0.79788456 * (1.0 + 3.0 * 0.044715 * x * x)
+
+    dinp[idx] = dinp[idx] + local_grad * dout[idx]
+
+
+// -------------------------------------------------------------------------
+// KERNEL 7 :: ZeroGrad — zero all gradients
+// -------------------------------------------------------------------------
+// Simple elementwise zero. Launch before each training batch.
+
+shader compute ZeroGrad(id: UVec3) -> Void:
+    uniform dweight: StorageBuffer<Float> @0
+    uniform dbias: StorageBuffer<Float> @1
+    uniform dwte: StorageBuffer<Float> @2
+    uniform dwpe: StorageBuffer<Float> @3
+    uniform num_weight_elements: UInt @4
+    uniform num_bias_elements: UInt @5
+    uniform num_wte_elements: UInt @6
+    uniform num_wpe_elements: UInt @7
+
+    comptime:
+        let compute = (
+            [256, 1, 1],
+            [131072, 1, 1],
+            [
+                ("dweight", "f32", ["442368"], "output", "kain.shared.buffer"),
+                ("dbias", "f32", ["9600"], "output", "kain.shared.buffer"),
+                ("dwte", "f32", ["98304"], "output", "kain.shared.buffer"),
+                ("dwpe", "f32", ["196608"], "output", "kain.shared.buffer"),
+                ("num_weight_elements", "u32", ["1"], "input", "kain.shared.buffer"),
+                ("num_bias_elements", "u32", ["1"], "input", "kain.shared.buffer"),
+                ("num_wte_elements", "u32", ["1"], "input", "kain.shared.buffer"),
+                ("num_wpe_elements", "u32", ["1"], "input", "kain.shared.buffer"),
+            ],
+            [
+                ("dweight", "egress", "per-dispatch", "kain.shared.buffer"),
+                ("dbias", "egress", "per-dispatch", "kain.shared.buffer"),
+                ("dwte", "egress", "per-dispatch", "kain.shared.buffer"),
+                ("dwpe", "egress", "per-dispatch", "kain.shared.buffer"),
+                ("num_weight_elements", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("num_bias_elements", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("num_wte_elements", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("num_wpe_elements", "ingress", "per-dispatch", "kain.shared.buffer"),
+            ],
+            [],
+        )
+
+    let idx = id.x
+    if idx < num_weight_elements:
+        dweight[idx] = 0.0
+    if idx < num_bias_elements:
+        dbias[idx] = 0.0
+    if idx < num_wte_elements:
+        dwte[idx] = 0.0
+    if idx < num_wpe_elements:
+        dwpe[idx] = 0.0
+
+
+// -------------------------------------------------------------------------
+// KERNEL 8 :: AdamWUpdate
+// -------------------------------------------------------------------------
+// AdamW optimizer step: param = param - lr * (m_hat / (sqrt(v_hat) + eps) + wd * param)
+// Each thread handles one parameter.
+
+shader compute AdamWUpdate(id: UVec3) -> Void:
+    uniform params: StorageBuffer<Float> @0
+    uniform grads: StorageBuffer<Float> @1
+    uniform m_memory: StorageBuffer<Float> @2
+    uniform v_memory: StorageBuffer<Float> @3
+    uniform num_params: UInt @4
+    uniform learning_rate: StorageBuffer<Float> @5
+    uniform beta1: StorageBuffer<Float> @6
+    uniform beta2: StorageBuffer<Float> @7
+    uniform eps: StorageBuffer<Float> @8
+    uniform weight_decay: StorageBuffer<Float> @9
+    uniform step: StorageBuffer<UInt> @10
+
+    comptime:
+        let compute = (
+            [256, 1, 1],
+            [131072, 1, 1],
+            [
+                ("params", "f32", ["524288"], "output", "kain.shared.buffer"),
+                ("grads", "f32", ["524288"], "input", "kain.shared.buffer"),
+                ("m_memory", "f32", ["524288"], "output", "kain.shared.buffer"),
+                ("v_memory", "f32", ["524288"], "output", "kain.shared.buffer"),
+                ("num_params", "u32", ["1"], "input", "kain.shared.buffer"),
+                ("learning_rate", "f32", ["1"], "ingress", "kain.shared.buffer"),
+                ("beta1", "f32", ["1"], "ingress", "kain.shared.buffer"),
+                ("beta2", "f32", ["1"], "ingress", "kain.shared.buffer"),
+                ("eps", "f32", ["1"], "ingress", "kain.shared.buffer"),
+                ("weight_decay", "f32", ["1"], "ingress", "kain.shared.buffer"),
+                ("step", "u32", ["1"], "ingress", "kain.shared.buffer"),
+            ],
+            [
+                ("params", "egress", "per-dispatch", "kain.shared.buffer"),
+                ("grads", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("m_memory", "egress", "per-dispatch", "kain.shared.buffer"),
+                ("v_memory", "egress", "per-dispatch", "kain.shared.buffer"),
+                ("num_params", "ingress", "per-dispatch", "kain.shared.buffer"),
+            ],
+            [],
+        )
+
+    let idx = id.x
+    if idx >= num_params:
+        return
+
+    let grad = grads[idx]
+    var m = m_memory[idx]
+    var v = v_memory[idx]
+    let t = step[0]
+
+    // AdamW update
+    let b1 = beta1[0]
+    let b2 = beta2[0]
+    m = b1 * m + (1.0 - b1) * grad
+    v = b2 * v + (1.0 - b2) * grad * grad
+
+    let b1_corr = 1.0 - pow_f32(b1, to_float(t))
+    let b2_corr = 1.0 - pow_f32(b2, to_float(t))
+    let m_hat = m / b1_corr
+    let v_hat = v / b2_corr
+
+    let param = params[idx]
+    let lr = learning_rate[0]
+    let wd = weight_decay[0]
+    let ep = eps[0]
+    let update = lr * (m_hat / (sqrt_f32(v_hat) + ep) + wd * param)
+
+    params[idx] = param - update
+    m_memory[idx] = m
+    v_memory[idx] = v
+
+// ============================================================================
+// END KERNELS — training orchestrator in training_host.kn
+// ============================================================================
+// Per-step launch sequence:
+//   1. ZeroGrad(num_weight_el, num_bias_el, num_wte_el, num_wpe_el)
+//   2. Forward pass (from transformer_kernel.kn)
+//   3. CrossEntropySoftmaxBackward  — dlogits from probs + targets
+//   4. MatMulBackward_DWeight(lnf_layer) — dWte from logits backwards
+//   5. LayerNormBackward(lnf)
+//   6. For each layer (in reverse, 3..0):
+//      a. MatMulBackward_DWeight(fc_proj) + MatMulBackward_DWeight(fc)
+//      b. GeluBackward(fch)
+//      c. MatMulBackward_DWeight(attn_proj) + MatMulBackward_DWeight(qkv)
+//      d. LayerNormBackward(ln2)
+//      e. LayerNormBackward(ln1)
+//   7. EncoderBackward — accumulate into dWTE, dWPE
+//   8. AdamWUpdate(num_params)
+//
+// Hyperparameters:
+//   learning_rate = 1e-4, beta1 = 0.9, beta2 = 0.999
+//   eps = 1e-8, weight_decay = 0.01
+//   train for ~10K steps over the symbol_corpus + error_corpus

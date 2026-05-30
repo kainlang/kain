@@ -1,0 +1,137 @@
+// ============================================================================
+//       tokenizer.kn — Kain-native byte-level tokenizer for the transformer
+// ============================================================================
+// Zero-dependency tokenizer that maps text → token IDs (0-255).
+// PAD = 0, valid bytes = 1-255, max_seq_len = 512.
+//
+// No external vocab file. No C ABI. No Python. Just Kain.
+// ============================================================================
+
+use types::Chunk
+
+pub const TOKEN_PAD: Int = 0
+pub const TOKEN_VOCAB_SIZE: Int = 256
+pub const TOKEN_MAX_SEQ_LEN: Int = 512
+
+// ── Text → Array<Int> token ids ────────────────────────────────────────
+
+pub fn tokenize(text: String) -> Array<Int>:
+    let mut tokens: Array<Int> = []
+    var i: Int = 0
+    let max_len = if len(text) < TOKEN_MAX_SEQ_LEN: len(text) else: TOKEN_MAX_SEQ_LEN
+    while i < max_len:
+        let ch = char_at(text, i)
+        let byte_val = ord(ch) & 255
+        let token_id = if byte_val == 0: 1 else: byte_val
+        push(tokens, token_id)
+        i = i + 1
+    return tokens
+
+// ── Text → ptr<Int> token ids (GPU-ready packed buffer) ─────────────────
+
+pub fn tokenize_ptr(text: String, buffer: ptr<Int>) -> Int:
+    let max_len = if len(text) < TOKEN_MAX_SEQ_LEN: len(text) else: TOKEN_MAX_SEQ_LEN
+    var i: Int = 0
+    while i < max_len:
+        let ch = char_at(text, i)
+        let byte_val = ord(ch) & 255
+        let token_id = if byte_val == 0: 1 else: byte_val
+        mem_store(ptr_offset(buffer, i, "Int"), token_id, "Int")
+        i = i + 1
+    return max_len
+
+// ── Chunk → token ids (for oracle corpus indexing) ──────────────────────
+
+pub fn tokenize_chunk(chunk: Chunk) -> Array<Int>:
+    // Tokenize the chunk text with metadata markers
+    let mut tokens: Array<Int> = []
+
+    // Start-of-chunk marker
+    let marker_start = if chunk.kind == "fn": 253
+        else: if chunk.kind == "struct": 254
+        else: if chunk.kind == "actor": 250
+        else: if chunk.kind == "world": 251
+        else: if chunk.kind == "shader": 252
+        else: 255
+    push(tokens, marker_start)
+
+    // Symbol name as lowercase tokens
+    if chunk.symbol != "":
+        var si: Int = 0
+        while si < len(chunk.symbol):
+            let sch = char_at(chunk.symbol, si)
+            push(tokens, ord(sch) & 255)
+            si = si + 1
+
+    // Separator token
+    push(tokens, 240)
+
+    // Chunk text tokens
+    var i: Int = 0
+    let max_len = if len(chunk.text) < TOKEN_MAX_SEQ_LEN - len(tokens): len(chunk.text) else: TOKEN_MAX_SEQ_LEN - len(tokens)
+    while i < max_len:
+        let ch = char_at(chunk.text, i)
+        let byte_val = ord(ch) & 255
+        let token_id = if byte_val == 0: 1 else: byte_val
+        push(tokens, token_id)
+        i = i + 1
+
+    return tokens
+
+// ── Token IDs → text ────────────────────────────────────────────────────
+
+pub fn detokenize(tokens: Array<Int>) -> String:
+    var text = ""
+    var i: Int = 0
+    while i < len(tokens):
+        let token = tokens[i]
+        if token >= 1 and token <= 255:
+            text = text + chr(token)
+        i = i + 1
+    return text
+
+// ── Count tokens in a text ──────────────────────────────────────────────
+
+pub fn token_count(text: String) -> Int:
+    if len(text) > TOKEN_MAX_SEQ_LEN:
+        return TOKEN_MAX_SEQ_LEN
+    return len(text)
+
+// ── Vocabulary accessors ────────────────────────────────────────────────
+
+pub fn vocab_size() -> Int:
+    return TOKEN_VOCAB_SIZE
+
+pub fn pad_token() -> Int:
+    return TOKEN_PAD
+
+pub fn max_seq_len() -> Int:
+    return TOKEN_MAX_SEQ_LEN
+
+// ── Batch tokenization for training ─────────────────────────────────────
+
+pub fn tokenize_batch(chunks: Array<Chunk>) -> Array<Array<Int>>:
+    let mut batch: Array<Array<Int>> = []
+    var i: Int = 0
+    while i < len(chunks):
+        push(batch, tokenize_chunk(chunks[i]))
+        i = i + 1
+    return batch
+
+// ── Padding helpers ─────────────────────────────────────────────────────
+
+pub fn pad_tokens(tokens: Array<Int>, target_len: Int) -> Array<Int>:
+    let mut padded: Array<Int> = []
+    var i: Int = 0
+
+    // Copy valid tokens
+    while i < len(tokens) and i < target_len:
+        push(padded, tokens[i])
+        i = i + 1
+
+    // Pad remaining
+    while i < target_len:
+        push(padded, TOKEN_PAD)
+        i = i + 1
+
+    return padded
