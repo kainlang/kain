@@ -1,0 +1,172 @@
+// ============================================================================
+//                 error-semantic :: offline oracle configuration
+// ============================================================================
+// The Rust crate will eventually consume the binary oracle this Kain lane
+// forges. Keep the paths boring and local: no root litter, no MCP ceremony.
+
+use std::fs
+use std::process
+use std::text
+
+pub struct SemanticSearchConfig:
+    repo_root: String
+    code_dirs: Array<String>
+    kain_dirs: Array<String>
+    code_extensions: Array<String>
+    kain_extensions: Array<String>
+    index_dir: String
+    model_name: String
+    dim: Int
+    batch_size: Int
+    max_chunk_chars: Int
+    min_chunk_chars: Int
+    overlap_chars: Int
+    default_top_k: Int
+    max_top_k: Int
+    min_score: Float
+    server_host: String
+    server_port: Int
+    max_concurrent: Int
+    request_timeout_ms: Int
+    gpu_enabled: Bool
+    gpu_device_index: Int
+    gpu_threads_per_block: Int
+    gpu_batch_chunks: Int
+
+pub fn default_config() -> SemanticSearchConfig:
+    let mut code_dirs: Array<String> = []
+    push(code_dirs, "crates/error-semantic/src")
+    push(code_dirs, "crates/error/src")
+    push(code_dirs, "crates/core/src")
+    push(code_dirs, "crates/check/src")
+    push(code_dirs, "crates/driver/src")
+
+    let mut kain_dirs: Array<String> = []
+    push(kain_dirs, "crates/error-semantic/src")
+    push(kain_dirs, "stdlib")
+    push(kain_dirs, "smoketest/src")
+    push(kain_dirs, "library_of_kain")
+
+    let mut code_extensions: Array<String> = []
+    push(code_extensions, "rs")
+    push(code_extensions, "c")
+    push(code_extensions, "h")
+    push(code_extensions, "toml")
+    push(code_extensions, "bazel")
+    push(code_extensions, "bzl")
+
+    let mut kain_extensions: Array<String> = []
+    push(kain_extensions, "kn")
+
+    return SemanticSearchConfig {
+        repo_root: default_repo_root(),
+        code_dirs: code_dirs,
+        kain_dirs: kain_dirs,
+        code_extensions: code_extensions,
+        kain_extensions: kain_extensions,
+        index_dir: ".kain/oracle/indices",
+        model_name: "kain-error-oracle-packed-u8",
+        dim: 384,
+        batch_size: 64,
+        max_chunk_chars: 2048,
+        min_chunk_chars: 64,
+        overlap_chars: 256,
+        default_top_k: 12,
+        max_top_k: 128,
+        min_score: 0.0,
+        server_host: "127.0.0.1",
+        server_port: 0,
+        max_concurrent: 1,
+        request_timeout_ms: 0,
+        gpu_enabled: true,
+        gpu_device_index: 0,
+        gpu_threads_per_block: 256,
+        gpu_batch_chunks: 100000,
+    }
+
+pub fn load_config(path: String) -> SemanticSearchConfig:
+    let mut cfg = default_config()
+    let env_root = env("KAIN_ERROR_ORACLE_REPO_ROOT")
+    if env_root != "":
+        cfg.repo_root = env_root
+    let env_index = env("KAIN_ERROR_ORACLE_INDEX_DIR")
+    if env_index != "":
+        cfg.index_dir = env_index
+    let env_dim = env("KAIN_ERROR_ORACLE_DIM")
+    if env_dim != "":
+        cfg.dim = to_int(env_dim)
+    if cfg.dim <= 0:
+        cfg.dim = 384
+    if config_path_is_absolute(cfg.index_dir) == false:
+        cfg.index_dir = fs_path_join(config_runtime_root_from(path), cfg.index_dir)
+    if config_path_is_absolute(cfg.repo_root) == false:
+        cfg.repo_root = fs_path_join(config_runtime_root_from(path), cfg.repo_root)
+    return cfg
+
+pub fn locate_config_path() -> String:
+    let env_path = env("KAIN_ERROR_ORACLE_CONFIG")
+    if env_path != "":
+        return env_path
+    let project_root = oracle_project_root()
+    let candidate = fs_path_join(project_root, "oracle.config.toml")
+    if fs_exists(candidate):
+        return candidate
+    let legacy = fs_path_join(project_root, "config.toml")
+    if fs_exists(legacy):
+        return legacy
+    return candidate
+
+pub fn config_runtime_root() -> String:
+    return config_runtime_root_from(locate_config_path())
+
+pub fn oracle_root(cfg: SemanticSearchConfig) -> String:
+    let parent = fs_path_parent(cfg.index_dir)
+    if parent != "":
+        return parent
+    return ".kain/oracle"
+
+pub fn oracle_pack_path(cfg: SemanticSearchConfig) -> String:
+    return fs_path_join(oracle_root(cfg), "kain_error_oracle.bin")
+
+pub fn oracle_manifest_path(cfg: SemanticSearchConfig) -> String:
+    return fs_path_join(oracle_root(cfg), "kain_error_oracle.manifest.json")
+
+fn default_repo_root() -> String:
+    let env_root = env("KAIN_HOME")
+    if env_root != "" and text_ends_with_string(to_lower(env_root), "\\.kain") == false and text_ends_with_string(to_lower(env_root), "/.kain") == false:
+        return env_root
+    return repo_root_from_project(oracle_project_root())
+
+fn repo_root_from_project(project_root: String) -> String:
+    let normalized = replace(project_root, "/", "\\")
+    let lower = to_lower(normalized)
+    let suffix = "crates\\error-semantic"
+    if text_ends_with_string(lower, suffix):
+        return substring(normalized, 0, len(normalized) - len(suffix))
+    return fs_path_join(project_root, "..\\..")
+
+fn config_runtime_root_from(path: String) -> String:
+    let parent = fs_path_parent(path)
+    if parent != "":
+        return parent
+    return oracle_project_root()
+
+fn oracle_project_root() -> String:
+    let cwd = process_current_working_directory()
+    if cwd == "":
+        return "."
+    let lower = to_lower(replace(cwd, "/", "\\"))
+    if text_ends_with_string(lower, "\\crates\\error-semantic\\src"):
+        return fs_path_parent(cwd)
+    if text_ends_with_string(lower, "\\crates\\error-semantic"):
+        return cwd
+    return cwd
+
+fn config_path_is_absolute(path: String) -> Bool:
+    if len(path) >= 2 and char_at(path, 1) == ":":
+        return true
+    if text_starts_with_string(path, "\\\\"):
+        return true
+    if text_starts_with_string(path, "/"):
+        return true
+    return false

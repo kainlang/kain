@@ -1,0 +1,281 @@
+// ============================================================================
+//                 error-semantic :: binary oracle serializer
+// ============================================================================
+// Reads and writes the packed index format for fast GPU upload and later
+// zero-copy Rust-side diagnostic oracle consumption.
+
+use std::fs
+use std::memory
+use std::io
+use std::text
+use types::IndexHeader
+use types::IndexMeta
+use types::LoadedIndex
+use types::INDEX_MAGIC
+use types::INDEX_VERSION
+use types::INDEX_FLAG_PACKED_U8
+use types::empty_loaded_index
+use config::SemanticSearchConfig
+use utils::bytes_to_hex_string
+
+const HEADER_SIZE: Int = 30
+
+struct ParsedMeta:
+    meta: IndexMeta
+    norm: Float
+    next_cursor: Int
+    ok: Bool
+
+pub fn write_index(index: LoadedIndex, path: String) -> Bool with Unsafe:
+    let header_bytes = build_header(index.header)
+    let embed_bytes = index.embeddings
+    let meta_bytes = metas_to_bytes(index.metas)
+    return write_index_hex_payload(path, bytes_to_hex_string(header_bytes), bytes_to_hex_string(embed_bytes), bytes_to_hex_string(meta_bytes))
+
+pub fn write_index_header(header: IndexHeader, path: String) -> Bool with Unsafe:
+    let header_hex = bytes_to_hex_string(build_header(header))
+    return fs_try_write_bytes_hex(path, header_hex).ok
+
+pub fn patch_index_header(header: IndexHeader, path: String) -> Bool with Unsafe:
+    let header_hex = bytes_to_hex_string(build_header(header))
+    return fs_try_write_bytes_hex_at(path, 0, header_hex).ok
+
+pub fn append_index_hex(path: String, hex: String) -> Bool with Unsafe:
+    return fs_try_append_bytes_hex(path, hex).ok
+
+pub fn append_index_bytes(path: String, bytes: Array<Int>) -> Bool with Unsafe:
+    return fs_try_append_bytes(path, bytes).ok
+
+pub fn write_index_bytes(header: IndexHeader, embed_hex: String, meta_hex: String, path: String) -> Bool with Unsafe:
+    let header_hex = bytes_to_hex_string(build_header(header))
+    return write_index_hex_payload(path, header_hex, embed_hex, meta_hex)
+
+fn write_index_hex_payload(path: String, header_hex: String, embed_hex: String, meta_hex: String) -> Bool with Unsafe:
+    let payload_hex = header_hex + embed_hex + meta_hex
+    return fs_try_write_bytes_hex(path, payload_hex).ok
+
+pub fn read_index(path: String, cfg: SemanticSearchConfig) -> LoadedIndex:
+    if fs_exists(path) == false:
+        return empty_loaded_index()
+    let raw_hex = fs_read_bytes_hex(path)
+    if fs_last_status() != 0:
+        return empty_loaded_index()
+    let raw = fs_hex_to_bytes(raw_hex)
+    if len(raw) < HEADER_SIZE:
+        return empty_loaded_index()
+    if raw_has_index_magic(raw) == false:
+        return empty_loaded_index()
+    let header = parse_header(raw)
+    if header.version != INDEX_VERSION:
+        return empty_loaded_index()
+    if (header.flags & INDEX_FLAG_PACKED_U8) == 0:
+        return empty_loaded_index()
+    if header.dim != cfg.dim:
+        return empty_loaded_index()
+    let (embeddings, metas, norms) = parse_streamed_chunks(raw, HEADER_SIZE, header.num_chunks, header.dim)
+    return LoadedIndex {
+        header: header,
+        embeddings: embeddings,
+        metas: metas,
+        norms: norms,
+    }
+
+fn raw_has_index_magic(raw: Array<Int>) -> Bool:
+    if len(raw) < 10:
+        return false
+    var j: Int = 0
+    while j < 10:
+        if (raw[j] & 255) != INDEX_MAGIC[j]:
+            return false
+        j = j + 1
+    return true
+
+// ---- header ----------------------------------------------------------------
+
+fn build_header(h: IndexHeader) -> Array<Int>:
+    let mut buf: Array<Int> = []
+    var j: Int = 0
+    while j < 10:
+        push(buf, INDEX_MAGIC[j])
+        j = j + 1
+    push(buf, h.version & 255)
+    push(buf, (h.version >> 8) & 255)
+    push(buf, (h.version >> 16) & 255)
+    push(buf, (h.version >> 24) & 255)
+    push(buf, 0)
+    push(buf, 0)
+    var nc = h.num_chunks
+    push(buf, nc & 255)
+    push(buf, (nc >> 8) & 255)
+    push(buf, (nc >> 16) & 255)
+    push(buf, (nc >> 24) & 255)
+    push(buf, 0)
+    push(buf, 0)
+    push(buf, 0)
+    push(buf, 0)
+    push(buf, h.dim & 255)
+    push(buf, (h.dim >> 8) & 255)
+    push(buf, (h.dim >> 16) & 255)
+    push(buf, (h.dim >> 24) & 255)
+    push(buf, h.flags & 255)
+    push(buf, (h.flags >> 8) & 255)
+    return buf
+
+fn parse_header(raw: Array<Int>) -> IndexHeader:
+    if len(raw) < HEADER_SIZE:
+        return IndexHeader { magic: "", version: 0, num_chunks: 0, dim: 0, flags: 0, header_bytes: 0 }
+    var magic = ""
+    var j: Int = 0
+    while j < 10:
+        magic = magic + chr(raw[j])
+        j = j + 1
+    let version = read_u32(raw, 10)
+    let num_chunks = read_u32(raw, 16)
+    let dim = read_u32(raw, 24)
+    let flags = read_u16(raw, 28)
+    return IndexHeader {
+        magic: magic,
+        version: version,
+        num_chunks: num_chunks,
+        dim: dim,
+        flags: flags,
+        header_bytes: HEADER_SIZE,
+    }
+
+fn read_u16(raw: Array<Int>, offset: Int) -> Int:
+    return raw[offset] | (raw[offset + 1] << 8)
+
+fn read_u32(raw: Array<Int>, offset: Int) -> Int:
+    return raw[offset] | (raw[offset + 1] << 8) | (raw[offset + 2] << 16) | (raw[offset + 3] << 24)
+
+// ---- metadata --------------------------------------------------------------
+
+fn parse_streamed_chunks(raw: Array<Int>, offset: Int, count: Int, dim: Int) -> (Array<Int>, Array<IndexMeta>, Array<Float>):
+    let mut embeddings: Array<Int> = []
+    let mut metas: Array<IndexMeta> = []
+    let mut norms: Array<Float> = []
+    var cursor = offset
+    var i: Int = 0
+    let embed_bytes = dim
+    while i < count and cursor + embed_bytes <= len(raw):
+        if i == 0 and len(embeddings) == 0:
+            var j: Int = 0
+            while j < dim and cursor + j < len(raw):
+                push(embeddings, raw[cursor + j] & 255)
+                j = j + 1
+        cursor = cursor + embed_bytes
+        let parsed = parse_one_meta(raw, cursor)
+        if parsed.ok == false:
+            break
+        push(metas, parsed.meta)
+        push(norms, parsed.norm)
+        cursor = parsed.next_cursor
+        i = i + 1
+    return (embeddings, metas, norms)
+
+fn metas_to_bytes(metas: Array<IndexMeta>) -> Array<Int>:
+    let mut bytes: Array<Int> = []
+    var i: Int = 0
+    while i < len(metas):
+        let m = metas[i]
+        let path_bytes = string_to_bytes(m.file_path)
+        let kind_bytes = string_to_bytes(m.kind)
+        let sym_bytes = string_to_bytes(m.symbol)
+        push(bytes, len(path_bytes) & 255)
+        push(bytes, (len(path_bytes) >> 8) & 255)
+        push(bytes, m.line_start & 255)
+        push(bytes, (m.line_start >> 8) & 255)
+        push(bytes, (m.line_start >> 16) & 255)
+        push(bytes, (m.line_start >> 24) & 255)
+        push(bytes, m.line_end & 255)
+        push(bytes, (m.line_end >> 8) & 255)
+        push(bytes, (m.line_end >> 16) & 255)
+        push(bytes, (m.line_end >> 24) & 255)
+        push(bytes, len(kind_bytes) & 255)
+        push(bytes, (len(kind_bytes) >> 8) & 255)
+        push(bytes, len(sym_bytes) & 255)
+        push(bytes, (len(sym_bytes) >> 8) & 255)
+        var j: Int = 0
+        while j < len(path_bytes):
+            push(bytes, path_bytes[j])
+            j = j + 1
+        j = 0
+        while j < len(kind_bytes):
+            push(bytes, kind_bytes[j])
+            j = j + 1
+        j = 0
+        while j < len(sym_bytes):
+            push(bytes, sym_bytes[j])
+            j = j + 1
+        i = i + 1
+    return bytes
+
+fn parse_metas(raw: Array<Int>, offset: Int, count: Int) -> (Array<IndexMeta>, Array<Float>):
+    let mut metas: Array<IndexMeta> = []
+    let mut norms: Array<Float> = []
+    var cursor = offset
+    var i: Int = 0
+    while i < count and cursor < len(raw):
+        let parsed = parse_one_meta(raw, cursor)
+        if parsed.ok == false:
+            break
+        push(metas, parsed.meta)
+        push(norms, parsed.norm)
+        cursor = parsed.next_cursor
+        i = i + 1
+    return (metas, norms)
+
+fn parse_one_meta(raw: Array<Int>, offset: Int) -> ParsedMeta:
+    var cursor = offset
+    let empty = IndexMeta { file_path: "", line_start: 0, line_end: 0, kind: "", symbol: "" }
+    if cursor + 14 > len(raw):
+        return ParsedMeta { meta: empty, norm: 0.0, next_cursor: cursor, ok: false }
+    let path_len = read_u16(raw, cursor)
+    cursor = cursor + 2
+    let line_start = read_u32(raw, cursor)
+    cursor = cursor + 4
+    let line_end = read_u32(raw, cursor)
+    cursor = cursor + 4
+    let kind_len = read_u16(raw, cursor)
+    cursor = cursor + 2
+    let sym_len = read_u16(raw, cursor)
+    cursor = cursor + 2
+    if cursor + path_len + kind_len + sym_len > len(raw):
+        return ParsedMeta { meta: empty, norm: 0.0, next_cursor: cursor, ok: false }
+    let file_path = bytes_to_string(raw, cursor, path_len)
+    cursor = cursor + path_len
+    let kind = bytes_to_string(raw, cursor, kind_len)
+    cursor = cursor + kind_len
+    let symbol = bytes_to_string(raw, cursor, sym_len)
+    cursor = cursor + sym_len
+    return ParsedMeta {
+        meta: IndexMeta {
+            file_path: file_path,
+            line_start: line_start,
+            line_end: line_end,
+            kind: kind,
+            symbol: symbol,
+        },
+        norm: 0.0,
+        next_cursor: cursor,
+        ok: true,
+    }
+
+fn string_to_bytes(s: String) -> Array<Int>:
+    let mut bytes: Array<Int> = []
+    var i: Int = 0
+    while i < len(s):
+        push(bytes, ord(char_at(s, i)))
+        i = i + 1
+    return bytes
+
+fn bytes_to_string(raw: Array<Int>, offset: Int, length: Int) -> String:
+    var s = ""
+    var i: Int = 0
+    while i < length and offset + i < len(raw):
+        s = s + chr(raw[offset + i])
+        i = i + 1
+    return s
+
+fn int_to_byte(n: Int) -> Int:
+    return n & 255

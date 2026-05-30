@@ -3368,8 +3368,9 @@ pub fn main_entry() {
                         std::process::exit(1);
                     }
                 }
-                Some(Commands::GpuArtifacts { input, output }) => {
-                    match gpu_artifacts::run_gpu_artifact_pipeline(&input, output.as_ref()) {
+                Some(Commands::GpuArtifacts { input, output, target, no_residency, no_derived }) => {
+                    let artifact_target = gpu_artifacts::GpuArtifactTarget::from_arg(&target);
+                    match gpu_artifacts::run_gpu_artifact_pipeline(&input, output.as_ref(), artifact_target, no_residency, no_derived) {
                         Ok(paths) => {
                             println!(" Generated {} GPU artifact files:", paths.len());
                             for path in paths {

@@ -915,6 +915,18 @@ pub enum KainCommand {
         /// Output base path for generated GPU artifacts
         #[arg(short, long)]
         output: Option<PathBuf>,
+
+        /// Restrict artifact output to a specific target: spirv, cuda, hlsl, all (default: all)
+        #[arg(long, default_value = "all")]
+        target: String,
+
+        /// Skip compute residency sidecar generation (the .json + .bin staging files)
+        #[arg(long)]
+        no_residency: bool,
+
+        /// Skip derived cross-target artifacts (HLSL from SPIR-V, PTX from SPIR-V)
+        #[arg(long)]
+        no_derived: bool,
     },
 
     /// Inject KAIN file into existing plugin (non-destructive)

@@ -45,7 +45,7 @@ Best first examples:
 
 ## Pipeline Map
 
-Kain rendering has two pipelines that meet at runtime:
+Kain rendering has three pipelines that meet at runtime:
 
 ```text
 Kain .kn source
@@ -59,14 +59,33 @@ CPU/native host lane:
   -> native runtime ABI calls
   -> std::graphics, std::gpu policy use, stdlib calls, worlds, actors, pulse, ownership, @extern bridges
 
-GPU shader lane:
+SPIR-V shader lane:
   CompileTarget::Spirv
   -> crates/gpu
   -> canonical SPIR-V bytes through rspirv
-  -> derived HLSL sidecar
-  -> derived PTX sidecar when compute-only and eligible
   -> runtime/package executor consumes artifacts
+
+CUDA/PTX native lane (FIRST-CLASS, not derived):
+  CompileTarget::Cuda
+  -> crates/gpu
+  -> direct PTX emission via codegen_ptx
+  -> NVIDIA Driver API JIT-load + launch via kain-gpu-runtime
+  -> supports fused kernels, warp intrinsics, bitpack dot-product, shared memory
+  -> NO spirv roundtrip, NO hlsl derivation — pure CUDA blood
 ```
+
+Target selection via `kain gpu-artifacts --target <name>`:
+
+| `--target` | Primary artifact | Sidecars | Residency |
+| --- | --- | --- | --- |
+| `all` (default) | SPIR-V + derived PTX/HLSL | .gpu.rs, .reflect.json, .shader_bundle.json | yes |
+| `spirv` / `vulkan` | SPIR-V only | .gpu.rs, .reflect.json, .shader_bundle.json | yes (opt-out) |
+| `cuda` / `ptx` | PTX only (CUDA-native path) | .gpu.rs, .reflect.json, .shader_bundle.json | yes |
+| `hlsl` / `d3d` | SPIR-V + derived HLSL | .gpu.rs, .reflect.json, .shader_bundle.json | yes (opt-out) |
+
+Additional flags:
+- `--no-residency`: skip compute residency sidecar generation (.json + .bin staging files)
+- `--no-derived`: skip derived cross-target artifacts (HLSL from SPIR-V, PTX from SPIR-V)
 
 Core source anchors:
 
@@ -75,9 +94,10 @@ Core source anchors:
 - Shader typecheck: `crates/core/src/types.rs` `check_shader`; `StorageBuffer<T>` resolves as slice-like `ResolvedType::Slice`.
 - LLVM host lane: `crates/sys-codegen/src/codegen_llvm/mod.rs` `generate` and `compile_module`.
 - SPIR-V backend: `crates/gpu/src/codegen_spirv.rs`; it uses `rspirv` directly, not LLVM SPIR-V.
-- PTX backend: `crates/gpu/src/codegen_ptx.rs`; compute-only derived NVIDIA path.
-- Artifact bundle driver: `crates/driver/src/lib.rs` `compile_shader_artifact_bundle`.
+- PTX backend: `crates/gpu/src/codegen_ptx.rs`; full CUDA-native codegen with warp intrinsics, shared memory, bitpack ops, fused kernel lowering.
+- Artifact bundle driver: `crates/driver/src/lib.rs` `compile_shader_artifact_bundle`, `compile_cuda_artifact_bundle`.
 - CLI artifact writer: `crates/cli/src/gpu_artifacts.rs`.
+- CUDA runtime executor: `crates/gpu-runtime/src/nvidia_ptx.rs`; dynamic CUDA Driver API, JIT PTX load, zero toolkit dependency.
 - Vulkan compute executor: `crates/gpu-runtime/src/executor.rs`.
 - NVIDIA PTX executor: `crates/gpu-runtime/src/nvidia_ptx.rs`.
 - Native graphics ABI: `runtime/native/include/graphics_system.h`, `runtime/native/src/core/graphics_system.c`.
@@ -91,8 +111,9 @@ Core source anchors:
 | `std::graphics` | native graphics command-recording ABI facade: sessions, backend selection, buffers, SPIR-V registration, meshes, pipelines, begin/end/present, draw inspection | full Vulkan/D3D executor in the C layer |
 | `std::graphics::shared` | adapters from `std::gpu` resources to graphics vertex/index/uniform/storage/image/attachment views | device submission, fence/semaphore/barrier execution |
 | `std::math` | engine math and GPU layout helpers: `Std140`, `Std430`, `CBuffer`, `GpuLayoutInfo`, padded vec3/mat helpers | backend memory allocation |
-| `kain gpu-artifacts` | SPIR-V, Rust host wrapper, reflection JSON, shader bundle JSON, derived HLSL/PTX | presenting frames by itself |
-| `kain-gpu-runtime` | concrete Vulkan compute dispatch and NVIDIA PTX dispatch from sidecars | authored render-loop UX |
+| `std::cuda` | CUDA-side driver API bindings: JIT PTX load, buffer staging, kernel dispatch, warp intrinsics (`cuda_lane_id`, `cuda_warp_reduce_sum_u32`, etc.), residency manifest inspection | CUDA Toolkit installation |
+| `kain gpu-artifacts` | SPIR-V, CUDA/PTX, HLSL, Rust host wrapper, reflection JSON, shader bundle JSON, compute residency sidecars | presenting frames by itself |
+| `kain-gpu-runtime` | concrete Vulkan compute dispatch and NVIDIA PTX dispatch from sidecars (dynamic CUDA Driver API, zero toolkit) | authored render-loop UX |
 | `package-vulkain` | package-owned Vulkan window/presenter bridge and examples | generic compiler/runtime GPU truth |
 
 ## Shader Authoring Rules
@@ -145,27 +166,44 @@ Rules:
 Use `kain gpu-artifacts` when the deliverable is the shader pipeline artifact set:
 
 ```powershell
+# Default: SPIR-V + all derived sidecars + residency
 kain gpu-artifacts path/to/kernels.kn --output .kain/gpu/my_pipeline/kernel.spv
+
+# CUDA-only: pure PTX, no SPIRV, no HLSL — one clean artifact set for NVIDIA
+kain gpu-artifacts path/to/kernels.kn --output kain --target cuda
+
+# SPIR-V only: skip derived HLSL/PTX cross-compilation
+kain gpu-artifacts path/to/kernels.kn --output kernel.spv --target spirv --no-derived
+
+# Minimal: just the shader bundle and reflection, no residency staging files
+kain gpu-artifacts path/to/kernels.kn --output kernel --target cuda --no-residency
+
+# HLSL-only for D3D consumption
+kain gpu-artifacts path/to/kernels.kn --output kernel --target hlsl
 ```
 
-That writes:
+That writes (depending on target):
 
-- `.spv`: canonical SPIR-V bytes.
+- `.spv`: canonical SPIR-V bytes (spirv/hlsl/all targets).
+- `.derived.ptx`: PTX bytes — CUDA-native codegen when `--target cuda`; derived from SPIR-V when `--target all`.
+- `.derived.hlsl`: derived HLSL (hlsl/all targets).
 - `.gpu.rs`: generated Rust host wrapper sidecar.
 - `.reflect.json`: GPU reflection metadata.
 - `.shader_bundle.json`: portable shader bundle metadata.
-- `.derived.hlsl`: derived HLSL when eligible.
-- `.derived.ptx`: derived PTX when the typed program is compute-stage eligible.
+- `*_compute_residency.json` + `*.bin`: compute residency staging sidecars (skipped with `--no-residency`).
 
 Use `kain build <file> --target spirv -o <file.spv>` for a raw SPIR-V binary when the sidecars are not needed.
+Use `kain build <file> --target cuda -o <file.ptx>` for a raw PTX binary.
 
 Artifact rules:
 
-- Treat SPIR-V as canonical.
-- Treat PTX/HLSL as derived sidecars.
-- PTX is compute-only in the current pipeline.
+- SPIR-V is canonical for Vulkan.
+- PTX is canonical for CUDA — it is NOT a "derived sidecar" when targeting CUDA. It IS a derived sidecar when the primary target is SPIR-V.
+- HLSL is always a derived sidecar.
+- PTX supports compute-stage shader programs only; graphics shaders (vertex/fragment) stay in SPIR-V/HLSL.
 - Validate with `spirv-val --target-env vulkan1.3` when available.
 - For real runtime dispatch, consume the shader bundle through `kain-gpu-runtime`, a benchmark dispatcher, Fabric GPU step, or a package bridge until stdlib exposes richer public fence/semaphore/barrier APIs.
+- CUDA dispatch uses `std::cuda` Kain-side bindings + `crates/gpu-runtime/src/nvidia_ptx.rs` runtime executor — no CUDA Toolkit required, just the NVIDIA driver.
 
 ## Host Graphics Loop
 
@@ -261,14 +299,17 @@ Policy rules:
 
 The compute runtime is more concrete than the public native graphics command recorder:
 
-- `crates/gpu-runtime/src/executor.rs` consumes shader bundles and compute residency sidecars.
-- It creates a Vulkan compute shader module, sorts descriptor bindings by slot, creates host-visible/coherent buffers, builds descriptor set layout and compute pipeline, binds descriptor sets, dispatches workgroups, inserts a `COMPUTE_SHADER -> HOST` memory barrier, submits the queue, waits idle, and maps output buffers back.
-- `crates/gpu-runtime/src/nvidia_ptx.rs` loads the CUDA Driver API dynamically, JIT-loads PTX in memory, uploads storage buffers, launches the kernel, calls `cuCtxSynchronize`, downloads output buffers, and does not require the CUDA toolkit.
-- NVIDIA PTX supports storage-buffer compute shapes; unsupported descriptor kinds should stay in SPIR-V/Vulkan or package bridge lanes.
+- `crates/gpu-runtime/src/executor.rs` consumes shader bundles and compute residency sidecars. It creates a Vulkan compute shader module, sorts descriptor bindings by slot, creates host-visible/coherent buffers, builds descriptor set layout and compute pipeline, binds descriptor sets, dispatches workgroups, inserts a `COMPUTE_SHADER -> HOST` memory barrier, submits the queue, waits idle, and maps output buffers back.
+- `crates/gpu-runtime/src/nvidia_ptx.rs` loads the CUDA Driver API dynamically, JIT-loads PTX in memory, uploads storage buffers, launches the kernel, calls `cuCtxSynchronize`, downloads output buffers. **No CUDA Toolkit required** — just the NVIDIA driver. Supports fused kernels, warp-level intrinsics, shared memory, bitpack dot-product ops, and multi-kernel residency manifests.
+- Kain-side CUDA authoring lives in `std::cuda`: `cuda_driver_available()`, `cuda_runtime_library_available()`, `cuda_has_compute_key()`, `cuda_dispatch()`, `cuda_write_binding_payload_bytes()`, warp intrinsics (`cuda_lane_id()`, `cuda_warp_reduce_sum_u32()`, `cuda_warp_reduce_max_u32()`), `cuda_manifest_debug_from_path()`, and compute residency inspection.
+- The semantic search engine (`mcp/semantic_search/`) is the canonical CUDA dogfood: fused score+topk single-kernel pipeline, bitpack dot-product prefilter, warp-reduce block merging, and hybrid CPU/GPU reranking.
+- For CUDA-native kernels, use `--target cuda` with `kain gpu-artifacts` to skip the SPIR-V roundtrip entirely.
 
 Authoring consequence:
 
-- Use `kain gpu-artifacts` for kernels and sidecars.
+- Use `kain gpu-artifacts --target cuda` for pure CUDA compute kernels.
+- Use `kain gpu-artifacts --target spirv` for Vulkan compute or graphics shaders.
+- Use `kain gpu-artifacts` (default `all`) when you need cross-platform artifact bundles.
 - Use benchmark GPU dispatchers or `kain-gpu-runtime` for actual compute synchronization.
 - Use a package bridge when you need window presentation, swapchain, explicit semaphores/fences, or vendor-specific runtime APIs before they are public stdlib.
 

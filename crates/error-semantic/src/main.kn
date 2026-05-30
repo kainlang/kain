@@ -1,0 +1,209 @@
+// ============================================================================
+//                  error-semantic :: compiler oracle forge
+// ============================================================================
+// Offline dataset builder for the Rust diagnostic coprocessor. The compiler
+// user never sees corpus machinery; this tool distills the monorepo into packed
+// binary priors that the Rust side can consume deterministically later.
+
+use std::runtime
+use std::fs
+use std::process
+use config::SemanticSearchConfig
+use config::load_config
+use config::locate_config_path
+use config::config_runtime_root
+use config::oracle_pack_path
+use config::oracle_manifest_path
+use indexer::build_index
+use indexer::build_oracle_dataset
+use indexer::index_path
+use indexer::index_matrix_path
+use indexer::index_weight_path
+use indexer::index_bias_path
+use utils::int_to_str
+use utils::bool_to_str
+
+fn main() -> Int with Unsafe:
+    let boot = runtime_init()
+    if boot != 0:
+        return 100 + boot
+
+    let mut command = command_from_environment()
+    if command == "":
+        if process_arg_count() > 1:
+            command = process_arg(1)
+    if command == "":
+        command = "forge"
+
+    let cfg = load_tool_config()
+    if command != "health-json" and command != "args-json":
+        print_intro(cfg)
+
+    let mut result = 0
+    if command == "forge" or command == "build" or command == "oracle":
+        result = handle_forge(cfg)
+    else:
+        if command == "index":
+            result = handle_index(cfg)
+        else:
+            if command == "health" or command == "health-json":
+                result = handle_health(cfg, command == "health-json")
+            else:
+                if command == "args-json":
+                    result = handle_args_json()
+                else:
+                    result = handle_help(cfg)
+
+    let shutdown = runtime_shutdown()
+    if shutdown != 0:
+        return 200 + shutdown
+    return result
+
+fn load_tool_config() -> SemanticSearchConfig:
+    let forced = env("KAIN_ERROR_ORACLE_CONFIG")
+    if forced != "":
+        return load_config(forced)
+    return load_config(locate_config_path())
+
+fn command_from_environment() -> String:
+    let mode = env("KAIN_ERROR_ORACLE_MODE")
+    if mode != "":
+        return mode
+    let legacy = env("KAIN_SEMANTIC_SEARCH_MODE")
+    if legacy == "index":
+        return "index"
+    if legacy == "health_json":
+        return "health-json"
+    if legacy == "debug_args":
+        return "args-json"
+    return ""
+
+fn print_intro(cfg: SemanticSearchConfig) -> Unit:
+    println("=== kain error-semantic oracle forge ===")
+    println("  config:      " + locate_config_path())
+    println("  runtime dir: " + config_runtime_root())
+    println("  repo root:   " + cfg.repo_root)
+    println("  index dir:   " + cfg.index_dir)
+    println("  model:       " + cfg.model_name)
+    println("  dim:         " + int_to_str(cfg.dim))
+    println("  gpu lane:    " + bool_to_str(cfg.gpu_enabled))
+    println("")
+
+fn handle_forge(cfg: SemanticSearchConfig) -> Int with Unsafe:
+    let ok = build_oracle_dataset(cfg)
+    if ok == false:
+        return 1
+    println("oracle dataset ready")
+    return 0
+
+fn handle_index(cfg: SemanticSearchConfig) -> Int with Unsafe:
+    let mut target = "all"
+    let forced = env("KAIN_ERROR_ORACLE_INDEX_NAME")
+    if forced != "":
+        target = forced
+    else:
+        if process_arg_count() > 2:
+            target = process_arg(2)
+    var ok = true
+    if target == "all" or target == "code":
+        ok = build_index("code", cfg) and ok
+    if target == "all" or target == "kain":
+        ok = build_index("kain", cfg) and ok
+    if ok == false:
+        return 1
+    return 0
+
+fn handle_health(cfg: SemanticSearchConfig, json_mode: Bool) -> Int:
+    let code_index = index_path("code", cfg)
+    let kain_index = index_path("kain", cfg)
+    let pack = oracle_pack_path(cfg)
+    let manifest = oracle_manifest_path(cfg)
+    if json_mode:
+        println(health_json(cfg, code_index, kain_index, pack, manifest))
+    else:
+        println("oracle health")
+        println("  pack:      " + pack + " present=" + bool_to_str(fs_exists(pack)))
+        println("  manifest:  " + manifest + " present=" + bool_to_str(fs_exists(manifest)))
+        println("  code idx:  " + code_index + " present=" + bool_to_str(fs_exists(code_index)))
+        println("  kain idx:  " + kain_index + " present=" + bool_to_str(fs_exists(kain_index)))
+        println("  code mat:  " + index_matrix_path(code_index) + " present=" + bool_to_str(fs_exists(index_matrix_path(code_index))))
+        println("  kain mat:  " + index_matrix_path(kain_index) + " present=" + bool_to_str(fs_exists(index_matrix_path(kain_index))))
+    return 0
+
+fn handle_help(cfg: SemanticSearchConfig) -> Int:
+    println("error-semantic oracle forge")
+    println("")
+    println("commands:")
+    println("  forge                 Build code + Kain indices and the packed oracle bin")
+    println("  index [code|kain|all] Build one or both raw indices")
+    println("  health                Show artifact presence")
+    println("  health-json           Emit artifact presence as JSON")
+    println("")
+    println("artifacts stay under:")
+    println("  " + config_runtime_root() + "\\.kain\\oracle")
+    println("pack path:")
+    println("  " + oracle_pack_path(cfg))
+    return 0
+
+fn handle_args_json() -> Int:
+    let raw = raw_args()
+    var json = "{\"raw_args\":" + string_array_to_json(raw) + "}"
+    println(json)
+    return 0
+
+fn health_json(cfg: SemanticSearchConfig, code_index: String, kain_index: String, pack: String, manifest: String) -> String:
+    var json = "{"
+    json = json + "\"schema\":\"kain.error.semantic.oracle.health.v1\","
+    json = json + "\"repo_root\":\"" + health_json_escape(cfg.repo_root) + "\","
+    json = json + "\"index_dir\":\"" + health_json_escape(cfg.index_dir) + "\","
+    json = json + "\"pack_present\":" + json_bool(fs_exists(pack)) + ","
+    json = json + "\"manifest_present\":" + json_bool(fs_exists(manifest)) + ","
+    json = json + "\"code_index_present\":" + json_bool(fs_exists(code_index)) + ","
+    json = json + "\"kain_index_present\":" + json_bool(fs_exists(kain_index)) + ","
+    json = json + "\"code_matrix_present\":" + json_bool(fs_exists(index_matrix_path(code_index))) + ","
+    json = json + "\"kain_matrix_present\":" + json_bool(fs_exists(index_matrix_path(kain_index)))
+    json = json + "}"
+    return json
+
+fn string_array_to_json(values: Array<String>) -> String:
+    var json = "["
+    var i: Int = 0
+    while i < len(values):
+        if i > 0:
+            json = json + ","
+        json = json + "\"" + health_json_escape(values[i]) + "\""
+        i = i + 1
+    json = json + "]"
+    return json
+
+fn raw_args() -> Array<String>:
+    let count = process_arg_count()
+    let mut values: Array<String> = []
+    var i: Int = 0
+    while i < count:
+        push(values, process_arg(i))
+        i = i + 1
+    return values
+
+fn json_bool(value: Bool) -> String:
+    if value:
+        return "true"
+    return "false"
+
+fn health_json_escape(text: String) -> String:
+    var escaped = ""
+    var i: Int = 0
+    while i < len(text):
+        let ch = char_at(text, i)
+        if ch == "\\":
+            escaped = escaped + "\\\\"
+        else:
+            if ch == "\"":
+                escaped = escaped + "\\\""
+            else:
+                if ch == "\n":
+                    escaped = escaped + "\\n"
+                else:
+                    escaped = escaped + ch
+        i = i + 1
+    return escaped

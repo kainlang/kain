@@ -1,0 +1,482 @@
+// ============================================================================
+//                 error-semantic :: offline oracle index forge
+// ============================================================================
+// Streams repo Kain/Rust/compiler chunks into packed binary lanes. The hot Rust
+// diagnostic crate will consume these artifacts later; this file owns only the
+// Kain-side dataset forge.
+
+use std::fs
+use std::memory
+use std::io
+use std::text
+use types::Chunk
+use types::IndexHeader
+use types::INDEX_VERSION
+use types::INDEX_FLAG_PACKED_U8
+use types::CHUNK_KIND_FN
+use types::CHUNK_KIND_STRUCT
+use types::CHUNK_KIND_ACTOR
+use types::CHUNK_KIND_WORLD
+use types::CHUNK_KIND_SHADER
+use types::CHUNK_KIND_IMPL
+use types::CHUNK_KIND_PATCH
+use types::CHUNK_KIND_LAW
+use types::CHUNK_KIND_GENERIC
+use config::SemanticSearchConfig
+use config::oracle_pack_path
+use config::oracle_manifest_path
+use config::oracle_root
+use chunker::chunk_file
+use embedding::build_packed_embedding_bytes
+use embedding::packed_embedding_weight
+use serialize::append_index_bytes
+use serialize::patch_index_header
+use serialize::write_index_header
+use utils::int_to_str
+use utils::ensure_dir
+use utils::file_extension_lower
+use utils::count_char
+
+const MAX_INDEX_FILE_BYTES: Int = 1024 * 1024
+const ORACLE_PACK_VERSION: Int = 1
+
+pub fn build_oracle_dataset(cfg: SemanticSearchConfig) -> Bool with Unsafe:
+    ensure_dir(oracle_root(cfg))
+    let ok_code = build_index("code", cfg)
+    let ok_kain = build_index("kain", cfg)
+    if ok_code == false or ok_kain == false:
+        return false
+    return write_oracle_pack(cfg, ok_code, ok_kain)
+
+pub fn build_index(index_name: String, cfg: SemanticSearchConfig) -> Bool with Unsafe:
+    let scan_dirs = if index_name == "code": cfg.code_dirs else: cfg.kain_dirs
+    let root = normalize_index_path(cfg.repo_root)
+
+    println("building " + index_name + " oracle index...")
+    println("  root:       " + root)
+    println("  dirs:       " + int_to_str(len(scan_dirs)) + " directories")
+    println("  model:      " + cfg.model_name)
+
+    let files = collect_files(index_name, root, cfg)
+    println("  found:      " + int_to_str(len(files)) + " files")
+    if len(files) == 0:
+        println("  ERROR: no files found")
+        return false
+
+    let header = IndexHeader {
+        magic: "KAINSEARCH",
+        version: INDEX_VERSION,
+        num_chunks: 0,
+        dim: cfg.dim,
+        flags: INDEX_FLAG_PACKED_U8,
+        header_bytes: 0,
+    }
+
+    let index_root = fs_path_join(cfg.index_dir, index_name)
+    ensure_dir(index_root)
+    let index_path = fs_path_join(index_root, "index.kaindex")
+    let matrix_path = index_matrix_path(index_path)
+    let weight_path = index_weight_path(index_path)
+    let bias_path = index_bias_path(index_path)
+
+    if write_index_header(header, index_path) == false:
+        println("  ERROR: failed to write index header")
+        return false
+    if fs_try_write_bytes(matrix_path, []).ok == false:
+        println("  ERROR: failed to create CUDA matrix payload")
+        return false
+    if fs_try_write_bytes(weight_path, []).ok == false:
+        println("  ERROR: failed to create CUDA weight payload")
+        return false
+    if fs_try_write_bytes(bias_path, []).ok == false:
+        println("  ERROR: failed to create CUDA bias payload")
+        return false
+
+    println("  stage:      stream")
+    let total_chunks = stream_all_chunks(files, root, cfg, index_path, matrix_path, weight_path, bias_path)
+    if total_chunks < 0:
+        return false
+    if total_chunks == 0:
+        println("  ERROR: no chunks produced")
+        return false
+
+    let patched_header = IndexHeader {
+        magic: "KAINSEARCH",
+        version: INDEX_VERSION,
+        num_chunks: total_chunks,
+        dim: cfg.dim,
+        flags: INDEX_FLAG_PACKED_U8,
+        header_bytes: 0,
+    }
+    if patch_index_header(patched_header, index_path) == false:
+        println("  ERROR: failed to patch index header")
+        return false
+
+    println("  chunks:     " + int_to_str(total_chunks))
+    println("  index:      " + index_path)
+    println("  matrix:     " + matrix_path)
+    println("  weights:    " + weight_path)
+    println("  bias:       " + bias_path)
+    return true
+
+fn stream_all_chunks(files: Array<String>, root: String, cfg: SemanticSearchConfig, index_path: String, matrix_path: String, weight_path: String, bias_path: String) -> Int with Unsafe:
+    var total: Int = 0
+    var fi: Int = 0
+    while fi < len(files):
+        let file_chunks = chunk_file(files[fi], root, cfg)
+        var ci: Int = 0
+        while ci < len(file_chunks):
+            let embedding_bytes = build_chunk_embedding_bytes(file_chunks[ci], cfg.dim)
+            let meta_bytes = build_chunk_meta_bytes(file_chunks[ci])
+            if append_index_bytes(index_path, embedding_bytes) == false:
+                println("  ERROR: failed to append embedding block")
+                return -1
+            if fs_try_append_bytes(matrix_path, embedding_bytes).ok == false:
+                println("  ERROR: failed to append CUDA matrix block")
+                return -1
+            if fs_try_append_bytes(weight_path, pack_u32_le(packed_embedding_weight(embedding_bytes))).ok == false:
+                println("  ERROR: failed to append CUDA weight block")
+                return -1
+            if fs_try_append_bytes(bias_path, pack_u32_le(chunk_search_bias(file_chunks[ci]))).ok == false:
+                println("  ERROR: failed to append CUDA bias block")
+                return -1
+            if append_index_bytes(index_path, meta_bytes) == false:
+                println("  ERROR: failed to append chunk metadata")
+                return -1
+            total = total + 1
+            ci = ci + 1
+        fi = fi + 1
+    return total
+
+fn collect_files(index_name: String, root: String, cfg: SemanticSearchConfig) -> Array<String>:
+    let mut files: Array<String> = []
+    let dirs = if index_name == "code": cfg.code_dirs else: cfg.kain_dirs
+    var i: Int = 0
+    while i < len(dirs):
+        collect_index_dir(files, root, dirs[i], index_name)
+        i = i + 1
+    return files
+
+fn collect_index_dir(files: Array<String>, root: String, dir_name: String, index_name: String) -> Unit:
+    let dir_path = normalize_index_path(fs_path_join(root, dir_name))
+    println("    seed dir:   " + dir_path)
+    let nested = collect_seed_files_for_dir(root, dir_name, index_name)
+    println("      matches:  " + int_to_str(len(nested)))
+    var i: Int = 0
+    while i < len(nested):
+        push(files, nested[i])
+        i = i + 1
+
+fn collect_seed_files_for_dir(root: String, dir_name: String, index_name: String) -> Array<String>:
+    let mut files: Array<String> = []
+    if dir_name == "crates/error-semantic/src":
+        push_seed(files, root, "crates/error-semantic/src/lib.rs", index_name)
+        push_seed(files, root, "crates/error-semantic/src/expert.rs", index_name)
+        push_seed(files, root, "crates/error-semantic/src/corpus_db.rs", index_name)
+        push_seed(files, root, "crates/error-semantic/src/packet.rs", index_name)
+        push_seed(files, root, "crates/error-semantic/src/main.kn", index_name)
+        push_seed(files, root, "crates/error-semantic/src/types.kn", index_name)
+        push_seed(files, root, "crates/error-semantic/src/chunker.kn", index_name)
+        push_seed(files, root, "crates/error-semantic/src/embedding.kn", index_name)
+        push_seed(files, root, "crates/error-semantic/src/serialize.kn", index_name)
+        push_seed(files, root, "crates/error-semantic/src/indexer.kn", index_name)
+        push_seed(files, root, "crates/error-semantic/src/search_kernel.kn", index_name)
+    if dir_name == "crates/error/src":
+        push_seed(files, root, "crates/error/src/lib.rs", index_name)
+    if dir_name == "crates/core/src":
+        push_seed(files, root, "crates/core/src/lib.rs", index_name)
+        push_seed(files, root, "crates/core/src/parser.rs", index_name)
+        push_seed(files, root, "crates/core/src/types.rs", index_name)
+        push_seed(files, root, "crates/core/src/runtime.rs", index_name)
+        push_seed(files, root, "crates/core/src/ast.rs", index_name)
+    if dir_name == "crates/check/src":
+        push_seed(files, root, "crates/check/src/lib.rs", index_name)
+    if dir_name == "crates/driver/src":
+        push_seed(files, root, "crates/driver/src/lib.rs", index_name)
+    if dir_name == "stdlib":
+        push_seed(files, root, "stdlib/fs.kn", index_name)
+        push_seed(files, root, "stdlib/process.kn", index_name)
+        push_seed(files, root, "stdlib/runtime.kn", index_name)
+        push_seed(files, root, "stdlib/cuda.kn", index_name)
+        push_seed(files, root, "stdlib/build.kn", index_name)
+    if dir_name == "smoketest/src":
+        push_seed(files, root, "smoketest/src/main.kn", index_name)
+    if dir_name == "library_of_kain":
+        push_seed(files, root, "library_of_kain/gpu_semantic_ping_pong.kn", index_name)
+        push_seed(files, root, "library_of_kain/ffi_shared_call.kn", index_name)
+    return files
+
+fn push_seed(files: Array<String>, root: String, rel_path: String, index_name: String) -> Unit:
+    let path = normalize_index_path(fs_path_join(root, rel_path))
+    let ext = file_extension_lower(path)
+    if path_matches_index(ext, index_name):
+        push(files, path)
+
+fn collect_native_files_from_dir(dir: String, index_name: String) -> Array<String>:
+    return []
+
+fn collect_files_from_paths_text(paths_text: String, index_name: String) -> Array<String>:
+    let mut files: Array<String> = []
+    let paths = text_split_lines(paths_text)
+    var i: Int = 0
+    while i < len(paths):
+        let path = collect_file_candidate_path(paths[i], index_name)
+        if path != "":
+            push(files, path)
+        i = i + 1
+    return files
+
+fn collect_file_candidate_path(raw_path: String, index_name: String) -> String:
+    let path = normalize_index_path(raw_path)
+    if path == "":
+        return ""
+    if should_skip_index_dir(path):
+        return ""
+    if fs_is_file(path) == false:
+        return ""
+    let ext = file_extension_lower(path)
+    if path_matches_index(ext, index_name) == false:
+        return ""
+    let meta = fs_metadata(path)
+    if should_skip_index_path(path, meta.len):
+        return ""
+    return path
+
+fn collect_files_recursive(dir: String, index_name: String) -> Array<String>:
+    let mut files: Array<String> = []
+    let entries = text_split_lines(fs_read_dir_paths_text(dir))
+    var i: Int = 0
+    while i < len(entries):
+        let entry = normalize_index_path(entries[i])
+        if entry == "" or should_skip_index_dir(entry):
+            i = i + 1
+            continue
+        if fs_is_dir(entry):
+            let nested = collect_files_recursive(entry, index_name)
+            var ni: Int = 0
+            while ni < len(nested):
+                push(files, nested[ni])
+                ni = ni + 1
+        else:
+            if fs_is_file(entry):
+                let ext = file_extension_lower(entry)
+                if path_matches_index(ext, index_name):
+                    let meta = fs_metadata(entry)
+                    if should_skip_index_path(entry, meta.len) == false:
+                        push(files, entry)
+        i = i + 1
+    return files
+
+fn path_matches_index(ext: String, index_name: String) -> Bool:
+    if index_name == "code":
+        return ext == "rs" or ext == "c" or ext == "h" or ext == "cpp" or ext == "hpp" or ext == "toml" or ext == "bazel" or ext == "bzl"
+    return ext == "kn"
+
+fn should_skip_index_path(path: String, byte_length: Int) -> Bool:
+    let lower = normalized_index_match_key(path)
+    if byte_length > MAX_INDEX_FILE_BYTES:
+        return true
+    if should_skip_index_dir(path):
+        return true
+    if text_ends_with_string(lower, "\\smoketest.kn"):
+        return true
+    if text_ends_with_string(lower, "\\smoketest.artifacts.kn"):
+        return true
+    if text_ends_with_string(lower, "\\smoketest.evidence.kn"):
+        return true
+    return false
+
+fn should_skip_index_dir(path: String) -> Bool:
+    let lower = normalized_index_match_key(path)
+    if text_contains_string(lower, "\\.kain\\"):
+        return true
+    if text_contains_string(lower, "\\generated\\"):
+        return true
+    if text_contains_string(lower, "\\_old\\"):
+        return true
+    if text_contains_string(lower, "\\target\\"):
+        return true
+    if text_contains_string(lower, "\\node_modules\\"):
+        return true
+    if text_contains_string(lower, "\\reference\\"):
+        return true
+    if text_contains_string(lower, "\\system volume information\\"):
+        return true
+    return false
+
+fn normalize_index_path(path: String) -> String:
+    if path == "":
+        return ""
+    let mut normalized = replace(path, "/", "\\")
+    if text_starts_with_string(normalized, "\\\\?\\"):
+        normalized = substring(normalized, 4, len(normalized))
+    if text_starts_with_string(normalized, ".\\"):
+        normalized = substring(normalized, 2, len(normalized))
+    return normalized
+
+fn normalized_index_match_key(path: String) -> String:
+    return to_lower(normalize_index_path(path))
+
+pub fn index_path(index_name: String, cfg: SemanticSearchConfig) -> String:
+    return fs_path_join(fs_path_join(cfg.index_dir, index_name), "index.kaindex")
+
+pub fn index_matrix_path(index_path_value: String) -> String:
+    return index_path_value + ".embeddings.u8.bin"
+
+pub fn index_weight_path(index_path_value: String) -> String:
+    return index_path_value + ".weights.u32.bin"
+
+pub fn index_bias_path(index_path_value: String) -> String:
+    return index_path_value + ".bias.u32.bin"
+
+fn build_chunk_embedding_bytes(chunk: Chunk, dim: Int) -> Array<Int>:
+    var material = chunk.text
+    if chunk.symbol != "":
+        material = chunk.symbol + " " + material
+    if chunk.kind != CHUNK_KIND_GENERIC:
+        material = chunk.kind + " " + material
+    return build_packed_embedding_bytes(material, dim)
+
+fn chunk_search_bias(chunk: Chunk) -> Int:
+    var bias: Int = 8
+    if chunk.kind == CHUNK_KIND_FN:
+        bias = 28
+    else:
+        if chunk.kind == CHUNK_KIND_SHADER:
+            bias = 34
+        else:
+            if chunk.kind == CHUNK_KIND_ACTOR or chunk.kind == CHUNK_KIND_WORLD:
+                bias = 26
+            else:
+                if chunk.kind == CHUNK_KIND_STRUCT or chunk.kind == CHUNK_KIND_IMPL:
+                    bias = 20
+                else:
+                    if chunk.kind == CHUNK_KIND_PATCH or chunk.kind == CHUNK_KIND_LAW:
+                        bias = 24
+    if chunk.symbol != "":
+        var symbol_bonus: Int = len(chunk.symbol) / 2
+        if symbol_bonus > 16:
+            symbol_bonus = 16
+        bias = bias + symbol_bonus
+    let depth = count_char(chunk.file_path, "\\")
+    if depth > 5:
+        var depth_penalty: Int = depth - 5
+        if depth_penalty > 6:
+            depth_penalty = 6
+        bias = bias - depth_penalty
+    if bias < 0:
+        bias = 0
+    return bias
+
+fn build_chunk_meta_bytes(chunk: Chunk) -> Array<Int>:
+    let file_path = chunk.file_path
+    let kind = chunk.kind
+    let symbol = chunk.symbol
+    let mut bytes: Array<Int> = []
+    push_u16(bytes, len(file_path))
+    push_u32(bytes, chunk.line_start)
+    push_u32(bytes, chunk.line_end)
+    push_u16(bytes, len(kind))
+    push_u16(bytes, len(symbol))
+    var path_index: Int = 0
+    while path_index < len(file_path):
+        push(bytes, ord(char_at(file_path, path_index)) & 255)
+        path_index = path_index + 1
+    var kind_index: Int = 0
+    while kind_index < len(kind):
+        push(bytes, ord(char_at(kind, kind_index)) & 255)
+        kind_index = kind_index + 1
+    var symbol_index: Int = 0
+    while symbol_index < len(symbol):
+        push(bytes, ord(char_at(symbol, symbol_index)) & 255)
+        symbol_index = symbol_index + 1
+    return bytes
+
+fn write_oracle_pack(cfg: SemanticSearchConfig, code_ok: Bool, kain_ok: Bool) -> Bool with Unsafe:
+    let pack_path = oracle_pack_path(cfg)
+    let manifest_path = oracle_manifest_path(cfg)
+    ensure_dir(oracle_root(cfg))
+    let code_index = index_path("code", cfg)
+    let kain_index = index_path("kain", cfg)
+    let payload = oracle_pack_bytes(cfg, code_index, kain_index)
+    if fs_try_write_bytes(pack_path, payload).ok == false:
+        println("  ERROR: failed to write oracle pack " + pack_path)
+        return false
+    let manifest = oracle_manifest_json(cfg, code_index, kain_index, pack_path, code_ok, kain_ok)
+    if fs_try_write_text(manifest_path, manifest).ok == false:
+        println("  ERROR: failed to write oracle manifest " + manifest_path)
+        return false
+    println("oracle pack: " + pack_path)
+    println("manifest:    " + manifest_path)
+    return true
+
+fn oracle_pack_bytes(cfg: SemanticSearchConfig, code_index: String, kain_index: String) -> Array<Int>:
+    let mut bytes: Array<Int> = []
+    append_ascii(bytes, "KAINORACLE")
+    push_u32(bytes, ORACLE_PACK_VERSION)
+    push_u32(bytes, cfg.dim)
+    append_path_record(bytes, "code", code_index)
+    append_path_record(bytes, "kain", kain_index)
+    return bytes
+
+fn append_path_record(bytes: Array<Int>, name: String, path: String) -> Unit:
+    push_u16(bytes, len(name))
+    push_u16(bytes, len(path))
+    append_ascii(bytes, name)
+    append_ascii(bytes, path)
+
+fn append_ascii(bytes: Array<Int>, text: String) -> Unit:
+    var i: Int = 0
+    while i < len(text):
+        push(bytes, ord(char_at(text, i)) & 255)
+        i = i + 1
+
+fn oracle_manifest_json(cfg: SemanticSearchConfig, code_index: String, kain_index: String, pack_path: String, code_ok: Bool, kain_ok: Bool) -> String:
+    var json = "{\n"
+    json = json + "  \"schema\": \"kain.error.semantic.oracle.v1\",\n"
+    json = json + "  \"pack\": \"" + json_escape(pack_path) + "\",\n"
+    json = json + "  \"repo_root\": \"" + json_escape(cfg.repo_root) + "\",\n"
+    json = json + "  \"dim\": " + int_to_str(cfg.dim) + ",\n"
+    json = json + "  \"code_index\": \"" + json_escape(code_index) + "\",\n"
+    json = json + "  \"kain_index\": \"" + json_escape(kain_index) + "\",\n"
+    json = json + "  \"code_ok\": " + bool_json(code_ok) + ",\n"
+    json = json + "  \"kain_ok\": " + bool_json(kain_ok) + "\n"
+    json = json + "}\n"
+    return json
+
+fn json_escape(text: String) -> String:
+    var escaped = ""
+    var i: Int = 0
+    while i < len(text):
+        let ch = char_at(text, i)
+        if ch == "\\":
+            escaped = escaped + "\\\\"
+        else:
+            if ch == "\"":
+                escaped = escaped + "\\\""
+            else:
+                if ch == "\n":
+                    escaped = escaped + "\\n"
+                else:
+                    escaped = escaped + ch
+        i = i + 1
+    return escaped
+
+fn bool_json(value: Bool) -> String:
+    if value:
+        return "true"
+    return "false"
+
+fn pack_u32_le(value: Int) -> Array<Int>:
+    let lane = value & 4294967295
+    return [lane & 255, (lane >> 8) & 255, (lane >> 16) & 255, (lane >> 24) & 255]
+
+fn push_u16(bytes: Array<Int>, value: Int) -> Unit:
+    push(bytes, value & 255)
+    push(bytes, (value >> 8) & 255)
+
+fn push_u32(bytes: Array<Int>, value: Int) -> Unit:
+    push(bytes, value & 255)
+    push(bytes, (value >> 8) & 255)
+    push(bytes, (value >> 16) & 255)
+    push(bytes, (value >> 24) & 255)

@@ -351,6 +351,9 @@ enum BuildTaskAdapter {
     GpuArtifacts {
         source: PathBuf,
         output_base: PathBuf,
+        target: GpuArtifactTarget,
+        no_residency: bool,
+        no_derived: bool,
     },
     Fabric {
         manifest_path: PathBuf,
@@ -2062,7 +2065,9 @@ fn add_gpu_tasks(tasks: &mut Vec<BuildTask>, config: &BuildWorkspaceConfig, blad
         let output_base = config
             .task_root(&blade.name, &task_id)
             .join(path_stem_or_name(source));
-        let outputs = gpu_output_paths(&output_base);
+        let target = GpuArtifactTarget::All;
+        let no_derived = false;
+        let outputs = gpu_output_paths(&output_base, target, no_derived);
         tasks.push(BuildTask {
             id: task_id,
             kind: BuildTaskKind::GpuArtifacts,
@@ -2079,6 +2084,9 @@ fn add_gpu_tasks(tasks: &mut Vec<BuildTask>, config: &BuildWorkspaceConfig, blad
             adapter: BuildTaskAdapter::GpuArtifacts {
                 source: source.clone(),
                 output_base,
+                target,
+                no_residency: false,
+                no_derived,
             },
         });
     }
@@ -2375,9 +2383,35 @@ fn build_explicit_task(
                     .task_root("workspace", &task_id)
                     .join(path_stem_or_name(&source))
             });
+            // Parse GPU artifact target from options.target (or task.target), default to "all"
+            let target_str = task
+                .options
+                .get("target")
+                .or_else(|| task.options.get("artifact_target"))
+                .or_else(|| {
+                    task.target.as_ref().filter(|_| {
+                        !task.kind.contains("gpu") || task.options.contains_key("target")
+                    })
+                })
+                .map(|s| s.as_str())
+                .unwrap_or("all");
+            let target = GpuArtifactTarget::from_arg(target_str);
+            let no_residency = task
+                .options
+                .get("no_residency")
+                .map(|s| s == "true" || s == "1" || s == "yes")
+                .unwrap_or(false);
+            let no_derived = task
+                .options
+                .get("no_derived")
+                .map(|s| s == "true" || s == "1" || s == "yes")
+                .unwrap_or(false);
             BuildTaskAdapter::GpuArtifacts {
                 source,
                 output_base,
+                target,
+                no_residency,
+                no_derived,
             }
         }
         BuildTaskKind::FabricValidate | BuildTaskKind::FabricRun => {
@@ -2517,7 +2551,12 @@ fn build_explicit_task(
         _ => unreachable!("explicit task kinds are filtered above"),
     };
     let outputs = match &adapter {
-        BuildTaskAdapter::GpuArtifacts { output_base, .. } => gpu_output_paths(output_base),
+        BuildTaskAdapter::GpuArtifacts {
+            output_base,
+            target,
+            no_derived,
+            ..
+        } => gpu_output_paths(output_base, *target, *no_derived),
         BuildTaskAdapter::NativeExecutable {
             output,
             report_path,
@@ -3013,7 +3052,10 @@ fn execute_task(
         BuildTaskAdapter::GpuArtifacts {
             source,
             output_base,
-        } => run_gpu_artifacts(source, output_base),
+            target,
+            no_residency,
+            no_derived,
+        } => run_gpu_artifacts(source, output_base, *target, *no_residency, *no_derived),
         BuildTaskAdapter::Fabric { manifest_path, run } => run_fabric(manifest_path, *run),
         BuildTaskAdapter::Exec {
             label,
@@ -4056,13 +4098,25 @@ fn run_c_shared_library(
     Ok(message)
 }
 
-fn run_gpu_artifacts(source: &Path, output_base: &Path) -> BuildResult<String> {
+fn run_gpu_artifacts(
+    source: &Path,
+    output_base: &Path,
+    target: GpuArtifactTarget,
+    no_residency: bool,
+    no_derived: bool,
+) -> BuildResult<String> {
     let source_text = kfs::read_text(source)?;
     let artifacts = kain_driver::compile_shader_artifact_bundle(&source_text)?;
     if let Some(parent) = output_base.parent() {
         kfs::create_dir_all(parent)?;
     }
-    kfs::atomic_write_bytes(output_base.with_extension("spv"), &artifacts.spirv)?;
+
+    // SPIR-V — only write if target wants it
+    if target.emit_spirv() {
+        kfs::atomic_write_bytes(output_base.with_extension("spv"), &artifacts.spirv)?;
+    }
+
+    // Always write the standard metadata sidecars
     kfs::atomic_write_text(
         with_file_name_suffix(output_base, ".gpu", "rs"),
         &artifacts.rust_host,
@@ -4075,24 +4129,37 @@ fn run_gpu_artifacts(source: &Path, output_base: &Path) -> BuildResult<String> {
         with_file_name_suffix(output_base, ".shader_bundle", "json"),
         &artifacts.bundle_json,
     )?;
-    if let Some(hlsl) = artifacts.derived_hlsl {
-        kfs::atomic_write_text(output_base.with_extension("hlsl"), &hlsl)?;
-    }
-    if let Some(ptx) = artifacts.derived_ptx {
-        kfs::atomic_write_text(output_base.with_extension("ptx"), &ptx)?;
-    }
-    let realtime_bundle =
-        kain_driver::compile_realtime_app_bundle(&source_text, CompileTarget::Cuda, None)?;
-    let compute_paths = kain_driver::write_compute_residency_sidecars(
-        &realtime_bundle.bundle,
-        Some(&artifacts.bundle),
-        output_base.parent().unwrap_or_else(|| Path::new(".")),
-    )?;
-    for path in compute_paths {
-        if path.exists() {
-            let _ = record_artifact("compute-residency", &path)?;
+
+    // HLSL — only if target asks and not suppressed
+    if target.emit_hlsl() && !no_derived {
+        if let Some(hlsl) = artifacts.derived_hlsl {
+            kfs::atomic_write_text(output_base.with_extension("hlsl"), &hlsl)?;
         }
     }
+
+    // PTX — only if target asks and not suppressed
+    if target.emit_ptx() && !no_derived {
+        if let Some(ptx) = artifacts.derived_ptx {
+            kfs::atomic_write_text(output_base.with_extension("ptx"), &ptx)?;
+        }
+    }
+
+    // Residency sidecars — optional
+    if !no_residency {
+        let realtime_bundle =
+            kain_driver::compile_realtime_app_bundle(&source_text, CompileTarget::Cuda, None)?;
+        let compute_paths = kain_driver::write_compute_residency_sidecars(
+            &realtime_bundle.bundle,
+            Some(&artifacts.bundle),
+            output_base.parent().unwrap_or_else(|| Path::new(".")),
+        )?;
+        for path in compute_paths {
+            if path.exists() {
+                let _ = record_artifact("compute-residency", &path)?;
+            }
+        }
+    }
+
     Ok(format!("emitted GPU artifacts for {}", source.display()))
 }
 
@@ -4950,14 +5017,67 @@ fn load_project_manifest(path: &Path) -> BuildResult<ProjectManifest> {
     })
 }
 
-fn gpu_output_paths(output_base: &Path) -> Vec<PathBuf> {
-    vec![
-        output_base.with_extension("spv"),
-        with_file_name_suffix(output_base, ".gpu", "rs"),
-        with_file_name_suffix(output_base, ".reflect", "json"),
-        with_file_name_suffix(output_base, ".shader_bundle", "json"),
-        output_base.with_extension("hlsl"),
-    ]
+/// Target filter for GPU artifact generation.
+/// Mirrors the cli::gpu_artifacts::GpuArtifactTarget enum to avoid
+/// cross-crate feature-gate dependency on the `gpu` + `sys` features.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum GpuArtifactTarget {
+    All,
+    Spirv,
+    Cuda,
+    Hlsl,
+}
+
+impl GpuArtifactTarget {
+    pub fn from_arg(arg: &str) -> Self {
+        match arg {
+            "all" => GpuArtifactTarget::All,
+            "spirv" | "vulkan" | "spv" => GpuArtifactTarget::Spirv,
+            "cuda" | "ptx" | "nvidia" => GpuArtifactTarget::Cuda,
+            "hlsl" | "d3d" | "dx" => GpuArtifactTarget::Hlsl,
+            _ => GpuArtifactTarget::All,
+        }
+    }
+
+    pub fn emit_spirv(&self) -> bool {
+        matches!(
+            self,
+            GpuArtifactTarget::All | GpuArtifactTarget::Spirv | GpuArtifactTarget::Hlsl
+        )
+    }
+
+    pub fn emit_ptx(&self) -> bool {
+        matches!(self, GpuArtifactTarget::All | GpuArtifactTarget::Cuda)
+    }
+
+    pub fn emit_hlsl(&self) -> bool {
+        matches!(self, GpuArtifactTarget::All | GpuArtifactTarget::Hlsl)
+    }
+
+    pub fn is_cuda_primary(&self) -> bool {
+        matches!(self, GpuArtifactTarget::Cuda)
+    }
+}
+
+fn gpu_output_paths(
+    output_base: &Path,
+    target: GpuArtifactTarget,
+    no_derived: bool,
+) -> Vec<PathBuf> {
+    let mut paths = Vec::new();
+    if target.emit_spirv() {
+        paths.push(output_base.with_extension("spv"));
+    }
+    paths.push(with_file_name_suffix(output_base, ".gpu", "rs"));
+    paths.push(with_file_name_suffix(output_base, ".reflect", "json"));
+    paths.push(with_file_name_suffix(output_base, ".shader_bundle", "json"));
+    if target.emit_hlsl() && !no_derived {
+        paths.push(output_base.with_extension("hlsl"));
+    }
+    if target.emit_ptx() && !no_derived {
+        paths.push(output_base.with_extension("ptx"));
+    }
+    paths
 }
 
 fn artifact_manifest_path(task_root: &Path) -> PathBuf {

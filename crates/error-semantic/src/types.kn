@@ -1,0 +1,124 @@
+// ============================================================================
+//                 error-semantic :: oracle shared types
+// ============================================================================
+// Core data structures for the offline compiler-oracle pipeline. Every Kain
+// module imports from here so chunks, embeddings, indices, and future repair
+// priors share one binary truth.
+
+use std::fs
+
+// ---- chunk -----------------------------------------------------------------
+
+pub const CHUNK_KIND_FN: String = "fn"
+pub const CHUNK_KIND_STRUCT: String = "struct"
+pub const CHUNK_KIND_ACTOR: String = "actor"
+pub const CHUNK_KIND_WORLD: String = "world"
+pub const CHUNK_KIND_SHADER: String = "shader"
+pub const CHUNK_KIND_IMPL: String = "impl"
+pub const CHUNK_KIND_PATCH: String = "patch"
+pub const CHUNK_KIND_LAW: String = "law"
+pub const CHUNK_KIND_GENERIC: String = "generic"
+
+pub struct Chunk:
+    file_path: String
+    line_start: Int
+    line_end: Int
+    kind: String
+    symbol: String
+    text: String
+
+// ---- embedding -------------------------------------------------------------
+
+pub struct EmbeddingBatch:
+    chunks: Array<Chunk>
+    vectors: Array<Array<Float>>
+
+// ---- index -----------------------------------------------------------------
+
+pub const INDEX_MAGIC: Array<Int> = [75, 65, 73, 78, 83, 69, 65, 82, 67, 72]
+// "KAINSEARCH" = 10 bytes
+
+pub const INDEX_VERSION: Int = 2
+pub const INDEX_FLAG_PACKED_U8: Int = 1
+
+pub struct IndexHeader:
+    magic: String
+    version: Int
+    num_chunks: Int
+    dim: Int
+    flags: Int
+    header_bytes: Int
+
+pub struct IndexMeta:
+    file_path: String
+    line_start: Int
+    line_end: Int
+    kind: String
+    symbol: String
+
+pub struct LoadedIndex:
+    header: IndexHeader
+    embeddings: Array<Int>
+    metas: Array<IndexMeta>
+    norms: Array<Float>
+
+// ---- query/result preview ---------------------------------------------------
+
+pub struct SearchResult:
+    file_path: String
+    line_start: Int
+    line_end: Int
+    kind: String
+    symbol: String
+    score: Float
+    snippet: String
+
+pub struct SearchResponse:
+    results: Array<SearchResult>
+    query_ms: Float
+    total_indexed: Int
+    index_name: String
+    error: String
+
+// ---- future host protocol ---------------------------------------------------
+
+pub struct McpToolRequest:
+    query: String
+    index: String
+    top_k: Int
+
+pub struct McpToolResponse:
+    results: Array<SearchResult>
+    query_ms: Float
+    total_indexed: Int
+    index_name: String
+    error: String
+
+// ---- helpers ---------------------------------------------------------------
+
+pub fn chunk_is_valid(chunk: Chunk) -> Bool:
+    return chunk.text != "" and chunk.file_path != "" and chunk.line_start > 0
+
+pub fn empty_search_response() -> SearchResponse:
+    return SearchResponse {
+        results: [],
+        query_ms: 0.0,
+        total_indexed: 0,
+        index_name: "",
+        error: "",
+    }
+
+pub fn empty_loaded_index() -> LoadedIndex:
+    return LoadedIndex {
+        header: IndexHeader {
+            magic: "",
+            version: 0,
+            num_chunks: 0,
+            dim: 0,
+            flags: 0,
+            header_bytes: 0,
+        },
+        embeddings: [],
+        metas: [],
+        norms: [],
+    }
