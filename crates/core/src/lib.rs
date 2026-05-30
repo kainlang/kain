@@ -5,6 +5,7 @@
 // Core modules
 pub mod asm_ir;
 pub mod ast;
+pub mod builder;
 pub mod comptime;
 pub mod diagnostic_capture;
 pub mod diagnostic_registry;
@@ -40,6 +41,7 @@ mod stdlib_tests;
 // Re-exports for convenience
 pub use asm_ir::*;
 pub use ast::*;
+pub use builder::*;
 pub use diagnostic_registry::*;
 pub use effects::*;
 pub use error::*;

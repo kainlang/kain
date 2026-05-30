@@ -2129,6 +2129,8 @@ name = "gpu"
 version = "0.1.0"
 dependencies = [
  "kain-core",
+ "kain-error",
+ "kain-error-semantic",
  "kain-gpu-runtime",
  "rspirv",
  "serde",

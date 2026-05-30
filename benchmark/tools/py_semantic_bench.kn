@@ -1,0 +1,57 @@
+use std::os
+use std::python
+import sys as py_sys
+import json as py_json
+import os as py_os
+import asyncio as py_asyncio
+
+component PyBenchApp():
+    render <panel title="py-bench" />
+
+world WorldPythonCache:
+    state os_name: String = ""
+    surface native_ui => PyBenchApp
+
+world WorldPythonMirror:
+    state os_name_copy: String = ""
+    surface web => PyBenchApp
+
+entangle WorldPythonCache.os_name <-> WorldPythonMirror.os_name_copy with single_writer
+
+pub fn seed_cache():
+    WorldPythonCache.os_name = to_string(python_getattr_raw(py_os, "__name__"))
+
+fn main() -> Int:
+    seed_cache()
+    let cached = WorldPythonMirror.os_name_copy
+    println("cached os_name: " + cached)
+
+    let iterations = 5000
+
+    // BENCH 1: Cached read - zero Python bridge crossings
+    let start_cache = now_millis()
+    var acc: Int = 0
+    var i: Int = 0
+    while i < iterations:
+        let name = WorldPythonMirror.os_name_copy
+        acc = acc + len(name)
+        i = i + 1
+    let elapsed_cache = now_millis() - start_cache
+
+    // BENCH 2: Raw Python bridge crossing every iteration
+    let start_raw = now_millis()
+    var acc2: Int = 0
+    i = 0
+    while i < iterations:
+        let name = to_string(python_getattr_raw(py_os, "__name__"))
+        acc2 = acc2 + len(name)
+        i = i + 1
+    let elapsed_raw = now_millis() - start_raw
+
+    println("iterations: " + str(iterations))
+    println("cache path: " + str(elapsed_cache) + " ms (" + str(elapsed_cache * 1000 / iterations) + " us/op)")
+    println("raw bridge: " + str(elapsed_raw) + " ms (" + str(elapsed_raw * 1000 / iterations) + " us/op)")
+    if elapsed_cache > 0 and elapsed_raw > 0:
+        println("speedup: " + str(elapsed_raw / elapsed_cache) + "x")
+    println("PYTHON_SEMANTIC_OK")
+    return 0

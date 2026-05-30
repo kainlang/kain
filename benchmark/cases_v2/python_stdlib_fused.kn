@@ -271,6 +271,166 @@ pub fn python_stdlib_fused_case_telemetry(case_id: String) -> String:
     content = content + "\"pack_focus\":" + stdlib_json_string_value("python-stdlib-fused")
     return content + "}"
 
+// ============================================================================
+//  SEMANTIC PYTHON CACHE — World/Entangle accelerated Python interop
+// ============================================================================
+//  The problem: existing benchmark cases cross the Python bridge every
+//  iteration to read values that NEVER change (module __name__,
+//  sys.getdefaultencoding(), json.dumps([1,2,3]), os.sep, etc.).
+//
+//  The fix: entangle those constant results into a Kain world cache.
+//  Once seeded, reads from the mirror are zero-copy field accesses
+//  instead of Python bridge crossings.
+//
+//  This is exactly the same pattern as the semantic OS cache but
+//  targets the Python bridge tax instead of the kernel call tax.
+
+component PythonSemanticApp():
+    render <panel title="python-semantic" />
+
+world WorldPythonAuthority:
+    state sys_name: String = ""
+    state os_name: String = ""
+    state json_name: String = ""
+    state asyncio_name: String = ""
+    state sys_encoding: String = ""
+    state json_dumped: String = ""
+    state os_sep: String = ""
+    state os_path_joined: String = ""
+    state os_path_dirname: String = ""
+    state os_path_basename: String = ""
+    surface native_ui => PythonSemanticApp
+
+world WorldPythonMirror:
+    state sys_name_copy: String = ""
+    state os_name_copy: String = ""
+    state json_name_copy: String = ""
+    state asyncio_name_copy: String = ""
+    state sys_encoding_copy: String = ""
+    state json_dumped_copy: String = ""
+    state os_sep_copy: String = ""
+    state os_path_joined_copy: String = ""
+    state os_path_dirname_copy: String = ""
+    state os_path_basename_copy: String = ""
+    surface web => PythonSemanticApp
+
+entangle WorldPythonAuthority.sys_name <-> WorldPythonMirror.sys_name_copy with single_writer
+entangle WorldPythonAuthority.os_name <-> WorldPythonMirror.os_name_copy with single_writer
+entangle WorldPythonAuthority.json_name <-> WorldPythonMirror.json_name_copy with single_writer
+entangle WorldPythonAuthority.asyncio_name <-> WorldPythonMirror.asyncio_name_copy with single_writer
+entangle WorldPythonAuthority.sys_encoding <-> WorldPythonMirror.sys_encoding_copy with single_writer
+entangle WorldPythonAuthority.json_dumped <-> WorldPythonMirror.json_dumped_copy with single_writer
+entangle WorldPythonAuthority.os_sep <-> WorldPythonMirror.os_sep_copy with single_writer
+entangle WorldPythonAuthority.os_path_joined <-> WorldPythonMirror.os_path_joined_copy with single_writer
+entangle WorldPythonAuthority.os_path_dirname <-> WorldPythonMirror.os_path_dirname_copy with single_writer
+entangle WorldPythonAuthority.os_path_basename <-> WorldPythonMirror.os_path_basename_copy with single_writer
+
+// ─── Seed ALL cached Python values — ONE bridge crossing per value ────
+
+pub fn python_semantic_seed() -> Int:
+    // Cache module names
+    WorldPythonAuthority.sys_name = to_string(python_getattr_raw(py_sys, "__name__"))
+    WorldPythonAuthority.os_name = to_string(python_getattr_raw(py_os, "__name__"))
+    WorldPythonAuthority.json_name = to_string(python_getattr_raw(py_json, "__name__"))
+    WorldPythonAuthority.asyncio_name = to_string(python_getattr_raw(py_asyncio, "__name__"))
+    // Cache sys.getdefaultencoding()
+    let getenc = python_getattr_raw(py_sys, "getdefaultencoding")
+    WorldPythonAuthority.sys_encoding = to_string(python_call_raw(getenc, []))
+    // Cache json.dumps([1,2,3])
+    let dumps_fn = python_getattr_raw(py_json, "dumps")
+    WorldPythonAuthority.json_dumped = to_string(python_call_raw(dumps_fn, [[1, 2, 3]]))
+    // Cache os.sep
+    WorldPythonAuthority.os_sep = to_string(python_getattr_raw(py_os, "sep"))
+    // Cache os.path.join/dirname/basename
+    let path_mod = python_getattr_raw(py_os, "path")
+    let join_fn = python_getattr_raw(path_mod, "join")
+    let dirname_fn = python_getattr_raw(path_mod, "dirname")
+    let basename_fn = python_getattr_raw(path_mod, "basename")
+    let joined = python_call_raw(join_fn, ["a", "b", "c"])
+    WorldPythonAuthority.os_path_joined = to_string(joined)
+    WorldPythonAuthority.os_path_dirname = to_string(python_call_raw(dirname_fn, [joined]))
+    WorldPythonAuthority.os_path_basename = to_string(python_call_raw(basename_fn, [joined]))
+    // Return checksum of all cached values
+    return len(WorldPythonMirror.sys_name_copy) + len(WorldPythonMirror.os_name_copy) + len(WorldPythonMirror.json_name_copy) + len(WorldPythonMirror.asyncio_name_copy) + len(WorldPythonMirror.sys_encoding_copy) + len(WorldPythonMirror.json_dumped_copy) + len(WorldPythonMirror.os_sep_copy) + len(WorldPythonMirror.os_path_joined_copy)
+
+// ─── Entangled readers — zero Python bridge crossings ─────────────────
+
+pub fn python_cache_sys_name() -> String:
+    return WorldPythonMirror.sys_name_copy
+
+pub fn python_cache_os_name() -> String:
+    return WorldPythonMirror.os_name_copy
+
+pub fn python_cache_json_name() -> String:
+    return WorldPythonMirror.json_name_copy
+
+pub fn python_cache_asyncio_name() -> String:
+    return WorldPythonMirror.asyncio_name_copy
+
+pub fn python_cache_sys_encoding() -> String:
+    return WorldPythonMirror.sys_encoding_copy
+
+pub fn python_cache_json_dumped() -> String:
+    return WorldPythonMirror.json_dumped_copy
+
+pub fn python_cache_os_sep() -> String:
+    return WorldPythonMirror.os_sep_copy
+
+pub fn python_cache_path_joined() -> String:
+    return WorldPythonMirror.os_path_joined_copy
+
+pub fn python_cache_path_dirname() -> String:
+    return WorldPythonMirror.os_path_dirname_copy
+
+pub fn python_cache_path_basename() -> String:
+    return WorldPythonMirror.os_path_basename_copy
+
+// ─── Benchmark: cached reads vs raw Python bridge calls ───────────────
+
+pub struct PythonBridgeResult:
+    cache_ms: Int
+    raw_ms: Int
+
+pub fn bench_python_cached_probe(iterations: Int) -> PythonBridgeResult:
+    let _ = python_semantic_seed()
+    let getenc = python_getattr_raw(py_sys, "getdefaultencoding")
+    let dumps_fn = python_getattr_raw(py_json, "dumps")
+    let path_mod = python_getattr_raw(py_os, "path")
+    let join_fn = python_getattr_raw(path_mod, "join")
+    let dirname_fn = python_getattr_raw(path_mod, "dirname")
+    let basename_fn = python_getattr_raw(path_mod, "basename")
+
+    // Read from entangled cache — zero bridge crossings
+    let start_cache = now_millis()
+    var acc_cache: Int = 0
+    var i: Int = 0
+    while i < iterations:
+        acc_cache = (acc_cache + len(python_cache_sys_name())) % PYTHON_STDLIB_FUSED_MODULUS
+        acc_cache = (acc_cache + len(python_cache_os_name())) % PYTHON_STDLIB_FUSED_MODULUS
+        acc_cache = (acc_cache + len(python_cache_json_name())) % PYTHON_STDLIB_FUSED_MODULUS
+        acc_cache = (acc_cache + len(python_cache_asyncio_name())) % PYTHON_STDLIB_FUSED_MODULUS
+        acc_cache = (acc_cache + len(python_cache_sys_encoding())) % PYTHON_STDLIB_FUSED_MODULUS
+        acc_cache = (acc_cache + len(python_cache_json_dumped())) % PYTHON_STDLIB_FUSED_MODULUS
+        i = i + 1
+    let elapsed_cache = now_millis() - start_cache
+
+    // Cross the Python bridge every iteration (current pattern)
+    let start_raw = now_millis()
+    var acc_raw: Int = 0
+    i = 0
+    while i < iterations:
+        let s1 = to_string(python_getattr_raw(py_sys, "__name__"))
+        let s2 = to_string(python_getattr_raw(py_os, "__name__"))
+        let s3 = to_string(python_getattr_raw(py_json, "__name__"))
+        let s4 = to_string(python_getattr_raw(py_asyncio, "__name__"))
+        let s5 = to_string(python_call_raw(getenc, []))
+        let s6 = to_string(python_call_raw(dumps_fn, [[1, 2, 3]]))
+        acc_raw = (acc_raw + len(s1) + len(s2) + len(s3) + len(s4) + len(s5) + len(s6)) % PYTHON_STDLIB_FUSED_MODULUS
+        i = i + 1
+    let elapsed_raw = now_millis() - start_raw
+
+    return PythonBridgeResult { cache_ms: elapsed_cache, raw_ms: elapsed_raw }
+
 pub fn python_stdlib_fused_case_checksum(case_id: String, iterations: Int, amplify: Int, modulus: Int) -> Int:
     let repeat = 0
     let acc = 0

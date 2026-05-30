@@ -15,9 +15,12 @@ use crate::ptx_module::{
 use kain_core::ast::{
     BinaryOp, Block, CallArg, ElseBranch, Expr, Pattern, ShaderStage, Stmt, Type, UnaryOp,
 };
-use kain_core::error::{KainError, KainResult};
+use kain_core::builder::{CodegenDiagnostic, ShaderDiagnostic};
+use kain_core::error::{CompilerPhase, DiagnosticCode, KainError, KainResult};
 use kain_core::span::Span;
 use kain_core::types::{TypedItem, TypedProgram, TypedShader};
+use kain_core::DiagnosticSemanticPacket;
+use kain_error_semantic::enrich_report as enrich_semantic_report;
 use std::collections::{HashMap, HashSet};
 
 #[path = "ptx_surface.rs"]
@@ -80,9 +83,15 @@ pub fn generate_with_options(
     }
 
     if prepared.is_empty() {
-        return Err(KainError::codegen(
-            "PTX backend emitted no kernels because the typed program contains no shader items",
-            Span::default(),
+        let report = CodegenDiagnostic::backend_failed(
+            "PTX backend emitted no kernels: the typed program contains no shader items",
+        )
+        .help("The PTX backend targets `shader compute` items. Check that your source declares at least one compute shader.");
+        return Err(enriched_codegen_error(
+            report,
+            "",
+            DiagnosticCode::CodegenGeneric,
+            CompilerPhase::Codegen,
         ));
     }
 
@@ -461,14 +470,35 @@ fn emit_shader(shader: &TypedShader, target_arch: ModuleArch) -> KainResult<Stri
     Ok(prepared.emitted_ptx)
 }
 
+/// Build an enriched `KainError` for a PTX codegen diagnostic.
+///
+/// Wraps a typed `DiagnosticReport` through the semantic enrichment
+/// pipeline so the error carries a failure-mode classification, ranked
+/// repairs, and a context-sensitive explanation instead of a bare string.
+fn enriched_codegen_error(
+    report: kain_core::error::DiagnosticReport,
+    primary_text: &str,
+    code: DiagnosticCode,
+    phase: CompilerPhase,
+) -> KainError {
+    let packet = DiagnosticSemanticPacket::new(code, phase, primary_text);
+    let enriched = enrich_semantic_report(report, &packet);
+    KainError::rich(enriched)
+}
+
 fn prepare_shader(shader: &TypedShader) -> KainResult<PreparedPtxShader> {
     if shader.ast.stage != ShaderStage::Compute {
-        return Err(KainError::codegen(
-            format!(
-                "PTX backend only supports compute shaders; shader '{}' uses {:?}",
-                shader.ast.name, shader.ast.stage
-            ),
-            shader.ast.span,
+        let report = ShaderDiagnostic::stage_mismatch(format!(
+            "PTX backend only supports compute shaders; shader '{}' uses {:?}",
+            shader.ast.name, shader.ast.stage
+        ))
+        .primary_span(shader.ast.span)
+        .help("Switch the shader stage to `compute` or move this kernel to the SPIR-V backend which supports vertex, fragment, and compute stages.");
+        return Err(enriched_codegen_error(
+            report,
+            &shader.ast.name,
+            DiagnosticCode::ShaderStageMismatch,
+            CompilerPhase::Codegen,
         ));
     }
 
