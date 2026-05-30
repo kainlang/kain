@@ -2,7 +2,7 @@
 //                 error-semantic :: offline oracle configuration
 // ============================================================================
 // The Rust crate will eventually consume the binary oracle this Kain lane
-// forges. Keep the paths boring and local: no root litter, no MCP ceremony.
+// forges. Keep the paths boring and local: no root litter
 
 use std::fs
 use std::os
