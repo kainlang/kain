@@ -81,14 +81,15 @@ fn chunk_kain(raw: String, rel_path: String, cfg: SemanticSearchConfig) -> Array
         let src_line = text_trim_string(src_lines[i])
         let (kind, symbol) = kain_declaration_kind(src_line)
         if kind != "":
+            let (context_start, context_text) = kain_leading_comment_context(src_lines, i)
             let (end_ln, text_body) = kain_collect_block(src_lines, i, cfg.max_chunk_chars)
             push(chunks, Chunk {
                 file_path: rel_path,
-                line_start: i + 1,
+                line_start: context_start + 1,
                 line_end: end_ln + 1,
                 kind: kind,
                 symbol: symbol,
-                text: text_body,
+                text: context_text + text_body,
             })
             i = end_ln + 1
         else:
@@ -104,33 +105,53 @@ fn chunk_kain(raw: String, rel_path: String, cfg: SemanticSearchConfig) -> Array
         })
     return chunks
 
+fn kain_leading_comment_context(src_lines: Array<String>, start: Int) -> (Int, String):
+    var first = start
+    var j = start - 1
+    while j >= 0:
+        let trimmed = text_trim_string(src_lines[j])
+        if text_starts_with_string(trimmed, "//"):
+            first = j
+            j = j - 1
+        else:
+            j = -1
+    var context = ""
+    var i = first
+    while i < start:
+        context = context + src_lines[i] + "\n"
+        i = i + 1
+    return (first, context)
+
 fn kain_declaration_kind(src_line: String) -> (String, String):
     let parts = text_tokenize_whitespace(src_line)
     if len(parts) < 2:
         return ("", "")
     if parts[0] == "pub":
         if len(parts) >= 3:
-            return kain_kind_for_keyword(parts[1], src_line)
+            return kain_kind_for_keyword_with_prefix(parts[1], src_line, "pub " + parts[1])
         return ("", "")
-    return kain_kind_for_keyword(parts[0], src_line)
+    return kain_kind_for_keyword_with_prefix(parts[0], src_line, parts[0])
 
 fn kain_kind_for_keyword(kw: String, src: String) -> (String, String):
+    return kain_kind_for_keyword_with_prefix(kw, src, kw)
+
+fn kain_kind_for_keyword_with_prefix(kw: String, src: String, prefix: String) -> (String, String):
     if kw == "fn":
-        return (CHUNK_KIND_FN, kain_extract_symbol(src, "fn"))
+        return (CHUNK_KIND_FN, kain_extract_symbol(src, prefix))
     if kw == "actor":
-        return (CHUNK_KIND_ACTOR, kain_extract_symbol(src, "actor"))
+        return (CHUNK_KIND_ACTOR, kain_extract_symbol(src, prefix))
     if kw == "world":
-        return (CHUNK_KIND_WORLD, kain_extract_symbol(src, "world"))
+        return (CHUNK_KIND_WORLD, kain_extract_symbol(src, prefix))
     if kw == "shader":
-        return (CHUNK_KIND_SHADER, kain_extract_symbol(src, "shader"))
+        return (CHUNK_KIND_SHADER, kain_extract_symbol(src, prefix))
     if kw == "struct":
-        return (CHUNK_KIND_STRUCT, kain_extract_symbol(src, "struct"))
+        return (CHUNK_KIND_STRUCT, kain_extract_symbol(src, prefix))
     if kw == "patch":
-        return (CHUNK_KIND_PATCH, kain_extract_symbol(src, "patch"))
+        return (CHUNK_KIND_PATCH, kain_extract_symbol(src, prefix))
     if kw == "law":
-        return (CHUNK_KIND_LAW, kain_extract_symbol(src, "law"))
+        return (CHUNK_KIND_LAW, kain_extract_symbol(src, prefix))
     if kw == "impl":
-        return (CHUNK_KIND_IMPL, kain_extract_symbol(src, "impl"))
+        return (CHUNK_KIND_IMPL, kain_extract_symbol(src, prefix))
     return ("", "")
 
 fn kain_extract_symbol(src: String, kw: String) -> String:

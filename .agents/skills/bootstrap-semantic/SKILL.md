@@ -49,6 +49,7 @@ $env:TMP = 'Z:\_b\tmp'
 $env:TEMP = 'Z:\_b\tmp'
 $env:TMPDIR = 'Z:\_b\tmp'
 $env:KAIN_SEMANTIC_FILE_MANIFEST = 'X:\crates\semantic\.kain\oracle\source_manifest.txt'
+$env:KAIN_GPU_RUNTIME_LIBRARY = 'Z:\_b\cargo-target\kain-semantic-gpu-runtime\debug\kain_gpu_runtime.dll'
 
 kain check src\main.kn --target llvm
 kain check src\search_kernel.kn --target cuda
@@ -60,9 +61,10 @@ kain gpu-artifacts src\repair_kernel.kn --output .kain\oracle\gpu\repair_kernel\
 kain run src\main.kn --target llvm -- forge
 kain run src\main.kn --target llvm -- health
 kain run src\main.kn --target llvm -- embed kain "unknown identifier prntln expected println"
+kain run src\main.kn --target llvm -- search kain "unknown identifier prntln expected println" 8
 ```
 
-If search dispatch or compiler-facing behavior changed, also run the search and broken-corpus checks from the reference file.
+The expected search proof is `8` hits with `crates\semantic\error_corpus\type_unknown_identifier.kn` ranked first. If compiler-facing behavior changed, also run the broken-corpus checks from the reference file.
 
 ## Guardrails
 
@@ -70,3 +72,4 @@ If search dispatch or compiler-facing behavior changed, also run the search and 
 - Do not trust `X:\.kain\cache\run\llvm\kain_gpu_runtime.dll` after runtime changes; the semantic pipeline already proved that a stale cached DLL can reject the current residency target.
 - Do not collapse the semantic lane back into error-only assumptions. The point of `crates/semantic` is to stay reusable across diagnostics and future compiler intelligence surfaces.
 - Do not stop at `kain check` when the user asks whether the pipeline works. Real proof here means forge artifacts plus at least one runtime-visible command (`health`, `embed`, `search`, or broken-corpus diagnostics).
+- Do not treat the fused CUDA score+top-k lane as the default proof path yet. The current reliable path is CUDA score dispatch plus host top-k metadata reranking; fused and CUDA top-k lanes are env-gated experiments.

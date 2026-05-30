@@ -11,6 +11,7 @@ use std::time
 use types::SearchResult
 use types::SearchResponse
 use types::LoadedIndex
+use types::IndexMeta
 use types::empty_search_response
 use config::SemanticSearchConfig
 use config::gpu_artifact_bundle_path
@@ -108,6 +109,8 @@ pub fn search(query: String, index_name: String, top_k: Int, cfg: SemanticSearch
     }
 
 fn cuda_has_fused_kernel(cfg: SemanticSearchConfig) -> Bool:
+    if cfg.search_fused_enabled == false:
+        return false
     let residency = cuda_search_residency_path(cfg)
     if residency == "":
         return false
@@ -144,8 +147,12 @@ fn cuda_rank(query: String, index_path: String, matrix_path: String, weight_path
         return cuda_error("CUDA score dispatch failed: " + score_stats.message)
     trace("score dispatch ok")
 
-    let capacity = query_match_capacity(query_bytes)
+    let capacity = query_match_capacity(query_bytes, cfg)
     let threshold = score_threshold(cfg, capacity)
+    if cfg.search_cuda_topk_enabled == false:
+        trace("host top-k enabled; reading CUDA score payload")
+        return read_score_buffer_ranked_hits(residency, index, top_k, threshold, query, cfg)
+
     let top_error = stage_topk_payloads(residency, index.header.num_chunks, top_k, threshold)
     if top_error != "":
         return cuda_error(top_error)
@@ -180,7 +187,7 @@ fn cuda_fused_rank(query: String, index_path: String, matrix_path: String, weigh
     let num_chunks = index.header.num_chunks
     let chunks_per_block = compute_fused_chunks_per_block(num_chunks)
     let total_blocks = compute_fused_total_blocks(num_chunks, chunks_per_block)
-    let capacity = query_match_capacity(query_bytes)
+    let capacity = query_match_capacity(query_bytes, cfg)
     let threshold = score_threshold(cfg, capacity)
 
     trace("fused_num_chunks=" + int_to_str(num_chunks))
@@ -260,6 +267,10 @@ fn stage_fused_payloads(residency: String, query_bytes: Array<Int>, matrix_path:
         return "failed to zero fused warp_scratch_indices payload"
     if cuda_write_binding_payload_bytes_from_path(residency, CUDA_FUSED_KEY, "min_score", cuda_pack_u32_array_le([threshold])) == false:
         return "failed to stage fused min_score payload"
+    if cuda_write_binding_payload_bytes_from_path(residency, CUDA_FUSED_KEY, "rank_score_scale", cuda_pack_u32_array_le([cfg.rank_popcount_score_scale])) == false:
+        return "failed to stage fused rank_score_scale payload"
+    if cuda_write_binding_payload_bytes_from_path(residency, CUDA_FUSED_KEY, "rank_exact_bonus", cuda_pack_u32_array_le([cfg.rank_exact_match_bonus])) == false:
+        return "failed to stage fused rank_exact_bonus payload"
     return ""
 
 fn read_fused_ranked_hits(residency: String, top_k: Int, total_chunks: Int, total_blocks: Int, threshold: Int, max_score_raw: Int) -> CudaRankedHits:
@@ -300,36 +311,37 @@ fn read_fused_ranked_hits(residency: String, top_k: Int, total_chunks: Int, tota
     while ci < len(all_indices):
         let idx = all_indices[ci]
         let raw_sc = all_scores[ci]
-        let normalized = to_float(raw_sc) / max_score
+        var normalized = to_float(raw_sc) / max_score
+        if normalized > 1.0:
+            normalized = 1.0
 
-        // Insert sorted by score descending
-        var insert_pos: Int = 0
-        while insert_pos < len(sorted_scores) and sorted_scores[insert_pos] > normalized:
-            insert_pos = insert_pos + 1
+        var inserted = false
+        if len(sorted_scores) < top_k:
+            push(sorted_scores, normalized)
+            push(sorted_indices, idx)
+            inserted = true
+        else:
+            if top_k > 0:
+                let tail = top_k - 1
+                if normalized > sorted_scores[tail]:
+                    sorted_scores[tail] = normalized
+                    sorted_indices[tail] = idx
+                    inserted = true
 
-        if insert_pos < top_k:
-            // Shift down
-            var shift: Int = len(sorted_scores) - 1
-            while shift >= insert_pos:
-                if shift + 1 < top_k:
-                    if shift + 1 >= len(sorted_scores):
-                        push(sorted_scores, 0.0)
-                        push(sorted_indices, 0)
-                    sorted_scores[shift + 1] = sorted_scores[shift]
-                    sorted_indices[shift + 1] = sorted_indices[shift]
-                shift = shift - 1
-
-            if insert_pos >= len(sorted_scores):
-                push(sorted_scores, normalized)
-                push(sorted_indices, idx)
-            else:
-                sorted_scores[insert_pos] = normalized
-                sorted_indices[insert_pos] = idx
-
-            // Trim to top_k
-            while len(sorted_scores) > top_k:
-                let _pop_score = pop(sorted_scores)
-                let _pop_idx = pop(sorted_indices)
+        if inserted:
+            var pos = len(sorted_scores) - 1
+            while pos > 0:
+                let prev = pos - 1
+                if sorted_scores[pos] > sorted_scores[prev]:
+                    let swap_score = sorted_scores[prev]
+                    let swap_index = sorted_indices[prev]
+                    sorted_scores[prev] = sorted_scores[pos]
+                    sorted_indices[prev] = sorted_indices[pos]
+                    sorted_scores[pos] = swap_score
+                    sorted_indices[pos] = swap_index
+                    pos = pos - 1
+                else:
+                    pos = 0
 
         ci = ci + 1
 
@@ -368,6 +380,10 @@ fn stage_score_payloads(residency: String, query_bytes: Array<Int>, matrix_path:
         return "failed to stage dim payload"
     if cuda_write_binding_payload_bytes_from_path(residency, CUDA_SCORE_KEY, "num_chunks", cuda_pack_u32_array_le([num_chunks])) == false:
         return "failed to stage num_chunks payload"
+    if cuda_write_binding_payload_bytes_from_path(residency, CUDA_SCORE_KEY, "rank_score_scale", cuda_pack_u32_array_le([cfg.rank_popcount_score_scale])) == false:
+        return "failed to stage rank_score_scale payload"
+    if cuda_write_binding_payload_bytes_from_path(residency, CUDA_SCORE_KEY, "rank_exact_bonus", cuda_pack_u32_array_le([cfg.rank_exact_match_bonus])) == false:
+        return "failed to stage rank_exact_bonus payload"
     return ""
 
 fn stage_topk_payloads(residency: String, num_chunks: Int, top_k: Int, threshold: Int) -> String:
@@ -414,10 +430,133 @@ fn read_ranked_hits(residency: String, top_k: Int, total_chunks: Int, threshold:
         error: "",
     }
 
+fn read_score_buffer_ranked_hits(residency: String, index: LoadedIndex, top_k: Int, threshold: Int, query: String, cfg: SemanticSearchConfig) -> CudaRankedHits:
+    let score_bytes = cuda_binding_payload_bytes_from_path(residency, CUDA_SCORE_KEY, "scores")
+    let raw_scores = cuda_unpack_u32_array_le(score_bytes)
+    let query_key = to_lower(query)
+    let mut sorted_indices: Array<Int> = []
+    let mut sorted_raw_scores: Array<Int> = []
+    var chunk: Int = 0
+    while chunk < index.header.num_chunks and chunk < len(raw_scores) and chunk < len(index.metas):
+        let raw_score = raw_scores[chunk]
+        if raw_score > 0 and raw_score >= threshold:
+            let bonus = rank_meta_bonus(query_key, index.metas[chunk], cfg)
+            insert_ranked_hit(sorted_indices, sorted_raw_scores, chunk, raw_score + bonus, top_k)
+        chunk = chunk + 1
+
+    var best_raw: Int = 1
+    if len(sorted_raw_scores) > 0:
+        best_raw = sorted_raw_scores[0]
+    let mut scores: Array<Float> = []
+    var si: Int = 0
+    while si < len(sorted_raw_scores):
+        push(scores, to_float(sorted_raw_scores[si]) / to_float(best_raw))
+        si = si + 1
+
+    trace("host_rank_raw_scores_len=" + int_to_str(len(raw_scores)))
+    trace("host_rank_query_tokens=" + int_to_str(rank_query_token_count(query_key)))
+    trace("host_rank_accepted_len=" + int_to_str(len(sorted_indices)))
+    return CudaRankedHits {
+        indices: sorted_indices,
+        scores: scores,
+        error: "",
+    }
+
+fn insert_ranked_hit(indices: Array<Int>, scores: Array<Int>, idx: Int, score: Int, top_k: Int) -> Unit:
+    if top_k > 0:
+        var inserted = false
+        if len(scores) < top_k:
+            push(scores, score)
+            push(indices, idx)
+            inserted = true
+        else:
+            let tail = top_k - 1
+            if score > scores[tail]:
+                scores[tail] = score
+                indices[tail] = idx
+                inserted = true
+
+        if inserted:
+            var pos = len(scores) - 1
+            while pos > 0:
+                let prev = pos - 1
+                if scores[pos] > scores[prev]:
+                    let swap_score = scores[prev]
+                    let swap_index = indices[prev]
+                    scores[prev] = scores[pos]
+                    indices[prev] = indices[pos]
+                    scores[pos] = swap_score
+                    indices[pos] = swap_index
+                    pos = pos - 1
+                else:
+                    pos = 0
+
+fn rank_meta_bonus(query_key: String, meta: IndexMeta, cfg: SemanticSearchConfig) -> Int:
+    if cfg.rank_meta_bonus_enabled == false:
+        return 0
+    let path_key = to_lower(meta.file_path)
+    let symbol_key = to_lower(meta.symbol)
+    let kind_key = to_lower(meta.kind)
+    var bonus: Int = 0
+    let query_tokens = text_tokenize_whitespace(query_key)
+    var i: Int = 0
+    while i < len(query_tokens):
+        let token = rank_normalize_query_token(query_tokens[i])
+        bonus = bonus + rank_meta_token_bonus(token, path_key, symbol_key, kind_key, cfg)
+        i = i + 1
+    return bonus
+
+fn rank_meta_token_bonus(token: String, path_key: String, symbol_key: String, kind_key: String, cfg: SemanticSearchConfig) -> Int:
+    if rank_token_is_useful(token) == false:
+        return 0
+    var bonus: Int = 0
+    if text_contains_string(path_key, token):
+        bonus = bonus + cfg.rank_path_token_bonus
+    if symbol_key != "" and text_contains_string(symbol_key, token):
+        bonus = bonus + cfg.rank_symbol_token_bonus
+    if kind_key == token:
+        bonus = bonus + cfg.rank_kind_token_bonus
+    return bonus
+
+fn rank_query_token_count(query_key: String) -> Int:
+    let query_tokens = text_tokenize_whitespace(query_key)
+    var count: Int = 0
+    var i: Int = 0
+    while i < len(query_tokens):
+        let token = rank_normalize_query_token(query_tokens[i])
+        if rank_token_is_useful(token):
+            count = count + 1
+        i = i + 1
+    return count
+
+fn rank_normalize_query_token(raw: String) -> String:
+    return raw
+
+fn rank_token_is_useful(token: String) -> Bool:
+    if len(token) < 3:
+        return false
+    if token == "the" or token == "and" or token == "for" or token == "with":
+        return false
+    if token == "expected" or token == "actual" or token == "error":
+        return false
+    return true
+
+fn rank_token_char(ch: String) -> Bool:
+    let c = char_at(ch, 0)
+    let is_alpha = (c >= "a" and c <= "z") or (c >= "A" and c <= "Z")
+    let is_digit = c >= "0" and c <= "9"
+    return is_alpha or is_digit or c == "_"
+
 fn build_query_embedding_bytes(query: String, cfg: SemanticSearchConfig) -> Array<Int>:
+    let packed = build_packed_embedding_bytes(query, cfg.dim)
+    if cfg.transformer_enabled == false:
+        return packed
     if cfg.transformer_enabled:
-        return build_transformer_seed_embedding_bytes(query, cfg)
-    return build_packed_embedding_bytes(query, cfg.dim)
+        let seeded = build_transformer_seed_embedding_bytes(query, cfg)
+        if cfg.query_lexical_blend_enabled:
+            return blend_query_embedding_bytes(seeded, packed, cfg)
+        return seeded
+    return packed
 
 pub fn query_embedding_preview_json(query: String, cfg: SemanticSearchConfig, count: Int) -> String:
     let bytes = build_query_embedding_bytes(query, cfg)
@@ -426,7 +565,7 @@ pub fn query_embedding_preview_json(query: String, cfg: SemanticSearchConfig, co
         limit = 16
     if limit > len(bytes):
         limit = len(bytes)
-    var json = "{\"dim\":" + int_to_str(len(bytes)) + ",\"transformer_enabled\":" + search_json_bool(cfg.transformer_enabled) + ",\"preview\":["
+    var json = "{\"dim\":" + int_to_str(len(bytes)) + ",\"transformer_enabled\":" + search_json_bool(cfg.transformer_enabled) + ",\"query_lexical_blend\":" + search_json_bool(cfg.query_lexical_blend_enabled) + ",\"query_seed_mask\":" + int_to_str(cfg.query_transformer_seed_mask) + ",\"preview\":["
     var i: Int = 0
     while i < limit:
         if i > 0:
@@ -458,21 +597,58 @@ fn build_transformer_seed_embedding_bytes(query: String, cfg: SemanticSearchConf
         lane = lane + 1
     return bytes
 
+fn blend_query_embedding_bytes(seeded: Array<Int>, packed: Array<Int>, cfg: SemanticSearchConfig) -> Array<Int>:
+    let mut bytes: Array<Int> = []
+    var i: Int = 0
+    while i < cfg.dim:
+        var packed_byte: Int = 0
+        if i < len(packed):
+            packed_byte = packed[i] & 255
+
+        var mixed: Int = 0
+        if packed_byte != 0:
+            var seed_byte: Int = 0
+            if i < len(seeded):
+                seed_byte = seeded[i] & cfg.query_transformer_seed_mask
+            mixed = (packed_byte | seed_byte) & 255
+
+        push(bytes, mixed)
+        i = i + 1
+    return bytes
+
 fn search_json_bool(value: Bool) -> String:
     if value:
         return "true"
     return "false"
 
-fn query_match_capacity(query_bytes: Array<Int>) -> Int:
+fn query_match_capacity(query_bytes: Array<Int>, cfg: SemanticSearchConfig) -> Int:
     var count: Int = 0
+    var nonzero: Int = 0
     var i: Int = 0
     while i < len(query_bytes):
-        if query_bytes[i] != 0:
-            count = count + 1
+        let pop = query_byte_popcount(query_bytes[i], cfg.rank_bits_per_byte)
+        count = count + pop
+        if pop > 0:
+            nonzero = nonzero + 1
         i = i + 1
     if count <= 0:
-        return 1024
-    return count * 1024
+        return cfg.rank_popcount_score_scale * cfg.rank_bits_per_byte
+    return count * cfg.rank_popcount_score_scale + nonzero * cfg.rank_exact_match_bonus
+
+fn query_byte_popcount(value: Int, bits_per_byte: Int) -> Int:
+    var limit = bits_per_byte
+    if limit <= 0:
+        limit = 8
+    if limit > 8:
+        limit = 8
+    var count: Int = 0
+    var bit: Int = 0
+    let byte = value & 255
+    while bit < limit:
+        if (byte & (1 << bit)) != 0:
+            count = count + 1
+        bit = bit + 1
+    return count
 
 fn write_padded_payload_from_file(src: String, dest: String, expected_bytes: Int) -> Bool:
     if fs_exists(src) == false:

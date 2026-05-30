@@ -1,5 +1,27 @@
 # Kain Memory
 
+# 2026-05-30 - semantic oracle ranking proof is live
+
+What changed:
+
+- `crates/semantic` search ranking now defaults to the reliable CUDA-score + host-top-k path.
+- The ranker keeps lexical bitpack signal as the default query truth, masks untrained transformer seed noise with `KAIN_SEMANTIC_QUERY_TRANSFORMER_SEED_MASK=0`, and exposes scoring knobs through `src/config.kn` / env vars instead of hardcoded constants.
+- Metadata reranking now rewards query-token matches in chunk path/symbol/kind, with an error-corpus prior for known broken examples.
+- Fresh forge produced `2372` code chunks and `640` Kain chunks.
+- The proof query `kain run src\main.kn --target llvm -- search kain "unknown identifier prntln expected println" 8` returned `8` hits against `indexed=640` and ranked `crates\semantic\error_corpus\type_unknown_identifier.kn` first.
+
+Validation:
+
+- `kain check src\main.kn --target llvm` passes from `X:\crates\semantic`.
+- `kain check src\search_kernel.kn --target cuda` passes.
+- `kain run src\main.kn --target llvm -- health-json` confirms pack/index/matrix plus search/transformer/training/error/repair artifact families.
+
+Operational notes:
+
+- Fused CUDA score+top-k and CUDA top-k remain opt-in experiments via `KAIN_SEMANTIC_FUSED_RANK_ENABLED=1` and `KAIN_SEMANTIC_CUDA_TOPK_ENABLED=1`.
+- Do not run multiple `kain` launcher commands in parallel on Windows while validating this lane; the shared stamp path can race.
+- If LLVM emits invalid PHI IR from small helper rewrites, prefer explicit `var` assignments and `text_tokenize_whitespace` streaming over inline scalar `if` values or tiny `Array<String>.push` token helpers.
+
 # 2026-05-30 — bootstrap-semantic skill added for the oracle lane
 
 What changed:

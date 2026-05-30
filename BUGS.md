@@ -1,5 +1,28 @@
 # Kain Bug Log
 
+## 2026-05-30 - sys-codegen/llvm
+### Small authored Kain helper shapes can pass check but emit invalid LLVM PHI IR
+
+- Categories: llvm, lowering, typechecker, developer-experience
+- Severity: High
+- Status: Open in tree (2026-05-30)
+- Surface: authored Kain helpers lowered through `kain run --target llvm`.
+- Trigger: Semantic oracle ranking helpers in `crates/semantic/src/search_engine.kn`, including an inline scalar `if` value and a small helper that accumulated `Array<String>` query tokens.
+- Symptom: `kain check` passed, but `kain run src\main.kn --target llvm -- search kain "unknown identifier prntln expected println" 8` failed during LLVM validation with invalid PHI IR.
+- Why this is a bug: The frontend/lowering pipeline accepted source that could not be emitted as valid LLVM, so the failure surfaced late as backend IR breakage rather than as a Kain diagnostic.
+- Minimal repro:
+  - Reintroduce an inline scalar `if` expression for the ranker's `best_raw` value or the small query-token `Array<String>.push` helper shape in `crates/semantic/src/search_engine.kn`.
+  - Run `kain run src\main.kn --target llvm -- search kain "unknown identifier prntln expected println" 8` from `X:\crates\semantic`.
+- Evidence:
+  - `.kain\reports\run\session-1780180550066-3304.json`
+  - `.kain\reports\run\session-1780180709584-31932.json`
+  - `.kain\reports\run\session-1780180864800-32180.json`
+- Current workaround:
+  - Rewrite inline scalar `if` expressions as explicit `var` assignments.
+  - Avoid accumulating `Array<String>` tokens in tiny helpers; use `text_tokenize_whitespace` and direct streaming metadata scoring.
+
+---
+
 ## 2026-05-29 - c-ffi/include-lane
 ### Natural `include ... as ...` C bridge can emit duplicate LLVM declarations at link time
 

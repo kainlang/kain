@@ -37,6 +37,8 @@ pub struct SemanticSearchConfig:
     gpu_artifact_dir: String
     search_artifact_stem: String
     search_fused_artifact_stem: String
+    search_fused_enabled: Bool
+    search_cuda_topk_enabled: Bool
     transformer_artifact_stem: String
     training_artifact_stem: String
     error_artifact_stem: String
@@ -46,6 +48,16 @@ pub struct SemanticSearchConfig:
     transformer_max_seq_len: Int
     transformer_vocab_size: Int
     transformer_seed_rounds: Int
+    query_lexical_blend_enabled: Bool
+    query_transformer_seed_mask: Int
+    rank_popcount_score_scale: Int
+    rank_bits_per_byte: Int
+    rank_exact_match_bonus: Int
+    rank_error_corpus_bias: Int
+    rank_meta_bonus_enabled: Bool
+    rank_path_token_bonus: Int
+    rank_symbol_token_bonus: Int
+    rank_kind_token_bonus: Int
 
 pub fn default_config() -> SemanticSearchConfig:
     let mut code_dirs: Array<String> = []
@@ -98,6 +110,8 @@ pub fn default_config() -> SemanticSearchConfig:
         gpu_artifact_dir: ".kain/oracle/gpu",
         search_artifact_stem: "search_kernel",
         search_fused_artifact_stem: "search_kernel_god",
+        search_fused_enabled: false,
+        search_cuda_topk_enabled: false,
         transformer_artifact_stem: "transformer",
         training_artifact_stem: "training",
         error_artifact_stem: "error_kernel",
@@ -107,6 +121,16 @@ pub fn default_config() -> SemanticSearchConfig:
         transformer_max_seq_len: 512,
         transformer_vocab_size: 256,
         transformer_seed_rounds: 4,
+        query_lexical_blend_enabled: true,
+        query_transformer_seed_mask: 0,
+        rank_popcount_score_scale: 256,
+        rank_bits_per_byte: 8,
+        rank_exact_match_bonus: 2048,
+        rank_error_corpus_bias: 32768,
+        rank_meta_bonus_enabled: true,
+        rank_path_token_bonus: 24576,
+        rank_symbol_token_bonus: 4096,
+        rank_kind_token_bonus: 2048,
     }
 
 pub fn load_config(path: String) -> SemanticSearchConfig:
@@ -125,6 +149,12 @@ pub fn load_config(path: String) -> SemanticSearchConfig:
     let env_gpu_dir = env("KAIN_SEMANTIC_GPU_ARTIFACT_DIR")
     if env_gpu_dir != "":
         cfg.gpu_artifact_dir = env_gpu_dir
+    let env_fused_rank = env("KAIN_SEMANTIC_FUSED_RANK_ENABLED")
+    if env_fused_rank != "":
+        cfg.search_fused_enabled = config_env_bool(env_fused_rank, cfg.search_fused_enabled)
+    let env_cuda_topk = env("KAIN_SEMANTIC_CUDA_TOPK_ENABLED")
+    if env_cuda_topk != "":
+        cfg.search_cuda_topk_enabled = config_env_bool(env_cuda_topk, cfg.search_cuda_topk_enabled)
     let env_transformer = env("KAIN_SEMANTIC_TRANSFORMER_ENABLED")
     if env_transformer != "":
         cfg.transformer_enabled = config_env_bool(env_transformer, cfg.transformer_enabled)
@@ -140,6 +170,36 @@ pub fn load_config(path: String) -> SemanticSearchConfig:
     let env_seed_rounds = env("KAIN_SEMANTIC_TRANSFORMER_SEED_ROUNDS")
     if env_seed_rounds != "":
         cfg.transformer_seed_rounds = to_int(env_seed_rounds)
+    let env_query_blend = env("KAIN_SEMANTIC_QUERY_LEXICAL_BLEND")
+    if env_query_blend != "":
+        cfg.query_lexical_blend_enabled = config_env_bool(env_query_blend, cfg.query_lexical_blend_enabled)
+    let env_query_seed_mask = env("KAIN_SEMANTIC_QUERY_TRANSFORMER_SEED_MASK")
+    if env_query_seed_mask != "":
+        cfg.query_transformer_seed_mask = to_int(env_query_seed_mask)
+    let env_rank_scale = env("KAIN_SEMANTIC_RANK_POPCOUNT_SCALE")
+    if env_rank_scale != "":
+        cfg.rank_popcount_score_scale = to_int(env_rank_scale)
+    let env_rank_bits = env("KAIN_SEMANTIC_RANK_BITS_PER_BYTE")
+    if env_rank_bits != "":
+        cfg.rank_bits_per_byte = to_int(env_rank_bits)
+    let env_exact_bonus = env("KAIN_SEMANTIC_RANK_EXACT_BONUS")
+    if env_exact_bonus != "":
+        cfg.rank_exact_match_bonus = to_int(env_exact_bonus)
+    let env_error_bias = env("KAIN_SEMANTIC_RANK_ERROR_CORPUS_BIAS")
+    if env_error_bias != "":
+        cfg.rank_error_corpus_bias = to_int(env_error_bias)
+    let env_meta_bonus = env("KAIN_SEMANTIC_RANK_META_BONUS")
+    if env_meta_bonus != "":
+        cfg.rank_meta_bonus_enabled = config_env_bool(env_meta_bonus, cfg.rank_meta_bonus_enabled)
+    let env_path_bonus = env("KAIN_SEMANTIC_RANK_PATH_TOKEN_BONUS")
+    if env_path_bonus != "":
+        cfg.rank_path_token_bonus = to_int(env_path_bonus)
+    let env_symbol_bonus = env("KAIN_SEMANTIC_RANK_SYMBOL_TOKEN_BONUS")
+    if env_symbol_bonus != "":
+        cfg.rank_symbol_token_bonus = to_int(env_symbol_bonus)
+    let env_kind_bonus = env("KAIN_SEMANTIC_RANK_KIND_TOKEN_BONUS")
+    if env_kind_bonus != "":
+        cfg.rank_kind_token_bonus = to_int(env_kind_bonus)
     if cfg.transformer_dim <= 0:
         cfg.transformer_dim = cfg.dim
     if cfg.transformer_max_seq_len <= 0:
@@ -148,6 +208,24 @@ pub fn load_config(path: String) -> SemanticSearchConfig:
         cfg.transformer_vocab_size = 256
     if cfg.transformer_seed_rounds <= 0:
         cfg.transformer_seed_rounds = 4
+    if cfg.query_transformer_seed_mask < 0:
+        cfg.query_transformer_seed_mask = 0
+    if cfg.query_transformer_seed_mask > 255:
+        cfg.query_transformer_seed_mask = 255
+    if cfg.rank_popcount_score_scale <= 0:
+        cfg.rank_popcount_score_scale = 256
+    if cfg.rank_bits_per_byte <= 0:
+        cfg.rank_bits_per_byte = 8
+    if cfg.rank_exact_match_bonus < 0:
+        cfg.rank_exact_match_bonus = 0
+    if cfg.rank_error_corpus_bias < 0:
+        cfg.rank_error_corpus_bias = 0
+    if cfg.rank_path_token_bonus < 0:
+        cfg.rank_path_token_bonus = 0
+    if cfg.rank_symbol_token_bonus < 0:
+        cfg.rank_symbol_token_bonus = 0
+    if cfg.rank_kind_token_bonus < 0:
+        cfg.rank_kind_token_bonus = 0
     if config_path_is_absolute(cfg.index_dir) == false:
         cfg.index_dir = normalize_slashes(fs_path_join(config_runtime_root_from(path), cfg.index_dir))
     if config_path_is_absolute(cfg.repo_root) == false:

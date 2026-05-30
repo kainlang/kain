@@ -130,7 +130,7 @@ fn stream_all_chunks(files: Array<String>, root: String, cfg: SemanticSearchConf
                 return -1
             fs_append_bytes(matrix_path, embedding_bytes)
             fs_append_bytes(weight_path, pack_u32_le(packed_embedding_weight(embedding_bytes)))
-            fs_append_bytes(bias_path, pack_u32_le(chunk_search_bias(file_chunks[ci])))
+            fs_append_bytes(bias_path, pack_u32_le(chunk_search_bias(file_chunks[ci], cfg)))
             if append_index_bytes(index_path, meta_bytes) == false:
                 println("  ERROR: failed to append chunk metadata")
                 return -1
@@ -371,14 +371,14 @@ pub fn index_bias_path(index_path_value: String) -> String:
     return index_path_value + ".bias.u32.bin"
 
 fn build_chunk_embedding_bytes(chunk: Chunk, dim: Int) -> Array<Int>:
-    var material = chunk.text
+    var material = chunk.file_path + " " + chunk.text
     if chunk.symbol != "":
         material = chunk.symbol + " " + material
     if chunk.kind != CHUNK_KIND_GENERIC:
         material = chunk.kind + " " + material
     return build_packed_embedding_bytes(material, dim)
 
-fn chunk_search_bias(chunk: Chunk) -> Int:
+fn chunk_search_bias(chunk: Chunk, cfg: SemanticSearchConfig) -> Int:
     var bias: Int = 8
     if chunk.kind == CHUNK_KIND_FN:
         bias = 28
@@ -405,6 +405,9 @@ fn chunk_search_bias(chunk: Chunk) -> Int:
         if depth_penalty > 6:
             depth_penalty = 6
         bias = bias - depth_penalty
+    let path_key = to_lower(chunk.file_path)
+    if text_contains_string(path_key, "\\error_corpus\\"):
+        bias = bias + cfg.rank_error_corpus_bias
     if bias < 0:
         bias = 0
     return bias

@@ -64,10 +64,11 @@ kain run src\main.kn --target llvm -- embed kain "unknown identifier prntln expe
 
 Expected proof from the last known good run:
 
-- `forge` produced `2372` code chunks and `635` Kain chunks.
+- `forge` produced `2372` code chunks and `640` Kain chunks.
 - The oracle wrote `.kain\oracle\kain_error_oracle.bin`.
 - `health` confirmed pack, index, matrix, and all CUDA artifact families.
 - `embed` returned a transformer-enabled 384-byte preview.
+- `search kain "unknown identifier prntln expected println" 8` returned `8` hits and ranked `crates\semantic\error_corpus\type_unknown_identifier.kn` first.
 
 ## Search Dispatch
 
@@ -82,13 +83,35 @@ $env:KAIN_GPU_RUNTIME_LIBRARY = 'Z:\_b\cargo-target\kain-semantic-gpu-runtime\de
 Then run:
 
 ```powershell
-kain run src\main.kn --target llvm -- search
+Remove-Item Env:\KAIN_SEMANTIC_FUSED_RANK_ENABLED -ErrorAction SilentlyContinue
+Remove-Item Env:\KAIN_SEMANTIC_CUDA_TOPK_ENABLED -ErrorAction SilentlyContinue
+Remove-Item Env:\KAIN_SEMANTIC_QUERY_TRANSFORMER_SEED_MASK -ErrorAction SilentlyContinue
+kain run src\main.kn --target llvm -- search kain "unknown identifier prntln expected println" 8
 ```
 
 Current known-good behavior:
 
-- The fused CUDA search kernel stages and dispatches successfully.
-- The last proof still returned `0` hits for the probe query, so ranking quality needs tuning even though the pipeline is live.
+- The CUDA score kernel stages and dispatches successfully.
+- The default rank path reads the CUDA score payload and performs host top-k reranking with metadata bonuses.
+- The probe query returns `8` hits and ranks `type_unknown_identifier.kn` first.
+- The fused score+top-k kernel and the CUDA top-k kernel are still available, but opt-in and experimental: set `KAIN_SEMANTIC_FUSED_RANK_ENABLED=1` and/or `KAIN_SEMANTIC_CUDA_TOPK_ENABLED=1` only when validating those lanes directly.
+
+## Ranking Knobs
+
+The search ranker is intentionally data-driven. Prefer these config/env knobs over hardcoded scoring tweaks:
+
+- `KAIN_SEMANTIC_FUSED_RANK_ENABLED`: enable the experimental fused CUDA score+top-k lane.
+- `KAIN_SEMANTIC_CUDA_TOPK_ENABLED`: enable the experimental CUDA top-k lane after the score kernel.
+- `KAIN_SEMANTIC_QUERY_LEXICAL_BLEND`: keep lexical bitpack signal blended with transformer seed output.
+- `KAIN_SEMANTIC_QUERY_TRANSFORMER_SEED_MASK`: mask transformer seed bits before blending; default `0` keeps untrained transformer noise from scrambling lexical exact matches.
+- `KAIN_SEMANTIC_RANK_POPCOUNT_SCALE`: weight bit-overlap popcount in CUDA scores.
+- `KAIN_SEMANTIC_RANK_BITS_PER_BYTE`: expected max per byte for score normalization.
+- `KAIN_SEMANTIC_RANK_EXACT_BONUS`: bonus for exact byte matches between query and chunk embeddings.
+- `KAIN_SEMANTIC_RANK_ERROR_CORPUS_BIAS`: corpus prior for known broken/error examples.
+- `KAIN_SEMANTIC_RANK_META_BONUS`: enable path/symbol/kind token reranking.
+- `KAIN_SEMANTIC_RANK_PATH_TOKEN_BONUS`: bonus when query tokens appear in chunk paths.
+- `KAIN_SEMANTIC_RANK_SYMBOL_TOKEN_BONUS`: bonus when query tokens appear in symbol names.
+- `KAIN_SEMANTIC_RANK_KIND_TOKEN_BONUS`: bonus when query tokens appear in chunk kinds.
 
 ## Broken Corpus Proof
 
@@ -105,6 +128,8 @@ The current proof expectation is enriched diagnostics, notes, and fix-its rather
 ## Known Traps
 
 - `kain check` can pass while `kain gpu-artifacts` fails. PTX artifact emission is stricter than a frontend-only compile.
+- Run `kain` launcher commands serially on Windows. Parallel checks/runs can race the shared stamp replacement path before Kain itself starts.
 - The native recursive filesystem path crashed during forge; stay on the manifest-fed path until `fs_read_dir_paths_text` is fixed on Windows LLVM-native runs.
 - Kain-owned process launch for `rg` inside the oracle returned `process_last_status() == -5`; do not rely on the oracle self-spawning the manifest scanner right now.
 - `X:\.kain\cache\run\llvm\kain_gpu_runtime.dll` was stale and rejected residency target `ks`; prefer the freshly rebuilt DLL under `Z:\_b\cargo-target\kain-semantic-gpu-runtime`.
+- Some small authored Kain helper shapes passed `kain check` but failed during LLVM run with invalid PHI IR. In this lane, avoid empty `return` in `Unit` helpers, avoid inline `if` expressions for values that can be spelled as explicit `var` assignments, and prefer `text_tokenize_whitespace` plus direct streaming over accumulating `Array<String>` tokens in tiny helpers.

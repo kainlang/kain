@@ -29,7 +29,7 @@ use std::cuda
 // ============================================================================
 //                    KERNEL 1 :: SemanticFusedScoreTopK
 // ============================================================================
-// The crown jewel. Scores chunks via warp-parallel byte matching AND finds
+// The crown jewel. Scores chunks via warp-parallel bit-overlap AND finds
 // top-k in the SAME kernel launch. No PCIe roundtrip for scores. No second
 // kernel dispatch.
 //
@@ -39,7 +39,7 @@ use std::cuda
 // candidate and maintains the block's top-k in the output buffer.
 //
 // Flow per scoring cycle:
-//   1. Warps 1-7 each score one chunk (warp-level byte scan)
+//   1. Warps 1-7 each score one chunk (warp-level popcount scan)
 //   2. Lane 0 of each warp writes (score, chunk_idx) to a warp scratch slot
 //   3. Warp 0 reads all 7 scratch slots, inserts winners into block top-k
 //   4. Repeat until all block chunks are processed
@@ -62,6 +62,8 @@ shader compute SemanticFusedScoreTopK(id: UVec3) -> Void:
     uniform top_k: UInt @10
     uniform chunks_per_block: UInt @11
     uniform min_score: UInt @12
+    uniform rank_score_scale: UInt @13
+    uniform rank_exact_bonus: UInt @14
 
     comptime:
         let compute = (
@@ -81,6 +83,8 @@ shader compute SemanticFusedScoreTopK(id: UVec3) -> Void:
                 ("top_k", "u32", ["1"], "input", "kain.shared.buffer"),
                 ("chunks_per_block", "u32", ["1"], "input", "kain.shared.buffer"),
                 ("min_score", "u32", ["1"], "input", "kain.shared.buffer"),
+                ("rank_score_scale", "u32", ["1"], "input", "kain.shared.buffer"),
+                ("rank_exact_bonus", "u32", ["1"], "input", "kain.shared.buffer"),
             ],
             [
                 ("query_embed", "ingress", "per-dispatch", "kain.shared.buffer"),
@@ -96,6 +100,8 @@ shader compute SemanticFusedScoreTopK(id: UVec3) -> Void:
                 ("top_k", "ingress", "per-dispatch", "kain.shared.buffer"),
                 ("chunks_per_block", "ingress", "per-dispatch", "kain.shared.buffer"),
                 ("min_score", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("rank_score_scale", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("rank_exact_bonus", "ingress", "per-dispatch", "kain.shared.buffer"),
             ],
             [],
         )
@@ -104,6 +110,9 @@ shader compute SemanticFusedScoreTopK(id: UVec3) -> Void:
     let block_id = id.x / UInt(256)
     let lane = cuda_lane_id()
     let warp_id = cuda_warp_id()
+    let lane_is_zero = lane == UInt(0)
+    let warp_is_zero = warp_id == UInt(0)
+    let warp_slot = warp_id + UInt(0)
 
     // --- range of chunks this block owns -----------------------------------
     let block_start = block_id * chunks_per_block
@@ -115,7 +124,7 @@ shader compute SemanticFusedScoreTopK(id: UVec3) -> Void:
 
     // --- initialize block top-k output to zero -----------------------------
     // Only warp 0 lane 0 zeroes the output region for this block
-    if warp_id == UInt(0) and lane == UInt(0):
+    if warp_is_zero and lane_is_zero:
         let block_base = block_id * top_k
         var zi: UInt = UInt(0)
         while zi < top_k:
@@ -129,11 +138,13 @@ shader compute SemanticFusedScoreTopK(id: UVec3) -> Void:
     // gets its own 8-slot window. Do not let block 37 race block 0's oracle.
 
     let scratch_base = block_id * UInt(8)
-    var chunk = block_start + warp_id
-    while chunk < block_end:
-        let chunk_base = chunk * dim
+    var chunk_cursor = block_start + warp_slot
+    while chunk_cursor < block_end:
+        let chunk_base = chunk_cursor * dim
 
-        // Byte-level warp scan (classic SemanticPackedScore pattern)
+        // Bit-overlap warp scan. Exact byte equality was too brittle for the
+        // hashed oracle vectors, so the fused lane now matches the bitpack
+        // scorer's approximate nearest-neighbor metric.
         var local_hits: UInt = UInt(0)
         var local_score: UInt = UInt(0)
         var dim_index = lane
@@ -142,8 +153,23 @@ shader compute SemanticFusedScoreTopK(id: UVec3) -> Void:
             if q != UInt(0):
                 let v = index_matrix[chunk_base + dim_index]
                 if q == v:
-                    local_hits = local_hits + UInt(1)
-                    local_score = local_score + UInt(1024)
+                    local_hits = local_hits + UInt(8)
+                    local_score = local_score + rank_exact_bonus
+                else:
+                    let overlap = q & v
+                    if overlap != UInt(0):
+                        let lo = overlap & UInt(15)
+                        let hi = overlap >> UInt(4)
+                        var pc: UInt = UInt(0)
+                        pc = pc + lo
+                        pc = pc - ((pc >> UInt(1)) & UInt(5))
+                        let pc_lo = (pc & UInt(3)) + ((pc >> UInt(2)) & UInt(3))
+                        var pc2: UInt = hi
+                        pc2 = pc2 - ((pc2 >> UInt(1)) & UInt(5))
+                        let pc_hi = (pc2 & UInt(3)) + ((pc2 >> UInt(2)) & UInt(3))
+                        let total_pc = pc_lo + pc_hi
+                        local_hits = local_hits + total_pc
+                        local_score = local_score + total_pc * rank_score_scale
             dim_index = dim_index + UInt(32)
 
         let hit_count = cuda_warp_reduce_sum_u32(local_hits)
@@ -151,29 +177,25 @@ shader compute SemanticFusedScoreTopK(id: UVec3) -> Void:
 
         // Compute final score (lane 0 only)
         var final_score: UInt = UInt(0)
-        if lane == UInt(0):
+        if lane_is_zero:
             final_score = match_score
             if hit_count > UInt(0):
-                final_score = final_score + chunk_bias[chunk]
-                let weight = index_weights[chunk]
+                final_score = final_score + chunk_bias[chunk_cursor]
+                let weight = index_weights[chunk_cursor]
                 if weight > UInt(0):
-                    let penalty = weight >> UInt(3)
-                    if final_score > penalty:
-                        final_score = final_score - penalty
-                    else:
-                        final_score = UInt(0)
+                    final_score = final_score + (weight >> UInt(4))
 
         // Lane 0 writes to its warp's scratch slot
-        if lane == UInt(0):
-            warp_scratch_scores[scratch_base + warp_id] = final_score
-            warp_scratch_indices[scratch_base + warp_id] = chunk
+        if lane_is_zero:
+            warp_scratch_scores[scratch_base + warp_slot] = final_score
+            warp_scratch_indices[scratch_base + warp_slot] = chunk_cursor
 
         // Barrier: all warps must finish writing scratch before warp 0 reads
         cuda_barrier_sync()
 
         // ---- WARP 0 MERGE ENGINE ------------------------------------------
         // Warp 0 reads all warp scratch slots and inserts winners into block top-k
-        if warp_id == UInt(0) and lane == UInt(0):
+        if warp_is_zero and lane_is_zero:
             var w: UInt = UInt(0)
             while w < UInt(8):
                 let cand_score = warp_scratch_scores[scratch_base + w]
@@ -192,18 +214,12 @@ shader compute SemanticFusedScoreTopK(id: UVec3) -> Void:
                         probe = probe + UInt(1)
 
                     if cand_score > weakest_score:
-                        // Shift tail down from weakest_slot
-                        var shift: UInt = top_k - UInt(1)
-                        while shift > weakest_slot:
-                            block_topk_scores[block_id * top_k + shift] = block_topk_scores[block_id * top_k + shift - UInt(1)]
-                            block_topk_indices[block_id * top_k + shift] = block_topk_indices[block_id * top_k + shift - UInt(1)]
-                            shift = shift - UInt(1)
                         block_topk_scores[block_id * top_k + weakest_slot] = cand_score
                         block_topk_indices[block_id * top_k + weakest_slot] = cand_index
                 w = w + UInt(1)
 
         cuda_barrier_sync()
-        chunk = chunk + UInt(8)
+        chunk_cursor = chunk_cursor + UInt(8)
 
     return
 
@@ -229,6 +245,8 @@ shader compute SemanticBitpackDotProduct(id: UVec3) -> Void:
     uniform scores: StorageBuffer<UInt> @4
     uniform dim: UInt @5
     uniform num_chunks: UInt @6
+    uniform rank_score_scale: UInt @7
+    uniform rank_exact_bonus: UInt @8
 
     comptime:
         let compute = (
@@ -242,6 +260,8 @@ shader compute SemanticBitpackDotProduct(id: UVec3) -> Void:
                 ("scores", "u32", ["100000"], "output", "kain.shared.buffer"),
                 ("dim", "u32", ["1"], "input", "kain.shared.buffer"),
                 ("num_chunks", "u32", ["1"], "input", "kain.shared.buffer"),
+                ("rank_score_scale", "u32", ["1"], "input", "kain.shared.buffer"),
+                ("rank_exact_bonus", "u32", ["1"], "input", "kain.shared.buffer"),
             ],
             [
                 ("query_embed", "ingress", "per-dispatch", "kain.shared.buffer"),
@@ -251,12 +271,15 @@ shader compute SemanticBitpackDotProduct(id: UVec3) -> Void:
                 ("scores", "egress", "per-dispatch", "kain.shared.buffer"),
                 ("dim", "ingress", "per-dispatch", "kain.shared.buffer"),
                 ("num_chunks", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("rank_score_scale", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("rank_exact_bonus", "ingress", "per-dispatch", "kain.shared.buffer"),
             ],
             [],
         )
 
     let chunk = id.x / UInt(32)
     let lane = cuda_lane_id()
+    let lane_is_zero = lane == UInt(0)
     if chunk >= num_chunks:
         return
 
@@ -271,29 +294,33 @@ shader compute SemanticBitpackDotProduct(id: UVec3) -> Void:
         let q = query_embed[dim_index]
         if q != UInt(0):
             let v = index_matrix[chunk_base + dim_index]
-            let overlap = q & v
-            if overlap != UInt(0):
-                // popcount(u8) via SWAR nibble trick
-                // Low nibble: n & 0xF, high nibble: n >> 4
-                let lo = overlap & UInt(15)       // 0x0F
-                let hi = overlap >> UInt(4)
-                var pc: UInt = UInt(0)
-                pc = pc + lo
-                pc = pc - ((pc >> UInt(1)) & UInt(5))  // 0x5 nibble-LUT step1
-                let pc_lo = (pc & UInt(3)) + ((pc >> UInt(2)) & UInt(3))
-                var pc2: UInt = hi
-                pc2 = pc2 - ((pc2 >> UInt(1)) & UInt(5))
-                let pc_hi = (pc2 & UInt(3)) + ((pc2 >> UInt(2)) & UInt(3))
-                let total_pc = pc_lo + pc_hi
+            if q == v:
+                local_hits = local_hits + UInt(8)
+                local_score = local_score + rank_exact_bonus
+            else:
+                let overlap = q & v
+                if overlap != UInt(0):
+                    // popcount(u8) via SWAR nibble trick
+                    // Low nibble: n & 0xF, high nibble: n >> 4
+                    let lo = overlap & UInt(15)       // 0x0F
+                    let hi = overlap >> UInt(4)
+                    var pc: UInt = UInt(0)
+                    pc = pc + lo
+                    pc = pc - ((pc >> UInt(1)) & UInt(5))  // 0x5 nibble-LUT step1
+                    let pc_lo = (pc & UInt(3)) + ((pc >> UInt(2)) & UInt(3))
+                    var pc2: UInt = hi
+                    pc2 = pc2 - ((pc2 >> UInt(1)) & UInt(5))
+                    let pc_hi = (pc2 & UInt(3)) + ((pc2 >> UInt(2)) & UInt(3))
+                    let total_pc = pc_lo + pc_hi
 
-                local_hits = local_hits + total_pc
-                local_score = local_score + total_pc * UInt(256)
+                    local_hits = local_hits + total_pc
+                    local_score = local_score + total_pc * rank_score_scale
         dim_index = dim_index + UInt(32)
 
     let hit_total = cuda_warp_reduce_sum_u32(local_hits)
     let score_total = cuda_warp_reduce_sum_u32(local_score)
 
-    if lane == UInt(0):
+    if lane_is_zero:
         var final_score = score_total
         if hit_total > UInt(0):
             final_score = final_score + chunk_bias[chunk]
@@ -352,17 +379,19 @@ shader compute SemanticWarpTopK(id: UVec3) -> Void:
         )
 
     let lane = cuda_lane_id()
+    let lane_is_zero = lane == UInt(0)
     if top_k == UInt(0):
         return
 
     // Zero the taken_mask bitmask
-    var mwi: UInt = lane
-    while mwi < UInt(3200):
-        taken_mask[mwi] = UInt(0)
-        mwi = mwi + UInt(32)
+    if lane_is_zero:
+        var mwi: UInt = UInt(0)
+        while mwi < UInt(3200):
+            taken_mask[mwi] = UInt(0)
+            mwi = mwi + UInt(1)
 
     // Initialize output
-    if lane == UInt(0):
+    if lane_is_zero:
         var init: UInt = UInt(0)
         while init < top_k:
             top_indices[init] = UInt(0)
@@ -402,7 +431,7 @@ shader compute SemanticWarpTopK(id: UVec3) -> Void:
             offset = offset >> UInt(1)
 
         // Lane 0 records the winner and marks it as taken
-        if lane == UInt(0):
+        if lane_is_zero:
             top_scores[round] = search_score
             top_indices[round] = search_index
             // Mark as taken in the bitmask
@@ -466,6 +495,7 @@ shader compute SemanticCoarsePrefilter(id: UVec3) -> Void:
 
     let chunk = id.x / UInt(32)
     let lane = cuda_lane_id()
+    let lane_is_zero = lane == UInt(0)
     if chunk >= num_chunks:
         return
 
@@ -492,7 +522,7 @@ shader compute SemanticCoarsePrefilter(id: UVec3) -> Void:
     let total_hits = cuda_warp_reduce_sum_u32(sig_hits)
 
     // Lane 0 sets the candidate bit
-    if lane == UInt(0):
+    if lane_is_zero:
         if total_hits >= min_sig_match:
             let mask_word = chunk >> UInt(5)
             let mask_bit = chunk & UInt(31)

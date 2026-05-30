@@ -1,5 +1,17 @@
 # Kain Feedback Log
 
+## 2026-05-30 - semantic oracle authored Kain LLVM/CUDA proof
+
+### Semantic ranking work exposed several Kain authoring and lowering sharp edges
+- Categories: correctness, developer-experience, compiler, cuda, llvm
+- Status: Active
+- Surface: authored Kain -> LLVM/CUDA proof loop
+- Symptom: The semantic oracle ranker ultimately checked and ran, but several ordinary helper shapes derailed the proof with misleading failures: an empty `return` in a `Unit` helper reported `return expected Unit, found Unit`; an inline `if` expression used to compute a scalar emitted invalid LLVM PHI IR during `kain run --target llvm` even after `kain check` passed; accumulating query tokens with `Array<String>.push` in a small helper also emitted invalid LLVM PHI IR; and a manual char-stream tokenizer produced the wrong query token count for a simple whitespace query.
+- Workflow impact: The reliable search proof required rewriting logic into more explicit `var` assignments and using `text_tokenize_whitespace` with streaming metadata scoring. This made the semantic oracle work, but the compiler accepted shapes that later failed in LLVM or behaved surprisingly at runtime.
+- Minimal repro: The failing shapes were encountered while tuning `crates/semantic/src/search_engine.kn` ranking helpers for `kain run src\main.kn --target llvm -- search kain "unknown identifier prntln expected println" 8`.
+- Evidence: Invalid LLVM PHI reports were captured in `.kain\reports\run\session-1780180550066-3304.json`, `.kain\reports\run\session-1780180709584-31932.json`, and `.kain\reports\run\session-1780180864800-32180.json`; the successful rewritten proof is `.kain\reports\run\session-1780181369010-35096.json`.
+- Suggested direction: Tighten frontend/lowering validation so these helper shapes fail during `kain check` with targeted diagnostics, or make LLVM lowering robust for inline scalar `if` expressions and small string-array mutation helpers. Also clarify whether empty `return` is legal in `Unit` functions.
+
 ## 2026-05-27 - std::mcp / identifier and JSON helper sharp edges
 
 ### `std::mcp` dogfood hit two surprising language traps while wiring the stdlib

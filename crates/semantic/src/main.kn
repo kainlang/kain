@@ -25,6 +25,7 @@ use indexer::index_bias_path
 use search_engine::search
 use search_engine::query_embedding_preview_json
 use utils::int_to_str
+use utils::float_to_str
 use utils::bool_to_str
 use utils::normalize_slashes
 
@@ -176,7 +177,7 @@ fn handle_search(cfg: SemanticSearchConfig) -> Int:
     var i: Int = 0
     while i < len(response.results):
         let hit = response.results[i]
-        println("  [" + int_to_str(i) + "] score=" + int_to_str(Int(hit.score)) + " " + hit.file_path + ":" + int_to_str(hit.line_start) + " " + hit.kind + " " + hit.symbol)
+        println("  [" + int_to_str(i) + "] score=" + float_to_str(hit.score) + " " + hit.file_path + ":" + int_to_str(hit.line_start) + " " + hit.kind + " " + hit.symbol)
         i = i + 1
     return 0
 
