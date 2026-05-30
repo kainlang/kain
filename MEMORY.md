@@ -19,9 +19,13 @@ What changed:
     `stdlib/os.kn` beast module), which handles deep directory creation reliably.
   - **Seed corpus**: Switched from recursive directory walking (which crashes in native LLVM
     on the first directory read) to an explicit seed file list in
-    `collect_seed_files_for_dir()`. Two missing files in `library_of_kain/` are flagged
-    but ignored gracefully.
-  - Result: forge emits 1134 code chunks + 642 Kain chunks →
+    `collect_seed_files_for_dir()`.
+  - **Curated Kain corpus rule**: the oracle forge must not scan `library_of_kain/`, `stdlib/`,
+    or `smoketest/src` as broad example corpora. Its Kain lane is now refined to
+    `crates/error-semantic/error_corpus/` + `crates/error-semantic/symbol_corpus/` plus the
+    forge's own Kain sources. `kain run src/main.kn --target llvm -- index kain` proved this as
+    3 dirs, 90 files, 518 chunks.
+  - Earlier full-forge result before corpus refinement: emitted 1134 code chunks + 642 Kain chunks →
     `.kain/oracle/kain_error_oracle.bin` + manifest.
 
 - LLVM codegen sharp edges documented:

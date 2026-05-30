@@ -45,9 +45,8 @@ pub fn default_config() -> SemanticSearchConfig:
 
     let mut kain_dirs: Array<String> = []
     push(kain_dirs, "crates/error-semantic/src")
-    push(kain_dirs, "stdlib")
-    push(kain_dirs, "smoketest/src")
-    push(kain_dirs, "library_of_kain")
+    push(kain_dirs, "crates/error-semantic/error_corpus")
+    push(kain_dirs, "crates/error-semantic/symbol_corpus")
 
     let mut code_extensions: Array<String> = []
     push(code_extensions, "rs")

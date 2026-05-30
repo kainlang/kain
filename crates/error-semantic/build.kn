@@ -7,7 +7,7 @@ fn build(ctx: BuildContext) -> BuildGraph:
 
     let defaults = build_defaults().entry("src/main.kn").artifact_root(".kain/out").cache_root(".kain/cache/build").profile("debug").target("llvm")
 
-    let run = run_defaults().entry("src/main.kn").target("llvm").arg("forge").watch("src").watch("build.kn")
+    let run = run_defaults().entry("src/main.kn").target("llvm").arg("forge").watch("src").watch("error_corpus").watch("symbol_corpus").watch("build.kn")
 
     let check_llvm = build_check("check-oracle-host").entry("src/main.kn").target("llvm").axis("target", "llvm").telemetry("llm.error-semantic.oracle").input("src/main.kn").input("src/types.kn").input("src/config.kn").input("src/chunker.kn").input("src/embedding.kn").input("src/serialize.kn").input("src/indexer.kn").input("src/utils.kn").input("build.kn")
 
@@ -15,6 +15,6 @@ fn build(ctx: BuildContext) -> BuildGraph:
 
     let cuda_artifacts = exec_task("emit-oracle-cuda-artifacts").command("kain").arg("gpu-artifacts").arg("src/search_kernel.kn").arg("--output").arg(".kain/oracle/gpu/search_kernel").arg("--target").arg("cuda").requires("check-oracle-cuda").input("src/search_kernel.kn").output(".kain/oracle/gpu/search_kernel.derived.ptx").output(".kain/oracle/gpu/search_kernel.gpu.rs").output(".kain/oracle/gpu/search_kernel.reflect.json").output(".kain/oracle/gpu/search_kernel.shader_bundle.json").output(".kain/oracle/gpu/search_kernel_compute_residency.json")
 
-    let host_exe = native_executable("error-oracle-exe").entry("src/main.kn").root_output(".kain/out/bin/kain-error-oracle.exe").requires("check-oracle-host").requires("emit-oracle-cuda-artifacts").input("src/main.kn").input("src/types.kn").input("src/config.kn").input("src/chunker.kn").input("src/embedding.kn").input("src/serialize.kn").input("src/indexer.kn").input("src/utils.kn").input("src/search_kernel.kn").input("build.kn").output(".kain/oracle/kain_error_oracle.bin").output(".kain/oracle/kain_error_oracle.manifest.json")
+    let host_exe = native_executable("error-oracle-exe").entry("src/main.kn").root_output(".kain/out/bin/kain-error-oracle.exe").requires("check-oracle-host").requires("emit-oracle-cuda-artifacts").input("src/main.kn").input("src/types.kn").input("src/config.kn").input("src/chunker.kn").input("src/embedding.kn").input("src/serialize.kn").input("src/indexer.kn").input("src/utils.kn").input("src/search_kernel.kn").input("error_corpus").input("symbol_corpus").input("build.kn").output(".kain/oracle/kain_error_oracle.bin").output(".kain/oracle/kain_error_oracle.manifest.json")
 
     return build_graph().package(pkg).blade(oracle).defaults(defaults).run(run).task(check_llvm).task(check_cuda).task(cuda_artifacts).task(host_exe)

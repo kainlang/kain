@@ -34,6 +34,7 @@ fn main() -> Int with Unsafe:
             command = process_arg(1)
     if command == "":
         command = "forge"
+    command = normalize_command(command)
 
     let cfg = load_tool_config()
     if command != "health-json" and command != "args-json":
@@ -77,6 +78,19 @@ fn command_from_environment() -> String:
     if legacy == "debug_args":
         return "args-json"
     return ""
+
+fn normalize_command(command: String) -> String:
+    if command == "--index":
+        return "index"
+    if command == "--forge":
+        return "forge"
+    if command == "--health":
+        return "health"
+    if command == "--health-json":
+        return "health-json"
+    if command == "--args-json":
+        return "args-json"
+    return command
 
 fn print_intro(cfg: SemanticSearchConfig) -> Unit:
     println("=== kain error-semantic oracle forge ===")
