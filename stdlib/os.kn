@@ -834,9 +834,10 @@ pub fn os_fork() -> Int:
 
 pub fn os_execve(path: String, argv: Array<String>, envp: Array<String>) -> Int:
     // Only returns -1 on error; on success the process image is replaced.
-    // Note: ptr<String> ABI for argv/envp NULL-terminated arrays
-    // This is a best-effort wrapper; for real usage, check the runtime.
-    return abi_os_execve(path, null, null)
+    // Note: requires runtime support to marshal Array<String> → C char**
+    // See os_run() for a higher-level shell-based spawn.
+    // For raw execve, call abi_os_syscall directly (Linux: SYS_execve = 59).
+    return -1
 
 pub fn os_waitpid(pid: Int, options: Int) -> Int:
     // Returns encoded (pid << 32) | status or -1 on error
@@ -852,7 +853,8 @@ pub fn os_waitpid_block(pid: Int) -> (Int, Int):
     let raw = os_waitpid(pid, 0)
     if raw < 0:
         return (-1, 0)
-    let status = raw & 0xffffffff
+    let low32 = 4294967295  // 0xffffffff
+    let status = raw & low32
     let child_pid = raw >> 32
     return (child_pid, status)
 
@@ -861,7 +863,8 @@ pub fn os_waitpid_nohang(pid: Int) -> (Int, Int):
     let raw = os_waitpid(pid, WNOHANG)
     if raw < 0:
         return (-1, 0)
-    let status = raw & 0xffffffff
+    let low32 = 4294967295  // 0xffffffff
+    let status = raw & low32
     let child_pid = raw >> 32
     if child_pid == 0:
         return (-1, 0)
