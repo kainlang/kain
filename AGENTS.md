@@ -330,6 +330,44 @@ Important WSL caveats:
 
 Bazel/Rust Windows trap notes:
 
+## Bazel Server Lifecycle Management
+
+Every `kain` command dispatches through the Bazel server. If the server is cold
+(JVM not running, repository state not loaded), the first command pays 30-90s
+of startup cost before it can do anything useful. This shows up as the
+"Analyzing: ... Fetching ... Splicing Cargo workspaces..." loop.
+
+**The fix: keep the server warm.** Run `bazel_on` at the start of any
+agent session that will invoke `kain` multiple times. Run `bazel_off` at the
+end to free resources.
+
+```powershell
+# Start/ensure server is running (run once at session start)
+bazel_on X:
+# Verify server is alive
+bazel info server_pid --config=dev
+
+# Work through the server — subsequent kain commands will be fast
+kain check src/main.kn
+
+# Shut down (run at session end or before workspace rebuild)
+bazel_off X:```
+
+The scripts are at `tools/bazel/bazel_on.bat` and `tools/bazel/bazel_off.bat`.
+
+**Agent protocol**: the FIRST thing every agent does before starting
+substantial work is ensure the Bazel server is alive. If `bazel info
+server_pid --config=dev` returns a numeric PID, the server is running.
+If it stalls on the analysis/fetching phase, the server was cold -- wait for
+it to finish, then proceed.
+
+**Server idle timeout**: Bazel shuts down after 3 hours of idle by default.
+If a session spans hours, re-run `bazel_on` to confirm the server is alive.
+
+**Stale server detection**:
+
+
+
 - If Bazel appears hung or keeps reporting old paths after cache migration, check for stale Bazel servers before trusting the result: `Get-Process bazel,bazelisk,java -ErrorAction SilentlyContinue | Select-Object ProcessName,Id,Path`. Old servers rooted under `F:\Caches\bazel\...` can survive while the new config points at `F:\_b\...`; `bazel shutdown` handles the current root, but an old-root Java server may need to be killed explicitly.
 - Use `bazel info output_base repository_cache --config=dev` as the first truth check after any cache/output change. It must report `F:/_b/output-user-root/...` and `F:/_b/repository-cache`.
 - The Rust CLI graph is sensitive to `rules_rust` build-script flag placement on Windows. Do not pass full transitive build-script link-search argfiles into normal `rlib`/`lib` compile actions; that can corrupt crate/proc-macro resolution and show up as fake missing-crate errors like `can't find crate for ue5_gas` even when the params file contains the right `--extern` entries. Current-crate build-script flags/search paths still belong on that crate, and transitive link search still belongs on real link actions.
