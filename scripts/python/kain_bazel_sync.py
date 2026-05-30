@@ -14,7 +14,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, Sequence
 
-
 PYTHON_POLLUTION_ENV_KEYS = (
     "PYO3_PYTHON",
     "PYTHONHOME",
@@ -354,7 +353,9 @@ def resolve_sync_context(
     is_windows = platform.system().lower() == "windows"
     state_root_key = str(sync_policy.get("state_root_env_key", "KAIN_SYNC_ROOT"))
     state_root_override = os.environ.get(state_root_key)
-    default_state_key = "default_state_root_windows" if is_windows else "default_state_root_unix"
+    default_state_key = (
+        "default_state_root_windows" if is_windows else "default_state_root_unix"
+    )
     state_root = resolve_configured_path(
         repo_root,
         state_root_override or str(sync_policy.get(default_state_key, ".kain/state")),
@@ -363,13 +364,26 @@ def resolve_sync_context(
     stamp_path = (
         Path(stamp_override).expanduser().resolve()
         if stamp_override
-        else (state_root / str(sync_policy.get("stamp_relative_path", "state/kain_sync_stamp.json"))).resolve()
+        else (
+            state_root
+            / str(sync_policy.get("stamp_relative_path", "state/kain_sync_stamp.json"))
+        ).resolve()
     )
-    config_key = "bazel_default_config_windows" if is_windows else "bazel_default_config_unix"
-    resolved_config = bazel_config or os.environ.get("KAIN_BAZEL_CONFIG") or str(sync_policy.get(config_key, "dev"))
-    launcher_key = "shared_launcher_dir_windows" if is_windows else "shared_launcher_dir_unix"
-    launcher_value = launcher_dir or os.environ.get("KAIN_BAZEL_LAUNCHER_DIR") or str(
-        sync_policy.get(launcher_key, ".kain/bin")
+    config_key = (
+        "bazel_default_config_windows" if is_windows else "bazel_default_config_unix"
+    )
+    resolved_config = (
+        bazel_config
+        or os.environ.get("KAIN_BAZEL_CONFIG")
+        or str(sync_policy.get(config_key, "dev"))
+    )
+    launcher_key = (
+        "shared_launcher_dir_windows" if is_windows else "shared_launcher_dir_unix"
+    )
+    launcher_value = (
+        launcher_dir
+        or os.environ.get("KAIN_BAZEL_LAUNCHER_DIR")
+        or str(sync_policy.get(launcher_key, ".kain/bin"))
     )
     binary_names = sanitize_binary_names(
         as_string_list(sync_policy.get("launcher_binary_names"), DEFAULT_BINARY_NAMES)
@@ -382,9 +396,15 @@ def resolve_sync_context(
         state_root=state_root,
         stamp_path=stamp_path,
         bazel_config=resolved_config,
-        source_watch_paths=as_string_list(sync_policy.get("source_watch_paths"), DEFAULT_SOURCE_WATCH_PATHS),
-        source_filesystem_watch_paths=as_string_list(sync_policy.get("source_filesystem_watch_paths"), ("toolchain/rules_rust",)),
-        runtime_stamp_files=as_string_list(sync_policy.get("runtime_stamp_files"), DEFAULT_RUNTIME_STAMP_FILES),
+        source_watch_paths=as_string_list(
+            sync_policy.get("source_watch_paths"), DEFAULT_SOURCE_WATCH_PATHS
+        ),
+        source_filesystem_watch_paths=as_string_list(
+            sync_policy.get("source_filesystem_watch_paths"), ("toolchain/rules_rust",)
+        ),
+        runtime_stamp_files=as_string_list(
+            sync_policy.get("runtime_stamp_files"), DEFAULT_RUNTIME_STAMP_FILES
+        ),
         launcher_dir=resolve_configured_path(repo_root, launcher_value),
         binary_names=binary_names,
         repo_kain_home=repo_kain_home,
@@ -410,7 +430,9 @@ def runtime_env(context: SyncContext) -> dict[str, str]:
             "KAIN_CONFIG": str(context.repo_kain_config),
             "KAIN_STDLIB_PATH": str(context.repo_root / "stdlib"),
             "KAIN_RUNTIME_C_PATH": str(context.repo_root / "runtime" / "runtime.c"),
-            "KAIN_RUNTIME_MANIFEST_PATH": str(context.repo_root / "runtime" / "native_core_runtime.toml"),
+            "KAIN_RUNTIME_MANIFEST_PATH": str(
+                context.repo_root / "runtime" / "native_core_runtime.toml"
+            ),
             "KAIN_SYNC_ROOT": str(context.state_root),
             "KAIN_SYNC_STAMP_PATH": str(context.stamp_path),
             "KAIN_BAZEL_CONFIG": context.bazel_config,
@@ -428,7 +450,11 @@ def runtime_env(context: SyncContext) -> dict[str, str]:
 
 def prepend_path(path_value: str, prefix: str) -> str:
     separator = os.pathsep
-    parts = [part for part in path_value.split(separator) if part and os.path.normcase(part) != os.path.normcase(prefix)]
+    parts = [
+        part
+        for part in path_value.split(separator)
+        if part and os.path.normcase(part) != os.path.normcase(prefix)
+    ]
     return separator.join([prefix] + parts)
 
 
@@ -450,7 +476,9 @@ def bazel_output_binary_name(context: SyncContext, binary_name: str) -> str:
     return binary_name
 
 
-def run_capture(args: Sequence[str], cwd: Path, env: dict[str, str] | None = None) -> CommandResult:
+def run_capture(
+    args: Sequence[str], cwd: Path, env: dict[str, str] | None = None
+) -> CommandResult:
     try:
         proc = subprocess.run(
             list(args),
@@ -467,7 +495,9 @@ def run_capture(args: Sequence[str], cwd: Path, env: dict[str, str] | None = Non
     return CommandResult(proc.returncode, lines)
 
 
-def run_live(args: Sequence[str], cwd: Path, env: dict[str, str] | None = None) -> CommandResult:
+def run_live(
+    args: Sequence[str], cwd: Path, env: dict[str, str] | None = None
+) -> CommandResult:
     try:
         proc = subprocess.Popen(
             list(args),
@@ -570,6 +600,15 @@ def cargo_bazel_lock_entry_dep_names(entry: dict[str, object]) -> set[str]:
     if isinstance(selects, dict):
         for values in selects.values():
             add_dep_list(values)
+
+    # Proc-macro deps (e.g. enum_dispatch) live under proc_macro_deps, not deps
+    proc_macro_deps = common_attrs.get("proc_macro_deps", {})
+    if isinstance(proc_macro_deps, dict):
+        add_dep_list(proc_macro_deps.get("common"))
+        proc_selects = proc_macro_deps.get("selects", {})
+        if isinstance(proc_selects, dict):
+            for values in proc_selects.values():
+                add_dep_list(values)
 
     return dep_names
 
@@ -678,7 +717,12 @@ def source_stamp_data(
     filesystem_watch_paths: Sequence[str] = (),
 ) -> dict[str, object]:
     override = os.environ.get("KAIN_SYNC_SOURCE_STAMP")
-    normalized_watch_paths = tuple(sorted({normalize_relative_path(path) for path in watch_paths if path.strip()}, key=str.lower))
+    normalized_watch_paths = tuple(
+        sorted(
+            {normalize_relative_path(path) for path in watch_paths if path.strip()},
+            key=str.lower,
+        )
+    )
     if override:
         return {
             "stamp": override,
@@ -687,7 +731,10 @@ def source_stamp_data(
             "filesystem_watch_paths": tuple(filesystem_watch_paths),
         }
 
-    head_descriptors = [f"head|{relative}|{git_head_object(repo_root, relative)}" for relative in normalized_watch_paths]
+    head_descriptors = [
+        f"head|{relative}|{git_head_object(repo_root, relative)}"
+        for relative in normalized_watch_paths
+    ]
     dirty_paths: set[str] = set()
     for args in (
         ("diff", "--name-only"),
@@ -696,20 +743,26 @@ def source_stamp_data(
     ):
         for line in git_lines(repo_root, args):
             normalized = normalize_relative_path(line)
-            if normalized and path_matches_watch_path(normalized, normalized_watch_paths):
+            if normalized and path_matches_watch_path(
+                normalized, normalized_watch_paths
+            ):
                 dirty_paths.add(normalized)
 
     dirty_descriptors: list[str] = []
     for relative in sorted(dirty_paths, key=str.lower):
         candidate = repo_root / relative
         if candidate.is_file():
-            dirty_descriptors.append(f"dirty|{relative}|file|{file_content_hash(candidate)}")
+            dirty_descriptors.append(
+                f"dirty|{relative}|file|{file_content_hash(candidate)}"
+            )
         elif candidate.is_dir():
             dirty_descriptors.append(f"dirty|{relative}|dir|present")
         else:
             dirty_descriptors.append(f"dirty|{relative}|missing")
 
-    stamp_lines: list[str] = [f"watch|{relative}" for relative in normalized_watch_paths]
+    stamp_lines: list[str] = [
+        f"watch|{relative}" for relative in normalized_watch_paths
+    ]
     stamp_lines.extend(head_descriptors)
     stamp_lines.extend(dirty_descriptors)
     normalized_fs_watch_paths: list[str] = []
@@ -745,7 +798,9 @@ def runtime_stamp(repo_root: Path, runtime_stamp_files: Sequence[str]) -> str:
     return short_sha256("\n".join(lines))
 
 
-def binary_entry(stamp_payload: dict[str, object], binary_name: str) -> dict[str, object] | None:
+def binary_entry(
+    stamp_payload: dict[str, object], binary_name: str
+) -> dict[str, object] | None:
     raw = stamp_payload.get("binary_by_name", {})
     if isinstance(raw, dict):
         entry = raw.get(binary_name)
@@ -758,7 +813,9 @@ def binary_entry(stamp_payload: dict[str, object], binary_name: str) -> dict[str
     return None
 
 
-def stamped_binary_path(stamp_payload: dict[str, object], binary_name: str) -> Path | None:
+def stamped_binary_path(
+    stamp_payload: dict[str, object], binary_name: str
+) -> Path | None:
     entry = binary_entry(stamp_payload, binary_name)
     if not entry:
         return None
@@ -888,15 +945,27 @@ def cargo_bazel_repin(
     *,
     reason: str,
 ) -> None:
-    lock_relative = str(context.sync_policy.get("cargo_bazel_repin_lock_relative_path", "locks/cargo-bazel-repin.lock"))
-    lock_timeout = int(context.sync_policy.get("cargo_bazel_repin_lock_timeout_seconds", 300))
+    lock_relative = str(
+        context.sync_policy.get(
+            "cargo_bazel_repin_lock_relative_path", "locks/cargo-bazel-repin.lock"
+        )
+    )
+    lock_timeout = int(
+        context.sync_policy.get("cargo_bazel_repin_lock_timeout_seconds", 300)
+    )
     lock_path = context.state_root / lock_relative
     print(f"[kain] {reason}; repinning crate_universe and retrying once...", flush=True)
     lock_handle = acquire_lock(lock_path, lock_timeout)
     try:
         repin_env = dict(env)
         repin_env["CARGO_BAZEL_REPIN"] = "true"
-        repin_args = ["bazel", "fetch", f"//:{binary_name}", f"--config={context.bazel_config}", *extra_args]
+        repin_args = [
+            "bazel",
+            "fetch",
+            f"//:{binary_name}",
+            f"--config={context.bazel_config}",
+            *extra_args,
+        ]
         repin_result = run_live(repin_args, context.repo_root, repin_env)
         if repin_result.exit_code != 0:
             raise SyncError(f"auto-repin failed while running {' '.join(repin_args)}")
@@ -907,7 +976,9 @@ def cargo_bazel_repin(
 def invoke_bazel_build(context: SyncContext, binary_name: str) -> None:
     extra_args = bazel_python_args(context)
     env = bazel_env(context)
-    auto_repin = bool_from_policy(context.sync_policy.get("cargo_bazel_auto_repin_enabled"), True)
+    auto_repin = bool_from_policy(
+        context.sync_policy.get("cargo_bazel_auto_repin_enabled"), True
+    )
     if auto_repin:
         drift = cargo_bazel_manifest_drift(context, env)
         if drift:
@@ -922,13 +993,21 @@ def invoke_bazel_build(context: SyncContext, binary_name: str) -> None:
                 reason=f"Cargo.Bazel.lock manifest drift detected ({drift_preview})",
             )
 
-    build_args = ["bazel", "build", f"//:{binary_name}", f"--config={context.bazel_config}", *extra_args]
+    build_args = [
+        "bazel",
+        "build",
+        f"//:{binary_name}",
+        f"--config={context.bazel_config}",
+        *extra_args,
+    ]
     result = run_live(build_args, context.repo_root, env)
     if result.exit_code == 0:
         return
 
     if not auto_repin or not test_cargo_bazel_repin_mismatch(result):
-        raise SyncError(f"bazel build //:{binary_name} --config={context.bazel_config} failed with exit code {result.exit_code}")
+        raise SyncError(
+            f"bazel build //:{binary_name} --config={context.bazel_config} failed with exit code {result.exit_code}"
+        )
 
     cargo_bazel_repin(
         context,
@@ -937,20 +1016,33 @@ def invoke_bazel_build(context: SyncContext, binary_name: str) -> None:
         extra_args,
         reason="Cargo.Bazel.lock drift detected",
     )
-    print(f"[kain] Cargo.Bazel.lock refreshed; retrying bazel build //:{binary_name} --config={context.bazel_config}...", flush=True)
+    print(
+        f"[kain] Cargo.Bazel.lock refreshed; retrying bazel build //:{binary_name} --config={context.bazel_config}...",
+        flush=True,
+    )
     retry = run_live(build_args, context.repo_root, env)
     if retry.exit_code != 0:
-        raise SyncError(f"bazel build //:{binary_name} --config={context.bazel_config} failed with exit code {retry.exit_code}")
+        raise SyncError(
+            f"bazel build //:{binary_name} --config={context.bazel_config} failed with exit code {retry.exit_code}"
+        )
 
 
 def resolve_bazel_binary_path(context: SyncContext, binary_name: str) -> Path:
     result = run_capture(
-        ["bazel", "info", "bazel-bin", f"--config={context.bazel_config}", *bazel_python_args(context)],
+        [
+            "bazel",
+            "info",
+            "bazel-bin",
+            f"--config={context.bazel_config}",
+            *bazel_python_args(context),
+        ],
         context.repo_root,
         bazel_env(context),
     )
     if result.exit_code != 0:
-        raise SyncError(f"bazel info bazel-bin failed with exit code {result.exit_code}")
+        raise SyncError(
+            f"bazel info bazel-bin failed with exit code {result.exit_code}"
+        )
     lines = [line.strip() for line in result.output_lines if line.strip()]
     if not lines:
         raise SyncError("bazel info bazel-bin returned no output")
@@ -975,7 +1067,9 @@ def merge_stamp_payload(
 ) -> dict[str, object]:
     now = int(time.time())
     binary_by_name_raw = existing.get("binary_by_name", {})
-    binary_by_name: dict[str, object] = dict(binary_by_name_raw) if isinstance(binary_by_name_raw, dict) else {}
+    binary_by_name: dict[str, object] = (
+        dict(binary_by_name_raw) if isinstance(binary_by_name_raw, dict) else {}
+    )
     if active_binary_fingerprint is not None and bazel_binary_path is not None:
         binary_by_name[binary_name] = {
             **active_binary_fingerprint,
@@ -1001,9 +1095,13 @@ def merge_stamp_payload(
         "source_of_truth": "bazel-wrapper",
         "bazel_config": context.bazel_config,
         "source_stamp": current_source_stamp,
-        "source_watch_paths": list(source_data.get("watch_paths", context.source_watch_paths)),
+        "source_watch_paths": list(
+            source_data.get("watch_paths", context.source_watch_paths)
+        ),
         "source_filesystem_watch_paths": list(
-            source_data.get("filesystem_watch_paths", context.source_filesystem_watch_paths)
+            source_data.get(
+                "filesystem_watch_paths", context.source_filesystem_watch_paths
+            )
         ),
         "source_dirty_count": int(source_data.get("dirty_count", 0)),
         "build_performed": build_performed,
@@ -1028,7 +1126,9 @@ def launch_binary(
     launcher_path: Path | None = None,
 ) -> int:
     if binary_name not in context.binary_names:
-        raise SyncError(f"unsupported launcher binary {binary_name!r}; configured binaries are {', '.join(context.binary_names)}")
+        raise SyncError(
+            f"unsupported launcher binary {binary_name!r}; configured binaries are {', '.join(context.binary_names)}"
+        )
 
     context.repo_kain_home.mkdir(parents=True, exist_ok=True)
     env = runtime_env(context)
@@ -1038,9 +1138,15 @@ def launch_binary(
         env["KAIN_ACTIVE_LAUNCHER_PATH"] = str(launcher_path.resolve())
 
     existing = read_json(context.stamp_path)
-    source_data = source_stamp_data(context.repo_root, context.source_watch_paths, context.source_filesystem_watch_paths)
+    source_data = source_stamp_data(
+        context.repo_root,
+        context.source_watch_paths,
+        context.source_filesystem_watch_paths,
+    )
     current_source_stamp = str(source_data.get("stamp", ""))
-    decision = choose_build_action(existing, binary_name, current_source_stamp, context.bazel_config, skip_build)
+    decision = choose_build_action(
+        existing, binary_name, current_source_stamp, context.bazel_config, skip_build
+    )
 
     bazel_binary_path: Path | None = None
     active_binary_path: Path | None = None
@@ -1051,7 +1157,9 @@ def launch_binary(
         if not bazel_binary_path.exists():
             raise SyncError(f"Bazel binary not found at {bazel_binary_path}")
         bazel_fingerprint = binary_fingerprint(bazel_binary_path)
-        active_binary_path = staged_binary_path(context, binary_name, current_source_stamp, bazel_fingerprint)
+        active_binary_path = staged_binary_path(
+            context, binary_name, current_source_stamp, bazel_fingerprint
+        )
         if not active_binary_path.exists():
             copy_file_atomic(bazel_binary_path, active_binary_path)
         active_fingerprint = binary_fingerprint(active_binary_path)
@@ -1062,7 +1170,9 @@ def launch_binary(
             active_fingerprint = binary_fingerprint(active_binary_path)
             entry = binary_entry(existing, binary_name)
             if entry and entry.get("bazel_path"):
-                bazel_binary_path = Path(str(entry["bazel_path"])).expanduser().resolve()
+                bazel_binary_path = (
+                    Path(str(entry["bazel_path"])).expanduser().resolve()
+                )
 
     runtime_hash = runtime_stamp(context.repo_root, context.runtime_stamp_files)
     payload = merge_stamp_payload(
@@ -1083,7 +1193,9 @@ def launch_binary(
     if update_stamp_only:
         return 0
     if active_binary_path is None or not active_binary_path.exists():
-        raise SyncError(f"no runnable staged binary is available for {binary_name}; run without --skip-build")
+        raise SyncError(
+            f"no runnable staged binary is available for {binary_name}; run without --skip-build"
+        )
 
     args = strip_forward_separator(forward_args)
     # Preserve the user's invocation directory for the actual binary so Kain
@@ -1114,7 +1226,9 @@ def rustc_command() -> list[str]:
 
 
 def build_launcher_shim(context: SyncContext) -> Path:
-    source_path = context.repo_root / "scripts" / "windows" / "kain_bazel_cli_launcher.rs"
+    source_path = (
+        context.repo_root / "scripts" / "windows" / "kain_bazel_cli_launcher.rs"
+    )
     if not source_path.exists():
         raise SyncError(f"Bazel launcher source not found at {source_path}")
     suffix = ".exe" if platform.system().lower() == "windows" else ""
@@ -1142,7 +1256,9 @@ def build_launcher_shim(context: SyncContext) -> Path:
         env,
     )
     if result.exit_code != 0:
-        raise SyncError(f"rustc failed to build Bazel launcher shim with exit code {result.exit_code}")
+        raise SyncError(
+            f"rustc failed to build Bazel launcher shim with exit code {result.exit_code}"
+        )
     os.replace(temp_path, output_path)
     return output_path
 
@@ -1170,12 +1286,17 @@ def install_launcher_files(context: SyncContext, shim_path: Path) -> list[str]:
 
 def persist_windows_user_env(context: SyncContext) -> None:
     if platform.system().lower() != "windows":
-        print("[kain] --persist-user-env is only implemented for Windows user environment variables.", flush=True)
+        print(
+            "[kain] --persist-user-env is only implemented for Windows user environment variables.",
+            flush=True,
+        )
         return
     try:
         import winreg
     except ImportError as error:
-        raise SyncError("winreg is unavailable; cannot persist Windows user env") from error
+        raise SyncError(
+            "winreg is unavailable; cannot persist Windows user env"
+        ) from error
 
     values = {
         "KAIN_REPO_ROOT": str(context.repo_root),
@@ -1183,7 +1304,9 @@ def persist_windows_user_env(context: SyncContext) -> None:
         "KAIN_CONFIG": str(context.repo_kain_config),
         "KAIN_STDLIB_PATH": str(context.repo_root / "stdlib"),
         "KAIN_RUNTIME_C_PATH": str(context.repo_root / "runtime" / "runtime.c"),
-        "KAIN_RUNTIME_MANIFEST_PATH": str(context.repo_root / "runtime" / "native_core_runtime.toml"),
+        "KAIN_RUNTIME_MANIFEST_PATH": str(
+            context.repo_root / "runtime" / "native_core_runtime.toml"
+        ),
         "KAIN_SYNC_ROOT": str(context.state_root),
         "KAIN_SYNC_STAMP_PATH": str(context.stamp_path),
         "KAIN_BAZEL_CONFIG": context.bazel_config,
@@ -1195,7 +1318,9 @@ def persist_windows_user_env(context: SyncContext) -> None:
     if bash_path:
         values["BAZEL_SH"] = str(bash_path)
 
-    with winreg.OpenKey(winreg.HKEY_CURRENT_USER, "Environment", 0, winreg.KEY_READ | winreg.KEY_WRITE) as key:
+    with winreg.OpenKey(
+        winreg.HKEY_CURRENT_USER, "Environment", 0, winreg.KEY_READ | winreg.KEY_WRITE
+    ) as key:
         for name, value in values.items():
             winreg.SetValueEx(key, name, 0, winreg.REG_EXPAND_SZ, value)
         try:
@@ -1238,7 +1363,9 @@ def sync_launchers(
         print()
 
     for binary_name in context.binary_names:
-        launch_path = context.launcher_dir / (binary_name + (".exe" if platform.system().lower() == "windows" else ""))
+        launch_path = context.launcher_dir / (
+            binary_name + (".exe" if platform.system().lower() == "windows" else "")
+        )
         launch_binary(
             context,
             binary_name,
@@ -1265,12 +1392,22 @@ def sync_launchers(
 
 def launcher_status(context: SyncContext, *, json_output: bool = False) -> int:
     existing = read_json(context.stamp_path)
-    source_data = source_stamp_data(context.repo_root, context.source_watch_paths, context.source_filesystem_watch_paths)
+    source_data = source_stamp_data(
+        context.repo_root,
+        context.source_watch_paths,
+        context.source_filesystem_watch_paths,
+    )
     current_source_stamp = str(source_data.get("stamp", ""))
     binaries: dict[str, object] = {}
     for binary_name in context.binary_names:
         entry = binary_entry(existing, binary_name)
-        decision = choose_build_action(existing, binary_name, current_source_stamp, context.bazel_config, skip_build=False)
+        decision = choose_build_action(
+            existing,
+            binary_name,
+            current_source_stamp,
+            context.bazel_config,
+            skip_build=False,
+        )
         path = stamped_binary_path(existing, binary_name)
         binaries[binary_name] = {
             "build_required": decision.should_build,
@@ -1297,20 +1434,28 @@ def launcher_status(context: SyncContext, *, json_output: bool = False) -> int:
     print(f"Launcher  : {payload['launcher_dir']}")
     print(f"Config    : {payload['bazel_config']}")
     print(f"Stamp     : {payload['stamp_path']}")
-    print(f"Source    : {payload['source_stamp']} dirty={payload['source_dirty_count']}")
+    print(
+        f"Source    : {payload['source_stamp']} dirty={payload['source_dirty_count']}"
+    )
     for binary_name, raw in binaries.items():
         entry = raw if isinstance(raw, dict) else {}
         required = "yes" if entry.get("build_required") else "no"
-        print(f"{binary_name:8} rebuild={required:3} reason={entry.get('build_reason')} path={entry.get('path')}")
+        print(
+            f"{binary_name:8} rebuild={required:3} reason={entry.get('build_reason')} path={entry.get('path')}"
+        )
     return 0
 
 
 def parse_args(argv: Sequence[str]) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Boring, testable Bazel-backed Kain launcher control plane.")
+    parser = argparse.ArgumentParser(
+        description="Boring, testable Bazel-backed Kain launcher control plane."
+    )
     parser.add_argument("--repo-root", help="Repository root override.")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    launch = subparsers.add_parser("launch", help="Build/stage/run one Bazel CLI binary.")
+    launch = subparsers.add_parser(
+        "launch", help="Build/stage/run one Bazel CLI binary."
+    )
     launch.add_argument("--binary", required=True, choices=DEFAULT_BINARY_NAMES)
     launch.add_argument("--bazel-config", default=None)
     launch.add_argument("--launcher-path", default=None)
@@ -1319,14 +1464,18 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     launch.add_argument("--update-stamp-only", action="store_true")
     launch.add_argument("forward_args", nargs=argparse.REMAINDER)
 
-    sync = subparsers.add_parser("sync", help="Build/stage/install all managed launcher shims.")
+    sync = subparsers.add_parser(
+        "sync", help="Build/stage/install all managed launcher shims."
+    )
     sync.add_argument("--bazel-config", default=None)
     sync.add_argument("--launcher-dir", default=None)
     sync.add_argument("--skip-build", action="store_true")
     sync.add_argument("--managed-sync", action="store_true")
     sync.add_argument("--persist-user-env", action="store_true")
 
-    status = subparsers.add_parser("status", help="Explain launcher freshness without building.")
+    status = subparsers.add_parser(
+        "status", help="Explain launcher freshness without building."
+    )
     status.add_argument("--bazel-config", default=None)
     status.add_argument("--launcher-dir", default=None)
     status.add_argument("--json", action="store_true")
@@ -1349,7 +1498,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                 args.forward_args,
                 skip_build=args.skip_build,
                 update_stamp_only=args.update_stamp_only,
-                launcher_path=Path(args.launcher_path).resolve() if args.launcher_path else None,
+                launcher_path=Path(args.launcher_path).resolve()
+                if args.launcher_path
+                else None,
             )
         if args.command == "sync":
             return sync_launchers(
