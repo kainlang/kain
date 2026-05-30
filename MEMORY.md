@@ -1,5 +1,22 @@
 # Kain Memory
 
+# 2026-05-30 — bootstrap-semantic skill added for the oracle lane
+
+What changed:
+
+- Added `.agents/skills/bootstrap-semantic/` as the durable agent lane for the reusable semantic oracle pipeline under `crates/semantic`.
+- The skill captures trigger surfaces, ownership boundaries, and the command-backed proof loop for:
+  - manifest-fed forge and index flow
+  - tokenizer and embedding path
+  - CUDA search, transformer, training, error, and repair kernels
+  - broken-corpus compiler checks that prove semantic diagnostics are actually consuming the oracle
+- Added `.agents/skills/bootstrap-semantic/references/proof_loop.md` with the exact env vars and commands that were proven on this workstation, including `TMP/TEMP/TMPDIR=Z:\_b\tmp`, `KAIN_SEMANTIC_FILE_MANIFEST`, per-kernel `gpu-artifacts` output dirs, and the fresh `KAIN_GPU_RUNTIME_LIBRARY` flow.
+- Registered `bootstrap-semantic` in `.agents/skills/TAXONOMY.md`.
+
+Operational note:
+
+- The generated `agents/openai.yaml` prompt needed a manual fix so the literal `$bootstrap-semantic` survived PowerShell argument expansion during scaffold.
+
 # 2026-05-30 — semantic crate rename + cross-crate reuse shim
 
 What changed:

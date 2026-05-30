@@ -1,0 +1,4 @@
+interface:
+  display_name: "Bootstrap Semantic"
+  short_description: "Semantic oracle pipeline and proof loop"
+  default_prompt: "Use $bootstrap-semantic to work on the Kain semantic oracle pipeline, its CUDA kernels, and the real forge and search proof loop."

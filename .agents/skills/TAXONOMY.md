@@ -28,6 +28,7 @@ This file is only the live skill split for current agents.
 - `bootstrap-ownership`
 - `bootstrap-fs`
 - `bootstrap-gpu`
+- `bootstrap-semantic`
 - `runtime-core`
 - `runtime-stdlib`
 - `runtime-gpu`
