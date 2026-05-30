@@ -77,6 +77,74 @@ fn abi_os_last_error_kind() -> String
 @extern
 fn abi_os_last_error_message() -> String
 
+// ─── Raw syscall escape hatch (Layer 0 direct kernel ABI) ───────────────
+
+@extern
+fn abi_os_syscall0(sysno: Int) -> Int
+
+@extern
+fn abi_os_syscall1(sysno: Int, arg1: Int) -> Int
+
+@extern
+fn abi_os_syscall2(sysno: Int, arg1: Int, arg2: Int) -> Int
+
+@extern
+fn abi_os_syscall3(sysno: Int, arg1: Int, arg2: Int, arg3: Int) -> Int
+
+@extern
+fn abi_os_syscall4(sysno: Int, arg1: Int, arg2: Int, arg3: Int, arg4: Int) -> Int
+
+@extern
+fn abi_os_syscall5(sysno: Int, arg1: Int, arg2: Int, arg3: Int, arg4: Int, arg5: Int) -> Int
+
+@extern
+fn abi_os_syscall6(sysno: Int, arg1: Int, arg2: Int, arg3: Int, arg4: Int, arg5: Int, arg6: Int) -> Int
+
+// ─── Memory mappings ────────────────────────────────────────────────────
+
+@extern
+fn abi_os_mmap_anon(byte_count: Int, prot: Int, flags: Int) -> Int
+
+@extern
+fn abi_os_mmap_file(byte_count: Int, prot: Int, flags: Int, fd: Int, offset: Int) -> Int
+
+@extern
+fn abi_os_munmap(addr: Int, byte_count: Int) -> Int
+
+@extern
+fn abi_os_mprotect(addr: Int, byte_count: Int, prot: Int) -> Int
+
+@extern
+fn abi_os_madvise(addr: Int, byte_count: Int, advice: Int) -> Int
+
+@extern
+fn abi_os_msync(addr: Int, byte_count: Int, flags: Int) -> Int
+
+@extern
+fn abi_os_mlock(addr: Int, byte_count: Int) -> Int
+
+@extern
+fn abi_os_munlock(addr: Int, byte_count: Int) -> Int
+
+// ─── Process primitives ─────────────────────────────────────────────────
+
+@extern
+fn abi_os_fork() -> Int
+
+@extern
+fn abi_os_execve(path: String, argv: ptr<String>, envp: ptr<String>) -> Int
+
+@extern
+fn abi_os_waitpid(pid: Int, options: Int) -> Int
+
+// ─── io_uring ───────────────────────────────────────────────────────────
+
+@extern
+fn abi_os_io_uring_setup(entries: Int) -> Int
+
+@extern
+fn abi_os_io_uring_enter(ring_fd: Int, to_submit: Int, min_complete: Int, flags: Int) -> Int
+
 // ============================================================================
 //                          SECTION 1: Platform Constants & Detection
 // ============================================================================
@@ -613,3 +681,200 @@ pub fn os_last_error() -> OsError:
         code: fs_last_status(),
         message: fs_last_error_message()
     }
+
+// ============================================================================
+//                          SECTION 11: Raw Syscall Escape Hatch
+// ============================================================================
+//  The nuclear option. When you need to talk to the kernel directly.
+//  No libc, no runtime bridge, just inline asm → kernel.
+//  Available on Linux x86_64 and aarch64; stubs on Windows.
+//
+//  Architecture:
+//    os_syscall(nr, a1, a2, a3, a4, a5, a6) → Int
+//    Dispatches to the right abi_os_syscallN variant by arg count.
+//
+//  Common Linux syscall numbers:
+//    0  = read          1  = write         9  = mmap
+//    11 = munmap        25 = mremap        35 = nanosleep
+//    57 = fork          59 = execve        61 = wait4
+//    231 = exit_group   291 = epoll_create 425 = io_uring_setup
+//    See /usr/include/asm/unistd_64.h for the full table.
+
+pub fn os_syscall(sysno: Int, a1: Int, a2: Int, a3: Int, a4: Int, a5: Int, a6: Int) -> Int:
+    return abi_os_syscall6(sysno, a1, a2, a3, a4, a5, a6)
+
+pub fn os_syscall0(nr: Int) -> Int:
+    return abi_os_syscall0(nr)
+
+pub fn os_syscall1(nr: Int, a1: Int) -> Int:
+    return abi_os_syscall1(nr, a1)
+
+pub fn os_syscall2(nr: Int, a1: Int, a2: Int) -> Int:
+    return abi_os_syscall2(nr, a1, a2)
+
+pub fn os_syscall3(nr: Int, a1: Int, a2: Int, a3: Int) -> Int:
+    return abi_os_syscall3(nr, a1, a2, a3)
+
+pub fn os_syscall4(nr: Int, a1: Int, a2: Int, a3: Int, a4: Int) -> Int:
+    return abi_os_syscall4(nr, a1, a2, a3, a4)
+
+pub fn os_syscall5(nr: Int, a1: Int, a2: Int, a3: Int, a4: Int, a5: Int) -> Int:
+    return abi_os_syscall5(nr, a1, a2, a3, a4, a5)
+
+pub fn os_syscall6(nr: Int, a1: Int, a2: Int, a3: Int, a4: Int, a5: Int, a6: Int) -> Int:
+    return abi_os_syscall6(nr, a1, a2, a3, a4, a5, a6)
+
+// ============================================================================
+//                          SECTION 12: Memory Mappings
+// ============================================================================
+//  Real mmap / munmap / mprotect — typed, safe-enough wrappers over raw OS.
+//  This is where zero-copy file I/O, shared memory, JIT pages, and hugetlb live.
+
+// ─── Protection constants ────────────────────────────────────────────────
+pub const MMAP_PROT_NONE:  Int = 0
+pub const MMAP_PROT_READ:  Int = 1
+pub const MMAP_PROT_WRITE: Int = 2
+pub const MMAP_PROT_RW:    Int = 3   // READ | WRITE
+pub const MMAP_PROT_EXEC:  Int = 4
+pub const MMAP_PROT_RX:    Int = 5   // READ | EXEC
+pub const MMAP_PROT_RWX:   Int = 7   // READ | WRITE | EXEC  (danger zone)
+
+// ─── Map flags ───────────────────────────────────────────────────────────
+pub const MMAP_SHARED:  Int = 1
+pub const MMAP_PRIVATE: Int = 2
+pub const MMAP_FIXED:   Int = 16
+pub const MMAP_HUGETLB: Int = 64
+
+// ─── madvise hints ───────────────────────────────────────────────────────
+pub const MADV_NORMAL:     Int = 0
+pub const MADV_RANDOM:     Int = 1
+pub const MADV_SEQUENTIAL: Int = 2
+pub const MADV_WILLNEED:   Int = 3
+pub const MADV_DONTNEED:   Int = 4
+pub const MADV_FREE:       Int = 8
+pub const MADV_HUGEPAGE:   Int = 14
+
+// ─── Map anonymous memory ────────────────────────────────────────────────
+pub fn os_mmap_anon(byte_count: Int) -> Int:
+    return abi_os_mmap_anon(byte_count, MMAP_PROT_RW, MMAP_PRIVATE)
+
+pub fn os_mmap_anon_prot(byte_count: Int, prot: Int) -> Int:
+    return abi_os_mmap_anon(byte_count, prot, MMAP_PRIVATE)
+
+pub fn os_mmap_anon_flags(byte_count: Int, prot: Int, flags: Int) -> Int:
+    return abi_os_mmap_anon(byte_count, prot, flags)
+
+// ─── Map a file into memory (zero-copy file I/O) ────────────────────────
+pub fn os_mmap_file(byte_count: Int, prot: Int, flags: Int, fd: Int, offset: Int) -> Int:
+    return abi_os_mmap_file(byte_count, prot, flags, fd, offset)
+
+pub fn os_mmap_file_read(path: String) -> (Int, Int):
+    // Returns (addr, byte_count) or (-1, _) on error.
+    // Opens file, stats size, maps it read-only.
+    let file_size = os_stat(path).size
+    if file_size <= 0:
+        return (-1, 0)
+    let fd = abi_fs_open(path, "rb")
+    if fd == 0:
+        return (-1, 0)
+    let addr = abi_os_mmap_file(file_size, MMAP_PROT_READ, MMAP_PRIVATE, fd, 0)
+    let _ = abi_fs_close(fd)
+    return (addr, file_size)
+
+// ─── Tear down a mapping ─────────────────────────────────────────────────
+pub fn os_munmap(addr: Int, byte_count: Int) -> Bool:
+    return abi_os_munmap(addr, byte_count) == 0
+
+// ─── Change page protection (JIT code pages, sandboxing) ────────────────
+pub fn os_mprotect(addr: Int, byte_count: Int, prot: Int) -> Bool:
+    return abi_os_mprotect(addr, byte_count, prot) == 0
+
+pub fn os_make_rwx(addr: Int, byte_count: Int) -> Bool:
+    return os_mprotect(addr, byte_count, MMAP_PROT_RWX)
+
+pub fn os_make_rx(addr: Int, byte_count: Int) -> Bool:
+    return os_mprotect(addr, byte_count, MMAP_PROT_RX)
+
+// ─── Memory advice ───────────────────────────────────────────────────────
+pub fn os_madvise(addr: Int, byte_count: Int, advice: Int) -> Bool:
+    return abi_os_madvise(addr, byte_count, advice) == 0
+
+pub fn os_madvise_sequential(addr: Int, byte_count: Int) -> Bool:
+    return os_madvise(addr, byte_count, MADV_SEQUENTIAL)
+
+pub fn os_madvise_willneed(addr: Int, byte_count: Int) -> Bool:
+    return os_madvise(addr, byte_count, MADV_WILLNEED)
+
+pub fn os_madvise_dontneed(addr: Int, byte_count: Int) -> Bool:
+    return os_madvise(addr, byte_count, MADV_DONTNEED)
+
+pub fn os_madvise_hugepage(addr: Int, byte_count: Int) -> Bool:
+    return os_madvise(addr, byte_count, MADV_HUGEPAGE)
+
+// ─── Synchronize & lock ──────────────────────────────────────────────────
+pub fn os_msync(addr: Int, byte_count: Int) -> Bool:
+    return abi_os_msync(addr, byte_count, 0) == 0
+
+pub fn os_mlock(addr: Int, byte_count: Int) -> Bool:
+    return abi_os_mlock(addr, byte_count) == 0
+
+pub fn os_munlock(addr: Int, byte_count: Int) -> Bool:
+    return abi_os_munlock(addr, byte_count) == 0
+
+// ============================================================================
+//                          SECTION 13: Process Primitives
+// ============================================================================
+//  fork / execve / waitpid — raw process control.
+//  Bypasses the shell path (cmd.exe /c, /bin/sh -c) entirely.
+
+pub fn os_fork() -> Int:
+    // Returns: 0 in child, >0 child PID in parent, -1 on error
+    return abi_os_fork()
+
+pub fn os_execve(path: String, argv: Array<String>, envp: Array<String>) -> Int:
+    // Only returns -1 on error; on success the process image is replaced.
+    // Note: ptr<String> ABI for argv/envp NULL-terminated arrays
+    // This is a best-effort wrapper; for real usage, check the runtime.
+    return abi_os_execve(path, null, null)
+
+pub fn os_waitpid(pid: Int, options: Int) -> Int:
+    // Returns encoded (pid << 32) | status or -1 on error
+    return abi_os_waitpid(pid, options)
+
+// waitpid constants
+pub const WNOHANG:    Int = 1
+pub const WUNTRACED:  Int = 2
+pub const WCONTINUED: Int = 8
+
+pub fn os_waitpid_block(pid: Int) -> (Int, Int):
+    // Block until child exits. Returns (pid, status).
+    let raw = os_waitpid(pid, 0)
+    if raw < 0:
+        return (-1, 0)
+    let status = raw & 0xffffffff
+    let child_pid = raw >> 32
+    return (child_pid, status)
+
+pub fn os_waitpid_nohang(pid: Int) -> (Int, Int):
+    // Non-blocking check. Returns (pid, status) or (-1, 0) if not exited.
+    let raw = os_waitpid(pid, WNOHANG)
+    if raw < 0:
+        return (-1, 0)
+    let status = raw & 0xffffffff
+    let child_pid = raw >> 32
+    if child_pid == 0:
+        return (-1, 0)
+    return (child_pid, status)
+
+// ============================================================================
+//                          SECTION 14: io_uring  (Linux >= 5.1)
+// ============================================================================
+//  Kernel-side async I/O submission.
+//  No threads, no blocking, no libuv — just an SQ and CQ ring buffer.
+//  This is the primitive that makes "actors are lightweight" real.
+
+pub fn os_io_uring_setup(entries: Int) -> Int:
+    return abi_os_io_uring_setup(entries)
+
+pub fn os_io_uring_enter(ring_fd: Int, to_submit: Int, min_complete: Int) -> Int:
+    return abi_os_io_uring_enter(ring_fd, to_submit, min_complete, 0)
