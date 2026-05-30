@@ -171,6 +171,7 @@ fn collect_seed_files_for_dir(root: String, dir_name: String, index_name: String
         push_seed(files, root, "crates/error-semantic/src/serialize.kn", index_name)
         push_seed(files, root, "crates/error-semantic/src/indexer.kn", index_name)
         push_seed(files, root, "crates/error-semantic/src/search_kernel.kn", index_name)
+        push_seed(files, root, "crates/error-semantic/src/error_kernel.kn", index_name)
     if dir_name == "crates/error/src":
         push_seed(files, root, "crates/error/src/lib.rs", index_name)
     if dir_name == "crates/core/src":

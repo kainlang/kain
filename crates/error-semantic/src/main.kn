@@ -22,6 +22,7 @@ use indexer::index_weight_path
 use indexer::index_bias_path
 use utils::int_to_str
 use utils::bool_to_str
+use utils::normalize_slashes
 
 fn main() -> Int with Unsafe:
     let boot = runtime_init()
@@ -132,8 +133,10 @@ fn handle_health(cfg: SemanticSearchConfig, json_mode: Bool) -> Int:
     let kain_index = index_path("kain", cfg)
     let pack = oracle_pack_path(cfg)
     let manifest = oracle_manifest_path(cfg)
+    let error_bundle = normalize_slashes(fs_path_join(config_runtime_root(), ".kain/oracle/gpu/error_kernel.shader_bundle.json"))
+    let error_residency = normalize_slashes(fs_path_join(config_runtime_root(), ".kain/oracle/gpu/error_kernel_compute_residency.json"))
     if json_mode:
-        println(health_json(cfg, code_index, kain_index, pack, manifest))
+        println(health_json(cfg, code_index, kain_index, pack, manifest, error_bundle, error_residency))
     else:
         println("oracle health")
         println("  pack:      " + pack + " present=" + bool_to_str(fs_exists(pack)))
@@ -142,6 +145,8 @@ fn handle_health(cfg: SemanticSearchConfig, json_mode: Bool) -> Int:
         println("  kain idx:  " + kain_index + " present=" + bool_to_str(fs_exists(kain_index)))
         println("  code mat:  " + index_matrix_path(code_index) + " present=" + bool_to_str(fs_exists(index_matrix_path(code_index))))
         println("  kain mat:  " + index_matrix_path(kain_index) + " present=" + bool_to_str(fs_exists(index_matrix_path(kain_index))))
+        println("  error bundle: " + error_bundle + " present=" + bool_to_str(fs_exists(error_bundle)))
+        println("  error resid:  " + error_residency + " present=" + bool_to_str(fs_exists(error_residency)))
     return 0
 
 fn handle_help(cfg: SemanticSearchConfig) -> Int:
@@ -165,7 +170,7 @@ fn handle_args_json() -> Int:
     println(json)
     return 0
 
-fn health_json(cfg: SemanticSearchConfig, code_index: String, kain_index: String, pack: String, manifest: String) -> String:
+fn health_json(cfg: SemanticSearchConfig, code_index: String, kain_index: String, pack: String, manifest: String, error_bundle: String, error_residency: String) -> String:
     var json = "{"
     json = json + "\"schema\":\"kain.error.semantic.oracle.health.v1\","
     json = json + "\"repo_root\":\"" + health_json_escape(cfg.repo_root) + "\","
@@ -175,7 +180,9 @@ fn health_json(cfg: SemanticSearchConfig, code_index: String, kain_index: String
     json = json + "\"code_index_present\":" + json_bool(fs_exists(code_index)) + ","
     json = json + "\"kain_index_present\":" + json_bool(fs_exists(kain_index)) + ","
     json = json + "\"code_matrix_present\":" + json_bool(fs_exists(index_matrix_path(code_index))) + ","
-    json = json + "\"kain_matrix_present\":" + json_bool(fs_exists(index_matrix_path(kain_index)))
+    json = json + "\"kain_matrix_present\":" + json_bool(fs_exists(index_matrix_path(kain_index))) + ","
+    json = json + "\"error_bundle_present\":" + json_bool(fs_exists(error_bundle)) + ","
+    json = json + "\"error_residency_present\":" + json_bool(fs_exists(error_residency))
     json = json + "}"
     return json
 

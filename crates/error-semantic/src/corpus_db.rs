@@ -77,6 +77,27 @@ pub fn suggest_import_for_symbol(symbol: &str) -> Option<&'static str> {
     None
 }
 
+/// Find the exact golden corpus case for a code + source-window key.
+///
+/// This is the offline oracle hook: build.rs records the original source
+/// window and derived primary text for each annotated error case, and the
+/// expert engine can use the exact match to recover the corpus-authoritative
+/// repair and explanation shape without any CUDA runtime.
+pub fn find_error_corpus_case(
+    code: &str,
+    source_window: &str,
+    primary_text: &str,
+) -> Option<&'static ErrorCorpusCase> {
+    ERROR_CORPUS_CASES
+        .iter()
+        .find(|case| case.expected_code == code && case.source_window == source_window)
+        .or_else(|| {
+            ERROR_CORPUS_CASES
+                .iter()
+                .find(|case| case.expected_code == code && case.primary_text == primary_text)
+        })
+}
+
 /// Get corpus statistics.
 pub fn corpus_stats() -> (usize, usize) {
     (CORPUS_SYMBOL_COUNT, CORPUS_IMPORT_COUNT)

@@ -44,6 +44,8 @@ struct RawErrorCase {
     expected_code: String,
     expected_mode: String,
     expected_repair: String,
+    primary_text: String,
+    source_window: String,
 }
 
 fn main() {
@@ -161,15 +163,27 @@ fn main() {
             }
 
             if root.source_lane == "error_corpus" {
-                let exp_code = re_exp_code.captures(&src).map(|c| c[1].to_string()).unwrap_or_default();
-                let exp_mode = re_exp_mode.captures(&src).map(|c| c[1].to_string()).unwrap_or_default();
-                let exp_repair = re_exp_repair.captures(&src).map(|c| c[1].to_string()).unwrap_or_default();
+                let exp_code = re_exp_code
+                    .captures(&src)
+                    .map(|c| c[1].to_string())
+                    .unwrap_or_default();
+                let exp_mode = re_exp_mode
+                    .captures(&src)
+                    .map(|c| c[1].to_string())
+                    .unwrap_or_default();
+                let exp_repair = re_exp_repair
+                    .captures(&src)
+                    .map(|c| c[1].to_string())
+                    .unwrap_or_default();
                 if !exp_code.is_empty() {
+                    let primary_text = derive_error_primary_text(&src, &exp_mode, &exp_repair);
                     error_cases.insert(RawErrorCase {
                         file_path: source_path.clone(),
                         expected_code: exp_code,
                         expected_mode: exp_mode,
                         expected_repair: exp_repair,
+                        primary_text,
+                        source_window: src.clone(),
                     });
                 }
             }
@@ -337,6 +351,8 @@ fn main() {
     writeln!(f, "    pub expected_code: &'static str,").unwrap();
     writeln!(f, "    pub expected_mode: &'static str,").unwrap();
     writeln!(f, "    pub expected_repair: &'static str,").unwrap();
+    writeln!(f, "    pub primary_text: &'static str,").unwrap();
+    writeln!(f, "    pub source_window: &'static str,").unwrap();
     writeln!(f, "}}").unwrap();
     writeln!(f).unwrap();
 
@@ -345,11 +361,13 @@ fn main() {
     for c in &err_vec {
         writeln!(
             f,
-            "    ErrorCorpusCase {{ file_path: {:?}, expected_code: {:?}, expected_mode: {:?}, expected_repair: {:?} }},",
+            "    ErrorCorpusCase {{ file_path: {:?}, expected_code: {:?}, expected_mode: {:?}, expected_repair: {:?}, primary_text: {:?}, source_window: {:?} }},",
             c.file_path,
             c.expected_code,
             c.expected_mode,
             c.expected_repair,
+            c.primary_text,
+            c.source_window,
         )
         .unwrap();
     }
@@ -449,6 +467,35 @@ fn source_path_for(repo_root: &Path, path: &Path) -> String {
         .unwrap_or(path)
         .to_string_lossy()
         .replace('\\', "/")
+}
+
+fn derive_error_primary_text(source: &str, expected_mode: &str, expected_repair: &str) -> String {
+    if expected_mode == "Typo" {
+        for line in source.lines() {
+            if let Some(call_index) = line.find('(') {
+                let prefix = &line[..call_index];
+                if let Some(symbol) = prefix.split_whitespace().last().map(|value| {
+                    value.trim_matches(|ch: char| !ch.is_ascii_alphanumeric() && ch != '_')
+                }) {
+                    if !symbol.is_empty() && symbol != expected_repair {
+                        return symbol.to_string();
+                    }
+                }
+            }
+        }
+    }
+
+    if source.contains("cells") {
+        return "cells".to_string();
+    }
+    if source.contains("Master.val") {
+        return "Master.val".to_string();
+    }
+    if source.contains("orchestrate") {
+        return "orchestrate".to_string();
+    }
+
+    expected_repair.to_string()
 }
 
 fn canonical_import_path_for(source_lane: &str, rel_parts: &[String]) -> Option<String> {

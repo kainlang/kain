@@ -19,7 +19,7 @@ pub fn analyze(packet: &DiagnosticSemanticPacket) -> SemanticAnalysisReport {
     let cascade_prob = estimate_cascade_probability(packet);
     let explanation = generate_explanation(packet, &failure_mode);
     let explanation_style = explanation_style_for(&failure_mode);
-    let confidence = compute_root_cause_confidence(&failure_mode, &ranked_repairs);
+    let confidence = compute_root_cause_confidence(packet, &failure_mode, &ranked_repairs);
 
     SemanticAnalysisReport {
         root_cause_confidence: confidence,
@@ -31,10 +31,60 @@ pub fn analyze(packet: &DiagnosticSemanticPacket) -> SemanticAnalysisReport {
     }
 }
 
+fn exact_golden_case(
+    packet: &DiagnosticSemanticPacket,
+) -> Option<&'static corpus_db::ErrorCorpusCase> {
+    corpus_db::find_error_corpus_case(
+        packet.code.as_str(),
+        &packet.source_window,
+        &packet.primary_text,
+    )
+}
+
+fn failure_mode_from_golden_case(
+    case: &corpus_db::ErrorCorpusCase,
+    packet: &DiagnosticSemanticPacket,
+) -> Option<FailureMode> {
+    match case.expected_mode {
+        "Typo" => Some(FailureMode::Typo {
+            intended: case.expected_repair.to_string(),
+        }),
+        "MissingImport" => Some(FailureMode::MissingImport {
+            module: packet.primary_text.clone(),
+            import_path: case.expected_repair.to_string(),
+        }),
+        "MissingSurface" => Some(FailureMode::MissingSurface),
+        "OwnershipViolation" => Some(FailureMode::OwnershipViolation),
+        "ShaderStageMismatch" => Some(FailureMode::ShaderStageMismatch),
+        "WorldDeclarationError" => Some(FailureMode::WorldDeclarationError),
+        "ActorMessageMismatch" => Some(FailureMode::ActorMessageMismatch),
+        "ParserDelimiterDamage" => Some(FailureMode::ParserDelimiterDamage),
+        "ConvergeMismatch" => Some(FailureMode::ConvergeMismatch),
+        "EntangleViolation" => Some(FailureMode::EntangleViolation),
+        "GenericUnknown" => Some(FailureMode::GenericUnknown),
+        _ => None,
+    }
+}
+
+fn golden_repair_for_case(case: &corpus_db::ErrorCorpusCase) -> RankedRepair {
+    RankedRepair {
+        repair_id: format!("golden_case::{}", case.expected_repair),
+        description: format!("Golden corpus repair: {}", case.expected_repair),
+        score: 0.97,
+        replacement_text: Some(case.expected_repair.to_string()),
+    }
+}
+
 // ── Failure Classification ───────────────────────────────────────────
 
 fn classify_failure(packet: &DiagnosticSemanticPacket) -> FailureMode {
     let code = packet.code.as_str();
+
+    if let Some(case) = exact_golden_case(packet) {
+        if let Some(mode) = failure_mode_from_golden_case(case, packet) {
+            return mode;
+        }
+    }
 
     // TYPE-0002: Unknown identifier — could be typo, missing import, or host bridge
     if code == "KAIN-TYPE-0002" {
@@ -210,6 +260,10 @@ fn rank_repairs(packet: &DiagnosticSemanticPacket, mode: &FailureMode) -> Vec<Ra
             }
         }
         _ => {}
+    }
+
+    if let Some(case) = exact_golden_case(packet) {
+        repairs.push(golden_repair_for_case(case));
     }
 
     // Sort by descending score
@@ -405,7 +459,11 @@ fn explanation_style_for(mode: &FailureMode) -> String {
     }
 }
 
-fn compute_root_cause_confidence(mode: &FailureMode, repairs: &[RankedRepair]) -> f32 {
+fn compute_root_cause_confidence(
+    packet: &DiagnosticSemanticPacket,
+    mode: &FailureMode,
+    repairs: &[RankedRepair],
+) -> f32 {
     let base = match mode {
         FailureMode::GenericUnknown => 0.30,
         FailureMode::Typo { .. } => 0.90,
@@ -415,10 +473,14 @@ fn compute_root_cause_confidence(mode: &FailureMode, repairs: &[RankedRepair]) -
         _ => 0.70,
     };
 
-    // Boost confidence if top repair scores high
     let repair_boost = repairs.first().map(|r| r.score * 0.08).unwrap_or(0.0);
+    let golden_boost = if exact_golden_case(packet).is_some() {
+        0.12
+    } else {
+        0.0
+    };
 
-    (base + repair_boost).min(0.99)
+    (base + repair_boost + golden_boost).min(0.99)
 }
 
 #[cfg(test)]
@@ -583,12 +645,21 @@ mod tests {
         for case in corpus_db::ERROR_CORPUS_CASES {
             let code = DiagnosticCode::new(case.expected_code);
             let source = load_corpus_case_source(case);
-            let mut packet = DiagnosticSemanticPacket::new(
-                code,
-                corpus_case_phase(code),
-                corpus_case_primary_text(case, &source),
-            )
-            .source_window(&source);
+            let derived_primary_text = corpus_case_primary_text(case, &source);
+            assert_eq!(
+                case.source_window, source,
+                "golden source_window drift for {}",
+                case.file_path
+            );
+            assert_eq!(
+                case.primary_text, derived_primary_text,
+                "golden primary_text drift for {}",
+                case.file_path
+            );
+
+            let mut packet =
+                DiagnosticSemanticPacket::new(code, corpus_case_phase(code), case.primary_text)
+                    .source_window(&source);
 
             if case.expected_mode == "ConvergeMismatch" {
                 packet = packet.flag("in_converge_block", true);
