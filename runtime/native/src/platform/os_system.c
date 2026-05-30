@@ -14,6 +14,8 @@
 #include <pwd.h>
 #include <sys/ioctl.h>
 #include <sys/stat.h>
+#include <sys/mman.h>
+#include <sys/wait.h>
 #endif
 
 #define KAIN_OS_ERROR_KIND_MAX 64
@@ -535,11 +537,11 @@ const char* abi_os_last_error_message(void) {
         int64_t abi_os_syscall##n(int64_t sysno KAIN_RAW_ARG_LIST_##n) \
         { \
             int64_t result; \
-            register int64_t r10 asm("r10") = KAIN_RAW_ARG_##n(4); \
-            register int64_t r8  asm("r8")  = KAIN_RAW_ARG_##n(5); \
-            register int64_t r9  asm("r9")  = KAIN_RAW_ARG_##n(6); \
+            register int64_t r10 __asm__("r10") = KAIN_RAW_ARG_##n(4); \
+            register int64_t r8  __asm__("r8")  = KAIN_RAW_ARG_##n(5); \
+            register int64_t r9  __asm__("r9")  = KAIN_RAW_ARG_##n(6); \
             KAIN_RAW_REG_CLOBBER_##n \
-            asm volatile( \
+            __asm__ volatile( \
                 "syscall" \
                 : "=a"(result) \
                 : "a"(sysno), "D"(KAIN_RAW_ARG_##n(1)), \
@@ -551,7 +553,7 @@ const char* abi_os_last_error_message(void) {
         }
 
     #define KAIN_RAW_ARG_LIST_0
-    #define KAIN_RAW_ARG_0(n) (void)n, 0
+    #define KAIN_RAW_ARG_0(n) 0
     #define KAIN_RAW_REG_CLOBBER_0
 
     #define KAIN_RAW_ARG_LIST_1 , int64_t arg1
