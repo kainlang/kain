@@ -137,21 +137,40 @@ pub fn os_arch_name() -> String:
     return name
 
 // ─── Boolean platform checks ─────────────────────────────────────────────
+//  NOTE: Use match not == for enum comparison — LLVM codegen for enum ==
+//  is not yet reliable; match arms produce correct branching.
+//  Also avoid `return` inside match arms (LLVM codegen limitation).
 pub fn os_is_windows() -> Bool:
     let tgt = target_current()
-    return tgt.os == OS::Windows
+    var result = false
+    match tgt.os:
+        OS::Windows => result = true
+        _ => result = false
+    return result
 
 pub fn os_is_linux() -> Bool:
     let tgt = target_current()
-    return tgt.os == OS::Linux
+    var result = false
+    match tgt.os:
+        OS::Linux => result = true
+        _ => result = false
+    return result
 
 pub fn os_is_macos() -> Bool:
     let tgt = target_current()
-    return tgt.os == OS::Macos
+    var result = false
+    match tgt.os:
+        OS::Macos => result = true
+        _ => result = false
+    return result
 
 pub fn os_is_wasi() -> Bool:
     let tgt = target_current()
-    return tgt.os == OS::Wasi
+    var result = false
+    match tgt.os:
+        OS::Wasi => result = true
+        _ => result = false
+    return result
 
 pub fn os_is_64bit() -> Bool:
     let tgt = target_current()
@@ -451,22 +470,28 @@ pub fn os_atomic_write_text(path: String, content: String) -> Bool:
 //  Python: os.system(), os.popen()
 
 pub fn os_system(command: String) -> Int:
-    var shell = "cmd.exe"
-    var shell_arg = "/c"
+    var shell = "/bin/sh"
+    var shell_arg = "-c"
     let tgt = target_current()
-    if tgt.os == OS::Linux or tgt.os == OS::Macos:
-        shell = "/bin/sh"
-        shell_arg = "-c"
+    match tgt.os:
+        OS::Windows => shell = "cmd.exe"
+        _ => shell = shell
+    match tgt.os:
+        OS::Windows => shell_arg = "/c"
+        _ => shell_arg = shell_arg
     let _result = process_output_text(shell, shell_arg, command, "", 30000)
     return process_last_status()
 
 pub fn os_popen_read(command: String, timeout_ms: Int) -> String:
-    var shell = "cmd.exe"
-    var shell_arg = "/c"
+    var shell = "/bin/sh"
+    var shell_arg = "-c"
     let tgt = target_current()
-    if tgt.os == OS::Linux or tgt.os == OS::Macos:
-        shell = "/bin/sh"
-        shell_arg = "-c"
+    match tgt.os:
+        OS::Windows => shell = "cmd.exe"
+        _ => shell = shell
+    match tgt.os:
+        OS::Windows => shell_arg = "/c"
+        _ => shell_arg = shell_arg
     return process_output_text(shell, shell_arg, command, "", timeout_ms)
 
 pub fn os_popen_status(command: String, timeout_ms: Int) -> Int:

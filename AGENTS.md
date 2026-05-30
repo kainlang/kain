@@ -307,6 +307,20 @@ kain build /tmp/probe.kn --target llvm
 
 Important WSL caveats:
 
+- **Critical: `kain run` from WSL requires env vars to override the Bazel-bundled Windows toolchain**
+  - `KAIN_CLANG_PATH=/usr/bin/clang` — the Bazel toolchain ships `clang.exe` (Windows PE) which
+    is found first and cannot resolve Linux DrvFs paths. This override forces the system clang.
+  - `KAIN_RUNTIME_MANIFEST_PATH=/mnt/x/runtime/native_core_runtime.toml` — the binary's
+    ancestor-chain search finds Bazel execroot paths; this pins the real manifest.
+  - `KAIN_HOME=/mnt/x` — sets repo root so stdlib and other resources resolve correctly.
+  - Full invocation:
+    ```bash
+    KAIN_CLANG_PATH=/usr/bin/clang \
+    KAIN_RUNTIME_MANIFEST_PATH=/mnt/x/runtime/native_core_runtime.toml \
+    KAIN_HOME=/mnt/x \
+    /path/to/bazel-built/kain run file.kn --target llvm
+    ```
+  - `kain check` and `kain build` do NOT need these overrides (they don't invoke clang).
 - Do not assume Windows Bazel results tell you Linux truth. If the task is about Linux runtime behavior, Linux linking, Linux toolchain behavior, or Linux-only dependencies, run the proof in WSL.
 - Conversely, do not treat WSL as off-limits for non-Linux work. If the Linux shell, package ecosystem, or filesystem layout gives you a better operator lane, use it.
 - Prefer `./scripts/bazel-wsl.sh ...` over raw `bazel ...` inside WSL so the repo config and WSL overlay config both apply.

@@ -24,8 +24,8 @@ const ABI_NET_CAPABILITY_AVAILABLE: Int = 2
 //                        linux platform proof helpers
 // ============================================================================
 
-fn append_line(report: String, line: String) -> String:
-    return report + line + "\n"
+fn append_line(report: String, line_text: String) -> String:
+    return report + line_text + "\n"
 
 fn contains_text(text: String, needle: String) -> Bool:
     if len(needle) == 0:
@@ -550,7 +550,7 @@ fn main() -> Int:
     var report = "linux platform proof blade"
     report = append_line(report, "================================")
 
-    if os_is_linux() == false:
+    if !os_is_linux():
         fs_create_dir_all(".kain/run")
         report = append_line(report, "[SKIP] suite :: host is " + os_platform_name() + ", linux-specific blade not executed")
         fs_write_text(".kain/run/linux_platform_report.txt", report)

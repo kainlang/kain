@@ -141,7 +141,18 @@ pub fn resolve_bundled_clang_path() -> Option<PathBuf> {
         return Some(explicit_path);
     }
 
-    find_first_existing_relative_path(&default_resource_search_roots(), CLANG_CANDIDATE_SUFFIXES)
+    let suffixes: Vec<&str> = CLANG_CANDIDATE_SUFFIXES
+        .iter()
+        .copied()
+        .filter(|suffix| {
+            // On non-Windows hosts, skip .exe candidates so we don't
+            // accidentally pick up a Windows clang.exe from a Bazel
+            // toolchain that can't resolve Linux DrvFs paths.
+            cfg!(windows) || !suffix.ends_with(".exe")
+        })
+        .collect();
+
+    find_first_existing_relative_path(&default_resource_search_roots(), &suffixes)
 }
 
 pub fn resolve_bundled_libclang_path() -> Option<PathBuf> {
@@ -177,7 +188,13 @@ pub fn resolve_windows_msvc_link_search_paths() -> Vec<PathBuf> {
     if let Some(windows_sdk_dir) = env_path("WindowsSdkDir") {
         let version = std::env::var("WindowsSDKLibVersion")
             .ok()
-            .map(|value| value.trim().trim_end_matches('\\').trim_end_matches('/').to_string())
+            .map(|value| {
+                value
+                    .trim()
+                    .trim_end_matches('\\')
+                    .trim_end_matches('/')
+                    .to_string()
+            })
             .filter(|value| !value.is_empty());
         append_windows_sdk_lib_dirs(&mut paths, &windows_sdk_dir, version.as_deref());
     }
@@ -360,7 +377,13 @@ fn append_visual_studio_msvc_lib_dirs(paths: &mut Vec<PathBuf>) {
     }
 
     for root in roots {
-        for edition in ["BuildTools", "Community", "Professional", "Enterprise", "Preview"] {
+        for edition in [
+            "BuildTools",
+            "Community",
+            "Professional",
+            "Enterprise",
+            "Preview",
+        ] {
             let tools_root = root.join(edition).join("VC").join("Tools").join("MSVC");
             if let Some(version_dir) = discover_latest_child_dir(&tools_root) {
                 push_existing_unique_path(paths, version_dir.join("lib").join("x64"));
@@ -370,7 +393,11 @@ fn append_visual_studio_msvc_lib_dirs(paths: &mut Vec<PathBuf>) {
 }
 
 #[cfg(windows)]
-fn append_windows_sdk_lib_dirs(paths: &mut Vec<PathBuf>, sdk_root: &Path, explicit_version: Option<&str>) {
+fn append_windows_sdk_lib_dirs(
+    paths: &mut Vec<PathBuf>,
+    sdk_root: &Path,
+    explicit_version: Option<&str>,
+) {
     let lib_root = sdk_root.join("Lib");
     if !lib_root.is_dir() {
         return;

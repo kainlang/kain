@@ -308,7 +308,11 @@ pub fn os_path_isdir(path: String) -> Bool:
 // ─── ismount ─────────────────────────────────────────────────────────────
 pub fn os_path_ismount(path: String) -> Bool:
     let tgt = target_current()
-    if tgt.os == OS::Windows:
+    var is_windows = false
+    match tgt.os:
+        OS::Windows => is_windows = true
+        _ => is_windows = false
+    if is_windows:
         if len(path) == 3:
             let second = char_at(path, 1)
             let third = char_at(path, 2)
@@ -365,7 +369,11 @@ pub fn os_path_expanduser(path: String) -> String:
     if len(path) == 1 or char_at(path, 1) == "/" or char_at(path, 1) == "\\":
         var home = ""
         let tgt = target_current()
-        if tgt.os == OS::Windows:
+        var is_windows = false
+        match tgt.os:
+            OS::Windows => is_windows = true
+            _ => is_windows = false
+        if is_windows:
             let home_drive = os_path_getenv("HOMEDRIVE")
             let home_path = os_path_getenv("HOMEPATH")
             if len(home_drive) > 0 and len(home_path) > 0:

@@ -1,0 +1,13 @@
+kain-native-runtime-cache-v1
+bundle=kain-native-core-runtime
+clang=clang
+source=/mnt/x/runtime/native/src/core/actor.c
+cpp=false
+native_profile=debug
+native_opt_level=0
+native_target_cpu=
+native_debug_info=true
+include=/mnt/x/runtime/native/include
+define=_GNU_SOURCE
+define=_POSIX_C_SOURCE=200112
+define=_FILE_OFFSET_BITS=64

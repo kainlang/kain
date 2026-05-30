@@ -1,5 +1,39 @@
 # Kain Memory
 
+# 2026-05-29 — Linux platform blade + WSL proving lane hardened
+
+What changed:
+
+- `blades/test/platform/linux/` — Linux platform proof blade now compiles and runs on WSL.
+  - `build.kn` fix: multi-line method chains not supported; collapsed to single-line chains.
+  - `src/main.kn` fix: `line` is a reserved keyword; renamed parameter to `line_text`.
+  - `!os_is_linux()` instead of `os_is_linux() == false` (enum == broken on LLVM target).
+  - 4 tests PASS on WSL: linux.identity, net.loopback, graphics.software-probe, runtime.shutdown
+  - 7 tests FAIL on WSL (expected — WSL is not full native Linux).
+
+- **Critical WSL env vars for `kain run`:**
+  - `KAIN_CLANG_PATH=/usr/bin/clang` — override bundled Windows clang.exe from Bazel toolchain
+  - `KAIN_RUNTIME_MANIFEST_PATH=/mnt/x/runtime/native_core_runtime.toml` — manifest path fix
+  - `KAIN_HOME=/mnt/x` — repo root
+
+- **Bugs found and fixed:**
+  - `crates/core/src/install_layout.rs` — `resolve_bundled_clang_path()` now filters out
+    `.exe` suffixes on non-Windows hosts. Prevents picking up Windows `clang.exe` from
+    Bazel toolchain on Linux/WSL, which can't resolve DrvFs paths.
+  - `stdlib/os.kn` — Enum `==` comparison broken on LLVM target. Worked around by using
+    `match` + variable assignment instead of `==` comparisons for `OS::Windows/Linux/etc`.
+    Same fix applied to `stdlib/os_path.kn`.
+  - Kain parser limitations discovered: no `{}` blocks in match arms, no `return` inside
+    match arms on LLVM target. Worked around with var assignment pattern.
+
+Validation:
+
+- `kain check` passes on `stdlib/os.kn`, `stdlib/os_path.kn`, `blades/test/platform/linux/build.kn`,
+  `blades/test/platform/linux/src/main.kn`.
+- `kain run blades/test/platform/linux/src/main.kn --target llvm` succeeds on WSL with the
+  env vars above.
+- `//:kain` Bazel build + `resolve_bundled_clang_path` fix compiled and tested.
+
 # 2026-05-29 — WSL Linux Bazel + native LLVM lane bring-up
 
 Context:
