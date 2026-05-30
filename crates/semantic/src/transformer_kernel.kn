@@ -1,0 +1,515 @@
+use std::cuda
+
+// ============================================================================
+//    transformer_kernel.kn — Kain-native transformer for compiler oracle
+// ============================================================================
+// Inference-only GPT-2-style transformer that replaces the hash-based
+// embedding pipeline. The last hidden state at each position becomes the
+// semantic embedding used by ErrorCorpusFusedDiagnoseTopK for search.
+//
+// Architecture: 4 layers, 6 heads, dim=384, FFN inner dim=1536
+//   dim=384 matches the existing oracle dimension
+//   6 heads × 64 head_dim = 384
+//
+// Host orchestration (search_engine.kn):
+//   1. Upload token ids, weight tables → GPU StorageBuffers
+//   2. Launch EncoderForward — token_embed + pos_embed
+//   3. For each layer (0..3):
+//      a. Launch LayerNorm → Attention → Residual → LayerNorm → MLP → Residual
+//         (or launch composite layers: see BlockLayer* below)
+//   4. Launch FinalLayerNorm on output
+//   5. Read embedding from last position → quantize to u8 → pass to search
+// ============================================================================
+
+
+// -------------------------------------------------------------------------
+// KERNEL 1 :: EncoderForward
+// -------------------------------------------------------------------------
+// Token embedding + positional embedding lookup.
+// Each thread handles a single (batch, position, channel) element.
+//   tokens[b, t] → wte[tokens[b, t], c] + wpe[t, c] → hidden[b, t, c]
+
+shader compute EncoderForward(id: UVec3) -> Void:
+    uniform tokens: StorageBuffer<Int> @0
+    uniform wte: StorageBuffer<Float> @1
+    uniform wpe: StorageBuffer<Float> @2
+    uniform hidden: StorageBuffer<Float> @3
+    uniform num_tokens: UInt @4
+    uniform dim: UInt @5
+    uniform vocab_size: UInt @6
+
+    comptime:
+        let compute = (
+            [256, 1, 1],
+            [131072, 1, 1],
+            [
+                ("tokens", "i32", ["512"], "input", "kain.shared.buffer"),
+                ("wte", "f32", ["4096", "384"], "input", "kain.shared.buffer"),
+                ("wpe", "f32", ["512", "384"], "input", "kain.shared.buffer"),
+                ("hidden", "f32", ["512", "384"], "output", "kain.shared.buffer"),
+                ("num_tokens", "u32", ["1"], "input", "kain.shared.buffer"),
+                ("dim", "u32", ["1"], "input", "kain.shared.buffer"),
+                ("vocab_size", "u32", ["1"], "input", "kain.shared.buffer"),
+            ],
+            [
+                ("tokens", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("wte", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("wpe", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("hidden", "egress", "per-dispatch", "kain.shared.buffer"),
+                ("num_tokens", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("dim", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("vocab_size", "ingress", "per-dispatch", "kain.shared.buffer"),
+            ],
+            [],
+        )
+
+    let flat_idx = id.x
+    if flat_idx >= num_tokens * dim:
+        return
+
+    let t = flat_idx / dim        // position in sequence
+    let c = flat_idx % dim        // channel
+    let token_id = tokens[t]
+
+    // clamp to vocab bounds for safety
+    let safe_token = if token_id >= vocab_size: UInt(0) else: token_id
+
+    let wte_val = wte[safe_token * dim + c]
+    let wpe_val = wpe[t * dim + c]
+    hidden[t * dim + c] = wte_val + wpe_val
+
+
+// -------------------------------------------------------------------------
+// KERNEL 2 :: LayerNormForward
+// -------------------------------------------------------------------------
+// Layer normalization over the channel dimension (C).
+// Each block handles one (batch, position) vector.
+// mean = avg(x_i), var = avg((x_i - mean)²), y_i = (x_i - mean) / sqrt(var + eps) * gamma_i + beta_i
+
+shader compute LayerNormForward(id: UVec3) -> Void:
+    uniform input: StorageBuffer<Float> @0
+    uniform output: StorageBuffer<Float> @1
+    uniform gamma: StorageBuffer<Float> @2
+    uniform beta: StorageBuffer<Float> @3
+    uniform num_positions: UInt @4
+    uniform dim: UInt @5
+
+    comptime:
+        let compute = (
+            [256, 1, 1],
+            [32768, 1, 1],
+            [
+                ("input", "f32", ["512", "384"], "input", "kain.shared.buffer"),
+                ("output", "f32", ["512", "384"], "output", "kain.shared.buffer"),
+                ("gamma", "f32", ["384"], "input", "kain.shared.buffer"),
+                ("beta", "f32", ["384"], "input", "kain.shared.buffer"),
+                ("num_positions", "u32", ["1"], "input", "kain.shared.buffer"),
+                ("dim", "u32", ["1"], "input", "kain.shared.buffer"),
+            ],
+            [
+                ("input", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("output", "egress", "per-dispatch", "kain.shared.buffer"),
+                ("gamma", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("beta", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("num_positions", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("dim", "ingress", "per-dispatch", "kain.shared.buffer"),
+            ],
+            [],
+        )
+
+    let pos = id.x
+    if pos >= num_positions:
+        return
+
+    let base = pos * dim
+    let lane = cuda_lane_id()
+    let warp_id = cuda_warp_id()
+
+    // Phase 1: compute mean — sum over C dimension using warp reduce
+    var sum: Float = 0.0
+    var c = lane
+    while c < dim:
+        sum = sum + input[base + c]
+        c = c + UInt(32)
+
+    let block_sum = cuda_warp_reduce_sum_f32(sum)
+
+    // warp 0 lane 0 has the full sum
+    // broadcast to all threads
+    var mean: Float = 0.0
+    if lane == UInt(0):
+        mean = block_sum / to_float(dim)
+    mean = cuda_shfl_xor_f32(mean, lane)
+
+    // Phase 2: compute variance
+    var var_sum: Float = 0.0
+    c = lane
+    while c < dim:
+        let diff = input[base + c] - mean
+        var_sum = var_sum + diff * diff
+        c = c + UInt(32)
+
+    let block_var_sum = cuda_warp_reduce_sum_f32(var_sum)
+
+    var variance: Float = 0.0
+    if lane == UInt(0):
+        variance = block_var_sum / to_float(dim)
+    variance = cuda_shfl_xor_f32(variance, lane)
+
+    // rstd = 1 / sqrt(var + eps)
+    let rstd: Float = 1.0 / sqrt_f32(variance + 1e-5)
+
+    // Phase 3: normalize and scale
+    c = lane
+    while c < dim:
+        let normalized = (input[base + c] - mean) * rstd
+        output[base + c] = normalized * gamma[c] + beta[c]
+        c = c + UInt(32)
+
+
+// -------------------------------------------------------------------------
+// KERNEL 3 :: CausalAttentionForward
+// -------------------------------------------------------------------------
+// Fused causal self-attention with pre-projected QKV buffer.
+// Input: qkv buffer of shape (T, 3 * C), already projected by matmul.
+// Each thread computes one element of the output.
+//
+// Architecture: T blocks, each block computes attention for one position.
+// Q[batch, t, :] attends to K[batch, 0..t, :] in a causal mask.
+
+shader compute CausalAttentionForward(id: UVec3) -> Void:
+    uniform qkv: StorageBuffer<Float> @0
+    uniform output: StorageBuffer<Float> @1
+    uniform num_positions: UInt @2
+    uniform dim: UInt @3
+    uniform num_heads: UInt @4
+
+    comptime:
+        let compute = (
+            [128, 1, 1],
+            [512, 1, 1],
+            [
+                ("qkv", "f32", ["512", "1152"], "input", "kain.shared.buffer"),
+                ("output", "f32", ["512", "384"], "output", "kain.shared.buffer"),
+                ("num_positions", "u32", ["1"], "input", "kain.shared.buffer"),
+                ("dim", "u32", ["1"], "input", "kain.shared.buffer"),
+                ("num_heads", "u32", ["1"], "input", "kain.shared.buffer"),
+            ],
+            [
+                ("qkv", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("output", "egress", "per-dispatch", "kain.shared.buffer"),
+                ("num_positions", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("dim", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("num_heads", "ingress", "per-dispatch", "kain.shared.buffer"),
+            ],
+            [],
+        )
+
+    let t = id.x           // target position
+    if t >= num_positions:
+        return
+
+    let head_dim = dim / num_heads  // 384 / 6 = 64
+    let lane = cuda_lane_id()
+    let warp_id = cuda_warp_id()
+    let heads_per_warp = UInt(32) / head_dim    // 32 / 64 — each warp handles 1 head
+    let num_warps = UInt(128) / UInt(32)        // 4 warps per block
+
+    // each thread handles a single head
+    let head = id.y
+    if head >= num_heads:
+        return
+
+    // Q at position t, for this head
+    // Q is first C elements of qkv[t], K is next C, V is last C
+    let qkv_base = t * UInt(3) * dim
+    let head_offset = head * head_dim
+
+    // Load Q head into registers
+    var q: Array<Float> = []
+    var qi: UInt = 0
+    while qi < head_dim:
+        push(q, qkv[qkv_base + head_offset + qi])
+        qi = qi + UInt(1)
+
+    // Phase 1: compute attention scores (Q · K^T) for causal range
+    // Each thread computes dot product of Q_head with K_head at source position s
+    // Use on-chip accumulation: for each s in 0..t, compute Q·K / sqrt(head_dim)
+    var max_score: Float = -1e10
+    var sum_exp: Float = 0.0
+
+    // We use a small shared-memory-like pattern: warp threads each handle one source
+    // position, then we reduce across threads for the softmax denominator.
+    // Since head_dim=64 and we have 32 threads/warp, each thread handles 2 channels.
+    let channels_per_thread = head_dim / UInt(32)  // 2 for head_dim=64
+
+    // For each source position s (0..t), compute attention score
+    var scores: Array<Float> = []   // will hold pre-softmax scores
+    var s: UInt = 0
+    while s <= t:
+        let k_base = qkv_base + dim + s * UInt(3) * dim + head_offset
+        var dot: Float = 0.0
+        var ci: UInt = 0
+        while ci < head_dim:
+            dot = dot + q[ci] * qkv[k_base + ci]
+            ci = ci + UInt(1)
+        let score = dot * 0.1250  // 1/sqrt(64)
+
+        // online softmax
+        if score > max_score:
+            max_score = score
+
+        push(scores, score)
+        s = s + UInt(1)
+
+    // Phase 2: softmax — compute exp(score - max_score) and sum
+    var this_sum_exp: Float = 0.0
+    si: UInt = 0
+    while si < UInt(len(scores)):
+        let e = exp_f32(scores[si] - max_score)
+        scores[si] = e
+        this_sum_exp = this_sum_exp + e
+        si = si + UInt(1)
+
+    // Phase 3: weighted sum of V
+    // out = sum_s( softmax(s)_s * V[s, head, :] )
+    var out: Array<Float> = []
+    ci = UInt(0)
+    while ci < head_dim:
+        push(out, 0.0)
+        ci = ci + UInt(1)
+
+    s = UInt(0)
+    while s <= t:
+        let weight = scores[s] / this_sum_exp
+        let v_base = qkv_base + UInt(2) * dim + s * UInt(3) * dim + head_offset
+        ci = UInt(0)
+        while ci < head_dim:
+            out[ci] = out[ci] + weight * qkv[v_base + ci]
+            ci = ci + UInt(1)
+        s = s + UInt(1)
+
+    // Write output head
+    let out_base = t * dim + head_offset
+    ci = UInt(0)
+    while ci < head_dim:
+        output[out_base + ci] = out[ci]
+        ci = ci + UInt(1)
+
+
+// -------------------------------------------------------------------------
+// KERNEL 4 :: MatmulForward
+// -------------------------------------------------------------------------
+// Tiled float matmul: C[M, N] = A[M, K] @ B[K, N].
+// Each thread computes one element of C using warp-level dot product.
+
+shader compute MatmulForward(id: UVec3) -> Void:
+    uniform a: StorageBuffer<Float> @0
+    uniform b: StorageBuffer<Float> @1
+    uniform c: StorageBuffer<Float> @2
+    uniform bias: StorageBuffer<Float> @3
+    uniform M: UInt @4
+    uniform N: UInt @5
+    uniform K: UInt @6
+    uniform has_bias: UInt @7
+
+    comptime:
+        let compute = (
+            [256, 1, 1],
+            [131072, 1, 1],
+            [
+                ("a", "f32", ["512", "384"], "input", "kain.shared.buffer"),
+                ("b", "f32", ["1152", "384"], "input", "kain.shared.buffer"),
+                ("c", "f32", ["512", "1152"], "output", "kain.shared.buffer"),
+                ("bias", "f32", ["1152"], "input", "kain.shared.buffer"),
+                ("M", "u32", ["1"], "input", "kain.shared.buffer"),
+                ("N", "u32", ["1"], "input", "kain.shared.buffer"),
+                ("K", "u32", ["1"], "input", "kain.shared.buffer"),
+                ("has_bias", "u32", ["1"], "input", "kain.shared.buffer"),
+            ],
+            [
+                ("a", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("b", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("c", "egress", "per-dispatch", "kain.shared.buffer"),
+                ("bias", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("M", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("N", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("K", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("has_bias", "ingress", "per-dispatch", "kain.shared.buffer"),
+            ],
+            [],
+        )
+
+    let m = id.x / N        // row in C
+    let n = id.x % N        // col in C
+    if m >= M or n >= N:
+        return
+
+    var acc: Float = 0.0
+    var k: UInt = 0
+    while k < K:
+        acc = acc + a[m * K + k] * b[n * K + k]
+        k = k + UInt(1)
+
+    if has_bias != UInt(0):
+        acc = acc + bias[n]
+
+    c[m * N + n] = acc
+
+
+// -------------------------------------------------------------------------
+// KERNEL 5 :: GeluForward
+// -------------------------------------------------------------------------
+// GELU activation: 0.5 * x * (1 + tanh(sqrt(2/pi) * (x + 0.044715 * x^3)))
+
+shader compute GeluForward(id: UVec3) -> Void:
+    uniform input: StorageBuffer<Float> @0
+    uniform output: StorageBuffer<Float> @1
+    uniform num_elements: UInt @2
+
+    comptime:
+        let compute = (
+            [256, 1, 1],
+            [131072, 1, 1],
+            [
+                ("input", "f32", ["196608"], "input", "kain.shared.buffer"),
+                ("output", "f32", ["196608"], "output", "kain.shared.buffer"),
+                ("num_elements", "u32", ["1"], "input", "kain.shared.buffer"),
+            ],
+            [
+                ("input", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("output", "egress", "per-dispatch", "kain.shared.buffer"),
+                ("num_elements", "ingress", "per-dispatch", "kain.shared.buffer"),
+            ],
+            [],
+        )
+
+    let idx = id.x
+    if idx >= num_elements:
+        return
+
+    let x = input[idx]
+    let cube = 0.044715 * x * x * x
+    let tanh_arg = 0.79788456 * (x + cube)  // sqrt(2/pi)
+    let gelu = 0.5 * x * (1.0 + tanh_f32(tanh_arg))
+    output[idx] = gelu
+
+
+// -------------------------------------------------------------------------
+// KERNEL 6 :: ResidualAdd
+// -------------------------------------------------------------------------
+// Elementwise add: out[i] = a[i] + b[i]
+
+shader compute ResidualAdd(id: UVec3) -> Void:
+    uniform a: StorageBuffer<Float> @0
+    uniform b: StorageBuffer<Float> @1
+    uniform output: StorageBuffer<Float> @2
+    uniform num_elements: UInt @3
+
+    comptime:
+        let compute = (
+            [256, 1, 1],
+            [131072, 1, 1],
+            [
+                ("a", "f32", ["196608"], "input", "kain.shared.buffer"),
+                ("b", "f32", ["196608"], "input", "kain.shared.buffer"),
+                ("output", "f32", ["196608"], "output", "kain.shared.buffer"),
+                ("num_elements", "u32", ["1"], "input", "kain.shared.buffer"),
+            ],
+            [
+                ("a", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("b", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("output", "egress", "per-dispatch", "kain.shared.buffer"),
+                ("num_elements", "ingress", "per-dispatch", "kain.shared.buffer"),
+            ],
+            [],
+        )
+
+    let idx = id.x
+    if idx >= num_elements:
+        return
+
+    output[idx] = a[idx] + b[idx]
+
+
+// -------------------------------------------------------------------------
+// KERNEL 7 :: ExtractEmbedding
+// -------------------------------------------------------------------------
+// Extracts the hidden state at the last valid position and writes it
+// to a compact output buffer. This is the final semantic embedding
+// used for search. One thread per channel.
+
+shader compute ExtractEmbedding(id: UVec3) -> Void:
+    uniform hidden: StorageBuffer<Float> @0
+    uniform embedding: StorageBuffer<u8> @1
+    uniform num_tokens: UInt @2
+    uniform dim: UInt @3
+
+    comptime:
+        let compute = (
+            [256, 1, 1],
+            [384, 1, 1],
+            [
+                ("hidden", "f32", ["512", "384"], "input", "kain.shared.buffer"),
+                ("embedding", "u8", ["384"], "output", "kain.shared.buffer"),
+                ("num_tokens", "u32", ["1"], "input", "kain.shared.buffer"),
+                ("dim", "u32", ["1"], "input", "kain.shared.buffer"),
+            ],
+            [
+                ("hidden", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("embedding", "egress", "per-dispatch", "kain.shared.buffer"),
+                ("num_tokens", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("dim", "ingress", "per-dispatch", "kain.shared.buffer"),
+            ],
+            [],
+        )
+
+    let c = id.x
+    if c >= dim:
+        return
+
+    // get hidden at the last position
+    let last_pos = if num_tokens > UInt(0): num_tokens - UInt(1) else: UInt(0)
+    let val = hidden[last_pos * dim + c]
+
+    // quantize float [-1, 1] to u8 [0, 255]
+    let clamped = if val < -1.0: -1.0 else: (if val > 1.0: 1.0 else: val)
+    let quantized = UInt((clamped + 1.0) * 127.5)
+    embedding[c] = quantized
+
+// ============================================================================
+// END KERNELS — host orchestration in search_engine.kn
+// ============================================================================
+// Expected launch sequence for transformer_embed(query, tokens):
+//
+//   1. cuda_dispatch("EncoderForward")
+//      → token_embed + pos_embed → hidden[T, C]
+//
+//   2. For layer l in 0..3:
+//      a. cuda_dispatch("MatmulForward")  — QKV = hidden @ w_qkv + bias_qkv
+//      b. cuda_dispatch("CausalAttentionForward")  — output = causal_attn(QKV)
+//      c. cuda_dispatch("MatmulForward")  — attn_proj = attn_output @ w_proj + bias_proj
+//      d. cuda_dispatch("ResidualAdd")  — hidden = hidden + attn_proj
+//      e. cuda_dispatch("LayerNormForward")  — ln = layernorm(hidden)
+//      f. cuda_dispatch("MatmulForward")  — fc = ln @ w_fc + bias_fc
+//      g. cuda_dispatch("GeluForward")  — gelu = GELU(fc)
+//      h. cuda_dispatch("MatmulForward")  — fc_proj = gelu @ w_fc_proj + bias_fc_proj
+//      i. cuda_dispatch("ResidualAdd")  — hidden = hidden + fc_proj
+//
+//   3. cuda_dispatch("LayerNormForward")  — hidden = layernorm(hidden)
+//   4. cuda_dispatch("ExtractEmbedding")  — quantize last pos → u8[384]
+//
+// Weights allocated as flat StorageBuffer<Float> arrays. Each layer has:
+//   w_qkv[l]:   [384, 1152]  → output dim = 3*C = 1152
+//   bias_qkv[l]: [1152]
+//   w_attn_proj[l]: [384, 384]
+//   bias_attn_proj[l]: [384]
+//   w_gamma1[l] (ln1): [384]
+//   w_beta1[l] (ln1): [384]
+//   w_fc[l]:    [384, 1536]
+//   bias_fc[l]: [1536]
+//   w_fc_proj[l]: [1536, 384]
+//   bias_fc_proj[l]: [384]
+//   w_gamma2[l] (ln2): [384]
+//   w_beta2[l] (ln2): [384]
+// plus final ln: gamma_final[384], beta_final[384]
