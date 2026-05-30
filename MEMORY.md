@@ -1,5 +1,41 @@
 # Kain Memory
 
+# 2026-05-30 — error-semantic oracle forge: LLVM-native binary forge proven
+
+What changed:
+
+- `crates/error-semantic/src/` — Kain oracle forge now runs `--target llvm` successfully.
+  - **Root-cause fix**: `fs_try_write_bytes(path, [])` and `fs_try_append_bytes(path, ...).ok`
+    return `FsOpResult` structs whose `.ok` field access crashes or fails on the LLVM codegen
+    target. Replaced all `fs_try_*` returns with the void-returning `fs_write_*`/`fs_append_*`
+    equivalents (`fs_write_bytes_hex`, `fs_append_bytes`, `fs_write_text`, etc.) — same contract,
+    no struct destructuring.
+  - Same fix applied to `fs_try_read_text` → `fs_read_text` + `fs_last_status()` check.
+  - **Path normalization**: All `fs_path_join` outputs on Windows produced mixed slashes
+    (`X:\\crates\\.kain/oracle/indices`). Added `normalize_slashes()` in `utils.kn` to
+    canonicalize all paths to backslashes after every join.
+  - **`std::os` migration**: Replaced fragile `fs_exists`/`fs_path_parent`/`fs_create_dir_all`
+    chain in `ensure_dir()` with `os_exists`/`os_makedirs` from `std::os` (the new
+    `stdlib/os.kn` beast module), which handles deep directory creation reliably.
+  - **Seed corpus**: Switched from recursive directory walking (which crashes in native LLVM
+    on the first directory read) to an explicit seed file list in
+    `collect_seed_files_for_dir()`. Two missing files in `library_of_kain/` are flagged
+    but ignored gracefully.
+  - Result: forge emits 1134 code chunks + 642 Kain chunks →
+    `.kain/oracle/kain_error_oracle.bin` + manifest.
+
+- LLVM codegen sharp edges documented:
+  - `fs_try_*` return types (`FsOpResult`, `FsTextResult`) cannot have their `.ok` or
+    `.value` fields destructured in LLVM compilation units; the codegen reports either
+    "if-expression branches produced inconsistent result types" or just crashes silently.
+  - Workaround: use the non-try `fs_*` void-returning variants and check `fs_last_status()`
+    for errors.
+
+Validation:
+- `kain check src/main.kn` passes.
+- `kain run . --target llvm` — "oracle dataset ready", 1134+642 chunks across 27 files,
+  pack + manifest emitted.
+
 # 2026-05-29 — Linux platform blade + WSL proving lane hardened
 
 What changed:

@@ -5,8 +5,10 @@
 // forges. Keep the paths boring and local: no root litter, no MCP ceremony.
 
 use std::fs
+use std::os
 use std::process
 use std::text
+use utils::normalize_slashes
 
 pub struct SemanticSearchConfig:
     repo_root: String
@@ -98,9 +100,9 @@ pub fn load_config(path: String) -> SemanticSearchConfig:
     if cfg.dim <= 0:
         cfg.dim = 384
     if config_path_is_absolute(cfg.index_dir) == false:
-        cfg.index_dir = fs_path_join(config_runtime_root_from(path), cfg.index_dir)
+        cfg.index_dir = normalize_slashes(fs_path_join(config_runtime_root_from(path), cfg.index_dir))
     if config_path_is_absolute(cfg.repo_root) == false:
-        cfg.repo_root = fs_path_join(config_runtime_root_from(path), cfg.repo_root)
+        cfg.repo_root = normalize_slashes(fs_path_join(config_runtime_root_from(path), cfg.repo_root))
     return cfg
 
 pub fn locate_config_path() -> String:
@@ -122,14 +124,14 @@ pub fn config_runtime_root() -> String:
 pub fn oracle_root(cfg: SemanticSearchConfig) -> String:
     let parent = fs_path_parent(cfg.index_dir)
     if parent != "":
-        return parent
-    return ".kain/oracle"
+        return normalize_slashes(parent)
+    return ".kain\\oracle"
 
 pub fn oracle_pack_path(cfg: SemanticSearchConfig) -> String:
-    return fs_path_join(oracle_root(cfg), "kain_error_oracle.bin")
+    return normalize_slashes(fs_path_join(oracle_root(cfg), "kain_error_oracle.bin"))
 
 pub fn oracle_manifest_path(cfg: SemanticSearchConfig) -> String:
-    return fs_path_join(oracle_root(cfg), "kain_error_oracle.manifest.json")
+    return normalize_slashes(fs_path_join(oracle_root(cfg), "kain_error_oracle.manifest.json"))
 
 fn default_repo_root() -> String:
     let env_root = env("KAIN_HOME")

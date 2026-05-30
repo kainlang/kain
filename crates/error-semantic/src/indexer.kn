@@ -6,6 +6,7 @@
 // Kain-side dataset forge.
 
 use std::fs
+use std::os
 use std::memory
 use std::io
 use std::text
@@ -36,12 +37,14 @@ use utils::int_to_str
 use utils::ensure_dir
 use utils::file_extension_lower
 use utils::count_char
+use utils::normalize_slashes
 
 const MAX_INDEX_FILE_BYTES: Int = 1024 * 1024
 const ORACLE_PACK_VERSION: Int = 1
 
 pub fn build_oracle_dataset(cfg: SemanticSearchConfig) -> Bool with Unsafe:
-    ensure_dir(oracle_root(cfg))
+    let root_dir = normalize_slashes(oracle_root(cfg))
+    ensure_dir(root_dir)
     let ok_code = build_index("code", cfg)
     let ok_kain = build_index("kain", cfg)
     if ok_code == false or ok_kain == false:
@@ -72,9 +75,9 @@ pub fn build_index(index_name: String, cfg: SemanticSearchConfig) -> Bool with U
         header_bytes: 0,
     }
 
-    let index_root = fs_path_join(cfg.index_dir, index_name)
+    let index_root = normalize_slashes(fs_path_join(cfg.index_dir, index_name))
     ensure_dir(index_root)
-    let index_path = fs_path_join(index_root, "index.kaindex")
+    let index_path = normalize_slashes(fs_path_join(index_root, "index.kaindex"))
     let matrix_path = index_matrix_path(index_path)
     let weight_path = index_weight_path(index_path)
     let bias_path = index_bias_path(index_path)
@@ -82,16 +85,9 @@ pub fn build_index(index_name: String, cfg: SemanticSearchConfig) -> Bool with U
     if write_index_header(header, index_path) == false:
         println("  ERROR: failed to write index header")
         return false
-    if fs_try_write_bytes(matrix_path, []).ok == false:
-        println("  ERROR: failed to create CUDA matrix payload")
-        return false
-    if fs_try_write_bytes(weight_path, []).ok == false:
-        println("  ERROR: failed to create CUDA weight payload")
-        return false
-    if fs_try_write_bytes(bias_path, []).ok == false:
-        println("  ERROR: failed to create CUDA bias payload")
-        return false
-
+    let _mk_matrix = fs_write_bytes_hex(matrix_path, "")
+    let _mk_weight = fs_write_bytes_hex(weight_path, "")
+    let _mk_bias = fs_write_bytes_hex(bias_path, "")
     println("  stage:      stream")
     let total_chunks = stream_all_chunks(files, root, cfg, index_path, matrix_path, weight_path, bias_path)
     if total_chunks < 0:
@@ -131,15 +127,9 @@ fn stream_all_chunks(files: Array<String>, root: String, cfg: SemanticSearchConf
             if append_index_bytes(index_path, embedding_bytes) == false:
                 println("  ERROR: failed to append embedding block")
                 return -1
-            if fs_try_append_bytes(matrix_path, embedding_bytes).ok == false:
-                println("  ERROR: failed to append CUDA matrix block")
-                return -1
-            if fs_try_append_bytes(weight_path, pack_u32_le(packed_embedding_weight(embedding_bytes))).ok == false:
-                println("  ERROR: failed to append CUDA weight block")
-                return -1
-            if fs_try_append_bytes(bias_path, pack_u32_le(chunk_search_bias(file_chunks[ci]))).ok == false:
-                println("  ERROR: failed to append CUDA bias block")
-                return -1
+            fs_append_bytes(matrix_path, embedding_bytes)
+            fs_append_bytes(weight_path, pack_u32_le(packed_embedding_weight(embedding_bytes)))
+            fs_append_bytes(bias_path, pack_u32_le(chunk_search_bias(file_chunks[ci])))
             if append_index_bytes(index_path, meta_bytes) == false:
                 println("  ERROR: failed to append chunk metadata")
                 return -1
@@ -158,7 +148,7 @@ fn collect_files(index_name: String, root: String, cfg: SemanticSearchConfig) ->
     return files
 
 fn collect_index_dir(files: Array<String>, root: String, dir_name: String, index_name: String) -> Unit:
-    let dir_path = normalize_index_path(fs_path_join(root, dir_name))
+    let dir_path = normalize_slashes(fs_path_join(root, dir_name))
     println("    seed dir:   " + dir_path)
     let nested = collect_seed_files_for_dir(root, dir_name, index_name)
     println("      matches:  " + int_to_str(len(nested)))
@@ -207,7 +197,7 @@ fn collect_seed_files_for_dir(root: String, dir_name: String, index_name: String
     return files
 
 fn push_seed(files: Array<String>, root: String, rel_path: String, index_name: String) -> Unit:
-    let path = normalize_index_path(fs_path_join(root, rel_path))
+    let path = normalize_slashes(fs_path_join(root, rel_path))
     let ext = file_extension_lower(path)
     if path_matches_index(ext, index_name):
         push(files, path)
@@ -318,7 +308,7 @@ fn normalized_index_match_key(path: String) -> String:
     return to_lower(normalize_index_path(path))
 
 pub fn index_path(index_name: String, cfg: SemanticSearchConfig) -> String:
-    return fs_path_join(fs_path_join(cfg.index_dir, index_name), "index.kaindex")
+    return normalize_slashes(fs_path_join(fs_path_join(cfg.index_dir, index_name), "index.kaindex"))
 
 pub fn index_matrix_path(index_path_value: String) -> String:
     return index_path_value + ".embeddings.u8.bin"
@@ -393,19 +383,15 @@ fn build_chunk_meta_bytes(chunk: Chunk) -> Array<Int>:
     return bytes
 
 fn write_oracle_pack(cfg: SemanticSearchConfig, code_ok: Bool, kain_ok: Bool) -> Bool with Unsafe:
-    let pack_path = oracle_pack_path(cfg)
-    let manifest_path = oracle_manifest_path(cfg)
-    ensure_dir(oracle_root(cfg))
+    let pack_path = normalize_slashes(oracle_pack_path(cfg))
+    let manifest_path = normalize_slashes(oracle_manifest_path(cfg))
+    ensure_dir(normalize_slashes(oracle_root(cfg)))
     let code_index = index_path("code", cfg)
     let kain_index = index_path("kain", cfg)
     let payload = oracle_pack_bytes(cfg, code_index, kain_index)
-    if fs_try_write_bytes(pack_path, payload).ok == false:
-        println("  ERROR: failed to write oracle pack " + pack_path)
-        return false
+    fs_write_bytes(pack_path, payload)
     let manifest = oracle_manifest_json(cfg, code_index, kain_index, pack_path, code_ok, kain_ok)
-    if fs_try_write_text(manifest_path, manifest).ok == false:
-        println("  ERROR: failed to write oracle manifest " + manifest_path)
-        return false
+    fs_write_text(manifest_path, manifest)
     println("oracle pack: " + pack_path)
     println("manifest:    " + manifest_path)
     return true

@@ -1,4 +1,5 @@
 use std::fs
+use std::os
 use std::memory
 use std::io
 use std::text
@@ -6,6 +7,9 @@ use std::text
 // ============================================================================
 //                 error-semantic :: oracle shared utilities
 // ============================================================================
+
+pub fn normalize_slashes(path: String) -> String:
+    return replace(path, "/", "\\")
 
 pub fn min_int(a: Int, b: Int) -> Int:
     if a < b:
@@ -115,11 +119,9 @@ pub fn count_newlines_before(text: String, pos: Int) -> Int:
     return count
 
 pub fn ensure_dir(path: String) -> Unit:
-    if fs_exists(path) == false:
-        let parent = fs_path_parent(path)
-        if parent != "" and fs_exists(parent) == false:
-            fs_create_dir_all(parent)
-        fs_create_dir_all(path)
+    let normalized = normalize_slashes(path)
+    if os_exists(normalized) == false:
+        let _made = os_makedirs(normalized)
 
 pub fn range_array(n: Int) -> Array<Int>:
     let mut arr: Array<Int> = []

@@ -25,10 +25,9 @@ use utils::file_extension_lower
 pub fn chunk_file(file_path: String, root: String, cfg: SemanticSearchConfig) -> Array<Chunk>:
     if fs_exists(file_path) == false:
         return []
-    let read_result = fs_try_read_text(file_path)
-    if read_result.ok == false:
+    let raw = fs_read_text(file_path)
+    if fs_last_status() != 0:
         return []
-    let raw = read_result.value
     if raw == "":
         return []
     let rel_path = file_relative_path(file_path, root)
