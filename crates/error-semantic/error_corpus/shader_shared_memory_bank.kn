@@ -1,0 +1,10 @@
+// @expected_code: KAIN-SHADER-0012
+// @expected_mode: ShaderStageMismatch
+// @expected_repair: pad_shared_memory
+
+// A shared memory access pattern that triggers bank conflicts.
+shader compute BankConflict:
+    uniform shared_data: Vec4 @0
+    fn main():
+        let lane = cuda_lane_id
+        return

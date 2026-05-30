@@ -1,0 +1,8 @@
+// @expected_code: KAIN-SHADER-0002
+// @expected_mode: ShaderStageMismatch
+// @expected_repair: move_to_compute_stage
+
+// A vertex shader that uses compute-only synchronization primitives.
+shader vertex ComputeSyncInVertex(path: Vec3) -> Vec4:
+    cuda_block_sync()
+    return vec4(path, 1.0)

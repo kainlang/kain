@@ -1,0 +1,9 @@
+// @expected_code: KAIN-SHADER-0002
+// @expected_mode: ShaderStageMismatch
+// @expected_repair: switch_stage
+
+// A vertex shader that uses builtins only available in the compute stage.
+shader vertex BadStage(path: Vec3) -> Vec4:
+    // global_invocation_id is compute-only — using it in vertex is a stage mismatch
+    let id = global_invocation_id
+    return vec4(path, 1.0)

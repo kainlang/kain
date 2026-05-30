@@ -1,0 +1,7 @@
+// @expected_code: KAIN-SHADER-0007
+// @expected_mode: ShaderStageMismatch
+// @expected_repair: fix_fragment_output
+
+// A fragment shader outputting a type that does not match the render target format.
+shader fragment BadFragmentOutput(uv: Vec2) -> Vec3:
+    return vec3(uv.x, uv.y, 0.0)

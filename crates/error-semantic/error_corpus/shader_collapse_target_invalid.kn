@@ -1,0 +1,11 @@
+// @expected_code: KAIN-SHADER-0008
+// @expected_mode: ShaderStageMismatch
+// @expected_repair: fix_collapse_target
+
+// A collapse operation that tries to reduce a type incompatible with the target.
+shader compute BadCollapse:
+    uniform data: Vec4 @0
+    fn main():
+        collapse data:
+            mem_store(data, 0, "Int")
+        return

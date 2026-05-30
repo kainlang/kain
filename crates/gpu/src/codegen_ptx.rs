@@ -16,9 +16,10 @@ use kain_core::ast::{
     BinaryOp, Block, CallArg, ElseBranch, Expr, Pattern, ShaderStage, Stmt, Type, UnaryOp,
 };
 use kain_core::builder::{CodegenDiagnostic, ShaderDiagnostic};
-use kain_core::error::{CompilerPhase, DiagnosticCode, KainError, KainResult};
+use kain_core::error::{CompilerPhase, KainError, KainResult};
 use kain_core::span::Span;
 use kain_core::types::{TypedItem, TypedProgram, TypedShader};
+use kain_core::DiagnosticCode;
 use kain_core::DiagnosticSemanticPacket;
 use kain_error_semantic::enrich_report as enrich_semantic_report;
 use std::collections::{HashMap, HashSet};

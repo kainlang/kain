@@ -1,0 +1,10 @@
+// @expected_code: KAIN-SHADER-0001
+// @expected_mode: ShaderStageMismatch
+// @expected_repair: use_shader_intrinsic
+
+// A shader using an unsupported math function not available on the GPU target.
+shader compute UnsupportedMath:
+    uniform val: Float @0
+    fn main():
+        let result = math_ln(val)
+        return
