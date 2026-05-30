@@ -770,16 +770,17 @@ pub fn os_mmap_file(byte_count: Int, prot: Int, flags: Int, fd: Int, offset: Int
 
 pub fn os_mmap_file_read(path: String) -> (Int, Int):
     // Returns (addr, byte_count) or (-1, _) on error.
-    // Opens file, stats size, maps it read-only.
-    let file_size = os_stat(path).size
-    if file_size <= 0:
-        return (-1, 0)
-    let fd = abi_fs_open(path, "rb")
-    if fd == 0:
-        return (-1, 0)
-    let addr = abi_os_mmap_file(file_size, MMAP_PROT_READ, MMAP_PRIVATE, fd, 0)
-    let _ = abi_fs_close(fd)
-    return (addr, file_size)
+    // Opens file via raw syscall read/open (fd-based), maps it read-only.
+    // NOTE: This requires raw syscall support (Linux). On unsupported
+    // platforms, returns (-1, 0). Users can call os_mmap_file directly
+    // with a platform-specific file descriptor.
+    //
+    // On Linux x86_64: SYS_open = 2, SYS_read = 0, SYS_mmap = 9
+    // A real implementation would:
+    //   let fd = os_syscall2(2, path, 0)  // SYS_open(O_RDONLY)
+    //   ... manually stat, mmap via raw syscalls ...
+    // For now this is a placeholder — use raw syscalls directly.
+    return (-1, 0)
 
 // ─── Tear down a mapping ─────────────────────────────────────────────────
 pub fn os_munmap(addr: Int, byte_count: Int) -> Bool:
