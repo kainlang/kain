@@ -16,16 +16,22 @@ use config::SemanticSearchConfig
 use serialize::read_index
 use indexer::index_matrix_path
 use indexer::index_weight_path
+use indexer::index_bias_path
 use embedding::build_packed_embedding_bytes
 use utils::int_to_str
 use utils::float_to_str
 
 const CUDA_SCORE_KEY: String = "shader::SemanticPackedScore::compute"
 const CUDA_TOPK_KEY: String = "shader::SemanticGpuTopK::compute"
+const CUDA_FUSED_KEY: String = "shader::SemanticFusedScoreTopK::compute"
+const CUDA_BITPACK_KEY: String = "shader::SemanticBitpackDotProduct::compute"
+const CUDA_WARP_TOPK_KEY: String = "shader::SemanticWarpTopK::compute"
+const CUDA_PREFILTER_KEY: String = "shader::SemanticCoarsePrefilter::compute"
 const CUDA_FIXED_DIM: Int = 384
 const CUDA_MAX_CHUNKS: Int = 100000
 const CUDA_MAX_TOP_K: Int = 100
 const CUDA_ZERO_APPEND_CHUNK: Int = 65536
+const CUDA_FUSED_CHUNKS_PER_BLOCK: Int = 256
 
 struct CudaRankedHits:
     indices: Array<Int>
@@ -56,10 +62,14 @@ pub fn search(query: String, index_name: String, top_k: Int, cfg: SemanticSearch
     let weight_path = index_weight_path(index_path)
     if fs_exists(weight_path) == false:
         return error_response("CUDA weight payload missing for " + index_name + " (run 'index' again)")
+    let bias_path = index_bias_path(index_path)
+    if fs_exists(bias_path) == false:
+        return error_response("CUDA bias payload missing for " + index_name + " (run 'index' again)")
 
     trace("index_path=" + index_path)
     trace("matrix_path=" + matrix_path)
     trace("weight_path=" + weight_path)
+    trace("bias_path=" + bias_path)
 
     let index = read_index(index_path, cfg)
     if index.header.num_chunks == 0:
@@ -81,7 +91,7 @@ pub fn search(query: String, index_name: String, top_k: Int, cfg: SemanticSearch
     trace("index_chunks=" + int_to_str(index.header.num_chunks))
 
     let t0 = now_millis()
-    let ranked = cuda_rank(query, index_path, matrix_path, weight_path, index, k, cfg)
+    let ranked = if cuda_has_fused_kernel(): cuda_fused_rank(query, index_path, matrix_path, weight_path, bias_path, index, k, cfg) else: cuda_rank(query, index_path, matrix_path, weight_path, bias_path, index, k, cfg)
     let t1 = now_millis()
     if ranked.error != "":
         return error_response(ranked.error)
@@ -94,7 +104,31 @@ pub fn search(query: String, index_name: String, top_k: Int, cfg: SemanticSearch
         error: "",
     }
 
-fn cuda_rank(query: String, index_path: String, matrix_path: String, weight_path: String, index: LoadedIndex, top_k: Int, cfg: SemanticSearchConfig) -> CudaRankedHits:
+fn cuda_has_fused_kernel() -> Bool:
+    let residency = cuda_god_residency_path()
+    if residency == "":
+        return false
+    return cuda_has_compute_key_from_path(residency, CUDA_FUSED_KEY)
+
+pub fn cuda_god_shader_bundle_path() -> String:
+    if fs_exists("kain_god.shader_bundle.json"):
+        return "kain_god.shader_bundle.json"
+    if fs_exists("mcp\\semantic_search\\kain_god.shader_bundle.json"):
+        return "mcp\\semantic_search\\kain_god.shader_bundle.json"
+    if fs_exists("X:\\mcp\\semantic_search\\kain_god.shader_bundle.json"):
+        return "X:\\mcp\\semantic_search\\kain_god.shader_bundle.json"
+    return ""
+
+pub fn cuda_god_residency_path() -> String:
+    if fs_exists("kain_god_compute_residency.json"):
+        return "kain_god_compute_residency.json"
+    if fs_exists("mcp\\semantic_search\\kain_god_compute_residency.json"):
+        return "mcp\\semantic_search\\kain_god_compute_residency.json"
+    if fs_exists("X:\\mcp\\semantic_search\\kain_god_compute_residency.json"):
+        return "X:\\mcp\\semantic_search\\kain_god_compute_residency.json"
+    return ""
+
+fn cuda_rank(query: String, index_path: String, matrix_path: String, weight_path: String, bias_path: String, index: LoadedIndex, top_k: Int, cfg: SemanticSearchConfig) -> CudaRankedHits:
     let _index_path = index_path
     let bundle = cuda_search_shader_bundle_path()
     let residency = cuda_search_residency_path()
@@ -110,7 +144,7 @@ fn cuda_rank(query: String, index_path: String, matrix_path: String, weight_path
 
     let query_bytes = build_query_embedding_bytes(query, cfg.dim)
     trace("query_bytes_len=" + int_to_str(len(query_bytes)))
-    let stage_error = stage_score_payloads(residency, query_bytes, matrix_path, weight_path, index.header.num_chunks, cfg)
+    let stage_error = stage_score_payloads(residency, query_bytes, matrix_path, weight_path, bias_path, index.header.num_chunks, cfg)
     if stage_error != "":
         return cuda_error(stage_error)
     trace("score payloads staged")
@@ -131,7 +165,191 @@ fn cuda_rank(query: String, index_path: String, matrix_path: String, weight_path
     trace("topk dispatch ok")
     return read_ranked_hits(residency, top_k, index.header.num_chunks, threshold, capacity)
 
-fn stage_score_payloads(residency: String, query_bytes: Array<Int>, matrix_path: String, weight_path: String, num_chunks: Int, cfg: SemanticSearchConfig) -> String:
+// ---- GOD-MODE FUSED RANK --------------------------------------------------
+// Single-kernel fused score+topk pipeline. Eliminates the score-buffer
+// roundtrip and second kernel launch. Each block scores its batch and
+// produces its local top-k. Host merges block results.
+
+fn cuda_fused_rank(query: String, index_path: String, matrix_path: String, weight_path: String, bias_path: String, index: LoadedIndex, top_k: Int, cfg: SemanticSearchConfig) -> CudaRankedHits:
+    let _index_path = index_path
+    let bundle = cuda_god_shader_bundle_path()
+    let residency = cuda_god_residency_path()
+    trace("fused_bundle_path=" + bundle)
+    trace("fused_residency_path=" + residency)
+    if bundle == "" or residency == "":
+        return cuda_error("CUDA artifacts missing; run `kain gpu-artifacts src/search_kernel_god.kn --output kain_god` from X:\\mcp\\semantic_search")
+    if cuda_driver_available() == false:
+        return cuda_error("CUDA driver is not available")
+    if cuda_runtime_library_available() == false:
+        return cuda_error("kain-gpu-runtime CUDA runtime library is not available")
+
+    let query_bytes = build_query_embedding_bytes(query, cfg.dim)
+    trace("fused_query_bytes_len=" + int_to_str(len(query_bytes)))
+
+    let num_chunks = index.header.num_chunks
+    let chunks_per_block = compute_fused_chunks_per_block(num_chunks)
+    let total_blocks = compute_fused_total_blocks(num_chunks, chunks_per_block)
+    let capacity = query_match_capacity(query_bytes)
+    let threshold = score_threshold(cfg, capacity)
+
+    trace("fused_num_chunks=" + int_to_str(num_chunks))
+    trace("fused_chunks_per_block=" + int_to_str(chunks_per_block))
+    trace("fused_total_blocks=" + int_to_str(total_blocks))
+    trace("fused_threshold=" + int_to_str(threshold))
+
+    let stage_error = stage_fused_payloads(residency, query_bytes, matrix_path, weight_path, bias_path, num_chunks, top_k, chunks_per_block, total_blocks, threshold, cfg)
+    if stage_error != "":
+        return cuda_error(stage_error)
+    trace("fused payloads staged")
+
+    let fused_stats = cuda_dispatch(bundle, residency, CUDA_FUSED_KEY)
+    if fused_stats.ok == false:
+        return cuda_error("CUDA fused dispatch failed: " + fused_stats.message)
+    trace("fused dispatch ok")
+
+    return read_fused_ranked_hits(residency, top_k, num_chunks, total_blocks, threshold, capacity)
+
+fn compute_fused_chunks_per_block(num_chunks: Int) -> Int:
+    var cpb = CUDA_FUSED_CHUNKS_PER_BLOCK
+    if cpb > num_chunks:
+        cpb = num_chunks
+    if cpb < 8:
+        cpb = 8
+    return cpb
+
+fn compute_fused_total_blocks(num_chunks: Int, chunks_per_block: Int) -> Int:
+    var blocks = num_chunks / chunks_per_block
+    if num_chunks % chunks_per_block != 0:
+        blocks = blocks + 1
+    if blocks < 1:
+        blocks = 1
+    return blocks
+
+fn stage_fused_payloads(residency: String, query_bytes: Array<Int>, matrix_path: String, weight_path: String, bias_path: String, num_chunks: Int, top_k: Int, chunks_per_block: Int, total_blocks: Int, threshold: Int, cfg: SemanticSearchConfig) -> String:
+    trace("staging fused query_embed -> " + cuda_binding_payload_path_from_path(residency, CUDA_FUSED_KEY, "query_embed"))
+    if cuda_write_binding_payload_bytes_from_path(residency, CUDA_FUSED_KEY, "query_embed", query_bytes) == false:
+        return "failed to stage fused query embedding payload"
+
+    let matrix_locator = cuda_binding_locator_from_path(residency, CUDA_FUSED_KEY, "index_matrix")
+    if matrix_locator.ok == false:
+        return "index_matrix binding missing in fused CUDA residency"
+    trace("staging fused index_matrix -> " + matrix_locator.payload_path)
+    if write_padded_payload_from_file(matrix_path, matrix_locator.payload_path, matrix_locator.byte_length) == false:
+        return "failed to stage fused packed index matrix payload"
+
+    let weight_locator = cuda_binding_locator_from_path(residency, CUDA_FUSED_KEY, "index_weights")
+    if weight_locator.ok == false:
+        return "index_weights binding missing in fused CUDA residency"
+    trace("staging fused index_weights -> " + weight_locator.payload_path)
+    if write_padded_payload_from_file(weight_path, weight_locator.payload_path, weight_locator.byte_length) == false:
+        return "failed to stage fused packed index weight payload"
+
+    let bias_locator = cuda_binding_locator_from_path(residency, CUDA_FUSED_KEY, "chunk_bias")
+    if bias_locator.ok == false:
+        return "chunk_bias binding missing in fused CUDA residency"
+    trace("staging fused chunk_bias -> " + bias_locator.payload_path)
+    if write_padded_payload_from_file(bias_path, bias_locator.payload_path, bias_locator.byte_length) == false:
+        return "failed to stage fused packed index bias payload"
+
+    if cuda_zero_binding_payload_from_path(residency, CUDA_FUSED_KEY, "block_topk_indices") == false:
+        return "failed to zero fused block_topk_indices payload"
+    if cuda_zero_binding_payload_from_path(residency, CUDA_FUSED_KEY, "block_topk_scores") == false:
+        return "failed to zero fused block_topk_scores payload"
+    if cuda_write_binding_payload_bytes_from_path(residency, CUDA_FUSED_KEY, "dim", cuda_pack_u32_array_le([cfg.dim])) == false:
+        return "failed to stage fused dim payload"
+    if cuda_write_binding_payload_bytes_from_path(residency, CUDA_FUSED_KEY, "num_chunks", cuda_pack_u32_array_le([num_chunks])) == false:
+        return "failed to stage fused num_chunks payload"
+    if cuda_write_binding_payload_bytes_from_path(residency, CUDA_FUSED_KEY, "top_k", cuda_pack_u32_array_le([top_k])) == false:
+        return "failed to stage fused top_k payload"
+    if cuda_write_binding_payload_bytes_from_path(residency, CUDA_FUSED_KEY, "chunks_per_block", cuda_pack_u32_array_le([chunks_per_block])) == false:
+        return "failed to stage fused chunks_per_block payload"
+    if cuda_zero_binding_payload_from_path(residency, CUDA_FUSED_KEY, "warp_scratch_scores") == false:
+        return "failed to zero fused warp_scratch_scores payload"
+    if cuda_zero_binding_payload_from_path(residency, CUDA_FUSED_KEY, "warp_scratch_indices") == false:
+        return "failed to zero fused warp_scratch_indices payload"
+    if cuda_write_binding_payload_bytes_from_path(residency, CUDA_FUSED_KEY, "min_score", cuda_pack_u32_array_le([threshold])) == false:
+        return "failed to stage fused min_score payload"
+    return ""
+
+fn read_fused_ranked_hits(residency: String, top_k: Int, total_chunks: Int, total_blocks: Int, threshold: Int, max_score_raw: Int) -> CudaRankedHits:
+    // Read block-level results and merge them on the host
+    let index_bytes = cuda_binding_payload_bytes_from_path(residency, CUDA_FUSED_KEY, "block_topk_indices")
+    let score_bytes = cuda_binding_payload_bytes_from_path(residency, CUDA_FUSED_KEY, "block_topk_scores")
+    let raw_indices = cuda_unpack_u32_array_le(index_bytes)
+    let raw_scores = cuda_unpack_u32_array_le(score_bytes)
+
+    trace("fused_raw_indices_len=" + int_to_str(len(raw_indices)))
+    trace("fused_raw_scores_len=" + int_to_str(len(raw_scores)))
+
+    // Collect all block results into a flat list
+    let mut all_indices: Array<Int> = []
+    let mut all_scores: Array<Int> = []
+    var bi: Int = 0
+    while bi < total_blocks and bi < 4000:
+        let block_base = bi * top_k
+        var ki: Int = 0
+        while ki < top_k and (block_base + ki) < len(raw_indices) and (block_base + ki) < len(raw_scores):
+            let idx = raw_indices[block_base + ki]
+            let sc = raw_scores[block_base + ki]
+            if idx >= 0 and idx < total_chunks and sc > 0 and sc >= threshold:
+                push(all_indices, idx)
+                push(all_scores, sc)
+            ki = ki + 1
+        bi = bi + 1
+
+    trace("fused_all_candidates=" + int_to_str(len(all_indices)))
+
+    // Host-side merge: sort all candidates by score descending, take top_k
+    // Simple insertion sort on the small candidate list
+    var sorted_indices: Array<Int> = []
+    var sorted_scores: Array<Float> = []
+    let max_score = to_float(max_score_raw)
+
+    var ci: Int = 0
+    while ci < len(all_indices):
+        let idx = all_indices[ci]
+        let raw_sc = all_scores[ci]
+        let normalized = to_float(raw_sc) / max_score
+
+        // Insert sorted by score descending
+        var insert_pos: Int = 0
+        while insert_pos < len(sorted_scores) and sorted_scores[insert_pos] > normalized:
+            insert_pos = insert_pos + 1
+
+        if insert_pos < top_k:
+            // Shift down
+            var shift: Int = len(sorted_scores) - 1
+            while shift >= insert_pos:
+                if shift + 1 < top_k:
+                    if shift + 1 >= len(sorted_scores):
+                        push(sorted_scores, 0.0)
+                        push(sorted_indices, 0)
+                    sorted_scores[shift + 1] = sorted_scores[shift]
+                    sorted_indices[shift + 1] = sorted_indices[shift]
+                shift = shift - 1
+
+            if insert_pos >= len(sorted_scores):
+                push(sorted_scores, normalized)
+                push(sorted_indices, idx)
+            else:
+                sorted_scores[insert_pos] = normalized
+                sorted_indices[insert_pos] = idx
+
+            // Trim to top_k
+            while len(sorted_scores) > top_k:
+                let _pop_score = pop(sorted_scores)
+                let _pop_idx = pop(sorted_indices)
+
+        ci = ci + 1
+
+    trace("fused_final_results=" + int_to_str(len(sorted_indices)))
+    return CudaRankedHits {
+        indices: sorted_indices,
+        scores: sorted_scores,
+        error: "",
+    }
+
+fn stage_score_payloads(residency: String, query_bytes: Array<Int>, matrix_path: String, weight_path: String, bias_path: String, num_chunks: Int, cfg: SemanticSearchConfig) -> String:
     trace("staging query_embed -> " + cuda_binding_payload_path_from_path(residency, CUDA_SCORE_KEY, "query_embed"))
     if cuda_write_binding_payload_bytes_from_path(residency, CUDA_SCORE_KEY, "query_embed", query_bytes) == false:
         return "failed to stage query embedding payload"
@@ -147,6 +365,12 @@ fn stage_score_payloads(residency: String, query_bytes: Array<Int>, matrix_path:
     trace("staging index_weights -> " + weight_locator.payload_path)
     if write_padded_payload_from_file(weight_path, weight_locator.payload_path, weight_locator.byte_length) == false:
         return "failed to stage packed index weight payload"
+    let bias_locator = cuda_binding_locator_from_path(residency, CUDA_SCORE_KEY, "chunk_bias")
+    if bias_locator.ok == false:
+        return "chunk_bias binding missing in CUDA residency"
+    trace("staging chunk_bias -> " + bias_locator.payload_path)
+    if write_padded_payload_from_file(bias_path, bias_locator.payload_path, bias_locator.byte_length) == false:
+        return "failed to stage packed index bias payload"
     if cuda_zero_binding_payload_from_path(residency, CUDA_SCORE_KEY, "scores") == false:
         return "failed to zero score payload"
     if cuda_write_binding_payload_bytes_from_path(residency, CUDA_SCORE_KEY, "dim", cuda_pack_u32_array_le([cfg.dim])) == false:
@@ -182,9 +406,13 @@ fn read_ranked_hits(residency: String, top_k: Int, total_chunks: Int, threshold:
     while slot < top_k and slot < len(raw_indices) and slot < len(raw_scores):
         let idx = raw_indices[slot]
         let raw_score = raw_scores[slot]
-        if idx >= 0 and idx < total_chunks and raw_score >= threshold:
+        if idx >= 0 and idx < total_chunks and raw_score > 0 and raw_score >= threshold:
             push(indices, idx)
-            push(scores, to_float(raw_score) / max_score)
+            let normalized = to_float(raw_score) / max_score
+            if normalized > 1.0:
+                push(scores, 1.0)
+            else:
+                push(scores, normalized)
         slot = slot + 1
     trace("ranked_raw_indices_len=" + int_to_str(len(raw_indices)))
     trace("ranked_raw_scores_len=" + int_to_str(len(raw_scores)))

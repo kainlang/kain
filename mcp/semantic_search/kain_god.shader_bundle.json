@@ -1,0 +1,742 @@
+{
+  "schema_version": 1,
+  "canonical_native_payload": "ptx",
+  "spirv_modules": [],
+  "reflection": {
+    "emitted": true,
+    "shaders": [
+      {
+        "shader": "SemanticFusedScoreTopK",
+        "stage": "compute",
+        "entry_point": "SemanticFusedScoreTopK",
+        "inputs": [
+          {
+            "name": "id",
+            "ty": "UVec3"
+          }
+        ],
+        "bindings": [
+          {
+            "shader": "SemanticFusedScoreTopK",
+            "name": "query_embed",
+            "binding": 0,
+            "descriptor_set": 0,
+            "ty": "StorageBuffer<u8>",
+            "kind": "storage_buffer"
+          },
+          {
+            "shader": "SemanticFusedScoreTopK",
+            "name": "index_matrix",
+            "binding": 1,
+            "descriptor_set": 0,
+            "ty": "StorageBuffer<u8>",
+            "kind": "storage_buffer"
+          },
+          {
+            "shader": "SemanticFusedScoreTopK",
+            "name": "index_weights",
+            "binding": 2,
+            "descriptor_set": 0,
+            "ty": "StorageBuffer<UInt>",
+            "kind": "storage_buffer"
+          },
+          {
+            "shader": "SemanticFusedScoreTopK",
+            "name": "chunk_bias",
+            "binding": 3,
+            "descriptor_set": 0,
+            "ty": "StorageBuffer<UInt>",
+            "kind": "storage_buffer"
+          },
+          {
+            "shader": "SemanticFusedScoreTopK",
+            "name": "block_topk_indices",
+            "binding": 4,
+            "descriptor_set": 0,
+            "ty": "StorageBuffer<UInt>",
+            "kind": "storage_buffer"
+          },
+          {
+            "shader": "SemanticFusedScoreTopK",
+            "name": "block_topk_scores",
+            "binding": 5,
+            "descriptor_set": 0,
+            "ty": "StorageBuffer<UInt>",
+            "kind": "storage_buffer"
+          },
+          {
+            "shader": "SemanticFusedScoreTopK",
+            "name": "warp_scratch_scores",
+            "binding": 6,
+            "descriptor_set": 0,
+            "ty": "StorageBuffer<UInt>",
+            "kind": "storage_buffer"
+          },
+          {
+            "shader": "SemanticFusedScoreTopK",
+            "name": "warp_scratch_indices",
+            "binding": 7,
+            "descriptor_set": 0,
+            "ty": "StorageBuffer<UInt>",
+            "kind": "storage_buffer"
+          },
+          {
+            "shader": "SemanticFusedScoreTopK",
+            "name": "dim",
+            "binding": 8,
+            "descriptor_set": 0,
+            "ty": "UInt",
+            "kind": "uniform"
+          },
+          {
+            "shader": "SemanticFusedScoreTopK",
+            "name": "num_chunks",
+            "binding": 9,
+            "descriptor_set": 0,
+            "ty": "UInt",
+            "kind": "uniform"
+          },
+          {
+            "shader": "SemanticFusedScoreTopK",
+            "name": "top_k",
+            "binding": 10,
+            "descriptor_set": 0,
+            "ty": "UInt",
+            "kind": "uniform"
+          },
+          {
+            "shader": "SemanticFusedScoreTopK",
+            "name": "chunks_per_block",
+            "binding": 11,
+            "descriptor_set": 0,
+            "ty": "UInt",
+            "kind": "uniform"
+          },
+          {
+            "shader": "SemanticFusedScoreTopK",
+            "name": "min_score",
+            "binding": 12,
+            "descriptor_set": 0,
+            "ty": "UInt",
+            "kind": "uniform"
+          }
+        ],
+        "output_type": "Void"
+      },
+      {
+        "shader": "SemanticBitpackDotProduct",
+        "stage": "compute",
+        "entry_point": "SemanticBitpackDotProduct",
+        "inputs": [
+          {
+            "name": "id",
+            "ty": "UVec3"
+          }
+        ],
+        "bindings": [
+          {
+            "shader": "SemanticBitpackDotProduct",
+            "name": "query_embed",
+            "binding": 0,
+            "descriptor_set": 0,
+            "ty": "StorageBuffer<u8>",
+            "kind": "storage_buffer"
+          },
+          {
+            "shader": "SemanticBitpackDotProduct",
+            "name": "index_matrix",
+            "binding": 1,
+            "descriptor_set": 0,
+            "ty": "StorageBuffer<u8>",
+            "kind": "storage_buffer"
+          },
+          {
+            "shader": "SemanticBitpackDotProduct",
+            "name": "index_weights",
+            "binding": 2,
+            "descriptor_set": 0,
+            "ty": "StorageBuffer<UInt>",
+            "kind": "storage_buffer"
+          },
+          {
+            "shader": "SemanticBitpackDotProduct",
+            "name": "chunk_bias",
+            "binding": 3,
+            "descriptor_set": 0,
+            "ty": "StorageBuffer<UInt>",
+            "kind": "storage_buffer"
+          },
+          {
+            "shader": "SemanticBitpackDotProduct",
+            "name": "scores",
+            "binding": 4,
+            "descriptor_set": 0,
+            "ty": "StorageBuffer<UInt>",
+            "kind": "storage_buffer"
+          },
+          {
+            "shader": "SemanticBitpackDotProduct",
+            "name": "dim",
+            "binding": 5,
+            "descriptor_set": 0,
+            "ty": "UInt",
+            "kind": "uniform"
+          },
+          {
+            "shader": "SemanticBitpackDotProduct",
+            "name": "num_chunks",
+            "binding": 6,
+            "descriptor_set": 0,
+            "ty": "UInt",
+            "kind": "uniform"
+          }
+        ],
+        "output_type": "Void"
+      },
+      {
+        "shader": "SemanticWarpTopK",
+        "stage": "compute",
+        "entry_point": "SemanticWarpTopK",
+        "inputs": [
+          {
+            "name": "id",
+            "ty": "UVec3"
+          }
+        ],
+        "bindings": [
+          {
+            "shader": "SemanticWarpTopK",
+            "name": "scores",
+            "binding": 0,
+            "descriptor_set": 0,
+            "ty": "StorageBuffer<UInt>",
+            "kind": "storage_buffer"
+          },
+          {
+            "shader": "SemanticWarpTopK",
+            "name": "top_indices",
+            "binding": 1,
+            "descriptor_set": 0,
+            "ty": "StorageBuffer<UInt>",
+            "kind": "storage_buffer"
+          },
+          {
+            "shader": "SemanticWarpTopK",
+            "name": "top_scores",
+            "binding": 2,
+            "descriptor_set": 0,
+            "ty": "StorageBuffer<UInt>",
+            "kind": "storage_buffer"
+          },
+          {
+            "shader": "SemanticWarpTopK",
+            "name": "num_chunks",
+            "binding": 3,
+            "descriptor_set": 0,
+            "ty": "UInt",
+            "kind": "uniform"
+          },
+          {
+            "shader": "SemanticWarpTopK",
+            "name": "top_k",
+            "binding": 4,
+            "descriptor_set": 0,
+            "ty": "UInt",
+            "kind": "uniform"
+          },
+          {
+            "shader": "SemanticWarpTopK",
+            "name": "min_score",
+            "binding": 5,
+            "descriptor_set": 0,
+            "ty": "UInt",
+            "kind": "uniform"
+          },
+          {
+            "shader": "SemanticWarpTopK",
+            "name": "taken_mask",
+            "binding": 6,
+            "descriptor_set": 0,
+            "ty": "StorageBuffer<UInt>",
+            "kind": "storage_buffer"
+          }
+        ],
+        "output_type": "Void"
+      },
+      {
+        "shader": "SemanticCoarsePrefilter",
+        "stage": "compute",
+        "entry_point": "SemanticCoarsePrefilter",
+        "inputs": [
+          {
+            "name": "id",
+            "ty": "UVec3"
+          }
+        ],
+        "bindings": [
+          {
+            "shader": "SemanticCoarsePrefilter",
+            "name": "query_embed",
+            "binding": 0,
+            "descriptor_set": 0,
+            "ty": "StorageBuffer<u8>",
+            "kind": "storage_buffer"
+          },
+          {
+            "shader": "SemanticCoarsePrefilter",
+            "name": "index_matrix",
+            "binding": 1,
+            "descriptor_set": 0,
+            "ty": "StorageBuffer<u8>",
+            "kind": "storage_buffer"
+          },
+          {
+            "shader": "SemanticCoarsePrefilter",
+            "name": "candidate_mask",
+            "binding": 2,
+            "descriptor_set": 0,
+            "ty": "StorageBuffer<UInt>",
+            "kind": "storage_buffer"
+          },
+          {
+            "shader": "SemanticCoarsePrefilter",
+            "name": "dim",
+            "binding": 3,
+            "descriptor_set": 0,
+            "ty": "UInt",
+            "kind": "uniform"
+          },
+          {
+            "shader": "SemanticCoarsePrefilter",
+            "name": "num_chunks",
+            "binding": 4,
+            "descriptor_set": 0,
+            "ty": "UInt",
+            "kind": "uniform"
+          },
+          {
+            "shader": "SemanticCoarsePrefilter",
+            "name": "sig_stride",
+            "binding": 5,
+            "descriptor_set": 0,
+            "ty": "UInt",
+            "kind": "uniform"
+          },
+          {
+            "shader": "SemanticCoarsePrefilter",
+            "name": "min_sig_match",
+            "binding": 6,
+            "descriptor_set": 0,
+            "ty": "UInt",
+            "kind": "uniform"
+          }
+        ],
+        "output_type": "Void"
+      }
+    ],
+    "notes": [
+      "Compiler-owned shader artifact bundle emitted from kain-driver.",
+      "SPIR-V is the canonical native GPU payload; backend text shaders are derived outputs.",
+      "PTX-first shader artifact bundle emitted because the authored kernel requested CUDA-native intrinsics."
+    ]
+  },
+  "resource_layouts": [
+    {
+      "shader": "SemanticFusedScoreTopK",
+      "name": "query_embed",
+      "binding": 0,
+      "descriptor_set": 0,
+      "ty": "StorageBuffer<u8>",
+      "kind": "storage_buffer"
+    },
+    {
+      "shader": "SemanticFusedScoreTopK",
+      "name": "index_matrix",
+      "binding": 1,
+      "descriptor_set": 0,
+      "ty": "StorageBuffer<u8>",
+      "kind": "storage_buffer"
+    },
+    {
+      "shader": "SemanticFusedScoreTopK",
+      "name": "index_weights",
+      "binding": 2,
+      "descriptor_set": 0,
+      "ty": "StorageBuffer<UInt>",
+      "kind": "storage_buffer"
+    },
+    {
+      "shader": "SemanticFusedScoreTopK",
+      "name": "chunk_bias",
+      "binding": 3,
+      "descriptor_set": 0,
+      "ty": "StorageBuffer<UInt>",
+      "kind": "storage_buffer"
+    },
+    {
+      "shader": "SemanticFusedScoreTopK",
+      "name": "block_topk_indices",
+      "binding": 4,
+      "descriptor_set": 0,
+      "ty": "StorageBuffer<UInt>",
+      "kind": "storage_buffer"
+    },
+    {
+      "shader": "SemanticFusedScoreTopK",
+      "name": "block_topk_scores",
+      "binding": 5,
+      "descriptor_set": 0,
+      "ty": "StorageBuffer<UInt>",
+      "kind": "storage_buffer"
+    },
+    {
+      "shader": "SemanticFusedScoreTopK",
+      "name": "warp_scratch_scores",
+      "binding": 6,
+      "descriptor_set": 0,
+      "ty": "StorageBuffer<UInt>",
+      "kind": "storage_buffer"
+    },
+    {
+      "shader": "SemanticFusedScoreTopK",
+      "name": "warp_scratch_indices",
+      "binding": 7,
+      "descriptor_set": 0,
+      "ty": "StorageBuffer<UInt>",
+      "kind": "storage_buffer"
+    },
+    {
+      "shader": "SemanticFusedScoreTopK",
+      "name": "dim",
+      "binding": 8,
+      "descriptor_set": 0,
+      "ty": "UInt",
+      "kind": "uniform"
+    },
+    {
+      "shader": "SemanticFusedScoreTopK",
+      "name": "num_chunks",
+      "binding": 9,
+      "descriptor_set": 0,
+      "ty": "UInt",
+      "kind": "uniform"
+    },
+    {
+      "shader": "SemanticFusedScoreTopK",
+      "name": "top_k",
+      "binding": 10,
+      "descriptor_set": 0,
+      "ty": "UInt",
+      "kind": "uniform"
+    },
+    {
+      "shader": "SemanticFusedScoreTopK",
+      "name": "chunks_per_block",
+      "binding": 11,
+      "descriptor_set": 0,
+      "ty": "UInt",
+      "kind": "uniform"
+    },
+    {
+      "shader": "SemanticFusedScoreTopK",
+      "name": "min_score",
+      "binding": 12,
+      "descriptor_set": 0,
+      "ty": "UInt",
+      "kind": "uniform"
+    },
+    {
+      "shader": "SemanticBitpackDotProduct",
+      "name": "query_embed",
+      "binding": 0,
+      "descriptor_set": 0,
+      "ty": "StorageBuffer<u8>",
+      "kind": "storage_buffer"
+    },
+    {
+      "shader": "SemanticBitpackDotProduct",
+      "name": "index_matrix",
+      "binding": 1,
+      "descriptor_set": 0,
+      "ty": "StorageBuffer<u8>",
+      "kind": "storage_buffer"
+    },
+    {
+      "shader": "SemanticBitpackDotProduct",
+      "name": "index_weights",
+      "binding": 2,
+      "descriptor_set": 0,
+      "ty": "StorageBuffer<UInt>",
+      "kind": "storage_buffer"
+    },
+    {
+      "shader": "SemanticBitpackDotProduct",
+      "name": "chunk_bias",
+      "binding": 3,
+      "descriptor_set": 0,
+      "ty": "StorageBuffer<UInt>",
+      "kind": "storage_buffer"
+    },
+    {
+      "shader": "SemanticBitpackDotProduct",
+      "name": "scores",
+      "binding": 4,
+      "descriptor_set": 0,
+      "ty": "StorageBuffer<UInt>",
+      "kind": "storage_buffer"
+    },
+    {
+      "shader": "SemanticBitpackDotProduct",
+      "name": "dim",
+      "binding": 5,
+      "descriptor_set": 0,
+      "ty": "UInt",
+      "kind": "uniform"
+    },
+    {
+      "shader": "SemanticBitpackDotProduct",
+      "name": "num_chunks",
+      "binding": 6,
+      "descriptor_set": 0,
+      "ty": "UInt",
+      "kind": "uniform"
+    },
+    {
+      "shader": "SemanticWarpTopK",
+      "name": "scores",
+      "binding": 0,
+      "descriptor_set": 0,
+      "ty": "StorageBuffer<UInt>",
+      "kind": "storage_buffer"
+    },
+    {
+      "shader": "SemanticWarpTopK",
+      "name": "top_indices",
+      "binding": 1,
+      "descriptor_set": 0,
+      "ty": "StorageBuffer<UInt>",
+      "kind": "storage_buffer"
+    },
+    {
+      "shader": "SemanticWarpTopK",
+      "name": "top_scores",
+      "binding": 2,
+      "descriptor_set": 0,
+      "ty": "StorageBuffer<UInt>",
+      "kind": "storage_buffer"
+    },
+    {
+      "shader": "SemanticWarpTopK",
+      "name": "num_chunks",
+      "binding": 3,
+      "descriptor_set": 0,
+      "ty": "UInt",
+      "kind": "uniform"
+    },
+    {
+      "shader": "SemanticWarpTopK",
+      "name": "top_k",
+      "binding": 4,
+      "descriptor_set": 0,
+      "ty": "UInt",
+      "kind": "uniform"
+    },
+    {
+      "shader": "SemanticWarpTopK",
+      "name": "min_score",
+      "binding": 5,
+      "descriptor_set": 0,
+      "ty": "UInt",
+      "kind": "uniform"
+    },
+    {
+      "shader": "SemanticWarpTopK",
+      "name": "taken_mask",
+      "binding": 6,
+      "descriptor_set": 0,
+      "ty": "StorageBuffer<UInt>",
+      "kind": "storage_buffer"
+    },
+    {
+      "shader": "SemanticCoarsePrefilter",
+      "name": "query_embed",
+      "binding": 0,
+      "descriptor_set": 0,
+      "ty": "StorageBuffer<u8>",
+      "kind": "storage_buffer"
+    },
+    {
+      "shader": "SemanticCoarsePrefilter",
+      "name": "index_matrix",
+      "binding": 1,
+      "descriptor_set": 0,
+      "ty": "StorageBuffer<u8>",
+      "kind": "storage_buffer"
+    },
+    {
+      "shader": "SemanticCoarsePrefilter",
+      "name": "candidate_mask",
+      "binding": 2,
+      "descriptor_set": 0,
+      "ty": "StorageBuffer<UInt>",
+      "kind": "storage_buffer"
+    },
+    {
+      "shader": "SemanticCoarsePrefilter",
+      "name": "dim",
+      "binding": 3,
+      "descriptor_set": 0,
+      "ty": "UInt",
+      "kind": "uniform"
+    },
+    {
+      "shader": "SemanticCoarsePrefilter",
+      "name": "num_chunks",
+      "binding": 4,
+      "descriptor_set": 0,
+      "ty": "UInt",
+      "kind": "uniform"
+    },
+    {
+      "shader": "SemanticCoarsePrefilter",
+      "name": "sig_stride",
+      "binding": 5,
+      "descriptor_set": 0,
+      "ty": "UInt",
+      "kind": "uniform"
+    },
+    {
+      "shader": "SemanticCoarsePrefilter",
+      "name": "min_sig_match",
+      "binding": 6,
+      "descriptor_set": 0,
+      "ty": "UInt",
+      "kind": "uniform"
+    }
+  ],
+  "entry_points": [
+    {
+      "shader": "SemanticFusedScoreTopK",
+      "module_name": "SemanticFusedScoreTopK__SemanticBitpackDotProduct__SemanticWarpTopK__SemanticCoarsePrefilter",
+      "entry_point": "SemanticFusedScoreTopK",
+      "stage": "compute"
+    },
+    {
+      "shader": "SemanticBitpackDotProduct",
+      "module_name": "SemanticFusedScoreTopK__SemanticBitpackDotProduct__SemanticWarpTopK__SemanticCoarsePrefilter",
+      "entry_point": "SemanticBitpackDotProduct",
+      "stage": "compute"
+    },
+    {
+      "shader": "SemanticWarpTopK",
+      "module_name": "SemanticFusedScoreTopK__SemanticBitpackDotProduct__SemanticWarpTopK__SemanticCoarsePrefilter",
+      "entry_point": "SemanticWarpTopK",
+      "stage": "compute"
+    },
+    {
+      "shader": "SemanticCoarsePrefilter",
+      "module_name": "SemanticFusedScoreTopK__SemanticBitpackDotProduct__SemanticWarpTopK__SemanticCoarsePrefilter",
+      "entry_point": "SemanticCoarsePrefilter",
+      "stage": "compute"
+    }
+  ],
+  "stage_metadata": [
+    {
+      "shader": "SemanticFusedScoreTopK",
+      "stage": "compute",
+      "entry_point": "SemanticFusedScoreTopK",
+      "input_count": 1,
+      "binding_count": 13,
+      "output_type": "Void"
+    },
+    {
+      "shader": "SemanticBitpackDotProduct",
+      "stage": "compute",
+      "entry_point": "SemanticBitpackDotProduct",
+      "input_count": 1,
+      "binding_count": 7,
+      "output_type": "Void"
+    },
+    {
+      "shader": "SemanticWarpTopK",
+      "stage": "compute",
+      "entry_point": "SemanticWarpTopK",
+      "input_count": 1,
+      "binding_count": 7,
+      "output_type": "Void"
+    },
+    {
+      "shader": "SemanticCoarsePrefilter",
+      "stage": "compute",
+      "entry_point": "SemanticCoarsePrefilter",
+      "input_count": 1,
+      "binding_count": 7,
+      "output_type": "Void"
+    }
+  ],
+  "specialization_constants": [],
+  "debug": {
+    "source_map": [
+      {
+        "shader": "SemanticFusedScoreTopK",
+        "source_origin": "<input>",
+        "module_name": "SemanticFusedScoreTopK__SemanticBitpackDotProduct__SemanticWarpTopK__SemanticCoarsePrefilter",
+        "entry_point": "SemanticFusedScoreTopK"
+      },
+      {
+        "shader": "SemanticBitpackDotProduct",
+        "source_origin": "<input>",
+        "module_name": "SemanticFusedScoreTopK__SemanticBitpackDotProduct__SemanticWarpTopK__SemanticCoarsePrefilter",
+        "entry_point": "SemanticBitpackDotProduct"
+      },
+      {
+        "shader": "SemanticWarpTopK",
+        "source_origin": "<input>",
+        "module_name": "SemanticFusedScoreTopK__SemanticBitpackDotProduct__SemanticWarpTopK__SemanticCoarsePrefilter",
+        "entry_point": "SemanticWarpTopK"
+      },
+      {
+        "shader": "SemanticCoarsePrefilter",
+        "source_origin": "<input>",
+        "module_name": "SemanticFusedScoreTopK__SemanticBitpackDotProduct__SemanticWarpTopK__SemanticCoarsePrefilter",
+        "entry_point": "SemanticCoarsePrefilter"
+      }
+    ],
+    "notes": [
+      "Shader bundle source map is currently scoped to shader entry points."
+    ]
+  },
+  "derived_outputs": [
+    {
+      "format": "ptx",
+      "module_name": "SemanticFusedScoreTopK__SemanticBitpackDotProduct__SemanticWarpTopK__SemanticCoarsePrefilter",
+      "contents": "// Generated by KAIN Compiler\n// Raw PTX compute output; load with the CUDA Driver API.\n\n.version 7.8\n.target sm_50\n.address_size 64\n\n.visible .entry SemanticFusedScoreTopK(\n    .param .u64 _kain_param_query_embed,\n    .param .u64 _kain_param_index_matrix,\n    .param .u64 _kain_param_index_weights,\n    .param .u64 _kain_param_chunk_bias,\n    .param .u64 _kain_param_block_topk_indices,\n    .param .u64 _kain_param_block_topk_scores,\n    .param .u64 _kain_param_warp_scratch_scores,\n    .param .u64 _kain_param_warp_scratch_indices,\n    .param .u32 _kain_param_dim,\n    .param .u32 _kain_param_num_chunks,\n    .param .u32 _kain_param_top_k,\n    .param .u32 _kain_param_chunks_per_block,\n    .param .u32 _kain_param_min_score\n)\n{\n    .reg .pred %p<27>;\n    .reg .b32 %r<168>;\n    .reg .b64 %rd<45>;\n\n    ld.param.u64 %rd1, [_kain_param_query_embed];\n    ld.param.u64 %rd2, [_kain_param_index_matrix];\n    ld.param.u64 %rd3, [_kain_param_index_weights];\n    ld.param.u64 %rd4, [_kain_param_chunk_bias];\n    ld.param.u64 %rd5, [_kain_param_block_topk_indices];\n    ld.param.u64 %rd6, [_kain_param_block_topk_scores];\n    ld.param.u64 %rd7, [_kain_param_warp_scratch_scores];\n    ld.param.u64 %rd8, [_kain_param_warp_scratch_indices];\n    ld.param.u32 %r1, [_kain_param_dim];\n    ld.param.u32 %r2, [_kain_param_num_chunks];\n    ld.param.u32 %r3, [_kain_param_top_k];\n    ld.param.u32 %r4, [_kain_param_chunks_per_block];\n    ld.param.u32 %r5, [_kain_param_min_score];\n    mov.u32 %r6, %ctaid.x;\n    mov.u32 %r7, %ntid.x;\n    mov.u32 %r8, %tid.x;\n    mad.lo.u32 %r9, %r6, %r7, %r8;\n    mov.s32 %r10, 256;\n    cvt.u32.s32 %r11, %r10;\n    div.u32 %r12, %r9, %r11;\n    mov.u32 %r13, %laneid;\n    mov.u32 %r14, %warpid;\n    mul.lo.u32 %r15, %r12, %r4;\n    add.u32 %r16, %r15, %r4;\n    setp.gt.u32 %p1, %r16, %r2;\n    @!%p1 bra $if_else_0;\n    mov.u32 %r16, %r2;\n    bra $if_end_1;\n$if_else_0:\n$if_end_1:\n    setp.ge.u32 %p2, %r15, %r2;\n    @!%p2 bra $if_else_2;\n    bra $kain_exit;\n    bra $if_end_3;\n$if_else_2:\n$if_end_3:\n    mov.s32 %r17, 0;\n    cvt.u32.s32 %r18, %r17;\n    setp.eq.u32 %p3, %r14, %r18;\n    mov.s32 %r19, 0;\n    cvt.u32.s32 %r20, %r19;\n    setp.eq.u32 %p4, %r13, %r20;\n    and.pred %p5, %p3, %p4;\n    @!%p5 bra $if_else_4;\n    mul.lo.u32 %r21, %r12, %r3;\n    mov.s32 %r22, 0;\n    cvt.u32.s32 %r23, %r22;\n$while_cond_6:\n    setp.lt.u32 %p6, %r23, %r3;\n    @!%p6 bra $while_end_7;\n    add.u32 %r24, %r21, %r23;\n    mov.s32 %r25, 0;\n    cvt.u32.s32 %r26, %r25;\n    mul.wide.u32 %rd9, %r24, 4;\n    add.u64 %rd10, %rd5, %rd9;\n    st.global.u32 [%rd10], %r26;\n    add.u32 %r27, %r21, %r23;\n    mov.s32 %r28, 0;\n    cvt.u32.s32 %r29, %r28;\n    mul.wide.u32 %rd11, %r27, 4;\n    add.u64 %rd12, %rd6, %rd11;\n    st.global.u32 [%rd12], %r29;\n    mov.s32 %r30, 1;\n    cvt.u32.s32 %r31, %r30;\n    add.u32 %r32, %r23, %r31;\n    mov.u32 %r23, %r32;\n    bra $while_cond_6;\n$while_end_7:\n    bra $if_end_5;\n$if_else_4:\n$if_end_5:\n    bar.sync 0;\n    add.u32 %r33, %r15, %r14;\n$while_cond_8:\n    setp.lt.u32 %p7, %r33, %r16;\n    @!%p7 bra $while_end_9;\n    mul.lo.u32 %r34, %r33, %r1;\n    mov.s32 %r35, 0;\n    cvt.u32.s32 %r36, %r35;\n    mov.s32 %r37, 0;\n    cvt.u32.s32 %r38, %r37;\n$while_cond_10:\n    setp.lt.u32 %p8, %r13, %r1;\n    @!%p8 bra $while_end_11;\n    mul.wide.u32 %rd13, %r13, 1;\n    add.u64 %rd14, %rd1, %rd13;\n    ld.global.u8 %r39, [%rd14];\n    mov.s32 %r40, 0;\n    cvt.u32.s32 %r41, %r40;\n    setp.ne.u32 %p9, %r39, %r41;\n    @!%p9 bra $if_else_12;\n    add.u32 %r42, %r34, %r13;\n    mul.wide.u32 %rd15, %r42, 1;\n    add.u64 %rd16, %rd2, %rd15;\n    ld.global.u8 %r43, [%rd16];\n    setp.eq.u32 %p10, %r39, %r43;\n    @!%p10 bra $if_else_14;\n    mov.s32 %r44, 1;\n    cvt.u32.s32 %r45, %r44;\n    add.u32 %r46, %r36, %r45;\n    mov.u32 %r36, %r46;\n    mov.s32 %r47, 1024;\n    cvt.u32.s32 %r48, %r47;\n    add.u32 %r49, %r38, %r48;\n    mov.u32 %r38, %r49;\n    bra $if_end_15;\n$if_else_14:\n$if_end_15:\n    bra $if_end_13;\n$if_else_12:\n$if_end_13:\n    mov.s32 %r50, 32;\n    cvt.u32.s32 %r51, %r50;\n    add.u32 %r52, %r13, %r51;\n    mov.u32 %r13, %r52;\n    bra $while_cond_10;\n$while_end_11:\n    mov.u32 %r53, 16;\n    mov.u32 %r54, 4294967295;\n    shfl.sync.bfly.b32 %r55, %r36, %r53, 31, %r54;\n    add.u32 %r56, %r36, %r55;\n    mov.u32 %r57, 8;\n    mov.u32 %r58, 4294967295;\n    shfl.sync.bfly.b32 %r59, %r56, %r57, 31, %r58;\n    add.u32 %r60, %r56, %r59;\n    mov.u32 %r61, 4;\n    mov.u32 %r62, 4294967295;\n    shfl.sync.bfly.b32 %r63, %r60, %r61, 31, %r62;\n    add.u32 %r64, %r60, %r63;\n    mov.u32 %r65, 2;\n    mov.u32 %r66, 4294967295;\n    shfl.sync.bfly.b32 %r67, %r64, %r65, 31, %r66;\n    add.u32 %r68, %r64, %r67;\n    mov.u32 %r69, 1;\n    mov.u32 %r70, 4294967295;\n    shfl.sync.bfly.b32 %r71, %r68, %r69, 31, %r70;\n    add.u32 %r72, %r68, %r71;\n    mov.u32 %r73, 16;\n    mov.u32 %r74, 4294967295;\n    shfl.sync.bfly.b32 %r75, %r38, %r73, 31, %r74;\n    add.u32 %r76, %r38, %r75;\n    mov.u32 %r77, 8;\n    mov.u32 %r78, 4294967295;\n    shfl.sync.bfly.b32 %r79, %r76, %r77, 31, %r78;\n    add.u32 %r80, %r76, %r79;\n    mov.u32 %r81, 4;\n    mov.u32 %r82, 4294967295;\n    shfl.sync.bfly.b32 %r83, %r80, %r81, 31, %r82;\n    add.u32 %r84, %r80, %r83;\n    mov.u32 %r85, 2;\n    mov.u32 %r86, 4294967295;\n    shfl.sync.bfly.b32 %r87, %r84, %r85, 31, %r86;\n    add.u32 %r88, %r84, %r87;\n    mov.u32 %r89, 1;\n    mov.u32 %r90, 4294967295;\n    shfl.sync.bfly.b32 %r91, %r88, %r89, 31, %r90;\n    add.u32 %r92, %r88, %r91;\n    mov.s32 %r93, 0;\n    cvt.u32.s32 %r94, %r93;\n    mov.s32 %r95, 0;\n    cvt.u32.s32 %r96, %r95;\n    setp.eq.u32 %p11, %r13, %r96;\n    @!%p11 bra $if_else_16;\n    mov.u32 %r94, %r92;\n    mov.s32 %r97, 0;\n    cvt.u32.s32 %r98, %r97;\n    setp.gt.u32 %p12, %r72, %r98;\n    @!%p12 bra $if_else_18;\n    mul.wide.u32 %rd17, %r33, 4;\n    add.u64 %rd18, %rd4, %rd17;\n    ld.global.u32 %r99, [%rd18];\n    add.u32 %r100, %r94, %r99;\n    mov.u32 %r94, %r100;\n    mul.wide.u32 %rd19, %r33, 4;\n    add.u64 %rd20, %rd3, %rd19;\n    ld.global.u32 %r101, [%rd20];\n    mov.s32 %r102, 0;\n    cvt.u32.s32 %r103, %r102;\n    setp.gt.u32 %p13, %r101, %r103;\n    @!%p13 bra $if_else_20;\n    mov.s32 %r104, 3;\n    cvt.u32.s32 %r105, %r104;\n    shr.u32 %r106, %r101, %r105;\n    setp.gt.u32 %p14, %r94, %r106;\n    @!%p14 bra $if_else_22;\n    sub.u32 %r107, %r94, %r106;\n    mov.u32 %r94, %r107;\n    bra $if_end_23;\n$if_else_22:\n    mov.s32 %r108, 0;\n    cvt.u32.s32 %r109, %r108;\n    mov.u32 %r94, %r109;\n$if_end_23:\n    bra $if_end_21;\n$if_else_20:\n$if_end_21:\n    bra $if_end_19;\n$if_else_18:\n$if_end_19:\n    bra $if_end_17;\n$if_else_16:\n$if_end_17:\n    mov.s32 %r110, 0;\n    cvt.u32.s32 %r111, %r110;\n    setp.eq.u32 %p15, %r13, %r111;\n    @!%p15 bra $if_else_24;\n    mul.wide.u32 %rd21, %r14, 4;\n    add.u64 %rd22, %rd7, %rd21;\n    st.global.u32 [%rd22], %r94;\n    mul.wide.u32 %rd23, %r14, 4;\n    add.u64 %rd24, %rd8, %rd23;\n    st.global.u32 [%rd24], %r33;\n    bra $if_end_25;\n$if_else_24:\n$if_end_25:\n    bar.sync 0;\n    mov.s32 %r112, 0;\n    cvt.u32.s32 %r113, %r112;\n    setp.eq.u32 %p16, %r14, %r113;\n    mov.s32 %r114, 0;\n    cvt.u32.s32 %r115, %r114;\n    setp.eq.u32 %p17, %r13, %r115;\n    and.pred %p18, %p16, %p17;\n    @!%p18 bra $if_else_26;\n    mov.s32 %r116, 0;\n    cvt.u32.s32 %r117, %r116;\n$while_cond_28:\n    mov.s32 %r118, 8;\n    cvt.u32.s32 %r119, %r118;\n    setp.lt.u32 %p19, %r117, %r119;\n    @!%p19 bra $while_end_29;\n    mul.wide.u32 %rd25, %r117, 4;\n    add.u64 %rd26, %rd7, %rd25;\n    ld.global.u32 %r120, [%rd26];\n    mul.wide.u32 %rd27, %r117, 4;\n    add.u64 %rd28, %rd8, %rd27;\n    ld.global.u32 %r121, [%rd28];\n    mov.s32 %r122, 0;\n    cvt.u32.s32 %r123, %r122;\n    setp.gt.u32 %p20, %r120, %r123;\n    setp.ge.u32 %p21, %r120, %r5;\n    and.pred %p22, %p20, %p21;\n    @!%p22 bra $if_else_30;\n    mov.s32 %r124, 0;\n    cvt.u32.s32 %r125, %r124;\n    mul.lo.u32 %r126, %r12, %r3;\n    mul.wide.u32 %rd29, %r126, 4;\n    add.u64 %rd30, %rd6, %rd29;\n    ld.global.u32 %r127, [%rd30];\n    mov.s32 %r128, 1;\n    cvt.u32.s32 %r129, %r128;\n$while_cond_32:\n    setp.lt.u32 %p23, %r129, %r3;\n    @!%p23 bra $while_end_33;\n    mul.lo.u32 %r130, %r12, %r3;\n    add.u32 %r131, %r130, %r129;\n    mul.wide.u32 %rd31, %r131, 4;\n    add.u64 %rd32, %rd6, %rd31;\n    ld.global.u32 %r132, [%rd32];\n    setp.lt.u32 %p24, %r132, %r127;\n    @!%p24 bra $if_else_34;\n    mov.u32 %r127, %r132;\n    mov.u32 %r125, %r129;\n    bra $if_end_35;\n$if_else_34:\n$if_end_35:\n    mov.s32 %r133, 1;\n    cvt.u32.s32 %r134, %r133;\n    add.u32 %r135, %r129, %r134;\n    mov.u32 %r129, %r135;\n    bra $while_cond_32;\n$while_end_33:\n    setp.gt.u32 %p25, %r120, %r127;\n    @!%p25 bra $if_else_36;\n    mov.s32 %r136, 1;\n    cvt.u32.s32 %r137, %r136;\n    sub.u32 %r138, %r3, %r137;\n$while_cond_38:\n    setp.gt.u32 %p26, %r138, %r125;\n    @!%p26 bra $while_end_39;\n    mul.lo.u32 %r139, %r12, %r3;\n    add.u32 %r140, %r139, %r138;\n    mul.lo.u32 %r141, %r12, %r3;\n    add.u32 %r142, %r141, %r138;\n    mov.s32 %r143, 1;\n    cvt.u32.s32 %r144, %r143;\n    sub.u32 %r145, %r142, %r144;\n    mul.wide.u32 %rd33, %r145, 4;\n    add.u64 %rd34, %rd6, %rd33;\n    ld.global.u32 %r146, [%rd34];\n    mul.wide.u32 %rd35, %r140, 4;\n    add.u64 %rd36, %rd6, %rd35;\n    st.global.u32 [%rd36], %r146;\n    mul.lo.u32 %r147, %r12, %r3;\n    add.u32 %r148, %r147, %r138;\n    mul.lo.u32 %r149, %r12, %r3;\n    add.u32 %r150, %r149, %r138;\n    mov.s32 %r151, 1;\n    cvt.u32.s32 %r152, %r151;\n    sub.u32 %r153, %r150, %r152;\n    mul.wide.u32 %rd37, %r153, 4;\n    add.u64 %rd38, %rd5, %rd37;\n    ld.global.u32 %r154, [%rd38];\n    mul.wide.u32 %rd39, %r148, 4;\n    add.u64 %rd40, %rd5, %rd39;\n    st.global.u32 [%rd40], %r154;\n    mov.s32 %r155, 1;\n    cvt.u32.s32 %r156, %r155;\n    sub.u32 %r157, %r138, %r156;\n    mov.u32 %r138, %r157;\n    bra $while_cond_38;\n$while_end_39:\n    mul.lo.u32 %r158, %r12, %r3;\n    add.u32 %r159, %r158, %r125;\n    mul.wide.u32 %rd41, %r159, 4;\n    add.u64 %rd42, %rd6, %rd41;\n    st.global.u32 [%rd42], %r120;\n    mul.lo.u32 %r160, %r12, %r3;\n    add.u32 %r161, %r160, %r125;\n    mul.wide.u32 %rd43, %r161, 4;\n    add.u64 %rd44, %rd5, %rd43;\n    st.global.u32 [%rd44], %r121;\n    bra $if_end_37;\n$if_else_36:\n$if_end_37:\n    bra $if_end_31;\n$if_else_30:\n$if_end_31:\n    mov.s32 %r162, 1;\n    cvt.u32.s32 %r163, %r162;\n    add.u32 %r164, %r117, %r163;\n    mov.u32 %r117, %r164;\n    bra $while_cond_28;\n$while_end_29:\n    bra $if_end_27;\n$if_else_26:\n$if_end_27:\n    bar.sync 0;\n    mov.s32 %r165, 8;\n    cvt.u32.s32 %r166, %r165;\n    add.u32 %r167, %r33, %r166;\n    mov.u32 %r33, %r167;\n    bra $while_cond_8;\n$while_end_9:\n    bra $kain_exit;\n$kain_exit:\n    ret;\n}\n\n.visible .entry SemanticBitpackDotProduct(\n    .param .u64 _kain_param_query_embed,\n    .param .u64 _kain_param_index_matrix,\n    .param .u64 _kain_param_index_weights,\n    .param .u64 _kain_param_chunk_bias,\n    .param .u64 _kain_param_scores,\n    .param .u32 _kain_param_dim,\n    .param .u32 _kain_param_num_chunks\n)\n{\n    .reg .pred %p<8>;\n    .reg .b32 %r<129>;\n    .reg .b64 %rd<16>;\n\n    ld.param.u64 %rd1, [_kain_param_query_embed];\n    ld.param.u64 %rd2, [_kain_param_index_matrix];\n    ld.param.u64 %rd3, [_kain_param_index_weights];\n    ld.param.u64 %rd4, [_kain_param_chunk_bias];\n    ld.param.u64 %rd5, [_kain_param_scores];\n    ld.param.u32 %r1, [_kain_param_dim];\n    ld.param.u32 %r2, [_kain_param_num_chunks];\n    mov.u32 %r3, %ctaid.x;\n    mov.u32 %r4, %ntid.x;\n    mov.u32 %r5, %tid.x;\n    mad.lo.u32 %r6, %r3, %r4, %r5;\n    mov.s32 %r7, 32;\n    cvt.u32.s32 %r8, %r7;\n    div.u32 %r9, %r6, %r8;\n    mov.u32 %r10, %laneid;\n    setp.ge.u32 %p1, %r9, %r2;\n    @!%p1 bra $if_else_0;\n    bra $kain_exit;\n    bra $if_end_1;\n$if_else_0:\n$if_end_1:\n    mul.lo.u32 %r11, %r9, %r1;\n    mov.s32 %r12, 0;\n    cvt.u32.s32 %r13, %r12;\n    mov.s32 %r14, 0;\n    cvt.u32.s32 %r15, %r14;\n$while_cond_2:\n    setp.lt.u32 %p2, %r10, %r1;\n    @!%p2 bra $while_end_3;\n    mul.wide.u32 %rd6, %r10, 1;\n    add.u64 %rd7, %rd1, %rd6;\n    ld.global.u8 %r16, [%rd7];\n    mov.s32 %r17, 0;\n    cvt.u32.s32 %r18, %r17;\n    setp.ne.u32 %p3, %r16, %r18;\n    @!%p3 bra $if_else_4;\n    add.u32 %r19, %r11, %r10;\n    mul.wide.u32 %rd8, %r19, 1;\n    add.u64 %rd9, %rd2, %rd8;\n    ld.global.u8 %r20, [%rd9];\n    and.b32 %r21, %r16, %r20;\n    mov.s32 %r22, 0;\n    cvt.u32.s32 %r23, %r22;\n    setp.ne.u32 %p4, %r21, %r23;\n    @!%p4 bra $if_else_6;\n    mov.s32 %r24, 15;\n    cvt.u32.s32 %r25, %r24;\n    and.b32 %r26, %r21, %r25;\n    mov.s32 %r27, 4;\n    cvt.u32.s32 %r28, %r27;\n    shr.u32 %r29, %r21, %r28;\n    mov.s32 %r30, 0;\n    cvt.u32.s32 %r31, %r30;\n    add.u32 %r32, %r31, %r26;\n    mov.u32 %r31, %r32;\n    mov.s32 %r33, 1;\n    cvt.u32.s32 %r34, %r33;\n    shr.u32 %r35, %r31, %r34;\n    mov.s32 %r36, 5;\n    cvt.u32.s32 %r37, %r36;\n    and.b32 %r38, %r35, %r37;\n    sub.u32 %r39, %r31, %r38;\n    mov.u32 %r31, %r39;\n    mov.s32 %r40, 3;\n    cvt.u32.s32 %r41, %r40;\n    and.b32 %r42, %r31, %r41;\n    mov.s32 %r43, 2;\n    cvt.u32.s32 %r44, %r43;\n    shr.u32 %r45, %r31, %r44;\n    mov.s32 %r46, 3;\n    cvt.u32.s32 %r47, %r46;\n    and.b32 %r48, %r45, %r47;\n    add.u32 %r49, %r42, %r48;\n    mov.s32 %r50, 1;\n    cvt.u32.s32 %r51, %r50;\n    shr.u32 %r52, %r29, %r51;\n    mov.s32 %r53, 5;\n    cvt.u32.s32 %r54, %r53;\n    and.b32 %r55, %r52, %r54;\n    sub.u32 %r56, %r29, %r55;\n    mov.u32 %r29, %r56;\n    mov.s32 %r57, 3;\n    cvt.u32.s32 %r58, %r57;\n    and.b32 %r59, %r29, %r58;\n    mov.s32 %r60, 2;\n    cvt.u32.s32 %r61, %r60;\n    shr.u32 %r62, %r29, %r61;\n    mov.s32 %r63, 3;\n    cvt.u32.s32 %r64, %r63;\n    and.b32 %r65, %r62, %r64;\n    add.u32 %r66, %r59, %r65;\n    add.u32 %r67, %r49, %r66;\n    add.u32 %r68, %r13, %r67;\n    mov.u32 %r13, %r68;\n    mov.s32 %r69, 256;\n    cvt.u32.s32 %r70, %r69;\n    mul.lo.u32 %r71, %r67, %r70;\n    add.u32 %r72, %r15, %r71;\n    mov.u32 %r15, %r72;\n    bra $if_end_7;\n$if_else_6:\n$if_end_7:\n    bra $if_end_5;\n$if_else_4:\n$if_end_5:\n    mov.s32 %r73, 32;\n    cvt.u32.s32 %r74, %r73;\n    add.u32 %r75, %r10, %r74;\n    mov.u32 %r10, %r75;\n    bra $while_cond_2;\n$while_end_3:\n    mov.u32 %r76, 16;\n    mov.u32 %r77, 4294967295;\n    shfl.sync.bfly.b32 %r78, %r13, %r76, 31, %r77;\n    add.u32 %r79, %r13, %r78;\n    mov.u32 %r80, 8;\n    mov.u32 %r81, 4294967295;\n    shfl.sync.bfly.b32 %r82, %r79, %r80, 31, %r81;\n    add.u32 %r83, %r79, %r82;\n    mov.u32 %r84, 4;\n    mov.u32 %r85, 4294967295;\n    shfl.sync.bfly.b32 %r86, %r83, %r84, 31, %r85;\n    add.u32 %r87, %r83, %r86;\n    mov.u32 %r88, 2;\n    mov.u32 %r89, 4294967295;\n    shfl.sync.bfly.b32 %r90, %r87, %r88, 31, %r89;\n    add.u32 %r91, %r87, %r90;\n    mov.u32 %r92, 1;\n    mov.u32 %r93, 4294967295;\n    shfl.sync.bfly.b32 %r94, %r91, %r92, 31, %r93;\n    add.u32 %r95, %r91, %r94;\n    mov.u32 %r96, 16;\n    mov.u32 %r97, 4294967295;\n    shfl.sync.bfly.b32 %r98, %r15, %r96, 31, %r97;\n    add.u32 %r99, %r15, %r98;\n    mov.u32 %r100, 8;\n    mov.u32 %r101, 4294967295;\n    shfl.sync.bfly.b32 %r102, %r99, %r100, 31, %r101;\n    add.u32 %r103, %r99, %r102;\n    mov.u32 %r104, 4;\n    mov.u32 %r105, 4294967295;\n    shfl.sync.bfly.b32 %r106, %r103, %r104, 31, %r105;\n    add.u32 %r107, %r103, %r106;\n    mov.u32 %r108, 2;\n    mov.u32 %r109, 4294967295;\n    shfl.sync.bfly.b32 %r110, %r107, %r108, 31, %r109;\n    add.u32 %r111, %r107, %r110;\n    mov.u32 %r112, 1;\n    mov.u32 %r113, 4294967295;\n    shfl.sync.bfly.b32 %r114, %r111, %r112, 31, %r113;\n    add.u32 %r115, %r111, %r114;\n    mov.s32 %r116, 0;\n    cvt.u32.s32 %r117, %r116;\n    setp.eq.u32 %p5, %r10, %r117;\n    @!%p5 bra $if_else_8;\n    mov.s32 %r118, 0;\n    cvt.u32.s32 %r119, %r118;\n    setp.gt.u32 %p6, %r95, %r119;\n    @!%p6 bra $if_else_10;\n    mul.wide.u32 %rd10, %r9, 4;\n    add.u64 %rd11, %rd4, %rd10;\n    ld.global.u32 %r120, [%rd11];\n    add.u32 %r121, %r115, %r120;\n    mov.u32 %r115, %r121;\n    mul.wide.u32 %rd12, %r9, 4;\n    add.u64 %rd13, %rd3, %rd12;\n    ld.global.u32 %r122, [%rd13];\n    mov.s32 %r123, 0;\n    cvt.u32.s32 %r124, %r123;\n    setp.gt.u32 %p7, %r122, %r124;\n    @!%p7 bra $if_else_12;\n    mov.s32 %r125, 4;\n    cvt.u32.s32 %r126, %r125;\n    shr.u32 %r127, %r122, %r126;\n    add.u32 %r128, %r115, %r127;\n    mov.u32 %r115, %r128;\n    bra $if_end_13;\n$if_else_12:\n$if_end_13:\n    bra $if_end_11;\n$if_else_10:\n$if_end_11:\n    mul.wide.u32 %rd14, %r9, 4;\n    add.u64 %rd15, %rd5, %rd14;\n    st.global.u32 [%rd15], %r115;\n    bra $if_end_9;\n$if_else_8:\n$if_end_9:\n    bra $kain_exit;\n$kain_exit:\n    ret;\n}\n\n.visible .entry SemanticWarpTopK(\n    .param .u64 _kain_param_scores,\n    .param .u64 _kain_param_top_indices,\n    .param .u64 _kain_param_top_scores,\n    .param .u32 _kain_param_num_chunks,\n    .param .u32 _kain_param_top_k,\n    .param .u32 _kain_param_min_score,\n    .param .u64 _kain_param_taken_mask\n)\n{\n    .reg .pred %p<15>;\n    .reg .b32 %r<77>;\n    .reg .b64 %rd<23>;\n\n    ld.param.u64 %rd1, [_kain_param_scores];\n    ld.param.u64 %rd2, [_kain_param_top_indices];\n    ld.param.u64 %rd3, [_kain_param_top_scores];\n    ld.param.u32 %r1, [_kain_param_num_chunks];\n    ld.param.u32 %r2, [_kain_param_top_k];\n    ld.param.u32 %r3, [_kain_param_min_score];\n    ld.param.u64 %rd4, [_kain_param_taken_mask];\n    mov.u32 %r4, %laneid;\n    mov.s32 %r5, 0;\n    cvt.u32.s32 %r6, %r5;\n    setp.eq.u32 %p1, %r2, %r6;\n    @!%p1 bra $if_else_0;\n    bra $kain_exit;\n    bra $if_end_1;\n$if_else_0:\n$if_end_1:\n$while_cond_2:\n    mov.s32 %r7, 3200;\n    cvt.u32.s32 %r8, %r7;\n    setp.lt.u32 %p2, %r4, %r8;\n    @!%p2 bra $while_end_3;\n    mov.s32 %r9, 0;\n    cvt.u32.s32 %r10, %r9;\n    mul.wide.u32 %rd5, %r4, 4;\n    add.u64 %rd6, %rd4, %rd5;\n    st.global.u32 [%rd6], %r10;\n    mov.s32 %r11, 32;\n    cvt.u32.s32 %r12, %r11;\n    add.u32 %r13, %r4, %r12;\n    mov.u32 %r4, %r13;\n    bra $while_cond_2;\n$while_end_3:\n    mov.s32 %r14, 0;\n    cvt.u32.s32 %r15, %r14;\n    setp.eq.u32 %p3, %r4, %r15;\n    @!%p3 bra $if_else_4;\n    mov.s32 %r16, 0;\n    cvt.u32.s32 %r17, %r16;\n$while_cond_6:\n    setp.lt.u32 %p4, %r17, %r2;\n    @!%p4 bra $while_end_7;\n    mov.s32 %r18, 0;\n    cvt.u32.s32 %r19, %r18;\n    mul.wide.u32 %rd7, %r17, 4;\n    add.u64 %rd8, %rd2, %rd7;\n    st.global.u32 [%rd8], %r19;\n    mov.s32 %r20, 0;\n    cvt.u32.s32 %r21, %r20;\n    mul.wide.u32 %rd9, %r17, 4;\n    add.u64 %rd10, %rd3, %rd9;\n    st.global.u32 [%rd10], %r21;\n    mov.s32 %r22, 1;\n    cvt.u32.s32 %r23, %r22;\n    add.u32 %r24, %r17, %r23;\n    mov.u32 %r17, %r24;\n    bra $while_cond_6;\n$while_end_7:\n    bra $if_end_5;\n$if_else_4:\n$if_end_5:\n    bar.sync 0;\n    mov.s32 %r25, 0;\n    cvt.u32.s32 %r26, %r25;\n$while_cond_8:\n    setp.lt.u32 %p5, %r26, %r2;\n    @!%p5 bra $while_end_9;\n    mov.s32 %r27, 0;\n    cvt.u32.s32 %r28, %r27;\n    mov.s32 %r29, 0;\n    cvt.u32.s32 %r30, %r29;\n$while_cond_10:\n    setp.lt.u32 %p6, %r4, %r1;\n    @!%p6 bra $while_end_11;\n    mov.s32 %r31, 5;\n    cvt.u32.s32 %r32, %r31;\n    shr.u32 %r33, %r4, %r32;\n    mov.s32 %r34, 31;\n    cvt.u32.s32 %r35, %r34;\n    and.b32 %r36, %r4, %r35;\n    mul.wide.u32 %rd11, %r33, 4;\n    add.u64 %rd12, %rd4, %rd11;\n    ld.global.u32 %r37, [%rd12];\n    shr.u32 %r38, %r37, %r36;\n    mov.s32 %r39, 1;\n    cvt.u32.s32 %r40, %r39;\n    and.b32 %r41, %r38, %r40;\n    mov.s32 %r42, 0;\n    cvt.u32.s32 %r43, %r42;\n    setp.eq.u32 %p7, %r41, %r43;\n    @!%p7 bra $if_else_12;\n    mul.wide.u32 %rd13, %r4, 4;\n    add.u64 %rd14, %rd1, %rd13;\n    ld.global.u32 %r44, [%rd14];\n    setp.gt.u32 %p8, %r44, %r28;\n    setp.ge.u32 %p9, %r44, %r3;\n    and.pred %p10, %p8, %p9;\n    @!%p10 bra $if_else_14;\n    mov.u32 %r28, %r44;\n    mov.u32 %r30, %r4;\n    bra $if_end_15;\n$if_else_14:\n$if_end_15:\n    bra $if_end_13;\n$if_else_12:\n$if_end_13:\n    mov.s32 %r45, 32;\n    cvt.u32.s32 %r46, %r45;\n    add.u32 %r47, %r4, %r46;\n    mov.u32 %r4, %r47;\n    bra $while_cond_10;\n$while_end_11:\n    mov.s32 %r48, 16;\n    cvt.u32.s32 %r49, %r48;\n$while_cond_16:\n    mov.s32 %r50, 0;\n    cvt.u32.s32 %r51, %r50;\n    setp.gt.u32 %p11, %r49, %r51;\n    @!%p11 bra $while_end_17;\n    mov.u32 %r52, 4294967295;\n    shfl.sync.bfly.b32 %r53, %r28, %r49, 31, %r52;\n    mov.u32 %r54, 4294967295;\n    shfl.sync.bfly.b32 %r55, %r30, %r49, 31, %r54;\n    setp.gt.u32 %p12, %r53, %r28;\n    @!%p12 bra $if_else_18;\n    mov.u32 %r28, %r53;\n    mov.u32 %r30, %r55;\n    bra $if_end_19;\n$if_else_18:\n$if_end_19:\n    mov.s32 %r56, 1;\n    cvt.u32.s32 %r57, %r56;\n    shr.u32 %r58, %r49, %r57;\n    mov.u32 %r49, %r58;\n    bra $while_cond_16;\n$while_end_17:\n    mov.s32 %r59, 0;\n    cvt.u32.s32 %r60, %r59;\n    setp.eq.u32 %p13, %r4, %r60;\n    @!%p13 bra $if_else_20;\n    mul.wide.u32 %rd15, %r26, 4;\n    add.u64 %rd16, %rd3, %rd15;\n    st.global.u32 [%rd16], %r28;\n    mul.wide.u32 %rd17, %r26, 4;\n    add.u64 %rd18, %rd2, %rd17;\n    st.global.u32 [%rd18], %r30;\n    mov.s32 %r61, 0;\n    cvt.u32.s32 %r62, %r61;\n    setp.gt.u32 %p14, %r28, %r62;\n    @!%p14 bra $if_else_22;\n    mov.s32 %r63, 5;\n    cvt.u32.s32 %r64, %r63;\n    shr.u32 %r65, %r30, %r64;\n    mov.s32 %r66, 31;\n    cvt.u32.s32 %r67, %r66;\n    and.b32 %r68, %r30, %r67;\n    mul.wide.u32 %rd19, %r65, 4;\n    add.u64 %rd20, %rd4, %rd19;\n    ld.global.u32 %r69, [%rd20];\n    mov.s32 %r70, 1;\n    cvt.u32.s32 %r71, %r70;\n    shl.b32 %r72, %r71, %r68;\n    or.b32 %r73, %r69, %r72;\n    mul.wide.u32 %rd21, %r65, 4;\n    add.u64 %rd22, %rd4, %rd21;\n    st.global.u32 [%rd22], %r73;\n    bra $if_end_23;\n$if_else_22:\n$if_end_23:\n    bra $if_end_21;\n$if_else_20:\n$if_end_21:\n    bar.sync 0;\n    mov.s32 %r74, 1;\n    cvt.u32.s32 %r75, %r74;\n    add.u32 %r76, %r26, %r75;\n    mov.u32 %r26, %r76;\n    bra $while_cond_8;\n$while_end_9:\n    bra $kain_exit;\n$kain_exit:\n    ret;\n}\n\n.visible .entry SemanticCoarsePrefilter(\n    .param .u64 _kain_param_query_embed,\n    .param .u64 _kain_param_index_matrix,\n    .param .u64 _kain_param_candidate_mask,\n    .param .u32 _kain_param_dim,\n    .param .u32 _kain_param_num_chunks,\n    .param .u32 _kain_param_sig_stride,\n    .param .u32 _kain_param_min_sig_match\n)\n{\n    .reg .pred %p<10>;\n    .reg .b32 %r<75>;\n    .reg .b64 %rd<12>;\n\n    ld.param.u64 %rd1, [_kain_param_query_embed];\n    ld.param.u64 %rd2, [_kain_param_index_matrix];\n    ld.param.u64 %rd3, [_kain_param_candidate_mask];\n    ld.param.u32 %r1, [_kain_param_dim];\n    ld.param.u32 %r2, [_kain_param_num_chunks];\n    ld.param.u32 %r3, [_kain_param_sig_stride];\n    ld.param.u32 %r4, [_kain_param_min_sig_match];\n    mov.u32 %r5, %ctaid.x;\n    mov.u32 %r6, %ntid.x;\n    mov.u32 %r7, %tid.x;\n    mad.lo.u32 %r8, %r5, %r6, %r7;\n    mov.s32 %r9, 32;\n    cvt.u32.s32 %r10, %r9;\n    div.u32 %r11, %r8, %r10;\n    mov.u32 %r12, %laneid;\n    setp.ge.u32 %p1, %r11, %r2;\n    @!%p1 bra $if_else_0;\n    bra $kain_exit;\n    bra $if_end_1;\n$if_else_0:\n$if_end_1:\n    mul.lo.u32 %r13, %r11, %r1;\n    mov.s32 %r14, 0;\n    cvt.u32.s32 %r15, %r14;\n    mul.lo.u32 %r16, %r12, %r3;\n$while_cond_2:\n    setp.lt.u32 %p2, %r16, %r1;\n    @!%p2 bra $while_end_3;\n    mul.wide.u32 %rd4, %r16, 1;\n    add.u64 %rd5, %rd1, %rd4;\n    ld.global.u8 %r17, [%rd5];\n    mov.s32 %r18, 0;\n    cvt.u32.s32 %r19, %r18;\n    setp.ne.u32 %p3, %r17, %r19;\n    @!%p3 bra $if_else_4;\n    add.u32 %r20, %r13, %r16;\n    mul.wide.u32 %rd6, %r20, 1;\n    add.u64 %rd7, %rd2, %rd6;\n    ld.global.u8 %r21, [%rd7];\n    mov.s32 %r22, 4;\n    cvt.u32.s32 %r23, %r22;\n    shr.u32 %r24, %r17, %r23;\n    mov.s32 %r25, 4;\n    cvt.u32.s32 %r26, %r25;\n    shr.u32 %r27, %r21, %r26;\n    setp.eq.u32 %p4, %r24, %r27;\n    @!%p4 bra $if_else_6;\n    mov.s32 %r28, 1;\n    cvt.u32.s32 %r29, %r28;\n    add.u32 %r30, %r15, %r29;\n    mov.u32 %r15, %r30;\n    bra $if_end_7;\n$if_else_6:\n    mov.s32 %r31, 0;\n    cvt.u32.s32 %r32, %r31;\n    setp.ne.u32 %p5, %r24, %r32;\n    mov.s32 %r33, 0;\n    cvt.u32.s32 %r34, %r33;\n    setp.ne.u32 %p6, %r27, %r34;\n    and.pred %p7, %p5, %p6;\n    @!%p7 bra $if_else_8;\n    mov.s32 %r35, 1;\n    cvt.u32.s32 %r36, %r35;\n    add.u32 %r37, %r15, %r36;\n    mov.u32 %r15, %r37;\n    bra $if_end_9;\n$if_else_8:\n$if_end_9:\n$if_end_7:\n    bra $if_end_5;\n$if_else_4:\n$if_end_5:\n    mov.s32 %r38, 32;\n    cvt.u32.s32 %r39, %r38;\n    mul.lo.u32 %r40, %r39, %r3;\n    add.u32 %r41, %r16, %r40;\n    mov.u32 %r16, %r41;\n    bra $while_cond_2;\n$while_end_3:\n    mov.u32 %r42, 16;\n    mov.u32 %r43, 4294967295;\n    shfl.sync.bfly.b32 %r44, %r15, %r42, 31, %r43;\n    add.u32 %r45, %r15, %r44;\n    mov.u32 %r46, 8;\n    mov.u32 %r47, 4294967295;\n    shfl.sync.bfly.b32 %r48, %r45, %r46, 31, %r47;\n    add.u32 %r49, %r45, %r48;\n    mov.u32 %r50, 4;\n    mov.u32 %r51, 4294967295;\n    shfl.sync.bfly.b32 %r52, %r49, %r50, 31, %r51;\n    add.u32 %r53, %r49, %r52;\n    mov.u32 %r54, 2;\n    mov.u32 %r55, 4294967295;\n    shfl.sync.bfly.b32 %r56, %r53, %r54, 31, %r55;\n    add.u32 %r57, %r53, %r56;\n    mov.u32 %r58, 1;\n    mov.u32 %r59, 4294967295;\n    shfl.sync.bfly.b32 %r60, %r57, %r58, 31, %r59;\n    add.u32 %r61, %r57, %r60;\n    mov.s32 %r62, 0;\n    cvt.u32.s32 %r63, %r62;\n    setp.eq.u32 %p8, %r12, %r63;\n    @!%p8 bra $if_else_10;\n    setp.ge.u32 %p9, %r61, %r4;\n    @!%p9 bra $if_else_12;\n    mov.s32 %r64, 5;\n    cvt.u32.s32 %r65, %r64;\n    shr.u32 %r66, %r11, %r65;\n    mov.s32 %r67, 31;\n    cvt.u32.s32 %r68, %r67;\n    and.b32 %r69, %r11, %r68;\n    mov.s32 %r70, 1;\n    cvt.u32.s32 %r71, %r70;\n    shl.b32 %r72, %r71, %r69;\n    mul.wide.u32 %rd8, %r66, 4;\n    add.u64 %rd9, %rd3, %rd8;\n    ld.global.u32 %r73, [%rd9];\n    or.b32 %r74, %r73, %r72;\n    mul.wide.u32 %rd10, %r66, 4;\n    add.u64 %rd11, %rd3, %rd10;\n    st.global.u32 [%rd11], %r74;\n    bra $if_end_13;\n$if_else_12:\n$if_end_13:\n    bra $if_end_11;\n$if_else_10:\n$if_end_11:\n    bra $kain_exit;\n$kain_exit:\n    ret;\n}\n\n",
+      "entry_points": [
+        "SemanticFusedScoreTopK",
+        "SemanticBitpackDotProduct",
+        "SemanticWarpTopK",
+        "SemanticCoarsePrefilter"
+      ],
+      "binding_slots": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12
+      ],
+      "ptx": {
+        "ptx_version": "7.8",
+        "required_target_arch": "sm_50",
+        "minimum_compute_capability": "5.0"
+      }
+    }
+  ]
+}
