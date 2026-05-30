@@ -1,3 +1,5 @@
+use std::io
+use std::path
 use std::time
 
 @extern
@@ -168,20 +170,6 @@ pub fn process_reset() -> Int:
 pub fn process_platform_available() -> Int:
     return abi_process_platform_available()
 
-fn process_is_path_sep(ch: String) -> Bool:
-    if ch == "/":
-        return true
-    return ch == "\\"
-
-fn process_path_file_name(path: String) -> String:
-    var start = 0
-    var index = 0
-    while index < len(path):
-        if process_is_path_sep(char_at(path, index)):
-            start = index + 1
-        index = index + 1
-    return substring(path, start, len(path))
-
 fn process_args_include_executable(arguments: Array<String>) -> Bool:
     if len(arguments) == 0:
         return false
@@ -193,8 +181,8 @@ fn process_args_include_executable(arguments: Array<String>) -> Bool:
         return false
     if first == executable:
         return true
-    let first_name = to_lower(process_path_file_name(first))
-    let executable_name = to_lower(process_path_file_name(executable))
+    let first_name = to_lower(path_file_name(first))
+    let executable_name = to_lower(path_file_name(executable))
     if executable_name == "":
         return false
     return first_name == executable_name
@@ -236,6 +224,9 @@ pub fn process_environment(key: String) -> String:
 
 pub fn process_current_executable_path() -> String:
     return abi_process_current_executable_path()
+
+pub fn process_current_executable_name() -> String:
+    return path_file_name(process_current_executable_path())
 
 pub fn process_current_id() -> Int:
     return abi_process_current_id()
@@ -323,11 +314,17 @@ pub fn process_stdin_close(process_id: Int) -> Int:
 pub fn process_stdout_read_text(process_id: Int) -> String:
     return abi_process_stdout_read_text(process_id)
 
+pub fn process_stdout_buffered_reader(process_id: Int, capacity: Int) -> BufferedReader with Unsafe:
+    return buffered_reader_new_from_text(capacity, process_stdout_read_text(process_id))
+
 pub fn process_stdout_read_hex(process_id: Int) -> String:
     return abi_process_stdout_read_hex(process_id)
 
 pub fn process_stderr_read_text(process_id: Int) -> String:
     return abi_process_stderr_read_text(process_id)
+
+pub fn process_stderr_buffered_reader(process_id: Int, capacity: Int) -> BufferedReader with Unsafe:
+    return buffered_reader_new_from_text(capacity, process_stderr_read_text(process_id))
 
 pub fn process_stderr_read_hex(process_id: Int) -> String:
     return abi_process_stderr_read_hex(process_id)
@@ -347,14 +344,23 @@ pub fn process_stderr_capture_hex(process_id: Int) -> String:
 pub fn process_pty_write_text(process_id: Int, text: String) -> Int:
     return abi_process_pty_write_text(process_id, text)
 
+pub fn process_stdin_write_buffered_text(process_id: Int, writer: BufferedWriter) -> Int with Unsafe:
+    return process_stdin_write_text(process_id, buffered_writer_materialize_text(writer))
+
 pub fn process_pty_write_hex(process_id: Int, bytes_hex: String) -> Int:
     return abi_process_pty_write_hex(process_id, bytes_hex)
+
+pub fn process_pty_write_buffered_text(process_id: Int, writer: BufferedWriter) -> Int with Unsafe:
+    return process_pty_write_text(process_id, buffered_writer_materialize_text(writer))
 
 pub fn process_pty_resize(process_id: Int, columns: Int, rows: Int) -> Int:
     return abi_process_pty_resize(process_id, columns, rows)
 
 pub fn process_pty_read_text(process_id: Int) -> String:
     return abi_process_pty_read_text(process_id)
+
+pub fn process_pty_buffered_reader(process_id: Int, capacity: Int) -> BufferedReader with Unsafe:
+    return buffered_reader_new_from_text(capacity, process_pty_read_text(process_id))
 
 pub fn process_pty_read_hex(process_id: Int) -> String:
     return abi_process_pty_read_hex(process_id)

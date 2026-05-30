@@ -20,6 +20,7 @@ use serialize::write_index_header
 use utils::int_to_str
 use utils::ensure_dir
 use utils::file_extension_lower
+use utils::count_char
 
 const MAX_INDEX_FILE_BYTES: Int = 1024 * 1024
 
@@ -54,6 +55,7 @@ pub fn build_index(index_name: String, cfg: SemanticSearchConfig) -> Bool with U
     let index_path = fs_path_join(index_root, "index.kaindex")
     let matrix_path = index_matrix_path(index_path)
     let weight_path = index_weight_path(index_path)
+    let bias_path = index_bias_path(index_path)
     let ok_header = write_index_header(header, index_path)
     if ok_header == false:
         println("  ERROR: failed to write index header")
@@ -66,9 +68,13 @@ pub fn build_index(index_name: String, cfg: SemanticSearchConfig) -> Bool with U
     if init_weight.ok == false:
         println("  ERROR: failed to create CUDA weight payload")
         return false
+    let init_bias = fs_try_write_bytes(bias_path, [])
+    if init_bias.ok == false:
+        println("  ERROR: failed to create CUDA bias payload")
+        return false
 
     println("  stage:      stream")
-    let total_chunks = stream_all_chunks(files, root, cfg, index_path, matrix_path, weight_path)
+    let total_chunks = stream_all_chunks(files, root, cfg, index_path, matrix_path, weight_path, bias_path)
     if total_chunks < 0:
         return false
     println("  chunks:     " + int_to_str(total_chunks))
@@ -96,6 +102,7 @@ pub fn build_index(index_name: String, cfg: SemanticSearchConfig) -> Bool with U
         println("  written:    " + index_path)
         println("  cuda u8:    " + matrix_path)
         println("  weights:    " + weight_path)
+        println("  bias:       " + bias_path)
         println("  index built successfully")
         return true
     else:
@@ -103,7 +110,7 @@ pub fn build_index(index_name: String, cfg: SemanticSearchConfig) -> Bool with U
         return false
     return false
 
-fn stream_all_chunks(files: Array<String>, root: String, cfg: SemanticSearchConfig, index_path: String, matrix_path: String, weight_path: String) -> Int with Unsafe:
+fn stream_all_chunks(files: Array<String>, root: String, cfg: SemanticSearchConfig, index_path: String, matrix_path: String, weight_path: String, bias_path: String) -> Int with Unsafe:
     var total: Int = 0
     var fi: Int = 0
     while fi < len(files):
@@ -123,6 +130,10 @@ fn stream_all_chunks(files: Array<String>, root: String, cfg: SemanticSearchConf
             let append_weight = fs_try_append_bytes(weight_path, pack_u32_le(packed_embedding_weight(embedding_bytes)))
             if append_weight.ok == false:
                 println("  ERROR: failed to append CUDA weight block")
+                return -1
+            let append_bias = fs_try_append_bytes(bias_path, pack_u32_le(chunk_search_bias(file_chunks[ci])))
+            if append_bias.ok == false:
+                println("  ERROR: failed to append CUDA bias block")
                 return -1
             let ok_meta = append_index_bytes(index_path, meta_bytes)
             if ok_meta == false:
@@ -275,6 +286,9 @@ pub fn index_matrix_path(index_path: String) -> String:
 pub fn index_weight_path(index_path: String) -> String:
     return index_path + ".weights.u32"
 
+pub fn index_bias_path(index_path: String) -> String:
+    return index_path + ".bias.u32"
+
 fn build_chunk_embedding_bytes(chunk: Chunk, dim: Int) -> Array<Int>:
     var material = chunk.text
     if chunk.symbol != "":
@@ -291,6 +305,37 @@ fn pack_u32_le(value: Int) -> Array<Int>:
         (lane >> 16) & 255,
         (lane >> 24) & 255
     ]
+
+fn chunk_search_bias(chunk: Chunk) -> Int:
+    var bias: Int = 8
+    if chunk.kind == CHUNK_KIND_FN:
+        bias = 28
+    else:
+        if chunk.kind == CHUNK_KIND_SHADER:
+            bias = 32
+        else:
+            if chunk.kind == CHUNK_KIND_ACTOR or chunk.kind == CHUNK_KIND_WORLD:
+                bias = 24
+            else:
+                if chunk.kind == CHUNK_KIND_STRUCT or chunk.kind == CHUNK_KIND_IMPL:
+                    bias = 20
+                else:
+                    if chunk.kind == CHUNK_KIND_PATCH or chunk.kind == CHUNK_KIND_LAW:
+                        bias = 22
+    if chunk.symbol != "":
+        var symbol_bonus: Int = len(chunk.symbol) / 2
+        if symbol_bonus > 12:
+            symbol_bonus = 12
+        bias = bias + symbol_bonus
+    let depth = count_char(chunk.file_path, "\\")
+    if depth > 4:
+        var depth_penalty: Int = depth - 4
+        if depth_penalty > 6:
+            depth_penalty = 6
+        bias = bias - depth_penalty
+    if bias < 0:
+        bias = 0
+    return bias
 
 fn build_chunk_meta_bytes(chunk: Chunk) -> Array<Int>:
     let file_path = chunk.file_path

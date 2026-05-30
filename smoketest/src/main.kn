@@ -53,6 +53,8 @@ use python_bridge_arrays_lane::smoke_python_bridge_arrays_lane
 use os_lane::smoke_os_lane
 use platform_lane::smoke_platform_lane
 use process_lane::smoke_process_lane
+use input_lane::smoke_input_lane
+use reload_lane::smoke_reload_lane
 use text_lane::smoke_text_lane
 use time_lane::smoke_time_lane
 use unicode_lane::smoke_unicode_lane
@@ -142,7 +144,7 @@ fn smoke_run_full_album(mode: String) -> Int with Unsafe:
         return 10 + boot
 
     let started_ms = now_millis()
-    let total_tracks: Int = 61
+    let total_tracks: Int = 63
     var succeeded_tracks: Int = 0
     var composition_checksum: Int = 0
 
@@ -675,6 +677,24 @@ fn smoke_run_full_album(mode: String) -> Int with Unsafe:
     let e_process = smoke_first_error(4900, lane_process)
     if e_process != 0:
         return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_process, "stdlib.process_lane")
+    succeeded_tracks = succeeded_tracks + 1
+
+    let started_input = now_millis()
+    let lane_input = smoke_input_lane()
+    let ended_input = now_millis()
+    composition_checksum = smoke_record_track(mode, "stdlib", "stdlib.input_lane", "input", 50, 4910, lane_input, started_input, ended_input, composition_checksum)
+    let e_input = smoke_first_error(4910, lane_input)
+    if e_input != 0:
+        return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_input, "stdlib.input_lane")
+    succeeded_tracks = succeeded_tracks + 1
+
+    let started_reload = now_millis()
+    let lane_reload = smoke_reload_lane()
+    let ended_reload = now_millis()
+    composition_checksum = smoke_record_track(mode, "stdlib", "stdlib.reload_lane", "reload", 51, 4920, lane_reload, started_reload, ended_reload, composition_checksum)
+    let e_reload = smoke_first_error(4920, lane_reload)
+    if e_reload != 0:
+        return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_reload, "stdlib.reload_lane")
     succeeded_tracks = succeeded_tracks + 1
 
     let started_ui_dashboard = now_millis()

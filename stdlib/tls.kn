@@ -1,3 +1,4 @@
+use std::http
 use std::net
 
 pub fn tls_client_state() -> Int:
@@ -13,24 +14,24 @@ pub fn tls_platform_name() -> String:
     return net_platform_name()
 
 pub fn tls_https_request_create(method: String, url: String) -> Int:
-    return http_request_create(method, url)
+    return request_create(method, url)
 
 pub fn tls_https_request_set_header(request_id: Int, key: String, value: String) -> Int:
-    return http_request_set_header(request_id, key, value)
+    return request_set_header(request_id, key, value)
 
 pub fn tls_https_request_set_body_text(request_id: Int, payload: String) -> Int:
-    return http_request_set_body_text(request_id, payload)
+    return request_set_body_text(request_id, payload)
 
 pub fn tls_https_request_set_timeout(request_id: Int, timeout_ms: Int) -> Int:
-    return http_request_set_timeout(request_id, timeout_ms)
+    return request_set_timeout(request_id, timeout_ms)
 
 pub fn tls_https_client_send(request_id: Int) -> Int:
-    return http_client_send(request_id)
+    return client_send(request_id)
 
 pub fn tls_https_response_protocol(response_id: Int) -> String:
-    return http_response_protocol(response_id)
+    return response_protocol(response_id)
 
 pub fn tls_https_get_text(url: String) -> String:
     let request = tls_https_request_create("GET", url)
     let response = tls_https_client_send(request)
-    return http_response_body_text(response)
+    return response_body_text(response)

@@ -1,3 +1,5 @@
+use std::json
+
 @extern
 fn abi_input_reset() -> Int
 
@@ -100,6 +102,20 @@ pub fn input_source_synthetic() -> String:
 pub fn input_source_native() -> String:
     return "native.platform"
 
+pub struct InputEventRecord:
+    index: Int
+    source_kind: String
+    event_kind: String
+    code: String
+    action: String
+    text: String
+
+pub struct InputTraceRecord:
+    session_id: Int
+    frame_index: Int
+    event_count: Int
+    trace_json: String
+
 pub fn input_reset() -> Int:
     return abi_input_reset()
 
@@ -160,6 +176,26 @@ pub fn input_event_action(session_id: Int, index: Int) -> String:
 pub fn input_event_text(session_id: Int, index: Int) -> String:
     return abi_input_event_text(session_id, index)
 
+pub fn input_event_record(session_id: Int, index: Int) -> InputEventRecord:
+    return InputEventRecord {
+        index: index,
+        source_kind: input_event_source_kind(session_id, index),
+        event_kind: input_event_kind(session_id, index),
+        code: input_event_code(session_id, index),
+        action: input_event_action(session_id, index),
+        text: input_event_text(session_id, index),
+    }
+
+pub fn input_event_record_json(event: InputEventRecord) -> JsonObject:
+    let payload = json_object()
+    let _index = json_object_set_int(payload, "index", event.index)
+    let _source = json_object_set_string(payload, "source_kind", event.source_kind)
+    let _kind = json_object_set_string(payload, "event_kind", event.event_kind)
+    let _code = json_object_set_string(payload, "code", event.code)
+    let _action = json_object_set_string(payload, "action", event.action)
+    let _text = json_object_set_string(payload, "text", event.text)
+    return payload
+
 pub fn input_action_pressed(session_id: Int, action: String) -> Int:
     return abi_input_action_pressed(session_id, action)
 
@@ -180,6 +216,25 @@ pub fn input_text_commit(session_id: Int, index: Int) -> String:
 
 pub fn input_trace_json(session_id: Int) -> String:
     return abi_input_trace_text(session_id)
+
+pub fn input_trace_record(session_id: Int) -> InputTraceRecord:
+    return InputTraceRecord {
+        session_id: session_id,
+        frame_index: input_frame_index(session_id),
+        event_count: input_event_count(session_id),
+        trace_json: input_trace_json(session_id),
+    }
+
+pub fn input_trace_record_json(trace: InputTraceRecord) -> JsonObject:
+    let payload = json_object()
+    let _session = json_object_set_int(payload, "session_id", trace.session_id)
+    let _frame = json_object_set_int(payload, "frame_index", trace.frame_index)
+    let _count = json_object_set_int(payload, "event_count", trace.event_count)
+    let _trace = json_object_set_string(payload, "trace_json", trace.trace_json)
+    return payload
+
+pub fn input_replay_trace_record(session_id: Int, trace: InputTraceRecord) -> Int:
+    return input_replay_trace_json(session_id, trace.trace_json)
 
 pub fn input_replay_trace_json(session_id: Int, trace_json: String) -> Int:
     return abi_input_replay_trace(session_id, trace_json)

@@ -10033,3 +10033,37 @@ Follow-up work on the RAGE release lane focused only on `rage_alloc_ladder` and 
   - `bazel test //runtime:native_runtime_tests --config=dev --test_output=errors` passed `10/10`
 - Useful negative result:
   - a thread-local small-cache front layer for the main/default arena was prototyped and benchmarked, but it regressed both target rows, so it was explicitly backed out instead of being left as cargo cult "optimization"
+
+# 2026-05-29 - root stdlib wiring pass made hidden cross-family couplings explicit
+
+This pass was a root-stdlib connectivity cleanup rather than a status-type redesign. The goal was to turn obvious hidden couplings into explicit imports plus shared adapters, then re-mesh the affected lanes through atlas + smoketest + focused domain proofs.
+
+- Root stdlib wiring landed across the public surface:
+  - `stdlib/sync.kn` now imports `std::atomic` and routes mutex/channel/`Once`/`WaitGroup` state transitions through shared atomic load/store/exchange/CAS helpers added in `stdlib/atomic.kn`
+  - `stdlib/collections.kn` now imports `std::hash`, and the open-addressing `HashMap` uses shared `hash_mix64(...)` / `hash_bucket_mod64(...)` instead of carrying a local mixer
+  - `stdlib/target.kn` now imports `std::platform`, and `stdlib/random.kn` now imports `std::math` for `pi()`
+  - `stdlib/io.kn` grew buffered text materialization/load helpers, and `stdlib/fs.kn`, `stdlib/process.kn`, `stdlib/net.kn`, and `stdlib/http.kn` now expose buffered-reader/writer adapters over files, subprocess streams, TCP sockets, and HTTP request/response bodies
+  - `stdlib/process.kn` now uses `std::path` for executable-name parsing instead of local string slicing
+  - `stdlib/http2.kn` and `stdlib/tls.kn` now import `std::http` and reuse the higher-level request/response helpers instead of mirroring the lower-level HTTP-ish ABI in parallel
+  - `stdlib/input.kn` now imports `std::json` and exposes typed `InputEventRecord` / `InputTraceRecord` helpers; `stdlib/ui.kn` now imports `std::input` plus `std::graphics::shared` to share one event/resource vocabulary
+  - `stdlib/reload.kn` now imports `std::runtime`, `std::actor`, and `std::intent` and exposes typed snapshot/migration helpers instead of only session/generation/string shims
+- Proof wiring landed with the pass:
+  - added `smoketest/src/stdlib/input_lane.kn` and `smoketest/src/stdlib/reload_lane.kn`
+  - extended existing smoketest stdlib tracks for collections, io, and process so the new shared adapters are exercised inside the full album
+  - updated `smoketest/src/main.kn` and `smoketest/build.kn` so the new tracks are part of the connected LLVM proof surface
+  - refreshed focused consumer blades in `blades/network/domains`, `blades/test/hash-domains`, and `blades/test/stdlib-domains`
+- Validation that succeeded:
+  - `cargo run -q -p kain-stdlib-map --bin kain_stdlib_map_tool -- --write`
+  - `cargo run -q -p kain-stdlib-map --bin kain_stdlib_map_tool -- --check`
+  - `kain check smoketest/src/main.kn --target llvm`
+  - `kain check blades/network/domains/src/main.kn --target llvm`
+  - `kain check blades/test/math-domains/src/main.kn --target llvm`
+  - `kain check blades/test/stdlib-foundations/src/main.kn --target llvm`
+  - `kain check blades/test/stdlib-domains/src/main.kn --target llvm`
+  - a native inline `kain -c ... --target llvm` bridge probe exercised `std::input` + `std::ui` + `std::reload` together and exited `0`
+- Important validation caveats:
+  - parallel `kain check` invocations on this Windows checkout can race on `X:\.kain\state\state\kain_sync_stamp.json`; rerun serially when the launcher hits a stamp-file rename permission error
+  - a later repeat `kain check blades/test/hash-domains/src/main.kn --target llvm` failed during an unrelated launcher auto-repin because `F:\_b\...` ran out of disk space (`os error 112`); the blade had already passed earlier in the turn before that environment failure
+  - the pass exercised the `ui/input/reload` seam natively, but it did not complete a separate visible-window proof; use a dedicated native-visible run next time if the goal is host-window confirmation rather than API/runtime seam validation
+- Requirement-board note:
+  - `stdlib/requirements.md` was intentionally left unchanged because this pass materially improved `std::process`, `std::net`, `std::http`, `std::tls`, `std::http2`, `std::hash`, `std::ui`, and `std::reload`, but did not fully close their remaining `PARTIAL` backlog rows yet

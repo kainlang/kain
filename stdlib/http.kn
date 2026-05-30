@@ -1,7 +1,20 @@
+use std::io
 use std::net
+use std::uri
 
 pub fn request_create(method: String, url: String) -> Int:
     return http_request_create(method, url)
+
+pub fn request_create_checked(method: String, url: String) -> Int:
+    let parsed = uri_parse(url)
+    if parsed.valid == false:
+        return 0
+    return request_create(method, parsed.source)
+
+pub fn request_create_uri(method: String, parsed_uri: Uri) -> Int:
+    if parsed_uri.valid == false:
+        return 0
+    return request_create(method, parsed_uri.source)
 
 pub fn request_set_header(request_id: Int, key: String, value: String) -> Int:
     return http_request_set_header(request_id, key, value)
@@ -9,11 +22,17 @@ pub fn request_set_header(request_id: Int, key: String, value: String) -> Int:
 pub fn request_set_body_text(request_id: Int, payload: String) -> Int:
     return http_request_set_body_text(request_id, payload)
 
+pub fn request_set_body_buffered_text(request_id: Int, writer: BufferedWriter) -> Int with Unsafe:
+    return request_set_body_text(request_id, buffered_writer_materialize_text(writer))
+
 pub fn request_set_body_hex(request_id: Int, payload_hex: String) -> Int:
     return http_request_set_body_hex(request_id, payload_hex)
 
 pub fn request_set_timeout(request_id: Int, timeout_ms: Int) -> Int:
     return http_request_set_timeout(request_id, timeout_ms)
+
+pub fn request_set_protocol(request_id: Int, protocol_name: String) -> Int:
+    return http_request_set_protocol(request_id, protocol_name)
 
 pub fn request_protocol(request_id: Int) -> String:
     return http_request_protocol(request_id)
@@ -32,6 +51,9 @@ pub fn response_header(response_id: Int, key: String) -> String:
 
 pub fn response_body_text(response_id: Int) -> String:
     return http_response_body_text(response_id)
+
+pub fn response_buffered_reader(response_id: Int, capacity: Int) -> BufferedReader with Unsafe:
+    return buffered_reader_new_from_text(capacity, response_body_text(response_id))
 
 pub fn response_body_hex(response_id: Int) -> String:
     return http_response_body_hex(response_id)
@@ -84,11 +106,17 @@ pub fn request_header(incoming_request_id: Int, key: String) -> String:
 pub fn request_body_text(incoming_request_id: Int) -> String:
     return http_request_body_text(incoming_request_id)
 
+pub fn request_body_buffered_reader(incoming_request_id: Int, capacity: Int) -> BufferedReader with Unsafe:
+    return buffered_reader_new_from_text(capacity, request_body_text(incoming_request_id))
+
 pub fn request_body_hex(incoming_request_id: Int) -> String:
     return http_request_body_hex(incoming_request_id)
 
 pub fn respond_text(incoming_request_id: Int, status_code: Int, payload: String) -> Int:
     return http_respond_text(incoming_request_id, status_code, payload)
+
+pub fn respond_buffered_text(incoming_request_id: Int, status_code: Int, writer: BufferedWriter) -> Int with Unsafe:
+    return respond_text(incoming_request_id, status_code, buffered_writer_materialize_text(writer))
 
 pub fn respond_hex(incoming_request_id: Int, status_code: Int, payload_hex: String) -> Int:
     return http_respond_hex(incoming_request_id, status_code, payload_hex)
@@ -101,6 +129,9 @@ pub fn server_close(server_id: Int) -> Int:
 
 pub fn local_url(port: Int, path: String) -> String:
     return http_local_url(port, path)
+
+pub fn local_uri(port: Int, path: String) -> Uri:
+    return uri_parse(local_url(port, path))
 
 pub fn get_text(url: String) -> String:
     return http_get_text(url)

@@ -2,6 +2,8 @@ use std::net
 use std::http
 use std::tls
 use std::http2
+use std::io
+use std::uri
 
 actor NetworkDomainProbe:
     state hits: Int = 0
@@ -9,7 +11,7 @@ actor NetworkDomainProbe:
     on HttpRequest(payload: String):
         self.hits = self.hits + len(payload)
 
-fn main() -> Int:
+fn main() -> Int with Unsafe:
     let _runtime = native_runtime_init()
     let _reset = net_reset()
 
@@ -29,67 +31,80 @@ fn main() -> Int:
     let port = server_local_port(server)
     if port <= 0:
         return 4
+    let loopback_uri = local_uri(port, "/domains")
+    if loopback_uri.valid == false:
+        return 5
 
     let handler = native_actor_spawn("NetworkDomainProbe", "hits=0")
     if handler <= 0:
-        return 5
+        return 6
 
     if route_actor(server, "POST", "/domains", handler, "HttpRequest") != 0:
-        return 6
+        return 7
 
     let client = tcp_connect("127.0.0.1", port, 5000)
     if client <= 0:
-        return 7
+        return 8
 
     let request_text = "POST /domains?shape=proof HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Length: 12\r\n\r\ndomain-proof"
     if tcp_write_text(client, request_text) != 0:
-        return 8
+        return 9
 
     let incoming = server_pump(server, 5000)
     if incoming <= 0:
-        return 9
+        return 10
 
     if server_next_request(server) != incoming:
-        return 10
-    if server_pending_request_count(server) != 0:
         return 11
-    if request_method(incoming) != "POST":
+    if server_pending_request_count(server) != 0:
         return 12
-    if request_path(incoming) != "/domains":
+    if request_method(incoming) != "POST":
         return 13
-    if request_query(incoming) != "shape=proof":
+    if request_path(incoming) != "/domains":
         return 14
-    if request_protocol(incoming) != "http/1.1":
+    if request_query(incoming) != "shape=proof":
         return 15
-    if request_body_text(incoming) != "domain-proof":
+    if request_protocol(incoming) != "http/1.1":
         return 16
+    let incoming_reader = request_body_buffered_reader(incoming, 64)
+    if buffered_reader_materialize_text(incoming_reader) != "domain-proof":
+        return 17
+    buffered_reader_destroy(incoming_reader)
 
     let _header = response_set_header_for_request(incoming, "x-kain-domain", "http")
-    if respond_text(incoming, 207, "domain-response-ok") != 0:
-        return 17
-
-    let response_text = tcp_read_text(client)
-    if response_text == "":
+    let response_writer = buffered_writer_new(64)
+    let response_writer_ptr: ptr<BufferedWriter> = addr_of(response_writer, "BufferedWriter")
+    let response_flush_target = alloc_zeroed(64, "Int")
+    let _response_push = buffered_writer_write_text(response_writer_ptr, "domain-response-ok", response_flush_target)
+    if respond_buffered_text(incoming, 207, response_writer) != 0:
         return 18
+    decay response_flush_target
+    buffered_writer_destroy(response_writer)
+
+    let response_reader = tcp_buffered_reader(client, 256)
+    let response_text = buffered_reader_materialize_text(response_reader)
+    if response_text == "":
+        return 19
+    buffered_reader_destroy(response_reader)
 
     let secure_request = tls_https_request_create("GET", "https://example.invalid/")
     if secure_request <= 0:
-        return 19
-    if http_request_protocol(secure_request) != "http/1.1":
         return 20
+    if http_request_protocol(secure_request) != "http/1.1":
+        return 21
 
     let h2_request = http2_request_create("GET", "https://example.invalid/")
     if h2_request <= 0:
-        return 21
-    if http2_request_protocol(h2_request) != "http/2":
         return 22
+    if http2_request_protocol(h2_request) != "http/2":
+        return 23
 
     let tls_state = tls_client_state()
     let http2_state = http2_client_state()
     if tls_state < 0:
-        return 23
+        return 24
     if http2_state < 0:
-        return 23
+        return 24
 
     let _destroy_secure = request_destroy(secure_request)
     let _destroy_h2 = request_destroy(h2_request)
@@ -99,5 +114,5 @@ fn main() -> Int:
 
     let score = len(response_text) + tls_state + http2_state
     if score <= 0:
-        return 24
+        return 25
     return 0

@@ -106,6 +106,7 @@ pub mod kain_gpu_generated {
             pub query_embed: StorageBufferParam,
             pub index_matrix: StorageBufferParam,
             pub index_weights: StorageBufferParam,
+            pub chunk_bias: StorageBufferParam,
             pub scores: StorageBufferParam,
             pub dim: UniformParam,
             pub num_chunks: UniformParam,
@@ -118,6 +119,7 @@ pub mod kain_gpu_generated {
                     query_embed: StorageBufferParam { ty: "StorageBuffer<u8>", read_only: false },
                     index_matrix: StorageBufferParam { ty: "StorageBuffer<u8>", read_only: false },
                     index_weights: StorageBufferParam { ty: "StorageBuffer<UInt>", read_only: false },
+                    chunk_bias: StorageBufferParam { ty: "StorageBuffer<UInt>", read_only: false },
                     scores: StorageBufferParam { ty: "StorageBuffer<UInt>", read_only: false },
                     dim: UniformParam { ty: "UInt" },
                     num_chunks: UniformParam { ty: "UInt" },
@@ -129,9 +131,10 @@ pub mod kain_gpu_generated {
             BindingDesc { name: "query_embed", binding: 0, descriptor_set: 0, ty: "StorageBuffer<u8>", kind: BindingKind::StorageBuffer, },
             BindingDesc { name: "index_matrix", binding: 1, descriptor_set: 0, ty: "StorageBuffer<u8>", kind: BindingKind::StorageBuffer, },
             BindingDesc { name: "index_weights", binding: 2, descriptor_set: 0, ty: "StorageBuffer<UInt>", kind: BindingKind::StorageBuffer, },
-            BindingDesc { name: "scores", binding: 3, descriptor_set: 0, ty: "StorageBuffer<UInt>", kind: BindingKind::StorageBuffer, },
-            BindingDesc { name: "dim", binding: 4, descriptor_set: 0, ty: "UInt", kind: BindingKind::Uniform, },
-            BindingDesc { name: "num_chunks", binding: 5, descriptor_set: 0, ty: "UInt", kind: BindingKind::Uniform, },
+            BindingDesc { name: "chunk_bias", binding: 3, descriptor_set: 0, ty: "StorageBuffer<UInt>", kind: BindingKind::StorageBuffer, },
+            BindingDesc { name: "scores", binding: 4, descriptor_set: 0, ty: "StorageBuffer<UInt>", kind: BindingKind::StorageBuffer, },
+            BindingDesc { name: "dim", binding: 5, descriptor_set: 0, ty: "UInt", kind: BindingKind::Uniform, },
+            BindingDesc { name: "num_chunks", binding: 6, descriptor_set: 0, ty: "UInt", kind: BindingKind::Uniform, },
         ];
 
         pub const SHADER: ShaderDesc = ShaderDesc { name: "SemanticPackedScore", stage: ShaderStage::Compute, entry_point: "SemanticPackedScore", output_type: "Void", bindings: BINDINGS, };

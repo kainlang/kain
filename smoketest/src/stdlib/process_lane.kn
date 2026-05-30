@@ -23,23 +23,27 @@ pub fn smoke_process_lane() -> Int:
     let executable = process_current_executable_path()
     if len(executable) == 0:
         return 5
+    if process_current_executable_name() == "":
+        return 6
     let user_args = process_user_args()
     if len(user_args) > len(argv):
-        return 6
+        return 7
 
-    let executable_name = to_lower(smoke_process_last_path_segment(executable))
+    let executable_name = to_lower(process_current_executable_name())
+    if executable_name != to_lower(smoke_process_last_path_segment(executable)):
+        return 8
     let first_name = to_lower(smoke_process_last_path_segment(argv[0]))
     let skip = if executable_name != "" and first_name == executable_name:
         1
     else:
         0
     if len(user_args) != len(argv) - skip:
-        return 7
+        return 9
 
     var index = 0
     while index < len(user_args):
         if user_args[index] != argv[index + skip]:
-            return 8 + index
+            return 10 + index
         index = index + 1
 
     if process_current_id() <= 0:

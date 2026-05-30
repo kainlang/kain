@@ -1,3 +1,6 @@
+use std::graphics::shared
+use std::input
+
 @extern
 fn abi_ui_reset() -> Int
 
@@ -1002,6 +1005,40 @@ pub fn ui_state_resource(session_id: Int, node_id: Int, resource_kind: String, r
     let _payload = native_ui_node_set_state_string(session_id, node_id, "resource.payload", resource_payload)
     return native_ui_node_set_state_i64(session_id, node_id, "resource.id", resource_id)
 
+fn ui_code_is_numeric(code: String) -> Bool:
+    if len(code) == 0:
+        return false
+    var index = 0
+    while index < len(code):
+        let ch = char_at(code, index)
+        if ch < "0" or ch > "9":
+            return false
+        index = index + 1
+    return true
+
+fn ui_input_key_code_or_zero(code: String) -> Int:
+    if ui_code_is_numeric(code):
+        return to_int(code)
+    return 0
+
+pub fn ui_state_shared_buffer_resource(session_id: Int, node_id: Int, resource_view: GraphicsSharedBuffer, resource_id: Int) -> Int:
+    return ui_state_resource(
+        session_id,
+        node_id,
+        resource_view.graphics_kind,
+        json_stringify(graphics_shared_buffer_descriptor(resource_view)),
+        resource_id
+    )
+
+pub fn ui_state_shared_image_resource(session_id: Int, node_id: Int, resource_view: GraphicsSharedImage, resource_id: Int) -> Int:
+    return ui_state_resource(
+        session_id,
+        node_id,
+        resource_view.graphics_kind,
+        json_stringify(graphics_shared_image_descriptor(resource_view)),
+        resource_id
+    )
+
 pub fn ui_reconcile_stateful_node(session_id: Int, parent_id: Int, kind: String, stable_key: String, state_kind: String, state_payload: String, x: Float, y: Float, width: Float, height: Float) -> Int:
     let node = ui_reconcile_node(session_id, parent_id, kind, stable_key, x, y, width, height)
     let _kind = native_ui_node_set_state_string(session_id, node, "state.kind", state_kind)
@@ -1274,6 +1311,27 @@ pub fn ui_event_key_code(session_id: Int) -> Int:
 
 pub fn ui_event_text(session_id: Int) -> String:
     return native_ui_event_text(session_id)
+
+pub fn ui_event_record(session_id: Int) -> InputEventRecord:
+    return InputEventRecord {
+        index: 0,
+        source_kind: input_source_ui_runtime(),
+        event_kind: ui_event_kind(session_id),
+        code: str(ui_event_key_code(session_id)),
+        action: "",
+        text: ui_event_text(session_id),
+    }
+
+pub fn ui_push_input_event(session_id: Int, target_node_id: Int, event: InputEventRecord) -> Int:
+    return ui_push_event(
+        session_id,
+        event.event_kind,
+        target_node_id,
+        0.0,
+        0.0,
+        ui_input_key_code_or_zero(event.code),
+        event.text
+    )
 
 pub fn ui_draw_rect(session_id: Int, node_id: Int, x: Float, y: Float, width: Float, height: Float, style_key: String) -> Int:
     return native_ui_draw_rect(session_id, node_id, x, y, width, height, style_key)

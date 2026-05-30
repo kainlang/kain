@@ -29,6 +29,22 @@ pub fn smoke_collections_lane() -> Int with Unsafe:
     let _slots_destroy = slot_map_destroy(slots)
     let _map_destroy = typed_map_destroy(map)
 
+    let dense = hash_map_create(4)
+    let dense_ptr: ptr<HashMap> = addr_of(dense, "HashMap")
+    let _dense0 = hash_map_put(dense_ptr, 11, 111)
+    let _dense1 = hash_map_put(dense_ptr, 22, 222)
+    let _dense2 = hash_map_put(dense_ptr, 33, 333)
+    let _dense3 = hash_map_put(dense_ptr, 44, 444)
+    let _dense4 = hash_map_put(dense_ptr, 55, 555)
+    let _dense5 = hash_map_put(dense_ptr, 66, 666)
+    if hash_map_capacity(dense) < 16:
+        return 6
+    if hash_map_get_or(dense, 44, 0) != 444:
+        return 7
+    if hash_map_get_or(dense, 77, 707) != 707:
+        return 8
+    let _dense_destroy = hash_map_destroy(dense)
+
     # 5. Test Intrusive Zero-Allocation Hash Map (uthash Evolution)
     let item_size = 6
     let buffer = alloc_zeroed(3 * item_size, "Int")
@@ -59,28 +75,28 @@ pub fn smoke_collections_lane() -> Int with Unsafe:
     ih_map = intrusive_hash_map_insert(ih_map, node_offset, item2, 300, 300)
     
     if ih_map.count != 3:
-        return 6
+        return 9
         
     # Search for items
     let found1 = intrusive_hash_map_find(ih_map, node_offset, 200, 200)
     if ptr_to_int(found1) == 0:
-        return 7
+        return 10
     let found1_val = mem_load(ptr_offset(found1, 1, "Int"), "Int")
     if found1_val != 2000:
-        return 8
+        return 11
         
     let found2 = intrusive_hash_map_find(ih_map, node_offset, 400, 400) # not present
     if ptr_to_int(found2) != 0:
-        return 9
+        return 12
         
     # Remove item 1
     ih_map = intrusive_hash_map_remove(ih_map, node_offset, item1)
     if ih_map.count != 2:
-        return 10
+        return 13
         
     let found1_after = intrusive_hash_map_find(ih_map, node_offset, 200, 200)
     if ptr_to_int(found1_after) != 0:
-        return 11
+        return 14
         
     let _ih_destroy = intrusive_hash_map_destroy(ih_map)
     decay buffer

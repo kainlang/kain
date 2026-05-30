@@ -1,3 +1,5 @@
+use std::math
+
 pub struct Xoshiro128:
     s0: Int
     s1: Int
@@ -165,8 +167,7 @@ pub fn random_float_norm(rng: Xoshiro128) -> FloatNormResult:
     let r2 = random_float(r1.rng)
     let u2 = r2.value
 
-    let pi = 3.141592653589793
-    let z0 = sqrt(-2.0 * math_ln(u1)) * cos(2.0 * pi * u2)
+    let z0 = sqrt(-2.0 * math_ln(u1)) * cos(2.0 * pi() * u2)
     return FloatNormResult { rng: r2.rng, value: z0 }
 
 # --- Shattered Parallel High-Throughput Entropy Buffer (Alien Metal Lane) ---

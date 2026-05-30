@@ -1,26 +1,32 @@
+use std::cuda
+
 // ============================================================================
-//                semantic-search :: CUDA packed-byte search kernels
+//                    semantic-search :: CUDA packed-byte search kernels
 // ============================================================================
-// The host lane only stages buffers and prints results. Both scoring and top-k
-// ranking happen here so semantic-search can dogfood Kain-authored CUDA for the
-// thing that actually matters: deciding which chunks win.
+// Each chunk gets one warp: lane N scans byte lanes N, N+32, N+64...
+// The warp fold keeps the equality score hot on GPU, then lane 0 adds a tiny
+// metadata bias so named declarations outrank anonymous noise.
+
+
 
 shader compute SemanticPackedScore(id: UVec3) -> Void:
     uniform query_embed: StorageBuffer<u8> @0
     uniform index_matrix: StorageBuffer<u8> @1
     uniform index_weights: StorageBuffer<UInt> @2
-    uniform scores: StorageBuffer<UInt> @3
-    uniform dim: UInt @4
-    uniform num_chunks: UInt @5
+    uniform chunk_bias: StorageBuffer<UInt> @3
+    uniform scores: StorageBuffer<UInt> @4
+    uniform dim: UInt @5
+    uniform num_chunks: UInt @6
 
     comptime:
         let compute = (
             [256, 1, 1],
-            [100000, 1, 1],
+            [3200000, 1, 1],
             [
                 ("query_embed", "u8", ["384"], "input", "kain.shared.buffer"),
                 ("index_matrix", "u8", ["100000", "384"], "input", "kain.shared.buffer"),
                 ("index_weights", "u32", ["100000"], "input", "kain.shared.buffer"),
+                ("chunk_bias", "u32", ["100000"], "input", "kain.shared.buffer"),
                 ("scores", "u32", ["100000"], "output", "kain.shared.buffer"),
                 ("dim", "u32", ["1"], "input", "kain.shared.buffer"),
                 ("num_chunks", "u32", ["1"], "input", "kain.shared.buffer"),
@@ -29,6 +35,7 @@ shader compute SemanticPackedScore(id: UVec3) -> Void:
                 ("query_embed", "ingress", "per-dispatch", "kain.shared.buffer"),
                 ("index_matrix", "ingress", "per-dispatch", "kain.shared.buffer"),
                 ("index_weights", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("chunk_bias", "ingress", "per-dispatch", "kain.shared.buffer"),
                 ("scores", "egress", "per-dispatch", "kain.shared.buffer"),
                 ("dim", "ingress", "per-dispatch", "kain.shared.buffer"),
                 ("num_chunks", "ingress", "per-dispatch", "kain.shared.buffer"),
@@ -36,22 +43,39 @@ shader compute SemanticPackedScore(id: UVec3) -> Void:
             [],
         )
 
-    let chunk = id.x
+    let chunk = id.x / UInt(32)
+    let lane = cuda_lane_id()
     if chunk >= num_chunks:
         return
 
-    var acc: UInt = UInt(0)
-    var lane: UInt = UInt(0)
-    while lane < dim:
-        let q = query_embed[lane]
-        let v = index_matrix[chunk * dim + lane]
+    let chunk_base = chunk * dim
+    var local_hits: UInt = UInt(0)
+    var local_score: UInt = UInt(0)
+    var dim_index = lane
+    while dim_index < dim:
+        let q = query_embed[dim_index]
         if q != UInt(0):
+            let v = index_matrix[chunk_base + dim_index]
             if q == v:
-                acc = acc + UInt(1024)
-        lane = lane + UInt(1)
+                local_hits = local_hits + UInt(1)
+                local_score = local_score + UInt(1024)
+        dim_index = dim_index + UInt(32)
 
-    let _weight = index_weights[chunk]
-    scores[chunk] = acc
+    let hit_count = cuda_warp_reduce_sum_u32(local_hits)
+    let match_score = cuda_warp_reduce_sum_u32(local_score)
+
+    if lane == UInt(0):
+        var final_score: UInt = match_score
+        if hit_count > UInt(0):
+            final_score = final_score + chunk_bias[chunk]
+            let weight = index_weights[chunk]
+            if weight > UInt(0):
+                let penalty = weight >> UInt(3)
+                if final_score > penalty:
+                    final_score = final_score - penalty
+                else:
+                    final_score = UInt(0)
+        scores[chunk] = final_score
     return
 
 shader compute SemanticGpuTopK(id: UVec3) -> Void:

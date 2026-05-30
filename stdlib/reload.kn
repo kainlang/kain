@@ -1,9 +1,37 @@
+use std::actor
+use std::intent
+use std::runtime
 use std::ui
 
 pub struct ReloadGeneration:
     session_id: Int
     generation: Int
     revision_key: String
+
+pub struct ReloadSnapshotRecord:
+    session_id: Int
+    generation: Int
+    revision_key: String
+    patch_journal_count: Int
+    entangle_binding_count: Int
+    actor_queue_depth: Int
+    runtime_pulse_total: Int
+    runtime_teleport_total: Int
+
+pub struct ReloadMigrationPlan:
+    session_id: Int
+    generation: Int
+    revision_key: String
+    lane: String
+    state_migration: String
+    actor_quiesce: String
+    gpu_swap_boundary: String
+    restart_mode: String
+    patch_journal_count: Int
+    entangle_binding_count: Int
+    actor_queue_depth: Int
+    orchestrate_stage_count: Int
+    runtime_pulse_total: Int
 
 pub fn native_reload_begin(session_id: Int, revision_key: String) -> Int:
     return native_ui_hot_reload_begin(session_id, revision_key)
@@ -54,6 +82,49 @@ pub fn native_reload_lane_actor() -> String:
 pub fn native_reload_lane_gpu() -> String:
     return "frame-boundary-gpu-swap"
 
+pub fn native_reload_snapshot_record(session_id: Int) -> ReloadSnapshotRecord:
+    let snapshot = native_reload_snapshot(session_id)
+    return ReloadSnapshotRecord {
+        session_id: snapshot.session_id,
+        generation: snapshot.generation,
+        revision_key: snapshot.revision_key,
+        patch_journal_count: patch_journal_count(),
+        entangle_binding_count: entangle_registered_count(),
+        actor_queue_depth: actor_scheduler_queue_depth(),
+        runtime_pulse_total: runtime_machine_pulse_total_fire_count(),
+        runtime_teleport_total: runtime_machine_teleport_count(),
+    }
+
+fn native_reload_plan_for_lane(session_id: Int, lane: String) -> ReloadMigrationPlan:
+    let snapshot = native_reload_snapshot_record(session_id)
+    return ReloadMigrationPlan {
+        session_id: snapshot.session_id,
+        generation: snapshot.generation,
+        revision_key: snapshot.revision_key,
+        lane: lane,
+        state_migration: native_reload_default_state_migration(),
+        actor_quiesce: native_reload_default_actor_quiesce(),
+        gpu_swap_boundary: native_reload_gpu_swap_boundary(),
+        restart_mode: native_reload_default_restart_mode(),
+        patch_journal_count: snapshot.patch_journal_count,
+        entangle_binding_count: snapshot.entangle_binding_count,
+        actor_queue_depth: snapshot.actor_queue_depth,
+        orchestrate_stage_count: orchestrate_stage_count(),
+        runtime_pulse_total: snapshot.runtime_pulse_total,
+    }
+
+pub fn native_reload_default_migration_plan(session_id: Int) -> ReloadMigrationPlan:
+    return native_reload_plan_for_lane(session_id, native_reload_lane_presentation())
+
+pub fn native_reload_structural_migration_plan(session_id: Int) -> ReloadMigrationPlan:
+    return native_reload_plan_for_lane(session_id, native_reload_lane_structural())
+
+pub fn native_reload_actor_migration_plan(session_id: Int) -> ReloadMigrationPlan:
+    return native_reload_plan_for_lane(session_id, native_reload_lane_actor())
+
+pub fn native_reload_gpu_migration_plan(session_id: Int) -> ReloadMigrationPlan:
+    return native_reload_plan_for_lane(session_id, native_reload_lane_gpu())
+
 # root-domain aliases: generated public std names
 pub fn reload_begin(session_id: Int, revision_key: String) -> Int:
     return native_reload_begin(session_id, revision_key)
@@ -69,6 +140,9 @@ pub fn reload_key(session_id: Int) -> String:
 
 pub fn reload_snapshot(session_id: Int) -> ReloadGeneration:
     return native_reload_snapshot(session_id)
+
+pub fn reload_snapshot_record(session_id: Int) -> ReloadSnapshotRecord:
+    return native_reload_snapshot_record(session_id)
 
 pub fn reload_package_surface() -> String:
     return native_reload_package_surface()
@@ -99,4 +173,16 @@ pub fn reload_lane_actor() -> String:
 
 pub fn reload_lane_gpu() -> String:
     return native_reload_lane_gpu()
+
+pub fn reload_default_migration_plan(session_id: Int) -> ReloadMigrationPlan:
+    return native_reload_default_migration_plan(session_id)
+
+pub fn reload_structural_migration_plan(session_id: Int) -> ReloadMigrationPlan:
+    return native_reload_structural_migration_plan(session_id)
+
+pub fn reload_actor_migration_plan(session_id: Int) -> ReloadMigrationPlan:
+    return native_reload_actor_migration_plan(session_id)
+
+pub fn reload_gpu_migration_plan(session_id: Int) -> ReloadMigrationPlan:
+    return native_reload_gpu_migration_plan(session_id)
 # end root-domain aliases

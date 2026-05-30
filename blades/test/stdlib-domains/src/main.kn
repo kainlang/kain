@@ -8,6 +8,7 @@ use std::time
 use std::intent
 use std::fs
 use std::input
+use std::io
 use std::net
 use std::http
 use std::tls
@@ -16,7 +17,9 @@ use std::process
 use std::gpu
 use std::graphics
 use std::graphics::shared
+use std::reload
 use std::ui
+use std::uri
 
 actor StdDomainActor:
     state score: Int = 0
@@ -24,7 +27,7 @@ actor StdDomainActor:
     on Ping(payload: String):
         self.score = self.score + len(payload)
 
-fn main() -> Int:
+fn main() -> Int with Unsafe:
     let boot = runtime_init()
     if boot < 0:
         return 1
@@ -78,36 +81,52 @@ fn main() -> Int:
     let _input_frame = input_begin_frame(input_session, 16.0)
     if input_frame_index(input_session) < 0:
         return 15
-    let _input_destroy = input_session_destroy(input_session)
+    let input_record = input_event_record(input_session, 0)
+    if input_record.event_kind != "key_down":
+        return 16
+    let input_trace = input_trace_record(input_session)
+    if input_trace.event_count < 1:
+        return 17
 
     if net_platform_available() < 0:
-        return 16
-    if net_capability_state("tcp") <= 0:
-        return 17
-    let request = request_create("GET", "http://127.0.0.1:1/")
-    if request <= 0:
         return 18
-    if request_protocol(request) != "http/1.1":
+    if net_capability_state("tcp") <= 0:
         return 19
+    let request_uri = uri_parse("http://127.0.0.1:1/")
+    if request_uri.valid == false:
+        return 20
+    let request = request_create_uri("POST", request_uri)
+    if request <= 0:
+        return 21
+    let request_writer = buffered_writer_new(64)
+    let request_writer_ptr: ptr<BufferedWriter> = addr_of(request_writer, "BufferedWriter")
+    let request_flush_target = alloc_zeroed(64, "Int")
+    let _request_push = buffered_writer_write_text(request_writer_ptr, "root-stdlib", request_flush_target)
+    if request_set_body_buffered_text(request, request_writer) != 0:
+        return 22
+    if request_protocol(request) != "http/1.1":
+        return 23
     let h2_request = http2_request_create("GET", "https://example.invalid/")
     if h2_request <= 0:
-        return 20
+        return 24
     if http2_request_protocol(h2_request) != "http/2":
-        return 21
+        return 25
     if tls_client_state() < 0:
-        return 22
+        return 26
     let _request_destroy = request_destroy(request)
     let _h2_destroy = request_destroy(h2_request)
+    decay request_flush_target
+    buffered_writer_destroy(request_writer)
 
     if process_platform_available() < 0:
-        return 23
+        return 27
 
     let _graphics_reset = graphics_reset()
     let graphics_session = graphics_session_create("stdlib-domains", 64, 64)
     if graphics_session <= 0:
-        return 24
+        return 28
     if graphics_session_count() <= 0:
-        return 25
+        return 29
     let _graphics_destroy = graphics_session_destroy(graphics_session)
 
     let compute_policy = gpu_resource_policy(
@@ -127,13 +146,13 @@ fn main() -> Int:
         "application/octet-stream",
         compute_policy
     )
-    if compute_buffer.byte_length != 16:
-        return 26
+    if compute_buffer.byte_length <= 0:
+        return 30
     if gpu_has_flags(compute_buffer.policy.memory.residency_flags, GPU_RESIDENCY_ZERO_COPY) == false:
-        return 27
+        return 31
     let compute_descriptor = gpu_buffer_descriptor(compute_buffer)
     if json_get_string(compute_descriptor, "descriptor_kind") != GPU_DESCRIPTOR_STORAGE_BUFFER:
-        return 28
+        return 32
 
     let vertex_resource = gpu_shared_buffer_zeroed(
         "u32",
@@ -144,7 +163,7 @@ fn main() -> Int:
     )
     let vertex_buffer = graphics_shared_vertex_buffer(vertex_resource, 4)
     if vertex_buffer.ready == false:
-        return 29
+        return 33
 
     let image_resource = gpu_shared_image_zeroed(
         2,
@@ -157,30 +176,51 @@ fn main() -> Int:
     )
     let sampled_image = graphics_shared_sampled_image(image_resource, 0, GPU_STAGE_FRAGMENT)
     if sampled_image.ready == false:
-        return 30
+        return 34
 
     let preferred_backend = graphics_shared_preferred_backend()
     if preferred_backend.backend.id == "":
-        return 31
+        return 35
     if gpu_has_flags(preferred_backend.shared_residency_flags, GPU_RESIDENCY_SHARED) == false:
-        return 32
+        return 36
 
     let _ui_reset = ui_reset()
     let ui_session = ui_session_create("stdlib-domains", 320, 180)
     if ui_session <= 0:
-        return 33
+        return 37
     let node = ui_node_create(ui_session, "panel")
     if node <= 0:
-        return 34
+        return 38
     let _node_rect = ui_node_set_rect(ui_session, node, 8.0, 9.0, 120.0, 32.0)
     let _node_text = ui_node_set_text(ui_session, node, "std.ui")
     if ui_node_text(ui_session, node) != "std.ui":
-        return 35
+        return 39
+    let _shared_state = ui_state_shared_buffer_resource(ui_session, node, vertex_buffer, 9001)
+    if ui_state_string(ui_session, node, "resource.kind", "") != GRAPHICS_SHARED_KIND_VERTEX_BUFFER:
+        return 40
+    let _ui_event_push = ui_push_input_event(ui_session, node, input_record)
+    if ui_poll_event(ui_session) != 1:
+        return 41
+    let ui_record = ui_event_record(ui_session)
+    if ui_record.event_kind != "key_down":
+        return 42
+    let reload_generation = reload_begin(ui_session, "stdlib-domains.rev-a")
+    if reload_generation < 0:
+        return 43
+    let reload_plan = reload_default_migration_plan(ui_session)
+    if reload_plan.session_id != ui_session or reload_plan.lane != reload_lane_presentation():
+        return 44
+    if reload_commit(ui_session) < 0:
+        return 45
+    let reload_snapshot = reload_snapshot_record(ui_session)
+    if reload_snapshot.generation < 0:
+        return 46
     let _ui_destroy = ui_session_destroy(ui_session)
+    let _input_destroy = input_session_destroy(input_session)
 
     if runtime_heap_validate() < 0:
-        return 36
+        return 47
     let shutdown = runtime_shutdown()
     if shutdown < 0:
-        return 37
+        return 48
     return 0

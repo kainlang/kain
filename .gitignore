@@ -4,6 +4,7 @@
 **/*target*/**
 *.exe
 /packages/ephemaris
+blades/c/ephemaris/
 **/debug/
 mcp/.config/
 .config/*

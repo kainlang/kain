@@ -1,3 +1,5 @@
+use std::fs
+use std::http
 use std::runtime
 use std::memory
 use std::io
@@ -123,5 +125,41 @@ pub fn smoke_io_lane() -> Int with Unsafe:
     decay target_buf
     buffered_reader_destroy(br)
     buffered_writer_destroy(bw)
+
+    # 4. File-backed buffered adapters
+    let temp_path = fs_temp_file("io-lane-buffered")
+    let file_writer = buffered_writer_new(32)
+    let file_writer_ptr: ptr<BufferedWriter> = addr_of(file_writer, "BufferedWriter")
+    let file_flush_target = alloc_zeroed(32, "Int")
+    let _file_push = buffered_writer_write_text(file_writer_ptr, "io-bridge", file_flush_target)
+    if fs_write_buffered_text(temp_path, file_writer) != 0:
+        return 117
+
+    let file_reader = fs_buffered_reader(temp_path, 32)
+    if buffered_reader_materialize_text(file_reader) != "io-bridge":
+        return 118
+
+    let _temp_remove = fs_remove_file(temp_path)
+    decay file_flush_target
+    buffered_reader_destroy(file_reader)
+    buffered_writer_destroy(file_writer)
+
+    # 5. HTTP request body adapters
+    let request = request_create_checked("POST", "http://127.0.0.1:1/io-lane")
+    if request <= 0:
+        return 119
+
+    let request_writer = buffered_writer_new(48)
+    let request_writer_ptr: ptr<BufferedWriter> = addr_of(request_writer, "BufferedWriter")
+    let request_flush_target = alloc_zeroed(48, "Int")
+    let _request_push = buffered_writer_write_text(request_writer_ptr, "buffered-http-body", request_flush_target)
+    if request_set_body_buffered_text(request, request_writer) != 0:
+        return 120
+    if request_protocol(request) != "http/1.1":
+        return 121
+
+    let _request_destroy = request_destroy(request)
+    decay request_flush_target
+    buffered_writer_destroy(request_writer)
 
     return 0

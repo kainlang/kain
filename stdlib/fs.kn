@@ -1,4 +1,5 @@
 use std::base64
+use std::io
 use std::text
 
 pub struct FsError:
@@ -196,6 +197,24 @@ pub fn abi_fs_tell(handle: ptr<Int>) -> Int
 
 @extern
 pub fn abi_fs_flush(handle: ptr<Int>) -> Int
+
+pub fn fs_buffered_reader(path: String, capacity: Int) -> BufferedReader with Unsafe:
+    return buffered_reader_new_from_text(capacity, fs_read_text(path))
+
+pub fn fs_buffered_reader_range(path: String, offset: Int, length: Int, capacity: Int) -> BufferedReader with Unsafe:
+    return buffered_reader_new_from_text(capacity, fs_read_text_range(path, offset, length))
+
+pub fn fs_write_buffered_text(path: String, writer: BufferedWriter) -> Int with Unsafe:
+    let payload = buffered_writer_materialize_text(writer)
+    return abi_fs_write_text_len(path, payload, len(payload))
+
+pub fn fs_append_buffered_text(path: String, writer: BufferedWriter) -> Int with Unsafe:
+    let payload = buffered_writer_materialize_text(writer)
+    return abi_fs_append_text_len(path, payload, len(payload))
+
+pub fn fs_atomic_write_buffered_text(path: String, writer: BufferedWriter) -> Int with Unsafe:
+    let payload = buffered_writer_materialize_text(writer)
+    return abi_fs_atomic_write_text_len(path, payload, len(payload))
 
 
 pub fn fs_parse_int_or_zero(value: String) -> Int:

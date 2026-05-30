@@ -1,3 +1,4 @@
+use std::atomic
 use std::memory
 
 pub const SYNC_OK: Int = 0
@@ -43,6 +44,18 @@ pub fn mcs_node_destroy(node: ptr<Int>) -> Int:
 fn mcs_node_waiting_ptr(node: ptr<Int>) -> ptr<Int> with Unsafe:
     return ptr_offset(node, MCS_NODE_WAITING_SLOT, "Int")
 
+fn sync_atomic_load(address: ptr<Int>, order: Ordering) -> Int with Unsafe:
+    return atomic_raw_load(address, order)
+
+fn sync_atomic_store(address: ptr<Int>, value: Int, order: Ordering) -> Int with Unsafe:
+    return atomic_raw_store(address, value, order)
+
+fn sync_atomic_exchange(address: ptr<Int>, value: Int) -> Int with Unsafe:
+    return atomic_raw_exchange(address, value, Ordering::AcqRel)
+
+fn sync_atomic_compare_exchange(address: ptr<Int>, expected: Int, desired: Int) -> Bool with Unsafe:
+    return atomic_raw_compare_exchange(address, expected, desired, Ordering::SeqCst, Ordering::SeqCst)
+
 pub fn mcs_mutex_new() -> McsMutex:
     let tail = alloc_zeroed(1, "Int")
     return McsMutex { tail: tail }
@@ -55,25 +68,25 @@ pub fn mcs_mutex_lock(lock: McsMutex, node: ptr<Int>) -> Int with Unsafe:
     mem_store(ptr_offset(node, MCS_NODE_NEXT_SLOT, "Int"), 0, "Int")
     mem_store(mcs_node_waiting_ptr(node), 0, "Int")
 
-    let prev_tail_bits = atomic_exchange_acqrel(lock.tail, ptr_to_int(node))
+    let prev_tail_bits = sync_atomic_exchange(lock.tail, ptr_to_int(node))
     if prev_tail_bits != 0:
         let prev_tail: ptr<Int> = int_to_ptr(prev_tail_bits, "ptr<Int>")
         let waiting_ptr = mcs_node_waiting_ptr(node)
-        atomic_store_release(mcs_node_waiting_ptr(node), 1)
-        atomic_store_release(prev_tail, ptr_to_int(waiting_ptr))
-        while atomic_load_acquire(waiting_ptr) == 1:
+        let _waiting = sync_atomic_store(mcs_node_waiting_ptr(node), 1, Ordering::Release)
+        let _link = sync_atomic_store(prev_tail, ptr_to_int(waiting_ptr), Ordering::Release)
+        while sync_atomic_load(waiting_ptr, Ordering::Acquire) == 1:
             spin_loop_hint()
 
     return SYNC_OK
 
 pub fn mcs_mutex_unlock(lock: McsMutex, node: ptr<Int>) -> Int with Unsafe:
     while true:
-        let next_waiting_bits = atomic_load_acquire(node)
+        let next_waiting_bits = sync_atomic_load(node, Ordering::Acquire)
         if next_waiting_bits != 0:
             let next_waiting: ptr<Int> = int_to_ptr(next_waiting_bits, "ptr<Int>")
-            atomic_store_release(next_waiting, 0)
+            let _release = sync_atomic_store(next_waiting, 0, Ordering::Release)
             return SYNC_OK
-        if atomic_compare_exchange_seqcst(lock.tail, ptr_to_int(node), 0):
+        if sync_atomic_compare_exchange(lock.tail, ptr_to_int(node), 0):
             return SYNC_OK
         spin_loop_hint()
 
@@ -123,29 +136,29 @@ pub fn teleport_channel_send(chan: TeleportChannel, item_ptr: Int) -> Bool with 
     let write_idx = teleport_channel_write_idx_ptr(chan)
     let read_idx = teleport_channel_read_idx_ptr(chan)
     let capacity = teleport_channel_capacity(chan)
-    let w = atomic_load_acquire(write_idx)
-    let r = atomic_load_acquire(read_idx)
+    let w = sync_atomic_load(write_idx, Ordering::Acquire)
+    let r = sync_atomic_load(read_idx, Ordering::Acquire)
     let next_w = (w + 1) % capacity
     if next_w == r:
         return false
 
     let buffer = teleport_channel_buffer_ptr(chan)
-    atomic_store_release(ptr_offset(buffer, w, "Int"), item_ptr)
-    atomic_store_release(write_idx, next_w)
+    let _item = sync_atomic_store(ptr_offset(buffer, w, "Int"), item_ptr, Ordering::Release)
+    let _index = sync_atomic_store(write_idx, next_w, Ordering::Release)
     return true
 
 pub fn teleport_channel_recv(chan: TeleportChannel) -> Int with Unsafe:
     let write_idx = teleport_channel_write_idx_ptr(chan)
     let read_idx = teleport_channel_read_idx_ptr(chan)
     let capacity = teleport_channel_capacity(chan)
-    let r = atomic_load_acquire(read_idx)
-    let w = atomic_load_acquire(write_idx)
+    let r = sync_atomic_load(read_idx, Ordering::Acquire)
+    let w = sync_atomic_load(write_idx, Ordering::Acquire)
     if r == w:
         return 0
 
     let buffer = teleport_channel_buffer_ptr(chan)
-    let item_ptr = atomic_load_acquire(ptr_offset(buffer, r, "Int"))
-    atomic_store_release(read_idx, (r + 1) % capacity)
+    let item_ptr = sync_atomic_load(ptr_offset(buffer, r, "Int"), Ordering::Acquire)
+    let _index = sync_atomic_store(read_idx, (r + 1) % capacity, Ordering::Release)
     return item_ptr
 
 
@@ -164,11 +177,11 @@ pub fn once_destroy(o: Once) -> Int:
 
 pub fn once_do(o: Once) -> Int with Unsafe:
     while true:
-        let observed = atomic_load_acquire(o.state)
+        let observed = sync_atomic_load(o.state, Ordering::Acquire)
         if observed == ONCE_STATE_DONE:
             return 0
         if observed == ONCE_STATE_UNINITIALIZED:
-            if atomic_compare_exchange_seqcst(o.state, ONCE_STATE_UNINITIALIZED, ONCE_STATE_INITIALIZING):
+            if sync_atomic_compare_exchange(o.state, ONCE_STATE_UNINITIALIZED, ONCE_STATE_INITIALIZING):
                 return 1
         elif observed == ONCE_STATE_INITIALIZING:
             spin_loop_hint()
@@ -177,23 +190,23 @@ pub fn once_do(o: Once) -> Int with Unsafe:
 
 pub fn once_complete(o: Once) -> Int with Unsafe:
     while true:
-        let observed = atomic_load_acquire(o.state)
+        let observed = sync_atomic_load(o.state, Ordering::Acquire)
         if observed == ONCE_STATE_DONE:
             return SYNC_OK
         if observed != ONCE_STATE_INITIALIZING:
             return SYNC_ERR_INVALID_ONCE_STATE
-        if atomic_compare_exchange_seqcst(o.state, ONCE_STATE_INITIALIZING, ONCE_STATE_DONE):
+        if sync_atomic_compare_exchange(o.state, ONCE_STATE_INITIALIZING, ONCE_STATE_DONE):
             return SYNC_OK
         spin_loop_hint()
 
 pub fn once_reset(o: Once) -> Int with Unsafe:
     while true:
-        let observed = atomic_load_acquire(o.state)
+        let observed = sync_atomic_load(o.state, Ordering::Acquire)
         if observed == ONCE_STATE_UNINITIALIZED:
             return SYNC_OK
         if observed != ONCE_STATE_INITIALIZING:
             return SYNC_ERR_INVALID_ONCE_STATE
-        if atomic_compare_exchange_seqcst(o.state, ONCE_STATE_INITIALIZING, ONCE_STATE_UNINITIALIZED):
+        if sync_atomic_compare_exchange(o.state, ONCE_STATE_INITIALIZING, ONCE_STATE_UNINITIALIZED):
             return SYNC_OK
         spin_loop_hint()
 
@@ -219,17 +232,17 @@ pub fn wait_group_destroy(wg: WaitGroup) -> Int:
     return SYNC_OK
 
 pub fn wait_group_count(wg: WaitGroup) -> Int with Unsafe:
-    return atomic_load_acquire(wg.counter)
+    return sync_atomic_load(wg.counter, Ordering::Acquire)
 
 pub fn wait_group_add(wg: WaitGroup, delta: Int) -> Int with Unsafe:
     # Proof: crates/core/z3/proofs/stdlib-sync-wait-group-counter-stays-in-range.yaml
     while true:
-        let current = atomic_load_acquire(wg.counter)
+        let current = sync_atomic_load(wg.counter, Ordering::Acquire)
         let status = wait_group_delta_status(current, delta)
         if status != SYNC_OK:
             return status
         let next = current + delta
-        if atomic_compare_exchange_seqcst(wg.counter, current, next):
+        if sync_atomic_compare_exchange(wg.counter, current, next):
             return SYNC_OK
         spin_loop_hint()
 
@@ -238,7 +251,7 @@ pub fn wait_group_done(wg: WaitGroup) -> Int with Unsafe:
 
 pub fn wait_group_wait(wg: WaitGroup) -> Int with Unsafe:
     while true:
-        let current = atomic_load_acquire(wg.counter)
+        let current = sync_atomic_load(wg.counter, Ordering::Acquire)
         if current == 0:
             return SYNC_OK
         if current < 0:

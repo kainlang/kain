@@ -33,22 +33,29 @@
           "kind": "storage_buffer"
         },
         {
-          "name": "scores",
+          "name": "chunk_bias",
           "binding": 3,
           "descriptor_set": 0,
           "ty": "StorageBuffer<UInt>",
           "kind": "storage_buffer"
         },
         {
-          "name": "dim",
+          "name": "scores",
           "binding": 4,
+          "descriptor_set": 0,
+          "ty": "StorageBuffer<UInt>",
+          "kind": "storage_buffer"
+        },
+        {
+          "name": "dim",
+          "binding": 5,
           "descriptor_set": 0,
           "ty": "UInt",
           "kind": "uniform"
         },
         {
           "name": "num_chunks",
-          "binding": 5,
+          "binding": 6,
           "descriptor_set": 0,
           "ty": "UInt",
           "kind": "uniform"

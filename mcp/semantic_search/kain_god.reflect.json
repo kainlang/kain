@@ -1,0 +1,298 @@
+{
+  "shaders": [
+    {
+      "name": "SemanticFusedScoreTopK",
+      "stage": "compute",
+      "entry_point": "SemanticFusedScoreTopK",
+      "inputs": [
+        {
+          "name": "id",
+          "ty": "UVec3"
+        }
+      ],
+      "bindings": [
+        {
+          "name": "query_embed",
+          "binding": 0,
+          "descriptor_set": 0,
+          "ty": "StorageBuffer<u8>",
+          "kind": "storage_buffer"
+        },
+        {
+          "name": "index_matrix",
+          "binding": 1,
+          "descriptor_set": 0,
+          "ty": "StorageBuffer<u8>",
+          "kind": "storage_buffer"
+        },
+        {
+          "name": "index_weights",
+          "binding": 2,
+          "descriptor_set": 0,
+          "ty": "StorageBuffer<UInt>",
+          "kind": "storage_buffer"
+        },
+        {
+          "name": "chunk_bias",
+          "binding": 3,
+          "descriptor_set": 0,
+          "ty": "StorageBuffer<UInt>",
+          "kind": "storage_buffer"
+        },
+        {
+          "name": "block_topk_indices",
+          "binding": 4,
+          "descriptor_set": 0,
+          "ty": "StorageBuffer<UInt>",
+          "kind": "storage_buffer"
+        },
+        {
+          "name": "block_topk_scores",
+          "binding": 5,
+          "descriptor_set": 0,
+          "ty": "StorageBuffer<UInt>",
+          "kind": "storage_buffer"
+        },
+        {
+          "name": "warp_scratch_scores",
+          "binding": 6,
+          "descriptor_set": 0,
+          "ty": "StorageBuffer<UInt>",
+          "kind": "storage_buffer"
+        },
+        {
+          "name": "warp_scratch_indices",
+          "binding": 7,
+          "descriptor_set": 0,
+          "ty": "StorageBuffer<UInt>",
+          "kind": "storage_buffer"
+        },
+        {
+          "name": "dim",
+          "binding": 8,
+          "descriptor_set": 0,
+          "ty": "UInt",
+          "kind": "uniform"
+        },
+        {
+          "name": "num_chunks",
+          "binding": 9,
+          "descriptor_set": 0,
+          "ty": "UInt",
+          "kind": "uniform"
+        },
+        {
+          "name": "top_k",
+          "binding": 10,
+          "descriptor_set": 0,
+          "ty": "UInt",
+          "kind": "uniform"
+        },
+        {
+          "name": "chunks_per_block",
+          "binding": 11,
+          "descriptor_set": 0,
+          "ty": "UInt",
+          "kind": "uniform"
+        },
+        {
+          "name": "min_score",
+          "binding": 12,
+          "descriptor_set": 0,
+          "ty": "UInt",
+          "kind": "uniform"
+        }
+      ],
+      "output_type": "Void"
+    },
+    {
+      "name": "SemanticBitpackDotProduct",
+      "stage": "compute",
+      "entry_point": "SemanticBitpackDotProduct",
+      "inputs": [
+        {
+          "name": "id",
+          "ty": "UVec3"
+        }
+      ],
+      "bindings": [
+        {
+          "name": "query_embed",
+          "binding": 0,
+          "descriptor_set": 0,
+          "ty": "StorageBuffer<u8>",
+          "kind": "storage_buffer"
+        },
+        {
+          "name": "index_matrix",
+          "binding": 1,
+          "descriptor_set": 0,
+          "ty": "StorageBuffer<u8>",
+          "kind": "storage_buffer"
+        },
+        {
+          "name": "index_weights",
+          "binding": 2,
+          "descriptor_set": 0,
+          "ty": "StorageBuffer<UInt>",
+          "kind": "storage_buffer"
+        },
+        {
+          "name": "chunk_bias",
+          "binding": 3,
+          "descriptor_set": 0,
+          "ty": "StorageBuffer<UInt>",
+          "kind": "storage_buffer"
+        },
+        {
+          "name": "scores",
+          "binding": 4,
+          "descriptor_set": 0,
+          "ty": "StorageBuffer<UInt>",
+          "kind": "storage_buffer"
+        },
+        {
+          "name": "dim",
+          "binding": 5,
+          "descriptor_set": 0,
+          "ty": "UInt",
+          "kind": "uniform"
+        },
+        {
+          "name": "num_chunks",
+          "binding": 6,
+          "descriptor_set": 0,
+          "ty": "UInt",
+          "kind": "uniform"
+        }
+      ],
+      "output_type": "Void"
+    },
+    {
+      "name": "SemanticWarpTopK",
+      "stage": "compute",
+      "entry_point": "SemanticWarpTopK",
+      "inputs": [
+        {
+          "name": "id",
+          "ty": "UVec3"
+        }
+      ],
+      "bindings": [
+        {
+          "name": "scores",
+          "binding": 0,
+          "descriptor_set": 0,
+          "ty": "StorageBuffer<UInt>",
+          "kind": "storage_buffer"
+        },
+        {
+          "name": "top_indices",
+          "binding": 1,
+          "descriptor_set": 0,
+          "ty": "StorageBuffer<UInt>",
+          "kind": "storage_buffer"
+        },
+        {
+          "name": "top_scores",
+          "binding": 2,
+          "descriptor_set": 0,
+          "ty": "StorageBuffer<UInt>",
+          "kind": "storage_buffer"
+        },
+        {
+          "name": "num_chunks",
+          "binding": 3,
+          "descriptor_set": 0,
+          "ty": "UInt",
+          "kind": "uniform"
+        },
+        {
+          "name": "top_k",
+          "binding": 4,
+          "descriptor_set": 0,
+          "ty": "UInt",
+          "kind": "uniform"
+        },
+        {
+          "name": "min_score",
+          "binding": 5,
+          "descriptor_set": 0,
+          "ty": "UInt",
+          "kind": "uniform"
+        },
+        {
+          "name": "taken_mask",
+          "binding": 6,
+          "descriptor_set": 0,
+          "ty": "StorageBuffer<UInt>",
+          "kind": "storage_buffer"
+        }
+      ],
+      "output_type": "Void"
+    },
+    {
+      "name": "SemanticCoarsePrefilter",
+      "stage": "compute",
+      "entry_point": "SemanticCoarsePrefilter",
+      "inputs": [
+        {
+          "name": "id",
+          "ty": "UVec3"
+        }
+      ],
+      "bindings": [
+        {
+          "name": "query_embed",
+          "binding": 0,
+          "descriptor_set": 0,
+          "ty": "StorageBuffer<u8>",
+          "kind": "storage_buffer"
+        },
+        {
+          "name": "index_matrix",
+          "binding": 1,
+          "descriptor_set": 0,
+          "ty": "StorageBuffer<u8>",
+          "kind": "storage_buffer"
+        },
+        {
+          "name": "candidate_mask",
+          "binding": 2,
+          "descriptor_set": 0,
+          "ty": "StorageBuffer<UInt>",
+          "kind": "storage_buffer"
+        },
+        {
+          "name": "dim",
+          "binding": 3,
+          "descriptor_set": 0,
+          "ty": "UInt",
+          "kind": "uniform"
+        },
+        {
+          "name": "num_chunks",
+          "binding": 4,
+          "descriptor_set": 0,
+          "ty": "UInt",
+          "kind": "uniform"
+        },
+        {
+          "name": "sig_stride",
+          "binding": 5,
+          "descriptor_set": 0,
+          "ty": "UInt",
+          "kind": "uniform"
+        },
+        {
+          "name": "min_sig_match",
+          "binding": 6,
+          "descriptor_set": 0,
+          "ty": "UInt",
+          "kind": "uniform"
+        }
+      ],
+      "output_type": "Void"
+    }
+  ]
+}

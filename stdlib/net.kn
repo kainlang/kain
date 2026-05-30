@@ -1,3 +1,5 @@
+use std::io
+
 @extern
 fn abi_net_reset() -> Int
 
@@ -184,11 +186,17 @@ pub fn tcp_accept(listener_id: Int, timeout_ms: Int) -> Int:
 pub fn tcp_read_text(connection_id: Int) -> String:
     return abi_tcp_read_text(connection_id)
 
+pub fn tcp_buffered_reader(connection_id: Int, capacity: Int) -> BufferedReader with Unsafe:
+    return buffered_reader_new_from_text(capacity, tcp_read_text(connection_id))
+
 pub fn tcp_read_hex(connection_id: Int) -> String:
     return abi_tcp_read_hex(connection_id)
 
 pub fn tcp_write_text(connection_id: Int, payload: String) -> Int:
     return abi_tcp_write_text(connection_id, payload)
+
+pub fn tcp_write_buffered_text(connection_id: Int, writer: BufferedWriter) -> Int with Unsafe:
+    return tcp_write_text(connection_id, buffered_writer_materialize_text(writer))
 
 pub fn tcp_write_hex(connection_id: Int, payload_hex: String) -> Int:
     return abi_tcp_write_hex(connection_id, payload_hex)

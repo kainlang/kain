@@ -230,6 +230,38 @@ pub fn buffered_reader_read(br: ptr<BufferedReader>, dest: ptr<Int>, count: Int)
     mem_store(ptr_offset(br, 2, "Int"), pos + to_read, "Int")
     return to_read
 
+pub fn buffered_reader_load_text(br: ptr<BufferedReader>, text: String) -> Int with Unsafe:
+    let cap = mem_load(ptr_offset(br, 1, "Int"), "Int")
+    let buf = int_to_ptr(mem_load(br, "Int"), "Int")
+
+    var to_copy = len(text)
+    if to_copy > cap:
+        to_copy = cap
+
+    var index = 0
+    while index < to_copy:
+        mem_store(ptr_offset(buf, index, "Int"), ord(char_at(text, index)), "Int")
+        index = index + 1
+
+    mem_store(ptr_offset(br, 2, "Int"), 0, "Int")
+    mem_store(ptr_offset(br, 3, "Int"), to_copy, "Int")
+    return to_copy
+
+pub fn buffered_reader_new_from_text(capacity: Int, text: String) -> BufferedReader with Unsafe:
+    let br = buffered_reader_new(capacity)
+    let br_ptr: ptr<BufferedReader> = addr_of(br, "BufferedReader")
+    let _loaded = buffered_reader_load_text(br_ptr, text)
+    return br
+
+pub fn buffered_reader_materialize_text(br: BufferedReader) -> String with Unsafe:
+    var result = ""
+    var index = br.pos
+    while index < br.len:
+        let code = mem_load(ptr_offset(br.buffer, index, "Int"), "Int")
+        result = result + chr(code)
+        index = index + 1
+    return result
+
 
 pub struct BufferedWriter:
     buffer: ptr<Int>
@@ -290,3 +322,33 @@ pub fn buffered_writer_flush(bw: ptr<BufferedWriter>, dest: ptr<Int>) -> Int wit
 
     mem_store(ptr_offset(bw, 2, "Int"), 0, "Int")
     return pos
+
+pub fn buffered_writer_push_char(bw: ptr<BufferedWriter>, code: Int, flush_target: ptr<Int>) -> Int with Unsafe:
+    let cap = mem_load(ptr_offset(bw, 1, "Int"), "Int")
+    var pos = mem_load(ptr_offset(bw, 2, "Int"), "Int")
+    let buf = int_to_ptr(mem_load(bw, "Int"), "Int")
+
+    if pos >= cap:
+        let _flushed = buffered_writer_flush(bw, flush_target)
+        pos = mem_load(ptr_offset(bw, 2, "Int"), "Int")
+
+    mem_store(ptr_offset(buf, pos, "Int"), code, "Int")
+    pos = pos + 1
+    mem_store(ptr_offset(bw, 2, "Int"), pos, "Int")
+    return pos
+
+pub fn buffered_writer_write_text(bw: ptr<BufferedWriter>, text: String, flush_target: ptr<Int>) -> Int with Unsafe:
+    var index = 0
+    while index < len(text):
+        let _pushed = buffered_writer_push_char(bw, ord(char_at(text, index)), flush_target)
+        index = index + 1
+    return index
+
+pub fn buffered_writer_materialize_text(bw: BufferedWriter) -> String with Unsafe:
+    var result = ""
+    var index = 0
+    while index < bw.pos:
+        let code = mem_load(ptr_offset(bw.buffer, index, "Int"), "Int")
+        result = result + chr(code)
+        index = index + 1
+    return result

@@ -12,6 +12,7 @@ pub const HASH_FNV1A32_PRIME: Int = 16777619
 pub const HASH_CRC32_POLY: Int = 3988292384
 pub const HASH_GOLDEN32: Int = 2654435769
 pub const HASH_EMPTY32: Int = 0
+pub const HASH_I63_MASK: Int = 9223372036854775807
 
 pub struct Hash32:
     value: Int
@@ -26,6 +27,9 @@ pub fn hash_u32_mask(value: Int) -> Int:
 
 pub fn hash_byte_mask(value: Int) -> Int:
     return value & HASH_BYTE_MASK
+
+pub fn hash_i63_mask(value: Int) -> Int:
+    return value & HASH_I63_MASK
 
 pub fn hash32(value: Int) -> Hash32:
     return Hash32 { value: hash_u32_mask(value) }
@@ -65,6 +69,15 @@ pub fn hash_wang32(value: Int) -> Int:
 
 pub fn hash_u32(value: Int) -> Int:
     return hash_wang32(value)
+
+pub fn hash_mix64(value: Int) -> Int:
+    var x = value
+    x = (x ^ (x >> 30)) * 1378784534790074129
+    x = (x ^ (x >> 27)) * 1072315178057262071
+    return x ^ (x >> 31)
+
+pub fn hash_u64(value: Int) -> Int:
+    return hash_mix64(value)
 
 pub fn hash_u32_with_seed(value: Int, seed: Int) -> Int:
     let seeded = hash_u32_mask(value ^ hash_wang32(seed + HASH_GOLDEN32))
@@ -107,6 +120,11 @@ pub fn hash_bucket_mod(hash: Int, capacity: Int) -> Int:
     if capacity <= 0:
         return 0
     return hash_u32_mask(hash) % capacity
+
+pub fn hash_bucket_mod64(hash: Int, capacity: Int) -> Int:
+    if capacity <= 0:
+        return 0
+    return hash_i63_mask(hash) % capacity
 
 pub fn hash_fnv1a32_init() -> Int:
     return HASH_FNV1A32_OFFSET

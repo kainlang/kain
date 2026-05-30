@@ -1,3 +1,5 @@
+use std::hash
+
 @extern
 fn abi_map_release(handle: Int) -> Int
 
@@ -703,17 +705,10 @@ pub fn hash_map_len(map: HashMap) -> Int:
 pub fn hash_map_capacity(map: HashMap) -> Int:
     return map.capacity
 
-fn hash_map_mix_key(key: Int) -> Int:
-    # 64-bit integer mix hash
-    var x = key
-    x = (x ^ (x >> 30)) * 1378784534790074129
-    x = (x ^ (x >> 27)) * 1072315178057262071
-    return x ^ (x >> 31)
-
 pub fn hash_map_get_or(map: HashMap, key: Int, fallback: Int) -> Int with Unsafe:
     let cap = map.capacity
-    let mixed = hash_map_mix_key(key)
-    var idx = (mixed & 9223372036854775807) % cap
+    let mixed = hash_mix64(key)
+    var idx = hash_bucket_mod64(mixed, cap)
     var i = 0
     while i < cap:
         let occ = mem_load(ptr_offset(map.occupied, idx, "Int"), "Int")
@@ -734,8 +729,8 @@ pub fn hash_map_put(map: ptr<HashMap>, key: Int, value: Int) -> Int with Unsafe:
     var occs_ptr = int_to_ptr(mem_load(ptr_offset(map, 2, "Int"), "Int"), "Int")
 
     # Probe & Insert
-    let mixed = hash_map_mix_key(key)
-    var idx = (mixed & 9223372036854775807) % cap
+    let mixed = hash_mix64(key)
+    var idx = hash_bucket_mod64(mixed, cap)
     var done = false
     while done == false:
         let occ = mem_load(ptr_offset(occs_ptr, idx, "Int"), "Int")
@@ -769,8 +764,8 @@ pub fn hash_map_put(map: ptr<HashMap>, key: Int, value: Int) -> Int with Unsafe:
                 let v = mem_load(ptr_offset(vals_ptr, i, "Int"), "Int")
                 
                 # Insert into new arrays
-                let m = hash_map_mix_key(k)
-                var n_idx = (m & 9223372036854775807) % new_cap
+                let m = hash_mix64(k)
+                var n_idx = hash_bucket_mod64(m, new_cap)
                 var placed = false
                 while placed == false:
                     let n_occ = mem_load(ptr_offset(new_occs, n_idx, "Int"), "Int")

@@ -32,8 +32,8 @@
         "module_name": "SemanticPackedScore__SemanticGpuTopK",
         "entry_point": "SemanticGpuTopK",
         "ptx_version": "7.8",
-        "required_target_arch": "sm_75",
-        "minimum_compute_capability": "7.5",
+        "required_target_arch": "sm_50",
+        "minimum_compute_capability": "5.0",
         "binding_slots": [
           0,
           1,
@@ -162,30 +162,31 @@
         1
       ],
       "dispatch_size": [
-        100000,
+        3200000,
         1,
         1
       ],
       "dynamic_shared_memory_bytes": 0,
       "cuda_stream_policy": "default",
       "cuda_graph_policy": "disabled",
-      "resource_binding_count": 6,
-      "tensor_binding_count": 6,
-      "stream_binding_count": 6,
+      "resource_binding_count": 7,
+      "tensor_binding_count": 7,
+      "stream_binding_count": 7,
       "neural_node_count": 1,
       "ptx_sidecar": {
         "module_name": "SemanticPackedScore__SemanticGpuTopK",
         "entry_point": "SemanticPackedScore",
         "ptx_version": "7.8",
-        "required_target_arch": "sm_75",
-        "minimum_compute_capability": "7.5",
+        "required_target_arch": "sm_50",
+        "minimum_compute_capability": "5.0",
         "binding_slots": [
           0,
           1,
           2,
           3,
           4,
-          5
+          5,
+          6
         ]
       },
       "bindings": [
@@ -243,6 +244,23 @@
           "payload_file": "kain_compute_residency_shader_semanticpackedscore_compute_index_weights.bin"
         },
         {
+          "key": "chunk_bias",
+          "contract": "kain.shared.buffer",
+          "descriptor_kind": "storage_buffer",
+          "element_type": "u32",
+          "shape": [
+            100000
+          ],
+          "strides": [
+            1
+          ],
+          "access_mode": "read",
+          "residency_role": "input",
+          "slot": 3,
+          "byte_length": 400000,
+          "payload_file": "kain_compute_residency_shader_semanticpackedscore_compute_chunk_bias.bin"
+        },
+        {
           "key": "scores",
           "contract": "kain.shared.buffer",
           "descriptor_kind": "storage_buffer",
@@ -255,7 +273,7 @@
           ],
           "access_mode": "write",
           "residency_role": "output",
-          "slot": 3,
+          "slot": 4,
           "byte_length": 400000,
           "payload_file": "kain_compute_residency_shader_semanticpackedscore_compute_scores.bin"
         },
@@ -272,7 +290,7 @@
           ],
           "access_mode": "read",
           "residency_role": "input",
-          "slot": 4,
+          "slot": 5,
           "byte_length": 4,
           "payload_file": "kain_compute_residency_shader_semanticpackedscore_compute_dim.bin"
         },
@@ -289,7 +307,7 @@
           ],
           "access_mode": "read",
           "residency_role": "input",
-          "slot": 5,
+          "slot": 6,
           "byte_length": 4,
           "payload_file": "kain_compute_residency_shader_semanticpackedscore_compute_num_chunks.bin"
         }
