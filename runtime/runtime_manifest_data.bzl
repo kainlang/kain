@@ -69,6 +69,7 @@ NATIVE_CORE_RUNTIME = {
         'native/src/core/actor.c',
         'native/src/platform/platform.c',
         'native/src/platform/platform_library.c',
+        'native/src/platform/os_system.c',
         'native/src/ui/ui_compiled_bundle.c',
         'native/src/ui/ui_system.c',
         'native/src/ui/ui_host_adapter.c',
@@ -90,6 +91,7 @@ NATIVE_CORE_RUNTIME = {
     "linux_cpp_srcs": [
     ],
     "macos_c_srcs": [
+        'native/src/platform/macos/macos_shared.c',
     ],
     "macos_cpp_srcs": [
     ],
@@ -114,6 +116,7 @@ NATIVE_CORE_RUNTIME = {
         '/DEFAULTLIB:shell32.lib',
         '/DEFAULTLIB:ws2_32.lib',
         '/DEFAULTLIB:winhttp.lib',
+        '/DEFAULTLIB:advapi32.lib',
     ],
     "linux_linkopts": [
         '-lpthread',
@@ -194,6 +197,7 @@ NATIVE_RUNTIME = {
         'native/src/core/actor.c',
         'native/src/platform/platform.c',
         'native/src/platform/platform_library.c',
+        'native/src/platform/os_system.c',
         'native/src/ui/ui_compiled_bundle.c',
         'native/src/ui/ui_system.c',
         'native/src/ui/ui_host_adapter.c',
@@ -215,6 +219,7 @@ NATIVE_RUNTIME = {
     "linux_cpp_srcs": [
     ],
     "macos_c_srcs": [
+        'native/src/platform/macos/macos_shared.c',
     ],
     "macos_cpp_srcs": [
     ],
@@ -239,6 +244,7 @@ NATIVE_RUNTIME = {
         '/DEFAULTLIB:shell32.lib',
         '/DEFAULTLIB:ws2_32.lib',
         '/DEFAULTLIB:winhttp.lib',
+        '/DEFAULTLIB:advapi32.lib',
     ],
     "linux_linkopts": [
         '-lpthread',

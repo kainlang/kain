@@ -1610,7 +1610,7 @@ static int kain_py_parse_device_string(
             snprintf(device_kind, device_kind_size, "%.*s", (int)prefix_len, device_text);
         }
         if (out_ordinal) {
-            *out_ordinal = _strtoi64(colon + 1, NULL, 10);
+            *out_ordinal = strtoll(colon + 1, NULL, 10);
         }
         return 1;
     }

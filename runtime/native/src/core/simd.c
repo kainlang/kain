@@ -16,6 +16,17 @@
 #define KAIN_SIMD_X86_INTRINSICS 0
 #endif
 
+#if KAIN_SIMD_X86_INTRINSICS && !defined(__clang__)
+#include <immintrin.h>
+#endif
+
+#if KAIN_SIMD_X86_INTRINSICS && defined(__GNUC__) && !defined(__clang__)
+// GCC needs the standard intrinsic; Clang uses the Z3-discovered builtin
+#define KAIN_SIMD_PMULUDQ512(a, b) _mm512_mul_epu32((__m512i)(a), (__m512i)(b))
+#else
+#define KAIN_SIMD_PMULUDQ512(a, b) __builtin_ia32_pmuludq512(a, b)
+#endif
+
 #if defined(__clang__) || defined(__GNUC__)
 #define KAIN_SIMD_TARGET_AVX2 __attribute__((target("avx2")))
 #define KAIN_SIMD_TARGET_AVX512F __attribute__((target("avx512f")))
@@ -271,7 +282,7 @@ static KAIN_SIMD_TARGET_AVX512F int64_t kain_simd_dot_avx512_raw(
         __builtin_memcpy(&left_values, left + index, sizeof(left_values));
         __builtin_memcpy(&right_values, right + index, sizeof(right_values));
         biased_left = left_values + bias;
-        products = (KainSimdI64x8)__builtin_ia32_pmuludq512(
+        products = (KainSimdI64x8)KAIN_SIMD_PMULUDQ512(
             (KainSimdI32x16)biased_left,
             (KainSimdI32x16)right_values
         );
@@ -307,7 +318,7 @@ static KAIN_SIMD_TARGET_AVX512F KainSimdAffineStats kain_simd_affine_stats_avx51
         KainSimdI64x8 products;
         __builtin_memcpy(&left_values, left + index, sizeof(left_values));
         __builtin_memcpy(&right_values, right + index, sizeof(right_values));
-        products = (KainSimdI64x8)__builtin_ia32_pmuludq512(
+        products = (KainSimdI64x8)KAIN_SIMD_PMULUDQ512(
             (KainSimdI32x16)left_values,
             (KainSimdI32x16)right_values
         );

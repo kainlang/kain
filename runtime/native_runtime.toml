@@ -52,6 +52,7 @@ sources = [
     "native/src/core/actor.c",
     "native/src/platform/platform.c",
     "native/src/platform/platform_library.c",
+    "native/src/platform/os_system.c",
     "native/src/ui/ui_compiled_bundle.c",
     "native/src/ui/ui_system.c",
     "native/src/ui/ui_host_adapter.c",
@@ -69,7 +70,9 @@ linux_sources = [
     "native/src/platform/linux/linux_shared.c",
 ]
 
-macos_sources = []
+macos_sources = [
+    "native/src/platform/macos/macos_shared.c",
+]
 
 include_dirs = [
     "native/include",
@@ -98,7 +101,7 @@ abi_patch = 0
 [metadata]
 description = "KAIN native C runtime for compiled programs"
 target_platforms = ["windows", "linux", "macos"]
-active_platforms = ["windows", "linux"]
+active_platforms = ["windows", "linux", "macos"]
 runtime_lane = "raw-native"
 compatibility_class = "experimental"
 
@@ -124,7 +127,7 @@ name = "Shared Fanout Runtime"
 provider = "native-core"
 requirement = "optional"
 status = "available"
-platforms = ["windows", "linux"]
+platforms = ["windows", "linux", "macos"]
 description = "Native shared-memory fanout over real OS threads for compiler-owned share/fanout lowering"
 
 [[services]]
@@ -133,7 +136,7 @@ name = "SeqCst Atomic Cells"
 provider = "native-core"
 requirement = "optional"
 status = "available"
-platforms = ["windows", "linux"]
+platforms = ["windows", "linux", "macos"]
 description = "Canonical seq-cst atomic cell ABI for native shared-memory fanout and LLVM fallback surfaces"
 
 [[services]]
@@ -403,7 +406,7 @@ name = "IO Network"
 provider = "native-core"
 requirement = "optional"
 status = "available"
-platforms = ["windows", "linux"]
+platforms = ["windows", "linux", "macos"]
 description = "Native TCP, protocol-aware HTTP client/server, capability-query, and Windows-first HTTPS/HTTP2 client primitives"
 
 [[services]]
@@ -412,7 +415,7 @@ name = "IO Process"
 provider = "native-core"
 requirement = "optional"
 status = "available"
-platforms = ["windows", "linux"]
+platforms = ["windows", "linux", "macos"]
 description = "Native child-process, pipe, and PTY session management"
 
 [[services]]
@@ -466,6 +469,6 @@ platforms = ["windows", "linux", "macos"]
 description = "Raw platform dynamic library open/resolve/close substrate for generated typed platform packages; no generic public ABI call surface is exposed"
 
 [link]
-windows = ["legacy_stdio_definitions", "user32", "gdi32", "shell32", "ws2_32", "winhttp"]
+windows = ["legacy_stdio_definitions", "user32", "gdi32", "shell32", "ws2_32", "winhttp", "advapi32"]
 linux = ["pthread", "dl", "rt", "m"]
 macos = []

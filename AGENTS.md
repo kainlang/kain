@@ -274,6 +274,46 @@ If you happen to use x:/target/debug/kain.exe KEEP IN MIND IT MAY BE old AND NOT
 
 On this Windows workstation, the repo root lives on `X:\` and Bazel cache/temp/output state intentionally lives under the short root `F:\_b\...`. Prefer Bazel-built launchers from `X:\.kain\bin` or set `KAIN_BIN` to a fresh Bazel `kain.exe` when validating blades, benchmarks, and native runtime changes.
 
+## WSL / Linux Proving Lane
+
+- WSL is now available on this workstation and Ubuntu is installed as the default distro.
+- The Ubuntu distro lives at `Z:\wsl\ubuntu` on the Windows side.
+- Use WSL when you need real Linux truth for `runtime/native`, Linux Rust/Bazel builds, Linux OpenSSL/pkg-config detection, PyO3-on-Linux, or authored Kain LLVM proof on a Linux host.
+- WSL is not reserved only for Linux-specific breakage. Agents have explicit freedom to use it whenever it is the faster, cleaner, or more truthful lane for the task.
+- That includes general shell-heavy repo work, Python/Rust tooling, ext4-backed temp/build workflows, package installation, scripting, grep/find pipelines, and any situation where Ubuntu-side tooling is more convenient than the Windows host.
+- Repo path inside WSL is `/mnt/x` when working directly against the Windows checkout.
+- WSL-specific Bazel overlay config lives at `/.bazelrc.wsl`.
+- Preferred WSL Bazel wrapper lives at `/scripts/bazel-wsl.sh`.
+- WSL keeps mutable Bazel state on Ubuntu ext4 under `/home/zenta/.cache/kain-bazel/...` while still reusing the shared repository cache at `/mnt/f/_b/repository-cache`.
+- If you need Linux package prerequisites for compiler/runtime work, the proven baseline currently includes `pkg-config` and `libssl-dev`.
+
+Verified WSL commands:
+
+```bash
+# From inside WSL
+cd /mnt/x
+
+# Native runtime / Linux C lane
+./scripts/bazel-wsl.sh build //runtime:native_core_runtime
+./scripts/bazel-wsl.sh test //runtime:native_runtime_tests
+
+# Full Linux compiler lane
+./scripts/bazel-wsl.sh build //:kain --config=dev
+
+# Minimal authored Kain LLVM proof on Linux
+kain check /tmp/probe.kn
+kain build /tmp/probe.kn --target llvm
+```
+
+Important WSL caveats:
+
+- Do not assume Windows Bazel results tell you Linux truth. If the task is about Linux runtime behavior, Linux linking, Linux toolchain behavior, or Linux-only dependencies, run the proof in WSL.
+- Conversely, do not treat WSL as off-limits for non-Linux work. If the Linux shell, package ecosystem, or filesystem layout gives you a better operator lane, use it.
+- Prefer `./scripts/bazel-wsl.sh ...` over raw `bazel ...` inside WSL so the repo config and WSL overlay config both apply.
+- The Linux `//:kain` Bazel build is proven. `kain check ...` and `kain build ... --target llvm` are proven on Linux.
+- Raw `kain run ... --target llvm` from the direct Bazel output binary still has a runtime-source path-layout caveat; if that path fails, treat it as a repo/runtime launch-path issue rather than "WSL is broken".
+- PyO3 on Ubuntu 26.04 currently rides the Linux lane with `/usr/bin/python3` plus `PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1`; do not silently swap it back to the Windows Python path.
+
 Bazel/Rust Windows trap notes:
 
 - If Bazel appears hung or keeps reporting old paths after cache migration, check for stale Bazel servers before trusting the result: `Get-Process bazel,bazelisk,java -ErrorAction SilentlyContinue | Select-Object ProcessName,Id,Path`. Old servers rooted under `F:\Caches\bazel\...` can survive while the new config points at `F:\_b\...`; `bazel shutdown` handles the current root, but an old-root Java server may need to be killed explicitly.

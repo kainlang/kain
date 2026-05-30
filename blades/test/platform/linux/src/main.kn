@@ -1,0 +1,665 @@
+use std::runtime
+use std::fs
+use std::os
+use std::os_path
+use std::process
+use std::net
+use std::http
+use std::platform
+use std::graphics
+use std::gpu
+use std::graphics::shared
+use std::json
+
+const CASE_PASS: Int = 0
+const CASE_SKIP: Int = 1
+const CASE_FAIL: Int = -1
+
+const ABI_PROCESS_UNSUPPORTED_PLATFORM: Int = -9
+const ABI_NET_PARSE_ERROR: Int = -6
+const ABI_NET_CAPABILITY_UNAVAILABLE: Int = 0
+const ABI_NET_CAPABILITY_AVAILABLE: Int = 2
+
+// ============================================================================
+//                        linux platform proof helpers
+// ============================================================================
+
+fn append_line(report: String, line: String) -> String:
+    return report + line + "\n"
+
+fn contains_text(text: String, needle: String) -> Bool:
+    if len(needle) == 0:
+        return true
+    if len(text) < len(needle):
+        return false
+    var i: Int = 0
+    while i <= len(text) - len(needle):
+        if substring(text, i, i + len(needle)) == needle:
+            return true
+        i = i + 1
+    return false
+
+fn join3(a: String, b: String, c: String) -> String:
+    return os_path_join(os_path_join(a, b), c)
+
+fn status_name(status: Int) -> String:
+    if status == CASE_PASS:
+        return "PASS"
+    if status == CASE_SKIP:
+        return "SKIP"
+    return "FAIL"
+
+fn record_case(report: String, label: String, status: Int, detail: String) -> String:
+    return append_line(report, "[" + status_name(status) + "] " + label + " :: " + detail)
+
+fn bump_pass_count(status: Int, count: Int) -> Int:
+    if status == CASE_PASS:
+        return count + 1
+    return count
+
+fn bump_skip_count(status: Int, count: Int) -> Int:
+    if status == CASE_SKIP:
+        return count + 1
+    return count
+
+fn bump_fail_count(status: Int, count: Int) -> Int:
+    if status == CASE_FAIL:
+        return count + 1
+    return count
+
+fn scandir_has_name(entries: Array<OsDirEntry>, needle: String) -> Bool:
+    var i: Int = 0
+    while i < len(entries):
+        if entries[i].name == needle:
+            return true
+        i = i + 1
+    return false
+
+fn pid_matches_proc_status(status_text: String, pid: Int) -> Bool:
+    let pid_text = to_string(pid)
+    if contains_text(status_text, "Pid:\t" + pid_text):
+        return true
+    return contains_text(status_text, "Pid: " + pid_text)
+
+fn choose_graphics_backend() -> String:
+    if graphics_backend_supported("software") == 1:
+        return "software"
+    if graphics_backend_supported("auto") == 1:
+        return "auto"
+    return ""
+
+// ============================================================================
+//                        linux / unix proof lanes
+// ============================================================================
+
+fn test_linux_identity() -> (Int, String):
+    if os_is_linux() == false:
+        return (CASE_SKIP, "host reported " + os_platform_name())
+    if platform_current_name() != "linux":
+        return (CASE_FAIL, "platform_current_name() = " + platform_current_name())
+    if os_name() != "posix":
+        return (CASE_FAIL, "os_name() = " + os_name())
+    if os_path_sep() != "/":
+        return (CASE_FAIL, "os_path_sep() = " + os_path_sep())
+    if os_path_altsep() != "":
+        return (CASE_FAIL, "os_path_altsep() = " + os_path_altsep())
+    if os_path_pathsep() != ":":
+        return (CASE_FAIL, "os_path_pathsep() = " + os_path_pathsep())
+    if os_path_devnull() != "/dev/null":
+        return (CASE_FAIL, "os_path_devnull() = " + os_path_devnull())
+    if os_path_exists("/dev/null") == false:
+        return (CASE_FAIL, "/dev/null missing")
+    let uname = os_uname()
+    if uname.sysname != "Linux":
+        return (CASE_FAIL, "uname.sysname = " + uname.sysname)
+    if uname.machine != os_arch_name():
+        return (CASE_FAIL, "uname.machine = " + uname.machine + ", arch = " + os_arch_name())
+    if os_cpu_count() <= 0:
+        return (CASE_FAIL, "os_cpu_count() <= 0")
+    if os_getpagesize() <= 0:
+        return (CASE_FAIL, "os_getpagesize() <= 0")
+    return (CASE_PASS, uname.sysname + " / " + uname.machine + " / page=" + to_string(os_getpagesize()))
+
+fn test_runtime_floor() -> (Int, String):
+    let heap_status = runtime_heap_validate()
+    if heap_status != 0:
+        return (CASE_FAIL, "runtime_heap_validate() = " + to_string(heap_status))
+    let feature_mask = runtime_cpu_feature_mask()
+    if feature_mask < 0:
+        return (CASE_FAIL, "runtime_cpu_feature_mask() = " + to_string(feature_mask))
+    let fingerprint = runtime_cpu_feature_fingerprint()
+    if fingerprint < 0:
+        return (CASE_FAIL, "runtime_cpu_feature_fingerprint() = " + to_string(fingerprint))
+    let avx2_mask = runtime_cpu_capability_mask("cpu.x86.avx2")
+    if avx2_mask < 0:
+        return (CASE_FAIL, "runtime_cpu_capability_mask(cpu.x86.avx2) = " + to_string(avx2_mask))
+    return (CASE_PASS, "mask=" + to_string(feature_mask) + " fingerprint=" + to_string(fingerprint) + " avx2_mask=" + to_string(avx2_mask))
+
+fn test_platform_library_and_procfs() -> (Int, String):
+    let before = platform_library_live_count()
+    let handle = platform_library_open("libc.so.6")
+    if handle <= 0:
+        return (CASE_FAIL, "platform_library_open(libc.so.6) status=" + to_string(platform_library_last_status()))
+    if platform_library_is_valid(handle) == false:
+        let _close_invalid = platform_library_close(handle)
+        return (CASE_FAIL, "platform_library_is_valid(handle) was false")
+    if platform_library_live_count() != before + 1:
+        let _close_count = platform_library_close(handle)
+        return (CASE_FAIL, "live_count did not increment")
+    let symbol = platform_library_resolve(handle, "getpid")
+    if symbol == 0:
+        let _close_resolve = platform_library_close(handle)
+        return (CASE_FAIL, "platform_library_resolve(getpid) failed")
+    if platform_library_close(handle) != 0:
+        return (CASE_FAIL, "platform_library_close(handle) failed")
+    if platform_library_live_count() != before:
+        return (CASE_FAIL, "live_count did not return to baseline")
+
+    let pid = os_getpid()
+    if pid <= 0:
+        return (CASE_FAIL, "os_getpid() <= 0")
+    let cwd = os_getcwd()
+    if len(cwd) == 0 or os_exists(cwd) == false or os_isdir(cwd) == false:
+        return (CASE_FAIL, "cwd invalid: " + cwd)
+    let exe_path = process_current_executable_path()
+    if len(exe_path) == 0:
+        return (CASE_FAIL, "process_current_executable_path() empty")
+    if os_exists("/proc/self/status") == false:
+        return (CASE_FAIL, "/proc/self/status missing")
+    if os_exists("/proc/self/exe") == false:
+        return (CASE_FAIL, "/proc/self/exe missing")
+    if os_exists("/proc/self/cwd") == false:
+        return (CASE_FAIL, "/proc/self/cwd missing")
+    if os_path_islink("/proc/self/exe") == false:
+        return (CASE_FAIL, "/proc/self/exe was not reported as symlink")
+    if os_path_islink("/proc/self/cwd") == false:
+        return (CASE_FAIL, "/proc/self/cwd was not reported as symlink")
+    let status_text = os_read_text("/proc/self/status")
+    if pid_matches_proc_status(status_text, pid) == false:
+        return (CASE_FAIL, "pid fragment missing from /proc/self/status")
+    return (CASE_PASS, "pid=" + to_string(pid) + " cwd=" + cwd)
+
+fn test_tempdir_and_unix_paths() -> (Int, String):
+    let home = os_getenv("HOME")
+    let temp_root = os_tmpdir("kain_linux_platform")
+    let nested = join3(temp_root, "alpha", "beta")
+    let hidden_path = os_path_join(temp_root, ".hidden_probe")
+    let atomic_path = os_path_join(temp_root, "atomic.txt")
+    let moved_path = os_path_join(temp_root, "moved_probe.txt")
+    let nested_file = os_path_join(nested, "payload.txt")
+
+    if os_exists(temp_root) == false:
+        return (CASE_FAIL, "os_tmpdir() did not create temp_root")
+    if os_makedirs(nested) == false:
+        return (CASE_FAIL, "os_makedirs(" + nested + ") failed")
+    if os_write_text(hidden_path, "alpha") == false:
+        return (CASE_FAIL, "os_write_text(hidden_path) failed")
+    if os_append_text(hidden_path, "\nbeta") == false:
+        return (CASE_FAIL, "os_append_text(hidden_path) failed")
+    if os_atomic_write_text(atomic_path, "atomic-linux") == false:
+        return (CASE_FAIL, "os_atomic_write_text(atomic_path) failed")
+    if os_write_text(nested_file, "nested-linux") == false:
+        return (CASE_FAIL, "os_write_text(nested_file) failed")
+    if contains_text(os_read_text(hidden_path), "beta") == false:
+        return (CASE_FAIL, "hidden file content mismatch")
+    if os_read_text(atomic_path) != "atomic-linux":
+        return (CASE_FAIL, "atomic file content mismatch")
+    if os_rename(hidden_path, moved_path) == false:
+        return (CASE_FAIL, "os_rename(hidden_path, moved_path) failed")
+    if os_exists(hidden_path):
+        return (CASE_FAIL, "hidden_path still exists after rename")
+    if os_exists(moved_path) == false:
+        return (CASE_FAIL, "moved_path missing after rename")
+
+    let entries = os_scandir(temp_root)
+    if scandir_has_name(entries, "alpha") == false:
+        return (CASE_FAIL, "temp root missing alpha entry")
+    if scandir_has_name(entries, "moved_probe.txt") == false:
+        return (CASE_FAIL, "temp root missing moved_probe.txt entry")
+    if scandir_has_name(entries, "atomic.txt") == false:
+        return (CASE_FAIL, "temp root missing atomic.txt entry")
+
+    let (drive, tail) = os_path_splitdrive("/tmp/linux-probe")
+    if drive != "":
+        return (CASE_FAIL, "splitdrive drive was '" + drive + "'")
+    if tail != "/tmp/linux-probe":
+        return (CASE_FAIL, "splitdrive tail was '" + tail + "'")
+    if os_path_ismount("/") == false:
+        return (CASE_FAIL, "root mount not recognized")
+    if os_path_normpath("alpha//beta/./gamma/../delta") != "alpha/beta/delta":
+        return (CASE_FAIL, "normpath mismatch")
+
+    if len(home) > 0:
+        let expanded_user = os_path_expanduser("~/.config/kain-linux")
+        if contains_text(expanded_user, home) == false:
+            return (CASE_FAIL, "expanduser did not include HOME")
+        let expanded_vars = os_path_expandvars("$HOME/.config/kain-linux")
+        if contains_text(expanded_vars, home) == false:
+            return (CASE_FAIL, "expandvars did not include HOME")
+
+    let _cleanup = os_removedirs(temp_root)
+    if os_exists(temp_root):
+        return (CASE_FAIL, "temp_root survived cleanup")
+    return (CASE_PASS, "temp_root exercised hidden files, rename, atomic writes, and mount/path rules")
+
+fn test_process_gap_linux() -> (Int, String):
+    if process_reset() != 0:
+        return (CASE_FAIL, "process_reset() failed")
+    if process_current_id() <= 0:
+        return (CASE_FAIL, "process_current_id() <= 0")
+    if len(process_current_working_directory()) == 0:
+        return (CASE_FAIL, "process_current_working_directory() empty")
+    if len(process_current_executable_path()) == 0:
+        return (CASE_FAIL, "process_current_executable_path() empty")
+    if process_platform_available() != 0:
+        return (CASE_FAIL, "process_platform_available() = " + to_string(process_platform_available()))
+
+    let spawn_spec = process_spec_create_piped("/bin/sh")
+    if spawn_spec <= 0:
+        return (CASE_FAIL, "process_spec_create_piped(/bin/sh) failed")
+    let spawn_status = process_spawn(spawn_spec)
+    let _spawn_destroy = process_spec_destroy(spawn_spec)
+    if spawn_status != ABI_PROCESS_UNSUPPORTED_PLATFORM:
+        return (CASE_FAIL, "process_spawn() = " + to_string(spawn_status))
+    if process_last_status() != ABI_PROCESS_UNSUPPORTED_PLATFORM:
+        return (CASE_FAIL, "process_last_status() = " + to_string(process_last_status()))
+    if contains_text(process_last_error_kind(), "unsupported-platform") == false:
+        return (CASE_FAIL, "process_last_error_kind() = " + process_last_error_kind())
+
+    let pty_spec = process_spec_create("/bin/sh")
+    if pty_spec <= 0:
+        return (CASE_FAIL, "process_spec_create(/bin/sh) failed")
+    let pty_status = process_spawn_pty(pty_spec, 100, 30)
+    let _pty_destroy = process_spec_destroy(pty_spec)
+    if pty_status != ABI_PROCESS_UNSUPPORTED_PLATFORM:
+        return (CASE_FAIL, "process_spawn_pty() = " + to_string(pty_status))
+
+    let popen_output = os_popen_read("printf linux_shell_probe", 1000)
+    if popen_output != "":
+        return (CASE_FAIL, "os_popen_read() unexpectedly returned output")
+    if process_last_status() != ABI_PROCESS_UNSUPPORTED_PLATFORM:
+        return (CASE_FAIL, "os_popen_read() last status = " + to_string(process_last_status()))
+    return (CASE_PASS, "linux process + PTY gap locked as unsupported-platform")
+
+fn test_net_capability_and_loopback() -> (Int, String):
+    if net_reset() != 0:
+        return (CASE_FAIL, "net_reset() failed")
+    if net_platform_available() != 1:
+        return (CASE_FAIL, "net_platform_available() = " + to_string(net_platform_available()))
+    if contains_text(net_platform_name(), "linux") == false:
+        return (CASE_FAIL, "net_platform_name() = " + net_platform_name())
+    if net_capability_state("tcp") != ABI_NET_CAPABILITY_AVAILABLE:
+        return (CASE_FAIL, "tcp capability state = " + to_string(net_capability_state("tcp")))
+    if net_capability_state("http.client") != ABI_NET_CAPABILITY_AVAILABLE:
+        return (CASE_FAIL, "http.client capability state = " + to_string(net_capability_state("http.client")))
+    if net_capability_state("http.server") != ABI_NET_CAPABILITY_AVAILABLE:
+        return (CASE_FAIL, "http.server capability state = " + to_string(net_capability_state("http.server")))
+    if net_capability_state("tls.client") != ABI_NET_CAPABILITY_UNAVAILABLE:
+        return (CASE_FAIL, "tls.client capability state = " + to_string(net_capability_state("tls.client")))
+    if net_capability_state("http2.client") != ABI_NET_CAPABILITY_UNAVAILABLE:
+        return (CASE_FAIL, "http2.client capability state = " + to_string(net_capability_state("http2.client")))
+
+    let listener = tcp_listen("127.0.0.1", 0)
+    if listener <= 0:
+        return (CASE_FAIL, "tcp_listen() failed")
+    let port = tcp_listener_local_port(listener)
+    if port <= 0:
+        let _listener_close_bad_port = tcp_listener_close(listener)
+        return (CASE_FAIL, "tcp_listener_local_port() <= 0")
+    let client = tcp_connect("127.0.0.1", port, 5000)
+    if client <= 0:
+        let _listener_close_client = tcp_listener_close(listener)
+        return (CASE_FAIL, "tcp_connect() failed")
+    let server = tcp_accept(listener, 5000)
+    if server <= 0:
+        let _client_close_accept = tcp_close(client)
+        let _listener_close_accept = tcp_listener_close(listener)
+        return (CASE_FAIL, "tcp_accept() failed")
+    if tcp_write_text(client, "tcp-proof-linux") != 0:
+        let _client_close_write = tcp_close(client)
+        let _server_close_write = tcp_close(server)
+        let _listener_close_write = tcp_listener_close(listener)
+        return (CASE_FAIL, "tcp_write_text(client) failed")
+    let server_text = tcp_read_text(server)
+    if contains_text(server_text, "tcp-proof-linux") == false:
+        let _client_close_server_text = tcp_close(client)
+        let _server_close_server_text = tcp_close(server)
+        let _listener_close_server_text = tcp_listener_close(listener)
+        return (CASE_FAIL, "tcp_read_text(server) missing proof text")
+    if tcp_write_text(server, "tcp-echo-linux") != 0:
+        let _client_close_server_echo = tcp_close(client)
+        let _server_close_server_echo = tcp_close(server)
+        let _listener_close_server_echo = tcp_listener_close(listener)
+        return (CASE_FAIL, "tcp_write_text(server) failed")
+    let client_text = tcp_read_text(client)
+    let _client_close = tcp_close(client)
+    let _server_close = tcp_close(server)
+    let _listener_close = tcp_listener_close(listener)
+    if contains_text(client_text, "tcp-echo-linux") == false:
+        return (CASE_FAIL, "tcp_read_text(client) missing echo")
+
+    let server_id = server_create_localhost(0)
+    if server_id <= 0:
+        return (CASE_FAIL, "server_create_localhost() failed")
+    if server_listen(server_id) != 0:
+        let _server_close_listen = server_close(server_id)
+        return (CASE_FAIL, "server_listen() failed")
+    let http_port = server_local_port(server_id)
+    if http_port <= 0:
+        let _server_close_http_port = server_close(server_id)
+        return (CASE_FAIL, "server_local_port() <= 0")
+    let http_client = tcp_connect("127.0.0.1", http_port, 5000)
+    if http_client <= 0:
+        let _server_close_http_client = server_close(server_id)
+        return (CASE_FAIL, "tcp_connect(http) failed")
+    let _http_write = tcp_write_text(
+        http_client,
+        "POST /linux?proof=1 HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Length: 11\r\n\r\nhello-linux"
+    )
+    let incoming = server_pump(server_id, 5000)
+    if incoming <= 0:
+        let _http_client_close_pump = tcp_close(http_client)
+        let _server_close_pump = server_close(server_id)
+        return (CASE_FAIL, "server_pump() failed to produce request")
+    let next_request = server_next_request(server_id)
+    if next_request != incoming:
+        let _http_client_close_next = tcp_close(http_client)
+        let _server_close_next = server_close(server_id)
+        return (CASE_FAIL, "server_next_request() mismatch")
+    if server_pending_request_count(server_id) != 0:
+        let _http_client_close_pending = tcp_close(http_client)
+        let _server_close_pending = server_close(server_id)
+        return (CASE_FAIL, "server_pending_request_count() != 0")
+    if request_method(incoming) != "POST":
+        let _http_client_close_method = tcp_close(http_client)
+        let _server_close_method = server_close(server_id)
+        return (CASE_FAIL, "request_method() = " + request_method(incoming))
+    if request_path(incoming) != "/linux":
+        let _http_client_close_path = tcp_close(http_client)
+        let _server_close_path = server_close(server_id)
+        return (CASE_FAIL, "request_path() = " + request_path(incoming))
+    if contains_text(request_query(incoming), "proof=1") == false:
+        let _http_client_close_query = tcp_close(http_client)
+        let _server_close_query = server_close(server_id)
+        return (CASE_FAIL, "request_query() = " + request_query(incoming))
+    if request_body_text(incoming) != "hello-linux":
+        let _http_client_close_body = tcp_close(http_client)
+        let _server_close_body = server_close(server_id)
+        return (CASE_FAIL, "request_body_text() mismatch")
+    if respond_text(incoming, 202, "linux-http-ok") != 0:
+        let _http_client_close_respond = tcp_close(http_client)
+        let _server_close_respond = server_close(server_id)
+        return (CASE_FAIL, "respond_text() failed")
+    let http_response = tcp_read_text(http_client)
+    let _http_client_close_ok = tcp_close(http_client)
+    let _server_close_ok = server_close(server_id)
+    if contains_text(http_response, "linux-http-ok") == false:
+        return (CASE_FAIL, "HTTP response missing linux-http-ok")
+
+    return (CASE_PASS, "tcp + HTTP loopback proved; tls/http2 remain unavailable on linux")
+
+fn test_http_parse_rejection() -> (Int, String):
+    let server_id = server_create_localhost(0)
+    if server_id <= 0:
+        return (CASE_FAIL, "server_create_localhost() failed")
+    if server_listen(server_id) != 0:
+        let _server_close_listen = server_close(server_id)
+        return (CASE_FAIL, "server_listen() failed")
+    let port = server_local_port(server_id)
+    if port <= 0:
+        let _server_close_port = server_close(server_id)
+        return (CASE_FAIL, "server_local_port() <= 0")
+    let client = tcp_connect("127.0.0.1", port, 5000)
+    if client <= 0:
+        let _server_close_client = server_close(server_id)
+        return (CASE_FAIL, "tcp_connect() failed")
+    let _write = tcp_write_text(
+        client,
+        "POST /broken HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Length: -1\r\n\r\nboom"
+    )
+    let incoming = server_pump(server_id, 5000)
+    let _client_close = tcp_close(client)
+    let _server_close = server_close(server_id)
+    if incoming != ABI_NET_PARSE_ERROR:
+        return (CASE_FAIL, "server_pump() = " + to_string(incoming))
+    if contains_text(net_last_error_kind(), "parse") == false:
+        return (CASE_FAIL, "net_last_error_kind() = " + net_last_error_kind())
+    if contains_text(net_last_error_message(), "Content-Length") == false:
+        return (CASE_FAIL, "net_last_error_message() = " + net_last_error_message())
+    return (CASE_PASS, "invalid Content-Length rejected with parse diagnostics")
+
+fn test_graphics_software_probe() -> (Int, String):
+    if graphics_reset() != 0:
+        return (CASE_FAIL, "graphics_reset() failed")
+    if graphics_backend_supported("software") != 1:
+        return (CASE_FAIL, "software backend not supported")
+    if graphics_backend_supported("vulkan") != 1:
+        return (CASE_FAIL, "vulkan backend not declared")
+    if len(graphics_backend_status("software")) == 0:
+        return (CASE_FAIL, "software backend status empty")
+    if len(graphics_backend_status("vulkan")) == 0:
+        return (CASE_FAIL, "vulkan backend status empty")
+
+    let backend = choose_graphics_backend()
+    if backend == "":
+        return (CASE_FAIL, "no graphics backend selected")
+
+    let session = graphics_session_create("linux.platform.graphics", 96, 96)
+    if session <= 0:
+        return (CASE_FAIL, "graphics_session_create() failed")
+    if graphics_backend_select(session, backend) != 0:
+        let _destroy_select = graphics_session_destroy(session)
+        return (CASE_FAIL, "graphics_backend_select(" + backend + ") failed")
+    if graphics_active_backend(session) != "software":
+        let _destroy_active = graphics_session_destroy(session)
+        return (CASE_FAIL, "graphics_active_backend() = " + graphics_active_backend(session))
+
+    let vb = graphics_buffer_create_from_hex(session, "vertex", "linux.vertices", "000000000100000002000000", 12)
+    let ib = graphics_buffer_create_from_hex(session, "index", "linux.indices", "000000000100000002000000", 4)
+    let mesh = graphics_mesh_create(session, "linux.mesh", vb, ib, 3, 3)
+    let vs = graphics_shader_spirv_from_hex(session, "linux.vertex", "vertex", "main", "03022307")
+    let fs_shader = graphics_shader_spirv_from_hex(session, "linux.fragment", "fragment", "main", "03022307")
+    let pipeline = graphics_pipeline_create(session, "linux.pipeline", vs, fs_shader, backend)
+    if pipeline <= 0:
+        let _destroy_pipeline = graphics_session_destroy(session)
+        return (CASE_FAIL, "graphics_pipeline_create() failed")
+    let _begin = graphics_begin_frame(session, 16.0)
+    let _draw = graphics_draw_mesh(session, pipeline, mesh, 1)
+    let end_count = graphics_end_frame(session)
+    let present = graphics_present(session)
+    let draw_count = graphics_draw_command_count(session)
+    let instances = graphics_draw_command_instances(session, 0)
+    let pipeline_backend = graphics_pipeline_backend(session, pipeline)
+    let mesh_label = graphics_mesh_label(session, mesh)
+    let _destroy = graphics_session_destroy(session)
+
+    if draw_count != 1:
+        return (CASE_FAIL, "graphics_draw_command_count() = " + to_string(draw_count))
+    if instances != 1:
+        return (CASE_FAIL, "graphics_draw_command_instances() = " + to_string(instances))
+    if graphics_session_count() < 0:
+        return (CASE_FAIL, "graphics_session_count() < 0")
+    if pipeline_backend != "software":
+        return (CASE_FAIL, "graphics_pipeline_backend() = " + pipeline_backend)
+    if mesh_label != "linux.mesh":
+        return (CASE_FAIL, "graphics_mesh_label() = " + mesh_label)
+    if present < 0:
+        return (CASE_FAIL, "graphics_present() = " + to_string(present))
+    return (CASE_PASS, "backend=" + backend + " end_count=" + to_string(end_count) + " present=" + to_string(present))
+
+fn test_gpu_shared_contracts() -> (Int, String):
+    let compute_policy = gpu_resource_policy(
+        gpu_shared_memory_policy(
+            GPU_ACCESS_READ_WRITE,
+            GPU_QUEUE_COMPUTE | GPU_QUEUE_TRANSFER | GPU_QUEUE_HOST,
+            GPU_LAYOUT_STD430,
+            GPU_DESCRIPTOR_STORAGE_BUFFER
+        ),
+        GPU_BUFFER_USAGE_STORAGE | GPU_BUFFER_USAGE_TRANSFER_SRC | GPU_BUFFER_USAGE_TRANSFER_DST,
+        "linux.gpu.compute"
+    )
+    let compute_buffer = gpu_shared_buffer_zeroed(
+        "f32",
+        [4],
+        "f32",
+        "application/octet-stream",
+        compute_policy
+    )
+    if compute_buffer.byte_length != 16:
+        return (CASE_FAIL, "compute_buffer.byte_length = " + to_string(compute_buffer.byte_length))
+    if gpu_has_flags(compute_buffer.policy.memory.residency_flags, GPU_RESIDENCY_ZERO_COPY) == false:
+        return (CASE_FAIL, "compute buffer missing zero-copy residency")
+    let descriptor = gpu_buffer_descriptor(compute_buffer)
+    if json_get_string(descriptor, "descriptor_kind") != GPU_DESCRIPTOR_STORAGE_BUFFER:
+        return (CASE_FAIL, "descriptor_kind = " + json_get_string(descriptor, "descriptor_kind"))
+
+    let vertex_resource = gpu_shared_buffer_zeroed(
+        "u32",
+        [4],
+        "u32",
+        "application/octet-stream",
+        graphics_shared_vertex_policy("linux.graphics.shared.vertex")
+    )
+    let vertex_view = graphics_shared_vertex_buffer(vertex_resource, 4)
+    if vertex_view.ready == false:
+        return (CASE_FAIL, "graphics_shared_vertex_buffer() not ready")
+
+    let sampled_resource = gpu_shared_image_zeroed(
+        2,
+        2,
+        4,
+        "HWC",
+        "rgba8",
+        "image/raw",
+        graphics_shared_sampled_image_policy("linux.graphics.shared.image")
+    )
+    let sampled_view = graphics_shared_sampled_image(sampled_resource, 0, GPU_STAGE_FRAGMENT)
+    if sampled_view.ready == false:
+        return (CASE_FAIL, "graphics_shared_sampled_image() not ready")
+
+    let preferred = graphics_shared_preferred_backend()
+    if preferred.backend.id == "":
+        return (CASE_FAIL, "graphics_shared_preferred_backend().backend.id empty")
+    return (CASE_PASS, "shared backend=" + preferred.backend.id + " zero-copy buffer + sampled image ready")
+
+// ============================================================================
+//                                 entrypoint
+// ============================================================================
+
+fn main() -> Int:
+    var report = "linux platform proof blade"
+    report = append_line(report, "================================")
+
+    if os_is_linux() == false:
+        fs_create_dir_all(".kain/run")
+        report = append_line(report, "[SKIP] suite :: host is " + os_platform_name() + ", linux-specific blade not executed")
+        fs_write_text(".kain/run/linux_platform_report.txt", report)
+        println(report)
+        return 0
+
+    let boot = runtime_init()
+    if boot != 0:
+        fs_create_dir_all(".kain/run")
+        report = append_line(report, "[FAIL] runtime.init :: runtime_init() = " + to_string(boot))
+        fs_write_text(".kain/run/linux_platform_report.txt", report)
+        println(report)
+        return boot
+
+    var pass_count: Int = 0
+    var skip_count: Int = 0
+    var fail_count: Int = 0
+
+    let (identity_status, identity_detail) = test_linux_identity()
+    report = record_case(report, "linux.identity", identity_status, identity_detail)
+    pass_count = bump_pass_count(identity_status, pass_count)
+    skip_count = bump_skip_count(identity_status, skip_count)
+    fail_count = bump_fail_count(identity_status, fail_count)
+
+    let (runtime_status, runtime_detail) = test_runtime_floor()
+    report = record_case(report, "runtime.floor", runtime_status, runtime_detail)
+    pass_count = bump_pass_count(runtime_status, pass_count)
+    skip_count = bump_skip_count(runtime_status, skip_count)
+    fail_count = bump_fail_count(runtime_status, fail_count)
+
+    let (procfs_status, procfs_detail) = test_platform_library_and_procfs()
+    report = record_case(report, "platform.libc+procfs", procfs_status, procfs_detail)
+    pass_count = bump_pass_count(procfs_status, pass_count)
+    skip_count = bump_skip_count(procfs_status, skip_count)
+    fail_count = bump_fail_count(procfs_status, fail_count)
+
+    let (fs_status, fs_detail) = test_tempdir_and_unix_paths()
+    report = record_case(report, "fs.tempdir+paths", fs_status, fs_detail)
+    pass_count = bump_pass_count(fs_status, pass_count)
+    skip_count = bump_skip_count(fs_status, skip_count)
+    fail_count = bump_fail_count(fs_status, fail_count)
+
+    let (process_status, process_detail) = test_process_gap_linux()
+    report = record_case(report, "process.current-gap", process_status, process_detail)
+    pass_count = bump_pass_count(process_status, pass_count)
+    skip_count = bump_skip_count(process_status, skip_count)
+    fail_count = bump_fail_count(process_status, fail_count)
+
+    let (net_status, net_detail) = test_net_capability_and_loopback()
+    report = record_case(report, "net.loopback", net_status, net_detail)
+    pass_count = bump_pass_count(net_status, pass_count)
+    skip_count = bump_skip_count(net_status, skip_count)
+    fail_count = bump_fail_count(net_status, fail_count)
+
+    let (parse_status, parse_detail) = test_http_parse_rejection()
+    report = record_case(report, "http.parse-rejection", parse_status, parse_detail)
+    pass_count = bump_pass_count(parse_status, pass_count)
+    skip_count = bump_skip_count(parse_status, skip_count)
+    fail_count = bump_fail_count(parse_status, fail_count)
+
+    let (graphics_status, graphics_detail) = test_graphics_software_probe()
+    report = record_case(report, "graphics.software-probe", graphics_status, graphics_detail)
+    pass_count = bump_pass_count(graphics_status, pass_count)
+    skip_count = bump_skip_count(graphics_status, skip_count)
+    fail_count = bump_fail_count(graphics_status, fail_count)
+
+    let (gpu_status, gpu_detail) = test_gpu_shared_contracts()
+    report = record_case(report, "gpu.shared-contracts", gpu_status, gpu_detail)
+    pass_count = bump_pass_count(gpu_status, pass_count)
+    skip_count = bump_skip_count(gpu_status, skip_count)
+    fail_count = bump_fail_count(gpu_status, fail_count)
+
+    let final_heap = runtime_heap_validate()
+    report = record_case(
+        report,
+        "runtime.heap-validate.final",
+        if final_heap == 0:
+            CASE_PASS
+        else:
+            CASE_FAIL,
+        "status=" + to_string(final_heap)
+    )
+    if final_heap == 0:
+        pass_count = pass_count + 1
+    else:
+        fail_count = fail_count + 1
+
+    let shutdown = runtime_shutdown()
+    report = record_case(
+        report,
+        "runtime.shutdown",
+        if shutdown == 0:
+            CASE_PASS
+        else:
+            CASE_FAIL,
+        "status=" + to_string(shutdown)
+    )
+    if shutdown == 0:
+        pass_count = pass_count + 1
+    else:
+        fail_count = fail_count + 1
+
+    report = append_line(report, "")
+    report = append_line(report, "summary: pass=" + to_string(pass_count) + " skip=" + to_string(skip_count) + " fail=" + to_string(fail_count))
+
+    fs_create_dir_all(".kain/run")
+    fs_write_text(".kain/run/linux_platform_report.txt", report)
+    println(report)
+
+    if fail_count > 0:
+        return 1
+    return 0

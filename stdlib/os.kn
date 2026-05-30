@@ -25,11 +25,57 @@
 
 use std::target
 use std::platform
+use std::base64
 use std::fs
 use std::process
 use std::machine
 use std::time
 use std::path
+
+@extern
+fn abi_os_setenv(key: String, value: String) -> Int
+
+@extern
+fn abi_os_unsetenv(key: String) -> Int
+
+@extern
+fn abi_os_chdir(path: String) -> Int
+
+@extern
+fn abi_os_getppid() -> Int
+
+@extern
+fn abi_os_getlogin() -> String
+
+@extern
+fn abi_os_getuid() -> Int
+
+@extern
+fn abi_os_getgid() -> Int
+
+@extern
+fn abi_os_symlink(src: String, dst: String) -> Int
+
+@extern
+fn abi_os_readlink(path: String) -> String
+
+@extern
+fn abi_os_urandom(byte_count: Int) -> String
+
+@extern
+fn abi_os_terminal_columns() -> Int
+
+@extern
+fn abi_os_terminal_rows() -> Int
+
+@extern
+fn abi_os_last_status() -> Int
+
+@extern
+fn abi_os_last_error_kind() -> String
+
+@extern
+fn abi_os_last_error_message() -> String
 
 // ============================================================================
 //                          SECTION 1: Platform Constants & Detection
@@ -159,9 +205,11 @@ pub fn os_getenv_default(key: String, default_value: String) -> String:
     return val
 
 // ─── Set/unset environment ───────────────────────────────────────────────
-// TODO: requires runtime ABI for abi_os_setenv / abi_os_unsetenv
-// pub fn os_setenv(key: String, value: String) -> Bool: ...
-// pub fn os_unsetenv(key: String) -> Bool: ...
+pub fn os_setenv(key: String, value: String) -> Bool:
+    return abi_os_setenv(key, value) == 0
+
+pub fn os_unsetenv(key: String) -> Bool:
+    return abi_os_unsetenv(key) == 0
 
 // ============================================================================
 //                          SECTION 3: Process Identity
@@ -171,11 +219,17 @@ pub fn os_getenv_default(key: String, default_value: String) -> String:
 pub fn os_getpid() -> Int:
     return process_current_id()
 
-// TODO: requires runtime ABI implementations
-// pub fn os_getppid() -> Int: ...
-// pub fn os_getlogin() -> String: ...
-// pub fn os_getuid() -> Int: ...
-// pub fn os_getgid() -> Int: ...
+pub fn os_getppid() -> Int:
+    return abi_os_getppid()
+
+pub fn os_getlogin() -> String:
+    return abi_os_getlogin()
+
+pub fn os_getuid() -> Int:
+    return abi_os_getuid()
+
+pub fn os_getgid() -> Int:
+    return abi_os_getgid()
 
 // ============================================================================
 //                          SECTION 4: Working Directory
@@ -185,8 +239,8 @@ pub fn os_getpid() -> Int:
 pub fn os_getcwd() -> String:
     return process_current_working_directory()
 
-// TODO: requires runtime ABI for abi_os_chdir
-// pub fn os_chdir(path: String) -> Bool: ...
+pub fn os_chdir(path: String) -> Bool:
+    return abi_os_chdir(path) == 0
 
 // ============================================================================
 //                          SECTION 5: Filesystem Operations
@@ -352,9 +406,11 @@ fn _meta_int(text: String, key: String) -> Int:
     return result * sign
 
 // ─── Symlinks ────────────────────────────────────────────────────────────
-// TODO: requires runtime ABI for abi_os_symlink / abi_os_readlink
-// pub fn os_symlink(src: String, dst: String) -> Bool: ...
-// pub fn os_readlink(path: String) -> String: ...
+pub fn os_symlink(src: String, dst: String) -> Bool:
+    return abi_os_symlink(src, dst) == 0
+
+pub fn os_readlink(path: String) -> String:
+    return abi_os_readlink(path)
 
 // ─── Convenience: existence checks ───────────────────────────────────────
 pub fn os_exists(path: String) -> Bool:
@@ -432,9 +488,17 @@ pub fn os_cpu_package_count() -> Int:
     return cpu_package_count()
 
 // ─── Random bytes ────────────────────────────────────────────────────────
-// TODO: requires runtime ABI for abi_os_urandom
-// pub fn os_urandom(byte_count: Int) -> String: ...
-// pub fn os_urandom_bytes(byte_count: Int) -> Array<Int>: ...
+pub fn os_urandom(byte_count: Int) -> String:
+    return abi_os_urandom(byte_count)
+
+pub fn os_urandom_bytes(byte_count: Int) -> Array<Int>:
+    let raw = hex_decode(abi_os_urandom(byte_count))
+    let bytes = []
+    var index: Int = 0
+    while index < len(raw):
+        push(bytes, byte_at(raw, index))
+        index = index + 1
+    return bytes
 
 // ─── Terminal size ───────────────────────────────────────────────────────
 pub struct OsTerminalSize:
@@ -442,7 +506,12 @@ pub struct OsTerminalSize:
     rows: Int
 
 pub fn os_get_terminal_size() -> OsTerminalSize:
-    return OsTerminalSize { columns: 80, rows: 24 }
+    let columns = abi_os_terminal_columns()
+    let rows = abi_os_terminal_rows()
+    return OsTerminalSize {
+        columns: if columns > 0: columns else: 80,
+        rows: if rows > 0: rows else: 24
+    }
 
 // ─── Page size ───────────────────────────────────────────────────────────
 pub fn os_getpagesize() -> Int:
@@ -500,12 +569,22 @@ pub struct OsError:
     message: String
 
 pub fn os_last_error() -> OsError:
+    let os_status = abi_os_last_status()
+    if os_status != 0:
+        return OsError {
+            kind: abi_os_last_error_kind(),
+            code: os_status,
+            message: abi_os_last_error_message()
+        }
+    let process_status = process_last_status()
+    if process_status != 0:
+        return OsError {
+            kind: process_last_error_kind(),
+            code: process_status,
+            message: process_last_error_message()
+        }
     return OsError {
         kind: fs_last_error_kind(),
         code: fs_last_status(),
         message: fs_last_error_message()
     }
-
-// ============================================================================
-//                          SECTION 10: Error Utilities
-// ============================================================================

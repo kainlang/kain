@@ -2384,6 +2384,32 @@ pty_cleanup_error:
 }
 #endif
 
+#ifndef _WIN32
+static int abi_process_spec_append_direct_arg(
+    KainNativeProcessSpec* spec,
+    const char* argument
+) {
+    if (spec == 0 || argument == 0) {
+        return 0;
+    }
+    if (spec->argument_count >= ABI_PROCESS_MAX_ARGUMENTS) {
+        return 0;
+    }
+    abi_process_copy(
+        spec->arguments[spec->argument_count],
+        sizeof(spec->arguments[spec->argument_count]),
+        argument
+    );
+    spec->argument_count += 1;
+    return 1;
+}
+
+static void abi_process_close_os_resources(KainNativeProcessHandle* process, int terminate_running_process) {
+    (void)process;
+    (void)terminate_running_process;
+}
+#endif
+
 int64_t abi_process_reset(void) {
     int index;
     for (index = 0; index < ABI_PROCESS_MAX_PROCESSES; index++) {

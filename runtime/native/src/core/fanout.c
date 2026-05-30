@@ -2,6 +2,7 @@
 
 #include <limits.h>
 #include <stdatomic.h>
+#include <string.h>
 
 #ifdef _WIN32
 #ifndef WIN32_LEAN_AND_MEAN

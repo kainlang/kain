@@ -37,20 +37,35 @@ crate.annotation(
     build_script_rundir = "external/rules_rust++crate+crates__zstd-sys-2.0.16-zstd.1.5.7",
     crate = "zstd-sys",
 )
-crate.annotation(
-    build_script_env = {
-        # crate_universe expects a literal env value here. On this Windows
-        # workstation the PyO3-compatible interpreter lives on the F: toolchain
-        # drive and build-script PATH does not include Scoop shims.
-        "PYO3_PYTHON": "F:/Scoop/apps/python312/current/python.exe",
-    },
+crate.annotation_select(
     crate = "pyo3-build-config",
-)
-crate.annotation(
+    triples = ["x86_64-pc-windows-msvc"],
     build_script_env = {
         "PYO3_PYTHON": "F:/Scoop/apps/python312/current/python.exe",
     },
+)
+crate.annotation_select(
+    crate = "pyo3-build-config",
+    triples = ["x86_64-unknown-linux-gnu"],
+    build_script_env = {
+        "PYO3_PYTHON": "/usr/bin/python3",
+        "PYO3_USE_ABI3_FORWARD_COMPATIBILITY": "1",
+    },
+)
+crate.annotation_select(
     crate = "pyo3-ffi",
+    triples = ["x86_64-pc-windows-msvc"],
+    build_script_env = {
+        "PYO3_PYTHON": "F:/Scoop/apps/python312/current/python.exe",
+    },
+)
+crate.annotation_select(
+    crate = "pyo3-ffi",
+    triples = ["x86_64-unknown-linux-gnu"],
+    build_script_env = {
+        "PYO3_PYTHON": "/usr/bin/python3",
+        "PYO3_USE_ABI3_FORWARD_COMPATIBILITY": "1",
+    },
 )
 
 # Keep legacy `serde::__private` reachable for older SWC macro stacks until

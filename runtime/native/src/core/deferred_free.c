@@ -1,5 +1,7 @@
 #include "../../include/deferred_free.h"
 
+#include <stddef.h>
+
 int kain_deferred_free_list_init(
     KainDeferredFreeList* list,
     uint32_t* next_storage,

@@ -1,41 +1,11 @@
-// ============================================================================
-//                NUKLEAR + PYGAME FUSION REACTOR — FINAL
-//
-//   ┌──────────────────────────────────────────────────────────┐
-//   │                                                          │
-//   │   ┌──────────┐      ┌──────────┐      ┌──────────┐      │
-//   │   │  KAIN    │═════▶│ NUKLEAR  │═════▶│ PYGAME   │      │
-//   │   │ WORLD(s) │◀═════│ (C ABI)  │◀═════│ (Python) │      │
-//   │   └──────────┘      └──────────┘      └──────────┘      │
-//   │        │                 │                  │            │
-//   │        ▼                 ▼                  ▼            │
-//   │   ┌─────────────────────────────────────────────────┐    │
-//   │   │  ENTANGLE → state bus: frame hue hash pressed   │    │
-//   │   │  PATCH    → frame commit                        │    │
-//   │   │  ACTOR    → pulse oracle                        │    │
-//   │   │  LAW      → hue_in_wheel, frame_sane            │    │
-//   │   └─────────────────────────────────────────────────┘    │
-//   │                                                          │
-//   │  Kain owns:        the loop, state, semantic policy      │
-//   │  Nuklear owns:     colors (hsv/rgb), hash, rect layout   │
-//   │  Pygame owns:      window, pixels, input, fonts          │
-//   │                                                          │
-//   │  STATUS: Pygame+Kain = RUNS.                              │
-//   │          Nuklear C ABI = @extern declared, awaiting       │
-//   │          full nuklear.h with NK_IMPLEMENTATION bodies.    │
-//   │          The architecture is real; the linker gap is a    │
-//   │          vendored-header completeness issue.              │
-//   │                                                          │
-//   └──────────────────────────────────────────────────────────┘
-//
-// ============================================================================
-
 use std::math
 use std::python
 use std::runtime
 use std::time
 
 import pygame as pygame
+
+include nuclear.h as nk
 
 // ---- Nuklear C ABI surface (manual @extern — awaiting NK_IMPLEMENTATION) ----
 //

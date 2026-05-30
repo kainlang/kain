@@ -1,5 +1,69 @@
 # Kain Memory
 
+# 2026-05-29 — WSL Linux Bazel + native LLVM lane bring-up
+
+Context:
+
+- User installed Ubuntu under WSL and wanted a real Linux proving lane for runtime/native work, `//:kain`, and LLVM-targeted authored Kain.
+- Windows Bazel cache state on `F:\_b\...` is almost full, so sharing every mutable Bazel path with WSL is not viable.
+
+What changed:
+
+- Added `/.bazelrc.wsl` as a WSL overlay config.
+  - Keeps `repository_cache` shared at `/mnt/f/_b/repository-cache`.
+  - Moves WSL `output_user_root` and `TMP/TEMP/TMPDIR` to Ubuntu ext4 under `/home/zenta/.cache/kain-bazel/...`.
+- Added `/scripts/bazel-wsl.sh` wrapper so WSL can run Bazel with both the shared repo config and the WSL overlay config.
+- Installed Linux build prerequisites inside WSL: `pkg-config`, `libssl-dev`.
+- Removed the stale Bazel APT source added during setup because its missing signing key broke later `apt-get update` runs; the WSL lane uses the standalone Bazel/Bazelisk binary instead.
+
+Linux portability / repo truth fixes:
+
+- `runtime/native/src/core/python_runtime_buffers.c`
+  - Fixed `long long*` vs `int64_t*` mismatch that GCC/Linux rejects in the Python buffer shape-handle path.
+- `runtime/native/src/core/deferred_free.c`
+  - Added `<stddef.h>` so `NULL` is explicit instead of relying on MSVC transitive includes.
+- `runtime/native/src/core/fanout.c`
+  - Added `<string.h>` for `memset`/string API declarations under GCC.
+- `runtime/native/src/core/simd.c`
+  - Preserved the Z3-discovered AVX-512 multiply fast path, but routed GCC through `_mm512_mul_epu32(...)` while keeping Clang on `__builtin_ia32_pmuludq512(...)`.
+  - Important: do not simplify this path away; the point was compiler-spelling compatibility, not replacing the alien optimization.
+- `runtime/native/src/core/process_system.c`
+  - Added non-Windows-visible definitions for `abi_process_spec_append_direct_arg(...)` and `abi_process_close_os_resources(...)`; both were accidentally trapped inside a large `_WIN32` block, so Linux callers compiled but the helper bodies vanished.
+- `runtime/native/src/core/python_runtime.c`
+  - Replaced `_strtoi64(...)` with `strtoll(...)` in device-string parsing so the path is standard-C portable.
+
+Bazel / crate-universe / Python interop lessons:
+
+- `rules_rust` crate-universe module extensions do not accept `crate.select(...)` in `MODULE.bazel` here.
+- The supported bzlmod surface is `crate.annotation_select(...)` with `triples = [...]`.
+- PyO3 0.20.3 on Ubuntu 26.04 sees Python 3.14 and will fail unless the Linux build-script lane also sets `PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1`.
+- Current working shape in `MODULE.bazel`:
+  - Windows triple selects `F:/Scoop/apps/python312/current/python.exe`
+  - Linux triple selects `/usr/bin/python3` plus `PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1`
+
+Bazel sandbox data fixes found while proving Linux `//:kain`:
+
+- `crates/lattice/BUILD.bazel`
+  - Added `lattice.toml` to `COMMON_COMPILE_DATA` because `src/lib.rs` uses `include_str!("../lattice.toml")`.
+- Added `unreal/metadata/BUILD.bazel`
+  - Exports `shader_knowledge.json` as a proper Bazel package file.
+- `crates/ue5-shaders/BUILD.bazel`
+  - Added `//unreal/metadata:shader_knowledge.json` to `compile_data` for library + tests because `validation.rs` uses `include_str!("../../../unreal/metadata/shader_knowledge.json")`.
+
+Validation / proof:
+
+- `scripts/bazel-wsl.sh build //runtime:native_core_runtime` now succeeds under WSL/Linux.
+- `scripts/bazel-wsl.sh build //:kain --config=dev` now succeeds under WSL/Linux.
+- Authored Kain proof under Linux:
+  - `kain check /tmp/kain_linux_probe.kn` passed.
+  - `kain build /tmp/kain_linux_probe.kn --target llvm` succeeded and emitted LLVM artifacts under `/tmp/.kain/out/x86_64-linux/dev/ll/...`.
+
+Remaining caveat:
+
+- Invoking the raw Bazel-built `kain` binary directly from the Bazel output tree and then using `kain run ... --target llvm` still fails because the runtime-library compile lane resolves native C source paths relative to Bazel execroot assumptions that are not valid in that raw invocation shape. For Linux proof work, prefer:
+  - `scripts/bazel-wsl.sh build //:kain --config=dev`
+  - then either run through Bazel or use a wrapper/install shape that preserves the expected repo-relative runtime source layout.
+
 # 2026-05-29 — std::os + std::os::path: Python-ergonomic OS substrate
 
 New modules `stdlib/os.kn` and `stdlib/os_path.kn` implementing a Zig-inspired, Python-ergonomic

@@ -55,7 +55,7 @@ static const KainPlatformDescriptorTemplate KAIN_PLATFORM_TEMPLATES[] = {
     },
     {
         KAIN_PLATFORM_KIND_MACOS,
-        0,
+        1,
         KAIN_PLATFORM_SERVICE_FILESYSTEM |
         KAIN_PLATFORM_SERVICE_PROCESS |
         KAIN_PLATFORM_SERVICE_TIMERS |
@@ -63,8 +63,8 @@ static const KainPlatformDescriptorTemplate KAIN_PLATFORM_TEMPLATES[] = {
         KAIN_PLATFORM_SERVICE_NATIVE_LIBRARY,
         0,
         "macos",
-        "stub",
-        "macOS native lane is currently a stub and does not provide app host, input, viewport, or graphics services"
+        "posix-core",
+        "macOS native lane currently provides core filesystem, process, timer, network, and dynamic-library services; app host, input, viewport, and graphics remain adapter work"
     },
 };
 

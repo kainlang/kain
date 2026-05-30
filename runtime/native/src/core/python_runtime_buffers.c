@@ -406,8 +406,8 @@ long long kain_shared_buffer_from_py(long long target) {
     long long byte_length = 0;
     long long* shape_values = NULL;
     long long shape_len = 0;
-    long long shape_handle = 0;
-    long long strides_handle = 0;
+    int64_t shape_handle = 0;
+    int64_t strides_handle = 0;
     long long labels = 0;
     long long handle = 0;
     long long item_size = 1;

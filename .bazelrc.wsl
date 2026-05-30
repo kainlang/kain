@@ -1,0 +1,13 @@
+# WSL Bazel config.
+# Keep Linux mutable state on Ubuntu ext4 so WSL builds do not choke on the
+# nearly-full Windows F: cache drive. We still reuse the shared repository
+# cache to avoid re-downloading the universe when possible.
+common --repository_cache=/mnt/f/_b/repository-cache
+startup --output_user_root=/home/zenta/.cache/kain-bazel/output-user-root
+common --repo_env=TMP=/home/zenta/.cache/kain-bazel/tmp
+common --repo_env=TEMP=/home/zenta/.cache/kain-bazel/tmp
+common --repo_env=TMPDIR=/home/zenta/.cache/kain-bazel/tmp
+common --action_env=TMP=/home/zenta/.cache/kain-bazel/tmp
+common --action_env=TEMP=/home/zenta/.cache/kain-bazel/tmp
+common --action_env=TMPDIR=/home/zenta/.cache/kain-bazel/tmp
+build --action_env=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
