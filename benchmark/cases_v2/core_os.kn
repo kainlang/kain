@@ -109,19 +109,32 @@ pub fn core_os_case_expected_checksum(index: Int) -> Int:
     return -1
 
 // ============================================================================
-//  SEMANTIC OS — World/Entangle/Teleport accelerated OS operations
+//  SEMANTIC OS — World/Entangle/Shatter accelerated OS operations
 // ============================================================================
-//  Instead of calling the kernel every iteration, we entangle OS values
-//  into a world cache. The runtime propagates updates automatically.
+//  Every static OS metadata value that doesn't change during a session
+//  is entangled into a world cache. Reads from the mirror are zero-copy
+//  field accesses instead of kernel calls.
 //
 //  Architecture:
-//    WorldOsAuthority  -- stores ground-truth OS metadata
-//    WorldOsMirror     -- entangled reads are zero-copy cache hits
-//    shatter + teleport -- move memory shards between worlds
+//    WorldOsAuthority  -- seeded once from real OS, never changes
+//         |
+//         ├── page_size      os_getpagesize()
+//         ├── cpu_count      os_cpu_count()
+//         ├── cpu_cores      os_cpu_core_count()
+//         ├── cpu_packages   os_cpu_package_count()
+//         ├── login          os_getlogin()
+//         ├── uid            os_getuid()
+//         ├── gid            os_getgid()
+//         ├── os_name_str    os_name()
+//         ├── platform_str   os_platform_name()
+//         ├── arch_str       os_arch_name()
+//         ├── terminal_cols  terminal columns
+//         ├── terminal_rows  terminal rows
+//         └── env_path       os_getenv("PATH")  -- refreshes on demand
+//         |
+//    WorldOsMirror  -- entangled reads = zero-copy cache hits
 //
-//  Benchmarks:
-//    semantic_cache  -- entangled mirror read vs raw OS syscall
-//    entangle        -- write->read propagation latency
+//  speedup = raw_os_time / cache_time
 
 component OsSemanticApp():
     render <panel title="core-os-semantic" />
@@ -130,6 +143,19 @@ world WorldOsAuthority:
     state page_size: Int = 4096
     state cpu_count: Int = 1
     state cpu_cores: Int = 1
+    state cpu_packages: Int = 1
+    state login: String = ""
+    state uid: Int = -1
+    state gid: Int = -1
+    state os_name_str: String = ""
+    state platform_str: String = ""
+    state arch_str: String = ""
+    state is_64bit: Int = 1
+    state is_windows: Int = 0
+    state is_linux: Int = 0
+    state is_macos: Int = 0
+    state terminal_cols: Int = 80
+    state terminal_rows: Int = 24
     state env_path: String = ""
     surface native_ui => OsSemanticApp
 
@@ -137,12 +163,38 @@ world WorldOsMirror:
     state page_size_copy: Int = 4096
     state cpu_count_copy: Int = 1
     state cpu_cores_copy: Int = 1
+    state cpu_packages_copy: Int = 1
+    state login_copy: String = ""
+    state uid_copy: Int = -1
+    state gid_copy: Int = -1
+    state os_name_copy: String = ""
+    state platform_copy: String = ""
+    state arch_copy: String = ""
+    state is_64bit_copy: Int = 1
+    state is_windows_copy: Int = 0
+    state is_linux_copy: Int = 0
+    state is_macos_copy: Int = 0
+    state terminal_cols_copy: Int = 80
+    state terminal_rows_copy: Int = 24
     state env_path_copy: String = ""
     surface web => OsSemanticApp
 
 entangle WorldOsAuthority.page_size <-> WorldOsMirror.page_size_copy with single_writer
 entangle WorldOsAuthority.cpu_count <-> WorldOsMirror.cpu_count_copy with single_writer
 entangle WorldOsAuthority.cpu_cores <-> WorldOsMirror.cpu_cores_copy with single_writer
+entangle WorldOsAuthority.cpu_packages <-> WorldOsMirror.cpu_packages_copy with single_writer
+entangle WorldOsAuthority.login <-> WorldOsMirror.login_copy with single_writer
+entangle WorldOsAuthority.uid <-> WorldOsMirror.uid_copy with single_writer
+entangle WorldOsAuthority.gid <-> WorldOsMirror.gid_copy with single_writer
+entangle WorldOsAuthority.os_name_str <-> WorldOsMirror.os_name_copy with single_writer
+entangle WorldOsAuthority.platform_str <-> WorldOsMirror.platform_copy with single_writer
+entangle WorldOsAuthority.arch_str <-> WorldOsMirror.arch_copy with single_writer
+entangle WorldOsAuthority.is_64bit <-> WorldOsMirror.is_64bit_copy with single_writer
+entangle WorldOsAuthority.is_windows <-> WorldOsMirror.is_windows_copy with single_writer
+entangle WorldOsAuthority.is_linux <-> WorldOsMirror.is_linux_copy with single_writer
+entangle WorldOsAuthority.is_macos <-> WorldOsMirror.is_macos_copy with single_writer
+entangle WorldOsAuthority.terminal_cols <-> WorldOsMirror.terminal_cols_copy with single_writer
+entangle WorldOsAuthority.terminal_rows <-> WorldOsMirror.terminal_rows_copy with single_writer
 entangle WorldOsAuthority.env_path <-> WorldOsMirror.env_path_copy with single_writer
 
 shatter struct OsMemShard:
@@ -150,15 +202,40 @@ shatter struct OsMemShard:
     byte_count: Int
     entropy: Int
 
-// Seed the world cache from real OS values
+// ─── Seed ALL static OS values into the world cache ────────────────────
+
 pub fn os_semantic_seed() -> Int:
     WorldOsAuthority.page_size = os_getpagesize()
     WorldOsAuthority.cpu_count = os_cpu_count()
     WorldOsAuthority.cpu_cores = os_cpu_core_count()
+    WorldOsAuthority.cpu_packages = os_cpu_package_count()
+    WorldOsAuthority.login = os_getlogin()
+    WorldOsAuthority.uid = os_getuid()
+    WorldOsAuthority.gid = os_getgid()
+    WorldOsAuthority.os_name_str = os_name()
+    WorldOsAuthority.platform_str = os_platform_name()
+    WorldOsAuthority.arch_str = os_arch_name()
+    WorldOsAuthority.is_64bit = 0
+    if os_is_64bit():
+        WorldOsAuthority.is_64bit = 1
+    WorldOsAuthority.is_windows = 0
+    if os_is_windows():
+        WorldOsAuthority.is_windows = 1
+    WorldOsAuthority.is_linux = 0
+    if os_is_linux():
+        WorldOsAuthority.is_linux = 1
+    WorldOsAuthority.is_macos = 0
+    if os_is_macos():
+        WorldOsAuthority.is_macos = 1
+    let term = os_get_terminal_size()
+    WorldOsAuthority.terminal_cols = term.columns
+    WorldOsAuthority.terminal_rows = term.rows
     WorldOsAuthority.env_path = os_getenv("PATH")
-    return WorldOsMirror.page_size_copy + WorldOsMirror.cpu_count_copy + WorldOsMirror.cpu_cores_copy
+    // Return a checksum of all cached values to prove correctness
+    return WorldOsMirror.page_size_copy + WorldOsMirror.cpu_count_copy + WorldOsMirror.cpu_cores_copy + WorldOsMirror.cpu_packages_copy + WorldOsMirror.uid_copy + WorldOsMirror.gid_copy
 
-// Read from entangled mirror (zero-copy cache hit)
+// ─── Entangled readers — zero-copy cache hits ─────────────────────────
+
 pub fn os_semantic_page() -> Int:
     return WorldOsMirror.page_size_copy
 
@@ -168,12 +245,109 @@ pub fn os_semantic_cpu() -> Int:
 pub fn os_semantic_cores() -> Int:
     return WorldOsMirror.cpu_cores_copy
 
-// Write triggers automatic entangle propagation
+pub fn os_semantic_packages() -> Int:
+    return WorldOsMirror.cpu_packages_copy
+
+pub fn os_semantic_login() -> String:
+    return WorldOsMirror.login_copy
+
+pub fn os_semantic_uid() -> Int:
+    return WorldOsMirror.uid_copy
+
+pub fn os_semantic_gid() -> Int:
+    return WorldOsMirror.gid_copy
+
+pub fn os_semantic_os_name() -> String:
+    return WorldOsMirror.os_name_copy
+
+pub fn os_semantic_platform() -> String:
+    return WorldOsMirror.platform_copy
+
+pub fn os_semantic_arch() -> String:
+    return WorldOsMirror.arch_copy
+
+pub fn os_semantic_terminal_cols() -> Int:
+    return WorldOsMirror.terminal_cols_copy
+
+pub fn os_semantic_terminal_rows() -> Int:
+    return WorldOsMirror.terminal_rows_copy
+
+pub fn os_semantic_env() -> String:
+    return WorldOsMirror.env_path_copy
+
+// ─── Entangled all-in-one metadata read ───────────────────────────────
+//  Reads 10 cached OS values in one shot. Against raw path this is
+//  where the semantic win really shows.
+
+pub fn os_semantic_read_all() -> Int:
+    var acc: Int = 0
+    acc = (acc + WorldOsMirror.page_size_copy) % 1000000007
+    acc = (acc + WorldOsMirror.cpu_count_copy) % 1000000007
+    acc = (acc + WorldOsMirror.cpu_cores_copy) % 1000000007
+    acc = (acc + WorldOsMirror.cpu_packages_copy) % 1000000007
+    acc = (acc + WorldOsMirror.uid_copy) % 1000000007
+    acc = (acc + WorldOsMirror.gid_copy) % 1000000007
+    acc = (acc + WorldOsMirror.terminal_cols_copy) % 1000000007
+    acc = (acc + WorldOsMirror.terminal_rows_copy) % 1000000007
+    return acc
+
+// ─── Benchmark: ALL entangled reads vs ALL raw OS calls ───────────────
+
+pub struct SemanticAllResult:
+    cache_ms: Int
+    raw_ms: Int
+
+pub fn bench_semantic_all(iterations: Int) -> SemanticAllResult:
+    let seed = os_semantic_seed()
+
+    let start_cache = now_millis()
+    var acc_cache: Int = 0
+    var i: Int = 0
+    while i < iterations:
+        acc_cache = (acc_cache + os_semantic_read_all()) % 1000000007
+        i = i + 1
+    let elapsed_cache = now_millis() - start_cache
+
+    let start_raw = now_millis()
+    var acc_raw: Int = 0
+    i = 0
+    while i < iterations:
+        acc_raw = (acc_raw + os_getpagesize()) % 1000000007
+        acc_raw = (acc_raw + os_cpu_count()) % 1000000007
+        acc_raw = (acc_raw + os_cpu_core_count()) % 1000000007
+        acc_raw = (acc_raw + os_cpu_package_count()) % 1000000007
+        acc_raw = (acc_raw + os_getuid()) % 1000000007
+        acc_raw = (acc_raw + os_getgid()) % 1000000007
+        let term = os_get_terminal_size()
+        acc_raw = (acc_raw + term.columns) % 1000000007
+        acc_raw = (acc_raw + term.rows) % 1000000007
+        i = i + 1
+    let elapsed_raw = now_millis() - start_raw
+
+    return SemanticAllResult { cache_ms: elapsed_cache, raw_ms: elapsed_raw }
+
+// ─── Refresher — trigger entangle propagation for mutable values ───────
+
 pub fn os_semantic_refresh_env() -> Int:
     WorldOsAuthority.env_path = os_getenv("PATH")
     return len(WorldOsMirror.env_path_copy)
 
-// Teleport benchmark -- move a shard between worlds
+// ─── Benchmark: entangle propagation latency — write->read ────────────
+
+pub fn bench_entangle_propagation(iterations: Int) -> Int:
+    let start = now_millis()
+    var acc: Int = 0
+    var i: Int = 0
+    while i < iterations:
+        WorldOsAuthority.cpu_count = i
+        let read_back = WorldOsMirror.cpu_count_copy
+        acc = (acc + read_back) % 1000000007
+        i = i + 1
+    let elapsed = now_millis() - start
+    return elapsed
+
+// ─── Teleport benchmark ───────────────────────────────────────────────
+
 pub fn os_semantic_teleport(iterations: Int) -> Int:
     var acc: Int = 0
     var i: Int = 0
@@ -183,47 +357,6 @@ pub fn os_semantic_teleport(iterations: Int) -> Int:
         acc = (acc + WorldOsMirror.page_size_copy) % 1000000007
         i = i + 1
     return acc
-
-// Benchmark: entangled cache reads vs raw OS calls
-pub struct CacheBenchResult:
-    cache_ms: Int
-    raw_ms: Int
-
-pub fn bench_semantic_cache(iterations: Int) -> CacheBenchResult:
-    let seed = os_semantic_seed()
-
-    // Read through entangled mirror
-    let start_cache = now_millis()
-    var acc_cache: Int = 0
-    var i: Int = 0
-    while i < iterations:
-        acc_cache = (acc_cache + os_semantic_page() + os_semantic_cpu() + os_semantic_cores()) % 1000000007
-        i = i + 1
-    let elapsed_cache = now_millis() - start_cache
-
-    // Read through raw OS calls
-    let start_raw = now_millis()
-    var acc_raw: Int = 0
-    i = 0
-    while i < iterations:
-        acc_raw = (acc_raw + os_getpagesize() + os_cpu_count() + os_cpu_core_count()) % 1000000007
-        i = i + 1
-    let elapsed_raw = now_millis() - start_raw
-
-    return CacheBenchResult { cache_ms: elapsed_cache, raw_ms: elapsed_raw }
-
-// Entangle propagation benchmark -- write->read latency
-pub fn bench_entangle_propagation(iterations: Int) -> Int:
-    let start = now_millis()
-    var acc: Int = 0
-    var i: Int = 0
-    while i < iterations:
-        WorldOsAuthority.page_size = i
-        let read_back = WorldOsMirror.page_size_copy
-        acc = (acc + read_back) % 1000000007
-        i = i + 1
-    let elapsed = now_millis() - start
-    return elapsed
 
 // ============================================================================
 //  SYSTEM PROBE -- Discover what we're running on
@@ -772,12 +905,15 @@ fn main() -> Int:
     let closed_cs = closed_form_accumulate(1000000)
     println("  [CONVERGE] scalar_checksum(1M)= " + str(scalar_cs) + " closed_form= " + str(closed_cs) + " match=" + str(scalar_cs == closed_cs))
 
-    // Semantic bench: cache vs raw
+    // Semantic bench: ALL 8 static OS values — cache vs raw
     let sem_iter = 10000
-    let bench_result = bench_semantic_cache(sem_iter)
-    let cache_ms = bench_result.cache_ms
-    let raw_ms = bench_result.raw_ms
-    println("  [SEMANTIC] cache reads: " + str(cache_ms) + " ms raw syscalls: " + str(raw_ms) + " ms ratio: " + str(raw_ms / (cache_ms + 1)) + "x (" + str(sem_iter) + " iters)")
+    let all_result = bench_semantic_all(sem_iter)
+    let cache_ms = all_result.cache_ms
+    let raw_ms = all_result.raw_ms
+    if raw_ms > 0:
+        println("  [SEMANTIC] ALL static OS reads (8 values): cache=" + str(cache_ms) + "ms raw=" + str(raw_ms) + "ms speedup=" + str(raw_ms / (cache_ms + 1)) + "x (" + str(sem_iter) + " iters)")
+    else:
+        println("  [SEMANTIC] ALL static OS reads: cache=" + str(cache_ms) + "ms raw=" + str(raw_ms) + "ms (" + str(sem_iter) + " iters)")
 
     let entangle_ms = bench_entangle_propagation(10000)
     println("  [SEMANTIC] entangle propagation (10k writes): " + str(entangle_ms) + " ms, " + str(entangle_ms * 100 / 10) + " us/op")
