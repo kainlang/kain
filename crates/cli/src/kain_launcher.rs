@@ -1893,14 +1893,27 @@ fn parse_artifact_mode(value: &str) -> Result<ArtifactMode, String> {
     }
 }
 
-fn run_check_command(input: &Path, target: &str, fail_fast: bool, json: Option<&Path>) -> bool {
+fn run_check_command(
+    input: &Path,
+    target: &str,
+    fail_fast: bool,
+    json_stdout: bool,
+    json_out: Option<&Path>,
+) -> bool {
     let Some(target) = parse_compile_target(target) else {
-        eprintln!(" Unknown check target. Use: {}", supported_targets_csv());
+        if json_stdout {
+            emit_json_error(format!(
+                "Unknown check target. Use: {}",
+                supported_targets_csv()
+            ));
+        } else {
+            eprintln!(" Unknown check target. Use: {}", supported_targets_csv());
+        }
         return false;
     };
     let mut options = kain_check::CheckOptions::new(target);
     options.fail_fast = fail_fast;
-    options.progress = cli::progress::stderr_progress_sink(json.is_none());
+    options.progress = cli::progress::stderr_progress_sink(!(json_stdout || json_out.is_some()));
 
     let report = if input == Path::new("-") {
         match read_source_from_path(input) {
@@ -1933,17 +1946,35 @@ fn run_check_command(input: &Path, target: &str, fail_fast: bool, json: Option<&
             },
         }
     } else {
-        let resolved_input = match resolve_check_input(input) {
-            Ok(path) => path,
-            Err(error) => {
-                eprintln!(" Check failed: {}", error);
-                return false;
-            }
-        };
-        kain_check::check_path(&resolved_input, &options)
+        match resolve_check_input(input) {
+            Ok(path) => kain_check::check_path(&path, &options),
+            Err(error) => kain_check::CheckReport {
+                target: kain_check::compile_target_name(target).to_string(),
+                total: 1,
+                passed: 0,
+                failed: 1,
+                files: vec![kain_check::CheckFileReport {
+                    path: input.display().to_string(),
+                    target: kain_check::compile_target_name(target).to_string(),
+                    status: kain_check::CheckStatus::Failed,
+                    item_count: 0,
+                    test_count: 0,
+                    required_capabilities: Vec::new(),
+                    error: Some(error),
+                    diagnostic: None,
+                }],
+            },
+        }
     };
-    if let Some(path) = json {
-        if !write_structured_report(path, &report, "check") {
+    if json_stdout {
+        if !emit_structured_report(StructuredReportDestination::Stdout, &report, "check") {
+            return false;
+        }
+        return report.is_success();
+    }
+
+    if let Some(path) = json_out {
+        if !emit_structured_report(StructuredReportDestination::File(path), &report, "check") {
             return false;
         }
     }
@@ -2088,20 +2119,33 @@ fn run_test_command(
     target: &str,
     fail_fast: bool,
     ignored: bool,
-    json: Option<&Path>,
+    json_stdout: bool,
+    json_out: Option<&Path>,
 ) -> bool {
     let Some(default_target) = parse_compile_target(target) else {
-        eprintln!(" Unknown test target. Use: {}", supported_targets_csv());
+        if json_stdout {
+            emit_json_error(format!(
+                "Unknown test target. Use: {}",
+                supported_targets_csv()
+            ));
+        } else {
+            eprintln!(" Unknown test target. Use: {}", supported_targets_csv());
+        }
         return false;
     };
     let mode_override = match mode {
         Some(value) => match kain_test::KainTestMode::parse(value) {
             Some(mode) => Some(mode),
             None => {
-                eprintln!(
-                    " Unknown test mode '{}'. Use: check-pass, check-fail, run-pass, run-fail, kain-test, prove-pass, prove-sat",
+                let message = format!(
+                    "Unknown test mode '{}'. Use: check-pass, check-fail, run-pass, run-fail, kain-test, prove-pass, prove-sat",
                     value
                 );
+                if json_stdout {
+                    emit_json_error(message);
+                } else {
+                    eprintln!(" {}", message);
+                }
                 return false;
             }
         },
@@ -2113,8 +2157,15 @@ fn run_test_command(
     options.run_ignored = ignored;
 
     let report = kain_test::run_path(input, &options);
-    if let Some(path) = json {
-        if !write_structured_report(path, &report, "test") {
+    if json_stdout {
+        if !emit_structured_report(StructuredReportDestination::Stdout, &report, "test") {
+            return false;
+        }
+        return report.is_success();
+    }
+
+    if let Some(path) = json_out {
+        if !emit_structured_report(StructuredReportDestination::File(path), &report, "test") {
             return false;
         }
     }
@@ -2181,31 +2232,58 @@ fn run_test_command(
     report.is_success()
 }
 
-fn write_structured_report<T: Serialize>(path: &Path, value: &T, label: &str) -> bool {
-    if !ensure_parent_dir(path) {
-        return false;
-    }
-    match serde_json::to_string_pretty(value) {
-        Ok(encoded) => match fs::write(path, encoded) {
-            Ok(()) => {
-                println!(" Wrote {} report: {}", label, path.display());
-                true
-            }
-            Err(error) => {
-                eprintln!(
-                    " Failed to write {} report '{}': {}",
-                    label,
-                    path.display(),
-                    error
-                );
-                false
-            }
-        },
+enum StructuredReportDestination<'a> {
+    Stdout,
+    File(&'a Path),
+}
+
+fn emit_structured_report<T: Serialize>(
+    destination: StructuredReportDestination<'_>,
+    value: &T,
+    label: &str,
+) -> bool {
+    let encoded = match serde_json::to_string_pretty(value) {
+        Ok(encoded) => encoded,
         Err(error) => {
             eprintln!(" Failed to serialize {} report: {}", label, error);
-            false
+            return false;
+        }
+    };
+
+    match destination {
+        StructuredReportDestination::Stdout => {
+            println!("{encoded}");
+            true
+        }
+        StructuredReportDestination::File(path) => {
+            if !ensure_parent_dir(path) {
+                return false;
+            }
+            match fs::write(path, encoded) {
+                Ok(()) => {
+                    println!(" Wrote {} report: {}", label, path.display());
+                    true
+                }
+                Err(error) => {
+                    eprintln!(
+                        " Failed to write {} report '{}': {}",
+                        label,
+                        path.display(),
+                        error
+                    );
+                    false
+                }
+            }
         }
     }
+}
+
+fn emit_json_error(message: String) {
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&serde_json::json!({ "error": message }))
+            .unwrap_or_else(|error| format!("{{\"error\":\"failed to serialize CLI error: {error}\"}}"))
+    );
 }
 
 fn run_registry_command(command: RegistryCommand) -> Result<(), String> {
@@ -2790,8 +2868,9 @@ pub fn main_entry() {
                     target,
                     fail_fast,
                     json,
+                    json_out,
                 }) => {
-                    if !run_check_command(&input, &target, fail_fast, json.as_deref()) {
+                    if !run_check_command(&input, &target, fail_fast, json, json_out.as_deref()) {
                         std::process::exit(1);
                     }
                 }
@@ -2802,6 +2881,7 @@ pub fn main_entry() {
                     fail_fast,
                     ignored,
                     json,
+                    json_out,
                 }) => {
                     if !run_test_command(
                         &input,
@@ -2809,7 +2889,8 @@ pub fn main_entry() {
                         &target,
                         fail_fast,
                         ignored,
-                        json.as_deref(),
+                        json,
+                        json_out.as_deref(),
                     ) {
                         std::process::exit(1);
                     }

@@ -109,7 +109,7 @@ cargo run -p kain-semantic --example write_semantic_pack --target-dir Z:\_b\carg
 
 $env:KAIN_SEMANTIC_PACK_PATH = 'X:\crates\semantic\.kain\oracle\sempack\current'
 Remove-Item Env:\KAIN_SEMANTIC_PACK_DISABLE -ErrorAction SilentlyContinue
-kain check X:\crates\semantic\error_corpus\type_unknown_identifier.kn --target llvm --json X:\crates\semantic\.kain\reports\semantic-pack-type.json
+kain check X:\crates\semantic\error_corpus\type_unknown_identifier.kn --target llvm --json-out X:\crates\semantic\.kain\reports\semantic-pack-type.json
 ```
 
 Expected structured diagnostic proof from `semantic-pack-type.json`:
@@ -123,7 +123,7 @@ Fallback proof:
 
 ```powershell
 $env:KAIN_SEMANTIC_PACK_DISABLE = '1'
-kain check X:\crates\semantic\error_corpus\type_unknown_identifier.kn --target llvm --json X:\crates\semantic\.kain\reports\semantic-pack-disabled-type.json
+kain check X:\crates\semantic\error_corpus\type_unknown_identifier.kn --target llvm --json-out X:\crates\semantic\.kain\reports\semantic-pack-disabled-type.json
 ```
 
 Expected fallback structured diagnostic proof:
@@ -175,9 +175,9 @@ $bin = 'Z:\_b\output-user-root\n2kwlvv2\execroot\_main\bazel-out\x64_windows-dbg
 $out = 'X:\crates\semantic\.kain\reports\final-pass'
 New-Item -ItemType Directory -Force -Path $out | Out-Null
 
-& $bin check X:\crates\semantic\error_corpus\final_pass_v1\python_alias_missing_import.kn --target llvm --json "$out\python_alias_missing_import.json"
-& $bin check X:\crates\semantic\error_corpus\final_pass_v1\c_abi_missing_module_import.kn --target llvm --json "$out\c_abi_missing_module_import.json"
-& $bin check X:\crates\semantic\error_corpus\final_pass_v1\cuda_missing_std_import.kn --target llvm --json "$out\cuda_missing_std_import.json"
+& $bin check X:\crates\semantic\error_corpus\final_pass_v1\python_alias_missing_import.kn --target llvm --json-out "$out\python_alias_missing_import.json"
+& $bin check X:\crates\semantic\error_corpus\final_pass_v1\c_abi_missing_module_import.kn --target llvm --json-out "$out\c_abi_missing_module_import.json"
+& $bin check X:\crates\semantic\error_corpus\final_pass_v1\cuda_missing_std_import.kn --target llvm --json-out "$out\cuda_missing_std_import.json"
 
 & $bin gpu-artifacts X:\crates\semantic\error_corpus\final_pass_v1\shader_host_call_boundary.kn --output "$out\shader_host_call_fresh" --target spirv
 & $bin gpu-artifacts X:\crates\semantic\error_corpus\final_pass_v1\shader_storage_binding_conflict.kn --output "$out\shader_binding_conflict" --target spirv

@@ -634,9 +634,13 @@ pub enum KainCommand {
         #[arg(long)]
         fail_fast: bool,
 
-        /// Write a structured JSON check report
-        #[arg(long)]
-        json: Option<PathBuf>,
+        /// Emit structured JSON to stdout for LLMs and CI
+        #[arg(long, conflicts_with = "json_out")]
+        json: bool,
+
+        /// Write a structured JSON check report to a file
+        #[arg(long = "json-out", conflicts_with = "json")]
+        json_out: Option<PathBuf>,
     },
 
     /// Run Kain source tests using Rust-style pass/fail directives
@@ -660,9 +664,13 @@ pub enum KainCommand {
         #[arg(long)]
         ignored: bool,
 
-        /// Write a structured JSON test report
-        #[arg(long)]
-        json: Option<PathBuf>,
+        /// Emit structured JSON to stdout for LLMs and CI
+        #[arg(long, conflicts_with = "json_out")]
+        json: bool,
+
+        /// Write a structured JSON test report to a file
+        #[arg(long = "json-out", conflicts_with = "json")]
+        json_out: Option<PathBuf>,
     },
 
     /// Run self-host bootstrap workflows
@@ -1156,6 +1164,34 @@ mod tests {
         match cli.command {
             Some(KainCommand::Check { input, .. }) => {
                 assert_eq!(input, PathBuf::from("main.kn"));
+            }
+            other => panic!("expected check command, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_check_stdout_json_flag() {
+        let cli = KainCli::parse_from(["kain", "check", "main.kn", "--json"]);
+        match cli.command {
+            Some(KainCommand::Check {
+                json, json_out, ..
+            }) => {
+                assert!(json);
+                assert_eq!(json_out, None);
+            }
+            other => panic!("expected check command, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_check_json_out_path() {
+        let cli = KainCli::parse_from(["kain", "check", "main.kn", "--json-out", "report.json"]);
+        match cli.command {
+            Some(KainCommand::Check {
+                json, json_out, ..
+            }) => {
+                assert!(!json);
+                assert_eq!(json_out, Some(PathBuf::from("report.json")));
             }
             other => panic!("expected check command, got {other:?}"),
         }

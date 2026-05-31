@@ -33,7 +33,7 @@ kain check path\to\entry.kn --target llvm
 kain run path\to\entry.kn --target llvm
 kain run plan path\to\entry.kn --target llvm --json
 kain build path\to\entry.kn --target llvm -o path\to\app.exe
-kain test path\to\suite --target llvm --json .kain\reports\kain-test.json
+kain test path\to\suite --target llvm --json-out .kain\reports\kain-test.json
 ```
 
 For project DAGs:
@@ -349,7 +349,7 @@ Use `kain check` for fast frontend validation:
 
 ```powershell
 kain check src\main.kn --target llvm
-kain check . --target llvm --fail-fast --json .kain\reports\check.json
+kain check . --target llvm --fail-fast --json-out .kain\reports\check.json
 Get-Content src\main.kn | kain check -
 ```
 
@@ -357,7 +357,7 @@ Use `kain test` for source certification:
 
 ```powershell
 kain test tests --target llvm
-kain test smoketest\kain-test --json .kain\reports\kain-test.json
+kain test smoketest\kain-test --json-out .kain\reports\kain-test.json
 kain test tests --mode check-pass --fail-fast
 kain test tests --ignored
 ```

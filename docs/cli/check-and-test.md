@@ -12,12 +12,14 @@ They are backed by reusable crates instead of CLI-only code:
 ```powershell
 kain check path\to\file.kn
 kain check path\to\portable_capsule.kn --target llvm
-kain check path\to\suite --target rust --fail-fast --json target\check-report.json
+kain check path\to\suite --target rust --fail-fast --json
+kain check path\to\suite --target rust --fail-fast --json-out target\check-report.json
 Get-Content path\to\file.kn | kain check -
 
 kain test smoketest\kain-test
 kain test tests\ui --mode check-pass --fail-fast
-kain test tests\ui --ignored --json target\kain-test-report.json
+kain test tests\ui --ignored --json
+kain test tests\ui --ignored --json-out target\kain-test-report.json
 ```
 
 `kn` accepts the same commands:
@@ -46,6 +48,9 @@ The check report records:
 - typed test count
 - required runtime capabilities from the runtime-contract bundle
 - frontend error text when checking fails
+
+`--json` prints the structured report to stdout for LLMs, CI, and shell piping.
+Use `--json-out <path>` when you want the same report written to disk.
 
 Use `--target` when the same source needs to be checked against a specific backend profile. The default is `run`, matching the interpreter-oriented local authoring loop.
 
