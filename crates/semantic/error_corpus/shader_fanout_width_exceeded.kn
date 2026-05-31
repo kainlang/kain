@@ -1,5 +1,5 @@
 // @expected_code: KAIN-SHADER-0009
-// @expected_mode: ShaderStageMismatch
+// @expected_mode: ShaderResourceContract
 // @expected_repair: reduce_fanout_width
 
 // A fanout operation whose width exceeds the GPU's maximum wavefront size.

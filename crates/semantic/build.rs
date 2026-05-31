@@ -96,15 +96,36 @@ fn main() {
     let re_pub_fn = Regex::new(r"(?m)^[ \t]*pub\s+fn\s+([A-Za-z_][A-Za-z0-9_]*)").unwrap();
     let re_pub_struct = Regex::new(r"(?m)^[ \t]*pub\s+struct\s+([A-Za-z_][A-Za-z0-9_]*)").unwrap();
     let re_pub_enum = Regex::new(r"(?m)^[ \t]*pub\s+enum\s+([A-Za-z_][A-Za-z0-9_]*)").unwrap();
+    let re_extern_fn =
+        Regex::new(r"(?m)^[ \t]*@extern[ \t]+fn[ \t]+([A-Za-z_][A-Za-z0-9_]*)").unwrap();
     let re_fn = Regex::new(r"(?m)^[ \t]*fn\s+([A-Za-z_][A-Za-z0-9_]*)").unwrap();
     let re_struct = Regex::new(r"(?m)^[ \t]*struct\s+([A-Za-z_][A-Za-z0-9_]*)").unwrap();
     let re_actor = Regex::new(r"(?m)^[ \t]*actor\s+([A-Za-z_][A-Za-z0-9_]*)").unwrap();
     let re_world = Regex::new(r"(?m)^[ \t]*world\s+([A-Za-z_][A-Za-z0-9_]*)").unwrap();
     let re_trait = Regex::new(r"(?m)^[ \t]*trait\s+([A-Za-z_][A-Za-z0-9_]*)").unwrap();
+    let re_shader = Regex::new(
+        r"(?m)^[ \t]*shader\s+(?:(?:vertex|fragment|compute|surface)\s+)?([A-Za-z_][A-Za-z0-9_]*)",
+    )
+    .unwrap();
+    let re_law = Regex::new(r"(?m)^[ \t]*law\s+([A-Za-z_][A-Za-z0-9_]*)").unwrap();
+    let re_patch = Regex::new(r"(?m)^[ \t]*patch\s+([A-Za-z_][A-Za-z0-9_]*)").unwrap();
+    let re_converge = Regex::new(r"(?m)^[ \t]*converge\s+([A-Za-z_][A-Za-z0-9_]*)").unwrap();
+    let re_orchestrate = Regex::new(r"(?m)^[ \t]*orchestrate\s+([A-Za-z_][A-Za-z0-9_]*)").unwrap();
+    let re_pulse = Regex::new(r"(?m)^[ \t]*pulse\s+([A-Za-z_][A-Za-z0-9_]*)").unwrap();
+    let re_shatter = Regex::new(r"(?m)^[ \t]*shatter\s+struct\s+([A-Za-z_][A-Za-z0-9_]*)").unwrap();
     let re_use_std = Regex::new(r"(?m)^[ \t]*use\s+std::([A-Za-z_][A-Za-z0-9_]*)").unwrap();
+    let re_use_path =
+        Regex::new(r"(?m)^[ \t]*use\s+([A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)+)")
+            .unwrap();
+    let re_include_alias =
+        Regex::new(r"(?m)^[ \t]*include\s+(.+?)\s+as\s+([A-Za-z_][A-Za-z0-9_]*)").unwrap();
+    let re_python_import_alias =
+        Regex::new(r"(?m)^[ \t]*import\s+([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)\s+as\s+([A-Za-z_][A-Za-z0-9_]*)").unwrap();
+    let re_python_from_import =
+        Regex::new(r"(?m)^[ \t]*from\s+([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)\s+import\s+([A-Za-z_][A-Za-z0-9_]*)(?:\s+as\s+([A-Za-z_][A-Za-z0-9_]*))?").unwrap();
     let re_exp_code = Regex::new(r"(?m)^//\s*@expected_code:\s*([A-Za-z0-9-]+)").unwrap();
     let re_exp_mode = Regex::new(r"(?m)^//\s*@expected_mode:\s*([A-Za-z0-9_]+)").unwrap();
-    let re_exp_repair = Regex::new(r"(?m)^//\s*@expected_repair:\s*([A-Za-z0-9_]+)").unwrap();
+    let re_exp_repair = Regex::new(r"(?m)^//\s*@expected_repair:\s*(.+?)\s*$").unwrap();
 
     let mut symbols: BTreeSet<RawSymbol> = BTreeSet::new();
     let mut imports: BTreeSet<RawImport> = BTreeSet::new();
@@ -157,6 +178,59 @@ fn main() {
                 imports.insert(RawImport {
                     symbol_prefix: module_name.clone(),
                     import_path: format!("std::{}", module_name),
+                    source_path: source_path.clone(),
+                    source_lane: root.source_lane.clone(),
+                });
+            }
+            for cap in re_use_path.captures_iter(&src) {
+                let import_path = cap[1].to_string();
+                let symbol_prefix = import_path
+                    .rsplit("::")
+                    .next()
+                    .unwrap_or(&import_path)
+                    .to_string();
+                imports.insert(RawImport {
+                    symbol_prefix,
+                    import_path,
+                    source_path: source_path.clone(),
+                    source_lane: root.source_lane.clone(),
+                });
+            }
+            for cap in re_include_alias.captures_iter(&src) {
+                let include_target = cap[1].trim();
+                let alias = cap[2].to_string();
+                imports.insert(RawImport {
+                    symbol_prefix: alias.clone(),
+                    import_path: format!("include {include_target} as {alias}"),
+                    source_path: source_path.clone(),
+                    source_lane: root.source_lane.clone(),
+                });
+            }
+            for cap in re_python_import_alias.captures_iter(&src) {
+                let module = cap[1].to_string();
+                let alias = cap[2].to_string();
+                imports.insert(RawImport {
+                    symbol_prefix: alias.clone(),
+                    import_path: format!("import {module} as {alias}"),
+                    source_path: source_path.clone(),
+                    source_lane: root.source_lane.clone(),
+                });
+            }
+            for cap in re_python_from_import.captures_iter(&src) {
+                let module = cap[1].to_string();
+                let name = cap[2].to_string();
+                let alias = cap
+                    .get(3)
+                    .map(|value| value.as_str().to_string())
+                    .unwrap_or_else(|| name.clone());
+                let import_path = if alias == name {
+                    format!("from {module} import {name}")
+                } else {
+                    format!("from {module} import {name} as {alias}")
+                };
+                imports.insert(RawImport {
+                    symbol_prefix: alias,
+                    import_path,
                     source_path: source_path.clone(),
                     source_lane: root.source_lane.clone(),
                 });
@@ -225,6 +299,17 @@ fn main() {
             );
             collect_symbol_matches(
                 &mut symbols,
+                &re_extern_fn,
+                &src,
+                "extern_fn",
+                true,
+                &module_path,
+                &source_path,
+                &root.source_lane,
+                canonical_import_path.as_deref(),
+            );
+            collect_symbol_matches(
+                &mut symbols,
                 &re_fn,
                 &src,
                 "fn",
@@ -272,6 +357,83 @@ fn main() {
                 &re_trait,
                 &src,
                 "trait",
+                false,
+                &module_path,
+                &source_path,
+                &root.source_lane,
+                None,
+            );
+            collect_symbol_matches(
+                &mut symbols,
+                &re_shader,
+                &src,
+                "shader",
+                false,
+                &module_path,
+                &source_path,
+                &root.source_lane,
+                None,
+            );
+            collect_symbol_matches(
+                &mut symbols,
+                &re_law,
+                &src,
+                "law",
+                false,
+                &module_path,
+                &source_path,
+                &root.source_lane,
+                None,
+            );
+            collect_symbol_matches(
+                &mut symbols,
+                &re_patch,
+                &src,
+                "patch",
+                false,
+                &module_path,
+                &source_path,
+                &root.source_lane,
+                None,
+            );
+            collect_symbol_matches(
+                &mut symbols,
+                &re_converge,
+                &src,
+                "converge",
+                false,
+                &module_path,
+                &source_path,
+                &root.source_lane,
+                None,
+            );
+            collect_symbol_matches(
+                &mut symbols,
+                &re_orchestrate,
+                &src,
+                "orchestrate",
+                false,
+                &module_path,
+                &source_path,
+                &root.source_lane,
+                None,
+            );
+            collect_symbol_matches(
+                &mut symbols,
+                &re_pulse,
+                &src,
+                "pulse",
+                false,
+                &module_path,
+                &source_path,
+                &root.source_lane,
+                None,
+            );
+            collect_symbol_matches(
+                &mut symbols,
+                &re_shatter,
+                &src,
+                "shatter_struct",
                 false,
                 &module_path,
                 &source_path,
@@ -470,29 +632,9 @@ fn source_path_for(repo_root: &Path, path: &Path) -> String {
 }
 
 fn derive_error_primary_text(source: &str, expected_mode: &str, expected_repair: &str) -> String {
-    if expected_mode == "Typo" {
-        for line in source.lines() {
-            let trimmed = line.trim();
-            if trimmed.starts_with("//")
-                || trimmed.starts_with("fn ")
-                || trimmed.starts_with("pub fn ")
-                || trimmed.starts_with("shader ")
-                || trimmed.starts_with("actor ")
-                || trimmed.starts_with("world ")
-            {
-                continue;
-            }
-
-            if let Some(call_index) = trimmed.find('(') {
-                let prefix = &trimmed[..call_index];
-                if let Some(symbol) = prefix.split_whitespace().last().map(|value| {
-                    value.trim_matches(|ch: char| !ch.is_ascii_alphanumeric() && ch != '_')
-                }) {
-                    if !symbol.is_empty() && symbol != expected_repair {
-                        return symbol.to_string();
-                    }
-                }
-            }
+    if primary_text_should_follow_first_call(expected_mode) {
+        if let Some(symbol) = first_call_symbol(source, expected_repair) {
+            return symbol;
         }
     }
 
@@ -507,6 +649,40 @@ fn derive_error_primary_text(source: &str, expected_mode: &str, expected_repair:
     }
 
     expected_repair.to_string()
+}
+
+fn primary_text_should_follow_first_call(expected_mode: &str) -> bool {
+    matches!(
+        expected_mode,
+        "Typo" | "PythonInteropBoundary" | "CAbiBoundary" | "CudaKernelContract"
+    )
+}
+
+fn first_call_symbol(source: &str, expected_repair: &str) -> Option<String> {
+    for line in source.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with("//")
+            || trimmed.starts_with("fn ")
+            || trimmed.starts_with("pub fn ")
+            || trimmed.starts_with("shader ")
+            || trimmed.starts_with("actor ")
+            || trimmed.starts_with("world ")
+        {
+            continue;
+        }
+
+        if let Some(call_index) = trimmed.find('(') {
+            let prefix = &trimmed[..call_index];
+            if let Some(symbol) = prefix.split_whitespace().last().map(|value| {
+                value.trim_matches(|ch: char| !ch.is_ascii_alphanumeric() && ch != '_')
+            }) {
+                if !symbol.is_empty() && symbol != expected_repair {
+                    return Some(symbol.to_string());
+                }
+            }
+        }
+    }
+    None
 }
 
 fn canonical_import_path_for(source_lane: &str, rel_parts: &[String]) -> Option<String> {

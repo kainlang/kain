@@ -1,5 +1,5 @@
 // @expected_code: KAIN-SHADER-0004
-// @expected_mode: ShaderStageMismatch
+// @expected_mode: ShaderResourceContract
 // @expected_repair: fix_dispatch_dimensions
 
 // A compute shader with an out-of-range dispatch dimension (zero).

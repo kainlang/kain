@@ -1,0 +1,11 @@
+// @expected_code: KAIN-SHADER-0005
+// @expected_mode: ShaderResourceContract
+// @expected_repair: use_gpu_compatible_type
+
+struct HostOnlyResource:
+    path: String
+    callback: Int
+
+shader compute HostStructStorage(id: UVec3) -> Vec4:
+    uniform resources: StorageBuffer<HostOnlyResource> @0
+    return vec4(to_float(resources[id.x].callback), 0.0, 0.0, 1.0)

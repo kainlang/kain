@@ -1,5 +1,5 @@
 // @expected_code: KAIN-SHADER-0007
-// @expected_mode: ShaderStageMismatch
+// @expected_mode: ShaderResourceContract
 // @expected_repair: fix_fragment_output
 
 // A fragment shader outputting a type that does not match the render target format.

@@ -1,7 +1,7 @@
-use std::fs;
-use std::path::Path;
 use kain_error::{CompilerPhase, DiagnosticCode, DiagnosticSemanticPacket};
 use kain_semantic::SemanticCoprocessor;
+use std::fs;
+use std::path::Path;
 
 fn main() {
     let scratch_dir = Path::new("scratch");
@@ -37,7 +37,7 @@ fn main() {
         let mut expected_code = String::new();
         let mut expected_mode = String::new();
         let mut expected_repair = String::new();
-        
+
         for line in content.lines() {
             let line = line.trim();
             if line.starts_with("//") {
@@ -57,7 +57,9 @@ fn main() {
         }
 
         println!("📂 FILE: scratch/{}", file_name);
-        println!("--------------------------------------------------------------------------------");
+        println!(
+            "--------------------------------------------------------------------------------"
+        );
         println!("--- Source Code Snippet ---");
         for line in content.lines().take(12) {
             println!("  {}", line);
@@ -69,25 +71,23 @@ fn main() {
 
         // 1. Build dynamic packet mocking compiler context
         let code = DiagnosticCode::new(Box::leak(expected_code.clone().into_boxed_str()));
-        let mut packet = DiagnosticSemanticPacket::new(
-            code,
-            CompilerPhase::TypeChecking,
-            "cells",
-        );
+        let mut packet = DiagnosticSemanticPacket::new(code, CompilerPhase::TypeChecking, "cells");
 
         packet = packet.source_window(&content);
 
         // Customize mock packet attributes to fit expected FailureMode
         if expected_mode == "OwnershipViolation" {
-            packet = packet.flag("in_converge_block", false)
-                           .flag("in_entangle_block", false);
+            packet = packet
+                .flag("in_converge_block", false)
+                .flag("in_entangle_block", false);
         } else if expected_mode == "ConvergeMismatch" {
             packet = packet.flag("in_converge_block", true);
         } else if expected_mode == "EntangleViolation" {
             packet = packet.flag("in_entangle_block", true);
         } else if expected_mode == "Typo" {
-            packet = packet.visible_symbols(vec!["mix_scalar".into(), "println".into()])
-                           .add_scope_match("mix_scalar", 1);
+            packet = packet
+                .visible_symbols(vec!["mix_scalar".into(), "println".into()])
+                .add_scope_match("mix_scalar", 1);
         }
 
         // Add the ideal repair candidate and some distraction candidates to test ranking
@@ -96,11 +96,7 @@ fn main() {
             format!("Ideal fix for {}", expected_mode),
             "replacement_text_here",
         );
-        packet = packet.add_repair(
-            "dummy_repair",
-            "A distraction repair candidate",
-            "dummy",
-        );
+        packet = packet.add_repair("dummy_repair", "A distraction repair candidate", "dummy");
 
         // 2. Query Coprocessor
         let report = coprocessor.analyze(&packet);
@@ -112,29 +108,70 @@ fn main() {
         println!("  - Confidence Score: {:.2}", report.root_cause_confidence);
         println!("  - Cascade Prob    : {:.2}", report.cascade_probability);
         println!("  - Explanation Style: {}", report.explanation_style);
-        println!("  - Generated Output:\n    \"{}\"", report.dynamic_explanation);
+        println!(
+            "  - Generated Output:\n    \"{}\"",
+            report.dynamic_explanation
+        );
         println!();
-        
+
         println!("🛠️  REPAIR RANKINGS:");
         for (i, r) in report.ranked_repairs.iter().enumerate() {
-            println!("    {}. [{}] {} (Score: {:.2})", i + 1, r.repair_id, r.description, r.score);
+            println!(
+                "    {}. [{}] {} (Score: {:.2})",
+                i + 1,
+                r.repair_id,
+                r.description,
+                r.score
+            );
         }
         println!();
 
         // Verifications
         let mode_correct = match expected_mode.as_str() {
-            "OwnershipViolation" => matches!(report.likely_failure_mode, kain_semantic::FailureMode::OwnershipViolation),
-            "Typo" => matches!(report.likely_failure_mode, kain_semantic::FailureMode::Typo { .. }),
-            "ConvergeMismatch" => matches!(report.likely_failure_mode, kain_semantic::FailureMode::ConvergeMismatch),
-            "EntangleViolation" => matches!(report.likely_failure_mode, kain_semantic::FailureMode::EntangleViolation),
+            "OwnershipViolation" => matches!(
+                report.likely_failure_mode,
+                kain_semantic::FailureMode::OwnershipViolation
+            ),
+            "Typo" => matches!(
+                report.likely_failure_mode,
+                kain_semantic::FailureMode::Typo { .. }
+            ),
+            "ConvergeMismatch" => matches!(
+                report.likely_failure_mode,
+                kain_semantic::FailureMode::ConvergeMismatch
+            ),
+            "EntangleViolation" => matches!(
+                report.likely_failure_mode,
+                kain_semantic::FailureMode::EntangleViolation
+            ),
+            "ShaderHostBoundary" => matches!(
+                report.likely_failure_mode,
+                kain_semantic::FailureMode::ShaderHostBoundary
+            ),
+            "ShaderResourceContract" => matches!(
+                report.likely_failure_mode,
+                kain_semantic::FailureMode::ShaderResourceContract
+            ),
+            "CudaKernelContract" => matches!(
+                report.likely_failure_mode,
+                kain_semantic::FailureMode::CudaKernelContract
+            ),
+            "PythonInteropBoundary" => matches!(
+                report.likely_failure_mode,
+                kain_semantic::FailureMode::PythonInteropBoundary { .. }
+            ),
+            "CAbiBoundary" => matches!(
+                report.likely_failure_mode,
+                kain_semantic::FailureMode::CAbiBoundary { .. }
+            ),
             _ => false,
         };
 
         let top_repair = {
             if let Some(first) = report.ranked_repairs.first() {
-                first.repair_id == expected_repair || 
-                first.repair_id == "corpus_spelling_fix" ||
-                first.description.contains(&expected_repair)
+                first.repair_id == expected_repair
+                    || first.repair_id == "corpus_spelling_fix"
+                    || first.description.contains(&expected_repair)
             } else {
                 false
             }
@@ -146,12 +183,21 @@ fn main() {
         } else {
             println!("  STATUS: DEVIATION DETECTED!");
             if !mode_correct {
-                println!("    - Mode mismatch: expected {}, got {:?}", expected_mode, report.likely_failure_mode);
+                println!(
+                    "    - Mode mismatch: expected {}, got {:?}",
+                    expected_mode, report.likely_failure_mode
+                );
             }
             if !top_repair {
-                println!("    - Repair ranking mismatch: expected {}, got {:?}", expected_repair, report.ranked_repairs.first());
+                println!(
+                    "    - Repair ranking mismatch: expected {}, got {:?}",
+                    expected_repair,
+                    report.ranked_repairs.first()
+                );
             }
         }
-        println!("================================================================================");
+        println!(
+            "================================================================================"
+        );
     }
 }

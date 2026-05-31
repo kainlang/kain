@@ -1,0 +1,10 @@
+// @expected_code: KAIN-EFFECT-0012
+// @expected_mode: ConvergeMismatch
+// @expected_repair: match_spec_lane
+
+converge mix(value: Int) -> Int:
+    spec reference:
+        return value * 31 + 7
+    fast broken_lane when target("llvm"):
+        return value * 30 + 7
+    verify random(8)

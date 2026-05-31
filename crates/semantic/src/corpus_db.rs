@@ -69,6 +69,9 @@ pub fn suggest_import_for_symbol(symbol: &str) -> Option<&'static str> {
     }
 
     for import in CORPUS_IMPORTS.iter() {
+        if sym_lower == import.symbol_prefix.to_lowercase() {
+            return Some(import.import_path);
+        }
         if sym_lower.starts_with(&format!("{}_", import.symbol_prefix)) {
             return Some(import.import_path);
         }

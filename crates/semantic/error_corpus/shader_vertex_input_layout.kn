@@ -1,5 +1,5 @@
 // @expected_code: KAIN-SHADER-0006
-// @expected_mode: ShaderStageMismatch
+// @expected_mode: ShaderResourceContract
 // @expected_repair: fix_vertex_layout
 
 // A vertex shader whose input types don't match the bound vertex buffer.

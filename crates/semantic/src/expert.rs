@@ -58,6 +58,17 @@ fn failure_mode_from_golden_case(
         "MissingSurface" => Some(FailureMode::MissingSurface),
         "OwnershipViolation" => Some(FailureMode::OwnershipViolation),
         "ShaderStageMismatch" => Some(FailureMode::ShaderStageMismatch),
+        "ShaderHostBoundary" => Some(FailureMode::ShaderHostBoundary),
+        "ShaderResourceContract" => Some(FailureMode::ShaderResourceContract),
+        "CudaKernelContract" => Some(FailureMode::CudaKernelContract),
+        "PythonInteropBoundary" => Some(FailureMode::PythonInteropBoundary {
+            symbol: packet.primary_text.clone(),
+            import_path: import_repair_text(case.expected_repair),
+        }),
+        "CAbiBoundary" => Some(FailureMode::CAbiBoundary {
+            symbol: packet.primary_text.clone(),
+            import_path: Some(import_repair_text(case.expected_repair)),
+        }),
         "WorldDeclarationError" => Some(FailureMode::WorldDeclarationError),
         "ActorMessageMismatch" => Some(FailureMode::ActorMessageMismatch),
         "ParserDelimiterDamage" => Some(FailureMode::ParserDelimiterDamage),
@@ -113,9 +124,18 @@ fn classify_failure(packet: &DiagnosticSemanticPacket) -> FailureMode {
         return FailureMode::OwnershipViolation;
     }
 
-    // SHADER codes
+    // SHADER/CUDA codes
     if code.starts_with("KAIN-SHADER-") {
-        return FailureMode::ShaderStageMismatch;
+        return classify_shader_or_cuda(packet);
+    }
+
+    // Native and foreign ABI codegen diagnostics.
+    if code == "KAIN-CODEGEN-0008" || looks_like_c_abi_boundary(packet) {
+        return FailureMode::CAbiBoundary {
+            symbol: packet.primary_text.clone(),
+            import_path: corpus_db::suggest_import_for_symbol(&packet.primary_text)
+                .map(import_repair_text),
+        };
     }
 
     // ACTOR codes
@@ -146,9 +166,31 @@ fn classify_unknown_identifier(packet: &DiagnosticSemanticPacket) -> FailureMode
     // 2. Check if this symbol is a canonical stdlib root export or a strong
     // prefix-shape match that should really be fixed by adding an import.
     if let Some(import_path) = corpus_db::suggest_import_for_symbol(text) {
+        if looks_like_python_boundary_for(text, import_path, packet) {
+            return FailureMode::PythonInteropBoundary {
+                symbol: text.to_string(),
+                import_path: import_repair_text(import_path),
+            };
+        }
+        if looks_like_cuda_boundary_for(text, import_path, packet) {
+            return FailureMode::CudaKernelContract;
+        }
+        if looks_like_c_abi_import(import_path) || looks_like_c_abi_symbol(text) {
+            return FailureMode::CAbiBoundary {
+                symbol: text.to_string(),
+                import_path: Some(import_repair_text(import_path)),
+            };
+        }
         return FailureMode::MissingImport {
             module: text.to_string(),
             import_path: import_path.to_string(),
+        };
+    }
+
+    if looks_like_c_abi_boundary(packet) || looks_like_c_abi_symbol(text) {
+        return FailureMode::CAbiBoundary {
+            symbol: text.to_string(),
+            import_path: corpus_db::suggest_import_for_symbol(text).map(import_repair_text),
         };
     }
 
@@ -160,6 +202,17 @@ fn classify_unknown_identifier(packet: &DiagnosticSemanticPacket) -> FailureMode
                 intended: best.name.to_string(),
             };
         }
+    }
+
+    if looks_like_python_symbol(text, packet) {
+        return FailureMode::PythonInteropBoundary {
+            symbol: text.to_string(),
+            import_path: "use std::python".to_string(),
+        };
+    }
+
+    if looks_like_cuda_symbol(text, packet) {
+        return FailureMode::CudaKernelContract;
     }
 
     // 4. Check contextual flags for host bridge context
@@ -178,6 +231,122 @@ fn classify_unknown_identifier(packet: &DiagnosticSemanticPacket) -> FailureMode
     }
 
     FailureMode::GenericUnknown
+}
+
+fn classify_shader_or_cuda(packet: &DiagnosticSemanticPacket) -> FailureMode {
+    let code = packet.code.as_str();
+    let text = packet_text(packet);
+    if text.contains("cuda_")
+        || text.contains("ptx")
+        || text.contains("warp")
+        || text.contains("tensor_core")
+        || text.contains("sm_")
+    {
+        return FailureMode::CudaKernelContract;
+    }
+
+    match code {
+        "KAIN-SHADER-0001" => FailureMode::ShaderHostBoundary,
+        "KAIN-SHADER-0003" | "KAIN-SHADER-0004" | "KAIN-SHADER-0005" | "KAIN-SHADER-0006"
+        | "KAIN-SHADER-0007" | "KAIN-SHADER-0008" | "KAIN-SHADER-0009" | "KAIN-SHADER-0011"
+        | "KAIN-SHADER-0012" => FailureMode::ShaderResourceContract,
+        _ => FailureMode::ShaderStageMismatch,
+    }
+}
+
+fn packet_text(packet: &DiagnosticSemanticPacket) -> String {
+    format!(
+        "{} {} {} {}",
+        packet.primary_text,
+        packet.source_window,
+        packet.visible_imports.join(" "),
+        packet.ast_node_path.join(" ")
+    )
+    .to_ascii_lowercase()
+}
+
+fn import_repair_text(import_path: &str) -> String {
+    if import_path.starts_with("use ")
+        || import_path.starts_with("include ")
+        || import_path.starts_with("import ")
+        || import_path.starts_with("from ")
+    {
+        import_path.to_string()
+    } else {
+        format!("use {import_path}")
+    }
+}
+
+fn looks_like_python_boundary_for(
+    symbol: &str,
+    import_path: &str,
+    packet: &DiagnosticSemanticPacket,
+) -> bool {
+    import_path.contains("std::python")
+        || import_path.starts_with("import ")
+        || import_path.starts_with("from ")
+        || looks_like_python_symbol(symbol, packet)
+}
+
+fn looks_like_python_symbol(symbol: &str, packet: &DiagnosticSemanticPacket) -> bool {
+    let symbol = symbol.to_ascii_lowercase();
+    if symbol.starts_with("python_") || symbol.starts_with("py_") || symbol.starts_with("pykain_") {
+        return true;
+    }
+    let text = packet_text(packet);
+    text.contains("std::python")
+        || text.contains("import ")
+        || text.contains("python_")
+        || text.contains("pykain")
+}
+
+fn looks_like_cuda_boundary_for(
+    symbol: &str,
+    import_path: &str,
+    packet: &DiagnosticSemanticPacket,
+) -> bool {
+    import_path.contains("std::cuda") || looks_like_cuda_symbol(symbol, packet)
+}
+
+fn looks_like_cuda_symbol(symbol: &str, packet: &DiagnosticSemanticPacket) -> bool {
+    let symbol = symbol.to_ascii_lowercase();
+    if symbol.starts_with("cuda_") || symbol.starts_with("ptx_") {
+        return true;
+    }
+    let text = packet_text(packet);
+    text.contains("std::cuda")
+        || text.contains("cuda_")
+        || text.contains("ptx")
+        || text.contains("warp")
+        || text.contains("tensor_core")
+}
+
+fn looks_like_c_abi_import(import_path: &str) -> bool {
+    import_path.starts_with("include ")
+        || import_path.starts_with("use c::")
+        || import_path.contains("c_abi")
+        || import_path.contains("ffi")
+}
+
+fn looks_like_c_abi_symbol(symbol: &str) -> bool {
+    let symbol = symbol.to_ascii_lowercase();
+    symbol.starts_with("c_")
+        || symbol.starts_with("ffi_")
+        || symbol.starts_with("abi_")
+        || symbol.contains("_abi_")
+}
+
+fn looks_like_c_abi_boundary(packet: &DiagnosticSemanticPacket) -> bool {
+    if looks_like_c_abi_symbol(&packet.primary_text) {
+        return true;
+    }
+    let text = packet_text(packet);
+    text.contains("include ")
+        || text.contains("use c::")
+        || text.contains("@extern")
+        || text.contains("c_abi")
+        || text.contains("foreign abi")
+        || text.contains("ffi")
 }
 
 fn classify_effect_violation(packet: &DiagnosticSemanticPacket) -> FailureMode {
@@ -241,11 +410,61 @@ fn rank_repairs(packet: &DiagnosticSemanticPacket, mode: &FailureMode) -> Vec<Ra
         } => {
             let already_has = repairs.iter().any(|r| r.repair_id.contains("import"));
             if !already_has {
+                let replacement = import_repair_text(import_path);
                 repairs.push(RankedRepair {
                     repair_id: "corpus_add_import".into(),
-                    description: format!("Add 'use {}' to imports", import_path),
+                    description: format!("Add '{}' to imports", replacement),
                     score: 0.93,
-                    replacement_text: Some(format!("use {}", import_path)),
+                    replacement_text: Some(replacement),
+                });
+            }
+        }
+        FailureMode::PythonInteropBoundary {
+            symbol: _,
+            import_path,
+        } => {
+            let already_has = repairs
+                .iter()
+                .any(|r| r.repair_id.contains("python") || r.description.contains("std::python"));
+            if !already_has {
+                repairs.push(RankedRepair {
+                    repair_id: "python_bridge_import".into(),
+                    description: format!("Add '{}' before Python bridge calls", import_path),
+                    score: 0.94,
+                    replacement_text: Some(import_path.clone()),
+                });
+            }
+        }
+        FailureMode::CAbiBoundary {
+            symbol: _,
+            import_path,
+        } => {
+            if let Some(import_path) = import_path {
+                let already_has = repairs
+                    .iter()
+                    .any(|r| r.repair_id.contains("abi") || r.description.contains(import_path));
+                if !already_has {
+                    repairs.push(RankedRepair {
+                        repair_id: "c_abi_boundary_import".into(),
+                        description: format!("Add native boundary import '{}'", import_path),
+                        score: 0.92,
+                        replacement_text: Some(import_path.clone()),
+                    });
+                }
+            }
+        }
+        FailureMode::CudaKernelContract => {
+            let already_has = repairs
+                .iter()
+                .any(|r| r.repair_id.contains("cuda") || r.description.contains("std::cuda"));
+            if !already_has {
+                repairs.push(RankedRepair {
+                    repair_id: "cuda_import_or_compute_stage".into(),
+                    description:
+                        "Use `use std::cuda` and keep CUDA intrinsics inside compute/PTX kernels"
+                            .into(),
+                    score: 0.91,
+                    replacement_text: Some("use std::cuda".into()),
                 });
             }
         }
@@ -364,6 +583,40 @@ fn score_repair(
         {
             0.35_f32
         }
+        FailureMode::ShaderResourceContract
+            if candidate.id.contains("shader")
+                || candidate.id.contains("binding")
+                || candidate.id.contains("layout") =>
+        {
+            0.35_f32
+        }
+        FailureMode::ShaderHostBoundary
+            if candidate.id.contains("shader")
+                || candidate.id.contains("host")
+                || candidate.id.contains("intrinsic") =>
+        {
+            0.35_f32
+        }
+        FailureMode::CudaKernelContract
+            if candidate.id.contains("cuda")
+                || candidate.id.contains("ptx")
+                || candidate.id.contains("compute") =>
+        {
+            0.36_f32
+        }
+        FailureMode::PythonInteropBoundary { .. }
+            if candidate.id.contains("python") || candidate.id.contains("import") =>
+        {
+            0.38_f32
+        }
+        FailureMode::CAbiBoundary { .. }
+            if candidate.id.contains("abi")
+                || candidate.id.contains("ffi")
+                || candidate.id.contains("include")
+                || candidate.id.contains("import") =>
+        {
+            0.38_f32
+        }
         _ => 0.0_f32,
     };
 
@@ -410,9 +663,10 @@ fn generate_explanation(packet: &DiagnosticSemanticPacket, mode: &FailureMode) -
             )
         }
         FailureMode::MissingImport { module: _, import_path } => {
+            let repair_text = import_repair_text(import_path);
             format!(
-                "'{}' is not in scope. This looks like a symbol from '{}'; add 'use {}' to your imports.",
-                packet.primary_text, import_path, import_path
+                "'{}' is not in scope. This looks like a symbol from '{}'; add '{}' to your imports.",
+                packet.primary_text, import_path, repair_text
             )
         }
         FailureMode::MissingSurface => {
@@ -423,6 +677,37 @@ fn generate_explanation(packet: &DiagnosticSemanticPacket, mode: &FailureMode) -
         }
         FailureMode::ShaderStageMismatch => {
             "Shader stage mismatch. Verify that vertex/fragment/compute attributes match the expected pipeline stage.".to_string()
+        }
+        FailureMode::ShaderHostBoundary => {
+            "Shader host-boundary violation. GPU shader code cannot call host-only functions such as printing, Python, filesystem, C ABI, process, or runtime-side helpers; move that work outside the shader or replace it with a shader-safe intrinsic.".to_string()
+        }
+        FailureMode::ShaderResourceContract => {
+            "Shader resource contract violation. Check uniform binding slots, StorageBuffer-compatible types, dispatch dimensions, IO layout, and per-stage resource rules before lowering to SPIR-V/PTX.".to_string()
+        }
+        FailureMode::CudaKernelContract => {
+            "CUDA/PTX contract violation. CUDA intrinsics belong in compute kernels with `use std::cuda`, valid workgroup shape, and a target architecture that supports the requested warp or tensor-core feature.".to_string()
+        }
+        FailureMode::PythonInteropBoundary { symbol, import_path } => {
+            format!(
+                "'{}' crosses the Python bridge. Add '{}', keep Python-owned objects behind the std::python helpers, and make ownership/materialization explicit at the boundary.",
+                symbol, import_path
+            )
+        }
+        FailureMode::CAbiBoundary {
+            symbol,
+            import_path,
+        } => {
+            if let Some(import_path) = import_path {
+                format!(
+                    "'{}' is a native boundary symbol. Add '{}', then keep pointer, string, buffer, status, and lifetime ownership explicit at the C ABI edge.",
+                    symbol, import_path
+                )
+            } else {
+                format!(
+                    "'{}' looks like a native boundary symbol. Add the owning `include ... as ...` or `use c::...` import and verify pointer, string, buffer, status, and lifetime ownership.",
+                    symbol
+                )
+            }
         }
         FailureMode::WorldDeclarationError => {
             "World declaration error. Check that all required state slots, surfaces, and entangle clauses are present.".to_string()
@@ -452,6 +737,11 @@ fn explanation_style_for(mode: &FailureMode) -> String {
         FailureMode::MissingSurface => "world_surface_help".into(),
         FailureMode::OwnershipViolation => "ownership_explainer".into(),
         FailureMode::ShaderStageMismatch => "shader_stage_help".into(),
+        FailureMode::ShaderHostBoundary => "shader_host_boundary".into(),
+        FailureMode::ShaderResourceContract => "shader_resource_contract".into(),
+        FailureMode::CudaKernelContract => "cuda_kernel_contract".into(),
+        FailureMode::PythonInteropBoundary { .. } => "python_interop_boundary".into(),
+        FailureMode::CAbiBoundary { .. } => "c_abi_boundary".into(),
         FailureMode::WorldDeclarationError => "world_declaration_help".into(),
         FailureMode::ActorMessageMismatch => "actor_message_help".into(),
         FailureMode::ParserDelimiterDamage => "parser_block_header".into(),
@@ -472,6 +762,11 @@ fn compute_root_cause_confidence(
         FailureMode::MissingImport { .. } => 0.85,
         FailureMode::MissingSurface => 0.92,
         FailureMode::ParserDelimiterDamage => 0.88,
+        FailureMode::PythonInteropBoundary { .. } => 0.86,
+        FailureMode::CAbiBoundary { .. } => 0.84,
+        FailureMode::CudaKernelContract => 0.82,
+        FailureMode::ShaderHostBoundary => 0.82,
+        FailureMode::ShaderResourceContract => 0.80,
         _ => 0.70,
     };
 
@@ -586,39 +881,83 @@ mod tests {
         }
     }
 
+    #[test]
+    fn test_python_interop_boundary_classification() {
+        let packet = DiagnosticSemanticPacket::new(
+            DiagnosticCode::TypeUnknownIdentifier,
+            CompilerPhase::TypeChecking,
+            "python_exec",
+        )
+        .source_window("let value = python_exec(\"print(1)\")");
+        let result = analyze(&packet);
+        match &result.likely_failure_mode {
+            FailureMode::PythonInteropBoundary { import_path, .. } => {
+                assert_eq!(import_path, "use std::python");
+                assert!(
+                    result.dynamic_explanation.contains("Python bridge"),
+                    "expected Python-specific explanation"
+                );
+            }
+            other => panic!("expected Python interop boundary, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_cuda_boundary_classification() {
+        let packet = DiagnosticSemanticPacket::new(
+            DiagnosticCode::TypeUnknownIdentifier,
+            CompilerPhase::TypeChecking,
+            "cuda_lane_id",
+        )
+        .source_window("let lane = cuda_lane_id()");
+        let result = analyze(&packet);
+        assert!(matches!(
+            result.likely_failure_mode,
+            FailureMode::CudaKernelContract
+        ));
+        assert!(
+            result.dynamic_explanation.contains("CUDA/PTX"),
+            "expected CUDA-specific explanation"
+        );
+    }
+
+    #[test]
+    fn test_c_abi_boundary_classification() {
+        let packet = DiagnosticSemanticPacket::new(
+            DiagnosticCode::TypeUnknownIdentifier,
+            CompilerPhase::TypeChecking,
+            "ffi_boundary_mix",
+        )
+        .source_window("let score = ffi_boundary_mix(seed, salt)");
+        let result = analyze(&packet);
+        assert!(matches!(
+            result.likely_failure_mode,
+            FailureMode::CAbiBoundary { .. }
+        ));
+        assert!(
+            result.dynamic_explanation.contains("native boundary"),
+            "expected C ABI-specific explanation"
+        );
+    }
+
     fn corpus_case_phase(code: DiagnosticCode) -> CompilerPhase {
         match code.as_str() {
             code if code.starts_with("KAIN-PARSE-") => CompilerPhase::Parser,
             code if code.starts_with("KAIN-EFFECT-") => CompilerPhase::EffectChecking,
             code if code.starts_with("KAIN-BORROW-") => CompilerPhase::BorrowChecking,
+            code if code.starts_with("KAIN-SHADER-") => CompilerPhase::Codegen,
+            code if code.starts_with("KAIN-CODEGEN-") => CompilerPhase::Codegen,
             _ => CompilerPhase::TypeChecking,
         }
     }
 
     fn corpus_case_primary_text(case: &corpus_db::ErrorCorpusCase, source: &str) -> String {
-        if case.expected_mode == "Typo" {
-            for line in source.lines() {
-                let trimmed = line.trim();
-                if trimmed.starts_with("//")
-                    || trimmed.starts_with("fn ")
-                    || trimmed.starts_with("pub fn ")
-                    || trimmed.starts_with("shader ")
-                    || trimmed.starts_with("actor ")
-                    || trimmed.starts_with("world ")
-                {
-                    continue;
-                }
-
-                if let Some(call_index) = trimmed.find('(') {
-                    let prefix = &trimmed[..call_index];
-                    if let Some(symbol) = prefix.split_whitespace().last().map(|value| {
-                        value.trim_matches(|ch: char| !ch.is_ascii_alphanumeric() && ch != '_')
-                    }) {
-                        if !symbol.is_empty() && symbol != case.expected_repair {
-                            return symbol.to_string();
-                        }
-                    }
-                }
+        if matches!(
+            case.expected_mode,
+            "Typo" | "PythonInteropBoundary" | "CAbiBoundary" | "CudaKernelContract"
+        ) {
+            if let Some(symbol) = first_call_symbol_for_test(source, case.expected_repair) {
+                return symbol;
             }
         }
 
@@ -633,6 +972,33 @@ mod tests {
         }
 
         case.expected_repair.to_string()
+    }
+
+    fn first_call_symbol_for_test(source: &str, expected_repair: &str) -> Option<String> {
+        for line in source.lines() {
+            let trimmed = line.trim();
+            if trimmed.starts_with("//")
+                || trimmed.starts_with("fn ")
+                || trimmed.starts_with("pub fn ")
+                || trimmed.starts_with("shader ")
+                || trimmed.starts_with("actor ")
+                || trimmed.starts_with("world ")
+            {
+                continue;
+            }
+
+            if let Some(call_index) = trimmed.find('(') {
+                let prefix = &trimmed[..call_index];
+                if let Some(symbol) = prefix.split_whitespace().last().map(|value| {
+                    value.trim_matches(|ch: char| !ch.is_ascii_alphanumeric() && ch != '_')
+                }) {
+                    if !symbol.is_empty() && symbol != expected_repair {
+                        return Some(symbol.to_string());
+                    }
+                }
+            }
+        }
+        None
     }
 
     fn load_corpus_case_source(case: &corpus_db::ErrorCorpusCase) -> String {
@@ -700,6 +1066,21 @@ mod tests {
                 }
                 FailureMode::Typo { .. } => {
                     assert_eq!(case.expected_mode, "Typo");
+                }
+                FailureMode::PythonInteropBoundary { .. } => {
+                    assert_eq!(case.expected_mode, "PythonInteropBoundary");
+                }
+                FailureMode::CAbiBoundary { .. } => {
+                    assert_eq!(case.expected_mode, "CAbiBoundary");
+                }
+                FailureMode::CudaKernelContract => {
+                    assert_eq!(case.expected_mode, "CudaKernelContract");
+                }
+                FailureMode::ShaderResourceContract => {
+                    assert_eq!(case.expected_mode, "ShaderResourceContract");
+                }
+                FailureMode::ShaderHostBoundary => {
+                    assert_eq!(case.expected_mode, "ShaderHostBoundary");
                 }
                 _ => {}
             }

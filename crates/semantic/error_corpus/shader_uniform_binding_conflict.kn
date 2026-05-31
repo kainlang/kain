@@ -1,5 +1,5 @@
 // @expected_code: KAIN-SHADER-0003
-// @expected_mode: ShaderStageMismatch
+// @expected_mode: ShaderResourceContract
 // @expected_repair: unique_binding_slot
 
 // Two uniforms that claim the same binding slot @0.

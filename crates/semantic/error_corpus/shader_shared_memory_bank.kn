@@ -1,5 +1,5 @@
 // @expected_code: KAIN-SHADER-0012
-// @expected_mode: ShaderStageMismatch
+// @expected_mode: ShaderResourceContract
 // @expected_repair: pad_shared_memory
 
 // A shared memory access pattern that triggers bank conflicts.

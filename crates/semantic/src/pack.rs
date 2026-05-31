@@ -177,9 +177,9 @@ pub fn analyze_with_pack(
         score: best.rerank_score.clamp(0.0, 0.99),
         replacement_text: non_empty_option(best.prototype.replacement_text.clone()),
     };
-    let typo_family_mismatch =
-        best.prototype.mode == "Typo" && best.prototype.primary_text != packet.primary_text;
-    if !typo_family_mismatch {
+    let symbol_family_mismatch = symbol_family_requires_primary_match(&best.prototype.mode)
+        && best.prototype.primary_text != packet.primary_text;
+    if !symbol_family_mismatch {
         upsert_repair(&mut ranked_repairs, pack_repair);
     }
     ranked_repairs.sort_by(|left, right| {
@@ -194,15 +194,20 @@ pub fn analyze_with_pack(
         root_cause_confidence: baseline
             .root_cause_confidence
             .max((0.62 + best.rerank_score * 0.30).min(0.99)),
-        likely_failure_mode: failure_mode_from_pack(&best.prototype, &baseline),
+        likely_failure_mode: if symbol_family_mismatch {
+            baseline.likely_failure_mode.clone()
+        } else {
+            failure_mode_from_pack(&best.prototype, &baseline)
+        },
         ranked_repairs,
-        dynamic_explanation: if typo_family_mismatch || best.prototype.explanation.is_empty() {
+        dynamic_explanation: if symbol_family_mismatch || best.prototype.explanation.is_empty() {
             baseline.dynamic_explanation
         } else {
             best.prototype.explanation
         },
         cascade_probability: baseline.cascade_probability,
-        explanation_style: if typo_family_mismatch || best.prototype.explanation_style.is_empty() {
+        explanation_style: if symbol_family_mismatch || best.prototype.explanation_style.is_empty()
+        {
             baseline.explanation_style
         } else {
             best.prototype.explanation_style
@@ -502,6 +507,17 @@ fn failure_mode_from_pack(
         "MissingSurface" => FailureMode::MissingSurface,
         "OwnershipViolation" => FailureMode::OwnershipViolation,
         "ShaderStageMismatch" => FailureMode::ShaderStageMismatch,
+        "ShaderHostBoundary" => FailureMode::ShaderHostBoundary,
+        "ShaderResourceContract" => FailureMode::ShaderResourceContract,
+        "CudaKernelContract" => FailureMode::CudaKernelContract,
+        "PythonInteropBoundary" => FailureMode::PythonInteropBoundary {
+            symbol: prototype.primary_text.clone(),
+            import_path: prototype.replacement_text.clone(),
+        },
+        "CAbiBoundary" => FailureMode::CAbiBoundary {
+            symbol: prototype.primary_text.clone(),
+            import_path: non_empty_option(prototype.replacement_text.clone()),
+        },
         "WorldDeclarationError" => FailureMode::WorldDeclarationError,
         "ActorMessageMismatch" => FailureMode::ActorMessageMismatch,
         "ParserDelimiterDamage" => FailureMode::ParserDelimiterDamage,
@@ -518,6 +534,11 @@ fn failure_mode_key(mode: &FailureMode) -> &'static str {
         FailureMode::MissingSurface => "MissingSurface",
         FailureMode::OwnershipViolation => "OwnershipViolation",
         FailureMode::ShaderStageMismatch => "ShaderStageMismatch",
+        FailureMode::ShaderHostBoundary => "ShaderHostBoundary",
+        FailureMode::ShaderResourceContract => "ShaderResourceContract",
+        FailureMode::CudaKernelContract => "CudaKernelContract",
+        FailureMode::PythonInteropBoundary { .. } => "PythonInteropBoundary",
+        FailureMode::CAbiBoundary { .. } => "CAbiBoundary",
         FailureMode::WorldDeclarationError => "WorldDeclarationError",
         FailureMode::ActorMessageMismatch => "ActorMessageMismatch",
         FailureMode::ParserDelimiterDamage => "ParserDelimiterDamage",
@@ -525,6 +546,13 @@ fn failure_mode_key(mode: &FailureMode) -> &'static str {
         FailureMode::EntangleViolation => "EntangleViolation",
         FailureMode::GenericUnknown => "GenericUnknown",
     }
+}
+
+fn symbol_family_requires_primary_match(mode: &str) -> bool {
+    matches!(
+        mode,
+        "Typo" | "PythonInteropBoundary" | "CAbiBoundary" | "CudaKernelContract"
+    )
 }
 
 fn same_code_family(left: &str, right: &str) -> bool {
@@ -758,6 +786,10 @@ fn prototypes_from_baked_corpus() -> Vec<SemanticPrototype> {
 fn corpus_case_phase(code: DiagnosticCode) -> CompilerPhase {
     if code.as_str().starts_with("KAIN-PARSE-") {
         CompilerPhase::Parser
+    } else if code.as_str().starts_with("KAIN-SHADER-")
+        || code.as_str().starts_with("KAIN-CODEGEN-")
+    {
+        CompilerPhase::Codegen
     } else {
         CompilerPhase::TypeChecking
     }
@@ -886,7 +918,9 @@ mod tests {
             CompilerPhase::TypeChecking,
             "python_with_pykain_case_cout",
         )
-        .source_window("fn main() -> Int:\n    let score = python_with_pykain_case_cout()\n    return 0");
+        .source_window(
+            "fn main() -> Int:\n    let score = python_with_pykain_case_cout()\n    return 0",
+        );
 
         let baseline = expert::analyze(&packet);
         let enhanced = analyze_with_pack(&pack, &packet, baseline.clone());
@@ -898,7 +932,9 @@ mod tests {
             Some("use std::python")
         );
         assert!(
-            enhanced.dynamic_explanation.contains("python_with_pykain_case_cout"),
+            enhanced
+                .dynamic_explanation
+                .contains("python_with_pykain_case_cout"),
             "typo family mismatch should keep the baseline explanation"
         );
         assert!(

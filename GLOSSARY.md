@@ -116,7 +116,7 @@ Location rule: paths in this glossary are live in this checkout. Older docs may 
 
 **kain-run** - The unified immediate execution planner behind `kain run`, `kain run dev`, and `kain watch`. It resolves files, projects, manifests, Cargo/C/Node/Fabric inputs, and run metadata through one pipeline, while still carrying some legacy blade compatibility internally. Location: `crates/run/`.
 
-**kain-semantic** - The reusable semantic coprocessor crate for compiler diagnostics, corpus intelligence, and oracle tooling. This is the primary crate path after the `error-semantic` rename. Location: `crates/semantic/`.
+**kain-semantic** - The reusable semantic coprocessor crate for compiler diagnostics, corpus intelligence, and oracle tooling. It owns the CPU compiler-side semantic pack consumer, the offline Kain/CUDA oracle forge, and domain failure modes for typo, import, shader, CUDA/PTX, Python interop, C ABI, ownership, world, converge, parser, and actor diagnostics. This is the primary crate path after the `error-semantic` rename. Location: `crates/semantic/`.
 
 **kain-error-semantic** - Compatibility shim crate that re-exports `kain-semantic` for legacy dependency paths. Use this only for transition; new code should depend on `kain-semantic` directly. Location: `crates/error-semantic/`.
 
@@ -190,7 +190,7 @@ Location rule: paths in this glossary are live in this checkout. Older docs may 
 
 **Selfhost** - The lane where Kain increasingly owns more of its own semantics and project pipeline instead of depending on bootstrap Rust forever. It is the direction of travel, not a marketing word. Location: command surface in `kain selfhost ...`; historical and mirror references still appear through docs and imported source corpora.
 
-**Semantic pack** - A frozen offline artifact bundle consumed by the compiler semantic coprocessor on CPU. The current v1 shape is `manifest.json`, `prototypes.bin`, and `reranker.i8`; CUDA/Kain forge can build richer data offline, but shipped `kain check` must run without CUDA and fall back to rules when the pack is absent. Location: producer/consumer in `crates/semantic/src/pack.rs`; dev artifact root `crates/semantic/.kain/oracle/sempack/current`.
+**Semantic pack** - A frozen offline artifact bundle consumed by the compiler semantic coprocessor on CPU. The current v1 shape is `manifest.json`, `prototypes.bin`, and `reranker.i8`; CUDA/Kain forge can build richer data offline, but shipped `kain check` must run without CUDA and fall back to rules when the pack is absent. The pack now carries domain repair prototypes for Python imports, C ABI/native imports, CUDA/PTX contracts, shader host boundaries, shader resource contracts, and core Kain semantic surfaces rather than only typo examples. Location: producer/consumer in `crates/semantic/src/pack.rs`; dev artifact root `crates/semantic/.kain/oracle/sempack/current`.
 
 **Shatter** - Kain's structure-of-arrays layout intent, written as `shatter struct`. It says the language should preserve lane-wise hot data shape instead of pretending every hot structure wants vanilla AoS layout. Location: language truth in `crates/core/`; native substrate in `runtime/native/include/machine_stones.h` and `runtime/native/src/core/machine_stones.c`.
 

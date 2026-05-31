@@ -3,11 +3,14 @@
 #![allow(dead_code, unused_variables)]
 
 use kain_core::ast::{
-    BinaryOp, Block, CallArg, ElseBranch, Expr, Pattern, ShaderStage, Stmt, Type, UnaryOp,
+    BinaryOp, Block, CallArg, ElseBranch, Expr, Pattern, Shader, ShaderStage, Stmt, Type, UnaryOp,
 };
 use kain_core::diagnostic_registry::DiagnosticCode;
-use kain_core::error::{DiagnosticReport, ErrorKind, KainError, KainResult};
+use kain_core::error::{
+    CompilerPhase, DiagnosticReport, DiagnosticSemanticPacket, ErrorKind, KainError, KainResult,
+};
 use kain_core::types::{TypedItem, TypedProgram, TypedShader};
+use kain_semantic::enrich_report as enrich_semantic_report;
 use rspirv::binary::Assemble;
 use rspirv::dr::{Builder, Operand};
 use rspirv::spirv::{
@@ -88,6 +91,8 @@ fn emit_shader(
     storage_buffer_type_cache: &mut HashMap<String, u32>,
     uniform_wrapper_type_cache: &mut HashMap<String, u32>,
 ) -> KainResult<()> {
+    validate_shader_resource_contract(&shader.ast)?;
+
     let exec_model = match shader.ast.stage {
         ShaderStage::Vertex => ExecutionModel::Vertex,
         ShaderStage::Fragment => ExecutionModel::Fragment,
@@ -539,6 +544,54 @@ fn emit_shader(
             ExecutionMode::LocalSize,
             local_size_values.to_vec(),
         );
+    }
+
+    Ok(())
+}
+
+fn validate_shader_resource_contract(shader: &Shader) -> KainResult<()> {
+    let mut seen_bindings: HashMap<u32, (String, kain_core::span::Span)> = HashMap::new();
+    for uniform in &shader.uniforms {
+        if let Some((first_name, first_span)) = seen_bindings.get(&uniform.binding) {
+            let report = DiagnosticReport::new(
+                ErrorKind::Shader,
+                DiagnosticCode::ShaderUniformBindingError,
+                format!(
+                    "Shader resource binding @{} is reused by '{}' and '{}'",
+                    uniform.binding, first_name, uniform.name
+                ),
+            )
+            .phase(CompilerPhase::Codegen)
+            .primary_label(uniform.span, "binding slot is already claimed")
+            .label(
+                *first_span,
+                format!("first claimed here by '{}'", first_name),
+            )
+            .note("Shader resource binding slots must be unique inside one shader resource interface.")
+            .help("Move one resource to a unique @N binding slot before generating GPU artifacts.");
+            let packet = DiagnosticSemanticPacket::new(
+                DiagnosticCode::ShaderUniformBindingError,
+                CompilerPhase::Codegen,
+                format!("@{}", uniform.binding),
+            )
+            .source_window(format!(
+                "shader {} uniform '{}' reuses binding @{} already used by '{}'",
+                shader.name, uniform.name, uniform.binding, first_name
+            ))
+            .ast_path(vec![
+                format!("shader {}", shader.name),
+                format!("{:?}", shader.stage),
+                "uniform binding".to_string(),
+            ])
+            .visible_symbols(shader.uniforms.iter().map(|u| u.name.clone()).collect())
+            .add_repair(
+                "shader_unique_binding_slot",
+                "Move one shader resource to a unique @N binding slot",
+                format!("@{}", uniform.binding + 1),
+            );
+            return Err(KainError::rich(enrich_semantic_report(report, &packet)));
+        }
+        seen_bindings.insert(uniform.binding, (uniform.name.clone(), uniform.span));
     }
 
     Ok(())
@@ -2196,7 +2249,13 @@ fn emit_expr(ctx: &mut ShaderContext, expr: &Expr) -> KainResult<(u32, Type)> {
                     stripped
                 ));
             }
-            Err(KainError::rich(report))
+            let packet = DiagnosticSemanticPacket::new(
+                DiagnosticCode::ShaderUnsupportedCall,
+                CompilerPhase::Codegen,
+                callee_name.clone(),
+            )
+            .source_window(format!("unsupported shader call: {callee_name}"));
+            Err(KainError::rich(enrich_semantic_report(report, &packet)))
         }
         Expr::Float(f, span) => {
             let float = ctx.b.type_float(32);
@@ -3717,6 +3776,44 @@ mod tests {
         assert_eq!(storage_buffer_stride(&storage_buffer_of("IVec4")), 16);
         assert_eq!(storage_buffer_stride(&storage_buffer_of("UVec4")), 16);
         assert_eq!(storage_buffer_stride(&storage_buffer_of("Mat4")), 64);
+    }
+
+    #[test]
+    fn spirv_rejects_duplicate_uniform_binding_slots_with_semantic_contract() {
+        let first_span = kain_core::span::Span::new(10, 20);
+        let second_span = kain_core::span::Span::new(30, 40);
+        let shader = Shader {
+            name: "DuplicateBindings".into(),
+            stage: ShaderStage::Compute,
+            inputs: vec![],
+            outputs: named_type("Vec4"),
+            uniforms: vec![
+                kain_core::ast::Uniform {
+                    name: "input_a".into(),
+                    ty: storage_buffer_of("Vec4"),
+                    binding: 0,
+                    span: first_span,
+                },
+                kain_core::ast::Uniform {
+                    name: "input_b".into(),
+                    ty: storage_buffer_of("Vec4"),
+                    binding: 0,
+                    span: second_span,
+                },
+            ],
+            body: Block {
+                stmts: vec![],
+                span: kain_core::span::Span::new(0, 40),
+            },
+            span: kain_core::span::Span::new(0, 40),
+        };
+
+        let err = validate_shader_resource_contract(&shader)
+            .expect_err("duplicate binding slots must fail before SPIR-V emission");
+        let rendered = err.to_string();
+        assert!(rendered.contains("KAIN-SHADER-0003"));
+        assert!(rendered.contains("Shader resource contract violation"));
+        assert!(rendered.contains("unique @N binding"));
     }
 }
 

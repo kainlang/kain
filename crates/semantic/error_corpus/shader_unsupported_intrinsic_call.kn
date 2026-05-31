@@ -1,5 +1,5 @@
 // @expected_code: KAIN-SHADER-0001
-// @expected_mode: ShaderStageMismatch
+// @expected_mode: ShaderHostBoundary
 // @expected_repair: use_shader_intrinsic
 
 // A shader using an unsupported math function not available on the GPU target.

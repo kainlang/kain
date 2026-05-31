@@ -1,5 +1,5 @@
 // @expected_code: KAIN-SHADER-0011
-// @expected_mode: ShaderStageMismatch
+// @expected_mode: ShaderResourceContract
 // @expected_repair: reduce_gpu_memory
 
 // A shader that exceeds the GPU memory budget for register/shared memory.

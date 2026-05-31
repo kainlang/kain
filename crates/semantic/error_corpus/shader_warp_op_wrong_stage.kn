@@ -1,5 +1,5 @@
 // @expected_code: KAIN-SHADER-0002
-// @expected_mode: ShaderStageMismatch
+// @expected_mode: CudaKernelContract
 // @expected_repair: use_compute_stage_for_warp_ops
 
 // A fragment shader that uses CUDA warp intrinsics only available in compute.

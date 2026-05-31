@@ -638,6 +638,30 @@ impl fmt::Display for DiagnosticReport {
         for note in &self.notes {
             write!(f, "\n  = note: {note}")?;
         }
+        if let Some(semantic) = &self.semantic {
+            let explanation = semantic.explanation.trim();
+            if !explanation.is_empty() && !self.notes.iter().any(|note| note.trim() == explanation)
+            {
+                write!(f, "\n  = note: {}", semantic.explanation)?;
+            }
+            if semantic.cascade_probability >= 0.55 {
+                write!(
+                    f,
+                    "\n  = note: later diagnostics may cascade from this root error."
+                )?;
+            }
+            if let Some(repair) = semantic.repairs.first() {
+                let description = repair.description.trim();
+                let help_duplicate = self.help.iter().any(|help| help.trim() == description);
+                let fixit_duplicate = self
+                    .fixits
+                    .iter()
+                    .any(|fixit| fixit.message.trim() == description);
+                if !description.is_empty() && !help_duplicate && !fixit_duplicate {
+                    write!(f, "\n  = help: {}", repair.description)?;
+                }
+            }
+        }
         for help in &self.help {
             write!(f, "\n  = help: {help}")?;
         }

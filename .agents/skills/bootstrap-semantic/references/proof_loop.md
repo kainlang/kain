@@ -163,9 +163,38 @@ kain check X:\crates\semantic\error_corpus\world_missing_surface.kn --target llv
 
 The current proof expectation is enriched diagnostics, notes, and fix-its rather than a successful compile.
 
+## Final-Pass Domain Proof
+
+The compiler-side oracle is expected to understand language boundaries, not only typo repair. After changing corpus extraction, failure modes, pack ranking, or codegen enrichment, regenerate the CPU pack and prove the main domain lanes:
+
+```powershell
+cargo run -p kain-semantic --example write_semantic_pack --target-dir Z:\_b\cargo-target\semantic-final -- X:\crates\semantic\.kain\oracle\sempack\current
+
+$env:KAIN_SEMANTIC_PACK_PATH = 'X:\crates\semantic\.kain\oracle\sempack\current'
+$bin = 'Z:\_b\output-user-root\n2kwlvv2\execroot\_main\bazel-out\x64_windows-dbg\bin\crates\cli\kain.exe'
+$out = 'X:\crates\semantic\.kain\reports\final-pass'
+New-Item -ItemType Directory -Force -Path $out | Out-Null
+
+& $bin check X:\crates\semantic\error_corpus\final_pass_v1\python_alias_missing_import.kn --target llvm --json "$out\python_alias_missing_import.json"
+& $bin check X:\crates\semantic\error_corpus\final_pass_v1\c_abi_missing_module_import.kn --target llvm --json "$out\c_abi_missing_module_import.json"
+& $bin check X:\crates\semantic\error_corpus\final_pass_v1\cuda_missing_std_import.kn --target llvm --json "$out\cuda_missing_std_import.json"
+
+& $bin gpu-artifacts X:\crates\semantic\error_corpus\final_pass_v1\shader_host_call_boundary.kn --output "$out\shader_host_call_fresh" --target spirv
+& $bin gpu-artifacts X:\crates\semantic\error_corpus\final_pass_v1\shader_storage_binding_conflict.kn --output "$out\shader_binding_conflict" --target spirv
+```
+
+Expected domain outcomes:
+
+- Python alias boundary: `semantic.failure_mode == "python_interop_boundary"`, backend `pack_cpu_rerank`, repair `import math as py_math`.
+- C ABI boundary: `semantic.failure_mode == "c_abi_boundary"`, backend `pack_cpu_rerank`, repair `use c_abi_album::smoke_c_abi_album_score`.
+- CUDA/PTX boundary: `semantic.failure_mode == "cuda_kernel_contract"`, backend `pack_cpu_rerank`, repair `use std::cuda`.
+- Shader host boundary: `KAIN-SHADER-0001` prints the semantic host-boundary note and the `move_host_call_outside_shader` corpus repair through `gpu-artifacts`.
+- Shader resource contract: duplicate uniform/storage binding slots reject as `KAIN-SHADER-0003` and print the semantic resource-contract note plus a unique-binding repair.
+
 ## Known Traps
 
 - `kain check` can pass while `kain gpu-artifacts` fails. PTX artifact emission is stricter than a frontend-only compile.
+- Some CLI paths print `KainError` with `DiagnosticReport::Display` instead of the pretty renderer. Keep this path semantic-aware too, or codegen/gpu-artifacts errors will lose oracle notes even when the report itself is enriched.
 - Run `kain` launcher commands serially on Windows. Parallel checks/runs can race the shared stamp replacement path before Kain itself starts.
 - The native recursive filesystem path crashed during forge; stay on the manifest-fed path until `fs_read_dir_paths_text` is fixed on Windows LLVM-native runs.
 - Kain-owned process launch for `rg` inside the oracle returned `process_last_status() == -5`; do not rely on the oracle self-spawning the manifest scanner right now.

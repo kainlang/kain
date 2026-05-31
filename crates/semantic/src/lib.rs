@@ -20,11 +20,27 @@ pub use packet::DiagnosticSemanticPacket;
 /// The failure mode taxonomy for Kain diagnostics.
 #[derive(Debug, Clone, serde::Serialize)]
 pub enum FailureMode {
-    Typo { intended: String },
-    MissingImport { module: String, import_path: String },
+    Typo {
+        intended: String,
+    },
+    MissingImport {
+        module: String,
+        import_path: String,
+    },
     MissingSurface,
     OwnershipViolation,
     ShaderStageMismatch,
+    ShaderHostBoundary,
+    ShaderResourceContract,
+    CudaKernelContract,
+    PythonInteropBoundary {
+        symbol: String,
+        import_path: String,
+    },
+    CAbiBoundary {
+        symbol: String,
+        import_path: Option<String>,
+    },
     WorldDeclarationError,
     ActorMessageMismatch,
     ParserDelimiterDamage,
@@ -41,6 +57,11 @@ impl FailureMode {
             Self::MissingSurface => "missing_surface",
             Self::OwnershipViolation => "ownership_violation",
             Self::ShaderStageMismatch => "shader_stage_mismatch",
+            Self::ShaderHostBoundary => "shader_host_boundary",
+            Self::ShaderResourceContract => "shader_resource_contract",
+            Self::CudaKernelContract => "cuda_kernel_contract",
+            Self::PythonInteropBoundary { .. } => "python_interop_boundary",
+            Self::CAbiBoundary { .. } => "c_abi_boundary",
             Self::WorldDeclarationError => "world_declaration_error",
             Self::ActorMessageMismatch => "actor_message_mismatch",
             Self::ParserDelimiterDamage => "parser_delimiter_damage",

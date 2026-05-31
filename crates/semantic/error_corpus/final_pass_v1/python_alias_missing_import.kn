@@ -1,0 +1,8 @@
+// @expected_code: KAIN-TYPE-0002
+// @expected_mode: PythonInteropBoundary
+// @expected_repair: import math as py_math
+
+fn main() -> Int:
+    let sqrt_fn = python_getattr_raw(py_math, "sqrt")
+    let value = python_call_raw(sqrt_fn, [16.0])
+    return to_int(value)

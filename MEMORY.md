@@ -1,5 +1,32 @@
 # Kain Memory
 
+# 2026-05-31 - semantic final-pass domain oracle wired across compiler and GPU diagnostics
+
+What changed:
+
+- `crates/semantic` now classifies and repairs domain failures beyond typos: Python interop boundaries, C ABI/native boundaries, CUDA/PTX kernel contracts, shader host-boundary violations, and shader resource contracts.
+- The baked corpus scanner now harvests more language truth from corpus files: `shader`, `law`, `patch`, `converge`, `orchestrate`, `pulse`, `shatter struct`, generic `use`, C `include ... as ...`, and Python `import`/`from ... import ...` forms.
+- `crates/semantic/error_corpus/final_pass_v1/` adds final-pass broken examples for Python, C ABI, CUDA, shader, ownership, world/entangle, and converge surfaces. `crates/semantic/symbol_corpus/semantic_surface_mesh.kn` adds reusable symbol/import truth for the same domains.
+- `crates/gpu/src/codegen_spirv.rs` now enriches unsupported shader calls through the semantic coprocessor and rejects duplicate shader resource binding slots as `KAIN-SHADER-0003` before artifact emission.
+- `crates/error/src/report.rs` now prints semantic notes/repairs from plain `DiagnosticReport::Display`, closing the `gpu-artifacts`/codegen display path that bypasses the pretty renderer.
+
+Validation:
+
+- `cargo test -p kain-error -p kain-semantic --target-dir Z:\_b\cargo-target\semantic-final -- --nocapture` passed.
+- `cargo test -p gpu --target-dir Z:\_b\cargo-target\semantic-final --lib -- --nocapture` passed `17/17`.
+- `cargo test -p kain-check --target-dir Z:\_b\cargo-target\semantic-final -- --nocapture` passed `7/7`.
+- `cargo test -p kain-core --test semantic_typecheck_test --target-dir Z:\_b\cargo-target\semantic-final -- --nocapture` passed `6/6`.
+- `bazel build //:kain --config=dev` passed after the final error/gpu changes.
+- Fresh pack generation passed with `cargo run -p kain-semantic --example write_semantic_pack --target-dir Z:\_b\cargo-target\semantic-final -- X:\crates\semantic\.kain\oracle\sempack\current`.
+- Live `kain check` JSON proofs under `crates\semantic\.kain\reports\final-pass\` show `pack_cpu_rerank` and `kain.semantic.pack.v1:1` for Python alias import, C ABI missing import, CUDA contract, and Python stdlib-boundary examples.
+- Live `gpu-artifacts` proofs on `final_pass_v1\shader_host_call_boundary.kn` and `final_pass_v1\shader_storage_binding_conflict.kn` fail with enriched `ShaderHostBoundary` and `ShaderResourceContract` guidance.
+
+Operational notes:
+
+- Use the direct Bazel-built `kain.exe` from `Z:\_b\output-user-root\...\bazel-out\x64_windows-dbg\bin\crates\cli\kain.exe` when launcher freshness is suspect.
+- `python_exec` is visible and typed as `Unit` in the current `kain check` path, so do not use it as a missing-identifier Python fixture. Use alias/import-boundary probes such as `py_math` or intentionally missing `py_*` bridge names.
+- Keep `DiagnosticReport::Display` semantic-aware whenever new codegen/gpu-artifacts diagnostics are added; otherwise the report can be enriched in JSON but look generic in CLI output.
+
 # 2026-05-31 - system C includes are now registry-backed instead of one-off
 
 What changed:
