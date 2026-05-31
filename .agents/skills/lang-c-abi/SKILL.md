@@ -3,6 +3,7 @@ name: lang-c-abi
 description: >-
   Use when authoring, explaining, reviewing, or repairing Kain-side native and
   foreign ABI boundaries: canonical natural `include ... as ...` C header imports,
+  angle-bracket system-header imports such as `include <stdio.h> as cstdio`,
   companion `.c` source discovery, legacy/explicit `use c::...` imports,
   optional explicit blade/package bridge
   metadata, `kain import-c`, `kain import platform`, `use rust::...`, Rust crate FFI, host JSON bridges, shared
@@ -67,7 +68,8 @@ If those answers are fuzzy, the code will work once and rot.
 
 Kain has several layers that make native interop more than a dumb foreign call:
 
-- `include <local-header> as <alias>` is the canonical authored C import shape. It is detected from source, resolved through the C FFI import lane, discovers nearby companion C sources, and is tracked as alias-aware include provenance in the AST/runtime contract.
+- `include local/header.h as alias` is the canonical authored local-header C import shape. It is detected from source, resolved through the C FFI import lane, discovers nearby companion C sources, and is tracked as alias-aware include provenance in the AST/runtime contract.
+- `include <stdio.h> as cstdio`, `include <windows.h> as win`, and `include <vulkan/vulkan.h> as vk` are the first built-in system-header forms. Angle-bracket includes resolve through deterministic SDK/env roots plus compiler-owned linker policy for known families instead of requiring a handwritten bridge manifest first.
 - `use c::<module>` is detected from source and resolved through the C FFI import lane, but new local-header examples should prefer `include ... as ...` unless they are targeting runtime-owned ABI or explicit bridge metadata.
 - `use rust::<module>` is resolved through the Rust crate FFI lane.
 - Runtime-owned headers under `runtime/native/include` can resolve automatically. Do not require manifest ceremony for those.
@@ -87,14 +89,15 @@ underneath.
 Use this order:
 
 1. **Local header/source pair:** if the Kain file owns a nearby C wrapper, use `include native/foo.h as f`; this is the canonical path. The import lane resolves the local header, requires the sibling `.c` source for native linking, and emits alias externs such as `f_call` via `@link_name`.
-2. **Runtime-owned native ABI:** if the header lives under `runtime/native/include`, start with plain `use c::<name>` or the public `std.*` wrapper.
-3. **Public stdlib wrapper:** if `std.fs`, `std.net`, `std.process`, `std.graphics`, `std.ui`, `std.platform`, or `std.dcc` already expresses the need, author against `std.*` first.
-4. **Blade/package-owned bridge with explicit metadata:** if the wrapper needs non-sibling sources, objects, bitcode, static libs, link libs, defines, or vendor include paths, use `use c::<bridge>` plus `[c_ffi]` metadata near that blade/package. This is the explicit bridge path, not the default for simple local C files.
-5. **Generated import preflight:** if the header shape is unknown, run `kain import-c` to inspect what Kain can represent before hand-authoring the final facade.
-6. **Platform package lock:** if the target is a vendor/system SDK, use `kain import platform` to produce target-aware lock and generated thunk artifacts.
-7. **Rust crate or host bridge lane:** if the boundary is already owned by a Rust crate or a host bridge entrypoint, use `use rust::...`, `kain import-crate`, or `kain bridge serve` before inventing a C detour.
-8. **Mixed Python boundary:** if a Python package is also part of the public surface, co-trigger `lang-python`.
-9. **Runtime/compiler handoff:** if the authored shape is good but import/lowering/loading/dispatch is broken, stop blaming the Kain file and fix the substrate with the owner skill.
+2. **Known system header family:** if the header is a built-in system lane such as `stdio.h`, `math.h`, `windows.h`, or `vulkan/vulkan.h`, use `include <...> as alias` first. This resolves through deterministic env/SDK roots and built-in link policy instead of forcing a bridge manifest.
+3. **Runtime-owned native ABI:** if the header lives under `runtime/native/include`, start with plain `use c::<name>` or the public `std.*` wrapper.
+4. **Public stdlib wrapper:** if `std.fs`, `std.net`, `std.process`, `std.graphics`, `std.ui`, `std.platform`, or `std.dcc` already expresses the need, author against `std.*` first.
+5. **Blade/package-owned bridge with explicit metadata:** if the wrapper needs non-sibling sources, objects, bitcode, static libs, link libs, defines, or vendor include paths, use `use c::<bridge>` plus `[c_ffi]` metadata near that blade/package. This is the explicit bridge path, not the default for simple local C files.
+6. **Generated import preflight:** if the header shape is unknown, run `kain import-c` to inspect what Kain can represent before hand-authoring the final facade.
+7. **Platform package lock:** if the target is a broader vendor/system SDK than the built-in angle-header lane covers, use `kain import platform` to produce target-aware lock and generated thunk artifacts.
+8. **Rust crate or host bridge lane:** if the boundary is already owned by a Rust crate or a host bridge entrypoint, use `use rust::...`, `kain import-crate`, or `kain bridge serve` before inventing a C detour.
+9. **Mixed Python boundary:** if a Python package is also part of the public surface, co-trigger `lang-python`.
+10. **Runtime/compiler handoff:** if the authored shape is good but import/lowering/loading/dispatch is broken, stop blaming the Kain file and fix the substrate with the owner skill.
 
 ## Fast Discovery
 
@@ -206,6 +209,24 @@ header to an import name (`native_math`), finds `native/native_math.c`, emits th
 canonical `c::native_math` extern module, and also emits `nm_*` alias externs
 linked to the real C symbols through `@link_name`. True dot namespaces can grow
 on this AST shape later without flattening the provenance graph.
+
+## System Header Include Pattern
+
+Use this when the header already belongs to a known system family and the real
+pain is ceremony, not package discovery:
+
+```kn
+include <stdio.h> as cstdio
+include <math.h> as cmath
+include <vulkan/vulkan.h> as vk
+```
+
+Current repo truth:
+
+- Angle-bracket includes resolve through deterministic roots such as `KAIN_C_FFI_SYSTEM_INCLUDE_ROOTS`, `INCLUDE`, Windows SDK roots, and Vulkan SDK roots instead of scanning the whole machine blindly.
+- The built-in system lane currently knows C runtime headers, Windows SDK headers, and Vulkan SDK headers.
+- These imports are currently native-link oriented. They are ideal for LLVM/native packaging; live interpreter/test bridge loading still needs a real dynamic-library ownership story for the imported family.
+- If the system family is unknown or the link policy is ambiguous, fall back to `kain import platform` or explicit `[c_ffi]` metadata instead of pretending the header is self-describing.
 
 When a natural include exposes a raw C string result such as `const char *`,
 the generated extern surface should carry `@c_string_return` on both the

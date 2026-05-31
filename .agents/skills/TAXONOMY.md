@@ -51,7 +51,7 @@ This file is only the live skill split for current agents.
 - Use `lang-projects` for `build.kn`, project authority, evidence DAGs, blades/workspaces, portable capsules, and authored project/run/build/test flow. Blades are now a scale mode inside projects, not a top-level skill.
 - Use `lang-systems` for fused actor/effects/ownership/raw-memory authoring; keep `lang-actors` and `lang-ownership` as narrower domain lanes until they are intentionally merged or archived.
 - Use `lang-python` for first-class Python imports, local `.py` resolution, `std::python`, host objects, and shared or owned Python materialization.
-- Use `lang-c-abi` for canonical `include ... as ...` C header imports with companion `.c` sources, explicit/runtime `use c::...`, `use rust::...`, `kain import-c`, `kain import platform`, DLLs, platform packages, bridge metadata, handles, callbacks, strings, buffers, and general native package surfaces.
+- Use `lang-c-abi` for canonical `include ... as ...` local C header imports, built-in `include <...> as alias` system-header imports, explicit/runtime `use c::...`, `use rust::...`, `kain import-c`, `kain import platform`, DLLs, platform packages, bridge metadata, handles, callbacks, strings, buffers, and general native package surfaces.
 - Keep `wildcard-*` rare and explicit. They are authoring overrides, not replacements for the owning `lang-*` field manuals.
 - `tool-build-system` is the single build/Bazel/operator lane.
 - `tool-z3-bug-hunter` is the logging-only sibling of `tool-z3-black-magic`: use it to inventory reproducible bugs and edge cases, not to patch them inline.

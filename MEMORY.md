@@ -1,5 +1,33 @@
 # Kain Memory
 
+# 2026-05-31 - angle-bracket system C includes are now a real authored lane
+
+What changed:
+
+- `crates/core/src/parser.rs` now accepts authored `include <...> as alias` syntax for C system headers such as `include <stdio.h> as cstdio` and `include <vulkan/vulkan.h> as vk`.
+- `crates/c-ffi/src/lib.rs` now preserves the raw include target during source detection instead of collapsing everything down to the import stem too early.
+- The C-FFI resolver now has a built-in system-header lane for known families:
+  - C runtime headers such as `stdio.h`, `math.h`, `stdlib.h`, `string.h`, `stdint.h`, and friends
+  - Windows SDK headers such as `windows.h`
+  - Vulkan SDK headers such as `vulkan/vulkan.h`
+- System-header resolution uses deterministic env/SDK roots (`KAIN_C_FFI_SYSTEM_INCLUDE_ROOTS`, `INCLUDE`, Windows SDK roots, `KAIN_PLATFORM_VULKAN_SDK*`, `VULKAN_SDK`, plus `C:\VulkanSDK\...` fallback on Windows) and compiler-owned link-lib policy instead of requiring a handwritten bridge manifest first.
+- Static native-link C imports are now allowed to succeed with named `link_libs` even when there is no direct object/archive/shared-library path, which is what makes known system SDK headers workable without fake bridge artifacts.
+
+Validation:
+
+- `cargo test -p kain-core parses_c_system_include_items_with_alias_provenance --lib --target-dir target\codex-system-include -- --nocapture`
+- `cargo test -p kain-core parses_c_include_items_with_alias_provenance --lib --target-dir target\codex-system-include -- --nocapture`
+- `cargo test -p kain-c-ffi system_include_ --lib --target-dir target\codex-system-include -- --nocapture`
+- `cargo test -p kain-c-ffi --lib --target-dir target\codex-system-include -- --nocapture`
+  - `21/23` pass after fixing the Windows clang test helper to apply the MSVC link env.
+  - Remaining failures are the pre-existing interpret-mode full-stdlib typecheck collision on `StringIntMap` in:
+    - `tests::c_ffi_live_bridge_supports_simple_scalars_and_strings`
+    - `tests::c_ffi_can_mutate_shared_images_and_roundtrip_opaque_handles`
+
+Operational note:
+
+- The new angle-bracket lane is truthful for native-link packaging, not magic for arbitrary host families. If the header family is unknown or needs richer package metadata, use `kain import platform` or explicit `[c_ffi]` metadata instead of teaching the repo that every `<header.h>` is self-describing.
+
 # 2026-05-30 - semantic oracle ranking proof is live
 
 What changed:

@@ -1378,7 +1378,7 @@ impl<'a> Parser<'a> {
         let import_name = c_include_import_name(&include_target);
         if import_name.is_empty() {
             return Err(self.parser_error(
-                "Expected C include target such as `nuklear`, `native/nuklear`, or `\"../native/nuklear.h\"`",
+                "Expected C include target such as `nuklear`, `native/nuklear`, `\"../native/nuklear.h\"`, or `<vulkan/vulkan.h>`",
                 start,
             ));
         }
@@ -1405,6 +1405,9 @@ impl<'a> Parser<'a> {
             self.advance();
             return Ok(value);
         }
+        if self.check(TokenKind::Lt) {
+            return self.parse_c_system_include_target();
+        }
 
         let mut parts = vec![self.parse_use_path_segment()?];
         while self.check(TokenKind::Slash) || self.check(TokenKind::Dot) {
@@ -1418,6 +1421,41 @@ impl<'a> Parser<'a> {
             parts.push(self.parse_use_path_segment()?);
         }
         Ok(parts.join(""))
+    }
+
+    fn parse_c_system_include_target(&mut self) -> KainResult<String> {
+        let start = self.current_span();
+        self.expect(TokenKind::Lt)?;
+
+        let mut parts = Vec::new();
+        while !self.check(TokenKind::Gt) && !self.at_end() {
+            if self.check(TokenKind::Slash) {
+                self.advance();
+                parts.push("/".to_string());
+                continue;
+            }
+            if self.check(TokenKind::Dot) {
+                self.advance();
+                parts.push(".".to_string());
+                continue;
+            }
+            if self.check(TokenKind::Minus) {
+                self.advance();
+                parts.push("-".to_string());
+                continue;
+            }
+            parts.push(self.parse_use_path_segment()?);
+        }
+        self.expect(TokenKind::Gt)?;
+
+        let target = parts.join("");
+        if target.is_empty() {
+            return Err(self.parser_error(
+                "Expected a system header path inside `include <...>`",
+                start,
+            ));
+        }
+        Ok(target)
     }
 
     fn parse_import(&mut self) -> KainResult<Item> {
@@ -10489,6 +10527,26 @@ include native/nuklear.h as nk
             Item::Use(include) => {
                 assert_eq!(include.path, vec!["c".to_string(), "nuklear".to_string()]);
                 assert_eq!(include.alias.as_deref(), Some("nk"));
+                assert_eq!(include.origin, UseOrigin::CInclude);
+            }
+            other => panic!("expected include to lower to a C Use item, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_c_system_include_items_with_alias_provenance() {
+        let program = parse_program(
+            r#"
+include <vulkan/vulkan.h> as vk
+"#,
+        )
+        .expect("system c include syntax should parse");
+
+        assert_eq!(program.items.len(), 1);
+        match &program.items[0] {
+            Item::Use(include) => {
+                assert_eq!(include.path, vec!["c".to_string(), "vulkan".to_string()]);
+                assert_eq!(include.alias.as_deref(), Some("vk"));
                 assert_eq!(include.origin, UseOrigin::CInclude);
             }
             other => panic!("expected include to lower to a C Use item, got {other:?}"),
