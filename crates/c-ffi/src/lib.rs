@@ -255,9 +255,12 @@ pub fn prepare_native_link_inputs(
                 "LLVM bitcode",
             )?;
             if let Some(shared) = &resolved.shared_lib_path {
-                inputs
-                    .link_inputs
-                    .push(resolve_linkable_shared_library(shared)?);
+                let should_link_shared = !cfg!(windows) || resolved.static_lib_paths.is_empty();
+                if should_link_shared {
+                    inputs
+                        .link_inputs
+                        .push(resolve_linkable_shared_library(shared)?);
+                }
             }
             if inputs.link_inputs.is_empty() && inputs.link_libs.is_empty() {
                 return Err(KainError::runtime(format!(
@@ -975,36 +978,83 @@ fn resolve_system_include(
     let manifest_root =
         find_kain_manifest_root(start_dir).unwrap_or_else(|| start_dir.to_path_buf());
 
-    let (mut include_paths, link_libs) = match family {
-        SystemIncludeFamily::CRuntime => (
-            collect_c_runtime_include_roots(),
-            current_platform_c_runtime_link_libs(header_name),
-        ),
-        SystemIncludeFamily::WindowsSdk => (
-            collect_windows_sdk_include_roots(),
-            current_platform_windows_sdk_link_libs(header_name),
-        ),
-        SystemIncludeFamily::Vulkan => (
-            collect_vulkan_include_roots(),
-            current_platform_vulkan_link_libs(),
-        ),
-    };
-    let header_path = find_system_header_under_roots(&normalized_target, &include_paths)
-        .ok_or_else(|| {
-            let searched = if include_paths.is_empty() {
-                "<none>".to_string()
-            } else {
-                include_paths
-                    .iter()
-                    .map(|path| path.display().to_string())
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            };
-            KainError::runtime(format!(
-                "System C include '<{}>' could not be resolved from include roots: {}",
-                include_target, searched
-            ))
-        })?;
+    let (header_path, mut include_paths, link_libs, shared_lib_path, static_lib_paths) =
+        match family {
+            SystemIncludeFamily::CRuntime => {
+                let include_paths = collect_c_runtime_include_roots();
+                let header_path =
+                    find_system_header_under_roots(&normalized_target, &include_paths).ok_or_else(
+                        || {
+                            let searched = if include_paths.is_empty() {
+                                "<none>".to_string()
+                            } else {
+                                include_paths
+                                    .iter()
+                                    .map(|path| path.display().to_string())
+                                    .collect::<Vec<_>>()
+                                    .join(", ")
+                            };
+                            KainError::runtime(format!(
+                        "System C include '<{}>' could not be resolved from include roots: {}",
+                        include_target, searched
+                    ))
+                        },
+                    )?;
+                (
+                    header_path,
+                    include_paths,
+                    current_platform_c_runtime_link_libs(header_name),
+                    None,
+                    Vec::new(),
+                )
+            }
+            SystemIncludeFamily::WindowsSdk => {
+                let include_paths = collect_windows_sdk_include_roots();
+                let header_path =
+                    find_system_header_under_roots(&normalized_target, &include_paths).ok_or_else(
+                        || {
+                            let searched = if include_paths.is_empty() {
+                                "<none>".to_string()
+                            } else {
+                                include_paths
+                                    .iter()
+                                    .map(|path| path.display().to_string())
+                                    .collect::<Vec<_>>()
+                                    .join(", ")
+                            };
+                            KainError::runtime(format!(
+                        "System C include '<{}>' could not be resolved from include roots: {}",
+                        include_target, searched
+                    ))
+                        },
+                    )?;
+                (
+                    header_path,
+                    include_paths,
+                    current_platform_windows_sdk_link_libs(header_name),
+                    None,
+                    Vec::new(),
+                )
+            }
+            SystemIncludeFamily::Vulkan => {
+                let (header_path, include_dir) = resolve_vulkan_loader_subset_header(start_dir)?;
+                let mut include_paths = collect_vulkan_include_roots();
+                push_existing_unique_path(&mut include_paths, include_dir.clone());
+                let (shared_lib_path, static_lib_paths) = resolve_vulkan_library_artifacts();
+                let link_libs = if static_lib_paths.is_empty() {
+                    current_platform_vulkan_link_libs()
+                } else {
+                    Vec::new()
+                };
+                (
+                    header_path,
+                    include_paths,
+                    link_libs,
+                    shared_lib_path,
+                    static_lib_paths,
+                )
+            }
+        };
     let header_parent = header_path
         .parent()
         .map(Path::to_path_buf)
@@ -1024,7 +1074,7 @@ fn resolve_system_include(
         link_libs: link_libs.clone(),
         sources: Vec::new(),
         objects: Vec::new(),
-        static_libs: Vec::new(),
+        static_libs: static_lib_paths.clone(),
         bitcode: Vec::new(),
         cpp_options: Vec::new(),
         cpp_command: None,
@@ -1046,10 +1096,10 @@ fn resolve_system_include(
             import_name: spec.import_name.clone(),
             manifest_root,
             header_path,
-            shared_lib_path: None,
+            shared_lib_path,
             source_paths: Vec::new(),
             object_paths: Vec::new(),
-            static_lib_paths: Vec::new(),
+            static_lib_paths,
             bitcode_paths: Vec::new(),
             config: library,
             global_config: global_config.clone(),
@@ -1073,7 +1123,11 @@ enum SystemIncludeFamily {
 fn classify_system_include_family(target: &str) -> Option<SystemIncludeFamily> {
     let normalized = target.replace('\\', "/").to_ascii_lowercase();
     let header_name = system_header_file_name(&normalized);
-    if normalized == "vulkan/vulkan.h" || header_name == "vulkan.h" {
+    if normalized == "vulkan/vulkan.h"
+        || normalized == "vulkan/vulkan_core.h"
+        || header_name == "vulkan.h"
+        || header_name == "vulkan_core.h"
+    {
         return Some(SystemIncludeFamily::Vulkan);
     }
     if is_c_runtime_header(header_name) {
@@ -1189,6 +1243,74 @@ fn collect_vulkan_sdk_roots() -> Vec<PathBuf> {
         append_latest_versioned_children(&mut roots, &sdk_parent);
     }
     roots
+}
+
+fn resolve_vulkan_loader_subset_header(start_dir: &Path) -> Result<(PathBuf, PathBuf), KainError> {
+    let repo_root = find_repo_root_with_runtime_include_fallback(start_dir).ok_or_else(|| {
+        KainError::runtime(
+            "System Vulkan include requires a repo root with runtime/native/include so the compiler-owned loader subset header can be used",
+        )
+    })?;
+    let include_dir = repo_root.join("runtime").join("native").join("include");
+    let header_path = include_dir.join("vulkan_loader_subset.h");
+    if !header_path.exists() {
+        return Err(KainError::runtime(format!(
+            "System Vulkan include expected loader subset header at '{}'",
+            header_path.display()
+        )));
+    }
+    Ok((header_path, include_dir))
+}
+
+fn resolve_vulkan_library_artifacts() -> (Option<PathBuf>, Vec<PathBuf>) {
+    let mut shared_lib_path = None;
+    let mut static_lib_paths = Vec::new();
+
+    for sdk_root in collect_vulkan_sdk_roots() {
+        if cfg!(windows) {
+            let runtime_dll = sdk_root.join("Bin").join("vulkan-1.dll");
+            if shared_lib_path.is_none() && runtime_dll.exists() {
+                shared_lib_path = Some(runtime_dll);
+            }
+            let import_lib = sdk_root.join("Lib").join("vulkan-1.lib");
+            push_existing_unique_file(&mut static_lib_paths, import_lib);
+            if shared_lib_path.is_some() && !static_lib_paths.is_empty() {
+                break;
+            }
+        } else if cfg!(target_os = "macos") {
+            let dylib = sdk_root.join("lib").join("libMoltenVK.dylib");
+            if shared_lib_path.is_none() && dylib.exists() {
+                shared_lib_path = Some(dylib);
+            }
+            let framework_binary = sdk_root
+                .join("Frameworks")
+                .join("MoltenVK.framework")
+                .join("MoltenVK");
+            if shared_lib_path.is_none() && framework_binary.exists() {
+                shared_lib_path = Some(framework_binary);
+            }
+        } else {
+            let so = sdk_root.join("lib").join("libvulkan.so");
+            if shared_lib_path.is_none() && so.exists() {
+                shared_lib_path = Some(so);
+            }
+            let so64 = sdk_root.join("lib64").join("libvulkan.so");
+            if shared_lib_path.is_none() && so64.exists() {
+                shared_lib_path = Some(so64);
+            }
+        }
+    }
+
+    if cfg!(windows) && shared_lib_path.is_none() {
+        if let Some(system_root) = std::env::var_os("SystemRoot").map(PathBuf::from) {
+            let system_dll = system_root.join("System32").join("vulkan-1.dll");
+            if system_dll.exists() {
+                shared_lib_path = Some(system_dll);
+            }
+        }
+    }
+
+    (shared_lib_path, static_lib_paths)
 }
 
 fn collect_windows_sdk_roots() -> Vec<PathBuf> {
@@ -1412,6 +1534,12 @@ fn existing_env_dir(env_name: &str) -> Option<PathBuf> {
 
 fn push_existing_unique_path(output: &mut Vec<PathBuf>, candidate: PathBuf) {
     if candidate.is_dir() && !output.iter().any(|path| path == &candidate) {
+        output.push(candidate);
+    }
+}
+
+fn push_existing_unique_file(output: &mut Vec<PathBuf>, candidate: PathBuf) {
+    if candidate.is_file() && !output.iter().any(|path| path == &candidate) {
         output.push(candidate);
     }
 }
@@ -1652,6 +1780,27 @@ fn find_repo_root_with_runtime_include(start_dir: &Path) -> Option<PathBuf> {
             return Some(dir.to_path_buf());
         }
         current = dir.parent();
+    }
+    None
+}
+
+fn find_repo_root_with_runtime_include_fallback(start_dir: &Path) -> Option<PathBuf> {
+    if let Some(root) = find_repo_root_with_runtime_include(start_dir) {
+        return Some(root);
+    }
+    if let Ok(current_dir) = std::env::current_dir() {
+        if let Some(root) = find_repo_root_with_runtime_include(&current_dir) {
+            return Some(root);
+        }
+    }
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    if let Some(root) = find_repo_root_with_runtime_include(&manifest_dir) {
+        return Some(root);
+    }
+    if let Ok(current_exe) = std::env::current_exe() {
+        if let Some(root) = find_repo_root_with_runtime_include(&current_exe) {
+            return Some(root);
+        }
     }
     None
 }
@@ -1998,13 +2147,21 @@ mod tests {
         let sdk_root = root.join("vulkan_sdk");
         let include_root = sdk_root.join("Include");
         let header_path = include_root.join("vulkan").join("vulkan.h");
+        let runtime_dll_path = sdk_root.join("Bin").join("vulkan-1.dll");
+        let import_lib_path = sdk_root.join("Lib").join("vulkan-1.lib");
         kfs::create_dir_all(header_path.parent().expect("vulkan include parent"))
             .expect("sdk include dir");
+        kfs::create_dir_all(runtime_dll_path.parent().expect("vulkan bin parent"))
+            .expect("sdk bin dir");
+        kfs::create_dir_all(import_lib_path.parent().expect("vulkan lib parent"))
+            .expect("sdk lib dir");
         kfs::write_text(
             &header_path,
             "typedef void* VkInstance;\nvoid* vkGetInstanceProcAddr(VkInstance instance, const char* pName);\n",
         )
         .expect("header");
+        kfs::write_bytes(&runtime_dll_path, b"fake-vulkan-runtime-dll").expect("runtime dll");
+        kfs::write_bytes(&import_lib_path, b"fake-vulkan-import-lib").expect("import lib");
 
         unsafe {
             std::env::set_var("KAIN_PLATFORM_VULKAN_SDK", &sdk_root);
@@ -2024,23 +2181,47 @@ mod tests {
         .expect("system include output");
 
         assert_eq!(outputs.len(), 1);
-        assert_eq!(
-            outputs[0].resolved.header_path,
-            canonical_or_self(&header_path)
-        );
-        assert_eq!(outputs[0].resolved.tier, CInteropTier::Static);
         assert!(outputs[0]
             .resolved
-            .config
-            .link_libs
-            .iter()
-            .any(|value| value.eq_ignore_ascii_case("vulkan-1")
-                || value.eq_ignore_ascii_case("vulkan")));
+            .header_path
+            .ends_with(Path::new("runtime/native/include/vulkan_loader_subset.h")));
+        assert_eq!(outputs[0].resolved.tier, CInteropTier::Static);
+        assert_eq!(
+            outputs[0]
+                .resolved
+                .shared_lib_path
+                .as_ref()
+                .map(|path| canonical_or_self(path)),
+            Some(canonical_or_self(&runtime_dll_path))
+        );
+        assert_eq!(
+            outputs[0]
+                .resolved
+                .static_lib_paths
+                .iter()
+                .map(|path| canonical_or_self(path))
+                .collect::<Vec<_>>(),
+            vec![canonical_or_self(&import_lib_path)]
+        );
 
         let link_inputs = prepare_native_link_inputs(&outputs[0], "clang", &["-O2".to_string()])
             .expect("link policy");
-        assert!(link_inputs.link_inputs.is_empty());
-        assert!(!link_inputs.link_libs.is_empty());
+        assert_eq!(
+            link_inputs
+                .link_inputs
+                .iter()
+                .map(|path| canonical_or_self(path))
+                .collect::<Vec<_>>(),
+            vec![canonical_or_self(&import_lib_path)]
+        );
+        let report_json = kfs::read_text(&outputs[0].report_json_path).expect("report json");
+        assert!(
+            !report_json.contains("\"status\": \"unsupported\""),
+            "vulkan subset loader signatures should be callable once typedef-backed scalar returns collapse correctly:\n{report_json}"
+        );
+        assert!(outputs[0]
+            .canonical_module_source
+            .contains("vkEnumerateInstanceVersion"));
     }
 
     #[cfg(windows)]

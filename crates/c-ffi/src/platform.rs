@@ -398,11 +398,13 @@ fn resolved_library_for_platform_package(
 fn write_vulkan_loader_subset_header(output_dir: &Path) -> Result<PathBuf, KainError> {
     let header_path = output_dir.join("vulkan_loader_subset.h");
     let source = r#"
-typedef void* VkInstance;
-typedef void* VkDevice;
+#include <stdint.h>
+typedef uintptr_t VkInstance;
+typedef uintptr_t VkDevice;
 typedef unsigned int VkResult;
-void* vkGetInstanceProcAddr(VkInstance instance, const char* pName);
-void* vkGetDeviceProcAddr(VkDevice device, const char* pName);
+typedef uintptr_t VkLoaderProcAddress;
+VkLoaderProcAddress vkGetInstanceProcAddr(uintptr_t instance, const char* pName);
+VkLoaderProcAddress vkGetDeviceProcAddr(uintptr_t device, const char* pName);
 VkResult vkEnumerateInstanceVersion(unsigned int* pApiVersion);
 "#;
     kfs::atomic_write_text(&header_path, source).map_err(fs_to_kain_error)?;

@@ -342,6 +342,7 @@ fn declaration_is_typedef(specifiers: &[Node<c_ast::DeclarationSpecifier>]) -> b
 struct CTypeRegistry {
     callback_typedefs: BTreeMap<String, String>,
     pointer_typedefs: BTreeMap<String, CTypePointerAlias>,
+    value_typedefs: BTreeMap<String, CTypeValueAlias>,
 }
 
 #[derive(Debug, Clone)]
@@ -350,6 +351,35 @@ struct CTypePointerAlias {
     base_name: String,
     pointer_depth: u8,
     is_const: bool,
+}
+
+#[derive(Debug, Clone)]
+struct CTypeValueAlias {
+    base_kind: ForeignBaseKind,
+    base_name: String,
+    is_const: bool,
+}
+
+impl CTypeRegistry {
+    fn resolve_value_alias(&self, name: &str) -> Option<CTypeValueAlias> {
+        let mut current = self.value_typedefs.get(name)?.clone();
+        let mut depth = 0usize;
+        while current.base_kind == ForeignBaseKind::Typedef {
+            if depth >= 32 {
+                break;
+            }
+            let Some(next) = self.value_typedefs.get(&current.base_name) else {
+                break;
+            };
+            current = CTypeValueAlias {
+                base_kind: next.base_kind,
+                base_name: next.base_name.clone(),
+                is_const: current.is_const || next.is_const,
+            };
+            depth += 1;
+        }
+        Some(current)
+    }
 }
 
 fn collect_type_registry(externals: &[Node<c_ast::ExternalDeclaration>]) -> CTypeRegistry {
@@ -391,6 +421,15 @@ fn collect_type_registry(externals: &[Node<c_ast::ExternalDeclaration>]) -> CTyp
                         base_kind,
                         base_name: base_name.clone(),
                         pointer_depth,
+                        is_const: facts.is_const || analysis.is_const,
+                    },
+                );
+            } else {
+                registry.value_typedefs.insert(
+                    raw_name,
+                    CTypeValueAlias {
+                        base_kind,
+                        base_name: base_name.clone(),
                         is_const: facts.is_const || analysis.is_const,
                     },
                 );
@@ -504,6 +543,11 @@ fn resolve_bridge_type_from_declaration(
                 })?;
             base_kind = alias.base_kind;
             base_name = alias.base_name.clone();
+            is_const = is_const || alias.is_const;
+        }
+        if let Some(alias) = type_registry.resolve_value_alias(name) {
+            base_kind = alias.base_kind;
+            base_name = alias.base_name;
             is_const = is_const || alias.is_const;
         }
     }

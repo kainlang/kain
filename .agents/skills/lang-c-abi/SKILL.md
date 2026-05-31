@@ -226,6 +226,7 @@ Current repo truth:
 - Angle-bracket includes resolve through deterministic roots such as `KAIN_C_FFI_SYSTEM_INCLUDE_ROOTS`, `INCLUDE`, Windows SDK roots, and Vulkan SDK roots instead of scanning the whole machine blindly.
 - The built-in system lane currently knows C runtime headers, Windows SDK headers, and Vulkan SDK headers.
 - These imports are currently native-link oriented. They are ideal for LLVM/native packaging; live interpreter/test bridge loading still needs a real dynamic-library ownership story for the imported family.
+- For the current Vulkan system-header lane, compiler-owned subset headers intentionally expose loader handles and proc-address returns as integer bits on LLVM (`vk_GetInstanceProcAddr(0, "...") -> Int`) so direct native calls stay scalar-safe. Treat that as the current authored proof shape for Vulkan loader benchmarks until broader raw-pointer/out-param ergonomics land.
 - If the system family is unknown or the link policy is ambiguous, fall back to `kain import platform` or explicit `[c_ffi]` metadata instead of pretending the header is self-describing.
 
 When a natural include exposes a raw C string result such as `const char *`,
