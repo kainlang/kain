@@ -96,6 +96,42 @@ Current known-good behavior:
 - The probe query returns `8` hits and ranks `type_unknown_identifier.kn` first.
 - The fused score+top-k kernel and the CUDA top-k kernel are still available, but opt-in and experimental: set `KAIN_SEMANTIC_FUSED_RANK_ENABLED=1` and/or `KAIN_SEMANTIC_CUDA_TOPK_ENABLED=1` only when validating those lanes directly.
 
+## Sidecar Pack / Compiler Consumer
+
+The shipped compiler path is CPU-only and data-driven. Generate a frozen sidecar pack from the baked corpus, then point `kain check` at it:
+
+```powershell
+$env:TMP = 'Z:\_b\tmp'
+$env:TEMP = 'Z:\_b\tmp'
+$env:TMPDIR = 'Z:\_b\tmp'
+$env:CARGO_BUILD_JOBS = '1'
+cargo run -p kain-semantic --example write_semantic_pack --target-dir Z:\_b\cargo-target\semantic-hybrid -- X:\crates\semantic\.kain\oracle\sempack\current
+
+$env:KAIN_SEMANTIC_PACK_PATH = 'X:\crates\semantic\.kain\oracle\sempack\current'
+Remove-Item Env:\KAIN_SEMANTIC_PACK_DISABLE -ErrorAction SilentlyContinue
+kain check X:\crates\semantic\error_corpus\type_unknown_identifier.kn --target llvm --json X:\crates\semantic\.kain\reports\semantic-pack-type.json
+```
+
+Expected structured diagnostic proof from `semantic-pack-type.json`:
+
+- `files[0].diagnostic.diagnostics[0].semantic.backend == "pack_cpu_rerank"`
+- `pack_schema_version == "kain.semantic.pack.v1:1"`
+- `failure_mode == "typo"`
+- top repair replacement text is `println`
+
+Fallback proof:
+
+```powershell
+$env:KAIN_SEMANTIC_PACK_DISABLE = '1'
+kain check X:\crates\semantic\error_corpus\type_unknown_identifier.kn --target llvm --json X:\crates\semantic\.kain\reports\semantic-pack-disabled-type.json
+```
+
+Expected fallback structured diagnostic proof:
+
+- `semantic.backend == "fallback_rules"`
+- `pack_schema_version == null`
+- user-facing explanation and fix-it still point `prntln -> println`
+
 ## Ranking Knobs
 
 The search ranker is intentionally data-driven. Prefer these config/env knobs over hardcoded scoring tweaks:
@@ -112,6 +148,8 @@ The search ranker is intentionally data-driven. Prefer these config/env knobs ov
 - `KAIN_SEMANTIC_RANK_PATH_TOKEN_BONUS`: bonus when query tokens appear in chunk paths.
 - `KAIN_SEMANTIC_RANK_SYMBOL_TOKEN_BONUS`: bonus when query tokens appear in symbol names.
 - `KAIN_SEMANTIC_RANK_KIND_TOKEN_BONUS`: bonus when query tokens appear in chunk kinds.
+- `KAIN_SEMANTIC_PACK_PATH`: CPU compiler-side sidecar pack root containing `manifest.json`, `prototypes.bin`, and `reranker.i8`.
+- `KAIN_SEMANTIC_PACK_DISABLE`: force the compiler semantic coprocessor back to the fallback rules path.
 
 ## Broken Corpus Proof
 
@@ -133,3 +171,4 @@ The current proof expectation is enriched diagnostics, notes, and fix-its rather
 - Kain-owned process launch for `rg` inside the oracle returned `process_last_status() == -5`; do not rely on the oracle self-spawning the manifest scanner right now.
 - `X:\.kain\cache\run\llvm\kain_gpu_runtime.dll` was stale and rejected residency target `ks`; prefer the freshly rebuilt DLL under `Z:\_b\cargo-target\kain-semantic-gpu-runtime`.
 - Some small authored Kain helper shapes passed `kain check` but failed during LLVM run with invalid PHI IR. In this lane, avoid empty `return` in `Unit` helpers, avoid inline `if` expressions for values that can be spelled as explicit `var` assignments, and prefer `text_tokenize_whitespace` plus direct streaming over accumulating `Array<String>` tokens in tiny helpers.
+- Error corpus typo extraction must skip declarations like `fn main()`. If it treats the declaration name as the primary bad symbol, the sidecar pack can learn a bogus prototype. Keep corpus files annotated with `@expected_code`, `@expected_mode`, and `@expected_repair` when the broken code should become pack truth.

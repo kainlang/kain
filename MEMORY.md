@@ -10199,3 +10199,24 @@ The reusable `crates/semantic` oracle lane now treats tokenizer, transformer, tr
   - Cargo may warn that its global cache database on `F:` is full; the build still succeeds when `CARGO_TARGET_DIR` is moved to `Z:`
 - Real compiler proof:
   - direct Bazel-built `kain.exe` checks on `crates/semantic/error_corpus/type_unknown_identifier.kn`, `parse_missing_colon.kn`, and `world_missing_surface.kn` failed with enriched diagnostics, notes, and fix-its as expected
+
+# 2026-05-31 - semantic sidecar pack v1 wired into real compiler diagnostics
+
+The reusable semantic oracle now has a shipped CPU consumer path in addition to the Kain/CUDA offline forge lane.
+
+- Rust compiler-facing changes:
+  - `crates/semantic/src/pack.rs` loads a versioned `kain.semantic.pack.v1` sidecar (`manifest.json`, `prototypes.bin`, `reranker.i8`) and reranks fallback-rule diagnostics with an int8 packet reranker
+  - `KAIN_SEMANTIC_PACK_PATH` selects a pack root; `KAIN_SEMANTIC_PACK_DISABLE=1` forces the portable fallback rules path
+  - `crates/semantic/examples/write_semantic_pack.rs` materializes the dev pack from baked corpus data
+  - `DiagnosticSemanticSummary` now exposes `backend` and `pack_schema_version`; `kain check --json` now includes structured diagnostic JSON per failed file
+  - parser/typechecker semantic packets now carry source path, visible imports, and nearest scope matches for better data-driven ranking
+- Corpus/ranking fixes:
+  - `type_unknown_identifier.kn` is annotated with `@expected_repair: println`
+  - typo primary-text extraction skips declarations like `fn main()` so corpus prototypes do not learn bogus bad symbols
+  - the pack scorer rejects mode-mismatched same-family hits unless either exact diagnostic code or failure mode matches; this prevents a typo prototype from overwriting a missing-surface explanation
+- Proofs:
+  - `cargo test -p kain-semantic --target-dir Z:\_b\cargo-target\semantic-hybrid -- --nocapture` passed `12/12`
+  - `cargo test -p kain-check --target-dir Z:\_b\cargo-target\semantic-hybrid -- --nocapture` passed `7/7`
+  - `cargo test -p kain-core --test semantic_typecheck_test --target-dir Z:\_b\cargo-target\semantic-hybrid -- --nocapture` passed `6/6`
+  - real `kain check crates\semantic\error_corpus\type_unknown_identifier.kn --target llvm --json X:\crates\semantic\.kain\reports\semantic-pack-type.json` failed as expected with `semantic.backend = "pack_cpu_rerank"`, `pack_schema_version = "kain.semantic.pack.v1:1"`, typo mode, and top repair `println`
+  - disabling the pack produced `semantic.backend = "fallback_rules"` with the same user-facing repair, proving portability without CUDA/GPU on the user side

@@ -472,8 +472,19 @@ fn source_path_for(repo_root: &Path, path: &Path) -> String {
 fn derive_error_primary_text(source: &str, expected_mode: &str, expected_repair: &str) -> String {
     if expected_mode == "Typo" {
         for line in source.lines() {
-            if let Some(call_index) = line.find('(') {
-                let prefix = &line[..call_index];
+            let trimmed = line.trim();
+            if trimmed.starts_with("//")
+                || trimmed.starts_with("fn ")
+                || trimmed.starts_with("pub fn ")
+                || trimmed.starts_with("shader ")
+                || trimmed.starts_with("actor ")
+                || trimmed.starts_with("world ")
+            {
+                continue;
+            }
+
+            if let Some(call_index) = trimmed.find('(') {
+                let prefix = &trimmed[..call_index];
                 if let Some(symbol) = prefix.split_whitespace().last().map(|value| {
                     value.trim_matches(|ch: char| !ch.is_ascii_alphanumeric() && ch != '_')
                 }) {

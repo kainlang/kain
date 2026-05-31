@@ -1,5 +1,5 @@
 {
-  "checksum": "496e7059c66d8242c54a9c85c4853b01778bfbe91f7c2f612fcbcfd71f7653be",
+  "checksum": "9766d1ccd1cf692d43b9274108cc1f4540524d858f776b733df46d64e14bba98",
   "crates": {
     "ab_glyph 0.2.32": {
       "name": "ab_glyph",
@@ -17361,6 +17361,10 @@
             {
               "id": "serde 1.0.228",
               "target": "serde"
+            },
+            {
+              "id": "serde_json 1.0.143",
+              "target": "serde_json"
             }
           ],
           "selects": {}

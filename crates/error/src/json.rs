@@ -158,6 +158,8 @@ fn semantic_to_json(semantic: &crate::report::DiagnosticSemanticSummary) -> Json
         "explanation": semantic.explanation,
         "root_cause_confidence": semantic.root_cause_confidence,
         "cascade_probability": semantic.cascade_probability,
+        "backend": semantic.backend,
+        "pack_schema_version": semantic.pack_schema_version,
         "repairs": semantic.repairs.iter().map(|repair| json!({
             "repair_id": repair.repair_id,
             "description": repair.description,

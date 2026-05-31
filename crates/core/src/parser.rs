@@ -10,8 +10,8 @@ use crate::error::{
 use crate::language_features::{default_language_capabilities, LanguageCapabilities};
 use crate::lexer::{Lexer, Token, TokenKind};
 use crate::span::Span;
-use kain_semantic::enrich_report as enrich_semantic_report;
 use kain_ownership::{COLLAPSE_KEYWORD, OBSERVE_KEYWORD, SHARE_KEYWORD};
+use kain_semantic::enrich_report as enrich_semantic_report;
 
 /// Maximum number of errors to accumulate before bailing out.
 /// Prevents runaway error accumulation from freezing the compiler.
@@ -315,17 +315,33 @@ impl<'a> Parser<'a> {
         line_content.trim_end().to_string()
     }
 
+    fn diagnostic_source_path(&self, span: Span) -> Option<String> {
+        if let Some(origin) = self.span_mapper.span_origin_file(span) {
+            if !Self::synthetic_filename(origin) {
+                return Some(origin.to_string());
+            }
+        }
+        if !Self::synthetic_filename(self.filename) {
+            return Some(self.filename.to_string());
+        }
+        None
+    }
+
     fn semantic_packet_for_span(
         &self,
         code: DiagnosticCode,
         span: Span,
     ) -> DiagnosticSemanticPacket {
-        DiagnosticSemanticPacket::new(
+        let mut packet = DiagnosticSemanticPacket::new(
             code,
             CompilerPhase::Parser,
             self.diagnostic_primary_text(span),
         )
-        .source_window(self.diagnostic_source_window(span))
+        .source_window(self.diagnostic_source_window(span));
+        if let Some(path) = self.diagnostic_source_path(span) {
+            packet = packet.source_path(path);
+        }
+        packet
     }
 
     fn enrich_parser_report(

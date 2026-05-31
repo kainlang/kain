@@ -2972,6 +2972,7 @@ dependencies = [
  "kain-driver",
  "kain-fs",
  "serde",
+ "serde_json",
  "tempfile",
 ]
 

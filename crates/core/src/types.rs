@@ -20,11 +20,11 @@ use kain_actor::{
     validate_actor_definition, ActorDefinition, ActorHandlerSignature, ActorMethodSignature,
     ActorStateSlot, MessageParameter, MessageSignature,
 };
-use kain_semantic::enrich_report as enrich_semantic_report;
 use kain_ownership::{
     OwnershipPolicy, OwnershipRegionKind, COLLAPSE_KEYWORD, DECAY_KEYWORD, OBSERVE_KEYWORD,
     SHARE_KEYWORD,
 };
+use kain_semantic::enrich_report as enrich_semantic_report;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
@@ -1599,15 +1599,58 @@ impl<'a> TypeEnv<'a> {
         line_content.trim_end().to_string()
     }
 
+    fn diagnostic_source_path(&self, span: Span) -> Option<String> {
+        if let Some(origin) = self.span_mapper.span_origin_file(span) {
+            if !Self::synthetic_filename(origin) {
+                return Some(origin.to_string());
+            }
+        }
+        if !Self::synthetic_filename(self.filename) {
+            return Some(self.filename.to_string());
+        }
+        None
+    }
+
+    fn visible_import_names(&self) -> Vec<String> {
+        let mut imports: Vec<String> = self.loaded_stdlib_modules.iter().cloned().collect();
+        imports.sort();
+        imports
+    }
+
+    fn nearest_scope_matches_for_text(&self, text: &str) -> Vec<(String, usize)> {
+        if text.is_empty() {
+            return Vec::new();
+        }
+        let mut matches: Vec<(String, usize)> = self
+            .visible_symbol_names()
+            .into_iter()
+            .map(|name| {
+                let distance = bounded_semantic_edit_distance(text, &name);
+                (name, distance)
+            })
+            .filter(|(_, distance)| *distance <= 2)
+            .collect();
+        matches.sort_by(|left, right| left.1.cmp(&right.1).then_with(|| left.0.cmp(&right.0)));
+        matches.truncate(3);
+        matches
+    }
+
     fn semantic_packet_for_span(
         &self,
         code: DiagnosticCode,
         span: Span,
         phase: CompilerPhase,
     ) -> DiagnosticSemanticPacket {
-        DiagnosticSemanticPacket::new(code, phase, self.diagnostic_primary_text(span))
+        let primary_text = self.diagnostic_primary_text(span);
+        let mut packet = DiagnosticSemanticPacket::new(code, phase, primary_text.clone())
             .source_window(self.diagnostic_source_window(span))
             .visible_symbols(self.visible_symbol_names())
+            .visible_imports(self.visible_import_names())
+            .nearest_scope_matches(self.nearest_scope_matches_for_text(&primary_text));
+        if let Some(path) = self.diagnostic_source_path(span) {
+            packet = packet.source_path(path);
+        }
+        packet
     }
 
     fn enrich_type_report(
@@ -1682,6 +1725,29 @@ impl<'a> TypeEnv<'a> {
     fn synthetic_filename(filename: &str) -> bool {
         filename.starts_with('<') && filename.ends_with('>')
     }
+}
+
+fn bounded_semantic_edit_distance(left: &str, right: &str) -> usize {
+    if left == right {
+        return 0;
+    }
+    let left_chars: Vec<char> = left.chars().collect();
+    let right_chars: Vec<char> = right.chars().collect();
+    let mut prev: Vec<usize> = (0..=right_chars.len()).collect();
+    let mut curr = vec![0usize; right_chars.len() + 1];
+
+    for (i, left_char) in left_chars.iter().enumerate() {
+        curr[0] = i + 1;
+        for (j, right_char) in right_chars.iter().enumerate() {
+            let substitution_cost = usize::from(left_char != right_char);
+            curr[j + 1] = (prev[j + 1] + 1)
+                .min(curr[j] + 1)
+                .min(prev[j] + substitution_cost);
+        }
+        std::mem::swap(&mut prev, &mut curr);
+    }
+
+    prev[right_chars.len()]
 }
 
 fn selfhost_map_type() -> ResolvedType {

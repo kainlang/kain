@@ -1928,6 +1928,7 @@ fn run_check_command(input: &Path, target: &str, fail_fast: bool, json: Option<&
                     test_count: 0,
                     required_capabilities: Vec::new(),
                     error: Some(error),
+                    diagnostic: None,
                 }],
             },
         }

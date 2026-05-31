@@ -112,12 +112,16 @@ pub struct DiagnosticSemanticPacket {
     pub phase: CompilerPhase,
     /// The offending source text at the primary span.
     pub primary_text: String,
+    /// Source file path, when the compiler can tie the diagnostic to a real file.
+    pub source_path: Option<String>,
     /// 3–5 lines of source around the error for local context.
     pub source_window: String,
     /// AST ancestor path from root to error node.
     pub ast_node_path: Vec<String>,
     /// Symbols visible in the current scope at the error site.
     pub visible_symbols: Vec<String>,
+    /// Imports visible at the error site, normalized as language-facing paths.
+    pub visible_imports: Vec<String>,
     /// Nearest spelling matches from visible scope `(name, edit_distance)`.
     pub nearest_scope_matches: Vec<(String, usize)>,
     /// Contextual boolean flags about the error environment.
@@ -158,6 +162,14 @@ pub struct DiagnosticSemanticSummary {
     pub root_cause_confidence: f32,
     pub cascade_probability: f32,
     pub repairs: Vec<DiagnosticSemanticRepair>,
+    #[serde(default = "default_semantic_backend")]
+    pub backend: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pack_schema_version: Option<String>,
+}
+
+fn default_semantic_backend() -> String {
+    "fallback_rules".to_string()
 }
 
 impl DiagnosticSemanticPacket {
@@ -171,9 +183,11 @@ impl DiagnosticSemanticPacket {
             code,
             phase,
             primary_text: primary_text.into(),
+            source_path: None,
             source_window: String::new(),
             ast_node_path: Vec::new(),
             visible_symbols: Vec::new(),
+            visible_imports: Vec::new(),
             nearest_scope_matches: Vec::new(),
             contextual_flags: std::collections::HashMap::new(),
             candidate_repairs: Vec::new(),
@@ -186,6 +200,14 @@ impl DiagnosticSemanticPacket {
         self
     }
 
+    pub fn source_path(mut self, path: impl Into<String>) -> Self {
+        let path = path.into();
+        if !path.is_empty() {
+            self.source_path = Some(path);
+        }
+        self
+    }
+
     pub fn ast_path(mut self, path: Vec<String>) -> Self {
         self.ast_node_path = path;
         self
@@ -193,6 +215,11 @@ impl DiagnosticSemanticPacket {
 
     pub fn visible_symbols(mut self, syms: Vec<String>) -> Self {
         self.visible_symbols = syms;
+        self
+    }
+
+    pub fn visible_imports(mut self, imports: Vec<String>) -> Self {
+        self.visible_imports = imports;
         self
     }
 

@@ -9,9 +9,9 @@
 
 pub mod corpus_db;
 pub mod expert;
+pub mod pack;
 pub mod packet;
 
-pub use expert::analyze;
 use kain_error::{
     DiagnosticReport, DiagnosticSemanticRepair, DiagnosticSemanticSummary, DiagnosticSeverity,
 };
@@ -69,6 +69,8 @@ pub struct SemanticAnalysisReport {
     pub dynamic_explanation: String,
     pub cascade_probability: f32,
     pub explanation_style: String,
+    pub backend: String,
+    pub pack_schema_version: Option<String>,
 }
 
 impl SemanticAnalysisReport {
@@ -89,6 +91,8 @@ impl SemanticAnalysisReport {
                     replacement_text: repair.replacement_text.clone(),
                 })
                 .collect(),
+            backend: self.backend.clone(),
+            pack_schema_version: self.pack_schema_version.clone(),
         }
     }
 }
@@ -103,8 +107,13 @@ impl SemanticCoprocessor {
     }
 
     pub fn analyze(&self, packet: &DiagnosticSemanticPacket) -> SemanticAnalysisReport {
-        expert::analyze(packet)
+        analyze(packet)
     }
+}
+
+pub fn analyze(packet: &DiagnosticSemanticPacket) -> SemanticAnalysisReport {
+    let baseline = expert::analyze(packet);
+    pack::analyze_with_default_pack(packet, baseline)
 }
 
 pub fn enrich_report(

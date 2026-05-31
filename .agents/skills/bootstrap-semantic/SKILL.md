@@ -35,8 +35,9 @@ Use this skill when the semantic oracle itself is the owned truth: how corpus da
 2. Keep the lane data-driven. Artifact roots, kernel stems, manifests, and seed knobs belong in `src/config.kn` or environment-driven inputs, not hardcoded paths scattered across host code.
 3. Prefer manifest-driven indexing until the native recursive FS lane is fixed. The current reliable forge path reads `KAIN_SEMANTIC_FILE_MANIFEST` instead of walking directories recursively from inside the Kain binary.
 4. Keep per-kernel CUDA outputs isolated. `kain gpu-artifacts` writes `kain_compute_residency.json` into the output directory, so shared output roots cause collisions and misleading proofs.
-5. Prove liveness in stages: `check`, `gpu-artifacts`, `forge`, `health`, `embed`, then `search`. A green `kain check` does not prove artifact emission or runtime dispatch.
-6. Read [references/proof_loop.md](./references/proof_loop.md) when you need the exact command deck, environment variables, or the currently known traps.
+5. Treat the Rust sidecar semantic pack as the shipped compiler-facing consumer. CUDA/Kain forge can spend offline budget, but `kain check` must be able to load a frozen `manifest.json` + `prototypes.bin` + `reranker.i8` pack on CPU or fall back to rules without requiring CUDA.
+6. Prove liveness in stages: `check`, `gpu-artifacts`, `forge`, `health`, `embed`, `search`, then sidecar-pack compiler diagnostics. A green `kain check` does not prove artifact emission, runtime dispatch, or pack-backed semantic provenance.
+7. Read [references/proof_loop.md](./references/proof_loop.md) when you need the exact command deck, environment variables, or the currently known traps.
 
 ## Validation Loop
 
@@ -64,7 +65,7 @@ kain run src\main.kn --target llvm -- embed kain "unknown identifier prntln expe
 kain run src\main.kn --target llvm -- search kain "unknown identifier prntln expected println" 8
 ```
 
-The expected search proof is `8` hits with `crates\semantic\error_corpus\type_unknown_identifier.kn` ranked first. If compiler-facing behavior changed, also run the broken-corpus checks from the reference file.
+The expected search proof is `8` hits with `crates\semantic\error_corpus\type_unknown_identifier.kn` ranked first. If compiler-facing behavior changed, also generate the sidecar pack and run the broken-corpus checks from the reference file with `KAIN_SEMANTIC_PACK_PATH` set.
 
 ## Guardrails
 
@@ -73,3 +74,4 @@ The expected search proof is `8` hits with `crates\semantic\error_corpus\type_un
 - Do not collapse the semantic lane back into error-only assumptions. The point of `crates/semantic` is to stay reusable across diagnostics and future compiler intelligence surfaces.
 - Do not stop at `kain check` when the user asks whether the pipeline works. Real proof here means forge artifacts plus at least one runtime-visible command (`health`, `embed`, `search`, or broken-corpus diagnostics).
 - Do not treat the fused CUDA score+top-k lane as the default proof path yet. The current reliable path is CUDA score dispatch plus host top-k metadata reranking; fused and CUDA top-k lanes are env-gated experiments.
+- Do not let the sidecar pack reranker accept a same-code-family hit when both exact diagnostic code and failure mode are wrong. That regression can make an unrelated prototype overwrite a correct diagnostic explanation.

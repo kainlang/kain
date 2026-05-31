@@ -71,7 +71,7 @@ pub enum CheckStatus {
     Failed,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct CheckFileReport {
     pub path: String,
     pub target: String,
@@ -81,6 +81,8 @@ pub struct CheckFileReport {
     pub required_capabilities: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub diagnostic: Option<serde_json::Value>,
 }
 
 impl CheckFileReport {
@@ -89,7 +91,7 @@ impl CheckFileReport {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct CheckReport {
     pub target: String,
     pub total: usize,
@@ -159,17 +161,22 @@ pub fn check_source_with_session(
                     .map(|capability| capability.key)
                     .collect(),
                 error: None,
+                diagnostic: None,
             }
         }
-        Err(error) => CheckFileReport {
-            path: source_name.to_string(),
-            target: compile_target_name(target).to_string(),
-            status: CheckStatus::Failed,
-            item_count: 0,
-            test_count: 0,
-            required_capabilities: Vec::new(),
-            error: Some(session.format_error(source_name, source, &error)),
-        },
+        Err(error) => {
+            let diagnostic = error.diagnostic_json();
+            CheckFileReport {
+                path: source_name.to_string(),
+                target: compile_target_name(target).to_string(),
+                status: CheckStatus::Failed,
+                item_count: 0,
+                test_count: 0,
+                required_capabilities: Vec::new(),
+                error: Some(session.format_error(source_name, source, &error)),
+                diagnostic,
+            }
+        }
     }
 }
 
@@ -228,6 +235,7 @@ fn check_file_with_session_raw(
             test_count: 0,
             required_capabilities: Vec::new(),
             error: Some(format!("failed to read source: {error}")),
+            diagnostic: None,
         },
     }
 }
@@ -256,6 +264,7 @@ pub fn check_path(path: &Path, options: &CheckOptions) -> CheckReport {
                     test_count: 0,
                     required_capabilities: Vec::new(),
                     error: Some(error),
+                    diagnostic: None,
                 }],
             };
         }
@@ -491,6 +500,15 @@ mod tests {
 
         assert!(!report.passed());
         assert!(report.error.is_some());
+        assert!(
+            report
+                .diagnostic
+                .as_ref()
+                .and_then(|json| json.get("diagnostics"))
+                .and_then(|diagnostics| diagnostics.as_array())
+                .is_some_and(|diagnostics| !diagnostics.is_empty()),
+            "failed checks should retain structured diagnostic JSON"
+        );
     }
 
     #[test]
