@@ -1,0 +1,70 @@
+use std::memory
+use std::machine
+
+pub const MMIO_ACCESS_RO: Int = 1
+pub const MMIO_ACCESS_WO: Int = 2
+pub const MMIO_ACCESS_RW: Int = 3
+pub const MMIO_ACCESS_W1C: Int = 4
+
+pub const MMIO_ENDIAN_NATIVE: Int = 0
+pub const MMIO_ENDIAN_LITTLE: Int = 1
+pub const MMIO_ENDIAN_BIG: Int = 2
+
+pub fn mmio_bit_mask(width: Int) -> Int:
+    if width <= 0:
+        return 0
+    if width >= 63:
+        return -1
+    return (1 << width) - 1
+
+pub fn mmio_field_get(word: Int, bit_offset: Int, width: Int) -> Int:
+    return (word >> bit_offset) & mmio_bit_mask(width)
+
+pub fn mmio_field_set(word: Int, bit_offset: Int, width: Int, value: Int) -> Int:
+    let mask = mmio_bit_mask(width) << bit_offset
+    let cleared = word & (mask ^ -1)
+    let shifted = (value << bit_offset) & mask
+    return cleared | shifted
+
+pub fn mmio_field_w1c(word: Int, bit_offset: Int, width: Int, clear_bits: Int) -> Int:
+    let mask = (clear_bits & mmio_bit_mask(width)) << bit_offset
+    return word & (mask ^ -1)
+
+pub fn mmio_swap16(value: Int) -> Int:
+    return ((value & 255) << 8) | ((value >> 8) & 255)
+
+pub fn mmio_swap32(value: Int) -> Int:
+    let b0 = (value & 255) << 24
+    let b1 = ((value >> 8) & 255) << 16
+    let b2 = ((value >> 16) & 255) << 8
+    let b3 = (value >> 24) & 255
+    return b0 | b1 | b2 | b3
+
+pub fn mmio_to_little32(value: Int) -> Int:
+    return value
+
+pub fn mmio_from_little32(value: Int) -> Int:
+    return value
+
+pub fn mmio_to_big32(value: Int) -> Int:
+    return mmio_swap32(value)
+
+pub fn mmio_from_big32(value: Int) -> Int:
+    return mmio_swap32(value)
+
+pub fn mmio_read_int(address: ptr<Int>) -> Int with Unsafe:
+    load_fence()
+    let value = volatile_load_int(address)
+    load_fence()
+    return value
+
+pub fn mmio_write_int(address: ptr<Int>, value: Int) -> Int with Unsafe:
+    store_fence()
+    let stored = volatile_store_int(address, value)
+    store_fence()
+    return stored
+
+pub fn mmio_write_one_to_clear(address: ptr<Int>, bit_offset: Int, width: Int, clear_bits: Int) -> Int with Unsafe:
+    let current = mmio_read_int(address)
+    let next = mmio_field_w1c(current, bit_offset, width, clear_bits)
+    return mmio_write_int(address, next)

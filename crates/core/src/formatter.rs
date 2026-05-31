@@ -2166,6 +2166,18 @@ impl SourceFormatter {
                 if options.intel {
                     parts.push("intel = true".to_string());
                 }
+                if !options.constraints.is_empty() {
+                    parts.push(format!(
+                        "constraints = {}",
+                        self.quote_string(&options.constraints.join(","))
+                    ));
+                }
+                if !options.clobbers.is_empty() {
+                    parts.push(format!(
+                        "clobbers = {}",
+                        self.quote_string(&options.clobbers.join(","))
+                    ));
+                }
                 format!("asm({})", parts.join(", "))
             }
             Expr::SizeOfType { target, .. } => {

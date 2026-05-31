@@ -83,12 +83,14 @@ impl CpuFenceKind {
     }
 }
 
-/// Zero-output inline assembly options for the authored `asm(...)` MVP.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Zero-output inline assembly options for the authored `asm(...)` surface.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InlineAsmOptions {
     pub volatile: bool,
     pub memory: bool,
     pub intel: bool,
+    pub constraints: Vec<String>,
+    pub clobbers: Vec<String>,
 }
 
 impl Default for InlineAsmOptions {
@@ -97,6 +99,8 @@ impl Default for InlineAsmOptions {
             volatile: true,
             memory: false,
             intel: false,
+            constraints: Vec::new(),
+            clobbers: Vec::new(),
         }
     }
 }
@@ -1742,7 +1746,7 @@ pub enum Expr {
         pointer: Box<Expr>,
         span: Span,
     },
-    /// LLVM inline assembly MVP: `asm("pause")`, `asm("clflush ($0)", ptr, memory = true)`
+    /// LLVM inline assembly: `asm("pause")`, `asm("clflush ($0)", ptr, memory = true)`
     InlineAsm {
         template: String,
         operands: Vec<Expr>,

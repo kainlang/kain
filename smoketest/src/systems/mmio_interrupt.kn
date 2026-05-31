@@ -2,6 +2,7 @@ use memory::smoke_memory_lane
 use ownership::smoke_ownership_lane
 use converge::smoke_mix_pair
 use law::smoke_validate_range
+use std::mmio
 
 @packed
 @aligned(8)
@@ -9,6 +10,13 @@ use law::smoke_validate_range
 struct DeviceRegs:
     control: Int
     status: Int
+
+@packed
+@aligned(8)
+@mmio(base: 12288, stride: 8, endian: "little", access: "rw", barrier: "seq_cst")
+struct DeviceControlRegs:
+    status_word: Int
+    clear_word: Int
 
 @naked
 @section(".text.kain.smoke.trap")
@@ -25,6 +33,13 @@ fn smoke_mmio_fold(regs: ptr<DeviceRegs>) -> Int with Unsafe:
     regs.status = regs.control + 1
     return regs.status
 
+fn smoke_mmio_bitfield_fold(regs: ptr<DeviceControlRegs>) -> Int with Unsafe:
+    regs.status_word = mmio_field_set(0, 4, 4, 9)
+    regs.status_word = mmio_field_set(regs.status_word, 0, 4, 6)
+    regs.clear_word = regs.status_word
+    let cleared = mmio_write_one_to_clear(ptr_offset(int_to_ptr(ptr_to_int(regs), "ptr<Int>"), 1, "Int"), 4, 4, 1)
+    return mmio_field_get(regs.status_word, 4, 4) + mmio_field_get(cleared, 0, 4)
+
 pub fn smoke_mmio_interrupt_lane() -> Int with Unsafe:
     let backing: ptr<Int> = alloc_zeroed(2, "Int")
     if ptr_to_int(backing) == 0:
@@ -38,6 +53,15 @@ pub fn smoke_mmio_interrupt_lane() -> Int with Unsafe:
         decay backing
         return 2
 
+    let control_regs: ptr<DeviceControlRegs> = int_to_ptr(ptr_to_int(backing), "ptr<DeviceControlRegs>")
+    let bitfield_status = smoke_mmio_bitfield_fold(control_regs)
+    if bitfield_status != 15:
+        decay backing
+        return 6
+    if mmio_to_big32(mmio_from_big32(305419896)) != 305419896:
+        decay backing
+        return 7
+
     let memory_status = smoke_memory_lane()
     if memory_status != 0:
         decay backing
@@ -48,7 +72,7 @@ pub fn smoke_mmio_interrupt_lane() -> Int with Unsafe:
         decay backing
         return 4
 
-    let checksum = smoke_mix_pair(mmio_status, raw_status + memory_status + ownership_status)
+    let checksum = smoke_mix_pair(mmio_status + bitfield_status, raw_status + memory_status + ownership_status)
     decay backing
     if smoke_validate_range(checksum, 0, 1000000007) == false:
         return 5

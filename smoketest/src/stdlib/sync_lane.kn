@@ -1,6 +1,7 @@
 use std::runtime
 use std::memory
 use std::sync
+use std::atomic
 
 pub fn smoke_sync_lane() -> Int with Unsafe:
     # 1. Test McsMutex intrusive enqueuing and locks
@@ -143,5 +144,87 @@ pub fn smoke_sync_lane() -> Int with Unsafe:
     if wait_group_done(wg) != SYNC_ERR_NEGATIVE_COUNT:
         return 133
     let _wg_destroy = wait_group_destroy(wg)
+
+    # 6. Test sleepable RwLock states.
+    let rw = rwlock_new()
+    if rwlock_read_lock(rw) != SYNC_OK:
+        return 134
+    if rwlock_read_lock(rw) != SYNC_OK:
+        return 135
+    if rwlock_reader_count(rw) != 2:
+        return 136
+    if rwlock_try_write_lock(rw) != SYNC_ERR_BUSY:
+        return 137
+    if rwlock_read_unlock(rw) != SYNC_OK:
+        return 138
+    if rwlock_read_unlock(rw) != SYNC_OK:
+        return 139
+    if rwlock_write_lock(rw) != SYNC_OK:
+        return 140
+    if rwlock_writer_held(rw) == false:
+        return 141
+    if rwlock_try_read_lock(rw) != SYNC_ERR_BUSY:
+        return 142
+    if rwlock_write_unlock(rw) != SYNC_OK:
+        return 143
+    let _rw_destroy = rwlock_destroy(rw)
+
+    # 7. Test sleepable Semaphore and CondVar epoch cells.
+    let sema = semaphore_new(1)
+    if semaphore_try_acquire(sema) != SYNC_OK:
+        return 144
+    if semaphore_try_acquire(sema) != SYNC_ERR_BUSY:
+        return 145
+    if semaphore_release(sema, 2) != SYNC_OK:
+        return 146
+    if semaphore_acquire(sema) != SYNC_OK:
+        return 147
+    if semaphore_acquire(sema) != SYNC_OK:
+        return 148
+    if semaphore_available(sema) != 0:
+        return 149
+    let _sema_destroy = semaphore_destroy(sema)
+
+    let cv = condvar_new()
+    let epoch0 = condvar_epoch(cv)
+    if condvar_notify_one(cv) <= 0:
+        return 150
+    if condvar_epoch(cv) != epoch0 + 1:
+        return 151
+    if condvar_wait_timeout(cv, condvar_epoch(cv), 0) != SYNC_ERR_TIMEOUT:
+        return 152
+    let cv_lock = mcs_mutex_new()
+    let cv_node = mcs_node_new()
+    if mcs_mutex_lock(cv_lock, cv_node) != SYNC_OK:
+        return 153
+    if condvar_wait_mcs_timeout(cv, cv_lock, cv_node, 0) != SYNC_ERR_TIMEOUT:
+        return 154
+    if mcs_mutex_unlock(cv_lock, cv_node) != SYNC_OK:
+        return 155
+    let _cv_node_destroy = mcs_node_destroy(cv_node)
+    let _cv_lock_destroy = mcs_mutex_destroy(cv_lock)
+    let _cv_destroy = condvar_destroy(cv)
+
+    # 8. Test ordered CAS plus atomic wait/notify wrappers.
+    let a = atomic_int_new(7)
+    if atomic_int_compare_exchange_ordered(a, 7, 11, Ordering::AcqRel, Ordering::Acquire) == false:
+        return 156
+    if atomic_int_load(a, Ordering::Acquire) != 11:
+        return 157
+    let prev_or = atomic_int_fetch_or(a, 4)
+    if prev_or != 11:
+        return 158
+    if atomic_int_load(a, Ordering::Acquire) != 15:
+        return 159
+    let prev_and = atomic_int_fetch_and(a, 7)
+    if prev_and != 15:
+        return 160
+    if atomic_int_load(a, Ordering::Acquire) != 7:
+        return 161
+    if atomic_int_wait(a, 7, 0) != 0:
+        return 162
+    if atomic_int_notify_all(a) <= 0:
+        return 163
+    let _a_destroy = atomic_int_destroy(a)
 
     return 0

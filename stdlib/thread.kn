@@ -10,16 +10,28 @@ pub fn abi_thread_join(thread_handle: ptr<Int>) -> Int
 @extern
 pub fn abi_thread_set_name(name: String) -> Int
 
+@extern
+pub fn abi_thread_yield() -> Int
+
+pub struct ThreadEntry:
+    fn_ptr: ptr<Int>
+
 pub struct Thread:
     handle: ptr<Int>
     thread_id: ptr<Int>
     done_flag: ptr<Int>
+
+pub fn thread_entry(func: ptr<Int>) -> ThreadEntry:
+    return ThreadEntry { fn_ptr: func }
 
 pub fn thread_spawn(func: ptr<Int>, arg: ptr<Int>) -> Thread:
     let thread_id_out = alloc_zeroed(1, "Int")
     let done_flag = alloc_zeroed(1, "Int")
     let handle = abi_thread_spawn(func, arg, thread_id_out, done_flag)
     return Thread { handle: handle, thread_id: thread_id_out, done_flag: done_flag }
+
+pub fn thread_spawn_entry(entry: ThreadEntry, arg: ptr<Int>) -> Thread:
+    return thread_spawn(entry.fn_ptr, arg)
 
 pub fn thread_join(thread: Thread) -> Int:
     if ptr_to_int(thread.handle) == 0:
@@ -31,6 +43,9 @@ pub fn thread_join(thread: Thread) -> Int:
 
 pub fn thread_set_name(name: String) -> Int:
     return abi_thread_set_name(name)
+
+pub fn thread_yield() -> Int:
+    return abi_thread_yield()
 
 pub fn thread_current_id() -> Int:
     return current_thread_id()

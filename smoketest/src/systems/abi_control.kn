@@ -1,6 +1,8 @@
 use memory::smoke_memory_lane
 use converge::smoke_mix_pair
 use law::smoke_validate_range
+use std::memory
+use std::simd
 
 @thread_local
 @section(".tls")
@@ -28,6 +30,15 @@ const ABI_CONST_BIAS: Int = 5
 fn smoke_abi_symbol_lane(seed: Int) -> Int:
     return seed + ABI_TLS_ANCHOR + ABI_TLS_COUNTER + ABI_TLS_BIAS + ABI_TLS_EXPERT + ABI_CONST_BIAS
 
+@callconv("vectorcall")
+@section(".text.kain.smoke.vector")
+fn smoke_abi_vectorcall_lane(seed: Int) -> Int:
+    return seed * 3 + 1
+
+fn smoke_asm_metadata_lane(seed: Int) -> Int with Unsafe:
+    asm("", seed, constraints = "r", clobbers = "cc", memory = true)
+    return seed
+
 pub fn smoke_abi_control_lane() -> Int with Unsafe:
     let memory_status = smoke_memory_lane()
     if memory_status != 0:
@@ -37,11 +48,35 @@ pub fn smoke_abi_control_lane() -> Int with Unsafe:
     if mixed != 50:
         return 2
 
+    let vector_mixed = smoke_abi_vectorcall_lane(7)
+    if vector_mixed != 22:
+        return 4
+
+    if smoke_asm_metadata_lane(vector_mixed) != 22:
+        return 5
+
+    let vector_a = i64x4(1, 2, 3, 4)
+    let vector_b = i64x4_splat(3)
+    let vector_c = i64x4_add(vector_a, vector_b)
+    if i64x4_dot(vector_c, i64x4(1, 1, 1, 1)) != 22:
+        return 6
+
+    let vector_mem = alloc_zeroed(4, "Int")
+    let indexes = i64x4(0, 1, 2, 3)
+    let scattered = i64x4_scatter(vector_mem, indexes, vector_c)
+    if scattered != 22:
+        decay vector_mem
+        return 7
+    let gathered = i64x4_gather(vector_mem, indexes)
+    decay vector_mem
+    if i64x4_horizontal_sum(gathered) != 22:
+        return 8
+
     let checksum = smoke_mix_pair(
-        mixed,
+        mixed + vector_mixed,
         ABI_TLS_ANCHOR + ABI_TLS_COUNTER + ABI_TLS_BIAS + ABI_TLS_EXPERT + ABI_CONST_BIAS,
     )
     if smoke_validate_range(checksum, 0, 1000000007) == false:
-        return 3
+        return 9
 
     return 0

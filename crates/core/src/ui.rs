@@ -1240,6 +1240,12 @@ pub(crate) fn render_authored_expr_contract(expr: &Expr) -> String {
             if options.intel {
                 rendered.push("intel: true".to_string());
             }
+            if !options.constraints.is_empty() {
+                rendered.push(format!("constraints: {}", options.constraints.join(",")));
+            }
+            if !options.clobbers.is_empty() {
+                rendered.push(format!("clobbers: {}", options.clobbers.join(",")));
+            }
             format!("asm({})", rendered.join(", "))
         }
         Expr::Teleport {

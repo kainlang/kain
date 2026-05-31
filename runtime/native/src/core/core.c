@@ -1,6 +1,7 @@
 #include "../../include/attrition.h"
 #include "../../include/base.h"
 #include "../../include/diagnostics.h"
+#include "../../include/memory.h"
 #include <ctype.h>
 #include <errno.h>
 #include <limits.h>
@@ -11,6 +12,7 @@
 #include <crt_externs.h>
 #else
 #include <dirent.h>
+#include <sched.h>
 #include <sys/stat.h>
 #endif
 
@@ -3491,6 +3493,196 @@ int runtime_get_last_diagnostic(KainDiagnostic* out) {
 
 void runtime_clear_last_diagnostic(void) {
     g_last_diagnostic_valid = 0;
+}
+
+/* Address-keyed sleep/wake helpers for std::atomic and std::sync.
+ * The bucketed design keeps the ABI small while preserving the core wait rule:
+ * waiters always re-check the atomic cell under the bucket lock, so spurious or
+ * same-bucket wakes cannot make the caller observe a false state change.
+ */
+#define KAIN_ATOMIC_WAIT_BUCKET_COUNT 256u
+
+typedef struct {
+#ifdef _WIN32
+    CRITICAL_SECTION lock;
+    CONDITION_VARIABLE condition;
+#else
+    pthread_mutex_t lock;
+    pthread_cond_t condition;
+#endif
+} KainAtomicWaitBucket;
+
+static struct {
+#ifdef _WIN32
+    INIT_ONCE init_once;
+#else
+    pthread_once_t init_once;
+#endif
+    KainAtomicWaitBucket buckets[KAIN_ATOMIC_WAIT_BUCKET_COUNT];
+} g_kain_atomic_wait_state = {
+#ifdef _WIN32
+    .init_once = INIT_ONCE_STATIC_INIT
+#else
+    .init_once = PTHREAD_ONCE_INIT
+#endif
+};
+
+static size_t kain_atomic_wait_bucket_index(const void* address) {
+    uintptr_t bits = (uintptr_t)address;
+    bits >>= 3u;
+    bits ^= bits >> 17u;
+    bits *= (uintptr_t)0x9e3779b97f4a7c15ull;
+    bits ^= bits >> 33u;
+    return (size_t)(bits & (KAIN_ATOMIC_WAIT_BUCKET_COUNT - 1u));
+}
+
+#ifdef _WIN32
+static BOOL CALLBACK kain_atomic_wait_init_once(PINIT_ONCE init_once, PVOID parameter, PVOID* context) {
+    size_t index;
+    (void)init_once;
+    (void)parameter;
+    (void)context;
+    for (index = 0u; index < KAIN_ATOMIC_WAIT_BUCKET_COUNT; ++index) {
+        InitializeCriticalSection(&g_kain_atomic_wait_state.buckets[index].lock);
+        InitializeConditionVariable(&g_kain_atomic_wait_state.buckets[index].condition);
+    }
+    return TRUE;
+}
+#else
+static void kain_atomic_wait_init_once(void) {
+    size_t index;
+    for (index = 0u; index < KAIN_ATOMIC_WAIT_BUCKET_COUNT; ++index) {
+        pthread_mutex_init(&g_kain_atomic_wait_state.buckets[index].lock, NULL);
+        pthread_cond_init(&g_kain_atomic_wait_state.buckets[index].condition, NULL);
+    }
+}
+#endif
+
+static void kain_atomic_wait_ensure_initialized(void) {
+#ifdef _WIN32
+    InitOnceExecuteOnce(&g_kain_atomic_wait_state.init_once, kain_atomic_wait_init_once, NULL, NULL);
+#else
+    pthread_once(&g_kain_atomic_wait_state.init_once, kain_atomic_wait_init_once);
+#endif
+}
+
+static KainAtomicWaitBucket* kain_atomic_wait_bucket_for(const void* address) {
+    kain_atomic_wait_ensure_initialized();
+    return &g_kain_atomic_wait_state.buckets[kain_atomic_wait_bucket_index(address)];
+}
+
+static void kain_atomic_wait_bucket_lock(KainAtomicWaitBucket* bucket) {
+#ifdef _WIN32
+    EnterCriticalSection(&bucket->lock);
+#else
+    pthread_mutex_lock(&bucket->lock);
+#endif
+}
+
+static void kain_atomic_wait_bucket_unlock(KainAtomicWaitBucket* bucket) {
+#ifdef _WIN32
+    LeaveCriticalSection(&bucket->lock);
+#else
+    pthread_mutex_unlock(&bucket->lock);
+#endif
+}
+
+#ifndef _WIN32
+static void kain_atomic_wait_deadline_from_timeout(int64_t timeout_ms, struct timespec* deadline) {
+    const long nanos_per_milli = 1000000L;
+    const long nanos_per_second = 1000000000L;
+    clock_gettime(CLOCK_REALTIME, deadline);
+    if (timeout_ms <= 0) {
+        return;
+    }
+    deadline->tv_sec += (time_t)(timeout_ms / 1000);
+    deadline->tv_nsec += (long)(timeout_ms % 1000) * nanos_per_milli;
+    if (deadline->tv_nsec >= nanos_per_second) {
+        deadline->tv_sec += 1;
+        deadline->tv_nsec -= nanos_per_second;
+    }
+}
+#endif
+
+int64_t abi_atomic_wait_i64(int64_t* address, int64_t expected, int64_t timeout_ms) {
+    KainAtomicWaitBucket* bucket;
+    if (address == NULL) {
+        return -1;
+    }
+    bucket = kain_atomic_wait_bucket_for(address);
+    kain_atomic_wait_bucket_lock(bucket);
+    while (__kain_atomic_load_ordered(address, KAIN_MEMORY_ORDER_ACQUIRE) == expected) {
+        if (timeout_ms == 0) {
+            kain_atomic_wait_bucket_unlock(bucket);
+            return 0;
+        }
+#ifdef _WIN32
+        {
+            DWORD wait_ms = INFINITE;
+            if (timeout_ms > 0) {
+                wait_ms = timeout_ms > (int64_t)(INFINITE - 1u)
+                    ? (INFINITE - 1u)
+                    : (DWORD)timeout_ms;
+            }
+            if (!SleepConditionVariableCS(&bucket->condition, &bucket->lock, wait_ms)) {
+                DWORD err = GetLastError();
+                if (err == ERROR_TIMEOUT) {
+                    kain_atomic_wait_bucket_unlock(bucket);
+                    return 0;
+                }
+            }
+        }
+#else
+        if (timeout_ms < 0) {
+            pthread_cond_wait(&bucket->condition, &bucket->lock);
+        } else {
+            struct timespec deadline;
+            kain_atomic_wait_deadline_from_timeout(timeout_ms, &deadline);
+            if (pthread_cond_timedwait(&bucket->condition, &bucket->lock, &deadline) == ETIMEDOUT) {
+                kain_atomic_wait_bucket_unlock(bucket);
+                return 0;
+            }
+        }
+#endif
+    }
+    kain_atomic_wait_bucket_unlock(bucket);
+    return 1;
+}
+
+int64_t abi_atomic_notify_one_i64(int64_t* address) {
+    KainAtomicWaitBucket* bucket;
+    if (address == NULL) {
+        return -1;
+    }
+    bucket = kain_atomic_wait_bucket_for(address);
+#ifdef _WIN32
+    WakeConditionVariable(&bucket->condition);
+#else
+    pthread_cond_signal(&bucket->condition);
+#endif
+    return 1;
+}
+
+int64_t abi_atomic_notify_all_i64(int64_t* address) {
+    KainAtomicWaitBucket* bucket;
+    if (address == NULL) {
+        return -1;
+    }
+    bucket = kain_atomic_wait_bucket_for(address);
+#ifdef _WIN32
+    WakeAllConditionVariable(&bucket->condition);
+#else
+    pthread_cond_broadcast(&bucket->condition);
+#endif
+    return 1;
+}
+
+int64_t abi_thread_yield(void) {
+#ifdef _WIN32
+    return SwitchToThread() ? 1 : 0;
+#else
+    return sched_yield() == 0 ? 1 : 0;
+#endif
 }
 
 /* Standard library thread wrappers */

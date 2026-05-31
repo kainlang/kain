@@ -15,6 +15,12 @@ pub fn smoke_thread_lane() -> Int with Unsafe:
         return 101
         
     let _s1 = thread_set_name("smoke-thread")
+    if thread_yield() < 0:
+        return 126
+
+    let entry = thread_entry(int_to_ptr(0, "ptr<Int>"))
+    if ptr_to_int(entry.fn_ptr) != 0:
+        return 127
     
     let cpu_count = thread_logical_count()
     if cpu_count <= 0:

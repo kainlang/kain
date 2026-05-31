@@ -1,0 +1,84 @@
+use std::memory
+
+pub struct I64x4:
+    x0: Int
+    x1: Int
+    x2: Int
+    x3: Int
+
+pub fn i64x4(a: Int, b: Int, c: Int, d: Int) -> I64x4:
+    return I64x4 { x0: a, x1: b, x2: c, x3: d }
+
+pub fn i64x4_splat(value: Int) -> I64x4:
+    return i64x4(value, value, value, value)
+
+pub fn i64x4_lane(value: I64x4, lane: Int) -> Int:
+    if lane == 0:
+        return value.x0
+    if lane == 1:
+        return value.x1
+    if lane == 2:
+        return value.x2
+    return value.x3
+
+pub fn i64x4_replace(value: I64x4, lane: Int, next: Int) -> I64x4:
+    if lane == 0:
+        return i64x4(next, value.x1, value.x2, value.x3)
+    if lane == 1:
+        return i64x4(value.x0, next, value.x2, value.x3)
+    if lane == 2:
+        return i64x4(value.x0, value.x1, next, value.x3)
+    return i64x4(value.x0, value.x1, value.x2, next)
+
+pub fn i64x4_add(left: I64x4, right: I64x4) -> I64x4:
+    return i64x4(left.x0 + right.x0, left.x1 + right.x1, left.x2 + right.x2, left.x3 + right.x3)
+
+pub fn i64x4_sub(left: I64x4, right: I64x4) -> I64x4:
+    return i64x4(left.x0 - right.x0, left.x1 - right.x1, left.x2 - right.x2, left.x3 - right.x3)
+
+pub fn i64x4_mul(left: I64x4, right: I64x4) -> I64x4:
+    return i64x4(left.x0 * right.x0, left.x1 * right.x1, left.x2 * right.x2, left.x3 * right.x3)
+
+pub fn i64x4_and(left: I64x4, right: I64x4) -> I64x4:
+    return i64x4(left.x0 & right.x0, left.x1 & right.x1, left.x2 & right.x2, left.x3 & right.x3)
+
+pub fn i64x4_or(left: I64x4, right: I64x4) -> I64x4:
+    return i64x4(left.x0 | right.x0, left.x1 | right.x1, left.x2 | right.x2, left.x3 | right.x3)
+
+pub fn i64x4_xor(left: I64x4, right: I64x4) -> I64x4:
+    return i64x4(left.x0 ^ right.x0, left.x1 ^ right.x1, left.x2 ^ right.x2, left.x3 ^ right.x3)
+
+fn i64x4_select_lane(mask: Int, bit: Int, hot: Int, cold: Int) -> Int:
+    if (mask & bit) != 0:
+        return hot
+    return cold
+
+pub fn i64x4_blend(mask: Int, hot: I64x4, cold: I64x4) -> I64x4:
+    return i64x4(
+        i64x4_select_lane(mask, 1, hot.x0, cold.x0),
+        i64x4_select_lane(mask, 2, hot.x1, cold.x1),
+        i64x4_select_lane(mask, 4, hot.x2, cold.x2),
+        i64x4_select_lane(mask, 8, hot.x3, cold.x3)
+    )
+
+pub fn i64x4_dot(left: I64x4, right: I64x4) -> Int:
+    let product = i64x4_mul(left, right)
+    return product.x0 + product.x1 + product.x2 + product.x3
+
+pub fn i64x4_horizontal_sum(value: I64x4) -> Int:
+    return value.x0 + value.x1 + value.x2 + value.x3
+
+pub fn i64x4_gather(base: ptr<Int>, indexes: I64x4) -> I64x4 with Unsafe:
+    return i64x4(
+        mem_load(ptr_offset(base, indexes.x0, "Int"), "Int"),
+        mem_load(ptr_offset(base, indexes.x1, "Int"), "Int"),
+        mem_load(ptr_offset(base, indexes.x2, "Int"), "Int"),
+        mem_load(ptr_offset(base, indexes.x3, "Int"), "Int")
+    )
+
+pub fn i64x4_scatter(base: ptr<Int>, indexes: I64x4, values: I64x4) -> Int with Unsafe:
+    mem_store(ptr_offset(base, indexes.x0, "Int"), values.x0, "Int")
+    mem_store(ptr_offset(base, indexes.x1, "Int"), values.x1, "Int")
+    mem_store(ptr_offset(base, indexes.x2, "Int"), values.x2, "Int")
+    mem_store(ptr_offset(base, indexes.x3, "Int"), values.x3, "Int")
+    return i64x4_horizontal_sum(values)

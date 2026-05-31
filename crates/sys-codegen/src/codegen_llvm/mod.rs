@@ -1504,6 +1504,32 @@ impl LlvmGenerator {
                     ))
                 }
             }
+            "vectorcall" => {
+                if self.target_is_x86_64() {
+                    Ok(Some("x86_vectorcallcc".to_string()))
+                } else {
+                    Err(KainError::codegen(
+                        format!(
+                            "@callconv(\"vectorcall\") currently lowers truthfully only on x86/x86_64 LLVM targets, but LLVM target {} is active",
+                            self.target.triple
+                        ),
+                        span,
+                    ))
+                }
+            }
+            "stdcall" => {
+                if self.target_is_x86_64() {
+                    Ok(Some("x86_stdcallcc".to_string()))
+                } else {
+                    Err(KainError::codegen(
+                        format!(
+                            "@callconv(\"stdcall\") currently lowers truthfully only on x86/x86_64 LLVM targets, but LLVM target {} is active",
+                            self.target.triple
+                        ),
+                        span,
+                    ))
+                }
+            }
             _ => Ok(None),
         }
     }
@@ -2713,14 +2739,47 @@ impl LlvmGenerator {
             ));
         }
 
+        if !options.constraints.is_empty() && options.constraints.len() != operands.len() {
+            return Err(KainError::codegen(
+                format!(
+                    "asm constraints expected {} entries for {} operands, found {}",
+                    operands.len(),
+                    operands.len(),
+                    options.constraints.len()
+                ),
+                span,
+            ));
+        }
+
         let escaped_template = Self::escape_llvm_inline_asm_fragment(template);
-        let mut constraints: Vec<String> = operands.iter().map(|_| "r".to_string()).collect();
+        let mut constraints: Vec<String> = if options.constraints.is_empty() {
+            operands.iter().map(|_| "r".to_string()).collect()
+        } else {
+            options.constraints.clone()
+        };
         if options.memory {
             constraints.push("~{memory}".to_string());
         }
+        for clobber in &options.clobbers {
+            let trimmed = clobber.trim();
+            if trimmed.is_empty() {
+                continue;
+            }
+            let normalized = match trimmed {
+                "cc" | "flags" => "~{flags}".to_string(),
+                "memory" => "~{memory}".to_string(),
+                other if other.starts_with("~{") => other.to_string(),
+                other => format!("~{{{other}}}"),
+            };
+            if !constraints.iter().any(|existing| existing == &normalized) {
+                constraints.push(normalized);
+            }
+        }
         constraints.push("~{dirflag}".to_string());
         constraints.push("~{fpsr}".to_string());
-        constraints.push("~{flags}".to_string());
+        if !constraints.iter().any(|existing| existing == "~{flags}") {
+            constraints.push("~{flags}".to_string());
+        }
         let constraint_fragment = Self::escape_llvm_inline_asm_fragment(&constraints.join(","));
 
         let mut modifiers = Vec::new();
@@ -2777,6 +2836,7 @@ impl LlvmGenerator {
                 volatile: true,
                 memory: true,
                 intel: false,
+                ..InlineAsmOptions::default()
             },
             span,
         )
@@ -2805,6 +2865,7 @@ impl LlvmGenerator {
                 volatile: true,
                 memory: true,
                 intel: false,
+                ..InlineAsmOptions::default()
             },
             span,
         )
@@ -17125,7 +17186,7 @@ impl LlvmGenerator {
                 operands,
                 options,
                 span,
-            } => self.compile_inline_asm(template, operands, *options, *span),
+            } => self.compile_inline_asm(template, operands, options.clone(), *span),
             Expr::SizeOfType { target, .. } => {
                 let mapped = self.map_type_from_ast(target);
                 let (size, _) = self.abi_layout_for_ty(&mapped, target.span())?;

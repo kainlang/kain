@@ -5762,11 +5762,20 @@ impl<'a> Parser<'a> {
         let mut options = InlineAsmOptions::default();
         for arg in &args[1..] {
             if let Some(name) = arg.name.as_deref() {
-                let value = self.parse_inline_asm_bool_option_arg(&arg.value)?;
                 match name {
-                    "volatile" => options.volatile = value,
-                    "memory" => options.memory = value,
-                    "intel" => options.intel = value,
+                    "volatile" => {
+                        options.volatile = self.parse_inline_asm_bool_option_arg(&arg.value)?
+                    }
+                    "memory" => {
+                        options.memory = self.parse_inline_asm_bool_option_arg(&arg.value)?
+                    }
+                    "intel" => options.intel = self.parse_inline_asm_bool_option_arg(&arg.value)?,
+                    "constraints" => {
+                        options.constraints = self.parse_inline_asm_csv_option_arg(&arg.value)?
+                    }
+                    "clobbers" => {
+                        options.clobbers = self.parse_inline_asm_csv_option_arg(&arg.value)?
+                    }
                     _ => return None,
                 }
             } else {
@@ -5787,6 +5796,22 @@ impl<'a> Parser<'a> {
             Expr::Paren(inner, _) => self.parse_inline_asm_template_arg(inner),
             _ => None,
         }
+    }
+
+    fn parse_inline_asm_csv_option_arg(&self, expr: &Expr) -> Option<Vec<String>> {
+        let value = match expr {
+            Expr::String(value, _) | Expr::Ident(value, _) => value.clone(),
+            Expr::Paren(inner, _) => return self.parse_inline_asm_csv_option_arg(inner),
+            _ => return None,
+        };
+        Some(
+            value
+                .split(',')
+                .map(str::trim)
+                .filter(|part| !part.is_empty())
+                .map(ToString::to_string)
+                .collect(),
+        )
     }
 
     fn parse_inline_asm_bool_option_arg(&self, expr: &Expr) -> Option<bool> {

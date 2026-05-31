@@ -1,5 +1,14 @@
 use std::memory
 
+@extern
+fn abi_atomic_wait_i64(address: ptr<Int>, expected: Int, timeout_ms: Int) -> Int
+
+@extern
+fn abi_atomic_notify_one_i64(address: ptr<Int>) -> Int
+
+@extern
+fn abi_atomic_notify_all_i64(address: ptr<Int>) -> Int
+
 # --- Memory Orderings ---
 
 pub enum Ordering:
@@ -31,10 +40,64 @@ pub fn atomic_raw_exchange(address: ptr<Int>, value: Int, order: Ordering) -> In
         return previous
     return atomic_exchange_acqrel(address, value)
 
+fn atomic_failure_order(success_order: Ordering, failure_order: Ordering) -> Ordering:
+    if failure_order == Ordering::Release or failure_order == Ordering::AcqRel:
+        if success_order == Ordering::SeqCst:
+            return Ordering::Acquire
+        if success_order == Ordering::AcqRel:
+            return Ordering::Acquire
+        return Ordering::Relaxed
+    if success_order == Ordering::Relaxed:
+        return Ordering::Relaxed
+    if success_order == Ordering::Release:
+        return Ordering::Relaxed
+    if success_order == Ordering::Acquire:
+        if failure_order == Ordering::SeqCst:
+            return Ordering::Acquire
+        return failure_order
+    if success_order == Ordering::AcqRel:
+        if failure_order == Ordering::SeqCst:
+            return Ordering::Acquire
+        return failure_order
+    return failure_order
+
 pub fn atomic_raw_compare_exchange(address: ptr<Int>, expected: Int, desired: Int, success_order: Ordering, failure_order: Ordering) -> Bool with Unsafe:
-    if success_order == Ordering::SeqCst or failure_order == Ordering::SeqCst:
-        return atomic_compare_exchange_seqcst(address, expected, desired)
-    return atomic_compare_exchange_seqcst(address, expected, desired)
+    let fail = atomic_failure_order(success_order, failure_order)
+    if success_order == Ordering::Relaxed:
+        return atomic_compare_exchange(address, expected, desired, "Int", "relaxed", "relaxed")
+    if success_order == Ordering::Acquire:
+        if fail == Ordering::Acquire:
+            return atomic_compare_exchange(address, expected, desired, "Int", "acquire", "acquire")
+        return atomic_compare_exchange(address, expected, desired, "Int", "acquire", "relaxed")
+    if success_order == Ordering::Release:
+        return atomic_compare_exchange(address, expected, desired, "Int", "release", "relaxed")
+    if success_order == Ordering::AcqRel:
+        if fail == Ordering::Acquire:
+            return atomic_compare_exchange(address, expected, desired, "Int", "acq_rel", "acquire")
+        return atomic_compare_exchange(address, expected, desired, "Int", "acq_rel", "relaxed")
+    if fail == Ordering::SeqCst:
+        return atomic_compare_exchange(address, expected, desired, "Int", "seq_cst", "seq_cst")
+    if fail == Ordering::Acquire:
+        return atomic_compare_exchange(address, expected, desired, "Int", "seq_cst", "acquire")
+    return atomic_compare_exchange(address, expected, desired, "Int", "seq_cst", "relaxed")
+
+pub fn atomic_raw_fetch_and(address: ptr<Int>, mask: Int) -> Int with Unsafe:
+    return atomic_and_acqrel(address, mask)
+
+pub fn atomic_raw_fetch_or(address: ptr<Int>, bits: Int) -> Int with Unsafe:
+    return atomic_or_acqrel(address, bits)
+
+pub fn atomic_raw_fetch_xor(address: ptr<Int>, bits: Int) -> Int with Unsafe:
+    return atomic_xor_acqrel(address, bits)
+
+pub fn atomic_wait(address: ptr<Int>, expected: Int, timeout_ms: Int) -> Int with Unsafe:
+    return abi_atomic_wait_i64(address, expected, timeout_ms)
+
+pub fn atomic_notify_one(address: ptr<Int>) -> Int with Unsafe:
+    return abi_atomic_notify_one_i64(address)
+
+pub fn atomic_notify_all(address: ptr<Int>) -> Int with Unsafe:
+    return abi_atomic_notify_all_i64(address)
 
 # --- AtomicInt (Type-Safe Atomic Integer Wrapper) ---
 
@@ -67,6 +130,27 @@ pub fn atomic_int_exchange(self: AtomicInt, desired: Int) -> Int with Unsafe:
 
 pub fn atomic_int_compare_exchange(self: AtomicInt, expected: Int, desired: Int) -> Bool with Unsafe:
     return atomic_raw_compare_exchange(self.ptr, expected, desired, Ordering::SeqCst, Ordering::SeqCst)
+
+pub fn atomic_int_compare_exchange_ordered(self: AtomicInt, expected: Int, desired: Int, success_order: Ordering, failure_order: Ordering) -> Bool with Unsafe:
+    return atomic_raw_compare_exchange(self.ptr, expected, desired, success_order, failure_order)
+
+pub fn atomic_int_fetch_and(self: AtomicInt, mask: Int) -> Int with Unsafe:
+    return atomic_raw_fetch_and(self.ptr, mask)
+
+pub fn atomic_int_fetch_or(self: AtomicInt, bits: Int) -> Int with Unsafe:
+    return atomic_raw_fetch_or(self.ptr, bits)
+
+pub fn atomic_int_fetch_xor(self: AtomicInt, bits: Int) -> Int with Unsafe:
+    return atomic_raw_fetch_xor(self.ptr, bits)
+
+pub fn atomic_int_wait(self: AtomicInt, expected: Int, timeout_ms: Int) -> Int with Unsafe:
+    return atomic_wait(self.ptr, expected, timeout_ms)
+
+pub fn atomic_int_notify_one(self: AtomicInt) -> Int with Unsafe:
+    return atomic_notify_one(self.ptr)
+
+pub fn atomic_int_notify_all(self: AtomicInt) -> Int with Unsafe:
+    return atomic_notify_all(self.ptr)
 
 
 # --- AtomicBool (Type-Safe Atomic Boolean Wrapper) ---
@@ -130,3 +214,12 @@ pub fn atomic_ptr_store(self: AtomicPtr, value: ptr<Int>, order: Ordering) -> pt
 pub fn atomic_ptr_exchange(self: AtomicPtr, desired: ptr<Int>) -> ptr<Int> with Unsafe:
     let prev = atomic_raw_exchange(self.ptr, ptr_to_int(desired), Ordering::AcqRel)
     return int_to_ptr(prev, "Int")
+
+pub fn atomic_ptr_compare_exchange(self: AtomicPtr, expected: ptr<Int>, desired: ptr<Int>) -> Bool with Unsafe:
+    return atomic_raw_compare_exchange(self.ptr, ptr_to_int(expected), ptr_to_int(desired), Ordering::AcqRel, Ordering::Acquire)
+
+pub fn atomic_ptr_wait(self: AtomicPtr, expected: ptr<Int>, timeout_ms: Int) -> Int with Unsafe:
+    return atomic_wait(self.ptr, ptr_to_int(expected), timeout_ms)
+
+pub fn atomic_ptr_notify_all(self: AtomicPtr) -> Int with Unsafe:
+    return atomic_notify_all(self.ptr)

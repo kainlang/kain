@@ -163,9 +163,14 @@ const char* abi_crypto_hmac_sha256_text(const char* key, int64_t key_length, con
 const char* abi_crypto_blake3_text(const char* text, int64_t text_length);
 int64_t abi_map_release(int64_t handle);
 
+int64_t abi_atomic_wait_i64(int64_t* address, int64_t expected, int64_t timeout_ms);
+int64_t abi_atomic_notify_one_i64(int64_t* address);
+int64_t abi_atomic_notify_all_i64(int64_t* address);
+
 void* abi_thread_spawn(void (*func)(void*), void* arg, int64_t* thread_id_out, int64_t* done_flag);
 int64_t abi_thread_join(void* thread_handle);
 int64_t abi_thread_set_name(const char* name);
+int64_t abi_thread_yield(void);
 
 void* abi_fs_open(const char* path, const char* mode);
 int64_t abi_fs_close(void* handle);

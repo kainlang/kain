@@ -5,8 +5,12 @@ pub const SYNC_OK: Int = 0
 pub const SYNC_ERR_NEGATIVE_COUNT: Int = -1
 pub const SYNC_ERR_COUNT_OVERFLOW: Int = -2
 pub const SYNC_ERR_INVALID_ONCE_STATE: Int = -3
+pub const SYNC_ERR_BUSY: Int = -4
+pub const SYNC_ERR_TIMEOUT: Int = -5
+pub const SYNC_ERR_INVALID_STATE: Int = -6
 
 const SYNC_INT_MAX: Int = 9223372036854775807
+const SYNC_PARK_SLICE_MS: Int = 10
 const MCS_NODE_WORDS: Int = 2
 const MCS_NODE_NEXT_SLOT: Int = 0
 const MCS_NODE_WAITING_SLOT: Int = 1
@@ -21,6 +25,7 @@ const TELEPORT_CHANNEL_READ_IDX_SLOT: Int = 3
 const ONCE_STATE_UNINITIALIZED: Int = 0
 const ONCE_STATE_INITIALIZING: Int = 1
 const ONCE_STATE_DONE: Int = 2
+const RWLOCK_WRITER_HELD: Int = -1
 
 # --- McsMutex (Mellor-Crummey & Scott Cache-Line-Isolated Intrusive Lock) ---
 
@@ -54,7 +59,16 @@ fn sync_atomic_exchange(address: ptr<Int>, value: Int) -> Int with Unsafe:
     return atomic_raw_exchange(address, value, Ordering::AcqRel)
 
 fn sync_atomic_compare_exchange(address: ptr<Int>, expected: Int, desired: Int) -> Bool with Unsafe:
-    return atomic_raw_compare_exchange(address, expected, desired, Ordering::SeqCst, Ordering::SeqCst)
+    return atomic_raw_compare_exchange(address, expected, desired, Ordering::AcqRel, Ordering::Acquire)
+
+fn sync_atomic_wait_changed(address: ptr<Int>, expected: Int, timeout_ms: Int) -> Int with Unsafe:
+    return atomic_wait(address, expected, timeout_ms)
+
+fn sync_atomic_notify_one(address: ptr<Int>) -> Int with Unsafe:
+    return atomic_notify_one(address)
+
+fn sync_atomic_notify_all(address: ptr<Int>) -> Int with Unsafe:
+    return atomic_notify_all(address)
 
 pub fn mcs_mutex_new() -> McsMutex:
     let tail = alloc_zeroed(1, "Int")
@@ -75,7 +89,7 @@ pub fn mcs_mutex_lock(lock: McsMutex, node: ptr<Int>) -> Int with Unsafe:
         let _waiting = sync_atomic_store(mcs_node_waiting_ptr(node), 1, Ordering::Release)
         let _link = sync_atomic_store(prev_tail, ptr_to_int(waiting_ptr), Ordering::Release)
         while sync_atomic_load(waiting_ptr, Ordering::Acquire) == 1:
-            spin_loop_hint()
+            let _parked = sync_atomic_wait_changed(waiting_ptr, 1, SYNC_PARK_SLICE_MS)
 
     return SYNC_OK
 
@@ -85,10 +99,11 @@ pub fn mcs_mutex_unlock(lock: McsMutex, node: ptr<Int>) -> Int with Unsafe:
         if next_waiting_bits != 0:
             let next_waiting: ptr<Int> = int_to_ptr(next_waiting_bits, "ptr<Int>")
             let _release = sync_atomic_store(next_waiting, 0, Ordering::Release)
+            let _wake = sync_atomic_notify_one(next_waiting)
             return SYNC_OK
         if sync_atomic_compare_exchange(lock.tail, ptr_to_int(node), 0):
             return SYNC_OK
-        spin_loop_hint()
+        let _parked = sync_atomic_wait_changed(lock.tail, ptr_to_int(node), SYNC_PARK_SLICE_MS)
 
 
 # --- TeleportChannel (Lockless Zero-Copy SPSC Ring Buffer Queue) ---
@@ -184,9 +199,12 @@ pub fn once_do(o: Once) -> Int with Unsafe:
             if sync_atomic_compare_exchange(o.state, ONCE_STATE_UNINITIALIZED, ONCE_STATE_INITIALIZING):
                 return 1
         elif observed == ONCE_STATE_INITIALIZING:
-            spin_loop_hint()
+            let _parked = sync_atomic_wait_changed(o.state, ONCE_STATE_INITIALIZING, SYNC_PARK_SLICE_MS)
         else:
             return SYNC_ERR_INVALID_ONCE_STATE
+
+pub fn once_do_sleep(o: Once) -> Int with Unsafe:
+    return once_do(o)
 
 pub fn once_complete(o: Once) -> Int with Unsafe:
     while true:
@@ -196,8 +214,9 @@ pub fn once_complete(o: Once) -> Int with Unsafe:
         if observed != ONCE_STATE_INITIALIZING:
             return SYNC_ERR_INVALID_ONCE_STATE
         if sync_atomic_compare_exchange(o.state, ONCE_STATE_INITIALIZING, ONCE_STATE_DONE):
+            let _wake = sync_atomic_notify_all(o.state)
             return SYNC_OK
-        spin_loop_hint()
+        let _parked = sync_atomic_wait_changed(o.state, observed, SYNC_PARK_SLICE_MS)
 
 pub fn once_reset(o: Once) -> Int with Unsafe:
     while true:
@@ -207,8 +226,9 @@ pub fn once_reset(o: Once) -> Int with Unsafe:
         if observed != ONCE_STATE_INITIALIZING:
             return SYNC_ERR_INVALID_ONCE_STATE
         if sync_atomic_compare_exchange(o.state, ONCE_STATE_INITIALIZING, ONCE_STATE_UNINITIALIZED):
+            let _wake = sync_atomic_notify_all(o.state)
             return SYNC_OK
-        spin_loop_hint()
+        let _parked = sync_atomic_wait_changed(o.state, observed, SYNC_PARK_SLICE_MS)
 
 
 # --- WaitGroup (Structured Thread Synchronization Barrier) ---
@@ -243,8 +263,10 @@ pub fn wait_group_add(wg: WaitGroup, delta: Int) -> Int with Unsafe:
             return status
         let next = current + delta
         if sync_atomic_compare_exchange(wg.counter, current, next):
+            if next == 0:
+                let _wake = sync_atomic_notify_all(wg.counter)
             return SYNC_OK
-        spin_loop_hint()
+        let _parked = sync_atomic_wait_changed(wg.counter, current, SYNC_PARK_SLICE_MS)
 
 pub fn wait_group_done(wg: WaitGroup) -> Int with Unsafe:
     return wait_group_add(wg, -1)
@@ -256,4 +278,176 @@ pub fn wait_group_wait(wg: WaitGroup) -> Int with Unsafe:
             return SYNC_OK
         if current < 0:
             return SYNC_ERR_NEGATIVE_COUNT
-        spin_loop_hint()
+        let _parked = sync_atomic_wait_changed(wg.counter, current, SYNC_PARK_SLICE_MS)
+
+pub fn wait_group_wait_sleep(wg: WaitGroup) -> Int with Unsafe:
+    return wait_group_wait(wg)
+
+
+# --- RwLock (Sleepable Reader/Writer Lock) ---
+
+pub struct RwLock:
+    state: ptr<Int>
+
+pub fn rwlock_new() -> RwLock:
+    let state = alloc_zeroed(1, "Int")
+    return RwLock { state: state }
+
+pub fn rwlock_destroy(lock: RwLock) -> Int:
+    decay lock.state
+    return SYNC_OK
+
+pub fn rwlock_read_lock(lock: RwLock) -> Int with Unsafe:
+    while true:
+        let observed = sync_atomic_load(lock.state, Ordering::Acquire)
+        if observed >= 0:
+            if observed == SYNC_INT_MAX:
+                return SYNC_ERR_COUNT_OVERFLOW
+            if sync_atomic_compare_exchange(lock.state, observed, observed + 1):
+                return SYNC_OK
+        else:
+            let _parked = sync_atomic_wait_changed(lock.state, observed, SYNC_PARK_SLICE_MS)
+
+pub fn rwlock_try_read_lock(lock: RwLock) -> Int with Unsafe:
+    let observed = sync_atomic_load(lock.state, Ordering::Acquire)
+    if observed < 0:
+        return SYNC_ERR_BUSY
+    if observed == SYNC_INT_MAX:
+        return SYNC_ERR_COUNT_OVERFLOW
+    if sync_atomic_compare_exchange(lock.state, observed, observed + 1):
+        return SYNC_OK
+    return SYNC_ERR_BUSY
+
+pub fn rwlock_read_unlock(lock: RwLock) -> Int with Unsafe:
+    while true:
+        let observed = sync_atomic_load(lock.state, Ordering::Acquire)
+        if observed <= 0:
+            return SYNC_ERR_INVALID_STATE
+        let next = observed - 1
+        if sync_atomic_compare_exchange(lock.state, observed, next):
+            if next == 0:
+                let _wake = sync_atomic_notify_all(lock.state)
+            return SYNC_OK
+        let _parked = sync_atomic_wait_changed(lock.state, observed, SYNC_PARK_SLICE_MS)
+
+pub fn rwlock_write_lock(lock: RwLock) -> Int with Unsafe:
+    while true:
+        let observed = sync_atomic_load(lock.state, Ordering::Acquire)
+        if observed == 0:
+            if sync_atomic_compare_exchange(lock.state, 0, RWLOCK_WRITER_HELD):
+                return SYNC_OK
+        else:
+            let _parked = sync_atomic_wait_changed(lock.state, observed, SYNC_PARK_SLICE_MS)
+
+pub fn rwlock_try_write_lock(lock: RwLock) -> Int with Unsafe:
+    if sync_atomic_compare_exchange(lock.state, 0, RWLOCK_WRITER_HELD):
+        return SYNC_OK
+    return SYNC_ERR_BUSY
+
+pub fn rwlock_write_unlock(lock: RwLock) -> Int with Unsafe:
+    if sync_atomic_compare_exchange(lock.state, RWLOCK_WRITER_HELD, 0):
+        let _wake = sync_atomic_notify_all(lock.state)
+        return SYNC_OK
+    return SYNC_ERR_INVALID_STATE
+
+pub fn rwlock_reader_count(lock: RwLock) -> Int with Unsafe:
+    let observed = sync_atomic_load(lock.state, Ordering::Acquire)
+    if observed < 0:
+        return 0
+    return observed
+
+pub fn rwlock_writer_held(lock: RwLock) -> Bool with Unsafe:
+    return sync_atomic_load(lock.state, Ordering::Acquire) == RWLOCK_WRITER_HELD
+
+
+# --- Semaphore (Sleepable Counting Gate) ---
+
+pub struct Semaphore:
+    permits: ptr<Int>
+
+pub fn semaphore_new(initial: Int) -> Semaphore:
+    let permits = alloc_zeroed(1, "Int")
+    if initial > 0:
+        mem_store(permits, initial, "Int")
+    return Semaphore { permits: permits }
+
+pub fn semaphore_destroy(sema: Semaphore) -> Int:
+    decay sema.permits
+    return SYNC_OK
+
+pub fn semaphore_available(sema: Semaphore) -> Int with Unsafe:
+    return sync_atomic_load(sema.permits, Ordering::Acquire)
+
+pub fn semaphore_try_acquire(sema: Semaphore) -> Int with Unsafe:
+    while true:
+        let observed = sync_atomic_load(sema.permits, Ordering::Acquire)
+        if observed <= 0:
+            return SYNC_ERR_BUSY
+        if sync_atomic_compare_exchange(sema.permits, observed, observed - 1):
+            return SYNC_OK
+        return SYNC_ERR_BUSY
+
+pub fn semaphore_acquire(sema: Semaphore) -> Int with Unsafe:
+    while true:
+        let observed = sync_atomic_load(sema.permits, Ordering::Acquire)
+        if observed > 0:
+            if sync_atomic_compare_exchange(sema.permits, observed, observed - 1):
+                return SYNC_OK
+        else:
+            let _parked = sync_atomic_wait_changed(sema.permits, observed, SYNC_PARK_SLICE_MS)
+
+pub fn semaphore_release(sema: Semaphore, permits: Int) -> Int with Unsafe:
+    if permits <= 0:
+        return SYNC_ERR_NEGATIVE_COUNT
+    while true:
+        let observed = sync_atomic_load(sema.permits, Ordering::Acquire)
+        if observed > SYNC_INT_MAX - permits:
+            return SYNC_ERR_COUNT_OVERFLOW
+        if sync_atomic_compare_exchange(sema.permits, observed, observed + permits):
+            let _wake = sync_atomic_notify_all(sema.permits)
+            return SYNC_OK
+        let _parked = sync_atomic_wait_changed(sema.permits, observed, SYNC_PARK_SLICE_MS)
+
+
+# --- CondVar (Epoch-Based Sleepable Notification Cell) ---
+
+pub struct CondVar:
+    epoch: ptr<Int>
+
+pub fn condvar_new() -> CondVar:
+    let epoch = alloc_zeroed(1, "Int")
+    return CondVar { epoch: epoch }
+
+pub fn condvar_destroy(cv: CondVar) -> Int:
+    decay cv.epoch
+    return SYNC_OK
+
+pub fn condvar_epoch(cv: CondVar) -> Int with Unsafe:
+    return sync_atomic_load(cv.epoch, Ordering::Acquire)
+
+pub fn condvar_wait_timeout(cv: CondVar, observed_epoch: Int, timeout_ms: Int) -> Int with Unsafe:
+    let result = sync_atomic_wait_changed(cv.epoch, observed_epoch, timeout_ms)
+    if result == 0:
+        return SYNC_ERR_TIMEOUT
+    if result < 0:
+        return result
+    return SYNC_OK
+
+pub fn condvar_wait_mcs_timeout(cv: CondVar, lock: McsMutex, node: ptr<Int>, timeout_ms: Int) -> Int with Unsafe:
+    let observed = condvar_epoch(cv)
+    let unlock_status = mcs_mutex_unlock(lock, node)
+    if unlock_status != SYNC_OK:
+        return unlock_status
+    let wait_status = condvar_wait_timeout(cv, observed, timeout_ms)
+    let lock_status = mcs_mutex_lock(lock, node)
+    if lock_status != SYNC_OK:
+        return lock_status
+    return wait_status
+
+pub fn condvar_notify_one(cv: CondVar) -> Int with Unsafe:
+    let _epoch = atomic_add_acqrel(cv.epoch, 1)
+    return sync_atomic_notify_one(cv.epoch)
+
+pub fn condvar_notify_all(cv: CondVar) -> Int with Unsafe:
+    let _epoch = atomic_add_acqrel(cv.epoch, 1)
+    return sync_atomic_notify_all(cv.epoch)

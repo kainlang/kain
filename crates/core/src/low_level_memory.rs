@@ -1180,7 +1180,7 @@ fn lower_expr_memory_with_ctx(expr: &Expr, ctx: &mut FunctionMemoryCtx<'_>) -> E
                 .iter()
                 .map(|operand| lower_expr_memory_with_ctx(operand, ctx))
                 .collect(),
-            options: *options,
+            options: options.clone(),
             span,
         },
         Expr::SizeOfType { target, .. } => Expr::Int(

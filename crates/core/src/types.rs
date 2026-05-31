@@ -637,11 +637,11 @@ fn validate_function_attributes(
             ATTR_CALLCONV => {
                 let value = attribute_string_arg(env, attribute)?;
                 match value.as_str() {
-                    "c" | "sysv64" | "win64" | "fastcall" => {}
+                    "c" | "sysv64" | "win64" | "fastcall" | "vectorcall" | "stdcall" => {}
                     _ => {
                         return Err(env.type_error(
                             format!(
-                                "@callconv only supports \"c\", \"sysv64\", \"win64\", or \"fastcall\"; found \"{value}\""
+                                "@callconv only supports \"c\", \"sysv64\", \"win64\", \"fastcall\", \"vectorcall\", or \"stdcall\"; found \"{value}\""
                             ),
                             attribute.span,
                         ));
@@ -790,11 +790,11 @@ fn validate_struct_attributes(env: &TypeEnv, structure: &Struct) -> KainResult<(
                         ));
                     }
                     match name {
-                        "base" | "stride" | "endian" => {}
+                        "base" | "stride" | "endian" | "access" | "barrier" => {}
                         _ => {
                             return Err(env.type_error(
                                 format!(
-                                    "@mmio only supports named arguments `base`, `stride`, and `endian`; found `{name}`"
+                                    "@mmio only supports named arguments `base`, `stride`, `endian`, `access`, and `barrier`; found `{name}`"
                                 ),
                                 arg.span(),
                             ));
@@ -836,10 +836,38 @@ fn validate_struct_attributes(env: &TypeEnv, structure: &Struct) -> KainResult<(
                             endian.span(),
                         ));
                     };
-                    if value != "native" {
+                    if !matches!(value.as_str(), "native" | "little" | "big") {
                         return Err(env.type_error(
-                            "@mmio currently only supports endian: \"native\"",
+                            "@mmio endian must be \"native\", \"little\", or \"big\"",
                             endian.span(),
+                        ));
+                    }
+                }
+                if let Some(access) = attribute_named_arg(env, attribute, "access")? {
+                    let Some(value) = expr_as_attribute_string(access) else {
+                        return Err(env.type_error(
+                            "@mmio(access: ...) expects a string literal",
+                            access.span(),
+                        ));
+                    };
+                    if !matches!(value.as_str(), "rw" | "ro" | "wo" | "w1c") {
+                        return Err(env.type_error(
+                            "@mmio access must be \"rw\", \"ro\", \"wo\", or \"w1c\"",
+                            access.span(),
+                        ));
+                    }
+                }
+                if let Some(barrier) = attribute_named_arg(env, attribute, "barrier")? {
+                    let Some(value) = expr_as_attribute_string(barrier) else {
+                        return Err(env.type_error(
+                            "@mmio(barrier: ...) expects a string literal",
+                            barrier.span(),
+                        ));
+                    };
+                    if !matches!(value.as_str(), "none" | "acquire" | "release" | "seq_cst") {
+                        return Err(env.type_error(
+                            "@mmio barrier must be \"none\", \"acquire\", \"release\", or \"seq_cst\"",
+                            barrier.span(),
                         ));
                     }
                 }
@@ -8185,9 +8213,25 @@ fn infer_expr_type(
                 )),
             }
         }
-        Expr::InlineAsm { operands, span, .. } => {
+        Expr::InlineAsm {
+            operands,
+            options,
+            span,
+            ..
+        } => {
             if !context_allows_raw_memory_intrinsics(ctx) {
                 return Err(env.type_error("asm requires Unsafe effect", *span));
+            }
+            if !options.constraints.is_empty() && options.constraints.len() != operands.len() {
+                return Err(env.type_error(
+                    format!(
+                        "asm constraints expected {} entries for {} operands, found {}",
+                        operands.len(),
+                        operands.len(),
+                        options.constraints.len()
+                    ),
+                    *span,
+                ));
             }
             for operand in operands {
                 let operand_ty = infer_expr_type(env, operand, ctx)?;
