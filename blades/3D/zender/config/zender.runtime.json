@@ -1,0 +1,37 @@
+{
+  "app": {
+    "title": "Zender // Natural Vulkan Engine",
+    "revision_key": "zender-natural-vulkan-v1",
+    "width": 1600,
+    "height": 960,
+    "frame_budget": 180,
+    "run_root": "../.kain/run",
+    "window_report_path": "../.kain/run/zender_vulkan_window.txt",
+    "scene_report_path": "../.kain/run/zender_scene_report.txt",
+    "telemetry_report_path": "../.kain/run/zender_telemetry.json",
+    "shader_output_root": "../.kain/gpu/zender",
+    "vertex_shader_path": "../.kain/gpu/zender/zender_particles.vert.spv",
+    "fragment_shader_path": "../.kain/gpu/zender/zender_particles.frag.spv"
+  },
+  "scene": {
+    "mode": 31,
+    "sphere_instances": 14,
+    "ring_resolution": 176,
+    "shell_resolution": 72,
+    "shell_radius": 1.0,
+    "orbit_speed_milli": 840,
+    "chaos_milli": 420
+  },
+  "asset": {
+    "path": "../assets/zender_probe.glb",
+    "expected_scheme": "catmull-clark",
+    "fallback_generator": "zender-probe"
+  },
+  "subdivision": {
+    "scheme": "catmull-clark",
+    "levels": 3,
+    "control_vertices": 26,
+    "control_edges": 48,
+    "control_faces": 24
+  }
+}

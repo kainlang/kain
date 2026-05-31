@@ -1,0 +1,16 @@
+use std::build
+use std::certify
+use std::test
+
+fn build(ctx: BuildContext) -> BuildGraph:
+    let pkg = package("zender").version("0.1.0").description("Fresh natural-Vulkan Zender blade with Kain-owned scene planning, GLB metadata, and Catmull-Clark telemetry.")
+    let blade_spec = blade("zender").entry("src/main.kn").source_root("src").module_root("src").build_target("llvm")
+    let defaults = build_defaults().entry("src/main.kn").artifact_root(".kain/out").cache_root(".kain/cache/build").profile("debug").target("llvm")
+    let run = run_defaults().entry("src/main.kn").target("llvm")
+    let vk = platform_requirement("vulkan").provider("system")
+    let check = build_check("check-llvm").entry("src/main.kn").target("llvm").axis("target", "llvm").telemetry("llm.evidence").input("src/main.kn").input("src/zender_config.kn").input("src/zender_assets.kn").input("src/zender_subdivide.kn").input("src/zender_scene.kn").input("config/zender.runtime.json").input("assets/zender_probe.glb").input("src/native/zender_vulkan.h").input("src/native/zender_vulkan.c").input("native/shaders/zender_particles.vert").input("native/shaders/zender_particles.frag").input("build-zender-vulkan.ps1").input("run.ps1").input("build.kn")
+    let source_tests = test_suite("source-tests").entry("src/main.kn").target("llvm").requires("check-llvm").input("src/main.kn").input("build.kn")
+    let root_exe = native_executable("root-executable").entry("src/main.kn").root_output("$blade/zender.exe").requires("check-llvm").requires("source-tests").input("src/main.kn").input("run.ps1").input("build.kn")
+    let certify = certify_gate("certify").requires("check-llvm").requires("source-tests").requires("root-executable").certifies("zender.local")
+
+    return build_graph().package(pkg).blade(blade_spec).defaults(defaults).run(run).require(vk).task(check).task(source_tests).task(root_exe).task(certify)

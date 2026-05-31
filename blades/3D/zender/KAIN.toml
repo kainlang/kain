@@ -1,0 +1,35 @@
+[package]
+name = "zender"
+version = "0.1.0"
+description = "Fresh natural-Vulkan Zender blade with Kain-owned scene planning, GLB metadata, and Catmull-Clark telemetry."
+
+[blade]
+name = "zender"
+entry = "src/main.kn"
+source_roots = ["src"]
+module_roots = ["src"]
+build_targets = ["llvm"]
+
+[run]
+entry = "src/main.kn"
+target = "llvm"
+
+[build]
+entry = "src/main.kn"
+artifact_root = ".kain/out"
+cache_root = ".kain/cache/build"
+profile = "debug"
+
+[c_ffi]
+
+[[c_ffi.libraries]]
+name = "zender_vulkan"
+tier = "inline"
+header = "src/native/zender_vulkan.h"
+sources = ["src/native/zender_vulkan.c"]
+include_paths = [
+  "src/native",
+  "${env:KAIN_PLATFORM_VULKAN_INCLUDE}",
+]
+defines = ["_CRT_SECURE_NO_WARNINGS"]
+link_libs = ["user32"]

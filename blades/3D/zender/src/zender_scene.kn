@@ -1,0 +1,153 @@
+use std::fmt
+use std::json
+use std::math
+use zender_assets::ZenderAssetInfo
+use zender_config::ZenderSettings
+use zender_subdivide::ZenderSubdivisionInfo
+
+pub struct ZenderScenePlan:
+    title: String
+    mode: Int
+    sphere_instances: Int
+    ring_resolution: Int
+    shell_resolution: Int
+    particle_budget: Int
+    orbit_speed: Float
+    chaos: Float
+    shell_radius: Float
+    vertex_shader_path: String
+    fragment_shader_path: String
+
+pub fn zender_build_scene(settings: ZenderSettings, asset: ZenderAssetInfo, subdivision: ZenderSubdivisionInfo) -> ZenderScenePlan:
+    let asset_bonus = math_int_clamp(asset.mesh_count + asset.primitive_count, 0, 24)
+    let subdivision_bonus = math_int_clamp(subdivision.levels + (subdivision.refined_faces / 384), 0, 24)
+    var sphere_instances = math_int_clamp(settings.scene.sphere_instances + asset_bonus + subdivision_bonus, 1, 96)
+    var ring_resolution = math_int_clamp(settings.scene.ring_resolution + subdivision.levels * 8, 24, 512)
+    var shell_resolution = math_int_clamp(settings.scene.shell_resolution + asset.mesh_count * 2, 12, 256)
+    var particle_budget = sphere_instances * ring_resolution * shell_resolution
+
+    while particle_budget > 786432 and shell_resolution > 16:
+        shell_resolution = shell_resolution - 4
+        particle_budget = sphere_instances * ring_resolution * shell_resolution
+    while particle_budget > 786432 and ring_resolution > 48:
+        ring_resolution = ring_resolution - 16
+        particle_budget = sphere_instances * ring_resolution * shell_resolution
+    while particle_budget > 786432 and sphere_instances > 4:
+        sphere_instances = sphere_instances - 1
+        particle_budget = sphere_instances * ring_resolution * shell_resolution
+
+    return ZenderScenePlan {
+        title: settings.app.title,
+        mode: settings.scene.mode + math_int_clamp(asset.scene_count + asset.node_count, 0, 12),
+        sphere_instances: sphere_instances,
+        ring_resolution: ring_resolution,
+        shell_resolution: shell_resolution,
+        particle_budget: particle_budget,
+        orbit_speed: to_float(settings.scene.orbit_speed_milli) / 1000.0,
+        chaos: to_float(settings.scene.chaos_milli) / 1000.0,
+        shell_radius: settings.scene.shell_radius,
+        vertex_shader_path: settings.app.vertex_shader_path,
+        fragment_shader_path: settings.app.fragment_shader_path,
+    }
+
+pub fn zender_scene_with_budget(plan: ZenderScenePlan, particle_budget: Int) -> ZenderScenePlan:
+    return ZenderScenePlan {
+        title: plan.title,
+        mode: plan.mode,
+        sphere_instances: plan.sphere_instances,
+        ring_resolution: plan.ring_resolution,
+        shell_resolution: plan.shell_resolution,
+        particle_budget: particle_budget,
+        orbit_speed: plan.orbit_speed,
+        chaos: plan.chaos,
+        shell_radius: plan.shell_radius,
+        vertex_shader_path: plan.vertex_shader_path,
+        fragment_shader_path: plan.fragment_shader_path,
+    }
+
+pub fn zender_scene_report_text(settings: ZenderSettings, asset: ZenderAssetInfo, subdivision: ZenderSubdivisionInfo, plan: ZenderScenePlan, backend: String, probe: Int, bridge_status: Int, frames: Int, particles_drawn: Int, bridge_error: String) -> String:
+    let report = "ZENDER NATURAL VULKAN REPORT\n"
+    report = report + "============================\n"
+    report = report + "title=" + plan.title + "\n"
+    report = report + "config=" + settings.config_path + "\n"
+    report = report + "cwd=" + settings.cwd + "\n"
+    report = report + "platform=" + settings.platform_name + "\n"
+    report = report + "cpu_count=" + str(settings.cpu_count) + "\n"
+    report = report + "page_size=" + str(settings.page_size) + "\n"
+    report = report + "backend=" + backend + "\n"
+    report = report + "probe=" + str(probe) + "\n"
+    report = report + "bridge_status=" + str(bridge_status) + "\n"
+    report = report + "frames=" + str(frames) + "\n"
+    report = report + "particles_drawn=" + str(particles_drawn) + "\n"
+    report = report + "particle_budget=" + str(plan.particle_budget) + "\n"
+    report = report + "sphere_instances=" + str(plan.sphere_instances) + "\n"
+    report = report + "ring_resolution=" + str(plan.ring_resolution) + "\n"
+    report = report + "shell_resolution=" + str(plan.shell_resolution) + "\n"
+    report = report + "orbit_speed=" + fmt_float(plan.orbit_speed) + "\n"
+    report = report + "chaos=" + fmt_float(plan.chaos) + "\n"
+    report = report + "asset.path=" + asset.path + "\n"
+    report = report + "asset.found=" + str(asset.found) + "\n"
+    report = report + "asset.generator=" + asset.generator + "\n"
+    report = report + "asset.meshes=" + str(asset.mesh_count) + "\n"
+    report = report + "asset.primitives=" + str(asset.primitive_count) + "\n"
+    report = report + "subdivision.scheme=" + subdivision.scheme + "\n"
+    report = report + "subdivision.levels=" + str(subdivision.levels) + "\n"
+    report = report + "subdivision.control_faces=" + str(subdivision.control_faces) + "\n"
+    report = report + "subdivision.refined_faces=" + str(subdivision.refined_faces) + "\n"
+    report = report + "bridge_error=" + bridge_error + "\n"
+    return report
+
+pub fn zender_telemetry_json(settings: ZenderSettings, asset: ZenderAssetInfo, subdivision: ZenderSubdivisionInfo, plan: ZenderScenePlan, backend: String, probe: Int, bridge_status: Int, frames: Int, particles_drawn: Int, bridge_error: String) -> String:
+    let asset_json = json_object()
+    let _asset_found = json_object_set_bool(asset_json, "found", asset.found)
+    let _asset_path = json_object_set_string(asset_json, "path", asset.path)
+    let _asset_generator = json_object_set_string(asset_json, "generator", asset.generator)
+    let _asset_byte_len = json_object_set_int(asset_json, "byte_len", asset.byte_len)
+    let _asset_glb_version = json_object_set_int(asset_json, "glb_version", asset.glb_version)
+    let _asset_scene_count = json_object_set_int(asset_json, "scene_count", asset.scene_count)
+    let _asset_node_count = json_object_set_int(asset_json, "node_count", asset.node_count)
+    let _asset_mesh_count = json_object_set_int(asset_json, "mesh_count", asset.mesh_count)
+    let _asset_primitive_count = json_object_set_int(asset_json, "primitive_count", asset.primitive_count)
+    let _asset_material_count = json_object_set_int(asset_json, "material_count", asset.material_count)
+
+    let subdivision_json = json_object()
+    let _subdivision_scheme = json_object_set_string(subdivision_json, "scheme", subdivision.scheme)
+    let _subdivision_levels = json_object_set_int(subdivision_json, "levels", subdivision.levels)
+    let _subdivision_control_vertices = json_object_set_int(subdivision_json, "control_vertices", subdivision.control_vertices)
+    let _subdivision_control_edges = json_object_set_int(subdivision_json, "control_edges", subdivision.control_edges)
+    let _subdivision_control_faces = json_object_set_int(subdivision_json, "control_faces", subdivision.control_faces)
+    let _subdivision_refined_vertices = json_object_set_int(subdivision_json, "refined_vertices", subdivision.refined_vertices)
+    let _subdivision_refined_edges = json_object_set_int(subdivision_json, "refined_edges", subdivision.refined_edges)
+    let _subdivision_refined_faces = json_object_set_int(subdivision_json, "refined_faces", subdivision.refined_faces)
+    let _subdivision_workload_score = json_object_set_int(subdivision_json, "workload_score", subdivision.workload_score)
+
+    let plan_json = json_object()
+    let _plan_title = json_object_set_string(plan_json, "title", plan.title)
+    let _plan_mode = json_object_set_int(plan_json, "mode", plan.mode)
+    let _plan_sphere_instances = json_object_set_int(plan_json, "sphere_instances", plan.sphere_instances)
+    let _plan_ring_resolution = json_object_set_int(plan_json, "ring_resolution", plan.ring_resolution)
+    let _plan_shell_resolution = json_object_set_int(plan_json, "shell_resolution", plan.shell_resolution)
+    let _plan_particle_budget = json_object_set_int(plan_json, "particle_budget", plan.particle_budget)
+    let _plan_orbit_speed = json_object_set_float(plan_json, "orbit_speed", plan.orbit_speed)
+    let _plan_chaos = json_object_set_float(plan_json, "chaos", plan.chaos)
+    let _plan_shell_radius = json_object_set_float(plan_json, "shell_radius", plan.shell_radius)
+
+    let runtime_json = json_object()
+    let _runtime_backend = json_object_set_string(runtime_json, "backend", backend)
+    let _runtime_probe = json_object_set_int(runtime_json, "probe", probe)
+    let _runtime_bridge_status = json_object_set_int(runtime_json, "bridge_status", bridge_status)
+    let _runtime_frames = json_object_set_int(runtime_json, "frames", frames)
+    let _runtime_particles_drawn = json_object_set_int(runtime_json, "particles_drawn", particles_drawn)
+    let _runtime_bridge_error = json_object_set_string(runtime_json, "bridge_error", bridge_error)
+
+    let doc = json_object()
+    let _doc_config_path = json_object_set_string(doc, "config_path", settings.config_path)
+    let _doc_cwd = json_object_set_string(doc, "cwd", settings.cwd)
+    let _doc_platform = json_object_set_string(doc, "platform", settings.platform_name)
+    let _doc_cpu_count = json_object_set_int(doc, "cpu_count", settings.cpu_count)
+    let _doc_page_size = json_object_set_int(doc, "page_size", settings.page_size)
+    let _doc_plan = json_object_set_object(doc, "plan", plan_json)
+    let _doc_asset = json_object_set_object(doc, "asset", asset_json)
+    let _doc_subdivision = json_object_set_object(doc, "subdivision", subdivision_json)
+    let _doc_runtime = json_object_set_object(doc, "runtime", runtime_json)
+    return json_stringify(doc)

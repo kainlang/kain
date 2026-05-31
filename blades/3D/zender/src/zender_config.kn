@@ -1,0 +1,283 @@
+use std::fs
+use std::json
+use std::math
+use std::os
+
+pub const ZENDER_DEFAULT_CONFIG_PATH: String = "config/zender.runtime.json"
+
+pub struct ZenderAppConfig:
+    title: String
+    revision_key: String
+    width: Int
+    height: Int
+    frame_budget: Int
+    run_root: String
+    window_report_path: String
+    scene_report_path: String
+    telemetry_report_path: String
+    shader_output_root: String
+    vertex_shader_path: String
+    fragment_shader_path: String
+
+pub struct ZenderSceneConfig:
+    mode: Int
+    sphere_instances: Int
+    ring_resolution: Int
+    shell_resolution: Int
+    shell_radius: Float
+    orbit_speed_milli: Int
+    chaos_milli: Int
+
+pub struct ZenderAssetConfig:
+    path: String
+    expected_scheme: String
+    fallback_generator: String
+
+pub struct ZenderSubdivisionConfig:
+    scheme: String
+    levels: Int
+    control_vertices: Int
+    control_edges: Int
+    control_faces: Int
+
+pub struct ZenderSettings:
+    config_path: String
+    cwd: String
+    platform_name: String
+    cpu_count: Int
+    page_size: Int
+    app: ZenderAppConfig
+    scene: ZenderSceneConfig
+    asset: ZenderAssetConfig
+    subdivision: ZenderSubdivisionConfig
+
+fn zender_is_absolute_path(path: String) -> Bool:
+    if len(path) >= 2 and char_at(path, 1) == ":":
+        return true
+    if len(path) >= 2 and char_at(path, 0) == "\\" and char_at(path, 1) == "\\":
+        return true
+    if len(path) >= 1 and char_at(path, 0) == "/":
+        return true
+    return false
+
+fn zender_normalize_path(path: String) -> String:
+    if path == "":
+        return "."
+
+    var prefix = ""
+    var start = 0
+    var absolute = false
+
+    if len(path) >= 2 and char_at(path, 1) == ":":
+        prefix = substring(path, 0, 2)
+        start = 2
+        if len(path) >= 3 and (char_at(path, 2) == "\\" or char_at(path, 2) == "/"):
+            absolute = true
+            start = 3
+    elif len(path) >= 2 and char_at(path, 0) == "\\" and char_at(path, 1) == "\\":
+        prefix = "\\\\"
+        start = 2
+        absolute = true
+    elif char_at(path, 0) == "\\" or char_at(path, 0) == "/":
+        prefix = "\\"
+        start = 1
+        absolute = true
+
+    var parts: Array<String> = []
+    var current = ""
+    var index = start
+    while index < len(path):
+        let ch = char_at(path, index)
+        if ch == "\\" or ch == "/":
+            if current != "":
+                push(parts, current)
+                current = ""
+        else:
+            current = current + ch
+        index = index + 1
+    if current != "":
+        push(parts, current)
+
+    var resolved: Array<String> = []
+    var part_index = 0
+    while part_index < len(parts):
+        let part = parts[part_index]
+        if part == "." or part == "":
+            0
+        elif part == "..":
+            if len(resolved) > 0 and resolved[len(resolved) - 1] != "..":
+                let _pop = pop(resolved)
+            elif !absolute:
+                push(resolved, part)
+        else:
+            push(resolved, part)
+        part_index = part_index + 1
+
+    var result = ""
+    if prefix == "\\\\":
+        result = "\\\\"
+    elif prefix == "\\":
+        result = "\\"
+    else:
+        result = prefix
+        if absolute:
+            result = result + "\\"
+
+    var resolved_index = 0
+    while resolved_index < len(resolved):
+        let needs_separator = result != "" and result != "\\" and result != "\\\\" and char_at(result, len(result) - 1) != "\\"
+        if needs_separator:
+            result = result + "\\"
+        result = result + resolved[resolved_index]
+        resolved_index = resolved_index + 1
+
+    if result == "":
+        return "."
+    return result
+
+fn zender_resolve_from_base(base: String, raw_path: String) -> String:
+    if raw_path == "":
+        return zender_normalize_path(base)
+    if zender_is_absolute_path(raw_path):
+        return zender_normalize_path(raw_path)
+    return zender_normalize_path(fs_path_join(base, raw_path))
+
+fn zender_string_setting(container: Any, key: String, default_value: String) -> String:
+    if !json_has(container, key):
+        return default_value
+    return json_get_string(container, key)
+
+fn zender_int_setting(container: Any, key: String, default_value: Int) -> Int:
+    if !json_has(container, key):
+        return default_value
+    return json_get_int(container, key)
+
+fn zender_float_setting(container: Any, key: String, default_value: Float) -> Float:
+    if !json_has(container, key):
+        return default_value
+    return json_get_float(container, key)
+
+fn zender_env_string_or_default(name: String, default_value: String) -> String:
+    let value = env(name)
+    if value == "":
+        return default_value
+    return value
+
+fn zender_env_int_or_default(name: String, default_value: Int) -> Int:
+    let value = env(name)
+    if value == "":
+        return default_value
+    return to_int(value)
+
+fn zender_default_settings(config_path: String) -> ZenderSettings:
+    let base_dir = fs_path_parent(config_path)
+    return ZenderSettings {
+        config_path: config_path,
+        cwd: os_getcwd(),
+        platform_name: os_platform_name(),
+        cpu_count: os_cpu_count(),
+        page_size: os_getpagesize(),
+        app: ZenderAppConfig {
+            title: "Zender // Natural Vulkan Engine",
+            revision_key: "zender-natural-vulkan-v1",
+            width: 1600,
+            height: 960,
+            frame_budget: 180,
+            run_root: zender_resolve_from_base(base_dir, "../.kain/run"),
+            window_report_path: zender_resolve_from_base(base_dir, "../.kain/run/zender_vulkan_window.txt"),
+            scene_report_path: zender_resolve_from_base(base_dir, "../.kain/run/zender_scene_report.txt"),
+            telemetry_report_path: zender_resolve_from_base(base_dir, "../.kain/run/zender_telemetry.json"),
+            shader_output_root: zender_resolve_from_base(base_dir, "../.kain/gpu/zender"),
+            vertex_shader_path: zender_resolve_from_base(base_dir, "../.kain/gpu/zender/zender_particles.vert.spv"),
+            fragment_shader_path: zender_resolve_from_base(base_dir, "../.kain/gpu/zender/zender_particles.frag.spv"),
+        },
+        scene: ZenderSceneConfig {
+            mode: 31,
+            sphere_instances: 14,
+            ring_resolution: 176,
+            shell_resolution: 72,
+            shell_radius: 1.0,
+            orbit_speed_milli: 840,
+            chaos_milli: 420,
+        },
+        asset: ZenderAssetConfig {
+            path: zender_resolve_from_base(base_dir, "../assets/zender_probe.glb"),
+            expected_scheme: "catmull-clark",
+            fallback_generator: "zender-probe",
+        },
+        subdivision: ZenderSubdivisionConfig {
+            scheme: "catmull-clark",
+            levels: 3,
+            control_vertices: 26,
+            control_edges: 48,
+            control_faces: 24,
+        },
+    }
+
+pub fn zender_config_path() -> String:
+    return zender_env_string_or_default("ZENDER_CONFIG", ZENDER_DEFAULT_CONFIG_PATH)
+
+pub fn zender_load_settings() -> ZenderSettings:
+    let config_path = zender_config_path()
+    let fallback = zender_default_settings(config_path)
+    if !fs_exists(config_path):
+        return fallback
+
+    let base_dir = fs_path_parent(config_path)
+    let doc = json_parse_text(fs_read_text(config_path))
+    var app_json: Any = json_object()
+    var scene_json: Any = json_object()
+    var asset_json: Any = json_object()
+    var subdivision_json: Any = json_object()
+
+    if json_has(doc, "app"):
+        app_json = json_get(doc, "app")
+    if json_has(doc, "scene"):
+        scene_json = json_get(doc, "scene")
+    if json_has(doc, "asset"):
+        asset_json = json_get(doc, "asset")
+    if json_has(doc, "subdivision"):
+        subdivision_json = json_get(doc, "subdivision")
+
+    return ZenderSettings {
+        config_path: config_path,
+        cwd: os_getcwd(),
+        platform_name: os_platform_name(),
+        cpu_count: os_cpu_count(),
+        page_size: os_getpagesize(),
+        app: ZenderAppConfig {
+            title: zender_env_string_or_default("ZENDER_TITLE", zender_string_setting(app_json, "title", fallback.app.title)),
+            revision_key: zender_string_setting(app_json, "revision_key", fallback.app.revision_key),
+            width: math_int_clamp(zender_env_int_or_default("ZENDER_WIDTH", zender_int_setting(app_json, "width", fallback.app.width)), 640, 4096),
+            height: math_int_clamp(zender_env_int_or_default("ZENDER_HEIGHT", zender_int_setting(app_json, "height", fallback.app.height)), 480, 2160),
+            frame_budget: math_int_clamp(zender_env_int_or_default("ZENDER_FRAME_BUDGET", zender_int_setting(app_json, "frame_budget", fallback.app.frame_budget)), 1, 7200),
+            run_root: zender_resolve_from_base(base_dir, zender_string_setting(app_json, "run_root", "../.kain/run")),
+            window_report_path: zender_resolve_from_base(base_dir, zender_string_setting(app_json, "window_report_path", "../.kain/run/zender_vulkan_window.txt")),
+            scene_report_path: zender_resolve_from_base(base_dir, zender_string_setting(app_json, "scene_report_path", "../.kain/run/zender_scene_report.txt")),
+            telemetry_report_path: zender_resolve_from_base(base_dir, zender_string_setting(app_json, "telemetry_report_path", "../.kain/run/zender_telemetry.json")),
+            shader_output_root: zender_resolve_from_base(base_dir, zender_string_setting(app_json, "shader_output_root", "../.kain/gpu/zender")),
+            vertex_shader_path: zender_resolve_from_base(base_dir, zender_string_setting(app_json, "vertex_shader_path", "../.kain/gpu/zender/zender_particles.vert.spv")),
+            fragment_shader_path: zender_resolve_from_base(base_dir, zender_string_setting(app_json, "fragment_shader_path", "../.kain/gpu/zender/zender_particles.frag.spv")),
+        },
+        scene: ZenderSceneConfig {
+            mode: zender_int_setting(scene_json, "mode", fallback.scene.mode),
+            sphere_instances: math_int_clamp(zender_env_int_or_default("ZENDER_SPHERE_INSTANCES", zender_int_setting(scene_json, "sphere_instances", fallback.scene.sphere_instances)), 1, 96),
+            ring_resolution: math_int_clamp(zender_int_setting(scene_json, "ring_resolution", fallback.scene.ring_resolution), 24, 512),
+            shell_resolution: math_int_clamp(zender_int_setting(scene_json, "shell_resolution", fallback.scene.shell_resolution), 12, 256),
+            shell_radius: math_clamp(zender_float_setting(scene_json, "shell_radius", fallback.scene.shell_radius), 0.1, 4.0),
+            orbit_speed_milli: math_int_clamp(zender_int_setting(scene_json, "orbit_speed_milli", fallback.scene.orbit_speed_milli), 50, 4000),
+            chaos_milli: math_int_clamp(zender_int_setting(scene_json, "chaos_milli", fallback.scene.chaos_milli), 0, 1000),
+        },
+        asset: ZenderAssetConfig {
+            path: zender_resolve_from_base(base_dir, zender_env_string_or_default("ZENDER_ASSET_PATH", zender_string_setting(asset_json, "path", "../assets/zender_probe.glb"))),
+            expected_scheme: zender_string_setting(asset_json, "expected_scheme", fallback.asset.expected_scheme),
+            fallback_generator: zender_string_setting(asset_json, "fallback_generator", fallback.asset.fallback_generator),
+        },
+        subdivision: ZenderSubdivisionConfig {
+            scheme: zender_string_setting(subdivision_json, "scheme", fallback.subdivision.scheme),
+            levels: math_int_clamp(zender_env_int_or_default("ZENDER_SUBDIV_LEVELS", zender_int_setting(subdivision_json, "levels", fallback.subdivision.levels)), 0, 6),
+            control_vertices: math_int_clamp(zender_int_setting(subdivision_json, "control_vertices", fallback.subdivision.control_vertices), 4, 1000000),
+            control_edges: math_int_clamp(zender_int_setting(subdivision_json, "control_edges", fallback.subdivision.control_edges), 4, 1000000),
+            control_faces: math_int_clamp(zender_int_setting(subdivision_json, "control_faces", fallback.subdivision.control_faces), 1, 1000000),
+        },
+    }

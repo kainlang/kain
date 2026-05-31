@@ -1,0 +1,190 @@
+use std::fs
+use std::intent
+use std::runtime
+include native/zender_vulkan.h as zv
+
+use zender_assets::*
+use zender_config::*
+use zender_scene::*
+use zender_subdivide::*
+
+component ZenderPanel():
+    render <panel title="Zender" />
+
+world ZenderAuthority:
+    state particle_budget: Int = 0
+    state subdivision_level: Int = 0
+    state asset_mesh_count: Int = 0
+    state present_frames: Int = 0
+    surface native_ui => ZenderPanel
+
+world ZenderMirror:
+    state particle_budget_copy: Int = 0
+    state subdivision_level_copy: Int = 0
+    state asset_mesh_count_copy: Int = 0
+    state present_frames_copy: Int = 0
+    surface web => ZenderPanel
+
+entangle ZenderAuthority.particle_budget <-> ZenderMirror.particle_budget_copy with single_writer
+entangle ZenderAuthority.subdivision_level <-> ZenderMirror.subdivision_level_copy with single_writer
+entangle ZenderAuthority.asset_mesh_count <-> ZenderMirror.asset_mesh_count_copy with single_writer
+entangle ZenderAuthority.present_frames <-> ZenderMirror.present_frames_copy with single_writer
+
+shatter struct ZenderShard:
+    particle_budget: Int
+    sphere_instances: Int
+    subdivision_level: Int
+    mesh_count: Int
+
+law zender_particle_budget_valid(value: Int) -> Bool:
+    return value >= 16384 and value <= 786432
+
+patch zender_commit_particle_budget(authority: ZenderAuthority, value: Int) -> Int:
+    authority.particle_budget = value
+    return authority.particle_budget
+
+patch zender_commit_subdivision(authority: ZenderAuthority, value: Int) -> Int:
+    authority.subdivision_level = value
+    return authority.subdivision_level
+
+patch zender_commit_asset_mesh_count(authority: ZenderAuthority, value: Int) -> Int:
+    authority.asset_mesh_count = value
+    return authority.asset_mesh_count
+
+patch zender_commit_present_frames(authority: ZenderAuthority, value: Int) -> Int:
+    authority.present_frames = value
+    return authority.present_frames
+
+converge zender_lane_particle_budget(value: Int) -> Int:
+    spec reference:
+        if value < 16384:
+            return 16384
+        if value > 786432:
+            return 786432
+        return value
+    fast llvm_lane when target("llvm"):
+        if value < 16384:
+            return 16384
+        if value > 786432:
+            return 786432
+        return value
+    verify random(4)
+
+fn main() -> Int:
+    let boot = native_runtime_init()
+    if boot != 0:
+        return 100 + boot
+
+    fs_create_dir_all(".kain")
+
+    let settings = zender_load_settings()
+    fs_create_dir_all(settings.app.run_root)
+    fs_create_dir_all(settings.app.shader_output_root)
+
+    let glb_probe = zv_glb_probe_file(settings.asset.path)
+    var glb_byte_len = 0
+    var glb_version = 0
+    var glb_json_chunk_len = 0
+    var glb_json_text = ""
+    if glb_probe > 0:
+        glb_byte_len = zv_glb_byte_len()
+        glb_version = zv_glb_version()
+        glb_json_chunk_len = zv_glb_json_chunk_len()
+        glb_json_text = zv_glb_json_text()
+    let asset = zender_load_asset(
+        settings.asset.path,
+        settings.asset.expected_scheme,
+        settings.asset.fallback_generator,
+        glb_probe,
+        glb_byte_len,
+        glb_version,
+        glb_json_chunk_len,
+        glb_json_text
+    )
+    let subdivision = zender_subdivision_from_source(settings.subdivision, asset)
+    let base_plan = zender_build_scene(settings, asset, subdivision)
+    let authority = ZenderAuthority
+    let shard = ZenderShard {
+        particle_budget: base_plan.particle_budget,
+        sphere_instances: base_plan.sphere_instances,
+        subdivision_level: subdivision.levels,
+        mesh_count: asset.mesh_count,
+    }
+    let moved = teleport shard from ZenderAuthority to ZenderMirror via zender_boot_bus
+    let normalized_budget = zender_lane_particle_budget(moved.particle_budget)
+    let plan = zender_scene_with_budget(base_plan, normalized_budget)
+    let budget_law = law_status(zender_particle_budget_valid(plan.particle_budget))
+
+    let _budget_commit = zender_commit_particle_budget(authority, plan.particle_budget)
+    let _subdivision_commit = zender_commit_subdivision(authority, moved.subdivision_level)
+    let _mesh_commit = zender_commit_asset_mesh_count(authority, moved.mesh_count)
+
+    let probe = zv_probe()
+    var backend = "zender-vulkan-not-run"
+    var bridge_error = ""
+    var bridge_status = -99
+    var frames = 0
+    var particles_drawn = 0
+
+    if probe > 0 and law_is_valid_status(budget_law):
+        bridge_status = zv_run_window(
+            plan.title,
+            settings.app.width,
+            settings.app.height,
+            plan.particle_budget,
+            settings.app.frame_budget,
+            plan.mode,
+            plan.sphere_instances,
+            plan.ring_resolution,
+            plan.shell_resolution,
+            plan.orbit_speed,
+            plan.chaos,
+            plan.vertex_shader_path,
+            plan.fragment_shader_path
+        )
+        let _bridge_report = zv_write_report(settings.app.window_report_path)
+        backend = zv_backend_name()
+        bridge_error = zv_last_error()
+        frames = zv_frames_presented()
+        particles_drawn = zv_particles_drawn()
+        let _present_commit = zender_commit_present_frames(authority, frames)
+    else:
+        bridge_error = "probe failed or particle budget law rejected the scene"
+
+    let scene_report = zender_scene_report_text(settings, asset, subdivision, plan, backend, probe, bridge_status, frames, particles_drawn, bridge_error)
+    let telemetry_json = zender_telemetry_json(settings, asset, subdivision, plan, backend, probe, bridge_status, frames, particles_drawn, bridge_error)
+    fs_write_text(settings.app.scene_report_path, scene_report)
+    fs_write_text(settings.app.telemetry_report_path, telemetry_json)
+
+    var exit_code = 0
+    if !asset.found:
+        exit_code = 21
+    if !law_is_valid_status(budget_law):
+        exit_code = 22
+    if subdivision.refined_faces < subdivision.control_faces:
+        exit_code = 23
+    if patch_journal_count() < 4:
+        exit_code = 24
+    if entangle_propagation_count() < 1:
+        exit_code = 25
+    if runtime_machine_teleport_count() < 1:
+        exit_code = 26
+    if converge_mismatch_count() != 0:
+        exit_code = 27
+    if probe <= 0:
+        exit_code = 30
+    if bridge_status != 0:
+        exit_code = 40
+    if frames < 1:
+        exit_code = 41
+    if particles_drawn < plan.particle_budget:
+        exit_code = 42
+    if !fs_exists(settings.app.scene_report_path) or !fs_exists(settings.app.telemetry_report_path) or !fs_exists(settings.app.window_report_path):
+        exit_code = 43
+
+    let shutdown = native_runtime_shutdown()
+    if shutdown != 0:
+        return 200 + shutdown
+    if exit_code != 0:
+        return exit_code
+    return 0
