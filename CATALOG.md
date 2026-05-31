@@ -69,11 +69,12 @@ These are not all tokenized as dedicated keywords, but the parser treats them li
 `include`, `every`, `when`, `guarantee`, `fallback`, `spec`, `fast`, `verify`, `random`, `jitter`, `target`, `capability`, `from`, `to`, `via`
 
 `include` now covers both local C header imports such as
-`include native/foo.h as foo` and the built-in system-header lane such as
-`include <stdio.h> as cstdio` or `include <vulkan/vulkan.h> as vk`. The
-angle-bracket form currently resolves known C runtime, Windows SDK, and Vulkan
-SDK families through deterministic include roots plus compiler-owned link
-policy.
+`include native/foo.h as foo` and the registry-backed system-header lane such
+as `include <stdio.h> as cstdio`, `include <math.h> as cmath`,
+`include <sys/mman.h> as posix_mman`, or `include <vulkan/vulkan.h> as vk`.
+The angle-bracket form resolves known C runtime, C runtime math, POSIX,
+Windows SDK, and Vulkan SDK families through deterministic include roots plus
+compiler-owned link policy declared in `crates/c-ffi/system_headers.toml`.
 
 ### Surface And Projection Words
 

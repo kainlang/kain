@@ -1,0 +1,93 @@
+include <math.h> as cmath
+
+const SYSTEM_HEADERS_MODULUS: Int = 1000000007
+const SYSTEM_HEADERS_CASE_COUNT: Int = 1
+
+fn system_headers_json_escape(text: String) -> String:
+    let escaped = ""
+    let index = 0
+    while index < len(text):
+        let ch = char_at(text, index)
+        if ch == "\\":
+            escaped = escaped + "\\\\"
+        else if ch == "\"":
+            escaped = escaped + "\\\""
+        else if ch == "\n":
+            escaped = escaped + "\\n"
+        else if ch == "\r":
+            escaped = escaped + "\\r"
+        else if ch == "\t":
+            escaped = escaped + "\\t"
+        else:
+            escaped = escaped + ch
+        index = index + 1
+    return escaped
+
+fn system_headers_json_string_value(text: String) -> String:
+    return "\"" + system_headers_json_escape(text) + "\""
+
+pub fn system_headers_case_count() -> Int:
+    return SYSTEM_HEADERS_CASE_COUNT
+
+pub fn system_headers_case_id(index: Int) -> String:
+    if index == 0:
+        return "system_header_math_wave"
+    return ""
+
+pub fn system_headers_case_group(index: Int) -> String:
+    if index == 0:
+        return "c_system_headers"
+    return ""
+
+pub fn system_headers_case_title(index: Int) -> String:
+    if index == 0:
+        return "C Runtime System Header Math Wave"
+    return ""
+
+pub fn system_headers_case_iterations(index: Int) -> Int:
+    if index == 0:
+        return 120000
+    return 0
+
+pub fn system_headers_case_expected_checksum(index: Int) -> Int:
+    return system_headers_case_checksum(system_headers_case_id(index), system_headers_case_iterations(index), 1, SYSTEM_HEADERS_MODULUS)
+
+fn system_header_math_wave_checksum(iterations: Int, modulus: Int) -> Int:
+    let acc = 0
+    let index = 0
+    while index < iterations:
+        let lane = (index % 4096) + 1
+        let angle = (lane % 720) as Float * 0.00872664625
+        let root = cmath_sqrt(lane as Float)
+        let wave = cmath_sin(angle) + cmath_cos(angle * 0.5)
+        let scaled = cmath_floor((root + wave + 2.0) * 100000.0) as Int
+        acc = (acc + scaled + ((index % 97) * 31)) % modulus
+        index = index + 1
+    return acc
+
+pub fn system_headers_case_checksum(case_id: String, iterations: Int, amplify: Int, modulus: Int) -> Int:
+    if case_id != "system_header_math_wave":
+        return -1
+    let repeat = 0
+    let acc = 0
+    while repeat < amplify:
+        acc = (acc + system_header_math_wave_checksum(iterations, modulus)) % modulus
+        repeat = repeat + 1
+    return acc
+
+pub fn system_headers_case_telemetry(case_id: String) -> String:
+    if case_id == "system_header_math_wave":
+        let content = "{"
+        content = content + "\"boundary_kind\":" + system_headers_json_string_value("c-runtime-system-header") + ","
+        content = content + "\"include_form\":" + system_headers_json_string_value("include <math.h> as cmath") + ","
+        content = content + "\"registry_family\":" + system_headers_json_string_value("c-runtime-math") + ","
+        content = content + "\"c_symbols\":" + system_headers_json_string_value("sqrt,sin,cos,floor") + ","
+        content = content + "\"calls_per_iteration\":4,"
+        content = content + "\"default_iterations\":120000,"
+        content = content + "\"default_total_c_calls\":480000,"
+        content = content + "\"pack_focus\":" + system_headers_json_string_value("registry-backed-system-headers")
+        return content + "}"
+    let content = "{"
+    content = content + "\"boundary_kind\":" + system_headers_json_string_value("unknown") + ","
+    content = content + "\"pack_focus\":" + system_headers_json_string_value("registry-backed-system-headers")
+    return content + "}"

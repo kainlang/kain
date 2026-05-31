@@ -4,6 +4,7 @@ use crate::generate::write_generated_artifacts;
 use crate::model::{
     BindingReportEntry, FileFingerprint, ImportCOutput, PrepareContext, ResolvedCLibrary,
 };
+use crate::system_registry;
 use kain_core::error::KainError;
 use kain_fs as kfs;
 use serde::{Deserialize, Serialize};
@@ -144,7 +145,9 @@ pub fn import_platform_package(
         options,
         &current_dir,
     )?;
-    let is_vulkan = package_name.eq_ignore_ascii_case("vulkan");
+    let is_vulkan = system_registry::family_for_package(&package_name)
+        .map(|family| family.id.eq_ignore_ascii_case("vulkan"))
+        .unwrap_or(false);
     let dispatch_model = if is_vulkan {
         "vulkan-loader-dispatch"
     } else {
@@ -314,11 +317,10 @@ fn discover_platform_package(
     let mut dynamic_libraries = find_platform_libraries(package_name, target_triple, &roots, false);
     let import_libraries = find_platform_libraries(package_name, target_triple, &roots, true);
 
-    if package_name.eq_ignore_ascii_case("vulkan") {
-        for fallback in vulkan_system_library_fallbacks(target_triple) {
-            if fallback.exists() && !dynamic_libraries.iter().any(|path| path == &fallback) {
-                dynamic_libraries.push(fallback);
-            }
+    for fallback in system_registry::package_dynamic_library_fallbacks(package_name, target_triple)
+    {
+        if fallback.exists() && !dynamic_libraries.iter().any(|path| path == &fallback) {
+            dynamic_libraries.push(fallback);
         }
     }
     dynamic_libraries.sort();
@@ -370,6 +372,7 @@ fn resolved_library_for_platform_package(
         include_paths,
         defines: Vec::new(),
         link_libs: Vec::new(),
+        toolchain_default_link: false,
         sources: Vec::new(),
         objects: Vec::new(),
         static_libs: Vec::new(),
@@ -453,9 +456,11 @@ fn stable_platform_block_reason(entry: &BindingReportEntry, detail: &str) -> Str
 fn find_platform_header(package_name: &str, roots: &[PathBuf]) -> Option<PathBuf> {
     let mut exact_candidates = Vec::new();
     for root in roots {
-        if package_name.eq_ignore_ascii_case("vulkan") {
-            exact_candidates.push(root.join("include").join("vulkan").join("vulkan.h"));
-            exact_candidates.push(root.join("Include").join("vulkan").join("vulkan.h"));
+        for header in system_registry::package_header_candidates(package_name) {
+            let header_path = Path::new(&header);
+            exact_candidates.push(root.join(header_path));
+            exact_candidates.push(root.join("include").join(header_path));
+            exact_candidates.push(root.join("Include").join(header_path));
         }
         exact_candidates.push(root.join("include").join(format!("{package_name}.h")));
         exact_candidates.push(root.join("Include").join(format!("{package_name}.h")));
@@ -466,35 +471,44 @@ fn find_platform_header(package_name: &str, roots: &[PathBuf]) -> Option<PathBuf
         }
     }
 
-    let wanted = if package_name.eq_ignore_ascii_case("vulkan") {
-        "vulkan.h".to_string()
-    } else {
-        format!("{package_name}.h")
-    };
+    let wanted = system_registry::package_header_candidates(package_name)
+        .into_iter()
+        .next()
+        .and_then(|header| {
+            Path::new(&header)
+                .file_name()
+                .and_then(|value| value.to_str())
+                .map(ToOwned::to_owned)
+        })
+        .unwrap_or_else(|| format!("{package_name}.h"));
     find_first_file_by_name(roots, &wanted)
 }
 
 fn find_platform_registry(package_name: &str, roots: &[PathBuf]) -> Option<PathBuf> {
-    if !package_name.eq_ignore_ascii_case("vulkan") {
+    let registry_candidates = system_registry::package_registry_candidates(package_name);
+    if registry_candidates.is_empty() {
         return None;
     }
     let mut candidates = Vec::new();
     for root in roots {
-        candidates.push(
-            root.join("share")
-                .join("vulkan")
-                .join("registry")
-                .join("vk.xml"),
-        );
-        candidates.push(root.join("registry").join("vk.xml"));
-        candidates.push(root.join("vk.xml"));
+        for registry_path in &registry_candidates {
+            candidates.push(root.join(Path::new(registry_path)));
+        }
     }
     for candidate in candidates {
         if candidate.is_file() {
             return Some(canonical_or_self(&candidate));
         }
     }
-    find_first_file_by_name(roots, "vk.xml")
+    registry_candidates
+        .into_iter()
+        .filter_map(|candidate| {
+            Path::new(&candidate)
+                .file_name()
+                .and_then(|value| value.to_str())
+                .map(ToOwned::to_owned)
+        })
+        .find_map(|wanted| find_first_file_by_name(roots, &wanted))
 }
 
 fn find_platform_libraries(
@@ -526,25 +540,15 @@ fn library_file_names(
     target_triple: &str,
     import_library: bool,
 ) -> Vec<String> {
-    let mut names = Vec::new();
-    let is_windows = target_triple.contains("windows");
-    let is_macos = target_triple.contains("apple") || target_triple.contains("darwin");
-    if package_name.eq_ignore_ascii_case("vulkan") {
-        if import_library {
-            names.push("vulkan-1.lib".to_string());
-        } else if is_windows {
-            names.push("vulkan-1.dll".to_string());
-        } else if is_macos {
-            names.push("libvulkan.dylib".to_string());
-            names.push("libMoltenVK.dylib".to_string());
-            names.push("MoltenVK".to_string());
-        } else {
-            names.push("libvulkan.so.1".to_string());
-            names.push("libvulkan.so".to_string());
-        }
+    if let Some(names) =
+        system_registry::package_library_file_names(package_name, target_triple, import_library)
+    {
         return names;
     }
 
+    let mut names = Vec::new();
+    let is_windows = target_triple.contains("windows");
+    let is_macos = target_triple.contains("apple") || target_triple.contains("darwin");
     if import_library {
         if is_windows {
             names.push(format!("{package_name}.lib"));
@@ -563,22 +567,6 @@ fn library_file_names(
         names.push(format!("{package_name}.so"));
     }
     names
-}
-
-fn vulkan_system_library_fallbacks(target_triple: &str) -> Vec<PathBuf> {
-    if target_triple.contains("windows") {
-        vec![PathBuf::from(r"C:\Windows\System32\vulkan-1.dll")]
-    } else if target_triple.contains("apple") || target_triple.contains("darwin") {
-        vec![
-            PathBuf::from("/usr/local/lib/libvulkan.dylib"),
-            PathBuf::from("/usr/local/lib/libMoltenVK.dylib"),
-        ]
-    } else {
-        vec![
-            PathBuf::from("/usr/lib/libvulkan.so.1"),
-            PathBuf::from("/usr/lib/x86_64-linux-gnu/libvulkan.so.1"),
-        ]
-    }
 }
 
 fn collect_sdk_files(roots: &[PathBuf]) -> Vec<PathBuf> {
@@ -664,33 +652,11 @@ fn render_dependency_closure(current_dir: &Path, discovery: &PlatformDiscovery) 
 }
 
 fn capability_tags_for_package(package_name: &str) -> Vec<String> {
-    if package_name.eq_ignore_ascii_case("vulkan") {
-        vec![
-            "platform.library.dynamic".to_string(),
-            "graphics.vulkan".to_string(),
-            "vulkan.dispatch.instance_device".to_string(),
-        ]
-    } else {
-        vec!["platform.library.dynamic".to_string()]
-    }
+    system_registry::package_capability_tags(package_name)
 }
 
 fn sdk_env_keys(package_name: &str) -> Vec<String> {
-    let normalized = package_name
-        .chars()
-        .map(|ch| {
-            if ch.is_ascii_alphanumeric() {
-                ch.to_ascii_uppercase()
-            } else {
-                '_'
-            }
-        })
-        .collect::<String>();
-    let mut keys = vec![format!("KAIN_PLATFORM_{normalized}_SDK")];
-    if package_name.eq_ignore_ascii_case("vulkan") {
-        keys.push("VULKAN_SDK".to_string());
-    }
-    keys
+    system_registry::package_sdk_env_keys(package_name)
 }
 
 fn resolved_file(kind: &str, current_dir: &Path, path: &Path) -> PlatformResolvedFile {

@@ -1296,6 +1296,33 @@ impl LlvmGenerator {
         self.output.push('\n');
     }
 
+    fn remember_emitted_extern_symbols_from_output(&mut self) {
+        let symbols: Vec<String> = self
+            .output
+            .lines()
+            .filter_map(Self::llvm_declared_symbol)
+            .collect();
+        for symbol in symbols {
+            self.emitted_extern_symbols.insert(symbol);
+        }
+    }
+
+    fn llvm_declared_symbol(line: &str) -> Option<String> {
+        let trimmed = line.trim_start();
+        if !trimmed.starts_with("declare ") {
+            return None;
+        }
+        let symbol_start = trimmed.find('@')? + 1;
+        let symbol_tail = &trimmed[symbol_start..];
+        let symbol_end = symbol_tail.find('(')?;
+        let symbol = &symbol_tail[..symbol_end];
+        if symbol.is_empty() {
+            None
+        } else {
+            Some(symbol.to_string())
+        }
+    }
+
     fn emit_label(&mut self, label: &str) {
         self.emit(&format!("{}:", label));
         self.current_block = label.to_string();
@@ -13623,6 +13650,7 @@ impl LlvmGenerator {
 
         // StdLib
         self.emit_stdlib_externs();
+        self.remember_emitted_extern_symbols_from_output();
         self.emit("");
         self.emit("; Inline hint for tiny hot helpers");
         self.emit("attributes #0 = { alwaysinline }");

@@ -63,6 +63,8 @@ pub struct CLibraryConfig {
     pub defines: Vec<String>,
     #[serde(default)]
     pub link_libs: Vec<String>,
+    #[serde(default)]
+    pub toolchain_default_link: bool,
     #[serde(default, alias = "source_files")]
     pub sources: Vec<PathBuf>,
     #[serde(default, alias = "object_files")]

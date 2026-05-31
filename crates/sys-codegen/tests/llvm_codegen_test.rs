@@ -475,6 +475,25 @@ fn main() -> Int:
 }
 
 #[test]
+fn llvm_dedupes_extern_link_name_against_preemitted_runtime_declaration() {
+    let source = r#"
+@link_name("cos")
+@extern fn cmath_cos(value: Float) -> Float
+
+fn main() -> Int:
+    return cmath_cos(0.0) as Int
+"#;
+
+    let program = typed_program_from_source(source);
+    let llvm = String::from_utf8(generate_llvm(&program).expect("llvm generation should succeed"))
+        .expect("llvm output should be utf8");
+
+    assert_eq!(llvm.matches("declare double @cos(").count(), 1);
+    assert!(llvm.contains("call double @cos("));
+    verify_llvm_ir_with_repo_llvm_as(&llvm, "extern-link-name-preemitted-dedupe");
+}
+
+#[test]
 fn llvm_lowers_x86_64_naked_and_interrupt_lanes() {
     let source = r#"
 @naked

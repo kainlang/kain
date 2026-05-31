@@ -3,6 +3,7 @@ mod extract;
 mod generate;
 mod model;
 mod platform;
+mod system_registry;
 
 pub use config::{CFfiConfig, CInteropTier, CLibraryConfig};
 pub use generate::{bridge_crate_name, BRIDGE_FORMAT_VERSION, BRIDGE_SYMBOL_NAME};
@@ -262,7 +263,10 @@ pub fn prepare_native_link_inputs(
                         .push(resolve_linkable_shared_library(shared)?);
                 }
             }
-            if inputs.link_inputs.is_empty() && inputs.link_libs.is_empty() {
+            if inputs.link_inputs.is_empty()
+                && inputs.link_libs.is_empty()
+                && !resolved.config.toolchain_default_link
+            {
                 return Err(KainError::runtime(format!(
                     "C FFI static import '{}' has no object, static library, bitcode, shared-library link input, or named link library",
                     resolved.import_name
@@ -327,14 +331,15 @@ pub fn augment_source_for_runtime(
 
     let mut sections = Vec::new();
     for (spec, output) in outputs {
-        sections.push(output.canonical_module_source.clone());
         if spec.origin == CLibraryImportOrigin::Include {
             if let Some(alias) = spec.alias.as_deref() {
                 if let Some(alias_source) = render_include_alias_source(&output, alias) {
                     sections.push(alias_source);
+                    continue;
                 }
             }
         }
+        sections.push(output.canonical_module_source.clone());
     }
     sections.push(source.to_string());
     Ok(sections.join("\n"))
@@ -852,6 +857,7 @@ fn resolve_natural_local_include(
         include_paths: vec![include_dir.clone()],
         defines: Vec::new(),
         link_libs: Vec::new(),
+        toolchain_default_link: false,
         sources: source_paths.clone(),
         objects: Vec::new(),
         static_libs: Vec::new(),
@@ -968,93 +974,40 @@ fn resolve_system_include(
         return Ok(None);
     };
     let normalized_target = include_target.replace('\\', "/");
-    let family = classify_system_include_family(&normalized_target).ok_or_else(|| {
+    let family = system_registry::family_for_include(&normalized_target).ok_or_else(|| {
         KainError::runtime(format!(
-            "System C include '<{}>' is not supported yet; the current system-header lane understands C runtime headers, Windows SDK headers, and Vulkan SDK headers",
-            include_target
+            "System C include '<{}>' is not supported yet; the current system-header registry for this target understands: {}",
+            include_target,
+            system_registry::supported_family_summary()
         ))
     })?;
-    let header_name = system_header_file_name(&normalized_target);
+    let header_name = system_registry::system_header_file_name(&normalized_target);
     let manifest_root =
         find_kain_manifest_root(start_dir).unwrap_or_else(|| start_dir.to_path_buf());
 
-    let (header_path, mut include_paths, link_libs, shared_lib_path, static_lib_paths) =
-        match family {
-            SystemIncludeFamily::CRuntime => {
-                let include_paths = collect_c_runtime_include_roots();
-                let header_path =
-                    find_system_header_under_roots(&normalized_target, &include_paths).ok_or_else(
-                        || {
-                            let searched = if include_paths.is_empty() {
-                                "<none>".to_string()
-                            } else {
-                                include_paths
-                                    .iter()
-                                    .map(|path| path.display().to_string())
-                                    .collect::<Vec<_>>()
-                                    .join(", ")
-                            };
-                            KainError::runtime(format!(
-                        "System C include '<{}>' could not be resolved from include roots: {}",
-                        include_target, searched
-                    ))
-                        },
-                    )?;
-                (
-                    header_path,
-                    include_paths,
-                    current_platform_c_runtime_link_libs(header_name),
-                    None,
-                    Vec::new(),
-                )
-            }
-            SystemIncludeFamily::WindowsSdk => {
-                let include_paths = collect_windows_sdk_include_roots();
-                let header_path =
-                    find_system_header_under_roots(&normalized_target, &include_paths).ok_or_else(
-                        || {
-                            let searched = if include_paths.is_empty() {
-                                "<none>".to_string()
-                            } else {
-                                include_paths
-                                    .iter()
-                                    .map(|path| path.display().to_string())
-                                    .collect::<Vec<_>>()
-                                    .join(", ")
-                            };
-                            KainError::runtime(format!(
-                        "System C include '<{}>' could not be resolved from include roots: {}",
-                        include_target, searched
-                    ))
-                        },
-                    )?;
-                (
-                    header_path,
-                    include_paths,
-                    current_platform_windows_sdk_link_libs(header_name),
-                    None,
-                    Vec::new(),
-                )
-            }
-            SystemIncludeFamily::Vulkan => {
-                let (header_path, include_dir) = resolve_vulkan_loader_subset_header(start_dir)?;
-                let mut include_paths = collect_vulkan_include_roots();
-                push_existing_unique_path(&mut include_paths, include_dir.clone());
-                let (shared_lib_path, static_lib_paths) = resolve_vulkan_library_artifacts();
-                let link_libs = if static_lib_paths.is_empty() {
-                    current_platform_vulkan_link_libs()
-                } else {
-                    Vec::new()
-                };
-                (
-                    header_path,
-                    include_paths,
-                    link_libs,
-                    shared_lib_path,
-                    static_lib_paths,
-                )
-            }
+    let mut include_paths = collect_system_include_roots_for_family(family);
+    let header_path = if let Some(shim_header) = family.shim_header.as_deref() {
+        let (header_path, include_dir) =
+            resolve_system_include_shim_header(family, shim_header, start_dir)?;
+        push_existing_unique_path(&mut include_paths, include_dir);
+        header_path
+    } else {
+        find_system_header_under_roots(&normalized_target, &include_paths).ok_or_else(|| {
+            KainError::runtime(format!(
+                "System C include '<{}>' could not be resolved from include roots: {}",
+                include_target,
+                render_searched_paths(&include_paths)
+            ))
+        })?
+    };
+    let (shared_lib_path, static_lib_paths) = resolve_system_library_artifacts(family);
+    let link_libs =
+        if family.suppress_named_link_libs_when_import_lib && !static_lib_paths.is_empty() {
+            Vec::new()
+        } else {
+            system_registry::link_libs_for_header(family, header_name)
         };
+
     let header_parent = header_path
         .parent()
         .map(Path::to_path_buf)
@@ -1072,6 +1025,7 @@ fn resolve_system_include(
         include_paths: include_paths.clone(),
         defines: Vec::new(),
         link_libs: link_libs.clone(),
+        toolchain_default_link: system_registry::current_target_uses_toolchain_default_link(family),
         sources: Vec::new(),
         objects: Vec::new(),
         static_libs: static_lib_paths.clone(),
@@ -1113,63 +1067,6 @@ fn resolve_system_include(
     )))
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum SystemIncludeFamily {
-    CRuntime,
-    WindowsSdk,
-    Vulkan,
-}
-
-fn classify_system_include_family(target: &str) -> Option<SystemIncludeFamily> {
-    let normalized = target.replace('\\', "/").to_ascii_lowercase();
-    let header_name = system_header_file_name(&normalized);
-    if normalized == "vulkan/vulkan.h"
-        || normalized == "vulkan/vulkan_core.h"
-        || header_name == "vulkan.h"
-        || header_name == "vulkan_core.h"
-    {
-        return Some(SystemIncludeFamily::Vulkan);
-    }
-    if is_c_runtime_header(header_name) {
-        return Some(SystemIncludeFamily::CRuntime);
-    }
-    if cfg!(windows) && header_name.ends_with(".h") {
-        return Some(SystemIncludeFamily::WindowsSdk);
-    }
-    None
-}
-
-fn system_header_file_name(target: &str) -> &str {
-    target.rsplit('/').next().unwrap_or(target)
-}
-
-fn is_c_runtime_header(header_name: &str) -> bool {
-    matches!(
-        header_name,
-        "assert.h"
-            | "ctype.h"
-            | "errno.h"
-            | "float.h"
-            | "inttypes.h"
-            | "limits.h"
-            | "locale.h"
-            | "math.h"
-            | "setjmp.h"
-            | "signal.h"
-            | "stdarg.h"
-            | "stdbool.h"
-            | "stddef.h"
-            | "stdint.h"
-            | "stdio.h"
-            | "stdlib.h"
-            | "string.h"
-            | "time.h"
-            | "uchar.h"
-            | "wchar.h"
-            | "wctype.h"
-    )
-}
-
 fn collect_c_runtime_include_roots() -> Vec<PathBuf> {
     let mut roots = collect_generic_system_include_roots();
     if cfg!(windows) {
@@ -1192,15 +1089,6 @@ fn collect_c_runtime_include_roots() -> Vec<PathBuf> {
     roots
 }
 
-fn collect_vulkan_include_roots() -> Vec<PathBuf> {
-    let mut roots = collect_generic_system_include_roots();
-    for sdk_root in collect_vulkan_sdk_roots() {
-        push_existing_unique_path(&mut roots, sdk_root.join("Include"));
-        push_existing_unique_path(&mut roots, sdk_root.join("include"));
-    }
-    roots
-}
-
 fn collect_windows_sdk_include_roots() -> Vec<PathBuf> {
     let mut roots = collect_generic_system_include_roots();
     if !cfg!(windows) {
@@ -1209,6 +1097,21 @@ fn collect_windows_sdk_include_roots() -> Vec<PathBuf> {
 
     for sdk_root in collect_windows_sdk_roots() {
         append_windows_sdk_include_dirs(&mut roots, &sdk_root);
+    }
+    roots
+}
+
+fn collect_posix_system_include_roots() -> Vec<PathBuf> {
+    let mut roots = Vec::new();
+    if cfg!(target_os = "macos") {
+        push_existing_unique_path(&mut roots, PathBuf::from("/usr/include"));
+        push_existing_unique_path(
+            &mut roots,
+            PathBuf::from("/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include"),
+        );
+    } else if cfg!(target_os = "linux") {
+        push_existing_unique_path(&mut roots, PathBuf::from("/usr/include"));
+        push_existing_unique_path(&mut roots, PathBuf::from("/usr/local/include"));
     }
     roots
 }
@@ -1227,85 +1130,122 @@ fn collect_generic_system_include_roots() -> Vec<PathBuf> {
     roots
 }
 
-fn collect_vulkan_sdk_roots() -> Vec<PathBuf> {
+fn collect_system_include_roots_for_family(
+    family: &system_registry::SystemHeaderFamily,
+) -> Vec<PathBuf> {
     let mut roots = Vec::new();
-    for env_name in [
-        "KAIN_PLATFORM_VULKAN_SDK_ROOT",
-        "KAIN_PLATFORM_VULKAN_SDK",
-        "VULKAN_SDK",
-    ] {
-        if let Some(path) = existing_env_dir(env_name) {
-            push_existing_unique_path(&mut roots, path);
+    for root_kind in &family.include_roots {
+        match root_kind.as_str() {
+            "generic_system" => {
+                for path in collect_generic_system_include_roots() {
+                    push_existing_unique_path(&mut roots, path);
+                }
+            }
+            "c_runtime" => {
+                for path in collect_c_runtime_include_roots() {
+                    push_existing_unique_path(&mut roots, path);
+                }
+            }
+            "posix_system" => {
+                for path in collect_posix_system_include_roots() {
+                    push_existing_unique_path(&mut roots, path);
+                }
+            }
+            "windows_sdk" => {
+                for path in collect_windows_sdk_include_roots() {
+                    push_existing_unique_path(&mut roots, path);
+                }
+            }
+            "vulkan_sdk" | "sdk" => {
+                for sdk_root in collect_system_family_sdk_roots(family) {
+                    push_existing_unique_path(&mut roots, sdk_root.join("Include"));
+                    push_existing_unique_path(&mut roots, sdk_root.join("include"));
+                }
+            }
+            _ => {}
         }
-    }
-    if cfg!(windows) {
-        let sdk_parent = PathBuf::from(r"C:\VulkanSDK");
-        append_latest_versioned_children(&mut roots, &sdk_parent);
     }
     roots
 }
 
-fn resolve_vulkan_loader_subset_header(start_dir: &Path) -> Result<(PathBuf, PathBuf), KainError> {
-    let repo_root = find_repo_root_with_runtime_include_fallback(start_dir).ok_or_else(|| {
-        KainError::runtime(
-            "System Vulkan include requires a repo root with runtime/native/include so the compiler-owned loader subset header can be used",
-        )
-    })?;
-    let include_dir = repo_root.join("runtime").join("native").join("include");
-    let header_path = include_dir.join("vulkan_loader_subset.h");
-    if !header_path.exists() {
-        return Err(KainError::runtime(format!(
-            "System Vulkan include expected loader subset header at '{}'",
-            header_path.display()
-        )));
+fn collect_system_family_sdk_roots(family: &system_registry::SystemHeaderFamily) -> Vec<PathBuf> {
+    let mut roots = Vec::new();
+    for env_name in &family.sdk_env_keys {
+        if let Some(path) = existing_env_dir(env_name) {
+            push_existing_unique_path(&mut roots, path);
+        }
     }
-    Ok((header_path, include_dir))
-}
-
-fn resolve_vulkan_library_artifacts() -> (Option<PathBuf>, Vec<PathBuf>) {
-    let mut shared_lib_path = None;
-    let mut static_lib_paths = Vec::new();
-
-    for sdk_root in collect_vulkan_sdk_roots() {
-        if cfg!(windows) {
-            let runtime_dll = sdk_root.join("Bin").join("vulkan-1.dll");
-            if shared_lib_path.is_none() && runtime_dll.exists() {
-                shared_lib_path = Some(runtime_dll);
-            }
-            let import_lib = sdk_root.join("Lib").join("vulkan-1.lib");
-            push_existing_unique_file(&mut static_lib_paths, import_lib);
-            if shared_lib_path.is_some() && !static_lib_paths.is_empty() {
-                break;
-            }
-        } else if cfg!(target_os = "macos") {
-            let dylib = sdk_root.join("lib").join("libMoltenVK.dylib");
-            if shared_lib_path.is_none() && dylib.exists() {
-                shared_lib_path = Some(dylib);
-            }
-            let framework_binary = sdk_root
-                .join("Frameworks")
-                .join("MoltenVK.framework")
-                .join("MoltenVK");
-            if shared_lib_path.is_none() && framework_binary.exists() {
-                shared_lib_path = Some(framework_binary);
-            }
-        } else {
-            let so = sdk_root.join("lib").join("libvulkan.so");
-            if shared_lib_path.is_none() && so.exists() {
-                shared_lib_path = Some(so);
-            }
-            let so64 = sdk_root.join("lib64").join("libvulkan.so");
-            if shared_lib_path.is_none() && so64.exists() {
-                shared_lib_path = Some(so64);
+    if let Some(policy) = system_registry::current_target_policy(family) {
+        for parent in &policy.sdk_versioned_parent_paths {
+            if let Some(path) = system_registry::expand_path_template(parent) {
+                append_latest_versioned_children(&mut roots, &path);
             }
         }
     }
+    roots
+}
 
-    if cfg!(windows) && shared_lib_path.is_none() {
-        if let Some(system_root) = std::env::var_os("SystemRoot").map(PathBuf::from) {
-            let system_dll = system_root.join("System32").join("vulkan-1.dll");
-            if system_dll.exists() {
-                shared_lib_path = Some(system_dll);
+fn resolve_system_include_shim_header(
+    family: &system_registry::SystemHeaderFamily,
+    shim_header: &str,
+    start_dir: &Path,
+) -> Result<(PathBuf, PathBuf), KainError> {
+    let repo_root = find_repo_root_with_runtime_include_fallback(start_dir).ok_or_else(|| {
+        KainError::runtime(format!(
+            "System {} include requires a repo root so the compiler-owned shim header can be used",
+            family.display_name
+        ))
+    })?;
+    let header_path = repo_root.join(Path::new(shim_header));
+    if !header_path.exists() {
+        return Err(KainError::runtime(format!(
+            "System {} include expected shim header at '{}'",
+            family.display_name,
+            header_path.display(),
+        )));
+    }
+    let include_dir = header_path
+        .parent()
+        .map(Path::to_path_buf)
+        .unwrap_or(repo_root);
+    Ok((header_path, include_dir))
+}
+
+fn resolve_system_library_artifacts(
+    family: &system_registry::SystemHeaderFamily,
+) -> (Option<PathBuf>, Vec<PathBuf>) {
+    let mut shared_lib_path = None;
+    let mut static_lib_paths = Vec::new();
+
+    let Some(policy) = system_registry::current_target_policy(family) else {
+        return (shared_lib_path, static_lib_paths);
+    };
+
+    for sdk_root in collect_system_family_sdk_roots(family) {
+        for relative in &policy.dynamic_library_relative_paths {
+            let candidate = sdk_root.join(Path::new(relative));
+            if shared_lib_path.is_none() && candidate.exists() {
+                shared_lib_path = Some(candidate);
+            }
+        }
+        for relative in &policy.import_library_relative_paths {
+            push_existing_unique_file(&mut static_lib_paths, sdk_root.join(Path::new(relative)));
+        }
+        if shared_lib_path.is_some()
+            && (policy.import_library_relative_paths.is_empty() || !static_lib_paths.is_empty())
+        {
+            break;
+        }
+    }
+
+    if shared_lib_path.is_none() {
+        for fallback in &policy.dynamic_library_fallback_paths {
+            let Some(candidate) = system_registry::expand_path_template(fallback) else {
+                continue;
+            };
+            if candidate.exists() {
+                shared_lib_path = Some(candidate);
+                break;
             }
         }
     }
@@ -1404,13 +1344,13 @@ fn discover_latest_child_dir(root: &Path) -> Option<PathBuf> {
 
 fn find_system_header_under_roots(target: &str, roots: &[PathBuf]) -> Option<PathBuf> {
     let normalized = target.replace('\\', "/");
-    let wanted_name = system_header_file_name(&normalized).to_ascii_lowercase();
+    let wanted_name = system_registry::system_header_file_name(&normalized).to_ascii_lowercase();
     for root in roots {
         let candidate = root.join(Path::new(&normalized));
         if candidate.is_file() {
             return Some(canonical_or_self(&candidate));
         }
-        let fallback = root.join(system_header_file_name(&normalized));
+        let fallback = root.join(system_registry::system_header_file_name(&normalized));
         if fallback.is_file() {
             return Some(canonical_or_self(&fallback));
         }
@@ -1450,68 +1390,15 @@ fn find_first_header_by_name(dir: &Path, wanted_name: &str, mut budget: usize) -
     None
 }
 
-fn current_platform_c_runtime_link_libs(header_name: &str) -> Vec<String> {
-    let header_name = header_name.to_ascii_lowercase();
-    if cfg!(windows) {
-        let mut libs = vec!["ucrt".to_string()];
-        if matches!(header_name.as_str(), "stdio.h" | "stdlib.h") {
-            libs.push("legacy_stdio_definitions".to_string());
-        }
-        libs
-    } else if cfg!(target_os = "macos") {
-        vec!["System".to_string()]
-    } else if header_name == "math.h" {
-        vec!["m".to_string(), "c".to_string()]
+fn render_searched_paths(paths: &[PathBuf]) -> String {
+    if paths.is_empty() {
+        "<none>".to_string()
     } else {
-        vec!["c".to_string()]
-    }
-}
-
-fn current_platform_vulkan_link_libs() -> Vec<String> {
-    if cfg!(windows) {
-        vec!["vulkan-1".to_string()]
-    } else if cfg!(target_os = "macos") {
-        vec!["MoltenVK".to_string()]
-    } else {
-        vec!["vulkan".to_string()]
-    }
-}
-
-fn current_platform_windows_sdk_link_libs(header_name: &str) -> Vec<String> {
-    let lower = header_name.to_ascii_lowercase();
-    match lower.as_str() {
-        "winsock2.h" | "ws2tcpip.h" => vec!["ws2_32".to_string()],
-        "commctrl.h" => vec![
-            "comctl32".to_string(),
-            "user32".to_string(),
-            "gdi32".to_string(),
-        ],
-        "shellapi.h" | "shlobj.h" | "shobjidl.h" => {
-            vec![
-                "shell32".to_string(),
-                "ole32".to_string(),
-                "uuid".to_string(),
-            ]
-        }
-        "imm.h" => vec!["imm32".to_string(), "user32".to_string()],
-        "d3d12.h" => vec![
-            "d3d12".to_string(),
-            "dxgi".to_string(),
-            "dxguid".to_string(),
-        ],
-        header if header.starts_with("dxgi") => vec!["dxgi".to_string(), "dxguid".to_string()],
-        _ => vec![
-            "user32".to_string(),
-            "gdi32".to_string(),
-            "advapi32".to_string(),
-            "ole32".to_string(),
-            "shell32".to_string(),
-            "comdlg32".to_string(),
-            "comctl32".to_string(),
-            "uuid".to_string(),
-            "imm32".to_string(),
-            "ws2_32".to_string(),
-        ],
+        paths
+            .iter()
+            .map(|path| path.display().to_string())
+            .collect::<Vec<_>>()
+            .join(", ")
     }
 }
 
@@ -1710,6 +1597,7 @@ fn resolve_runtime_owned_header(
         include_paths: vec![include_dir.clone()],
         defines: Vec::new(),
         link_libs: Vec::new(),
+        toolchain_default_link: false,
         sources: Vec::new(),
         objects: Vec::new(),
         static_libs: Vec::new(),
@@ -2224,6 +2112,173 @@ mod tests {
             .contains("vkEnumerateInstanceVersion"));
     }
 
+    #[test]
+    fn system_include_resolves_c_runtime_header_from_env_root() {
+        let temp = TempDir::new().expect("temp dir");
+        let root = temp.path();
+        let include_root = root.join("include");
+        let header_path = include_root.join("stdio.h");
+        kfs::create_dir_all(&include_root).expect("include dir");
+        kfs::write_text(
+            &header_path,
+            "int puts(const char* value);\nint snprintf(char* buffer, unsigned long long size, const char* format);\n",
+        )
+        .expect("stdio header");
+
+        unsafe {
+            std::env::set_var("KAIN_C_FFI_SYSTEM_INCLUDE_ROOTS", &include_root);
+        }
+
+        let outputs = import_libraries_for_source(
+            "include <stdio.h> as cstdio\n",
+            &ImportCOptions {
+                mode: ArtifactMode::Generate,
+                ..ImportCOptions::default()
+            },
+            &PrepareContext {
+                current_dir: Some(root.to_path_buf()),
+                manifest_path: None,
+            },
+        )
+        .expect("c runtime system include output");
+
+        assert_eq!(outputs.len(), 1);
+        assert_eq!(
+            outputs[0].resolved.header_path,
+            canonical_or_self(&header_path)
+        );
+        assert_eq!(outputs[0].resolved.tier, CInteropTier::Static);
+        assert!(outputs[0]
+            .resolved
+            .config
+            .link_libs
+            .iter()
+            .any(|value| value.eq_ignore_ascii_case(if cfg!(windows) {
+                "legacy_stdio_definitions"
+            } else if cfg!(target_os = "macos") {
+                "System"
+            } else {
+                "c"
+            })));
+        assert!(outputs[0].canonical_module_source.contains("puts"));
+    }
+
+    #[test]
+    fn system_include_resolves_c_runtime_math_header_to_registry_shim() {
+        let temp = TempDir::new().expect("temp dir");
+        let root = temp.path();
+
+        let outputs = import_libraries_for_source(
+            "include <math.h> as cmath\n",
+            &ImportCOptions {
+                mode: ArtifactMode::Generate,
+                ..ImportCOptions::default()
+            },
+            &PrepareContext {
+                current_dir: Some(root.to_path_buf()),
+                manifest_path: None,
+            },
+        )
+        .expect("math system include output");
+
+        assert_eq!(outputs.len(), 1);
+        assert!(outputs[0]
+            .resolved
+            .header_path
+            .ends_with("runtime/native/include/c_runtime_math_subset.h"));
+        assert!(outputs[0].canonical_module_source.contains("sqrt"));
+        let link_inputs = prepare_native_link_inputs(&outputs[0], "clang", &["-O2".to_string()])
+            .expect("math should be linkable through registry policy");
+        if cfg!(windows) {
+            assert!(
+                !outputs[0]
+                    .resolved
+                    .config
+                    .link_libs
+                    .iter()
+                    .any(|value| value.eq_ignore_ascii_case("ucrt")),
+                "Windows CRT symbols should ride the native runtime/toolchain CRT link, not force a second UCRT library"
+            );
+            assert!(link_inputs.link_inputs.is_empty());
+            assert!(link_inputs.link_libs.is_empty());
+        } else {
+            assert!(!link_inputs.link_libs.is_empty());
+        }
+    }
+
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
+    #[test]
+    fn system_include_resolves_posix_header_from_env_root() {
+        let temp = TempDir::new().expect("temp dir");
+        let root = temp.path();
+        let include_root = root.join("include");
+        let sys_dir = include_root.join("sys");
+        let header_path = sys_dir.join("mman.h");
+        kfs::create_dir_all(&sys_dir).expect("sys include dir");
+        kfs::write_text(
+            &header_path,
+            "void* mmap(void* addr, unsigned long long len, int prot, int flags, int fd, long long offset);\nint munmap(void* addr, unsigned long long len);\n",
+        )
+        .expect("mman header");
+
+        unsafe {
+            std::env::set_var("KAIN_C_FFI_SYSTEM_INCLUDE_ROOTS", &include_root);
+        }
+
+        let outputs = import_libraries_for_source(
+            "include <sys/mman.h> as posix_mman\n",
+            &ImportCOptions {
+                mode: ArtifactMode::Generate,
+                ..ImportCOptions::default()
+            },
+            &PrepareContext {
+                current_dir: Some(root.to_path_buf()),
+                manifest_path: None,
+            },
+        )
+        .expect("posix system include output");
+
+        assert_eq!(outputs.len(), 1);
+        assert_eq!(
+            outputs[0].resolved.header_path,
+            canonical_or_self(&header_path)
+        );
+        assert!(outputs[0]
+            .resolved
+            .config
+            .link_libs
+            .iter()
+            .any(
+                |value| value.eq_ignore_ascii_case(if cfg!(target_os = "macos") {
+                    "System"
+                } else {
+                    "c"
+                })
+            ));
+        assert!(outputs[0].canonical_module_source.contains("munmap"));
+    }
+
+    #[test]
+    fn system_include_reports_unknown_family_from_registry() {
+        let temp = TempDir::new().expect("temp dir");
+        let root = temp.path();
+        let err = import_libraries_for_source(
+            "include <vendor/unknown.hpp> as vend\n",
+            &ImportCOptions {
+                mode: ArtifactMode::Generate,
+                ..ImportCOptions::default()
+            },
+            &PrepareContext {
+                current_dir: Some(root.to_path_buf()),
+                manifest_path: None,
+            },
+        )
+        .expect_err("unknown angle-header family should be rejected");
+        let message = err.to_string();
+        assert!(message.contains("system-header registry"));
+        assert!(message.contains("C runtime"));
+    }
+
     #[cfg(windows)]
     #[test]
     fn system_include_resolves_windows_sdk_header_from_env_root() {
@@ -2310,6 +2365,8 @@ fn main() -> Int:
 
         assert!(augmented.contains("@extern fn tm_add"));
         assert!(augmented.contains("@extern fn tm_ping"));
+        assert!(!augmented.contains("@extern fn tiny_math_add"));
+        assert!(!augmented.contains("@extern fn tiny_math_ping"));
         assert!(!augmented.contains("use c::tiny_math"));
 
         let tokens = Lexer::new(&augmented).tokenize().expect("tokens");
@@ -2349,9 +2406,51 @@ fn main() -> Int:
         )
         .expect("natural include should prepare c string return surface");
 
-        assert!(augmented.contains("@c_string_return\n        @extern fn tiny_math_label"));
         assert!(augmented
             .contains("@c_string_return\n@link_name(\"tiny_math_label\")\n@extern fn tm_label"));
+    }
+
+    #[test]
+    fn natural_include_alias_hides_canonical_raw_names_that_shadow_builtins() {
+        let temp = TempDir::new().expect("temp dir");
+        let root = temp.path();
+        let src_dir = root.join("src");
+        let native_dir = src_dir.join("native");
+        kfs::create_dir_all(&native_dir).expect("native dir");
+        kfs::write_text(native_dir.join("mathish.h"), "double cos(double value);\n")
+            .expect("header");
+        kfs::write_text(
+            native_dir.join("mathish.c"),
+            "#include \"mathish.h\"\ndouble cos(double value) { return value; }\n",
+        )
+        .expect("source");
+
+        let source = "\
+include native/mathish.h as cmath
+
+fn main() -> Int:
+    return cmath_cos(1.0) as Int
+";
+        let augmented = augment_source_for_runtime(
+            source,
+            CompileTarget::Llvm,
+            &PrepareContext {
+                current_dir: Some(src_dir),
+                manifest_path: None,
+            },
+        )
+        .expect("natural include should prepare alias surface");
+
+        assert!(augmented.contains("@link_name(\"cos\")\n@extern fn cmath_cos"));
+        assert!(!augmented.contains("        @extern fn cos"));
+
+        let tokens = Lexer::new(&augmented).tokenize().expect("tokens");
+        let mapper = SpanMapper::new(&augmented);
+        let ast = Parser::new(&tokens, &mapper, "<include-alias-shadow>")
+            .parse()
+            .expect("parse");
+        types::check(&ast, &mapper, "<include-alias-shadow>")
+            .expect("raw C symbol should not shadow Kain builtin when an include alias is used");
     }
 
     #[test]

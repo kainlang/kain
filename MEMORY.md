@@ -1,5 +1,19 @@
 # Kain Memory
 
+# 2026-05-31 - system C includes are now registry-backed instead of one-off
+
+What changed:
+
+- `crates/c-ffi/system_headers.toml` is now the data source for angle-bracket C system imports. The resolver loads it through `crates/c-ffi/src/system_registry.rs` and uses it for include-family matching, SDK/env roots, shim headers, target link libs, package header candidates, registry files, capability tags, and dynamic/import library fallbacks.
+- The live families are `c-runtime`, `c-runtime-math`, `posix`, `windows-sdk`, and `vulkan`. That means the lane is no longer a hardcoded Vulkan/Windows fix; it is a language feature with data-driven policy.
+- `math.h` intentionally resolves through `runtime/native/include/c_runtime_math_subset.h` for now. Directly parsing the Windows UCRT `math.h` resolved the header but produced no callable `cmath_*` symbols, so the registry declares a small compiler-owned subset (`sqrt`, `sin`, `cos`, `floor`) for stable authored math imports. On Windows, the C runtime registry families do not force `ucrt`; the native runtime/toolchain link already owns CRT selection and adding `ucrt` again causes duplicate UCRT symbols.
+- `benchmark/cases_v2/system_headers.kn` adds the `system_header_math_wave` proof row. It calls `include <math.h> as cmath` through 120,000 iterations and reports `480000` C math calls in per-case telemetry.
+
+Validation notes:
+
+- Focus `cargo test -p kain-c-ffi --lib system_include --target-dir target\codex-system-registry-tests -- --nocapture` after touching the registry or resolver.
+- Focus `kain check X:\benchmark\cases_v2\system_headers.kn --target llvm` and `kain check X:\benchmark\cases_v2\.telemetryrouter\router.kn --target llvm` after touching the v2 proof pack.
+
 # 2026-05-31 - angle-bracket system C includes are now a real authored lane
 
 What changed:

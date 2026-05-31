@@ -1,0 +1,257 @@
+schema_version = 1
+
+[[families]]
+id = "vulkan"
+display_name = "Vulkan SDK"
+package_names = ["vulkan"]
+match_exact = ["vulkan/vulkan.h", "vulkan/vulkan_core.h", "vulkan.h", "vulkan_core.h"]
+platforms = ["windows", "linux", "macos"]
+include_roots = ["generic_system", "vulkan_sdk"]
+sdk_env_keys = ["KAIN_PLATFORM_VULKAN_SDK_ROOT", "KAIN_PLATFORM_VULKAN_SDK", "VULKAN_SDK"]
+shim_header = "runtime/native/include/vulkan_loader_subset.h"
+registry_files = [
+  "share/vulkan/registry/vk.xml",
+  "registry/vk.xml",
+  "vk.xml",
+]
+capability_tags = [
+  "platform.library.dynamic",
+  "graphics.vulkan",
+  "vulkan.dispatch.instance_device",
+]
+suppress_named_link_libs_when_import_lib = true
+
+[[families.target_policies]]
+target = "windows"
+link_libs = ["vulkan-1"]
+dynamic_library_relative_paths = ["Bin/vulkan-1.dll"]
+import_library_relative_paths = ["Lib/vulkan-1.lib"]
+dynamic_library_fallback_paths = ["${env:SystemRoot}/System32/vulkan-1.dll"]
+dynamic_library_file_names = ["vulkan-1.dll"]
+import_library_file_names = ["vulkan-1.lib"]
+sdk_versioned_parent_paths = ["C:/VulkanSDK"]
+
+[[families.target_policies]]
+target = "linux"
+link_libs = ["vulkan"]
+dynamic_library_relative_paths = ["lib/libvulkan.so", "lib64/libvulkan.so"]
+dynamic_library_fallback_paths = [
+  "/usr/lib/libvulkan.so.1",
+  "/usr/lib/x86_64-linux-gnu/libvulkan.so.1",
+]
+dynamic_library_file_names = ["libvulkan.so.1", "libvulkan.so"]
+
+[[families.target_policies]]
+target = "macos"
+link_libs = ["MoltenVK"]
+dynamic_library_relative_paths = [
+  "lib/libMoltenVK.dylib",
+  "Frameworks/MoltenVK.framework/MoltenVK",
+]
+dynamic_library_fallback_paths = [
+  "/usr/local/lib/libvulkan.dylib",
+  "/usr/local/lib/libMoltenVK.dylib",
+]
+dynamic_library_file_names = ["libvulkan.dylib", "libMoltenVK.dylib", "MoltenVK"]
+
+[[families]]
+id = "c-runtime-math"
+display_name = "C runtime math"
+match_exact = ["math.h"]
+platforms = ["windows", "linux", "macos"]
+include_roots = ["c_runtime"]
+shim_header = "runtime/native/include/c_runtime_math_subset.h"
+capability_tags = ["platform.c-runtime", "platform.c-runtime.math"]
+
+[[families.target_policies]]
+target = "windows"
+toolchain_default_link = true
+
+[[families.target_policies]]
+target = "linux"
+link_libs = ["m", "c"]
+
+[[families.target_policies]]
+target = "macos"
+link_libs = ["System"]
+
+[[families]]
+id = "c-runtime"
+display_name = "C runtime"
+match_exact = [
+  "assert.h",
+  "ctype.h",
+  "errno.h",
+  "float.h",
+  "inttypes.h",
+  "limits.h",
+  "locale.h",
+  "setjmp.h",
+  "signal.h",
+  "stdarg.h",
+  "stdbool.h",
+  "stddef.h",
+  "stdint.h",
+  "stdio.h",
+  "stdlib.h",
+  "string.h",
+  "time.h",
+  "uchar.h",
+  "wchar.h",
+  "wctype.h",
+]
+platforms = ["windows", "linux", "macos"]
+include_roots = ["c_runtime"]
+capability_tags = ["platform.c-runtime"]
+
+[[families.target_policies]]
+target = "windows"
+toolchain_default_link = true
+
+[[families.target_policies]]
+target = "linux"
+link_libs = ["c"]
+
+[[families.target_policies]]
+target = "macos"
+link_libs = ["System"]
+
+[[families.header_link_policies]]
+target = "windows"
+header = "stdio.h"
+mode = "append"
+link_libs = ["legacy_stdio_definitions"]
+
+[[families.header_link_policies]]
+target = "windows"
+header = "stdlib.h"
+mode = "append"
+link_libs = ["legacy_stdio_definitions"]
+
+[[families]]
+id = "posix"
+display_name = "POSIX system"
+match_exact = [
+  "arpa/inet.h",
+  "dlfcn.h",
+  "fcntl.h",
+  "netdb.h",
+  "netinet/in.h",
+  "poll.h",
+  "pthread.h",
+  "sys/mman.h",
+  "sys/poll.h",
+  "sys/socket.h",
+  "sys/stat.h",
+  "sys/time.h",
+  "sys/types.h",
+  "sys/uio.h",
+  "sys/wait.h",
+  "unistd.h",
+]
+platforms = ["linux", "macos"]
+include_roots = ["generic_system", "posix_system"]
+capability_tags = ["platform.posix"]
+
+[[families.target_policies]]
+target = "linux"
+link_libs = ["c"]
+
+[[families.target_policies]]
+target = "macos"
+link_libs = ["System"]
+
+[[families.header_link_policies]]
+target = "linux"
+header = "pthread.h"
+mode = "replace"
+link_libs = ["pthread", "c"]
+
+[[families.header_link_policies]]
+target = "linux"
+header = "dlfcn.h"
+mode = "replace"
+link_libs = ["dl", "c"]
+
+[[families.header_link_policies]]
+target = "macos"
+header = "pthread.h"
+mode = "append"
+link_libs = ["pthread"]
+
+[[families]]
+id = "windows-sdk"
+display_name = "Windows SDK"
+match_extensions = [".h"]
+platforms = ["windows"]
+include_roots = ["windows_sdk"]
+capability_tags = ["platform.windows-sdk"]
+
+[[families.target_policies]]
+target = "windows"
+link_libs = [
+  "user32",
+  "gdi32",
+  "advapi32",
+  "ole32",
+  "shell32",
+  "comdlg32",
+  "comctl32",
+  "uuid",
+  "imm32",
+  "ws2_32",
+]
+
+[[families.header_link_policies]]
+target = "windows"
+header = "winsock2.h"
+mode = "replace"
+link_libs = ["ws2_32"]
+
+[[families.header_link_policies]]
+target = "windows"
+header = "ws2tcpip.h"
+mode = "replace"
+link_libs = ["ws2_32"]
+
+[[families.header_link_policies]]
+target = "windows"
+header = "commctrl.h"
+mode = "replace"
+link_libs = ["comctl32", "user32", "gdi32"]
+
+[[families.header_link_policies]]
+target = "windows"
+header = "shellapi.h"
+mode = "replace"
+link_libs = ["shell32", "ole32", "uuid"]
+
+[[families.header_link_policies]]
+target = "windows"
+header = "shlobj.h"
+mode = "replace"
+link_libs = ["shell32", "ole32", "uuid"]
+
+[[families.header_link_policies]]
+target = "windows"
+header = "shobjidl.h"
+mode = "replace"
+link_libs = ["shell32", "ole32", "uuid"]
+
+[[families.header_link_policies]]
+target = "windows"
+header = "imm.h"
+mode = "replace"
+link_libs = ["imm32", "user32"]
+
+[[families.header_link_policies]]
+target = "windows"
+header = "d3d12.h"
+mode = "replace"
+link_libs = ["d3d12", "dxgi", "dxguid"]
+
+[[families.header_link_policies]]
+target = "windows"
+header_prefix = "dxgi"
+mode = "replace"
+link_libs = ["dxgi", "dxguid"]

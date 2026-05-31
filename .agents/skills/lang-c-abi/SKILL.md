@@ -69,7 +69,7 @@ If those answers are fuzzy, the code will work once and rot.
 Kain has several layers that make native interop more than a dumb foreign call:
 
 - `include local/header.h as alias` is the canonical authored local-header C import shape. It is detected from source, resolved through the C FFI import lane, discovers nearby companion C sources, and is tracked as alias-aware include provenance in the AST/runtime contract.
-- `include <stdio.h> as cstdio`, `include <windows.h> as win`, and `include <vulkan/vulkan.h> as vk` are the first built-in system-header forms. Angle-bracket includes resolve through deterministic SDK/env roots plus compiler-owned linker policy for known families instead of requiring a handwritten bridge manifest first.
+- `include <stdio.h> as cstdio`, `include <math.h> as cmath`, `include <windows.h> as win`, `include <sys/mman.h> as posix`, and `include <vulkan/vulkan.h> as vk` are registry-backed system-header forms. Angle-bracket includes resolve through deterministic SDK/env roots plus compiler-owned linker policy declared in `crates/c-ffi/system_headers.toml` instead of requiring a handwritten bridge manifest first.
 - `use c::<module>` is detected from source and resolved through the C FFI import lane, but new local-header examples should prefer `include ... as ...` unless they are targeting runtime-owned ABI or explicit bridge metadata.
 - `use rust::<module>` is resolved through the Rust crate FFI lane.
 - Runtime-owned headers under `runtime/native/include` can resolve automatically. Do not require manifest ceremony for those.
@@ -89,7 +89,7 @@ underneath.
 Use this order:
 
 1. **Local header/source pair:** if the Kain file owns a nearby C wrapper, use `include native/foo.h as f`; this is the canonical path. The import lane resolves the local header, requires the sibling `.c` source for native linking, and emits alias externs such as `f_call` via `@link_name`.
-2. **Known system header family:** if the header is a built-in system lane such as `stdio.h`, `math.h`, `windows.h`, or `vulkan/vulkan.h`, use `include <...> as alias` first. This resolves through deterministic env/SDK roots and built-in link policy instead of forcing a bridge manifest.
+2. **Known system header family:** if the header is in the registry-backed system lane such as `stdio.h`, `math.h`, `windows.h`, `sys/mman.h`, `pthread.h`, or `vulkan/vulkan.h`, use `include <...> as alias` first. This resolves through deterministic env/SDK roots and registry-declared link policy instead of forcing a bridge manifest.
 3. **Runtime-owned native ABI:** if the header lives under `runtime/native/include`, start with plain `use c::<name>` or the public `std.*` wrapper.
 4. **Public stdlib wrapper:** if `std.fs`, `std.net`, `std.process`, `std.graphics`, `std.ui`, `std.platform`, or `std.dcc` already expresses the need, author against `std.*` first.
 5. **Blade/package-owned bridge with explicit metadata:** if the wrapper needs non-sibling sources, objects, bitcode, static libs, link libs, defines, or vendor include paths, use `use c::<bridge>` plus `[c_ffi]` metadata near that blade/package. This is the explicit bridge path, not the default for simple local C files.
@@ -218,15 +218,17 @@ pain is ceremony, not package discovery:
 ```kn
 include <stdio.h> as cstdio
 include <math.h> as cmath
+include <sys/mman.h> as posix_mman
 include <vulkan/vulkan.h> as vk
 ```
 
 Current repo truth:
 
-- Angle-bracket includes resolve through deterministic roots such as `KAIN_C_FFI_SYSTEM_INCLUDE_ROOTS`, `INCLUDE`, Windows SDK roots, and Vulkan SDK roots instead of scanning the whole machine blindly.
-- The built-in system lane currently knows C runtime headers, Windows SDK headers, and Vulkan SDK headers.
+- Angle-bracket includes resolve through deterministic roots such as `KAIN_C_FFI_SYSTEM_INCLUDE_ROOTS`, `INCLUDE`, Windows SDK roots, POSIX include roots on Unix hosts, and Vulkan SDK roots instead of scanning the whole machine blindly.
+- The system lane is data-driven through `crates/c-ffi/system_headers.toml` plus `crates/c-ffi/src/system_registry.rs`; add families, headers, SDK env vars, library names, and platform policies there before adding new resolver branches.
+- The registry currently covers portable C runtime headers, a compiler-owned C runtime math subset for `math.h`, POSIX headers on Linux/macOS, Windows SDK headers on Windows, and Vulkan SDK headers through the Vulkan loader subset.
 - These imports are currently native-link oriented. They are ideal for LLVM/native packaging; live interpreter/test bridge loading still needs a real dynamic-library ownership story for the imported family.
-- For the current Vulkan system-header lane, compiler-owned subset headers intentionally expose loader handles and proc-address returns as integer bits on LLVM (`vk_GetInstanceProcAddr(0, "...") -> Int`) so direct native calls stay scalar-safe. Treat that as the current authored proof shape for Vulkan loader benchmarks until broader raw-pointer/out-param ergonomics land.
+- Compiler-owned subset headers are intentional when hostile platform headers are too macro-heavy for the current extractor. `math.h` currently routes through `runtime/native/include/c_runtime_math_subset.h`; Vulkan routes through `runtime/native/include/vulkan_loader_subset.h` so loader handles and proc-address returns stay scalar-safe on LLVM (`vk_GetInstanceProcAddr(0, "...") -> Int`).
 - If the system family is unknown or the link policy is ambiguous, fall back to `kain import platform` or explicit `[c_ffi]` metadata instead of pretending the header is self-describing.
 
 When a natural include exposes a raw C string result such as `const char *`,
@@ -590,7 +592,8 @@ bridge you wish existed, not a 20,000-line vendor header dump.
 
 Use these when you need implementation truth:
 
-- `crates/c-ffi/src/lib.rs`: canonical `include ... as ...` detection, `use c::` detection, resolution order, automatic runtime-owned headers, cache, bridge loading, native link inputs.
+- `crates/c-ffi/system_headers.toml` and `crates/c-ffi/src/system_registry.rs`: registry-backed angle-bracket system header families, SDK/env roots, shim headers, per-target link policy, and package discovery metadata.
+- `crates/c-ffi/src/lib.rs`: canonical `include ... as ...` detection, `use c::` detection, resolution order, automatic runtime-owned headers, registry-backed system headers, cache, bridge loading, native link inputs.
 - `crates/c-ffi/src/config.rs`: `[c_ffi]`, library metadata, and interop tiers.
 - `crates/c-ffi/src/extract.rs`: header parsing, regex fallback, callable/stubbed report entries, callback and named-type treatment.
 - `crates/c-ffi/src/generate.rs`: generated `.kn` module, bridge crate, binding reports, packaged bridge manifests, string and byte-buffer marshaling.

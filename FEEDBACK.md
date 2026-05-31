@@ -1,5 +1,16 @@
 # Kain Feedback Log
 
+## 2026-05-31 - C system-header import ergonomics
+
+### Host CRT headers are too hostile for the current extractor without curated subsets
+- Categories: developer-experience, c-ffi, importer, windows, stdlib
+- Status: Active
+- Surface: `include <math.h> as cmath` through `crates/c-ffi`
+- Symptom: The resolver could find the real Windows UCRT `math.h`, but generated no callable `cmath_sqrt`, `cmath_sin`, `cmath_cos`, or `cmath_floor` symbols for authored Kain. The benchmark proof only became stable after routing `math.h` through the registry-declared `runtime/native/include/c_runtime_math_subset.h` shim.
+- Workflow impact: Natural system imports are the right language surface, but raw platform headers can be macro/annotation-heavy enough that a successful filesystem resolution is not the same as a useful callable Kain module.
+- Minimal repro: Remove the `c-runtime-math` shim policy from `crates/c-ffi/system_headers.toml`, then run `kain check X:\benchmark\cases_v2\system_headers.kn --target llvm`; the authored calls to `cmath_*` fail because the imported module exposes no matching callables.
+- Suggested direction: Keep extending registry-owned subsets for hostile ubiquitous headers while improving extraction diagnostics so "header found but no callable symbols emitted" is reported as a targeted C-FFI warning with the registry family, target, and searched header path. Also keep Windows CRT link policy implicit unless a proof shows an explicit CRT library is needed, because the native runtime/toolchain already chooses the CRT.
+
 ## 2026-05-30 - semantic oracle authored Kain LLVM/CUDA proof
 
 ### Semantic ranking work exposed several Kain authoring and lowering sharp edges

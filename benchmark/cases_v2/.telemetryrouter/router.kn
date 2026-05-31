@@ -60,6 +60,14 @@ use vulkan_loader::vulkan_loader_case_id
 use vulkan_loader::vulkan_loader_case_iterations
 use vulkan_loader::vulkan_loader_case_telemetry
 use vulkan_loader::vulkan_loader_case_title
+use system_headers::system_headers_case_checksum
+use system_headers::system_headers_case_count
+use system_headers::system_headers_case_expected_checksum
+use system_headers::system_headers_case_group
+use system_headers::system_headers_case_id
+use system_headers::system_headers_case_iterations
+use system_headers::system_headers_case_telemetry
+use system_headers::system_headers_case_title
 use rage_runtime::rage_runtime_case_checksum
 use rage_runtime::rage_runtime_case_count
 use rage_runtime::rage_runtime_case_expected_checksum
@@ -445,6 +453,9 @@ fn run_case_checksum(case_id: String, iterations: Int, amplify: Int) -> Int:
     let vulkan_loader_checksum = vulkan_loader_case_checksum(case_id, iterations, amplify, ROUTER_MODULUS)
     if vulkan_loader_checksum >= 0:
         return vulkan_loader_checksum
+    let system_headers_checksum = system_headers_case_checksum(case_id, iterations, amplify, ROUTER_MODULUS)
+    if system_headers_checksum >= 0:
+        return system_headers_checksum
     let rage_runtime_checksum = rage_runtime_case_checksum(case_id, iterations, amplify, ROUTER_MODULUS)
     if rage_runtime_checksum >= 0:
         return rage_runtime_checksum
@@ -476,6 +487,8 @@ fn case_telemetry_json(pack_id: String, case_id: String) -> String:
         return python_stdlib_fused_case_telemetry(case_id)
     if pack_id == "vulkan_loader":
         return vulkan_loader_case_telemetry(case_id)
+    if pack_id == "system_headers":
+        return system_headers_case_telemetry(case_id)
     let content = "{"
     content = content + "\"pack_id\": " + router_json_string_value(pack_id) + ", "
     content = content + "\"case_id\": " + router_json_string_value(case_id)
@@ -854,6 +867,23 @@ fn main() -> Int:
                 failure_count = failure_count + 1
             println("[bench-v2] " + case_id + " best=" + str(result.best_ms) + "ms avg=" + str(result.average_ms) + "ms status=" + result_status_text(result))
         vulkan_loader_index = vulkan_loader_index + 1
+
+    let system_headers_index = 0
+    while system_headers_index < system_headers_case_count():
+        let case_id = system_headers_case_id(system_headers_index)
+        let case_group = system_headers_case_group(system_headers_index)
+        if case_selected(config.filter_text, case_id, case_group):
+            let result = run_case("system_headers", case_id, case_group, system_headers_case_title(system_headers_index), system_headers_case_iterations(system_headers_index), system_headers_case_expected_checksum(system_headers_index), config)
+            let _track = write_track_report(result)
+            cases_json_items = append_json_item(cases_json_items, render_result_json(result))
+            table_rows = table_rows + format_result_row(result)
+            case_count = case_count + 1
+            if result.success:
+                success_count = success_count + 1
+            else:
+                failure_count = failure_count + 1
+            println("[bench-v2] " + case_id + " best=" + str(result.best_ms) + "ms avg=" + str(result.average_ms) + "ms status=" + result_status_text(result))
+        system_headers_index = system_headers_index + 1
 
     let rage_runtime_index = 0
     while rage_runtime_index < rage_runtime_case_count():
