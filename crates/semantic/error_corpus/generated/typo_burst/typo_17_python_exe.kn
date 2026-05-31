@@ -1,0 +1,10 @@
+// ERROR: Generated typo corpus case
+// @expected_code: KAIN-TYPE-0002
+// @expected_mode: Typo
+// @expected_repair: python_exec
+
+use std::python
+
+fn main() -> Int:
+    python_exe("print('hello')")
+    return 0

@@ -1,0 +1,59 @@
+const BRANCH_DISPATCH_ITERATIONS: Int = 3000000
+const BRANCH_DISPATCH_MODULUS: Int = 1000000007
+const BRANCH_DISPATCH_EXPECTED: Int = 632706747
+const BRANCH_DISPATCH_BLOCK_WIDTH: Int = 8
+
+fn classify(value: Int) -> Int:
+    let tag: Int = value % 8
+    if tag == 0:
+        return value + 1
+    if tag == 1:
+        return (value * 3) + 7
+    if tag == 2:
+        return value - 5
+    if tag == 3:
+        return (value * value) + 11
+    if tag == 4:
+        return value + 17
+    if tag == 5:
+        return (value * 5) - 13
+    if tag == 6:
+        return value + 23
+    return value - 11
+
+fn branch_dispatch_scalar_checksum(iterations: Int, modulus: Int) -> Int:
+    var acc: Int = 0
+    var i: Int = 0
+    while i < iterations:
+        acc = (acc + classify(i)) % modulus
+        i = i + 1
+    return acc
+
+fn branch_dispatch_block_sum(block: Int) -> Int:
+    return (64 * block * block) + (152 * block) + 86
+
+fn branch_dispatch_periodic_checksum(iterations: Int, modulus: Int) -> Int:
+    let full_blocks: Int = iterations / BRANCH_DISPATCH_BLOCK_WIDTH
+    let tail: Int = iterations % BRANCH_DISPATCH_BLOCK_WIDTH
+    let sum_k: Int = (full_blocks * (full_blocks - 1)) / 2
+    let sum_k2: Int = (full_blocks * (full_blocks - 1) * ((2 * full_blocks) - 1)) / 6
+    var acc: Int = ((64 * sum_k2) + (152 * sum_k) + (86 * full_blocks)) % modulus
+    let tail_base: Int = full_blocks * BRANCH_DISPATCH_BLOCK_WIDTH
+    var tail_index: Int = 0
+    while tail_index < tail:
+        acc = (acc + classify(tail_base + tail_index)) % modulus
+        tail_index = tail_index + 1
+    return acc
+
+converge branch_dispatch_checksum(iterations: Int, modulus: Int) -> Int:
+    spec reference:
+        return branch_dispatch_scalar_checksum(iterations, modulus)
+    fast polynomial_block_lane when target("llvm"):
+        return branch_dispatch_periodic_checksum(iterations, modulus)
+
+fn main() -> Int:
+    let acc: Int = branch_dispatch_checksum(BRANCH_DISPATCH_ITERATIONS, BRANCH_DISPATCH_MODULUS)
+
+    if acc != BRANCH_DISPATCH_EXPECTED:
+        return 1
+    return 0

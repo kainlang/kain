@@ -1,0 +1,277 @@
+use std::time
+
+fn main() -> Int:
+    let nx: Int = 8
+    let ny: Int = 6
+    let nz: Int = 5
+    let row: Int = nx
+    let row_u: Int = nx + 1
+    let plane: Int = nx * ny
+    let plane_u: Int = row_u * ny
+    let plane_v: Int = nx * (ny + 1)
+    let cell_count: Int = plane * nz
+    let vx_count: Int = plane_u * nz
+    let vy_count: Int = plane_v * nz
+    let vz_count: Int = plane * (nz + 1)
+    let steps: Int = 140
+    let jacobi_iters: Int = 8
+    let modulus: Int = 1000000007
+    let expected: Int = 56427256
+    let dt: Float = 0.035
+    let cell_size: Float = 0.125
+    let gravity_y: Float = -0.14
+    let buoyancy: Float = 0.32
+    let gravity_dt: Float = gravity_y * dt
+    let buoyancy_dt: Float = buoyancy * dt
+    let inv_cell_size: Float = 1.0 / cell_size
+    let pressure_scale: Float = cell_size * cell_size
+    let jacobi_inv_neighbors: Float = 1.0 / 6.0
+    let benchmark_deadline: Int = deadline_millis(0)
+
+    let mut velocity_x: ptr<Float> = alloc_zeroed(vx_count, "Float")
+    let mut velocity_y: ptr<Float> = alloc_zeroed(vy_count, "Float")
+    let mut velocity_z: ptr<Float> = alloc_zeroed(vz_count, "Float")
+    let mut pressure: ptr<Float> = alloc_zeroed(cell_count, "Float")
+    let mut pressure_old: ptr<Float> = alloc_zeroed(cell_count, "Float")
+    let mut divergence: ptr<Float> = alloc_zeroed(cell_count, "Float")
+    let mut temperature: ptr<Float> = alloc_zeroed(cell_count, "Float")
+
+    var z0: Int = 0
+    while z0 < nz:
+        let z_base: Int = z0 * plane
+        var y0: Int = 0
+        while y0 < ny:
+            let row_base: Int = z_base + y0 * row
+            var x0: Int = 0
+            while x0 < nx:
+                let cell: Int = row_base + x0
+                mem_store(ptr_offset(temperature, cell, "Float"), ((x0 * 3 + y0 * 5 + z0 * 7) % 11) as Float * 0.14, "Float")
+                x0 = x0 + 1
+            y0 = y0 + 1
+        z0 = z0 + 1
+
+    z0 = 0
+    while z0 < nz:
+        let z_base_u: Int = z0 * plane_u
+        var y0: Int = 0
+        while y0 < ny:
+            let row_base_u: Int = z_base_u + y0 * row_u
+            var x0: Int = 0
+            while x0 < row_u:
+                let slot: Int = row_base_u + x0
+                mem_store(ptr_offset(velocity_x, slot, "Float"), (((slot * 7) % 13) - 6) as Float * 0.03, "Float")
+                x0 = x0 + 1
+            y0 = y0 + 1
+        z0 = z0 + 1
+
+    z0 = 0
+    while z0 < nz:
+        let z_base_v: Int = z0 * plane_v
+        var y0: Int = 0
+        while y0 < ny + 1:
+            let row_base_v: Int = z_base_v + y0 * row
+            var x0: Int = 0
+            while x0 < nx:
+                let slot: Int = row_base_v + x0
+                mem_store(ptr_offset(velocity_y, slot, "Float"), (((slot * 5) % 17) - 8) as Float * 0.02, "Float")
+                x0 = x0 + 1
+            y0 = y0 + 1
+        z0 = z0 + 1
+
+    z0 = 0
+    while z0 < nz + 1:
+        let z_base_w: Int = z0 * plane
+        var y0: Int = 0
+        while y0 < ny:
+            let row_base_w: Int = z_base_w + y0 * row
+            var x0: Int = 0
+            while x0 < nx:
+                let slot: Int = row_base_w + x0
+                mem_store(ptr_offset(velocity_z, slot, "Float"), (((slot * 11) % 19) - 9) as Float * 0.025, "Float")
+                x0 = x0 + 1
+            y0 = y0 + 1
+        z0 = z0 + 1
+
+    var checksum: Int = 0
+    var step: Int = 0
+    while step < steps:
+        z0 = 0
+        while z0 < nz:
+            let z_base_v: Int = z0 * plane_v
+            let z_base_cells: Int = z0 * plane
+            var y_force: Int = 0
+            while y_force < ny + 1:
+                let row_slot_base: Int = z_base_v + y_force * row
+                let row_cell_base: Int = z_base_cells + y_force * row
+                var x_force: Int = 0
+                while x_force < nx:
+                    let slot: Int = row_slot_base + x_force
+                    var next_v: Float = mem_load(ptr_offset(velocity_y, slot, "Float"), "Float") + gravity_dt
+                    if y_force < ny:
+                        next_v = next_v + buoyancy_dt * mem_load(ptr_offset(temperature, row_cell_base + x_force, "Float"), "Float")
+                    mem_store(ptr_offset(velocity_y, slot, "Float"), next_v, "Float")
+                    x_force = x_force + 1
+                y_force = y_force + 1
+            z0 = z0 + 1
+
+        z0 = 0
+        while z0 < nz:
+            let z_base_cells: Int = z0 * plane
+            let z_base_u: Int = z0 * plane_u
+            let z_base_v: Int = z0 * plane_v
+            let z_base_w: Int = z0 * plane
+            var y_div: Int = 0
+            while y_div < ny:
+                let cell_row_base: Int = z_base_cells + y_div * row
+                let u_row_base: Int = z_base_u + y_div * row_u
+                let v_row_base: Int = z_base_v + y_div * row
+                let w_row_base: Int = z_base_w + y_div * row
+                var x_div: Int = 0
+                while x_div < nx:
+                    let cell: Int = cell_row_base + x_div
+                    let u_left_slot: Int = u_row_base + x_div
+                    let v_bottom_slot: Int = v_row_base + x_div
+                    let w_back_slot: Int = w_row_base + x_div
+                    let u_right: Float = mem_load(ptr_offset(velocity_x, u_left_slot + 1, "Float"), "Float")
+                    let u_left: Float = mem_load(ptr_offset(velocity_x, u_left_slot, "Float"), "Float")
+                    let v_top: Float = mem_load(ptr_offset(velocity_y, v_bottom_slot + row, "Float"), "Float")
+                    let v_bottom: Float = mem_load(ptr_offset(velocity_y, v_bottom_slot, "Float"), "Float")
+                    let w_front: Float = mem_load(ptr_offset(velocity_z, w_back_slot + plane, "Float"), "Float")
+                    let w_back: Float = mem_load(ptr_offset(velocity_z, w_back_slot, "Float"), "Float")
+                    mem_store(ptr_offset(divergence, cell, "Float"), ((u_right - u_left) + (v_top - v_bottom) + (w_front - w_back)) * inv_cell_size, "Float")
+                    mem_store(ptr_offset(pressure, cell, "Float"), 0.0, "Float")
+                    mem_store(ptr_offset(pressure_old, cell, "Float"), 0.0, "Float")
+                    x_div = x_div + 1
+                y_div = y_div + 1
+            z0 = z0 + 1
+
+        var iter: Int = 0
+        while iter < jacobi_iters:
+            if (iter % 2) == 0:
+                z0 = 1
+                while z0 < nz - 1:
+                    let z_base_cells: Int = z0 * plane
+                    var y_inner: Int = 1
+                    while y_inner < ny - 1:
+                        let row_base: Int = z_base_cells + y_inner * row
+                        var x_inner: Int = 1
+                        while x_inner < nx - 1:
+                            let cell: Int = row_base + x_inner
+                            let p_sum: Float = mem_load(ptr_offset(pressure, cell + 1, "Float"), "Float") + mem_load(ptr_offset(pressure, cell - 1, "Float"), "Float") + mem_load(ptr_offset(pressure, cell + row, "Float"), "Float") + mem_load(ptr_offset(pressure, cell - row, "Float"), "Float") + mem_load(ptr_offset(pressure, cell + plane, "Float"), "Float") + mem_load(ptr_offset(pressure, cell - plane, "Float"), "Float")
+                            let next_pressure: Float = (p_sum - pressure_scale * mem_load(ptr_offset(divergence, cell, "Float"), "Float")) * jacobi_inv_neighbors
+                            mem_store(ptr_offset(pressure_old, cell, "Float"), next_pressure, "Float")
+                            x_inner = x_inner + 1
+                        y_inner = y_inner + 1
+                    z0 = z0 + 1
+            else:
+                z0 = 1
+                while z0 < nz - 1:
+                    let z_base_cells: Int = z0 * plane
+                    var y_inner: Int = 1
+                    while y_inner < ny - 1:
+                        let row_base: Int = z_base_cells + y_inner * row
+                        var x_inner: Int = 1
+                        while x_inner < nx - 1:
+                            let cell: Int = row_base + x_inner
+                            let p_sum: Float = mem_load(ptr_offset(pressure_old, cell + 1, "Float"), "Float") + mem_load(ptr_offset(pressure_old, cell - 1, "Float"), "Float") + mem_load(ptr_offset(pressure_old, cell + row, "Float"), "Float") + mem_load(ptr_offset(pressure_old, cell - row, "Float"), "Float") + mem_load(ptr_offset(pressure_old, cell + plane, "Float"), "Float") + mem_load(ptr_offset(pressure_old, cell - plane, "Float"), "Float")
+                            let next_pressure: Float = (p_sum - pressure_scale * mem_load(ptr_offset(divergence, cell, "Float"), "Float")) * jacobi_inv_neighbors
+                            mem_store(ptr_offset(pressure, cell, "Float"), next_pressure, "Float")
+                            x_inner = x_inner + 1
+                        y_inner = y_inner + 1
+                    z0 = z0 + 1
+            iter = iter + 1
+
+        if (jacobi_iters % 2) == 1:
+            var copy_index: Int = 0
+            while copy_index < cell_count:
+                mem_store(ptr_offset(pressure, copy_index, "Float"), mem_load(ptr_offset(pressure_old, copy_index, "Float"), "Float"), "Float")
+                copy_index = copy_index + 1
+
+        z0 = 1
+        while z0 < nz - 1:
+            let z_pressure_base: Int = z0 * plane
+            let z_u_base: Int = z0 * plane_u
+            var y_grad: Int = 1
+            while y_grad < ny - 1:
+                let pressure_row_base: Int = z_pressure_base + y_grad * row
+                let u_row_base: Int = z_u_base + y_grad * row_u
+                var x_grad: Int = 1
+                while x_grad < nx:
+                    let slot: Int = u_row_base + x_grad
+                    let cell: Int = pressure_row_base + x_grad
+                    let p_right: Float = mem_load(ptr_offset(pressure, cell, "Float"), "Float")
+                    let p_left: Float = mem_load(ptr_offset(pressure, cell - 1, "Float"), "Float")
+                    let next_vx: Float = mem_load(ptr_offset(velocity_x, slot, "Float"), "Float") - (p_right - p_left) * inv_cell_size
+                    mem_store(ptr_offset(velocity_x, slot, "Float"), next_vx, "Float")
+                    x_grad = x_grad + 1
+                y_grad = y_grad + 1
+            z0 = z0 + 1
+
+        z0 = 1
+        while z0 < nz - 1:
+            let z_pressure_base: Int = z0 * plane
+            let z_v_base: Int = z0 * plane_v
+            var y_grad: Int = 1
+            while y_grad < ny:
+                let pressure_row_base: Int = z_pressure_base + y_grad * row
+                let v_row_base: Int = z_v_base + y_grad * row
+                var x_grad: Int = 1
+                while x_grad < nx - 1:
+                    let slot: Int = v_row_base + x_grad
+                    let cell: Int = pressure_row_base + x_grad
+                    let p_top: Float = mem_load(ptr_offset(pressure, cell, "Float"), "Float")
+                    let p_bottom: Float = mem_load(ptr_offset(pressure, cell - row, "Float"), "Float")
+                    let next_vy: Float = mem_load(ptr_offset(velocity_y, slot, "Float"), "Float") - (p_top - p_bottom) * inv_cell_size
+                    mem_store(ptr_offset(velocity_y, slot, "Float"), next_vy, "Float")
+                    x_grad = x_grad + 1
+                y_grad = y_grad + 1
+            z0 = z0 + 1
+
+        z0 = 1
+        while z0 < nz:
+            let z_pressure_base: Int = z0 * plane
+            let z_w_base: Int = z0 * plane
+            var y_grad: Int = 1
+            while y_grad < ny - 1:
+                let pressure_row_base: Int = z_pressure_base + y_grad * row
+                let w_row_base: Int = z_w_base + y_grad * row
+                var x_grad: Int = 1
+                while x_grad < nx - 1:
+                    let slot: Int = w_row_base + x_grad
+                    let cell: Int = pressure_row_base + x_grad
+                    let p_front: Float = mem_load(ptr_offset(pressure, cell, "Float"), "Float")
+                    let p_back: Float = mem_load(ptr_offset(pressure, cell - plane, "Float"), "Float")
+                    let next_vz: Float = mem_load(ptr_offset(velocity_z, slot, "Float"), "Float") - (p_front - p_back) * inv_cell_size
+                    mem_store(ptr_offset(velocity_z, slot, "Float"), next_vz, "Float")
+                    x_grad = x_grad + 1
+                y_grad = y_grad + 1
+            z0 = z0 + 1
+
+        let sample: Int = (step * 7) % cell_count
+        let pressure_bucket: Int = floor((mem_load(ptr_offset(pressure, sample, "Float"), "Float") + 64.0) * 4096.0) as Int
+        let divergence_bucket: Int = floor((mem_load(ptr_offset(divergence, sample, "Float"), "Float") + 64.0) * 2048.0) as Int
+        checksum = (checksum + pressure_bucket + divergence_bucket + step * 13) % modulus
+        step = step + 1
+
+    var sample_index: Int = 0
+    while sample_index < cell_count:
+        if (sample_index % 17) == 0:
+            let pressure_bucket: Int = floor((mem_load(ptr_offset(pressure, sample_index, "Float"), "Float") + 64.0) * 1024.0) as Int
+            let divergence_bucket: Int = floor((mem_load(ptr_offset(divergence, sample_index, "Float"), "Float") + 64.0) * 512.0) as Int
+            checksum = (checksum + pressure_bucket + divergence_bucket + sample_index * 5) % modulus
+        sample_index = sample_index + 1
+
+    if deadline_elapsed(benchmark_deadline) == false:
+        return 2
+
+    decay velocity_x
+    decay velocity_y
+    decay velocity_z
+    decay pressure
+    decay pressure_old
+    decay divergence
+    decay temperature
+
+    if checksum != expected:
+        return 1
+    return 0

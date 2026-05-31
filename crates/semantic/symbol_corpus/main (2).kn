@@ -1,0 +1,34 @@
+use std::python
+
+import numpy as np
+
+const MODULUS: Int = 1000000007
+const ITERATIONS: Int = 20000
+const BUFFER_CELLS: Int = 512
+const EXPECTED: Int = 20939830
+
+fn make_source_buffer() -> Any:
+    let base = python_call_attr_raw(np, "arange", [BUFFER_CELLS])
+    let bytes_view = python_call_attr_raw(base, "astype", ["uint8"])
+    return python_call_attr_raw(np, "ascontiguousarray", [bytes_view])
+
+fn main() -> Int:
+    let source = make_source_buffer()
+    let region = python_region_begin()
+    let acc: Int = 0
+    let index: Int = 0
+
+    while index < ITERATIONS:
+        let view = python_region_buffer_view(region, source)
+        let lane = python_buffer_view_byte_length(view) + python_buffer_view_element_count(view) + python_buffer_view_element_size(view) + python_buffer_view_c_contiguous(view) + python_buffer_view_writable(view) + (index % 37)
+        python_buffer_view_release(view)
+        acc = (acc + lane) % MODULUS
+        index = index + 1
+
+    let opened = python_region_views_opened(region)
+    let released = python_region_views_released(region)
+    let auto_released = python_region_end(region)
+    let checksum = (acc + opened + released + (auto_released * 41)) % MODULUS
+    if checksum != EXPECTED:
+        return 1
+    return 0

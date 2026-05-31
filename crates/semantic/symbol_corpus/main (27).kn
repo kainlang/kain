@@ -1,0 +1,183 @@
+use std::runtime
+use std::actor
+use std::intent
+use std::fs
+use std::process
+use std::net
+use std::http
+use std::tls
+use std::http2
+
+const BRIDGE_MODULUS: Int = 1000000007
+
+component BridgePanel():
+    render <panel title="semantic-host-bridge-fusion" />
+
+world BridgeAuthority:
+    state signal: Int = 1
+    state epoch: Int = 0
+    state ledger: Int = 0
+    surface native_ui => BridgePanel
+
+world BridgeMirror:
+    state signal_copy: Int = 1
+    state epoch_copy: Int = 0
+    state ledger_copy: Int = 0
+    surface web => BridgePanel
+
+entangle BridgeAuthority.signal <-> BridgeMirror.signal_copy with single_writer
+entangle BridgeAuthority.epoch <-> BridgeMirror.epoch_copy with single_writer
+entangle BridgeAuthority.ledger <-> BridgeMirror.ledger_copy with single_writer
+
+shatter struct BridgeFrame:
+    bias: Int
+    salt: Int
+    route: Int
+    hot: Bool
+
+actor BridgeRelay:
+    state bias: Int = 17
+    state turns: Int = 0
+
+    on Fold(reply_to: P, request: Int):
+        self.turns = self.turns + 1
+        send reply_to.Reply(value = ((request * 13) + self.bias + 17) % BRIDGE_MODULUS)
+
+law bridge_valid(value: Int) -> Bool:
+    return value >= 0 and value < BRIDGE_MODULUS
+
+patch commit_bridge(authority: BridgeAuthority, value: Int, delta: Int) -> Int:
+    authority.signal = value
+    authority.epoch = authority.epoch + 1
+    authority.ledger = (authority.ledger + delta + authority.epoch + 5) % BRIDGE_MODULUS
+    return authority.signal
+
+fn bridge_mix_scalar(value: Int) -> Int:
+    return ((value * 29) + 31) % BRIDGE_MODULUS
+
+converge bridge_mix(value: Int) -> Int:
+    spec reference:
+        return bridge_mix_scalar(value)
+    fast llvm_lane when target("llvm"):
+        return ((value * 29) + 31) % BRIDGE_MODULUS
+    verify random(4)
+
+fn bridge_stage(value: Int) -> Int:
+    return (value + 23) % BRIDGE_MODULUS
+
+orchestrate bridge_pipeline(value: Int) -> Int:
+    let normalized: Int = kain bridge_mix(value)
+    let staged: Int = rust bridge_stage(normalized)
+    return staged
+
+fn fold_cells(cells: ptr<Int>, cell_count: Int) -> Int:
+    var index: Int = 0
+    var acc: Int = 0
+    while index < cell_count:
+        acc = (acc + mem_load(ptr_offset(cells, index, "Int"), "Int")) % BRIDGE_MODULUS
+        index = index + 1
+    return acc
+
+fn main() -> Int:
+    let init_status = runtime_init()
+    if init_status != 0:
+        return 100 + init_status
+
+    let _process_reset = process_reset()
+    if net_platform_available() < 0:
+        return 3
+    if process_platform_available() < 0:
+        return 4
+    if tls_client_state() < 0:
+        return 5
+
+    let rounds: Int = 2400
+    let cell_count: Int = 96
+    let expected: Int = 786677225
+    let authority = BridgeAuthority
+    let relay = spawn BridgeRelay(bias = 17)
+    let _warm = ask(relay, "Fold", 0)
+    let frames = [
+        BridgeFrame { bias: 5, salt: 19, route: 7, hot: true },
+        BridgeFrame { bias: 11, salt: 23, route: 13, hot: false },
+        BridgeFrame { bias: 17, salt: 29, route: 17, hot: true },
+        BridgeFrame { bias: 23, salt: 31, route: 19, hot: true },
+        BridgeFrame { bias: 29, salt: 37, route: 23, hot: false },
+        BridgeFrame { bias: 31, salt: 41, route: 29, hot: true }
+    ]
+    let dir = fs_temp_dir("semantic-host-bridge-fusion")
+    let path = fs_path_join(dir, "bridge.txt")
+    let mut cells: ptr<Int> = alloc_zeroed(cell_count, "Int")
+
+    var checksum: Int = 0
+    var failure_code: Int = 0
+    collapse cells:
+        var i: Int = 0
+        while i < rounds:
+            if failure_code != 0:
+                i = rounds
+            else:
+                let lane: Int = i % 6
+                let slot: Int = ((i * 7) + lane) % cell_count
+                let frame = BridgeFrame {
+                    bias: frames[lane].bias,
+                    salt: frames[lane].salt,
+                    route: frames[lane].route,
+                    hot: frames[lane].hot
+                }
+                let moved = teleport frame from BridgeAuthority to BridgeMirror via bridge_bus
+                let old_cell: Int = mem_load(ptr_offset(cells, slot, "Int"), "Int")
+
+                let payload = "bridge-" + str(i % 97) + "-" + str(moved.route)
+                fs_write_text(path, payload)
+                fs_append_text(path, "|" + str(moved.salt))
+                let readback = fs_read_text(path)
+                if len(readback) <= len(payload):
+                    failure_code = 6
+                else:
+                    let request = request_create("GET", "http://127.0.0.1:1/bridge")
+                    let h2_request = http2_request_create("GET", "https://example.invalid/bridge")
+                    let protocol_score: Int = len(request_protocol(request)) + len(http2_request_protocol(h2_request))
+                    let _request_destroy = request_destroy(request)
+                    let _h2_destroy = request_destroy(h2_request)
+
+                    if protocol_score != 14:
+                        failure_code = 7
+                    else:
+                        let spec = process_spec_create("bridge-tool")
+                        let _arg0 = process_spec_add_arg(spec, "lane-" + str(lane))
+                        let _arg1 = process_spec_add_arg(spec, "route-" + str(moved.route))
+                        let _spec_destroy = process_spec_destroy(spec)
+                        let process_score: Int = 11
+
+                        let mixed_input: Int = (checksum + old_cell + len(readback) + protocol_score + process_score + moved.bias + moved.route + i) % BRIDGE_MODULUS
+                        let staged: Int = bridge_pipeline(mixed_input)
+                        let committed: Int = commit_bridge(authority, staged, moved.salt + lane + process_score)
+                        let legal: Int = law_status(bridge_valid(committed))
+                        let reply: Int = ask(relay, "Fold", (committed + BridgeMirror.ledger_copy + protocol_score + process_score + legal) % BRIDGE_MODULUS)
+                        let next_cell: Int = (reply + old_cell + BridgeMirror.signal_copy + BridgeMirror.epoch_copy + BridgeMirror.ledger_copy + slot) % BRIDGE_MODULUS
+                        mem_store(ptr_offset(cells, slot, "Int"), next_cell, "Int")
+                        checksum = (checksum + reply + committed + protocol_score + process_score + moved.route + moved.salt + legal) % BRIDGE_MODULUS
+                i = i + 1
+        0
+
+    fs_remove_file(path)
+    fs_remove_dir_all(dir)
+
+    let observed: Int = observe cells:
+        fold_cells(cells, cell_count)
+
+    decay cells
+
+    let final_score: Int = (checksum + observed + BridgeMirror.signal_copy + BridgeMirror.epoch_copy + BridgeMirror.ledger_copy) % BRIDGE_MODULUS
+    let runtime_shape_ok = patch_journal_count() >= 1 and entangle_propagation_count() >= rounds and runtime_machine_teleport_count() >= rounds and converge_mismatch_count() == 0 and process_spec_count() == 0
+    let shutdown_status = runtime_shutdown()
+    if shutdown_status != 0:
+        return 200 + shutdown_status
+    if failure_code != 0:
+        return failure_code
+    if runtime_shape_ok == false:
+        return 2
+    if final_score != expected:
+        return 1
+    return 0

@@ -1,0 +1,30 @@
+const ITERATIONS: Int = 2000000
+const ADDEND: Int = 17
+const OFFSET: Int = ADDEND + 5
+const MODULUS: Int = 1000000007
+const EXPECTED: Int = 42986000
+
+fn scalar_mix_scalar_checksum(iterations: Int, offset: Int, modulus: Int) -> Int:
+    var acc: Int = 0
+    var i: Int = 0
+    while i < iterations:
+        acc = (acc + i + offset) % modulus
+        i = i + 1
+    return acc
+
+fn scalar_mix_closed_form_checksum(iterations: Int, offset: Int, modulus: Int) -> Int:
+    let triangular: Int = (iterations * (iterations - 1)) / 2
+    return ((iterations * offset) + triangular) % modulus
+
+converge scalar_mix_checksum(iterations: Int, offset: Int, modulus: Int) -> Int:
+    spec reference:
+        return scalar_mix_scalar_checksum(iterations, offset, modulus)
+    fast affine_closed_form_lane when target("llvm"):
+        return scalar_mix_closed_form_checksum(iterations, offset, modulus)
+
+fn main() -> Int:
+    let acc: Int = scalar_mix_checksum(ITERATIONS, OFFSET, MODULUS)
+
+    if acc != EXPECTED:
+        return 1
+    return 0

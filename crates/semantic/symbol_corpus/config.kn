@@ -1,0 +1,297 @@
+// ============================================================================
+//                    semantic-search :: config loader
+// ============================================================================
+// Reads config.toml from the package root and exposes typed config values.
+// This is a minimal TOML parser — we only need to handle the flat sections
+// we defined in config.toml, not full TOML compliance.
+
+use std::fs
+use std::process
+use std::text
+use std::json
+use std::python
+
+pub struct SemanticSearchConfig:
+    repo_root: String
+    code_dirs: Array<String>
+    kain_dirs: Array<String>
+    code_extensions: Array<String>
+    kain_extensions: Array<String>
+    index_dir: String
+    model_name: String
+    dim: Int
+    batch_size: Int
+    max_chunk_chars: Int
+    min_chunk_chars: Int
+    overlap_chars: Int
+    default_top_k: Int
+    max_top_k: Int
+    min_score: Float
+    server_host: String
+    server_port: Int
+    max_concurrent: Int
+    request_timeout_ms: Int
+    gpu_enabled: Bool
+    gpu_device_index: Int
+    gpu_threads_per_block: Int
+    gpu_batch_chunks: Int
+
+// ---- default config --------------------------------------------------------
+
+pub fn default_config() -> SemanticSearchConfig:
+    let mut code_dirs: Array<String> = []
+    push(code_dirs, "crates")
+    push(code_dirs, "runtime")
+    let mut kain_dirs: Array<String> = []
+    push(kain_dirs, "stdlib")
+    push(kain_dirs, "blades")
+    push(kain_dirs, "smoketest")
+    push(kain_dirs, "benchmark")
+    push(kain_dirs, "library_of_kain")
+    let mut code_extensions: Array<String> = []
+    push(code_extensions, "rs")
+    push(code_extensions, "c")
+    push(code_extensions, "h")
+    push(code_extensions, "cpp")
+    push(code_extensions, "hpp")
+    push(code_extensions, "toml")
+    push(code_extensions, "bazel")
+    push(code_extensions, "bzl")
+    let mut kain_extensions: Array<String> = []
+    push(kain_extensions, "kn")
+    return SemanticSearchConfig {
+        repo_root: "..\\..",
+        code_dirs: code_dirs,
+        kain_dirs: kain_dirs,
+        code_extensions: code_extensions,
+        kain_extensions: kain_extensions,
+        index_dir: ".kain/indices",
+        model_name: "all-MiniLM-L6-v2",
+        dim: 384,
+        batch_size: 64,
+        max_chunk_chars: 2048,
+        min_chunk_chars: 128,
+        overlap_chars: 256,
+        default_top_k: 10,
+        max_top_k: 100,
+        min_score: 0.0,
+        server_host: "127.0.0.1",
+        server_port: 9020,
+        max_concurrent: 8,
+        request_timeout_ms: 30000,
+        gpu_enabled: true,
+        gpu_device_index: 0,
+        gpu_threads_per_block: 256,
+        gpu_batch_chunks: 100000,
+    }
+
+// ---- load from file --------------------------------------------------------
+
+pub fn load_config(path: String) -> SemanticSearchConfig:
+    if fs_exists(path) == false:
+        return default_config()
+    let loaded = fs_try_read_text(path)
+    if loaded.ok == false:
+        return default_config()
+    let raw = loaded.value
+    let parsed = parse_config_text(raw)
+    return resolve_config_paths(sanitize_config(parsed), path)
+
+pub fn locate_config_path() -> String:
+    let candidates = config_candidate_paths()
+    var i: Int = 0
+    while i < len(candidates):
+        let candidate = candidates[i]
+        if candidate != "" and fs_exists(candidate):
+            if config_path_is_absolute(candidate):
+                return candidate
+            let cwd = process_current_working_directory()
+            if cwd != "":
+                return fs_path_join(cwd, candidate)
+            return candidate
+        i = i + 1
+    return "config.toml"
+
+pub fn config_runtime_root() -> String:
+    let config_path = locate_config_path()
+    let parent = fs_path_parent(config_path)
+    if parent != "":
+        return parent
+    let cwd = process_current_working_directory()
+    if cwd != "":
+        return cwd
+    return "."
+
+// ---- minimal TOML parser ---------------------------------------------------
+
+fn parse_config_text(raw: String) -> SemanticSearchConfig:
+    python_bootstrap_config_decoder()
+    let payload = to_string(python_call_raw("__kain_semantic_search_toml_to_json", [raw]))
+    let parsed = json_parse_text_result(payload)
+    if parsed.ok == false or json_is_object(parsed.value) == false:
+        return default_config()
+    return config_from_json(parsed.value)
+
+fn python_bootstrap_config_decoder():
+    python_exec(
+        "import json\n" +
+        "import tomllib\n" +
+        "\n" +
+        "def __kain_semantic_search_toml_to_json(text):\n" +
+        "    return json.dumps(tomllib.loads(text))\n"
+    )
+
+fn config_from_json(root: JsonObject) -> SemanticSearchConfig:
+    let mut cfg = default_config()
+
+    let paths_result = json_object_field(root, "paths")
+    if paths_result.ok:
+        let paths = paths_result.value
+        cfg.repo_root = json_string_or(paths, "repo_root", cfg.repo_root)
+        cfg.index_dir = json_string_or(paths, "index_dir", cfg.index_dir)
+        cfg.code_dirs = config_json_string_array_or(paths, "code_dirs", cfg.code_dirs)
+        cfg.kain_dirs = config_json_string_array_or(paths, "kain_dirs", cfg.kain_dirs)
+        cfg.code_extensions = config_json_string_array_or(paths, "code_extensions", cfg.code_extensions)
+        cfg.kain_extensions = config_json_string_array_or(paths, "kain_extensions", cfg.kain_extensions)
+
+    let embedding_result = json_object_field(root, "embedding")
+    if embedding_result.ok:
+        let embedding = embedding_result.value
+        cfg.model_name = json_string_or(embedding, "model_name", cfg.model_name)
+        cfg.dim = json_int_or(embedding, "dim", cfg.dim)
+        cfg.batch_size = json_int_or(embedding, "batch_size", cfg.batch_size)
+
+    let chunking_result = json_object_field(root, "chunking")
+    if chunking_result.ok:
+        let chunking = chunking_result.value
+        cfg.max_chunk_chars = json_int_or(chunking, "max_chunk_chars", cfg.max_chunk_chars)
+        cfg.min_chunk_chars = json_int_or(chunking, "min_chunk_chars", cfg.min_chunk_chars)
+        cfg.overlap_chars = json_int_or(chunking, "overlap_chars", cfg.overlap_chars)
+
+    let search_result = json_object_field(root, "search")
+    if search_result.ok:
+        let search_cfg = search_result.value
+        cfg.default_top_k = json_int_or(search_cfg, "default_top_k", cfg.default_top_k)
+        cfg.max_top_k = json_int_or(search_cfg, "max_top_k", cfg.max_top_k)
+        cfg.min_score = json_float_or(search_cfg, "min_score", cfg.min_score)
+
+    let server_result = json_object_field(root, "server")
+    if server_result.ok:
+        let server = server_result.value
+        cfg.server_host = json_string_or(server, "host", cfg.server_host)
+        cfg.server_port = json_int_or(server, "port", cfg.server_port)
+        cfg.max_concurrent = json_int_or(server, "max_concurrent", cfg.max_concurrent)
+        cfg.request_timeout_ms = json_int_or(server, "request_timeout_ms", cfg.request_timeout_ms)
+
+    let gpu_result = json_object_field(root, "gpu")
+    if gpu_result.ok:
+        let gpu = gpu_result.value
+        cfg.gpu_enabled = json_bool_or(gpu, "enabled", cfg.gpu_enabled)
+        cfg.gpu_device_index = json_int_or(gpu, "device_index", cfg.gpu_device_index)
+        cfg.gpu_threads_per_block = json_int_or(gpu, "threads_per_block", cfg.gpu_threads_per_block)
+        cfg.gpu_batch_chunks = json_int_or(gpu, "gpu_batch_chunks", cfg.gpu_batch_chunks)
+    return cfg
+
+fn config_json_string_array_or(object: JsonObject, key: String, fallback: Array<String>) -> Array<String>:
+    let values = json_string_array_field_result(object, key)
+    if values.ok == false:
+        return fallback
+    return values.value
+
+fn sanitize_config(cfg: SemanticSearchConfig) -> SemanticSearchConfig:
+    let defaults = default_config()
+    cfg.code_dirs = config_compact_or_default(cfg.code_dirs, defaults.code_dirs)
+    cfg.kain_dirs = config_compact_or_default(cfg.kain_dirs, defaults.kain_dirs)
+    cfg.code_extensions = config_extensions_or_default(cfg.code_extensions, defaults.code_extensions)
+    cfg.kain_extensions = config_extensions_or_default(cfg.kain_extensions, defaults.kain_extensions)
+    if cfg.index_dir == "":
+        cfg.index_dir = defaults.index_dir
+    if cfg.repo_root == "":
+        cfg.repo_root = defaults.repo_root
+    return cfg
+
+fn config_array_is_missing_or_boolish(values: Array<String>) -> Bool:
+    if len(values) == 0:
+        return true
+    if len(values) == 1 and (values[0] == "true" or values[0] == "false"):
+        return true
+    return false
+
+fn config_compact_or_default(values: Array<String>, fallback: Array<String>) -> Array<String>:
+    let mut compact: Array<String> = []
+    var i: Int = 0
+    while i < len(values):
+        let item = text_trim_string(values[i])
+        if item != "" and item != "true" and item != "false":
+            push(compact, item)
+        i = i + 1
+    if len(compact) == 0:
+        return fallback
+    return compact
+
+fn config_extensions_or_default(values: Array<String>, fallback: Array<String>) -> Array<String>:
+    let mut compact: Array<String> = []
+    var i: Int = 0
+    while i < len(values):
+        let item = text_trim_string(values[i])
+        if config_looks_like_extension(item):
+            push(compact, item)
+        i = i + 1
+    if len(compact) == 0:
+        return fallback
+    return compact
+
+fn config_looks_like_extension(value: String) -> Bool:
+    if value == "":
+        return false
+    var i: Int = 0
+    while i < len(value):
+        let ch = char_at(value, i)
+        let is_alpha = (ch >= "a" and ch <= "z") or (ch >= "A" and ch <= "Z")
+        let is_digit = ch >= "0" and ch <= "9"
+        if is_alpha == false and is_digit == false and ch != "_" and ch != "-":
+            return false
+        i = i + 1
+    return true
+
+fn resolve_config_paths(cfg: SemanticSearchConfig, config_path: String) -> SemanticSearchConfig:
+    let config_dir = fs_path_parent(config_path)
+    if config_dir == "":
+        return cfg
+    if config_path_is_absolute(cfg.repo_root) == false:
+        cfg.repo_root = fs_path_join(config_dir, cfg.repo_root)
+    if config_path_is_absolute(cfg.index_dir) == false:
+        cfg.index_dir = fs_path_join(config_dir, cfg.index_dir)
+    return cfg
+
+fn config_path_is_absolute(path: String) -> Bool:
+    if len(path) >= 2 and char_at(path, 1) == ":":
+        return true
+    if text_starts_with_string(path, "\\\\"):
+        return true
+    if text_starts_with_string(path, "/"):
+        return true
+    return false
+
+fn config_candidate_paths() -> Array<String>:
+    let mut paths: Array<String> = []
+    push(paths, "config.toml")
+    push(paths, "..\\config.toml")
+
+    let cwd = process_current_working_directory()
+    if cwd != "":
+        push(paths, fs_path_join(cwd, "config.toml"))
+        push(paths, fs_path_join(fs_path_parent(cwd), "config.toml"))
+
+    let exe_path = process_current_executable_path()
+    if exe_path != "":
+        let exe_dir = fs_path_parent(exe_path)
+        if exe_dir != "":
+            push(paths, fs_path_join(exe_dir, "config.toml"))
+            let exe_parent = fs_path_parent(exe_dir)
+            if exe_parent != "":
+                push(paths, fs_path_join(exe_parent, "config.toml"))
+    return paths
+
+
+

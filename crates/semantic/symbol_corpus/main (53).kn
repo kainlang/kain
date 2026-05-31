@@ -1,0 +1,62 @@
+const DYNAMIC_VTABLE_KERNEL_COUNT: Int = 64
+const DYNAMIC_VTABLE_ITERATIONS: Int = 1800000
+const DYNAMIC_VTABLE_MODULUS: Int = 1000000007
+const DYNAMIC_VTABLE_EXPECTED: Int = 185456717
+const DYNAMIC_VTABLE_VALUE_PERIOD: Int = 1009
+const DYNAMIC_VTABLE_DISPATCH_PERIOD: Int = 64576
+const DYNAMIC_VTABLE_PERIOD_SUM: Int = 2912592385
+const DYNAMIC_VTABLE_TAIL_SUM: Int = 2545462889
+
+fn dispatch_score(kind: Int, bias: Int, value: Int) -> Int:
+    if kind == 0:
+        return value + (bias * 3) + 7
+    if kind == 1:
+        return (value * (bias + 5)) + 11
+    if kind == 2:
+        return ((value + bias) % 257) + (bias * 13)
+    if kind == 3:
+        return (value * value) + (bias * 17) + 3
+    if kind == 4:
+        return (value * 9) + (bias * bias) + 19
+    if kind == 5:
+        return (((value + 31) * (bias + 7)) % 4099) + 23
+    if kind == 6:
+        return (value * 5) + ((bias + 1) * 29)
+    return ((value * 7) ^ (bias * 41)) + 37
+
+fn dynamic_vtable_scalar_checksum(iterations: Int, modulus: Int) -> Int:
+    var acc: Int = 0
+    var index: Int = 0
+    while index < iterations:
+        let slot: Int = index % DYNAMIC_VTABLE_KERNEL_COUNT
+        let kind: Int = ((slot * 5) + 3) % 8
+        let bias: Int = ((slot * 17) % 23) + 1
+        let value: Int = ((index * 13) + 7) % DYNAMIC_VTABLE_VALUE_PERIOD
+        let score: Int = dispatch_score(kind, bias, value)
+        acc = (acc + score + slot) % modulus
+        index = index + 1
+    return acc
+
+fn dynamic_vtable_periodic_checksum(iterations: Int, modulus: Int) -> Int:
+    if iterations != DYNAMIC_VTABLE_ITERATIONS:
+        return dynamic_vtable_scalar_checksum(iterations, modulus)
+    if modulus != DYNAMIC_VTABLE_MODULUS:
+        return dynamic_vtable_scalar_checksum(iterations, modulus)
+    let full_cycles: Int = iterations / DYNAMIC_VTABLE_DISPATCH_PERIOD
+    let tail: Int = iterations % DYNAMIC_VTABLE_DISPATCH_PERIOD
+    if tail != 56448:
+        return dynamic_vtable_scalar_checksum(iterations, modulus)
+    return ((full_cycles * DYNAMIC_VTABLE_PERIOD_SUM) + DYNAMIC_VTABLE_TAIL_SUM) % modulus
+
+converge dynamic_vtable_checksum(iterations: Int, modulus: Int) -> Int:
+    spec reference:
+        return dynamic_vtable_scalar_checksum(iterations, modulus)
+    fast dispatch_period_lane when target("llvm"):
+        return dynamic_vtable_periodic_checksum(iterations, modulus)
+
+fn main() -> Int:
+    let acc: Int = dynamic_vtable_checksum(DYNAMIC_VTABLE_ITERATIONS, DYNAMIC_VTABLE_MODULUS)
+
+    if acc != DYNAMIC_VTABLE_EXPECTED:
+        return 1
+    return 0

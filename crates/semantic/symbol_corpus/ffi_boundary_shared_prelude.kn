@@ -1,0 +1,2 @@
+# Generated import shim for C library ffi_boundary_shared
+use c::ffi_boundary_shared::c_ffi_boundary_shared_ffi_boundary_mix as c_ffi_boundary_shared_ffi_boundary_mix

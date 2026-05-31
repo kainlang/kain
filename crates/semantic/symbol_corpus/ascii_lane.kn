@@ -1,0 +1,26 @@
+use std::ascii
+
+pub fn smoke_ascii_lane() -> Int:
+    if ascii_is_text("Gpu-HTTP2-42") == false:
+        return 1
+    if ascii_is_alpha("G") == false or ascii_is_alpha("z") == false:
+        return 2
+    if ascii_is_digit("7") == false or ascii_digit_value("7") != 7:
+        return 3
+    if ascii_is_hex("F") == false or ascii_hex_value("f") != 15:
+        return 4
+    if ascii_hex_char_lower(15) != "f" or ascii_hex_char_upper(15) != "F":
+        return 5
+    if ascii_to_lower("Q") != "q" or ascii_to_upper("q") != "Q":
+        return 6
+    if ascii_lowercase("KAIN-HTTP2") != "kain-http2":
+        return 7
+    if ascii_uppercase("gpu-field") != "GPU-FIELD":
+        return 8
+    if ascii_equals_ignore_case("Relay-A9", "relay-a9") == false:
+        return 9
+    if ascii_is_whitespace(" ") == false or ascii_is_whitespace(chr(ASCII_HT)) == false:
+        return 10
+    if ascii_is_punctuation("!") == false or ascii_is_control(chr(ASCII_DEL)) == false:
+        return 11
+    return 0

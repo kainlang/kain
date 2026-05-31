@@ -1,0 +1,120 @@
+fn absf(value: Float) -> Float:
+    if value < 0.0:
+        return 0.0 - value
+    return value
+
+fn main() -> Int:
+    let count: Int = 48
+    let steps: Int = 120
+    let modulus: Int = 1000000007
+    let expected: Int = 7164293
+    let dt: Float = 0.045
+    let g: Float = 0.0125
+    let softening: Float = 0.35
+    let softening_sq: Float = softening * softening
+    let drag: Float = 0.0015
+
+    let mut x: ptr<Float> = alloc_zeroed(count, "Float")
+    let mut y: ptr<Float> = alloc_zeroed(count, "Float")
+    let mut z: ptr<Float> = alloc_zeroed(count, "Float")
+    let mut vx: ptr<Float> = alloc_zeroed(count, "Float")
+    let mut vy: ptr<Float> = alloc_zeroed(count, "Float")
+    let mut vz: ptr<Float> = alloc_zeroed(count, "Float")
+    let mut ax: ptr<Float> = alloc_zeroed(count, "Float")
+    let mut ay: ptr<Float> = alloc_zeroed(count, "Float")
+    let mut az: ptr<Float> = alloc_zeroed(count, "Float")
+    let mut mass: ptr<Float> = alloc_zeroed(count, "Float")
+
+    var index: Int = 0
+    while index < count:
+        mem_store(ptr_offset(x, index, "Float"), ((((index * 37) % 29) - 14) as Float) * 0.73, "Float")
+        mem_store(ptr_offset(y, index, "Float"), ((((index * 19) % 31) - 15) as Float) * 0.61, "Float")
+        mem_store(ptr_offset(z, index, "Float"), ((((index * 23) % 27) - 13) as Float) * 0.67, "Float")
+        mem_store(ptr_offset(vx, index, "Float"), ((((index * 11) % 9) - 4) as Float) * 0.031, "Float")
+        mem_store(ptr_offset(vy, index, "Float"), ((((index * 7) % 11) - 5) as Float) * 0.027, "Float")
+        mem_store(ptr_offset(vz, index, "Float"), ((((index * 5) % 13) - 6) as Float) * 0.023, "Float")
+        mem_store(ptr_offset(mass, index, "Float"), 0.8 + ((index % 7) as Float) * 0.11, "Float")
+        index = index + 1
+
+    var step: Int = 0
+    while step < steps:
+        var i: Int = 0
+        while i < count:
+            let xi: Float = mem_load(ptr_offset(x, i, "Float"), "Float")
+            let yi: Float = mem_load(ptr_offset(y, i, "Float"), "Float")
+            let zi: Float = mem_load(ptr_offset(z, i, "Float"), "Float")
+            let vxi: Float = mem_load(ptr_offset(vx, i, "Float"), "Float")
+            let vyi: Float = mem_load(ptr_offset(vy, i, "Float"), "Float")
+            let vzi: Float = mem_load(ptr_offset(vz, i, "Float"), "Float")
+
+            var accx: Float = (0.0 - xi * 0.0008) - (vxi * drag)
+            var accy: Float = (0.0 - yi * 0.0008) - (vyi * drag)
+            var accz: Float = (0.0 - zi * 0.0008) - (vzi * drag)
+
+            var j: Int = 0
+            while j < count:
+                if i != j:
+                    let dx: Float = mem_load(ptr_offset(x, j, "Float"), "Float") - xi
+                    let dy: Float = mem_load(ptr_offset(y, j, "Float"), "Float") - yi
+                    let dz: Float = mem_load(ptr_offset(z, j, "Float"), "Float") - zi
+                    let dist_sq: Float = dx * dx + dy * dy + dz * dz + softening_sq
+                    let inv_dist: Float = 1.0 / sqrt(dist_sq)
+                    let force_mag: Float = g * mem_load(ptr_offset(mass, j, "Float"), "Float") / dist_sq
+                    let scale: Float = force_mag * inv_dist
+                    accx = accx + dx * scale
+                    accy = accy + dy * scale
+                    accz = accz + dz * scale
+                j = j + 1
+
+            mem_store(ptr_offset(ax, i, "Float"), accx, "Float")
+            mem_store(ptr_offset(ay, i, "Float"), accy, "Float")
+            mem_store(ptr_offset(az, i, "Float"), accz, "Float")
+            i = i + 1
+
+        i = 0
+        while i < count:
+            let next_vx: Float = mem_load(ptr_offset(vx, i, "Float"), "Float") + mem_load(ptr_offset(ax, i, "Float"), "Float") * dt
+            let next_vy: Float = mem_load(ptr_offset(vy, i, "Float"), "Float") + mem_load(ptr_offset(ay, i, "Float"), "Float") * dt
+            let next_vz: Float = mem_load(ptr_offset(vz, i, "Float"), "Float") + mem_load(ptr_offset(az, i, "Float"), "Float") * dt
+            let next_x: Float = mem_load(ptr_offset(x, i, "Float"), "Float") + next_vx * dt
+            let next_y: Float = mem_load(ptr_offset(y, i, "Float"), "Float") + next_vy * dt
+            let next_z: Float = mem_load(ptr_offset(z, i, "Float"), "Float") + next_vz * dt
+            mem_store(ptr_offset(vx, i, "Float"), next_vx, "Float")
+            mem_store(ptr_offset(vy, i, "Float"), next_vy, "Float")
+            mem_store(ptr_offset(vz, i, "Float"), next_vz, "Float")
+            mem_store(ptr_offset(x, i, "Float"), next_x, "Float")
+            mem_store(ptr_offset(y, i, "Float"), next_y, "Float")
+            mem_store(ptr_offset(z, i, "Float"), next_z, "Float")
+            i = i + 1
+        step = step + 1
+
+    var checksum: Int = 0
+    index = 0
+    while index < count:
+        let x_i: Float = mem_load(ptr_offset(x, index, "Float"), "Float")
+        let y_i: Float = mem_load(ptr_offset(y, index, "Float"), "Float")
+        let z_i: Float = mem_load(ptr_offset(z, index, "Float"), "Float")
+        let vx_i: Float = mem_load(ptr_offset(vx, index, "Float"), "Float")
+        let vy_i: Float = mem_load(ptr_offset(vy, index, "Float"), "Float")
+        let vz_i: Float = mem_load(ptr_offset(vz, index, "Float"), "Float")
+        let bucket_x: Int = floor((x_i + 64.0) * 256.0) as Int
+        let bucket_y: Int = floor((y_i + 64.0) * 256.0) as Int
+        let bucket_z: Int = floor((z_i + 64.0) * 256.0) as Int
+        let bucket_v: Int = floor((absf(vx_i) + absf(vy_i) + absf(vz_i)) * 1024.0) as Int
+        checksum = (checksum + bucket_x + bucket_y * 3 + bucket_z * 5 + bucket_v * 7 + index * 11) % modulus
+        index = index + 1
+
+    decay x
+    decay y
+    decay z
+    decay vx
+    decay vy
+    decay vz
+    decay ax
+    decay ay
+    decay az
+    decay mass
+
+    if checksum != expected:
+        return 1
+    return 0

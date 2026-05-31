@@ -1,0 +1,33 @@
+// ============================================================================
+//                    semantic-search :: JSON helpers
+// ============================================================================
+// Shared JSON string escaping for the manifest and response lanes.
+
+pub fn json_escape(s: String) -> String:
+    var result = ""
+    var i: Int = 0
+    while i < len(s):
+        let ch = substring(s, i, i + 1)
+        if ch == "\"":
+            result = result + "\\\""
+        else:
+            if ch == "\\":
+                result = result + "\\\\"
+            else:
+                if ch == "\n":
+                    result = result + "\\n"
+                else:
+                    if ch == "\r":
+                        result = result + "\\r"
+                    else:
+                        if ch == "\t":
+                            result = result + "\\t"
+                        else:
+                            result = result + ch
+        i = i + 1
+    return result
+
+pub fn json_bool(value: Bool) -> String:
+    if value:
+        return "true"
+    return "false"

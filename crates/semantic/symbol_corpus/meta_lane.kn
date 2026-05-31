@@ -1,0 +1,154 @@
+use std::runtime
+use std::memory
+use std::atomic
+use std::target
+use std::reflect
+use std::compress
+use std::tar
+use std::io
+
+pub fn smoke_meta_lane() -> Int with Unsafe:
+    # 1. Test std::atomic (AtomicInt, AtomicBool, AtomicPtr)
+    let a_int = atomic_int_new(10)
+    if atomic_int_load(a_int, Ordering::SeqCst) != 10:
+        return 101
+    
+    let _s1 = atomic_int_store(a_int, 20, Ordering::SeqCst)
+    if atomic_int_add(a_int, 5) != 20: # Returns previous value (20)
+        return 102
+    if atomic_int_load(a_int, Ordering::SeqCst) != 25:
+        return 103
+
+    if atomic_int_compare_exchange(a_int, 25, 42) == false:
+        return 104
+    if atomic_int_load(a_int, Ordering::SeqCst) != 42:
+        return 105
+
+    atomic_int_destroy(a_int)
+
+    let a_bool = atomic_bool_new(false)
+    if atomic_bool_load(a_bool, Ordering::SeqCst) == true:
+        return 106
+    let _b1 = atomic_bool_store(a_bool, true, Ordering::SeqCst)
+    if atomic_bool_load(a_bool, Ordering::SeqCst) == false:
+        return 107
+    atomic_bool_destroy(a_bool)
+
+
+    # 2. Test std::target
+    let t = target_current()
+    if t.is_64bit == false:
+        return 108
+    
+    # Query features (should return true/false cleanly without crashing)
+    let has_avx = target_has_feature("cpu.x86.avx2")
+
+
+    # 3. Test std::reflect
+    let val = 123
+    let kind = reflect_type_kind(val)
+    if kind != TypeKind::Int:
+        return 109
+
+    let desc = reflect_descriptor(val)
+    if desc.size_bytes != 8:
+        return 110
+
+
+    # 4. Test std::compress (RLE compression streams)
+    let dest_buf = buffered_writer_new(16)
+    let dest_buf_ptr: ptr<BufferedWriter> = addr_of(dest_buf, "BufferedWriter")
+    let flush_target = alloc_zeroed(16, "Int")
+    
+    var cw = rle_writer_new(dest_buf_ptr)
+    let cw_ptr: ptr<RleCompressionWriter> = addr_of(cw, "RleCompressionWriter")
+    
+    # Compress 5 characters: 'A', 'A', 'A', 'B', 'B'
+    let _w1 = rle_writer_write_char(cw_ptr, 65, flush_target)
+    let _w2 = rle_writer_write_char(cw_ptr, 65, flush_target)
+    let _w3 = rle_writer_write_char(cw_ptr, 65, flush_target)
+    let _w4 = rle_writer_write_char(cw_ptr, 66, flush_target)
+    let _w5 = rle_writer_write_char(cw_ptr, 66, flush_target)
+    
+    let _f1 = rle_writer_flush(cw_ptr, flush_target)
+    let _f2 = buffered_writer_flush(dest_buf_ptr, flush_target)
+
+    # Verifies compressed run format in flush_target
+    # Run 1: character 'A' (65), count 3
+    if mem_load(ptr_offset(flush_target, 0, "Int"), "Int") != 65:
+        return 111
+    if mem_load(ptr_offset(flush_target, 1, "Int"), "Int") != 3:
+        return 112
+    # Run 2: character 'B' (66), count 2
+    if mem_load(ptr_offset(flush_target, 2, "Int"), "Int") != 66:
+        return 113
+    if mem_load(ptr_offset(flush_target, 3, "Int"), "Int") != 2:
+        return 114
+
+    # Decompress using RleCompressionReader
+    let src_buf = buffered_reader_new(16)
+    let src_buf_ptr: ptr<BufferedReader> = addr_of(src_buf, "BufferedReader")
+    let _fill = buffered_reader_fill(src_buf_ptr, flush_target, 4)
+    var cr = rle_reader_new(src_buf_ptr)
+    let cr_ptr: ptr<RleCompressionReader> = addr_of(cr, "RleCompressionReader")
+
+    if rle_reader_read_char(cr_ptr) != 65:
+        return 115
+    if rle_reader_read_char(cr_ptr) != 65:
+        return 116
+    if rle_reader_read_char(cr_ptr) != 65:
+        return 117
+    if rle_reader_read_char(cr_ptr) != 66:
+        return 118
+    if rle_reader_read_char(cr_ptr) != 66:
+        return 119
+    if rle_reader_read_char(cr_ptr) != -1:
+        return 120
+
+    decay flush_target
+    buffered_writer_destroy(dest_buf)
+    buffered_reader_destroy(src_buf)
+    rle_writer_destroy(cw)
+    rle_reader_destroy(cr)
+
+
+    # 5. Test std::tar (TarHeader block archive builder & reader)
+    let tar_write_buf = buffered_writer_new(128)
+    let tar_write_buf_ptr: ptr<BufferedWriter> = addr_of(tar_write_buf, "BufferedWriter")
+    let tar_flush_target = alloc_zeroed(128, "Int")
+    let tw = tar_writer_new(tar_write_buf_ptr)
+
+    # Write archive file "test.txt" of size 10 words
+    let _tw_h = tar_write_header(tw, "test.txt", 10, tar_flush_target)
+    
+    let file_data = alloc_zeroed(10, "Int")
+    mem_store(file_data, 999, "Int") # Dummy data
+    let _tw_d = tar_write_file_data(tw, file_data, 10, tar_flush_target)
+    decay file_data
+
+    let _tw_f = buffered_writer_flush(tar_write_buf_ptr, tar_flush_target)
+
+    # Read archive back using TarReader
+    let tar_read_buf = buffered_reader_new(128)
+    let tar_read_buf_ptr: ptr<BufferedReader> = addr_of(tar_read_buf, "BufferedReader")
+    let _tar_fill = buffered_reader_fill(tar_read_buf_ptr, tar_flush_target, 128)
+    let tr = tar_reader_new(tar_read_buf_ptr)
+
+    let entry = tar_read_entry(tr)
+    if entry.is_valid == false:
+        return 121
+    if entry.name != "test.txt":
+        return 122
+    if entry.size != 10:
+        return 123
+
+    # Skip entry's 10 words (pads to 64 words)
+    let skipped = tar_skip_data(tr, 10)
+    if skipped != 64:
+        return 124
+
+    decay tar_flush_target
+    buffered_writer_destroy(tar_write_buf)
+    buffered_reader_destroy(tar_read_buf)
+
+    return 0

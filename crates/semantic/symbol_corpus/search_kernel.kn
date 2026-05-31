@@ -1,0 +1,154 @@
+use std::cuda
+
+// ============================================================================
+//                    semantic-search :: CUDA packed-byte search kernels
+// ============================================================================
+// Each chunk gets one warp: lane N scans byte lanes N, N+32, N+64...
+// The warp fold keeps the equality score hot on GPU, then lane 0 adds a tiny
+// metadata bias so named declarations outrank anonymous noise.
+
+
+
+shader compute SemanticPackedScore(id: UVec3) -> Void:
+    uniform query_embed: StorageBuffer<u8> @0
+    uniform index_matrix: StorageBuffer<u8> @1
+    uniform index_weights: StorageBuffer<UInt> @2
+    uniform chunk_bias: StorageBuffer<UInt> @3
+    uniform scores: StorageBuffer<UInt> @4
+    uniform dim: UInt @5
+    uniform num_chunks: UInt @6
+
+    comptime:
+        let compute = (
+            [256, 1, 1],
+            [3200000, 1, 1],
+            [
+                ("query_embed", "u8", ["384"], "input", "kain.shared.buffer"),
+                ("index_matrix", "u8", ["100000", "384"], "input", "kain.shared.buffer"),
+                ("index_weights", "u32", ["100000"], "input", "kain.shared.buffer"),
+                ("chunk_bias", "u32", ["100000"], "input", "kain.shared.buffer"),
+                ("scores", "u32", ["100000"], "output", "kain.shared.buffer"),
+                ("dim", "u32", ["1"], "input", "kain.shared.buffer"),
+                ("num_chunks", "u32", ["1"], "input", "kain.shared.buffer"),
+            ],
+            [
+                ("query_embed", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("index_matrix", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("index_weights", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("chunk_bias", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("scores", "egress", "per-dispatch", "kain.shared.buffer"),
+                ("dim", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("num_chunks", "ingress", "per-dispatch", "kain.shared.buffer"),
+            ],
+            [],
+        )
+
+    let chunk = id.x / UInt(32)
+    let lane = cuda_lane_id()
+    if chunk >= num_chunks:
+        return
+
+    let chunk_base = chunk * dim
+    var local_hits: UInt = UInt(0)
+    var local_score: UInt = UInt(0)
+    var dim_index = lane
+    while dim_index < dim:
+        let q = query_embed[dim_index]
+        if q != UInt(0):
+            let v = index_matrix[chunk_base + dim_index]
+            if q == v:
+                local_hits = local_hits + UInt(1)
+                local_score = local_score + UInt(1024)
+        dim_index = dim_index + UInt(32)
+
+    let hit_count = cuda_warp_reduce_sum_u32(local_hits)
+    let match_score = cuda_warp_reduce_sum_u32(local_score)
+
+    if lane == UInt(0):
+        var final_score: UInt = match_score
+        if hit_count > UInt(0):
+            final_score = final_score + chunk_bias[chunk]
+            let weight = index_weights[chunk]
+            if weight > UInt(0):
+                let penalty = weight >> UInt(3)
+                if final_score > penalty:
+                    final_score = final_score - penalty
+                else:
+                    final_score = UInt(0)
+        scores[chunk] = final_score
+    return
+
+shader compute SemanticGpuTopK(id: UVec3) -> Void:
+    uniform scores: StorageBuffer<UInt> @0
+    uniform top_indices: StorageBuffer<UInt> @1
+    uniform top_scores: StorageBuffer<UInt> @2
+    uniform num_chunks: UInt @3
+    uniform top_k: UInt @4
+    uniform min_score: UInt @5
+
+    comptime:
+        let compute = (
+            [1, 1, 1],
+            [1, 1, 1],
+            [
+                ("scores", "u32", ["100000"], "input", "kain.shared.buffer"),
+                ("top_indices", "u32", ["100"], "output", "kain.shared.buffer"),
+                ("top_scores", "u32", ["100"], "output", "kain.shared.buffer"),
+                ("num_chunks", "u32", ["1"], "input", "kain.shared.buffer"),
+                ("top_k", "u32", ["1"], "input", "kain.shared.buffer"),
+                ("min_score", "u32", ["1"], "input", "kain.shared.buffer"),
+            ],
+            [
+                ("scores", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("top_indices", "egress", "per-dispatch", "kain.shared.buffer"),
+                ("top_scores", "egress", "per-dispatch", "kain.shared.buffer"),
+                ("num_chunks", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("top_k", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("min_score", "ingress", "per-dispatch", "kain.shared.buffer"),
+            ],
+            [],
+        )
+
+    if id.x != UInt(0):
+        return
+    if top_k == UInt(0):
+        return
+
+    var init: UInt = UInt(0)
+    while init < top_k:
+        top_indices[init] = UInt(0)
+        top_scores[init] = UInt(0)
+        init = init + UInt(1)
+
+    var chunk: UInt = UInt(0)
+    while chunk < num_chunks:
+        let score = scores[chunk]
+        if score >= min_score:
+            var weakest_slot: UInt = UInt(0)
+            var weakest_score = top_scores[0]
+            var probe: UInt = UInt(1)
+            while probe < top_k:
+                if top_scores[probe] < weakest_score:
+                    weakest_score = top_scores[probe]
+                    weakest_slot = probe
+                probe = probe + UInt(1)
+            if score > weakest_score:
+                top_scores[weakest_slot] = score
+                top_indices[weakest_slot] = chunk
+        chunk = chunk + UInt(1)
+
+    var left: UInt = UInt(0)
+    while left < top_k:
+        var right = left + UInt(1)
+        while right < top_k:
+            if top_scores[right] > top_scores[left]:
+                let score_tmp = top_scores[left]
+                let index_tmp = top_indices[left]
+                top_scores[left] = top_scores[right]
+                top_indices[left] = top_indices[right]
+                top_scores[right] = score_tmp
+                top_indices[right] = index_tmp
+            right = right + UInt(1)
+        left = left + UInt(1)
+
+    return

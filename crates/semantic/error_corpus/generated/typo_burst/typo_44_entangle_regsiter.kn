@@ -1,0 +1,10 @@
+// ERROR: Generated typo corpus case
+// @expected_code: KAIN-TYPE-0002
+// @expected_mode: Typo
+// @expected_repair: entangle_register
+
+use std::intent
+
+fn main() -> Int:
+    let reg = entangle_regsiter("authority", "mirror", "single_writer", "Int")
+    return reg

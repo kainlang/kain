@@ -1,0 +1,11 @@
+// ERROR: Generated typo corpus case
+// @expected_code: KAIN-TYPE-0002
+// @expected_mode: Typo
+// @expected_repair: teleport_channel_recv
+
+use std::sync
+
+fn main() -> Int:
+    let chan = teleport_channel_new(4)
+    let item = teleport_chanel_recv(chan)
+    return item

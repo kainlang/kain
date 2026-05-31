@@ -1,0 +1,65 @@
+// ============================================================================
+//  WIN32 WINDOW TEST — prove native Windows from pure Kain
+// ============================================================================
+//  Demonstrates two approaches:
+//
+//  Approach 1: Pure @extern to user32 (MessageBoxA — no C sidecar needed)
+//  Approach 2: include C header + sibling .c (full window with WNDPROC)
+//
+//  Run: kain run blades/test/windows/src/main.kn --target llvm
+// ============================================================================
+
+include native/win32_window.h as win
+
+// ============================================================================
+//  APPROACH 1: Pure @extern — no C file needed
+//  MessageBoxA exists in user32.dll which is already linked by the runtime.
+// ============================================================================
+
+@extern
+@link_name("MessageBoxA")
+fn user32_MessageBoxA(hwnd: Int, text: String, caption: String, flags: Int) -> Int
+
+fn test_message_box() -> Int:
+    let result = user32_MessageBoxA(0, "Hello from pure Kain!\nNo C bridge. No sidecar.\nJust @extern to user32.", "Kain Win32 Test", 0)
+    return result
+
+// ============================================================================
+//  APPROACH 2: Full native window via C sidecar
+//  The C sidecar provides the WNDPROC callback (can't express in Kain).
+//  Kain calls win_create_window(), win_show_window(), win_message_loop().
+// ============================================================================
+
+fn test_full_window() -> Int:
+    let hwnd = win_create_window("Kain — Native Window", 800, 600)
+    if hwnd == 0:
+        println("FAILED: win_create_window returned null")
+        return -1
+
+    println("Window created! HWND=" + str(hwnd))
+    win_show_window(hwnd)
+    println("Window shown — starting message loop")
+
+    // Blocks until the window is closed
+    let exit_code = win_message_loop()
+    println("Message loop exited with code: " + str(exit_code))
+    return exit_code
+
+// ============================================================================
+//  MAIN — try both approaches
+// ============================================================================
+
+fn main() -> Int:
+    println("=== Kain Win32 Window Test ===")
+
+    // Approach 1: MessageBox (blocks until OK is clicked)
+    println("--- Approach 1: Pure @extern MessageBoxA ---")
+    let mb_result = test_message_box()
+    println("MessageBox returned: " + str(mb_result))
+
+    // Approach 2: Full window
+    println("--- Approach 2: Full native window ---")
+    let win_result = test_full_window()
+    println("Window test returned: " + str(win_result))
+
+    return win_result

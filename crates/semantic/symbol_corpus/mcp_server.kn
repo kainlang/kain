@@ -1,0 +1,111 @@
+// ============================================================================
+//                    semantic-search :: MCP stdio server
+// ============================================================================
+// Kain owns the tool manifest and server shape. Python is now a thin stdio
+// bridge that consumes a Kain-authored manifest and launches MCP transport.
+
+use std::fs
+use std::python
+use std::process
+use types::SearchResult
+use types::SearchResponse
+use config::SemanticSearchConfig
+use config::config_runtime_root
+use config::locate_config_path
+use mcp_json::json_escape
+use mcp_json::json_bool
+use mcp_tools::semantic_search_mcp_server_name
+use mcp_tools::semantic_search_mcp_server_version
+use mcp_tools::semantic_search_mcp_server_instructions
+use mcp_tools::semantic_search_mcp_tool_manifest_json
+
+pub fn start_server(cfg: SemanticSearchConfig) -> Int with Unsafe:
+    let exe_path = process_current_executable_path()
+    if exe_path == "":
+        return 92
+
+    let workdir = config_runtime_root()
+    let config_path = locate_config_path()
+    let bridge_path = find_bridge_path(workdir)
+    if bridge_path == "":
+        println("ERROR: missing MCP bridge: src/mcp_bridge.py")
+        return 93
+    let bridge_text = fs_try_read_text(bridge_path)
+    if bridge_text.ok == false:
+        println("ERROR: missing MCP bridge: " + bridge_path)
+        return 93
+
+    python_exec(bridge_text.value)
+    let server_name = semantic_search_mcp_server_name()
+    let server_version = semantic_search_mcp_server_version()
+    let instructions = semantic_search_mcp_server_instructions(cfg)
+    let manifest_json = semantic_search_mcp_tool_manifest_json(cfg)
+    let _server = python_call_raw(
+        "__kain_semantic_search_run_stdio",
+        [server_name, server_version, instructions, exe_path, workdir, config_path, manifest_json]
+    )
+    return 0
+
+fn find_bridge_path(workdir: String) -> String:
+    let cwd = process_current_working_directory()
+    let mut candidates: Array<String> = []
+    if cwd != "":
+        push(candidates, fs_path_join(cwd, "mcp_bridge.py"))
+        push(candidates, fs_path_join(cwd, "src/mcp_bridge.py"))
+    if workdir != "":
+        push(candidates, fs_path_join(workdir, "mcp_bridge.py"))
+        push(candidates, fs_path_join(workdir, "src/mcp_bridge.py"))
+    var i: Int = 0
+    while i < len(candidates):
+        let candidate = candidates[i]
+        if fs_exists(candidate):
+            return candidate
+        i = i + 1
+    return ""
+
+pub fn search_response_to_json(resp: SearchResponse) -> String:
+    var json = "{"
+    json = json + "\"results\": ["
+    var i: Int = 0
+    while i < len(resp.results):
+        if i > 0:
+            json = json + ","
+        json = json + search_result_to_json(resp.results[i])
+        i = i + 1
+    json = json + "],"
+    json = json + "\"query_ms\": " + mcp_float_to_string(resp.query_ms) + ","
+    json = json + "\"total_indexed\": " + to_string(resp.total_indexed) + ","
+    json = json + "\"index_name\": \"" + json_escape(resp.index_name) + "\","
+    json = json + "\"error\": \"" + json_escape(resp.error) + "\""
+    json = json + "}"
+    return json
+
+fn search_result_to_json(result: SearchResult) -> String:
+    var json = "{"
+    json = json + "\"file\": \"" + json_escape(result.file_path) + "\","
+    json = json + "\"line_start\": " + to_string(result.line_start) + ","
+    json = json + "\"line_end\": " + to_string(result.line_end) + ","
+    json = json + "\"kind\": \"" + json_escape(result.kind) + "\","
+    json = json + "\"symbol\": \"" + json_escape(result.symbol) + "\","
+    json = json + "\"score\": " + mcp_float_to_string(result.score) + ","
+    json = json + "\"snippet\": \"" + json_escape(result.snippet) + "\""
+    json = json + "}"
+    return json
+
+fn mcp_float_to_string(value: Float) -> String:
+    let mut prefix = ""
+    let mut lane = value
+    if lane < 0.0:
+        prefix = "-"
+        lane = 0.0 - lane
+    let scaled = Int(lane * 1000.0 + 0.5)
+    let whole = scaled / 1000
+    let frac = scaled - whole * 1000
+    return prefix + to_string(whole) + "." + mcp_pad3(frac)
+
+fn mcp_pad3(value: Int) -> String:
+    if value < 10:
+        return "00" + to_string(value)
+    if value < 100:
+        return "0" + to_string(value)
+    return to_string(value)
