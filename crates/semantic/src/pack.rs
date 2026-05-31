@@ -177,7 +177,11 @@ pub fn analyze_with_pack(
         score: best.rerank_score.clamp(0.0, 0.99),
         replacement_text: non_empty_option(best.prototype.replacement_text.clone()),
     };
-    upsert_repair(&mut ranked_repairs, pack_repair);
+    let typo_family_mismatch =
+        best.prototype.mode == "Typo" && best.prototype.primary_text != packet.primary_text;
+    if !typo_family_mismatch {
+        upsert_repair(&mut ranked_repairs, pack_repair);
+    }
     ranked_repairs.sort_by(|left, right| {
         right
             .score
@@ -192,13 +196,13 @@ pub fn analyze_with_pack(
             .max((0.62 + best.rerank_score * 0.30).min(0.99)),
         likely_failure_mode: failure_mode_from_pack(&best.prototype, &baseline),
         ranked_repairs,
-        dynamic_explanation: if best.prototype.explanation.is_empty() {
+        dynamic_explanation: if typo_family_mismatch || best.prototype.explanation.is_empty() {
             baseline.dynamic_explanation
         } else {
             best.prototype.explanation
         },
         cascade_probability: baseline.cascade_probability,
-        explanation_style: if best.prototype.explanation_style.is_empty() {
+        explanation_style: if typo_family_mismatch || best.prototype.explanation_style.is_empty() {
             baseline.explanation_style
         } else {
             best.prototype.explanation_style
@@ -865,6 +869,41 @@ mod tests {
         assert!(
             !enhanced.dynamic_explanation.contains("prntln"),
             "mismatched typo prototype should not override missing-surface explanation"
+        );
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn sidecar_pack_keeps_typo_explanation_on_cross_family_hits() {
+        let dir = unique_pack_dir("typo-family-guard-pack");
+        let _ = fs::remove_dir_all(&dir);
+        write_semantic_pack_from_corpus(&dir).expect("write semantic pack");
+        let pack = SemanticPack::load_from_path(&dir).expect("load semantic pack");
+
+        let packet = DiagnosticSemanticPacket::new(
+            DiagnosticCode::TypeUnknownIdentifier,
+            CompilerPhase::TypeChecking,
+            "python_with_pykain_case_cout",
+        )
+        .source_window("fn main() -> Int:\n    let score = python_with_pykain_case_cout()\n    return 0");
+
+        let baseline = expert::analyze(&packet);
+        let enhanced = analyze_with_pack(&pack, &packet, baseline.clone());
+        assert_eq!(
+            enhanced
+                .ranked_repairs
+                .first()
+                .and_then(|repair| repair.replacement_text.as_deref()),
+            Some("use std::python")
+        );
+        assert!(
+            enhanced.dynamic_explanation.contains("python_with_pykain_case_cout"),
+            "typo family mismatch should keep the baseline explanation"
+        );
+        assert!(
+            !enhanced.dynamic_explanation.contains("fs_read_texx"),
+            "cross-family typo prototype must not override the explanation"
         );
 
         let _ = fs::remove_dir_all(&dir);
