@@ -347,6 +347,25 @@ class KainBazelSyncTests(unittest.TestCase):
             self.assertEqual(seen_env["TMPDIR"], expected_temp)
             self.assertTrue(shim_path.exists())
 
+    def test_copy_file_atomic_if_unlocked_replaces_stale_pending_copy(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            source = root / "source.exe"
+            destination = root / "dest.exe"
+            source.write_bytes(b"fresh")
+            destination.write_bytes(b"old")
+            stale_pending = root / "dest.exe.pending.stale"
+            stale_pending.write_bytes(b"stale")
+
+            with mock.patch.object(sync.os, "replace", side_effect=PermissionError("locked")):
+                message = sync.copy_file_atomic_if_unlocked(source, destination)
+
+            self.assertIsNotNone(message)
+            self.assertFalse(stale_pending.exists())
+            pending_files = list(root.glob("dest.exe.pending.*"))
+            self.assertEqual(len(pending_files), 1)
+            self.assertEqual(pending_files[0].read_bytes(), b"fresh")
+
     def test_install_launcher_files_writes_all_windows_wrappers_when_windows(self) -> None:
         if os.name != "nt":
             self.skipTest("Windows .cmd wrapper behavior is platform-specific")

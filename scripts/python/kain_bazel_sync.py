@@ -196,6 +196,7 @@ def copy_file_atomic_if_unlocked(source: Path, destination: Path) -> str | None:
             pass
         if files_equal(source, destination):
             return None
+        cleanup_launcher_replacements(destination)
         pending = destination.with_name(f"{destination.name}.pending.{os.getpid()}")
         shutil.copy2(source, pending)
         return f"{destination} is locked; staged replacement at {pending}: {error}"
