@@ -5,32 +5,39 @@ pub struct SmokePythonBridgeSeries:
     preview_y: Array<Float>
 
 pub fn smoke_python_bridge_arrays_lane() -> Int:
-    let token = python_call_raw("object", [])
+    let builtins = python_import("builtins")
+    let object_fn = python_getattr_raw(builtins, "object")
+    let list_fn = python_getattr_raw(builtins, "list")
+    let len_fn = python_getattr_raw(builtins, "len")
+    let sum_fn = python_getattr_raw(builtins, "sum")
+    let max_fn = python_getattr_raw(builtins, "max")
+
+    let token = python_call_raw(object_fn, [])
     let graph = [[token, []]]
-    let graph_list = python_call_raw("list", [graph])
-    if to_int(python_call_raw("len", [graph_list])) != 1:
+    let graph_list = python_call_raw(list_fn, [graph])
+    if to_int(python_call_raw(len_fn, [graph_list])) != 1:
         return 1
 
     let first = python_call_attr_raw(graph_list, "__getitem__", [0])
-    if to_int(python_call_raw("len", [first])) != 2:
+    if to_int(python_call_raw(len_fn, [first])) != 2:
         return 2
 
     let inputs = python_call_attr_raw(first, "__getitem__", [1])
-    if to_int(python_call_raw("len", [inputs])) != 0:
+    if to_int(python_call_raw(len_fn, [inputs])) != 0:
         return 3
 
     let series = SmokePythonBridgeSeries {
         preview_x: [0.0, 0.5, 1.0],
         preview_y: [0.25, 0.5, 0.75],
     }
-    if to_int(python_call_raw("len", [series.preview_x])) != 3:
+    if to_int(python_call_raw(len_fn, [series.preview_x])) != 3:
         return 4
 
-    let sum_x = to_float(python_call_raw("sum", [series.preview_x]))
+    let sum_x = to_float(python_call_raw(sum_fn, [series.preview_x]))
     if Int(sum_x * 1000.0) != 1500:
         return 5
 
-    let max_y = to_float(python_call_raw("max", [series.preview_y]))
+    let max_y = to_float(python_call_raw(max_fn, [series.preview_y]))
     if Int(max_y * 1000.0) != 750:
         return 6
 

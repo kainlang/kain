@@ -36,6 +36,9 @@ use std::path
 fn abi_os_setenv(key: String, value: String) -> Int
 
 @extern
+fn abi_os_getenv(key: String) -> String
+
+@extern
 fn abi_os_unsetenv(key: String) -> Int
 
 @extern
@@ -283,10 +286,10 @@ pub fn os_uname() -> OsUname:
 //  Python: os.environ, os.getenv(), os.putenv(), os.unsetenv()
 
 pub fn os_getenv(key: String) -> String:
-    return process_environment(key)
+    return abi_os_getenv(key)
 
 pub fn os_getenv_default(key: String, default_value: String) -> String:
-    let val = process_environment(key)
+    let val = abi_os_getenv(key)
     if len(val) == 0:
         return default_value
     return val

@@ -48,6 +48,7 @@ pub fn smoke_c_bridge_lane() -> Int:
     let text_bytes = smoke_sqlite_ping_text_bytes(29, 7)
     let bounce = smoke_sqlite_ping_bounce(29, 7)
     let score = smoke_c_bridge_score(version + row_count, bounce + threadsafe + 1)
+    let shifted_score = smoke_c_bridge_score(version + row_count + 1, bounce + threadsafe + 2)
     if version < 3000000:
         return 1
     if threadsafe < 0:
@@ -60,6 +61,8 @@ pub fn smoke_c_bridge_lane() -> Int:
         return 5
     if bounce <= 0:
         return 6
-    if score <= bounce:
+    if score <= 0:
+        return 7
+    if shifted_score == score:
         return 7
     return 0

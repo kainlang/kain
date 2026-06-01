@@ -1,5 +1,5 @@
 use std::collections
-use std::python::bridge
+use std::python
 
 const SMOKE_PYTHON_RUNNER_TRACK_ID: Int = 6100
 const SMOKE_PYTHON_RUNNER_LANE_RANK: Int = 37
@@ -13,32 +13,54 @@ fn smoke_python_runner_track_checksum(track_id: Int, lane_rank: Int, status: Int
     return (base + 13) % SMOKE_PYTHON_RUNNER_MODULUS
 
 fn smoke_python_bridge_install_runner():
-    py_bridge_exec("import os\nimport pathlib\nimport subprocess\nimport sys\nimport time\n\n\ndef __kain_smoketest_python_probe():\n    cwd = pathlib.Path.cwd()\n    return {\n        'ok': True,\n        'python': pathlib.Path(sys.executable).as_posix(),\n        'version': sys.version.split()[0],\n        'platform': sys.platform,\n        'cwd': cwd.as_posix(),\n        'subprocess_available': True,\n    }\n\n\ndef __kain_smoketest_write_text(path, content):\n    out = pathlib.Path(path)\n    try:\n        out.parent.mkdir(parents=True, exist_ok=True)\n        out.write_text(str(content), encoding='utf-8')\n        return {\n            'ok': True,\n            'path': out.as_posix(),\n            'error_type': '',\n            'error_message': '',\n        }\n    except Exception as exc:\n        return {\n            'ok': False,\n            'path': out.as_posix(),\n            'error_type': type(exc).__name__,\n            'error_message': str(exc),\n        }\n\n\ndef __kain_smoketest_run(mode, executable, output_dir, bench_rounds, bench_passes, attrition_ops, attrition_rounds):\n    cwd = pathlib.Path.cwd()\n    exe_path = pathlib.Path(executable)\n    if not exe_path.is_absolute():\n        exe_path = (cwd / exe_path).resolve()\n    out_path = pathlib.Path(output_dir)\n    if not out_path.is_absolute():\n        out_path = (cwd / out_path).resolve()\n\n    started_ms = int(time.time() * 1000)\n    summary_path = out_path / 'summary.json'\n    executable_exists = exe_path.exists()\n    executable_parent_exists = exe_path.parent.exists()\n    output_parent_exists = out_path.parent.exists()\n    cwd_exists = cwd.exists()\n\n    try:\n        out_path.mkdir(parents=True, exist_ok=True)\n\n        env = os.environ.copy()\n        env['KAIN_SMOKETEST_MODE'] = str(mode)\n        env['KAIN_SMOKETEST_OUTPUT_DIR'] = str(out_path)\n        if int(bench_rounds) > 0:\n            env['KAIN_SMOKETEST_BENCH_ROUNDS'] = str(int(bench_rounds))\n        if int(bench_passes) > 0:\n            env['KAIN_SMOKETEST_BENCH_PASSES'] = str(int(bench_passes))\n        if int(attrition_ops) > 0:\n            env['KAIN_SMOKETEST_ATTRITION_OPS'] = str(int(attrition_ops))\n        if int(attrition_rounds) > 0:\n            env['KAIN_SMOKETEST_ATTRITION_ROUNDS'] = str(int(attrition_rounds))\n\n        completed = subprocess.run(\n            [str(exe_path)],\n            cwd=str(cwd),\n            env=env,\n            text=True,\n            capture_output=True,\n        )\n        ended_ms = int(time.time() * 1000)\n        return {\n            'ok': True,\n            'mode': str(mode),\n            'status': int(completed.returncode),\n            'stdout': completed.stdout,\n            'stderr': completed.stderr,\n            'started_ms': started_ms,\n            'ended_ms': ended_ms,\n            'elapsed_ms': ended_ms - started_ms,\n            'summary_exists': summary_path.exists(),\n            'summary_path': summary_path.as_posix(),\n            'output_dir': out_path.as_posix(),\n            'output_dir_exists': out_path.exists(),\n            'output_parent_exists': output_parent_exists,\n            'executable': exe_path.as_posix(),\n            'executable_exists': executable_exists,\n            'executable_parent_exists': executable_parent_exists,\n            'cwd': cwd.as_posix(),\n            'cwd_exists': cwd_exists,\n            'python': pathlib.Path(sys.executable).as_posix(),\n            'python_version': sys.version.split()[0],\n            'error_type': '',\n            'error_message': '',\n        }\n    except Exception as exc:\n        ended_ms = int(time.time() * 1000)\n        return {\n            'ok': False,\n            'mode': str(mode),\n            'status': -1,\n            'stdout': '',\n            'stderr': '',\n            'started_ms': started_ms,\n            'ended_ms': ended_ms,\n            'elapsed_ms': ended_ms - started_ms,\n            'summary_exists': summary_path.exists(),\n            'summary_path': summary_path.as_posix(),\n            'output_dir': out_path.as_posix(),\n            'output_dir_exists': out_path.exists(),\n            'output_parent_exists': output_parent_exists,\n            'executable': exe_path.as_posix(),\n            'executable_exists': executable_exists,\n            'executable_parent_exists': executable_parent_exists,\n            'cwd': cwd.as_posix(),\n            'cwd_exists': cwd_exists,\n            'python': pathlib.Path(sys.executable).as_posix(),\n            'python_version': sys.version.split()[0],\n            'error_type': type(exc).__name__,\n            'error_message': str(exc),\n        }\n")
+    python_exec("import os\nimport pathlib\nimport subprocess\nimport sys\nimport time\n\n\ndef __kain_smoketest_python_probe():\n    cwd = pathlib.Path.cwd()\n    return {\n        'ok': True,\n        'python': pathlib.Path(sys.executable).as_posix(),\n        'version': sys.version.split()[0],\n        'platform': sys.platform,\n        'cwd': cwd.as_posix(),\n        'subprocess_available': True,\n    }\n\n\ndef __kain_smoketest_write_text(path, content):\n    out = pathlib.Path(path)\n    try:\n        out.parent.mkdir(parents=True, exist_ok=True)\n        out.write_text(str(content), encoding='utf-8')\n        return {\n            'ok': True,\n            'path': out.as_posix(),\n            'error_type': '',\n            'error_message': '',\n        }\n    except Exception as exc:\n        return {\n            'ok': False,\n            'path': out.as_posix(),\n            'error_type': type(exc).__name__,\n            'error_message': str(exc),\n        }\n\n\ndef __kain_smoketest_run(mode, executable, output_dir, bench_rounds, bench_passes, attrition_ops, attrition_rounds):\n    cwd = pathlib.Path.cwd()\n    exe_path = pathlib.Path(executable)\n    if not exe_path.is_absolute():\n        exe_path = (cwd / exe_path).resolve()\n    out_path = pathlib.Path(output_dir)\n    if not out_path.is_absolute():\n        out_path = (cwd / out_path).resolve()\n\n    started_ms = int(time.time() * 1000)\n    summary_path = out_path / 'summary.json'\n    executable_exists = exe_path.exists()\n    executable_parent_exists = exe_path.parent.exists()\n    output_parent_exists = out_path.parent.exists()\n    cwd_exists = cwd.exists()\n\n    try:\n        out_path.mkdir(parents=True, exist_ok=True)\n\n        env = os.environ.copy()\n        env['KAIN_SMOKETEST_MODE'] = str(mode)\n        env['KAIN_SMOKETEST_OUTPUT_DIR'] = str(out_path)\n        if int(bench_rounds) > 0:\n            env['KAIN_SMOKETEST_BENCH_ROUNDS'] = str(int(bench_rounds))\n        if int(bench_passes) > 0:\n            env['KAIN_SMOKETEST_BENCH_PASSES'] = str(int(bench_passes))\n        if int(attrition_ops) > 0:\n            env['KAIN_SMOKETEST_ATTRITION_OPS'] = str(int(attrition_ops))\n        if int(attrition_rounds) > 0:\n            env['KAIN_SMOKETEST_ATTRITION_ROUNDS'] = str(int(attrition_rounds))\n\n        completed = subprocess.run(\n            [str(exe_path)],\n            cwd=str(cwd),\n            env=env,\n            text=True,\n            capture_output=True,\n        )\n        ended_ms = int(time.time() * 1000)\n        return {\n            'ok': True,\n            'mode': str(mode),\n            'status': int(completed.returncode),\n            'stdout': completed.stdout,\n            'stderr': completed.stderr,\n            'started_ms': started_ms,\n            'ended_ms': ended_ms,\n            'elapsed_ms': ended_ms - started_ms,\n            'summary_exists': summary_path.exists(),\n            'summary_path': summary_path.as_posix(),\n            'output_dir': out_path.as_posix(),\n            'output_dir_exists': out_path.exists(),\n            'output_parent_exists': output_parent_exists,\n            'executable': exe_path.as_posix(),\n            'executable_exists': executable_exists,\n            'executable_parent_exists': executable_parent_exists,\n            'cwd': cwd.as_posix(),\n            'cwd_exists': cwd_exists,\n            'python': pathlib.Path(sys.executable).as_posix(),\n            'python_version': sys.version.split()[0],\n            'error_type': '',\n            'error_message': '',\n        }\n    except Exception as exc:\n        ended_ms = int(time.time() * 1000)\n        return {\n            'ok': False,\n            'mode': str(mode),\n            'status': -1,\n            'stdout': '',\n            'stderr': '',\n            'started_ms': started_ms,\n            'ended_ms': ended_ms,\n            'elapsed_ms': ended_ms - started_ms,\n            'summary_exists': summary_path.exists(),\n            'summary_path': summary_path.as_posix(),\n            'output_dir': out_path.as_posix(),\n            'output_dir_exists': out_path.exists(),\n            'output_parent_exists': output_parent_exists,\n            'executable': exe_path.as_posix(),\n            'executable_exists': executable_exists,\n            'executable_parent_exists': executable_parent_exists,\n            'cwd': cwd.as_posix(),\n            'cwd_exists': cwd_exists,\n            'python': pathlib.Path(sys.executable).as_posix(),\n            'python_version': sys.version.split()[0],\n            'error_type': type(exc).__name__,\n            'error_message': str(exc),\n        }\n")
+
+fn smoke_py_get(obj: Any, key: String) -> Any:
+    return python_call_attr_raw(obj, "get", [key])
+
+fn smoke_py_string_get(obj: Any, key: String) -> String:
+    return to_string(smoke_py_get(obj, key))
+
+fn smoke_py_int_get(obj: Any, key: String) -> Int:
+    return to_int(smoke_py_get(obj, key))
+
+fn smoke_py_bool_get(obj: Any, key: String) -> Bool:
+    return smoke_py_get(obj, key)
 
 pub fn smoke_python_bridge_probe_note() -> String:
     smoke_python_bridge_install_runner()
-    let probe = py_bridge_call("__kain_smoketest_python_probe", [])
+    let probe = python_call_raw("__kain_smoketest_python_probe", [])
     var note: String = "{\n"
-    note = note + "  \"ok\": " + str(bool_to_int(probe.ok)) + ",\n"
-    note = note + "  \"python\": \"" + probe.python + "\",\n"
-    note = note + "  \"version\": \"" + probe.version + "\",\n"
-    note = note + "  \"platform\": \"" + probe.platform + "\",\n"
-    note = note + "  \"cwd\": \"" + probe.cwd + "\",\n"
-    note = note + "  \"subprocess_available\": " + str(bool_to_int(probe.subprocess_available)) + "\n"
+    note = note + "  \"ok\": " + str(bool_to_int(smoke_py_bool_get(probe, "ok"))) + ",\n"
+    note = note + "  \"python\": \"" + smoke_py_string_get(probe, "python") + "\",\n"
+    note = note + "  \"version\": \"" + smoke_py_string_get(probe, "version") + "\",\n"
+    note = note + "  \"platform\": \"" + smoke_py_string_get(probe, "platform") + "\",\n"
+    note = note + "  \"cwd\": \"" + smoke_py_string_get(probe, "cwd") + "\",\n"
+    note = note + "  \"subprocess_available\": " + str(bool_to_int(smoke_py_bool_get(probe, "subprocess_available"))) + "\n"
     note = note + "}\n"
     return note
 
 pub fn smoke_python_bridge_run_mode(mode: String, executable: String, output_dir: String, bench_rounds: Int, bench_passes: Int, attrition_ops: Int, attrition_rounds: Int) -> Int:
     smoke_python_bridge_install_runner()
-    let result = py_bridge_call(
+    let result = python_call_raw(
         "__kain_smoketest_run",
         [mode, executable, output_dir, bench_rounds, bench_passes, attrition_ops, attrition_rounds]
     )
+    let result_status = smoke_py_int_get(result, "status")
+    let result_elapsed_ms = smoke_py_int_get(result, "elapsed_ms")
+    let result_stdout = smoke_py_string_get(result, "stdout")
+    let result_stderr = smoke_py_string_get(result, "stderr")
+    let result_summary_exists = smoke_py_bool_get(result, "summary_exists")
+    let result_summary_path = smoke_py_string_get(result, "summary_path")
+    let result_python_version = smoke_py_string_get(result, "python_version")
+    let result_ok = smoke_py_bool_get(result, "ok")
+    let result_error_type = smoke_py_string_get(result, "error_type")
+    let result_error_message = smoke_py_string_get(result, "error_message")
     let note_checksum = smoke_python_runner_track_checksum(
         SMOKE_PYTHON_RUNNER_TRACK_ID,
         SMOKE_PYTHON_RUNNER_LANE_RANK,
-        result.status,
-        result.elapsed_ms,
+        result_status,
+        result_elapsed_ms,
         mode
     )
     let probe_note = smoke_python_bridge_probe_note()
@@ -47,46 +69,52 @@ pub fn smoke_python_bridge_run_mode(mode: String, executable: String, output_dir
     let note_path = notes_dir + "/python_runner.json"
     var note: String = "{\n"
     note = note + "  \"mode\": \"" + mode + "\",\n"
-    note = note + "  \"status\": " + str(result.status) + ",\n"
-    note = note + "  \"elapsed_ms\": " + str(result.elapsed_ms) + ",\n"
-    note = note + "  \"summary_exists\": " + str(bool_to_int(result.summary_exists)) + ",\n"
-    note = note + "  \"summary_path\": \"" + result.summary_path + "\",\n"
-    note = note + "  \"output_dir\": \"" + result.output_dir + "\",\n"
-    note = note + "  \"output_dir_exists\": " + str(bool_to_int(result.output_dir_exists)) + ",\n"
-    note = note + "  \"output_parent_exists\": " + str(bool_to_int(result.output_parent_exists)) + ",\n"
-    note = note + "  \"executable\": \"" + result.executable + "\",\n"
-    note = note + "  \"executable_exists\": " + str(bool_to_int(result.executable_exists)) + ",\n"
-    note = note + "  \"executable_parent_exists\": " + str(bool_to_int(result.executable_parent_exists)) + ",\n"
-    note = note + "  \"cwd\": \"" + result.cwd + "\",\n"
-    note = note + "  \"cwd_exists\": " + str(bool_to_int(result.cwd_exists)) + ",\n"
-    note = note + "  \"python\": \"" + result.python + "\",\n"
-    note = note + "  \"python_version\": \"" + result.python_version + "\",\n"
-    note = note + "  \"bridge_ok\": " + str(bool_to_int(result.ok)) + ",\n"
-    note = note + "  \"error_type\": \"" + result.error_type + "\",\n"
-    note = note + "  \"error_message\": \"" + result.error_message + "\",\n"
-    note = note + "  \"stdout_len\": " + str(len(result.stdout)) + ",\n"
-    note = note + "  \"stderr_len\": " + str(len(result.stderr)) + ",\n"
+    note = note + "  \"status\": " + str(result_status) + ",\n"
+    note = note + "  \"elapsed_ms\": " + str(result_elapsed_ms) + ",\n"
+    note = note + "  \"summary_exists\": " + str(bool_to_int(result_summary_exists)) + ",\n"
+    note = note + "  \"summary_path\": \"" + result_summary_path + "\",\n"
+    note = note + "  \"output_dir\": \"" + smoke_py_string_get(result, "output_dir") + "\",\n"
+    note = note + "  \"output_dir_exists\": " + str(bool_to_int(smoke_py_bool_get(result, "output_dir_exists"))) + ",\n"
+    note = note + "  \"output_parent_exists\": " + str(bool_to_int(smoke_py_bool_get(result, "output_parent_exists"))) + ",\n"
+    note = note + "  \"executable\": \"" + smoke_py_string_get(result, "executable") + "\",\n"
+    note = note + "  \"executable_exists\": " + str(bool_to_int(smoke_py_bool_get(result, "executable_exists"))) + ",\n"
+    note = note + "  \"executable_parent_exists\": " + str(bool_to_int(smoke_py_bool_get(result, "executable_parent_exists"))) + ",\n"
+    note = note + "  \"cwd\": \"" + smoke_py_string_get(result, "cwd") + "\",\n"
+    note = note + "  \"cwd_exists\": " + str(bool_to_int(smoke_py_bool_get(result, "cwd_exists"))) + ",\n"
+    note = note + "  \"python\": \"" + smoke_py_string_get(result, "python") + "\",\n"
+    note = note + "  \"python_version\": \"" + result_python_version + "\",\n"
+    note = note + "  \"bridge_ok\": " + str(bool_to_int(result_ok)) + ",\n"
+    note = note + "  \"error_type\": \"" + result_error_type + "\",\n"
+    note = note + "  \"error_message\": \"" + result_error_message + "\",\n"
+    note = note + "  \"stdout_len\": " + str(len(result_stdout)) + ",\n"
+    note = note + "  \"stderr_len\": " + str(len(result_stderr)) + ",\n"
     note = note + "  \"runner_checksum\": " + str(note_checksum) + ",\n"
     note = note + "  \"probe\": " + probe_note
     note = note + "}\n"
-    let note_write = py_bridge_call("__kain_smoketest_write_text", [note_path, note])
+    let note_write = python_call_raw("__kain_smoketest_write_text", [note_path, note])
 
-    if len(result.stdout) != 0:
-        println(result.stdout)
-    if len(result.stderr) != 0:
-        println(result.stderr)
-    if note_write.ok == false:
-        println("python note write error: " + note_write.error_type + ": " + note_write.error_message)
+    if len(result_stdout) != 0:
+        println(result_stdout)
+    if len(result_stderr) != 0:
+        println(result_stderr)
+    if smoke_py_bool_get(note_write, "ok") == false:
+        println("python note write error: " + smoke_py_string_get(note_write, "error_type") + ": " + smoke_py_string_get(note_write, "error_message"))
+        assert(false, "python telemetry note write failed")
         return 7
-    if result.ok == false:
-        println("python runner error: " + result.error_type + ": " + result.error_message)
+    if result_ok == false:
+        println("python runner error: " + result_error_type + ": " + result_error_message)
+        assert(false, "python telemetry runner failed")
         return 6
-    if result.status != 0:
-        return result.status
-    if result.summary_exists == false:
+    if result_status != 0:
+        assert(false, "smoketest child failed with status " + str(result_status))
+        return result_status
+    if result_summary_exists == false:
+        assert(false, "smoketest child did not write summary: " + result_summary_path)
         return 3
-    if len(result.summary_path) == 0:
+    if len(result_summary_path) == 0:
+        assert(false, "smoketest child returned an empty summary path")
         return 4
-    if len(result.python_version) == 0:
+    if len(result_python_version) == 0:
+        assert(false, "python telemetry runner returned an empty Python version")
         return 5
     return 0

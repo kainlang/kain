@@ -10,6 +10,7 @@ extern "C" {
 // ─── Legacy OS primitives ───────────────────────────────────────────────
 
 int64_t abi_os_setenv(const char* key, const char* value);
+const char* abi_os_getenv(const char* key);
 int64_t abi_os_unsetenv(const char* key);
 int64_t abi_os_chdir(const char* path);
 int64_t abi_os_getppid(void);

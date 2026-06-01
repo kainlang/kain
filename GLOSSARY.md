@@ -200,7 +200,7 @@ Location rule: paths in this glossary are live in this checkout. Older docs may 
 
 **Shatter** - Kain's structure-of-arrays layout intent, written as `shatter struct`. It says the language should preserve lane-wise hot data shape instead of pretending every hot structure wants vanilla AoS layout. Location: language truth in `crates/core/`; native substrate in `runtime/native/include/machine_stones.h` and `runtime/native/src/core/machine_stones.c`.
 
-**Smoketest** - The primary mixed-surface proof album under `smoketest/`. It is where many Kain features are meant to compile and interact together through one connected workspace, not as isolated toy snippets. Location: `smoketest/`, especially `smoketest/src/` and `smoketest/build.kn`.
+**Smoketest** - The primary mixed-surface proof album under `smoketest/`. It is where many Kain features are meant to compile and interact together through one connected workspace, not as isolated toy snippets. Validate the album through `kain build smoketest` so `smoketest/build.kn` owns the DAG; direct `kain run smoketest/src/main.kn` is only a focused debug lane and can leave misleading generated telemetry under `smoketest/src/telemetry/`. Location: `smoketest/`, especially `smoketest/src/` and `smoketest/build.kn`.
 
 **SPIR-V lane** - The canonical GPU shader artifact path. In Kain terms, SPIR-V is the primary shader output, while HLSL and PTX sidecars are derived lanes. Location: `crates/gpu/`, `kain gpu-artifacts`, `benchmark/lanes/gpu/`, `blades/vulkain/`.
 

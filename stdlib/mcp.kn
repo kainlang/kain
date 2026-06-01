@@ -363,12 +363,14 @@ pub fn mcp_image_result(base64_data: String, mime_type: String) -> McpCallResult
     }
 
 // Build the full tools/call response result object from an McpCallResult.
+pub fn mcp_build_call_result_parts(content_json: String, is_error: Bool) -> JsonObject:
+    var error_text = "false"
+    if is_error:
+        error_text = "true"
+    return json_parse_text("{\"content\":" + content_json + ",\"isError\":" + error_text + "}")
+
 pub fn mcp_build_call_result(cr: McpCallResult) -> JsonObject:
-    let result = json_object()
-    let content_val = json_parse_text(cr.content_json)
-    let _a = mcp_object_set_any(result, "content", content_val)
-    let _b = json_object_set_bool(result, "isError", cr.is_error)
-    return result
+    return mcp_build_call_result_parts(cr.content_json, cr.is_error)
 
 // ===========================================================================
 //  Transport: stdio message I/O

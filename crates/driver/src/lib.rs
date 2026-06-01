@@ -191,6 +191,7 @@ const TARGET_SPECS: &[TargetSpec] = &[
 pub struct DriverSession {
     ue5_metadata_dir: Option<PathBuf>,
     frontend_cache: RefCell<Option<CachedFrontendBundle>>,
+    checked_frontend_cache: RefCell<Option<CachedCheckedFrontend>>,
     last_frontend_bundle: RefCell<Option<FrontendSourceBundle>>,
     frontend_advisories: RefCell<Vec<String>>,
 }
@@ -432,6 +433,15 @@ struct CachedFrontendBundle {
     bundle: FrontendSourceBundle,
 }
 
+#[derive(Debug, Clone)]
+struct CachedCheckedFrontend {
+    target: CompileTarget,
+    source_path: Option<PathBuf>,
+    source: String,
+    watch_inputs: Vec<FrontendWatchedInput>,
+    checked: CheckedFrontend,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct FrontendWatchedInput {
     path: PathBuf,
@@ -549,6 +559,15 @@ impl DriverSession {
     where
         I: IntoIterator<Item = (String, ResolvedType)>,
     {
+        let extra_globals = extra_globals.into_iter().collect::<Vec<_>>();
+        let can_cache_checked = extra_globals.is_empty();
+        if can_cache_checked {
+            if let Some(cached) = try_reuse_cached_checked_frontend(self, source, source_path, target)
+            {
+                return Ok(cached.checked);
+            }
+        }
+
         register_frontend_extensions_for_target(target);
         emit_compiler_phase(
             progress,
@@ -579,8 +598,28 @@ impl DriverSession {
             target,
             CompilerProgressPhase::Typecheck,
         );
-        let typed = types::check_with_extra_globals(&ast, &span_mapper, &filename, extra_globals)?;
-        Ok(CheckedFrontend { ast, typed })
+        let typed =
+            types::check_with_extra_globals(&ast, &span_mapper, &filename, extra_globals)?;
+        let checked = CheckedFrontend { ast, typed };
+
+        if can_cache_checked {
+            let watch_inputs = self
+                .last_frontend_bundle
+                .borrow()
+                .as_ref()
+                .map(|bundle| fingerprint_watch_inputs(&bundle.watch_inputs))
+                .unwrap_or_default();
+            self.checked_frontend_cache
+                .replace(Some(CachedCheckedFrontend {
+                    target,
+                    source_path: source_path.map(|path| path.to_path_buf()),
+                    source: source.to_string(),
+                    watch_inputs,
+                    checked: checked.clone(),
+                }));
+        }
+
+        Ok(checked)
     }
 
     pub fn frontend_to_monomorphized_program(
@@ -1667,6 +1706,25 @@ fn try_reuse_cached_frontend_bundle(
     target: CompileTarget,
 ) -> Option<CachedFrontendBundle> {
     let cached = session.frontend_cache.borrow().clone()?;
+    if cached.target != target || cached.source != source {
+        return None;
+    }
+    if cached.source_path.as_deref() != source_path {
+        return None;
+    }
+    if fingerprint_watch_inputs_from_cached(&cached.watch_inputs) != cached.watch_inputs {
+        return None;
+    }
+    Some(cached)
+}
+
+fn try_reuse_cached_checked_frontend(
+    session: &DriverSession,
+    source: &str,
+    source_path: Option<&Path>,
+    target: CompileTarget,
+) -> Option<CachedCheckedFrontend> {
+    let cached = session.checked_frontend_cache.borrow().clone()?;
     if cached.target != target || cached.source != source {
         return None;
     }

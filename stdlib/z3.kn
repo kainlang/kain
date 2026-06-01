@@ -23,7 +23,7 @@ pub fn z3_require() -> Any:
     return python_require_module("z3")
 
 pub fn z3_version() -> String:
-    return python_call_attr(z3_require(), "get_version_string", [])
+    return to_string(python_call_attr_raw(z3_require(), "get_version_string", []))
 
 pub fn z3_solver() -> Any:
     return python_call_attr_raw(z3_require(), "Solver", [])
@@ -95,19 +95,19 @@ pub fn z3_sum(values: Any) -> Any:
     return python_call_attr_raw(z3_require(), "Sum", values)
 
 pub fn z3_solver_add(solver: Any, constraints: Any):
-    python_call_attr(solver, "add", constraints)
+    python_call_attr_raw(solver, "add", constraints)
 
 pub fn z3_solver_push(solver: Any):
-    python_call_attr(solver, "push", [])
+    python_call_attr_raw(solver, "push", [])
 
 pub fn z3_solver_pop(solver: Any, depth: Int):
-    python_call_attr(solver, "pop", [depth])
+    python_call_attr_raw(solver, "pop", [depth])
 
 pub fn z3_solver_check(solver: Any) -> Any:
     return python_call_attr_raw(solver, "check", [])
 
 pub fn z3_result_name(result: Any) -> String:
-    return python_call(z3_string_builtin(), [result])
+    return to_string(python_call_raw(z3_string_builtin(), [result]))
 
 pub fn z3_solver_check_name(solver: Any) -> String:
     return z3_result_name(z3_solver_check(solver))
@@ -128,10 +128,10 @@ pub fn z3_model_eval(model: Any, expr: Any) -> Any:
     return python_call_attr_raw(model, "evaluate", [expr])
 
 pub fn z3_as_long(value: Any) -> Int:
-    return python_call_attr(value, "as_long", [])
+    return to_int(python_call_attr_raw(value, "as_long", []))
 
 pub fn z3_as_string(value: Any) -> String:
-    return python_call(z3_string_builtin(), [value])
+    return to_string(python_call_raw(z3_string_builtin(), [value]))
 
 pub fn z3_repr(value: Any) -> String:
-    return python_call(z3_repr_builtin(), [value])
+    return to_string(python_call_raw(z3_repr_builtin(), [value]))

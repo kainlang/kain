@@ -4304,6 +4304,7 @@ mod tests {
         let func = Function {
             name: "compute".to_string(),
             generics: vec![],
+            where_clause: None,
             params: vec![],
             return_type: Some(Type::Named {
                 name: "Int".to_string(),
@@ -4397,6 +4398,7 @@ mod tests {
             ast: Struct {
                 name: "ViewModel".to_string(),
                 generics: vec![],
+                where_clause: None,
                 fields: vec![
                     Field {
                         name: "value".to_string(),
@@ -4429,6 +4431,7 @@ mod tests {
             ast: Function {
                 name: "raw_roundtrip".to_string(),
                 generics: vec![],
+                where_clause: None,
                 params: vec![
                     Param {
                         name: "ptr".to_string(),
@@ -4475,6 +4478,7 @@ mod tests {
             ast: Function {
                 name: "build_model".to_string(),
                 generics: vec![],
+                where_clause: None,
                 params: vec![Param {
                     name: "value".to_string(),
                     ty: int_ty.clone(),
@@ -4530,6 +4534,7 @@ mod tests {
                 methods: vec![Function {
                     name: "increment".to_string(),
                     generics: vec![],
+                    where_clause: None,
                     params: vec![Param {
                         name: "delta".to_string(),
                         ty: int_ty.clone(),
@@ -4816,6 +4821,7 @@ mod tests {
         let source_location = Struct {
             name: "SourceLocation".to_string(),
             generics: vec![lifetime_generic.clone()],
+            where_clause: None,
             fields: vec![Field {
                 name: "file".to_string(),
                 ty: string_ref.clone(),
@@ -4833,6 +4839,7 @@ mod tests {
         let function = Function {
             name: "span_to_location".to_string(),
             generics: vec![lifetime_generic],
+            where_clause: None,
             params: vec![Param {
                 name: "file".to_string(),
                 ty: string_ref,
@@ -4886,6 +4893,7 @@ mod tests {
                 bounds: vec![],
                 span,
             }],
+            where_clause: None,
             fields: vec![Field {
                 name: "file".to_string(),
                 ty: Type::Ref {
@@ -4915,6 +4923,7 @@ mod tests {
                 bounds: vec![],
                 span,
             }],
+            where_clause: None,
             trait_name: None,
             trait_generics: vec![],
             target_type: Type::Named {
@@ -4929,6 +4938,7 @@ mod tests {
             methods: vec![Function {
                 name: "new".to_string(),
                 generics: vec![],
+                where_clause: None,
                 params: vec![Param {
                     name: "file".to_string(),
                     ty: Type::Ref {

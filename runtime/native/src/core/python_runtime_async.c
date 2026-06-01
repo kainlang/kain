@@ -744,7 +744,7 @@ static int kain_py_async_future_settle(
             kain_py_any_release(settled_value);
         }
         if (settled_message) {
-            free(settled_message);
+            rc_release(settled_message);
         }
         return 0;
     }
@@ -758,7 +758,7 @@ static int kain_py_async_future_settle(
             kain_py_any_release(settled_value);
         }
         if (settled_message) {
-            free(settled_message);
+            rc_release(settled_message);
         }
         return 0;
     }
@@ -959,7 +959,7 @@ static int kain_py_async_future_shutdown(KainPythonAsyncFutureHandle* future) {
         future->settled_value = 0;
     }
     if (future->settled_message != NULL) {
-        free(future->settled_message);
+        rc_release(future->settled_message);
         future->settled_message = NULL;
     }
     atomic_store_explicit(&future->settlement_kind, KAIN_PY_ASYNC_SETTLEMENT_CANCELLED, memory_order_release);

@@ -1,5 +1,6 @@
 use std::gpu
 use std::interop
+use std::json
 
 pub fn smoke_interop_lane() -> Int:
     let shared_buffer = interop_shared_buffer_from_bytes(
@@ -65,7 +66,7 @@ pub fn smoke_interop_lane() -> Int:
         return 6
 
     let descriptor = gpu_buffer_descriptor(gpu_buffer)
-    if descriptor.byte_length != 4 or descriptor.policy_valid == false:
+    if json_get_int(descriptor, "byte_length") != 4 or json_get_bool(descriptor, "policy_valid") == false:
         return 7
 
     return 0

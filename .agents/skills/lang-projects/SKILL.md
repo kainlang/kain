@@ -410,6 +410,17 @@ $kainBin = Join-Path $bazelBin "crates\cli\kain.exe"
 & $kainBin build src\main.kn --target llvm -o .kain\out\my-app.exe
 ```
 
+For large evidence DAGs such as `smoketest/build.kn`, prefer a fresh Bazel release launcher for final proof:
+
+```powershell
+bazel build //:kain --config=release
+$bazelBin = (bazel info bazel-bin --config=release | Select-Object -Last 1).Trim()
+$kainBin = Join-Path $bazelBin "crates\cli\kain.exe"
+& $kainBin build smoketest
+```
+
+Native-executable tasks now pass the current `kain.exe` into the helper as `-KainBin`, so the child compile follows the same dev/release lane as the parent build graph. If the parent is release and a child process is still a debug `kain.exe`, treat that as build-runner drift.
+
 Use `tool-build-system` if Bazel sync, launcher provenance, generated `BUILD.bazel`, or `kain doctor` is the problem. Stay in `lang-projects` if the question is how authored Kain projects should build and prove themselves.
 
 If the compiler emits `.ll`, `.bc`, `.pdb`, `.ilk`, `*.runtime_contract.json`, or `*.realtime_app.json`, keep those sidecars under `.kain/out/<artifact>/` unless the project DAG already places them in a task output directory.
@@ -487,6 +498,7 @@ Capsule rules:
 - Keep the generated `//!kain-capsule` and `//!end-kain-capsule` metadata block intact.
 - For archive capsules, keep the `//!kain-capsule-payload` block intact.
 - Do not place unpacked capsule probes under a directory you later `kain check .` unless you want those generated `.kn` files included.
+- Companion capsule outputs such as `project.artifacts.kn` and `project.evidence.kn` should not be packed as source siblings; current amalgamate skips sibling companions and writes capsules atomically to avoid Windows mapped-section write failures.
 - Use `blades/amalgamate-capsule-probe` as the local dogfood shape.
 
 ## Blades As Scale Mode
@@ -561,10 +573,11 @@ When entering an existing Kain codebase:
 1. Search `ARCHITECTURE.md` and `MEMORY.md` for the project, feature, command, or error.
 2. Inspect `build.kn`, `platform.kn`, and only then `KAIN.toml`.
 3. Run `kain run plan . --target auto --json` when resolution is unclear, then `kain build .` when you want the full build authority DAG.
-4. Query the stdlib map instead of reading the whole atlas.
-5. Read only the source modules that the graph, imports, or failing task actually touches.
-6. Add or update evidence tasks when the project gains a claim.
-7. Keep outputs under `.kain/` and summarize report paths.
+4. For the smoketest album, use `kain build smoketest`; do not substitute `kain run smoketest/src/main.kn` except as a focused debug lane, because the direct run bypasses the build graph and can leave noisy telemetry under `smoketest/src/telemetry/`.
+5. Query the stdlib map instead of reading the whole atlas.
+6. Read only the source modules that the graph, imports, or failing task actually touches.
+7. Add or update evidence tasks when the project gains a claim.
+8. Keep outputs under `.kain/` and summarize report paths.
 
 This is how agents stop treating Kain as loose snippets and start working inside Kain codebases like they have a map.
 
@@ -578,3 +591,4 @@ This is how agents stop treating Kain as loose snippets and start working inside
 - Do not dump every module into `main.kn`; small Kain can be tiny, but real Kain projects should have semantic structure.
 - Do not scatter executables and sidecars across repo root. Use `.kain/out`, `$task`, `$blade`, or explicit root outputs.
 - Do not route a compiler/runtime defect around with project metadata. Preserve the repro and escalate to the owning skill.
+- Do not put a second whole-project `kain check` inside native executable helpers when the `build.kn` DAG already has an explicit check prerequisite; the native compile path performs frontend validation and should stay in one process so sidecar staging can reuse typed frontend state.

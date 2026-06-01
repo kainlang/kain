@@ -6,7 +6,7 @@ use std::io
 
 pub fn smoke_io_lane() -> Int with Unsafe:
     # 1. Test RingBuffer circular boundaries
-    let rb = ring_buffer_new(5) # capacity 5
+    let rb = ring_buffer_new(5) # clamps to the std::io minimum capacity of 8
     let rb_ptr: ptr<RingBuffer> = addr_of(rb, "RingBuffer")
     
     # We allocate some stack-like test memory words
@@ -20,8 +20,11 @@ pub fn smoke_io_lane() -> Int with Unsafe:
     mem_store(ptr_offset(src, 3, "Int"), 40, "Int")
     mem_store(ptr_offset(src, 4, "Int"), 50, "Int")
 
-    # Initial available write space should be 4 (capacity - 1 for boundary)
-    if ring_buffer_available_write(rb) != 4:
+    if rb.capacity != 8:
+        return 122
+
+    # Initial available write space reserves one sentinel slot.
+    if ring_buffer_available_write(rb) != 7:
         return 101
 
     # Write 3 words to ring buffer
@@ -31,7 +34,7 @@ pub fn smoke_io_lane() -> Int with Unsafe:
     
     if ring_buffer_available_read(rb) != 3:
         return 103
-    if ring_buffer_available_write(rb) != 1:
+    if ring_buffer_available_write(rb) != 4:
         return 104
 
     # Read 2 words out
@@ -41,11 +44,26 @@ pub fn smoke_io_lane() -> Int with Unsafe:
     if mem_load(ptr_offset(dest, 0, "Int"), "Int") != 10 or mem_load(ptr_offset(dest, 1, "Int"), "Int") != 20:
         return 106
 
-    # Ring buffer pos wrapped around. Write 2 more words (30, 40)
+    # Ring buffer has enough reclaimed space for another write burst.
     # The buffer now has 1 unread word (30).
     let w2 = ring_buffer_write(rb_ptr, ptr_offset(src, 3, "Int"), 2)
     if w2 != 2:
         return 107
+
+    if ring_buffer_available_read(rb) != 3:
+        return 123
+
+    let tail = alloc_zeroed(6, "Int")
+    let _drain = ring_buffer_read(rb_ptr, tail, 3)
+    let w3 = ring_buffer_write(rb_ptr, src, 5)
+    if w3 != 5:
+        return 124
+    let wrapped = ring_buffer_write(rb_ptr, ptr_offset(src, 3, "Int"), 2)
+    if wrapped != 2:
+        return 125
+    if ring_buffer_available_read(rb) != 7:
+        return 126
+    decay tail
 
     # Cleanup memory
     decay src

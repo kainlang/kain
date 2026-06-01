@@ -2550,6 +2550,9 @@ fn build_explicit_task(
         }
         _ => unreachable!("explicit task kinds are filtered above"),
     };
+    if task_kind_uses_kain_frontend(kind) {
+        append_stdlib_cache_inputs(&mut inputs, root);
+    }
     let outputs = match &adapter {
         BuildTaskAdapter::GpuArtifacts {
             output_base,
@@ -2621,7 +2624,7 @@ fn build_explicit_task(
             .iter()
             .filter_map(|value| explicit_build_task_dependency_id(value, blade))
             .collect(),
-        inputs,
+        inputs: dedup_paths(inputs),
         outputs,
         required_capabilities: task.required_capabilities.clone(),
         matrix_axes: task.matrix_axes.clone(),
@@ -2640,6 +2643,20 @@ fn build_explicit_task(
         ),
         adapter,
     })
+}
+
+fn task_kind_uses_kain_frontend(kind: BuildTaskKind) -> bool {
+    matches!(
+        kind,
+        BuildTaskKind::KainCheck
+            | BuildTaskKind::KainCompile
+            | BuildTaskKind::NativeExecutable
+            | BuildTaskKind::Test
+            | BuildTaskKind::Proof
+            | BuildTaskKind::RustArtifacts
+            | BuildTaskKind::NativeUiApp
+            | BuildTaskKind::GpuArtifacts
+    )
 }
 
 fn build_host_capability_set(plan: &BladeBuildPlan) -> BTreeSet<String> {
@@ -3265,6 +3282,12 @@ fn run_native_executable_task(
         "-OutputName".to_string(),
         output.display().to_string(),
     ];
+    if let Ok(current_exe) = std::env::current_exe() {
+        if current_exe.exists() {
+            args.push("-KainBin".to_string());
+            args.push(current_exe.display().to_string());
+        }
+    }
     if verify_llvm {
         args.push("-VerifyLlvm".to_string());
     }
@@ -4730,9 +4753,13 @@ fn write_task_stamp(task: &BuildTask, plan: &BladeBuildPlan) -> BuildResult<()> 
 }
 
 fn stamp_path(task: &BuildTask, plan: &BladeBuildPlan) -> PathBuf {
+    stamp_path_for_id(&task.id, plan)
+}
+
+fn stamp_path_for_id(task_id: &str, plan: &BladeBuildPlan) -> PathBuf {
     plan.cache_root
         .join("stamps")
-        .join(format!("{}.stamp", sanitize_id(&task.id)))
+        .join(format!("{}.stamp", sanitize_id(task_id)))
 }
 
 fn task_stamp(task: &BuildTask, plan: &BladeBuildPlan) -> BuildResult<String> {
@@ -4748,6 +4775,16 @@ fn task_stamp(task: &BuildTask, plan: &BladeBuildPlan) -> BuildResult<String> {
     hasher.update(task.id.as_bytes());
     hasher.update(task.kind.as_str().as_bytes());
     hasher.update(format!("{:?}", task.adapter).as_bytes());
+    for dependency in &task.depends_on {
+        hasher.update(b"dependency=");
+        hasher.update(dependency.as_bytes());
+        let dependency_stamp = stamp_path_for_id(dependency, plan);
+        if dependency_stamp.exists() {
+            hash_path_into(&mut hasher, &dependency_stamp)?;
+        } else {
+            hasher.update(b":stamp-missing");
+        }
+    }
     for input in &task.inputs {
         hash_path_into(&mut hasher, input)?;
     }
@@ -5426,6 +5463,30 @@ fn find_lang_projects_compile_script(start: &Path) -> PathBuf {
         }
     }
     start.join(relative)
+}
+
+fn append_stdlib_cache_inputs(inputs: &mut Vec<PathBuf>, start: &Path) {
+    if let Some(stdlib_root) = find_stdlib_root(start) {
+        if !inputs.iter().any(|path| path == &stdlib_root) {
+            inputs.push(stdlib_root);
+        }
+    }
+}
+
+fn find_stdlib_root(start: &Path) -> Option<PathBuf> {
+    for ancestor in start.ancestors() {
+        let candidate = ancestor.join("stdlib");
+        if candidate.is_dir() {
+            return Some(canonicalize_input_path(&candidate));
+        }
+    }
+    if let Ok(kain_home) = std::env::var("KAIN_HOME") {
+        let candidate = PathBuf::from(kain_home).join("stdlib");
+        if candidate.is_dir() {
+            return Some(canonicalize_input_path(&candidate));
+        }
+    }
+    None
 }
 
 fn append_native_runtime_cache_inputs(inputs: &mut Vec<PathBuf>, start: &Path) -> BuildResult<()> {
@@ -6716,6 +6777,80 @@ fn build(ctx: BuildContext) -> BuildGraph:
     }
 
     #[test]
+    fn kain_frontend_task_stamp_changes_when_stdlib_changes() {
+        let root = unique_test_dir("kain-frontend-stdlib-cache");
+        std::fs::create_dir_all(root.join("stdlib")).expect("create stdlib");
+        std::fs::write(root.join("stdlib").join("reflect.kn"), "pub fn marker() -> Int:\n    return 1\n")
+            .expect("write stdlib");
+        let config = test_workspace_config(&root);
+        let task = KainBuildTaskSection {
+            id: "root-exe".to_string(),
+            kind: "native-executable".to_string(),
+            entry: Some(PathBuf::from("src/main.kn")),
+            outputs: vec![PathBuf::from("$root/bin/probe.exe")],
+            ..KainBuildTaskSection::default()
+        };
+        let resolved =
+            build_explicit_task(&config, None, &root, &task).expect("build native exe task");
+        assert!(resolved
+            .inputs
+            .iter()
+            .any(|path| path.file_name().and_then(OsStr::to_str) == Some("stdlib")));
+
+        let plan = BladeBuildPlan {
+            schema_version: BUILD_ARTIFACT_SCHEMA_VERSION,
+            workspace_root: config.workspace_root.clone(),
+            artifact_root: config.artifact_root.clone(),
+            cache_root: config.cache_root.clone(),
+            report_root: config.report_root.clone(),
+            host: config.host.clone(),
+            lane: config.lane,
+            profile: config.profile.clone(),
+            target: config.target.clone(),
+            build_graph: None,
+            tasks: vec![resolved.clone()],
+        };
+        let before = task_stamp(&resolved, &plan).expect("stamp before");
+        std::fs::write(root.join("stdlib").join("reflect.kn"), "pub fn marker() -> Int:\n    return 2\n")
+            .expect("rewrite stdlib");
+        let after = task_stamp(&resolved, &plan).expect("stamp after");
+        assert_ne!(before, after);
+
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn task_stamp_changes_when_dependency_stamp_changes() {
+        let root = unique_test_dir("dependency-stamp-cache");
+        let config = test_workspace_config(&root);
+        let mut parent = test_task_with_outputs("parent", vec![root.join("parent.out")]);
+        parent.depends_on = vec!["child".to_string()];
+        let plan = BladeBuildPlan {
+            schema_version: BUILD_ARTIFACT_SCHEMA_VERSION,
+            workspace_root: config.workspace_root.clone(),
+            artifact_root: config.artifact_root.clone(),
+            cache_root: config.cache_root.clone(),
+            report_root: config.report_root.clone(),
+            host: config.host.clone(),
+            lane: config.lane,
+            profile: config.profile.clone(),
+            target: config.target.clone(),
+            build_graph: None,
+            tasks: vec![parent.clone()],
+        };
+        let child_stamp = stamp_path_for_id("child", &plan);
+        std::fs::create_dir_all(child_stamp.parent().expect("stamp parent"))
+            .expect("create stamps");
+        std::fs::write(&child_stamp, "first").expect("write first stamp");
+        let before = task_stamp(&parent, &plan).expect("stamp before");
+        std::fs::write(&child_stamp, "second").expect("write second stamp");
+        let after = task_stamp(&parent, &plan).expect("stamp after");
+        assert_ne!(before, after);
+
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
     fn native_executable_task_stamp_changes_when_runtime_header_changes() {
         let root = unique_test_dir("native-executable-runtime-cache");
         std::fs::create_dir_all(root.join("src")).expect("create src");
@@ -6859,7 +6994,7 @@ fn build(ctx: BuildContext) -> BuildGraph:
 
     #[test]
     fn shader_artifact_source_extracts_kain_example_shaders_without_native_body() {
-        let source = include_str!("../../../blades/_old/kain-example/src/main.kn");
+        let source = include_str!("../../../blades/example/src/main.kn");
 
         let extracted = shader_artifact_source(source)
             .expect("kain-example native source should yield shader-only source");

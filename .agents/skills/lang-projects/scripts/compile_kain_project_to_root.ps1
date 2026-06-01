@@ -286,11 +286,9 @@ $env:KAIN_RUNTIME_MANIFEST_PATH = $runtimeManifestForBuild
 
 Push-Location $projectRoot
 try {
-    & $resolvedKain check $entryPath --target llvm
-    if ($LASTEXITCODE -ne 0) {
-        throw "kain check failed with exit code $LASTEXITCODE"
-    }
-
+    # The native compile path performs the same frontend validation and keeps
+    # the typed program alive for LLVM sidecar staging inside one CLI process.
+    # Project DAGs should express standalone check coverage as build.kn tasks.
     & $resolvedKain $entryPath -t llvm -o $outputExe
     if ($LASTEXITCODE -ne 0) {
         throw "native LLVM compile failed with exit code $LASTEXITCODE"

@@ -1,5 +1,29 @@
 # Kain Bug Log
 
+## 2026-06-01 - stdlib/python-runtime
+### Python async future close can hang when the callback worker never settles
+
+- Categories: runtime, stdlib, python, async, smoketest
+- Severity: Medium
+- Status: Open in tree (2026-06-01)
+- Surface: authored Kain `std::python` async future and actor callback cleanup.
+- Trigger: The smoketest Python async lane created a Python-backed future/callback and then tried to close it directly after bounded polling.
+- Symptom: The lane can wedge the smoketest album instead of returning a failure result when the Python callback worker does not settle on this Windows host.
+- Why this is a bug: Closing or canceling a pending host future should be bounded and observable. A stdlib proof lane should not be able to hang the whole `smoketest/build.kn` album just because an external async callback failed to complete.
+- Minimal repro:
+  - Restore the older direct close path in `smoketest/src/stdlib/python_async_lane.kn`.
+  - Run `kain build smoketest` and watch the album stall in the stdlib Python async path or in a direct focused run of that lane.
+- Evidence:
+  - The 2026-06-01 low-level smoketest pass had to rewrite `python_async_lane.kn` to bounded-poll, cancel, and rely on a Kain relay actor tick instead of directly closing an unsettled callback future.
+  - The same pass found and fixed a separate native heap-corruption bug in `python_runtime_async.c`: `settled_message` is allocated by the RC string path and must be released with `rc_release`, not `free`.
+  - After that RC fix, the bounded async lane passed inside the full `kain build smoketest` album; the broader pending-close boundedness issue remains tracked here.
+- Current workaround:
+  - Use bounded polling and `python_future_cancel` for async proof lanes; do not call callback/future close paths after the worker fails to settle.
+- Suggested direction:
+  - Make Python future close/cancel idempotent and bounded, expose settlement/error state clearly, and add a focused runtime-backed stdlib test that proves pending callback cleanup cannot hang the caller.
+
+---
+
 ## 2026-05-30 - sys-codegen/llvm
 ### Small authored Kain helper shapes can pass check but emit invalid LLVM PHI IR
 

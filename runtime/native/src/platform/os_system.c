@@ -201,6 +201,10 @@ int64_t abi_os_setenv(const char* key, const char* value) {
     }
 
 #ifdef _WIN32
+    if (_putenv_s(key, value ? value : "") != 0) {
+        kain_os_set_error(-1, "setenv", "_putenv_s failed");
+        return -1;
+    }
     if (!SetEnvironmentVariableA(key, value ? value : "")) {
         kain_os_set_win32_error("setenv", GetLastError(), "SetEnvironmentVariableA failed");
         return -1;
@@ -216,6 +220,62 @@ int64_t abi_os_setenv(const char* key, const char* value) {
     return 0;
 }
 
+const char* abi_os_getenv(const char* key) {
+    if (key == NULL || key[0] == '\0') {
+        kain_os_set_error(-1, "invalid_argument", "environment key cannot be empty");
+        return string_new("");
+    }
+
+#ifdef _WIN32
+    {
+        DWORD needed = GetEnvironmentVariableA(key, NULL, 0);
+        char* buffer;
+        DWORD length;
+        const char* result;
+        if (needed == 0u) {
+            DWORD code = GetLastError();
+            if (code == ERROR_ENVVAR_NOT_FOUND) {
+                kain_os_set_ok();
+                return string_new("");
+            }
+            kain_os_set_win32_error("getenv", code, "GetEnvironmentVariableA failed");
+            return string_new("");
+        }
+        buffer = (char*)malloc((size_t)needed);
+        if (buffer == NULL) {
+            kain_os_set_error(-1, "alloc", "environment value allocation failed");
+            return string_new("");
+        }
+        length = GetEnvironmentVariableA(key, buffer, needed);
+        if (length == 0u && GetLastError() != ERROR_SUCCESS) {
+            DWORD code = GetLastError();
+            free(buffer);
+            kain_os_set_win32_error("getenv", code, "GetEnvironmentVariableA failed");
+            return string_new("");
+        }
+        if (length >= needed) {
+            free(buffer);
+            kain_os_set_error(-1, "getenv", "environment value changed while reading");
+            return string_new("");
+        }
+        result = string_new(buffer);
+        free(buffer);
+        kain_os_set_ok();
+        return result;
+    }
+#else
+    {
+        const char* value = getenv(key);
+        if (value == NULL || value[0] == '\0') {
+            kain_os_set_ok();
+            return string_new("");
+        }
+        kain_os_set_ok();
+        return string_new((char*)value);
+    }
+#endif
+}
+
 int64_t abi_os_unsetenv(const char* key) {
     if (key == NULL || key[0] == '\0') {
         kain_os_set_error(-1, "invalid_argument", "environment key cannot be empty");
@@ -223,6 +283,10 @@ int64_t abi_os_unsetenv(const char* key) {
     }
 
 #ifdef _WIN32
+    if (_putenv_s(key, "") != 0) {
+        kain_os_set_error(-1, "unsetenv", "_putenv_s failed");
+        return -1;
+    }
     if (!SetEnvironmentVariableA(key, NULL)) {
         kain_os_set_win32_error("unsetenv", GetLastError(), "SetEnvironmentVariableA failed");
         return -1;

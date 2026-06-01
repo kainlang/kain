@@ -571,6 +571,8 @@ struct LlvmGenerator {
     scopes: Vec<Vec<String>>,
     /// Struct definitions: Name -> Vec<(FieldName, Type)>
     struct_defs: HashMap<String, Vec<(String, String)>>,
+    /// Enums whose variants carry no payload can lower equality to tag equality.
+    unit_only_enums: HashSet<String>,
     /// Struct fields whose semantic type is `Any` and must pass through the
     /// native tagged-i64 lane instead of being re-boxed as plain integers.
     struct_any_passthrough_fields: HashSet<(String, String)>,
@@ -722,6 +724,7 @@ impl LlvmGenerator {
             loop_defer_depth_stack: Vec::new(),
             scopes: Vec::new(),
             struct_defs: HashMap::new(),
+            unit_only_enums: HashSet::new(),
             struct_any_passthrough_fields: HashSet::new(),
             struct_runtime_array_field_elements: HashMap::new(),
             value_aggregate_structs: HashSet::new(),
@@ -7176,6 +7179,26 @@ impl LlvmGenerator {
             .then(|| format!("{pointee_ty}*"))
     }
 
+    fn unit_only_enum_name_from_llvm_ptr(&self, llvm_ty: &str) -> Option<String> {
+        let enum_name = llvm_ty.strip_prefix('%')?.strip_suffix('*')?;
+        self.unit_only_enums
+            .contains(enum_name)
+            .then(|| enum_name.to_string())
+    }
+
+    fn compile_enum_tag_load(&mut self, value: &str, enum_name: &str) -> String {
+        let struct_ty = format!("%{}", enum_name);
+        let ptr_ty = format!("{}*", struct_ty);
+        let tag_ptr = self.next_reg();
+        self.emit(&format!(
+            "  {} = getelementptr inbounds {}, {} {}, i32 0, i32 0",
+            tag_ptr, struct_ty, ptr_ty, value
+        ));
+        let tag = self.next_reg();
+        self.emit(&format!("  {} = load i64, i64* {}", tag, tag_ptr));
+        tag
+    }
+
     fn intern_string_global_name(&mut self, s: &str) -> String {
         if let Some(name) = self.strings.get(s) {
             name.clone()
@@ -12590,6 +12613,12 @@ impl LlvmGenerator {
                 }
                 TypedItem::Enum(e) => {
                     self.emit(&format!("%{} = type {{ i64, i8* }}", e.ast.name));
+                    if e.variant_payload_types
+                        .values()
+                        .all(|payload_types| payload_types.is_empty())
+                    {
+                        self.unit_only_enums.insert(e.ast.name.clone());
+                    }
                     self.struct_defs.insert(
                         e.ast.name.clone(),
                         vec![
@@ -18534,6 +18563,24 @@ impl LlvmGenerator {
 
                 let (lhs, lhs_ty) = self.compile_expr(left)?;
                 let (rhs, rhs_ty) = self.compile_expr(right)?;
+                if *op == BinaryOp::Eq || *op == BinaryOp::Ne {
+                    if let (Some(lhs_enum), Some(rhs_enum)) = (
+                        self.unit_only_enum_name_from_llvm_ptr(&lhs_ty),
+                        self.unit_only_enum_name_from_llvm_ptr(&rhs_ty),
+                    ) {
+                        if lhs_enum == rhs_enum {
+                            let lhs_tag = self.compile_enum_tag_load(&lhs, &lhs_enum);
+                            let rhs_tag = self.compile_enum_tag_load(&rhs, &rhs_enum);
+                            let res = self.next_reg();
+                            let predicate = if *op == BinaryOp::Eq { "eq" } else { "ne" };
+                            self.emit(&format!(
+                                "  {} = icmp {} i64 {}, {}",
+                                res, predicate, lhs_tag, rhs_tag
+                            ));
+                            return Ok((res, "i1".to_string()));
+                        }
+                    }
+                }
                 if *op == BinaryOp::Add && (lhs_ty == "i8*" || rhs_ty == "i8*") {
                     let lhs_release_after_use = if lhs_ty == "i8*" {
                         self.is_new_object(left)
@@ -19513,6 +19560,28 @@ fn main() -> Int:
         let window = &llvm[window_start..call_index];
 
         assert!(window.contains("call void @rc_retain(i8*"));
+    }
+
+    #[test]
+    fn lowers_unit_enum_equality_to_tag_comparison() {
+        let source = r#"
+enum Tone:
+    Hot
+    Cold
+
+fn main() -> Int:
+    if Tone::Hot == Tone::Hot and Tone::Hot != Tone::Cold:
+        return 0
+    return 1
+"#;
+        let llvm = generate_llvm_or_error(source).expect("llvm generation");
+        assert!(llvm.contains("icmp eq i64"));
+        assert!(llvm.contains("icmp ne i64"));
+        assert!(
+            !llvm.contains("icmp eq %Tone*"),
+            "unit enum equality must compare variant tags instead of object pointers:\n{}",
+            llvm
+        );
     }
 
     #[test]

@@ -18,6 +18,56 @@ pub struct TypeDescriptor:
     size_bytes: Int
     field_count: Int
 
+fn reflect_is_digit_code(code: Int) -> Bool:
+    return code >= 48 and code <= 57
+
+fn reflect_text_is_int_literal(text: String) -> Bool:
+    let text_len = len(text)
+    if text_len <= 0:
+        return false
+
+    var index = 0
+    let first = ord(char_at(text, 0))
+    if first == 45 or first == 43:
+        index = 1
+        if text_len == 1:
+            return false
+
+    while index < text_len:
+        if reflect_is_digit_code(ord(char_at(text, index))) == false:
+            return false
+        index = index + 1
+
+    return true
+
+fn reflect_text_is_float_literal(text: String) -> Bool:
+    let text_len = len(text)
+    if text_len <= 0:
+        return false
+
+    var index = 0
+    var dot_count = 0
+    var digit_count = 0
+    let first = ord(char_at(text, 0))
+    if first == 45 or first == 43:
+        index = 1
+        if text_len == 1:
+            return false
+
+    while index < text_len:
+        let code = ord(char_at(text, index))
+        if code == 46:
+            dot_count = dot_count + 1
+            if dot_count > 1:
+                return false
+        elif reflect_is_digit_code(code):
+            digit_count = digit_count + 1
+        else:
+            return false
+        index = index + 1
+
+    return dot_count == 1 and digit_count > 0
+
 pub fn reflect_type_kind(val: Any) -> TypeKind:
     # Compile-time or runtime type-tag extraction helper
     let typ_name = to_string(val)
@@ -31,6 +81,12 @@ pub fn reflect_type_kind(val: Any) -> TypeKind:
         return TypeKind::String
     elif typ_name == "ptr":
         return TypeKind::Ptr
+    elif typ_name == "true" or typ_name == "false":
+        return TypeKind::Bool
+    elif reflect_text_is_int_literal(typ_name):
+        return TypeKind::Int
+    elif reflect_text_is_float_literal(typ_name):
+        return TypeKind::Float
     return TypeKind::Struct
 
 pub fn reflect_type_name(val: Any) -> String:

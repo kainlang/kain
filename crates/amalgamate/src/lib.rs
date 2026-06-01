@@ -536,7 +536,7 @@ pub fn pack_capsule(options: &PackOptions) -> CapsuleResult<PackReport> {
         options.header_style,
         options.preview_symbol_limit,
     )?;
-    kfs::write_text(&options.output, &rendered)?;
+    kfs::atomic_write_text(&options.output, &rendered)?;
     Ok(PackReport {
         output_path: options.output.clone(),
         kind: metadata.kind,
@@ -744,6 +744,10 @@ fn collect_directory_snapshot(
     output: &Path,
 ) -> CapsuleResult<DirectorySnapshot> {
     let output_rel = output_relative_to_root(root, output);
+    let companion_outputs = output_rel
+        .as_deref()
+        .map(companion_capsule_relatives)
+        .unwrap_or_default();
     let mut directories = Vec::new();
     let mut files = Vec::new();
     let entries = kfs::walk_dir_entries(
@@ -762,6 +766,7 @@ fn collect_directory_snapshot(
             .map_err(|_| CapsuleError::Format("failed to relativize capsule path".to_string()))?;
         if rel.as_os_str().is_empty()
             || should_skip_relative(rel)
+            || companion_outputs.contains(rel)
             || output_rel.as_ref().is_some_and(|output| rel == output)
         {
             continue;
@@ -2380,6 +2385,32 @@ fn should_skip_relative(path: &Path) -> bool {
     })
 }
 
+fn companion_capsule_relatives(output_rel: &Path) -> BTreeSet<PathBuf> {
+    let Some(file_name) = output_rel.file_name().and_then(|value| value.to_str()) else {
+        return BTreeSet::new();
+    };
+    let Some(stem) = file_name.strip_suffix(".kn") else {
+        return BTreeSet::new();
+    };
+    let base = stem
+        .strip_suffix(".artifacts")
+        .or_else(|| stem.strip_suffix(".evidence"))
+        .unwrap_or(stem);
+    if base.is_empty() {
+        return BTreeSet::new();
+    }
+
+    let parent = output_rel.parent().unwrap_or_else(|| Path::new(""));
+    [
+        format!("{base}.kn"),
+        format!("{base}.artifacts.kn"),
+        format!("{base}.evidence.kn"),
+    ]
+    .into_iter()
+    .map(|name| parent.join(name))
+    .collect()
+}
+
 fn validate_output_relative_path(path: &Path) -> CapsuleResult<()> {
     for component in path.components() {
         match component {
@@ -2699,6 +2730,39 @@ cache_root = ".kain/cache/build"
             .join("full")
             .join("summary.json")
             .exists());
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn source_capsule_skips_existing_companion_outputs() {
+        let root = unique_temp_dir("skip-existing-companions");
+        fs::create_dir_all(root.join("src")).expect("create src");
+        fs::write(
+            root.join("src").join("main.kn"),
+            "fn main() -> Int:\n    return 0\n",
+        )
+        .expect("write main");
+        fs::write(root.join("smoketest.artifacts.kn"), "stale artifact capsule")
+            .expect("write stale artifacts");
+        fs::write(root.join("smoketest.evidence.kn"), "stale evidence capsule")
+            .expect("write stale evidence");
+
+        let mut source_options = PackOptions::new(&root, root.join("smoketest.kn"));
+        source_options.contents = CapsuleContents::Source;
+        source_options.capsule_set = Some("smoketest".to_string());
+        let source_report = pack_capsule(&source_options).expect("pack source");
+        let source = inspect_capsule(&source_report.output_path).expect("inspect source");
+
+        assert!(source.files.iter().any(|file| file.path == "src/main.kn"));
+        assert!(!source
+            .files
+            .iter()
+            .any(|file| file.path == "smoketest.artifacts.kn"));
+        assert!(!source
+            .files
+            .iter()
+            .any(|file| file.path == "smoketest.evidence.kn"));
 
         let _ = fs::remove_dir_all(root);
     }

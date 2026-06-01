@@ -1446,6 +1446,7 @@ fn llvm_generates_struct_array_and_fstring_paths() {
         ast: Struct {
             name: "ViewModel".to_string(),
             generics: vec![],
+            where_clause: None,
             fields: vec![Field {
                 name: "value".to_string(),
                 ty: int_type(),
@@ -1467,6 +1468,7 @@ fn llvm_generates_struct_array_and_fstring_paths() {
         ast: Function {
             name: "make_view".to_string(),
             generics: vec![],
+            where_clause: None,
             params: vec![Param {
                 name: "n".to_string(),
                 ty: int_type(),
@@ -1586,6 +1588,7 @@ fn llvm_generates_impl_methods_and_method_calls() {
         ast: Struct {
             name: "ViewModel".to_string(),
             generics: vec![],
+            where_clause: None,
             fields: vec![Field {
                 name: "value".to_string(),
                 ty: int_type(),
@@ -1606,6 +1609,7 @@ fn llvm_generates_impl_methods_and_method_calls() {
     let typed_impl = TypedItem::Impl(TypedImpl {
         ast: Impl {
             generics: vec![],
+            where_clause: None,
             trait_name: None,
             trait_generics: vec![],
             target_type: Type::Named {
@@ -1616,6 +1620,7 @@ fn llvm_generates_impl_methods_and_method_calls() {
             methods: vec![Function {
                 name: "increment".to_string(),
                 generics: vec![],
+                where_clause: None,
                 params: vec![Param {
                     name: "delta".to_string(),
                     ty: int_type(),
@@ -1653,6 +1658,7 @@ fn llvm_generates_impl_methods_and_method_calls() {
         ast: Function {
             name: "call_increment".to_string(),
             generics: vec![],
+            where_clause: None,
             params: vec![Param {
                 name: "model".to_string(),
                 ty: Type::Named {
@@ -2284,6 +2290,7 @@ fn llvm_generates_float_arithmetic_and_comparisons() {
         ast: Function {
             name: "blend".to_string(),
             generics: vec![],
+            where_clause: None,
             params: vec![
                 Param {
                     name: "a".to_string(),
@@ -2436,6 +2443,7 @@ fn llvm_generates_match_patterns_for_ranges_or_and_literals() {
         ast: Function {
             name: "classify_int".to_string(),
             generics: vec![],
+            where_clause: None,
             params: vec![Param {
                 name: "value".to_string(),
                 ty: int_type(),
@@ -2502,6 +2510,7 @@ fn llvm_generates_match_patterns_for_ranges_or_and_literals() {
         ast: Function {
             name: "classify_flag".to_string(),
             generics: vec![],
+            where_clause: None,
             params: vec![Param {
                 name: "flag".to_string(),
                 ty: Type::Named {
@@ -2555,6 +2564,7 @@ fn llvm_generates_match_patterns_for_ranges_or_and_literals() {
         ast: Function {
             name: "classify_name".to_string(),
             generics: vec![],
+            where_clause: None,
             params: vec![Param {
                 name: "name".to_string(),
                 ty: string_type(),
@@ -2794,6 +2804,7 @@ fn llvm_generates_struct_destructuring_patterns() {
         ast: Struct {
             name: "Point".to_string(),
             generics: vec![],
+            where_clause: None,
             fields: vec![
                 Field {
                     name: "x".to_string(),
@@ -2829,6 +2840,7 @@ fn llvm_generates_struct_destructuring_patterns() {
         ast: Function {
             name: "sum_point".to_string(),
             generics: vec![],
+            where_clause: None,
             params: vec![],
             return_type: Some(int_type()),
             effects: vec![],
@@ -2923,6 +2935,7 @@ fn llvm_generates_raw_address_indexing_reads_and_writes() {
         ast: Function {
             name: "mutate_ptr".to_string(),
             generics: vec![],
+            where_clause: None,
             params: vec![Param {
                 name: "ptr".to_string(),
                 ty: int_type(),
@@ -2987,6 +3000,7 @@ fn llvm_lowers_tuple_aggregate_init_without_dummy_fallback() {
         ast: Function {
             name: "build_pair".to_string(),
             generics: vec![],
+            where_clause: None,
             params: vec![],
             return_type: Some(Type::Tuple(vec![int_type(), int_type()], span())),
             effects: vec![],
@@ -3040,6 +3054,7 @@ fn llvm_rejects_unsupported_expressions_instead_of_silent_dummy_values() {
         ast: Function {
             name: "bad_fn".to_string(),
             generics: vec![],
+            where_clause: None,
             params: vec![],
             return_type: Some(int_type()),
             effects: vec![],
@@ -3789,6 +3804,7 @@ fn llvm_lowers_typed_none_to_zero_for_struct_value_flows() {
         ast: Struct {
             name: "Node".to_string(),
             generics: vec![],
+            where_clause: None,
             fields: vec![Field {
                 name: "value".to_string(),
                 ty: int_type(),
@@ -3810,6 +3826,7 @@ fn llvm_lowers_typed_none_to_zero_for_struct_value_flows() {
         ast: Function {
             name: "bind_none".to_string(),
             generics: vec![],
+            where_clause: None,
             params: vec![],
             return_type: Some(int_type()),
             effects: vec![],
@@ -3849,6 +3866,7 @@ fn llvm_lowers_typed_none_to_zero_for_struct_value_flows() {
         ast: Function {
             name: "return_none".to_string(),
             generics: vec![],
+            where_clause: None,
             params: vec![],
             return_type: Some(Type::Named {
                 name: "Node".to_string(),

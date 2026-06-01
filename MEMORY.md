@@ -10328,3 +10328,33 @@ The reusable semantic oracle now has a shipped CPU consumer path in addition to 
   - `cargo test -p kain-core --test semantic_typecheck_test --target-dir Z:\_b\cargo-target\semantic-hybrid -- --nocapture` passed `6/6`
   - real `kain check crates\semantic\error_corpus\type_unknown_identifier.kn --target llvm --json X:\crates\semantic\.kain\reports\semantic-pack-type.json` failed as expected with `semantic.backend = "pack_cpu_rerank"`, `pack_schema_version = "kain.semantic.pack.v1:1"`, typo mode, and top repair `println`
   - disabling the pack produced `semantic.backend = "fallback_rules"` with the same user-facing repair, proving portability without CUDA/GPU on the user side
+
+# 2026-06-01 - low-level godmode pass, build.kn album proof, and Windows capsule lock fix
+
+The low-level systems pass landed stdlib/runtime/compiler fixes and proved them through the real smoketest project graph, not direct `kain run smoketest/src/main.kn`.
+
+- Build/proof routing lesson:
+  - use `kain build smoketest` for the album; direct `kain run smoketest/src/main.kn` is only a debug lane and can write misleading telemetry under `smoketest/src/telemetry`
+  - for full album proof on this workstation, use a fresh Bazel release launcher when possible; debug Kain made `check-llvm` and root native compile look hung
+  - `crates/build` now passes the current `kain.exe` into native-executable helper tasks as `-KainBin`, so a release build graph does not silently downgrade to a debug child compiler
+- Low-level/runtime/compiler fixes that matter for future work:
+  - OS env gained `abi_os_getenv` plus `std::os` `os_getenv`/`os_getenv_default`
+  - Python async future settlement now releases RC strings with `rc_release` instead of `free`, fixing heap corruption found by the smoketest Z3 lane sequence
+  - `stdlib/z3.kn` moved to the current raw Python bridge calls
+  - payload-free enum equality in LLVM now compares variant tags instead of enum object pointers; this fixed `TypeKind::Int == TypeKind::Int`
+  - Kain frontend build-task stamps now include root `stdlib/` inputs and dependency stamp state so stdlib changes invalidate downstream executable tasks
+  - capsule emission now uses atomic writes and skips sibling companion capsule outputs, fixing Windows `os error 1224` mapped-section failures while writing `smoketest.artifacts.kn`
+- Smoketest lane fixes:
+  - Python bridge array/async lanes were updated to current raw Python handle APIs and bounded async polling
+  - stdlib IO ring-buffer expectations now match power-of-two capacity behavior and exercise real wraparound
+  - C bridge lane now checks score responsiveness instead of a brittle score/bounce ordering relation
+  - reflect/meta lane now classifies literal-shaped runtime names into Bool/Int/Float kinds
+  - telemetry runner now asserts child failure instead of producing false green summaries
+- Proofs:
+  - `bazel build //:kain --config=release` passed with the final launcher
+  - `kain build smoketest` via `Z:\_b\output-user-root\n2kwlvv2\execroot\_main\bazel-out\x64_windows-opt\bin\crates\cli\kain.exe` passed all 17 build tasks; report `smoketest/.kain/reports/build/session-1780320624233-22176.json`
+  - `smoketest/telemetry/full/summary.json` reported `ok: 1`, `total_tracks: 63`, `succeeded_tracks: 63`
+  - `bazel test //runtime:native_runtime_tests --config=dev` passed `10/10`
+  - `cargo test -p kain-build --target-dir target\codex-lowlevel-godmode-reroute --message-format short` passed `30/30`
+  - `cargo test -p kain-amalgamate --target-dir target\codex-lowlevel-godmode-reroute --message-format short` passed `4/4`
+  - `cargo test -p kain-sys-codegen --target-dir target\codex-lowlevel-godmode-reroute codegen_llvm::tests::lowers_unit_enum_equality_to_tag_comparison -- --exact` passed
