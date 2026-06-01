@@ -1,35 +1,31 @@
 [package]
 name = "zender"
 version = "0.1.0"
-description = "Fresh natural-Vulkan Zender blade with Kain-owned scene planning, GLB metadata, and Catmull-Clark telemetry."
+description = "GPU-accelerated data-driven sculpting system — a Kain-native ZBrush clone."
 
 [blade]
 name = "zender"
-entry = "src/main.kn"
-source_roots = ["src"]
-module_roots = ["src"]
-build_targets = ["llvm"]
-
-[run]
-entry = "src/main.kn"
-target = "llvm"
+kind = "kain_app"
+entry = "src/sculpt/main.kn"
+source_roots = [
+    "src",
+    "src/sculpt",
+    "src/sculpt/brushes",
+    "src/sculpt/kernels",
+    "src/sculpt/mesh",
+    "src/sculpt/state",
+    "src/sculpt/tools",
+]
+module_roots = [
+    "src",
+    "src/sculpt",
+    "src/sculpt/brushes",
+    "src/sculpt/kernels",
+    "src/sculpt/mesh",
+    "src/sculpt/state",
+    "src/sculpt/tools",
+]
 
 [build]
-entry = "src/main.kn"
-artifact_root = ".kain/out"
-cache_root = ".kain/cache/build"
-profile = "debug"
-
-[c_ffi]
-
-[[c_ffi.libraries]]
-name = "zender_vulkan"
-tier = "inline"
-header = "src/native/zender_vulkan.h"
-sources = ["src/native/zender_vulkan.c"]
-include_paths = [
-  "src/native",
-  "${env:KAIN_PLATFORM_VULKAN_INCLUDE}",
-]
-defines = ["_CRT_SECURE_NO_WARNINGS"]
-link_libs = ["user32"]
+target = "llvm"
+profile = "release"

@@ -1,0 +1,643 @@
+// =============================================================================
+//  ZENDER — GPU sculpting brush kernels
+//  ClayBuildUp · Smooth · Pinch · Inflate · NormalRecalculate · MaskBlend
+//
+//  Every kernel processes a flat float buffer (3 floats per vertex for vec3
+//  data) and uses component-wise scalar ops. All math is inlined because the
+//  current PTX/SPIR-V lowering does not support user-defined cross-item calls
+//  inside shader compute items, and v1 backends only recognise basic arithmetic
+//  (+, -, *, /), bit ops, and max/min.  sqrt is implemented via Newton-Raphson;
+//  the falloff exponent uses exponentiation by squaring.
+// =============================================================================
+
+use std::cuda
+use std::math
+
+
+// =============================================================================
+//  KERNEL 1 :: ClayBuildUpKernel
+//  Displaces vertices along their surface normals weighted by brush falloff,
+//  per-vertex mask, and tablet pressure.
+// =============================================================================
+
+shader compute ClayBuildUpKernel(id: UVec3) -> Void:
+    uniform positions: StorageBuffer<Float> @0
+    uniform normals: StorageBuffer<Float> @1
+    uniform masks: StorageBuffer<Float> @2
+    uniform base_positions: StorageBuffer<Float> @3
+    uniform brush_x: Float @4
+    uniform brush_y: Float @5
+    uniform brush_z: Float @6
+    uniform brush_radius: Float @7
+    uniform brush_strength: Float @8
+    uniform brush_falloff_exponent: Float @9
+    uniform vertex_count: UInt @10
+    uniform pressure: Float @11
+
+    comptime:
+        let compute = (
+            [256, 1, 1],
+            [262144, 1, 1],
+            [
+                ("positions", "f32", ["dispatch.x", "3"], "input", "kain.shared.buffer"),
+                ("normals", "f32", ["dispatch.x", "3"], "input", "kain.shared.buffer"),
+                ("masks", "f32", ["dispatch.x"], "input", "kain.shared.buffer"),
+                ("base_positions", "f32", ["dispatch.x", "3"], "output", "kain.shared.buffer"),
+                ("brush_x", "f32", ["1"], "ingress", "kain.shared.buffer"),
+                ("brush_y", "f32", ["1"], "ingress", "kain.shared.buffer"),
+                ("brush_z", "f32", ["1"], "ingress", "kain.shared.buffer"),
+                ("brush_radius", "f32", ["1"], "ingress", "kain.shared.buffer"),
+                ("brush_strength", "f32", ["1"], "ingress", "kain.shared.buffer"),
+                ("brush_falloff_exponent", "f32", ["1"], "ingress", "kain.shared.buffer"),
+                ("vertex_count", "u32", ["1"], "ingress", "kain.shared.buffer"),
+                ("pressure", "f32", ["1"], "ingress", "kain.shared.buffer"),
+            ],
+            [
+                ("positions", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("normals", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("masks", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("base_positions", "egress", "per-dispatch", "kain.shared.buffer"),
+            ],
+            [],
+        )
+
+    let i = id.x
+    if i >= vertex_count:
+        return
+
+    let i3 = i * UInt(3)
+    let px = positions[i3]
+    let py = positions[i3 + UInt(1)]
+    let pz = positions[i3 + UInt(2)]
+    let nx = normals[i3]
+    let ny = normals[i3 + UInt(1)]
+    let nz = normals[i3 + UInt(2)]
+
+    let dx = px - brush_x
+    let dy = py - brush_y
+    let dz = pz - brush_z
+    let dist_sq = dx * dx + dy * dy + dz * dz
+
+    // Newton-Raphson sqrt: 4 iterations  (x_{n+1} = (x_n + v/x_n) * 0.5)
+    var dist = dist_sq
+    if dist_sq > 0.0:
+        var guess = dist_sq
+        guess = (guess + dist_sq / guess) * 0.5
+        guess = (guess + dist_sq / guess) * 0.5
+        guess = (guess + dist_sq / guess) * 0.5
+        guess = (guess + dist_sq / guess) * 0.5
+        dist = guess
+
+    // smoothstep(0.0, brush_radius, dist)  inlined
+    let span = brush_radius
+    var smooth_t: Float = 0.0
+    if span <= 0.000001:
+        if dist >= brush_radius:
+            smooth_t = 1.0
+        else:
+            smooth_t = 0.0
+    else:
+        let raw = dist / span
+        if raw <= 0.0:
+            smooth_t = 0.0
+        else if raw >= 1.0:
+            smooth_t = 1.0
+        else:
+            smooth_t = raw
+    smooth_t = smooth_t * smooth_t * (3.0 - 2.0 * smooth_t)
+
+    var falloff = 1.0 - smooth_t
+    if falloff <= 0.0:
+        falloff = 0.0
+    else if brush_falloff_exponent != 1.0:
+        // pow(falloff, exponent) via exponentiation by squaring
+        // Handles typical sculpting exponents (1.0 .. 8.0) exactly.
+        var result: Float = 1.0
+        var base: Float = falloff
+        var exp: Float = brush_falloff_exponent
+        while exp >= 1.0:
+            result = result * base
+            exp = exp - 1.0
+        if exp > 0.0:
+            // linear fractional remainder: base^frac ≈ 1 + frac*(base-1)
+            result = result * (1.0 + exp * (base - 1.0))
+        falloff = result
+
+    let mask = masks[i]
+    let displacement = brush_strength * mask * falloff * pressure
+
+    base_positions[i3] = px + nx * displacement
+    base_positions[i3 + UInt(1)] = py + ny * displacement
+    base_positions[i3 + UInt(2)] = pz + nz * displacement
+    return
+
+
+// =============================================================================
+//  KERNEL 2 :: SmoothKernel
+//  Laplacian smooth — averages each vertex with its topological neighbours,
+//  weighted by brush falloff and strength.
+// =============================================================================
+
+shader compute SmoothKernel(id: UVec3) -> Void:
+    uniform positions: StorageBuffer<Float> @0
+    uniform indices: StorageBuffer<UInt> @1
+    uniform neighbor_offsets: StorageBuffer<UInt> @2
+    uniform neighbor_counts: StorageBuffer<UInt> @3
+    uniform output_positions: StorageBuffer<Float> @4
+    uniform brush_x: Float @5
+    uniform brush_y: Float @6
+    uniform brush_z: Float @7
+    uniform brush_radius: Float @8
+    uniform brush_strength: Float @9
+    uniform vertex_count: UInt @10
+
+    comptime:
+        let compute = (
+            [256, 1, 1],
+            [262144, 1, 1],
+            [
+                ("positions", "f32", ["dispatch.x", "3"], "input", "kain.shared.buffer"),
+                ("indices", "u32", ["dispatch.x"], "input", "kain.shared.buffer"),
+                ("neighbor_offsets", "u32", ["dispatch.x"], "input", "kain.shared.buffer"),
+                ("neighbor_counts", "u32", ["dispatch.x"], "input", "kain.shared.buffer"),
+                ("output_positions", "f32", ["dispatch.x", "3"], "output", "kain.shared.buffer"),
+                ("brush_x", "f32", ["1"], "ingress", "kain.shared.buffer"),
+                ("brush_y", "f32", ["1"], "ingress", "kain.shared.buffer"),
+                ("brush_z", "f32", ["1"], "ingress", "kain.shared.buffer"),
+                ("brush_radius", "f32", ["1"], "ingress", "kain.shared.buffer"),
+                ("brush_strength", "f32", ["1"], "ingress", "kain.shared.buffer"),
+                ("vertex_count", "u32", ["1"], "ingress", "kain.shared.buffer"),
+            ],
+            [
+                ("positions", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("indices", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("neighbor_offsets", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("neighbor_counts", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("output_positions", "egress", "per-dispatch", "kain.shared.buffer"),
+            ],
+            [],
+        )
+
+    let i = id.x
+    if i >= vertex_count:
+        return
+
+    let i3 = i * UInt(3)
+    let px = positions[i3]
+    let py = positions[i3 + UInt(1)]
+    let pz = positions[i3 + UInt(2)]
+
+    let dx = px - brush_x
+    let dy = py - brush_y
+    let dz = pz - brush_z
+    let dist_sq = dx * dx + dy * dy + dz * dz
+
+    var dist = dist_sq
+    if dist_sq > 0.0:
+        var guess = dist_sq
+        guess = (guess + dist_sq / guess) * 0.5
+        guess = (guess + dist_sq / guess) * 0.5
+        guess = (guess + dist_sq / guess) * 0.5
+        guess = (guess + dist_sq / guess) * 0.5
+        dist = guess
+
+    let span = brush_radius
+    var smooth_t: Float = 0.0
+    if span <= 0.000001:
+        if dist >= brush_radius:
+            smooth_t = 1.0
+        else:
+            smooth_t = 0.0
+    else:
+        let raw = dist / span
+        if raw <= 0.0:
+            smooth_t = 0.0
+        else if raw >= 1.0:
+            smooth_t = 1.0
+        else:
+            smooth_t = raw
+    smooth_t = smooth_t * smooth_t * (3.0 - 2.0 * smooth_t)
+
+    let falloff = 1.0 - smooth_t
+
+    let count = neighbor_counts[i]
+    if count == UInt(0):
+        output_positions[i3] = px
+        output_positions[i3 + UInt(1)] = py
+        output_positions[i3 + UInt(2)] = pz
+        return
+
+    let offset_start = neighbor_offsets[i]
+    var sum_x: Float = 0.0
+    var sum_y: Float = 0.0
+    var sum_z: Float = 0.0
+
+    var n: UInt = UInt(0)
+    while n < count:
+        let neighbor_idx = indices[offset_start + n]
+        let ni3 = neighbor_idx * UInt(3)
+        sum_x = sum_x + positions[ni3]
+        sum_y = sum_y + positions[ni3 + UInt(1)]
+        sum_z = sum_z + positions[ni3 + UInt(2)]
+        n = n + UInt(1)
+
+    let inv_count = 1.0 / (count as Float)
+    let avg_x = sum_x * inv_count
+    let avg_y = sum_y * inv_count
+    let avg_z = sum_z * inv_count
+
+    let weight = brush_strength * falloff
+    output_positions[i3] = px + (avg_x - px) * weight
+    output_positions[i3 + UInt(1)] = py + (avg_y - py) * weight
+    output_positions[i3 + UInt(2)] = pz + (avg_z - pz) * weight
+    return
+
+
+// =============================================================================
+//  KERNEL 3 :: PinchKernel
+//  Pulls vertices toward the brush centre along the tangent plane (rejects the
+//  surface-normal component so the pinch slides across the surface).
+// =============================================================================
+
+shader compute PinchKernel(id: UVec3) -> Void:
+    uniform positions: StorageBuffer<Float> @0
+    uniform normals: StorageBuffer<Float> @1
+    uniform masks: StorageBuffer<Float> @2
+    uniform base_positions: StorageBuffer<Float> @3
+    uniform brush_x: Float @4
+    uniform brush_y: Float @5
+    uniform brush_z: Float @6
+    uniform brush_radius: Float @7
+    uniform brush_strength: Float @8
+    uniform vertex_count: UInt @9
+
+    comptime:
+        let compute = (
+            [256, 1, 1],
+            [262144, 1, 1],
+            [
+                ("positions", "f32", ["dispatch.x", "3"], "input", "kain.shared.buffer"),
+                ("normals", "f32", ["dispatch.x", "3"], "input", "kain.shared.buffer"),
+                ("masks", "f32", ["dispatch.x"], "input", "kain.shared.buffer"),
+                ("base_positions", "f32", ["dispatch.x", "3"], "output", "kain.shared.buffer"),
+                ("brush_x", "f32", ["1"], "ingress", "kain.shared.buffer"),
+                ("brush_y", "f32", ["1"], "ingress", "kain.shared.buffer"),
+                ("brush_z", "f32", ["1"], "ingress", "kain.shared.buffer"),
+                ("brush_radius", "f32", ["1"], "ingress", "kain.shared.buffer"),
+                ("brush_strength", "f32", ["1"], "ingress", "kain.shared.buffer"),
+                ("vertex_count", "u32", ["1"], "ingress", "kain.shared.buffer"),
+            ],
+            [
+                ("positions", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("normals", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("masks", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("base_positions", "egress", "per-dispatch", "kain.shared.buffer"),
+            ],
+            [],
+        )
+
+    let i = id.x
+    if i >= vertex_count:
+        return
+
+    let i3 = i * UInt(3)
+    let px = positions[i3]
+    let py = positions[i3 + UInt(1)]
+    let pz = positions[i3 + UInt(2)]
+    let nx = normals[i3]
+    let ny = normals[i3 + UInt(1)]
+    let nz = normals[i3 + UInt(2)]
+
+    let tx = brush_x - px
+    let ty = brush_y - py
+    let tz = brush_z - pz
+    let dist_sq = tx * tx + ty * ty + tz * tz
+
+    var dist = dist_sq
+    if dist_sq > 0.0:
+        var guess = dist_sq
+        guess = (guess + dist_sq / guess) * 0.5
+        guess = (guess + dist_sq / guess) * 0.5
+        guess = (guess + dist_sq / guess) * 0.5
+        guess = (guess + dist_sq / guess) * 0.5
+        dist = guess
+
+    let span = brush_radius
+    var smooth_t: Float = 0.0
+    if span <= 0.000001:
+        if dist >= brush_radius:
+            smooth_t = 1.0
+        else:
+            smooth_t = 0.0
+    else:
+        let raw = dist / span
+        if raw <= 0.0:
+            smooth_t = 0.0
+        else if raw >= 1.0:
+            smooth_t = 1.0
+        else:
+            smooth_t = raw
+    smooth_t = smooth_t * smooth_t * (3.0 - 2.0 * smooth_t)
+
+    let falloff = 1.0 - smooth_t
+    let mask = masks[i]
+    let displacement = brush_strength * mask * falloff
+
+    if dist <= 0.000001:
+        base_positions[i3] = px
+        base_positions[i3 + UInt(1)] = py
+        base_positions[i3 + UInt(2)] = pz
+        return
+
+    let inv_dist = 1.0 / dist
+    let dir_x = tx * inv_dist
+    let dir_y = ty * inv_dist
+    let dir_z = tz * inv_dist
+
+    let dot = dir_x * nx + dir_y * ny + dir_z * nz
+    let tangent_x = dir_x - nx * dot
+    let tangent_y = dir_y - ny * dot
+    let tangent_z = dir_z - nz * dot
+
+    let tangent_len_sq = tangent_x * tangent_x + tangent_y * tangent_y + tangent_z * tangent_z
+    if tangent_len_sq <= 0.000001:
+        base_positions[i3] = px
+        base_positions[i3 + UInt(1)] = py
+        base_positions[i3 + UInt(2)] = pz
+        return
+
+    // Newton-Raphson sqrt for tangent length
+    var tangent_len = tangent_len_sq
+    var tguess = tangent_len_sq
+    tguess = (tguess + tangent_len_sq / tguess) * 0.5
+    tguess = (tguess + tangent_len_sq / tguess) * 0.5
+    tguess = (tguess + tangent_len_sq / tguess) * 0.5
+    tguess = (tguess + tangent_len_sq / tguess) * 0.5
+    tangent_len = tguess
+
+    let inv_tangent_len = 1.0 / tangent_len
+    let utx = tangent_x * inv_tangent_len
+    let uty = tangent_y * inv_tangent_len
+    let utz = tangent_z * inv_tangent_len
+
+    base_positions[i3] = px + utx * displacement
+    base_positions[i3 + UInt(1)] = py + uty * displacement
+    base_positions[i3 + UInt(2)] = pz + utz * displacement
+    return
+
+
+// =============================================================================
+//  KERNEL 4 :: InflateKernel
+//  Pushes vertices outward along their normals (always positive displacement).
+//  Similar to ClayBuildUp but without pressure or a variable falloff exponent;
+//  the brush always bulges the surface outward.
+// =============================================================================
+
+shader compute InflateKernel(id: UVec3) -> Void:
+    uniform positions: StorageBuffer<Float> @0
+    uniform normals: StorageBuffer<Float> @1
+    uniform masks: StorageBuffer<Float> @2
+    uniform base_positions: StorageBuffer<Float> @3
+    uniform brush_x: Float @4
+    uniform brush_y: Float @5
+    uniform brush_z: Float @6
+    uniform brush_radius: Float @7
+    uniform brush_strength: Float @8
+    uniform vertex_count: UInt @9
+
+    comptime:
+        let compute = (
+            [256, 1, 1],
+            [262144, 1, 1],
+            [
+                ("positions", "f32", ["dispatch.x", "3"], "input", "kain.shared.buffer"),
+                ("normals", "f32", ["dispatch.x", "3"], "input", "kain.shared.buffer"),
+                ("masks", "f32", ["dispatch.x"], "input", "kain.shared.buffer"),
+                ("base_positions", "f32", ["dispatch.x", "3"], "output", "kain.shared.buffer"),
+                ("brush_x", "f32", ["1"], "ingress", "kain.shared.buffer"),
+                ("brush_y", "f32", ["1"], "ingress", "kain.shared.buffer"),
+                ("brush_z", "f32", ["1"], "ingress", "kain.shared.buffer"),
+                ("brush_radius", "f32", ["1"], "ingress", "kain.shared.buffer"),
+                ("brush_strength", "f32", ["1"], "ingress", "kain.shared.buffer"),
+                ("vertex_count", "u32", ["1"], "ingress", "kain.shared.buffer"),
+            ],
+            [
+                ("positions", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("normals", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("masks", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("base_positions", "egress", "per-dispatch", "kain.shared.buffer"),
+            ],
+            [],
+        )
+
+    let i = id.x
+    if i >= vertex_count:
+        return
+
+    let i3 = i * UInt(3)
+    let px = positions[i3]
+    let py = positions[i3 + UInt(1)]
+    let pz = positions[i3 + UInt(2)]
+    let nx = normals[i3]
+    let ny = normals[i3 + UInt(1)]
+    let nz = normals[i3 + UInt(2)]
+
+    let dx = px - brush_x
+    let dy = py - brush_y
+    let dz = pz - brush_z
+    let dist_sq = dx * dx + dy * dy + dz * dz
+
+    var dist = dist_sq
+    if dist_sq > 0.0:
+        var guess = dist_sq
+        guess = (guess + dist_sq / guess) * 0.5
+        guess = (guess + dist_sq / guess) * 0.5
+        guess = (guess + dist_sq / guess) * 0.5
+        guess = (guess + dist_sq / guess) * 0.5
+        dist = guess
+
+    let span = brush_radius
+    var smooth_t: Float = 0.0
+    if span <= 0.000001:
+        if dist >= brush_radius:
+            smooth_t = 1.0
+        else:
+            smooth_t = 0.0
+    else:
+        let raw = dist / span
+        if raw <= 0.0:
+            smooth_t = 0.0
+        else if raw >= 1.0:
+            smooth_t = 1.0
+        else:
+            smooth_t = raw
+    smooth_t = smooth_t * smooth_t * (3.0 - 2.0 * smooth_t)
+
+    let falloff = 1.0 - smooth_t
+    let mask = masks[i]
+    let displacement = brush_strength * mask * falloff
+
+    base_positions[i3] = px + nx * displacement
+    base_positions[i3 + UInt(1)] = py + ny * displacement
+    base_positions[i3 + UInt(2)] = pz + nz * displacement
+    return
+
+
+// =============================================================================
+//  KERNEL 5 :: NormalRecalculateKernel
+//  Recomputes per-vertex normals from face data.
+//
+//  Expected dispatch pattern (host side):
+//    Pass 1 — dispatch with triangle_count = 0 so only the zero-phase runs
+//             and every normal is cleared.
+//    Pass 2 — dispatch with the real triangle_count so face normals are
+//             computed and accumulated into the normal buffer (non-atomic;
+//             the host must ensure no overlapping writes across threads).
+// =============================================================================
+
+shader compute NormalRecalculateKernel(id: UVec3) -> Void:
+    uniform positions: StorageBuffer<Float> @0
+    uniform indices: StorageBuffer<UInt> @1
+    uniform normals: StorageBuffer<Float> @2
+    uniform vertex_count: UInt @3
+    uniform triangle_count: UInt @4
+
+    comptime:
+        let compute = (
+            [256, 1, 1],
+            [262144, 1, 1],
+            [
+                ("positions", "f32", ["dispatch.x", "3"], "input", "kain.shared.buffer"),
+                ("indices", "u32", ["dispatch.x", "3"], "input", "kain.shared.buffer"),
+                ("normals", "f32", ["dispatch.x", "3"], "output", "kain.shared.buffer"),
+                ("vertex_count", "u32", ["1"], "ingress", "kain.shared.buffer"),
+                ("triangle_count", "u32", ["1"], "ingress", "kain.shared.buffer"),
+            ],
+            [
+                ("positions", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("indices", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("normals", "egress", "per-dispatch", "kain.shared.buffer"),
+            ],
+            [],
+        )
+
+    // ---- Phase 1: zero normals -----------------------------------------------
+    if vertex_count > UInt(0) and id.x < vertex_count:
+        let n3 = id.x * UInt(3)
+        normals[n3] = 0.0
+        normals[n3 + UInt(1)] = 0.0
+        normals[n3 + UInt(2)] = 0.0
+
+    // ---- Phase 2: accumulate face normals ------------------------------------
+    if triangle_count > UInt(0) and id.x < triangle_count:
+        let t3 = id.x * UInt(3)
+        let i0 = indices[t3]
+        let i1 = indices[t3 + UInt(1)]
+        let i2 = indices[t3 + UInt(2)]
+
+        let p0 = i0 * UInt(3)
+        let p1 = i1 * UInt(3)
+        let p2 = i2 * UInt(3)
+
+        let ax = positions[p1] - positions[p0]
+        let ay = positions[p1 + UInt(1)] - positions[p0 + UInt(1)]
+        let az = positions[p1 + UInt(2)] - positions[p0 + UInt(2)]
+
+        let bx = positions[p2] - positions[p0]
+        let by = positions[p2 + UInt(1)] - positions[p0 + UInt(1)]
+        let bz = positions[p2 + UInt(2)] - positions[p0 + UInt(2)]
+
+        let nx = ay * bz - az * by
+        let ny = az * bx - ax * bz
+        let nz = ax * by - ay * bx
+
+        let len_sq = nx * nx + ny * ny + nz * nz
+        if len_sq > 0.000001:
+            // Newton-Raphson sqrt for normal length
+            var inv_len_guess = len_sq
+            inv_len_guess = (inv_len_guess + len_sq / inv_len_guess) * 0.5
+            inv_len_guess = (inv_len_guess + len_sq / inv_len_guess) * 0.5
+            inv_len_guess = (inv_len_guess + len_sq / inv_len_guess) * 0.5
+            inv_len_guess = (inv_len_guess + len_sq / inv_len_guess) * 0.5
+            let len = inv_len_guess
+            let inv_len = 1.0 / len
+            let unx = nx * inv_len
+            let uny = ny * inv_len
+            let unz = nz * inv_len
+
+            normals[p0] = normals[p0] + unx
+            normals[p0 + UInt(1)] = normals[p0 + UInt(1)] + uny
+            normals[p0 + UInt(2)] = normals[p0 + UInt(2)] + unz
+
+            normals[p1] = normals[p1] + unx
+            normals[p1 + UInt(1)] = normals[p1 + UInt(1)] + uny
+            normals[p1 + UInt(2)] = normals[p1 + UInt(2)] + unz
+
+            normals[p2] = normals[p2] + unx
+            normals[p2 + UInt(1)] = normals[p2 + UInt(1)] + uny
+            normals[p2 + UInt(2)] = normals[p2 + UInt(2)] + unz
+    return
+
+
+// =============================================================================
+//  KERNEL 6 :: MaskBlendKernel
+//  Blends two per-vertex mask layers with a selectable blend mode and opacity.
+//
+//  blend_mode:  0 = replace    (output ← mask_b)
+//               1 = add        (output ← mask_a + mask_b * opacity)
+//               2 = subtract   (output ← mask_a − mask_b * opacity)
+//               3 = multiply   (output ← mask_a × mask_b)
+//               4 = average    (output ← (mask_a + mask_b) × 0.5)
+// =============================================================================
+
+shader compute MaskBlendKernel(id: UVec3) -> Void:
+    uniform mask_a: StorageBuffer<Float> @0
+    uniform mask_b: StorageBuffer<Float> @1
+    uniform output_mask: StorageBuffer<Float> @2
+    uniform opacity: Float @3
+    uniform blend_mode: UInt @4
+    uniform vertex_count: UInt @5
+
+    comptime:
+        let compute = (
+            [256, 1, 1],
+            [262144, 1, 1],
+            [
+                ("mask_a", "f32", ["dispatch.x"], "input", "kain.shared.buffer"),
+                ("mask_b", "f32", ["dispatch.x"], "input", "kain.shared.buffer"),
+                ("output_mask", "f32", ["dispatch.x"], "output", "kain.shared.buffer"),
+                ("opacity", "f32", ["1"], "ingress", "kain.shared.buffer"),
+                ("blend_mode", "u32", ["1"], "ingress", "kain.shared.buffer"),
+                ("vertex_count", "u32", ["1"], "ingress", "kain.shared.buffer"),
+            ],
+            [
+                ("mask_a", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("mask_b", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("output_mask", "egress", "per-dispatch", "kain.shared.buffer"),
+            ],
+            [],
+        )
+
+    let i = id.x
+    if i >= vertex_count:
+        return
+
+    let a = mask_a[i]
+    let b = mask_b[i]
+    var result: Float = 0.0
+
+    if blend_mode == UInt(0):
+        result = b
+    else if blend_mode == UInt(1):
+        result = a + b * opacity
+    else if blend_mode == UInt(2):
+        result = a - b * opacity
+    else if blend_mode == UInt(3):
+        result = a * b
+    else if blend_mode == UInt(4):
+        result = (a + b) * 0.5
+    else:
+        result = a
+
+    output_mask[i] = result
+    return

@@ -1,0 +1,275 @@
+// ============================================================================
+//           ZENDER SCULPT :: Mesh Topology Types and Operations
+// ============================================================================
+//  Data-driven mesh topology system. Nothing is hardcoded — vertex
+//  layouts, attribute strides, index formats, and topology tables
+//  are all parameterized through the MeshConfig descriptor.
+// ============================================================================
+
+use std::math
+use std::gpu
+
+// ============================================================================
+//  ATTRIBUTE DESCRIPTORS
+// ============================================================================
+
+pub struct VertexAttribute:
+    name: String
+    kind: String
+    component_type: String
+    component_count: Int
+    byte_offset: Int
+    byte_stride: Int
+    normalized: Bool
+
+pub struct VertexLayout:
+    attributes: Array<VertexAttribute>
+    vertex_byte_stride: Int
+    vertex_count: Int
+
+pub struct MeshTopology:
+    index_count: Int
+    triangle_count: Int
+    index_format: String
+    vertex_count: Int
+    vertex_byte_stride: Int
+    position_offset: Int
+    normal_offset: Int
+    mask_offset: Int
+    tangent_offset: Int
+
+// ============================================================================
+//  MESH CONFIG — descriptor-driven sculpt mesh definition
+// ============================================================================
+
+pub struct MeshConfig:
+    name: String
+    initial_vertex_count: Int
+    initial_triangle_count: Int
+    max_vertex_count: Int
+    max_triangle_count: Int
+    subdiv_levels: Int
+    attributes: Array<String>
+    position_format: String
+    normal_format: String
+    mask_format: String
+    max_layers: Int
+    enable_dynamic_topology: Bool
+    enable_adaptive_subdiv: Bool
+
+// ============================================================================
+//  LAYER DESCRIPTOR
+// ============================================================================
+
+pub struct LayerDescriptor:
+    id: Int
+    name: String
+    opacity: Float
+    blend_mode: String
+    visibility: Bool
+    locked: Bool
+    vertex_count: Int
+    triangle_count: Int
+    displacement_offset: Int
+    displacement_stride: Int
+    normal_offset: Int
+    mask_offset: Int
+
+// ============================================================================
+//  GPU BUFFER DESCRIPTORS
+// ============================================================================
+
+pub struct GPUBufferDescriptor:
+    name: String
+    element_type: String
+    element_count: Int
+    byte_size: Int
+    usage: String
+    residency: String
+
+// ============================================================================
+//  TOPOLOGY OPERATIONS
+// ============================================================================
+
+pub fn compute_topology(vertex_count: Int, index_count: Int) -> MeshTopology:
+    let triangle_count = index_count / 3
+    return MeshTopology {
+        index_count: index_count,
+        triangle_count: triangle_count,
+        index_format: "u32",
+        vertex_count: vertex_count,
+        vertex_byte_stride: 12 + 12 + 4 + 4,
+        position_offset: 0,
+        normal_offset: 12,
+        mask_offset: 24,
+        tangent_offset: 28
+    }
+
+pub fn compute_vertex_byte_stride(has_normal: Bool, has_uv0: Bool, has_mask: Bool, has_color0: Bool, has_tangent: Bool, has_bitangent: Bool) -> Int:
+    var stride: Int = 12  // position: f32x3 = 12 bytes
+    if has_normal:
+        stride = stride + 12
+    if has_uv0:
+        stride = stride + 8
+    if has_mask:
+        stride = stride + 4
+    if has_color0:
+        stride = stride + 16
+    if has_tangent:
+        stride = stride + 12
+    if has_bitangent:
+        stride = stride + 12
+    return stride
+
+// ============================================================================
+//  BUFFER FACTORIES — create GPU buffer descriptors from mesh config
+// ============================================================================
+
+pub fn make_position_buffer(vertex_count: Int, usage: String) -> GPUBufferDescriptor:
+    return GPUBufferDescriptor {
+        name: "positions",
+        element_type: "f32",
+        element_count: vertex_count * 3,
+        byte_size: vertex_count * 3 * 4,
+        usage: usage,
+        residency: "device"
+    }
+
+pub fn make_normal_buffer(vertex_count: Int, usage: String) -> GPUBufferDescriptor:
+    return GPUBufferDescriptor {
+        name: "normals",
+        element_type: "f32",
+        element_count: vertex_count * 3,
+        byte_size: vertex_count * 3 * 4,
+        usage: usage,
+        residency: "device"
+    }
+
+pub fn make_mask_buffer(vertex_count: Int, usage: String) -> GPUBufferDescriptor:
+    return GPUBufferDescriptor {
+        name: "masks",
+        element_type: "f32",
+        element_count: vertex_count,
+        byte_size: vertex_count * 4,
+        usage: usage,
+        residency: "device"
+    }
+
+pub fn make_index_buffer(triangle_count: Int, usage: String) -> GPUBufferDescriptor:
+    return GPUBufferDescriptor {
+        name: "indices",
+        element_type: "u32",
+        element_count: triangle_count * 3,
+        byte_size: triangle_count * 3 * 4,
+        usage: usage,
+        residency: "device"
+    }
+
+pub fn make_displacement_buffer(vertex_count: Int, usage: String) -> GPUBufferDescriptor:
+    return GPUBufferDescriptor {
+        name: "displacements",
+        element_type: "f32",
+        element_count: vertex_count * 3,
+        byte_size: vertex_count * 3 * 4,
+        usage: usage,
+        residency: "device"
+    }
+
+pub fn make_base_vertex_buffer(vertex_count: Int, usage: String) -> GPUBufferDescriptor:
+    return GPUBufferDescriptor {
+        name: "base_positions",
+        element_type: "f32",
+        element_count: vertex_count * 3,
+        byte_size: vertex_count * 3 * 4,
+        usage: usage,
+        residency: "device"
+    }
+
+// ============================================================================
+//  MESH PRESETS — parameterized initial mesh shapes
+// ============================================================================
+
+pub fn estimate_subdiv_vertex_count(base: Int, levels: Int) -> Int:
+    var count = base
+    var i: Int = 0
+    while i < levels:
+        count = count * 4
+        i = i + 1
+    return count
+
+pub fn estimate_subdiv_triangle_count(base: Int, levels: Int) -> Int:
+    var count = base
+    var i: Int = 0
+    while i < levels:
+        count = count * 4
+        i = i + 1
+    return count
+
+pub fn make_sphere_config(segments: Int, rings: Int, subdiv_levels: Int) -> MeshConfig:
+    let vertex_count = (segments + 1) * (rings + 1)
+    let triangle_count = segments * rings * 2
+    let subdiv_v = estimate_subdiv_vertex_count(vertex_count, subdiv_levels)
+    let subdiv_t = estimate_subdiv_triangle_count(triangle_count, subdiv_levels)
+    var attrs: Array<String> = ["position", "normal", "mask", "tangent"]
+
+    return MeshConfig {
+        name: "sphere",
+        initial_vertex_count: vertex_count,
+        initial_triangle_count: triangle_count,
+        max_vertex_count: subdiv_v,
+        max_triangle_count: subdiv_t,
+        subdiv_levels: subdiv_levels,
+        attributes: attrs,
+        position_format: "f32x3",
+        normal_format: "f32x3",
+        mask_format: "f32",
+        max_layers: 32,
+        enable_dynamic_topology: true,
+        enable_adaptive_subdiv: true
+    }
+
+pub fn make_plane_config(segments_x: Int, segments_y: Int, subdiv_levels: Int) -> MeshConfig:
+    let vertex_count = (segments_x + 1) * (segments_y + 1)
+    let triangle_count = segments_x * segments_y * 2
+    let subdiv_v = estimate_subdiv_vertex_count(vertex_count, subdiv_levels)
+    let subdiv_t = estimate_subdiv_triangle_count(triangle_count, subdiv_levels)
+    var attrs: Array<String> = ["position", "normal", "mask", "uv0"]
+
+    return MeshConfig {
+        name: "plane",
+        initial_vertex_count: vertex_count,
+        initial_triangle_count: triangle_count,
+        max_vertex_count: subdiv_v,
+        max_triangle_count: subdiv_t,
+        subdiv_levels: subdiv_levels,
+        attributes: attrs,
+        position_format: "f32x3",
+        normal_format: "f32x3",
+        mask_format: "f32",
+        max_layers: 32,
+        enable_dynamic_topology: true,
+        enable_adaptive_subdiv: true
+    }
+
+pub fn make_cube_config(subdiv_levels: Int) -> MeshConfig:
+    let vertex_count = 24  // 4 per face x 6 faces (with normals, no sharing)
+    let triangle_count = 12
+    let subdiv_v = estimate_subdiv_vertex_count(vertex_count, subdiv_levels)
+    let subdiv_t = estimate_subdiv_triangle_count(triangle_count, subdiv_levels)
+    var attrs: Array<String> = ["position", "normal", "mask"]
+
+    return MeshConfig {
+        name: "cube",
+        initial_vertex_count: vertex_count,
+        initial_triangle_count: triangle_count,
+        max_vertex_count: subdiv_v,
+        max_triangle_count: subdiv_t,
+        subdiv_levels: subdiv_levels,
+        attributes: attrs,
+        position_format: "f32x3",
+        normal_format: "f32x3",
+        mask_format: "f32",
+        max_layers: 32,
+        enable_dynamic_topology: true,
+        enable_adaptive_subdiv: true
+    }

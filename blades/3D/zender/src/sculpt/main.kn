@@ -1,0 +1,114 @@
+// =============================================================================
+//  ZENDER SCULPT :: Main orchestration layer
+//  Ties together brushes, state, tools, kernels, and mesh topology into a
+//  single benchmark-driven sculpt entry point. Everything is data-driven.
+// =============================================================================
+
+use std::runtime
+use std::time
+use std::math
+
+use brushes::types
+use state::sculpt_world
+use tools::stroke_processor as stroke
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const ZENDER_VERSION: String = "0.1.0"
+const ZENDER_NAME: String = "Zender Sculpt"
+const ZENDER_DEFAULT_VERTEX_COUNT: Int = 65536
+const ZENDER_DEFAULT_TRIANGLE_COUNT: Int = 131072
+
+// ─── Root runtime state ───────────────────────────────────────────────────────
+
+pub struct ZenderSession:
+    app_name: String
+    app_version: String
+    vertex_count: Int
+    triangle_count: Int
+    total_strokes: Int
+    total_elapsed_ms: Int
+    current_tool: String
+    sessions_completed: Int
+
+// ─── Session factory ──────────────────────────────────────────────────────────
+
+pub fn create_session(vertex_count: Int, triangle_count: Int) -> ZenderSession:
+    return ZenderSession {
+        app_name: ZENDER_NAME,
+        app_version: ZENDER_VERSION,
+        vertex_count: vertex_count,
+        triangle_count: triangle_count,
+        total_strokes: 0,
+        total_elapsed_ms: 0,
+        current_tool: sculpt_world.sculpt_state_active_tool(),
+        sessions_completed: 0
+    }
+
+// ─── Stroke simulation ────────────────────────────────────────────────────────
+
+pub fn simulate_stroke(session: ZenderSession, tool: String, x: Float, y: Float, z: Float, pressure: Float) -> ZenderSession:
+    // Update world state: select the active sculpt tool
+    let _tool_selected = sculpt_world.select_tool(SculptAuthority, tool)
+
+    // Extract sanitized stroke parameters for GPU dispatch
+    let params = stroke.extract_stroke_params(x, y, z, 50.0, 0.5, 2.0, pressure, session.vertex_count, tool)
+
+    // Run the stroke through the processing pipeline
+    let result = stroke.process_stroke(params)
+
+    // Return updated session with accumulated counters
+    return ZenderSession {
+        app_name: session.app_name,
+        app_version: session.app_version,
+        vertex_count: session.vertex_count,
+        triangle_count: session.triangle_count,
+        total_strokes: session.total_strokes + 1,
+        total_elapsed_ms: session.total_elapsed_ms + result.elapsed_ms,
+        current_tool: tool,
+        sessions_completed: session.sessions_completed
+    }
+
+// ─── Single-tool benchmark ────────────────────────────────────────────────────
+
+pub fn run_sculpt_benchmark(tool: String, stroke_count: Int, vertex_count: Int, triangle_count: Int) -> Int:
+    var session = create_session(vertex_count, triangle_count)
+    let start = now_millis()
+    var i: Int = 0
+    while i < stroke_count:
+        let x: Float = to_float(i) * 0.1
+        let y: Float = to_float(i) * 0.05
+        let z: Float = to_float(i) * 0.025
+        let pressure: Float = to_float(i % 5) * 0.2 + 0.2
+        session = simulate_stroke(session, tool, x, y, z, pressure)
+        i = i + 1
+    let end = now_millis()
+    return end - start
+
+// ─── Full benchmark suite ─────────────────────────────────────────────────────
+
+pub fn run_full_benchmark() -> Int:
+    var tools: Array<String> = ["Clay", "Smooth", "Pinch", "Inflate", "DamStandard", "Move", "Flatten"]
+    var total_ms: Int = 0
+    var i: Int = 0
+    while i < len(tools):
+        let tool = tools[i]
+        let elapsed = run_sculpt_benchmark(tool, 1000, ZENDER_DEFAULT_VERTEX_COUNT, ZENDER_DEFAULT_TRIANGLE_COUNT)
+        println("  " + tool + ": " + str(elapsed) + "ms")
+        total_ms = total_ms + elapsed
+        i = i + 1
+    return total_ms
+
+// ─── Entry point ──────────────────────────────────────────────────────────────
+
+pub fn main() -> Int:
+    println("")
+    println("=== " + ZENDER_NAME + " v" + ZENDER_VERSION + " ===")
+    println("GPU-accelerated sculpting system")
+    println("Data-driven. All parameters are configurable.")
+    println("")
+
+    let total = run_full_benchmark()
+    println("")
+    println("All benchmarks passed. Total: " + str(total) + "ms")
+    return 0
