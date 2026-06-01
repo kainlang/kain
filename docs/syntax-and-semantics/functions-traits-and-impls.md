@@ -11,6 +11,7 @@ A function item owns:
 
 - a name
 - generic parameters
+- an optional `where` clause
 - parameters
 - an optional return type
 - an effect list
@@ -28,6 +29,8 @@ Important details:
 - effects are part of the signature contract, not decoration
 - attributes such as target-specific annotations live on the function item
 - method functions are still `Function` values in the AST
+- inline generic bounds and `where` bounds are stored distinctly in the AST and
+  normalized by later semantic passes before constraint validation
 
 When the typechecker processes a function, it resolves the function signature
 and records the resolved type in `TypedFunction`. The runtime and backend lanes
@@ -39,6 +42,7 @@ A trait declaration owns:
 
 - a name
 - generic parameters
+- an optional `where` clause
 - supertraits
 - a list of trait methods
 - visibility
@@ -63,6 +67,7 @@ implementations and method bodies.
 An impl block owns:
 
 - generic parameters
+- an optional `where` clause
 - an optional trait name
 - trait generics
 - the target type
@@ -78,6 +83,20 @@ An impl block is checked against its target type, and each method is checked wit
 an explicit self type. This is why impls matter to lowering and not just to
 syntax: method resolution, trait conformance, and domain-item codegen all depend
 on the typed impl view.
+
+## Where Clauses
+
+Generic-bearing items can carry a real AST `where_clause` surface:
+
+```kn
+fn fold<T>(value: T) -> Int where T: Fold + Stable:
+    return value.score()
+```
+
+The parser stores each generic name and bound list. The typechecker validates
+that every constrained generic exists on the item, referenced traits are known,
+and duplicate bounds are reported deterministically after inline and `where`
+bounds are merged into one normalized set.
 
 ## How These Pieces Fit Together
 

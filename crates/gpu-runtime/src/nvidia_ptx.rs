@@ -3,8 +3,9 @@ use crate::bindings::{
     GpuDescriptorKind, GpuDispatchBinding, GpuDispatchRequest, GpuDispatchResult,
 };
 use crate::executor::{
-    c_string_arg, empty_dispatch_result, populate_dispatch_result, write_result_message,
-    ComputeExecutorError, GpuRuntimeDispatchRequest, GpuRuntimeDispatchResult,
+    c_string_arg, empty_dispatch_result, ffi_dispatch_size_override, populate_dispatch_result,
+    write_result_message, ComputeExecutorError, GpuRuntimeDispatchRequest,
+    GpuRuntimeDispatchResult,
 };
 use kain_core::{shader_artifact_bundle_from_json, ShaderArtifactFormat};
 use kain_interop::{
@@ -139,6 +140,7 @@ impl NvidiaPtxExecutor {
             shader_bundle_path,
             compute_residency_path,
             compute_key,
+            None,
         )?;
         self.run_dispatch_request(&plan.ptx, &plan.request)
     }
@@ -153,6 +155,7 @@ impl NvidiaPtxExecutor {
             shader_bundle_path,
             compute_residency_path,
             compute_key,
+            None,
         )?;
         let result = self.run_dispatch_request(&plan.ptx, &plan.request)?;
         persist_output_bindings_to_sidecars(&plan.output_targets, &result.output_bindings)?;
@@ -386,11 +389,18 @@ fn dispatch_nvidia_ptx_persisted_request(
         }
     };
 
-    match executor.dispatch_from_sidecars_persisted(
+    let dispatch_override = ffi_dispatch_size_override(request.dispatch_size);
+    match ptx_dispatch_plan_from_sidecars(
         &shader_bundle_path,
         &compute_residency_path,
         &compute_key,
-    ) {
+        dispatch_override,
+    )
+    .and_then(|plan| {
+        let dispatch = executor.run_dispatch_request(&plan.ptx, &plan.request)?;
+        persist_output_bindings_to_sidecars(&plan.output_targets, &dispatch.output_bindings)?;
+        Ok(dispatch)
+    }) {
         Ok(dispatch) => {
             populate_dispatch_result(
                 result,
@@ -852,6 +862,7 @@ fn ptx_dispatch_plan_from_sidecars(
     shader_bundle_path: &Path,
     compute_residency_path: &Path,
     compute_key: &str,
+    dispatch_override: Option<[u32; 3]>,
 ) -> Result<PtxSidecarDispatchPlan, ComputeExecutorError> {
     let shader_bundle_json =
         fs::read_to_string(shader_bundle_path).map_err(|err| ComputeExecutorError::ReadFile {
@@ -985,7 +996,9 @@ fn ptx_dispatch_plan_from_sidecars(
             module_name: resolved_module_name.to_string(),
             entry_point: resolved_entry_point.to_string(),
             workgroup_size: entry.workgroup_size.unwrap_or([8, 1, 1]),
-            dispatch_size: entry.dispatch_size.unwrap_or([1, 1, 1]),
+            dispatch_size: dispatch_override
+                .or(entry.dispatch_size)
+                .unwrap_or([1, 1, 1]),
             cuda_launch: GpuCudaLaunchOptions {
                 dynamic_shared_memory_bytes: entry.dynamic_shared_memory_bytes,
                 stream_policy: parse_cuda_stream_policy(&entry.cuda_stream_policy)?,
@@ -1743,6 +1756,7 @@ mod tests {
             &shader_bundle_path,
             &compute_residency_path,
             "shader::CudaFieldKernel::compute",
+            None,
         )
         .expect("ptx dispatch plan");
 
@@ -1791,6 +1805,7 @@ mod tests {
             &shader_bundle_path,
             &compute_residency_path,
             "shader::CudaFieldKernel::compute",
+            None,
         )
         .expect_err("payload length mismatch should fail");
 
@@ -1865,6 +1880,7 @@ mod tests {
             &shader_bundle_path,
             &compute_residency_path,
             "shader::CudaFieldKernel::compute",
+            None,
         )
         .expect("ptx dispatch plan");
 
@@ -1936,6 +1952,7 @@ mod tests {
             &shader_bundle_path,
             &compute_residency_path,
             "shader::CudaFieldKernel::compute",
+            None,
         )
         .expect("plan");
 

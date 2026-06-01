@@ -11,8 +11,8 @@ Kain syntax is built from these families:
   orchestrates, components, shaders, actors, structs, enums, traits, impls,
   aliases, uses, natural C includes, modules, consts, comptime blocks, macros,
   tests, and domain items
-- statements: `let`, expression statements, `return`, `break`, `continue`,
-  `for`, `while`, `loop`, nested items
+- statements: `let`, expression statements, `defer`, `dispatch`, `return`,
+  `break`, `continue`, `for`, `while`, `loop`, nested items
 - expressions: literals, calls, binary/unary operators, field/index access,
   struct and enum construction, control flow, async, actors, JSX, and low-level
   memory operations
@@ -24,11 +24,12 @@ Kain syntax is built from these families:
 The parser and LSP both treat these as language keywords or keyword-like forms:
 
 `fn`, `let`, `mut`, `var`, `const`, `if`, `else`, `elif`, `match`, `for`,
-`while`, `loop`, `break`, `continue`, `return`, `await`, `in`, `with`, `as`,
-`type`, `struct`, `enum`, `trait`, `impl`, `pub`, `mod`, `use`, `include`, `self`, `Self`,
+`while`, `loop`, `break`, `continue`, `return`, `defer`, `await`, `in`, `with`, `as`,
+`type`, `struct`, `enum`, `trait`, `impl`, `pub`, `mod`, `use`, `include`, `import`, `from`, `where`, `self`, `Self`,
 `true`, `false`, `none`, `component`, `patch`, `law`, `converge`, `world`,
 `entangle`, `orchestrate`, `shader`, `actor`, `state`, `spawn`, `send`,
-`receive`, `emit`, `comptime`, `macro`, `vertex`, `fragment`, `test`
+`receive`, `emit`, `comptime`, `macro`, `vertex`, `fragment`, `compute`,
+`workgroup`, `dispatch`, `test`
 
 ## Reading Rule
 

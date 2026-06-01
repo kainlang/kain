@@ -787,6 +787,7 @@ fn ts_memory_lowering_uses_union_layout_metadata() {
             kain_core::ast::Item::Struct(kain_core::ast::Struct {
                 name: "Number".to_string(),
                 generics: Vec::new(),
+                where_clause: None,
                 fields: vec![
                     kain_core::ast::Field {
                         name: "as_int".to_string(),
@@ -815,6 +816,7 @@ fn ts_memory_lowering_uses_union_layout_metadata() {
             kain_core::ast::Item::Function(kain_core::ast::Function {
                 name: "make_number".to_string(),
                 generics: Vec::new(),
+                where_clause: None,
                 params: Vec::new(),
                 return_type: Some(union_ty.clone()),
                 effects: Vec::new(),
@@ -916,6 +918,7 @@ fn ts_memory_lowering_rewrites_bitfield_field_access_and_store() {
             kain_core::ast::Item::Struct(kain_core::ast::Struct {
                 name: "Flags".to_string(),
                 generics: Vec::new(),
+                where_clause: None,
                 fields: vec![
                     kain_core::ast::Field {
                         name: "ready".to_string(),
@@ -944,6 +947,7 @@ fn ts_memory_lowering_rewrites_bitfield_field_access_and_store() {
             kain_core::ast::Item::Function(kain_core::ast::Function {
                 name: "update".to_string(),
                 generics: Vec::new(),
+                where_clause: None,
                 params: vec![kain_core::ast::Param {
                     name: "f".to_string(),
                     ty: flags_ty.clone(),
@@ -1054,6 +1058,7 @@ fn ts_memory_lowering_tracks_mixed_width_bitfield_promotion_widths() {
             kain_core::ast::Item::Struct(kain_core::ast::Struct {
                 name: "Flags".to_string(),
                 generics: Vec::new(),
+                where_clause: None,
                 fields: vec![
                     kain_core::ast::Field {
                         name: "small".to_string(),
@@ -1085,6 +1090,7 @@ fn ts_memory_lowering_tracks_mixed_width_bitfield_promotion_widths() {
             kain_core::ast::Item::Function(kain_core::ast::Function {
                 name: "promote".to_string(),
                 generics: Vec::new(),
+                where_clause: None,
                 params: vec![kain_core::ast::Param {
                     name: "f".to_string(),
                     ty: flags_ty,
@@ -1194,6 +1200,7 @@ fn ts_memory_lowering_preserves_non_scalar_union_reinterpretation_contract() {
             kain_core::ast::Item::Struct(kain_core::ast::Struct {
                 name: "Pair".to_string(),
                 generics: Vec::new(),
+                where_clause: None,
                 fields: vec![
                     kain_core::ast::Field {
                         name: "x".to_string(),
@@ -1222,6 +1229,7 @@ fn ts_memory_lowering_preserves_non_scalar_union_reinterpretation_contract() {
             kain_core::ast::Item::Struct(kain_core::ast::Struct {
                 name: "Payload".to_string(),
                 generics: Vec::new(),
+                where_clause: None,
                 fields: vec![
                     kain_core::ast::Field {
                         name: "pair".to_string(),
@@ -1250,6 +1258,7 @@ fn ts_memory_lowering_preserves_non_scalar_union_reinterpretation_contract() {
             kain_core::ast::Item::Function(kain_core::ast::Function {
                 name: "read_pair".to_string(),
                 generics: Vec::new(),
+                where_clause: None,
                 params: vec![kain_core::ast::Param {
                     name: "u".to_string(),
                     ty: union_ty.clone(),

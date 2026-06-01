@@ -5182,6 +5182,18 @@ impl Ue5Gen {
                 self.write_source("continue;");
             }
 
+            Stmt::Defer { .. } => {
+                self.write_source(
+                    "checkf(false, TEXT(\"Kain defer is not supported on UE5 targets yet\"));",
+                );
+            }
+
+            Stmt::Dispatch { .. } => {
+                self.write_source(
+                    "checkf(false, TEXT(\"Kain dispatch statements are only supported by native/GPU targets\"));",
+                );
+            }
+
             Stmt::For {
                 binding,
                 iter,
@@ -7237,6 +7249,8 @@ fn stmt_uses_kain_runtime(stmt: &Stmt) -> bool {
     match stmt {
         Stmt::Let { value, .. } => value.as_ref().is_some_and(expr_uses_kain_runtime),
         Stmt::Expr(e) => expr_uses_kain_runtime(e),
+        Stmt::Defer { expr, .. } => expr_uses_kain_runtime(expr),
+        Stmt::Dispatch { dispatch_size, .. } => dispatch_size.iter().any(expr_uses_kain_runtime),
         Stmt::Return(v, _) | Stmt::Break(v, _) => v.as_ref().is_some_and(expr_uses_kain_runtime),
         Stmt::Continue(_) => false,
         Stmt::For { iter, body, .. } | Stmt::Fanout { iter, body, .. } => {

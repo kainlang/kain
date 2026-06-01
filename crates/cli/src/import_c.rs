@@ -667,6 +667,24 @@ fn write_stmt(output: &mut String, stmt: &kain_core::ast::Stmt, indent: usize) -
             }
         }
         kain_core::ast::Stmt::Continue(_) => write_line(output, indent, "continue"),
+        kain_core::ast::Stmt::Defer { expr, .. } => {
+            write_line(output, indent, &format!("defer {}", expr_to_string(expr)))
+        }
+        kain_core::ast::Stmt::Dispatch {
+            compute_key,
+            dispatch_size,
+            ..
+        } => write_line(
+            output,
+            indent,
+            &format!(
+                "dispatch \"{}\" [{}, {}, {}]",
+                compute_key.replace('"', "\\\""),
+                expr_to_string(&dispatch_size[0]),
+                expr_to_string(&dispatch_size[1]),
+                expr_to_string(&dispatch_size[2])
+            ),
+        ),
         kain_core::ast::Stmt::For {
             binding,
             iter,

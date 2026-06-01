@@ -112,7 +112,7 @@ fn emit_shader(
     let mut struct_uniforms = HashSet::new();
     let mut storage_buffers = HashSet::new();
     let mut compute_input_params: Vec<(String, Type)> = Vec::new();
-    let mut local_size_values: [u32; 3] = [8, 8, 1];
+    let mut local_size_values: [u32; 3] = shader.ast.workgroup_size.unwrap_or([8, 8, 1]);
 
     // Inputs
     for (i, param) in shader.ast.inputs.iter().enumerate() {
@@ -171,10 +171,7 @@ fn emit_shader(
                 "LOCAL_SIZE_Z" => 2usize,
                 _ => 0usize,
             };
-            let default_value = match slot {
-                0 | 1 => 8,
-                _ => 1,
-            };
+            let default_value = local_size_values[slot];
             local_size_values[slot] = default_value;
             let uint_ty = b.type_int(32, 0);
             let const_id = b.constant_bit32(uint_ty, default_value);
@@ -3787,6 +3784,7 @@ mod tests {
             stage: ShaderStage::Compute,
             inputs: vec![],
             outputs: named_type("Vec4"),
+            workgroup_size: None,
             uniforms: vec![
                 kain_core::ast::Uniform {
                     name: "input_a".into(),

@@ -455,6 +455,7 @@ impl CTransformer {
         Ok(Some(Item::Function(Function {
             name,
             generics: Vec::new(),
+            where_clause: None,
             params,
             return_type: Some(return_type),
             body,
@@ -811,6 +812,7 @@ impl CTransformer {
                                 items.push(Item::TypeAlias(TypeAlias {
                                     name,
                                     generics: Vec::new(),
+                                    where_clause: None,
                                     target: ty,
                                     visibility: Visibility::Public,
                                     span: Span::default(),
@@ -1000,6 +1002,7 @@ impl CTransformer {
         let struct_def = Struct {
             name: name.clone(),
             generics: Vec::new(),
+            where_clause: None,
             fields,
             methods: Vec::new(),
             attributes: struct_attributes,
@@ -1050,6 +1053,7 @@ impl CTransformer {
         let enum_def = Enum {
             name: name.clone(),
             generics: Vec::new(),
+            where_clause: None,
             variants,
             visibility: Visibility::Public,
             span: Span::default(),

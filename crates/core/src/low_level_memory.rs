@@ -841,6 +841,27 @@ fn lower_stmt_memory_with_ctx(stmt: &Stmt, ctx: &mut FunctionMemoryCtx<'_>) -> V
         Stmt::Expr(expr) => {
             out.push(Stmt::Expr(lower_expr_memory_with_ctx(expr, ctx)));
         }
+        Stmt::Defer { expr, span } => {
+            out.push(Stmt::Defer {
+                expr: lower_expr_memory_with_ctx(expr, ctx),
+                span: *span,
+            });
+        }
+        Stmt::Dispatch {
+            compute_key,
+            dispatch_size,
+            span,
+        } => {
+            out.push(Stmt::Dispatch {
+                compute_key: compute_key.clone(),
+                dispatch_size: [
+                    lower_expr_memory_with_ctx(&dispatch_size[0], ctx),
+                    lower_expr_memory_with_ctx(&dispatch_size[1], ctx),
+                    lower_expr_memory_with_ctx(&dispatch_size[2], ctx),
+                ],
+                span: *span,
+            });
+        }
         Stmt::Let {
             pattern,
             ty,
@@ -2954,6 +2975,16 @@ fn first_memory_stmt_context(stmt: &Stmt, owner: &str) -> Option<String> {
             expr,
             format!("{owner} return contains a raw memory operation"),
         ),
+        Stmt::Defer { expr, .. } => first_memory_expr_context(
+            expr,
+            format!("{owner} defer contains a raw memory operation"),
+        ),
+        Stmt::Dispatch { dispatch_size, .. } => dispatch_size.iter().find_map(|expr| {
+            first_memory_expr_context(
+                expr,
+                format!("{owner} dispatch dimension contains a raw memory operation"),
+            )
+        }),
         Stmt::For { iter, body, .. } | Stmt::Fanout { iter, body, .. } => {
             if let Some(context) = first_memory_expr_context(
                 iter,

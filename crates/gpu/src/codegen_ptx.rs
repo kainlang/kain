@@ -354,15 +354,7 @@ impl PtxContext {
             }
         }
 
-        let mut local_size = DEFAULT_LOCAL_SIZE;
-        for uniform in &shader.ast.uniforms {
-            match uniform.name.as_str() {
-                "LOCAL_SIZE_X" => local_size[0] = DEFAULT_LOCAL_SIZE[0],
-                "LOCAL_SIZE_Y" => local_size[1] = DEFAULT_LOCAL_SIZE[1],
-                "LOCAL_SIZE_Z" => local_size[2] = DEFAULT_LOCAL_SIZE[2],
-                _ => {}
-            }
-        }
+        let local_size = shader.ast.workgroup_size.unwrap_or(DEFAULT_LOCAL_SIZE);
 
         Self {
             vars,
@@ -780,6 +772,18 @@ fn emit_stmt(ctx: &mut PtxContext, stmt: &Stmt) -> KainResult<()> {
         }) => emit_if_stmt(ctx, condition, then_branch, else_branch.as_deref())?,
         Stmt::Expr(expr) => {
             let _ = emit_expr(ctx, expr)?;
+        }
+        Stmt::Defer { span, .. } => {
+            return Err(KainError::codegen(
+                "PTX backend does not support defer inside compute shaders",
+                *span,
+            ));
+        }
+        Stmt::Dispatch { span, .. } => {
+            return Err(KainError::codegen(
+                "PTX backend does not support host dispatch statements inside compute shaders",
+                *span,
+            ));
         }
         Stmt::Return(value, _) => {
             if let Some(value) = value {
@@ -2394,6 +2398,7 @@ mod tests {
                 stage,
                 inputs: Vec::new(),
                 outputs: named("Vec4"),
+                workgroup_size: None,
                 uniforms,
                 body: Block {
                     stmts: Vec::new(),

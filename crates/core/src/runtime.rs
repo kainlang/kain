@@ -4850,15 +4850,32 @@ fn apply_use_alias(mut item: Item, alias: Option<&str>) -> KainResult<Item> {
 }
 
 pub fn eval_block(env: &mut Env, block: &Block) -> KainResult<Value> {
+    let mut defers: Vec<&Expr> = Vec::new();
     for stmt in &block.stmts {
+        if let Stmt::Defer { expr, .. } = stmt {
+            defers.push(expr);
+            continue;
+        }
+
         let result = eval_stmt(env, stmt)?;
         // Propagate control flow up
         match &result {
-            Value::Return(_) | Value::Break(_) | Value::Continue => return Ok(result),
+            Value::Return(_) | Value::Break(_) | Value::Continue => {
+                eval_deferred_exprs(env, &defers)?;
+                return Ok(result);
+            }
             _ => {}
         }
     }
+    eval_deferred_exprs(env, &defers)?;
     Ok(Value::Unit)
+}
+
+fn eval_deferred_exprs(env: &mut Env, defers: &[&Expr]) -> KainResult<()> {
+    for expr in defers.iter().rev() {
+        let _ = eval_expr(env, expr)?;
+    }
+    Ok(())
 }
 
 fn eval_stmt(env: &mut Env, stmt: &Stmt) -> KainResult<Value> {
@@ -4988,6 +5005,13 @@ fn eval_stmt(env: &mut Env, stmt: &Stmt) -> KainResult<Value> {
             Ok(Value::Break(val))
         }
         Stmt::Continue(_) => Ok(Value::Continue),
+        Stmt::Defer { .. } => Ok(Value::Unit),
+        Stmt::Dispatch { dispatch_size, .. } => {
+            for expr in dispatch_size {
+                let _ = eval_expr(env, expr)?;
+            }
+            Ok(Value::Unit)
+        }
         _ => Ok(Value::Unit),
     }
 }
@@ -7451,6 +7475,10 @@ fn block_contains_runtime_best_effort_effects(block: &Block) -> bool {
 fn stmt_contains_runtime_best_effort_effects(stmt: &Stmt) -> bool {
     match stmt {
         Stmt::Expr(expr) => expr_contains_runtime_best_effort_effects(expr),
+        Stmt::Defer { expr, .. } => expr_contains_runtime_best_effort_effects(expr),
+        Stmt::Dispatch { dispatch_size, .. } => dispatch_size
+            .iter()
+            .any(expr_contains_runtime_best_effort_effects),
         Stmt::Let { value, .. } => value
             .as_ref()
             .is_some_and(|value| expr_contains_runtime_best_effort_effects(value)),
@@ -8755,6 +8783,51 @@ mod tests {
             Value::String(rendered) => assert_eq!(rendered, "KainError::Runtime(boom)"),
             other => panic!("expected Value::String, found {other:?}"),
         }
+    }
+
+    #[test]
+    fn eval_defer_runs_lifo_after_return_value_is_evaluated() {
+        let span = Span::default();
+        let mut env = Env::new();
+        let block = Block {
+            stmts: vec![
+                Stmt::Let {
+                    pattern: Pattern::Binding {
+                        name: "x".to_string(),
+                        mutable: true,
+                        span,
+                    },
+                    ty: None,
+                    value: Some(Expr::Int(0, span)),
+                    span,
+                },
+                Stmt::Defer {
+                    expr: Expr::Assign {
+                        target: Box::new(Expr::Ident("x".to_string(), span)),
+                        value: Box::new(Expr::Int(1, span)),
+                        span,
+                    },
+                    span,
+                },
+                Stmt::Defer {
+                    expr: Expr::Assign {
+                        target: Box::new(Expr::Ident("x".to_string(), span)),
+                        value: Box::new(Expr::Int(2, span)),
+                        span,
+                    },
+                    span,
+                },
+                Stmt::Return(Some(Expr::Ident("x".to_string(), span)), span),
+            ],
+            span,
+        };
+
+        let value = eval_block(&mut env, &block).expect("defer cleanup should evaluate");
+        match value {
+            Value::Return(inner) => assert!(matches!(*inner, Value::Int(0))),
+            other => panic!("expected return flow, found {other:?}"),
+        }
+        assert!(matches!(env.lookup_value("x"), Some(Value::Int(1))));
     }
 
     #[test]

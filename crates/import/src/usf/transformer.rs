@@ -82,6 +82,7 @@ impl<'a> UsfTransformer<'a> {
         Ok(Item::Function(Function {
             name,
             generics: vec![],
+            where_clause: None,
             params,
             return_type: Some(return_type),
             effects: vec![],
@@ -107,6 +108,7 @@ impl<'a> UsfTransformer<'a> {
         Ok(Item::Struct(Struct {
             name,
             generics: vec![],
+            where_clause: None,
             fields,
             methods: vec![],
             attributes: vec![],

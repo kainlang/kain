@@ -54,6 +54,10 @@ Location rule: paths in this glossary are live in this checkout. Older docs may 
 
 **Decay** - The deterministic ownership teardown operation in Kain. If `collapse` is exclusive mutation and `observe` is scoped reading, `decay` is the terminal cleanup step. Location: `crates/core/`, `crates/ownership/`, `runtime/native/`.
 
+**Defer** - A block-scoped cleanup statement written `defer expr`. The deferred expression runs in strict LIFO order when the block exits by fallthrough, `return`, `break`, or `continue`; return and break payloads are evaluated before cleanup starts. Location: language truth in `crates/core/`; LLVM cleanup lowering in `crates/sys-codegen/`.
+
+**Dispatch statement** - A host-side GPU launch statement written `dispatch "compute.key" [x, y, z]`. The compute key stays backend-agnostic, and the three dimensions override artifact or metadata dispatch defaults for that launch. Location: parsing and lowering in `crates/core/` and `crates/sys-codegen/`; runtime service contract in `crates/gpu-runtime/` and `runtime/native/include/cuda_runtime.h`.
+
 **Docs** - The live long-form documentation tree for this checkout. Use it for conceptual explanations, CLI behavior, runtime docs, guide maps, and reference pages, but verify against source when something smells stale. Location: `docs/`.
 
 ## E
@@ -69,6 +73,8 @@ Location rule: paths in this glossary are live in this checkout. Older docs may 
 ## G
 
 **GPU lane** - The authored shader and graphics path in Kain. Shader code compiles through the SPIR-V/PTX/HLSL artifact pipeline, while host orchestration stays in normal Kain and lowers through LLVM plus runtime ABI calls. Location: `crates/gpu/`, `crates/gpu-runtime/`, `stdlib/gpu.kn`, `stdlib/graphics.kn`, `stdlib/graphics_shared.kn`, `benchmark/lanes/gpu/`, `blades/vulkain/`.
+
+**Generic where clause** - A contextual `where` clause on generic-bearing items such as functions, structs, enums, traits, impls, and type aliases. The AST stores it separately from inline bounds so semantic passes can normalize and validate all constraints together. Location: `crates/core/src/ast.rs`, `crates/core/src/parser.rs`, `crates/core/src/types.rs`.
 
 ## I
 
@@ -219,6 +225,8 @@ Location rule: paths in this glossary are live in this checkout. Older docs may 
 ## W
 
 **Website** - The repo's website and packaging/registry-facing web application tree. This is adjacent infrastructure, not the core language/runtime truth surface. Location: `website/`.
+
+**Workgroup clause** - Static compute-shader local geometry declared in the shader header as `workgroup(x, y, z)`. It is canonical shader artifact truth, not dynamic dispatch size; host `dispatch [x, y, z]` controls grid dimensions separately. Location: parser and metadata truth in `crates/core/`; shader backend consumption in `crates/gpu/`.
 
 **World** - A compiler-owned state authority or projection surface declared with `world`. Worlds hold named state slots and surfaces such as `native_ui`, `web`, `viewport3d`, or `ue5`, and they become the backbone for `entangle`, `patch`, and `teleport`. Location: `crates/core/`, with runtime-facing helpers in `stdlib/intent.kn` and related runtime contracts.
 

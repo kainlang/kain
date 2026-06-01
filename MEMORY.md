@@ -1,5 +1,29 @@
 # Kain Memory
 
+# 2026-06-01 - v1 keyword expansion landed for defer, where, workgroup, and dispatch
+
+What changed:
+
+- `defer` is now a hard keyword and statement AST node. Interpreter and LLVM lowering run block-local defers in strict LIFO order on fallthrough, `return`, `break`, and `continue`; return and break payloads are evaluated before cleanup runs.
+- Generic `where` clauses are real AST surfaces on functions, structs, enums, traits, impls, and type aliases. Typechecking predeclares traits, validates unknown generics and traits, and detects duplicate bounds after inline and `where` constraints are normalized.
+- `shader compute ... workgroup(x, y, z)` is canonical static shader-header local geometry. Explicit compute metadata can still provide dispatch defaults and sidecar plans, but conflicting workgroup metadata is rejected instead of silently overriding the header.
+- Host `dispatch "compute.key" [x, y, z]` now lowers through the backend-agnostic `abi_gpu_dispatch` runtime contract. The dimensions override artifact or sidecar `dispatch_size` for that launch; zero/legacy native callers preserve the existing default dispatch path.
+
+Validation:
+
+- `cargo test -p kain-core where_clause -- --nocapture` passed.
+- `cargo test -p kain-core eval_defer_runs_lifo_after_return_value_is_evaluated -- --nocapture` passed.
+- `cargo test -p kain-core parses_where_defer_dispatch_and_shader_workgroup_surfaces -- --nocapture` passed.
+- `cargo check -p kain-core -p kain-sys-codegen -p gpu -p kain-gpu-runtime -p kain-driver` passed.
+- `cargo check -p cli` passed.
+- `bazel build //runtime:native_core_runtime --config=dev` passed with existing native warnings.
+
+Operational notes:
+
+- When adding future generic item clauses, keep the AST field explicit and update manual test/importer constructors instead of collapsing clause truth into normalized typechecker-only state.
+- Keep `workgroup` static and `dispatch_size` dynamic: shader backends consume the header local size, while runtime executors consume optional dispatch overrides.
+- `dispatch` language syntax must stay backend-agnostic; provider selection remains behind runtime adapters.
+
 # 2026-05-31 - parallel strike planner skill added for same-checkout agent plans
 
 What changed:

@@ -1969,6 +1969,18 @@ fn emit_stmt(ctx: &mut USFContext, stmt: &Stmt) -> KainResult<String> {
                 }
             }
         }
+        Stmt::Defer { span, .. } => {
+            return Err(KainError::codegen(
+                "USF backend does not support defer inside shader bodies",
+                *span,
+            ));
+        }
+        Stmt::Dispatch { span, .. } => {
+            return Err(KainError::codegen(
+                "USF backend does not support host dispatch statements inside shader bodies",
+                *span,
+            ));
+        }
         Stmt::While {
             condition, body, ..
         } => {

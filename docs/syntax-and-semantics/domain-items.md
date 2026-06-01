@@ -42,6 +42,30 @@ Shaders own inputs, outputs, uniforms, and executable bodies. They also cooperat
 with `comptime` when the compiler needs to extract compute metadata before
 lowering.
 
+Compute shaders may declare static local geometry in the header:
+
+```kn
+shader compute ParticleKernel(id: UVec3) -> Vec4 workgroup(8, 1, 1):
+    uniform particles: StorageBuffer<Vec4> @0
+    let p = particles[id.x]
+    return vec4(p.x, p.y, p.z, 1.0)
+```
+
+`workgroup(x, y, z)` is canonical shader-header truth for local size. It is only
+legal on compute shaders, must be compile-time positive integer geometry, and is
+kept static. Explicit compute metadata can still describe dispatch defaults and
+sidecar plans; if it repeats workgroup geometry, it must match the header.
+
+Host code launches compute work through a backend-agnostic dispatch statement:
+
+```kn
+dispatch "semantic.score" [1024, 1, 1]
+```
+
+Those dimensions are dynamic grid dimensions for that launch. They override the
+artifact or compute-metadata `dispatch_size` default, while `workgroup(...)`
+remains the static local geometry baked into shader artifacts.
+
 ## Material And Graph Items
 
 Material and graph-related declarations include:

@@ -20,6 +20,7 @@ pub fn token_kind_to_user_string(kind: &crate::lexer::TokenKind) -> String {
         TokenKind::Loop => "keyword 'loop'".to_string(),
         TokenKind::Break => "keyword 'break'".to_string(),
         TokenKind::Continue => "keyword 'continue'".to_string(),
+        TokenKind::Defer => "keyword 'defer'".to_string(),
         TokenKind::Return => "keyword 'return'".to_string(),
         TokenKind::Await => "keyword 'await'".to_string(),
         TokenKind::In => "keyword 'in'".to_string(),

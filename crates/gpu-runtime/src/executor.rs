@@ -28,6 +28,7 @@ pub struct GpuRuntimeDispatchRequest {
     pub shader_bundle_path: *const c_char,
     pub compute_residency_path: *const c_char,
     pub compute_key: *const c_char,
+    pub dispatch_size: [u32; 3],
 }
 
 #[repr(C)]
@@ -400,6 +401,7 @@ impl VulkanComputeExecutor {
             shader_bundle_path,
             compute_residency_path,
             compute_key,
+            None,
         )?;
         self.run_dispatch_request(&spirv, &request)
     }
@@ -831,11 +833,15 @@ pub extern "C" fn kain_gpu_runtime_dispatch_primary_compute(
         }
     };
 
-    match executor.dispatch_from_sidecars(
+    let dispatch_override = ffi_dispatch_size_override(request.dispatch_size);
+    match dispatch_request_from_sidecars(
         &shader_bundle_path,
         &compute_residency_path,
         &compute_key,
-    ) {
+        dispatch_override,
+    )
+    .and_then(|(spirv, request)| executor.run_dispatch_request(&spirv, &request))
+    {
         Ok(dispatch) => {
             populate_dispatch_result(result, &dispatch, "dispatch ok");
             0
@@ -852,6 +858,7 @@ fn dispatch_request_from_sidecars(
     shader_bundle_path: &Path,
     compute_residency_path: &Path,
     compute_key: &str,
+    dispatch_override: Option<[u32; 3]>,
 ) -> Result<(Vec<u8>, GpuDispatchRequest), ComputeExecutorError> {
     let shader_bundle_json =
         fs::read_to_string(shader_bundle_path).map_err(|err| ComputeExecutorError::ReadFile {
@@ -968,7 +975,9 @@ fn dispatch_request_from_sidecars(
             workgroup_size: entry
                 .workgroup_size
                 .unwrap_or([DEFAULT_WORKGROUP_SIZE_X, 1, 1]),
-            dispatch_size: entry.dispatch_size.unwrap_or([1, 1, 1]),
+            dispatch_size: dispatch_override
+                .or(entry.dispatch_size)
+                .unwrap_or([1, 1, 1]),
             cuda_launch: GpuCudaLaunchOptions::default(),
             bindings,
             tensor_binding_count: entry.tensor_binding_count,
@@ -976,6 +985,14 @@ fn dispatch_request_from_sidecars(
             neural_node_count: entry.neural_node_count,
         },
     ))
+}
+
+pub fn ffi_dispatch_size_override(dispatch_size: [u32; 3]) -> Option<[u32; 3]> {
+    if dispatch_size.iter().all(|value| *value > 0) {
+        Some(dispatch_size)
+    } else {
+        None
+    }
 }
 
 fn parse_descriptor_kind(value: &str) -> Result<GpuDescriptorKind, ComputeExecutorError> {

@@ -288,6 +288,7 @@ typedef struct {
     const char* shader_bundle_path;
     const char* compute_residency_path;
     const char* compute_key;
+    unsigned int dispatch_size[3];
 } KainGpuRuntimeDispatchRequest;
 
 typedef struct {

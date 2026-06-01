@@ -709,6 +709,12 @@ impl SlateGenerator {
             }
             Stmt::Break(None, _) => self.push_line("break;"),
             Stmt::Continue(_) => self.push_line("continue;"),
+            Stmt::Defer { .. } => self.push_line(
+                "checkf(false, TEXT(\"Kain defer is not supported in Slate methods yet\"));",
+            ),
+            Stmt::Dispatch { .. } => self.push_line(
+                "checkf(false, TEXT(\"Kain dispatch statements are only supported by native/GPU targets\"));",
+            ),
             Stmt::For {
                 binding,
                 iter,

@@ -27,6 +27,12 @@ int64_t abi_cuda_dispatch(
     const char* compute_residency_path,
     const char* compute_key
 );
+int64_t abi_gpu_dispatch(
+    const char* compute_key,
+    int64_t dispatch_x,
+    int64_t dispatch_y,
+    int64_t dispatch_z
+);
 int64_t abi_cuda_last_status(void);
 const char* abi_cuda_last_error_kind(void);
 const char* abi_cuda_last_error_message(void);

@@ -1294,9 +1294,14 @@ fn shader_bundle_ref(shader: &TypedShader) -> RealtimeShaderBundleRef {
             (
                 Some(compute_execution_domain(&resource_bindings)),
                 Some(
-                    explicit_compute_metadata
-                        .as_ref()
-                        .and_then(|metadata| metadata.workgroup_size)
+                    shader
+                        .ast
+                        .workgroup_size
+                        .or_else(|| {
+                            explicit_compute_metadata
+                                .as_ref()
+                                .and_then(|metadata| metadata.workgroup_size)
+                        })
                         .unwrap_or_else(|| compute_workgroup_size(shader)),
                 ),
                 Some(
@@ -1503,6 +1508,14 @@ fn scan_shader_stmt_for_storage_access(
         }
         Stmt::Expr(expr) => {
             scan_shader_expr_for_storage_access(expr, storage_uniforms, access);
+        }
+        Stmt::Defer { expr, .. } => {
+            scan_shader_expr_for_storage_access(expr, storage_uniforms, access);
+        }
+        Stmt::Dispatch { dispatch_size, .. } => {
+            for expr in dispatch_size {
+                scan_shader_expr_for_storage_access(expr, storage_uniforms, access);
+            }
         }
         Stmt::Return(Some(expr), _) | Stmt::Break(Some(expr), _) => {
             scan_shader_expr_for_storage_access(expr, storage_uniforms, access);

@@ -2225,6 +2225,18 @@ fn collect_implicit_root_stdlib_modules_from_block(
             Stmt::Expr(expr) | Stmt::Return(Some(expr), _) | Stmt::Break(Some(expr), _) => {
                 collect_implicit_root_stdlib_modules_from_expr(expr, symbol_lookup, module_names);
             }
+            Stmt::Defer { expr, .. } => {
+                collect_implicit_root_stdlib_modules_from_expr(expr, symbol_lookup, module_names);
+            }
+            Stmt::Dispatch { dispatch_size, .. } => {
+                for expr in dispatch_size {
+                    collect_implicit_root_stdlib_modules_from_expr(
+                        expr,
+                        symbol_lookup,
+                        module_names,
+                    );
+                }
+            }
             Stmt::For { iter, body, .. } | Stmt::Fanout { iter, body, .. } => {
                 collect_implicit_root_stdlib_modules_from_expr(iter, symbol_lookup, module_names);
                 collect_implicit_root_stdlib_modules_from_block(body, symbol_lookup, module_names);

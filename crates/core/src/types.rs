@@ -541,6 +541,8 @@ fn validate_zero_prologue_body(
         if !allowed {
             let stmt_span = match stmt {
                 Stmt::Let { span, .. }
+                | Stmt::Defer { span, .. }
+                | Stmt::Dispatch { span, .. }
                 | Stmt::Return(_, span)
                 | Stmt::Break(_, span)
                 | Stmt::Continue(span)
@@ -1044,6 +1046,7 @@ pub struct TypeEnv<'a> {
     moved_scopes: Vec<HashSet<String>>,
     types: HashMap<String, ResolvedType>,
     type_origins: HashMap<String, SymbolOrigin>,
+    trait_origins: HashMap<String, SymbolOrigin>,
     globals: HashMap<String, ResolvedType>,
     global_origins: HashMap<String, SymbolOrigin>,
     moved_globals: HashSet<String>,
@@ -1067,6 +1070,7 @@ impl<'a> TypeEnv<'a> {
             moved_scopes: vec![HashSet::new()],
             types: HashMap::new(),
             type_origins: HashMap::new(),
+            trait_origins: HashMap::new(),
             globals: HashMap::new(),
             global_origins: HashMap::new(),
             moved_globals: HashSet::new(),
@@ -1296,6 +1300,36 @@ impl<'a> TypeEnv<'a> {
         self.types.insert(name.clone(), ty);
         self.type_origins.insert(name, SymbolOrigin { span, kind });
         Ok(())
+    }
+
+    fn define_trait_user(&mut self, name: String, span: Span) -> KainResult<()> {
+        self.validate_user_symbol_collision(
+            &name,
+            span,
+            "trait",
+            &self.trait_origins,
+            self.trait_origins.contains_key(&name),
+            "trait",
+            DiagnosticCode::TypeDuplicateSymbol,
+            DiagnosticCode::TypeShadowedBuiltin,
+            self.is_registering_stdlib() || self.is_stdlib_source_span(span),
+        )?;
+        self.trait_origins.insert(
+            name,
+            SymbolOrigin {
+                span,
+                kind: "trait",
+            },
+        );
+        Ok(())
+    }
+
+    fn trait_exists(&self, name: &str) -> bool {
+        self.trait_origins.contains_key(name)
+            || name
+                .rsplit("::")
+                .next()
+                .is_some_and(|last| self.trait_origins.contains_key(last))
     }
 
     fn define_global_user(
@@ -3832,6 +3866,9 @@ fn predeclare_item_types(env: &mut TypeEnv, item: &Item) {
                 "actor",
             );
         }
+        Item::Trait(trait_def) => {
+            let _ = env.define_trait_user(trait_def.name.clone(), trait_def.span);
+        }
         Item::Mod(module) => {
             if let Some(children) = &module.inline {
                 let module_path = vec![module.name.clone()];
@@ -3868,6 +3905,7 @@ fn is_stdlib_source_file(file: &str) -> bool {
 fn register_item_types(env: &mut TypeEnv, item: &Item) -> KainResult<()> {
     match item {
         Item::Struct(s) => {
+            validate_generic_constraints(env, &s.generics, s.where_clause.as_ref(), "struct")?;
             let mut fields = HashMap::new();
             for f in &s.fields {
                 fields.insert(f.name.clone(), resolve_type_in_env(env, &f.ty)?);
@@ -3877,6 +3915,7 @@ fn register_item_types(env: &mut TypeEnv, item: &Item) -> KainResult<()> {
             register_method_signatures(env, &s.name, &self_ty, &s.methods)?;
         }
         Item::Enum(e) => {
+            validate_generic_constraints(env, &e.generics, e.where_clause.as_ref(), "enum")?;
             let mut variants = Vec::new();
             let mut variant_map = HashMap::new();
             let mut variant_aliases = Vec::new();
@@ -3933,6 +3972,7 @@ fn register_item_types(env: &mut TypeEnv, item: &Item) -> KainResult<()> {
             }
         }
         Item::Function(f) => {
+            validate_generic_constraints(env, &f.generics, f.where_clause.as_ref(), "function")?;
             env.define_global_user(
                 f.name.clone(),
                 function_signature(env, f, None)?,
@@ -3996,6 +4036,12 @@ fn register_item_types(env: &mut TypeEnv, item: &Item) -> KainResult<()> {
             )?;
         }
         Item::TypeAlias(alias) => {
+            validate_generic_constraints(
+                env,
+                &alias.generics,
+                alias.where_clause.as_ref(),
+                "type alias",
+            )?;
             env.define_type_user(
                 alias.name.clone(),
                 resolve_type_in_env(env, &alias.target)?,
@@ -4004,6 +4050,10 @@ fn register_item_types(env: &mut TypeEnv, item: &Item) -> KainResult<()> {
             )?;
         }
         Item::Impl(imp) => {
+            validate_generic_constraints(env, &imp.generics, imp.where_clause.as_ref(), "impl")?;
+            if let Some(trait_name) = &imp.trait_name {
+                validate_trait_name_exists(env, trait_name, imp.span, "impl trait")?;
+            }
             let self_ty = resolve_type_in_env(env, &imp.target_type)?;
             if let Some(target_name) = resolved_type_name(&self_ty) {
                 register_method_signatures(env, target_name, &self_ty, &imp.methods)?;
@@ -4033,6 +4083,15 @@ fn register_item_types(env: &mut TypeEnv, item: &Item) -> KainResult<()> {
                     register_item_types(env, child)?;
                 }
             }
+        }
+        Item::Trait(trait_def) => {
+            env.define_trait_user(trait_def.name.clone(), trait_def.span)?;
+            validate_generic_constraints(
+                env,
+                &trait_def.generics,
+                trait_def.where_clause.as_ref(),
+                "trait",
+            )?;
         }
         // Register imported names as Unknown so that callers of cross-module
         // functions (e.g. `use lexer::tokenize_source`) don't fail the typechecker
@@ -4515,7 +4574,7 @@ fn check_item(env: &mut TypeEnv, item: &Item) -> KainResult<TypedItem> {
         Item::Pulse(pulse) => Ok(TypedItem::Pulse(check_pulse(env, pulse)?)),
         Item::Struct(s) => Ok(TypedItem::Struct(check_struct(env, s)?)),
         Item::Enum(e) => Ok(TypedItem::Enum(check_enum(env, e)?)),
-        Item::Trait(t) => Ok(TypedItem::Trait(TypedTrait { ast: t.clone() })),
+        Item::Trait(t) => Ok(TypedItem::Trait(check_trait(env, t)?)),
         Item::Component(c) => Ok(TypedItem::Component(check_component(env, c)?)),
         Item::Shader(s) => Ok(TypedItem::Shader(check_shader(env, s)?)),
         Item::Actor(a) => Ok(TypedItem::Actor(check_actor(env, a)?)),
@@ -4531,7 +4590,7 @@ fn check_item(env: &mut TypeEnv, item: &Item) -> KainResult<TypedItem> {
         Item::Mod(module) => Ok(TypedItem::Mod(check_mod(env, module)?)),
         Item::Impl(i) => Ok(TypedItem::Impl(check_impl(env, i)?)),
         Item::Test(t) => Ok(TypedItem::Test(check_test(env, t)?)),
-        Item::TypeAlias(ta) => Ok(TypedItem::TypeAlias(TypedTypeAlias { ast: ta.clone() })),
+        Item::TypeAlias(ta) => Ok(TypedItem::TypeAlias(check_type_alias(env, ta)?)),
         Item::MaterialGraph(mg) => Ok(TypedItem::MaterialGraph(mg.clone())),
         Item::MaterialFunction(mf) => Ok(TypedItem::MaterialFunction(mf.clone())),
         Item::GraphEditor(ge) => Ok(TypedItem::GraphEditor(ge.clone())),
@@ -4803,6 +4862,15 @@ fn collect_reply_contract_type_from_stmt(
         }
         Stmt::Expr(expr) => {
             collect_reply_contract_type_from_expr(env, expr, reply_port_name, reply_type)
+        }
+        Stmt::Defer { expr, .. } => {
+            collect_reply_contract_type_from_expr(env, expr, reply_port_name, reply_type)
+        }
+        Stmt::Dispatch { dispatch_size, .. } => {
+            for expr in dispatch_size {
+                collect_reply_contract_type_from_expr(env, expr, reply_port_name, reply_type)?;
+            }
+            Ok(())
         }
         Stmt::Return(value, _) => {
             if let Some(value) = value {
@@ -5146,6 +5214,7 @@ fn infer_expr_type_read_only(env: &TypeEnv, expr: &Expr) -> KainResult<ResolvedT
         moved_scopes: env.moved_scopes.clone(),
         types: env.types.clone(),
         type_origins: env.type_origins.clone(),
+        trait_origins: env.trait_origins.clone(),
         globals: env.globals.clone(),
         global_origins: env.global_origins.clone(),
         moved_globals: env.moved_globals.clone(),
@@ -5255,7 +5324,113 @@ fn check_test(env: &mut TypeEnv, t: &TestDef) -> KainResult<TypedTest> {
     Ok(TypedTest { ast: t.clone() })
 }
 
+fn validate_generic_constraints(
+    env: &TypeEnv,
+    generics: &[Generic],
+    where_clause: Option<&WhereClause>,
+    owner_kind: &str,
+) -> KainResult<()> {
+    let generic_names = generics
+        .iter()
+        .map(|generic| generic.name.as_str())
+        .collect::<HashSet<_>>();
+    let mut normalized = HashSet::new();
+
+    for generic in generics {
+        for bound in &generic.bounds {
+            validate_trait_bound_exists(env, bound, owner_kind)?;
+            let key = (generic.name.as_str(), bound.trait_name.as_str());
+            if !normalized.insert(key) {
+                return Err(env.type_error(
+                    format!(
+                        "duplicate generic bound '{}: {}' on {owner_kind}",
+                        generic.name, bound.trait_name
+                    ),
+                    bound.span,
+                ));
+            }
+        }
+    }
+
+    if let Some(where_clause) = where_clause {
+        for where_bound in &where_clause.bounds {
+            if !generic_names.contains(where_bound.generic_name.as_str()) {
+                let available = generics
+                    .iter()
+                    .map(|generic| generic.name.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                let detail = if available.is_empty() {
+                    "this item has no generic parameters".to_string()
+                } else {
+                    format!("available generics: {available}")
+                };
+                return Err(env.type_error(
+                    format!(
+                        "where clause references unknown generic '{}' on {owner_kind}; {detail}",
+                        where_bound.generic_name
+                    ),
+                    where_bound.span,
+                ));
+            }
+
+            let mut local_bounds = HashSet::new();
+            for bound in &where_bound.bounds {
+                validate_trait_bound_exists(env, bound, owner_kind)?;
+                if !local_bounds.insert(bound.trait_name.as_str()) {
+                    return Err(env.type_error(
+                        format!(
+                            "duplicate where bound '{}: {}' on {owner_kind}",
+                            where_bound.generic_name, bound.trait_name
+                        ),
+                        bound.span,
+                    ));
+                }
+                let key = (where_bound.generic_name.as_str(), bound.trait_name.as_str());
+                if !normalized.insert(key) {
+                    return Err(env.type_error(
+                        format!(
+                            "duplicate generic bound '{}: {}' across inline bounds and where clause on {owner_kind}",
+                            where_bound.generic_name, bound.trait_name
+                        ),
+                        bound.span,
+                    ));
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn validate_trait_bound_exists(
+    env: &TypeEnv,
+    bound: &TypeBound,
+    owner_kind: &str,
+) -> KainResult<()> {
+    validate_trait_name_exists(env, &bound.trait_name, bound.span, owner_kind)
+}
+
+fn validate_trait_name_exists(
+    env: &TypeEnv,
+    trait_name: &str,
+    span: Span,
+    owner_kind: &str,
+) -> KainResult<()> {
+    if env.trait_exists(trait_name) {
+        return Ok(());
+    }
+    Err(env.type_error(
+        format!("{owner_kind} references unknown trait '{trait_name}'"),
+        span,
+    ))
+}
+
 fn check_impl(env: &mut TypeEnv, imp: &Impl) -> KainResult<TypedImpl> {
+    validate_generic_constraints(env, &imp.generics, imp.where_clause.as_ref(), "impl")?;
+    if let Some(trait_name) = &imp.trait_name {
+        validate_trait_name_exists(env, trait_name, imp.span, "impl trait")?;
+    }
     let self_ty = resolve_type_in_env(env, &imp.target_type)?;
     for method in &imp.methods {
         check_function_with_self(env, method, &self_ty)?;
@@ -5264,6 +5439,7 @@ fn check_impl(env: &mut TypeEnv, imp: &Impl) -> KainResult<TypedImpl> {
 }
 
 fn check_function(env: &mut TypeEnv, f: &Function) -> KainResult<TypedFunction> {
+    validate_generic_constraints(env, &f.generics, f.where_clause.as_ref(), "function")?;
     let resolved_type = function_signature(env, f, None)?;
     let effects = match &resolved_type {
         ResolvedType::Function { effects, .. } => effects.clone(),
@@ -5301,6 +5477,7 @@ fn check_function_with_self(
     f: &Function,
     self_ty: &ResolvedType,
 ) -> KainResult<TypedFunction> {
+    validate_generic_constraints(env, &f.generics, f.where_clause.as_ref(), "method")?;
     let resolved_type = function_signature(env, f, Some(self_ty))?;
     let effects = match &resolved_type {
         ResolvedType::Function { effects, .. } => effects.clone(),
@@ -5336,6 +5513,7 @@ fn patch_function_view(patch: &PatchDef) -> Function {
     Function {
         name: patch.name.clone(),
         generics: vec![],
+        where_clause: None,
         params: patch.params.clone(),
         return_type: patch.return_type.clone(),
         effects: vec![],
@@ -5350,6 +5528,7 @@ fn law_function_view(law: &LawDef) -> Function {
     Function {
         name: law.name.clone(),
         generics: vec![],
+        where_clause: None,
         params: law.params.clone(),
         return_type: Some(law.return_type.clone()),
         effects: vec![],
@@ -5364,6 +5543,7 @@ fn converge_dispatcher_view(converge: &ConvergeDef) -> Function {
     Function {
         name: converge.name.clone(),
         generics: vec![],
+        where_clause: None,
         params: converge.params.clone(),
         return_type: converge.return_type.clone(),
         effects: vec![],
@@ -5381,6 +5561,7 @@ fn converge_lane_function_view(converge: &ConvergeDef, lane: &ConvergeLane) -> F
     Function {
         name: format!("__kain_converge__{}__{}", converge.name, lane.lane_name),
         generics: vec![],
+        where_clause: None,
         params: converge.params.clone(),
         return_type: converge.return_type.clone(),
         effects: vec![],
@@ -5395,6 +5576,7 @@ fn orchestrate_function_view(orchestrate: &OrchestrateDef) -> Function {
     Function {
         name: orchestrate.name.clone(),
         generics: vec![],
+        where_clause: None,
         params: orchestrate.params.clone(),
         return_type: orchestrate.return_type.clone(),
         effects: vec![],
@@ -5765,6 +5947,12 @@ fn collect_patch_mutation_paths_from_stmt(stmt: &Stmt, output: &mut Vec<String>)
             }
         }
         Stmt::Expr(expr) => collect_patch_mutation_paths_from_expr(expr, output),
+        Stmt::Defer { expr, .. } => collect_patch_mutation_paths_from_expr(expr, output),
+        Stmt::Dispatch { dispatch_size, .. } => {
+            for expr in dispatch_size {
+                collect_patch_mutation_paths_from_expr(expr, output);
+            }
+        }
         Stmt::Return(value, _) | Stmt::Break(value, _) => {
             if let Some(value) = value {
                 collect_patch_mutation_paths_from_expr(value, output);
@@ -6030,6 +6218,10 @@ fn patch_body_requires_best_effort(block: &Block) -> bool {
 fn stmt_requires_best_effort_patch_mode(stmt: &Stmt) -> bool {
     match stmt {
         Stmt::Expr(expr) => expr_requires_best_effort_patch_mode(expr),
+        Stmt::Defer { expr, .. } => expr_requires_best_effort_patch_mode(expr),
+        Stmt::Dispatch { dispatch_size, .. } => dispatch_size
+            .iter()
+            .any(expr_requires_best_effort_patch_mode),
         Stmt::Let { value, .. } => value
             .as_ref()
             .is_some_and(expr_requires_best_effort_patch_mode),
@@ -6302,6 +6494,10 @@ fn first_stage_call_in_stmt(stmt: &Stmt) -> Option<Span> {
     match stmt {
         Stmt::Let { value, .. } => value.as_ref().and_then(first_stage_call_in_expr),
         Stmt::Expr(expr) => first_stage_call_in_expr(expr),
+        Stmt::Defer { expr, .. } => first_stage_call_in_expr(expr),
+        Stmt::Dispatch { dispatch_size, .. } => {
+            dispatch_size.iter().find_map(first_stage_call_in_expr)
+        }
         Stmt::Return(value, _) | Stmt::Break(value, _) => {
             value.as_ref().and_then(first_stage_call_in_expr)
         }
@@ -6532,6 +6728,7 @@ fn supports_converge_verify_sampling(ty: &ResolvedType) -> bool {
 }
 
 fn check_struct(env: &mut TypeEnv, s: &Struct) -> KainResult<TypedStruct> {
+    validate_generic_constraints(env, &s.generics, s.where_clause.as_ref(), "struct")?;
     validate_struct_attributes(env, s)?;
     let has_mmio = s
         .attributes
@@ -6608,6 +6805,7 @@ fn check_struct(env: &mut TypeEnv, s: &Struct) -> KainResult<TypedStruct> {
 }
 
 fn check_enum(env: &mut TypeEnv, e: &Enum) -> KainResult<TypedEnum> {
+    validate_generic_constraints(env, &e.generics, e.where_clause.as_ref(), "enum")?;
     let mut variant_payload_types: HashMap<String, Vec<ResolvedType>> = HashMap::new();
 
     for v in &e.variants {
@@ -6629,6 +6827,27 @@ fn check_enum(env: &mut TypeEnv, e: &Enum) -> KainResult<TypedEnum> {
         ast: e.clone(),
         variant_payload_types,
     })
+}
+
+fn check_trait(env: &mut TypeEnv, t: &Trait) -> KainResult<TypedTrait> {
+    validate_generic_constraints(env, &t.generics, t.where_clause.as_ref(), "trait")?;
+    for supertrait in &t.supertraits {
+        if let Type::Named { name, span, .. } = supertrait {
+            validate_trait_name_exists(env, name, *span, "supertrait")?;
+        }
+    }
+    Ok(TypedTrait { ast: t.clone() })
+}
+
+fn check_type_alias(env: &mut TypeEnv, alias: &TypeAlias) -> KainResult<TypedTypeAlias> {
+    validate_generic_constraints(
+        env,
+        &alias.generics,
+        alias.where_clause.as_ref(),
+        "type alias",
+    )?;
+    let _ = resolve_type_in_env(env, &alias.target)?;
+    Ok(TypedTypeAlias { ast: alias.clone() })
 }
 
 fn check_component(env: &mut TypeEnv, c: &Component) -> KainResult<TypedComponent> {
@@ -7085,6 +7304,34 @@ fn check_stmt_semantics(env: &mut TypeEnv, stmt: &Stmt, ctx: &SemanticContext) -
         Stmt::Expr(expr) => {
             let _ = infer_expr_type(env, expr, Some(ctx))?;
         }
+        Stmt::Defer { expr, span } => {
+            if ownership_expr_contains_early_exit(expr) {
+                return Err(env.type_error(
+                    "defer payloads must be cleanup expressions and cannot contain return, break, or continue",
+                    *span,
+                ));
+            }
+            let _ = infer_expr_type(env, expr, Some(ctx))?;
+        }
+        Stmt::Dispatch {
+            compute_key,
+            dispatch_size,
+            span,
+        } => {
+            if compute_key.is_empty() {
+                return Err(env.type_error("dispatch compute key cannot be empty", *span));
+            }
+            for dimension in dispatch_size {
+                let dim_ty = infer_expr_type(env, dimension, Some(ctx))?;
+                ensure_type_compatible(
+                    env,
+                    &ResolvedType::Int(IntSize::I64),
+                    &dim_ty,
+                    dimension.span(),
+                    "dispatch dimension",
+                )?;
+            }
+        }
         Stmt::Return(Some(expr), span) => {
             let expr_ty = infer_expr_type(env, expr, Some(ctx))?;
             ensure_type_compatible(env, &ctx.return_type, &expr_ty, *span, "return value")?;
@@ -7224,7 +7471,10 @@ fn check_stmt_semantics(env: &mut TypeEnv, stmt: &Stmt, ctx: &SemanticContext) -
         Stmt::Item(item) => {
             let _ = check_item(env, item.as_ref())?;
         }
-        Stmt::Break(_, _) | Stmt::Continue(_) => {}
+        Stmt::Break(Some(expr), _) => {
+            let _ = infer_expr_type(env, expr, Some(ctx))?;
+        }
+        Stmt::Break(None, _) | Stmt::Continue(_) => {}
     }
     Ok(())
 }
@@ -8598,6 +8848,10 @@ fn ownership_stmt_contains_early_exit(stmt: &Stmt) -> bool {
             .as_ref()
             .is_some_and(ownership_expr_contains_early_exit),
         Stmt::Expr(expr) => ownership_expr_contains_early_exit(expr),
+        Stmt::Defer { expr, .. } => ownership_expr_contains_early_exit(expr),
+        Stmt::Dispatch { dispatch_size, .. } => {
+            dispatch_size.iter().any(ownership_expr_contains_early_exit)
+        }
         Stmt::For { iter, body, .. } | Stmt::Fanout { iter, body, .. } => {
             ownership_expr_contains_early_exit(iter) || ownership_block_contains_early_exit(body)
         }
@@ -11814,6 +12068,57 @@ mod tests {
         check(&program, &span_mapper, "<test>")
     }
 
+    #[test]
+    fn typecheck_accepts_declared_where_clause_traits() {
+        typecheck_source(
+            r#"trait Fold:
+    fn fold(x: Int) -> Int
+
+fn foo<T>(x: T) -> Int where T: Fold:
+    return 1
+"#,
+        )
+        .expect("declared where-clause trait should typecheck");
+    }
+
+    #[test]
+    fn typecheck_rejects_where_clause_unknown_generic() {
+        let err = typecheck_source(
+            r#"trait Fold:
+    fn fold(x: Int) -> Int
+
+fn foo<T>(x: T) -> Int where U: Fold:
+    return 1
+"#,
+        )
+        .expect_err("unknown where generic should fail");
+        assert!(err.to_string().contains("unknown generic 'U'"));
+    }
+
+    #[test]
+    fn typecheck_rejects_where_clause_unknown_trait_and_duplicate_bounds() {
+        let unknown_trait = typecheck_source(
+            r#"fn foo<T>(x: T) -> Int where T: Missing:
+    return 1
+"#,
+        )
+        .expect_err("unknown trait should fail");
+        assert!(unknown_trait
+            .to_string()
+            .contains("unknown trait 'Missing'"));
+
+        let duplicate = typecheck_source(
+            r#"trait Fold:
+    fn fold(x: Int) -> Int
+
+fn foo<T: Fold>(x: T) -> Int where T: Fold:
+    return 1
+"#,
+        )
+        .expect_err("duplicate inline and where bound should fail");
+        assert!(duplicate.to_string().contains("duplicate generic bound"));
+    }
+
     fn combine_sources_with_origins(units: &[(&str, &str)]) -> (String, Vec<SourceOriginSegment>) {
         let mut combined = String::new();
         let mut origins = Vec::new();
@@ -12223,6 +12528,7 @@ struct String:
                 Item::Struct(Struct {
                     name: "Block".to_string(),
                     generics: vec![],
+                    where_clause: None,
                     fields: vec![Field {
                         name: "stmts".to_string(),
                         ty: array_of_stmt,
@@ -12240,6 +12546,7 @@ struct String:
                 Item::Enum(Enum {
                     name: "Stmt".to_string(),
                     generics: vec![],
+                    where_clause: None,
                     variants: vec![Variant {
                         name: "Item".to_string(),
                         fields: VariantFields::Unit,
@@ -12251,6 +12558,7 @@ struct String:
                 Item::Function(Function {
                     name: "walk".to_string(),
                     generics: vec![],
+                    where_clause: None,
                     params: vec![Param {
                         name: "block".to_string(),
                         ty: block_type,
@@ -12324,6 +12632,7 @@ struct String:
                 Item::Enum(Enum {
                     name: "Item".to_string(),
                     generics: vec![],
+                    where_clause: None,
                     variants: vec![Variant {
                         name: "Value".to_string(),
                         fields: VariantFields::Unit,
@@ -12335,6 +12644,7 @@ struct String:
                 Item::Function(Function {
                     name: "inspect".to_string(),
                     generics: vec![],
+                    where_clause: None,
                     params: vec![Param {
                         name: "item".to_string(),
                         ty: boxed_item_type,
@@ -12393,6 +12703,7 @@ struct String:
                 Item::Enum(Enum {
                     name: "Item".to_string(),
                     generics: vec![],
+                    where_clause: None,
                     variants: vec![Variant {
                         name: "Comptime".to_string(),
                         fields: VariantFields::Tuple(vec![comptime_block_type.clone()]),
@@ -12404,6 +12715,7 @@ struct String:
                 Item::Struct(Struct {
                     name: "ComptimeBlock".to_string(),
                     generics: vec![],
+                    where_clause: None,
                     fields: vec![Field {
                         name: "body".to_string(),
                         ty: block_type,
@@ -12421,6 +12733,7 @@ struct String:
                 Item::Struct(Struct {
                     name: "Block".to_string(),
                     generics: vec![],
+                    where_clause: None,
                     fields: vec![],
                     methods: vec![],
                     attributes: vec![],
@@ -12430,6 +12743,7 @@ struct String:
                 Item::Function(Function {
                     name: "inspect".to_string(),
                     generics: vec![],
+                    where_clause: None,
                     params: vec![Param {
                         name: "item".to_string(),
                         ty: Type::Named {
@@ -12498,6 +12812,7 @@ struct String:
                 Item::Struct(Struct {
                     name: "ComputeMetadata".to_string(),
                     generics: vec![],
+                    where_clause: None,
                     fields: vec![],
                     methods: vec![],
                     attributes: vec![],
@@ -12507,6 +12822,7 @@ struct String:
                 Item::Function(Function {
                     name: "inspect".to_string(),
                     generics: vec![],
+                    where_clause: None,
                     params: vec![Param {
                         name: "value".to_string(),
                         ty: option_value_type,
@@ -12568,6 +12884,7 @@ struct String:
             items: vec![Item::Function(Function {
                 name: "load".to_string(),
                 generics: vec![],
+                where_clause: None,
                 params: vec![],
                 return_type: Some(Type::Result(
                     Box::new(Type::Option(
@@ -12622,6 +12939,7 @@ struct String:
             items: vec![Item::Function(Function {
                 name: "visit".to_string(),
                 generics: vec![],
+                where_clause: None,
                 params: vec![Param {
                     name: "values".to_string(),
                     ty: Type::Ref {
@@ -12819,6 +13137,7 @@ struct String:
             items: vec![Item::Function(Function {
                 name: "inspect".to_string(),
                 generics: vec![],
+                where_clause: None,
                 params: vec![Param {
                     name: "value".to_string(),
                     ty: option_string_ref,
@@ -12909,6 +13228,7 @@ struct String:
                 Item::Struct(Struct {
                     name: "Wrapper".to_string(),
                     generics: vec![],
+                    where_clause: None,
                     fields: vec![Field {
                         name: "name".to_string(),
                         ty: string_type.clone(),
@@ -12926,6 +13246,7 @@ struct String:
                 Item::Function(Function {
                     name: "inspect".to_string(),
                     generics: vec![],
+                    where_clause: None,
                     params: vec![Param {
                         name: "value".to_string(),
                         ty: Type::Ref {
@@ -13074,6 +13395,7 @@ struct String:
                 Item::Enum(Enum {
                     name: "Packet".to_string(),
                     generics: vec![],
+                    where_clause: None,
                     variants: vec![Variant {
                         name: "Data".to_string(),
                         fields: VariantFields::Struct(vec![
@@ -13112,6 +13434,7 @@ struct String:
                 Item::Function(Function {
                     name: "inspect".to_string(),
                     generics: vec![],
+                    where_clause: None,
                     params: vec![Param {
                         name: "packet".to_string(),
                         ty: Type::Ref {
@@ -13437,6 +13760,7 @@ struct String:
             items: vec![Item::Function(Function {
                 name: "inspect".to_string(),
                 generics: vec![],
+                where_clause: None,
                 params: vec![Param {
                     name: "items".to_string(),
                     ty: string_slice_ref,
@@ -13520,6 +13844,7 @@ struct String:
             items: vec![Item::Function(Function {
                 name: "inspect".to_string(),
                 generics: vec![],
+                where_clause: None,
                 params: vec![],
                 return_type: None,
                 effects: vec![],
@@ -14617,6 +14942,7 @@ struct String:
                 Item::Struct(Struct {
                     name: "Env".to_string(),
                     generics: vec![],
+                    where_clause: None,
                     fields: vec![],
                     methods: vec![],
                     visibility: Visibility::Public,
@@ -14625,6 +14951,7 @@ struct String:
                 }),
                 Item::Impl(Impl {
                     generics: vec![],
+                    where_clause: None,
                     trait_name: None,
                     trait_generics: vec![],
                     target_type: Type::Named {
@@ -14635,6 +14962,7 @@ struct String:
                     methods: vec![Function {
                         name: "new_".to_string(),
                         generics: vec![],
+                        where_clause: None,
                         params: vec![],
                         return_type: Some(Type::Named {
                             name: "Env".to_string(),

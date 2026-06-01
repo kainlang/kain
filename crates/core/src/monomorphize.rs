@@ -489,7 +489,7 @@ fn infer_type_args(
     for generic in &generic_func.ast.generics {
         if let Some(ty) = bindings.get(&generic.name) {
             // Check Bounds!
-            for bound in &generic.bounds {
+            for bound in normalized_function_bounds(&generic_func.ast, &generic.name) {
                 let type_name = type_to_string(ty);
                 if !ctx
                     .trait_impls
@@ -512,6 +512,28 @@ fn infer_type_args(
     }
 
     Ok(inferred)
+}
+
+fn normalized_function_bounds<'a>(
+    function: &'a Function,
+    generic_name: &str,
+) -> Vec<&'a TypeBound> {
+    let mut bounds = Vec::new();
+    if let Some(generic) = function
+        .generics
+        .iter()
+        .find(|generic| generic.name == generic_name)
+    {
+        bounds.extend(generic.bounds.iter());
+    }
+    if let Some(where_clause) = &function.where_clause {
+        for where_bound in &where_clause.bounds {
+            if where_bound.generic_name == generic_name {
+                bounds.extend(where_bound.bounds.iter());
+            }
+        }
+    }
+    bounds
 }
 
 fn substitute_type(ty: &ResolvedType, mapping: &HashMap<String, ResolvedType>) -> ResolvedType {
@@ -860,6 +882,7 @@ fn lower_async_fn(ctx: &mut MonoContext, func: &TypedFunction) -> KainResult<Typ
         ast: Struct {
             name: state_machine_name.clone(),
             generics: vec![],
+            where_clause: None,
             fields: fields
                 .iter()
                 .map(|(n, t)| Field {
@@ -989,6 +1012,7 @@ fn lower_async_fn(ctx: &mut MonoContext, func: &TypedFunction) -> KainResult<Typ
         ast: Function {
             name: poll_name.clone(),
             generics: vec![],
+            where_clause: None,
             params: vec![self_param],
             return_type: None, // Should be Poll<T>
             effects: vec![],

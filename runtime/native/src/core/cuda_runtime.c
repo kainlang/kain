@@ -343,7 +343,10 @@ static void* cuda_resolve_runtime_symbol(
 static int64_t cuda_dispatch_internal(
     const char* shader_bundle_path_override,
     const char* compute_residency_path_override,
-    const char* compute_key
+    const char* compute_key,
+    int64_t dispatch_x,
+    int64_t dispatch_y,
+    int64_t dispatch_z
 ) {
     char runtime_library_path[KAIN_CUDA_RUNTIME_PATH_MAX];
     char shader_bundle_path[KAIN_CUDA_RUNTIME_PATH_MAX];
@@ -358,6 +361,15 @@ static int64_t cuda_dispatch_internal(
     cuda_reset_dispatch_stats();
     cuda_store_paths("", "", "");
 
+    if ((dispatch_x != 0 || dispatch_y != 0 || dispatch_z != 0) &&
+        (dispatch_x <= 0 || dispatch_y <= 0 || dispatch_z <= 0 ||
+         dispatch_x > UINT32_MAX || dispatch_y > UINT32_MAX || dispatch_z > UINT32_MAX)) {
+        return cuda_set_status(
+            -1,
+            "invalid_argument",
+            "gpu dispatch dimensions must be positive u32 values when provided"
+        );
+    }
     if (compute_key == NULL || compute_key[0] == '\0') {
         return cuda_set_status(
             -1,
@@ -448,6 +460,11 @@ static int64_t cuda_dispatch_internal(
     request.shader_bundle_path = shader_bundle_path;
     request.compute_residency_path = compute_residency_path;
     request.compute_key = compute_key;
+    if (dispatch_x > 0 && dispatch_y > 0 && dispatch_z > 0) {
+        request.dispatch_size[0] = (unsigned int)dispatch_x;
+        request.dispatch_size[1] = (unsigned int)dispatch_y;
+        request.dispatch_size[2] = (unsigned int)dispatch_z;
+    }
     call_status = dispatch_fn(&request, &dispatch_result);
 
     cuda_store_paths(
@@ -560,7 +577,7 @@ const char* abi_cuda_compute_residency_path(void) {
 }
 
 int64_t abi_cuda_dispatch_primary_compute(const char* compute_key) {
-    return cuda_dispatch_internal(NULL, NULL, compute_key);
+    return cuda_dispatch_internal(NULL, NULL, compute_key, 0, 0, 0);
 }
 
 int64_t abi_cuda_dispatch(
@@ -571,7 +588,26 @@ int64_t abi_cuda_dispatch(
     return cuda_dispatch_internal(
         shader_bundle_path,
         compute_residency_path,
-        compute_key
+        compute_key,
+        0,
+        0,
+        0
+    );
+}
+
+int64_t abi_gpu_dispatch(
+    const char* compute_key,
+    int64_t dispatch_x,
+    int64_t dispatch_y,
+    int64_t dispatch_z
+) {
+    return cuda_dispatch_internal(
+        NULL,
+        NULL,
+        compute_key,
+        dispatch_x,
+        dispatch_y,
+        dispatch_z
     );
 }
 

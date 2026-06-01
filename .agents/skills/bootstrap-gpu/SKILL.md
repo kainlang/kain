@@ -32,8 +32,9 @@ Use this skill when the compiler-owned GPU pipeline changes: frontend eligibilit
 2. Keep SPIR-V canonical. PTX is a derived compute-only peer output, not a separate semantic model.
 3. Put layout, indexing, and parameter-order invariants in `crates/gpu/z3` before trusting green tests or benchmark rows.
 4. Keep bundle metadata compiler-owned. If executors must adapt, co-trigger `runtime-gpu` instead of moving runtime policy into this skill.
-5. For CUDA device intrinsics, keep the public authored names in `stdlib/cuda.kn` and the actual lowering in `crates/gpu/src/codegen_ptx.rs`. Each intrinsic should record the matching `PtxKernelPlan` op (`shared_ops`, `warp_ops`, or `tensor_ops`) so arch validation rejects too-old targets.
-6. Narrow numeric storage support is implemented as packed PTX load/store shape, not as fake 8-bit registers. `StorageBuffer<u8/i8/u16/i16/f16/bf16>` should load/store with byte-accurate PTX suffixes while widening arithmetic into 32-bit registers until real half/bfloat arithmetic lands.
+5. Treat `shader compute ... workgroup(x, y, z)` as canonical static local geometry. Comptime compute metadata can provide dispatch defaults and sidecar plans, but it must not silently override a header workgroup.
+6. For CUDA device intrinsics, keep the public authored names in `stdlib/cuda.kn` and the actual lowering in `crates/gpu/src/codegen_ptx.rs`. Each intrinsic should record the matching `PtxKernelPlan` op (`shared_ops`, `warp_ops`, or `tensor_ops`) so arch validation rejects too-old targets.
+7. Narrow numeric storage support is implemented as packed PTX load/store shape, not as fake 8-bit registers. `StorageBuffer<u8/i8/u16/i16/f16/bf16>` should load/store with byte-accurate PTX suffixes while widening arithmetic into 32-bit registers until real half/bfloat arithmetic lands.
 
 ## Validation Loop
 

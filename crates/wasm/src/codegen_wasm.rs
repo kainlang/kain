@@ -6266,7 +6266,9 @@ impl WasmCompiler {
             | Stmt::For { span, .. }
             | Stmt::While { span, .. }
             | Stmt::Loop { span, .. }
-            | Stmt::Fanout { span, .. } => *span,
+            | Stmt::Fanout { span, .. }
+            | Stmt::Defer { span, .. }
+            | Stmt::Dispatch { span, .. } => *span,
             Stmt::Expr(expr) => expr.span(),
             Stmt::Item(_) => kain_core::span::Span::default(),
         }

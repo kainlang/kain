@@ -563,6 +563,10 @@ struct LlvmGenerator {
     string_counter: usize,
     /// Stack of (continue_label, break_label) for loops
     loop_stack: Vec<(String, String)>,
+    /// Defer cleanup expressions registered per lexical block.
+    defer_scopes: Vec<Vec<Expr>>,
+    /// Defer-scope depth that must be unwound for each active loop exit edge.
+    loop_defer_depth_stack: Vec<usize>,
     /// Stack of scopes, each containing list of variable names declared in that scope
     scopes: Vec<Vec<String>>,
     /// Struct definitions: Name -> Vec<(FieldName, Type)>
@@ -649,6 +653,8 @@ struct LlvmFunctionState {
     json_passthrough_locals: HashSet<String>,
     runtime_any_passthrough_locals: HashSet<String>,
     loop_stack: Vec<(String, String)>,
+    defer_scopes: Vec<Vec<Expr>>,
+    loop_defer_depth_stack: Vec<usize>,
     scopes: Vec<Vec<String>>,
     current_block: String,
     current_return_type: Option<String>,
@@ -712,6 +718,8 @@ impl LlvmGenerator {
             strings: HashMap::new(),
             string_counter: 0,
             loop_stack: Vec::new(),
+            defer_scopes: Vec::new(),
+            loop_defer_depth_stack: Vec::new(),
             scopes: Vec::new(),
             struct_defs: HashMap::new(),
             struct_any_passthrough_fields: HashSet::new(),
@@ -775,6 +783,8 @@ impl LlvmGenerator {
             json_passthrough_locals: self.json_passthrough_locals.clone(),
             runtime_any_passthrough_locals: self.runtime_any_passthrough_locals.clone(),
             loop_stack: self.loop_stack.clone(),
+            defer_scopes: self.defer_scopes.clone(),
+            loop_defer_depth_stack: self.loop_defer_depth_stack.clone(),
             scopes: self.scopes.clone(),
             current_block: self.current_block.clone(),
             current_return_type: self.current_return_type.clone(),
@@ -817,6 +827,8 @@ impl LlvmGenerator {
         self.json_passthrough_locals = state.json_passthrough_locals;
         self.runtime_any_passthrough_locals = state.runtime_any_passthrough_locals;
         self.loop_stack = state.loop_stack;
+        self.defer_scopes = state.defer_scopes;
+        self.loop_defer_depth_stack = state.loop_defer_depth_stack;
         self.scopes = state.scopes;
         self.current_block = state.current_block;
         self.current_return_type = state.current_return_type;
@@ -858,6 +870,8 @@ impl LlvmGenerator {
         self.json_passthrough_locals.clear();
         self.runtime_any_passthrough_locals.clear();
         self.loop_stack.clear();
+        self.defer_scopes.clear();
+        self.loop_defer_depth_stack.clear();
         self.scopes.clear();
         self.scopes.push(Vec::new());
         self.current_block = "entry".to_string();
@@ -1061,6 +1075,12 @@ impl LlvmGenerator {
                 }
             }
             Stmt::Expr(expr) => self.collect_pointer_let_types_from_expr(expr),
+            Stmt::Defer { expr, .. } => self.collect_pointer_let_types_from_expr(expr),
+            Stmt::Dispatch { dispatch_size, .. } => {
+                for expr in dispatch_size {
+                    self.collect_pointer_let_types_from_expr(expr);
+                }
+            }
             Stmt::Return(value, _) | Stmt::Break(value, _) => {
                 if let Some(value) = value {
                     self.collect_pointer_let_types_from_expr(value);
@@ -3889,6 +3909,10 @@ impl LlvmGenerator {
             Stmt::Expr(expr) | Stmt::Return(Some(expr), _) | Stmt::Break(Some(expr), _) => {
                 Self::expr_has_loop_that_mentions_identifier(expr, target)
             }
+            Stmt::Defer { expr, .. } => Self::expr_has_loop_that_mentions_identifier(expr, target),
+            Stmt::Dispatch { dispatch_size, .. } => dispatch_size
+                .iter()
+                .any(|expr| Self::expr_has_loop_that_mentions_identifier(expr, target)),
             Stmt::Let {
                 value: Some(expr), ..
             } => Self::expr_has_loop_that_mentions_identifier(expr, target),
@@ -4226,6 +4250,14 @@ impl LlvmGenerator {
             match stmt {
                 Stmt::Expr(expr) | Stmt::Return(Some(expr), _) | Stmt::Break(Some(expr), _) => {
                     Self::collect_expr_assigned_identifier_names(expr, assigned);
+                }
+                Stmt::Defer { expr, .. } => {
+                    Self::collect_expr_assigned_identifier_names(expr, assigned);
+                }
+                Stmt::Dispatch { dispatch_size, .. } => {
+                    for expr in dispatch_size {
+                        Self::collect_expr_assigned_identifier_names(expr, assigned);
+                    }
                 }
                 Stmt::For { iter, body, .. } | Stmt::Fanout { iter, body, .. } => {
                     Self::collect_expr_assigned_identifier_names(iter, assigned);
@@ -4820,6 +4852,10 @@ impl LlvmGenerator {
                         .unwrap_or(true)
             }
             Stmt::Expr(expr) => Self::expr_is_safe_for_ephemeral_local(expr, target),
+            Stmt::Defer { expr, .. } => Self::expr_is_safe_for_ephemeral_local(expr, target),
+            Stmt::Dispatch { dispatch_size, .. } => dispatch_size
+                .iter()
+                .all(|expr| Self::expr_is_safe_for_ephemeral_local(expr, target)),
             Stmt::Return(Some(expr), _) | Stmt::Break(Some(expr), _) => {
                 Self::expr_is_safe_for_ephemeral_local(expr, target)
             }
@@ -5167,6 +5203,10 @@ impl LlvmGenerator {
                 .map(|expr| Self::expr_is_safe_fixed_array_use(expr, target))
                 .unwrap_or(true),
             Stmt::Expr(expr) => Self::expr_is_safe_fixed_array_use(expr, target),
+            Stmt::Defer { expr, .. } => Self::expr_is_safe_fixed_array_use(expr, target),
+            Stmt::Dispatch { dispatch_size, .. } => dispatch_size
+                .iter()
+                .all(|expr| Self::expr_is_safe_fixed_array_use(expr, target)),
             Stmt::Return(Some(expr), _) => Self::expr_is_safe_fixed_array_use(expr, target),
             Stmt::Return(None, _) | Stmt::Break(None, _) | Stmt::Continue(_) => true,
             Stmt::Break(Some(expr), _) => Self::expr_is_safe_fixed_array_use(expr, target),
@@ -5375,6 +5415,10 @@ impl LlvmGenerator {
                 .map(|expr| Self::expr_is_safe_stack_shatter_use(expr, target))
                 .unwrap_or(true),
             Stmt::Expr(expr) => Self::expr_is_safe_stack_shatter_use(expr, target),
+            Stmt::Defer { expr, .. } => Self::expr_is_safe_stack_shatter_use(expr, target),
+            Stmt::Dispatch { dispatch_size, .. } => dispatch_size
+                .iter()
+                .all(|expr| Self::expr_is_safe_stack_shatter_use(expr, target)),
             Stmt::Return(Some(expr), _) => Self::expr_is_safe_stack_shatter_use(expr, target),
             Stmt::Return(None, _) | Stmt::Break(None, _) | Stmt::Continue(_) => true,
             Stmt::Break(Some(expr), _) => Self::expr_is_safe_stack_shatter_use(expr, target),
@@ -5564,6 +5608,10 @@ impl LlvmGenerator {
                 Self::expr_matches_literal_map_set(expr, target)
                     || Self::expr_is_safe_literal_map_use(expr, target)
             }
+            Stmt::Defer { expr, .. } => Self::expr_is_safe_literal_map_use(expr, target),
+            Stmt::Dispatch { dispatch_size, .. } => dispatch_size
+                .iter()
+                .all(|expr| Self::expr_is_safe_literal_map_use(expr, target)),
             Stmt::Return(Some(expr), _) => Self::expr_is_safe_literal_map_use(expr, target),
             Stmt::Return(None, _) | Stmt::Break(None, _) | Stmt::Continue(_) => true,
             Stmt::Break(Some(expr), _) => Self::expr_is_safe_literal_map_use(expr, target),
@@ -13650,6 +13698,7 @@ impl LlvmGenerator {
         self.emit("declare i64 @abi_entangle_record_i64(i8*, i8*, i64)");
         self.emit("declare i64 @abi_converge_record_i64(i8*, i8*, i64, i64)");
         self.emit("declare i64 @abi_converge_record_bool(i8*, i8*, i32)");
+        self.emit("declare i64 @abi_gpu_dispatch(i8*, i64, i64, i64)");
         self.emit("declare i64 @abi_cpu_feature_mask()");
         self.emit("declare i64 @abi_cpu_capability_mask_for_key(i8*)");
         self.emit("declare i64 @abi_converge_select_lane_for_key(i64, i64, i64, i64)");
@@ -15076,6 +15125,7 @@ impl LlvmGenerator {
 
     fn compile_block(&mut self, block: &Block) -> KainResult<()> {
         self.scopes.push(Vec::new());
+        self.defer_scopes.push(Vec::new());
         let inherited_known_i64_bindings = self.current_known_i64_literals();
         let inherited_known_llvm_types = self.current_known_llvm_types();
         self.ephemeral_candidate_scopes
@@ -15101,6 +15151,7 @@ impl LlvmGenerator {
         self.forwarded_mem_slot_scopes.push(HashMap::new());
         for (index, stmt) in block.stmts.iter().enumerate() {
             if let Err(err) = self.compile_stmt(stmt, &block.stmts[index + 1..]) {
+                self.defer_scopes.pop();
                 self.forwarded_mem_slot_scopes.pop();
                 self.known_nonnegative_i64_scopes.pop();
                 self.known_i64_literal_scopes.pop();
@@ -15118,7 +15169,9 @@ impl LlvmGenerator {
                 self.clear_current_forwarded_mem_slots();
             }
         }
+        self.emit_current_scope_defers()?;
         self.emit_scope_exit();
+        self.defer_scopes.pop();
         self.forwarded_mem_slot_scopes.pop();
         self.known_nonnegative_i64_scopes.pop();
         self.known_i64_literal_scopes.pop();
@@ -15132,6 +15185,7 @@ impl LlvmGenerator {
 
     fn compile_block_with_result(&mut self, block: &Block) -> KainResult<Option<(String, String)>> {
         self.scopes.push(Vec::new());
+        self.defer_scopes.push(Vec::new());
         let inherited_known_i64_bindings = self.current_known_i64_literals();
         let inherited_known_llvm_types = self.current_known_llvm_types();
         self.ephemeral_candidate_scopes
@@ -15177,6 +15231,7 @@ impl LlvmGenerator {
                     }
                 } else {
                     if let Err(err) = self.compile_stmt(stmt, &block.stmts[i + 1..]) {
+                        self.defer_scopes.pop();
                         self.forwarded_mem_slot_scopes.pop();
                         self.known_nonnegative_i64_scopes.pop();
                         self.known_i64_literal_scopes.pop();
@@ -15196,6 +15251,7 @@ impl LlvmGenerator {
                 }
             } else {
                 if let Err(err) = self.compile_stmt(stmt, &block.stmts[i + 1..]) {
+                    self.defer_scopes.pop();
                     self.forwarded_mem_slot_scopes.pop();
                     self.known_nonnegative_i64_scopes.pop();
                     self.known_i64_literal_scopes.pop();
@@ -15227,7 +15283,9 @@ impl LlvmGenerator {
             }
         }
 
+        self.emit_current_scope_defers()?;
         self.emit_scope_exit_except(&last_helper_owned_transfers);
+        self.defer_scopes.pop();
         self.forwarded_mem_slot_scopes.pop();
         self.known_nonnegative_i64_scopes.pop();
         self.known_i64_literal_scopes.pop();
@@ -15401,6 +15459,35 @@ impl LlvmGenerator {
     fn emit_scope_exit(&mut self) {
         let skipped = HashSet::new();
         self.emit_scope_exit_except(&skipped);
+    }
+
+    fn emit_current_scope_defers(&mut self) -> KainResult<()> {
+        if let Some(defers) = self.defer_scopes.last().cloned() {
+            self.emit_defer_exprs(defers.iter().rev())?;
+        }
+        Ok(())
+    }
+
+    fn emit_all_defer_cleanups(&mut self) -> KainResult<()> {
+        self.emit_defer_cleanups_from_depth(0)
+    }
+
+    fn emit_defer_cleanups_from_depth(&mut self, depth: usize) -> KainResult<()> {
+        let scopes = self.defer_scopes[depth.min(self.defer_scopes.len())..].to_vec();
+        for defers in scopes.iter().rev() {
+            self.emit_defer_exprs(defers.iter().rev())?;
+        }
+        Ok(())
+    }
+
+    fn emit_defer_exprs<'a>(&mut self, defers: impl Iterator<Item = &'a Expr>) -> KainResult<()> {
+        for expr in defers {
+            let (val, ty) = self.compile_expr(expr)?;
+            if (ty == "i8*" || ty.starts_with("%")) && self.is_new_object(expr) {
+                self.emit_release(&val, &ty);
+            }
+        }
+        Ok(())
     }
 
     fn emit_scope_exit_except(&mut self, skipped: &HashSet<String>) {
@@ -15932,6 +16019,28 @@ impl LlvmGenerator {
                     }
                 }
             }
+            Stmt::Defer { expr, .. } => {
+                if let Some(scope) = self.defer_scopes.last_mut() {
+                    scope.push(expr.clone());
+                } else {
+                    self.defer_scopes.push(vec![expr.clone()]);
+                }
+            }
+            Stmt::Dispatch {
+                compute_key,
+                dispatch_size,
+                ..
+            } => {
+                let key_ptr = self.compile_static_c_string_literal(compute_key);
+                let (x, _) = self.compile_expr_for_target_type(&dispatch_size[0], "i64")?;
+                let (y, _) = self.compile_expr_for_target_type(&dispatch_size[1], "i64")?;
+                let (z, _) = self.compile_expr_for_target_type(&dispatch_size[2], "i64")?;
+                let status = self.next_reg();
+                self.emit(&format!(
+                    "  {} = call i64 @abi_gpu_dispatch(i8* {}, i64 {}, i64 {}, i64 {})",
+                    status, key_ptr, x, y, z
+                ));
+            }
             Stmt::Return(expr, _) => {
                 let actor_return_label = self.actor_return_label.clone();
                 let actor_return_slot = self.actor_return_slot.clone();
@@ -15967,6 +16076,7 @@ impl LlvmGenerator {
                         self.emit(&format!("  call void @json_retain(i64 {})", val));
                     }
 
+                    self.emit_all_defer_cleanups()?;
                     self.emit_all_scopes_cleanup_except(&helper_owned_transfers);
                     if let Some(patch_name) = self.current_patch_name.clone() {
                         let patch_name_ptr = self.compile_static_c_string_literal(&patch_name);
@@ -15988,6 +16098,7 @@ impl LlvmGenerator {
                         self.emit(&format!("  ret {} {}", ty, val));
                     }
                 } else {
+                    self.emit_all_defer_cleanups()?;
                     self.emit_all_scopes_cleanup();
                     if let Some(patch_name) = self.current_patch_name.clone() {
                         let patch_name_ptr = self.compile_static_c_string_literal(&patch_name);
@@ -16007,15 +16118,25 @@ impl LlvmGenerator {
                 let dead_label = self.next_label();
                 self.emit_label(&dead_label);
             }
-            Stmt::Break(_, _) => {
-                if let Some((_, break_label)) = self.loop_stack.last() {
+            Stmt::Break(value, _) => {
+                if let Some((_, break_label)) = self.loop_stack.last().cloned() {
+                    if let Some(expr) = value {
+                        let (val, ty) = self.compile_expr(expr)?;
+                        if (ty == "i8*" || ty.starts_with("%")) && self.is_new_object(expr) {
+                            self.emit_release(&val, &ty);
+                        }
+                    }
+                    let depth = self.loop_defer_depth_stack.last().copied().unwrap_or(0);
+                    self.emit_defer_cleanups_from_depth(depth)?;
                     self.emit(&format!("  br label %{}", break_label));
                     let dead_label = self.next_label();
                     self.emit_label(&dead_label);
                 }
             }
             Stmt::Continue(_) => {
-                if let Some((continue_label, _)) = self.loop_stack.last() {
+                if let Some((continue_label, _)) = self.loop_stack.last().cloned() {
+                    let depth = self.loop_defer_depth_stack.last().copied().unwrap_or(0);
+                    self.emit_defer_cleanups_from_depth(depth)?;
                     self.emit(&format!("  br label %{}", continue_label));
                     let dead_label = self.next_label();
                     self.emit_label(&dead_label);
@@ -16042,8 +16163,11 @@ impl LlvmGenerator {
 
                 self.loop_stack
                     .push((label_cond.clone(), label_end.clone()));
-                self.compile_block(body)?;
+                self.loop_defer_depth_stack.push(self.defer_scopes.len());
+                let body_result = self.compile_block(body);
+                self.loop_defer_depth_stack.pop();
                 self.loop_stack.pop();
+                body_result?;
 
                 self.emit(&format!("  br label %{}", label_cond));
 
@@ -16059,8 +16183,11 @@ impl LlvmGenerator {
 
                 self.loop_stack
                     .push((label_body.clone(), label_end.clone()));
-                self.compile_block(body)?;
+                self.loop_defer_depth_stack.push(self.defer_scopes.len());
+                let body_result = self.compile_block(body);
+                self.loop_defer_depth_stack.pop();
                 self.loop_stack.pop();
+                body_result?;
 
                 self.emit(&format!("  br label %{}", label_body));
                 self.emit_label(&label_end);
@@ -16194,6 +16321,7 @@ impl LlvmGenerator {
 
                 self.loop_stack
                     .push((label_step.clone(), label_end.clone()));
+                self.loop_defer_depth_stack.push(self.defer_scopes.len());
                 let loop_bounds_were_pushed = if let (
                     kain_core::ast::Pattern::Binding { name, .. },
                     Some((lower_inclusive, upper_exclusive)),
@@ -16216,6 +16344,7 @@ impl LlvmGenerator {
                 if loop_bounds_were_pushed {
                     self.active_loop_index_bounds.pop();
                 }
+                self.loop_defer_depth_stack.pop();
                 self.loop_stack.pop();
                 body_result?;
 

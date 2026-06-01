@@ -478,6 +478,7 @@ pub struct Attribute {
 pub struct Function {
     pub name: String,
     pub generics: Vec<Generic>,
+    pub where_clause: Option<WhereClause>,
     pub params: Vec<Param>,
     pub return_type: Option<Type>,
     pub effects: Vec<Effect>,
@@ -499,6 +500,19 @@ pub struct Param {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Generic {
     pub name: String,
+    pub bounds: Vec<TypeBound>,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct WhereClause {
+    pub bounds: Vec<WhereBound>,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct WhereBound {
+    pub generic_name: String,
     pub bounds: Vec<TypeBound>,
     pub span: Span,
 }
@@ -594,6 +608,7 @@ pub struct Shader {
     pub stage: ShaderStage,
     pub inputs: Vec<Param>,
     pub outputs: Type,
+    pub workgroup_size: Option<[u32; 3]>,
     pub uniforms: Vec<Uniform>,
     pub body: Block,
     pub span: Span,
@@ -1139,6 +1154,7 @@ pub struct MessageHandler {
 pub struct Struct {
     pub name: String,
     pub generics: Vec<Generic>,
+    pub where_clause: Option<WhereClause>,
     pub fields: Vec<Field>,
     pub methods: Vec<Function>,
     pub attributes: Vec<Attribute>,
@@ -1169,6 +1185,7 @@ pub struct Field {
 pub struct Enum {
     pub name: String,
     pub generics: Vec<Generic>,
+    pub where_clause: Option<WhereClause>,
     pub variants: Vec<Variant>,
     pub visibility: Visibility,
     pub span: Span,
@@ -1194,6 +1211,7 @@ pub enum VariantFields {
 pub struct Trait {
     pub name: String,
     pub generics: Vec<Generic>,
+    pub where_clause: Option<WhereClause>,
     pub supertraits: Vec<Type>,
     pub methods: Vec<TraitMethod>,
     pub visibility: Visibility,
@@ -1213,6 +1231,7 @@ pub struct TraitMethod {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Impl {
     pub generics: Vec<Generic>,
+    pub where_clause: Option<WhereClause>,
     pub trait_name: Option<String>,
     pub trait_generics: Vec<Type>,
     pub target_type: Type,
@@ -1329,6 +1348,7 @@ impl Type {
 pub struct TypeAlias {
     pub name: String,
     pub generics: Vec<Generic>,
+    pub where_clause: Option<WhereClause>,
     pub target: Type,
     pub visibility: Visibility,
     pub span: Span,
@@ -1446,6 +1466,14 @@ pub enum Stmt {
     },
     /// Expression statement
     Expr(Expr),
+    /// `defer expr`
+    Defer { expr: Expr, span: Span },
+    /// `dispatch "compute.key" [x, y, z]`
+    Dispatch {
+        compute_key: String,
+        dispatch_size: [Expr; 3],
+        span: Span,
+    },
     /// `return [value]`
     Return(Option<Expr>, Span),
     /// `break [value]`
@@ -3390,6 +3418,14 @@ fn collect_type_names_from_stmt(stmt: &Stmt, out: &mut HashSet<String>) {
         }
         Stmt::Expr(expr) => {
             collect_type_names_from_expr(expr, out);
+        }
+        Stmt::Defer { expr, .. } => {
+            collect_type_names_from_expr(expr, out);
+        }
+        Stmt::Dispatch { dispatch_size, .. } => {
+            for expr in dispatch_size {
+                collect_type_names_from_expr(expr, out);
+            }
         }
         Stmt::Return(Some(expr), _) => {
             collect_type_names_from_expr(expr, out);

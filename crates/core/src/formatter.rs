@@ -344,6 +344,7 @@ impl SourceFormatter {
             &value.generics,
             &value.params,
             value.return_type.as_ref(),
+            value.where_clause.as_ref(),
             &value.effects,
         )?;
         if self.is_extern_function(value) {
@@ -569,12 +570,15 @@ impl SourceFormatter {
                 ))
             }
         };
-        let header = format!(
+        let mut header = format!(
             "shader {stage}{}({}) -> {}",
             value.name,
             self.format_params(&value.inputs)?,
             self.format_type(&value.outputs)
         );
+        if let Some([x, y, z]) = value.workgroup_size {
+            header.push_str(&format!(" workgroup({x}, {y}, {z})"));
+        }
         let mut body_lines = Vec::new();
         for uniform in &value.uniforms {
             body_lines.push(format!(
@@ -616,13 +620,14 @@ impl SourceFormatter {
         } else {
             "struct"
         };
-        let header = format!(
+        let mut header = format!(
             "{}{} {}{}",
             self.visibility_prefix(value.visibility),
             keyword,
             value.name,
             self.format_generics(&value.generics)
         );
+        self.push_where_clause(&mut header, value.where_clause.as_ref());
         if value.fields.is_empty() && value.methods.is_empty() {
             return Ok(format!("{header}:"));
         }
@@ -643,12 +648,13 @@ impl SourceFormatter {
                 "Kain formatter cannot emit empty enums because the parser requires at least one variant",
             ));
         }
-        let header = format!(
+        let mut header = format!(
             "{}enum {}{}",
             self.visibility_prefix(value.visibility),
             value.name,
             self.format_generics(&value.generics)
         );
+        self.push_where_clause(&mut header, value.where_clause.as_ref());
         let body = value
             .variants
             .iter()
@@ -688,12 +694,13 @@ impl SourceFormatter {
                 "Kain formatter cannot emit empty traits because the parser requires at least one method",
             ));
         }
-        let header = format!(
+        let mut header = format!(
             "{}trait {}{}",
             self.visibility_prefix(value.visibility),
             value.name,
             self.format_generics(&value.generics)
         );
+        self.push_where_clause(&mut header, value.where_clause.as_ref());
         let mut methods = Vec::new();
         for method in &value.methods {
             methods.push(self.format_trait_method(method)?);
@@ -720,7 +727,7 @@ impl SourceFormatter {
 
     fn format_impl(&self, value: &Impl) -> KainResult<String> {
         let generics = self.format_generics(&value.generics);
-        let header = if let Some(trait_name) = &value.trait_name {
+        let mut header = if let Some(trait_name) = &value.trait_name {
             if value.trait_generics.is_empty() {
                 format!(
                     "impl{generics} {trait_name} for {}",
@@ -742,6 +749,7 @@ impl SourceFormatter {
         } else {
             format!("impl{generics} {}", self.format_type(&value.target_type))
         };
+        self.push_where_clause(&mut header, value.where_clause.as_ref());
 
         if value.methods.is_empty() {
             return Err(KainError::runtime(
@@ -759,13 +767,23 @@ impl SourceFormatter {
     }
 
     fn format_type_alias(&self, value: &TypeAlias) -> String {
-        format!(
+        let mut output = format!(
             "{}type {}{} = {}",
             self.visibility_prefix(value.visibility),
             value.name,
             self.format_generics(&value.generics),
             self.format_type(&value.target)
-        )
+        );
+        if let Some(where_clause) = value.where_clause.as_ref() {
+            let needle = " = ";
+            if let Some(index) = output.find(needle) {
+                output.insert_str(
+                    index,
+                    &format!(" {}", self.format_where_clause(where_clause)),
+                );
+            }
+        }
+        output
     }
 
     fn format_use(&self, value: &Use) -> String {
@@ -1686,6 +1704,18 @@ impl SourceFormatter {
             }
             Stmt::Expr(Expr::Block(block, _)) => self.format_statement_sequence(&block.stmts),
             Stmt::Expr(expr) => self.format_expr(expr),
+            Stmt::Defer { expr, .. } => Ok(format!("defer {}", self.format_expr(expr)?)),
+            Stmt::Dispatch {
+                compute_key,
+                dispatch_size,
+                ..
+            } => Ok(format!(
+                "dispatch {} [{}, {}, {}]",
+                self.quote_string(compute_key),
+                self.format_expr(&dispatch_size[0])?,
+                self.format_expr(&dispatch_size[1])?,
+                self.format_expr(&dispatch_size[2])?
+            )),
             Stmt::Return(Some(expr), _) => Ok(format!("return {}", self.format_expr(expr)?)),
             Stmt::Return(None, _) => Ok(String::from("return")),
             Stmt::Break(Some(expr), _) => Ok(format!("break {}", self.format_expr(expr)?)),
@@ -2740,15 +2770,17 @@ impl SourceFormatter {
         generics: &[Generic],
         params: &[Param],
         return_type: Option<&Type>,
+        where_clause: Option<&WhereClause>,
         effects: &[Effect],
     ) -> KainResult<String> {
-        self.callable_signature(
+        self.callable_signature_with_where(
             keyword,
             visibility,
             name,
             generics,
             params,
             return_type,
+            where_clause,
             effects,
         )
     }
@@ -2775,6 +2807,34 @@ impl SourceFormatter {
             output.push_str(" -> ");
             output.push_str(&self.format_type(return_type));
         }
+        if !effects.is_empty() {
+            output.push_str(" with ");
+            output.push_str(&self.format_effects(effects));
+        }
+        Ok(output)
+    }
+
+    fn callable_signature_with_where(
+        &self,
+        keyword: &str,
+        visibility: Visibility,
+        name: &str,
+        generics: &[Generic],
+        params: &[Param],
+        return_type: Option<&Type>,
+        where_clause: Option<&WhereClause>,
+        effects: &[Effect],
+    ) -> KainResult<String> {
+        let mut output = self.callable_signature(
+            keyword,
+            visibility,
+            name,
+            generics,
+            params,
+            return_type,
+            &[],
+        )?;
+        self.push_where_clause(&mut output, where_clause);
         if !effects.is_empty() {
             output.push_str(" with ");
             output.push_str(&self.format_effects(effects));
@@ -2830,6 +2890,36 @@ impl SourceFormatter {
                                 .join(" + ")
                         )
                     }
+                })
+                .collect::<Vec<_>>()
+                .join(", ")
+        )
+    }
+
+    fn push_where_clause(&self, output: &mut String, where_clause: Option<&WhereClause>) {
+        if let Some(where_clause) = where_clause {
+            output.push(' ');
+            output.push_str(&self.format_where_clause(where_clause));
+        }
+    }
+
+    fn format_where_clause(&self, where_clause: &WhereClause) -> String {
+        format!(
+            "where {}",
+            where_clause
+                .bounds
+                .iter()
+                .map(|bound| {
+                    format!(
+                        "{}: {}",
+                        bound.generic_name,
+                        bound
+                            .bounds
+                            .iter()
+                            .map(|trait_bound| trait_bound.trait_name.clone())
+                            .collect::<Vec<_>>()
+                            .join(" + ")
+                    )
                 })
                 .collect::<Vec<_>>()
                 .join(", ")

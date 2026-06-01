@@ -1474,6 +1474,7 @@ impl RustTransformer {
         Ok(vec![Function {
             name,
             generics,
+            where_clause: None,
             params,
             return_type,
             body,
@@ -1680,6 +1681,7 @@ impl RustTransformer {
         Ok(Trait {
             name,
             generics,
+            where_clause: None,
             supertraits,
             methods,
             visibility: visibility(&t.vis),
@@ -1745,6 +1747,7 @@ impl RustTransformer {
         Ok(Struct {
             name,
             generics,
+            where_clause: None,
             fields,
             methods: Vec::new(),
             attributes: self.transform_attributes(&s.attrs),
@@ -1809,6 +1812,7 @@ impl RustTransformer {
         Ok(Enum {
             name,
             generics,
+            where_clause: None,
             variants,
             visibility: visibility(&e.vis),
             span: S,
@@ -1871,12 +1875,14 @@ impl RustTransformer {
 
         Ok(Some(Impl {
             generics,
+            where_clause: None,
             trait_name: Some("Default".to_string()),
             trait_generics: Vec::new(),
             target_type: target_type.clone(),
             methods: vec![Function {
                 name: self.rename_value("default"),
                 generics: Vec::new(),
+                where_clause: None,
                 params: Vec::new(),
                 return_type: Some(target_type.clone()),
                 effects: Vec::new(),
@@ -1936,6 +1942,7 @@ impl RustTransformer {
 
         Ok(Some(Impl {
             generics: generics.clone(),
+            where_clause: None,
             trait_name: Some("Default".to_string()),
             trait_generics: Vec::new(),
             target_type: Type::Named {
@@ -1946,6 +1953,7 @@ impl RustTransformer {
             methods: vec![Function {
                 name: self.rename_value("default"),
                 generics: Vec::new(),
+                where_clause: None,
                 params: Vec::new(),
                 return_type: Some(Type::Named {
                     name: type_name.clone(),
@@ -2127,6 +2135,7 @@ impl RustTransformer {
                     methods.push(Function {
                         name,
                         generics: method_generics,
+                        where_clause: None,
                         params,
                         return_type,
                         body,
@@ -2172,6 +2181,7 @@ impl RustTransformer {
 
         Ok(Impl {
             generics,
+            where_clause: None,
             target_type,
             trait_name,
             trait_generics,
@@ -2373,6 +2383,7 @@ impl RustTransformer {
         Ok(TypeAlias {
             name,
             generics,
+            where_clause: None,
             target,
             visibility: visibility(&t.vis),
             span: S,
@@ -4452,6 +4463,10 @@ impl RustTransformer {
                 .as_ref()
                 .is_some_and(|expr| self.expr_requires_async_effect(expr)),
             Stmt::Expr(expr) => self.expr_requires_async_effect(expr),
+            Stmt::Defer { expr, .. } => self.expr_requires_async_effect(expr),
+            Stmt::Dispatch { dispatch_size, .. } => dispatch_size
+                .iter()
+                .any(|expr| self.expr_requires_async_effect(expr)),
             Stmt::Return(value, _) | Stmt::Break(value, _) => value
                 .as_ref()
                 .is_some_and(|expr| self.expr_requires_async_effect(expr)),

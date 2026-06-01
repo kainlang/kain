@@ -539,6 +539,24 @@ impl CppGen {
                 self.write_line("continue;");
             }
 
+            Stmt::Defer { expr, .. } => {
+                self.write_line(&format!("/* defer */ {};", self.gen_expr(expr)));
+            }
+
+            Stmt::Dispatch {
+                compute_key,
+                dispatch_size,
+                ..
+            } => {
+                self.write_line(&format!(
+                    "/* dispatch {} */ (void)({}), (void)({}), (void)({});",
+                    compute_key,
+                    self.gen_expr(&dispatch_size[0]),
+                    self.gen_expr(&dispatch_size[1]),
+                    self.gen_expr(&dispatch_size[2])
+                ));
+            }
+
             Stmt::For {
                 binding,
                 iter,

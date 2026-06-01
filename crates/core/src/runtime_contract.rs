@@ -1655,6 +1655,10 @@ fn stmt_contains_ownership_expr(stmt: &Stmt) -> bool {
     match stmt {
         Stmt::Let { value, .. } => value.as_ref().is_some_and(expr_contains_ownership_expr),
         Stmt::Expr(expr) => expr_contains_ownership_expr(expr),
+        Stmt::Defer { expr, .. } => expr_contains_ownership_expr(expr),
+        Stmt::Dispatch { dispatch_size, .. } => {
+            dispatch_size.iter().any(expr_contains_ownership_expr)
+        }
         Stmt::Return(value, _) | Stmt::Break(value, _) => {
             value.as_ref().is_some_and(expr_contains_ownership_expr)
         }
@@ -1822,6 +1826,10 @@ fn stmt_contains_shared_fanout_expr(stmt: &Stmt) -> bool {
     match stmt {
         Stmt::Let { value, .. } => value.as_ref().is_some_and(expr_contains_shared_fanout_expr),
         Stmt::Expr(expr) => expr_contains_shared_fanout_expr(expr),
+        Stmt::Defer { expr, .. } => expr_contains_shared_fanout_expr(expr),
+        Stmt::Dispatch { dispatch_size, .. } => {
+            dispatch_size.iter().any(expr_contains_shared_fanout_expr)
+        }
         Stmt::Return(value, _) | Stmt::Break(value, _) => {
             value.as_ref().is_some_and(expr_contains_shared_fanout_expr)
         }
@@ -2005,6 +2013,10 @@ fn stmt_contains_atomic_seqcst_expr(stmt: &Stmt) -> bool {
     match stmt {
         Stmt::Let { value, .. } => value.as_ref().is_some_and(expr_contains_atomic_seqcst_expr),
         Stmt::Expr(expr) => expr_contains_atomic_seqcst_expr(expr),
+        Stmt::Defer { expr, .. } => expr_contains_atomic_seqcst_expr(expr),
+        Stmt::Dispatch { dispatch_size, .. } => {
+            dispatch_size.iter().any(expr_contains_atomic_seqcst_expr)
+        }
         Stmt::Return(value, _) | Stmt::Break(value, _) => {
             value.as_ref().is_some_and(expr_contains_atomic_seqcst_expr)
         }
@@ -2188,6 +2200,10 @@ fn stmt_contains_teleport_expr(stmt: &Stmt) -> bool {
     match stmt {
         Stmt::Let { value, .. } => value.as_ref().is_some_and(expr_contains_teleport_expr),
         Stmt::Expr(expr) => expr_contains_teleport_expr(expr),
+        Stmt::Defer { expr, .. } => expr_contains_teleport_expr(expr),
+        Stmt::Dispatch { dispatch_size, .. } => {
+            dispatch_size.iter().any(expr_contains_teleport_expr)
+        }
         Stmt::Return(value, _) | Stmt::Break(value, _) => {
             value.as_ref().is_some_and(expr_contains_teleport_expr)
         }
@@ -3035,6 +3051,7 @@ world NativeAuthority:
                 stage: ShaderStage::Compute,
                 inputs: Vec::new(),
                 outputs: crate::ast::Type::Unit(Span::default()),
+                workgroup_size: None,
                 uniforms: vec![
                     crate::ast::Uniform {
                         name: "src".to_string(),

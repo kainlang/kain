@@ -24,6 +24,7 @@ Read `ARCHITECTURE.md` and `MEMORY.md`, then separate runtime execution from com
 - Keep shader-bundle production compiler-owned and keep bundle consumption runtime-owned.
 - Preserve the contract that SPIR-V is the canonical portable payload and PTX is a derived compute path.
 - When a runtime ABI or binding layout changes, validate the executor, the native graphics harness, and the nearest solver proof together.
+- Host `dispatch "compute.key" [x, y, z]` lowers through a backend-agnostic runtime request. All-positive dispatch dimensions are an override for artifact or sidecar defaults; zero dimensions preserve the existing default path for legacy callers.
 - CUDA PTX launch policy is consumed from compute-residency metadata. `dynamic_shared_memory_bytes` maps directly to `cuLaunchKernel`, `cuda_stream_policy = "non_blocking"` creates a CUDA driver stream, and `cuda_graph_policy = "capture_once"` is represented but intentionally rejected until graph capture/instantiate/launch is implemented end-to-end.
 
 ## Validation

@@ -1972,6 +1972,22 @@ impl RustGen {
             Stmt::Continue(_) => {
                 self.write_line("continue;");
             }
+            Stmt::Defer { expr, .. } => {
+                self.write_line(&format!("/* defer */ {};", self.gen_expr(expr)));
+            }
+            Stmt::Dispatch {
+                compute_key,
+                dispatch_size,
+                ..
+            } => {
+                self.write_line(&format!(
+                    "/* dispatch {} */ let _ = ({}, {}, {});",
+                    compute_key,
+                    self.gen_expr(&dispatch_size[0]),
+                    self.gen_expr(&dispatch_size[1]),
+                    self.gen_expr(&dispatch_size[2])
+                ));
+            }
             Stmt::For {
                 binding,
                 iter,
@@ -2096,6 +2112,18 @@ impl RustGen {
                 }
             }
             Stmt::Continue(_) => "continue;".to_string(),
+            Stmt::Defer { expr, .. } => format!("/* defer */ {};", self.gen_expr(expr)),
+            Stmt::Dispatch {
+                compute_key,
+                dispatch_size,
+                ..
+            } => format!(
+                "/* dispatch {} */ let _ = ({}, {}, {});",
+                compute_key,
+                self.gen_expr(&dispatch_size[0]),
+                self.gen_expr(&dispatch_size[1]),
+                self.gen_expr(&dispatch_size[2])
+            ),
             Stmt::For {
                 binding,
                 iter,
@@ -3034,6 +3062,12 @@ impl RustGen {
                     }
                 }
                 Stmt::Expr(expr) => self.collect_mutated_bindings_in_expr(expr, names),
+                Stmt::Defer { expr, .. } => self.collect_mutated_bindings_in_expr(expr, names),
+                Stmt::Dispatch { dispatch_size, .. } => {
+                    for expr in dispatch_size {
+                        self.collect_mutated_bindings_in_expr(expr, names);
+                    }
+                }
                 Stmt::Return(value, _) | Stmt::Break(value, _) => {
                     if let Some(value) = value {
                         self.collect_mutated_bindings_in_expr(value, names);

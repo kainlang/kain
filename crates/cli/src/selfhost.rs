@@ -1354,6 +1354,12 @@ fn collect_macro_calls_from_stmt(
             }
         }
         Stmt::Expr(expr) => collect_macro_calls_from_expr(expr, required, counts),
+        Stmt::Defer { expr, .. } => collect_macro_calls_from_expr(expr, required, counts),
+        Stmt::Dispatch { dispatch_size, .. } => {
+            for expr in dispatch_size {
+                collect_macro_calls_from_expr(expr, required, counts);
+            }
+        }
         Stmt::Return(value, _) | Stmt::Break(value, _) => {
             if let Some(value) = value {
                 collect_macro_calls_from_expr(value, required, counts);
@@ -5304,6 +5310,22 @@ fn write_stmt(output: &mut String, stmt: &Stmt, indent: usize) -> KainResult<()>
             }
         }
         Stmt::Continue(_) => write_line(output, indent, "continue"),
+        Stmt::Defer { expr, .. } => write_expr_prefixed(output, "defer ", expr, indent),
+        Stmt::Dispatch {
+            compute_key,
+            dispatch_size,
+            ..
+        } => write_line(
+            output,
+            indent,
+            &format!(
+                "dispatch \"{}\" [{}, {}, {}]",
+                compute_key.replace('"', "\\\""),
+                inline_expr_to_string(&dispatch_size[0]),
+                inline_expr_to_string(&dispatch_size[1]),
+                inline_expr_to_string(&dispatch_size[2])
+            ),
+        ),
         Stmt::For {
             binding,
             iter,

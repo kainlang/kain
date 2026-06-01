@@ -115,7 +115,8 @@ fn emit_shader(shader: &TypedShader) -> KainResult<String> {
     match shader.ast.stage {
         ShaderStage::Compute => {
             // Compute shader - different structure
-            output.push_str("[numthreads(8, 8, 1)]\n");
+            let [x, y, z] = shader.ast.workgroup_size.unwrap_or([8, 8, 1]);
+            output.push_str(&format!("[numthreads({x}, {y}, {z})]\n"));
             output.push_str("void CSMain(uint3 dispatchThreadID : SV_DispatchThreadID,\n");
             output.push_str("            uint3 groupThreadID : SV_GroupThreadID,\n");
             output.push_str("            uint3 groupID : SV_GroupID,\n");

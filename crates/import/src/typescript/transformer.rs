@@ -173,6 +173,7 @@ impl TypeScriptTransformer {
                         items.push(Item::TypeAlias(TypeAlias {
                             name,
                             generics: Vec::new(),
+                            where_clause: None,
                             target: Type::Named {
                                 name: "Any".to_string(),
                                 generics: Vec::new(),
@@ -192,6 +193,7 @@ impl TypeScriptTransformer {
                         items.push(Item::TypeAlias(TypeAlias {
                             name,
                             generics: Vec::new(),
+                            where_clause: None,
                             target: Type::Named {
                                 name: "Any".to_string(),
                                 generics: Vec::new(),
@@ -211,6 +213,7 @@ impl TypeScriptTransformer {
                         items.push(Item::TypeAlias(TypeAlias {
                             name,
                             generics: Vec::new(),
+                            where_clause: None,
                             target: Type::Named {
                                 name: "Any".to_string(),
                                 generics: Vec::new(),
@@ -415,6 +418,7 @@ impl TypeScriptTransformer {
             fields,
             visibility: Visibility::Public,
             generics,
+            where_clause: None,
             methods: Vec::new(),
             attributes: Vec::new(),
             span,
@@ -439,6 +443,7 @@ impl TypeScriptTransformer {
             variants,
             visibility: Visibility::Public,
             generics: Vec::new(),
+            where_clause: None,
             span,
         })
     }
@@ -452,6 +457,7 @@ impl TypeScriptTransformer {
                 .as_deref()
                 .map(Self::map_generics)
                 .unwrap_or_default(),
+            where_clause: None,
             target: self.type_mapper.map_type(&alias.type_ann, span)?,
             visibility: Visibility::Public,
             span,
@@ -524,6 +530,7 @@ impl TypeScriptTransformer {
             fields,
             visibility: Visibility::Public,
             generics: generics.clone(),
+            where_clause: None,
             methods: Vec::new(),
             attributes: Vec::new(),
             span,
@@ -535,6 +542,7 @@ impl TypeScriptTransformer {
 
         let impl_item = Item::Impl(Impl {
             generics,
+            where_clause: None,
             trait_name: None,
             trait_generics: Vec::new(),
             target_type: Type::Named {
@@ -734,6 +742,7 @@ impl TypeScriptTransformer {
         Ok(Function {
             name: "new_".to_string(),
             generics: Vec::new(),
+            where_clause: None,
             params,
             return_type: Some(Type::Named {
                 name: class_name.to_string(),
@@ -1180,6 +1189,7 @@ impl TypeScriptTransformer {
         Ok(Function {
             name: name.to_string(),
             generics: Vec::new(),
+            where_clause: None,
             params,
             return_type,
             effects: Vec::new(),
@@ -1195,6 +1205,7 @@ impl TypeScriptTransformer {
         Function {
             name: setter_name.to_string(),
             generics: Vec::new(),
+            where_clause: None,
             params: vec![Param {
                 name: "value".to_string(),
                 ty,
@@ -1279,6 +1290,7 @@ impl TypeScriptTransformer {
         Ok(Function {
             name,
             generics,
+            where_clause: None,
             params,
             return_type,
             effects,

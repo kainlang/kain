@@ -37,6 +37,7 @@ pub const RESERVED_KEYWORDS: &[&str] = &[
     "loop",
     "break",
     "continue",
+    "defer",
     "return",
     "await",
     "in",
@@ -436,6 +437,7 @@ impl<'a> Parser<'a> {
             TokenKind::If => "keyword 'if'".to_string(),
             TokenKind::Else => "keyword 'else'".to_string(),
             TokenKind::Match => "keyword 'match'".to_string(),
+            TokenKind::Defer => "keyword 'defer'".to_string(),
             TokenKind::Return => "keyword 'return'".to_string(),
             TokenKind::Colon => "':'".to_string(),
             TokenKind::Arrow => "'->'".to_string(),
@@ -599,6 +601,7 @@ impl<'a> Parser<'a> {
             let main_fn = Item::Function(Function {
                 name: "main".to_string(),
                 generics: vec![],
+                where_clause: None,
                 params: vec![],
                 return_type: None,
                 effects: vec![],
@@ -744,6 +747,7 @@ impl<'a> Parser<'a> {
             TokenKind::Loop => Some("loop".to_string()),
             TokenKind::Break => Some("break".to_string()),
             TokenKind::Continue => Some("continue".to_string()),
+            TokenKind::Defer => Some("defer".to_string()),
             TokenKind::Return => Some("return".to_string()),
             TokenKind::Await => Some("await".to_string()),
             TokenKind::In => Some("in".to_string()),
@@ -1190,6 +1194,7 @@ impl<'a> Parser<'a> {
 
         // Parse generics: trait Foo<T>
         let generics = self.parse_generics()?;
+        let where_clause = self.parse_optional_where_clause()?;
 
         self.expect(TokenKind::Colon)?;
         self.skip_newlines();
@@ -1247,6 +1252,7 @@ impl<'a> Parser<'a> {
         Ok(Item::Trait(Trait {
             name,
             generics,
+            where_clause,
             supertraits: Vec::new(),
             methods,
             visibility: vis,
@@ -1281,6 +1287,7 @@ impl<'a> Parser<'a> {
         } else {
             (None, Vec::new(), first_type)
         };
+        let where_clause = self.parse_optional_where_clause()?;
 
         self.expect(TokenKind::Colon)?;
         self.skip_newlines();
@@ -1317,6 +1324,7 @@ impl<'a> Parser<'a> {
 
         Ok(Item::Impl(Impl {
             generics,
+            where_clause,
             trait_name,
             trait_generics,
             target_type,
@@ -1606,7 +1614,7 @@ impl<'a> Parser<'a> {
             None
         };
 
-        let effects = self.parse_effects()?;
+        let (where_clause, effects) = self.parse_function_header_clauses()?;
         self.expect(TokenKind::Colon)?;
         let body = self.parse_block()?;
         let body_span = body.span;
@@ -1614,6 +1622,7 @@ impl<'a> Parser<'a> {
         Ok(Item::Function(Function {
             name,
             generics,
+            where_clause,
             params,
             return_type,
             effects,
@@ -1643,7 +1652,7 @@ impl<'a> Parser<'a> {
         } else {
             None
         };
-        let effects = self.parse_effects()?;
+        let (where_clause, effects) = self.parse_function_header_clauses()?;
 
         // Check if this is an extern function (no body)
         let is_extern = attrs.iter().any(|a| a.name == "extern");
@@ -1664,6 +1673,7 @@ impl<'a> Parser<'a> {
         Ok(Item::Function(Function {
             name,
             generics,
+            where_clause,
             params,
             return_type,
             effects,
@@ -1695,7 +1705,7 @@ impl<'a> Parser<'a> {
         };
 
         // Parse other effects, then add Async
-        let mut effects = self.parse_effects()?;
+        let (where_clause, mut effects) = self.parse_function_header_clauses()?;
         effects.push(crate::effects::Effect::Async);
 
         self.expect(TokenKind::Colon)?;
@@ -1705,6 +1715,7 @@ impl<'a> Parser<'a> {
         Ok(Item::Function(Function {
             name,
             generics,
+            where_clause,
             params,
             return_type,
             effects,
@@ -2540,6 +2551,7 @@ impl<'a> Parser<'a> {
         self.expect(TokenKind::RParen)?;
         self.expect(TokenKind::Arrow)?;
         let outputs = self.parse_type()?;
+        let workgroup_size = self.parse_optional_workgroup_clause(stage)?;
         self.expect(TokenKind::Colon)?;
 
         // Manual block parsing to support uniforms
@@ -2610,20 +2622,45 @@ impl<'a> Parser<'a> {
             stage,
             inputs,
             outputs,
+            workgroup_size,
             uniforms,
             body,
             span: start.merge(body_span),
         };
 
         if matches!(shader.stage, ShaderStage::Compute) {
-            if let Err(err) = shader.explicit_compute_metadata() {
-                return Err(self.parser_error(
-                    format!(
-                        "Invalid explicit compute metadata in shader '{}': {}",
-                        shader.name, err
-                    ),
-                    shader.span,
-                ));
+            match shader.explicit_compute_metadata() {
+                Ok(Some(metadata)) => {
+                    if let (Some(header), Some(metadata_workgroup)) =
+                        (shader.workgroup_size, metadata.workgroup_size)
+                    {
+                        if header != metadata_workgroup {
+                            return Err(self.parser_error(
+                                format!(
+                                    "Shader '{}' declares workgroup({},{},{}) but explicit compute metadata declares [{},{},{}]",
+                                    shader.name,
+                                    header[0],
+                                    header[1],
+                                    header[2],
+                                    metadata_workgroup[0],
+                                    metadata_workgroup[1],
+                                    metadata_workgroup[2]
+                                ),
+                                shader.span,
+                            ));
+                        }
+                    }
+                }
+                Ok(None) => {}
+                Err(err) => {
+                    return Err(self.parser_error(
+                        format!(
+                            "Invalid explicit compute metadata in shader '{}': {}",
+                            shader.name, err
+                        ),
+                        shader.span,
+                    ));
+                }
             }
         }
 
@@ -2655,6 +2692,7 @@ impl<'a> Parser<'a> {
         let name = self.parse_ident()?;
 
         let generics = self.parse_generics()?;
+        let where_clause = self.parse_optional_where_clause()?;
 
         self.expect(TokenKind::Colon)?;
         self.skip_newlines();
@@ -2668,6 +2706,7 @@ impl<'a> Parser<'a> {
             return Ok(Item::Struct(Struct {
                 name,
                 generics,
+                where_clause,
                 fields,
                 methods,
                 attributes: attrs,
@@ -2735,6 +2774,7 @@ impl<'a> Parser<'a> {
         Ok(Item::Struct(Struct {
             name,
             generics,
+            where_clause,
             fields,
             methods,
             attributes: attrs,
@@ -2750,6 +2790,7 @@ impl<'a> Parser<'a> {
 
         // Parse generics: enum Option<T>:
         let generics = self.parse_generics()?;
+        let where_clause = self.parse_optional_where_clause()?;
 
         self.expect(TokenKind::Colon)?;
         self.skip_newlines();
@@ -2867,6 +2908,7 @@ impl<'a> Parser<'a> {
         Ok(Item::Enum(Enum {
             name,
             generics,
+            where_clause,
             variants,
             visibility: vis,
             span: start.merge(self.current_span()),
@@ -3031,6 +3073,7 @@ impl<'a> Parser<'a> {
 
         // Optional generics: type Foo<T>
         let generics = self.parse_generics()?;
+        let where_clause = self.parse_optional_where_clause()?;
 
         self.expect(TokenKind::Eq)?;
         let target = self.parse_type()?;
@@ -3038,6 +3081,7 @@ impl<'a> Parser<'a> {
         Ok(Item::TypeAlias(TypeAlias {
             name,
             generics,
+            where_clause,
             target,
             visibility: vis,
             span: start.merge(self.current_span()),
@@ -3731,6 +3775,55 @@ impl<'a> Parser<'a> {
         Ok(generics)
     }
 
+    fn parse_optional_where_clause(&mut self) -> KainResult<Option<WhereClause>> {
+        if !self.peek_contextual_ident("where") {
+            return Ok(None);
+        }
+        self.parse_where_clause().map(Some)
+    }
+
+    fn parse_where_clause(&mut self) -> KainResult<WhereClause> {
+        let start = self.current_span();
+        self.expect_contextual_ident("where")?;
+        let mut bounds = Vec::new();
+
+        loop {
+            let bound_start = self.current_span();
+            let generic_name = self.parse_ident()?;
+            self.expect(TokenKind::Colon)?;
+
+            let mut trait_bounds = Vec::new();
+            loop {
+                let trait_span = self.current_span();
+                let trait_name = self.parse_path_name()?;
+                trait_bounds.push(TypeBound {
+                    trait_name,
+                    span: trait_span.merge(self.current_span()),
+                });
+                if !self.check(TokenKind::Plus) {
+                    break;
+                }
+                self.advance();
+            }
+
+            bounds.push(WhereBound {
+                generic_name,
+                bounds: trait_bounds,
+                span: bound_start.merge(self.current_span()),
+            });
+
+            if !self.check(TokenKind::Comma) {
+                break;
+            }
+            self.advance();
+        }
+
+        Ok(WhereClause {
+            bounds,
+            span: start.merge(self.current_span()),
+        })
+    }
+
     #[allow(dead_code)]
     fn parse_generics_as_types(&mut self) -> KainResult<Vec<Type>> {
         let mut generics = Vec::new();
@@ -3752,6 +3845,81 @@ impl<'a> Parser<'a> {
             self.expect(TokenKind::Gt)?;
         }
         Ok(generics)
+    }
+
+    fn parse_function_header_clauses(&mut self) -> KainResult<(Option<WhereClause>, Vec<Effect>)> {
+        let mut where_clause = None;
+        let mut effects = Vec::new();
+
+        loop {
+            if self.peek_contextual_ident("where") {
+                if where_clause.is_some() {
+                    return Err(self.parser_error(
+                        "Function header may only contain one where clause",
+                        self.current_span(),
+                    ));
+                }
+                where_clause = Some(self.parse_where_clause()?);
+            } else if self.check(TokenKind::With) {
+                effects.extend(self.parse_effects()?);
+            } else {
+                break;
+            }
+        }
+
+        Ok((where_clause, effects))
+    }
+
+    fn parse_optional_workgroup_clause(
+        &mut self,
+        stage: ShaderStage,
+    ) -> KainResult<Option<[u32; 3]>> {
+        if !self.peek_contextual_ident("workgroup") {
+            return Ok(None);
+        }
+        let start = self.current_span();
+        self.expect_contextual_ident("workgroup")?;
+        if !matches!(stage, ShaderStage::Compute) {
+            return Err(self.parser_error(
+                "workgroup(...) is only legal on shader compute headers",
+                start,
+            ));
+        }
+        self.expect(TokenKind::LParen)?;
+        let x = self.parse_static_u32_dimension("workgroup x")?;
+        self.expect(TokenKind::Comma)?;
+        let y = self.parse_static_u32_dimension("workgroup y")?;
+        self.expect(TokenKind::Comma)?;
+        let z = self.parse_static_u32_dimension("workgroup z")?;
+        self.expect(TokenKind::RParen)?;
+        Ok(Some([x, y, z]))
+    }
+
+    fn parse_static_u32_dimension(&mut self, label: &str) -> KainResult<u32> {
+        let span = self.current_span();
+        let value = match self.peek_kind() {
+            TokenKind::Int(value) => {
+                self.advance();
+                value
+            }
+            _ => {
+                return Err(self.parser_error(
+                    format!(
+                        "Expected a positive integer literal for {label}, found {}",
+                        self.token_to_user_string(&self.peek_kind())
+                    ),
+                    span,
+                ))
+            }
+        };
+
+        if value <= 0 || value > u32::MAX as i64 {
+            return Err(
+                self.parser_error(format!("{label} must be between 1 and {}", u32::MAX), span)
+            );
+        }
+
+        Ok(value as u32)
     }
 
     fn parse_effects(&mut self) -> KainResult<Vec<Effect>> {
@@ -4047,6 +4215,7 @@ impl<'a> Parser<'a> {
         match self.peek_kind() {
             TokenKind::Let => self.parse_let(),
             TokenKind::Var => self.parse_var(),
+            TokenKind::Defer => self.parse_defer(),
             TokenKind::Return => self.parse_return(),
             TokenKind::For => self.parse_for(),
             TokenKind::Fanout => self.parse_fanout(),
@@ -4054,6 +4223,7 @@ impl<'a> Parser<'a> {
             TokenKind::Loop => self.parse_loop(),
             TokenKind::Break => self.parse_break(),
             TokenKind::Continue => self.parse_continue(),
+            TokenKind::Ident(ref name) if name == "dispatch" => self.parse_dispatch(),
             _ => Ok(Stmt::Expr(self.parse_expr()?)),
         }
     }
@@ -4113,6 +4283,53 @@ impl<'a> Parser<'a> {
             None
         };
         Ok(Stmt::Return(value, start.merge(self.current_span())))
+    }
+
+    fn parse_defer(&mut self) -> KainResult<Stmt> {
+        let start = self.current_span();
+        self.expect(TokenKind::Defer)?;
+        if self.check_line_end() {
+            return Err(self.parser_error("defer expects an expression payload in v1", start));
+        }
+        let expr = self.parse_expr()?;
+        Ok(Stmt::Defer {
+            expr,
+            span: start.merge(self.current_span()),
+        })
+    }
+
+    fn parse_dispatch(&mut self) -> KainResult<Stmt> {
+        let start = self.current_span();
+        self.expect_contextual_ident("dispatch")?;
+        let compute_key = match self.peek_kind() {
+            TokenKind::String(value) => {
+                self.advance();
+                value
+            }
+            _ => {
+                return Err(self.parser_error(
+                    format!(
+                        "Expected compute key string after dispatch, found {}",
+                        self.token_to_user_string(&self.peek_kind())
+                    ),
+                    self.current_span(),
+                ))
+            }
+        };
+
+        self.expect(TokenKind::LBracket)?;
+        let x = self.parse_expr()?;
+        self.expect(TokenKind::Comma)?;
+        let y = self.parse_expr()?;
+        self.expect(TokenKind::Comma)?;
+        let z = self.parse_expr()?;
+        self.expect(TokenKind::RBracket)?;
+
+        Ok(Stmt::Dispatch {
+            compute_key,
+            dispatch_size: [x, y, z],
+            span: start.merge(self.current_span()),
+        })
     }
 
     fn parse_for(&mut self) -> KainResult<Stmt> {
@@ -6446,6 +6663,7 @@ impl<'a> Parser<'a> {
                     TokenKind::Loop => consumed_text = Some("loop".to_string()),
                     TokenKind::Break => consumed_text = Some("break".to_string()),
                     TokenKind::Continue => consumed_text = Some("continue".to_string()),
+                    TokenKind::Defer => consumed_text = Some("defer".to_string()),
                     TokenKind::Return => consumed_text = Some("return".to_string()),
                     TokenKind::Await => consumed_text = Some("await".to_string()),
                     TokenKind::In => consumed_text = Some("in".to_string()),
@@ -6759,6 +6977,7 @@ impl<'a> Parser<'a> {
             | TokenKind::Loop
             | TokenKind::Break
             | TokenKind::Continue
+            | TokenKind::Defer
             | TokenKind::Return
             | TokenKind::Await
             | TokenKind::In
@@ -9520,6 +9739,7 @@ impl<'a> Parser<'a> {
                     let func_def = Function {
                         name: field_name.clone(),
                         generics: vec![],
+                        where_clause: None,
                         params,
                         return_type: None,
                         effects: vec![],
@@ -9735,6 +9955,7 @@ impl<'a> Parser<'a> {
                 let func_def = Function {
                     name: method_name.clone(),
                     generics: vec![],
+                    where_clause: None,
                     params,
                     return_type: None,
                     effects: vec![],
@@ -9995,6 +10216,7 @@ impl<'a> Parser<'a> {
                                 custom_filter_method = Some(Function {
                                     name: method_name,
                                     generics: vec![],
+                                    where_clause: None,
                                     params,
                                     return_type: None,
                                     effects: vec![],
@@ -10080,6 +10302,7 @@ impl<'a> Parser<'a> {
                 custom_methods.push(Function {
                     name: method_name,
                     generics: vec![],
+                    where_clause: None,
                     params,
                     return_type: None,
                     effects: vec![],
@@ -10193,6 +10416,38 @@ mod tests {
             }
             other => panic!("expected for child, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn parses_where_defer_dispatch_and_shader_workgroup_surfaces() {
+        let program = parse_program(
+            r#"trait Fold:
+    fn fold(x: Int) -> Int
+
+fn foo<T>(x: T) -> Int where T: Fold:
+    defer cleanup()
+    dispatch "semantic.score" [1024, 1, 1]
+    return 1
+
+shader compute Kernel(id: UVec3) -> Vec4 workgroup(8, 1, 1):
+    return vec4(0.0, 0.0, 0.0, 1.0)
+"#,
+        )
+        .expect("program should parse");
+
+        let Item::Function(function) = &program.items[1] else {
+            panic!("expected function");
+        };
+        let where_clause = function.where_clause.as_ref().expect("where clause");
+        assert_eq!(where_clause.bounds[0].generic_name, "T");
+        assert_eq!(where_clause.bounds[0].bounds[0].trait_name, "Fold");
+        assert!(matches!(function.body.stmts[0], Stmt::Defer { .. }));
+        assert!(matches!(function.body.stmts[1], Stmt::Dispatch { .. }));
+
+        let Item::Shader(shader) = &program.items[2] else {
+            panic!("expected shader");
+        };
+        assert_eq!(shader.workgroup_size, Some([8, 1, 1]));
     }
 
     #[test]

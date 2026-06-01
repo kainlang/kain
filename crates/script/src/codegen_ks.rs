@@ -719,6 +719,16 @@ impl KsGen {
                 self.line(format!("return {};", vs));
             }
             Stmt::Return(None, _) => self.line("return;"),
+            Stmt::Defer { .. } => {
+                self.line(
+                    "throw new Error(\"Kain defer is not supported on script targets yet\");",
+                );
+            }
+            Stmt::Dispatch { .. } => {
+                self.line(
+                    "throw new Error(\"Kain dispatch statements are only supported by native/GPU targets\");",
+                );
+            }
             Stmt::Break(Some(expr), _) => {
                 let mut vs = String::new();
                 self.expr_to_str(expr, &mut vs);

@@ -1,6 +1,6 @@
 # Kain Keyword Catalog
 
-Snapshot: 2026-05-28
+Snapshot: 2026-06-01
 
 This file is the quick "what words does Kain actually own right now?" sheet.
 It is meant to stop the constant rediscovery loop.
@@ -21,10 +21,10 @@ This catalog counts authored Kain language words, not punctuation.
 
 ## Headline Count
 
-- `57` hard lexer keywords
-- `36` contextual or keyword-like parser words
+- `58` hard lexer keywords
+- `40` contextual or keyword-like parser words
 - `2` textual operator aliases: `and`, `or`
-- `95` practical authored Kain words to remember if you want the whole live surface
+- `100` practical authored Kain words to remember if you want the whole live surface
 
 ## Source Of Truth
 
@@ -32,13 +32,13 @@ This catalog counts authored Kain language words, not punctuation.
 - `crates/core/src/parser.rs`
 - `docs/syntax-and-semantics/syntax.md`
 
-## 1. Hard Lexer Keywords (`57`)
+## 1. Hard Lexer Keywords (`58`)
 
 These have dedicated token entries in `TokenKind`.
 
 ### Core Control And Binding
 
-`fn`, `let`, `mut`, `var`, `const`, `if`, `else`, `elif`, `match`, `for`, `while`, `loop`, `break`, `continue`, `return`, `await`, `in`, `with`, `as`
+`fn`, `let`, `mut`, `var`, `const`, `if`, `else`, `elif`, `match`, `for`, `while`, `loop`, `break`, `continue`, `return`, `defer`, `await`, `in`, `with`, `as`
 
 ### Types, Modules, Visibility, Self
 
@@ -56,7 +56,7 @@ These have dedicated token entries in `TokenKind`.
 
 `Pure`, `IO`, `async`, `Async`, `GPU`, `Reactive`, `Unsafe`
 
-## 2. Contextual Or Keyword-Like Parser Words (`35`)
+## 2. Contextual Or Keyword-Like Parser Words (`40`)
 
 These are not all tokenized as dedicated keywords, but the parser treats them like language words in specific positions.
 
@@ -66,7 +66,7 @@ These are not all tokenized as dedicated keywords, but the parser treats them li
 
 ### Import, Clause, And Selector Words
 
-`include`, `every`, `when`, `guarantee`, `fallback`, `spec`, `fast`, `verify`, `random`, `jitter`, `target`, `capability`, `from`, `to`, `via`
+`include`, `import`, `from`, `where`, `every`, `when`, `guarantee`, `fallback`, `spec`, `fast`, `verify`, `random`, `jitter`, `target`, `capability`, `to`, `via`
 
 `include` now covers both local C header imports such as
 `include native/foo.h as foo` and the registry-backed system-header lane such
@@ -82,7 +82,7 @@ compiler-owned link policy declared in `crates/c-ffi/system_headers.toml`.
 
 ### Shader, Component, Actor, And Ownership Context Words
 
-`compute`, `uniform`, `render`, `on`, `weak`, `single_writer`
+`compute`, `uniform`, `workgroup`, `dispatch`, `render`, `on`, `weak`, `single_writer`
 
 ## 3. Textual Operator Aliases (`2`)
 
@@ -95,7 +95,7 @@ These are word forms for operators, not normal declaration keywords, but they st
 
 If you just want one big memory dump, this is the current authored Kain word surface counted above.
 
-`fn`, `let`, `mut`, `var`, `const`, `if`, `else`, `elif`, `match`, `for`, `while`, `loop`, `break`, `continue`, `return`, `await`, `in`, `with`, `as`, `type`, `struct`, `enum`, `trait`, `impl`, `pub`, `mod`, `use`, `self`, `Self`, `true`, `false`, `none`, `component`, `shader`, `actor`, `state`, `spawn`, `send`, `receive`, `emit`, `comptime`, `macro`, `vertex`, `fragment`, `collapse`, `observe`, `decay`, `share`, `fanout`, `test`, `Pure`, `IO`, `async`, `Async`, `GPU`, `Reactive`, `Unsafe`, `patch`, `law`, `axiom`, `pulse`, `orchestrate`, `converge`, `world`, `entangle`, `shatter`, `teleport`, `include`, `every`, `when`, `guarantee`, `fallback`, `spec`, `fast`, `verify`, `random`, `jitter`, `target`, `capability`, `from`, `to`, `via`, `surface`, `native_ui`, `viewport3d`, `web`, `ue5`, `compute`, `uniform`, `render`, `on`, `weak`, `single_writer`, `and`, `or`
+`fn`, `let`, `mut`, `var`, `const`, `if`, `else`, `elif`, `match`, `for`, `while`, `loop`, `break`, `continue`, `return`, `defer`, `await`, `in`, `with`, `as`, `type`, `struct`, `enum`, `trait`, `impl`, `pub`, `mod`, `use`, `self`, `Self`, `true`, `false`, `none`, `component`, `shader`, `actor`, `state`, `spawn`, `send`, `receive`, `emit`, `comptime`, `macro`, `vertex`, `fragment`, `collapse`, `observe`, `decay`, `share`, `fanout`, `test`, `Pure`, `IO`, `async`, `Async`, `GPU`, `Reactive`, `Unsafe`, `patch`, `law`, `axiom`, `pulse`, `orchestrate`, `converge`, `world`, `entangle`, `shatter`, `teleport`, `include`, `import`, `from`, `where`, `every`, `when`, `guarantee`, `fallback`, `spec`, `fast`, `verify`, `random`, `jitter`, `target`, `capability`, `to`, `via`, `surface`, `native_ui`, `viewport3d`, `web`, `ue5`, `compute`, `uniform`, `workgroup`, `dispatch`, `render`, `on`, `weak`, `single_writer`, `and`, `or`
 
 ## 5. What This Catalog Deliberately Excludes
 
@@ -114,7 +114,7 @@ lowering. The current authored CUDA surface includes:
 
 ### Symbol-Only Surface
 
-Kain also owns a large symbolic surface that is not included in the `94`:
+Kain also owns a large symbolic surface that is not included in the `100`:
 
 `+`, `-`, `*`, `/`, `%`, `**`, `==`, `!=`, `<`, `>`, `<=`, `>=`, `&&`, `||`, `!`, `&`, `|`, `^`, `~`, `<<`, `>>`, `=`, `+=`, `-=`, `*=`, `/=`, `%=`, `&=`, `|=`, `^=`, `<<=`, `>>=`, `::`, `->`, `=>`, `@`, `??`, `?.`, `?`
 
@@ -134,4 +134,4 @@ Those are real reserved identifiers in the parser, but they are not part of the 
 
 - `lexer.rs` is the truth for hard keywords.
 - `parser.rs` is where the contextual language words show up.
-- The biggest "easy to forget" family is the contextual one: `patch`, `law`, `world`, `entangle`, `pulse`, `teleport`, `include`, `surface`, `compute`, `uniform`, `single_writer`, and friends.
+- The biggest "easy to forget" family is the contextual one: `patch`, `law`, `world`, `entangle`, `pulse`, `teleport`, `include`, `import`, `where`, `surface`, `compute`, `workgroup`, `dispatch`, `uniform`, `single_writer`, and friends.

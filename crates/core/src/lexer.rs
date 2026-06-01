@@ -42,6 +42,8 @@ pub enum TokenKind {
     Break,
     #[token("continue")]
     Continue,
+    #[token("defer")]
+    Defer,
     #[token("return")]
     Return,
     #[token("await")]
