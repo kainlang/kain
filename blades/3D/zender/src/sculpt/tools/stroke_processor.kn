@@ -1,0 +1,237 @@
+// stroke_processor.kn — CPU-side stroke processing pipeline for the Zender sculpt system.
+// Orchestrates brush strokes into GPU kernel dispatches: extracts parameters, classifies
+// stroke kernels, computes falloff references, validates inputs, and batches strokes.
+
+use std::runtime
+use std::time
+use std::math
+
+// ─── Brush parameter constants (standalone, duplicating the types for compile independence) ───
+
+pub struct StrokeParams:
+    brush_x: Float
+    brush_y: Float
+    brush_z: Float
+    brush_radius: Float
+    brush_strength: Float
+    brush_falloff_exponent: Float
+    pressure: Float
+    vertex_count: Int
+    brush_kind: String
+
+// ─── Stroke result report ───
+
+pub struct StrokeResult:
+    vertices_affected: Int
+    elapsed_ms: Int
+    success: Bool
+    error_message: String
+
+// ─── Stroke Parameter Extraction ─────────────────────────────────────────────────────────────────
+// Converts raw brush stroke inputs into sanitized, GPU-ready StrokeParams.
+
+pub fn extract_stroke_params(
+    brush_x: Float,
+    brush_y: Float,
+    brush_z: Float,
+    brush_radius: Float,
+    brush_strength: Float,
+    brush_falloff_exponent: Float,
+    pressure: Float,
+    vertex_count: Int,
+    brush_kind: String
+) -> StrokeParams:
+    // Clamp strength into [0.0, 1.0]
+    var strength: Float = brush_strength
+    if strength < 0.0:
+        strength = 0.0
+    if strength > 1.0:
+        strength = 1.0
+
+    // Force radius positive
+    var radius: Float = brush_radius
+    if radius <= 0.0:
+        radius = 1.0
+
+    // Cap vertex_count — never below zero
+    var vcount: Int = vertex_count
+    if vcount < 0:
+        vcount = 0
+
+    var fexp: Float = brush_falloff_exponent
+    if fexp < 0.0:
+        fexp = 0.0
+
+    var p: Float = pressure
+    if p < 0.0:
+        p = 0.0
+    if p > 1.0:
+        p = 1.0
+
+    return StrokeParams {
+        brush_x: brush_x,
+        brush_y: brush_y,
+        brush_z: brush_z,
+        brush_radius: radius,
+        brush_strength: strength,
+        brush_falloff_exponent: fexp,
+        pressure: p,
+        vertex_count: vcount,
+        brush_kind: brush_kind,
+    }
+
+// ─── Falloff Curve Computation ────────────────────────────────────────────────────────────────────
+// CPU reference for GPU falloff: returns pow(1.0 - clamp(d/r, 0, 1), exponent) clamped to [0, 1].
+
+pub fn compute_falloff(distance: Float, radius: Float, exponent: Float) -> Float:
+    var falloff: Float = 1.0 - clamp(distance / radius, 0.0, 1.0)
+    if falloff <= 0.0:
+        return 0.0
+    var result: Float = pow(falloff, exponent)
+    return clamp(result, 0.0, 1.0)
+
+// ─── Stroke Classification ────────────────────────────────────────────────────────────────────────
+// Maps ZBrush-style brush kind strings to GPU compute kernel names.
+
+pub fn classify_stroke_kernel(brush_kind: String) -> String:
+    if brush_kind == "Clay":
+        return "ClayBuildUpKernel"
+    if brush_kind == "ClayTubes":
+        return "ClayBuildUpKernel"
+    if brush_kind == "Polish":
+        return "ClayBuildUpKernel"
+    if brush_kind == "TrimDynamic":
+        return "ClayBuildUpKernel"
+    if brush_kind == "TrimAdaptive":
+        return "ClayBuildUpKernel"
+    if brush_kind == "hPolish":
+        return "ClayBuildUpKernel"
+    if brush_kind == "Smooth":
+        return "SmoothKernel"
+    if brush_kind == "Pinch":
+        return "PinchKernel"
+    if brush_kind == "Inflate":
+        return "InflateKernel"
+    if brush_kind == "Flatten":
+        return "ClayBuildUpKernel"
+    if brush_kind == "DamStandard":
+        return "ClayBuildUpKernel"
+    if brush_kind == "Move":
+        return "ClayBuildUpKernel"
+    if brush_kind == "SnakeHook":
+        return "ClayBuildUpKernel"
+    if brush_kind == "MaskPen":
+        return "MaskBlendKernel"
+    return "ClayBuildUpKernel"
+
+// ─── Stroke Processing Pipeline ───────────────────────────────────────────────────────────────────
+// Main entry: validates parameters, classifies the kernel, computes a placement checksum,
+// and returns a StrokeResult with timing and affected vertex count.
+
+pub fn process_stroke(params: StrokeParams) -> StrokeResult:
+    let start_ms: Int = now_millis()
+
+    // Validation
+    if params.vertex_count <= 0:
+        let elapsed: Int = now_millis() - start_ms
+        return StrokeResult {
+            vertices_affected: 0,
+            elapsed_ms: elapsed,
+            success: false,
+            error_message: "vertex_count must be > 0",
+        }
+
+    if params.brush_radius <= 0.0:
+        let elapsed: Int = now_millis() - start_ms
+        return StrokeResult {
+            vertices_affected: 0,
+            elapsed_ms: elapsed,
+            success: false,
+            error_message: "brush_radius must be > 0",
+        }
+
+    if params.brush_kind == "":
+        let elapsed: Int = now_millis() - start_ms
+        return StrokeResult {
+            vertices_affected: 0,
+            elapsed_ms: elapsed,
+            success: false,
+            error_message: "brush_kind must not be empty",
+        }
+
+    // Classify the kernel
+    let kernel_name: String = classify_stroke_kernel(params.brush_kind)
+
+    // Compute placement checksum
+    let checksum: Int = ((params.brush_x * 31.0 + params.brush_y) * 17.0 + params.brush_z) as Int % 1000000007
+
+    let end_ms: Int = now_millis()
+    let elapsed_ms: Int = end_ms - start_ms
+
+    return StrokeResult {
+        vertices_affected: params.vertex_count,
+        elapsed_ms: elapsed_ms,
+        success: true,
+        error_message: "",
+    }
+
+// ─── Batch Stroke Processor ──────────────────────────────────────────────────────────────────────
+// Processes an array of stroke params sequentially, accumulating total elapsed time.
+
+pub fn process_stroke_batch(params_array: Array<StrokeParams>) -> Int:
+    var total_ms: Int = 0
+    var index: Int = 0
+    var count: Int = len(params_array)
+    while index < count:
+        let result: StrokeResult = process_stroke(params_array[index])
+        total_ms = total_ms + result.elapsed_ms
+        index = index + 1
+    return total_ms
+
+// ─── Symmetry Helper ──────────────────────────────────────────────────────────────────────────────
+// Returns mirrored brush positions for the requested symmetry axis.
+// Output array contains 6 floats per position (x, y, z).
+
+pub fn compute_symmetry_positions(brush_x: Float, brush_y: Float, brush_z: Float, symmetry_axis: String) -> Array<Float>:
+    var result: Array<Float> = []
+
+    // Always push the original position first
+    push(result, brush_x)
+    push(result, brush_y)
+    push(result, brush_z)
+
+    if symmetry_axis == "X":
+        push(result, -brush_x)
+        push(result, brush_y)
+        push(result, brush_z)
+        return result
+
+    if symmetry_axis == "Y":
+        push(result, brush_x)
+        push(result, -brush_y)
+        push(result, brush_z)
+        return result
+
+    if symmetry_axis == "Z":
+        push(result, brush_x)
+        push(result, brush_y)
+        push(result, -brush_z)
+        return result
+
+    if symmetry_axis == "XY":
+        // Position 2: -X, Y, Z
+        push(result, -brush_x)
+        push(result, brush_y)
+        push(result, brush_z)
+        // Position 3: X, -Y, Z
+        push(result, brush_x)
+        push(result, -brush_y)
+        push(result, brush_z)
+        // Position 4: -X, -Y, Z
+        push(result, -brush_x)
+        push(result, -brush_y)
+        push(result, brush_z)
+        return result
+
+    // For any unrecognized axis, return just the original position
+    return result
