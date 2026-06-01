@@ -1,5 +1,20 @@
 # Kain Memory
 
+# 2026-05-31 - parallel strike planner skill added for same-checkout agent plans
+
+What changed:
+
+- Added `.agents/skills/tool-parallel-strike-planner/` as the repo-local skill for authoring new multi-agent strike folders under `plans/`.
+- Added `scripts/scaffold_parallel_strike_plan.py` to generate the standard strike shape: `README.md` plus one lane brief per agent.
+- The skill codifies the repo's strongest strike rule: lanes may have a merge order, but they must still be able to start immediately in one shared checkout with no worktrees and no "wait for Alpha first" sequencing.
+- Registered the skill in `.agents/skills/TAXONOMY.md`.
+
+Operational notes:
+
+- If a proposed lane needs another lane to finish before it can begin, the boundary is wrong or a seam-splitting prepass is missing.
+- Reserve cold-merge files such as manifests, Bazel mirrors, or generated metadata to one finisher lane or to explicit consolidation.
+- The `init_skill.py` scaffold can lose the leading `$` in `agents/openai.yaml` default prompts under PowerShell argument expansion; fix that after initialization.
+
 # 2026-05-31 - semantic final-pass domain oracle wired across compiler and GPU diagnostics
 
 What changed:

@@ -40,6 +40,7 @@ This file is only the live skill split for current agents.
 - `package-vulkain`
 - `wildcard-justwritebro`
 - `tool-build-system`
+- `tool-parallel-strike-planner`
 - `tool-z3-black-magic`
 - `tool-z3-bug-hunter`
 - `tool-release-readiness`
@@ -54,6 +55,7 @@ This file is only the live skill split for current agents.
 - Use `lang-c-abi` for canonical `include ... as ...` local C header imports, built-in `include <...> as alias` system-header imports, explicit/runtime `use c::...`, `use rust::...`, `kain import-c`, `kain import platform`, DLLs, platform packages, bridge metadata, handles, callbacks, strings, buffers, and general native package surfaces.
 - Keep `wildcard-*` rare and explicit. They are authoring overrides, not replacements for the owning `lang-*` field manuals.
 - `tool-build-system` is the single build/Bazel/operator lane.
+- `tool-parallel-strike-planner` is the same-checkout multi-agent planning lane for `plans/` folders that need README plus per-agent briefs with immediately-startable parallel ownership.
 - `tool-z3-bug-hunter` is the logging-only sibling of `tool-z3-black-magic`: use it to inventory reproducible bugs and edge cases, not to patch them inline.
 - `package-*` should stay rare and only exist for real package surfaces.
 
