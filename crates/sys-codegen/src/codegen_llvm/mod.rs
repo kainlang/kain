@@ -8078,6 +8078,7 @@ impl LlvmGenerator {
         span: Span,
     ) -> KainResult<(String, String)> {
         let stored_value_nonnegative = self.expr_is_proven_nonnegative_i64(value);
+        let helper_owned_transfers = self.helper_owned_pointer_mem_store_transfer_locals(value);
         let (stored_value, stored_ty) = self.compile_expr(value)?;
         if let Some((typed_ptr, alignment)) =
             self.compile_ephemeral_typed_memory_pointer(pointer, &stored_ty)?
@@ -8092,6 +8093,7 @@ impl LlvmGenerator {
                 &stored_ty,
                 stored_value_nonnegative,
             );
+            self.mark_helper_owned_pointer_transfers(&helper_owned_transfers);
             return Ok((stored_value, stored_ty));
         }
         if let Some((ptr_i8, witness)) = self.compile_ephemeral_storage_i8_pointer(pointer)? {
@@ -8114,6 +8116,7 @@ impl LlvmGenerator {
                     &stored_ty,
                     stored_value_nonnegative,
                 );
+                self.mark_helper_owned_pointer_transfers(&helper_owned_transfers);
                 return Ok((stored_value, stored_ty));
             }
         }
@@ -8123,6 +8126,7 @@ impl LlvmGenerator {
             "  store {} {}, {}* {}, align {}",
             stored_ty, stored_value, stored_ty, typed_ptr, alignment
         ));
+        self.mark_helper_owned_pointer_transfers(&helper_owned_transfers);
 
         Ok((stored_value, stored_ty))
     }
@@ -8670,6 +8674,41 @@ impl LlvmGenerator {
             return;
         }
         self.emit(&format!("  store i8* null, i8** {}", addr));
+    }
+
+    fn collect_helper_owned_pointer_mem_store_transfer_locals(
+        &self,
+        expr: &Expr,
+        transfers: &mut HashSet<String>,
+    ) {
+        match Self::expr_strip_parens(expr) {
+            Expr::Ident(name, _) => {
+                if self.helper_owned_pointer_locals.contains_key(name) {
+                    transfers.insert(name.clone());
+                }
+            }
+            Expr::Cast { value, target, .. } | Expr::Bitcast { value, target, .. } => {
+                let target_ty = self.map_type_from_ast(target);
+                if target_ty == "i64" || target_ty.ends_with('*') {
+                    self.collect_helper_owned_pointer_mem_store_transfer_locals(value, transfers);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn helper_owned_pointer_mem_store_transfer_locals(&self, expr: &Expr) -> HashSet<String> {
+        let mut transfers = HashSet::new();
+        self.collect_helper_owned_pointer_mem_store_transfer_locals(expr, &mut transfers);
+        transfers
+    }
+
+    fn mark_helper_owned_pointer_transfers(&mut self, transfers: &HashSet<String>) {
+        for name in transfers {
+            if self.helper_owned_pointer_locals.remove(name).is_some() {
+                self.borrowed_locals.insert(name.clone());
+            }
+        }
     }
 
     fn invalidate_consumed_helper_realloc_source_for_let(&mut self, value: &Expr) {
@@ -13144,6 +13183,9 @@ impl LlvmGenerator {
         // 2c. Register StdLib functions
         let stdlib = kain_core::stdlib::StdLib::new();
         for (name, func) in stdlib.functions {
+            if self.functions.contains_key(&name) {
+                continue;
+            }
             let ret_ty = self.map_type_from_str(func.return_type);
             if let Some(element_ty) =
                 self.stringified_runtime_array_element_llvm_ty(func.return_type)
@@ -15116,10 +15158,13 @@ impl LlvmGenerator {
         let mut last_res = None;
         let mut last_is_new = false;
         let mut last_owns_json = false;
+        let mut last_helper_owned_transfers = HashSet::new();
 
         for (i, stmt) in block.stmts.iter().enumerate() {
             if i == block.stmts.len() - 1 {
                 if let Stmt::Expr(expr) = stmt {
+                    last_helper_owned_transfers =
+                        self.helper_owned_pointer_transfer_locals_for_expr(expr);
                     let (val, ty) = self.compile_expr(expr)?;
                     last_res = Some((val, ty));
                     last_is_new = self.is_new_object(expr);
@@ -15182,7 +15227,7 @@ impl LlvmGenerator {
             }
         }
 
-        self.emit_scope_exit();
+        self.emit_scope_exit_except(&last_helper_owned_transfers);
         self.forwarded_mem_slot_scopes.pop();
         self.known_nonnegative_i64_scopes.pop();
         self.known_i64_literal_scopes.pop();
@@ -15303,7 +15348,15 @@ impl LlvmGenerator {
     }
 
     fn emit_scope_cleanup_for_vars(&mut self, vars: &[String]) {
+        let skipped = HashSet::new();
+        self.emit_scope_cleanup_for_vars_except(vars, &skipped);
+    }
+
+    fn emit_scope_cleanup_for_vars_except(&mut self, vars: &[String], skipped: &HashSet<String>) {
         for var_name in vars.iter().rev() {
+            if skipped.contains(var_name) {
+                continue;
+            }
             self.sealed_literal_map_locals.remove(var_name);
             self.runtime_array_locals.remove(var_name);
             if let Some((addr, ty)) = self.locals.get(var_name).cloned() {
@@ -15346,12 +15399,22 @@ impl LlvmGenerator {
     }
 
     fn emit_scope_exit(&mut self) {
+        let skipped = HashSet::new();
+        self.emit_scope_exit_except(&skipped);
+    }
+
+    fn emit_scope_exit_except(&mut self, skipped: &HashSet<String>) {
         if let Some(vars) = self.scopes.pop() {
-            self.emit_scope_cleanup_for_vars(&vars);
+            self.emit_scope_cleanup_for_vars_except(&vars, skipped);
         }
     }
 
     fn emit_all_scopes_cleanup(&mut self) {
+        let skipped = HashSet::new();
+        self.emit_all_scopes_cleanup_except(&skipped);
+    }
+
+    fn emit_all_scopes_cleanup_except(&mut self, skipped: &HashSet<String>) {
         let mut vars_to_release = Vec::new();
         for scope in self.scopes.iter().rev() {
             for var in scope.iter().rev() {
@@ -15360,6 +15423,9 @@ impl LlvmGenerator {
         }
 
         for var_name in vars_to_release {
+            if skipped.contains(&var_name) {
+                continue;
+            }
             if let Some((addr, ty)) = self.locals.get(&var_name).cloned() {
                 if self.borrowed_locals.contains(&var_name) {
                     continue;
@@ -15394,6 +15460,58 @@ impl LlvmGenerator {
                 }
             }
         }
+    }
+
+    fn collect_helper_owned_pointer_transfer_locals(
+        &self,
+        expr: &Expr,
+        transfers: &mut HashSet<String>,
+    ) {
+        match Self::expr_strip_parens(expr) {
+            Expr::Ident(name, _) => {
+                if self.helper_owned_pointer_locals.contains_key(name) {
+                    transfers.insert(name.clone());
+                }
+            }
+            Expr::Struct { fields, rest, .. } => {
+                for (_, value) in fields {
+                    self.collect_helper_owned_pointer_transfer_locals(value, transfers);
+                }
+                if let Some(rest) = rest {
+                    self.collect_helper_owned_pointer_transfer_locals(rest, transfers);
+                }
+            }
+            Expr::AggregateInit { fields, .. } => {
+                for (_, value) in fields {
+                    self.collect_helper_owned_pointer_transfer_locals(value, transfers);
+                }
+            }
+            Expr::Tuple(items, _) => {
+                for item in items {
+                    self.collect_helper_owned_pointer_transfer_locals(item, transfers);
+                }
+            }
+            Expr::EnumVariant { fields, .. } => match fields {
+                kain_core::ast::EnumVariantFields::Unit => {}
+                kain_core::ast::EnumVariantFields::Tuple(items) => {
+                    for item in items {
+                        self.collect_helper_owned_pointer_transfer_locals(item, transfers);
+                    }
+                }
+                kain_core::ast::EnumVariantFields::Struct(items) => {
+                    for (_, value) in items {
+                        self.collect_helper_owned_pointer_transfer_locals(value, transfers);
+                    }
+                }
+            },
+            _ => {}
+        }
+    }
+
+    fn helper_owned_pointer_transfer_locals_for_expr(&self, expr: &Expr) -> HashSet<String> {
+        let mut transfers = HashSet::new();
+        self.collect_helper_owned_pointer_transfer_locals(expr, &mut transfers);
+        transfers
     }
 
     fn match_fallback_value_for_type(&self, ty: &str) -> Option<String> {
@@ -15825,6 +15943,8 @@ impl LlvmGenerator {
                             e.span(),
                         ));
                     }
+                    let helper_owned_transfers =
+                        self.helper_owned_pointer_transfer_locals_for_expr(e);
                     let (val, ty) = if let Some(target_ty) = self.current_return_type.clone() {
                         self.compile_expr_for_target_type(e, &target_ty)?
                     } else {
@@ -15847,7 +15967,7 @@ impl LlvmGenerator {
                         self.emit(&format!("  call void @json_retain(i64 {})", val));
                     }
 
-                    self.emit_all_scopes_cleanup();
+                    self.emit_all_scopes_cleanup_except(&helper_owned_transfers);
                     if let Some(patch_name) = self.current_patch_name.clone() {
                         let patch_name_ptr = self.compile_static_c_string_literal(&patch_name);
                         let status = self.next_reg();
@@ -16436,6 +16556,57 @@ impl LlvmGenerator {
                 ));
                 return Ok(("0".into(), "i64".into()));
             }
+
+            let (map_value, map_ty) = self.compile_expr(&args[0].value)?;
+            let (key_value, key_ty) = self.compile_expr(&args[1].value)?;
+            let (mut value, mut value_ty) = self.compile_expr(&args[2].value)?;
+            if matches!(value_ty.as_str(), "i32" | "i8" | "i1" | "double") {
+                value = self.cast_numeric_value(value, &value_ty, "i64")?;
+                value_ty = "i64".to_string();
+            }
+            if value_ty == "i8*" || value_ty.starts_with('%') {
+                let int_val = self.next_reg();
+                self.emit(&format!(
+                    "  {} = ptrtoint {} {} to i64",
+                    int_val, value_ty, value
+                ));
+                value = int_val;
+                value_ty = "i64".to_string();
+            }
+            if map_ty != "i64" || key_ty != "i8*" || value_ty != "i64" {
+                return Err(KainError::codegen(
+                    format!(
+                        "map_set expects native map, string key, and i64-compatible value; found {}, {}, {}",
+                        map_ty, key_ty, value_ty
+                    ),
+                    args[0].value.span(),
+                ));
+            }
+            self.emit(&format!(
+                "  call void @map_set(i64 {}, i8* {}, i64 {})",
+                map_value, key_value, value
+            ));
+            return Ok(("0".into(), "i64".into()));
+        }
+
+        if func_name == "map_get" && args.len() == 2 {
+            let (map_value, map_ty) = self.compile_expr(&args[0].value)?;
+            let (key_value, key_ty) = self.compile_expr(&args[1].value)?;
+            if map_ty != "i64" || key_ty != "i8*" {
+                return Err(KainError::codegen(
+                    format!(
+                        "map_get expects native map and string key; found {} and {}",
+                        map_ty, key_ty
+                    ),
+                    args[0].value.span(),
+                ));
+            }
+            let result = self.next_reg();
+            self.emit(&format!(
+                "  {} = call i64 @map_get(i64 {}, i8* {})",
+                result, map_value, key_value
+            ));
+            return Ok((result, "i64".to_string()));
         }
 
         if func_name == "byte_at" && args.len() == 2 {
@@ -17294,6 +17465,20 @@ impl LlvmGenerator {
                 field,
                 span,
             } => {
+                if self.field_parent_struct_name(object).is_some() {
+                    let (field_ptr, field_ty, _, is_mmio_volatile) =
+                        self.compile_field_addressable_ptr(object, field, *span)?;
+                    let loaded = self.next_reg();
+                    self.emit(&format!(
+                        "  {} = load {}{}, {}* {}",
+                        loaded,
+                        if is_mmio_volatile { "volatile " } else { "" },
+                        field_ty,
+                        field_ty,
+                        field_ptr
+                    ));
+                    return Ok((loaded, field_ty));
+                }
                 let (object_value, object_ty) = self.compile_expr(object)?;
                 if object_ty == "i64" {
                     let field_name = self.compile_expr(&Expr::String(field.clone(), *span))?;
@@ -19043,17 +19228,32 @@ mod tests {
     use kain_core::types;
 
     fn generate_llvm_or_error(source: &str) -> Result<String, String> {
+        generate_llvm_or_error_with_filename(source, "<llvm-test>")
+    }
+
+    fn generate_llvm_or_error_with_filename(
+        source: &str,
+        filename: &str,
+    ) -> Result<String, String> {
         let tokens = Lexer::new(source)
             .tokenize()
             .map_err(|err| err.to_string())?;
         let mapper = SpanMapper::new(source);
-        let ast = Parser::new(&tokens, &mapper, "<llvm-test>")
+        let ast = Parser::new(&tokens, &mapper, filename)
             .parse()
             .map_err(|err| err.to_string())?;
-        let typed = types::check(&ast, &mapper, "<llvm-test>").map_err(|err| err.to_string())?;
+        let typed = types::check(&ast, &mapper, filename).map_err(|err| err.to_string())?;
         generate(&typed)
             .map(|bytes| String::from_utf8(bytes).expect("utf8 llvm output"))
             .map_err(|err| err.to_string())
+    }
+
+    fn repo_test_path(relative: &str) -> String {
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../..")
+            .join(relative)
+            .to_string_lossy()
+            .replace('\\', "/")
     }
 
     #[test]
@@ -19341,6 +19541,99 @@ fn capture(text: String) -> Int:
             .expect("runtime array push should be present");
 
         assert!(retain_index < push_index);
+    }
+
+    #[test]
+    fn transfers_helper_owned_pointers_through_value_struct_returns() {
+        let source = r#"
+struct Bag:
+    buf: ptr<Int>
+    count: Int
+
+fn make() -> Bag with Unsafe:
+    let buf = alloc_zeroed(4, "Int")
+    return Bag { buf: buf, count: 4 }
+"#;
+        let llvm = generate_llvm_or_error(source).expect("llvm generation");
+        let make_start = llvm
+            .find("define internal %Bag @make()")
+            .expect("make function should be present in LLVM");
+        let ret_offset = llvm[make_start..]
+            .find("ret %Bag")
+            .expect("make should return Bag by value");
+        let window = &llvm[make_start..make_start + ret_offset];
+
+        assert!(
+            !window.contains("__kain_ownership_decay_helper"),
+            "helper-owned pointer moved into returned Bag must not be decayed before ret:\n{}",
+            window
+        );
+    }
+
+    #[test]
+    fn transfers_helper_owned_pointers_stored_as_raw_bits() {
+        let source = r#"
+fn store(slot: ptr<Int>) -> Int with Unsafe:
+    let buf = alloc_zeroed(4, "Int")
+    mem_store(slot, ptr_to_int(buf), "Int")
+    return 0
+"#;
+        let llvm = generate_llvm_or_error(source).expect("llvm generation");
+        let store_start = llvm
+            .find("define internal i64 @store(")
+            .expect("store function should be present in LLVM");
+        let ret_offset = llvm[store_start..]
+            .find("ret i64 0")
+            .expect("store should return 0");
+        let window = &llvm[store_start..store_start + ret_offset];
+        let ptr_to_int = window
+            .find("ptrtoint i8*")
+            .expect("store should lower ptr_to_int(buf)");
+        let after_transfer = &window[ptr_to_int..];
+
+        assert!(
+            !after_transfer.contains("store i8* null, i8** %buf.addr_"),
+            "raw-bit transfer must keep the local readable as a non-owning value:\n{}",
+            window
+        );
+        assert!(
+            !after_transfer.contains("__kain_ownership_decay_helper"),
+            "helper-owned pointer stored through mem_store must not be decayed during cleanup:\n{}",
+            window
+        );
+    }
+
+    #[test]
+    fn authored_stdlib_signature_overrides_catalog_any_stub() {
+        let source = format!(
+            "{}\n\n{}",
+            include_str!("../../../../stdlib/fs.kn"),
+            r#"
+fn main() -> Int:
+    let path = fs_temp_file("catalog-override")
+    let result = fs_try_write_text(path, "payload")
+    if result.ok:
+        return result.status
+    return 0
+"#
+        );
+        let llvm = generate_llvm_or_error_with_filename(&source, &repo_test_path("stdlib/fs.kn"))
+            .expect("llvm generation");
+        let main_start = llvm
+            .find("define i64 @main()")
+            .expect("main function should be present in LLVM");
+        let main_window = &llvm[main_start..llvm.len().min(main_start + 1400)];
+
+        assert!(
+            main_window.contains("call %FsOpResult* @fs_try_write_text"),
+            "authored stdlib-compatible function must keep its concrete struct return:\n{}",
+            main_window
+        );
+        assert!(
+            !main_window.contains("py_getattr_raw"),
+            "concrete Kain struct field access must not fall back to Python getattr:\n{}",
+            main_window
+        );
     }
 
     #[test]

@@ -1530,6 +1530,9 @@ fn run_source_with_session(
                     if target == CompileTarget::Llvm {
                         cmd.arg("-Wno-override-module");
                     }
+                    if cfg!(windows) {
+                        cmd.arg("-Wl,/subsystem:console");
+                    }
                     native_toolchain_tuning.apply_link_gc_flags(&mut cmd);
 
                     for link_input in cffi_link_inputs.link_inputs {

@@ -1,0 +1,23 @@
+{
+  "mode": "full",
+  "category": "semantics",
+  "track": "semantics.entangle",
+  "lane": "entangle",
+  "offset": 700,
+  "status": 0,
+  "ok": 1,
+  "started_ms": 25,
+  "ended_ms": 25,
+  "elapsed_ms": 0,
+  "track_checksum": 14782,
+  "composition_checksum": 42514,
+  "cpu_feature_fingerprint": -7409408978278525106,
+  "patch_journal_count": 0,
+  "entangle_propagation_count": 0,
+  "converge_mismatch_count": 0,
+  "runtime_converge_telemetry_count": 0,
+  "runtime_machine_teleport_count": 2,
+  "runtime_machine_pulse_total_fire_count": 2,
+  "actor_scheduler_queue_depth": 0,
+  "actor_scheduler_total_enqueued": 0
+}

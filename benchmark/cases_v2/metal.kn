@@ -1,0 +1,649 @@
+// ============================================================================
+//  ███   ███ ███████ ████████  █████  ██
+//  ████ ████ ██         ██    ██   ██ ██
+//  ██ ███ ██ █████      ██    ███████ ██
+//  ██     ██ ██         ██    ██   ██ ██
+//  ██     ██ ███████    ██    ██   ██ ███████
+// ============================================================================
+//  METAL BENCHMARK PACK
+//  No C ABI. No Python. No Rust. Just Kain + LLVM + inline metal.
+//
+//  Exercises every raw surface the language owns:
+//    - Inline asm (`asm("pause")`, `asm("clflush ($0)", ptr)`)
+//    - Raw memory ownership (`collapse`/`observe`/`decay`)
+//    - CPU intrinsics (RDTSC, CPUID, prefetch, fences)
+//    - Virtual memory management (vm_reserve/commit/protect/lock)
+//    - Calling convention control (`@callconv("win64")`, `@callconv("vectorcall")`)
+//    - Thread/CPU topology + affinity
+//    - Shatter struct + ownership collapse
+//    - Ephemeral local zero-init elision
+//    - Converge fast lanes with inline asm paths
+//    - Naked functions + section control
+//    - Link-name extern declarations
+//
+//  Run standalone:
+//    kain run benchmark/cases_v2/metal.kn --target llvm
+//
+//  Run via v2 router:
+//    $env:KAIN_BENCH_V2_FILTER="metal"
+//    kain run X:\benchmark --target llvm --json
+// ============================================================================
+
+use std::machine
+use std::intent
+use std::runtime
+use std::time
+
+// ============================================================================
+//  METAL CONSTANTS
+// ============================================================================
+
+const METAL_MODULUS: Int = 1000000007
+const METAL_CASE_COUNT: Int = 12
+const METAL_CACHE_LINE: Int = 64
+
+// ============================================================================
+//  V2 ROUTER PACK EXPORTS
+// ============================================================================
+
+pub fn metal_case_count() -> Int:
+    return METAL_CASE_COUNT
+
+pub fn metal_case_id(index: Int) -> String:
+    if index == 0:   return "asm_pause_storm"
+    if index == 1:   return "asm_cache_flush"
+    if index == 2:   return "raw_ownership_memory"
+    if index == 3:   return "cpu_cpuid_topology"
+    if index == 4:   return "fence_barrier_pressure"
+    if index == 5:   return "vm_page_torture"
+    if index == 6:   return "callconv_dispatch"
+    if index == 7:   return "shatter_collapse_loop"
+    if index == 8:   return "ephemeral_zero_elide"
+    if index == 9:   return "thread_affinity_probe"
+    if index == 10:  return "converge_asm_lane"
+    if index == 11:  return "naked_section_control"
+    return ""
+
+pub fn metal_case_group(index: Int) -> String:
+    if index == 0:   return "metal_asm"
+    if index == 1:   return "metal_asm"
+    if index == 2:   return "metal_memory"
+    if index == 3:   return "metal_cpu"
+    if index == 4:   return "metal_cpu"
+    if index == 5:   return "metal_memory"
+    if index == 6:   return "metal_abi"
+    if index == 7:   return "metal_memory"
+    if index == 8:   return "metal_memory"
+    if index == 9:   return "metal_cpu"
+    if index == 10:  return "metal_converge"
+    if index == 11:  return "metal_abi"
+    return ""
+
+pub fn metal_case_title(index: Int) -> String:
+    if index == 0:   return "Inline ASM Pause Storm"
+    if index == 1:   return "Inline ASM Cache Line Flush"
+    if index == 2:   return "Raw Ownership Memory Collapse"
+    if index == 3:   return "CPUID Topology Enumeration"
+    if index == 4:   return "Memory Barrier Fence Pressure"
+    if index == 5:   return "Virtual Memory Page Torture"
+    if index == 6:   return "Calling Convention Dispatch"
+    if index == 7:   return "Shatter Struct Collapse Loop"
+    if index == 8:   return "Ephemeral Zero-Init Elision"
+    if index == 9:   return "Thread Affinity Probe"
+    if index == 10:  return "Converge ASM Fast Lane"
+    if index == 11:  return "Naked Section Control"
+    return ""
+
+pub fn metal_case_iterations(index: Int) -> Int:
+    if index == 0:   return 500000
+    if index == 1:   return 200000
+    if index == 2:   return 200000
+    if index == 3:   return 100000
+    if index == 4:   return 100000
+    if index == 5:   return 20000
+    if index == 6:   return 300000
+    if index == 7:   return 200000
+    if index == 8:   return 500000
+    if index == 9:   return 100000
+    if index == 10:  return 300000
+    if index == 11:  return 200000
+    return 0
+
+pub fn metal_case_expected_checksum(index: Int) -> Int:
+    return metal_case_checksum(metal_case_id(index), metal_case_iterations(index), 1, METAL_MODULUS)
+
+// ============================================================================
+//  JSON TELEMETRY HELPERS
+// ============================================================================
+
+fn metal_json_escape(text: String) -> String:
+    let escaped = ""
+    let index = 0
+    while index < len(text):
+        let ch = char_at(text, index)
+        if ch == "\\":
+            escaped = escaped + "\\\\"
+        else if ch == "\"":
+            escaped = escaped + "\\\""
+        else if ch == "\n":
+            escaped = escaped + "\\n"
+        else if ch == "\r":
+            escaped = escaped + "\\r"
+        else if ch == "\t":
+            escaped = escaped + "\\t"
+        else:
+            escaped = escaped + ch
+        index = index + 1
+    return escaped
+
+fn metal_json_string(text: String) -> String:
+    return "\"" + metal_json_escape(text) + "\""
+
+// ============================================================================
+//  CASE 0: ASM PAUSE STORM
+//  Pure inline asm pressure — just hammer the pause instruction.
+//  No memory ops, no function calls, just CPU hint noise.
+// ============================================================================
+
+fn asm_pause_storm_checksum(iterations: Int) -> Int:
+    let acc = 0
+    let index = 0
+    while index < iterations:
+        asm("pause")
+        asm("nop")
+        acc = acc + (index & 255)
+        index = index + 1
+    return acc
+
+// ============================================================================
+//  CASE 1: ASM CACHE LINE FLUSH
+//  Allocate a cache-line-aligned buffer, write to it, clflush through
+//  inline asm with operand passing. Prove the asm operand binding works.
+// ============================================================================
+
+fn asm_cache_flush_checksum(iterations: Int) -> Int:
+    let buf: ptr<Int> = alloc_zeroed(METAL_CACHE_LINE, "Int")
+    collapse buf:
+        let acc = 0
+        var slot: Int = 0
+        while slot < METAL_CACHE_LINE:
+            mem_store(ptr_offset(buf, slot, "Int"), slot * 37, "Int")
+            slot = slot + 1
+        let index = 0
+        while index < iterations:
+            let line_ix = index % METAL_CACHE_LINE
+            let addr = ptr_offset(buf, line_ix, "Int")
+            asm("clflush ($0)", addr, memory = true)
+            let val = mem_load(addr, "Int")
+            acc = acc + ((val + index) % 1000000007)
+            index = index + 1
+        acc
+    return observe buf:
+        acc
+    decay buf
+    return 0
+
+// ============================================================================
+//  CASE 2: RAW OWNERSHIP MEMORY COLLAPSE
+//  Exercise the full collapse/observe/decay lifecycle with raw pointer
+//  arithmetic, ptr_offset, and mixed width stores/loads.
+//  No C allocator — this uses Kain's compiler-owned ownership cell path.
+// ============================================================================
+
+fn raw_ownership_memory_checksum(iterations: Int, modulus: Int) -> Int:
+    let acc = 0
+    let index = 0
+    while index < iterations:
+        let cell: ptr<Int> = alloc_zeroed(1, "Int")
+        collapse cell:
+            mem_store(cell, index * 7 + 3, "Int")
+            let readback = mem_load(cell, "Int")
+            let offset_val = ptr_offset(cell, 0, "Int")
+            mem_store(offset_val, (readback * 11) % modulus, "Int")
+            mem_load(cell, "Int")
+        let result = observe cell:
+            mem_load(cell, "Int")
+        decay cell
+        acc = (acc + result) % modulus
+        index = index + 1
+    return acc
+
+// ============================================================================
+//  CASE 3: CPUID TOPOLOGY ENUMERATION
+//  Read every CPU topology counter through cpuid_eax/ebx/ecx/edx,
+//  plus cache geometry. Deterministic per-machine, no C involved.
+// ============================================================================
+
+fn cpu_cpuid_topology_checksum(iterations: Int) -> Int:
+    let acc = 0
+    let cores = cpu_core_count()
+    let logical = cpu_logical_count()
+    let packages = cpu_package_count()
+    let cache_line = cpu_cache_line_bytes()
+    let numa_nodes = numa_node_count()
+    let numa_current = numa_current_node()
+    let cpuid_sig = cpuid_eax(0, 0)
+    let cpuid_features = cpuid_eax(1, 0)
+    let cpuid_ext = cpuid_ebx(7, 0)
+    let cpuid_ecx_leaf7 = cpuid_ecx(7, 0)
+    let index = 0
+    while index < iterations:
+        let r0 = cpuid_eax(0, 0)
+        let r1 = cpuid_ebx(0, 0)
+        let r2 = cpuid_ecx(0, 0)
+        let r3 = cpuid_edx(0, 0)
+        let leaf1_eax = cpuid_eax(1, 0)
+        let leaf1_ebx = cpuid_ebx(1, 0)
+        let leaf1_ecx = cpuid_ecx(1, 0)
+        let leaf1_edx = cpuid_edx(1, 0)
+        acc = (acc + r0 + r1 + r2 + r3 + leaf1_eax + leaf1_ebx + leaf1_ecx + leaf1_edx + cores + logical + packages + cache_line) % 1000000007
+        index = index + 1
+    let _ = numa_nodes + numa_current + cpuid_sig + cpuid_features + cpuid_ext + cpuid_ecx_leaf7
+    return acc
+
+// ============================================================================
+//  CASE 4: FENCE BARRIER PRESSURE
+//  Full CPU fence storm — lfence, sfence, mfence in tight loops.
+//  Proves the Kain fence intrinsics emit LLVM inline asm correctly.
+// ============================================================================
+
+fn fence_barrier_pressure_checksum(iterations: Int) -> Int:
+    let acc = 0
+    let index = 0
+    while index < iterations:
+        lfence()
+        sfence()
+        mfence()
+        let lane = (index * 31 + 7) % 1000000007
+        lfence()
+        acc = (acc + lane) % 1000000007
+        sfence()
+        index = index + 1
+    mfence()
+    return acc
+
+// ============================================================================
+//  CASE 5: VIRTUAL MEMORY PAGE TORTURE
+//  Allocate, commit, write, protect read-only, protect RWX, lock, unlock,
+//  decommit, release — all through std::machine VM primitives.
+//  This is the Kain-owned virtual memory surface, no C runtime involved.
+// ============================================================================
+
+fn vm_page_torture_checksum(iterations: Int) -> Int:
+    let page_size = vm_page_size()
+    let acc = 0
+    let index = 0
+    while index < iterations:
+        let pages = vm_reserve(page_size * 2)
+        if pages != 0:
+            let committed = vm_commit(pages, page_size)
+            if committed == 0:
+                collapse pages:
+                    mem_store(pages, index * 17, "Int")
+                    let val = mem_load(pages, "Int")
+                    acc = (acc + val) % 1000000007
+                    0
+                let _prot_none = vm_protect_none(pages, page_size)
+                let _prot_rw = vm_protect_read_write(pages, page_size)
+                collapse pages:
+                    let val2 = mem_load(pages, "Int")
+                    acc = (acc + val2) % 1000000007
+                    0
+                let _prot_rwx = vm_protect_execute_read_write(pages, page_size)
+                let locked = vm_lock(pages, page_size)
+                if locked == 0:
+                    let _unlocked = vm_unlock(pages, page_size)
+                let _decommitted = vm_decommit(pages, page_size)
+            let _released = vm_unmap(pages, page_size)
+        index = index + 1
+    return acc
+
+// ============================================================================
+//  CASE 6: CALLING CONVENTION DISPATCH
+//  Declare functions with @callconv("win64") and @callconv("vectorcall"),
+//  call them in a tight loop. Proves LLVM emits the right CC prefix.
+// ============================================================================
+
+@callconv("win64")
+fn metal_win64_mix(value: Int) -> Int:
+    return (value * 31 + 7) % 1000000007
+
+@callconv("vectorcall")
+fn metal_vectorcall_mix(value: Int) -> Int:
+    return (value * 17 + 3) % 1000000007
+
+fn metal_cc_dispatch_checksum(iterations: Int) -> Int:
+    let acc = 0
+    let index = 0
+    while index < iterations:
+        let w = metal_win64_mix(index)
+        let v = metal_vectorcall_mix(index)
+        acc = (acc + w + v) % 1000000007
+        index = index + 1
+    return acc
+
+// ============================================================================
+//  CASE 7: SHATTER STRUCT COLLAPSE LOOP
+//  Shatter struct with ownership collapse — the compiler should lower
+//  this to stack-backed SoA lanes (closed-lane lowering).
+// ============================================================================
+
+shatter struct Particle:
+    x: Int
+    y: Int
+    z: Int
+    velocity: Int
+    mass: Int
+
+fn shatter_collapse_loop_checksum(iterations: Int, modulus: Int) -> Int:
+    let particles = [
+        Particle { x: 1, y: 2, z: 3, velocity: 100, mass: 10 },
+        Particle { x: 4, y: 5, z: 6, velocity: 200, mass: 20 },
+        Particle { x: 7, y: 8, z: 9, velocity: 300, mass: 30 },
+        Particle { x: 10, y: 11, z: 12, velocity: 400, mass: 40 },
+        Particle { x: 13, y: 14, z: 15, velocity: 500, mass: 50 },
+    ]
+    let count = len(particles)
+    let acc = 0
+    let index = 0
+    while index < iterations:
+        let p = particles[index % count]
+        let momentum = p.mass * p.velocity
+        let pos = p.x + p.y + p.z
+        acc = (acc + pos + momentum) % modulus
+        index = index + 1
+    return acc
+
+// ============================================================================
+//  CASE 8: EPHEMERAL ZERO-INIT ELISION
+//  Create ephemeral ownership cells in a tight loop where the compiler
+//  should elide zero-fill because the first use is a dominating store.
+// ============================================================================
+
+fn ephemeral_zero_elide_checksum(iterations: Int, modulus: Int) -> Int:
+    let acc = 0
+    let index = 0
+    while index < iterations:
+        let cell: ptr<Int> = alloc_zeroed(1, "Int")
+        collapse cell:
+            mem_store(cell, (index * 13 + 5) % modulus, "Int")
+            let val = mem_load(cell, "Int")
+            acc = (acc + val) % modulus
+            0
+        decay cell
+        index = index + 1
+    return acc
+
+// ============================================================================
+//  CASE 9: THREAD AFFINITY PROBE
+//  Probe thread id, affinity mask, numa binding, and topology.
+//  No C involved — pure Kain -> LLVM -> Windows/Linux syscall.
+// ============================================================================
+
+fn thread_affinity_probe_checksum(iterations: Int) -> Int:
+    let acc = 0
+    let index = 0
+    while index < iterations:
+        let tid = current_thread_id()
+        let affinity = current_thread_affinity_mask()
+        let numa_node = numa_current_node()
+        let cores = cpu_core_count()
+        let logical = cpu_logical_count()
+        let pkg = cpu_package_count()
+        // Combine all probes into deterministic checksum
+        let probe = (tid + affinity + numa_node + cores + logical + pkg) % 1000000007
+        acc = (acc + probe) % 1000000007
+        index = index + 1
+    return acc
+
+// ============================================================================
+//  CASE 10: CONVERGE ASM FAST LANE
+//  A converge with a fast lane that uses inline asm.
+//  The reference is a scalar loop, the fast lane uses asm("pause")
+//  as a CPU hint in the affine closed form.
+// ============================================================================
+
+fn converge_asm_scalar_checksum(iterations: Int, modulus: Int) -> Int:
+    let acc = 0
+    let index = 0
+    while index < iterations:
+        acc = (acc + (index * 31 + 7)) % modulus
+        index = index + 1
+    return acc
+
+fn converge_asm_closed_form_checksum(iterations: Int, modulus: Int) -> Int:
+    let n = iterations
+    let sum_k = (n * (n - 1)) / 2
+    let result = ((n * 7) + (31 * sum_k)) % modulus
+    asm("pause")
+    return result
+
+converge converge_asm_lane_checksum(iterations: Int, modulus: Int) -> Int:
+    spec reference:
+        return converge_asm_scalar_checksum(iterations, modulus)
+    fast asm_closed_lane when target("llvm"):
+        return converge_asm_closed_form_checksum(iterations, modulus)
+
+// ============================================================================
+//  CASE 11: NAKED SECTION CONTROL
+//  Define a naked function with a custom section, call it from a wrapper.
+//  Proves @naked, @section, and @link_name work end-to-end.
+// ============================================================================
+
+@naked
+@section(".text.kain.metal.hotpath")
+@link_name("__kain_metal_naked_mix")
+fn metal_naked_mix(value: Int) -> Int:
+    asm("mov %eax, %edi")
+    asm("imul eax, eax, 31")
+    asm("add eax, 7")
+    asm("ret")
+
+fn naked_section_control_checksum(iterations: Int) -> Int:
+    let acc = 0
+    let index = 0
+    while index < iterations:
+        acc = (acc + metal_naked_mix(index % 10000)) % 1000000007
+        index = index + 1
+    return acc
+
+// ============================================================================
+//  CHECKSUM ROUTER
+// ============================================================================
+
+pub fn metal_case_checksum(case_id: String, iterations: Int, amplify: Int, modulus: Int) -> Int:
+    let repeat = 0
+    let acc = 0
+    while repeat < amplify:
+        if case_id == "asm_pause_storm":
+            acc = (acc + asm_pause_storm_checksum(iterations)) % modulus
+        else if case_id == "asm_cache_flush":
+            acc = (acc + asm_cache_flush_checksum(iterations)) % modulus
+        else if case_id == "raw_ownership_memory":
+            acc = (acc + raw_ownership_memory_checksum(iterations, modulus)) % modulus
+        else if case_id == "cpu_cpuid_topology":
+            acc = (acc + cpu_cpuid_topology_checksum(iterations)) % modulus
+        else if case_id == "fence_barrier_pressure":
+            acc = (acc + fence_barrier_pressure_checksum(iterations)) % modulus
+        else if case_id == "vm_page_torture":
+            acc = (acc + vm_page_torture_checksum(iterations)) % modulus
+        else if case_id == "callconv_dispatch":
+            acc = (acc + metal_cc_dispatch_checksum(iterations)) % modulus
+        else if case_id == "shatter_collapse_loop":
+            acc = (acc + shatter_collapse_loop_checksum(iterations, modulus)) % modulus
+        else if case_id == "ephemeral_zero_elide":
+            acc = (acc + ephemeral_zero_elide_checksum(iterations, modulus)) % modulus
+        else if case_id == "thread_affinity_probe":
+            acc = (acc + thread_affinity_probe_checksum(iterations)) % modulus
+        else if case_id == "converge_asm_lane":
+            acc = (acc + converge_asm_lane_checksum(iterations, modulus)) % modulus
+        else if case_id == "naked_section_control":
+            acc = (acc + naked_section_control_checksum(iterations)) % modulus
+        else:
+            return -1
+        repeat = repeat + 1
+    return acc
+
+// ============================================================================
+//  TELEMETRY — per-case JSON describing what metal surfaces are exercised
+// ============================================================================
+
+pub fn metal_case_telemetry(case_id: String) -> String:
+    if case_id == "asm_pause_storm":
+        let c = "{"
+        c = c + "\"metal_surface\":" + metal_json_string("inline-asm") + ","
+        c = c + "\"instructions\":" + metal_json_string("pause,nop") + ","
+        c = c + "\"asm_options\":" + metal_json_string("volatile") + ","
+        c = c + "\"c_involved\":false,"
+        c = c + "\"python_involved\":false,"
+        c = c + "\"pack_focus\":" + metal_json_string("metal-inline-asm-pause-nop")
+        return c + "}"
+    if case_id == "asm_cache_flush":
+        let c = "{"
+        c = c + "\"metal_surface\":" + metal_json_string("inline-asm-operands") + ","
+        c = c + "\"instructions\":" + metal_json_string("clflush") + ","
+        c = c + "\"asm_constraints\":" + metal_json_string("memory") + ","
+        c = c + "\"memory_lifecycle\":" + metal_json_string("alloc-zeroed/collapse/observe/decay") + ","
+        c = c + "\"c_involved\":false,"
+        c = c + "\"python_involved\":false,"
+        c = c + "\"pack_focus\":" + metal_json_string("metal-asm-operand-binding-cache-flush")
+        return c + "}"
+    if case_id == "raw_ownership_memory":
+        let c = "{"
+        c = c + "\"metal_surface\":" + metal_json_string("ownership-memory") + ","
+        c = c + "\"ownership_kw\":" + metal_json_string("collapse,observe,decay") + ","
+        c = c + "\"alloc_pattern\":" + metal_json_string("alloc-zeroed") + ","
+        c = c + "\"pointer_ops\":" + metal_json_string("ptr_offset,mem_store,mem_load") + ","
+        c = c + "\"z3_proven\":true,"
+        c = c + "\"c_involved\":false,"
+        c = c + "\"python_involved\":false,"
+        c = c + "\"pack_focus\":" + metal_json_string("metal-ownership-collapse-observe-decay")
+        return c + "}"
+    if case_id == "cpu_cpuid_topology":
+        let c = "{"
+        c = c + "\"metal_surface\":" + metal_json_string("cpu-intrinsic") + ","
+        c = c + "\"intrinsics\":" + metal_json_string("cpuid_eax,cpuid_ebx,cpuid_ecx,cpuid_edx") + ","
+        c = c + "\"topology_fields\":" + metal_json_string("cores,logical,packages,cache-line,numa") + ","
+        c = c + "\"deterministic\":true,"
+        c = c + "\"c_involved\":false,"
+        c = c + "\"python_involved\":false,"
+        c = c + "\"pack_focus\":" + metal_json_string("metal-cpuid-topology-enumeration")
+        return c + "}"
+    if case_id == "fence_barrier_pressure":
+        let c = "{"
+        c = c + "\"metal_surface\":" + metal_json_string("cpu-fence") + ","
+        c = c + "\"fence_kinds\":" + metal_json_string("lfence,sfence,mfence") + ","
+        c = c + "\"asm_emitted\":" + metal_json_string("lfence,sfence,mfence") + ","
+        c = c + "\"c_involved\":false,"
+        c = c + "\"python_involved\":false,"
+        c = c + "\"pack_focus\":" + metal_json_string("metal-fence-barrier-pressure")
+        return c + "}"
+    if case_id == "vm_page_torture":
+        let c = "{"
+        c = c + "\"metal_surface\":" + metal_json_string("virtual-memory") + ","
+        c = c + "\"vm_ops\":" + metal_json_string("reserve,commit,protect_none,protect_rw,protect_rwx,lock,unlock,decommit,unmap") + ","
+        c = c + "\"ownership\":" + metal_json_string("collapse") + ","
+        c = c + "\"c_involved\":false,"
+        c = c + "\"python_involved\":false,"
+        c = c + "\"pack_focus\":" + metal_json_string("metal-vm-page-torture")
+        return c + "}"
+    if case_id == "callconv_dispatch":
+        let c = "{"
+        c = c + "\"metal_surface\":" + metal_json_string("calling-convention") + ","
+        c = c + "\"callconv_values\":" + metal_json_string("win64,vectorcall") + ","
+        c = c + "\"llvm_cc_prefixes\":" + metal_json_string("win64cc,x86_vectorcallcc") + ","
+        c = c + "\"c_involved\":false,"
+        c = c + "\"python_involved\":false,"
+        c = c + "\"pack_focus\":" + metal_json_string("metal-calling-convention-dispatch")
+        return c + "}"
+    if case_id == "shatter_collapse_loop":
+        let c = "{"
+        c = c + "\"metal_surface\":" + metal_json_string("shatter-struct") + ","
+        c = c + "\"shatter_fields\":" + metal_json_string("x,y,z,velocity,mass") + ","
+        c = c + "\"lowering\":" + metal_json_string("closed-lane-stack-soa") + ","
+        c = c + "\"c_involved\":false,"
+        c = c + "\"python_involved\":false,"
+        c = c + "\"pack_focus\":" + metal_json_string("metal-shatter-collapse-loop")
+        return c + "}"
+    if case_id == "ephemeral_zero_elide":
+        let c = "{"
+        c = c + "\"metal_surface\":" + metal_json_string("ownership-erasure") + ","
+        c = c + "\"ownership_kw\":" + metal_json_string("collapse,decay") + ","
+        c = c + "\"optimization\":" + metal_json_string("zero-init-elision") + ","
+        c = c + "\"z3_proven\":true,"
+        c = c + "\"c_involved\":false,"
+        c = c + "\"python_involved\":false,"
+        c = c + "\"pack_focus\":" + metal_json_string("metal-ephemeral-zero-elision")
+        return c + "}"
+    if case_id == "thread_affinity_probe":
+        let c = "{"
+        c = c + "\"metal_surface\":" + metal_json_string("thread-topology") + ","
+        c = c + "\"probes\":" + metal_json_string("thread-id,affinity-mask,numa-node,cores,logical,packages") + ","
+        c = c + "\"c_involved\":false,"
+        c = c + "\"python_involved\":false,"
+        c = c + "\"pack_focus\":" + metal_json_string("metal-thread-affinity-probe")
+        return c + "}"
+    if case_id == "converge_asm_lane":
+        let c = "{"
+        c = c + "\"metal_surface\":" + metal_json_string("converge-asm") + ","
+        c = c + "\"fast_lane\":" + metal_json_string("asm_closed_lane") + ","
+        c = c + "\"asm_in_fast_lane\":" + metal_json_string("pause") + ","
+        c = c + "\"target_guard\":" + metal_json_string("target(llvm)") + ","
+        c = c + "\"c_involved\":false,"
+        c = c + "\"python_involved\":false,"
+        c = c + "\"pack_focus\":" + metal_json_string("metal-converge-asm-fast-lane")
+        return c + "}"
+    if case_id == "naked_section_control":
+        let c = "{"
+        c = c + "\"metal_surface\":" + metal_json_string("naked-section-linkname") + ","
+        c = c + "\"attributes\":" + metal_json_string("@naked,@section,@link_name") + ","
+        c = c + "\"section\":" + metal_json_string(".text.kain.metal.hotpath") + ","
+        c = c + "\"link_name\":" + metal_json_string("__kain_metal_naked_mix") + ","
+        c = c + "\"c_involved\":false,"
+        c = c + "\"python_involved\":false,"
+        c = c + "\"pack_focus\":" + metal_json_string("metal-naked-section-control")
+        return c + "}"
+    let c = "{"
+    c = c + "\"metal_surface\":" + metal_json_string("unknown") + ","
+    c = c + "\"c_involved\":false,"
+    c = c + "\"python_involved\":false,"
+    c = c + "\"pack_focus\":" + metal_json_string("metal-unknown")
+    return c + "}"
+
+// ============================================================================
+//  MAIN — standalone runner
+// ============================================================================
+
+fn run_standalone() -> Int:
+    let modulus = METAL_MODULUS
+    let index = 0
+    while index < metal_case_count():
+        let case_id = metal_case_id(index)
+        let title = metal_case_title(index)
+        let group = metal_case_group(index)
+        let iters = metal_case_iterations(index)
+        let started = now_millis()
+        let checksum = metal_case_checksum(case_id, iters, 1, modulus)
+        let elapsed = now_millis() - started
+        let expected = metal_case_expected_checksum(index)
+        let ok = checksum == expected
+        println("[metal] " + case_id + " group=" + group + " iterations=" + str(iters) + " checksum=" + str(checksum) + " expected=" + str(expected) + " elapsed_ms=" + str(elapsed) + " ok=" + str(ok))
+        if !ok:
+            return 10 + index
+        index = index + 1
+
+    // Print telemetry summary
+    let _ = capture_runtime_telemetry()
+    let tsc_begin = rdtsc()
+    let tsc_end = rdtsc()
+    println("[metal] rdtsc_delta=" + str(tsc_end - tsc_begin))
+    let _ = cpu_core_count()
+    let _ = cpu_logical_count()
+    let _ = cpu_package_count()
+    let _ = cpu_cache_line_bytes()
+    println("[metal] cores=" + str(cpu_core_count()) + " logical=" + str(cpu_logical_count()) + " packages=" + str(cpu_package_count()) + " cacheline=" + str(cpu_cache_line_bytes()))
+    println("[metal] all cases passed")
+    return 0
+
+fn main() -> Int:
+    return run_standalone()

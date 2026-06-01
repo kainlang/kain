@@ -19,26 +19,35 @@ pub enum Ordering:
     SeqCst
 
 pub fn atomic_raw_load(address: ptr<Int>, order: Ordering) -> Int with Unsafe:
-    match order:
-        Ordering::Relaxed => return atomic_load_relaxed(address)
-        Ordering::Acquire => return atomic_load_acquire(address)
-        Ordering::SeqCst => return atomic_load_seqcst(address)
-        _ => return atomic_load_seqcst(address)
+    if order == Ordering::Relaxed:
+        return atomic_load(address, "Int", "relaxed")
+    if order == Ordering::Acquire:
+        return atomic_load(address, "Int", "acquire")
+    return atomic_load(address, "Int", "seq_cst")
 
 pub fn atomic_raw_store(address: ptr<Int>, value: Int, order: Ordering) -> Int with Unsafe:
-    match order:
-        Ordering::Relaxed => return atomic_store_relaxed(address, value)
-        Ordering::Release => return atomic_store_release(address, value)
-        Ordering::SeqCst => return atomic_store_seqcst(address, value)
-        _ => return atomic_store_seqcst(address, value)
+    if order == Ordering::Relaxed:
+        atomic_store(address, value, "Int", "relaxed")
+        return value
+    if order == Ordering::Release:
+        atomic_store(address, value, "Int", "release")
+        return value
+    atomic_store(address, value, "Int", "seq_cst")
+    return value
 
 pub fn atomic_raw_exchange(address: ptr<Int>, value: Int, order: Ordering) -> Int with Unsafe:
     if order == Ordering::SeqCst:
-        let _pre = atomic_fence_seqcst()
-        let previous = atomic_exchange_acqrel(address, value)
-        let _post = atomic_fence_seqcst()
+        atomic_fence("seq_cst")
+        let previous = atomic_exchange(address, value, "Int", "acq_rel")
+        atomic_fence("seq_cst")
         return previous
-    return atomic_exchange_acqrel(address, value)
+    return atomic_exchange(address, value, "Int", "acq_rel")
+
+pub fn atomic_raw_fetch_add(address: ptr<Int>, delta: Int) -> Int with Unsafe:
+    return atomic_add(address, delta, "Int", "acq_rel")
+
+pub fn atomic_raw_fetch_sub(address: ptr<Int>, delta: Int) -> Int with Unsafe:
+    return atomic_sub(address, delta, "Int", "acq_rel")
 
 fn atomic_failure_order(success_order: Ordering, failure_order: Ordering) -> Ordering:
     if failure_order == Ordering::Release or failure_order == Ordering::AcqRel:
@@ -82,13 +91,13 @@ pub fn atomic_raw_compare_exchange(address: ptr<Int>, expected: Int, desired: In
     return atomic_compare_exchange(address, expected, desired, "Int", "seq_cst", "relaxed")
 
 pub fn atomic_raw_fetch_and(address: ptr<Int>, mask: Int) -> Int with Unsafe:
-    return atomic_and_acqrel(address, mask)
+    return atomic_and(address, mask, "Int", "acq_rel")
 
 pub fn atomic_raw_fetch_or(address: ptr<Int>, bits: Int) -> Int with Unsafe:
-    return atomic_or_acqrel(address, bits)
+    return atomic_or(address, bits, "Int", "acq_rel")
 
 pub fn atomic_raw_fetch_xor(address: ptr<Int>, bits: Int) -> Int with Unsafe:
-    return atomic_xor_acqrel(address, bits)
+    return atomic_xor(address, bits, "Int", "acq_rel")
 
 pub fn atomic_wait(address: ptr<Int>, expected: Int, timeout_ms: Int) -> Int with Unsafe:
     return abi_atomic_wait_i64(address, expected, timeout_ms)
@@ -120,10 +129,10 @@ pub fn atomic_int_store(self: AtomicInt, value: Int, order: Ordering) -> Int wit
     return atomic_raw_store(self.ptr, value, order)
 
 pub fn atomic_int_add(self: AtomicInt, delta: Int) -> Int with Unsafe:
-    return atomic_add_acqrel(self.ptr, delta)
+    return atomic_raw_fetch_add(self.ptr, delta)
 
 pub fn atomic_int_sub(self: AtomicInt, delta: Int) -> Int with Unsafe:
-    return atomic_sub_acqrel(self.ptr, delta)
+    return atomic_raw_fetch_sub(self.ptr, delta)
 
 pub fn atomic_int_exchange(self: AtomicInt, desired: Int) -> Int with Unsafe:
     return atomic_raw_exchange(self.ptr, desired, Ordering::AcqRel)

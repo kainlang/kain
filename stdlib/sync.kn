@@ -290,8 +290,8 @@ pub struct RwLock:
     state: ptr<Int>
 
 pub fn rwlock_new() -> RwLock:
-    let state = alloc_zeroed(1, "Int")
-    return RwLock { state: state }
+    let state_cell = alloc_zeroed(1, "Int")
+    return RwLock { state: state_cell }
 
 pub fn rwlock_destroy(lock: RwLock) -> Int:
     decay lock.state
@@ -445,9 +445,9 @@ pub fn condvar_wait_mcs_timeout(cv: CondVar, lock: McsMutex, node: ptr<Int>, tim
     return wait_status
 
 pub fn condvar_notify_one(cv: CondVar) -> Int with Unsafe:
-    let _epoch = atomic_add_acqrel(cv.epoch, 1)
+    let _epoch = atomic_raw_fetch_add(cv.epoch, 1)
     return sync_atomic_notify_one(cv.epoch)
 
 pub fn condvar_notify_all(cv: CondVar) -> Int with Unsafe:
-    let _epoch = atomic_add_acqrel(cv.epoch, 1)
+    let _epoch = atomic_raw_fetch_add(cv.epoch, 1)
     return sync_atomic_notify_all(cv.epoch)

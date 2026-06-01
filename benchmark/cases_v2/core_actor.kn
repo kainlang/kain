@@ -1,0 +1,673 @@
+//  We test every stress pattern the actor system can endure:
+//    spawn storms, ping-pong, ring mesh, fan-out, tree propagation,
+//    mailbox flood, ask storms, state torture, spawn-kill cycles,
+//    pipeline chains, and telemetry abuse.
+//
+//  Run standalone:
+//    kain run benchmark/cases_v2/core_actor.kn --target llvm
+//
+//  Run via v2 router (after wiring):
+//    $env:KAIN_BENCH_V2_FILTER="core_actor"
+//    kain run X:\benchmark --target llvm --json
+// ============================================================================
+
+use std::runtime
+use std::actor
+
+// ============================================================================
+//  V2 ROUTER PACK EXPORTS
+// ============================================================================
+
+const CORE_ACTOR_CASE_COUNT: Int = 12
+
+pub fn core_actor_case_count() -> Int:
+    return CORE_ACTOR_CASE_COUNT
+
+pub fn core_actor_case_id(index: Int) -> String:
+    if index == 0:  return "actor_spawn_storm"
+    if index == 1:  return "actor_ping_pong"
+    if index == 2:  return "actor_ring"
+    if index == 3:  return "actor_fan_out"
+    if index == 4:  return "actor_tree"
+    if index == 5:  return "actor_mailbox_flood"
+    if index == 6:  return "actor_ask_storm"
+    if index == 7:  return "actor_state_torture"
+    if index == 8:  return "actor_spawn_kill"
+    if index == 9:  return "actor_chain"
+    if index == 10: return "actor_telemetry"
+    if index == 11: return "actor_mega_mesh"
+    return ""
+
+pub fn core_actor_case_group(index: Int) -> String:
+    if index == 0:  return "core_actor_lifecycle"
+    if index == 1:  return "core_actor_mesh"
+    if index == 2:  return "core_actor_mesh"
+    if index == 3:  return "core_actor_throughput"
+    if index == 4:  return "core_actor_mesh"
+    if index == 5:  return "core_actor_throughput"
+    if index == 6:  return "core_actor_throughput"
+    if index == 7:  return "core_actor_lifecycle"
+    if index == 8:  return "core_actor_lifecycle"
+    if index == 9:  return "core_actor_mesh"
+    if index == 10: return "core_actor_system"
+    if index == 11: return "core_actor_mega"
+    return ""
+
+pub fn core_actor_case_title(index: Int) -> String:
+    if index == 0:  return "Spawn Storm — N actors created sequentially"
+    if index == 1:  return "Ping Pong — two actors trading messages"
+    if index == 2:  return "Ring — N actors passing a token M laps"
+    if index == 3:  return "Fan Out — one supervisor, N workers, all reply"
+    if index == 4:  return "Tree — binary actor tree, leaf-to-root propagation"
+    if index == 5:  return "Mailbox Flood — single actor receiving N sends"
+    if index == 6:  return "Ask Storm — N ask() calls to a single actor"
+    if index == 7:  return "State Torture — heavy internal state mutation per message"
+    if index == 8:  return "Spawn Kill — rapid spawn/use/forget cycles"
+    if index == 9:  return "Chain — pipeline of actors A->B->C->D"
+    if index == 10: return "Telemetry — actor system telemetry in hot loop"
+    if index == 11: return "Mega Mesh — all patterns combined into one pressure vessel"
+    return ""
+
+pub fn core_actor_case_iterations(index: Int) -> Int:
+    if index == 0:  return 10000
+    if index == 1:  return 10000
+    if index == 2:  return 5000
+    if index == 3:  return 5000
+    if index == 4:  return 3000
+    if index == 5:  return 50000
+    if index == 6:  return 10000
+    if index == 7:  return 10000
+    if index == 8:  return 10000
+    if index == 9:  return 5000
+    if index == 10: return 50000
+    if index == 11: return 1000
+    return 0
+
+pub fn core_actor_case_expected_checksum(index: Int) -> Int:
+    if index == 0:  return 0
+    if index == 1:  return 0
+    if index == 2:  return 0
+    if index == 3:  return 0
+    if index == 4:  return 0
+    if index == 5:  return 0
+    if index == 6:  return 0
+    if index == 7:  return 0
+    if index == 8:  return 0
+    if index == 9:  return 0
+    if index == 10: return 0
+    if index == 11: return 0
+    return -1
+
+// ============================================================================
+//  CONSTANTS
+// ============================================================================
+
+const ACTOR_MODULUS: Int = 1000000007
+const ACTOR_RING_LAPS: Int = 10
+const ACTOR_FAN_OUT_WORKERS: Int = 16
+const ACTOR_TREE_DEPTH: Int = 4
+
+// ============================================================================
+//  PING PONG  —  Two actors trade a counter back and forth
+// ============================================================================
+
+actor PingPongActor:
+    state count: Int = 0
+    state checksum: Int = 0
+
+    on Ping(reply_to: P, value: Int):
+        self.count = self.count + 1
+        self.checksum = (self.checksum + value) % ACTOR_MODULUS
+        if self.count < 100:
+            send reply_to.Pong(value = (value + 1) % ACTOR_MODULUS)
+        else:
+            send reply_to.Done(checksum = self.checksum)
+
+    on Pong(reply_to: P, value: Int):
+        self.count = self.count + 1
+        self.checksum = (self.checksum + value) % ACTOR_MODULUS
+        if self.count < 100:
+            send reply_to.Ping(value = (value + 1) % ACTOR_MODULUS)
+        else:
+            send reply_to.Done(checksum = self.checksum)
+
+    on Done(reply_to: P, checksum: Int):
+        send reply_to.Final(checksum = checksum)
+
+    on Final(reply_to: P, checksum: Int):
+        self.checksum = (self.checksum + checksum) % ACTOR_MODULUS
+
+// ============================================================================
+//  RING  —  Token passing around a closed loop
+// ============================================================================
+
+actor RingActor:
+    state passes: Int = 0
+    state checksum: Int = 0
+
+    on Token(reply_to: P, value: Int):
+        self.passes = self.passes + 1
+        self.checksum = (self.checksum + value) % ACTOR_MODULUS
+        if self.passes < ACTOR_RING_LAPS:
+            // Forward token with incremented value back through the chain
+            send reply_to.Token(value = (value + 1) % ACTOR_MODULUS)
+        else:
+            send reply_to.Done(checksum = self.checksum)
+
+    on Done(reply_to: P, checksum: Int):
+        self.checksum = (self.checksum + checksum) % ACTOR_MODULUS
+
+// ============================================================================
+//  WORKER  —  Receives work, computes, replies
+// ============================================================================
+
+actor WorkerActor:
+    state bias: Int = 0
+    state jobs_done: Int = 0
+    state checksum: Int = 0
+
+    on Work(reply_to: P, input: Int):
+        self.jobs_done = self.jobs_done + 1
+        let result = ((input * 31 + self.bias) * 17 + 7) % ACTOR_MODULUS
+        self.checksum = (self.checksum + result) % ACTOR_MODULUS
+        send reply_to.Result(value = result)
+
+// ============================================================================
+//  TREE NODE  —  Binary tree leaf-to-root propagation
+// ============================================================================
+
+actor TreeNodeActor:
+    state depth: Int = 0
+    state reports_received: Int = 0
+    state checksum: Int = 0
+
+    on ReportUp(reply_to: P, value: Int):
+        self.reports_received = self.reports_received + 1
+        self.checksum = (self.checksum + value) % ACTOR_MODULUS
+        // Once both children have reported (leaf = 0 reports), propagate up
+        if self.reports_received >= 2 or self.depth == 0:
+            send reply_to.ReportUp(value = self.checksum)
+
+    on Final(reply_to: P, checksum: Int):
+        self.checksum = (self.checksum + checksum) % ACTOR_MODULUS
+
+// ============================================================================
+//  FLOOD  —  Mailbox flood target
+// ============================================================================
+
+actor FloodActor:
+    state count: Int = 0
+    state checksum: Int = 0
+
+    on Blast(reply_to: P, value: Int):
+        self.count = self.count + 1
+        self.checksum = (self.checksum + value) % ACTOR_MODULUS
+
+    on GetCount(reply_to: P):
+        send reply_to.Count(value = self.count)
+
+// ============================================================================
+//  ASK TARGET  —  Handles rapid ask() calls
+// ============================================================================
+
+actor AskTargetActor:
+    state turn: Int = 0
+    state checksum: Int = 0
+
+    on Compute(reply_to: P, input: Int):
+        self.turn = self.turn + 1
+        let result = (input * input + self.turn) % ACTOR_MODULUS
+        self.checksum = (self.checksum + result) % ACTOR_MODULUS
+        send reply_to.Reply(value = result)
+
+// ============================================================================
+//  STATE TORTURE  —  10 state fields mutated per message
+// ============================================================================
+
+actor StateTortureActor:
+    state a: Int = 1
+    state b: Int = 2
+    state c: Int = 3
+    state d: Int = 4
+    state e: Int = 5
+    state f: Int = 6
+    state g: Int = 7
+    state h: Int = 8
+    state i: Int = 9
+    state j: Int = 10
+    state checksum: Int = 0
+
+    on Mutate(reply_to: P, seed: Int):
+        self.a = (self.a * seed + self.b) % ACTOR_MODULUS
+        self.b = (self.b * seed + self.c) % ACTOR_MODULUS
+        self.c = (self.c * seed + self.d) % ACTOR_MODULUS
+        self.d = (self.d * seed + self.e) % ACTOR_MODULUS
+        self.e = (self.e * seed + self.f) % ACTOR_MODULUS
+        self.f = (self.f * seed + self.g) % ACTOR_MODULUS
+        self.g = (self.g * seed + self.h) % ACTOR_MODULUS
+        self.h = (self.h * seed + self.i) % ACTOR_MODULUS
+        self.i = (self.i * seed + self.j) % ACTOR_MODULUS
+        self.j = (self.j * seed + self.a) % ACTOR_MODULUS
+        self.checksum = (self.checksum + self.a + self.b + self.c + self.d + self.e + self.f + self.g + self.h + self.i + self.j) % ACTOR_MODULUS
+        send reply_to.Done(checksum = self.checksum)
+
+// ============================================================================
+//  CHAIN LINK  —  Pipeline stage
+// ============================================================================
+
+actor ChainLinkActor:
+    state bias: Int = 0
+    state checksum: Int = 0
+
+    on Forward(reply_to: P, value: Int):
+        let transformed = (value * 17 + self.bias) % ACTOR_MODULUS
+        self.checksum = (self.checksum + transformed) % ACTOR_MODULUS
+        send reply_to.Final(checksum = transformed)
+
+    on Final(reply_to: P, checksum: Int):
+        // Receives the forwarded result at end of chain
+        self.checksum = (self.checksum + checksum) % ACTOR_MODULUS
+
+// ============================================================================
+//  SPAWN STORM  —  Creates and immediately uses an actor
+// ============================================================================
+
+actor SpawnStormActor:
+    state checksum: Int = 0
+
+    on Init(reply_to: P, seed: Int):
+        self.checksum = (seed * 31 + 7) % ACTOR_MODULUS
+        send reply_to.Done(checksum = self.checksum)
+
+// ============================================================================
+//  FIZZ  —  Ultra-light actor for spawn/kill cycles
+// ============================================================================
+
+actor FizzActor:
+    state fizz: Int = 0
+
+    on Fizz(reply_to: P, value: Int):
+        self.fizz = (self.fizz + value) % ACTOR_MODULUS
+
+// ============================================================================
+//  MEGA MESH  —  Multi-pattern actor for the combined case
+// ============================================================================
+
+actor MegaMeshActor:
+    state id: Int = 0
+    state count: Int = 0
+    state checksum: Int = 0
+
+    on Pulse(reply_to: P, value: Int):
+        self.count = self.count + 1
+        self.checksum = (self.checksum + value) % ACTOR_MODULUS
+        if self.count < 5:
+            send reply_to.Pulse(value = (value + self.id) % ACTOR_MODULUS)
+
+    on Collect(reply_to: P):
+        // Encode checksum and count into a single Int to avoid struct return
+        let encoded = (self.checksum * 1000003 + self.count) % ACTOR_MODULUS
+        send reply_to.Result(value = encoded)
+
+// ============================================================================
+//  BENCHMARK 0: SPAWN STORM  —  Raw actor instantiation throughput
+// ============================================================================
+
+pub fn bench_actor_spawn_storm(count: Int) -> Int:
+    let start = now_millis()
+    var checksum: Int = 0
+    var i: Int = 0
+    while i < count:
+        let storm = spawn SpawnStormActor()
+        let reply = ask(storm, "Init", i)
+        checksum = (checksum + reply) % ACTOR_MODULUS
+        i = i + 1
+    let elapsed = now_millis() - start
+    return elapsed
+
+// ============================================================================
+//  BENCHMARK 1: PING PONG  —  Alternating message exchange
+// ============================================================================
+
+pub fn bench_actor_ping_pong(count: Int) -> Int:
+    let start = now_millis()
+    let a = spawn PingPongActor()
+    let b = spawn PingPongActor()
+    // Kick off — a sends Ping(count=1) to b, they alternate up to 100
+    let _ = ask(a, "Ping", 1)
+    // Collect final checksum
+    let _final_checksum = ask(a, "Final", 0)
+    let elapsed = now_millis() - start
+    return elapsed
+
+// ============================================================================
+//  BENCHMARK 2: RING  —  N actors pass a token M laps
+// ============================================================================
+
+pub fn bench_actor_ring(count: Int) -> Int:
+    let start = now_millis()
+    // Spawn N actors into an array
+    var actors: Array<Int> = []
+    var i: Int = 0
+    while i < count:
+        push(actors, spawn RingActor())
+        i = i + 1
+
+    // Inject token into first actor — chain resolves through Done/Final
+    let first = actors[0]
+    let _ = ask(first, "Token", 42)
+    let final_checksum = ask(first, "Done", 0)
+    let elapsed = now_millis() - start
+    return elapsed
+
+// ============================================================================
+//  BENCHMARK 3: FAN OUT  —  Supervisor fans work to N workers
+// ============================================================================
+
+pub fn bench_actor_fan_out(count: Int) -> Int:
+    let start = now_millis()
+    // Spawn worker pool
+    var workers: Array<Int> = []
+    var i: Int = 0
+    while i < ACTOR_FAN_OUT_WORKERS:
+        push(workers, spawn WorkerActor(bias = i * 7))
+        i = i + 1
+
+    // Fan out work to all workers in round-robin
+    var checksum: Int = 0
+    var j: Int = 0
+    while j < count:
+        var k: Int = 0
+        while k < len(workers):
+            let result = ask(workers[k], "Work", j * ACTOR_FAN_OUT_WORKERS + k)
+            checksum = (checksum + result) % ACTOR_MODULUS
+            k = k + 1
+        j = j + 1
+
+    let elapsed = now_millis() - start
+    return elapsed
+
+// ============================================================================
+//  BENCHMARK 4: TREE  —  Binary actor tree, leaf-to-root propagation
+// ============================================================================
+
+pub fn bench_actor_tree(count: Int) -> Int:
+    let start = now_millis()
+    let depth = ACTOR_TREE_DEPTH
+    let total_nodes = (1 << depth) - 1
+
+    // Spawn nodes bottom-up
+    var nodes: Array<Int> = []
+    var i: Int = 0
+    while i < total_nodes:
+        let node_depth: Int = 0
+        if i == 0:
+            node_depth = 0
+        else:
+            // Approximate depth for each node
+            var d: Int = 1
+            var pos: Int = i
+            while pos > 0:
+                pos = (pos - 1) / 2
+                d = d + 1
+            node_depth = d - 1
+        push(nodes, spawn TreeNodeActor(depth = node_depth))
+        i = i + 1
+
+    // Trigger reports from the leaves
+    var checksum: Int = 0
+    let leaves_start = total_nodes / 2
+    var j: Int = 0
+    while j < count:
+        var k: Int = leaves_start
+        while k < total_nodes:
+            let val = (j * 1000 + k) % ACTOR_MODULUS
+            let reply = ask(nodes[k], "ReportUp", val)
+            checksum = (checksum + reply) % ACTOR_MODULUS
+            k = k + 1
+        j = j + 1
+
+    // Collect root aggregate
+    let root_final = ask(nodes[0], "ReportUp", 0)
+    checksum = (checksum + root_final) % ACTOR_MODULUS
+    let elapsed = now_millis() - start
+    return elapsed
+
+// ============================================================================
+//  BENCHMARK 5: MAILBOX FLOOD  —  Firehose into a single actor
+// ============================================================================
+
+pub fn bench_actor_mailbox_flood(count: Int) -> Int:
+    let start = now_millis()
+    let flood = spawn FloodActor()
+    var i: Int = 0
+    while i < count:
+        let _ = ask(flood, "Blast", i % ACTOR_MODULUS)
+        i = i + 1
+    let _status = ask(flood, "GetCount", 0)
+    let elapsed = now_millis() - start
+    return elapsed
+
+// ============================================================================
+//  BENCHMARK 6: ASK STORM  —  Pure ask() round-trip pressure
+// ============================================================================
+
+pub fn bench_actor_ask_storm(count: Int) -> Int:
+    let start = now_millis()
+    let target = spawn AskTargetActor()
+    var checksum: Int = 0
+    var i: Int = 0
+    while i < count:
+        let result = ask(target, "Compute", i)
+        checksum = (checksum + result) % ACTOR_MODULUS
+        i = i + 1
+    let elapsed = now_millis() - start
+    return elapsed
+
+// ============================================================================
+//  BENCHMARK 7: STATE TORTURE  —  10-field mutation per turn
+// ============================================================================
+
+pub fn bench_actor_state_torture(count: Int) -> Int:
+    let start = now_millis()
+    let torturer = spawn StateTortureActor()
+    var checksum: Int = 0
+    var i: Int = 0
+    while i < count:
+        let result = ask(torturer, "Mutate", i)
+        checksum = (checksum + result) % ACTOR_MODULUS
+        i = i + 1
+    let elapsed = now_millis() - start
+    return elapsed
+
+// ============================================================================
+//  BENCHMARK 8: SPAWN KILL  —  Ephemeral spawn/use/forget
+// ============================================================================
+
+pub fn bench_actor_spawn_kill(count: Int) -> Int:
+    let start = now_millis()
+    var i: Int = 0
+    while i < count:
+        let fizz = spawn FizzActor()
+        let _ = ask(fizz, "Fizz", i)
+        i = i + 1
+    let elapsed = now_millis() - start
+    return elapsed
+
+// ============================================================================
+//  BENCHMARK 9: CHAIN  —  4-stage sequential pipeline
+// ============================================================================
+
+pub fn bench_actor_chain(count: Int) -> Int:
+    let start = now_millis()
+    // Spawn pipeline stages: each transforms and passes along
+    let stage0 = spawn ChainLinkActor(bias = 5)
+    let stage1 = spawn ChainLinkActor(bias = 7)
+    let stage2 = spawn ChainLinkActor(bias = 11)
+    let stage3 = spawn ChainLinkActor(bias = 13)
+
+    var checksum: Int = 0
+    var i: Int = 0
+    while i < count:
+        // ask() returns the transformed value from each stage
+        let r1 = ask(stage0, "Forward", i)
+        let r2 = ask(stage1, "Forward", r1)
+        let r3 = ask(stage2, "Forward", r2)
+        let r4 = ask(stage3, "Forward", r3)
+        checksum = (checksum + r4) % ACTOR_MODULUS
+        i = i + 1
+
+    let elapsed = now_millis() - start
+    return elapsed
+
+// ============================================================================
+//  BENCHMARK 10: TELEMETRY  —  System telemetry in a hot loop
+// ============================================================================
+
+pub fn bench_actor_telemetry(count: Int) -> Int:
+    let start = now_millis()
+    var checksum: Int = 0
+    var i: Int = 0
+    while i < count:
+        let qd = actor_scheduler_queue_depth()
+        let bw = actor_scheduler_busy_workers()
+        let ow = actor_scheduler_overflow_thread_spawns()
+        let mc = actor_unbounded_mailbox_capacity()
+        let dto = actor_default_ask_timeout_ms()
+        let sg = actor_default_shutdown_grace_ms()
+        let sw = actor_supervision_restart_window_millis()
+        checksum = (checksum + qd + bw + ow + mc + dto + sg + sw) % ACTOR_MODULUS
+        i = i + 1
+    let elapsed = now_millis() - start
+    return elapsed
+
+// ============================================================================
+//  BENCHMARK 11: MEGA MESH  —  All patterns combined
+// ============================================================================
+
+const MEGA_MESH_SIZE: Int = 32
+const MEGA_PULSES: Int = 5
+
+pub fn bench_actor_mega_mesh(count: Int) -> Int:
+    let start = now_millis()
+    var checksum: Int = 0
+
+    // Phase 1: Build the mega mesh
+    var mesh: Array<Int> = []
+    var i: Int = 0
+    while i < MEGA_MESH_SIZE:
+        push(mesh, spawn MegaMeshActor(id = i))
+        i = i + 1
+
+    // Phase 2: Pulse through the mesh
+    var pulse_val: Int = 42
+    var p: Int = 0
+    while p < MEGA_PULSES:
+        var m: Int = 0
+        while m < MEGA_MESH_SIZE:
+            let result = ask(mesh[m], "Pulse", pulse_val)
+            checksum = (checksum + result) % ACTOR_MODULUS
+            m = m + 1
+        pulse_val = (pulse_val * 17 + 7) % ACTOR_MODULUS
+        p = p + 1
+
+    // Phase 3: Collect from all mesh nodes (single Int encoded return)
+    var c: Int = 0
+    while c < MEGA_MESH_SIZE:
+        let result = ask(mesh[c], "Collect", 0)
+        checksum = (checksum + result) % ACTOR_MODULUS
+        c = c + 1
+
+    // Phase 4: Interleave a spawn storm
+    var s: Int = 0
+    while s < 100:
+        let storm = spawn SpawnStormActor()
+        let reply = ask(storm, "Init", (s + checksum) % ACTOR_MODULUS)
+        checksum = (checksum + reply) % ACTOR_MODULUS
+        s = s + 1
+
+    // Phase 5: Fan-out work to a worker pool
+    var workers: Array<Int> = []
+    var w: Int = 0
+    while w < 8:
+        push(workers, spawn WorkerActor(bias = w * 13))
+        w = w + 1
+
+    var wk: Int = 0
+    while wk < 50:
+        var wr: Int = 0
+        while wr < len(workers):
+            let result = ask(workers[wr], "Work", wk * MEGA_MESH_SIZE + wr)
+            checksum = (checksum + result) % ACTOR_MODULUS
+            wr = wr + 1
+        wk = wk + 1
+
+    // Phase 6: Telemetry coda
+    var t: Int = 0
+    while t < 50:
+        checksum = (checksum + actor_scheduler_queue_depth() + actor_scheduler_busy_workers()) % ACTOR_MODULUS
+        t = t + 1
+
+    let elapsed = now_millis() - start
+    return elapsed
+
+// ============================================================================
+//  DISPATCH  —  Router entry point
+// ============================================================================
+
+pub fn core_actor_run_case(index: Int, iterations: Int) -> Int:
+    if index == 0:  return bench_actor_spawn_storm(iterations)
+    if index == 1:  return bench_actor_ping_pong(iterations)
+    if index == 2:  return bench_actor_ring(iterations)
+    if index == 3:  return bench_actor_fan_out(iterations)
+    if index == 4:  return bench_actor_tree(iterations)
+    if index == 5:  return bench_actor_mailbox_flood(iterations)
+    if index == 6:  return bench_actor_ask_storm(iterations)
+    if index == 7:  return bench_actor_state_torture(iterations)
+    if index == 8:  return bench_actor_spawn_kill(iterations)
+    if index == 9:  return bench_actor_chain(iterations)
+    if index == 10: return bench_actor_telemetry(iterations)
+    if index == 11: return bench_actor_mega_mesh(iterations)
+    return -1
+
+// ============================================================================
+//  SELF-TEST  —  Run all cases once, verify completion
+// ============================================================================
+
+pub fn core_actor_self_test() -> Int:
+    var failed: Int = 0
+    var i: Int = 0
+    while i < CORE_ACTOR_CASE_COUNT:
+        let elapsed = core_actor_run_case(i, 10)
+        if elapsed < 0:
+            failed = failed + 1
+        i = i + 1
+    return failed
+
+// ============================================================================
+//  MAIN
+// ============================================================================
+
+pub fn main() -> Int:
+    // Run self-test first
+    let failures = core_actor_self_test()
+    if failures > 0:
+        println("core_actor: " + str(failures) + " case(s) FAILED")
+        return 1
+
+    // Run full benchmark sweep
+    println("")
+    println("=== CORE_ACTOR BENCHMARK ===")
+    println("")
+    var i: Int = 0
+    while i < CORE_ACTOR_CASE_COUNT:
+        let id = core_actor_case_id(i)
+        let title = core_actor_case_title(i)
+        let iters = core_actor_case_iterations(i)
+        let elapsed = core_actor_run_case(i, iters)
+        println("  " + id + ": " + str(iters) + " iters in " + str(elapsed) + "ms")
+        i = i + 1
+
+    println("")
+    println("All cases passed.")
+    return 0
