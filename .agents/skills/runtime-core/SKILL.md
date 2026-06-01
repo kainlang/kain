@@ -39,6 +39,7 @@ When the task is broad or unfamiliar, read only the reference that matches the w
 - The lean native runtime manifest path: `runtime/native_core_runtime.toml`, compatibility mirror `runtime/native_runtime.toml`, generated Bazel mirror data, and service metadata when runtime-core source membership or service availability changes.
 - Startup/shutdown, service registry, diagnostics, runtime contract loading, reflection payloads, compatibility/hot reload substrate, host bridge registry, memory helpers, ownership guards, actors, async, entangle, machine stones, CPU/converge helpers, wire/bitfield/union primitives, and runtime attrition hooks.
 - Native-core proof surfaces: `runtime/native/src/core/z3/**`, especially durable `proofs/*.yaml`, exploratory `proofs-experimental/*.smt2`, local templates, reports, and assumption/cache artifacts.
+- Native-core proof inventory truth under `runtime/native/src/core/z3/generated/coverage/proof_inventory.sqlite`; prefer the DB-backed symbol/proof/candidate inventory over stale line-number catalogs when triaging coverage or remaining proof work.
 - Native-core conformance and fixture evidence when the touched runtime behavior affects generated LLVM/direct-C programs.
 
 ## Does Not Own
@@ -103,6 +104,8 @@ Use Z3 for:
 - service key canonicalization, token/magic collision freedom, branchless selectors, de Bruijn tables, packed layouts, and SIMD/converge equivalence
 
 Target result: `unsat` for violation queries. `sat` is a counterexample, not a failure of the workflow. Save durable claims in `runtime/native/src/core/z3/proofs/*.yaml`; save exploratory solver hunts in `runtime/native/src/core/z3/proofs-experimental/*.smt2` until the candidate is worth promoting.
+
+For runtime-core coverage inventory, treat `runtime/native/src/core/z3/generated/coverage/proof_inventory.sqlite` as the pack-local source of truth. The coverage lane in `z3-mcp` now syncs stable `symbol_id` rows for current symbols, durable proofs, auto-results, ready targets, and generated proof candidates so we do not have to rebuild ad hoc line-based catalogs to answer "what remains?".
 
 Useful MCP calls:
 
