@@ -324,3 +324,18 @@
 - Root cause: `crates/sys-codegen/src/codegen_llvm/mod.rs` historically rewrote resolved `void` callable signatures to `i64` for non-`main` functions and `impl` methods. Side-effect-only helpers with no explicit return therefore compiled as value-returning callables even when their bodies had no final expression result.
 - Fix landed: LLVM callable lowering now preserves semantic `void` for ordinary helpers and `impl` methods, while `main` still widens to `i64` at the ABI boundary. The old helper repros now lower to `define internal void @...` and return normally.
 - Regression evidence: `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_lowers_implicit_void_ -- --nocapture`, compiled native repro `X:\tmp_python_helper_boundary_repro.kn` printing `ok`, and compiled native helper-return repro `X:\tmp_python_helper_return_repro.kn` printing `return_ok`.
+
+## 2026-06-01 - gpu/PTX compute residency
+### PTX compute-residency sidecars under-allocate `Bool` and `Vec3` storage buffers
+- Categories: correctness, soundness, gpu, runtime, interop
+- Severity: Critical
+- Status: Solver-Proved
+- Surface: gpu
+- Trigger: Any PTX/CUDA bundle that routes `StorageBuffer<Bool>` through compute-residency sidecars, or `StorageBuffer<Vec3/IVec3/UVec3>` with a shape product of at least `2`.
+- Symptom: The emitted sidecar payload and the CUDA upload path allocate/copy fewer bytes than PTX codegen later addresses, so the runtime can feed undersized buffers into device code.
+- Why this is a bug: `crates/gpu/src/codegen_ptx.rs` lowers `Bool` storage elements as 4-byte `u32` lanes and lowers `Vec3` storage buffers with a 16-byte stride, but `crates/driver/src/compute_residency.rs` computes sidecar `byte_length` with `bool = 1` and `vec3 = 12`, and `crates/gpu-runtime/src/nvidia_ptx.rs` repeats the same wrong table before calling `cuMemAlloc_v2`/`cuMemcpyHtoD_v2` with `binding.bytes.len()`. The portable executor in `crates/gpu-runtime/src/executor.rs` duplicates the same metadata drift, so the validation layer blesses the undersized shape instead of catching it.
+- Minimal repro: Build a compute bundle whose shader uses `uniform flags: StorageBuffer<Bool> @0` or `uniform points: StorageBuffer<Vec3> @0`; for the `Vec3` case use any tensor plan or inferred shape with at least two elements (for example `["2"]` or `dispatch.x = 2`). Run `kain gpu-artifacts <probe.kn> --output <dir>` or a native bundle path that emits compute residency, then inspect `<dir>/compute_residency.json`: it will encode `byte_length = 1` for one `Bool` element or `byte_length = 24` for two `Vec3` elements, while PTX lowering still addresses 4 bytes for `Bool` and a 16-byte stride for each `Vec3`.
+- Evidence: `crates/gpu/src/codegen_ptx.rs:2153-2207`, `crates/driver/src/compute_residency.rs:223-233` and `:424-432`, `crates/gpu-runtime/src/nvidia_ptx.rs:444-457` and `:1396-1405`, `crates/gpu-runtime/src/executor.rs:1019-1028`, and `z3/reports/20260601T222741Z-gpu-storage-buffer-bool-vec3-underallocation-minimized.json`.
+- Z3 angle: The minimized SMT witness proves two concrete under-allocation cases at once: `Bool[1]` allocates `1` byte while PTX accesses `4`, and `Vec3[2]` allocates `24` bytes while PTX's 16-byte stride reaches an exclusive end of `28`.
+- Z3 Proof: [ptx-storage-buffer-bool-vec3-underallocation.smt2](crates/gpu-runtime/z3/proofs/ptx-storage-buffer-bool-vec3-underallocation.smt2)
+- Suggested follow-up: Make compute-residency `byte_length` and both executor validation tables consume one compiler-owned storage-buffer layout source of truth, then add focused driver/runtime tests for `StorageBuffer<Bool>` and `StorageBuffer<Vec3>`.
