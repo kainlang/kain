@@ -10358,3 +10358,24 @@ The low-level systems pass landed stdlib/runtime/compiler fixes and proved them 
   - `cargo test -p kain-build --target-dir target\codex-lowlevel-godmode-reroute --message-format short` passed `30/30`
   - `cargo test -p kain-amalgamate --target-dir target\codex-lowlevel-godmode-reroute --message-format short` passed `4/4`
   - `cargo test -p kain-sys-codegen --target-dir target\codex-lowlevel-godmode-reroute codegen_llvm::tests::lowers_unit_enum_equality_to_tag_comparison -- --exact` passed
+
+# 2026-06-01 - Windows Bazel launcher stale-proofing and shim temp-root fix
+
+The Windows launcher lane had two real build-plumbing failure modes beyond simple "stale exe" confusion, and both are now handled in `scripts/python/kain_bazel_sync.py`.
+
+- Freshness truth:
+  - `X:\.kain\bin\kain.exe` is only the small shim; its timestamp alone is not proof that the real CLI is stale
+  - use `python scripts\python\kain_bazel_sync.py status --json` as the repo-truth freshness surface
+- Locked Bazel output recovery:
+  - when `bazel-out\...\crates\cli\kain.exe` is locked on Windows and Bazel errors with `failed to delete output files before executing action ... (Permission denied)`, the launcher now retries through `//:kn` and stages that sibling binary under the requested `kain` identity
+  - proof: with the real Bazel `crates\cli\kain.exe` held open and the action cache invalidated via `PYO3_PYTHON` path flip, `python scripts\python\kain_bazel_sync.py launch --binary kain --update-stamp-only` built `//:kn`, then wrote a stamp entry where requested `kain` had `bazel_binary_name: "kn"` and `build_required: false`
+- Multi-binary sync convergence:
+  - `sync` used to compute source state independently for `kain` and `kn`, so a dirty watched file could make `kain` stale immediately after `kn` finished
+  - `sync` now captures one source stamp per pass and retries up to three passes if the watched source stamp changes mid-run
+  - proof: after the fix, `python scripts\python\kain_bazel_sync.py status --json` reported both `kain` and `kn` at the same `source_stamp` with `build_required: false`
+- Shim build temp-root fix:
+  - building `scripts/windows/kain_bazel_cli_launcher.rs` through `rustc` was inheriting this workstation's full `F:\DevTemp`, which caused `link.exe` `LNK1108` / `WinError 112`
+  - `build_launcher_shim(...)` now forces `TMP`, `TEMP`, and `TMPDIR` under `X:\.kain\state\tmp`
+- Live operator caveat:
+  - if `X:\.kain\bin\kain.exe` itself is running, sync will stage `X:\.kain\bin\kain.exe.pending.*` instead of replacing the live shim in place
+  - during proof, PID `25132` (`"X:\.kain\bin\kain.exe" run breakout.kn --target llvm`) kept the old on-disk `kain.exe` locked while the fresh pending shim and `kn.exe` were written

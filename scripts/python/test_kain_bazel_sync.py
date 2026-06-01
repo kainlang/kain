@@ -87,6 +87,7 @@ class KainBazelSyncTests(unittest.TestCase):
                 existing,
                 context=context,
                 binary_name="kain",
+                bazel_binary_name="kain",
                 current_source_stamp=current_stamp,
                 source_data={"stamp": current_stamp, "dirty_count": 1, "watch_paths": ("crates",), "filesystem_watch_paths": ()},
                 runtime_hash="runtime",
@@ -150,6 +151,201 @@ class KainBazelSyncTests(unittest.TestCase):
             )
             self.assertEqual(sync.bazel_output_binary_name(context, "kn"), "kn_custom")
             self.assertEqual(sync.bazel_output_binary_name(context, "kain"), "kain")
+
+    def test_sibling_bazel_build_binary_pairs_kain_and_kn(self) -> None:
+        self.assertEqual(sync.sibling_bazel_build_binary("kain"), "kn")
+        self.assertEqual(sync.sibling_bazel_build_binary("kn"), "kain")
+        self.assertIsNone(sync.sibling_bazel_build_binary("blade"))
+
+    def test_invoke_bazel_build_falls_back_to_sibling_target_when_output_is_locked(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            context = sync.SyncContext(
+                repo_root=root,
+                policy={},
+                sync_policy={},
+                state_root=root / ".kain" / "state",
+                stamp_path=root / ".kain" / "state" / "state" / "kain_sync_stamp.json",
+                bazel_config="dev",
+                source_watch_paths=(),
+                source_filesystem_watch_paths=(),
+                runtime_stamp_files=(),
+                launcher_dir=root / ".kain" / "bin",
+                binary_names=("kain", "kn"),
+                repo_kain_home=root / ".kain",
+                repo_kain_config=root / ".kain" / "config.toml",
+                clang_path=None,
+                python_path=None,
+            )
+            locked = sync.CommandResult(
+                1,
+                (
+                    "Compiling Rust bin kain (51 files)",
+                    "ERROR: failed to delete output files before executing action: bazel-out/x64_windows-dbg/bin/crates/cli/kain.exe (Permission denied)",
+                ),
+            )
+            success = sync.CommandResult(0, ("Target //:kn up-to-date",))
+            with mock.patch.object(
+                sync, "run_bazel_build_target", side_effect=[locked, success]
+            ):
+                chosen = sync.invoke_bazel_build(context, "kain")
+            self.assertEqual(chosen, "kn")
+
+    def test_sync_launchers_retries_when_source_stamp_changes_mid_run(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            context = sync.SyncContext(
+                repo_root=root,
+                policy={},
+                sync_policy={},
+                state_root=root / ".kain" / "state",
+                stamp_path=root / ".kain" / "state" / "state" / "kain_sync_stamp.json",
+                bazel_config="dev",
+                source_watch_paths=(),
+                source_filesystem_watch_paths=(),
+                runtime_stamp_files=(),
+                launcher_dir=root / ".kain" / "bin",
+                binary_names=("kain", "kn"),
+                repo_kain_home=root / ".kain",
+                repo_kain_config=root / ".kain" / "config.toml",
+                clang_path=None,
+                python_path=None,
+            )
+            stamps = [
+                {"stamp": "stamp-a", "dirty_count": 1, "watch_paths": (), "filesystem_watch_paths": ()},
+                {"stamp": "stamp-b", "dirty_count": 1, "watch_paths": (), "filesystem_watch_paths": ()},
+                {"stamp": "stamp-b", "dirty_count": 1, "watch_paths": (), "filesystem_watch_paths": ()},
+                {"stamp": "stamp-b", "dirty_count": 1, "watch_paths": (), "filesystem_watch_paths": ()},
+            ]
+            seen: list[tuple[str, str]] = []
+
+            def fake_launch_binary(
+                context_arg: sync.SyncContext,
+                binary_name: str,
+                forward_args: list[str] | tuple[str, ...],
+                *,
+                skip_build: bool = False,
+                update_stamp_only: bool = False,
+                launcher_path: Path | None = None,
+                source_data_override: dict[str, object] | None = None,
+            ) -> int:
+                self.assertIs(context_arg, context)
+                self.assertEqual(forward_args, ())
+                self.assertTrue(update_stamp_only)
+                self.assertIsNotNone(launcher_path)
+                assert source_data_override is not None
+                seen.append((binary_name, str(source_data_override["stamp"])))
+                return 0
+
+            with mock.patch.object(sync, "source_stamp_data", side_effect=stamps), mock.patch.object(
+                sync, "launch_binary", side_effect=fake_launch_binary
+            ), mock.patch.object(
+                sync, "build_launcher_shim", return_value=root / "shim.exe"
+            ), mock.patch.object(
+                sync, "install_launcher_files", return_value=[]
+            ):
+                exit_code = sync.sync_launchers(context, managed_sync=True)
+
+            self.assertEqual(exit_code, 0)
+            self.assertEqual(
+                seen,
+                [
+                    ("kain", "stamp-a"),
+                    ("kn", "stamp-a"),
+                    ("kain", "stamp-b"),
+                    ("kn", "stamp-b"),
+                ],
+            )
+
+    def test_sync_launchers_raises_when_source_stamp_never_settles(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            context = sync.SyncContext(
+                repo_root=root,
+                policy={},
+                sync_policy={},
+                state_root=root / ".kain" / "state",
+                stamp_path=root / ".kain" / "state" / "state" / "kain_sync_stamp.json",
+                bazel_config="dev",
+                source_watch_paths=(),
+                source_filesystem_watch_paths=(),
+                runtime_stamp_files=(),
+                launcher_dir=root / ".kain" / "bin",
+                binary_names=("kain", "kn"),
+                repo_kain_home=root / ".kain",
+                repo_kain_config=root / ".kain" / "config.toml",
+                clang_path=None,
+                python_path=None,
+            )
+            stamps = [
+                {"stamp": "stamp-a", "dirty_count": 1, "watch_paths": (), "filesystem_watch_paths": ()},
+                {"stamp": "stamp-b", "dirty_count": 1, "watch_paths": (), "filesystem_watch_paths": ()},
+                {"stamp": "stamp-b", "dirty_count": 1, "watch_paths": (), "filesystem_watch_paths": ()},
+                {"stamp": "stamp-c", "dirty_count": 1, "watch_paths": (), "filesystem_watch_paths": ()},
+                {"stamp": "stamp-c", "dirty_count": 1, "watch_paths": (), "filesystem_watch_paths": ()},
+                {"stamp": "stamp-d", "dirty_count": 1, "watch_paths": (), "filesystem_watch_paths": ()},
+            ]
+
+            with mock.patch.object(sync, "source_stamp_data", side_effect=stamps), mock.patch.object(
+                sync, "launch_binary", return_value=0
+            ), mock.patch.object(
+                sync, "build_launcher_shim", return_value=root / "shim.exe"
+            ), mock.patch.object(
+                sync, "install_launcher_files", return_value=[]
+            ):
+                with self.assertRaises(sync.SyncError):
+                    sync.sync_launchers(context, managed_sync=True)
+
+    def test_build_launcher_shim_uses_state_root_temp(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            source = root / "scripts" / "windows" / "kain_bazel_cli_launcher.rs"
+            source.parent.mkdir(parents=True)
+            source.write_text("fn main() {}\n", encoding="utf-8")
+            context = sync.SyncContext(
+                repo_root=root,
+                policy={},
+                sync_policy={},
+                state_root=root / ".kain" / "state",
+                stamp_path=root / ".kain" / "state" / "state" / "kain_sync_stamp.json",
+                bazel_config="dev",
+                source_watch_paths=(),
+                source_filesystem_watch_paths=(),
+                runtime_stamp_files=(),
+                launcher_dir=root / ".kain" / "bin",
+                binary_names=("kain", "kn"),
+                repo_kain_home=root / ".kain",
+                repo_kain_config=root / ".kain" / "config.toml",
+                clang_path=None,
+                python_path=None,
+            )
+            seen_env: dict[str, str] = {}
+
+            def fake_run_live(
+                args: list[str] | tuple[str, ...],
+                cwd: Path,
+                env: dict[str, str] | None = None,
+            ) -> sync.CommandResult:
+                self.assertEqual(cwd, root)
+                self.assertIsNotNone(env)
+                assert env is not None
+                seen_env.update(
+                    {key: env[key] for key in ("TMP", "TEMP", "TMPDIR")}
+                )
+                output_path = Path(args[-1])
+                output_path.write_bytes(b"shim")
+                return sync.CommandResult(0, ())
+
+            with mock.patch.object(sync, "rustc_command", return_value=["rustc"]), mock.patch.object(
+                sync, "run_live", side_effect=fake_run_live
+            ):
+                shim_path = sync.build_launcher_shim(context)
+
+            expected_temp = str((context.state_root / "tmp").resolve())
+            self.assertEqual(seen_env["TMP"], expected_temp)
+            self.assertEqual(seen_env["TEMP"], expected_temp)
+            self.assertEqual(seen_env["TMPDIR"], expected_temp)
+            self.assertTrue(shim_path.exists())
 
     def test_install_launcher_files_writes_all_windows_wrappers_when_windows(self) -> None:
         if os.name != "nt":

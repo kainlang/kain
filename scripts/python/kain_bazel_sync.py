@@ -27,6 +27,7 @@ PYTHON_POLLUTION_ENV_KEYS = (
 
 DEFAULT_BINARY_NAMES = ("kain", "kn")
 SUPPORTED_BINARY_NAMES = frozenset(DEFAULT_BINARY_NAMES)
+MAX_SYNC_STAMP_ATTEMPTS = 3
 DEFAULT_SOURCE_WATCH_PATHS = (
     "crates",
     "runtime",
@@ -476,6 +477,14 @@ def bazel_output_binary_name(context: SyncContext, binary_name: str) -> str:
     return binary_name
 
 
+def sibling_bazel_build_binary(binary_name: str) -> str | None:
+    if binary_name == "kain":
+        return "kn"
+    if binary_name == "kn":
+        return "kain"
+    return None
+
+
 def run_capture(
     args: Sequence[str], cwd: Path, env: dict[str, str] | None = None
 ) -> CommandResult:
@@ -896,6 +905,14 @@ def test_cargo_bazel_repin_mismatch(result: CommandResult) -> bool:
     )
 
 
+def test_bazel_output_lock_mismatch(result: CommandResult) -> bool:
+    text = result.output_text
+    return (
+        "failed to delete output files before executing action:" in text
+        and "Permission denied" in text
+    )
+
+
 def acquire_lock(lock_path: Path, timeout_seconds: int = 300) -> object:
     deadline = time.monotonic() + timeout_seconds
     lock_path.parent.mkdir(parents=True, exist_ok=True)
@@ -973,7 +990,7 @@ def cargo_bazel_repin(
         release_lock(lock_handle)
 
 
-def invoke_bazel_build(context: SyncContext, binary_name: str) -> None:
+def run_bazel_build_target(context: SyncContext, binary_name: str) -> CommandResult:
     extra_args = bazel_python_args(context)
     env = bazel_env(context)
     auto_repin = bool_from_policy(
@@ -1002,12 +1019,10 @@ def invoke_bazel_build(context: SyncContext, binary_name: str) -> None:
     ]
     result = run_live(build_args, context.repo_root, env)
     if result.exit_code == 0:
-        return
+        return result
 
     if not auto_repin or not test_cargo_bazel_repin_mismatch(result):
-        raise SyncError(
-            f"bazel build //:{binary_name} --config={context.bazel_config} failed with exit code {result.exit_code}"
-        )
+        return result
 
     cargo_bazel_repin(
         context,
@@ -1020,11 +1035,34 @@ def invoke_bazel_build(context: SyncContext, binary_name: str) -> None:
         f"[kain] Cargo.Bazel.lock refreshed; retrying bazel build //:{binary_name} --config={context.bazel_config}...",
         flush=True,
     )
-    retry = run_live(build_args, context.repo_root, env)
-    if retry.exit_code != 0:
-        raise SyncError(
-            f"bazel build //:{binary_name} --config={context.bazel_config} failed with exit code {retry.exit_code}"
+    return run_live(build_args, context.repo_root, env)
+
+
+def invoke_bazel_build(context: SyncContext, binary_name: str) -> str:
+    result = run_bazel_build_target(context, binary_name)
+    if result.exit_code == 0:
+        return binary_name
+
+    fallback_binary = sibling_bazel_build_binary(binary_name)
+    if fallback_binary and test_bazel_output_lock_mismatch(result):
+        # `kain` and `kn` both enter the same launcher and differ only by argv0
+        # identity. If one Bazel output file is locked, build the sibling target
+        # and stage it under the requested launcher identity instead of staying stale.
+        print(
+            f"[kain] bazel output for //:{binary_name} is locked; retrying via //:{fallback_binary} and staging it as {binary_name}...",
+            flush=True,
         )
+        fallback_result = run_bazel_build_target(context, fallback_binary)
+        if fallback_result.exit_code == 0:
+            return fallback_binary
+        raise SyncError(
+            f"bazel build //:{binary_name} --config={context.bazel_config} failed with exit code {result.exit_code}; "
+            f"fallback //:{fallback_binary} also failed with exit code {fallback_result.exit_code}"
+        )
+
+    raise SyncError(
+        f"bazel build //:{binary_name} --config={context.bazel_config} failed with exit code {result.exit_code}"
+    )
 
 
 def resolve_bazel_binary_path(context: SyncContext, binary_name: str) -> Path:
@@ -1056,6 +1094,7 @@ def merge_stamp_payload(
     *,
     context: SyncContext,
     binary_name: str,
+    bazel_binary_name: str,
     current_source_stamp: str,
     source_data: dict[str, object],
     runtime_hash: str,
@@ -1074,6 +1113,7 @@ def merge_stamp_payload(
         binary_by_name[binary_name] = {
             **active_binary_fingerprint,
             "bazel_path": str(bazel_binary_path),
+            "bazel_binary_name": bazel_binary_name,
             "source_stamp": current_source_stamp,
             "bazel_config": context.bazel_config,
             "runtime_stamp": runtime_hash,
@@ -1124,6 +1164,7 @@ def launch_binary(
     skip_build: bool = False,
     update_stamp_only: bool = False,
     launcher_path: Path | None = None,
+    source_data_override: dict[str, object] | None = None,
 ) -> int:
     if binary_name not in context.binary_names:
         raise SyncError(
@@ -1138,7 +1179,7 @@ def launch_binary(
         env["KAIN_ACTIVE_LAUNCHER_PATH"] = str(launcher_path.resolve())
 
     existing = read_json(context.stamp_path)
-    source_data = source_stamp_data(
+    source_data = source_data_override or source_stamp_data(
         context.repo_root,
         context.source_watch_paths,
         context.source_filesystem_watch_paths,
@@ -1151,9 +1192,10 @@ def launch_binary(
     bazel_binary_path: Path | None = None
     active_binary_path: Path | None = None
     active_fingerprint: dict[str, object] | None = None
+    built_binary_name = binary_name
     if decision.should_build:
-        invoke_bazel_build(context, binary_name)
-        bazel_binary_path = resolve_bazel_binary_path(context, binary_name)
+        built_binary_name = invoke_bazel_build(context, binary_name)
+        bazel_binary_path = resolve_bazel_binary_path(context, built_binary_name)
         if not bazel_binary_path.exists():
             raise SyncError(f"Bazel binary not found at {bazel_binary_path}")
         bazel_fingerprint = binary_fingerprint(bazel_binary_path)
@@ -1179,6 +1221,7 @@ def launch_binary(
         existing,
         context=context,
         binary_name=binary_name,
+        bazel_binary_name=built_binary_name,
         current_source_stamp=current_source_stamp,
         source_data=source_data,
         runtime_hash=runtime_hash,
@@ -1235,10 +1278,15 @@ def build_launcher_shim(context: SyncContext) -> Path:
     output_path = context.state_root / "artifacts" / f"kain_bazel_cli_launcher{suffix}"
     output_path.parent.mkdir(parents=True, exist_ok=True)
     temp_path = output_path.with_name(f"{output_path.name}.tmp.{os.getpid()}")
+    temp_root = context.state_root / "tmp"
+    temp_root.mkdir(parents=True, exist_ok=True)
     env = os.environ.copy()
     env["KAIN_DEFAULT_REPO_ROOT"] = str(context.repo_root)
     env["KAIN_DEFAULT_BAZEL_CONFIG"] = context.bazel_config
     env["KAIN_DEFAULT_LAUNCHER_DIR"] = str(context.launcher_dir)
+    env["TMP"] = str(temp_root)
+    env["TEMP"] = str(temp_root)
+    env["TMPDIR"] = str(temp_root)
     result = run_live(
         [
             *rustc_command(),
@@ -1362,20 +1410,46 @@ def sync_launchers(
             print(f"BAZEL_SH  : {bash_path}")
         print()
 
-    for binary_name in context.binary_names:
-        launch_path = context.launcher_dir / (
-            binary_name + (".exe" if platform.system().lower() == "windows" else "")
+    for attempt in range(1, MAX_SYNC_STAMP_ATTEMPTS + 1):
+        source_data = source_stamp_data(
+            context.repo_root,
+            context.source_watch_paths,
+            context.source_filesystem_watch_paths,
         )
-        launch_binary(
-            context,
-            binary_name,
-            (),
-            skip_build=skip_build,
-            update_stamp_only=True,
-            launcher_path=launch_path,
+        current_source_stamp = str(source_data.get("stamp", ""))
+        for binary_name in context.binary_names:
+            launch_path = context.launcher_dir / (
+                binary_name + (".exe" if platform.system().lower() == "windows" else "")
+            )
+            launch_binary(
+                context,
+                binary_name,
+                (),
+                skip_build=skip_build,
+                update_stamp_only=True,
+                launcher_path=launch_path,
+                source_data_override=source_data,
+            )
+            if not managed_sync:
+                print(f"  [stamp] {binary_name}")
+
+        final_source_data = source_stamp_data(
+            context.repo_root,
+            context.source_watch_paths,
+            context.source_filesystem_watch_paths,
         )
+        final_source_stamp = str(final_source_data.get("stamp", ""))
+        if final_source_stamp == current_source_stamp:
+            break
+        if attempt >= MAX_SYNC_STAMP_ATTEMPTS:
+            raise SyncError(
+                "launcher source stamp kept changing during sync; rerun after the watched source settles"
+            )
         if not managed_sync:
-            print(f"  [stamp] {binary_name}")
+            print(
+                "  [resync] source stamp changed during sync "
+                f"({current_source_stamp} -> {final_source_stamp}); rerunning stamp pass..."
+            )
 
     shim_path = build_launcher_shim(context)
     pending_replacements = install_launcher_files(context, shim_path)
@@ -1412,6 +1486,9 @@ def launcher_status(context: SyncContext, *, json_output: bool = False) -> int:
         binaries[binary_name] = {
             "build_required": decision.should_build,
             "build_reason": decision.reason,
+            "bazel_binary_name": str(entry.get("bazel_binary_name", binary_name))
+            if entry
+            else binary_name,
             "stamped_source": str(entry.get("source_stamp", "")) if entry else "",
             "path": str(path) if path else "",
             "path_exists": bool(path and path.exists()),
