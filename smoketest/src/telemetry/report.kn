@@ -5,6 +5,7 @@ use std::intent
 use std::time
 use std::fs
 use std::fmt
+use std::process
 
 const SMOKE_TELEMETRY_ROOT: String = "telemetry"
 const SMOKE_TELEMETRY_TRACKS_DIR: String = "tracks"
@@ -17,8 +18,15 @@ fn smoke_env_text(key: String, fallback: String) -> String:
         return fallback
     return value
 
+fn smoke_default_mode() -> String:
+    let executable_name = to_lower(process_current_executable_name())
+    // Standalone smoketest.exe should stay interactive by default; automation sets an explicit mode.
+    if executable_name == "smoketest.exe" or executable_name == "smoketest":
+        return "visual"
+    return "full"
+
 pub fn smoke_telemetry_mode() -> String:
-    return smoke_env_text("KAIN_SMOKETEST_MODE", "full")
+    return smoke_env_text("KAIN_SMOKETEST_MODE", smoke_default_mode())
 
 pub fn smoke_telemetry_output_root(mode: String) -> String:
     let override_root = env("KAIN_SMOKETEST_OUTPUT_DIR")

@@ -152,6 +152,35 @@ class KainBazelSyncTests(unittest.TestCase):
             self.assertEqual(sync.bazel_output_binary_name(context, "kn"), "kn_custom")
             self.assertEqual(sync.bazel_output_binary_name(context, "kain"), "kain")
 
+    def test_runtime_env_forces_repo_state_temp_root(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            context = sync.SyncContext(
+                repo_root=root,
+                policy={},
+                sync_policy={},
+                state_root=root / ".kain" / "state",
+                stamp_path=root / ".kain" / "state" / "state" / "kain_sync_stamp.json",
+                bazel_config="dev",
+                source_watch_paths=(),
+                source_filesystem_watch_paths=(),
+                runtime_stamp_files=(),
+                launcher_dir=root / ".kain" / "bin",
+                binary_names=("kain", "kn"),
+                repo_kain_home=root / ".kain",
+                repo_kain_config=root / ".kain" / "config.toml",
+                clang_path=None,
+                python_path=None,
+            )
+            with mock.patch.dict(os.environ, {"TMP": r"F:\DevTemp", "TEMP": r"F:\DevTemp", "TMPDIR": r"F:\DevTemp"}, clear=False):
+                env = sync.runtime_env(context)
+
+            expected_temp = str((context.state_root / "tmp").resolve())
+            self.assertEqual(env["TMP"], expected_temp)
+            self.assertEqual(env["TEMP"], expected_temp)
+            self.assertEqual(env["TMPDIR"], expected_temp)
+            self.assertTrue(Path(expected_temp).exists())
+
     def test_sibling_bazel_build_binary_pairs_kain_and_kn(self) -> None:
         self.assertEqual(sync.sibling_bazel_build_binary("kain"), "kn")
         self.assertEqual(sync.sibling_bazel_build_binary("kn"), "kain")

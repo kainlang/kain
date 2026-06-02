@@ -283,6 +283,16 @@ $runtimeManifestForBuild = if ($RuntimeManifestPath) {
 }
 $previousRuntimeManifestPath = $env:KAIN_RUNTIME_MANIFEST_PATH
 $env:KAIN_RUNTIME_MANIFEST_PATH = $runtimeManifestForBuild
+$tempRoot = Join-Path $artifactDir "tmp"
+if (!(Test-Path $tempRoot)) {
+    New-Item -ItemType Directory -Force -Path $tempRoot | Out-Null
+}
+$previousTmp = $env:TMP
+$previousTemp = $env:TEMP
+$previousTmpDir = $env:TMPDIR
+$env:TMP = $tempRoot
+$env:TEMP = $tempRoot
+$env:TMPDIR = $tempRoot
 
 Push-Location $projectRoot
 try {
@@ -330,5 +340,20 @@ finally {
         $env:KAIN_RUNTIME_MANIFEST_PATH = $previousRuntimeManifestPath
     } else {
         Remove-Item Env:\KAIN_RUNTIME_MANIFEST_PATH -ErrorAction SilentlyContinue
+    }
+    if ($null -ne $previousTmp) {
+        $env:TMP = $previousTmp
+    } else {
+        Remove-Item Env:\TMP -ErrorAction SilentlyContinue
+    }
+    if ($null -ne $previousTemp) {
+        $env:TEMP = $previousTemp
+    } else {
+        Remove-Item Env:\TEMP -ErrorAction SilentlyContinue
+    }
+    if ($null -ne $previousTmpDir) {
+        $env:TMPDIR = $previousTmpDir
+    } else {
+        Remove-Item Env:\TMPDIR -ErrorAction SilentlyContinue
     }
 }

@@ -172,32 +172,34 @@ fn import_library_spec(
 ) -> Result<ImportCOutput, KainError> {
     register();
     let (resolved, manifest_context) = resolve_library_spec(spec, prepare)?;
-    let bundle = extract_binding_bundle(&resolved)?;
+    let fingerprints = collect_binding_fingerprints(&resolved)?;
     let hash = build_cache_hash(
         &resolved,
-        &bundle.source_fingerprints,
+        &fingerprints,
         BRIDGE_FORMAT_VERSION,
     );
     let cache_dir = default_cache_root(prepare).join("c_ffi").join(hash);
     kfs::create_dir_all(&cache_dir).map_err(fs_to_kain_error)?;
 
-    let (artifacts, mut output) = write_generated_artifacts(
-        &resolved,
-        &bundle,
-        &cache_dir,
-        options.output_dir.as_deref(),
-    )?;
+    let mut output = if let Some(output) =
+        try_load_generated_import_output(&resolved, &cache_dir, options.output_dir.as_deref())?
+    {
+        output
+    } else {
+        let bundle = extract_binding_bundle(&resolved)?;
+        let (_, output) = write_generated_artifacts(
+            &resolved,
+            &bundle,
+            &cache_dir,
+            options.output_dir.as_deref(),
+        )?;
+        output
+    };
     output.config_root = manifest_context.root_dir.clone();
     output.c_ffi_config = manifest_context.config.clone();
 
     if let Some(report_json_path) = options.report_json.as_ref() {
-        if let Some(parent) = report_json_path.parent() {
-            kfs::create_dir_all(parent).map_err(fs_to_kain_error)?;
-        }
-        let report_json = serde_json::to_string_pretty(&artifacts.report).map_err(|err| {
-            KainError::runtime(format!("Failed to serialize C FFI report override: {err}"))
-        })?;
-        kfs::atomic_write_text(report_json_path, &report_json).map_err(fs_to_kain_error)?;
+        write_report_json_override(&output, report_json_path)?;
     }
 
     if options.mode.wants_live() {
@@ -333,7 +335,12 @@ pub fn augment_source_for_runtime(
     for (spec, output) in outputs {
         if spec.origin == CLibraryImportOrigin::Include {
             if let Some(alias) = spec.alias.as_deref() {
-                if let Some(alias_source) = render_include_alias_source(&output, alias) {
+                let demanded_aliases = collect_include_alias_demands(source, alias);
+                if let Some(alias_source) = render_include_alias_source(
+                    &output,
+                    alias,
+                    demanded_aliases.as_ref(),
+                ) {
                     sections.push(alias_source);
                     continue;
                 }
@@ -424,11 +431,40 @@ fn natural_include_import_name(target: &str) -> String {
     output.trim_matches('_').to_string()
 }
 
+fn collect_include_alias_demands(source: &str, alias: &str) -> Option<BTreeSet<String>> {
+    let prefix = format!("{alias}_");
+    let mut identifiers = BTreeSet::new();
+    let mut chars = source.char_indices().peekable();
+    while let Some((start, ch)) = chars.next() {
+        if !matches!(ch, 'A'..='Z' | 'a'..='z' | '_') {
+            continue;
+        }
+        let mut end = start + ch.len_utf8();
+        while let Some(&(index, next)) = chars.peek() {
+            if matches!(next, 'A'..='Z' | 'a'..='z' | '0'..='9' | '_') {
+                end = index + next.len_utf8();
+                chars.next();
+            } else {
+                break;
+            }
+        }
+        let identifier = &source[start..end];
+        if identifier.starts_with(&prefix) {
+            identifiers.insert(identifier.to_string());
+        }
+    }
+    (!identifiers.is_empty()).then_some(identifiers)
+}
+
 fn canonical_or_self(path: &Path) -> PathBuf {
     std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
 }
 
-fn render_include_alias_source(output: &ImportCOutput, alias: &str) -> Option<String> {
+fn render_include_alias_source(
+    output: &ImportCOutput,
+    alias: &str,
+    demanded_aliases: Option<&BTreeSet<String>>,
+) -> Option<String> {
     if alias.is_empty() {
         return None;
     }
@@ -461,6 +497,10 @@ fn render_include_alias_source(output: &ImportCOutput, alias: &str) -> Option<St
             pending_attributes.clear();
             continue;
         };
+        if demanded_aliases.is_some_and(|demands| !demands.contains(&alias_name)) {
+            pending_attributes.clear();
+            continue;
+        }
         let signature_tail = &signature[paren_index..];
         let mut alias_decl = String::new();
         if !pending_attributes.is_empty() {
@@ -1803,10 +1843,118 @@ fn build_cache_hash(
         hasher.update(path.display().to_string().as_bytes());
     }
     hasher.update(format_version.as_bytes());
+    hasher.update(format!("{:?}", resolved.tier).as_bytes());
+    hasher.update([resolved.runtime_owned as u8]);
+    hasher.update(format!("{:?}", resolved.config).as_bytes());
+    hasher.update(format!("{:?}", resolved.global_config).as_bytes());
     for fingerprint in fingerprints {
         hasher.update(fingerprint.path.as_bytes());
         hasher.update(fingerprint.sha256.as_bytes());
     }
+    format!("{:x}", hasher.finalize())
+}
+
+fn collect_binding_fingerprints(
+    resolved: &ResolvedCLibrary,
+) -> Result<Vec<model::FileFingerprint>, KainError> {
+    let source = kfs::read_text(&resolved.header_path).map_err(fs_to_kain_error)?;
+    Ok(vec![model::FileFingerprint {
+        path: resolved.header_path.display().to_string(),
+        sha256: hex_sha256(source.as_bytes()),
+    }])
+}
+
+fn try_load_generated_import_output(
+    resolved: &ResolvedCLibrary,
+    cache_dir: &Path,
+    output_dir_override: Option<&Path>,
+) -> Result<Option<ImportCOutput>, KainError> {
+    let generated_dir = output_dir_override
+        .map(Path::to_path_buf)
+        .unwrap_or_else(|| cache_dir.to_path_buf());
+    let canonical_module_path = generated_dir.join(format!("{}.kn", resolved.import_name));
+    let prelude_path = generated_dir.join(format!("{}_prelude.kn", resolved.import_name));
+    let report_json_path = generated_dir.join(format!("{}_report.json", resolved.import_name));
+    let report_text_path = generated_dir.join(format!("{}_report.txt", resolved.import_name));
+    let manifest_json_path =
+        generated_dir.join(format!("{}_binding_manifest.json", resolved.import_name));
+    let packaged_bridge_manifest_path =
+        generated_dir.join(format!("{}_runtime_bridge.json", resolved.import_name));
+    let bridge_manifest_path = cache_dir.join("bridge").join("Cargo.toml");
+    let bridge_source_path = cache_dir.join("bridge").join("src").join("lib.rs");
+    let required = [
+        &canonical_module_path,
+        &prelude_path,
+        &report_json_path,
+        &report_text_path,
+        &manifest_json_path,
+        &packaged_bridge_manifest_path,
+        &bridge_manifest_path,
+        &bridge_source_path,
+    ];
+    if required.iter().any(|path| !path.exists()) {
+        return Ok(None);
+    }
+
+    let canonical_module_source =
+        kfs::read_text(&canonical_module_path).map_err(fs_to_kain_error)?;
+    let prelude_source = kfs::read_text(&prelude_path).map_err(fs_to_kain_error)?;
+    let packaged_bridge_manifest_source =
+        kfs::read_text(&packaged_bridge_manifest_path).map_err(fs_to_kain_error)?;
+    let packaged_bridge_manifest: PackagedBridgeManifest =
+        serde_json::from_str(&packaged_bridge_manifest_source).map_err(|err| {
+            KainError::runtime(format!(
+                "Failed to parse cached C FFI packaged bridge manifest '{}': {err}",
+                packaged_bridge_manifest_path.display()
+            ))
+        })?;
+    let packaged_bridge_import = packaged_bridge_manifest
+        .imports
+        .into_iter()
+        .next()
+        .ok_or_else(|| {
+            KainError::runtime(format!(
+                "Cached C FFI packaged bridge manifest '{}' did not contain any imports",
+                packaged_bridge_manifest_path.display()
+            ))
+        })?;
+
+    Ok(Some(ImportCOutput {
+        resolved: resolved.clone(),
+        config_root: Some(resolved.manifest_root.clone()),
+        c_ffi_config: Some(resolved.global_config.clone()),
+        cache_dir: cache_dir.to_path_buf(),
+        canonical_module_path,
+        prelude_path,
+        report_json_path,
+        report_text_path,
+        manifest_json_path,
+        packaged_bridge_manifest_path,
+        bridge_manifest_path,
+        bridge_source_path,
+        dylib_path: None,
+        canonical_module_source,
+        prelude_source,
+        packaged_bridge_manifest: packaged_bridge_import,
+        cache_hit: true,
+    }))
+}
+
+fn write_report_json_override(
+    output: &ImportCOutput,
+    report_json_path: &Path,
+) -> Result<(), KainError> {
+    if let Some(parent) = report_json_path.parent() {
+        kfs::create_dir_all(parent).map_err(fs_to_kain_error)?;
+    }
+    let report_json = kfs::read_text(&output.report_json_path).map_err(fs_to_kain_error)?;
+    kfs::atomic_write_text(report_json_path, &report_json).map_err(fs_to_kain_error)?;
+    Ok(())
+}
+
+fn hex_sha256(bytes: &[u8]) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(bytes);
     format!("{:x}", hasher.finalize())
 }
 
@@ -1999,7 +2147,6 @@ mod tests {
         )
         .expect("natural include should prepare local header");
 
-        assert!(augmented.contains("mod c:"));
         assert!(augmented.contains("tiny_math_add"));
         assert!(augmented.contains("@link_name(\"tiny_math_add\")"));
         assert!(augmented.contains("@extern fn tm_add"));
@@ -2026,6 +2173,41 @@ mod tests {
             vec![canonical_or_self(&source_path)]
         );
         assert_eq!(outputs[0].resolved.tier, CInteropTier::Inline);
+    }
+
+    #[test]
+    fn include_alias_augmentation_only_emits_used_symbols() {
+        let temp = TempDir::new().expect("temp dir");
+        let root = temp.path();
+        let src_dir = root.join("src");
+        let native_dir = src_dir.join("native");
+        kfs::create_dir_all(&native_dir).expect("native dir");
+        let header_path = native_dir.join("tiny_math.h");
+        let source_path = native_dir.join("tiny_math.c");
+        kfs::write_text(
+            &header_path,
+            "int tiny_math_add(int a, int b);\nint tiny_math_sub(int a, int b);\nint tiny_math_mul(int a, int b);\n",
+        )
+        .expect("header");
+        kfs::write_text(
+            &source_path,
+            "#include \"tiny_math.h\"\nint tiny_math_add(int a, int b) { return a + b; }\nint tiny_math_sub(int a, int b) { return a - b; }\nint tiny_math_mul(int a, int b) { return a * b; }\n",
+        )
+        .expect("source");
+
+        let augmented = augment_source_for_runtime(
+            "include native/tiny_math.h as tm\nfn main() -> Int:\n    return tm_add(2, 3)\n",
+            CompileTarget::Llvm,
+            &PrepareContext {
+                current_dir: Some(src_dir),
+                manifest_path: None,
+            },
+        )
+        .expect("augment tiny math");
+
+        assert!(augmented.contains("@extern fn tm_add"));
+        assert!(!augmented.contains("@extern fn tm_sub"));
+        assert!(!augmented.contains("@extern fn tm_mul"));
     }
 
     #[test]
@@ -2606,6 +2788,53 @@ fn main() -> Int:
         assert!(output.canonical_module_source.contains("c_out:"));
         assert!(!output.canonical_module_source.contains(" out:"));
         assert!(output.report_json_path.exists());
+    }
+
+    #[test]
+    fn generate_mode_reuses_cached_generated_artifacts() {
+        let temp = TempDir::new().expect("temp dir");
+        let root = temp.path();
+        let native_dir = root.join("native");
+        kfs::create_dir_all(&native_dir).expect("native dir");
+
+        let (header_path, source_path, dll_path) = c_fixture_paths(&native_dir);
+        kfs::write_text(
+            &header_path,
+            "#if defined(_WIN32)\n#define BEACON_EXPORT __declspec(dllexport)\n#else\n#define BEACON_EXPORT\n#endif\nBEACON_EXPORT int beacon_add(int a, int b);\n",
+        )
+        .expect("header");
+        kfs::write_text(
+            &source_path,
+            "#include \"beacon_math.h\"\nint beacon_add(int a, int b) { return a + b; }\n",
+        )
+        .expect("source");
+        compile_shared_library(&source_path, &dll_path);
+        write_c_manifest(root, "beacon_math", &header_path, &dll_path);
+
+        let prepare = PrepareContext {
+            current_dir: Some(root.to_path_buf()),
+            manifest_path: Some(root.join("KAIN.toml")),
+        };
+        let options = ImportCOptions {
+            mode: ArtifactMode::Generate,
+            ..ImportCOptions::default()
+        };
+
+        let first = import_library("beacon_math", &options, &prepare).expect("first import");
+        assert!(
+            !first.cache_hit,
+            "first generate import should materialize cached artifacts"
+        );
+
+        let second = import_library("beacon_math", &options, &prepare).expect("second import");
+        assert!(
+            second.cache_hit,
+            "second generate import should reuse generated artifacts"
+        );
+        assert_eq!(
+            second.canonical_module_source, first.canonical_module_source,
+            "cache hit should preserve canonical module text"
+        );
     }
 
     #[test]

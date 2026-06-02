@@ -425,6 +425,7 @@ def sanitized_python_env(base: dict[str, str]) -> dict[str, str]:
 
 def runtime_env(context: SyncContext) -> dict[str, str]:
     env = sanitized_python_env(os.environ.copy())
+    temp_root = sync_temp_root(context)
     env.update(
         {
             "KAIN_REPO_ROOT": str(context.repo_root),
@@ -439,6 +440,9 @@ def runtime_env(context: SyncContext) -> dict[str, str]:
             "KAIN_SYNC_STAMP_PATH": str(context.stamp_path),
             "KAIN_BAZEL_CONFIG": context.bazel_config,
             "KAIN_BAZEL_LAUNCHER_DIR": str(context.launcher_dir),
+            "TMP": str(temp_root),
+            "TEMP": str(temp_root),
+            "TMPDIR": str(temp_root),
         }
     )
     if context.clang_path:
@@ -448,6 +452,12 @@ def runtime_env(context: SyncContext) -> dict[str, str]:
     if bash_path:
         env["BAZEL_SH"] = str(bash_path)
     return env
+
+
+def sync_temp_root(context: SyncContext) -> Path:
+    temp_root = (context.state_root / "tmp").resolve()
+    temp_root.mkdir(parents=True, exist_ok=True)
+    return temp_root
 
 
 def prepend_path(path_value: str, prefix: str) -> str:
@@ -1279,8 +1289,7 @@ def build_launcher_shim(context: SyncContext) -> Path:
     output_path = context.state_root / "artifacts" / f"kain_bazel_cli_launcher{suffix}"
     output_path.parent.mkdir(parents=True, exist_ok=True)
     temp_path = output_path.with_name(f"{output_path.name}.tmp.{os.getpid()}")
-    temp_root = context.state_root / "tmp"
-    temp_root.mkdir(parents=True, exist_ok=True)
+    temp_root = sync_temp_root(context)
     env = os.environ.copy()
     env["KAIN_DEFAULT_REPO_ROOT"] = str(context.repo_root)
     env["KAIN_DEFAULT_BAZEL_CONFIG"] = context.bazel_config

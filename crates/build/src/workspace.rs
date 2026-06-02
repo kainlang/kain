@@ -2939,7 +2939,9 @@ fn execute_task(
 
     let result = match &task.adapter {
         BuildTaskAdapter::BladeCheck => run_blade_check(workspace),
-        BuildTaskAdapter::KainCheck { entry, target } => run_kain_check(entry, *target, progress),
+        BuildTaskAdapter::KainCheck { entry, target } => {
+            run_kain_check(entry, *target, progress, task.outputs.first())
+        }
         BuildTaskAdapter::KainCompile {
             source,
             target,
@@ -3184,11 +3186,24 @@ fn run_kain_check(
     entry: &Path,
     target: CompileTarget,
     progress: Option<&ToolingProgressSink>,
+    output_path: Option<&PathBuf>,
 ) -> BuildResult<String> {
     let mut options = kain_check::CheckOptions::new(target);
     options.progress = progress.cloned();
     let report = kain_check::check_file(entry, &options);
     if report.passed() {
+        if let Some(output_path) = output_path {
+            if let Some(parent) = output_path.parent() {
+                kfs::create_dir_all(parent)?;
+            }
+            let encoded = serde_json::to_string_pretty(&report).map_err(|err| {
+                BuildError::Config(format!(
+                    "failed to serialize Kain check report for {}: {err}",
+                    entry.display()
+                ))
+            })?;
+            kfs::atomic_write_text(output_path, &encoded)?;
+        }
         Ok(format!("checked {}", entry.display()))
     } else {
         Err(BuildError::Config(report.error.unwrap_or_else(|| {
@@ -6949,6 +6964,67 @@ include_dirs = ["native/include"]
         std::fs::write(&local_header, "#define PROBE_LOCAL 29\n").expect("rewrite local header");
         let after = task_stamp(&resolved, &plan).expect("stamp after");
         assert_ne!(before, after);
+
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn kain_check_task_writes_output_marker_for_cache_hits() {
+        let root = unique_test_dir("kain-check-cache-output");
+        std::fs::create_dir_all(root.join("src")).expect("create src");
+        std::fs::write(
+            root.join("src").join("main.kn"),
+            "fn main() -> Int:\n    return 0\n",
+        )
+        .expect("write source");
+
+        let config = test_workspace_config(&root);
+        let output_path = config
+            .artifact_root
+            .join("llvm")
+            .join("check-main.json");
+        let task = BuildTask {
+            id: "check-main".to_string(),
+            kind: BuildTaskKind::KainCheck,
+            blade: None,
+            description: "check-main".to_string(),
+            depends_on: Vec::new(),
+            inputs: vec![root.join("src").join("main.kn")],
+            outputs: vec![output_path.clone()],
+            required_capabilities: Vec::new(),
+            matrix_axes: Vec::new(),
+            telemetry: Vec::new(),
+            certifies: Vec::new(),
+            cacheable: true,
+            adapter: BuildTaskAdapter::KainCheck {
+                entry: root.join("src").join("main.kn"),
+                target: CompileTarget::Llvm,
+            },
+        };
+        let plan = BladeBuildPlan {
+            schema_version: BUILD_ARTIFACT_SCHEMA_VERSION,
+            workspace_root: config.workspace_root.clone(),
+            artifact_root: config.artifact_root.clone(),
+            cache_root: config.cache_root.clone(),
+            report_root: config.report_root.clone(),
+            host: config.host.clone(),
+            lane: config.lane,
+            profile: config.profile.clone(),
+            target: config.target.clone(),
+            build_graph: None,
+            tasks: vec![task.clone()],
+        };
+
+        let message =
+            run_kain_check(&root.join("src").join("main.kn"), CompileTarget::Llvm, None, Some(&output_path))
+                .expect("kain check should pass");
+        assert!(message.contains("checked"));
+        assert!(output_path.exists(), "kain-check should materialize its declared output");
+        write_task_stamp(&task, &plan).expect("write stamp");
+        assert!(
+            task_is_cached(&task, &plan).expect("cache probe"),
+            "kain-check task should become cacheable once it writes its output marker"
+        );
 
         let _ = std::fs::remove_dir_all(root);
     }
