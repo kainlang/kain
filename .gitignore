@@ -10,6 +10,7 @@ mcp/.config/
 .config/*
 tidus/
 /$recycle.bin
+smoketest/telemetry
 **/debug/**
 /.playground
 temp/*

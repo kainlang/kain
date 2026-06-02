@@ -4,7 +4,7 @@
 // kind:       kain_executable
 // storage:    editable
 // contents:   evidence
-// digest:     sha256:3bbe7983ab56430cd0fd3c3695deefa07f32224bc06583b1e81f29493504054e
+// digest:     sha256:a6de7bb1001ab206a8928be7f608f1a686091f8722793aa9e5acbef5a76266bc
 // capsule:    smoketest
 // entry:      src/main.kn
 // structure:  103 files | 0 modules
@@ -17,8 +17,8 @@
 // contents = "evidence"
 // source_kind = "kain_executable"
 // compression = "none"
-// digest = "sha256:3bbe7983ab56430cd0fd3c3695deefa07f32224bc06583b1e81f29493504054e"
-// created_at = "2026-06-01T13:32:51.493799600+00:00"
+// digest = "sha256:a6de7bb1001ab206a8928be7f608f1a686091f8722793aa9e5acbef5a76266bc"
+// created_at = "2026-06-02T00:03:25.084376100+00:00"
 // file_count = 103
 // module_count = 0
 // preview_symbol_limit = 0
@@ -43,13 +43,13 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 113
-// sha256 = "sha256:614560ffe3b94f0adf90117b70ce8efccf5c97e7394c78ef6006c670ae3e67e2"
+// sha256 = "sha256:b70f8d1e73469b43bcaf3b29a64426919bc6325adc8e7a4edf2a5b561d95a121"
 // trailing_newline = true
 //!kain-file-content
 // {
 //   "ops": 20,
 //   "rounds": 96,
-//   "composition_checksum": 692132192,
+//   "composition_checksum": 692132207,
 //   "failure_code": 0,
 //   "failure_track": ""
 // }
@@ -59,13 +59,13 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 970
-// sha256 = "sha256:0e9ae0e4be657cab4c4ad42426feb0da928a968eeb557ecd655d7f437416bda9"
+// sha256 = "sha256:e11b43ead4d654887d9efbe2d50045c54d6a1e62aecc8420f3442c48a7b95bde"
 // trailing_newline = true
 //!kain-file-content
 // {
 //   "mode": "attrition",
 //   "status": 0,
-//   "elapsed_ms": 2000,
+//   "elapsed_ms": 1559,
 //   "summary_exists": 1,
 //   "summary_path": "X:/smoketest/telemetry/attrition/summary.json",
 //   "output_dir": "X:/smoketest/telemetry/attrition",
@@ -83,7 +83,7 @@
 //   "error_message": "",
 //   "stdout_len": 0,
 //   "stderr_len": 0,
-//   "runner_checksum": 683245,
+//   "runner_checksum": 681922,
 //   "probe": {
 //   "ok": 1,
 //   "python": "Z:/_b/output-user-root/n2kwlvv2/execroot/_main/bazel-out/x64_windows-dbg/bin/crates/cli/kain.exe",
@@ -99,7 +99,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 917
-// sha256 = "sha256:dc1a1eb73347e2b3f5551b45f4f4c1ee3bb933bd2cce3379b2e3bbba3d0215e5"
+// sha256 = "sha256:ab76de7e4fc1a7c93ec8438fdbc407dbbafe0725d122ec068d175a1b5b11ca6a"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -109,10 +109,10 @@
 //   "failure_track": "",
 //   "total_tracks": 20,
 //   "succeeded_tracks": 20,
-//   "composition_checksum": 692132192,
-//   "started_ms": 30,
-//   "ended_ms": 1453,
-//   "elapsed_ms": 1423,
+//   "composition_checksum": 692132207,
+//   "started_ms": 33,
+//   "ended_ms": 1459,
+//   "elapsed_ms": 1426,
 //   "cpu_feature_mask": 391,
 //   "cpu_feature_fingerprint": -7409408978278525106,
 //   "runtime_heap_validate": 1,
@@ -138,7 +138,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 634
-// sha256 = "sha256:661306d6e357739cf38957904d53f1b88a1bef1bb443992cf3d53c0b8470ab43"
+// sha256 = "sha256:a70384b9655b15ee85529ed70c7851195efee3218b70051752954db3607e9398"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -149,11 +149,11 @@
 //   "offset": 6000,
 //   "status": 0,
 //   "ok": 1,
-//   "started_ms": 30,
-//   "ended_ms": 117,
-//   "elapsed_ms": 87,
-//   "track_checksum": 576412,
-//   "composition_checksum": 891339254,
+//   "started_ms": 33,
+//   "ended_ms": 116,
+//   "elapsed_ms": 83,
+//   "track_checksum": 576400,
+//   "composition_checksum": 891339242,
 //   "cpu_feature_fingerprint": -7409408978278525106,
 //   "patch_journal_count": 256,
 //   "entangle_propagation_count": 288,
@@ -170,7 +170,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 636
-// sha256 = "sha256:b953053b5f6e5b8af37b11e3914320a20f5ad1ef4a8686318a37280f76bd9671"
+// sha256 = "sha256:ee0f99ae6d57d9ae76c9ae2fc268bb82b9ecf058f8c2df502579635ebbb6c835"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -181,11 +181,11 @@
 //   "offset": 6001,
 //   "status": 0,
 //   "ok": 1,
-//   "started_ms": 117,
-//   "ended_ms": 198,
-//   "elapsed_ms": 81,
-//   "track_checksum": 576490,
-//   "composition_checksum": 312344766,
+//   "started_ms": 116,
+//   "ended_ms": 192,
+//   "elapsed_ms": 76,
+//   "track_checksum": 576475,
+//   "composition_checksum": 312344739,
 //   "cpu_feature_fingerprint": -7409408978278525106,
 //   "patch_journal_count": 256,
 //   "entangle_propagation_count": 579,
@@ -202,7 +202,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 638
-// sha256 = "sha256:70bc20016041909c5aec221fe48dfd558e0bbf293582a22cc554e82e49812a8a"
+// sha256 = "sha256:c9fe692db35107b9d7921edbbfb440713f7270b9f7966a58e0fc2a4aa194d05b"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -213,18 +213,18 @@
 //   "offset": 6010,
 //   "status": 0,
 //   "ok": 1,
-//   "started_ms": 772,
-//   "ended_ms": 834,
-//   "elapsed_ms": 62,
-//   "track_checksum": 577300,
-//   "composition_checksum": 2233917,
+//   "started_ms": 761,
+//   "ended_ms": 831,
+//   "elapsed_ms": 70,
+//   "track_checksum": 577324,
+//   "composition_checksum": 2233896,
 //   "cpu_feature_fingerprint": -7409408978278525106,
 //   "patch_journal_count": 256,
 //   "entangle_propagation_count": 3279,
 //   "converge_mismatch_count": 0,
 //   "runtime_converge_telemetry_count": 11,
-//   "runtime_machine_teleport_count": 1145,
-//   "runtime_machine_pulse_total_fire_count": 52,
+//   "runtime_machine_teleport_count": 1146,
+//   "runtime_machine_pulse_total_fire_count": 53,
 //   "actor_scheduler_queue_depth": 0,
 //   "actor_scheduler_total_enqueued": 0
 // }
@@ -234,7 +234,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 640
-// sha256 = "sha256:ff5e37f61bd66be381c5043087a5a21d8b672b5fff92452ce637fcf48aa7fbec"
+// sha256 = "sha256:753de7bad1d2894660ff933e16b182a1a3a1f19797b64058f3be6c6760f3ba68"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -245,11 +245,11 @@
 //   "offset": 6011,
 //   "status": 0,
 //   "ok": 1,
-//   "started_ms": 835,
-//   "ended_ms": 903,
-//   "elapsed_ms": 68,
-//   "track_checksum": 577414,
-//   "composition_checksum": 284594471,
+//   "started_ms": 832,
+//   "ended_ms": 898,
+//   "elapsed_ms": 66,
+//   "track_checksum": 577408,
+//   "composition_checksum": 284594444,
 //   "cpu_feature_fingerprint": -7409408978278525106,
 //   "patch_journal_count": 256,
 //   "entangle_propagation_count": 3573,
@@ -266,7 +266,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 639
-// sha256 = "sha256:ae0984425b94f951bcbbb63adad01c77354170e46190cedb0e44382330fc6b4b"
+// sha256 = "sha256:bec9f39eda03b0f45b19002b8c9fb093bc5ad8da7d5b3758635f8f8c3f370e20"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -277,18 +277,18 @@
 //   "offset": 6012,
 //   "status": 0,
 //   "ok": 1,
-//   "started_ms": 904,
-//   "ended_ms": 967,
-//   "elapsed_ms": 63,
-//   "track_checksum": 577495,
-//   "composition_checksum": 13015046,
+//   "started_ms": 899,
+//   "ended_ms": 969,
+//   "elapsed_ms": 70,
+//   "track_checksum": 577516,
+//   "composition_checksum": 13015040,
 //   "cpu_feature_fingerprint": -7409408978278525106,
 //   "patch_journal_count": 256,
 //   "entangle_propagation_count": 3870,
 //   "converge_mismatch_count": 0,
 //   "runtime_converge_telemetry_count": 13,
-//   "runtime_machine_teleport_count": 1351,
-//   "runtime_machine_pulse_total_fire_count": 61,
+//   "runtime_machine_teleport_count": 1352,
+//   "runtime_machine_pulse_total_fire_count": 62,
 //   "actor_scheduler_queue_depth": 0,
 //   "actor_scheduler_total_enqueued": 0
 // }
@@ -298,7 +298,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 641
-// sha256 = "sha256:8e3a6748cfe411628d56167ce56f7d0503c028d19a97fa755b37671aa9026396"
+// sha256 = "sha256:a6ea7d57b831def1f25c5ddc711f89f9a88b4f69a760aafeb909efd1866db9b0"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -309,18 +309,18 @@
 //   "offset": 6013,
 //   "status": 0,
 //   "ok": 1,
-//   "started_ms": 968,
-//   "ended_ms": 1035,
+//   "started_ms": 969,
+//   "ended_ms": 1036,
 //   "elapsed_ms": 67,
 //   "track_checksum": 577603,
-//   "composition_checksum": 964703573,
+//   "composition_checksum": 964703567,
 //   "cpu_feature_fingerprint": -7409408978278525106,
 //   "patch_journal_count": 256,
 //   "entangle_propagation_count": 4170,
 //   "converge_mismatch_count": 0,
 //   "runtime_converge_telemetry_count": 14,
-//   "runtime_machine_teleport_count": 1455,
-//   "runtime_machine_pulse_total_fire_count": 65,
+//   "runtime_machine_teleport_count": 1456,
+//   "runtime_machine_pulse_total_fire_count": 66,
 //   "actor_scheduler_queue_depth": 0,
 //   "actor_scheduler_total_enqueued": 0
 // }
@@ -330,7 +330,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 642
-// sha256 = "sha256:72056fa893ee2a4b3a38c117e0bc60ffc8df0671da47b958c5b0cd952ba1cb6f"
+// sha256 = "sha256:78719c83c3f7eb68bea67d8fa8a2a166178b03941042b2ec343c1748bf4bf518"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -342,10 +342,10 @@
 //   "status": 0,
 //   "ok": 1,
 //   "started_ms": 1036,
-//   "ended_ms": 1105,
-//   "elapsed_ms": 69,
-//   "track_checksum": 577705,
-//   "composition_checksum": 309973288,
+//   "ended_ms": 1109,
+//   "elapsed_ms": 73,
+//   "track_checksum": 577717,
+//   "composition_checksum": 309973294,
 //   "cpu_feature_fingerprint": -7409408978278525106,
 //   "patch_journal_count": 256,
 //   "entangle_propagation_count": 4473,
@@ -362,7 +362,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 641
-// sha256 = "sha256:07de65b5855ffe463a35b833c71c270343b381231db7e0ca2420446bfe2b499c"
+// sha256 = "sha256:368bad3d1614f82192a2310b36009ec384a4f898ff70316db5b82ed1f8f2c6b6"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -373,18 +373,18 @@
 //   "offset": 6015,
 //   "status": 0,
 //   "ok": 1,
-//   "started_ms": 1105,
-//   "ended_ms": 1174,
-//   "elapsed_ms": 69,
-//   "track_checksum": 577801,
-//   "composition_checksum": 82450920,
+//   "started_ms": 1110,
+//   "ended_ms": 1178,
+//   "elapsed_ms": 68,
+//   "track_checksum": 577798,
+//   "composition_checksum": 82450923,
 //   "cpu_feature_fingerprint": -7409408978278525106,
 //   "patch_journal_count": 256,
 //   "entangle_propagation_count": 4779,
 //   "converge_mismatch_count": 0,
 //   "runtime_converge_telemetry_count": 16,
-//   "runtime_machine_teleport_count": 1667,
-//   "runtime_machine_pulse_total_fire_count": 74,
+//   "runtime_machine_teleport_count": 1668,
+//   "runtime_machine_pulse_total_fire_count": 75,
 //   "actor_scheduler_queue_depth": 0,
 //   "actor_scheduler_total_enqueued": 0
 // }
@@ -394,7 +394,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 642
-// sha256 = "sha256:ceaf1ff4de2fd03826c5a16c80c97bc1bcf47b53977b13f5cd6240ac50d86233"
+// sha256 = "sha256:4ebaee5d7287794f750778f778724faba5cb4eb28cd9b3fd89336bc71b3d7ead"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -405,18 +405,18 @@
 //   "offset": 6016,
 //   "status": 0,
 //   "ok": 1,
-//   "started_ms": 1174,
-//   "ended_ms": 1243,
-//   "elapsed_ms": 69,
-//   "track_checksum": 577897,
-//   "composition_checksum": 145931174,
+//   "started_ms": 1178,
+//   "ended_ms": 1251,
+//   "elapsed_ms": 73,
+//   "track_checksum": 577909,
+//   "composition_checksum": 145931189,
 //   "cpu_feature_fingerprint": -7409408978278525106,
 //   "patch_journal_count": 256,
 //   "entangle_propagation_count": 5088,
 //   "converge_mismatch_count": 0,
 //   "runtime_converge_telemetry_count": 17,
-//   "runtime_machine_teleport_count": 1774,
-//   "runtime_machine_pulse_total_fire_count": 78,
+//   "runtime_machine_teleport_count": 1775,
+//   "runtime_machine_pulse_total_fire_count": 79,
 //   "actor_scheduler_queue_depth": 0,
 //   "actor_scheduler_total_enqueued": 0
 // }
@@ -426,7 +426,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 642
-// sha256 = "sha256:37c04a78aca73abe0c13e1c8bf40659cfeb9fbc36d229c6fc1fa77f51a22bebc"
+// sha256 = "sha256:464b9d3d81290e7842bf7e07e0490e0f19b72e5c903884f764282a2d922bc960"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -437,18 +437,18 @@
 //   "offset": 6017,
 //   "status": 0,
 //   "ok": 1,
-//   "started_ms": 1244,
-//   "ended_ms": 1317,
-//   "elapsed_ms": 73,
-//   "track_checksum": 578005,
-//   "composition_checksum": 379783454,
+//   "started_ms": 1251,
+//   "ended_ms": 1322,
+//   "elapsed_ms": 71,
+//   "track_checksum": 577999,
+//   "composition_checksum": 379783463,
 //   "cpu_feature_fingerprint": -7409408978278525106,
 //   "patch_journal_count": 256,
 //   "entangle_propagation_count": 5400,
 //   "converge_mismatch_count": 0,
 //   "runtime_converge_telemetry_count": 18,
-//   "runtime_machine_teleport_count": 1883,
-//   "runtime_machine_pulse_total_fire_count": 83,
+//   "runtime_machine_teleport_count": 1884,
+//   "runtime_machine_pulse_total_fire_count": 84,
 //   "actor_scheduler_queue_depth": 0,
 //   "actor_scheduler_total_enqueued": 0
 // }
@@ -458,7 +458,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 642
-// sha256 = "sha256:0957f05e3cd09bcbf29b7d5ae423789653bc436638afcf7090d9bb83a8d3c3ce"
+// sha256 = "sha256:329be376df1175aacf4c016473d4b6c4e84b515208d465d63e2533031367bfca"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -469,18 +469,18 @@
 //   "offset": 6018,
 //   "status": 0,
 //   "ok": 1,
-//   "started_ms": 1318,
-//   "ended_ms": 1385,
-//   "elapsed_ms": 67,
-//   "track_checksum": 578083,
-//   "composition_checksum": 271124678,
+//   "started_ms": 1322,
+//   "ended_ms": 1391,
+//   "elapsed_ms": 69,
+//   "track_checksum": 578089,
+//   "composition_checksum": 271124693,
 //   "cpu_feature_fingerprint": -7409408978278525106,
 //   "patch_journal_count": 256,
 //   "entangle_propagation_count": 5688,
 //   "converge_mismatch_count": 0,
 //   "runtime_converge_telemetry_count": 19,
-//   "runtime_machine_teleport_count": 1983,
-//   "runtime_machine_pulse_total_fire_count": 87,
+//   "runtime_machine_teleport_count": 1984,
+//   "runtime_machine_pulse_total_fire_count": 88,
 //   "actor_scheduler_queue_depth": 0,
 //   "actor_scheduler_total_enqueued": 0
 // }
@@ -490,7 +490,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 642
-// sha256 = "sha256:e759aa53ad0965ac32343641192d71c5873d68510105e5f462806216d6e7f472"
+// sha256 = "sha256:9cfa7c04cf00f5a8415313eb354c9fa34c2b403dd1ff15e9f3029839190df083"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -501,11 +501,11 @@
 //   "offset": 6019,
 //   "status": 0,
 //   "ok": 1,
-//   "started_ms": 1386,
-//   "ended_ms": 1453,
+//   "started_ms": 1391,
+//   "ended_ms": 1458,
 //   "elapsed_ms": 67,
 //   "track_checksum": 578179,
-//   "composition_checksum": 692132192,
+//   "composition_checksum": 692132207,
 //   "cpu_feature_fingerprint": -7409408978278525106,
 //   "patch_journal_count": 256,
 //   "entangle_propagation_count": 5979,
@@ -522,7 +522,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 636
-// sha256 = "sha256:cec5e7822e6b138d5e80397afd4987748fd1e791b2e84869e7fe2e11327966f7"
+// sha256 = "sha256:0b7e8ab922c3ec711c48f42c17c0c17957db11eb3e294299f08ea8231d2e8259"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -533,18 +533,18 @@
 //   "offset": 6002,
 //   "status": 0,
 //   "ok": 1,
-//   "started_ms": 199,
-//   "ended_ms": 281,
-//   "elapsed_ms": 82,
-//   "track_checksum": 576589,
-//   "composition_checksum": 594704342,
+//   "started_ms": 192,
+//   "ended_ms": 263,
+//   "elapsed_ms": 71,
+//   "track_checksum": 576556,
+//   "composition_checksum": 594704282,
 //   "cpu_feature_fingerprint": -7409408978278525106,
 //   "patch_journal_count": 256,
 //   "entangle_propagation_count": 873,
 //   "converge_mismatch_count": 0,
 //   "runtime_converge_telemetry_count": 3,
-//   "runtime_machine_teleport_count": 309,
-//   "runtime_machine_pulse_total_fire_count": 18,
+//   "runtime_machine_teleport_count": 308,
+//   "runtime_machine_pulse_total_fire_count": 17,
 //   "actor_scheduler_queue_depth": 0,
 //   "actor_scheduler_total_enqueued": 0
 // }
@@ -554,7 +554,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 637
-// sha256 = "sha256:e096666e473fd792c1ccfca27355381cc5c6d3b59ac16620ce12192a0debf1e4"
+// sha256 = "sha256:5153c3ee78033de950b5f21908465687a8a4a22dedc91edd48c6702bda8889f6"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -565,11 +565,11 @@
 //   "offset": 6003,
 //   "status": 0,
 //   "ok": 1,
-//   "started_ms": 282,
-//   "ended_ms": 350,
-//   "elapsed_ms": 68,
-//   "track_checksum": 576643,
-//   "composition_checksum": 323123912,
+//   "started_ms": 264,
+//   "ended_ms": 334,
+//   "elapsed_ms": 70,
+//   "track_checksum": 576649,
+//   "composition_checksum": 323123858,
 //   "cpu_feature_fingerprint": -7409408978278525106,
 //   "patch_journal_count": 256,
 //   "entangle_propagation_count": 1170,
@@ -586,7 +586,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 637
-// sha256 = "sha256:8d051a40801be279a5ed35f39986f882800cb37efb6eb1c861f458877295b671"
+// sha256 = "sha256:4dd7875c4cd863dee43280f6f58780fb11239f722f145a2298519b17b3bce319"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -597,11 +597,11 @@
 //   "offset": 6004,
 //   "status": 0,
 //   "ok": 1,
-//   "started_ms": 350,
-//   "ended_ms": 418,
+//   "started_ms": 335,
+//   "ended_ms": 403,
 //   "elapsed_ms": 68,
 //   "track_checksum": 576739,
-//   "composition_checksum": 274811415,
+//   "composition_checksum": 274811361,
 //   "cpu_feature_fingerprint": -7409408978278525106,
 //   "patch_journal_count": 256,
 //   "entangle_propagation_count": 1470,
@@ -618,7 +618,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 637
-// sha256 = "sha256:f700b89d2dcf635f028facdb79f91c33ad177dccc869e8789ec6bc320ca2d5fb"
+// sha256 = "sha256:8b22b921f8b579ddb6f6ed2cfef28286e6f3d3aa052b1ec5191742779d80ccb2"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -629,18 +629,18 @@
 //   "offset": 6005,
 //   "status": 0,
 //   "ok": 1,
-//   "started_ms": 418,
-//   "ended_ms": 491,
-//   "elapsed_ms": 73,
-//   "track_checksum": 576850,
-//   "composition_checksum": 620080129,
+//   "started_ms": 403,
+//   "ended_ms": 479,
+//   "elapsed_ms": 76,
+//   "track_checksum": 576859,
+//   "composition_checksum": 620080084,
 //   "cpu_feature_fingerprint": -7409408978278525106,
 //   "patch_journal_count": 256,
 //   "entangle_propagation_count": 1773,
 //   "converge_mismatch_count": 0,
 //   "runtime_converge_telemetry_count": 6,
-//   "runtime_machine_teleport_count": 621,
-//   "runtime_machine_pulse_total_fire_count": 30,
+//   "runtime_machine_teleport_count": 622,
+//   "runtime_machine_pulse_total_fire_count": 31,
 //   "actor_scheduler_queue_depth": 0,
 //   "actor_scheduler_total_enqueued": 0
 // }
@@ -650,7 +650,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 637
-// sha256 = "sha256:957cd01eb9fd28fcf02aee896f6093120ffbec960e099c7acfa1bbac9f5dff1d"
+// sha256 = "sha256:e12911b8190f1a8d0a5a089159cbfe1558a7873cb7ce6dd40d20105a8e963e51"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -661,11 +661,11 @@
 //   "offset": 6006,
 //   "status": 0,
 //   "ok": 1,
-//   "started_ms": 491,
-//   "ended_ms": 562,
-//   "elapsed_ms": 71,
-//   "track_checksum": 576940,
-//   "composition_checksum": 392556747,
+//   "started_ms": 480,
+//   "ended_ms": 555,
+//   "elapsed_ms": 75,
+//   "track_checksum": 576952,
+//   "composition_checksum": 392556714,
 //   "cpu_feature_fingerprint": -7409408978278525106,
 //   "patch_journal_count": 256,
 //   "entangle_propagation_count": 2079,
@@ -682,7 +682,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 637
-// sha256 = "sha256:9ab034c6f95e139ddb2662128c3cdd62a5fcacdc42bbd0a6696c901f5f712aa3"
+// sha256 = "sha256:701aee7a14c794db5427124d4f7ffbc6d25dd4a259a43e98f259c0dc30d8f227"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -693,18 +693,18 @@
 //   "offset": 6007,
 //   "status": 0,
 //   "ok": 1,
-//   "started_ms": 563,
-//   "ended_ms": 631,
+//   "started_ms": 555,
+//   "ended_ms": 623,
 //   "elapsed_ms": 68,
 //   "track_checksum": 577027,
-//   "composition_checksum": 456035978,
+//   "composition_checksum": 456035945,
 //   "cpu_feature_fingerprint": -7409408978278525106,
 //   "patch_journal_count": 256,
 //   "entangle_propagation_count": 2388,
 //   "converge_mismatch_count": 0,
 //   "runtime_converge_telemetry_count": 8,
-//   "runtime_machine_teleport_count": 836,
-//   "runtime_machine_pulse_total_fire_count": 40,
+//   "runtime_machine_teleport_count": 835,
+//   "runtime_machine_pulse_total_fire_count": 39,
 //   "actor_scheduler_queue_depth": 0,
 //   "actor_scheduler_total_enqueued": 0
 // }
@@ -714,7 +714,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 637
-// sha256 = "sha256:29f6631f80b0d618fb8d5ea3fda85f7cc893b9807bc91ce7fb6d6ce9ce998792"
+// sha256 = "sha256:ffe554b41b1125c0d50ece60000b27149a70c1065b3bb13d462f16dd70af1e6e"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -725,18 +725,18 @@
 //   "offset": 6008,
 //   "status": 0,
 //   "ok": 1,
-//   "started_ms": 632,
-//   "ended_ms": 708,
-//   "elapsed_ms": 76,
-//   "track_checksum": 577147,
-//   "composition_checksum": 689887247,
+//   "started_ms": 624,
+//   "ended_ms": 694,
+//   "elapsed_ms": 70,
+//   "track_checksum": 577129,
+//   "composition_checksum": 689887196,
 //   "cpu_feature_fingerprint": -7409408978278525106,
 //   "patch_journal_count": 256,
 //   "entangle_propagation_count": 2700,
 //   "converge_mismatch_count": 0,
 //   "runtime_converge_telemetry_count": 9,
-//   "runtime_machine_teleport_count": 944,
-//   "runtime_machine_pulse_total_fire_count": 44,
+//   "runtime_machine_teleport_count": 943,
+//   "runtime_machine_pulse_total_fire_count": 43,
 //   "actor_scheduler_queue_depth": 0,
 //   "actor_scheduler_total_enqueued": 0
 // }
@@ -746,7 +746,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 639
-// sha256 = "sha256:62c06d80265e719c6a283e1233f5adc03f3b7e63a869dc162113d0a48c4cbe7d"
+// sha256 = "sha256:b1fe3909eaf32ed6f685b2a0c7e0d09bdce7e857a83543dd331642bbfc44870c"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -757,18 +757,18 @@
 //   "offset": 6009,
 //   "status": 0,
 //   "ok": 1,
-//   "started_ms": 708,
-//   "ended_ms": 772,
-//   "elapsed_ms": 64,
-//   "track_checksum": 577207,
-//   "composition_checksum": 581227442,
+//   "started_ms": 695,
+//   "ended_ms": 761,
+//   "elapsed_ms": 66,
+//   "track_checksum": 577213,
+//   "composition_checksum": 581227397,
 //   "cpu_feature_fingerprint": -7409408978278525106,
 //   "patch_journal_count": 256,
 //   "entangle_propagation_count": 2988,
 //   "converge_mismatch_count": 0,
 //   "runtime_converge_telemetry_count": 10,
-//   "runtime_machine_teleport_count": 1044,
-//   "runtime_machine_pulse_total_fire_count": 48,
+//   "runtime_machine_teleport_count": 1043,
+//   "runtime_machine_pulse_total_fire_count": 47,
 //   "actor_scheduler_queue_depth": 0,
 //   "actor_scheduler_total_enqueued": 0
 // }
@@ -778,16 +778,16 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 128
-// sha256 = "sha256:be1d7c04b3ab981723b18336301f17aca6f4892caf2ee3e474e4434e34962fd3"
+// sha256 = "sha256:992e80af68335171771b0abf7bd064e79dbb55c4af145c6995a17d91a38d61d6"
 // trailing_newline = true
 //!kain-file-content
 // {
 //   "rounds": 256,
 //   "passes": 6,
-//   "best_ms": 176,
-//   "worst_ms": 212,
-//   "total_ms": 1187,
-//   "composition_checksum": 41819362
+//   "best_ms": 178,
+//   "worst_ms": 213,
+//   "total_ms": 1191,
+//   "composition_checksum": 41819380
 // }
 //!end-kain-file
 //!kain-file
@@ -795,13 +795,13 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 970
-// sha256 = "sha256:ed71eedbdb94242b25c577e898cc20f24ee97a9dd07a2d4cf5147923b1822089"
+// sha256 = "sha256:ff994e42fd4366023962d14c9cda8a0aca72a88c7852931d81d0c1849cb9570e"
 // trailing_newline = true
 //!kain-file-content
 // {
 //   "mode": "benchmark",
 //   "status": 0,
-//   "elapsed_ms": 1312,
+//   "elapsed_ms": 1293,
 //   "summary_exists": 1,
 //   "summary_path": "X:/smoketest/telemetry/benchmark/summary.json",
 //   "output_dir": "X:/smoketest/telemetry/benchmark",
@@ -819,7 +819,7 @@
 //   "error_message": "",
 //   "stdout_len": 0,
 //   "stderr_len": 0,
-//   "runner_checksum": 681181,
+//   "runner_checksum": 681124,
 //   "probe": {
 //   "ok": 1,
 //   "python": "Z:/_b/output-user-root/n2kwlvv2/execroot/_main/bazel-out/x64_windows-dbg/bin/crates/cli/kain.exe",
@@ -835,7 +835,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 911
-// sha256 = "sha256:ed62e76b1f34b16ce95105edde55a7ad605041ae92ecba20e1e2e0e67330211c"
+// sha256 = "sha256:59022371933544f4137ce5dfbc09751564facda7c287c419ff4db013c149d1cb"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -845,10 +845,10 @@
 //   "failure_track": "",
 //   "total_tracks": 6,
 //   "succeeded_tracks": 6,
-//   "composition_checksum": 41819362,
-//   "started_ms": 32,
-//   "ended_ms": 1219,
-//   "elapsed_ms": 1187,
+//   "composition_checksum": 41819380,
+//   "started_ms": 20,
+//   "ended_ms": 1211,
+//   "elapsed_ms": 1191,
 //   "cpu_feature_mask": 391,
 //   "cpu_feature_fingerprint": -7409408978278525106,
 //   "runtime_heap_validate": 1,
@@ -874,7 +874,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 636
-// sha256 = "sha256:2752a7ea222528d920f1be70ad772deb237cbbcd61dce87adca201d8395f34f4"
+// sha256 = "sha256:2841e90384f00f0f664a8a8d8f4503534ae58b7c301703ab25a404a4b4801733"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -885,18 +885,18 @@
 //   "offset": 5000,
 //   "status": 0,
 //   "ok": 1,
-//   "started_ms": 32,
-//   "ended_ms": 244,
-//   "elapsed_ms": 212,
-//   "track_checksum": 480787,
-//   "composition_checksum": 830148777,
+//   "started_ms": 20,
+//   "ended_ms": 227,
+//   "elapsed_ms": 207,
+//   "track_checksum": 480772,
+//   "composition_checksum": 830148762,
 //   "cpu_feature_fingerprint": -7409408978278525106,
 //   "patch_journal_count": 256,
 //   "entangle_propagation_count": 768,
 //   "converge_mismatch_count": 0,
 //   "runtime_converge_telemetry_count": 1,
-//   "runtime_machine_teleport_count": 272,
-//   "runtime_machine_pulse_total_fire_count": 16,
+//   "runtime_machine_teleport_count": 271,
+//   "runtime_machine_pulse_total_fire_count": 15,
 //   "actor_scheduler_queue_depth": 0,
 //   "actor_scheduler_total_enqueued": 0
 // }
@@ -906,7 +906,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 638
-// sha256 = "sha256:a94d9c9d96c37da1e1d04db0bbf5fc710bde8ed3e72a976317a3b7d74e9adf8e"
+// sha256 = "sha256:08560b3883c561e16f99672d17b6d9150aeee697f0ee17a90f1a063ba236fbe6"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -917,11 +917,11 @@
 //   "offset": 5001,
 //   "status": 0,
 //   "ok": 1,
-//   "started_ms": 244,
-//   "ended_ms": 420,
-//   "elapsed_ms": 176,
-//   "track_checksum": 480775,
-//   "composition_checksum": 679333913,
+//   "started_ms": 228,
+//   "ended_ms": 406,
+//   "elapsed_ms": 178,
+//   "track_checksum": 480781,
+//   "composition_checksum": 679333904,
 //   "cpu_feature_fingerprint": -7409408978278525106,
 //   "patch_journal_count": 256,
 //   "entangle_propagation_count": 1575,
@@ -938,7 +938,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 638
-// sha256 = "sha256:fb5f78456b4a50e59b973285c1a99b95ee3083cdc7c4950ca60c194bcebf8835"
+// sha256 = "sha256:114446a5b9834957771a2e74e5328ed75fa1ba5a7abf991eafec5b182ae610c6"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -949,11 +949,11 @@
 //   "offset": 5002,
 //   "status": 0,
 //   "ok": 1,
-//   "started_ms": 420,
-//   "ended_ms": 606,
-//   "elapsed_ms": 186,
-//   "track_checksum": 480901,
-//   "composition_checksum": 551052551,
+//   "started_ms": 406,
+//   "ended_ms": 586,
+//   "elapsed_ms": 180,
+//   "track_checksum": 480883,
+//   "composition_checksum": 551052524,
 //   "cpu_feature_fingerprint": -7409408978278525106,
 //   "patch_journal_count": 256,
 //   "entangle_propagation_count": 2421,
@@ -970,7 +970,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 639
-// sha256 = "sha256:d88d78a9ede2d5272eaf50f160df1bf2984d086cd89b346ac3ba11cb6bb7fd91"
+// sha256 = "sha256:3bd74870d3ac5865b15724a47971d10d5e3c298d0f43a5080339e87d3b072403"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -981,11 +981,11 @@
 //   "offset": 5003,
 //   "status": 0,
 //   "ok": 1,
-//   "started_ms": 607,
-//   "ended_ms": 806,
-//   "elapsed_ms": 199,
-//   "track_checksum": 481036,
-//   "composition_checksum": 312935597,
+//   "started_ms": 586,
+//   "ended_ms": 799,
+//   "elapsed_ms": 213,
+//   "track_checksum": 481078,
+//   "composition_checksum": 312935612,
 //   "cpu_feature_fingerprint": -7409408978278525106,
 //   "patch_journal_count": 256,
 //   "entangle_propagation_count": 3306,
@@ -1001,8 +1001,8 @@
 // path = "telemetry/benchmark/tracks/benchmark.pass.4.json"
 // kind = "text"
 // encoding = "utf8"
-// bytes = 640
-// sha256 = "sha256:61a9c15ade5ef93ab02cf6d0ba56036bbf2325f847cebd7b399894dfa154fdda"
+// bytes = 639
+// sha256 = "sha256:c2fe2fb55ebaddf58775d6350ab1855e2551728cf37a2baecb7dfa7636af2a72"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -1013,18 +1013,18 @@
 //   "offset": 5004,
 //   "status": 0,
 //   "ok": 1,
-//   "started_ms": 807,
-//   "ended_ms": 1009,
-//   "elapsed_ms": 202,
-//   "track_checksum": 481141,
-//   "composition_checksum": 550134012,
+//   "started_ms": 800,
+//   "ended_ms": 999,
+//   "elapsed_ms": 199,
+//   "track_checksum": 481132,
+//   "composition_checksum": 550134018,
 //   "cpu_feature_fingerprint": -7409408978278525106,
 //   "patch_journal_count": 256,
 //   "entangle_propagation_count": 4230,
 //   "converge_mismatch_count": 0,
 //   "runtime_converge_telemetry_count": 5,
-//   "runtime_machine_teleport_count": 1475,
-//   "runtime_machine_pulse_total_fire_count": 65,
+//   "runtime_machine_teleport_count": 1474,
+//   "runtime_machine_pulse_total_fire_count": 64,
 //   "actor_scheduler_queue_depth": 0,
 //   "actor_scheduler_total_enqueued": 0
 // }
@@ -1033,8 +1033,8 @@
 // path = "telemetry/benchmark/tracks/benchmark.pass.5.json"
 // kind = "text"
 // encoding = "utf8"
-// bytes = 640
-// sha256 = "sha256:13f1c2fba4e3bd5d87c0608ae92f9e2e051a3ec455033d39382413a40a5f3216"
+// bytes = 639
+// sha256 = "sha256:16ee2408306ddb4c54b9969050e51025c1a0031784a03863df5804b93d759ce1"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -1045,11 +1045,11 @@
 //   "offset": 5005,
 //   "status": 0,
 //   "ok": 1,
-//   "started_ms": 1010,
-//   "ended_ms": 1218,
-//   "elapsed_ms": 208,
-//   "track_checksum": 481255,
-//   "composition_checksum": 41819362,
+//   "started_ms": 999,
+//   "ended_ms": 1211,
+//   "elapsed_ms": 212,
+//   "track_checksum": 481267,
+//   "composition_checksum": 41819380,
 //   "cpu_feature_fingerprint": -7409408978278525106,
 //   "patch_journal_count": 256,
 //   "entangle_propagation_count": 5193,
@@ -1087,14 +1087,14 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 252
-// sha256 = "sha256:aafc05f5ddd7d2ab220cf6246512de94ce909eb753a02133290c9edd779e7779"
+// sha256 = "sha256:737e99daa36df73736ce8a9034e6e8340dcde6382687df00fe49af4f93b8f770"
 // trailing_newline = true
 //!kain-file-content
 // {
 //   "score": 950318262,
 //   "patch_journal_count": 147,
 //   "entangle_propagation_count": 147,
-//   "runtime_machine_teleport_count": 201,
+//   "runtime_machine_teleport_count": 179,
 //   "runtime_converge_telemetry_count": 1,
 //   "actor_scheduler_total_enqueued": 0,
 //   "actor_scheduler_total_dequeued": 0
@@ -1105,7 +1105,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 301
-// sha256 = "sha256:69877ff7bd6861df9645dd6935323e7d4386a60c5e188d6d554caf00f8ce7222"
+// sha256 = "sha256:c2615b787195243875156547147e284643b6b06971377de8f38aa2f5ab7c338c"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -1117,9 +1117,9 @@
 //   "patch_journal": 167,
 //   "entangle_propagations": 167,
 //   "converge_mismatches": 0,
-//   "pulse_count": 517,
+//   "pulse_count": 479,
 //   "actor_enqueued": 0,
-//   "ui_hash": 1916503995105833037,
+//   "ui_hash": 1334909742846108807,
 //   "ui_draws": 26,
 //   "graphics_draws": 1
 // }
@@ -1129,12 +1129,12 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 352
-// sha256 = "sha256:5b7ab456d6da32bdc937a337afb8d50a550ac11d1faa42e298037c104e318707"
+// sha256 = "sha256:b78f46fc5e828331d5d186dfe2f3460fc08631b176769ffec6120af0fcf7d506"
 // trailing_newline = true
 //!kain-file-content
 // total_tracks=63
 // passed_tracks=63
-// composition_checksum=19588793
+// composition_checksum=19587740
 // semantics_tracks=18
 // systems_tracks=7
 // gpu_tracks=1
@@ -1145,9 +1145,9 @@
 // patch_journal=167
 // entangle_propagations=167
 // converge_mismatches=0
-// pulse_count=157
+// pulse_count=136
 // actor_enqueued=0
-// ui_hash=1916503995105833037
+// ui_hash=1334909742846108807
 // ui_draws=26
 // graphics_draws=1
 // graphics_score=81
@@ -1157,18 +1157,18 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 229
-// sha256 = "sha256:8ae06804c848dc195a9027f02f6c402dfecc8281a0e299cc4bd3c80bcaa4a680"
+// sha256 = "sha256:8dd81e865d3f71ec46b5cd57208797c3356763aa2b7920d3dc68dad1ff7568dc"
 // trailing_newline = true
 //!kain-file-content
 // frames=180
 // cells=2160
 // view=TELEMETRY
 // tracks=63/63
-// checksum=19588793
+// checksum=19587740
 // patch_journal=167
 // entangle_propagations=167
 // converge_mismatches=0
-// pulse_count=157
+// pulse_count=136
 // actor_enqueued=0
 // ui_hash=2147483647
 // ui_draws=26
@@ -1180,13 +1180,13 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 957
-// sha256 = "sha256:7d0b616f1c01a477a6a9c5da2d6211acd90c121ed2d8fa6b30c9e244ca453211"
+// sha256 = "sha256:1c74f260caf65cf5c917199e8e08115071c80756b746b75d3f7ab5bde9274f29"
 // trailing_newline = true
 //!kain-file-content
 // {
 //   "mode": "full",
 //   "status": 0,
-//   "elapsed_ms": 8303,
+//   "elapsed_ms": 7734,
 //   "summary_exists": 1,
 //   "summary_path": "X:/smoketest/telemetry/full/summary.json",
 //   "output_dir": "X:/smoketest/telemetry/full",
@@ -1204,7 +1204,7 @@
 //   "error_message": "",
 //   "stdout_len": 376,
 //   "stderr_len": 0,
-//   "runner_checksum": 702139,
+//   "runner_checksum": 700432,
 //   "probe": {
 //   "ok": 1,
 //   "python": "Z:/_b/output-user-root/n2kwlvv2/execroot/_main/bazel-out/x64_windows-dbg/bin/crates/cli/kain.exe",
@@ -1220,18 +1220,18 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 357
-// sha256 = "sha256:43337a171c53dbebfb995440368862f8e05c78d0b6cef2c09aa1fff602967997"
+// sha256 = "sha256:dc54976dceb78d6e51c580d0e06136616ea30f3401bdc5e1300187330cbeff55"
 // trailing_newline = true
 //!kain-file-content
 // {
 //   "status": 0,
 //   "progress": "62/63",
-//   "composition_checksum": 18793474,
+//   "composition_checksum": 18792400,
 //   "generation": 1,
 //   "committed": 1,
 //   "draw_count": 26,
 //   "presented_draws": 26,
-//   "frame_hash": 1916503995105833037,
+//   "frame_hash": 1334909742846108807,
 //   "state_count": 11,
 //   "interaction_count": 2,
 //   "focus_node": 7,
@@ -1246,7 +1246,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 905
-// sha256 = "sha256:b1355182c23c077467343b4aa242ac1004c9e601c510eb8a552891066fd958af"
+// sha256 = "sha256:e17951824c066a7c173d65c304526f5ade7a13914ab074b86a3f9ffd68b208c3"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -1256,10 +1256,10 @@
 //   "failure_track": "",
 //   "total_tracks": 63,
 //   "succeeded_tracks": 63,
-//   "composition_checksum": 20432202,
-//   "started_ms": 33,
-//   "ended_ms": 8158,
-//   "elapsed_ms": 8125,
+//   "composition_checksum": 20430411,
+//   "started_ms": 23,
+//   "ended_ms": 7541,
+//   "elapsed_ms": 7518,
 //   "cpu_feature_mask": 391,
 //   "cpu_feature_fingerprint": -7409408978278525106,
 //   "runtime_heap_validate": 1,
@@ -1270,8 +1270,8 @@
 //   "runtime_converge_telemetry_count": 1,
 //   "runtime_converge_cache_probe_count": 2,
 //   "runtime_converge_cache_hit_count": 0,
-//   "runtime_machine_teleport_count": 566,
-//   "runtime_machine_pulse_total_fire_count": 517,
+//   "runtime_machine_teleport_count": 528,
+//   "runtime_machine_pulse_total_fire_count": 479,
 //   "actor_scheduler_queue_depth": 0,
 //   "actor_scheduler_max_queue_depth": 0,
 //   "actor_scheduler_total_enqueued": 0,
@@ -1285,7 +1285,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 599
-// sha256 = "sha256:1cbe3527704d95040677c9b0314bf4d1391fdf1ab288450f39a13b7b201032ec"
+// sha256 = "sha256:30610480d55cc62a3cf516b881fa6f660fae09ae7956f1ecd2168dcf75d5a040"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -1296,18 +1296,18 @@
 //   "offset": 2275,
 //   "status": 0,
 //   "ok": 1,
-//   "started_ms": 41,
-//   "ended_ms": 41,
+//   "started_ms": 31,
+//   "ended_ms": 31,
 //   "elapsed_ms": 0,
 //   "track_checksum": 355093,
-//   "composition_checksum": 2102857,
+//   "composition_checksum": 2102851,
 //   "cpu_feature_fingerprint": -7409408978278525106,
 //   "patch_journal_count": 3,
 //   "entangle_propagation_count": 3,
 //   "converge_mismatch_count": 0,
 //   "runtime_converge_telemetry_count": 0,
-//   "runtime_machine_teleport_count": 4,
-//   "runtime_machine_pulse_total_fire_count": 3,
+//   "runtime_machine_teleport_count": 3,
+//   "runtime_machine_pulse_total_fire_count": 2,
 //   "actor_scheduler_queue_depth": 0,
 //   "actor_scheduler_total_enqueued": 0
 // }
@@ -1317,7 +1317,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 626
-// sha256 = "sha256:dc736096e1eb2b0d08f95e7d766b756201ad82ef28e8e3ce1417f89ff169e107"
+// sha256 = "sha256:139d854104fbf982cc768326bbc903968a673a8d301c5a6bff0257d0a6df32a0"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -1328,18 +1328,18 @@
 //   "offset": 3600,
 //   "status": 0,
 //   "ok": 1,
-//   "started_ms": 2276,
-//   "ended_ms": 2279,
+//   "started_ms": 1884,
+//   "ended_ms": 1887,
 //   "elapsed_ms": 3,
 //   "track_checksum": 388981,
-//   "composition_checksum": 10035124,
+//   "composition_checksum": 10033996,
 //   "cpu_feature_fingerprint": -7409408978278525106,
 //   "patch_journal_count": 3,
 //   "entangle_propagation_count": 3,
 //   "converge_mismatch_count": 0,
 //   "runtime_converge_telemetry_count": 0,
-//   "runtime_machine_teleport_count": 144,
-//   "runtime_machine_pulse_total_fire_count": 143,
+//   "runtime_machine_teleport_count": 121,
+//   "runtime_machine_pulse_total_fire_count": 120,
 //   "actor_scheduler_queue_depth": 0,
 //   "actor_scheduler_total_enqueued": 0
 // }
@@ -1349,7 +1349,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 619
-// sha256 = "sha256:982102a7e0a3f345e0ea6d002d4d448ac7f85704891e17e179632be1565ca7f4"
+// sha256 = "sha256:f76db467cceab9df78c7031958adbc0526916d5adfed2be0db80ccffeec16102"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -1360,18 +1360,18 @@
 //   "offset": 3500,
 //   "status": 0,
 //   "ok": 1,
-//   "started_ms": 2274,
-//   "ended_ms": 2276,
-//   "elapsed_ms": 2,
-//   "track_checksum": 367666,
-//   "composition_checksum": 9646143,
+//   "started_ms": 1881,
+//   "ended_ms": 1884,
+//   "elapsed_ms": 3,
+//   "track_checksum": 367669,
+//   "composition_checksum": 9645015,
 //   "cpu_feature_fingerprint": -7409408978278525106,
 //   "patch_journal_count": 3,
 //   "entangle_propagation_count": 3,
 //   "converge_mismatch_count": 0,
 //   "runtime_converge_telemetry_count": 0,
-//   "runtime_machine_teleport_count": 144,
-//   "runtime_machine_pulse_total_fire_count": 143,
+//   "runtime_machine_teleport_count": 121,
+//   "runtime_machine_pulse_total_fire_count": 120,
 //   "actor_scheduler_queue_depth": 0,
 //   "actor_scheduler_total_enqueued": 0
 // }
@@ -1381,7 +1381,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 607
-// sha256 = "sha256:38be99d416e76fcba78a8c7a7e1b4818f28f2f88276e556a455256d8ac84a272"
+// sha256 = "sha256:e216f31042c56499f0103777de9c6bd3660402bc7d6218bce0f1792545d08c60"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -1392,11 +1392,11 @@
 //   "offset": 1000,
 //   "status": 0,
 //   "ok": 1,
-//   "started_ms": 35,
-//   "ended_ms": 36,
-//   "elapsed_ms": 1,
-//   "track_checksum": 30085,
-//   "composition_checksum": 116248,
+//   "started_ms": 26,
+//   "ended_ms": 26,
+//   "elapsed_ms": 0,
+//   "track_checksum": 30082,
+//   "composition_checksum": 116245,
 //   "cpu_feature_fingerprint": -7409408978278525106,
 //   "patch_journal_count": 3,
 //   "entangle_propagation_count": 3,
@@ -1413,7 +1413,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 618
-// sha256 = "sha256:5606e295b944948e1ff11878aed580692fb7930fa1f9d13d0c82159d51a86972"
+// sha256 = "sha256:37d849f74d200012bb59a8107ff1ef0a2e95d793a1817ca04b183445b671c665"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -1424,8 +1424,8 @@
 //   "offset": 500,
 //   "status": 0,
 //   "ok": 1,
-//   "started_ms": 34,
-//   "ended_ms": 34,
+//   "started_ms": 24,
+//   "ended_ms": 24,
 //   "elapsed_ms": 0,
 //   "track_checksum": 7588,
 //   "composition_checksum": 16862,
@@ -1445,7 +1445,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 607
-// sha256 = "sha256:96f156a6b2d9b0b1ecb46e0de60d61d950383b854723c62d4e3b27c5cc93ff08"
+// sha256 = "sha256:1b4075dd5009e02d72c6186d96c5b1156bb28dafa8d42bf87c8c69f40665ad4b"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -1456,11 +1456,11 @@
 //   "offset": 1300,
 //   "status": 0,
 //   "ok": 1,
-//   "started_ms": 36,
-//   "ended_ms": 36,
+//   "started_ms": 27,
+//   "ended_ms": 27,
 //   "elapsed_ms": 0,
 //   "track_checksum": 50791,
-//   "composition_checksum": 246739,
+//   "composition_checksum": 246736,
 //   "cpu_feature_fingerprint": -7409408978278525106,
 //   "patch_journal_count": 3,
 //   "entangle_propagation_count": 3,
@@ -1477,7 +1477,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 613
-// sha256 = "sha256:c30f316c6fca41e52ea00469abcb8462823d95a753a68fd6c60bb0a18ddb582d"
+// sha256 = "sha256:0e6667a24b129b23578babff95a2ef6978990d73a7fb200c97fb56c0dcfd00ff"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -1488,18 +1488,18 @@
 //   "offset": 1700,
 //   "status": 0,
 //   "ok": 1,
-//   "started_ms": 37,
-//   "ended_ms": 37,
+//   "started_ms": 28,
+//   "ended_ms": 28,
 //   "elapsed_ms": 0,
 //   "track_checksum": 86812,
-//   "composition_checksum": 536957,
+//   "composition_checksum": 536954,
 //   "cpu_feature_fingerprint": -7409408978278525106,
 //   "patch_journal_count": 3,
 //   "entangle_propagation_count": 3,
 //   "converge_mismatch_count": 0,
 //   "runtime_converge_telemetry_count": 0,
-//   "runtime_machine_teleport_count": 4,
-//   "runtime_machine_pulse_total_fire_count": 3,
+//   "runtime_machine_teleport_count": 3,
+//   "runtime_machine_pulse_total_fire_count": 2,
 //   "actor_scheduler_queue_depth": 0,
 //   "actor_scheduler_total_enqueued": 0
 // }
@@ -1509,7 +1509,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 607
-// sha256 = "sha256:8b696c2caaf949ee44fa837188a44cea56525a8c9878477bd0adfd38bb40bfa9"
+// sha256 = "sha256:0127e87202675c2ca5253983c75d9e1678335c7b1f8ed713510cf7a7051b31ed"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -1520,8 +1520,8 @@
 //   "offset": 200,
 //   "status": 0,
 //   "ok": 1,
-//   "started_ms": 33,
-//   "ended_ms": 33,
+//   "started_ms": 24,
+//   "ended_ms": 24,
 //   "elapsed_ms": 0,
 //   "track_checksum": 1264,
 //   "composition_checksum": 1619,
@@ -1541,7 +1541,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 613
-// sha256 = "sha256:37633dff1a4b371a5c7351497777f2ff7fdee1cd7d161959859f644b0c6390ac"
+// sha256 = "sha256:b959956c1647ee34c78e7e62434258f856545cd88e688a021733065e3c97c0c8"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -1552,11 +1552,11 @@
 //   "offset": 1100,
 //   "status": 0,
 //   "ok": 1,
-//   "started_ms": 36,
-//   "ended_ms": 36,
+//   "started_ms": 26,
+//   "ended_ms": 26,
 //   "elapsed_ms": 0,
 //   "track_checksum": 36394,
-//   "composition_checksum": 152642,
+//   "composition_checksum": 152639,
 //   "cpu_feature_fingerprint": -7409408978278525106,
 //   "patch_journal_count": 3,
 //   "entangle_propagation_count": 3,
@@ -1573,7 +1573,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 607
-// sha256 = "sha256:2ef3a67db68edee7cbf5e792f87ebda4b2bb05df10bef7dc70faa75ca15ef0cd"
+// sha256 = "sha256:35332789a16d42860f370fa403aa3c105fccae62e229d856b5a45c5368f7af28"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -1584,8 +1584,8 @@
 //   "offset": 300,
 //   "status": 0,
 //   "ok": 1,
-//   "started_ms": 34,
-//   "ended_ms": 34,
+//   "started_ms": 24,
+//   "ended_ms": 24,
 //   "elapsed_ms": 0,
 //   "track_checksum": 2767,
 //   "composition_checksum": 4386,
@@ -1605,7 +1605,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 611
-// sha256 = "sha256:f8c80b764bedf608a52af5efdd16b6e255bcba53e10e221d27845bfc0178479f"
+// sha256 = "sha256:e7c8b659513f8774187d4257815f6057e1d442b63c4a7a607d186528f644a3de"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -1616,8 +1616,8 @@
 //   "offset": 700,
 //   "status": 0,
 //   "ok": 1,
-//   "started_ms": 35,
-//   "ended_ms": 35,
+//   "started_ms": 25,
+//   "ended_ms": 25,
 //   "elapsed_ms": 0,
 //   "track_checksum": 14782,
 //   "composition_checksum": 42514,
@@ -1637,7 +1637,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 622
-// sha256 = "sha256:33300f3d895e58b82288deab6a7db4321222e8c2a1f0ad137133afbe851e76aa"
+// sha256 = "sha256:923f2444e7c4470b0c7b9d841e6716a1320aabae6d554deab840f43aac55320b"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -1648,18 +1648,18 @@
 //   "offset": 1750,
 //   "status": 0,
 //   "ok": 1,
-//   "started_ms": 38,
-//   "ended_ms": 38,
+//   "started_ms": 28,
+//   "ended_ms": 28,
 //   "elapsed_ms": 0,
 //   "track_checksum": 262723,
-//   "composition_checksum": 799680,
+//   "composition_checksum": 799677,
 //   "cpu_feature_fingerprint": -7409408978278525106,
 //   "patch_journal_count": 3,
 //   "entangle_propagation_count": 3,
 //   "converge_mismatch_count": 0,
 //   "runtime_converge_telemetry_count": 0,
-//   "runtime_machine_teleport_count": 4,
-//   "runtime_machine_pulse_total_fire_count": 3,
+//   "runtime_machine_teleport_count": 3,
+//   "runtime_machine_pulse_total_fire_count": 2,
 //   "actor_scheduler_queue_depth": 0,
 //   "actor_scheduler_total_enqueued": 0
 // }
@@ -1669,7 +1669,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 601
-// sha256 = "sha256:9e89bf9ce385e804780e3a018be367a815fef046f89d4fd69bc8b146d735ee68"
+// sha256 = "sha256:7bb922e4df32a4426aed93b77b8bd885f4b9f0171848348c67b6f5fc321dc692"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -1680,8 +1680,8 @@
 //   "offset": 800,
 //   "status": 0,
 //   "ok": 1,
-//   "started_ms": 35,
-//   "ended_ms": 35,
+//   "started_ms": 25,
+//   "ended_ms": 25,
 //   "elapsed_ms": 0,
 //   "track_checksum": 19270,
 //   "composition_checksum": 61784,
@@ -1701,7 +1701,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 619
-// sha256 = "sha256:89de7b94a3839bf90741de5e41aef0ce20a59f671b7dfacaa74c950d6740ec98"
+// sha256 = "sha256:2b097260cad6e883820c7db1a70ac83c1dcc7798e1b8cd73649b9843992ad9df"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -1712,8 +1712,8 @@
 //   "offset": 400,
 //   "status": 0,
 //   "ok": 1,
-//   "started_ms": 34,
-//   "ended_ms": 34,
+//   "started_ms": 24,
+//   "ended_ms": 24,
 //   "elapsed_ms": 0,
 //   "track_checksum": 4888,
 //   "composition_checksum": 9274,
@@ -1733,7 +1733,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 619
-// sha256 = "sha256:1e3570bb5782684c13777a7c746133dbb0e02aca13e8ec5208cc61f3ad61cbba"
+// sha256 = "sha256:be9bf84bacb19b96cbff773f864d10cd59df3b786c3558737f6d9969389dd6a8"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -1744,11 +1744,11 @@
 //   "offset": 1200,
 //   "status": 0,
 //   "ok": 1,
-//   "started_ms": 36,
-//   "ended_ms": 36,
+//   "started_ms": 27,
+//   "ended_ms": 27,
 //   "elapsed_ms": 0,
 //   "track_checksum": 43306,
-//   "composition_checksum": 195948,
+//   "composition_checksum": 195945,
 //   "cpu_feature_fingerprint": -7409408978278525106,
 //   "patch_journal_count": 3,
 //   "entangle_propagation_count": 3,
@@ -1765,7 +1765,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 605
-// sha256 = "sha256:5a3204c785be86a53260bb3aff7c13d18166afa5cca92167b468d3e63dcc38f3"
+// sha256 = "sha256:7d92bf38789ae9dae26ebbf031c127ba7b665f7018fdf82abcf22fb82b1855e6"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -1776,8 +1776,8 @@
 //   "offset": 900,
 //   "status": 0,
 //   "ok": 1,
-//   "started_ms": 35,
-//   "ended_ms": 35,
+//   "started_ms": 25,
+//   "ended_ms": 25,
 //   "elapsed_ms": 0,
 //   "track_checksum": 24379,
 //   "composition_checksum": 86163,
@@ -1797,7 +1797,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 607
-// sha256 = "sha256:417d536319d53f2b1c585d94f5b59e63d494dabef8dd7bee46e0b322f9718b08"
+// sha256 = "sha256:fc1c5968ead5a5bdaee190beb82bbebdcff7ebdc9a4b0f8cc482dde384b1ef3b"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -1808,11 +1808,11 @@
 //   "offset": 1500,
 //   "status": 0,
 //   "ok": 1,
-//   "started_ms": 37,
-//   "ended_ms": 37,
+//   "started_ms": 27,
+//   "ended_ms": 27,
 //   "elapsed_ms": 0,
 //   "track_checksum": 67597,
-//   "composition_checksum": 373236,
+//   "composition_checksum": 373233,
 //   "cpu_feature_fingerprint": -7409408978278525106,
 //   "patch_journal_count": 3,
 //   "entangle_propagation_count": 3,
@@ -1829,7 +1829,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 611
-// sha256 = "sha256:2fe1615ad6d2dade39588e8c54f5b3c7c7bd83f78f6edc61ff493c9e7c2e401c"
+// sha256 = "sha256:805a2750ff93465c4dd601fc7aed8d18b1fb55c532e1aac0ca060152714ddf70"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -1840,11 +1840,11 @@
 //   "offset": 1400,
 //   "status": 0,
 //   "ok": 1,
-//   "started_ms": 37,
-//   "ended_ms": 37,
+//   "started_ms": 27,
+//   "ended_ms": 27,
 //   "elapsed_ms": 0,
 //   "track_checksum": 58900,
-//   "composition_checksum": 305639,
+//   "composition_checksum": 305636,
 //   "cpu_feature_fingerprint": -7409408978278525106,
 //   "patch_journal_count": 3,
 //   "entangle_propagation_count": 3,
@@ -1861,7 +1861,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 613
-// sha256 = "sha256:1bacded483bbb2770e8e29cf7fb08d6d972914291f23f843303b123b398338a4"
+// sha256 = "sha256:99fe9e463a94eddfb4c667eb7a3fe81a31c11d05f0276d77abc63dc547a3c474"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -1872,11 +1872,11 @@
 //   "offset": 1600,
 //   "status": 0,
 //   "ok": 1,
-//   "started_ms": 37,
-//   "ended_ms": 37,
+//   "started_ms": 28,
+//   "ended_ms": 28,
 //   "elapsed_ms": 0,
 //   "track_checksum": 76909,
-//   "composition_checksum": 450145,
+//   "composition_checksum": 450142,
 //   "cpu_feature_fingerprint": -7409408978278525106,
 //   "patch_journal_count": 3,
 //   "entangle_propagation_count": 3,
@@ -1893,7 +1893,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 601
-// sha256 = "sha256:091f2005d773c98b09ce8ce5a29f825fb13c7ddd1954c83d97d0f8f31f66dec0"
+// sha256 = "sha256:5c8fa5ee39228cff2e7e3388bfee4179fe3d1ba7ebadcec763d98d1cc413a96e"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -1904,8 +1904,8 @@
 //   "offset": 100,
 //   "status": 0,
 //   "ok": 1,
-//   "started_ms": 33,
-//   "ended_ms": 33,
+//   "started_ms": 23,
+//   "ended_ms": 23,
 //   "elapsed_ms": 0,
 //   "track_checksum": 355,
 //   "composition_checksum": 355,
@@ -1925,7 +1925,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 605
-// sha256 = "sha256:ede46cf7e6fa2bdeab82f35fed9d0c30d25b4f4e23549dec2c8a1a551afd6590"
+// sha256 = "sha256:68ce040649b064a41b8ecd3d00a74b5bed7efceb7a206f256c0ae9677a071f5c"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -1936,8 +1936,8 @@
 //   "offset": 600,
 //   "status": 0,
 //   "ok": 1,
-//   "started_ms": 34,
-//   "ended_ms": 34,
+//   "started_ms": 25,
+//   "ended_ms": 25,
 //   "elapsed_ms": 0,
 //   "track_checksum": 10870,
 //   "composition_checksum": 27732,
@@ -1957,7 +1957,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 608
-// sha256 = "sha256:ad2eaa8d95e6148fc7a794188a071c405aa982d6612cb5f037b95605fff872c6"
+// sha256 = "sha256:4d49852412c5a228850d6edabcb0dc3ab6aa48aaf837042ef1ba78d3b2e2e9e0"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -1968,11 +1968,11 @@
 //   "offset": 3000,
 //   "status": 0,
 //   "ok": 1,
-//   "started_ms": 46,
-//   "ended_ms": 46,
+//   "started_ms": 38,
+//   "ended_ms": 38,
 //   "elapsed_ms": 0,
 //   "track_checksum": 270148,
-//   "composition_checksum": 3801975,
+//   "composition_checksum": 3801972,
 //   "cpu_feature_fingerprint": -7409408978278525106,
 //   "patch_journal_count": 3,
 //   "entangle_propagation_count": 3,
@@ -1989,7 +1989,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 608
-// sha256 = "sha256:f8736233be40bf56d0d9f28bed46844b792bbc8bac9ea3cb620217c4f2113fe6"
+// sha256 = "sha256:02e5389143821f78e4b06b8e352c2ae2e12538a49a6a0899773036f8ac99cab8"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -2000,18 +2000,18 @@
 //   "offset": 2600,
 //   "status": 0,
 //   "ok": 1,
-//   "started_ms": 44,
-//   "ended_ms": 44,
+//   "started_ms": 35,
+//   "ended_ms": 35,
 //   "elapsed_ms": 0,
 //   "track_checksum": 202936,
-//   "composition_checksum": 2825204,
+//   "composition_checksum": 2825201,
 //   "cpu_feature_fingerprint": -7409408978278525106,
 //   "patch_journal_count": 3,
 //   "entangle_propagation_count": 3,
 //   "converge_mismatch_count": 0,
 //   "runtime_converge_telemetry_count": 0,
-//   "runtime_machine_teleport_count": 4,
-//   "runtime_machine_pulse_total_fire_count": 3,
+//   "runtime_machine_teleport_count": 3,
+//   "runtime_machine_pulse_total_fire_count": 2,
 //   "actor_scheduler_queue_depth": 0,
 //   "actor_scheduler_total_enqueued": 0
 // }
@@ -2021,7 +2021,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 610
-// sha256 = "sha256:43dafba4da90554ccde6e92adf81c1fe6615ff7c2b02f3df89274ed52f510626"
+// sha256 = "sha256:9c2b2d6592c1415e1107762c3229925b764b5fb2c96150e52db0f93de76584f7"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -2032,18 +2032,18 @@
 //   "offset": 2700,
 //   "status": 0,
 //   "ok": 1,
-//   "started_ms": 44,
-//   "ended_ms": 44,
+//   "started_ms": 35,
+//   "ended_ms": 35,
 //   "elapsed_ms": 0,
 //   "track_checksum": 218842,
-//   "composition_checksum": 3044046,
+//   "composition_checksum": 3044043,
 //   "cpu_feature_fingerprint": -7409408978278525106,
 //   "patch_journal_count": 3,
 //   "entangle_propagation_count": 3,
 //   "converge_mismatch_count": 0,
 //   "runtime_converge_telemetry_count": 0,
-//   "runtime_machine_teleport_count": 4,
-//   "runtime_machine_pulse_total_fire_count": 3,
+//   "runtime_machine_teleport_count": 3,
+//   "runtime_machine_pulse_total_fire_count": 2,
 //   "actor_scheduler_queue_depth": 0,
 //   "actor_scheduler_total_enqueued": 0
 // }
@@ -2053,7 +2053,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 621
-// sha256 = "sha256:457be3510d3788f51213574b414e63d4e748f6df5c4740c4437e653e7132c530"
+// sha256 = "sha256:ca84a1f3b79af59079b5272964ab710691295a2acd45c66b856e161c8cfe075b"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -2064,18 +2064,18 @@
 //   "offset": 4500,
 //   "status": 0,
 //   "ok": 1,
-//   "started_ms": 2428,
-//   "ended_ms": 2428,
+//   "started_ms": 2040,
+//   "ended_ms": 2040,
 //   "elapsed_ms": 0,
 //   "track_checksum": 607693,
-//   "composition_checksum": 14593918,
+//   "composition_checksum": 14592805,
 //   "cpu_feature_fingerprint": -7409408978278525106,
 //   "patch_journal_count": 167,
 //   "entangle_propagation_count": 167,
 //   "converge_mismatch_count": 0,
 //   "runtime_converge_telemetry_count": 1,
-//   "runtime_machine_teleport_count": 201,
-//   "runtime_machine_pulse_total_fire_count": 152,
+//   "runtime_machine_teleport_count": 179,
+//   "runtime_machine_pulse_total_fire_count": 130,
 //   "actor_scheduler_queue_depth": 0,
 //   "actor_scheduler_total_enqueued": 0
 // }
@@ -2085,7 +2085,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 620
-// sha256 = "sha256:f7e32fae0b2633fdd7fac6f5070a36a4a175e8ba62c72f06d37233f94b4b2a2e"
+// sha256 = "sha256:b08ec67d1e9331fc5e64ed3d02dfdd83e2213e1b0cccc278276d1b55ae47d905"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -2096,18 +2096,18 @@
 //   "offset": 2300,
 //   "status": 0,
 //   "ok": 1,
-//   "started_ms": 42,
-//   "ended_ms": 42,
+//   "started_ms": 32,
+//   "ended_ms": 32,
 //   "elapsed_ms": 0,
 //   "track_checksum": 158845,
-//   "composition_checksum": 2261702,
+//   "composition_checksum": 2261696,
 //   "cpu_feature_fingerprint": -7409408978278525106,
 //   "patch_journal_count": 3,
 //   "entangle_propagation_count": 3,
 //   "converge_mismatch_count": 0,
 //   "runtime_converge_telemetry_count": 0,
-//   "runtime_machine_teleport_count": 4,
-//   "runtime_machine_pulse_total_fire_count": 3,
+//   "runtime_machine_teleport_count": 3,
+//   "runtime_machine_pulse_total_fire_count": 2,
 //   "actor_scheduler_queue_depth": 0,
 //   "actor_scheduler_total_enqueued": 0
 // }
@@ -2117,7 +2117,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 610
-// sha256 = "sha256:37d6b665adec33cdd2f2e2148d8bbac428fc1977fe0822225109126075fde116"
+// sha256 = "sha256:e9ea6a7a0cb74fa0e442af3f0287c6de3a0bd081299ef9e93d6f43b46a30ee5b"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -2128,18 +2128,18 @@
 //   "offset": 2400,
 //   "status": 0,
 //   "ok": 1,
-//   "started_ms": 42,
-//   "ended_ms": 43,
-//   "elapsed_ms": 1,
-//   "track_checksum": 172936,
-//   "composition_checksum": 2434638,
+//   "started_ms": 32,
+//   "ended_ms": 34,
+//   "elapsed_ms": 2,
+//   "track_checksum": 172939,
+//   "composition_checksum": 2434635,
 //   "cpu_feature_fingerprint": -7409408978278525106,
 //   "patch_journal_count": 3,
 //   "entangle_propagation_count": 3,
 //   "converge_mismatch_count": 0,
 //   "runtime_converge_telemetry_count": 0,
-//   "runtime_machine_teleport_count": 4,
-//   "runtime_machine_pulse_total_fire_count": 3,
+//   "runtime_machine_teleport_count": 3,
+//   "runtime_machine_pulse_total_fire_count": 2,
 //   "actor_scheduler_queue_depth": 0,
 //   "actor_scheduler_total_enqueued": 0
 // }
@@ -2149,7 +2149,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 615
-// sha256 = "sha256:86429a86aff47df1e248435b143a6d71fc8d7d82f1ca95b35af76e16084b155c"
+// sha256 = "sha256:f23dbe750d5447bb82e673140667090712571a5596e65bb46efe59c36b7dc527"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -2160,18 +2160,18 @@
 //   "offset": 3460,
 //   "status": 0,
 //   "ok": 1,
-//   "started_ms": 2247,
-//   "ended_ms": 2274,
-//   "elapsed_ms": 27,
-//   "track_checksum": 581584,
-//   "composition_checksum": 9278477,
+//   "started_ms": 1852,
+//   "ended_ms": 1880,
+//   "elapsed_ms": 28,
+//   "track_checksum": 581587,
+//   "composition_checksum": 9277346,
 //   "cpu_feature_fingerprint": -7409408978278525106,
 //   "patch_journal_count": 3,
 //   "entangle_propagation_count": 3,
 //   "converge_mismatch_count": 0,
 //   "runtime_converge_telemetry_count": 0,
-//   "runtime_machine_teleport_count": 144,
-//   "runtime_machine_pulse_total_fire_count": 143,
+//   "runtime_machine_teleport_count": 121,
+//   "runtime_machine_pulse_total_fire_count": 120,
 //   "actor_scheduler_queue_depth": 0,
 //   "actor_scheduler_total_enqueued": 0
 // }
@@ -2181,7 +2181,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 623
-// sha256 = "sha256:95d618f5e59558eaa5c66dc6c8fd54e79cb8aaf22434f0729e1294cc98a8d35b"
+// sha256 = "sha256:4f9b47a54518d4f0c845a240bdf950bd35d00ef397d7d05abadf61cc79b2d579"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -2192,8 +2192,8 @@
 //   "offset": 3300,
 //   "status": 0,
 //   "ok": 1,
-//   "started_ms": 140,
-//   "ended_ms": 140,
+//   "started_ms": 132,
+//   "ended_ms": 132,
 //   "elapsed_ms": 0,
 //   "track_checksum": 326875,
 //   "composition_checksum": 4724925,
@@ -2213,7 +2213,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 610
-// sha256 = "sha256:3199e1cec55afe6b767610001e92e4f72ef93f800cadd68cdc43c39554edc618"
+// sha256 = "sha256:3b44fdcf2f9829db89666ef036d3092eb421bbe3ef4585388af3ee3b230a4b35"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -2224,11 +2224,11 @@
 //   "offset": 2900,
 //   "status": 0,
 //   "ok": 1,
-//   "started_ms": 45,
-//   "ended_ms": 46,
+//   "started_ms": 36,
+//   "ended_ms": 37,
 //   "elapsed_ms": 1,
 //   "track_checksum": 252439,
-//   "composition_checksum": 3531827,
+//   "composition_checksum": 3531824,
 //   "cpu_feature_fingerprint": -7409408978278525106,
 //   "patch_journal_count": 3,
 //   "entangle_propagation_count": 3,
@@ -2245,7 +2245,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 622
-// sha256 = "sha256:630e76bf6989cf6b73631fdddd9ebf0f8489a1663801e1c994ea26e7702569ad"
+// sha256 = "sha256:29cb62263d34a6bf6f0fccdb840bfff2877a3555dcbab6733e8c9ad20cf4b5b0"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -2256,18 +2256,18 @@
 //   "offset": 4910,
 //   "status": 0,
 //   "ok": 1,
-//   "started_ms": 2431,
-//   "ended_ms": 2444,
-//   "elapsed_ms": 13,
-//   "track_checksum": 736747,
-//   "composition_checksum": 18040464,
+//   "started_ms": 2047,
+//   "ended_ms": 2067,
+//   "elapsed_ms": 20,
+//   "track_checksum": 736768,
+//   "composition_checksum": 18039390,
 //   "cpu_feature_fingerprint": -7409408978278525106,
 //   "patch_journal_count": 167,
 //   "entangle_propagation_count": 167,
 //   "converge_mismatch_count": 0,
 //   "runtime_converge_telemetry_count": 1,
-//   "runtime_machine_teleport_count": 202,
-//   "runtime_machine_pulse_total_fire_count": 153,
+//   "runtime_machine_teleport_count": 181,
+//   "runtime_machine_pulse_total_fire_count": 132,
 //   "actor_scheduler_queue_depth": 0,
 //   "actor_scheduler_total_enqueued": 0
 // }
@@ -2277,7 +2277,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 615
-// sha256 = "sha256:9edf1e7e2c42d87616cc0a314b6354bb12b0e4df278e6faa09ced6c2d226a58a"
+// sha256 = "sha256:994ca7fbac17d4eccdfb06fee716a8876ff20b938a5217f44a23a04d946ab6ab"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -2288,11 +2288,11 @@
 //   "offset": 3450,
 //   "status": 0,
 //   "ok": 1,
-//   "started_ms": 149,
-//   "ended_ms": 150,
-//   "elapsed_ms": 1,
-//   "track_checksum": 569482,
-//   "composition_checksum": 6265662,
+//   "started_ms": 141,
+//   "ended_ms": 141,
+//   "elapsed_ms": 0,
+//   "track_checksum": 569479,
+//   "composition_checksum": 6265659,
 //   "cpu_feature_fingerprint": -7409408978278525106,
 //   "patch_journal_count": 3,
 //   "entangle_propagation_count": 3,
@@ -2309,7 +2309,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 615
-// sha256 = "sha256:35f6ac586f5cf67cc711f4a2f4554c6522efe8bed92672535ae61b6f10230d6c"
+// sha256 = "sha256:96f4451afd7873266eb694dcac7c181c4575bfde95a5b6c708e11c3bcd23cdc7"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -2320,18 +2320,18 @@
 //   "offset": 4600,
 //   "status": 0,
 //   "ok": 1,
-//   "started_ms": 2429,
-//   "ended_ms": 2429,
-//   "elapsed_ms": 0,
-//   "track_checksum": 634987,
-//   "composition_checksum": 15228905,
+//   "started_ms": 2040,
+//   "ended_ms": 2041,
+//   "elapsed_ms": 1,
+//   "track_checksum": 634990,
+//   "composition_checksum": 15227795,
 //   "cpu_feature_fingerprint": -7409408978278525106,
 //   "patch_journal_count": 167,
 //   "entangle_propagation_count": 167,
 //   "converge_mismatch_count": 0,
 //   "runtime_converge_telemetry_count": 1,
-//   "runtime_machine_teleport_count": 201,
-//   "runtime_machine_pulse_total_fire_count": 152,
+//   "runtime_machine_teleport_count": 179,
+//   "runtime_machine_pulse_total_fire_count": 130,
 //   "actor_scheduler_queue_depth": 0,
 //   "actor_scheduler_total_enqueued": 0
 // }
@@ -2341,7 +2341,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 606
-// sha256 = "sha256:76f13bc7308c2f9b4f5c8284af1882497ba7393aa05c299074a08567bf2c7152"
+// sha256 = "sha256:1f02dac00edf46b8a7b7d01e8cab21cda26e1ccb9cd3943eb6cbf9f9d91d3736"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -2352,11 +2352,11 @@
 //   "offset": 2800,
 //   "status": 0,
 //   "ok": 1,
-//   "started_ms": 44,
-//   "ended_ms": 45,
+//   "started_ms": 35,
+//   "ended_ms": 36,
 //   "elapsed_ms": 1,
 //   "track_checksum": 235342,
-//   "composition_checksum": 3279388,
+//   "composition_checksum": 3279385,
 //   "cpu_feature_fingerprint": -7409408978278525106,
 //   "patch_journal_count": 3,
 //   "entangle_propagation_count": 3,
@@ -2373,7 +2373,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 606
-// sha256 = "sha256:b207a0834df0b97bd39c1a3485d74c6c7768087a715404c727777a980d8d4944"
+// sha256 = "sha256:ad58ba96743ed781e1eefa41b7f50daa390a959cfd5c78c834e7bedd321dd54b"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -2384,11 +2384,11 @@
 //   "offset": 3100,
 //   "status": 0,
 //   "ok": 1,
-//   "started_ms": 47,
-//   "ended_ms": 47,
+//   "started_ms": 38,
+//   "ended_ms": 38,
 //   "elapsed_ms": 0,
 //   "track_checksum": 288448,
-//   "composition_checksum": 4090423,
+//   "composition_checksum": 4090420,
 //   "cpu_feature_fingerprint": -7409408978278525106,
 //   "patch_journal_count": 3,
 //   "entangle_propagation_count": 3,
@@ -2405,7 +2405,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 608
-// sha256 = "sha256:099da9a317549883a08137cad152ef485780f0394b90ae6b0b300dae0c40b867"
+// sha256 = "sha256:a1b05ec4b7b6ba877644de48e93a520cfddc2751d9709daf47dfe77150d411b1"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -2416,11 +2416,11 @@
 //   "offset": 3454,
 //   "status": 0,
 //   "ok": 1,
-//   "started_ms": 193,
-//   "ended_ms": 194,
+//   "started_ms": 179,
+//   "ended_ms": 180,
 //   "elapsed_ms": 1,
 //   "track_checksum": 611590,
-//   "composition_checksum": 7498844,
+//   "composition_checksum": 7498823,
 //   "cpu_feature_fingerprint": -7409408978278525106,
 //   "patch_journal_count": 3,
 //   "entangle_propagation_count": 3,
@@ -2437,7 +2437,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 619
-// sha256 = "sha256:a8bbd59f6d5a02eb178557938009589222a2b389c88f8d968a58dcaf413d6b01"
+// sha256 = "sha256:ac917c0a9a55d65b0e7c23e596da502930d2094d42e9533c987433d8aa518293"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -2448,18 +2448,18 @@
 //   "offset": 4700,
 //   "status": 0,
 //   "ok": 1,
-//   "started_ms": 2429,
-//   "ended_ms": 2429,
+//   "started_ms": 2041,
+//   "ended_ms": 2041,
 //   "elapsed_ms": 0,
 //   "track_checksum": 662896,
-//   "composition_checksum": 15891801,
+//   "composition_checksum": 15890691,
 //   "cpu_feature_fingerprint": -7409408978278525106,
 //   "patch_journal_count": 167,
 //   "entangle_propagation_count": 167,
 //   "converge_mismatch_count": 0,
 //   "runtime_converge_telemetry_count": 1,
-//   "runtime_machine_teleport_count": 201,
-//   "runtime_machine_pulse_total_fire_count": 152,
+//   "runtime_machine_teleport_count": 179,
+//   "runtime_machine_pulse_total_fire_count": 130,
 //   "actor_scheduler_queue_depth": 0,
 //   "actor_scheduler_total_enqueued": 0
 // }
@@ -2469,7 +2469,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 605
-// sha256 = "sha256:a1854a03c1ff3175dfcaa2bd49febd53a3ac5fbd2200b3fc6f0adb02ab8ae6fd"
+// sha256 = "sha256:6d2c4778e8b12fabad4fe92675bb067c5b121e92937d2d59c06e52c0f9110885"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -2480,8 +2480,8 @@
 //   "offset": 3410,
 //   "status": 0,
 //   "ok": 1,
-//   "started_ms": 141,
-//   "ended_ms": 149,
+//   "started_ms": 133,
+//   "ended_ms": 141,
 //   "elapsed_ms": 8,
 //   "track_checksum": 624286,
 //   "composition_checksum": 5696180,
@@ -2501,7 +2501,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 617
-// sha256 = "sha256:ba9da887777352e72fdec79e28ccd8f922c7606e806799d9cdb009c4bc2bd282"
+// sha256 = "sha256:aed4511289d92c2be73b45b8ac18cf29514c7db488771885e192d89ec3bf0a90"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -2512,8 +2512,8 @@
 //   "offset": 3400,
 //   "status": 0,
 //   "ok": 1,
-//   "started_ms": 140,
-//   "ended_ms": 140,
+//   "started_ms": 132,
+//   "ended_ms": 132,
 //   "elapsed_ms": 0,
 //   "track_checksum": 346969,
 //   "composition_checksum": 5071894,
@@ -2533,7 +2533,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 625
-// sha256 = "sha256:3788247623f55d723d9fc0b45a63935730947751e23515db2287a09b0381e1ab"
+// sha256 = "sha256:7d8021fc2d938aa23c01716995a56c4a9f0d53785523d951bf818b2c1feafee9"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -2544,18 +2544,18 @@
 //   "offset": 4900,
 //   "status": 0,
 //   "ok": 1,
-//   "started_ms": 2430,
-//   "ended_ms": 2430,
+//   "started_ms": 2047,
+//   "ended_ms": 2047,
 //   "elapsed_ms": 0,
 //   "track_checksum": 720511,
-//   "composition_checksum": 17303717,
+//   "composition_checksum": 17302622,
 //   "cpu_feature_fingerprint": -7409408978278525106,
 //   "patch_journal_count": 167,
 //   "entangle_propagation_count": 167,
 //   "converge_mismatch_count": 0,
 //   "runtime_converge_telemetry_count": 1,
-//   "runtime_machine_teleport_count": 201,
-//   "runtime_machine_pulse_total_fire_count": 152,
+//   "runtime_machine_teleport_count": 180,
+//   "runtime_machine_pulse_total_fire_count": 131,
 //   "actor_scheduler_queue_depth": 0,
 //   "actor_scheduler_total_enqueued": 0
 // }
@@ -2565,7 +2565,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 632
-// sha256 = "sha256:482b944f467deb1591802175b8ec2a67677a93778f04597191ecdfcbdb99a4a0"
+// sha256 = "sha256:46851ec3a47f7e5dd930c5d9b876f6cb1efc7b6b49219effb162c61fa7fba890"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -2576,18 +2576,18 @@
 //   "offset": 3452,
 //   "status": 0,
 //   "ok": 1,
-//   "started_ms": 194,
-//   "ended_ms": 2189,
-//   "elapsed_ms": 1995,
-//   "track_checksum": 606886,
-//   "composition_checksum": 8105730,
+//   "started_ms": 180,
+//   "ended_ms": 1803,
+//   "elapsed_ms": 1623,
+//   "track_checksum": 605770,
+//   "composition_checksum": 8104593,
 //   "cpu_feature_fingerprint": -7409408978278525106,
 //   "patch_journal_count": 3,
 //   "entangle_propagation_count": 3,
 //   "converge_mismatch_count": 0,
 //   "runtime_converge_telemetry_count": 0,
-//   "runtime_machine_teleport_count": 139,
-//   "runtime_machine_pulse_total_fire_count": 138,
+//   "runtime_machine_teleport_count": 116,
+//   "runtime_machine_pulse_total_fire_count": 115,
 //   "actor_scheduler_queue_depth": 0,
 //   "actor_scheduler_total_enqueued": 0
 // }
@@ -2597,7 +2597,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 643
-// sha256 = "sha256:fc67094a477df5d02156159e0c94745894371dd9fc5e973831eb613426190269"
+// sha256 = "sha256:2fd8224529dffb8c8dc6bfb47b629673d2927cb7c3865f32d65b42e8d2454add"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -2608,18 +2608,18 @@
 //   "offset": 3451,
 //   "status": 0,
 //   "ok": 1,
-//   "started_ms": 150,
-//   "ended_ms": 193,
-//   "elapsed_ms": 43,
-//   "track_checksum": 621592,
-//   "composition_checksum": 6887254,
+//   "started_ms": 142,
+//   "ended_ms": 179,
+//   "elapsed_ms": 37,
+//   "track_checksum": 621574,
+//   "composition_checksum": 6887233,
 //   "cpu_feature_fingerprint": -7409408978278525106,
 //   "patch_journal_count": 3,
 //   "entangle_propagation_count": 3,
 //   "converge_mismatch_count": 0,
 //   "runtime_converge_telemetry_count": 0,
-//   "runtime_machine_teleport_count": 13,
-//   "runtime_machine_pulse_total_fire_count": 12,
+//   "runtime_machine_teleport_count": 12,
+//   "runtime_machine_pulse_total_fire_count": 11,
 //   "actor_scheduler_queue_depth": 0,
 //   "actor_scheduler_total_enqueued": 0
 // }
@@ -2629,7 +2629,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 623
-// sha256 = "sha256:dd3a9c29db549ce4efe1d4e9a206e310b1f979a52abd0c5407ffe3d2c49b24af"
+// sha256 = "sha256:ef90d085088f8777260bc7525b777f362078da8f6521fe46dd7a511706da120b"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -2640,18 +2640,18 @@
 //   "offset": 4100,
 //   "status": 0,
 //   "ok": 1,
-//   "started_ms": 2426,
-//   "ended_ms": 2426,
+//   "started_ms": 2038,
+//   "ended_ms": 2038,
 //   "elapsed_ms": 0,
 //   "track_checksum": 504484,
-//   "composition_checksum": 12320970,
+//   "composition_checksum": 12319854,
 //   "cpu_feature_fingerprint": -7409408978278525106,
 //   "patch_journal_count": 167,
 //   "entangle_propagation_count": 167,
 //   "converge_mismatch_count": 0,
 //   "runtime_converge_telemetry_count": 1,
-//   "runtime_machine_teleport_count": 201,
-//   "runtime_machine_pulse_total_fire_count": 152,
+//   "runtime_machine_teleport_count": 179,
+//   "runtime_machine_pulse_total_fire_count": 130,
 //   "actor_scheduler_queue_depth": 0,
 //   "actor_scheduler_total_enqueued": 0
 // }
@@ -2661,7 +2661,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 624
-// sha256 = "sha256:bc39894a2f2bc756a63eb805456ce1ac5a351a7bc3646f65b3a742090267c9bb"
+// sha256 = "sha256:bbc5905c24a8ad922a1c0f8a04d8771ab0c46a8f93fd887fb2605c1f6b3f9d28"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -2672,18 +2672,18 @@
 //   "offset": 4920,
 //   "status": 0,
 //   "ok": 1,
-//   "started_ms": 2444,
-//   "ended_ms": 2456,
+//   "started_ms": 2068,
+//   "ended_ms": 2080,
 //   "elapsed_ms": 12,
 //   "track_checksum": 753010,
-//   "composition_checksum": 18793474,
+//   "composition_checksum": 18792400,
 //   "cpu_feature_fingerprint": -7409408978278525106,
 //   "patch_journal_count": 167,
 //   "entangle_propagation_count": 167,
 //   "converge_mismatch_count": 0,
 //   "runtime_converge_telemetry_count": 1,
-//   "runtime_machine_teleport_count": 203,
-//   "runtime_machine_pulse_total_fire_count": 154,
+//   "runtime_machine_teleport_count": 182,
+//   "runtime_machine_pulse_total_fire_count": 133,
 //   "actor_scheduler_queue_depth": 0,
 //   "actor_scheduler_total_enqueued": 0
 // }
@@ -2693,7 +2693,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 623
-// sha256 = "sha256:81e85970ffa6ee18d25de14d978ebfbea796f9e09b5ab34c35e7c33f4c298b54"
+// sha256 = "sha256:cb978b2b6840343edfcee4bba303d6f6e18964ee8cd65dc7e524da726c5d1ca8"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -2704,18 +2704,18 @@
 //   "offset": 4300,
 //   "status": 0,
 //   "ok": 1,
-//   "started_ms": 2427,
-//   "ended_ms": 2427,
-//   "elapsed_ms": 0,
-//   "track_checksum": 554890,
-//   "composition_checksum": 13405238,
+//   "started_ms": 2038,
+//   "ended_ms": 2039,
+//   "elapsed_ms": 1,
+//   "track_checksum": 554893,
+//   "composition_checksum": 13404125,
 //   "cpu_feature_fingerprint": -7409408978278525106,
 //   "patch_journal_count": 167,
 //   "entangle_propagation_count": 167,
 //   "converge_mismatch_count": 0,
 //   "runtime_converge_telemetry_count": 1,
-//   "runtime_machine_teleport_count": 201,
-//   "runtime_machine_pulse_total_fire_count": 152,
+//   "runtime_machine_teleport_count": 179,
+//   "runtime_machine_pulse_total_fire_count": 130,
 //   "actor_scheduler_queue_depth": 0,
 //   "actor_scheduler_total_enqueued": 0
 // }
@@ -2725,7 +2725,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 619
-// sha256 = "sha256:dfb7541af7ab8a88ab8ef7bf743b2fb4d7b37e978c8dac210c7d3a783c4d048a"
+// sha256 = "sha256:6b0bb23465a312c2816d5d4fa8a8db3ea6a28fbec9c860f50d0b32ffff6aeb09"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -2736,18 +2736,18 @@
 //   "offset": 4400,
 //   "status": 0,
 //   "ok": 1,
-//   "started_ms": 2428,
-//   "ended_ms": 2428,
+//   "started_ms": 2039,
+//   "ended_ms": 2039,
 //   "elapsed_ms": 0,
 //   "track_checksum": 580987,
-//   "composition_checksum": 13986225,
+//   "composition_checksum": 13985112,
 //   "cpu_feature_fingerprint": -7409408978278525106,
 //   "patch_journal_count": 167,
 //   "entangle_propagation_count": 167,
 //   "converge_mismatch_count": 0,
 //   "runtime_converge_telemetry_count": 1,
-//   "runtime_machine_teleport_count": 201,
-//   "runtime_machine_pulse_total_fire_count": 152,
+//   "runtime_machine_teleport_count": 179,
+//   "runtime_machine_pulse_total_fire_count": 130,
 //   "actor_scheduler_queue_depth": 0,
 //   "actor_scheduler_total_enqueued": 0
 // }
@@ -2757,7 +2757,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 606
-// sha256 = "sha256:37d05d89e3395bcc5903565243c3799bf0f5823c77991a699667189cb44652af"
+// sha256 = "sha256:56fb08f5e0c9584cca2f966da1a375b64e91558470d29380f9c10f15e9e1f9a3"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -2768,18 +2768,18 @@
 //   "offset": 2500,
 //   "status": 0,
 //   "ok": 1,
-//   "started_ms": 43,
-//   "ended_ms": 43,
+//   "started_ms": 34,
+//   "ended_ms": 34,
 //   "elapsed_ms": 0,
 //   "track_checksum": 187630,
-//   "composition_checksum": 2622268,
+//   "composition_checksum": 2622265,
 //   "cpu_feature_fingerprint": -7409408978278525106,
 //   "patch_journal_count": 3,
 //   "entangle_propagation_count": 3,
 //   "converge_mismatch_count": 0,
 //   "runtime_converge_telemetry_count": 0,
-//   "runtime_machine_teleport_count": 4,
-//   "runtime_machine_pulse_total_fire_count": 3,
+//   "runtime_machine_teleport_count": 3,
+//   "runtime_machine_pulse_total_fire_count": 2,
 //   "actor_scheduler_queue_depth": 0,
 //   "actor_scheduler_total_enqueued": 0
 // }
@@ -2789,7 +2789,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 623
-// sha256 = "sha256:cf8fdc0bb271b291ad32d480699b67118928642472a71009b0215f8141c4d772"
+// sha256 = "sha256:8054ac378fcdae931e7b6f8b0d23260ca3d43d135e10eaec391478e649ccfb0e"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -2800,18 +2800,18 @@
 //   "offset": 4800,
 //   "status": 0,
 //   "ok": 1,
-//   "started_ms": 2430,
-//   "ended_ms": 2430,
-//   "elapsed_ms": 0,
-//   "track_checksum": 691405,
-//   "composition_checksum": 16583206,
+//   "started_ms": 2041,
+//   "ended_ms": 2046,
+//   "elapsed_ms": 5,
+//   "track_checksum": 691420,
+//   "composition_checksum": 16582111,
 //   "cpu_feature_fingerprint": -7409408978278525106,
 //   "patch_journal_count": 167,
 //   "entangle_propagation_count": 167,
 //   "converge_mismatch_count": 0,
 //   "runtime_converge_telemetry_count": 1,
-//   "runtime_machine_teleport_count": 201,
-//   "runtime_machine_pulse_total_fire_count": 152,
+//   "runtime_machine_teleport_count": 180,
+//   "runtime_machine_pulse_total_fire_count": 131,
 //   "actor_scheduler_queue_depth": 0,
 //   "actor_scheduler_total_enqueued": 0
 // }
@@ -2821,7 +2821,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 609
-// sha256 = "sha256:9388ec546f5720b7501b53084b4c552950d1c3ea371405a481066ccfe83019fa"
+// sha256 = "sha256:8b9ea432f389ef1c32a47de3b8c3f1cc19134e0dc8b319e3a5dcb220c4a368b1"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -2832,10 +2832,10 @@
 //   "offset": 3200,
 //   "status": 0,
 //   "ok": 1,
-//   "started_ms": 47,
-//   "ended_ms": 139,
-//   "elapsed_ms": 92,
-//   "track_checksum": 307627,
+//   "started_ms": 38,
+//   "ended_ms": 131,
+//   "elapsed_ms": 93,
+//   "track_checksum": 307630,
 //   "composition_checksum": 4398050,
 //   "cpu_feature_fingerprint": -7409408978278525106,
 //   "patch_journal_count": 3,
@@ -2853,7 +2853,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 625
-// sha256 = "sha256:6476ab4ba235a163baae127e8ef67c8d5316b4518351bc37809aa4b1ed930f95"
+// sha256 = "sha256:8aa64f49d7de890fa469cd63a83d08864e1084db6d278fefc740ca2c79a06b8b"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -2864,18 +2864,18 @@
 //   "offset": 4000,
 //   "status": 0,
 //   "ok": 1,
-//   "started_ms": 2425,
-//   "ended_ms": 2426,
-//   "elapsed_ms": 1,
-//   "track_checksum": 480187,
-//   "composition_checksum": 11816486,
+//   "started_ms": 2037,
+//   "ended_ms": 2037,
+//   "elapsed_ms": 0,
+//   "track_checksum": 480184,
+//   "composition_checksum": 11815370,
 //   "cpu_feature_fingerprint": -7409408978278525106,
 //   "patch_journal_count": 147,
 //   "entangle_propagation_count": 147,
 //   "converge_mismatch_count": 0,
 //   "runtime_converge_telemetry_count": 1,
-//   "runtime_machine_teleport_count": 201,
-//   "runtime_machine_pulse_total_fire_count": 152,
+//   "runtime_machine_teleport_count": 179,
+//   "runtime_machine_pulse_total_fire_count": 130,
 //   "actor_scheduler_queue_depth": 0,
 //   "actor_scheduler_total_enqueued": 0
 // }
@@ -2885,7 +2885,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 617
-// sha256 = "sha256:34b3ab366f46cd9d14702bb658e62215dd5a753f7f46211c15fd3d60aac154c3"
+// sha256 = "sha256:ba5ac907acaa1518eeda916aaef089cdf4bd0ed3ab88215df4ec126035e13cfa"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -2896,18 +2896,18 @@
 //   "offset": 4200,
 //   "status": 0,
 //   "ok": 1,
-//   "started_ms": 2426,
-//   "ended_ms": 2426,
+//   "started_ms": 2038,
+//   "ended_ms": 2038,
 //   "elapsed_ms": 0,
 //   "track_checksum": 529378,
-//   "composition_checksum": 12850348,
+//   "composition_checksum": 12849232,
 //   "cpu_feature_fingerprint": -7409408978278525106,
 //   "patch_journal_count": 167,
 //   "entangle_propagation_count": 167,
 //   "converge_mismatch_count": 0,
 //   "runtime_converge_telemetry_count": 1,
-//   "runtime_machine_teleport_count": 201,
-//   "runtime_machine_pulse_total_fire_count": 152,
+//   "runtime_machine_teleport_count": 179,
+//   "runtime_machine_pulse_total_fire_count": 130,
 //   "actor_scheduler_queue_depth": 0,
 //   "actor_scheduler_total_enqueued": 0
 // }
@@ -2917,7 +2917,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 611
-// sha256 = "sha256:ea1b641f345b93f8c6df4d2c6288ac012007b66e2561bfe6a583234f4e8d2656"
+// sha256 = "sha256:284ff24a7323656b3a47092496e56f56eae6f904667ff31f59d184ee3f04b281"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -2928,18 +2928,18 @@
 //   "offset": 3455,
 //   "status": 0,
 //   "ok": 1,
-//   "started_ms": 2200,
-//   "ended_ms": 2246,
-//   "elapsed_ms": 46,
-//   "track_checksum": 591163,
-//   "composition_checksum": 8696893,
+//   "started_ms": 1804,
+//   "ended_ms": 1851,
+//   "elapsed_ms": 47,
+//   "track_checksum": 591166,
+//   "composition_checksum": 8695759,
 //   "cpu_feature_fingerprint": -7409408978278525106,
 //   "patch_journal_count": 3,
 //   "entangle_propagation_count": 3,
 //   "converge_mismatch_count": 0,
 //   "runtime_converge_telemetry_count": 0,
-//   "runtime_machine_teleport_count": 142,
-//   "runtime_machine_pulse_total_fire_count": 141,
+//   "runtime_machine_teleport_count": 119,
+//   "runtime_machine_pulse_total_fire_count": 118,
 //   "actor_scheduler_queue_depth": 0,
 //   "actor_scheduler_total_enqueued": 0
 // }
@@ -2949,7 +2949,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 617
-// sha256 = "sha256:6fbc1d24c18d93fc550f2ef62f32cabd24fd421ea109b983608ae3beb6d4a8ec"
+// sha256 = "sha256:3a433a02f2c8c3510e32218b0ad36c48c34df2ffaf7183acbefa1c3a19c0942f"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -2960,18 +2960,18 @@
 //   "offset": 2000,
 //   "status": 0,
 //   "ok": 1,
-//   "started_ms": 39,
-//   "ended_ms": 39,
+//   "started_ms": 29,
+//   "ended_ms": 29,
 //   "elapsed_ms": 0,
 //   "track_checksum": 120124,
-//   "composition_checksum": 1125522,
+//   "composition_checksum": 1125519,
 //   "cpu_feature_fingerprint": -7409408978278525106,
 //   "patch_journal_count": 3,
 //   "entangle_propagation_count": 3,
 //   "converge_mismatch_count": 0,
 //   "runtime_converge_telemetry_count": 0,
-//   "runtime_machine_teleport_count": 4,
-//   "runtime_machine_pulse_total_fire_count": 3,
+//   "runtime_machine_teleport_count": 3,
+//   "runtime_machine_pulse_total_fire_count": 2,
 //   "actor_scheduler_queue_depth": 0,
 //   "actor_scheduler_total_enqueued": 0
 // }
@@ -2981,7 +2981,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 605
-// sha256 = "sha256:d8dbd20a4e2747f56489139f197ace7a6a19b6ba44d7b21a778ff2b499765a0c"
+// sha256 = "sha256:21f046ae2f95b7b24d90a95f86c97443f4d403b0fdd02256732d6d2178a4070a"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -2992,18 +2992,18 @@
 //   "offset": 1800,
 //   "status": 0,
 //   "ok": 1,
-//   "started_ms": 38,
-//   "ended_ms": 38,
+//   "started_ms": 28,
+//   "ended_ms": 28,
 //   "elapsed_ms": 0,
 //   "track_checksum": 97303,
-//   "composition_checksum": 896983,
+//   "composition_checksum": 896980,
 //   "cpu_feature_fingerprint": -7409408978278525106,
 //   "patch_journal_count": 3,
 //   "entangle_propagation_count": 3,
 //   "converge_mismatch_count": 0,
 //   "runtime_converge_telemetry_count": 0,
-//   "runtime_machine_teleport_count": 4,
-//   "runtime_machine_pulse_total_fire_count": 3,
+//   "runtime_machine_teleport_count": 3,
+//   "runtime_machine_pulse_total_fire_count": 2,
 //   "actor_scheduler_queue_depth": 0,
 //   "actor_scheduler_total_enqueued": 0
 // }
@@ -3013,7 +3013,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 623
-// sha256 = "sha256:be45054592e50f922c34e62824493acac27926cf8039ca1ca13c613a25d15043"
+// sha256 = "sha256:e5e857706e939fa4c31e98eb4f94bbf4c1ed0918dcdeb45f20410cabe2d9bbad"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -3024,18 +3024,18 @@
 //   "offset": 2200,
 //   "status": 0,
 //   "ok": 1,
-//   "started_ms": 39,
-//   "ended_ms": 40,
-//   "elapsed_ms": 1,
-//   "track_checksum": 145342,
-//   "composition_checksum": 1403291,
+//   "started_ms": 30,
+//   "ended_ms": 30,
+//   "elapsed_ms": 0,
+//   "track_checksum": 145339,
+//   "composition_checksum": 1403285,
 //   "cpu_feature_fingerprint": -7409408978278525106,
 //   "patch_journal_count": 3,
 //   "entangle_propagation_count": 3,
 //   "converge_mismatch_count": 0,
 //   "runtime_converge_telemetry_count": 0,
-//   "runtime_machine_teleport_count": 4,
-//   "runtime_machine_pulse_total_fire_count": 3,
+//   "runtime_machine_teleport_count": 3,
+//   "runtime_machine_pulse_total_fire_count": 2,
 //   "actor_scheduler_queue_depth": 0,
 //   "actor_scheduler_total_enqueued": 0
 // }
@@ -3045,7 +3045,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 628
-// sha256 = "sha256:cfbd6f6a6a1c913aa0872b2723263c37e3d56d1bd36289ed5e440a9c09edc1c3"
+// sha256 = "sha256:a9ae0afb014688b5f779f1973ea49c6eb07dd69fbb79ec3275458e350cfcbaa7"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -3056,18 +3056,18 @@
 //   "offset": 3900,
 //   "status": 0,
 //   "ok": 1,
-//   "started_ms": 2424,
-//   "ended_ms": 2425,
-//   "elapsed_ms": 1,
-//   "track_checksum": 456481,
-//   "composition_checksum": 11336299,
+//   "started_ms": 2035,
+//   "ended_ms": 2037,
+//   "elapsed_ms": 2,
+//   "track_checksum": 456484,
+//   "composition_checksum": 11335186,
 //   "cpu_feature_fingerprint": -7409408978278525106,
 //   "patch_journal_count": 147,
 //   "entangle_propagation_count": 147,
 //   "converge_mismatch_count": 0,
 //   "runtime_converge_telemetry_count": 1,
-//   "runtime_machine_teleport_count": 201,
-//   "runtime_machine_pulse_total_fire_count": 152,
+//   "runtime_machine_teleport_count": 179,
+//   "runtime_machine_pulse_total_fire_count": 130,
 //   "actor_scheduler_queue_depth": 0,
 //   "actor_scheduler_total_enqueued": 0
 // }
@@ -3077,7 +3077,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 613
-// sha256 = "sha256:e89ca21339d6af254faafadaccc8cf470c531733a421f2aa4fdf8d57ac3498d7"
+// sha256 = "sha256:25b8d8a9411b04375dce033b9b754217c75c9251498fb115ba41e975c39a728b"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -3088,18 +3088,18 @@
 //   "offset": 1900,
 //   "status": 0,
 //   "ok": 1,
-//   "started_ms": 38,
-//   "ended_ms": 38,
+//   "started_ms": 29,
+//   "ended_ms": 29,
 //   "elapsed_ms": 0,
 //   "track_checksum": 108415,
-//   "composition_checksum": 1005398,
+//   "composition_checksum": 1005395,
 //   "cpu_feature_fingerprint": -7409408978278525106,
 //   "patch_journal_count": 3,
 //   "entangle_propagation_count": 3,
 //   "converge_mismatch_count": 0,
 //   "runtime_converge_telemetry_count": 0,
-//   "runtime_machine_teleport_count": 4,
-//   "runtime_machine_pulse_total_fire_count": 3,
+//   "runtime_machine_teleport_count": 3,
+//   "runtime_machine_pulse_total_fire_count": 2,
 //   "actor_scheduler_queue_depth": 0,
 //   "actor_scheduler_total_enqueued": 0
 // }
@@ -3109,7 +3109,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 619
-// sha256 = "sha256:aca23f933dafe6d9be160a1d8690e40d17acaa6f1b48a89b9ba5bf4e9e74ed8b"
+// sha256 = "sha256:9ea7b5486dbf73dd0be04ef426dd5ed740e01a3677d303f2c5aae225c4a8ab2f"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -3120,18 +3120,18 @@
 //   "offset": 2250,
 //   "status": 0,
 //   "ok": 1,
-//   "started_ms": 40,
-//   "ended_ms": 41,
+//   "started_ms": 30,
+//   "ended_ms": 31,
 //   "elapsed_ms": 1,
 //   "track_checksum": 344473,
-//   "composition_checksum": 1747764,
+//   "composition_checksum": 1747758,
 //   "cpu_feature_fingerprint": -7409408978278525106,
 //   "patch_journal_count": 3,
 //   "entangle_propagation_count": 3,
 //   "converge_mismatch_count": 0,
 //   "runtime_converge_telemetry_count": 0,
-//   "runtime_machine_teleport_count": 4,
-//   "runtime_machine_pulse_total_fire_count": 3,
+//   "runtime_machine_teleport_count": 3,
+//   "runtime_machine_pulse_total_fire_count": 2,
 //   "actor_scheduler_queue_depth": 0,
 //   "actor_scheduler_total_enqueued": 0
 // }
@@ -3141,7 +3141,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 617
-// sha256 = "sha256:0cd3c5ec126069dc668ff2f4bae14a75aa467d92bd8a9950fb31a3096b1e6f06"
+// sha256 = "sha256:56cc84ca7502b67725505771aac24152d4028dfd6fdb5b1d6072ac8cfe319089"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -3152,18 +3152,18 @@
 //   "offset": 2100,
 //   "status": 0,
 //   "ok": 1,
-//   "started_ms": 39,
-//   "ended_ms": 39,
+//   "started_ms": 29,
+//   "ended_ms": 29,
 //   "elapsed_ms": 0,
 //   "track_checksum": 132427,
-//   "composition_checksum": 1257949,
+//   "composition_checksum": 1257946,
 //   "cpu_feature_fingerprint": -7409408978278525106,
 //   "patch_journal_count": 3,
 //   "entangle_propagation_count": 3,
 //   "converge_mismatch_count": 0,
 //   "runtime_converge_telemetry_count": 0,
-//   "runtime_machine_teleport_count": 4,
-//   "runtime_machine_pulse_total_fire_count": 3,
+//   "runtime_machine_teleport_count": 3,
+//   "runtime_machine_pulse_total_fire_count": 2,
 //   "actor_scheduler_queue_depth": 0,
 //   "actor_scheduler_total_enqueued": 0
 // }
@@ -3173,7 +3173,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 636
-// sha256 = "sha256:df44510a37eaeb25017686d5764cf672c33530ebcee65232d69de25692a08001"
+// sha256 = "sha256:ff461fe4a17441c6d280951259a7f4c397e1cb09397a05bbaac10f03c8765599"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -3184,18 +3184,18 @@
 //   "offset": 3700,
 //   "status": 0,
 //   "ok": 1,
-//   "started_ms": 2280,
-//   "ended_ms": 2389,
-//   "elapsed_ms": 109,
-//   "track_checksum": 411214,
-//   "composition_checksum": 10446338,
+//   "started_ms": 1887,
+//   "ended_ms": 1998,
+//   "elapsed_ms": 111,
+//   "track_checksum": 411220,
+//   "composition_checksum": 10445216,
 //   "cpu_feature_fingerprint": -7409408978278525106,
 //   "patch_journal_count": 3,
 //   "entangle_propagation_count": 3,
 //   "converge_mismatch_count": 0,
 //   "runtime_converge_telemetry_count": 0,
-//   "runtime_machine_teleport_count": 151,
-//   "runtime_machine_pulse_total_fire_count": 150,
+//   "runtime_machine_teleport_count": 129,
+//   "runtime_machine_pulse_total_fire_count": 128,
 //   "actor_scheduler_queue_depth": 0,
 //   "actor_scheduler_total_enqueued": 0
 // }
@@ -3205,7 +3205,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 637
-// sha256 = "sha256:577f95b1698ba0727e80b3e034ee24f207acd8b6db2b456913b0befcd95d5969"
+// sha256 = "sha256:926aa62cea04117a597b27ec2d5747cea6af70084b9afdeae1373c9e6bff1ddc"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -3216,18 +3216,18 @@
 //   "offset": 3800,
 //   "status": 0,
 //   "ok": 1,
-//   "started_ms": 2390,
-//   "ended_ms": 2423,
-//   "elapsed_ms": 33,
-//   "track_checksum": 433480,
-//   "composition_checksum": 10879818,
+//   "started_ms": 2000,
+//   "ended_ms": 2035,
+//   "elapsed_ms": 35,
+//   "track_checksum": 433486,
+//   "composition_checksum": 10878702,
 //   "cpu_feature_fingerprint": -7409408978278525106,
 //   "patch_journal_count": 147,
 //   "entangle_propagation_count": 147,
 //   "converge_mismatch_count": 0,
 //   "runtime_converge_telemetry_count": 1,
-//   "runtime_machine_teleport_count": 201,
-//   "runtime_machine_pulse_total_fire_count": 152,
+//   "runtime_machine_teleport_count": 179,
+//   "runtime_machine_pulse_total_fire_count": 130,
 //   "actor_scheduler_queue_depth": 0,
 //   "actor_scheduler_total_enqueued": 0
 // }
@@ -3237,7 +3237,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 629
-// sha256 = "sha256:6c34424554b0131434af2d20343909901030e9b0c1ab04fd9fdae8500003b462"
+// sha256 = "sha256:2e3d7c4bb0fef9950fbab7aa6d046fd09fc875a9669611920838b3b4d8019f31"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -3248,18 +3248,18 @@
 //   "offset": 5000,
 //   "status": 0,
 //   "ok": 1,
-//   "started_ms": 2458,
-//   "ended_ms": 2491,
-//   "elapsed_ms": 33,
-//   "track_checksum": 795319,
-//   "composition_checksum": 19588793,
+//   "started_ms": 2081,
+//   "ended_ms": 2121,
+//   "elapsed_ms": 40,
+//   "track_checksum": 795340,
+//   "composition_checksum": 19587740,
 //   "cpu_feature_fingerprint": -7409408978278525106,
 //   "patch_journal_count": 167,
 //   "entangle_propagation_count": 167,
 //   "converge_mismatch_count": 0,
 //   "runtime_converge_telemetry_count": 1,
-//   "runtime_machine_teleport_count": 206,
-//   "runtime_machine_pulse_total_fire_count": 157,
+//   "runtime_machine_teleport_count": 185,
+//   "runtime_machine_pulse_total_fire_count": 136,
 //   "actor_scheduler_queue_depth": 0,
 //   "actor_scheduler_total_enqueued": 0
 // }
@@ -3269,7 +3269,7 @@
 // kind = "text"
 // encoding = "utf8"
 // bytes = 625
-// sha256 = "sha256:004cff1d570f20cbd511e8c88059c02c6d06f5abe5060a96904eb1c29576f383"
+// sha256 = "sha256:38372d18674aa7277fcb74f9d3d080368b7783533eee4318f7d420f584c38c65"
 // trailing_newline = true
 //!kain-file-content
 // {
@@ -3280,18 +3280,18 @@
 //   "offset": 5100,
 //   "status": 0,
 //   "ok": 1,
-//   "started_ms": 2492,
-//   "ended_ms": 8157,
-//   "elapsed_ms": 5665,
-//   "track_checksum": 843409,
-//   "composition_checksum": 20432202,
+//   "started_ms": 2121,
+//   "ended_ms": 7540,
+//   "elapsed_ms": 5419,
+//   "track_checksum": 842671,
+//   "composition_checksum": 20430411,
 //   "cpu_feature_fingerprint": -7409408978278525106,
 //   "patch_journal_count": 167,
 //   "entangle_propagation_count": 167,
 //   "converge_mismatch_count": 0,
 //   "runtime_converge_telemetry_count": 1,
-//   "runtime_machine_teleport_count": 566,
-//   "runtime_machine_pulse_total_fire_count": 517,
+//   "runtime_machine_teleport_count": 528,
+//   "runtime_machine_pulse_total_fire_count": 479,
 //   "actor_scheduler_queue_depth": 0,
 //   "actor_scheduler_total_enqueued": 0
 // }
