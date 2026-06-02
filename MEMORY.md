@@ -1,5 +1,26 @@
 # Kain Memory
 
+# 2026-06-02 - native-core Z3 automation now uses DB-ranked backlog and learning queue
+
+What changed:
+
+- `X:\mcp\polytools\z3-mcp` now ranks proof-candidate materialization from `runtime/native/src/core/z3/generated/coverage/proof_inventory.sqlite` instead of taking the first uncovered symbols by incidental source order.
+- Candidate execution is also DB-ranked: candidate symbols first, template outcome history, high-repeat template families, and high-pressure files. Template families with repeated failures and zero successes are marked cold and demoted.
+- Template matchers can now declare source affinity, and `runtime/native/src/core/z3/templates/actor-runtime.yaml` uses it to keep actor-specific proof templates on actor runtime and actor ABI symbols.
+- The inventory DB now records candidate outcomes in `candidate_outcomes`, so dry runs teach the next automation pass instead of forcing agents to remember which template family just failed.
+- A promotion-capable live pass mechanically promoted four clean runtime-core outcomes; one `net_system.c` actor-template match was rejected as a semantic-affinity false positive, and three actor ABI proofs were kept under `runtime/native/src/core/z3/proofs/coverage/c/stdlib_abi/`.
+
+Validation:
+
+- `uv run --directory X:\mcp\polytools\z3-mcp pytest tests/test_coverage_tools.py tests/test_workflow_tools.py tests/test_proof_packs.py tests/test_server_surface.py` passed with `19 passed`.
+- Live dry run `runtime-core-db-ranked-backlog-dryrun` materialized `185` candidates from the top `160` DB-ranked symbols, learned five `generic-size-mul` counterexamples, and wrote `runtime/native/src/core/z3/reports/20260602T015215Z-runtime-core-db-ranked-backlog-dryrun.json`.
+- Live promotion run `runtime-core-db-ranked-learning-promote` mechanically promoted `4` clean outcomes, but only `3` were retained after the affinity audit; report: `runtime/native/src/core/z3/reports/20260602T015411Z-runtime-core-db-ranked-learning-promote.json`.
+
+Operational notes:
+
+- Use the automation output fields `materialized.symbol_queue_strategy`, `queue_strategy`, `template_affinity`, `template_failure_count`, and `template_is_cold` to explain why a run selected or skipped a family.
+- If a high-repeat family generates only counterexamples, let the pipeline record those outcomes, then rerun a small pass; the next queue should rotate to non-cold families such as `c-buffer-growth` or other pack-local candidates.
+
 # 2026-06-01 - v1 keyword expansion landed for defer, where, workgroup, and dispatch
 
 What changed:

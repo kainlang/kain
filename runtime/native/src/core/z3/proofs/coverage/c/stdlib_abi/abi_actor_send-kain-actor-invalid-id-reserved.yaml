@@ -1,0 +1,49 @@
+version: 1
+id: kain.native.core.proofs.candidate.abi_actor_send_kain_actor_invalid_id_reserved
+kind: range_check
+description: Actor table slot keeps invalid ID reserved in `abi_actor_send`
+tags:
+- bitwise
+- overflow
+- coverage-promoted
+source:
+  path: X:\runtime\native\src\core\stdlib_abi.c
+  language: c
+  symbol: abi_actor_send
+  signature: int64_t abi_actor_send(int64_t actor_id, const char* message_name, const
+    char* data_payload) {
+  start_line: 965
+  end_line: 973
+  template_id: kain-actor-invalid-id-reserved
+  template_origin: pack-local
+  template_path: X:\runtime\native\src\core\z3\templates\actor-runtime.yaml
+  template_engine: regex
+  template_affinity:
+    source_file_any:
+    - actor.c
+    - stdlib_abi.c
+    symbol_regex_any:
+    - ^(kain_actor_|abi_actor_)
+  router_tool: prove
+  reason: Actor table slot keeps invalid ID reserved in `abi_actor_send`
+  bindings: {}
+  analysis_artifacts: null
+  promoted_from: generated/coverage/proof_candidates/c/stdlib_abi/abi_actor_send-kain-actor-invalid-id-reserved.yaml
+  promotion_run_id: 20260602T015358887174Z
+case:
+  declarations:
+  - name: slot
+    sort:
+      kind: int
+  constraints:
+  - op: ge
+    args:
+    - slot
+    - 1
+  - op: lt
+    args:
+    - slot
+    - 1024
+  expression: slot
+  lower: 1
+  upper: 1023

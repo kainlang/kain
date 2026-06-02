@@ -115,6 +115,8 @@ uv run --directory X:\mcp\polytools\z3-mcp python -m z3_mcp.workflow_tools --pac
 
 That pass materializes missing generated candidates, runs candidate proofs, promotes clean outcomes into durable `z3/proofs/coverage/**`, quarantines counterexamples under `z3/generated/coverage/runs/<run-id>/`, and resyncs the SQLite inventory.
 
+The automation queue is DB-ranked, not alphabetical. Materialization pulls top symbols from `proof_inventory.sqlite` by candidate status, ready-target count, and file pressure; execution then ranks materialized candidates by candidate status, template/source affinity, template outcome history, template frequency, and file pressure. Repeated zero-success template failures are marked cold and demoted, so the loop learns away from bad proof families while still keeping counterexamples as useful signal.
+
 Useful MCP calls:
 
 - `mcp__z3_local__.analyze_source_file(path="runtime/native/src/core/actor.c", symbol="...")`

@@ -84,6 +84,12 @@ matchers:
   - id: kain-actor-invalid-id-reserved
     title: Actor table slot keeps invalid ID reserved
     helper: range_check
+    affinity:
+      source_file_any:
+        - actor.c
+        - stdlib_abi.c
+      symbol_regex_any:
+        - "^(kain_actor_|abi_actor_)"
     regex_any:
       - "KAIN_ACTOR_ID_INVALID"
       - "for \\(size_t i = 1"
