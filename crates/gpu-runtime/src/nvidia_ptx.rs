@@ -7,7 +7,9 @@ use crate::executor::{
     write_result_message, ComputeExecutorError, GpuRuntimeDispatchRequest,
     GpuRuntimeDispatchResult,
 };
-use kain_core::{shader_artifact_bundle_from_json, ShaderArtifactFormat};
+use kain_core::{
+    gpu_storage_element_stride_bytes, shader_artifact_bundle_from_json, ShaderArtifactFormat,
+};
 use kain_interop::{
     shared_buffer_gpu_binding_view, GpuBindingAccess as InteropAccess,
     GpuDescriptorKind as InteropDescriptorKind, KainSharedBuffer, SharedBufferMetadata,
@@ -1301,7 +1303,7 @@ fn validate_shared_buffer_binding(
 ) -> Result<(), ComputeExecutorError> {
     let metadata = SharedBufferMetadata {
         element_type: binding.element_type.clone(),
-        element_size: infer_element_size(&binding.element_type),
+        element_size: gpu_storage_element_stride_bytes(&binding.element_type).unwrap_or(4) as i64,
         shape: binding.shape.clone(),
         strides: binding.strides.clone(),
         format: Some(binding.element_type.clone()),
@@ -1390,19 +1392,6 @@ fn parse_cuda_graph_policy(value: &str) -> Result<GpuCudaGraphPolicy, ComputeExe
         other => Err(ComputeExecutorError::UnsupportedCudaGraphPolicy {
             value: other.to_string(),
         }),
-    }
-}
-
-fn infer_element_size(element_type: &str) -> i64 {
-    match element_type {
-        "u8" | "i8" | "bool" => 1,
-        "u16" | "i16" => 2,
-        "u32" | "i32" | "f32" => 4,
-        "u64" | "i64" | "f64" => 8,
-        "vec2<f32>" | "vec2<i32>" | "vec2<u32>" => 8,
-        "vec3<f32>" | "vec3<i32>" | "vec3<u32>" => 12,
-        "vec4<f32>" | "vec4<i32>" | "vec4<u32>" => 16,
-        _ => 4,
     }
 }
 
@@ -1510,6 +1499,65 @@ mod tests {
             }))?,
         )?;
         Ok(())
+    }
+
+    #[test]
+    fn validate_shared_buffer_binding_rejects_packed_bool_storage_payload() {
+        let binding = ComputeResidencyBinding {
+            key: "flags".to_string(),
+            contract: "kain.shared.buffer".to_string(),
+            descriptor_kind: "storage_buffer".to_string(),
+            element_type: "bool".to_string(),
+            shape: vec![1],
+            strides: vec![1],
+            access_mode: "read".to_string(),
+            residency_role: "input".to_string(),
+            slot: 0,
+            byte_length: 1,
+            payload_file: "flags.bin".to_string(),
+        };
+        let error = validate_shared_buffer_binding(
+            "cuda",
+            &binding,
+            &[0u8; 1],
+            GpuDescriptorKind::StorageBuffer,
+            GpuBindingAccess::Read,
+        )
+        .expect_err("packed bool storage payload should be rejected");
+        assert!(
+            error.to_string().contains("expected 4, got 1"),
+            "unexpected error: {error}"
+        );
+    }
+
+    #[test]
+    fn validate_shared_buffer_binding_rejects_packed_vec3_storage_payload() {
+        let binding = ComputeResidencyBinding {
+            key: "points".to_string(),
+            contract: "kain.shared.buffer".to_string(),
+            descriptor_kind: "storage_buffer".to_string(),
+            element_type: "vec3<f32>".to_string(),
+            shape: vec![2],
+            strides: vec![1],
+            access_mode: "read".to_string(),
+            residency_role: "input".to_string(),
+            slot: 0,
+            byte_length: 24,
+            payload_file: "points.bin".to_string(),
+        };
+        let bytes = vec![0u8; 24];
+        let error = validate_shared_buffer_binding(
+            "cuda",
+            &binding,
+            &bytes,
+            GpuDescriptorKind::StorageBuffer,
+            GpuBindingAccess::Read,
+        )
+        .expect_err("packed vec3 storage payload should be rejected");
+        assert!(
+            error.to_string().contains("expected 32, got 24"),
+            "unexpected error: {error}"
+        );
     }
 
     #[test]

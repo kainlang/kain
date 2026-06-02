@@ -10379,3 +10379,22 @@ The Windows launcher lane had two real build-plumbing failure modes beyond simpl
 - Live operator caveat:
   - if `X:\.kain\bin\kain.exe` itself is running, sync will stage `X:\.kain\bin\kain.exe.pending.*` instead of replacing the live shim in place
   - during proof, PID `25132` (`"X:\.kain\bin\kain.exe" run breakout.kn --target llvm`) kept the old on-disk `kain.exe` locked while the fresh pending shim and `kn.exe` were written
+
+# 2026-06-01 - GPU storage-buffer stride contract unification
+
+The PTX/CUDA storage-buffer underallocation bug is now fixed by centralizing scalar/vector stride truth in `crates/core/src/realtime_app_bundle.rs::gpu_storage_element_stride_bytes`.
+
+- Contract to preserve:
+  - `StorageBuffer<Bool>` is a 4-byte lane, not 1 byte
+  - `StorageBuffer<Vec3/IVec3/UVec3>` uses a 16-byte stride, not 12 bytes
+  - `Vec2` stays 8 bytes and `Vec4` stays 16 bytes
+- Consumers now pinned to the shared helper:
+  - compiler truth in `crates/gpu/src/codegen_ptx.rs` and `crates/gpu/src/codegen_spirv.rs`
+  - sidecar/runtime truth in `crates/driver/src/compute_residency.rs`, `crates/gpu-runtime/src/executor.rs`, and `crates/gpu-runtime/src/nvidia_ptx.rs`
+  - host/interop truth in `crates/interop/src/lib.rs`, `crates/host/src/fabric.rs`, and authored `stdlib/gpu.kn`
+- Proof and validation breadcrumbs:
+  - Z3 proof case: `crates/core/z3/proofs/gpu-storage-element-stride-matches-compiler-layout.yaml`
+  - targeted cargo proofs passed with `--lib` and `--target-dir Z:\_b\cargo-target\codex-gpu-layout-*`
+  - `cargo run -q -p kain-stdlib-map --bin kain_stdlib_map_tool -- --write` and `--check` both passed after the `std::gpu` contract update
+- Windows operator note:
+  - `X:` was full enough to trip `os error 112`, so GPU proof runs should prefer `Z:\_b\cargo-target\...` on this workstation unless disk pressure is resolved

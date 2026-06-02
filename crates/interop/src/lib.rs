@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Once, RwLock};
 
 use kain_core::error::{KainError, KainResult};
+use kain_core::gpu_storage_element_stride_bytes;
 use kain_core::runtime::{register_env_extension, Env, Value};
 use kain_core::stdlib::{register_stdlib_extension, BuiltinFn, StdLib};
 
@@ -760,15 +761,11 @@ fn element_count(shape: &[i64]) -> i64 {
 }
 
 fn element_size_for(element_type: &str) -> KainResult<i64> {
-    match element_type {
-        "bool" | "u8" | "uint8" | "i8" | "int8" => Ok(1),
-        "u16" | "uint16" | "i16" | "int16" => Ok(2),
-        "u32" | "uint32" | "i32" | "int32" | "f32" | "float32" => Ok(4),
-        "u64" | "uint64" | "i64" | "int64" | "f64" | "float64" => Ok(8),
-        other => Err(KainError::runtime(format!(
-            "Unsupported shared element type: {other}"
-        ))),
-    }
+    gpu_storage_element_stride_bytes(element_type)
+        .map(|bytes| bytes as i64)
+        .ok_or_else(|| {
+            KainError::runtime(format!("Unsupported shared element type: {element_type}"))
+        })
 }
 
 fn required_shared_buffer_byte_length(metadata: &SharedBufferMetadata) -> KainResult<usize> {
@@ -928,5 +925,25 @@ mod tests {
         .expect_err("uniform write access should fail");
 
         assert!(format!("{error}").contains("read-only"));
+    }
+
+    #[test]
+    fn shared_buffer_element_sizes_follow_gpu_storage_stride_contract() {
+        assert_eq!(element_size_for("bool").unwrap(), 4);
+        assert_eq!(element_size_for("vec3<f32>").unwrap(), 16);
+
+        let metadata = SharedBufferMetadata {
+            element_type: "vec3<f32>".to_string(),
+            element_size: element_size_for("vec3<f32>").unwrap(),
+            shape: vec![2],
+            strides: vec![1],
+            format: Some("vec3<f32>".to_string()),
+            mime_type: Some("application/octet-stream".to_string()),
+            source_runtime: "test".to_string(),
+            source_backend: Some("unit".to_string()),
+            ownership: "owned".to_string(),
+            labels: vec!["gpu".to_string()],
+        };
+        assert_eq!(required_shared_buffer_byte_length(&metadata).unwrap(), 32);
     }
 }

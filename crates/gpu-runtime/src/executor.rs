@@ -3,7 +3,7 @@ use crate::bindings::{
     GpuDispatchRequest, GpuDispatchResult,
 };
 use ash::{vk, Entry};
-use kain_core::shader_artifact_bundle_from_json;
+use kain_core::{gpu_storage_element_stride_bytes, shader_artifact_bundle_from_json};
 use kain_interop::{
     shared_buffer_gpu_binding_view, GpuBindingAccess as InteropAccess,
     GpuDescriptorKind as InteropDescriptorKind, KainSharedBuffer, SharedBufferMetadata,
@@ -925,7 +925,8 @@ fn dispatch_request_from_sidecars(
         }
         let metadata = SharedBufferMetadata {
             element_type: binding.element_type.clone(),
-            element_size: infer_element_size(&binding.element_type),
+            element_size: gpu_storage_element_stride_bytes(&binding.element_type).unwrap_or(4)
+                as i64,
             shape: binding.shape.clone(),
             strides: binding.strides.clone(),
             format: Some(binding.element_type.clone()),
@@ -1013,19 +1014,6 @@ fn parse_access_mode(value: &str) -> Result<GpuBindingAccess, ComputeExecutorErr
         other => Err(ComputeExecutorError::UnsupportedAccessMode {
             value: other.to_string(),
         }),
-    }
-}
-
-fn infer_element_size(element_type: &str) -> i64 {
-    match element_type {
-        "u8" | "i8" | "bool" => 1,
-        "u16" | "i16" => 2,
-        "u32" | "i32" | "f32" => 4,
-        "u64" | "i64" | "f64" => 8,
-        "vec2<f32>" | "vec2<i32>" | "vec2<u32>" => 8,
-        "vec3<f32>" | "vec3<i32>" | "vec3<u32>" => 12,
-        "vec4<f32>" | "vec4<i32>" | "vec4<u32>" => 16,
-        _ => 4,
     }
 }
 

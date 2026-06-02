@@ -11,8 +11,8 @@ use kain_c_ffi::{
 use kain_core::diagnostics::SpanMapper;
 use kain_core::runtime::{self, Env, Value};
 use kain_core::{
-    CompileTarget, ComputeMetadata, ComputeStreamPlan, ComputeTensorPlan, Item, Lexer, Parser,
-    ShaderStage,
+    gpu_storage_element_stride_bytes, CompileTarget, ComputeMetadata, ComputeStreamPlan,
+    ComputeTensorPlan, Item, Lexer, Parser, ShaderStage,
 };
 use kain_core::{EffectSet, IntSize, ResolvedType};
 use kain_crate_ffi::{
@@ -1254,25 +1254,13 @@ fn resolve_upstream_binding_shape(
     }
 
     let bytes = resolve_upstream_binding_bytes(context, binding_key)?;
-    let element_size = match element_type {
-        "u8" | "i8" | "bool" => 1usize,
-        "u16" | "i16" => 2usize,
-        "u32" | "i32" | "f32" => 4usize,
-        "u64" | "i64" | "f64" => 8usize,
-        _ => 4usize,
-    };
+    let element_size = gpu_storage_element_stride_bytes(element_type).unwrap_or(4);
     let element_count = (bytes.len() / element_size.max(1)).max(1) as i64;
     Some(vec![element_count])
 }
 
 fn zero_fill_binding(shape: &[i64], element_type: &str) -> Vec<u8> {
-    let element_size = match element_type {
-        "u8" | "i8" | "bool" => 1,
-        "u16" | "i16" => 2,
-        "u32" | "i32" | "f32" => 4,
-        "u64" | "i64" | "f64" => 8,
-        _ => 4,
-    };
+    let element_size = gpu_storage_element_stride_bytes(element_type).unwrap_or(4);
     let total_elements: i64 = shape.iter().copied().product();
     vec![0u8; (total_elements.max(1) as usize) * element_size]
 }
@@ -2401,6 +2389,12 @@ fn structured_missing_output_failure(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn gpu_compute_helpers_zero_fill_with_gpu_storage_stride_contract() {
+        assert_eq!(zero_fill_binding(&[1], "bool").len(), 4);
+        assert_eq!(zero_fill_binding(&[2], "vec3<f32>").len(), 32);
+    }
 
     #[test]
     fn local_fabric_manifest_executes_and_records_typed_outputs() {

@@ -17,6 +17,7 @@ use kain_core::ast::{
 };
 use kain_core::builder::{CodegenDiagnostic, ShaderDiagnostic};
 use kain_core::error::{CompilerPhase, KainError, KainResult};
+use kain_core::gpu_storage_element_stride_bytes;
 use kain_core::span::Span;
 use kain_core::types::{TypedItem, TypedProgram, TypedShader};
 use kain_core::DiagnosticCode;
@@ -2151,24 +2152,28 @@ struct TypeShape {
 fn type_shape(ty: &Type) -> Option<TypeShape> {
     match ty {
         Type::Named { name, .. } => match name.as_str() {
-            "Float" | "f32" | "F32" => scalar_shape(PtxScalarKind::F32, 4, "f32", "f32"),
-            "Int" | "i32" | "I32" => scalar_shape(PtxScalarKind::S32, 4, "s32", "s32"),
-            "UInt" | "u32" | "U32" | "Bool" => scalar_shape(PtxScalarKind::U32, 4, "u32", "u32"),
-            "UInt64" | "u64" | "U64" => scalar_shape(PtxScalarKind::U64, 8, "u64", "u64"),
-            "i8" | "I8" => scalar_shape(PtxScalarKind::S32, 1, "s8", "u8"),
-            "u8" | "U8" => scalar_shape(PtxScalarKind::U32, 1, "u8", "u8"),
-            "i16" | "I16" => scalar_shape(PtxScalarKind::S32, 2, "s16", "u16"),
-            "u16" | "U16" => scalar_shape(PtxScalarKind::U32, 2, "u16", "u16"),
-            "f16" | "F16" | "bf16" | "BF16" => scalar_shape(PtxScalarKind::U32, 2, "u16", "u16"),
-            "Vec2" => vector_shape(PtxScalarKind::F32, 2),
-            "Vec3" => vector_shape(PtxScalarKind::F32, 3),
-            "Vec4" => vector_shape(PtxScalarKind::F32, 4),
-            "IVec2" => vector_shape(PtxScalarKind::S32, 2),
-            "IVec3" => vector_shape(PtxScalarKind::S32, 3),
-            "IVec4" => vector_shape(PtxScalarKind::S32, 4),
-            "UVec2" => vector_shape(PtxScalarKind::U32, 2),
-            "UVec3" => vector_shape(PtxScalarKind::U32, 3),
-            "UVec4" => vector_shape(PtxScalarKind::U32, 4),
+            "Float" | "f32" | "F32" => scalar_shape_for(name, PtxScalarKind::F32, "f32", "f32"),
+            "Int" | "i32" | "I32" => scalar_shape_for(name, PtxScalarKind::S32, "s32", "s32"),
+            "UInt" | "u32" | "U32" | "Bool" => {
+                scalar_shape_for(name, PtxScalarKind::U32, "u32", "u32")
+            }
+            "UInt64" | "u64" | "U64" => scalar_shape_for(name, PtxScalarKind::U64, "u64", "u64"),
+            "i8" | "I8" => scalar_shape_for(name, PtxScalarKind::S32, "s8", "u8"),
+            "u8" | "U8" => scalar_shape_for(name, PtxScalarKind::U32, "u8", "u8"),
+            "i16" | "I16" => scalar_shape_for(name, PtxScalarKind::S32, "s16", "u16"),
+            "u16" | "U16" => scalar_shape_for(name, PtxScalarKind::U32, "u16", "u16"),
+            "f16" | "F16" | "bf16" | "BF16" => {
+                scalar_shape_for(name, PtxScalarKind::U32, "u16", "u16")
+            }
+            "Vec2" => vector_shape(name, PtxScalarKind::F32, 2),
+            "Vec3" => vector_shape(name, PtxScalarKind::F32, 3),
+            "Vec4" => vector_shape(name, PtxScalarKind::F32, 4),
+            "IVec2" => vector_shape(name, PtxScalarKind::S32, 2),
+            "IVec3" => vector_shape(name, PtxScalarKind::S32, 3),
+            "IVec4" => vector_shape(name, PtxScalarKind::S32, 4),
+            "UVec2" => vector_shape(name, PtxScalarKind::U32, 2),
+            "UVec3" => vector_shape(name, PtxScalarKind::U32, 3),
+            "UVec4" => vector_shape(name, PtxScalarKind::U32, 4),
             _ => None,
         },
         Type::Unit(_) => Some(TypeShape {
@@ -2181,6 +2186,20 @@ fn type_shape(ty: &Type) -> Option<TypeShape> {
         }),
         _ => None,
     }
+}
+
+fn scalar_shape_for(
+    element_type: &str,
+    scalar: PtxScalarKind,
+    load_suffix: &'static str,
+    store_suffix: &'static str,
+) -> Option<TypeShape> {
+    scalar_shape(
+        scalar,
+        gpu_storage_element_stride_bytes(element_type)? as u32,
+        load_suffix,
+        store_suffix,
+    )
 }
 
 fn scalar_shape(
@@ -2199,11 +2218,11 @@ fn scalar_shape(
     })
 }
 
-fn vector_shape(scalar: PtxScalarKind, lanes: usize) -> Option<TypeShape> {
+fn vector_shape(element_type: &str, scalar: PtxScalarKind, lanes: usize) -> Option<TypeShape> {
     Some(TypeShape {
         scalar,
         lanes,
-        stride: if lanes == 3 { 16 } else { (lanes as u32) * 4 },
+        stride: gpu_storage_element_stride_bytes(element_type)? as u32,
         component_stride: 4,
         load_suffix: scalar.op_suffix(),
         store_suffix: scalar.op_suffix(),
@@ -2425,6 +2444,19 @@ mod tests {
         let shape = type_shape(&named("Vec3")).expect("vec3 shape");
         assert_eq!(shape.stride, 16);
         assert_eq!(shape.lanes, 3);
+    }
+
+    #[test]
+    fn ptx_storage_shapes_stay_in_lockstep_with_shared_gpu_stride_helper() {
+        for name in [
+            "Bool", "Float", "Int", "UInt", "u8", "i16", "f16", "Vec2", "Vec3", "Vec4", "IVec3",
+            "UVec3",
+        ] {
+            assert_eq!(
+                type_shape(&named(name)).expect("ptx type shape").stride,
+                gpu_storage_element_stride_bytes(name).expect("shared stride helper") as u32
+            );
+        }
     }
 
     #[test]

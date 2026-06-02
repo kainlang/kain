@@ -60,4 +60,4 @@ cargo check -p gpu -p kain-driver -p cli -p kain-build --target-dir target\codex
 
 - Do not add an `nvcc` or CUDA Toolkit requirement to the normal path.
 - Do not let runtime executors redefine shader bundle semantics or binding-slot order.
-- Keep Vulkan and PTX memory contracts aligned; `Vec3` storage-buffer stride remains 16 bytes, not 12.
+- Keep Vulkan and PTX memory contracts aligned; `StorageBuffer<Bool>` remains a 4-byte lane and `Vec3` storage-buffer stride remains 16 bytes across compiler, sidecar, runtime, interop, and `std::gpu` helper math.

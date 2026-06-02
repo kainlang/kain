@@ -3,8 +3,8 @@ use std::path::{Path, PathBuf};
 
 use kain_core::error::KainError;
 use kain_core::{
-    RealtimeAppBundle, RealtimeResourceBinding, RealtimeShaderBundleRef, ShaderArtifactBundle,
-    ShaderArtifactFormat,
+    gpu_storage_element_stride_bytes, RealtimeAppBundle, RealtimeResourceBinding,
+    RealtimeShaderBundleRef, ShaderArtifactBundle, ShaderArtifactFormat,
 };
 use serde::{Deserialize, Serialize};
 
@@ -422,16 +422,7 @@ fn compact_strides(shape: &[i64]) -> Vec<i64> {
 }
 
 fn element_size_for(element_type: &str) -> usize {
-    match element_type {
-        "u8" | "i8" | "bool" => 1,
-        "u16" | "i16" => 2,
-        "u32" | "i32" | "f32" => 4,
-        "u64" | "i64" | "f64" => 8,
-        "vec2<f32>" | "vec2<i32>" | "vec2<u32>" => 8,
-        "vec3<f32>" | "vec3<i32>" | "vec3<u32>" => 12,
-        "vec4<f32>" | "vec4<i32>" | "vec4<u32>" => 16,
-        _ => 4,
-    }
+    gpu_storage_element_stride_bytes(element_type).unwrap_or(4)
 }
 
 #[cfg(test)]
@@ -439,6 +430,12 @@ mod tests {
     use super::*;
     use crate::native_app::{compile_native_app_bundle, NativeAppBundleConfig};
     use tempfile::TempDir;
+
+    #[test]
+    fn compute_residency_uses_gpu_storage_stride_for_bool_and_vec3() {
+        assert_eq!(element_size_for("bool"), 4);
+        assert_eq!(element_size_for("vec3<f32>"), 16);
+    }
 
     #[test]
     fn writes_deterministic_compute_residency_sidecars() {

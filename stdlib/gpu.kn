@@ -2,6 +2,7 @@ use std::graphics
 use std::interop
 use std::json
 use std::math
+use std::text
 
 pub const GPU_STAGE_VERTEX: Int = 1
 pub const GPU_STAGE_FRAGMENT: Int = 2
@@ -314,27 +315,34 @@ pub fn gpu_backend_preferred() -> GpuBackendState:
     return software
 
 pub fn gpu_element_size_bytes(element_type: String) -> Int:
-    if element_type == "bool" or element_type == "u8" or element_type == "uint8" or element_type == "i8" or element_type == "int8":
+    let normalized = text_lower(element_type)
+    if normalized == "u8" or normalized == "uint8" or normalized == "byte" or normalized == "i8" or normalized == "int8" or normalized == "sbyte":
         return 1
-    if element_type == "u16" or element_type == "uint16" or element_type == "i16" or element_type == "int16":
+    if normalized == "u16" or normalized == "uint16" or normalized == "i16" or normalized == "int16" or normalized == "f16" or normalized == "half" or normalized == "bf16" or normalized == "bfloat16":
         return 2
-    if element_type == "u32" or element_type == "uint32" or element_type == "i32" or element_type == "int32" or element_type == "f32" or element_type == "float32":
+    if normalized == "bool" or normalized == "u32" or normalized == "uint32" or normalized == "uint" or normalized == "i32" or normalized == "int32" or normalized == "int" or normalized == "f32" or normalized == "float32" or normalized == "float":
         return 4
-    if element_type == "u64" or element_type == "uint64" or element_type == "i64" or element_type == "int64" or element_type == "f64" or element_type == "float64":
+    if normalized == "u64" or normalized == "uint64" or normalized == "ulong" or normalized == "i64" or normalized == "int64" or normalized == "long" or normalized == "f64" or normalized == "float64" or normalized == "double":
         return 8
+    if normalized == "vec2" or normalized == "ivec2" or normalized == "uvec2" or normalized == "vec2<f32>" or normalized == "vec2<float32>" or normalized == "vec2<float>" or normalized == "vec2<i32>" or normalized == "vec2<int32>" or normalized == "vec2<int>" or normalized == "vec2<u32>" or normalized == "vec2<uint32>" or normalized == "vec2<uint>":
+        return 8
+    if normalized == "vec3" or normalized == "ivec3" or normalized == "uvec3" or normalized == "vec3<f32>" or normalized == "vec3<float32>" or normalized == "vec3<float>" or normalized == "vec3<i32>" or normalized == "vec3<int32>" or normalized == "vec3<int>" or normalized == "vec3<u32>" or normalized == "vec3<uint32>" or normalized == "vec3<uint>":
+        return 16
+    if normalized == "vec4" or normalized == "ivec4" or normalized == "uvec4" or normalized == "vec4<f32>" or normalized == "vec4<float32>" or normalized == "vec4<float>" or normalized == "vec4<i32>" or normalized == "vec4<int32>" or normalized == "vec4<int>" or normalized == "vec4<u32>" or normalized == "vec4<uint32>" or normalized == "vec4<uint>":
+        return 16
     return 0
 
-pub fn gpu_element_count(shape: Any) -> Int:
+pub fn gpu_element_count(shape: Array<Int>) -> Int:
     if len(shape) <= 0:
         return 0
-    let index = 0
-    let count = 1
+    var index = 0
+    var count = 1
     while index < len(shape):
         count = count * shape[index]
         index = index + 1
     return count
 
-pub fn gpu_required_byte_length(element_type: String, shape: Any) -> Int:
+pub fn gpu_required_byte_length(element_type: String, shape: Array<Int>) -> Int:
     return gpu_element_size_bytes(element_type) * gpu_element_count(shape)
 
 pub fn gpu_raster_byte_length(width: Int, height: Int, channels: Int) -> Int:
@@ -344,7 +352,7 @@ pub fn gpu_raster_byte_length(width: Int, height: Int, channels: Int) -> Int:
 
 pub fn gpu_zero_bytes(byte_length: Int) -> Array<Int>:
     let bytes = []
-    let index = 0
+    var index = 0
     while index < byte_length:
         push(bytes, 0)
         index = index + 1
@@ -366,7 +374,7 @@ pub fn gpu_shared_buffer_from_bytes(bytes: Any, element_type: String, shape: Any
     let handle = interop_shared_buffer_from_bytes(bytes, element_type, shape, format, mime_type)
     return gpu_import_shared_buffer(handle, policy)
 
-pub fn gpu_shared_buffer_zeroed(element_type: String, shape: Any, format: String, mime_type: String, policy: GpuResourcePolicy) -> GpuBuffer:
+pub fn gpu_shared_buffer_zeroed(element_type: String, shape: Array<Int>, format: String, mime_type: String, policy: GpuResourcePolicy) -> GpuBuffer:
     return gpu_shared_buffer_from_bytes(
         gpu_zero_bytes(gpu_required_byte_length(element_type, shape)),
         element_type,

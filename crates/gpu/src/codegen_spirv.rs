@@ -9,6 +9,7 @@ use kain_core::diagnostic_registry::DiagnosticCode;
 use kain_core::error::{
     CompilerPhase, DiagnosticReport, DiagnosticSemanticPacket, ErrorKind, KainError, KainResult,
 };
+use kain_core::gpu_storage_element_stride_bytes;
 use kain_core::types::{TypedItem, TypedProgram, TypedShader};
 use kain_semantic::enrich_report as enrich_semantic_report;
 use rspirv::binary::Assemble;
@@ -3382,27 +3383,22 @@ fn storage_buffer_elem_type(buffer_ty: &Type, span: kain_core::span::Span) -> Ty
 
 fn storage_buffer_stride(buffer_ty: &Type) -> u32 {
     let elem_ty = storage_buffer_elem_type(buffer_ty, kain_core::span::Span::default());
+    if let Some(bytes) = storage_stride_bytes_for_type(&elem_ty) {
+        return bytes;
+    }
     match elem_ty {
-        // Vulkan std430/base-alignment rules keep 3-lane vectors at 16-byte alignment.
-        Type::Named { ref name, .. }
-            if matches!(
-                name.as_str(),
-                "Vec4" | "IVec4" | "UVec4" | "Vec3" | "IVec3" | "UVec3"
-            ) =>
-        {
-            16
-        }
-        Type::Named { ref name, .. } if matches!(name.as_str(), "Vec2" | "IVec2" | "UVec2") => 8,
-        Type::Named { ref name, .. }
-            if matches!(
-                name.as_str(),
-                "Float" | "f32" | "Int" | "i32" | "UInt" | "u32" | "Bool"
-            ) =>
-        {
-            4
-        }
+        // Mat4 still needs the local std430 matrix rule.
         Type::Named { ref name, .. } if name == "Mat4" => 64,
         _ => 4,
+    }
+}
+
+fn storage_stride_bytes_for_type(ty: &Type) -> Option<u32> {
+    match ty {
+        Type::Named { name, .. } => {
+            gpu_storage_element_stride_bytes(name).map(|bytes| bytes as u32)
+        }
+        _ => None,
     }
 }
 
@@ -3773,6 +3769,19 @@ mod tests {
         assert_eq!(storage_buffer_stride(&storage_buffer_of("IVec4")), 16);
         assert_eq!(storage_buffer_stride(&storage_buffer_of("UVec4")), 16);
         assert_eq!(storage_buffer_stride(&storage_buffer_of("Mat4")), 64);
+    }
+
+    #[test]
+    fn storage_buffer_stride_stays_in_lockstep_with_shared_gpu_stride_helper() {
+        for name in [
+            "Bool", "Float", "Int", "UInt", "Vec2", "IVec2", "UVec2", "Vec3", "IVec3", "UVec3",
+            "Vec4", "IVec4", "UVec4",
+        ] {
+            assert_eq!(
+                storage_buffer_stride(&storage_buffer_of(name)),
+                gpu_storage_element_stride_bytes(name).expect("shared stride helper") as u32
+            );
+        }
     }
 
     #[test]

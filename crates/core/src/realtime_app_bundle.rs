@@ -2527,8 +2527,8 @@ fn bundle_has_world_surface(worlds: &[RealtimeWorldBinding], kind: WorldSurfaceK
 mod tests {
     use crate::ui::build_ui_output_from_source;
     use crate::{
-        diagnostics, emit_realtime_app_bundle, realtime_app_bundle_from_json, types, CompileTarget,
-        Lexer, Parser,
+        diagnostics, emit_realtime_app_bundle, gpu_storage_element_stride_bytes,
+        realtime_app_bundle_from_json, types, CompileTarget, Lexer, Parser,
     };
 
     #[test]
@@ -2986,6 +2986,19 @@ shader compute PackedProbe() -> Void:
         );
         assert_eq!(element_types.get("scores").map(String::as_str), Some("f32"));
     }
+
+    #[test]
+    fn gpu_storage_element_stride_matches_compiler_layout_truth() {
+        assert_eq!(gpu_storage_element_stride_bytes("bool"), Some(4));
+        assert_eq!(gpu_storage_element_stride_bytes("u8"), Some(1));
+        assert_eq!(gpu_storage_element_stride_bytes("f16"), Some(2));
+        assert_eq!(gpu_storage_element_stride_bytes("u32"), Some(4));
+        assert_eq!(gpu_storage_element_stride_bytes("vec2<f32>"), Some(8));
+        assert_eq!(gpu_storage_element_stride_bytes("vec3<f32>"), Some(16));
+        assert_eq!(gpu_storage_element_stride_bytes("vec3<i32>"), Some(16));
+        assert_eq!(gpu_storage_element_stride_bytes("uvec3"), Some(16));
+        assert_eq!(gpu_storage_element_stride_bytes("vec4<u32>"), Some(16));
+    }
 }
 
 fn storage_buffer_element_type_name(ty: &Type) -> Option<String> {
@@ -2993,6 +3006,29 @@ fn storage_buffer_element_type_name(ty: &Type) -> Option<String> {
         Type::Named { name, generics, .. } if name == "StorageBuffer" => {
             generics.first().and_then(normalize_gpu_element_type_name)
         }
+        _ => None,
+    }
+}
+
+pub fn gpu_storage_element_stride_bytes(element_type: &str) -> Option<usize> {
+    // Proof: crates/core/z3/proofs/gpu-storage-element-stride-matches-compiler-layout.yaml
+    match element_type.trim().to_ascii_lowercase().as_str() {
+        "bool" | "u32" | "uint32" | "uint" | "i32" | "int32" | "int" | "f32" | "float32"
+        | "float" => Some(4),
+        "u8" | "uint8" | "byte" | "i8" | "int8" | "sbyte" => Some(1),
+        "u16" | "uint16" | "i16" | "int16" | "f16" | "half" | "bf16" | "bfloat16" => Some(2),
+        "u64" | "uint64" | "ulong" | "i64" | "int64" | "long" | "f64" | "float64" | "double" => {
+            Some(8)
+        }
+        "vec2" | "ivec2" | "uvec2" | "vec2<f32>" | "vec2<float32>" | "vec2<float>"
+        | "vec2<i32>" | "vec2<int32>" | "vec2<int>" | "vec2<u32>" | "vec2<uint32>"
+        | "vec2<uint>" => Some(8),
+        "vec3" | "ivec3" | "uvec3" | "vec3<f32>" | "vec3<float32>" | "vec3<float>"
+        | "vec3<i32>" | "vec3<int32>" | "vec3<int>" | "vec3<u32>" | "vec3<uint32>"
+        | "vec3<uint>" => Some(16),
+        "vec4" | "ivec4" | "uvec4" | "vec4<f32>" | "vec4<float32>" | "vec4<float>"
+        | "vec4<i32>" | "vec4<int32>" | "vec4<int>" | "vec4<u32>" | "vec4<uint32>"
+        | "vec4<uint>" => Some(16),
         _ => None,
     }
 }

@@ -1,0 +1,30 @@
+version: 1
+id: kain.core.proofs.gpu_storage_element_stride_matches_compiler_layout
+kind: check_smt2
+description: Compiler-owned GPU storage-buffer metadata keeps Bool lanes at
+  4 bytes and Vec3-class elements at 16-byte stride so runtime sidecars cannot
+  shrink below backend layout truth.
+tags:
+- gpu
+- layout
+- storage-buffer
+- ptx
+- runtime
+source:
+  path: X:\crates\core\src\realtime_app_bundle.rs
+  symbol: gpu_storage_element_stride_bytes
+  start_line: 3013
+  reason: compute-residency sidecars and GPU runtime validation both consume
+    this helper when sizing storage-buffer payloads.
+case:
+  smt2: |
+    (set-logic QF_LIA)
+    (define-fun bool_stride () Int 4)
+    (define-fun vec3_stride () Int 16)
+    (define-fun required_bool_stride () Int 4)
+    (define-fun required_vec3_stride () Int 16)
+    (assert (or (not (= bool_stride required_bool_stride))
+                (not (= vec3_stride required_vec3_stride))))
+    (check-sat)
+  include_model: false
+  include_stats: false
