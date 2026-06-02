@@ -1,5 +1,31 @@
 # Kain Bug Log
 
+## 2026-06-01 - cli/build-tests
+### CLI unit-test targets fail even though the production launcher builds
+
+- Categories: build-system, cli, tests, bazel, cargo
+- Severity: Medium
+- Status: Open in tree (2026-06-01)
+- Surface: `//crates/cli:unit_test` and `cargo test -p cli --lib`.
+- Trigger: Running focused CLI tests while validating launcher-native build speed changes.
+- Symptom:
+  - `bazel test //crates/cli:unit_test --config=dev` fails before executing tests with unrelated missing-crate and serde-attribute errors across CLI modules.
+  - `cargo test -p cli llvm_runtime_elision --lib` fails before executing the focused tests because `crates/cli/src/llvm_native_stage.rs` includes missing `blades/_old/kain-example/src/main.kn`, and `crates/cli/src/selfhost.rs` has stale AST initializers missing `where_clause`.
+- Why this is a bug: The production `bazel build //:kain --config=dev` path succeeds, but the available focused CLI test lanes are not trustworthy for launcher-local unit validation.
+- Minimal repro:
+  - `bazel test //crates/cli:unit_test --config=dev`
+  - `cargo test -p cli llvm_runtime_elision --lib`
+- Evidence:
+  - Observed during the 2026-06-01 compiler-speed pass after adding runtime elision and native executable CAS.
+  - Production proof still passed with `bazel build //:kain --config=dev`.
+- Current workaround:
+  - Use `bazel build //:kain --config=dev`/`--config=release` plus live launcher probes and benchmark reports for production CLI validation until the test target drift is repaired.
+- Suggested direction:
+  - Repair the generated Bazel CLI unit-test dependency graph or split a smaller launcher-only test target.
+  - Remove or replace the stale `include_str!` fixture path and update selfhost test AST initializers with `where_clause`.
+
+---
+
 ## 2026-06-01 - stdlib/python-runtime
 ### Python async future close can hang when the callback worker never settles
 

@@ -33,6 +33,10 @@ This is the one explicit skill for repo build plumbing. If the question is Bazel
 - Build the launcher shim and the launcher-triggered Bazel build invocations with `TMP`, `TEMP`, and `TMPDIR` pointed under the sync state root (`X:\.kain\state\tmp` on this machine). The host default temp drive can hit `WinError 112` / `LNK1108` and make a healthy launcher or Bazel build look broken.
 - If `X:\.kain\bin\kain.exe` is live during shim install, expect a `kain.exe.pending.*` staged replacement instead of an in-place overwrite. That is an operator lock issue, not proof that the staged Bazel binary is stale.
 - Native LLVM/clang link steps on Windows should not assume a VS Developer Shell. The repo now auto-discovers `LIB` search roots from `VCToolsInstallDir`, `WindowsSdkDir`, and common VS/Windows Kits install paths so `kain -t llvm` can link `legacy_stdio_definitions`, `ucrt`, and WinSDK libs from a normal shell.
+- Native LLVM/C executable builds have two speed lanes in `crates/cli/src/kain_launcher.rs`:
+  - Runtime elision walks the emitted LLVM call graph from `@main`; when no reachable non-intrinsic external call exists, no C-FFI inputs exist, and no GPU runtime staging is needed, the launcher skips native runtime bundle compilation/link libs.
+  - Runtime-elided native outputs are eligible for the source-content executable CAS under `.kain/cache/native-exec`, restoring the backend artifact, executable, and sidecars before frontend/codegen/link work on a hit.
+- Use `KAIN_NATIVE_RUNTIME_ELISION=0` to disable runtime elision, `KAIN_NATIVE_EXEC_CACHE=0` to disable executable CAS, and `KAIN_NATIVE_EXEC_CACHE_DIR=<dir>` to relocate the cache. If a changed source line appears stale, first inspect the stderr cache key; exact source text is stored and compared before a cache hit is accepted.
 - When a change touches build provenance, prove it through `kain doctor`, not just by eyeballing `bazel-bin`.
 - If the problem is "runtime build wrapper fails" or "fresh Kain binary is stale", keep it here rather than scattering that guidance across runtime or package skills.
 
@@ -48,3 +52,12 @@ powershell -ExecutionPolicy Bypass -File scripts/windows/sync-kain-source-of-tru
 python scripts/python/kain_bazel_sync.py status --json
 kain doctor
 ```
+
+For compiler-speed work, the public scoreboard lane is:
+
+```powershell
+python benchmark/run_compiler.py --case single_file_small --runs 1 --warmups 0
+Get-Content benchmark/out/snapshots/latest_compiler.md
+```
+
+After a fresh release launcher build, run once to populate the native executable CAS and again for the warm source-content clean/rebuild scoreboard. The 2026-06-01 proof hit Kain `28.028 ms` clean and `26.714 ms` rebuild versus Rust `288.092 ms` clean and `282.636 ms` rebuild.

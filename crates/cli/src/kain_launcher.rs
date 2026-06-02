@@ -149,6 +149,60 @@ struct CffiNativeLinkInputs {
     link_libs: Vec<String>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct NativeRuntimeElisionDecision {
+    can_elide: bool,
+    reason: String,
+    reachable_functions: usize,
+    reachable_external_targets: Vec<String>,
+}
+
+#[derive(Debug, Clone)]
+struct NativeBackendOutputPaths {
+    backend_path: PathBuf,
+    executable_path: PathBuf,
+}
+
+#[derive(Debug, Clone)]
+struct NativeExecutableCacheHit {
+    key: String,
+    backend_bytes: u64,
+    executable_bytes: u64,
+    restored_sidecars: Vec<PathBuf>,
+}
+
+impl NativeRuntimeElisionDecision {
+    fn elide(reachable_functions: usize) -> Self {
+        Self {
+            can_elide: true,
+            reason: "no reachable non-intrinsic external calls from LLVM main".to_string(),
+            reachable_functions,
+            reachable_external_targets: Vec::new(),
+        }
+    }
+
+    fn keep(reason: impl Into<String>) -> Self {
+        Self {
+            can_elide: false,
+            reason: reason.into(),
+            reachable_functions: 0,
+            reachable_external_targets: Vec::new(),
+        }
+    }
+
+    fn keep_for_external_targets(
+        reachable_functions: usize,
+        reachable_external_targets: BTreeSet<String>,
+    ) -> Self {
+        Self {
+            can_elide: false,
+            reason: "reachable external calls require the native runtime/link lane".to_string(),
+            reachable_functions,
+            reachable_external_targets: reachable_external_targets.into_iter().collect(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum NativeToolchainProfile {
     Debug,
@@ -927,6 +981,60 @@ fn run_source_with_session(
         }
     }
 
+    let native_backend_output_paths = if matches!(target, CompileTarget::Llvm | CompileTarget::C) {
+        let Some(paths) = resolve_native_backend_output_paths(target, output, source_path) else {
+            eprintln!(" Output path is required when compiling inline or stdin source.");
+            return false;
+        };
+
+        match restore_native_executable_cache(target, &source, &paths) {
+            Ok(Some(hit)) => {
+                println!(
+                    " Compiled to: {} ({} bytes)",
+                    paths.backend_path.display(),
+                    hit.backend_bytes
+                );
+                for sidecar in &hit.restored_sidecars {
+                    if sidecar
+                        .extension()
+                        .and_then(|value| value.to_str())
+                        .map_or(false, |ext| ext.eq_ignore_ascii_case("json"))
+                    {
+                        if sidecar
+                            .file_name()
+                            .and_then(|value| value.to_str())
+                            .map_or(false, |name| name.contains("runtime_contract"))
+                        {
+                            println!(" Runtime contract: {}", sidecar.display());
+                        } else if sidecar
+                            .file_name()
+                            .and_then(|value| value.to_str())
+                            .map_or(false, |name| name.contains("realtime_app"))
+                        {
+                            println!(" Realtime bundle: {}", sidecar.display());
+                        }
+                    }
+                }
+                println!(" Linking executable...");
+                eprintln!(
+                    " Native executable cache hit: {} ({} exe bytes)",
+                    hit.key, hit.executable_bytes
+                );
+                println!(" Generated executable: {}", paths.executable_path.display());
+                return true;
+            }
+            Ok(None) => {}
+            Err(err) => {
+                eprintln!(" Failed to restore native executable cache: {}", err);
+                return false;
+            }
+        }
+
+        Some(paths)
+    } else {
+        None
+    };
+
     if verbose {
         println!(" Compiling: {}", source_name);
         println!(
@@ -1081,25 +1189,10 @@ fn run_source_with_session(
                 // Determine where to write the primary output
                 let output_path = if matches!(target, CompileTarget::Llvm | CompileTarget::C) {
                     // For raw-native backends, always write the backend source artifact first.
-                    if let Some(out) = output {
-                        if out
-                            .extension()
-                            .map_or(false, |e| e == target_extension(target))
-                        {
-                            out.clone()
-                        } else {
-                            let mut p = out.clone();
-                            p.set_extension(target_extension(target));
-                            p
-                        }
-                    } else if let Some(path) = source_path {
-                        path.with_extension(target_extension(target))
-                    } else {
-                        eprintln!(
-                            " Output path is required when compiling inline or stdin source."
-                        );
-                        return false;
-                    }
+                    native_backend_output_paths
+                        .as_ref()
+                        .map(|paths| paths.backend_path.clone())
+                        .expect("native backend output paths are resolved before compile")
                 } else if target == CompileTarget::Usf {
                     // For USF, always ensure .usf extension
                     if let Some(out) = output {
@@ -1404,32 +1497,10 @@ fn run_source_with_session(
 
                 // Post-processing for raw-native backends
                 if matches!(target, CompileTarget::Llvm | CompileTarget::C) {
-                    let exe_path = if let Some(out) = output {
-                        if out
-                            .extension()
-                            .map_or(false, |e| e == target_extension(target))
-                        {
-                            if cfg!(windows) {
-                                out.with_extension("exe")
-                            } else {
-                                out.with_extension("")
-                            }
-                        } else {
-                            out.clone()
-                        }
-                    } else {
-                        let Some(path) = source_path else {
-                            eprintln!(
-                                " Output path is required when compiling inline or stdin source."
-                            );
-                            return false;
-                        };
-                        if cfg!(windows) {
-                            path.with_extension("exe")
-                        } else {
-                            path.with_extension("")
-                        }
-                    };
+                    let exe_path = native_backend_output_paths
+                        .as_ref()
+                        .map(|paths| paths.executable_path.clone())
+                        .expect("native backend output paths are resolved before link");
 
                     println!(" Linking executable...");
 
@@ -1485,30 +1556,58 @@ fn run_source_with_session(
                         }
                     };
 
-                    if let Some(runtime_bundle) = match resolve_native_runtime_bundle() {
-                        Ok(bundle) => bundle,
+                    let native_runtime_elision = match llvm_native_runtime_elision_decision(
+                        target,
+                        &output_path,
+                        &cffi_link_inputs,
+                        native_artifacts_require_gpu_runtime,
+                    ) {
+                        Ok(decision) => decision,
                         Err(err) => {
-                            eprintln!(" Failed to resolve native runtime bundle: {}", err);
+                            eprintln!(" Failed to analyze native runtime elision: {}", err);
                             return false;
                         }
-                    } {
-                        runtime_artifacts = match compile_native_runtime_bundle(
-                            &runtime_bundle,
-                            &clang_cmd,
-                            &native_toolchain_tuning,
-                        ) {
-                            Ok(artifacts) => artifacts,
+                    };
+
+                    if native_runtime_elision.can_elide {
+                        eprintln!(
+                            " Native runtime elided: {} ({} reachable functions)",
+                            native_runtime_elision.reason,
+                            native_runtime_elision.reachable_functions
+                        );
+                    } else {
+                        if !native_runtime_elision.reachable_external_targets.is_empty() {
+                            eprintln!(
+                                " Native runtime required: {}: {}",
+                                native_runtime_elision.reason,
+                                native_runtime_elision.reachable_external_targets.join(", ")
+                            );
+                        }
+                        if let Some(runtime_bundle) = match resolve_native_runtime_bundle() {
+                            Ok(bundle) => bundle,
                             Err(err) => {
-                                eprintln!(" Failed to compile runtime library: {}", err);
+                                eprintln!(" Failed to resolve native runtime bundle: {}", err);
                                 return false;
                             }
-                        };
-                        runtime_link_libs = runtime_bundle.link_libs;
-                        if runtime_bundle.uses_cpp_runtime {
-                            runtime_link_libs = unique_link_libs(
-                                [runtime_link_libs, default_native_runtime_cpp_link_libs()]
-                                    .concat(),
-                            );
+                        } {
+                            runtime_artifacts = match compile_native_runtime_bundle(
+                                &runtime_bundle,
+                                &clang_cmd,
+                                &native_toolchain_tuning,
+                            ) {
+                                Ok(artifacts) => artifacts,
+                                Err(err) => {
+                                    eprintln!(" Failed to compile runtime library: {}", err);
+                                    return false;
+                                }
+                            };
+                            runtime_link_libs = runtime_bundle.link_libs;
+                            if runtime_bundle.uses_cpp_runtime {
+                                runtime_link_libs = unique_link_libs(
+                                    [runtime_link_libs, default_native_runtime_cpp_link_libs()]
+                                        .concat(),
+                                );
+                            }
                         }
                     }
 
@@ -1535,18 +1634,22 @@ fn run_source_with_session(
                     }
                     native_toolchain_tuning.apply_link_gc_flags(&mut cmd);
 
-                    for link_input in cffi_link_inputs.link_inputs {
+                    for link_input in &cffi_link_inputs.link_inputs {
                         cmd.arg(link_input);
                     }
 
-                    runtime_link_libs = unique_link_libs(
-                        [
-                            runtime_link_libs,
-                            cffi_link_inputs.link_libs,
-                            default_native_runtime_link_libs(),
-                        ]
-                        .concat(),
-                    );
+                    runtime_link_libs = if native_runtime_elision.can_elide {
+                        unique_link_libs([runtime_link_libs, cffi_link_inputs.link_libs].concat())
+                    } else {
+                        unique_link_libs(
+                            [
+                                runtime_link_libs,
+                                cffi_link_inputs.link_libs,
+                                default_native_runtime_link_libs(),
+                            ]
+                            .concat(),
+                        )
+                    };
 
                     for link_lib in runtime_link_libs {
                         cmd.arg(format!("-l{}", link_lib));
@@ -1557,6 +1660,26 @@ fn run_source_with_session(
                     match status {
                         Ok(s) if s.success() => {
                             println!(" Generated executable: {}", exe_path.display());
+                            if native_runtime_elision.can_elide {
+                                match store_native_executable_cache(
+                                    target,
+                                    &source,
+                                    &output_path,
+                                    &exe_path,
+                                    &native_toolchain_tuning,
+                                ) {
+                                    Ok(Some(key)) => {
+                                        eprintln!(" Native executable cache stored: {}", key);
+                                    }
+                                    Ok(None) => {}
+                                    Err(err) => {
+                                        eprintln!(
+                                            " Warning: Failed to store native executable cache: {}",
+                                            err
+                                        );
+                                    }
+                                }
+                            }
                             if native_artifacts_require_gpu_runtime {
                                 match llvm_native_stage::stage_gpu_runtime_dll(&exe_path) {
                                     Ok(Some(dll_path)) => {
@@ -1791,6 +1914,562 @@ fn parse_bool_env_value(name: &str, value: &str) -> Result<bool, String> {
             "{name} must be one of 1, 0, true, false, yes, no, on, off"
         )),
     }
+}
+
+fn native_runtime_elision_enabled() -> Result<bool, String> {
+    match std::env::var("KAIN_NATIVE_RUNTIME_ELISION") {
+        Ok(value) => parse_bool_env_value("KAIN_NATIVE_RUNTIME_ELISION", &value),
+        Err(_) => Ok(true),
+    }
+}
+
+fn native_executable_cache_enabled() -> Result<bool, String> {
+    match std::env::var("KAIN_NATIVE_EXEC_CACHE") {
+        Ok(value) => parse_bool_env_value("KAIN_NATIVE_EXEC_CACHE", &value),
+        Err(_) => Ok(true),
+    }
+}
+
+fn resolve_native_backend_output_paths(
+    target: CompileTarget,
+    output: Option<&PathBuf>,
+    source_path: Option<&Path>,
+) -> Option<NativeBackendOutputPaths> {
+    if !matches!(target, CompileTarget::Llvm | CompileTarget::C) {
+        return None;
+    }
+
+    let backend_path = if let Some(out) = output {
+        if out
+            .extension()
+            .map_or(false, |e| e == target_extension(target))
+        {
+            out.clone()
+        } else {
+            let mut path = out.clone();
+            path.set_extension(target_extension(target));
+            path
+        }
+    } else {
+        source_path?.with_extension(target_extension(target))
+    };
+
+    let executable_path = if let Some(out) = output {
+        if out
+            .extension()
+            .map_or(false, |e| e == target_extension(target))
+        {
+            if cfg!(windows) {
+                out.with_extension("exe")
+            } else {
+                out.with_extension("")
+            }
+        } else {
+            out.clone()
+        }
+    } else if cfg!(windows) {
+        source_path?.with_extension("exe")
+    } else {
+        source_path?.with_extension("")
+    };
+
+    Some(NativeBackendOutputPaths {
+        backend_path,
+        executable_path,
+    })
+}
+
+fn restore_native_executable_cache(
+    target: CompileTarget,
+    source: &str,
+    paths: &NativeBackendOutputPaths,
+) -> Result<Option<NativeExecutableCacheHit>, String> {
+    if !native_executable_cache_enabled()? {
+        return Ok(None);
+    }
+
+    let toolchain_tuning = resolve_native_toolchain_tuning()?;
+    let fingerprint = build_native_executable_cache_fingerprint(target, source, &toolchain_tuning);
+    let Some(cache_root) = default_native_executable_cache_root() else {
+        return Ok(None);
+    };
+    let key = native_executable_cache_key(&fingerprint, source);
+    let cache_dir = cache_root.join(&key);
+    let fingerprint_path = cache_dir.join("fingerprint.txt");
+    let source_path = cache_dir.join("source.kn");
+    let backend_cache_path = cache_dir.join(format!("artifact.{}", target_extension(target)));
+    let executable_cache_path = cache_dir.join(native_executable_cache_file_name());
+
+    if !fingerprint_path.exists()
+        || !source_path.exists()
+        || !backend_cache_path.exists()
+        || !executable_cache_path.exists()
+    {
+        return Ok(None);
+    }
+
+    let stored_fingerprint = fs::read_to_string(&fingerprint_path).map_err(|err| {
+        format!(
+            "unable to read native executable cache fingerprint {}: {}",
+            fingerprint_path.display(),
+            err
+        )
+    })?;
+    if stored_fingerprint != fingerprint {
+        return Ok(None);
+    }
+
+    let stored_source = fs::read_to_string(&source_path).map_err(|err| {
+        format!(
+            "unable to read native executable cache source {}: {}",
+            source_path.display(),
+            err
+        )
+    })?;
+    if stored_source != source {
+        return Ok(None);
+    }
+
+    ensure_copy_parent(&paths.backend_path)?;
+    ensure_copy_parent(&paths.executable_path)?;
+    fs::copy(&backend_cache_path, &paths.backend_path).map_err(|err| {
+        format!(
+            "unable to restore native backend cache {} -> {}: {}",
+            backend_cache_path.display(),
+            paths.backend_path.display(),
+            err
+        )
+    })?;
+    fs::copy(&executable_cache_path, &paths.executable_path).map_err(|err| {
+        format!(
+            "unable to restore native executable cache {} -> {}: {}",
+            executable_cache_path.display(),
+            paths.executable_path.display(),
+            err
+        )
+    })?;
+
+    let restored_sidecars =
+        restore_native_executable_cache_sidecars(&cache_dir, &paths.backend_path)?;
+    let backend_bytes = fs::metadata(&paths.backend_path)
+        .map(|metadata| metadata.len())
+        .unwrap_or(0);
+    let executable_bytes = fs::metadata(&paths.executable_path)
+        .map(|metadata| metadata.len())
+        .unwrap_or(0);
+
+    Ok(Some(NativeExecutableCacheHit {
+        key,
+        backend_bytes,
+        executable_bytes,
+        restored_sidecars,
+    }))
+}
+
+fn store_native_executable_cache(
+    target: CompileTarget,
+    source: &str,
+    output_path: &Path,
+    exe_path: &Path,
+    toolchain_tuning: &NativeToolchainTuning,
+) -> Result<Option<String>, String> {
+    if !native_executable_cache_enabled()? {
+        return Ok(None);
+    }
+    if !output_path.exists() || !exe_path.exists() {
+        return Ok(None);
+    }
+
+    let Some(cache_root) = default_native_executable_cache_root() else {
+        return Ok(None);
+    };
+    let fingerprint = build_native_executable_cache_fingerprint(target, source, toolchain_tuning);
+    let key = native_executable_cache_key(&fingerprint, source);
+    let cache_dir = cache_root.join(&key);
+    fs::create_dir_all(&cache_dir).map_err(|err| {
+        format!(
+            "unable to create native executable cache directory {}: {}",
+            cache_dir.display(),
+            err
+        )
+    })?;
+
+    let backend_cache_path = cache_dir.join(format!("artifact.{}", target_extension(target)));
+    let executable_cache_path = cache_dir.join(native_executable_cache_file_name());
+    fs::copy(output_path, &backend_cache_path).map_err(|err| {
+        format!(
+            "unable to store native backend cache {} -> {}: {}",
+            output_path.display(),
+            backend_cache_path.display(),
+            err
+        )
+    })?;
+    fs::copy(exe_path, &executable_cache_path).map_err(|err| {
+        format!(
+            "unable to store native executable cache {} -> {}: {}",
+            exe_path.display(),
+            executable_cache_path.display(),
+            err
+        )
+    })?;
+    store_native_executable_cache_sidecars(&cache_dir, output_path)?;
+    fs::write(cache_dir.join("source.kn"), source).map_err(|err| {
+        format!(
+            "unable to write native executable cache source under {}: {}",
+            cache_dir.display(),
+            err
+        )
+    })?;
+    fs::write(cache_dir.join("fingerprint.txt"), fingerprint).map_err(|err| {
+        format!(
+            "unable to write native executable cache fingerprint under {}: {}",
+            cache_dir.display(),
+            err
+        )
+    })?;
+
+    Ok(Some(key))
+}
+
+fn default_native_executable_cache_root() -> Option<PathBuf> {
+    if let Ok(raw) = std::env::var("KAIN_NATIVE_EXEC_CACHE_DIR") {
+        let trimmed = raw.trim();
+        if !trimmed.is_empty() {
+            return Some(PathBuf::from(trimmed));
+        }
+    }
+
+    kain_core::install_layout::default_kain_install_layout()
+        .map(|layout| layout.cache_dir.join("native-exec"))
+}
+
+fn build_native_executable_cache_fingerprint(
+    target: CompileTarget,
+    source: &str,
+    toolchain_tuning: &NativeToolchainTuning,
+) -> String {
+    let mut lines = vec![
+        "kain-native-executable-cache-v1".to_string(),
+        format!("target={target:?}"),
+        format!("target_extension={}", target_extension(target)),
+        format!("version={VERSION}"),
+        format!("build_number={BUILD_NUMBER}"),
+        format!("build_profile={BUILD_PROFILE}"),
+        format!("build_target={BUILD_TARGET_TRIPLE}"),
+        format!("build_host={BUILD_HOST_TRIPLE}"),
+        format!("build_git_sha={BUILD_GIT_SHA}"),
+        format!("build_git_dirty={BUILD_GIT_DIRTY}"),
+        format!("build_tracking_mode={BUILD_TRACKING_MODE}"),
+        format!("source_len={}", source.len()),
+        format!("source_hash={:016x}", stable_fnv1a64(source.as_bytes())),
+        format!(
+            "clang_env={}",
+            std::env::var(kain_core::install_layout::KAIN_CLANG_ENV_VAR).unwrap_or_default()
+        ),
+        "runtime_mode=elided".to_string(),
+    ];
+    if BUILD_GIT_DIRTY != "false" {
+        lines.push(format!("build_unix_time={BUILD_UNIX_TIME}"));
+    }
+    lines.extend(toolchain_tuning.fingerprint_lines());
+    lines.join("\n")
+}
+
+fn native_executable_cache_key(fingerprint: &str, source: &str) -> String {
+    let mut hash = FNV1A64_OFFSET;
+    hash = stable_fnv1a64_extend(hash, fingerprint.as_bytes());
+    hash = stable_fnv1a64_extend(hash, b"\n--source--\n");
+    hash = stable_fnv1a64_extend(hash, source.as_bytes());
+    format!("{hash:016x}")
+}
+
+const FNV1A64_OFFSET: u64 = 0xcbf29ce484222325;
+const FNV1A64_PRIME: u64 = 0x100000001b3;
+
+fn stable_fnv1a64(bytes: &[u8]) -> u64 {
+    stable_fnv1a64_extend(FNV1A64_OFFSET, bytes)
+}
+
+fn stable_fnv1a64_extend(mut hash: u64, bytes: &[u8]) -> u64 {
+    for byte in bytes {
+        hash ^= u64::from(*byte);
+        hash = hash.wrapping_mul(FNV1A64_PRIME);
+    }
+    hash
+}
+
+fn native_executable_cache_file_name() -> &'static str {
+    if cfg!(windows) {
+        "artifact.exe"
+    } else {
+        "artifact"
+    }
+}
+
+fn ensure_copy_parent(path: &Path) -> Result<(), String> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|err| {
+            format!(
+                "unable to create native executable cache restore directory {}: {}",
+                parent.display(),
+                err
+            )
+        })?;
+    }
+    Ok(())
+}
+
+fn native_backend_named_sidecars(output_path: &Path) -> Vec<(&'static str, PathBuf)> {
+    let output_dir = output_path.parent().unwrap_or_else(|| Path::new("."));
+    vec![
+        (
+            "runtime_contract.json",
+            llvm_native_stage::runtime_contract_artifact_path(output_path),
+        ),
+        (
+            "realtime_app.json",
+            llvm_native_stage::realtime_app_artifact_path(output_path),
+        ),
+        (
+            "shader_bundle.json",
+            llvm_native_stage::shader_bundle_artifact_path(output_path),
+        ),
+        (
+            "compute_residency.json",
+            output_dir.join(kain_driver::COMPUTE_RESIDENCY_FILE_NAME),
+        ),
+    ]
+}
+
+fn store_native_executable_cache_sidecars(
+    cache_dir: &Path,
+    output_path: &Path,
+) -> Result<(), String> {
+    let sidecar_dir = cache_dir.join("sidecars");
+    fs::create_dir_all(&sidecar_dir).map_err(|err| {
+        format!(
+            "unable to create native executable cache sidecar directory {}: {}",
+            sidecar_dir.display(),
+            err
+        )
+    })?;
+
+    for (cache_name, source_path) in native_backend_named_sidecars(output_path) {
+        if !source_path.exists() {
+            continue;
+        }
+        let cache_path = sidecar_dir.join(cache_name);
+        fs::copy(&source_path, &cache_path).map_err(|err| {
+            format!(
+                "unable to store native executable sidecar cache {} -> {}: {}",
+                source_path.display(),
+                cache_path.display(),
+                err
+            )
+        })?;
+    }
+    Ok(())
+}
+
+fn restore_native_executable_cache_sidecars(
+    cache_dir: &Path,
+    output_path: &Path,
+) -> Result<Vec<PathBuf>, String> {
+    let sidecar_dir = cache_dir.join("sidecars");
+    if !sidecar_dir.is_dir() {
+        return Ok(Vec::new());
+    }
+
+    let mut restored = Vec::new();
+    for (cache_name, output_sidecar_path) in native_backend_named_sidecars(output_path) {
+        let cache_path = sidecar_dir.join(cache_name);
+        if !cache_path.exists() {
+            continue;
+        }
+        ensure_copy_parent(&output_sidecar_path)?;
+        fs::copy(&cache_path, &output_sidecar_path).map_err(|err| {
+            format!(
+                "unable to restore native executable sidecar cache {} -> {}: {}",
+                cache_path.display(),
+                output_sidecar_path.display(),
+                err
+            )
+        })?;
+        restored.push(output_sidecar_path);
+    }
+    Ok(restored)
+}
+
+fn llvm_native_runtime_elision_decision(
+    target: CompileTarget,
+    output_path: &Path,
+    cffi_link_inputs: &CffiNativeLinkInputs,
+    native_artifacts_require_gpu_runtime: bool,
+) -> Result<NativeRuntimeElisionDecision, String> {
+    if target != CompileTarget::Llvm {
+        return Ok(NativeRuntimeElisionDecision::keep(
+            "native runtime elision is only available for LLVM artifacts",
+        ));
+    }
+    if native_artifacts_require_gpu_runtime {
+        return Ok(NativeRuntimeElisionDecision::keep(
+            "GPU artifacts require runtime DLL staging",
+        ));
+    }
+    if !cffi_link_inputs.link_inputs.is_empty() || !cffi_link_inputs.link_libs.is_empty() {
+        return Ok(NativeRuntimeElisionDecision::keep(
+            "C FFI link inputs require the native link lane",
+        ));
+    }
+    if !native_runtime_elision_enabled()? {
+        return Ok(NativeRuntimeElisionDecision::keep(
+            "KAIN_NATIVE_RUNTIME_ELISION disabled",
+        ));
+    }
+
+    let ir = fs::read_to_string(output_path).map_err(|err| {
+        format!(
+            "failed to read LLVM artifact {} for runtime elision: {}",
+            output_path.display(),
+            err
+        )
+    })?;
+    Ok(llvm_native_runtime_elision_decision_from_ir(&ir))
+}
+
+fn llvm_native_runtime_elision_decision_from_ir(ir: &str) -> NativeRuntimeElisionDecision {
+    let mut defined = BTreeSet::new();
+    let mut calls: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+    let mut current_function: Option<String> = None;
+
+    for line in ir.lines() {
+        if let Some(function) = extract_defined_llvm_function(line) {
+            defined.insert(function.clone());
+            calls.entry(function.clone()).or_default();
+            current_function = Some(function);
+            continue;
+        }
+
+        if line.trim() == "}" {
+            current_function = None;
+            continue;
+        }
+
+        let Some(function) = current_function.as_ref() else {
+            continue;
+        };
+        for target in extract_direct_llvm_call_targets(line) {
+            calls.entry(function.clone()).or_default().insert(target);
+        }
+    }
+
+    if !defined.contains("main") {
+        return NativeRuntimeElisionDecision::keep("LLVM artifact has no defined @main");
+    }
+
+    let mut reachable = BTreeSet::new();
+    let mut work = vec!["main".to_string()];
+    let mut reachable_external_targets = BTreeSet::new();
+    while let Some(function) = work.pop() {
+        if !reachable.insert(function.clone()) {
+            continue;
+        }
+        for target in calls.get(&function).into_iter().flatten() {
+            if is_allowed_llvm_external_target(target) {
+                continue;
+            }
+            if defined.contains(target) {
+                work.push(target.clone());
+            } else {
+                reachable_external_targets.insert(target.clone());
+            }
+        }
+    }
+
+    if reachable_external_targets.is_empty() {
+        NativeRuntimeElisionDecision::elide(reachable.len())
+    } else {
+        NativeRuntimeElisionDecision::keep_for_external_targets(
+            reachable.len(),
+            reachable_external_targets,
+        )
+    }
+}
+
+fn extract_defined_llvm_function(line: &str) -> Option<String> {
+    let trimmed = line.trim_start();
+    if !trimmed.starts_with("define ") {
+        return None;
+    }
+    let at_index = trimmed.find('@')?;
+    let (symbol, consumed) = extract_llvm_symbol_after_at(trimmed, at_index)?;
+    let suffix = &trimmed[(at_index + 1 + consumed)..];
+    if suffix.trim_start().starts_with('(') {
+        Some(symbol)
+    } else {
+        None
+    }
+}
+
+fn extract_direct_llvm_call_targets(line: &str) -> Vec<String> {
+    if !line.contains(" call ")
+        && !line.trim_start().starts_with("call ")
+        && !line.contains(" invoke ")
+    {
+        return Vec::new();
+    }
+
+    let mut targets = Vec::new();
+    for (at_index, _) in line.match_indices('@') {
+        let Some((symbol, consumed)) = extract_llvm_symbol_after_at(line, at_index) else {
+            continue;
+        };
+        let suffix = &line[(at_index + 1 + consumed)..];
+        if suffix.trim_start().starts_with('(') {
+            targets.push(symbol);
+        }
+    }
+    targets
+}
+
+fn extract_llvm_symbol_after_at(line: &str, at_index: usize) -> Option<(String, usize)> {
+    let after_at = line.get((at_index + 1)..)?;
+    if let Some(quoted) = after_at.strip_prefix('"') {
+        let mut escaped = false;
+        for (idx, ch) in quoted.char_indices() {
+            if escaped {
+                escaped = false;
+                continue;
+            }
+            if ch == '\\' {
+                escaped = true;
+                continue;
+            }
+            if ch == '"' {
+                let symbol = quoted[..idx].to_string();
+                return (!symbol.is_empty()).then_some((symbol, idx + 2));
+            }
+        }
+        return None;
+    }
+
+    let len = after_at
+        .chars()
+        .take_while(|ch| is_unquoted_llvm_symbol_char(*ch))
+        .map(char::len_utf8)
+        .sum::<usize>();
+    if len == 0 {
+        return None;
+    }
+    Some((after_at[..len].to_string(), len))
+}
+
+fn is_unquoted_llvm_symbol_char(ch: char) -> bool {
+    ch.is_ascii_alphanumeric() || matches!(ch, '_' | '$' | '.' | '-')
+}
+
+fn is_allowed_llvm_external_target(symbol: &str) -> bool {
+    symbol.starts_with("llvm.")
 }
 
 fn parse_native_toolchain_profile(value: &str) -> Result<NativeToolchainProfile, String> {
@@ -2284,8 +2963,9 @@ fn emit_structured_report<T: Serialize>(
 fn emit_json_error(message: String) {
     println!(
         "{}",
-        serde_json::to_string_pretty(&serde_json::json!({ "error": message }))
-            .unwrap_or_else(|error| format!("{{\"error\":\"failed to serialize CLI error: {error}\"}}"))
+        serde_json::to_string_pretty(&serde_json::json!({ "error": message })).unwrap_or_else(
+            |error| format!("{{\"error\":\"failed to serialize CLI error: {error}\"}}")
+        )
     );
 }
 
@@ -5923,13 +6603,14 @@ mod tests {
         apply_config_key_value, build_native_runtime_archive_fingerprint,
         build_native_runtime_compile_fingerprint, build_native_runtime_object_cache_paths,
         default_native_runtime_link_libs, default_runtime_cache_root, find_bundled_clang,
-        load_editable_kain_config, load_native_runtime_manifest,
-        native_runtime_object_cache_is_fresh, parse_native_runtime_depfile,
-        parse_native_toolchain_tuning, platform_link_libs, resolve_c_ffi_native_link_inputs,
-        resolve_native_runtime_archive_groups, runtime_source_uses_cpp, sanitize_runtime_name,
-        unique_link_libs, NativeRuntimeArchiveManifest, NativeRuntimeArchiver,
-        NativeRuntimeArchiverFlavor, NativeRuntimeLinkManifest, NativeToolchainProfile,
-        ResolvedNativeRuntimeArchiveGroup, ResolvedNativeRuntimeBundle,
+        llvm_native_runtime_elision_decision_from_ir, load_editable_kain_config,
+        load_native_runtime_manifest, native_runtime_object_cache_is_fresh,
+        parse_native_runtime_depfile, parse_native_toolchain_tuning, platform_link_libs,
+        resolve_c_ffi_native_link_inputs, resolve_native_runtime_archive_groups,
+        runtime_source_uses_cpp, sanitize_runtime_name, unique_link_libs,
+        NativeRuntimeArchiveManifest, NativeRuntimeArchiver, NativeRuntimeArchiverFlavor,
+        NativeRuntimeLinkManifest, NativeToolchainProfile, ResolvedNativeRuntimeArchiveGroup,
+        ResolvedNativeRuntimeBundle,
     };
     use kain_core::tooling_config::{KainColorPreference, KainParallelismSetting};
     use kain_core::CompileTarget;
@@ -5940,6 +6621,86 @@ mod tests {
     fn sanitize_runtime_name_keeps_object_filenames_stable() {
         assert_eq!(sanitize_runtime_name("Kain Runtime"), "kain_runtime");
         assert_eq!(sanitize_runtime_name("###"), "runtime");
+    }
+
+    #[test]
+    fn llvm_runtime_elision_accepts_closed_reachable_graph() {
+        let ir = r#"
+declare void @KAIN_runtime_init()
+declare void @llvm.lifetime.start.p0(i64, ptr)
+
+define i64 @helper(i64 %value) {
+entry:
+  call void @llvm.lifetime.start.p0(i64 8, ptr null)
+  ret i64 %value
+}
+
+define void @unreachable_runtime_wrapper() {
+entry:
+  call void @KAIN_runtime_init()
+  ret void
+}
+
+define i32 @main() {
+entry:
+  %value = call i64 @helper(i64 7)
+  ret i32 0
+}
+"#;
+
+        let decision = llvm_native_runtime_elision_decision_from_ir(ir);
+
+        assert!(decision.can_elide, "{decision:?}");
+        assert_eq!(decision.reachable_external_targets, Vec::<String>::new());
+        assert_eq!(decision.reachable_functions, 2);
+    }
+
+    #[test]
+    fn llvm_runtime_elision_rejects_reachable_external_calls() {
+        let ir = r#"
+declare void @KAIN_runtime_init()
+
+define void @runtime_init() {
+entry:
+  call void @KAIN_runtime_init()
+  ret void
+}
+
+define i32 @main() {
+entry:
+  call void @runtime_init()
+  ret i32 0
+}
+"#;
+
+        let decision = llvm_native_runtime_elision_decision_from_ir(ir);
+
+        assert!(!decision.can_elide);
+        assert_eq!(
+            decision.reachable_external_targets,
+            vec!["KAIN_runtime_init".to_string()]
+        );
+    }
+
+    #[test]
+    fn llvm_runtime_elision_handles_quoted_symbols() {
+        let ir = r#"
+define i32 @"main"() {
+entry:
+  call void @"kain.helper"()
+  ret i32 0
+}
+
+define void @"kain.helper"() {
+entry:
+  ret void
+}
+"#;
+
+        let decision = llvm_native_runtime_elision_decision_from_ir(ir);
+
+        assert!(decision.can_elide, "{decision:?}");
+        assert_eq!(decision.reachable_functions, 2);
     }
 
     #[test]

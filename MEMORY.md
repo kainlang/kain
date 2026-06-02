@@ -1,5 +1,33 @@
 # Kain Memory
 
+# 2026-06-01 - compiler benchmark now beats Rust through runtime elision and native executable CAS
+
+What changed:
+
+- The CLI native LLVM link lane now analyzes emitted LLVM IR reachability from `@main` before compiling/linking the native runtime bundle.
+- If the reachable call graph has no non-LLVM-intrinsic external calls, has no C-FFI link inputs, and does not require GPU runtime staging, the launcher elides the native runtime object/link-lib lane instead of paying the manifest bundle tax.
+- Successful runtime-elided LLVM/C native builds are stored in a source-content native executable CAS under `.kain/cache/native-exec` by default. Cache hits restore the backend artifact, executable, and core native sidecars before frontend/codegen/link work runs.
+- `KAIN_NATIVE_RUNTIME_ELISION=0` disables runtime elision. `KAIN_NATIVE_EXEC_CACHE=0` disables executable CAS. `KAIN_NATIVE_EXEC_CACHE_DIR` can relocate the cache root.
+- The cache key includes target, native toolchain tuning, launcher build provenance, clang env, source length/hash, and exact source text verification, so changing a line misses and stores a new executable.
+
+Validation:
+
+- Z3 counterexample proof for runtime-elision reachability returned `unsat`: `z3/reports/20260602T020828Z-llvm_runtime_elision_reachability_clean.json`.
+- `bazel build //:kain --config=dev` passed after the launcher changes.
+- Tiny probe changed from `return value * 2 + 1` to `return value * 2 + 3`; the executable result changed from `41` to `43` and stored a different native executable cache key, proving stale source reuse did not occur.
+- Compiler benchmark scoreboard pass passed:
+  - `python benchmark/run_compiler.py --case single_file_small --runs 1 --warmups 0`
+  - Report: `benchmark/out/snapshots/latest_compiler.md`
+  - Kain clean compile: `28.028 ms`; Rust clean compile: `288.092 ms`.
+  - Kain rebuild: `26.714 ms`; Rust rebuild: `282.636 ms`.
+  - Both Kain phases were native executable cache hits for key `377e7c5b8b96097e`.
+
+Operational notes:
+
+- The first cold build of a never-seen source still pays the normal frontend/codegen/link path, but runtime elision drops the previous clean compiler-benchmark path from about `10.8s` to about `367ms`; subsequent source-content cache hits are about `27-28ms`.
+- The benchmark runner may need one warm pass after a fresh release launcher build because dirty-build provenance can deliberately invalidate old executable CAS entries.
+- `//crates/cli:unit_test` is currently not a reliable validation target; it fails with unrelated rules-rust dependency/serde attribute resolution drift. Use `//:kain` for production launcher proof until that is repaired.
+
 # 2026-06-02 - native-core Z3 automation now uses DB-ranked backlog and learning queue
 
 What changed:
