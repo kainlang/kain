@@ -107,6 +107,14 @@ Target result: `unsat` for violation queries. `sat` is a counterexample, not a f
 
 For runtime-core coverage inventory, treat `runtime/native/src/core/z3/generated/coverage/proof_inventory.sqlite` as the pack-local source of truth. The coverage lane in `z3-mcp` now syncs stable `symbol_id` rows for current symbols, durable proofs, auto-results, ready targets, and generated proof candidates so we do not have to rebuild ad hoc line-based catalogs to answer "what remains?".
 
+Use the one-command candidate automation loop when shrinking coverage backlog:
+
+```powershell
+uv run --directory X:\mcp\polytools\z3-mcp python -m z3_mcp.workflow_tools --pack-path runtime\native\src\core\z3 --automate-candidates --max-symbols 50 --max-cases 10 --timeout-ms 10000 --report-name runtime-core-candidate-automation
+```
+
+That pass materializes missing generated candidates, runs candidate proofs, promotes clean outcomes into durable `z3/proofs/coverage/**`, quarantines counterexamples under `z3/generated/coverage/runs/<run-id>/`, and resyncs the SQLite inventory.
+
 Useful MCP calls:
 
 - `mcp__z3_local__.analyze_source_file(path="runtime/native/src/core/actor.c", symbol="...")`

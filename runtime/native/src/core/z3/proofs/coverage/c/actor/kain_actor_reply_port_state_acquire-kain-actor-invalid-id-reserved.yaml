@@ -1,0 +1,45 @@
+version: 1
+id: kain.native.core.proofs.candidate.kain_actor_reply_port_state_acquire_kain_actor_invalid_id_reserved
+kind: range_check
+description: Actor table slot keeps invalid ID reserved in `kain_actor_reply_port_state_acquire`
+tags:
+- bitwise
+- concurrency
+- overflow
+- pointer
+- coverage-promoted
+source:
+  path: X:\runtime\native\src\core\actor.c
+  language: c
+  symbol: kain_actor_reply_port_state_acquire
+  signature: static void kain_actor_reply_port_state_acquire(KainActorReplyPortState*
+    state) {
+  start_line: 543
+  end_line: 556
+  template_id: kain-actor-invalid-id-reserved
+  template_origin: pack-local
+  template_path: X:\runtime\native\src\core\z3\templates\actor-runtime.yaml
+  template_engine: regex
+  router_tool: prove
+  reason: Actor table slot keeps invalid ID reserved in `kain_actor_reply_port_state_acquire`
+  bindings: {}
+  analysis_artifacts: null
+  promoted_from: generated/coverage/proof_candidates/c/actor/kain_actor_reply_port_state_acquire-kain-actor-invalid-id-reserved.yaml
+  promotion_run_id: 20260602T005205975512Z
+case:
+  declarations:
+  - name: slot
+    sort:
+      kind: int
+  constraints:
+  - op: ge
+    args:
+    - slot
+    - 1
+  - op: lt
+    args:
+    - slot
+    - 1024
+  expression: slot
+  lower: 1
+  upper: 1023
