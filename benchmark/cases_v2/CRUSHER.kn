@@ -4,28 +4,6 @@ use std::machine
 use std::runtime
 use std::time
 
-include <math.h> as cmath
-
-use core_os::bench_semantic_all
-use core_os::os_semantic_arch
-use core_os::os_semantic_cpu
-use core_os::os_semantic_cores
-use core_os::os_semantic_env
-use core_os::os_semantic_gid
-use core_os::os_semantic_login
-use core_os::os_semantic_os_name
-use core_os::os_semantic_packages
-use core_os::os_semantic_page
-use core_os::os_semantic_platform
-use core_os::os_semantic_read_all
-use core_os::os_semantic_refresh_env
-use core_os::os_semantic_seed
-use core_os::os_semantic_terminal_cols
-use core_os::os_semantic_terminal_rows
-use core_os::os_semantic_uid
-use core_os::probe_system
-use core_os::verify_cpu_consistency
-use core_os::verify_platform
 use gpu_cpu_pipeline::gpu_cpu_pipeline_case_checksum
 use gpu_cpu_pipeline::gpu_cpu_pipeline_case_telemetry
 use keyword_expansion::keyword_expansion_case_checksum
@@ -84,6 +62,30 @@ fn crusher_mod(value: Int, modulus: Int) -> Int:
     if folded < 0:
         return folded + modulus
     return folded
+
+fn crusher_machine_seed() -> Int with Unsafe:
+    let seed = cpuid_eax(0, 0)
+    seed = seed + cpuid_ebx(0, 0)
+    seed = seed + cpuid_ecx(1, 0)
+    seed = seed + cpuid_edx(1, 0)
+    seed = seed + cpu_logical_count()
+    seed = seed + cpu_core_count()
+    seed = seed + cpu_package_count()
+    seed = seed + cpu_cache_line_bytes()
+    seed = seed + numa_node_count()
+    seed = seed + numa_current_node()
+    seed = seed + current_thread_affinity_mask()
+    return seed
+
+fn crusher_machine_text() -> String with Unsafe:
+    let text = "logical=" + str(cpu_logical_count())
+    text = text + " cores=" + str(cpu_core_count())
+    text = text + " packages=" + str(cpu_package_count())
+    text = text + " cache_line=" + str(cpu_cache_line_bytes())
+    text = text + " numa_nodes=" + str(numa_node_count())
+    text = text + " numa_current=" + str(numa_current_node())
+    text = text + " affinity=" + str(current_thread_affinity_mask())
+    return text
 
 struct CrusherPacket:
     id: Int
@@ -237,19 +239,17 @@ fn crusher_fold_cells(cells: ptr<Int>, count: Int, modulus: Int) -> Int:
     return acc
 
 fn crusher_import_mesh_checksum(iterations: Int, modulus: Int) -> Int with GPU, Unsafe:
-    let os_seed = os_semantic_seed()
+    let machine_seed = crusher_machine_seed()
+    let machine_text_len = len(crusher_machine_text())
     let py_seed = python_semantic_seed()
-    let platform_len = len(verify_platform())
-    let cpu_len = len(verify_cpu_consistency())
-    let probe_len = len(probe_system())
     let cached_name_score = len(python_cache_sys_name())
-        + len(python_cache_os_name())
-        + len(python_cache_json_name())
-        + len(python_cache_asyncio_name())
-        + len(python_cache_sys_encoding())
-        + len(python_cache_json_dumped())
-        + len(python_cache_path_joined())
-        + len(python_cache_path_basename())
+    cached_name_score = cached_name_score + len(python_cache_os_name())
+    cached_name_score = cached_name_score + len(python_cache_json_name())
+    cached_name_score = cached_name_score + len(python_cache_asyncio_name())
+    cached_name_score = cached_name_score + len(python_cache_sys_encoding())
+    cached_name_score = cached_name_score + len(python_cache_json_dumped())
+    cached_name_score = cached_name_score + len(python_cache_path_joined())
+    cached_name_score = cached_name_score + len(python_cache_path_basename())
     let import_header = system_headers_case_checksum("system_header_math_wave", 96, 1, modulus)
     let import_keyword = keyword_expansion_case_checksum("keyword_where_fold", 256, 1, modulus)
     let import_gpu = gpu_cpu_pipeline_case_checksum("gpu_cpu_manifest_bridge", 16, 1, modulus)
@@ -258,22 +258,7 @@ fn crusher_import_mesh_checksum(iterations: Int, modulus: Int) -> Int with GPU, 
     let import_metal = metal_case_checksum("cpu_cpuid_topology", 32, 1, modulus)
     let cpuid_seed = cpuid_eax(0, 0) + cpuid_ebx(0, 0) + cpuid_ecx(1, 0) + cpuid_edx(1, 0)
 
-    let acc = crusher_mod(
-        os_seed
-            + py_seed
-            + platform_len
-            + cpu_len
-            + probe_len
-            + cached_name_score
-            + import_header
-            + import_keyword
-            + import_gpu
-            + import_orchestration
-            + import_god
-            + import_metal
-            + cpuid_seed,
-        modulus,
-    )
+    let acc = crusher_mod(machine_seed + machine_text_len + py_seed + cached_name_score + import_header + import_keyword + import_gpu + import_orchestration + import_god + import_metal + cpuid_seed, modulus)
 
     let index = 0
     while index < iterations:
@@ -282,8 +267,7 @@ fn crusher_import_mesh_checksum(iterations: Int, modulus: Int) -> Int with GPU, 
             payload: ((acc + (index * 17) + cached_name_score) % 4096) + 3,
             phase: (index % 31) + 5
         }
-        let angle = ((index % 720) + 1) as Float * 0.00872664625
-        let wave = cmath_floor((cmath_sin(angle) + cmath_cos(angle * 0.5) + 2.0) * 1000.0) as Int
+        let wave = crusher_mix((index % 720) + 1) % 1000
         acc = crusher_mod(acc + crusher_where_mix(packet, wave + index) + packet.weighted() + wave + (index % 11), modulus)
         index = index + 1
     return acc
@@ -339,23 +323,7 @@ fn crusher_actor_ownership_mesh_checksum(iterations: Int, modulus: Int) -> Int w
         if (round % 4) == 0:
             asm("pause")
         sfence()
-        let next_cell = crusher_mod(
-            old_cell
-                + piped
-                + actor_reply
-                + legal
-                + CrusherMirror.signal_copy
-                + CrusherMirror.epoch_copy
-                + CrusherMirror.pressure_copy
-                + CrusherMirror.import_score_copy
-                + CrusherMirror.scheduler_score_copy
-                + moved.bias
-                + moved.phase
-                + moved.salt
-                + cpuid_sig
-                + slot,
-            modulus,
-        )
+        let next_cell = crusher_mod(old_cell + piped + actor_reply + legal + CrusherMirror.signal_copy + CrusherMirror.epoch_copy + CrusherMirror.pressure_copy + CrusherMirror.import_score_copy + CrusherMirror.scheduler_score_copy + moved.bias + moved.phase + moved.salt + cpuid_sig + slot, modulus)
         crusher_mem_store(cells, slot, next_cell)
         acc = crusher_mod(acc + next_cell + packet.weighted() + packet_mix + slot + actor_reply, modulus)
         round = round + 1
@@ -379,70 +347,48 @@ fn crusher_actor_ownership_mesh_checksum(iterations: Int, modulus: Int) -> Int w
     if shutdown_status != 0:
         return 200 + shutdown_status
 
-    return crusher_mod(
-        acc
-            + cell_fold
-            + log_fold
-            + patch_delta
-            + entangle_delta
-            + teleport_delta
-            + enqueue_delta
-            + dequeue_delta
-            + CrusherMirror.signal_copy
-            + CrusherMirror.epoch_copy
-            + CrusherMirror.pressure_copy
-            + CrusherMirror.import_score_copy
-            + CrusherMirror.scheduler_score_copy
-            + cpuid_sig,
-        modulus,
-    )
+    return crusher_mod(acc + cell_fold + log_fold + patch_delta + entangle_delta + teleport_delta + enqueue_delta + dequeue_delta + CrusherMirror.signal_copy + CrusherMirror.epoch_copy + CrusherMirror.pressure_copy + CrusherMirror.import_score_copy + CrusherMirror.scheduler_score_copy + cpuid_sig, modulus)
 
 fn crusher_cache_fusion_checksum(iterations: Int, modulus: Int) -> Int:
-    let os_seed = os_semantic_seed()
+    let machine_seed = crusher_machine_seed()
     let py_seed = python_semantic_seed()
-    let env_len = os_semantic_refresh_env()
-    let cache_seed = os_semantic_read_all()
-        + os_semantic_page()
-        + os_semantic_cpu()
-        + os_semantic_cores()
-        + os_semantic_packages()
-        + len(os_semantic_login())
-        + os_semantic_uid()
-        + os_semantic_gid()
-        + len(os_semantic_os_name())
-        + len(os_semantic_platform())
-        + len(os_semantic_arch())
-        + os_semantic_terminal_cols()
-        + os_semantic_terminal_rows()
-        + len(os_semantic_env())
-        + len(python_cache_sys_name())
-        + len(python_cache_os_name())
-        + len(python_cache_json_name())
-        + len(python_cache_asyncio_name())
-        + len(python_cache_sys_encoding())
-        + len(python_cache_json_dumped())
-        + len(python_cache_os_sep())
-        + len(python_cache_path_joined())
-        + len(python_cache_path_dirname())
-        + len(python_cache_path_basename())
-        + len(verify_platform())
-        + len(verify_cpu_consistency())
+    let authority = CrusherAuthority
+    authority.signal = crusher_mod(machine_seed, modulus)
+    authority.epoch = 1
+    authority.pressure = crusher_mix(machine_seed + py_seed)
+    authority.import_score = len(crusher_machine_text())
+    authority.scheduler_score = actor_scheduler_worker_count()
+
+    let cache_seed = CrusherMirror.signal_copy
+    cache_seed = cache_seed + CrusherMirror.epoch_copy
+    cache_seed = cache_seed + CrusherMirror.pressure_copy
+    cache_seed = cache_seed + CrusherMirror.import_score_copy
+    cache_seed = cache_seed + CrusherMirror.scheduler_score_copy
+    cache_seed = cache_seed + len(python_cache_sys_name())
+    cache_seed = cache_seed + len(python_cache_os_name())
+    cache_seed = cache_seed + len(python_cache_json_name())
+    cache_seed = cache_seed + len(python_cache_asyncio_name())
+    cache_seed = cache_seed + len(python_cache_sys_encoding())
+    cache_seed = cache_seed + len(python_cache_json_dumped())
+    cache_seed = cache_seed + len(python_cache_os_sep())
+    cache_seed = cache_seed + len(python_cache_path_joined())
+    cache_seed = cache_seed + len(python_cache_path_dirname())
+    cache_seed = cache_seed + len(python_cache_path_basename())
+    cache_seed = cache_seed + cpu_logical_count()
+    cache_seed = cache_seed + cpu_core_count()
+    cache_seed = cache_seed + cpu_package_count()
+    cache_seed = cache_seed + cpu_cache_line_bytes()
+    cache_seed = cache_seed + numa_node_count()
+    cache_seed = cache_seed + current_thread_affinity_mask()
 
     let buffer: ptr<Int> = alloc_zeroed(64, "Int")
-    let acc = crusher_mod(os_seed + py_seed + env_len + cache_seed, modulus)
+    let acc = crusher_mod(machine_seed + py_seed + cache_seed, modulus)
 
     collapse buffer:
         let index = 0
         while index < iterations:
             let slot = index % 64
-            let lane = crusher_mod(
-                crusher_mix(os_semantic_read_all() + cache_seed + index)
-                    + len(os_semantic_env())
-                    + len(python_cache_json_dumped())
-                    + len(python_cache_path_joined())
-                    + slot,
-                modulus,
-            )
+            let lane = crusher_mod(crusher_mix(CrusherMirror.signal_copy + CrusherMirror.pressure_copy + cache_seed + index) + len(python_cache_json_dumped()) + len(python_cache_path_joined()) + slot, modulus)
             mem_store(ptr_offset(buffer, slot, "Int"), lane, "Int")
             acc = crusher_mod(acc + lane + slot, modulus)
             index = index + 1
@@ -464,21 +410,7 @@ fn crusher_full_send_checksum(iterations: Int, modulus: Int) -> Int with GPU, Un
     let god_graph = orchestrate_god_case_checksum("orchestrate_god_graph_memory", 64, 1, modulus)
     let metal_memory = metal_case_checksum("raw_ownership_memory", 128, 1, modulus)
     let header_wave = system_headers_case_checksum("system_header_math_wave", 256, 1, modulus)
-    return crusher_mod(
-        import_mesh
-            + actor_mesh
-            + cache_mesh
-            + keyword_dispatch
-            + gpu_policy
-            + orchestration_stage
-            + god_graph
-            + metal_memory
-            + header_wave
-            + iterations
-            + CRUSHER_CELL_COUNT
-            + CRUSHER_LOG_CAPACITY,
-        modulus,
-    )
+    return crusher_mod(import_mesh + actor_mesh + cache_mesh + keyword_dispatch + gpu_policy + orchestration_stage + god_graph + metal_memory + header_wave + iterations + CRUSHER_CELL_COUNT + CRUSHER_LOG_CAPACITY, modulus)
 
 pub fn crusher_case_count() -> Int:
     return CRUSHER_CASE_COUNT
@@ -568,10 +500,10 @@ pub fn crusher_case_telemetry(case_id: String) -> String:
         let content = "{"
         content = content + "\"pack_id\":" + crusher_json_string("crusher") + ","
         content = content + "\"case_id\":" + crusher_json_string(case_id) + ","
-        content = content + "\"surface\":" + crusher_json_string("os-cache-plus-python-cache-fusion") + ","
-        content = content + "\"os_probe\":" + crusher_json_string(probe_system()) + ","
+        content = content + "\"surface\":" + crusher_json_string("machine-cache-plus-python-cache-fusion") + ","
+        content = content + "\"machine_probe\":" + crusher_json_string(crusher_machine_text()) + ","
         content = content + "\"python_cache_path\":" + crusher_json_string(python_cache_path_joined()) + ","
-        content = content + "\"pack_focus\":" + crusher_json_string("imported semantic caches become a dense deterministic read storm")
+        content = content + "\"pack_focus\":" + crusher_json_string("local machine state and imported python cache become a deterministic read storm")
         return content + "}"
     if case_id == "crusher_full_send":
         let content = "{"
@@ -590,11 +522,9 @@ pub fn crusher_case_telemetry(case_id: String) -> String:
     content = content + "\"pack_focus\":" + crusher_json_string("crusher")
     return content + "}"
 
-fn run_standalone() -> Int with GPU, Unsafe:
-    println("[crusher] probe=" + probe_system())
-    let os_bench = bench_semantic_all(128)
+fn crusher_run_standalone() -> Int with GPU, Unsafe:
+    println("[crusher] machine=" + crusher_machine_text())
     let py_bench = bench_python_cached_probe(128)
-    println("[crusher] os_cache_ms=" + str(os_bench.cache_ms) + " os_raw_ms=" + str(os_bench.raw_ms))
     println("[crusher] py_cache_ms=" + str(py_bench.cache_ms) + " py_raw_ms=" + str(py_bench.raw_ms))
 
     let index = 0
@@ -608,24 +538,15 @@ fn run_standalone() -> Int with GPU, Unsafe:
         let elapsed = now_millis() - started
         let expected = crusher_case_expected_checksum(index)
         let ok = checksum == expected
-        println(
-            "[crusher] "
-                + case_id
-                + " group="
-                + group
-                + " title="
-                + title
-                + " iterations="
-                + str(iterations)
-                + " checksum="
-                + str(checksum)
-                + " expected="
-                + str(expected)
-                + " elapsed_ms="
-                + str(elapsed)
-                + " ok="
-                + str(ok),
-        )
+        let report_line = "[crusher] " + case_id
+        report_line = report_line + " group=" + group
+        report_line = report_line + " title=" + title
+        report_line = report_line + " iterations=" + str(iterations)
+        report_line = report_line + " checksum=" + str(checksum)
+        report_line = report_line + " expected=" + str(expected)
+        report_line = report_line + " elapsed_ms=" + str(elapsed)
+        report_line = report_line + " ok=" + str(ok)
+        println(report_line)
         if !ok:
             return 20 + index
         index = index + 1
@@ -635,7 +556,4 @@ fn run_standalone() -> Int with GPU, Unsafe:
     return 0
 
 pub fn crusher_pack_main() -> Int with GPU, Unsafe:
-    return run_standalone()
-
-fn main() -> Int with GPU, Unsafe:
-    return crusher_pack_main()
+    return crusher_run_standalone()

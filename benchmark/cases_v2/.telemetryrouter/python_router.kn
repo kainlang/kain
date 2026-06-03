@@ -37,6 +37,13 @@ const PYTHON_ROUTER_DEFAULT_MARKDOWN_PATH: String = "latest_v2_python.md"
 const PYTHON_ROUTER_DEFAULT_JSON_PATH: String = "out/reports/latest_v2_python.json"
 const PYTHON_ROUTER_DEFAULT_TRACK_ROOT: String = "out/reports/v2_tracks_python"
 
+component PythonRouterPanel():
+    render <panel title="Python Router Bench" />
+
+world PythonRouterAuthority:
+    state gate: Int = 1
+    surface native_ui => PythonRouterPanel
+
 struct PythonRouterConfig:
     filter_text: String
     passes: Int

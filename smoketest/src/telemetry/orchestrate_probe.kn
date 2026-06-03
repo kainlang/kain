@@ -1,0 +1,26 @@
+use std::fs
+use std::intent
+use std::runtime
+
+use orchestrate::smoke_orchestrate_lane
+
+fn main() -> Int with GPU, Unsafe:
+    let status = smoke_orchestrate_lane()
+    let root = fs_path_join(".kain", "telemetry")
+    let probe_root = fs_path_join(root, "orchestrate_probe")
+    let path = fs_path_join(probe_root, "result.json")
+    fs_create_dir_all(probe_root)
+
+    var content: String = "{\n"
+    content = content + "  \"status\": " + str(status) + ",\n"
+    content = content + "  \"orchestrate_stage_count\": " + str(orchestrate_stage_count()) + ",\n"
+    content = content + "  \"orchestrate_transfer_count\": " + str(orchestrate_transfer_count()) + ",\n"
+    content = content + "  \"orchestrate_fallback_count\": " + str(orchestrate_fallback_count()) + ",\n"
+    content = content + "  \"orchestrate_adaptive_stage_count\": " + str(orchestrate_adaptive_stage_count()) + ",\n"
+    content = content + "  \"patch_journal_count\": " + str(patch_journal_count()) + ",\n"
+    content = content + "  \"entangle_propagation_count\": " + str(entangle_propagation_count()) + ",\n"
+    content = content + "  \"runtime_machine_teleport_count\": " + str(runtime_machine_teleport_count()) + ",\n"
+    content = content + "  \"runtime_machine_pulse_total_fire_count\": " + str(runtime_machine_pulse_total_fire_count()) + "\n"
+    content = content + "}\n"
+    fs_atomic_write_text(path, content)
+    return status
