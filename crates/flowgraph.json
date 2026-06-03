@@ -15,7 +15,6 @@
     ],
     "entry_files": [
       "kain-ui-native/src/main.rs",
-      "kain-fast3d-runtime/src/main.rs",
       "cli/src/main.rs",
       "web/src/lib.rs"
     ],
@@ -107,13 +106,6 @@
         "dependency_count": 16
       },
       {
-        "path": "kain-fast3d-runtime/Cargo.toml",
-        "type": "cargo",
-        "package_name": "kain-fast3d-runtime",
-        "workspace_members": 0,
-        "dependency_count": 8
-      },
-      {
         "path": "kain-gpu-runtime/Cargo.toml",
         "type": "cargo",
         "package_name": "kain-gpu-runtime",
@@ -121,7 +113,7 @@
         "dependency_count": 6
       }
     ],
-    "manifest_count_total": 45,
+    "manifest_count_total": 11,
     "sampled_file_count": 220
   },
   "nodes": [
@@ -172,12 +164,6 @@
       "label": "kain-ui-native/src/main.rs",
       "kind": "file",
       "path": "M:\\Code\\Kain\\crates\\ui-native\\src\\main.rs"
-    },
-    {
-      "id": "file_kain_fast3d_runtime_src_main_rs",
-      "label": "kain-fast3d-runtime/src/main.rs",
-      "kind": "file",
-      "path": "M:\\Code\\Kain\\crates\\fast3d-runtime\\src\\main.rs"
     },
     {
       "id": "file_cli_src_main_rs",
@@ -262,11 +248,6 @@
     {
       "from": "dir_dir",
       "to": "file_cli_src_main_rs",
-      "kind": "entrypoint"
-    },
-    {
-      "from": "dir_dir",
-      "to": "file_kain_fast3d_runtime_src_main_rs",
       "kind": "entrypoint"
     },
     {

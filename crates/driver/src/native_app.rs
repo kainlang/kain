@@ -3434,28 +3434,27 @@ component App():
     #[test]
     fn materialize_native_app_bundle_supports_generic_host_sidecars_for_custom_runtime() {
         let temp = TempDir::new().expect("temp dir");
-        let project_dir = temp.path().join("native-app-fast3d");
-        let host_config_path = temp.path().join("fast3d_host.json");
-        let scene_manifest_path = temp.path().join("scene_manifest_title_face.json");
+        let project_dir = temp.path().join("native-app-custom");
+        let host_config_path = temp.path().join("custom_host.json");
+        let sidecar_data_path = temp.path().join("sidecar_data.json");
         fs::write(
             &host_config_path,
             r#"{
-  "action": "snapshot",
-  "manifest_path": "scene_manifest_title_face.json",
-  "output_path": "native_host_snapshot.png",
+  "entrypoint": "render",
+  "output": "frame.png",
   "time_seconds": 0.0
 }"#,
         )
         .expect("host config");
-        fs::write(&scene_manifest_path, "{}").expect("scene manifest");
+        fs::write(&sidecar_data_path, "{}").expect("sidecar data");
         let source = r#"
 component App():
-    render <panel title="Fast3D Host" />
+    render <panel title="Custom Host" />
 "#;
         let bundle = compile_native_app_bundle(
             source,
             &NativeAppBundleConfig {
-                source_file_name: Some("fast3d_host.kn".to_string()),
+                source_file_name: Some("custom_host.kn".to_string()),
                 ..Default::default()
             },
         )
@@ -3466,7 +3465,7 @@ component App():
             &bundle,
             &NativeAppMaterializationConfig {
                 project_dir: project_dir.clone(),
-                runtime_crate_name: "kain-fast3d-runtime".to_string(),
+                runtime_crate_name: "custom-host-runtime".to_string(),
                 runtime_dependency: NativeAppRuntimeDependency::Version("0.1.0".to_string()),
                 artifact_output_dir: PathBuf::from("generated"),
                 build_executable: false,
@@ -3475,17 +3474,17 @@ component App():
                 cargo_target_dir: None,
                 gpu_runtime_cargo_target_dir: None,
                 launcher_entrypoint: NativeAppLauncherEntrypoint::RunNoArgFunction {
-                    function_name: "run_fast3d_cli".to_string(),
+                    function_name: "run_custom_host_cli".to_string(),
                 },
                 host_sidecars: vec![
                     NativeAppHostSidecarBinding {
                         source_path: host_config_path.clone(),
-                        packaged_file_name: Some("fast3d_host.json".to_string()),
-                        env_var: Some("KAIN_FAST3D_CONFIG".to_string()),
+                        packaged_file_name: Some("custom_host.json".to_string()),
+                        env_var: Some("CUSTOM_HOST_CONFIG".to_string()),
                     },
                     NativeAppHostSidecarBinding {
-                        source_path: scene_manifest_path.clone(),
-                        packaged_file_name: Some("scene_manifest_title_face.json".to_string()),
+                        source_path: sidecar_data_path.clone(),
+                        packaged_file_name: Some("sidecar_data.json".to_string()),
                         env_var: None,
                     },
                 ],
@@ -3494,34 +3493,34 @@ component App():
         .expect("materialization should succeed");
 
         let main_rs = fs::read_to_string(&materialized.main_rs_path).expect("main.rs");
-        assert!(main_rs.contains("run_fast3d_cli"));
-        assert!(main_rs.contains("KAIN_FAST3D_CONFIG"));
+        assert!(main_rs.contains("run_custom_host_cli"));
+        assert!(main_rs.contains("CUSTOM_HOST_CONFIG"));
         assert!(!main_rs.contains("run_bundled_app_json(KAIN_RUNTIME_BUNDLE)"));
 
         let packaged_host_config = materialized
             .artifact_paths
             .iter()
-            .find(|path| path.file_name().and_then(OsStr::to_str) == Some("fast3d_host.json"))
+            .find(|path| path.file_name().and_then(OsStr::to_str) == Some("custom_host.json"))
             .expect("packaged host config");
-        let packaged_scene_manifest = materialized
+        let packaged_sidecar = materialized
             .artifact_paths
             .iter()
             .find(|path| {
-                path.file_name().and_then(OsStr::to_str) == Some("scene_manifest_title_face.json")
+                path.file_name().and_then(OsStr::to_str) == Some("sidecar_data.json")
             })
-            .expect("packaged scene manifest");
+            .expect("packaged sidecar");
         assert!(packaged_host_config.exists());
-        assert!(packaged_scene_manifest.exists());
+        assert!(packaged_sidecar.exists());
 
         let app_manifest_path = project_dir.join("config").join("app_manifest.json");
         let app_manifest_json = fs::read_to_string(app_manifest_path).expect("app manifest");
-        assert!(app_manifest_json.contains("fast3d_host.json"));
-        assert!(app_manifest_json.contains("KAIN_FAST3D_CONFIG"));
-        assert!(app_manifest_json.contains("scene_manifest_title_face.json"));
+        assert!(app_manifest_json.contains("custom_host.json"));
+        assert!(app_manifest_json.contains("CUSTOM_HOST_CONFIG"));
+        assert!(app_manifest_json.contains("sidecar_data.json"));
 
         let cargo_manifest =
             fs::read_to_string(&materialized.manifest_path).expect("cargo manifest");
-        assert!(cargo_manifest.contains("kain-fast3d-runtime"));
+        assert!(cargo_manifest.contains("custom-host-runtime"));
     }
 
     fn compile_shared_library(source: &Path, output: &Path) {
