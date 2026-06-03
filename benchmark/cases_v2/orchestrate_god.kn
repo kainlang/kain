@@ -1,0 +1,556 @@
+use std::cuda
+use std::fs
+use std::intent
+use std::json
+use std::runtime
+
+const ORCHESTRATE_GOD_MODULUS: Int = 1000000007
+const ORCHESTRATE_GOD_CASE_COUNT: Int = 4
+const ORCHESTRATE_GOD_CELL_COUNT: Int = 128
+const ORCHESTRATE_GOD_LOG_CAPACITY: Int = 4096
+const ORCHESTRATE_GOD_DISPATCH_X: Int = 64
+const ORCHESTRATE_GOD_DISPATCH_Y: Int = 1
+const ORCHESTRATE_GOD_DISPATCH_Z: Int = 1
+const ORCHESTRATE_GOD_OVERRIDE_X: Int = 17
+const ORCHESTRATE_GOD_OVERRIDE_Y: Int = 4
+const ORCHESTRATE_GOD_OVERRIDE_Z: Int = 1
+const ORCHESTRATE_GOD_COMPUTE_KEY: String = "shader::OrchestrateGodKernel::compute"
+
+component OrchestrateGodPanel():
+    render <panel title="orchestrate-god-mode" />
+
+world OrchestrateGodAuthority:
+    state signal: Int = 1
+    state epoch: Int = 0
+    state drift: Int = 0
+    state gpu_epoch: Int = 0
+    surface web => OrchestrateGodPanel
+    surface native_ui => OrchestrateGodPanel
+
+world OrchestrateGodMirror:
+    state signal_copy: Int = 1
+    state epoch_copy: Int = 0
+    state drift_copy: Int = 0
+    state gpu_epoch_copy: Int = 0
+    surface web => OrchestrateGodPanel
+
+entangle OrchestrateGodAuthority.signal <-> OrchestrateGodMirror.signal_copy with single_writer
+entangle OrchestrateGodAuthority.epoch <-> OrchestrateGodMirror.epoch_copy with single_writer
+entangle OrchestrateGodAuthority.drift <-> OrchestrateGodMirror.drift_copy with single_writer
+entangle OrchestrateGodAuthority.gpu_epoch <-> OrchestrateGodMirror.gpu_epoch_copy with single_writer
+
+shatter struct OrchestrateGodShard:
+    bias: Int
+    phase: Int
+    token: Int
+    gpu_hint: Int
+    alive: Bool
+
+pulse orchestrate_god_clock every 8ms jitter 1ms:
+    let shard = OrchestrateGodShard { bias: 1, phase: 2, token: 3, gpu_hint: 4, alive: true }
+    let moved = teleport shard from OrchestrateGodAuthority to OrchestrateGodMirror via orchestrate_god_pulse_bus
+    let _shape = pulse_tick + pulse_dt_ms + pulse_missed + moved.bias + moved.gpu_hint
+
+law orchestrate_god_signal_in_bounds(value: Int) -> Bool:
+    return value >= 0 and value < ORCHESTRATE_GOD_MODULUS
+
+law orchestrate_god_phase_in_bounds(value: Int) -> Bool:
+    return value >= 0 and value < 8192
+
+law orchestrate_god_gpu_handoff_ok(value: Int) -> Bool:
+    return value >= 0 and value < ORCHESTRATE_GOD_MODULUS
+
+patch orchestrate_god_commit(authority: OrchestrateGodAuthority, value: Int, drift_delta: Int, gpu_delta: Int) -> Int:
+    authority.signal = value
+    authority.epoch = authority.epoch + 1
+    authority.drift = (authority.drift + drift_delta + authority.epoch + 41) % ORCHESTRATE_GOD_MODULUS
+    authority.gpu_epoch = (authority.gpu_epoch + gpu_delta + 7) % ORCHESTRATE_GOD_MODULUS
+    return authority.signal
+
+fn orchestrate_god_axiom_fallback(value: Int) -> Int:
+    return ((value * 17) + 23) % ORCHESTRATE_GOD_MODULUS
+
+axiom orchestrate_god_silicon_truth:
+    when target("llvm")
+    when capability("gpu.compute")
+    when capability("orchestrate.graph")
+    guarantee "orchestrate may own silicon residency, transfer, law gates, and fallback policy"
+    fallback orchestrate_god_axiom_fallback
+
+fn orchestrate_god_mod(value: Int, modulus: Int) -> Int:
+    let folded = value % modulus
+    if folded < 0:
+        return folded + modulus
+    return folded
+
+fn orchestrate_god_bool_score(value: Bool) -> Int:
+    if value:
+        return 1
+    return 0
+
+fn orchestrate_god_mix_scalar(value: Int) -> Int:
+    return ((value * 97) + 53) % ORCHESTRATE_GOD_MODULUS
+
+converge orchestrate_god_mix(value: Int) -> Int:
+    spec reference:
+        return orchestrate_god_mix_scalar(value)
+    fast llvm_lane when target("llvm"):
+        return ((value * 97) + 53) % ORCHESTRATE_GOD_MODULUS
+    fast gpu_intent_lane when capability("gpu.compute"):
+        return ((value * 97) + 53) % ORCHESTRATE_GOD_MODULUS
+    verify random(8)
+
+fn orchestrate_god_host_shadow(value: Int) -> Int:
+    return orchestrate_god_mod((value * 3) + 19, ORCHESTRATE_GOD_MODULUS)
+
+fn orchestrate_god_python_shadow(value: Int) -> Int:
+    return orchestrate_god_mod((value * 5) + 29, ORCHESTRATE_GOD_MODULUS)
+
+fn orchestrate_god_dispatch_style(value: Int, epoch: Int) -> Int:
+    return orchestrate_god_mod((value * 13) + (epoch * 31) + 71, ORCHESTRATE_GOD_MODULUS)
+
+fn orchestrate_god_world_score(signal: Int, epoch: Int, drift: Int, gpu_epoch: Int) -> Int:
+    return orchestrate_god_mod((signal * 7) + (epoch * 17) + (drift * 5) + (gpu_epoch * 11) + 101, ORCHESTRATE_GOD_MODULUS)
+
+fn orchestrate_god_shard_score(shard: OrchestrateGodShard) -> Int:
+    let alive_bonus = if shard.alive: 37 else: 5
+    return orchestrate_god_mod((shard.bias * 43) + (shard.phase * 19) + (shard.token * 3) + shard.gpu_hint + alive_bonus, ORCHESTRATE_GOD_MODULUS)
+
+fn orchestrate_god_mem_store(buffer: ptr<Int>, slot: Int, value: Int) -> Int:
+    let stored: Int = collapse buffer:
+        mem_store(ptr_offset(buffer, slot, "Int"), value, "Int")
+        value
+    return stored
+
+fn orchestrate_god_mem_load(buffer: ptr<Int>, slot: Int) -> Int:
+    return observe buffer:
+        mem_load(ptr_offset(buffer, slot, "Int"), "Int")
+
+fn orchestrate_god_log_append(buffer: ptr<Int>, value: Int) -> Int:
+    let next_slot: Int = collapse buffer:
+        let cursor = mem_load(buffer, "Int")
+        let next = cursor + 1
+        mem_store(ptr_offset(buffer, next, "Int"), value, "Int")
+        mem_store(buffer, next, "Int")
+        next
+    return next_slot
+
+fn orchestrate_god_fold_cells(cells: ptr<Int>, count: Int, modulus: Int) -> Int:
+    let acc = 0
+    let index = 0
+    while index < count:
+        acc = orchestrate_god_mod((acc * 257) + mem_load(ptr_offset(cells, index, "Int")) + (index * 3) + 1, modulus)
+        index = index + 1
+    return acc
+
+orchestrate orchestrate_god_preflight(seed: Int, authority: OrchestrateGodAuthority) -> Int:
+    stage cpu_seed: cpu orchestrate_god_mix(seed + authority.signal) when capability("cpu.scalar") residency host transfer none policy static
+    stage c_shadow: c orchestrate_god_host_shadow(cpu_seed + authority.epoch) after cpu_seed residency host fallback cpu_seed policy telemetry_prefer_cpu
+    stage py_shadow: python orchestrate_god_python_shadow(c_shadow + authority.drift) after c_shadow residency host fallback degrade c_shadow policy telemetry_prefer_cpu
+    stage converge_lane: converge orchestrate_god_mix(py_shadow + cpu_seed) deps [cpu_seed, py_shadow] residency shared transfer shared_view policy telemetry_balance_latency
+    stage gpu_lane: gpu orchestrate_god_mix(converge_lane + authority.gpu_epoch + 13) after converge_lane residency device transfer host_to_device guarded by orchestrate_god_silicon_truth fallback degrade c_shadow policy telemetry_prefer_gpu
+    stage legal: law orchestrate_god_signal_in_bounds(gpu_lane) after gpu_lane residency host transfer device_to_host policy static
+    stage committed: patch orchestrate_god_commit(authority, orchestrate_god_mod(gpu_lane + c_shadow, ORCHESTRATE_GOD_MODULUS), converge_lane, gpu_lane) after legal requires legal residency host policy telemetry_balance_latency
+    stage final_lane: dispatch orchestrate_god_dispatch_style(committed + py_shadow, authority.epoch) deps [cpu_seed, c_shadow, py_shadow, committed] residency shared transfer shared_view policy telemetry_balance_latency
+    if legal == false:
+        return c_shadow
+    return final_lane
+
+orchestrate orchestrate_god_shard_pipeline(shard_score: Int, shard_phase: Int, shard_token: Int, authority: OrchestrateGodAuthority) -> Int:
+    stage host_shape: cpu orchestrate_god_host_shadow(shard_score + shard_phase) residency host policy static
+    stage gpu_tune: gpu orchestrate_god_mix(host_shape + shard_token + authority.gpu_epoch) after host_shape residency device transfer host_to_device guarded by orchestrate_god_silicon_truth fallback degrade host_shape policy telemetry_prefer_gpu
+    stage phase_ok: law orchestrate_god_phase_in_bounds(shard_phase) after gpu_tune residency host transfer device_to_host policy static
+    stage mirror_score: world orchestrate_god_world_score(authority.signal, authority.epoch, authority.drift, authority.gpu_epoch) after phase_ok requires phase_ok residency shared transfer shared_view policy telemetry_balance_latency
+    stage committed: patch orchestrate_god_commit(authority, orchestrate_god_mod(gpu_tune + mirror_score, ORCHESTRATE_GOD_MODULUS), shard_token + mirror_score, gpu_tune) deps [gpu_tune, mirror_score] requires phase_ok residency host policy telemetry_balance_latency
+    stage final_lane: kain orchestrate_god_dispatch_style(committed + shard_phase, authority.epoch) after committed residency host policy static
+    if phase_ok == false:
+        return host_shape
+    return final_lane
+
+orchestrate orchestrate_god_reconcile_pipeline(value: Int, authority: OrchestrateGodAuthority) -> Int:
+    stage device_probe: gpu orchestrate_god_mix(value + authority.gpu_epoch) residency device transfer host_to_device guarded by orchestrate_god_silicon_truth fallback abort policy telemetry_prefer_gpu
+    stage host_return: cpu orchestrate_god_host_shadow(device_probe + authority.signal) after device_probe residency host transfer device_to_host policy telemetry_prefer_cpu
+    stage handoff_ok: law orchestrate_god_gpu_handoff_ok(host_return) after host_return residency host policy static
+    stage world_snapshot: world orchestrate_god_world_score(authority.signal, authority.epoch, authority.drift, authority.gpu_epoch) after handoff_ok requires handoff_ok residency shared transfer shared_view policy telemetry_balance_latency
+    stage committed: patch orchestrate_god_commit(authority, orchestrate_god_mod(host_return + world_snapshot, ORCHESTRATE_GOD_MODULUS), world_snapshot, device_probe) deps [host_return, world_snapshot] requires handoff_ok residency host policy telemetry_balance_latency
+    stage final_lane: dispatch orchestrate_god_dispatch_style(committed + value, authority.epoch) after committed residency shared transfer shared_view policy telemetry_balance_latency
+    if handoff_ok == false:
+        return value
+    return final_lane
+
+shader compute OrchestrateGodKernel(id: UVec3) -> Void workgroup(8, 1, 1):
+    uniform src: StorageBuffer<UInt> @0
+    uniform dst: StorageBuffer<UInt> @1
+
+    comptime:
+        let compute = (
+            [64, 1, 1],
+            [
+                ("src", "u32", ["dispatch.x"], "input", "kain.shared.buffer"),
+                ("dst", "u32", ["dispatch.x"], "output", "kain.shared.buffer"),
+            ],
+            [],
+        )
+
+    let lane = src[id.x]
+    dst[id.x] = lane + UInt(9)
+    return
+
+fn orchestrate_god_compute_entry(manifest: JsonObject, compute_key: String) -> JsonObject:
+    let entries = json_array_field(manifest, "compute_shaders")
+    if entries.ok == false:
+        return json_object()
+    let index = 0
+    while index < json_array_length(entries.value):
+        let entry = json_array_value_at(entries.value, index)
+        let key_field = json_string_field(entry, "key")
+        if key_field.ok and key_field.value == compute_key:
+            return entry
+        index = index + 1
+    return json_object()
+
+fn orchestrate_god_graph_memory_checksum(iterations: Int, modulus: Int) -> Int with GPU, Unsafe:
+    let init_status = runtime_init()
+    if init_status != 0:
+        return 100 + init_status
+
+    let authority = OrchestrateGodAuthority
+    authority.signal = 1
+    authority.epoch = 0
+    authority.drift = 0
+    authority.gpu_epoch = 0
+    let stage_base = orchestrate_stage_count()
+    let transfer_base = orchestrate_transfer_count()
+    let fallback_base = orchestrate_fallback_count()
+    let adaptive_base = orchestrate_adaptive_stage_count()
+    let teleport_base = runtime_machine_teleport_count()
+
+    let cells: ptr<Int> = alloc_zeroed(ORCHESTRATE_GOD_CELL_COUNT, "Int")
+    let log: ptr<Int> = alloc_zeroed(ORCHESTRATE_GOD_LOG_CAPACITY, "Int")
+    let acc = 0
+    let round = 0
+    while round < iterations:
+        defer orchestrate_god_log_append(log, 7000 + round)
+        let slot = (round * 13 + authority.epoch + 5) % ORCHESTRATE_GOD_CELL_COUNT
+        let old_cell = orchestrate_god_mem_load(cells, slot)
+        let preflight = orchestrate_god_preflight(orchestrate_god_mod(acc + old_cell + round + 31, modulus), authority)
+        let shard_seed = orchestrate_god_mod(preflight + round + authority.drift + 47, modulus)
+        let shard = OrchestrateGodShard {
+            bias: (shard_seed % 101) + 9,
+            phase: (authority.epoch % 8192) + 17,
+            token: orchestrate_god_mod(shard_seed + authority.signal + authority.gpu_epoch + 211, ORCHESTRATE_GOD_MODULUS),
+            gpu_hint: orchestrate_god_mod(shard_seed + authority.drift + 17, ORCHESTRATE_GOD_MODULUS),
+            alive: true
+        }
+        let moved = teleport shard from OrchestrateGodAuthority to OrchestrateGodMirror via orchestrate_god_bus
+        let shard_lane = orchestrate_god_shard_pipeline(orchestrate_god_shard_score(moved), moved.phase, moved.token + moved.gpu_hint, authority)
+        let reconciled = orchestrate_god_reconcile_pipeline(orchestrate_god_mod(preflight + shard_lane + old_cell, modulus), authority)
+        let next_cell = orchestrate_god_mod(
+            old_cell
+                + preflight
+                + shard_lane
+                + reconciled
+                + OrchestrateGodMirror.signal_copy
+                + OrchestrateGodMirror.epoch_copy
+                + OrchestrateGodMirror.drift_copy
+                + OrchestrateGodMirror.gpu_epoch_copy
+                + (runtime_machine_teleport_count() - teleport_base),
+            modulus,
+        )
+        orchestrate_god_mem_store(cells, slot, next_cell)
+        acc = orchestrate_god_mod(acc + next_cell + slot + (runtime_machine_teleport_count() - teleport_base), modulus)
+        round = round + 1
+
+    let cell_fold = observe cells:
+        orchestrate_god_fold_cells(cells, ORCHESTRATE_GOD_CELL_COUNT, modulus)
+    let log_cursor = observe log:
+        mem_load(log, "Int")
+    decay cells
+    decay log
+
+    let stage_delta = orchestrate_stage_count() - stage_base
+    let transfer_delta = orchestrate_transfer_count() - transfer_base
+    let fallback_delta = orchestrate_fallback_count() - fallback_base
+    let adaptive_delta = orchestrate_adaptive_stage_count() - adaptive_base
+    let runtime_shape_ok = (
+        patch_journal_count() >= 1
+        and entangle_propagation_count() >= iterations
+        and converge_mismatch_count() == 0
+        and stage_delta >= iterations * 20
+        and transfer_delta >= iterations * 8
+        and fallback_delta >= iterations * 4
+        and adaptive_delta >= iterations * 12
+    )
+    let shutdown_status = runtime_shutdown()
+    if shutdown_status != 0:
+        return 200 + shutdown_status
+    if runtime_shape_ok == false:
+        return 2
+    return orchestrate_god_mod(
+        acc
+            + cell_fold
+            + log_cursor
+            + stage_delta
+            + transfer_delta
+            + fallback_delta
+            + adaptive_delta
+            + OrchestrateGodMirror.signal_copy
+            + OrchestrateGodMirror.epoch_copy
+            + OrchestrateGodMirror.drift_copy
+            + OrchestrateGodMirror.gpu_epoch_copy,
+        modulus,
+    )
+
+fn orchestrate_god_dispatch_residency_checksum(iterations: Int, modulus: Int) -> Int with GPU, Unsafe:
+    let manifest_path = cuda_compute_residency_path()
+    let manifest = cuda_compute_manifest()
+    let entry = orchestrate_god_compute_entry(manifest, ORCHESTRATE_GOD_COMPUTE_KEY)
+    let manifest_exists = manifest_path != "" and fs_exists(manifest_path)
+    let workgroup_dims = json_int_array_field_result(entry, "workgroup_size")
+    let dispatch_dims = json_int_array_field_result(entry, "dispatch_size")
+    let bindings = json_array_field(entry, "bindings")
+
+    let init_status = runtime_init()
+    if init_status != 0:
+        return 300 + init_status
+
+    let authority = OrchestrateGodAuthority
+    authority.signal = 7
+    authority.epoch = 0
+    authority.drift = 19
+    authority.gpu_epoch = 23
+    let transfer_base = orchestrate_transfer_count()
+    let adaptive_base = orchestrate_adaptive_stage_count()
+
+    let acc = if manifest_exists: 29 else: 11
+    let index = 0
+    while index < iterations:
+        let preflight = orchestrate_god_preflight(orchestrate_god_mod(acc + index + 73, modulus), authority)
+        dispatch "shader::OrchestrateGodKernel::compute" [ORCHESTRATE_GOD_OVERRIDE_X, ORCHESTRATE_GOD_OVERRIDE_Y, ORCHESTRATE_GOD_OVERRIDE_Z]
+        let reconciled = orchestrate_god_reconcile_pipeline(preflight + abi_cuda_last_dispatch_invocations() + index, authority)
+        acc = orchestrate_god_mod(
+            acc
+                + preflight
+                + reconciled
+                + abi_cuda_last_status()
+                + abi_cuda_last_dispatch_invocations()
+                + abi_cuda_last_output_binding_count()
+                + abi_cuda_last_total_output_bytes()
+                + len(abi_cuda_last_error_kind())
+                + len(abi_cuda_last_error_message())
+                + index,
+            modulus,
+        )
+        index = index + 1
+
+    let shutdown_status = runtime_shutdown()
+    if shutdown_status != 0:
+        return 400 + shutdown_status
+
+    let manifest_score = if workgroup_dims.ok and dispatch_dims.ok and bindings.ok:
+        (
+            workgroup_dims.value[0]
+                + (workgroup_dims.value[1] * 10)
+                + (workgroup_dims.value[2] * 100)
+                + dispatch_dims.value[0]
+                + (dispatch_dims.value[1] * 10)
+                + (dispatch_dims.value[2] * 100)
+                + json_array_length(bindings.value)
+        )
+    else:
+        43
+
+    return orchestrate_god_mod(
+        acc
+            + manifest_score
+            + orchestrate_god_bool_score(cuda_has_compute_key(ORCHESTRATE_GOD_COMPUTE_KEY))
+            + orchestrate_god_bool_score(cuda_runtime_ready())
+            + (orchestrate_transfer_count() - transfer_base)
+            + (orchestrate_adaptive_stage_count() - adaptive_base),
+        modulus,
+    )
+
+fn orchestrate_god_policy_pressure_checksum(iterations: Int, modulus: Int) -> Int with GPU, Unsafe:
+    let init_status = runtime_init()
+    if init_status != 0:
+        return 500 + init_status
+
+    let authority = OrchestrateGodAuthority
+    authority.signal = 3
+    authority.epoch = 0
+    authority.drift = 5
+    authority.gpu_epoch = 8
+    let stage_base = orchestrate_stage_count()
+    let acc = 0
+    let index = 0
+    while index < iterations:
+        let left = orchestrate_god_preflight(orchestrate_god_mod(acc + index + 113, modulus), authority)
+        let right = orchestrate_god_reconcile_pipeline(orchestrate_god_mod(left + authority.drift + index, modulus), authority)
+        acc = orchestrate_god_mod(
+            acc
+                + left
+                + right
+                + index
+                + OrchestrateGodMirror.signal_copy
+                + OrchestrateGodMirror.gpu_epoch_copy,
+            modulus,
+        )
+        index = index + 1
+
+    let stage_delta = orchestrate_stage_count() - stage_base
+    let shutdown_status = runtime_shutdown()
+    if shutdown_status != 0:
+        return 600 + shutdown_status
+    if stage_delta < iterations * 14:
+        return 5
+    return orchestrate_god_mod(acc + stage_delta + OrchestrateGodMirror.drift_copy, modulus)
+
+fn orchestrate_god_full_moonshot_checksum(iterations: Int, modulus: Int) -> Int with GPU, Unsafe:
+    let memory_score = orchestrate_god_graph_memory_checksum(iterations / 2, modulus)
+    let dispatch_score = orchestrate_god_dispatch_residency_checksum(4, modulus)
+    let policy_score = orchestrate_god_policy_pressure_checksum(iterations / 2, modulus)
+    return orchestrate_god_mod(
+        memory_score
+            + dispatch_score
+            + policy_score
+            + ORCHESTRATE_GOD_DISPATCH_X
+            + ORCHESTRATE_GOD_OVERRIDE_X
+            + ORCHESTRATE_GOD_OVERRIDE_Y
+            + ORCHESTRATE_GOD_OVERRIDE_Z,
+        modulus,
+    )
+
+pub fn orchestrate_god_case_count() -> Int:
+    return ORCHESTRATE_GOD_CASE_COUNT
+
+pub fn orchestrate_god_case_id(index: Int) -> String:
+    if index == 0:
+        return "orchestrate_god_graph_memory"
+    if index == 1:
+        return "orchestrate_god_dispatch_residency"
+    if index == 2:
+        return "orchestrate_god_policy_pressure"
+    if index == 3:
+        return "orchestrate_god_full_moonshot"
+    return ""
+
+pub fn orchestrate_god_case_group(index: Int) -> String:
+    if index >= 0 and index < ORCHESTRATE_GOD_CASE_COUNT:
+        return "orchestrate_god"
+    return ""
+
+pub fn orchestrate_god_case_title(index: Int) -> String:
+    if index == 0:
+        return "Orchestrate God Graph Memory"
+    if index == 1:
+        return "Orchestrate God Dispatch Residency"
+    if index == 2:
+        return "Orchestrate God Policy Pressure"
+    if index == 3:
+        return "Orchestrate God Full Moonshot"
+    return ""
+
+pub fn orchestrate_god_case_iterations(index: Int) -> Int:
+    if index == 0:
+        return 384
+    if index == 1:
+        return 5
+    if index == 2:
+        return 512
+    if index == 3:
+        return 192
+    return 0
+
+pub fn orchestrate_god_case_expected_checksum(index: Int) -> Int with GPU, Unsafe:
+    return orchestrate_god_case_checksum(orchestrate_god_case_id(index), orchestrate_god_case_iterations(index), 1, ORCHESTRATE_GOD_MODULUS)
+
+pub fn orchestrate_god_case_checksum(case_id: String, iterations: Int, amplify: Int, modulus: Int) -> Int with GPU, Unsafe:
+    let repeat = 0
+    let acc = 0
+    while repeat < amplify:
+        if case_id == "orchestrate_god_graph_memory":
+            acc = orchestrate_god_mod(acc + orchestrate_god_graph_memory_checksum(iterations, modulus), modulus)
+        else if case_id == "orchestrate_god_dispatch_residency":
+            acc = orchestrate_god_mod(acc + orchestrate_god_dispatch_residency_checksum(iterations, modulus), modulus)
+        else if case_id == "orchestrate_god_policy_pressure":
+            acc = orchestrate_god_mod(acc + orchestrate_god_policy_pressure_checksum(iterations, modulus), modulus)
+        else if case_id == "orchestrate_god_full_moonshot":
+            acc = orchestrate_god_mod(acc + orchestrate_god_full_moonshot_checksum(iterations, modulus), modulus)
+        else:
+            return -1
+        repeat = repeat + 1
+    return acc
+
+pub fn orchestrate_god_case_telemetry(case_id: String) -> String:
+    let payload = json_object()
+    json_object_set_string(payload, "pack_id", "orchestrate_god")
+    json_object_set_string(payload, "case_id", case_id)
+    json_object_set_string(payload, "compute_key", ORCHESTRATE_GOD_COMPUTE_KEY)
+    json_object_set_bool(payload, "experimental", true)
+    json_object_set_bool(payload, "graph_metadata_compiler_owned", true)
+    json_object_set_bool(payload, "orchestrate_gpu_stage_supported", true)
+    json_object_set_string(payload, "orchestrate_last_runtime", orchestrate_last_runtime())
+    json_object_set_string(payload, "orchestrate_last_function", orchestrate_last_function())
+    json_object_set_string(payload, "orchestrate_last_selector", orchestrate_last_selector())
+    json_object_set_string(payload, "orchestrate_last_dependencies", orchestrate_last_dependencies())
+    json_object_set_string(payload, "orchestrate_last_residency", orchestrate_last_residency())
+    json_object_set_string(payload, "orchestrate_last_transfer", orchestrate_last_transfer())
+    json_object_set_string(payload, "orchestrate_last_guard", orchestrate_last_guard())
+    json_object_set_string(payload, "orchestrate_last_fallback", orchestrate_last_fallback())
+    json_object_set_string(payload, "orchestrate_last_requires", orchestrate_last_requires())
+    json_object_set_string(payload, "orchestrate_last_policy", orchestrate_last_policy())
+    json_object_set_int(payload, "orchestrate_stage_count", orchestrate_stage_count())
+    json_object_set_int(payload, "orchestrate_transfer_count", orchestrate_transfer_count())
+    json_object_set_int(payload, "orchestrate_fallback_count", orchestrate_fallback_count())
+    json_object_set_int(payload, "orchestrate_adaptive_stage_count", orchestrate_adaptive_stage_count())
+    json_object_set_int(payload, "patch_journal_count", patch_journal_count())
+    json_object_set_int(payload, "entangle_propagation_count", entangle_propagation_count())
+    json_object_set_int(payload, "converge_mismatch_count", converge_mismatch_count())
+    json_object_set_int(payload, "runtime_machine_teleport_count", runtime_machine_teleport_count())
+    json_object_set_int(payload, "runtime_machine_teleport_last_token", runtime_machine_teleport_last_token())
+    json_object_set_string(payload, "declared_axiom", "orchestrate_god_silicon_truth")
+    json_object_set_string(payload, "declared_stage_kinds", "cpu,c,python,converge,gpu,law,patch,dispatch,world,kain")
+    json_object_set_string(payload, "declared_graph_clauses", "after,deps,residency,transfer,guarded by,fallback,requires,policy")
+
+    if case_id == "orchestrate_god_graph_memory":
+        json_object_set_string(payload, "surface", "orchestrate-graph-raw-memory-shatter-teleport-world-entangle")
+        json_object_set_string(payload, "pack_focus", "graph metadata drives staged cpu/gpu/law/patch/world work over raw memory")
+        return json_stringify(payload)
+
+    if case_id == "orchestrate_god_dispatch_residency":
+        let manifest_path = cuda_compute_residency_path()
+        let manifest_exists = manifest_path != "" and fs_exists(manifest_path)
+        let manifest = cuda_compute_manifest()
+        let entry = orchestrate_god_compute_entry(manifest, ORCHESTRATE_GOD_COMPUTE_KEY)
+        let bindings = json_array_field(entry, "bindings")
+        json_object_set_string(payload, "surface", "orchestrate-graph-dispatch-shader-residency")
+        json_object_set_string(payload, "manifest_path", manifest_path)
+        json_object_set_bool(payload, "manifest_exists", manifest_exists)
+        json_object_set_bool(payload, "compute_key_present", cuda_has_compute_key(ORCHESTRATE_GOD_COMPUTE_KEY))
+        json_object_set_bool(payload, "runtime_ready", cuda_runtime_ready())
+        if bindings.ok:
+            json_object_set_int(payload, "binding_count", json_array_length(bindings.value))
+        else:
+            json_object_set_int(payload, "binding_count", -1)
+        json_object_set_int_array(payload, "expected_workgroup_size", [8, 1, 1])
+        json_object_set_int_array(payload, "expected_dispatch_size", [ORCHESTRATE_GOD_DISPATCH_X, ORCHESTRATE_GOD_DISPATCH_Y, ORCHESTRATE_GOD_DISPATCH_Z])
+        json_object_set_int_array(payload, "override_dispatch_size", [ORCHESTRATE_GOD_OVERRIDE_X, ORCHESTRATE_GOD_OVERRIDE_Y, ORCHESTRATE_GOD_OVERRIDE_Z])
+        json_object_set_string(payload, "pack_focus", "graph metadata and shader dispatch residency share one benchmark")
+        return json_stringify(payload)
+
+    if case_id == "orchestrate_god_policy_pressure":
+        json_object_set_string(payload, "surface", "orchestrate-policy-fallback-transfer-pressure")
+        json_object_set_string(payload, "pack_focus", "adaptive graph policies and fallback metadata hammered in a hot loop")
+        return json_stringify(payload)
+
+    if case_id == "orchestrate_god_full_moonshot":
+        json_object_set_string(payload, "surface", "single-file-orchestrate-god-mode-moonshot")
+        json_object_set_bool(payload, "compute_key_present", cuda_has_compute_key(ORCHESTRATE_GOD_COMPUTE_KEY))
+        json_object_set_bool(payload, "runtime_ready", cuda_runtime_ready())
+        json_object_set_int(payload, "last_status", abi_cuda_last_status())
+        json_object_set_string(payload, "last_error_kind", abi_cuda_last_error_kind())
+        json_object_set_string(payload, "pack_focus", "all graph-aware orchestrate semantics stacked into one proof lane")
+        return json_stringify(payload)
+
+    json_object_set_string(payload, "pack_focus", "orchestrate_god")
+    return json_stringify(payload)

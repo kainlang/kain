@@ -102,7 +102,7 @@ Core source anchors:
 | `patch` | Intentional journaled state mutation | `patch commit(world: World, value: Int) -> Int:` | `types.rs check_patch`, `runtime_contract.rs RuntimePatchContract`, `stdlib/intent.kn` |
 | `law` | Invariant predicate with Bool contract | `law in_bounds(x: Int) -> Bool:` | `types.rs check_law`, Z3 `keywords-law-runtime-accepts-only-bool-results.yaml` |
 | `converge` | Spec plus target/capability fast lanes | `spec reference`, `fast llvm_lane when target("llvm")` | `types.rs check_converge`, `runtime.rs select_converge_lane`, LLVM `compile_converge` |
-| `orchestrate` | Typed stage graph over silicon, invariants, Kain/C/Python, and compatibility adapters | `stage x: gpu fn(value) when capability("gpu.compute")` | `crates/orchestrate`, `types.rs collect_orchestrate_stage_descriptors`, `runtime.rs execute_stage_call` |
+| `orchestrate` | Typed stage graph over silicon, invariants, Kain/C/Python, and compatibility adapters, including graph metadata for dependencies, residency, transfers, guards, fallbacks, law requirements, and policies | `stage x: gpu fn(value) when capability("gpu.compute") after seed residency device transfer host_to_device guarded by gpu_truth fallback degrade cpu_seed policy telemetry_prefer_gpu` | `crates/orchestrate`, `types.rs collect_orchestrate_stage_descriptors`, `runtime.rs execute_stage_call` |
 | `axiom` | Machine/environment truth with fallback | `when target("llvm")`, `guarantee`, `fallback` | `types.rs check_axiom`, LLVM `kain_machine_axiom_accept`, `machine_stones.c` |
 | `pulse` | First-class temporal beat | `pulse tick every 8ms jitter 1ms:` | `types.rs check_pulse`, LLVM pulse lowering, `machine_stones.c` |
 | `teleport` | Destructive cross-world ownership handoff | `teleport value from A to B via channel` | `types.rs ensure_teleport_world_reference`, LLVM `compile_teleport_expr`, `machine_stones.c` |
@@ -355,35 +355,38 @@ Primary source anchors:
 
 ## Orchestrate
 
-Use `orchestrate` to express a typed pipeline across Kain and registered host runtimes.
+Use `orchestrate` to express a typed silicon/semantic stage graph. It is no longer just a host-runtime wrapper; it can describe how CPU, GPU, dispatch, converge, law, patch, world, Kain, C, Python, and legacy adapter stages flow.
 
 ```kn
 fn scalar_stage(value: Int) -> Int:
     return (value + 19) % 1000000007
 
 orchestrate pipeline(value: Int) -> Int:
-    let normalized: Int = kain mix(value)
-    let staged: Int = rust scalar_stage(normalized)
+    stage normalized: cpu mix(value) residency host policy static
+    stage staged: gpu scalar_stage(normalized) after normalized residency device transfer host_to_device guarded by gpu_truth fallback degrade normalized policy telemetry_prefer_gpu
     return staged
 ```
 
 Rules:
 
-- Stage runtimes currently parsed are `kain`, `rust`, `python`, and `node`.
+- Stage runtimes currently parsed are `kain`, `c`, `cpu`, `gpu`, `dispatch`, `converge`, `law`, `patch`, `world`, `python`, `rust`, and `node`.
 - A stage call syntax is `<runtime> function(args)`, represented as `Expr::StageCall`.
-- Stage calls must be top-level typed `let binding: Type = <runtime> function(...)` declarations.
+- Prefer the contextual statement form `stage binding: <runtime> function(...)`; legacy top-level `let binding: Type = <runtime> function(...)` remains accepted.
 - Stage declarations must come before local computation.
 - Nested stage calls, bare stage calls, untyped stage lets, and late stage declarations are rejected.
+- Graph metadata clauses are `after <stage>`, `deps [a, b]`, `residency host|shared|device`, `transfer none|host_to_device|device_to_host|shared_view`, `guarded by <axiom>`, `fallback abort|<stage>|degrade <stage>`, `requires <law-stage>`, and `policy static|telemetry_prefer_gpu|telemetry_prefer_cpu|telemetry_balance_latency`.
+- Guards must reference an `axiom`; dependency cycles, unknown dependencies, unknown fallbacks, unknown requirements, and impossible transfer/residency pairs are rejected at typecheck.
+- Runtime contracts, realtime bundles, LLVM telemetry, and `std::intent` expose graph metadata including transfer/fallback/adaptive-policy counters.
 - `rust` stages must resolve to native functions in the interpreter.
 - `python` and `node` stages require registered bridge helpers.
-- Direct `c` stage syntax is not currently an orchestrate runtime. Use `use c::...` and normal calls in `lang-c-abi`, or escalate to `bootstrap-core` if the language should grow `c` as a stage runtime.
+- `c` and `python` are first-class stage labels, but true foreign boundary behavior still depends on the active lowering/runtime lane; do not claim a direct C/Python bridge crossing unless the benchmark or proof actually uses that bridge.
 
 Primary source anchors:
 
 - `parser.rs`: `parse_orchestrate`, `parse_orchestrate_stage_runtime`, `Expr::StageCall` parse in primary expressions.
 - `types.rs`: `check_orchestrate`, `collect_orchestrate_stage_descriptors`, `infer_expr_type Expr::StageCall`.
 - `runtime.rs`: `execute_orchestrate_call`, `execute_stage_call`, `execute_rust_stage_call`, `execute_python_stage_call`, `execute_node_stage_call`.
-- `runtime_contract.rs`: `RuntimeOrchestrationContract`, `RuntimeOrchestrationStageContract`, capability `orchestrate.pipeline`.
+- `runtime_contract.rs`: `RuntimeOrchestrationContract`, `RuntimeOrchestrationStageContract`, graph mode/adaptive policy fields, capability `orchestrate.pipeline`.
 - Z3: `crates/core/z3/proofs/keywords-orchestrate-rejects-invalid-stage-ordering.yaml`.
 
 ## Axiom, Pulse, Shatter, Teleport
@@ -651,7 +654,7 @@ For proofs:
 - Do not replace `world` plus `entangle` with two plain structs just because it is easier.
 - Do not replace `patch` with a helper function when mutation intent and journalability matter.
 - Do not replace `law` with a random `if` when the invariant is part of runtime proof shape.
-- Do not use `orchestrate` as fake syntax for unsupported runtimes; current runtimes are `kain`, `rust`, `python`, and `node`.
+- Do not use `orchestrate` as fake syntax for unsupported runtimes; current runtimes are `kain`, `c`, `cpu`, `gpu`, `dispatch`, `converge`, `law`, `patch`, `world`, `python`, `rust`, and `node`.
 - Do not advertise `verify exhaustive` in `converge` unless the current parser supports it.
-- Do not put C-ABI package usage into `orchestrate`; use `use c::...` and `lang-c-abi`.
+- Do not claim `c`/`python` stages crossed a foreign ABI unless the proof actually routes through the C/Python bridge.
 - Do not tell future agents to read a random fixed file as the only source of truth. Give source anchors and examples, then verify with `rg`.

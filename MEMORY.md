@@ -79,6 +79,35 @@ Operational notes:
 - The main v2 router still fails before selection because `vulkan_loader.kn` uses a static native FFI tier that cannot be loaded by the live dynamic bridge. Use `benchmark/cases_v2/.telemetryrouter/gpu_router.kn` for focused GPU CPU pipeline proof until the Vulkan route is fixed.
 - `stdlib/io.kn` needed `var br = buffered_reader_new(capacity)` in `buffered_reader_new_from_text` so LLVM can take `addr_of(br, "BufferedReader")`; this unblocks the GPU router run path through `std::fs`.
 
+# 2026-06-03 - orchestrate graph metadata moonshot and god-mode benchmark
+
+What changed:
+
+- Split `crates/orchestrate` into portable `stage`, `graph`, and `planner` modules. Stages now carry `OrchestrateStageGraphMetadata` with dependencies, residency, transfer, guard axiom, fallback, law requirement, and planner policy.
+- Parser accepts graph clauses on `stage`: `after`, `deps [...]`, `residency host|shared|device`, `transfer none|host_to_device|device_to_host|shared_view`, `guarded by <axiom>`, `fallback abort|<stage>|degrade <stage>`, `requires <law-stage>`, and `policy static|telemetry_prefer_gpu|telemetry_prefer_cpu|telemetry_balance_latency`.
+- Typecheck validates graph integrity: duplicate/unknown stages, dependency cycles, unknown requirements/fallbacks, guards that are not axioms, and impossible transfer/residency pairs.
+- Runtime contracts and realtime bundles expose graph mode, adaptive policy, and all per-stage graph fields. LLVM lowering now calls `abi_orchestrate_stage_begin_graph(...)`, and `stdlib/intent.kn` exposes last dependency/residency/transfer/guard/fallback/requires/policy plus transfer/fallback/adaptive counters.
+- Added `benchmark/cases_v2/orchestrate_god.kn`, a Kain-native moonshot pack that abuses orchestrate across CPU, GPU, dispatch, converge, law, patch, world, C/Python labels, raw memory, shatter, pulse, teleport, CUDA manifest telemetry, graph clauses, and focused JSON telemetry.
+- Added focused router `benchmark/cases_v2/.telemetryrouter/orchestrate_god_router.kn`, wired `orchestrate_god` into the main v2 router, and added the pack as a `benchmark/build.kn` input.
+
+Validation so far:
+
+- `cargo check -p kain-orchestrate`
+- `cargo check -p kain-core -p kain-sys-codegen`
+- `cargo test -p kain-core --test compiler_owned_intent_test orchestrate_graph -- --nocapture`
+- Fresh Cargo CLI `kain check benchmark\cases_v2\orchestrate_god.kn --target llvm`
+- Fresh Cargo CLI `kain check benchmark\cases_v2\.telemetryrouter\orchestrate_god_router.kn --target llvm`
+- Fresh Cargo CLI `kain check benchmark\cases_v2\.telemetryrouter\router.kn --target llvm`
+- Fresh Bazel `kain check benchmark\cases_v2\orchestrate_god.kn --target llvm`
+- Fresh Bazel `kain check benchmark\cases_v2\.telemetryrouter\orchestrate_god_router.kn --target llvm`
+- Focused run passed with `KAIN_BENCH_V2_PASSES=1`, `KAIN_BENCH_V2_WARMUPS=0`: `benchmark/out/reports/latest_v2_orchestrate_god.json` reported `success_count: 4`, `failure_count: 0`, `orchestrate_stage_count: 36476`, `orchestrate_transfer_count: 20432`, `orchestrate_fallback_count: 9736`, and `orchestrate_adaptive_stage_count: 27014`.
+
+Operational notes:
+
+- `transfer none` lexes as the Kain `none` token, so `parse_string_like_argument` now accepts `true`, `false`, and `none` token values in addition to strings and identifiers.
+- Focused proof should use `benchmark/cases_v2/.telemetryrouter/orchestrate_god_router.kn` first; the main v2 router can still be affected by unrelated imported packs.
+- A main-router filtered run with `KAIN_BENCH_V2_FILTER=orchestrate_god` still fails before selection because `benchmark/cases_v2/classic_systems.kn` hits codegen `Undefined variable: iterations_per_worker` in `contention_wall_checksum`; do not treat that as an `orchestrate_god` failure.
+
 # 2026-06-01 - compiler benchmark now beats Rust through runtime elision and native executable CAS
 
 What changed:

@@ -103,6 +103,7 @@ description: >-
   - `benchmark/out/reports/v2_tracks/<case>.json`
 - The router currently imports pack modules such as `classic_core.kn`, `classic_systems.kn`, `classic_core3d.kn`, `python_interop.kn`, and `rage_runtime.kn`. Treat each file as a benchmark pack that can expose multiple rows from one authored Kain file.
 - The main v2 router compiles and links imported packs before `KAIN_BENCH_V2_FILTER` can isolate selection. If an unrelated pack has a native link failure, use a focused router when one exists or create one for the pack family rather than treating the selected case as failed. The GPU CPU pipeline proof uses `benchmark/cases_v2/.telemetryrouter/gpu_router.kn` to isolate `gpu_cpu_pipeline` from the unrelated Vulkan loader link gap.
+- The orchestrate moonshot proof uses `benchmark/cases_v2/orchestrate_god.kn` plus focused router `benchmark/cases_v2/.telemetryrouter/orchestrate_god_router.kn`; it validates graph metadata clauses (`after`, `deps`, `residency`, `transfer`, `guarded by`, `fallback`, `requires`, `policy`) through runtime-visible `std::intent` telemetry.
 
 ### When To Use V2
 

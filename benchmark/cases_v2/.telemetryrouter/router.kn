@@ -106,6 +106,14 @@ use orchestration::orchestration_case_id
 use orchestration::orchestration_case_iterations
 use orchestration::orchestration_case_telemetry
 use orchestration::orchestration_case_title
+use orchestrate_god::orchestrate_god_case_checksum
+use orchestrate_god::orchestrate_god_case_count
+use orchestrate_god::orchestrate_god_case_expected_checksum
+use orchestrate_god::orchestrate_god_case_group
+use orchestrate_god::orchestrate_god_case_id
+use orchestrate_god::orchestrate_god_case_iterations
+use orchestrate_god::orchestrate_god_case_telemetry
+use orchestrate_god::orchestrate_god_case_title
 use metal::metal_case_checksum
 use metal::metal_case_count
 use metal::metal_case_expected_checksum
@@ -503,6 +511,9 @@ fn run_case_checksum(case_id: String, iterations: Int, amplify: Int) -> Int with
     let orchestration_checksum = orchestration_case_checksum(case_id, iterations, amplify, ROUTER_MODULUS)
     if orchestration_checksum >= 0:
         return orchestration_checksum
+    let orchestrate_god_checksum = orchestrate_god_case_checksum(case_id, iterations, amplify, ROUTER_MODULUS)
+    if orchestrate_god_checksum >= 0:
+        return orchestrate_god_checksum
     let metal_checksum = metal_case_checksum(case_id, iterations, amplify, ROUTER_MODULUS)
     if metal_checksum >= 0:
         return metal_checksum
@@ -539,6 +550,8 @@ fn case_telemetry_json(pack_id: String, case_id: String) -> String:
         return gpu_cpu_pipeline_case_telemetry(case_id)
     if pack_id == "orchestration":
         return orchestration_case_telemetry(case_id)
+    if pack_id == "orchestrate_god":
+        return orchestrate_god_case_telemetry(case_id)
     if pack_id == "metal":
         return metal_case_telemetry(case_id)
     let content = "{"
@@ -1021,6 +1034,23 @@ fn main() -> Int with Unsafe:
                 failure_count = failure_count + 1
             println("[bench-v2] " + case_id + " best=" + str(result.best_ms) + "ms avg=" + str(result.average_ms) + "ms status=" + result_status_text(result))
         orchestration_index = orchestration_index + 1
+
+    let orchestrate_god_index = 0
+    while orchestrate_god_index < orchestrate_god_case_count():
+        let case_id = orchestrate_god_case_id(orchestrate_god_index)
+        let case_group = orchestrate_god_case_group(orchestrate_god_index)
+        if case_selected(config.filter_text, case_id, case_group):
+            let result = run_case("orchestrate_god", case_id, case_group, orchestrate_god_case_title(orchestrate_god_index), orchestrate_god_case_iterations(orchestrate_god_index), orchestrate_god_case_expected_checksum(orchestrate_god_index), config)
+            let _track = write_track_report(result)
+            cases_json_items = append_json_item(cases_json_items, render_result_json(result))
+            table_rows = table_rows + format_result_row(result)
+            case_count = case_count + 1
+            if result.success:
+                success_count = success_count + 1
+            else:
+                failure_count = failure_count + 1
+            println("[bench-v2] " + case_id + " best=" + str(result.best_ms) + "ms avg=" + str(result.average_ms) + "ms status=" + result_status_text(result))
+        orchestrate_god_index = orchestrate_god_index + 1
 
     let metal_index = 0
     while metal_index < metal_case_count():

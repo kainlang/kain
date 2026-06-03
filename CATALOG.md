@@ -56,7 +56,7 @@ These have dedicated token entries in `TokenKind`.
 
 `Pure`, `IO`, `async`, `Async`, `GPU`, `Reactive`, `Unsafe`
 
-## 2. Contextual Or Keyword-Like Parser Words (`41`)
+## 2. Contextual Or Keyword-Like Parser Words (`49`)
 
 These are not all tokenized as dedicated keywords, but the parser treats them like language words in specific positions.
 
@@ -66,12 +66,16 @@ These are not all tokenized as dedicated keywords, but the parser treats them li
 
 ### Import, Clause, And Selector Words
 
-`include`, `import`, `from`, `where`, `stage`, `every`, `when`, `guarantee`, `fallback`, `spec`, `fast`, `verify`, `random`, `jitter`, `target`, `capability`, `to`, `via`
+`include`, `import`, `from`, `where`, `stage`, `after`, `deps`, `residency`, `transfer`, `guarded`, `by`, `requires`, `policy`, `every`, `when`, `guarantee`, `fallback`, `spec`, `fast`, `verify`, `random`, `jitter`, `target`, `capability`, `to`, `via`
 
 `stage` is the contextual statement form inside orchestrated pipelines:
-`stage result: gpu kernel(value) when capability("gpu.compute")`. It lowers through
-the normal stage-call expression shape while preserving typed graph metadata for
-runtime contracts, realtime app bundles, and native telemetry.
+`stage result: gpu kernel(value) when capability("gpu.compute") residency device transfer host_to_device guarded by gpu_truth fallback degrade cpu_seed policy telemetry_prefer_gpu`.
+It lowers through the normal stage-call expression shape while preserving typed
+graph metadata for dependency validation, runtime contracts, realtime app
+bundles, LLVM telemetry, and native `std::intent` counters. Graph clauses include
+`after`, `deps [...]`, `residency host|shared|device`, `transfer none|host_to_device|device_to_host|shared_view`,
+`guarded by <axiom>`, `fallback abort|<stage>|degrade <stage>`, `requires <law-stage>`,
+and `policy static|telemetry_prefer_gpu|telemetry_prefer_cpu|telemetry_balance_latency`.
 
 `include` now covers both local C header imports such as
 `include native/foo.h as foo` and the registry-backed system-header lane such
@@ -100,7 +104,7 @@ These are word forms for operators, not normal declaration keywords, but they st
 
 If you just want one big memory dump, this is the current authored Kain word surface counted above.
 
-`fn`, `let`, `mut`, `var`, `const`, `if`, `else`, `elif`, `match`, `for`, `while`, `loop`, `break`, `continue`, `return`, `defer`, `await`, `in`, `with`, `as`, `type`, `struct`, `enum`, `trait`, `impl`, `pub`, `mod`, `use`, `self`, `Self`, `true`, `false`, `none`, `component`, `shader`, `actor`, `state`, `spawn`, `send`, `receive`, `emit`, `comptime`, `macro`, `vertex`, `fragment`, `collapse`, `observe`, `decay`, `share`, `fanout`, `test`, `Pure`, `IO`, `async`, `Async`, `GPU`, `Reactive`, `Unsafe`, `patch`, `law`, `axiom`, `pulse`, `orchestrate`, `converge`, `world`, `entangle`, `shatter`, `teleport`, `include`, `import`, `from`, `where`, `stage`, `every`, `when`, `guarantee`, `fallback`, `spec`, `fast`, `verify`, `random`, `jitter`, `target`, `capability`, `to`, `via`, `surface`, `native_ui`, `viewport3d`, `web`, `ue5`, `compute`, `uniform`, `workgroup`, `dispatch`, `render`, `on`, `weak`, `single_writer`, `and`, `or`
+`fn`, `let`, `mut`, `var`, `const`, `if`, `else`, `elif`, `match`, `for`, `while`, `loop`, `break`, `continue`, `return`, `defer`, `await`, `in`, `with`, `as`, `type`, `struct`, `enum`, `trait`, `impl`, `pub`, `mod`, `use`, `self`, `Self`, `true`, `false`, `none`, `component`, `shader`, `actor`, `state`, `spawn`, `send`, `receive`, `emit`, `comptime`, `macro`, `vertex`, `fragment`, `collapse`, `observe`, `decay`, `share`, `fanout`, `test`, `Pure`, `IO`, `async`, `Async`, `GPU`, `Reactive`, `Unsafe`, `patch`, `law`, `axiom`, `pulse`, `orchestrate`, `converge`, `world`, `entangle`, `shatter`, `teleport`, `include`, `import`, `from`, `where`, `stage`, `after`, `deps`, `residency`, `transfer`, `guarded`, `by`, `requires`, `policy`, `every`, `when`, `guarantee`, `fallback`, `spec`, `fast`, `verify`, `random`, `jitter`, `target`, `capability`, `to`, `via`, `surface`, `native_ui`, `viewport3d`, `web`, `ue5`, `compute`, `uniform`, `workgroup`, `dispatch`, `render`, `on`, `weak`, `single_writer`, `and`, `or`
 
 ## 5. What This Catalog Deliberately Excludes
 

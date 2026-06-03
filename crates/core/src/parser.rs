@@ -2235,6 +2235,18 @@ impl<'a> Parser<'a> {
                 self.advance();
                 Ok(value)
             }
+            TokenKind::True => {
+                self.advance();
+                Ok("true".to_string())
+            }
+            TokenKind::False => {
+                self.advance();
+                Ok("false".to_string())
+            }
+            TokenKind::None => {
+                self.advance();
+                Ok("none".to_string())
+            }
             _ => Err(self.parser_error(
                 format!("{label} expects a string or identifier"),
                 self.current_span(),
@@ -4291,7 +4303,7 @@ impl<'a> Parser<'a> {
                 self.expect(TokenKind::RBracket)?;
             } else if self.peek_contextual_ident("residency") {
                 self.advance();
-                let name = self.parse_ident()?;
+                let name = self.parse_string_like_argument("orchestrate residency")?;
                 metadata.residency =
                     Some(OrchestrateResidency::from_name(&name).ok_or_else(|| {
                         self.parser_error(
@@ -4303,7 +4315,7 @@ impl<'a> Parser<'a> {
                     })?);
             } else if self.peek_contextual_ident("transfer") {
                 self.advance();
-                let name = self.parse_ident()?;
+                let name = self.parse_string_like_argument("orchestrate transfer")?;
                 metadata.transfer =
                     Some(OrchestrateTransfer::from_name(&name).ok_or_else(|| {
                         self.parser_error(
@@ -4333,7 +4345,7 @@ impl<'a> Parser<'a> {
                 metadata.requires = Some(self.parse_ident()?);
             } else if self.peek_contextual_ident("policy") {
                 self.advance();
-                let name = self.parse_ident()?;
+                let name = self.parse_string_like_argument("orchestrate policy")?;
                 metadata.policy = Some(OrchestratePlannerPolicy::from_name(&name).ok_or_else(
                     || {
                         self.parser_error(
