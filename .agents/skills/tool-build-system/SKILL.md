@@ -36,6 +36,7 @@ This is the one explicit skill for repo build plumbing. If the question is Bazel
 - Native LLVM/C executable builds have two speed lanes in `crates/cli/src/kain_launcher.rs`:
   - Runtime elision walks the emitted LLVM call graph from `@main`; when no reachable non-intrinsic external call exists, no C-FFI inputs exist, and no GPU runtime staging is needed, the launcher skips native runtime bundle compilation/link libs.
   - Runtime-elided native outputs are eligible for the source-content executable CAS under `.kain/cache/native-exec`, restoring the backend artifact, executable, and sidecars before frontend/codegen/link work on a hit.
+- Native LLVM IR slicing is shared through `kain-driver::slice_llvm_native_executable_ir` and defaults on for direct CLI and `build.kn` LLVM tasks. It preserves the full frontend stdlib/runtime contract, then removes unreachable `define` bodies and unused `declare`s from the native executable IR after codegen. Use `KAIN_NATIVE_LLVM_IR_SLICING=0` to disable it.
 - Use `KAIN_NATIVE_RUNTIME_ELISION=0` to disable runtime elision, `KAIN_NATIVE_EXEC_CACHE=0` to disable executable CAS, and `KAIN_NATIVE_EXEC_CACHE_DIR=<dir>` to relocate the cache. If a changed source line appears stale, first inspect the stderr cache key; exact source text is stored and compared before a cache hit is accepted.
 - When a change touches build provenance, prove it through `kain doctor`, not just by eyeballing `bazel-bin`.
 - If the problem is "runtime build wrapper fails" or "fresh Kain binary is stale", keep it here rather than scattering that guidance across runtime or package skills.
@@ -61,3 +62,13 @@ Get-Content benchmark/out/snapshots/latest_compiler.md
 ```
 
 After a fresh release launcher build, run once to populate the native executable CAS and again for the warm source-content clean/rebuild scoreboard. The 2026-06-01 proof hit Kain `28.028 ms` clean and `26.714 ms` rebuild versus Rust `288.092 ms` clean and `282.636 ms` rebuild.
+
+For the honest no-prior-native-exec-cache lane, disable the CAS but leave LLVM IR slicing enabled:
+
+```powershell
+$env:KAIN_NATIVE_EXEC_CACHE="0"
+$env:KAIN_NATIVE_LLVM_IR_SLICING="1"
+python benchmark/run_compiler.py --case single_file_small --runs 5 --warmups 2 --kain-exe <fresh-bazel-release-kain.exe>
+```
+
+The 2026-06-02 proof measured Kain `257.584 ms` clean / `251.906 ms` rebuild versus Rust `269.106 ms` clean / `285.777 ms` rebuild, so Kain was faster even without the native executable CAS. Public `kain build <file>.kn --target llvm` and `kain run <file>.kn --target llvm` also exercise this path; if their wall time spikes, separate script compile/link time from Bazel launcher config-analysis refresh.

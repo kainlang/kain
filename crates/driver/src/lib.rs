@@ -43,6 +43,7 @@ use kain_core::{
 
 #[cfg(feature = "sys")]
 mod compute_residency;
+pub mod llvm_ir;
 #[cfg(feature = "sys")]
 mod native_app;
 #[cfg(feature = "tauri")]
@@ -67,6 +68,10 @@ pub use compute_residency::{
 };
 #[cfg(feature = "tauri")]
 pub use kain_ui_tauri::{TauriCapabilityPreset, TauriPermissionPreset, TauriPluginPreset};
+pub use llvm_ir::{
+    analyze_llvm_ir_reachability, slice_llvm_native_executable_ir, LlvmIrReachability,
+    LlvmIrSliceStats,
+};
 #[cfg(feature = "sys")]
 pub use native_app::{
     compile_native_app_bundle, discover_native_app_root_component, materialize_native_app_bundle,
@@ -562,7 +567,8 @@ impl DriverSession {
         let extra_globals = extra_globals.into_iter().collect::<Vec<_>>();
         let can_cache_checked = extra_globals.is_empty();
         if can_cache_checked {
-            if let Some(cached) = try_reuse_cached_checked_frontend(self, source, source_path, target)
+            if let Some(cached) =
+                try_reuse_cached_checked_frontend(self, source, source_path, target)
             {
                 return Ok(cached.checked);
             }
@@ -598,8 +604,7 @@ impl DriverSession {
             target,
             CompilerProgressPhase::Typecheck,
         );
-        let typed =
-            types::check_with_extra_globals(&ast, &span_mapper, &filename, extra_globals)?;
+        let typed = types::check_with_extra_globals(&ast, &span_mapper, &filename, extra_globals)?;
         let checked = CheckedFrontend { ast, typed };
 
         if can_cache_checked {
@@ -5189,7 +5194,9 @@ fn main() -> Int:
             .expect("llvm output");
 
         assert!(llvm.contains("define internal i64 @Packet_fold_seed(%Packet %arg0)"));
-        assert!(llvm.contains("define internal i64 @crunch_metric_Packet(%Packet %arg0, i64 %arg1)"));
+        assert!(
+            llvm.contains("define internal i64 @crunch_metric_Packet(%Packet %arg0, i64 %arg1)")
+        );
         assert!(llvm.contains("call i64 @Packet_fold_seed(%Packet"));
         assert!(llvm.contains("call i64 @crunch_metric_Packet(%Packet"));
     }
@@ -5233,7 +5240,9 @@ fn main() -> Int:
             .items
             .iter()
             .find_map(|item| match item {
-                TypedItem::Function(function) if function.ast.name == "wrap_packet" => Some(function),
+                TypedItem::Function(function) if function.ast.name == "wrap_packet" => {
+                    Some(function)
+                }
                 _ => None,
             })
             .expect("wrap_packet function");

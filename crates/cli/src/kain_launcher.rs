@@ -288,6 +288,9 @@ impl NativeToolchainTuning {
     }
 
     fn apply_link_gc_flags(&self, command: &mut Command) {
+        if cfg!(windows) && !self.debug_info {
+            command.arg("-Wl,/DEBUG:NONE");
+        }
         if self.profile == NativeToolchainProfile::Debug {
             return;
         }
@@ -953,31 +956,33 @@ fn run_source_with_session(
     let source = source.to_string();
 
     if matches!(target, CompileTarget::Llvm | CompileTarget::C) {
-        let prepare = CPrepareContext {
-            current_dir: std::env::current_dir().ok(),
-            manifest_path: None,
-        };
-        let import_options = CImportCOptions {
-            mode: CArtifactMode::Generate,
-            ..CImportCOptions::default()
-        };
-        if let Err(err) =
-            kain_c_ffi::import_libraries_for_source(&source, &import_options, &prepare)
-        {
-            let target_name = format!("{target:?}").to_ascii_lowercase();
-            eprintln!(" Failed to prepare C FFI source: {}", err);
-            capture_rendered_failure(
-                "command-failure",
-                "compile",
-                format!(" Failed to prepare C FFI source: {err}\n"),
-                None,
-                Some(&target_name),
-                Some(source_name),
-                source_path,
-                None,
-                serde_json::json!({"phase": "c-ffi-prepare"}),
-            );
-            return false;
+        if source_has_c_ffi_imports(&source) {
+            let prepare = CPrepareContext {
+                current_dir: std::env::current_dir().ok(),
+                manifest_path: None,
+            };
+            let import_options = CImportCOptions {
+                mode: CArtifactMode::Generate,
+                ..CImportCOptions::default()
+            };
+            if let Err(err) =
+                kain_c_ffi::import_libraries_for_source(&source, &import_options, &prepare)
+            {
+                let target_name = format!("{target:?}").to_ascii_lowercase();
+                eprintln!(" Failed to prepare C FFI source: {}", err);
+                capture_rendered_failure(
+                    "command-failure",
+                    "compile",
+                    format!(" Failed to prepare C FFI source: {err}\n"),
+                    None,
+                    Some(&target_name),
+                    Some(source_name),
+                    source_path,
+                    None,
+                    serde_json::json!({"phase": "c-ffi-prepare"}),
+                );
+                return false;
+            }
         }
     }
 
@@ -1176,7 +1181,7 @@ fn run_source_with_session(
 
     // Compile
     match session.compile_with_source_path(&source, source_path, target) {
-        Ok(compiled_output) => {
+        Ok(mut compiled_output) => {
             if target == CompileTarget::Interpret || target == CompileTarget::Test {
                 let trimmed_output = compiled_output.trim();
                 if !trimmed_output.is_empty() && trimmed_output != "()" {
@@ -1225,6 +1230,28 @@ fn run_source_with_session(
                 if !ensure_parent_dir(&output_path) {
                     return false;
                 }
+                if target == CompileTarget::Llvm {
+                    match slice_llvm_native_executable_ir(&compiled_output) {
+                        Ok(Some((sliced_output, stats))) => {
+                            eprintln!(
+                                " Native LLVM IR sliced: {} -> {} bytes, kept {}/{} functions (removed {}, declarations {})",
+                                stats.original_bytes,
+                                stats.sliced_bytes,
+                                stats.kept_functions,
+                                stats.original_functions,
+                                stats.removed_functions,
+                                stats.removed_declarations
+                            );
+                            compiled_output = sliced_output;
+                        }
+                        Ok(None) => {}
+                        Err(err) => {
+                            eprintln!(" Failed to slice native LLVM IR: {}", err);
+                            return false;
+                        }
+                    }
+                }
+
                 if let Err(e) = fs::write(&output_path, &compiled_output) {
                     eprintln!(" Failed to write output: {}", e);
                     return false;
@@ -1923,11 +1950,22 @@ fn native_runtime_elision_enabled() -> Result<bool, String> {
     }
 }
 
+fn native_llvm_ir_slicing_enabled() -> Result<bool, String> {
+    match std::env::var("KAIN_NATIVE_LLVM_IR_SLICING") {
+        Ok(value) => parse_bool_env_value("KAIN_NATIVE_LLVM_IR_SLICING", &value),
+        Err(_) => Ok(true),
+    }
+}
+
 fn native_executable_cache_enabled() -> Result<bool, String> {
     match std::env::var("KAIN_NATIVE_EXEC_CACHE") {
         Ok(value) => parse_bool_env_value("KAIN_NATIVE_EXEC_CACHE", &value),
         Err(_) => Ok(true),
     }
+}
+
+fn source_has_c_ffi_imports(source: &str) -> bool {
+    !kain_c_ffi::detect_c_library_imports(source).is_empty()
 }
 
 fn resolve_native_backend_output_paths(
@@ -2338,138 +2376,27 @@ fn llvm_native_runtime_elision_decision(
 }
 
 fn llvm_native_runtime_elision_decision_from_ir(ir: &str) -> NativeRuntimeElisionDecision {
-    let mut defined = BTreeSet::new();
-    let mut calls: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
-    let mut current_function: Option<String> = None;
-
-    for line in ir.lines() {
-        if let Some(function) = extract_defined_llvm_function(line) {
-            defined.insert(function.clone());
-            calls.entry(function.clone()).or_default();
-            current_function = Some(function);
-            continue;
-        }
-
-        if line.trim() == "}" {
-            current_function = None;
-            continue;
-        }
-
-        let Some(function) = current_function.as_ref() else {
-            continue;
-        };
-        for target in extract_direct_llvm_call_targets(line) {
-            calls.entry(function.clone()).or_default().insert(target);
-        }
-    }
-
-    if !defined.contains("main") {
+    let reachability = kain_driver::analyze_llvm_ir_reachability(ir, &["main"]);
+    if !reachability.defined_functions.contains("main") {
         return NativeRuntimeElisionDecision::keep("LLVM artifact has no defined @main");
     }
-
-    let mut reachable = BTreeSet::new();
-    let mut work = vec!["main".to_string()];
-    let mut reachable_external_targets = BTreeSet::new();
-    while let Some(function) = work.pop() {
-        if !reachable.insert(function.clone()) {
-            continue;
-        }
-        for target in calls.get(&function).into_iter().flatten() {
-            if is_allowed_llvm_external_target(target) {
-                continue;
-            }
-            if defined.contains(target) {
-                work.push(target.clone());
-            } else {
-                reachable_external_targets.insert(target.clone());
-            }
-        }
-    }
-
-    if reachable_external_targets.is_empty() {
-        NativeRuntimeElisionDecision::elide(reachable.len())
+    if reachability.reachable_external_targets.is_empty() {
+        NativeRuntimeElisionDecision::elide(reachability.reachable_functions.len())
     } else {
         NativeRuntimeElisionDecision::keep_for_external_targets(
-            reachable.len(),
-            reachable_external_targets,
+            reachability.reachable_functions.len(),
+            reachability.reachable_external_targets,
         )
     }
 }
 
-fn extract_defined_llvm_function(line: &str) -> Option<String> {
-    let trimmed = line.trim_start();
-    if !trimmed.starts_with("define ") {
-        return None;
+fn slice_llvm_native_executable_ir(
+    ir: &str,
+) -> Result<Option<(String, kain_driver::LlvmIrSliceStats)>, String> {
+    if !native_llvm_ir_slicing_enabled()? {
+        return Ok(None);
     }
-    let at_index = trimmed.find('@')?;
-    let (symbol, consumed) = extract_llvm_symbol_after_at(trimmed, at_index)?;
-    let suffix = &trimmed[(at_index + 1 + consumed)..];
-    if suffix.trim_start().starts_with('(') {
-        Some(symbol)
-    } else {
-        None
-    }
-}
-
-fn extract_direct_llvm_call_targets(line: &str) -> Vec<String> {
-    if !line.contains(" call ")
-        && !line.trim_start().starts_with("call ")
-        && !line.contains(" invoke ")
-    {
-        return Vec::new();
-    }
-
-    let mut targets = Vec::new();
-    for (at_index, _) in line.match_indices('@') {
-        let Some((symbol, consumed)) = extract_llvm_symbol_after_at(line, at_index) else {
-            continue;
-        };
-        let suffix = &line[(at_index + 1 + consumed)..];
-        if suffix.trim_start().starts_with('(') {
-            targets.push(symbol);
-        }
-    }
-    targets
-}
-
-fn extract_llvm_symbol_after_at(line: &str, at_index: usize) -> Option<(String, usize)> {
-    let after_at = line.get((at_index + 1)..)?;
-    if let Some(quoted) = after_at.strip_prefix('"') {
-        let mut escaped = false;
-        for (idx, ch) in quoted.char_indices() {
-            if escaped {
-                escaped = false;
-                continue;
-            }
-            if ch == '\\' {
-                escaped = true;
-                continue;
-            }
-            if ch == '"' {
-                let symbol = quoted[..idx].to_string();
-                return (!symbol.is_empty()).then_some((symbol, idx + 2));
-            }
-        }
-        return None;
-    }
-
-    let len = after_at
-        .chars()
-        .take_while(|ch| is_unquoted_llvm_symbol_char(*ch))
-        .map(char::len_utf8)
-        .sum::<usize>();
-    if len == 0 {
-        return None;
-    }
-    Some((after_at[..len].to_string(), len))
-}
-
-fn is_unquoted_llvm_symbol_char(ch: char) -> bool {
-    ch.is_ascii_alphanumeric() || matches!(ch, '_' | '$' | '.' | '-')
-}
-
-fn is_allowed_llvm_external_target(symbol: &str) -> bool {
-    symbol.starts_with("llvm.")
+    Ok(kain_driver::slice_llvm_native_executable_ir(ir))
 }
 
 fn parse_native_toolchain_profile(value: &str) -> Result<NativeToolchainProfile, String> {
@@ -5493,6 +5420,10 @@ fn resolve_c_ffi_native_link_inputs(
     clang_cmd: &str,
     native_toolchain_tuning: &NativeToolchainTuning,
 ) -> Result<CffiNativeLinkInputs, String> {
+    if !source_has_c_ffi_imports(source) {
+        return Ok(CffiNativeLinkInputs::default());
+    }
+
     let prepare_dir = source_path
         .and_then(|path| path.parent())
         .filter(|path| !path.as_os_str().is_empty())
@@ -6607,10 +6538,10 @@ mod tests {
         load_native_runtime_manifest, native_runtime_object_cache_is_fresh,
         parse_native_runtime_depfile, parse_native_toolchain_tuning, platform_link_libs,
         resolve_c_ffi_native_link_inputs, resolve_native_runtime_archive_groups,
-        runtime_source_uses_cpp, sanitize_runtime_name, unique_link_libs,
-        NativeRuntimeArchiveManifest, NativeRuntimeArchiver, NativeRuntimeArchiverFlavor,
-        NativeRuntimeLinkManifest, NativeToolchainProfile, ResolvedNativeRuntimeArchiveGroup,
-        ResolvedNativeRuntimeBundle,
+        runtime_source_uses_cpp, sanitize_runtime_name, slice_llvm_native_executable_ir,
+        unique_link_libs, NativeRuntimeArchiveManifest, NativeRuntimeArchiver,
+        NativeRuntimeArchiverFlavor, NativeRuntimeLinkManifest, NativeToolchainProfile,
+        ResolvedNativeRuntimeArchiveGroup, ResolvedNativeRuntimeBundle,
     };
     use kain_core::tooling_config::{KainColorPreference, KainParallelismSetting};
     use kain_core::CompileTarget;
@@ -6701,6 +6632,113 @@ entry:
 
         assert!(decision.can_elide, "{decision:?}");
         assert_eq!(decision.reachable_functions, 2);
+    }
+
+    #[test]
+    fn llvm_native_ir_slicing_removes_unreachable_runtime_bodies() {
+        let ir = r#"
+declare void @llvm.lifetime.start.p0(i64, ptr)
+declare void @unused_runtime()
+@message = internal constant [1 x i8] c"\00"
+
+define i64 @helper(i64 %value) {
+entry:
+  call void @llvm.lifetime.start.p0(i64 8, ptr null)
+  ret i64 %value
+}
+
+define void @unreachable_runtime_wrapper() {
+entry:
+  call void @unused_runtime()
+  ret void
+}
+
+define i32 @main() {
+entry:
+  %value = call i64 @helper(i64 7)
+  ret i32 0
+}
+"#;
+
+        let (sliced, stats) = slice_llvm_native_executable_ir(ir)
+            .expect("slice")
+            .expect("expected slice");
+
+        assert!(sliced.contains("define i64 @helper"));
+        assert!(sliced.contains("define i32 @main"));
+        assert!(sliced.contains("@message = internal constant"));
+        assert!(sliced.contains("declare void @llvm.lifetime.start.p0"));
+        assert!(!sliced.contains("define void @unreachable_runtime_wrapper"));
+        assert!(!sliced.contains("declare void @unused_runtime"));
+        assert_eq!(stats.removed_functions, 1);
+    }
+
+    #[test]
+    fn llvm_native_ir_slicing_preserves_address_taken_callbacks() {
+        let ir = r#"
+declare void @register_callback(i8*)
+
+define void @handler() {
+entry:
+  ret void
+}
+
+define void @dead_runtime_wrapper() {
+entry:
+  ret void
+}
+
+define i32 @main() {
+entry:
+  call void @register_callback(i8* bitcast (void ()* @handler to i8*))
+  ret i32 0
+}
+"#;
+
+        let (sliced, _stats) = slice_llvm_native_executable_ir(ir)
+            .expect("slice")
+            .expect("expected slice");
+        let decision = llvm_native_runtime_elision_decision_from_ir(&sliced);
+
+        assert!(sliced.contains("define void @handler"));
+        assert!(sliced.contains("declare void @register_callback"));
+        assert!(!decision.can_elide);
+        assert_eq!(
+            decision.reachable_external_targets,
+            vec!["register_callback".to_string()]
+        );
+    }
+
+    #[test]
+    fn llvm_native_ir_slicing_preserves_top_level_external_declarations() {
+        let ir = r#"
+declare void @registered_from_global()
+@callback_table = internal global [1 x ptr] [ptr @registered_from_global]
+
+define void @dead_runtime_wrapper() {
+entry:
+  ret void
+}
+
+define i32 @main() {
+entry:
+  ret i32 0
+}
+"#;
+
+        let (sliced, _stats) = slice_llvm_native_executable_ir(ir)
+            .expect("slice")
+            .expect("expected slice");
+        let decision = llvm_native_runtime_elision_decision_from_ir(&sliced);
+
+        assert!(sliced.contains("declare void @registered_from_global"));
+        assert!(sliced.contains("@callback_table = internal global"));
+        assert!(!sliced.contains("define void @dead_runtime_wrapper"));
+        assert!(!decision.can_elide);
+        assert_eq!(
+            decision.reachable_external_targets,
+            vec!["registered_from_global".to_string()]
+        );
     }
 
     #[test]

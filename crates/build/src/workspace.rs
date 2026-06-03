@@ -36,7 +36,7 @@ const DEFAULT_PROFILE: &str = "debug";
 const DEFAULT_ARTIFACT_ROOT: &str = ".kain/out";
 const DEFAULT_CACHE_ROOT: &str = ".kain/cache/build";
 const DEFAULT_REPORT_ROOT: &str = ".kain/reports/build";
-const BUILD_ADAPTER_VERSION: &str = "kain-build-v7";
+const BUILD_ADAPTER_VERSION: &str = "kain-build-v8";
 const BUILD_ARTIFACT_SCHEMA_VERSION: u32 = 2;
 
 pub type BuildResult<T> = Result<T, BuildError>;
@@ -1763,6 +1763,23 @@ fn parse_bool_string(value: &str) -> bool {
     )
 }
 
+fn parse_bool_env_value(name: &str, value: &str) -> BuildResult<bool> {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "1" | "true" | "yes" | "on" => Ok(true),
+        "0" | "false" | "no" | "off" => Ok(false),
+        _ => Err(BuildError::Config(format!(
+            "{name} must be one of 1, 0, true, false, yes, no, on, off"
+        ))),
+    }
+}
+
+fn native_llvm_ir_slicing_enabled() -> BuildResult<bool> {
+    match std::env::var("KAIN_NATIVE_LLVM_IR_SLICING") {
+        Ok(value) => parse_bool_env_value("KAIN_NATIVE_LLVM_IR_SLICING", &value),
+        Err(_) => Ok(true),
+    }
+}
+
 fn insert_task_pair(values: &[String], slot: &mut BTreeMap<String, String>) {
     if values.len() >= 2 {
         slot.insert(values[0].clone(), values[1].clone());
@@ -3460,12 +3477,28 @@ fn run_kain_compile(
             artifacts.extend(write_hybrid_artifacts(primary_output, hybrid)?);
         }
         _ => {
-            let compiled = session.compile_with_source_path_and_progress(
+            let mut compiled = session.compile_with_source_path_and_progress(
                 &source,
                 Some(source_path),
                 target,
                 progress,
             )?;
+            if target == CompileTarget::Llvm && native_llvm_ir_slicing_enabled()? {
+                if let Some((sliced, stats)) =
+                    kain_driver::slice_llvm_native_executable_ir(&compiled)
+                {
+                    eprintln!(
+                        " Native LLVM IR sliced: {} -> {} bytes, kept {}/{} functions (removed {}, declarations {})",
+                        stats.original_bytes,
+                        stats.sliced_bytes,
+                        stats.kept_functions,
+                        stats.original_functions,
+                        stats.removed_functions,
+                        stats.removed_declarations
+                    );
+                    compiled = sliced;
+                }
+            }
             kfs::atomic_write_text(primary_output, &compiled)?;
             artifacts.push(record_artifact("primary", primary_output)?);
         }
@@ -6795,8 +6828,11 @@ fn build(ctx: BuildContext) -> BuildGraph:
     fn kain_frontend_task_stamp_changes_when_stdlib_changes() {
         let root = unique_test_dir("kain-frontend-stdlib-cache");
         std::fs::create_dir_all(root.join("stdlib")).expect("create stdlib");
-        std::fs::write(root.join("stdlib").join("reflect.kn"), "pub fn marker() -> Int:\n    return 1\n")
-            .expect("write stdlib");
+        std::fs::write(
+            root.join("stdlib").join("reflect.kn"),
+            "pub fn marker() -> Int:\n    return 1\n",
+        )
+        .expect("write stdlib");
         let config = test_workspace_config(&root);
         let task = KainBuildTaskSection {
             id: "root-exe".to_string(),
@@ -6826,8 +6862,11 @@ fn build(ctx: BuildContext) -> BuildGraph:
             tasks: vec![resolved.clone()],
         };
         let before = task_stamp(&resolved, &plan).expect("stamp before");
-        std::fs::write(root.join("stdlib").join("reflect.kn"), "pub fn marker() -> Int:\n    return 2\n")
-            .expect("rewrite stdlib");
+        std::fs::write(
+            root.join("stdlib").join("reflect.kn"),
+            "pub fn marker() -> Int:\n    return 2\n",
+        )
+        .expect("rewrite stdlib");
         let after = task_stamp(&resolved, &plan).expect("stamp after");
         assert_ne!(before, after);
 
@@ -6979,10 +7018,7 @@ include_dirs = ["native/include"]
         .expect("write source");
 
         let config = test_workspace_config(&root);
-        let output_path = config
-            .artifact_root
-            .join("llvm")
-            .join("check-main.json");
+        let output_path = config.artifact_root.join("llvm").join("check-main.json");
         let task = BuildTask {
             id: "check-main".to_string(),
             kind: BuildTaskKind::KainCheck,
@@ -7015,11 +7051,18 @@ include_dirs = ["native/include"]
             tasks: vec![task.clone()],
         };
 
-        let message =
-            run_kain_check(&root.join("src").join("main.kn"), CompileTarget::Llvm, None, Some(&output_path))
-                .expect("kain check should pass");
+        let message = run_kain_check(
+            &root.join("src").join("main.kn"),
+            CompileTarget::Llvm,
+            None,
+            Some(&output_path),
+        )
+        .expect("kain check should pass");
         assert!(message.contains("checked"));
-        assert!(output_path.exists(), "kain-check should materialize its declared output");
+        assert!(
+            output_path.exists(),
+            "kain-check should materialize its declared output"
+        );
         write_task_stamp(&task, &plan).expect("write stamp");
         assert!(
             task_is_cached(&task, &plan).expect("cache probe"),

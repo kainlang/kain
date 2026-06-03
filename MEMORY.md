@@ -1,5 +1,31 @@
 # Kain Memory
 
+# 2026-06-02 - cold single-file LLVM native compiler benchmark pass
+
+What changed:
+
+- Added shared native-executable LLVM IR reachability and slicing in `crates/driver/src/llvm_ir.rs`, then wired it into both direct CLI builds/runs and `build.kn` LLVM tasks. The full Kain stdlib/runtime contract still participates in frontend/codegen; the slicer runs after codegen and removes unreachable native executable IR bodies plus unused declarations.
+- Added `KAIN_NATIVE_LLVM_IR_SLICING` as an on-by-default escape hatch, alongside the existing native runtime elision and native executable CAS controls.
+- Tightened the direct CLI path by skipping C-FFI preparation/link input resolution when a source has no C imports, and by suppressing Windows COFF debug output when native debug info is disabled.
+- Added an LLVM lowering fast path that keeps immutable scalar locals and scalar-field value aggregates in SSA instead of emitting stack slots, while keeping mutable, address-taken, raw-pointer, runtime-array, JSON, and runtime-any locals addressable.
+
+Validation:
+
+- `cargo check -p kain-sys-codegen`
+- `cargo test -p kain-sys-codegen lowers_immutable_scalar_lets_as_ssa_values --lib`
+- `cargo test -p kain-driver llvm_ir --lib`
+- `cargo test -p cli llvm_native_ir_slicing --lib`
+- `cargo check -p kain-build`
+- `bazel build //:kain --config=release`
+- Public command proof succeeded through the Bazel-backed `kain`: `kain build scratch/compiler_speed_probe.kn --target llvm` and `kain run scratch/compiler_speed_probe.kn --target llvm`.
+- No-prior-native-exec-cache compiler benchmark: `KAIN_NATIVE_EXEC_CACHE=0`, `KAIN_NATIVE_LLVM_IR_SLICING=1`, `python benchmark/run_compiler.py --case single_file_small --runs 5 --warmups 2 --kain-exe <fresh-bazel-release-kain.exe>`.
+- Latest report: `benchmark/out/snapshots/latest_compiler.md`, with Kain clean `257.584 ms`, Kain rebuild `251.906 ms`, Rust clean `269.106 ms`, and Rust rebuild `285.777 ms`.
+
+Operational notes:
+
+- This pass makes Kain faster than Rust on the honest single-file native LLVM benchmark without relying on the native executable CAS, but it is not yet 2x faster. The remaining cold single-file boss fight is mostly more emitted-IR shrinkage, function-parameter SSA, simple mutable-loop SSA, and public launcher/Bazel config churn.
+- If public `kain build` or `kain run` wall time looks slow while the benchmark is fast, inspect whether the launcher switched Bazel config or invalidated analysis. That is separate from the script compile/link lane and should be optimized without weakening the stdlib/runtime OS contract.
+
 # 2026-06-01 - compiler benchmark now beats Rust through runtime elision and native executable CAS
 
 What changed:

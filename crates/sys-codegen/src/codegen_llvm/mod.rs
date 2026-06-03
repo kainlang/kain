@@ -472,6 +472,7 @@ struct LlvmGenerator {
     fanout_function_counter: usize,
     /// Maps variable names to (stack_ptr, type)
     locals: HashMap<String, (String, String)>,
+    ssa_locals: HashMap<String, (String, String)>,
     authored_pointer_locals: HashMap<String, String>,
     /// Pointer-like locals whose provenance is solver-proved helper-owned and may
     /// use the helper-header ownership fast path without imported registration.
@@ -639,6 +640,7 @@ struct LlvmFunctionState {
     reg_count: usize,
     label_count: usize,
     locals: HashMap<String, (String, String)>,
+    ssa_locals: HashMap<String, (String, String)>,
     authored_pointer_locals: HashMap<String, String>,
     helper_owned_pointer_locals: HashMap<String, OwnershipPointerProvenance>,
     ephemeral_owned_pointer_locals: HashMap<String, EphemeralOwnershipLocalWitness>,
@@ -686,6 +688,7 @@ impl LlvmGenerator {
             deferred_function_defs: Vec::new(),
             fanout_function_counter: 0,
             locals: HashMap::new(),
+            ssa_locals: HashMap::new(),
             authored_pointer_locals: HashMap::new(),
             helper_owned_pointer_locals: HashMap::new(),
             ephemeral_owned_pointer_locals: HashMap::new(),
@@ -770,6 +773,7 @@ impl LlvmGenerator {
             reg_count: self.reg_count,
             label_count: self.label_count,
             locals: self.locals.clone(),
+            ssa_locals: self.ssa_locals.clone(),
             authored_pointer_locals: self.authored_pointer_locals.clone(),
             helper_owned_pointer_locals: self.helper_owned_pointer_locals.clone(),
             ephemeral_owned_pointer_locals: self.ephemeral_owned_pointer_locals.clone(),
@@ -814,6 +818,7 @@ impl LlvmGenerator {
         self.reg_count = state.reg_count;
         self.label_count = state.label_count;
         self.locals = state.locals;
+        self.ssa_locals = state.ssa_locals;
         self.authored_pointer_locals = state.authored_pointer_locals;
         self.helper_owned_pointer_locals = state.helper_owned_pointer_locals;
         self.ephemeral_owned_pointer_locals = state.ephemeral_owned_pointer_locals;
@@ -857,6 +862,7 @@ impl LlvmGenerator {
         self.reg_count = 0;
         self.label_count = 0;
         self.locals.clear();
+        self.ssa_locals.clear();
         self.authored_pointer_locals.clear();
         self.helper_owned_pointer_locals.clear();
         self.ephemeral_owned_pointer_locals.clear();
@@ -3332,6 +3338,259 @@ impl LlvmGenerator {
         }
     }
 
+    fn scalar_ssa_local_type(ty: &str) -> bool {
+        matches!(ty, "i64" | "i1" | "double")
+    }
+
+    fn aggregate_ssa_local_type(&self, ty: &str) -> bool {
+        let Some(struct_name) = ty.strip_prefix('%') else {
+            return false;
+        };
+        if struct_name.ends_with('*') {
+            return false;
+        }
+        self.struct_defs
+            .get(struct_name)
+            .map(|fields| {
+                fields
+                    .iter()
+                    .all(|(_, field_ty)| Self::scalar_ssa_local_type(field_ty))
+            })
+            .unwrap_or(false)
+    }
+
+    fn value_can_lower_as_ssa_local(&self, ty: &str) -> bool {
+        Self::scalar_ssa_local_type(ty) || self.aggregate_ssa_local_type(ty)
+    }
+
+    fn stmts_require_addressable_local(stmts: &[Stmt], name: &str) -> bool {
+        stmts
+            .iter()
+            .any(|stmt| Self::stmt_requires_addressable_local(stmt, name))
+    }
+
+    fn block_requires_addressable_local(block: &Block, name: &str) -> bool {
+        Self::stmts_require_addressable_local(&block.stmts, name)
+    }
+
+    fn else_branch_requires_addressable_local(branch: &ElseBranch, name: &str) -> bool {
+        match branch {
+            ElseBranch::Else(block) => Self::block_requires_addressable_local(block, name),
+            ElseBranch::ElseIf(condition, block, nested) => {
+                Self::expr_requires_addressable_local(condition, name)
+                    || Self::block_requires_addressable_local(block, name)
+                    || nested
+                        .as_ref()
+                        .map(|branch| Self::else_branch_requires_addressable_local(branch, name))
+                        .unwrap_or(false)
+            }
+        }
+    }
+
+    fn stmt_requires_addressable_local(stmt: &Stmt, name: &str) -> bool {
+        match stmt {
+            Stmt::Expr(expr)
+            | Stmt::Return(Some(expr), _)
+            | Stmt::Break(Some(expr), _)
+            | Stmt::Defer { expr, .. } => Self::expr_requires_addressable_local(expr, name),
+            Stmt::Let {
+                value: Some(value), ..
+            } => Self::expr_requires_addressable_local(value, name),
+            Stmt::While {
+                condition, body, ..
+            } => {
+                Self::expr_requires_addressable_local(condition, name)
+                    || Self::block_requires_addressable_local(body, name)
+            }
+            Stmt::For { iter, body, .. } | Stmt::Fanout { iter, body, .. } => {
+                Self::expr_requires_addressable_local(iter, name)
+                    || Self::block_requires_addressable_local(body, name)
+            }
+            Stmt::Loop { body, .. } => Self::block_requires_addressable_local(body, name),
+            Stmt::Dispatch { dispatch_size, .. } => dispatch_size
+                .iter()
+                .any(|expr| Self::expr_requires_addressable_local(expr, name)),
+            _ => false,
+        }
+    }
+
+    fn expr_requires_addressable_local(expr: &Expr, name: &str) -> bool {
+        match expr {
+            Expr::Assign { target, value, .. } => {
+                matches!(target.as_ref(), Expr::Ident(target_name, _) if target_name == name)
+                    || Self::expr_requires_addressable_local(target, name)
+                    || Self::expr_requires_addressable_local(value, name)
+            }
+            Expr::Ref { value, .. } | Expr::AddrOf { value, .. } => {
+                matches!(value.as_ref(), Expr::Ident(target_name, _) if target_name == name)
+                    || Self::expr_requires_addressable_local(value, name)
+            }
+            Expr::Observe { target, body, .. } | Expr::Collapse { target, body, .. } => {
+                matches!(target.as_ref(), Expr::Ident(target_name, _) if target_name == name)
+                    || Self::expr_requires_addressable_local(target, name)
+                    || Self::expr_requires_addressable_local(body, name)
+            }
+            Expr::Decay { target, .. } => {
+                matches!(target.as_ref(), Expr::Ident(target_name, _) if target_name == name)
+                    || Self::expr_requires_addressable_local(target, name)
+            }
+            Expr::Paren(inner, _)
+            | Expr::Deref(inner, _)
+            | Expr::Try(inner, _)
+            | Expr::Await(inner, _)
+            | Expr::AsyncBlock(inner, _)
+            | Expr::Comptime(inner, _)
+            | Expr::Cast { value: inner, .. }
+            | Expr::Bitcast { value: inner, .. } => {
+                Self::expr_requires_addressable_local(inner, name)
+            }
+            Expr::Block(block, _) => Self::block_requires_addressable_local(block, name),
+            Expr::If {
+                condition,
+                then_branch,
+                else_branch,
+                ..
+            } => {
+                Self::expr_requires_addressable_local(condition, name)
+                    || Self::block_requires_addressable_local(then_branch, name)
+                    || else_branch
+                        .as_ref()
+                        .map(|branch| Self::else_branch_requires_addressable_local(branch, name))
+                        .unwrap_or(false)
+            }
+            Expr::Match {
+                scrutinee, arms, ..
+            } => {
+                Self::expr_requires_addressable_local(scrutinee, name)
+                    || arms.iter().any(|arm| {
+                        arm.guard
+                            .as_ref()
+                            .map(|guard| Self::expr_requires_addressable_local(guard, name))
+                            .unwrap_or(false)
+                            || Self::expr_requires_addressable_local(&arm.body, name)
+                    })
+            }
+            Expr::Lambda { body, .. } => Self::expr_requires_addressable_local(body, name),
+            Expr::Call { callee, args, .. } => {
+                Self::expr_requires_addressable_local(callee, name)
+                    || args
+                        .iter()
+                        .any(|arg| Self::expr_requires_addressable_local(&arg.value, name))
+            }
+            Expr::StageCall { args, .. } => args
+                .iter()
+                .any(|arg| Self::expr_requires_addressable_local(&arg.value, name)),
+            Expr::MethodCall { receiver, args, .. } => {
+                Self::expr_requires_addressable_local(receiver, name)
+                    || args
+                        .iter()
+                        .any(|arg| Self::expr_requires_addressable_local(&arg.value, name))
+            }
+            Expr::Binary { left, right, .. } => {
+                Self::expr_requires_addressable_local(left, name)
+                    || Self::expr_requires_addressable_local(right, name)
+            }
+            Expr::Unary { operand, .. } => Self::expr_requires_addressable_local(operand, name),
+            Expr::Field { object, .. } => Self::expr_requires_addressable_local(object, name),
+            Expr::Index { object, index, .. } => {
+                Self::expr_requires_addressable_local(object, name)
+                    || Self::expr_requires_addressable_local(index, name)
+            }
+            Expr::Struct { fields, rest, .. } => {
+                fields
+                    .iter()
+                    .any(|(_, value)| Self::expr_requires_addressable_local(value, name))
+                    || rest
+                        .as_ref()
+                        .map(|value| Self::expr_requires_addressable_local(value, name))
+                        .unwrap_or(false)
+            }
+            Expr::AggregateInit { fields, .. } => fields
+                .iter()
+                .any(|(_, value)| Self::expr_requires_addressable_local(value, name)),
+            Expr::EnumVariant { fields, .. } => match fields {
+                kain_core::ast::EnumVariantFields::Unit => false,
+                kain_core::ast::EnumVariantFields::Tuple(values) => values
+                    .iter()
+                    .any(|value| Self::expr_requires_addressable_local(value, name)),
+                kain_core::ast::EnumVariantFields::Struct(fields) => fields
+                    .iter()
+                    .any(|(_, value)| Self::expr_requires_addressable_local(value, name)),
+            },
+            Expr::Array(items, _) | Expr::Tuple(items, _) | Expr::FString(items, _) => items
+                .iter()
+                .any(|item| Self::expr_requires_addressable_local(item, name)),
+            Expr::Range { start, end, .. } => {
+                start
+                    .as_ref()
+                    .map(|value| Self::expr_requires_addressable_local(value, name))
+                    .unwrap_or(false)
+                    || end
+                        .as_ref()
+                        .map(|value| Self::expr_requires_addressable_local(value, name))
+                        .unwrap_or(false)
+            }
+            Expr::PtrOffset {
+                pointer, offset, ..
+            } => {
+                Self::expr_requires_addressable_local(pointer, name)
+                    || Self::expr_requires_addressable_local(offset, name)
+            }
+            Expr::MemLoad { pointer, .. }
+            | Expr::VolatileLoad { pointer, .. }
+            | Expr::CpuCacheFlush { pointer, .. }
+            | Expr::AtomicLoad { pointer, .. } => {
+                Self::expr_requires_addressable_local(pointer, name)
+            }
+            Expr::MemStore { pointer, value, .. }
+            | Expr::VolatileStore { pointer, value, .. }
+            | Expr::AtomicStore { pointer, value, .. }
+            | Expr::AtomicAdd { pointer, value, .. }
+            | Expr::AtomicSub { pointer, value, .. }
+            | Expr::AtomicAnd { pointer, value, .. }
+            | Expr::AtomicOr { pointer, value, .. }
+            | Expr::AtomicXor { pointer, value, .. }
+            | Expr::AtomicExchange { pointer, value, .. } => {
+                Self::expr_requires_addressable_local(pointer, name)
+                    || Self::expr_requires_addressable_local(value, name)
+            }
+            Expr::AtomicCompareExchange {
+                pointer,
+                expected,
+                desired,
+                ..
+            } => {
+                Self::expr_requires_addressable_local(pointer, name)
+                    || Self::expr_requires_addressable_local(expected, name)
+                    || Self::expr_requires_addressable_local(desired, name)
+            }
+            Expr::InlineAsm { operands, .. } => operands
+                .iter()
+                .any(|operand| Self::expr_requires_addressable_local(operand, name)),
+            Expr::Alloc { size, .. } => Self::expr_requires_addressable_local(size, name),
+            Expr::Realloc { pointer, size, .. } => {
+                Self::expr_requires_addressable_local(pointer, name)
+                    || Self::expr_requires_addressable_local(size, name)
+            }
+            Expr::Teleport { value, .. }
+            | Expr::Return(Some(value), _)
+            | Expr::Break(Some(value), _) => Self::expr_requires_addressable_local(value, name),
+            Expr::Spawn { init, .. } => init
+                .iter()
+                .any(|(_, value)| Self::expr_requires_addressable_local(value, name)),
+            Expr::SendMsg { target, data, .. } => {
+                Self::expr_requires_addressable_local(target, name)
+                    || data
+                        .iter()
+                        .any(|(_, value)| Self::expr_requires_addressable_local(value, name))
+            }
+            Expr::MacroCall { args, .. } => args
+                .iter()
+                .any(|arg| Self::expr_requires_addressable_local(arg, name)),
+            _ => false,
+        }
+    }
+
     fn current_scope_marks_ephemeral_candidate(&self, name: &str) -> bool {
         self.ephemeral_candidate_scopes
             .last()
@@ -3369,6 +3628,9 @@ impl LlvmGenerator {
     fn current_known_llvm_types(&self) -> HashMap<String, String> {
         let mut merged = HashMap::new();
         for (name, (_, ty)) in &self.locals {
+            merged.insert(name.clone(), ty.clone());
+        }
+        for (name, (_, ty)) in &self.ssa_locals {
             merged.insert(name.clone(), ty.clone());
         }
         merged
@@ -10179,6 +10441,7 @@ impl LlvmGenerator {
                 self.emit_entry_alloca(&addr_reg, &ty);
                 self.emit(&format!("  store {} {}, {}* {}", ty, val, ty, addr_reg));
 
+                self.ssa_locals.remove(name);
                 self.locals.insert(name.clone(), (addr_reg, ty));
                 if let Some(scope) = self.scopes.last_mut() {
                     scope.push(name.clone());
@@ -12968,6 +13231,7 @@ impl LlvmGenerator {
 
         self.reg_count = 0;
         self.locals.clear();
+        self.ssa_locals.clear();
         self.authored_pointer_locals.clear();
         self.helper_owned_pointer_locals.clear();
         self.shattered_array_locals.clear();
@@ -13133,6 +13397,7 @@ impl LlvmGenerator {
 
             self.reg_count = 0;
             self.locals.clear();
+            self.ssa_locals.clear();
             self.authored_pointer_locals.clear();
             self.helper_owned_pointer_locals.clear();
             self.shattered_array_locals.clear();
@@ -13344,6 +13609,7 @@ impl LlvmGenerator {
 
         self.reg_count = 0;
         self.locals.clear();
+        self.ssa_locals.clear();
         self.authored_pointer_locals.clear();
         self.helper_owned_pointer_locals.clear();
         self.shattered_array_locals.clear();
@@ -13517,6 +13783,7 @@ impl LlvmGenerator {
             // Setup scope for handler locals.
             self.scopes.push(Vec::new());
             self.locals.clear();
+            self.ssa_locals.clear();
             self.authored_pointer_locals.clear();
             self.helper_owned_pointer_locals.clear();
             self.shattered_array_locals.clear();
@@ -13919,6 +14186,7 @@ impl LlvmGenerator {
     fn compile_component(&mut self, component: &TypedComponent) -> KainResult<()> {
         self.reg_count = 0;
         self.locals.clear();
+        self.ssa_locals.clear();
         self.authored_pointer_locals.clear();
         self.helper_owned_pointer_locals.clear();
         self.shattered_array_locals.clear();
@@ -14014,6 +14282,7 @@ impl LlvmGenerator {
     ) -> KainResult<()> {
         self.reg_count = 0;
         self.locals.clear();
+        self.ssa_locals.clear();
         self.authored_pointer_locals.clear();
         self.helper_owned_pointer_locals.clear();
         self.shattered_array_locals.clear();
@@ -14212,6 +14481,7 @@ impl LlvmGenerator {
     ) -> KainResult<()> {
         self.reg_count = 0;
         self.locals.clear();
+        self.ssa_locals.clear();
         self.authored_pointer_locals.clear();
         self.helper_owned_pointer_locals.clear();
         self.shattered_array_locals.clear();
@@ -14479,6 +14749,7 @@ impl LlvmGenerator {
     fn compile_axiom(&mut self, axiom: &kain_core::types::TypedAxiom) -> KainResult<()> {
         self.reg_count = 0;
         self.locals.clear();
+        self.ssa_locals.clear();
         self.authored_pointer_locals.clear();
         self.helper_owned_pointer_locals.clear();
         self.shattered_array_locals.clear();
@@ -14538,6 +14809,7 @@ impl LlvmGenerator {
     fn compile_pulse(&mut self, pulse: &kain_core::types::TypedPulse) -> KainResult<()> {
         self.reg_count = 0;
         self.locals.clear();
+        self.ssa_locals.clear();
         self.authored_pointer_locals.clear();
         self.helper_owned_pointer_locals.clear();
         self.shattered_array_locals.clear();
@@ -14587,6 +14859,7 @@ impl LlvmGenerator {
 
         self.reg_count = 0;
         self.locals.clear();
+        self.ssa_locals.clear();
         self.authored_pointer_locals.clear();
         self.helper_owned_pointer_locals.clear();
         self.shattered_array_locals.clear();
@@ -14717,6 +14990,7 @@ impl LlvmGenerator {
 
         self.reg_count = 0;
         self.locals.clear();
+        self.ssa_locals.clear();
         self.authored_pointer_locals.clear();
         self.helper_owned_pointer_locals.clear();
         self.shattered_array_locals.clear();
@@ -14967,6 +15241,7 @@ impl LlvmGenerator {
     ) -> KainResult<()> {
         self.reg_count = 0;
         self.locals.clear();
+        self.ssa_locals.clear();
         self.authored_pointer_locals.clear();
         self.helper_owned_pointer_locals.clear();
         self.shattered_array_locals.clear();
@@ -15713,7 +15988,7 @@ impl LlvmGenerator {
             } => {
                 if let Some(val_expr) = value {
                     // Allocate and Store
-                    if let kain_core::ast::Pattern::Binding { name, .. } = pattern {
+                    if let kain_core::ast::Pattern::Binding { name, mutable, .. } = pattern {
                         if self.current_scope_marks_fixed_array_candidate(name) {
                             let fixed_items = match val_expr {
                                 Expr::Array(items, _) => Some(items),
@@ -15745,6 +16020,7 @@ impl LlvmGenerator {
                                     ));
                                 }
                                 self.string_length_values.remove(name);
+                                self.ssa_locals.remove(name);
                                 self.locals
                                     .insert(name.clone(), (storage_reg.clone(), array_ty.clone()));
                                 self.record_authored_struct_pointer_local_for_let(
@@ -15810,6 +16086,7 @@ impl LlvmGenerator {
                                         &lane_base_values,
                                     )?;
                                     self.string_length_values.remove(name);
+                                    self.ssa_locals.remove(name);
                                     self.locals.insert(
                                         name.clone(),
                                         (addr_reg.clone(), "i8*".to_string()),
@@ -15920,6 +16197,7 @@ impl LlvmGenerator {
                                 ));
 
                                 self.string_length_values.remove(name);
+                                self.ssa_locals.remove(name);
                                 self.locals
                                     .insert(name.clone(), (addr_reg, "i64".to_string()));
                                 self.record_authored_struct_pointer_local_for_let(
@@ -15968,6 +16246,42 @@ impl LlvmGenerator {
                             self.compile_expr(val_expr)?
                         };
                         self.string_length_values.remove(name);
+                        let local_pointer_provenance =
+                            self.ownership_pointer_provenance_for_expr(val_expr);
+                        let runtime_array_element_ty = ty
+                            .as_ref()
+                            .and_then(|declared| self.ast_runtime_array_element_llvm_ty(declared))
+                            .or_else(|| self.runtime_array_expr_element_llvm_ty(val_expr));
+                        let can_lower_as_ssa_scalar = !*mutable
+                            && self.value_can_lower_as_ssa_local(&val_ty)
+                            && !preserve_lowered_pointer_helper_result
+                            && runtime_array_element_ty.is_none()
+                            && !self.expr_carries_json_value(val_expr)
+                            && !self.expr_carries_runtime_any_value(val_expr)
+                            && !self.expr_is_raw_pointer_value(val_expr, &val_ty)
+                            && !Self::stmts_require_addressable_local(remaining_stmts, name);
+                        if can_lower_as_ssa_scalar {
+                            self.ssa_locals
+                                .insert(name.clone(), (val_reg.clone(), val_ty.clone()));
+                            self.locals.remove(name);
+                            self.fixed_array_locals.remove(name);
+                            self.shattered_array_locals.remove(name);
+                            self.runtime_array_locals.remove(name);
+                            self.clear_json_local_tracking(name);
+                            self.clear_runtime_any_local_tracking(name);
+                            self.helper_owned_pointer_locals.remove(name);
+                            self.ephemeral_owned_pointer_locals.remove(name);
+                            self.record_authored_struct_pointer_local_for_let(
+                                name,
+                                ty.as_ref(),
+                                *span,
+                            );
+                            if let Some(scope) = self.scopes.last_mut() {
+                                scope.push(name.clone());
+                            }
+                            return Ok(());
+                        }
+                        self.ssa_locals.remove(name);
                         let addr_reg = format!("%{}.addr_{}", name, self.reg_count);
                         self.reg_count += 1;
 
@@ -15984,15 +16298,8 @@ impl LlvmGenerator {
                             }
                         }
                         self.invalidate_consumed_helper_realloc_source_for_let(val_expr);
-
-                        let local_pointer_provenance =
-                            self.ownership_pointer_provenance_for_expr(val_expr);
                         self.locals.insert(name.clone(), (addr_reg, val_ty));
                         self.record_authored_struct_pointer_local_for_let(name, ty.as_ref(), *span);
-                        let runtime_array_element_ty = ty
-                            .as_ref()
-                            .and_then(|declared| self.ast_runtime_array_element_llvm_ty(declared))
-                            .or_else(|| self.runtime_array_expr_element_llvm_ty(val_expr));
                         self.record_runtime_array_local_element_ty(name, runtime_array_element_ty);
                         self.record_json_local_tracking_from_expr(name, val_expr);
                         self.record_runtime_any_local_tracking_from_expr(name, val_expr);
@@ -17623,6 +17930,41 @@ impl LlvmGenerator {
                 field,
                 span,
             } => {
+                if let Expr::Ident(name, _) = object.as_ref() {
+                    if let Some((object_value, object_ty)) = self.ssa_locals.get(name).cloned() {
+                        if let Some(struct_name) = object_ty.strip_prefix('%') {
+                            if !struct_name.ends_with('*') {
+                                let field_index =
+                                    self.field_index(struct_name, field).ok_or_else(|| {
+                                        KainError::codegen(
+                                            format!("Unknown field '{}.{}'", struct_name, field),
+                                            *span,
+                                        )
+                                    })?;
+                                let field_ty = self
+                                    .struct_defs
+                                    .get(struct_name)
+                                    .and_then(|fields| fields.get(field_index))
+                                    .map(|(_, ty)| ty.clone())
+                                    .ok_or_else(|| {
+                                        KainError::codegen(
+                                            format!(
+                                                "Missing field layout for '{}.{}'",
+                                                struct_name, field
+                                            ),
+                                            *span,
+                                        )
+                                    })?;
+                                let loaded = self.next_reg();
+                                self.emit(&format!(
+                                    "  {} = extractvalue {} {}, {}",
+                                    loaded, object_ty, object_value, field_index
+                                ));
+                                return Ok((loaded, field_ty));
+                            }
+                        }
+                    }
+                }
                 if self.field_parent_struct_name(object).is_some() {
                     let (field_ptr, field_ty, _, is_mmio_volatile) =
                         self.compile_field_addressable_ptr(object, field, *span)?;
@@ -17666,6 +18008,12 @@ impl LlvmGenerator {
                 span,
             } => match target.as_ref() {
                 Expr::Ident(name, _) => {
+                    if self.ssa_locals.contains_key(name) {
+                        return Err(KainError::codegen(
+                            format!("Cannot assign immutable SSA local: {}", name),
+                            *span,
+                        ));
+                    }
                     if let Some((addr, ty)) = self.locals.get(name).cloned() {
                         let (rhs, rhs_ty) = self.compile_expr_for_target_type(value, &ty)?;
                         self.string_length_values.remove(name);
@@ -18521,6 +18869,8 @@ impl LlvmGenerator {
             Expr::Ident(name, span) => {
                 if name == "None" {
                     Ok(("null".to_string(), "i8*".to_string()))
+                } else if let Some((value, ty)) = self.ssa_locals.get(name).cloned() {
+                    Ok((value, ty))
                 } else if let Some((ptr, ty)) = self.locals.get(name).cloned() {
                     let reg = self.next_reg();
                     self.emit(&format!("  {} = load {}, {}* {}", reg, ty, ty, ptr));
@@ -19430,6 +19780,38 @@ mod tests {
             .join(relative)
             .to_string_lossy()
             .replace('\\', "/")
+    }
+
+    #[test]
+    fn lowers_immutable_scalar_lets_as_ssa_values() {
+        let source = r#"
+struct Pair:
+    left: Int
+    right: Int
+
+fn make_pair(seed: Int) -> Pair:
+    Pair { left: seed + 1, right: seed + 2 }
+
+fn fold(value: Int) -> Int:
+    let a: Int = value + 1
+    let b: Int = a * 3
+    let pair: Pair = make_pair(b)
+    return (pair.left + pair.right) % 17
+
+fn main() -> Int:
+    let x: Int = fold(41)
+    let y: Int = x + 2
+    return y
+"#;
+        let llvm = generate_llvm_or_error(source).expect("llvm generation");
+
+        for local in ["a", "b", "pair", "x", "y"] {
+            assert!(
+                !llvm.contains(&format!("%{}.addr_", local)),
+                "immutable local {local} should stay in SSA:\n{llvm}"
+            );
+        }
+        assert!(llvm.contains("extractvalue %Pair"));
     }
 
     #[test]
