@@ -1,4 +1,4 @@
 interface:
   display_name: "Bootstrap Semantic Authoring"
-  short_description: "Author semantic error corpus fixtures through the spec-driven batch lane"
-  default_prompt: "Use $bootstrap-semantic-authoring to interview me with A/B/C answers, fill a semantic error batch spec, generate staged fixtures, verify the live diagnostics, and bake the semantic pipeline."
+  short_description: "Author lots of semantic error corpus fixtures quickly through the spec-driven batch lane"
+  default_prompt: "Use $bootstrap-semantic-authoring to interview me with A/B/C answers, then immediately create a semantic error batch spec, author 20-30 useful broken Kain fixtures, run error_batch.py to generate and verify them, and avoid whole-corpus audits unless I explicitly ask for one."

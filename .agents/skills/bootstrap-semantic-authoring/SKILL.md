@@ -15,6 +15,8 @@ description: >-
 
 Use this skill to grow `X:\crates\semantic\error_corpus` as the cheapest high-leverage way to improve Kain diagnostics. The corpus is not a pile of random broken files: `crates/semantic/build.rs` scans annotated fixtures, bakes them into `corpus_db`, and `crates/semantic/src/expert.rs` plus `pack.rs` use them to classify failure modes, rank repairs, preserve `primary_text`/`source_window`, and enrich compiler reports.
 
+Default posture: start authoring fast. This skill is for producing lots of useful broken Kain, not for sending agents on a research pilgrimage. Unless the user explicitly asks for an audit or the batch introduces a brand-new failure family, the agent should be writing a batch spec within a couple of minutes, not reading half the repo first.
+
 ## Co-Trigger Order
 
 1. Use `lang-semantics` for general Kain syntax, semantic constructs, and source anchors.
@@ -57,6 +59,35 @@ Ask these five questions:
 
 After the user answers, restate the chosen batch shape in one sentence and execute. If the user gives no answer but explicitly asks for immediate execution, choose A/A/A/A/A and say that assumption before proceeding.
 
+## Fast Start
+
+Normal fast path:
+
+1. Ask the five A/B/C interview questions.
+2. Copy or edit `crates/semantic/batches/example_error_batch.toml`.
+3. Fill the batch spec immediately.
+4. Run:
+
+```powershell
+python X:\crates\semantic\scripts\error_batch.py --batch X:\crates\semantic\batches\<your_batch>.toml --write-stage --verify --promote --bake --overwrite
+```
+
+5. Report how many cases passed, which failed, and what was promoted.
+
+What not to do on the fast path:
+
+- Do not begin with a whole-corpus `verify_error_corpus.py` run.
+- Do not scan large parts of the repo before writing the first batch spec.
+- Do not treat `GLOSSARY.MD`, `CATALOG.MD`, or `MEMORY.md` as required warmup for ordinary corpus growth.
+- Do not spend multiple turns waiting on a background task when a narrower batch command would answer the question faster.
+
+Use the deeper repo-reading path only when:
+
+- the user explicitly asks for a corpus audit,
+- a new error family has no good shape template yet,
+- the emitted code/mode is clearly wrong and compiler wiring may need changes,
+- or the batch is meant to extend `expert.rs`, `pack.rs`, or `build.rs`.
+
 ## Batch Target
 
 Author 20-30 new fixtures per run unless the user asks for a smaller surgical patch. Spread them across at least 3 failure families so the pack learns shape, not just string variants.
@@ -69,6 +100,18 @@ Good batch mix:
 - 4-6 interop/GPU surfaces when relevant: shader resource contracts, CUDA/PTX constraints, Python imports, C ABI includes.
 
 Avoid only cloning the same typo. Keep each case short enough to localize the primary error, but rich enough that semantic recovery has a real clue.
+
+## Authoring Style
+
+Write fixtures like tiny pieces of believable Kain, not synthetic garbage. A good corpus case should read like a real programmer almost got it right:
+
+- prefer compact, readable snippets with one interesting mistake,
+- make the code feel like normal Kain someone would actually author,
+- keep comments short and useful,
+- vary the semantic setting so cases do not all feel like the same template with a renamed variable,
+- and let the broken code have a little prose quality instead of looking machine-spammed.
+
+The goal is not just volume. It is fast volume with decent authored texture.
 
 ## Fixture Contract
 
@@ -99,20 +142,20 @@ If a new family needs different `primary_text` derivation or failure classificat
 
 ## Authoring Flow
 
-1. Read `GLOSSARY.MD`, `CATALOG.MD`, and search `MEMORY.md` for the specific failure family.
-2. Inspect existing fixtures with:
-
-```powershell
-rg -n "@expected_code|@expected_mode|@expected_repair|ERROR:" X:\crates\semantic\error_corpus
-```
-
-3. Generate or handwrite a batch. The spec-driven batch flow is the default because it is safer for cheap models:
+1. Start from the batch spec, not from repo archaeology. Copy `crates/semantic/batches/example_error_batch.toml` or edit it directly into the desired batch.
+2. Generate or handwrite a batch. The spec-driven batch flow is the default because it is safer and faster:
 
 ```powershell
 python X:\crates\semantic\scripts\error_batch.py --batch X:\crates\semantic\batches\example_error_batch.toml --write-stage --verify
 ```
 
-4. Prefer editing the batch spec and reusable templates before hand-editing raw `.kn` files. If hand edits are needed, keep each case to one intended primary failure and prefer donor shapes from `benchmark/cases_v2` or a real compiler sharp edge.
+3. Prefer editing the batch spec and reusable templates before hand-editing raw `.kn` files. If hand edits are needed, keep each case to one intended primary failure and prefer donor shapes from `benchmark/cases_v2` or a real compiler sharp edge.
+4. Inspect existing fixtures only when you need a quick anchor for metadata shape or when the new batch is getting dangerously repetitive:
+
+```powershell
+rg -n "@expected_code|@expected_mode|@expected_repair|ERROR:" X:\crates\semantic\error_corpus
+```
+
 5. Verify the files are actually errors and that expected codes show up:
 
 ```powershell
@@ -133,6 +176,12 @@ kain check X:\crates\semantic\error_corpus\<fixture>.kn --target llvm
 ```
 
 8. If the oracle index or sidecar pack must see the new cases, use `bootstrap-semantic` and run the semantic forge/search proof loop from that skill.
+
+Deeper reading is optional and selective:
+
+- read `GLOSSARY.MD` or `CATALOG.MD` only if the Kain surface itself is unfamiliar,
+- search `MEMORY.md` only if the family is known to be tricky or recently changed,
+- and pull examples from `benchmark/cases_v2` when you want richer donor shapes, not as a mandatory first move.
 
 ## Automation Surface
 
@@ -166,4 +215,6 @@ Corpus-only changes are enough when the compiler already emits the expected code
 - Do not leave annotated files unverified. A fixture that does not fail is poison.
 - Do not fake `@expected_code`; first run `kain check` and record the real emitted code, then adjust compiler/error-system code only when the emitted code is wrong.
 - Do not let one generated template produce 30 identical typo cases. Change symbols, features, phases, and repair shapes.
+- Do not confuse "author more corpus" with "audit the whole corpus". Those are different tasks.
+- Do not run broad repo research or full-corpus verification unless the user asked for that lane.
 - Do not stop at file count. The win is richer diagnostics, semantic pack coverage, and lower-effort future repair intelligence.
