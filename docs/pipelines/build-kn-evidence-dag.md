@@ -1,6 +1,6 @@
 # build.kn Evidence DAG
 
-`build.kn` is no longer only a build script sidecar. It can now describe the evidence DAG for a Kain project or package: source checks, `std::test` suites, Z3 proof obligations, benchmark runs, attrition runs, root executables, and final certification gates all sit in one typed task graph.
+`build.kn` is no longer only a build script sidecar. It now has an evaluator-first lane that turns authored Kain into the evidence DAG for a project or package: source checks, `std::test` suites, Z3 proof obligations, benchmark runs, attrition runs, root executables, GPU artifact tasks, capsules, and final certification gates all sit in one typed task graph.
 
 The preferred surface is now first-class Kain API shape:
 
@@ -13,16 +13,16 @@ use std::attrition
 use std::certify
 ```
 
-The planner treats these constructors as build intrinsics today. That means `build.kn` is authored as Kain with typed `std::*` specs, while graph extraction remains deterministic and side-effect free until the self-hosted evaluator is ready.
+The planner now tries the deterministic `build.kn` evaluator first and falls back to the legacy scanner only when the evaluator cannot lower the script. The evaluator supports the low-friction project surface: helper functions, constants, `map(...)`, computed strings, source sets, task objects as dependency references, multiline fluent chains, inferred build constants, and returned graph semantics. The legacy scanner remains a compatibility lane for older literal method-chain scripts.
 
 ## Agent Loop
 
 Use this when changing a project, package, or workspace pipeline:
 
-1. Put project/package/build/run authority in `build.kn` with `package(...)`, `blade(...)`, `build_defaults(...)`, and `run_defaults(...)`.
-2. Declare every evidence edge with first-class constructors such as `build_check(...)`, `test_suite(...)`, `proof_obligation(...)`, `bench_case(...)`, `attrition_case(...)`, `native_executable(...)`, and `certify_gate(...)`.
-3. Use `depends_on(...)` to make certification depend on the evidence, not on vibes.
-4. Use explicit `.input(...)` and `.output(...)` paths so cache keys and reports explain what mattered.
+1. Put project/build/run authority in `build.kn` with `project(...)`; keep `package(...)`, `blade(...)`, `build_defaults(...)`, and `run_defaults(...)` for compatibility or split metadata.
+2. Declare evidence edges with first-class constructors such as `check_task(...)`, `source_tests(...)`, `gpu_suite(...)`, `cuda_artifacts(...)`, `native_executable(...)`, `album_mode(...)`, `capsule_set(...)`, and `certify(...)`.
+3. Use task values in `.requires(...)` when possible; the evaluator expands multi-task values such as GPU suites and mapped arrays into concrete DAG node ids.
+4. Use `source_set(...)` with `.glob(...)`, `.file(...)`, `.dir(...)`, and `.exclude(...)` to avoid hand-listing every source input.
 5. Run `kain build .` from the project root when you want the whole DAG.
 
 `KAIN.toml` still works and still owns compatibility metadata not yet promoted into script authority, especially current C-FFI library declarations. When both exist, `build.kn` is the explicit task authority and `KAIN.toml` contributes defaults/legacy metadata.
@@ -43,6 +43,61 @@ fn build(ctx: BuildContext) -> BuildGraph:
 
 This is the root-authority lane for script-only workspaces: no `KAIN.toml` is required just to discover nested blades, choose generated roots, or steer search patterns.
 
+## Evaluated Project Surface
+
+The preferred greenfield shape is a returned graph, not a source-scanned pile of exact literal calls:
+
+```kn
+use std::build
+use std::test
+use std::proof
+use std::bench
+use std::attrition
+use std::certify
+
+const KERNELS = ["search_kernel", "repair_kernel"]
+
+fn kernel_check(name: String) -> BuildTask:
+    return check_task("check-" + name + "-cuda")
+        .entry("src/" + name + ".kn")
+        .target("cuda")
+        .axis("target", "cuda")
+
+fn build(ctx: BuildContext) -> BuildGraph:
+    let app = project("semantic-oracle")
+        .kind("kain_tool")
+        .entry("src/main.kn")
+        .source_root("src")
+        .targets("llvm", "cuda")
+        .artifact_root(".kain/out")
+
+    let sources = source_set("sources")
+        .glob("src/**/*.kn")
+        .exclude("src/*_kernel.kn")
+        .dir("error_corpus")
+
+    let host = check_task("check-host")
+        .project(app)
+        .target("llvm")
+        .inputs(sources)
+
+    let cuda = map(KERNELS, kernel_check)
+
+    let exe = native_executable("root-executable")
+        .project(app)
+        .requires(host, cuda)
+
+    return build_graph(app)
+        .sources(sources)
+        .tasks(host, cuda, exe, certify("semantic-oracle.local").requires(exe))
+```
+
+Evaluator notes:
+
+- `const NAME = ...` is accepted in `build.kn` as a build-surface convenience even before the general parser grows inferred constants.
+- Multiline fluent chains are accepted by the evaluator, so authors do not need scanner-era single-line method piles.
+- `.fragment(...)` and `.compute(...)` are public GPU suite methods; the evaluator normalizes them internally because those words are reserved elsewhere in Kain.
+
 ## Task Kinds
 
 `check` runs `kain-check` against a Kain entry.
@@ -58,7 +113,7 @@ let check = build_check("check-llvm")
 `test` runs the `kain-test` harness. It honors `//@` and `#@` directives, and without an override it infers `kain-test` from `test` items or `check-pass` from ordinary files.
 
 ```kn
-let source_tests = test_suite("source-tests")
+let test_track = test_suite("source-tests")
     .entry("src/main.kn")
     .target("llvm")
     .requires("check-llvm")

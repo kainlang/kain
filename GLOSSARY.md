@@ -32,7 +32,7 @@ Location rule: paths in this glossary are live in this checkout. Older docs may 
 
 **bootstrap-semantic-authoring** - The repo-local skill for growing the semantic diagnostic error corpus with intentionally broken Kain fixtures, expected diagnostic metadata, generation/verification scripts, and optional error-system wiring updates. Location: `.agents/skills/bootstrap-semantic-authoring/`; corpus/scripts live in `crates/semantic/error_corpus/` and `crates/semantic/scripts/`.
 
-**build.kn** - The preferred project-authority file for modern Kain workspaces. It is Kain source, not shell glue: package metadata, run defaults, platform requirements, evidence DAG tasks, and certification gates belong here. Location: blade roots, project roots, and `stdlib/build.kn` plus `docs/pipelines/build-kn-evidence-dag.md`.
+**build.kn** - The preferred project-authority file for modern Kain workspaces. It is Kain source, not shell glue: package metadata, run defaults, platform requirements, evidence DAG tasks, GPU artifacts, source sets, capsules, and certification gates belong here. `crates/build` now tries a deterministic evaluated `build.kn` lane first, then falls back to the legacy literal scanner for compatibility. Location: blade roots, project roots, `crates/build/src/evaluated_build.rs`, and `stdlib/build.kn` plus `docs/pipelines/build-kn-evidence-dag.md`.
 
 ## C
 

@@ -56,6 +56,30 @@ pub struct PlatformPackageSpec:
     name: String
     provider_value: String
 
+pub struct ProjectSpec:
+    name: String
+    kind_value: String
+    version_value: String
+    description_value: String
+    entry_path: String
+    source_roots: Array<String>
+    module_roots: Array<String>
+    generated_root_path: String
+    build_targets: Array<String>
+    artifact_root_path: String
+    cache_root_path: String
+    profile_value: String
+    run_args: Array<String>
+    watch_paths: Array<String>
+
+pub struct SourceSetSpec:
+    name: String
+    roots: Array<String>
+    files_value: Array<String>
+    dirs: Array<String>
+    globs: Array<String>
+    excludes: Array<String>
+
 pub struct BuildTaskSpec:
     id: String
     kind_value: String
@@ -147,6 +171,34 @@ pub fn platform_requirement(name: String) -> PlatformPackageSpec:
 pub fn requires_platform_package(name: String) -> PlatformPackageSpec:
     return platform_package(name)
 
+pub fn project(name: String) -> ProjectSpec:
+    return ProjectSpec {
+        name: name,
+        kind_value: "",
+        version_value: "",
+        description_value: "",
+        entry_path: "",
+        source_roots: [],
+        module_roots: [],
+        generated_root_path: "",
+        build_targets: [],
+        artifact_root_path: "",
+        cache_root_path: "",
+        profile_value: "",
+        run_args: [],
+        watch_paths: []
+    }
+
+pub fn source_set(name: String) -> SourceSetSpec:
+    return SourceSetSpec {
+        name: name,
+        roots: [],
+        files_value: [],
+        dirs: [],
+        globs: [],
+        excludes: []
+    }
+
 pub fn build_task_of_kind(id: String, kind: String) -> BuildTaskSpec:
     return BuildTaskSpec {
         id: id,
@@ -200,6 +252,27 @@ pub fn command_task(id: String) -> BuildTaskSpec:
 
 pub fn amalgamate_capsule(id: String) -> BuildTaskSpec:
     return build_task_of_kind(id, BUILD_KIND_AMALGAMATE)
+
+pub fn source_tests(id: String) -> BuildTaskSpec:
+    return build_task_of_kind(id, BUILD_KIND_TEST)
+
+pub fn gpu_suite(id: String) -> BuildTaskSpec:
+    return build_task_of_kind(id, "gpu")
+
+pub fn cuda_artifacts(id: String) -> BuildTaskSpec:
+    return exec_task(id).command("kain").target("cuda")
+
+pub fn kain_runner(id: String) -> BuildTaskSpec:
+    return exec_task(id).command("kain")
+
+pub fn album_mode(id: String) -> BuildTaskSpec:
+    return exec_task(id).command("powershell")
+
+pub fn capsule_set(id: String) -> BuildTaskSpec:
+    return build_task_of_kind(id, BUILD_KIND_AMALGAMATE)
+
+pub fn certify(subject: String) -> BuildTaskSpec:
+    return build_task_of_kind("certify-" + subject, BUILD_KIND_CERTIFY).certifies(subject)
 
 impl PackageSpec:
     fn version(_self: Self_, value: String) -> PackageSpec:
@@ -344,6 +417,110 @@ impl PlatformPackageSpec:
         next.provider_value = value
         return next
 
+impl ProjectSpec:
+    fn kind(_self: Self_, value: String) -> ProjectSpec:
+        let mut next = _self
+        next.kind_value = value
+        return next
+
+    fn version(_self: Self_, value: String) -> ProjectSpec:
+        let mut next = _self
+        next.version_value = value
+        return next
+
+    fn description(_self: Self_, value: String) -> ProjectSpec:
+        let mut next = _self
+        next.description_value = value
+        return next
+
+    fn entry(_self: Self_, path: String) -> ProjectSpec:
+        let mut next = _self
+        next.entry_path = path
+        return next
+
+    fn source_root(_self: Self_, path: String) -> ProjectSpec:
+        let mut next = _self
+        push(next.source_roots, path)
+        return next
+
+    fn source_roots(_self: Self_, path: String) -> ProjectSpec:
+        return _self.source_root(path)
+
+    fn module_root(_self: Self_, path: String) -> ProjectSpec:
+        let mut next = _self
+        push(next.module_roots, path)
+        return next
+
+    fn module_roots(_self: Self_, path: String) -> ProjectSpec:
+        return _self.module_root(path)
+
+    fn generated_root(_self: Self_, path: String) -> ProjectSpec:
+        let mut next = _self
+        next.generated_root_path = path
+        return next
+
+    fn target(_self: Self_, value: String) -> ProjectSpec:
+        let mut next = _self
+        push(next.build_targets, value)
+        return next
+
+    fn targets(_self: Self_, value: String) -> ProjectSpec:
+        return _self.target(value)
+
+    fn artifact_root(_self: Self_, path: String) -> ProjectSpec:
+        let mut next = _self
+        next.artifact_root_path = path
+        return next
+
+    fn cache_root(_self: Self_, path: String) -> ProjectSpec:
+        let mut next = _self
+        next.cache_root_path = path
+        return next
+
+    fn profile(_self: Self_, value: String) -> ProjectSpec:
+        let mut next = _self
+        next.profile_value = value
+        return next
+
+    fn run_arg(_self: Self_, value: String) -> ProjectSpec:
+        let mut next = _self
+        push(next.run_args, value)
+        return next
+
+    fn watch(_self: Self_, path: String) -> ProjectSpec:
+        let mut next = _self
+        push(next.watch_paths, path)
+        return next
+
+impl SourceSetSpec:
+    fn root(_self: Self_, path: String) -> SourceSetSpec:
+        let mut next = _self
+        push(next.roots, path)
+        return next
+
+    fn file(_self: Self_, path: String) -> SourceSetSpec:
+        let mut next = _self
+        push(next.files_value, path)
+        return next
+
+    fn files(_self: Self_, path: String) -> SourceSetSpec:
+        return _self.file(path)
+
+    fn dir(_self: Self_, path: String) -> SourceSetSpec:
+        let mut next = _self
+        push(next.dirs, path)
+        return next
+
+    fn glob(_self: Self_, pattern: String) -> SourceSetSpec:
+        let mut next = _self
+        push(next.globs, pattern)
+        return next
+
+    fn exclude(_self: Self_, pattern: String) -> SourceSetSpec:
+        let mut next = _self
+        push(next.excludes, pattern)
+        return next
+
 impl BuildTaskSpec:
     fn kind(_self: Self_, value: String) -> BuildTaskSpec:
         let mut next = _self
@@ -371,6 +548,12 @@ impl BuildTaskSpec:
     fn path(_self: Self_, path: String) -> BuildTaskSpec:
         return _self.entry(path)
 
+    fn project(_self: Self_, value: ProjectSpec) -> BuildTaskSpec:
+        let mut next = _self
+        if next.entry_path == "":
+            next.entry_path = value.entry_path
+        return next
+
     fn command(_self: Self_, value: String) -> BuildTaskSpec:
         let mut next = _self
         next.command_value = value
@@ -380,6 +563,9 @@ impl BuildTaskSpec:
         let mut next = _self
         push(next.args, value)
         return next
+
+    fn args(_self: Self_, value: String) -> BuildTaskSpec:
+        return _self.arg(value)
 
     fn cwd(_self: Self_, path: String) -> BuildTaskSpec:
         let mut next = _self
@@ -401,10 +587,16 @@ impl BuildTaskSpec:
         push(next.inputs, path)
         return next
 
+    fn inputs(_self: Self_, path: String) -> BuildTaskSpec:
+        return _self.input(path)
+
     fn output(_self: Self_, path: String) -> BuildTaskSpec:
         let mut next = _self
         push(next.outputs, path)
         return next
+
+    fn outputs(_self: Self_, path: String) -> BuildTaskSpec:
+        return _self.output(path)
 
     fn root_output(_self: Self_, path: String) -> BuildTaskSpec:
         return _self.output(path)
@@ -413,6 +605,9 @@ impl BuildTaskSpec:
         return _self.output(path)
 
     fn artifact(_self: Self_, path: String) -> BuildTaskSpec:
+        return _self.output(path)
+
+    fn produces(_self: Self_, path: String) -> BuildTaskSpec:
         return _self.output(path)
 
     fn depends_on(_self: Self_, task_id: String) -> BuildTaskSpec:
@@ -424,6 +619,9 @@ impl BuildTaskSpec:
         return _self.depends_on(task_id)
 
     fn requires_task(_self: Self_, task_id: String) -> BuildTaskSpec:
+        return _self.depends_on(task_id)
+
+    fn after(_self: Self_, task_id: String) -> BuildTaskSpec:
         return _self.depends_on(task_id)
 
     fn requires_capability(_self: Self_, capability: String) -> BuildTaskSpec:
@@ -540,6 +738,27 @@ impl BuildTaskSpec:
     fn stderr(_self: Self_, path: String) -> BuildTaskSpec:
         return _self.option("stderr", path)
 
+    fn artifact_root(_self: Self_, path: String) -> BuildTaskSpec:
+        return _self.option("artifact_root", path)
+
+    fn output_dir(_self: Self_, path: String) -> BuildTaskSpec:
+        return _self.option("output_dir", path)
+
+    fn stem(_self: Self_, value: String) -> BuildTaskSpec:
+        return _self.option("stem", value)
+
+    fn fragment_source(_self: Self_, path: String) -> BuildTaskSpec:
+        return _self.option("fragment", path).input(path)
+
+    fn compute_source(_self: Self_, path: String) -> BuildTaskSpec:
+        return _self.option("compute", path).input(path)
+
+    fn runner(_self: Self_, path: String) -> BuildTaskSpec:
+        return _self.option("runner", path).input(path)
+
+    fn executable(_self: Self_, path: String) -> BuildTaskSpec:
+        return _self.option("executable", path)
+
     fn always_run(_self: Self_) -> BuildTaskSpec:
         return _self.option("always_run", "true")
 
@@ -550,6 +769,24 @@ impl BuildTaskSpec:
         return _self.arg(value)
 
 impl BuildGraphSpec:
+    fn project(_self: Self_, value: ProjectSpec) -> BuildGraphSpec:
+        let mut next = _self
+        push(next.packages, PackageSpec {
+            name: value.name,
+            version_value: value.version_value,
+            description_value: value.description_value
+        })
+        push(next.blades, BladeSpec {
+            name: value.name,
+            kind_value: value.kind_value,
+            entry_path: value.entry_path,
+            source_roots: value.source_roots,
+            module_roots: value.module_roots,
+            build_targets: value.build_targets,
+            dependencies: []
+        })
+        return next
+
     fn package(_self: Self_, value: PackageSpec) -> BuildGraphSpec:
         let mut next = _self
         push(next.packages, value)
@@ -564,6 +801,12 @@ impl BuildGraphSpec:
         let mut next = _self
         push(next.tasks, value)
         return next
+
+    fn tasks(_self: Self_, value: BuildTaskSpec) -> BuildGraphSpec:
+        return _self.task(value)
+
+    fn sources(_self: Self_, value: SourceSetSpec) -> BuildGraphSpec:
+        return _self
 
     fn require(_self: Self_, value: PlatformPackageSpec) -> BuildGraphSpec:
         let mut next = _self

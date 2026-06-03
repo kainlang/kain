@@ -698,7 +698,13 @@ impl Default for ProjectBuildSection {
 
 pub fn plan_blade_workspace(options: &BladeBuildOptions) -> BuildResult<BladeBuildPlan> {
     let workspace = discover_workspace(&options.path)?;
-    let root_manifest = load_effective_kain_manifest(&workspace.root)?;
+    let mut root_manifest = load_effective_kain_manifest(&workspace.root)?;
+    if let Some(evaluated_manifest) = discover_evaluated_build_graph_manifest(&workspace.root)? {
+        root_manifest = Some(match root_manifest {
+            Some(manifest) => merge_build_graph_manifest(manifest, evaluated_manifest),
+            None => evaluated_manifest,
+        });
+    }
     let config = BuildWorkspaceConfig::from_workspace(&workspace, root_manifest.as_ref(), options);
 
     let mut tasks = Vec::new();
@@ -1035,12 +1041,15 @@ pub fn build_kain_native_ui(options: &KainNativeUiBuildOptions) -> BuildResult<B
 pub fn plan_kain_project(options: &KainProjectBuildOptions) -> BuildResult<BladeBuildPlan> {
     let workspace_root = PathBuf::from(kfs::canonicalize_path(&options.path)?);
     let manifest_path = workspace_root.join("KAIN.toml");
-    let manifest = load_effective_kain_manifest(&workspace_root)?.ok_or_else(|| {
+    let mut manifest = load_effective_kain_manifest(&workspace_root)?.ok_or_else(|| {
         BuildError::Config(format!(
             "No Kain project authority found under {}; add build.kn or KAIN.toml",
             workspace_root.display()
         ))
     })?;
+    if let Some(evaluated_manifest) = discover_evaluated_build_graph_manifest(&workspace_root)? {
+        manifest = merge_build_graph_manifest(manifest, evaluated_manifest);
+    }
     let lane = options
         .lane
         .or_else(|| options.profile.as_deref().and_then(BuildLane::parse))
@@ -1051,12 +1060,18 @@ pub fn plan_kain_project(options: &KainProjectBuildOptions) -> BuildResult<Blade
         .clone()
         .or_else(|| manifest.build.profile.clone())
         .unwrap_or_else(|| lane.cargo_profile().to_string());
-    let config = StandaloneBuildConfig::new(
+    let mut config = StandaloneBuildConfig::new(
         workspace_root.clone(),
         Some(profile),
         Some(lane),
         Some("project".to_string()),
     );
+    if let Some(artifact_root) = manifest.build.artifact_root.as_deref() {
+        config.artifact_root = resolve_workspace_path(&workspace_root, artifact_root);
+    }
+    if let Some(cache_root) = manifest.build.cache_root.as_deref() {
+        config.cache_root = resolve_workspace_path(&workspace_root, cache_root);
+    }
     let package_name = manifest
         .package
         .name
@@ -1162,6 +1177,17 @@ pub fn plan_kain_project(options: &KainProjectBuildOptions) -> BuildResult<Blade
                     root_component: None,
                 },
             });
+        }
+    }
+    if !options.rust_only {
+        let explicit_config = config.as_workspace_config();
+        for task in select_explicit_build_task_sections(&workspace_root, &manifest.build.tasks)? {
+            tasks.push(build_explicit_task(
+                &explicit_config,
+                None,
+                &workspace_root,
+                &task,
+            )?);
         }
     }
     let tasks = order_tasks(tasks)?;
@@ -1589,8 +1615,7 @@ fn compact_evaluator_error(message: &str) -> String {
 fn discover_evaluated_build_graph_manifest(
     workspace_root: &Path,
 ) -> BuildResult<Option<KainManifest>> {
-    Ok(discover_build_graph_script(workspace_root)?
-        .and_then(|script| script.evaluated_manifest))
+    Ok(discover_build_graph_script(workspace_root)?.and_then(|script| script.evaluated_manifest))
 }
 
 fn merge_build_graph_manifest(mut base: KainManifest, overlay: KainManifest) -> KainManifest {
@@ -1598,10 +1623,19 @@ fn merge_build_graph_manifest(mut base: KainManifest, overlay: KainManifest) -> 
     merge_optional(&mut base.package.version, overlay.package.version);
     merge_optional(&mut base.package.description, overlay.package.description);
     merge_paths(&mut base.workspace.blades, overlay.workspace.blades);
-    merge_paths(&mut base.workspace.blade_roots, overlay.workspace.blade_roots);
+    merge_paths(
+        &mut base.workspace.blade_roots,
+        overlay.workspace.blade_roots,
+    );
     merge_paths(&mut base.workspace.members, overlay.workspace.members);
-    merge_paths(&mut base.workspace.search_roots, overlay.workspace.search_roots);
-    merge_optional(&mut base.workspace.stdlib_root, overlay.workspace.stdlib_root);
+    merge_paths(
+        &mut base.workspace.search_roots,
+        overlay.workspace.search_roots,
+    );
+    merge_optional(
+        &mut base.workspace.stdlib_root,
+        overlay.workspace.stdlib_root,
+    );
     merge_optional(
         &mut base.workspace.manifest_root,
         overlay.workspace.manifest_root,
@@ -6581,6 +6615,63 @@ fn build(ctx: BuildContext) -> BuildGraph:
     }
 
     #[test]
+    fn project_plan_consumes_evaluated_build_kn_graph() {
+        let root = unique_test_dir("evaluated-project-plan");
+        let src = root.join("src");
+        kfs::create_dir_all(&src).expect("src dir");
+        kfs::write_text(src.join("main.kn"), "fn main() -> Int:\n    return 0\n").expect("main");
+        kfs::write_text(
+            root.join("build.kn"),
+            r#"
+use std::build
+
+const TRACKS = ["smoke", "abuse"]
+
+fn check_track(name: String) -> BuildTask:
+    return check_task("check-" + name)
+        .entry("src/main.kn")
+        .target("interpret")
+
+fn build(ctx: BuildContext) -> BuildGraph:
+    let app = project("eval-plan")
+        .entry("src/main.kn")
+        .targets("interpret")
+        .artifact_root(".kain/eval-out")
+    let sources = source_set("sources")
+        .glob("src/**/*.kn")
+    let base = check_task("check-base")
+        .project(app)
+        .inputs(sources)
+    let tracks = map(TRACKS, check_track)
+    return build_graph(app).sources(sources).tasks(base, tracks)
+"#,
+        )
+        .expect("build script");
+
+        let plan = plan_kain_project(&KainProjectBuildOptions::new(&root)).expect("plan");
+        assert_eq!(
+            comparable_test_path(&plan.artifact_root),
+            comparable_test_path(&root.join(".kain").join("eval-out"))
+        );
+        assert_eq!(
+            plan.build_graph
+                .as_ref()
+                .map(|graph| graph.graph_source.as_str()),
+            Some("build.kn:evaluated")
+        );
+        let task_ids = plan
+            .tasks
+            .iter()
+            .map(|task| task.id.as_str())
+            .collect::<BTreeSet<_>>();
+        assert!(task_ids.contains("kain-compile:eval-plan:interpret"));
+        assert!(task_ids.contains("check-base"));
+        assert!(task_ids.contains("check-smoke"));
+        assert!(task_ids.contains("check-abuse"));
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
     fn build_graph_script_tasks_override_manifest_tasks() {
         let root = unique_test_dir("build-graph-task-authority");
         let manifest_path = root.join("KAIN.toml");
@@ -7279,6 +7370,13 @@ fn build(ctx: BuildContext) -> BuildGraph:
             outputs,
             ..test_task(id, Vec::new())
         }
+    }
+
+    fn comparable_test_path(path: &Path) -> String {
+        path.display()
+            .to_string()
+            .trim_start_matches(r"\\?\")
+            .replace('\\', "/")
     }
 
     fn unique_test_dir(name: &str) -> PathBuf {

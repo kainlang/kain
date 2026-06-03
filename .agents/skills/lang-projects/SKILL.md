@@ -160,7 +160,7 @@ Keep authored source in `src/`, external design/spec material in `reference/`, n
 
 ## Build Dot Kn Evidence DAG
 
-Author `build.kn` as Kain. The planner treats the stdlib constructors as build intrinsics today, so graph extraction is deterministic and side-effect free.
+Author `build.kn` as Kain. The planner now tries the deterministic evaluator first and falls back to the old literal scanner only when the evaluator cannot lower a script. Prefer returned graph semantics, helper functions, constants, `map(...)`, source sets, task values in `.requires(...)`, and multiline fluent chains over scanner-era boilerplate.
 
 Preferred imports:
 
@@ -184,51 +184,44 @@ use std::attrition
 use std::certify
 
 fn build(ctx: BuildContext) -> BuildGraph:
-    let pkg = package("my-app")
+    let app = project("my-app")
+        .kind("kain_executable")
         .version("0.1.0")
         .description("Kain-owned app with explicit evidence.")
-
-    let app = blade("my-app")
         .entry("src/main.kn")
         .source_root("src")
         .module_root("src")
-        .build_target("llvm")
-
-    let defaults = build_defaults()
-        .entry("src/main.kn")
+        .targets("llvm")
         .artifact_root(".kain/out")
         .cache_root(".kain/cache/build")
         .profile("debug")
-        .target("llvm")
 
-    let run = run_defaults()
-        .entry("src/main.kn")
-        .target("llvm")
+    let sources = source_set("app-sources")
+        .glob("src/**/*.kn")
+        .glob("tests/**/*.kn")
+        .file("build.kn")
 
-    let check = build_check("check-llvm")
-        .entry("src/main.kn")
+    let check = check_task("check-llvm")
+        .project(app)
         .target("llvm")
         .axis("target", "llvm")
         .telemetry("llm.evidence")
-        .input("src/main.kn")
-        .input("build.kn")
+        .inputs(sources)
 
-    let source_tests = test_suite("source-tests")
+    let source_track = source_tests("source-tests")
         .entry("tests/smoke.kn")
         .target("llvm")
-        .requires("check-llvm")
-        .input("tests/smoke.kn")
-        .input("src/main.kn")
+        .requires(check)
+        .inputs(sources)
 
     let proof = proof_obligation("z3-layout-proof")
         .entry("z3/layout-proof.kn")
-        .requires("check-llvm")
+        .requires(check)
         .axis("solver", "z3")
         .telemetry("llm.proof")
         .input("z3/layout-proof.kn")
 
     let bench = bench_case("bench-hot-path")
-        .requires("root-executable")
         .arg("--case")
         .arg("my_app_hot_path")
         .arg("--runs")
@@ -242,44 +235,31 @@ fn build(ctx: BuildContext) -> BuildGraph:
         .arg("300")
 
     let root_exe = native_executable("root-executable")
-        .entry("src/main.kn")
-        .root_output("$blade/my-app.exe")
-        .requires("check-llvm")
-        .requires("source-tests")
-        .requires("z3-layout-proof")
-        .input("src/main.kn")
-        .input("build.kn")
+        .project(app)
+        .output("$blade/my-app.exe")
+        .requires(check, source_track, proof)
+        .inputs(sources)
 
-    let gate = certify_gate("certify")
-        .requires("check-llvm")
-        .requires("source-tests")
-        .requires("z3-layout-proof")
-        .requires("root-executable")
-        .certifies("my-app.local")
+    let gate = certify("my-app.local")
+        .requires(check, source_track, proof, root_exe, bench, abuse)
 
-    return build_graph()
-        .package(pkg)
-        .blade(app)
-        .defaults(defaults)
-        .run(run)
-        .task(check)
-        .task(source_tests)
-        .task(proof)
-        .task(root_exe)
-        .task(bench)
-        .task(abuse)
-        .task(gate)
+    return build_graph(app)
+        .sources(sources)
+        .tasks(check, source_track, proof, root_exe, bench, abuse, gate)
 ```
 
 Evidence rules:
 
-- Use `build_check(...)` for frontend/source validation.
-- Use `test_suite(...)` for `kain-test` source tests and directive-backed suites.
+- Use `project(...)` for greenfield package/build/run authority. Keep `package(...)`, `blade(...)`, `build_defaults(...)`, and `run_defaults(...)` as compatibility or split-metadata tools.
+- Use `source_set(...)` for project inputs. Prefer `.glob(...)`, `.file(...)`, `.dir(...)`, and `.exclude(...)` over hand-listing a hundred `.input(...)` calls.
+- Use `check_task(...)` or `build_check(...)` for frontend/source validation.
+- Use `source_tests(...)` or `test_suite(...)` for `kain-test` source tests and directive-backed suites.
+- Use task values in `.requires(...)`; the evaluator expands arrays and multi-node helpers like `gpu_suite(...)` into concrete DAG ids.
 - Use `proof_obligation(...)` for Z3 proof mode. It should depend on at least the check lane.
 - Use `bench_case(...)` for performance claims. Prefer named benchmark cases over raw commands when the repo runner knows the case.
 - Use `attrition_case(...)` for teardown, long-run, sabotage, or runtime cleanliness claims.
 - Use `native_executable(...)` for root executable proofs through LLVM/native.
-- Use `certify_gate(...)` as the final certificate node, never as a substitute for the evidence it depends on.
+- Use `certify(...)` or `certify_gate(...)` as the final certificate node, never as a substitute for the evidence it depends on.
 - Use `.requires(...)` so failed proof, benchmark, attrition, or executable tasks block certification.
 - Use `.input(...)` and `.output(...)` aggressively so cache keys, reports, and future agents know what mattered.
 

@@ -364,3 +364,16 @@
 - Minimal repro: In `X:\crates\semantic`, set `KAIN_SEMANTIC_FILE_SCANNER=F:\Scoop\apps\rustup\current\.cargo\bin\rg.exe` and run `kain run src/main.kn --target llvm -- index code` with the scanner path enabled.
 - Evidence: The run printed `scanner: F:\Scoop\apps\rustup\current\.cargo\bin\rg.exe`, `status: -5`, and `manifest: 0 bytes` for every configured seed directory.
 - Suggested direction: Add a native process conformance test for Windows absolute executables plus quoted absolute path arguments and report the underlying OS error in `process_last_status`/stderr instead of only `-5`.
+
+---
+
+## 2026-06-03 - evaluated build.kn authoring
+### Build DSL ergonomics still need parser-native support
+- Categories: developer-experience, parser, tooling
+- Status: Bypass-Applied
+- Surface: parser, build
+- Symptom: The new evaluated `build.kn` surface needed evaluator-side normalization for `const NAME = ...`, multiline fluent chains, and method names such as `.fragment(...)` / `.compute(...)` because the general parser rejected inferred constants, scanner-era line breaks, or reserved keyword method identifiers.
+- Workflow impact: The approved zero-boilerplate `build.kn` design could not be represented directly through the current parser without compatibility shims, which would push authors back toward one-line literal chains.
+- Minimal repro: Parse a `build.kn` containing `const KERNELS = ["search_kernel"]`, `let gpu = gpu_suite("gpu")` followed by an indented `.fragment("src/gpu/fragment.kn")`, or any fluent `.fragment(...)` method.
+- Evidence: `cargo test -p kain-build evaluated_build --target-dir Z:\_b\cargo-target\build-eval` initially failed with `Expected ':', got '='`, `Unexpected token: indentation`, and `keyword 'fragment' is a reserved keyword and cannot be used as an identifier`.
+- Suggested direction: Promote inferred constants, newline-tolerant fluent chains, and keyword-safe method identifiers into parser/typechecker truth so `crates/build/src/evaluated_build.rs` can eventually drop its build-surface normalizer.

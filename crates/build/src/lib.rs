@@ -1,8 +1,8 @@
 use std::env;
 use std::path::PathBuf;
 
-pub mod workspace;
 pub(crate) mod evaluated_build;
+pub mod workspace;
 pub use workspace::*;
 
 pub use kain_host::{

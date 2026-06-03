@@ -36,10 +36,58 @@ pub(crate) fn evaluate_build_script(
 }
 
 fn parse_program(source: &str, graph_source: &str) -> EvalResult<Program> {
-    let tokens = Lexer::new(source).tokenize()?;
-    let span_mapper = SpanMapper::new(source);
+    let normalized = normalize_build_surface_source(source);
+    let tokens = Lexer::new(&normalized).tokenize()?;
+    let span_mapper = SpanMapper::new(&normalized);
     let mut parser = Parser::new(&tokens, &span_mapper, graph_source);
     Ok(parser.parse()?)
+}
+
+fn normalize_build_surface_source(source: &str) -> String {
+    let mut output = String::new();
+    for line in source.lines() {
+        let trimmed = line.trim_start();
+        if trimmed.starts_with('.') {
+            output.push_str(&normalize_reserved_build_methods(trimmed));
+            continue;
+        }
+        if !output.is_empty() {
+            output.push('\n');
+        }
+        output.push_str(&normalize_reserved_build_methods(
+            &normalize_inferred_const_line(line),
+        ));
+    }
+    if source.ends_with('\n') {
+        output.push('\n');
+    }
+    output
+}
+
+fn normalize_inferred_const_line(line: &str) -> String {
+    let trimmed = line.trim_start();
+    if !trimmed.starts_with("const ") {
+        return line.to_string();
+    }
+    let indent_len = line.len() - trimmed.len();
+    let Some(eq_index) = trimmed.find('=') else {
+        return line.to_string();
+    };
+    let before_equals = &trimmed[..eq_index];
+    if before_equals.contains(':') {
+        return line.to_string();
+    }
+    format!(
+        "{}{}: BuildValue{}",
+        &line[..indent_len],
+        before_equals.trim_end(),
+        &trimmed[eq_index..]
+    )
+}
+
+fn normalize_reserved_build_methods(line: &str) -> String {
+    line.replace(".fragment(", ".fragment_source(")
+        .replace(".compute(", ".compute_source(")
 }
 
 #[derive(Debug, Clone)]
@@ -286,7 +334,11 @@ impl<'a> BuildEvaluator<'a> {
         Ok(())
     }
 
-    fn call_function(&mut self, function: &Function, args: Vec<BuildValue>) -> EvalResult<BuildValue> {
+    fn call_function(
+        &mut self,
+        function: &Function,
+        args: Vec<BuildValue>,
+    ) -> EvalResult<BuildValue> {
         if args.len() > function.params.len() {
             return Err(EvaluatedBuildError::Message(format!(
                 "function '{}' expected at most {} argument(s), got {}",
@@ -306,7 +358,11 @@ impl<'a> BuildEvaluator<'a> {
         result
     }
 
-    fn call_lambda(&mut self, lambda: &LambdaValue, args: Vec<BuildValue>) -> EvalResult<BuildValue> {
+    fn call_lambda(
+        &mut self,
+        lambda: &LambdaValue,
+        args: Vec<BuildValue>,
+    ) -> EvalResult<BuildValue> {
         if args.len() > lambda.params.len() {
             return Err(EvaluatedBuildError::Message(format!(
                 "lambda expected at most {} argument(s), got {}",
@@ -367,8 +423,14 @@ impl<'a> BuildEvaluator<'a> {
                         self.scopes.pop();
                     }
                 }
-                Stmt::Item(_) | Stmt::Defer { .. } | Stmt::Dispatch { .. } | Stmt::Break(_, _)
-                | Stmt::Continue(_) | Stmt::Fanout { .. } | Stmt::While { .. } | Stmt::Loop { .. } => {
+                Stmt::Item(_)
+                | Stmt::Defer { .. }
+                | Stmt::Dispatch { .. }
+                | Stmt::Break(_, _)
+                | Stmt::Continue(_)
+                | Stmt::Fanout { .. }
+                | Stmt::While { .. }
+                | Stmt::Loop { .. } => {
                     return Err(EvaluatedBuildError::Message(format!(
                         "unsupported statement in deterministic build.kn evaluator: {:?}",
                         stmt
@@ -471,9 +533,18 @@ impl<'a> BuildEvaluator<'a> {
         let right = self.eval_expr(right)?;
         match op {
             BinaryOp::Add => match (left, right) {
-                (BuildValue::String(left), right) => Ok(BuildValue::String(left + &right.as_string()?)),
-                (left, BuildValue::String(right)) => Ok(BuildValue::String(left.as_string()? + &right)),
-                (BuildValue::Int(left), BuildValue::Int(right)) => Ok(BuildValue::Int(left + right)),
+                (BuildValue::String(mut left), right) => {
+                    left.push_str(&right.as_string()?);
+                    Ok(BuildValue::String(left))
+                }
+                (left, BuildValue::String(right)) => {
+                    let mut text = left.as_string()?;
+                    text.push_str(&right);
+                    Ok(BuildValue::String(text))
+                }
+                (BuildValue::Int(left), BuildValue::Int(right)) => {
+                    Ok(BuildValue::Int(left + right))
+                }
                 (left, right) => Err(EvaluatedBuildError::Message(format!(
                     "unsupported + operands in build.kn evaluator: {} + {}",
                     left.type_name(),
@@ -527,7 +598,9 @@ impl<'a> BuildEvaluator<'a> {
                 name: first_string_arg(name, &args)?,
                 ..SourceSetSpec::default()
             })),
-            "platform_package" | "build_platform_package" | "platform_requirement"
+            "platform_package"
+            | "build_platform_package"
+            | "platform_requirement"
             | "requires_platform_package" => Ok(BuildValue::PlatformPackage(PlatformPackageSpec {
                 package: first_string_arg(name, &args)?,
                 provider: "system".to_string(),
@@ -548,17 +621,19 @@ impl<'a> BuildEvaluator<'a> {
                     artifact_root: None,
                 })))
             }
-            "cuda_artifacts" => Ok(BuildValue::Task(TaskValue::CudaArtifacts(CudaArtifactsSpec {
-                common: KainBuildTaskSection {
-                    id: first_string_arg(name, &args)?,
-                    kind: "exec".to_string(),
-                    command: Some("kain".to_string()),
-                    ..KainBuildTaskSection::default()
+            "cuda_artifacts" => Ok(BuildValue::Task(TaskValue::CudaArtifacts(
+                CudaArtifactsSpec {
+                    common: KainBuildTaskSection {
+                        id: first_string_arg(name, &args)?,
+                        kind: "exec".to_string(),
+                        command: Some("kain".to_string()),
+                        ..KainBuildTaskSection::default()
+                    },
+                    stem: None,
+                    output_dir: None,
+                    output_roles: Vec::new(),
                 },
-                stem: None,
-                output_dir: None,
-                output_roles: Vec::new(),
-            }))),
+            ))),
             "kain_runner" => Ok(BuildValue::Task(TaskValue::KainRunner(KainRunnerSpec {
                 common: KainBuildTaskSection {
                     id: first_string_arg(name, &args)?,
@@ -772,10 +847,21 @@ impl<'a> BuildEvaluator<'a> {
         values: &[BuildValue],
     ) -> EvalResult<()> {
         match method {
-            "root" | "roots" => push_unique_paths(&mut source_set.roots, &values_to_paths(values, self.workspace_root)?),
-            "file" | "files" => push_unique_paths(&mut source_set.files, &values_to_paths(values, self.workspace_root)?),
-            "dir" | "dirs" => push_unique_paths(&mut source_set.dirs, &values_to_paths(values, self.workspace_root)?),
-            "glob" | "globs" => push_unique_strings(&mut source_set.globs, &values_to_strings(values)?),
+            "root" | "roots" => push_unique_paths(
+                &mut source_set.roots,
+                &values_to_paths(values, self.workspace_root)?,
+            ),
+            "file" | "files" => push_unique_paths(
+                &mut source_set.files,
+                &values_to_paths(values, self.workspace_root)?,
+            ),
+            "dir" | "dirs" => push_unique_paths(
+                &mut source_set.dirs,
+                &values_to_paths(values, self.workspace_root)?,
+            ),
+            "glob" | "globs" => {
+                push_unique_strings(&mut source_set.globs, &values_to_strings(values)?)
+            }
             "exclude" | "excludes" => {
                 push_unique_strings(&mut source_set.excludes, &values_to_strings(values)?)
             }
@@ -795,20 +881,24 @@ impl<'a> BuildEvaluator<'a> {
         values: &[BuildValue],
     ) -> EvalResult<()> {
         match task {
-            TaskValue::Sections(sections) => apply_section_task_method(
-                sections,
-                method,
-                values,
-                self.workspace_root,
-                None,
-            ),
-            TaskValue::GpuSuite(spec) => apply_gpu_suite_method(spec, method, values, self.workspace_root),
+            TaskValue::Sections(sections) => {
+                apply_section_task_method(sections, method, values, self.workspace_root, None)
+            }
+            TaskValue::GpuSuite(spec) => {
+                apply_gpu_suite_method(spec, method, values, self.workspace_root)
+            }
             TaskValue::CudaArtifacts(spec) => {
                 apply_cuda_artifacts_method(spec, method, values, self.workspace_root)
             }
-            TaskValue::KainRunner(spec) => apply_kain_runner_method(spec, method, values, self.workspace_root),
-            TaskValue::AlbumMode(spec) => apply_album_mode_method(spec, method, values, self.workspace_root),
-            TaskValue::CapsuleSet(spec) => apply_capsule_set_method(spec, method, values, self.workspace_root),
+            TaskValue::KainRunner(spec) => {
+                apply_kain_runner_method(spec, method, values, self.workspace_root)
+            }
+            TaskValue::AlbumMode(spec) => {
+                apply_album_mode_method(spec, method, values, self.workspace_root)
+            }
+            TaskValue::CapsuleSet(spec) => {
+                apply_capsule_set_method(spec, method, values, self.workspace_root)
+            }
         }
     }
 }
@@ -823,12 +913,14 @@ fn apply_project_method(
         "version" => project.version = first_optional_string(values)?,
         "description" => project.description = first_optional_string(values)?,
         "entry" => project.entry = first_optional_path(values)?,
-        "source_root" | "source_roots" => {
-            push_unique_paths(&mut project.source_roots, &values_to_paths(values, Path::new(""))?)
-        }
-        "module_root" | "module_roots" => {
-            push_unique_paths(&mut project.module_roots, &values_to_paths(values, Path::new(""))?)
-        }
+        "source_root" | "source_roots" => push_unique_paths(
+            &mut project.source_roots,
+            &values_to_paths(values, Path::new(""))?,
+        ),
+        "module_root" | "module_roots" => push_unique_paths(
+            &mut project.module_roots,
+            &values_to_paths(values, Path::new(""))?,
+        ),
         "generated_root" => project.generated_root = first_optional_path(values)?,
         "target" | "targets" | "build_target" | "build_targets" => {
             push_unique_strings(&mut project.targets, &values_to_strings(values)?)
@@ -875,12 +967,14 @@ fn apply_blade_method(
         "kind" => blade.kind = first_optional_string(values)?,
         "version" => blade.version = first_optional_string(values)?,
         "entry" => blade.entry = first_optional_path(values)?,
-        "source_root" | "source_roots" => {
-            push_unique_paths(&mut blade.source_roots, &values_to_paths(values, Path::new(""))?)
-        }
-        "module_root" | "module_roots" => {
-            push_unique_paths(&mut blade.module_roots, &values_to_paths(values, Path::new(""))?)
-        }
+        "source_root" | "source_roots" => push_unique_paths(
+            &mut blade.source_roots,
+            &values_to_paths(values, Path::new(""))?,
+        ),
+        "module_root" | "module_roots" => push_unique_paths(
+            &mut blade.module_roots,
+            &values_to_paths(values, Path::new(""))?,
+        ),
         "build_target" | "build_targets" | "target" | "targets" => {
             push_unique_strings(&mut blade.build_targets, &values_to_strings(values)?)
         }
@@ -902,15 +996,21 @@ fn apply_build_defaults_method(
         "entry" => defaults.entry = first_optional_path(values)?,
         "entry_module" => defaults.entry_module = first_optional_string(values)?,
         "source_root" => defaults.source_root = first_optional_path(values)?,
-        "source_order" => push_unique_paths(&mut defaults.source_order, &values_to_paths(values, Path::new(""))?),
-        "module_root" | "module_roots" => {
-            push_unique_paths(&mut defaults.module_roots, &values_to_paths(values, Path::new(""))?)
-        }
+        "source_order" => push_unique_paths(
+            &mut defaults.source_order,
+            &values_to_paths(values, Path::new(""))?,
+        ),
+        "module_root" | "module_roots" => push_unique_paths(
+            &mut defaults.module_roots,
+            &values_to_paths(values, Path::new(""))?,
+        ),
         "module_search_path" | "module_search_paths" => push_unique_paths(
             &mut defaults.module_search_paths,
             &values_to_paths(values, Path::new(""))?,
         ),
-        "target" | "targets" => push_unique_strings(&mut defaults.targets, &values_to_strings(values)?),
+        "target" | "targets" => {
+            push_unique_strings(&mut defaults.targets, &values_to_strings(values)?)
+        }
         "artifact_root" => defaults.artifact_root = first_optional_path(values)?,
         "cache_root" => defaults.cache_root = first_optional_path(values)?,
         "profile" => defaults.profile = first_optional_string(values)?,
@@ -935,7 +1035,10 @@ fn apply_run_defaults_method(
         "arg" | "args" => push_unique_strings(&mut defaults.args, &values_to_strings(values)?),
         "env" => insert_pair(values, &mut defaults.env)?,
         "cwd" => defaults.cwd = first_optional_path(values)?,
-        "watch" => push_unique_paths(&mut defaults.watch, &values_to_paths(values, Path::new(""))?),
+        "watch" => push_unique_paths(
+            &mut defaults.watch,
+            &values_to_paths(values, Path::new(""))?,
+        ),
         _ => {
             return Err(EvaluatedBuildError::Message(format!(
                 "unsupported run_defaults().{method}(...) method"
@@ -951,18 +1054,22 @@ fn apply_workspace_method(
     values: &[BuildValue],
 ) -> EvalResult<()> {
     match method {
-        "blade_pattern" | "blades" => {
-            push_unique_paths(&mut workspace.blades, &values_to_paths(values, Path::new(""))?)
-        }
-        "blade_root" | "blade_roots" => {
-            push_unique_paths(&mut workspace.blade_roots, &values_to_paths(values, Path::new(""))?)
-        }
-        "member" | "members" => {
-            push_unique_paths(&mut workspace.members, &values_to_paths(values, Path::new(""))?)
-        }
-        "search_root" | "search_roots" => {
-            push_unique_paths(&mut workspace.search_roots, &values_to_paths(values, Path::new(""))?)
-        }
+        "blade_pattern" | "blades" => push_unique_paths(
+            &mut workspace.blades,
+            &values_to_paths(values, Path::new(""))?,
+        ),
+        "blade_root" | "blade_roots" => push_unique_paths(
+            &mut workspace.blade_roots,
+            &values_to_paths(values, Path::new(""))?,
+        ),
+        "member" | "members" => push_unique_paths(
+            &mut workspace.members,
+            &values_to_paths(values, Path::new(""))?,
+        ),
+        "search_root" | "search_roots" => push_unique_paths(
+            &mut workspace.search_roots,
+            &values_to_paths(values, Path::new(""))?,
+        ),
         "stdlib_root" => workspace.stdlib_root = first_optional_path(values)?,
         "manifest_root" => workspace.manifest_root = first_optional_path(values)?,
         "generated_root" => workspace.generated_root = first_optional_path(values)?,
@@ -1035,17 +1142,25 @@ fn apply_single_section_task_method(
             &values_to_paths(values, workspace_root)?,
         ),
         "output" | "outputs" | "root_output" | "blade_output" | "artifact" | "produces" => {
-            push_unique_paths(&mut section.outputs, &values_to_paths(values, workspace_root)?)
+            push_unique_paths(
+                &mut section.outputs,
+                &values_to_paths(values, workspace_root)?,
+            )
         }
         "depends_on" | "depends" | "dependency" | "requires" | "requires_task" | "after" => {
-            push_unique_strings(&mut section.depends_on, &values_to_task_ids(values, workspace_root)?)
+            push_unique_strings(
+                &mut section.depends_on,
+                &values_to_task_ids(values, workspace_root)?,
+            )
         }
-        "requires_capability" | "when_capability" | "capability" => {
-            push_unique_strings(&mut section.required_capabilities, &values_to_strings(values)?)
-        }
-        "axis" | "matrix_axis" | "matrix_value" | "matrix" => {
-            push_unique_strings(&mut section.matrix_axes, &canonical_matrix_axis_values(values_to_strings(values)?))
-        }
+        "requires_capability" | "when_capability" | "capability" => push_unique_strings(
+            &mut section.required_capabilities,
+            &values_to_strings(values)?,
+        ),
+        "axis" | "matrix_axis" | "matrix_value" | "matrix" => push_unique_strings(
+            &mut section.matrix_axes,
+            &canonical_matrix_axis_values(values_to_strings(values)?),
+        ),
         "telemetry" | "telemetry_channel" => {
             push_unique_strings(&mut section.telemetry, &values_to_strings(values)?)
         }
@@ -1058,9 +1173,8 @@ fn apply_single_section_task_method(
         "tag" => push_unique_strings(&mut section.tags, &values_to_strings(values)?),
         "note" => push_unique_strings(&mut section.notes, &values_to_strings(values)?),
         "author" => push_unique_strings(&mut section.authors, &values_to_strings(values)?),
-        "name" | "version" | "storage" | "contents" | "capsule_set" | "header"
-        | "compression" | "preview_symbols" | "api_index" | "module_index" | "timeout_ms"
-        | "stdout" | "stderr" => {
+        "name" | "version" | "storage" | "contents" | "capsule_set" | "header" | "compression"
+        | "preview_symbols" | "api_index" | "module_index" | "timeout_ms" | "stdout" | "stderr" => {
             if let Some(value) = values_to_strings(values)?.first() {
                 section.options.insert(method.to_string(), value.clone());
             }
@@ -1108,13 +1222,13 @@ fn apply_gpu_suite_method(
     workspace_root: &Path,
 ) -> EvalResult<()> {
     match method {
-        "fragment" => {
+        "fragment" | "fragment_source" => {
             spec.fragment = first_optional_path(values)?;
             if let Some(path) = &spec.fragment {
                 push_unique_path(&mut spec.common.inputs, path.clone());
             }
         }
-        "compute" => {
+        "compute" | "compute_source" => {
             spec.compute = first_optional_path(values)?;
             if let Some(path) = &spec.compute {
                 push_unique_path(&mut spec.common.inputs, path.clone());
@@ -1122,7 +1236,13 @@ fn apply_gpu_suite_method(
         }
         "target" | "targets" => push_unique_strings(&mut spec.targets, &values_to_strings(values)?),
         "artifact_root" | "output_dir" => spec.artifact_root = first_optional_path(values)?,
-        _ => apply_single_section_task_method(&mut spec.common, method, values, workspace_root, None)?,
+        _ => apply_single_section_task_method(
+            &mut spec.common,
+            method,
+            values,
+            workspace_root,
+            None,
+        )?,
     }
     Ok(())
 }
@@ -1143,7 +1263,13 @@ fn apply_cuda_artifacts_method(
         "stem" => spec.stem = first_optional_string(values)?,
         "output_dir" | "artifact_root" => spec.output_dir = first_optional_path(values)?,
         "outputs" => push_unique_strings(&mut spec.output_roles, &values_to_strings(values)?),
-        _ => apply_single_section_task_method(&mut spec.common, method, values, workspace_root, None)?,
+        _ => apply_single_section_task_method(
+            &mut spec.common,
+            method,
+            values,
+            workspace_root,
+            None,
+        )?,
     }
     Ok(())
 }
@@ -1165,10 +1291,18 @@ fn apply_kain_runner_method(
         "target" => {
             spec.common.target = first_optional_string(values)?;
             if let Some(target) = &spec.common.target {
-                spec.common.args.extend(["--target".to_string(), target.clone()]);
+                spec.common
+                    .args
+                    .extend(["--target".to_string(), target.clone()]);
             }
         }
-        _ => apply_single_section_task_method(&mut spec.common, method, values, workspace_root, None)?,
+        _ => apply_single_section_task_method(
+            &mut spec.common,
+            method,
+            values,
+            workspace_root,
+            None,
+        )?,
     }
     Ok(())
 }
@@ -1190,7 +1324,13 @@ fn apply_album_mode_method(
         "executable" => spec.executable = first_optional_path(values)?,
         "output_dir" => spec.output_dir = first_optional_path(values)?,
         "arg" | "args" => spec.extra_args.extend(values_to_strings(values)?),
-        _ => apply_single_section_task_method(&mut spec.common, method, values, workspace_root, None)?,
+        _ => apply_single_section_task_method(
+            &mut spec.common,
+            method,
+            values,
+            workspace_root,
+            None,
+        )?,
     }
     Ok(())
 }
@@ -1205,8 +1345,17 @@ fn apply_capsule_set_method(
         "source" => spec.source_output = first_optional_path(values)?,
         "artifacts" => spec.artifacts_output = first_optional_path(values)?,
         "evidence" => spec.evidence_output = first_optional_path(values)?,
-        "after" => push_unique_strings(&mut spec.common.depends_on, &values_to_task_ids(values, workspace_root)?),
-        _ => apply_single_section_task_method(&mut spec.common, method, values, workspace_root, None)?,
+        "after" => push_unique_strings(
+            &mut spec.common.depends_on,
+            &values_to_task_ids(values, workspace_root)?,
+        ),
+        _ => apply_single_section_task_method(
+            &mut spec.common,
+            method,
+            values,
+            workspace_root,
+            None,
+        )?,
     }
     Ok(())
 }
@@ -1223,19 +1372,31 @@ fn apply_project_to_task(section: &mut KainBuildTaskSection, project: &ProjectSp
     }
 }
 
-fn apply_graph_value(graph: &mut GraphSpec, value: &BuildValue, workspace_root: &Path) -> EvalResult<()> {
+fn apply_graph_value(
+    graph: &mut GraphSpec,
+    value: &BuildValue,
+    workspace_root: &Path,
+) -> EvalResult<()> {
     match value {
         BuildValue::Project(project) => merge_project_into_manifest(&mut graph.manifest, project),
         BuildValue::Package(package) => merge_package_into_manifest(&mut graph.manifest, package),
         BuildValue::Blade(blade) => merge_blade_into_manifest(&mut graph.manifest, blade),
-        BuildValue::BuildDefaults(defaults) => merge_build_defaults_into_manifest(&mut graph.manifest, defaults),
-        BuildValue::RunDefaults(defaults) => merge_run_defaults_into_manifest(&mut graph.manifest, defaults),
-        BuildValue::Workspace(workspace) => merge_workspace_into_manifest(&mut graph.manifest, workspace),
-        BuildValue::PlatformPackage(package) => graph.platform_packages.push(KainBuildGraphPlatformPackage {
-            package: package.package.clone(),
-            provider: package.provider.clone(),
-            source: package.source.clone(),
-        }),
+        BuildValue::BuildDefaults(defaults) => {
+            merge_build_defaults_into_manifest(&mut graph.manifest, defaults)
+        }
+        BuildValue::RunDefaults(defaults) => {
+            merge_run_defaults_into_manifest(&mut graph.manifest, defaults)
+        }
+        BuildValue::Workspace(workspace) => {
+            merge_workspace_into_manifest(&mut graph.manifest, workspace)
+        }
+        BuildValue::PlatformPackage(package) => {
+            graph.platform_packages.push(KainBuildGraphPlatformPackage {
+                package: package.package.clone(),
+                provider: package.provider.clone(),
+                source: package.source.clone(),
+            })
+        }
         BuildValue::Task(_) | BuildValue::Array(_) => {
             for task in flatten_task_sections(std::slice::from_ref(value), workspace_root)? {
                 push_unique_task(&mut graph.tasks, task);
@@ -1260,14 +1421,23 @@ fn merge_project_into_manifest(manifest: &mut KainManifest, project: &ProjectSpe
     manifest.blade.version = project.version.clone();
     manifest.blade.kind = project.kind.clone();
     manifest.blade.entry = project.entry.clone();
-    replace_if_not_empty(&mut manifest.blade.source_roots, project.source_roots.clone());
-    replace_if_not_empty(&mut manifest.blade.module_roots, project.module_roots.clone());
+    replace_if_not_empty(
+        &mut manifest.blade.source_roots,
+        project.source_roots.clone(),
+    );
+    replace_if_not_empty(
+        &mut manifest.blade.module_roots,
+        project.module_roots.clone(),
+    );
     replace_if_not_empty(&mut manifest.blade.build_targets, project.targets.clone());
     manifest.build.entry = project.entry.clone();
     if let Some(root) = project.source_roots.first() {
         manifest.build.source_root = Some(root.clone());
     }
-    replace_if_not_empty(&mut manifest.build.module_roots, project.module_roots.clone());
+    replace_if_not_empty(
+        &mut manifest.build.module_roots,
+        project.module_roots.clone(),
+    );
     replace_if_not_empty(&mut manifest.build.targets, project.targets.clone());
     manifest.build.artifact_root = project.artifact_root.clone();
     manifest.build.cache_root = project.cache_root.clone();
@@ -1294,15 +1464,24 @@ fn merge_blade_into_manifest(manifest: &mut KainManifest, blade: &BladeSpec) {
     manifest.blade.entry = blade.entry.clone();
     replace_if_not_empty(&mut manifest.blade.source_roots, blade.source_roots.clone());
     replace_if_not_empty(&mut manifest.blade.module_roots, blade.module_roots.clone());
-    replace_if_not_empty(&mut manifest.blade.build_targets, blade.build_targets.clone());
+    replace_if_not_empty(
+        &mut manifest.blade.build_targets,
+        blade.build_targets.clone(),
+    );
 }
 
 fn merge_build_defaults_into_manifest(manifest: &mut KainManifest, defaults: &BuildDefaultsSpec) {
     manifest.build.entry = defaults.entry.clone();
     manifest.build.entry_module = defaults.entry_module.clone();
     manifest.build.source_root = defaults.source_root.clone();
-    replace_if_not_empty(&mut manifest.build.source_order, defaults.source_order.clone());
-    replace_if_not_empty(&mut manifest.build.module_roots, defaults.module_roots.clone());
+    replace_if_not_empty(
+        &mut manifest.build.source_order,
+        defaults.source_order.clone(),
+    );
+    replace_if_not_empty(
+        &mut manifest.build.module_roots,
+        defaults.module_roots.clone(),
+    );
     replace_if_not_empty(
         &mut manifest.build.module_search_paths,
         defaults.module_search_paths.clone(),
@@ -1327,9 +1506,15 @@ fn merge_run_defaults_into_manifest(manifest: &mut KainManifest, defaults: &RunD
 
 fn merge_workspace_into_manifest(manifest: &mut KainManifest, workspace: &WorkspaceSpec) {
     replace_if_not_empty(&mut manifest.workspace.blades, workspace.blades.clone());
-    replace_if_not_empty(&mut manifest.workspace.blade_roots, workspace.blade_roots.clone());
+    replace_if_not_empty(
+        &mut manifest.workspace.blade_roots,
+        workspace.blade_roots.clone(),
+    );
     replace_if_not_empty(&mut manifest.workspace.members, workspace.members.clone());
-    replace_if_not_empty(&mut manifest.workspace.search_roots, workspace.search_roots.clone());
+    replace_if_not_empty(
+        &mut manifest.workspace.search_roots,
+        workspace.search_roots.clone(),
+    );
     manifest.workspace.stdlib_root = workspace.stdlib_root.clone();
     manifest.workspace.manifest_root = workspace.manifest_root.clone();
     manifest.workspace.generated_root = workspace.generated_root.clone();
@@ -1349,7 +1534,9 @@ fn flatten_task_sections(
     for value in values {
         match value {
             BuildValue::Task(task) => output.extend(task.to_sections(workspace_root)?),
-            BuildValue::Array(values) => output.extend(flatten_task_sections(values, workspace_root)?),
+            BuildValue::Array(values) => {
+                output.extend(flatten_task_sections(values, workspace_root)?)
+            }
             BuildValue::String(value) => output.push(KainBuildTaskSection {
                 id: value.clone(),
                 ..KainBuildTaskSection::default()
@@ -1400,9 +1587,7 @@ impl GpuSuiteSpec {
             section.id = format!("{}-{}", self.id, sanitize_id(&target));
             section.kind = "gpu".to_string();
             section.target = Some(target.clone());
-            section
-                .options
-                .insert("target".to_string(), target.clone());
+            section.options.insert("target".to_string(), target.clone());
             section.entry = if target == "cuda" || target == "ptx" {
                 self.compute.clone().or_else(|| self.fragment.clone())
             } else {
@@ -1586,7 +1771,11 @@ impl SourceSetSpec {
         push_unique_paths(&mut output, &self.dirs);
         for pattern in &self.globs {
             for candidate in expand_source_glob(workspace_root, &self.roots, pattern) {
-                if !self.excludes.iter().any(|exclude| glob_match(exclude, &candidate)) {
+                if !self
+                    .excludes
+                    .iter()
+                    .any(|exclude| glob_match(exclude, &candidate))
+                {
                     push_unique_path(&mut output, PathBuf::from(candidate));
                 }
             }
@@ -1796,11 +1985,7 @@ fn sort_platform_packages(
     packages
 }
 
-fn cuda_artifact_outputs(
-    output_dir: &Path,
-    output_base: &Path,
-    roles: &[String],
-) -> Vec<PathBuf> {
+fn cuda_artifact_outputs(output_dir: &Path, output_base: &Path, roles: &[String]) -> Vec<PathBuf> {
     let mut outputs = Vec::new();
     for role in roles {
         match role.trim().replace('-', "_").as_str() {
@@ -1977,7 +2162,11 @@ fn glob_segment_match_bytes(pattern: &[u8], text: &[u8]) -> bool {
                 || (!text.is_empty() && glob_segment_match_bytes(pattern, &text[1..]))
         }
         b'?' => !text.is_empty() && glob_segment_match_bytes(&pattern[1..], &text[1..]),
-        byte => !text.is_empty() && text[0] == byte && glob_segment_match_bytes(&pattern[1..], &text[1..]),
+        byte => {
+            !text.is_empty()
+                && text[0] == byte
+                && glob_segment_match_bytes(&pattern[1..], &text[1..])
+        }
     }
 }
 
@@ -1986,7 +2175,10 @@ fn normalize_path(path: &Path) -> String {
 }
 
 fn normalize_path_string(value: &str) -> String {
-    value.replace('\\', "/").trim_start_matches("./").to_string()
+    value
+        .replace('\\', "/")
+        .trim_start_matches("./")
+        .to_string()
 }
 
 #[cfg(test)]
@@ -2000,14 +2192,26 @@ mod tests {
         let root = unique_test_dir("evaluated-build");
         kfs::create_dir_all(root.join("src/gpu")).expect("src gpu");
         kfs::create_dir_all(root.join("telemetry")).expect("telemetry");
-        kfs::write_text(root.join("src/main.kn"), "fn main() -> Int:\n    return 0\n")
-            .expect("main");
-        kfs::write_text(root.join("src/gpu/fragment.kn"), "shader fragment F() -> Vec4:\n    return vec4(0.0, 0.0, 0.0, 1.0)\n")
-            .expect("fragment");
-        kfs::write_text(root.join("src/gpu/compute.kn"), "shader compute C(id: UVec3) -> Vec4:\n    return vec4(0.0, 0.0, 0.0, 1.0)\n")
-            .expect("compute");
-        kfs::write_text(root.join("telemetry/run.kn"), "fn main() -> Int:\n    return 0\n")
-            .expect("runner");
+        kfs::write_text(
+            root.join("src/main.kn"),
+            "fn main() -> Int:\n    return 0\n",
+        )
+        .expect("main");
+        kfs::write_text(
+            root.join("src/gpu/fragment.kn"),
+            "shader fragment F() -> Vec4:\n    return vec4(0.0, 0.0, 0.0, 1.0)\n",
+        )
+        .expect("fragment");
+        kfs::write_text(
+            root.join("src/gpu/compute.kn"),
+            "shader compute C(id: UVec3) -> Vec4:\n    return vec4(0.0, 0.0, 0.0, 1.0)\n",
+        )
+        .expect("compute");
+        kfs::write_text(
+            root.join("telemetry/run.kn"),
+            "fn main() -> Int:\n    return 0\n",
+        )
+        .expect("runner");
 
         let source = r#"
 use std::build
@@ -2053,7 +2257,10 @@ fn build(ctx: BuildContext) -> BuildGraph:
         let evaluated = evaluate_build_script(source, &root, "build.kn:evaluated")
             .expect("evaluated build script");
         assert_eq!(evaluated.manifest.package.name.as_deref(), Some("demo"));
-        assert_eq!(evaluated.manifest.build.entry, Some(PathBuf::from("src/main.kn")));
+        assert_eq!(
+            evaluated.manifest.build.entry,
+            Some(PathBuf::from("src/main.kn"))
+        );
         assert_eq!(
             evaluated.manifest.build.targets,
             vec!["llvm".to_string(), "cuda".to_string()]
@@ -2069,7 +2276,9 @@ fn build(ctx: BuildContext) -> BuildGraph:
         assert!(by_id.contains_key("root-executable"));
         assert!(by_id.contains_key("album-full"));
         assert!(by_id.contains_key("album-attrition"));
-        assert!(by_id["check-llvm"].inputs.contains(&PathBuf::from("src/main.kn")));
+        assert!(by_id["check-llvm"]
+            .inputs
+            .contains(&PathBuf::from("src/main.kn")));
         assert_eq!(
             by_id["root-executable"].depends_on,
             vec![
@@ -2096,8 +2305,12 @@ fn kernel(name: String) -> BuildTask:
         .outputs("ptx", "gpu_rs", "reflection", "shader_bundle", "residency")
 
 fn build(ctx: BuildContext) -> BuildGraph:
+    let kernel_sources = source_set("kernels")
+        .files(map(["search_kernel"], fn(name: String) -> String:
+            return "src/" + name + ".kn"
+        ))
     let tasks = map(["search_kernel"], kernel)
-    return build_graph(project("oracle").entry("src/main.kn").targets("llvm")).tasks(tasks)
+    return build_graph(project("oracle").entry("src/main.kn").targets("llvm")).sources(kernel_sources).tasks(tasks)
 "#;
         let evaluated = evaluate_build_script(source, &root, "build.kn:evaluated")
             .expect("evaluated build script");
@@ -2109,9 +2322,9 @@ fn build(ctx: BuildContext) -> BuildGraph:
         assert_eq!(task.kind, "exec");
         assert_eq!(task.command.as_deref(), Some("kain"));
         assert!(task.args.contains(&"gpu-artifacts".to_string()));
-        assert!(task
-            .outputs
-            .contains(&PathBuf::from(".kain/oracle/gpu/search_kernel/kain_compute_residency.json")));
+        assert!(task.outputs.contains(&PathBuf::from(
+            ".kain/oracle/gpu/search_kernel/kain_compute_residency.json"
+        )));
     }
 
     fn unique_test_dir(label: &str) -> PathBuf {
