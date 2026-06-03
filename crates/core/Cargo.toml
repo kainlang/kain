@@ -32,6 +32,7 @@ kain-ui = { path = "../ui" }
 [features]
 default = ["runtime"]
 runtime = []
+semantic-cuda-forged-pack = ["kain-semantic/cuda-forged-pack"]
 
 [dev-dependencies]
 tempfile = "3.8"

@@ -10593,3 +10593,25 @@ The PTX/CUDA storage-buffer underallocation bug is now fixed by centralizing sca
   - `cargo run -q -p kain-stdlib-map --bin kain_stdlib_map_tool -- --write` and `--check` both passed after the `std::gpu` contract update
 - Windows operator note:
   - `X:` was full enough to trip `os error 112`, so GPU proof runs should prefer `Z:\_b\cargo-target\...` on this workstation unless disk pressure is resolved
+
+# 2026-06-03 - CUDA-forged semantic pack v2 wired behind feature flag
+
+The semantic diagnostic lane now has an explicit experimental CUDA-forged compiler path without putting CUDA on the user-facing hot path.
+
+- Cargo feature flow:
+  - `crates/semantic` feature: `cuda-forged-pack`
+  - `crates/core` feature: `semantic-cuda-forged-pack`
+  - `crates/cli` feature: `semantic-cuda-forged-pack`
+- Runtime selector:
+  - `KAIN_SEMANTIC_LANE=cpu` forces the legacy CPU pack
+  - `KAIN_SEMANTIC_LANE=cuda_forged` forces the schema-v2 forged pack, falling back to CPU unless `KAIN_SEMANTIC_PACK_STRICT` is truthy
+  - `KAIN_SEMANTIC_CUDA_PACK_PATH` points at the v2 pack root; `KAIN_SEMANTIC_PACK_PATH` remains the CPU pack root
+- Artifact contract:
+  - v2 packs require real oracle artifacts under `.kain/oracle`: `kain_error_oracle.bin`, `kain_error_oracle.manifest.json`, and bundle/PTX/residency artifacts for search, transformer, training, error, and repair kernels
+  - manifest v2 records `15` kernel fingerprints, model kind `cuda_forged_packet_reranker_int8`, lineage `kain-transformer-v2-cuda-forged`, and `runtime.requires_cuda=false`
+- Build/proof routing:
+  - `crates/semantic/build.kn` now has `distill-oracle-cuda-pack`
+  - direct distill proof: `cargo run -p kain-semantic --features cuda-forged-pack --example write_semantic_pack -- --cuda-forged .kain\oracle\sempack\cuda_forged\current .kain\oracle`
+  - feature-enabled compiler proof used `Z:\_b\cargo-target\semantic-cuda-forged\debug\kain.exe check ... --json-out ...`; CPU report showed `semantic.backend=pack_cpu_rerank` / schema v1, CUDA-forged report showed `semantic.backend=pack_cuda_forged` / schema v2
+- Trap:
+  - feature-enabled binaries in `auto` mode can pick up a local v2 pack if it exists. Pin `KAIN_SEMANTIC_LANE=cpu` when comparing legacy behavior and use `KAIN_SEMANTIC_PACK_DISABLE=1` when testing fallback rules.

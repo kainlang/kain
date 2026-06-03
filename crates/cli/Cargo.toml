@@ -83,6 +83,7 @@ web = ["dep:kain-web", "kain-driver/web"]
 sys = ["dep:kain-sys-codegen", "kain-driver/sys"]
 tauri = ["kain-driver/tauri", "kain-build/tauri"]
 typescript-import = ["kain-import/typescript", "kain-omni/typescript-import"]
+semantic-cuda-forged-pack = ["kain-core/semantic-cuda-forged-pack"]
 
 [dev-dependencies]
 tempfile = "3.8"

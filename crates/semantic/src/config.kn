@@ -262,6 +262,12 @@ pub fn oracle_pack_path(cfg: SemanticSearchConfig) -> String:
 pub fn oracle_manifest_path(cfg: SemanticSearchConfig) -> String:
     return normalize_slashes(fs_path_join(oracle_root(cfg), "kain_error_oracle.manifest.json"))
 
+pub fn cuda_forged_semantic_pack_dir(cfg: SemanticSearchConfig) -> String:
+    return normalize_slashes(fs_path_join(fs_path_join(fs_path_join(oracle_root(cfg), "sempack"), "cuda_forged"), "current"))
+
+pub fn cuda_forged_semantic_pack_manifest_path(cfg: SemanticSearchConfig) -> String:
+    return normalize_slashes(fs_path_join(cuda_forged_semantic_pack_dir(cfg), "manifest.json"))
+
 pub fn gpu_artifact_bundle_path(cfg: SemanticSearchConfig, stem: String) -> String:
     return normalize_slashes(fs_path_join(fs_path_join(cfg.gpu_artifact_dir, stem), stem + ".shader_bundle.json"))
 

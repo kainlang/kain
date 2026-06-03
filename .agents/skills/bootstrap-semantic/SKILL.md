@@ -5,9 +5,10 @@ description: >-
   semantic oracle pipeline in `crates/semantic`, `crates/error-semantic`, or
   adjacent diagnostic-coprocessor wiring: offline corpus forging, manifest-fed
   indexing, tokenizer and embedding flow, CUDA search, transformer, training,
-  error, or repair kernels, oracle artifact layout, and compiler-facing
-  semantic enrichment. Do not use for generic authored `.kn` apps, raw
-  `crates/gpu-runtime` substrate work, or non-semantic Bazel plumbing.
+  error, or repair kernels, oracle artifact layout, CUDA-forged sidecar-pack
+  distillation, and compiler-facing semantic enrichment. Do not use for
+  generic authored `.kn` apps, raw `crates/gpu-runtime` substrate work, or
+  non-semantic Bazel plumbing.
 ---
 
 # Bootstrap Semantic
@@ -35,7 +36,7 @@ Use this skill when the semantic oracle itself is the owned truth: how corpus da
 2. Keep the lane data-driven. Artifact roots, kernel stems, manifests, and seed knobs belong in `src/config.kn` or environment-driven inputs, not hardcoded paths scattered across host code.
 3. Prefer manifest-driven indexing until the native recursive FS lane is fixed. The current reliable forge path reads `KAIN_SEMANTIC_FILE_MANIFEST` instead of walking directories recursively from inside the Kain binary.
 4. Keep per-kernel CUDA outputs isolated. `kain gpu-artifacts` writes `kain_compute_residency.json` into the output directory, so shared output roots cause collisions and misleading proofs.
-5. Treat the Rust sidecar semantic pack as the shipped compiler-facing consumer. CUDA/Kain forge can spend offline budget, but `kain check` must be able to load a frozen `manifest.json` + `prototypes.bin` + `reranker.i8` pack on CPU or fall back to rules without requiring CUDA.
+5. Treat the Rust sidecar semantic pack as the shipped compiler-facing consumer. CUDA/Kain forge can spend offline budget, but `kain check` must be able to load a frozen `manifest.json` + `prototypes.bin` + `reranker.i8` pack on CPU or fall back to rules without requiring CUDA. The default CPU pack is schema v1; the experimental `cuda-forged-pack` Cargo feature can load schema v2 packs forged from oracle + CUDA kernel artifacts through the same CPU reader.
 6. Prove liveness in stages: `check`, `gpu-artifacts`, `forge`, `health`, `embed`, `search`, then sidecar-pack compiler diagnostics. A green `kain check` does not prove artifact emission, runtime dispatch, or pack-backed semantic provenance.
 7. Read [references/proof_loop.md](./references/proof_loop.md) when you need the exact command deck, environment variables, or the currently known traps.
 
@@ -63,6 +64,7 @@ kain run src\main.kn --target llvm -- forge
 kain run src\main.kn --target llvm -- health
 kain run src\main.kn --target llvm -- embed kain "unknown identifier prntln expected println"
 kain run src\main.kn --target llvm -- search kain "unknown identifier prntln expected println" 8
+cargo run -p kain-semantic --features cuda-forged-pack --example write_semantic_pack -- --cuda-forged .kain\oracle\sempack\cuda_forged\current .kain\oracle
 ```
 
 The expected search proof is `8` hits with `crates\semantic\error_corpus\type_unknown_identifier.kn` ranked first. If compiler-facing behavior changed, also generate the sidecar pack and run the broken-corpus checks from the reference file with `KAIN_SEMANTIC_PACK_PATH` set.
@@ -75,3 +77,4 @@ The expected search proof is `8` hits with `crates\semantic\error_corpus\type_un
 - Do not stop at `kain check` when the user asks whether the pipeline works. Real proof here means forge artifacts plus at least one runtime-visible command (`health`, `embed`, `search`, or broken-corpus diagnostics).
 - Do not treat the fused CUDA score+top-k lane as the default proof path yet. The current reliable path is CUDA score dispatch plus host top-k metadata reranking; fused and CUDA top-k lanes are env-gated experiments.
 - Do not let the sidecar pack reranker accept a same-code-family hit when both exact diagnostic code and failure mode are wrong. That regression can make an unrelated prototype overwrite a correct diagnostic explanation.
+- When comparing compiler-side lanes, set `KAIN_SEMANTIC_LANE=cpu` or `KAIN_SEMANTIC_LANE=cuda_forged` explicitly. In `auto`, a feature-enabled binary can pick up a local v2 CUDA-forged pack if one exists, which is great for dev but bad for deterministic tests unless you pin the lane.

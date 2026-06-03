@@ -1,11 +1,13 @@
 //! kain-semantic — Semantic diagnostic coprocessor for the Kain compiler.
 //!
-//! Corpus-baked, data-driven error intelligence. Lane A is a pure-Rust expert
-//! rules engine that classifies failures, ranks repairs, estimates cascade
-//! probability, and generates context-sensitive explanations using a
-//! build-time-indexed symbol corpus from stdlib, smoketest, and user sources.
+//! Corpus-baked, data-driven error intelligence. The hot compiler path stays
+//! CPU-only: a pure-Rust expert engine establishes a baseline and a sidecar pack
+//! reranks repairs, cascade risk, and explanations. Experimental CUDA-forged
+//! packs are built offline and then loaded through the same deterministic CPU
+//! reader when the lane selector asks for them.
 //!
-//! No ML runtime. No allocator pressure on the hot path. Sub-millisecond.
+//! No GPU or ML runtime on the hot path. No allocator pressure in the normal
+//! diagnostic flow. Sub-millisecond.
 
 pub mod corpus_db;
 pub mod expert;
@@ -118,8 +120,8 @@ impl SemanticAnalysisReport {
     }
 }
 
-/// Top-level semantic coprocessor. Stateless for now — all intelligence
-/// lives in the expert engine and the baked corpus.
+/// Top-level semantic coprocessor. Stateless for now; lane selection and pack
+/// provenance live in the sidecar pack module.
 pub struct SemanticCoprocessor;
 
 impl SemanticCoprocessor {

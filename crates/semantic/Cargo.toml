@@ -8,6 +8,7 @@ build = "build.rs"
 [features]
 default = ["corpus-bake"]
 corpus-bake = []
+cuda-forged-pack = []
 
 [dependencies]
 kain-error = { path = "../error" }

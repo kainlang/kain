@@ -14,6 +14,8 @@ use config::locate_config_path
 use config::config_runtime_root
 use config::oracle_pack_path
 use config::oracle_manifest_path
+use config::cuda_forged_semantic_pack_dir
+use config::cuda_forged_semantic_pack_manifest_path
 use config::gpu_artifact_bundle_path
 use config::gpu_artifact_residency_path
 use indexer::build_index
@@ -144,12 +146,15 @@ fn handle_health(cfg: SemanticSearchConfig, json_mode: Bool) -> Int:
     let kain_index = index_path("kain", cfg)
     let pack = oracle_pack_path(cfg)
     let manifest = oracle_manifest_path(cfg)
+    let sempack_dir = cuda_forged_semantic_pack_dir(cfg)
+    let sempack_manifest = cuda_forged_semantic_pack_manifest_path(cfg)
     if json_mode:
-        println(health_json(cfg, code_index, kain_index, pack, manifest))
+        println(health_json(cfg, code_index, kain_index, pack, manifest, sempack_dir, sempack_manifest))
     else:
         println("oracle health")
         println("  pack:      " + pack + " present=" + bool_to_str(fs_exists(pack)))
         println("  manifest:  " + manifest + " present=" + bool_to_str(fs_exists(manifest)))
+        println("  sempack:   " + sempack_dir + " present=" + bool_to_str(fs_exists(sempack_manifest)))
         println("  code idx:  " + code_index + " present=" + bool_to_str(fs_exists(code_index)))
         println("  kain idx:  " + kain_index + " present=" + bool_to_str(fs_exists(kain_index)))
         println("  code mat:  " + index_matrix_path(code_index) + " present=" + bool_to_str(fs_exists(index_matrix_path(code_index))))
@@ -215,7 +220,7 @@ fn handle_args_json() -> Int:
     println(json)
     return 0
 
-fn health_json(cfg: SemanticSearchConfig, code_index: String, kain_index: String, pack: String, manifest: String) -> String:
+fn health_json(cfg: SemanticSearchConfig, code_index: String, kain_index: String, pack: String, manifest: String, sempack_dir: String, sempack_manifest: String) -> String:
     var json = "{"
     json = json + "\"schema\":\"kain.error.semantic.oracle.health.v1\","
     json = json + "\"repo_root\":\"" + health_json_escape(cfg.repo_root) + "\","
@@ -226,6 +231,8 @@ fn health_json(cfg: SemanticSearchConfig, code_index: String, kain_index: String
     json = json + "\"transformer_max_seq_len\":" + int_to_str(cfg.transformer_max_seq_len) + ","
     json = json + "\"pack_present\":" + json_bool(fs_exists(pack)) + ","
     json = json + "\"manifest_present\":" + json_bool(fs_exists(manifest)) + ","
+    json = json + "\"cuda_forged_pack_dir\":\"" + health_json_escape(sempack_dir) + "\","
+    json = json + "\"cuda_forged_pack_present\":" + json_bool(fs_exists(sempack_manifest)) + ","
     json = json + "\"code_index_present\":" + json_bool(fs_exists(code_index)) + ","
     json = json + "\"kain_index_present\":" + json_bool(fs_exists(kain_index)) + ","
     json = json + "\"code_matrix_present\":" + json_bool(fs_exists(index_matrix_path(code_index))) + ","

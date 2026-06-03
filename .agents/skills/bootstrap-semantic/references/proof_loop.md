@@ -108,6 +108,7 @@ $env:CARGO_BUILD_JOBS = '1'
 cargo run -p kain-semantic --example write_semantic_pack --target-dir Z:\_b\cargo-target\semantic-hybrid -- X:\crates\semantic\.kain\oracle\sempack\current
 
 $env:KAIN_SEMANTIC_PACK_PATH = 'X:\crates\semantic\.kain\oracle\sempack\current'
+$env:KAIN_SEMANTIC_LANE = 'cpu'
 Remove-Item Env:\KAIN_SEMANTIC_PACK_DISABLE -ErrorAction SilentlyContinue
 kain check X:\crates\semantic\error_corpus\type_unknown_identifier.kn --target llvm --json-out X:\crates\semantic\.kain\reports\semantic-pack-type.json
 ```
@@ -118,6 +119,31 @@ Expected structured diagnostic proof from `semantic-pack-type.json`:
 - `pack_schema_version == "kain.semantic.pack.v1:1"`
 - `failure_mode == "typo"`
 - top repair replacement text is `println`
+
+### CUDA-Forged v2 Pack
+
+The experimental compiler lane still runs on CPU at diagnostic time. CUDA is used offline to forge richer provenance, then the compiler reads a v2 sidecar pack. Build with the feature, distill from real oracle artifacts, and force the lane for comparison:
+
+```powershell
+cd X:\crates\semantic
+$env:CARGO_TARGET_DIR = 'Z:\_b\cargo-target\semantic-cuda-forged'
+cargo run -p kain-semantic --features cuda-forged-pack --example write_semantic_pack -- --cuda-forged .kain\oracle\sempack\cuda_forged\current .kain\oracle
+cargo build -p cli --features semantic-cuda-forged-pack --bin kain
+
+$bin = 'Z:\_b\cargo-target\semantic-cuda-forged\debug\kain.exe'
+$env:KAIN_SEMANTIC_LANE = 'cuda_forged'
+$env:KAIN_SEMANTIC_PACK_PATH = 'X:\crates\semantic\.kain\oracle\sempack\current'
+$env:KAIN_SEMANTIC_CUDA_PACK_PATH = 'X:\crates\semantic\.kain\oracle\sempack\cuda_forged\current'
+& $bin check X:\crates\semantic\error_corpus\type_unknown_identifier.kn --target llvm --json-out X:\crates\semantic\.kain\reports\semantic-pack-cuda-forged-type.json
+```
+
+Expected v2 proof:
+
+- `semantic.backend == "pack_cuda_forged"`
+- `pack_schema_version == "kain.semantic.pack.v1:2"`
+- manifest model kind is `cuda_forged_packet_reranker_int8`
+- manifest lineage is `kain-transformer-v2-cuda-forged`
+- manifest has `15` kernel fingerprints and `runtime.requires_cuda == false`
 
 Fallback proof:
 
@@ -148,8 +174,11 @@ The search ranker is intentionally data-driven. Prefer these config/env knobs ov
 - `KAIN_SEMANTIC_RANK_PATH_TOKEN_BONUS`: bonus when query tokens appear in chunk paths.
 - `KAIN_SEMANTIC_RANK_SYMBOL_TOKEN_BONUS`: bonus when query tokens appear in symbol names.
 - `KAIN_SEMANTIC_RANK_KIND_TOKEN_BONUS`: bonus when query tokens appear in chunk kinds.
+- `KAIN_SEMANTIC_LANE`: compiler-side semantic pack selector. Use `auto`, `cpu`, or `cuda_forged`; aliases include `cuda`, `cuda-forged`, `forged`, `god`, and `godmode`.
 - `KAIN_SEMANTIC_PACK_PATH`: CPU compiler-side sidecar pack root containing `manifest.json`, `prototypes.bin`, and `reranker.i8`.
+- `KAIN_SEMANTIC_CUDA_PACK_PATH`: CUDA-forged compiler-side sidecar pack root for schema v2 packs.
 - `KAIN_SEMANTIC_PACK_DISABLE`: force the compiler semantic coprocessor back to the fallback rules path.
+- `KAIN_SEMANTIC_PACK_STRICT`: when truthy, an explicitly requested CUDA-forged lane errors instead of falling back to CPU if the pack is missing or invalid.
 
 ## Broken Corpus Proof
 
@@ -201,3 +230,4 @@ Expected domain outcomes:
 - `X:\.kain\cache\run\llvm\kain_gpu_runtime.dll` was stale and rejected residency target `ks`; prefer the freshly rebuilt DLL under `Z:\_b\cargo-target\kain-semantic-gpu-runtime`.
 - Some small authored Kain helper shapes passed `kain check` but failed during LLVM run with invalid PHI IR. In this lane, avoid empty `return` in `Unit` helpers, avoid inline `if` expressions for values that can be spelled as explicit `var` assignments, and prefer `text_tokenize_whitespace` plus direct streaming over accumulating `Array<String>` tokens in tiny helpers.
 - Error corpus typo extraction must skip declarations like `fn main()`. If it treats the declaration name as the primary bad symbol, the sidecar pack can learn a bogus prototype. Keep corpus files annotated with `@expected_code`, `@expected_mode`, and `@expected_repair` when the broken code should become pack truth.
+- Feature-enabled binaries in `auto` mode can pick up an existing local v2 pack. Use `KAIN_SEMANTIC_LANE=cpu` for deterministic legacy-pack comparisons and `KAIN_SEMANTIC_PACK_DISABLE=1` for fallback-rule tests.
