@@ -1,0 +1,77 @@
+use std::build
+
+# Demo-only future build surface: this is the evaluated-build shape we want,
+# not a promise that the current scanner understands these helpers yet.
+
+const ORACLE_KERNELS = [
+    "search_kernel",
+    "transformer_kernel",
+    "training_kernel",
+    "error_kernel",
+    "repair_kernel",
+]
+
+fn oracle_kernel(name: String) -> BuildTask:
+    return cuda_artifacts("emit-oracle-" + name + "-artifacts")
+        .entry("src/" + name + ".kn")
+        .stem(name)
+        .output_dir(".kain/oracle/gpu/" + name)
+        .outputs("ptx", "gpu_rs", "reflection", "shader_bundle", "residency")
+        .requires("check-oracle-" + name + "-cuda")
+        .telemetry("llm.semantic.oracle." + name + ".cuda")
+
+fn oracle_check(name: String) -> BuildTask:
+    return check_task("check-oracle-" + name + "-cuda")
+        .entry("src/" + name + ".kn")
+        .target("cuda")
+        .axis("target", "cuda")
+        .telemetry("llm.semantic.oracle." + name + ".cuda")
+
+fn build(ctx: BuildContext) -> BuildGraph:
+    let oracle = project("kain-semantic-oracle")
+        .kind("kain_tool")
+        .version("0.1.0")
+        .description("Kain-authored offline compiler-oracle forge for semantic diagnostics.")
+        .entry("src/main.kn")
+        .source_root("src")
+        .targets("llvm", "cuda")
+        .artifact_root(".kain/out")
+        .cache_root(".kain/cache/build")
+        .run_arg("forge")
+        .watch("src")
+        .watch("error_corpus")
+        .watch("symbol_corpus")
+
+    let host_sources = source_set("oracle-host")
+        .glob("src/*.kn")
+        .exclude("src/*_kernel.kn")
+        .dir("error_corpus")
+        .dir("symbol_corpus")
+        .file("build.kn")
+
+    let kernel_sources = source_set("oracle-kernels")
+        .files(map(ORACLE_KERNELS, fn(name: String) -> String:
+            return "src/" + name + ".kn"
+        ))
+
+    let host_check = check_task("check-oracle-host")
+        .project(oracle)
+        .target("llvm")
+        .inputs(host_sources)
+        .telemetry("llm.semantic.oracle")
+
+    let cuda_checks = map(ORACLE_KERNELS, oracle_check)
+    let cuda_artifacts = map(ORACLE_KERNELS, oracle_kernel)
+
+    let exe = native_executable("error-oracle-exe")
+        .project(oracle)
+        .output(".kain/out/bin/kain-error-oracle.exe")
+        .inputs(host_sources, kernel_sources)
+        .requires(host_check)
+        .requires(cuda_artifacts)
+        .produces(".kain/oracle/kain_error_oracle.bin")
+        .produces(".kain/oracle/kain_error_oracle.manifest.json")
+
+    return build_graph(oracle)
+        .sources(host_sources, kernel_sources)
+        .tasks(host_check, cuda_checks, cuda_artifacts, exe)
