@@ -84,6 +84,12 @@ fn main() {
             packet = packet.flag("in_converge_block", true);
         } else if expected_mode == "EntangleViolation" {
             packet = packet.flag("in_entangle_block", true);
+        } else if expected_mode == "WorldDeclarationError" {
+            packet = packet
+                .flag("in_patch_block", true)
+                .flag("in_world_block", true);
+        } else if expected_mode == "GenericUnknown" {
+            packet = packet.flag("in_comptime_block", true);
         } else if expected_mode == "Typo" {
             packet = packet
                 .visible_symbols(vec!["mix_scalar".into(), "println".into()])
@@ -143,6 +149,14 @@ fn main() {
             "EntangleViolation" => matches!(
                 report.likely_failure_mode,
                 kain_semantic::FailureMode::EntangleViolation
+            ),
+            "WorldDeclarationError" => matches!(
+                report.likely_failure_mode,
+                kain_semantic::FailureMode::WorldDeclarationError
+            ),
+            "GenericUnknown" => matches!(
+                report.likely_failure_mode,
+                kain_semantic::FailureMode::GenericUnknown
             ),
             "ShaderHostBoundary" => matches!(
                 report.likely_failure_mode,

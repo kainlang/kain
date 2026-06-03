@@ -109,8 +109,24 @@ fn classify_failure(packet: &DiagnosticSemanticPacket) -> FailureMode {
         return FailureMode::MissingSurface;
     }
 
-    // TYPE-0001: Generic type checker errors - classify by source context
+    // TYPE-0001: Generic type checker errors - classify by context flags first, then source context fallback
     if code == "KAIN-TYPE-0001" {
+        if packet.contextual_flags.get("in_converge_block").copied().unwrap_or(false) {
+            return FailureMode::ConvergeMismatch;
+        }
+        if packet.contextual_flags.get("in_entangle_block").copied().unwrap_or(false) {
+            return FailureMode::EntangleViolation;
+        }
+        if packet.contextual_flags.get("in_patch_block").copied().unwrap_or(false) {
+            return FailureMode::WorldDeclarationError;
+        }
+        if packet.contextual_flags.get("in_world_block").copied().unwrap_or(false) {
+            return FailureMode::WorldDeclarationError;
+        }
+        if packet.contextual_flags.get("in_comptime_block").copied().unwrap_or(false) {
+            return FailureMode::GenericUnknown;
+        }
+
         let text_lower = packet_text(packet);
         if text_lower.contains("converge ") || text_lower.contains("spec ") || text_lower.contains("fast ") || text_lower.contains("verify ") || text_lower.contains("converge\n") {
             return FailureMode::ConvergeMismatch;
@@ -1171,15 +1187,73 @@ mod tests {
             return source;
         }
 
-        let fixture_name = Path::new(case.file_path)
-            .file_name()
-            .and_then(|name| name.to_str())
-            .unwrap_or_else(|| panic!("missing fixture name in {}", case.file_path));
+        let case_path = case.file_path.replace('\\', "/");
+        let relative_suffix = case_path
+            .split("/error_corpus/")
+            .nth(1)
+            .unwrap_or_else(|| {
+                Path::new(case.file_path)
+                    .file_name()
+                    .and_then(|name| name.to_str())
+                    .unwrap_or_else(|| panic!("missing fixture name in {}", case.file_path))
+            });
         let fallback_path = Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("error_corpus")
-            .join(fixture_name);
+            .join(relative_suffix);
         fs::read_to_string(&fallback_path)
             .unwrap_or_else(|_| panic!("failed to read {}", fallback_path.display()))
+    }
+
+    #[test]
+    fn test_type_generic_context_flags_drive_failure_mode() {
+        use kain_error::DiagnosticCode;
+
+        let code = DiagnosticCode::new("KAIN-TYPE-0001");
+
+        let converge = analyze(
+            &DiagnosticSemanticPacket::new(code, CompilerPhase::TypeChecking, "fast_lane")
+                .flag("in_converge_block", true),
+        );
+        assert!(matches!(
+            converge.likely_failure_mode,
+            FailureMode::ConvergeMismatch
+        ));
+
+        let entangle = analyze(
+            &DiagnosticSemanticPacket::new(code, CompilerPhase::TypeChecking, "coupling")
+                .flag("in_entangle_block", true),
+        );
+        assert!(matches!(
+            entangle.likely_failure_mode,
+            FailureMode::EntangleViolation
+        ));
+
+        let patch = analyze(
+            &DiagnosticSemanticPacket::new(code, CompilerPhase::TypeChecking, "target")
+                .flag("in_patch_block", true),
+        );
+        assert!(matches!(
+            patch.likely_failure_mode,
+            FailureMode::WorldDeclarationError
+        ));
+
+        let world = analyze(
+            &DiagnosticSemanticPacket::new(code, CompilerPhase::TypeChecking, "surface")
+                .flag("in_world_block", true),
+        );
+        assert!(matches!(
+            world.likely_failure_mode,
+            FailureMode::WorldDeclarationError
+        ));
+
+        let comptime = analyze(
+            &DiagnosticSemanticPacket::new(code, CompilerPhase::TypeChecking, "planner")
+                .flag("in_comptime_block", true),
+        );
+        assert!(matches!(
+            comptime.likely_failure_mode,
+            FailureMode::GenericUnknown
+        ));
     }
 
     #[test]

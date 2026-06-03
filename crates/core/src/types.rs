@@ -5253,6 +5253,11 @@ fn infer_expr_type_read_only(env: &TypeEnv, expr: &Expr) -> KainResult<ResolvedT
         entangle_endpoints: env.entangle_endpoints.clone(),
         shared_region_depth: env.shared_region_depth,
         fanout_depth: env.fanout_depth,
+        in_converge: env.in_converge,
+        in_entangle: env.in_entangle,
+        in_patch: env.in_patch,
+        in_world: env.in_world,
+        in_comptime: env.in_comptime,
         span_mapper: env.span_mapper,
         filename: env.filename,
     };
