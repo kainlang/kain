@@ -512,6 +512,29 @@ mod tests {
     }
 
     #[test]
+    fn check_source_accumulates_multiple_same_file_diagnostics() {
+        let report = check_source(
+            "<test>",
+            "let first: Int = \"hello\"\nlet second = missing_top + 1\nlet third: Bool = 123\n",
+            &CheckOptions::new(CompileTarget::Llvm),
+        );
+
+        assert!(!report.passed());
+        let diagnostics = report
+            .diagnostic
+            .as_ref()
+            .and_then(|json| json.get("diagnostics"))
+            .and_then(|diagnostics| diagnostics.as_array())
+            .expect("failed checks should retain diagnostics array");
+        assert!(
+            diagnostics.len() >= 3,
+            "expected at least 3 diagnostics, got {}: {:?}",
+            diagnostics.len(),
+            diagnostics
+        );
+    }
+
+    #[test]
     fn check_source_allows_std_python_root_in_llvm_frontend_checks() {
         let report = check_source(
             "<test>",

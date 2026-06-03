@@ -1,5 +1,25 @@
 # Kain Memory
 
+# 2026-06-03 - same-file `kain check` type diagnostics now accumulate instead of fail-fast
+
+What changed:
+
+- Patched `crates/core/src/types.rs` so the typechecker accumulates independent diagnostics across statements, top-level items, inline module children, component methods, and actor handlers instead of bailing on the first `?`-propagated error in a file.
+- Added guarded scope unwinding via `TypeEnv::with_scope(...)` on the recovered paths so later checks do not inherit leaked locals after an error.
+- Added regression coverage in `crates/core/tests/semantic_typecheck_test.rs` and `crates/check/src/lib.rs` for a single-file script with three independent errors.
+
+Validation:
+
+- `cargo test -p kain-core --test semantic_typecheck_test typecheck_accumulates_multiple_same_file_errors --target-dir Z:\_b\cargo-target\codex-multi-diag -- --nocapture`
+- `cargo test -p kain-check --lib check_source_accumulates_multiple_same_file_diagnostics --target-dir Z:\_b\cargo-target\codex-multi-diag -- --nocapture`
+- Live CLI proof via Cargo-built `kain.exe`:
+  - `kain check X:\scratch\multi_error_top.kn --target llvm --json-out X:\scratch\multi_error_top_report_after_fix.json` now reports 3 diagnostics in one pass.
+  - `kain check X:\scratch\multi_error.kn --target llvm --json-out X:\scratch\multi_error_report_after_fix.json` now reports 4 diagnostics in one pass, including the function-body unknown identifier plus the top-level script errors.
+
+Operational notes:
+
+- `cargo fmt --all` is currently blocked by pre-existing trailing whitespace in `crates/ue5-shaders/src/validation.rs`; format only the touched files unless that lane is being repaired.
+
 # 2026-06-02 - cold single-file LLVM native compiler benchmark pass
 
 What changed:

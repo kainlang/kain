@@ -1071,6 +1071,25 @@ pub struct TypeEnv<'a> {
     filename: &'a str,
 }
 
+fn extend_accumulated_errors(out: &mut Vec<KainError>, error: KainError) {
+    match error {
+        KainError::Multi(errors) => {
+            for error in errors {
+                extend_accumulated_errors(out, error);
+            }
+        }
+        other => out.push(other),
+    }
+}
+
+fn finish_accumulated<T>(errors: Vec<KainError>, value: T) -> KainResult<T> {
+    if errors.is_empty() {
+        Ok(value)
+    } else {
+        Err(KainError::multi(errors))
+    }
+}
+
 impl<'a> TypeEnv<'a> {
     pub fn new(span_mapper: &'a SpanMapper, filename: &'a str) -> Self {
         let mut env = Self {
@@ -1255,6 +1274,13 @@ impl<'a> TypeEnv<'a> {
         register_selfhost_collection_methods(&mut env);
         register_selfhost_host_bridge(&mut env);
         env
+    }
+
+    fn with_scope<T>(&mut self, f: impl FnOnce(&mut Self) -> KainResult<T>) -> KainResult<T> {
+        self.push_scope();
+        let result = f(self);
+        self.pop_scope();
+        result
     }
 
     pub fn push_scope(&mut self) {
@@ -3814,6 +3840,7 @@ where
     I: IntoIterator<Item = (String, ResolvedType)>,
 {
     let mut env = TypeEnv::new(span_mapper, filename);
+    let mut errors = Vec::new();
     for (name, ty) in extra_globals {
         env.define_global(name, ty);
     }
@@ -3826,24 +3853,40 @@ where
 
     // Second pass: Register types, globals, and methods against the
     // predeclared graph.
-    for item in &program.items {
-        register_item_types(&mut env, item)?;
+    let mut second_pass_ok = vec![false; program.items.len()];
+    for (index, item) in program.items.iter().enumerate() {
+        match register_item_types(&mut env, item) {
+            Ok(()) => second_pass_ok[index] = true,
+            Err(error) => extend_accumulated_errors(&mut errors, error),
+        }
     }
 
     // Third pass: Refresh registrations now that every type shape is present.
     // This resolves recursive payloads like enums that reference structs
     // declared later in the same program.
-    for item in &program.items {
-        register_item_types(&mut env, item)?;
+    let mut third_pass_ok = vec![false; program.items.len()];
+    for (index, item) in program.items.iter().enumerate() {
+        if !second_pass_ok[index] {
+            continue;
+        }
+        match register_item_types(&mut env, item) {
+            Ok(()) => third_pass_ok[index] = true,
+            Err(error) => extend_accumulated_errors(&mut errors, error),
+        }
     }
 
     // Fourth pass: Type check all items.
     let mut typed_items = Vec::new();
-    for item in &program.items {
-        check_item_into(&mut env, item, &mut typed_items)?;
+    for (index, item) in program.items.iter().enumerate() {
+        if !second_pass_ok[index] || !third_pass_ok[index] {
+            continue;
+        }
+        if let Err(error) = check_item_into(&mut env, item, &mut typed_items) {
+            extend_accumulated_errors(&mut errors, error);
+        }
     }
 
-    Ok(TypedProgram { items: typed_items })
+    finish_accumulated(errors, TypedProgram { items: typed_items })
 }
 
 fn predeclare_item_types(env: &mut TypeEnv, item: &Item) {
@@ -4639,24 +4682,34 @@ fn check_item(env: &mut TypeEnv, item: &Item) -> KainResult<TypedItem> {
 
 fn check_mod(env: &mut TypeEnv, module: &Mod) -> KainResult<TypedMod> {
     let mut items = Vec::new();
+    let mut errors = Vec::new();
     if let Some(children) = &module.inline {
         let bindings = inline_module_scope_bindings(env, children)?;
         for child in children {
             match child {
-                Item::Mod(_) => check_item_into(env, child, &mut items)?,
+                Item::Mod(_) => {
+                    if let Err(error) = check_item_into(env, child, &mut items) {
+                        extend_accumulated_errors(&mut errors, error);
+                    }
+                }
                 _ => {
-                    env.push_scope();
-                    define_scope_bindings(env, &bindings);
-                    check_item_into(env, child, &mut items)?;
-                    env.pop_scope();
+                    if let Err(error) = env.with_scope(|env| {
+                        define_scope_bindings(env, &bindings);
+                        check_item_into(env, child, &mut items)
+                    }) {
+                        extend_accumulated_errors(&mut errors, error);
+                    }
                 }
             }
         }
     }
-    Ok(TypedMod {
-        ast: module.clone(),
-        items,
-    })
+    finish_accumulated(
+        errors,
+        TypedMod {
+            ast: module.clone(),
+            items,
+        },
+    )
 }
 
 fn check_const(env: &mut TypeEnv, c: &Const) -> KainResult<TypedConst> {
@@ -4688,6 +4741,7 @@ fn check_actor(env: &mut TypeEnv, a: &Actor) -> KainResult<TypedActor> {
     }
 
     let self_ty = ResolvedType::Struct(a.name.clone(), state_types.clone());
+    let mut handler_errors = Vec::new();
     for handler in &a.handlers {
         let handler_return = ResolvedType::Unit;
         let ctx = SemanticContext {
@@ -4695,44 +4749,56 @@ fn check_actor(env: &mut TypeEnv, a: &Actor) -> KainResult<TypedActor> {
             return_type: handler_return,
             effects: EffectSet::new(),
         };
-        env.push_scope();
-        env.define("self".to_string(), self_ty.clone());
-        let mut message_params = Vec::with_capacity(handler.params.len());
-        let mut handler_param_types = Vec::with_capacity(handler.params.len());
-        for param in &handler.params {
-            let ty = resolve_param_type(env, param, Some(&self_ty))?;
-            handler_param_types.push((param.name.clone(), ty.clone()));
-            message_params.push(MessageParameter::required(
-                param.name.clone(),
-                resolved_type_contract_name(&ty),
-            ));
-            env.define(param.name.clone(), ty);
+        let handler_result = env.with_scope(|env| {
+            env.define("self".to_string(), self_ty.clone());
+            let mut message_params = Vec::with_capacity(handler.params.len());
+            let mut handler_param_types = Vec::with_capacity(handler.params.len());
+            for param in &handler.params {
+                let ty = resolve_param_type(env, param, Some(&self_ty))?;
+                handler_param_types.push((param.name.clone(), ty.clone()));
+                message_params.push(MessageParameter::required(
+                    param.name.clone(),
+                    resolved_type_contract_name(&ty),
+                ));
+                env.define(param.name.clone(), ty);
+            }
+            check_block_semantics(env, &handler.body, &ctx)?;
+            let reply_contract = handler_param_types
+                .first()
+                .and_then(|(param_name, param_ty)| {
+                    if !matches!(param_ty, ResolvedType::Generic(name) if name == "P") {
+                        return None;
+                    }
+                    infer_reply_contract_from_handler_body(env, &handler.body, param_name)
+                });
+            Ok((message_params, reply_contract))
+        });
+        match handler_result {
+            Ok((message_params, reply_contract)) => {
+                let message_signature = if let Some(reply_contract) = reply_contract {
+                    MessageSignature::call(
+                        handler.message_type.clone(),
+                        message_params,
+                        reply_contract,
+                    )
+                } else {
+                    MessageSignature::cast(handler.message_type.clone(), message_params)
+                };
+                actor_contract
+                    .handlers
+                    .push(ActorHandlerSignature::cast(message_signature));
+            }
+            Err(error) => extend_accumulated_errors(&mut handler_errors, error),
         }
-        check_block_semantics(env, &handler.body, &ctx)?;
-        let reply_contract = handler_param_types
-            .first()
-            .and_then(|(param_name, param_ty)| {
-                if !matches!(param_ty, ResolvedType::Generic(name) if name == "P") {
-                    return None;
-                }
-                infer_reply_contract_from_handler_body(env, &handler.body, param_name)
-            });
-        env.pop_scope();
-        let message_signature = if let Some(reply_contract) = reply_contract {
-            MessageSignature::call(handler.message_type.clone(), message_params, reply_contract)
-        } else {
-            MessageSignature::cast(handler.message_type.clone(), message_params)
-        };
-        actor_contract
-            .handlers
-            .push(ActorHandlerSignature::cast(message_signature));
     }
 
     for method in &a.methods {
-        let typed_method = check_function_with_self(env, method, &self_ty)?;
-        actor_contract
-            .methods
-            .push(actor_method_contract(method, &typed_method.resolved_type));
+        match check_function_with_self(env, method, &self_ty) {
+            Ok(typed_method) => actor_contract
+                .methods
+                .push(actor_method_contract(method, &typed_method.resolved_type)),
+            Err(error) => extend_accumulated_errors(&mut handler_errors, error),
+        }
     }
 
     validate_actor_definition(&actor_contract)
@@ -4747,11 +4813,14 @@ fn check_actor(env: &mut TypeEnv, a: &Actor) -> KainResult<TypedActor> {
     env.actor_contracts
         .insert(a.name.clone(), actor_contract.clone());
 
-    Ok(TypedActor {
-        ast: a.clone(),
-        state_types,
-        actor_contract,
-    })
+    finish_accumulated(
+        handler_errors,
+        TypedActor {
+            ast: a.clone(),
+            state_types,
+            actor_contract,
+        },
+    )
 }
 
 fn actor_method_contract(method: &Function, resolved_type: &ResolvedType) -> ActorMethodSignature {
@@ -5351,9 +5420,7 @@ fn check_test(env: &mut TypeEnv, t: &TestDef) -> KainResult<TypedTest> {
         return_type: ResolvedType::Unit,
         effects: EffectSet::new(),
     };
-    env.push_scope();
-    check_block_semantics(env, &t.body, &ctx)?;
-    env.pop_scope();
+    env.with_scope(|env| check_block_semantics(env, &t.body, &ctx))?;
     Ok(TypedTest { ast: t.clone() })
 }
 
@@ -5490,13 +5557,13 @@ fn check_function(env: &mut TypeEnv, f: &Function) -> KainResult<TypedFunction> 
         effects: effects.clone(),
     };
 
-    env.push_scope();
-    for p in &f.params {
-        let ty = resolve_param_type(env, p, None)?;
-        env.define(p.name.clone(), ty);
-    }
-    check_block_semantics(env, &f.body, &ctx)?;
-    env.pop_scope();
+    env.with_scope(|env| {
+        for p in &f.params {
+            let ty = resolve_param_type(env, p, None)?;
+            env.define(p.name.clone(), ty);
+        }
+        check_block_semantics(env, &f.body, &ctx)
+    })?;
 
     Ok(TypedFunction {
         ast: f.clone(),
@@ -5527,13 +5594,13 @@ fn check_function_with_self(
         effects: effects.clone(),
     };
 
-    env.push_scope();
-    for p in &f.params {
-        let ty = resolve_param_type(env, p, Some(self_ty))?;
-        env.define(p.name.clone(), ty);
-    }
-    check_block_semantics(env, &f.body, &ctx)?;
-    env.pop_scope();
+    env.with_scope(|env| {
+        for p in &f.params {
+            let ty = resolve_param_type(env, p, Some(self_ty))?;
+            env.define(p.name.clone(), ty);
+        }
+        check_block_semantics(env, &f.body, &ctx)
+    })?;
 
     Ok(TypedFunction {
         ast: f.clone(),
@@ -5719,10 +5786,6 @@ fn check_pulse(env: &mut TypeEnv, pulse: &PulseDef) -> KainResult<TypedPulse> {
         validate_pulse_duration(env, jitter, "pulse jitter")?;
     }
 
-    env.push_scope();
-    env.define("pulse_tick".to_string(), ResolvedType::Int(IntSize::I64));
-    env.define("pulse_dt_ms".to_string(), ResolvedType::Int(IntSize::I64));
-    env.define("pulse_missed".to_string(), ResolvedType::Int(IntSize::I64));
     let ctx = SemanticContext {
         function_name: pulse.name.clone(),
         return_type: ResolvedType::Unit,
@@ -5735,8 +5798,12 @@ fn check_pulse(env: &mut TypeEnv, pulse: &PulseDef) -> KainResult<TypedPulse> {
             .with(Effect::Alloc)
             .with(Effect::Panic),
     };
-    check_block_semantics(env, &pulse.body, &ctx)?;
-    env.pop_scope();
+    env.with_scope(|env| {
+        env.define("pulse_tick".to_string(), ResolvedType::Int(IntSize::I64));
+        env.define("pulse_dt_ms".to_string(), ResolvedType::Int(IntSize::I64));
+        env.define("pulse_missed".to_string(), ResolvedType::Int(IntSize::I64));
+        check_block_semantics(env, &pulse.body, &ctx)
+    })?;
 
     Ok(TypedPulse { ast: pulse.clone() })
 }
@@ -7010,33 +7077,37 @@ fn check_component(env: &mut TypeEnv, c: &Component) -> KainResult<TypedComponen
     }
 
     let self_ty = ResolvedType::Struct(c.name.clone(), props.clone());
-    env.push_scope();
-    for (name, ty) in &props {
-        env.define(name.clone(), ty.clone());
-    }
-    for method in &c.methods {
-        let signature = function_signature(env, method, Some(&self_ty))?;
-        env.define(method.name.clone(), signature);
-    }
-    for state in &c.state {
-        let state_ty = resolve_type_in_env(env, &state.ty)?;
-        let initial_ty = infer_expr_type(env, &state.initial, None)?;
-        ensure_type_compatible(
-            env,
-            &state_ty,
-            &initial_ty,
-            state.initial.span(),
-            "component state initializer",
-        )?;
-        env.define(state.name.clone(), state_ty);
-    }
+    env.with_scope(|env| {
+        let mut component_errors = Vec::new();
+        for (name, ty) in &props {
+            env.define(name.clone(), ty.clone());
+        }
+        for method in &c.methods {
+            let signature = function_signature(env, method, Some(&self_ty))?;
+            env.define(method.name.clone(), signature);
+        }
+        for state in &c.state {
+            let state_ty = resolve_type_in_env(env, &state.ty)?;
+            let initial_ty = infer_expr_type(env, &state.initial, None)?;
+            ensure_type_compatible(
+                env,
+                &state_ty,
+                &initial_ty,
+                state.initial.span(),
+                "component state initializer",
+            )?;
+            env.define(state.name.clone(), state_ty);
+        }
 
-    for method in &c.methods {
-        check_function_with_self(env, method, &self_ty)?;
-    }
+        for method in &c.methods {
+            if let Err(error) = check_function_with_self(env, method, &self_ty) {
+                extend_accumulated_errors(&mut component_errors, error);
+            }
+        }
 
-    check_jsx_semantics(env, &c.body, None)?;
-    env.pop_scope();
+        check_jsx_semantics(env, &c.body, None)?;
+        finish_accumulated(component_errors, ())
+    })?;
 
     Ok(TypedComponent {
         ast: c.clone(),
@@ -7057,15 +7128,15 @@ fn check_shader(env: &mut TypeEnv, s: &Shader) -> KainResult<TypedShader> {
         effects: EffectSet::new(),
     };
 
-    env.push_scope();
-    for (param, ty) in s.inputs.iter().zip(inputs.iter()) {
-        env.define(param.name.clone(), ty.clone());
-    }
-    for uniform in &s.uniforms {
-        env.define(uniform.name.clone(), resolve_type_in_env(env, &uniform.ty)?);
-    }
-    check_block_semantics(env, &s.body, &ctx)?;
-    env.pop_scope();
+    env.with_scope(|env| {
+        for (param, ty) in s.inputs.iter().zip(inputs.iter()) {
+            env.define(param.name.clone(), ty.clone());
+        }
+        for uniform in &s.uniforms {
+            env.define(uniform.name.clone(), resolve_type_in_env(env, &uniform.ty)?);
+        }
+        check_block_semantics(env, &s.body, &ctx)
+    })?;
 
     Ok(TypedShader {
         ast: s.clone(),
@@ -7314,34 +7385,35 @@ fn infer_expr_type_with_expected(
             .map(|ty| resolve_type_in_env(env, ty))
             .transpose()?
             .unwrap_or(ResolvedType::Unknown);
-        env.push_scope();
-        let mut param_types = Vec::with_capacity(params.len());
-        for (index, param) in params.iter().enumerate() {
-            let param_ty = resolve_param_type(env, param, None)?;
-            let inferred_ty = match (expected_params.get(index), param_ty) {
-                (Some(expected_param_ty), ResolvedType::Unknown) => expected_param_ty.clone(),
-                (Some(expected_param_ty), actual_ty) => {
-                    ensure_type_compatible(
-                        env,
-                        expected_param_ty,
-                        &actual_ty,
-                        param.span,
-                        "lambda parameter",
-                    )?;
-                    actual_ty
-                }
-                (None, actual_ty) => actual_ty,
+        let (param_types, body_ty) = env.with_scope(|env| {
+            let mut param_types = Vec::with_capacity(params.len());
+            for (index, param) in params.iter().enumerate() {
+                let param_ty = resolve_param_type(env, param, None)?;
+                let inferred_ty = match (expected_params.get(index), param_ty) {
+                    (Some(expected_param_ty), ResolvedType::Unknown) => expected_param_ty.clone(),
+                    (Some(expected_param_ty), actual_ty) => {
+                        ensure_type_compatible(
+                            env,
+                            expected_param_ty,
+                            &actual_ty,
+                            param.span,
+                            "lambda parameter",
+                        )?;
+                        actual_ty
+                    }
+                    (None, actual_ty) => actual_ty,
+                };
+                env.define(param.name.clone(), inferred_ty.clone());
+                param_types.push(inferred_ty);
+            }
+            let body_expected = if matches!(annotated_ret, ResolvedType::Unknown) {
+                Some(expected_ret.as_ref())
+            } else {
+                Some(&annotated_ret)
             };
-            env.define(param.name.clone(), inferred_ty.clone());
-            param_types.push(inferred_ty);
-        }
-        let body_expected = if matches!(annotated_ret, ResolvedType::Unknown) {
-            Some(expected_ret.as_ref())
-        } else {
-            Some(&annotated_ret)
-        };
-        let body_ty = infer_expr_type_with_expected(env, body, ctx, body_expected)?;
-        env.pop_scope();
+            let body_ty = infer_expr_type_with_expected(env, body, ctx, body_expected)?;
+            Ok((param_types, body_ty))
+        })?;
 
         if !matches!(annotated_ret, ResolvedType::Unknown)
             && !matches!(
@@ -7408,10 +7480,13 @@ fn check_block_semantics(
     block: &Block,
     ctx: &SemanticContext,
 ) -> KainResult<()> {
+    let mut errors = Vec::new();
     for stmt in &block.stmts {
-        check_stmt_semantics(env, stmt, ctx)?;
+        if let Err(error) = check_stmt_semantics(env, stmt, ctx) {
+            extend_accumulated_errors(&mut errors, error);
+        }
     }
-    Ok(())
+    finish_accumulated(errors, ())
 }
 
 fn block_value_type(
@@ -7497,9 +7572,7 @@ fn check_stmt_semantics(env: &mut TypeEnv, stmt: &Stmt, ctx: &SemanticContext) -
         } => {
             let cond_ty = infer_expr_type(env, condition, Some(ctx))?;
             ensure_condition_type_compatible(env, &cond_ty, condition.span(), "while condition")?;
-            env.push_scope();
-            check_block_semantics(env, body, ctx)?;
-            env.pop_scope();
+            env.with_scope(|env| check_block_semantics(env, body, ctx))?;
         }
         Stmt::For {
             binding,
@@ -7545,10 +7618,10 @@ fn check_stmt_semantics(env: &mut TypeEnv, stmt: &Stmt, ctx: &SemanticContext) -
                     ))
                 }
             };
-            env.push_scope();
-            bind_pattern_types(env, binding, &item_ty)?;
-            check_block_semantics(env, body, ctx)?;
-            env.pop_scope();
+            env.with_scope(|env| {
+                bind_pattern_types(env, binding, &item_ty)?;
+                check_block_semantics(env, body, ctx)
+            })?;
         }
         Stmt::Fanout {
             binding,
@@ -7617,9 +7690,7 @@ fn check_stmt_semantics(env: &mut TypeEnv, stmt: &Stmt, ctx: &SemanticContext) -
             result?;
         }
         Stmt::Loop { body, .. } => {
-            env.push_scope();
-            check_block_semantics(env, body, ctx)?;
-            env.pop_scope();
+            env.with_scope(|env| check_block_semantics(env, body, ctx))?;
         }
         Stmt::Item(item) => {
             let _ = check_item(env, item.as_ref())?;
@@ -8241,15 +8312,16 @@ fn infer_expr_type(
                 .map(|ty| resolve_type_in_env(env, ty))
                 .transpose()?
                 .unwrap_or(ResolvedType::Unknown);
-            env.push_scope();
-            let mut param_types = Vec::new();
-            for param in params {
-                let ty = resolve_param_type(env, param, None)?;
-                env.define(param.name.clone(), ty.clone());
-                param_types.push(ty);
-            }
-            let body_ty = infer_expr_type(env, body, ctx)?;
-            env.pop_scope();
+            let (param_types, body_ty) = env.with_scope(|env| {
+                let mut param_types = Vec::new();
+                for param in params {
+                    let ty = resolve_param_type(env, param, None)?;
+                    env.define(param.name.clone(), ty.clone());
+                    param_types.push(ty);
+                }
+                let body_ty = infer_expr_type(env, body, ctx)?;
+                Ok((param_types, body_ty))
+            })?;
             if !matches!(
                 (&ret, &body_ty),
                 (ResolvedType::Unknown, _)
@@ -9324,21 +9396,21 @@ fn infer_match_type(
             }
         }
 
-        env.push_scope();
-        check_pattern_compatibility(env, &arm.pattern, &scrutinee_ty)?;
-        bind_pattern_types(env, &arm.pattern, &scrutinee_ty)?;
-        if let Some(guard) = &arm.guard {
-            let guard_ty = infer_expr_type(env, guard, ctx)?;
-            ensure_type_compatible(
-                env,
-                &ResolvedType::Bool,
-                &guard_ty,
-                guard.span(),
-                "match guard",
-            )?;
-        }
-        let arm_ty = infer_expr_type(env, &arm.body, ctx)?;
-        env.pop_scope();
+        let arm_ty = env.with_scope(|env| {
+            check_pattern_compatibility(env, &arm.pattern, &scrutinee_ty)?;
+            bind_pattern_types(env, &arm.pattern, &scrutinee_ty)?;
+            if let Some(guard) = &arm.guard {
+                let guard_ty = infer_expr_type(env, guard, ctx)?;
+                ensure_type_compatible(
+                    env,
+                    &ResolvedType::Bool,
+                    &guard_ty,
+                    guard.span(),
+                    "match guard",
+                )?;
+            }
+            infer_expr_type(env, &arm.body, ctx)
+        })?;
 
         result_ty = Some(if let Some(current) = result_ty {
             unify_types(&current, &arm_ty).ok_or_else(|| {
@@ -11549,10 +11621,10 @@ fn check_jsx_semantics(
                 ResolvedType::String => ResolvedType::String,
                 _ => ResolvedType::Unknown,
             };
-            env.push_scope();
-            env.define(binding.clone(), item_ty);
-            check_jsx_semantics(env, body, ctx)?;
-            env.pop_scope();
+            env.with_scope(|env| {
+                env.define(binding.clone(), item_ty);
+                check_jsx_semantics(env, body, ctx)
+            })?;
         }
         JSXNode::If {
             condition,

@@ -133,3 +133,32 @@ fn main() -> Int:
         "missing_surface"
     );
 }
+
+#[test]
+fn typecheck_accumulates_multiple_same_file_errors() {
+    let source = r#"let first: Int = "hello"
+let second = missing_top + 1
+let third: Bool = 123
+"#;
+
+    let err = parse_and_typecheck(source).expect_err("typecheck should accumulate script errors");
+    let json = err
+        .diagnostic_json()
+        .expect("multi-error typecheck should expose JSON diagnostics");
+    let diagnostics = json["diagnostics"].as_array().expect("diagnostics array");
+
+    assert!(
+        diagnostics.len() >= 3,
+        "expected at least 3 diagnostics, got {}: {json}",
+        diagnostics.len()
+    );
+    assert!(diagnostics.iter().any(|diag| diag["message"]
+        .as_str()
+        .is_some_and(|message| message.contains("let binding expected Int, found String"))));
+    assert!(diagnostics.iter().any(|diag| diag["message"]
+        .as_str()
+        .is_some_and(|message| message.contains("Unknown identifier 'missing_top'"))));
+    assert!(diagnostics.iter().any(|diag| diag["message"]
+        .as_str()
+        .is_some_and(|message| message.contains("let binding expected Bool, found Int"))));
+}
