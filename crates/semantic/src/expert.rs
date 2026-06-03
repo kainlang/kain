@@ -725,7 +725,7 @@ fn generate_explanation(packet: &DiagnosticSemanticPacket, mode: &FailureMode) -
             "Entangle coupling violation. The entangled state relationship has been broken. Check the single_writer policy and coupling direction.".to_string()
         }
         FailureMode::GenericUnknown => {
-            String::new()
+            "An unresolved compiler error was encountered. Check syntax, types, and constraints for potential mismatches.".to_string()
         }
     }
 }

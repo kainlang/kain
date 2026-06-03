@@ -1,0 +1,15 @@
+// ERROR: converge fast lane type mismatch
+// @expected_code: KAIN-TYPE-0001
+// @expected_mode: ConvergeMismatch
+// @expected_repair: align_fast_lane
+
+converge generated_lane_16(value: Int) -> Int:
+    spec reference:
+        return value + 1
+    fast wrong_lane when target("llvm"):
+        let x: Int = "mismatched type"
+        return value
+    verify random(4)
+
+fn main() -> Int:
+    return generated_lane_16(3)

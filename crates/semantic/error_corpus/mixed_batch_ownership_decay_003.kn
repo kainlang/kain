@@ -1,0 +1,22 @@
+// ERROR: ownership use after teleport move
+// @expected_code: KAIN-TYPE-0001
+// @expected_mode: OwnershipViolation
+// @expected_repair: s
+
+world Authority3:
+    state count: Int = 0
+    surface native_ui => Panel
+
+world Mirror3:
+    state count_copy: Int = 0
+    surface web => Panel
+
+shatter struct Shard3:
+    bias: Int
+    phase: Int
+
+fn main() -> Int:
+    let s = Shard3 { bias: 1, phase: 2 }
+    let moved = teleport s from Authority3 to Mirror3 via bus
+    let _shape = s.bias
+    return 0
