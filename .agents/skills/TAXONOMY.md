@@ -29,6 +29,7 @@ This file is only the live skill split for current agents.
 - `bootstrap-fs`
 - `bootstrap-gpu`
 - `bootstrap-semantic`
+- `bootstrap-semantic-authoring`
 - `runtime-core`
 - `runtime-stdlib`
 - `runtime-gpu`
@@ -58,6 +59,7 @@ This file is only the live skill split for current agents.
 - `tool-parallel-strike-planner` is the same-checkout multi-agent planning lane for `plans/` folders that need README plus per-agent briefs with immediately-startable parallel ownership.
 - `tool-z3-bug-hunter` is the logging-only sibling of `tool-z3-black-magic`: use it to inventory reproducible bugs and edge cases, not to patch them inline.
 - `package-*` should stay rare and only exist for real package surfaces.
+- Use `bootstrap-semantic-authoring` for intentionally broken Kain fixtures under `crates/semantic/error_corpus` and helper automation under `crates/semantic/scripts`; escalate to `bootstrap-semantic` when the oracle, pack, expert rules, or compiler diagnostic wiring changes.
 
 ## Legacy Aliases
 
