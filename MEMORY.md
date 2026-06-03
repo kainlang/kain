@@ -1,5 +1,21 @@
 # Kain Memory
 
+# 2026-06-03 - `ml/lasso.kn` raw corpus collector needs `.kain` root unwrapping
+
+What changed:
+
+- Repaired `X:\ml\lasso.kn` into a working Kain collector that scans `blades/`, `benchmark/cases_v2/`, `benchmark/cases/`, and `smoketest/src/`, mirrors the selected files into `X:\ml\raw`, and renames every `main.kn` leaf to its containing folder name.
+- Added path filtering for `crates` and `library_of_kain` segments so the collector stays out of those trees even when they appear nested below a selected root.
+- Discovered that `kain run` in this workspace can hand the script `KAIN_HOME=X:\.kain`, so repo-root resolution must treat `.kain` as launcher state and climb back to the checkout root before resolving source roots.
+
+Validation:
+
+- `kain check X:\ml\lasso.kn --target llvm`
+- `kain run X:\ml\lasso.kn --target llvm`
+- Output verification:
+  - `X:\ml\raw` contains `962` `.kn` files.
+  - No `main.kn` files remain under `X:\ml\raw`; the renamed leaf appears as the containing folder name, such as `X:\ml\raw\smoketest\src\src.kn`.
+
 # 2026-06-03 - `kain-fmt` now uses width-aware layouts and `kain fmt` really handles directories
 
 What changed:
