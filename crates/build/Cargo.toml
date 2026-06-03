@@ -12,6 +12,7 @@ kain-check = { path = "../check" }
 kain-clean = { path = "../clean" }
 kain-core = { path = "../core" }
 kain-driver = { path = "../driver" }
+kain-fmt = { path = "../fmt" }
 kain-fs = { path = "../fs" }
 kain-host = { path = "../host", default-features = false }
 kain-omni = { path = "../omni", default-features = false }

@@ -4,21 +4,25 @@
 //! frontend AST the rest of the compiler uses. That gives the language a single
 //! printer of record for humans, tooling, and LLM-oriented workflows.
 
-use crate::ast::*;
-use crate::diagnostics::SpanMapper;
-use crate::effects::Effect;
-use crate::error::{KainError, KainResult};
-use crate::lexer::Lexer;
-use crate::parser::Parser;
+use kain_core::ast::*;
+use kain_core::diagnostics::SpanMapper;
+use kain_core::effects::Effect;
+use kain_core::lexer::Lexer;
+use kain_core::parser::Parser;
+use kain_error::{KainError, KainResult};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct FormatOptions {
     pub indent_width: usize,
+    pub max_width: usize,
 }
 
 impl Default for FormatOptions {
     fn default() -> Self {
-        Self { indent_width: 4 }
+        Self {
+            indent_width: 4,
+            max_width: 100,
+        }
     }
 }
 
@@ -3317,7 +3321,7 @@ impl SourceFormatter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::diagnostics::SpanMapper;
+    use kain_core::diagnostics::SpanMapper;
 
     fn parse(source: &str) -> KainResult<Program> {
         let tokens = Lexer::new(source).tokenize()?;

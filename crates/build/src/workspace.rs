@@ -9,7 +9,6 @@ use kain_amalgamate::{
 };
 use kain_core::ast::{Item, Program};
 use kain_core::diagnostics::SpanMapper;
-use kain_core::format_program;
 use kain_core::lexer::Lexer;
 use kain_core::parser::Parser;
 use kain_core::tooling_config::apply_cargo_command_defaults;
@@ -18,6 +17,7 @@ use kain_driver::{
     DriverSession, ToolingProgressEvent, ToolingProgressRecord, ToolingProgressSink,
     ToolingProgressStatus,
 };
+use kain_fmt::format_program;
 use kain_fs as kfs;
 use kain_omni::fabric::{FabricRuntimeKind, FabricSessionStatus};
 use serde::{Deserialize, Serialize};

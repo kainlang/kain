@@ -1,0 +1,10 @@
+[package]
+name = "kain-fmt"
+version = "0.1.0"
+edition = "2021"
+description = "Compiler-owned canonical source formatter for the Kain language"
+license = "MIT"
+
+[dependencies]
+kain-core = { path = "../core" }
+kain-error = { path = "../error" }

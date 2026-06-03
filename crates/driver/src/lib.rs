@@ -766,7 +766,7 @@ impl DriverSession {
     }
 
     pub fn format_source(&self, source: &str) -> Result<String, KainError> {
-        kain_core::format_source(source)
+        kain_fmt::format_source(source)
     }
 
     pub fn format_error(

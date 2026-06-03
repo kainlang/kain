@@ -9,6 +9,7 @@ license = "MIT"
 kain-c-ffi = { path = "../c-ffi" }
 kain-codebase = { path = "../codebase" }
 kain-core = { path = "../core" }
+kain-fmt = { path = "../fmt" }
 kain-crate-ffi = { path = "../crate-ffi" }
 kain-interop = { path = "../interop" }
 kain-node = { path = "../node" }

@@ -1,5 +1,5 @@
 {
-  "checksum": "9766d1ccd1cf692d43b9274108cc1f4540524d858f776b733df46d64e14bba98",
+  "checksum": "a9113d37bcad5f683d3bdc5fc71b0710b4fb0cc7296d9ac846c09849b2cc96eb",
   "crates": {
     "ab_glyph 0.2.32": {
       "name": "ab_glyph",
@@ -18107,6 +18107,39 @@
       "license_ids": [],
       "license_file": null
     },
+    "kain-fmt 0.1.0": {
+      "name": "kain-fmt",
+      "version": "0.1.0",
+      "package_url": null,
+      "repository": null,
+      "targets": [
+        {
+          "Library": {
+            "crate_name": "kain_fmt",
+            "crate_root": "src/lib.rs",
+            "srcs": {
+              "allow_empty": true,
+              "include": [
+                "**/*.rs"
+              ]
+            }
+          }
+        }
+      ],
+      "library_target_name": "kain_fmt",
+      "common_attrs": {
+        "compile_data_glob": [
+          "**"
+        ],
+        "edition": "2021",
+        "version": "0.1.0"
+      },
+      "license": "MIT",
+      "license_ids": [
+        "MIT"
+      ],
+      "license_file": null
+    },
     "kain-foreign-abi 0.1.0": {
       "name": "kain-foreign-abi",
       "version": "0.1.0",
@@ -18787,6 +18820,53 @@
       },
       "license": "MIT",
       "license_ids": [
+        "MIT"
+      ],
+      "license_file": null
+    },
+    "kain-orchestrate 0.1.0": {
+      "name": "kain-orchestrate",
+      "version": "0.1.0",
+      "package_url": null,
+      "repository": null,
+      "targets": [
+        {
+          "Library": {
+            "crate_name": "kain_orchestrate",
+            "crate_root": "src/lib.rs",
+            "srcs": {
+              "allow_empty": true,
+              "include": [
+                "**/*.rs"
+              ]
+            }
+          }
+        }
+      ],
+      "library_target_name": "kain_orchestrate",
+      "common_attrs": {
+        "compile_data_glob": [
+          "**"
+        ],
+        "deps": {
+          "common": [
+            {
+              "id": "serde 1.0.228",
+              "target": "serde"
+            },
+            {
+              "id": "thiserror 2.0.18",
+              "target": "thiserror"
+            }
+          ],
+          "selects": {}
+        },
+        "edition": "2021",
+        "version": "0.1.0"
+      },
+      "license": "MIT OR Apache-2.0",
+      "license_ids": [
+        "Apache-2.0",
         "MIT"
       ],
       "license_file": null
@@ -52118,6 +52198,7 @@
     "kain-error 0.2.0": "crates/error",
     "kain-error-semantic 0.1.0": "crates/error-semantic",
     "kain-fast3d-runtime 0.1.0": "crates/fast3d-runtime",
+    "kain-fmt 0.1.0": "crates/fmt",
     "kain-foreign-abi 0.1.0": "crates/foreign-abi",
     "kain-fs 0.1.0": "crates/fs",
     "kain-gpu-runtime 0.1.0": "crates/gpu-runtime",
@@ -52130,6 +52211,7 @@
     "kain-net 0.1.0": "crates/net",
     "kain-node 0.1.0": "crates/node",
     "kain-omni 0.1.0": "crates/omni",
+    "kain-orchestrate 0.1.0": "crates/orchestrate",
     "kain-ownership 0.1.0": "crates/ownership",
     "kain-process 0.1.0": "crates/process",
     "kain-python 0.1.0": "crates/python",
@@ -52424,6 +52506,7 @@
     "syn 2.0.111",
     "tar 0.4.44",
     "thiserror 1.0.69",
+    "thiserror 2.0.18",
     "tokio 1.48.0",
     "toml 0.8.23",
     "tracing 0.1.44",

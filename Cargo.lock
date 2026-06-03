@@ -948,6 +948,7 @@ dependencies = [
  "kain-core",
  "kain-crate-ffi",
  "kain-driver",
+ "kain-fmt",
  "kain-host",
  "kain-import",
  "kain-omni",
@@ -2930,6 +2931,7 @@ dependencies = [
  "kain-clean",
  "kain-core",
  "kain-driver",
+ "kain-fmt",
  "kain-fs",
  "kain-host",
  "kain-omni",
@@ -3029,6 +3031,7 @@ dependencies = [
  "kain-fs",
  "kain-input",
  "kain-lattice",
+ "kain-orchestrate",
  "kain-ownership",
  "kain-semantic",
  "kain-ui",
@@ -3072,6 +3075,7 @@ dependencies = [
  "kain-codebase",
  "kain-core",
  "kain-crate-ffi",
+ "kain-fmt",
  "kain-interop",
  "kain-node",
  "kain-python",
@@ -3127,6 +3131,14 @@ dependencies = [
  "serde",
  "serde_json",
  "toml",
+]
+
+[[package]]
+name = "kain-fmt"
+version = "0.1.0"
+dependencies = [
+ "kain-core",
+ "kain-error",
 ]
 
 [[package]]
@@ -3278,6 +3290,14 @@ dependencies = [
  "ue5",
  "ue5-editor",
  "ue5-shaders",
+]
+
+[[package]]
+name = "kain-orchestrate"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "thiserror 2.0.18",
 ]
 
 [[package]]

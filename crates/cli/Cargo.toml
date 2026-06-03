@@ -22,6 +22,7 @@ kain-check = { path = "../check" }
 kain-clean = { path = "../clean" }
 kain-test = { path = "../test" }
 kain-driver = { path = "../driver", default-features = false }
+kain-fmt = { path = "../fmt" }
 kain-c-ffi = { path = "../c-ffi" }
 kain-codebase = { path = "../codebase" }
 kain-commands = { path = "../commands" }

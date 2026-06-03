@@ -1062,7 +1062,7 @@ fn generate_kain_source(program: &kain_core::ast::Program) -> KainResult<String>
     writeln!(output)
         .map_err(|e| KainError::runtime(format!("Failed to generate source: {}", e)))?;
 
-    match kain_core::format_program(program) {
+    match kain_fmt::format_program(program) {
         Ok(formatted) => {
             output.push_str(&formatted);
             if !formatted.ends_with('\n') {
