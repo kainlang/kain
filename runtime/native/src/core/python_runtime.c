@@ -32,7 +32,6 @@
 #define KAIN_PY_JSON_INT(value)  ((((int64_t)(value)) << 3) | 1LL)
 #define KAIN_PY_JSON_BOOL(value) ((((int64_t)((value) != 0)) << 3) | 2LL)
 #define KAIN_PY_JSON_NULL        4LL
-#define KAIN_PY_VECTORCALL_STACK_ARGS 8u
 #define KAIN_PY_I64_TRUNC_F64_MIN (-9223372036854775808.0)
 #define KAIN_PY_I64_TRUNC_F64_MAX 9223372036854775808.0
 
@@ -73,6 +72,7 @@ typedef struct {
     int (*PyObject_HasAttrString)(PyObject*, const char*);
     int (*PyObject_SetAttrString)(PyObject*, const char*, PyObject*);
     PyObject* (*PyObject_Call)(PyObject*, PyObject*, PyObject*);
+    PyObject* (*PyObject_CallOneArg)(PyObject*, PyObject*);
     PyObject* (*PyObject_Vectorcall)(PyObject*, PyObject* const*, size_t, PyObject*);
     int (*PyObject_SetItem)(PyObject*, PyObject*, PyObject*);
     PyObject* (*PyObject_GetItem)(PyObject*, PyObject*);
@@ -275,7 +275,6 @@ static long long kain_py_attr_int(PyObject* object, const char* name, long long 
 static long long kain_py_getattr_internal_active(long long target, const char* name, KainPythonRegionHandle* region);
 static long long kain_py_buffer_view_from_target_active(long long target, KainPythonRegionHandle* region);
 static PyObject* kain_py_any_to_pyobject(long long value);
-static int kain_py_call_no_kwargs_fast(PyObject* callable, long long args, PyObject** out_result);
 static int kain_py_call_f64_no_kwargs_fast(PyObject* callable, double arg, PyObject** out_result);
 static int kain_py_try_fast_trunc_i64_result(PyObject* result, long long* out_value);
 static void kain_py_any_retain(long long value);
@@ -609,6 +608,10 @@ static int kain_py_load_api(void) {
     KAIN_LOAD_PY_API(Py_DecRef);
     KAIN_LOAD_PY_API(PyObject_GetBuffer);
     KAIN_LOAD_PY_API(PyBuffer_Release);
+    g_kain_python_api.PyObject_CallOneArg = (void*)kain_py_load_symbol("PyObject_CallOneArg");
+    g_kain_python_api.PyObject_Vectorcall = (void*)kain_py_load_symbol("PyObject_Vectorcall");
+    g_kain_python_api.PyFloat_Type = (PyTypeObject*)kain_py_load_symbol("PyFloat_Type");
+    g_kain_python_api.PyLong_Type = (PyTypeObject*)kain_py_load_symbol("PyLong_Type");
 
 #undef KAIN_LOAD_PY_API
 
@@ -935,6 +938,77 @@ static int64_t kain_py_borrowed_buffer_owner_create(PyObject* object, Py_buffer*
         return 0;
     }
     return owner_handle;
+}
+
+static int kain_py_call_f64_no_kwargs_fast(PyObject* callable, double arg, PyObject** out_result) {
+    PyObject* arg_obj;
+    PyObject* vector_args[1];
+    if (out_result) {
+        *out_result = NULL;
+    }
+    if (!callable || !out_result || !g_kain_python_api.PyObject_Vectorcall) {
+        if (!callable || !out_result) {
+            return 0;
+        }
+    }
+    arg_obj = g_kain_python_api.PyFloat_FromDouble(arg);
+    if (!arg_obj) {
+        return 1;
+    }
+    if (g_kain_python_api.PyObject_CallOneArg) {
+        *out_result = g_kain_python_api.PyObject_CallOneArg(callable, arg_obj);
+        g_kain_python_api.Py_DecRef(arg_obj);
+        return 1;
+    }
+    if (!g_kain_python_api.PyObject_Vectorcall) {
+        g_kain_python_api.Py_DecRef(arg_obj);
+        return 0;
+    }
+    vector_args[0] = arg_obj;
+    *out_result = g_kain_python_api.PyObject_Vectorcall(callable, vector_args, 1u, NULL);
+    g_kain_python_api.Py_DecRef(arg_obj);
+    return 1;
+}
+
+static int kain_py_is_exact_type(PyObject* object, PyTypeObject* expected) {
+    return object != NULL && expected != NULL && object->ob_type == expected;
+}
+
+static int kain_py_try_trunc_f64_to_i64(double value, long long* out_value) {
+    if (!out_value || value != value) {
+        return 0;
+    }
+    if (value < KAIN_PY_I64_TRUNC_F64_MIN || value >= KAIN_PY_I64_TRUNC_F64_MAX) {
+        return 0;
+    }
+    *out_value = (long long)value;
+    return 1;
+}
+
+static int kain_py_try_fast_trunc_i64_result(PyObject* result, long long* out_value) {
+    long long value;
+    double as_double;
+    if (!result || !out_value) {
+        return 0;
+    }
+    if (kain_py_is_exact_type(result, g_kain_python_api.PyLong_Type)) {
+        value = g_kain_python_api.PyLong_AsLongLong(result);
+        if (!g_kain_python_api.PyErr_Occurred()) {
+            *out_value = value;
+            return 1;
+        }
+        kain_py_clear_error();
+        return 0;
+    }
+    if (!kain_py_is_exact_type(result, g_kain_python_api.PyFloat_Type)) {
+        return 0;
+    }
+    as_double = g_kain_python_api.PyFloat_AsDouble(result);
+    if (g_kain_python_api.PyErr_Occurred()) {
+        kain_py_clear_error();
+        return 0;
+    }
+    return kain_py_try_trunc_f64_to_i64(as_double, out_value);
 }
 
 // Keep one translation unit for the Python runtime hot lane, but split the
@@ -2729,8 +2803,6 @@ static PyObject* kain_py_lookup_name(const char* name) {
     }
     return g_kain_python_api.PyImport_ImportModule(name);
 }
-
-static PyObject* kain_py_any_to_pyobject(long long value);
 
 static PyObject* kain_py_any_to_tuple(long long value) {
     PyObject* tuple_obj;

@@ -256,11 +256,10 @@ static long long kain_py_region_call_f64_trunc_i64_active(
     double arg
 ) {
     PyObject* callable;
-    PyObject* positional = NULL;
-    PyObject* arg_obj = NULL;
     PyObject* result = NULL;
     PyObject* coerced = NULL;
     long long value = 0;
+    int fast_call_used = 0;
     if (!region || !region->active) {
         return 0;
     }
@@ -279,32 +278,40 @@ static long long kain_py_region_call_f64_trunc_i64_active(
             return 0;
         }
     }
-    positional = g_kain_python_api.PyTuple_New(1);
-    if (!positional) {
-        g_kain_python_api.Py_DecRef(callable);
-        kain_py_clear_error();
-        return 0;
-    }
-    arg_obj = g_kain_python_api.PyFloat_FromDouble(arg);
-    if (!arg_obj) {
+    fast_call_used = kain_py_call_f64_no_kwargs_fast(callable, arg, &result);
+    if (!fast_call_used) {
+        PyObject* positional = g_kain_python_api.PyTuple_New(1);
+        PyObject* arg_obj = NULL;
+        if (!positional) {
+            g_kain_python_api.Py_DecRef(callable);
+            kain_py_clear_error();
+            return 0;
+        }
+        arg_obj = g_kain_python_api.PyFloat_FromDouble(arg);
+        if (!arg_obj) {
+            g_kain_python_api.Py_DecRef(positional);
+            g_kain_python_api.Py_DecRef(callable);
+            kain_py_clear_error();
+            return 0;
+        }
+        if (g_kain_python_api.PyTuple_SetItem(positional, 0, arg_obj) != 0) {
+            g_kain_python_api.Py_DecRef(arg_obj);
+            g_kain_python_api.Py_DecRef(positional);
+            g_kain_python_api.Py_DecRef(callable);
+            kain_py_clear_error();
+            return 0;
+        }
+        result = g_kain_python_api.PyObject_Call(callable, positional, NULL);
         g_kain_python_api.Py_DecRef(positional);
-        g_kain_python_api.Py_DecRef(callable);
-        kain_py_clear_error();
-        return 0;
     }
-    if (g_kain_python_api.PyTuple_SetItem(positional, 0, arg_obj) != 0) {
-        g_kain_python_api.Py_DecRef(arg_obj);
-        g_kain_python_api.Py_DecRef(positional);
-        g_kain_python_api.Py_DecRef(callable);
-        kain_py_clear_error();
-        return 0;
-    }
-    result = g_kain_python_api.PyObject_Call(callable, positional, NULL);
-    g_kain_python_api.Py_DecRef(positional);
     g_kain_python_api.Py_DecRef(callable);
     if (!result) {
         kain_py_clear_error();
         return 0;
+    }
+    if (kain_py_try_fast_trunc_i64_result(result, &value)) {
+        g_kain_python_api.Py_DecRef(result);
+        return value;
     }
     coerced = g_kain_python_api.PyNumber_Long(result);
     g_kain_python_api.Py_DecRef(result);
