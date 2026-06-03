@@ -114,11 +114,33 @@ int64_t abi_converge_mismatch_count(void);
 
 int64_t abi_orchestrate_stage_begin(const char* runtime_name, const char* function_name);
 int64_t abi_orchestrate_stage_begin_ex(const char* runtime_name, const char* function_name, const char* selector_name);
+int64_t abi_orchestrate_stage_begin_graph(
+    const char* runtime_name,
+    const char* function_name,
+    const char* selector_name,
+    const char* dependency_names,
+    const char* residency_name,
+    const char* transfer_name,
+    const char* guard_name,
+    const char* fallback_name,
+    const char* requires_name,
+    const char* policy_name
+);
 int64_t abi_orchestrate_stage_end_i64(const char* runtime_name, const char* function_name, int64_t status);
 int64_t abi_orchestrate_stage_count(void);
 const char* abi_orchestrate_last_runtime(void);
 const char* abi_orchestrate_last_function(void);
 const char* abi_orchestrate_last_selector(void);
+const char* abi_orchestrate_last_dependencies(void);
+const char* abi_orchestrate_last_residency(void);
+const char* abi_orchestrate_last_transfer(void);
+const char* abi_orchestrate_last_guard(void);
+const char* abi_orchestrate_last_fallback(void);
+const char* abi_orchestrate_last_requires(void);
+const char* abi_orchestrate_last_policy(void);
+int64_t abi_orchestrate_transfer_count(void);
+int64_t abi_orchestrate_fallback_count(void);
+int64_t abi_orchestrate_adaptive_stage_count(void);
 
 int64_t abi_now_millis(void);
 int64_t abi_sleep_millis(int64_t milliseconds);

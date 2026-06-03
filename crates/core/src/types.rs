@@ -201,6 +201,7 @@ pub struct OrchestrateStageDescriptor {
     pub function: String,
     pub binding_name: String,
     pub selector: Option<OrchestrateSelector>,
+    pub metadata: OrchestrateStageGraphMetadata,
 }
 
 #[derive(Debug, Clone)]
@@ -208,6 +209,7 @@ pub struct TypedOrchestrate {
     pub ast: OrchestrateDef,
     pub resolved_type: ResolvedType,
     pub stages: Vec<OrchestrateStageDescriptor>,
+    pub graph: OrchestrateGraphPlan,
 }
 
 #[derive(Debug, Clone)]
@@ -5942,11 +5944,95 @@ fn check_orchestrate(
 ) -> KainResult<TypedOrchestrate> {
     let typed_fn = check_function(env, &orchestrate_function_view(orchestrate))?;
     let stages = collect_orchestrate_stage_descriptors(env, orchestrate)?;
+    let graph = build_orchestrate_graph_plan(env, orchestrate, &stages)?;
     Ok(TypedOrchestrate {
         ast: orchestrate.clone(),
         resolved_type: typed_fn.resolved_type,
         stages,
+        graph,
     })
+}
+
+fn build_orchestrate_graph_plan(
+    env: &TypeEnv,
+    orchestrate: &OrchestrateDef,
+    stages: &[OrchestrateStageDescriptor],
+) -> KainResult<OrchestrateGraphPlan> {
+    let mut graph = OrchestrateGraphPlan::new(orchestrate.name.clone());
+    for stage in stages {
+        validate_orchestrate_stage_metadata(env, orchestrate, stage)?;
+        graph.push_stage(OrchestrateStagePlan {
+            binding_name: stage.binding_name.clone(),
+            kind: stage.runtime,
+            function: stage.function.clone(),
+            selector: stage.selector.clone(),
+            metadata: stage.metadata.clone(),
+        });
+    }
+    let validation = graph.validate();
+    if !validation.valid {
+        return Err(env.type_error(
+            format!(
+                "orchestrate '{}' graph validation failed: {}",
+                orchestrate.name,
+                validation.diagnostics.join("; ")
+            ),
+            orchestrate.span,
+        ));
+    }
+    Ok(graph)
+}
+
+fn validate_orchestrate_stage_metadata(
+    env: &TypeEnv,
+    orchestrate: &OrchestrateDef,
+    stage: &OrchestrateStageDescriptor,
+) -> KainResult<()> {
+    if let Some(guard) = &stage.metadata.guard {
+        match env.global_origins.get(guard) {
+            Some(origin) if origin.kind == "axiom" => {}
+            Some(origin) => {
+                return Err(env.type_error(
+                    format!(
+                        "orchestrate '{}' stage '{}' guard '{}' must reference an axiom, found {}",
+                        orchestrate.name, stage.binding_name, guard, origin.kind
+                    ),
+                    orchestrate.span,
+                ));
+            }
+            None => {
+                return Err(env.type_error(
+                    format!(
+                        "orchestrate '{}' stage '{}' guard '{}' does not resolve to an axiom",
+                        orchestrate.name, stage.binding_name, guard
+                    ),
+                    orchestrate.span,
+                ));
+            }
+        }
+    }
+
+    if let Some(transfer) = stage.metadata.transfer {
+        match (transfer, stage.metadata.residency) {
+            (OrchestrateTransfer::HostToDevice, Some(OrchestrateResidency::Host))
+            | (OrchestrateTransfer::DeviceToHost, Some(OrchestrateResidency::Device))
+            | (OrchestrateTransfer::SharedView, Some(OrchestrateResidency::Host))
+            | (OrchestrateTransfer::SharedView, Some(OrchestrateResidency::Device)) => {
+                return Err(env.type_error(
+                    format!(
+                        "orchestrate '{}' stage '{}' transfer '{}' is incompatible with residency '{}'",
+                        orchestrate.name,
+                        stage.binding_name,
+                        transfer.as_str(),
+                        stage.metadata.residency_name()
+                    ),
+                    orchestrate.span,
+                ));
+            }
+            _ => {}
+        }
+    }
+    Ok(())
 }
 
 fn check_world_surface_projection(
@@ -6496,6 +6582,7 @@ fn collect_orchestrate_stage_descriptors(
                         runtime,
                         function,
                         selector,
+                        metadata,
                         ..
                     }),
                 ty: _,
@@ -6515,6 +6602,7 @@ fn collect_orchestrate_stage_descriptors(
                     function: function.clone(),
                     binding_name: name.clone(),
                     selector: selector.clone(),
+                    metadata: metadata.clone(),
                 });
             }
             Stmt::Let {

@@ -655,6 +655,117 @@ orchestrate pipeline(value: Int) -> Int:
 }
 
 #[test]
+fn orchestrate_graph_metadata_emits_runtime_and_realtime_contracts() {
+    let source = r#"component GraphPanel():
+    render <panel title="Graph" />
+
+world GraphAuthority:
+    state value: Int = 0
+    surface native_ui => GraphPanel
+
+fn portable_guard(value: Int) -> Int:
+    return value
+
+axiom graph_truth:
+    when target("llvm")
+    when capability("gpu.compute")
+    guarantee "graph orchestration may stage cpu and gpu residency"
+    fallback portable_guard
+
+law non_negative(value: Int) -> Bool:
+    return value >= 0
+
+patch record(authority: GraphAuthority, value: Int) -> Int:
+    authority.value = value
+    return authority.value
+
+fn plus_one(value: Int) -> Int:
+    return value + 1
+
+orchestrate pipeline(authority: GraphAuthority, value: Int) -> Int:
+    stage seed: cpu plus_one(value) residency host policy static
+    stage device: gpu plus_one(seed) after seed residency device transfer host_to_device guarded by graph_truth fallback degrade seed policy telemetry_prefer_gpu
+    stage legal: law non_negative(device) after device residency host transfer device_to_host policy static
+    stage committed: patch record(authority, device) after legal requires legal residency host policy telemetry_balance_latency
+    return committed
+"#;
+
+    let typed = parse_and_typecheck(source).expect("graph orchestrate should typecheck");
+    let runtime_bundle = emit_runtime_contract_bundle(&typed, CompileTarget::Llvm);
+    let orchestration = &runtime_bundle.orchestrations[0];
+    assert!(orchestration.graph_mode);
+    assert!(orchestration.adaptive_policy);
+    assert_eq!(orchestration.stages[1].binding_name, "device");
+    assert_eq!(orchestration.stages[1].dependencies, vec!["seed"]);
+    assert_eq!(orchestration.stages[1].residency.as_deref(), Some("device"));
+    assert_eq!(
+        orchestration.stages[1].transfer.as_deref(),
+        Some("host_to_device")
+    );
+    assert_eq!(orchestration.stages[1].guard.as_deref(), Some("graph_truth"));
+    assert_eq!(
+        orchestration.stages[1].fallback.as_deref(),
+        Some("degrade seed")
+    );
+    assert_eq!(
+        orchestration.stages[1].policy.as_deref(),
+        Some("telemetry_prefer_gpu")
+    );
+    assert_eq!(orchestration.stages[3].requires.as_deref(), Some("legal"));
+    assert!(orchestration.stages[3].adaptive_policy);
+
+    let ui = build_ui_output_from_source(source, "GraphPanel").expect("ui");
+    let realtime_bundle = emit_realtime_app_bundle(&typed, Some(&ui), CompileTarget::Llvm);
+    let realtime = &realtime_bundle.orchestrations[0];
+    assert!(realtime.graph_mode);
+    assert!(realtime.adaptive_policy);
+    assert_eq!(realtime.stages[2].transfer.as_deref(), Some("device_to_host"));
+}
+
+#[test]
+fn orchestrate_graph_rejects_non_axiom_guard() {
+    let source = r#"fn plus_one(value: Int) -> Int:
+    return value + 1
+
+orchestrate pipeline(value: Int) -> Int:
+    stage seed: cpu plus_one(value) guarded by plus_one
+    return seed
+"#;
+
+    let error = parse_and_typecheck(source).expect_err("function guard should fail");
+    assert!(error.to_string().contains("must reference an axiom"), "{error}");
+}
+
+#[test]
+fn orchestrate_graph_rejects_dependency_cycles() {
+    let source = r#"fn plus_one(value: Int) -> Int:
+    return value + 1
+
+orchestrate pipeline(value: Int) -> Int:
+    stage left: cpu plus_one(value) after right
+    stage right: cpu plus_one(left) after left
+    return right
+"#;
+
+    let error = parse_and_typecheck(source).expect_err("cycle should fail");
+    assert!(error.to_string().contains("dependency cycle"), "{error}");
+}
+
+#[test]
+fn orchestrate_graph_rejects_impossible_transfer_residency_pairs() {
+    let source = r#"fn plus_one(value: Int) -> Int:
+    return value + 1
+
+orchestrate pipeline(value: Int) -> Int:
+    stage seed: gpu plus_one(value) residency host transfer host_to_device
+    return seed
+"#;
+
+    let error = parse_and_typecheck(source).expect_err("impossible transfer should fail");
+    assert!(error.to_string().contains("incompatible with residency"), "{error}");
+}
+
+#[test]
 fn runtime_enforces_rust_stage_labels() {
     let typed = parse_and_typecheck(
         r#"fn plus_two(value: Int) -> Int:

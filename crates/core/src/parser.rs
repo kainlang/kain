@@ -4247,6 +4247,7 @@ impl<'a> Parser<'a> {
         } else {
             None
         };
+        let metadata = self.parse_orchestrate_graph_metadata(true)?;
         let span = start.merge(self.current_span());
         Ok(Stmt::Let {
             pattern: Pattern::Binding {
@@ -4260,10 +4261,102 @@ impl<'a> Parser<'a> {
                 function,
                 args,
                 selector,
+                metadata,
                 span,
             }),
             span,
         })
+    }
+
+    fn parse_orchestrate_graph_metadata(
+        &mut self,
+        strict: bool,
+    ) -> KainResult<OrchestrateStageGraphMetadata> {
+        let mut metadata = OrchestrateStageGraphMetadata::default();
+        while !self.check_line_end() {
+            if self.peek_contextual_ident("after") {
+                self.advance();
+                metadata.dependencies.push(self.parse_ident()?);
+            } else if self.peek_contextual_ident("deps") {
+                self.advance();
+                self.expect(TokenKind::LBracket)?;
+                while !self.check(TokenKind::RBracket) && !self.at_end() {
+                    metadata.dependencies.push(self.parse_ident()?);
+                    if self.check(TokenKind::Comma) {
+                        self.advance();
+                    } else {
+                        break;
+                    }
+                }
+                self.expect(TokenKind::RBracket)?;
+            } else if self.peek_contextual_ident("residency") {
+                self.advance();
+                let name = self.parse_ident()?;
+                metadata.residency =
+                    Some(OrchestrateResidency::from_name(&name).ok_or_else(|| {
+                        self.parser_error(
+                            format!(
+                                "Unknown orchestrate residency `{name}`; expected host, shared, or device"
+                            ),
+                            self.current_span(),
+                        )
+                    })?);
+            } else if self.peek_contextual_ident("transfer") {
+                self.advance();
+                let name = self.parse_ident()?;
+                metadata.transfer =
+                    Some(OrchestrateTransfer::from_name(&name).ok_or_else(|| {
+                        self.parser_error(
+                            format!(
+                                "Unknown orchestrate transfer `{name}`; expected none, host_to_device, device_to_host, or shared_view"
+                            ),
+                            self.current_span(),
+                        )
+                    })?);
+            } else if self.peek_contextual_ident("guarded") {
+                self.advance();
+                self.expect_contextual_ident("by")?;
+                metadata.guard = Some(self.parse_ident()?);
+            } else if self.peek_contextual_ident("fallback") {
+                self.advance();
+                if self.peek_contextual_ident("abort") {
+                    self.advance();
+                    metadata.fallback = Some(OrchestrateFallback::Abort);
+                } else if self.peek_contextual_ident("degrade") {
+                    self.advance();
+                    metadata.fallback = Some(OrchestrateFallback::Degrade(self.parse_ident()?));
+                } else {
+                    metadata.fallback = Some(OrchestrateFallback::Stage(self.parse_ident()?));
+                }
+            } else if self.peek_contextual_ident("requires") {
+                self.advance();
+                metadata.requires = Some(self.parse_ident()?);
+            } else if self.peek_contextual_ident("policy") {
+                self.advance();
+                let name = self.parse_ident()?;
+                metadata.policy = Some(OrchestratePlannerPolicy::from_name(&name).ok_or_else(
+                    || {
+                        self.parser_error(
+                            format!(
+                                "Unknown orchestrate policy `{name}`; expected static, telemetry_prefer_gpu, telemetry_prefer_cpu, or telemetry_balance_latency"
+                            ),
+                            self.current_span(),
+                        )
+                    },
+                )?);
+            } else {
+                if !strict {
+                    break;
+                }
+                return Err(self.parser_error(
+                    "Expected orchestrate graph metadata such as after, deps, residency, transfer, guarded by, fallback, requires, or policy",
+                    self.current_span(),
+                ));
+            }
+        }
+        metadata.dependencies.sort();
+        metadata.dependencies.dedup();
+        Ok(metadata)
     }
 
     fn parse_orchestrate_selector(&mut self) -> KainResult<OrchestrateSelector> {
@@ -5154,11 +5247,13 @@ impl<'a> Parser<'a> {
                             } else {
                                 None
                             };
+                            let metadata = self.parse_orchestrate_graph_metadata(false)?;
                             return Ok(Expr::StageCall {
                                 runtime,
                                 function,
                                 args,
                                 selector,
+                                metadata,
                                 span: span.merge(self.current_span()),
                             });
                         }

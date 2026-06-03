@@ -49,6 +49,36 @@ fn abi_orchestrate_last_function() -> String
 @extern
 fn abi_orchestrate_last_selector() -> String
 
+@extern
+fn abi_orchestrate_last_dependencies() -> String
+
+@extern
+fn abi_orchestrate_last_residency() -> String
+
+@extern
+fn abi_orchestrate_last_transfer() -> String
+
+@extern
+fn abi_orchestrate_last_guard() -> String
+
+@extern
+fn abi_orchestrate_last_fallback() -> String
+
+@extern
+fn abi_orchestrate_last_requires() -> String
+
+@extern
+fn abi_orchestrate_last_policy() -> String
+
+@extern
+fn abi_orchestrate_transfer_count() -> Int
+
+@extern
+fn abi_orchestrate_fallback_count() -> Int
+
+@extern
+fn abi_orchestrate_adaptive_stage_count() -> Int
+
 pub fn native_entangle_reset() -> Int:
     return abi_entangle_reset()
 
@@ -102,6 +132,36 @@ pub fn native_orchestrate_last_function() -> String:
 
 pub fn native_orchestrate_last_selector() -> String:
     return abi_orchestrate_last_selector()
+
+pub fn native_orchestrate_last_dependencies() -> String:
+    return abi_orchestrate_last_dependencies()
+
+pub fn native_orchestrate_last_residency() -> String:
+    return abi_orchestrate_last_residency()
+
+pub fn native_orchestrate_last_transfer() -> String:
+    return abi_orchestrate_last_transfer()
+
+pub fn native_orchestrate_last_guard() -> String:
+    return abi_orchestrate_last_guard()
+
+pub fn native_orchestrate_last_fallback() -> String:
+    return abi_orchestrate_last_fallback()
+
+pub fn native_orchestrate_last_requires() -> String:
+    return abi_orchestrate_last_requires()
+
+pub fn native_orchestrate_last_policy() -> String:
+    return abi_orchestrate_last_policy()
+
+pub fn native_orchestrate_transfer_count() -> Int:
+    return abi_orchestrate_transfer_count()
+
+pub fn native_orchestrate_fallback_count() -> Int:
+    return abi_orchestrate_fallback_count()
+
+pub fn native_orchestrate_adaptive_stage_count() -> Int:
+    return abi_orchestrate_adaptive_stage_count()
 
 pub fn native_law_status(valid: Bool) -> Int:
     if valid:
@@ -199,6 +259,36 @@ pub fn orchestrate_last_function() -> String:
 
 pub fn orchestrate_last_selector() -> String:
     return native_orchestrate_last_selector()
+
+pub fn orchestrate_last_dependencies() -> String:
+    return native_orchestrate_last_dependencies()
+
+pub fn orchestrate_last_residency() -> String:
+    return native_orchestrate_last_residency()
+
+pub fn orchestrate_last_transfer() -> String:
+    return native_orchestrate_last_transfer()
+
+pub fn orchestrate_last_guard() -> String:
+    return native_orchestrate_last_guard()
+
+pub fn orchestrate_last_fallback() -> String:
+    return native_orchestrate_last_fallback()
+
+pub fn orchestrate_last_requires() -> String:
+    return native_orchestrate_last_requires()
+
+pub fn orchestrate_last_policy() -> String:
+    return native_orchestrate_last_policy()
+
+pub fn orchestrate_transfer_count() -> Int:
+    return native_orchestrate_transfer_count()
+
+pub fn orchestrate_fallback_count() -> Int:
+    return native_orchestrate_fallback_count()
+
+pub fn orchestrate_adaptive_stage_count() -> Int:
+    return native_orchestrate_adaptive_stage_count()
 
 pub fn law_status(valid: Bool) -> Int:
     return native_law_status(valid)

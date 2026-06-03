@@ -231,6 +231,22 @@ pub struct RuntimeOrchestrationStageContract {
     pub binding_name: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub selector: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub dependencies: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub residency: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub transfer: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub guard: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fallback: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub requires: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub policy: Option<String>,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub adaptive_policy: bool,
     pub silicon_native: bool,
     pub compatibility_adapter: bool,
 }
@@ -240,6 +256,10 @@ pub struct RuntimeOrchestrationContract {
     pub name: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub return_type: Option<String>,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub graph_mode: bool,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub adaptive_policy: bool,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub stages: Vec<RuntimeOrchestrationStageContract>,
 }
@@ -1462,9 +1482,19 @@ fn collect_orchestration_contracts_into(
 }
 
 fn runtime_orchestration_contract(orchestrate: &TypedOrchestrate) -> RuntimeOrchestrationContract {
+    let graph_mode = orchestrate
+        .stages
+        .iter()
+        .any(|stage| stage.metadata != Default::default());
+    let adaptive_policy = orchestrate
+        .stages
+        .iter()
+        .any(|stage| stage.metadata.adaptive());
     RuntimeOrchestrationContract {
         name: orchestrate.ast.name.clone(),
         return_type: orchestrate.ast.return_type.as_ref().map(type_to_string),
+        graph_mode,
+        adaptive_policy,
         stages: orchestrate
             .stages
             .iter()
@@ -1474,6 +1504,14 @@ fn runtime_orchestration_contract(orchestrate: &TypedOrchestrate) -> RuntimeOrch
                 function: stage.function.clone(),
                 binding_name: stage.binding_name.clone(),
                 selector: stage.selector.as_ref().map(|selector| selector.authored()),
+                dependencies: stage.metadata.dependencies.clone(),
+                residency: stage.metadata.residency.map(|value| value.as_str().to_string()),
+                transfer: stage.metadata.transfer.map(|value| value.as_str().to_string()),
+                guard: stage.metadata.guard.clone(),
+                fallback: stage.metadata.fallback.as_ref().map(|value| value.authored()),
+                requires: stage.metadata.requires.clone(),
+                policy: stage.metadata.policy.map(|value| value.as_str().to_string()),
+                adaptive_policy: stage.metadata.adaptive(),
                 silicon_native: stage.runtime.is_silicon_native(),
                 compatibility_adapter: stage.runtime.is_compat_adapter(),
             })

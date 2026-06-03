@@ -14023,6 +14023,7 @@ impl LlvmGenerator {
         self.emit("declare i64 @abi_converge_record_telemetry(i64, i64, i64, i64, i64)");
         self.emit("declare i64 @abi_orchestrate_stage_begin(i8*, i8*)");
         self.emit("declare i64 @abi_orchestrate_stage_begin_ex(i8*, i8*, i8*)");
+        self.emit("declare i64 @abi_orchestrate_stage_begin_graph(i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*)");
         self.emit("declare i64 @abi_orchestrate_stage_end_i64(i8*, i8*, i64)");
         self.emit("declare i64 @kain_machine_axiom_accept(i8*, i8*, i64)");
         self.emit("declare void @kain_machine_pulse_snapshot(i64, i64, i64, i64*, i64*, i64*)");
@@ -17355,6 +17356,7 @@ impl LlvmGenerator {
         function: &str,
         args: &[kain_core::ast::CallArg],
         selector: Option<&kain_core::ast::OrchestrateSelector>,
+        metadata: &kain_core::ast::OrchestrateStageGraphMetadata,
     ) -> KainResult<(String, String)> {
         self.emit(&format!(
             "  ; orchestrate stage {} -> {}",
@@ -17371,10 +17373,29 @@ impl LlvmGenerator {
             .map(|selector| selector.authored())
             .unwrap_or_else(|| "none".to_string());
         let selector_name = self.compile_static_c_string_literal(&selector_value);
+        let dependency_value = metadata.dependency_list();
+        let dependency_name = self.compile_static_c_string_literal(&dependency_value);
+        let residency_name = self.compile_static_c_string_literal(metadata.residency_name());
+        let transfer_name = self.compile_static_c_string_literal(metadata.transfer_name());
+        let guard_name = self.compile_static_c_string_literal(metadata.guard_name());
+        let fallback_value = metadata.fallback_name();
+        let fallback_name = self.compile_static_c_string_literal(&fallback_value);
+        let requires_name = self.compile_static_c_string_literal(metadata.requires_name());
+        let policy_name = self.compile_static_c_string_literal(metadata.policy_name());
         let begin_status = self.next_reg();
         self.emit(&format!(
-            "  {} = call i64 @abi_orchestrate_stage_begin_ex(i8* {}, i8* {}, i8* {})",
-            begin_status, runtime_name, function_name, selector_name
+            "  {} = call i64 @abi_orchestrate_stage_begin_graph(i8* {}, i8* {}, i8* {}, i8* {}, i8* {}, i8* {}, i8* {}, i8* {}, i8* {}, i8* {})",
+            begin_status,
+            runtime_name,
+            function_name,
+            selector_name,
+            dependency_name,
+            residency_name,
+            transfer_name,
+            guard_name,
+            fallback_name,
+            requires_name,
+            policy_name
         ));
         let (value, ty) = self.compile_direct_call(function, args)?;
         if ty == "i64" {
@@ -19478,8 +19499,9 @@ impl LlvmGenerator {
                 function,
                 args,
                 selector,
+                metadata,
                 ..
-            } => self.compile_stage_call(runtime, function, args, selector.as_ref()),
+            } => self.compile_stage_call(runtime, function, args, selector.as_ref(), metadata),
             Expr::EnumVariant {
                 enum_name,
                 variant,

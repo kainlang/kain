@@ -1186,6 +1186,16 @@ static int64_t g_kain_native_orchestrate_stage_count = 0;
 static char g_kain_native_orchestrate_last_runtime[128] = "";
 static char g_kain_native_orchestrate_last_function[256] = "";
 static char g_kain_native_orchestrate_last_selector[256] = "";
+static char g_kain_native_orchestrate_last_dependencies[512] = "";
+static char g_kain_native_orchestrate_last_residency[64] = "";
+static char g_kain_native_orchestrate_last_transfer[64] = "";
+static char g_kain_native_orchestrate_last_guard[128] = "";
+static char g_kain_native_orchestrate_last_fallback[128] = "";
+static char g_kain_native_orchestrate_last_requires[128] = "";
+static char g_kain_native_orchestrate_last_policy[128] = "";
+static int64_t g_kain_native_orchestrate_transfer_count = 0;
+static int64_t g_kain_native_orchestrate_fallback_count = 0;
+static int64_t g_kain_native_orchestrate_adaptive_stage_count = 0;
 
 int64_t abi_patch_begin(const char* patch_name) {
     abi_copy_text(g_kain_native_active_patch, sizeof(g_kain_native_active_patch), patch_name);
@@ -1306,6 +1316,39 @@ int64_t abi_orchestrate_stage_begin(const char* runtime_name, const char* functi
 }
 
 int64_t abi_orchestrate_stage_begin_ex(const char* runtime_name, const char* function_name, const char* selector_name) {
+    return abi_orchestrate_stage_begin_graph(
+        runtime_name,
+        function_name,
+        selector_name,
+        "",
+        "unspecified",
+        "unspecified",
+        "none",
+        "none",
+        "none",
+        "static"
+    );
+}
+
+static int abi_orchestrate_meaningful_field(const char* value) {
+    return value != NULL && value[0] != '\0' &&
+        strcmp(value, "none") != 0 &&
+        strcmp(value, "unspecified") != 0 &&
+        strcmp(value, "static") != 0;
+}
+
+int64_t abi_orchestrate_stage_begin_graph(
+    const char* runtime_name,
+    const char* function_name,
+    const char* selector_name,
+    const char* dependency_names,
+    const char* residency_name,
+    const char* transfer_name,
+    const char* guard_name,
+    const char* fallback_name,
+    const char* requires_name,
+    const char* policy_name
+) {
     abi_copy_text(
         g_kain_native_orchestrate_last_runtime,
         sizeof(g_kain_native_orchestrate_last_runtime),
@@ -1321,7 +1364,51 @@ int64_t abi_orchestrate_stage_begin_ex(const char* runtime_name, const char* fun
         sizeof(g_kain_native_orchestrate_last_selector),
         selector_name
     );
+    abi_copy_text(
+        g_kain_native_orchestrate_last_dependencies,
+        sizeof(g_kain_native_orchestrate_last_dependencies),
+        dependency_names
+    );
+    abi_copy_text(
+        g_kain_native_orchestrate_last_residency,
+        sizeof(g_kain_native_orchestrate_last_residency),
+        residency_name
+    );
+    abi_copy_text(
+        g_kain_native_orchestrate_last_transfer,
+        sizeof(g_kain_native_orchestrate_last_transfer),
+        transfer_name
+    );
+    abi_copy_text(
+        g_kain_native_orchestrate_last_guard,
+        sizeof(g_kain_native_orchestrate_last_guard),
+        guard_name
+    );
+    abi_copy_text(
+        g_kain_native_orchestrate_last_fallback,
+        sizeof(g_kain_native_orchestrate_last_fallback),
+        fallback_name
+    );
+    abi_copy_text(
+        g_kain_native_orchestrate_last_requires,
+        sizeof(g_kain_native_orchestrate_last_requires),
+        requires_name
+    );
+    abi_copy_text(
+        g_kain_native_orchestrate_last_policy,
+        sizeof(g_kain_native_orchestrate_last_policy),
+        policy_name
+    );
     g_kain_native_orchestrate_stage_count += 1;
+    if (abi_orchestrate_meaningful_field(transfer_name)) {
+        g_kain_native_orchestrate_transfer_count += 1;
+    }
+    if (abi_orchestrate_meaningful_field(fallback_name)) {
+        g_kain_native_orchestrate_fallback_count += 1;
+    }
+    if (abi_orchestrate_meaningful_field(policy_name)) {
+        g_kain_native_orchestrate_adaptive_stage_count += 1;
+    }
     return g_kain_native_orchestrate_stage_count;
 }
 
@@ -1345,6 +1432,46 @@ const char* abi_orchestrate_last_function(void) {
 
 const char* abi_orchestrate_last_selector(void) {
     return string_new(g_kain_native_orchestrate_last_selector);
+}
+
+const char* abi_orchestrate_last_dependencies(void) {
+    return string_new(g_kain_native_orchestrate_last_dependencies);
+}
+
+const char* abi_orchestrate_last_residency(void) {
+    return string_new(g_kain_native_orchestrate_last_residency);
+}
+
+const char* abi_orchestrate_last_transfer(void) {
+    return string_new(g_kain_native_orchestrate_last_transfer);
+}
+
+const char* abi_orchestrate_last_guard(void) {
+    return string_new(g_kain_native_orchestrate_last_guard);
+}
+
+const char* abi_orchestrate_last_fallback(void) {
+    return string_new(g_kain_native_orchestrate_last_fallback);
+}
+
+const char* abi_orchestrate_last_requires(void) {
+    return string_new(g_kain_native_orchestrate_last_requires);
+}
+
+const char* abi_orchestrate_last_policy(void) {
+    return string_new(g_kain_native_orchestrate_last_policy);
+}
+
+int64_t abi_orchestrate_transfer_count(void) {
+    return g_kain_native_orchestrate_transfer_count;
+}
+
+int64_t abi_orchestrate_fallback_count(void) {
+    return g_kain_native_orchestrate_fallback_count;
+}
+
+int64_t abi_orchestrate_adaptive_stage_count(void) {
+    return g_kain_native_orchestrate_adaptive_stage_count;
 }
 
 int64_t abi_now_millis(void) {

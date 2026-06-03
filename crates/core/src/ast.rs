@@ -10,7 +10,11 @@
 
 use crate::effects::Effect;
 use crate::span::Span;
-pub use kain_orchestrate::{OrchestrateSelector, OrchestrateStageKind};
+pub use kain_orchestrate::{
+    OrchestrateFallback, OrchestrateGraphPlan, OrchestratePlannerPolicy, OrchestrateResidency,
+    OrchestrateSelector, OrchestrateStageGraphMetadata, OrchestrateStageKind, OrchestrateStagePlan,
+    OrchestrateTransfer,
+};
 use std::fmt;
 
 /// Explicit compute-plan binding names recognized inside a `comptime` block.
@@ -1538,6 +1542,7 @@ pub enum Expr {
         function: String,
         args: Vec<CallArg>,
         selector: Option<OrchestrateSelector>,
+        metadata: OrchestrateStageGraphMetadata,
         span: Span,
     },
 
