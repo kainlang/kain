@@ -1,0 +1,9 @@
+// ERROR: generated world corpus fixture
+// @expected_code: KAIN-TYPE-0003
+// @expected_mode: MissingSurface
+// @expected_repair: add_surface
+world GeneratedWorld14:
+    state value: Int = 14
+
+fn main() -> Int:
+    return 0

@@ -1,0 +1,8 @@
+// @expected_code: KAIN-SHADER-0002
+// @expected_mode: CudaKernelContract
+// @expected_repair: use_compute_stage_for_warp_ops
+
+// A fragment shader that uses CUDA warp intrinsics only available in compute.
+shader fragment WarpOpInFragment(uv: Vec2) -> Vec4:
+    let active = cuda_active_mask
+    return vec4(uv.x, uv.y, 0.0, 1.0)

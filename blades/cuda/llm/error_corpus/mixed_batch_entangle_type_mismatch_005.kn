@@ -1,0 +1,14 @@
+// ERROR: generated entangle corpus fixture
+// @expected_code: KAIN-TYPE-0003
+// @expected_mode: EntangleViolation
+// @expected_repair: match_state_types
+world GeneratedMaster5:
+    state value: Int = 5
+
+world GeneratedMirror5:
+    state value_copy: String = "bad"
+
+entangle GeneratedMaster5.value <-> GeneratedMirror5.value_copy with single_writer
+
+fn main() -> Int:
+    return 0

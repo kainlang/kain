@@ -1,0 +1,27 @@
+// ============================================================================
+//                    semantic-search :: MCP reindex tool
+// ============================================================================
+// Reindexing is its own tool so rebuild policy stays visible in the manifest.
+
+use mcp_tool_types::McpToolSpec
+
+const SEMANTIC_SEARCH_REINDEX_TOOL_NAME: String = "semantic_search_reindex"
+const SEMANTIC_SEARCH_REINDEX_TOOL_TITLE: String = "Semantic Search Reindex"
+const SEMANTIC_SEARCH_REINDEX_TOOL_DESCRIPTION: String = "Rebuild the semantic-search indices from the local Kain checkout."
+const SEMANTIC_SEARCH_REINDEX_TOOL_MODE: String = "index"
+
+pub fn semantic_search_reindex_tool_spec() -> McpToolSpec:
+    return McpToolSpec {
+        name: SEMANTIC_SEARCH_REINDEX_TOOL_NAME,
+        title: SEMANTIC_SEARCH_REINDEX_TOOL_TITLE,
+        description: SEMANTIC_SEARCH_REINDEX_TOOL_DESCRIPTION,
+        backend_mode: SEMANTIC_SEARCH_REINDEX_TOOL_MODE,
+        input_schema_json: semantic_search_reindex_input_schema_json(),
+        argument_env_map_json: semantic_search_reindex_argument_env_map_json(),
+    }
+
+fn semantic_search_reindex_input_schema_json() -> String:
+    return "{\"type\": \"object\", \"properties\": {\"index\": {\"type\": \"string\", \"default\": \"all\", \"enum\": [\"all\", \"code\", \"kain\"], \"description\": \"Index lane to rebuild.\"}}, \"additionalProperties\": false}"
+
+fn semantic_search_reindex_argument_env_map_json() -> String:
+    return "{\"index\": \"KAIN_SEMANTIC_SEARCH_INDEX_NAME\"}"

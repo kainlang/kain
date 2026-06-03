@@ -1,0 +1,10 @@
+// ERROR: Generated typo corpus case
+// @expected_code: KAIN-TYPE-0002
+// @expected_mode: Typo
+// @expected_repair: os_stat
+
+use std::os
+
+fn main() -> Int:
+    let stat = os_statt(".")
+    return 0

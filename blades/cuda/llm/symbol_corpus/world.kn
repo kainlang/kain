@@ -1,0 +1,24 @@
+use std::runtime
+use std::intent
+
+component SmokePanel():
+    render <panel title="Smoke World" />
+
+world SmokeAuthority:
+    state signal: Int = 1
+    state epoch: Int = 0
+    state health: Int = 100
+    surface native_ui => SmokePanel
+
+world SmokeMirror:
+    state signal_copy: Int = 1
+    state epoch_copy: Int = 0
+    state health_copy: Int = 100
+    surface web => SmokePanel
+
+entangle SmokeAuthority.signal <-> SmokeMirror.signal_copy with single_writer
+entangle SmokeAuthority.epoch <-> SmokeMirror.epoch_copy with single_writer
+entangle SmokeAuthority.health <-> SmokeMirror.health_copy with single_writer
+
+pub fn smoke_world_lane() -> Int:
+    return 0

@@ -1,0 +1,95 @@
+use std::ui
+use report::smoke_write_note_report
+
+pub fn smoke_headless_host_lane(mode: String) -> Int:
+    let _reset = ui_reset()
+    let session = ui_host_session_create("smoketest.headless", "Kain Smoketest Headless", 640, 360, "headless")
+    if session <= 0:
+        return 1
+
+    let generation = ui_hot_reload_begin(session, "smoketest.headless.rev-a")
+    let font = ui_font_create(session, "font.headless.body", "JetBrains Mono", 14.0)
+    if font <= 0:
+        let _destroy_font_fail = ui_session_destroy(session)
+        return 2
+
+    let root = ui_reconcile_node(session, 0, "root", "headless.root", 0.0, 0.0, 640.0, 360.0)
+    let panel = ui_reconcile_labeled_node(
+        session,
+        root,
+        "panel",
+        "headless.panel",
+        "album-flow",
+        "region",
+        "Smoketest Headless Host",
+        16.0,
+        16.0,
+        608.0,
+        120.0
+    )
+    let metric = ui_reconcile_text_node(
+        session,
+        panel,
+        "text",
+        "headless.metric",
+        "passive runtime host",
+        28.0,
+        56.0,
+        240.0,
+        24.0
+    )
+
+    let _root_bg = ui_style_color_rgba(session, root, "ui.root", 0.07, 0.09, 0.12, 1.0)
+    let _panel_bg = ui_style_color_rgba(session, panel, "ui.panel", 0.16, 0.20, 0.25, 1.0)
+    let _metric_fg = ui_style_color_rgba(session, metric, "ui.metric", 0.96, 0.97, 1.0, 1.0)
+    let _padding = ui_style_padding(session, panel, "ui.panel", 12.0, 12.0, 12.0, 12.0)
+    let _gap = ui_style_spacing(session, panel, "ui.panel", 8.0)
+    let _shape = ui_state_shape(session, panel, "telemetry.headless", "passive-host")
+    let _draw = ui_state_draw(session, panel, "telemetry.draw", "headless-probe")
+    let _counter = ui_state_counter(session, panel, "state.frames", 1)
+
+    let _begin = ui_frame_begin(session, 16.0)
+    let _draw_root = ui_render_box(session, root, "ui.root")
+    let _draw_panel = ui_render_box(session, panel, "ui.panel")
+    let _draw_metric = ui_render_text_in_box(session, metric, font, 8.0, 18.0, "ui.metric")
+    let submitted = ui_frame_submit(session)
+    let presented = ui_host_present(session)
+    let pumped = ui_host_pump(session)
+    let committed = ui_hot_reload_commit(session)
+
+    let backend = ui_host_backend(session)
+    let draw_count = ui_draw_command_count(session)
+    let presented_draws = ui_host_presented_draw_count(session)
+    let frame_hash = ui_host_frame_hash(session)
+    let state_total = ui_state_count(session)
+
+    var note: String = "{\n"
+    note = note + "  \"backend\": \"" + backend + "\",\n"
+    note = note + "  \"generation\": " + str(generation) + ",\n"
+    note = note + "  \"committed\": " + str(committed) + ",\n"
+    note = note + "  \"submitted\": " + str(submitted) + ",\n"
+    note = note + "  \"presented\": " + str(presented) + ",\n"
+    note = note + "  \"pumped\": " + str(pumped) + ",\n"
+    note = note + "  \"draw_commands\": " + str(draw_count) + ",\n"
+    note = note + "  \"presented_draws\": " + str(presented_draws) + ",\n"
+    note = note + "  \"frame_hash\": " + str(frame_hash) + ",\n"
+    note = note + "  \"state_count\": " + str(state_total) + "\n"
+    note = note + "}\n"
+    let _report = smoke_write_note_report(mode, "headless_host.json", note)
+    let _destroy = ui_session_destroy(session)
+
+    if generation != committed:
+        return 3
+    if draw_count < 3:
+        return 4
+    if len(backend) == 0:
+        return 5
+    if submitted < 0:
+        return 6
+    if presented < 0:
+        return 7
+    if pumped < 0:
+        return 8
+    if state_total < 1:
+        return 9
+    return 0

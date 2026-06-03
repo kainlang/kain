@@ -1,0 +1,78 @@
+use std::machine
+
+use ownership::smoke_ownership_lane
+use converge::smoke_mix_pair
+use law::smoke_validate_range
+
+const SMOKE_HUGE_PAGE_PROBE_BYTES: Int = 2097152
+
+pub fn smoke_vm_topology_lane() -> Int with Unsafe:
+    let page = vm_page_size()
+    if page <= 0:
+        return 1
+
+    let logical = cpu_logical_count()
+    let cores = cpu_core_count()
+    let packages = cpu_package_count()
+    let cache_line = cpu_cache_line_bytes()
+    if logical <= 0 or cores <= 0 or packages <= 0 or cache_line <= 0:
+        return 2
+
+    let affinity_mask = current_thread_affinity_mask()
+    if affinity_mask == 0:
+        return 3
+
+    let reserved: ptr<Int> = vm_reserve(page * 2)
+    if ptr_to_int(reserved) == 0:
+        return 4
+
+    if vm_commit(reserved, page * 2) != 0:
+        let _release_failed_commit = vm_release(reserved, page * 2)
+        return 5
+
+    if vm_protect_read_write(reserved, page * 2) != 0:
+        let _release_failed_protect = vm_release(reserved, page * 2)
+        return 6
+
+    mem_store(reserved, 41, "Int")
+    mem_store(ptr_offset(reserved, 1, "Int"), logical + cores, "Int")
+    let observed = mem_load(reserved, "Int") + mem_load(ptr_offset(reserved, 1, "Int"), "Int")
+
+    let lock_status = vm_lock(reserved, page)
+    if lock_status == 0 and vm_unlock(reserved, page) != 0:
+        let _release_failed_unlock = vm_release(reserved, page * 2)
+        return 7
+
+    if vm_decommit(reserved, page * 2) != 0:
+        let _release_failed_decommit = vm_release(reserved, page * 2)
+        return 8
+
+    if vm_release(reserved, page * 2) != 0:
+        return 9
+
+    let huge_probe = vm_map_huge(SMOKE_HUGE_PAGE_PROBE_BYTES)
+    if ptr_to_int(huge_probe) != 0:
+        mem_store(huge_probe, observed, "Int")
+        if vm_release(huge_probe, SMOKE_HUGE_PAGE_PROBE_BYTES) != 0:
+            return 10
+
+    let node_count = numa_node_count()
+    let current_node = numa_current_node()
+    if node_count <= 0 or current_node < 0:
+        return 11
+
+    if node_count == 1 and numa_bind_current_thread(0) != 0:
+        return 12
+
+    let ownership_status = smoke_ownership_lane()
+    if ownership_status != 0:
+        return 13
+
+    let topology_mix = smoke_mix_pair(
+        observed + cache_line + current_node,
+        logical + cores + packages + node_count
+    )
+    if smoke_validate_range(topology_mix, 0, 1000000007) == false:
+        return 14
+
+    return 0

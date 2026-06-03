@@ -1,0 +1,422 @@
+use std::runtime
+use std::actor
+use std::collections
+use std::crypto
+use std::fs
+use std::intent
+use std::time
+use actor::SmokeRelay
+use c_abi_album::smoke_c_abi_album_signature
+use c_abi_album::smoke_c_abi_album_score
+use c_bridge::smoke_c_bridge_score
+use shatter::SmokeShard
+use shatter::smoke_shard_score
+use converge::smoke_mix_pair
+use orchestrate::smoke_pipeline
+use law::smoke_validate_range
+use memory::smoke_alloc_cells
+use report::smoke_telemetry_prepare
+use report::smoke_telemetry_track_checksum
+use report::smoke_write_note_report
+use report::smoke_write_summary_report
+use report::smoke_write_track_report
+
+const SMOKE_FLOW_CELL_COUNT: Int = 32
+const SMOKE_FLOW_CONVERGE_KEY: Int = 7001
+const SMOKE_FLOW_MODULUS: Int = 1000000007
+
+component SmokeTelemetryPanel():
+    render <panel title="Smoke Telemetry Flow" />
+
+world SmokeTelemetryAuthority:
+    state signal: Int = 1
+    state epoch: Int = 0
+    state health: Int = 100
+    surface web => SmokeTelemetryPanel
+
+world SmokeTelemetryMirror:
+    state signal_copy: Int = 1
+    state epoch_copy: Int = 0
+    state health_copy: Int = 100
+    surface web => SmokeTelemetryPanel
+
+entangle SmokeTelemetryAuthority.signal <-> SmokeTelemetryMirror.signal_copy with single_writer
+entangle SmokeTelemetryAuthority.epoch <-> SmokeTelemetryMirror.epoch_copy with single_writer
+entangle SmokeTelemetryAuthority.health <-> SmokeTelemetryMirror.health_copy with single_writer
+
+patch smoke_telemetry_commit_signal(authority: SmokeTelemetryAuthority, value: Int) -> Int:
+    authority.signal = value
+    authority.epoch = authority.epoch + 1
+    authority.health = int_clamp(authority.health + 1, 0, 1000000)
+    return authority.signal
+
+fn smoke_digit_value(ch: String) -> Int:
+    if ch == "0":
+        return 0
+    if ch == "1":
+        return 1
+    if ch == "2":
+        return 2
+    if ch == "3":
+        return 3
+    if ch == "4":
+        return 4
+    if ch == "5":
+        return 5
+    if ch == "6":
+        return 6
+    if ch == "7":
+        return 7
+    if ch == "8":
+        return 8
+    return 9
+
+fn smoke_parse_int_text(text: String) -> Int:
+    if len(text) == 0:
+        return 0
+    let mut sign = 1
+    let mut index = 0
+    if char_at(text, 0) == "-":
+        sign = -1
+        index = 1
+    let mut value = 0
+    while index < len(text):
+        value = value * 10 + smoke_digit_value(char_at(text, index))
+        index = index + 1
+    return value * sign
+
+fn smoke_env_int(key: String, fallback: Int) -> Int:
+    let text = env(key)
+    if len(text) == 0:
+        return fallback
+    return smoke_parse_int_text(text)
+
+pub fn smoke_novel_flow_score(rounds: Int) -> Int with Unsafe:
+    let relay = spawn SmokeRelay(bias = 19)
+    let authority = SmokeTelemetryAuthority
+    var queue = queue_create(16)
+    let temp_dir = fs_temp_dir("smoketest-flow")
+    let flow_path = fs_path_join(temp_dir, "flow.txt")
+    let mut cells: ptr<Int> = smoke_alloc_cells(SMOKE_FLOW_CELL_COUNT)
+
+    var round: Int = 0
+    var checksum: Int = 0
+    collapse cells:
+        while round < rounds:
+            let shard = SmokeShard {
+                bias: (round % 17) + 3,
+                phase: (round * 7 + 11) % 97,
+                salt: (round * 13 + 5) % 127,
+                alive: (round & 1) == 0
+            }
+            let moved = teleport shard from SmokeTelemetryAuthority to SmokeTelemetryMirror via smoke_flow_bus
+            let shard_score = smoke_shard_score(moved)
+            let committed = smoke_telemetry_commit_signal(authority, (checksum + moved.bias + round) % SMOKE_FLOW_MODULUS)
+            let reply = ask(relay, "Fold", committed + moved.phase + moved.salt + shard_score)
+            let mixed = smoke_mix_pair(reply, shard_score)
+            let piped = smoke_pipeline(mixed)
+            let bridge_score = smoke_c_bridge_score(piped + committed + round, moved.salt + shard_score + 1)
+            queue = queue_push(queue, (piped + bridge_score) % 4096)
+            let slot = round % SMOKE_FLOW_CELL_COUNT
+            mem_store(
+                ptr_offset(cells, slot, "Int"),
+                (piped + bridge_score + queue_peek(queue) + slot + shard_score) % SMOKE_FLOW_MODULUS,
+                "Int"
+            )
+            checksum = (checksum + piped + bridge_score + mixed + reply + queue_peek(queue) + moved.bias + moved.phase + moved.salt) % SMOKE_FLOW_MODULUS
+            round = round + 1
+        0
+
+    let observed = observe cells:
+        var slot: Int = 0
+        var acc: Int = 0
+        while slot < SMOKE_FLOW_CELL_COUNT:
+            acc = (acc + mem_load(ptr_offset(cells, slot, "Int"), "Int")) % SMOKE_FLOW_MODULUS
+            slot = slot + 1
+        acc
+
+    decay cells
+
+    let fingerprint = runtime_cpu_feature_fingerprint()
+    let selected_lane = runtime_converge_select_lane(
+        SMOKE_FLOW_CONVERGE_KEY,
+        fingerprint + rounds,
+        3,
+        0
+    )
+    let _telemetry = runtime_converge_record_telemetry(
+        SMOKE_FLOW_CONVERGE_KEY,
+        selected_lane,
+        rounds * 1000,
+        1,
+        0
+    )
+    let _winner = runtime_converge_commit_winner(
+        SMOKE_FLOW_CONVERGE_KEY,
+        fingerprint + rounds,
+        selected_lane
+    )
+
+    let queue_score = queue_peek(queue) + queue_len(queue)
+    let sqlite_signature = smoke_c_abi_album_signature(checksum + observed + queue_score, (rounds % 7) + 5)
+    let sqlite_signature_span = len(sqlite_signature)
+    let digest = sha256(
+        str(checksum)
+        + ":"
+        + str(observed)
+        + ":"
+        + sqlite_signature
+        + ":"
+        + str(queue_len(queue))
+        + ":"
+        + str(actor_scheduler_total_enqueued())
+    )
+    fs_write_text(flow_path, digest)
+    let readback = fs_read_text(flow_path)
+    let _queue_destroy = queue_destroy(queue)
+    fs_remove_file(flow_path)
+    fs_remove_dir_all(temp_dir)
+
+    if len(readback) != 64:
+        return -1
+    if sqlite_signature_span < 32:
+        return -2
+    if smoke_validate_range(observed, 0, SMOKE_FLOW_MODULUS) == false:
+        return -3
+    if runtime_converge_telemetry_count() < 1:
+        return -4
+
+    let album_score = smoke_c_abi_album_score(checksum + observed + queue_score, (rounds % 7) + 5)
+    let bridge_tail = smoke_c_bridge_score(checksum + observed + album_score, selected_lane + queue_score + 1)
+    return (
+        checksum
+        + observed
+        + album_score
+        + bridge_tail
+        + queue_score
+        + selected_lane
+        + len(readback)
+        + sqlite_signature_span
+        + actor_scheduler_total_enqueued()
+    ) % SMOKE_FLOW_MODULUS
+
+pub fn smoke_telemetry_flow_lane(mode: String) -> Int with Unsafe:
+    let score = smoke_novel_flow_score(48)
+    var note: String = "{\n"
+    note = note + "  \"score\": " + str(score) + ",\n"
+    note = note + "  \"patch_journal_count\": " + str(patch_journal_count()) + ",\n"
+    note = note + "  \"entangle_propagation_count\": " + str(entangle_propagation_count()) + ",\n"
+    note = note + "  \"runtime_machine_teleport_count\": " + str(runtime_machine_teleport_count()) + ",\n"
+    note = note + "  \"runtime_converge_telemetry_count\": " + str(runtime_converge_telemetry_count()) + ",\n"
+    note = note + "  \"actor_scheduler_total_enqueued\": " + str(actor_scheduler_total_enqueued()) + ",\n"
+    note = note + "  \"actor_scheduler_total_dequeued\": " + str(actor_scheduler_total_dequeued()) + "\n"
+    note = note + "}\n"
+    let _note = smoke_write_note_report(mode, "novel_flow.json", note)
+
+    if score <= 0:
+        return 1
+    if runtime_converge_telemetry_count() < 1:
+        return 2
+    if actor_scheduler_total_enqueued() < actor_scheduler_total_dequeued():
+        return 3
+    return 0
+
+pub fn smoke_run_benchmark_mode() -> Int with Unsafe:
+    let mode = "benchmark"
+    let _root = smoke_telemetry_prepare(mode)
+    let boot = runtime_init()
+    if boot != 0:
+        return 10 + boot
+
+    let rounds = smoke_env_int("KAIN_SMOKETEST_BENCH_ROUNDS", 128)
+    let passes = smoke_env_int("KAIN_SMOKETEST_BENCH_PASSES", 5)
+    let started_ms = now_millis()
+    var pass_index: Int = 0
+    var succeeded_tracks: Int = 0
+    var composition_checksum: Int = 0
+    var best_ms: Int = 0
+    var worst_ms: Int = 0
+    while pass_index < passes:
+        let track_name = "benchmark.pass." + str(pass_index)
+        let pass_start = now_millis()
+        let score = smoke_novel_flow_score(rounds + pass_index * 13)
+        let pass_end = now_millis()
+        let elapsed_ms = pass_end - pass_start
+        if pass_index == 0 or elapsed_ms < best_ms:
+            best_ms = elapsed_ms
+        if elapsed_ms > worst_ms:
+            worst_ms = elapsed_ms
+
+        var status: Int = 0
+        if score <= 0:
+            status = 1
+        let track_id = 5000 + pass_index
+        let track_checksum = smoke_telemetry_track_checksum(
+            track_id,
+            32,
+            status,
+            elapsed_ms,
+            track_name
+        )
+        composition_checksum = (composition_checksum + track_checksum + score) % SMOKE_FLOW_MODULUS
+        let _track = smoke_write_track_report(
+            mode,
+            "benchmark",
+            track_name,
+            "telemetry_flow",
+            track_id,
+            status,
+            pass_start,
+            pass_end,
+            track_checksum,
+            composition_checksum
+        )
+
+        if status != 0:
+            let ended_ms = now_millis()
+            var note_fail: String = "{\n"
+            note_fail = note_fail + "  \"rounds\": " + str(rounds) + ",\n"
+            note_fail = note_fail + "  \"passes\": " + str(passes) + ",\n"
+            note_fail = note_fail + "  \"best_ms\": " + str(best_ms) + ",\n"
+            note_fail = note_fail + "  \"worst_ms\": " + str(worst_ms) + ",\n"
+            note_fail = note_fail + "  \"score\": " + str(score) + ",\n"
+            note_fail = note_fail + "  \"composition_checksum\": " + str(composition_checksum) + ",\n"
+            note_fail = note_fail + "  \"failed_track\": \"" + track_name + "\"\n"
+            note_fail = note_fail + "}\n"
+            let _note = smoke_write_note_report(mode, "benchmark.json", note_fail)
+            let _summary = smoke_write_summary_report(
+                mode,
+                status,
+                track_name,
+                passes,
+                succeeded_tracks,
+                composition_checksum,
+                started_ms,
+                ended_ms
+            )
+            let shutdown = runtime_shutdown()
+            if shutdown != 0:
+                return 9000 + shutdown
+            return status
+
+        succeeded_tracks = succeeded_tracks + 1
+        pass_index = pass_index + 1
+
+    let ended_ms = now_millis()
+    var benchmark_note: String = "{\n"
+    benchmark_note = benchmark_note + "  \"rounds\": " + str(rounds) + ",\n"
+    benchmark_note = benchmark_note + "  \"passes\": " + str(passes) + ",\n"
+    benchmark_note = benchmark_note + "  \"best_ms\": " + str(best_ms) + ",\n"
+    benchmark_note = benchmark_note + "  \"worst_ms\": " + str(worst_ms) + ",\n"
+    benchmark_note = benchmark_note + "  \"total_ms\": " + str(ended_ms - started_ms) + ",\n"
+    benchmark_note = benchmark_note + "  \"composition_checksum\": " + str(composition_checksum) + "\n"
+    benchmark_note = benchmark_note + "}\n"
+    let _note = smoke_write_note_report(mode, "benchmark.json", benchmark_note)
+    let _summary = smoke_write_summary_report(
+        mode,
+        0,
+        "",
+        passes,
+        succeeded_tracks,
+        composition_checksum,
+        started_ms,
+        ended_ms
+    )
+
+    let shutdown = runtime_shutdown()
+    if shutdown != 0:
+        return 9000 + shutdown
+    return 0
+
+pub fn smoke_run_attrition_mode() -> Int with Unsafe:
+    let mode = "attrition"
+    let _root = smoke_telemetry_prepare(mode)
+    let boot = runtime_init()
+    if boot != 0:
+        return 10 + boot
+
+    let ops = smoke_env_int("KAIN_SMOKETEST_ATTRITION_OPS", 24)
+    let rounds = smoke_env_int("KAIN_SMOKETEST_ATTRITION_ROUNDS", 64)
+    let started_ms = now_millis()
+    var iteration: Int = 0
+    var succeeded_tracks: Int = 0
+    var composition_checksum: Int = 0
+    var failure_code: Int = 0
+    var failure_track: String = ""
+    while iteration < ops:
+        let track_name = "attrition.iter." + str(iteration)
+        let iter_start = now_millis()
+        let score = smoke_novel_flow_score(rounds + (iteration % 9))
+        let iter_end = now_millis()
+        let elapsed_ms = iter_end - iter_start
+        var status: Int = 0
+        if score <= 0:
+            status = 1
+        let track_id = 6000 + iteration
+        let track_checksum = smoke_telemetry_track_checksum(
+            track_id,
+            32,
+            status,
+            elapsed_ms,
+            track_name
+        )
+        composition_checksum = (composition_checksum + track_checksum + score + iteration * 17) % SMOKE_FLOW_MODULUS
+        let _track = smoke_write_track_report(
+            mode,
+            "attrition",
+            track_name,
+            "telemetry_flow",
+            track_id,
+            status,
+            iter_start,
+            iter_end,
+            track_checksum,
+            composition_checksum
+        )
+
+        if iteration % 4 == 0:
+            let _checkpoint = runtime_attrition_checkpoint("smoketest.attrition.flow", score)
+            let _progress = runtime_attrition_note_progress(iteration, composition_checksum)
+
+        if status != 0:
+            failure_code = status
+            failure_track = track_name
+            break
+
+        succeeded_tracks = succeeded_tracks + 1
+        iteration = iteration + 1
+
+    if failure_code == 0 and runtime_heap_validate() < 0:
+        failure_code = 2
+        failure_track = "runtime.heap"
+
+    let failure_message = failure_track
+    let _result = runtime_attrition_result_set(composition_checksum, failure_code, failure_message)
+    let ended_ms = now_millis()
+    var attrition_note: String = "{\n"
+    attrition_note = attrition_note + "  \"ops\": " + str(ops) + ",\n"
+    attrition_note = attrition_note + "  \"rounds\": " + str(rounds) + ",\n"
+    attrition_note = attrition_note + "  \"composition_checksum\": " + str(composition_checksum) + ",\n"
+    attrition_note = attrition_note + "  \"failure_code\": " + str(failure_code) + ",\n"
+    attrition_note = attrition_note + "  \"failure_track\": \"" + failure_track + "\"\n"
+    attrition_note = attrition_note + "}\n"
+    let _note = smoke_write_note_report(mode, "attrition.json", attrition_note)
+    let _summary = smoke_write_summary_report(
+        mode,
+        failure_code,
+        failure_track,
+        ops,
+        succeeded_tracks,
+        composition_checksum,
+        started_ms,
+        ended_ms
+    )
+
+    let shutdown = runtime_shutdown()
+    if shutdown != 0:
+        if failure_code != 0:
+            return failure_code
+        return 9000 + shutdown
+    if failure_code != 0:
+        return failure_code
+    return 0

@@ -1,0 +1,54 @@
+use std::machine
+use std::memory
+
+fn metal_word(lane: Int, round: Int, salt: Int) -> Int:
+    let modulus: Int = 1000000007
+    let line_term: Int = ((lane + 1) * 1315423911) % modulus
+    let round_term: Int = ((round + 3) * 265443576) % modulus
+    return (line_term + round_term + salt) % modulus
+
+fn main() -> Int with Unsafe:
+    let modulus: Int = 1000000007
+    let expected: Int = 150626402
+    let line_words: Int = 8
+    let line_count: Int = 256
+    let rounds: Int = 1024
+    let requested_bytes: Int = line_count * line_words * 8
+    let page_bytes: Int = vm_page_size()
+    var map_bytes: Int = requested_bytes
+    if page_bytes > map_bytes:
+        map_bytes = page_bytes
+    let region: ptr<Int> = vm_map(map_bytes)
+    if ptr_to_int(region) == 0:
+        return 11
+
+    var checksum: Int = 0
+    var round: Int = 0
+    while round < rounds:
+        var lane: Int = 0
+        while lane < line_count:
+            let head: ptr<Int> = ptr_offset(region, lane * line_words, "Int")
+            let address_bits: Int = ptr_to_int(head)
+            let alias: ptr<Int> = int_to_ptr(address_bits, "ptr<Int>")
+            let lane_token: Int = (address_bits >> 6) & 63
+            let tagged: Int = (metal_word(lane, round, checksum) + (lane * 17) + round) % modulus
+            prefetch_write(alias, 3)
+            volatile_store_int(alias, tagged)
+            store_fence()
+            cache_flush(alias)
+            load_fence()
+            let seen: Int = volatile_load_int(int_to_ptr(address_bits, "ptr<Int>"))
+            checksum = (checksum + seen + lane_token) % modulus
+            if (lane & 7) == 0:
+                full_fence()
+                spin_loop_hint()
+                asm("pause")
+            lane = lane + 1
+        round = round + 1
+
+    let unmap_status: Int = vm_unmap(region, map_bytes)
+    if unmap_status != 0:
+        return 21
+    if checksum != expected:
+        return 31
+    return 0

@@ -1,0 +1,4 @@
+// ERROR: Mismatched delimiter - [ opened, } closed
+fn main() -> Int:
+    let arr = [1, 2, 3}
+    return 0

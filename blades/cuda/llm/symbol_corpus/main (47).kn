@@ -1,0 +1,44 @@
+component MirrorApp():
+    render <panel title="ghost-mirror" />
+
+world ProcessA:
+    state revision: Int = 0
+    surface native_ui => MirrorApp
+
+world ProcessB:
+    state revision_copy: Int = 0
+    surface web => MirrorApp
+
+entangle ProcessA.revision <-> ProcessB.revision_copy with single_writer
+
+fn main() -> Int:
+    let updates: Int = 64
+    let bytes_per_payload: Int = 1048576
+    let int_stride: Int = sizeof_type("Int")
+    let slot_count: Int = bytes_per_payload / int_stride
+    let mut payload: ptr<Int> = alloc_zeroed(slot_count, "Int")
+
+    var revision: Int = 0
+    var checksum: Int = 0
+    while revision < updates:
+        collapse payload:
+            var slot: Int = 0
+            while slot < slot_count:
+                mem_store(ptr_offset(payload, slot, "Int"), revision + slot, "Int")
+                slot = slot + 4096
+            0
+        ProcessA.revision = revision + 1
+        checksum = (checksum + ProcessB.revision_copy) % 1000000007
+        revision = revision + 1
+
+    let last_word: Int = observe payload:
+        mem_load(ptr_offset(payload, slot_count - 4096, "Int"), "Int")
+    decay payload
+
+    if ProcessB.revision_copy != updates:
+        return 1
+    if checksum != 2080:
+        return 2
+    if last_word <= 0:
+        return 3
+    return 0

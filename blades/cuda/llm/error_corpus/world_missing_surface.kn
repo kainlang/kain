@@ -1,0 +1,6 @@
+// ERROR: World missing surface
+world EmptyWorld:
+    state data: Int = 0
+
+fn main() -> Int:
+    return 0

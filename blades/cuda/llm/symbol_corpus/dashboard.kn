@@ -1,0 +1,278 @@
+use std::graphics
+use std::ui
+use report::smoke_write_note_report
+
+const SMOKE_UI_SEMANTICS_TRACKS: Int = 18
+const SMOKE_UI_SYSTEMS_TRACKS: Int = 7
+const SMOKE_UI_GPU_TRACKS: Int = 1
+const SMOKE_UI_STDLIB_TRACKS: Int = 22
+const SMOKE_UI_INTEROP_TRACKS: Int = 2
+const SMOKE_UI_TELEMETRY_TRACKS: Int = 2
+const SMOKE_UI_UI_TRACKS: Int = 2
+
+struct SmokeUiGraphicsSnapshot:
+    status: Int
+    score: Int
+    draw_count: Int
+    backend_len: Int
+
+pub struct SmokeUiAlbumSnapshot:
+    status: Int
+    frame_hash: Int
+    draw_count: Int
+    presented_draws: Int
+    state_count: Int
+    interaction_count: Int
+    focus_node: Int
+    resource_count: Int
+    graphics_score: Int
+    graphics_draws: Int
+    backend_len: Int
+
+fn smoke_ui_graphics_probe(seed: Int) -> SmokeUiGraphicsSnapshot:
+    let _reset = graphics_reset()
+    let session = graphics_session_create("smoketest.album.graphics", 320, 240)
+    if session <= 0:
+        return SmokeUiGraphicsSnapshot {
+            status: 1,
+            score: 0,
+            draw_count: 0,
+            backend_len: 0
+        }
+
+    let _backend = graphics_backend_select(session, "software")
+    let vb = graphics_buffer_create_from_hex(session, "vertex", "smoketest.album.vertices", "00000000010000000200000003000000", 12)
+    let ib = graphics_buffer_create_from_hex(session, "index", "smoketest.album.indices", "000000000100000002000000000000000200000003000000", 4)
+    let mesh = graphics_mesh_create(session, "smoketest.album.mesh", vb, ib, 4, 6)
+    let vs = graphics_shader_spirv_from_hex(session, "smoketest.album.vertex", "vertex", "main", "03022307")
+    let fs = graphics_shader_spirv_from_hex(session, "smoketest.album.fragment", "fragment", "main", "03022307")
+    let pipeline = graphics_pipeline_create(session, "smoketest.album.pipeline", vs, fs, "software")
+    let _begin = graphics_begin_frame(session, 16.0)
+    let draw = graphics_draw_mesh(session, pipeline, mesh, (seed % 4) + 1)
+    let ended = graphics_end_frame(session)
+    let presented = graphics_present(session)
+    let draws = graphics_draw_command_count(session)
+    let backend = graphics_active_backend(session)
+    let backend_score = len(backend) + len(graphics_backend_status("software"))
+    let _destroy = graphics_session_destroy(session)
+    return SmokeUiGraphicsSnapshot {
+        status: 0,
+        score: draw + ended + presented + draws + backend_score,
+        draw_count: draws,
+        backend_len: len(backend)
+    }
+
+fn smoke_ui_zero_snapshot(status: Int) -> SmokeUiAlbumSnapshot:
+    return SmokeUiAlbumSnapshot {
+        status: status,
+        frame_hash: 0,
+        draw_count: 0,
+        presented_draws: 0,
+        state_count: 0,
+        interaction_count: 0,
+        focus_node: 0,
+        resource_count: 0,
+        graphics_score: 0,
+        graphics_draws: 0,
+        backend_len: 0
+    }
+
+pub fn smoke_ui_album_lane(mode: String, total_tracks: Int, succeeded_tracks: Int, composition_checksum: Int) -> SmokeUiAlbumSnapshot:
+    let graphics = smoke_ui_graphics_probe(composition_checksum + succeeded_tracks)
+    let _reset = ui_reset()
+    let session = ui_host_session_create("smoketest.album.ui", "Kain Smoketest Album UI", 1280, 760, "software")
+    if session <= 0:
+        return smoke_ui_zero_snapshot(1)
+
+    let generation = native_ui_hot_reload_begin(session, "smoketest.album.rev-b")
+    let body_font = native_ui_font_create(session, "font.album.body", "JetBrains Mono", 14.0)
+    let hero_font = native_ui_font_create(session, "font.album.hero", "JetBrains Mono", 20.0)
+    let badge = ui_texture_rgba8_from_hex(session, "album.badge", 2, 2, "ff6b3dff2ec4b6ff15314bffefdcb5ff")
+
+    let root = ui_reconcile_node(session, 0, "root", "album.root", 0.0, 0.0, 1280.0, 760.0)
+    let hero = ui_reconcile_labeled_node(session, root, "panel", "album.hero", "smoketest-album", "region", "Smoketest Album Hero", 36.0, 28.0, 1208.0, 118.0)
+    let hero_title = ui_reconcile_text_node(session, hero, "text", "album.hero.title", "Kain Smoketest Album", 128.0, 24.0, 420.0, 28.0)
+    let hero_subtitle = ui_reconcile_text_node(session, hero, "text", "album.hero.subtitle", "full-surface UI plus OpenGL instrumentation lane", 128.0, 62.0, 680.0, 22.0)
+    let hero_badge = ui_reconcile_node(session, hero, "image", "album.hero.badge", 28.0, 24.0, 72.0, 72.0)
+
+    let overview_button = ui_reconcile_focusable_node(session, root, "button", "album.button.overview", "overview", "button", "Overview", 44.0, 170.0, 164.0, 38.0)
+    let runtime_button = ui_reconcile_focusable_node(session, root, "button", "album.button.runtime", "runtime", "button", "Runtime Lens", 224.0, 170.0, 164.0, 38.0)
+    let telemetry_button = ui_reconcile_focusable_node(session, root, "button", "album.button.telemetry", "telemetry", "button", "Telemetry", 404.0, 170.0, 164.0, 38.0)
+
+    let card_width = 372.0
+    let gap = 24.0
+    let row_one_y = 232.0
+    let row_two_y = 416.0
+    let col_one_x = 44.0
+    let col_two_x = col_one_x + card_width + gap
+    let col_three_x = col_two_x + card_width + gap
+
+    let semantics = ui_reconcile_text_node(session, root, "panel", "album.card.semantics", "Semantics 18/18", col_one_x, row_one_y, card_width, 132.0)
+    let systems = ui_reconcile_text_node(session, root, "panel", "album.card.systems", "Systems 7/7", col_two_x, row_one_y, card_width, 132.0)
+    let gpu = ui_reconcile_text_node(session, root, "panel", "album.card.gpu", "GPU 1/1", col_three_x, row_one_y, card_width, 132.0)
+    let stdlib = ui_reconcile_text_node(session, root, "panel", "album.card.stdlib", "Stdlib 22/22", col_one_x, row_two_y, card_width, 132.0)
+    let interop = ui_reconcile_text_node(session, root, "panel", "album.card.interop", "Interop 2/2", col_two_x, row_two_y, card_width, 132.0)
+    let telemetry = ui_reconcile_text_node(session, root, "panel", "album.card.telemetry", "Telemetry 2/2, UI 1/2", col_three_x, row_two_y, card_width, 132.0)
+
+    let footer = ui_reconcile_labeled_node(session, root, "panel", "album.footer", "footer", "region", "Album Footer", 44.0, 598.0, 1200.0, 118.0)
+    let footer_text = ui_reconcile_text_node(session, footer, "text", "album.footer.text", "album footer", 20.0, 24.0, 1160.0, 30.0)
+    let footer_metrics = ui_reconcile_text_node(session, footer, "text", "album.footer.metrics", "album metrics", 20.0, 62.0, 1160.0, 24.0)
+
+    let _hero_resource = ui_state_resource(session, hero_badge, "badge", "smoketest.album.badge", badge)
+    let _hero_shape = ui_state_shape(session, hero, "hero.deck", "smoketest-album")
+    let _hero_draw = ui_state_draw(session, hero, "hero.draw", "album-pulse")
+    let _hero_counter = ui_state_counter(session, hero, "state.frames", 1)
+    let _hero_mode = ui_state_set_string(session, overview_button, "button.mode", "overview")
+    let _runtime_mode = ui_state_set_string(session, runtime_button, "button.mode", "runtime")
+    let _telemetry_mode = ui_state_set_string(session, telemetry_button, "button.mode", "telemetry")
+
+    let _root_bg = ui_style_color_rgba(session, root, "ui.root", 0.04, 0.05, 0.08, 1.0)
+    let _hero_bg = ui_style_color_rgba(session, hero, "ui.hero", 0.10, 0.14, 0.20, 1.0)
+    let _hero_badge_style = ui_style_color_rgba(session, hero_badge, "ui.badge", 1.0, 1.0, 1.0, 1.0)
+    let _hero_title_fg = ui_style_color_rgba(session, hero_title, "ui.hero.title", 0.98, 0.97, 0.93, 1.0)
+    let _hero_sub_fg = ui_style_color_rgba(session, hero_subtitle, "ui.hero.subtitle", 0.74, 0.84, 0.93, 1.0)
+
+    let _button_overview_bg = ui_style_color_rgba(session, overview_button, "ui.button.overview", 0.18, 0.27, 0.31, 1.0)
+    let _button_runtime_bg = ui_style_color_rgba(session, runtime_button, "ui.button.runtime", 0.18, 0.22, 0.34, 1.0)
+    let _button_telemetry_bg = ui_style_color_rgba(session, telemetry_button, "ui.button.telemetry", 0.22, 0.16, 0.31, 1.0)
+    let _button_fg = ui_style_color_rgba(session, overview_button, "ui.button.ink", 0.97, 0.98, 1.0, 1.0)
+    let _button_runtime_fg = ui_style_color_rgba(session, runtime_button, "ui.button.ink", 0.97, 0.98, 1.0, 1.0)
+    let _button_telemetry_fg = ui_style_color_rgba(session, telemetry_button, "ui.button.ink", 0.97, 0.98, 1.0, 1.0)
+
+    let _semantics_bg = ui_style_color_rgba(session, semantics, "ui.card.semantics", 0.12, 0.21, 0.26, 1.0)
+    let _systems_bg = ui_style_color_rgba(session, systems, "ui.card.systems", 0.15, 0.20, 0.31, 1.0)
+    let _gpu_bg = ui_style_color_rgba(session, gpu, "ui.card.gpu", 0.13, 0.17, 0.29, 1.0)
+    let _stdlib_bg = ui_style_color_rgba(session, stdlib, "ui.card.stdlib", 0.19, 0.16, 0.25, 1.0)
+    let _interop_bg = ui_style_color_rgba(session, interop, "ui.card.interop", 0.20, 0.18, 0.16, 1.0)
+    let _telemetry_bg = ui_style_color_rgba(session, telemetry, "ui.card.telemetry", 0.13, 0.20, 0.18, 1.0)
+    let _card_fg = ui_style_color_rgba(session, semantics, "ui.card.ink", 0.97, 0.98, 1.0, 1.0)
+    let _systems_fg = ui_style_color_rgba(session, systems, "ui.card.ink", 0.97, 0.98, 1.0, 1.0)
+    let _gpu_fg = ui_style_color_rgba(session, gpu, "ui.card.ink", 0.97, 0.98, 1.0, 1.0)
+    let _stdlib_fg = ui_style_color_rgba(session, stdlib, "ui.card.ink", 0.97, 0.98, 1.0, 1.0)
+    let _interop_fg = ui_style_color_rgba(session, interop, "ui.card.ink", 0.97, 0.98, 1.0, 1.0)
+    let _telemetry_fg = ui_style_color_rgba(session, telemetry, "ui.card.ink", 0.97, 0.98, 1.0, 1.0)
+    let _footer_bg = ui_style_color_rgba(session, footer, "ui.footer", 0.09, 0.12, 0.18, 1.0)
+    let _footer_fg = ui_style_color_rgba(session, footer_text, "ui.footer.ink", 0.97, 0.98, 1.0, 1.0)
+    let _footer_metrics_fg = ui_style_color_rgba(session, footer_metrics, "ui.footer.metrics", 0.70, 0.82, 0.92, 1.0)
+
+    let _hero_padding = ui_style_padding(session, hero, "ui.hero", 18.0, 18.0, 18.0, 18.0)
+    let _footer_padding = ui_style_padding(session, footer, "ui.footer", 18.0, 18.0, 18.0, 18.0)
+    let _card_padding = ui_style_padding(session, semantics, "ui.card", 16.0, 16.0, 16.0, 16.0)
+    let _systems_padding = ui_style_padding(session, systems, "ui.card", 16.0, 16.0, 16.0, 16.0)
+    let _gpu_padding = ui_style_padding(session, gpu, "ui.card", 16.0, 16.0, 16.0, 16.0)
+    let _stdlib_padding = ui_style_padding(session, stdlib, "ui.card", 16.0, 16.0, 16.0, 16.0)
+    let _interop_padding = ui_style_padding(session, interop, "ui.card", 16.0, 16.0, 16.0, 16.0)
+    let _telemetry_padding = ui_style_padding(session, telemetry, "ui.card", 16.0, 16.0, 16.0, 16.0)
+
+    let _semantics_text = native_ui_node_set_text(session, semantics, "Semantics " + str(SMOKE_UI_SEMANTICS_TRACKS) + "/" + str(SMOKE_UI_SEMANTICS_TRACKS) + " // worlds, converge, teleport, actors")
+    let _systems_text = native_ui_node_set_text(session, systems, "Systems " + str(SMOKE_UI_SYSTEMS_TRACKS) + "/" + str(SMOKE_UI_SYSTEMS_TRACKS) + " // ownership, ABI, VM, MMIO")
+    let _gpu_text = native_ui_node_set_text(session, gpu, "GPU " + str(SMOKE_UI_GPU_TRACKS) + "/" + str(SMOKE_UI_GPU_TRACKS) + " // shader lane compile-certified")
+    let _stdlib_text = native_ui_node_set_text(session, stdlib, "Stdlib " + str(SMOKE_UI_STDLIB_TRACKS) + "/" + str(SMOKE_UI_STDLIB_TRACKS) + " // bytes, json, fs, process, thread")
+    let _interop_text = native_ui_node_set_text(session, interop, "Interop " + str(SMOKE_UI_INTEROP_TRACKS) + "/" + str(SMOKE_UI_INTEROP_TRACKS) + " // C bridge plus ABI album")
+    let _telemetry_text = native_ui_node_set_text(session, telemetry, "Telemetry " + str(SMOKE_UI_TELEMETRY_TRACKS) + "/" + str(SMOKE_UI_TELEMETRY_TRACKS) + " // UI " + str(SMOKE_UI_UI_TRACKS - 1) + "/" + str(SMOKE_UI_UI_TRACKS) + " while OpenGL waits next")
+
+    let footer_copy = "progress " + str(succeeded_tracks) + "/" + str(total_tracks) + " checksum " + str(composition_checksum)
+    let footer_metric_copy = "ui draw " + str(0) + " graphics score " + str(graphics.score) + " graphics draws " + str(graphics.draw_count)
+    let _footer_text_set = native_ui_node_set_text(session, footer_text, footer_copy)
+    let _footer_metrics_set = native_ui_node_set_text(session, footer_metrics, footer_metric_copy)
+
+    let _down = native_ui_push_event(session, "pointer.down", runtime_button, 306.0, 189.0, 0, "primary")
+    let _up = native_ui_push_event(session, "pointer.up", runtime_button, 306.0, 189.0, 0, "primary")
+    let interactions = ui_drain_events_for_node(session, runtime_button)
+
+    let _begin = ui_frame_begin(session, 16.0)
+    let _draw_root = ui_render_box(session, root, "ui.root")
+    let _draw_hero = ui_render_box(session, hero, "ui.hero")
+    let _draw_badge = ui_render_resource_in_node(session, hero_badge, badge, "ui.badge")
+    let _draw_title = ui_render_text(session, hero_title, hero_font, native_ui_node_x(session, hero_title), native_ui_node_y(session, hero_title) + 18.0, "ui.hero.title")
+    let _draw_subtitle = ui_render_text(session, hero_subtitle, body_font, native_ui_node_x(session, hero_subtitle), native_ui_node_y(session, hero_subtitle) + 14.0, "ui.hero.subtitle")
+
+    let _draw_overview_button = ui_render_box(session, overview_button, "ui.button.overview")
+    let _draw_runtime_button = ui_render_box(session, runtime_button, "ui.button.runtime")
+    let _draw_telemetry_button = ui_render_box(session, telemetry_button, "ui.button.telemetry")
+    let _draw_overview_text = ui_render_text_in_box(session, overview_button, body_font, 18.0, 24.0, "ui.button.ink")
+    let _draw_runtime_text = ui_render_text_in_box(session, runtime_button, body_font, 18.0, 24.0, "ui.button.ink")
+    let _draw_telemetry_text = ui_render_text_in_box(session, telemetry_button, body_font, 18.0, 24.0, "ui.button.ink")
+
+    let _draw_semantics = ui_render_box(session, semantics, "ui.card.semantics")
+    let _draw_systems = ui_render_box(session, systems, "ui.card.systems")
+    let _draw_gpu = ui_render_box(session, gpu, "ui.card.gpu")
+    let _draw_stdlib = ui_render_box(session, stdlib, "ui.card.stdlib")
+    let _draw_interop = ui_render_box(session, interop, "ui.card.interop")
+    let _draw_telemetry = ui_render_box(session, telemetry, "ui.card.telemetry")
+    let _draw_semantics_text = ui_render_text_in_box(session, semantics, body_font, 16.0, 28.0, "ui.card.ink")
+    let _draw_systems_text = ui_render_text_in_box(session, systems, body_font, 16.0, 28.0, "ui.card.ink")
+    let _draw_gpu_text = ui_render_text_in_box(session, gpu, body_font, 16.0, 28.0, "ui.card.ink")
+    let _draw_stdlib_text = ui_render_text_in_box(session, stdlib, body_font, 16.0, 28.0, "ui.card.ink")
+    let _draw_interop_text = ui_render_text_in_box(session, interop, body_font, 16.0, 28.0, "ui.card.ink")
+    let _draw_telemetry_text = ui_render_text_in_box(session, telemetry, body_font, 16.0, 28.0, "ui.card.ink")
+
+    let _draw_footer = ui_render_box(session, footer, "ui.footer")
+    let _draw_footer_text = ui_render_text_in_box(session, footer_text, body_font, 0.0, 14.0, "ui.footer.ink")
+    let _draw_footer_metrics = ui_render_text_in_box(session, footer_metrics, body_font, 0.0, 14.0, "ui.footer.metrics")
+
+    let submitted = ui_frame_submit(session)
+    let pumped = native_ui_host_pump(session)
+    let committed = native_ui_hot_reload_commit(session)
+
+    let draw_count = native_ui_draw_command_count(session)
+    let presented_draws = native_ui_host_presented_draw_count(session)
+    let frame_hash = native_ui_host_frame_hash(session)
+    let state_count = native_ui_state_count(session)
+    let focus_node = native_ui_focused_node(session)
+    let resource_count = native_ui_resource_count(session)
+    let backend = native_ui_host_backend(session)
+
+    var note = "{\n"
+    note = note + "  \"status\": 0,\n"
+    note = note + "  \"progress\": \"" + str(succeeded_tracks) + "/" + str(total_tracks) + "\",\n"
+    note = note + "  \"composition_checksum\": " + str(composition_checksum) + ",\n"
+    note = note + "  \"generation\": " + str(generation) + ",\n"
+    note = note + "  \"committed\": " + str(committed) + ",\n"
+    note = note + "  \"draw_count\": " + str(draw_count) + ",\n"
+    note = note + "  \"presented_draws\": " + str(presented_draws) + ",\n"
+    note = note + "  \"frame_hash\": " + str(frame_hash) + ",\n"
+    note = note + "  \"state_count\": " + str(state_count) + ",\n"
+    note = note + "  \"interaction_count\": " + str(interactions) + ",\n"
+    note = note + "  \"focus_node\": " + str(focus_node) + ",\n"
+    note = note + "  \"resource_count\": " + str(resource_count) + ",\n"
+    note = note + "  \"backend\": \"" + backend + "\",\n"
+    note = note + "  \"graphics_score\": " + str(graphics.score) + ",\n"
+    note = note + "  \"graphics_draws\": " + str(graphics.draw_count) + "\n"
+    note = note + "}\n"
+    let _report = smoke_write_note_report(mode, "ui_dashboard.json", note)
+    let _destroy = ui_session_destroy(session)
+
+    var status = 0
+    if body_font <= 0 or hero_font <= 0:
+        status = 2
+    if status == 0 and badge <= 0:
+        status = 3
+    if status == 0 and generation != committed:
+        status = 4
+    if status == 0 and submitted < 0:
+        status = 5
+    if status == 0 and pumped < 0:
+        status = 6
+    if status == 0 and draw_count < 16:
+        status = 7
+    if status == 0 and interactions < 1:
+        status = 8
+    if status == 0 and len(backend) == 0:
+        status = 9
+    if status == 0 and graphics.status != 0:
+        status = 10
+
+    return SmokeUiAlbumSnapshot {
+        status: status,
+        frame_hash: frame_hash,
+        draw_count: draw_count,
+        presented_draws: presented_draws,
+        state_count: state_count,
+        interaction_count: interactions,
+        focus_node: focus_node,
+        resource_count: resource_count,
+        graphics_score: graphics.score,
+        graphics_draws: graphics.draw_count,
+        backend_len: len(backend)
+    }

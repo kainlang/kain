@@ -1,0 +1,405 @@
+use std::interop
+use std::json
+use std::python
+
+import math as py_math
+import numpy as np
+
+// ============================================================================
+// PYTHON INTEROP PACK  //  RAW BRIDGE TAX + HOST CONTRACT PROBES
+// ============================================================================
+// This pack is the primitive truth lane. It does not try to be ergonomic.
+// It measures the raw boundary cost and proves the host objects still land in
+// Kain with stable shared-buffer / shared-image / shared-tensor contracts.
+
+const PYTHON_INTEROP_MODULUS: Int = 1000000007
+const PYTHON_INTEROP_CASE_COUNT: Int = 8
+const RAW_TENSOR_ROWS: Int = 7
+const RAW_TENSOR_COLS: Int = 11
+const RAW_IMAGE_W: Int = 48
+const RAW_IMAGE_H: Int = 32
+const RAW_IMAGE_C: Int = 4
+
+fn interop_bool_score(value: Bool) -> Int:
+    if value:
+        return 1
+    return 0
+
+fn interop_json_bool_text(value: Bool) -> String:
+    if value:
+        return "true"
+    return "false"
+
+fn interop_json_escape(text: String) -> String:
+    let escaped = ""
+    let index = 0
+    while index < len(text):
+        let ch = char_at(text, index)
+        if ch == "\\":
+            escaped = escaped + "\\\\"
+        else if ch == "\"":
+            escaped = escaped + "\\\""
+        else if ch == "\n":
+            escaped = escaped + "\\n"
+        else if ch == "\r":
+            escaped = escaped + "\\r"
+        else if ch == "\t":
+            escaped = escaped + "\\t"
+        else:
+            escaped = escaped + ch
+        index = index + 1
+    return escaped
+
+fn interop_json_string_value(text: String) -> String:
+    return "\"" + interop_json_escape(text) + "\""
+
+fn make_raw_tensor(seed: Int) -> Any:
+    let total = RAW_TENSOR_ROWS * RAW_TENSOR_COLS
+    let base = python_call_attr_raw(np, "linspace", [-1.0, 1.0, total, "float32"])
+    let reshaped = python_call_attr_raw(base, "reshape", [[RAW_TENSOR_ROWS, RAW_TENSOR_COLS]])
+    let shifted = python_call_attr_raw(np, "add", [reshaped, seed as Float])
+    return python_call_attr_raw(np, "ascontiguousarray", [shifted])
+
+fn make_raw_uint8_buffer(cells: Int, seed: Int) -> Any:
+    let base = python_call_attr_raw(np, "arange", [cells])
+    let shifted = python_call_attr_raw(np, "add", [base, seed])
+    let bytes_view = python_call_attr_raw(shifted, "astype", ["uint8"])
+    return python_call_attr_raw(np, "ascontiguousarray", [bytes_view])
+
+fn make_raw_image(seed: Int) -> Any:
+    let cells = RAW_IMAGE_W * RAW_IMAGE_H * RAW_IMAGE_C
+    let base = make_raw_uint8_buffer(cells, seed)
+    let image = python_call_attr_raw(base, "reshape", [[RAW_IMAGE_H, RAW_IMAGE_W, RAW_IMAGE_C]])
+    return python_call_attr_raw(np, "ascontiguousarray", [image])
+
+pub fn python_interop_case_count() -> Int:
+    return PYTHON_INTEROP_CASE_COUNT
+
+pub fn python_interop_case_id(index: Int) -> String:
+    if index == 0:
+        return "python_import_cached"
+    if index == 1:
+        return "python_math_attr"
+    if index == 2:
+        return "python_math_sqrt"
+    if index == 3:
+        return "python_numpy_scalar_box"
+    if index == 4:
+        return "python_numpy_shared_buffer"
+    if index == 5:
+        return "python_raw_tensor_workflow"
+    if index == 6:
+        return "python_raw_image_workflow"
+    if index == 7:
+        return "python_numpy_shared_buffer_tiny"
+    return ""
+
+pub fn python_interop_case_group(index: Int) -> String:
+    if index >= 0 and index < PYTHON_INTEROP_CASE_COUNT:
+        return "python"
+    return ""
+
+pub fn python_interop_case_title(index: Int) -> String:
+    if index == 0:
+        return "Python Import Cached"
+    if index == 1:
+        return "Python Math Attr"
+    if index == 2:
+        return "Python Math Sqrt"
+    if index == 3:
+        return "Python NumPy Scalar Box"
+    if index == 4:
+        return "Python NumPy Shared Buffer"
+    if index == 5:
+        return "Python Raw Tensor Workflow"
+    if index == 6:
+        return "Python Raw Image Workflow"
+    if index == 7:
+        return "Python NumPy Shared Buffer Tiny"
+    return ""
+
+pub fn python_interop_case_iterations(index: Int) -> Int:
+    if index == 0:
+        return 10000
+    if index == 1:
+        return 50000
+    if index == 2:
+        return 30000
+    if index == 3:
+        return 30000
+    if index == 4:
+        return 1000
+    if index == 5:
+        return 1500
+    if index == 6:
+        return 1500
+    if index == 7:
+        return 4000
+    return 0
+
+pub fn python_interop_case_expected_checksum(index: Int) -> Int:
+    if index == 0:
+        return 149961
+    if index == 1:
+        return 849979
+    if index == 2:
+        return 1683700
+    if index == 3:
+        return 976817404
+    if index == 4:
+        return 533462
+    if index == 5:
+        return 91276
+    if index == 6:
+        return 10037971
+    if index == 7:
+        return 1130932
+    return -1
+
+fn python_import_cached_checksum(iterations: Int) -> Int:
+    let acc: Int = 0
+    let index: Int = 0
+    while index < iterations:
+        let math_module = python_import("math")
+        let tau_bits = to_int(python_getattr_raw(math_module, "tau"))
+        acc = (acc + tau_bits + (index % 19)) % PYTHON_INTEROP_MODULUS
+        index = index + 1
+    return acc
+
+fn python_math_attr_checksum(iterations: Int) -> Int:
+    let acc: Int = 0
+    let index: Int = 0
+    while index < iterations:
+        let tau_bits = to_int(python_getattr_raw(py_math, "tau"))
+        acc = (acc + tau_bits + (index % 23)) % PYTHON_INTEROP_MODULUS
+        index = index + 1
+    return acc
+
+fn python_math_sqrt_checksum(iterations: Int) -> Int:
+    let acc: Int = 0
+    let index: Int = 0
+    while index < iterations:
+        let lane_value = ((index * 17) % 4096) + 1
+        let sqrt_value = to_int(python_call_attr_raw(py_math, "sqrt", [lane_value as Float]))
+        acc = (acc + sqrt_value + (index % 29)) % PYTHON_INTEROP_MODULUS
+        index = index + 1
+    return acc
+
+fn python_numpy_scalar_box_checksum(iterations: Int) -> Int:
+    let acc: Int = 0
+    let index: Int = 0
+    while index < iterations:
+        let lane_value = ((index * 11) + 19) % 65536
+        let boxed = to_int(python_call_attr_raw(np, "int64", [lane_value]))
+        acc = (acc + boxed + (index % 31)) % PYTHON_INTEROP_MODULUS
+        index = index + 1
+    return acc
+
+fn python_numpy_shared_buffer_checksum(iterations: Int) -> Int:
+    let acc: Int = 0
+    let index: Int = 0
+    while index < iterations:
+        let cells = 128 + (index % 5)
+        let array = make_raw_uint8_buffer(cells, index)
+        let shared_buffer = python_shared_buffer(array)
+        let info = interop_shared_buffer_info(shared_buffer)
+        let bytes = interop_shared_buffer_bytes(shared_buffer)
+        let tail = bytes[len(bytes) - 1]
+        let lane = info.byte_length + info.element_count + info.element_size + bytes[0] + tail + interop_bool_score(info.zero_copy) + interop_bool_score(info.ownership == "shared") + (index % 37)
+        kain_shared_buffer_release(shared_buffer)
+        acc = (acc + lane) % PYTHON_INTEROP_MODULUS
+        index = index + 1
+    return acc
+
+fn python_raw_tensor_workflow_checksum(iterations: Int) -> Int:
+    let acc: Int = 0
+    let index: Int = 0
+    while index < iterations:
+        let seed = 17 + (index % 13)
+        let tensor = make_raw_tensor(seed)
+        let tensor_handle = python_tensor_shared(tensor)
+        let info = kain_tensor_info(tensor_handle)
+        let lane = info.shape[0] + info.shape[1] + info.element_count + info.byte_length + seed + (index % 41)
+        acc = (acc + lane) % PYTHON_INTEROP_MODULUS
+        index = index + 1
+    return acc
+
+fn python_raw_image_workflow_checksum(iterations: Int) -> Int:
+    let acc: Int = 0
+    let index: Int = 0
+    while index < iterations:
+        let image = make_raw_image(index % 251)
+        let image_handle = python_shared_image(image)
+        let info = interop_shared_image_info(image_handle)
+        let bytes = interop_shared_image_bytes(image_handle)
+        let tail = bytes[len(bytes) - 1]
+        let lane = info.width + info.height + info.channels + info.row_stride + info.byte_length + bytes[0] + tail + interop_bool_score(info.zero_copy) + interop_bool_score(info.ownership == "shared") + (index % 43)
+        acc = (acc + lane) % PYTHON_INTEROP_MODULUS
+        index = index + 1
+    return acc
+
+fn python_numpy_shared_buffer_tiny_checksum(iterations: Int) -> Int:
+    let acc: Int = 0
+    let index: Int = 0
+    while index < iterations:
+        let cells = (index % 3) + 1
+        let array = make_raw_uint8_buffer(cells, 7 + index)
+        let shared_buffer = python_shared_buffer(array)
+        let info = interop_shared_buffer_info(shared_buffer)
+        let bytes = interop_shared_buffer_bytes(shared_buffer)
+        let tail = bytes[len(bytes) - 1]
+        let lane = info.byte_length + info.element_count + info.element_size + bytes[0] + tail + interop_bool_score(info.byte_length == cells) + interop_bool_score(info.zero_copy) + interop_bool_score(info.ownership == "shared") + (index % 47)
+        kain_shared_buffer_release(shared_buffer)
+        acc = (acc + lane) % PYTHON_INTEROP_MODULUS
+        index = index + 1
+    return acc
+
+pub fn python_interop_case_telemetry(case_id: String) -> String:
+    if case_id == "python_import_cached":
+        let content = "{"
+        content = content + "\"boundary_kind\":\"import-cache\","
+        content = content + "\"module\":" + interop_json_string_value("math") + ","
+        content = content + "\"attr\":" + interop_json_string_value("tau") + ","
+        content = content + "\"python_imports_per_iteration\":1,"
+        content = content + "\"python_getattrs_per_iteration\":1,"
+        content = content + "\"total_bridge_ops_per_iteration\":2,"
+        content = content + "\"expected_module_cache_hit\":true,"
+        content = content + "\"creator_reuse\":true,"
+        content = content + "\"materialization_lane\":" + interop_json_string_value("float-truncate-int") + ","
+        content = content + "\"bench_intent\":" + interop_json_string_value("cache-hit-import-tax") + ","
+        content = content + "\"iterations_default\":10000,"
+        content = content + "\"pack_focus\":" + interop_json_string_value("primitive")
+        return content + "}"
+    if case_id == "python_math_attr":
+        let content = "{"
+        content = content + "\"boundary_kind\":\"module-attr\","
+        content = content + "\"module\":" + interop_json_string_value("math") + ","
+        content = content + "\"attr\":" + interop_json_string_value("tau") + ","
+        content = content + "\"python_getattrs_per_iteration\":1,"
+        content = content + "\"total_bridge_ops_per_iteration\":1,"
+        content = content + "\"creator_reuse\":true,"
+        content = content + "\"materialization_lane\":" + interop_json_string_value("float-truncate-int") + ","
+        content = content + "\"bench_intent\":" + interop_json_string_value("attribute-lookup-tax") + ","
+        content = content + "\"iterations_default\":50000,"
+        content = content + "\"pack_focus\":" + interop_json_string_value("primitive")
+        return content + "}"
+    if case_id == "python_math_sqrt":
+        let content = "{"
+        content = content + "\"boundary_kind\":\"module-call\","
+        content = content + "\"module\":" + interop_json_string_value("math") + ","
+        content = content + "\"call\":" + interop_json_string_value("sqrt") + ","
+        content = content + "\"python_calls_per_iteration\":1,"
+        content = content + "\"total_bridge_ops_per_iteration\":1,"
+        content = content + "\"creator_reuse\":true,"
+        content = content + "\"argument_shape\":" + interop_json_string_value("scalar-float64") + ","
+        content = content + "\"materialization_lane\":" + interop_json_string_value("float-truncate-int") + ","
+        content = content + "\"bench_intent\":" + interop_json_string_value("call-hot-loop-tax") + ","
+        content = content + "\"sample_input\":144,"
+        content = content + "\"iterations_default\":30000,"
+        content = content + "\"pack_focus\":" + interop_json_string_value("primitive")
+        return content + "}"
+    if case_id == "python_numpy_scalar_box":
+        let content = "{"
+        content = content + "\"boundary_kind\":\"scalar-box\","
+        content = content + "\"module\":" + interop_json_string_value("numpy") + ","
+        content = content + "\"scalar_type\":" + interop_json_string_value("int64") + ","
+        content = content + "\"python_calls_per_iteration\":1,"
+        content = content + "\"total_bridge_ops_per_iteration\":1,"
+        content = content + "\"creator_reuse\":false,"
+        content = content + "\"value_min\":0,"
+        content = content + "\"value_max\":65535,"
+        content = content + "\"materialization_lane\":" + interop_json_string_value("boxed-scalar-to-int") + ","
+        content = content + "\"bench_intent\":" + interop_json_string_value("scalar-boxing-tax") + ","
+        content = content + "\"iterations_default\":30000,"
+        content = content + "\"pack_focus\":" + interop_json_string_value("primitive")
+        return content + "}"
+    if case_id == "python_numpy_shared_buffer" or case_id == "python_numpy_shared_buffer_tiny":
+        let content = "{"
+        content = content + "\"boundary_kind\":\"shared-buffer\","
+        content = content + "\"element_type\":" + interop_json_string_value("uint8") + ","
+        content = content + "\"shape_kind\":" + interop_json_string_value("linear") + ","
+        content = content + "\"edge_case\":" + interop_json_bool_text(case_id == "python_numpy_shared_buffer_tiny") + ","
+        content = content + "\"python_creator_calls_per_iteration\":4,"
+        content = content + "\"interop_adoptions_per_iteration\":1,"
+        content = content + "\"contract_reads_per_iteration\":1,"
+        content = content + "\"readback_copies_per_iteration\":1,"
+        content = content + "\"shape_rank\":1,"
+        if case_id == "python_numpy_shared_buffer_tiny":
+            content = content + "\"payload_bytes_min\":1,"
+            content = content + "\"payload_bytes_max\":3,"
+        else:
+            content = content + "\"payload_bytes_min\":128,"
+            content = content + "\"payload_bytes_max\":132,"
+        content = content + "\"creator_reuse\":false,"
+        content = content + "\"buffer_protocol_expected\":true,"
+        content = content + "\"contiguous_expected\":true,"
+        content = content + "\"bench_intent\":" + interop_json_string_value("adoption-plus-readback") + ","
+        content = content + "\"expected_zero_copy\":true,"
+        content = content + "\"expected_ownership\":" + interop_json_string_value("shared") + ","
+        content = content + "\"pack_focus\":" + interop_json_string_value("shared-buffer")
+        return content + "}"
+    if case_id == "python_raw_tensor_workflow":
+        let content = "{"
+        content = content + "\"boundary_kind\":\"shared-tensor\","
+        content = content + "\"rows\":" + str(RAW_TENSOR_ROWS) + ","
+        content = content + "\"cols\":" + str(RAW_TENSOR_COLS) + ","
+        content = content + "\"shape_rank\":2,"
+        content = content + "\"dtype\":" + interop_json_string_value("float32") + ","
+        content = content + "\"python_creator_calls_per_iteration\":4,"
+        content = content + "\"interop_adoptions_per_iteration\":1,"
+        content = content + "\"contract_reads_per_iteration\":1,"
+        content = content + "\"payload_bytes_per_iteration\":" + str(RAW_TENSOR_ROWS * RAW_TENSOR_COLS * 4) + ","
+        content = content + "\"creator_reuse\":false,"
+        content = content + "\"bench_intent\":" + interop_json_string_value("tensor-adoption-metadata") + ","
+        content = content + "\"zero_copy_domain\":" + interop_json_string_value("tensor-runtime-handle") + ","
+        content = content + "\"pack_focus\":" + interop_json_string_value("workflow")
+        return content + "}"
+    if case_id == "python_raw_image_workflow":
+        let content = "{"
+        content = content + "\"boundary_kind\":\"shared-image\","
+        content = content + "\"width\":" + str(RAW_IMAGE_W) + ","
+        content = content + "\"height\":" + str(RAW_IMAGE_H) + ","
+        content = content + "\"channels\":" + str(RAW_IMAGE_C) + ","
+        content = content + "\"layout\":" + interop_json_string_value("HWC") + ","
+        content = content + "\"python_creator_calls_per_iteration\":6,"
+        content = content + "\"interop_adoptions_per_iteration\":1,"
+        content = content + "\"contract_reads_per_iteration\":1,"
+        content = content + "\"readback_copies_per_iteration\":1,"
+        content = content + "\"payload_bytes_per_iteration\":" + str(RAW_IMAGE_W * RAW_IMAGE_H * RAW_IMAGE_C) + ","
+        content = content + "\"creator_reuse\":false,"
+        content = content + "\"buffer_protocol_expected\":true,"
+        content = content + "\"contiguous_expected\":true,"
+        content = content + "\"bench_intent\":" + interop_json_string_value("image-adoption-plus-readback") + ","
+        content = content + "\"expected_zero_copy\":true,"
+        content = content + "\"expected_ownership\":" + interop_json_string_value("shared") + ","
+        content = content + "\"pack_focus\":" + interop_json_string_value("workflow")
+        return content + "}"
+    let content = "{"
+    content = content + "\"boundary_kind\":\"unknown\","
+    content = content + "\"pack_focus\":" + interop_json_string_value("raw")
+    return content + "}"
+
+pub fn python_interop_case_checksum(case_id: String, iterations: Int, amplify: Int, modulus: Int) -> Int:
+    let repeat: Int = 0
+    let acc: Int = 0
+    while repeat < amplify:
+        if case_id == "python_import_cached":
+            acc = (acc + python_import_cached_checksum(iterations)) % modulus
+        else if case_id == "python_math_attr":
+            acc = (acc + python_math_attr_checksum(iterations)) % modulus
+        else if case_id == "python_math_sqrt":
+            acc = (acc + python_math_sqrt_checksum(iterations)) % modulus
+        else if case_id == "python_numpy_scalar_box":
+            acc = (acc + python_numpy_scalar_box_checksum(iterations)) % modulus
+        else if case_id == "python_numpy_shared_buffer":
+            acc = (acc + python_numpy_shared_buffer_checksum(iterations)) % modulus
+        else if case_id == "python_raw_tensor_workflow":
+            acc = (acc + python_raw_tensor_workflow_checksum(iterations)) % modulus
+        else if case_id == "python_raw_image_workflow":
+            acc = (acc + python_raw_image_workflow_checksum(iterations)) % modulus
+        else if case_id == "python_numpy_shared_buffer_tiny":
+            acc = (acc + python_numpy_shared_buffer_tiny_checksum(iterations)) % modulus
+        else:
+            return -1
+        repeat = repeat + 1
+    return acc

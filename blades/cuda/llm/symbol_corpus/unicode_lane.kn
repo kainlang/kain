@@ -1,0 +1,107 @@
+use std::unicode
+
+pub fn smoke_unicode_lane() -> Int:
+    # 1. Test unicode_utf8_char_length
+    if unicode_utf8_char_length(65) != 1:
+        return 1
+    if unicode_utf8_char_length(194) != 2:
+        return 2
+    if unicode_utf8_char_length(224) != 3:
+        return 3
+    if unicode_utf8_char_length(240) != 4:
+        return 4
+    if unicode_utf8_char_length(248) != -1:
+        return 5
+    if unicode_utf8_char_length(-5) != -1:
+        return 6
+
+    # 2. Test unicode_utf8_decode_at with valid characters
+    let test_str = "A¢€𐍈"
+    
+    let res0 = unicode_utf8_decode_at(test_str, 0)
+    if res0.valid == false or res0.codepoint != 65 or res0.length != 1:
+        return 7
+        
+    let res1 = unicode_utf8_decode_at(test_str, 1)
+    if res1.valid == false or res1.codepoint != 162 or res1.length != 2:
+        return 8
+        
+    let res2 = unicode_utf8_decode_at(test_str, 3)
+    if res2.valid == false or res2.codepoint != 8364 or res2.length != 3:
+        return 9
+        
+    let res3 = unicode_utf8_decode_at(test_str, 6)
+    if res3.valid == false or res3.codepoint != 66376 or res3.length != 4:
+        return 10
+
+    # 3. Test unicode_utf8_decode_at with invalid/overlong characters
+    # Overlong 2-byte A: C0 81 (192, 129)
+    let overlong_2 = chr(192) + chr(129)
+    let res_overlong = unicode_utf8_decode_at(overlong_2, 0)
+    if res_overlong.valid != false or res_overlong.length != 1:
+        return 11
+
+    # Surrogate U+D800: ED A0 80 (237, 160, 128)
+    let surrogate = chr(237) + chr(160) + chr(128)
+    let res_surrogate = unicode_utf8_decode_at(surrogate, 0)
+    if res_surrogate.valid != false or res_surrogate.length != 1:
+        return 12
+
+    # Out of bounds codepoint (> 0x10FFFF)
+    let out_of_bounds = chr(245) + chr(144) + chr(128) + chr(128)
+    let res_oob = unicode_utf8_decode_at(out_of_bounds, 0)
+    if res_oob.valid != false or res_oob.length != 1:
+        return 13
+
+    # 4. Test unicode_utf8_encode
+    if unicode_utf8_encode(65) != "A":
+        return 14
+    if unicode_utf8_encode(162) != "¢":
+        return 15
+    if unicode_utf8_encode(8364) != "€":
+        return 16
+    if unicode_utf8_encode(66376) != "𐍈":
+        return 17
+    # U+FFFD Replacement Character (65533) when encoding out of bounds
+    if unicode_utf8_encode(-10) != unicode_utf8_encode(65533):
+        return 18
+    if unicode_utf8_encode(1114115) != unicode_utf8_encode(65533):
+        return 19
+
+    # 5. Test validation and counting
+    if unicode_utf8_is_valid(test_str) == false:
+        return 20
+    if unicode_utf8_is_valid(overlong_2) == true:
+        return 21
+    if unicode_utf8_codepoint_count(test_str) != 4:
+        return 22
+    if unicode_utf8_codepoint_at(test_str, 2) != 8364:
+        return 23
+
+    # 6. Test cursor-based iteration
+    let cursor = unicode_cursor_new(test_str)
+    if unicode_cursor_has_next(cursor) == false:
+        return 24
+        
+    let c1 = unicode_cursor_next(cursor)
+    if c1.decode.codepoint != 65 or c1.has_next == false:
+        return 25
+        
+    let c2 = unicode_cursor_next(c1.cursor)
+    if c2.decode.codepoint != 162 or c2.has_next == false:
+        return 26
+        
+    let c3 = unicode_cursor_next(c2.cursor)
+    if c3.decode.codepoint != 8364 or c3.has_next == false:
+        return 27
+        
+    let c4 = unicode_cursor_next(c3.cursor)
+    if c4.decode.codepoint != 66376 or c4.has_next == true:
+        return 28
+
+    # 7. Test normalization stubs
+    let norm = unicode_normalize(test_str, UnicodeNormalizationForm::Nfc)
+    if norm != test_str:
+        return 29
+
+    return 0

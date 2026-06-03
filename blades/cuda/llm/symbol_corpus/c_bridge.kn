@@ -1,0 +1,65 @@
+// ============================================================================
+//                     SQLite low-level include pressure lane
+// ============================================================================
+// This is the raw side of the ping-pong: the dedicated sqlite_rally module
+// owns the actual include sites, and this track hammers the low-level signals
+// it exposes before bouncing them back into higher Kain shapes.
+use sqlite_rally::smoke_sqlite_version
+use sqlite_rally::smoke_sqlite_threadsafe
+use sqlite_rally::smoke_sqlite_keyword_count
+use sqlite_rally::smoke_sqlite_complete
+use sqlite_rally::smoke_sqlite_ping_row_count
+use sqlite_rally::smoke_sqlite_ping_text_bytes
+use sqlite_rally::smoke_sqlite_ping_bounce
+use types::SmokeLane
+use types::SmokePacket
+use types::smoke_weighted_checksum
+
+const SMOKE_C_BRIDGE_MODULUS: Int = 1000000007
+
+fn smoke_c_bridge_probe(seed: Int, salt: Int) -> Int:
+    let sql_shape = "select " + str((seed % 97) + 1) + " + " + str((salt % 53) + 1) + ";"
+    let version = smoke_sqlite_version()
+    let threadsafe = smoke_sqlite_threadsafe()
+    let keyword_count = smoke_sqlite_keyword_count()
+    let complete = smoke_sqlite_complete(sql_shape)
+    let bounce = smoke_sqlite_ping_bounce(seed + salt + version, (salt % 7) + 5)
+    return (version + threadsafe + keyword_count + complete + bounce) % SMOKE_C_BRIDGE_MODULUS
+
+pub fn smoke_c_bridge_score(seed: Int, salt: Int) -> Int:
+    let raw_probe = smoke_c_bridge_probe(seed, salt)
+    let row_count = smoke_sqlite_ping_row_count(seed + raw_probe, (salt % 9) + 4)
+    let text_bytes = smoke_sqlite_ping_text_bytes(seed + row_count + 3, (salt % 7) + 5)
+    let bounce = smoke_sqlite_ping_bounce(seed + text_bytes, (salt % 11) + 6)
+    let packet = SmokePacket {
+        id: 29,
+        lane: SmokeLane::CBridge,
+        payload: (raw_probe + row_count + text_bytes + bounce) % SMOKE_C_BRIDGE_MODULUS,
+        tag: "sqlite-raw",
+        hot: row_count >= 4 and text_bytes > row_count
+    }
+    return (smoke_weighted_checksum(packet) + raw_probe + row_count + text_bytes + bounce) % SMOKE_C_BRIDGE_MODULUS
+
+pub fn smoke_c_bridge_lane() -> Int:
+    let version = smoke_sqlite_version()
+    let threadsafe = smoke_sqlite_threadsafe()
+    let complete = smoke_sqlite_complete("select 29 + 7;")
+    let row_count = smoke_sqlite_ping_row_count(29, 7)
+    let text_bytes = smoke_sqlite_ping_text_bytes(29, 7)
+    let bounce = smoke_sqlite_ping_bounce(29, 7)
+    let score = smoke_c_bridge_score(version + row_count, bounce + threadsafe + 1)
+    if version < 3000000:
+        return 1
+    if threadsafe < 0:
+        return 2
+    if complete != 1:
+        return 3
+    if row_count < 4:
+        return 4
+    if text_bytes <= row_count:
+        return 5
+    if bounce <= 0:
+        return 6
+    if score <= bounce:
+        return 7
+    return 0

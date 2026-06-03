@@ -1,0 +1,42 @@
+const STRING_TEXT: String = "ka0in0be0nch"
+const STRING_NEEDLE: String = "in"
+const STRING_TAIL: String = "ch"
+
+fn starts_with_at(text: String, index: Int, needle: String) -> Bool:
+    if index + len(needle) > len(text):
+        return false
+    let mut offset = 0
+    while offset < len(needle):
+        if char_at(text, index + offset) != char_at(needle, offset):
+            return false
+        offset = offset + 1
+    return true
+
+fn find_substring(text: String, needle: String, start: Int) -> Int:
+    let needle_len: Int = len(needle)
+    if needle_len == 0:
+        return start
+    let mut index = start
+    while index + needle_len <= len(text):
+        if starts_with_at(text, index, needle):
+            return index
+        index = index + 1
+    return len(text)
+
+fn main() -> Int:
+    let iterations: Int = 100000
+    let expected: Int = 2050000
+    var acc: Int = 0
+    var i: Int = 0
+    var use_needle: Bool = true
+    while i < iterations:
+        if use_needle:
+            acc = acc + len(STRING_TEXT) + find_substring(STRING_TEXT, STRING_NEEDLE, 0) + len(STRING_NEEDLE)
+        else:
+            acc = acc + len(STRING_TEXT) + find_substring(STRING_TEXT, STRING_TAIL, 0) + len(STRING_TAIL)
+        use_needle = !use_needle
+        i = i + 1
+
+    if acc != expected:
+        return 1
+    return 0

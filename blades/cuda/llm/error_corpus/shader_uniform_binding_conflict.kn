@@ -1,0 +1,10 @@
+// @expected_code: KAIN-SHADER-0003
+// @expected_mode: ShaderResourceContract
+// @expected_repair: unique_binding_slot
+
+// Two uniforms that claim the same binding slot @0.
+shader compute UniformConflict:
+    uniform input_a: Vec4 @0
+    uniform input_b: Vec4 @0
+    fn main():
+        return

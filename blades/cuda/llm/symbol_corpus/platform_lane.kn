@@ -1,0 +1,17 @@
+use std::runtime
+use std::platform
+
+pub fn smoke_platform_lane() -> Int:
+    let name = platform_current_name()
+    if len(name) == 0:
+        return 1
+    let kind = platform_current_kind()
+    if kind < 0:
+        return 2
+    let lib_count = platform_library_live_count()
+    if lib_count < 0:
+        return 3
+    let invalid_check = platform_library_is_valid(0)
+    if invalid_check == true:
+        return 4
+    return 0

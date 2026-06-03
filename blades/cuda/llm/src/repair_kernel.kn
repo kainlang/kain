@@ -1,0 +1,512 @@
+use std::cuda
+
+// ============================================================================
+//            semantic :: repair-oriented CUDA oracle kernels
+// ============================================================================
+// Experimental lane:
+// - fused retrieval + repair priors
+// - policy/conflict scan over top candidates
+// - consensus reduction into one repair route
+//
+// This file is intentionally high-agency and metadata-heavy for offline forge
+// work over error_corpus + symbol_corpus style priors.
+// ============================================================================
+
+
+// ============================================================================
+// KERNEL 1 :: RepairFusedBeamTopK
+// ============================================================================
+// One launch scores candidate chunks and extracts block-local top-k with repair
+// metadata attached to each winner.
+//
+// Signal blend:
+// - embedding exact-byte matches
+// - overlap signal (bitwise intersection)
+// - lane overlap bonus
+// - policy overlap bonus
+// - error-code anchor bonus
+// - desired-repair bonus
+// - weight-derived penalty
+// ============================================================================
+
+shader compute RepairFusedBeamTopK(id: UVec3) -> Void:
+    uniform query_embed: StorageBuffer<u8> @0
+    uniform index_matrix: StorageBuffer<u8> @1
+    uniform index_weights: StorageBuffer<UInt> @2
+    uniform chunk_bias: StorageBuffer<UInt> @3
+    uniform chunk_lane_mask: StorageBuffer<UInt> @4
+    uniform chunk_error_code: StorageBuffer<UInt> @5
+    uniform chunk_repair_code: StorageBuffer<UInt> @6
+    uniform chunk_policy_mask: StorageBuffer<UInt> @7
+    uniform block_topk_indices: StorageBuffer<UInt> @8
+    uniform block_topk_scores: StorageBuffer<UInt> @9
+    uniform block_topk_repairs: StorageBuffer<UInt> @10
+    uniform block_topk_policies: StorageBuffer<UInt> @11
+    uniform warp_scratch_scores: StorageBuffer<UInt> @12
+    uniform warp_scratch_indices: StorageBuffer<UInt> @13
+    uniform warp_scratch_repairs: StorageBuffer<UInt> @14
+    uniform warp_scratch_policies: StorageBuffer<UInt> @15
+    uniform dim: UInt @16
+    uniform num_chunks: UInt @17
+    uniform top_k: UInt @18
+    uniform chunks_per_block: UInt @19
+    uniform min_score: UInt @20
+    uniform query_lane_mask: StorageBuffer<UInt> @21
+    uniform query_error_code: StorageBuffer<UInt> @22
+    uniform desired_repair_code: StorageBuffer<UInt> @23
+    uniform query_policy_mask: StorageBuffer<UInt> @24
+    uniform lane_bonus: StorageBuffer<UInt> @25
+    uniform code_bonus: StorageBuffer<UInt> @26
+    uniform repair_bonus: StorageBuffer<UInt> @27
+    uniform policy_bonus: StorageBuffer<UInt> @28
+    uniform overlap_bonus: StorageBuffer<UInt> @29
+    uniform heavy_penalty_scale: StorageBuffer<UInt> @30
+
+    comptime:
+        let compute = (
+            [256, 1, 1],
+            [3200000, 1, 1],
+            [
+                ("query_embed", "u8", ["384"], "input", "kain.shared.buffer"),
+                ("index_matrix", "u8", ["100000", "384"], "input", "kain.shared.buffer"),
+                ("index_weights", "u32", ["100000"], "input", "kain.shared.buffer"),
+                ("chunk_bias", "u32", ["100000"], "input", "kain.shared.buffer"),
+                ("chunk_lane_mask", "u32", ["100000"], "input", "kain.shared.buffer"),
+                ("chunk_error_code", "u32", ["100000"], "input", "kain.shared.buffer"),
+                ("chunk_repair_code", "u32", ["100000"], "input", "kain.shared.buffer"),
+                ("chunk_policy_mask", "u32", ["100000"], "input", "kain.shared.buffer"),
+                ("block_topk_indices", "u32", ["65536"], "output", "kain.shared.buffer"),
+                ("block_topk_scores", "u32", ["65536"], "output", "kain.shared.buffer"),
+                ("block_topk_repairs", "u32", ["65536"], "output", "kain.shared.buffer"),
+                ("block_topk_policies", "u32", ["65536"], "output", "kain.shared.buffer"),
+                ("warp_scratch_scores", "u32", ["65536"], "output", "kain.shared.buffer"),
+                ("warp_scratch_indices", "u32", ["65536"], "output", "kain.shared.buffer"),
+                ("warp_scratch_repairs", "u32", ["65536"], "output", "kain.shared.buffer"),
+                ("warp_scratch_policies", "u32", ["65536"], "output", "kain.shared.buffer"),
+                ("dim", "u32", ["1"], "input", "kain.shared.buffer"),
+                ("num_chunks", "u32", ["1"], "input", "kain.shared.buffer"),
+                ("top_k", "u32", ["1"], "input", "kain.shared.buffer"),
+                ("chunks_per_block", "u32", ["1"], "input", "kain.shared.buffer"),
+                ("min_score", "u32", ["1"], "input", "kain.shared.buffer"),
+                ("query_lane_mask", "u32", ["1"], "input", "kain.shared.buffer"),
+                ("query_error_code", "u32", ["1"], "input", "kain.shared.buffer"),
+                ("desired_repair_code", "u32", ["1"], "input", "kain.shared.buffer"),
+                ("query_policy_mask", "u32", ["1"], "input", "kain.shared.buffer"),
+                ("lane_bonus", "u32", ["1"], "input", "kain.shared.buffer"),
+                ("code_bonus", "u32", ["1"], "input", "kain.shared.buffer"),
+                ("repair_bonus", "u32", ["1"], "input", "kain.shared.buffer"),
+                ("policy_bonus", "u32", ["1"], "input", "kain.shared.buffer"),
+                ("overlap_bonus", "u32", ["1"], "input", "kain.shared.buffer"),
+                ("heavy_penalty_scale", "u32", ["1"], "input", "kain.shared.buffer"),
+            ],
+            [
+                ("query_embed", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("index_matrix", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("index_weights", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("chunk_bias", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("chunk_lane_mask", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("chunk_error_code", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("chunk_repair_code", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("chunk_policy_mask", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("block_topk_indices", "egress", "per-dispatch", "kain.shared.buffer"),
+                ("block_topk_scores", "egress", "per-dispatch", "kain.shared.buffer"),
+                ("block_topk_repairs", "egress", "per-dispatch", "kain.shared.buffer"),
+                ("block_topk_policies", "egress", "per-dispatch", "kain.shared.buffer"),
+                ("warp_scratch_scores", "egress", "per-dispatch", "kain.shared.buffer"),
+                ("warp_scratch_indices", "egress", "per-dispatch", "kain.shared.buffer"),
+                ("warp_scratch_repairs", "egress", "per-dispatch", "kain.shared.buffer"),
+                ("warp_scratch_policies", "egress", "per-dispatch", "kain.shared.buffer"),
+                ("dim", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("num_chunks", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("top_k", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("chunks_per_block", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("min_score", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("query_lane_mask", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("query_error_code", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("desired_repair_code", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("query_policy_mask", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("lane_bonus", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("code_bonus", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("repair_bonus", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("policy_bonus", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("overlap_bonus", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("heavy_penalty_scale", "ingress", "per-dispatch", "kain.shared.buffer"),
+            ],
+            [],
+        )
+
+    let block_id = id.x / UInt(256)
+    let lane = cuda_lane_id()
+    let warp_id = cuda_warp_id()
+    if top_k == UInt(0):
+        return
+
+    let block_start = block_id * chunks_per_block
+    var block_end = block_start + chunks_per_block
+    if block_end > num_chunks:
+        block_end = num_chunks
+    if block_start >= num_chunks:
+        return
+
+    if warp_id == UInt(0) and lane == UInt(0):
+        let block_base = block_id * top_k
+        var zi: UInt = UInt(0)
+        while zi < top_k:
+            block_topk_indices[block_base + zi] = UInt(0)
+            block_topk_scores[block_base + zi] = UInt(0)
+            block_topk_repairs[block_base + zi] = UInt(0)
+            block_topk_policies[block_base + zi] = UInt(0)
+            zi = zi + UInt(1)
+    cuda_barrier_sync()
+
+    let q_lane_mask = query_lane_mask[0]
+    let q_code = query_error_code[0]
+    let q_repair = desired_repair_code[0]
+    let q_policy = query_policy_mask[0]
+    let l_bonus = lane_bonus[0]
+    let c_bonus = code_bonus[0]
+    let r_bonus = repair_bonus[0]
+    let p_bonus = policy_bonus[0]
+    let o_bonus = overlap_bonus[0]
+    let heavy_scale = heavy_penalty_scale[0]
+    let scratch_base = block_id * UInt(8)
+
+    var chunk = block_start + warp_id
+    while chunk < block_end:
+        let chunk_base = chunk * dim
+        let lane_mask = chunk_lane_mask[chunk]
+        let policy_mask = chunk_policy_mask[chunk]
+
+        var local_hits: UInt = UInt(0)
+        var local_score: UInt = UInt(0)
+        var local_overlap: UInt = UInt(0)
+        var dim_index = lane
+        while dim_index < dim:
+            let q = query_embed[dim_index]
+            if q != UInt(0):
+                let v = index_matrix[chunk_base + dim_index]
+                if q == v:
+                    local_hits = local_hits + UInt(1)
+                    local_score = local_score + UInt(1024)
+                let ov = q & v
+                if ov != UInt(0):
+                    local_overlap = local_overlap + UInt(1)
+            dim_index = dim_index + UInt(32)
+
+        let hit_count = cuda_warp_reduce_sum_u32(local_hits)
+        let match_score = cuda_warp_reduce_sum_u32(local_score)
+        let overlap_count = cuda_warp_reduce_sum_u32(local_overlap)
+
+        var final_score: UInt = UInt(0)
+        if lane == UInt(0):
+            final_score = match_score
+            if hit_count > UInt(0):
+                final_score = final_score + chunk_bias[chunk]
+                final_score = final_score + overlap_count * o_bonus
+
+                let lane_overlap_mask = lane_mask & q_lane_mask
+                if lane_overlap_mask != UInt(0):
+                    var lane_bits: UInt = UInt(0)
+                    var bit: UInt = UInt(0)
+                    while bit < UInt(32):
+                        if ((lane_overlap_mask >> bit) & UInt(1)) != UInt(0):
+                            lane_bits = lane_bits + UInt(1)
+                        bit = bit + UInt(1)
+                    final_score = final_score + lane_bits * l_bonus
+
+                let policy_overlap_mask = policy_mask & q_policy
+                if policy_overlap_mask != UInt(0):
+                    var policy_bits: UInt = UInt(0)
+                    var pbit: UInt = UInt(0)
+                    while pbit < UInt(32):
+                        if ((policy_overlap_mask >> pbit) & UInt(1)) != UInt(0):
+                            policy_bits = policy_bits + UInt(1)
+                        pbit = pbit + UInt(1)
+                    final_score = final_score + policy_bits * p_bonus
+
+                if chunk_error_code[chunk] == q_code:
+                    final_score = final_score + c_bonus
+                if chunk_repair_code[chunk] == q_repair:
+                    final_score = final_score + r_bonus
+
+                let weight = index_weights[chunk]
+                if weight > UInt(0) and heavy_scale > UInt(0):
+                    let penalty = (weight * heavy_scale) >> UInt(8)
+                    if final_score > penalty:
+                        final_score = final_score - penalty
+                    else:
+                        final_score = UInt(0)
+
+        if lane == UInt(0):
+            warp_scratch_scores[scratch_base + warp_id] = final_score
+            warp_scratch_indices[scratch_base + warp_id] = chunk
+            warp_scratch_repairs[scratch_base + warp_id] = chunk_repair_code[chunk]
+            warp_scratch_policies[scratch_base + warp_id] = policy_mask
+
+        cuda_barrier_sync()
+
+        if warp_id == UInt(0) and lane == UInt(0):
+            var w: UInt = UInt(0)
+            while w < UInt(8):
+                let cand_score = warp_scratch_scores[scratch_base + w]
+                let cand_index = warp_scratch_indices[scratch_base + w]
+                let cand_repair = warp_scratch_repairs[scratch_base + w]
+                let cand_policy = warp_scratch_policies[scratch_base + w]
+                if cand_score > UInt(0) and cand_score >= min_score:
+                    var weakest_slot: UInt = UInt(0)
+                    var weakest_score = block_topk_scores[block_id * top_k]
+                    var probe: UInt = UInt(1)
+                    while probe < top_k:
+                        let ps = block_topk_scores[block_id * top_k + probe]
+                        if ps < weakest_score:
+                            weakest_score = ps
+                            weakest_slot = probe
+                        probe = probe + UInt(1)
+
+                    if cand_score > weakest_score:
+                        var shift: UInt = top_k - UInt(1)
+                        while shift > weakest_slot:
+                            block_topk_scores[block_id * top_k + shift] = block_topk_scores[block_id * top_k + shift - UInt(1)]
+                            block_topk_indices[block_id * top_k + shift] = block_topk_indices[block_id * top_k + shift - UInt(1)]
+                            block_topk_repairs[block_id * top_k + shift] = block_topk_repairs[block_id * top_k + shift - UInt(1)]
+                            block_topk_policies[block_id * top_k + shift] = block_topk_policies[block_id * top_k + shift - UInt(1)]
+                            shift = shift - UInt(1)
+                        block_topk_scores[block_id * top_k + weakest_slot] = cand_score
+                        block_topk_indices[block_id * top_k + weakest_slot] = cand_index
+                        block_topk_repairs[block_id * top_k + weakest_slot] = cand_repair
+                        block_topk_policies[block_id * top_k + weakest_slot] = cand_policy
+                w = w + UInt(1)
+
+        cuda_barrier_sync()
+        chunk = chunk + UInt(8)
+
+    return
+
+
+// ============================================================================
+// KERNEL 2 :: RepairPolicyConflictScan
+// ============================================================================
+// Scans pairwise conflict pressure across current top-k shortlist.
+//
+// Output:
+// - conflict_matrix[row, col] (flattened 128x128)
+// - row_penalty[row]
+//
+// Conflict heuristics:
+// - no policy overlap => conflict +1
+// - same error code but different repair => conflict +2
+// - same repair repeated in different rows => conflict +1
+// ============================================================================
+
+shader compute RepairPolicyConflictScan(id: UVec3) -> Void:
+    uniform top_indices: StorageBuffer<UInt> @0
+    uniform top_scores: StorageBuffer<UInt> @1
+    uniform chunk_policy_mask: StorageBuffer<UInt> @2
+    uniform chunk_error_code: StorageBuffer<UInt> @3
+    uniform chunk_repair_code: StorageBuffer<UInt> @4
+    uniform conflict_matrix: StorageBuffer<UInt> @5
+    uniform row_penalty: StorageBuffer<UInt> @6
+    uniform top_k: UInt @7
+    uniform min_score: UInt @8
+
+    comptime:
+        let compute = (
+            [128, 1, 1],
+            [128, 1, 1],
+            [
+                ("top_indices", "u32", ["128"], "input", "kain.shared.buffer"),
+                ("top_scores", "u32", ["128"], "input", "kain.shared.buffer"),
+                ("chunk_policy_mask", "u32", ["100000"], "input", "kain.shared.buffer"),
+                ("chunk_error_code", "u32", ["100000"], "input", "kain.shared.buffer"),
+                ("chunk_repair_code", "u32", ["100000"], "input", "kain.shared.buffer"),
+                ("conflict_matrix", "u32", ["16384"], "output", "kain.shared.buffer"),
+                ("row_penalty", "u32", ["128"], "output", "kain.shared.buffer"),
+                ("top_k", "u32", ["1"], "input", "kain.shared.buffer"),
+                ("min_score", "u32", ["1"], "input", "kain.shared.buffer"),
+            ],
+            [
+                ("top_indices", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("top_scores", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("chunk_policy_mask", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("chunk_error_code", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("chunk_repair_code", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("conflict_matrix", "egress", "per-dispatch", "kain.shared.buffer"),
+                ("row_penalty", "egress", "per-dispatch", "kain.shared.buffer"),
+                ("top_k", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("min_score", "ingress", "per-dispatch", "kain.shared.buffer"),
+            ],
+            [],
+        )
+
+    let row = id.x
+    if row >= UInt(128) or row >= top_k:
+        return
+
+    let row_base = row * UInt(128)
+    var penalty_sum: UInt = UInt(0)
+
+    if top_scores[row] >= min_score:
+        let idx_i = top_indices[row]
+        let policy_i = chunk_policy_mask[idx_i]
+        let code_i = chunk_error_code[idx_i]
+        let repair_i = chunk_repair_code[idx_i]
+
+        var col: UInt = UInt(0)
+        while col < top_k and col < UInt(128):
+            var entry: UInt = UInt(0)
+            if top_scores[col] >= min_score:
+                let idx_j = top_indices[col]
+                let policy_j = chunk_policy_mask[idx_j]
+                let code_j = chunk_error_code[idx_j]
+                let repair_j = chunk_repair_code[idx_j]
+
+                if row != col and (policy_i & policy_j) == UInt(0):
+                    entry = entry + UInt(1)
+                if code_i == code_j and repair_i != repair_j:
+                    entry = entry + UInt(2)
+                if row != col and repair_i == repair_j:
+                    entry = entry + UInt(1)
+            conflict_matrix[row_base + col] = entry
+            penalty_sum = penalty_sum + entry
+            col = col + UInt(1)
+    else:
+        var col0: UInt = UInt(0)
+        while col0 < top_k and col0 < UInt(128):
+            conflict_matrix[row_base + col0] = UInt(0)
+            col0 = col0 + UInt(1)
+
+    row_penalty[row] = penalty_sum
+    return
+
+
+// ============================================================================
+// KERNEL 3 :: RepairConsensusVoteReduce
+// ============================================================================
+// Reduces shortlisted candidates into repair/lane/policy vote bins and emits:
+// - primary_repair_out[0]: winning repair bucket (0..511)
+// - confidence_out[0]: vote ratio scaled by 10000
+//
+// Votes are score-weighted then row-penalty-adjusted.
+// ============================================================================
+
+shader compute RepairConsensusVoteReduce(id: UVec3) -> Void:
+    uniform top_indices: StorageBuffer<UInt> @0
+    uniform top_scores: StorageBuffer<UInt> @1
+    uniform chunk_lane_mask: StorageBuffer<UInt> @2
+    uniform chunk_repair_code: StorageBuffer<UInt> @3
+    uniform chunk_policy_mask: StorageBuffer<UInt> @4
+    uniform row_penalty: StorageBuffer<UInt> @5
+    uniform repair_vote_bins: StorageBuffer<UInt> @6
+    uniform lane_vote_bins: StorageBuffer<UInt> @7
+    uniform policy_vote_bins: StorageBuffer<UInt> @8
+    uniform primary_repair_out: StorageBuffer<UInt> @9
+    uniform confidence_out: StorageBuffer<UInt> @10
+    uniform top_k: UInt @11
+    uniform min_score: UInt @12
+
+    comptime:
+        let compute = (
+            [32, 1, 1],
+            [1, 1, 1],
+            [
+                ("top_indices", "u32", ["128"], "input", "kain.shared.buffer"),
+                ("top_scores", "u32", ["128"], "input", "kain.shared.buffer"),
+                ("chunk_lane_mask", "u32", ["100000"], "input", "kain.shared.buffer"),
+                ("chunk_repair_code", "u32", ["100000"], "input", "kain.shared.buffer"),
+                ("chunk_policy_mask", "u32", ["100000"], "input", "kain.shared.buffer"),
+                ("row_penalty", "u32", ["128"], "input", "kain.shared.buffer"),
+                ("repair_vote_bins", "u32", ["512"], "output", "kain.shared.buffer"),
+                ("lane_vote_bins", "u32", ["32"], "output", "kain.shared.buffer"),
+                ("policy_vote_bins", "u32", ["32"], "output", "kain.shared.buffer"),
+                ("primary_repair_out", "u32", ["1"], "output", "kain.shared.buffer"),
+                ("confidence_out", "u32", ["1"], "output", "kain.shared.buffer"),
+                ("top_k", "u32", ["1"], "input", "kain.shared.buffer"),
+                ("min_score", "u32", ["1"], "input", "kain.shared.buffer"),
+            ],
+            [
+                ("top_indices", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("top_scores", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("chunk_lane_mask", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("chunk_repair_code", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("chunk_policy_mask", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("row_penalty", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("repair_vote_bins", "egress", "per-dispatch", "kain.shared.buffer"),
+                ("lane_vote_bins", "egress", "per-dispatch", "kain.shared.buffer"),
+                ("policy_vote_bins", "egress", "per-dispatch", "kain.shared.buffer"),
+                ("primary_repair_out", "egress", "per-dispatch", "kain.shared.buffer"),
+                ("confidence_out", "egress", "per-dispatch", "kain.shared.buffer"),
+                ("top_k", "ingress", "per-dispatch", "kain.shared.buffer"),
+                ("min_score", "ingress", "per-dispatch", "kain.shared.buffer"),
+            ],
+            [],
+        )
+
+    let lane = cuda_lane_id()
+
+    var rb: UInt = lane
+    while rb < UInt(512):
+        repair_vote_bins[rb] = UInt(0)
+        rb = rb + UInt(32)
+
+    var lb: UInt = lane
+    while lb < UInt(32):
+        lane_vote_bins[lb] = UInt(0)
+        policy_vote_bins[lb] = UInt(0)
+        lb = lb + UInt(32)
+
+    if lane == UInt(0):
+        primary_repair_out[0] = UInt(0)
+        confidence_out[0] = UInt(0)
+
+    cuda_barrier_sync()
+
+    if lane == UInt(0):
+        var total_vote: UInt = UInt(0)
+        var slot: UInt = UInt(0)
+        while slot < top_k and slot < UInt(128):
+            let score = top_scores[slot]
+            if score >= min_score:
+                let idx = top_indices[slot]
+                let repair_bucket = chunk_repair_code[idx] & UInt(511)
+                let lane_mask = chunk_lane_mask[idx]
+                let policy_mask = chunk_policy_mask[idx]
+                var vote = score
+                let penalty = row_penalty[slot]
+                if penalty > UInt(0):
+                    if vote > penalty:
+                        vote = vote - penalty
+                    else:
+                        vote = UInt(1)
+                if vote == UInt(0):
+                    vote = UInt(1)
+
+                repair_vote_bins[repair_bucket] = repair_vote_bins[repair_bucket] + vote
+                total_vote = total_vote + vote
+
+                var bit: UInt = UInt(0)
+                while bit < UInt(32):
+                    if ((lane_mask >> bit) & UInt(1)) != UInt(0):
+                        lane_vote_bins[bit] = lane_vote_bins[bit] + vote
+                    if ((policy_mask >> bit) & UInt(1)) != UInt(0):
+                        policy_vote_bins[bit] = policy_vote_bins[bit] + vote
+                    bit = bit + UInt(1)
+            slot = slot + UInt(1)
+
+        var best_bucket: UInt = UInt(0)
+        var best_vote: UInt = UInt(0)
+        var b: UInt = UInt(0)
+        while b < UInt(512):
+            let v = repair_vote_bins[b]
+            if v > best_vote:
+                best_vote = v
+                best_bucket = b
+            b = b + UInt(1)
+
+        primary_repair_out[0] = best_bucket
+        if total_vote > UInt(0):
+            confidence_out[0] = (best_vote * UInt(10000)) / total_vote
+        else:
+            confidence_out[0] = UInt(0)
+
+    return
+

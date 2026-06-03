@@ -1,0 +1,80 @@
+// High-signal semantic vocabulary for the compiler-side corpus.
+// This file is corpus material: it teaches the offline oracle how Kain talks
+// about its own language surfaces, interop edges, and GPU contracts.
+
+use std::cuda
+use std::python
+
+include native/native_math.h as nm
+import math as py_math
+
+world SemanticAuthority:
+    state diagnostics_seen: Int = 0
+    state shader_repairs: Int = 0
+    surface native_ui => Panel
+
+world SemanticMirror:
+    state diagnostics_copy: Int = 0
+    surface web => Panel
+
+entangle SemanticAuthority.diagnostics_seen <-> SemanticMirror.diagnostics_copy with single_writer
+
+law semantic_pack_is_offline(requires_cuda: Bool) -> Bool:
+    return requires_cuda == false
+
+patch semantic_record_shader_repair(target: SemanticAuthority, amount: Int) -> Int:
+    target.shader_repairs = target.shader_repairs + amount
+    return target.shader_repairs
+
+converge semantic_rank_signal(code_score: Int, context_score: Int) -> Int:
+    spec reference:
+        return code_score * 3 + context_score
+    fast llvm_lane when target("llvm"):
+        return (code_score << 1) + code_score + context_score
+    verify random(8)
+
+shatter struct SemanticTokenShard:
+    code_hash: Int
+    domain_hash: Int
+    repair_hash: Int
+
+pub fn semantic_python_bridge_boundary(symbol_score: Int) -> Int:
+    let sqrt_fn = python_getattr_raw(py_math, "sqrt")
+    let value = python_call_raw(sqrt_fn, [16.0])
+    return symbol_score + to_int(value)
+
+pub fn semantic_c_abi_boundary(seed: Int) -> Int:
+    return nm_mix(seed, 29)
+
+pub fn semantic_cuda_kernel_contract(seed: Int) -> Int:
+    let lane = cuda_lane_id()
+    return seed + to_int(lane)
+
+pub fn semantic_shader_resource_contract(binding_slot: Int, width: Int) -> Int:
+    if binding_slot < 0:
+        return -1
+    if width <= 0:
+        return -2
+    return binding_slot + width
+
+pub fn semantic_world_entangle_contract(value: Int) -> Int:
+    SemanticAuthority.diagnostics_seen = SemanticAuthority.diagnostics_seen + value
+    return SemanticMirror.diagnostics_copy
+
+pub fn semantic_ownership_contract(cells: ptr<Int>) -> Int:
+    let head = observe cells:
+        mem_load(cells, "Int")
+    return head
+
+shader compute SemanticCudaRepairKernel(id: UVec3) -> Vec4:
+    uniform scores: StorageBuffer<Vec4> @0
+    uniform output: StorageBuffer<Vec4> @1
+    uniform count: UInt @2
+    let index = id.x
+    if index >= count:
+        return vec4(0.0, 0.0, 0.0, 0.0)
+    let score = scores[index]
+    let lane = cuda_lane_id()
+    let repaired = vec4(score.x + to_float(lane), score.y, score.z, 1.0)
+    output[index] = repaired
+    return repaired

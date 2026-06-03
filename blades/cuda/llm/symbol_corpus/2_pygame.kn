@@ -1,0 +1,410 @@
+use std::actor
+use std::fs
+use std::interop
+use std::json
+use std::python
+use std::runtime
+
+import pygame as pygame
+import python2_lab.bridge as py_game
+from python2_lab.bridge import driver_name as py_driver_name
+from python2_lab.bridge import frame_signature as py_frame_signature
+from python2_lab.bridge import module_digest as py_module_digest
+
+const PYTHON2_MODULUS: Int = 1000000007
+const PYTHON2_PLAN_PATH: String = "data/game_plan.json"
+const PYTHON2_CHANNELS: Int = 3
+const PYTHON2_BALL_RADIUS: Int = 6
+
+component Python2Panel():
+    render <panel title="Kain Python2 // pygame game control plane" />
+
+world Python2Authority:
+    state frame: Int = 0
+    state score: Int = 0
+    state lives: Int = 0
+    state ball_x: Int = 0
+    state ball_y: Int = 0
+    state paddle_x: Int = 0
+    state render_signature: Int = 0
+    surface native_ui => Python2Panel
+
+world Python2Mirror:
+    state frame_copy: Int = 0
+    state score_copy: Int = 0
+    state lives_copy: Int = 0
+    state ball_x_copy: Int = 0
+    state ball_y_copy: Int = 0
+    state paddle_x_copy: Int = 0
+    state render_signature_copy: Int = 0
+    surface web => Python2Panel
+
+entangle Python2Authority.frame <-> Python2Mirror.frame_copy with single_writer
+entangle Python2Authority.score <-> Python2Mirror.score_copy with single_writer
+entangle Python2Authority.lives <-> Python2Mirror.lives_copy with single_writer
+entangle Python2Authority.ball_x <-> Python2Mirror.ball_x_copy with single_writer
+entangle Python2Authority.ball_y <-> Python2Mirror.ball_y_copy with single_writer
+entangle Python2Authority.paddle_x <-> Python2Mirror.paddle_x_copy with single_writer
+entangle Python2Authority.render_signature <-> Python2Mirror.render_signature_copy with single_writer
+
+shatter struct Python2Shard:
+    bias: Int
+    phase: Int
+    salt: Int
+    hot: Bool
+
+struct Python2State:
+    frame: Int
+    score: Int
+    lives: Int
+    paddle_x: Int
+    paddle_y: Int
+    paddle_w: Int
+    paddle_h: Int
+    ball_x: Int
+    ball_y: Int
+    ball_dx: Int
+    ball_dy: Int
+
+struct Python2RenderResult:
+    status: Int
+    signature: Int
+
+actor Python2Director:
+    state bias: Int = 23
+    state turns: Int = 0
+
+    on Pulse(reply_to: P, request: Int):
+        self.turns = self.turns + 1
+        let fold = ((request * 17) + (self.bias * 5) + self.turns + 31) % 97
+        send reply_to.Reply(value = fold)
+
+law coordinate_in_bounds(value: Int, limit: Int) -> Bool:
+    return value >= 0 and value < limit
+
+law lives_in_bounds(value: Int) -> Bool:
+    return value >= 0 and value <= 9
+
+patch commit_game_frame(authority: Python2Authority, frame: Int, score: Int, lives: Int, ball_x: Int, ball_y: Int, paddle_x: Int, signature: Int) -> Int:
+    authority.frame = frame
+    authority.score = score
+    authority.lives = lives
+    authority.ball_x = ball_x
+    authority.ball_y = ball_y
+    authority.paddle_x = paddle_x
+    authority.render_signature = signature
+    return authority.render_signature
+
+fn clamp_int(value: Int, low: Int, high: Int) -> Int:
+    if value < low:
+        return low
+    if value > high:
+        return high
+    return value
+
+fn abs_int(value: Int) -> Int:
+    if value < 0:
+        return 0 - value
+    return value
+
+fn plan_text() -> String:
+    return fs_read_text(PYTHON2_PLAN_PATH)
+
+fn plan_value(plan: Any, key: String, fallback: Int) -> Int:
+    return json_int_or(plan, key, fallback)
+
+fn seed_state(plan: Any) -> Python2State:
+    let arena_width = plan_value(plan, "arena_width", 320)
+    let arena_height = plan_value(plan, "arena_height", 200)
+    let paddle_w = plan_value(plan, "paddle_width", 56)
+    let paddle_h = plan_value(plan, "paddle_height", 10)
+    let lives = plan_value(plan, "lives", 3)
+    return Python2State {
+        frame: 0,
+        score: 0,
+        lives: lives,
+        paddle_x: (arena_width - paddle_w) / 2,
+        paddle_y: arena_height - 18,
+        paddle_w: paddle_w,
+        paddle_h: paddle_h,
+        ball_x: (arena_width / 2) - PYTHON2_BALL_RADIUS,
+        ball_y: arena_height / 3,
+        ball_dx: 4,
+        ball_dy: -4
+    }
+
+fn chase_paddle(state: Python2State, arena_width: Int, paddle_speed: Int, shard: Python2Shard) -> Int:
+    let paddle_center = state.paddle_x + (state.paddle_w / 2)
+    let ball_center = state.ball_x + PYTHON2_BALL_RADIUS
+    var next_x = state.paddle_x
+    if ball_center > paddle_center + 2:
+        next_x = next_x + paddle_speed
+    else:
+        if ball_center < paddle_center - 2:
+            next_x = next_x - paddle_speed
+    return clamp_int(next_x + shard.phase - 1, 0, arena_width - state.paddle_w)
+
+fn step_state(state: Python2State, arena_width: Int, arena_height: Int, paddle_speed: Int, shard: Python2Shard, oracle_bias: Int) -> Python2State:
+    let next_paddle_x = chase_paddle(state, arena_width, paddle_speed, shard)
+    var next_ball_dx = state.ball_dx
+    var next_ball_dy = state.ball_dy
+    if oracle_bias % 7 == 0:
+        next_ball_dx = 0 - next_ball_dx
+
+    var next_ball_x = state.ball_x + next_ball_dx + (shard.phase - 1)
+    var next_ball_y = state.ball_y + next_ball_dy
+    var next_score = state.score
+    var next_lives = state.lives
+
+    let max_ball_x = arena_width - (PYTHON2_BALL_RADIUS * 2)
+    if next_ball_x <= 0:
+        next_ball_x = 0
+        next_ball_dx = abs_int(next_ball_dx)
+        next_score = next_score + 1
+    if next_ball_x >= max_ball_x:
+        next_ball_x = max_ball_x
+        next_ball_dx = 0 - abs_int(next_ball_dx)
+        next_score = next_score + 1
+    if next_ball_y <= 0:
+        next_ball_y = 0
+        next_ball_dy = abs_int(next_ball_dy)
+        next_score = next_score + 3
+
+    let paddle_hit_y = state.paddle_y - (PYTHON2_BALL_RADIUS * 2)
+    let ball_mid = next_ball_x + PYTHON2_BALL_RADIUS
+    let paddle_mid = next_paddle_x + (state.paddle_w / 2)
+    if next_ball_y >= paddle_hit_y and next_ball_y <= state.paddle_y + state.paddle_h and next_ball_dy > 0:
+        if ball_mid >= next_paddle_x - 2 and ball_mid <= next_paddle_x + state.paddle_w + 2:
+            next_ball_y = paddle_hit_y
+            next_ball_dy = 0 - (abs_int(state.ball_dy) + (shard.bias % 2))
+            if ball_mid > paddle_mid + 10:
+                next_ball_dx = abs_int(next_ball_dx) + 1
+            else:
+                if ball_mid < paddle_mid - 10:
+                    next_ball_dx = 0 - (abs_int(next_ball_dx) + 1)
+            next_score = next_score + 11 + shard.bias
+
+    if next_ball_y > arena_height:
+        next_lives = next_lives - 1
+        next_ball_x = (arena_width / 2) - PYTHON2_BALL_RADIUS
+        next_ball_y = arena_height / 3
+        next_ball_dx = 3 + (oracle_bias % 2)
+        next_ball_dy = -4
+        next_score = max(0, next_score - 17)
+
+    return Python2State {
+        frame: state.frame + 1,
+        score: next_score,
+        lives: next_lives,
+        paddle_x: next_paddle_x,
+        paddle_y: state.paddle_y,
+        paddle_w: state.paddle_w,
+        paddle_h: state.paddle_h,
+        ball_x: next_ball_x,
+        ball_y: next_ball_y,
+        ball_dx: next_ball_dx,
+        ball_dy: next_ball_dy
+    }
+
+fn ghost_lane_x(arena_width: Int, frame: Int, shard: Python2Shard, oracle_bias: Int) -> Int:
+    let span = max(1, arena_width - 40)
+    return ((frame * 13) + (shard.salt * 3) + (oracle_bias * 5)) % span
+
+fn maybe_collect_ghost(state: Python2State, ghost_x: Int, ghost_y: Int) -> Python2State:
+    let ball_mid_x = state.ball_x + PYTHON2_BALL_RADIUS
+    let ball_mid_y = state.ball_y + PYTHON2_BALL_RADIUS
+    var bonus = 0
+    if abs_int(ball_mid_x - (ghost_x + 17)) <= 16 and abs_int(ball_mid_y - (ghost_y + 9)) <= 12:
+        bonus = 19
+    return Python2State {
+        frame: state.frame,
+        score: state.score + bonus,
+        lives: state.lives,
+        paddle_x: state.paddle_x,
+        paddle_y: state.paddle_y,
+        paddle_w: state.paddle_w,
+        paddle_h: state.paddle_h,
+        ball_x: state.ball_x,
+        ball_y: state.ball_y,
+        ball_dx: state.ball_dx,
+        ball_dy: state.ball_dy
+    }
+
+fn accent_lane(score: Int, shard: Python2Shard, oracle_bias: Int) -> Int:
+    return ((score * 9) + (shard.salt * 5) + (oracle_bias * 3) + 41) % 255
+
+fn frame_state_text(state: Python2State, accent: Int, ghost_x: Int, ghost_y: Int) -> String:
+    let payload = json_object()
+    let _frame = json_object_set_int(payload, "frame", state.frame)
+    let _score = json_object_set_int(payload, "score", state.score)
+    let _lives = json_object_set_int(payload, "lives", state.lives)
+    let _paddle_x = json_object_set_int(payload, "paddle_x", state.paddle_x)
+    let _paddle_y = json_object_set_int(payload, "paddle_y", state.paddle_y)
+    let _paddle_w = json_object_set_int(payload, "paddle_w", state.paddle_w)
+    let _paddle_h = json_object_set_int(payload, "paddle_h", state.paddle_h)
+    let _ball_x = json_object_set_int(payload, "ball_x", state.ball_x)
+    let _ball_y = json_object_set_int(payload, "ball_y", state.ball_y)
+    let _ghost_x = json_object_set_int(payload, "ghost_x", ghost_x)
+    let _ghost_y = json_object_set_int(payload, "ghost_y", ghost_y)
+    let _accent = json_object_set_int(payload, "accent", accent)
+    return json_stringify(payload)
+
+fn render_frame_lane(plan_text: String, arena_width: Int, arena_height: Int, state: Python2State, accent: Int, ghost_x: Int, ghost_y: Int) -> Python2RenderResult:
+    let state_text = frame_state_text(state, accent, ghost_x, ghost_y)
+    let raster = python_call_attr_raw(py_game, "render_frame", [plan_text, state_text])
+    let shared_image = python_shared_image(raster)
+    let info = interop_shared_image_info(shared_image)
+    if info.contract != "kain.shared.image":
+        return Python2RenderResult { status: 40, signature: 0 }
+    if info.source_runtime != "python":
+        return Python2RenderResult { status: 41, signature: 0 }
+    if to_string(info.source_backend) != "numpy":
+        return Python2RenderResult { status: 42, signature: 0 }
+    if info.width != arena_width or info.height != arena_height:
+        return Python2RenderResult { status: 43, signature: 0 }
+    if info.channels != PYTHON2_CHANNELS or info.layout != "HWC":
+        return Python2RenderResult { status: 44, signature: 0 }
+    let expected_bytes = arena_width * arena_height * PYTHON2_CHANNELS
+    if info.byte_length != expected_bytes:
+        return Python2RenderResult { status: 45, signature: 0 }
+    let frame_bytes = interop_shared_image_bytes(shared_image)
+    if len(frame_bytes) != expected_bytes:
+        return Python2RenderResult { status: 46, signature: 0 }
+    let signature = to_int(py_frame_signature(raster))
+    if signature <= 0:
+        return Python2RenderResult { status: 47, signature: 0 }
+    return Python2RenderResult { status: 0, signature: signature }
+
+fn write_report(driver: String, pygame_version: String, checksum: Int, state: Python2State, authority: Python2Authority):
+    let report = json_object()
+    let _driver = json_object_set_string(report, "driver", driver)
+    let _version = json_object_set_string(report, "pygame_version", pygame_version)
+    let _checksum = json_object_set_int(report, "checksum", checksum)
+    let _frame = json_object_set_int(report, "frame", state.frame)
+    let _score = json_object_set_int(report, "score", state.score)
+    let _lives = json_object_set_int(report, "lives", state.lives)
+    let _ball_x = json_object_set_int(report, "ball_x", authority.ball_x)
+    let _ball_y = json_object_set_int(report, "ball_y", authority.ball_y)
+    let _paddle_x = json_object_set_int(report, "paddle_x", authority.paddle_x)
+    let _signature = json_object_set_int(report, "render_signature", authority.render_signature)
+    fs_write_text("python2_report.json", json_stringify(report))
+
+fn main() -> Int:
+    let authority = Python2Authority
+    let boot = runtime_init()
+    if boot != 0:
+        return 100 + boot
+
+    let plan_text_value = plan_text()
+    let plan = json_parse_text(plan_text_value)
+    let module_score = to_int(py_module_digest(plan_text_value))
+    if module_score <= 0:
+        let shutdown_module = runtime_shutdown()
+        if shutdown_module != 0:
+            return 200 + shutdown_module
+        return 10
+
+    if to_string(python_getattr_raw(pygame, "__name__")) != "pygame":
+        let shutdown_name = runtime_shutdown()
+        if shutdown_name != 0:
+            return 210 + shutdown_name
+        return 11
+
+    let version_module = python_getattr_raw(pygame, "version")
+    let pygame_version = to_string(python_getattr_raw(version_module, "ver"))
+    if len(pygame_version) == 0:
+        let shutdown_version = runtime_shutdown()
+        if shutdown_version != 0:
+            return 220 + shutdown_version
+        return 12
+
+    let direct_color = python_call_attr_raw(pygame, "Color", [17, 29, 31])
+    if to_int(python_getattr_raw(direct_color, "g")) != 29:
+        let shutdown_color = runtime_shutdown()
+        if shutdown_color != 0:
+            return 230 + shutdown_color
+        return 13
+
+    let driver = to_string(py_driver_name(plan_text_value))
+    if json_bool_or(plan, "pygame_use_display", true) and len(driver) == 0:
+        let shutdown_driver = runtime_shutdown()
+        if shutdown_driver != 0:
+            return 240 + shutdown_driver
+        return 14
+
+    let arena_width = plan_value(plan, "arena_width", 320)
+    let arena_height = plan_value(plan, "arena_height", 200)
+    let paddle_speed = plan_value(plan, "paddle_speed", 10)
+    let rounds = plan_value(plan, "rounds", 24)
+    let director = spawn Python2Director(bias = plan_value(plan, "oracle_bias", 23))
+    let _warm = ask(director, "Pulse", module_score)
+
+    // ============================================================================
+    //                    Kain owns the game; pygame owns pixels
+    // ============================================================================
+    var checksum = module_score
+    var round: Int = 0
+    var status: Int = 0
+    var state = seed_state(plan)
+
+    while round < rounds and status == 0 and state.lives > 0:
+        let oracle_bias = ask(director, "Pulse", checksum + round + state.score)
+        let shard = Python2Shard {
+            bias: (round % 7) + 1,
+            phase: (oracle_bias % 3) + 1,
+            salt: (round * 5) + 11,
+            hot: (round & 1) == 0
+        }
+        let moved = teleport shard from Python2Authority to Python2Mirror via python2_game_bus
+        let stepped = step_state(state, arena_width, arena_height, paddle_speed, moved, oracle_bias)
+        let ghost_x = ghost_lane_x(arena_width, stepped.frame, moved, oracle_bias)
+        let ghost_y = clamp_int((arena_height / 4) + moved.phase, 24, arena_height / 2)
+        let scored = maybe_collect_ghost(stepped, ghost_x, ghost_y)
+        let accent = accent_lane(scored.score, moved, oracle_bias)
+        let render = render_frame_lane(plan_text_value, arena_width, arena_height, scored, accent, ghost_x, ghost_y)
+        if render.status != 0:
+            status = render.status
+        else:
+            let committed = commit_game_frame(
+                authority,
+                scored.frame,
+                scored.score,
+                scored.lives,
+                scored.ball_x,
+                scored.ball_y,
+                scored.paddle_x,
+                render.signature
+            )
+            if committed <= 0:
+                status = 60
+            else:
+                checksum = (
+                    checksum +
+                    render.signature +
+                    scored.score +
+                    oracle_bias +
+                    ghost_x +
+                    ghost_y +
+                    moved.salt
+                ) % PYTHON2_MODULUS
+                state = scored
+                round = round + 1
+
+    if status == 0:
+        if coordinate_in_bounds(authority.ball_x, arena_width) == false:
+            status = 70
+        if coordinate_in_bounds(authority.paddle_x, arena_width) == false:
+            status = 71
+        if lives_in_bounds(authority.lives) == false:
+            status = 72
+        if authority.render_signature <= 0:
+            status = 73
+        if authority.score <= 0:
+            status = 74
+
+    write_report(driver, pygame_version, checksum, state, authority)
+
+    let shutdown = runtime_shutdown()
+    if shutdown != 0:
+        return 500 + shutdown
+    return status

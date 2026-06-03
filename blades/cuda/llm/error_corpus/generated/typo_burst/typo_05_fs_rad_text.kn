@@ -1,0 +1,10 @@
+// ERROR: Generated typo corpus case
+// @expected_code: KAIN-TYPE-0002
+// @expected_mode: Typo
+// @expected_repair: fs_read_text
+
+use std::fs
+
+fn main() -> Int:
+    let content = fs_rad_text("demo.txt")
+    return 0

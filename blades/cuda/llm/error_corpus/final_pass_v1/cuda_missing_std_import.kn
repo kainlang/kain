@@ -1,0 +1,7 @@
+// @expected_code: KAIN-TYPE-0002
+// @expected_mode: CudaKernelContract
+// @expected_repair: use std::cuda
+
+fn main() -> Int:
+    let lane = cuda_grid_intrinsic_lane()
+    return to_int(lane)

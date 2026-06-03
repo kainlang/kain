@@ -1,0 +1,118 @@
+use std::random
+use std::intent
+
+pub fn smoke_random_lane() -> Int with Unsafe:
+    # 1. Test Xoshiro128 creation and deterministic sequence
+    let rng = xoshiro128_new(42)
+    if rng.s0 == 0:
+        return 1
+
+    let res1 = xoshiro128_next(rng)
+    let res2 = xoshiro128_next(res1.rng)
+    if res1.value == res2.value:
+        return 2
+
+    # Verify that seed 42 produces deterministic sequence
+    let rng_twin = xoshiro128_new(42)
+    let res_twin = xoshiro128_next(rng_twin)
+    if res1.value != res_twin.value:
+        return 3
+
+    # 2. Test unbiased integer range (Lemire's algorithm)
+    # Check 100 samples are in range [5, 15]
+    var current_rng = res2.rng
+    var i = 0
+    while i < 100:
+        let range_res = random_int_in_range(current_rng, 5, 15)
+        current_rng = range_res.rng
+        if range_res.value < 5 or range_res.value > 15:
+            return 4
+        i = i + 1
+
+    # 3. Test uniform float in [0.0, 1.0)
+    var j = 0
+    while j < 50:
+        let float_res = random_float(current_rng)
+        current_rng = float_res.rng
+        if float_res.value < 0.0 or float_res.value >= 1.0:
+            return 5
+        j = j + 1
+
+    # 4. Test Box-Muller normal floats (math_ln + random_float_norm)
+    let norm_res = random_float_norm(current_rng)
+    current_rng = norm_res.rng
+    # Simply check that Box-Muller produces a real float value
+    if norm_res.value < -100.0 or norm_res.value > 100.0:
+        return 6
+
+    # 5. Test Kain-native Ambient PRNG and patch transactions!
+    # Record starting patch journal transaction count
+    let start_journal = patch_journal_count()
+
+    # Mutate the global PRNG world state via patch call
+    let a1 = random_ambient_next()
+    let a2 = random_ambient_next()
+
+    if a1 == a2:
+        # Extremely unlikely for two 32-bit generations to match
+        return 7
+
+    # Assert that Kains patch journal counter incremented!
+    # Every random_ambient_next() fires a transaction-journaled patch mutation!
+    let end_journal = patch_journal_count()
+    if end_journal <= start_journal:
+        return 8
+
+    # 6. Test ambient range helpers
+    let val_in_range = random_ambient_int_in_range(100, 200)
+    if val_in_range < 100 or val_in_range > 200:
+        return 9
+
+    let ambient_float = random_ambient_float()
+    if ambient_float < 0.0 or ambient_float >= 1.0:
+        return 10
+
+    # 7. Test Shattered Parallel Entropy Buffer
+    let sh_rng = shattered_rng_buffer_new(99, 4)
+    if sh_rng.lanes != 4:
+        return 11
+
+    let sh_out: ptr<Int> = alloc_zeroed(4, "Int")
+    let sh_ret = shattered_rng_buffer_next_block(sh_rng, sh_out)
+    if sh_ret != 4:
+        return 12
+
+    let val0 = mem_load(ptr_offset(sh_out, 0, "Int"), "Int")
+    let val1 = mem_load(ptr_offset(sh_out, 1, "Int"), "Int")
+    let val2 = mem_load(ptr_offset(sh_out, 2, "Int"), "Int")
+    let val3 = mem_load(ptr_offset(sh_out, 3, "Int"), "Int")
+
+    # Confirm that all 4 values are different (highly likely) and initialized
+    if val0 == 0 or val1 == 0 or val2 == 0 or val3 == 0:
+        return 13
+
+    if val0 == val1 or val1 == val2 or val2 == val3:
+        return 14
+
+    decay sh_out
+    let _sh_destroy = shattered_rng_buffer_destroy(sh_rng)
+
+    # 8. Test Quantum Entanglement synchronization
+    # Record current mirror seeds
+    let m0 = AmbientRandomMirrorWorld.seed0_copy
+    let m1 = AmbientRandomMirrorWorld.seed1_copy
+
+    # Generate from ambient authority
+    let _a3 = random_ambient_next()
+
+    # Mirror seeds MUST have automatically updated and matched!
+    if AmbientRandomMirrorWorld.seed0_copy == m0:
+        return 15
+
+    if AmbientRandomMirrorWorld.seed0_copy != AmbientRandomWorld.seed0:
+        return 16
+
+    if AmbientRandomMirrorWorld.seed1_copy != AmbientRandomWorld.seed1:
+        return 17
+
+    return 0

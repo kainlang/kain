@@ -1,0 +1,56 @@
+use memory::smoke_memory_lane
+use ownership::smoke_ownership_lane
+use converge::smoke_mix_pair
+use law::smoke_validate_range
+
+@packed
+@aligned(8)
+@mmio(base: 8192, stride: 8, endian: "native")
+struct DeviceRegs:
+    control: Int
+    status: Int
+
+@naked
+@section(".text.kain.smoke.trap")
+fn smoke_naked_trap_lane() with Unsafe:
+    asm("ret")
+
+@interrupt("x86-interrupt")
+@section(".text.kain.smoke.irq")
+fn smoke_interrupt_lane() with Unsafe:
+    return
+
+fn smoke_mmio_fold(regs: ptr<DeviceRegs>) -> Int with Unsafe:
+    regs.control = 41
+    regs.status = regs.control + 1
+    return regs.status
+
+pub fn smoke_mmio_interrupt_lane() -> Int with Unsafe:
+    let backing: ptr<Int> = alloc_zeroed(2, "Int")
+    if ptr_to_int(backing) == 0:
+        return 1
+
+    let regs: ptr<DeviceRegs> = int_to_ptr(ptr_to_int(backing), "ptr<DeviceRegs>")
+    let mmio_status = smoke_mmio_fold(regs)
+    let raw_control = mem_load(ptr_offset(backing, 0, "Int"), "Int")
+    let raw_status = mem_load(ptr_offset(backing, 1, "Int"), "Int")
+    if mmio_status != 42 or raw_control != 41 or raw_status != 42:
+        decay backing
+        return 2
+
+    let memory_status = smoke_memory_lane()
+    if memory_status != 0:
+        decay backing
+        return 3
+
+    let ownership_status = smoke_ownership_lane()
+    if ownership_status != 0:
+        decay backing
+        return 4
+
+    let checksum = smoke_mix_pair(mmio_status, raw_status + memory_status + ownership_status)
+    decay backing
+    if smoke_validate_range(checksum, 0, 1000000007) == false:
+        return 5
+
+    return 0

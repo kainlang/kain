@@ -1,0 +1,65 @@
+@extern
+fn abi_wire_zero_copy_binary_checksum(iterations: Int, packet_count: Int, words_per_packet: Int, modulus: Int) -> Int
+
+fn zero_copy_binary_wire_scalar(iterations: Int, packet_count: Int, words_per_packet: Int, modulus: Int) -> Int:
+    let total_words: Int = packet_count * words_per_packet
+    let mut buffer: ptr<Int> = alloc_zeroed(total_words, "Int")
+
+    let checksum: Int = collapse buffer:
+        var acc: Int = 0
+        var round: Int = 0
+        while round < iterations:
+            var packet: Int = 0
+            while packet < packet_count:
+                let seq: Int = (round * packet_count) + packet
+                let version: Int = (packet % 4) + 1
+                let kind: Int = ((packet * 3) + round) % 8
+                let flags: Int = (round + packet) % 16
+                let route: Int = ((packet * 5) + 7) % 64
+                let payload: Int = ((seq * 13) + (route * 17) + 19) % 4096
+                let word0: Int = (seq * 4096) + (kind * 256) + (flags * 16) + version
+                let word1: Int = (payload * 128) + route
+                let word2: Int = ((seq % 97) * 2048) + ((payload % 127) * 16) + flags
+                let word3: Int = (word0 + word1 + word2 + 97) % 1000003
+                let base: Int = packet * words_per_packet
+                mem_store(ptr_offset(buffer, base + 0, "Int"), word0, "Int")
+                mem_store(ptr_offset(buffer, base + 1, "Int"), word1, "Int")
+                mem_store(ptr_offset(buffer, base + 2, "Int"), word2, "Int")
+                mem_store(ptr_offset(buffer, base + 3, "Int"), word3, "Int")
+
+                let observed0: Int = mem_load(ptr_offset(buffer, base + 0, "Int"), "Int")
+                let observed1: Int = mem_load(ptr_offset(buffer, base + 1, "Int"), "Int")
+                let observed2: Int = mem_load(ptr_offset(buffer, base + 2, "Int"), "Int")
+                let observed3: Int = mem_load(ptr_offset(buffer, base + 3, "Int"), "Int")
+                let observed_version: Int = observed0 % 16
+                let observed_flags: Int = (observed0 / 16) % 16
+                let observed_kind: Int = (observed0 / 256) % 16
+                let observed_seq: Int = observed0 / 4096
+                let observed_route: Int = observed1 % 128
+                let observed_payload: Int = observed1 / 128
+                let observed_epoch: Int = observed2 / 2048
+                acc = (acc + observed_version + observed_flags + observed_kind + (observed_seq % 97) + observed_route + observed_payload + observed_epoch + observed3) % modulus
+                packet = packet + 1
+            round = round + 1
+        acc
+
+    decay buffer
+    return checksum
+
+converge zero_copy_binary_wire_checksum(iterations: Int, packet_count: Int, words_per_packet: Int, modulus: Int) -> Int:
+    spec reference:
+        return zero_copy_binary_wire_scalar(iterations, packet_count, words_per_packet, modulus)
+    fast packed_periodic_lane when target("llvm"):
+        return abi_wire_zero_copy_binary_checksum(iterations, packet_count, words_per_packet, modulus)
+
+fn main() -> Int:
+    let packet_count: Int = 64
+    let words_per_packet: Int = 4
+    let iterations: Int = 200000
+    let modulus: Int = 1000000007
+    let expected: Int = 924829641
+
+    let checksum: Int = zero_copy_binary_wire_checksum(iterations, packet_count, words_per_packet, modulus)
+    if checksum != expected:
+        return 1
+    return 0

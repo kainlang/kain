@@ -48,6 +48,7 @@ fn build(ctx: BuildContext) -> BuildGraph:
         .input("cases_v2/mcp_stdlib.kn")
         .input("cases_v2/keyword_expansion.kn")
         .input("cases_v2/gpu_cpu_pipeline.kn")
+        .input("cases_v2/orchestration.kn")
         .input("build.kn")
 
     let root_exe = native_executable("root-executable")
@@ -67,6 +68,7 @@ fn build(ctx: BuildContext) -> BuildGraph:
         .input("cases_v2/mcp_stdlib.kn")
         .input("cases_v2/keyword_expansion.kn")
         .input("cases_v2/gpu_cpu_pipeline.kn")
+        .input("cases_v2/orchestration.kn")
         .input("build.kn")
 
     let telemetry = exec_task("telemetry-v2")
@@ -87,6 +89,7 @@ fn build(ctx: BuildContext) -> BuildGraph:
         .input("cases_v2/mcp_stdlib.kn")
         .input("cases_v2/keyword_expansion.kn")
         .input("cases_v2/gpu_cpu_pipeline.kn")
+        .input("cases_v2/orchestration.kn")
         .input("build.kn")
         .arg("-NoProfile")
         .arg("-ExecutionPolicy")

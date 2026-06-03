@@ -1,0 +1,11 @@
+// @expected_code: KAIN-SHADER-0011
+// @expected_mode: ShaderResourceContract
+// @expected_repair: reduce_gpu_memory
+
+// A shader that exceeds the GPU memory budget for register/shared memory.
+shader compute MemoryHog:
+    uniform huge_buf: Array<Vec4> @0
+    fn main():
+        let idx = dispatch_thread_id.x
+        mem_store(huge_buf, idx, vec4(1.0, 1.0, 1.0, 1.0))
+        return

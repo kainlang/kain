@@ -1,0 +1,7 @@
+// ERROR: Unknown identifier - typo in function name
+// @expected_code: KAIN-TYPE-0002
+// @expected_mode: Typo
+// @expected_repair: hash_mix64
+fn main() -> Int:
+    let result = hash_mi64("hello")
+    return 0

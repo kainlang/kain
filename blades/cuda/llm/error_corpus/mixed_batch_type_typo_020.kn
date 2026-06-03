@@ -1,0 +1,7 @@
+// ERROR: generated type typo corpus fixture
+// @expected_code: KAIN-TYPE-0002
+// @expected_mode: Typo
+// @expected_repair: println
+fn main() -> Int:
+    let signal = prntln("semantic typo 20")
+    return 0

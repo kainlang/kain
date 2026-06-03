@@ -1,0 +1,7 @@
+// ERROR: Unknown identifier - typo in function name
+// @expected_code: KAIN-TYPE-0002
+// @expected_mode: Typo
+// @expected_repair: fs_read_text
+fn main() -> Int:
+    let result = fs_read_texx("hello")
+    return 0

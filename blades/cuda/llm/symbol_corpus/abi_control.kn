@@ -1,0 +1,47 @@
+use memory::smoke_memory_lane
+use converge::smoke_mix_pair
+use law::smoke_validate_range
+
+@thread_local
+@section(".tls")
+const ABI_TLS_ANCHOR: Int = 3
+
+@thread_local
+@section(".tls.kain.smoke")
+const ABI_TLS_COUNTER: Int = 7
+
+@thread_local
+@section(".tls$smoke")
+const ABI_TLS_BIAS: Int = 11
+
+@thread_local
+@section(".tls$B")
+const ABI_TLS_EXPERT: Int = 13
+
+@section(".rdata.kain.smoke")
+@link_name("__kain_smoke_const_bias")
+const ABI_CONST_BIAS: Int = 5
+
+@callconv("win64")
+@section(".text.kain.smoke.abi")
+@link_name("__kain_smoke_abi_mix")
+fn smoke_abi_symbol_lane(seed: Int) -> Int:
+    return seed + ABI_TLS_ANCHOR + ABI_TLS_COUNTER + ABI_TLS_BIAS + ABI_TLS_EXPERT + ABI_CONST_BIAS
+
+pub fn smoke_abi_control_lane() -> Int with Unsafe:
+    let memory_status = smoke_memory_lane()
+    if memory_status != 0:
+        return 1
+
+    let mixed = smoke_abi_symbol_lane(11)
+    if mixed != 50:
+        return 2
+
+    let checksum = smoke_mix_pair(
+        mixed,
+        ABI_TLS_ANCHOR + ABI_TLS_COUNTER + ABI_TLS_BIAS + ABI_TLS_EXPERT + ABI_CONST_BIAS,
+    )
+    if smoke_validate_range(checksum, 0, 1000000007) == false:
+        return 3
+
+    return 0

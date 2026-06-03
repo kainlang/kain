@@ -1,0 +1,183 @@
+use std::runtime
+use std::actor
+use std::intent
+use std::time
+
+const BACKPRESSURE_MODULUS: Int = 1000000007
+
+component BackpressurePanel():
+    render <panel title="actor-ownership-backpressure" />
+
+world BackpressureAuthority:
+    state signal: Int = 1
+    state epoch: Int = 0
+    state credit: Int = 0
+    surface native_ui => BackpressurePanel
+
+world BackpressureMirror:
+    state signal_copy: Int = 1
+    state epoch_copy: Int = 0
+    state credit_copy: Int = 0
+    surface web => BackpressurePanel
+
+entangle BackpressureAuthority.signal <-> BackpressureMirror.signal_copy with single_writer
+entangle BackpressureAuthority.epoch <-> BackpressureMirror.epoch_copy with single_writer
+entangle BackpressureAuthority.credit <-> BackpressureMirror.credit_copy with single_writer
+
+shatter struct BackpressurePacket:
+    bias: Int
+    phase: Int
+    salt: Int
+    hot: Bool
+
+actor BackpressureRelay:
+    state bias: Int = 7
+    state turns: Int = 0
+    state lag: Int = 0
+
+    on Fold(reply_to: P, request: Int):
+        let next_turns = self.turns + 1
+        let next_lag = (self.lag + (request % 17) + next_turns) % BACKPRESSURE_MODULUS
+        self.turns = next_turns
+        self.lag = next_lag
+        send reply_to.Reply(value = ((request * 19) + self.bias + 31) % BACKPRESSURE_MODULUS)
+
+law backpressure_valid(value: Int) -> Bool:
+    return value >= 0 and value < BACKPRESSURE_MODULUS
+
+patch commit_backpressure(authority: BackpressureAuthority, value: Int, delta: Int) -> Int:
+    authority.signal = value
+    authority.epoch = authority.epoch + 1
+    authority.credit = (authority.credit + delta + authority.epoch + 13) % BACKPRESSURE_MODULUS
+    return authority.signal
+
+fn backpressure_mix_scalar(value: Int) -> Int:
+    return ((value * 37) + 11) % BACKPRESSURE_MODULUS
+
+converge backpressure_mix(value: Int) -> Int:
+    spec reference:
+        return backpressure_mix_scalar(value)
+    fast llvm_lane when target("llvm"):
+        return ((value * 37) + 11) % BACKPRESSURE_MODULUS
+    verify random(4)
+
+fn backpressure_stage(value: Int) -> Int:
+    return (value + 23) % BACKPRESSURE_MODULUS
+
+orchestrate backpressure_pipeline(value: Int) -> Int:
+    let normalized: Int = kain backpressure_mix(value)
+    let staged: Int = rust backpressure_stage(normalized)
+    return staged
+
+fn ask_worker(slot: Int, w0: BackpressureRelay, w1: BackpressureRelay, w2: BackpressureRelay, w3: BackpressureRelay, w4: BackpressureRelay, w5: BackpressureRelay, w6: BackpressureRelay, w7: BackpressureRelay, request: Int) -> Int:
+    if slot == 0:
+        return ask(w0, "Fold", request)
+    elif slot == 1:
+        return ask(w1, "Fold", request)
+    elif slot == 2:
+        return ask(w2, "Fold", request)
+    elif slot == 3:
+        return ask(w3, "Fold", request)
+    elif slot == 4:
+        return ask(w4, "Fold", request)
+    elif slot == 5:
+        return ask(w5, "Fold", request)
+    elif slot == 6:
+        return ask(w6, "Fold", request)
+    return ask(w7, "Fold", request)
+
+fn fold_cells(cells: ptr<Int>, cell_count: Int) -> Int:
+    var index: Int = 0
+    var acc: Int = 0
+    while index < cell_count:
+        acc = (acc + mem_load(ptr_offset(cells, index, "Int"), "Int")) % BACKPRESSURE_MODULUS
+        index = index + 1
+    return acc
+
+fn main() -> Int:
+    let init_status = runtime_init()
+    if init_status != 0:
+        return 100 + init_status
+
+    let rounds: Int = 180000
+    let cell_count: Int = 192
+    let expected: Int = 474502230
+    let benchmark_deadline: Int = deadline_millis(0)
+    let authority = BackpressureAuthority
+    let w0 = spawn BackpressureRelay(bias = 5)
+    let w1 = spawn BackpressureRelay(bias = 7)
+    let w2 = spawn BackpressureRelay(bias = 11)
+    let w3 = spawn BackpressureRelay(bias = 13)
+    let w4 = spawn BackpressureRelay(bias = 17)
+    let w5 = spawn BackpressureRelay(bias = 19)
+    let w6 = spawn BackpressureRelay(bias = 23)
+    let w7 = spawn BackpressureRelay(bias = 29)
+    let _warm0 = ask(w0, "Fold", 0)
+    let _warm1 = ask(w1, "Fold", 0)
+    let _warm2 = ask(w2, "Fold", 0)
+    let _warm3 = ask(w3, "Fold", 0)
+    let _warm4 = ask(w4, "Fold", 0)
+    let _warm5 = ask(w5, "Fold", 0)
+    let _warm6 = ask(w6, "Fold", 0)
+    let _warm7 = ask(w7, "Fold", 0)
+    let packets = [
+        BackpressurePacket { bias: 3, phase: 5, salt: 17, hot: true },
+        BackpressurePacket { bias: 7, phase: 11, salt: 23, hot: false },
+        BackpressurePacket { bias: 13, phase: 17, salt: 29, hot: true },
+        BackpressurePacket { bias: 19, phase: 23, salt: 31, hot: true },
+        BackpressurePacket { bias: 23, phase: 29, salt: 37, hot: false },
+        BackpressurePacket { bias: 31, phase: 37, salt: 41, hot: true },
+        BackpressurePacket { bias: 41, phase: 43, salt: 47, hot: false },
+        BackpressurePacket { bias: 47, phase: 53, salt: 59, hot: true }
+    ]
+    let mut cells: ptr<Int> = alloc_zeroed(cell_count, "Int")
+
+    var checksum: Int = 0
+    collapse cells:
+        var i: Int = 0
+        while i < rounds:
+            let lane: Int = i % 8
+            let slot: Int = ((i * 5) + lane) % cell_count
+            let packet = BackpressurePacket {
+                bias: packets[lane].bias,
+                phase: packets[lane].phase,
+                salt: packets[lane].salt,
+                hot: packets[lane].hot
+            }
+            let moved = teleport packet from BackpressureAuthority to BackpressureMirror via backpressure_bus
+            let old_cell: Int = mem_load(ptr_offset(cells, slot, "Int"), "Int")
+            let mixed_input: Int = (checksum + old_cell + moved.bias + moved.phase + BackpressureMirror.credit_copy + i) % BACKPRESSURE_MODULUS
+            let staged: Int = backpressure_pipeline(mixed_input)
+            let committed: Int = commit_backpressure(authority, staged, moved.salt + lane)
+            let legal: Int = law_status(backpressure_valid(committed))
+            let burst: Int = ((i / 9) % 3) + 1
+            var lane_acc: Int = 0
+            var burst_idx: Int = 0
+            while burst_idx < burst:
+                let request: Int = (committed + old_cell + lane_acc + moved.phase + burst_idx + slot + legal) % BACKPRESSURE_MODULUS
+                let reply = ask_worker(lane, w0, w1, w2, w3, w4, w5, w6, w7, request)
+                lane_acc = (lane_acc + reply + burst_idx + lane) % BACKPRESSURE_MODULUS
+                burst_idx = burst_idx + 1
+            let next_cell: Int = (lane_acc + BackpressureMirror.signal_copy + BackpressureMirror.epoch_copy + BackpressureMirror.credit_copy + slot) % BACKPRESSURE_MODULUS
+            mem_store(ptr_offset(cells, slot, "Int"), next_cell, "Int")
+            checksum = (checksum + next_cell + lane_acc + burst + legal) % BACKPRESSURE_MODULUS
+            i = i + 1
+        0
+
+    let observed: Int = observe cells:
+        fold_cells(cells, cell_count)
+
+    decay cells
+
+    let final_score: Int = (checksum + observed + BackpressureMirror.signal_copy + BackpressureMirror.epoch_copy + BackpressureMirror.credit_copy) % BACKPRESSURE_MODULUS
+    let runtime_shape_ok = actor_abi_version() >= 3 and patch_journal_count() >= 1 and entangle_propagation_count() >= rounds and runtime_machine_teleport_count() >= rounds and converge_mismatch_count() == 0
+    let shutdown_status = runtime_shutdown()
+    if shutdown_status != 0:
+        return 200 + shutdown_status
+    if deadline_elapsed(benchmark_deadline) == false:
+        return 3
+    if runtime_shape_ok == false:
+        return 2
+    if final_score != expected:
+        return 1
+    return 0

@@ -1,0 +1,12 @@
+// ============================================================================
+//                    semantic-search :: MCP tool types
+// ============================================================================
+// Shared spec shape for the manifest-driven tool registry.
+
+pub struct McpToolSpec:
+    name: String
+    title: String
+    description: String
+    backend_mode: String
+    input_schema_json: String
+    argument_env_map_json: String

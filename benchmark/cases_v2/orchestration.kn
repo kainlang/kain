@@ -1,0 +1,491 @@
+use std::cuda
+use std::fs
+use std::intent
+use std::json
+use std::runtime
+
+const ORCHESTRATION_MODULUS: Int = 1000000007
+const ORCHESTRATION_CASE_COUNT: Int = 4
+const ORCHESTRATION_CELL_COUNT: Int = 96
+const ORCHESTRATION_LOG_CAPACITY: Int = 2048
+const ORCHESTRATION_DISPATCH_X: Int = 48
+const ORCHESTRATION_DISPATCH_Y: Int = 1
+const ORCHESTRATION_DISPATCH_Z: Int = 1
+const ORCHESTRATION_OVERRIDE_X: Int = 21
+const ORCHESTRATION_OVERRIDE_Y: Int = 3
+const ORCHESTRATION_OVERRIDE_Z: Int = 1
+const ORCHESTRATION_COMPUTE_KEY: String = "shader::OrchestrationKernel::compute"
+
+component OrchestrationPanel():
+    render <panel title="orchestration-god-mode" />
+
+world OrchestrationAuthority:
+    state signal: Int = 1
+    state epoch: Int = 0
+    state resonance: Int = 0
+    surface web => OrchestrationPanel
+    surface native_ui => OrchestrationPanel
+
+world OrchestrationMirror:
+    state signal_copy: Int = 1
+    state epoch_copy: Int = 0
+    state resonance_copy: Int = 0
+    surface web => OrchestrationPanel
+
+entangle OrchestrationAuthority.signal <-> OrchestrationMirror.signal_copy with single_writer
+entangle OrchestrationAuthority.epoch <-> OrchestrationMirror.epoch_copy with single_writer
+entangle OrchestrationAuthority.resonance <-> OrchestrationMirror.resonance_copy with single_writer
+
+shatter struct OrchestrationShard:
+    bias: Int
+    phase: Int
+    token: Int
+    alive: Bool
+
+law orchestration_signal_in_bounds(value: Int) -> Bool:
+    return value >= 0 and value < ORCHESTRATION_MODULUS
+
+law orchestration_phase_in_bounds(value: Int) -> Bool:
+    return value >= 0 and value < 4096
+
+patch orchestration_commit(authority: OrchestrationAuthority, value: Int, resonance_delta: Int) -> Int:
+    authority.signal = value
+    authority.epoch = authority.epoch + 1
+    authority.resonance = (authority.resonance + resonance_delta + authority.epoch + 31) % ORCHESTRATION_MODULUS
+    return authority.signal
+
+fn orchestration_axiom_fallback(value: Int) -> Int:
+    return ((value * 7) + 19) % ORCHESTRATION_MODULUS
+
+axiom orchestration_silicon_truth:
+    when target("llvm")
+    when capability("gpu.compute")
+    when capability("world.teleport")
+    guarantee "orchestration lane may fuse staged gpu and world crossing work"
+    fallback orchestration_axiom_fallback
+
+fn orchestration_mod(value: Int, modulus: Int) -> Int:
+    let folded = value % modulus
+    if folded < 0:
+        return folded + modulus
+    return folded
+
+fn orchestration_bool_score(value: Bool) -> Int:
+    if value:
+        return 1
+    return 0
+
+fn orchestration_mix_scalar(value: Int) -> Int:
+    return ((value * 53) + 41) % ORCHESTRATION_MODULUS
+
+converge orchestration_mix(value: Int) -> Int:
+    spec reference:
+        return orchestration_mix_scalar(value)
+    fast llvm_lane when target("llvm"):
+        return ((value * 53) + 41) % ORCHESTRATION_MODULUS
+
+fn orchestration_world_score(signal: Int, epoch: Int, resonance: Int) -> Int:
+    return orchestration_mod((signal * 5) + (epoch * 17) + (resonance * 3) + 97, ORCHESTRATION_MODULUS)
+
+fn orchestration_dispatch_style(value: Int, epoch: Int) -> Int:
+    return orchestration_mod((value * 11) + (epoch * 23) + 13, ORCHESTRATION_MODULUS)
+
+fn orchestration_shard_score(shard: OrchestrationShard) -> Int:
+    let alive_bonus = if shard.alive: 29 else: 3
+    return orchestration_mod((shard.bias * 31) + (shard.phase * 17) + shard.token + alive_bonus, ORCHESTRATION_MODULUS)
+
+fn orchestration_mem_store(buffer: ptr<Int>, slot: Int, value: Int) -> Int:
+    let stored: Int = collapse buffer:
+        mem_store(ptr_offset(buffer, slot, "Int"), value, "Int")
+        value
+    return stored
+
+fn orchestration_mem_load(buffer: ptr<Int>, slot: Int) -> Int:
+    return observe buffer:
+        mem_load(ptr_offset(buffer, slot, "Int"), "Int")
+
+fn orchestration_log_append(buffer: ptr<Int>, value: Int) -> Int:
+    let next_slot: Int = collapse buffer:
+        let cursor = mem_load(buffer, "Int")
+        let next = cursor + 1
+        mem_store(ptr_offset(buffer, next, "Int"), value, "Int")
+        mem_store(buffer, next, "Int")
+        next
+    return next_slot
+
+fn orchestration_fold_cells(cells: ptr<Int>, count: Int, modulus: Int) -> Int:
+    let acc = 0
+    let index = 0
+    while index < count:
+        acc = orchestration_mod((acc * 131) + mem_load(ptr_offset(cells, index, "Int")) + index + 1, modulus)
+        index = index + 1
+    return acc
+
+orchestrate orchestration_omega_pipeline(seed: Int, authority: OrchestrationAuthority) -> Int:
+    stage base: cpu orchestration_mix(seed + authority.signal) when capability("cpu.scalar")
+    stage tuned: converge orchestration_mix(base + authority.epoch + authority.resonance) when target("llvm")
+    stage staged: gpu orchestration_mix(tuned + authority.signal + 7) when capability("gpu.compute")
+    stage legal: law orchestration_signal_in_bounds(staged) when capability("law.invariants")
+    stage mirrored: world orchestration_world_score(authority.signal, authority.epoch, authority.resonance) when capability("world.entangle")
+    stage committed: patch orchestration_commit(authority, orchestration_mod(staged + mirrored + seed, ORCHESTRATION_MODULUS), mirrored + tuned)
+    stage final_host: dispatch orchestration_dispatch_style(committed + base, authority.epoch) when capability("dispatch.statement")
+    if legal == false:
+        return 0
+    return final_host
+
+orchestrate orchestration_shard_pipeline(shard_score: Int, shard_phase: Int, shard_token: Int, authority: OrchestrationAuthority) -> Int:
+    stage tuned: gpu orchestration_mix(shard_score + shard_phase + authority.signal) when capability("gpu.compute")
+    stage legal: law orchestration_phase_in_bounds(shard_phase) when capability("law.invariants")
+    stage committed: patch orchestration_commit(authority, tuned, shard_token + shard_phase)
+    stage final_lane: kain orchestration_dispatch_style(committed + shard_phase, authority.epoch) when capability("cpu.scalar")
+    if legal == false:
+        return 0
+    return final_lane
+
+shader compute OrchestrationKernel(id: UVec3) -> Void workgroup(8, 1, 1):
+    uniform src: StorageBuffer<UInt> @0
+    uniform dst: StorageBuffer<UInt> @1
+
+    comptime:
+        let compute = (
+            [48, 1, 1],
+            [
+                ("src", "u32", ["dispatch.x"], "input", "kain.shared.buffer"),
+                ("dst", "u32", ["dispatch.x"], "output", "kain.shared.buffer"),
+            ],
+            [],
+        )
+
+    let lane = src[id.x]
+    dst[id.x] = lane + UInt(5)
+    return
+
+fn orchestration_compute_entry(manifest: JsonObject, compute_key: String) -> JsonObject:
+    let entries = json_array_field(manifest, "compute_shaders")
+    if entries.ok == false:
+        return json_object()
+    let index = 0
+    while index < json_array_length(entries.value):
+        let entry = json_array_value_at(entries.value, index)
+        let key_field = json_string_field(entry, "key")
+        if key_field.ok and key_field.value == compute_key:
+            return entry
+        index = index + 1
+    return json_object()
+
+fn orchestration_stage_mesh_checksum(iterations: Int, modulus: Int) -> Int with Unsafe:
+    let init_status = runtime_init()
+    if init_status != 0:
+        return 100 + init_status
+
+    let authority = OrchestrationAuthority
+    authority.signal = 1
+    authority.epoch = 0
+    authority.resonance = 0
+    let teleport_base = runtime_machine_teleport_count()
+
+    let cells: ptr<Int> = alloc_zeroed(ORCHESTRATION_CELL_COUNT, "Int")
+    let log: ptr<Int> = alloc_zeroed(ORCHESTRATION_LOG_CAPACITY, "Int")
+    let acc = 0
+    let round = 0
+    while round < iterations:
+        defer orchestration_log_append(log, 900 + round)
+        let slot = (round * 11 + authority.epoch + 3) % ORCHESTRATION_CELL_COUNT
+        let old_cell = orchestration_mem_load(cells, slot)
+        let omega = orchestration_omega_pipeline(orchestration_mod(acc + old_cell + round + 17, modulus), authority)
+        let shard_seed = orchestration_mod(omega + round + 29, modulus)
+        let shard = OrchestrationShard {
+            bias: (shard_seed % 97) + 5,
+            phase: (authority.epoch % 4096) + 11,
+            token: orchestration_mod(shard_seed + authority.signal + authority.resonance + 101, ORCHESTRATION_MODULUS),
+            alive: true
+        }
+        let moved = teleport shard from OrchestrationAuthority to OrchestrationMirror via orchestration_bus
+        let shard_lane = orchestration_shard_pipeline(orchestration_shard_score(moved), moved.phase, moved.token + moved.bias, authority)
+        let legal = law_status(orchestration_signal_in_bounds(shard_lane))
+        let next_cell = orchestration_mod(
+            old_cell
+                + omega
+                + shard_lane
+                + legal
+                + OrchestrationMirror.signal_copy
+                + OrchestrationMirror.epoch_copy
+                + OrchestrationMirror.resonance_copy
+                + (runtime_machine_teleport_count() - teleport_base),
+            modulus,
+        )
+        orchestration_mem_store(cells, slot, next_cell)
+        acc = orchestration_mod(acc + next_cell + slot + runtime_machine_teleport_last_token(), modulus)
+        round = round + 1
+
+    let cell_fold = observe cells:
+        orchestration_fold_cells(cells, ORCHESTRATION_CELL_COUNT, modulus)
+    let log_cursor = observe log:
+        mem_load(log, "Int")
+    decay cells
+    decay log
+
+    let runtime_shape_ok = (
+        patch_journal_count() >= 1
+        and entangle_propagation_count() >= iterations
+        and converge_mismatch_count() == 0
+        and orchestrate_stage_count() >= iterations * 10
+    )
+    let shutdown_status = runtime_shutdown()
+    if shutdown_status != 0:
+        return 200 + shutdown_status
+    if runtime_shape_ok == false:
+        return 2
+    return orchestration_mod(
+        acc
+            + cell_fold
+            + log_cursor
+            + OrchestrationMirror.signal_copy
+            + OrchestrationMirror.epoch_copy
+            + OrchestrationMirror.resonance_copy,
+        modulus,
+    )
+
+fn orchestration_teleport_checksum(iterations: Int, modulus: Int) -> Int with Unsafe:
+    let init_status = runtime_init()
+    if init_status != 0:
+        return 300 + init_status
+
+    let authority = OrchestrationAuthority
+    authority.signal = 5
+    authority.epoch = 0
+    authority.resonance = 13
+    let teleport_base = runtime_machine_teleport_count()
+
+    let acc = 0
+    let index = 0
+    while index < iterations:
+        let shard_seed = orchestration_mod(acc + (index * 17) + authority.resonance, modulus)
+        let shard = OrchestrationShard {
+            bias: (shard_seed % 59) + 7,
+            phase: (authority.epoch % 4096) + 13,
+            token: orchestration_mod(shard_seed + authority.signal + 211, ORCHESTRATION_MODULUS),
+            alive: true
+        }
+        let moved = teleport shard from OrchestrationAuthority to OrchestrationMirror via orchestration_bus
+        let lane = orchestration_shard_pipeline(orchestration_shard_score(moved), moved.phase, moved.token + moved.bias, authority)
+        acc = orchestration_mod(
+            acc
+                + lane
+                + (runtime_machine_teleport_count() - teleport_base)
+                + runtime_machine_teleport_last_token()
+                + OrchestrationMirror.signal_copy
+                + OrchestrationMirror.epoch_copy
+                + index,
+            modulus,
+        )
+        index = index + 1
+
+    let teleport_ok = (runtime_machine_teleport_count() - teleport_base) >= iterations
+    let stage_ok = orchestrate_stage_count() >= iterations * 5
+    let shutdown_status = runtime_shutdown()
+    if shutdown_status != 0:
+        return 400 + shutdown_status
+    if teleport_ok == false or stage_ok == false:
+        return 3
+    return orchestration_mod(acc + OrchestrationMirror.resonance_copy + authority.signal, modulus)
+
+fn orchestration_dispatch_manifest_checksum(iterations: Int, modulus: Int) -> Int with GPU, Unsafe:
+    let manifest_path = cuda_compute_residency_path()
+    let manifest = cuda_compute_manifest()
+    let entry = orchestration_compute_entry(manifest, ORCHESTRATION_COMPUTE_KEY)
+    let manifest_exists = manifest_path != "" and fs_exists(manifest_path)
+    let workgroup_dims = json_int_array_field_result(entry, "workgroup_size")
+    let dispatch_dims = json_int_array_field_result(entry, "dispatch_size")
+    let bindings = json_array_field(entry, "bindings")
+
+    let init_status = runtime_init()
+    if init_status != 0:
+        return 500 + init_status
+
+    let authority = OrchestrationAuthority
+    authority.signal = 7
+    authority.epoch = 0
+    authority.resonance = 19
+
+    let acc = if manifest_exists: 17 else: 5
+    let index = 0
+    while index < iterations:
+        let preflight = orchestration_omega_pipeline(orchestration_mod(acc + index + 73, modulus), authority)
+        dispatch "shader::OrchestrationKernel::compute" [ORCHESTRATION_OVERRIDE_X, ORCHESTRATION_OVERRIDE_Y, ORCHESTRATION_OVERRIDE_Z]
+        acc = orchestration_mod(
+            acc
+                + preflight
+                + abi_cuda_last_status()
+                + abi_cuda_last_dispatch_invocations()
+                + abi_cuda_last_output_binding_count()
+                + abi_cuda_last_total_output_bytes()
+                + len(abi_cuda_last_error_kind())
+                + len(abi_cuda_last_error_message())
+                + index,
+            modulus,
+        )
+        index = index + 1
+
+    let shutdown_status = runtime_shutdown()
+    if shutdown_status != 0:
+        return 600 + shutdown_status
+
+    let manifest_score = if workgroup_dims.ok and dispatch_dims.ok and bindings.ok:
+        (
+            workgroup_dims.value[0]
+                + (workgroup_dims.value[1] * 10)
+                + (workgroup_dims.value[2] * 100)
+                + dispatch_dims.value[0]
+                + (dispatch_dims.value[1] * 10)
+                + (dispatch_dims.value[2] * 100)
+                + json_array_length(bindings.value)
+        )
+    else:
+        31
+
+    return orchestration_mod(
+        acc
+            + manifest_score
+            + orchestration_bool_score(cuda_has_compute_key(ORCHESTRATION_COMPUTE_KEY))
+            + orchestration_bool_score(cuda_runtime_ready()),
+        modulus,
+    )
+
+fn orchestration_full_send_checksum(iterations: Int, modulus: Int) -> Int with GPU, Unsafe:
+    let stage_score = orchestration_stage_mesh_checksum(iterations, modulus)
+    let teleport_score = orchestration_teleport_checksum(iterations / 2, modulus)
+    let dispatch_score = orchestration_dispatch_manifest_checksum(4, modulus)
+    return orchestration_mod(
+        stage_score
+            + teleport_score
+            + dispatch_score
+            + ORCHESTRATION_DISPATCH_X
+            + ORCHESTRATION_OVERRIDE_X
+            + ORCHESTRATION_OVERRIDE_Y
+            + ORCHESTRATION_OVERRIDE_Z,
+        modulus,
+    )
+
+pub fn orchestration_case_count() -> Int:
+    return ORCHESTRATION_CASE_COUNT
+
+pub fn orchestration_case_id(index: Int) -> String:
+    if index == 0:
+        return "orchestrate_stage_mesh"
+    if index == 1:
+        return "orchestrate_shatter_teleport"
+    if index == 2:
+        return "orchestrate_dispatch_manifest"
+    if index == 3:
+        return "orchestrate_full_send"
+    return ""
+
+pub fn orchestration_case_group(index: Int) -> String:
+    if index >= 0 and index < ORCHESTRATION_CASE_COUNT:
+        return "orchestration"
+    return ""
+
+pub fn orchestration_case_title(index: Int) -> String:
+    if index == 0:
+        return "Orchestrate Stage Mesh"
+    if index == 1:
+        return "Orchestrate Shatter Teleport"
+    if index == 2:
+        return "Orchestrate Dispatch Manifest"
+    if index == 3:
+        return "Orchestrate Full Send"
+    return ""
+
+pub fn orchestration_case_iterations(index: Int) -> Int:
+    if index == 0:
+        return 768
+    if index == 1:
+        return 384
+    if index == 2:
+        return 6
+    if index == 3:
+        return 256
+    return 0
+
+pub fn orchestration_case_expected_checksum(index: Int) -> Int with GPU, Unsafe:
+    return orchestration_case_checksum(orchestration_case_id(index), orchestration_case_iterations(index), 1, ORCHESTRATION_MODULUS)
+
+pub fn orchestration_case_checksum(case_id: String, iterations: Int, amplify: Int, modulus: Int) -> Int with GPU, Unsafe:
+    let repeat = 0
+    let acc = 0
+    while repeat < amplify:
+        if case_id == "orchestrate_stage_mesh":
+            acc = orchestration_mod(acc + orchestration_stage_mesh_checksum(iterations, modulus), modulus)
+        else if case_id == "orchestrate_shatter_teleport":
+            acc = orchestration_mod(acc + orchestration_teleport_checksum(iterations, modulus), modulus)
+        else if case_id == "orchestrate_dispatch_manifest":
+            acc = orchestration_mod(acc + orchestration_dispatch_manifest_checksum(iterations, modulus), modulus)
+        else if case_id == "orchestrate_full_send":
+            acc = orchestration_mod(acc + orchestration_full_send_checksum(iterations, modulus), modulus)
+        else:
+            return -1
+        repeat = repeat + 1
+    return acc
+
+pub fn orchestration_case_telemetry(case_id: String) -> String:
+    let payload = json_object()
+    json_object_set_string(payload, "pack_id", "orchestration")
+    json_object_set_string(payload, "case_id", case_id)
+    json_object_set_string(payload, "compute_key", ORCHESTRATION_COMPUTE_KEY)
+    json_object_set_bool(payload, "experimental", true)
+    json_object_set_bool(payload, "orchestrate_gpu_stage_supported", true)
+    json_object_set_string(payload, "orchestrate_last_runtime", orchestrate_last_runtime())
+    json_object_set_string(payload, "orchestrate_last_function", orchestrate_last_function())
+    json_object_set_string(payload, "orchestrate_last_selector", orchestrate_last_selector())
+    json_object_set_int(payload, "orchestrate_stage_count", orchestrate_stage_count())
+    json_object_set_int(payload, "patch_journal_count", patch_journal_count())
+    json_object_set_int(payload, "entangle_propagation_count", entangle_propagation_count())
+    json_object_set_int(payload, "converge_mismatch_count", converge_mismatch_count())
+    json_object_set_int(payload, "runtime_machine_teleport_count", runtime_machine_teleport_count())
+    json_object_set_int(payload, "runtime_machine_teleport_last_token", runtime_machine_teleport_last_token())
+    json_object_set_string(payload, "declared_axiom", "orchestration_silicon_truth")
+    json_object_set_string(payload, "declared_stage_kinds", "cpu,converge,gpu,law,world,patch,dispatch,kain")
+
+    if case_id == "orchestrate_stage_mesh":
+        json_object_set_string(payload, "surface", "world-entangle-patch-law-converge-orchestrate-shatter-teleport-raw-memory")
+        json_object_set_string(payload, "pack_focus", "double orchestrate loop that mutates worlds and logs stage fallout")
+        return json_stringify(payload)
+
+    if case_id == "orchestrate_shatter_teleport":
+        json_object_set_string(payload, "surface", "shatter-teleport-orchestrate-world-crossing")
+        json_object_set_string(payload, "pack_focus", "teleported shard enters an orchestrated patch and host return lane")
+        return json_stringify(payload)
+
+    if case_id == "orchestrate_dispatch_manifest":
+        let manifest_path = cuda_compute_residency_path()
+        let manifest_exists = manifest_path != "" and fs_exists(manifest_path)
+        let manifest = cuda_compute_manifest()
+        let entry = orchestration_compute_entry(manifest, ORCHESTRATION_COMPUTE_KEY)
+        let bindings = json_array_field(entry, "bindings")
+        json_object_set_string(payload, "surface", "orchestrate-plus-dispatch-statement-plus-shader-metadata")
+        json_object_set_string(payload, "manifest_path", manifest_path)
+        json_object_set_bool(payload, "manifest_exists", manifest_exists)
+        json_object_set_bool(payload, "compute_key_present", cuda_has_compute_key(ORCHESTRATION_COMPUTE_KEY))
+        json_object_set_bool(payload, "runtime_ready", cuda_runtime_ready())
+        if bindings.ok:
+            json_object_set_int(payload, "binding_count", json_array_length(bindings.value))
+        else:
+            json_object_set_int(payload, "binding_count", -1)
+        json_object_set_int_array(payload, "expected_workgroup_size", [8, 1, 1])
+        json_object_set_int_array(payload, "expected_dispatch_size", [ORCHESTRATION_DISPATCH_X, ORCHESTRATION_DISPATCH_Y, ORCHESTRATION_DISPATCH_Z])
+        json_object_set_int_array(payload, "override_dispatch_size", [ORCHESTRATION_OVERRIDE_X, ORCHESTRATION_OVERRIDE_Y, ORCHESTRATION_OVERRIDE_Z])
+        json_object_set_string(payload, "pack_focus", "host launch and orchestrated stage telemetry share one file")
+        return json_stringify(payload)
+
+    if case_id == "orchestrate_full_send":
+        json_object_set_string(payload, "surface", "single-file-orchestrate-god-mode-benchmark")
+        json_object_set_bool(payload, "compute_key_present", cuda_has_compute_key(ORCHESTRATION_COMPUTE_KEY))
+        json_object_set_bool(payload, "runtime_ready", cuda_runtime_ready())
+        json_object_set_int(payload, "last_status", abi_cuda_last_status())
+        json_object_set_string(payload, "last_error_kind", abi_cuda_last_error_kind())
+        json_object_set_string(payload, "pack_focus", "all weird semantics stacked in one benchmark pack")
+        return json_stringify(payload)
+
+    json_object_set_string(payload, "pack_focus", "orchestration")
+    return json_stringify(payload)

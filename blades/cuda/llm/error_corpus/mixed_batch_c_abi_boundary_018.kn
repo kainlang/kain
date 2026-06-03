@@ -1,0 +1,10 @@
+// ERROR: C ABI argument type mismatch
+// @expected_code: KAIN-TYPE-0001
+// @expected_mode: CAbiBoundary
+// @expected_repair: cmath_sqrt
+
+include <math.h> as cmath
+
+fn main() -> Int:
+    let raw = cmath_sqrt("bad abi value 18")
+    return raw as Int

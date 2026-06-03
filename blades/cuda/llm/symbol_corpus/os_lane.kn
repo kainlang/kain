@@ -1,0 +1,75 @@
+use std::os
+use std::path
+
+pub fn smoke_os_lane() -> Int:
+    let pid = os_getpid()
+    if pid <= 0:
+        return 1
+
+    let ppid = os_getppid()
+    if os_is_windows():
+        if ppid < 0:
+            return 2
+    else:
+        if ppid <= 0:
+            return 3
+
+    let login = os_getlogin()
+    if len(login) == 0:
+        return 4
+
+    let original_cwd = os_getcwd()
+    if len(original_cwd) == 0:
+        return 5
+
+    let env_key = "KAIN_SMOKETEST_OS_" + to_string(pid)
+    if os_setenv(env_key, "smoke-ok") == false:
+        return 6
+    if os_getenv(env_key) != "smoke-ok":
+        return 7
+    if os_unsetenv(env_key) == false:
+        return 8
+    if os_getenv(env_key) != "":
+        return 9
+
+    let temp_root = os_tmpdir("smoke-os")
+    if len(temp_root) == 0:
+        return 10
+    if os_chdir(temp_root) == false:
+        return 11
+    if os_getcwd() != temp_root:
+        let _restore_fail_1 = os_chdir(original_cwd)
+        return 12
+    if os_chdir(original_cwd) == false:
+        return 13
+
+    let random_hex = os_urandom(16)
+    if len(random_hex) != 32:
+        return 14
+    let random_bytes = os_urandom_bytes(8)
+    if len(random_bytes) != 8:
+        return 15
+
+    let terminal = os_get_terminal_size()
+    if terminal.columns <= 0 or terminal.rows <= 0:
+        return 16
+
+    if os_is_windows():
+        if os_getuid() != -1 or os_getgid() != -1:
+            return 17
+    else:
+        if os_getuid() < 0 or os_getgid() < 0:
+            return 18
+
+        let source_path = path_join(temp_root, "source.txt")
+        let link_path = path_join(temp_root, "source.link")
+        if os_write_text(source_path, "smoke-os-link") == false:
+            return 19
+        if os_symlink(source_path, link_path) == false:
+            return 20
+        let link_target = os_readlink(link_path)
+        if len(link_target) == 0:
+            return 21
+
+    let _cleanup = os_removedirs(temp_root)
+    return 0

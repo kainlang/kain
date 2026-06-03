@@ -1,0 +1,12 @@
+// @expected_code: KAIN-SHADER-0010
+// @expected_mode: ShaderStageMismatch
+// @expected_repair: simplify_shader_code
+
+// A shader whose generated HLSL/SPIR-V code failed backend compilation.
+shader compute BadCompile:
+    uniform buffer: Vec4 @0
+    fn main():
+        let x = buffer.x + buffer.y
+        let y = buffer.z + buffer.w
+        let z = x * y
+        return

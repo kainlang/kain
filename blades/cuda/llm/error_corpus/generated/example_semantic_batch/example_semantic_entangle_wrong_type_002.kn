@@ -1,0 +1,19 @@
+// ERROR: generated entangle fixture from batch example_semantic_batch
+// @expected_code: KAIN-TYPE-0001
+// @expected_mode: EntangleViolation
+// @expected_repair: align_types
+// @donor_hint: crates/semantic/error_corpus/final_pass_v1/world_entangle_wrong_type.kn
+// @allowed_codes: KAIN-WORLD-0008, KAIN-TYPE-0001
+
+world Authority60:
+    state count: Int = 0
+    surface native_ui => Panel
+
+world Mirror60:
+    state count_copy: String = "zero"
+    surface web => Panel
+
+entangle Authority60.count <-> Mirror60.count_copy with single_writer
+
+fn main() -> Int:
+    return 0

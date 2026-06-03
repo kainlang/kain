@@ -1,0 +1,21 @@
+use std::base64
+
+pub fn smoke_base64_lane() -> Int:
+    if base64_encode("Kain") != "S2Fpbg==":
+        return 1
+    if base64_decode("S2Fpbg==") != "Kain":
+        return 2
+    if base64_encode_url_padded(chr(255)) != "_w==":
+        return 3
+    let raw = base64_decode_url("_w")
+    if len(raw) != 1:
+        return 4
+    if byte_at(raw, 0) != 255:
+        return 5
+    if hex_encode("Hi") != "4869":
+        return 6
+    if hex_decode("4869") != "Hi":
+        return 7
+    if hex_decode("zz") != "":
+        return 8
+    return 0

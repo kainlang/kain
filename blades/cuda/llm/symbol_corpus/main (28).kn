@@ -1,0 +1,43 @@
+const RAYON_REDUCE_ITERATIONS: Int = 4000000
+const RAYON_REDUCE_MODULUS: Int = 1000000007
+const RAYON_REDUCE_EXPECTED: Int = 987976414
+const RAYON_REDUCE_LANE_MODULUS: Int = 1000003
+const RAYON_REDUCE_CHUNK: Int = 8
+const RAYON_REDUCE_RESIDUE_STEP: Int = 31
+const RAYON_REDUCE_WORKERS: Int = 32
+
+fn rayon_reduce_lane_value(index: Int) -> Int:
+    return ((index * RAYON_REDUCE_RESIDUE_STEP) + (index / RAYON_REDUCE_CHUNK)) % RAYON_REDUCE_LANE_MODULUS
+
+fn rayon_reduce_parallel_checksum(iterations: Int, modulus: Int) -> Int:
+    let mut partials: ptr<Int> = alloc_zeroed(RAYON_REDUCE_WORKERS, "Int")
+
+    share partials:
+        fanout worker in 0..RAYON_REDUCE_WORKERS:
+            let chunk_start: Int = (worker * iterations) / RAYON_REDUCE_WORKERS
+            let chunk_end: Int = ((worker + 1) * iterations) / RAYON_REDUCE_WORKERS
+            let slot: ptr<Int> = ptr_offset(partials, worker, "Int")
+            var local_sum: Int = 0
+            var i: Int = chunk_start
+            while i < chunk_end:
+                local_sum = (local_sum + rayon_reduce_lane_value(i)) % modulus
+                i = i + 1
+            atomic_store(slot, local_sum)
+
+    let total: Int = observe partials:
+        var worker: Int = 0
+        var acc: Int = 0
+        while worker < RAYON_REDUCE_WORKERS:
+            let slot: ptr<Int> = ptr_offset(partials, worker, "Int")
+            acc = (acc + mem_load(slot, "Int")) % modulus
+            worker = worker + 1
+        acc
+    decay partials
+    return total
+
+fn main() -> Int:
+    let acc: Int = rayon_reduce_parallel_checksum(RAYON_REDUCE_ITERATIONS, RAYON_REDUCE_MODULUS)
+
+    if acc != RAYON_REDUCE_EXPECTED:
+        return 1
+    return 0

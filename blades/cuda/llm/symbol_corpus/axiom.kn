@@ -1,0 +1,15 @@
+use std::runtime
+
+fn smoke_axiom_scalar_fallback(value: Int) -> Int:
+    return (value * 3 + 5) % 1000000007
+
+axiom smoke_machine_truth:
+    when target("llvm")
+    when arch("x86_64")
+    when capability("memory.shatter")
+    when capability("world.teleport")
+    guarantee "smoke lane supports shatter and teleport"
+    fallback smoke_axiom_scalar_fallback
+
+pub fn smoke_axiom_lane() -> Int:
+    return 0

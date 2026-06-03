@@ -1,0 +1,9 @@
+// @expected_code: KAIN-SHADER-0001
+// @expected_mode: ShaderHostBoundary
+// @expected_repair: remove_host_call
+
+// A shader that calls a host-only function like println.
+shader compute HostCallInShader:
+    fn main():
+        println("gpu here")
+        return

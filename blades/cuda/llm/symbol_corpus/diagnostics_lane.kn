@@ -1,0 +1,16 @@
+use std::runtime
+use std::diagnostics
+use std::result
+use std::test
+use std::proof
+use std::collections
+
+pub fn smoke_diagnostics_lane() -> Int:
+    let diagnostic_score = bool_to_status(status_ok(0)) + result_ok()
+    if diagnostic_score < 0:
+        return 1
+    let proof_outcome = test_proved("smoke.smt", "unsat")
+    let test_score = bool_to_int(test_outcome_ok(proof_outcome)) + proof_outcome.status
+    if test_score < 0:
+        return 2
+    return 0
