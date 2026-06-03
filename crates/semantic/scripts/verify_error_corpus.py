@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import re
 import subprocess
@@ -31,8 +32,26 @@ class Fixture:
     repair: str
 
 
+def normalize_mode(value: str) -> str:
+    camel_split = re.sub(r"(?<!^)(?=[A-Z])", "_", value.strip())
+    lowered = camel_split.lower()
+    return re.sub(r"[^a-z0-9]+", "_", lowered).strip("_")
+
+
 def clean(text: str) -> str:
     return ANSI_RE.sub("", text)
+
+
+def temp_root() -> Path:
+    for key in ("TMP", "TEMP", "TMPDIR"):
+        value = os.environ.get(key)
+        if value:
+            path = Path(value)
+            path.mkdir(parents=True, exist_ok=True)
+            return path
+    fallback = REPO_ROOT / ".kain" / "tmp"
+    fallback.mkdir(parents=True, exist_ok=True)
+    return fallback
 
 
 def read_fixture(path: Path) -> Fixture | None:
@@ -48,7 +67,7 @@ def read_fixture(path: Path) -> Fixture | None:
 
 def all_annotated(corpus: Path) -> list[Fixture]:
     fixtures: list[Fixture] = []
-    for path in sorted(corpus.glob("*.kn")):
+    for path in sorted(corpus.rglob("*.kn")):
         fixture = read_fixture(path)
         if fixture is not None:
             fixtures.append(fixture)
@@ -82,8 +101,9 @@ def changed_files() -> set[Path]:
     return {(REPO_ROOT / name).resolve() for name in names if name.endswith(".kn")}
 
 
-def run_kain_check(fixture: Fixture, kain_bin: str, target: str, timeout: int) -> tuple[bool, str]:
-    command = [kain_bin, "check", str(fixture.path), "--target", target]
+def run_kain_check(fixture: Fixture, kain_bin: str, target: str, timeout: int) -> tuple[bool, str, dict[str, object]]:
+    json_out = temp_root() / f"kain-semantic-{fixture.path.stem}.json"
+    command = [kain_bin, "check", str(fixture.path), "--target", target, "--json-out", str(json_out)]
     env = os.environ.copy()
     env.setdefault("TMP", "Z:\\_b\\tmp")
     env.setdefault("TEMP", "Z:\\_b\\tmp")
@@ -98,9 +118,36 @@ def run_kain_check(fixture: Fixture, kain_bin: str, target: str, timeout: int) -
         check=False,
     )
     output = clean(proc.stdout + proc.stderr)
+    payload: dict[str, object] = {}
+    if json_out.exists():
+        try:
+            payload = json.loads(json_out.read_text(encoding="utf-8"))
+        finally:
+            json_out.unlink(missing_ok=True)
     failed_as_expected = proc.returncode != 0
     code_seen = fixture.code in output
-    return failed_as_expected and code_seen, output
+    semantic_mode = ""
+    explanation = ""
+    repairs: list[object] = []
+    try:
+        files = payload.get("files", [])
+        if files:
+            diagnostic = files[0].get("diagnostic", {})
+            diagnostics = diagnostic.get("diagnostics", [])
+            if diagnostics:
+                semantic = diagnostics[0].get("semantic", {})
+                semantic_mode = str(semantic.get("failure_mode", ""))
+                explanation = str(semantic.get("explanation", ""))
+                repairs = list(semantic.get("repairs", []))
+    except AttributeError:
+        pass
+    mode_matches = normalize_mode(semantic_mode) == normalize_mode(fixture.mode)
+    repair_matches = True
+    if fixture.repair and repairs:
+        repair_blob = json.dumps(repairs)
+        repair_matches = fixture.repair in repair_blob or fixture.repair in output
+    useful_enough = bool(explanation) and mode_matches and repair_matches
+    return failed_as_expected and code_seen and useful_enough, output, payload
 
 
 def run_pipeline_tests(timeout: int) -> int:
@@ -127,6 +174,7 @@ def main() -> int:
     parser.add_argument("--timeout", type=int, default=120)
     parser.add_argument("--pipeline", action="store_true", help="also run semantic Rust pipeline tests")
     parser.add_argument("--list", action="store_true", help="list annotated fixtures and exit")
+    parser.add_argument("--json-report", type=Path, help="optional aggregate verification report path")
     args = parser.parse_args()
 
     corpus = args.corpus.resolve()
@@ -155,17 +203,49 @@ def main() -> int:
         return 0
 
     failures = 0
+    aggregate: list[dict[str, object]] = []
     for fixture in fixtures:
-        ok, output = run_kain_check(fixture, args.kain_bin, args.target, args.timeout)
+        ok, output, payload = run_kain_check(fixture, args.kain_bin, args.target, args.timeout)
+        actual_mode = ""
+        actual_backend = ""
+        actual_code = ""
+        try:
+            files = payload.get("files", [])
+            if files:
+                diagnostic = files[0].get("diagnostic", {})
+                diagnostics = diagnostic.get("diagnostics", [])
+                if diagnostics:
+                    entry = diagnostics[0]
+                    actual_code = str(entry.get("code", ""))
+                    semantic = entry.get("semantic", {})
+                    actual_mode = str(semantic.get("failure_mode", ""))
+                    actual_backend = str(semantic.get("backend", ""))
+        except AttributeError:
+            pass
+        aggregate.append(
+            {
+                "path": str(fixture.path),
+                "expected_code": fixture.code,
+                "expected_mode": fixture.mode,
+                "expected_repair": fixture.repair,
+                "actual_code": actual_code,
+                "actual_mode": actual_mode,
+                "actual_backend": actual_backend,
+                "passed": ok,
+            }
+        )
         if ok:
-            print(f"ok   {fixture.path.name} {fixture.code} {fixture.mode}")
+            print(f"ok   {fixture.path.name} {fixture.code} {fixture.mode} backend={actual_backend or 'unknown'}")
         else:
             failures += 1
             first_lines = "\n".join(output.splitlines()[:20])
-            print(f"FAIL {fixture.path.name} expected {fixture.code} {fixture.mode}")
+            print(f"FAIL {fixture.path.name} expected {fixture.code} {fixture.mode} actual={actual_code or '<missing>'}:{actual_mode or '<missing>'}")
             print(first_lines)
 
     print(f"fixtures={len(fixtures)} failures={failures}")
+    if args.json_report:
+        args.json_report.parent.mkdir(parents=True, exist_ok=True)
+        args.json_report.write_text(json.dumps({"fixtures": aggregate}, indent=2), encoding="utf-8", newline="\n")
     if failures:
         return 1
 

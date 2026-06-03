@@ -1,0 +1,28 @@
+[batch]
+name = "example_semantic_batch"
+prefix = "example_semantic"
+interview_error_family = "A"
+interview_count = "B"
+interview_authoring = "A"
+interview_error_system = "A"
+interview_examples = "A"
+
+[[cases]]
+shape = "type_typo"
+count = 1
+start_index = 40
+
+[[cases]]
+shape = "converge_fast_lane_drift"
+count = 1
+start_index = 50
+
+[[cases]]
+shape = "entangle_wrong_type"
+count = 1
+start_index = 60
+
+[[cases]]
+shape = "c_abi_missing_include_alias"
+count = 1
+start_index = 70

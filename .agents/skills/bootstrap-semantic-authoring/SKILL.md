@@ -43,9 +43,9 @@ Ask these five questions:
    - B. `12 fixtures`: focused patch for one family or a quick validation pass.
    - C. `30 fixtures`: max normal batch when automation and broad coverage are desired.
 3. Should I automate generation or write manually?
-   - A. `Hybrid`: scaffold with `generate_error_corpus.py`, then hand-edit every fixture into a real Kain failure.
+   - A. `Hybrid`: fill a batch spec for `error_batch.py`, let the script scaffold and verify, then hand-tune only the tricky cases.
    - B. `Manual`: write every fixture by hand for maximum semantic intent and fewer template artifacts.
-   - C. `Automation-heavy`: extend scripts/templates first, then generate most of the batch.
+   - C. `Automation-heavy`: extend the shape templates or helper scripts first, then generate most of the batch.
 4. Should I inspect and possibly extend the current error system too?
    - A. `Yes, inspect first`: check emitted codes, expert rules, pack behavior, and update error-system wiring if needed.
    - B. `Corpus only`: add fixtures that match existing emitted diagnostic codes and modes.
@@ -106,13 +106,13 @@ If a new family needs different `primary_text` derivation or failure classificat
 rg -n "@expected_code|@expected_mode|@expected_repair|ERROR:" X:\crates\semantic\error_corpus
 ```
 
-3. Generate or handwrite a batch. The scaffold generator is allowed and encouraged:
+3. Generate or handwrite a batch. The spec-driven batch flow is the default because it is safer for cheap models:
 
 ```powershell
-python X:\crates\semantic\scripts\generate_error_corpus.py --count 24 --prefix agent_semantic_batch
+python X:\crates\semantic\scripts\error_batch.py --batch X:\crates\semantic\batches\example_error_batch.toml --write-stage --verify
 ```
 
-4. Edit the generated files so each case is a realistic Kain failure, preferably inspired by `benchmark/cases_v2` or a real compiler sharp edge.
+4. Prefer editing the batch spec and reusable templates before hand-editing raw `.kn` files. If hand edits are needed, keep each case to one intended primary failure and prefer donor shapes from `benchmark/cases_v2` or a real compiler sharp edge.
 5. Verify the files are actually errors and that expected codes show up:
 
 ```powershell
@@ -140,8 +140,15 @@ Agents may create or extend Python scripts under `X:\crates\semantic\scripts` wh
 
 Current scripts:
 
-- `generate_error_corpus.py`: scaffold 20-30 annotated broken `.kn` fixtures from reusable templates. Add new templates here when a failure family becomes repeatable.
+- `error_batch.py`: canonical spec-driven lane. It loads trusted shapes from `crates/semantic/templates/error_case_templates.toml`, requires stored A/B/C interview answers in the batch spec, generates staged fixtures, verifies live `kain check` output, rewrites metadata with emitted codes/modes, rejects duplicates, optionally promotes only passing cases into `error_corpus/generated/<batch>`, and can bake the semantic cargo/Bazel gates.
+- `generate_error_corpus.py`: older lightweight scaffold for manual authoring. Keep it for quick sketches, but prefer `error_batch.py` for real corpus growth and for weaker models.
 - `verify_error_corpus.py`: parse corpus metadata, run `kain check` against annotated fixtures, report pass/fail, and optionally run semantic Rust tests to prove the cases are baked.
+
+Batch-spec contract:
+
+- Store interview choices under `[batch]` as `interview_error_family`, `interview_count`, `interview_authoring`, `interview_error_system`, and `interview_examples`.
+- Use only `A`, `B`, or `C` so future agents can recover why the batch was authored.
+- Keep cheap models working in `crates/semantic/batches/*.toml` plus `crates/semantic/templates/error_case_templates.toml` whenever possible; only graduate them to hand-editing staged `.kn` files when the template lane is too weak.
 
 ## Error-System Wiring
 

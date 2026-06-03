@@ -2,7 +2,9 @@
 """Scaffold annotated Kain error-corpus fixtures.
 
 This is intentionally a generator scaffold, not a closed taxonomy. Add template
-builders here when a new Kain diagnostic family becomes repeatable.
+builders here when a new Kain diagnostic family becomes repeatable. For real
+batch authoring, prefer `error_batch.py`, which keeps interview answers,
+verification, duplicate checks, promotion, and bake gates in one flow.
 """
 
 from __future__ import annotations
@@ -198,6 +200,7 @@ def main() -> int:
 
     print(f"generated={written} skipped={skipped} out={out_dir}")
     print("next: edit fixtures, then run verify_error_corpus.py --changed")
+    print("preferred batch lane: python crates/semantic/scripts/error_batch.py --batch crates/semantic/batches/example_error_batch.toml --write-stage --verify")
     return 0
 
 

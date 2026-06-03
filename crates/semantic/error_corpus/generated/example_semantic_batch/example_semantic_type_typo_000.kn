@@ -1,0 +1,11 @@
+// ERROR: generated typo fixture from batch example_semantic_batch
+// @expected_code: KAIN-TYPE-0002
+// @expected_mode: Typo
+// @expected_repair: println
+// @donor_hint: crates/semantic/error_corpus/type_unknown_identifier.kn
+// @allowed_codes: KAIN-TYPE-0002
+
+fn main() -> Int:
+    let typo_probe_40 = "semantic typo 40"
+    let signal = prntln(typo_probe_40)
+    return 0

@@ -1,0 +1,211 @@
+[meta]
+schema = "kain.semantic.error_case_templates.v1"
+
+[shapes.type_typo]
+family = "typo"
+file_stem = "type_typo"
+description = "Unknown identifier typo against a nearby visible symbol."
+expected_mode = "Typo"
+expected_repair = "println"
+repair_required = true
+allowed_codes = ["KAIN-TYPE-0002"]
+donor_hint = "crates/semantic/error_corpus/type_unknown_identifier.kn"
+body = """
+fn main() -> Int:
+    let typo_probe_{index} = "semantic typo {index}"
+    let signal = {bad_symbol}(typo_probe_{index})
+    return 0
+"""
+[shapes.type_typo.knobs]
+bad_symbol = "prntln"
+
+[shapes.wrong_arg_count]
+family = "type"
+file_stem = "wrong_arg_count"
+description = "Call a local function with too few arguments."
+expected_mode = "GenericUnknown"
+expected_repair = "add_argument"
+repair_required = false
+allowed_codes = ["KAIN-TYPE-0025", "KAIN-TYPE-0001"]
+donor_hint = "crates/semantic/error_corpus/type_wrong_arg_count.kn"
+body = """
+fn {fn_name}(a: Int, b: Int) -> Int:
+    return a + b
+
+fn main() -> Int:
+    return {fn_name}(17)
+"""
+[shapes.wrong_arg_count.knobs]
+fn_name = "mix_{index}"
+
+[shapes.effect_pure_io]
+family = "effect"
+file_stem = "effect_pure_io"
+description = "Pure function calls an IO function."
+expected_mode = "GenericUnknown"
+expected_repair = "mark_io"
+repair_required = false
+allowed_codes = ["KAIN-EFFECT-0001"]
+donor_hint = "crates/semantic/error_corpus/effect_pure_calls_io.kn"
+body = """
+fn {io_name}() -> String with IO:
+    return "semantic side effect"
+
+fn {pure_name}() -> Int with Pure:
+    let text = {io_name}()
+    return len(text)
+
+fn main() -> Int:
+    return {pure_name}()
+"""
+[shapes.effect_pure_io.knobs]
+io_name = "read_side_{index}"
+pure_name = "pure_lane_{index}"
+
+[shapes.ownership_decay_before_observe]
+family = "ownership"
+file_stem = "ownership_decay_before_observe"
+description = "Decay a pointer region before observing it."
+expected_mode = "OwnershipViolation"
+expected_repair = "observe_before_decay"
+repair_required = true
+allowed_codes = ["KAIN-BORROW-0004"]
+donor_hint = "crates/semantic/error_corpus/final_pass_v1/ownership_decay_before_observe.kn"
+body = """
+fn main() -> Int with Unsafe:
+    let mut cells: ptr<Int> = alloc_zeroed({cell_count}, "Int")
+    decay cells
+    let head = observe cells:
+        mem_load(cells, "Int")
+    return head
+"""
+[shapes.ownership_decay_before_observe.knobs]
+cell_count = "16"
+
+[shapes.world_missing_surface]
+family = "world"
+file_stem = "world_missing_surface"
+description = "Declare a world without a required surface projection."
+expected_mode = "MissingSurface"
+expected_repair = "add_surface"
+repair_required = true
+allowed_codes = ["KAIN-TYPE-0003"]
+donor_hint = "crates/semantic/error_corpus/world_missing_surface.kn"
+body = """
+world {world_name}:
+    state value: Int = {state_value}
+
+fn main() -> Int:
+    return 0
+"""
+[shapes.world_missing_surface.knobs]
+world_name = "GeneratedWorld{index}"
+state_value = "{index}"
+
+[shapes.entangle_wrong_type]
+family = "entangle"
+file_stem = "entangle_wrong_type"
+description = "Entangle two world fields with incompatible types."
+expected_mode = "EntangleViolation"
+expected_repair = "align_types"
+repair_required = false
+allowed_codes = ["KAIN-WORLD-0008", "KAIN-TYPE-0001"]
+donor_hint = "crates/semantic/error_corpus/final_pass_v1/world_entangle_wrong_type.kn"
+body = """
+world {left_world}:
+    state count: Int = 0
+    surface native_ui => Panel
+
+world {right_world}:
+    state count_copy: String = {bad_value}
+    surface web => Panel
+
+entangle {left_world}.count <-> {right_world}.count_copy with single_writer
+
+fn main() -> Int:
+    return 0
+"""
+[shapes.entangle_wrong_type.knobs]
+left_world = "Authority{index}"
+right_world = "Mirror{index}"
+bad_value = "\"zero\""
+
+[shapes.converge_fast_lane_drift]
+family = "converge"
+file_stem = "converge_fast_lane_drift"
+description = "Break a converge fast lane contract with a type or behavioral mismatch."
+expected_mode = "ConvergeMismatch"
+expected_repair = "match_spec_lane"
+repair_required = false
+allowed_codes = ["KAIN-EFFECT-0012", "KAIN-TYPE-0001"]
+donor_hint = "crates/semantic/error_corpus/final_pass_v1/converge_fast_lane_drift.kn"
+body = """
+converge {fn_name}(value: Int) -> Int:
+    spec reference:
+        return value * 31 + 7
+    fast broken_lane when target("llvm"):
+        let wrong: Int = {bad_value}
+        return value * 30 + 7
+    verify random({verify_samples})
+
+fn main() -> Int:
+    return {fn_name}(3)
+"""
+[shapes.converge_fast_lane_drift.knobs]
+fn_name = "generated_lane_{index}"
+bad_value = "\"mismatched type\""
+verify_samples = "8"
+
+[shapes.shader_host_call_boundary]
+family = "shader"
+file_stem = "shader_host_call_boundary"
+description = "Call a host-only function from a compute shader."
+expected_mode = "ShaderHostBoundary"
+expected_repair = "move_host_call_outside_shader"
+repair_required = true
+allowed_codes = ["KAIN-SHADER-0001"]
+donor_hint = "crates/semantic/error_corpus/final_pass_v1/shader_host_call_boundary.kn"
+body = """
+shader compute {shader_name}(id: UVec3) -> Vec4:
+    println("host side print from gpu lane")
+    return vec4(to_float(id.x), 0.0, 0.0, 1.0)
+"""
+[shapes.shader_host_call_boundary.knobs]
+shader_name = "HostPrintInKernel{index}"
+
+[shapes.c_abi_missing_include_alias]
+family = "c_abi"
+file_stem = "c_abi_missing_include_alias"
+description = "Reference a C ABI symbol without the required include alias."
+expected_mode = "CAbiBoundary"
+expected_repair = "include native/native_math.h as nm"
+repair_required = true
+allowed_codes = ["KAIN-TYPE-0002", "KAIN-CODEGEN-0008"]
+donor_hint = "crates/semantic/error_corpus/final_pass_v1/c_abi_missing_include_alias.kn"
+body = """
+fn missing_include_probe_{index}() -> Int:
+    let mixed = {symbol}(7, 11)
+    return mixed
+
+fn main() -> Int:
+    return missing_include_probe_{index}()
+"""
+[shapes.c_abi_missing_include_alias.knobs]
+symbol = "nm_mix"
+
+[shapes.python_alias_missing_import]
+family = "python"
+file_stem = "python_alias_missing_import"
+description = "Use a Python alias without the required import."
+expected_mode = "PythonInteropBoundary"
+expected_repair = "import math as py_math"
+repair_required = true
+allowed_codes = ["KAIN-TYPE-0002"]
+donor_hint = "crates/semantic/error_corpus/final_pass_v1/python_alias_missing_import.kn"
+body = """
+fn main() -> Int:
+    let sqrt_fn = python_getattr_raw(py_math, "sqrt")
+    let value = python_call_raw(sqrt_fn, [16.0])
+    return to_int(value)
+"""
+[shapes.python_alias_missing_import.knobs]
