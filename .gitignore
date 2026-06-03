@@ -15,6 +15,7 @@ smoketest/telemetry
 **/debug/**
 /.playground
 temp/*
+/mcp
 
 /research
 research/
