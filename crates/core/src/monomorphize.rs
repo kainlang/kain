@@ -71,7 +71,7 @@ pub fn monomorphize(program: &TypedProgram) -> KainResult<MonomorphizedProgram> 
                         // Resolve method type
                         let mut params = Vec::new();
                         for p in &method.params {
-                            if p.name == "self" {
+                            if param_is_authored_self_alias(p) {
                                 params.push(target_ty.clone());
                             } else {
                                 params
@@ -336,7 +336,7 @@ impl MonoContext {
                 ResolvedType::Struct(instantiated_struct_name.to_string(), HashMap::new());
             let mut params = Vec::new();
             for p in &standalone_fn.params {
-                if p.name == "self" {
+                if param_is_authored_self_alias(p) {
                     params.push(target_ty.clone());
                 } else {
                     params.push(resolve_ast_type(&p.ty).unwrap_or(ResolvedType::Unknown));
@@ -399,6 +399,46 @@ fn mangle_types(types: &[ResolvedType]) -> String {
 
 fn resolve_ast_type(ty: &Type) -> KainResult<ResolvedType> {
     crate::types::resolve_type(ty)
+}
+
+fn instantiate_named_generic_struct_type(
+    ctx: &mut MonoContext,
+    ty: &mut Type,
+) -> KainResult<Option<String>> {
+    let Type::Named {
+        name,
+        generics,
+        span,
+    } = ty
+    else {
+        return Ok(None);
+    };
+    if generics.is_empty() || !ctx.generic_structs.contains_key(name) {
+        return Ok(None);
+    }
+
+    let type_args = generics
+        .iter()
+        .map(resolve_ast_type)
+        .collect::<KainResult<Vec<_>>>()?;
+    if type_args.is_empty() {
+        return Ok(None);
+    }
+
+    let instantiated_name = ctx.instantiate_struct(name, &type_args)?;
+    *ty = Type::Named {
+        name: instantiated_name.clone(),
+        generics: Vec::new(),
+        span: *span,
+    };
+    Ok(Some(instantiated_name))
+}
+
+fn param_is_authored_self_alias(param: &Param) -> bool {
+    matches!(
+        &param.ty,
+        Type::Named { name, .. } if name == "Self_" || name == "Self"
+    ) || matches!(param.name.as_str(), "self" | "_self")
 }
 
 /// Unify a parameter type with an argument type to extract generic bindings.
@@ -1621,43 +1661,25 @@ fn scan_function(ctx: &mut MonoContext, func: &TypedFunction) -> KainResult<Type
         }
     }
 
-    // Check function parameters for generic struct types
-    for param in &func.ast.params {
-        if let Type::Named { name, generics, .. } = &param.ty {
-            if !generics.is_empty() && ctx.generic_structs.contains_key(name) {
-                // Resolve the type arguments
-                let mut type_args = Vec::new();
-                for gen_ty in generics {
-                    if let Ok(resolved) = resolve_ast_type(gen_ty) {
-                        type_args.push(resolved);
-                    }
-                }
-
-                // Instantiate the generic struct
-                if !type_args.is_empty() {
-                    let _ = ctx.instantiate_struct(name, &type_args)?;
-                }
-            }
-        }
+    for param in &mut new_func.ast.params {
+        instantiate_named_generic_struct_type(ctx, &mut param.ty)?;
     }
 
-    // Check if the return type is a generic struct that needs instantiation
-    if let Some(ret_ty) = &func.ast.return_type {
-        if let Type::Named { name, generics, .. } = ret_ty {
-            if !generics.is_empty() && ctx.generic_structs.contains_key(name) {
-                // Resolve the type arguments
-                let mut type_args = Vec::new();
-                for gen_ty in generics {
-                    if let Ok(resolved) = resolve_ast_type(gen_ty) {
-                        type_args.push(resolved);
-                    }
-                }
+    if let Some(ret_ty) = &mut new_func.ast.return_type {
+        instantiate_named_generic_struct_type(ctx, ret_ty)?;
+    }
 
-                // Instantiate the generic struct
-                if !type_args.is_empty() {
-                    let _ = ctx.instantiate_struct(name, &type_args)?;
-                }
+    if let ResolvedType::Function { params, ret, .. } = &mut new_func.resolved_type {
+        for (index, param) in new_func.ast.params.iter().enumerate() {
+            if param_is_authored_self_alias(param) {
+                continue;
             }
+            if let Some(slot) = params.get_mut(index) {
+                *slot = resolve_ast_type(&param.ty).unwrap_or(slot.clone());
+            }
+        }
+        if let Some(return_type) = &new_func.ast.return_type {
+            *ret = Box::new(resolve_ast_type(return_type).unwrap_or((**ret).clone()));
         }
     }
 
@@ -1687,22 +1709,7 @@ fn scan_stmt(ctx: &mut MonoContext, env: &mut MonoTypeEnv, stmt: &mut Stmt) -> K
         } => {
             // Check if the type annotation is a generic struct
             if let Some(type_ann) = ty {
-                if let Type::Named { name, generics, .. } = type_ann {
-                    if !generics.is_empty() && ctx.generic_structs.contains_key(name) {
-                        // Resolve the type arguments
-                        let mut type_args = Vec::new();
-                        for gen_ty in generics {
-                            if let Ok(resolved) = resolve_ast_type(gen_ty) {
-                                type_args.push(resolved);
-                            }
-                        }
-
-                        // Instantiate the generic struct
-                        if !type_args.is_empty() {
-                            let _ = ctx.instantiate_struct(name, &type_args)?;
-                        }
-                    }
-                }
+                instantiate_named_generic_struct_type(ctx, type_ann)?;
             }
 
             // Scan the value expression (may contain generic calls like identity(42))
@@ -1827,6 +1834,7 @@ fn scan_expr(
                     && !type_args.iter().any(|t| matches!(t, ResolvedType::Unknown))
                 {
                     let instantiated_name = ctx.instantiate_struct(name, &type_args)?;
+                    *name = instantiated_name.clone();
                     return Ok(ResolvedType::Struct(instantiated_name, HashMap::new()));
                 }
             }

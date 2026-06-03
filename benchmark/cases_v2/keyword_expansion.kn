@@ -1,0 +1,444 @@
+use std::cuda
+use std::fs
+use std::json
+
+const KEYWORD_MODULUS: Int = 1000000007
+const KEYWORD_CASE_COUNT: Int = 4
+const KEYWORD_LOG_CAPACITY: Int = 4096
+
+const KEYWORD_WORKGROUP_X: Int = 8
+const KEYWORD_WORKGROUP_Y: Int = 1
+const KEYWORD_WORKGROUP_Z: Int = 1
+
+const KEYWORD_DEFAULT_DISPATCH_X: Int = 64
+const KEYWORD_DEFAULT_DISPATCH_Y: Int = 2
+const KEYWORD_DEFAULT_DISPATCH_Z: Int = 1
+
+const KEYWORD_OVERRIDE_DISPATCH_X: Int = 17
+const KEYWORD_OVERRIDE_DISPATCH_Y: Int = 3
+const KEYWORD_OVERRIDE_DISPATCH_Z: Int = 1
+
+const KEYWORD_COMPUTE_KEY: String = "shader::KeywordDispatchKernel::compute"
+
+trait KeywordMetric:
+    fn fold_seed(_self: Self_) -> Int:
+        return 0
+
+trait KeywordStable:
+    fn stable_bias(_self: Self_) -> Int:
+        return 0
+
+struct KeywordPacket:
+    id: Int
+    payload: Int
+    phase: Int
+
+impl KeywordPacket:
+    fn weighted(_self: Self_) -> Int:
+        return ((_self.id * 11) + (_self.payload * 7) + (_self.phase * 3)) % KEYWORD_MODULUS
+
+impl KeywordMetric for KeywordPacket:
+    fn fold_seed(_self: Self_) -> Int:
+        return ((_self.id * 5) + _self.payload + 13) % KEYWORD_MODULUS
+
+impl KeywordStable for KeywordPacket:
+    fn stable_bias(_self: Self_) -> Int:
+        return ((_self.phase * 17) + 19) % KEYWORD_MODULUS
+
+fn keyword_mod(value: Int, modulus: Int) -> Int:
+    let folded = value % modulus
+    if folded < 0:
+        return folded + modulus
+    return folded
+
+fn keyword_compute_entry(manifest: JsonObject, compute_key: String) -> JsonObject:
+    let entries = json_array_field(manifest, "compute_shaders")
+    if entries.ok == false:
+        return json_object()
+    let index = 0
+    while index < json_array_length(entries.value):
+        let entry = json_array_value_at(entries.value, index)
+        let key_field = json_string_field(entry, "key")
+        if key_field.ok and key_field.value == compute_key:
+            return entry
+        index = index + 1
+    return json_object()
+
+fn keyword_json_keywords(values: Array<String>) -> JsonArray:
+    return json_array_from_strings(values)
+
+fn keyword_json_dims(x: Int, y: Int, z: Int) -> JsonArray:
+    return json_array_from_ints([x, y, z])
+
+fn keyword_mem_store(buffer: ptr<Int>, slot: Int, value: Int) -> Int:
+    let stored: Int = collapse buffer:
+        mem_store(ptr_offset(buffer, slot, "Int"), value, "Int")
+        value
+    return stored
+
+fn keyword_mem_load(buffer: ptr<Int>, slot: Int) -> Int:
+    return observe buffer:
+        mem_load(ptr_offset(buffer, slot, "Int"), "Int")
+
+fn keyword_log_append(buffer: ptr<Int>, value: Int) -> Int:
+    let next_slot: Int = collapse buffer:
+        let cursor = mem_load(buffer, "Int")
+        let next = cursor + 1
+        mem_store(ptr_offset(buffer, next, "Int"), value, "Int")
+        mem_store(buffer, next, "Int")
+        next
+    return next_slot
+
+fn keyword_log_append_from_slot(buffer: ptr<Int>, marker: Int, payload_slot: Int) -> Int:
+    let appended: Int = collapse buffer:
+        let payload = mem_load(ptr_offset(buffer, payload_slot, "Int"), "Int")
+        let cursor = mem_load(buffer, "Int")
+        let next = cursor + 1
+        let value = marker + payload
+        mem_store(ptr_offset(buffer, next, "Int"), value, "Int")
+        mem_store(buffer, next, "Int")
+        value
+    return appended
+
+fn keyword_log_cursor(buffer: ptr<Int>) -> Int:
+    return observe buffer:
+        mem_load(buffer, "Int")
+
+fn keyword_log_fold(buffer: ptr<Int>, modulus: Int) -> Int:
+    let cursor = keyword_log_cursor(buffer)
+    let slot = 1
+    let acc = 0
+    while slot <= cursor:
+        acc = keyword_mod((acc * 131) + keyword_mem_load(buffer, slot) + slot, modulus)
+        slot = slot + 1
+    return acc
+
+fn keyword_where_mix<T: KeywordMetric>(value: T, salt: Int) -> Int where T: KeywordStable:
+    let folded = value.fold_seed()
+    let bias = value.stable_bias()
+    return keyword_mod((folded * 17) + (bias * 13) + salt + 23, KEYWORD_MODULUS)
+
+fn keyword_where_fold_checksum(iterations: Int, modulus: Int) -> Int:
+    let acc = 0
+    let index = 0
+    while index < iterations:
+        let packet = KeywordPacket {
+            id: (index % 97) + 1,
+            payload: ((index * 17) % 4096) + 3,
+            phase: (index % 19) + 5
+        }
+        let mixed = keyword_where_mix(packet, (index % 29) + 7)
+        acc = keyword_mod(acc + mixed + packet.weighted() + (index % 11), modulus)
+        index = index + 1
+    return acc
+
+fn keyword_defer_return_probe(buffer: ptr<Int>, seed: Int) -> Int:
+    defer keyword_log_append_from_slot(buffer, 1000 + seed, 40)
+    return keyword_mem_store(buffer, 40, seed + 7)
+
+fn keyword_defer_break_probe(buffer: ptr<Int>, seed: Int) -> Int:
+    loop:
+        defer keyword_log_append_from_slot(buffer, 2000 + seed, 41)
+        break keyword_mem_store(buffer, 41, seed + 9)
+    return keyword_mem_load(buffer, 41)
+
+fn keyword_defer_flow_checksum(iterations: Int, modulus: Int) -> Int:
+    let buffer: ptr<Int> = alloc_zeroed(KEYWORD_LOG_CAPACITY, "Int")
+    let acc = 0
+
+    let returned = keyword_defer_return_probe(buffer, 17)
+    let broken = keyword_defer_break_probe(buffer, 23)
+    acc = keyword_mod(acc + returned + broken, modulus)
+
+    let index = 0
+    while index < iterations:
+        defer keyword_log_append(buffer, 700 + index)
+        if index % 4 == 0:
+            defer keyword_log_append(buffer, 710 + index)
+            index = index + 1
+            continue
+        if index % 2 == 0:
+            defer keyword_log_append(buffer, 730 + index)
+            defer keyword_log_append(buffer, 740 + index)
+        acc = keyword_mod(acc + (index * 7) + 3, modulus)
+        index = index + 1
+
+    let cursor = keyword_log_cursor(buffer)
+    let slot40 = keyword_mem_load(buffer, 40)
+    let slot41 = keyword_mem_load(buffer, 41)
+    let log_fold = keyword_log_fold(buffer, modulus)
+    let final_score = keyword_mod(acc + (cursor * 11) + slot40 + slot41 + log_fold, modulus)
+    decay buffer
+    return final_score
+
+shader compute KeywordDispatchKernel(id: UVec3) -> Void workgroup(8, 1, 1):
+    uniform src: StorageBuffer<UInt> @0
+    uniform dst: StorageBuffer<UInt> @1
+
+    comptime:
+        let compute = (
+            [64, 2, 1],
+            [
+                ("src", "u32", ["dispatch.x"], "input", "kain.shared.buffer"),
+                ("dst", "u32", ["dispatch.x"], "output", "kain.shared.buffer"),
+            ],
+            [],
+        )
+
+    let lane = src[id.x]
+    dst[id.x] = lane + UInt(1)
+    return
+
+fn keyword_workgroup_manifest_checksum(iterations: Int, modulus: Int) -> Int:
+    let manifest_path = cuda_compute_residency_path()
+    if manifest_path == "" or fs_exists(manifest_path) == false:
+        return 17
+
+    let manifest = cuda_compute_manifest()
+    let entry = keyword_compute_entry(manifest, KEYWORD_COMPUTE_KEY)
+    if json_has_key(entry, "key") == false:
+        return 23
+
+    let workgroup_dims = json_int_array_field_result(entry, "workgroup_size")
+    if workgroup_dims.ok == false:
+        return 29
+    if len(workgroup_dims.value) != 3:
+        return 29
+    let dispatch_dims = json_int_array_field_result(entry, "dispatch_size")
+    if dispatch_dims.ok == false:
+        return 31
+    if len(dispatch_dims.value) != 3:
+        return 31
+    let bindings = json_array_field(entry, "bindings")
+    if bindings.ok == false:
+        return 37
+    let source = json_string_field(entry, "source")
+    if source.ok == false:
+        return 41
+
+    let workgroup_score = workgroup_dims.value[0] + (workgroup_dims.value[1] * 10) + (workgroup_dims.value[2] * 100)
+    let dispatch_score = dispatch_dims.value[0] + (dispatch_dims.value[1] * 10) + (dispatch_dims.value[2] * 100)
+    let binding_count = json_array_length(bindings.value)
+
+    let acc = 0
+    let index = 0
+    while index < iterations:
+        acc = keyword_mod(
+            acc
+                + workgroup_score
+                + dispatch_score
+                + binding_count
+                + len(source.value)
+                + (index % 13),
+            modulus,
+        )
+        index = index + 1
+    return acc
+
+fn keyword_dispatch_runtime_checksum(iterations: Int, modulus: Int) -> Int:
+    let acc = 0
+    let index = 0
+    while index < iterations:
+        dispatch "shader::KeywordDispatchKernel::compute" [KEYWORD_OVERRIDE_DISPATCH_X, KEYWORD_OVERRIDE_DISPATCH_Y, KEYWORD_OVERRIDE_DISPATCH_Z]
+        let status = abi_cuda_last_status()
+        let invocations = abi_cuda_last_dispatch_invocations()
+        let outputs = abi_cuda_last_output_binding_count()
+        let total_bytes = abi_cuda_last_total_output_bytes()
+        let error_kind_len = len(abi_cuda_last_error_kind())
+        let error_message_len = len(abi_cuda_last_error_message())
+        acc = keyword_mod(
+            acc
+                + ((status + 2048) * 3)
+                + invocations
+                + outputs
+                + total_bytes
+                + error_kind_len
+                + error_message_len
+                + (index % 11),
+            modulus,
+        )
+        index = index + 1
+    return acc
+
+pub fn keyword_expansion_case_count() -> Int:
+    return KEYWORD_CASE_COUNT
+
+pub fn keyword_expansion_case_id(index: Int) -> String:
+    if index == 0:
+        return "keyword_where_fold"
+    if index == 1:
+        return "keyword_defer_flow"
+    if index == 2:
+        return "keyword_workgroup_manifest"
+    if index == 3:
+        return "keyword_dispatch_runtime"
+    return ""
+
+pub fn keyword_expansion_case_group(index: Int) -> String:
+    if index >= 0 and index < KEYWORD_CASE_COUNT:
+        return "keyword_expansion"
+    return ""
+
+pub fn keyword_expansion_case_title(index: Int) -> String:
+    if index == 0:
+        return "Keyword Where Fold"
+    if index == 1:
+        return "Keyword Defer Flow"
+    if index == 2:
+        return "Keyword Workgroup Manifest"
+    if index == 3:
+        return "Keyword Dispatch Runtime"
+    return ""
+
+pub fn keyword_expansion_case_iterations(index: Int) -> Int:
+    if index == 0:
+        return 250000
+    if index == 1:
+        return 512
+    if index == 2:
+        return 2000
+    if index == 3:
+        return 4
+    return 0
+
+pub fn keyword_expansion_case_expected_checksum(index: Int) -> Int:
+    if index == 0:
+        return 389272392
+    if index == 1:
+        return 752937848
+    if index == 2:
+        return 637989
+    if index == 3:
+        return 26218
+    return -1
+
+pub fn keyword_expansion_case_checksum(case_id: String, iterations: Int, amplify: Int, modulus: Int) -> Int:
+    let repeat = 0
+    let acc = 0
+    while repeat < amplify:
+        if case_id == "keyword_where_fold":
+            acc = keyword_mod(acc + keyword_where_fold_checksum(iterations, modulus), modulus)
+        else if case_id == "keyword_defer_flow":
+            acc = keyword_mod(acc + keyword_defer_flow_checksum(iterations, modulus), modulus)
+        else if case_id == "keyword_workgroup_manifest":
+            acc = keyword_mod(acc + keyword_workgroup_manifest_checksum(iterations, modulus), modulus)
+        else if case_id == "keyword_dispatch_runtime":
+            acc = keyword_mod(acc + keyword_dispatch_runtime_checksum(iterations, modulus), modulus)
+        else:
+            return -1
+        repeat = repeat + 1
+    return acc
+
+pub fn keyword_expansion_case_telemetry(case_id: String) -> String:
+    let payload = json_object()
+    json_object_set_string(payload, "pack_id", "keyword_expansion")
+    json_object_set_string(payload, "case_id", case_id)
+
+    if case_id == "keyword_where_fold":
+        json_object_set_array(payload, "keywords", keyword_json_keywords(["where"]))
+        json_object_set_string(payload, "surface", "generic-where-clause")
+        json_object_set_string(payload, "shape", "fn keyword_where_mix<T: KeywordMetric>(value: T, ...) where T: KeywordStable")
+        json_object_set_string(payload, "pack_focus", "generic-bound-merge-and-trait-dispatch")
+        return json_stringify(payload)
+
+    if case_id == "keyword_defer_flow":
+        json_object_set_array(payload, "keywords", keyword_json_keywords(["defer"]))
+        json_object_set_string(payload, "surface", "block-cleanup")
+        json_object_set_array(
+            payload,
+            "semantics",
+            keyword_json_keywords([
+                "lifo",
+                "return-payload-before-cleanup",
+                "break-payload-before-cleanup",
+                "continue-cleanup",
+                "nested-block-scope",
+            ]),
+        )
+        json_object_set_string(payload, "pack_focus", "control-flow-cleanup")
+        return json_stringify(payload)
+
+    if case_id == "keyword_workgroup_manifest":
+        let manifest_path = cuda_compute_residency_path()
+        let manifest_exists = manifest_path != "" and fs_exists(manifest_path)
+        let manifest = cuda_compute_manifest()
+        let entry = keyword_compute_entry(manifest, KEYWORD_COMPUTE_KEY)
+        let workgroup_dims = json_int_array_field_result(entry, "workgroup_size")
+        let dispatch_dims = json_int_array_field_result(entry, "dispatch_size")
+        let bindings = json_array_field(entry, "bindings")
+        json_object_set_array(payload, "keywords", keyword_json_keywords(["workgroup"]))
+        json_object_set_string(payload, "compute_key", KEYWORD_COMPUTE_KEY)
+        json_object_set_string(payload, "manifest_path", manifest_path)
+        json_object_set_bool(payload, "manifest_exists", manifest_exists)
+        json_object_set_bool(payload, "key_present", cuda_has_compute_key(KEYWORD_COMPUTE_KEY))
+        json_object_set_array(
+            payload,
+            "expected_workgroup_size",
+            keyword_json_dims(KEYWORD_WORKGROUP_X, KEYWORD_WORKGROUP_Y, KEYWORD_WORKGROUP_Z),
+        )
+        json_object_set_array(
+            payload,
+            "expected_dispatch_size",
+            keyword_json_dims(
+                KEYWORD_DEFAULT_DISPATCH_X,
+                KEYWORD_DEFAULT_DISPATCH_Y,
+                KEYWORD_DEFAULT_DISPATCH_Z,
+            ),
+        )
+        if workgroup_dims.ok:
+            json_object_set_array(payload, "workgroup_size", json_array_from_ints(workgroup_dims.value))
+        else:
+            json_object_set_array(payload, "workgroup_size", json_array())
+        if dispatch_dims.ok:
+            json_object_set_array(payload, "dispatch_size", json_array_from_ints(dispatch_dims.value))
+        else:
+            json_object_set_array(payload, "dispatch_size", json_array())
+        if bindings.ok:
+            json_object_set_int(payload, "binding_count", json_array_length(bindings.value))
+        else:
+            json_object_set_int(payload, "binding_count", -1)
+        json_object_set_string(payload, "pack_focus", "shader-header-canonical-workgroup")
+        return json_stringify(payload)
+
+    if case_id == "keyword_dispatch_runtime":
+        let cuda_state = cuda_runtime_state()
+        json_object_set_array(payload, "keywords", keyword_json_keywords(["dispatch"]))
+        json_object_set_string(payload, "compute_key", KEYWORD_COMPUTE_KEY)
+        json_object_set_bool(payload, "compute_key_present", cuda_has_compute_key(KEYWORD_COMPUTE_KEY))
+        json_object_set_array(
+            payload,
+            "override_dispatch_size",
+            keyword_json_dims(
+                KEYWORD_OVERRIDE_DISPATCH_X,
+                KEYWORD_OVERRIDE_DISPATCH_Y,
+                KEYWORD_OVERRIDE_DISPATCH_Z,
+            ),
+        )
+        json_object_set_bool(payload, "driver_available", cuda_state.driver_available)
+        json_object_set_bool(payload, "runtime_library_available", cuda_state.runtime_library_available)
+        json_object_set_bool(payload, "runtime_ready", cuda_state.runtime_ready)
+        json_object_set_string(payload, "runtime_library_path", cuda_state.paths.runtime_library_path)
+        json_object_set_string(payload, "shader_bundle_path", cuda_state.paths.shader_bundle_path)
+        json_object_set_string(payload, "compute_residency_path", cuda_state.paths.compute_residency_path)
+        json_object_set_bool(
+            payload,
+            "shader_bundle_exists",
+            cuda_state.paths.shader_bundle_path != "" and fs_exists(cuda_state.paths.shader_bundle_path),
+        )
+        json_object_set_bool(
+            payload,
+            "compute_residency_exists",
+            cuda_state.paths.compute_residency_path != "" and fs_exists(cuda_state.paths.compute_residency_path),
+        )
+        json_object_set_int(payload, "last_status", cuda_state.last_status)
+        json_object_set_string(payload, "last_error_kind", cuda_state.last_error_kind)
+        json_object_set_string(payload, "last_error_message", cuda_state.last_error_message)
+        json_object_set_int(payload, "last_dispatch_invocations", abi_cuda_last_dispatch_invocations())
+        json_object_set_int(payload, "last_output_binding_count", abi_cuda_last_output_binding_count())
+        json_object_set_int(payload, "last_total_output_bytes", abi_cuda_last_total_output_bytes())
+        json_object_set_string(payload, "pack_focus", "backend-agnostic-dispatch-abi")
+        return json_stringify(payload)
+
+    json_object_set_array(payload, "keywords", json_array())
+    json_object_set_string(payload, "pack_focus", "keyword-expansion")
+    return json_stringify(payload)

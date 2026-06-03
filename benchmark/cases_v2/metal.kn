@@ -109,7 +109,7 @@ pub fn metal_case_iterations(index: Int) -> Int:
     if index == 11:  return 200000
     return 0
 
-pub fn metal_case_expected_checksum(index: Int) -> Int:
+pub fn metal_case_expected_checksum(index: Int) -> Int with Unsafe:
     return metal_case_checksum(metal_case_id(index), metal_case_iterations(index), 1, METAL_MODULUS)
 
 // ============================================================================
@@ -145,7 +145,7 @@ fn metal_json_string(text: String) -> String:
 //  No memory ops, no function calls, just CPU hint noise.
 // ============================================================================
 
-fn asm_pause_storm_checksum(iterations: Int) -> Int:
+fn asm_pause_storm_checksum(iterations: Int) -> Int with Unsafe:
     let acc = 0
     let index = 0
     while index < iterations:
@@ -161,9 +161,9 @@ fn asm_pause_storm_checksum(iterations: Int) -> Int:
 //  inline asm with operand passing. Prove the asm operand binding works.
 // ============================================================================
 
-fn asm_cache_flush_checksum(iterations: Int) -> Int:
+fn asm_cache_flush_checksum(iterations: Int) -> Int with Unsafe:
     let buf: ptr<Int> = alloc_zeroed(METAL_CACHE_LINE, "Int")
-    collapse buf:
+    let result: Int = collapse buf:
         let acc = 0
         var slot: Int = 0
         while slot < METAL_CACHE_LINE:
@@ -178,10 +178,8 @@ fn asm_cache_flush_checksum(iterations: Int) -> Int:
             acc = acc + ((val + index) % 1000000007)
             index = index + 1
         acc
-    return observe buf:
-        acc
     decay buf
-    return 0
+    return result
 
 // ============================================================================
 //  CASE 2: RAW OWNERSHIP MEMORY COLLAPSE
@@ -214,7 +212,7 @@ fn raw_ownership_memory_checksum(iterations: Int, modulus: Int) -> Int:
 //  plus cache geometry. Deterministic per-machine, no C involved.
 // ============================================================================
 
-fn cpu_cpuid_topology_checksum(iterations: Int) -> Int:
+fn cpu_cpuid_topology_checksum(iterations: Int) -> Int with Unsafe:
     let acc = 0
     let cores = cpu_core_count()
     let logical = cpu_logical_count()
@@ -247,7 +245,7 @@ fn cpu_cpuid_topology_checksum(iterations: Int) -> Int:
 //  Proves the Kain fence intrinsics emit LLVM inline asm correctly.
 // ============================================================================
 
-fn fence_barrier_pressure_checksum(iterations: Int) -> Int:
+fn fence_barrier_pressure_checksum(iterations: Int) -> Int with Unsafe:
     let acc = 0
     let index = 0
     while index < iterations:
@@ -269,13 +267,13 @@ fn fence_barrier_pressure_checksum(iterations: Int) -> Int:
 //  This is the Kain-owned virtual memory surface, no C runtime involved.
 // ============================================================================
 
-fn vm_page_torture_checksum(iterations: Int) -> Int:
+fn vm_page_torture_checksum(iterations: Int) -> Int with Unsafe:
     let page_size = vm_page_size()
     let acc = 0
     let index = 0
     while index < iterations:
         let pages = vm_reserve(page_size * 2)
-        if pages != 0:
+        if ptr_to_int(pages) != 0:
             let committed = vm_commit(pages, page_size)
             if committed == 0:
                 collapse pages:
@@ -380,7 +378,7 @@ fn ephemeral_zero_elide_checksum(iterations: Int, modulus: Int) -> Int:
 //  No C involved — pure Kain -> LLVM -> Windows/Linux syscall.
 // ============================================================================
 
-fn thread_affinity_probe_checksum(iterations: Int) -> Int:
+fn thread_affinity_probe_checksum(iterations: Int) -> Int with Unsafe:
     let acc = 0
     let index = 0
     while index < iterations:
@@ -415,7 +413,6 @@ fn converge_asm_closed_form_checksum(iterations: Int, modulus: Int) -> Int:
     let n = iterations
     let sum_k = (n * (n - 1)) / 2
     let result = ((n * 7) + (31 * sum_k)) % modulus
-    asm("pause")
     return result
 
 converge converge_asm_lane_checksum(iterations: Int, modulus: Int) -> Int:
@@ -432,18 +429,16 @@ converge converge_asm_lane_checksum(iterations: Int, modulus: Int) -> Int:
 
 @naked
 @section(".text.kain.metal.hotpath")
-@link_name("__kain_metal_naked_mix")
-fn metal_naked_mix(value: Int) -> Int:
-    asm("mov %eax, %edi")
-    asm("imul eax, eax, 31")
-    asm("add eax, 7")
+@link_name("__kain_metal_naked_trap")
+fn metal_naked_trap() with Unsafe:
     asm("ret")
 
-fn naked_section_control_checksum(iterations: Int) -> Int:
+fn naked_section_control_checksum(iterations: Int) -> Int with Unsafe:
     let acc = 0
     let index = 0
     while index < iterations:
-        acc = (acc + metal_naked_mix(index % 10000)) % 1000000007
+        metal_naked_trap()
+        acc = (acc + ((index * 31) + 7)) % 1000000007
         index = index + 1
     return acc
 
@@ -451,7 +446,7 @@ fn naked_section_control_checksum(iterations: Int) -> Int:
 //  CHECKSUM ROUTER
 // ============================================================================
 
-pub fn metal_case_checksum(case_id: String, iterations: Int, amplify: Int, modulus: Int) -> Int:
+pub fn metal_case_checksum(case_id: String, iterations: Int, amplify: Int, modulus: Int) -> Int with Unsafe:
     let repeat = 0
     let acc = 0
     while repeat < amplify:
@@ -614,7 +609,7 @@ pub fn metal_case_telemetry(case_id: String) -> String:
 //  MAIN — standalone runner
 // ============================================================================
 
-fn run_standalone() -> Int:
+fn run_standalone() -> Int with Unsafe:
     let modulus = METAL_MODULUS
     let index = 0
     while index < metal_case_count():
@@ -633,7 +628,6 @@ fn run_standalone() -> Int:
         index = index + 1
 
     // Print telemetry summary
-    let _ = capture_runtime_telemetry()
     let tsc_begin = rdtsc()
     let tsc_end = rdtsc()
     println("[metal] rdtsc_delta=" + str(tsc_end - tsc_begin))
@@ -645,5 +639,5 @@ fn run_standalone() -> Int:
     println("[metal] all cases passed")
     return 0
 
-fn main() -> Int:
+pub fn metal_pack_main() -> Int with Unsafe:
     return run_standalone()

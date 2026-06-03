@@ -5,8 +5,7 @@ use crate::{target_extension, CompileTarget};
 use kain_core::error::KainError;
 #[cfg(all(feature = "gpu", feature = "sys"))]
 use kain_driver::{
-    compile_gpu_artifacts as compile_gpu_artifacts_from_driver,
-    compile_realtime_app_bundle,
+    compile_gpu_artifacts as compile_gpu_artifacts_from_driver, compile_realtime_app_bundle,
     write_compute_residency_sidecars,
 };
 
@@ -35,7 +34,10 @@ impl GpuArtifactTarget {
     }
 
     pub fn emit_spirv(&self) -> bool {
-        matches!(self, GpuArtifactTarget::All | GpuArtifactTarget::Spirv | GpuArtifactTarget::Hlsl)
+        matches!(
+            self,
+            GpuArtifactTarget::All | GpuArtifactTarget::Spirv | GpuArtifactTarget::Hlsl
+        )
     }
 
     pub fn emit_ptx(&self) -> bool {
@@ -88,12 +90,32 @@ pub fn write_gpu_artifacts_bundle(
     } else if target == GpuArtifactTarget::Spirv && no_derived {
         &[&spirv_path, &rust_path, &json_path, &bundle_path]
     } else if target == GpuArtifactTarget::Spirv {
-        &[&spirv_path, &rust_path, &json_path, &bundle_path, &ptx_path, &hlsl_path]
+        &[
+            &spirv_path,
+            &rust_path,
+            &json_path,
+            &bundle_path,
+            &ptx_path,
+            &hlsl_path,
+        ]
     } else if target == GpuArtifactTarget::Hlsl {
-        &[&spirv_path, &rust_path, &json_path, &bundle_path, &hlsl_path]
+        &[
+            &spirv_path,
+            &rust_path,
+            &json_path,
+            &bundle_path,
+            &hlsl_path,
+        ]
     } else {
         // All
-        &[&spirv_path, &rust_path, &json_path, &bundle_path, &hlsl_path, &ptx_path]
+        &[
+            &spirv_path,
+            &rust_path,
+            &json_path,
+            &bundle_path,
+            &hlsl_path,
+            &ptx_path,
+        ]
     };
 
     for path in paths {

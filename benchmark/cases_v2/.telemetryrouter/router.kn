@@ -82,6 +82,14 @@ use mcp_stdlib::mcp_stdlib_case_group
 use mcp_stdlib::mcp_stdlib_case_id
 use mcp_stdlib::mcp_stdlib_case_iterations
 use mcp_stdlib::mcp_stdlib_case_title
+use keyword_expansion::keyword_expansion_case_checksum
+use keyword_expansion::keyword_expansion_case_count
+use keyword_expansion::keyword_expansion_case_expected_checksum
+use keyword_expansion::keyword_expansion_case_group
+use keyword_expansion::keyword_expansion_case_id
+use keyword_expansion::keyword_expansion_case_iterations
+use keyword_expansion::keyword_expansion_case_telemetry
+use keyword_expansion::keyword_expansion_case_title
 use metal::metal_case_checksum
 use metal::metal_case_count
 use metal::metal_case_expected_checksum
@@ -439,7 +447,7 @@ fn stdlib_foundations_checksum(iterations: Int) -> Int:
     let _metrics_destroy = typed_map_destroy(metrics)
     return acc
 
-fn run_case_checksum(case_id: String, iterations: Int, amplify: Int) -> Int:
+fn run_case_checksum(case_id: String, iterations: Int, amplify: Int) -> Int with Unsafe:
     let classic_checksum = classic_case_checksum(case_id, iterations, amplify, ROUTER_MODULUS)
     if classic_checksum >= 0:
         return classic_checksum
@@ -470,6 +478,9 @@ fn run_case_checksum(case_id: String, iterations: Int, amplify: Int) -> Int:
     let mcp_stdlib_checksum = mcp_stdlib_case_checksum(case_id, iterations, amplify, ROUTER_MODULUS)
     if mcp_stdlib_checksum >= 0:
         return mcp_stdlib_checksum
+    let keyword_expansion_checksum = keyword_expansion_case_checksum(case_id, iterations, amplify, ROUTER_MODULUS)
+    if keyword_expansion_checksum >= 0:
+        return keyword_expansion_checksum
     let metal_checksum = metal_case_checksum(case_id, iterations, amplify, ROUTER_MODULUS)
     if metal_checksum >= 0:
         return metal_checksum
@@ -500,6 +511,8 @@ fn case_telemetry_json(pack_id: String, case_id: String) -> String:
         return vulkan_loader_case_telemetry(case_id)
     if pack_id == "system_headers":
         return system_headers_case_telemetry(case_id)
+    if pack_id == "keyword_expansion":
+        return keyword_expansion_case_telemetry(case_id)
     if pack_id == "metal":
         return metal_case_telemetry(case_id)
     let content = "{"
@@ -519,7 +532,7 @@ fn ops_per_second_for_pass(work_units: Int, elapsed_ms: Int) -> Int:
         return work_units * 1000
     return (work_units * 1000) / elapsed_ms
 
-fn run_case(pack_id: String, case_id: String, group: String, title: String, iterations: Int, expected_base_checksum: Int, config: RouterConfig) -> BenchResult:
+fn run_case(pack_id: String, case_id: String, group: String, title: String, iterations: Int, expected_base_checksum: Int, config: RouterConfig) -> BenchResult with Unsafe:
     let warmup_index = 0
     while warmup_index < config.warmups:
         let _warmup_checksum = run_case_checksum(case_id, iterations, config.amplify)
@@ -752,7 +765,7 @@ fn prepare_output_layout(config: RouterConfig) -> Int:
     fs_create_dir_all(config.track_root)
     return len(config.track_root)
 
-fn main() -> Int:
+fn main() -> Int with Unsafe:
     let config = load_config()
     let _layout = prepare_output_layout(config)
     let started_ms = now_millis()
@@ -931,6 +944,23 @@ fn main() -> Int:
                 failure_count = failure_count + 1
             println("[bench-v2] " + case_id + " best=" + str(result.best_ms) + "ms avg=" + str(result.average_ms) + "ms status=" + result_status_text(result))
         mcp_stdlib_index = mcp_stdlib_index + 1
+
+    let keyword_expansion_index = 0
+    while keyword_expansion_index < keyword_expansion_case_count():
+        let case_id = keyword_expansion_case_id(keyword_expansion_index)
+        let case_group = keyword_expansion_case_group(keyword_expansion_index)
+        if case_selected(config.filter_text, case_id, case_group):
+            let result = run_case("keyword_expansion", case_id, case_group, keyword_expansion_case_title(keyword_expansion_index), keyword_expansion_case_iterations(keyword_expansion_index), keyword_expansion_case_expected_checksum(keyword_expansion_index), config)
+            let _track = write_track_report(result)
+            cases_json_items = append_json_item(cases_json_items, render_result_json(result))
+            table_rows = table_rows + format_result_row(result)
+            case_count = case_count + 1
+            if result.success:
+                success_count = success_count + 1
+            else:
+                failure_count = failure_count + 1
+            println("[bench-v2] " + case_id + " best=" + str(result.best_ms) + "ms avg=" + str(result.average_ms) + "ms status=" + result_status_text(result))
+        keyword_expansion_index = keyword_expansion_index + 1
 
     let metal_index = 0
     while metal_index < metal_case_count():

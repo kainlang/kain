@@ -1,0 +1,27 @@
+use keyword_expansion::keyword_expansion_case_checksum
+use keyword_expansion::keyword_expansion_case_count
+use keyword_expansion::keyword_expansion_case_expected_checksum
+use keyword_expansion::keyword_expansion_case_id
+use keyword_expansion::keyword_expansion_case_iterations
+use keyword_expansion::keyword_expansion_case_telemetry
+
+const PROBE_MODULUS: Int = 1000000007
+
+fn probe_case(index: Int) -> Int:
+    let case_id = keyword_expansion_case_id(index)
+    let iterations = keyword_expansion_case_iterations(index)
+    let expected = keyword_expansion_case_expected_checksum(index)
+    let checksum = keyword_expansion_case_checksum(case_id, iterations, 1, PROBE_MODULUS)
+    println(case_id + " checksum=" + str(checksum) + " expected=" + str(expected))
+    println(keyword_expansion_case_telemetry(case_id))
+    if checksum == expected:
+        return 0
+    return 1
+
+fn main() -> Int:
+    let index = 0
+    let failures = 0
+    while index < keyword_expansion_case_count():
+        failures = failures + probe_case(index)
+        index = index + 1
+    return failures

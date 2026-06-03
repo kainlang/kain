@@ -1,7 +1,7 @@
 {
   "mode": "attrition",
   "status": 0,
-  "elapsed_ms": 1559,
+  "elapsed_ms": 1849,
   "summary_exists": 1,
   "summary_path": "X:/smoketest/telemetry/attrition/summary.json",
   "output_dir": "X:/smoketest/telemetry/attrition",
@@ -19,7 +19,7 @@
   "error_message": "",
   "stdout_len": 0,
   "stderr_len": 0,
-  "runner_checksum": 681922,
+  "runner_checksum": 682792,
   "probe": {
   "ok": 1,
   "python": "Z:/_b/output-user-root/n2kwlvv2/execroot/_main/bazel-out/x64_windows-dbg/bin/crates/cli/kain.exe",

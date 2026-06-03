@@ -6728,12 +6728,14 @@ fn untouched_afterwards():
         let program = Program {
             items: vec![Item::Impl(kain_core::ast::Impl {
                 generics: Vec::new(),
+                where_clause: None,
                 trait_name: Some("Default".to_string()),
                 trait_generics: Vec::new(),
                 target_type: target_type.clone(),
                 methods: vec![kain_core::ast::Function {
                     name: "default_".to_string(),
                     generics: Vec::new(),
+                    where_clause: None,
                     params: Vec::new(),
                     return_type: Some(target_type),
                     effects: Vec::new(),
@@ -6761,6 +6763,7 @@ fn untouched_afterwards():
         let program = Program {
             items: vec![Item::Impl(kain_core::ast::Impl {
                 generics: Vec::new(),
+                where_clause: None,
                 trait_name: None,
                 trait_generics: Vec::new(),
                 target_type: Type::Named {
@@ -6771,6 +6774,7 @@ fn untouched_afterwards():
                 methods: vec![kain_core::ast::Function {
                     name: "tokenize".to_string(),
                     generics: Vec::new(),
+                    where_clause: None,
                     params: vec![Param {
                         name: "_self".to_string(),
                         ty: Type::Ref {

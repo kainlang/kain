@@ -299,7 +299,7 @@ world WorldPythonAuthority:
     state os_path_joined: String = ""
     state os_path_dirname: String = ""
     state os_path_basename: String = ""
-    surface native_ui => PythonSemanticApp
+    surface web => PythonSemanticApp
 
 world WorldPythonMirror:
     state sys_name_copy: String = ""

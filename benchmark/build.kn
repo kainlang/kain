@@ -46,6 +46,7 @@ fn build(ctx: BuildContext) -> BuildGraph:
         .input("cases_v2/system_headers.kn")
         .input("cases_v2/rage_runtime.kn")
         .input("cases_v2/mcp_stdlib.kn")
+        .input("cases_v2/keyword_expansion.kn")
         .input("build.kn")
 
     let root_exe = native_executable("root-executable")
@@ -63,6 +64,7 @@ fn build(ctx: BuildContext) -> BuildGraph:
         .input("cases_v2/system_headers.kn")
         .input("cases_v2/rage_runtime.kn")
         .input("cases_v2/mcp_stdlib.kn")
+        .input("cases_v2/keyword_expansion.kn")
         .input("build.kn")
 
     let telemetry = exec_task("telemetry-v2")
@@ -81,6 +83,7 @@ fn build(ctx: BuildContext) -> BuildGraph:
         .input("cases_v2/system_headers.kn")
         .input("cases_v2/rage_runtime.kn")
         .input("cases_v2/mcp_stdlib.kn")
+        .input("cases_v2/keyword_expansion.kn")
         .input("build.kn")
         .arg("-NoProfile")
         .arg("-ExecutionPolicy")

@@ -80,14 +80,17 @@ pub fn stage_native_backend_artifacts_with_session(
         "realtime app",
     )?;
 
-    let shader_bundle_output = if source_declares_shader_item(source) {
+    let shader_scan_source = session
+        .frontend_full_source()
+        .unwrap_or_else(|| source.to_string());
+    let shader_bundle_output = if !realtime_bundle.bundle.shader_bundle_refs.is_empty() {
         let extracted_shader_source;
-        let shader_source = match shader_artifact_source(source) {
+        let shader_source = match shader_artifact_source(&shader_scan_source) {
             Some(source) => {
                 extracted_shader_source = source;
                 extracted_shader_source.as_str()
             }
-            None => source,
+            None => shader_scan_source.as_str(),
         };
 
         match session.compile_shader_artifact_bundle(shader_source) {
@@ -142,29 +145,6 @@ pub fn stage_native_backend_artifacts_with_session(
         compute_residency_payload_paths,
         shader_bundle_path,
     })
-}
-
-fn source_declares_shader_item(source: &str) -> bool {
-    let Ok(tokens) = Lexer::new(source).tokenize() else {
-        return true;
-    };
-    let mapper = SpanMapper::new(source);
-    let Ok(program) = Parser::new(&tokens, &mapper, "<native-backend-shader-scan>").parse() else {
-        return true;
-    };
-    program.items.iter().any(item_declares_shader_item)
-}
-
-fn item_declares_shader_item(item: &Item) -> bool {
-    match item {
-        Item::Shader(_) => true,
-        Item::Mod(module) => module
-            .inline
-            .as_ref()
-            .map(|items| items.iter().any(item_declares_shader_item))
-            .unwrap_or(false),
-        _ => false,
-    }
 }
 
 fn shader_artifact_source(source: &str) -> Option<String> {
@@ -269,8 +249,10 @@ fn write_json_artifact(path: &Path, contents: &str, label: &str) -> Result<(), S
 #[cfg(test)]
 mod tests {
     use super::{
-        runtime_contract_artifact_path, stage_llvm_native_artifacts, SHADER_BUNDLE_FILE_NAME,
+        runtime_contract_artifact_path, stage_llvm_native_artifacts,
+        stage_native_backend_artifacts_with_session, SHADER_BUNDLE_FILE_NAME,
     };
+    use kain_core::CompileTarget;
     use std::fs;
     use std::path::Path;
     use tempfile::TempDir;
@@ -354,7 +336,20 @@ fn main() -> Int:
 
     #[test]
     fn shader_artifact_source_extracts_kain_example_shaders_without_native_body() {
-        let source = include_str!("../../../blades/_old/kain-example/src/main.kn");
+        let source = r#"
+shader fragment NativeExampleGradient(uv: Vec2) -> Vec4:
+    uniform accent: Vec3 @0
+    return vec4(accent.x, accent.y, accent.z, 1.0)
+
+shader compute NativeExampleBlendKernel(id: UVec3) -> Vec4:
+    uniform src: StorageBuffer<Vec4> @0
+    uniform dst: StorageBuffer<Vec4> @1
+    return vec4(1.0, 0.0, 0.0, 1.0)
+
+fn main() -> Int:
+    let status = native_runtime_heap_validate()
+    return status
+"#;
 
         let extracted = super::shader_artifact_source(source)
             .expect("kain-example native source should yield shader-only source");
@@ -409,6 +404,69 @@ fn main() -> Int:
         assert!(staged.compute_residency_path.is_none());
         assert!(staged.compute_residency_payload_paths.is_empty());
         assert!(staged.shader_bundle_path.is_none());
+    }
+
+    #[test]
+    fn stage_native_backend_artifacts_materializes_imported_shader_sidecars() {
+        let temp = TempDir::new().expect("temp dir");
+        let source_root = temp.path().join("src");
+        fs::create_dir_all(&source_root).expect("source root");
+
+        let main_path = temp.path().join("main.kn");
+        let module_path = source_root.join("shader_pack.kn");
+        let output_path = temp.path().join("build").join("demo.ll");
+
+        fs::write(
+            &main_path,
+            r#"
+use shader_pack::shader_flag
+
+fn main() -> Int:
+    return shader_flag()
+"#,
+        )
+        .expect("main source");
+        fs::write(
+            &module_path,
+            r#"
+pub fn shader_flag() -> Int:
+    return 7
+
+shader compute ImportedKernel(id: UVec3) -> Vec4:
+    uniform src: StorageBuffer<Vec4> @0
+    uniform dst: StorageBuffer<Vec4> @1
+    return vec4(1.0, 1.0, 1.0, 1.0)
+"#,
+        )
+        .expect("module source");
+
+        let source = fs::read_to_string(&main_path).expect("read main source");
+        let previous_dir = std::env::current_dir().expect("current dir");
+        let session = kain_driver::DriverSession::default();
+        let staged = (|| {
+            std::env::set_current_dir(temp.path()).expect("set cwd");
+            stage_native_backend_artifacts_with_session(
+                &session,
+                &source,
+                Some(&main_path),
+                CompileTarget::Llvm,
+                &output_path,
+                None,
+            )
+        })();
+        std::env::set_current_dir(previous_dir).expect("restore cwd");
+        let staged = staged.expect("imported shader sidecars should stage");
+
+        assert!(staged.compute_residency_path.is_some());
+        assert!(staged.shader_bundle_path.is_some());
+        let shader_json = fs::read_to_string(
+            staged
+                .shader_bundle_path
+                .as_ref()
+                .expect("shader bundle path"),
+        )
+        .expect("shader bundle json");
+        assert!(shader_json.contains("ImportedKernel"));
     }
 
     #[test]

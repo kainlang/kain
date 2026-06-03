@@ -705,6 +705,22 @@ impl DriverSession {
             .typed)
     }
 
+    fn frontend_to_sys_codegen_program_with_source_path_and_progress(
+        &self,
+        source: &str,
+        source_path: Option<&Path>,
+        target: CompileTarget,
+        progress: Option<&ToolingProgressSink>,
+    ) -> Result<TypedProgram, KainError> {
+        let mono = self.frontend_to_monomorphized_program_with_source_path_and_progress(
+            source,
+            source_path,
+            target,
+            progress,
+        )?;
+        Ok(TypedProgram { items: mono.items })
+    }
+
     pub fn frontend_to_typed_program_with_extra_globals<I>(
         &self,
         source: &str,
@@ -938,13 +954,25 @@ impl DriverSession {
             }
             _ => {
                 #[allow(unused_variables)]
-                let typed_for_codegen = self
-                    .frontend_to_typed_program_with_source_path_and_progress(
+                let typed_for_codegen = match target {
+                    #[cfg(feature = "sys")]
+                    CompileTarget::C
+                    | CompileTarget::Llvm
+                    | CompileTarget::Rust
+                    | CompileTarget::Cpp => self
+                        .frontend_to_sys_codegen_program_with_source_path_and_progress(
+                            source,
+                            source_path,
+                            target,
+                            progress,
+                        )?,
+                    _ => self.frontend_to_typed_program_with_source_path_and_progress(
                         source,
                         source_path,
                         target,
                         progress,
-                    )?;
+                    )?,
+                };
 
                 match target {
                     #[cfg(feature = "ue5")]
@@ -5129,6 +5157,108 @@ fn main() -> Int:
             .expect("llvm output");
 
         assert!(llvm.contains("call i8* @str_concat("));
+    }
+
+    #[cfg(feature = "sys")]
+    #[test]
+    fn compile_llvm_monomorphizes_where_bound_trait_method_calls() {
+        let llvm = DriverSession::default()
+            .compile(
+                r#"
+trait Metric:
+    fn fold_seed(_self: Self_) -> Int:
+        return 0
+
+struct Packet:
+    id: Int
+
+impl Metric for Packet:
+    fn fold_seed(_self: Self_) -> Int:
+        return (_self.id * 5) + 13
+
+fn crunch_metric<T>(value: T, salt: Int) -> Int where T: Metric:
+    let score = value.fold_seed() + salt
+    return score
+
+fn main() -> Int:
+    let packet = Packet { id: 7 }
+    return crunch_metric(packet, 3)
+"#,
+                CompileTarget::Llvm,
+            )
+            .expect("llvm output");
+
+        assert!(llvm.contains("define internal i64 @Packet_fold_seed(%Packet %arg0)"));
+        assert!(llvm.contains("define internal i64 @crunch_metric_Packet(%Packet %arg0, i64 %arg1)"));
+        assert!(llvm.contains("call i64 @Packet_fold_seed(%Packet"));
+        assert!(llvm.contains("call i64 @crunch_metric_Packet(%Packet"));
+    }
+
+    #[cfg(feature = "sys")]
+    #[test]
+    fn compile_llvm_monomorphizes_generic_struct_literals() {
+        let program = DriverSession::default()
+            .frontend_to_monomorphized_program(
+                r#"
+struct Layout:
+    stride: Int
+
+struct Wrap<T>:
+    value: T
+    layout: Layout
+
+struct Packet:
+    id: Int
+
+fn wrap_packet(value: Packet) -> Wrap<Packet>:
+    return Wrap {
+        value: value,
+        layout: Layout { stride: 16 }
+    }
+
+fn main() -> Int:
+    let wrapped: Wrap<Packet> = wrap_packet(Packet { id: 7 })
+    return wrapped.value.id
+"#,
+                CompileTarget::Llvm,
+            )
+            .expect("monomorphized program");
+
+        assert!(program.items.iter().any(|item| matches!(
+            item,
+            TypedItem::Struct(struct_item) if struct_item.ast.name == "Wrap_Packet"
+        )));
+
+        let wrap_packet_fn = program
+            .items
+            .iter()
+            .find_map(|item| match item {
+                TypedItem::Function(function) if function.ast.name == "wrap_packet" => Some(function),
+                _ => None,
+            })
+            .expect("wrap_packet function");
+
+        assert!(matches!(
+            wrap_packet_fn.ast.return_type.as_ref(),
+            Some(kain_core::ast::Type::Named { name, generics, .. })
+                if name == "Wrap_Packet" && generics.is_empty()
+        ));
+
+        let wrapped_return = wrap_packet_fn
+            .ast
+            .body
+            .stmts
+            .iter()
+            .find_map(|stmt| match stmt {
+                kain_core::ast::Stmt::Return(Some(expr), _) => Some(expr),
+                _ => None,
+            })
+            .expect("wrapped return");
+
+        assert!(matches!(
+            wrapped_return,
+            kain_core::ast::Expr::Struct { name, .. } if name == "Wrap_Packet"
+        ));
     }
 
     #[cfg(all(feature = "gpu", feature = "sys"))]
