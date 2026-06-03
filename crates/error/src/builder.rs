@@ -301,6 +301,113 @@ impl RuntimeDiagnostic {
     }
 }
 
+
+// ── Converge ──────────────────────────────────────────────────────────
+
+pub struct ConvergeDiagnostic;
+
+impl ConvergeDiagnostic {
+    pub fn generic(message: impl Into<String>) -> DiagnosticReport {
+        DiagnosticReport::new(ErrorKind::Converge, code("KAIN-CONVERGE-0001"), message)
+    }
+
+    pub fn missing_spec_lane(message: impl Into<String>) -> DiagnosticReport {
+        DiagnosticReport::new(ErrorKind::Converge, code("KAIN-CONVERGE-0002"), message)
+    }
+
+    pub fn fast_lane_mismatch(message: impl Into<String>) -> DiagnosticReport {
+        DiagnosticReport::new(ErrorKind::Converge, code("KAIN-CONVERGE-0003"), message)
+    }
+
+    pub fn verifier_failed(message: impl Into<String>) -> DiagnosticReport {
+        DiagnosticReport::new(ErrorKind::Converge, code("KAIN-CONVERGE-0004"), message)
+    }
+
+    pub fn capability_gap(message: impl Into<String>) -> DiagnosticReport {
+        DiagnosticReport::new(ErrorKind::Converge, code("KAIN-CONVERGE-0005"), message)
+    }
+
+    pub fn return_type_divergence(message: impl Into<String>) -> DiagnosticReport {
+        DiagnosticReport::new(ErrorKind::Converge, code("KAIN-CONVERGE-0006"), message)
+    }
+
+    pub fn effect_set_divergence(message: impl Into<String>) -> DiagnosticReport {
+        DiagnosticReport::new(ErrorKind::Converge, code("KAIN-CONVERGE-0007"), message)
+    }
+
+    pub fn ambiguous_lane(message: impl Into<String>) -> DiagnosticReport {
+        DiagnosticReport::new(ErrorKind::Converge, code("KAIN-CONVERGE-0008"), message)
+    }
+}
+
+// ── Entangle ──────────────────────────────────────────────────────────
+
+pub struct EntangleDiagnostic;
+
+impl EntangleDiagnostic {
+    pub fn generic(message: impl Into<String>) -> DiagnosticReport {
+        DiagnosticReport::new(ErrorKind::Entangle, code("KAIN-ENTANGLE-0001"), message)
+    }
+
+    pub fn cycle_detected(message: impl Into<String>) -> DiagnosticReport {
+        DiagnosticReport::new(ErrorKind::Entangle, code("KAIN-ENTANGLE-0002"), message)
+    }
+
+    pub fn single_writer_violation(message: impl Into<String>) -> DiagnosticReport {
+        DiagnosticReport::new(ErrorKind::Entangle, code("KAIN-ENTANGLE-0003"), message)
+    }
+
+    pub fn dangling_reference(message: impl Into<String>) -> DiagnosticReport {
+        DiagnosticReport::new(ErrorKind::Entangle, code("KAIN-ENTANGLE-0004"), message)
+    }
+
+    pub fn cross_world_scope(message: impl Into<String>) -> DiagnosticReport {
+        DiagnosticReport::new(ErrorKind::Entangle, code("KAIN-ENTANGLE-0005"), message)
+    }
+
+    pub fn type_mismatch(message: impl Into<String>) -> DiagnosticReport {
+        DiagnosticReport::new(ErrorKind::Entangle, code("KAIN-ENTANGLE-0006"), message)
+    }
+
+    pub fn direction_conflict(message: impl Into<String>) -> DiagnosticReport {
+        DiagnosticReport::new(ErrorKind::Entangle, code("KAIN-ENTANGLE-0007"), message)
+    }
+}
+
+// ── Patch / Law ───────────────────────────────────────────────────────
+
+pub struct PatchDiagnostic;
+
+impl PatchDiagnostic {
+    pub fn generic(message: impl Into<String>) -> DiagnosticReport {
+        DiagnosticReport::new(ErrorKind::Patch, code("KAIN-PATCH-0001"), message)
+    }
+
+    pub fn target_not_world(message: impl Into<String>) -> DiagnosticReport {
+        DiagnosticReport::new(ErrorKind::Patch, code("KAIN-PATCH-0002"), message)
+    }
+
+    pub fn law_precondition_failed(message: impl Into<String>) -> DiagnosticReport {
+        DiagnosticReport::new(ErrorKind::Patch, code("KAIN-PATCH-0003"), message)
+    }
+
+    pub fn law_postcondition_failed(message: impl Into<String>) -> DiagnosticReport {
+        DiagnosticReport::new(ErrorKind::Patch, code("KAIN-PATCH-0004"), message)
+    }
+
+    pub fn applied_outside_world_scope(message: impl Into<String>) -> DiagnosticReport {
+        DiagnosticReport::new(ErrorKind::Patch, code("KAIN-PATCH-0005"), message)
+    }
+
+    pub fn conflicting_mutations(message: impl Into<String>) -> DiagnosticReport {
+        DiagnosticReport::new(ErrorKind::Patch, code("KAIN-PATCH-0006"), message)
+    }
+
+    pub fn law_return_type_mismatch(message: impl Into<String>) -> DiagnosticReport {
+        DiagnosticReport::new(ErrorKind::Patch, code("KAIN-PATCH-0007"), message)
+    }
+}
+
 // ── Helpers ──────────────────────────────────────────────────────────
 
 fn code(s: &'static str) -> DiagnosticCode {

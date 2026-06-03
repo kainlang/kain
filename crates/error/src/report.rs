@@ -289,6 +289,9 @@ pub enum ErrorKind {
     Config,
     Validation,
     Internal,
+    Converge,
+    Entangle,
+    Patch,
 }
 
 impl fmt::Display for ErrorKind {
@@ -311,6 +314,9 @@ impl fmt::Display for ErrorKind {
             Self::Config => write!(f, "CONFIG"),
             Self::Validation => write!(f, "VALIDATION"),
             Self::Internal => write!(f, "INTERNAL"),
+            Self::Converge => write!(f, "CONVERGE"),
+            Self::Entangle => write!(f, "ENTANGLE"),
+            Self::Patch => write!(f, "PATCH"),
         }
     }
 }
@@ -702,5 +708,8 @@ pub fn default_code_for_kind(kind: ErrorKind) -> DiagnosticCode {
         ErrorKind::Config => compat_default_code_for_kind(ErrorKind::Config),
         ErrorKind::Validation => compat_default_code_for_kind(ErrorKind::Validation),
         ErrorKind::Internal => compat_default_code_for_kind(ErrorKind::Internal),
+        ErrorKind::Converge => DiagnosticCode::new("KAIN-CONVERGE-0001"),
+        ErrorKind::Entangle => DiagnosticCode::new("KAIN-ENTANGLE-0001"),
+        ErrorKind::Patch => DiagnosticCode::new("KAIN-PATCH-0001"),
     }
 }

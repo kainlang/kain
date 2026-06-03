@@ -1,0 +1,125 @@
+# ── Kain Converge Error Codes ───────────────────────────────────────────
+# Fast-lane dispatch selection, spec/fast contract verification, verifier
+# sampling, lane capability gaps, and return/effect-set divergence.
+#
+# converge computes a value using the spec lane as the oracle and one or
+# more fast lanes as optimised alternatives. These codes fire when the
+# contract between spec and fast is broken, when lane selection is
+# ambiguous, or when a fast lane claims a capability the target lacks.
+
+[[diagnostics]]
+code = "KAIN-CONVERGE-0001"
+title = "Converge Error"
+severity = "error"
+docs_key = "converge/general"
+help = "A converge block has a well-formedness error. This is the generic fallback."
+see_also = ["KAIN-CONVERGE-0002", "KAIN-CONVERGE-0003"]
+
+[[diagnostics]]
+code = "KAIN-CONVERGE-0002"
+title = "Converge Missing Spec Lane"
+severity = "error"
+docs_key = "converge/missing-spec"
+help = """
+Every `converge` block must have exactly one `spec reference:` lane that
+acts as the ground-truth oracle for verifier sampling. None was found.
+
+Fix: add a `spec reference:` lane before any `fast` lanes.
+"""
+example_bad = """
+converge compute(x: Int) -> Int:
+    fast avx2_lane when capability("cpu.x86.avx2"):
+        return simd_mix(x)
+"""
+example_good = """
+converge compute(x: Int) -> Int:
+    spec reference:
+        return scalar_mix(x)
+    fast avx2_lane when capability("cpu.x86.avx2"):
+        return simd_mix(x)
+"""
+
+[[diagnostics]]
+code = "KAIN-CONVERGE-0003"
+title = "Converge Fast Lane Contract Mismatch"
+severity = "error"
+docs_key = "converge/fast-lane-mismatch"
+help = """
+A `fast` lane's verifier samples do not agree with the `spec reference`
+oracle. The fast implementation is semantically inequivalent.
+
+Fix: align the fast lane's result with the spec lane for all inputs, or
+reduce the verifier sample count and re-check the boundary cases.
+"""
+see_also = ["KAIN-CONVERGE-0004"]
+
+[[diagnostics]]
+code = "KAIN-CONVERGE-0004"
+title = "Converge Verifier Failed"
+severity = "error"
+docs_key = "converge/verifier-failed"
+help = """
+The `verify` clause ran the built-in random sampler against the spec and
+fast lanes and found a disagreement. The fast lane diverges from the spec
+on at least one generated input.
+
+Fix: inspect the diverging input (the compiler will emit it) and fix the
+fast lane logic.
+"""
+see_also = ["KAIN-CONVERGE-0003"]
+
+[[diagnostics]]
+code = "KAIN-CONVERGE-0005"
+title = "Converge Capability Gap At Target"
+severity = "error"
+docs_key = "converge/capability-gap"
+help = """
+A `fast ... when capability(...)` lane requires a hardware capability
+(e.g., `cpu.x86.avx2`, `gpu.tensor_core`) that is absent on the current
+compilation target. No valid lane remains after filtering.
+
+Fix: add a fallback fast lane for the common-case target, or make the
+spec lane available unconditionally.
+"""
+see_also = ["KAIN-CONVERGE-0002"]
+
+[[diagnostics]]
+code = "KAIN-CONVERGE-0006"
+title = "Converge Return Type Divergence"
+severity = "error"
+docs_key = "converge/return-type-divergence"
+help = """
+The spec lane and one or more fast lanes return incompatible types.
+All lanes in a `converge` block must agree on the return type.
+
+Fix: align the return type annotation across all lanes.
+"""
+
+[[diagnostics]]
+code = "KAIN-CONVERGE-0007"
+title = "Converge Effect Set Divergence"
+severity = "error"
+docs_key = "converge/effect-set-divergence"
+help = """
+Lanes within a `converge` block declare different effect sets. The
+compiler cannot guarantee safe dispatch — a caller expecting a Pure lane
+might receive an IO lane at runtime.
+
+Fix: ensure all lanes agree on effect annotations, or mark the converge
+block with the union of required effects.
+"""
+see_also = ["KAIN-EFFECT-0001"]
+
+[[diagnostics]]
+code = "KAIN-CONVERGE-0008"
+title = "Converge Ambiguous Lane Selection"
+severity = "error"
+docs_key = "converge/ambiguous-lane"
+help = """
+Multiple `fast` lanes match the current target's capability set and
+runtime conditions simultaneously. The compiler cannot deterministically
+choose one.
+
+Fix: use more specific `when` guards or add a priority ordering with
+`prefer` annotations.
+"""

@@ -1,0 +1,133 @@
+# ── Kain Patch / Law Error Codes ────────────────────────────────────────
+# Transactional world mutation: patch target validation, law
+# precondition/postcondition checking, out-of-scope application,
+# conflicting mutations, and return type mismatches.
+#
+# patch update(target: World, v: T) -> T applies a validated mutation to
+# a world's state. law predicates guard every patch site.
+
+[[diagnostics]]
+code = "KAIN-PATCH-0001"
+title = "Patch Error"
+severity = "error"
+docs_key = "patch/general"
+help = "A `patch` or `law` declaration has a well-formedness error. This is the generic fallback."
+see_also = ["KAIN-PATCH-0002", "KAIN-PATCH-0003"]
+
+[[diagnostics]]
+code = "KAIN-PATCH-0002"
+title = "Patch Target Is Not A World"
+severity = "error"
+docs_key = "patch/target-not-world"
+help = """
+The first parameter of a `patch` block must be a `world` type. `patch`
+is designed for transactional mutation of compiler-owned world state
+and cannot be applied to arbitrary structs or scalars.
+
+Fix: change the patch target to a declared `world`, or use a regular
+function for non-world mutation.
+"""
+example_bad = """
+patch update(target: MyStruct, v: Int) -> Int:
+    target.count = v
+    return target.count
+"""
+example_good = """
+patch update(target: Authority, v: Int) -> Int:
+    target.count = v
+    return target.count
+"""
+
+[[diagnostics]]
+code = "KAIN-PATCH-0003"
+title = "Patch Law Precondition Failed"
+severity = "error"
+docs_key = "patch/law-precondition"
+help = """
+A `law` predicate guarding this `patch` site failed its precondition
+check. The proposed mutation is not valid given the current world state.
+
+Fix: ensure the value being patched satisfies all law predicates, or
+adjust the law to match the intended invariant.
+"""
+example_bad = """
+law value_in_range(v: Int) -> Bool:
+    return v >= 0 and v < 1000000007
+
+patch update(target: Authority, v: Int) -> Int:
+    target.count = v  // v = -1 violates law
+"""
+example_good = """
+patch update(target: Authority, v: Int) -> Int:
+    assert value_in_range(v)
+    target.count = v
+    return target.count
+"""
+see_also = ["KAIN-PATCH-0004", "KAIN-COMPTIME-0006"]
+
+[[diagnostics]]
+code = "KAIN-PATCH-0004"
+title = "Patch Law Postcondition Failed"
+severity = "error"
+docs_key = "patch/law-postcondition"
+help = """
+After applying the `patch`, a `law` postcondition is not satisfied by the
+resulting world state. The patch body must leave the world in a state
+that satisfies all invariants.
+
+Fix: adjust the patch body to restore invariant compliance before
+returning, or strengthen the postcondition law.
+"""
+see_also = ["KAIN-PATCH-0003"]
+
+[[diagnostics]]
+code = "KAIN-PATCH-0005"
+title = "Patch Applied Outside World Scope"
+severity = "error"
+docs_key = "patch/outside-scope"
+help = """
+A `patch` block was invoked in a context where the target world is not
+in scope or where world mutation is not permitted (e.g., inside a pure
+function, a shader, or a GPU compute kernel).
+
+Fix: invoke the patch from a world-aware context (a `pulse` handler, a
+top-level function with IO/Reactive effect, or an actor `on` handler).
+"""
+see_also = ["KAIN-EFFECT-0004", "KAIN-SHADER-0001"]
+
+[[diagnostics]]
+code = "KAIN-PATCH-0006"
+title = "Conflicting Patch Mutations"
+severity = "error"
+docs_key = "patch/conflicting-mutations"
+help = """
+Two or more `patch` applications target the same world state field
+concurrently and their mutations are not ordered or serialized. The
+resulting world state is non-deterministic.
+
+Fix: serialize patches through a single actor or use a transactional
+ordering annotation.
+"""
+see_also = ["KAIN-BORROW-0006", "KAIN-ENTANGLE-0003"]
+
+[[diagnostics]]
+code = "KAIN-PATCH-0007"
+title = "Patch Law Return Type Mismatch"
+severity = "error"
+docs_key = "patch/law-return-type"
+help = """
+A `law` predicate used with a `patch` must return `Bool`. The declared
+or inferred return type is not `Bool`.
+
+Fix: change the law body to evaluate to a boolean expression and update
+the return type annotation.
+"""
+example_bad = """
+law value_ok(v: Int) -> Int:
+    return v + 1
+"""
+example_good = """
+law value_ok(v: Int) -> Bool:
+    return v > 0
+"""
+see_also = ["KAIN-TYPE-0025"]

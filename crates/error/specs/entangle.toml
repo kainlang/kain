@@ -1,0 +1,107 @@
+# ── Kain Entangle Error Codes ────────────────────────────────────────────
+# Bidirectional world-state coupling: entangle syntax, single_writer policy,
+# cycle detection, dangling references, cross-world scoping, type and
+# direction mismatches.
+#
+# entangle A.field <-> B.field_copy with single_writer creates a compiler-
+# owned observer graph edge. These codes fire when that graph is malformed.
+
+[[diagnostics]]
+code = "KAIN-ENTANGLE-0001"
+title = "Entangle Error"
+severity = "error"
+docs_key = "entangle/general"
+help = "An `entangle` declaration has a well-formedness error. This is the generic fallback."
+see_also = ["KAIN-ENTANGLE-0002", "KAIN-ENTANGLE-0003"]
+
+[[diagnostics]]
+code = "KAIN-ENTANGLE-0002"
+title = "Entangle Cycle Detected"
+severity = "error"
+docs_key = "entangle/cycle"
+help = """
+The set of `entangle` declarations forms a directed cycle. The compiler
+cannot establish a stable propagation order when state changes would
+propagate infinitely between worlds.
+
+Fix: break the cycle by making at least one edge directional (one-way
+update) or by introducing an explicit intermediary.
+"""
+see_also = ["KAIN-WORLD-0007"]
+
+[[diagnostics]]
+code = "KAIN-ENTANGLE-0003"
+title = "Entangle Single Writer Violation"
+severity = "error"
+docs_key = "entangle/single-writer"
+help = """
+An `entangle` link declared `with single_writer` has more than one
+potential writer. Only the designated writer world may mutate the
+coupled state.
+
+Fix: identify which world owns the write and remove or guard the other
+write site. Use `patch` to make the mutation explicit and transactional.
+"""
+example_bad = """
+entangle Authority.count <-> Mirror.count_copy with single_writer
+// ... later: Mirror.count_copy = 42  // second writer — error
+"""
+example_good = """
+entangle Authority.count <-> Mirror.count_copy with single_writer
+// Mirror.count_copy is read-only; only Authority writes count
+"""
+see_also = ["KAIN-BORROW-0006"]
+
+[[diagnostics]]
+code = "KAIN-ENTANGLE-0004"
+title = "Entangle Dangling Reference"
+severity = "error"
+docs_key = "entangle/dangling"
+help = """
+One or both worlds referenced by an `entangle` declaration do not exist
+or have been removed. Entangle links must point to live world state slots.
+
+Fix: ensure both worlds are declared and their state fields exist.
+"""
+see_also = ["KAIN-WORLD-0005"]
+
+[[diagnostics]]
+code = "KAIN-ENTANGLE-0005"
+title = "Entangle Cross-World Scope Error"
+severity = "error"
+docs_key = "entangle/cross-world-scope"
+help = """
+An `entangle` declaration references a state field from a world that is
+not in scope at the entangle site. Top-level entangle declarations must
+be at module scope and both worlds must be visible.
+
+Fix: move the entangle declaration to module scope, or import both worlds.
+"""
+
+[[diagnostics]]
+code = "KAIN-ENTANGLE-0006"
+title = "Entangle Type Mismatch"
+severity = "error"
+docs_key = "entangle/type-mismatch"
+help = """
+The types of the two coupled state fields are not compatible for
+synchronization. Entangle requires the fields to have the same type or
+an explicit coercion annotation.
+
+Fix: ensure both fields have the same type, or add a conversion function
+to the entangle declaration.
+"""
+see_also = ["KAIN-TYPE-0025"]
+
+[[diagnostics]]
+code = "KAIN-ENTANGLE-0007"
+title = "Entangle Direction Conflict"
+severity = "error"
+docs_key = "entangle/direction-conflict"
+help = """
+Two `entangle` declarations couple the same pair of fields in conflicting
+directions. Only one coupling direction may be declared per field pair.
+
+Fix: use a single bidirectional `<->` link, or split into two distinct
+one-way links with explicit direction annotations.
+"""

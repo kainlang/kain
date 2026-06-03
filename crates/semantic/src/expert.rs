@@ -148,6 +148,31 @@ fn classify_failure(packet: &DiagnosticSemanticPacket) -> FailureMode {
         return classify_effect_violation(packet);
     }
 
+    // CONVERGE codes — fast-lane dispatch, spec/fast contract, verifier
+    if code.starts_with("KAIN-CONVERGE-") {
+        return classify_converge(packet);
+    }
+
+    // ENTANGLE codes — bidirectional world-state coupling
+    if code.starts_with("KAIN-ENTANGLE-") {
+        return classify_entangle(packet);
+    }
+
+    // PATCH / LAW codes — transactional world mutation
+    if code.starts_with("KAIN-PATCH-") {
+        return classify_patch(packet);
+    }
+
+    // STATE codes — state machine well-formedness
+    if code.starts_with("KAIN-STATE-") {
+        return classify_state(packet);
+    }
+
+    // COMPTIME codes — comptime evaluation, macros, law/axiom/orchestrate/converge/shatter
+    if code.starts_with("KAIN-COMPTIME-") {
+        return classify_comptime(packet);
+    }
+
     FailureMode::GenericUnknown
 }
 
@@ -371,6 +396,100 @@ fn classify_effect_violation(packet: &DiagnosticSemanticPacket) -> FailureMode {
         return FailureMode::EntangleViolation;
     }
     FailureMode::GenericUnknown
+}
+
+fn classify_converge(packet: &DiagnosticSemanticPacket) -> FailureMode {
+    let code = packet.code.as_str();
+    match code {
+        "KAIN-CONVERGE-0002" => FailureMode::ConvergeMismatch, // missing spec lane
+        "KAIN-CONVERGE-0003" | "KAIN-CONVERGE-0004" => FailureMode::ConvergeMismatch,
+        "KAIN-CONVERGE-0005" => {
+            // Capability gap — treat as a codegen-adjacent issue but keep Converge context
+            FailureMode::ConvergeMismatch
+        }
+        "KAIN-CONVERGE-0006" | "KAIN-CONVERGE-0007" => FailureMode::ConvergeMismatch,
+        "KAIN-CONVERGE-0008" => FailureMode::ConvergeMismatch, // ambiguous lane
+        _ => {
+            // Generic converge error: check context flags for sub-classification
+            if packet
+                .contextual_flags
+                .get("converge_verifier_failed")
+                .copied()
+                .unwrap_or(false)
+            {
+                return FailureMode::ConvergeMismatch;
+            }
+            FailureMode::ConvergeMismatch // all CONVERGE codes are ConvergeMismatch family
+        }
+    }
+}
+
+fn classify_entangle(packet: &DiagnosticSemanticPacket) -> FailureMode {
+    let code = packet.code.as_str();
+    match code {
+        "KAIN-ENTANGLE-0002" => FailureMode::EntangleViolation, // cycle
+        "KAIN-ENTANGLE-0003" => FailureMode::EntangleViolation, // single_writer
+        "KAIN-ENTANGLE-0004" => FailureMode::WorldDeclarationError, // dangling → world error
+        "KAIN-ENTANGLE-0005" => FailureMode::WorldDeclarationError, // cross-world scope
+        "KAIN-ENTANGLE-0006" => FailureMode::EntangleViolation, // type mismatch in coupling
+        "KAIN-ENTANGLE-0007" => FailureMode::EntangleViolation, // direction conflict
+        _ => FailureMode::EntangleViolation,
+    }
+}
+
+fn classify_patch(packet: &DiagnosticSemanticPacket) -> FailureMode {
+    let code = packet.code.as_str();
+    match code {
+        "KAIN-PATCH-0002" => FailureMode::WorldDeclarationError, // target not a world
+        "KAIN-PATCH-0003" | "KAIN-PATCH-0004" => {
+            // Law pre/postcondition — surface as a world mutation violation
+            FailureMode::WorldDeclarationError
+        }
+        "KAIN-PATCH-0005" => {
+            // Applied outside world scope — could be an effect violation
+            if packet
+                .contextual_flags
+                .get("in_shader_block")
+                .copied()
+                .unwrap_or(false)
+            {
+                return FailureMode::ShaderHostBoundary;
+            }
+            FailureMode::WorldDeclarationError
+        }
+        "KAIN-PATCH-0006" => FailureMode::WorldDeclarationError, // conflicting mutations
+        "KAIN-PATCH-0007" => FailureMode::WorldDeclarationError, // law return type mismatch
+        _ => FailureMode::WorldDeclarationError,
+    }
+}
+
+fn classify_state(packet: &DiagnosticSemanticPacket) -> FailureMode {
+    let code = packet.code.as_str();
+    match code {
+        "KAIN-STATE-0002" | "KAIN-STATE-0004" => {
+            // Inexhaustive or invalid transition — can cascade like type errors
+            FailureMode::GenericUnknown // TODO: add StateMachineError variant
+        }
+        "KAIN-STATE-0003" => FailureMode::ConvergeMismatch, // cycle → treated as converge-like
+        "KAIN-STATE-0006" => {
+            // Guarantee violation — law-like, treated as world mutation failure
+            FailureMode::WorldDeclarationError
+        }
+        _ => FailureMode::GenericUnknown,
+    }
+}
+
+fn classify_comptime(packet: &DiagnosticSemanticPacket) -> FailureMode {
+    let code = packet.code.as_str();
+    match code {
+        "KAIN-COMPTIME-0005" => FailureMode::WorldDeclarationError, // patch target not found
+        "KAIN-COMPTIME-0006" => FailureMode::WorldDeclarationError, // law violation
+        "KAIN-COMPTIME-0007" => FailureMode::WorldDeclarationError, // axiom contradiction
+        "KAIN-COMPTIME-0008" => FailureMode::ConvergeMismatch, // orchestrate dep cycle
+        "KAIN-COMPTIME-0009" => FailureMode::ConvergeMismatch, // converge failed
+        "KAIN-COMPTIME-0010" => FailureMode::ConvergeMismatch, // shatter pattern incomplete
+        _ => FailureMode::GenericUnknown,
+    }
 }
 
 // ── Repair Ranking ───────────────────────────────────────────────────
@@ -646,6 +765,32 @@ fn estimate_cascade_probability(packet: &DiagnosticSemanticPacket) -> f32 {
     // World/entangle errors can cascade into type/effect errors
     if code.starts_with("KAIN-WORLD-") {
         return (0.50_f32 + 0.05_f32 * n).min(0.95_f32);
+    }
+
+    // Entangle errors cascade heavily — they couple two worlds so the broken
+    // coupling propagates into downstream accesses on both sides.
+    if code.starts_with("KAIN-ENTANGLE-") {
+        return (0.65_f32 + 0.05_f32 * n).min(0.97_f32);
+    }
+
+    // Converge errors cascade into codegen when no valid lane can be selected.
+    if code.starts_with("KAIN-CONVERGE-") {
+        return (0.55_f32 + 0.04_f32 * n).min(0.95_f32);
+    }
+
+    // Patch/law errors are typically isolated to the mutation site.
+    if code.starts_with("KAIN-PATCH-") {
+        return (0.35_f32 + 0.03_f32 * n).min(0.85_f32);
+    }
+
+    // State machine errors cascade at medium rate into downstream transitions.
+    if code.starts_with("KAIN-STATE-") {
+        return (0.45_f32 + 0.04_f32 * n).min(0.92_f32);
+    }
+
+    // Comptime errors (law, axiom, orchestrate) can cascade into type errors.
+    if code.starts_with("KAIN-COMPTIME-") {
+        return (0.50_f32 + 0.04_f32 * n).min(0.94_f32);
     }
 
     // Generic estimate

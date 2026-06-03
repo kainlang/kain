@@ -23,6 +23,9 @@ pub enum DiagnosticCategory {
     State,
     Test,
     Internal,
+    Converge,
+    Entangle,
+    Patch,
 }
 
 impl fmt::Display for DiagnosticCategory {
@@ -45,6 +48,9 @@ impl fmt::Display for DiagnosticCategory {
             DiagnosticCategory::State => "state",
             DiagnosticCategory::Test => "test",
             DiagnosticCategory::Internal => "internal",
+            DiagnosticCategory::Converge => "converge",
+            DiagnosticCategory::Entangle => "entangle",
+            DiagnosticCategory::Patch => "patch",
         };
         write!(f, "{text}")
     }
@@ -87,6 +93,9 @@ pub fn default_code_for_kind(kind: ErrorKind) -> DiagnosticCode {
         ErrorKind::Test => DiagnosticCode::TestGeneric,
         ErrorKind::Memory => DiagnosticCode::MemoryLoweringRequired,
         ErrorKind::Internal => DiagnosticCode::InternalGeneric,
+        ErrorKind::Converge => DiagnosticCode::ConvergeGeneric,
+        ErrorKind::Entangle => DiagnosticCode::EntangleGeneric,
+        ErrorKind::Patch => DiagnosticCode::PatchGeneric,
     }
 }
 
@@ -174,6 +183,9 @@ fn category_from_code(code: DiagnosticCode) -> DiagnosticCategory {
         "STATE" => DiagnosticCategory::State,
         "TEST" => DiagnosticCategory::Test,
         "INTERNAL" => DiagnosticCategory::Internal,
+        "CONVERGE" => DiagnosticCategory::Converge,
+        "ENTANGLE" => DiagnosticCategory::Entangle,
+        "PATCH" => DiagnosticCategory::Patch,
         _ => DiagnosticCategory::Internal,
     }
 }
