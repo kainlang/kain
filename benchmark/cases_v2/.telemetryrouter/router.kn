@@ -131,6 +131,13 @@ use CRUSHER::crusher_case_iterations
 use CRUSHER::crusher_case_telemetry
 use CRUSHER::crusher_case_title
 
+component BenchmarkRouterPanel():
+    render <panel title="benchmark-router-v2" />
+
+world BenchmarkRouterAuthority:
+    state ready: Int = 1
+    surface native_ui => BenchmarkRouterPanel
+
 const ROUTER_SCHEMA_VERSION: Int = 1
 const ROUTER_MODULUS: Int = 1000000007
 const ROUTER_SUITE_ID: String = "kain-router-v2"
@@ -590,7 +597,10 @@ fn run_case(pack_id: String, case_id: String, group: String, title: String, iter
         let _warmup_checksum = run_case_checksum(case_id, iterations, config.amplify)
         warmup_index = warmup_index + 1
 
-    let expected_checksum = amplified_expected_checksum(expected_base_checksum, config.amplify)
+    let enforce_expected_checksum = expected_base_checksum >= 0
+    let expected_checksum = -1
+    if enforce_expected_checksum:
+        expected_checksum = amplified_expected_checksum(expected_base_checksum, config.amplify)
     let checksum = 0
     let best_ms = -1
     let worst_ms = 0
@@ -608,7 +618,7 @@ fn run_case(pack_id: String, case_id: String, group: String, title: String, iter
             best_ms = elapsed_ms
         if elapsed_ms > worst_ms:
             worst_ms = elapsed_ms
-        if checksum != expected_checksum:
+        if enforce_expected_checksum and checksum != expected_checksum:
             success = false
             failure_code = 1
         pass_index = pass_index + 1

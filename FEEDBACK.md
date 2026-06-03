@@ -1,5 +1,17 @@
 # Kain Feedback Log
 
+## 2026-06-03 - benchmark v2 stress-pack ergonomics
+
+### The v2 benchmark harness assumes every case has a replay-stable golden checksum
+- Categories: benchmark, developer-experience, semantics, runtime
+- Status: Active
+- Surface: `benchmark/cases_v2/.telemetryrouter/router.kn`, stress-style authored packs such as `CRUSHER.kn`
+- Symptom: The v2 router treated every pack as if `expected_checksum` must be a replay-stable golden value. That works for pure math packs, but it fights more ambitious semantic/system stress lanes that intentionally hit runtime counters, world propagation, imported cache seeds, actor telemetry, and other stateful surfaces. `CRUSHER.kn` executed successfully, but immediate replay of some lanes produced a different checksum even within the same process.
+- Workflow impact: Without an explicit "ungoldened stress lane" mode, benchmark authors either have to fake constants, avoid meaningful stateful composition, or watch a valid stress pack fail because the second invocation is not bit-identical to the first.
+- Minimal repro: `kain run X:\benchmark\cases_v2\.telemetryrouter\crusher_runner.kn --target llvm --json` prints `replay_drift=1` for `crusher_import_mesh` and `crusher_full_send` even though the first-shot execution succeeds and telemetry is meaningful.
+- Evidence: `CRUSHER.kn` now reports both first-shot checksum and replay checksum so the drift is visible instead of silently treated as a correctness failure.
+- Suggested direction: Keep the v2 router support for golden checksums, but also make "first-shot stress benchmark" a first-class mode with explicit metadata, optional replay-drift reporting, and success semantics that do not assume purity when the whole point is to dogfood stateful compiler-owned semantics under pressure.
+
 ## 2026-06-02 - first-class GPU authoring ergonomics
 
 ### CPU/GPU orchestration works, but the language still exposes too much runtime plumbing

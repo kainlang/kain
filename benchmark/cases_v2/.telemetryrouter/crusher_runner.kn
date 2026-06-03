@@ -1,0 +1,11 @@
+use CRUSHER::crusher_pack_main
+
+component CrusherRunnerPanel():
+    render <panel title="crusher-runner" />
+
+world CrusherRunnerAuthority:
+    state ready: Int = 1
+    surface native_ui => CrusherRunnerPanel
+
+fn main() -> Int with GPU, Unsafe:
+    return crusher_pack_main()

@@ -162,7 +162,7 @@ world ClassicGhostAuthority:
     state signal: Int = 1
     state epoch: Int = 0
     state echo: Int = 0
-    surface native_ui => ClassicGhostMirrorPanel
+    surface web => ClassicGhostMirrorPanel
 
 world ClassicGhostMirror:
     state signal_copy: Int = 1

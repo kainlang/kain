@@ -39,7 +39,6 @@ world GpuCpuAuthority:
     state epoch: Int = 0
     state staging_score: Int = 0
     surface web => GpuCpuPipelinePanel
-    surface native_ui => GpuCpuPipelinePanel
 
 world GpuCpuMirror:
     state signal_copy: Int = 1

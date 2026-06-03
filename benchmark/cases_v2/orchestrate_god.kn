@@ -25,7 +25,6 @@ world OrchestrateGodAuthority:
     state drift: Int = 0
     state gpu_epoch: Int = 0
     surface web => OrchestrateGodPanel
-    surface native_ui => OrchestrateGodPanel
 
 world OrchestrateGodMirror:
     state signal_copy: Int = 1

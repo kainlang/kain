@@ -24,7 +24,6 @@ world OrchestrationAuthority:
     state epoch: Int = 0
     state resonance: Int = 0
     surface web => OrchestrationPanel
-    surface native_ui => OrchestrationPanel
 
 world OrchestrationMirror:
     state signal_copy: Int = 1

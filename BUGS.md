@@ -1,5 +1,29 @@
 # Kain Bug Log
 
+## 2026-06-03 - typechecker/module-scope
+### Imported authored packs leak top-level globals hard enough to collide on `main` and duplicate extern ownership
+
+- Categories: typechecker, modules, authoring, benchmark
+- Severity: High
+- Status: Open in tree (2026-06-03)
+- Surface: imported authored Kain modules in `benchmark/cases_v2/*`
+- Trigger: Building a focused stress pack that imports several authored benchmark packs and then wrapping it in a dedicated runner.
+- Symptom:
+  - Importing a pack with its own `main` causes `function 'main' collides with an existing global from function` in the importing file.
+  - Importing multiple packs that naturally expose the same foreign-header symbols can also trip duplicate global ownership even when those helpers are meant to stay module-local.
+- Why this is a bug: authored pack boundaries should preserve module ownership. Importing a benchmark pack should not effectively dump every top-level symbol into one global namespace where entrypoints and helper externs fight each other.
+- Minimal repro:
+  - Add `fn main()` to `benchmark/cases_v2/CRUSHER.kn`.
+  - Create a focused wrapper like `benchmark/cases_v2/.telemetryrouter/crusher_runner.kn` that imports `CRUSHER::crusher_pack_main` and also defines its own `main`.
+  - Run `kain check X:\benchmark\cases_v2\.telemetryrouter\crusher_runner.kn --target llvm`.
+- Evidence:
+  - The compiler reports `error[TYPE:KAIN-TYPE-0004]: function 'main' collides with an existing global from function` and points at the imported pack's `main`.
+  - During the same stress-pack authoring pass, directly importing `core_os.kn` into `CRUSHER.kn` also collided with unrelated globals, forcing the pack to stay headless and use a dedicated runner.
+- Current workaround:
+  - Keep imported benchmark packs entrypoint-free and move executable roots into tiny wrapper files that own the single `main` and `native_ui` world.
+- Suggested direction:
+  - Tighten module scoping so imported top-level functions/externs remain module-qualified unless explicitly exported into a shared global namespace.
+
 ## 2026-06-02 - benchmark/cases_v2/gpu
 ### Filtered v2 benchmark runs still compile/link unrelated packs before filtering
 
