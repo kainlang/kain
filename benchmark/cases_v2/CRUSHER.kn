@@ -349,7 +349,7 @@ fn crusher_actor_ownership_mesh_checksum(iterations: Int, modulus: Int) -> Int w
 
     return crusher_mod(acc + cell_fold + log_fold + patch_delta + entangle_delta + teleport_delta + enqueue_delta + dequeue_delta + CrusherMirror.signal_copy + CrusherMirror.epoch_copy + CrusherMirror.pressure_copy + CrusherMirror.import_score_copy + CrusherMirror.scheduler_score_copy + cpuid_sig, modulus)
 
-fn crusher_cache_fusion_checksum(iterations: Int, modulus: Int) -> Int:
+fn crusher_cache_fusion_checksum(iterations: Int, modulus: Int) -> Int with Unsafe:
     let machine_seed = crusher_machine_seed()
     let py_seed = python_semantic_seed()
     let authority = CrusherAuthority
@@ -501,7 +501,7 @@ pub fn crusher_case_telemetry(case_id: String) -> String:
         content = content + "\"pack_id\":" + crusher_json_string("crusher") + ","
         content = content + "\"case_id\":" + crusher_json_string(case_id) + ","
         content = content + "\"surface\":" + crusher_json_string("machine-cache-plus-python-cache-fusion") + ","
-        content = content + "\"machine_probe\":" + crusher_json_string(crusher_machine_text()) + ","
+        content = content + "\"machine_probe\":" + crusher_json_string("cpu-topology-cacheline-numa-affinity") + ","
         content = content + "\"python_cache_path\":" + crusher_json_string(python_cache_path_joined()) + ","
         content = content + "\"pack_focus\":" + crusher_json_string("local machine state and imported python cache become a deterministic read storm")
         return content + "}"

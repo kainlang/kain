@@ -1,17 +1,19 @@
+use std::process
+use std::path
 use fs_lane::smoke_fs_lane
 use platform_lane::smoke_platform_lane
 
 pub fn smoke_native_cli_lane() -> Int:
-    let argv = args()
+    let argv = process_args()
     if len(argv) < 1:
         return 1
 
-    let cwd_path = cwd()
+    let cwd_path = path_normalize(process_current_working_directory())
     if len(cwd_path) == 0:
         return 2
 
     let probe = path_join(cwd_path, "smoketest.exe")
-    if path_parent(probe) != cwd_path:
+    if path_normalize(path_parent(probe)) != cwd_path:
         return 3
     if path_file_name(probe) != "smoketest.exe":
         return 4
@@ -20,9 +22,15 @@ pub fn smoke_native_cli_lane() -> Int:
     if path_stem(probe) != "smoketest":
         return 6
 
+    let executable = process_current_executable_path()
+    if len(executable) == 0:
+        return 7
+    if len(process_current_executable_name()) == 0:
+        return 8
+
     let entries = read_dir(cwd_path)
     if len(entries) < 1:
-        return 7
+        return 9
 
     let fs_status = smoke_fs_lane()
     if fs_status != 0:

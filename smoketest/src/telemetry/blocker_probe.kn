@@ -1,0 +1,28 @@
+use std::fs
+use std::runtime
+
+use collections_lane::smoke_collections_lane
+use native_cli::smoke_native_cli_lane
+
+fn main() -> Int with Unsafe:
+    let collections_status = smoke_collections_lane()
+    let native_cli_status = smoke_native_cli_lane()
+    let final_status = if collections_status != 0:
+        1000 + collections_status
+    else:
+        if native_cli_status != 0:
+            2000 + native_cli_status
+        else:
+            0
+
+    let probe_root = fs_path_join(fs_path_join(".kain", "telemetry"), "blocker_probe")
+    let path = fs_path_join(probe_root, "result.json")
+    fs_create_dir_all(probe_root)
+
+    var content: String = "{\n"
+    content = content + "  \"collections_status\": " + str(collections_status) + ",\n"
+    content = content + "  \"native_cli_status\": " + str(native_cli_status) + ",\n"
+    content = content + "  \"final_status\": " + str(final_status) + "\n"
+    content = content + "}\n"
+    fs_atomic_write_text(path, content)
+    return final_status
