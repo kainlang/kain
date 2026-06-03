@@ -32,9 +32,16 @@
 #define KAIN_PY_JSON_INT(value)  ((((int64_t)(value)) << 3) | 1LL)
 #define KAIN_PY_JSON_BOOL(value) ((((int64_t)((value) != 0)) << 3) | 2LL)
 #define KAIN_PY_JSON_NULL        4LL
+#define KAIN_PY_VECTORCALL_STACK_ARGS 8u
+#define KAIN_PY_I64_TRUNC_F64_MIN (-9223372036854775808.0)
+#define KAIN_PY_I64_TRUNC_F64_MAX 9223372036854775808.0
 
 typedef intptr_t Py_ssize_t;
-typedef struct _object PyObject;
+typedef struct _typeobject PyTypeObject;
+typedef struct _object {
+    Py_ssize_t ob_refcnt;
+    PyTypeObject* ob_type;
+} PyObject;
 typedef int PyGILState_STATE;
 typedef struct {
     void* buf;
@@ -66,6 +73,7 @@ typedef struct {
     int (*PyObject_HasAttrString)(PyObject*, const char*);
     int (*PyObject_SetAttrString)(PyObject*, const char*, PyObject*);
     PyObject* (*PyObject_Call)(PyObject*, PyObject*, PyObject*);
+    PyObject* (*PyObject_Vectorcall)(PyObject*, PyObject* const*, size_t, PyObject*);
     int (*PyObject_SetItem)(PyObject*, PyObject*, PyObject*);
     PyObject* (*PyObject_GetItem)(PyObject*, PyObject*);
     PyObject* (*PyObject_Str)(PyObject*);
@@ -100,6 +108,8 @@ typedef struct {
     void (*Py_DecRef)(PyObject*);
     int (*PyObject_GetBuffer)(PyObject*, Py_buffer*, int);
     void (*PyBuffer_Release)(Py_buffer*);
+    PyTypeObject* PyFloat_Type;
+    PyTypeObject* PyLong_Type;
 } KainPythonApi;
 
 typedef struct {
@@ -264,6 +274,10 @@ static void kain_py_tensor_capture_device_metadata(PyObject* object, KainPythonT
 static long long kain_py_attr_int(PyObject* object, const char* name, long long fallback);
 static long long kain_py_getattr_internal_active(long long target, const char* name, KainPythonRegionHandle* region);
 static long long kain_py_buffer_view_from_target_active(long long target, KainPythonRegionHandle* region);
+static PyObject* kain_py_any_to_pyobject(long long value);
+static int kain_py_call_no_kwargs_fast(PyObject* callable, long long args, PyObject** out_result);
+static int kain_py_call_f64_no_kwargs_fast(PyObject* callable, double arg, PyObject** out_result);
+static int kain_py_try_fast_trunc_i64_result(PyObject* result, long long* out_value);
 static void kain_py_any_retain(long long value);
 static void kain_py_any_release(long long value);
 

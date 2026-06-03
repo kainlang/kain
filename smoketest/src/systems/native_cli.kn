@@ -8,12 +8,13 @@ pub fn smoke_native_cli_lane() -> Int:
     if len(argv) < 1:
         return 1
 
-    let cwd_path = path_normalize(process_current_working_directory())
+    let cwd_path = process_current_working_directory()
     if len(cwd_path) == 0:
         return 2
+    let normalized_cwd = path_normalize(cwd_path)
 
     let probe = path_join(cwd_path, "smoketest.exe")
-    if path_normalize(path_parent(probe)) != cwd_path:
+    if path_normalize(path_parent(probe)) != normalized_cwd:
         return 3
     if path_file_name(probe) != "smoketest.exe":
         return 4

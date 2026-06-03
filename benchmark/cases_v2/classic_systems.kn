@@ -10,6 +10,7 @@ use std::intent
 
 const SYSTEMS_MODULUS: Int = 1000000007
 const SYSTEMS_CASE_COUNT: Int = 5
+const CONTENTION_WALL_WORKERS: Int = 32
 const SIMD_LANE_CELLS: Int = 4096
 const WIRE_PACKET_COUNT: Int = 64
 const WIRE_WORDS_PER_PACKET: Int = 4
@@ -94,15 +95,15 @@ pub fn classic_systems_case_expected_checksum(index: Int) -> Int:
 // ============================================================================
 
 fn contention_wall_checksum(iterations: Int) -> Int:
-    let worker_count: Int = 32
-    let iterations_per_worker: Int = iterations / worker_count
-    let expected_total: Int = worker_count * iterations_per_worker
+    let expected_total: Int = iterations
     let mut counter: ptr<Int> = alloc_zeroed(1, "Int")
 
     share counter:
-        fanout worker in 0..worker_count:
-            var i: Int = 0
-            while i < iterations_per_worker:
+        fanout worker in 0..CONTENTION_WALL_WORKERS:
+            let chunk_start: Int = (worker * iterations) / CONTENTION_WALL_WORKERS
+            let chunk_end: Int = ((worker + 1) * iterations) / CONTENTION_WALL_WORKERS
+            var i: Int = chunk_start
+            while i < chunk_end:
                 let _prev: Int = atomic_add(counter, 1)
                 i = i + 1
 
