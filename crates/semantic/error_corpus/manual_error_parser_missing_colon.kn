@@ -1,0 +1,5 @@
+// @expected_code: KAIN-PARSE-0005
+// @expected_mode: ParserDelimiterDamage
+// @expected_repair: fn
+fn main()
+    return 0

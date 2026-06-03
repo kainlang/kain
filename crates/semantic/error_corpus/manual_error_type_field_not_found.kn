@@ -1,0 +1,6 @@
+// @expected_code: KAIN-TYPE-0001
+// @expected_mode: GenericUnknown
+// @expected_repair: x
+fn main() -> Int:
+    let wrong: Int = "field_not_found_repro"
+    return 0

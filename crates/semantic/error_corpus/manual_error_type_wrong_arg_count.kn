@@ -1,0 +1,8 @@
+// @expected_code: KAIN-TYPE-0001
+// @expected_mode: GenericUnknown
+// @expected_repair: add
+fn add(a: Int, b: Int) -> Int:
+    return a + b
+
+fn main() -> Int:
+    return add(5, "hello")

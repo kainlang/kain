@@ -1,0 +1,10 @@
+// @expected_code: KAIN-TYPE-0001
+// @expected_mode: ConvergeMismatch
+// @expected_repair: match_spec_lane
+converge lane_drift(value: Int) -> Int:
+    spec reference:
+        return value * 31 + 7
+    fast broken_lane when target("llvm"):
+        let wrong: Int = "mismatched type"
+        return value * 30 + 7
+    verify random(8)

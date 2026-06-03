@@ -1,0 +1,6 @@
+// @expected_code: KAIN-TYPE-0001
+// @expected_mode: GenericUnknown
+// @expected_repair: write_log
+fn main() -> Int:
+    let wrong: Int = "pure_calls_io_repro"
+    return 0

@@ -1,0 +1,5 @@
+// @expected_code: KAIN-TYPE-0002
+// @expected_mode: WorldDeclarationError
+// @expected_repair: repair_world_teleport_origin
+fn main() -> Int:
+    return repair_world_teleport_origin

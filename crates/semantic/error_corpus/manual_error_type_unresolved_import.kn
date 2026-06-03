@@ -1,0 +1,6 @@
+// @expected_code: KAIN-TYPE-0001
+// @expected_mode: GenericUnknown
+// @expected_repair: import
+fn main() -> Int:
+    let wrong: Int = "unresolved_import_repro"
+    return 0

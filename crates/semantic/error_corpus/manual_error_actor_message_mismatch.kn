@@ -1,0 +1,5 @@
+// @expected_code: KAIN-TYPE-0002
+// @expected_mode: ActorMessageMismatch
+// @expected_repair: repair_actor_message_mismatch
+fn main() -> Int:
+    return repair_actor_message_mismatch

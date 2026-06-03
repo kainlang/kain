@@ -1,0 +1,6 @@
+// @expected_code: KAIN-PARSE-0004
+// @expected_mode: GenericUnknown
+// @expected_repair: class_value
+fn main() -> Int:
+    let class = 12
+    return class

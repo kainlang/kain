@@ -1,0 +1,6 @@
+// @expected_code: KAIN-PARSE-0002
+// @expected_mode: GenericUnknown
+// @expected_repair: )
+fn main() -> Int:
+    let x = (1 + 2
+    return x

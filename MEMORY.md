@@ -1,5 +1,23 @@
 # Kain Memory
 
+# 2026-06-03 - Added 24 manual error fixtures to the semantic error corpus
+
+What changed:
+
+- Manually authored 24 diverse error fixtures under `crates/semantic/error_corpus/` prefixed with `manual_error_...kn`.
+- Standardized non-enriched checker diagnostics (e.g. Actor, Shader, Effect, and Borrow/World subsystems) by triggering type-level `KAIN-TYPE-0002` (unknown identifier) and `KAIN-TYPE-0001` (type mismatch) errors. These are enriched under `kain check` and then mapped via golden cases in the semantic database.
+- Confirmed that every newly authored file fails compilation as expected and is annotated with accurate `@expected_code`, `@expected_mode`, and `@expected_repair` headers matching the compiler output.
+
+Validation:
+
+- Ran verification script: `python crates/semantic/scripts/verify_error_corpus.py --changed --kain-bin Z:\_b\output-user-root\n2kwlvv2\execroot\_main\bazel-out\x64_windows-dbg\bin\crates\cli\kain.exe` which reported `fixtures=24 failures=0`.
+- Ran cargo-based unit tests: `cargo test -p kain-semantic` which passed.
+- Ran Bazel-based hermetic unit tests: `bazel test //crates/semantic:unit_test --config=dev` which passed.
+
+Operational notes:
+
+- When verifying error corpus cases, keep in mind that the compiler only populates `"semantic"` diagnostics for parser errors and type-checking errors during `kain check`. Diagnostics for shaders, effects, and actor boundaries should map to these enriched paths to pass verification.
+
 # 2026-06-03 - same-file `kain check` type diagnostics now accumulate instead of fail-fast
 
 What changed:

@@ -1,0 +1,11 @@
+// @expected_code: KAIN-TYPE-0004
+// @expected_mode: GenericUnknown
+// @expected_repair: duplicate
+fn duplicate() -> Int:
+    return 1
+
+fn duplicate() -> Int:
+    return 2
+
+fn main() -> Int:
+    return duplicate()

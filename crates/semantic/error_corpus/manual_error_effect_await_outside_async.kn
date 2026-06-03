@@ -1,0 +1,6 @@
+// @expected_code: KAIN-TYPE-0001
+// @expected_mode: GenericUnknown
+// @expected_repair: gpu_func
+fn main() -> Int:
+    let wrong: Int = "await_outside_async_repro"
+    return 0

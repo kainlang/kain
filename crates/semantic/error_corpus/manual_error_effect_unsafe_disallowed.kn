@@ -1,0 +1,6 @@
+// @expected_code: KAIN-TYPE-0001
+// @expected_mode: GenericUnknown
+// @expected_repair: unsafe_func
+fn main() -> Int:
+    let wrong: Int = "unsafe_disallowed_repro"
+    return 0

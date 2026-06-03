@@ -1,0 +1,5 @@
+// @expected_code: KAIN-TYPE-0003
+// @expected_mode: MissingSurface
+// @expected_repair: add_surface
+world AuthorityPanel:
+    state val: Int = 10

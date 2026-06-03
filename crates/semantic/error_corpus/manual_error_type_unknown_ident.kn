@@ -1,0 +1,6 @@
+// @expected_code: KAIN-TYPE-0002
+// @expected_mode: Typo
+// @expected_repair: println
+fn main() -> Int:
+    let value = prntln("typo value")
+    return 0

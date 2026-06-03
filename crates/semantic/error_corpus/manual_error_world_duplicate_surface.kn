@@ -1,0 +1,10 @@
+// @expected_code: KAIN-TYPE-0001
+// @expected_mode: WorldDeclarationError
+// @expected_repair: remove_duplicate_surface
+component Panel():
+    render <panel />
+
+world AuthorityWeb:
+    state val: Int = 10
+    surface web => Panel
+    surface web => Panel

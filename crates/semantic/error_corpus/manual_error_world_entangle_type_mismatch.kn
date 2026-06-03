@@ -1,0 +1,15 @@
+// @expected_code: KAIN-TYPE-0001
+// @expected_mode: EntangleViolation
+// @expected_repair: align_types
+component Panel():
+    render <panel />
+
+world AuthorityLeft:
+    state count: Int = 0
+    surface native_ui => Panel
+
+world MirrorRight:
+    state count_copy: String = "zero"
+    surface web => Panel
+
+entangle AuthorityLeft.count <-> MirrorRight.count_copy with single_writer

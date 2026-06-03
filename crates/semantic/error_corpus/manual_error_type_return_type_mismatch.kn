@@ -1,0 +1,5 @@
+// @expected_code: KAIN-TYPE-0001
+// @expected_mode: GenericUnknown
+// @expected_repair: Int
+fn check_val() -> String:
+    return 42

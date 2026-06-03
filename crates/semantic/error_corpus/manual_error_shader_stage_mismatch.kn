@@ -1,0 +1,5 @@
+// @expected_code: KAIN-TYPE-0002
+// @expected_mode: ShaderStageMismatch
+// @expected_repair: repair_shader_stage_mismatch
+fn main() -> Int:
+    return repair_shader_stage_mismatch

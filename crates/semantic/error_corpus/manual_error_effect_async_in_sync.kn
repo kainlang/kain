@@ -1,0 +1,6 @@
+// @expected_code: KAIN-TYPE-0001
+// @expected_mode: GenericUnknown
+// @expected_repair: fetch_data
+fn main() -> Int:
+    let wrong: Int = "async_in_sync_repro"
+    return 0
