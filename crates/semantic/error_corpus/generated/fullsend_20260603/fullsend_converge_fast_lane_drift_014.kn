@@ -1,0 +1,17 @@
+// ERROR: generated converge fixture from batch fullsend_20260603
+// @expected_code: KAIN-TYPE-0001
+// @expected_mode: ConvergeMismatch
+// @expected_repair: match_spec_lane
+// @donor_hint: crates/semantic/error_corpus/final_pass_v1/converge_fast_lane_drift.kn
+// @allowed_codes: KAIN-EFFECT-0012, KAIN-TYPE-0001
+
+converge generated_lane_262(value: Int) -> Int:
+    spec reference:
+        return value * 31 + 7
+    fast broken_lane when target("llvm"):
+        let wrong: Int = "mismatched type"
+        return value * 30 + 7
+    verify random(8)
+
+fn main() -> Int:
+    return generated_lane_262(3)

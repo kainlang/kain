@@ -87,7 +87,7 @@ family = "world"
 file_stem = "world_missing_surface"
 description = "Declare a world without a required surface projection."
 expected_mode = "MissingSurface"
-expected_repair = "add_surface"
+expected_repair = "surface native_ui"
 repair_required = true
 allowed_codes = ["KAIN-TYPE-0003"]
 donor_hint = "crates/semantic/error_corpus/world_missing_surface.kn"
@@ -203,9 +203,12 @@ repair_required = true
 allowed_codes = ["KAIN-TYPE-0002"]
 donor_hint = "crates/semantic/error_corpus/final_pass_v1/python_alias_missing_import.kn"
 body = """
-fn main() -> Int:
+fn python_bridge_probe_{index}() -> Int:
     let sqrt_fn = python_getattr_raw(py_math, "sqrt")
     let value = python_call_raw(sqrt_fn, [16.0])
     return to_int(value)
+
+fn main() -> Int:
+    return python_bridge_probe_{index}()
 """
 [shapes.python_alias_missing_import.knobs]

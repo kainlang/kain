@@ -284,7 +284,10 @@ def first_diagnostic(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def best_repair(diag: dict[str, Any]) -> str:
-    repairs = diag.get("semantic", {}).get("repairs", [])
+    semantic = diag.get("semantic") or {}
+    if not isinstance(semantic, dict):
+        semantic = {}
+    repairs = semantic.get("repairs", [])
     if not repairs:
         return ""
     repair = repairs[0]
@@ -316,7 +319,9 @@ def verify_case(case: PlannedCase, existing: dict[str, str], *, timeout: int, re
     return_code, payload, rendered = run_kain_check(case.staged_path, "llvm", timeout)
     diag = first_diagnostic(payload)
     actual_code = str(diag.get("code", ""))
-    semantic = diag.get("semantic", {})
+    semantic = diag.get("semantic") or {}
+    if not isinstance(semantic, dict):
+        semantic = {}
     actual_mode = str(semantic.get("failure_mode", ""))
     actual_backend = str(semantic.get("backend", ""))
     explanation = str(semantic.get("explanation", ""))

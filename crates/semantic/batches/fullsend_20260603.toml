@@ -1,0 +1,38 @@
+[batch]
+name = "fullsend_20260603"
+prefix = "fullsend"
+interview_error_family = "A"
+interview_count = "A"
+interview_authoring = "A"
+interview_error_system = "A"
+interview_examples = "A"
+
+[[cases]]
+shape = "type_typo"
+count = 4
+start_index = 200
+
+[[cases]]
+shape = "world_missing_surface"
+count = 4
+start_index = 220
+
+[[cases]]
+shape = "entangle_wrong_type"
+count = 4
+start_index = 240
+
+[[cases]]
+shape = "converge_fast_lane_drift"
+count = 4
+start_index = 260
+
+[[cases]]
+shape = "c_abi_missing_include_alias"
+count = 4
+start_index = 280
+
+[[cases]]
+shape = "python_alias_missing_import"
+count = 4
+start_index = 300
