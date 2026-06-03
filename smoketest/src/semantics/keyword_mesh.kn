@@ -61,7 +61,7 @@ impl KeywordFold for KeywordMeshRecord:
     fn summary(_self: Self_) -> String:
         return compose_keyword_summary(_self.tag, _self.payload)
 
-fn smoke_async_effect(seed: Int) -> Int with Async:
+fn smoke_async_effect(seed: Int) -> Int:
     return seed + 3
 
 pub fn smoke_keyword_mesh_scalar(seed: Int) -> Int:

@@ -1,0 +1,641 @@
+use std::actor
+use std::intent
+use std::machine
+use std::runtime
+use std::time
+
+include <math.h> as cmath
+
+use core_os::bench_semantic_all
+use core_os::os_semantic_arch
+use core_os::os_semantic_cpu
+use core_os::os_semantic_cores
+use core_os::os_semantic_env
+use core_os::os_semantic_gid
+use core_os::os_semantic_login
+use core_os::os_semantic_os_name
+use core_os::os_semantic_packages
+use core_os::os_semantic_page
+use core_os::os_semantic_platform
+use core_os::os_semantic_read_all
+use core_os::os_semantic_refresh_env
+use core_os::os_semantic_seed
+use core_os::os_semantic_terminal_cols
+use core_os::os_semantic_terminal_rows
+use core_os::os_semantic_uid
+use core_os::probe_system
+use core_os::verify_cpu_consistency
+use core_os::verify_platform
+use gpu_cpu_pipeline::gpu_cpu_pipeline_case_checksum
+use gpu_cpu_pipeline::gpu_cpu_pipeline_case_telemetry
+use keyword_expansion::keyword_expansion_case_checksum
+use keyword_expansion::keyword_expansion_case_telemetry
+use metal::metal_case_checksum
+use metal::metal_case_telemetry
+use orchestration::orchestration_case_checksum
+use orchestration::orchestration_case_telemetry
+use orchestrate_god::orchestrate_god_case_checksum
+use orchestrate_god::orchestrate_god_case_telemetry
+use python_stdlib_fused::bench_python_cached_probe
+use python_stdlib_fused::python_cache_asyncio_name
+use python_stdlib_fused::python_cache_json_dumped
+use python_stdlib_fused::python_cache_json_name
+use python_stdlib_fused::python_cache_os_name
+use python_stdlib_fused::python_cache_os_sep
+use python_stdlib_fused::python_cache_path_basename
+use python_stdlib_fused::python_cache_path_dirname
+use python_stdlib_fused::python_cache_path_joined
+use python_stdlib_fused::python_cache_sys_encoding
+use python_stdlib_fused::python_cache_sys_name
+use python_stdlib_fused::python_semantic_seed
+use system_headers::system_headers_case_checksum
+use system_headers::system_headers_case_telemetry
+
+const CRUSHER_MODULUS: Int = 1000000007
+const CRUSHER_CASE_COUNT: Int = 4
+const CRUSHER_CELL_COUNT: Int = 128
+const CRUSHER_LOG_CAPACITY: Int = 512
+
+fn crusher_json_escape(text: String) -> String:
+    let escaped = ""
+    let index = 0
+    while index < len(text):
+        let ch = char_at(text, index)
+        if ch == "\\":
+            escaped = escaped + "\\\\"
+        else if ch == "\"":
+            escaped = escaped + "\\\""
+        else if ch == "\n":
+            escaped = escaped + "\\n"
+        else if ch == "\r":
+            escaped = escaped + "\\r"
+        else if ch == "\t":
+            escaped = escaped + "\\t"
+        else:
+            escaped = escaped + ch
+        index = index + 1
+    return escaped
+
+fn crusher_json_string(text: String) -> String:
+    return "\"" + crusher_json_escape(text) + "\""
+
+fn crusher_mod(value: Int, modulus: Int) -> Int:
+    let folded = value % modulus
+    if folded < 0:
+        return folded + modulus
+    return folded
+
+struct CrusherPacket:
+    id: Int
+    payload: Int
+    phase: Int
+
+trait CrusherMetric:
+    fn fold_seed(_self: Self_) -> Int:
+        return 0
+
+trait CrusherStable:
+    fn stable_bias(_self: Self_) -> Int:
+        return 0
+
+impl CrusherPacket:
+    fn weighted(_self: Self_) -> Int:
+        return ((_self.id * 11) + (_self.payload * 7) + (_self.phase * 5)) % CRUSHER_MODULUS
+
+impl CrusherMetric for CrusherPacket:
+    fn fold_seed(_self: Self_) -> Int:
+        return ((_self.id * 13) + _self.payload + 17) % CRUSHER_MODULUS
+
+impl CrusherStable for CrusherPacket:
+    fn stable_bias(_self: Self_) -> Int:
+        return ((_self.phase * 19) + 23) % CRUSHER_MODULUS
+
+fn crusher_where_mix<T: CrusherMetric>(value: T, salt: Int) -> Int where T: CrusherStable:
+    let folded = value.fold_seed()
+    let bias = value.stable_bias()
+    return crusher_mod((folded * 17) + (bias * 13) + salt + 29, CRUSHER_MODULUS)
+
+component CrusherPanel():
+    render <panel title="crusher-bench" />
+
+world CrusherAuthority:
+    state signal: Int = 1
+    state epoch: Int = 0
+    state pressure: Int = 0
+    state import_score: Int = 0
+    state scheduler_score: Int = 0
+    surface native_ui => CrusherPanel
+    surface web => CrusherPanel
+
+world CrusherMirror:
+    state signal_copy: Int = 1
+    state epoch_copy: Int = 0
+    state pressure_copy: Int = 0
+    state import_score_copy: Int = 0
+    state scheduler_score_copy: Int = 0
+    surface web => CrusherPanel
+
+entangle CrusherAuthority.signal <-> CrusherMirror.signal_copy with single_writer
+entangle CrusherAuthority.epoch <-> CrusherMirror.epoch_copy with single_writer
+entangle CrusherAuthority.pressure <-> CrusherMirror.pressure_copy with single_writer
+entangle CrusherAuthority.import_score <-> CrusherMirror.import_score_copy with single_writer
+entangle CrusherAuthority.scheduler_score <-> CrusherMirror.scheduler_score_copy with single_writer
+
+shatter struct CrusherShard:
+    bias: Int
+    phase: Int
+    salt: Int
+    hot: Bool
+
+actor CrusherRelay:
+    state bias: Int = 29
+    state turns: Int = 0
+
+    on Fold(reply_to: P, request: Int):
+        self.turns = self.turns + 1
+        send reply_to.Reply(value = ((request * 17) + self.bias + self.turns) % CRUSHER_MODULUS)
+
+law crusher_signal_in_bounds(value: Int) -> Bool:
+    return value >= 0 and value < CRUSHER_MODULUS
+
+patch crusher_commit(authority: CrusherAuthority, value: Int, import_score: Int, scheduler_delta: Int) -> Int:
+    authority.signal = value
+    authority.epoch = authority.epoch + 1
+    authority.pressure = crusher_mod(
+        authority.pressure + import_score + scheduler_delta + authority.epoch + 31,
+        CRUSHER_MODULUS,
+    )
+    authority.import_score = import_score
+    authority.scheduler_score = scheduler_delta
+    return authority.signal
+
+fn crusher_mix_scalar(value: Int) -> Int:
+    return ((value * 59) + 43) % CRUSHER_MODULUS
+
+converge crusher_mix(value: Int) -> Int:
+    spec reference:
+        return crusher_mix_scalar(value)
+    fast llvm_lane when target("llvm"):
+        return ((value * 59) + 43) % CRUSHER_MODULUS
+
+fn crusher_world_score(signal: Int, epoch: Int, pressure: Int, import_score: Int, scheduler_score: Int) -> Int:
+    return crusher_mod(
+        (signal * 7) + (epoch * 11) + (pressure * 13) + (import_score * 5) + (scheduler_score * 3) + 97,
+        CRUSHER_MODULUS,
+    )
+
+fn crusher_dispatch_style(value: Int, epoch: Int) -> Int:
+    return crusher_mod((value * 19) + (epoch * 23) + 17, CRUSHER_MODULUS)
+
+orchestrate crusher_pipeline(seed: Int, authority: CrusherAuthority) -> Int:
+    stage base: cpu crusher_mix(seed + authority.signal + authority.pressure) when capability("cpu.scalar")
+    stage tuned: converge crusher_mix(base + authority.epoch + authority.import_score) when target("llvm")
+    stage legal: law crusher_signal_in_bounds(tuned) when capability("law.invariants")
+    stage mirrored: world crusher_world_score(
+        authority.signal,
+        authority.epoch,
+        authority.pressure,
+        authority.import_score,
+        authority.scheduler_score,
+    ) when capability("world.entangle")
+    stage committed: patch crusher_commit(
+        authority,
+        crusher_mod(tuned + mirrored + seed, CRUSHER_MODULUS),
+        crusher_mod(mirrored + base, CRUSHER_MODULUS),
+        actor_scheduler_total_enqueued(),
+    )
+    stage final_host: dispatch crusher_dispatch_style(committed + base + mirrored, authority.epoch) when capability("dispatch.statement")
+    if legal == false:
+        return 0
+    return final_host
+
+fn crusher_mem_store(buffer: ptr<Int>, slot: Int, value: Int) -> Int:
+    let stored: Int = collapse buffer:
+        mem_store(ptr_offset(buffer, slot, "Int"), value, "Int")
+        value
+    return stored
+
+fn crusher_mem_load(buffer: ptr<Int>, slot: Int) -> Int:
+    return observe buffer:
+        mem_load(ptr_offset(buffer, slot, "Int"), "Int")
+
+fn crusher_log_append(buffer: ptr<Int>, value: Int) -> Int:
+    let next_slot: Int = collapse buffer:
+        let cursor = mem_load(buffer, "Int")
+        let next = cursor + 1
+        mem_store(ptr_offset(buffer, next, "Int"), value, "Int")
+        mem_store(buffer, next, "Int")
+        next
+    return next_slot
+
+fn crusher_fold_cells(cells: ptr<Int>, count: Int, modulus: Int) -> Int:
+    let acc = 0
+    let index = 0
+    while index < count:
+        acc = crusher_mod((acc * 131) + mem_load(ptr_offset(cells, index, "Int")) + index + 1, modulus)
+        index = index + 1
+    return acc
+
+fn crusher_import_mesh_checksum(iterations: Int, modulus: Int) -> Int with GPU, Unsafe:
+    let os_seed = os_semantic_seed()
+    let py_seed = python_semantic_seed()
+    let platform_len = len(verify_platform())
+    let cpu_len = len(verify_cpu_consistency())
+    let probe_len = len(probe_system())
+    let cached_name_score = len(python_cache_sys_name())
+        + len(python_cache_os_name())
+        + len(python_cache_json_name())
+        + len(python_cache_asyncio_name())
+        + len(python_cache_sys_encoding())
+        + len(python_cache_json_dumped())
+        + len(python_cache_path_joined())
+        + len(python_cache_path_basename())
+    let import_header = system_headers_case_checksum("system_header_math_wave", 96, 1, modulus)
+    let import_keyword = keyword_expansion_case_checksum("keyword_where_fold", 256, 1, modulus)
+    let import_gpu = gpu_cpu_pipeline_case_checksum("gpu_cpu_manifest_bridge", 16, 1, modulus)
+    let import_orchestration = orchestration_case_checksum("orchestrate_dispatch_manifest", 2, 1, modulus)
+    let import_god = orchestrate_god_case_checksum("orchestrate_god_policy_pressure", 32, 1, modulus)
+    let import_metal = metal_case_checksum("cpu_cpuid_topology", 32, 1, modulus)
+    let cpuid_seed = cpuid_eax(0, 0) + cpuid_ebx(0, 0) + cpuid_ecx(1, 0) + cpuid_edx(1, 0)
+
+    let acc = crusher_mod(
+        os_seed
+            + py_seed
+            + platform_len
+            + cpu_len
+            + probe_len
+            + cached_name_score
+            + import_header
+            + import_keyword
+            + import_gpu
+            + import_orchestration
+            + import_god
+            + import_metal
+            + cpuid_seed,
+        modulus,
+    )
+
+    let index = 0
+    while index < iterations:
+        let packet = CrusherPacket {
+            id: (index % 97) + 1,
+            payload: ((acc + (index * 17) + cached_name_score) % 4096) + 3,
+            phase: (index % 31) + 5
+        }
+        let angle = ((index % 720) + 1) as Float * 0.00872664625
+        let wave = cmath_floor((cmath_sin(angle) + cmath_cos(angle * 0.5) + 2.0) * 1000.0) as Int
+        acc = crusher_mod(acc + crusher_where_mix(packet, wave + index) + packet.weighted() + wave + (index % 11), modulus)
+        index = index + 1
+    return acc
+
+fn crusher_actor_ownership_mesh_checksum(iterations: Int, modulus: Int) -> Int with Unsafe:
+    let init_status = runtime_init()
+    if init_status != 0:
+        return 100 + init_status
+
+    let authority = CrusherAuthority
+    authority.signal = 1
+    authority.epoch = 0
+    authority.pressure = 0
+    authority.import_score = 0
+    authority.scheduler_score = 0
+
+    let relay = spawn CrusherRelay(bias = 29)
+    let base_patch = patch_journal_count()
+    let base_entangle = entangle_propagation_count()
+    let base_teleport = runtime_machine_teleport_count()
+    let base_enqueued = actor_scheduler_total_enqueued()
+    let base_dequeued = actor_scheduler_total_dequeued()
+    let cpuid_sig = cpuid_eax(0, 0) + cpuid_ebx(7, 0) + cpuid_ecx(7, 0) + cpuid_edx(1, 0)
+
+    let cells: ptr<Int> = alloc_zeroed(CRUSHER_CELL_COUNT, "Int")
+    let log: ptr<Int> = alloc_zeroed(CRUSHER_LOG_CAPACITY, "Int")
+    let acc = 0
+    let round = 0
+    while round < iterations:
+        defer crusher_log_append(log, 900 + round)
+        let slot = (round * 13 + authority.epoch + 7) % CRUSHER_CELL_COUNT
+        let old_cell = crusher_mem_load(cells, slot)
+        let packet = CrusherPacket {
+            id: (round % 89) + 1,
+            payload: crusher_mod(old_cell + round + authority.signal + 41, 4096),
+            phase: (authority.epoch % 37) + 3
+        }
+        let packet_mix = crusher_where_mix(packet, slot + round + 11)
+        let shard = CrusherShard {
+            bias: (packet_mix % 97) + 5,
+            phase: packet.phase + authority.epoch,
+            salt: crusher_mod(packet_mix + authority.pressure + authority.import_score + 101, CRUSHER_MODULUS),
+            hot: (round & 1) == 0
+        }
+        let moved = teleport shard from CrusherAuthority to CrusherMirror via crusher_bus
+        let piped = crusher_pipeline(
+            crusher_mod(packet_mix + moved.bias + moved.phase + moved.salt + old_cell, modulus),
+            authority,
+        )
+        let actor_reply = ask(relay, "Fold", crusher_mod(piped + moved.salt + moved.phase + old_cell + round, modulus))
+        let legal = law_status(crusher_signal_in_bounds(actor_reply))
+        lfence()
+        if (round % 4) == 0:
+            asm("pause")
+        sfence()
+        let next_cell = crusher_mod(
+            old_cell
+                + piped
+                + actor_reply
+                + legal
+                + CrusherMirror.signal_copy
+                + CrusherMirror.epoch_copy
+                + CrusherMirror.pressure_copy
+                + CrusherMirror.import_score_copy
+                + CrusherMirror.scheduler_score_copy
+                + moved.bias
+                + moved.phase
+                + moved.salt
+                + cpuid_sig
+                + slot,
+            modulus,
+        )
+        crusher_mem_store(cells, slot, next_cell)
+        acc = crusher_mod(acc + next_cell + packet.weighted() + packet_mix + slot + actor_reply, modulus)
+        round = round + 1
+
+    mfence()
+
+    let cell_fold = observe cells:
+        crusher_fold_cells(cells, CRUSHER_CELL_COUNT, modulus)
+    let log_fold = observe log:
+        crusher_fold_cells(log, CRUSHER_LOG_CAPACITY, modulus)
+    decay cells
+    decay log
+
+    let patch_delta = patch_journal_count() - base_patch
+    let entangle_delta = entangle_propagation_count() - base_entangle
+    let teleport_delta = runtime_machine_teleport_count() - base_teleport
+    let enqueue_delta = actor_scheduler_total_enqueued() - base_enqueued
+    let dequeue_delta = actor_scheduler_total_dequeued() - base_dequeued
+
+    let shutdown_status = runtime_shutdown()
+    if shutdown_status != 0:
+        return 200 + shutdown_status
+
+    return crusher_mod(
+        acc
+            + cell_fold
+            + log_fold
+            + patch_delta
+            + entangle_delta
+            + teleport_delta
+            + enqueue_delta
+            + dequeue_delta
+            + CrusherMirror.signal_copy
+            + CrusherMirror.epoch_copy
+            + CrusherMirror.pressure_copy
+            + CrusherMirror.import_score_copy
+            + CrusherMirror.scheduler_score_copy
+            + cpuid_sig,
+        modulus,
+    )
+
+fn crusher_cache_fusion_checksum(iterations: Int, modulus: Int) -> Int:
+    let os_seed = os_semantic_seed()
+    let py_seed = python_semantic_seed()
+    let env_len = os_semantic_refresh_env()
+    let cache_seed = os_semantic_read_all()
+        + os_semantic_page()
+        + os_semantic_cpu()
+        + os_semantic_cores()
+        + os_semantic_packages()
+        + len(os_semantic_login())
+        + os_semantic_uid()
+        + os_semantic_gid()
+        + len(os_semantic_os_name())
+        + len(os_semantic_platform())
+        + len(os_semantic_arch())
+        + os_semantic_terminal_cols()
+        + os_semantic_terminal_rows()
+        + len(os_semantic_env())
+        + len(python_cache_sys_name())
+        + len(python_cache_os_name())
+        + len(python_cache_json_name())
+        + len(python_cache_asyncio_name())
+        + len(python_cache_sys_encoding())
+        + len(python_cache_json_dumped())
+        + len(python_cache_os_sep())
+        + len(python_cache_path_joined())
+        + len(python_cache_path_dirname())
+        + len(python_cache_path_basename())
+        + len(verify_platform())
+        + len(verify_cpu_consistency())
+
+    let buffer: ptr<Int> = alloc_zeroed(64, "Int")
+    let acc = crusher_mod(os_seed + py_seed + env_len + cache_seed, modulus)
+
+    collapse buffer:
+        let index = 0
+        while index < iterations:
+            let slot = index % 64
+            let lane = crusher_mod(
+                crusher_mix(os_semantic_read_all() + cache_seed + index)
+                    + len(os_semantic_env())
+                    + len(python_cache_json_dumped())
+                    + len(python_cache_path_joined())
+                    + slot,
+                modulus,
+            )
+            mem_store(ptr_offset(buffer, slot, "Int"), lane, "Int")
+            acc = crusher_mod(acc + lane + slot, modulus)
+            index = index + 1
+        0
+
+    let fold = observe buffer:
+        crusher_fold_cells(buffer, 64, modulus)
+    decay buffer
+
+    return crusher_mod(acc + fold, modulus)
+
+fn crusher_full_send_checksum(iterations: Int, modulus: Int) -> Int with GPU, Unsafe:
+    let import_mesh = crusher_import_mesh_checksum(iterations, modulus)
+    let actor_mesh = crusher_actor_ownership_mesh_checksum(iterations * 4, modulus)
+    let cache_mesh = crusher_cache_fusion_checksum(iterations * 16, modulus)
+    let keyword_dispatch = keyword_expansion_case_checksum("keyword_dispatch_runtime", 1, 1, modulus)
+    let gpu_policy = gpu_cpu_pipeline_case_checksum("gpu_cpu_resource_policy", 128, 1, modulus)
+    let orchestration_stage = orchestration_case_checksum("orchestrate_stage_mesh", 64, 1, modulus)
+    let god_graph = orchestrate_god_case_checksum("orchestrate_god_graph_memory", 64, 1, modulus)
+    let metal_memory = metal_case_checksum("raw_ownership_memory", 128, 1, modulus)
+    let header_wave = system_headers_case_checksum("system_header_math_wave", 256, 1, modulus)
+    return crusher_mod(
+        import_mesh
+            + actor_mesh
+            + cache_mesh
+            + keyword_dispatch
+            + gpu_policy
+            + orchestration_stage
+            + god_graph
+            + metal_memory
+            + header_wave
+            + iterations
+            + CRUSHER_CELL_COUNT
+            + CRUSHER_LOG_CAPACITY,
+        modulus,
+    )
+
+pub fn crusher_case_count() -> Int:
+    return CRUSHER_CASE_COUNT
+
+pub fn crusher_case_id(index: Int) -> String:
+    if index == 0:
+        return "crusher_import_mesh"
+    if index == 1:
+        return "crusher_actor_ownership_mesh"
+    if index == 2:
+        return "crusher_cache_fusion"
+    if index == 3:
+        return "crusher_full_send"
+    return ""
+
+pub fn crusher_case_group(index: Int) -> String:
+    if index >= 0 and index < CRUSHER_CASE_COUNT:
+        return "crusher"
+    return ""
+
+pub fn crusher_case_title(index: Int) -> String:
+    if index == 0:
+        return "Crusher Imported Mesh"
+    if index == 1:
+        return "Crusher Actor Ownership Mesh"
+    if index == 2:
+        return "Crusher Cache Fusion"
+    if index == 3:
+        return "Crusher Full Send"
+    return ""
+
+pub fn crusher_case_iterations(index: Int) -> Int:
+    if index == 0:
+        return 48
+    if index == 1:
+        return 192
+    if index == 2:
+        return 1024
+    if index == 3:
+        return 24
+    return 0
+
+pub fn crusher_case_expected_checksum(index: Int) -> Int with GPU, Unsafe:
+    return crusher_case_checksum(crusher_case_id(index), crusher_case_iterations(index), 1, CRUSHER_MODULUS)
+
+pub fn crusher_case_checksum(case_id: String, iterations: Int, amplify: Int, modulus: Int) -> Int with GPU, Unsafe:
+    let repeat = 0
+    let acc = 0
+    while repeat < amplify:
+        if case_id == "crusher_import_mesh":
+            acc = crusher_mod(acc + crusher_import_mesh_checksum(iterations, modulus), modulus)
+        else if case_id == "crusher_actor_ownership_mesh":
+            acc = crusher_mod(acc + crusher_actor_ownership_mesh_checksum(iterations, modulus), modulus)
+        else if case_id == "crusher_cache_fusion":
+            acc = crusher_mod(acc + crusher_cache_fusion_checksum(iterations, modulus), modulus)
+        else if case_id == "crusher_full_send":
+            acc = crusher_mod(acc + crusher_full_send_checksum(iterations, modulus), modulus)
+        else:
+            return -1
+        repeat = repeat + 1
+    return acc
+
+pub fn crusher_case_telemetry(case_id: String) -> String:
+    if case_id == "crusher_import_mesh":
+        let content = "{"
+        content = content + "\"pack_id\":" + crusher_json_string("crusher") + ","
+        content = content + "\"case_id\":" + crusher_json_string(case_id) + ","
+        content = content + "\"surface\":" + crusher_json_string("cross-pack-import-mesh") + ","
+        content = content + "\"imports\":" + crusher_json_string("core_os,python_stdlib_fused,system_headers,keyword_expansion,gpu_cpu_pipeline,orchestration,orchestrate_god,metal") + ","
+        content = content + "\"system_headers_sample\":" + crusher_json_string(system_headers_case_telemetry("system_header_math_wave")) + ","
+        content = content + "\"keyword_sample\":" + crusher_json_string(keyword_expansion_case_telemetry("keyword_workgroup_manifest")) + ","
+        content = content + "\"pack_focus\":" + crusher_json_string("nested imported benchmark surfaces folded into one checksum lane")
+        return content + "}"
+    if case_id == "crusher_actor_ownership_mesh":
+        let content = "{"
+        content = content + "\"pack_id\":" + crusher_json_string("crusher") + ","
+        content = content + "\"case_id\":" + crusher_json_string(case_id) + ","
+        content = content + "\"surface\":" + crusher_json_string("actor-world-entangle-patch-law-converge-orchestrate-shatter-teleport-raw-memory") + ","
+        content = content + "\"actor_scheduler_worker_count\":" + str(actor_scheduler_worker_count()) + ","
+        content = content + "\"actor_scheduler_busy_workers\":" + str(actor_scheduler_busy_workers()) + ","
+        content = content + "\"patch_journal_count\":" + str(patch_journal_count()) + ","
+        content = content + "\"entangle_propagation_count\":" + str(entangle_propagation_count()) + ","
+        content = content + "\"runtime_machine_teleport_count\":" + str(runtime_machine_teleport_count()) + ","
+        content = content + "\"pack_focus\":" + crusher_json_string("compiler-owned semantic mesh plus low-level memory pressure")
+        return content + "}"
+    if case_id == "crusher_cache_fusion":
+        let content = "{"
+        content = content + "\"pack_id\":" + crusher_json_string("crusher") + ","
+        content = content + "\"case_id\":" + crusher_json_string(case_id) + ","
+        content = content + "\"surface\":" + crusher_json_string("os-cache-plus-python-cache-fusion") + ","
+        content = content + "\"os_probe\":" + crusher_json_string(probe_system()) + ","
+        content = content + "\"python_cache_path\":" + crusher_json_string(python_cache_path_joined()) + ","
+        content = content + "\"pack_focus\":" + crusher_json_string("imported semantic caches become a dense deterministic read storm")
+        return content + "}"
+    if case_id == "crusher_full_send":
+        let content = "{"
+        content = content + "\"pack_id\":" + crusher_json_string("crusher") + ","
+        content = content + "\"case_id\":" + crusher_json_string(case_id) + ","
+        content = content + "\"surface\":" + crusher_json_string("nested-case-composition") + ","
+        content = content + "\"gpu_policy_sample\":" + crusher_json_string(gpu_cpu_pipeline_case_telemetry("gpu_cpu_resource_policy")) + ","
+        content = content + "\"orchestration_sample\":" + crusher_json_string(orchestration_case_telemetry("orchestrate_stage_mesh")) + ","
+        content = content + "\"orchestrate_god_sample\":" + crusher_json_string(orchestrate_god_case_telemetry("orchestrate_god_graph_memory")) + ","
+        content = content + "\"metal_sample\":" + crusher_json_string(metal_case_telemetry("raw_ownership_memory")) + ","
+        content = content + "\"pack_focus\":" + crusher_json_string("moonshot lane that composes imported packs with local authored pressure")
+        return content + "}"
+    let content = "{"
+    content = content + "\"pack_id\":" + crusher_json_string("crusher") + ","
+    content = content + "\"case_id\":" + crusher_json_string(case_id) + ","
+    content = content + "\"pack_focus\":" + crusher_json_string("crusher")
+    return content + "}"
+
+fn run_standalone() -> Int with GPU, Unsafe:
+    println("[crusher] probe=" + probe_system())
+    let os_bench = bench_semantic_all(128)
+    let py_bench = bench_python_cached_probe(128)
+    println("[crusher] os_cache_ms=" + str(os_bench.cache_ms) + " os_raw_ms=" + str(os_bench.raw_ms))
+    println("[crusher] py_cache_ms=" + str(py_bench.cache_ms) + " py_raw_ms=" + str(py_bench.raw_ms))
+
+    let index = 0
+    while index < crusher_case_count():
+        let case_id = crusher_case_id(index)
+        let title = crusher_case_title(index)
+        let group = crusher_case_group(index)
+        let iterations = crusher_case_iterations(index)
+        let started = now_millis()
+        let checksum = crusher_case_checksum(case_id, iterations, 1, CRUSHER_MODULUS)
+        let elapsed = now_millis() - started
+        let expected = crusher_case_expected_checksum(index)
+        let ok = checksum == expected
+        println(
+            "[crusher] "
+                + case_id
+                + " group="
+                + group
+                + " title="
+                + title
+                + " iterations="
+                + str(iterations)
+                + " checksum="
+                + str(checksum)
+                + " expected="
+                + str(expected)
+                + " elapsed_ms="
+                + str(elapsed)
+                + " ok="
+                + str(ok),
+        )
+        if !ok:
+            return 20 + index
+        index = index + 1
+
+    println("[crusher] telemetry=" + crusher_case_telemetry("crusher_full_send"))
+    println("[crusher] all cases passed")
+    return 0
+
+pub fn crusher_pack_main() -> Int with GPU, Unsafe:
+    return run_standalone()
+
+fn main() -> Int with GPU, Unsafe:
+    return crusher_pack_main()
