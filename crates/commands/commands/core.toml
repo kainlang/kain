@@ -33,7 +33,7 @@ id = "format"
 bins = ["kain", "kn"]
 path = ["fmt"]
 alias_paths = [["format"]]
-about = "Format one or more Kain source files"
+about = "Format Kain source files or directories"
 handler = "builtin:format"
 tags = ["source"]
 

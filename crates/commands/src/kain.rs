@@ -573,14 +573,14 @@ pub enum KainCommand {
     /// Format Kain source using the compiler-owned canonical printer
     #[command(visible_alias = "fmt")]
     Format {
-        /// Input Kain source file. Use '-' to read from stdin.
-        input: Option<PathBuf>,
+        /// Input Kain source files or directories. Use '-' or piped stdin.
+        inputs: Vec<PathBuf>,
 
         /// Check whether the source is already formatted
         #[arg(long, conflicts_with = "write")]
         check: bool,
 
-        /// Rewrite the input file in place
+        /// Rewrite the resolved input files in place
         #[arg(short = 'w', long, conflicts_with = "check")]
         write: bool,
     },
@@ -1413,9 +1413,24 @@ mod tests {
     fn parses_format_alias() {
         let cli = KainCli::parse_from(["kn", "fmt", "main.kn", "--check"]);
         match cli.command {
-            Some(KainCommand::Format { input, check, .. }) => {
-                assert_eq!(input, Some(PathBuf::from("main.kn")));
+            Some(KainCommand::Format { inputs, check, .. }) => {
+                assert_eq!(inputs, vec![PathBuf::from("main.kn")]);
                 assert!(check);
+            }
+            other => panic!("expected format command, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_format_multiple_inputs() {
+        let cli = KainCli::parse_from(["kain", "format", "src", "stdlib/fmt.kn", "--write"]);
+        match cli.command {
+            Some(KainCommand::Format { inputs, write, .. }) => {
+                assert_eq!(
+                    inputs,
+                    vec![PathBuf::from("src"), PathBuf::from("stdlib/fmt.kn")]
+                );
+                assert!(write);
             }
             other => panic!("expected format command, got {other:?}"),
         }

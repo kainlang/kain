@@ -574,11 +574,10 @@ impl SourceFormatter {
                 ))
             }
         };
-        let mut header = format!(
-            "shader {stage}{}({}) -> {}",
-            value.name,
-            self.format_params(&value.inputs)?,
-            self.format_type(&value.outputs)
+        let mut header = self.render_callable_head(
+            &format!("shader {stage}{}(", value.name),
+            &self.format_param_parts(&value.inputs)?,
+            &format!(") -> {}", self.format_type(&value.outputs)),
         );
         if let Some([x, y, z]) = value.workgroup_size {
             header.push_str(&format!(" workgroup({x}, {y}, {z})"));
@@ -605,10 +604,10 @@ impl SourceFormatter {
             sections.push(self.format_state_decl(state)?);
         }
         for handler in &value.handlers {
-            let signature = format!(
-                "on {}({})",
-                handler.message_type,
-                self.format_params(&handler.params)?
+            let signature = self.render_callable_head(
+                &format!("on {}(", handler.message_type),
+                &self.format_param_parts(&handler.params)?,
+                ")",
             );
             sections.push(self.format_header_with_block(&signature, &handler.body)?);
         }
@@ -713,15 +712,11 @@ impl SourceFormatter {
     }
 
     fn format_trait_method(&self, value: &TraitMethod) -> KainResult<String> {
-        let mut signature = format!("fn {}({})", value.name, self.format_params(&value.params)?);
-        if let Some(return_type) = &value.return_type {
-            signature.push_str(" -> ");
-            signature.push_str(&self.format_type(return_type));
-        }
-        if !value.effects.is_empty() {
-            signature.push_str(" with ");
-            signature.push_str(&self.format_effects(&value.effects));
-        }
+        let signature = self.render_callable_head(
+            &format!("fn {}(", value.name),
+            &self.format_param_parts(&value.params)?,
+            &self.render_callable_suffix(value.return_type.as_ref(), None, &value.effects),
+        );
         if let Some(block) = &value.default_impl {
             self.format_header_with_block(&signature, block)
         } else {
@@ -1119,12 +1114,11 @@ impl SourceFormatter {
     }
 
     fn format_graph_delegate(&self, value: &DelegateDef) -> KainResult<String> {
-        let mut line = String::from("delegate ");
-        line.push_str(&value.name);
-        line.push('(');
-        line.push_str(&self.format_params(&value.params)?);
-        line.push(')');
-        Ok(line)
+        Ok(self.render_callable_head(
+            &format!("delegate {}(", value.name),
+            &self.format_param_parts(&value.params)?,
+            ")",
+        ))
     }
 
     fn format_pin_config(&self, value: &PinConfigDef) -> KainResult<String> {
@@ -1263,7 +1257,11 @@ impl SourceFormatter {
         output.push_str(&format!(
             "@callback(thread: {thread})\n{}",
             self.format_header_with_block(
-                &format!("fn {}({})", value.name, self.format_params(&value.params)?),
+                &self.render_callable_head(
+                    &format!("fn {}(", value.name),
+                    &self.format_param_parts(&value.params)?,
+                    ")",
+                ),
                 &value.body
             )?
         ));
@@ -1862,7 +1860,7 @@ impl SourceFormatter {
                 if let Some(rest) = rest {
                     entries.push(format!("..{}", self.format_expr(rest)?));
                 }
-                format!("{name} {{ {} }}", entries.join(", "))
+                self.render_braced_sequence(name, &entries)
             }
             Expr::AggregateInit {
                 ty,
@@ -1888,21 +1886,19 @@ impl SourceFormatter {
                 let head = format!("{enum_name}::{variant}");
                 self.format_enum_variant_fields(&head, fields)?
             }
-            Expr::Array(items, _) => format!(
-                "[{}]",
-                items
+            Expr::Array(items, _) => self.render_wrapped_sequence(
+                "[",
+                &items
                     .iter()
                     .map(|item| self.format_expr(item))
-                    .collect::<KainResult<Vec<_>>>()?
-                    .join(", ")
+                    .collect::<KainResult<Vec<_>>>()?,
+                "]",
             ),
-            Expr::Tuple(items, _) => format!(
-                "({})",
-                items
+            Expr::Tuple(items, _) => self.render_tuple_sequence(
+                &items
                     .iter()
                     .map(|item| self.format_expr(item))
-                    .collect::<KainResult<Vec<_>>>()?
-                    .join(", ")
+                    .collect::<KainResult<Vec<_>>>()?,
             ),
             Expr::Range {
                 start,
@@ -2539,11 +2535,11 @@ impl SourceFormatter {
             ));
         }
 
-        let mut head = format!("fn({})", self.format_params(params)?);
-        if let Some(return_type) = return_type {
-            head.push_str(" -> ");
-            head.push_str(&self.format_type(return_type));
-        }
+        let head = self.render_callable_head(
+            "fn(",
+            &self.format_param_parts(params)?,
+            &self.render_callable_suffix(return_type, None, &[]),
+        );
         match body {
             Expr::Block(block, _) => self.format_header_with_block(&head, block),
             _ => Ok(format!("{head}: {}", self.format_expr(body)?)),
@@ -2557,20 +2553,104 @@ impl SourceFormatter {
         }
     }
 
-    fn render_call_like(&self, callee: &str, args: &[String]) -> String {
-        if args.is_empty() {
-            return format!("{callee}()");
+    fn inline_width(&self, text: &str) -> Option<usize> {
+        if text.contains('\n') {
+            None
+        } else {
+            Some(text.chars().count())
         }
-        if args.iter().all(|arg| !arg.contains('\n')) {
-            return format!("{callee}({})", args.join(", "));
+    }
+
+    fn can_inline_sequence(&self, prefix: &str, items: &[String], suffix: &str) -> bool {
+        let Some(prefix_width) = self.inline_width(prefix) else {
+            return false;
+        };
+        let Some(suffix_width) = self.inline_width(suffix) else {
+            return false;
+        };
+        let Some(items_width) = items
+            .iter()
+            .try_fold(0usize, |acc, item| self.inline_width(item).map(|width| acc + width))
+        else {
+            return false;
+        };
+        let separators = 2 * items.len().saturating_sub(1);
+        prefix_width + items_width + separators + suffix_width <= self.options.max_width
+    }
+
+    fn render_wrapped_sequence(&self, prefix: &str, items: &[String], suffix: &str) -> String {
+        if items.is_empty() {
+            return format!("{prefix}{suffix}");
+        }
+        if self.can_inline_sequence(prefix, items, suffix) {
+            return format!("{prefix}{}{suffix}", items.join(", "));
         }
 
-        let body = args
+        let body = items
             .iter()
-            .map(|arg| self.indent_text(arg, 1))
+            .map(|item| self.indent_text(item, 1))
             .collect::<Vec<_>>()
             .join(",\n");
-        format!("{callee}(\n{body}\n)")
+        format!("{prefix}\n{body}\n{suffix}")
+    }
+
+    fn render_braced_sequence(&self, head: &str, items: &[String]) -> String {
+        if items.is_empty() {
+            return format!("{head} {{}}");
+        }
+        if self.can_inline_sequence(&format!("{head} {{ "), items, " }") {
+            return format!("{head} {{ {} }}", items.join(", "));
+        }
+
+        let body = items
+            .iter()
+            .map(|item| self.indent_text(item, 1))
+            .collect::<Vec<_>>()
+            .join(",\n");
+        format!("{head} {{\n{body}\n}}")
+    }
+
+    fn render_tuple_sequence(&self, items: &[String]) -> String {
+        if items.is_empty() {
+            return String::from("()");
+        }
+        if items.len() == 1 {
+            if self.can_inline_sequence("(", items, ",)") {
+                return format!("({},)", items[0]);
+            }
+            return format!("(\n{},\n)", self.indent_text(&items[0], 1));
+        }
+        self.render_wrapped_sequence("(", items, ")")
+    }
+
+    fn render_callable_suffix(
+        &self,
+        return_type: Option<&Type>,
+        where_clause: Option<&WhereClause>,
+        effects: &[Effect],
+    ) -> String {
+        let mut suffix = String::from(")");
+        if let Some(return_type) = return_type {
+            suffix.push_str(" -> ");
+            suffix.push_str(&self.format_type(return_type));
+        }
+        if let Some(where_clause) = where_clause {
+            suffix.push(' ');
+            suffix.push_str(&self.format_where_clause(where_clause));
+        }
+        if !effects.is_empty() {
+            suffix.push_str(" with ");
+            suffix.push_str(&self.format_effects(effects));
+        }
+        suffix
+    }
+
+    fn render_callable_head(&self, prefix: &str, params: &[String], suffix: &str) -> String {
+        self.render_wrapped_sequence(prefix, params, suffix)
+    }
+
+    fn render_call_like(&self, callee: &str, args: &[String]) -> String {
+        self.render_wrapped_sequence(&format!("{callee}("), args, ")")
     }
 
     fn format_enum_variant_fields(
@@ -2580,23 +2660,19 @@ impl SourceFormatter {
     ) -> KainResult<String> {
         match fields {
             EnumVariantFields::Unit => Ok(head.to_string()),
-            EnumVariantFields::Tuple(values) => Ok(format!(
-                "{}({})",
+            EnumVariantFields::Tuple(values) => Ok(self.render_call_like(
                 head,
-                values
+                &values
                     .iter()
                     .map(|value| self.format_expr(value))
-                    .collect::<KainResult<Vec<_>>>()?
-                    .join(", ")
+                    .collect::<KainResult<Vec<_>>>()?,
             )),
-            EnumVariantFields::Struct(values) => Ok(format!(
-                "{} {{ {} }}",
+            EnumVariantFields::Struct(values) => Ok(self.render_braced_sequence(
                 head,
-                values
+                &values
                     .iter()
                     .map(|(name, value)| Ok(format!("{name}: {}", self.format_expr(value)?)))
-                    .collect::<KainResult<Vec<_>>>()?
-                    .join(", ")
+                    .collect::<KainResult<Vec<_>>>()?,
             )),
         }
     }
@@ -2777,7 +2853,7 @@ impl SourceFormatter {
         where_clause: Option<&WhereClause>,
         effects: &[Effect],
     ) -> KainResult<String> {
-        self.callable_signature_with_where(
+        self.render_function_signature(
             keyword,
             visibility,
             name,
@@ -2799,26 +2875,19 @@ impl SourceFormatter {
         return_type: Option<&Type>,
         effects: &[Effect],
     ) -> KainResult<String> {
-        let mut output = format!(
-            "{}{} {}{}({})",
-            self.visibility_prefix(visibility),
+        self.render_function_signature(
             keyword,
+            visibility,
             name,
-            self.format_generics(generics),
-            self.format_params(params)?
-        );
-        if let Some(return_type) = return_type {
-            output.push_str(" -> ");
-            output.push_str(&self.format_type(return_type));
-        }
-        if !effects.is_empty() {
-            output.push_str(" with ");
-            output.push_str(&self.format_effects(effects));
-        }
-        Ok(output)
+            generics,
+            params,
+            return_type,
+            None,
+            effects,
+        )
     }
 
-    fn callable_signature_with_where(
+    fn render_function_signature(
         &self,
         keyword: &str,
         visibility: Visibility,
@@ -2829,29 +2898,22 @@ impl SourceFormatter {
         where_clause: Option<&WhereClause>,
         effects: &[Effect],
     ) -> KainResult<String> {
-        let mut output = self.callable_signature(
+        let prefix = format!(
+            "{}{} {}{}(",
+            self.visibility_prefix(visibility),
             keyword,
-            visibility,
             name,
-            generics,
-            params,
-            return_type,
-            &[],
-        )?;
-        self.push_where_clause(&mut output, where_clause);
-        if !effects.is_empty() {
-            output.push_str(" with ");
-            output.push_str(&self.format_effects(effects));
-        }
-        Ok(output)
+            self.format_generics(generics)
+        );
+        Ok(self.render_callable_head(
+            &prefix,
+            &self.format_param_parts(params)?,
+            &self.render_callable_suffix(return_type, where_clause, effects),
+        ))
     }
 
-    fn format_params(&self, params: &[Param]) -> KainResult<String> {
-        params
-            .iter()
-            .map(|param| self.format_param(param))
-            .collect::<KainResult<Vec<_>>>()
-            .map(|parts| parts.join(", "))
+    fn format_param_parts(&self, params: &[Param]) -> KainResult<Vec<String>> {
+        params.iter().map(|param| self.format_param(param)).collect()
     }
 
     fn format_param(&self, value: &Param) -> KainResult<String> {
@@ -3322,11 +3384,22 @@ impl SourceFormatter {
 mod tests {
     use super::*;
     use kain_core::diagnostics::SpanMapper;
+    use std::{fs, path::PathBuf};
 
     fn parse(source: &str) -> KainResult<Program> {
         let tokens = Lexer::new(source).tokenize()?;
         let mapper = SpanMapper::new(source);
         Parser::new(&tokens, &mapper, "<test>").parse()
+    }
+
+    fn format_with_width(source: &str, max_width: usize) -> KainResult<String> {
+        format_source_with_options(
+            source,
+            FormatOptions {
+                indent_width: 4,
+                max_width,
+            },
+        )
     }
 
     #[test]
@@ -3413,5 +3486,97 @@ namespace Ability:
         let source = "#!/usr/bin/env kn\nlet value=1\n";
         let formatted = format_source(source).expect("format");
         assert_eq!(formatted, "#!/usr/bin/env kn\nlet value = 1\n");
+    }
+
+    #[test]
+    fn wraps_long_signatures_and_calls_with_max_width() {
+        let source = r#"
+pub fn render_entity(world:WorldState,entity:VeryLongEntityHandle,shader:GpuPipeline)->RenderResult with Pure,GPU:
+    return draw_entity(world,entity,shader,"01234567890123456789")
+"#;
+
+        let formatted = format_with_width(source, 48).expect("format");
+        let expected = r#"pub fn render_entity(
+    world: WorldState,
+    entity: VeryLongEntityHandle,
+    shader: GpuPipeline
+) -> RenderResult with Pure, GPU:
+    return draw_entity(
+        world,
+        entity,
+        shader,
+        "01234567890123456789"
+    )
+"#;
+        assert_eq!(formatted, expected);
+        parse(&formatted).expect("wrapped callable output should parse");
+    }
+
+    #[test]
+    fn wraps_structs_arrays_and_tuples_with_max_width() {
+        let source = r#"
+fn demo():
+    let packet=RenderPacket{label:"01234567890123456789",shader:resolve_shader(shader_bank,entity_name),pair:(left_signal,right_signal),items:[first_signal,second_signal,third_signal],single:(solo_signal,)}
+"#;
+
+        let formatted = format_with_width(source, 32).expect("format");
+        let expected = r#"fn demo():
+    let packet = RenderPacket {
+        label: "01234567890123456789",
+        shader: resolve_shader(
+            shader_bank,
+            entity_name
+        ),
+        pair: (left_signal, right_signal),
+        items: [
+            first_signal,
+            second_signal,
+            third_signal
+        ],
+        single: (solo_signal,)
+    }
+"#;
+        assert_eq!(formatted, expected);
+        parse(&formatted).expect("wrapped literal output should parse");
+    }
+
+    #[test]
+    fn wraps_tuple_literals_when_they_exceed_max_width() {
+        let source = r#"
+fn demo():
+    let pair=(left_signal,right_signal)
+"#;
+
+        let formatted = format_with_width(source, 24).expect("format");
+        let expected = r#"fn demo():
+    let pair = (
+        left_signal,
+        right_signal
+    )
+"#;
+        assert_eq!(formatted, expected);
+        parse(&formatted).expect("wrapped tuple output should parse");
+    }
+
+    #[test]
+    fn formatter_is_idempotent_for_real_repo_sources() {
+        let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .expect("crate parent")
+            .parent()
+            .expect("repo root")
+            .to_path_buf();
+
+        for relative in ["stdlib/fmt.kn", "stdlib/intent.kn", "stdlib/os.kn"] {
+            let source = fs::read_to_string(repo_root.join(relative))
+                .unwrap_or_else(|err| panic!("failed to read {relative}: {err}"));
+            let once = format_source(&source)
+                .unwrap_or_else(|err| panic!("failed to format {relative}: {err}"));
+            parse(&once)
+                .unwrap_or_else(|err| panic!("formatted {relative} should parse: {err}"));
+            let twice = format_source(&once)
+                .unwrap_or_else(|err| panic!("failed to reformat {relative}: {err}"));
+            assert_eq!(twice, once, "formatter should be idempotent for {relative}");
+        }
     }
 }

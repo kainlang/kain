@@ -24,7 +24,7 @@ use cli::run as run_cli;
 use cli::runtime_tools;
 use cli::selfhost;
 use cli::{
-    detect_launcher_from_path, format_source, parse_compile_target, render_launcher_menu,
+    detect_launcher_from_path, parse_compile_target, render_launcher_menu,
     resolve_legacy_target_alias, should_show_launcher_menu, supported_targets_csv,
     target_extension, CompileTarget, LauncherKind, BUILD_GIT_COMMIT_COUNT, BUILD_GIT_DIRTY,
     BUILD_GIT_SHA, BUILD_HOST_TRIPLE, BUILD_NUMBER, BUILD_PROFILE, BUILD_TARGET_TRIPLE,
@@ -39,6 +39,7 @@ use kain_commands::kain::{
     NativeUiCommand, RegistryCommand, RunCommand,
 };
 use kain_crate_ffi::{ArtifactMode, ImportCrateOptions};
+use kain_fmt::{format_source_with_options, FormatOptions};
 use kain_repl::{
     normalize_script_source, run_terminal_repl, ReplBuildMetadata, ReplTerminalConfig,
 };
@@ -378,51 +379,121 @@ fn read_source_text(input: &Path) -> Result<String, String> {
     Ok(source)
 }
 
-fn read_format_source(
-    input: Option<&PathBuf>,
-) -> Result<(String, Option<PathBuf>, String), String> {
-    match input {
-        Some(path) => {
-            let source = read_source_text(path)?;
-            let source_name = if path == Path::new("-") {
-                "<stdin>".to_string()
-            } else {
-                path.display().to_string()
-            };
-            let source_path = if path == Path::new("-") {
-                None
-            } else {
-                Some(path.clone())
-            };
-            Ok((source, source_path, source_name))
+fn read_format_stdin() -> Result<(String, String), String> {
+    if io::stdin().is_terminal() {
+        return Err("Format requires an input file path or piped stdin.".to_string());
+    }
+    let mut buffer = String::new();
+    io::stdin()
+        .read_to_string(&mut buffer)
+        .map_err(|err| format!("Failed to read stdin: {err}"))?;
+    Ok((buffer, "<stdin>".to_string()))
+}
+
+fn expand_format_inputs(inputs: &[PathBuf]) -> Result<Vec<PathBuf>, String> {
+    let mut expanded = BTreeSet::new();
+    for input in inputs {
+        let discovered = kain_check::discover_kain_files(input)?;
+        if discovered.is_empty() {
+            return Err(format!(
+                "No Kain source files found under {}",
+                input.display()
+            ));
         }
-        None => {
-            if io::stdin().is_terminal() {
-                return Err("Format requires an input file path or piped stdin.".to_string());
-            }
-            let mut buffer = String::new();
-            io::stdin()
-                .read_to_string(&mut buffer)
-                .map_err(|err| format!("Failed to read stdin: {err}"))?;
-            Ok((buffer, None, "<stdin>".to_string()))
+        expanded.extend(discovered);
+    }
+    Ok(expanded.into_iter().collect())
+}
+
+fn source_path_from_inputs(inputs: &[PathBuf]) -> Option<&Path> {
+    inputs.first().and_then(|path| {
+        if path == Path::new("-") {
+            None
+        } else {
+            Some(path.as_path())
+        }
+    })
+}
+
+fn format_source_for_cli(
+    source: &str,
+    source_name: &str,
+    source_path: Option<&Path>,
+    options: FormatOptions,
+) -> Result<String, ()> {
+    match format_source_with_options(source, options) {
+        Ok(value) => Ok(value),
+        Err(err) => {
+            let diag = kain_core::diagnostics::Diagnostics::new(source, source_name);
+            let rendered = diag.format_error(&err);
+            eprint!("{rendered}");
+            capture_kain_error_failure(
+                "format",
+                None,
+                None,
+                source_name,
+                source_path,
+                source,
+                &err,
+                &rendered,
+            );
+            Err(())
         }
     }
 }
 
-fn run_format_command(input: Option<PathBuf>, check: bool, write: bool) -> bool {
-    if write {
-        let Some(path) = input.as_ref() else {
-            eprintln!(" Format --write requires an input file path.");
-            return false;
-        };
-        if path == Path::new("-") {
+fn run_format_command(inputs: Vec<PathBuf>, check: bool, write: bool) -> bool {
+    let options = FormatOptions::default();
+    let using_stdin = inputs.is_empty() || (inputs.len() == 1 && inputs[0] == Path::new("-"));
+
+    if using_stdin {
+        if write {
             eprintln!(" Format --write does not support stdin.");
             return false;
         }
+        let (source, source_name) = match if inputs.is_empty() {
+            read_format_stdin()
+        } else {
+            read_source_text(Path::new("-")).map(|source| (source, "<stdin>".to_string()))
+        } {
+            Ok(value) => value,
+            Err(err) => {
+                eprintln!(" {}", err);
+                capture_rendered_failure(
+                    "command-failure",
+                    "format",
+                    format!(" {}\n", err),
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    serde_json::json!({"phase": "read-source"}),
+                );
+                return false;
+            }
+        };
+        let Ok(formatted) = format_source_for_cli(&source, &source_name, None, options) else {
+            return false;
+        };
+        if check {
+            if formatted != source {
+                eprintln!(" Formatting changes required: {}", source_name);
+                return false;
+            }
+            return true;
+        }
+        print!("{formatted}");
+        return true;
     }
 
-    let (source, source_path, source_name) = match read_format_source(input.as_ref()) {
-        Ok(value) => value,
+    if inputs.iter().any(|path| path == Path::new("-")) {
+        eprintln!(" Format stdin cannot be combined with file or directory paths.");
+        return false;
+    }
+
+    let expanded = match expand_format_inputs(&inputs) {
+        Ok(paths) => paths,
         Err(err) => {
             eprintln!(" {}", err);
             capture_rendered_failure(
@@ -432,64 +503,93 @@ fn run_format_command(input: Option<PathBuf>, check: bool, write: bool) -> bool 
                 None,
                 None,
                 None,
-                source_path_from_option(input.as_ref()),
+                source_path_from_inputs(&inputs),
                 None,
-                serde_json::json!({"phase": "read-source"}),
+                serde_json::json!({"phase": "expand-inputs"}),
             );
             return false;
         }
     };
 
-    let formatted = match format_source(&source) {
-        Ok(value) => value,
-        Err(err) => {
-            let diag = kain_core::diagnostics::Diagnostics::new(&source, &source_name);
-            let rendered = diag.format_error(&err);
-            eprint!("{rendered}");
-            capture_kain_error_failure(
-                "format",
-                None,
-                None,
-                &source_name,
-                source_path.as_deref(),
-                &source,
-                &err,
-                &rendered,
-            );
-            return false;
-        }
-    };
-
-    let changed = formatted != source;
-
-    if check {
-        if changed {
-            eprintln!(" Formatting changes required: {}", source_name);
-            return false;
-        }
-        return true;
+    if expanded.len() > 1 && !check && !write {
+        eprintln!(" Format multiple files requires --check or --write.");
+        return false;
     }
 
-    if write {
-        let Some(path) = source_path else {
-            eprintln!(" Format --write requires an input file path.");
-            return false;
+    let mut changed_paths = Vec::new();
+    let mut success = true;
+
+    for path in expanded {
+        let source = match read_source_text(&path) {
+            Ok(source) => source,
+            Err(err) => {
+                eprintln!(" {}", err);
+                capture_rendered_failure(
+                    "command-failure",
+                    "format",
+                    format!(" {}\n", err),
+                    None,
+                    None,
+                    None,
+                    Some(path.as_path()),
+                    None,
+                    serde_json::json!({"phase": "read-source"}),
+                );
+                success = false;
+                continue;
+            }
         };
-        if changed {
-            if !ensure_parent_dir(&path) {
-                return false;
+        let source_name = path.display().to_string();
+        let Ok(formatted) =
+            format_source_for_cli(&source, &source_name, Some(path.as_path()), options)
+        else {
+            success = false;
+            continue;
+        };
+        let changed = formatted != source;
+
+        if check {
+            if changed {
+                changed_paths.push(path);
+                success = false;
             }
-            if let Err(err) = fs::write(&path, &formatted) {
-                eprintln!(" Failed to write {}: {}", path.display(), err);
-                return false;
-            }
+            continue;
         }
-        println!(" Formatted {}", path.display());
-        return true;
+
+        if write {
+            if changed {
+                if !ensure_parent_dir(&path) {
+                    success = false;
+                    continue;
+                }
+                if let Err(err) = fs::write(&path, &formatted) {
+                    eprintln!(" Failed to write {}: {}", path.display(), err);
+                    success = false;
+                    continue;
+                }
+                println!(" Formatted {}", path.display());
+            } else {
+                println!(" Already formatted {}", path.display());
+            }
+            continue;
+        }
+
+        print!("{formatted}");
     }
 
-    print!("{formatted}");
-    true
+    if check && !changed_paths.is_empty() {
+        let total = changed_paths.len();
+        for (index, path) in changed_paths.iter().enumerate() {
+            eprintln!(
+                " Formatting changes required {}/{}: {}",
+                index + 1,
+                total,
+                path.display()
+            );
+        }
+    }
+
+    success
 }
 
 fn run_stdlib_map_command(
@@ -697,16 +797,6 @@ fn print_compact_run_report(report: &kain_run::RunReport, success: bool) {
     } else {
         eprint!("{compact}");
     }
-}
-
-fn source_path_from_option(input: Option<&PathBuf>) -> Option<&Path> {
-    input.and_then(|path| {
-        if path == Path::new("-") {
-            None
-        } else {
-            Some(path.as_path())
-        }
-    })
 }
 
 fn capture_rendered_failure(
@@ -3441,11 +3531,11 @@ pub fn main_entry() {
                     }
                 },
                 Some(Commands::Format {
-                    input,
+                    inputs,
                     check,
                     write,
                 }) => {
-                    if !run_format_command(input, check, write) {
+                    if !run_format_command(inputs, check, write) {
                         std::process::exit(1);
                     }
                 }
@@ -6535,7 +6625,7 @@ mod tests {
         build_native_runtime_compile_fingerprint, build_native_runtime_object_cache_paths,
         default_native_runtime_link_libs, default_runtime_cache_root, find_bundled_clang,
         llvm_native_runtime_elision_decision_from_ir, load_editable_kain_config,
-        load_native_runtime_manifest, native_runtime_object_cache_is_fresh,
+        load_native_runtime_manifest, native_runtime_object_cache_is_fresh, run_format_command,
         parse_native_runtime_depfile, parse_native_toolchain_tuning, platform_link_libs,
         resolve_c_ffi_native_link_inputs, resolve_native_runtime_archive_groups,
         runtime_source_uses_cpp, sanitize_runtime_name, slice_llvm_native_executable_ir,
@@ -6788,6 +6878,48 @@ entry:
         assert_eq!(config.schema, 1);
         assert!(config.build.jobs.is_none());
         assert!(config.ui.theme.is_none());
+    }
+
+    #[test]
+    fn format_command_check_detects_unformatted_files_in_directories() {
+        let temp_dir = tempfile::tempdir().expect("temp dir");
+        let source_dir = temp_dir.path().join("src");
+        fs::create_dir_all(&source_dir).expect("source dir");
+        fs::write(source_dir.join("clean.kn"), "let clean = 1\n").expect("clean file");
+        fs::write(source_dir.join("messy.kn"), "let messy=2\n").expect("messy file");
+
+        assert!(!run_format_command(vec![temp_dir.path().to_path_buf()], true, false));
+        assert_eq!(
+            fs::read_to_string(source_dir.join("messy.kn")).expect("messy file"),
+            "let messy=2\n"
+        );
+    }
+
+    #[test]
+    fn format_command_write_rewrites_multiple_expanded_paths() {
+        let temp_dir = tempfile::tempdir().expect("temp dir");
+        let source_dir = temp_dir.path().join("src");
+        let generated_dir = temp_dir.path().join(".kain").join("cache");
+        fs::create_dir_all(&source_dir).expect("source dir");
+        fs::create_dir_all(&generated_dir).expect("generated dir");
+
+        let alpha = source_dir.join("alpha.kn");
+        let beta = source_dir.join("beta.kn");
+        let skipped = generated_dir.join("skip.kn");
+        fs::write(&alpha, "let alpha=1\n").expect("alpha");
+        fs::write(&beta, "let beta=alpha+1\n").expect("beta");
+        fs::write(&skipped, "let skipped=0\n").expect("skipped");
+
+        assert!(run_format_command(vec![temp_dir.path().to_path_buf()], false, true));
+        assert_eq!(fs::read_to_string(&alpha).expect("alpha"), "let alpha = 1\n");
+        assert_eq!(
+            fs::read_to_string(&beta).expect("beta"),
+            "let beta = alpha + 1\n"
+        );
+        assert_eq!(
+            fs::read_to_string(&skipped).expect("skipped"),
+            "let skipped=0\n"
+        );
     }
 
     #[test]

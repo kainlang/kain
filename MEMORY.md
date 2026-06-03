@@ -1,5 +1,30 @@
 # Kain Memory
 
+# 2026-06-03 - `kain-fmt` now uses width-aware layouts and `kain fmt` really handles directories
+
+What changed:
+
+- Taught `crates/fmt/src/lib.rs` to actually use `FormatOptions.max_width` for canonical layout decisions instead of carrying it as dead config.
+- Added width-aware wrapping for callable heads, calls, arrays, tuples, struct literals, enum variant payloads, shaders, actor handlers, trait methods, delegates, and async callback signatures.
+- Fixed tuple formatting to preserve single-element tuple syntax as `(value,)`.
+- Changed `kain fmt` in `crates/commands` and `crates/cli` from a single optional path to real multi-input behavior: it now expands files and directories through `kain_check::discover_kain_files`, rejects mixed stdin/path usage, supports `--check`/`--write` across multiple files, and reports all changed files instead of silently handling only one input.
+- Added formatter regression coverage for width-based wrapping, tuple wrapping, idempotence on real repo source files, format command parsing, and CLI directory formatting.
+
+Validation:
+
+- `cargo test -p kain-fmt --lib --target-dir Z:\_b\cargo-target\codex-fmt-overhaul -- --nocapture`
+- `cargo test -p kain-commands --lib parses_format --target-dir Z:\_b\cargo-target\codex-fmt-overhaul -- --nocapture`
+- `cargo test -p cli --lib format_command_ --target-dir Z:\_b\cargo-target\codex-fmt-overhaul -- --nocapture`
+- Live CLI proof through the freshly built cargo binary:
+  - `kain.exe fmt X:\scratch\fmt_overhaul_demo --check` exited `1` when the directory contained an unformatted actor handler.
+  - `kain.exe fmt X:\scratch\fmt_overhaul_demo --write` rewrote both files in place.
+  - The formatted demo showed wrapped function and actor signatures in `X:\scratch\fmt_overhaul_demo\long.kn` and `worker.kn`.
+
+Operational notes:
+
+- `kain fmt <dir>` without `--check` or `--write` now errors when expansion resolves to more than one file, because stdout-only streaming is only unambiguous for a single source target.
+- The current width heuristic is construct-local rather than full-line global: it meaningfully improves wrapping, but nested expressions still decide against the immediate callable/tuple/array head instead of the fully prefixed outer statement column.
+
 # 2026-06-03 - Added 24 manual error fixtures to the semantic error corpus
 
 What changed:
