@@ -176,6 +176,8 @@ pub struct KainBuildGraphPlatformPackage {
 struct DiscoveredBuildGraphScript {
     graph_source: String,
     build_script: PathBuf,
+    evaluated_manifest: Option<KainManifest>,
+    evaluator_error: Option<String>,
     platform_packages: Vec<KainBuildGraphPlatformPackage>,
     explicit_tasks: Vec<KainBuildTaskSection>,
 }
@@ -1302,6 +1304,19 @@ impl StandaloneBuildConfig {
             .join(sanitize_id(task_id))
     }
 
+    fn as_workspace_config(&self) -> BuildWorkspaceConfig {
+        BuildWorkspaceConfig {
+            workspace_root: self.workspace_root.clone(),
+            artifact_root: self.artifact_root.clone(),
+            cache_root: self.cache_root.clone(),
+            report_root: self.report_root.clone(),
+            host: self.host.clone(),
+            lane: self.lane,
+            profile: self.profile.clone(),
+            target: self.target.clone(),
+        }
+    }
+
     fn into_plan(self, target_label: &str, tasks: Vec<BuildTask>) -> BladeBuildPlan {
         BladeBuildPlan {
             schema_version: BUILD_ARTIFACT_SCHEMA_VERSION,
@@ -1424,9 +1439,15 @@ fn discover_build_graph_provenance(
 
     let graph_source = script.graph_source.clone();
     let build_script = script.build_script.clone();
+    let evaluator_error = script.evaluator_error.clone();
     let platform_packages = script.platform_packages;
     let script_explicit_tasks = script.explicit_tasks;
     let mut overrides = Vec::new();
+    if let Some(error) = evaluator_error {
+        overrides.push(format!(
+            "{graph_source} fell back to scanner because the evaluator could not lower it: {error}"
+        ));
+    }
     if manifest_path.is_some() {
         overrides.push(format!(
             "{graph_source} is build graph authority; KAIN.toml contributes defaults"
@@ -1530,12 +1551,120 @@ fn discover_build_graph_script(
         .unwrap_or("build.kn")
         .to_string();
     let source = kfs::read_text(&build_script)?;
-    Ok(Some(DiscoveredBuildGraphScript {
-        platform_packages: extract_build_graph_platform_packages(&source, &graph_source),
-        explicit_tasks: extract_build_graph_explicit_tasks(&source),
-        graph_source,
-        build_script,
-    }))
+    let evaluated_graph_source = format!("{graph_source}:evaluated");
+    match crate::evaluated_build::evaluate_build_script(
+        &source,
+        workspace_root,
+        &evaluated_graph_source,
+    ) {
+        Ok(evaluated) => Ok(Some(DiscoveredBuildGraphScript {
+            platform_packages: evaluated.platform_packages,
+            explicit_tasks: evaluated.explicit_tasks,
+            evaluated_manifest: Some(evaluated.manifest),
+            evaluator_error: None,
+            graph_source: evaluated_graph_source,
+            build_script,
+        })),
+        Err(error) => Ok(Some(DiscoveredBuildGraphScript {
+            platform_packages: extract_build_graph_platform_packages(&source, &graph_source),
+            explicit_tasks: extract_build_graph_explicit_tasks(&source),
+            evaluated_manifest: None,
+            evaluator_error: Some(compact_evaluator_error(&error.to_string())),
+            graph_source,
+            build_script,
+        })),
+    }
+}
+
+fn compact_evaluator_error(message: &str) -> String {
+    let mut compact = message.split_whitespace().collect::<Vec<_>>().join(" ");
+    const MAX_LEN: usize = 240;
+    if compact.len() > MAX_LEN {
+        compact.truncate(MAX_LEN);
+        compact.push_str("...");
+    }
+    compact
+}
+
+fn discover_evaluated_build_graph_manifest(
+    workspace_root: &Path,
+) -> BuildResult<Option<KainManifest>> {
+    Ok(discover_build_graph_script(workspace_root)?
+        .and_then(|script| script.evaluated_manifest))
+}
+
+fn merge_build_graph_manifest(mut base: KainManifest, overlay: KainManifest) -> KainManifest {
+    merge_optional(&mut base.package.name, overlay.package.name);
+    merge_optional(&mut base.package.version, overlay.package.version);
+    merge_optional(&mut base.package.description, overlay.package.description);
+    merge_paths(&mut base.workspace.blades, overlay.workspace.blades);
+    merge_paths(&mut base.workspace.blade_roots, overlay.workspace.blade_roots);
+    merge_paths(&mut base.workspace.members, overlay.workspace.members);
+    merge_paths(&mut base.workspace.search_roots, overlay.workspace.search_roots);
+    merge_optional(&mut base.workspace.stdlib_root, overlay.workspace.stdlib_root);
+    merge_optional(
+        &mut base.workspace.manifest_root,
+        overlay.workspace.manifest_root,
+    );
+    merge_optional(
+        &mut base.workspace.generated_root,
+        overlay.workspace.generated_root,
+    );
+    merge_optional(&mut base.build.entry, overlay.build.entry);
+    merge_optional(&mut base.build.entry_module, overlay.build.entry_module);
+    merge_optional(&mut base.build.source_root, overlay.build.source_root);
+    merge_paths(&mut base.build.source_order, overlay.build.source_order);
+    merge_paths(&mut base.build.module_roots, overlay.build.module_roots);
+    merge_paths(
+        &mut base.build.module_search_paths,
+        overlay.build.module_search_paths,
+    );
+    merge_strings(&mut base.build.targets, overlay.build.targets);
+    merge_optional(&mut base.build.artifact_root, overlay.build.artifact_root);
+    merge_optional(&mut base.build.cache_root, overlay.build.cache_root);
+    merge_optional(&mut base.build.profile, overlay.build.profile);
+    merge_tasks(&mut base.build.tasks, overlay.build.tasks);
+    merge_optional(&mut base.run.entry, overlay.run.entry);
+    merge_optional(&mut base.run.blade, overlay.run.blade);
+    merge_optional(&mut base.run.target, overlay.run.target);
+    merge_strings(&mut base.run.args, overlay.run.args);
+    if !overlay.run.env.is_empty() {
+        base.run.env = overlay.run.env;
+    }
+    merge_optional(&mut base.run.cwd, overlay.run.cwd);
+    merge_paths(&mut base.run.watch, overlay.run.watch);
+    merge_optional(&mut base.blade.name, overlay.blade.name);
+    merge_optional(&mut base.blade.version, overlay.blade.version);
+    merge_optional(&mut base.blade.kind, overlay.blade.kind);
+    merge_optional(&mut base.blade.entry, overlay.blade.entry);
+    merge_paths(&mut base.blade.source_roots, overlay.blade.source_roots);
+    merge_paths(&mut base.blade.module_roots, overlay.blade.module_roots);
+    merge_strings(&mut base.blade.build_targets, overlay.blade.build_targets);
+    base
+}
+
+fn merge_optional<T>(slot: &mut Option<T>, overlay: Option<T>) {
+    if overlay.is_some() {
+        *slot = overlay;
+    }
+}
+
+fn merge_strings(slot: &mut Vec<String>, overlay: Vec<String>) {
+    if !overlay.is_empty() {
+        *slot = overlay;
+    }
+}
+
+fn merge_paths(slot: &mut Vec<PathBuf>, overlay: Vec<PathBuf>) {
+    if !overlay.is_empty() {
+        *slot = overlay;
+    }
+}
+
+fn merge_tasks(slot: &mut Vec<KainBuildTaskSection>, overlay: Vec<KainBuildTaskSection>) {
+    if !overlay.is_empty() {
+        *slot = overlay;
+    }
 }
 
 fn blade_authority_inputs(blade: &ResolvedBlade) -> Vec<PathBuf> {

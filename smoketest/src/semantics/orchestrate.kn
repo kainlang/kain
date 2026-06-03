@@ -1,16 +1,411 @@
+use std::cuda
+use std::fs
+use std::intent
+use std::json
 use std::runtime
+use compute::smoke_orchestrate_manifest_contract
 use converge::smoke_mix
+use keyword_mesh::smoke_keyword_mesh_scalar
+use shatter::SmokeShard
+use shatter::smoke_shard_score
+use types::SmokeLane
+use types::SmokePacket
+use types::smoke_lane_rank
+use types::smoke_weighted_checksum
+
+const SMOKE_ORCHESTRATE_MODULUS: Int = 1000000007
+const SMOKE_ORCHESTRATE_CELL_COUNT: Int = 32
+const SMOKE_ORCHESTRATE_LOG_CAPACITY: Int = 256
+const SMOKE_ORCHESTRATE_OVERRIDE_X: Int = 12
+const SMOKE_ORCHESTRATE_OVERRIDE_Y: Int = 2
+const SMOKE_ORCHESTRATE_OVERRIDE_Z: Int = 1
+const SMOKE_ORCHESTRATE_COMPUTE_KEY: String = "shader::SmokeOrchestrateKernel::compute"
+
+component SmokeOrchestratePanel():
+    render <panel title="Smoke Orchestrate Omega" />
+
+world SmokeOrchestrateAuthority:
+    state signal: Int = 1
+    state epoch: Int = 0
+    state resonance: Int = 0
+    state gpu_epoch: Int = 0
+    surface web => SmokeOrchestratePanel
+    surface native_ui => SmokeOrchestratePanel
+
+world SmokeOrchestrateMirror:
+    state signal_copy: Int = 1
+    state epoch_copy: Int = 0
+    state resonance_copy: Int = 0
+    state gpu_epoch_copy: Int = 0
+    surface web => SmokeOrchestratePanel
+
+entangle SmokeOrchestrateAuthority.signal <-> SmokeOrchestrateMirror.signal_copy with single_writer
+entangle SmokeOrchestrateAuthority.epoch <-> SmokeOrchestrateMirror.epoch_copy with single_writer
+entangle SmokeOrchestrateAuthority.resonance <-> SmokeOrchestrateMirror.resonance_copy with single_writer
+entangle SmokeOrchestrateAuthority.gpu_epoch <-> SmokeOrchestrateMirror.gpu_epoch_copy with single_writer
+
+pulse smoke_orchestrate_clock every 8ms jitter 1ms:
+    let shard = SmokeShard { bias: 3, phase: 5, salt: 7, alive: true }
+    let moved = teleport shard from SmokeOrchestrateAuthority to SmokeOrchestrateMirror via smoke_orchestrate_pulse_bus
+    let _shape = pulse_tick + pulse_dt_ms + pulse_missed + moved.bias + moved.phase + moved.salt
 
 fn smoke_stage_bias(value: Int) -> Int:
-    return (value + 19) % 1000000007
+    return (value + 19) % SMOKE_ORCHESTRATE_MODULUS
 
 orchestrate smoke_pipeline(value: Int) -> Int:
     let normalized: Int = kain smoke_mix(value)
     let biased: Int = rust smoke_stage_bias(normalized)
     return biased
 
-pub fn smoke_orchestrate_lane() -> Int:
-    let result = smoke_pipeline(50)
-    if result < 0:
+law smoke_orchestrate_signal_in_bounds(value: Int) -> Bool:
+    return value >= 0 and value < SMOKE_ORCHESTRATE_MODULUS
+
+law smoke_orchestrate_phase_in_bounds(value: Int) -> Bool:
+    return value >= 0 and value < 4096
+
+patch smoke_orchestrate_commit(authority: SmokeOrchestrateAuthority, value: Int, resonance_delta: Int, gpu_delta: Int) -> Int:
+    authority.signal = value
+    authority.epoch = authority.epoch + 1
+    authority.resonance = (authority.resonance + resonance_delta + authority.epoch + 17) % SMOKE_ORCHESTRATE_MODULUS
+    authority.gpu_epoch = (authority.gpu_epoch + gpu_delta + 5) % SMOKE_ORCHESTRATE_MODULUS
+    return authority.signal
+
+fn smoke_orchestrate_axiom_fallback(value: Int) -> Int:
+    return ((value * 7) + 19) % SMOKE_ORCHESTRATE_MODULUS
+
+axiom smoke_orchestrate_silicon_truth:
+    when target("llvm")
+    when capability("gpu.compute")
+    when capability("orchestrate.graph")
+    guarantee "smoketest orchestrate lane may own silicon residency, transfer, and fallback policy"
+    fallback smoke_orchestrate_axiom_fallback
+
+fn smoke_orchestrate_mod(value: Int, modulus: Int) -> Int:
+    let folded = value % modulus
+    if folded < 0:
+        return folded + modulus
+    return folded
+
+fn smoke_orchestrate_bool_score(value: Bool) -> Int:
+    if value:
         return 1
+    return 0
+
+fn smoke_orchestrate_host_shadow(value: Int) -> Int:
+    return smoke_orchestrate_mod((value * 3) + 11, SMOKE_ORCHESTRATE_MODULUS)
+
+fn smoke_orchestrate_python_shadow(value: Int) -> Int:
+    return smoke_orchestrate_mod((value * 5) + 23, SMOKE_ORCHESTRATE_MODULUS)
+
+fn smoke_orchestrate_dispatch_style(value: Int, epoch: Int) -> Int:
+    return smoke_orchestrate_mod((value * 13) + (epoch * 29) + 17, SMOKE_ORCHESTRATE_MODULUS)
+
+fn smoke_orchestrate_world_score(signal: Int, epoch: Int, resonance: Int, gpu_epoch: Int) -> Int:
+    return smoke_orchestrate_mod((signal * 5) + (epoch * 17) + (resonance * 7) + (gpu_epoch * 11) + 97, SMOKE_ORCHESTRATE_MODULUS)
+
+fn smoke_orchestrate_mem_store(buffer: ptr<Int>, slot: Int, value: Int) -> Int:
+    let stored: Int = collapse buffer:
+        mem_store(ptr_offset(buffer, slot, "Int"), value, "Int")
+        value
+    return stored
+
+fn smoke_orchestrate_mem_load(buffer: ptr<Int>, slot: Int) -> Int:
+    return observe buffer:
+        mem_load(ptr_offset(buffer, slot, "Int"), "Int")
+
+fn smoke_orchestrate_log_append(buffer: ptr<Int>, value: Int) -> Int:
+    let next_slot: Int = collapse buffer:
+        let cursor = mem_load(buffer, "Int")
+        let next = cursor + 1
+        mem_store(ptr_offset(buffer, next, "Int"), value, "Int")
+        mem_store(buffer, next, "Int")
+        next
+    return next_slot
+
+fn smoke_orchestrate_fold_cells(cells: ptr<Int>, count: Int) -> Int:
+    let acc = 0
+    let index = 0
+    while index < count:
+        acc = smoke_orchestrate_mod(
+            (acc * 131) + mem_load(ptr_offset(cells, index, "Int")) + (index * 3) + 1,
+            SMOKE_ORCHESTRATE_MODULUS,
+        )
+        index = index + 1
+    return acc
+
+orchestrate smoke_orchestrate_preflight(seed: Int, authority: SmokeOrchestrateAuthority) -> Int:
+    stage base: cpu smoke_pipeline(seed + authority.signal) when capability("cpu.scalar") residency host transfer none policy static
+    stage c_shadow: c smoke_orchestrate_host_shadow(base + authority.epoch) after base residency host fallback base policy telemetry_prefer_cpu
+    stage py_shadow: python smoke_orchestrate_python_shadow(c_shadow + authority.resonance + smoke_keyword_mesh_scalar(seed)) after c_shadow residency host fallback degrade c_shadow policy telemetry_prefer_cpu
+    stage tuned: converge smoke_mix(py_shadow + base + authority.gpu_epoch) deps [base, py_shadow] residency shared transfer shared_view policy telemetry_balance_latency
+    stage gpu_lane: gpu smoke_mix(tuned + authority.gpu_epoch + 13) after tuned residency device transfer host_to_device guarded by smoke_orchestrate_silicon_truth fallback degrade c_shadow policy telemetry_prefer_gpu
+    stage legal: law smoke_orchestrate_signal_in_bounds(gpu_lane) after gpu_lane residency host transfer device_to_host policy static
+    stage mirrored: world smoke_orchestrate_world_score(authority.signal, authority.epoch, authority.resonance, authority.gpu_epoch) after legal requires legal residency shared transfer shared_view policy telemetry_balance_latency
+    stage committed: patch smoke_orchestrate_commit(authority, smoke_orchestrate_mod(gpu_lane + mirrored + seed, SMOKE_ORCHESTRATE_MODULUS), tuned, gpu_lane) deps [gpu_lane, mirrored] requires legal residency host policy telemetry_balance_latency
+    stage final_lane: dispatch smoke_orchestrate_dispatch_style(committed + py_shadow, authority.epoch) deps [base, py_shadow, committed] residency shared transfer shared_view policy telemetry_balance_latency
+    if legal == false:
+        return c_shadow
+    return final_lane
+
+orchestrate smoke_orchestrate_shard_pipeline(shard_score: Int, shard_phase: Int, shard_salt: Int, authority: SmokeOrchestrateAuthority) -> Int:
+    stage host_shape: c smoke_orchestrate_host_shadow(shard_score + shard_phase) residency host policy telemetry_prefer_cpu
+    stage gpu_tune: gpu smoke_mix(host_shape + shard_salt + authority.gpu_epoch) after host_shape residency device transfer host_to_device guarded by smoke_orchestrate_silicon_truth fallback degrade host_shape policy telemetry_prefer_gpu
+    stage phase_ok: law smoke_orchestrate_phase_in_bounds(shard_phase) after gpu_tune residency host transfer device_to_host policy static
+    stage mirror_score: world smoke_orchestrate_world_score(authority.signal, authority.epoch, authority.resonance, authority.gpu_epoch) after phase_ok requires phase_ok residency shared transfer shared_view policy telemetry_balance_latency
+    stage committed: patch smoke_orchestrate_commit(authority, smoke_orchestrate_mod(gpu_tune + mirror_score, SMOKE_ORCHESTRATE_MODULUS), shard_salt + mirror_score, gpu_tune) deps [gpu_tune, mirror_score] requires phase_ok residency host policy telemetry_balance_latency
+    stage final_lane: kain smoke_orchestrate_dispatch_style(committed + shard_phase + smoke_lane_rank(SmokeLane::Orchestrate), authority.epoch) after committed residency host policy static
+    if phase_ok == false:
+        return host_shape
+    return final_lane
+
+fn smoke_orchestrate_compute_entry(manifest: JsonObject, compute_key: String) -> JsonObject:
+    let entries = json_array_field(manifest, "compute_shaders")
+    if entries.ok == false:
+        return json_object()
+    let index = 0
+    while index < json_array_length(entries.value):
+        let entry = json_array_value_at(entries.value, index)
+        let key_field = json_string_field(entry, "key")
+        if key_field.ok and key_field.value == compute_key:
+            return entry
+        index = index + 1
+    return json_object()
+
+fn smoke_orchestrate_graph_probe(iterations: Int) -> Int with GPU, Unsafe:
+    let authority = SmokeOrchestrateAuthority
+    authority.signal = 1
+    authority.epoch = 0
+    authority.resonance = 0
+    authority.gpu_epoch = 0
+
+    let patch_base = patch_journal_count()
+    let entangle_base = entangle_propagation_count()
+    let converge_base = converge_mismatch_count()
+    let stage_base = orchestrate_stage_count()
+    let transfer_base = orchestrate_transfer_count()
+    let fallback_base = orchestrate_fallback_count()
+    let adaptive_base = orchestrate_adaptive_stage_count()
+    let teleport_base = runtime_machine_teleport_count()
+
+    let cells: ptr<Int> = alloc_zeroed(SMOKE_ORCHESTRATE_CELL_COUNT, "Int")
+    let log: ptr<Int> = alloc_zeroed(SMOKE_ORCHESTRATE_LOG_CAPACITY, "Int")
+    let acc = 0
+    let round = 0
+    while round < iterations:
+        defer smoke_orchestrate_log_append(log, 5000 + round)
+        let slot = (round * 7 + authority.epoch + 3) % SMOKE_ORCHESTRATE_CELL_COUNT
+        let old_cell = smoke_orchestrate_mem_load(cells, slot)
+        let seed = smoke_orchestrate_mod(old_cell + smoke_keyword_mesh_scalar(round + 11) + round, SMOKE_ORCHESTRATE_MODULUS)
+        let preflight = smoke_orchestrate_preflight(seed, authority)
+        let shard_seed = smoke_orchestrate_mod(preflight + smoke_pipeline(seed + round + 1) + authority.resonance + 29, SMOKE_ORCHESTRATE_MODULUS)
+        let shard = SmokeShard {
+            bias: (shard_seed % 43) + 5,
+            phase: (authority.epoch % 4096) + 9,
+            salt: smoke_orchestrate_mod(shard_seed + authority.signal + 101, SMOKE_ORCHESTRATE_MODULUS),
+            alive: true
+        }
+        let moved = teleport shard from SmokeOrchestrateAuthority to SmokeOrchestrateMirror via smoke_orchestrate_bus
+        let shard_lane = smoke_orchestrate_shard_pipeline(smoke_shard_score(moved), moved.phase, moved.salt + moved.bias, authority)
+        let packet = SmokePacket {
+            id: round + 1,
+            lane: SmokeLane::Orchestrate,
+            payload: smoke_orchestrate_mod(preflight + shard_lane, SMOKE_ORCHESTRATE_MODULUS),
+            tag: "orchestrate",
+            hot: true
+        }
+        let packet_score = smoke_weighted_checksum(packet)
+        let legal_status = law_status(smoke_orchestrate_signal_in_bounds(shard_lane))
+        let next_cell = smoke_orchestrate_mod(
+            old_cell
+                + preflight
+                + shard_lane
+                + packet_score
+                + legal_status
+                + SmokeOrchestrateMirror.signal_copy
+                + SmokeOrchestrateMirror.epoch_copy
+                + SmokeOrchestrateMirror.resonance_copy
+                + SmokeOrchestrateMirror.gpu_epoch_copy
+                + (runtime_machine_teleport_count() - teleport_base),
+            SMOKE_ORCHESTRATE_MODULUS,
+        )
+        smoke_orchestrate_mem_store(cells, slot, next_cell)
+        acc = smoke_orchestrate_mod(
+            acc
+                + next_cell
+                + slot
+                + smoke_lane_rank(SmokeLane::Orchestrate)
+                + (runtime_machine_teleport_count() - teleport_base),
+            SMOKE_ORCHESTRATE_MODULUS,
+        )
+        round = round + 1
+
+    let cell_fold = observe cells:
+        smoke_orchestrate_fold_cells(cells, SMOKE_ORCHESTRATE_CELL_COUNT)
+    let log_cursor = observe log:
+        mem_load(log, "Int")
+    decay cells
+    decay log
+
+    let stage_delta = orchestrate_stage_count() - stage_base
+    let transfer_delta = orchestrate_transfer_count() - transfer_base
+    let fallback_delta = orchestrate_fallback_count() - fallback_base
+    let adaptive_delta = orchestrate_adaptive_stage_count() - adaptive_base
+    let runtime_shape_ok = (
+        (patch_journal_count() - patch_base) >= iterations * 2
+        and (entangle_propagation_count() - entangle_base) >= iterations
+        and (converge_mismatch_count() - converge_base) == 0
+        and stage_delta >= iterations * 12
+        and transfer_delta >= iterations * 6
+        and fallback_delta >= iterations * 4
+        and adaptive_delta >= iterations * 8
+        and (runtime_machine_teleport_count() - teleport_base) >= iterations
+    )
+    if runtime_shape_ok == false:
+        return -11
+    return smoke_orchestrate_mod(
+        acc
+            + cell_fold
+            + log_cursor
+            + stage_delta
+            + transfer_delta
+            + fallback_delta
+            + adaptive_delta
+            + SmokeOrchestrateMirror.signal_copy
+            + SmokeOrchestrateMirror.epoch_copy
+            + SmokeOrchestrateMirror.resonance_copy
+            + SmokeOrchestrateMirror.gpu_epoch_copy,
+        SMOKE_ORCHESTRATE_MODULUS,
+    )
+
+fn smoke_orchestrate_dispatch_probe(iterations: Int) -> Int with GPU, Unsafe:
+    let manifest_path = cuda_compute_residency_path()
+    let manifest = cuda_compute_manifest()
+    let entry = smoke_orchestrate_compute_entry(manifest, SMOKE_ORCHESTRATE_COMPUTE_KEY)
+    let manifest_exists = manifest_path != "" and fs_exists(manifest_path)
+    let workgroup_dims = json_int_array_field_result(entry, "workgroup_size")
+    let dispatch_dims = json_int_array_field_result(entry, "dispatch_size")
+    let bindings = json_array_field(entry, "bindings")
+    let binding_keys = cuda_binding_keys(SMOKE_ORCHESTRATE_COMPUTE_KEY)
+    let output_keys = cuda_output_binding_keys(SMOKE_ORCHESTRATE_COMPUTE_KEY)
+
+    let authority = SmokeOrchestrateAuthority
+    authority.signal = 7
+    authority.epoch = 0
+    authority.resonance = 13
+    authority.gpu_epoch = 17
+    let stage_base = orchestrate_stage_count()
+    let transfer_base = orchestrate_transfer_count()
+    let adaptive_base = orchestrate_adaptive_stage_count()
+
+    let acc = if manifest_exists: 19 else: 7
+    let index = 0
+    while index < iterations:
+        let preflight = smoke_orchestrate_preflight(smoke_orchestrate_mod(acc + index + 73, SMOKE_ORCHESTRATE_MODULUS), authority)
+        dispatch "shader::SmokeOrchestrateKernel::compute" [SMOKE_ORCHESTRATE_OVERRIDE_X, SMOKE_ORCHESTRATE_OVERRIDE_Y, SMOKE_ORCHESTRATE_OVERRIDE_Z]
+        acc = smoke_orchestrate_mod(
+            acc
+                + preflight
+                + abi_cuda_last_status()
+                + abi_cuda_last_dispatch_invocations()
+                + abi_cuda_last_output_binding_count()
+                + abi_cuda_last_total_output_bytes()
+                + len(abi_cuda_last_error_kind())
+                + len(abi_cuda_last_error_message())
+                + index,
+            SMOKE_ORCHESTRATE_MODULUS,
+        )
+        index = index + 1
+
+    let manifest_score = if workgroup_dims.ok and dispatch_dims.ok and bindings.ok:
+        (
+            workgroup_dims.value[0]
+                + (workgroup_dims.value[1] * 10)
+                + (workgroup_dims.value[2] * 100)
+                + dispatch_dims.value[0]
+                + (dispatch_dims.value[1] * 10)
+                + (dispatch_dims.value[2] * 100)
+                + json_array_length(bindings.value)
+        )
+    else:
+        41
+
+    let contract_ok = (
+        manifest_exists
+        and cuda_has_compute_key(SMOKE_ORCHESTRATE_COMPUTE_KEY)
+        and len(binding_keys) == 2
+        and len(output_keys) == 1
+        and manifest_score == smoke_orchestrate_manifest_contract()
+    )
+    if contract_ok == false:
+        return -21
+    return smoke_orchestrate_mod(
+        acc
+            + manifest_score
+            + smoke_orchestrate_bool_score(cuda_runtime_ready())
+            + (orchestrate_stage_count() - stage_base)
+            + (orchestrate_transfer_count() - transfer_base)
+            + (orchestrate_adaptive_stage_count() - adaptive_base),
+        SMOKE_ORCHESTRATE_MODULUS,
+    )
+
+fn smoke_orchestrate_metadata_probe() -> Int with GPU, Unsafe:
+    let authority = SmokeOrchestrateAuthority
+    authority.signal = 11
+    authority.epoch = 0
+    authority.resonance = 23
+    authority.gpu_epoch = 29
+
+    let tail = smoke_orchestrate_preflight(123, authority)
+    let last_runtime = orchestrate_last_runtime()
+    let last_function = orchestrate_last_function()
+    let last_dependencies = orchestrate_last_dependencies()
+    let last_residency = orchestrate_last_residency()
+    let last_transfer = orchestrate_last_transfer()
+    let last_policy = orchestrate_last_policy()
+
+    if tail <= 0:
+        return -31
+    if last_runtime != "dispatch":
+        return -32
+    if last_function != "smoke_orchestrate_dispatch_style":
+        return -33
+    if len(last_dependencies) == 0:
+        return -34
+    if last_residency != "shared":
+        return -35
+    if last_transfer != "shared_view":
+        return -36
+    if last_policy != "telemetry_balance_latency":
+        return -37
+    return smoke_orchestrate_mod(
+        tail
+            + len(last_dependencies)
+            + len(orchestrate_last_fallback())
+            + len(orchestrate_last_guard()),
+        SMOKE_ORCHESTRATE_MODULUS,
+    )
+
+pub fn smoke_orchestrate_lane() -> Int with GPU, Unsafe:
+    let graph_score = smoke_orchestrate_graph_probe(6)
+    if graph_score <= 0:
+        return 1
+
+    let dispatch_score = smoke_orchestrate_dispatch_probe(3)
+    if dispatch_score <= 0:
+        return 2
+
+    let metadata_score = smoke_orchestrate_metadata_probe()
+    if metadata_score <= 0:
+        return 3
+
+    let total = smoke_orchestrate_mod(
+        graph_score
+            + dispatch_score
+            + metadata_score
+            + SmokeOrchestrateMirror.signal_copy
+            + SmokeOrchestrateMirror.gpu_epoch_copy,
+        SMOKE_ORCHESTRATE_MODULUS,
+    )
+    if total <= 0:
+        return 4
     return 0

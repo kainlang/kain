@@ -40,3 +40,24 @@ shader compute SmokeReductionKernel(id: UVec3) -> Vec4:
     let value = src[index]
     dst[index] = value * 0.5
     return vec4(value, 0.0, 0.0, 1.0)
+
+pub fn smoke_orchestrate_manifest_contract() -> Int:
+    return 254
+
+shader compute SmokeOrchestrateKernel(id: UVec3) -> Void workgroup(8, 1, 1):
+    uniform src: StorageBuffer<UInt> @0
+    uniform dst: StorageBuffer<UInt> @1
+
+    comptime:
+        let compute = (
+            [24, 1, 1],
+            [
+                ("src", "u32", ["dispatch.x"], "input", "kain.shared.buffer"),
+                ("dst", "u32", ["dispatch.x"], "output", "kain.shared.buffer"),
+            ],
+            [],
+        )
+
+    let lane = src[id.x]
+    dst[id.x] = lane + UInt(12)
+    return

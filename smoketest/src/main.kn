@@ -137,7 +137,7 @@ fn smoke_finish_full(mode: String, started_ms: Int, succeeded_tracks: Int, total
         return failure_code
     return 0
 
-fn smoke_run_full_album(mode: String) -> Int with Unsafe:
+fn smoke_run_full_album(mode: String) -> Int with GPU, Unsafe:
     let _root = smoke_telemetry_prepare(mode)
     let boot = runtime_init()
     if boot != 0:
@@ -721,7 +721,7 @@ fn smoke_run_full_album(mode: String) -> Int with Unsafe:
         return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, 9999, "shape.validation")
     return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, 0, "")
 
-fn main() -> Int with Unsafe:
+fn main() -> Int with GPU, Unsafe:
     let mode = smoke_telemetry_mode()
     if mode == "benchmark":
         return smoke_run_benchmark_mode()
