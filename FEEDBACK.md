@@ -1,5 +1,17 @@
 # Kain Feedback Log
 
+## 2026-06-02 - first-class GPU authoring ergonomics
+
+### CPU/GPU orchestration works, but the language still exposes too much runtime plumbing
+- Categories: gpu, benchmark, runtime, bootstrap, developer-experience
+- Status: Active
+- Surface: authored `shader compute`, `dispatch`, `std::cuda`, `std::gpu`, v2 benchmark routing, LLVM lowering
+- Symptom: The `gpu_cpu_pipeline` benchmark proves one file can coordinate CPU semantics, raw staging memory, shader metadata, and live CUDA dispatch, but it still has to query global `abi_cuda_last_*` state, manually encode parts of a GPU resource policy to stay isolated, and report that `orchestrate` has no `gpu`/`compute` stage despite GPU being a first-class semantic goal.
+- Workflow impact: Authors can reach the GPU, but the path still feels like a sidecar/runtime bridge rather than a single Kain-native pipeline. The proof also needed a focused router because the main v2 router compiles/link-checks unrelated packs before `KAIN_BENCH_V2_FILTER` can isolate the target.
+- Minimal repro: `kain run X:\benchmark\cases_v2\.telemetryrouter\gpu_router.kn --target llvm --json` succeeds, while `$env:KAIN_BENCH_V2_FILTER="gpu_cpu_pipeline"; kain run X:\benchmark --target llvm --json` is blocked by unrelated Vulkan loader link propagation.
+- Evidence: `benchmark/out/reports/latest_v2_gpu_cpu_pipeline.json` reports `success_count: 5`, `failure_count: 0`, live `nvidia ptx dispatch ok`, shader bundle/residency paths, and `orchestrate_gpu_stage_supported: false`.
+- Suggested direction: Add a typed GPU dispatch result, a `gpu`/`compute` orchestration stage, first-class buffer/resource declarations with honest upload/readback/adopt semantics, and v2 pack isolation or complete native link propagation for imported packs.
+
 ## 2026-05-31 - C system-header import ergonomics
 
 ### Host CRT headers are too hostile for the current extractor without curated subsets

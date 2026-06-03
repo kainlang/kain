@@ -222,13 +222,7 @@ pub const RESERVED_KEYWORDS: &[&str] = &[
 ];
 
 fn parse_orchestrate_stage_runtime(name: &str) -> Option<OrchestrateStageRuntime> {
-    match name {
-        "kain" => Some(OrchestrateStageRuntime::Kain),
-        "rust" => Some(OrchestrateStageRuntime::Rust),
-        "python" => Some(OrchestrateStageRuntime::Python),
-        "node" => Some(OrchestrateStageRuntime::Node),
-        _ => None,
-    }
+    OrchestrateStageRuntime::from_name(name)
 }
 
 fn c_include_import_name(target: &str) -> String {
@@ -4224,7 +4218,72 @@ impl<'a> Parser<'a> {
             TokenKind::Break => self.parse_break(),
             TokenKind::Continue => self.parse_continue(),
             TokenKind::Ident(ref name) if name == "dispatch" => self.parse_dispatch(),
+            TokenKind::Ident(ref name) if name == "stage" => self.parse_orchestrate_stage(),
             _ => Ok(Stmt::Expr(self.parse_expr()?)),
+        }
+    }
+
+    fn parse_orchestrate_stage(&mut self) -> KainResult<Stmt> {
+        let start = self.current_span();
+        self.expect_contextual_ident("stage")?;
+        let binding_name = self.parse_ident()?;
+        self.expect(TokenKind::Colon)?;
+        let runtime_name = self.parse_ident()?;
+        let runtime = parse_orchestrate_stage_runtime(runtime_name.as_str()).ok_or_else(|| {
+            self.parser_error(
+                format!(
+                    "Unknown orchestrate stage kind `{runtime_name}`; expected kain, c, cpu, gpu, dispatch, converge, law, patch, world, python, rust, or node"
+                ),
+                start,
+            )
+        })?;
+        let function = self.parse_path_name()?;
+        self.expect(TokenKind::LParen)?;
+        let args = self.parse_call_args()?;
+        self.expect(TokenKind::RParen)?;
+        let selector = if self.peek_contextual_ident("when") {
+            self.advance();
+            Some(self.parse_orchestrate_selector()?)
+        } else {
+            None
+        };
+        let span = start.merge(self.current_span());
+        Ok(Stmt::Let {
+            pattern: Pattern::Binding {
+                name: binding_name,
+                mutable: false,
+                span: start,
+            },
+            ty: None,
+            value: Some(Expr::StageCall {
+                runtime,
+                function,
+                args,
+                selector,
+                span,
+            }),
+            span,
+        })
+    }
+
+    fn parse_orchestrate_selector(&mut self) -> KainResult<OrchestrateSelector> {
+        if self.peek_contextual_ident("target") {
+            self.advance();
+            self.expect(TokenKind::LParen)?;
+            let value = self.parse_string_like_argument("orchestrate target selector")?;
+            self.expect(TokenKind::RParen)?;
+            Ok(OrchestrateSelector::target(value))
+        } else if self.peek_contextual_ident("capability") {
+            self.advance();
+            self.expect(TokenKind::LParen)?;
+            let value = self.parse_string_like_argument("orchestrate capability selector")?;
+            self.expect(TokenKind::RParen)?;
+            Ok(OrchestrateSelector::capability(value))
+        } else {
+            Err(self.parser_error(
+                "Expected orchestrate selector 'target(\"...\")' or 'capability(\"...\")'",
+                self.current_span(),
+            ))
         }
     }
 
@@ -5089,10 +5148,17 @@ impl<'a> Parser<'a> {
                             self.advance();
                             let args = self.parse_call_args()?;
                             self.expect(TokenKind::RParen)?;
+                            let selector = if self.peek_contextual_ident("when") {
+                                self.advance();
+                                Some(self.parse_orchestrate_selector()?)
+                            } else {
+                                None
+                            };
                             return Ok(Expr::StageCall {
                                 runtime,
                                 function,
                                 args,
+                                selector,
                                 span: span.merge(self.current_span()),
                             });
                         }

@@ -1,6 +1,6 @@
 # Kain Keyword Catalog
 
-Snapshot: 2026-06-01
+Snapshot: 2026-06-03
 
 This file is the quick "what words does Kain actually own right now?" sheet.
 It is meant to stop the constant rediscovery loop.
@@ -22,9 +22,9 @@ This catalog counts authored Kain language words, not punctuation.
 ## Headline Count
 
 - `58` hard lexer keywords
-- `40` contextual or keyword-like parser words
+- `41` contextual or keyword-like parser words
 - `2` textual operator aliases: `and`, `or`
-- `100` practical authored Kain words to remember if you want the whole live surface
+- `101` practical authored Kain words to remember if you want the whole live surface
 
 ## Source Of Truth
 
@@ -56,7 +56,7 @@ These have dedicated token entries in `TokenKind`.
 
 `Pure`, `IO`, `async`, `Async`, `GPU`, `Reactive`, `Unsafe`
 
-## 2. Contextual Or Keyword-Like Parser Words (`40`)
+## 2. Contextual Or Keyword-Like Parser Words (`41`)
 
 These are not all tokenized as dedicated keywords, but the parser treats them like language words in specific positions.
 
@@ -66,7 +66,12 @@ These are not all tokenized as dedicated keywords, but the parser treats them li
 
 ### Import, Clause, And Selector Words
 
-`include`, `import`, `from`, `where`, `every`, `when`, `guarantee`, `fallback`, `spec`, `fast`, `verify`, `random`, `jitter`, `target`, `capability`, `to`, `via`
+`include`, `import`, `from`, `where`, `stage`, `every`, `when`, `guarantee`, `fallback`, `spec`, `fast`, `verify`, `random`, `jitter`, `target`, `capability`, `to`, `via`
+
+`stage` is the contextual statement form inside orchestrated pipelines:
+`stage result: gpu kernel(value) when capability("gpu.compute")`. It lowers through
+the normal stage-call expression shape while preserving typed graph metadata for
+runtime contracts, realtime app bundles, and native telemetry.
 
 `include` now covers both local C header imports such as
 `include native/foo.h as foo` and the registry-backed system-header lane such
@@ -95,7 +100,7 @@ These are word forms for operators, not normal declaration keywords, but they st
 
 If you just want one big memory dump, this is the current authored Kain word surface counted above.
 
-`fn`, `let`, `mut`, `var`, `const`, `if`, `else`, `elif`, `match`, `for`, `while`, `loop`, `break`, `continue`, `return`, `defer`, `await`, `in`, `with`, `as`, `type`, `struct`, `enum`, `trait`, `impl`, `pub`, `mod`, `use`, `self`, `Self`, `true`, `false`, `none`, `component`, `shader`, `actor`, `state`, `spawn`, `send`, `receive`, `emit`, `comptime`, `macro`, `vertex`, `fragment`, `collapse`, `observe`, `decay`, `share`, `fanout`, `test`, `Pure`, `IO`, `async`, `Async`, `GPU`, `Reactive`, `Unsafe`, `patch`, `law`, `axiom`, `pulse`, `orchestrate`, `converge`, `world`, `entangle`, `shatter`, `teleport`, `include`, `import`, `from`, `where`, `every`, `when`, `guarantee`, `fallback`, `spec`, `fast`, `verify`, `random`, `jitter`, `target`, `capability`, `to`, `via`, `surface`, `native_ui`, `viewport3d`, `web`, `ue5`, `compute`, `uniform`, `workgroup`, `dispatch`, `render`, `on`, `weak`, `single_writer`, `and`, `or`
+`fn`, `let`, `mut`, `var`, `const`, `if`, `else`, `elif`, `match`, `for`, `while`, `loop`, `break`, `continue`, `return`, `defer`, `await`, `in`, `with`, `as`, `type`, `struct`, `enum`, `trait`, `impl`, `pub`, `mod`, `use`, `self`, `Self`, `true`, `false`, `none`, `component`, `shader`, `actor`, `state`, `spawn`, `send`, `receive`, `emit`, `comptime`, `macro`, `vertex`, `fragment`, `collapse`, `observe`, `decay`, `share`, `fanout`, `test`, `Pure`, `IO`, `async`, `Async`, `GPU`, `Reactive`, `Unsafe`, `patch`, `law`, `axiom`, `pulse`, `orchestrate`, `converge`, `world`, `entangle`, `shatter`, `teleport`, `include`, `import`, `from`, `where`, `stage`, `every`, `when`, `guarantee`, `fallback`, `spec`, `fast`, `verify`, `random`, `jitter`, `target`, `capability`, `to`, `via`, `surface`, `native_ui`, `viewport3d`, `web`, `ue5`, `compute`, `uniform`, `workgroup`, `dispatch`, `render`, `on`, `weak`, `single_writer`, `and`, `or`
 
 ## 5. What This Catalog Deliberately Excludes
 
@@ -114,7 +119,7 @@ lowering. The current authored CUDA surface includes:
 
 ### Symbol-Only Surface
 
-Kain also owns a large symbolic surface that is not included in the `100`:
+Kain also owns a large symbolic surface that is not included in the `101`:
 
 `+`, `-`, `*`, `/`, `%`, `**`, `==`, `!=`, `<`, `>`, `<=`, `>=`, `&&`, `||`, `!`, `&`, `|`, `^`, `~`, `<<`, `>>`, `=`, `+=`, `-=`, `*=`, `/=`, `%=`, `&=`, `|=`, `^=`, `<<=`, `>>=`, `::`, `->`, `=>`, `@`, `??`, `?.`, `?`
 

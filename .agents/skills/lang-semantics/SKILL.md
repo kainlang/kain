@@ -102,7 +102,7 @@ Core source anchors:
 | `patch` | Intentional journaled state mutation | `patch commit(world: World, value: Int) -> Int:` | `types.rs check_patch`, `runtime_contract.rs RuntimePatchContract`, `stdlib/intent.kn` |
 | `law` | Invariant predicate with Bool contract | `law in_bounds(x: Int) -> Bool:` | `types.rs check_law`, Z3 `keywords-law-runtime-accepts-only-bool-results.yaml` |
 | `converge` | Spec plus target/capability fast lanes | `spec reference`, `fast llvm_lane when target("llvm")` | `types.rs check_converge`, `runtime.rs select_converge_lane`, LLVM `compile_converge` |
-| `orchestrate` | Typed staged pipeline over Kain/Rust/Python/Node | `let x: Int = kain fn(value)` | `types.rs collect_orchestrate_stage_descriptors`, `runtime.rs execute_stage_call` |
+| `orchestrate` | Typed stage graph over silicon, invariants, Kain/C/Python, and compatibility adapters | `stage x: gpu fn(value) when capability("gpu.compute")` | `crates/orchestrate`, `types.rs collect_orchestrate_stage_descriptors`, `runtime.rs execute_stage_call` |
 | `axiom` | Machine/environment truth with fallback | `when target("llvm")`, `guarantee`, `fallback` | `types.rs check_axiom`, LLVM `kain_machine_axiom_accept`, `machine_stones.c` |
 | `pulse` | First-class temporal beat | `pulse tick every 8ms jitter 1ms:` | `types.rs check_pulse`, LLVM pulse lowering, `machine_stones.c` |
 | `teleport` | Destructive cross-world ownership handoff | `teleport value from A to B via channel` | `types.rs ensure_teleport_world_reference`, LLVM `compile_teleport_expr`, `machine_stones.c` |

@@ -1104,6 +1104,7 @@ pub(crate) fn render_authored_expr_contract(expr: &Expr) -> String {
             runtime,
             function,
             args,
+            selector,
             ..
         } => {
             let rendered_args = args
@@ -1111,7 +1112,11 @@ pub(crate) fn render_authored_expr_contract(expr: &Expr) -> String {
                 .map(render_authored_call_arg_contract)
                 .collect::<Vec<_>>()
                 .join(", ");
-            format!("{} {function}({rendered_args})", runtime.as_str())
+            let call_text = format!("{} {function}({rendered_args})", runtime.as_str());
+            selector
+                .as_ref()
+                .map(|selector| format!("{call_text} when {}", selector.authored()))
+                .unwrap_or(call_text)
         }
         Expr::MethodCall {
             receiver,

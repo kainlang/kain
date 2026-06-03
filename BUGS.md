@@ -1,5 +1,51 @@
 # Kain Bug Log
 
+## 2026-06-02 - benchmark/cases_v2/gpu
+### Filtered v2 benchmark runs still compile/link unrelated packs before filtering
+
+- Categories: benchmark, gpu, v2-router, link-policy, developer-experience
+- Severity: Medium
+- Status: Open in tree (2026-06-02)
+- Surface: `benchmark/cases_v2/.telemetryrouter/router.kn` and native link propagation for v2 packs.
+- Trigger: Running the new `gpu_cpu_pipeline` pack through `KAIN_BENCH_V2_FILTER=gpu_cpu_pipeline`.
+- Symptom: The filtered main router gets past the target pack but still fails link for an unrelated imported pack with `undefined symbol: vkGetInstanceProcAddr` from `vulkan_loader_global_lookup_checksum`.
+- Why this is a bug: `KAIN_BENCH_V2_FILTER` should isolate benchmark selection enough that unrelated experimental packs cannot block focused proof of a different pack. If all packs are intentionally compiled, the runner needs a focused-pack escape hatch or link dependencies must be complete for every imported pack.
+- Minimal repro:
+  - `$env:KAIN_BENCH_V2_FILTER="gpu_cpu_pipeline"`
+  - `kain run X:\benchmark --target llvm --json`
+- Evidence:
+  - The Vulkan system-header registry declares `vulkan-1` and the import library exists at `F:\Scoop\apps\vulkan\current\Lib\vulkan-1.lib`, but the v2 run executable did not link it during the focused GPU run.
+  - The focused runner `benchmark/cases_v2/.telemetryrouter/gpu_router.kn` succeeds for the same GPU pack because it imports only the GPU pipeline.
+- Current workaround:
+  - Use `kain run X:\benchmark\cases_v2\.telemetryrouter\gpu_router.kn --target llvm --json` for focused `gpu_cpu_pipeline` validation.
+- Suggested direction:
+  - Make v2 pack selection lazy enough to avoid importing unrelated packs during filtered runs, or split root executables per pack family.
+  - Fix Vulkan link propagation so natural Vulkan loader imports automatically pass `vulkan-1` into the LLVM native link step.
+
+---
+
+## 2026-06-02 - sys-codegen/llvm
+### Generic aggregate names from GPU-facing stdlib imports can emit invalid LLVM type names
+
+- Categories: llvm, codegen, gpu, stdlib, developer-experience
+- Severity: Medium
+- Status: Patched in tree (2026-06-02)
+- Surface: named struct/value aggregate lowering in `crates/sys-codegen/src/codegen_llvm/mod.rs`.
+- Trigger: Importing GPU policy modules in the v2 router path generated a synthetic aggregate name such as `Std140_(Float, Float, Float, Float)`.
+- Symptom: LLVM parsing failed on `%Std140_(Float, Float, Float, Float) = type { ... }` with `expected '=' after name` even though Kain typechecking succeeded.
+- Why this is a bug: Frontend-legal generic/synthetic type names must be sanitized consistently in LLVM named type declarations and references.
+- Minimal repro:
+  - Run the v2 router path that imports GPU-facing policy surfaces before the sanitation fix.
+  - Observe invalid LLVM IR for `%Std140_(Float, Float, Float, Float)`.
+- Evidence:
+  - The focused GPU benchmark work fixed this by routing struct definitions, value aggregate structs, and storage-type references through sanitized LLVM named type aliases while preserving raw Kain names for lookups.
+- Current workaround:
+  - No workaround needed in this checkout after the sanitation patch; keep an eye on other synthetic names with punctuation.
+- Suggested direction:
+  - Add a backend regression test for generic struct names with punctuation so `kain check`/LLVM lowering cannot drift apart again.
+
+---
+
 ## 2026-06-01 - cli/build-tests
 ### CLI unit-test targets fail even though the production launcher builds
 

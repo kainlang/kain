@@ -200,6 +200,7 @@ pub struct OrchestrateStageDescriptor {
     pub runtime: OrchestrateStageRuntime,
     pub function: String,
     pub binding_name: String,
+    pub selector: Option<OrchestrateSelector>,
 }
 
 #[derive(Debug, Clone)]
@@ -1059,6 +1060,11 @@ pub struct TypeEnv<'a> {
     entangle_endpoints: HashSet<String>,
     shared_region_depth: usize,
     fanout_depth: usize,
+    in_converge: bool,
+    in_entangle: bool,
+    in_patch: bool,
+    in_world: bool,
+    in_comptime: bool,
     span_mapper: &'a SpanMapper,
     filename: &'a str,
 }
@@ -1083,6 +1089,11 @@ impl<'a> TypeEnv<'a> {
             entangle_endpoints: HashSet::new(),
             shared_region_depth: 0,
             fanout_depth: 0,
+            in_converge: false,
+            in_entangle: false,
+            in_patch: false,
+            in_world: false,
+            in_comptime: false,
             span_mapper,
             filename,
         };
@@ -1711,6 +1722,21 @@ impl<'a> TypeEnv<'a> {
             .nearest_scope_matches(self.nearest_scope_matches_for_text(&primary_text));
         if let Some(path) = self.diagnostic_source_path(span) {
             packet = packet.source_path(path);
+        }
+        if self.in_converge {
+            packet = packet.flag("in_converge_block", true);
+        }
+        if self.in_entangle {
+            packet = packet.flag("in_entangle_block", true);
+        }
+        if self.in_patch {
+            packet = packet.flag("in_patch_block", true);
+        }
+        if self.in_world {
+            packet = packet.flag("in_world_block", true);
+        }
+        if self.in_comptime {
+            packet = packet.flag("in_comptime_block", true);
         }
         packet
     }
@@ -5588,40 +5614,52 @@ fn orchestrate_function_view(orchestrate: &OrchestrateDef) -> Function {
 }
 
 fn check_patch(env: &mut TypeEnv, patch: &PatchDef) -> KainResult<TypedPatch> {
-    let typed_fn = check_function(env, &patch_function_view(patch))?;
-    let mutation_paths = collect_patch_mutation_paths_from_block(&patch.body);
-    let undo_mode = if patch_body_requires_best_effort(&patch.body) {
-        PatchUndoMode::BestEffort
-    } else {
-        PatchUndoMode::Reversible
-    };
-    Ok(TypedPatch {
-        ast: patch.clone(),
-        resolved_type: typed_fn.resolved_type,
-        effects: typed_fn.effects,
-        mutation_paths,
-        undo_mode,
-    })
+    let old_patch = env.in_patch;
+    env.in_patch = true;
+    let res = (|| {
+        let typed_fn = check_function(env, &patch_function_view(patch))?;
+        let mutation_paths = collect_patch_mutation_paths_from_block(&patch.body);
+        let undo_mode = if patch_body_requires_best_effort(&patch.body) {
+            PatchUndoMode::BestEffort
+        } else {
+            PatchUndoMode::Reversible
+        };
+        Ok(TypedPatch {
+            ast: patch.clone(),
+            resolved_type: typed_fn.resolved_type,
+            effects: typed_fn.effects,
+            mutation_paths,
+            undo_mode,
+        })
+    })();
+    env.in_patch = old_patch;
+    res
 }
 
 fn check_law(env: &mut TypeEnv, law: &LawDef) -> KainResult<TypedLaw> {
-    let typed_fn = check_function(env, &law_function_view(law))?;
-    let resolved_return_type = resolve_type_in_env(env, &law.return_type)?;
-    if resolved_return_type != ResolvedType::Bool {
-        return Err(env.type_error(
-            format!(
-                "law '{}' must return Bool, found {}",
-                law.name,
-                describe_type(&resolved_return_type)
-            ),
-            law.return_type.span(),
-        ));
-    }
-    Ok(TypedLaw {
-        ast: law.clone(),
-        resolved_type: typed_fn.resolved_type,
-        effects: typed_fn.effects,
-    })
+    let old_patch = env.in_patch;
+    env.in_patch = true;
+    let res = (|| {
+        let typed_fn = check_function(env, &law_function_view(law))?;
+        let resolved_return_type = resolve_type_in_env(env, &law.return_type)?;
+        if resolved_return_type != ResolvedType::Bool {
+            return Err(env.type_error(
+                format!(
+                    "law '{}' must return Bool, found {}",
+                    law.name,
+                    describe_type(&resolved_return_type)
+                ),
+                law.return_type.span(),
+            ));
+        }
+        Ok(TypedLaw {
+            ast: law.clone(),
+            resolved_type: typed_fn.resolved_type,
+            effects: typed_fn.effects,
+        })
+    })();
+    env.in_patch = old_patch;
+    res
 }
 
 fn check_axiom(env: &mut TypeEnv, axiom: &AxiomDef) -> KainResult<TypedAxiom> {
@@ -5721,111 +5759,129 @@ fn pulse_duration_unit_is_valid(unit: &str) -> bool {
 }
 
 fn check_converge(env: &mut TypeEnv, converge: &ConvergeDef) -> KainResult<TypedConverge> {
-    let resolved_type = function_signature(env, &converge_dispatcher_view(converge), None)?;
-    let expected_signature = resolved_type.clone();
-    if converge.verify_random_count.is_some() {
-        ensure_converge_verify_types_supported(env, converge, &expected_signature)?;
-    }
-    check_function(
-        env,
-        &converge_lane_function_view(converge, &converge.spec_lane),
-    )?;
-    for lane in &converge.fast_lanes {
-        check_function(env, &converge_lane_function_view(converge, lane))?;
-        let lane_signature =
-            function_signature(env, &converge_lane_function_view(converge, lane), None)?;
-        if lane_signature != expected_signature {
-            return Err(env.type_error(
-                format!(
-                    "Converge lane '{}' does not match dispatcher signature",
-                    lane.lane_name
-                ),
-                lane.span,
-            ));
+    let old_converge = env.in_converge;
+    env.in_converge = true;
+    let res = (|| {
+        let resolved_type = function_signature(env, &converge_dispatcher_view(converge), None)?;
+        let expected_signature = resolved_type.clone();
+        if converge.verify_random_count.is_some() {
+            ensure_converge_verify_types_supported(env, converge, &expected_signature)?;
         }
-    }
-    Ok(TypedConverge {
-        ast: converge.clone(),
-        resolved_type,
-    })
+        check_function(
+            env,
+            &converge_lane_function_view(converge, &converge.spec_lane),
+        )?;
+        for lane in &converge.fast_lanes {
+            check_function(env, &converge_lane_function_view(converge, lane))?;
+            let lane_signature =
+                function_signature(env, &converge_lane_function_view(converge, lane), None)?;
+            if lane_signature != expected_signature {
+                return Err(env.type_error(
+                    format!(
+                        "Converge lane '{}' does not match dispatcher signature",
+                        lane.lane_name
+                    ),
+                    lane.span,
+                ));
+            }
+        }
+        Ok(TypedConverge {
+            ast: converge.clone(),
+            resolved_type,
+        })
+    })();
+    env.in_converge = old_converge;
+    res
 }
 
 fn check_world(env: &mut TypeEnv, world: &WorldDef) -> KainResult<TypedWorld> {
-    let mut state_types = HashMap::new();
-    let mut seen_surface_kinds = HashSet::new();
-    for state in &world.states {
-        let resolved_ty = resolve_type_in_env(env, &state.ty)?;
-        let initial_ty = infer_expr_type(env, &state.initial, None)?;
-        ensure_type_compatible(
-            env,
-            &resolved_ty,
-            &initial_ty,
-            state.initial.span(),
-            "world state initializer",
-        )?;
-        state_types.insert(state.name.clone(), resolved_ty);
-    }
-    let world_ty = ResolvedType::Struct(world.name.clone(), state_types);
-    env.types.insert(world.name.clone(), world_ty.clone());
-    env.define_global(world.name.clone(), world_ty);
-    if world.surfaces.is_empty() {
-        let report = env
-            .type_report(
-                DiagnosticCode::TypeWorldMissingSurface,
-                format!("world '{}' must declare at least one surface", world.name),
-                world.span,
-                "world has no surface projections",
-            )
-            .note("Worlds currently need at least one surface projection so they can materialize into a runtime-facing view.")
-            .help("Add a line like `surface native_ui => MyPanel` inside the world body.");
-        return Err(KainError::rich(report));
-    }
-    for surface in &world.surfaces {
-        if !seen_surface_kinds.insert(surface.kind) {
-            return Err(env.type_error(
-                format!(
-                    "world '{}' declares duplicate '{}' surface",
-                    world.name,
-                    surface.kind.as_str()
-                ),
-                surface.span,
-            ));
+    let old_world = env.in_world;
+    env.in_world = true;
+    let res = (|| {
+        let mut state_types = HashMap::new();
+        let mut seen_surface_kinds = HashSet::new();
+        for state in &world.states {
+            let resolved_ty = resolve_type_in_env(env, &state.ty)?;
+            let initial_ty = infer_expr_type(env, &state.initial, None)?;
+            ensure_type_compatible(
+                env,
+                &resolved_ty,
+                &initial_ty,
+                state.initial.span(),
+                "world state initializer",
+            )?;
+            state_types.insert(state.name.clone(), resolved_ty);
         }
-        check_world_surface_projection(env, surface)?;
-    }
-    Ok(TypedWorld { ast: world.clone() })
+        let world_ty = ResolvedType::Struct(world.name.clone(), state_types);
+        env.types.insert(world.name.clone(), world_ty.clone());
+        env.define_global(world.name.clone(), world_ty);
+        if world.surfaces.is_empty() {
+            let report = env
+                .type_report(
+                    DiagnosticCode::TypeWorldMissingSurface,
+                    format!("world '{}' must declare at least one surface", world.name),
+                    world.span,
+                    "world has no surface projections",
+                )
+                .note("Worlds currently need at least one surface projection so they can materialize into a runtime-facing view.")
+                .help("Add a line like `surface native_ui => MyPanel` inside the world body.");
+            return Err(KainError::rich(report));
+        }
+        for surface in &world.surfaces {
+            if !seen_surface_kinds.insert(surface.kind) {
+                return Err(env.type_error(
+                    format!(
+                        "world '{}' declares duplicate '{}' surface",
+                        world.name,
+                        surface.kind.as_str()
+                    ),
+                    surface.span,
+                ));
+            }
+            check_world_surface_projection(env, surface)?;
+        }
+        Ok(TypedWorld { ast: world.clone() })
+    })();
+    env.in_world = old_world;
+    res
 }
 
 fn check_entangle(env: &mut TypeEnv, entangle: &EntangleDef) -> KainResult<TypedEntangle> {
-    let left_path = entangle.left.authored_path();
-    let right_path = entangle.right.authored_path();
-    for path in [&left_path, &right_path] {
-        if !env.entangle_endpoints.insert(path.clone()) {
+    let old_entangle = env.in_entangle;
+    env.in_entangle = true;
+    let res = (|| {
+        let left_path = entangle.left.authored_path();
+        let right_path = entangle.right.authored_path();
+        for path in [&left_path, &right_path] {
+            if !env.entangle_endpoints.insert(path.clone()) {
+                return Err(env.type_error(
+                    format!("entangle endpoint '{path}' is already coupled"),
+                    entangle.span,
+                ));
+            }
+        }
+
+        let left_ty = resolve_entangle_endpoint_type(env, &entangle.left)?;
+        let right_ty = resolve_entangle_endpoint_type(env, &entangle.right)?;
+        if peel_shared_refs(&left_ty) != peel_shared_refs(&right_ty) {
             return Err(env.type_error(
-                format!("entangle endpoint '{path}' is already coupled"),
-                entangle.span,
+                format!(
+                    "entangle endpoint expected {}, found {}",
+                    describe_type(&left_ty),
+                    describe_type(&right_ty)
+                ),
+                entangle.right.span,
             ));
         }
-    }
 
-    let left_ty = resolve_entangle_endpoint_type(env, &entangle.left)?;
-    let right_ty = resolve_entangle_endpoint_type(env, &entangle.right)?;
-    if peel_shared_refs(&left_ty) != peel_shared_refs(&right_ty) {
-        return Err(env.type_error(
-            format!(
-                "entangle endpoint expected {}, found {}",
-                describe_type(&left_ty),
-                describe_type(&right_ty)
-            ),
-            entangle.right.span,
-        ));
-    }
-
-    Ok(TypedEntangle {
-        ast: entangle.clone(),
-        endpoint_type_name: describe_type(&left_ty),
-        endpoint_type: left_ty,
-    })
+        Ok(TypedEntangle {
+            ast: entangle.clone(),
+            endpoint_type_name: describe_type(&left_ty),
+            endpoint_type: left_ty,
+        })
+    })();
+    env.in_entangle = old_entangle;
+    res
 }
 
 fn resolve_entangle_endpoint_type(
@@ -6430,11 +6486,14 @@ fn collect_orchestrate_stage_descriptors(
                         mutable: _,
                         span: _,
                     },
-                ty: Some(_),
                 value:
                     Some(Expr::StageCall {
-                        runtime, function, ..
+                        runtime,
+                        function,
+                        selector,
+                        ..
                     }),
+                ty: _,
                 span,
             } => {
                 if seen_non_stage_stmt {
@@ -6450,6 +6509,7 @@ fn collect_orchestrate_stage_descriptors(
                     runtime: *runtime,
                     function: function.clone(),
                     binding_name: name.clone(),
+                    selector: selector.clone(),
                 });
             }
             Stmt::Let {
@@ -6458,7 +6518,7 @@ fn collect_orchestrate_stage_descriptors(
             } => {
                 return Err(env.type_error(
                     format!(
-                        "orchestrate '{}' stage steps must be top-level 'let binding: Type = <runtime> function(...)' declarations",
+                        "orchestrate '{}' stage steps must be top-level 'stage binding: <kind> function(...)' or 'let binding = <kind> function(...)' declarations",
                         orchestrate.name
                     ),
                     *span,

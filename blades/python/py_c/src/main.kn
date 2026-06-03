@@ -5,7 +5,8 @@ use std::json
 use std::interop
 use std::python
 use std::runtime
-use c::python_lab_bridge
+
+include python_lab_bridge
 
 import fastmcp as fastmcp
 import numpy as np

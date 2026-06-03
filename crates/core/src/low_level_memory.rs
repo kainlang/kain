@@ -1498,6 +1498,7 @@ fn lower_expr_memory_with_ctx(expr: &Expr, ctx: &mut FunctionMemoryCtx<'_>) -> E
             runtime,
             function,
             args,
+            selector,
             span,
         } => Expr::StageCall {
             runtime: *runtime,
@@ -1509,6 +1510,7 @@ fn lower_expr_memory_with_ctx(expr: &Expr, ctx: &mut FunctionMemoryCtx<'_>) -> E
                     ..arg.clone()
                 })
                 .collect(),
+            selector: selector.clone(),
             span: *span,
         },
         Expr::MethodCall {

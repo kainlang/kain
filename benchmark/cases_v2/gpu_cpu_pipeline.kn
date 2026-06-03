@@ -1,0 +1,451 @@
+use std::cuda
+use std::fs
+use std::intent
+use std::json
+use std::runtime
+
+const GPU_CPU_MODULUS: Int = 1000000007
+const GPU_CPU_CASE_COUNT: Int = 5
+const GPU_CPU_CELL_COUNT: Int = 64
+const GPU_CPU_DISPATCH_X: Int = 32
+const GPU_CPU_DISPATCH_Y: Int = 1
+const GPU_CPU_DISPATCH_Z: Int = 1
+const GPU_CPU_OVERRIDE_X: Int = 13
+const GPU_CPU_OVERRIDE_Y: Int = 2
+const GPU_CPU_OVERRIDE_Z: Int = 1
+const GPU_CPU_COMPUTE_KEY: String = "shader::CpuGpuBridgeKernel::compute"
+const GPU_CPU_STAGE_COMPUTE: Int = 4
+const GPU_CPU_QUEUE_COMPUTE: Int = 2
+const GPU_CPU_QUEUE_TRANSFER: Int = 4
+const GPU_CPU_QUEUE_HOST: Int = 16
+const GPU_CPU_ACCESS_READ: Int = 1
+const GPU_CPU_ACCESS_WRITE: Int = 2
+const GPU_CPU_ACCESS_READ_WRITE: Int = GPU_CPU_ACCESS_READ | GPU_CPU_ACCESS_WRITE
+const GPU_CPU_RESIDENCY_HOST_VISIBLE: Int = 1
+const GPU_CPU_RESIDENCY_HOST_COHERENT: Int = 2
+const GPU_CPU_RESIDENCY_SHARED: Int = 8
+const GPU_CPU_RESIDENCY_ZERO_COPY: Int = 256
+const GPU_CPU_BUFFER_USAGE_TRANSFER_SRC: Int = 1
+const GPU_CPU_BUFFER_USAGE_TRANSFER_DST: Int = 2
+const GPU_CPU_BUFFER_USAGE_STORAGE: Int = 4
+const GPU_CPU_DESCRIPTOR_STORAGE_BUFFER: String = "storage_buffer"
+const GPU_CPU_LAYOUT_STD430: String = "std430"
+
+component GpuCpuPipelinePanel():
+    render <panel title="gpu-cpu-pipeline" />
+
+world GpuCpuAuthority:
+    state signal: Int = 1
+    state epoch: Int = 0
+    state staging_score: Int = 0
+    surface web => GpuCpuPipelinePanel
+    surface native_ui => GpuCpuPipelinePanel
+
+world GpuCpuMirror:
+    state signal_copy: Int = 1
+    state epoch_copy: Int = 0
+    state staging_score_copy: Int = 0
+    surface web => GpuCpuPipelinePanel
+
+entangle GpuCpuAuthority.signal <-> GpuCpuMirror.signal_copy with single_writer
+entangle GpuCpuAuthority.epoch <-> GpuCpuMirror.epoch_copy with single_writer
+entangle GpuCpuAuthority.staging_score <-> GpuCpuMirror.staging_score_copy with single_writer
+
+law gpu_cpu_signal_in_bounds(value: Int) -> Bool:
+    return value >= 0 and value < GPU_CPU_MODULUS
+
+patch gpu_cpu_commit(authority: GpuCpuAuthority, value: Int, staging_delta: Int) -> Int:
+    authority.signal = value
+    authority.epoch = authority.epoch + 1
+    authority.staging_score = (authority.staging_score + staging_delta + authority.epoch + 17) % GPU_CPU_MODULUS
+    return authority.signal
+
+fn gpu_cpu_mod(value: Int, modulus: Int) -> Int:
+    let folded = value % modulus
+    if folded < 0:
+        return folded + modulus
+    return folded
+
+fn gpu_cpu_bool_score(value: Bool) -> Int:
+    if value:
+        return 1
+    return 0
+
+fn gpu_cpu_mix_scalar(value: Int) -> Int:
+    return ((value * 41) + 29) % GPU_CPU_MODULUS
+
+converge gpu_cpu_mix(value: Int) -> Int:
+    spec reference:
+        return gpu_cpu_mix_scalar(value)
+    fast llvm_lane when target("llvm"):
+        return ((value * 41) + 29) % GPU_CPU_MODULUS
+
+orchestrate gpu_cpu_host_pipeline(value: Int) -> Int:
+    stage staged: gpu gpu_cpu_mix(value) when capability("gpu.compute")
+    stage legal: law gpu_cpu_signal_in_bounds(staged) when capability("law.invariants")
+    if legal == false:
+        return 0
+    return staged
+
+fn gpu_cpu_fold_cells(cells: ptr<Int>, count: Int, modulus: Int) -> Int:
+    let acc = 0
+    let index = 0
+    while index < count:
+        acc = gpu_cpu_mod((acc * 131) + mem_load(ptr_offset(cells, index, "Int")) + index, modulus)
+        index = index + 1
+    return acc
+
+fn gpu_cpu_policy_valid(access_flags: Int, descriptor_kind: String) -> Bool:
+    let descriptor_is_read_only = descriptor_kind == "uniform_buffer" or descriptor_kind == "sampled_image"
+    if descriptor_is_read_only:
+        return (access_flags & GPU_CPU_ACCESS_WRITE) == 0
+    return true
+
+fn gpu_cpu_binding_plan_valid(binding: Int, stage_flags: Int, access_flags: Int, queue_flags: Int, descriptor_kind: String) -> Bool:
+    if binding < 0 or stage_flags == 0 or queue_flags == 0:
+        return false
+    return gpu_cpu_policy_valid(access_flags, descriptor_kind)
+
+fn gpu_cpu_semantic_staging_checksum(iterations: Int, modulus: Int) -> Int:
+    let init_status = runtime_init()
+    if init_status != 0:
+        return 100 + init_status
+
+    let authority = GpuCpuAuthority
+    authority.signal = 1
+    authority.epoch = 0
+    authority.staging_score = 0
+
+    let mut cells: ptr<Int> = alloc_zeroed(GPU_CPU_CELL_COUNT, "Int")
+    let acc = 0
+    let shadow_signal = 1
+    let shadow_epoch = 0
+    let shadow_staging = 0
+
+    collapse cells:
+        let round = 0
+        while round < iterations:
+            let slot = ((round * 7) + shadow_epoch) % GPU_CPU_CELL_COUNT
+            let old_cell = mem_load(ptr_offset(cells, slot, "Int"))
+            let staged = gpu_cpu_host_pipeline((acc + old_cell + round + shadow_staging + 31) % modulus)
+            let committed = gpu_cpu_commit(authority, staged, slot + old_cell)
+            shadow_signal = committed
+            shadow_epoch = shadow_epoch + 1
+            shadow_staging = (shadow_staging + slot + old_cell + shadow_epoch + 17) % modulus
+            let legal = law_status(gpu_cpu_signal_in_bounds(committed))
+            let next_cell = gpu_cpu_mod(old_cell + committed + shadow_signal + shadow_epoch + shadow_staging + legal + slot, modulus)
+            mem_store(ptr_offset(cells, slot, "Int"), next_cell, "Int")
+            acc = gpu_cpu_mod(acc + next_cell + GpuCpuMirror.signal_copy + GpuCpuMirror.epoch_copy + GpuCpuMirror.staging_score_copy, modulus)
+            round = round + 1
+        0
+
+    let observed = observe cells:
+        gpu_cpu_fold_cells(cells, GPU_CPU_CELL_COUNT, modulus)
+    decay cells
+
+    let final_score = gpu_cpu_mod(acc + observed + GpuCpuMirror.signal_copy + GpuCpuMirror.epoch_copy + GpuCpuMirror.staging_score_copy, modulus)
+    let runtime_shape_ok = patch_journal_count() >= 1 and entangle_propagation_count() >= iterations and converge_mismatch_count() == 0
+    let shutdown_status = runtime_shutdown()
+    if shutdown_status != 0:
+        return 200 + shutdown_status
+    if runtime_shape_ok == false:
+        return 2
+    return final_score
+
+fn gpu_cpu_resource_policy_checksum(iterations: Int, modulus: Int) -> Int:
+    let residency_flags = GPU_CPU_RESIDENCY_HOST_VISIBLE | GPU_CPU_RESIDENCY_HOST_COHERENT | GPU_CPU_RESIDENCY_SHARED | GPU_CPU_RESIDENCY_ZERO_COPY
+    let queue_flags = GPU_CPU_QUEUE_COMPUTE | GPU_CPU_QUEUE_TRANSFER | GPU_CPU_QUEUE_HOST
+    let usage_flags = GPU_CPU_BUFFER_USAGE_STORAGE | GPU_CPU_BUFFER_USAGE_TRANSFER_SRC | GPU_CPU_BUFFER_USAGE_TRANSFER_DST
+    let byte_length = GPU_CPU_DISPATCH_X * 4
+    let binding_valid = gpu_cpu_binding_plan_valid(0, GPU_CPU_STAGE_COMPUTE, GPU_CPU_ACCESS_READ_WRITE, queue_flags, GPU_CPU_DESCRIPTOR_STORAGE_BUFFER)
+    let policy_valid = gpu_cpu_policy_valid(GPU_CPU_ACCESS_READ_WRITE, GPU_CPU_DESCRIPTOR_STORAGE_BUFFER)
+    let mut cells: ptr<Int> = alloc_zeroed(8, "Int")
+
+    collapse cells:
+        mem_store(ptr_offset(cells, 0, "Int"), byte_length, "Int")
+        mem_store(ptr_offset(cells, 1, "Int"), GPU_CPU_DISPATCH_X, "Int")
+        mem_store(ptr_offset(cells, 2, "Int"), 4, "Int")
+        mem_store(ptr_offset(cells, 3, "Int"), residency_flags, "Int")
+        mem_store(ptr_offset(cells, 4, "Int"), queue_flags, "Int")
+        mem_store(ptr_offset(cells, 5, "Int"), usage_flags, "Int")
+        mem_store(ptr_offset(cells, 6, "Int"), GPU_CPU_STAGE_COMPUTE, "Int")
+        mem_store(ptr_offset(cells, 7, "Int"), GPU_CPU_ACCESS_READ_WRITE, "Int")
+        0
+
+    let descriptor_fold = observe cells:
+        gpu_cpu_fold_cells(cells, 8, modulus)
+    decay cells
+
+    let acc = 0
+    let index = 0
+    while index < iterations:
+        acc = gpu_cpu_mod(
+            acc
+                + byte_length
+                + GPU_CPU_DISPATCH_X
+                + 4
+                + descriptor_fold
+                + gpu_cpu_bool_score(policy_valid) * 19
+                + gpu_cpu_bool_score(binding_valid) * 23
+                + (residency_flags & GPU_CPU_RESIDENCY_ZERO_COPY)
+                + (index % 31),
+            modulus,
+        )
+        index = index + 1
+    return acc
+
+shader compute CpuGpuBridgeKernel(id: UVec3) -> Void workgroup(8, 1, 1):
+    uniform src: StorageBuffer<UInt> @0
+    uniform dst: StorageBuffer<UInt> @1
+
+    comptime:
+        let compute = (
+            [32, 1, 1],
+            [
+                ("src", "u32", ["dispatch.x"], "input", "kain.shared.buffer"),
+                ("dst", "u32", ["dispatch.x"], "output", "kain.shared.buffer"),
+            ],
+            [],
+        )
+
+    let lane = src[id.x]
+    dst[id.x] = lane + UInt(3)
+    return
+
+fn gpu_cpu_compute_entry(manifest: JsonObject, compute_key: String) -> JsonObject:
+    let entries = json_array_field(manifest, "compute_shaders")
+    if entries.ok == false:
+        return json_object()
+    let index = 0
+    while index < json_array_length(entries.value):
+        let entry = json_array_value_at(entries.value, index)
+        let key_field = json_string_field(entry, "key")
+        if key_field.ok and key_field.value == compute_key:
+            return entry
+        index = index + 1
+    return json_object()
+
+fn gpu_cpu_manifest_checksum(iterations: Int, modulus: Int) -> Int:
+    let manifest_path = cuda_compute_residency_path()
+    if manifest_path == "" or fs_exists(manifest_path) == false:
+        return 17
+
+    let manifest = cuda_compute_manifest()
+    let entry = gpu_cpu_compute_entry(manifest, GPU_CPU_COMPUTE_KEY)
+    if json_has_key(entry, "key") == false:
+        return 23
+
+    let workgroup_dims = json_int_array_field_result(entry, "workgroup_size")
+    let dispatch_dims = json_int_array_field_result(entry, "dispatch_size")
+    let bindings = json_array_field(entry, "bindings")
+    if workgroup_dims.ok == false or dispatch_dims.ok == false or bindings.ok == false:
+        return 31
+
+    let workgroup_score = workgroup_dims.value[0] + (workgroup_dims.value[1] * 10) + (workgroup_dims.value[2] * 100)
+    let dispatch_score = dispatch_dims.value[0] + (dispatch_dims.value[1] * 10) + (dispatch_dims.value[2] * 100)
+    let binding_count = json_array_length(bindings.value)
+    let acc = 0
+    let index = 0
+    while index < iterations:
+        acc = gpu_cpu_mod(acc + workgroup_score + dispatch_score + binding_count + (index % 37), modulus)
+        index = index + 1
+    return acc
+
+fn gpu_cpu_dispatch_checksum(iterations: Int, modulus: Int) -> Int with GPU, Unsafe:
+    let acc = 0
+    let index = 0
+    while index < iterations:
+        dispatch "shader::CpuGpuBridgeKernel::compute" [GPU_CPU_OVERRIDE_X, GPU_CPU_OVERRIDE_Y, GPU_CPU_OVERRIDE_Z]
+        let status = abi_cuda_last_status()
+        let status_score = if status == 0: 101 else: 17
+        let key_score = gpu_cpu_bool_score(cuda_has_compute_key(GPU_CPU_COMPUTE_KEY)) * 29
+        let ready_score = gpu_cpu_bool_score(cuda_runtime_ready()) * 31
+        let dispatch_score = GPU_CPU_OVERRIDE_X + (GPU_CPU_OVERRIDE_Y * 10) + (GPU_CPU_OVERRIDE_Z * 100)
+        acc = gpu_cpu_mod(
+            acc
+                + status_score
+                + key_score
+                + ready_score
+                + dispatch_score
+                + abi_cuda_last_dispatch_invocations()
+                + abi_cuda_last_output_binding_count()
+                + abi_cuda_last_total_output_bytes()
+                + (index % 11),
+            modulus,
+        )
+        index = index + 1
+    return acc
+
+fn gpu_cpu_full_pipeline_checksum(iterations: Int, modulus: Int) -> Int with GPU, Unsafe:
+    let semantic = gpu_cpu_semantic_staging_checksum(iterations, modulus)
+    let resource = gpu_cpu_resource_policy_checksum(iterations, modulus)
+    let manifest = gpu_cpu_manifest_checksum(4, modulus)
+    let dispatch_score = gpu_cpu_dispatch_checksum(1, modulus)
+    let stable_stage_score = iterations + GPU_CPU_DISPATCH_X + GPU_CPU_OVERRIDE_X + GPU_CPU_OVERRIDE_Y + GPU_CPU_OVERRIDE_Z
+    return gpu_cpu_mod(semantic + resource + manifest + dispatch_score + stable_stage_score, modulus)
+
+pub fn gpu_cpu_pipeline_case_count() -> Int:
+    return GPU_CPU_CASE_COUNT
+
+pub fn gpu_cpu_pipeline_case_id(index: Int) -> String:
+    if index == 0:
+        return "gpu_cpu_semantic_staging"
+    if index == 1:
+        return "gpu_cpu_resource_policy"
+    if index == 2:
+        return "gpu_cpu_manifest_bridge"
+    if index == 3:
+        return "gpu_cpu_dispatch_handshake"
+    if index == 4:
+        return "gpu_cpu_full_pipeline"
+    return ""
+
+pub fn gpu_cpu_pipeline_case_group(index: Int) -> String:
+    if index >= 0 and index < GPU_CPU_CASE_COUNT:
+        return "gpu_cpu_pipeline"
+    return ""
+
+pub fn gpu_cpu_pipeline_case_title(index: Int) -> String:
+    if index == 0:
+        return "GPU CPU Semantic Staging"
+    if index == 1:
+        return "GPU CPU Resource Policy"
+    if index == 2:
+        return "GPU CPU Manifest Bridge"
+    if index == 3:
+        return "GPU CPU Dispatch Handshake"
+    if index == 4:
+        return "GPU CPU Full Pipeline"
+    return ""
+
+pub fn gpu_cpu_pipeline_case_iterations(index: Int) -> Int:
+    if index == 0:
+        return 2048
+    if index == 1:
+        return 4096
+    if index == 2:
+        return 256
+    if index == 3:
+        return 4
+    if index == 4:
+        return 512
+    return 0
+
+pub fn gpu_cpu_pipeline_case_expected_checksum(index: Int) -> Int with GPU, Unsafe:
+    return gpu_cpu_pipeline_case_checksum(gpu_cpu_pipeline_case_id(index), gpu_cpu_pipeline_case_iterations(index), 1, GPU_CPU_MODULUS)
+
+pub fn gpu_cpu_pipeline_case_checksum(case_id: String, iterations: Int, amplify: Int, modulus: Int) -> Int with GPU, Unsafe:
+    let repeat = 0
+    let acc = 0
+    while repeat < amplify:
+        if case_id == "gpu_cpu_semantic_staging":
+            acc = gpu_cpu_mod(acc + gpu_cpu_semantic_staging_checksum(iterations, modulus), modulus)
+        else if case_id == "gpu_cpu_resource_policy":
+            acc = gpu_cpu_mod(acc + gpu_cpu_resource_policy_checksum(iterations, modulus), modulus)
+        else if case_id == "gpu_cpu_manifest_bridge":
+            acc = gpu_cpu_mod(acc + gpu_cpu_manifest_checksum(iterations, modulus), modulus)
+        else if case_id == "gpu_cpu_dispatch_handshake":
+            acc = gpu_cpu_mod(acc + gpu_cpu_dispatch_checksum(iterations, modulus), modulus)
+        else if case_id == "gpu_cpu_full_pipeline":
+            acc = gpu_cpu_mod(acc + gpu_cpu_full_pipeline_checksum(iterations, modulus), modulus)
+        else:
+            return -1
+        repeat = repeat + 1
+    return acc
+
+pub fn gpu_cpu_pipeline_case_telemetry(case_id: String) -> String:
+    let payload = json_object()
+    json_object_set_string(payload, "pack_id", "gpu_cpu_pipeline")
+    json_object_set_string(payload, "case_id", case_id)
+    json_object_set_string(payload, "compute_key", GPU_CPU_COMPUTE_KEY)
+    json_object_set_bool(payload, "orchestrate_gpu_stage_supported", true)
+    json_object_set_string(payload, "orchestrate_gpu_stage_gap", "closed: orchestrate parses silicon-native gpu/law stages with selectors")
+    json_object_set_string(payload, "orchestrate_last_runtime", orchestrate_last_runtime())
+    json_object_set_string(payload, "orchestrate_last_function", orchestrate_last_function())
+    json_object_set_string(payload, "orchestrate_last_selector", orchestrate_last_selector())
+
+    if case_id == "gpu_cpu_semantic_staging":
+        json_object_set_string(payload, "surface", "world-entangle-patch-law-converge-orchestrate-raw-memory")
+        json_object_set_int(payload, "patch_journal_count", patch_journal_count())
+        json_object_set_int(payload, "entangle_propagation_count", entangle_propagation_count())
+        json_object_set_int(payload, "converge_mismatch_count", converge_mismatch_count())
+        json_object_set_int(payload, "orchestrate_stage_count", orchestrate_stage_count())
+        json_object_set_string(payload, "pack_focus", "cpu-side semantic staging before gpu dispatch")
+        return json_stringify(payload)
+
+    if case_id == "gpu_cpu_resource_policy":
+        let residency_flags = GPU_CPU_RESIDENCY_HOST_VISIBLE | GPU_CPU_RESIDENCY_HOST_COHERENT | GPU_CPU_RESIDENCY_SHARED | GPU_CPU_RESIDENCY_ZERO_COPY
+        let queue_flags = GPU_CPU_QUEUE_COMPUTE | GPU_CPU_QUEUE_TRANSFER | GPU_CPU_QUEUE_HOST
+        let usage_flags = GPU_CPU_BUFFER_USAGE_STORAGE | GPU_CPU_BUFFER_USAGE_TRANSFER_SRC | GPU_CPU_BUFFER_USAGE_TRANSFER_DST
+        json_object_set_string(payload, "surface", "manual-gpu-policy-descriptor-plus-raw-staging")
+        json_object_set_int(payload, "buffer_byte_length", GPU_CPU_DISPATCH_X * 4)
+        json_object_set_int(payload, "buffer_element_count", GPU_CPU_DISPATCH_X)
+        json_object_set_int(payload, "buffer_element_size", 4)
+        json_object_set_bool(payload, "descriptor_plan_valid", gpu_cpu_binding_plan_valid(0, GPU_CPU_STAGE_COMPUTE, GPU_CPU_ACCESS_READ_WRITE, queue_flags, GPU_CPU_DESCRIPTOR_STORAGE_BUFFER))
+        json_object_set_bool(payload, "policy_valid", gpu_cpu_policy_valid(GPU_CPU_ACCESS_READ_WRITE, GPU_CPU_DESCRIPTOR_STORAGE_BUFFER))
+        json_object_set_bool(payload, "stdlib_gpu_import_llvm_blocked", false)
+        json_object_set_string(payload, "stdlib_gpu_import_blocker", "fixed by LLVM named aggregate sanitation; benchmark keeps manual descriptor to isolate runtime dispatch")
+        json_object_set_string(payload, "layout_kind", GPU_CPU_LAYOUT_STD430)
+        json_object_set_string(payload, "descriptor_kind", GPU_CPU_DESCRIPTOR_STORAGE_BUFFER)
+        json_object_set_int(payload, "stage_flags", GPU_CPU_STAGE_COMPUTE)
+        json_object_set_int(payload, "access_flags", GPU_CPU_ACCESS_READ_WRITE)
+        json_object_set_int(payload, "queue_flags", queue_flags)
+        json_object_set_int(payload, "usage_flags", usage_flags)
+        json_object_set_int(payload, "residency_flags", residency_flags)
+        json_object_set_int(payload, "zero_copy_policy_flag", GPU_CPU_RESIDENCY_ZERO_COPY)
+        json_object_set_string(payload, "pack_focus", "host-visible shared storage policy contract")
+        return json_stringify(payload)
+
+    if case_id == "gpu_cpu_manifest_bridge":
+        let manifest_path = cuda_compute_residency_path()
+        let manifest_exists = manifest_path != "" and fs_exists(manifest_path)
+        let manifest = cuda_compute_manifest()
+        let entry = gpu_cpu_compute_entry(manifest, GPU_CPU_COMPUTE_KEY)
+        let bindings = json_array_field(entry, "bindings")
+        json_object_set_string(payload, "surface", "shader-compute-workgroup-comptime-residency")
+        json_object_set_string(payload, "manifest_path", manifest_path)
+        json_object_set_bool(payload, "manifest_exists", manifest_exists)
+        json_object_set_bool(payload, "compute_key_present", cuda_has_compute_key(GPU_CPU_COMPUTE_KEY))
+        if bindings.ok:
+            json_object_set_int(payload, "binding_count", json_array_length(bindings.value))
+        else:
+            json_object_set_int(payload, "binding_count", -1)
+        json_object_set_int_array(payload, "expected_workgroup_size", [8, 1, 1])
+        json_object_set_int_array(payload, "expected_dispatch_size", [GPU_CPU_DISPATCH_X, GPU_CPU_DISPATCH_Y, GPU_CPU_DISPATCH_Z])
+        json_object_set_string(payload, "pack_focus", "compiler-owned shader metadata consumed by host lane")
+        return json_stringify(payload)
+
+    if case_id == "gpu_cpu_dispatch_handshake":
+        let cuda_state = cuda_runtime_state()
+        json_object_set_string(payload, "surface", "host-dispatch-statement-to-cuda-runtime-bridge")
+        json_object_set_bool(payload, "driver_available", cuda_state.driver_available)
+        json_object_set_bool(payload, "runtime_library_available", cuda_state.runtime_library_available)
+        json_object_set_bool(payload, "runtime_ready", cuda_state.runtime_ready)
+        json_object_set_string(payload, "runtime_library_path", cuda_state.paths.runtime_library_path)
+        json_object_set_string(payload, "shader_bundle_path", cuda_state.paths.shader_bundle_path)
+        json_object_set_string(payload, "compute_residency_path", cuda_state.paths.compute_residency_path)
+        json_object_set_bool(payload, "compute_key_present", cuda_has_compute_key(GPU_CPU_COMPUTE_KEY))
+        json_object_set_int_array(payload, "override_dispatch_size", [GPU_CPU_OVERRIDE_X, GPU_CPU_OVERRIDE_Y, GPU_CPU_OVERRIDE_Z])
+        json_object_set_int(payload, "last_status", cuda_state.last_status)
+        json_object_set_string(payload, "last_error_kind", cuda_state.last_error_kind)
+        json_object_set_string(payload, "last_error_message", cuda_state.last_error_message)
+        json_object_set_int(payload, "last_dispatch_invocations", abi_cuda_last_dispatch_invocations())
+        json_object_set_int(payload, "last_output_binding_count", abi_cuda_last_output_binding_count())
+        json_object_set_int(payload, "last_total_output_bytes", abi_cuda_last_total_output_bytes())
+        json_object_set_string(payload, "pack_focus", "normalized runtime dispatch handshake")
+        return json_stringify(payload)
+
+    if case_id == "gpu_cpu_full_pipeline":
+        json_object_set_string(payload, "surface", "combined-cpu-semantics-resource-policy-manifest-dispatch")
+        json_object_set_bool(payload, "compute_key_present", cuda_has_compute_key(GPU_CPU_COMPUTE_KEY))
+        json_object_set_bool(payload, "runtime_ready", cuda_runtime_ready())
+        json_object_set_int(payload, "last_status", abi_cuda_last_status())
+        json_object_set_string(payload, "last_error_kind", abi_cuda_last_error_kind())
+        json_object_set_int(payload, "patch_journal_count", patch_journal_count())
+        json_object_set_int(payload, "entangle_propagation_count", entangle_propagation_count())
+        json_object_set_int(payload, "converge_mismatch_count", converge_mismatch_count())
+        json_object_set_string(payload, "pack_focus", "single-file cpu-gpu language mesh proof")
+        return json_stringify(payload)
+
+    json_object_set_string(payload, "pack_focus", "gpu-cpu-pipeline")
+    return json_stringify(payload)

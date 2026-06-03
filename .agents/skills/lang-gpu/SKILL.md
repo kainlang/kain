@@ -328,7 +328,7 @@ Kain GPU is strongest when the host semantics make the GPU lane obvious:
 | `converge` | scalar reference lane plus GPU/native fast lane with verification |
 | `axiom` | capability gates such as Vulkan, compute, CUDA/PTX, AVX2, zero-copy |
 | `shatter struct` | cache/GPU-friendly data layout intent before buffer materialization |
-| `orchestrate` | explicit Kain/C/Rust/GPU crossings and pipeline staging |
+| `orchestrate` | silicon-native stage graph for CPU/GPU, dispatch, converge, law, patch, world, C/Python, and legacy adapter crossings |
 | `law`/`patch` | invariant-checked render state commits and journaled scene mutation |
 
 Semantic skeleton:

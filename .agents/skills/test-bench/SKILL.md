@@ -102,6 +102,7 @@ description: >-
   - `benchmark/out/reports/latest_v2.json`
   - `benchmark/out/reports/v2_tracks/<case>.json`
 - The router currently imports pack modules such as `classic_core.kn`, `classic_systems.kn`, `classic_core3d.kn`, `python_interop.kn`, and `rage_runtime.kn`. Treat each file as a benchmark pack that can expose multiple rows from one authored Kain file.
+- The main v2 router compiles and links imported packs before `KAIN_BENCH_V2_FILTER` can isolate selection. If an unrelated pack has a native link failure, use a focused router when one exists or create one for the pack family rather than treating the selected case as failed. The GPU CPU pipeline proof uses `benchmark/cases_v2/.telemetryrouter/gpu_router.kn` to isolate `gpu_cpu_pipeline` from the unrelated Vulkan loader link gap.
 
 ### When To Use V2
 
@@ -152,6 +153,16 @@ $env:KAIN_BENCH_V2_MARKDOWN="X:\benchmark\latest_v2_rage.md"
 $env:KAIN_BENCH_V2_JSON="X:\benchmark\out\reports\latest_v2_rage.json"
 $env:KAIN_BENCH_V2_TRACK_ROOT="X:\benchmark\out\reports\v2_tracks_rage"
 kain run X:\benchmark --target llvm --json
+```
+
+- PowerShell example for the focused GPU CPU pipeline proof:
+
+```powershell
+$env:KAIN_BENCH_V2_FILTER="gpu_cpu_pipeline"
+$env:KAIN_BENCH_V2_MARKDOWN="X:\benchmark\latest_v2_gpu_cpu_pipeline.md"
+$env:KAIN_BENCH_V2_JSON="X:\benchmark\out\reports\latest_v2_gpu_cpu_pipeline.json"
+$env:KAIN_BENCH_V2_TRACK_ROOT="X:\benchmark\out\reports\v2_tracks_gpu_cpu_pipeline"
+kain run X:\benchmark\cases_v2\.telemetryrouter\gpu_router.kn --target llvm --json
 ```
 
 - If you need to rerun without recompiling, execute the root artifact directly after a successful build:

@@ -5811,6 +5811,7 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
             runtime,
             function,
             args,
+            selector: _,
             ..
         } => {
             let mut arg_vals = Vec::new();
@@ -6966,7 +6967,15 @@ fn execute_stage_call(
     args: Vec<Value>,
 ) -> KainResult<Value> {
     match runtime {
-        OrchestrateStageRuntime::Kain => env.call_named_function(function, args),
+        OrchestrateStageRuntime::Kain
+        | OrchestrateStageRuntime::C
+        | OrchestrateStageRuntime::Cpu
+        | OrchestrateStageRuntime::Gpu
+        | OrchestrateStageRuntime::Dispatch
+        | OrchestrateStageRuntime::Converge
+        | OrchestrateStageRuntime::Law
+        | OrchestrateStageRuntime::Patch
+        | OrchestrateStageRuntime::World => env.call_named_function(function, args),
         OrchestrateStageRuntime::Rust => execute_rust_stage_call(env, function, args),
         OrchestrateStageRuntime::Python => execute_python_stage_call(env, function, args),
         OrchestrateStageRuntime::Node => execute_node_stage_call(env, function, args),

@@ -248,7 +248,7 @@ pub fn buffered_reader_load_text(br: ptr<BufferedReader>, text: String) -> Int w
     return to_copy
 
 pub fn buffered_reader_new_from_text(capacity: Int, text: String) -> BufferedReader with Unsafe:
-    let br = buffered_reader_new(capacity)
+    var br = buffered_reader_new(capacity)
     let br_ptr: ptr<BufferedReader> = addr_of(br, "BufferedReader")
     let _loaded = buffered_reader_load_text(br_ptr, text)
     return br

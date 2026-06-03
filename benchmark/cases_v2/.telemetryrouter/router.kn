@@ -90,6 +90,14 @@ use keyword_expansion::keyword_expansion_case_id
 use keyword_expansion::keyword_expansion_case_iterations
 use keyword_expansion::keyword_expansion_case_telemetry
 use keyword_expansion::keyword_expansion_case_title
+use gpu_cpu_pipeline::gpu_cpu_pipeline_case_checksum
+use gpu_cpu_pipeline::gpu_cpu_pipeline_case_count
+use gpu_cpu_pipeline::gpu_cpu_pipeline_case_expected_checksum
+use gpu_cpu_pipeline::gpu_cpu_pipeline_case_group
+use gpu_cpu_pipeline::gpu_cpu_pipeline_case_id
+use gpu_cpu_pipeline::gpu_cpu_pipeline_case_iterations
+use gpu_cpu_pipeline::gpu_cpu_pipeline_case_telemetry
+use gpu_cpu_pipeline::gpu_cpu_pipeline_case_title
 use metal::metal_case_checksum
 use metal::metal_case_count
 use metal::metal_case_expected_checksum
@@ -481,6 +489,9 @@ fn run_case_checksum(case_id: String, iterations: Int, amplify: Int) -> Int with
     let keyword_expansion_checksum = keyword_expansion_case_checksum(case_id, iterations, amplify, ROUTER_MODULUS)
     if keyword_expansion_checksum >= 0:
         return keyword_expansion_checksum
+    let gpu_cpu_pipeline_checksum = gpu_cpu_pipeline_case_checksum(case_id, iterations, amplify, ROUTER_MODULUS)
+    if gpu_cpu_pipeline_checksum >= 0:
+        return gpu_cpu_pipeline_checksum
     let metal_checksum = metal_case_checksum(case_id, iterations, amplify, ROUTER_MODULUS)
     if metal_checksum >= 0:
         return metal_checksum
@@ -513,6 +524,8 @@ fn case_telemetry_json(pack_id: String, case_id: String) -> String:
         return system_headers_case_telemetry(case_id)
     if pack_id == "keyword_expansion":
         return keyword_expansion_case_telemetry(case_id)
+    if pack_id == "gpu_cpu_pipeline":
+        return gpu_cpu_pipeline_case_telemetry(case_id)
     if pack_id == "metal":
         return metal_case_telemetry(case_id)
     let content = "{"
@@ -961,6 +974,23 @@ fn main() -> Int with Unsafe:
                 failure_count = failure_count + 1
             println("[bench-v2] " + case_id + " best=" + str(result.best_ms) + "ms avg=" + str(result.average_ms) + "ms status=" + result_status_text(result))
         keyword_expansion_index = keyword_expansion_index + 1
+
+    let gpu_cpu_pipeline_index = 0
+    while gpu_cpu_pipeline_index < gpu_cpu_pipeline_case_count():
+        let case_id = gpu_cpu_pipeline_case_id(gpu_cpu_pipeline_index)
+        let case_group = gpu_cpu_pipeline_case_group(gpu_cpu_pipeline_index)
+        if case_selected(config.filter_text, case_id, case_group):
+            let result = run_case("gpu_cpu_pipeline", case_id, case_group, gpu_cpu_pipeline_case_title(gpu_cpu_pipeline_index), gpu_cpu_pipeline_case_iterations(gpu_cpu_pipeline_index), gpu_cpu_pipeline_case_expected_checksum(gpu_cpu_pipeline_index), config)
+            let _track = write_track_report(result)
+            cases_json_items = append_json_item(cases_json_items, render_result_json(result))
+            table_rows = table_rows + format_result_row(result)
+            case_count = case_count + 1
+            if result.success:
+                success_count = success_count + 1
+            else:
+                failure_count = failure_count + 1
+            println("[bench-v2] " + case_id + " best=" + str(result.best_ms) + "ms avg=" + str(result.average_ms) + "ms status=" + result_status_text(result))
+        gpu_cpu_pipeline_index = gpu_cpu_pipeline_index + 1
 
     let metal_index = 0
     while metal_index < metal_case_count():

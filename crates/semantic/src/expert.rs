@@ -109,6 +109,26 @@ fn classify_failure(packet: &DiagnosticSemanticPacket) -> FailureMode {
         return FailureMode::MissingSurface;
     }
 
+    // TYPE-0001: Generic type checker errors - classify by source context
+    if code == "KAIN-TYPE-0001" {
+        let text_lower = packet_text(packet);
+        if text_lower.contains("converge ") || text_lower.contains("spec ") || text_lower.contains("fast ") || text_lower.contains("verify ") || text_lower.contains("converge\n") {
+            return FailureMode::ConvergeMismatch;
+        }
+        if text_lower.contains("entangle ") || text_lower.contains("entangle\n") {
+            return FailureMode::EntangleViolation;
+        }
+        if text_lower.contains("patch ") || text_lower.contains("law ") {
+            return FailureMode::WorldDeclarationError;
+        }
+        if text_lower.contains("world ") || text_lower.contains("world\n") {
+            return FailureMode::WorldDeclarationError;
+        }
+        if text_lower.contains("collapse ") || text_lower.contains("observe ") || text_lower.contains("decay ") || text_lower.contains("ptr<") {
+            return FailureMode::OwnershipViolation;
+        }
+    }
+
     // PARSE-0005: Missing delimiter before newline
     if code == "KAIN-PARSE-0005" || code == "KAIN-PARSE-0008" || code == "KAIN-PARSE-0009" {
         return FailureMode::ParserDelimiterDamage;

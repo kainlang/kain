@@ -113,8 +113,12 @@ int64_t abi_converge_record_bool(const char* converge_name, const char* lane_nam
 int64_t abi_converge_mismatch_count(void);
 
 int64_t abi_orchestrate_stage_begin(const char* runtime_name, const char* function_name);
+int64_t abi_orchestrate_stage_begin_ex(const char* runtime_name, const char* function_name, const char* selector_name);
 int64_t abi_orchestrate_stage_end_i64(const char* runtime_name, const char* function_name, int64_t status);
 int64_t abi_orchestrate_stage_count(void);
+const char* abi_orchestrate_last_runtime(void);
+const char* abi_orchestrate_last_function(void);
+const char* abi_orchestrate_last_selector(void);
 
 int64_t abi_now_millis(void);
 int64_t abi_sleep_millis(int64_t milliseconds);

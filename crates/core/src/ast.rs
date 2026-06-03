@@ -10,6 +10,7 @@
 
 use crate::effects::Effect;
 use crate::span::Span;
+pub use kain_orchestrate::{OrchestrateSelector, OrchestrateStageKind};
 use std::fmt;
 
 /// Explicit compute-plan binding names recognized inside a `comptime` block.
@@ -445,24 +446,7 @@ pub struct OrchestrateDef {
     pub span: Span,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum OrchestrateStageRuntime {
-    Kain,
-    Rust,
-    Python,
-    Node,
-}
-
-impl OrchestrateStageRuntime {
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            Self::Kain => "kain",
-            Self::Rust => "rust",
-            Self::Python => "python",
-            Self::Node => "node",
-        }
-    }
-}
+pub type OrchestrateStageRuntime = OrchestrateStageKind;
 
 // === FUNCTIONS ===
 
@@ -1553,6 +1537,7 @@ pub enum Expr {
         runtime: OrchestrateStageRuntime,
         function: String,
         args: Vec<CallArg>,
+        selector: Option<OrchestrateSelector>,
         span: Span,
     },
 

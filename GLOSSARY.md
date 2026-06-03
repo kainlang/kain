@@ -30,6 +30,8 @@ Location rule: paths in this glossary are live in this checkout. Older docs may 
 
 **Blade** - A legacy Kain package/app term that still survives in internal discovery and compatibility plumbing, usually around projects under `blades/`. It is no longer the preferred public CLI mental model; `build.kn` project authority and package/project wording are the modern surface. Location: `blades/`, compatibility/discovery helpers in `crates/blades/`.
 
+**bootstrap-semantic-authoring** - The repo-local skill for growing the semantic diagnostic error corpus with intentionally broken Kain fixtures, expected diagnostic metadata, generation/verification scripts, and optional error-system wiring updates. Location: `.agents/skills/bootstrap-semantic-authoring/`; corpus/scripts live in `crates/semantic/error_corpus/` and `crates/semantic/scripts/`.
+
 **build.kn** - The preferred project-authority file for modern Kain workspaces. It is Kain source, not shell glue: package metadata, run defaults, platform requirements, evidence DAG tasks, and certification gates belong here. Location: blade roots, project roots, and `stdlib/build.kn` plus `docs/pipelines/build-kn-evidence-dag.md`.
 
 ## C
@@ -156,7 +158,7 @@ Location rule: paths in this glossary are live in this checkout. Older docs may 
 
 **Omni** - Kain's mixed-language orchestration lane. Use it when the job is explicitly multi-runtime or staged across ecosystems, not when a normal Kain project should just use `build.kn`. Location: CLI/docs lane under `docs/cli/selfhost-omni-fabric-lsp.md` and pipeline docs under `docs/pipelines/omni.md`.
 
-**Orchestrate** - A compiler-owned typed pipeline across staged runtimes such as `kain`, `rust`, `python`, or `node`. It is for explicit cross-runtime stage composition, not random FFI. Location: `crates/core/`, runtime contract emission, and public telemetry in `stdlib/intent.kn`.
+**Orchestrate** - Kain's compiler-owned typed stage graph for silicon and semantic state management. Current stage kinds include `kain`, first-class `c`/`python`, silicon-native `cpu`, `gpu`, `dispatch`, `converge`, `law`, `patch`, and `world`, plus compatibility adapters `rust` and `node`. The contextual `stage name: kind function(args) when capability("...")` form preserves selectors in runtime contracts, realtime bundles, LLVM telemetry, and `std::intent` counters. Location: `crates/orchestrate/`, `crates/core/`, `crates/sys-codegen/`, `runtime/native/`, and `stdlib/intent.kn`.
 
 **Ownership** - Kain's first-class region-state model behind `collapse`, `observe`, and `decay`. Portable ownership truth lives in `crates/ownership`; runtime enforcement lives in native ownership substrate code. Location: `crates/ownership/`, `runtime/native/`.
 

@@ -26,6 +26,7 @@ kain-entangle = { path = "../entangle" }
 kain-ownership = { path = "../ownership" }
 kain-fs = { path = "../fs" }
 kain-input = { path = "../input" }
+kain-orchestrate = { path = "../orchestrate" }
 kain-ui = { path = "../ui" }
 
 [features]

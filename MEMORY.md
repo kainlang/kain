@@ -26,6 +26,59 @@ Operational notes:
 - This pass makes Kain faster than Rust on the honest single-file native LLVM benchmark without relying on the native executable CAS, but it is not yet 2x faster. The remaining cold single-file boss fight is mostly more emitted-IR shrinkage, function-parameter SSA, simple mutable-loop SSA, and public launcher/Bazel config churn.
 - If public `kain build` or `kain run` wall time looks slow while the benchmark is fast, inspect whether the launcher switched Bazel config or invalidated analysis. That is separate from the script compile/link lane and should be optimized without weakening the stdlib/runtime OS contract.
 
+# 2026-06-02 - cases_v2 GPU CPU pipeline proof and first-class GPU gaps
+
+What changed:
+
+- Added `benchmark/cases_v2/gpu_cpu_pipeline.kn`, a Kain-native GPU/CPU benchmark pack that mixes world/entangle/patch/law/converge/orchestrate, raw staging memory, compute shader metadata, host dispatch, CUDA runtime status, and per-case telemetry in one file.
+- Wired the pack into `benchmark/cases_v2/.telemetryrouter/router.kn` and `benchmark/build.kn`.
+- Added `benchmark/cases_v2/.telemetryrouter/gpu_router.kn` as a focused proof runner for the GPU pack because the main v2 router compiles and links unrelated packs before `KAIN_BENCH_V2_FILTER` can isolate selection.
+- Patched LLVM named aggregate lowering in `crates/sys-codegen/src/codegen_llvm/mod.rs` so generic/synthetic names like `Std140_(Float, Float, Float, Float)` are sanitized consistently in named type declarations and references.
+- Wrote the assessment report at `research/GPU_KAIN.md`.
+
+Validation:
+
+- `kain check X:\benchmark\cases_v2\.telemetryrouter\gpu_router.kn --target llvm` passed.
+- Focused run passed: `kain run X:\benchmark\cases_v2\.telemetryrouter\gpu_router.kn --target llvm --json`.
+- Latest focused artifacts:
+  - `benchmark/latest_v2_gpu_cpu_pipeline.md`
+  - `benchmark/out/reports/latest_v2_gpu_cpu_pipeline.json`
+  - `benchmark/out/reports/v2_tracks_gpu_cpu_pipeline/*.json`
+- The JSON report showed `success_count: 5`, `failure_count: 0`, live CUDA dispatch with `last_error_message: nvidia ptx dispatch ok`, and shader/runtime sidecars under `benchmark/.kain/cache/run/llvm/`.
+
+Operational notes:
+
+- The main v2 router focused run remains blocked by an unrelated Vulkan loader link gap: `$env:KAIN_BENCH_V2_FILTER="gpu_cpu_pipeline"; kain run X:\benchmark --target llvm --json` fails on `vkGetInstanceProcAddr` because `vulkan-1` is not propagated into the native link step for `vulkan_loader.kn`.
+- Authored CPU/GPU orchestration works today, but not yet as a seamless `orchestrate gpu` stage. Parser stage runtimes still cover `kain`, `rust`, `python`, and `node`, while GPU dispatch is a separate statement plus `std::cuda` status queries.
+- Keep future GPU benchmark checksums deterministic; runtime counters such as `orchestrate_stage_count()` belong in telemetry, not expected checksum formulas.
+
+# 2026-06-03 - orchestrate gained silicon-native stage graph syntax
+
+What changed:
+
+- Added `crates/orchestrate` as the portable model crate for orchestrate stage kinds, selectors, and graph plans.
+- Extended stage calls beyond legacy `kain`/`rust`/`python`/`node` to include first-class `c`, `cpu`, `gpu`, `dispatch`, `converge`, `law`, `patch`, and `world` kinds. `rust` and `node` are now compatibility adapters, not the center of the keyword.
+- Added contextual stage syntax: `stage output: gpu function(args) when capability("gpu.compute")`. The parser lowers it to a normal let-bound stage call while preserving selector metadata.
+- Runtime contracts and realtime app bundles now include stage kind, selector, `silicon_native`, and `compatibility_adapter` flags.
+- LLVM orchestrate telemetry now calls `abi_orchestrate_stage_begin_ex(kind, function, selector)`, and `std::intent` exposes `orchestrate_last_runtime()`, `orchestrate_last_function()`, and `orchestrate_last_selector()`.
+- Updated `benchmark/cases_v2/gpu_cpu_pipeline.kn` to use `stage staged: gpu gpu_cpu_mix(...)` plus `stage legal: law gpu_cpu_signal_in_bounds(...)` inside the existing `orchestrate gpu_cpu_host_pipeline`.
+
+Validation:
+
+- `cargo check -p kain-core`
+- `cargo check -p kain-sys-codegen`
+- `bazel build //crates/orchestrate:kain-orchestrate //crates/core:kain-core --config=dev`
+- `bazel build //:kain --config=dev`
+- `bazel build //runtime:native_core_runtime --config=dev`
+- Fresh Bazel `kain check benchmark\cases_v2\gpu_cpu_pipeline.kn` passed.
+- Fresh Bazel `kain check benchmark\cases_v2\.telemetryrouter\gpu_router.kn` passed.
+- Focused run passed with `KAIN_BENCH_V2_FILTER=gpu_cpu_semantic_staging`, one pass, zero warmups: `benchmark/out/reports/latest_v2_gpu_cpu_pipeline_orchestrate.json` reported `success_count: 1`, `failure_count: 0`, checksum `195277381`, `orchestrate_gpu_stage_supported: true`, `orchestrate_last_runtime: "law"`, and `orchestrate_last_selector: "capability(\"law.invariants\")"`.
+
+Operational notes:
+
+- The main v2 router still fails before selection because `vulkan_loader.kn` uses a static native FFI tier that cannot be loaded by the live dynamic bridge. Use `benchmark/cases_v2/.telemetryrouter/gpu_router.kn` for focused GPU CPU pipeline proof until the Vulkan route is fixed.
+- `stdlib/io.kn` needed `var br = buffered_reader_new(capacity)` in `buffered_reader_new_from_text` so LLVM can take `addr_of(br, "BufferedReader")`; this unblocks the GPU router run path through `std::fs`.
+
 # 2026-06-01 - compiler benchmark now beats Rust through runtime elision and native executable CAS
 
 What changed:

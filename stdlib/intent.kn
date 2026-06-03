@@ -40,6 +40,15 @@ fn abi_converge_mismatch_count() -> Int
 @extern
 fn abi_orchestrate_stage_count() -> Int
 
+@extern
+fn abi_orchestrate_last_runtime() -> String
+
+@extern
+fn abi_orchestrate_last_function() -> String
+
+@extern
+fn abi_orchestrate_last_selector() -> String
+
 pub fn native_entangle_reset() -> Int:
     return abi_entangle_reset()
 
@@ -84,6 +93,15 @@ pub fn native_converge_mismatch_count() -> Int:
 
 pub fn native_orchestrate_stage_count() -> Int:
     return abi_orchestrate_stage_count()
+
+pub fn native_orchestrate_last_runtime() -> String:
+    return abi_orchestrate_last_runtime()
+
+pub fn native_orchestrate_last_function() -> String:
+    return abi_orchestrate_last_function()
+
+pub fn native_orchestrate_last_selector() -> String:
+    return abi_orchestrate_last_selector()
 
 pub fn native_law_status(valid: Bool) -> Int:
     if valid:
@@ -172,6 +190,15 @@ pub fn converge_mismatch_count() -> Int:
 
 pub fn orchestrate_stage_count() -> Int:
     return native_orchestrate_stage_count()
+
+pub fn orchestrate_last_runtime() -> String:
+    return native_orchestrate_last_runtime()
+
+pub fn orchestrate_last_function() -> String:
+    return native_orchestrate_last_function()
+
+pub fn orchestrate_last_selector() -> String:
+    return native_orchestrate_last_selector()
 
 pub fn law_status(valid: Bool) -> Int:
     return native_law_status(valid)

@@ -141,7 +141,20 @@ pub fn enrich_report(
     report: DiagnosticReport,
     packet: &DiagnosticSemanticPacket,
 ) -> DiagnosticReport {
+    if packet.code.as_str() == "KAIN-TYPE-0001" {
+        println!("=== SEMANTIC COPROCESSOR DEBUG ===");
+        println!("packet.code = {:?}", packet.code);
+        println!("packet.primary_text = {:?}", packet.primary_text);
+        println!("packet.source_window = {:?}", packet.source_window);
+        println!("packet.ast_node_path = {:?}", packet.ast_node_path);
+        println!("packet.contextual_flags = {:?}", packet.contextual_flags);
+    }
     let analysis = analyze(packet);
+    if packet.code.as_str() == "KAIN-TYPE-0001" {
+        println!("analysis.likely_failure_mode = {:?}", analysis.likely_failure_mode);
+        println!("analysis.dynamic_explanation = {:?}", analysis.dynamic_explanation);
+        println!("==================================");
+    }
     let summary = analysis.to_summary();
     let is_tentative = summary.failure_mode == "generic_unknown"
         && summary.explanation.is_empty()

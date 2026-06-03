@@ -414,8 +414,13 @@ pub struct RealtimeEntangleBinding {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct RealtimeOrchestrationStageBinding {
     pub runtime: String,
+    pub kind: String,
     pub function: String,
     pub binding_name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub selector: Option<String>,
+    pub silicon_native: bool,
+    pub compatibility_adapter: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -1002,8 +1007,12 @@ fn realtime_orchestration_binding(orchestrate: &TypedOrchestrate) -> RealtimeOrc
             .iter()
             .map(|stage| RealtimeOrchestrationStageBinding {
                 runtime: stage.runtime.as_str().to_string(),
+                kind: stage.runtime.as_str().to_string(),
                 function: stage.function.clone(),
                 binding_name: stage.binding_name.clone(),
+                selector: stage.selector.as_ref().map(|selector| selector.authored()),
+                silicon_native: stage.runtime.is_silicon_native(),
+                compatibility_adapter: stage.runtime.is_compat_adapter(),
             })
             .collect(),
     }

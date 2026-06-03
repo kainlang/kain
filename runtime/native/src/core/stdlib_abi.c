@@ -1183,6 +1183,9 @@ static char g_kain_native_entangle_last_authority[256] = "";
 static char g_kain_native_entangle_last_mirror[256] = "";
 static int64_t g_kain_native_converge_mismatch_count = 0;
 static int64_t g_kain_native_orchestrate_stage_count = 0;
+static char g_kain_native_orchestrate_last_runtime[128] = "";
+static char g_kain_native_orchestrate_last_function[256] = "";
+static char g_kain_native_orchestrate_last_selector[256] = "";
 
 int64_t abi_patch_begin(const char* patch_name) {
     abi_copy_text(g_kain_native_active_patch, sizeof(g_kain_native_active_patch), patch_name);
@@ -1299,8 +1302,25 @@ int64_t abi_converge_mismatch_count(void) {
 }
 
 int64_t abi_orchestrate_stage_begin(const char* runtime_name, const char* function_name) {
-    (void)runtime_name;
-    (void)function_name;
+    return abi_orchestrate_stage_begin_ex(runtime_name, function_name, "none");
+}
+
+int64_t abi_orchestrate_stage_begin_ex(const char* runtime_name, const char* function_name, const char* selector_name) {
+    abi_copy_text(
+        g_kain_native_orchestrate_last_runtime,
+        sizeof(g_kain_native_orchestrate_last_runtime),
+        runtime_name
+    );
+    abi_copy_text(
+        g_kain_native_orchestrate_last_function,
+        sizeof(g_kain_native_orchestrate_last_function),
+        function_name
+    );
+    abi_copy_text(
+        g_kain_native_orchestrate_last_selector,
+        sizeof(g_kain_native_orchestrate_last_selector),
+        selector_name
+    );
     g_kain_native_orchestrate_stage_count += 1;
     return g_kain_native_orchestrate_stage_count;
 }
@@ -1313,6 +1333,18 @@ int64_t abi_orchestrate_stage_end_i64(const char* runtime_name, const char* func
 
 int64_t abi_orchestrate_stage_count(void) {
     return g_kain_native_orchestrate_stage_count;
+}
+
+const char* abi_orchestrate_last_runtime(void) {
+    return string_new(g_kain_native_orchestrate_last_runtime);
+}
+
+const char* abi_orchestrate_last_function(void) {
+    return string_new(g_kain_native_orchestrate_last_function);
+}
+
+const char* abi_orchestrate_last_selector(void) {
+    return string_new(g_kain_native_orchestrate_last_selector);
 }
 
 int64_t abi_now_millis(void) {

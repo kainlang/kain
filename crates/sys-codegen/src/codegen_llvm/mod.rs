@@ -1709,6 +1709,26 @@ impl LlvmGenerator {
         Some(self.tuple_struct_storage_type_from_types(&field_tys))
     }
 
+    fn llvm_named_type_name(name: &str) -> String {
+        Self::sanitize_symbol_fragment(name)
+    }
+
+    fn register_struct_definition(&mut self, name: &str, fields: Vec<(String, String)>) {
+        self.struct_defs.insert(name.to_string(), fields.clone());
+        let llvm_name = Self::llvm_named_type_name(name);
+        if llvm_name != name {
+            self.struct_defs.insert(llvm_name, fields);
+        }
+    }
+
+    fn register_value_aggregate_struct(&mut self, name: &str) {
+        self.value_aggregate_structs.insert(name.to_string());
+        let llvm_name = Self::llvm_named_type_name(name);
+        if llvm_name != name {
+            self.value_aggregate_structs.insert(llvm_name);
+        }
+    }
+
     fn tuple_field_alias_index(field: &str) -> Option<usize> {
         match field {
             "x" | "r" => Some(0),
@@ -1748,10 +1768,11 @@ impl LlvmGenerator {
     }
 
     fn struct_storage_type(&self, name: &str) -> String {
+        let llvm_name = Self::llvm_named_type_name(name);
         if self.value_aggregate_structs.contains(name) {
-            format!("%{}", name)
+            format!("%{}", llvm_name)
         } else {
-            format!("%{}*", name)
+            format!("%{}*", llvm_name)
         }
     }
 
@@ -12772,9 +12793,9 @@ impl LlvmGenerator {
                             fields.push((field.name.clone(), "i64".into()));
                         }
                     }
-                    self.struct_defs.insert(s.ast.name.clone(), fields.clone());
+                    self.register_struct_definition(&s.ast.name, fields.clone());
                     if struct_is_value_aggregate {
-                        self.value_aggregate_structs.insert(s.ast.name.clone());
+                        self.register_value_aggregate_struct(&s.ast.name);
                     }
                     if s.ast
                         .attributes
@@ -12785,6 +12806,7 @@ impl LlvmGenerator {
                     }
 
                     let field_types: Vec<String> = fields.iter().map(|(_, t)| t.clone()).collect();
+                    let llvm_struct_name = Self::llvm_named_type_name(&s.ast.name);
                     let is_packed = s
                         .ast
                         .attributes
@@ -12792,7 +12814,7 @@ impl LlvmGenerator {
                         .any(|attribute| attribute.name == ATTR_PACKED);
                     self.emit(&format!(
                         "%{} = type {} {} {}",
-                        s.ast.name,
+                        llvm_struct_name,
                         if is_packed { "<{" } else { "{" },
                         field_types.join(", "),
                         if is_packed { "}>" } else { "}" }
@@ -14000,6 +14022,7 @@ impl LlvmGenerator {
         self.emit("declare i64 @abi_converge_select_lane_for_key(i64, i64, i64, i64)");
         self.emit("declare i64 @abi_converge_record_telemetry(i64, i64, i64, i64, i64)");
         self.emit("declare i64 @abi_orchestrate_stage_begin(i8*, i8*)");
+        self.emit("declare i64 @abi_orchestrate_stage_begin_ex(i8*, i8*, i8*)");
         self.emit("declare i64 @abi_orchestrate_stage_end_i64(i8*, i8*, i64)");
         self.emit("declare i64 @kain_machine_axiom_accept(i8*, i8*, i64)");
         self.emit("declare void @kain_machine_pulse_snapshot(i64, i64, i64, i64*, i64*, i64*)");
@@ -17331,6 +17354,7 @@ impl LlvmGenerator {
         runtime: &kain_core::ast::OrchestrateStageRuntime,
         function: &str,
         args: &[kain_core::ast::CallArg],
+        selector: Option<&kain_core::ast::OrchestrateSelector>,
     ) -> KainResult<(String, String)> {
         self.emit(&format!(
             "  ; orchestrate stage {} -> {}",
@@ -17343,10 +17367,14 @@ impl LlvmGenerator {
         }
         let runtime_name = self.compile_static_c_string_literal(runtime.as_str());
         let function_name = self.compile_static_c_string_literal(function);
+        let selector_value = selector
+            .map(|selector| selector.authored())
+            .unwrap_or_else(|| "none".to_string());
+        let selector_name = self.compile_static_c_string_literal(&selector_value);
         let begin_status = self.next_reg();
         self.emit(&format!(
-            "  {} = call i64 @abi_orchestrate_stage_begin(i8* {}, i8* {})",
-            begin_status, runtime_name, function_name
+            "  {} = call i64 @abi_orchestrate_stage_begin_ex(i8* {}, i8* {}, i8* {})",
+            begin_status, runtime_name, function_name, selector_name
         ));
         let (value, ty) = self.compile_direct_call(function, args)?;
         if ty == "i64" {
@@ -19449,8 +19477,9 @@ impl LlvmGenerator {
                 runtime,
                 function,
                 args,
+                selector,
                 ..
-            } => self.compile_stage_call(runtime, function, args),
+            } => self.compile_stage_call(runtime, function, args, selector.as_ref()),
             Expr::EnumVariant {
                 enum_name,
                 variant,

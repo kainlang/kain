@@ -226,8 +226,13 @@ pub struct RuntimeEntangleContract {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct RuntimeOrchestrationStageContract {
     pub runtime: String,
+    pub kind: String,
     pub function: String,
     pub binding_name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub selector: Option<String>,
+    pub silicon_native: bool,
+    pub compatibility_adapter: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -597,7 +602,7 @@ fn collect_runtime_capabilities(
         capabilities.push(runtime_capability(
             "orchestrate.pipeline",
             "kain-core.runtime",
-            Some("Program declares typed polyglot orchestration stages."),
+            Some("Program declares compiler-owned orchestration stages across silicon, invariants, and compatibility adapters."),
         ));
     }
     if summary.world_native_ui > 0 {
@@ -1465,8 +1470,12 @@ fn runtime_orchestration_contract(orchestrate: &TypedOrchestrate) -> RuntimeOrch
             .iter()
             .map(|stage| RuntimeOrchestrationStageContract {
                 runtime: stage.runtime.as_str().to_string(),
+                kind: stage.runtime.as_str().to_string(),
                 function: stage.function.clone(),
                 binding_name: stage.binding_name.clone(),
+                selector: stage.selector.as_ref().map(|selector| selector.authored()),
+                silicon_native: stage.runtime.is_silicon_native(),
+                compatibility_adapter: stage.runtime.is_compat_adapter(),
             })
             .collect(),
     }

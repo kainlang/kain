@@ -1,0 +1,396 @@
+use std::actor
+use std::fs
+use std::runtime
+use std::time
+use gpu_cpu_pipeline::gpu_cpu_pipeline_case_checksum
+use gpu_cpu_pipeline::gpu_cpu_pipeline_case_count
+use gpu_cpu_pipeline::gpu_cpu_pipeline_case_expected_checksum
+use gpu_cpu_pipeline::gpu_cpu_pipeline_case_group
+use gpu_cpu_pipeline::gpu_cpu_pipeline_case_id
+use gpu_cpu_pipeline::gpu_cpu_pipeline_case_iterations
+use gpu_cpu_pipeline::gpu_cpu_pipeline_case_telemetry
+use gpu_cpu_pipeline::gpu_cpu_pipeline_case_title
+
+const GPU_ROUTER_SCHEMA_VERSION: Int = 1
+const GPU_ROUTER_MODULUS: Int = 1000000007
+const GPU_ROUTER_SUITE_ID: String = "kain-router-v2-gpu"
+const GPU_ROUTER_DEFAULT_PASSES: Int = 3
+const GPU_ROUTER_DEFAULT_WARMUPS: Int = 1
+const GPU_ROUTER_DEFAULT_AMPLIFY: Int = 1
+const GPU_ROUTER_DEFAULT_MARKDOWN_PATH: String = "latest_v2_gpu_cpu_pipeline.md"
+const GPU_ROUTER_DEFAULT_JSON_PATH: String = "out/reports/latest_v2_gpu_cpu_pipeline.json"
+const GPU_ROUTER_DEFAULT_TRACK_ROOT: String = "out/reports/v2_tracks_gpu_cpu_pipeline"
+
+struct GpuRouterConfig:
+    filter_text: String
+    passes: Int
+    warmups: Int
+    amplify: Int
+    markdown_path: String
+    json_path: String
+    track_root: String
+
+struct GpuBenchResult:
+    pack_id: String
+    id: String
+    group: String
+    title: String
+    iterations: Int
+    expected_checksum: Int
+    passes: Int
+    warmups: Int
+    amplify: Int
+    checksum: Int
+    best_ms: Int
+    worst_ms: Int
+    total_ms: Int
+    average_ms: Int
+    total_work_units: Int
+    ops_per_sec: Int
+    average_us_per_op: Int
+    jitter_ms: Int
+    success: Bool
+    failure_code: Int
+    track_path: String
+    case_telemetry_json: String
+
+struct GpuRouterTelemetry:
+    cpu_feature_mask: Int
+    cpu_feature_fingerprint: Int
+    runtime_heap_validate: Int
+    converge_mismatch_count: Int
+    runtime_converge_telemetry_count: Int
+    runtime_converge_cache_probe_count: Int
+    runtime_converge_cache_hit_count: Int
+    patch_journal_count: Int
+    entangle_propagation_count: Int
+    actor_scheduler_queue_depth: Int
+    actor_scheduler_total_enqueued: Int
+    actor_scheduler_total_dequeued: Int
+    actor_scheduler_max_queue_depth: Int
+
+fn gpu_router_env_string_or(key: String, fallback: String) -> String:
+    let value = env(key)
+    if len(value) == 0:
+        return fallback
+    return value
+
+fn gpu_router_min(value: Int, minimum: Int) -> Int:
+    if value < minimum:
+        return minimum
+    return value
+
+fn gpu_router_env_int_or(key: String, fallback: Int) -> Int:
+    let value = env(key)
+    if len(value) == 0:
+        return fallback
+    return to_int(value)
+
+fn gpu_router_path_parent(path: String) -> String:
+    let last_slash = -1
+    let index = 0
+    while index < len(path):
+        let ch = char_at(path, index)
+        if ch == "/" or ch == "\\":
+            last_slash = index
+        index = index + 1
+    if last_slash <= 0:
+        return "."
+    return substring(path, 0, last_slash)
+
+fn gpu_router_ensure_parent_dir(path: String) -> String:
+    let parent = gpu_router_path_parent(path)
+    if parent != "." and len(parent) > 0:
+        fs_create_dir_all(parent)
+    return parent
+
+fn gpu_router_load_config() -> GpuRouterConfig:
+    return GpuRouterConfig {
+        filter_text: env("KAIN_BENCH_V2_FILTER"),
+        passes: gpu_router_min(gpu_router_env_int_or("KAIN_BENCH_V2_PASSES", GPU_ROUTER_DEFAULT_PASSES), 1),
+        warmups: gpu_router_min(gpu_router_env_int_or("KAIN_BENCH_V2_WARMUPS", GPU_ROUTER_DEFAULT_WARMUPS), 0),
+        amplify: gpu_router_min(gpu_router_env_int_or("KAIN_BENCH_V2_AMPLIFY", GPU_ROUTER_DEFAULT_AMPLIFY), 1),
+        markdown_path: gpu_router_env_string_or("KAIN_BENCH_V2_MARKDOWN", GPU_ROUTER_DEFAULT_MARKDOWN_PATH),
+        json_path: gpu_router_env_string_or("KAIN_BENCH_V2_JSON", GPU_ROUTER_DEFAULT_JSON_PATH),
+        track_root: gpu_router_env_string_or("KAIN_BENCH_V2_TRACK_ROOT", GPU_ROUTER_DEFAULT_TRACK_ROOT)
+    }
+
+fn gpu_router_selected(filter_text: String, case_id: String, group: String) -> Bool:
+    if len(filter_text) == 0:
+        return true
+    let token = ""
+    let index = 0
+    while index < len(filter_text):
+        let ch = char_at(filter_text, index)
+        if ch == ",":
+            if token == case_id or token == group:
+                return true
+            token = ""
+        else:
+            token = token + ch
+        index = index + 1
+    return token == case_id or token == group
+
+fn gpu_router_append_json_item(items: String, item: String) -> String:
+    if len(items) == 0:
+        return item
+    return items + ",\n" + item
+
+fn gpu_router_json_escape(text: String) -> String:
+    let escaped = ""
+    let index = 0
+    while index < len(text):
+        let ch = char_at(text, index)
+        if ch == "\\":
+            escaped = escaped + "\\\\"
+        else if ch == "\"":
+            escaped = escaped + "\\\""
+        else if ch == "\n":
+            escaped = escaped + "\\n"
+        else if ch == "\r":
+            escaped = escaped + "\\r"
+        else if ch == "\t":
+            escaped = escaped + "\\t"
+        else:
+            escaped = escaped + ch
+        index = index + 1
+    return escaped
+
+fn gpu_router_json_string(text: String) -> String:
+    return "\"" + gpu_router_json_escape(text) + "\""
+
+fn gpu_router_json_bool(value: Bool) -> String:
+    if value:
+        return "true"
+    return "false"
+
+fn gpu_router_amplified_expected_checksum(base_checksum: Int, amplify: Int) -> Int:
+    let repeat = 0
+    let acc = 0
+    while repeat < amplify:
+        acc = (acc + base_checksum) % GPU_ROUTER_MODULUS
+        repeat = repeat + 1
+    return acc
+
+fn gpu_router_checksum(case_id: String, iterations: Int, amplify: Int) -> Int with GPU, Unsafe:
+    return gpu_cpu_pipeline_case_checksum(case_id, iterations, amplify, GPU_ROUTER_MODULUS)
+
+fn gpu_router_micros_per_op(total_ms: Int, work_units: Int) -> Int:
+    if total_ms <= 0 or work_units <= 0:
+        return 0
+    return (total_ms * 1000) / work_units
+
+fn gpu_router_run_case(pack_id: String, case_id: String, group: String, title: String, iterations: Int, expected_base_checksum: Int, config: GpuRouterConfig) -> GpuBenchResult with GPU, Unsafe:
+    let warmup_index = 0
+    while warmup_index < config.warmups:
+        let _warmup_checksum = gpu_router_checksum(case_id, iterations, config.amplify)
+        warmup_index = warmup_index + 1
+
+    let expected_checksum = gpu_router_amplified_expected_checksum(expected_base_checksum, config.amplify)
+    let checksum = 0
+    let best_ms = -1
+    let worst_ms = 0
+    let total_ms = 0
+    let failure_code = 0
+    let success = true
+    let pass_index = 0
+    while pass_index < config.passes:
+        let started_ms = now_millis()
+        checksum = gpu_router_checksum(case_id, iterations, config.amplify)
+        let finished_ms = now_millis()
+        let elapsed_ms = finished_ms - started_ms
+        total_ms = total_ms + elapsed_ms
+        if best_ms < 0 or elapsed_ms < best_ms:
+            best_ms = elapsed_ms
+        if elapsed_ms > worst_ms:
+            worst_ms = elapsed_ms
+        if checksum != expected_checksum:
+            success = false
+            failure_code = 1
+        pass_index = pass_index + 1
+
+    let average_ms = total_ms / config.passes
+    let total_work_units = iterations * config.amplify * config.passes
+    let ops_per_sec = 0
+    if total_ms > 0:
+        ops_per_sec = (total_work_units * 1000) / total_ms
+    return GpuBenchResult {
+        pack_id: pack_id,
+        id: case_id,
+        group: group,
+        title: title,
+        iterations: iterations,
+        expected_checksum: expected_checksum,
+        passes: config.passes,
+        warmups: config.warmups,
+        amplify: config.amplify,
+        checksum: checksum,
+        best_ms: best_ms,
+        worst_ms: worst_ms,
+        total_ms: total_ms,
+        average_ms: average_ms,
+        total_work_units: total_work_units,
+        ops_per_sec: ops_per_sec,
+        average_us_per_op: gpu_router_micros_per_op(total_ms, total_work_units),
+        jitter_ms: worst_ms - best_ms,
+        success: success,
+        failure_code: failure_code,
+        track_path: fs_path_join(config.track_root, case_id + ".json"),
+        case_telemetry_json: gpu_cpu_pipeline_case_telemetry(case_id)
+    }
+
+fn gpu_router_status(result: GpuBenchResult) -> String:
+    if result.success:
+        return "ok"
+    return "fail:" + str(result.failure_code)
+
+fn gpu_router_result_json(result: GpuBenchResult) -> String:
+    let content = "{\n"
+    content = content + "  \"schema_version\": " + str(GPU_ROUTER_SCHEMA_VERSION) + ",\n"
+    content = content + "  \"suite\": " + gpu_router_json_string(GPU_ROUTER_SUITE_ID) + ",\n"
+    content = content + "  \"pack_id\": " + gpu_router_json_string(result.pack_id) + ",\n"
+    content = content + "  \"id\": " + gpu_router_json_string(result.id) + ",\n"
+    content = content + "  \"group\": " + gpu_router_json_string(result.group) + ",\n"
+    content = content + "  \"title\": " + gpu_router_json_string(result.title) + ",\n"
+    content = content + "  \"iterations\": " + str(result.iterations) + ",\n"
+    content = content + "  \"expected_checksum\": " + str(result.expected_checksum) + ",\n"
+    content = content + "  \"passes\": " + str(result.passes) + ",\n"
+    content = content + "  \"warmups\": " + str(result.warmups) + ",\n"
+    content = content + "  \"amplify\": " + str(result.amplify) + ",\n"
+    content = content + "  \"checksum\": " + str(result.checksum) + ",\n"
+    content = content + "  \"best_ms\": " + str(result.best_ms) + ",\n"
+    content = content + "  \"worst_ms\": " + str(result.worst_ms) + ",\n"
+    content = content + "  \"total_ms\": " + str(result.total_ms) + ",\n"
+    content = content + "  \"average_ms\": " + str(result.average_ms) + ",\n"
+    content = content + "  \"total_work_units\": " + str(result.total_work_units) + ",\n"
+    content = content + "  \"ops_per_sec\": " + str(result.ops_per_sec) + ",\n"
+    content = content + "  \"average_us_per_op\": " + str(result.average_us_per_op) + ",\n"
+    content = content + "  \"jitter_ms\": " + str(result.jitter_ms) + ",\n"
+    content = content + "  \"success\": " + gpu_router_json_bool(result.success) + ",\n"
+    content = content + "  \"failure_code\": " + str(result.failure_code) + ",\n"
+    content = content + "  \"status\": " + gpu_router_json_string(gpu_router_status(result)) + ",\n"
+    content = content + "  \"track_path\": " + gpu_router_json_string(result.track_path) + ",\n"
+    content = content + "  \"case_telemetry\": " + result.case_telemetry_json + "\n"
+    return content + "}"
+
+fn gpu_router_capture_telemetry() -> GpuRouterTelemetry:
+    return GpuRouterTelemetry {
+        cpu_feature_mask: runtime_cpu_feature_mask(),
+        cpu_feature_fingerprint: runtime_cpu_feature_fingerprint(),
+        runtime_heap_validate: runtime_heap_validate(),
+        converge_mismatch_count: converge_mismatch_count(),
+        runtime_converge_telemetry_count: runtime_converge_telemetry_count(),
+        runtime_converge_cache_probe_count: runtime_converge_cache_probe_count(),
+        runtime_converge_cache_hit_count: runtime_converge_cache_hit_count(),
+        patch_journal_count: patch_journal_count(),
+        entangle_propagation_count: entangle_propagation_count(),
+        actor_scheduler_queue_depth: actor_scheduler_queue_depth(),
+        actor_scheduler_total_enqueued: actor_scheduler_total_enqueued(),
+        actor_scheduler_total_dequeued: actor_scheduler_total_dequeued(),
+        actor_scheduler_max_queue_depth: actor_scheduler_max_queue_depth()
+    }
+
+fn gpu_router_telemetry_json(telemetry: GpuRouterTelemetry) -> String:
+    let content = "{\n"
+    content = content + "    \"cpu_feature_mask\": " + str(telemetry.cpu_feature_mask) + ",\n"
+    content = content + "    \"cpu_feature_fingerprint\": " + str(telemetry.cpu_feature_fingerprint) + ",\n"
+    content = content + "    \"runtime_heap_validate\": " + str(telemetry.runtime_heap_validate) + ",\n"
+    content = content + "    \"converge_mismatch_count\": " + str(telemetry.converge_mismatch_count) + ",\n"
+    content = content + "    \"runtime_converge_telemetry_count\": " + str(telemetry.runtime_converge_telemetry_count) + ",\n"
+    content = content + "    \"runtime_converge_cache_probe_count\": " + str(telemetry.runtime_converge_cache_probe_count) + ",\n"
+    content = content + "    \"runtime_converge_cache_hit_count\": " + str(telemetry.runtime_converge_cache_hit_count) + ",\n"
+    content = content + "    \"patch_journal_count\": " + str(telemetry.patch_journal_count) + ",\n"
+    content = content + "    \"entangle_propagation_count\": " + str(telemetry.entangle_propagation_count) + ",\n"
+    content = content + "    \"actor_scheduler_queue_depth\": " + str(telemetry.actor_scheduler_queue_depth) + ",\n"
+    content = content + "    \"actor_scheduler_total_enqueued\": " + str(telemetry.actor_scheduler_total_enqueued) + ",\n"
+    content = content + "    \"actor_scheduler_total_dequeued\": " + str(telemetry.actor_scheduler_total_dequeued) + ",\n"
+    content = content + "    \"actor_scheduler_max_queue_depth\": " + str(telemetry.actor_scheduler_max_queue_depth) + "\n"
+    return content + "  }"
+
+fn gpu_router_write_track(result: GpuBenchResult) -> Int:
+    gpu_router_ensure_parent_dir(result.track_path)
+    fs_atomic_write_text(result.track_path, gpu_router_result_json(result))
+    return len(result.track_path)
+
+fn gpu_router_result_row(result: GpuBenchResult) -> String:
+    return "| `" + result.pack_id + "` | `" + result.id + "` | `" + result.group + "` | " + str(result.iterations) + " | " + str(result.best_ms) + " | " + str(result.average_ms) + " | " + str(result.average_us_per_op) + " | " + str(result.jitter_ms) + " | " + str(result.ops_per_sec) + " | " + str(result.checksum) + " | `" + gpu_router_status(result) + "` |\n"
+
+fn gpu_router_markdown(config: GpuRouterConfig, telemetry: GpuRouterTelemetry, started_ms: Int, finished_ms: Int, case_count: Int, success_count: Int, failure_count: Int, table_rows: String) -> String:
+    let selected = config.filter_text
+    if len(selected) == 0:
+        selected = "all"
+    let content = "# Benchmark V2 GPU CPU Pipeline\n\n"
+    content = content + "- suite: `" + GPU_ROUTER_SUITE_ID + "`\n"
+    content = content + "- selected: `" + selected + "`\n"
+    content = content + "- cases: `" + str(case_count) + "`\n"
+    content = content + "- passes: `" + str(config.passes) + "`\n"
+    content = content + "- warmups: `" + str(config.warmups) + "`\n"
+    content = content + "- amplify: `" + str(config.amplify) + "`\n"
+    content = content + "- elapsed_ms: `" + str(finished_ms - started_ms) + "`\n"
+    content = content + "- success_count: `" + str(success_count) + "`\n"
+    content = content + "- failure_count: `" + str(failure_count) + "`\n"
+    content = content + "- runtime_heap_validate: `" + str(telemetry.runtime_heap_validate) + "`\n"
+    content = content + "- converge_mismatch_count: `" + str(telemetry.converge_mismatch_count) + "`\n"
+    content = content + "- patch_journal_count: `" + str(telemetry.patch_journal_count) + "`\n"
+    content = content + "- entangle_propagation_count: `" + str(telemetry.entangle_propagation_count) + "`\n"
+    content = content + "- track_root: `" + config.track_root + "`\n\n"
+    content = content + "| Pack | Case | Group | Iterations | Best ms | Avg ms | Avg us/op | Jitter ms | Ops/s | Checksum | Status |\n"
+    content = content + "| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |\n"
+    content = content + table_rows
+    return content
+
+fn gpu_router_summary_json(config: GpuRouterConfig, telemetry: GpuRouterTelemetry, started_ms: Int, finished_ms: Int, case_count: Int, success_count: Int, failure_count: Int, cases_json_items: String) -> String:
+    let content = "{\n"
+    content = content + "  \"schema_version\": " + str(GPU_ROUTER_SCHEMA_VERSION) + ",\n"
+    content = content + "  \"suite\": " + gpu_router_json_string(GPU_ROUTER_SUITE_ID) + ",\n"
+    content = content + "  \"filter\": " + gpu_router_json_string(config.filter_text) + ",\n"
+    content = content + "  \"passes\": " + str(config.passes) + ",\n"
+    content = content + "  \"warmups\": " + str(config.warmups) + ",\n"
+    content = content + "  \"amplify\": " + str(config.amplify) + ",\n"
+    content = content + "  \"started_ms\": " + str(started_ms) + ",\n"
+    content = content + "  \"finished_ms\": " + str(finished_ms) + ",\n"
+    content = content + "  \"elapsed_ms\": " + str(finished_ms - started_ms) + ",\n"
+    content = content + "  \"case_count\": " + str(case_count) + ",\n"
+    content = content + "  \"success_count\": " + str(success_count) + ",\n"
+    content = content + "  \"failure_count\": " + str(failure_count) + ",\n"
+    content = content + "  \"track_root\": " + gpu_router_json_string(config.track_root) + ",\n"
+    content = content + "  \"telemetry\": " + gpu_router_telemetry_json(telemetry) + ",\n"
+    content = content + "  \"cases\": [\n"
+    content = content + cases_json_items + "\n"
+    content = content + "  ]\n"
+    return content + "}"
+
+fn main() -> Int with GPU, Unsafe:
+    let config = gpu_router_load_config()
+    gpu_router_ensure_parent_dir(config.markdown_path)
+    gpu_router_ensure_parent_dir(config.json_path)
+    fs_create_dir_all(config.track_root)
+
+    let started_ms = now_millis()
+    let cases_json_items = ""
+    let table_rows = ""
+    let case_count = 0
+    let success_count = 0
+    let failure_count = 0
+    let index = 0
+    while index < gpu_cpu_pipeline_case_count():
+        let case_id = gpu_cpu_pipeline_case_id(index)
+        let case_group = gpu_cpu_pipeline_case_group(index)
+        if gpu_router_selected(config.filter_text, case_id, case_group):
+            let result = gpu_router_run_case("gpu_cpu_pipeline", case_id, case_group, gpu_cpu_pipeline_case_title(index), gpu_cpu_pipeline_case_iterations(index), gpu_cpu_pipeline_case_expected_checksum(index), config)
+            let _track = gpu_router_write_track(result)
+            cases_json_items = gpu_router_append_json_item(cases_json_items, gpu_router_result_json(result))
+            table_rows = table_rows + gpu_router_result_row(result)
+            case_count = case_count + 1
+            if result.success:
+                success_count = success_count + 1
+            else:
+                failure_count = failure_count + 1
+            println("[bench-v2-gpu] " + case_id + " best=" + str(result.best_ms) + "ms avg=" + str(result.average_ms) + "ms status=" + gpu_router_status(result))
+        index = index + 1
+
+    let finished_ms = now_millis()
+    let telemetry = gpu_router_capture_telemetry()
+    fs_atomic_write_text(config.markdown_path, gpu_router_markdown(config, telemetry, started_ms, finished_ms, case_count, success_count, failure_count, table_rows))
+    fs_atomic_write_text(config.json_path, gpu_router_summary_json(config, telemetry, started_ms, finished_ms, case_count, success_count, failure_count, cases_json_items))
+    return failure_count

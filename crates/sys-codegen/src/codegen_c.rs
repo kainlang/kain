@@ -789,15 +789,21 @@ impl CGen {
                 runtime,
                 function,
                 args,
+                selector,
                 ..
             } => {
                 let rendered_args = args
                     .iter()
                     .map(|arg| self.gen_expr(&arg.value))
                     .collect::<KainResult<Vec<_>>>()?;
+                let selector_comment = selector
+                    .as_ref()
+                    .map(|selector| format!(" when {}", selector.authored()))
+                    .unwrap_or_default();
                 Ok(format!(
-                    "/* orchestrate stage {} */ {}({})",
+                    "/* orchestrate stage {}{} */ {}({})",
                     runtime.as_str(),
+                    selector_comment,
                     function,
                     rendered_args.join(", ")
                 ))
