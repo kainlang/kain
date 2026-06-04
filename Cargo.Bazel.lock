@@ -1,5 +1,5 @@
 {
-  "checksum": "6a3e4de4d1c4ad34d8adf08fb15930f0991190a3d0c7d3592c02bb2c92e9c856",
+  "checksum": "77a43e336f45ebcd2dfaceda70eea35c0f45dde5e1cff1301cb1a8f54a07666d",
   "crates": {
     "adler2 2.0.1": {
       "name": "adler2",
@@ -14364,6 +14364,48 @@
       },
       "license": null,
       "license_ids": [],
+      "license_file": null
+    },
+    "kain-service-api 0.1.0": {
+      "name": "kain-service-api",
+      "version": "0.1.0",
+      "package_url": null,
+      "repository": null,
+      "targets": [
+        {
+          "Library": {
+            "crate_name": "kain_service_api",
+            "crate_root": "src/lib.rs",
+            "srcs": {
+              "allow_empty": true,
+              "include": [
+                "**/*.rs"
+              ]
+            }
+          }
+        }
+      ],
+      "library_target_name": "kain_service_api",
+      "common_attrs": {
+        "compile_data_glob": [
+          "**"
+        ],
+        "deps_dev": {
+          "common": [
+            {
+              "id": "tempfile 3.25.0",
+              "target": "tempfile"
+            }
+          ],
+          "selects": {}
+        },
+        "edition": "2021",
+        "version": "0.1.0"
+      },
+      "license": "MIT",
+      "license_ids": [
+        "MIT"
+      ],
       "license_file": null
     },
     "kain-shader-text 0.1.0": {
@@ -40774,6 +40816,7 @@
     "kain-sdk 0.1.0": "crates/sdk",
     "kain-selfhost 0.1.0": "crates/selfhost",
     "kain-semantic 0.1.0": "crates/semantic",
+    "kain-service-api 0.1.0": "crates/service-api",
     "kain-shader-text 0.1.0": "crates/shader-text",
     "kain-stdlib-map 0.1.0": "crates/stdlib-map",
     "kain-sys-codegen 0.1.0": "crates/sys-codegen",
