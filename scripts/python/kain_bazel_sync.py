@@ -1334,12 +1334,27 @@ def install_launcher_files(context: SyncContext, shim_path: Path) -> list[str]:
         if not is_windows:
             launcher_path.chmod(0o755)
             continue
+        # WSL shells can see the Windows PATH entry, but they need a bare
+        # POSIX-shim name to resolve `kain` instead of only `kain.exe`.
+        write_text_atomic(
+            context.launcher_dir / name,
+            _wsl_launcher_shim_text(name),
+        )
         wrapper = context.launcher_dir / f"{name}.cmd"
         write_text_atomic(
             wrapper,
             f'@echo off\n"%~dp0{name}.exe" %*\nexit /b %ERRORLEVEL%\n',
         )
     return pending
+
+
+def _wsl_launcher_shim_text(binary_name: str) -> str:
+    return (
+        "#!/usr/bin/env sh\n"
+        "set -eu\n"
+        'launcher_dir="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"\n'
+        f'exec "$launcher_dir/{binary_name}.exe" "$@"\n'
+    )
 
 
 def persist_windows_user_env(context: SyncContext) -> None:

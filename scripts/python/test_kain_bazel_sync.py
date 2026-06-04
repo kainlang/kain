@@ -422,6 +422,14 @@ class KainBazelSyncTests(unittest.TestCase):
             sync.install_launcher_files(context, shim)
             self.assertTrue((context.launcher_dir / "kain.exe").exists())
             self.assertTrue((context.launcher_dir / "kn.exe").exists())
+            self.assertEqual(
+                (context.launcher_dir / "kain").read_text(encoding="utf-8"),
+                sync._wsl_launcher_shim_text("kain"),
+            )
+            self.assertEqual(
+                (context.launcher_dir / "kn").read_text(encoding="utf-8"),
+                sync._wsl_launcher_shim_text("kn"),
+            )
             self.assertFalse((context.launcher_dir / "blade.exe").exists())
             self.assertFalse((context.launcher_dir / "blade.cmd").exists())
 
