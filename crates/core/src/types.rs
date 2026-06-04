@@ -5830,10 +5830,6 @@ fn check_pulse(env: &mut TypeEnv, pulse: &PulseDef) -> KainResult<TypedPulse> {
 }
 
 fn check_resonate(env: &mut TypeEnv, resonate: &ResonateDef) -> KainResult<TypedResonate> {
-    if let Some(dampen) = &resonate.dampen {
-        validate_pulse_duration(env, dampen, "resonate dampen window")?;
-    }
-
     let target_type = resolve_resonate_endpoint_type(env, &resonate.target)?;
     let target_type_name = describe_type(&target_type);
     let direct_mutation_paths = collect_patch_mutation_paths_from_block(&resonate.body);

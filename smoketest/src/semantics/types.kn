@@ -13,6 +13,7 @@ enum SmokeLane:
     Entangle
     Law
     Patch
+    Resonate
     Actor
     Converge
     Orchestrate
@@ -70,6 +71,7 @@ pub fn smoke_lane_rank(lane: SmokeLane) -> Int:
         SmokeLane::Entangle => 7
         SmokeLane::Law => 8
         SmokeLane::Patch => 9
+        SmokeLane::Resonate => 36
         SmokeLane::Actor => 10
         SmokeLane::Converge => 11
         SmokeLane::Orchestrate => 12
@@ -109,6 +111,7 @@ pub fn smoke_lane_name(lane: SmokeLane) -> String:
         SmokeLane::Entangle => "entangle"
         SmokeLane::Law => "law"
         SmokeLane::Patch => "patch"
+        SmokeLane::Resonate => "resonate"
         SmokeLane::Actor => "actor"
         SmokeLane::Converge => "converge"
         SmokeLane::Orchestrate => "orchestrate"

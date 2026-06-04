@@ -26,6 +26,27 @@ fn abi_patch_journal_count() -> Int
 fn abi_patch_last_path() -> String
 
 @extern
+fn abi_resonate_mutation_count() -> Int
+
+@extern
+fn abi_resonate_fire_count() -> Int
+
+@extern
+fn abi_resonate_absorb_count() -> Int
+
+@extern
+fn abi_resonate_last_target() -> String
+
+@extern
+fn abi_resonate_last_old_i64() -> Int
+
+@extern
+fn abi_resonate_last_new_i64() -> Int
+
+@extern
+fn abi_resonate_last_dampen_ns() -> Int
+
+@extern
 fn abi_entangle_propagation_count() -> Int
 
 @extern
@@ -108,6 +129,27 @@ pub fn native_patch_journal_count() -> Int:
 
 pub fn native_patch_last_path() -> String:
     return abi_patch_last_path()
+
+pub fn native_resonate_mutation_count() -> Int:
+    return abi_resonate_mutation_count()
+
+pub fn native_resonate_fire_count() -> Int:
+    return abi_resonate_fire_count()
+
+pub fn native_resonate_absorb_count() -> Int:
+    return abi_resonate_absorb_count()
+
+pub fn native_resonate_last_target() -> String:
+    return abi_resonate_last_target()
+
+pub fn native_resonate_last_old_i64() -> Int:
+    return abi_resonate_last_old_i64()
+
+pub fn native_resonate_last_new_i64() -> Int:
+    return abi_resonate_last_new_i64()
+
+pub fn native_resonate_last_dampen_ns() -> Int:
+    return abi_resonate_last_dampen_ns()
 
 pub fn native_entangle_propagation_count() -> Int:
     return abi_entangle_propagation_count()
@@ -235,6 +277,27 @@ pub fn patch_journal_count() -> Int:
 
 pub fn patch_last_path() -> String:
     return native_patch_last_path()
+
+pub fn resonate_mutation_count() -> Int:
+    return native_resonate_mutation_count()
+
+pub fn resonate_fire_count() -> Int:
+    return native_resonate_fire_count()
+
+pub fn resonate_absorb_count() -> Int:
+    return native_resonate_absorb_count()
+
+pub fn resonate_last_target() -> String:
+    return native_resonate_last_target()
+
+pub fn resonate_last_old_i64() -> Int:
+    return native_resonate_last_old_i64()
+
+pub fn resonate_last_new_i64() -> Int:
+    return native_resonate_last_new_i64()
+
+pub fn resonate_last_dampen_ns() -> Int:
+    return native_resonate_last_dampen_ns()
 
 pub fn entangle_propagation_count() -> Int:
     return native_entangle_propagation_count()

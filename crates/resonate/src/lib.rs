@@ -59,8 +59,9 @@ impl DampenWindow {
         }
         Ok(Self {
             value,
-            unit: DampenUnit::from_name(unit)
-                .ok_or_else(|| ResonateError::InvalidDampen(format!("unsupported dampen unit `{unit}`")))?,
+            unit: DampenUnit::from_name(unit).ok_or_else(|| {
+                ResonateError::InvalidDampen(format!("unsupported dampen unit `{unit}`"))
+            })?,
         })
     }
 

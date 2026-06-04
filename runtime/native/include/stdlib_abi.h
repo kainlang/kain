@@ -103,6 +103,17 @@ int64_t abi_patch_undo_last(void);
 int64_t abi_patch_journal_count(void);
 const char* abi_patch_last_path(void);
 
+int64_t abi_resonate_should_fire_i64(const char* target, int64_t dampen_ns, int64_t old_value, int64_t new_value);
+int64_t abi_resonate_should_fire_f64(const char* target, int64_t dampen_ns, double old_value, double new_value);
+void abi_resonate_exit(const char* target);
+int64_t abi_resonate_mutation_count(void);
+int64_t abi_resonate_fire_count(void);
+int64_t abi_resonate_absorb_count(void);
+const char* abi_resonate_last_target(void);
+int64_t abi_resonate_last_old_i64(void);
+int64_t abi_resonate_last_new_i64(void);
+int64_t abi_resonate_last_dampen_ns(void);
+
 int64_t abi_entangle_record_i64(const char* authority, const char* mirror, int64_t value);
 int64_t abi_entangle_propagation_count(void);
 const char* abi_entangle_last_authority(void);

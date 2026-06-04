@@ -7175,6 +7175,7 @@ fn item_uses_kain_runtime(item: &TypedItem) -> bool {
             .iter()
             .any(|state| expr_uses_kain_runtime(&state.initial)),
         TypedItem::Orchestrate(orchestrate) => block_uses_kain_runtime(&orchestrate.ast.body),
+        TypedItem::Resonate(resonate) => block_uses_kain_runtime(&resonate.ast.body),
         TypedItem::Component(c) => {
             c.ast
                 .state

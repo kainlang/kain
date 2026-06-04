@@ -1182,6 +1182,7 @@ fn llvm_generates_world_patch_converge_and_orchestrate_paths() {
     let source = r#"
 world Studio:
     state counter: Int = 1
+    state reaction: Int = 0
     surface native_ui => App
 
 world Mirror:
@@ -1196,6 +1197,9 @@ entangle Studio.counter <-> Mirror.counter with single_writer
 patch set_counter(studio: Studio, value: Int) -> Int:
     studio.counter = value
     return studio.counter
+
+resonate Studio.counter dampen 1ms:
+    Studio.reaction = Studio.counter + resonate_new_i64
 
 law revision_is_valid(value: Int) -> Bool:
     return value >= 0
@@ -1232,7 +1236,7 @@ fn main() -> Int:
     let llvm = String::from_utf8(generate_llvm(&program).expect("llvm generation should succeed"))
         .expect("llvm output should be utf8");
 
-    assert!(llvm.contains("%Studio = type { i64 }"));
+    assert!(llvm.contains("%Studio = type { i64, i64 }"));
     assert!(llvm.contains("%Mirror = type { i64 }"));
     assert!(llvm.contains("@__kain_world_Studio = internal global %Studio zeroinitializer"));
     assert!(llvm.contains("@__kain_world_Mirror = internal global %Mirror zeroinitializer"));
@@ -1254,6 +1258,12 @@ fn main() -> Int:
     assert!(llvm.contains("call i64 @abi_patch_begin"));
     assert!(llvm.contains("call i64 @abi_patch_record_i64"));
     assert!(llvm.contains("call i64 @abi_patch_commit"));
+    assert!(llvm.contains("declare i64 @abi_resonate_should_fire_i64(i8*, i64, i64, i64)"));
+    assert!(llvm.contains("declare void @abi_resonate_exit(i8*)"));
+    assert!(llvm.contains("define internal void @__kain_resonate_resonate__Studio__counter(i64 %arg0, i64 %arg1, i1 %arg2)"));
+    assert!(llvm.contains("call i64 @abi_resonate_should_fire_i64"));
+    assert!(llvm.contains("call void @__kain_resonate_resonate__Studio__counter(i64"));
+    assert!(llvm.contains("call void @abi_resonate_exit"));
     assert!(llvm.contains("call i64 @abi_entangle_record_i64"));
     assert!(llvm.contains("define internal i64 @choose_value__spec"));
     assert!(llvm.contains("define internal i64 @choose_value__fast_interpret_lane"));

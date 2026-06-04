@@ -10843,11 +10843,7 @@ impl LlvmGenerator {
                 handler_new_i64 = new_value.to_string();
                 self.emit(&format!(
                     "  {} = call i64 @abi_resonate_should_fire_i64(i8* {}, i64 {}, i64 {}, i64 {})",
-                    should_fire,
-                    target_ptr,
-                    binding.dampen_ns,
-                    handler_old_i64,
-                    new_value
+                    should_fire, target_ptr, binding.dampen_ns, handler_old_i64, new_value
                 ));
             }
             "i1" => {
@@ -10858,10 +10854,7 @@ impl LlvmGenerator {
                 ));
                 self.emit(&format!(
                     "  {} = call i64 @abi_resonate_should_fire_i64(i8* {}, i64 {}, i64 0, i64 {})",
-                    should_fire,
-                    target_ptr,
-                    binding.dampen_ns,
-                    handler_new_i64
+                    should_fire, target_ptr, binding.dampen_ns, handler_new_i64
                 ));
             }
             "double" => {
@@ -10910,7 +10903,10 @@ impl LlvmGenerator {
             "  call void @{}(i64 {}, i64 {}, i1 true)",
             binding.handler_symbol, handler_old_i64, handler_new_i64
         ));
-        self.emit(&format!("  call void @abi_resonate_exit(i8* {})", target_ptr));
+        self.emit(&format!(
+            "  call void @abi_resonate_exit(i8* {})",
+            target_ptr
+        ));
         self.emit(&format!("  br label %{}", done_label));
         self.emit_label(&done_label);
         Ok(())

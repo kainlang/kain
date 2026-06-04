@@ -1,0 +1,92 @@
+use std::intent
+use types::SmokeLane
+use types::SmokePacket
+use types::smoke_weighted_checksum
+
+const SMOKE_RESONATE_MODULUS: Int = 1000000007
+
+component SmokeResonatePanel():
+    render <panel title="Smoke Resonate Shadow Patch" />
+
+world SmokeResonateAuthority:
+    state signal: Int = 1
+    state signal_shadow: Int = 0
+    state dampen_probe: Int = 0
+    state dampen_shadow: Int = 0
+    state last_old: Int = 0
+    state last_new: Int = 0
+    surface web => SmokeResonatePanel
+
+world SmokeResonateMirror:
+    state signal_copy: Int = 1
+    state dampen_copy: Int = 0
+    surface web => SmokeResonatePanel
+
+entangle SmokeResonateAuthority.signal <-> SmokeResonateMirror.signal_copy with single_writer
+entangle SmokeResonateAuthority.dampen_probe <-> SmokeResonateMirror.dampen_copy with single_writer
+
+fn smoke_resonate_mix(value: Int) -> Int:
+    return ((value * 17) + 29) % SMOKE_RESONATE_MODULUS
+
+orchestrate smoke_resonate_wave_pipeline(value: Int) -> Int:
+    stage host: cpu smoke_resonate_mix(value) when capability("cpu.scalar") residency host transfer none policy telemetry_prefer_cpu
+    return host
+
+patch smoke_resonate_commit(authority: SmokeResonateAuthority, value: Int) -> Int:
+    authority.signal = value
+    return authority.signal
+
+patch smoke_resonate_commit_dampen(authority: SmokeResonateAuthority, value: Int) -> Int:
+    authority.dampen_probe = value
+    return authority.dampen_probe
+
+resonate SmokeResonateAuthority.signal dampen 0 ms:
+    SmokeResonateAuthority.last_old = resonate_old_i64
+    SmokeResonateAuthority.last_new = resonate_new_i64
+    SmokeResonateAuthority.signal_shadow = smoke_resonate_wave_pipeline(SmokeResonateAuthority.signal + resonate_new_i64)
+
+resonate SmokeResonateAuthority.dampen_probe dampen 1 s:
+    SmokeResonateAuthority.dampen_shadow = SmokeResonateAuthority.dampen_probe + 1000
+
+pub fn smoke_resonate_lane() -> Int:
+    let authority = SmokeResonateAuthority
+    let fire_before = resonate_fire_count()
+    let absorb_before = resonate_absorb_count()
+    let orchestrate_before = orchestrate_stage_count()
+
+    let committed = smoke_resonate_commit(authority, 21)
+    if committed != 21:
+        return 1
+    if SmokeResonateAuthority.last_new != 21:
+        return 2
+    if SmokeResonateAuthority.signal_shadow != smoke_resonate_mix(42):
+        return 3
+    if resonate_fire_count() <= fire_before:
+        return 4
+    if resonate_last_target() != "SmokeResonateAuthority.signal":
+        return 5
+    if resonate_last_old_i64() != 1:
+        return 6
+    if resonate_last_new_i64() != 21:
+        return 7
+    if orchestrate_stage_count() <= orchestrate_before:
+        return 8
+
+    let first_dampen = smoke_resonate_commit_dampen(authority, 40)
+    let first_shadow = SmokeResonateAuthority.dampen_shadow
+    let second_dampen = smoke_resonate_commit_dampen(authority, 41)
+    if first_dampen != 40 or second_dampen != 41:
+        return 9
+    if first_shadow != 1040:
+        return 10
+    if SmokeResonateAuthority.dampen_shadow != first_shadow:
+        return 11
+    if resonate_absorb_count() <= absorb_before:
+        return 12
+    if resonate_last_dampen_ns() != 1000000000:
+        return 13
+
+    let packet = SmokePacket { id: committed, lane: SmokeLane::Resonate, payload: SmokeResonateAuthority.signal_shadow + first_shadow, tag: "resonate", hot: true }
+    if smoke_weighted_checksum(packet) <= 0:
+        return 14
+    return 0

@@ -1197,6 +1197,95 @@ static int64_t g_kain_native_orchestrate_transfer_count = 0;
 static int64_t g_kain_native_orchestrate_fallback_count = 0;
 static int64_t g_kain_native_orchestrate_adaptive_stage_count = 0;
 
+#define ABI_RESONATE_SLOT_MAX 128
+
+typedef struct KainNativeResonanceSlot {
+    char target[256];
+    uint64_t last_fire_ns;
+    int64_t active_depth;
+} KainNativeResonanceSlot;
+
+static KainNativeResonanceSlot g_kain_native_resonance_slots[ABI_RESONATE_SLOT_MAX];
+static int64_t g_kain_native_resonate_mutation_count = 0;
+static int64_t g_kain_native_resonate_fire_count = 0;
+static int64_t g_kain_native_resonate_absorb_count = 0;
+static char g_kain_native_resonate_last_target[256] = "";
+static int64_t g_kain_native_resonate_last_old_i64 = 0;
+static int64_t g_kain_native_resonate_last_new_i64 = 0;
+static int64_t g_kain_native_resonate_last_dampen_ns = 0;
+
+static uint64_t abi_resonate_now_ns(void) {
+    return ((uint64_t)kain_attrition_now_millis()) * 1000000ull;
+}
+
+static KainNativeResonanceSlot* abi_resonate_slot_for(const char* target) {
+    int64_t index;
+    KainNativeResonanceSlot* empty_slot = NULL;
+    if (target == NULL) {
+        target = "";
+    }
+    for (index = 0; index < ABI_RESONATE_SLOT_MAX; index++) {
+        KainNativeResonanceSlot* slot = &g_kain_native_resonance_slots[index];
+        if (slot->target[0] == '\0') {
+            if (empty_slot == NULL) {
+                empty_slot = slot;
+            }
+            continue;
+        }
+        if (strcmp(slot->target, target) == 0) {
+            return slot;
+        }
+    }
+    if (empty_slot != NULL) {
+        abi_copy_text(empty_slot->target, sizeof(empty_slot->target), target);
+        empty_slot->last_fire_ns = 0;
+        empty_slot->active_depth = 0;
+    }
+    return empty_slot;
+}
+
+static int64_t abi_resonate_should_fire_common(
+    const char* target,
+    int64_t dampen_ns,
+    int64_t old_value,
+    int64_t new_value
+) {
+    uint64_t now_ns;
+    uint64_t dampen_window;
+    KainNativeResonanceSlot* slot;
+    if (dampen_ns < 0) {
+        dampen_ns = 0;
+    }
+    g_kain_native_resonate_mutation_count += 1;
+    abi_copy_text(
+        g_kain_native_resonate_last_target,
+        sizeof(g_kain_native_resonate_last_target),
+        target
+    );
+    g_kain_native_resonate_last_old_i64 = old_value;
+    g_kain_native_resonate_last_new_i64 = new_value;
+    g_kain_native_resonate_last_dampen_ns = dampen_ns;
+    slot = abi_resonate_slot_for(target);
+    if (slot == NULL) {
+        g_kain_native_resonate_absorb_count += 1;
+        return 0;
+    }
+    if (slot->active_depth > 0) {
+        g_kain_native_resonate_absorb_count += 1;
+        return 0;
+    }
+    now_ns = abi_resonate_now_ns();
+    dampen_window = (uint64_t)dampen_ns;
+    if (dampen_window > 0 && slot->last_fire_ns > 0 && now_ns - slot->last_fire_ns < dampen_window) {
+        g_kain_native_resonate_absorb_count += 1;
+        return 0;
+    }
+    slot->last_fire_ns = now_ns;
+    slot->active_depth += 1;
+    g_kain_native_resonate_fire_count += 1;
+    return 1;
+}
+
 int64_t abi_patch_begin(const char* patch_name) {
     abi_copy_text(g_kain_native_active_patch, sizeof(g_kain_native_active_patch), patch_name);
     return 0;
@@ -1257,6 +1346,49 @@ const char* abi_patch_last_path(void) {
         return string_new("");
     }
     return string_new(g_kain_native_patch_journal[g_kain_native_patch_journal_count - 1].path);
+}
+
+int64_t abi_resonate_should_fire_i64(const char* target, int64_t dampen_ns, int64_t old_value, int64_t new_value) {
+    return abi_resonate_should_fire_common(target, dampen_ns, old_value, new_value);
+}
+
+int64_t abi_resonate_should_fire_f64(const char* target, int64_t dampen_ns, double old_value, double new_value) {
+    return abi_resonate_should_fire_common(target, dampen_ns, (int64_t)old_value, (int64_t)new_value);
+}
+
+void abi_resonate_exit(const char* target) {
+    KainNativeResonanceSlot* slot = abi_resonate_slot_for(target);
+    if (slot != NULL && slot->active_depth > 0) {
+        slot->active_depth -= 1;
+    }
+}
+
+int64_t abi_resonate_mutation_count(void) {
+    return g_kain_native_resonate_mutation_count;
+}
+
+int64_t abi_resonate_fire_count(void) {
+    return g_kain_native_resonate_fire_count;
+}
+
+int64_t abi_resonate_absorb_count(void) {
+    return g_kain_native_resonate_absorb_count;
+}
+
+const char* abi_resonate_last_target(void) {
+    return string_new(g_kain_native_resonate_last_target);
+}
+
+int64_t abi_resonate_last_old_i64(void) {
+    return g_kain_native_resonate_last_old_i64;
+}
+
+int64_t abi_resonate_last_new_i64(void) {
+    return g_kain_native_resonate_last_new_i64;
+}
+
+int64_t abi_resonate_last_dampen_ns(void) {
+    return g_kain_native_resonate_last_dampen_ns;
 }
 
 int64_t abi_entangle_record_i64(const char* authority, const char* mirror, int64_t value) {

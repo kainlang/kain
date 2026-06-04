@@ -47,6 +47,7 @@ fn compiler_owned_intent_source() -> &'static str {
 
 world Studio:
     state counter: Int = 0
+    state reaction: Int = 0
     surface native_ui => App
     surface viewport3d => "StudioPreview"
     surface web => App
@@ -58,6 +59,9 @@ component App():
 patch set_counter(studio: Studio, to: Int) -> Int:
     studio.counter = to
     return studio.counter
+
+resonate Studio.counter dampen 16ms:
+    Studio.reaction = Studio.counter + resonate_new_i64
 
 converge choose_value(value: Int) -> Int:
     spec reference:
@@ -279,6 +283,7 @@ fn runtime_contract_emits_compiler_owned_intent_sections() {
     assert_eq!(bundle.converges.len(), 1);
     assert_eq!(bundle.worlds.len(), 1);
     assert_eq!(bundle.orchestrations.len(), 1);
+    assert_eq!(bundle.resonances.len(), 1);
     assert_eq!(bundle.worlds[0].surfaces.len(), 4);
     assert_eq!(bundle.patches[0].undo_mode, "reversible");
     assert_eq!(bundle.laws[0].name, "positive");
@@ -323,6 +328,16 @@ fn runtime_contract_emits_compiler_owned_intent_sections() {
         .required_capabilities
         .iter()
         .any(|capability| capability.key == "orchestrate.pipeline"));
+    assert!(bundle
+        .required_capabilities
+        .iter()
+        .any(|capability| capability.key == "state.resonate"));
+    assert!(bundle
+        .required_capabilities
+        .iter()
+        .any(|capability| capability.key == "reactivity.shadow-patch"));
+    assert_eq!(bundle.resonances[0].target, "Studio.counter");
+    assert_eq!(bundle.resonances[0].dampen_ns, 16_000_000);
 }
 
 #[test]
@@ -339,6 +354,24 @@ fn runtime_contract_emits_entangle_contracts() {
         .required_capabilities
         .iter()
         .any(|capability| capability.key == "state.entangle"));
+}
+
+#[test]
+fn resonate_rejects_direct_self_feedback() {
+    let source = r#"world Reactor:
+    state signal: Int = 0
+    surface native_ui => App
+
+component App():
+    render <panel />
+
+resonate Reactor.signal dampen 1ms:
+    Reactor.signal = Reactor.signal + 1
+"#;
+
+    let error =
+        parse_and_typecheck(source).expect_err("direct resonance feedback should not typecheck");
+    assert!(error.to_string().contains("directly mutates its own target"));
 }
 
 #[test]
@@ -364,6 +397,7 @@ fn realtime_bundle_emits_compiler_owned_intent_sections() {
     assert_eq!(bundle.converges.len(), 1);
     assert_eq!(bundle.worlds.len(), 1);
     assert_eq!(bundle.orchestrations.len(), 1);
+    assert_eq!(bundle.resonances.len(), 1);
     assert_eq!(bundle.worlds[0].surfaces.len(), 4);
     assert_eq!(bundle.laws[0].name, "positive");
     assert_eq!(bundle.converges[0].verify_random_count, Some(8));
@@ -400,6 +434,18 @@ fn realtime_bundle_emits_compiler_owned_intent_sections() {
         .requirements
         .iter()
         .any(|entry| entry == "orchestrate.pipeline"));
+    assert!(bundle
+        .tool_caps
+        .iter()
+        .any(|entry| entry == "state.resonate"));
+    assert!(bundle
+        .requirements
+        .iter()
+        .any(|entry| entry == "reactivity.shadow-patch"));
+    assert_eq!(
+        bundle.resonances[0].handler_symbol,
+        "__kain_resonate_resonate__Studio__counter"
+    );
 }
 
 #[test]
@@ -702,7 +748,10 @@ orchestrate pipeline(authority: GraphAuthority, value: Int) -> Int:
         orchestration.stages[1].transfer.as_deref(),
         Some("host_to_device")
     );
-    assert_eq!(orchestration.stages[1].guard.as_deref(), Some("graph_truth"));
+    assert_eq!(
+        orchestration.stages[1].guard.as_deref(),
+        Some("graph_truth")
+    );
     assert_eq!(
         orchestration.stages[1].fallback.as_deref(),
         Some("degrade seed")
@@ -719,7 +768,10 @@ orchestrate pipeline(authority: GraphAuthority, value: Int) -> Int:
     let realtime = &realtime_bundle.orchestrations[0];
     assert!(realtime.graph_mode);
     assert!(realtime.adaptive_policy);
-    assert_eq!(realtime.stages[2].transfer.as_deref(), Some("device_to_host"));
+    assert_eq!(
+        realtime.stages[2].transfer.as_deref(),
+        Some("device_to_host")
+    );
 }
 
 #[test]
@@ -733,7 +785,10 @@ orchestrate pipeline(value: Int) -> Int:
 "#;
 
     let error = parse_and_typecheck(source).expect_err("function guard should fail");
-    assert!(error.to_string().contains("must reference an axiom"), "{error}");
+    assert!(
+        error.to_string().contains("must reference an axiom"),
+        "{error}"
+    );
 }
 
 #[test]
@@ -762,7 +817,10 @@ orchestrate pipeline(value: Int) -> Int:
 "#;
 
     let error = parse_and_typecheck(source).expect_err("impossible transfer should fail");
-    assert!(error.to_string().contains("incompatible with residency"), "{error}");
+    assert!(
+        error.to_string().contains("incompatible with residency"),
+        "{error}"
+    );
 }
 
 #[test]

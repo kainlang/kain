@@ -12,6 +12,7 @@ use world::smoke_world_lane
 use entangle::smoke_entangle_lane
 use law::smoke_law_lane
 use patch::smoke_patch_lane
+use resonate::smoke_resonate_lane
 use actor::smoke_actor_lane
 use converge::smoke_converge_lane
 use orchestrate::smoke_orchestrate_lane
@@ -144,7 +145,7 @@ fn smoke_run_full_album(mode: String) -> Int with GPU, Unsafe:
         return 10 + boot
 
     let started_ms = now_millis()
-    let total_tracks: Int = 63
+    let total_tracks: Int = 64
     var succeeded_tracks: Int = 0
     var composition_checksum: Int = 0
 
@@ -227,6 +228,15 @@ fn smoke_run_full_album(mode: String) -> Int with GPU, Unsafe:
     let e_patch = smoke_first_error(900, lane_patch)
     if e_patch != 0:
         return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_patch, "semantics.patch")
+    succeeded_tracks = succeeded_tracks + 1
+
+    let started_resonate = now_millis()
+    let lane_resonate = smoke_resonate_lane()
+    let ended_resonate = now_millis()
+    composition_checksum = smoke_record_track(mode, "semantics", "semantics.resonate", "resonate", 36, 950, lane_resonate, started_resonate, ended_resonate, composition_checksum)
+    let e_resonate = smoke_first_error(950, lane_resonate)
+    if e_resonate != 0:
+        return smoke_finish_full(mode, started_ms, succeeded_tracks, total_tracks, composition_checksum, e_resonate, "semantics.resonate")
     succeeded_tracks = succeeded_tracks + 1
 
     let started_actor = now_millis()
