@@ -25,6 +25,7 @@ import pygame
 WINDOW_WIDTH = 1600
 WINDOW_HEIGHT = 720
 WINDOW_TITLE = "resonate-py 24 TET"
+DIAG_FRAME_INTERVAL = 60  # print diagnostic every N frames
 SAMPLE_RATE = 44_100
 SYNTH_SECONDS = 1.45
 KEY_ORDER = [
@@ -74,6 +75,8 @@ STATE: dict[str, Any] = {
     "latched_note": -1,
     "frame": 0,
     "last_epoch": -1,
+    "last_command": 0,
+    "command_history": [],
     "audio_hits": 0,
 }
 
@@ -115,8 +118,17 @@ def _ensure_pygame() -> None:
 def _ensure_window() -> None:
     _ensure_pygame()
     if STATE["screen"] is None:
-        flags = pygame.DOUBLEBUF
-        STATE["screen"] = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT), flags)
+        try:
+            STATE["screen"] = pygame.display.set_mode(
+                (WINDOW_WIDTH, WINDOW_HEIGHT),
+                pygame.DOUBLEBUF | pygame.SCALED,
+                vsync=1,
+            )
+        except Exception:
+            STATE["screen"] = pygame.display.set_mode(
+                (WINDOW_WIDTH, WINDOW_HEIGHT),
+                pygame.DOUBLEBUF,
+            )
         pygame.display.set_caption(WINDOW_TITLE)
     if STATE["frame_surface"] is None:
         STATE["frame_surface"] = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT)).convert()
@@ -384,6 +396,17 @@ def _draw_key(surface: pygame.Surface, slot: int, active: bool, velocity: int, r
         pygame.draw.rect(surface, (255, 246, 221), meter, 1, border_radius=6)
 
 
+def _draw_diagnostic_overlay(surface: pygame.Surface, epoch: int, frame: int, velocity: int, resonance_hash: int, command: int) -> None:
+    """Draw real-time state counters in the top-right corner."""
+    info = (
+        f"frame {frame:05d}  ep {epoch:05d}  vel {velocity:03d}  "
+        f"cmd {command:02d}  hash {resonance_hash % 100000:05d}"
+    )
+    bg = pygame.Rect(WINDOW_WIDTH - 620, 10, 606, 22)
+    pygame.draw.rect(surface, (10, 12, 19, 180), bg, border_radius=6)
+    _draw_text(surface, info, (WINDOW_WIDTH - 612, 12), (120, 200, 120), font_key="font_tiny")
+
+
 def _draw_keyboard(surface: pygame.Surface, note_slot: int, velocity: int, epoch: int, resonance_hash: int, pitch_value: int, ui_epoch: int, shader_epoch: int) -> None:
     active = note_slot if 0 <= note_slot < 24 else STATE["active_note"]
     current_pitch = pitch_value if pitch_value > 0 else int(_freq(active if active >= 0 else 0) * 1000)
@@ -493,16 +516,31 @@ def window_frame(
     frame_surface = STATE["frame_surface"]
     frame_surface.blit(STATE["backdrop"], (0, 0))
     _draw_keyboard(frame_surface, active_note, active_velocity, epoch, resonance_hash, pitch_value, ui_epoch, shader_epoch)
+    _draw_diagnostic_overlay(frame_surface, epoch, STATE["frame"], active_velocity, resonance_hash, STATE["last_command"])
     STATE["screen"].blit(frame_surface, (0, 0))
     pygame.display.flip()
     STATE["clock"].tick(60)
     STATE["frame"] += 1
 
+    result = 0
     if selected_note >= 0:
         STATE["active_note"] = selected_note
         # Velocity stays Kain-owned — no local inflation, no +6 creep.
-        return selected_note + 1
-    return 0
+        result = selected_note + 1
+
+    STATE["last_command"] = result
+    STATE["command_history"] = (STATE["command_history"] + [result])[-12:]
+
+    # Console diagnostic every DIAG_FRAME_INTERVAL frames
+    if STATE["frame"] % DIAG_FRAME_INTERVAL == 0:
+        cmd_hist = ",".join(str(c) for c in STATE["command_history"])
+        print(
+            f"[diag] frame={STATE['frame']:05d} ep={epoch:05d} "
+            f"note={active_note:02d} vel={active_velocity:03d} "
+            f"cmd={result} hist=[{cmd_hist}]"
+        )
+
+    return result
 
 
 # ---------------------------------------------------------------------------

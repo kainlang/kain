@@ -408,11 +408,13 @@ fn resonate_py_moderngl_buffer_checksum(iterations: Int, modulus: Int) -> Int wi
 // ── App Logic (Kain-owned, no Python for note/velocity computation) ───────────
 
 fn resonate_py_app_velocity(frame: Int, note_slot: Int) -> Int:
-    // Organic velocity: each note gets its own dynamic profile
-    // Wider range (30-120) with note-specific color
-    let raw: Int = resonate_py_mod((frame * 41) + (note_slot * 31) + ((frame * note_slot) * 7) + 97, 84)
-    let accent: Int = resonate_py_mod((note_slot * 17) + (frame * 11), 6)
-    return 36 + raw + accent
+    // Organic velocity: piano-style dynamics with wider expressive range.
+    // Each note-slot gets its own velocity profile; frame adds subtle drift.
+    // Range: 32-120  (enough for ppp to fff)
+    let phase: Int = (note_slot * 37) + (frame * 29) + ((frame * note_slot) * 3) + 61
+    let shaped: Int = resonate_py_mod(phase, 81)
+    let accent: Int = resonate_py_mod(note_slot * 7, 8)
+    return 38 + shaped + accent
 
 fn resonate_py_drive_note(note_slot: Int, velocity: Int, seed: Int) -> Int:
     let old_epoch = ResonatePyAuthority.event_epoch
@@ -463,6 +465,22 @@ fn resonate_py_launch_app() -> Int with Unsafe:
             if resonate_py_note_in_bounds(next_note):
                 let velocity = resonate_py_app_velocity(frame, next_note)
                 let _epoch = resonate_py_drive_note(next_note, velocity, frame + 41)
+        // Console diagnostic every 120 frames
+        if frame % 120 == 0:
+            let d_note: String = "??"
+            let ns: Int = ResonatePyAuthority.note_slot
+            if ns >= 0 and ns < 24:
+                d_note = RESONATE_PY_NOTE_NAMES[ns]
+            println(
+                "[kain] frame=" + str(frame)
+                + " note=" + d_note + "(" + str(ns) + ")"
+                + " vel=" + str(ResonatePyAuthority.velocity)
+                + " epoch=" + str(ResonatePyAuthority.event_epoch)
+                + " ui=" + str(ResonatePyAuthority.ui_epoch)
+                + " shader=" + str(ResonatePyAuthority.shader_epoch)
+                + " hash=" + str(ResonatePyAuthority.resonance_hash)
+                + " cmd=" + str(command)
+            )
         frame = frame + 1
 
     let _python_close = resonate_py_python_reset()

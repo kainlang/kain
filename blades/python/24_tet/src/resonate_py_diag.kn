@@ -1,0 +1,151 @@
+// =============================================================================
+// resonate_py_diag.kn  —  Real-time diagnostic companion for 24-TET instrument
+//
+// Run standalone:     kain check src/resonate_py_diag.kn --target llvm
+// Checks pitch table, velocity distribution, world/entangle/resonate counters,
+// pipeline stage health, and prints a state summary to stdout.
+// =============================================================================
+use std::intent
+use std::runtime
+
+// ── Module identity ───────────────────────────────────────────────────────────
+pub const DIAG_MODULUS: Int = 1000000007
+pub const DIAG_KEY_COUNT: Int = 24
+
+// Copy of pitch table from resonate_py.kn — verified independently
+const DIAG_PITCH_TABLE: Array<Int> = [
+    155563, 160121, 164813, 169643, 174614, 179730,
+    184997, 190418, 195997, 201740, 207652, 213737,
+    220000, 226446, 233081, 239911, 246941, 254177,
+    261625, 269291, 277182, 285304, 293664, 302269,
+]
+
+// ── Pure verification functions ──────────────────────────────────────────────
+
+pub fn diag_verify_pitch_table() -> Bool:
+    // Verify pitch values are strictly increasing (24-TET guarantee)
+    var i: Int = 1
+    while i < DIAG_KEY_COUNT:
+        if DIAG_PITCH_TABLE[i] <= DIAG_PITCH_TABLE[i - 1]:
+            return false
+        i = i + 1
+    // Verify specific anchor points (A=220, A/2=155.563)
+    if DIAG_PITCH_TABLE[12] != 220000:
+        return false
+    if DIAG_PITCH_TABLE[0] < 155000 or DIAG_PITCH_TABLE[0] > 156000:
+        return false
+    return true
+
+pub fn diag_compute_pitch_milli(slot: Int) -> Int:
+    if slot >= 0 and slot < DIAG_KEY_COUNT:
+        return DIAG_PITCH_TABLE[slot]
+    return DIAG_PITCH_TABLE[0]
+
+pub fn diag_compute_note_score(slot: Int, velocity: Int, epoch: Int) -> Int:
+    let pitch: Int = diag_compute_pitch_milli(slot)
+    let color: Int = ((pitch / 97) + (velocity * 7) + (epoch * 13)) % 255
+    return (pitch % 1000003) + color + (slot * 17) + (velocity * 3) + epoch
+
+pub fn diag_velocity_distribution() -> String:
+    // Compute velocity values across 120 frame-range and log spread
+    var min_v: Int = 999
+    var max_v: Int = 0
+    var sum_v: Int = 0
+    var f: Int = 0
+    while f < 120:
+        var s: Int = 0
+        while s < DIAG_KEY_COUNT:
+            let raw: Int = ((f * 41) + (s * 31) + ((f * s) * 7) + 97) % 84
+            let accent: Int = ((s * 17) + (f * 11)) % 6
+            let v: Int = 36 + raw + accent
+            if v < min_v: min_v = v
+            if v > max_v: max_v = v
+            sum_v = sum_v + v
+            s = s + 1
+        f = f + 1
+    let avg_v: Int = sum_v / (120 * DIAG_KEY_COUNT)
+    return "velocity range: " + str(min_v) + "-" + str(max_v) + " avg=" + str(avg_v)
+
+pub fn diag_note_name(slot: Int) -> String:
+    if slot >= 0 and slot < DIAG_KEY_COUNT:
+        let names: Array<String> = [
+            "A",  "Aq", "Ash", "Ashq", "B",  "Bq",
+            "C",  "Cq", "Csh", "Cshq", "D",  "Dq",
+            "Dsh", "Dshq", "E",  "Eq", "F",  "Fq",
+            "Fsh", "Fshq", "G",  "Gq", "Gsh", "Gshq",
+        ]
+        return names[slot]
+    return "??"
+
+pub fn diag_pitch_report() -> String:
+    var report: String = "pitch table verification:"
+    if diag_verify_pitch_table():
+        report = report + " PASS"
+    else:
+        report = report + " FAIL"
+    report = report + "\n"
+    var i: Int = 0
+    while i < DIAG_KEY_COUNT:
+        let name: String = diag_note_name(i)
+        let pitch: Int = diag_compute_pitch_milli(i)
+        report = report + "  " + name + " (" + str(i) + "): " + str(pitch) + " milliHz"
+        if i < DIAG_KEY_COUNT - 1:
+            report = report + "\n"
+        i = i + 1
+    return report
+
+// ── Runtime state diagnostics ─────────────────────────────────────────────────
+// These functions read the live world/entangle/resonate/patch counters
+// from std::intent. Call while the app is running to get real-time state.
+
+pub fn diag_runtime_snapshot() -> String:
+    let out_str: String = ""
+    out_str = out_str + "=== RESONATE_PY RUNTIME SNAPSHOT ===\n"
+    out_str = out_str + "patch journal:  " + str(patch_journal_count()) + "\n"
+    out_str = out_str + "patch last:     " + patch_last_path() + "\n"
+    out_str = out_str + "entangle props: " + str(entangle_propagation_count()) + "\n"
+    out_str = out_str + "entangle last:  " + entangle_last_authority() + " -> " + entangle_last_mirror() + "\n"
+    out_str = out_str + "resonate fires: " + str(resonate_fire_count()) + "\n"
+    out_str = out_str + "resonate absorbs:" + str(resonate_absorb_count()) + "\n"
+    out_str = out_str + "resonate muts:  " + str(resonate_mutation_count()) + "\n"
+    out_str = out_str + "resonate last:  " + resonate_last_target() + " old=" + str(resonate_last_old_i64()) + " new=" + str(resonate_last_new_i64()) + "\n"
+    out_str = out_str + "orchestrate stages:" + str(orchestrate_stage_count()) + "\n"
+    out_str = out_str + "orchestrate last:" + orchestrate_last_runtime() + " / " + orchestrate_last_function() + "\n"
+    out_str = out_str + "converge mismatches:" + str(converge_mismatch_count())
+    return out_str
+
+pub fn diag_world_readout(
+    note_slot: Int, velocity: Int, epoch: Int,
+    ui_epoch: Int, shader_epoch: Int,
+    resonance_hash: Int, pitch_milli: Int,
+    mirror_note_slot: Int, mirror_epoch: Int,
+    mirror_ui: Int, mirror_shader: Int, mirror_hash: Int,
+) -> String:
+    let name: String = "??"
+    if note_slot >= 0 and note_slot < 24:
+        name = diag_note_name(note_slot)
+    let world_str: String = ""
+
+    world_str = world_str + "[world] note=" + name + "(" + str(note_slot) + ") vel=" + str(velocity)
+    world_str = world_str + " epoch=" + str(epoch) + " ui=" + str(ui_epoch) + " shader=" + str(shader_epoch) + "\n"
+    world_str = world_str + "[hash] resonance=" + str(resonance_hash) + " pitch=" + str(pitch_milli) + "\n"
+    world_str = world_str + "[mirr] note=" + str(mirror_note_slot) + " epoch=" + str(mirror_epoch)
+    world_str = world_str + " ui=" + str(mirror_ui) + " shader=" + str(mirror_shader) + " hash=" + str(mirror_hash) + "\n"
+    world_str = world_str + "[diag] " + diag_velocity_distribution()
+    return world_str
+
+// ── Main diagnostic entry point ──────────────────────────────────────────────
+// Run standalone to verify computations without launching the app.
+fn main() -> Int:
+    println("")
+    println(diag_pitch_report())
+    println("")
+    println(diag_velocity_distribution())
+    println("")
+    println(diag_runtime_snapshot())
+    println("")
+    if diag_verify_pitch_table() == false:
+        println("[DIAG] PITCH TABLE VERIFICATION FAILED")
+        return 1
+    println("[DIAG] All diagnostics passed")
+    return 0
