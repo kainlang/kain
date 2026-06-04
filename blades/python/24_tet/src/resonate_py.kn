@@ -9,14 +9,38 @@ import moderngl as mgl
 import pygame as pg
 import numpy as np
 
+// ── 24-TET Constants ──────────────────────────────────────────────────────────
 const RESONATE_PY_MODULUS: Int = 1000000007
 const RESONATE_PY_CASE_COUNT: Int = 3
 const RESONATE_PY_KEY_COUNT: Int = 24
 const RESONATE_PY_DAMPEN_HOLD: Int = 2400
+const RESONATE_PY_WINDOW_WIDTH: Int = 1600
+const RESONATE_PY_WINDOW_HEIGHT: Int = 720
 
+// Kain-owned pitch lookup table (pure Kain, no Python)
+// pitch_milli = floor(220.0 * 2^((slot-12)/24) * 1000)
+const RESONATE_PY_PITCH_TABLE: Array<Int> = [
+    155563, 160121, 164813, 169643, 174614, 179730,
+    184997, 190418, 195997, 201740, 207652, 213737,
+    220000, 226446, 233081, 239911, 246941, 254177,
+    261625, 269291, 277182, 285304, 293664, 302269,
+]
+
+const RESONATE_PY_NOTE_NAMES: Array<String> = [
+    "A",  "Aq", "Ash", "Ashq", "B",  "Bq",
+    "C",  "Cq", "Csh", "Cshq", "D",  "Dq",
+    "Dsh", "Dshq", "E",  "Eq", "F",  "Fq",
+    "Fsh", "Fshq", "G",  "Gq", "Gsh", "Gshq",
+]
+
+const RESONATE_PY_WHITE_SLOTS: Array<Int> = [0, 2, 4, 5, 7, 9, 11, 12, 14, 16, 17, 19, 21, 23]
+const RESONATE_PY_BLACK_SLOTS: Array<Int> = [1, 3, 6, 8, 10, 13, 15, 18, 20, 22]
+
+// ── Component ─────────────────────────────────────────────────────────────────
 component ResonatePyPanel():
     render <panel title="resonate-py-24tet" />
 
+// ── Worlds + Entangles ────────────────────────────────────────────────────────
 world ResonatePyAuthority:
     state note_slot: Int = -1
     state quarter_step: Int = -1
@@ -46,6 +70,35 @@ entangle ResonatePyAuthority.ui_epoch <-> ResonatePyMirror.ui_epoch_copy with si
 entangle ResonatePyAuthority.shader_epoch <-> ResonatePyMirror.shader_epoch_copy with single_writer
 entangle ResonatePyAuthority.resonance_hash <-> ResonatePyMirror.resonance_hash_copy with single_writer
 
+// ── Pure Kain Computation Functions ───────────────────────────────────────────
+
+// Pitch following 24-TET: 220Hz * 2^((slot-12)/24) * 1000
+fn resonate_py_compute_pitch_milli(slot: Int) -> Int:
+    if slot >= 0 and slot < RESONATE_PY_KEY_COUNT:
+        return RESONATE_PY_PITCH_TABLE[slot]
+    return RESONATE_PY_PITCH_TABLE[0]
+
+fn resonate_py_compute_note_score(slot: Int, velocity: Int, epoch: Int) -> Int:
+    let pitch: Int = resonate_py_compute_pitch_milli(slot)
+    let color: Int = ((pitch / 97) + (velocity * 7) + (epoch * 13)) % 255
+    return (pitch % 1000003) + color + (slot * 17) + (velocity * 3) + epoch
+
+fn resonate_py_compute_keyboard_shadow(slot: Int, velocity: Int, epoch: Int) -> Int:
+    let pitch: Int = resonate_py_compute_pitch_milli(slot)
+    let name: String = RESONATE_PY_NOTE_NAMES[slot]
+    let label: String = name + ":" + str(velocity) + ":" + str(pitch)
+    return len(label) + pitch + epoch + velocity + (24 * 11)
+
+fn resonate_py_note_name(slot: Int) -> String:
+    if slot >= 0 and slot < RESONATE_PY_KEY_COUNT:
+        return RESONATE_PY_NOTE_NAMES[slot]
+    return "??"
+
+fn resonate_py_compute_freq(slot: Int) -> Int:
+    // Returns frequency in milliHz (Hz * 1000)
+    return resonate_py_compute_pitch_milli(slot)
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
 fn resonate_py_bool_score(value: Bool) -> Int:
     if value:
         return 1
@@ -94,9 +147,11 @@ fn resonate_py_world_score(note_slot: Int, epoch: Int, ui_epoch: Int, shader_epo
 fn resonate_py_dispatch_style(value: Int, epoch: Int) -> Int:
     return resonate_py_mod((value * 19) + (epoch * 31) + 211, RESONATE_PY_MODULUS)
 
+// ── Law ───────────────────────────────────────────────────────────────────────
 law resonate_py_note_in_bounds(value: Int) -> Bool:
     return value >= 0 and value < RESONATE_PY_KEY_COUNT
 
+// ── Patches ───────────────────────────────────────────────────────────────────
 patch resonate_py_strike(authority: ResonatePyAuthority, note_slot: Int, velocity: Int, seed: Int) -> Int:
     authority.note_slot = note_slot
     authority.quarter_step = note_slot
@@ -119,14 +174,17 @@ patch resonate_py_probe_dampen(authority: ResonatePyAuthority, value: Int) -> In
 patch resonate_py_apply_epoch_effect(authority: ResonatePyAuthority, old_epoch: Int) -> Int:
     authority.last_old = old_epoch
     authority.last_new = authority.event_epoch
-    authority.last_pitch_milli = resonate_py_python_pitch_milli(authority.note_slot)
+    // Kain-owned pitch computation replaces Python bridge call
+    authority.last_pitch_milli = resonate_py_compute_pitch_milli(authority.note_slot)
     authority.resonance_hash = resonate_py_wave_pipeline(authority.event_epoch + authority.note_slot + authority.velocity, authority)
     return authority.resonance_hash
 
+// ── Resonate ──────────────────────────────────────────────────────────────────
 resonate ResonatePyAuthority.note_slot dampen 24ms:
     ResonatePyAuthority.dampen_shadow = resonate_new_i64 + ResonatePyAuthority.velocity + ResonatePyAuthority.event_epoch
     ResonatePyAuthority.last_new = resonate_new_i64
 
+// ── State Reset ───────────────────────────────────────────────────────────────
 fn resonate_py_reset_state():
     ResonatePyAuthority.note_slot = -1
     ResonatePyAuthority.quarter_step = -1
@@ -141,20 +199,16 @@ fn resonate_py_reset_state():
     ResonatePyAuthority.last_new = 0
     ResonatePyAuthority.last_pitch_milli = 0
 
+// ── Python Bridge Facades ─────────────────────────────────────────────────────
+// Thin wrappers: Kain owns app logic, Python owns pygame/modernGL surfaces
 fn resonate_py_pygame_available() -> Bool:
     return python_module_available("pygame")
 
 fn resonate_py_python_reset() -> Int:
     return to_int(py_bridge.reset())
 
-fn resonate_py_python_pitch_milli(note_slot: Int) -> Int:
-    return to_int(py_bridge.pitch_milli(note_slot))
-
-fn resonate_py_python_note_score(note_slot: Int, velocity: Int, epoch: Int) -> Int:
-    return to_int(py_bridge.note_score(note_slot, velocity, epoch))
-
-fn resonate_py_python_keyboard_shadow(note_slot: Int, velocity: Int, epoch: Int) -> Int:
-    return to_int(py_bridge.keyboard_shadow(note_slot, velocity, epoch))
+fn resonate_py_python_pygame_init() -> Int:
+    return to_int(py_bridge.pygame_init())
 
 fn resonate_py_python_mgl_prepare() -> Int:
     return to_int(py_bridge.mgl_prepare())
@@ -162,40 +216,48 @@ fn resonate_py_python_mgl_prepare() -> Int:
 fn resonate_py_python_mgl_push(note_slot: Int, velocity: Int, epoch: Int) -> Int:
     return to_int(py_bridge.mgl_push(note_slot, velocity, epoch))
 
-fn resonate_py_python_pygame_init() -> Int:
-    return to_int(py_bridge.pygame_init())
+fn resonate_py_python_window_frame(
+    note_slot: Int, velocity: Int, epoch: Int,
+    resonance_hash: Int, pitch_milli: Int,
+    ui_epoch: Int, shader_epoch: Int,
+) -> Int:
+    return to_int(py_bridge.window_frame(
+        note_slot, velocity, epoch, resonance_hash,
+        pitch_milli, ui_epoch, shader_epoch,
+    ))
 
-fn resonate_py_python_pygame_keyboard_probe(note_slot: Int, velocity: Int, epoch: Int) -> Int:
-    return to_int(py_bridge.pygame_keyboard_probe(note_slot, velocity, epoch))
-
-fn resonate_py_python_window_frame(note_slot: Int, velocity: Int, epoch: Int, resonance_hash: Int, pitch_milli: Int, ui_epoch: Int, shader_epoch: Int) -> Int:
-    return to_int(py_bridge.window_frame(note_slot, velocity, epoch, resonance_hash, pitch_milli, ui_epoch, shader_epoch))
-
+// ── Converge ──────────────────────────────────────────────────────────────────
 converge resonate_py_lane_mix(value: Int) -> Int:
     spec reference:
         return resonate_py_mix(value)
     fast llvm_lane when target("llvm"):
         return resonate_py_mod((value * 97) + 53, RESONATE_PY_MODULUS)
 
+// ── Orchestrate ───────────────────────────────────────────────────────────────
 orchestrate resonate_py_wave_pipeline(seed: Int, authority: ResonatePyAuthority) -> Int:
     stage base: cpu resonate_py_mix(seed + authority.note_slot + authority.velocity) when capability("cpu.scalar") residency host transfer none policy static
-    stage py_ui: python resonate_py_python_keyboard_shadow(authority.note_slot, authority.velocity, authority.event_epoch) after base residency host fallback base policy telemetry_prefer_cpu
-    stage py_gl: python resonate_py_python_mgl_push(authority.note_slot, authority.velocity, authority.event_epoch) after py_ui residency host fallback degrade py_ui policy telemetry_prefer_cpu
-    stage tuned: converge resonate_py_lane_mix(base + py_ui + py_gl + authority.resonance_hash) deps [base, py_ui, py_gl] residency shared transfer shared_view policy telemetry_balance_latency
+    // All computation moved to Kain — the old Python keyboard_shadow bridge is now
+    // a pure Kain stage so the pipeline never needs to poll/render on keypress.
+    stage compute: kain resonate_py_compute_keyboard_shadow(authority.note_slot, authority.velocity, authority.event_epoch) after base residency host policy static
+    stage py_gl: python resonate_py_python_mgl_push(authority.note_slot, authority.velocity, authority.event_epoch) after compute residency host fallback degrade compute policy telemetry_prefer_cpu
+    stage tuned: converge resonate_py_lane_mix(base + compute + py_gl + authority.resonance_hash) deps [base, compute, py_gl] residency shared transfer shared_view policy telemetry_balance_latency
     stage legal: law resonate_py_note_in_bounds(authority.note_slot) after tuned residency host policy static
     stage mirrored: world resonate_py_world_score(authority.note_slot, authority.event_epoch, authority.ui_epoch, authority.shader_epoch, authority.resonance_hash) after legal requires legal residency shared transfer shared_view policy telemetry_balance_latency
-    stage committed: patch resonate_py_commit_visual(authority, resonate_py_mod(py_ui + tuned, RESONATE_PY_MODULUS), resonate_py_mod(py_gl + mirrored, RESONATE_PY_MODULUS), tuned) deps [py_ui, py_gl, mirrored] requires legal residency host policy telemetry_balance_latency
-    stage final_lane: dispatch resonate_py_dispatch_style(committed + py_gl, authority.event_epoch) deps [base, py_ui, py_gl, committed] residency shared transfer shared_view policy telemetry_balance_latency
+    stage committed: patch resonate_py_commit_visual(authority, resonate_py_mod(compute + tuned, RESONATE_PY_MODULUS), resonate_py_mod(py_gl + mirrored, RESONATE_PY_MODULUS), tuned) deps [compute, py_gl, mirrored] requires legal residency host policy telemetry_balance_latency
+    stage final_lane: dispatch resonate_py_dispatch_style(committed + py_gl, authority.event_epoch) deps [base, compute, py_gl, committed] residency shared transfer shared_view policy telemetry_balance_latency
     if legal == false:
         return base
     return final_lane
 
+// ── Module Probe ──────────────────────────────────────────────────────────────
 fn resonate_py_module_probe_score() -> Int:
     let arange = python_call_attr_raw(np, "arange", [RESONATE_PY_KEY_COUNT])
     let np_count = to_int(python_call_attr_raw(arange, "__len__", []))
     let math_floor = to_int(python_call_attr_raw(py_math, "floor", [3.99]))
     let version_text = to_string(python_getattr_raw(pg, "__version__"))
     return np_count + math_floor + len(version_text) + (resonate_py_bool_score(resonate_py_pygame_available()) * 24)
+
+// ── Benchmark Cases (all computations Kain-owned) ─────────────────────────────
 
 fn resonate_py_shadow_patch_piano_checksum(iterations: Int, modulus: Int) -> Int with Unsafe:
     let init_status = runtime_init()
@@ -220,7 +282,8 @@ fn resonate_py_shadow_patch_piano_checksum(iterations: Int, modulus: Int) -> Int
         let damp0 = resonate_py_probe_dampen(ResonatePyAuthority, round + 100)
         let shadow0 = ResonatePyAuthority.dampen_shadow
         let damp1 = resonate_py_probe_dampen(ResonatePyAuthority, round + 101)
-        let packet = resonate_py_python_note_score(note_slot, velocity, epoch)
+        // Kain-owned note score replaces Python bridge call
+        let packet = resonate_py_compute_note_score(note_slot, velocity, epoch)
         acc = resonate_py_mod(
             acc
                 + packet
@@ -275,7 +338,8 @@ fn resonate_py_pygame_keyboard_checksum(iterations: Int, modulus: Int) -> Int wi
         let old_epoch = ResonatePyAuthority.event_epoch
         let epoch = resonate_py_strike(ResonatePyAuthority, note_slot, velocity, round + 29)
         let _wave = resonate_py_apply_epoch_effect(ResonatePyAuthority, old_epoch)
-        let direct_touch = resonate_py_python_pygame_keyboard_probe(note_slot, velocity, epoch)
+        // Kain-owned keyboard shadow replaces Python bridge call
+        let direct_touch = resonate_py_compute_keyboard_shadow(note_slot, velocity, epoch)
         acc = resonate_py_mod(
             acc
                 + direct_touch
@@ -341,8 +405,14 @@ fn resonate_py_moderngl_buffer_checksum(iterations: Int, modulus: Int) -> Int wi
         return 600 + shutdown_status
     return resonate_py_mod(acc + resonate_py_module_probe_score(), modulus)
 
+// ── App Logic (Kain-owned, no Python for note/velocity computation) ───────────
+
 fn resonate_py_app_velocity(frame: Int, note_slot: Int) -> Int:
-    return 48 + resonate_py_mod((frame * 9) + (note_slot * 13) + 17, 56)
+    // Organic velocity: each note gets its own dynamic profile
+    // Wider range (30-120) with note-specific color
+    let raw: Int = resonate_py_mod((frame * 41) + (note_slot * 31) + ((frame * note_slot) * 7) + 97, 84)
+    let accent: Int = resonate_py_mod((note_slot * 17) + (frame * 11), 6)
+    return 36 + raw + accent
 
 fn resonate_py_drive_note(note_slot: Int, velocity: Int, seed: Int) -> Int:
     let old_epoch = ResonatePyAuthority.event_epoch
@@ -369,8 +439,6 @@ fn resonate_py_launch_app() -> Int with Unsafe:
     let _mgl_ready = resonate_py_python_mgl_prepare()
     let _module_score = resonate_py_module_probe_score()
     let frame = 0
-    let last_command = 0
-    let release_frames = 0
 
     println("resonate_py: launched 24-TET instrument. click keys or use the mapped rows; Esc closes.")
 
@@ -387,19 +455,14 @@ fn resonate_py_launch_app() -> Int with Unsafe:
         )
         if command < 0:
             running = false
-        else if command == 0:
-            release_frames = release_frames + 1
-            if release_frames >= 4:
-                last_command = 0
-        else if command != last_command:
-            release_frames = 0
+        else if command > 0:
+            // Python already deduplicates held keys via held_keys set,
+            // so every command > 0 is a genuinely new keypress.
+            // No need for last_command tracking or release_frames.
             let next_note = command - 1
             if resonate_py_note_in_bounds(next_note):
                 let velocity = resonate_py_app_velocity(frame, next_note)
                 let _epoch = resonate_py_drive_note(next_note, velocity, frame + 41)
-            last_command = command
-        else:
-            release_frames = 0
         frame = frame + 1
 
     let _python_close = resonate_py_python_reset()
@@ -407,6 +470,8 @@ fn resonate_py_launch_app() -> Int with Unsafe:
     if shutdown_status != 0:
         return 720 + shutdown_status
     return 0
+
+// ── Public Interface ─────────────────────────────────────────────────────────
 
 pub fn resonate_py_case_count() -> Int:
     return RESONATE_PY_CASE_COUNT
