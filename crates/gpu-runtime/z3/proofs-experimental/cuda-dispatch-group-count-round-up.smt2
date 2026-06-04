@@ -1,37 +1,39 @@
-; Proves the CUDA/PTX runtime dispatch-group formula is the positive-domain
-; ceil-division we intend, while still preserving the legacy "zero means one"
-; fallback used by sidecar-free callers.
+; Proves the CUDA/PTX runtime dispatch-group formula keeps the exact contract we
+; rely on at launch time:
+;   1. raw zero values are sanitized to one
+;   2. q = floor((safe_dispatch - 1) / safe_workgroup)
+;   3. runtime_group_count = q + 1 is positive, covers the dispatch, and is
+;      the smallest such positive group count
 
-(set-logic QF_BV)
+(set-logic QF_NIA)
 
-(declare-const dispatch (_ BitVec 32))
-(declare-const workgroup (_ BitVec 32))
+(declare-const raw_dispatch Int)
+(declare-const raw_workgroup Int)
+(declare-const q Int)
+(declare-const r Int)
 
-(define-fun safe_dispatch32 () (_ BitVec 32)
-  (ite (= dispatch #x00000000) #x00000001 dispatch))
+(assert (>= raw_dispatch 0))
+(assert (>= raw_workgroup 0))
+(assert (>= q 0))
+(assert (>= r 0))
 
-(define-fun safe_workgroup32 () (_ BitVec 32)
-  (ite (= workgroup #x00000000) #x00000001 workgroup))
+(define-fun safe_dispatch () Int
+  (ite (< raw_dispatch 1) 1 raw_dispatch))
 
-(define-fun safe_dispatch () (_ BitVec 64)
-  ((_ zero_extend 32) safe_dispatch32))
+(define-fun safe_workgroup () Int
+  (ite (< raw_workgroup 1) 1 raw_workgroup))
 
-(define-fun safe_workgroup () (_ BitVec 64)
-  ((_ zero_extend 32) safe_workgroup32))
+(assert (< r safe_workgroup))
+(assert (= (- safe_dispatch 1) (+ (* safe_workgroup q) r)))
 
-(define-fun runtime_group_count () (_ BitVec 64)
-  (bvadd (bvudiv (bvsub safe_dispatch #x0000000000000001) safe_workgroup)
-         #x0000000000000001))
+(define-fun runtime_group_count () Int (+ q 1))
 
-(define-fun ceil_div_group_count () (_ BitVec 64)
-  (bvudiv (bvadd safe_dispatch (bvsub safe_workgroup #x0000000000000001))
-          safe_workgroup))
-
-; The runtime formula must equal ceil(safe_dispatch / safe_workgroup) and the
-; result must stay positive.
+; Negate the contract: either the result is non-positive, does not cover the
+; requested dispatch, or is not minimal. Unsat proves all three cannot happen.
 (assert
   (or
-    (distinct runtime_group_count ceil_div_group_count)
-    (bvult runtime_group_count #x0000000000000001)))
+    (< runtime_group_count 1)
+    (< (* runtime_group_count safe_workgroup) safe_dispatch)
+    (>= (* (- runtime_group_count 1) safe_workgroup) safe_dispatch)))
 
 (check-sat)

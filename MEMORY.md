@@ -1,5 +1,25 @@
 # Kain Memory
 
+# 2026-06-04 - CUDA/PTX runtime `capture_once` validated and hardened end-to-end
+
+What changed:
+
+- Verified the live `cuda_graph_policy = "capture_once"` path in `crates/gpu-runtime/src/nvidia_ptx.rs` against the installed NVIDIA driver instead of trusting the older note that said it was still rejected.
+- Added a new live regression that drives the graph path through sidecar metadata (`dispatch_from_sidecars(...)`) rather than only the raw `run_dispatch_request(...)` helper.
+- Kept the durable solver proof for `dispatch_group_count(...)` and rewrote it into a fast `QF_NIA` contract proof after an initial bitvector attempt timed out.
+- Added exploratory proof `crates/gpu-runtime/z3/proofs-experimental/cuda-dispatch-group-count-round-up.smt2` and linked the runtime helper comment back to that proof.
+
+Validation:
+
+- `cargo test -p kain-gpu-runtime --lib --target-dir Z:\_b\cargo-target\codex-cuda-graphs -- --nocapture`
+- `cargo check -p kain-gpu-runtime --target-dir Z:\_b\cargo-target\codex-cuda-graphs`
+- Z3 MCP checked the launch math contract as `unsat` via report `X:\z3\reports\20260604T025304Z-gpu-runtime-cuda-dispatch-group-count-round-up.json`.
+
+Operational notes:
+
+- The landed graph policy is deliberately request-local, not a cross-request graph cache. Reusing graph execs across requests would require stable device-buffer / kernel-param lifetimes or explicit node-parameter patching, so that should stay a separate feature if pursued later.
+- `capture_once` now works even when compute residency leaves `cuda_stream_policy` unset or `default`; the runtime owns the null-stream escape hatch needed by CUDA graph capture.
+
 # 2026-06-04 - Shared HLSL/WGSL text shader codegen lane
 
 What changed:

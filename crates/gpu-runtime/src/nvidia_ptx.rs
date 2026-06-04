@@ -2030,6 +2030,121 @@ mod tests {
     }
 
     #[test]
+    fn nvidia_ptx_executor_can_capture_sidecar_dispatch_when_driver_is_available() {
+        let Ok(executor) = NvidiaPtxExecutor::try_new() else {
+            eprintln!(
+                "skipping NVIDIA PTX sidecar graph-capture smoke because CUDA Driver API is unavailable"
+            );
+            return;
+        };
+
+        let temp = tempfile::TempDir::new().expect("temp dir");
+        let shader_bundle_path = temp.path().join("bundle.json");
+        let compute_residency_path = temp.path().join("residency.json");
+        let payload_path = temp.path().join("payload.bin");
+
+        fs::write(&payload_path, [0u8; 4]).expect("payload");
+        fs::write(
+            &shader_bundle_path,
+            serde_json::to_string_pretty(&json!({
+                "schema_version": 1,
+                "canonical_native_payload": "spirv",
+                "spirv_modules": [],
+                "reflection": {
+                    "emitted": true,
+                    "shaders": [],
+                    "notes": []
+                },
+                "resource_layouts": [],
+                "entry_points": [
+                    {
+                        "shader": "write_one",
+                        "module_name": "write_one",
+                        "entry_point": "write_one",
+                        "stage": "compute"
+                    }
+                ],
+                "stage_metadata": [],
+                "specialization_constants": [],
+                "debug": {
+                    "source_map": [],
+                    "notes": []
+                },
+                "derived_outputs": [
+                    {
+                        "format": "ptx",
+                        "module_name": "write_one",
+                        "contents": ".version 7.8\n.target sm_50\n.address_size 64\n\n.visible .entry write_one(\n    .param .u64 _kain_param_dst\n)\n{\n    .reg .u32 %r<2>;\n    .reg .u64 %rd<2>;\n    ld.param.u64 %rd1, [_kain_param_dst];\n    mov.u32 %r1, 42;\n    st.global.u32 [%rd1], %r1;\n    ret;\n}\n",
+                        "entry_points": ["write_one"],
+                        "binding_slots": [0],
+                        "ptx": {
+                            "ptx_version": "7.8",
+                            "required_target_arch": "sm_50",
+                            "minimum_compute_capability": "5.0"
+                        }
+                    }
+                ]
+            }))
+            .expect("bundle json"),
+        )
+        .expect("write bundle");
+        fs::write(
+            &compute_residency_path,
+            serde_json::to_string_pretty(&json!({
+                "schema_version": 1,
+                "target": "cuda",
+                "compute_shader_count": 1,
+                "compute_shaders": [
+                    {
+                        "key": "shader::write_one::compute",
+                        "shader": "write_one",
+                        "module_name": "write_one",
+                        "stage": "compute",
+                        "entry_point": "write_one",
+                        "workgroup_size": [1, 1, 1],
+                        "dispatch_size": [1, 1, 1],
+                        "cuda_graph_policy": "capture_once",
+                        "tensor_binding_count": 0,
+                        "stream_binding_count": 0,
+                        "neural_node_count": 0,
+                        "bindings": [
+                            {
+                                "key": "dst",
+                                "contract": "kain.shared.buffer",
+                                "descriptor_kind": "storage_buffer",
+                                "element_type": "u32",
+                                "shape": [1],
+                                "strides": [4],
+                                "access_mode": "write",
+                                "residency_role": "output",
+                                "slot": 0,
+                                "byte_length": 4,
+                                "payload_file": "payload.bin"
+                            }
+                        ]
+                    }
+                ]
+            }))
+            .expect("residency json"),
+        )
+        .expect("write residency");
+
+        let result = executor
+            .dispatch_from_sidecars(
+                &shader_bundle_path,
+                &compute_residency_path,
+                "shader::write_one::compute",
+            )
+            .expect("sidecar graph-capture dispatch should succeed");
+
+        assert_eq!(result.dispatch_invocations, 1);
+        assert_eq!(
+            result.output_bindings,
+            vec![(0, 42u32.to_le_bytes().to_vec())]
+        );
+    }
+
+    #[test]
     fn nvidia_ptx_executor_accepts_uniform_buffer_scalar_kernel_params() {
         let Ok(executor) = NvidiaPtxExecutor::try_new() else {
             eprintln!(
