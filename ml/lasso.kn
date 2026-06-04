@@ -5,152 +5,55 @@ use std::text
 
 const RAW_RELATIVE_ROOT: String = "ml/raw"
 
-fn source_roots() -> Array<String>:
-    let mut roots: Array<String> = []
-    push(roots, "blades")
-    push(roots, "benchmark/cases_v2")
-    push(roots, "benchmark/cases")
-    push(roots, "smoketest/src")
-    return roots
-
-fn normalize_path_key(value: String) -> String:
-    if value == "":
-        return ""
-
-    let mut normalized = text_replace_string(value, "/", "\\")
-    if text_starts_with_string(normalized, "\\\\?\\"):
-        normalized = substring(normalized, 4, len(normalized))
-    if text_starts_with_string(normalized, ".\\"):
-        normalized = substring(normalized, 2, len(normalized))
-    return to_lower(normalized)
-
-fn trim_trailing_separator(value: String) -> String:
-    var normalized = normalize_path_key(value)
-    while len(normalized) > 3 and text_ends_with_string(normalized, "\\"):
-        normalized = substring(normalized, 0, len(normalized) - 1)
-    return normalized
-
-fn root_prefix(value: String) -> String:
-    let trimmed = trim_trailing_separator(value)
-    if text_ends_with_string(trimmed, "\\"):
-        return trimmed
-    return trimmed + "\\"
-
-fn root_from_candidate(value: String) -> String:
-    let normalized = trim_trailing_separator(value)
-    if text_ends_with_string(normalized, "\\.kain"):
-        return path_parent(normalized)
-    if text_ends_with_string(normalized, "\\ml"):
-        return path_parent(normalized)
-    return normalized
-
 fn repo_root() -> String:
-    let from_env = process_environment("KAIN_HOME")
-    if from_env != "":
-        return root_from_candidate(from_env)
+    var root = process_environment("KAIN_HOME")
+    if root == "":
+        root = process_current_working_directory()
+    root = norm(root)
+    if text_ends_with_string(root, "\\.kain") or text_ends_with_string(root, "\\ml"):
+        return path_parent(root)
+    return root
 
-    return root_from_candidate(process_current_working_directory())
-
-fn relative_to_repo(repo_root_path: String, full_path: String) -> String:
-    let normalized_root = root_prefix(repo_root_path)
-    let normalized_path = trim_trailing_separator(full_path)
-    if text_starts_with_string(normalized_path, normalized_root):
-        return substring(normalized_path, len(normalized_root), len(normalized_path))
-    return normalized_path
-
-fn contains_blocked_segment(path_key: String, segment: String) -> Bool:
-    let needle = "\\" + segment + "\\"
-    let prefix = segment + "\\"
-    let suffix = "\\" + segment
-    if text_contains_string(path_key, needle):
-        return true
-    if text_starts_with_string(path_key, prefix):
-        return true
-    if text_ends_with_string(path_key, suffix):
-        return true
-    return false
-
-fn should_skip_path(full_path: String) -> Bool:
-    let key = normalize_path_key(full_path)
-    if key == "":
-        return true
-    if contains_blocked_segment(key, "crates"):
-        return true
-    if contains_blocked_segment(key, "library_of_kain"):
-        return true
-    return false
-
-fn is_kn_file(full_path: String) -> Bool:
-    return text_ends_with_string(normalize_path_key(full_path), ".kn")
-
-fn rename_main_leaf(repo_relative_path: String) -> String:
-    let file_name = path_file_name(repo_relative_path)
-    if to_lower(file_name) != "main.kn":
-        return repo_relative_path
-
-    let parent_dir = path_parent(repo_relative_path)
-    if parent_dir == "":
-        return repo_relative_path
-
-    let folder_name = path_file_name(parent_dir)
-    if folder_name == "":
-        return repo_relative_path
-
-    return path_join(parent_dir, folder_name + ".kn")
-
-fn materialize_file(raw_root: String, repo_root_path: String, source_path: String) -> Int:
-    let repo_relative = relative_to_repo(repo_root_path, source_path)
-    let output_relative = rename_main_leaf(repo_relative)
-    let output_path = path_join(raw_root, output_relative)
-    let output_parent = path_parent(output_path)
-    if output_parent != "":
-        fs_create_dir_all(output_parent)
-
-    let content = fs_read_text(source_path)
-    fs_atomic_write_text(output_path, content)
-    return 1
-
-fn collect_source_root(raw_root: String, repo_root_path: String, source_root: String) -> Int:
-    println("scan " + source_root)
-    let entries = fs_walk(source_root)
-    var copied = 0
-    var index = 0
-    while index < len(entries):
-        let entry_path = entries[index].path
-        if should_skip_path(entry_path):
-            index = index + 1
-            continue
-        if fs_is_file(entry_path) and is_kn_file(entry_path):
-            copied = copied + materialize_file(raw_root, repo_root_path, entry_path)
-        index = index + 1
-    println("  copied " + str(copied) + " file(s)")
-    return copied
-
-fn prepare_output_root(raw_root: String) -> Unit:
-    if fs_exists(raw_root):
-        fs_remove_dir_all(raw_root)
-    fs_create_dir_all(raw_root)
+fn norm(value: String) -> String:
+    var path_key = to_lower(text_replace_string(value, "/", "\\"))
+    if text_starts_with_string(path_key, "\\\\?\\"): path_key = substring(path_key, 4, len(path_key))
+    if text_starts_with_string(path_key, ".\\"): path_key = substring(path_key, 2, len(path_key))
+    while len(path_key) > 3 and text_ends_with_string(path_key, "\\"):
+        path_key = substring(path_key, 0, len(path_key) - 1)
+    return path_key
 
 fn main() -> Int:
-    let repo_root_path = repo_root()
-    let raw_root = path_join(repo_root_path, RAW_RELATIVE_ROOT)
-    prepare_output_root(raw_root)
-
-    let roots = source_roots()
-    var copied_total = 0
-    var root_index = 0
-    while root_index < len(roots):
-        let source_root = path_join(repo_root_path, roots[root_index])
+    let root = repo_root()
+    let raw = path_join(root, RAW_RELATIVE_ROOT)
+    if fs_exists(raw): fs_remove_dir_all(raw)
+    fs_create_dir_all(raw)
+    let roots: Array<String> = ["blades", "benchmark/cases_v2", "benchmark/cases", "smoketest/src"]
+    var copied_total: Int = 0
+    var source_index: Int = 0
+    while source_index < len(roots):
+        let source_root = path_join(root, roots[source_index])
         if fs_exists(source_root) == false:
             println("missing source root: " + source_root)
             return 1
-        copied_total = copied_total + collect_source_root(raw_root, repo_root_path, source_root)
-        root_index = root_index + 1
-
-    println("lasso complete")
-    println("repo_root=" + repo_root_path)
-    println("raw_root=" + raw_root)
+        println("scan " + source_root)
+        let entries = fs_walk(source_root)
+        var entry_index: Int = 0
+        while entry_index < len(entries):
+            let entry_path = entries[entry_index].path
+            let key = norm(entry_path)
+            if fs_is_file(entry_path) and text_ends_with_string(key, ".kn"):
+                let rel = substring(key, len(root) + 1, len(key))
+                var dest = path_join(raw, rel)
+                if to_lower(path_file_name(rel)) == "main.kn":
+                    let parent = path_parent(rel)
+                    if parent != "" and path_file_name(parent) != "":
+                        dest = path_join(raw, path_join(parent, path_file_name(parent) + ".kn"))
+                let dest_parent = path_parent(dest)
+                if dest_parent != "": fs_create_dir_all(dest_parent)
+                fs_atomic_write_text(dest, fs_read_text(entry_path))
+                copied_total = copied_total + 1
+            entry_index = entry_index + 1
+        source_index = source_index + 1
     println("copied_total=" + str(copied_total))
-    if copied_total == 0:
-        return 2
+    if copied_total == 0: return 2
     return 0
