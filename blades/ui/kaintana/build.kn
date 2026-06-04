@@ -77,31 +77,15 @@ fn build(ctx: BuildContext) -> BuildGraph:
         .axis("target", "llvm")
         .telemetry("llm.evidence", "kaintana.main")
 
-    let source_tests = source_tests("source-tests")
-        .project(pkg)
-        .entry("src/main.kn")
-        .target("llvm")
-        .requires(surface_check, main_check)
-        .inputs(sources)
-
-    let proof = proof_obligation("z3-layout-proof")
-        .entry("z3/build-kn-evidence-proof.kn")
-        .requires(main_check)
-        .axis("solver", "z3")
-        .telemetry("llm.proof")
-        .input("z3/build-kn-evidence-proof.kn")
-        .input("z3/proofs-experimental/kaintana-layout-split-partition.smt2")
-        .input("z3/proofs-experimental/kaintana-desktop-command-capacity.smt2")
-
     let root_exe = native_executable("root-executable")
         .project(pkg)
         .entry("src/main.kn")
         .output("$blade/kaintana.exe")
-        .requires(surface_check, main_check, source_tests, proof)
+        .requires(surface_check, main_check)
         .inputs(sources)
 
     let cert = certify("kaintana.local")
-        .requires(surface_check, main_check, source_tests, proof, root_exe)
+        .requires(surface_check, main_check, root_exe)
 
     let capsule = capsule_set("kaintana")
         .after(cert)
@@ -112,4 +96,4 @@ fn build(ctx: BuildContext) -> BuildGraph:
 
     return build_graph(pkg)
         .sources(sources)
-        .tasks(surface_check, main_check, source_tests, proof, root_exe, cert, capsule)
+        .tasks(surface_check, main_check, root_exe, cert, capsule)

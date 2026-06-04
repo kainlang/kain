@@ -1,6 +1,5 @@
 use std::reload
 use std::ui
-use c::kaintana_desktop_bridge
 use kaintana::*
 use kaintana::kaintana_theme_named
 

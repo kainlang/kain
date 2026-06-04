@@ -18,6 +18,7 @@ use types::kaintana_rect
 use widget_events::kaintana_widget_slider_value
 use widget_events::kaintana_widget_take_activation
 
+pub use layout::*
 pub use desktop_adapter::*
 pub use input::*
 pub use kaintana_ui::*
@@ -103,66 +104,6 @@ fn kaintana_right_aligned_text_x(session_id: Int, font_resource_id: Int, text_va
     let measured_width = ui_text_measure_width(session_id, font_resource_id, text_value)
     return math_max(fallback_left, right_edge - measured_width)
 
-trait KaintanaRectOps:
-    fn rect_x(_self: Self_) -> Float
-    fn rect_y(_self: Self_) -> Float
-    fn rect_width(_self: Self_) -> Float
-    fn rect_height(_self: Self_) -> Float
-
-impl KaintanaRectOps for KaintanaRect:
-    fn rect_x(_self: Self_) -> Float:
-        return _self.x
-    fn rect_y(_self: Self_) -> Float:
-        return _self.y
-    fn rect_width(_self: Self_) -> Float:
-        return _self.width
-    fn rect_height(_self: Self_) -> Float:
-        return _self.height
-
-pub fn kaintana_inset<T>(rect: T, left: Float, top: Float, right: Float, bottom: Float) -> KaintanaRect where T: KaintanaRectOps:
-    return kaintana_rect(
-        rect.rect_x() + left,
-        rect.rect_y() + top,
-        math_max(0.0, rect.rect_width() - left - right),
-        math_max(0.0, rect.rect_height() - top - bottom)
-    )
-
-pub fn kaintana_split_left<T>(rect: T, fraction: Float, gap: Float) -> KaintanaRect where T: KaintanaRectOps:
-    let clamped = math_clamp(fraction, 0.0, 1.0)
-    return kaintana_rect(rect.rect_x(), rect.rect_y(), math_max(0.0, (rect.rect_width() - gap) * clamped), rect.rect_height())
-
-pub fn kaintana_split_right<T>(rect: T, fraction: Float, gap: Float) -> KaintanaRect where T: KaintanaRectOps:
-    let left = kaintana_split_left(rect, fraction, gap)
-    return kaintana_rect(left.rect_x() + left.rect_width() + gap, rect.rect_y(), math_max(0.0, rect.rect_width() - left.rect_width() - gap), rect.rect_height())
-
-pub fn kaintana_split_top<T>(rect: T, fraction: Float, gap: Float) -> KaintanaRect where T: KaintanaRectOps:
-    let clamped = math_clamp(fraction, 0.0, 1.0)
-    return kaintana_rect(rect.rect_x(), rect.rect_y(), rect.rect_width(), math_max(0.0, (rect.rect_height() - gap) * clamped))
-
-pub fn kaintana_split_bottom<T>(rect: T, fraction: Float, gap: Float) -> KaintanaRect where T: KaintanaRectOps:
-    let top = kaintana_split_top(rect, fraction, gap)
-    return kaintana_rect(rect.rect_x(), top.rect_y() + top.rect_height() + gap, rect.rect_width(), math_max(0.0, rect.rect_height() - top.rect_height() - gap))
-
-pub fn kaintana_column_slot<T>(rect: T, index_offset: Float, item_height: Float, gap: Float) -> KaintanaRect where T: KaintanaRectOps:
-    return kaintana_rect(rect.rect_x(), rect.rect_y() + ((item_height + gap) * index_offset), rect.rect_width(), item_height)
-
-pub fn kaintana_row_slot<T>(rect: T, index_offset: Float, item_width: Float, gap: Float) -> KaintanaRect where T: KaintanaRectOps:
-    return kaintana_rect(rect.rect_x() + ((item_width + gap) * index_offset), rect.rect_y(), item_width, rect.rect_height())
-
-pub fn kaintana_grid_cell<T>(rect: T, columns: Float, rows: Float, column_index: Float, row_index: Float, gap_x: Float, gap_y: Float) -> KaintanaRect where T: KaintanaRectOps:
-    let safe_columns = math_max(columns, 1.0)
-    let safe_rows = math_max(rows, 1.0)
-    let total_gap_x = math_max(0.0, safe_columns - 1.0) * gap_x
-    let total_gap_y = math_max(0.0, safe_rows - 1.0) * gap_y
-    let cell_width = math_max(0.0, (rect.rect_width() - total_gap_x) / safe_columns)
-    let cell_height = math_max(0.0, (rect.rect_height() - total_gap_y) / safe_rows)
-    return kaintana_rect(
-        rect.rect_x() + ((cell_width + gap_x) * column_index),
-        rect.rect_y() + ((cell_height + gap_y) * row_index),
-        cell_width,
-        cell_height
-    )
-
 pub fn kaintana_framework_name() -> String:
     return "kaintana"
 
@@ -225,7 +166,7 @@ world KaintanaReactivity:
 world KaintanaReactivityMirror:
     state signal_copy: Int = 0
     state layout_revision_copy: Int = 0
-    surface native_ui => KaintanaReactivityPanel
+    surface web => KaintanaReactivityPanel
 
 entangle KaintanaReactivity.signal <-> KaintanaReactivityMirror.signal_copy with single_writer
 entangle KaintanaReactivity.layout_revision <-> KaintanaReactivityMirror.layout_revision_copy with single_writer
