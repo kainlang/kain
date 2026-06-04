@@ -4,7 +4,10 @@ use std::ui
 use render_commands::kaintana_record_fill
 use render_commands::kaintana_record_text
 use render_commands::kaintana_text_size_from_baseline
+use render_commands::KAINTANA_COMMAND_FILL
+use render_commands::KAINTANA_COMMAND_TEXT
 use reconciliation::kaintana_reconcile_node
+use reconciliation::kaintana_context_mark_command
 use types::KaintanaColor
 use types::KaintanaContext
 use types::KaintanaRect
@@ -24,6 +27,20 @@ fn kaintana_widget_color_delta(color: KaintanaColor, delta: Int) -> KaintanaColo
         kaintana_widget_color_channel(color.blue, delta),
         color.alpha
     )
+
+pub trait KaintanaWidget:
+    fn widget_kind(_self: Self_) -> String
+    fn is_focusable(_self: Self_) -> Bool
+
+pub struct KaintanaWidgetDescriptor:
+    kind: String
+    focusable: Bool
+
+impl KaintanaWidget for KaintanaWidgetDescriptor:
+    fn widget_kind(_self: Self_) -> String:
+        return _self.kind
+    fn is_focusable(_self: Self_) -> Bool:
+        return _self.focusable
 
 pub fn kaintana_widget_panel(ctx: KaintanaContext, stable_key: StringView, label: StringView, rect: KaintanaRect, font_resource_id: Int, baseline_y: Float) -> KaintanaRenderResult:
     var result = kaintana_reconcile_node(ctx, "kaintana.panel", stable_key, label, "region", label, rect, false)
@@ -51,6 +68,7 @@ pub fn kaintana_widget_button(ctx: KaintanaContext, stable_key: StringView, labe
     var next = kaintana_record_fill(result.ctx, result.native_node_id, rect, "fill", fill_color)
     next = kaintana_record_text(next, result.native_node_id, font_resource_id, label, rect.x + 16.0, rect.y + baseline_y, "ink", ctx.theme.ink, kaintana_text_size_from_baseline(baseline_y))
     let activated = kaintana_widget_take_activation(next.session_id, result.native_node_id)
+    defer kaintana_context_mark_command(next, result.native_node_id, KAINTANA_COMMAND_FILL)
     return KaintanaRenderResult { ctx: next, node: result.node, native_node_id: result.native_node_id, activated: activated, value: 0.0 }
 
 pub fn kaintana_widget_text_input(ctx: KaintanaContext, stable_key: StringView, label: StringView, value: StringView, rect: KaintanaRect, font_resource_id: Int, baseline_y: Float) -> KaintanaRenderResult:
@@ -63,7 +81,18 @@ pub fn kaintana_widget_text_input(ctx: KaintanaContext, stable_key: StringView, 
         rule_color = ctx.theme.signal
     next = kaintana_record_fill(next, result.native_node_id, rule, "kaintana.input.signal", rule_color)
     let activated = kaintana_widget_take_activation(next.session_id, result.native_node_id)
+    defer kaintana_context_mark_command(next, result.native_node_id, KAINTANA_COMMAND_FILL)
     return KaintanaRenderResult { ctx: next, node: result.node, native_node_id: result.native_node_id, activated: activated, value: 0.0 }
+
+pub trait KaintanaSliderValue:
+    fn to_float(_self: Self_) -> Float
+
+pub struct KaintanaSliderTypedValue:
+    value: Float
+
+impl KaintanaSliderValue for KaintanaSliderTypedValue:
+    fn to_float(_self: Self_) -> Float:
+        return _self.value
 
 pub fn kaintana_widget_slider(ctx: KaintanaContext, stable_key: StringView, label: StringView, value: Float, min_value: Float, max_value: Float, rect: KaintanaRect, font_resource_id: Int, baseline_y: Float) -> KaintanaRenderResult:
     var result = kaintana_reconcile_node(ctx, "kaintana.slider", stable_key, label, "slider", label, rect, true)
@@ -88,4 +117,11 @@ pub fn kaintana_widget_slider(ctx: KaintanaContext, stable_key: StringView, labe
     next = kaintana_record_fill(next, result.native_node_id, fill, "kaintana.slider.fill", fill_color)
     next = kaintana_record_fill(next, result.native_node_id, knob, "kaintana.slider.knob", knob_color)
     next = kaintana_record_text(next, result.native_node_id, font_resource_id, label, rect.x + 16.0, rect.y + baseline_y, "ink", ctx.theme.ink, kaintana_text_size_from_baseline(baseline_y))
+    defer kaintana_context_mark_command(next, result.native_node_id, KAINTANA_COMMAND_FILL)
     return KaintanaRenderResult { ctx: next, node: result.node, native_node_id: result.native_node_id, activated: 0, value: resolved_value }
+
+pub fn kaintana_widget_slider_typed<T>(ctx: KaintanaContext, stable_key: StringView, label: StringView, value: T, min_value: T, max_value: T, rect: KaintanaRect, font_resource_id: Int, baseline_y: Float) -> KaintanaRenderResult where T: KaintanaSliderValue:
+    let v = value.to_float()
+    let min_v = min_value.to_float()
+    let max_v = max_value.to_float()
+    return kaintana_widget_slider(ctx, stable_key, label, v, min_v, max_v, rect, font_resource_id, baseline_y)

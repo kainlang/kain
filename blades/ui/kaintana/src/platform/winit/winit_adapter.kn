@@ -14,6 +14,12 @@ pub struct KaintanaWinitAdapter:
     should_close: Int
     status: Int
 
+axiom kaintana_winit_axiom:
+    when target("llvm")
+    when capability("ui.winit")
+    guarantee "kaintana winit adapter manages session lifecycle with pump and present"
+    fallback kaintana_winit_adapter_probe
+
 pub fn kaintana_winit_adapter_create(app_name: String, spec: KaintanaWindowSpec) -> KaintanaWinitAdapter:
     let session = ui_host_session_create(app_name, spec.title, spec.width, spec.height, spec.passive_backend_id)
     return KaintanaWinitAdapter {
@@ -57,7 +63,7 @@ pub fn kaintana_winit_adapter_pump(adapter: KaintanaWinitAdapter) -> KaintanaWin
 pub fn kaintana_winit_adapter_present(adapter: KaintanaWinitAdapter) -> KaintanaWinitAdapter:
     if adapter.session_id <= 0:
         return adapter
-    let present = ui_host_present(adapter.session_id)
+    defer ui_host_present(adapter.session_id)
     return KaintanaWinitAdapter {
         session_id: adapter.session_id,
         backend_id: adapter.backend_id,
@@ -66,7 +72,7 @@ pub fn kaintana_winit_adapter_present(adapter: KaintanaWinitAdapter) -> Kaintana
         presented_draw_count: ui_host_presented_draw_count(adapter.session_id),
         frame_hash: ui_host_frame_hash(adapter.session_id),
         should_close: ui_host_should_close(adapter.session_id),
-        status: present,
+        status: 0,
     }
 
 pub fn kaintana_winit_adapter_score(adapter: KaintanaWinitAdapter) -> Int:

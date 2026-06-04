@@ -7,10 +7,11 @@
 use kain_core::error::{KainError, KainResult};
 use kain_core::runtime::{register_env_extension, Env, Value};
 use kain_core::stdlib::{register_stdlib_extension, BuiltinFn, StdLib};
+use kain_core::CompileTarget;
 use kain_error::DiagnosticSeverity;
 use kain_service_api::{
-    CloseDocumentParams, CompileTarget, OpenDocumentParams, ServiceError, ServiceHost,
-    UpdateDocumentParams, WorkspaceConfig,
+    CloseDocumentParams, OpenDocumentParams, ServiceError, ServiceHost, UpdateDocumentParams,
+    WorkspaceConfig,
 };
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
@@ -154,7 +155,15 @@ fn register_service_stdlib(stdlib: &mut StdLib) {
     ];
 
     for builtin in builtins {
-        stdlib.functions.insert(builtin.name.to_string(), *builtin);
+        stdlib.functions.insert(
+            builtin.name.to_string(),
+            BuiltinFn {
+                name: builtin.name,
+                params: builtin.params.clone(),
+                return_type: builtin.return_type,
+                doc: builtin.doc,
+            },
+        );
     }
 }
 

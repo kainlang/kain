@@ -608,6 +608,8 @@ struct LlvmGenerator {
     string_locals: HashSet<String>,
     runtime_array_locals: HashMap<String, String>,
     runtime_array_function_returns: HashMap<String, String>,
+    tagged_value_locals: HashMap<String, String>,
+    tagged_value_function_returns: HashMap<String, String>,
     string_length_values: HashMap<String, String>,
     pooled_string_literal_slots: HashMap<String, String>,
     native_entanglements: Vec<NativeEntangleBinding>,
@@ -759,6 +761,8 @@ impl LlvmGenerator {
             string_locals: HashSet::new(),
             runtime_array_locals: HashMap::new(),
             runtime_array_function_returns: HashMap::new(),
+            tagged_value_locals: HashMap::new(),
+            tagged_value_function_returns: HashMap::new(),
             string_length_values: HashMap::new(),
             pooled_string_literal_slots: HashMap::new(),
             native_entanglements: Vec::new(),
@@ -2535,6 +2539,52 @@ impl LlvmGenerator {
                 }
                 _ => None,
             })
+    }
+
+    fn resolved_tagged_value_success_llvm_ty(&self, ty: &ResolvedType) -> Option<String> {
+        match ty {
+            ResolvedType::Option(inner) => Some(self.map_type(inner)),
+            ResolvedType::Result(ok, _) => Some(self.map_type(ok)),
+            _ => None,
+        }
+    }
+
+    fn ast_tagged_value_success_llvm_ty(&self, ty: &Type) -> Option<String> {
+        match ty {
+            Type::Named { name, generics, .. } if name == "Option" && generics.len() == 1 => {
+                Some(self.map_type_from_ast(&generics[0]))
+            }
+            Type::Named { name, generics, .. } if name == "Result" && generics.len() == 2 => {
+                Some(self.map_type_from_ast(&generics[0]))
+            }
+            Type::Option(inner, _) => Some(self.map_type_from_ast(inner)),
+            Type::Result(ok, _, _) => Some(self.map_type_from_ast(ok)),
+            _ => None,
+        }
+    }
+
+    fn callable_return_tagged_value_success_llvm_ty(
+        &self,
+        resolved_type: &ResolvedType,
+        explicit_return_type: Option<&Type>,
+    ) -> Option<String> {
+        explicit_return_type
+            .and_then(|ty| self.ast_tagged_value_success_llvm_ty(ty))
+            .or_else(|| match resolved_type {
+                ResolvedType::Function { ret, .. } => self.resolved_tagged_value_success_llvm_ty(ret),
+                _ => None,
+            })
+    }
+
+    fn tagged_value_expr_success_llvm_ty(&self, expr: &Expr) -> Option<String> {
+        match Self::expr_strip_parens(expr) {
+            Expr::Ident(name, _) => self.tagged_value_locals.get(name).cloned(),
+            Expr::Call { callee, .. } => match Self::expr_strip_parens(callee) {
+                Expr::Ident(name, _) => self.tagged_value_function_returns.get(name).cloned(),
+                _ => None,
+            },
+            _ => None,
+        }
     }
 
     fn runtime_array_expr_element_llvm_ty(&self, expr: &Expr) -> Option<String> {
@@ -12695,6 +12745,14 @@ impl LlvmGenerator {
         } else {
             self.runtime_array_function_returns.remove(name);
         }
+        if let Some(payload_ty) =
+            self.callable_return_tagged_value_success_llvm_ty(resolved_type, None)
+        {
+            self.tagged_value_function_returns
+                .insert(name.to_string(), payload_ty);
+        } else {
+            self.tagged_value_function_returns.remove(name);
+        }
         self.function_params.insert(
             name.to_string(),
             params.iter().map(|param| self.map_type(param)).collect(),
@@ -12732,6 +12790,15 @@ impl LlvmGenerator {
                             .insert(func.ast.name.clone(), element_ty);
                     } else {
                         self.runtime_array_function_returns.remove(&func.ast.name);
+                    }
+                    if let Some(payload_ty) = self.callable_return_tagged_value_success_llvm_ty(
+                        &func.resolved_type,
+                        func.ast.return_type.as_ref(),
+                    ) {
+                        self.tagged_value_function_returns
+                            .insert(func.ast.name.clone(), payload_ty);
+                    } else {
+                        self.tagged_value_function_returns.remove(&func.ast.name);
                     }
                     self.function_params.insert(func.ast.name.clone(), params);
                     self.string_function_params.insert(
@@ -15962,6 +16029,7 @@ impl LlvmGenerator {
             }
             self.sealed_literal_map_locals.remove(var_name);
             self.runtime_array_locals.remove(var_name);
+            self.tagged_value_locals.remove(var_name);
             if let Some((addr, ty)) = self.locals.get(var_name).cloned() {
                 if self.borrowed_locals.contains(var_name) {
                     continue;
@@ -16274,6 +16342,7 @@ impl LlvmGenerator {
                                 self.clear_json_local_tracking(name);
                                 self.shattered_array_locals.remove(name);
                                 self.runtime_array_locals.remove(name);
+                                self.tagged_value_locals.remove(name);
                                 self.fixed_array_locals.insert(
                                     name.clone(),
                                     FixedArrayLocal {
@@ -16448,6 +16517,7 @@ impl LlvmGenerator {
                                 );
                                 self.helper_owned_pointer_locals.remove(name);
                                 self.clear_json_local_tracking(name);
+                                self.tagged_value_locals.remove(name);
                                 self.ephemeral_owned_pointer_locals.insert(
                                     name.clone(),
                                     EphemeralOwnershipLocalWitness {
@@ -16493,6 +16563,10 @@ impl LlvmGenerator {
                             .as_ref()
                             .and_then(|declared| self.ast_runtime_array_element_llvm_ty(declared))
                             .or_else(|| self.runtime_array_expr_element_llvm_ty(val_expr));
+                        let tagged_value_payload_ty = ty
+                            .as_ref()
+                            .and_then(|declared| self.ast_tagged_value_success_llvm_ty(declared))
+                            .or_else(|| self.tagged_value_expr_success_llvm_ty(val_expr));
                         let can_lower_as_ssa_scalar = !*mutable
                             && self.value_can_lower_as_ssa_local(&val_ty)
                             && !preserve_lowered_pointer_helper_result
@@ -16508,6 +16582,12 @@ impl LlvmGenerator {
                             self.fixed_array_locals.remove(name);
                             self.shattered_array_locals.remove(name);
                             self.runtime_array_locals.remove(name);
+                            if let Some(payload_ty) = tagged_value_payload_ty.clone() {
+                                self.tagged_value_locals
+                                    .insert(name.clone(), payload_ty);
+                            } else {
+                                self.tagged_value_locals.remove(name);
+                            }
                             self.clear_json_local_tracking(name);
                             self.clear_runtime_any_local_tracking(name);
                             self.helper_owned_pointer_locals.remove(name);
@@ -16542,6 +16622,12 @@ impl LlvmGenerator {
                         self.locals.insert(name.clone(), (addr_reg, val_ty));
                         self.record_authored_struct_pointer_local_for_let(name, ty.as_ref(), *span);
                         self.record_runtime_array_local_element_ty(name, runtime_array_element_ty);
+                        if let Some(payload_ty) = tagged_value_payload_ty {
+                            self.tagged_value_locals
+                                .insert(name.clone(), payload_ty);
+                        } else {
+                            self.tagged_value_locals.remove(name);
+                        }
                         self.record_json_local_tracking_from_expr(name, val_expr);
                         self.record_runtime_any_local_tracking_from_expr(name, val_expr);
                         self.record_helper_owned_pointer_local(name, local_pointer_provenance);
@@ -19526,6 +19612,9 @@ impl LlvmGenerator {
                             if !args.is_empty() {
                                 return Err(KainError::codegen("Result.ok expects no arguments", *span));
                             }
+                            let payload_ty = self
+                                .tagged_value_expr_success_llvm_ty(receiver)
+                                .unwrap_or_else(|| "i64".to_string());
                             let is_ok = self.compile_tagged_value_is_tag(
                                 &obj_val,
                                 &[ABI_TAG_RESULT_OK_LLVM],
@@ -19545,13 +19634,13 @@ impl LlvmGenerator {
                             self.emit(&format!("  br label %{}", merge_label));
 
                             self.emit_label(&ok_label);
-                            let (payload, payload_ty) =
-                                self.compile_tagged_value_payload_copy(&obj_val, "i8*");
-                            let some_value = self.compile_tagged_box_from_value(
+                            let (payload, payload_llvm_ty) =
+                                self.compile_tagged_value_payload_copy(&obj_val, &payload_ty);
+                            let some_value = self.compile_tagged_value_from_compiled_payload(
                                 ABI_TAG_OPTION_SOME_LLVM,
                                 &payload,
-                                &payload_ty,
-                                8,
+                                &payload_llvm_ty,
+                                *span,
                             )?;
                             let some_block = self.current_block.clone();
                             self.emit(&format!("  br label %{}", merge_label));
@@ -19579,7 +19668,10 @@ impl LlvmGenerator {
                             if method == "unwrap" && !args.is_empty() {
                                 return Err(KainError::codegen("unwrap expects no arguments", *span));
                             }
-                            let result = self.compile_tagged_value_payload_copy(&obj_val, "i64");
+                            let payload_ty = self
+                                .tagged_value_expr_success_llvm_ty(receiver)
+                                .unwrap_or_else(|| "i64".to_string());
+                            let result = self.compile_tagged_value_payload_copy(&obj_val, &payload_ty);
                             self.emit_release_if_new_object_expr(receiver, &obj_val, &obj_ty);
                             return Ok(result);
                         }

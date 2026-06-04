@@ -12,6 +12,48 @@
 
 use std::json
 
+@extern
+fn kain_service_open_workspace(root: String, target: Int) -> Any
+
+@extern
+fn kain_service_close_workspace(workspace_id: Int) -> Any
+
+@extern
+fn kain_service_open_document(workspace_id: Int, path: String, source: String, version: Int) -> Any
+
+@extern
+fn kain_service_update_document(workspace_id: Int, document_id: Int, source: String, version: Int) -> Any
+
+@extern
+fn kain_service_close_document(workspace_id: Int, document_id: Int) -> Any
+
+@extern
+fn kain_service_check_document(workspace_id: Int, document_id: Int) -> Any
+
+@extern
+fn kain_service_hover_at(workspace_id: Int, document_id: Int, pos_line: Int, column: Int) -> Any
+
+@extern
+fn kain_service_definition_at(workspace_id: Int, document_id: Int, pos_line: Int, column: Int) -> Any
+
+@extern
+fn kain_service_references_at(workspace_id: Int, document_id: Int, pos_line: Int, column: Int) -> Any
+
+@extern
+fn kain_service_completions_at(workspace_id: Int, document_id: Int, pos_line: Int, column: Int) -> Any
+
+@extern
+fn kain_service_document_symbols(workspace_id: Int, document_id: Int) -> Any
+
+@extern
+fn kain_service_workspace_symbols(workspace_id: Int, query: String) -> Any
+
+@extern
+fn kain_service_semantic_tokens(workspace_id: Int, document_id: Int) -> Any
+
+@extern
+fn kain_service_format_document(workspace_id: Int, document_id: Int) -> Any
+
 // ═══════════════════════════════════════════════════════════════════
 // Types
 // ═══════════════════════════════════════════════════════════════════
@@ -175,7 +217,7 @@ fn _location_from(value: Any) -> Location:
     }
 
 fn _symbol_kind_from(code: Int) -> SymbolKind:
-    match code:
+    let kind = match code:
         1 => SymbolKind::Function
         2 => SymbolKind::Method
         3 => SymbolKind::Struct
@@ -191,9 +233,10 @@ fn _symbol_kind_from(code: Int) -> SymbolKind:
         13 => SymbolKind::TypeAlias
         14 => SymbolKind::Variable
         _ => SymbolKind::Variable
+    return kind
 
 fn _completion_kind_from(code: Int) -> CompletionKind:
-    match code:
+    let kind = match code:
         1 => CompletionKind::Function
         2 => CompletionKind::Method
         3 => CompletionKind::Struct
@@ -209,9 +252,10 @@ fn _completion_kind_from(code: Int) -> CompletionKind:
         13 => CompletionKind::Type
         14 => CompletionKind::Stdlib
         _ => CompletionKind::Keyword
+    return kind
 
 fn _target_to_code(target: CompileTarget) -> Int:
-    match target:
+    let code = match target:
         CompileTarget::Llvm => 6
         CompileTarget::C => 5
         CompileTarget::Cpp => 8
@@ -230,6 +274,7 @@ fn _target_to_code(target: CompileTarget) -> Int:
         CompileTarget::Interpret => 16
         CompileTarget::Test => 17
         CompileTarget::Ks => 18
+    return code
 
 fn _diagnostic_label_from(value: Any) -> DiagnosticLabel:
     return DiagnosticLabel {

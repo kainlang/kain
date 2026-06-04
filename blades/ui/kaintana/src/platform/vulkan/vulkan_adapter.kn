@@ -11,6 +11,12 @@ pub struct KaintanaVulkanAdapter:
     frame_status: Int
     draw_commands: Int
 
+axiom kaintana_vulkan_axiom:
+    when target("llvm")
+    when capability("gpu.vulkan")
+    guarantee "kaintana vulkan adapter uses graphics_session for SPIR-V staging and probe"
+    fallback kaintana_vulkan_adapter_probe_lite
+
 pub fn kaintana_vulkan_adapter_create(app_name: String, spec: KaintanaWindowSpec) -> KaintanaVulkanAdapter:
     let session = graphics_session_create(app_name, spec.width, spec.height)
     var supported = 0
@@ -39,6 +45,7 @@ pub fn kaintana_vulkan_adapter_stage_spirv_probe(adapter: KaintanaVulkanAdapter)
     if adapter.graphics_session_id <= 0:
         return adapter
     let session = adapter.graphics_session_id
+    defer graphics_session_destroy(adapter.graphics_session_id)
     let _begin = graphics_begin_frame(session, 16.0)
     let vertices = graphics_buffer_create_from_hex(session, "vertex", "kaintana.ui.vertices", "00000000010000000200000003000000", 12)
     let indices = graphics_buffer_create_from_hex(session, "index", "kaintana.ui.indices", "000000000100000002000000000000000200000003000000", 4)
@@ -67,6 +74,13 @@ pub fn kaintana_vulkan_adapter_destroy(adapter: KaintanaVulkanAdapter) -> Int:
     if adapter.graphics_session_id <= 0:
         return 0
     return graphics_session_destroy(adapter.graphics_session_id)
+
+pub fn kaintana_vulkan_adapter_probe_lite(app_name: String, spec: KaintanaWindowSpec) -> Int:
+    let _reset = graphics_reset()
+    let adapter0 = kaintana_vulkan_adapter_create(app_name, spec)
+    let score = kaintana_vulkan_adapter_score(adapter0)
+    let _destroy = kaintana_vulkan_adapter_destroy(adapter0)
+    return score
 
 pub fn kaintana_vulkan_adapter_probe(app_name: String, spec: KaintanaWindowSpec) -> Int:
     let _reset = graphics_reset()

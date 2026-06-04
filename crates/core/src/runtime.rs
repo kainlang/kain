@@ -1298,13 +1298,18 @@ impl Env {
         self.define("None".to_string(), Value::None);
         self.define("none".to_string(), Value::None); // Also lowercase for convenience
 
-        // Some is just an identity function - returns its argument
-        // This lets code use Some(value) pattern even though we don't have proper Option types
+        // Some constructs a real Option::Some runtime value so authored Kain can
+        // use the same Option methods and `?` semantics in the interpreter lane
+        // that the typechecker and LLVM lane already understand.
         self.define_native("Some", |_env, args| {
             if args.len() != 1 {
                 return Err(KainError::runtime("Some: expected 1 argument"));
             }
-            Ok(args[0].clone())
+            Ok(Value::EnumVariant(
+                "Option".to_string(),
+                "Some".to_string(),
+                vec![args[0].clone()],
+            ))
         });
 
         // Register built-in functions
@@ -5479,31 +5484,68 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
                     ))),
                 },
                 Value::None => match method.as_str() {
-                    "cloned" | "copied" => {
-                        if !arg_vals.is_empty() {
-                            return Err(KainError::runtime(format!(
-                                "Option.{method} expects no arguments"
-                            )));
+                    "map" | "and_then" | "cloned" | "copied" | "take" | "filter" => {
+                        match method.as_str() {
+                            "map" | "and_then" if arg_vals.len() != 1 => {
+                                Err(KainError::runtime(format!("Option.{method} expects 1 argument")))
+                            }
+                            "filter" if arg_vals.len() != 1 => {
+                                Err(KainError::runtime("Option.filter expects 1 argument"))
+                            }
+                            value if matches!(value, "cloned" | "copied" | "take") && !arg_vals.is_empty() => {
+                                Err(KainError::runtime(format!("Option.{method} expects no arguments")))
+                            }
+                            _ => Ok(Value::None),
                         }
-                        Ok(Value::None)
                     }
-                    "take" => {
-                        if !arg_vals.is_empty() {
-                            return Err(KainError::runtime("Option.take expects no arguments"));
-                        }
-                        Ok(Value::None)
-                    }
-                    "filter" => {
+                    "unwrap_or" | "or" | "or_" => {
                         if arg_vals.len() != 1 {
-                            return Err(KainError::runtime("Option.filter expects 1 argument"));
-                        }
-                        Ok(Value::None)
-                    }
-                    "or" | "or_" => {
-                        if arg_vals.len() != 1 {
-                            return Err(KainError::runtime("Option.or expects 1 argument"));
+                            return Err(KainError::runtime(format!("Option.{method} expects 1 argument")));
                         }
                         Ok(arg_vals[0].clone())
+                    }
+                    "or_else" | "unwrap_or_else" | "ok_or_else" => {
+                        if arg_vals.len() != 1 {
+                            return Err(KainError::runtime(format!("Option.{method} expects 1 argument")));
+                        }
+                        let produced = call_function(env, arg_vals[0].clone(), vec![])?;
+                        if method == "ok_or_else" {
+                            Ok(Value::Result(false, Box::new(produced)))
+                        } else {
+                            Ok(produced)
+                        }
+                    }
+                    "unwrap" | "expect" => {
+                        if method == "expect" && arg_vals.len() != 1 {
+                            return Err(KainError::runtime("Option.expect expects exactly one argument"));
+                        }
+                        if method == "unwrap" && !arg_vals.is_empty() {
+                            return Err(KainError::runtime("Option.unwrap expects no arguments"));
+                        }
+                        let message = if method == "expect" {
+                            format!(": {}", arg_vals[0])
+                        } else {
+                            String::new()
+                        };
+                        Err(KainError::runtime(format!("called Option.{method} on None{message}")))
+                    }
+                    "is_some" => {
+                        if !arg_vals.is_empty() {
+                            return Err(KainError::runtime("Option.is_some expects no arguments"));
+                        }
+                        Ok(Value::Bool(false))
+                    }
+                    "is_none" => {
+                        if !arg_vals.is_empty() {
+                            return Err(KainError::runtime("Option.is_none expects no arguments"));
+                        }
+                        Ok(Value::Bool(true))
+                    }
+                    "is_some_and" => {
+                        if arg_vals.len() != 1 {
+                            return Err(KainError::runtime("Option.is_some_and expects 1 argument"));
+                        }
+                        Ok(Value::Bool(false))
                     }
                     _ => Err(KainError::runtime(format!(
                         "Method {} not found on Option",
@@ -5514,13 +5556,42 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
                     if enum_name == "Option" =>
                 {
                     match method.as_str() {
+                        "map" => {
+                            if arg_vals.len() != 1 {
+                                return Err(KainError::runtime("Option.map expects 1 argument"));
+                            }
+                            if variant == "Some" && fields.len() == 1 {
+                                let mapped = call_function(
+                                    env,
+                                    arg_vals[0].clone(),
+                                    vec![fields[0].clone()],
+                                )?;
+                                Ok(Value::EnumVariant(
+                                    "Option".to_string(),
+                                    "Some".to_string(),
+                                    vec![mapped],
+                                ))
+                            } else {
+                                Ok(Value::None)
+                            }
+                        }
+                        "and_then" => {
+                            if arg_vals.len() != 1 {
+                                return Err(KainError::runtime("Option.and_then expects 1 argument"));
+                            }
+                            if variant == "Some" && fields.len() == 1 {
+                                call_function(env, arg_vals[0].clone(), vec![fields[0].clone()])
+                            } else {
+                                Ok(Value::None)
+                            }
+                        }
                         "cloned" | "copied" => {
                             if !arg_vals.is_empty() {
                                 return Err(KainError::runtime(format!(
                                     "Option.{method} expects no arguments"
                                 )));
                             }
-                            Ok(obj_val)
+                            Ok(obj_val.clone())
                         }
                         "take" => {
                             if !arg_vals.is_empty() {
@@ -5528,7 +5599,7 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
                             }
                             if variant == "Some" && fields.len() == 1 {
                                 eval_assignment(env, receiver, Value::None)?;
-                                Ok(obj_val)
+                                Ok(obj_val.clone())
                             } else {
                                 Ok(Value::None)
                             }
@@ -5543,7 +5614,7 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
                                     arg_vals[0].clone(),
                                     vec![fields[0].clone()],
                                 )? {
-                                    Value::Bool(true) => Ok(obj_val),
+                                    Value::Bool(true) => Ok(obj_val.clone()),
                                     Value::Bool(false) => Ok(Value::None),
                                     other => Err(KainError::runtime(format!(
                                         "Option.filter predicate must return Bool, found {}",
@@ -5554,14 +5625,90 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
                                 Ok(Value::None)
                             }
                         }
-                        "or" | "or_" => {
-                            if arg_vals.len() != 1 {
-                                return Err(KainError::runtime("Option.or expects 1 argument"));
+                        "unwrap_or" | "unwrap_or_else" => {
+                            let expected = if method == "unwrap_or" { 1 } else { 1 };
+                            if arg_vals.len() != expected {
+                                return Err(KainError::runtime(format!("Option.{method} expects 1 argument")));
                             }
                             if variant == "Some" && fields.len() == 1 {
-                                Ok(obj_val)
+                                Ok(fields[0].clone())
+                            } else if method == "unwrap_or" {
+                                Ok(arg_vals[0].clone())
+                            } else {
+                                call_function(env, arg_vals[0].clone(), vec![])
+                            }
+                        }
+                        "or" | "or_" | "or_else" => {
+                            if arg_vals.len() != 1 {
+                                return Err(KainError::runtime(format!("Option.{method} expects 1 argument")));
+                            }
+                            if variant == "Some" && fields.len() == 1 {
+                                Ok(obj_val.clone())
+                            } else if method == "or_else" {
+                                call_function(env, arg_vals[0].clone(), vec![])
                             } else {
                                 Ok(arg_vals[0].clone())
+                            }
+                        }
+                        "unwrap" | "expect" => {
+                            if method == "expect" && arg_vals.len() != 1 {
+                                return Err(KainError::runtime("Option.expect expects exactly one argument"));
+                            }
+                            if method == "unwrap" && !arg_vals.is_empty() {
+                                return Err(KainError::runtime("Option.unwrap expects no arguments"));
+                            }
+                            if variant == "Some" && fields.len() == 1 {
+                                Ok(fields[0].clone())
+                            } else {
+                                let message = if method == "expect" {
+                                    format!(": {}", arg_vals[0])
+                                } else {
+                                    String::new()
+                                };
+                                Err(KainError::runtime(format!("called Option.{method} on None{message}")))
+                            }
+                        }
+                        "is_some" => {
+                            if !arg_vals.is_empty() {
+                                return Err(KainError::runtime("Option.is_some expects no arguments"));
+                            }
+                            Ok(Value::Bool(variant == "Some" && fields.len() == 1))
+                        }
+                        "is_none" => {
+                            if !arg_vals.is_empty() {
+                                return Err(KainError::runtime("Option.is_none expects no arguments"));
+                            }
+                            Ok(Value::Bool(!(variant == "Some" && fields.len() == 1)))
+                        }
+                        "is_some_and" => {
+                            if arg_vals.len() != 1 {
+                                return Err(KainError::runtime("Option.is_some_and expects 1 argument"));
+                            }
+                            if variant == "Some" && fields.len() == 1 {
+                                match call_function(
+                                    env,
+                                    arg_vals[0].clone(),
+                                    vec![fields[0].clone()],
+                                )? {
+                                    Value::Bool(value) => Ok(Value::Bool(value)),
+                                    other => Err(KainError::runtime(format!(
+                                        "Option.is_some_and predicate must return Bool, found {}",
+                                        runtime_value_kind(&other)
+                                    ))),
+                                }
+                            } else {
+                                Ok(Value::Bool(false))
+                            }
+                        }
+                        "ok_or_else" => {
+                            if arg_vals.len() != 1 {
+                                return Err(KainError::runtime("Option.ok_or_else expects 1 argument"));
+                            }
+                            if variant == "Some" && fields.len() == 1 {
+                                Ok(Value::Result(true, Box::new(fields[0].clone())))
+                            } else {
+                                let error_value = call_function(env, arg_vals[0].clone(), vec![])?;
+                                Ok(Value::Result(false, Box::new(error_value)))
                             }
                         }
                         _ => Err(KainError::runtime(format!(
@@ -5570,6 +5717,110 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
                         ))),
                     }
                 }
+                Value::Result(ok, payload) => match method.as_str() {
+                    "map" => {
+                        if arg_vals.len() != 1 {
+                            return Err(KainError::runtime("Result.map expects 1 argument"));
+                        }
+                        if ok {
+                            let mapped = call_function(
+                                env,
+                                arg_vals[0].clone(),
+                                vec![payload.as_ref().clone()],
+                            )?;
+                            Ok(Value::Result(true, Box::new(mapped)))
+                        } else {
+                            Ok(Value::Result(false, payload.clone()))
+                        }
+                    }
+                    "map_err" => {
+                        if arg_vals.len() != 1 {
+                            return Err(KainError::runtime("Result.map_err expects 1 argument"));
+                        }
+                        if ok {
+                            Ok(Value::Result(true, payload.clone()))
+                        } else {
+                            let mapped = call_function(
+                                env,
+                                arg_vals[0].clone(),
+                                vec![payload.as_ref().clone()],
+                            )?;
+                            Ok(Value::Result(false, Box::new(mapped)))
+                        }
+                    }
+                    "unwrap_or" => {
+                        if arg_vals.len() != 1 {
+                            return Err(KainError::runtime("Result.unwrap_or expects exactly one argument"));
+                        }
+                        if ok {
+                            Ok(payload.as_ref().clone())
+                        } else {
+                            Ok(arg_vals[0].clone())
+                        }
+                    }
+                    "or_else" | "unwrap_or_else" => {
+                        if arg_vals.len() != 1 {
+                            return Err(KainError::runtime(format!("Result.{method} expects 1 argument")));
+                        }
+                        if ok {
+                            if method == "unwrap_or_else" {
+                                Ok(payload.as_ref().clone())
+                            } else {
+                                Ok(Value::Result(true, payload.clone()))
+                            }
+                        } else {
+                            call_function(env, arg_vals[0].clone(), vec![payload.as_ref().clone()])
+                        }
+                    }
+                    "unwrap" | "expect" => {
+                        if method == "expect" && arg_vals.len() != 1 {
+                            return Err(KainError::runtime("Result.expect expects exactly one argument"));
+                        }
+                        if method == "unwrap" && !arg_vals.is_empty() {
+                            return Err(KainError::runtime("Result.unwrap expects no arguments"));
+                        }
+                        if ok {
+                            Ok(payload.as_ref().clone())
+                        } else {
+                            let message = if method == "expect" {
+                                format!(": {}", arg_vals[0])
+                            } else {
+                                String::new()
+                            };
+                            Err(KainError::runtime(format!("called Result.{method} on Err{message}")))
+                        }
+                    }
+                    "ok" => {
+                        if !arg_vals.is_empty() {
+                            return Err(KainError::runtime("Result.ok expects no arguments"));
+                        }
+                        if ok {
+                            Ok(Value::EnumVariant(
+                                "Option".to_string(),
+                                "Some".to_string(),
+                                vec![payload.as_ref().clone()],
+                            ))
+                        } else {
+                            Ok(Value::None)
+                        }
+                    }
+                    "is_ok" => {
+                        if !arg_vals.is_empty() {
+                            return Err(KainError::runtime("Result.is_ok expects no arguments"));
+                        }
+                        Ok(Value::Bool(ok))
+                    }
+                    "is_err" => {
+                        if !arg_vals.is_empty() {
+                            return Err(KainError::runtime("Result.is_err expects no arguments"));
+                        }
+                        Ok(Value::Bool(!ok))
+                    }
+                    _ => Err(KainError::runtime(format!(
+                        "Method {} not found on Result",
+                        method
+                    ))),
+                },
                 Value::Array(_) => {
                     // Map common array methods to native functions
                     match method.as_str() {
@@ -9005,6 +9256,89 @@ mod tests {
                 if enum_name == "Option" && variant == "Some" && fields.len() == 1
         ));
         assert!(matches!(env.lookup_value("bit_pack"), Some(Value::None)));
+    }
+
+    #[test]
+    fn eval_some_constructor_builds_real_option_variant() {
+        let span = Span::default();
+        let mut env = Env::new();
+        let expr = Expr::Call {
+            callee: Box::new(Expr::Ident("Some".to_string(), span)),
+            args: vec![CallArg {
+                name: None,
+                value: Expr::Int(7, span),
+                span,
+            }],
+            span,
+        };
+
+        let value = eval_expr(&mut env, &expr).expect("Some(...) should evaluate");
+        assert!(matches!(
+            value,
+            Value::EnumVariant(enum_name, variant, fields)
+                if enum_name == "Option" && variant == "Some" && matches!(fields.as_slice(), [Value::Int(7)])
+        ));
+    }
+
+    #[test]
+    fn eval_option_unwrap_and_is_some_work_for_runtime_option_values() {
+        let span = Span::default();
+        let mut env = Env::new();
+        let some_expr = Expr::Call {
+            callee: Box::new(Expr::Ident("Some".to_string(), span)),
+            args: vec![CallArg {
+                name: None,
+                value: Expr::Bool(true, span),
+                span,
+            }],
+            span,
+        };
+        let unwrap_expr = Expr::MethodCall {
+            receiver: Box::new(some_expr.clone()),
+            method: "unwrap".to_string(),
+            args: Vec::<CallArg>::new(),
+            span,
+        };
+        let is_some_expr = Expr::MethodCall {
+            receiver: Box::new(some_expr),
+            method: "is_some".to_string(),
+            args: Vec::<CallArg>::new(),
+            span,
+        };
+
+        let unwrapped = eval_expr(&mut env, &unwrap_expr).expect("Option.unwrap should evaluate");
+        assert!(matches!(unwrapped, Value::Bool(true)));
+        let is_some = eval_expr(&mut env, &is_some_expr).expect("Option.is_some should evaluate");
+        assert!(matches!(is_some, Value::Bool(true)));
+    }
+
+    #[test]
+    fn eval_result_unwrap_or_and_is_err_work_in_runtime_lane() {
+        let span = Span::default();
+        let mut env = Env::new();
+        let err_value = Value::Result(false, Box::new(Value::String("nope".to_string())));
+        let is_err_expr = Expr::MethodCall {
+            receiver: Box::new(Expr::Ident("err_value".to_string(), span)),
+            method: "is_err".to_string(),
+            args: Vec::<CallArg>::new(),
+            span,
+        };
+        let unwrap_or_expr = Expr::MethodCall {
+            receiver: Box::new(Expr::Ident("err_value".to_string(), span)),
+            method: "unwrap_or".to_string(),
+            args: vec![CallArg {
+                name: None,
+                value: Expr::String("fallback".to_string(), span),
+                span,
+            }],
+            span,
+        };
+        env.define("err_value".to_string(), err_value);
+
+        let is_err = eval_expr(&mut env, &is_err_expr).expect("Result.is_err should evaluate");
+        assert!(matches!(is_err, Value::Bool(true)));
+        let fallback = eval_expr(&mut env, &unwrap_or_expr).expect("Result.unwrap_or should evaluate");
+        assert!(matches!(fallback, Value::String(value) if value == "fallback"));
     }
 
     #[test]

@@ -1,5 +1,5 @@
 {
-  "checksum": "77a43e336f45ebcd2dfaceda70eea35c0f45dde5e1cff1301cb1a8f54a07666d",
+  "checksum": "4f0ced2a8fc9a474a1c57739edd79c2779a7d0e2890e7c11af0a65183dda876a",
   "crates": {
     "adler2 2.0.1": {
       "name": "adler2",
@@ -14395,6 +14395,48 @@
             {
               "id": "tempfile 3.25.0",
               "target": "tempfile"
+            }
+          ],
+          "selects": {}
+        },
+        "edition": "2021",
+        "version": "0.1.0"
+      },
+      "license": "MIT",
+      "license_ids": [
+        "MIT"
+      ],
+      "license_file": null
+    },
+    "kain-service-bridge 0.1.0": {
+      "name": "kain-service-bridge",
+      "version": "0.1.0",
+      "package_url": null,
+      "repository": null,
+      "targets": [
+        {
+          "Library": {
+            "crate_name": "kain_service_bridge",
+            "crate_root": "src/lib.rs",
+            "srcs": {
+              "allow_empty": true,
+              "include": [
+                "**/*.rs"
+              ]
+            }
+          }
+        }
+      ],
+      "library_target_name": "kain_service_bridge",
+      "common_attrs": {
+        "compile_data_glob": [
+          "**"
+        ],
+        "deps": {
+          "common": [
+            {
+              "id": "once_cell 1.21.3",
+              "target": "once_cell"
             }
           ],
           "selects": {}
@@ -40817,6 +40859,7 @@
     "kain-selfhost 0.1.0": "crates/selfhost",
     "kain-semantic 0.1.0": "crates/semantic",
     "kain-service-api 0.1.0": "crates/service-api",
+    "kain-service-bridge 0.1.0": "crates/service-bridge",
     "kain-shader-text 0.1.0": "crates/shader-text",
     "kain-stdlib-map 0.1.0": "crates/stdlib-map",
     "kain-sys-codegen 0.1.0": "crates/sys-codegen",

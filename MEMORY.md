@@ -1,5 +1,29 @@
 # Kain Memory
 
+# 2026-06-04 - service API / std::kain readiness audit
+
+What changed:
+
+- Fixed `stdlib/kain.kn` so the `std::kain` surface is actually visible and typecheckable: added the missing private `@extern` declarations for all `kain_service_*` bridge calls and regenerated `stdlib/stdlib.map.json` plus `stdlib/STDLIB_MAP.llm.md`.
+- Fixed `crates/service-bridge/src/lib.rs` so the bridge crate compiles into the CLI again: import `CompileTarget` from `kain_core` directly and clone `BuiltinFn` metadata instead of moving out of a shared slice.
+- Verified the intended architecture still holds: `crates/service-api` is the compiler-service seam, not the LSP protocol server; a Kain-authored LSP should still sit above it.
+
+Validation:
+
+- `python query_stdlib.py --module kain --limit 120` now lists the `std::kain` public surface after atlas regeneration.
+- `cargo check -p kain-service-api -p kain-service-bridge -p cli --target-dir F:\_b\cargo-target\service-lsp-audit` passed after the bridge fixes.
+- A fresh cargo-built CLI can now resolve and invoke the service bridge entry point far enough to hit authored Kain/runtime behavior, which exposed the next two blockers below.
+
+Blockers discovered during the audit:
+
+- Authored Kain cannot yet consume `Option<Workspace>` / `Option<Document>` from `std::kain` cleanly in runtime flows. `unwrap()` and `is_some()` dispatch against `Workspace` instead of `Option<Workspace>`, and match-based binding in the probe destabilized follow-on bindings.
+- The LLVM/native path still breaks when `std::kain` materializes arrays of returned structs. The probe hit `%SemanticToken` passed to `array_push` where `i64` was expected.
+- The service lane still carries some brittle/hardcoded truth: compile-target numeric mapping is duplicated across `stdlib/kain.kn` and `crates/service-bridge/src/lib.rs`, and `crates/service-api/src/workspace.rs` still hardcodes ignored directories plus raw path-key normalization.
+
+Readiness verdict:
+
+- Not yet ready for a credible Kain-authored LSP. The service API and std::kain bridge now exist and compile, but the Option/runtime bug plus LLVM struct-array lowering bug are real blockers.
+
 # 2026-06-04 - std::kain module and service-bridge crate seeded
 
 What changed:

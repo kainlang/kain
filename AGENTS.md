@@ -189,12 +189,12 @@ Humans set direction. Agents carry the proof burden. The code is a byproduct.
 ## Canonical Kain Examples
 
 Use these skills before authoring serious kain - 
-$lang-gpu
-$lang-semantics
-$lang-systems
-$lang-projects
-$lang-stdlib
-$lang-projects
+x:/.agents/skills/lang-gpu/skill.md
+x:/.agents/skills/lang-semantics/skill.md
+x:/.agents/skills/lang-systems/skill.md
+x:/.agents/skills/lang-projects/skill.md
+x:/.agents/skills/lang-stdlib/skill.md
+x:/.agents/skills/lang-projects/skill.md
 
 ## Skill Taxonomy
 
@@ -424,3 +424,9 @@ python attrition/run.py --case <case> --sabotage <mode>
 
 ## Toolchain
 - Scoop is available and there is a dedicated drive to tools and scoop etc at F:/  --- feel free to install any tool needed if it helps with work etc, no need to ask for permission considering scoop makes it crazy easy to manage tooling etc. the C:/ drive is specifically for OS so try to keep things out of it when possible as all of our drives are on REFS and c:/ would not mesh in with the setup /speed etc
+
+
+## Examples
+- The best place for kain examples can be found in benchmark/cases_v2/*.kn and smoketest/src
+- The best place for C ABI examples can be found in blades/c/FFMPEG and the other folders there 
+- The best place for python interop examples can be found in blades/python and benchmark/cases_v2/python*.kn 

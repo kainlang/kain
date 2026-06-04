@@ -35,12 +35,15 @@ pub fn kaintana_slot_map_append_normalize(map: SlotMap) -> SlotMap:
 
 pub fn kaintana_context_create(app_name: String, spec: KaintanaWindowSpec, theme: KaintanaTheme, desktop_enabled: Bool) -> KaintanaContext:
     let session = ui_host_session_create(app_name, spec.title, spec.width, spec.height, spec.passive_backend_id)
+    var teardown_session = session
+    defer native_ui_session_destroy(teardown_session)
     let root_native = ui_reconcile_labeled_node(session, 0, "kaintana.root", "root", "", "application", spec.title, 0.0, 0.0, Float(spec.width), Float(spec.height))
     var nodes = slot_map_create(KAINTANA_NODE_CAPACITY)
     let root_slot = slot_map_insert(nodes, root_native)
     nodes = kaintana_slot_map_append_normalize(root_slot.map)
     var stable_keys = typed_map_new()
     stable_keys = typed_map_set(stable_keys, "root", root_slot.key.raw)
+    teardown_session = 0
     return KaintanaContext {
         session_id: session,
         root: KaintanaNodeId { key: root_slot.key },
@@ -59,6 +62,7 @@ pub fn kaintana_context_create(app_name: String, spec: KaintanaWindowSpec, theme
 
 pub fn kaintana_context_begin_frame(ctx: KaintanaContext, revision_key: String, delta_ms: Float) -> KaintanaContext:
     let reset_arena = arena_allocator_reset(ctx.frame_arena)
+    defer arena_allocator_reset(ctx.frame_arena)
     if len(revision_key) > 0:
         let _reload = reload_begin(ctx.session_id, revision_key)
     let _frame = ui_frame_begin(ctx.session_id, delta_ms)
@@ -86,8 +90,8 @@ pub fn kaintana_context_sync_events(ctx: KaintanaContext) -> KaintanaContext:
     return ctx
 
 pub fn kaintana_context_commit_frame(ctx: KaintanaContext) -> KaintanaContext:
+    defer ui_frame_submit(ctx.session_id)
     let _reload = reload_commit(ctx.session_id)
-    let _submit = ui_frame_submit(ctx.session_id)
     return ctx
 
 pub fn kaintana_context_destroy(ctx: KaintanaContext) -> Int:

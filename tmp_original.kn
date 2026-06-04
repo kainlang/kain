@@ -27,16 +27,6 @@ pub use vulkan_adapter::*
 pub use widget_events::*
 pub use winit_adapter::*
 
-fn kaintana_axiom_fallback(value: Int) -> Int:
-    return value
-
-axiom kaintana_ui_truth:
-    when target("llvm")
-    when capability("ui.components")
-    when capability("ui.runtime-bundle")
-    guarantee "kaintana desktop ui framework is supported"
-    fallback kaintana_axiom_fallback
-
 const KAINTANA_ROOT_STABLE_KEY: String = "kaintana.root.session"
 
 pub struct KaintanaHarnessSpec:
@@ -58,6 +48,12 @@ pub struct KaintanaPopoverSpec:
 pub struct KaintanaTextInputResult:
     node_id: Int
     value: String
+
+fn kaintana_channel_float(value: Int) -> Float:
+    return Float(math_int_clamp(value, 0, 255)) / 255.0
+
+fn kaintana_text_size_from_baseline(baseline_y: Float) -> Int:
+    return math_int_clamp(Int(baseline_y - 4.0), 10, 42)
 
 fn kaintana_color_delta(color: KaintanaColor, delta: Int) -> KaintanaColor:
     return kaintana_color(
@@ -103,62 +99,46 @@ fn kaintana_right_aligned_text_x(session_id: Int, font_resource_id: Int, text_va
     let measured_width = ui_text_measure_width(session_id, font_resource_id, text_value)
     return math_max(fallback_left, right_edge - measured_width)
 
-trait KaintanaRectOps:
-    fn rect_x(_self: Self_) -> Float
-    fn rect_y(_self: Self_) -> Float
-    fn rect_width(_self: Self_) -> Float
-    fn rect_height(_self: Self_) -> Float
-
-impl KaintanaRectOps for KaintanaRect:
-    fn rect_x(_self: Self_) -> Float:
-        return _self.x
-    fn rect_y(_self: Self_) -> Float:
-        return _self.y
-    fn rect_width(_self: Self_) -> Float:
-        return _self.width
-    fn rect_height(_self: Self_) -> Float:
-        return _self.height
-
-pub fn kaintana_inset<T>(rect: T, left: Float, top: Float, right: Float, bottom: Float) -> KaintanaRect where T: KaintanaRectOps:
+pub fn kaintana_inset(rect: KaintanaRect, left: Float, top: Float, right: Float, bottom: Float) -> KaintanaRect:
     return kaintana_rect(
-        rect.rect_x() + left,
-        rect.rect_y() + top,
-        math_max(0.0, rect.rect_width() - left - right),
-        math_max(0.0, rect.rect_height() - top - bottom)
+        rect.x + left,
+        rect.y + top,
+        math_max(0.0, rect.width - left - right),
+        math_max(0.0, rect.height - top - bottom)
     )
 
-pub fn kaintana_split_left<T>(rect: T, fraction: Float, gap: Float) -> KaintanaRect where T: KaintanaRectOps:
+pub fn kaintana_split_left(rect: KaintanaRect, fraction: Float, gap: Float) -> KaintanaRect:
     let clamped = math_clamp(fraction, 0.0, 1.0)
-    return kaintana_rect(rect.rect_x(), rect.rect_y(), math_max(0.0, (rect.rect_width() - gap) * clamped), rect.rect_height())
+    return kaintana_rect(rect.x, rect.y, math_max(0.0, (rect.width - gap) * clamped), rect.height)
 
-pub fn kaintana_split_right<T>(rect: T, fraction: Float, gap: Float) -> KaintanaRect where T: KaintanaRectOps:
+pub fn kaintana_split_right(rect: KaintanaRect, fraction: Float, gap: Float) -> KaintanaRect:
     let left = kaintana_split_left(rect, fraction, gap)
-    return kaintana_rect(left.rect_x() + left.rect_width() + gap, rect.rect_y(), math_max(0.0, rect.rect_width() - left.rect_width() - gap), rect.rect_height())
+    return kaintana_rect(left.x + left.width + gap, rect.y, math_max(0.0, rect.width - left.width - gap), rect.height)
 
-pub fn kaintana_split_top<T>(rect: T, fraction: Float, gap: Float) -> KaintanaRect where T: KaintanaRectOps:
+pub fn kaintana_split_top(rect: KaintanaRect, fraction: Float, gap: Float) -> KaintanaRect:
     let clamped = math_clamp(fraction, 0.0, 1.0)
-    return kaintana_rect(rect.rect_x(), rect.rect_y(), rect.rect_width(), math_max(0.0, (rect.rect_height() - gap) * clamped))
+    return kaintana_rect(rect.x, rect.y, rect.width, math_max(0.0, (rect.height - gap) * clamped))
 
-pub fn kaintana_split_bottom<T>(rect: T, fraction: Float, gap: Float) -> KaintanaRect where T: KaintanaRectOps:
+pub fn kaintana_split_bottom(rect: KaintanaRect, fraction: Float, gap: Float) -> KaintanaRect:
     let top = kaintana_split_top(rect, fraction, gap)
-    return kaintana_rect(rect.rect_x(), top.rect_y() + top.rect_height() + gap, rect.rect_width(), math_max(0.0, rect.rect_height() - top.rect_height() - gap))
+    return kaintana_rect(rect.x, top.y + top.height + gap, rect.width, math_max(0.0, rect.height - top.height - gap))
 
-pub fn kaintana_column_slot<T>(rect: T, index_offset: Float, item_height: Float, gap: Float) -> KaintanaRect where T: KaintanaRectOps:
-    return kaintana_rect(rect.rect_x(), rect.rect_y() + ((item_height + gap) * index_offset), rect.rect_width(), item_height)
+pub fn kaintana_column_slot(rect: KaintanaRect, index_offset: Float, item_height: Float, gap: Float) -> KaintanaRect:
+    return kaintana_rect(rect.x, rect.y + ((item_height + gap) * index_offset), rect.width, item_height)
 
-pub fn kaintana_row_slot<T>(rect: T, index_offset: Float, item_width: Float, gap: Float) -> KaintanaRect where T: KaintanaRectOps:
-    return kaintana_rect(rect.rect_x() + ((item_width + gap) * index_offset), rect.rect_y(), item_width, rect.rect_height())
+pub fn kaintana_row_slot(rect: KaintanaRect, index_offset: Float, item_width: Float, gap: Float) -> KaintanaRect:
+    return kaintana_rect(rect.x + ((item_width + gap) * index_offset), rect.y, item_width, rect.height)
 
-pub fn kaintana_grid_cell<T>(rect: T, columns: Float, rows: Float, column_index: Float, row_index: Float, gap_x: Float, gap_y: Float) -> KaintanaRect where T: KaintanaRectOps:
+pub fn kaintana_grid_cell(rect: KaintanaRect, columns: Float, rows: Float, column_index: Float, row_index: Float, gap_x: Float, gap_y: Float) -> KaintanaRect:
     let safe_columns = math_max(columns, 1.0)
     let safe_rows = math_max(rows, 1.0)
     let total_gap_x = math_max(0.0, safe_columns - 1.0) * gap_x
     let total_gap_y = math_max(0.0, safe_rows - 1.0) * gap_y
-    let cell_width = math_max(0.0, (rect.rect_width() - total_gap_x) / safe_columns)
-    let cell_height = math_max(0.0, (rect.rect_height() - total_gap_y) / safe_rows)
+    let cell_width = math_max(0.0, (rect.width - total_gap_x) / safe_columns)
+    let cell_height = math_max(0.0, (rect.height - total_gap_y) / safe_rows)
     return kaintana_rect(
-        rect.rect_x() + ((cell_width + gap_x) * column_index),
-        rect.rect_y() + ((cell_height + gap_y) * row_index),
+        rect.x + ((cell_width + gap_x) * column_index),
+        rect.y + ((cell_height + gap_y) * row_index),
         cell_width,
         cell_height
     )
@@ -213,30 +193,6 @@ pub fn kaintana_theme_oxide_dcc() -> KaintanaTheme:
         signal: kaintana_color(92, 208, 255, 255),
     }
 
-component KaintanaReactivityPanel():
-    render <panel title="Kaintana Reactivity" />
-
-world KaintanaReactivity:
-    state signal: Int = 0
-    state signal_copy: Int = 0
-    state layout_revision: Int = 0
-    surface native_ui => KaintanaReactivityPanel
-
-world KaintanaReactivityMirror:
-    state signal_copy: Int = 0
-    state layout_revision_copy: Int = 0
-    surface native_ui => KaintanaReactivityPanel
-
-entangle KaintanaReactivity.signal <-> KaintanaReactivityMirror.signal_copy with single_writer
-entangle KaintanaReactivity.layout_revision <-> KaintanaReactivityMirror.layout_revision_copy with single_writer
-
-patch kaintana_reactivity_commit(authority: KaintanaReactivity, value: Int) -> Int:
-    authority.signal = value
-    return authority.signal
-
-resonate KaintanaReactivity.signal dampen 16 ms:
-    KaintanaReactivity.layout_revision = KaintanaReactivity.layout_revision + resonate_new_i64
-
 pub fn kaintana_theme_named(theme_name: String) -> KaintanaTheme:
     if theme_name == "marine-terminal":
         return kaintana_theme_marine_terminal()
@@ -278,26 +234,16 @@ pub fn kaintana_session_create(app_name: String, spec: KaintanaWindowSpec) -> In
 pub fn kaintana_session_destroy(session_id: Int) -> Int:
     return ui_session_destroy(session_id)
 
-fn kaintana_begin_frame_cleanup(session_id: Int) -> Int:
-    return ui_host_pump(session_id)
-
 pub fn kaintana_begin_frame(session_id: Int, revision_key: String, delta_ms: Float) -> Int:
     if len(revision_key) > 0:
         let _reload = reload_begin(session_id, revision_key)
     let _pump = ui_host_pump(session_id)
-    let result = ui_frame_begin(session_id, delta_ms)
-    defer kaintana_begin_frame_cleanup(session_id)
-    return result
-
-fn kaintana_commit_frame_cleanup(session_id: Int) -> Int:
-    return ui_host_pump(session_id)
+    return ui_frame_begin(session_id, delta_ms)
 
 pub fn kaintana_commit_frame(session_id: Int) -> Int:
     let _reload = reload_commit(session_id)
     let _submit = ui_frame_submit(session_id)
-    let result = ui_host_present(session_id)
-    defer kaintana_commit_frame_cleanup(session_id)
-    return result
+    return ui_host_present(session_id)
 
 pub fn kaintana_hot_reload_generation(session_id: Int) -> Int:
     return reload_generation(session_id)

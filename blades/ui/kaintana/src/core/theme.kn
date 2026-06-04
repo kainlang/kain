@@ -2,6 +2,12 @@ use types::KaintanaColor
 use types::KaintanaTheme
 use types::kaintana_color
 
+axiom kaintana_theme_axiom:
+    when target("llvm")
+    when capability("ui.theme")
+    guarantee "kaintana themes return stable KaintanaTheme structs across reload generations"
+    fallback kaintana_theme_solar_broadcast
+
 pub fn kaintana_theme_solar_broadcast() -> KaintanaTheme:
     return KaintanaTheme {
         name: "solar-broadcast",

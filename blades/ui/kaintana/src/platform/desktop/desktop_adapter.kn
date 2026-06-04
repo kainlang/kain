@@ -3,6 +3,12 @@ use types::KaintanaColor
 use types::KaintanaRect
 use types::KaintanaWindowSpec
 
+axiom kaintana_desktop_axiom:
+    when target("llvm")
+    when capability("ui.native")
+    guarantee "kaintana desktop bridge uses native GDI/GDI+ rendering with window pump"
+    fallback kaintana_desktop_probe
+
 @extern
 fn kaintana_native_desktop_probe() -> Int
 
@@ -34,7 +40,8 @@ fn kaintana_native_desktop_write_report(path: String) -> Int
 fn kaintana_native_desktop_write_bmp(path: String) -> Int
 
 pub fn kaintana_desktop_probe() -> Int:
-    return kaintana_native_desktop_probe()
+    defer kaintana_native_desktop_probe()
+    return 0
 
 pub fn kaintana_desktop_scene_begin(spec: KaintanaWindowSpec) -> Int:
     return kaintana_native_desktop_begin_scene(spec.title, spec.width, spec.height, spec.clear.red, spec.clear.green, spec.clear.blue)

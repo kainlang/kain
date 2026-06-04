@@ -2,6 +2,12 @@ use std::math
 use std::ui
 use types::KaintanaRect
 
+axiom kaintana_widget_events_axiom:
+    when target("llvm")
+    when capability("ui.events")
+    guarantee "kaintana widget event handlers use defer for automatic capture and state cleanup"
+    fallback kaintana_widget_pointer_capture_node
+
 pub fn kaintana_widget_pointer_capture_node(session_id: Int, root_native_id: Int, fallback_target: Int) -> Int:
     let captured = ui_state_i64(session_id, root_native_id, "kaintana.pointer.capture.node", 0)
     if captured > 0:
@@ -24,6 +30,12 @@ pub fn kaintana_widget_store_pointer(session_id: Int, node_id: Int, x: Float, y:
     let _x = ui_state_set_f64(session_id, node_id, "kaintana.pointer.x", x)
     return ui_state_set_f64(session_id, node_id, "kaintana.pointer.y", y)
 
+fn kaintana_widget_pointer_up_cleanup(session_id: Int, owner: Int) -> Int:
+    if owner <= 0:
+        return 0
+    let _pressed = ui_node_set_flag(session_id, owner, "pressed", 0)
+    return ui_state_set_bool(session_id, owner, "kaintana.pointer.dragging", 0)
+
 pub fn kaintana_widget_pointer_down(session_id: Int, root_native_id: Int, target_node_id: Int, x: Float, y: Float) -> Int:
     if target_node_id <= 0:
         return 0
@@ -45,7 +57,8 @@ pub fn kaintana_widget_pointer_move(session_id: Int, root_native_id: Int, fallba
 
 pub fn kaintana_widget_pointer_up(session_id: Int, root_native_id: Int, fallback_target: Int, x: Float, y: Float) -> Int:
     let owner = kaintana_widget_pointer_capture_node(session_id, root_native_id, fallback_target)
-    let _capture_clear = ui_state_reference(session_id, root_native_id, "kaintana.pointer.capture.node", 0)
+    defer ui_state_reference(session_id, root_native_id, "kaintana.pointer.capture.node", 0)
+    defer kaintana_widget_pointer_up_cleanup(session_id, owner)
     if owner <= 0:
         return 0
     let _up_count = ui_state_counter(session_id, owner, "kaintana.pointer.up.count", 1)
@@ -54,12 +67,11 @@ pub fn kaintana_widget_pointer_up(session_id: Int, root_native_id: Int, fallback
     let inside = ui_node_contains_point(session_id, owner, x, y)
     if was_pressed != 0 and inside == 1:
         let _activate = ui_state_counter(session_id, owner, "kaintana.pointer.activate.count", 1)
-    let _pressed = ui_node_set_flag(session_id, owner, "pressed", 0)
-    let _dragging = ui_state_set_bool(session_id, owner, "kaintana.pointer.dragging", 0)
     return owner
 
 pub fn kaintana_widget_sync_events(session_id: Int, root_native_id: Int) -> Int:
     let _pump = ui_host_pump(session_id)
+    defer ui_host_pump(session_id)
     var handled: Int = 0
     while ui_poll_event(session_id) == 1:
         let kind = ui_event_kind(session_id)

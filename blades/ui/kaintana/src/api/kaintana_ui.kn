@@ -3,6 +3,7 @@ use reconciliation::kaintana_context_begin_frame
 use reconciliation::kaintana_context_commit_frame
 use reconciliation::kaintana_context_create
 use reconciliation::kaintana_context_sync_events
+use reconciliation::kaintana_context_mark_command
 use types::KaintanaContext
 use types::KaintanaRect
 use types::KaintanaRenderResult
@@ -15,6 +16,8 @@ use widgets::kaintana_widget_label
 use widgets::kaintana_widget_panel
 use widgets::kaintana_widget_slider
 use widgets::kaintana_widget_text_input
+use render_commands::KAINTANA_COMMAND_FILL
+use render_commands::KAINTANA_COMMAND_TEXT
 
 pub struct KaintanaUi:
     default_font_resource_id: Int
@@ -58,6 +61,116 @@ pub struct KaintanaSliderBuilder:
     value: Float
     min_value: Float
     max_value: Float
+
+pub trait KaintanaRenderable:
+    fn bounds(_self: Self_) -> KaintanaRect
+
+pub trait KaintanaUiCompatible:
+    fn stable_key(_self: Self_) -> StringView
+    fn label(_self: Self_) -> StringView
+    fn rect(_self: Self_) -> KaintanaRect
+    fn font_resource_id(_self: Self_) -> Int
+    fn baseline_y(_self: Self_) -> Float
+    fn value(_self: Self_) -> StringView:
+        return _self.label()
+    fn muted(_self: Self_) -> Bool:
+        return false
+    fn slider_value(_self: Self_) -> Float:
+        return 0.0
+    fn min_value(_self: Self_) -> Float:
+        return 0.0
+    fn max_value(_self: Self_) -> Float:
+        return 1.0
+
+impl KaintanaRenderable for KaintanaPanelBuilder:
+    fn bounds(_self: Self_) -> KaintanaRect:
+        return _self.rect
+
+impl KaintanaUiCompatible for KaintanaPanelBuilder:
+    fn stable_key(_self: Self_) -> StringView:
+        return _self.stable_key
+    fn label(_self: Self_) -> StringView:
+        return _self.label
+    fn rect(_self: Self_) -> KaintanaRect:
+        return _self.rect
+    fn font_resource_id(_self: Self_) -> Int:
+        return _self.font_resource_id
+    fn baseline_y(_self: Self_) -> Float:
+        return _self.baseline_y
+
+impl KaintanaRenderable for KaintanaLabelBuilder:
+    fn bounds(_self: Self_) -> KaintanaRect:
+        return _self.rect
+
+impl KaintanaUiCompatible for KaintanaLabelBuilder:
+    fn stable_key(_self: Self_) -> StringView:
+        return _self.stable_key
+    fn label(_self: Self_) -> StringView:
+        return _self.text
+    fn rect(_self: Self_) -> KaintanaRect:
+        return _self.rect
+    fn font_resource_id(_self: Self_) -> Int:
+        return _self.font_resource_id
+    fn baseline_y(_self: Self_) -> Float:
+        return _self.baseline_y
+    fn muted(_self: Self_) -> Bool:
+        return _self.muted
+
+impl KaintanaRenderable for KaintanaButtonBuilder:
+    fn bounds(_self: Self_) -> KaintanaRect:
+        return _self.rect
+
+impl KaintanaUiCompatible for KaintanaButtonBuilder:
+    fn stable_key(_self: Self_) -> StringView:
+        return _self.stable_key
+    fn label(_self: Self_) -> StringView:
+        return _self.label
+    fn rect(_self: Self_) -> KaintanaRect:
+        return _self.rect
+    fn font_resource_id(_self: Self_) -> Int:
+        return _self.font_resource_id
+    fn baseline_y(_self: Self_) -> Float:
+        return _self.baseline_y
+
+impl KaintanaRenderable for KaintanaTextInputBuilder:
+    fn bounds(_self: Self_) -> KaintanaRect:
+        return _self.rect
+
+impl KaintanaUiCompatible for KaintanaTextInputBuilder:
+    fn stable_key(_self: Self_) -> StringView:
+        return _self.stable_key
+    fn label(_self: Self_) -> StringView:
+        return _self.label
+    fn rect(_self: Self_) -> KaintanaRect:
+        return _self.rect
+    fn font_resource_id(_self: Self_) -> Int:
+        return _self.font_resource_id
+    fn baseline_y(_self: Self_) -> Float:
+        return _self.baseline_y
+    fn value(_self: Self_) -> StringView:
+        return _self.value
+
+impl KaintanaRenderable for KaintanaSliderBuilder:
+    fn bounds(_self: Self_) -> KaintanaRect:
+        return _self.rect
+
+impl KaintanaUiCompatible for KaintanaSliderBuilder:
+    fn stable_key(_self: Self_) -> StringView:
+        return _self.stable_key
+    fn label(_self: Self_) -> StringView:
+        return _self.label
+    fn rect(_self: Self_) -> KaintanaRect:
+        return _self.rect
+    fn font_resource_id(_self: Self_) -> Int:
+        return _self.font_resource_id
+    fn baseline_y(_self: Self_) -> Float:
+        return _self.baseline_y
+    fn slider_value(_self: Self_) -> Float:
+        return _self.value
+    fn min_value(_self: Self_) -> Float:
+        return _self.min_value
+    fn max_value(_self: Self_) -> Float:
+        return _self.max_value
 
 pub fn kaintana_context(app_name: String, spec: KaintanaWindowSpec, theme: KaintanaTheme, desktop_enabled: Bool) -> KaintanaContext:
     return kaintana_context_create(app_name, spec, theme, desktop_enabled)
@@ -151,3 +264,28 @@ pub fn kaintana_slider_font(builder: KaintanaSliderBuilder, font_resource_id: In
 
 pub fn kaintana_slider_render(ctx: KaintanaContext, builder: KaintanaSliderBuilder) -> KaintanaRenderResult:
     return kaintana_widget_slider(ctx, builder.stable_key, builder.label, builder.value, builder.min_value, builder.max_value, builder.rect, builder.font_resource_id, builder.baseline_y)
+
+pub fn build_panel<T: KaintanaRenderable>(ctx: KaintanaContext, builder: T) -> KaintanaRenderResult where T: KaintanaUiCompatible:
+    let result = kaintana_widget_panel(ctx, builder.stable_key(), builder.label(), builder.rect(), builder.font_resource_id(), builder.baseline_y())
+    defer kaintana_context_mark_command(result.ctx, result.native_node_id, KAINTANA_COMMAND_FILL)
+    return result
+
+pub fn build_label<T: KaintanaRenderable>(ctx: KaintanaContext, builder: T) -> KaintanaRenderResult where T: KaintanaUiCompatible:
+    let result = kaintana_widget_label(ctx, builder.stable_key(), builder.label(), builder.rect(), builder.font_resource_id(), builder.baseline_y(), builder.muted())
+    defer kaintana_context_mark_command(result.ctx, result.native_node_id, KAINTANA_COMMAND_TEXT)
+    return result
+
+pub fn build_button<T: KaintanaRenderable>(ctx: KaintanaContext, builder: T) -> KaintanaRenderResult where T: KaintanaUiCompatible:
+    let result = kaintana_widget_button(ctx, builder.stable_key(), builder.label(), builder.rect(), builder.font_resource_id(), builder.baseline_y())
+    defer kaintana_context_mark_command(result.ctx, result.native_node_id, KAINTANA_COMMAND_FILL)
+    return result
+
+pub fn build_text_input<T: KaintanaRenderable>(ctx: KaintanaContext, builder: T) -> KaintanaRenderResult where T: KaintanaUiCompatible:
+    let result = kaintana_widget_text_input(ctx, builder.stable_key(), builder.label(), builder.value(), builder.rect(), builder.font_resource_id(), builder.baseline_y())
+    defer kaintana_context_mark_command(result.ctx, result.native_node_id, KAINTANA_COMMAND_FILL)
+    return result
+
+pub fn build_slider<T: KaintanaRenderable>(ctx: KaintanaContext, builder: T) -> KaintanaRenderResult where T: KaintanaUiCompatible:
+    let result = kaintana_widget_slider(ctx, builder.stable_key(), builder.label(), builder.slider_value(), builder.min_value(), builder.max_value(), builder.rect(), builder.font_resource_id(), builder.baseline_y())
+    defer kaintana_context_mark_command(result.ctx, result.native_node_id, KAINTANA_COMMAND_FILL)
+    return result

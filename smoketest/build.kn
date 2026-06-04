@@ -1,7 +1,6 @@
 use std::build
 
-# Demo-only future build surface: this assumes build.kn is evaluated Kain,
-# not harvested by the current literal method-chain scanner.
+
 
 const ALBUM_ROOTS = [
     "src/semantics",
