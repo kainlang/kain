@@ -1,0 +1,72 @@
+name: native-json-clone-value-calloc-overflow
+surface: runtime
+subsystem: json
+source_file: runtime/native/src/core/json.c
+source_function: json_clone_value
+source_lines: "369, 381"
+
+description: |
+  json.c:369:
+    out->fields = (KainJsonEntry*)calloc((size_t)value->field_count, sizeof(KainJsonEntry));
+
+  json.c:381:
+    out->items = (KainJsonValue**)calloc((size_t)value->item_count, sizeof(KainJsonValue*));
+
+  Both value->field_count and value->item_count are int64_t (signed 64-bit).
+  When cast to size_t (unsigned 64-bit) and multiplied by the element size,
+  the product can overflow.
+
+  For fields: sizeof(KainJsonEntry) = 16 (two pointer-sized fields: key,
+  value pointer). When field_count > 0x0FFFFFFFFFFFFFFF, the product
+  (size_t)field_count * 16 wraps.
+
+  For items: sizeof(KainJsonValue*) = 8 (pointer). When item_count >
+  0x1FFFFFFFFFFFFFFF, (size_t)item_count * 8 wraps.
+
+  When calloc receives a wrapped size:
+    - calloc(0x1000000000000000, 16) → calloc gets size 0 (wraps modulo 2^64)
+    - calloc may return a valid heap chunk for size 0
+    - Subsequent field/element writes overflow the heap buffer
+
+claim: |
+  For field_count > 0: (size_t)field_count * sizeof(KainJsonEntry) >= sizeof(KainJsonEntry).
+  This claim is VIOLATED for large field_count.
+
+expected: sat
+
+smt2: |
+  (set-logic QF_BV)
+  (declare-const field_count (_ BitVec 64))
+  ; field_count is positive int64_t, cast to size_t
+  (assert (bvugt field_count #x0000000000000000))
+  (assert (bvsgt field_count #x0000000000000000))
+  ; sizeof(KainJsonEntry) = 16 (key: char*, value: KainJsonValue*)
+  (define-fun elem_size () (_ BitVec 64) #x0000000000000010)
+  ; product wraps to less than elem_size
+  (define-fun alloc_size () (_ BitVec 64) (bvmul field_count elem_size))
+  (assert (bvult alloc_size elem_size))
+  (check-sat)
+
+result: sat
+witness:
+  field_count: "0x1000000000000000"
+  field_count_signed: "1152921504606846976 (positive int64_t)"
+  elem_size: "16"
+  alloc_size_result: "0x0000000000000000"
+  risk: "calloc(0) may return a small heap chunk; subsequent field writes overflow"
+
+severity: High
+categories: [correctness, unsigned-overflow, allocation, json]
+status: Solver-Proved
+suggested_follow_up: |
+  Add overflow guards before calloc in json_clone_value:
+
+    size_t fields_size;
+    if (kain_mul_overflow((size_t)value->field_count, sizeof(KainJsonEntry), &fields_size)) {
+        rc_release(out);
+        return NULL;
+    }
+    out->fields = (KainJsonEntry*)calloc(1, fields_size);
+
+  Same fix for the items calloc on line 381. Alternatively, add a top-level
+  bounds check against a reasonable JSON element limit.

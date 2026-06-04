@@ -1,0 +1,89 @@
+name: native-core-array-push-capacity-doubling-overflow
+surface: runtime
+subsystem: core
+source_file: runtime/native/src/core/core.c
+source_function: array_push
+source_lines: "1257-1263"
+
+description: |
+  core.c:1257-1263:
+
+    void array_push(KainArray* arr, long long val) {
+        if (arr->len >= arr->cap) {
+            arr->cap *= 2;                                                    // line 1259
+            arr->data = (long long*)realloc(arr->data,
+                (size_t)arr->cap * sizeof(long long));                        // line 1260
+        }
+        arr->data[arr->len++] = val;                                          // line 1262
+    }
+
+  TWO distinct overflow bugs:
+
+  BUG 1 (line 1259): `arr->cap *= 2` is signed `long long` multiplication.
+    C11 6.5p5: signed integer overflow is undefined behavior. When
+    arr->cap > LLONG_MAX / 2 (4611686018427387903), the doubling is UB.
+    The compiler may assume this never happens and optimize away subsequent
+    bounds checks, or produce a negative cap.
+
+  BUG 2 (line 1260): `(size_t)arr->cap * sizeof(long long)` is unsigned 64-bit
+    multiplication. After the doubling, if arr->cap >= 0x2000000000000000,
+    the multiplication wraps. realloc gets a wrapped (small) size, returns
+    a small buffer, and the subsequent `arr->data[arr->len++] = val` writes
+    past the end.
+
+  These interact: if BUG 1 produces a negative cap (undefined), the cast to
+  size_t produces a large unsigned value, then BUG 2 may wrap or produce a
+  huge value and realloc fails. Either way, the array is in an invalid state.
+
+claim: |
+  For all arr->cap >= 4 (the initial minimum after array_new clamp):
+  Claim A: arr->cap * 2 > arr->cap (no signed overflow UB).  -- VIOLATED.
+  Claim B: (size_t)arr->cap * sizeof(long long) >= sizeof(long long).
+           -- VIOLATED when arr->cap is large.
+
+expected: sat
+
+smt2: |
+  (set-logic QF_BV)
+  ; --- Bug 1: signed overflow on cap *= 2 ---
+  (declare-const cap (_ BitVec 64))
+  ; arr->cap after clamping is >= 4, signed long long
+  (assert (bvsge cap #x0000000000000004))
+  ; cap > LLONG_MAX/2 so doubling overflows signed
+  (assert (bvsgt cap #x3fffffffffffffff))
+  (assert (bvslt cap #x7fffffffffffffff))
+  ; cap * 2 wraps to negative in signed
+  (define-fun doubled () (_ BitVec 64) (bvmul cap #x0000000000000002))
+  (assert (bvslt doubled #x0000000000000000))
+  (check-sat)
+
+result: sat
+witness:
+  cap_before_doubling: "0x4000000000000000"  # 4611686018427387904 = LLONG_MAX/2 + 1
+  doubled_result: "0x8000000000000000"  # LLONG_MIN = -9223372036854775808 (signed overflow UB)
+  cast_to_size_t: "0x8000000000000000"  # as size_t = 9223372036854775808
+  alloc_size: "(size_t)doubled * 8 = 0"  # wraps to 0 modulo 2^64
+  risk: "Signed overflow UB on line 1259; combined with line 1260 mul wrap, realloc gets tiny size, subsequent write overflows heap"
+
+severity: Critical
+categories: [correctness, signed-overflow, UB, heap-overflow, allocation]
+status: Solver-Proved
+suggested_follow_up: |
+  Fix both bugs in array_push:
+
+  1. Use unsigned capacity type (size_t or uint64_t) throughout to avoid signed
+     overflow. Change KainArray.cap to uint64_t.
+
+  2. Add a size_t overflow guard before the multiplication:
+       size_t needed;
+       if (kain_mul_overflow((size_t)arr->cap, sizeof(long long), &needed)) {
+           /* emit diagnostic, don't realloc, panic or return */
+           return;
+       }
+
+  3. Cap the doubling to prevent wrapping:
+       if (arr->cap > SIZE_MAX / 2) { arr->cap = SIZE_MAX / sizeof(long long); }
+       else { arr->cap *= 2; }
+
+  Same fix pattern applies to array_new (line 1242) which has the identical
+  multiplication without a guard.

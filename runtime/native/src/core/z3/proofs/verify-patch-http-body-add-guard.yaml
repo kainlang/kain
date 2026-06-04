@@ -1,0 +1,48 @@
+name: verify-patch-http-body-add-guard
+surface: runtime
+subsystem: net
+source_file: runtime/native/src/core/net_system.c
+source_function: abi_http_request_set_body_text
+source_lines: "2072-2078"
+
+description: |
+  PATCH VERIFICATION for abi_http_request_set_body_text addition overflow.
+
+  Original bug: body_length + 1u wraps to 0 when body_length == SIZE_MAX.
+  Patch: Added abi_net_size_add_overflow(body_length, 1u, &body_alloc_size) guard.
+  When the addition would overflow (body_length > SIZE_MAX - 1), the function
+  returns an error instead of proceeding to malloc(0).
+
+  This Z3 proof verifies that AFTER the guard passes, body_alloc_size cannot be 0
+  (i.e., the malloc will always receive a size >= 1).
+
+claim: |
+  For all body_length >= 0 such that body_length + 1 does NOT overflow:
+  body_alloc_size = body_length + 1 > 0.
+  The malloc will always receive a nonzero, non-wrapped size.
+
+expected: unsat
+
+smt2: |
+  (set-logic QF_BV)
+  (declare-const body_length (_ BitVec 64))
+  ; body_length is size_t (unsigned), the add did NOT overflow
+  ; abi_net_size_add_overflow returns false when: body_length <= SIZE_MAX - 1
+  ; i.e., body_length + 1 > body_length (no wrap)
+  (define-fun one () (_ BitVec 64) #x0000000000000001)
+  (define-fun body_alloc_size () (_ BitVec 64) (bvadd body_length one))
+  ; The guard ensures: body_alloc_size > body_length (no wrap)
+  ; AND body_alloc_size != 0 (the add didn't wrap)
+  (assert (bvugt body_alloc_size body_length))
+  ; Try to find a case where body_alloc_size == 0 (still wraps)
+  (assert (= body_alloc_size #x0000000000000000))
+  (check-sat)
+
+result: unsat
+witness: null (no counterexample exists — body_alloc_size cannot be 0 after the overflow guard)
+severity: High
+categories: [correctness, unsigned-overflow, allocation, net, patch-verification]
+status: Patch-Verified
+suggested_follow_up: |
+  If UNSAT: the overflow guard is proven correct. Mark bug as patched-and-verified.
+  If SAT: the guard has a gap — investigate the counterexample.

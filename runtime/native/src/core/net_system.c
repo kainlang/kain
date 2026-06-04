@@ -2069,11 +2069,17 @@ int64_t abi_http_request_set_body_text(int64_t request_id, const char* payload) 
     }
     free(request->body);
     request->body_length = strlen(text);
-    request->body = (unsigned char*)malloc(request->body_length + 1u);
+    /* Proof: runtime/native/src/core/z3/proofs/native-net-http-request-set-body-text-addition-overflow.yaml */
+    size_t body_alloc_size;
+    if (abi_net_size_add_overflow(request->body_length, 1u, &body_alloc_size)) {
+        return abi_net_fail(ABI_NET_INVALID_ARGUMENT, "body-too-large",
+                           "HTTP request body exceeds maximum allocatable size");
+    }
+    request->body = (unsigned char*)malloc(body_alloc_size);
     if (request->body == 0) {
         return abi_net_fail(ABI_NET_IO_ERROR, "allocation", "could not allocate HTTP request body");
     }
-    memcpy(request->body, text, request->body_length + 1u);
+    memcpy(request->body, text, body_alloc_size);
     return abi_net_ok();
 }
 

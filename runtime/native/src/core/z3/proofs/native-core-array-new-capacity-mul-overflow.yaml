@@ -1,0 +1,66 @@
+name: native-core-array-new-capacity-mul-overflow
+surface: runtime
+subsystem: core
+source_file: runtime/native/src/core/core.c
+source_function: array_new
+source_lines: "1242"
+
+description: |
+  core.c:1242:
+    arr->data = (long long*)malloc((size_t)arr->cap * sizeof(long long));
+
+  `arr->cap` is `long long` (signed 64-bit), clamped to >= 4.
+  `sizeof(long long)` = 8. The expression `(size_t)arr->cap * sizeof(long long)`
+  uses unsigned 64-bit multiplication (size_t on 64-bit).
+
+  When `arr->cap > SIZE_MAX / sizeof(long long)` = 0x1FFFFFFFFFFFFFFF,
+  the unsigned multiplication wraps. `malloc` then receives a wrapped (small)
+  size, returns a small buffer, and subsequent `arr->data[arr->len++] = val`
+  writes past the end of the allocated buffer — HEAP BUFFER OVERFLOW.
+
+  Z3 witness: cap = 0x2000000000000000
+    (size_t)cap * 8 = 0 (wraps to 0 modulo 2^64)
+    malloc(0) may return a small valid heap chunk on most allocators,
+    but the caller then writes an arbitrary number of elements into it.
+
+claim: |
+  For all arr->cap >= 0: (size_t)arr->cap * sizeof(long long) >= sizeof(long long)
+  when arr->cap > 0. This claim is VIOLATED for large arr->cap.
+
+expected: sat
+
+smt2: |
+  (set-logic QF_BV)
+  (declare-const cap (_ BitVec 64))
+  ; cap is a signed long long >= 4 (after clamp), but cast to size_t (uint64)
+  (assert (bvuge cap #x0000000000000004))
+  ; sizeof(long long) = 8
+  (define-fun elem_size () (_ BitVec 64) #x0000000000000008)
+  ; (size_t)cap * 8 — unsigned 64-bit multiplication
+  (define-fun alloc_size () (_ BitVec 64) (bvmul cap elem_size))
+  ; The product wraps to 0 (or less than 8)
+  (assert (bvult alloc_size elem_size))
+  (check-sat)
+
+result: sat
+witness:
+  cap: "0x2000000000000000"
+  cap_signed: "2305843009213693952 (positive as signed long long, >= 4 clamp)"
+  elem_size: "8"
+  alloc_size_result: "0x0000000000000000"
+  risk: "malloc(0) may return a small heap chunk; subsequent arr->data[i] writes overflow heap"
+
+severity: Critical
+categories: [correctness, heap-overflow, unsigned-overflow, allocation]
+status: Solver-Proved
+suggested_follow_up: |
+  Add a guard before allocation in array_new:
+    size_t needed;
+    if (kain_mul_overflow((size_t)cap, sizeof(long long), &needed)) {
+        emit_diagnostic(...);
+        return NULL;
+    }
+    arr->data = (long long*)malloc(needed);
+
+  Same fix pattern applies to array_push (line 1260) which has the identical
+  multiplication after `arr->cap *= 2` may have produced a large cap.

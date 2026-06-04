@@ -1239,6 +1239,18 @@ KainArray* array_new(long long cap) {
     if (!arr) return NULL;
     arr->len = 0;
     arr->cap = cap < 4 ? 4 : cap;
+    /* Proof: runtime/native/src/core/z3/proofs/native-core-array-new-capacity-mul-overflow.yaml */
+    if ((size_t)arr->cap > SIZE_MAX / sizeof(long long)) {
+        emit_diagnostic(
+            KAIN_DIAG_SUBSYSTEM_MEMORY,
+            KAIN_DIAG_SEVERITY_ERROR,
+            KAIN_DIAG_CODE_MEMORY_ALLOC_FAILED,
+            "Array capacity overflow",
+            "Requested array capacity exceeds maximum allocatable size"
+        );
+        rc_release(arr);
+        return NULL;
+    }
     arr->data = (long long*)malloc((size_t)arr->cap * sizeof(long long));
     if (!arr->data) {
         emit_diagnostic(
@@ -1256,8 +1268,32 @@ KainArray* array_new(long long cap) {
 
 void array_push(KainArray* arr, long long val) {
     if (arr->len >= arr->cap) {
-        arr->cap *= 2;
-        arr->data = (long long*)realloc(arr->data, (size_t)arr->cap * sizeof(long long));
+        /* Proof: runtime/native/src/core/z3/proofs/native-core-array-push-capacity-doubling-overflow.yaml */
+        long long new_cap = arr->cap * 2;
+        if (new_cap <= arr->cap || (size_t)new_cap > SIZE_MAX / sizeof(long long)) {
+            /* Signed overflow on doubling, or unsigned overflow on alloc size */
+            emit_diagnostic(
+                KAIN_DIAG_SUBSYSTEM_MEMORY,
+                KAIN_DIAG_SEVERITY_ERROR,
+                KAIN_DIAG_CODE_MEMORY_ALLOC_FAILED,
+                "Array push capacity overflow",
+                "Array capacity doubling would exceed maximum allocatable size"
+            );
+            return;
+        }
+        long long* new_data = (long long*)realloc(arr->data, (size_t)new_cap * sizeof(long long));
+        if (!new_data) {
+            emit_diagnostic(
+                KAIN_DIAG_SUBSYSTEM_MEMORY,
+                KAIN_DIAG_SEVERITY_ERROR,
+                KAIN_DIAG_CODE_MEMORY_ALLOC_FAILED,
+                "Array push realloc failed",
+                "Failed to reallocate array data buffer during push"
+            );
+            return;
+        }
+        arr->cap = new_cap;
+        arr->data = new_data;
     }
     arr->data[arr->len++] = val;
 }
@@ -2571,7 +2607,7 @@ static void kain_map_rebuild_tiny_dispatch(KainMap* map) {
 
     base_seed = kain_mix_u64(
         fingerprints[0] ^
-        ((uint64_t)occupied_count * 0x94d049bb133111ebULL) ^
+        ((uint64_t)occupied_count * 0x94d049bb133111ebULL) ^  /* Proof: runtime/native/src/core/z3/proofs/native-map-tiny-rebuild-fingerprint-mul-bounded.yaml — intentional hash mixing wrap, bounded by KAIN_MAP_TINY_MAX_COUNT=4 */
         map->mask
     ) | 1u;
 

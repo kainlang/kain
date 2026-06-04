@@ -1,5 +1,51 @@
 # Kain Bug Log
 
+## 2026-06-04 - std::kain/interpreter-option
+### `std::kain` workspace/document handles cannot be consumed ergonomically in authored Kain runtime flows
+
+- Categories: stdlib, service-api, interpreter, option, tooling
+- Severity: High
+- Status: Open in tree (2026-06-04)
+- Surface: `stdlib/kain.kn` consumers that receive `Option<Workspace>`, `Option<Document>`, or `Option<Hover>` from the compiler-service bridge.
+- Trigger: Running a minimal Kain-authored tooling probe against `std::kain` through a fresh cargo-built `kain` launcher.
+- Symptom:
+  - `open_workspace("", CompileTarget::Llvm).unwrap()` fails at runtime with `Method unwrap not found for type Workspace`.
+  - `is_some()` on the same result similarly dispatches against `Workspace` instead of `Option<Workspace>`.
+  - Match-based destructuring that should bind `Some(value)` into a workspace/document then destabilizes later bindings in the probe, and the typechecker reports `match arms do not agree on a type: Workspace vs Unit`.
+- Why this is a bug: a Kain-authored LSP or any compiler-service tool needs to open workspaces/documents and branch on missing results. If `Option<T>` over service-returned structs cannot be consumed, the service surface is not actually usable from authored Kain.
+- Minimal repro:
+  - Write a Kain file that imports `std::kain` and evaluates `open_workspace("", CompileTarget::Llvm).unwrap()`.
+  - Run it through a fresh cargo-built CLI: `cargo run -p cli --bin kain --target-dir F:\_b\cargo-target\service-lsp-audit -- run <probe.kn> --target interpret`.
+- Evidence:
+  - Fresh cargo launcher run reported `Runtime error: Method unwrap not found for type Workspace` on 2026-06-04.
+  - Earlier probe variants also reported `Method is_some not found for type Workspace` and match-arm type disagreement while trying to bind the same service return values.
+- Current workaround:
+  - None verified in authored Kain for service-returned workspace/document handles.
+- Suggested direction:
+  - Audit generic method resolution and runtime dispatch for `Option<T>` where `T` is a user-defined/public struct returned from stdlib bridge code.
+
+## 2026-06-04 - std::kain/llvm-struct-arrays
+### `std::kain::semantic_tokens()` trips LLVM lowering when bridge wrappers push struct values into arrays
+
+- Categories: llvm, sys-codegen, stdlib, service-api, arrays
+- Severity: High
+- Status: Open in tree (2026-06-04)
+- Surface: `stdlib/kain.kn` on the LLVM/native path, especially `semantic_tokens()` and any similar bridge wrapper that accumulates arrays of returned structs.
+- Trigger: Running a Kain-authored probe that exercises `std::kain::semantic_tokens()` through `kain run --target llvm`.
+- Symptom:
+  - LLVM compilation fails with `%SemanticToken` passed to `array_push` where `i64` is expected.
+  - The failing native run reported: `error: '%r37' defined with type '%SemanticToken = type { %Range, i64, i64 }' but expected 'i64'`.
+- Why this is a bug: a real LSP needs semantic tokens, diagnostics, symbols, and other structured arrays. If arrays of bridge-returned structs do not lower correctly, the Kain-authored service surface cannot reach native execution.
+- Minimal repro:
+  - Import `std::kain`, open a document, and call `semantic_tokens(doc)`.
+  - Run with `cargo run -p cli --bin kain --target-dir F:\_b\cargo-target\service-lsp-audit -- run <probe.kn> --target llvm`.
+- Evidence:
+  - The 2026-06-04 service probe failed during LLVM native compile after linking prep, before executable launch, on the `array_push` mismatch shown above.
+- Current workaround:
+  - Avoid the LLVM/native path for `std::kain` probes that materialize structured arrays; no full workaround verified.
+- Suggested direction:
+  - Audit array lowering for user-defined/nested struct element types in `crates/sys-codegen`, especially the value representation expected by `array_push`.
+
 ## 2026-06-03 - cli/run-cache
 ### `kain run --target llvm` can reuse stale executables after imported module edits
 
@@ -461,6 +507,74 @@
 - Z3 Proof: [control-float-equality-ignores-epsilon-runtime-semantics.yaml](file:///D:/Kain-Lang/crates/sys-codegen/z3/proofs/control-float-equality-ignores-epsilon-runtime-semantics.yaml)
 - Fix landed: The runtime semantic owner now uses exact IEEE float `==` / `!=`, and LLVM float inequality uses `fcmp une` so `NaN != x` stays true like the interpreter and the other compiled backends.
 - Regression evidence: [control-float-exact-equality-aligns-with-compiled-ieee-semantics.yaml](/D:/Kain-Lang/crates/core/z3/proofs/control-float-exact-equality-aligns-with-compiled-ieee-semantics.yaml), `cargo test -p kain-core runtime_float --lib --target-dir target\codex-float-semantics`, `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_lowers_float_truthiness_inequality_and_int_casts_through_total_ieee_paths --target-dir target\codex-float-semantics`
+
+## 2026-06-04 - runtime/core/array_new
+### array_new: capacity multiplication wraps, causing undersized malloc and heap overflow
+- Categories: correctness, heap-overflow, unsigned-overflow, allocation
+- Severity: Critical
+- Status: Patched-and-Verified
+- Surface: runtime
+- Trigger: Calling `array_new(cap)` with `cap > 0x1FFFFFFFFFFFFFFF` (positive signed long long >= 4 that passes the cap clamp).
+- Symptom: `malloc((size_t)arr->cap * sizeof(long long))` receives a wrapped (tiny) size and returns a small buffer. Subsequent `arr->data[arr->len++] = val` writes past the end.
+- Why this is a bug: `cap = 0x2000000000000000` (2305843009213693952) passes the `cap < 4 ? 4 : cap` clamp, but `(size_t)cap * 8 = 0` (wraps modulo 2^64). malloc(0) may return a valid heap chunk, and the caller expects to write `cap` elements into the buffer.
+- Minimal repro: `array_new(0x2000000000000000)` returns an array with a zero-sized data buffer. Any element access via `arr->data[i]` is a heap overflow.
+- Evidence: Z3 witness: cap=0x2000000000000000, alloc_size=0x0.
+- Z3 angle: BV multiplication of 64-bit bitvectors proves that a positive signed cap >= 4 can cause (size_t)cap * 8 to wrap to 0.
+- Z3 Proof: [native-core-array-new-capacity-mul-overflow.yaml](runtime/native/src/core/z3/proofs/native-core-array-new-capacity-mul-overflow.yaml)
+- Suggested follow-up: Add an overflow guard: `if (kain_mul_overflow((size_t)cap, sizeof(long long), &needed)) { return NULL; }`. Same fix for array_push.
+- Patch landed: core.c:1243 now guards `if ((size_t)arr->cap > SIZE_MAX / sizeof(long long)) { emit_diagnostic(...); rc_release(arr); return NULL; }` before the malloc. Uses existing codebase `SIZE_MAX / elem_size` division pattern (matching `kain_map_rebuild_tiny_dispatch` at line 3061).
+- Patch verification: Z3 proves UNSAT — no `cap >= 4` passing the guard can cause `(size_t)cap * 8` to wrap. Proof: [verify-patch-array-new-capacity-guard.yaml](runtime/native/src/core/z3/proofs/verify-patch-array-new-capacity-guard.yaml)
+
+## 2026-06-04 - runtime/core/array_push
+### array_push: signed overflow on cap doubling + unsigned overflow on allocation size
+- Categories: correctness, signed-overflow, UB, heap-overflow, allocation
+- Severity: Critical
+- Status: Patched-and-Verified
+- Surface: runtime
+- Trigger: Pushing to an array whose capacity exceeds LLONG_MAX/2 triggers signed overflow on `arr->cap *= 2` (line 1259), which is C11 undefined behavior. The resulting allocation size then wraps on line 1260.
+- Symptom: Two interacting bugs: (1) `arr->cap *= 2` overflows signed `long long` (UB), (2) `(size_t)arr->cap * sizeof(long long)` wraps. `realloc` gets a wrapped size.
+- Why this is a bug: Signed overflow in C11 6.5p5 is UB — the compiler may assume it never happens, optimize away the overflow check, and produce a negative cap. When cast to size_t, negative values become large positive values, and the unsigned multiplication wraps.
+- Minimal repro: Create an array, push elements until cap exceeds LLONG_MAX/2 (4611686018427387903). After the doubling, cap becomes negative (UB), and realloc receives a wrapped size.
+- Evidence: Z3 witness: cap_before=0x4000000000000000, doubled=0x8000000000000000 (LLONG_MIN, UB).
+- Z3 angle: BV signed multiplication proves that cap * 2 wraps to negative for cap > LLONG_MAX/2.
+- Z3 Proof: [native-core-array-push-capacity-doubling-overflow.yaml](runtime/native/src/core/z3/proofs/native-core-array-push-capacity-doubling-overflow.yaml)
+- Suggested follow-up: Use unsigned capacity (uint64_t) throughout array operations. Add overflow guard before malloc/realloc. Cap doubling at SIZE_MAX / elem_size.
+- Patch landed: core.c:1272-1289 now computes `new_cap = arr->cap * 2`, then guards `if (new_cap <= arr->cap || (size_t)new_cap > SIZE_MAX / sizeof(long long))` catching both signed UB and unsigned wrap. Realloc result is checked for NULL. Early return on overflow with diagnostic.
+- Patch verification: Z3 proves UNSAT — no `cap >= 4` with `new_cap > cap` and `new_cap <= 0x1FFFFFFFFFFFFFFF` can cause `(size_t)new_cap * 8` to wrap. Proof: [verify-patch-array-push-capacity-guard.yaml](runtime/native/src/core/z3/proofs/verify-patch-array-push-capacity-guard.yaml)
+
+## 2026-06-04 - runtime/net/http
+### abi_http_request_set_body_text: body_length + 1 wraps on SIZE_MAX input
+- Categories: correctness, unsigned-overflow, allocation, net
+- Severity: High
+- Status: Patched-and-Verified
+- Surface: runtime
+- Trigger: Calling `abi_http_request_set_body_text` with a string of length SIZE_MAX (0xFFFFFFFFFFFFFFFF).
+- Symptom: `malloc(request->body_length + 1u)` wraps to 0. malloc(0) may return a valid heap chunk. `memcpy(request->body, text, request->body_length + 1u)` copies 0 bytes. The trailing null terminator is not written.
+- Why this is a bug: The +1 addition wraps, so malloc gets an undersized buffer. If malloc(0) succeeds, the body buffer may contain uninitialized data. The HTTP request body is not properly null-terminated.
+- Minimal repro: `abi_http_request_set_body_text(request_id, "<string of length SIZE_MAX>")` causes body_length + 1 = 0 wrap.
+- Evidence: Z3 witness: body_length=0xFFFFFFFFFFFFFFFF, needed=0x0.
+- Z3 angle: BV addition proves body_length + 1 wraps to 0 when body_length = SIZE_MAX.
+- Z3 Proof: [native-net-http-request-set-body-text-addition-overflow.yaml](runtime/native/src/core/z3/proofs/native-net-http-request-set-body-text-addition-overflow.yaml)
+- Suggested follow-up: Add size_t overflow guard: `if (body_length == SIZE_MAX) { return fail; }`. Or use a checked-add helper.
+- Patch landed: net_system.c:2072-2078 now uses `abi_net_size_add_overflow(request->body_length, 1u, &body_alloc_size)` before malloc. Returns `ABI_NET_INVALID_ARGUMENT` on overflow. Matches existing codebase pattern (used 16+ times in net_system.c and process_system.c).
+- Patch verification: Z3 proves UNSAT — no `body_length` passing `abi_net_size_add_overflow` can produce `body_alloc_size == 0`. Proof: [verify-patch-http-body-add-guard.yaml](runtime/native/src/core/z3/proofs/verify-patch-http-body-add-guard.yaml)
+
+## 2026-06-04 - runtime/json/clone
+### json_clone_value: calloc(field_count, sizeof(KainJsonEntry)) overflows for large object
+- Categories: correctness, unsigned-overflow, allocation, json
+- Severity: High
+- Status: Patched-and-Verified
+- Surface: runtime
+- Trigger: Cloning a JSON object with field_count > 0x0FFFFFFFFFFFFFFF.
+- Symptom: `calloc((size_t)value->field_count, sizeof(KainJsonEntry))` wraps. `sizeof(KainJsonEntry) = 16`. When field_count >= 0x1000000000000000, the product field_count * 16 wraps to a small value or 0. calloc returns a small buffer. Subsequent field writes overflow heap.
+- Why this is a bug: field_count is int64_t (signed 64-bit). Cast to size_t and multiplied by 16, the product wraps for large field_count values.
+- Minimal repro: Clone a JSON object with 0x1000000000000000 or more fields. The calloc wraps and heap overflow follows.
+- Evidence: Z3 witness: field_count=0x4000000000000000, alloc_size=0x0.
+- Z3 angle: BV multiplication proves (size_t)field_count * 16 wraps for field_count >= 0x1000000000000000.
+- Z3 Proof: [native-json-clone-value-calloc-overflow.yaml](runtime/native/src/core/z3/proofs/native-json-clone-value-calloc-overflow.yaml)
+- Suggested follow-up: Add overflow guard: `if (kain_mul_overflow((size_t)field_count, sizeof(KainJsonEntry), &needed)) { rc_release(out); return NULL; }`. Same fix for items calloc on line 381.
+- Patch landed: json.c:370-373 now guards `if ((size_t)value->field_count > SIZE_MAX / sizeof(KainJsonEntry)) { rc_release(out); return NULL; }` before the fields calloc. json.c:388-391 adds the same guard `if ((size_t)value->item_count > SIZE_MAX / sizeof(KainJsonValue*))` before the items calloc. Uses existing `SIZE_MAX / elem_size` division pattern.
+- Patch verification: Z3 proves UNSAT for both guards — no `field_count <= 0x0FFFFFFFFFFFFFFF` can cause `(size_t)field_count * 16` to wrap, and no `item_count <= 0x1FFFFFFFFFFFFFFF` can cause `(size_t)item_count * 8` to wrap. Proof: [verify-patch-json-clone-calloc-guard.yaml](runtime/native/src/core/z3/proofs/verify-patch-json-clone-calloc-guard.yaml)
 
 ### `asyncio.Future.result()` Crashes The Native Python Bridge
 - Categories: runtime, interop, crash

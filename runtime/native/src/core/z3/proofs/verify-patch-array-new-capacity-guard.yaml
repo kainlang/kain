@@ -1,0 +1,47 @@
+name: verify-patch-array-new-capacity-guard
+surface: runtime
+subsystem: core
+source_file: runtime/native/src/core/core.c
+source_function: array_new
+source_lines: "1243-1253"
+
+description: |
+  PATCH VERIFICATION for array_new overflow guard.
+
+  Original bug: (size_t)arr->cap * sizeof(long long) wraps when cap > SIZE_MAX/8.
+  Patch: Added guard `if ((size_t)arr->cap > SIZE_MAX / sizeof(long long)) { return NULL; }`
+
+  This Z3 proof verifies that AFTER the guard, the multiplication cannot wrap.
+  We assert the overflow condition (alloc_size < elem_size) under the constraint
+  that the guard passed (cap <= SIZE_MAX / 8). If UNSAT, the patch is correct.
+
+claim: |
+  For all arr->cap >= 4 such that (size_t)arr->cap <= SIZE_MAX / sizeof(long long):
+  (size_t)arr->cap * sizeof(long long) >= sizeof(long long).
+  No overflow is possible after the guard.
+
+expected: unsat
+
+smt2: |
+  (set-logic QF_BV)
+  (declare-const cap (_ BitVec 64))
+  ; cap is >= 4 (after clamp) and passes the guard: cap <= SIZE_MAX / 8
+  (assert (bvuge cap #x0000000000000004))
+  (assert (bvule cap #x1FFFFFFFFFFFFFFF))
+  ; sizeof(long long) = 8
+  (define-fun elem_size () (_ BitVec 64) #x0000000000000008)
+  ; The multiplication with guard passed
+  (define-fun alloc_size () (_ BitVec 64) (bvmul cap elem_size))
+  ; Try to find a case where alloc_size < elem_size (overflow)
+  (assert (bvult alloc_size elem_size))
+  (check-sat)
+
+result: unsat
+witness: null (no counterexample exists — overflow is impossible after the guard)
+severity: Critical
+categories: [correctness, heap-overflow, unsigned-overflow, allocation, patch-verification]
+status: Patch-Verified
+suggested_follow_up: |
+  If UNSAT: the array_new overflow guard is proven correct. Update BUGS.md to mark
+  the bug as patched-and-verified. No further action needed.
+  If SAT: the guard is insufficient — investigate the counterexample and strengthen.

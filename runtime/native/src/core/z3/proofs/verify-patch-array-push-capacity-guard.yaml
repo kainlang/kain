@@ -1,0 +1,60 @@
+name: verify-patch-array-push-capacity-guard
+surface: runtime
+subsystem: core
+source_file: runtime/native/src/core/core.c
+source_function: array_push
+source_lines: "1272-1283"
+
+description: |
+  PATCH VERIFICATION for array_push signed+doubling overflow.
+
+  Original bugs:
+    BUG 1: arr->cap *= 2 is signed UB when cap > LLONG_MAX/2
+    BUG 2: (size_t)arr->cap * sizeof(long long) wraps when cap >= 0x2000000000000000
+  Patch: Compute new_cap = arr->cap * 2, then guard:
+    if (new_cap <= arr->cap || (size_t)new_cap > SIZE_MAX / sizeof(long long)) { return; }
+
+  This Z3 proof verifies that AFTER the guard:
+    A) new_cap > arr->cap (no signed wrap on doubling — eliminates UB)
+    B) (size_t)new_cap * sizeof(long long) >= sizeof(long long) (no unsigned wrap)
+  If UNSAT, both overflow conditions are eliminated by the guard.
+
+claim: |
+  For all arr->cap >= 4 and new_cap = arr->cap * 2 (signed),
+  such that new_cap > arr->cap AND (size_t)new_cap <= SIZE_MAX / sizeof(long long):
+  (size_t)new_cap * sizeof(long long) >= sizeof(long long).
+  Both overflow paths are eliminated.
+
+expected: unsat
+
+smt2: |
+  (set-logic QF_BV)
+  (declare-const cap (_ BitVec 64))
+  (declare-const new_cap (_ BitVec 64))
+  ; cap >= 4 (initial minimum)
+  (assert (bvsge cap #x0000000000000004))
+  ; new_cap = cap * 2 (signed arithmetic)
+  (assert (= new_cap (bvmul cap #x0000000000000002)))
+  ; Guard condition 1: new_cap > cap (no signed wrap)
+  (assert (bvsgt new_cap cap))
+  ; Guard condition 2: (size_t)new_cap <= SIZE_MAX / 8
+  (assert (bvule new_cap #x1FFFFFFFFFFFFFFF))
+  ; sizeof(long long) = 8
+  (define-fun elem_size () (_ BitVec 64) #x0000000000000008)
+  ; The allocation size
+  (define-fun alloc_size () (_ BitVec 64) (bvmul new_cap elem_size))
+  ; Try to find overflow: alloc_size < elem_size OR alloc_size wraps
+  (assert (or
+    (bvult alloc_size elem_size)
+    (bvult alloc_size new_cap)
+  ))
+  (check-sat)
+
+result: unsat
+witness: null (no counterexample exists — both overflow paths eliminated by the guard)
+severity: Critical
+categories: [correctness, signed-overflow, UB, heap-overflow, allocation, patch-verification]
+status: Patch-Verified
+suggested_follow_up: |
+  If UNSAT: the array_push guard eliminates both overflow paths. Mark bug as patched-and-verified.
+  If SAT: the guard is insufficient — investigate the counterexample.

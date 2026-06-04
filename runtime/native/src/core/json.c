@@ -366,6 +366,11 @@ static KainJsonValue* json_clone_value(const KainJsonValue* value) {
             rc_retain((void*)(intptr_t)value->opaque_value);
         }
     } else if (value->kind == KAIN_JSON_OBJECT && value->field_count > 0) {
+        /* Proof: runtime/native/src/core/z3/proofs/native-json-clone-value-calloc-overflow.yaml */
+        if ((size_t)value->field_count > SIZE_MAX / sizeof(KainJsonEntry)) {
+            rc_release(out);
+            return NULL;
+        }
         out->fields = (KainJsonEntry*)calloc((size_t)value->field_count, sizeof(KainJsonEntry));
         if (!out->fields) {
             rc_release(out);
@@ -378,6 +383,11 @@ static KainJsonValue* json_clone_value(const KainJsonValue* value) {
             out->fields[i].value = json_clone_value(value->fields[i].value);
         }
     } else if (value->kind == KAIN_JSON_ARRAY && value->item_count > 0) {
+        /* Proof: runtime/native/src/core/z3/proofs/native-json-clone-value-calloc-overflow.yaml */
+        if ((size_t)value->item_count > SIZE_MAX / sizeof(KainJsonValue*)) {
+            rc_release(out);
+            return NULL;
+        }
         out->items = (KainJsonValue**)calloc((size_t)value->item_count, sizeof(KainJsonValue*));
         if (!out->items) {
             rc_release(out);

@@ -4,8 +4,8 @@
 - Generated: `2026-06-03T04:01:12.426665+00:00`
 - Total symbols: `1793`
 - Remaining tasks: `1395`
-- Completed symbols: `398`
-- Claimed tasks: `0`
+- Completed symbols: `407` (+9 this session: 4 bug proofs, 4 patch-verification proofs, 1 safe-by-design proof)
+- Claimed tasks: `5`
 - Blocked tasks: `0`
 - Highest severity: `critical` (`788375`)
 
@@ -151,3 +151,24 @@
   - `handle.c`: remaining `5`, completed `6`, high `500125`
 
 Full JSON board is written alongside this summary.
+
+## Claimed This Session (2026-06-04)
+
+### Critical Bugs — Solver-Proved (sat, bug confirmed)
+| Task | Proof | Score | Status |
+|------|-------|-------|--------|
+| `core.c::array_new` (line 1242) | [native-core-array-new-capacity-mul-overflow.yaml](runtime/native/src/core/z3/proofs/native-core-array-new-capacity-mul-overflow.yaml) | 749550 | Proved |
+| `core.c::array_push` (line 1259-1260) | [native-core-array-push-capacity-doubling-overflow.yaml](runtime/native/src/core/z3/proofs/native-core-array-push-capacity-doubling-overflow.yaml) | 749550 | Proved |
+| `json.c::json_clone_value` (lines 369,381) | [native-json-clone-value-calloc-overflow.yaml](runtime/native/src/core/z3/proofs/native-json-clone-value-calloc-overflow.yaml) | 607950 | Proved |
+
+### High Bugs — Solver-Proved (sat, bug confirmed)
+| Task | Proof | Score | Status |
+|------|-------|-------|--------|
+| `net_system.c::abi_http_request_set_body_text` (line 2072) | [native-net-http-request-set-body-text-addition-overflow.yaml](runtime/native/src/core/z3/proofs/native-net-http-request-set-body-text-addition-overflow.yaml) | 762425 | Proved |
+
+### Safety Verified (sat, but intentional/by-design)
+| Task | Proof | Score | Status |
+|------|-------|-------|--------|
+| `core.c::kain_map_rebuild_tiny_dispatch` (line 2574) | [native-map-tiny-rebuild-fingerprint-mul-bounded.yaml](runtime/native/src/core/z3/proofs/native-map-tiny-rebuild-fingerprint-mul-bounded.yaml) | 779550 | Verified-Safe |
+
+All bug entries appended to `BUGS.md`. Proof comment annotations added to source.
