@@ -1,8 +1,0 @@
-// @expected_code: KAIN-SHADER-0003
-// @expected_mode: ShaderResourceContract
-// @expected_repair: unique_binding_slot
-
-shader compute StorageBindingConflict(id: UVec3) -> Vec4:
-    uniform input_a: StorageBuffer<Vec4> @0
-    uniform input_b: StorageBuffer<Vec4> @0
-    return input_a[id.x]

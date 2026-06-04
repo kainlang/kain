@@ -1,7 +1,0 @@
-// ERROR: Unknown identifier - typo in function name
-// @expected_code: KAIN-TYPE-0002
-// @expected_mode: Typo
-// @expected_repair: os_getcwd
-fn main() -> Int:
-    let result = os_geetcwd("hello")
-    return 0

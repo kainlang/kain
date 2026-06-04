@@ -1,4 +1,5 @@
 #include "../../include/attrition.h"
+#include "../../include/machine_stones.h"
 
 #include <errno.h>
 #include <limits.h>
@@ -609,7 +610,7 @@ int kain_attrition_heap_release(void* raw_header, size_t total_bytes) {
 unsigned long long kain_attrition_now_millis(void) {
     unsigned long long result;
     if (!kain_attrition_enabled_fast()) {
-        return (unsigned long long)((clock() * 1000ULL) / CLOCKS_PER_SEC);
+        return (unsigned long long)kain_machine_real_time_now_ms();
     }
     kain_attrition_ensure_initialized();
     kain_attrition_lock();
@@ -628,7 +629,7 @@ unsigned long long kain_attrition_now_millis(void) {
         0u
     );
     kain_attrition_unlock();
-    return (unsigned long long)((clock() * 1000ULL) / CLOCKS_PER_SEC);
+    return (unsigned long long)kain_machine_real_time_now_ms();
 }
 
 long long kain_attrition_clock_ticks(void) {

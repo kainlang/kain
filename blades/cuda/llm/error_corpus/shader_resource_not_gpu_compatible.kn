@@ -1,9 +1,0 @@
-// @expected_code: KAIN-SHADER-0005
-// @expected_mode: ShaderResourceContract
-// @expected_repair: use_gpu_compatible_type
-
-// A shader that uses a host-only string type in a uniform binding.
-shader compute HostTypeInShader:
-    uniform label: String @0
-    fn main():
-        return

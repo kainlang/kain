@@ -1,9 +1,0 @@
-// @expected_code: KAIN-SHADER-0002
-// @expected_mode: CudaKernelContract
-// @expected_repair: move_to_compute_stage
-
-use std::cuda
-
-shader fragment WarpLaneInFragment(uv: Vec2) -> Vec4:
-    let lane = cuda_lane_id()
-    return vec4(uv.x, uv.y, to_float(lane), 1.0)

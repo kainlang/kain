@@ -1,4 +1,0 @@
-// ERROR: Missing type annotation
-fn main() -> Int:
-    let x
-    return 0

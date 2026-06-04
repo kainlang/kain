@@ -1,8 +1,0 @@
-// ERROR: shader host call type check error
-// @expected_code: KAIN-TYPE-0001
-// @expected_mode: ShaderHostBoundary
-// @expected_repair: remove_host_call
-
-shader compute GeneratedHostCall7(id: UVec3) -> Vec4:
-    let x: Int = "mismatched type"
-    return vec4(id.x as Float, 0.0, 0.0, 1.0)

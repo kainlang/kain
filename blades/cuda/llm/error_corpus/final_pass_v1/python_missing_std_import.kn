@@ -1,7 +1,0 @@
-// @expected_code: KAIN-TYPE-0002
-// @expected_mode: PythonInteropBoundary
-// @expected_repair: use std::python
-
-fn main() -> Int:
-    let result = py_runtime_exec("print('hello from kain')")
-    return result

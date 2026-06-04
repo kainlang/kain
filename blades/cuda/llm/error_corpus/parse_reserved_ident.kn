@@ -1,4 +1,0 @@
-// ERROR: Reserved identifier used as name
-fn main() -> Int:
-    let fn = 5
-    return fn

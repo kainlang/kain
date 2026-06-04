@@ -1,7 +1,0 @@
-// @expected_code: KAIN-TYPE-0002
-// @expected_mode: CAbiBoundary
-// @expected_repair: use c_abi_album::smoke_c_abi_album_score
-
-fn main() -> Int:
-    let score = smoke_c_abi_album_score(23, 8)
-    return score

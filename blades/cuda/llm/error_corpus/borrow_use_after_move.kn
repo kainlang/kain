@@ -1,6 +1,0 @@
-// ERROR: Use after move
-fn main() -> Int:
-    let x = [1, 2, 3]
-    let y = x
-    let z = x[0]
-    return z

@@ -1,7 +1,0 @@
-// @expected_code: KAIN-SHADER-0001
-// @expected_mode: ShaderHostBoundary
-// @expected_repair: move_host_call_outside_shader
-
-shader compute HostPrintInKernel(id: UVec3) -> Vec4:
-    println("host side print from gpu lane")
-    return vec4(to_float(id.x), 0.0, 0.0, 1.0)

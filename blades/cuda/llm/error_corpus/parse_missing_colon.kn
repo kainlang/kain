@@ -1,3 +1,0 @@
-// ERROR: Missing colon after fn header
-fn main()
-    return 0

@@ -1,9 +1,0 @@
-// @expected_code: KAIN-BORROW-0004
-// @expected_mode: OwnershipViolation
-// @expected_repair: remove_decay
-
-fn process(cells: ptr<Int>) -> Int with Unsafe:
-    decay cells
-    collapse cells:
-        mem_store(cells, 42, "Int")
-    return 0

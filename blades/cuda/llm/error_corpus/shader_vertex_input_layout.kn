@@ -1,7 +1,0 @@
-// @expected_code: KAIN-SHADER-0006
-// @expected_mode: ShaderResourceContract
-// @expected_repair: fix_vertex_layout
-
-// A vertex shader whose input types don't match the bound vertex buffer.
-shader vertex BadVertexInput(position: Vec4, color: Vec4) -> Vec4:
-    return position

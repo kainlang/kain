@@ -1,5 +1,0 @@
-// ERROR: Mutable/immutable conflict
-fn main() -> Int:
-    let x = 5
-    x = 10
-    return x

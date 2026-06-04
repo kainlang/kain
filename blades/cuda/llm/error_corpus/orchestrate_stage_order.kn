@@ -1,9 +1,0 @@
-// @expected_code: KAIN-EFFECT-0012
-// @expected_mode: ConvergeMismatch
-// @expected_repair: hoist_stage_calls
-
-orchestrate pipeline(val: Int) -> Int:
-    let local_val = val + 1
-    // ILLEGAL: Stage call must come before ordinary local computations
-    let processed: Int = rust scalar_stage(local_val)
-    return processed

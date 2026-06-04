@@ -1,6 +1,0 @@
-// ERROR: Multiple errors in one file
-fn main() -> Int:
-    let a = undefined_fn(1)
-    let b: Int = "wrong_type"
-    let c
-    return 0

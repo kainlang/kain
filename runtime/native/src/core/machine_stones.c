@@ -152,6 +152,25 @@ uint64_t kain_machine_now_ns(void) {
 #endif
 }
 
+uint64_t kain_machine_real_time_now_ms(void) {
+#ifdef _WIN32
+    FILETIME ft;
+    ULARGE_INTEGER li;
+    GetSystemTimePreciseAsFileTime(&ft);
+    li.LowPart = ft.dwLowDateTime;
+    li.HighPart = ft.dwHighDateTime;
+    // FILETIME is 100-nanosecond intervals since Jan 1 1601.
+    // Offset to Unix epoch: 116444736000000000 100ns ticks.
+    return (uint64_t)((li.QuadPart - 116444736000000000ULL) / 10000ULL);
+#else
+    struct timespec ts;
+    if (clock_gettime(CLOCK_REALTIME, &ts) != 0) {
+        return 0;
+    }
+    return (uint64_t)ts.tv_sec * 1000ULL + (uint64_t)ts.tv_nsec / 1000000ULL;
+#endif
+}
+
 static uint32_t kain_machine_token_signature(const char* key) {
     size_t length;
     if (key == NULL) {

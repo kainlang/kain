@@ -19,6 +19,7 @@ extern "C" {
 typedef void (*KainMachinePulseFireFn)(void);
 
 uint64_t kain_machine_now_ns(void);
+uint64_t kain_machine_real_time_now_ms(void);
 int64_t kain_machine_axiom_accept(const char* target, const char* arch, uint64_t required_caps);
 void kain_machine_pulse_snapshot(
     uint64_t pulse_token,
