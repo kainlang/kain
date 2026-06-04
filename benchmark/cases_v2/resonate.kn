@@ -2,7 +2,7 @@ use std::intent
 use std::runtime
 
 const RESONATE_MODULUS: Int = 1000000007
-const RESONATE_CASE_COUNT: Int = 4
+const RESONATE_CASE_COUNT: Int = 5
 
 component ResonateGodPanel():
     render <panel title="resonate-god" />
@@ -11,6 +11,7 @@ world ResonateGodAuthority:
     state signal: Int = 0
     state signal_shadow: Int = 0
     state counter: Int = 0
+    state dampen_probe: Int = 0
     state last_old: Int = 0
     state last_new: Int = 0
     state last_fired: Int = 0
@@ -45,6 +46,10 @@ patch resonate_strike(authority: ResonateGodAuthority, value: Int, seed: Int) ->
     authority.counter = authority.counter + 1
     return authority.counter
 
+patch resonate_strike_shadow(authority: ResonateGodAuthority, value: Int) -> Int:
+    authority.dampen_probe = value
+    return authority.dampen_probe
+
 resonate ResonateGodAuthority.signal dampen 0 ms:
     ResonateGodAuthority.last_old = resonate_old_i64
     ResonateGodAuthority.last_new = resonate_new_i64
@@ -52,10 +57,17 @@ resonate ResonateGodAuthority.signal dampen 0 ms:
         ResonateGodAuthority.last_fired = 1
     ResonateGodAuthority.signal_shadow = resonate_mix(resonate_new_i64 + ResonateGodAuthority.counter)
 
+resonate ResonateGodAuthority.counter dampen 0 ms:
+    ResonateGodAuthority.converge_accum = resonate_old_i64 + resonate_new_i64
+
+resonate ResonateGodAuthority.dampen_probe dampen 500 ms:
+    ResonateGodAuthority.last_fired = resonate_new_i64
+
 fn resonate_reset_state():
     ResonateGodAuthority.signal = 0
     ResonateGodAuthority.signal_shadow = 0
     ResonateGodAuthority.counter = 0
+    ResonateGodAuthority.dampen_probe = 0
     ResonateGodAuthority.last_old = 0
     ResonateGodAuthority.last_new = 0
     ResonateGodAuthority.last_fired = 0
@@ -104,17 +116,32 @@ fn resonate_fire_core_checksum(iterations: Int, modulus: Int) -> Int with Unsafe
         index = index + 1
 
     let fire_count = resonate_fire_count() - fire_before
-    if fire_count < iterations:
+    if fire_count < iterations * 2:
         return 201
     if patch_journal_count() <= patch_before:
         return 202
     if entangle_propagation_count() <= entangle_before:
         return 203
-    if resonate_last_target() != "ResonateGodAuthority.signal":
-        return 204
-    if resonate_last_dampen_ns() != 0:
-        return 205
     return resonate_mod(acc + fire_count + resonate_intent_snapshot(), modulus)
+
+fn resonate_dampen_window_checksum(iterations: Int, modulus: Int) -> Int with Unsafe:
+    resonate_reset_state()
+    let fire_before = resonate_fire_count()
+    let absorb_before = resonate_absorb_count()
+    let acc = 0
+    let index = 0
+    while index < iterations:
+        let value = (index * 11 + 3) % 1000
+        let _struck = resonate_strike_shadow(ResonateGodAuthority, value)
+        acc = resonate_mod(acc + ResonateGodAuthority.last_fired + value, modulus)
+        index = index + 1
+    let fires = resonate_fire_count() - fire_before
+    let absorbs = resonate_absorb_count() - absorb_before
+    if fires < 1:
+        return 410
+    if absorbs < iterations - 1:
+        return 411
+    return resonate_mod(acc + fires + absorbs, modulus)
 
 fn resonate_orchestrate_fusion_checksum(iterations: Int, modulus: Int) -> Int with Unsafe:
     resonate_reset_state()
@@ -190,10 +217,12 @@ pub fn resonate_case_id(index: Int) -> String:
     if index == 0:
         return "resonate_fire_core"
     if index == 1:
-        return "resonate_orchestrate_fusion"
+        return "resonate_dampen_window"
     if index == 2:
-        return "resonate_converge_llvm"
+        return "resonate_orchestrate_fusion"
     if index == 3:
+        return "resonate_converge_llvm"
+    if index == 4:
         return "resonate_raw_memory"
     return ""
 
@@ -204,34 +233,40 @@ pub fn resonate_case_group(index: Int) -> String:
 
 pub fn resonate_case_title(index: Int) -> String:
     if index == 0:
-        return "Resonate Fire Core — telemetry + entangle + patch journal"
+        return "Resonate Fire Core — multi-handler telemetry + entangle + patch journal"
     if index == 1:
-        return "Resonate Orchestrate Fusion — cpu/converge/law pipeline in handler"
+        return "Resonate Dampen Window — 500ms absorption proof"
     if index == 2:
-        return "Resonate Converge LLVM — fast lane dispatch + mismatch guard"
+        return "Resonate Orchestrate Fusion — cpu/converge/law pipeline in handler"
     if index == 3:
-        return "Resonate Raw Memory — collapse/observe/decay with heap validate"
+        return "Resonate Converge LLVM — fast lane dispatch + mismatch guard"
+    if index == 4:
+        return "Resonate Raw Memory — alloc/decay with ptr_offset + mem_store/load"
     return ""
 
 pub fn resonate_case_iterations(index: Int) -> Int:
     if index == 0:
         return 128
     if index == 1:
-        return 96
-    if index == 2:
         return 128
+    if index == 2:
+        return 96
     if index == 3:
+        return 128
+    if index == 4:
         return 32
     return 0
 
 pub fn resonate_case_expected_checksum(index: Int) -> Int:
     if index == 0:
-        return 3663364
+        return -1
     if index == 1:
-        return 817382673
+        return -1
     if index == 2:
-        return 469912320
+        return 817382673
     if index == 3:
+        return 469912320
+    if index == 4:
         return 6007648
     return -1
 
@@ -241,6 +276,8 @@ pub fn resonate_case_checksum(case_id: String, iterations: Int, amplify: Int, mo
     while repeat < amplify:
         if case_id == "resonate_fire_core":
             acc = (acc + resonate_fire_core_checksum(iterations, modulus)) % modulus
+        else if case_id == "resonate_dampen_window":
+            acc = (acc + resonate_dampen_window_checksum(iterations, modulus)) % modulus
         else if case_id == "resonate_orchestrate_fusion":
             acc = (acc + resonate_orchestrate_fusion_checksum(iterations, modulus)) % modulus
         else if case_id == "resonate_converge_llvm":

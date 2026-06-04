@@ -49,6 +49,8 @@ DEFAULT_RUNTIME_STAMP_FILES = (
     "runtime/native_core_runtime.toml",
     "blades/kain-mcp/config/runtime_policy.json",
 )
+DEFAULT_BAZEL_STORAGE_LIMIT_GIB = 150
+DEFAULT_BAZEL_STORAGE_LIMIT_BYTES = DEFAULT_BAZEL_STORAGE_LIMIT_GIB * 1024 * 1024 * 1024
 
 
 class SyncError(RuntimeError):
@@ -88,6 +90,21 @@ class SyncContext:
     repo_kain_config: Path
     clang_path: Path | None
     python_path: Path | None
+
+
+@dataclass(frozen=True)
+class BazelStorageEntry:
+    path: Path
+    size_bytes: int
+    mtime_unix: float
+    root_name: str
+
+
+@dataclass(frozen=True)
+class BazelStorageRoots:
+    output_user_root: Path | None
+    disk_cache: Path | None
+    repository_cache: Path | None
 
 
 def short_sha256(text: str, width: int = 20) -> str:
@@ -414,6 +431,243 @@ def resolve_sync_context(
         clang_path=resolve_clang_path(repo_root),
         python_path=resolve_python_path(),
     )
+
+
+def read_bazel_rc_setting(repo_root: Path, prefixes: Sequence[str]) -> str | None:
+    for rc_name in (".bazelrc.local", ".bazelrc"):
+        rc_path = repo_root / rc_name
+        if not rc_path.exists():
+            continue
+        try:
+            lines = rc_path.read_text(encoding="utf-8").splitlines()
+        except OSError:
+            continue
+        for raw_line in lines:
+            line = raw_line.strip()
+            if not line or line.startswith("#"):
+                continue
+            for prefix in prefixes:
+                if line.startswith(prefix):
+                    value = line[len(prefix) :].strip()
+                    if value:
+                        return value
+    return None
+
+
+def resolve_bazel_storage_roots(repo_root: Path) -> BazelStorageRoots:
+    output_user_root = os.environ.get("KAIN_BAZEL_OUTPUT_USER_ROOT")
+    if not output_user_root:
+        output_user_root = read_bazel_rc_setting(
+            repo_root, ("startup --output_user_root=",)
+        )
+    repository_cache = os.environ.get("KAIN_BAZEL_REPOSITORY_CACHE")
+    if not repository_cache:
+        repository_cache = read_bazel_rc_setting(
+            repo_root, ("common --repository_cache=",)
+        )
+    disk_cache = os.environ.get("KAIN_BAZEL_DISK_CACHE")
+    if not disk_cache:
+        disk_cache = read_bazel_rc_setting(repo_root, ("build --disk_cache=",))
+    return BazelStorageRoots(
+        output_user_root=(
+            resolve_configured_path(repo_root, output_user_root)
+            if output_user_root
+            else None
+        ),
+        disk_cache=(
+            resolve_configured_path(repo_root, disk_cache) if disk_cache else None
+        ),
+        repository_cache=(
+            resolve_configured_path(repo_root, repository_cache)
+            if repository_cache
+            else None
+        ),
+    )
+
+
+def resolve_bazel_storage_limit_bytes(default_gib: int = DEFAULT_BAZEL_STORAGE_LIMIT_GIB) -> int:
+    raw_bytes = os.environ.get("KAIN_BAZEL_STORAGE_LIMIT_BYTES", "").strip()
+    if raw_bytes:
+        try:
+            return max(0, int(raw_bytes))
+        except ValueError:
+            pass
+    raw_gib = os.environ.get("KAIN_BAZEL_STORAGE_LIMIT_GIB", "").strip()
+    if raw_gib:
+        try:
+            return max(0, int(float(raw_gib) * (1024**3)))
+        except ValueError:
+            pass
+    return default_gib * 1024 * 1024 * 1024
+
+
+def format_gibibytes(value_bytes: int) -> str:
+    return f"{value_bytes / (1024 ** 3):.2f} GiB"
+
+
+def format_optional_path(value: Path | None) -> str:
+    return str(value) if value else "(unset)"
+
+
+def path_tree_size_bytes(path: Path) -> int:
+    if not path.exists():
+        return 0
+    try:
+        if path.is_file() or path.is_symlink():
+            return int(path.stat().st_size)
+    except OSError:
+        return 0
+
+    total = 0
+    stack = [path]
+    while stack:
+        current = stack.pop()
+        try:
+            children = list(current.iterdir())
+        except OSError:
+            continue
+        for child in children:
+            try:
+                if child.is_symlink() or child.is_file():
+                    total += int(child.stat().st_size)
+                elif child.is_dir():
+                    stack.append(child)
+                else:
+                    total += int(child.stat().st_size)
+            except OSError:
+                continue
+    return total
+
+
+def path_mtime_unix(path: Path) -> float:
+    try:
+        return float(path.stat().st_mtime)
+    except OSError:
+        return 0.0
+
+
+def delete_path_best_effort(path: Path) -> tuple[bool, str | None]:
+    def onerror(func, failed_path, exc_info):
+        error = exc_info[1]
+        if isinstance(error, FileNotFoundError):
+            return
+        try:
+            os.chmod(failed_path, 0o700)
+        except OSError:
+            pass
+        try:
+            func(failed_path)
+        except FileNotFoundError:
+            return
+
+    try:
+        if not path.exists():
+            return True, None
+        if path.is_dir() and not path.is_symlink():
+            shutil.rmtree(path, onerror=onerror)
+        else:
+            path.unlink(missing_ok=True)
+        return True, None
+    except OSError as error:
+        return False, f"failed to remove {path}: {error}"
+
+
+def collect_storage_entries(root_name: str, root: Path) -> list[BazelStorageEntry]:
+    if not root.exists():
+        return []
+    entries: list[BazelStorageEntry] = []
+    try:
+        children = list(root.iterdir())
+    except OSError:
+        return []
+    for child in children:
+        try:
+            entries.append(
+                BazelStorageEntry(
+                    path=child,
+                    size_bytes=path_tree_size_bytes(child),
+                    mtime_unix=path_mtime_unix(child),
+                    root_name=root_name,
+                )
+            )
+        except OSError:
+            continue
+    return entries
+
+
+def prune_bazel_storage(
+    repo_root: Path,
+    *,
+    max_bytes: int | None = None,
+    dry_run: bool = False,
+) -> tuple[int, int, tuple[str, ...], tuple[str, ...]]:
+    roots = resolve_bazel_storage_roots(repo_root)
+    budget = resolve_bazel_storage_limit_bytes() if max_bytes is None else max_bytes
+    if budget <= 0:
+        budget = DEFAULT_BAZEL_STORAGE_LIMIT_BYTES
+
+    named_roots: list[tuple[str, Path]] = []
+    if roots.output_user_root:
+        named_roots.append(("output_user_root", roots.output_user_root))
+    if roots.disk_cache:
+        named_roots.append(("disk_cache", roots.disk_cache))
+    if roots.repository_cache:
+        named_roots.append(("repository_cache", roots.repository_cache))
+
+    entries: list[BazelStorageEntry] = []
+    total_before = 0
+    for root_name, root in named_roots:
+        root_size = path_tree_size_bytes(root)
+        total_before += root_size
+        entries.extend(collect_storage_entries(root_name, root))
+
+    removed: list[str] = []
+    warnings: list[str] = []
+    current_total = total_before
+    for entry in sorted(entries, key=lambda item: (item.mtime_unix, item.size_bytes)):
+        if current_total <= budget:
+            break
+        if dry_run:
+            removed.append(f"{entry.root_name}:{entry.path}")
+            current_total -= entry.size_bytes
+            continue
+        ok, warning = delete_path_best_effort(entry.path)
+        if ok:
+            removed.append(f"{entry.root_name}:{entry.path}")
+            current_total -= entry.size_bytes
+        elif warning:
+            warnings.append(warning)
+
+    if current_total > budget:
+        warnings.append(
+            "storage budget still exceeded after pruning; remaining bytes belong to currently retained roots"
+        )
+    return total_before, current_total, tuple(removed), tuple(warnings)
+
+
+def report_bazel_storage_prune(repo_root: Path, *, dry_run: bool = False) -> int:
+    budget = resolve_bazel_storage_limit_bytes()
+    roots = resolve_bazel_storage_roots(repo_root)
+    total_before, total_after, removed, warnings = prune_bazel_storage(
+        repo_root, max_bytes=budget, dry_run=dry_run
+    )
+
+    print(f"Repo Root : {repo_root}")
+    print(f"Budget    : {budget} bytes ({format_gibibytes(budget)})")
+    print(f"Mode      : {'dry-run' if dry_run else 'prune'}")
+    print(f"Output Root : {format_optional_path(roots.output_user_root)}")
+    print(f"Disk Cache  : {format_optional_path(roots.disk_cache)}")
+    print(f"Repo Cache  : {format_optional_path(roots.repository_cache)}")
+    print(f"Before    : {total_before} bytes ({format_gibibytes(total_before)})")
+    print(f"After     : {total_after} bytes ({format_gibibytes(total_after)})")
+    print(f"Removed   : {len(removed)} entries")
+    for item in removed:
+        print(f"  {item}")
+    if warnings:
+        print("Warnings  :")
+        for warning in warnings:
+            print(f"  {warning}")
+    return 0
 
 
 def sanitized_python_env(base: dict[str, str]) -> dict[str, str]:
@@ -1581,6 +1835,16 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     status.add_argument("--bazel-config", default=None)
     status.add_argument("--launcher-dir", default=None)
     status.add_argument("--json", action="store_true")
+
+    prune = subparsers.add_parser(
+        "prune-storage",
+        help="Trim Bazel storage back under the configured cap.",
+    )
+    prune.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Report what would be removed without deleting anything.",
+    )
     return parser.parse_args(argv)
 
 
@@ -1588,6 +1852,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(sys.argv[1:] if argv is None else argv)
     try:
         repo_root = resolve_repo_root(args.repo_root)
+        if args.command == "prune-storage":
+            return report_bazel_storage_prune(repo_root, dry_run=args.dry_run)
         context = resolve_sync_context(
             repo_root,
             bazel_config=getattr(args, "bazel_config", None),

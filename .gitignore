@@ -5,6 +5,7 @@
 *.exe
 /packages/ephemaris
 blades/c/ephemaris/
+.omo/
 **/debug/
 mcp/.config/
 ml/raw

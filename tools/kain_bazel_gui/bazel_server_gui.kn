@@ -20,8 +20,8 @@ import tkinter as tk
 const PROCESS_QUERY_LIMITED_INFORMATION: Int = 4096
 const STILL_ACTIVE: Int = 259
 const DEFAULT_REPO_ROOT: String = "X:/"
-const DEFAULT_OUTPUT_USER_ROOT: String = "F:/_b/output-user-root"
-const DEFAULT_OUTPUT_BASE: String = "F:/_b/output-user-root/n2kwlvv2"
+const DEFAULT_OUTPUT_USER_ROOT: String = "Z:/_b/output-user-root"
+const DEFAULT_OUTPUT_BASE: String = "Z:/_b/output-user-root/n2kwlvv2"
 
 fn callback_bootstrap_code() -> String:
     var code = ""
@@ -301,7 +301,7 @@ fn main() -> Int:
     gui_trace("open_button:create")
     let open_button = python_call_attr_raw(tk, "Button", [buttons])
     let open_callback = python_call_raw("__kain_bazel_gui_push", ["open"])
-    let _open_text = python_call_attr_raw(open_button, "__setitem__", ["text", "Open F:/_b"])
+    let _open_text = python_call_attr_raw(open_button, "__setitem__", ["text", "Open Z:/_b"])
     let _open_command = python_call_attr_raw(open_button, "__setitem__", ["command", open_callback])
     let _open_padx = python_call_attr_raw(open_button, "__setitem__", ["padx", 12])
     let _open_pady = python_call_attr_raw(open_button, "__setitem__", ["pady", 7])

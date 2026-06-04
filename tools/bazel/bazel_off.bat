@@ -19,6 +19,7 @@ set "BAZEL_CONFIG=%~2"
 
 if "%BAZEL_REPO%"=="" set "BAZEL_REPO=%CD%"
 if "%BAZEL_CONFIG%"=="" set "BAZEL_CONFIG=dev"
+set "BAZEL_REPO_ARG=%BAZEL_REPO:\=/%"
 
 cd /d "%BAZEL_REPO%" 2>nul
 if errorlevel 1 (
@@ -61,6 +62,25 @@ for /f "tokens=1,2" %%A in ('
     tasklist /NH /FI "IMAGENAME eq java.exe" /FI "WINDOWTITLE eq bazel*" 2^>nul ^| findstr /I java
 ') do (
     echo [bazel_off]   WARNING: possible orphan: java.exe (%%B)
+)
+
+REM --- Step 5: Prune Bazel storage back under the cap ----------------------
+set "PYTHON_EXE="
+set "PYTHON_ARGS="
+for /f "delims=" %%P in ('where py 2^>nul') do if not defined PYTHON_EXE set "PYTHON_EXE=%%P"
+if defined PYTHON_EXE (
+    set "PYTHON_ARGS=-3"
+) else (
+    for /f "delims=" %%P in ('where python 2^>nul') do if not defined PYTHON_EXE set "PYTHON_EXE=%%P"
+)
+if defined PYTHON_EXE (
+    echo [bazel_off] Pruning Bazel storage to keep the Z drive under the cap...
+    "%PYTHON_EXE%" %PYTHON_ARGS% scripts\python\kain_bazel_sync.py --repo-root "%BAZEL_REPO_ARG%" prune-storage
+    if errorlevel 1 (
+        echo [bazel_off] WARNING: storage prune helper returned an error.
+    )
+) else (
+    echo [bazel_off] WARNING: Python 3 was not found. Skipping storage prune.
 )
 echo [bazel_off] Done.
 

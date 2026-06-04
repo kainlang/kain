@@ -1,0 +1,10 @@
+component TestPanel():
+    render <panel title="test" />
+
+world Test1:
+    state x: Int = 0
+    surface web => TestPanel
+
+world Test2:
+    state y: Int = 0
+    surface web => TestPanel

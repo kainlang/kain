@@ -3,6 +3,7 @@ use std::json
 use std::python
 use std::runtime
 
+import resonate_py_bridge as py_bridge
 import math as py_math
 import moderngl as mgl
 import pygame as pg
@@ -17,8 +18,8 @@ component ResonatePyPanel():
     render <panel title="resonate-py-24tet" />
 
 world ResonatePyAuthority:
-    state note_slot: Int = 0
-    state quarter_step: Int = 0
+    state note_slot: Int = -1
+    state quarter_step: Int = -1
     state velocity: Int = 0
     state event_epoch: Int = 0
     state ui_epoch: Int = 0
@@ -32,7 +33,7 @@ world ResonatePyAuthority:
     surface native_ui => ResonatePyPanel
 
 world ResonatePyMirror:
-    state note_slot_copy: Int = 0
+    state note_slot_copy: Int = -1
     state event_epoch_copy: Int = 0
     state ui_epoch_copy: Int = 0
     state shader_epoch_copy: Int = 0
@@ -122,9 +123,13 @@ patch resonate_py_apply_epoch_effect(authority: ResonatePyAuthority, old_epoch: 
     authority.resonance_hash = resonate_py_wave_pipeline(authority.event_epoch + authority.note_slot + authority.velocity, authority)
     return authority.resonance_hash
 
+resonate ResonatePyAuthority.note_slot dampen 24ms:
+    ResonatePyAuthority.dampen_shadow = resonate_new_i64 + ResonatePyAuthority.velocity + ResonatePyAuthority.event_epoch
+    ResonatePyAuthority.last_new = resonate_new_i64
+
 fn resonate_py_reset_state():
-    ResonatePyAuthority.note_slot = 0
-    ResonatePyAuthority.quarter_step = 0
+    ResonatePyAuthority.note_slot = -1
+    ResonatePyAuthority.quarter_step = -1
     ResonatePyAuthority.velocity = 0
     ResonatePyAuthority.event_epoch = 0
     ResonatePyAuthority.ui_epoch = 0
@@ -139,40 +144,32 @@ fn resonate_py_reset_state():
 fn resonate_py_pygame_available() -> Bool:
     return python_module_available("pygame")
 
-fn resonate_py_bootstrap_python():
-    python_exec("import math as _math\nimport numpy as _np\nimport moderngl as _mgl\nimport pygame as _pygame\nif '_kain_resonate_py_state' not in globals():\n    _kain_resonate_py_state = {'mgl_ctx': None, 'mgl_buf': None, 'pygame_init': False}\n\ndef kain_resonate_py_reset():\n    st = _kain_resonate_py_state\n    if st['mgl_buf'] is not None:\n        try:\n            st['mgl_buf'].release()\n        except Exception:\n            pass\n        st['mgl_buf'] = None\n    if st['mgl_ctx'] is not None:\n        try:\n            st['mgl_ctx'].release()\n        except Exception:\n            pass\n        st['mgl_ctx'] = None\n    if st['pygame_init']:\n        try:\n            _pygame.quit()\n        except Exception:\n            pass\n        st['pygame_init'] = False\n    return 1\n\ndef kain_resonate_py_pitch_milli(note_slot):\n    return int(220.0 * (2.0 ** ((float(note_slot) - 12.0) / 24.0)) * 1000.0)\n\ndef kain_resonate_py_note_score(note_slot, velocity, epoch):\n    pitch = kain_resonate_py_pitch_milli(note_slot)\n    color = (pitch // 97 + velocity * 7 + epoch * 13) % 255\n    return int((pitch % 1000003) + color + note_slot * 17 + velocity * 3 + epoch)\n\ndef kain_resonate_py_keyboard_shadow(note_slot, velocity, epoch):\n    pitch = kain_resonate_py_pitch_milli(note_slot)\n    label = f'q{int(note_slot):02d}:{int(velocity)}:{pitch}'\n    return len(label) + pitch + int(epoch) + int(velocity) + (24 * 11)\n\ndef kain_resonate_py_pygame_init():\n    st = _kain_resonate_py_state\n    if not st['pygame_init']:\n        _pygame.init()\n        st['pygame_init'] = True\n    return _pygame.get_sdl_version()[0] * 10000 + _pygame.get_sdl_version()[1] * 100 + _pygame.get_sdl_version()[2]\n\ndef kain_resonate_py_pygame_keyboard_probe(note_slot, velocity, epoch):\n    st = _kain_resonate_py_state\n    if not st['pygame_init']:\n        _pygame.init()\n        st['pygame_init'] = True\n    pitch = kain_resonate_py_pitch_milli(note_slot)\n    key_name = f'note_{int(note_slot):02d}'\n    display_w = 640 + int(note_slot) * 10\n    display_h = 480 + int(velocity)\n    return pitch + display_w + display_h + len(key_name) + int(epoch) + int(velocity)\n\ndef kain_resonate_py_mgl_prepare():\n    st = _kain_resonate_py_state\n    if st['mgl_ctx'] is None:\n        st['mgl_ctx'] = _mgl.create_standalone_context()\n    if st['mgl_buf'] is None:\n        seed = _np.zeros(24, dtype='f4').tobytes()\n        st['mgl_buf'] = st['mgl_ctx'].buffer(seed)\n    return st['mgl_buf'].size\n\ndef kain_resonate_py_mgl_push(note_slot, velocity, epoch):\n    kain_resonate_py_mgl_prepare()\n    st = _kain_resonate_py_state\n    arr = _np.zeros(24, dtype='f4')\n    arr[int(note_slot) % 24] = float(velocity) + (float(epoch) * 0.125)\n    st['mgl_buf'].write(arr.tobytes())\n    return int(st['mgl_buf'].size + int(arr.sum() * 100.0))\n")
-
 fn resonate_py_python_reset() -> Int:
-    resonate_py_bootstrap_python()
-    return to_int(python_call_raw("kain_resonate_py_reset", []))
+    return to_int(py_bridge.reset())
 
 fn resonate_py_python_pitch_milli(note_slot: Int) -> Int:
-    resonate_py_bootstrap_python()
-    return to_int(python_call_raw("kain_resonate_py_pitch_milli", [note_slot]))
+    return to_int(py_bridge.pitch_milli(note_slot))
 
 fn resonate_py_python_note_score(note_slot: Int, velocity: Int, epoch: Int) -> Int:
-    resonate_py_bootstrap_python()
-    return to_int(python_call_raw("kain_resonate_py_note_score", [note_slot, velocity, epoch]))
+    return to_int(py_bridge.note_score(note_slot, velocity, epoch))
 
 fn resonate_py_python_keyboard_shadow(note_slot: Int, velocity: Int, epoch: Int) -> Int:
-    resonate_py_bootstrap_python()
-    return to_int(python_call_raw("kain_resonate_py_keyboard_shadow", [note_slot, velocity, epoch]))
+    return to_int(py_bridge.keyboard_shadow(note_slot, velocity, epoch))
 
 fn resonate_py_python_mgl_prepare() -> Int:
-    resonate_py_bootstrap_python()
-    return to_int(python_call_raw("kain_resonate_py_mgl_prepare", []))
+    return to_int(py_bridge.mgl_prepare())
 
 fn resonate_py_python_mgl_push(note_slot: Int, velocity: Int, epoch: Int) -> Int:
-    resonate_py_bootstrap_python()
-    return to_int(python_call_raw("kain_resonate_py_mgl_push", [note_slot, velocity, epoch]))
+    return to_int(py_bridge.mgl_push(note_slot, velocity, epoch))
 
 fn resonate_py_python_pygame_init() -> Int:
-    resonate_py_bootstrap_python()
-    return to_int(python_call_raw("kain_resonate_py_pygame_init", []))
+    return to_int(py_bridge.pygame_init())
 
 fn resonate_py_python_pygame_keyboard_probe(note_slot: Int, velocity: Int, epoch: Int) -> Int:
-    resonate_py_bootstrap_python()
-    return to_int(python_call_raw("kain_resonate_py_pygame_keyboard_probe", [note_slot, velocity, epoch]))
+    return to_int(py_bridge.pygame_keyboard_probe(note_slot, velocity, epoch))
+
+fn resonate_py_python_window_frame(note_slot: Int, velocity: Int, epoch: Int, resonance_hash: Int, pitch_milli: Int, ui_epoch: Int, shader_epoch: Int) -> Int:
+    return to_int(py_bridge.window_frame(note_slot, velocity, epoch, resonance_hash, pitch_milli, ui_epoch, shader_epoch))
 
 converge resonate_py_lane_mix(value: Int) -> Int:
     spec reference:
@@ -344,6 +341,73 @@ fn resonate_py_moderngl_buffer_checksum(iterations: Int, modulus: Int) -> Int wi
         return 600 + shutdown_status
     return resonate_py_mod(acc + resonate_py_module_probe_score(), modulus)
 
+fn resonate_py_app_velocity(frame: Int, note_slot: Int) -> Int:
+    return 48 + resonate_py_mod((frame * 9) + (note_slot * 13) + 17, 56)
+
+fn resonate_py_drive_note(note_slot: Int, velocity: Int, seed: Int) -> Int:
+    let old_epoch = ResonatePyAuthority.event_epoch
+    let epoch = resonate_py_strike(ResonatePyAuthority, note_slot, velocity, seed)
+    let _wave = resonate_py_apply_epoch_effect(ResonatePyAuthority, old_epoch)
+    let _dampen = resonate_py_probe_dampen(ResonatePyAuthority, seed + note_slot + velocity)
+    return epoch
+
+fn resonate_py_launch_app() -> Int with Unsafe:
+    let init_status = runtime_init()
+    if init_status != 0:
+        return 700 + init_status
+
+    resonate_py_reset_state()
+    let _python_reset = resonate_py_python_reset()
+    if resonate_py_pygame_available() == false:
+        let _python_close = resonate_py_python_reset()
+        let shutdown_missing = runtime_shutdown()
+        if shutdown_missing != 0:
+            return 710 + shutdown_missing
+        return 711
+
+    let _pg_ready = resonate_py_python_pygame_init()
+    let _mgl_ready = resonate_py_python_mgl_prepare()
+    let _module_score = resonate_py_module_probe_score()
+    let frame = 0
+    let last_command = 0
+    let release_frames = 0
+
+    println("resonate_py: launched 24-TET instrument. click keys or use the mapped rows; Esc closes.")
+
+    let running = true
+    while running:
+        let command = resonate_py_python_window_frame(
+            ResonatePyAuthority.note_slot,
+            ResonatePyAuthority.velocity,
+            ResonatePyAuthority.event_epoch,
+            ResonatePyAuthority.resonance_hash,
+            ResonatePyAuthority.last_pitch_milli,
+            ResonatePyAuthority.ui_epoch,
+            ResonatePyAuthority.shader_epoch,
+        )
+        if command < 0:
+            running = false
+        else if command == 0:
+            release_frames = release_frames + 1
+            if release_frames >= 4:
+                last_command = 0
+        else if command != last_command:
+            release_frames = 0
+            let next_note = command - 1
+            if resonate_py_note_in_bounds(next_note):
+                let velocity = resonate_py_app_velocity(frame, next_note)
+                let _epoch = resonate_py_drive_note(next_note, velocity, frame + 41)
+            last_command = command
+        else:
+            release_frames = 0
+        frame = frame + 1
+
+    let _python_close = resonate_py_python_reset()
+    let shutdown_status = runtime_shutdown()
+    if shutdown_status != 0:
+        return 720 + shutdown_status
+    return 0
+
 pub fn resonate_py_case_count() -> Int:
     return RESONATE_PY_CASE_COUNT
 
@@ -454,7 +518,7 @@ fn resonate_py_run_case(index: Int) -> Int with Unsafe:
     println("    [OK]")
     return 0
 
-fn main() -> Int with Unsafe:
+pub fn resonate_py_run_benchmarks() -> Int with Unsafe:
     println("")
     println("=== RESONATE_PY BENCHMARK ===")
     println("")
@@ -469,3 +533,6 @@ fn main() -> Int with Unsafe:
         return 1
     println("resonate_py: all cases passed")
     return 0
+
+fn main() -> Int with Unsafe:
+    return resonate_py_launch_app()

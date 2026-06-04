@@ -181,6 +181,69 @@ class KainBazelSyncTests(unittest.TestCase):
             self.assertEqual(env["TMPDIR"], expected_temp)
             self.assertTrue(Path(expected_temp).exists())
 
+    def test_resolve_bazel_storage_limit_bytes_uses_env_overrides(self) -> None:
+        with mock.patch.dict(
+            os.environ,
+            {"KAIN_BAZEL_STORAGE_LIMIT_BYTES": "1234"},
+            clear=True,
+        ):
+            self.assertEqual(sync.resolve_bazel_storage_limit_bytes(), 1234)
+
+        with mock.patch.dict(
+            os.environ,
+            {"KAIN_BAZEL_STORAGE_LIMIT_GIB": "1.5"},
+            clear=True,
+        ):
+            self.assertEqual(
+                sync.resolve_bazel_storage_limit_bytes(),
+                int(1.5 * (1024**3)),
+            )
+
+    def test_prune_bazel_storage_prunes_oldest_entries_first(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            repo = Path(raw)
+            output_root = repo / "cache" / "output"
+            disk_root = repo / "cache" / "disk"
+            repo_cache = repo / "cache" / "repo"
+
+            with mock.patch.dict(
+                os.environ,
+                {
+                    "KAIN_BAZEL_OUTPUT_USER_ROOT": str(output_root),
+                    "KAIN_BAZEL_DISK_CACHE": str(disk_root),
+                    "KAIN_BAZEL_REPOSITORY_CACHE": str(repo_cache),
+                },
+                clear=True,
+            ):
+                for root, child_name, payload, mtime in (
+                    (output_root, "old", b"aaaa", 1000),
+                    (disk_root, "mid", b"bbbbb", 2000),
+                    (repo_cache, "new", b"cccccc", 3000),
+                ):
+                    child = root / child_name
+                    child.mkdir(parents=True)
+                    (child / "payload.txt").write_bytes(payload)
+                    os.utime(child, (mtime, mtime))
+
+                total_before, total_after, removed, warnings = sync.prune_bazel_storage(
+                    repo,
+                    max_bytes=10,
+                )
+
+            self.assertEqual(total_before, 15)
+            self.assertEqual(total_after, 6)
+            self.assertEqual(
+                removed,
+                (
+                    f"output_user_root:{output_root / 'old'}",
+                    f"disk_cache:{disk_root / 'mid'}",
+                ),
+            )
+            self.assertFalse((output_root / "old").exists())
+            self.assertFalse((disk_root / "mid").exists())
+            self.assertTrue((repo_cache / "new").exists())
+            self.assertEqual(warnings, ())
+
     def test_sibling_bazel_build_binary_pairs_kain_and_kn(self) -> None:
         self.assertEqual(sync.sibling_bazel_build_binary("kain"), "kn")
         self.assertEqual(sync.sibling_bazel_build_binary("kn"), "kain")

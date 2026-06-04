@@ -1,7 +1,7 @@
 use blade::{
     discover_workspace, discover_workspace_root as discover_blade_workspace_root,
     load_effective_kain_manifest, load_kain_manifest, BladeWorkspace, KainRunSection,
-    ResolvedBlade,
+    ResolvedBlade, KAIN_BUILD_SCRIPT_NAMES, KAIN_MANIFEST_NAMES,
 };
 use kain_core::tooling_config::apply_cargo_command_defaults;
 use kain_core::CompileTarget;
@@ -944,9 +944,23 @@ fn resolve_run_unit(
         if input.is_dir() {
             return resolve_workspace_unit(request, &input, cache_root);
         }
+        if is_project_authority_input(&input) {
+            let authority_root = input.parent().unwrap_or(workspace_root);
+            return resolve_workspace_unit(request, authority_root, cache_root);
+        }
         return resolve_file_unit(request, workspace_root, &input, cache_root);
     }
     resolve_workspace_unit(request, &request.workspace_path, cache_root)
+}
+
+fn is_project_authority_input(path: &Path) -> bool {
+    let Some(file_name) = path.file_name().and_then(OsStr::to_str) else {
+        return false;
+    };
+    KAIN_BUILD_SCRIPT_NAMES
+        .iter()
+        .chain(KAIN_MANIFEST_NAMES.iter())
+        .any(|candidate| file_name.eq_ignore_ascii_case(candidate))
 }
 
 fn resolve_workspace_unit(
@@ -3094,6 +3108,37 @@ fn build(ctx: BuildContext) -> BuildGraph:
         .unwrap();
 
         let request = RunRequest::new(Some(entry.clone()));
+        let plan = plan_run(&request).unwrap();
+        let unit = &plan.units[0];
+        assert_eq!(unit.target, RunTarget::Llvm);
+        assert!(same_declared_path(&unit.cwd, entry.parent().unwrap()));
+        assert!(matches!(unit.adapter, RunAdapter::KainNativeLlvm { .. }));
+    }
+
+    #[test]
+    fn build_script_input_routes_to_workspace_entry() {
+        let temp = tempfile::tempdir().unwrap();
+        let entry = temp.path().join("src").join("main.kn");
+        kfs::create_dir_all(entry.parent().unwrap()).unwrap();
+        kfs::write_text(&entry, "fn main() -> Int:\n    return 0\n").unwrap();
+        let build_script = temp.path().join("build.kn");
+        kfs::write_text(
+            &build_script,
+            r#"
+fn build(ctx: BuildContext) -> BuildGraph:
+    let spec = blade("native-auto")
+        .kind("kain")
+        .entry("src/main.kn")
+        .source_root("src")
+    let run = run_defaults()
+        .entry("src/main.kn")
+        .target("llvm")
+    return build_graph()
+"#,
+        )
+        .unwrap();
+
+        let request = RunRequest::new(Some(build_script));
         let plan = plan_run(&request).unwrap();
         let unit = &plan.units[0];
         assert_eq!(unit.target, RunTarget::Llvm);
