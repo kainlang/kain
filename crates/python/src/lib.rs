@@ -908,6 +908,7 @@ fn py_call_raw_native(env: &mut Env, args: Vec<Value>) -> KainResult<Value> {
 fn py_call_with_mode(env: &mut Env, args: Vec<Value>, raw_result: bool) -> KainResult<Value> {
     let state = python_scope_state(env)?;
     let call_spec = parse_python_call(&args)?;
+    let call_label = describe_python_call(&call_spec);
 
     Python::with_gil(|py| {
         let scope = state.scope.read().unwrap();
@@ -917,7 +918,11 @@ fn py_call_with_mode(env: &mut Env, args: Vec<Value>, raw_result: bool) -> KainR
             target
                 .as_ref(py)
                 .getattr(attr_name)
-                .map_err(|err| KainError::runtime(format!("Python getattr error: {err}")))?
+                .map_err(|err| {
+                    KainError::runtime(format!(
+                        "Python getattr error while resolving '{call_label}': {err}"
+                    ))
+                })?
                 .into_py(py)
         } else {
             resolve_python_target(py, scope_dict, call_spec.target)?
@@ -929,7 +934,11 @@ fn py_call_with_mode(env: &mut Env, args: Vec<Value>, raw_result: bool) -> KainR
         let result = callable
             .as_ref(py)
             .call(py_args, py_kwargs)
-            .map_err(|err| KainError::runtime(format!("Python call error: {err}")))?;
+            .map_err(|err| {
+                KainError::runtime(format!(
+                    "Python call error while calling '{call_label}': {err}"
+                ))
+            })?;
         if raw_result {
             py_to_value_or_wrap_raw(result)
         } else {
@@ -969,7 +978,13 @@ fn py_getattr_with_mode(env: &mut Env, args: Vec<Value>, raw_result: bool) -> Ka
         let attr = target
             .as_ref(py)
             .getattr(attr_name.as_str())
-            .map_err(|err| KainError::runtime(format!("Python getattr error: {err}")))?;
+            .map_err(|err| {
+                KainError::runtime(format!(
+                    "Python getattr error while reading '{}.{}': {err}",
+                    describe_python_value(&args[0]),
+                    attr_name
+                ))
+            })?;
         if raw_result {
             py_to_value_or_wrap_raw(attr)
         } else {
@@ -2226,6 +2241,27 @@ fn parse_python_call(args: &[Value]) -> KainResult<PythonCallSpec<'_>> {
         _ => Err(KainError::runtime(
             "py_call: expected (target, args), (target, args, kwargs), (target, attr, args), or (target, attr, args, kwargs)",
         )),
+    }
+}
+
+fn describe_python_value(value: &Value) -> String {
+    match value {
+        Value::HostObject(label, _) => label.clone(),
+        Value::String(expr) => expr.clone(),
+        Value::Struct(name, _) => format!("struct:{name}"),
+        Value::Array(_) => "array".to_string(),
+        Value::Tuple(_) => "tuple".to_string(),
+        Value::None | Value::Unit => "none".to_string(),
+        other => format!("{other:?}"),
+    }
+}
+
+fn describe_python_call(call_spec: &PythonCallSpec<'_>) -> String {
+    let target = describe_python_value(call_spec.target);
+    if let Some(attr_name) = call_spec.attr_name.as_deref() {
+        format!("{target}.{attr_name}")
+    } else {
+        target
     }
 }
 
@@ -4944,6 +4980,63 @@ fn main() -> Int:
             Value::Int(value) => assert_eq!(value, 7),
             other => panic!("expected Python bridge to return Int(7), got {other:?}"),
         }
+    }
+
+    #[test]
+    fn python_imported_host_object_calls_accept_named_kwargs() {
+        let result = interpret_source(
+            r#"
+import json as py_json
+
+fn main():
+    return py_json.dumps([1, 2], separators = [",", ":"])
+"#,
+        );
+
+        match result {
+            Value::String(value) => assert_eq!(value, "[1,2]"),
+            other => panic!("expected compact JSON string from direct kwargs, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn python_callable_host_objects_accept_keyword_only_args() {
+        let result = interpret_source(
+            r#"
+fn main() -> Int:
+    py_exec("def take_kw(*, value, bonus=0): return value + bonus")
+    let take_kw = py_eval_raw("take_kw")
+    return take_kw(value = 7, bonus = 5)
+"#,
+        );
+
+        match result {
+            Value::Int(value) => assert_eq!(value, 12),
+            other => panic!("expected keyword-only Python callable result, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn python_host_object_call_errors_name_the_symbol() {
+        let err = interpret_source_result(
+            r#"
+import json as py_json
+
+fn main():
+    return py_json.definitely_missing_kain_symbol()
+"#,
+        )
+        .expect_err("missing Python symbol should report an error");
+
+        let message = err.to_string();
+        assert!(
+            message.contains("Python getattr error while resolving"),
+            "expected contextual Python getattr error, got {message}"
+        );
+        assert!(
+            message.contains("definitely_missing_kain_symbol"),
+            "expected missing symbol in error, got {message}"
+        );
     }
 
     #[test]

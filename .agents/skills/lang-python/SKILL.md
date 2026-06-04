@@ -3,11 +3,12 @@ name: lang-python
 description: >-
   Use when authoring, explaining, reviewing, or repairing Kain-side Python
   interop: first-class `import ...` and `from ... import ...`, local sibling
-  `.py` or package resolution, `use std::python`, region-cached bridge calls,
-  async futures, actor callbacks, Python host objects, shared or owned
-  materialization into Kain images/tensors/buffers/geometry, GPU tensor
-  contracts, and Python-package facades without changing compiler or runtime
-  bridge internals. If the task is mainly `use c::...`, DLLs, platform
+  `.py` or package resolution, natural host-object calls with named Kain args
+  lowered to Python kwargs, `use std::python`, region-cached bridge calls, async
+  futures, actor callbacks, Python host objects, shared or owned materialization
+  into Kain images/tensors/buffers/geometry, GPU tensor contracts, and
+  Python-package facades without changing compiler or runtime bridge internals.
+  If the task is mainly `use c::...`, DLLs, platform
   packages, or native bridge metadata, use `lang-c-abi` instead; load both
   when Python and native ABI work are fused.
 ---
@@ -38,6 +39,7 @@ to open first.
 Use this skill for:
 
 - Kain source with Python imports such as `import numpy as np`, `import fastmcp as fastmcp`, `from python_lab.bridge import tensor_signature as py_tensor_signature`, or `import python_lab.bridge as py_lab`.
+- Kain source that calls Python host objects directly with named arguments, such as `np.linspace(start = 0.0, stop = 1.0, num = 5)` or `py_json.dumps(payload, separators = [",", ":"])`.
 - Kain source with `use std::python`, `use std::interop`, `python_*`, `py_*`, or `kain_*_from_py` helpers.
 - A task that mentions `benchmark/cases_v2/python_interop.kn`, `benchmark/cases_v2/python_stdlib_fused.kn`, Python packages, local `.py` helpers, CPython behavior, host objects, materialization, NumPy, Torch, FastMCP, DCC libraries, or Python-owned buffers/images/tensors/geometry.
 - A task that mentions `python_interop`, `python_stdlib_fused`, `python_region_*`, `python_call_async`, `python_future_*`, `python_actor_callback_*`, `python_shared_buffer`, `python_shared_image`, `python_tensor_*`, or `python_gpu_storage_buffer`.
@@ -228,6 +230,7 @@ understands arbitrary Python package surfaces.
 Runtime behavior:
 
 - `np.linspace(...)`, `fastmcp.FastMCP(...)`, `py_lab.make_numpy_grid(...)`, and `runner(...)` use normal Kain `.` and call syntax.
+- Named Kain call arguments on Python host objects lower to real Python kwargs, so `py_json.dumps(payload, separators = [",", ":"])` and keyword-only Python callables work without spelling `python_call_attr_kwargs`.
 - If the value is a Python-backed host object, field access routes through the Python bridge rather than normal Kain struct lookup.
 - If the runtime is missing the Python bridge, host-object field access fails loudly instead of silently lying.
 

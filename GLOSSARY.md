@@ -178,6 +178,8 @@ Location rule: paths in this glossary are live in this checkout. Older docs may 
 
 **Pulse** - Kain's first-class temporal beat declaration. It is how the language talks about recurring cadence, jitter, missed beats, and time-driven work as semantics instead of hand-written loops. Location: `crates/core/`; native substrate in `runtime/native/include/machine_stones.h` and `runtime/native/src/core/machine_stones.c`.
 
+**Python import lane** - Kain's first-class `import ...` / `from ... import ...` route into live CPython modules and objects. Imported values behave as dynamic Python host objects: normal Kain member/call syntax routes through the Python bridge, and named Kain call args lower to Python kwargs for host-object calls. Location: parser/type/runtime truth in `crates/core/src/`; bridge truth in `crates/python/src/lib.rs`; authored helpers in `stdlib/python.kn`.
+
 ## Q
 
 **`query_stdlib.py`** - The fast stdlib lookup helper. New agents should use this before manually opening the huge stdlib atlas. Location: `query_stdlib.py`.

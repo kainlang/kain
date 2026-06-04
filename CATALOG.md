@@ -85,6 +85,12 @@ The angle-bracket form resolves known C runtime, C runtime math, POSIX,
 Windows SDK, and Vulkan SDK families through deterministic include roots plus
 compiler-owned link policy declared in `crates/c-ffi/system_headers.toml`.
 
+First-class Python `import ...` names bind live Python host objects. Normal
+member/call syntax applies, and named Kain call args on those host objects lower
+to Python kwargs, so authored code can write
+`py_json.dumps(value, separators = [",", ":"])` without dropping into
+`python_call_attr_kwargs`.
+
 ### Surface And Projection Words
 
 `surface`, `native_ui`, `viewport3d`, `web`, `ue5`

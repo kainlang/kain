@@ -1,5 +1,17 @@
 # Kain Memory
 
+# 2026-06-04 - Python host-object calls now preserve Kain named args as kwargs
+
+What changed:
+
+- Direct calls on imported Python host objects now keep `CallArg.name` and lower named Kain arguments into the existing Python kwargs path. Authored Kain can call `py_json.dumps(value, separators = [",", ":"])` or keyword-only Python callables directly instead of spelling `python_call_attr_kwargs`.
+- Python bridge call/getattr failures now report contextual package/symbol labels, so missing attrs and bad calls point at the attempted Python target instead of only returning a bare CPython exception string.
+- Durable docs updated: `lang-python`, `CATALOG.MD`, and `GLOSSARY.MD` now name the natural host-object kwargs behavior.
+
+Validation:
+
+- Targeted Rust proof lives in `crates/python/src/lib.rs`: `python_imported_host_object_calls_accept_named_kwargs`, `python_callable_host_objects_accept_keyword_only_args`, and `python_host_object_call_errors_name_the_symbol`.
+
 # 2026-06-03 - FFmpeg include-first C ABI gauntlet and GUI presenter blade
 
 What changed:

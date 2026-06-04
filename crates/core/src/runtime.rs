@@ -5226,25 +5226,78 @@ fn try_eval_python_method_call(
     target: &Value,
     method: &str,
     args: Vec<Value>,
+    keyword_args: Option<Value>,
 ) -> Option<KainResult<Value>> {
     let py_call = lookup_native_fn(env, "py_call_raw")?;
-    Some(py_call(
-        env,
-        vec![
-            target.clone(),
-            Value::String(method.to_string()),
-            Value::Tuple(args),
-        ],
-    ))
+    let mut call_args = vec![
+        target.clone(),
+        Value::String(method.to_string()),
+        Value::Tuple(args),
+    ];
+    if let Some(keyword_args) = keyword_args {
+        call_args.push(keyword_args);
+    }
+    Some(py_call(env, call_args))
 }
 
 fn try_eval_python_callable(
     env: &mut Env,
     target: &Value,
     args: Vec<Value>,
+    keyword_args: Option<Value>,
 ) -> Option<KainResult<Value>> {
     let py_call = lookup_native_fn(env, "py_call_raw")?;
-    Some(py_call(env, vec![target.clone(), Value::Tuple(args)]))
+    let mut call_args = vec![target.clone(), Value::Tuple(args)];
+    if let Some(keyword_args) = keyword_args {
+        call_args.push(keyword_args);
+    }
+    Some(py_call(env, call_args))
+}
+
+struct EvaluatedPythonCallArgs {
+    positional: Vec<Value>,
+    keyword_args: Option<Value>,
+}
+
+enum EvaluatedPythonCall {
+    Args(EvaluatedPythonCallArgs),
+    Return(Value),
+}
+
+fn eval_python_call_args(env: &mut Env, args: &[CallArg]) -> KainResult<EvaluatedPythonCall> {
+    let mut positional = Vec::new();
+    let mut keyword_fields = Vec::new();
+    let mut seen_named = false;
+
+    for arg in args {
+        let value = eval_expr(env, &arg.value)?;
+        if let Value::Return(_) = value {
+            return Ok(EvaluatedPythonCall::Return(value));
+        }
+
+        if let Some(name) = &arg.name {
+            seen_named = true;
+            keyword_fields.push((name.clone(), value));
+        } else {
+            if seen_named {
+                return Err(KainError::runtime(
+                    "Python host-object calls cannot pass positional arguments after named keyword arguments",
+                ));
+            }
+            positional.push(value);
+        }
+    }
+
+    let keyword_args = if keyword_fields.is_empty() {
+        None
+    } else {
+        Some(runtime_struct_value("PythonKwargs", keyword_fields))
+    };
+
+    Ok(EvaluatedPythonCall::Args(EvaluatedPythonCallArgs {
+        positional,
+        keyword_args,
+    }))
 }
 
 pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
@@ -5261,6 +5314,23 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
                 return Ok(obj_val);
             }
 
+            if matches!(obj_val, Value::HostObject(_, _)) {
+                match eval_python_call_args(env, args)? {
+                    EvaluatedPythonCall::Args(py_args) => {
+                        if let Some(result) = try_eval_python_method_call(
+                            env,
+                            &obj_val,
+                            method,
+                            py_args.positional,
+                            py_args.keyword_args,
+                        ) {
+                            return result;
+                        }
+                    }
+                    EvaluatedPythonCall::Return(value) => return Ok(value),
+                }
+            }
+
             // Evaluate arguments
             let mut arg_vals = Vec::new();
             for arg in args {
@@ -5269,14 +5339,6 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
                     return Ok(v);
                 }
                 arg_vals.push(v);
-            }
-
-            if matches!(obj_val, Value::HostObject(_, _)) {
-                if let Some(result) =
-                    try_eval_python_method_call(env, &obj_val, method, arg_vals.clone())
-                {
-                    return result;
-                }
             }
 
             match obj_val {
@@ -5768,19 +5830,19 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
                 }
 
                 if matches!(obj_val, Value::HostObject(_, _)) {
-                    let mut arg_vals = Vec::new();
-                    for arg in args {
-                        let v = eval_expr(env, &arg.value)?;
-                        if let Value::Return(_) = v {
-                            return Ok(v);
+                    match eval_python_call_args(env, args)? {
+                        EvaluatedPythonCall::Args(py_args) => {
+                            if let Some(result) = try_eval_python_method_call(
+                                env,
+                                &obj_val,
+                                field,
+                                py_args.positional,
+                                py_args.keyword_args,
+                            ) {
+                                return result;
+                            }
                         }
-                        arg_vals.push(v);
-                    }
-
-                    if let Some(result) =
-                        try_eval_python_method_call(env, &obj_val, field, arg_vals)
-                    {
-                        return result;
+                        EvaluatedPythonCall::Return(value) => return Ok(value),
                     }
                 }
             }
@@ -5794,6 +5856,22 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
                 v
             };
 
+            if matches!(func_val, Value::HostObject(_, _)) {
+                match eval_python_call_args(env, args)? {
+                    EvaluatedPythonCall::Args(py_args) => {
+                        if let Some(result) = try_eval_python_callable(
+                            env,
+                            &func_val,
+                            py_args.positional,
+                            py_args.keyword_args,
+                        ) {
+                            return result;
+                        }
+                    }
+                    EvaluatedPythonCall::Return(value) => return Ok(value),
+                }
+            }
+
             // Evaluate arguments
             let mut arg_vals = Vec::new();
             for arg in args {
@@ -5802,12 +5880,6 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
                     return Ok(v);
                 }
                 arg_vals.push(v);
-            }
-
-            if matches!(func_val, Value::HostObject(_, _)) {
-                if let Some(result) = try_eval_python_callable(env, &func_val, arg_vals.clone()) {
-                    return result;
-                }
             }
 
             call_function(env, func_val, arg_vals)
