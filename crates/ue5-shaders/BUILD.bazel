@@ -31,6 +31,7 @@ rust_library(
     aliases = aliases(),
     deps = [
         "//crates/core:kain-core",
+        "//crates/shader-text:kain-shader-text",
     ] + all_crate_deps(normal = True),
     proc_macro_deps = all_crate_deps(proc_macro = True),
     compile_data = COMMON_COMPILE_DATA,
@@ -43,6 +44,7 @@ rust_test(
     aliases = aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
     deps = [
         "//crates/core:kain-core",
+        "//crates/shader-text:kain-shader-text",
     ] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,

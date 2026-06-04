@@ -27,6 +27,7 @@ kain-ownership = { path = "../ownership" }
 kain-fs = { path = "../fs" }
 kain-input = { path = "../input" }
 kain-orchestrate = { path = "../orchestrate" }
+kain-resonate = { path = "../resonate" }
 kain-ui = { path = "../ui" }
 
 [features]

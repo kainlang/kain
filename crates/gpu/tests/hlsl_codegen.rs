@@ -44,5 +44,5 @@ shader compute hlsl_if_control(id: UVec3) -> Void:
     assert!(hlsl.contains("if ((idx >= count))"));
     assert!(hlsl.contains("else"));
     assert!(hlsl.contains("dst[idx] = src[idx];"));
-    assert!(hlsl.contains("dst[idx] = 0.000000;"));
+    assert!(hlsl.contains("dst[idx] = 0.0;"));
 }

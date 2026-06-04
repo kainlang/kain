@@ -1,5 +1,5 @@
 {
-  "checksum": "cbbc225125d2f258478f7413f6da70b5c3b8e35b2a32d4b44b099cf02e708b56",
+  "checksum": "6a3e4de4d1c4ad34d8adf08fb15930f0991190a3d0c7d3592c02bb2c92e9c856",
   "crates": {
     "adler2 2.0.1": {
       "name": "adler2",
@@ -8229,6 +8229,15 @@
           ],
           "selects": {}
         },
+        "deps_dev": {
+          "common": [
+            {
+              "id": "naga 24.0.0",
+              "target": "naga"
+            }
+          ],
+          "selects": {}
+        },
         "edition": "2021",
         "version": "0.1.0"
       },
@@ -14009,6 +14018,53 @@
       ],
       "license_file": null
     },
+    "kain-resonate 0.1.0": {
+      "name": "kain-resonate",
+      "version": "0.1.0",
+      "package_url": null,
+      "repository": null,
+      "targets": [
+        {
+          "Library": {
+            "crate_name": "kain_resonate",
+            "crate_root": "src/lib.rs",
+            "srcs": {
+              "allow_empty": true,
+              "include": [
+                "**/*.rs"
+              ]
+            }
+          }
+        }
+      ],
+      "library_target_name": "kain_resonate",
+      "common_attrs": {
+        "compile_data_glob": [
+          "**"
+        ],
+        "deps": {
+          "common": [
+            {
+              "id": "serde 1.0.228",
+              "target": "serde"
+            },
+            {
+              "id": "thiserror 2.0.18",
+              "target": "thiserror"
+            }
+          ],
+          "selects": {}
+        },
+        "edition": "2021",
+        "version": "0.1.0"
+      },
+      "license": "MIT OR Apache-2.0",
+      "license_ids": [
+        "Apache-2.0",
+        "MIT"
+      ],
+      "license_file": null
+    },
     "kain-run 0.1.0": {
       "name": "kain-run",
       "version": "0.1.0",
@@ -14305,6 +14361,46 @@
           ],
           "selects": {}
         }
+      },
+      "license": null,
+      "license_ids": [],
+      "license_file": null
+    },
+    "kain-shader-text 0.1.0": {
+      "name": "kain-shader-text",
+      "version": "0.1.0",
+      "package_url": null,
+      "repository": null,
+      "targets": [
+        {
+          "Library": {
+            "crate_name": "kain_shader_text",
+            "crate_root": "src/lib.rs",
+            "srcs": {
+              "allow_empty": true,
+              "include": [
+                "**/*.rs"
+              ]
+            }
+          }
+        }
+      ],
+      "library_target_name": "kain_shader_text",
+      "common_attrs": {
+        "compile_data_glob": [
+          "**"
+        ],
+        "deps": {
+          "common": [
+            {
+              "id": "once_cell 1.21.3",
+              "target": "once_cell"
+            }
+          ],
+          "selects": {}
+        },
+        "edition": "2021",
+        "version": "0.1.0"
       },
       "license": null,
       "license_ids": [],
@@ -16871,26 +16967,24 @@
         ],
         "crate_features": {
           "common": [
+            "compact",
             "default",
             "spv-in",
+            "wgsl-in",
             "wgsl-out"
           ],
           "selects": {
             "x86_64-pc-windows-msvc": [
-              "compact",
               "glsl-out",
               "hlsl-out-if-target-windows",
               "msl-out-if-target-apple",
-              "spv-out",
-              "wgsl-in"
+              "spv-out"
             ],
             "x86_64-unknown-linux-gnu": [
-              "compact",
               "glsl-out",
               "hlsl-out-if-target-windows",
               "msl-out-if-target-apple",
-              "spv-out",
-              "wgsl-in"
+              "spv-out"
             ]
           }
         },
@@ -16911,6 +17005,10 @@
             {
               "id": "codespan-reporting 0.11.1",
               "target": "codespan_reporting"
+            },
+            {
+              "id": "hexf-parse 0.2.1",
+              "target": "hexf_parse"
             },
             {
               "id": "indexmap 2.11.1",
@@ -16947,30 +17045,13 @@
             {
               "id": "thiserror 2.0.18",
               "target": "thiserror"
+            },
+            {
+              "id": "unicode-xid 0.2.6",
+              "target": "unicode_xid"
             }
           ],
-          "selects": {
-            "x86_64-pc-windows-msvc": [
-              {
-                "id": "hexf-parse 0.2.1",
-                "target": "hexf_parse"
-              },
-              {
-                "id": "unicode-xid 0.2.6",
-                "target": "unicode_xid"
-              }
-            ],
-            "x86_64-unknown-linux-gnu": [
-              {
-                "id": "hexf-parse 0.2.1",
-                "target": "hexf_parse"
-              },
-              {
-                "id": "unicode-xid 0.2.6",
-                "target": "unicode_xid"
-              }
-            ]
-          }
+          "selects": {}
         },
         "edition": "2021",
         "version": "24.0.0"
@@ -40686,12 +40767,14 @@
     "kain-reflect 0.1.0": "crates/reflect",
     "kain-repair 0.1.0": "crates/repair",
     "kain-repl 0.1.0": "crates/repl",
+    "kain-resonate 0.1.0": "crates/resonate",
     "kain-run 0.1.0": "crates/run",
     "kain-runtime-parallel 0.1.0": "runtime/parallel/rust/kain-runtime-parallel",
     "kain-script 0.1.0": "crates/script",
     "kain-sdk 0.1.0": "crates/sdk",
     "kain-selfhost 0.1.0": "crates/selfhost",
     "kain-semantic 0.1.0": "crates/semantic",
+    "kain-shader-text 0.1.0": "crates/shader-text",
     "kain-stdlib-map 0.1.0": "crates/stdlib-map",
     "kain-sys-codegen 0.1.0": "crates/sys-codegen",
     "kain-test 0.1.0": "crates/test",

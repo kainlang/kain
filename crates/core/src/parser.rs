@@ -703,6 +703,7 @@ impl<'a> Parser<'a> {
                 | "entangle"
                 | "orchestrate"
                 | "pulse"
+                | "resonate"
                 | "shatter"
                 | "include"
                 | "import"
@@ -1023,12 +1024,15 @@ impl<'a> Parser<'a> {
                 self.parse_orchestrate(vis, attributes)
             }
             TokenKind::Ident(ref name) if name == "pulse" => self.parse_pulse(vis, attributes),
+            TokenKind::Ident(ref name) if name == "resonate" => {
+                self.parse_resonate(vis, attributes)
+            }
             TokenKind::Ident(ref name) if name == "shatter" => {
                 self.parse_shatter_struct(vis, attributes)
             }
             _ => Err(self.parser_error(
                 format!(
-                    "Expected item (fn, patch, law, axiom, converge, world, entangle, orchestrate, pulse, shatter struct, struct, enum, actor, component, shader, material, trait, impl, mod, use, include, import, const, test), found {}",
+                    "Expected item (fn, patch, law, axiom, converge, world, entangle, orchestrate, pulse, resonate, shatter struct, struct, enum, actor, component, shader, material, trait, impl, mod, use, include, import, const, test), found {}",
                     self.token_to_user_string(&self.peek_kind())
                 ),
                 self.current_span()
@@ -1895,6 +1899,31 @@ impl<'a> Parser<'a> {
         })
     }
 
+    fn parse_resonate(&mut self, vis: Visibility, attrs: Vec<Attribute>) -> KainResult<Item> {
+        let start = self.current_span();
+        self.expect_contextual_ident("resonate")?;
+        let target = self.parse_resonate_endpoint()?;
+        let dampen = if self.peek_contextual_ident("dampen") {
+            self.advance();
+            Some(self.parse_pulse_duration()?)
+        } else {
+            None
+        };
+        self.expect(TokenKind::Colon)?;
+        let body = self.parse_block()?;
+        let body_span = body.span;
+        let name = format!("resonate__{}", target.segments.join("__"));
+        Ok(Item::Resonate(ResonateDef {
+            name,
+            target,
+            dampen,
+            body,
+            visibility: vis,
+            attributes: attrs,
+            span: start.merge(body_span),
+        }))
+    }
+
     fn parse_orchestrate(&mut self, vis: Visibility, attrs: Vec<Attribute>) -> KainResult<Item> {
         let start = self.current_span();
         self.expect_contextual_ident("orchestrate")?;
@@ -2218,6 +2247,25 @@ impl<'a> Parser<'a> {
             ));
         }
         Ok(EntangleEndpoint {
+            segments,
+            span: start.merge(self.current_span()),
+        })
+    }
+
+    fn parse_resonate_endpoint(&mut self) -> KainResult<ResonateEndpoint> {
+        let start = self.current_span();
+        let mut segments = vec![self.parse_ident()?];
+        while self.check(TokenKind::Dot) {
+            self.advance();
+            segments.push(self.parse_ident()?);
+        }
+        if segments.len() < 2 {
+            return Err(self.parser_error(
+                "Resonate target must be a stable dotted lvalue path like World.state",
+                start,
+            ));
+        }
+        Ok(ResonateEndpoint {
             segments,
             span: start.merge(self.current_span()),
         })

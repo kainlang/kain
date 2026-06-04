@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 kain-core = { path = "../core" }
+kain-shader-text = { path = "../shader-text" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 once_cell = "1.19"

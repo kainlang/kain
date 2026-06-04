@@ -77,15 +77,16 @@ pub fn smoke_keyword_mesh_lane() -> Int with Unsafe:
         return 2
 
     let record = KeywordMeshRecord { id: 1, payload: effect_score, tag: "mesh" }
-    let summary = record.summary()
-    let values = vec!(record.id, record.payload, effect_score)
+    let cloned = record.clone_self()
+    let summary = cloned.summary()
+    let values = vec!(cloned.id, cloned.payload, effect_score)
     if len(values) != 3:
         return 3
 
     if summary != "keyword:mesh:20":
         return 4
 
-    if record.folded_score() != 25:
+    if cloned.folded_score() != 25:
         return 5
 
     let lane_rank = keyword_lane_rank(SmokeLane::KeywordMesh)
@@ -95,7 +96,7 @@ pub fn smoke_keyword_mesh_lane() -> Int with Unsafe:
     let packet = SmokePacket {
         id: 50,
         lane: SmokeLane::KeywordMesh,
-        payload: smoke_keyword_mesh_scalar(record.payload),
+        payload: smoke_keyword_mesh_scalar(cloned.payload),
         tag: summary,
         hot: true
     }

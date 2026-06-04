@@ -5,7 +5,7 @@
 
 - Categories: llvm, lowering, value-semantics, methods, smoketest
 - Severity: High
-- Status: Open in tree (2026-06-03)
+- Status: Fixed in tree (2026-06-03)
 - Surface: authored struct methods that take `_self: Self_` and return `Self` through a local `let copy: Self = _self`.
 - Trigger: Running a tiny native LLVM repro or the original `smoketest/src/semantics/keyword_mesh.kn` lane before the smoke workaround.
 - Symptom:
@@ -24,10 +24,19 @@
   - `X:\.kain\reports\run\session-1780531771102-24468.json`
   - `X:\.kain\reports\run\session-1780531748984-4180.json`
   - The full smoketest failure before the workaround reported `failure_track = "semantics.keyword_mesh"` with `failure_code = 1754` in `smoketest/telemetry/full/summary.json`.
+- Fix landed:
+  - `crates/core/src/monomorphize.rs` now substitutes authored `Self` / `Self_` AST annotations into the concrete impl target before standalone impl-method helpers are typed for the driver/CLI LLVM path.
+  - `crates/sys-codegen/src/codegen_llvm/mod.rs` now preserves the current impl target while lowering method bodies, maps method-local `Self` / `Self_` annotations to the real struct storage type, and loads `%T* -> %T` when a value copy is requested instead of degrading struct pointers into integer bits.
+  - `smoketest/src/semantics/keyword_mesh.kn` now exercises the original `clone_self` path again instead of bypassing it.
+- Regression evidence:
+  - `cargo test -p kain-sys-codegen lowers_impl_self_local_copy_without_pointer_bit_corruption -- --nocapture`
+  - `cargo test -p kain-driver compile_llvm_monomorphized_impl_self_copy_preserves_concrete_return -- --nocapture`
+  - `cargo run -p cli -- run X:\scratch\keyword_mesh_clone_probe.kn --target llvm` succeeded with `X:\.kain\reports\run\session-1780536299050-15816.json`.
+  - `cargo run -p cli -- build smoketest` completed successfully with `X:\smoketest\.kain\reports\build\session-1780536420052-22496.json`; the restored full telemetry reports `ok = 1`, `succeeded_tracks = 63`, and `failure_track = ""` in `smoketest/telemetry/full/summary.json`.
 - Current workaround:
-  - Avoid authored `clone_self`-style helpers that roundtrip `Self` by value in native LLVM proof lanes; operate on the original record or rebuild the needed scalar outputs directly.
+  - No workaround required in this checkout after the fix; keep `clone_self`-style helpers in smoke lanes so this stays covered.
 - Suggested direction:
-  - Audit LLVM lowering / runtime ABI for struct-by-value method self passing and return materialization, especially records containing strings or other nontrivial payloads.
+  - Keep paired direct sys-codegen and driver/CLI monomorphization regressions for future impl-method changes; the driver path can expose stale `Self` / `Self_` annotations even when direct lowering looks correct.
 
 ## 2026-06-03 - typechecker/module-scope
 ### Imported authored packs leak top-level globals hard enough to collide on `main` and duplicate extern ownership

@@ -7,9 +7,9 @@ use std::text
 use std::time
 
 const RAW_DIR: String = "ml/raw"
+const ERR_DIR: String = "ml/error_corpus"
 const OUT_DIR: String = "ml/processed"
 const CHUNK_SIZE: Int = 8000
-const BUILD_TS: String = "2026-06-03T12:00:00.000Z"
 
 fn root() -> String:
     var r = process_environment("KAIN_HOME")
@@ -32,67 +32,318 @@ fn zero_pad(value: Int, width: Int) -> String:
 
 fn iso8601(epoch_ms: Int) -> String:
     let dt = datetime_from_epoch_millis(epoch_ms)
-    let y = str(dt.year)
-    let mo = zero_pad(dt.month, 2)
-    let d = zero_pad(dt.day, 2)
-    let h = zero_pad(dt.hour, 2)
-    let mi = zero_pad(dt.minute, 2)
-    let s = zero_pad(dt.second, 2)
-    let ms = zero_pad(dt.millis, 3)
-    return y + "-" + mo + "-" + d + "T" + h + ":" + mi + ":" + s + "." + ms + "Z"
+    var buf = str(dt.year) + "-" + zero_pad(dt.month, 2) + "-" + zero_pad(dt.day, 2)
+    buf = buf + "T" + zero_pad(dt.hour, 2) + ":" + zero_pad(dt.minute, 2)
+    buf = buf + ":" + zero_pad(dt.second, 2) + "." + zero_pad(dt.millis, 3) + "Z"
+    return buf
 
 fn chunk_text(text: String, max_size: Int) -> Array<String>:
     let raw_len = len(text)
     if raw_len <= max_size:
         return [text]
-
     let mut chunks: Array<String> = []
     let mut start: Int = 0
-    let text_len = raw_len
-    while start < text_len:
+    while start < raw_len:
         var end = start + max_size
-        if end >= text_len:
-            end = text_len
+        if end >= raw_len:
+            end = raw_len
         else:
             var boundary = end
             while boundary > start:
-                let ch = char_at(text, boundary)
-                if ch == "\n":
+                if char_at(text, boundary) == "\n":
                     break
                 boundary = boundary - 1
-            if boundary > start:
-                end = boundary + 1
-            else:
-                end = start + max_size
+            end = if boundary > start: boundary + 1 else: start + max_size
         push(chunks, substring(text, start, end))
         start = end
     return chunks
 
-fn main() -> Int:
-    let init = runtime_init()
-    if init != 0:
-        return 100 + init
+// ----- annotation parser -----
 
-    let r = root()
-    let raw_dir = path_join(r, RAW_DIR)
-    let out_dir = path_join(r, OUT_DIR)
-    if fs_exists(raw_dir) == false:
-        println("missing: " + raw_dir)
-        return 1
-    if fs_exists(out_dir) == false:
-        fs_create_dir_all(out_dir)
+fn parse_annotations(text: String) -> JsonObject:
+    let obj = json_object()
+    var pos: Int = 0
+    let ln = len(text)
+    while pos < ln:
+        if text_starts_with_string(substring(text, pos, ln), "// @"):
+            var lpos = pos
+            while lpos < ln and char_at(text, lpos) != "\n":
+                lpos = lpos + 1
+            let al = substring(text, pos, lpos)
+            if text_starts_with_string(al, "// @expected_code:"):
+                json_object_set_string(obj, "expected_code", trim_s(substring(al, 18, len(al))))
+            elif text_starts_with_string(al, "// @expected_mode:"):
+                json_object_set_string(obj, "expected_mode", trim_s(substring(al, 18, len(al))))
+            elif text_starts_with_string(al, "// @expected_repair:"):
+                json_object_set_string(obj, "expected_repair", trim_s(substring(al, 20, len(al))))
+            pos = lpos + 1
+        else:
+            pos = pos + 1
+    return obj
 
-    // Try realtime clock; fall back to compile-time stamp if ABI returns epoch
-    let now_ms = now_millis()
-    let ts = if now_ms > 100000: iso8601(now_ms) else: BUILD_TS
-    let ts_c = text_replace_string(text_replace_string(ts, ":", ""), ".", "")
-    let out_path = path_join(out_dir, "kain_dataset_" + ts_c + ".jsonl")
+fn trim_s(s: String) -> String:
+    var r = s
+    while len(r) > 0 and (char_at(r, 0) == " " or char_at(r, 0) == "\t" or char_at(r, 0) == "\r"):
+        r = substring(r, 1, len(r))
+    while len(r) > 0 and (char_at(r, len(r) - 1) == " " or char_at(r, len(r) - 1) == "\t" or char_at(r, len(r) - 1) == "\r"):
+        r = substring(r, 0, len(r) - 1)
+    return r
 
+// ----- semantic feature detection -----
+
+fn word_at(text: String, needle: String, pos: Int) -> Bool:
+    let tl = len(text)
+    let nl = len(needle)
+    if pos + nl > tl:
+        return false
+    let slice = substring(text, pos, pos + nl)
+    if slice != needle:
+        return false
+    let lo = if pos == 0: 32 else: ascii_code(char_at(text, pos - 1))
+    let hi = if pos + nl >= tl: 32 else: ascii_code(char_at(text, pos + nl))
+    return is_alnum(lo) == false and is_alnum(hi) == false
+
+fn ascii_code(ch: String) -> Int:
+    if ch == "a": return 97
+    if ch == "z": return 122
+    if ch == "A": return 65
+    if ch == "Z": return 90
+    if ch == "0": return 48
+    if ch == "9": return 57
+    if ch == "_": return 95
+    return 32
+
+fn is_alnum(code: Int) -> Bool:
+    return (code >= 48 and code <= 57) or (code >= 65 and code <= 90) or (code >= 97 and code <= 122) or code == 95
+
+fn has_keyword(text: String, word: String) -> Bool:
+    let tl = len(text)
+    let wl = len(word)
+    var pos: Int = 0
+    while pos <= tl - wl:
+        if word_at(text, word, pos):
+            return true
+        pos = pos + 1
+    return false
+
+fn describe_semantics(text: String) -> String:
+    var parts: String = ""
+    if has_keyword(text, "world"):     parts = parts + "world state authorities, "
+    if has_keyword(text, "entangle"):  parts = parts + "entangled state coupling, "
+    if has_keyword(text, "actor"):     parts = parts + "message-passing actors, "
+    if has_keyword(text, "shader"):    parts = parts + "GPU compute shaders, "
+    if has_keyword(text, "converge"):  parts = parts + "converge adaptive dispatch, "
+    if has_keyword(text, "orchestrate"): parts = parts + "orchestrate pipeline stages, "
+    if has_keyword(text, "patch"):     parts = parts + "transactional patches, "
+    if has_keyword(text, "law"):       parts = parts + "invariant laws, "
+    if has_keyword(text, "collapse"):  parts = parts + "ownership collapse regions, "
+    if has_keyword(text, "teleport"):  parts = parts + "zero-copy teleport handoff, "
+    if has_keyword(text, "pulse"):     parts = parts + "temporal pulse scheduling, "
+    if has_keyword(text, "shatter"):   parts = parts + "shattered SoA layout, "
+    if has_keyword(text, "axiom"):     parts = parts + "machine capability axioms, "
+    if parts == "":
+        return "core language features"
+    return substring(parts, 0, len(parts) - 2)
+
+fn describe_effect(text: String) -> String:
+    if has_keyword(text, "with GPU"):     return "GPU-accelerated"
+    if has_keyword(text, "with Unsafe"):  return "low-level systems"
+    if has_keyword(text, "with IO"):      return "I/O-bound"
+    if has_keyword(text, "with Async"):   return "async"
+    if has_keyword(text, "async fn"):     return "async"
+    return "pure"
+
+fn extract_title(source: String) -> String:
+    var s = source
+    if text_ends_with_string(s, ".kn"):
+        s = substring(s, 0, len(s) - 3)
+    let prefixes = ["benchmark_cases_v2_", "benchmark_cases_", "blades_", "smoketest_src_"]
+    var pi: Int = 0
+    while pi < len(prefixes):
+        if text_starts_with_string(s, prefixes[pi]):
+            s = substring(s, len(prefixes[pi]), len(s))
+            break
+        else:
+            pi = pi + 1
+    var result: String = ""
+    var caps: Bool = true
+    var i: Int = 0
+    while i < len(s):
+        let ch = char_at(s, i)
+        if ch == "_" or ch == "-" or ch == ".":
+            result = result + " "
+            caps = true
+        elif caps:
+            result = result + upper_char(ch)
+            caps = false
+        else:
+            result = result + ch
+        i = i + 1
+    return trim_s(result)
+
+fn upper_char(ch: String) -> String:
+    if ch == "a": return "A"
+    if ch == "b": return "B"
+    if ch == "c": return "C"
+    if ch == "d": return "D"
+    if ch == "e": return "E"
+    if ch == "f": return "F"
+    if ch == "g": return "G"
+    if ch == "h": return "H"
+    if ch == "i": return "I"
+    if ch == "j": return "J"
+    if ch == "k": return "K"
+    if ch == "l": return "L"
+    if ch == "m": return "M"
+    if ch == "n": return "N"
+    if ch == "o": return "O"
+    if ch == "p": return "P"
+    if ch == "q": return "Q"
+    if ch == "r": return "R"
+    if ch == "s": return "S"
+    if ch == "t": return "T"
+    if ch == "u": return "U"
+    if ch == "v": return "V"
+    if ch == "w": return "W"
+    if ch == "x": return "X"
+    if ch == "y": return "Y"
+    if ch == "z": return "Z"
+    return ch
+
+fn error_label(mode: String) -> String:
+    if text_starts_with_string(mode, "Ownership"):  return "ownership violation"
+    if text_starts_with_string(mode, "Borrow"):     return "borrow conflict"
+    if text_starts_with_string(mode, "Effect"):     return "effect purity violation"
+    if text_starts_with_string(mode, "Type"):       return "type mismatch"
+    if text_starts_with_string(mode, "Shader"):     return "shader compilation error"
+    if text_starts_with_string(mode, "World"):      return "world/state error"
+    if text_starts_with_string(mode, "Converge"):   return "converge fast-lane drift"
+    if text_starts_with_string(mode, "Orchestrate"): return "orchestrate stage error"
+    if text_starts_with_string(mode, "CAbi"):       return "C ABI boundary error"
+    if text_starts_with_string(mode, "Actor"):      return "actor message error"
+    if text_starts_with_string(mode, "Parser"):     return "syntax error"
+    if text_starts_with_string(mode, "Missing"):    return "missing declaration"
+    return "Kain compilation error"
+
+fn error_hint(mode: String, repair: String) -> String:
+    if text_starts_with_string(mode, "Ownership"):  return "Review the collapse/observe/decay lifecycle. " + repair
+    if text_starts_with_string(mode, "Borrow"):     return "Check ownership region scoping. " + repair
+    if text_starts_with_string(mode, "Effect"):     return "Ensure function effects match their call graph. " + repair
+    if text_starts_with_string(mode, "Type"):       return "Verify type annotations match the actual values. " + repair
+    if text_starts_with_string(mode, "Shader"):     return "Check shader resource bindings and compute requirements. " + repair
+    if text_starts_with_string(mode, "World"):      return "Worlds need at least one surface declaration. " + repair
+    if text_starts_with_string(mode, "Converge"):   return "Ensure all fast lanes produce the same result as the spec. " + repair
+    if text_starts_with_string(mode, "Orchestrate"): return "Check stage ordering, residency, and transfer rules. " + repair
+    if text_starts_with_string(mode, "CAbi"):       return "Add the correct import (use c::module or include directive). " + repair
+    if text_starts_with_string(mode, "Actor"):      return "Check actor message handler signatures match send/ask calls. " + repair
+    if text_starts_with_string(mode, "Parser"):     return "Check syntax: missing colons, mismatched delimiters, or reserved identifiers. " + repair
+    if text_starts_with_string(mode, "Missing"):    return "Add the missing declaration or surface. " + repair
+    return repair
+
+// ----- instruction template generators -----
+
+fn emit_pair(obj: JsonObject, output: String) -> String:
+    return output + json_stringify(obj) + "\n"
+
+fn write_instruct_templates(title: String, semantics: String, effect: String, code: String, source: String, ts: String, output: String) -> String:
+    var buf = output
+
+    let t1 = json_object()
+    json_object_set_string(t1, "instruction", "Write a Kain program for " + title + " using " + semantics)
+    json_object_set_string(t1, "input", "")
+    json_object_set_string(t1, "output", code)
+    json_object_set_string(t1, "source", source)
+    json_object_set_string(t1, "timestamp", ts)
+    json_object_set_string(t1, "task_type", "code_generation")
+    json_object_set_string(t1, "language", "kain")
+    buf = buf + json_stringify(t1) + "\n"
+
+    let t2 = json_object()
+    json_object_set_string(t2, "instruction", "Explain what this Kain code does and identify all semantic constructs used")
+    json_object_set_string(t2, "input", code)
+    json_object_set_string(t2, "output", "This Kain program demonstrates " + semantics + ". It implements " + title + " using " + effect + " effects. The code exercises " + semantics + " as first-class compiler-owned semantics.")
+    json_object_set_string(t2, "source", source)
+    json_object_set_string(t2, "timestamp", ts)
+    json_object_set_string(t2, "task_type", "code_explanation")
+    json_object_set_string(t2, "language", "kain")
+    buf = buf + json_stringify(t2) + "\n"
+
+    if semantics != "core language features":
+        let t3 = json_object()
+        json_object_set_string(t3, "instruction", "Identify every Kain language feature used in this code sample")
+        json_object_set_string(t3, "input", code)
+        json_object_set_string(t3, "output", "This code uses the following Kain compiler-owned semantics: " + semantics + ".")
+        json_object_set_string(t3, "source", source)
+        json_object_set_string(t3, "timestamp", ts)
+        json_object_set_string(t3, "task_type", "feature_identification")
+        json_object_set_string(t3, "language", "kain")
+        buf = buf + json_stringify(t3) + "\n"
+
+    let mid = len(code) / 2
+    if mid > 200:
+        let t4 = json_object()
+        json_object_set_string(t4, "instruction", "Complete this Kain code. The first half is provided; generate the second half implementing " + title)
+        json_object_set_string(t4, "input", substring(code, 0, mid))
+        json_object_set_string(t4, "output", substring(code, mid, len(code)))
+        json_object_set_string(t4, "source", source)
+        json_object_set_string(t4, "timestamp", ts)
+        json_object_set_string(t4, "task_type", "code_completion")
+        json_object_set_string(t4, "language", "kain")
+        buf = buf + json_stringify(t4) + "\n"
+
+    return buf
+
+fn error_instruct_templates(code: String, ann: JsonObject, source: String, ts: String, output: String) -> String:
+    let mode = json_string_or(ann, "expected_mode", "UnknownError")
+    let err_code = json_string_or(ann, "expected_code", "KAIN-ERR")
+    let repair = json_string_or(ann, "expected_repair", "review the code")
+    let kind = error_label(mode)
+    let fix = error_hint(mode, repair)
+    var buf = output
+
+    let t1 = json_object()
+    json_object_set_string(t1, "instruction", "Find and fix the " + kind + " in this Kain code")
+    json_object_set_string(t1, "input", code)
+    json_object_set_string(t1, "output", "The error is a " + kind + " (" + err_code + "). To fix it: " + fix + ". The compiler will reject this code with diagnostic " + err_code + ".")
+    json_object_set_string(t1, "source", source)
+    json_object_set_string(t1, "timestamp", ts)
+    json_object_set_string(t1, "task_type", "error_correction")
+    json_object_set_string(t1, "language", "kain")
+    json_object_set_string(t1, "error_code", err_code)
+    json_object_set_string(t1, "error_kind", kind)
+    buf = buf + json_stringify(t1) + "\n"
+
+    let t2 = json_object()
+    json_object_set_string(t2, "instruction", "What compiler error does this Kain code produce? Explain the root cause")
+    json_object_set_string(t2, "input", code)
+    json_object_set_string(t2, "output", "This code will fail with diagnostic " + err_code + " (" + kind + "). The root cause: " + fix)
+    json_object_set_string(t2, "source", source)
+    json_object_set_string(t2, "timestamp", ts)
+    json_object_set_string(t2, "task_type", "error_prediction")
+    json_object_set_string(t2, "language", "kain")
+    json_object_set_string(t2, "error_code", err_code)
+    buf = buf + json_stringify(t2) + "\n"
+
+    let t3 = json_object()
+    json_object_set_string(t3, "instruction", "Why doesn't this Kain code compile? Identify the specific issue and the language rule being violated")
+    json_object_set_string(t3, "input", code)
+    json_object_set_string(t3, "output", "This code doesn't compile because of a " + kind + ". The Kain language rule violated: " + kind + ". Specifically: " + fix + " Expected diagnostic: " + err_code + ".")
+    json_object_set_string(t3, "source", source)
+    json_object_set_string(t3, "timestamp", ts)
+    json_object_set_string(t3, "task_type", "error_prediction")
+    json_object_set_string(t3, "language", "kain")
+    json_object_set_string(t3, "error_code", err_code)
+    buf = buf + json_stringify(t3) + "\n"
+
+    return buf
+
+// ----- dataset generators -----
+
+fn gen_pretrain(raw_dir: String, out_path: String, ts: String) -> Int:
     let entries = fs_walk(raw_dir)
     var total_chunks: Int = 0
     var total_files: Int = 0
     var output: String = ""
-
     var ei: Int = 0
     let ec = len(entries)
     while ei < ec:
@@ -100,11 +351,9 @@ fn main() -> Int:
         ei = ei + 1
         if text_ends_with_string(ep, ".kn") == false or fs_is_file(ep) == false:
             continue
-
         let source = path_file_name(ep)
         let content = fs_read_text(ep)
         let chunks = chunk_text(content, CHUNK_SIZE)
-
         var ci: Int = 0
         let cc = len(chunks)
         while ci < cc:
@@ -118,14 +367,81 @@ fn main() -> Int:
             if cc > 1:
                 json_object_set_int(obj, "chunk", ci)
                 json_object_set_int(obj, "chunk_total", cc)
-            let jl = json_stringify(obj)
-            output = output + jl + "\n"
+            output = output + json_stringify(obj) + "\n"
             ci = ci + 1
-
         total_files = total_files + 1
         total_chunks = total_chunks + cc
+    fs_atomic_write_text(out_path, output)
+    println("pretrain: files=" + str(total_files) + " chunks=" + str(total_chunks) + " => " + out_path)
+    return total_files
+
+fn gen_instruct(raw_dir: String, error_dir: String, out_path: String, ts: String) -> Int:
+    var output: String = ""
+    var total: Int = 0
+
+    // Part A: Error corpus
+    if fs_exists(error_dir):
+        let errs = fs_walk(error_dir)
+        var ri: Int = 0
+        while ri < len(errs):
+            let ep = errs[ri].path
+            ri = ri + 1
+            if text_ends_with_string(ep, ".kn") == false or fs_is_file(ep) == false:
+                continue
+            let code = fs_read_text(ep)
+            let ann = parse_annotations(code)
+            if json_has_key(ann, "expected_code") and len(code) > 0:
+                output = error_instruct_templates(code, ann, path_file_name(ep), ts, output)
+                total = total + 3
+        println("instruct: error_pairs=" + str(total))
+
+    // Part B: Regular code
+    let entries = fs_walk(raw_dir)
+    var fd: Int = 0
+    var ei: Int = 0
+    while ei < len(entries):
+        let ep = entries[ei].path
+        ei = ei + 1
+        if text_ends_with_string(ep, ".kn") == false or fs_is_file(ep) == false:
+            continue
+        let code = fs_read_text(ep)
+        if len(code) < 50:
+            continue
+        let title = extract_title(path_file_name(ep))
+        let sem = describe_semantics(code)
+        let eff = describe_effect(code)
+        output = write_instruct_templates(title, sem, eff, code, path_file_name(ep), ts, output)
+        total = total + 4
+        fd = fd + 1
 
     fs_atomic_write_text(out_path, output)
+    println("instruct: files=" + str(fd) + " total_pairs=" + str(total) + " => " + out_path)
+    return total
+
+// ----- main -----
+
+fn main() -> Int:
+    let init = runtime_init()
+    if init != 0:
+        return 100 + init
+
+    let r = root()
+    let raw_dir = path_join(r, RAW_DIR)
+    let error_dir = path_join(r, ERR_DIR)
+    let out_dir = path_join(r, OUT_DIR)
+
+    if fs_exists(raw_dir) == false:
+        println("missing: " + raw_dir)
+        return 1
+    if fs_exists(out_dir) == false:
+        fs_create_dir_all(out_dir)
+
+    let ts = iso8601(now_millis())
+    let ts_c = text_replace_string(text_replace_string(ts, ":", ""), ".", "")
+
+    let pn = gen_pretrain(raw_dir, path_join(out_dir, "kain_pretrain_" + ts_c + ".jsonl"), ts)
+    let ip = gen_instruct(raw_dir, error_dir, path_join(out_dir, "kain_instruct_" + ts_c + ".jsonl"), ts)
+
     let _ = runtime_shutdown()
-    println("files=" + str(total_files) + " chunks=" + str(total_chunks) + " output=" + out_path)
-    return if total_files > 0: 0 else: 2
+    println("done: pretrain_files=" + str(pn) + " instruct_pairs=" + str(ip))
+    return if pn > 0 and ip > 0: 0 else: 1

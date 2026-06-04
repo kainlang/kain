@@ -1,0 +1,21 @@
+version: 1
+id: kain.gpu.proofs.control_wgsl_synthetic_sampler_binding_stays_free
+kind: check_smt2
+description: WGSL synthetic sampler binding reservation picks the first free slot
+  after a texture binding, so generated texture samplers cannot collide with
+  explicit resource bindings in the checked prefix.
+tags:
+- gpu
+- wgsl
+- hlsl
+- control
+- binding-order
+source:
+  path: X:\crates\shader-text\src\lib.rs
+  symbol: reserve_wgsl_sampler_binding
+  reason: Direct WGSL output synthesizes texture samplers when authored Kain only
+    declares a texture-like resource.
+case:
+  smt2: "(set-logic QF_LIA)\n(declare-const texture_binding Int)\n(declare-const used0 Int)\n(declare-const used1 Int)\n(declare-const used2 Int)\n(assert (>= texture_binding 0))\n(assert (>= used0 0))\n(assert (>= used1 0))\n(assert (>= used2 0))\n(assert (distinct used0 used1 used2))\n(define-fun used ((slot Int)) Bool (or (= slot used0) (= slot used1) (= slot used2)))\n(define-fun candidate1 () Int (+ texture_binding 1))\n(define-fun candidate2 () Int (+ texture_binding 2))\n(define-fun candidate3 () Int (+ texture_binding 3))\n(assert (not (used candidate3)))\n(define-fun chosen () Int (ite (not (used candidate1)) candidate1 (ite (not (used candidate2)) candidate2 candidate3)))\n(assert (used chosen))\n(check-sat)"
+  include_model: false
+  include_stats: false

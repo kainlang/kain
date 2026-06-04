@@ -26,9 +26,12 @@ type CUcontext = *mut c_void;
 type CUmodule = *mut c_void;
 type CUfunction = *mut c_void;
 type CUstream = *mut c_void;
+type CUgraph = *mut c_void;
+type CUgraphExec = *mut c_void;
 type CUdeviceptr = u64;
 type CUresult = i32;
 type CUjitOption = i32;
+type CUstreamCaptureMode = u32;
 
 type CuInit = unsafe extern "system" fn(u32) -> CUresult;
 type CuDeviceGet = unsafe extern "system" fn(*mut CUdevice, i32) -> CUresult;
@@ -54,7 +57,14 @@ type CuMemcpyHtoD = unsafe extern "system" fn(CUdeviceptr, *const c_void, usize)
 type CuMemcpyDtoH = unsafe extern "system" fn(*mut c_void, CUdeviceptr, usize) -> CUresult;
 type CuStreamCreate = unsafe extern "system" fn(*mut CUstream, u32) -> CUresult;
 type CuStreamDestroy = unsafe extern "system" fn(CUstream) -> CUresult;
+type CuStreamBeginCapture = unsafe extern "system" fn(CUstream, CUstreamCaptureMode) -> CUresult;
+type CuStreamEndCapture = unsafe extern "system" fn(CUstream, *mut CUgraph) -> CUresult;
 type CuStreamSynchronize = unsafe extern "system" fn(CUstream) -> CUresult;
+type CuGraphInstantiateWithFlags =
+    unsafe extern "system" fn(*mut CUgraphExec, CUgraph, u64) -> CUresult;
+type CuGraphLaunch = unsafe extern "system" fn(CUgraphExec, CUstream) -> CUresult;
+type CuGraphExecDestroy = unsafe extern "system" fn(CUgraphExec) -> CUresult;
+type CuGraphDestroy = unsafe extern "system" fn(CUgraph) -> CUresult;
 type CuLaunchKernel = unsafe extern "system" fn(
     CUfunction,
     u32,
@@ -71,6 +81,8 @@ type CuLaunchKernel = unsafe extern "system" fn(
 type CuGetErrorString = unsafe extern "system" fn(CUresult, *mut *const c_char) -> CUresult;
 
 const CU_STREAM_NON_BLOCKING: u32 = 1;
+const CU_STREAM_CAPTURE_MODE_RELAXED: CUstreamCaptureMode = 2;
+const CU_GRAPH_INSTANTIATE_FLAGS_NONE: u64 = 0;
 const KAIN_CUDA_DEVICE_ENV: &str = "KAIN_CUDA_DEVICE";
 const KAIN_CUDA_DEVICE_ORDINAL_ENV: &str = "KAIN_CUDA_DEVICE_ORDINAL";
 
@@ -176,18 +188,16 @@ impl NvidiaPtxExecutor {
     ) -> Result<GpuDispatchResult, ComputeExecutorError> {
         ensure_device_supports_ptx_target(&self.device_info, ptx_source)?;
         validate_ptx_dispatch_request(request)?;
-        if request.cuda_launch.graph_policy != GpuCudaGraphPolicy::Disabled {
-            return Err(ComputeExecutorError::UnsupportedCudaGraphPolicy {
-                value: format!("{:?}", request.cuda_launch.graph_policy),
-            });
-        }
         let ptx = CString::new(ptx_source).map_err(|_| ComputeExecutorError::PtxContainsNul)?;
         let entry = CString::new(request.entry_point.as_str())
             .map_err(|_| ComputeExecutorError::InvalidPtxEntryName)?;
 
         unsafe {
-            let launch_stream =
-                CudaLaunchStream::new(&self.driver, request.cuda_launch.stream_policy)?;
+            let launch_stream = CudaLaunchStream::new(
+                &self.driver,
+                request.cuda_launch.stream_policy,
+                request.cuda_launch.graph_policy,
+            )?;
             let mut module = ptr::null_mut();
             self.driver.check(
                 (self.driver.cu_module_load_data_ex)(
@@ -221,23 +231,37 @@ impl NvidiaPtxExecutor {
             for backing in &mut backings {
                 backing.push_kernel_params(&mut kernel_params);
             }
+            let dispatch_groups = [
+                dispatch_group_count(request.dispatch_size[0], request.workgroup_size[0]),
+                dispatch_group_count(request.dispatch_size[1], request.workgroup_size[1]),
+                dispatch_group_count(request.dispatch_size[2], request.workgroup_size[2]),
+            ];
+            let workgroup_dims = [
+                request.workgroup_size[0].max(1),
+                request.workgroup_size[1].max(1),
+                request.workgroup_size[2].max(1),
+            ];
 
-            self.driver.check(
-                (self.driver.cu_launch_kernel)(
+            match request.cuda_launch.graph_policy {
+                GpuCudaGraphPolicy::Disabled => launch_cuda_kernel(
+                    &self.driver,
                     function,
-                    dispatch_group_count(request.dispatch_size[0], request.workgroup_size[0]),
-                    dispatch_group_count(request.dispatch_size[1], request.workgroup_size[1]),
-                    dispatch_group_count(request.dispatch_size[2], request.workgroup_size[2]),
-                    request.workgroup_size[0].max(1),
-                    request.workgroup_size[1].max(1),
-                    request.workgroup_size[2].max(1),
+                    dispatch_groups,
+                    workgroup_dims,
                     request.cuda_launch.dynamic_shared_memory_bytes,
                     launch_stream.raw(),
                     kernel_params.as_mut_ptr(),
-                    ptr::null_mut(),
-                ),
-                "cuLaunchKernel",
-            )?;
+                )?,
+                GpuCudaGraphPolicy::CaptureOnce => capture_cuda_graph_launch(
+                    &self.driver,
+                    function,
+                    &launch_stream,
+                    dispatch_groups,
+                    workgroup_dims,
+                    request.cuda_launch.dynamic_shared_memory_bytes,
+                    kernel_params.as_mut_ptr(),
+                )?,
+            }
             launch_stream.synchronize()?;
 
             let mut output_bindings = Vec::new();
@@ -568,6 +592,36 @@ impl Drop for CudaDeviceBuffer<'_> {
     }
 }
 
+struct CudaGraph<'a> {
+    driver: &'a CudaDriver,
+    graph: CUgraph,
+}
+
+impl Drop for CudaGraph<'_> {
+    fn drop(&mut self) {
+        if !self.graph.is_null() {
+            unsafe {
+                let _ = (self.driver.cu_graph_destroy)(self.graph);
+            }
+        }
+    }
+}
+
+struct CudaGraphExec<'a> {
+    driver: &'a CudaDriver,
+    graph_exec: CUgraphExec,
+}
+
+impl Drop for CudaGraphExec<'_> {
+    fn drop(&mut self) {
+        if !self.graph_exec.is_null() {
+            unsafe {
+                let _ = (self.driver.cu_graph_exec_destroy)(self.graph_exec);
+            }
+        }
+    }
+}
+
 struct CudaLaunchStream<'a> {
     driver: &'a CudaDriver,
     stream: CUstream,
@@ -577,16 +631,25 @@ impl<'a> CudaLaunchStream<'a> {
     unsafe fn new(
         driver: &'a CudaDriver,
         policy: GpuCudaStreamPolicy,
+        graph_policy: GpuCudaGraphPolicy,
     ) -> Result<Self, ComputeExecutorError> {
-        match policy {
-            GpuCudaStreamPolicy::Default => Ok(Self {
+        let requires_owned_stream = graph_policy == GpuCudaGraphPolicy::CaptureOnce;
+        match (policy, requires_owned_stream) {
+            (GpuCudaStreamPolicy::Default, false) => Ok(Self {
                 driver,
                 stream: ptr::null_mut(),
             }),
-            GpuCudaStreamPolicy::NonBlocking => {
+            (GpuCudaStreamPolicy::Default, true)
+            | (GpuCudaStreamPolicy::NonBlocking, true)
+            | (GpuCudaStreamPolicy::NonBlocking, false) => {
                 let mut stream = ptr::null_mut();
+                let flags = match policy {
+                    // CUDA graph capture cannot start on the legacy null stream.
+                    GpuCudaStreamPolicy::Default => 0,
+                    GpuCudaStreamPolicy::NonBlocking => CU_STREAM_NON_BLOCKING,
+                };
                 driver.check(
-                    (driver.cu_stream_create)(&mut stream, CU_STREAM_NON_BLOCKING),
+                    (driver.cu_stream_create)(&mut stream, flags),
                     "cuStreamCreate",
                 )?;
                 Ok(Self { driver, stream })
@@ -621,6 +684,103 @@ impl Drop for CudaLaunchStream<'_> {
     }
 }
 
+unsafe fn launch_cuda_kernel(
+    driver: &CudaDriver,
+    function: CUfunction,
+    dispatch_groups: [u32; 3],
+    workgroup_dims: [u32; 3],
+    dynamic_shared_memory_bytes: u32,
+    stream: CUstream,
+    kernel_params: *mut *mut c_void,
+) -> Result<(), ComputeExecutorError> {
+    driver.check(
+        (driver.cu_launch_kernel)(
+            function,
+            dispatch_groups[0],
+            dispatch_groups[1],
+            dispatch_groups[2],
+            workgroup_dims[0],
+            workgroup_dims[1],
+            workgroup_dims[2],
+            dynamic_shared_memory_bytes,
+            stream,
+            kernel_params,
+            ptr::null_mut(),
+        ),
+        "cuLaunchKernel",
+    )
+}
+
+unsafe fn capture_cuda_graph_launch(
+    driver: &CudaDriver,
+    function: CUfunction,
+    launch_stream: &CudaLaunchStream<'_>,
+    dispatch_groups: [u32; 3],
+    workgroup_dims: [u32; 3],
+    dynamic_shared_memory_bytes: u32,
+    kernel_params: *mut *mut c_void,
+) -> Result<(), ComputeExecutorError> {
+    let stream = launch_stream.raw();
+    debug_assert!(
+        !stream.is_null(),
+        "capture_once should force an owned CUDA stream"
+    );
+
+    driver.check(
+        (driver.cu_stream_begin_capture)(stream, CU_STREAM_CAPTURE_MODE_RELAXED),
+        "cuStreamBeginCapture",
+    )?;
+    if let Err(error) = launch_cuda_kernel(
+        driver,
+        function,
+        dispatch_groups,
+        workgroup_dims,
+        dynamic_shared_memory_bytes,
+        stream,
+        kernel_params,
+    ) {
+        let mut abandoned_graph = ptr::null_mut();
+        let _ = (driver.cu_stream_end_capture)(stream, &mut abandoned_graph);
+        return Err(error);
+    }
+
+    let mut raw_graph = ptr::null_mut();
+    driver.check(
+        (driver.cu_stream_end_capture)(stream, &mut raw_graph),
+        "cuStreamEndCapture",
+    )?;
+    if raw_graph.is_null() {
+        return Err(ComputeExecutorError::CudaDriverCallFailed {
+            call: "cuStreamEndCapture",
+            code: -1,
+            message: "graph capture returned a null CUDA graph".to_string(),
+        });
+    }
+    let graph = CudaGraph {
+        driver,
+        graph: raw_graph,
+    };
+
+    let mut raw_graph_exec = ptr::null_mut();
+    driver.check(
+        (driver.cu_graph_instantiate_with_flags)(
+            &mut raw_graph_exec,
+            graph.graph,
+            CU_GRAPH_INSTANTIATE_FLAGS_NONE,
+        ),
+        "cuGraphInstantiateWithFlags",
+    )?;
+    let graph_exec = CudaGraphExec {
+        driver,
+        graph_exec: raw_graph_exec,
+    };
+
+    driver.check(
+        (driver.cu_graph_launch)(graph_exec.graph_exec, stream),
+        "cuGraphLaunch",
+    )
+}
+
 struct CudaDriver {
     _library: DynamicLibrary,
     cu_init: CuInit,
@@ -639,7 +799,13 @@ struct CudaDriver {
     cu_memcpy_dtoh: CuMemcpyDtoH,
     cu_stream_create: CuStreamCreate,
     cu_stream_destroy: CuStreamDestroy,
+    cu_stream_begin_capture: CuStreamBeginCapture,
+    cu_stream_end_capture: CuStreamEndCapture,
     cu_stream_synchronize: CuStreamSynchronize,
+    cu_graph_instantiate_with_flags: CuGraphInstantiateWithFlags,
+    cu_graph_launch: CuGraphLaunch,
+    cu_graph_exec_destroy: CuGraphExecDestroy,
+    cu_graph_destroy: CuGraphDestroy,
     cu_launch_kernel: CuLaunchKernel,
     cu_get_error_string: CuGetErrorString,
 }
@@ -664,7 +830,13 @@ impl CudaDriver {
             cu_memcpy_dtoh: library.symbol("cuMemcpyDtoH_v2")?,
             cu_stream_create: library.symbol("cuStreamCreate")?,
             cu_stream_destroy: library.symbol("cuStreamDestroy_v2")?,
+            cu_stream_begin_capture: library.symbol("cuStreamBeginCapture")?,
+            cu_stream_end_capture: library.symbol("cuStreamEndCapture")?,
             cu_stream_synchronize: library.symbol("cuStreamSynchronize")?,
+            cu_graph_instantiate_with_flags: library.symbol("cuGraphInstantiateWithFlags")?,
+            cu_graph_launch: library.symbol("cuGraphLaunch")?,
+            cu_graph_exec_destroy: library.symbol("cuGraphExecDestroy")?,
+            cu_graph_destroy: library.symbol("cuGraphDestroy")?,
             cu_launch_kernel: library.symbol("cuLaunchKernel")?,
             cu_get_error_string: library.symbol("cuGetErrorString")?,
             _library: library,
@@ -1021,7 +1193,10 @@ fn resolve_ptx_artifact_for_device<'a>(
             artifact.format == ShaderArtifactFormat::Ptx
                 && artifact.module_name == module_name
                 && (artifact.entry_points.is_empty()
-                    || artifact.entry_points.iter().any(|value| value == entry_point))
+                    || artifact
+                        .entry_points
+                        .iter()
+                        .any(|value| value == entry_point))
         })
         .collect::<Vec<_>>();
 
@@ -1057,7 +1232,11 @@ fn ptx_artifact_target_rank(artifact: &kain_core::DerivedShaderArtifact) -> Opti
         .ptx
         .as_ref()
         .and_then(|metadata| parse_sm_arch_rank(&metadata.required_target_arch))
-        .or_else(|| parse_ptx_target_arch(&artifact.contents).ok().map(|arch| arch.rank))
+        .or_else(|| {
+            parse_ptx_target_arch(&artifact.contents)
+                .ok()
+                .map(|arch| arch.rank)
+        })
 }
 
 fn resolve_ptx_shader_entry<'a>(
@@ -1171,7 +1350,9 @@ fn validate_ptx_sidecar_contract(
                 actual: ptx_metadata.required_target_arch.clone(),
             });
         }
-        (None, _) | (_, None) if sidecar.required_target_arch != ptx_metadata.required_target_arch => {
+        (None, _) | (_, None)
+            if sidecar.required_target_arch != ptx_metadata.required_target_arch =>
+        {
             return Err(ComputeExecutorError::PtxSidecarMismatch {
                 compute_key: entry.key.clone(),
                 field: "required_target_arch",
@@ -1344,9 +1525,7 @@ fn selected_cuda_device_ordinal() -> Result<i32, ComputeExecutorError> {
             .parse::<i32>()
             .ok()
             .filter(|value| *value >= 0)
-            .ok_or_else(|| ComputeExecutorError::InvalidCudaDeviceOrdinal {
-                value: raw.clone(),
-            })?;
+            .ok_or_else(|| ComputeExecutorError::InvalidCudaDeviceOrdinal { value: raw.clone() })?;
         return Ok(ordinal);
     }
     Ok(0)
@@ -1506,6 +1685,7 @@ fn format_sm_arch(rank: u32) -> String {
 }
 
 fn dispatch_group_count(dispatch: u32, workgroup: u32) -> u32 {
+    // Proof: crates/gpu-runtime/z3/proofs-experimental/cuda-dispatch-group-count-round-up.smt2
     let safe_dispatch = dispatch.max(1);
     let safe_workgroup = workgroup.max(1);
     ((safe_dispatch - 1) / safe_workgroup) + 1
@@ -1538,20 +1718,22 @@ mod tests {
     ) -> Result<(), Box<dyn std::error::Error>> {
         let derived_outputs = variants
             .iter()
-            .map(|(ptx_contents, required_target_arch, minimum_compute_capability)| {
-                json!({
-                    "format": "ptx",
-                    "module_name": "CudaFieldKernel__CudaBlurKernel__CudaColorizeKernel",
-                    "contents": *ptx_contents,
-                    "entry_points": ["CudaFieldKernel"],
-                    "binding_slots": [1],
-                    "ptx": {
-                        "ptx_version": "7.8",
-                        "required_target_arch": *required_target_arch,
-                        "minimum_compute_capability": *minimum_compute_capability
-                    }
-                })
-            })
+            .map(
+                |(ptx_contents, required_target_arch, minimum_compute_capability)| {
+                    json!({
+                        "format": "ptx",
+                        "module_name": "CudaFieldKernel__CudaBlurKernel__CudaColorizeKernel",
+                        "contents": *ptx_contents,
+                        "entry_points": ["CudaFieldKernel"],
+                        "binding_slots": [1],
+                        "ptx": {
+                            "ptx_version": "7.8",
+                            "required_target_arch": *required_target_arch,
+                            "minimum_compute_capability": *minimum_compute_capability
+                        }
+                    })
+                },
+            )
             .collect::<Vec<_>>();
         fs::write(
             path,
@@ -1776,6 +1958,69 @@ mod tests {
                 },
             )
             .expect("tiny PTX kernel should launch through the NVIDIA driver");
+
+        assert_eq!(result.dispatch_invocations, 1);
+        assert_eq!(
+            result.output_bindings,
+            vec![(0, 42u32.to_le_bytes().to_vec())]
+        );
+    }
+
+    #[test]
+    fn nvidia_ptx_executor_can_capture_tiny_kernel_when_driver_is_available() {
+        let Ok(executor) = NvidiaPtxExecutor::try_new() else {
+            eprintln!(
+                "skipping NVIDIA PTX graph-capture smoke because CUDA Driver API is unavailable"
+            );
+            return;
+        };
+
+        let ptx = r#"
+.version 7.8
+.target sm_50
+.address_size 64
+
+.visible .entry write_one(
+    .param .u64 _kain_param_dst
+)
+{
+    .reg .u32 %r<2>;
+    .reg .u64 %rd<2>;
+    ld.param.u64 %rd1, [_kain_param_dst];
+    mov.u32 %r1, 42;
+    st.global.u32 [%rd1], %r1;
+    ret;
+}
+"#;
+
+        let result = executor
+            .run_dispatch_request(
+                ptx,
+                &GpuDispatchRequest {
+                    module_name: "write_one".to_string(),
+                    entry_point: "write_one".to_string(),
+                    workgroup_size: [1, 1, 1],
+                    dispatch_size: [1, 1, 1],
+                    cuda_launch: GpuCudaLaunchOptions {
+                        graph_policy: GpuCudaGraphPolicy::CaptureOnce,
+                        ..GpuCudaLaunchOptions::default()
+                    },
+                    bindings: vec![GpuDispatchBinding {
+                        key: "dst".to_string(),
+                        binding_slot: 0,
+                        descriptor_kind: GpuDescriptorKind::StorageBuffer,
+                        access: GpuBindingAccess::Write,
+                        bytes: vec![0, 0, 0, 0],
+                        element_type: "UInt".to_string(),
+                        shape: vec![1],
+                        strides: vec![4],
+                    }],
+                    tensor_binding_count: 0,
+                    stream_binding_count: 0,
+                    neural_node_count: 0,
+                },
+            )
+            .expect("tiny PTX kernel should capture and launch through the NVIDIA driver");
 
         assert_eq!(result.dispatch_invocations, 1);
         assert_eq!(
@@ -2061,8 +2306,8 @@ mod tests {
     }
 
     #[test]
-    fn ptx_dispatch_plan_selects_best_variant_for_active_device()
-    -> Result<(), Box<dyn std::error::Error>> {
+    fn ptx_dispatch_plan_selects_best_variant_for_active_device(
+    ) -> Result<(), Box<dyn std::error::Error>> {
         let temp = tempfile::TempDir::new().expect("temp dir");
         let shader_bundle_path = temp.path().join("bundle.json");
         let compute_residency_path = temp.path().join("residency.json");
@@ -2219,6 +2464,79 @@ mod tests {
         assert_eq!(
             plan.request.cuda_launch.graph_policy,
             GpuCudaGraphPolicy::Disabled
+        );
+    }
+
+    #[test]
+    fn ptx_dispatch_plan_reads_capture_once_graph_policy() {
+        let temp = tempfile::TempDir::new().expect("temp dir");
+        let shader_bundle_path = temp.path().join("bundle.json");
+        let compute_residency_path = temp.path().join("residency.json");
+        let payload_path = temp.path().join("payload.bin");
+
+        fs::write(&payload_path, [0u8; 4]).expect("payload");
+        write_sample_ptx_bundle(
+            &shader_bundle_path,
+            ".visible .entry CudaFieldKernel() { ret; }",
+        )
+        .expect("write bundle");
+        fs::write(
+            &compute_residency_path,
+            serde_json::to_string_pretty(&json!({
+                "schema_version": 1,
+                "target": "cuda",
+                "compute_shader_count": 1,
+                "compute_shaders": [
+                    {
+                        "key": "shader::CudaFieldKernel::compute",
+                        "shader": "CudaFieldKernel",
+                        "module_name": "CudaFieldKernel",
+                        "stage": "compute",
+                        "entry_point": "CudaFieldKernel",
+                        "workgroup_size": [32, 1, 1],
+                        "dispatch_size": [1024, 1, 1],
+                        "cuda_graph_policy": "capture_once",
+                        "tensor_binding_count": 0,
+                        "stream_binding_count": 1,
+                        "neural_node_count": 0,
+                        "bindings": [
+                            {
+                                "key": "dst",
+                                "contract": "kain.shared.buffer",
+                                "descriptor_kind": "storage_buffer",
+                                "element_type": "u32",
+                                "shape": [1],
+                                "strides": [4],
+                                "access_mode": "write",
+                                "residency_role": "output",
+                                "slot": 0,
+                                "byte_length": 4,
+                                "payload_file": "payload.bin"
+                            }
+                        ]
+                    }
+                ]
+            }))
+            .expect("json"),
+        )
+        .expect("write residency");
+
+        let plan = ptx_dispatch_plan_from_sidecars(
+            &shader_bundle_path,
+            &compute_residency_path,
+            "shader::CudaFieldKernel::compute",
+            None,
+            None,
+        )
+        .expect("plan");
+
+        assert_eq!(
+            plan.request.cuda_launch.graph_policy,
+            GpuCudaGraphPolicy::CaptureOnce
+        );
+        assert_eq!(
+            plan.request.cuda_launch.stream_policy,
+            GpuCudaStreamPolicy::Default
         );
     }
 

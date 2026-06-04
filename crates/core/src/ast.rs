@@ -147,6 +147,9 @@ pub enum Item {
     /// `pulse name every 16ms [jitter 1ms]: body`
     Pulse(PulseDef),
 
+    /// `resonate World.field [dampen 16ms]: body`
+    Resonate(ResonateDef),
+
     /// `component Name(props) -> UI with Reactive: jsx`
     Component(Component),
 
@@ -323,6 +326,29 @@ pub struct PulseDuration {
 impl PulseDuration {
     pub fn as_authored(&self) -> String {
         format!("{}{}", self.value, self.unit)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ResonateDef {
+    pub name: String,
+    pub target: ResonateEndpoint,
+    pub dampen: Option<PulseDuration>,
+    pub body: Block,
+    pub visibility: Visibility,
+    pub attributes: Vec<Attribute>,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ResonateEndpoint {
+    pub segments: Vec<String>,
+    pub span: Span,
+}
+
+impl ResonateEndpoint {
+    pub fn authored_path(&self) -> String {
+        self.segments.join(".")
     }
 }
 
@@ -2635,6 +2661,14 @@ fn collect_type_names_from_item(item: &Item, out: &mut HashSet<String>) {
         Item::Pulse(pulse) => {
             collect_type_names_from_block(&pulse.body, out);
             for attr in &pulse.attributes {
+                for arg in &attr.args {
+                    collect_type_names_from_expr(arg, out);
+                }
+            }
+        }
+        Item::Resonate(resonate) => {
+            collect_type_names_from_block(&resonate.body, out);
+            for attr in &resonate.attributes {
                 for arg in &attr.args {
                     collect_type_names_from_expr(arg, out);
                 }

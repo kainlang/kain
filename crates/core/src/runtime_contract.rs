@@ -9,7 +9,7 @@ use crate::ast::{
 use crate::low_level_memory::backend_memory_capabilities;
 use crate::types::{
     PatchUndoMode, TypedAxiom, TypedConverge, TypedEntangle, TypedLaw, TypedOrchestrate,
-    TypedPatch, TypedPulse, TypedWorld,
+    TypedPatch, TypedPulse, TypedResonate, TypedWorld,
 };
 use crate::ui::render_authored_expr_contract;
 use crate::{CompileTarget, TypedItem, TypedProgram};
@@ -32,6 +32,8 @@ pub struct RuntimeContractBundle {
     pub axioms: Vec<RuntimeAxiomContract>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub pulses: Vec<RuntimePulseContract>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub resonances: Vec<RuntimeResonanceContract>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub shatters: Vec<RuntimeShatterContract>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -164,6 +166,18 @@ pub struct RuntimePulseContract {
     pub jitter: Option<String>,
     pub body_ownership_ops: bool,
     pub body_teleports: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RuntimeResonanceContract {
+    pub name: String,
+    pub target: String,
+    pub target_type: String,
+    pub dampen: String,
+    pub dampen_ns: u64,
+    pub handler_symbol: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub direct_mutation_paths: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -342,6 +356,7 @@ pub fn emit_runtime_contract_bundle(
     let laws = collect_law_contracts(&program.items);
     let axioms = collect_axiom_contracts(&program.items);
     let pulses = collect_pulse_contracts(&program.items);
+    let resonances = collect_resonance_contracts(&program.items);
     let shatters = collect_shatter_contracts(&program.items);
     let converges = collect_converge_contracts(&program.items);
     let worlds = collect_world_contracts(&program.items);
@@ -387,6 +402,7 @@ pub fn emit_runtime_contract_bundle(
         laws,
         axioms,
         pulses,
+        resonances,
         shatters,
         converges,
         worlds,
@@ -583,6 +599,20 @@ fn collect_runtime_capabilities(
             "time.hardware-timer",
             "runtime/native",
             Some("Pulse contracts can lower to native timer-backed scheduling lanes."),
+        ));
+    }
+    if summary.resonances > 0 {
+        capabilities.push(runtime_capability(
+            kain_resonate::RESONATE_CAPABILITY_KEY,
+            "kain-core.runtime",
+            Some(
+                "Program declares compiler-owned shadow-patch reactivity over world state stores.",
+            ),
+        ));
+        capabilities.push(runtime_capability(
+            "reactivity.shadow-patch",
+            "crates/resonate",
+            Some("Resonate handlers are statically tied to mutation paths with dampened native firing semantics."),
         ));
     }
     if summary.shatters > 0 {
@@ -859,6 +889,17 @@ fn runtime_service_bindings_for_target(
             runtime_lane_name(target),
         ));
     }
+    if summary.resonances > 0 {
+        bindings.push(runtime_service_binding(
+            kain_resonate::RESONATE_CAPABILITY_KEY,
+            if matches!(target, CompileTarget::C | CompileTarget::Llvm) {
+                "runtime/native"
+            } else {
+                "kain-resonate"
+            },
+            runtime_lane_name(target),
+        ));
+    }
     if summary.entanglements > 0 {
         bindings.push(runtime_service_binding(
             kain_entangle::STATE_ENTANGLE_CAPABILITY,
@@ -993,6 +1034,9 @@ fn collect_runtime_items(
             }
             TypedItem::Pulse(pulse) => {
                 output.push(runtime_contract_item("pulse", &pulse.ast.name));
+            }
+            TypedItem::Resonate(resonate) => {
+                output.push(runtime_contract_item("resonate", &resonate.ast.name));
             }
             TypedItem::Component(component) => {
                 output.push(runtime_contract_item("component", &component.ast.name));
@@ -1269,6 +1313,45 @@ fn runtime_pulse_contract(pulse: &TypedPulse) -> RuntimePulseContract {
     }
 }
 
+fn collect_resonance_contracts(items: &[TypedItem]) -> Vec<RuntimeResonanceContract> {
+    let mut contracts = Vec::new();
+    collect_resonance_contracts_into(items, &mut contracts);
+    contracts.sort_by(|left, right| {
+        left.target
+            .cmp(&right.target)
+            .then(left.name.cmp(&right.name))
+    });
+    contracts
+}
+
+fn collect_resonance_contracts_into(
+    items: &[TypedItem],
+    output: &mut Vec<RuntimeResonanceContract>,
+) {
+    for item in items {
+        match item {
+            TypedItem::Resonate(resonate) => output.push(runtime_resonance_contract(resonate)),
+            TypedItem::Mod(module) => collect_resonance_contracts_into(&module.items, output),
+            _ => {}
+        }
+    }
+}
+
+fn runtime_resonance_contract(resonate: &TypedResonate) -> RuntimeResonanceContract {
+    RuntimeResonanceContract {
+        name: resonate.ast.name.clone(),
+        target: resonate.ast.target.authored_path(),
+        target_type: resonate.target_type_name.clone(),
+        dampen: resonate.plan.dampen.authored(),
+        dampen_ns: resonate.plan.dampen.nanos(),
+        handler_symbol: format!(
+            "__kain_resonate_{}",
+            sanitize_contract_ident(&resonate.ast.name)
+        ),
+        direct_mutation_paths: resonate.plan.direct_mutation_paths.clone(),
+    }
+}
+
 fn collect_shatter_contracts(items: &[TypedItem]) -> Vec<RuntimeShatterContract> {
     let mut contracts = Vec::new();
     collect_shatter_contracts_into(items, &mut contracts);
@@ -1505,12 +1588,25 @@ fn runtime_orchestration_contract(orchestrate: &TypedOrchestrate) -> RuntimeOrch
                 binding_name: stage.binding_name.clone(),
                 selector: stage.selector.as_ref().map(|selector| selector.authored()),
                 dependencies: stage.metadata.dependencies.clone(),
-                residency: stage.metadata.residency.map(|value| value.as_str().to_string()),
-                transfer: stage.metadata.transfer.map(|value| value.as_str().to_string()),
+                residency: stage
+                    .metadata
+                    .residency
+                    .map(|value| value.as_str().to_string()),
+                transfer: stage
+                    .metadata
+                    .transfer
+                    .map(|value| value.as_str().to_string()),
                 guard: stage.metadata.guard.clone(),
-                fallback: stage.metadata.fallback.as_ref().map(|value| value.authored()),
+                fallback: stage
+                    .metadata
+                    .fallback
+                    .as_ref()
+                    .map(|value| value.authored()),
                 requires: stage.metadata.requires.clone(),
-                policy: stage.metadata.policy.map(|value| value.as_str().to_string()),
+                policy: stage
+                    .metadata
+                    .policy
+                    .map(|value| value.as_str().to_string()),
                 adaptive_policy: stage.metadata.adaptive(),
                 silicon_native: stage.runtime.is_silicon_native(),
                 compatibility_adapter: stage.runtime.is_compat_adapter(),
@@ -1580,6 +1676,8 @@ fn compile_target_name(target: CompileTarget) -> &'static str {
         "spirv"
     } else if target == CompileTarget::Hlsl {
         "hlsl"
+    } else if target == CompileTarget::Wgsl {
+        "wgsl"
     } else if target == CompileTarget::Interpret {
         "interpret"
     } else if target == CompileTarget::Test {
@@ -1664,6 +1762,7 @@ struct ItemSummary {
     laws: usize,
     axioms: usize,
     pulses: usize,
+    resonances: usize,
     shatters: usize,
     teleports: usize,
     converges: usize,
@@ -2460,6 +2559,21 @@ fn summarize_items_into(items: &[TypedItem], summary: &mut ItemSummary) {
                     summary.atomic_seqcst_ops += 1;
                 }
                 if block_contains_teleport_expr(&pulse.ast.body) {
+                    summary.teleports += 1;
+                }
+            }
+            TypedItem::Resonate(resonate) => {
+                summary.resonances += 1;
+                if block_contains_ownership_expr(&resonate.ast.body) {
+                    summary.ownership_ops += 1;
+                }
+                if block_contains_shared_fanout_expr(&resonate.ast.body) {
+                    summary.shared_fanout_ops += 1;
+                }
+                if block_contains_atomic_seqcst_expr(&resonate.ast.body) {
+                    summary.atomic_seqcst_ops += 1;
+                }
+                if block_contains_teleport_expr(&resonate.ast.body) {
                     summary.teleports += 1;
                 }
             }

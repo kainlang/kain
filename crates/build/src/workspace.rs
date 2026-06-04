@@ -4371,6 +4371,13 @@ fn run_gpu_artifacts(
         }
     }
 
+    // WGSL — only if target asks and not suppressed
+    if target.emit_wgsl() && !no_derived {
+        if let Some(wgsl) = artifacts.derived_wgsl {
+            kfs::atomic_write_text(output_base.with_extension("wgsl"), &wgsl)?;
+        }
+    }
+
     // PTX — only if target asks and not suppressed
     if target.emit_ptx() && !no_derived {
         if let Some(ptx) = artifacts.derived_ptx {
@@ -5274,6 +5281,7 @@ pub(crate) enum GpuArtifactTarget {
     Spirv,
     Cuda,
     Hlsl,
+    Wgsl,
 }
 
 impl GpuArtifactTarget {
@@ -5283,6 +5291,7 @@ impl GpuArtifactTarget {
             "spirv" | "vulkan" | "spv" => GpuArtifactTarget::Spirv,
             "cuda" | "ptx" | "nvidia" => GpuArtifactTarget::Cuda,
             "hlsl" | "d3d" | "dx" => GpuArtifactTarget::Hlsl,
+            "wgsl" | "webgpu" | "wgpu" => GpuArtifactTarget::Wgsl,
             _ => GpuArtifactTarget::All,
         }
     }
@@ -5290,7 +5299,10 @@ impl GpuArtifactTarget {
     pub fn emit_spirv(&self) -> bool {
         matches!(
             self,
-            GpuArtifactTarget::All | GpuArtifactTarget::Spirv | GpuArtifactTarget::Hlsl
+            GpuArtifactTarget::All
+                | GpuArtifactTarget::Spirv
+                | GpuArtifactTarget::Hlsl
+                | GpuArtifactTarget::Wgsl
         )
     }
 
@@ -5300,6 +5312,10 @@ impl GpuArtifactTarget {
 
     pub fn emit_hlsl(&self) -> bool {
         matches!(self, GpuArtifactTarget::All | GpuArtifactTarget::Hlsl)
+    }
+
+    pub fn emit_wgsl(&self) -> bool {
+        matches!(self, GpuArtifactTarget::All | GpuArtifactTarget::Wgsl)
     }
 
     pub fn is_cuda_primary(&self) -> bool {
@@ -5321,6 +5337,9 @@ fn gpu_output_paths(
     paths.push(with_file_name_suffix(output_base, ".shader_bundle", "json"));
     if target.emit_hlsl() && !no_derived {
         paths.push(output_base.with_extension("hlsl"));
+    }
+    if target.emit_wgsl() && !no_derived {
+        paths.push(output_base.with_extension("wgsl"));
     }
     if target.emit_ptx() && !no_derived {
         paths.push(output_base.with_extension("ptx"));

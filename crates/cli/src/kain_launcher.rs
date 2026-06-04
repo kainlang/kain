@@ -6704,13 +6704,13 @@ mod tests {
         build_native_runtime_compile_fingerprint, build_native_runtime_object_cache_paths,
         default_native_runtime_link_libs, default_runtime_cache_root, find_bundled_clang,
         llvm_native_runtime_elision_decision_from_ir, load_editable_kain_config,
-        load_native_runtime_manifest, native_runtime_object_cache_is_fresh, run_format_command,
+        load_native_runtime_manifest, native_runtime_object_cache_is_fresh,
         parse_native_runtime_depfile, parse_native_toolchain_tuning, platform_link_libs,
         resolve_c_ffi_native_link_inputs, resolve_native_runtime_archive_groups,
-        runtime_source_uses_cpp, sanitize_runtime_name, slice_llvm_native_executable_ir,
-        unique_link_libs, NativeRuntimeArchiveManifest, NativeRuntimeArchiver,
-        NativeRuntimeArchiverFlavor, NativeRuntimeLinkManifest, NativeToolchainProfile,
-        ResolvedNativeRuntimeArchiveGroup, ResolvedNativeRuntimeBundle,
+        run_format_command, runtime_source_uses_cpp, sanitize_runtime_name,
+        slice_llvm_native_executable_ir, unique_link_libs, NativeRuntimeArchiveManifest,
+        NativeRuntimeArchiver, NativeRuntimeArchiverFlavor, NativeRuntimeLinkManifest,
+        NativeToolchainProfile, ResolvedNativeRuntimeArchiveGroup, ResolvedNativeRuntimeBundle,
     };
     use kain_core::tooling_config::{KainColorPreference, KainParallelismSetting};
     use kain_core::CompileTarget;
@@ -6967,7 +6967,11 @@ entry:
         fs::write(source_dir.join("clean.kn"), "let clean = 1\n").expect("clean file");
         fs::write(source_dir.join("messy.kn"), "let messy=2\n").expect("messy file");
 
-        assert!(!run_format_command(vec![temp_dir.path().to_path_buf()], true, false));
+        assert!(!run_format_command(
+            vec![temp_dir.path().to_path_buf()],
+            true,
+            false
+        ));
         assert_eq!(
             fs::read_to_string(source_dir.join("messy.kn")).expect("messy file"),
             "let messy=2\n"
@@ -6989,8 +6993,15 @@ entry:
         fs::write(&beta, "let beta=alpha+1\n").expect("beta");
         fs::write(&skipped, "let skipped=0\n").expect("skipped");
 
-        assert!(run_format_command(vec![temp_dir.path().to_path_buf()], false, true));
-        assert_eq!(fs::read_to_string(&alpha).expect("alpha"), "let alpha = 1\n");
+        assert!(run_format_command(
+            vec![temp_dir.path().to_path_buf()],
+            false,
+            true
+        ));
+        assert_eq!(
+            fs::read_to_string(&alpha).expect("alpha"),
+            "let alpha = 1\n"
+        );
         assert_eq!(
             fs::read_to_string(&beta).expect("beta"),
             "let beta = alpha + 1\n"
@@ -7525,9 +7536,13 @@ pub fn helper_lane() -> Int:
         let clang_cmd = find_bundled_clang().unwrap_or_else(|| "clang".to_string());
         let tuning =
             parse_native_toolchain_tuning(Some("debug"), None, None, None).expect("debug tuning");
-        let link_inputs =
-            resolve_c_ffi_native_link_inputs(&source, Some(main_path.as_path()), &clang_cmd, &tuning)
-                .expect("project-declared c ffi link inputs");
+        let link_inputs = resolve_c_ffi_native_link_inputs(
+            &source,
+            Some(main_path.as_path()),
+            &clang_cmd,
+            &tuning,
+        )
+        .expect("project-declared c ffi link inputs");
 
         assert_eq!(link_inputs.link_inputs.len(), 1);
         assert_eq!(

@@ -7,9 +7,11 @@ edition = "2021"
 kain-core = { path = "../core" }
 kain-error = { path = "../error" }
 kain-semantic = { path = "../semantic" }
+kain-shader-text = { path = "../shader-text" }
 rspirv = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 
 [dev-dependencies]
 kain-gpu-runtime = { path = "../gpu-runtime" }
+naga = { version = "24.0.0", features = ["wgsl-in"] }

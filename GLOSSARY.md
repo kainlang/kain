@@ -76,9 +76,13 @@ Location rule: paths in this glossary are live in this checkout. Older docs may 
 
 ## G
 
-**GPU lane** - The authored shader and graphics path in Kain. Shader code compiles through the SPIR-V/PTX/HLSL artifact pipeline, while host orchestration stays in normal Kain and lowers through LLVM plus runtime ABI calls. Location: `crates/gpu/`, `crates/gpu-runtime/`, `stdlib/gpu.kn`, `stdlib/graphics.kn`, `stdlib/graphics_shared.kn`, `benchmark/lanes/gpu/`, `blades/vulkain/`.
+**GPU lane** - The authored shader and graphics path in Kain. Shader code compiles through the SPIR-V/PTX/HLSL/WGSL artifact pipeline, while host orchestration stays in normal Kain and lowers through LLVM plus runtime ABI calls. Location: `crates/gpu/`, `crates/shader-text/`, `crates/gpu-runtime/`, `stdlib/gpu.kn`, `stdlib/graphics.kn`, `stdlib/graphics_shared.kn`, `benchmark/lanes/gpu/`, `blades/vulkain/`.
 
 **Generic where clause** - A contextual `where` clause on generic-bearing items such as functions, structs, enums, traits, impls, and type aliases. The AST stores it separately from inline bounds so semantic passes can normalize and validate all constraints together. Location: `crates/core/src/ast.rs`, `crates/core/src/parser.rs`, `crates/core/src/types.rs`.
+
+## H
+
+**HLSL/WGSL text shader lane** - The shared text-shader backend family for DirectX-style and WebGPU shader output. SPIR-V remains the canonical native GPU payload, while HLSL and WGSL are derived text outputs emitted through shared mapping, identifier, resource, and expression helpers. Location: `crates/shader-text/`, wrapper exports in `crates/gpu/src/codegen_hlsl.rs` and `crates/gpu/src/codegen_wgsl.rs`, bundle staging in `crates/driver/`, CLI/build writers in `crates/cli/src/gpu_artifacts.rs` and `crates/build/src/workspace.rs`.
 
 ## I
 
@@ -204,7 +208,7 @@ Location rule: paths in this glossary are live in this checkout. Older docs may 
 
 **Smoketest** - The primary mixed-surface proof album under `smoketest/`. It is where many Kain features are meant to compile and interact together through one connected workspace, not as isolated toy snippets. Validate the album through `kain build smoketest` so `smoketest/build.kn` owns the DAG; direct `kain run smoketest/src/main.kn` is only a focused debug lane and can leave misleading generated telemetry under `smoketest/src/telemetry/`. Location: `smoketest/`, especially `smoketest/src/` and `smoketest/build.kn`.
 
-**SPIR-V lane** - The canonical GPU shader artifact path. In Kain terms, SPIR-V is the primary shader output, while HLSL and PTX sidecars are derived lanes. Location: `crates/gpu/`, `kain gpu-artifacts`, `benchmark/lanes/gpu/`, `blades/vulkain/`.
+**SPIR-V lane** - The canonical GPU shader artifact path. In Kain terms, SPIR-V is the primary shader output, while HLSL, WGSL, and PTX sidecars are derived lanes. Location: `crates/gpu/`, `crates/shader-text/`, `kain gpu-artifacts`, `benchmark/lanes/gpu/`, `blades/vulkain/`.
 
 **Stdlib** - The public root `stdlib/*.kn` surface exposed through imports like `std::fs`, `std::math`, `std::gpu`, `std::graphics`, `std::ui`, and `std::runtime`. New authored Kain code should prefer these root imports over private or native-only paths. Location: `stdlib/`.
 

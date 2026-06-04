@@ -67,10 +67,11 @@ pub fn monomorphize(program: &TypedProgram) -> KainResult<MonomorphizedProgram> 
 
                         let mut standalone_fn = method.clone();
                         standalone_fn.name = mangled_name.clone();
+                        substitute_self_aliases_in_function(&mut standalone_fn, &target_ty);
 
                         // Resolve method type
                         let mut params = Vec::new();
-                        for p in &method.params {
+                        for p in &standalone_fn.params {
                             if param_is_authored_self_alias(p) {
                                 params.push(target_ty.clone());
                             } else {
@@ -78,7 +79,7 @@ pub fn monomorphize(program: &TypedProgram) -> KainResult<MonomorphizedProgram> 
                                     .push(resolve_ast_type(&p.ty).unwrap_or(ResolvedType::Unknown));
                             }
                         }
-                        let ret = method
+                        let ret = standalone_fn
                             .return_type
                             .as_ref()
                             .map(|t| resolve_ast_type(t).unwrap_or(ResolvedType::Unknown))
@@ -334,6 +335,7 @@ impl MonoContext {
             // Resolve method type
             let target_ty =
                 ResolvedType::Struct(instantiated_struct_name.to_string(), HashMap::new());
+            substitute_self_aliases_in_function(&mut standalone_fn, &target_ty);
             let mut params = Vec::new();
             for p in &standalone_fn.params {
                 if param_is_authored_self_alias(p) {
@@ -439,6 +441,13 @@ fn param_is_authored_self_alias(param: &Param) -> bool {
         &param.ty,
         Type::Named { name, .. } if name == "Self_" || name == "Self"
     ) || matches!(param.name.as_str(), "self" | "_self")
+}
+
+fn substitute_self_aliases_in_function(function: &mut Function, target_ty: &ResolvedType) {
+    let mut mapping = HashMap::new();
+    mapping.insert("Self".to_string(), target_ty.clone());
+    mapping.insert("Self_".to_string(), target_ty.clone());
+    substitute_ast_types(function, &mapping);
 }
 
 /// Unify a parameter type with an argument type to extract generic bindings.

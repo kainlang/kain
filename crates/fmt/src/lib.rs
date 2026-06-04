@@ -206,6 +206,10 @@ impl SourceFormatter {
                 self.push_attributes(&mut output, &value.attributes)?;
                 self.push_text(&mut output, &self.format_pulse(value)?);
             }
+            Item::Resonate(value) => {
+                self.push_attributes(&mut output, &value.attributes)?;
+                self.push_text(&mut output, &self.format_resonate(value)?);
+            }
             Item::Component(value) => {
                 self.push_attributes(&mut output, &value.attributes)?;
                 self.push_text(&mut output, &self.format_component(value)?);
@@ -418,6 +422,18 @@ impl SourceFormatter {
         );
         if let Some(jitter) = &value.jitter {
             header.push_str(&format!(" jitter {}", jitter.as_authored()));
+        }
+        self.format_header_with_block(&header, &value.body)
+    }
+
+    fn format_resonate(&self, value: &ResonateDef) -> KainResult<String> {
+        let mut header = format!(
+            "{}resonate {}",
+            self.visibility_prefix(value.visibility),
+            value.target.authored_path()
+        );
+        if let Some(dampen) = &value.dampen {
+            header.push_str(&format!(" dampen {}", dampen.as_authored()));
         }
         self.format_header_with_block(&header, &value.body)
     }

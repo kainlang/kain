@@ -1339,6 +1339,8 @@ dependencies = [
  "kain-error",
  "kain-gpu-runtime",
  "kain-semantic",
+ "kain-shader-text",
+ "naga",
  "rspirv",
  "serde",
  "serde_json",
@@ -2159,6 +2161,7 @@ dependencies = [
  "kain-lattice",
  "kain-orchestrate",
  "kain-ownership",
+ "kain-resonate",
  "kain-semantic",
  "kain-ui",
  "logos",
@@ -2466,6 +2469,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "kain-resonate"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "thiserror 2.0.18",
+]
+
+[[package]]
 name = "kain-run"
 version = "0.1.0"
 dependencies = [
@@ -2525,6 +2536,14 @@ dependencies = [
  "serde_json",
  "strsim",
  "walkdir",
+]
+
+[[package]]
+name = "kain-shader-text"
+version = "0.1.0"
+dependencies = [
+ "kain-core",
+ "once_cell",
 ]
 
 [[package]]
@@ -5325,6 +5344,7 @@ name = "ue5-shaders"
 version = "0.1.0"
 dependencies = [
  "kain-core",
+ "kain-shader-text",
  "once_cell",
  "serde",
  "serde_json",

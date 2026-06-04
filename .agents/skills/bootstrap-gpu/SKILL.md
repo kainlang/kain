@@ -3,7 +3,7 @@ name: bootstrap-gpu
 description: >-
   Use when changing compiler, frontend, or selfhost GPU truth in `crates/gpu`,
   `crates/core`, `crates/driver`, or GPU artifact staging: shader
-  and compute typing, SPIR-V or PTX emission, `CompileTarget::Cuda`,
+  and compute typing, SPIR-V, PTX, HLSL, or WGSL emission, `CompileTarget::Cuda`,
   residency or bundle metadata, or compile-time validation. Do not use for
   `kain-gpu-runtime`, `runtime/native` graphics substrate, or authored shader
   demos.
@@ -15,9 +15,9 @@ Use this skill when the compiler-owned GPU pipeline changes: frontend eligibilit
 
 ## Trigger Surface
 
-- `crates/gpu/src/codegen_spirv.rs`, `crates/gpu/src/codegen_ptx.rs`, and `crates/gpu/z3/**` for backend math, layout, constructor lowering, control flow, PTX parameter order, and storage-buffer bounds.
-- `crates/core/**` for shader and compute typing, `CompileTarget::Cuda`, and compile-time artifact model changes.
-- `crates/driver/**`, `crates/cli/src/gpu_artifacts.rs`, `crates/build/src/workspace.rs`, and adjacent staging code when emitted SPIR-V or derived PTX bundle shape changes.
+- `crates/gpu/src/codegen_spirv.rs`, `crates/gpu/src/codegen_ptx.rs`, `crates/shader-text/**`, and `crates/gpu/z3/**` for backend math, layout, constructor lowering, text-shader mapping, control flow, PTX parameter order, and storage-buffer bounds.
+- `crates/core/**` for shader and compute typing, `CompileTarget::Cuda`, `CompileTarget::Wgsl`, and compile-time artifact model changes.
+- `crates/driver/**`, `crates/cli/src/gpu_artifacts.rs`, `crates/build/src/workspace.rs`, and adjacent staging code when emitted SPIR-V or derived PTX/HLSL/WGSL bundle shape changes.
 
 ## Boundaries
 
@@ -29,7 +29,7 @@ Use this skill when the compiler-owned GPU pipeline changes: frontend eligibilit
 ## Workflow
 
 1. Treat `crates/gpu` as backend truth. Fix typed eligibility before loosening backend math to accept bad inputs.
-2. Keep SPIR-V canonical. PTX is a derived compute-only peer output, not a separate semantic model.
+2. Keep SPIR-V canonical. PTX is a derived compute-only peer output, and HLSL/WGSL are derived text outputs, not separate semantic models.
 3. Put layout, indexing, and parameter-order invariants in `crates/gpu/z3` before trusting green tests or benchmark rows.
 4. Keep bundle metadata compiler-owned. If executors must adapt, co-trigger `runtime-gpu` instead of moving runtime policy into this skill.
 5. Treat `shader compute ... workgroup(x, y, z)` as canonical static local geometry. Comptime compute metadata can provide dispatch defaults and sidecar plans, but it must not silently override a header workgroup.
@@ -37,6 +37,7 @@ Use this skill when the compiler-owned GPU pipeline changes: frontend eligibilit
 7. Narrow numeric storage support is implemented as packed PTX load/store shape, not as fake 8-bit registers. `StorageBuffer<u8/i8/u16/i16/f16/bf16>` should load/store with byte-accurate PTX suffixes while widening arithmetic into 32-bit registers until real half/bfloat arithmetic lands.
 8. Treat PTX target selection as a compiler-owned family decision. Auto PTX emission should produce a ranked variant set from the kernel floor upward (`sm_30`/`sm_35` through `sm_120` as applicable), while the unsuffixed `.derived.ptx` stays as the baseline compatibility artifact.
 9. When touching `crates/cli/src/gpu_artifacts.rs`, validate real directory output behavior. `kain gpu-artifacts ... --output <existing-dir>` should place bundle, PTX variants, and compute-residency sidecars inside that directory, not beside it.
+10. Keep HLSL and WGSL shared through `crates/shader-text` where practical. USF can reuse public text-shader helpers for type/resource mapping, but UE-specific codegen remains in `crates/ue5-shaders`.
 
 ## Validation Loop
 
@@ -46,6 +47,8 @@ cargo test -p gpu --test spirv_layout --target-dir target\codex-bootstrap-gpu-sp
 cargo test -p gpu --test ptx_codegen --target-dir target\codex-bootstrap-gpu-ptx -- --nocapture
 cargo test -p gpu --test ptx_codegen ptx_lowers_cuda_warp_intrinsics_and_tensor_arch_floor -- --nocapture
 cargo test -p gpu --test ptx_codegen ptx_packs_narrow_storage_buffer_numeric_lanes -- --nocapture
+cargo test -p gpu --test hlsl_codegen --target-dir Z:\_b\cargo-target\codex-bootstrap-gpu-text -- --nocapture
+cargo test -p gpu --test wgsl_codegen --target-dir Z:\_b\cargo-target\codex-bootstrap-gpu-text -- --nocapture
 uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path crates\gpu --lane layout
 uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path crates\gpu --lane ptx
 uv run --project C:\Dev\polytools\z3-mcp --no-sync z3-mcp-batch --pack-path crates\gpu --lane full

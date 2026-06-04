@@ -24,6 +24,7 @@ use kain_ownership::{
     OwnershipPolicy, OwnershipRegionKind, COLLAPSE_KEYWORD, DECAY_KEYWORD, OBSERVE_KEYWORD,
     SHARE_KEYWORD,
 };
+use kain_resonate::{DampenWindow, ResonancePlan, ResonanceTarget};
 use kain_semantic::enrich_report as enrich_semantic_report;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
@@ -90,6 +91,7 @@ pub enum TypedItem {
     Entangle(TypedEntangle),
     Orchestrate(TypedOrchestrate),
     Pulse(TypedPulse),
+    Resonate(TypedResonate),
     Component(TypedComponent),
     Shader(TypedShader),
     Actor(TypedActor),
@@ -182,6 +184,14 @@ pub struct TypedAxiom {
 #[derive(Debug, Clone)]
 pub struct TypedPulse {
     pub ast: PulseDef,
+}
+
+#[derive(Debug, Clone)]
+pub struct TypedResonate {
+    pub ast: ResonateDef,
+    pub target_type: ResolvedType,
+    pub target_type_name: String,
+    pub plan: ResonancePlan,
 }
 
 #[derive(Debug, Clone)]
@@ -4098,6 +4108,14 @@ fn register_item_types(env: &mut TypeEnv, item: &Item) -> KainResult<()> {
         Item::Pulse(pulse) => {
             env.define_global_user(pulse.name.clone(), ResolvedType::Unit, pulse.span, "pulse")?;
         }
+        Item::Resonate(resonate) => {
+            env.define_global_user(
+                resonate.name.clone(),
+                ResolvedType::Unit,
+                resonate.span,
+                "resonate",
+            )?;
+        }
         Item::Const(c) => {
             env.define_global_user(
                 c.name.clone(),
@@ -4382,6 +4400,7 @@ fn importable_item_name(item: &Item) -> Option<&str> {
         Item::Function(f) => Some(&f.name),
         Item::Axiom(axiom) => Some(&axiom.name),
         Item::Pulse(pulse) => Some(&pulse.name),
+        Item::Resonate(resonate) => Some(&resonate.name),
         Item::Component(c) => Some(&c.name),
         Item::Struct(s) => Some(&s.name),
         Item::Enum(e) => Some(&e.name),
@@ -4406,6 +4425,7 @@ fn apply_import_alias_for_type_registration(
         Item::Function(f) => f.name = alias.to_string(),
         Item::Axiom(axiom) => axiom.name = alias.to_string(),
         Item::Pulse(pulse) => pulse.name = alias.to_string(),
+        Item::Resonate(resonate) => resonate.name = alias.to_string(),
         Item::Component(c) => c.name = alias.to_string(),
         Item::Struct(s) => s.name = alias.to_string(),
         Item::Enum(e) => e.name = alias.to_string(),
@@ -4643,6 +4663,7 @@ fn check_item(env: &mut TypeEnv, item: &Item) -> KainResult<TypedItem> {
             Ok(TypedItem::Orchestrate(check_orchestrate(env, orchestrate)?))
         }
         Item::Pulse(pulse) => Ok(TypedItem::Pulse(check_pulse(env, pulse)?)),
+        Item::Resonate(resonate) => Ok(TypedItem::Resonate(check_resonate(env, resonate)?)),
         Item::Struct(s) => Ok(TypedItem::Struct(check_struct(env, s)?)),
         Item::Enum(e) => Ok(TypedItem::Enum(check_enum(env, e)?)),
         Item::Trait(t) => Ok(TypedItem::Trait(check_trait(env, t)?)),
@@ -5808,6 +5829,66 @@ fn check_pulse(env: &mut TypeEnv, pulse: &PulseDef) -> KainResult<TypedPulse> {
     Ok(TypedPulse { ast: pulse.clone() })
 }
 
+fn check_resonate(env: &mut TypeEnv, resonate: &ResonateDef) -> KainResult<TypedResonate> {
+    if let Some(dampen) = &resonate.dampen {
+        validate_pulse_duration(env, dampen, "resonate dampen window")?;
+    }
+
+    let target_type = resolve_resonate_endpoint_type(env, &resonate.target)?;
+    let target_type_name = describe_type(&target_type);
+    let direct_mutation_paths = collect_patch_mutation_paths_from_block(&resonate.body);
+    let target = ResonanceTarget::new(resonate.target.segments.clone())
+        .map_err(|error| env.type_error(error.to_string(), resonate.target.span))?;
+    let dampen = match &resonate.dampen {
+        Some(dampen) => DampenWindow::new(dampen.value, &dampen.unit)
+            .map_err(|error| env.type_error(error.to_string(), dampen.span))?,
+        None => DampenWindow::none(),
+    };
+    let plan = ResonancePlan::new(resonate.name.clone(), target, dampen, direct_mutation_paths);
+    if plan.directly_mutates_target() {
+        return Err(env.type_error(
+            format!(
+                "resonate '{}' directly mutates its own target '{}'; route feedback through a different patch/world path or dampened orchestrate stage",
+                resonate.name,
+                resonate.target.authored_path()
+            ),
+            resonate.span,
+        ));
+    }
+
+    let ctx = SemanticContext {
+        function_name: resonate.name.clone(),
+        return_type: ResolvedType::Unit,
+        effects: EffectSet::new()
+            .with(Effect::IO)
+            .with(Effect::Async)
+            .with(Effect::GPU)
+            .with(Effect::Reactive)
+            .with(Effect::Unsafe)
+            .with(Effect::Alloc)
+            .with(Effect::Panic),
+    };
+    env.with_scope(|env| {
+        env.define(
+            "resonate_old_i64".to_string(),
+            ResolvedType::Int(IntSize::I64),
+        );
+        env.define(
+            "resonate_new_i64".to_string(),
+            ResolvedType::Int(IntSize::I64),
+        );
+        env.define("resonate_fired".to_string(), ResolvedType::Bool);
+        check_block_semantics(env, &resonate.body, &ctx)
+    })?;
+
+    Ok(TypedResonate {
+        ast: resonate.clone(),
+        target_type,
+        target_type_name,
+        plan,
+    })
+}
+
 fn validate_pulse_duration(
     env: &TypeEnv<'_>,
     duration: &PulseDuration,
@@ -5956,6 +6037,39 @@ fn check_entangle(env: &mut TypeEnv, entangle: &EntangleDef) -> KainResult<Typed
     })();
     env.in_entangle = old_entangle;
     res
+}
+
+fn resolve_resonate_endpoint_type(
+    env: &TypeEnv,
+    endpoint: &ResonateEndpoint,
+) -> KainResult<ResolvedType> {
+    let root = endpoint
+        .segments
+        .first()
+        .ok_or_else(|| env.type_error("resonate target is empty", endpoint.span))?;
+    match env.global_origins.get(root) {
+        Some(origin) if origin.kind == "world" => {}
+        Some(origin) => {
+            return Err(env.type_error(
+                format!(
+                    "resonate target root '{root}' must be a world, found {}",
+                    origin.kind
+                ),
+                endpoint.span,
+            ))
+        }
+        None => {
+            return Err(env.type_error(
+                format!("resonate target root '{root}' is not defined"),
+                endpoint.span,
+            ))
+        }
+    }
+    let entangle_endpoint = EntangleEndpoint {
+        segments: endpoint.segments.clone(),
+        span: endpoint.span,
+    };
+    resolve_entangle_endpoint_type(env, &entangle_endpoint)
 }
 
 fn resolve_entangle_endpoint_type(
@@ -7294,6 +7408,7 @@ fn item_span(item: &Item) -> Span {
         Item::Entangle(entangle) => entangle.span,
         Item::Orchestrate(orchestrate) => orchestrate.span,
         Item::Pulse(pulse) => pulse.span,
+        Item::Resonate(resonate) => resonate.span,
         Item::Struct(s) => s.span,
         Item::Enum(e) => e.span,
         Item::Trait(t) => t.span,

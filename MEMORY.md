@@ -1,5 +1,33 @@
 # Kain Memory
 
+# 2026-06-04 - Shared HLSL/WGSL text shader codegen lane
+
+What changed:
+
+- Added `crates/shader-text` as the shared text-shader backend crate for HLSL, WGSL, and reusable USF-facing helpers: type mapping, resource classification, identifier sanitization, expression lowering, and direct HLSL/WGSL emitters.
+- Rewired `crates/gpu/src/codegen_hlsl.rs` to delegate to the shared crate and added `crates/gpu/src/codegen_wgsl.rs` plus `gpu::generate_wgsl`.
+- Added `CompileTarget::Wgsl`/`webgpu` target parsing, stdlib target profile routing, driver codegen, shader bundle `derived_wgsl`, and CLI/build `gpu-artifacts --target wgsl` writers.
+- Kept SPIR-V canonical while emitting HLSL/WGSL as derived text outputs in shader artifact bundles. CUDA/PTX-first bundles remain PTX-only.
+- Moved UE5 shader type mapping onto the shared `kain-shader-text` mapper without moving UE-specific USF generation policy out of `crates/ue5-shaders`.
+
+Validation:
+
+- `cargo check -p kain-shader-text -j1 --target-dir Z:\_b\cargo-target\hlsl-wgsl-text`
+- `cargo check -p gpu --tests -j1 --target-dir Z:\_b\cargo-target\hlsl-wgsl-text`
+- `cargo test -p gpu --test hlsl_codegen -j1 --target-dir Z:\_b\cargo-target\hlsl-wgsl-text -- --nocapture`
+- `cargo test -p gpu --test wgsl_codegen -j1 --target-dir Z:\_b\cargo-target\hlsl-wgsl-text -- --nocapture`
+- `cargo check -p kain-driver -j1 --target-dir Z:\_b\cargo-target\hlsl-wgsl-text`
+- `cargo check -p ue5-shaders -j1 --target-dir Z:\_b\cargo-target\hlsl-wgsl-text`
+- `cargo check -p cli -j1 --target-dir Z:\_b\cargo-target\hlsl-wgsl-text`
+- `cargo check -p kain-build -j1 --target-dir Z:\_b\cargo-target\hlsl-wgsl-text`
+- Z3 MCP checked `crates/gpu/z3/proofs/control-wgsl-synthetic-sampler-binding-stays-free.yaml` logic as `unsat`.
+
+Operational notes:
+
+- HLSL and WGSL should stay shared through `crates/shader-text`; USF should consume shared type/resource helpers where useful, while UE-specific shader/plugin policy remains in `crates/ue5-shaders`.
+- Direct WGSL tests use Naga parse/validate in `crates/gpu/tests/wgsl_codegen.rs`; this is the fast proof lane for WebGPU syntax drift.
+- Targeted `cargo test` commands that compile `kain-core` with `cfg(test)` currently trip unrelated resonance/runtime-contract drift (`collect_resonance_contracts`, `ItemSummary.resonances`, and `TypedItem::Resonate` match coverage). Non-test `cargo check` for the affected consumer crates passed.
+
 # 2026-06-03 - LLVM impl `Self` copies preserve struct values again
 
 What changed:

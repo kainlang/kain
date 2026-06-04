@@ -4165,6 +4165,9 @@ impl Env {
                 self.register_orchestrate_value(orchestrate);
             }
             Item::Pulse(_) => {}
+            Item::Resonate(_) => {
+                self.ensure_active_capability(kain_resonate::RESONATE_CAPABILITY_KEY.to_string());
+            }
             Item::Component(c) => self.register_component(c.clone()),
             Item::Struct(s) => {
                 let field_names = s.fields.iter().map(|field| field.name.clone()).collect();
@@ -4284,6 +4287,9 @@ impl Env {
                 self.register_orchestrate_value(&orchestrate.ast);
             }
             TypedItem::Pulse(_) => {}
+            TypedItem::Resonate(_) => {
+                self.ensure_active_capability(kain_resonate::RESONATE_CAPABILITY_KEY.to_string());
+            }
             TypedItem::Component(c) => self.register_component(c.ast.clone()),
             TypedItem::Struct(s) => {
                 let field_names = s

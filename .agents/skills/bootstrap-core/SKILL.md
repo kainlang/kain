@@ -35,6 +35,7 @@ Use this skill when the primary job is changing what Kain means, how the fronten
 3. For new item clauses such as generic `where`, add the real AST surface first, then normalize and validate later. Keep test fixtures honest by updating manual AST constructors instead of making semantic fields optional by accident.
 4. Keep proof ownership local: `crates/core/z3` for parser, keyword, diagnostics, and layout claims; `crates/sys-codegen/z3` for lowering arithmetic and CFG claims.
 5. Dogfood the smallest real proof surface that exercises the feature instead of relying on generic green test sweeps.
+6. For impl-method, `Self`, or method-call lowering changes, validate both the direct `kain-sys-codegen` path and the `kain-driver` / CLI monomorphized path. Driver compilation rewrites impl methods into internal standalone helpers, so stale authored type annotations can survive there even when direct lowering looks correct.
 
 ## Validation Loop
 

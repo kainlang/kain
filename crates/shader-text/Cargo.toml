@@ -1,0 +1,8 @@
+[package]
+name = "kain-shader-text"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+kain-core = { path = "../core" }
+once_cell = { workspace = true }

@@ -272,8 +272,19 @@ mod tests {
     }
 
     #[test]
+    fn parse_wgsl_aliases() {
+        assert_eq!(parse_compile_target("wgsl"), Some(CompileTarget::Wgsl));
+        assert_eq!(parse_compile_target("webgpu"), Some(CompileTarget::Wgsl));
+    }
+
+    #[test]
     fn extension_for_typescript_is_ts() {
         assert_eq!(target_extension(CompileTarget::Ts), "ts");
+    }
+
+    #[test]
+    fn extension_for_wgsl_is_wgsl() {
+        assert_eq!(target_extension(CompileTarget::Wgsl), "wgsl");
     }
 
     #[test]

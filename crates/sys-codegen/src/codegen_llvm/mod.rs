@@ -10,10 +10,11 @@ use kain_core::ast::{
     Import, InlineAsmOptions, JSXAttrValue, JSXNode, Pattern, PulseDuration, Stmt, Type, UnaryOp,
     VariantPatternFields,
 };
+use kain_core::effects::EffectSet;
 use kain_core::error::{KainError, KainResult};
 use kain_core::types::{
-    ResolvedType, TypedActor, TypedComponent, TypedConst, TypedFunction, TypedImport, TypedItem,
-    TypedProgram,
+    IntSize, ResolvedType, TypedActor, TypedComponent, TypedConst, TypedFunction, TypedImport,
+    TypedItem, TypedProgram, TypedResonate,
 };
 use kain_core::Span;
 use kain_core::{
@@ -104,6 +105,13 @@ struct NativePulseInfo {
     token: u64,
     interval_ns: u64,
     jitter_ns: u64,
+}
+
+#[derive(Clone, Debug)]
+struct NativeResonanceInfo {
+    target: String,
+    dampen_ns: u64,
+    handler_symbol: String,
 }
 
 #[derive(Clone, Debug)]
@@ -589,6 +597,7 @@ struct LlvmGenerator {
     /// Current basic block label (for Phi nodes)
     current_block: String,
     current_return_type: Option<String>,
+    current_impl_target: Option<String>,
     actor_return_label: Option<String>,
     actor_return_slot: Option<String>,
     target: &'static LlvmTargetDescriptor,
@@ -602,6 +611,7 @@ struct LlvmGenerator {
     string_length_values: HashMap<String, String>,
     pooled_string_literal_slots: HashMap<String, String>,
     native_entanglements: Vec<NativeEntangleBinding>,
+    native_resonances: Vec<NativeResonanceInfo>,
     native_machine_axioms: Vec<NativeMachineAxiomInfo>,
     native_pulses: Vec<NativePulseInfo>,
     shattered_structs: HashSet<String>,
@@ -662,6 +672,7 @@ struct LlvmFunctionState {
     scopes: Vec<Vec<String>>,
     current_block: String,
     current_return_type: Option<String>,
+    current_impl_target: Option<String>,
     actor_return_label: Option<String>,
     actor_return_slot: Option<String>,
     string_locals: HashSet<String>,
@@ -737,6 +748,7 @@ impl LlvmGenerator {
             actor_message_reply_types: HashMap::new(),
             current_block: "entry".to_string(),
             current_return_type: None,
+            current_impl_target: None,
             actor_return_label: None,
             actor_return_slot: None,
             target: resolve_host_llvm_target_descriptor(),
@@ -750,6 +762,7 @@ impl LlvmGenerator {
             string_length_values: HashMap::new(),
             pooled_string_literal_slots: HashMap::new(),
             native_entanglements: Vec::new(),
+            native_resonances: Vec::new(),
             native_machine_axioms: Vec::new(),
             native_pulses: Vec::new(),
             shattered_structs: HashSet::new(),
@@ -795,6 +808,7 @@ impl LlvmGenerator {
             scopes: self.scopes.clone(),
             current_block: self.current_block.clone(),
             current_return_type: self.current_return_type.clone(),
+            current_impl_target: self.current_impl_target.clone(),
             actor_return_label: self.actor_return_label.clone(),
             actor_return_slot: self.actor_return_slot.clone(),
             string_locals: self.string_locals.clone(),
@@ -840,6 +854,7 @@ impl LlvmGenerator {
         self.scopes = state.scopes;
         self.current_block = state.current_block;
         self.current_return_type = state.current_return_type;
+        self.current_impl_target = state.current_impl_target;
         self.actor_return_label = state.actor_return_label;
         self.actor_return_slot = state.actor_return_slot;
         self.string_locals = state.string_locals;
@@ -885,6 +900,7 @@ impl LlvmGenerator {
         self.scopes.push(Vec::new());
         self.current_block = "entry".to_string();
         self.current_return_type = Some(return_type.to_string());
+        self.current_impl_target = None;
         self.actor_return_label = None;
         self.actor_return_slot = None;
         self.string_locals.clear();
@@ -945,6 +961,9 @@ impl LlvmGenerator {
                 self.collect_pointer_let_types_from_block(&orchestrate.ast.body);
             }
             TypedItem::Pulse(pulse) => self.collect_pointer_let_types_from_block(&pulse.ast.body),
+            TypedItem::Resonate(resonate) => {
+                self.collect_pointer_let_types_from_block(&resonate.ast.body);
+            }
             TypedItem::Component(component) => {
                 for method in &component.ast.methods {
                     self.collect_pointer_param_types_from_params(&method.params);
@@ -1013,6 +1032,9 @@ impl LlvmGenerator {
             }
             kain_core::ast::Item::Pulse(pulse) => {
                 self.collect_pointer_let_types_from_block(&pulse.body)
+            }
+            kain_core::ast::Item::Resonate(resonate) => {
+                self.collect_pointer_let_types_from_block(&resonate.body)
             }
             kain_core::ast::Item::Component(component) => {
                 for method in &component.methods {
@@ -1981,6 +2003,11 @@ impl LlvmGenerator {
     fn map_type_from_ast(&self, ty: &kain_core::ast::Type) -> String {
         match ty {
             kain_core::ast::Type::Named { name, generics, .. } => match name.as_str() {
+                "Self" | "Self_" => self
+                    .current_impl_target
+                    .as_ref()
+                    .map(|target| self.struct_storage_type(target))
+                    .unwrap_or_else(|| "i64".into()),
                 "Array" if generics.len() == 1 => "i8*".into(),
                 "Slice" if generics.len() == 1 => "i8*".into(),
                 "Option" if generics.len() == 1 => "i8*".into(),
@@ -7783,6 +7810,17 @@ impl LlvmGenerator {
             return Ok((reg, target_ty.to_string()));
         }
 
+        if target_ty.starts_with('%') && !target_ty.ends_with('*') {
+            if src_ty == format!("{}*", target_ty) {
+                let reg = self.next_reg();
+                self.emit(&format!(
+                    "  {} = load {}, {} {}",
+                    reg, target_ty, src_ty, val
+                ));
+                return Ok((reg, target_ty.to_string()));
+            }
+        }
+
         if src_ty.ends_with('*') && target_ty == "i64" {
             let reg = self.next_reg();
             self.emit(&format!("  {} = ptrtoint {} {} to i64", reg, src_ty, val));
@@ -10788,6 +10826,96 @@ impl LlvmGenerator {
             .cloned()
     }
 
+    fn emit_resonance_after_store(
+        &mut self,
+        binding: &NativeResonanceInfo,
+        field_ty: &str,
+        old_i64: Option<&str>,
+        old_f64: Option<&str>,
+        new_value: &str,
+    ) -> KainResult<()> {
+        let target_ptr = self.compile_static_c_string_literal(&binding.target);
+        let should_fire = self.next_reg();
+        let mut handler_old_i64 = old_i64.unwrap_or("0").to_string();
+        let mut handler_new_i64 = "0".to_string();
+        match field_ty {
+            "i64" => {
+                handler_new_i64 = new_value.to_string();
+                self.emit(&format!(
+                    "  {} = call i64 @abi_resonate_should_fire_i64(i8* {}, i64 {}, i64 {}, i64 {})",
+                    should_fire,
+                    target_ptr,
+                    binding.dampen_ns,
+                    handler_old_i64,
+                    new_value
+                ));
+            }
+            "i1" => {
+                handler_new_i64 = self.next_reg();
+                self.emit(&format!(
+                    "  {} = zext i1 {} to i64",
+                    handler_new_i64, new_value
+                ));
+                self.emit(&format!(
+                    "  {} = call i64 @abi_resonate_should_fire_i64(i8* {}, i64 {}, i64 0, i64 {})",
+                    should_fire,
+                    target_ptr,
+                    binding.dampen_ns,
+                    handler_new_i64
+                ));
+            }
+            "double" => {
+                let old_f64_arg = old_f64.unwrap_or("0.000000e+00");
+                let old_as_i64 = self.next_reg();
+                let new_as_i64 = self.next_reg();
+                self.emit(&format!(
+                    "  {} = fptosi double {} to i64",
+                    old_as_i64, old_f64_arg
+                ));
+                self.emit(&format!(
+                    "  {} = fptosi double {} to i64",
+                    new_as_i64, new_value
+                ));
+                handler_old_i64 = old_as_i64;
+                handler_new_i64 = new_as_i64;
+                self.emit(&format!(
+                    "  {} = call i64 @abi_resonate_should_fire_f64(i8* {}, i64 {}, double {}, double {})",
+                    should_fire,
+                    target_ptr,
+                    binding.dampen_ns,
+                    old_f64_arg,
+                    new_value
+                ));
+            }
+            _ => {
+                self.emit(&format!(
+                    "  {} = call i64 @abi_resonate_should_fire_i64(i8* {}, i64 {}, i64 0, i64 0)",
+                    should_fire, target_ptr, binding.dampen_ns
+                ));
+            }
+        }
+        let should_fire_bool = self.next_reg();
+        let fire_label = self.next_label();
+        let done_label = self.next_label();
+        self.emit(&format!(
+            "  {} = icmp ne i64 {}, 0",
+            should_fire_bool, should_fire
+        ));
+        self.emit(&format!(
+            "  br i1 {}, label %{}, label %{}",
+            should_fire_bool, fire_label, done_label
+        ));
+        self.emit_label(&fire_label);
+        self.emit(&format!(
+            "  call void @{}(i64 {}, i64 {}, i1 true)",
+            binding.handler_symbol, handler_old_i64, handler_new_i64
+        ));
+        self.emit(&format!("  call void @abi_resonate_exit(i8* {})", target_ptr));
+        self.emit(&format!("  br label %{}", done_label));
+        self.emit_label(&done_label);
+        Ok(())
+    }
+
     fn direct_struct_literal_name<'a>(&self, expr: &'a Expr) -> Option<&'a str> {
         match expr {
             Expr::Struct { name, .. } if self.shattered_structs.contains(name) => Some(name),
@@ -12950,6 +13078,7 @@ impl LlvmGenerator {
                 TypedItem::Axiom(axiom) => self.compile_axiom(axiom)?,
                 TypedItem::Converge(converge) => self.compile_converge(converge)?,
                 TypedItem::Pulse(pulse) => self.compile_pulse(pulse)?,
+                TypedItem::Resonate(resonate) => self.compile_resonate(resonate)?,
                 TypedItem::World(world) => self.compile_world_initializer(world)?,
                 TypedItem::Orchestrate(orchestrate) => self.compile_orchestrate(orchestrate)?,
                 TypedItem::Component(component) => self.compile_component(component)?,
@@ -12979,6 +13108,33 @@ impl LlvmGenerator {
                 _ => {}
             }
         }
+    }
+
+    fn resonance_handler_symbol(name: &str) -> String {
+        format!("__kain_resonate_{}", Self::sanitize_symbol_fragment(name))
+    }
+
+    fn collect_native_resonances(&mut self, items: &[TypedItem]) {
+        for item in items {
+            match item {
+                TypedItem::Resonate(resonate) => {
+                    self.native_resonances.push(NativeResonanceInfo {
+                        target: resonate.ast.target.authored_path(),
+                        dampen_ns: resonate.plan.dampen.nanos(),
+                        handler_symbol: Self::resonance_handler_symbol(&resonate.ast.name),
+                    });
+                }
+                TypedItem::Mod(module) => self.collect_native_resonances(&module.items),
+                _ => {}
+            }
+        }
+    }
+
+    fn native_resonance_binding(&self, target: &str) -> Option<NativeResonanceInfo> {
+        self.native_resonances
+            .iter()
+            .find(|binding| binding.target == target)
+            .cloned()
     }
 
     fn collect_machine_stone_metadata(&mut self, items: &[TypedItem]) {
@@ -13526,6 +13682,7 @@ impl LlvmGenerator {
         self.emit("");
 
         self.collect_native_entanglements(&program.items);
+        self.collect_native_resonances(&program.items);
         self.collect_machine_stone_metadata(&program.items);
         self.collect_program_tuple_types(program);
         self.register_builtin_tuple_structs();
@@ -14013,6 +14170,9 @@ impl LlvmGenerator {
         self.emit("declare i64 @abi_patch_begin(i8*)");
         self.emit("declare i64 @abi_patch_record_i64(i8*, i8*, i64, i64)");
         self.emit("declare i64 @abi_patch_commit(i8*)");
+        self.emit("declare i64 @abi_resonate_should_fire_i64(i8*, i64, i64, i64)");
+        self.emit("declare i64 @abi_resonate_should_fire_f64(i8*, i64, double, double)");
+        self.emit("declare void @abi_resonate_exit(i8*)");
         self.emit("declare i64 @abi_entangle_record_i64(i8*, i8*, i64)");
         self.emit("declare i64 @abi_converge_record_i64(i8*, i8*, i64, i64)");
         self.emit("declare i64 @abi_converge_record_bool(i8*, i8*, i32)");
@@ -14334,6 +14494,7 @@ impl LlvmGenerator {
             .map(|ty| self.map_impl_type_from_ast(target_name, ty))
             .unwrap_or_else(|| "void".to_string());
         self.current_return_type = Some(ret_type.clone());
+        self.current_impl_target = Some(target_name.to_string());
 
         let mut params = Vec::new();
         params.push(format!("{} %arg0", self_ty));
@@ -14443,6 +14604,7 @@ impl LlvmGenerator {
         self.emit("}");
         self.emit("");
         self.current_return_type = None;
+        self.current_impl_target = None;
         Ok(())
     }
 
@@ -14756,6 +14918,65 @@ impl LlvmGenerator {
         );
         self.current_patch_name = previous_patch;
         result
+    }
+
+    fn resonance_context_params(span: Span) -> Vec<kain_core::ast::Param> {
+        let int_ty = Type::Named {
+            name: "Int".to_string(),
+            generics: Vec::new(),
+            span,
+        };
+        let bool_ty = Type::Named {
+            name: "Bool".to_string(),
+            generics: Vec::new(),
+            span,
+        };
+        vec![
+            kain_core::ast::Param {
+                name: "resonate_old_i64".to_string(),
+                ty: int_ty.clone(),
+                mutable: false,
+                default: None,
+                span,
+            },
+            kain_core::ast::Param {
+                name: "resonate_new_i64".to_string(),
+                ty: int_ty,
+                mutable: false,
+                default: None,
+                span,
+            },
+            kain_core::ast::Param {
+                name: "resonate_fired".to_string(),
+                ty: bool_ty,
+                mutable: false,
+                default: None,
+                span,
+            },
+        ]
+    }
+
+    fn compile_resonate(&mut self, resonate: &TypedResonate) -> KainResult<()> {
+        let handler_symbol = Self::resonance_handler_symbol(&resonate.ast.name);
+        let params = Self::resonance_context_params(resonate.ast.span);
+        let resolved_type = ResolvedType::Function {
+            params: vec![
+                ResolvedType::Int(IntSize::I64),
+                ResolvedType::Int(IntSize::I64),
+                ResolvedType::Bool,
+            ],
+            ret: Box::new(ResolvedType::Unit),
+            effects: EffectSet::new(),
+        };
+        self.compile_named_callable(
+            &handler_symbol,
+            &resonate.ast.attributes,
+            &params,
+            None,
+            &resonate.ast.body,
+            &resolved_type,
+            resonate.ast.span,
+        )
     }
 
     fn compile_law(&mut self, law: &kain_core::types::TypedLaw) -> KainResult<()> {
@@ -18120,10 +18341,27 @@ impl LlvmGenerator {
                             ));
                         }
                     }
-                    let old_value = if self.current_patch_name.is_some() && field_ty == "i64" {
+                    let resonance_binding = field_path
+                        .as_ref()
+                        .and_then(|path| self.native_resonance_binding(path));
+                    let needs_old_i64 = field_ty == "i64"
+                        && (self.current_patch_name.is_some() || resonance_binding.is_some());
+                    let old_value = if needs_old_i64 {
                         let loaded = self.next_reg();
                         self.emit(&format!(
                             "  {} = load {}i64, i64* {}",
+                            loaded,
+                            if is_mmio_volatile { "volatile " } else { "" },
+                            field_ptr
+                        ));
+                        Some(loaded)
+                    } else {
+                        None
+                    };
+                    let old_f64_value = if resonance_binding.is_some() && field_ty == "double" {
+                        let loaded = self.next_reg();
+                        self.emit(&format!(
+                            "  {} = load {}double, double* {}",
                             loaded,
                             if is_mmio_volatile { "volatile " } else { "" },
                             field_ptr
@@ -18175,6 +18413,15 @@ impl LlvmGenerator {
                                 self.emit_entangle_i64_propagation(&binding, &rhs)?;
                             }
                         }
+                    }
+                    if let Some(binding) = resonance_binding.as_ref() {
+                        self.emit_resonance_after_store(
+                            binding,
+                            &field_ty,
+                            old_value.as_deref(),
+                            old_f64_value.as_deref(),
+                            &rhs,
+                        )?;
                     }
                     Ok((rhs, rhs_ty))
                 }
@@ -19963,6 +20210,52 @@ fn main() -> Int:
         ));
         assert!(llvm.contains("call %ButtonBuilder* @ButtonBuilder_key(%ButtonBuilder*"));
         assert!(!llvm.contains("@ButtonBuilder_key(%ButtonBuilder* %arg0, %ButtonBuilder* %arg1"));
+    }
+
+    #[test]
+    fn lowers_impl_self_local_copy_without_pointer_bit_corruption() {
+        let source = r#"
+struct KeywordMeshRecord:
+    id: Int
+    payload: Int
+    tag: String
+
+impl KeywordMeshRecord:
+    fn clone_self(_self: Self_) -> Self:
+        let copy: Self = _self
+        return copy
+
+fn main() -> Int:
+    let record = KeywordMeshRecord { id: 1, payload: 20, tag: "mesh" }
+    let clone = record.clone_self()
+    if clone.id != 1:
+        return 1
+    if clone.payload != 20:
+        return 2
+    if clone.tag != "mesh":
+        return 3
+    return 0
+"#;
+        let llvm = generate_llvm_or_error(source).expect("llvm generation");
+        let clone_start = llvm
+            .find("define %KeywordMeshRecord* @KeywordMeshRecord_clone_self(%KeywordMeshRecord* %arg0)")
+            .expect("clone_self method should be present in LLVM");
+        let clone_end = llvm[clone_start..]
+            .find("ret %KeywordMeshRecord*")
+            .expect("clone_self should return a struct pointer")
+            + clone_start;
+        let window = &llvm[clone_start..clone_end];
+
+        assert!(
+            !window.contains("ptrtoint %KeywordMeshRecord*"),
+            "Self local copies must not roundtrip struct pointers through i64 bits:\n{}",
+            window
+        );
+        assert!(
+            window.contains("store %KeywordMeshRecord* %"),
+            "Self local copy should stay in the concrete struct-pointer lane:\n{}",
+            window
+        );
     }
 
     #[test]

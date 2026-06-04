@@ -2558,6 +2558,13 @@ fn target_specific_diagnostics(
         }
     }
 
+    if has_shaders && (targets.contains("wgsl") || targets.contains("webgpu")) {
+        #[cfg(feature = "gpu")]
+        if let Err(error) = gpu::generate_wgsl(typed_program) {
+            diagnostics.extend(diagnostics_from_error(text, &error));
+        }
+    }
+
     if has_shaders && targets.contains("spirv") {
         #[cfg(feature = "gpu")]
         if let Err(error) = gpu::generate_spirv(typed_program) {

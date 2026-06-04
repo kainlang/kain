@@ -2131,6 +2131,13 @@ fn collect_implicit_root_stdlib_modules_from_item(
                 module_names,
             );
         }
+        Item::Resonate(resonate) => {
+            collect_implicit_root_stdlib_modules_from_block(
+                &resonate.body,
+                symbol_lookup,
+                module_names,
+            );
+        }
         Item::World(world) => {
             for state in &world.states {
                 collect_implicit_root_stdlib_modules_from_expr(

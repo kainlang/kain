@@ -5,7 +5,8 @@ use crate::ast::{
     WorldSurfaceKind, COMPUTE_PLAN_CAPABILITY_KEY,
 };
 use crate::types::{
-    PatchUndoMode, TypedConverge, TypedEntangle, TypedLaw, TypedOrchestrate, TypedPatch, TypedWorld,
+    PatchUndoMode, TypedConverge, TypedEntangle, TypedLaw, TypedOrchestrate, TypedPatch,
+    TypedResonate, TypedWorld,
 };
 use crate::ui::render_authored_expr_contract;
 use crate::{CompileTarget, TypedItem, TypedProgram, TypedShader};
@@ -37,6 +38,8 @@ pub struct RealtimeAppBundle {
     pub entanglements: Vec<RealtimeEntangleBinding>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub orchestrations: Vec<RealtimeOrchestrationBinding>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub resonances: Vec<RealtimeResonanceBinding>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub shader_canvases: Vec<RealtimeShaderCanvasBinding>,
     pub shader_bundle_refs: Vec<RealtimeShaderBundleRef>,
@@ -452,6 +455,18 @@ pub struct RealtimeOrchestrationBinding {
     pub stages: Vec<RealtimeOrchestrationStageBinding>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct RealtimeResonanceBinding {
+    pub name: String,
+    pub target: String,
+    pub target_type: String,
+    pub dampen: String,
+    pub dampen_ns: u64,
+    pub handler_symbol: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub direct_mutation_paths: Vec<String>,
+}
+
 pub fn emit_realtime_app_bundle(
     program: &TypedProgram,
     ui_output: Option<&UiBuildOutput>,
@@ -472,6 +487,7 @@ pub fn emit_realtime_app_bundle(
     };
     let entanglements = collect_entangle_bindings(program);
     let orchestrations = collect_orchestration_bindings(program);
+    let resonances = collect_resonance_bindings(program);
     let assets = collect_assets(ui_output);
     let has_explicit_compute_metadata = program_has_explicit_compute_metadata(program);
     let tool_caps = collect_tool_caps(
@@ -484,6 +500,7 @@ pub fn emit_realtime_app_bundle(
         !laws.is_empty(),
         !converges.is_empty(),
         !orchestrations.is_empty(),
+        !resonances.is_empty(),
         has_explicit_compute_metadata,
     );
     let requirements = collect_requirements(
@@ -498,6 +515,7 @@ pub fn emit_realtime_app_bundle(
         !laws.is_empty(),
         !converges.is_empty(),
         !orchestrations.is_empty(),
+        !resonances.is_empty(),
         has_explicit_compute_metadata,
     );
     let ui_contracts = collect_ui_contracts(ui_output);
@@ -513,6 +531,7 @@ pub fn emit_realtime_app_bundle(
         active_world,
         entanglements,
         orchestrations,
+        resonances,
         shader_canvases,
         shader_bundle_refs,
         assets,
@@ -1042,17 +1061,69 @@ fn realtime_orchestration_binding(orchestrate: &TypedOrchestrate) -> RealtimeOrc
                 binding_name: stage.binding_name.clone(),
                 selector: stage.selector.as_ref().map(|selector| selector.authored()),
                 dependencies: stage.metadata.dependencies.clone(),
-                residency: stage.metadata.residency.map(|value| value.as_str().to_string()),
-                transfer: stage.metadata.transfer.map(|value| value.as_str().to_string()),
+                residency: stage
+                    .metadata
+                    .residency
+                    .map(|value| value.as_str().to_string()),
+                transfer: stage
+                    .metadata
+                    .transfer
+                    .map(|value| value.as_str().to_string()),
                 guard: stage.metadata.guard.clone(),
-                fallback: stage.metadata.fallback.as_ref().map(|value| value.authored()),
+                fallback: stage
+                    .metadata
+                    .fallback
+                    .as_ref()
+                    .map(|value| value.authored()),
                 requires: stage.metadata.requires.clone(),
-                policy: stage.metadata.policy.map(|value| value.as_str().to_string()),
+                policy: stage
+                    .metadata
+                    .policy
+                    .map(|value| value.as_str().to_string()),
                 adaptive_policy: stage.metadata.adaptive(),
                 silicon_native: stage.runtime.is_silicon_native(),
                 compatibility_adapter: stage.runtime.is_compat_adapter(),
             })
             .collect(),
+    }
+}
+
+fn collect_resonance_bindings(program: &TypedProgram) -> Vec<RealtimeResonanceBinding> {
+    let mut bindings = Vec::new();
+    collect_resonance_bindings_into(&program.items, &mut bindings);
+    bindings.sort_by(|left, right| {
+        left.target
+            .cmp(&right.target)
+            .then(left.name.cmp(&right.name))
+    });
+    bindings
+}
+
+fn collect_resonance_bindings_into(
+    items: &[TypedItem],
+    output: &mut Vec<RealtimeResonanceBinding>,
+) {
+    for item in items {
+        match item {
+            TypedItem::Resonate(resonate) => output.push(realtime_resonance_binding(resonate)),
+            TypedItem::Mod(module) => collect_resonance_bindings_into(&module.items, output),
+            _ => {}
+        }
+    }
+}
+
+fn realtime_resonance_binding(resonate: &TypedResonate) -> RealtimeResonanceBinding {
+    RealtimeResonanceBinding {
+        name: resonate.ast.name.clone(),
+        target: resonate.ast.target.authored_path(),
+        target_type: resonate.target_type_name.clone(),
+        dampen: resonate.plan.dampen.authored(),
+        dampen_ns: resonate.plan.dampen.nanos(),
+        handler_symbol: format!(
+            "__kain_resonate_{}",
+            sanitize_bundle_symbol_ident(&resonate.ast.name)
+        ),
+        direct_mutation_paths: resonate.plan.direct_mutation_paths.clone(),
     }
 }
 
@@ -2314,6 +2385,7 @@ fn collect_tool_caps(
     has_laws: bool,
     has_converges: bool,
     has_orchestrations: bool,
+    has_resonances: bool,
     has_explicit_compute_metadata: bool,
 ) -> Vec<String> {
     let mut caps = Vec::new();
@@ -2331,6 +2403,10 @@ fn collect_tool_caps(
     }
     if has_orchestrations {
         caps.push("orchestrate.pipeline".to_string());
+    }
+    if has_resonances {
+        caps.push(kain_resonate::RESONATE_CAPABILITY_KEY.to_string());
+        caps.push("reactivity.shadow-patch".to_string());
     }
     if let Some(output) = ui_output {
         if output
@@ -2411,6 +2487,7 @@ fn collect_requirements(
     has_laws: bool,
     has_converges: bool,
     has_orchestrations: bool,
+    has_resonances: bool,
     has_explicit_compute_metadata: bool,
 ) -> Vec<String> {
     let has_compute_refs = shader_bundle_refs
@@ -2438,6 +2515,11 @@ fn collect_requirements(
     }
     if has_orchestrations {
         requirements.push("orchestrate.pipeline".to_string());
+    }
+    if has_resonances {
+        requirements.push(kain_resonate::RESONATE_CAPABILITY_KEY.to_string());
+        requirements.push("reactivity.shadow-patch".to_string());
+        requirements.push("reactivity.dampen-window".to_string());
     }
     if has_world_native_ui {
         requirements.push("world.native-ui".to_string());
@@ -2517,6 +2599,8 @@ fn compile_target_name(target: CompileTarget) -> &'static str {
         "spirv"
     } else if target == CompileTarget::Hlsl {
         "hlsl"
+    } else if target == CompileTarget::Wgsl {
+        "wgsl"
     } else if target == CompileTarget::Interpret {
         "interpret"
     } else if target == CompileTarget::Test {
