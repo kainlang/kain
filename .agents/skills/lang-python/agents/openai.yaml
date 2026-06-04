@@ -1,4 +1,4 @@
 interface:
   display_name: "Lang Python"
-  short_description: "Current Python interop, region, async, and tensor bridge surfaces"
-  default_prompt: "Use $lang-python to design or repair authored Kain against the live Python surface in this repo: first-class imports, natural host-object calls with named Kain args lowered to Python kwargs, local .py helpers, std::python, region-cached module/attr/call paths, async futures, actor callbacks, shared/owned buffer-image-tensor adoption, and the current benchmark packs in benchmark/cases_v2/python_interop.kn and benchmark/cases_v2/python_stdlib_fused.kn. If the work is really DLL/platform or native bridge metadata, co-load $lang-c-abi."
+  short_description: "Modern Kain Python interop and facades"
+  default_prompt: "Use $lang-python to design or repair modern Kain Python interop: natural import/from imports, host-object kwargs calls, thin package facades, local .py helpers, project dependency truth, std::python/std::interop, region caches, async futures, actor callbacks, shared/owned tensor-image-buffer adoption, and GPU bridge contracts; co-load $lang-c-abi only for native ABI/package metadata."
