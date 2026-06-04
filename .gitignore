@@ -186,3 +186,8 @@ smoketest/telemetry/attrition/tracks/attrition.iter.6.json
 /smoketest/telemetry
 /smoketest/telemetry/full/tracks
 smoketest/telemetry/attrition/tracks/attrition.iter.16.json
+
+# Capsule amalgamation build outputs
+/blades/ui/kaintana/kaintana.kn
+/blades/ui/kaintana/kaintana.artifacts.kn
+/blades/ui/kaintana/kaintana.evidence.kn
