@@ -1,5 +1,28 @@
 # Kain Memory
 
+# 2026-06-03 - LLVM impl `Self` copies preserve struct values again
+
+What changed:
+
+- Fixed the high-priority `BUGS.md` `llvm/value-semantics` entry where `let copy: Self = _self` inside an impl method could corrupt a returned struct in native LLVM runs.
+- Patched `crates/core/src/monomorphize.rs` so standalone impl-method helpers generated for the driver/CLI path substitute authored `Self` and `Self_` annotations into the concrete impl target before type resolution.
+- Patched `crates/sys-codegen/src/codegen_llvm/mod.rs` so direct impl-method lowering tracks the current impl target, maps method-local `Self` / `Self_` to the real struct storage type, and loads `%T* -> %T` for value copies instead of pointer-bit roundtripping through `i64`.
+- Restored the original `clone_self` exercise in `smoketest/src/semantics/keyword_mesh.kn`.
+
+Validation:
+
+- `cargo test -p kain-sys-codegen lowers_impl_self_local_copy_without_pointer_bit_corruption -- --nocapture`
+- `cargo test -p kain-driver compile_llvm_monomorphized_impl_self_copy_preserves_concrete_return -- --nocapture`
+- `cargo test -p kain-driver compile_llvm_supports_imported_impl_self_builder_methods -- --nocapture`
+- `cargo test -p kain-driver compile_llvm_monomorphizes_where_bound_trait_method_calls -- --nocapture`
+- `cargo run -p cli -- run X:\scratch\keyword_mesh_clone_probe.kn --target llvm` succeeded with report `X:\.kain\reports\run\session-1780536299050-15816.json`.
+- `cargo run -p cli -- build smoketest` completed successfully with report `X:\smoketest\.kain\reports\build\session-1780536420052-22496.json`; restored telemetry has `ok = 1`, `succeeded_tracks = 63`, and `failure_track = ""`.
+
+Operational notes:
+
+- For impl-method, `Self`, and method-call lowering changes, validate both `kain-sys-codegen` direct lowering and `kain-driver`/CLI monomorphized lowering. The driver path rewrites impl methods into internal standalone helpers and can expose stale authored type annotations that the direct generator path never sees.
+- `scratch/*` is gitignored; temporary focused repros are useful for native execution evidence, but durable coverage should live in Rust regressions and smoke tracks.
+
 # 2026-06-03 - `ml/lasso.kn` raw corpus collector needs `.kain` root unwrapping
 
 What changed:
@@ -10352,6 +10375,50 @@ Kain now has a real authored CUDA device-intrinsic surface under `std::cuda` tha
   - `python query_stdlib.py --module cuda --contains cuda_ --limit 40`
 - Current caveat:
   - `.kain\bin\kain.exe` is still blocked by unrelated Bazel crate-universe analysis failures (`kain_driver`, `kain_omni`, `kain_host`, etc. missing in Bazel rust rules after repin); the CUDA gauntlet passed with the fresh Cargo binary at `F:\DevTools\kain-agent\cargo-target\debug\kain.exe`.
+
+# 2026-06-03 - CUDA/PTX auto-family variants, runtime best-fit dispatch, and ML kernel proof refresh
+
+The CUDA/PTX pipeline now emits and consumes ranked PTX architecture families instead of a single opaque PTX artifact, and the real ML kernels under `ml/src/*.kn` were refreshed to carry explicit architecture-floor intent.
+
+- Compiler / staging changes:
+  - `crates/gpu/src/ptx_module.rs`
+    - PTX arch parsing and support now includes Kepler `sm_30` and `sm_35`, not just `sm_50+`.
+    - shared-memory and plain launch floors were lowered to `sm_30` where no newer feature contract is required.
+  - `crates/gpu/src/codegen_ptx.rs`
+    - PTX codegen can now emit a ranked architecture family from the kernel floor upward instead of only one chosen target.
+    - explicit tensor / WGMMA contracts still raise the minimum floor (`sm_75` and `sm_90` respectively), and the auto-family output starts from that floor.
+  - `crates/driver/src/lib.rs`
+    - shader bundles now carry multiple derived PTX artifacts plus reflection notes that list the exact auto-dispatch family (for example `sm_75, sm_80, sm_86, sm_89, sm_90, sm_100, sm_120`).
+  - `crates/cli/src/gpu_artifacts.rs`
+    - `kain gpu-artifacts ... --output <existing-dir>` now writes bundle files inside that directory instead of treating it like a sibling filename stem.
+    - the CLI now writes both the compatibility baseline `*.derived.ptx` and an explicit arch-suffixed PTX file for every variant, including the baseline arch (`*.derived.sm_75.ptx`, `*.derived.sm_90.ptx`, etc.).
+- Runtime changes:
+  - `crates/gpu-runtime/src/nvidia_ptx.rs`
+    - the NVIDIA PTX executor now selects the highest compatible PTX variant for the active device instead of consuming the first PTX payload unconditionally.
+    - device selection can be overridden with `KAIN_CUDA_DEVICE` or `KAIN_CUDA_DEVICE_ORDINAL`.
+    - sidecar validation now accepts a higher-ranked selected PTX artifact as long as it is compatible with the baseline compute-residency floor.
+- Authored ML kernel refresh:
+  - `ml/src/error_kernel.kn`
+  - `ml/src/repair_kernel.kn`
+  - `ml/src/search_kernel.kn`
+  - `ml/src/training_kernel.kn`
+    - now assert `cuda_require_tensor_cores()` in their hot CUDA lanes so the emitted PTX family starts at `sm_75`.
+  - `ml/src/transformer_kernel.kn`
+    - now asserts `cuda_require_wgmma()` in `MatmulForward`, forcing the emitted PTX family to start at `sm_90`.
+- Live proof that passed:
+  - `cargo test -p gpu --test ptx_codegen --target-dir Z:\_b\cargo-target\codex-cuda-gpu -- --nocapture`
+  - `cargo test -p kain-gpu-runtime --lib ptx_dispatch_plan_selects_best_variant_for_active_device --target-dir Z:\_b\cargo-target\codex-cuda-runtime -- --nocapture`
+  - `cargo test -p kain-gpu-runtime --lib ptx_dispatch_plan_reads_cuda_launch_policy --target-dir Z:\_b\cargo-target\codex-cuda-runtime -- --nocapture`
+  - `cargo test -p kain-driver --lib compile_shader_artifact_bundle_emits_canonical_spirv_bundle --target-dir Z:\_b\cargo-target\codex-cuda-driver -- --nocapture`
+  - `cargo test -p kain-driver --lib compile_gpu_artifacts_falls_back_to_ptx_first_bundle_for_cuda_intrinsics --target-dir Z:\_b\cargo-target\codex-cuda-driver -- --nocapture`
+  - `cargo test -p cli --lib gpu_artifact_pipeline_writes_cuda_variants_into_output_directory --target-dir Z:\_b\cargo-target\codex-cuda-cli -- --nocapture`
+  - `cargo check -p gpu -p kain-gpu-runtime -p kain-driver -p cli --target-dir Z:\_b\cargo-target\codex-cuda-cli`
+  - `cargo build -p cli --target-dir Z:\_b\cargo-target\codex-cuda-cli`
+  - live CLI proofs with `Z:\_b\cargo-target\codex-cuda-cli\debug\kain.exe gpu-artifacts ... --target cuda --output X:\scratch\cuda_variant_proof_v2\<kernel>`
+    - `transformer_kernel` emitted `sm_90, sm_100, sm_120`
+    - `search_kernel`, `training_kernel`, `repair_kernel`, and `error_kernel` emitted `sm_75, sm_80, sm_86, sm_89, sm_90, sm_100, sm_120`
+- Current caveat:
+  - `cuda_graph_policy = "capture_once"` is still modeled in compute residency but remains intentionally rejected at runtime until CUDA graph capture / instantiate / launch is implemented end-to-end.
 
 # 2026-05-24 - added an optional root `std::z3` host-solver lane
 

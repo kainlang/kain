@@ -5,6 +5,8 @@ use std::json
 pub const CUDA_SHADER_BUNDLE_ENV: String = "KAIN_CUDA_SHADER_BUNDLE"
 pub const CUDA_COMPUTE_RESIDENCY_ENV: String = "KAIN_CUDA_COMPUTE_RESIDENCY"
 pub const CUDA_RUNTIME_LIBRARY_ENV: String = "KAIN_GPU_RUNTIME_LIBRARY"
+pub const CUDA_DEVICE_ENV: String = "KAIN_CUDA_DEVICE"
+pub const CUDA_DEVICE_ORDINAL_ENV: String = "KAIN_CUDA_DEVICE_ORDINAL"
 pub const CUDA_SHADER_BUNDLE_FILE_NAME: String = "kain_shader_bundle.json"
 pub const CUDA_COMPUTE_RESIDENCY_FILE_NAME: String = "kain_compute_residency.json"
 

@@ -18,6 +18,8 @@ pub const DEFAULT_PTX_ARCH: PtxArch = PtxArch::Sm50;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum PtxArch {
+    Sm30,
+    Sm35,
     Sm50,
     Sm52,
     Sm60,
@@ -61,6 +63,36 @@ impl PtxArchSpec {
 }
 
 pub const PTX_ARCH_SPECS: &[PtxArchSpec] = &[
+    PtxArchSpec::new(
+        PtxArch::Sm30,
+        "sm_30",
+        30,
+        "3.0",
+        &[
+            "sm_30",
+            "sm30",
+            "30",
+            "3.0",
+            "compute_30",
+            "compute30",
+            "compute_3_0",
+        ],
+    ),
+    PtxArchSpec::new(
+        PtxArch::Sm35,
+        "sm_35",
+        35,
+        "3.5",
+        &[
+            "sm_35",
+            "sm35",
+            "35",
+            "3.5",
+            "compute_35",
+            "compute35",
+            "compute_3_5",
+        ],
+    ),
     PtxArchSpec::new(
         PtxArch::Sm50,
         "sm_50",
@@ -845,7 +877,7 @@ impl PtxSharedOpKind {
 
     pub const fn arch_min(self) -> PtxArch {
         match self {
-            Self::LdShared | Self::StShared | Self::BarSync => PtxArch::Sm50,
+            Self::LdShared | Self::StShared | Self::BarSync => PtxArch::Sm30,
             Self::CpAsync | Self::CpAsyncCommitGroup | Self::CpAsyncWaitGroup => PtxArch::Sm80,
             Self::FenceProxyAsyncSharedCta
             | Self::MBarrierInit
@@ -1060,7 +1092,7 @@ impl PtxSharedMemoryPlan {
     }
 
     pub fn minimum_arch(&self) -> PtxArch {
-        let mut arch = PtxArch::Sm50;
+        let mut arch = PtxArch::Sm30;
         if self.barrier_slots > 0 {
             arch = std::cmp::max(arch, PtxFeature::MBarrier.min_arch());
         }
@@ -1502,7 +1534,7 @@ impl PtxLaunchConfig {
         if self.cluster.is_some() {
             PtxFeature::ClusterLaunch.min_arch()
         } else {
-            PtxArch::Sm50
+            PtxArch::Sm30
         }
     }
 
@@ -1856,9 +1888,12 @@ mod tests {
 
     #[test]
     fn ptx_arch_parses_common_compute_capability_aliases() {
+        assert_eq!(PtxArch::parse("sm_30"), Some(PtxArch::Sm30));
+        assert_eq!(PtxArch::parse("3.5"), Some(PtxArch::Sm35));
         assert_eq!(PtxArch::parse("sm_75"), Some(PtxArch::Sm75));
         assert_eq!(PtxArch::parse("7.5"), Some(PtxArch::Sm75));
         assert_eq!(PtxArch::parse("compute_8_6"), Some(PtxArch::Sm86));
+        assert_eq!(PtxArch::from_compute_capability(3, 0), Some(PtxArch::Sm30));
         assert_eq!(PtxArch::from_compute_capability(8, 9), Some(PtxArch::Sm89));
         assert_eq!(PtxArch::parse("sm_77"), None);
     }
@@ -1875,6 +1910,17 @@ mod tests {
             })
         ));
         assert!(cfg.validate(PtxArch::Sm90).is_ok());
+    }
+
+    #[test]
+    fn plain_launch_and_shared_memory_can_target_kepler_floor() {
+        let launch = PtxLaunchConfig::new([1, 1, 1], [8, 1, 1], 0);
+        let shared = PtxSharedMemoryPlan::new();
+
+        assert_eq!(launch.minimum_arch(), PtxArch::Sm30);
+        assert_eq!(shared.minimum_arch(), PtxArch::Sm30);
+        assert_eq!(PtxSharedOpKind::LdShared.arch_min(), PtxArch::Sm30);
+        assert_eq!(PtxSharedOpKind::BarSync.arch_min(), PtxArch::Sm30);
     }
 
     #[test]

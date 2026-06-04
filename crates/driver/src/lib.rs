@@ -131,6 +131,11 @@ const TARGET_SPECS: &[TargetSpec] = &[
         aliases: &["hlsl", "h"],
     },
     TargetSpec {
+        target: CompileTarget::Wgsl,
+        extension: "wgsl",
+        aliases: &["wgsl", "webgpu"],
+    },
+    TargetSpec {
         target: CompileTarget::Cuda,
         extension: "ptx",
         aliases: &["cuda", "ptx", "nvptx"],
@@ -209,6 +214,7 @@ pub struct ShaderArtifactBundleOutput {
     pub rust_host: String,
     pub reflection_json: String,
     pub derived_hlsl: Option<String>,
+    pub derived_wgsl: Option<String>,
     pub derived_ptx: Option<String>,
 }
 
@@ -1015,6 +1021,17 @@ impl DriverSession {
                     }
 
                     #[cfg(feature = "gpu")]
+                    CompileTarget::Wgsl => {
+                        emit_compiler_phase(
+                            progress,
+                            source_path,
+                            target,
+                            CompilerProgressPhase::Codegen,
+                        );
+                        gpu::generate_wgsl(&typed_for_codegen)
+                    }
+
+                    #[cfg(feature = "gpu")]
                     CompileTarget::Cuda => {
                         emit_compiler_phase(
                             progress,
@@ -1309,29 +1326,45 @@ impl DriverSession {
             KainError::runtime(format!("Failed to serialize GPU reflection JSON: {err}"))
         })?;
         let derived_hlsl = Some(gpu::generate_hlsl(&typed_program)?);
+        let derived_wgsl = Some(gpu::generate_wgsl(&typed_program)?);
         let ptx_candidate = typed_program_ptx_eligible(&typed_program);
-        let (derived_ptx, ptx_note) = if ptx_candidate {
-            match gpu::generate_ptx(&typed_program) {
-                Ok(ptx) => (Some(ptx), None),
-                Err(err) => (None, Some(format!("PTX derived output skipped: {err}"))),
+        let (derived_ptx, derived_ptx_variants, ptx_note) = if ptx_candidate {
+            match gpu::PtxCodegenOptions::from_env().and_then(|options| {
+                gpu::generate_ptx_variant_modules(
+                    &typed_program,
+                    options,
+                    gpu::PtxVariantSelection::AutoFamily,
+                )
+            }) {
+                Ok(modules) => {
+                    let primary = modules.first().map(|module| module.ptx.clone());
+                    (primary, modules, None)
+                }
+                Err(err) => (
+                    None,
+                    Vec::new(),
+                    Some(format!("PTX derived output skipped: {err}")),
+                ),
             }
         } else if typed_program_has_shader(&typed_program) {
             (
                 None,
+                Vec::new(),
                 Some(
                     "PTX derived output skipped because CUDA/PTX v1 supports compute-stage shader programs only."
                         .to_string(),
                 ),
             )
         } else {
-            (None, None)
+            (None, Vec::new(), None)
         };
         let bundle = build_shader_artifact_bundle(
             &reflection,
             ShaderArtifactFormat::Spirv,
             Some(&spirv),
             derived_hlsl.as_deref(),
-            derived_ptx.as_deref(),
+            derived_wgsl.as_deref(),
+            &derived_ptx_variants,
             ptx_note.as_deref(),
             "<input>",
         );
@@ -1348,6 +1381,7 @@ impl DriverSession {
             rust_host,
             reflection_json,
             derived_hlsl,
+            derived_wgsl,
             derived_ptx,
         })
     }
@@ -1358,7 +1392,15 @@ impl DriverSession {
         source: &str,
     ) -> Result<ShaderArtifactBundleOutput, KainError> {
         let typed_program = self.frontend_to_typed_program(source, CompileTarget::Cuda)?;
-        let ptx = gpu::generate_ptx(&typed_program)?;
+        let ptx_modules = gpu::generate_ptx_variant_modules(
+            &typed_program,
+            gpu::PtxCodegenOptions::from_env()?,
+            gpu::PtxVariantSelection::AutoFamily,
+        )?;
+        let ptx = ptx_modules
+            .first()
+            .map(|module| module.ptx.clone())
+            .ok_or_else(|| KainError::runtime("PTX backend emitted no CUDA modules"))?;
         let rust_host = sys::generate_rust_gpu_host_wrappers(&typed_program)?;
         let reflection = sys::collect_gpu_artifacts(&typed_program);
         let reflection_json = sys::collect_gpu_artifacts_json(&typed_program).map_err(|err| {
@@ -1369,7 +1411,8 @@ impl DriverSession {
             ShaderArtifactFormat::Ptx,
             None,
             None,
-            Some(&ptx),
+            None,
+            &ptx_modules,
             Some(
                 "PTX-first shader artifact bundle emitted because the authored kernel requested CUDA-native intrinsics.",
             ),
@@ -1388,6 +1431,7 @@ impl DriverSession {
             rust_host,
             reflection_json,
             derived_hlsl: None,
+            derived_wgsl: None,
             derived_ptx: Some(ptx),
         })
     }
@@ -2786,6 +2830,7 @@ pub fn compile_target_name(target: CompileTarget) -> &'static str {
         CompileTarget::C => "c",
         CompileTarget::Spirv => "spirv",
         CompileTarget::Hlsl => "hlsl",
+        CompileTarget::Wgsl => "wgsl",
         CompileTarget::Cuda => "cuda",
         CompileTarget::Usf => "usf",
         CompileTarget::Js => "js",
@@ -3483,7 +3528,8 @@ fn build_shader_artifact_bundle(
     canonical_native_payload: ShaderArtifactFormat,
     spirv: Option<&[u8]>,
     derived_hlsl: Option<&str>,
-    derived_ptx: Option<&str>,
+    derived_wgsl: Option<&str>,
+    derived_ptx_modules: &[gpu::GeneratedPtxModule],
     ptx_note: Option<&str>,
     source_origin: &str,
 ) -> ShaderArtifactBundle {
@@ -3613,7 +3659,6 @@ fn build_shader_artifact_bundle(
         .collect::<Vec<_>>();
     compute_binding_slots.sort_unstable();
     compute_binding_slots.dedup();
-    let derived_ptx_metadata = derived_ptx.and_then(parse_ptx_artifact_metadata);
 
     let mut derived_outputs = Vec::new();
     if let Some(hlsl) = derived_hlsl {
@@ -3626,14 +3671,24 @@ fn build_shader_artifact_bundle(
             ptx: None,
         });
     }
-    if let Some(ptx) = derived_ptx {
+    if let Some(wgsl) = derived_wgsl {
+        derived_outputs.push(DerivedShaderArtifact {
+            format: ShaderArtifactFormat::Wgsl,
+            module_name: module_name.clone(),
+            contents: wgsl.to_string(),
+            entry_points: all_entry_points.clone(),
+            binding_slots: all_binding_slots.clone(),
+            ptx: None,
+        });
+    }
+    for module in derived_ptx_modules {
         derived_outputs.push(DerivedShaderArtifact {
             format: ShaderArtifactFormat::Ptx,
             module_name: module_name.clone(),
-            contents: ptx.to_string(),
-            entry_points: compute_entry_points,
-            binding_slots: compute_binding_slots,
-            ptx: derived_ptx_metadata,
+            contents: module.ptx.clone(),
+            entry_points: compute_entry_points.clone(),
+            binding_slots: compute_binding_slots.clone(),
+            ptx: parse_ptx_artifact_metadata(&module.ptx),
         });
     }
 
@@ -3642,6 +3697,18 @@ fn build_shader_artifact_bundle(
         "SPIR-V is the canonical native GPU payload; backend text shaders are derived outputs."
             .to_string(),
     ];
+    if derived_ptx_modules.len() > 1 {
+        let variant_arches = derived_ptx_modules
+            .iter()
+            .map(|module| module.target_arch.as_sm())
+            .collect::<Vec<_>>()
+            .join(", ");
+        reflection_notes.push(format!(
+            "PTX derived output includes {} ranked architecture variants for runtime auto-dispatch: {}.",
+            derived_ptx_modules.len(),
+            variant_arches
+        ));
+    }
     if let Some(note) = ptx_note {
         reflection_notes.push(note.to_string());
     }
@@ -3829,6 +3896,12 @@ mod tests {
     }
 
     #[test]
+    fn parse_wgsl_aliases() {
+        assert_eq!(parse_compile_target("wgsl"), Some(CompileTarget::Wgsl));
+        assert_eq!(parse_compile_target("webgpu"), Some(CompileTarget::Wgsl));
+    }
+
+    #[test]
     fn parse_c_alias() {
         assert_eq!(parse_compile_target("c"), Some(CompileTarget::C));
     }
@@ -3836,6 +3909,11 @@ mod tests {
     #[test]
     fn extension_for_typescript_is_ts() {
         assert_eq!(target_extension(CompileTarget::Ts), "ts");
+    }
+
+    #[test]
+    fn extension_for_wgsl_is_wgsl() {
+        assert_eq!(target_extension(CompileTarget::Wgsl), "wgsl");
     }
 
     #[test]
@@ -5141,9 +5219,63 @@ impl ButtonBuilder:
 
         let llvm = result.expect("llvm output");
         assert!(llvm.contains(
-            "define %ButtonBuilder* @ButtonBuilder_key(%ButtonBuilder* %arg0, i8* %arg1)"
+            "define internal %ButtonBuilder* @ButtonBuilder_key(%ButtonBuilder* %arg0, i8* %arg1)"
         ));
         assert!(llvm.contains("call %ButtonBuilder* @ButtonBuilder_key(%ButtonBuilder*"));
+    }
+
+    #[cfg(feature = "sys")]
+    #[test]
+    fn compile_llvm_monomorphized_impl_self_copy_preserves_concrete_return() {
+        let llvm = DriverSession::default()
+            .compile(
+                r#"
+struct KeywordMeshRecord:
+    id: Int
+    payload: Int
+    tag: String
+
+impl KeywordMeshRecord:
+    fn clone_self(_self: Self_) -> Self:
+        let copy: Self = _self
+        return copy
+
+fn main() -> Int:
+    let record = KeywordMeshRecord { id: 1, payload: 20, tag: "mesh" }
+    let clone = record.clone_self()
+    if clone.id != 1:
+        return 1
+    if clone.payload != 20:
+        return 2
+    if clone.tag != "mesh":
+        return 3
+    return 0
+"#,
+                CompileTarget::Llvm,
+            )
+            .expect("llvm output");
+
+        let clone_start = llvm
+            .find("define internal %KeywordMeshRecord* @KeywordMeshRecord_clone_self(%KeywordMeshRecord* %arg0)")
+            .expect("clone_self must keep concrete struct pointer return after monomorphization");
+        let clone_end = llvm[clone_start..]
+            .find("ret %KeywordMeshRecord*")
+            .expect("clone_self should return the concrete struct pointer")
+            + clone_start;
+        let window = &llvm[clone_start..clone_end];
+
+        assert!(
+            !window.contains("ptrtoint %KeywordMeshRecord*"),
+            "monomorphized Self copies must not degrade into i64 pointer bits:\n{}",
+            window
+        );
+        assert!(
+            llvm.contains(
+                "call %KeywordMeshRecord* @KeywordMeshRecord_clone_self(%KeywordMeshRecord*"
+            ),
+            "call site must see the concrete clone_self return type:\n{}",
+            llvm
+        );
     }
 
     #[cfg(feature = "sys")]
@@ -5300,27 +5432,47 @@ shader compute sample_gpu_kernel(id: UVec3) -> Vec4:
             .contains("\"canonical_native_payload\": \"spirv\""));
         assert!(output.bundle_json.contains("\"spirv_modules\""));
         assert!(output.derived_hlsl.is_some());
+        assert!(output.derived_wgsl.is_some());
         assert!(output.derived_ptx.is_some());
+        assert!(output.bundle_json.contains("\"format\": \"wgsl\""));
         assert!(output.bundle_json.contains("\"format\": \"ptx\""));
-        let ptx_artifact = output
+        assert!(output
             .bundle
             .derived_outputs
             .iter()
-            .find(|artifact| artifact.format == ShaderArtifactFormat::Ptx)
-            .expect("ptx sidecar");
+            .any(|artifact| artifact.format == ShaderArtifactFormat::Wgsl));
+        let ptx_artifacts = output
+            .bundle
+            .derived_outputs
+            .iter()
+            .filter(|artifact| artifact.format == ShaderArtifactFormat::Ptx)
+            .collect::<Vec<_>>();
+        assert!(ptx_artifacts.len() >= 3);
+        let ptx_artifact = ptx_artifacts.first().expect("ptx sidecar");
         assert_eq!(
             ptx_artifact
                 .ptx
                 .as_ref()
                 .expect("ptx metadata")
                 .required_target_arch,
-            "sm_50"
+            "sm_30"
         );
         assert_eq!(
             ptx_artifact.entry_points,
             vec!["sample_gpu_kernel".to_string()]
         );
         assert_eq!(ptx_artifact.binding_slots, vec![0, 1, 2, 100, 101]);
+        assert!(ptx_artifacts.iter().any(|artifact| {
+            artifact
+                .ptx
+                .as_ref()
+                .is_some_and(|metadata| metadata.required_target_arch == "sm_120")
+        }));
+        assert!(output.bundle.reflection.notes.iter().any(|note| {
+            note.contains("runtime auto-dispatch")
+                && note.contains("sm_30")
+                && note.contains("sm_120")
+        }));
     }
 
     #[cfg(all(feature = "gpu", feature = "sys"))]
@@ -5368,9 +5520,12 @@ shader compute stream_pulse(id: UVec3) -> Vec4:
     #[cfg(all(feature = "gpu", feature = "sys"))]
     #[test]
     fn compile_gpu_artifacts_falls_back_to_ptx_first_bundle_for_cuda_intrinsics() {
-        let output = DriverSession::default()
-            .compile_gpu_artifacts(
-                r#"
+        std::thread::Builder::new()
+            .stack_size(32 * 1024 * 1024)
+            .spawn(|| {
+                let output = DriverSession::default()
+                    .compile_gpu_artifacts(
+                        r#"
 use std::cuda
 
 shader compute cuda_lane_probe(id: UVec3) -> Void:
@@ -5379,38 +5534,56 @@ shader compute cuda_lane_probe(id: UVec3) -> Void:
     output[idx] = cuda_lane_id()
     return
 "#,
-            )
-            .expect("cuda-native artifact bundle should compile");
+                    )
+                    .expect("cuda-native artifact bundle should compile");
 
-        assert_eq!(
-            output.bundle.canonical_native_payload,
-            ShaderArtifactFormat::Ptx
-        );
-        assert!(output.bundle.spirv_modules.is_empty());
-        assert!(output.derived_hlsl.is_none());
-        assert!(output.derived_ptx.is_some());
-        assert!(output
-            .bundle_json
-            .contains("\"canonical_native_payload\": \"ptx\""));
-        assert!(output.bundle_json.contains("\"spirv_modules\": []"));
-        let ptx_artifact = output
-            .bundle
-            .derived_outputs
-            .iter()
-            .find(|artifact| artifact.format == ShaderArtifactFormat::Ptx)
-            .expect("ptx sidecar");
-        assert_eq!(
-            ptx_artifact.entry_points,
-            vec!["cuda_lane_probe".to_string()]
-        );
-        assert_eq!(ptx_artifact.binding_slots, vec![0]);
-        assert_eq!(
-            ptx_artifact
-                .ptx
-                .as_ref()
-                .expect("ptx metadata")
-                .required_target_arch,
-            "sm_50"
-        );
+                assert_eq!(
+                    output.bundle.canonical_native_payload,
+                    ShaderArtifactFormat::Ptx
+                );
+                assert!(output.bundle.spirv_modules.is_empty());
+                assert!(output.derived_hlsl.is_none());
+                assert!(output.derived_wgsl.is_none());
+                assert!(output.derived_ptx.is_some());
+                assert!(output
+                    .bundle_json
+                    .contains("\"canonical_native_payload\": \"ptx\""));
+                assert!(output.bundle_json.contains("\"spirv_modules\": []"));
+                let ptx_artifacts = output
+                    .bundle
+                    .derived_outputs
+                    .iter()
+                    .filter(|artifact| artifact.format == ShaderArtifactFormat::Ptx)
+                    .collect::<Vec<_>>();
+                assert!(ptx_artifacts.len() >= 3);
+                let ptx_artifact = ptx_artifacts.first().expect("ptx sidecar");
+                assert_eq!(
+                    ptx_artifact.entry_points,
+                    vec!["cuda_lane_probe".to_string()]
+                );
+                assert_eq!(ptx_artifact.binding_slots, vec![0]);
+                assert_eq!(
+                    ptx_artifact
+                        .ptx
+                        .as_ref()
+                        .expect("ptx metadata")
+                        .required_target_arch,
+                    "sm_30"
+                );
+                assert!(ptx_artifacts.iter().any(|artifact| {
+                    artifact
+                        .ptx
+                        .as_ref()
+                        .is_some_and(|metadata| metadata.required_target_arch == "sm_90")
+                }));
+                assert!(output.bundle.reflection.notes.iter().any(|note| {
+                    note.contains("runtime auto-dispatch")
+                        && note.contains("sm_30")
+                        && note.contains("sm_120")
+                }));
+            })
+            .expect("spawn gpu artifact test")
+            .join()
+            .expect("gpu artifact test thread");
     }
 }

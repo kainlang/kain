@@ -184,6 +184,8 @@ pub enum ComputeExecutorError {
         device_name: String,
         device: String,
     },
+    #[error("invalid CUDA device ordinal override {value}; expected a non-negative integer")]
+    InvalidCudaDeviceOrdinal { value: String },
     #[error("compute residency binding {binding} reuses slot @{slot}; PTX runtime requires unique binding slots")]
     DuplicateBindingSlot { binding: String, slot: u32 },
     #[error("compute residency binding {binding} declared {expected} bytes but sidecar {path} contained {actual}")]

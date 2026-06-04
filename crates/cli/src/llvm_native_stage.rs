@@ -307,7 +307,7 @@ shader compute SampleCompute(id: UVec3) -> Vec4:
         .expect("residency json");
         assert!(residency_json.contains("SampleCompute"));
         assert!(residency_json.contains("\"ptx_sidecar\""));
-        assert!(residency_json.contains("\"required_target_arch\": \"sm_50\""));
+        assert!(residency_json.contains("\"required_target_arch\": \"sm_30\""));
     }
 
     #[test]

@@ -35,6 +35,8 @@ Use this skill when the compiler-owned GPU pipeline changes: frontend eligibilit
 5. Treat `shader compute ... workgroup(x, y, z)` as canonical static local geometry. Comptime compute metadata can provide dispatch defaults and sidecar plans, but it must not silently override a header workgroup.
 6. For CUDA device intrinsics, keep the public authored names in `stdlib/cuda.kn` and the actual lowering in `crates/gpu/src/codegen_ptx.rs`. Each intrinsic should record the matching `PtxKernelPlan` op (`shared_ops`, `warp_ops`, or `tensor_ops`) so arch validation rejects too-old targets.
 7. Narrow numeric storage support is implemented as packed PTX load/store shape, not as fake 8-bit registers. `StorageBuffer<u8/i8/u16/i16/f16/bf16>` should load/store with byte-accurate PTX suffixes while widening arithmetic into 32-bit registers until real half/bfloat arithmetic lands.
+8. Treat PTX target selection as a compiler-owned family decision. Auto PTX emission should produce a ranked variant set from the kernel floor upward (`sm_30`/`sm_35` through `sm_120` as applicable), while the unsuffixed `.derived.ptx` stays as the baseline compatibility artifact.
+9. When touching `crates/cli/src/gpu_artifacts.rs`, validate real directory output behavior. `kain gpu-artifacts ... --output <existing-dir>` should place bundle, PTX variants, and compute-residency sidecars inside that directory, not beside it.
 
 ## Validation Loop
 
@@ -54,6 +56,14 @@ If bundle or artifact staging changed, also run:
 ```powershell
 cargo test -p kain-driver compile_shader_artifact_bundle --target-dir target\codex-bootstrap-gpu-driver -- --nocapture
 cargo check -p gpu -p kain-driver -p cli -p kain-build --target-dir target\codex-bootstrap-gpu-driver
+```
+
+For CUDA-family staging changes, also run a live kernel proof with the built CLI:
+
+```powershell
+cargo build -p cli --target-dir Z:\_b\cargo-target\codex-cuda-cli
+Z:\_b\cargo-target\codex-cuda-cli\debug\kain.exe gpu-artifacts X:\ml\src\search_kernel.kn --target cuda --output X:\scratch\cuda_variant_proof_v2\search
+Z:\_b\cargo-target\codex-cuda-cli\debug\kain.exe gpu-artifacts X:\ml\src\transformer_kernel.kn --target cuda --output X:\scratch\cuda_variant_proof_v2\transformer
 ```
 
 ## Guardrails

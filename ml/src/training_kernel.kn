@@ -114,6 +114,7 @@ shader compute MatMulBackward_DInput(id: UVec3) -> Void:
             [],
         )
 
+    cuda_require_tensor_cores()
     let m = id.x / K
     let k = id.x % K
     if m >= M or k >= K:

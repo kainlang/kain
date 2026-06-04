@@ -1,6 +1,6 @@
-use gpu::codegen_ptx::{generate_with_options, PtxCodegenOptions};
+use gpu::codegen_ptx::{generate_with_options, PtxCodegenOptions, PtxVariantSelection};
 use gpu::ptx_module::PtxArch;
-use gpu::{generate_ptx, generate_spirv};
+use gpu::{generate_ptx, generate_ptx_variant_modules, generate_spirv};
 use kain_core::comptime;
 use kain_core::diagnostics::SpanMapper;
 use kain_core::types;
@@ -136,6 +136,62 @@ shader compute turing_kernel(id: UVec3) -> Void:
 
     assert!(ptx.contains(".target sm_75"));
     assert!(ptx.contains(".visible .entry turing_kernel"));
+}
+
+#[test]
+fn ptx_can_target_kepler_explicitly_when_kernel_floor_allows() {
+    let src = r#"
+shader compute kepler_kernel(id: UVec3) -> Void:
+    uniform src: StorageBuffer<Float> @0
+    uniform dst: StorageBuffer<Float> @1
+    uniform count: UInt @2
+
+    let idx = id.x
+    if idx >= count:
+        return
+
+    dst[idx] = src[idx]
+    return
+"#;
+
+    let typed = typed_program_for_target(src, CompileTarget::Cuda);
+    let ptx = generate_with_options(&typed, PtxCodegenOptions::with_target_arch(PtxArch::Sm35))
+        .expect("ptx generation for sm_35 should succeed");
+
+    assert!(ptx.contains(".target sm_35"));
+    assert!(ptx.contains(".visible .entry kepler_kernel"));
+}
+
+#[test]
+fn ptx_auto_family_variants_span_supported_arches_from_kernel_floor() {
+    let src = r#"
+shader compute family_kernel(id: UVec3) -> Void:
+    uniform src: StorageBuffer<Float> @0
+    uniform dst: StorageBuffer<Float> @1
+    uniform count: UInt @2
+
+    let idx = id.x
+    if idx >= count:
+        return
+
+    dst[idx] = src[idx]
+    return
+"#;
+
+    let typed = typed_program_for_target(src, CompileTarget::Cuda);
+    let variants = generate_ptx_variant_modules(
+        &typed,
+        PtxCodegenOptions::auto(),
+        PtxVariantSelection::AutoFamily,
+    )
+    .expect("ptx family generation should succeed");
+
+    let arches = variants.iter().map(|variant| variant.target_arch).collect::<Vec<_>>();
+    assert_eq!(arches.first().copied(), Some(PtxArch::Sm30));
+    assert!(arches.contains(&PtxArch::Sm35));
+    assert!(arches.contains(&PtxArch::Sm80));
+    assert!(arches.contains(&PtxArch::Sm120));
+    assert!(variants[0].ptx.contains(".target sm_30"));
 }
 
 #[test]

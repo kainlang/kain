@@ -106,6 +106,7 @@ shader compute SemanticFusedScoreTopK(id: UVec3) -> Void:
             [],
         )
 
+    cuda_require_tensor_cores()
     // --- block + warp identity ---------------------------------------------
     let block_id = id.x / UInt(256)
     let lane = cuda_lane_id()

@@ -307,6 +307,7 @@ shader compute MatmulForward(id: UVec3) -> Void:
             [],
         )
 
+    cuda_require_wgmma()
     let m = id.x / N        // row in C
     let n = id.x % N        // col in C
     if m >= M or n >= N:

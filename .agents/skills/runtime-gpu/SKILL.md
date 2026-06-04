@@ -25,7 +25,9 @@ Read `ARCHITECTURE.md` and `MEMORY.md`, then separate runtime execution from com
 - Preserve the contract that SPIR-V is the canonical portable payload and PTX is a derived compute path.
 - When a runtime ABI or binding layout changes, validate the executor, the native graphics harness, and the nearest solver proof together.
 - Host `dispatch "compute.key" [x, y, z]` lowers through a backend-agnostic runtime request. All-positive dispatch dimensions are an override for artifact or sidecar defaults; zero dimensions preserve the existing default path for legacy callers.
-- CUDA PTX launch policy is consumed from compute-residency metadata. `dynamic_shared_memory_bytes` maps directly to `cuLaunchKernel`, `cuda_stream_policy = "non_blocking"` creates a CUDA driver stream, and `cuda_graph_policy = "capture_once"` is represented but intentionally rejected until graph capture/instantiate/launch is implemented end-to-end.
+- CUDA PTX launch policy is consumed from compute-residency metadata. `dynamic_shared_memory_bytes` maps directly to `cuLaunchKernel`, `cuda_stream_policy = "non_blocking"` creates a CUDA driver stream, and `cuda_graph_policy = "capture_once"` is still represented but intentionally rejected until graph capture/instantiate/launch is implemented end-to-end.
+- PTX bundles can now carry multiple ranked architecture variants. The NVIDIA executor should pick the highest compatible PTX artifact for the active device instead of blindly taking the first bundle entry, while still accepting the baseline sidecar metadata as the compatibility floor.
+- Device selection is operator-controlled via `KAIN_CUDA_DEVICE` or `KAIN_CUDA_DEVICE_ORDINAL`; keep those env vars wired whenever the executor device-selection path changes.
 
 ## Validation
 
@@ -33,6 +35,7 @@ Read `ARCHITECTURE.md` and `MEMORY.md`, then separate runtime execution from com
 cargo check -p kain-gpu-runtime --target-dir target\codex-runtime-gpu
 cargo test -p kain-gpu-runtime ptx_dispatch_group_count_rounds_up --target-dir target\codex-runtime-gpu -- --nocapture
 cargo test -p kain-gpu-runtime ptx_dispatch_plan_reads_cuda_launch_policy -- --nocapture
+cargo test -p kain-gpu-runtime ptx_dispatch_plan_selects_best_variant_for_active_device -- --nocapture
 cargo test -p kain-gpu-runtime nvidia_ptx_executor_can_launch_tiny_kernel_when_driver_is_available --target-dir target\codex-runtime-gpu -- --nocapture
 bash runtime/conformance/graphics_runtime/run_tests.sh --verbose
 mcp__z3_local__.run_proof_pack(path="runtime/native/src/core", lane="graphics")

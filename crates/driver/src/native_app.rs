@@ -3273,7 +3273,7 @@ shader compute SampleCompute(id: UVec3) -> Vec4:
                 .as_ref()
                 .expect("ptx sidecar")
                 .required_target_arch,
-            "sm_50"
+            "sm_30"
         );
         assert_eq!(compute_residency.compute_shaders[0].bindings.len(), 2);
         assert_eq!(
@@ -3505,9 +3505,7 @@ component App():
         let packaged_sidecar = materialized
             .artifact_paths
             .iter()
-            .find(|path| {
-                path.file_name().and_then(OsStr::to_str) == Some("sidecar_data.json")
-            })
+            .find(|path| path.file_name().and_then(OsStr::to_str) == Some("sidecar_data.json"))
             .expect("packaged sidecar");
         assert!(packaged_host_config.exists());
         assert!(packaged_sidecar.exists());

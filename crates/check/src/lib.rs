@@ -354,6 +354,7 @@ pub fn compile_target_name(target: CompileTarget) -> &'static str {
         CompileTarget::Usf => "usf",
         CompileTarget::Spirv => "spirv",
         CompileTarget::Hlsl => "hlsl",
+        CompileTarget::Wgsl => "wgsl",
         CompileTarget::Cuda => "cuda",
         CompileTarget::Interpret => "run",
         CompileTarget::Test => "test",

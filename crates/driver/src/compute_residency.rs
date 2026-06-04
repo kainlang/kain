@@ -524,7 +524,7 @@ shader compute SampleCompute(id: UVec3) -> Vec4:
                 .as_ref()
                 .expect("ptx sidecar")
                 .required_target_arch,
-            "sm_50"
+            "sm_30"
         );
         assert_eq!(
             main_bundle.compute_shaders[0]
@@ -532,7 +532,7 @@ shader compute SampleCompute(id: UVec3) -> Vec4:
                 .as_ref()
                 .expect("ptx sidecar")
                 .minimum_compute_capability,
-            "5.0"
+            "3.0"
         );
         assert_eq!(
             main_bundle.compute_shaders[0]

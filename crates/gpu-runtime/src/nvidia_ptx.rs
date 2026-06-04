@@ -71,6 +71,8 @@ type CuLaunchKernel = unsafe extern "system" fn(
 type CuGetErrorString = unsafe extern "system" fn(CUresult, *mut *const c_char) -> CUresult;
 
 const CU_STREAM_NON_BLOCKING: u32 = 1;
+const KAIN_CUDA_DEVICE_ENV: &str = "KAIN_CUDA_DEVICE";
+const KAIN_CUDA_DEVICE_ORDINAL_ENV: &str = "KAIN_CUDA_DEVICE_ORDINAL";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct NvidiaPtxDeviceInfo {
@@ -118,7 +120,8 @@ impl NvidiaPtxExecutor {
         unsafe {
             let driver = CudaDriver::load()?;
             driver.check((driver.cu_init)(0), "cuInit")?;
-            let (device, device_info) = driver.primary_device_info(0)?;
+            let (device, device_info) =
+                driver.primary_device_info(selected_cuda_device_ordinal()?)?;
             let mut context = ptr::null_mut();
             driver.check(
                 (driver.cu_ctx_create)(&mut context, 0, device),
@@ -143,6 +146,7 @@ impl NvidiaPtxExecutor {
             compute_residency_path,
             compute_key,
             None,
+            Some(&self.device_info),
         )?;
         self.run_dispatch_request(&plan.ptx, &plan.request)
     }
@@ -158,6 +162,7 @@ impl NvidiaPtxExecutor {
             compute_residency_path,
             compute_key,
             None,
+            Some(&self.device_info),
         )?;
         let result = self.run_dispatch_request(&plan.ptx, &plan.request)?;
         persist_output_bindings_to_sidecars(&plan.output_targets, &result.output_bindings)?;
@@ -397,6 +402,7 @@ fn dispatch_nvidia_ptx_persisted_request(
         &compute_residency_path,
         &compute_key,
         dispatch_override,
+        Some(&executor.device_info),
     )
     .and_then(|plan| {
         let dispatch = executor.run_dispatch_request(&plan.ptx, &plan.request)?;
@@ -865,6 +871,7 @@ fn ptx_dispatch_plan_from_sidecars(
     compute_residency_path: &Path,
     compute_key: &str,
     dispatch_override: Option<[u32; 3]>,
+    device_info: Option<&NvidiaPtxDeviceInfo>,
 ) -> Result<PtxSidecarDispatchPlan, ComputeExecutorError> {
     let shader_bundle_json =
         fs::read_to_string(shader_bundle_path).map_err(|err| ComputeExecutorError::ReadFile {
@@ -906,30 +913,16 @@ fn ptx_dispatch_plan_from_sidecars(
         })?;
     let (resolved_module_name, resolved_entry_point) =
         resolve_ptx_shader_entry(&shader_bundle, entry);
-    let ptx_artifact = shader_bundle
-        .derived_outputs
-        .iter()
-        .find(|artifact| {
-            artifact.format == ShaderArtifactFormat::Ptx
-                && artifact.module_name == resolved_module_name
-                && (artifact.entry_points.is_empty()
-                    || artifact
-                        .entry_points
-                        .iter()
-                        .any(|value| value == resolved_entry_point))
-        })
-        .or_else(|| {
-            let mut ptx_artifacts = shader_bundle
-                .derived_outputs
-                .iter()
-                .filter(|artifact| artifact.format == ShaderArtifactFormat::Ptx);
-            let first = ptx_artifacts.next()?;
-            ptx_artifacts.next().is_none().then_some(first)
-        })
-        .ok_or_else(|| ComputeExecutorError::MissingPtxModule {
-            module_name: resolved_module_name.to_string(),
-            path: shader_bundle_path.display().to_string(),
-        })?;
+    let ptx_artifact = resolve_ptx_artifact_for_device(
+        &shader_bundle,
+        resolved_module_name,
+        resolved_entry_point,
+        device_info,
+    )
+    .ok_or_else(|| ComputeExecutorError::MissingPtxModule {
+        module_name: resolved_module_name.to_string(),
+        path: shader_bundle_path.display().to_string(),
+    })?;
     validate_ptx_sidecar_contract(
         entry,
         resolved_module_name,
@@ -1013,6 +1006,58 @@ fn ptx_dispatch_plan_from_sidecars(
         },
         output_targets,
     })
+}
+
+fn resolve_ptx_artifact_for_device<'a>(
+    shader_bundle: &'a kain_core::ShaderArtifactBundle,
+    module_name: &str,
+    entry_point: &str,
+    device_info: Option<&NvidiaPtxDeviceInfo>,
+) -> Option<&'a kain_core::DerivedShaderArtifact> {
+    let matching = shader_bundle
+        .derived_outputs
+        .iter()
+        .filter(|artifact| {
+            artifact.format == ShaderArtifactFormat::Ptx
+                && artifact.module_name == module_name
+                && (artifact.entry_points.is_empty()
+                    || artifact.entry_points.iter().any(|value| value == entry_point))
+        })
+        .collect::<Vec<_>>();
+
+    if matching.is_empty() {
+        let mut ptx_artifacts = shader_bundle
+            .derived_outputs
+            .iter()
+            .filter(|artifact| artifact.format == ShaderArtifactFormat::Ptx);
+        let first = ptx_artifacts.next()?;
+        return ptx_artifacts.next().is_none().then_some(first);
+    }
+
+    if let Some(device_info) = device_info {
+        if let Some(best) = matching
+            .iter()
+            .filter_map(|artifact| {
+                ptx_artifact_target_rank(artifact)
+                    .filter(|rank| *rank <= device_info.sm_arch_rank())
+                    .map(|rank| (rank, *artifact))
+            })
+            .max_by_key(|(rank, _)| *rank)
+            .map(|(_, artifact)| artifact)
+        {
+            return Some(best);
+        }
+    }
+
+    matching.first().copied()
+}
+
+fn ptx_artifact_target_rank(artifact: &kain_core::DerivedShaderArtifact) -> Option<u32> {
+    artifact
+        .ptx
+        .as_ref()
+        .and_then(|metadata| parse_sm_arch_rank(&metadata.required_target_arch))
+        .or_else(|| parse_ptx_target_arch(&artifact.contents).ok().map(|arch| arch.rank))
 }
 
 fn resolve_ptx_shader_entry<'a>(
@@ -1114,21 +1159,51 @@ fn validate_ptx_sidecar_contract(
             actual: ptx_metadata.ptx_version.clone(),
         });
     }
-    if sidecar.required_target_arch != ptx_metadata.required_target_arch {
-        return Err(ComputeExecutorError::PtxSidecarMismatch {
-            compute_key: entry.key.clone(),
-            field: "required_target_arch",
-            expected: sidecar.required_target_arch.clone(),
-            actual: ptx_metadata.required_target_arch.clone(),
-        });
+    match (
+        parse_sm_arch_rank(&sidecar.required_target_arch),
+        parse_sm_arch_rank(&ptx_metadata.required_target_arch),
+    ) {
+        (Some(expected), Some(actual)) if actual < expected => {
+            return Err(ComputeExecutorError::PtxSidecarMismatch {
+                compute_key: entry.key.clone(),
+                field: "required_target_arch",
+                expected: sidecar.required_target_arch.clone(),
+                actual: ptx_metadata.required_target_arch.clone(),
+            });
+        }
+        (None, _) | (_, None) if sidecar.required_target_arch != ptx_metadata.required_target_arch => {
+            return Err(ComputeExecutorError::PtxSidecarMismatch {
+                compute_key: entry.key.clone(),
+                field: "required_target_arch",
+                expected: sidecar.required_target_arch.clone(),
+                actual: ptx_metadata.required_target_arch.clone(),
+            });
+        }
+        _ => {}
     }
-    if sidecar.minimum_compute_capability != ptx_metadata.minimum_compute_capability {
-        return Err(ComputeExecutorError::PtxSidecarMismatch {
-            compute_key: entry.key.clone(),
-            field: "minimum_compute_capability",
-            expected: sidecar.minimum_compute_capability.clone(),
-            actual: ptx_metadata.minimum_compute_capability.clone(),
-        });
+    match (
+        parse_compute_capability_rank(&sidecar.minimum_compute_capability),
+        parse_compute_capability_rank(&ptx_metadata.minimum_compute_capability),
+    ) {
+        (Some(expected), Some(actual)) if actual < expected => {
+            return Err(ComputeExecutorError::PtxSidecarMismatch {
+                compute_key: entry.key.clone(),
+                field: "minimum_compute_capability",
+                expected: sidecar.minimum_compute_capability.clone(),
+                actual: ptx_metadata.minimum_compute_capability.clone(),
+            });
+        }
+        (None, _) | (_, None)
+            if sidecar.minimum_compute_capability != ptx_metadata.minimum_compute_capability =>
+        {
+            return Err(ComputeExecutorError::PtxSidecarMismatch {
+                compute_key: entry.key.clone(),
+                field: "minimum_compute_capability",
+                expected: sidecar.minimum_compute_capability.clone(),
+                actual: ptx_metadata.minimum_compute_capability.clone(),
+            });
+        }
+        _ => {}
     }
 
     let mut expected_slots = sidecar.binding_slots.clone();
@@ -1244,6 +1319,37 @@ fn parse_sm_arch_token(token: &str) -> Option<PtxTargetArch> {
         label: trimmed.to_string(),
         rank: digits.parse().ok()?,
     })
+}
+
+fn parse_sm_arch_rank(value: &str) -> Option<u32> {
+    parse_sm_arch_token(value).map(|target| target.rank)
+}
+
+fn parse_compute_capability_rank(value: &str) -> Option<u32> {
+    let trimmed = value.trim();
+    let (major, minor) = trimmed.split_once('.')?;
+    Some(major.parse::<u32>().ok()?.saturating_mul(10) + minor.parse::<u32>().ok()?)
+}
+
+fn selected_cuda_device_ordinal() -> Result<i32, ComputeExecutorError> {
+    for env_var in [KAIN_CUDA_DEVICE_ENV, KAIN_CUDA_DEVICE_ORDINAL_ENV] {
+        let Ok(raw) = std::env::var(env_var) else {
+            continue;
+        };
+        let trimmed = raw.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        let ordinal = trimmed
+            .parse::<i32>()
+            .ok()
+            .filter(|value| *value >= 0)
+            .ok_or_else(|| ComputeExecutorError::InvalidCudaDeviceOrdinal {
+                value: raw.clone(),
+            })?;
+        return Ok(ordinal);
+    }
+    Ok(0)
 }
 
 fn validate_ptx_dispatch_request(request: &GpuDispatchRequest) -> Result<(), ComputeExecutorError> {
@@ -1423,6 +1529,30 @@ mod tests {
         path: &Path,
         ptx_contents: &str,
     ) -> Result<(), Box<dyn std::error::Error>> {
+        write_sample_ptx_bundle_variants(path, &[(ptx_contents, "sm_50", "5.0")])
+    }
+
+    fn write_sample_ptx_bundle_variants(
+        path: &Path,
+        variants: &[(&str, &str, &str)],
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let derived_outputs = variants
+            .iter()
+            .map(|(ptx_contents, required_target_arch, minimum_compute_capability)| {
+                json!({
+                    "format": "ptx",
+                    "module_name": "CudaFieldKernel__CudaBlurKernel__CudaColorizeKernel",
+                    "contents": *ptx_contents,
+                    "entry_points": ["CudaFieldKernel"],
+                    "binding_slots": [1],
+                    "ptx": {
+                        "ptx_version": "7.8",
+                        "required_target_arch": *required_target_arch,
+                        "minimum_compute_capability": *minimum_compute_capability
+                    }
+                })
+            })
+            .collect::<Vec<_>>();
         fs::write(
             path,
             serde_json::to_string_pretty(&json!({
@@ -1449,20 +1579,7 @@ mod tests {
                     "source_map": [],
                     "notes": []
                 },
-                "derived_outputs": [
-                    {
-                        "format": "ptx",
-                        "module_name": "CudaFieldKernel__CudaBlurKernel__CudaColorizeKernel",
-                        "contents": ptx_contents,
-                        "entry_points": ["CudaFieldKernel"],
-                        "binding_slots": [1],
-                        "ptx": {
-                            "ptx_version": "7.8",
-                            "required_target_arch": "sm_50",
-                            "minimum_compute_capability": "5.0"
-                        }
-                    }
-                ]
+                "derived_outputs": derived_outputs
             }))?,
         )?;
         Ok(())
@@ -1805,6 +1922,7 @@ mod tests {
             &compute_residency_path,
             "shader::CudaFieldKernel::compute",
             None,
+            None,
         )
         .expect("ptx dispatch plan");
 
@@ -1853,6 +1971,7 @@ mod tests {
             &shader_bundle_path,
             &compute_residency_path,
             "shader::CudaFieldKernel::compute",
+            None,
             None,
         )
         .expect_err("payload length mismatch should fail");
@@ -1929,6 +2048,7 @@ mod tests {
             &compute_residency_path,
             "shader::CudaFieldKernel::compute",
             None,
+            None,
         )
         .expect("ptx dispatch plan");
 
@@ -1937,6 +2057,92 @@ mod tests {
             "CudaFieldKernel__CudaBlurKernel__CudaColorizeKernel"
         );
         assert_eq!(plan.request.entry_point, "CudaFieldKernel");
+        Ok(())
+    }
+
+    #[test]
+    fn ptx_dispatch_plan_selects_best_variant_for_active_device()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let temp = tempfile::TempDir::new().expect("temp dir");
+        let shader_bundle_path = temp.path().join("bundle.json");
+        let compute_residency_path = temp.path().join("residency.json");
+        let payload_path = temp.path().join("payload.bin");
+
+        fs::write(&payload_path, [1u8, 2, 3, 4]).expect("payload");
+        write_sample_ptx_bundle_variants(
+            &shader_bundle_path,
+            &[
+                (
+                    ".version 7.8\n.target sm_50\n.address_size 64\n.visible .entry CudaFieldKernel() { ret; }\n",
+                    "sm_50",
+                    "5.0",
+                ),
+                (
+                    ".version 7.8\n.target sm_80\n.address_size 64\n.visible .entry CudaFieldKernel() { ret; }\n",
+                    "sm_80",
+                    "8.0",
+                ),
+                (
+                    ".version 7.8\n.target sm_89\n.address_size 64\n.visible .entry CudaFieldKernel() { ret; }\n",
+                    "sm_89",
+                    "8.9",
+                ),
+            ],
+        )?;
+        fs::write(
+            &compute_residency_path,
+            serde_json::to_string_pretty(&json!({
+                "schema_version": 1,
+                "target": "llvm",
+                "compute_shader_count": 1,
+                "compute_shaders": [
+                    {
+                        "key": "shader::CudaFieldKernel::compute",
+                        "shader": "CudaFieldKernel",
+                        "module_name": "CudaFieldKernel",
+                        "stage": "compute",
+                        "entry_point": "CudaFieldKernel",
+                        "resource_binding_count": 1,
+                        "tensor_binding_count": 1,
+                        "stream_binding_count": 1,
+                        "neural_node_count": 0,
+                        "ptx_sidecar": {
+                            "module_name": "CudaFieldKernel__CudaBlurKernel__CudaColorizeKernel",
+                            "entry_point": "CudaFieldKernel",
+                            "ptx_version": "7.8",
+                            "required_target_arch": "sm_50",
+                            "minimum_compute_capability": "5.0",
+                            "binding_slots": [1]
+                        },
+                        "bindings": [
+                            {
+                                "key": "field",
+                                "contract": "kain.shared.buffer",
+                                "descriptor_kind": "storage_buffer",
+                                "element_type": "u32",
+                                "shape": [1],
+                                "strides": [1],
+                                "access_mode": "write",
+                                "residency_role": "output",
+                                "slot": 1,
+                                "byte_length": 4,
+                                "payload_file": "payload.bin"
+                            }
+                        ]
+                    }
+                ]
+            }))?,
+        )?;
+
+        let plan = ptx_dispatch_plan_from_sidecars(
+            &shader_bundle_path,
+            &compute_residency_path,
+            "shader::CudaFieldKernel::compute",
+            None,
+            Some(&sample_device_info(8, 9)),
+        )?;
+
+        assert!(plan.ptx.contains(".target sm_89"));
         Ok(())
     }
 
@@ -2000,6 +2206,7 @@ mod tests {
             &shader_bundle_path,
             &compute_residency_path,
             "shader::CudaFieldKernel::compute",
+            None,
             None,
         )
         .expect("plan");

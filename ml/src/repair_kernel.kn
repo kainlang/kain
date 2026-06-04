@@ -135,6 +135,7 @@ shader compute RepairFusedBeamTopK(id: UVec3) -> Void:
             [],
         )
 
+    cuda_require_tensor_cores()
     let block_id = id.x / UInt(256)
     let lane = cuda_lane_id()
     let warp_id = cuda_warp_id()
@@ -509,4 +510,3 @@ shader compute RepairConsensusVoteReduce(id: UVec3) -> Void:
             confidence_out[0] = UInt(0)
 
     return
-
