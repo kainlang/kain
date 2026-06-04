@@ -9813,6 +9813,37 @@ impl LlvmGenerator {
                 self.emit(&format!("  {} = ptrtoint {} {} to i64", reg, ty, val));
                 reg
             }
+            // Struct value type (e.g. %SemanticToken) — heap-box via KAIN_alloc,
+            // store the value, then ptrtoint to i64 so array_push receives a pointer
+            // that outlives the current stack frame.
+            _ if ty.starts_with('%') && !ty.contains('*') => {
+                let size_reg = self.next_reg();
+                // GEP-null idiom: ptrtoint (%T* getelementptr (%T, %T* null, i32 1) to i64)
+                self.emit(&format!(
+                    "  {} = ptrtoint {}* getelementptr ({}, {}* null, i32 1) to i64",
+                    size_reg, ty, ty, ty
+                ));
+                let raw_ptr = self.next_reg();
+                self.emit(&format!(
+                    "  {} = call i8* @KAIN_alloc(i64 {})",
+                    raw_ptr, size_reg
+                ));
+                let struct_ptr = self.next_reg();
+                self.emit(&format!(
+                    "  {} = bitcast i8* {} to {}*",
+                    struct_ptr, raw_ptr, ty
+                ));
+                self.emit(&format!(
+                    "  store {} {}, {}* {}",
+                    ty, val, ty, struct_ptr
+                ));
+                let result = self.next_reg();
+                self.emit(&format!(
+                    "  {} = ptrtoint {}* {} to i64",
+                    result, ty, struct_ptr
+                ));
+                result
+            }
             _ => val.to_string(),
         }
     }
