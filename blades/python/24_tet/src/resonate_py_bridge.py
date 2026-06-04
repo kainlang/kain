@@ -36,14 +36,6 @@ KEY_ORDER = [
     pygame.K_e, pygame.K_r, pygame.K_5, pygame.K_t,
     pygame.K_6, pygame.K_y, pygame.K_7, pygame.K_u,
 ]
-KEY_CHAR_MAP = {
-    "z": 0, "s": 1, "x": 2, "d": 3,
-    "c": 4, "v": 5, "g": 6, "b": 7,
-    "h": 8, "n": 9, "j": 10, "m": 11,
-    "q": 12, "2": 13, "w": 14, "3": 15,
-    "e": 16, "r": 17, "5": 18, "t": 19,
-    "6": 20, "y": 21, "7": 22, "u": 23,
-}
 WHITE_SLOTS = [0, 2, 4, 5, 7, 9, 11, 12, 14, 16, 17, 19, 21, 23]
 BLACK_SLOTS = [slot for slot in range(24) if slot not in WHITE_SLOTS]
 NOTE_NAMES = [
@@ -444,13 +436,6 @@ def _event_note(event: pygame.event.Event) -> int:
     if event.type == pygame.KEYDOWN:
         if event.key == pygame.K_ESCAPE:
             return -1
-        char = str(getattr(event, "unicode", "") or "").lower()
-        if char in KEY_CHAR_MAP:
-            held_keys = STATE["held_keys"]
-            if char not in held_keys:
-                held_keys.add(char)
-                return KEY_CHAR_MAP[char]
-            return -2
         if event.key in KEY_ORDER:
             held_keys = STATE["held_keys"]
             if event.key not in held_keys:
@@ -458,9 +443,6 @@ def _event_note(event: pygame.event.Event) -> int:
                 return KEY_ORDER.index(event.key)
             return -2
     if event.type == pygame.KEYUP:
-        char = str(getattr(event, "unicode", "") or "").lower()
-        if char:
-            STATE["held_keys"].discard(char)
         if event.key in KEY_ORDER:
             STATE["held_keys"].discard(event.key)
         return -2
