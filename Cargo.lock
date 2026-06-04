@@ -527,6 +527,7 @@ dependencies = [
  "kain-repair",
  "kain-repl",
  "kain-run",
+ "kain-service-bridge",
  "kain-stdlib-map",
  "kain-sys-codegen",
  "kain-test",
@@ -2547,6 +2548,16 @@ dependencies = [
  "kain-error",
  "kain-fmt",
  "tempfile",
+]
+
+[[package]]
+name = "kain-service-bridge"
+version = "0.1.0"
+dependencies = [
+ "kain-core",
+ "kain-error",
+ "kain-service-api",
+ "once_cell",
 ]
 
 [[package]]

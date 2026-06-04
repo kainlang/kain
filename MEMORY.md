@@ -1,5 +1,30 @@
 # Kain Memory
 
+# 2026-06-04 - std::kain module and service-bridge crate seeded
+
+What changed:
+
+- Created `stdlib/kain.kn` — the public `std::kain` compiler-service API surface.
+  Defines Kain-native types (Position, Range, Location, Diagnostic, Symbol,
+  Completion, Hover, SemanticToken, etc.) and wrapper functions (open_workspace,
+  open_document, check_document, hover_at, definition_at, completions_at, etc.)
+  that call into the bridge builtins.
+- Created `crates/service-bridge/` — a thin Rust crate that registers
+  kain-service-api functions into the Kain stdlib runtime via
+  register_stdlib_extension / register_env_extension. Each builtin returns
+  Value::Struct results that the Kain wrappers destructure using std::json helpers.
+- Wired `kain_service_bridge::register()` into `crates/cli/src/kain_launcher.rs`
+  main_entry startup (leaf crate, no cycle). Not registered from driver or host
+  due to cyclic dependency (service-api → driver, driver → service-bridge →
+  service-api).
+- Added `kain-service-bridge` to Cargo workspace and CLI Cargo.toml.
+
+Validation:
+
+- Syntax patterns verified against benchmark/cases_v2 golden set (Array<T>, [],
+  push(), match =>, var, == false, Some/None without Option:: prefix).
+- Full cargo check blocked by msvcrt.lib linker issue across all target dirs.
+
 # 2026-06-04 - Stage-3 service API crate seeded for Kain-authored tooling
 
 What changed:
@@ -10856,6 +10881,18 @@ The PTX/CUDA storage-buffer underallocation bug is now fixed by centralizing sca
   - `cargo run -q -p kain-stdlib-map --bin kain_stdlib_map_tool -- --write` and `--check` both passed after the `std::gpu` contract update
 - Windows operator note:
   - `X:` was full enough to trip `os error 112`, so GPU proof runs should prefer `Z:\_b\cargo-target\...` on this workstation unless disk pressure is resolved
+
+# 2026-06-04 - `kain run <build.kn>` routes through project authority again
+
+`crates/run` had a regression where an explicit `build.kn` input path was treated as ordinary `.kn` source, so `kain run X:\blades\python\24_tet\build.kn` tried to parse the build script itself instead of resolving the project entry/run defaults and launching the runnable unit. The fix now treats `build.kn`, `platform.kn`, `KAIN.toml`, and `kain.toml` inputs as project-authority anchors and resolves the parent workspace/blade before choosing the runnable entry.
+
+- Fix:
+  - `resolve_run_unit(...)` now detects project-authority filenames via `blade::{KAIN_BUILD_SCRIPT_NAMES, KAIN_MANIFEST_NAMES}` and routes them to `resolve_workspace_unit(...)` instead of `resolve_file_unit(...)`
+  - added `tests::build_script_input_routes_to_workspace_entry` in `crates/run/src/lib.rs` to pin the regression for explicit `build.kn` paths
+- Proof:
+  - `cargo test -p kain-run build_script_input_routes_to_workspace_entry` passed
+  - `cargo test -p kain-run build_script_run_section_can_route_file_auto_to_llvm` passed
+  - `cargo run -p cli --bin kain -- run X:\blades\python\24_tet\build.kn` now succeeds and runs the `resonate_py` benchmark blade instead of failing with a `build.kn` parse error
 
 # 2026-06-03 - CUDA-forged semantic pack v2 wired behind feature flag
 

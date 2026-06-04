@@ -20,6 +20,7 @@ members = [
     "crates/repl",
     "crates/check",
     "crates/service-api",
+    "crates/service-bridge",
     "crates/test",
     "crates/interop",
     "crates/foreign-abi",

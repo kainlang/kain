@@ -1,0 +1,502 @@
+// std::kain — Compiler service API
+//
+// This module exposes the Kain compiler as a service, allowing Kain-authored
+// tooling (LSP, formatters, analyzers, linters) to use the compiler's parser,
+// typechecker, indexing, and formatting capabilities through a clean Kain API.
+//
+// Architecture:
+//   Kain types (this file) → builtin bridge (crates/service-bridge) → service-api (crates/service-api)
+//
+// The bridge layer is registered in the Kain runtime via register_stdlib_extension.
+// Complex results are returned as Value::Struct from builtins and destructured here.
+
+use std::json
+
+// ═══════════════════════════════════════════════════════════════════
+// Types
+// ═══════════════════════════════════════════════════════════════════
+
+pub struct Position:
+    line_num: Int
+    col: Int
+    offset: Int
+
+pub struct Range:
+    start: Position
+    end: Position
+
+pub struct Location:
+    path: String
+    name: String
+    range: Range
+
+pub enum SymbolKind:
+    Function
+    Method
+    Struct
+    Enum
+    EnumMember
+    Trait
+    Field
+    Constant
+    Module
+    Actor
+    Component
+    Shader
+    TypeAlias
+    Variable
+
+pub enum CompletionKind:
+    Function
+    Method
+    Struct
+    Enum
+    EnumMember
+    Trait
+    Variable
+    Field
+    Constant
+    Module
+    Keyword
+    Effect
+    Type
+    Stdlib
+
+pub enum CompileTarget:
+    Llvm
+    C
+    Cpp
+    Rust
+    Wasm
+    Js
+    Ts
+    Hybrid
+    Ue5
+    Ue5Editor
+    Usf
+    Spirv
+    Hlsl
+    Wgsl
+    Cuda
+    Interpret
+    Test
+    Ks
+
+pub struct Symbol:
+    name: String
+    detail: String
+    kind: SymbolKind
+    location: Location
+    container: Option<String>
+
+pub struct Completion:
+    label: String
+    detail: String
+    kind: CompletionKind
+
+pub struct SemanticToken:
+    range: Range
+    token_type: Int
+    token_modifiers: Int
+
+pub struct Hover:
+    contents: String
+    location: Location
+
+pub struct DiagnosticLabel:
+    message: String
+    range: Range
+    primary: Bool
+    kind: Int
+
+pub struct DiagnosticFixIt:
+    message: String
+    replacement: String
+    range: Range
+    primary: Bool
+    confidence: Int
+
+pub struct Diagnostic:
+    code: String
+    severity: Int
+    kind: String
+    message: String
+    file: String
+    has_primary_range: Bool
+    primary_range: Range
+    labels: Array<DiagnosticLabel>
+    notes: Array<String>
+    help: Array<String>
+    fixits: Array<DiagnosticFixIt>
+
+pub struct CheckResult:
+    passed: Bool
+    diagnostics: Array<Diagnostic>
+    typed_program_available: Bool
+
+pub struct FormatResult:
+    formatted: String
+    already_formatted: Bool
+    diagnostics: Array<Diagnostic>
+
+// ═══════════════════════════════════════════════════════════════════
+// Workspace and document handles (opaque Ints from the bridge)
+// ═══════════════════════════════════════════════════════════════════
+
+pub struct Workspace:
+    _id: Int
+
+pub struct Document:
+    _ws_id: Int
+    _doc_id: Int
+
+// ═══════════════════════════════════════════════════════════════════
+// Conversions: JSON-like Value → typed structs
+// ═══════════════════════════════════════════════════════════════════
+
+fn _position_from(value: Any) -> Position:
+    return Position {
+        line_num: json_get_int(value, "line"),
+        col: json_get_int(value, "column"),
+        offset: json_get_int(value, "offset"),
+    }
+
+fn _range_from(value: Any) -> Range:
+    return Range {
+        start: _position_from(json_get(value, "start")),
+        end: _position_from(json_get(value, "end")),
+    }
+
+fn _location_from(value: Any) -> Location:
+    return Location {
+        path: json_get_string(value, "path"),
+        name: json_get_string(value, "name"),
+        range: _range_from(json_get(value, "range")),
+    }
+
+fn _symbol_kind_from(code: Int) -> SymbolKind:
+    match code:
+        1 => SymbolKind::Function
+        2 => SymbolKind::Method
+        3 => SymbolKind::Struct
+        4 => SymbolKind::Enum
+        5 => SymbolKind::EnumMember
+        6 => SymbolKind::Trait
+        7 => SymbolKind::Field
+        8 => SymbolKind::Constant
+        9 => SymbolKind::Module
+        10 => SymbolKind::Actor
+        11 => SymbolKind::Component
+        12 => SymbolKind::Shader
+        13 => SymbolKind::TypeAlias
+        14 => SymbolKind::Variable
+        _ => SymbolKind::Variable
+
+fn _completion_kind_from(code: Int) -> CompletionKind:
+    match code:
+        1 => CompletionKind::Function
+        2 => CompletionKind::Method
+        3 => CompletionKind::Struct
+        4 => CompletionKind::Enum
+        5 => CompletionKind::EnumMember
+        6 => CompletionKind::Trait
+        7 => CompletionKind::Variable
+        8 => CompletionKind::Field
+        9 => CompletionKind::Constant
+        10 => CompletionKind::Module
+        11 => CompletionKind::Keyword
+        12 => CompletionKind::Effect
+        13 => CompletionKind::Type
+        14 => CompletionKind::Stdlib
+        _ => CompletionKind::Keyword
+
+fn _target_to_code(target: CompileTarget) -> Int:
+    match target:
+        CompileTarget::Llvm => 6
+        CompileTarget::C => 5
+        CompileTarget::Cpp => 8
+        CompileTarget::Rust => 7
+        CompileTarget::Wasm => 1
+        CompileTarget::Js => 2
+        CompileTarget::Ts => 3
+        CompileTarget::Hybrid => 4
+        CompileTarget::Ue5 => 9
+        CompileTarget::Ue5Editor => 10
+        CompileTarget::Usf => 11
+        CompileTarget::Spirv => 12
+        CompileTarget::Hlsl => 13
+        CompileTarget::Wgsl => 14
+        CompileTarget::Cuda => 15
+        CompileTarget::Interpret => 16
+        CompileTarget::Test => 17
+        CompileTarget::Ks => 18
+
+fn _diagnostic_label_from(value: Any) -> DiagnosticLabel:
+    return DiagnosticLabel {
+        message: json_get_string(value, "message"),
+        range: _range_from(json_get(value, "range")),
+        primary: json_get_bool(value, "primary"),
+        kind: json_get_int(value, "kind"),
+    }
+
+fn _diagnostic_fixit_from(value: Any) -> DiagnosticFixIt:
+    return DiagnosticFixIt {
+        message: json_get_string(value, "message"),
+        replacement: json_get_string(value, "replacement"),
+        range: _range_from(json_get(value, "range")),
+        primary: json_get_bool(value, "primary"),
+        confidence: json_get_int(value, "confidence"),
+    }
+
+fn _diagnostic_from(value: Any) -> Diagnostic:
+    let labels_raw = json_get(value, "labels")
+    let notes_raw = json_get(value, "notes")
+    let help_raw = json_get(value, "help")
+    let fixits_raw = json_get(value, "fixits")
+
+    var labels: Array<DiagnosticLabel> = []
+    var i: Int = 0
+    while i < json_array_length(labels_raw):
+        push(labels, _diagnostic_label_from(json_array_value_at(labels_raw, i)))
+        i = i + 1
+    0
+
+    var notes: Array<String> = []
+    i = 0
+    while i < json_array_length(notes_raw):
+        push(notes, json_string_value(json_array_value_at(notes_raw, i)))
+        i = i + 1
+    0
+
+    var help: Array<String> = []
+    i = 0
+    while i < json_array_length(help_raw):
+        push(help, json_string_value(json_array_value_at(help_raw, i)))
+        i = i + 1
+    0
+
+    var fixits: Array<DiagnosticFixIt> = []
+    i = 0
+    while i < json_array_length(fixits_raw):
+        push(fixits, _diagnostic_fixit_from(json_array_value_at(fixits_raw, i)))
+        i = i + 1
+    0
+
+    return Diagnostic {
+        code: json_get_string(value, "code"),
+        severity: json_get_int(value, "severity"),
+        kind: json_get_string(value, "kind"),
+        message: json_get_string(value, "message"),
+        file: json_get_string(value, "file"),
+        has_primary_range: json_get_bool(value, "has_primary_range"),
+        primary_range: _range_from(json_get(value, "primary_range")),
+        labels: labels,
+        notes: notes,
+        help: help,
+        fixits: fixits,
+    }
+
+fn _symbol_from(value: Any) -> Symbol:
+    let container_val = json_get(value, "container")
+    let container: Option<String> = if json_is_null(container_val):
+        None
+    else:
+        Some(json_string_value(container_val))
+    return Symbol {
+        name: json_get_string(value, "name"),
+        detail: json_get_string(value, "detail"),
+        kind: _symbol_kind_from(json_get_int(value, "kind")),
+        location: _location_from(json_get(value, "location")),
+        container: container,
+    }
+
+fn _completion_from(value: Any) -> Completion:
+    return Completion {
+        label: json_get_string(value, "label"),
+        detail: json_get_string(value, "detail"),
+        kind: _completion_kind_from(json_get_int(value, "kind")),
+    }
+
+fn _semantic_token_from(value: Any) -> SemanticToken:
+    return SemanticToken {
+        range: _range_from(json_get(value, "range")),
+        token_type: json_get_int(value, "token_type"),
+        token_modifiers: json_get_int(value, "token_modifiers"),
+    }
+
+// ═══════════════════════════════════════════════════════════════════
+// Public API
+// ═══════════════════════════════════════════════════════════════════
+
+// --- Workspace management ---
+
+pub fn open_workspace(root: String, target: CompileTarget) -> Option<Workspace>:
+    let code = _target_to_code(target)
+    let res = kain_service_open_workspace(root, code)
+    let status = json_get_int(res, "status")
+    if status != 0:
+        return None
+    return Some(Workspace {
+        _id: json_get_int(res, "workspace_id"),
+    })
+
+pub fn close_workspace(ws: Workspace) -> Bool:
+    let res = kain_service_close_workspace(ws._id)
+    return json_get_int(res, "status") == 0
+
+// --- Document management ---
+
+pub fn open_document(ws: Workspace, path: String, source: String, version: Int) -> Option<Document>:
+    let res = kain_service_open_document(ws._id, path, source, version)
+    let status = json_get_int(res, "status")
+    if status != 0:
+        return None
+    return Some(Document {
+        _ws_id: ws._id,
+        _doc_id: json_get_int(res, "document_id"),
+    })
+
+pub fn update_document(doc: Document, source: String, version: Int) -> Bool:
+    let res = kain_service_update_document(doc._ws_id, doc._doc_id, source, version)
+    return json_get_int(res, "status") == 0
+
+pub fn close_document(doc: Document) -> Bool:
+    let res = kain_service_close_document(doc._ws_id, doc._doc_id)
+    return json_get_int(res, "status") == 0
+
+// --- Diagnostics ---
+
+pub fn check_document(doc: Document) -> CheckResult:
+    let res = kain_service_check_document(doc._ws_id, doc._doc_id)
+    let status = json_get_int(res, "status")
+    var diagnostics: Array<Diagnostic> = []
+    if status == 0:
+        let diags_raw = json_get(res, "diagnostics")
+        var i: Int = 0
+        while i < json_array_length(diags_raw):
+            push(diagnostics, _diagnostic_from(json_array_value_at(diags_raw, i)))
+            i = i + 1
+        0
+    return CheckResult {
+        passed: len(diagnostics) == 0 and json_get_bool(res, "typed_program_available"),
+        diagnostics: diagnostics,
+        typed_program_available: json_get_bool(res, "typed_program_available"),
+    }
+
+// --- Queries ---
+
+pub fn hover_at(doc: Document, pos_line: Int, pos_col: Int) -> Option<Hover>:
+    let res = kain_service_hover_at(doc._ws_id, doc._doc_id, pos_line, pos_col)
+    let status = json_get_int(res, "status")
+    if status != 0:
+        return None
+    let has_hover = json_get_bool(res, "has_hover")
+    if has_hover == false:
+        return None
+    return Some(Hover {
+        contents: json_get_string(res, "contents"),
+        location: _location_from(json_get(res, "location")),
+    })
+
+pub fn definition_at(doc: Document, pos_line: Int, pos_col: Int) -> Array<Location>:
+    let res = kain_service_definition_at(doc._ws_id, doc._doc_id, pos_line, pos_col)
+    let status = json_get_int(res, "status")
+    if status != 0:
+        return []
+    let locations_raw = json_get(res, "locations")
+    var locations: Array<Location> = []
+    var i: Int = 0
+    while i < json_array_length(locations_raw):
+        push(locations, _location_from(json_array_value_at(locations_raw, i)))
+        i = i + 1
+    0
+    return locations
+
+pub fn references_at(doc: Document, pos_line: Int, pos_col: Int) -> Array<Location>:
+    let res = kain_service_references_at(doc._ws_id, doc._doc_id, pos_line, pos_col)
+    let status = json_get_int(res, "status")
+    if status != 0:
+        return []
+    let locations_raw = json_get(res, "locations")
+    var locations: Array<Location> = []
+    var i: Int = 0
+    while i < json_array_length(locations_raw):
+        push(locations, _location_from(json_array_value_at(locations_raw, i)))
+        i = i + 1
+    0
+    return locations
+
+pub fn completions_at(doc: Document, pos_line: Int, pos_col: Int) -> Array<Completion>:
+    let res = kain_service_completions_at(doc._ws_id, doc._doc_id, pos_line, pos_col)
+    let status = json_get_int(res, "status")
+    if status != 0:
+        return []
+    let completions_raw = json_get(res, "completions")
+    var completions: Array<Completion> = []
+    var i: Int = 0
+    while i < json_array_length(completions_raw):
+        push(completions, _completion_from(json_array_value_at(completions_raw, i)))
+        i = i + 1
+    0
+    return completions
+
+pub fn document_symbols(doc: Document) -> Array<Symbol>:
+    let res = kain_service_document_symbols(doc._ws_id, doc._doc_id)
+    let status = json_get_int(res, "status")
+    if status != 0:
+        return []
+    let symbols_raw = json_get(res, "symbols")
+    var symbols: Array<Symbol> = []
+    var i: Int = 0
+    while i < json_array_length(symbols_raw):
+        push(symbols, _symbol_from(json_array_value_at(symbols_raw, i)))
+        i = i + 1
+    0
+    return symbols
+
+pub fn workspace_symbols(ws: Workspace, query: String) -> Array<Symbol>:
+    let res = kain_service_workspace_symbols(ws._id, query)
+    let status = json_get_int(res, "status")
+    if status != 0:
+        return []
+    let symbols_raw = json_get(res, "symbols")
+    var symbols: Array<Symbol> = []
+    var i: Int = 0
+    while i < json_array_length(symbols_raw):
+        push(symbols, _symbol_from(json_array_value_at(symbols_raw, i)))
+        i = i + 1
+    0
+    return symbols
+
+pub fn semantic_tokens(doc: Document) -> Array<SemanticToken>:
+    let res = kain_service_semantic_tokens(doc._ws_id, doc._doc_id)
+    let status = json_get_int(res, "status")
+    if status != 0:
+        return []
+    let tokens_raw = json_get(res, "tokens")
+    var tokens: Array<SemanticToken> = []
+    var i: Int = 0
+    while i < json_array_length(tokens_raw):
+        push(tokens, _semantic_token_from(json_array_value_at(tokens_raw, i)))
+        i = i + 1
+    0
+    return tokens
+
+// --- Formatting ---
+
+pub fn format_document(doc: Document) -> FormatResult:
+    let res = kain_service_format_document(doc._ws_id, doc._doc_id)
+    let status = json_get_int(res, "status")
+    var diagnostics: Array<Diagnostic> = []
+    if status == 0:
+        let diags_raw = json_get(res, "diagnostics")
+        var i: Int = 0
+        while i < json_array_length(diags_raw):
+            push(diagnostics, _diagnostic_from(json_array_value_at(diags_raw, i)))
+            i = i + 1
+        0
+    return FormatResult {
+        formatted: json_string_or(res, "formatted", ""),
+        already_formatted: json_bool_or(res, "already_formatted", false),
+        diagnostics: diagnostics,
+    }

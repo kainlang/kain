@@ -27,6 +27,7 @@ kain-c-ffi = { path = "../c-ffi" }
 kain-codebase = { path = "../codebase" }
 kain-commands = { path = "../commands" }
 kain-crate-ffi = { path = "../crate-ffi" }
+kain-service-bridge = { path = "../service-bridge" }
 kain-asm = { path = "../asm" }
 kain-host = { path = "../host" }
 kain-import = { path = "../import", default-features = false, features = ["c", "rust", "usf"] }

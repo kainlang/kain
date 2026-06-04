@@ -3322,6 +3322,8 @@ pub fn main_entry() {
 
     let handler = builder
         .spawn(|| {
+            // Ensure service bridge builtins are registered before any frontend work.
+            kain_service_bridge::register();
             let raw_argv = std::env::args().collect::<Vec<_>>();
             if let Some(message) = removed_legacy_command_error(raw_argv.get(1..).unwrap_or(&[])) {
                 eprintln!(" {message}");

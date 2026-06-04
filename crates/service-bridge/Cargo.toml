@@ -1,0 +1,15 @@
+[package]
+name = "kain-service-bridge"
+version = "0.1.0"
+edition = "2021"
+description = "Thin bridge registering kain-service-api functions into the Kain stdlib runtime"
+license = "MIT"
+
+[lib]
+crate-type = ["rlib"]
+
+[dependencies]
+kain-core = { path = "../core" }
+kain-error = { path = "../error" }
+kain-service-api = { path = "../service-api" }
+once_cell = "1"
