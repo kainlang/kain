@@ -16,6 +16,12 @@ pub type DocumentId = u64;
 pub struct WorkspaceConfig {
     pub root: Option<PathBuf>,
     pub target: CompileTarget,
+    /// File extensions to discover during disk index refresh.
+    /// Default: `["kn"]`
+    pub included_extensions: Vec<String>,
+    /// Directory names to skip during disk index traversal.
+    /// Default: `[".git", ".kain", "target", "node_modules", ".vs", ".idea"]`
+    pub excluded_dirs: Vec<String>,
 }
 
 impl Default for WorkspaceConfig {
@@ -23,6 +29,15 @@ impl Default for WorkspaceConfig {
         Self {
             root: None,
             target: CompileTarget::Llvm,
+            included_extensions: vec!["kn".to_string()],
+            excluded_dirs: vec![
+                ".git".to_string(),
+                ".kain".to_string(),
+                "target".to_string(),
+                "node_modules".to_string(),
+                ".vs".to_string(),
+                ".idea".to_string(),
+            ],
         }
     }
 }
@@ -348,7 +363,9 @@ fn refresh_disk_index(workspace: &mut WorkspaceState) -> ServiceResult<()> {
     let Some(root) = workspace.config.root.clone() else {
         return Ok(());
     };
-    for path in collect_kain_files(&root)? {
+    let exts = workspace.config.included_extensions.clone();
+    let skip = workspace.config.excluded_dirs.clone();
+    for path in collect_kain_files(&root, &exts, &skip)? {
         let key = normalize_path_key(&path);
         if workspace.path_to_document.contains_key(&key) {
             continue;
@@ -361,7 +378,11 @@ fn refresh_disk_index(workspace: &mut WorkspaceState) -> ServiceResult<()> {
     Ok(())
 }
 
-fn collect_kain_files(root: &Path) -> ServiceResult<Vec<PathBuf>> {
+fn collect_kain_files(
+    root: &Path,
+    extensions: &[String],
+    skip_dirs: &[String],
+) -> ServiceResult<Vec<PathBuf>> {
     let mut files = Vec::new();
     let mut stack = vec![root.to_path_buf()];
     while let Some(path) = stack.pop() {
@@ -373,19 +394,14 @@ fn collect_kain_files(root: &Path) -> ServiceResult<Vec<PathBuf>> {
                     .file_name()
                     .and_then(|v| v.to_str())
                     .unwrap_or_default();
-                if matches!(
-                    name,
-                    ".git" | ".kain" | "target" | "node_modules" | ".vs" | ".idea"
-                ) {
+                if skip_dirs.iter().any(|d| d == name) {
                     continue;
                 }
                 stack.push(path);
-            } else if path
-                .extension()
-                .and_then(|ext| ext.to_str())
-                .is_some_and(|ext| ext.eq_ignore_ascii_case("kn"))
-            {
-                files.push(path);
+            } else if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
+                if extensions.iter().any(|e| ext.eq_ignore_ascii_case(e)) {
+                    files.push(path);
+                }
             }
         }
     }

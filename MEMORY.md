@@ -24,6 +24,24 @@ Readiness verdict:
 
 - Not yet ready for a credible Kain-authored LSP. The service API and std::kain bridge now exist and compile, but the Option/runtime bug plus LLVM struct-array lowering bug are real blockers.
 
+# 2026-06-04 - LLVM struct-array fix + service-surface dedup + config-driven workspace discovery
+
+What changed:
+
+- **LLVM codegen: Fixed `coerce_to_i64_storage`** in `crates/sys-codegen/src/codegen_llvm/mod.rs` (around line 9790). When a Kain struct value (like `%SemanticToken`) is passed to `array_push`, the lowering now heap-allocates the struct and stores the pointer as `i64` instead of raw-dropping the struct into an integer register. This fixes the "type mismatch: struct passed where i64 expected" crash in the LLVM/native path.
+- **Deduplicated compile-target numeric mapping**: Made `target_from_code` public in `kain_service_api::abi` and re-exported it from `kain_service_api`. Removed the duplicate `fn target_from_code` in `kain_service_bridge` and imported the canonical version instead. Also added `pub use abi::target_from_code;` to `crates/service-api/src/lib.rs`.
+- **Config-driven workspace discovery**: Added `included_extensions: Vec<String>` and `excluded_dirs: Vec<String>` fields to `WorkspaceConfig` in `crates/service-api/src/workspace.rs` with `Default` values matching prior behavior (`["kn"]` and `[".git", ".kain", "target", "node_modules", ".vs", ".idea"]`). Updated `collect_kain_files` to accept both parameters instead of hardcoding them.
+
+Validation:
+
+- `cargo check -p kain-core -p kain-sys-codegen -p kain-service-api -p kain-service-bridge -p cli` passes cleanly (0 errors, only pre-existing warnings).
+- Verified that `target_from_code` is now canonical in one place and imported from `kain_service_api` in the bridge crate.
+
+Blockers remaining:
+
+- **Authored Kain cannot consume `Option<Workspace>` / `Option<Document>` cleanly** in runtime flows — `unwrap()` and `is_some()` dispatch against `Workspace` instead of `Option<Workspace>`, and match-based binding destabilizes follow-on bindings.
+- The LLVM/native path now works for struct-array materialization. The struct-array lowering blocker is resolved.
+
 # 2026-06-04 - std::kain module and service-bridge crate seeded
 
 What changed:

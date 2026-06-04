@@ -6,6 +6,8 @@
 //! crate.
 
 pub mod abi;
+
+pub use abi::target_from_code;
 pub mod diagnostics;
 pub mod formatting;
 pub mod index;

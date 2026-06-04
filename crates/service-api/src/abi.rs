@@ -231,7 +231,7 @@ pub extern "C" fn kain_service_open_workspace(
         }
     });
     let target = target_from_code(target);
-    match host.open_workspace(WorkspaceConfig { root, target }) {
+    match host.open_workspace(WorkspaceConfig { root, target, ..Default::default() }) {
         Ok(workspace_id) => KainServiceOpenWorkspaceResult {
             status: STATUS_OK,
             error_code: 0,
@@ -525,7 +525,7 @@ fn ffi_string(ptr: *const u8, len: usize) -> Option<String> {
     std::str::from_utf8(bytes).ok().map(str::to_string)
 }
 
-fn target_from_code(code: u32) -> CompileTarget {
+pub fn target_from_code(code: u32) -> CompileTarget {
     match code {
         1 => CompileTarget::Wasm,
         2 => CompileTarget::Js,

@@ -7,11 +7,10 @@
 use kain_core::error::{KainError, KainResult};
 use kain_core::runtime::{register_env_extension, Env, Value};
 use kain_core::stdlib::{register_stdlib_extension, BuiltinFn, StdLib};
-use kain_core::CompileTarget;
 use kain_error::DiagnosticSeverity;
 use kain_service_api::{
-    CloseDocumentParams, OpenDocumentParams, ServiceError, ServiceHost, UpdateDocumentParams,
-    WorkspaceConfig,
+    target_from_code, CloseDocumentParams, OpenDocumentParams, ServiceError, ServiceHost,
+    UpdateDocumentParams, WorkspaceConfig,
 };
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
@@ -187,30 +186,6 @@ fn register_service_env(env: &mut Env) {
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────
-
-fn target_from_code(code: u64) -> CompileTarget {
-    match code {
-        1 => CompileTarget::Wasm,
-        2 => CompileTarget::Js,
-        3 => CompileTarget::Ts,
-        4 => CompileTarget::Hybrid,
-        5 => CompileTarget::C,
-        6 => CompileTarget::Llvm,
-        7 => CompileTarget::Rust,
-        8 => CompileTarget::Cpp,
-        9 => CompileTarget::Ue5,
-        10 => CompileTarget::Ue5Editor,
-        11 => CompileTarget::Usf,
-        12 => CompileTarget::Spirv,
-        13 => CompileTarget::Hlsl,
-        14 => CompileTarget::Wgsl,
-        15 => CompileTarget::Cuda,
-        16 => CompileTarget::Interpret,
-        17 => CompileTarget::Test,
-        18 => CompileTarget::Ks,
-        _ => CompileTarget::Llvm,
-    }
-}
 
 fn extract_int(args: &[Value], index: usize, name: &str) -> KainResult<i64> {
     match args.get(index) {
@@ -412,7 +387,8 @@ fn builtin_open_workspace(_env: &mut Env, args: Vec<Value>) -> KainResult<Value>
 
     let config = WorkspaceConfig {
         root: root_path,
-        target: target_from_code(target_code),
+        target: target_from_code(target_code as u32),
+        ..Default::default()
     };
 
     let mut host = HOST.lock().map_err(|_| {
