@@ -238,7 +238,7 @@ orchestrate resonate_py_wave_pipeline(seed: Int, authority: ResonatePyAuthority)
     stage base: cpu resonate_py_mix(seed + authority.note_slot + authority.velocity) when capability("cpu.scalar") residency host transfer none policy static
     // All computation moved to Kain — the old Python keyboard_shadow bridge is now
     // a pure Kain stage so the pipeline never needs to poll/render on keypress.
-    stage compute: kain resonate_py_compute_keyboard_shadow(authority.note_slot, authority.velocity, authority.event_epoch) after base residency host policy static
+    stage compute: cpu resonate_py_compute_keyboard_shadow(authority.note_slot, authority.velocity, authority.event_epoch) after base residency host policy static
     stage py_gl: python resonate_py_python_mgl_push(authority.note_slot, authority.velocity, authority.event_epoch) after compute residency host fallback degrade compute policy telemetry_prefer_cpu
     stage tuned: converge resonate_py_lane_mix(base + compute + py_gl + authority.resonance_hash) deps [base, compute, py_gl] residency shared transfer shared_view policy telemetry_balance_latency
     stage legal: law resonate_py_note_in_bounds(authority.note_slot) after tuned residency host policy static

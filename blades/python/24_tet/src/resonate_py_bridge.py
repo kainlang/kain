@@ -500,7 +500,7 @@ def window_frame(
 
     if selected_note >= 0:
         STATE["active_note"] = selected_note
-        STATE["active_velocity"] = max(76, min(127, int(active_velocity) + 6))
+        # Velocity stays Kain-owned — no local inflation, no +6 creep.
         return selected_note + 1
     return 0
 
