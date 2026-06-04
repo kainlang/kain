@@ -924,6 +924,7 @@ fn run_inline_native_script(source_name: &str, source: &str) -> bool {
     };
     let mut request = kain_run::InlineKainSourceRequest::new(source_name, source, cwd);
     request.progress = cli::progress::stderr_progress_sink(true);
+    request.stream_output = true;
     match kain_run::execute_inline_kain_source(&request) {
         Ok(report) => {
             let success = report.is_success();

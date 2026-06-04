@@ -42,6 +42,7 @@ pub fn make_request(
             request.trace = trace;
             request.keep_artifacts = keep_artifacts;
             request.dry_run = dry_run;
+            request.stream_output = !json;
         }))
 }
 
@@ -67,6 +68,7 @@ pub fn make_blade_request(
             request.trace = trace;
             request.keep_artifacts = keep_artifacts;
             request.dry_run = dry_run;
+            request.stream_output = !json;
         }))
 }
 
@@ -80,6 +82,7 @@ pub fn execute(mut request: RunRequest) -> Result<(), String> {
     if request.progress.is_none() {
         request.progress = crate::progress::stderr_progress_sink(!request.json);
     }
+    request.stream_output = !request.json;
     let report = execute_run(&request).map_err(|err| {
         let rendered_output = format!(" Run failed: {err}\n");
         let _ = kain_core::diagnostic_capture::capture_event_if_enabled(

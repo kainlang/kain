@@ -1,6 +1,7 @@
 use blade::{
-    discover_workspace, load_effective_kain_manifest, load_kain_manifest, BladeWorkspace,
-    KainRunSection, ResolvedBlade,
+    discover_workspace, discover_workspace_root as discover_blade_workspace_root,
+    load_effective_kain_manifest, load_kain_manifest, BladeWorkspace, KainRunSection,
+    ResolvedBlade,
 };
 use kain_core::tooling_config::apply_cargo_command_defaults;
 use kain_core::CompileTarget;
@@ -16,6 +17,7 @@ use std::collections::hash_map::DefaultHasher;
 use std::collections::{BTreeMap, BTreeSet};
 use std::ffi::OsStr;
 use std::hash::{Hash, Hasher};
+use std::io::{self, BufRead, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::thread;
@@ -24,6 +26,7 @@ use std::time::{Duration, SystemTime};
 const DEFAULT_RUN_REPORT_ROOT: &str = ".kain/reports/run";
 const DEFAULT_RUN_CACHE_ROOT: &str = ".kain/cache/run";
 pub const RUN_ADAPTER_VERSION: &str = "kain-run-v1";
+const RUN_ARTIFACT_CACHE_VERSION: &str = "kain-run-artifact-cache-v1";
 
 pub type RunResult<T> = Result<T, RunError>;
 
@@ -108,6 +111,7 @@ pub struct RunRequest {
     pub trace: bool,
     pub keep_artifacts: bool,
     pub dry_run: bool,
+    pub stream_output: bool,
     pub watch_limit: Option<usize>,
     pub poll_interval: Duration,
     pub progress: Option<ToolingProgressSink>,
@@ -126,6 +130,7 @@ impl RunRequest {
             trace: false,
             keep_artifacts: false,
             dry_run: false,
+            stream_output: false,
             watch_limit: None,
             poll_interval: Duration::from_millis(250),
             progress: None,
@@ -165,6 +170,7 @@ pub struct InlineKainSourceRequest {
     pub cwd: PathBuf,
     pub target: RunTarget,
     pub args: Vec<String>,
+    pub stream_output: bool,
     pub progress: Option<ToolingProgressSink>,
 }
 
@@ -180,6 +186,7 @@ impl InlineKainSourceRequest {
             cwd: cwd.into(),
             target: RunTarget::Llvm,
             args: Vec::new(),
+            stream_output: false,
             progress: None,
         }
     }
@@ -259,6 +266,8 @@ pub struct RunUnit {
     pub cwd: PathBuf,
     pub args: Vec<String>,
     pub env: BTreeMap<String, String>,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub stream_output: bool,
     pub inputs: Vec<PathBuf>,
     pub adapter: RunAdapter,
 }
@@ -346,8 +355,28 @@ pub struct RunUnitExecution {
     pub exit_code: Option<i64>,
     pub stdout: String,
     pub stderr: String,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub stdout_streamed: bool,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub stderr_streamed: bool,
     pub output: String,
     pub error: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+struct RunArtifactCacheManifest {
+    version: String,
+    adapter_fingerprint: String,
+    command_fingerprint: String,
+    inputs: Vec<RunArtifactInputSnapshot>,
+    env: BTreeMap<String, String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+struct RunArtifactInputSnapshot {
+    path: String,
+    len: u64,
+    modified_millis: Option<u128>,
 }
 
 pub fn plan_run(request: &RunRequest) -> RunResult<RunPlan> {
@@ -363,6 +392,7 @@ pub fn plan_run(request: &RunRequest) -> RunResult<RunPlan> {
     if !request.args.is_empty() {
         append_runtime_args(&mut unit, &request.args);
     }
+    unit.stream_output = request.stream_output && !request.json;
     let mut watch_inputs = unit.inputs.clone();
     watch_inputs.push(workspace_root.join("KAIN.toml"));
     watch_inputs.push(workspace_root.join("kain.toml"));
@@ -420,6 +450,7 @@ pub fn execute_inline_kain_source(request: &InlineKainSourceRequest) -> RunResul
         .with_workspace_path(request.cwd.clone());
     let mut run_request = run_request;
     run_request.progress = request.progress.clone();
+    run_request.stream_output = request.stream_output;
     let result = execute_run(&run_request);
 
     let _cleanup = kfs::remove_file(&entry);
@@ -462,6 +493,8 @@ pub fn execute_plan(plan: RunPlan, request: &RunRequest) -> RunResult<RunReport>
                 exit_code: None,
                 stdout: String::new(),
                 stderr: String::new(),
+                stdout_streamed: false,
+                stderr_streamed: false,
                 output: unit.label.clone(),
                 error: None,
             }
@@ -596,9 +629,7 @@ fn run_graph_root_for_unit(unit: &RunUnit, workspace_root: &Path) -> PathBuf {
     let Some(anchor) = anchor else {
         return workspace_root.to_path_buf();
     };
-    discover_workspace(anchor)
-        .map(|workspace| workspace.root)
-        .unwrap_or_else(|_| workspace_root.to_path_buf())
+    discover_blade_workspace_root(anchor).unwrap_or_else(|_| workspace_root.to_path_buf())
 }
 
 fn discover_run_build_graph(workspace_root: &Path) -> RunResult<Option<RunBuildGraphProvenance>> {
@@ -1136,6 +1167,7 @@ fn kain_unit(id: &str, workspace_root: &Path, entry: &Path) -> RunResult<RunUnit
         cwd: entry.parent().unwrap_or(workspace_root).to_path_buf(),
         args: Vec::new(),
         env: BTreeMap::new(),
+        stream_output: false,
         inputs: vec![entry.to_path_buf()],
         adapter: RunAdapter::KainInterpreter {
             entry: entry.to_path_buf(),
@@ -1153,6 +1185,7 @@ fn llvm_unit(workspace_root: &Path, entry: &Path, cache_root: &Path) -> RunResul
         cwd: entry.parent().unwrap_or(workspace_root).to_path_buf(),
         args: Vec::new(),
         env: BTreeMap::new(),
+        stream_output: false,
         inputs: vec![entry.to_path_buf()],
         adapter: RunAdapter::KainNativeLlvm {
             entry: entry.to_path_buf(),
@@ -1172,6 +1205,7 @@ fn c_unit(workspace_root: &Path, source: &Path, cache_root: &Path) -> RunResult<
         cwd: source.parent().unwrap_or(workspace_root).to_path_buf(),
         args: Vec::new(),
         env: BTreeMap::new(),
+        stream_output: false,
         inputs: vec![source.to_path_buf()],
         adapter: RunAdapter::CExecutable {
             source: source.to_path_buf(),
@@ -1203,6 +1237,7 @@ fn cargo_unit(
             .to_path_buf(),
         args: Vec::new(),
         env: BTreeMap::new(),
+        stream_output: false,
         inputs: vec![manifest_path.to_path_buf()],
         adapter: RunAdapter::Cargo {
             manifest_path: manifest_path.to_path_buf(),
@@ -1225,6 +1260,7 @@ fn fabric_unit(id: &str, workspace_root: &Path, manifest_path: &Path) -> RunResu
             .to_path_buf(),
         args: Vec::new(),
         env: BTreeMap::new(),
+        stream_output: false,
         inputs: vec![manifest_path.to_path_buf()],
         adapter: RunAdapter::Fabric {
             manifest_path: manifest_path.to_path_buf(),
@@ -1248,6 +1284,7 @@ fn node_unit(kind: NodeRuntimeKind, workspace_root: &Path, entry: &Path) -> RunR
         cwd: entry.parent().unwrap_or(workspace_root).to_path_buf(),
         args: Vec::new(),
         env: BTreeMap::new(),
+        stream_output: false,
         inputs: vec![entry.to_path_buf()],
         adapter: RunAdapter::NodeLike {
             runtime: kind,
@@ -1308,6 +1345,8 @@ fn execute_unit(
             exit_code: None,
             stdout: String::new(),
             stderr: String::new(),
+            stdout_streamed: false,
+            stderr_streamed: false,
             output: String::new(),
             error: Some(error.to_string()),
         },
@@ -1361,6 +1400,8 @@ fn run_kain(
             exit_code: Some(0),
             stdout: String::new(),
             stderr: String::new(),
+            stdout_streamed: false,
+            stderr_streamed: false,
             output: value,
             error: None,
         })
@@ -1488,6 +1529,8 @@ fn run_fabric(manifest_path: &Path) -> RunResult<RunUnitExecution> {
         exit_code: Some(if status == RunStatus::Succeeded { 0 } else { 1 }),
         stdout: String::new(),
         stderr: String::new(),
+        stdout_streamed: false,
+        stderr_streamed: false,
         output: format!("Fabric report {}", result.report_path.display()),
         error: if status == RunStatus::Succeeded {
             None
@@ -1528,16 +1571,43 @@ fn run_process(
             command: Some(process.executable.clone()),
         },
     );
-    let output = command.output().map_err(|err| {
+    let mut child = command.spawn().map_err(|err| {
         RunError::Process(format!("failed to invoke {}: {err}", process.executable))
     })?;
-    let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
-    let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
-    let exit_code = output.status.code().map(i64::from);
+    let stdout = child.stdout.take().ok_or_else(|| {
+        RunError::Process(format!(
+            "failed to capture stdout for {}",
+            process.executable
+        ))
+    })?;
+    let stderr = child.stderr.take().ok_or_else(|| {
+        RunError::Process(format!(
+            "failed to capture stderr for {}",
+            process.executable
+        ))
+    })?;
+    let stdout_thread = spawn_output_reader(stdout, ProcessOutputPipe::Stdout, unit.stream_output);
+    let stderr_thread = spawn_output_reader(stderr, ProcessOutputPipe::Stderr, unit.stream_output);
+    let status = child.wait().map_err(|err| {
+        RunError::Process(format!("failed to wait for {}: {err}", process.executable))
+    })?;
+    let stdout = String::from_utf8_lossy(&join_output_reader(
+        stdout_thread,
+        ProcessOutputPipe::Stdout,
+        &process.executable,
+    )?)
+    .into_owned();
+    let stderr = String::from_utf8_lossy(&join_output_reader(
+        stderr_thread,
+        ProcessOutputPipe::Stderr,
+        &process.executable,
+    )?)
+    .into_owned();
+    let exit_code = status.code().map(i64::from);
     Ok(RunUnitExecution {
         id: unit.id.clone(),
         target: unit.target,
-        status: if output.status.success() {
+        status: if status.success() {
             RunStatus::Succeeded
         } else {
             RunStatus::Failed
@@ -1549,13 +1619,80 @@ fn run_process(
         exit_code,
         stdout,
         stderr,
+        stdout_streamed: unit.stream_output,
+        stderr_streamed: unit.stream_output,
         output: String::new(),
-        error: if output.status.success() {
+        error: if status.success() {
             None
         } else {
-            Some(format!("process exited with status {}", output.status))
+            Some(format!("process exited with status {}", status))
         },
     })
+}
+
+#[derive(Debug, Clone, Copy)]
+enum ProcessOutputPipe {
+    Stdout,
+    Stderr,
+}
+
+fn spawn_output_reader<R>(
+    reader: R,
+    pipe: ProcessOutputPipe,
+    stream_live: bool,
+) -> thread::JoinHandle<io::Result<Vec<u8>>>
+where
+    R: Read + Send + 'static,
+{
+    thread::spawn(move || {
+        let mut reader = BufReader::new(reader);
+        let mut captured = Vec::new();
+        let mut chunk = Vec::new();
+        let mut stream_live = stream_live;
+        loop {
+            chunk.clear();
+            let read = reader.read_until(b'\n', &mut chunk)?;
+            if read == 0 {
+                break;
+            }
+            captured.extend_from_slice(&chunk);
+            if stream_live && write_process_output_chunk(pipe, &chunk).is_err() {
+                stream_live = false;
+            }
+        }
+        Ok(captured)
+    })
+}
+
+fn write_process_output_chunk(pipe: ProcessOutputPipe, chunk: &[u8]) -> io::Result<()> {
+    match pipe {
+        ProcessOutputPipe::Stdout => {
+            let mut stdout = io::stdout().lock();
+            stdout.write_all(chunk)?;
+            stdout.flush()
+        }
+        ProcessOutputPipe::Stderr => {
+            let mut stderr = io::stderr().lock();
+            stderr.write_all(chunk)?;
+            stderr.flush()
+        }
+    }
+}
+
+fn join_output_reader(
+    handle: thread::JoinHandle<io::Result<Vec<u8>>>,
+    pipe: ProcessOutputPipe,
+    executable: &str,
+) -> RunResult<Vec<u8>> {
+    match handle.join() {
+        Ok(Ok(bytes)) => Ok(bytes),
+        Ok(Err(err)) => Err(RunError::Process(format!(
+            "failed to read {pipe:?} from {executable}: {err}"
+        ))),
+        Err(_) => Err(RunError::Process(format!(
+            "{pipe:?} reader panicked while running {executable}"
+        ))),
+    }
 }
 
 fn command_for_process(executable: &Path, unit: &RunUnit, args: &[String]) -> Command {
@@ -1575,6 +1712,15 @@ fn apply_unit_environment(command: &mut Command, unit: &RunUnit) {
 }
 
 fn compile_llvm_if_needed(entry: &Path, executable: &Path, unit: &RunUnit) -> RunResult<()> {
+    let manifest = build_run_artifact_cache_manifest(
+        "llvm",
+        &llvm_compile_command_fingerprint()?,
+        &run_unit_compile_input_paths(entry, unit),
+        &unit.env,
+    )?;
+    if compiled_artifact_is_fresh(executable, manifest.as_ref())? {
+        return Ok(());
+    }
     if let Some(parent) = executable.parent() {
         kfs::create_dir_all(parent)?;
     }
@@ -1599,6 +1745,9 @@ fn compile_llvm_if_needed(entry: &Path, executable: &Path, unit: &RunUnit) -> Ru
         ))
     })?;
     if output.status.success() {
+        if let Some(manifest) = manifest.as_ref() {
+            write_run_artifact_cache_manifest(executable, manifest)?;
+        }
         Ok(())
     } else {
         Err(RunError::Process(format!(
@@ -1608,6 +1757,15 @@ fn compile_llvm_if_needed(entry: &Path, executable: &Path, unit: &RunUnit) -> Ru
             String::from_utf8_lossy(&output.stderr)
         )))
     }
+}
+
+fn llvm_compile_command_fingerprint() -> RunResult<String> {
+    let mut fingerprint = String::from("kain --target llvm --output <executable>");
+    if let Ok(kain_bin) = std::env::var("KAIN_BIN") {
+        fingerprint.push_str("|KAIN_BIN=");
+        fingerprint.push_str(&kain_bin);
+    }
+    Ok(fingerprint)
 }
 
 fn process_spec_for_unit(unit: &RunUnit) -> Option<ProcessSpec> {
@@ -1704,12 +1862,15 @@ fn process_spec(
 }
 
 fn compile_c_if_needed(source: &Path, executable: &Path, compiler: &Path) -> RunResult<()> {
-    if executable.exists() {
-        let exe_meta = kfs::metadata(executable)?;
-        let src_meta = kfs::metadata(source)?;
-        if exe_meta.modified_millis >= src_meta.modified_millis {
-            return Ok(());
-        }
+    let inputs = c_compile_input_paths(source)?;
+    let manifest = build_run_artifact_cache_manifest(
+        "c",
+        &format!("{} -O2 -o <executable>", compiler.display()),
+        &inputs,
+        &BTreeMap::new(),
+    )?;
+    if compiled_artifact_is_fresh(executable, manifest.as_ref())? {
+        return Ok(());
     }
     if let Some(parent) = executable.parent() {
         kfs::create_dir_all(parent)?;
@@ -1729,6 +1890,9 @@ fn compile_c_if_needed(source: &Path, executable: &Path, compiler: &Path) -> Run
         ))
     })?;
     if output.status.success() {
+        if let Some(manifest) = manifest.as_ref() {
+            write_run_artifact_cache_manifest(executable, manifest)?;
+        }
         Ok(())
     } else {
         Err(RunError::Process(format!(
@@ -1738,6 +1902,193 @@ fn compile_c_if_needed(source: &Path, executable: &Path, compiler: &Path) -> Run
             String::from_utf8_lossy(&output.stderr)
         )))
     }
+}
+
+fn run_unit_compile_input_paths(entry: &Path, unit: &RunUnit) -> Vec<PathBuf> {
+    let mut inputs = vec![entry.to_path_buf()];
+    inputs.extend(unit.inputs.iter().cloned());
+    sort_dedup_paths(&mut inputs);
+    inputs
+}
+
+fn c_compile_input_paths(source: &Path) -> RunResult<Vec<PathBuf>> {
+    let mut inputs = Vec::new();
+    let mut visited = BTreeSet::new();
+    collect_c_compile_input_paths(source, &mut visited, &mut inputs)?;
+    sort_dedup_paths(&mut inputs);
+    Ok(inputs)
+}
+
+fn collect_c_compile_input_paths(
+    source: &Path,
+    visited: &mut BTreeSet<String>,
+    inputs: &mut Vec<PathBuf>,
+) -> RunResult<()> {
+    let key = absolute_path(source).to_string_lossy().into_owned();
+    if !visited.insert(key) {
+        return Ok(());
+    }
+    inputs.push(source.to_path_buf());
+    let Ok(text) = kfs::read_text(source) else {
+        return Ok(());
+    };
+    let include_root = source.parent().unwrap_or_else(|| Path::new("."));
+    for include in extract_c_quoted_includes(&text) {
+        let candidate = include_root.join(include);
+        if candidate.is_file() {
+            collect_c_compile_input_paths(&candidate, visited, inputs)?;
+        }
+    }
+    Ok(())
+}
+
+fn extract_c_quoted_includes(source: &str) -> Vec<PathBuf> {
+    let mut includes = Vec::new();
+    for raw_line in source.lines() {
+        let line = raw_line.trim_start();
+        let Some(after_hash) = line.strip_prefix('#') else {
+            continue;
+        };
+        let after_hash = after_hash.trim_start();
+        let Some(after_include) = after_hash.strip_prefix("include") else {
+            continue;
+        };
+        let after_include = after_include.trim_start();
+        let Some(rest) = after_include.strip_prefix('"') else {
+            continue;
+        };
+        let Some(end) = rest.find('"') else {
+            continue;
+        };
+        let include = rest[..end].trim();
+        if !include.is_empty() {
+            includes.push(PathBuf::from(include));
+        }
+    }
+    includes
+}
+
+fn sort_dedup_paths(paths: &mut Vec<PathBuf>) {
+    paths.sort_by(|left, right| {
+        left.to_string_lossy()
+            .to_ascii_lowercase()
+            .cmp(&right.to_string_lossy().to_ascii_lowercase())
+    });
+    paths.dedup_by(|left, right| same_declared_path(left, right));
+}
+
+fn build_run_artifact_cache_manifest(
+    command_kind: &str,
+    command_fingerprint: &str,
+    inputs: &[PathBuf],
+    env: &BTreeMap<String, String>,
+) -> RunResult<Option<RunArtifactCacheManifest>> {
+    let Some(input_snapshots) = snapshot_run_artifact_inputs(inputs)? else {
+        return Ok(None);
+    };
+    Ok(Some(RunArtifactCacheManifest {
+        version: RUN_ARTIFACT_CACHE_VERSION.to_string(),
+        adapter_fingerprint: format!(
+            "{RUN_ADAPTER_VERSION}:{command_kind}:{}",
+            run_adapter_cache_fingerprint()?
+        ),
+        command_fingerprint: command_fingerprint.to_string(),
+        inputs: input_snapshots,
+        env: env.clone(),
+    }))
+}
+
+fn snapshot_run_artifact_inputs(
+    inputs: &[PathBuf],
+) -> RunResult<Option<Vec<RunArtifactInputSnapshot>>> {
+    let mut snapshots = Vec::new();
+    let mut seen = BTreeSet::new();
+    for input in inputs {
+        let path = absolute_path(input);
+        let key = path.to_string_lossy().into_owned();
+        if !seen.insert(key.clone()) {
+            continue;
+        }
+        let metadata = match kfs::metadata(&path) {
+            Ok(metadata) => metadata,
+            Err(_) => return Ok(None),
+        };
+        snapshots.push(RunArtifactInputSnapshot {
+            path: key,
+            len: metadata.len,
+            modified_millis: metadata.modified_millis,
+        });
+    }
+    snapshots.sort_by(|left, right| {
+        left.path
+            .to_ascii_lowercase()
+            .cmp(&right.path.to_ascii_lowercase())
+    });
+    Ok(Some(snapshots))
+}
+
+fn compiled_artifact_is_fresh(
+    executable: &Path,
+    manifest: Option<&RunArtifactCacheManifest>,
+) -> RunResult<bool> {
+    if !executable.is_file() {
+        return Ok(false);
+    }
+    let Some(manifest) = manifest else {
+        return Ok(false);
+    };
+    let manifest_path = run_artifact_cache_manifest_path(executable);
+    if manifest_path.exists() {
+        let text = kfs::read_text(&manifest_path)?;
+        return Ok(serde_json::from_str::<RunArtifactCacheManifest>(&text)
+            .ok()
+            .as_ref()
+            == Some(manifest));
+    }
+    if executable_is_newer_than_inputs(executable, &manifest.inputs)? {
+        write_run_artifact_cache_manifest(executable, manifest)?;
+        return Ok(true);
+    }
+    Ok(false)
+}
+
+fn executable_is_newer_than_inputs(
+    executable: &Path,
+    inputs: &[RunArtifactInputSnapshot],
+) -> RunResult<bool> {
+    let exe_modified = kfs::metadata(executable)?.modified_millis;
+    let Some(exe_modified) = exe_modified else {
+        return Ok(false);
+    };
+    for input in inputs {
+        let Some(input_modified) = input.modified_millis else {
+            return Ok(false);
+        };
+        if exe_modified < input_modified {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
+
+fn write_run_artifact_cache_manifest(
+    executable: &Path,
+    manifest: &RunArtifactCacheManifest,
+) -> RunResult<()> {
+    let manifest_path = run_artifact_cache_manifest_path(executable);
+    if let Some(parent) = manifest_path.parent() {
+        kfs::create_dir_all(parent)?;
+    }
+    kfs::atomic_write_text(&manifest_path, &serde_json::to_string_pretty(manifest)?)?;
+    Ok(())
+}
+
+fn run_artifact_cache_manifest_path(executable: &Path) -> PathBuf {
+    let file_name = executable
+        .file_name()
+        .and_then(OsStr::to_str)
+        .unwrap_or("artifact");
+    executable.with_file_name(format!("{file_name}.kain-run-cache.json"))
 }
 
 fn append_runtime_args(unit: &mut RunUnit, args: &[String]) {
@@ -1967,7 +2318,7 @@ fn discover_workspace_root(request: &RunRequest) -> RunResult<PathBuf> {
             }
         })
         .unwrap_or_else(|| request.workspace_path.clone());
-    Ok(discover_workspace(anchor)?.root)
+    Ok(discover_blade_workspace_root(anchor)?)
 }
 
 fn select_blade<'a>(
@@ -2127,10 +2478,12 @@ fn cached_llvm_executable_path(cache_root: &Path, source: &Path) -> RunResult<Pa
 }
 
 fn cached_artifact_hash(source: &Path) -> RunResult<String> {
-    let source_hash = kfs::hash_file(source)?;
     let adapter_fingerprint = run_adapter_cache_fingerprint()?;
     let mut hasher = DefaultHasher::new();
-    source_hash.hash(&mut hasher);
+    absolute_path(source)
+        .to_string_lossy()
+        .to_ascii_lowercase()
+        .hash(&mut hasher);
     adapter_fingerprint.hash(&mut hasher);
     Ok(format!("{:016x}", hasher.finish()))
 }
@@ -2138,9 +2491,15 @@ fn cached_artifact_hash(source: &Path) -> RunResult<String> {
 fn run_adapter_cache_fingerprint() -> RunResult<String> {
     let mut fingerprint = RUN_ADAPTER_VERSION.to_string();
     if let Ok(current_exe) = std::env::current_exe() {
-        let launcher_hash = kfs::hash_file(&current_exe)?;
+        let metadata = kfs::metadata(&current_exe)?;
         fingerprint.push('-');
-        fingerprint.push_str(&launcher_hash);
+        fingerprint.push_str(&current_exe.to_string_lossy());
+        fingerprint.push('-');
+        fingerprint.push_str(&metadata.len.to_string());
+        if let Some(modified_millis) = metadata.modified_millis {
+            fingerprint.push('-');
+            fingerprint.push_str(&modified_millis.to_string());
+        }
     }
     Ok(fingerprint)
 }
@@ -2358,6 +2717,10 @@ fn unix_timestamp_ms() -> u128 {
         .unwrap_or_default()
 }
 
+fn is_false(value: &bool) -> bool {
+    !*value
+}
+
 pub fn render_text_report(report: &RunReport) -> String {
     let mut out = String::new();
     out.push_str(&format!("Run {:?}: {:?}\n", report.mode, report.status));
@@ -2382,11 +2745,11 @@ pub fn render_text_report(report: &RunReport) -> String {
             out.push_str(unit.output.trim());
             out.push('\n');
         }
-        if !unit.stdout.trim().is_empty() {
+        if !unit.stdout_streamed && !unit.stdout.trim().is_empty() {
             out.push_str(unit.stdout.trim());
             out.push('\n');
         }
-        if !unit.stderr.trim().is_empty() {
+        if !unit.stderr_streamed && !unit.stderr.trim().is_empty() {
             out.push_str(unit.stderr.trim());
             out.push('\n');
         }
@@ -2406,11 +2769,11 @@ pub fn render_compact_output(report: &RunReport) -> String {
             out.push_str(unit.output.trim());
             out.push('\n');
         }
-        if !unit.stdout.trim().is_empty() {
+        if !unit.stdout_streamed && !unit.stdout.trim().is_empty() {
             out.push_str(unit.stdout.trim());
             out.push('\n');
         }
-        if !unit.stderr.trim().is_empty() {
+        if !unit.stderr_streamed && !unit.stderr.trim().is_empty() {
             out.push_str(unit.stderr.trim());
             out.push('\n');
         }
@@ -2494,6 +2857,42 @@ TinyPair tiny_make_pair(int left, int right);
         )
     }
 
+    fn shell_echo_command() -> Command {
+        if cfg!(windows) {
+            let mut command = Command::new("cmd");
+            command.args([
+                "/C",
+                "echo kain-run-stream-stdout&&echo kain-run-stream-stderr 1>&2",
+            ]);
+            command
+        } else {
+            let mut command = Command::new("sh");
+            command.args([
+                "-c",
+                "printf 'kain-run-stream-stdout\n'; printf 'kain-run-stream-stderr\n' >&2",
+            ]);
+            command
+        }
+    }
+
+    fn dummy_process_unit(cwd: &Path) -> RunUnit {
+        RunUnit {
+            id: "process".to_string(),
+            target: RunTarget::Node,
+            label: "process probe".to_string(),
+            cwd: cwd.to_path_buf(),
+            args: Vec::new(),
+            env: BTreeMap::new(),
+            stream_output: true,
+            inputs: Vec::new(),
+            adapter: RunAdapter::NodeLike {
+                runtime: NodeRuntimeKind::Node,
+                entry: PathBuf::from("probe.js"),
+                program: "node".to_string(),
+            },
+        }
+    }
+
     #[test]
     fn parses_run_targets() {
         assert_eq!(RunTarget::parse("auto").unwrap(), RunTarget::Auto);
@@ -2518,6 +2917,108 @@ TinyPair tiny_make_pair(int left, int right);
             infer_target_from_path(Path::new("KAIN.fabric.toml")),
             RunTarget::Fabric
         );
+    }
+
+    #[test]
+    fn c_compile_inputs_follow_quoted_header_closure() {
+        let temp = tempfile::tempdir().unwrap();
+        let source = temp.path().join("main.c");
+        let header = temp.path().join("math_utils.h");
+        let nested = temp.path().join("constants.h");
+        kfs::write_text(
+            &source,
+            "#include <stdio.h>\n#include \"math_utils.h\"\nint main(void) { return VALUE; }\n",
+        )
+        .unwrap();
+        kfs::write_text(
+            &header,
+            "#include \"constants.h\"\n#define VALUE BASE_VALUE\n",
+        )
+        .unwrap();
+        kfs::write_text(&nested, "#define BASE_VALUE 0\n").unwrap();
+
+        let inputs = c_compile_input_paths(&source).unwrap();
+
+        assert!(inputs.iter().any(|path| same_declared_path(path, &source)));
+        assert!(inputs.iter().any(|path| same_declared_path(path, &header)));
+        assert!(inputs.iter().any(|path| same_declared_path(path, &nested)));
+    }
+
+    #[test]
+    fn compiled_artifact_manifest_invalidates_when_known_input_changes() {
+        let temp = tempfile::tempdir().unwrap();
+        let entry = temp.path().join("main.kn");
+        let dependency = temp.path().join("dep.kn");
+        let executable = temp
+            .path()
+            .join(if cfg!(windows) { "main.exe" } else { "main" });
+        kfs::write_text(&entry, "fn main() -> Int:\n    return dep()\n").unwrap();
+        kfs::write_text(&dependency, "fn dep() -> Int:\n    return 1\n").unwrap();
+        std::thread::sleep(Duration::from_millis(30));
+        kfs::write_text(&executable, "fake executable").unwrap();
+
+        let manifest = build_run_artifact_cache_manifest(
+            "llvm",
+            "test compiler",
+            &[entry.clone(), dependency.clone()],
+            &BTreeMap::new(),
+        )
+        .unwrap()
+        .unwrap();
+        assert!(compiled_artifact_is_fresh(&executable, Some(&manifest)).unwrap());
+
+        let changed_command_manifest = build_run_artifact_cache_manifest(
+            "llvm",
+            "different compiler",
+            &[entry.clone(), dependency.clone()],
+            &BTreeMap::new(),
+        )
+        .unwrap()
+        .unwrap();
+        assert!(!compiled_artifact_is_fresh(&executable, Some(&changed_command_manifest)).unwrap());
+
+        std::thread::sleep(Duration::from_millis(30));
+        kfs::write_text(&dependency, "fn dep() -> Int:\n    return 2\n").unwrap();
+        let changed_manifest = build_run_artifact_cache_manifest(
+            "llvm",
+            "test compiler",
+            &[entry, dependency],
+            &BTreeMap::new(),
+        )
+        .unwrap()
+        .unwrap();
+        assert!(!compiled_artifact_is_fresh(&executable, Some(&changed_manifest)).unwrap());
+    }
+
+    #[test]
+    fn streamed_process_output_is_captured_without_compact_duplicate() {
+        let temp = tempfile::tempdir().unwrap();
+        let unit = dummy_process_unit(temp.path());
+        let execution = run_process(shell_echo_command(), &unit, None).unwrap();
+
+        assert!(execution.stdout.contains("kain-run-stream-stdout"));
+        assert!(execution.stderr.contains("kain-run-stream-stderr"));
+        assert!(execution.stdout_streamed);
+        assert!(execution.stderr_streamed);
+
+        let report = RunReport {
+            workspace_root: temp.path().to_path_buf(),
+            cache_root: temp.path().join(".kain").join("cache").join("run"),
+            report_path: temp.path().join("run.json"),
+            events_path: temp.path().join("run.jsonl"),
+            mode: RunMode::Once,
+            requested_target: RunTarget::Node,
+            status: RunStatus::Succeeded,
+            started_unix_ms: 0,
+            finished_unix_ms: 1,
+            dry_run: false,
+            build_graph: None,
+            platform_locks: Vec::new(),
+            units: vec![execution],
+        };
+        let compact = render_compact_output(&report);
+        assert!(!compact.contains("kain-run-stream-stdout"));
+        assert!(!compact.contains("kain-run-stream-stderr"));
     }
 
     #[test]

@@ -1,5 +1,29 @@
 # Kain Memory
 
+# 2026-06-04 - `kain run` and cached LLVM file builds avoid debug-binary hash tax
+
+What changed:
+
+- Reworked `crates/run/src/lib.rs` so external process execution streams stdout/stderr live through reader threads while still capturing both streams for JSON reports. Text/compact reports suppress duplicate final output when a stream was already shown live.
+- Added run artifact manifests for LLVM and C adapters. Warm LLVM `kain run` now checks source/input snapshots and skips the self-spawn compiler path when the cached executable is fresh; C cache invalidation now follows quoted local `#include "..."` header closures instead of hashing only the main C file.
+- Changed run artifact cache keys to use source path identity plus launcher path/size/mtime metadata instead of hashing the full Bazel debug `kain.exe` on every `run plan`.
+- Changed `crates/build/src/workspace.rs` task stamps to fingerprint the current launcher by path/size/mtime instead of content while still hashing real task inputs by content. This removes the same full-binary read from cached file builds.
+- The remaining architectural cleanup is still real: interpreted `run_kain` still uses temporary process cwd/env mutation, and the LLVM cold compile path still shells through the CLI rather than a fully in-process driver materialization.
+
+Validation:
+
+- `cargo test -p kain-run --no-default-features --target-dir Z:\_b\cargo-target\kain-run-speed-nodefault`
+- `bazel test //crates/run:unit_test --config=dev`
+- `bazel test //crates/build:unit_test --config=dev`
+- `bazel build //:kain --config=dev`
+- `cargo test -p kain-build --no-default-features --target-dir Z:\_b\cargo-target\kain-build-speed-nodefault` was attempted but timed out during full workspace compilation; Bazel build-crate unit coverage passed.
+
+Timing evidence through `Z:\_b\output-user-root\n2kwlvv2\execroot\_main\bazel-out\x64_windows-dbg\bin\crates\cli\kain.exe` on `X:\.kain\state\tmp\run-speed-proof\probe-zero-metakey.kn`:
+
+- Before the cache-key fix, warm `kain run ... --target llvm` was about 10.2-10.8s and `kain run plan ...` about 5.2s.
+- After the fix, five-sample warm timings were `run plan`: 28.4-37.5ms, warm `run`: 38.0-40.3ms, cached `build --target llvm`: 115.7-131.7ms.
+- `kain check` on the same tiny file measured about 149ms through the debug launcher.
+
 # 2026-06-04 - CUDA/PTX runtime `capture_once` validated and hardened end-to-end
 
 What changed:

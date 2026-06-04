@@ -4984,7 +4984,7 @@ fn task_stamp(task: &BuildTask, plan: &BladeBuildPlan) -> BuildResult<String> {
     let mut hasher = Sha256::new();
     hasher.update(BUILD_ADAPTER_VERSION.as_bytes());
     if let Ok(current_exe) = std::env::current_exe() {
-        hash_path_into(&mut hasher, &current_exe)?;
+        hash_current_exe_identity_into(&mut hasher, &current_exe)?;
     }
     hasher.update(plan.host.as_bytes());
     hasher.update(plan.lane.as_str().as_bytes());
@@ -5010,6 +5010,19 @@ fn task_stamp(task: &BuildTask, plan: &BladeBuildPlan) -> BuildResult<String> {
         hasher.update(output.display().to_string().as_bytes());
     }
     Ok(format!("{:x}", hasher.finalize()))
+}
+
+fn hash_current_exe_identity_into(hasher: &mut Sha256, path: &Path) -> BuildResult<()> {
+    hasher.update(path.display().to_string().as_bytes());
+    if let Ok(metadata) = kfs::metadata(path) {
+        hasher.update(b":len=");
+        hasher.update(metadata.len.to_string().as_bytes());
+        if let Some(modified_millis) = metadata.modified_millis {
+            hasher.update(b":modified=");
+            hasher.update(modified_millis.to_string().as_bytes());
+        }
+    }
+    Ok(())
 }
 
 fn hash_path_into(hasher: &mut Sha256, path: &Path) -> BuildResult<()> {
