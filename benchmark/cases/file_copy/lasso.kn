@@ -1,0 +1,62 @@
+use std::fs
+use std::path
+use std::process
+use std::text
+
+const RAW_RELATIVE_ROOT: String = "benchmark/cases/file_copy/raw/kain"
+const EXPECTED_FILES: Int = 962
+const EXPECTED_BYTES: Int = 4474583
+
+fn norm(value: String) -> String:
+    var path_key = to_lower(text_replace_string(value, "/", "\\"))
+    if text_starts_with_string(path_key, "\\\\?\\"): path_key = substring(path_key, 4, len(path_key))
+    if text_starts_with_string(path_key, ".\\"): path_key = substring(path_key, 2, len(path_key))
+    while len(path_key) > 3 and text_ends_with_string(path_key, "\\"):
+        path_key = substring(path_key, 0, len(path_key) - 1)
+    return path_key
+
+fn main() -> Int:
+    let root = norm(process_current_working_directory())
+    let raw = path_join(root, RAW_RELATIVE_ROOT)
+    let skip = norm(path_join(root, "benchmark/cases/file_copy"))
+    let skip_prefix = skip + "\\"
+    if fs_exists(raw): fs_remove_dir_all(raw)
+    fs_create_dir_all(raw)
+    let roots: Array<String> = ["blades", "benchmark/cases_v2", "benchmark/cases", "smoketest/src"]
+    var copied_files: Int = 0
+    var copied_bytes: Int = 0
+    var source_index: Int = 0
+    while source_index < len(roots):
+        let source_root = path_join(root, roots[source_index])
+        if fs_exists(source_root) == false:
+            println("missing source root: " + source_root)
+            return 1
+        println("scan " + source_root)
+        let entries = fs_walk(source_root)
+        var entry_index: Int = 0
+        while entry_index < len(entries):
+            let entry_path = entries[entry_index].path
+            let key = norm(entry_path)
+            if key == skip or text_starts_with_string(key, skip_prefix):
+                entry_index = entry_index + 1
+            else:
+                if fs_is_file(entry_path) and text_ends_with_string(key, ".kn"):
+                    let rel = substring(key, len(root) + 1, len(key))
+                    var dest = path_join(raw, rel)
+                    if to_lower(path_file_name(rel)) == "main.kn":
+                        let parent = path_parent(rel)
+                        if parent != "" and path_file_name(parent) != "":
+                            dest = path_join(raw, path_join(parent, path_file_name(parent) + ".kn"))
+                    let content = fs_read_text(entry_path)
+                    let content_len = len(content)
+                    let dest_parent = path_parent(dest)
+                    if dest_parent != "": fs_create_dir_all(dest_parent)
+                    fs_atomic_write_text(dest, content)
+                    copied_files = copied_files + 1
+                    copied_bytes = copied_bytes + content_len
+                entry_index = entry_index + 1
+        source_index = source_index + 1
+    println("files=" + str(copied_files) + " bytes=" + str(copied_bytes))
+    if copied_files != EXPECTED_FILES or copied_bytes != EXPECTED_BYTES:
+        return 2
+    return 0

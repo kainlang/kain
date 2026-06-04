@@ -1311,6 +1311,41 @@
       ]
     },
     {
+      "id": "file_copy",
+      "title": "File Copy",
+      "description": "Copies every .kn file from blades/, benchmark/cases_v2, benchmark/cases, and smoketest/src into case-local raw trees, renaming main.kn to the parent folder name and skipping benchmark/cases/file_copy so the benchmark does not recurse into itself.",
+      "maturity": "implemented",
+      "fairness_note": "Both languages scan the same four roots, apply the same self-skip rule, rename main.kn the same way, and write into separate raw subtrees under benchmark/cases/file_copy.",
+      "telemetry": {
+        "primary_metric_id": "copied_bytes_per_second",
+        "metrics": [
+          {
+            "id": "copied_files_per_second",
+            "label": "copied files/s",
+            "unit": "files/s",
+            "work_items": 962
+          },
+          {
+            "id": "copied_bytes_per_second",
+            "label": "copied bytes/s",
+            "unit": "bytes/s",
+            "work_items": 4474583
+          }
+        ]
+      },
+      "languages": {
+        "kain": "cases/file_copy/lasso.kn",
+        "rust": "cases/file_copy/lasso.rs"
+      },
+      "tags": [
+        "runtime",
+        "systems"
+      ],
+      "suites": [
+        "full"
+      ]
+    },
+    {
       "id": "process_stdio_loop",
       "title": "Process STDIO Loop",
       "description": "Repeated child-process spawn plus stdout capture through the host shell. This measures command launch and stdio pipe overhead rather than computation.",
