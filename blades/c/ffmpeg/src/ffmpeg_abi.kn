@@ -1,0 +1,139 @@
+include "../native/ffmpeg_bridge.h" as ff
+include "../native/editor_presenter.h" as ui
+include <libavutil/avutil.h> as avu
+include <libavcodec/avcodec.h> as avc
+include <libavformat/avformat.h> as avf
+include <libswscale/swscale.h> as sws
+
+const FFMPEG_ABI_MODULUS: Int = 1000000007
+
+pub struct FfmpegVersionReport:
+    bridge_score: Int
+    angle_score: Int
+    avutil: Int
+    avcodec: Int
+    avformat: Int
+    swscale: Int
+
+pub fn ffmpeg_bridge_version_report() -> FfmpegVersionReport:
+    let util = ff_avutil_version()
+    let codec = ff_avcodec_version()
+    let format = ff_avformat_version()
+    let scale = ff_swscale_version()
+    return FfmpegVersionReport {
+        bridge_score: (util + codec + format + scale) % FFMPEG_ABI_MODULUS,
+        angle_score: (avu_version() + avc_version() + avf_version() + sws_version()) % FFMPEG_ABI_MODULUS,
+        avutil: util,
+        avcodec: codec,
+        avformat: format,
+        swscale: scale
+    }
+
+pub fn ffmpeg_version_mismatch_score(report: FfmpegVersionReport) -> Int:
+    if report.bridge_score != report.angle_score:
+        return 1
+    if report.avutil <= 0 or report.avcodec <= 0 or report.avformat <= 0 or report.swscale <= 0:
+        return 2
+    return 0
+
+pub fn ffmpeg_open_media(path: String) -> Int:
+    return ff_open_media(path)
+
+pub fn ffmpeg_close_media(media: Int) -> Int:
+    return ff_close_media(media)
+
+pub fn ffmpeg_best_video_stream(media: Int) -> Int:
+    return ff_best_video_stream(media)
+
+pub fn ffmpeg_stream_count(media: Int) -> Int:
+    return ff_stream_count(media)
+
+pub fn ffmpeg_duration_ms(media: Int) -> Int:
+    return ff_duration_ms(media)
+
+pub fn ffmpeg_video_width(media: Int, stream: Int) -> Int:
+    return ff_video_width(media, stream)
+
+pub fn ffmpeg_video_height(media: Int, stream: Int) -> Int:
+    return ff_video_height(media, stream)
+
+pub fn ffmpeg_video_fps_num(media: Int, stream: Int) -> Int:
+    return ff_video_fps_num(media, stream)
+
+pub fn ffmpeg_video_fps_den(media: Int, stream: Int) -> Int:
+    return ff_video_fps_den(media, stream)
+
+pub fn ffmpeg_video_codec_name(media: Int, stream: Int) -> String:
+    return ff_video_codec_name(media, stream)
+
+pub fn ffmpeg_decoder_create(media: Int, stream: Int) -> Int:
+    return ff_decoder_create(media, stream)
+
+pub fn ffmpeg_decoder_destroy(decoder: Int) -> Int:
+    return ff_decoder_destroy(decoder)
+
+pub fn ffmpeg_decoder_seek_ms(decoder: Int, timestamp_ms: Int) -> Int:
+    return ff_decoder_seek_ms(decoder, timestamp_ms)
+
+pub fn ffmpeg_decode_next(decoder: Int) -> Int:
+    return ff_decoder_decode_next(decoder)
+
+pub fn ffmpeg_decoder_width(decoder: Int) -> Int:
+    return ff_decoder_width(decoder)
+
+pub fn ffmpeg_decoder_height(decoder: Int) -> Int:
+    return ff_decoder_height(decoder)
+
+pub fn ffmpeg_decoder_frame_index(decoder: Int) -> Int:
+    return ff_decoder_frame_index(decoder)
+
+pub fn ffmpeg_decoder_frame_pts_ms(decoder: Int) -> Int:
+    return ff_decoder_frame_pts_ms(decoder)
+
+pub fn ffmpeg_decoder_frame_word_count(decoder: Int) -> Int:
+    return ff_decoder_frame_word_count(decoder)
+
+pub fn ffmpeg_decoder_frame_checksum(decoder: Int) -> Int:
+    return ff_decoder_frame_checksum(decoder)
+
+pub fn ffmpeg_copy_rgba_words(decoder: Int, words_address: Int, word_capacity: Int) -> Int:
+    return ff_copy_rgba_words(decoder, words_address, word_capacity)
+
+pub fn ffmpeg_live_media_count() -> Int:
+    return ff_live_media_count()
+
+pub fn ffmpeg_live_decoder_count() -> Int:
+    return ff_live_decoder_count()
+
+pub fn ffmpeg_last_status() -> Int:
+    return ff_last_status()
+
+pub fn ffmpeg_last_error() -> String:
+    return ff_last_error()
+
+pub fn presenter_open(title: String, width: Int, height: Int) -> Int:
+    return ui_open(title, width, height)
+
+pub fn presenter_pump(handle: Int) -> Int:
+    return ui_pump(handle)
+
+pub fn presenter_should_close(handle: Int) -> Int:
+    return ui_should_close(handle)
+
+pub fn presenter_present_rgba_words(handle: Int, words_address: Int, width: Int, height: Int, word_count: Int, playhead_ms: Int, frame_checksum: Int, clip_count: Int) -> Int:
+    return ui_present_rgba_words(handle, words_address, width, height, word_count, playhead_ms, frame_checksum, clip_count)
+
+pub fn presenter_close(handle: Int) -> Int:
+    return ui_close(handle)
+
+pub fn presenter_frame_count(handle: Int) -> Int:
+    return ui_frame_count(handle)
+
+pub fn presenter_frame_hash(handle: Int) -> Int:
+    return ui_frame_hash(handle)
+
+pub fn presenter_last_status() -> Int:
+    return ui_last_status()
+
+pub fn presenter_last_error() -> String:
+    return ui_last_error()

@@ -1,0 +1,43 @@
+use std::process
+use ffmpeg_config::ffmpeg_ensure_fixture
+use ffmpeg_config::ffmpeg_fixture_path
+use gauntlet::run_ffmpeg_editor_gauntlet
+
+fn selected_path() -> String:
+    if process_arg_count() > 1:
+        return process_arg(1)
+    return ffmpeg_fixture_path()
+
+fn selected_frames() -> Int:
+    if process_arg_count() > 2:
+        return to_int(process_arg(2))
+    return 45
+
+fn selected_gui() -> Bool:
+    if process_arg_count() > 3:
+        let mode = process_arg(3)
+        return mode == "--gui" or mode == "gui"
+    return false
+
+fn main() -> Int with Unsafe:
+    let path = selected_path()
+    let fixture_status = ffmpeg_ensure_fixture(path)
+    if fixture_status != 0:
+        println("ffmpeg_fixture_failed status=" + str(fixture_status) + " path=" + path)
+        return 90
+
+    let report = run_ffmpeg_editor_gauntlet(path, selected_frames(), selected_gui())
+    println(
+        "ffmpeg_gauntlet status=" + str(report.status) +
+        " frames=" + str(report.frames_decoded) +
+        " copied_words=" + str(report.copied_words) +
+        " media_score=" + str(report.media_score) +
+        " native_checksum=" + str(report.native_checksum) +
+        " kain_checksum=" + str(report.kain_checksum) +
+        " presenter_frames=" + str(report.presenter_frames) +
+        " presenter_hash=" + str(report.presenter_hash) +
+        " live_media=" + str(report.live_media) +
+        " live_decoders=" + str(report.live_decoders) +
+        " detail=" + report.detail
+    )
+    return report.status

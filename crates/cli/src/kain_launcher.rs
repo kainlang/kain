@@ -5516,13 +5516,17 @@ fn resolve_c_ffi_native_link_inputs(
         .filter(|path| !path.as_os_str().is_empty())
         .map(Path::to_path_buf)
         .or_else(|| std::env::current_dir().ok());
-    let mut import_names = BTreeSet::new();
-    import_names.extend(kain_c_ffi::detect_c_library_imports(source));
-    import_names.extend(discover_project_c_ffi_import_names(
-        source_path,
-        prepare_dir.as_deref(),
-    ));
-    if import_names.is_empty() {
+    let import_specs = kain_c_ffi::detect_c_library_import_specs(source);
+    let mut imported_names = import_specs
+        .iter()
+        .map(|spec| spec.import_name.clone())
+        .collect::<BTreeSet<_>>();
+    let project_import_names =
+        discover_project_c_ffi_import_names(source_path, prepare_dir.as_deref())
+            .into_iter()
+            .filter(|name| imported_names.insert(name.clone()))
+            .collect::<Vec<_>>();
+    if import_specs.is_empty() && project_import_names.is_empty() {
         return Ok(CffiNativeLinkInputs::default());
     }
     let prepare = CPrepareContext {
@@ -5533,7 +5537,22 @@ fn resolve_c_ffi_native_link_inputs(
     let mut link_inputs = Vec::new();
     let mut link_libs = Vec::new();
     let compile_args = native_toolchain_tuning.clang_compile_args();
-    for import_name in import_names {
+    for spec in import_specs {
+        let output = kain_c_ffi::import_library_for_spec(
+            &spec,
+            &CImportCOptions {
+                mode: CArtifactMode::Generate,
+                ..CImportCOptions::default()
+            },
+            &prepare,
+        )
+        .map_err(|err| err.to_string())?;
+        let inputs = kain_c_ffi::prepare_native_link_inputs(&output, clang_cmd, &compile_args)
+            .map_err(|err| err.to_string())?;
+        link_inputs.extend(inputs.link_inputs);
+        link_libs.extend(inputs.link_libs);
+    }
+    for import_name in project_import_names {
         let output = kain_c_ffi::import_library(
             &import_name,
             &CImportCOptions {
@@ -7465,6 +7484,43 @@ pub fn helper_lane() -> Int:
             Some("bc")
         );
         assert!(link_inputs.link_inputs[0].exists());
+    }
+
+    #[test]
+    fn c_ffi_native_link_inputs_preserve_system_include_specs_from_frontend_bundle() {
+        let temp_dir = tempfile::tempdir().expect("temp dir");
+        let src_dir = temp_dir.path().join("src");
+        fs::create_dir_all(&src_dir).expect("src dir");
+
+        let main_path = src_dir.join("main.kn");
+        fs::write(
+            &main_path,
+            r#"
+use c::math
+include <math.h> as cmath
+
+fn main() -> Int:
+    return 0
+"#,
+        )
+        .expect("main");
+
+        let source = fs::read_to_string(&main_path).expect("read main");
+        let clang_cmd = find_bundled_clang().unwrap_or_else(|| "clang".to_string());
+        let tuning =
+            parse_native_toolchain_tuning(Some("debug"), None, None, None).expect("debug tuning");
+        let link_inputs = resolve_c_ffi_native_link_inputs(
+            &source,
+            Some(main_path.as_path()),
+            &clang_cmd,
+            &tuning,
+        )
+        .expect("system include c ffi link inputs");
+
+        assert!(link_inputs.link_inputs.is_empty());
+        if !cfg!(windows) {
+            assert!(!link_inputs.link_libs.is_empty());
+        }
     }
 
     #[test]

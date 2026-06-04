@@ -1,5 +1,32 @@
 # Kain Bug Log
 
+## 2026-06-03 - cli/run-cache
+### `kain run --target llvm` can reuse stale executables after imported module edits
+
+- Categories: cli, run-cache, llvm, modules, developer-experience
+- Severity: Medium
+- Status: Open in tree (2026-06-03)
+- Surface: project `kain run --target llvm` cache under blade-local `.kain/cache/run`.
+- Trigger: Editing an imported Kain module in the FFmpeg C ABI blade after a successful project run.
+- Symptom:
+  - `kain check blades/c/ffmpeg --target llvm` saw the current source and passed.
+  - `kain run blades/c/ffmpeg --target llvm` still reused the prior cached executable and returned the old `runtime_heap_validate` failure branch even after the imported `gauntlet.kn` condition was patched.
+  - Clearing `blades/c/ffmpeg/.kain/cache/run` forced recompilation and picked up the current source.
+- Why this is a bug: an LLVM run cache that ignores imported module changes can validate or fail the wrong program. This is especially dangerous for C ABI work because stale executables can masquerade as runtime or bridge defects.
+- Minimal repro:
+  - Run `kain run blades/c/ffmpeg --target llvm`.
+  - Edit an imported module such as `blades/c/ffmpeg/src/gauntlet.kn`.
+  - Rerun `kain check blades/c/ffmpeg --target llvm` and then `kain run blades/c/ffmpeg --target llvm`.
+  - Observe whether the run executable path/hash changes without deleting `blades/c/ffmpeg/.kain/cache/run`.
+- Evidence:
+  - During the FFmpeg gauntlet bring-up, `kain run` reused `main-ba2848d737440555.exe` after edits to imported modules and kept reporting `status=42 detail=runtime heap validation failed`.
+  - After safely deleting `X:\blades\c\ffmpeg\.kain\cache\run`, the rebuilt lane reflected the current source and later passed both headless and GUI FFmpeg runs.
+- Current workaround:
+  - Delete only the blade-local run cache before rerunning when imported modules changed and the executable behavior does not match source: `blades/<name>/.kain/cache/run`.
+- Suggested direction:
+  - Include the frontend full-source bundle or dependency graph fingerprints in the run-cache key so imported `.kn` changes invalidate the cached executable.
+  - Emit the cache hit/miss and source fingerprint in the run report so stale executable suspicions are easy to confirm.
+
 ## 2026-06-03 - llvm/value-semantics
 ### `let copy: Self = _self` inside a struct method can corrupt returned values in native LLVM runs
 

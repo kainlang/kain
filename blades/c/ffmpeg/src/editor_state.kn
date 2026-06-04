@@ -1,0 +1,94 @@
+const EDITOR_MODULUS: Int = 1000000007
+
+component FfmpegEditorPanel():
+    render <panel title="Kain FFmpeg Editor Gauntlet" />
+
+world EditorAuthority:
+    state playhead_ms: Int = 0
+    state frame_index: Int = 0
+    state clip_count: Int = 1
+    state media_score: Int = 0
+    surface native_ui => FfmpegEditorPanel
+
+world PreviewMirror:
+    state playhead_copy_ms: Int = 0
+    state frame_copy_index: Int = 0
+    state clip_copy_count: Int = 1
+    state media_score_copy: Int = 0
+    surface web => FfmpegEditorPanel
+
+entangle EditorAuthority.playhead_ms <-> PreviewMirror.playhead_copy_ms with single_writer
+entangle EditorAuthority.frame_index <-> PreviewMirror.frame_copy_index with single_writer
+entangle EditorAuthority.clip_count <-> PreviewMirror.clip_copy_count with single_writer
+entangle EditorAuthority.media_score <-> PreviewMirror.media_score_copy with single_writer
+
+law clip_range_valid(start_ms: Int, end_ms: Int) -> Bool:
+    return start_ms >= 0 and end_ms >= start_ms
+
+law frame_capacity_valid(width: Int, height: Int, words: Int) -> Bool:
+    return width > 0 and height > 0 and words >= width * height
+
+patch commit_editor_frame(authority: EditorAuthority, playhead_ms: Int, frame_index: Int, media_score: Int) -> Int:
+    authority.playhead_ms = playhead_ms
+    authority.frame_index = frame_index
+    authority.media_score = media_score
+    return authority.media_score
+
+shatter struct ClipSpan:
+    start_ms: Int
+    end_ms: Int
+    source_stream: Int
+    hot: Bool
+
+actor DecodeRelay:
+    state bias: Int = 29
+
+    on Fold(reply_to: P, request: Int):
+        send reply_to.Reply(value = (request + self.bias) % EDITOR_MODULUS)
+
+pub struct MediaProbe:
+    path: String
+    stream_index: Int
+    stream_count: Int
+    duration_ms: Int
+    width: Int
+    height: Int
+    fps_num: Int
+    fps_den: Int
+    codec: String
+
+pub struct EditorReport:
+    status: Int
+    version_score: Int
+    media_score: Int
+    frames_decoded: Int
+    copied_words: Int
+    native_checksum: Int
+    kain_checksum: Int
+    presenter_frames: Int
+    presenter_hash: Int
+    live_media: Int
+    live_decoders: Int
+    detail: String
+
+fn timeline_mix_spec(playhead_ms: Int, frame_index: Int, media_score: Int) -> Int:
+    return (((playhead_ms + 17) * 31) + ((frame_index + 3) * 131) + media_score) % EDITOR_MODULUS
+
+converge timeline_mix(playhead_ms: Int, frame_index: Int, media_score: Int) -> Int:
+    spec reference:
+        return timeline_mix_spec(playhead_ms, frame_index, media_score)
+    fast llvm_lane when target("llvm"):
+        return (((playhead_ms + 17) * 31) + ((frame_index + 3) * 131) + media_score) % EDITOR_MODULUS
+    verify random(8)
+
+pub fn media_probe_score(probe: MediaProbe) -> Int:
+    let fps_den = if probe.fps_den <= 0:
+        1
+    else:
+        probe.fps_den
+    let pixel_score = (probe.width * probe.height) % EDITOR_MODULUS
+    let fps_score = (probe.fps_num * 1000) / fps_den
+    return (pixel_score + fps_score + probe.duration_ms + probe.stream_count + len(probe.codec)) % EDITOR_MODULUS
+
+pub fn timeline_frame_score(playhead_ms: Int, frame_index: Int, media_score: Int) -> Int:
+    return timeline_mix(playhead_ms, frame_index, media_score)

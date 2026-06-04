@@ -1,5 +1,28 @@
 # Kain Memory
 
+# 2026-06-03 - FFmpeg include-first C ABI gauntlet and GUI presenter blade
+
+What changed:
+
+- Added `blades/c/ffmpeg` as a real include-first C ABI stress blade over the local FFmpeg 8.1.1 shared install. The Kain source owns fixture generation, version checks, media probing, decode orchestration, raw frame-buffer ownership, timeline scoring, teardown validation, and optional GUI presentation.
+- Registered FFmpeg as a C system-header family in `crates/c-ffi/system_headers.toml` for `include <libavutil/avutil.h>`, `<libavcodec/avcodec.h>`, `<libavformat/avformat.h>`, and `<libswscale/swscale.h>`, backed by the scalar-safe shim `runtime/native/include/ffmpeg_version_subset.h`.
+- Fixed C-FFI native link prep so inline/bitcode tier libraries carry declared object/static/shared link inputs, and fixed native linker import resolution so include specs survive frontend bundles instead of degrading to bare `use c::...` names.
+- Added a minimal C bridge only for hard-native needs: FFmpeg handles/decode/RGBA copy and a Win32/GDI presenter. Kain remains the app and policy layer.
+
+Validation:
+
+- `kain check blades/c/ffmpeg --target llvm` passed `6/6` through the fresh Bazel-built CLI.
+- `kain run blades/c/ffmpeg --target llvm` passed headless with `status=0`, `frames=45`, `copied_words=2592000`, and zero live FFmpeg handles.
+- `kain run blades/c/ffmpeg --target llvm -- ../.kain/fixtures/ffmpeg_gauntlet_testsrc.mp4 6 --gui` passed with `presenter_frames=6` and a nonzero presenter hash.
+- Targeted C-FFI regressions passed: `include_specs_win_duplicate_generated_use_c_imports` and `inline_tier_carries_declared_static_libraries_as_link_inputs`.
+
+Operational notes:
+
+- New Kain code should use `include ... as ...` for this lane; `kain import-c` remains reconnaissance, not the app pipeline.
+- Do not name Kain facade wrappers exactly the same as raw C symbols emitted by an include alias. That caused GUI-mode recursion when a Kain `editor_presenter_open` wrapper shadowed the raw C symbol behind `ui_open`.
+- If `kain run` behavior does not match imported-module edits, clear the blade-local `.kain/cache/run`; this pass logged a run-cache bug because the stale executable survived a `gauntlet.kn` edit until the cache was removed.
+- For tool-driven fixture generation, prefer `std::process` specs with explicit args over shell strings. The existing `process_output_text`/`os_system` `-5` Windows spawn issue is already tracked in `FEEDBACK.md`.
+
 # 2026-06-04 - `kain run` and cached LLVM file builds avoid debug-binary hash tax
 
 What changed:

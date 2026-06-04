@@ -1,0 +1,39 @@
+[package]
+name = "ffmpeg-editor-gauntlet"
+version = "0.1.0"
+description = "Include-first Kain C ABI gauntlet for FFmpeg and a tiny native presenter."
+
+[build]
+entry = "src/main.kn"
+artifact_root = ".kain/out/llvm"
+cache_root = ".kain/cache/build"
+profile = "debug"
+
+[c_ffi]
+tier = "inline"
+include_paths = [
+  "native",
+  "${env:KAIN_PLATFORM_FFMPEG_SDK}/include",
+]
+
+[[c_ffi.libraries]]
+name = "ffmpeg_bridge"
+header = "native/ffmpeg_bridge.h"
+sources = ["native/ffmpeg_bridge.c"]
+include_paths = [
+  "native",
+  "${env:KAIN_PLATFORM_FFMPEG_SDK}/include",
+]
+static_libs = [
+  "${env:KAIN_PLATFORM_FFMPEG_SDK}/lib/avformat.lib",
+  "${env:KAIN_PLATFORM_FFMPEG_SDK}/lib/avcodec.lib",
+  "${env:KAIN_PLATFORM_FFMPEG_SDK}/lib/avutil.lib",
+  "${env:KAIN_PLATFORM_FFMPEG_SDK}/lib/swscale.lib",
+]
+
+[[c_ffi.libraries]]
+name = "editor_presenter"
+header = "native/editor_presenter.h"
+sources = ["native/editor_presenter.c"]
+include_paths = ["native"]
+link_libs = ["user32", "gdi32"]

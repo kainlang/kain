@@ -545,7 +545,7 @@ pub fn os_system(command: String) -> Int:
     var shell_arg = "-c"
     let tgt = target_current()
     match tgt.os:
-        OS::Windows => shell = "cmd.exe"
+        OS::Windows => shell = os_getenv_default("ComSpec", "C:/Windows/System32/cmd.exe")
         _ => shell = shell
     match tgt.os:
         OS::Windows => shell_arg = "/c"
@@ -558,7 +558,7 @@ pub fn os_popen_read(command: String, timeout_ms: Int) -> String:
     var shell_arg = "-c"
     let tgt = target_current()
     match tgt.os:
-        OS::Windows => shell = "cmd.exe"
+        OS::Windows => shell = os_getenv_default("ComSpec", "C:/Windows/System32/cmd.exe")
         _ => shell = shell
     match tgt.os:
         OS::Windows => shell_arg = "/c"

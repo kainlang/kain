@@ -165,6 +165,14 @@ pub fn import_library(
     import_library_spec(&CLibraryImportSpec::use_c(import_name), options, prepare)
 }
 
+pub fn import_library_for_spec(
+    spec: &CLibraryImportSpec,
+    options: &ImportCOptions,
+    prepare: &PrepareContext,
+) -> Result<ImportCOutput, KainError> {
+    import_library_spec(spec, options, prepare)
+}
+
 fn import_library_spec(
     spec: &CLibraryImportSpec,
     options: &ImportCOptions,
@@ -173,11 +181,7 @@ fn import_library_spec(
     register();
     let (resolved, manifest_context) = resolve_library_spec(spec, prepare)?;
     let fingerprints = collect_binding_fingerprints(&resolved)?;
-    let hash = build_cache_hash(
-        &resolved,
-        &fingerprints,
-        BRIDGE_FORMAT_VERSION,
-    );
+    let hash = build_cache_hash(&resolved, &fingerprints, BRIDGE_FORMAT_VERSION);
     let cache_dir = default_cache_root(prepare).join("c_ffi").join(hash);
     kfs::create_dir_all(&cache_dir).map_err(fs_to_kain_error)?;
 
@@ -283,6 +287,17 @@ pub fn prepare_native_link_inputs(
             )?;
             let compiled = compile_c_sources_to_bitcode(output, clang_cmd, compile_args)?;
             inputs.link_inputs.extend(compiled);
+            push_existing_paths(&mut inputs.link_inputs, &resolved.object_paths, "object")?;
+            push_existing_paths(
+                &mut inputs.link_inputs,
+                &resolved.static_lib_paths,
+                "static library",
+            )?;
+            if let Some(shared) = &resolved.shared_lib_path {
+                inputs
+                    .link_inputs
+                    .push(resolve_linkable_shared_library(shared)?);
+            }
             if inputs.link_inputs.is_empty() {
                 return Err(KainError::runtime(format!(
                     "C FFI {:?} import '{}' requires `sources` or `bitcode` entries",
@@ -336,11 +351,9 @@ pub fn augment_source_for_runtime(
         if spec.origin == CLibraryImportOrigin::Include {
             if let Some(alias) = spec.alias.as_deref() {
                 let demanded_aliases = collect_include_alias_demands(source, alias);
-                if let Some(alias_source) = render_include_alias_source(
-                    &output,
-                    alias,
-                    demanded_aliases.as_ref(),
-                ) {
+                if let Some(alias_source) =
+                    render_include_alias_source(&output, alias, demanded_aliases.as_ref())
+                {
                     sections.push(alias_source);
                     continue;
                 }
@@ -369,20 +382,19 @@ pub fn detect_c_library_import_specs(source: &str) -> Vec<CLibraryImportSpec> {
         )
         .expect("regex")
     });
-    let mut seen = BTreeSet::new();
-    let mut imports = Vec::new();
+    let mut candidates = Vec::new();
     for captures in USE_C_REGEX.captures_iter(source) {
         if let Some(value) = captures.get(1) {
-            let import_name = value.as_str().to_string();
-            if seen.insert(import_name.clone()) {
-                imports.push(CLibraryImportSpec {
-                    import_name,
+            candidates.push((
+                captures.get(0).map(|m| m.start()).unwrap_or(usize::MAX),
+                CLibraryImportSpec {
+                    import_name: value.as_str().to_string(),
                     alias: None,
                     origin: CLibraryImportOrigin::UseC,
                     include_target: None,
                     include_search: None,
-                });
-            }
+                },
+            ));
         }
     }
     for captures in INCLUDE_REGEX.captures_iter(source) {
@@ -396,8 +408,9 @@ pub fn detect_c_library_import_specs(source: &str) -> Vec<CLibraryImportSpec> {
         if import_name.is_empty() {
             continue;
         }
-        if seen.insert(import_name.clone()) {
-            imports.push(CLibraryImportSpec {
+        candidates.push((
+            captures.get(0).map(|m| m.start()).unwrap_or(usize::MAX),
+            CLibraryImportSpec {
                 import_name,
                 alias: captures.get(4).map(|value| value.as_str().to_string()),
                 origin: CLibraryImportOrigin::Include,
@@ -407,8 +420,27 @@ pub fn detect_c_library_import_specs(source: &str) -> Vec<CLibraryImportSpec> {
                 } else {
                     CIncludeSearch::Local
                 }),
-            });
+            },
+        ));
+    }
+
+    candidates.sort_by_key(|(position, _)| *position);
+    let mut seen: BTreeMap<String, usize> = BTreeMap::new();
+    let mut imports: Vec<CLibraryImportSpec> = Vec::new();
+    for (_, candidate) in candidates {
+        if let Some(index) = seen.get(&candidate.import_name).copied() {
+            // Include forms carry target/search metadata. If a frontend bundle
+            // contains generated `use c::...` plus the original include, keep
+            // the original order but upgrade the spec to the richer include.
+            if imports[index].origin == CLibraryImportOrigin::UseC
+                && candidate.origin == CLibraryImportOrigin::Include
+            {
+                imports[index] = candidate;
+            }
+            continue;
         }
+        seen.insert(candidate.import_name.clone(), imports.len());
+        imports.push(candidate);
     }
     imports
 }
@@ -2022,6 +2054,20 @@ mod tests {
     }
 
     #[test]
+    fn include_specs_win_duplicate_generated_use_c_imports() {
+        let specs = detect_c_library_import_specs(
+            "use c::math\ninclude <math.h> as cmath\nfn main() -> Int:\n    return 0\n",
+        );
+
+        assert_eq!(specs.len(), 1);
+        assert_eq!(specs[0].import_name, "math");
+        assert_eq!(specs[0].origin, CLibraryImportOrigin::Include);
+        assert_eq!(specs[0].alias.as_deref(), Some("cmath"));
+        assert_eq!(specs[0].include_target.as_deref(), Some("math.h"));
+        assert_eq!(specs[0].include_search, Some(CIncludeSearch::System));
+    }
+
+    #[test]
     fn include_alias_names_strip_import_or_alias_prefixes() {
         assert_eq!(
             include_alias_function_name("sqlite3", "sql", "sqlite3_open").as_deref(),
@@ -2703,6 +2749,73 @@ fn main() -> Int:
             Some("bc")
         );
         assert!(link_inputs.link_inputs[0].exists());
+    }
+
+    #[test]
+    fn inline_tier_carries_declared_static_libraries_as_link_inputs() {
+        let temp = TempDir::new().expect("temp dir");
+        let root = temp.path();
+        let native_dir = root.join("native");
+        kfs::create_dir_all(&native_dir).expect("native dir");
+
+        let (header_path, source_path, _dll_path) = c_fixture_paths(&native_dir);
+        let import_lib_path = native_dir.join(if cfg!(windows) {
+            "vendor.lib"
+        } else {
+            "libvendor.a"
+        });
+        kfs::write_text(&header_path, "int beacon_add(int a, int b);\n").expect("header");
+        kfs::write_text(
+            &source_path,
+            "#include \"beacon_math.h\"\nint beacon_add(int a, int b) { return a + b; }\n",
+        )
+        .expect("source");
+        kfs::write_text(&import_lib_path, "").expect("import lib");
+        kfs::write_text(
+            root.join("KAIN.toml"),
+            &format!(
+                "[c_ffi]\n\n[[c_ffi.libraries]]\nname = \"beacon_math\"\ntier = \"inline\"\nheader = \"{}\"\nsources = [\"{}\"]\nstatic_libs = [\"{}\"]\ninclude_paths = [\"native\"]\n",
+                header_path
+                    .strip_prefix(root)
+                    .unwrap()
+                    .display()
+                    .to_string()
+                    .replace('\\', "/"),
+                source_path
+                    .strip_prefix(root)
+                    .unwrap()
+                    .display()
+                    .to_string()
+                    .replace('\\', "/"),
+                import_lib_path
+                    .strip_prefix(root)
+                    .unwrap()
+                    .display()
+                    .to_string()
+                    .replace('\\', "/"),
+            ),
+        )
+        .expect("manifest");
+
+        let output = import_library(
+            "beacon_math",
+            &ImportCOptions {
+                mode: ArtifactMode::Generate,
+                ..ImportCOptions::default()
+            },
+            &PrepareContext {
+                current_dir: Some(root.to_path_buf()),
+                manifest_path: Some(root.join("KAIN.toml")),
+            },
+        )
+        .expect("inline source-backed import");
+
+        let link_inputs =
+            prepare_native_link_inputs(&output, "clang", &["-O2".to_string()]).expect("bitcode");
+        assert!(link_inputs
+            .link_inputs
+            .iter()
+            .any(|path| path == &import_lib_path));
     }
 
     #[test]

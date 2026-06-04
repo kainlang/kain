@@ -1,0 +1,206 @@
+use std::runtime
+use ffmpeg_abi::FfmpegVersionReport
+use ffmpeg_abi::ffmpeg_best_video_stream
+use ffmpeg_abi::ffmpeg_bridge_version_report
+use ffmpeg_abi::ffmpeg_close_media
+use ffmpeg_abi::ffmpeg_decode_next
+use ffmpeg_abi::ffmpeg_decoder_create
+use ffmpeg_abi::ffmpeg_decoder_destroy
+use ffmpeg_abi::ffmpeg_decoder_frame_checksum
+use ffmpeg_abi::ffmpeg_decoder_frame_index
+use ffmpeg_abi::ffmpeg_decoder_frame_pts_ms
+use ffmpeg_abi::ffmpeg_decoder_height
+use ffmpeg_abi::ffmpeg_decoder_seek_ms
+use ffmpeg_abi::ffmpeg_decoder_width
+use ffmpeg_abi::ffmpeg_duration_ms
+use ffmpeg_abi::ffmpeg_last_error
+use ffmpeg_abi::ffmpeg_live_decoder_count
+use ffmpeg_abi::ffmpeg_live_media_count
+use ffmpeg_abi::ffmpeg_open_media
+use ffmpeg_abi::ffmpeg_stream_count
+use ffmpeg_abi::ffmpeg_version_mismatch_score
+use ffmpeg_abi::ffmpeg_video_codec_name
+use ffmpeg_abi::ffmpeg_video_fps_den
+use ffmpeg_abi::ffmpeg_video_fps_num
+use ffmpeg_abi::ffmpeg_video_height
+use ffmpeg_abi::ffmpeg_video_width
+use ffmpeg_abi::presenter_close
+use ffmpeg_abi::presenter_frame_count
+use ffmpeg_abi::presenter_frame_hash
+use ffmpeg_abi::presenter_open
+use ffmpeg_abi::presenter_present_rgba_words
+use ffmpeg_abi::presenter_pump
+use ffmpeg_abi::presenter_should_close
+use editor_state::EditorReport
+use editor_state::MediaProbe
+use editor_state::clip_range_valid
+use editor_state::frame_capacity_valid
+use editor_state::media_probe_score
+use editor_state::timeline_frame_score
+use frame_memory::FrameWordBuffer
+use frame_memory::frame_word_buffer_address
+use frame_memory::frame_word_buffer_checksum
+use frame_memory::frame_word_buffer_copy_from_decoder
+use frame_memory::frame_word_buffer_destroy
+use frame_memory::frame_word_buffer_new
+
+const GAUNTLET_MODULUS: Int = 1000000007
+
+fn report(status: Int, versions: FfmpegVersionReport, media_score: Int, frames_decoded: Int, copied_words: Int, native_checksum: Int, kain_checksum: Int, presenter_frames: Int, presenter_hash: Int, detail: String) -> EditorReport:
+    return EditorReport {
+        status: status,
+        version_score: versions.bridge_score,
+        media_score: media_score,
+        frames_decoded: frames_decoded,
+        copied_words: copied_words,
+        native_checksum: native_checksum,
+        kain_checksum: kain_checksum,
+        presenter_frames: presenter_frames,
+        presenter_hash: presenter_hash,
+        live_media: ffmpeg_live_media_count(),
+        live_decoders: ffmpeg_live_decoder_count(),
+        detail: detail
+    }
+
+fn open_presenter_if_needed(show_gui: Bool, width: Int, height: Int) -> Int:
+    if show_gui:
+        return presenter_open("Kain FFmpeg Editor Gauntlet", width, height + 40)
+    return 0
+
+fn close_presenter_if_needed(handle: Int) -> Int:
+    if handle > 0:
+        return presenter_close(handle)
+    return 0
+
+pub fn run_ffmpeg_editor_gauntlet(path: String, requested_frames: Int, show_gui: Bool) -> EditorReport with Unsafe:
+    let init_status = runtime_init()
+    let versions = ffmpeg_bridge_version_report()
+    if init_status != 0:
+        return report(init_status, versions, 0, 0, 0, 0, 0, 0, 0, "runtime_init failed")
+
+    let version_status = ffmpeg_version_mismatch_score(versions)
+    if version_status != 0:
+        let _shutdown_a = runtime_shutdown()
+        return report(10 + version_status, versions, 0, 0, 0, 0, 0, 0, 0, "FFmpeg bridge/system include version mismatch")
+
+    let media = ffmpeg_open_media(path)
+    if media <= 0:
+        let detail = "open failed: " + ffmpeg_last_error()
+        let _shutdown_b = runtime_shutdown()
+        return report(20, versions, 0, 0, 0, 0, 0, 0, 0, detail)
+
+    let stream = ffmpeg_best_video_stream(media)
+    if stream < 0:
+        let detail = "best stream failed: " + ffmpeg_last_error()
+        let _close_a = ffmpeg_close_media(media)
+        let _shutdown_c = runtime_shutdown()
+        return report(21, versions, 0, 0, 0, 0, 0, 0, 0, detail)
+
+    let probe = MediaProbe {
+        path: path,
+        stream_index: stream,
+        stream_count: ffmpeg_stream_count(media),
+        duration_ms: ffmpeg_duration_ms(media),
+        width: ffmpeg_video_width(media, stream),
+        height: ffmpeg_video_height(media, stream),
+        fps_num: ffmpeg_video_fps_num(media, stream),
+        fps_den: ffmpeg_video_fps_den(media, stream),
+        codec: ffmpeg_video_codec_name(media, stream)
+    }
+    let media_score = media_probe_score(probe)
+    if media_score <= 0:
+        let _close_b = ffmpeg_close_media(media)
+        let _shutdown_d = runtime_shutdown()
+        return report(22, versions, media_score, 0, 0, 0, 0, 0, 0, "media probe produced empty score")
+
+    let decoder = ffmpeg_decoder_create(media, stream)
+    if decoder <= 0:
+        let detail = "decoder create failed: " + ffmpeg_last_error()
+        let _close_c = ffmpeg_close_media(media)
+        let _shutdown_e = runtime_shutdown()
+        return report(23, versions, media_score, 0, 0, 0, 0, 0, 0, detail)
+
+    let width = ffmpeg_decoder_width(decoder)
+    let height = ffmpeg_decoder_height(decoder)
+    if frame_capacity_valid(width, height, width * height) == false:
+        let _destroy_a = ffmpeg_decoder_destroy(decoder)
+        let _close_d = ffmpeg_close_media(media)
+        let _shutdown_f = runtime_shutdown()
+        return report(24, versions, media_score, 0, 0, 0, 0, 0, 0, "decoder dimensions are invalid")
+
+    let buffer: FrameWordBuffer = frame_word_buffer_new(width, height)
+    let presenter = open_presenter_if_needed(show_gui, width, height)
+    let frame_limit = if requested_frames <= 0:
+        30
+    else:
+        requested_frames
+    let _seek = ffmpeg_decoder_seek_ms(decoder, 0)
+
+    var frame: Int = 0
+    var copied_total: Int = 0
+    var native_checksum: Int = 0
+    var kain_checksum: Int = 0
+    var timeline_checksum: Int = 0
+    var failure_status: Int = 0
+    var failure_detail: String = "ok"
+
+    while frame < frame_limit and failure_status == 0:
+        let decoded = ffmpeg_decode_next(decoder)
+        if decoded <= 0:
+            failure_status = 30
+            failure_detail = "decode stopped: " + ffmpeg_last_error()
+        else:
+            let copied = frame_word_buffer_copy_from_decoder(buffer, decoder)
+            if copied <= 0:
+                failure_status = 31
+                failure_detail = "copy failed: " + ffmpeg_last_error()
+            else:
+                copied_total = copied_total + copied
+                native_checksum = (native_checksum + ffmpeg_decoder_frame_checksum(decoder)) % GAUNTLET_MODULUS
+                kain_checksum = (kain_checksum + frame_word_buffer_checksum(buffer, copied)) % GAUNTLET_MODULUS
+                let playhead_ms = ffmpeg_decoder_frame_pts_ms(decoder)
+                if clip_range_valid(0, playhead_ms) == false:
+                    failure_status = 32
+                    failure_detail = "clip law rejected playhead"
+                else:
+                    timeline_checksum = (timeline_checksum + timeline_frame_score(playhead_ms, ffmpeg_decoder_frame_index(decoder), media_score)) % GAUNTLET_MODULUS
+                    if presenter > 0:
+                        let _pump = presenter_pump(presenter)
+                        if presenter_should_close(presenter) != 0:
+                            failure_status = 33
+                            failure_detail = "presenter closed"
+                        else:
+                            let present_status = presenter_present_rgba_words(presenter, frame_word_buffer_address(buffer), width, height, copied, playhead_ms, native_checksum, 3)
+                            if present_status != 0:
+                                failure_status = 34
+                                failure_detail = "present failed"
+                frame = frame + 1
+
+    let presenter_frames = if presenter > 0:
+        presenter_frame_count(presenter)
+    else:
+        0
+    let presenter_hash = if presenter > 0:
+        presenter_frame_hash(presenter)
+    else:
+        timeline_checksum
+    let _presenter_close = close_presenter_if_needed(presenter)
+    let _buffer_destroy = frame_word_buffer_destroy(buffer)
+    let _decoder_destroy = ffmpeg_decoder_destroy(decoder)
+    let _media_close = ffmpeg_close_media(media)
+    let heap_status = runtime_heap_validate()
+    let shutdown_status = runtime_shutdown()
+
+    if failure_status != 0:
+        return report(failure_status, versions, media_score, frame, copied_total, native_checksum, kain_checksum, presenter_frames, presenter_hash, failure_detail)
+    if frame <= 0:
+        return report(40, versions, media_score, frame, copied_total, native_checksum, kain_checksum, presenter_frames, presenter_hash, "no frames decoded")
+    if copied_total <= 0 or native_checksum <= 0 or kain_checksum <= 0:
+        return report(41, versions, media_score, frame, copied_total, native_checksum, kain_checksum, presenter_frames, presenter_hash, "checksum/copy lane did not move data")
+    if heap_status < 0:
+        return report(42, versions, media_score, frame, copied_total, native_checksum, kain_checksum, presenter_frames, presenter_hash, "runtime heap validation failed")
+    if shutdown_status != 0:
+        return report(43, versions, media_score, frame, copied_total, native_checksum, kain_checksum, presenter_frames, presenter_hash, "runtime shutdown failed")
+    if ffmpeg_live_media_count() != 0 or ffmpeg_live_decoder_count() != 0:
+        return report(44, versions, media_score, frame, copied_total, native_checksum, kain_checksum, presenter_frames, presenter_hash, "FFmpeg handles leaked")
+    return report(0, versions, media_score, frame, copied_total, native_checksum, kain_checksum, presenter_frames, presenter_hash, "ok")

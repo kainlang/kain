@@ -129,6 +129,79 @@ mode = "append"
 link_libs = ["legacy_stdio_definitions"]
 
 [[families]]
+id = "ffmpeg"
+display_name = "FFmpeg SDK"
+package_names = ["ffmpeg"]
+match_exact = [
+  "libavutil/avutil.h",
+  "libavcodec/avcodec.h",
+  "libavformat/avformat.h",
+  "libswscale/swscale.h",
+]
+platforms = ["windows", "linux", "macos"]
+include_roots = ["generic_system", "sdk"]
+sdk_env_keys = ["KAIN_PLATFORM_FFMPEG_SDK", "FFMPEG_DIR"]
+shim_header = "runtime/native/include/ffmpeg_version_subset.h"
+capability_tags = [
+  "platform.library.dynamic",
+  "media.ffmpeg",
+  "media.ffmpeg.version",
+]
+suppress_named_link_libs_when_import_lib = true
+
+[[families.target_policies]]
+target = "windows"
+link_libs = ["avutil", "avcodec", "avformat", "swscale"]
+dynamic_library_relative_paths = [
+  "bin/avutil-60.dll",
+  "bin/avcodec-62.dll",
+  "bin/avformat-62.dll",
+  "bin/swscale-9.dll",
+]
+import_library_relative_paths = [
+  "lib/avutil.lib",
+  "lib/avcodec.lib",
+  "lib/avformat.lib",
+  "lib/swscale.lib",
+]
+dynamic_library_file_names = [
+  "avutil-60.dll",
+  "avcodec-62.dll",
+  "avformat-62.dll",
+  "swscale-9.dll",
+]
+import_library_file_names = [
+  "avutil.lib",
+  "avcodec.lib",
+  "avformat.lib",
+  "swscale.lib",
+]
+sdk_versioned_parent_paths = [
+  "${env:SCOOP}/apps/ffmpeg-shared",
+  "F:/Scoop/apps/ffmpeg-shared",
+]
+
+[[families.target_policies]]
+target = "linux"
+link_libs = ["avutil", "avcodec", "avformat", "swscale"]
+dynamic_library_file_names = [
+  "libavutil.so",
+  "libavcodec.so",
+  "libavformat.so",
+  "libswscale.so",
+]
+
+[[families.target_policies]]
+target = "macos"
+link_libs = ["avutil", "avcodec", "avformat", "swscale"]
+dynamic_library_file_names = [
+  "libavutil.dylib",
+  "libavcodec.dylib",
+  "libavformat.dylib",
+  "libswscale.dylib",
+]
+
+[[families]]
 id = "posix"
 display_name = "POSIX system"
 match_exact = [

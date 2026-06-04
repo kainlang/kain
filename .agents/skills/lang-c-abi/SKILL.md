@@ -210,6 +210,14 @@ canonical `c::native_math` extern module, and also emits `nm_*` alias externs
 linked to the real C symbols through `@link_name`. True dot namespaces can grow
 on this AST shape later without flattening the provenance graph.
 
+When writing a Kain facade over generated alias functions, do not give the Kain
+wrapper the exact same name as the raw C symbol. For example, if the header
+exports `editor_presenter_open` and the include alias emits `ui_open`, name the
+authored Kain wrapper `presenter_open` or `editor_ui_open`, not
+`editor_presenter_open`. Reusing the raw symbol name can make the alias thunk
+call the Kain wrapper instead of the extern and recurse until the native lane
+crashes.
+
 ## System Header Include Pattern
 
 Use this when the header already belongs to a known system family and the real
@@ -664,6 +672,7 @@ use `lang-python` for that half instead of jamming both models into one skill.
 - Showing a local header import without the companion `.c` source or an explicit already-built library path.
 - Copying a large package bridge as the default shape for a new native package.
 - Calling native functions everywhere instead of writing one Kain facade.
+- Naming a Kain facade wrapper exactly the same as the raw C symbol behind an include alias.
 - Returning raw pointers without length, ownership, and destroy policy.
 - Passing a buffer without count/capacity/element-size agreement.
 - Keeping C-owned borrowed strings alive as if they are Kain-owned.

@@ -1,0 +1,58 @@
+use std::os
+use std::process
+
+const FFMPEG_GAUNTLET_DEFAULT_FIXTURE: String = "../.kain/fixtures/ffmpeg_gauntlet_testsrc.mp4"
+const FFMPEG_GAUNTLET_DEFAULT_SDK: String = "F:/Scoop/apps/ffmpeg-shared/current"
+
+pub fn ffmpeg_sdk_root() -> String:
+    let platform_sdk = os_getenv("KAIN_PLATFORM_FFMPEG_SDK")
+    if len(platform_sdk) > 0:
+        return platform_sdk
+    let ffmpeg_dir = os_getenv("FFMPEG_DIR")
+    if len(ffmpeg_dir) > 0:
+        return ffmpeg_dir
+    return FFMPEG_GAUNTLET_DEFAULT_SDK
+
+pub fn ffmpeg_cli_path() -> String:
+    return ffmpeg_sdk_root() + "/bin/ffmpeg.exe"
+
+pub fn ffmpeg_fixture_path() -> String:
+    return os_getenv_default("KAIN_FFMPEG_FIXTURE", FFMPEG_GAUNTLET_DEFAULT_FIXTURE)
+
+fn ffmpeg_generate_fixture(ffmpeg: String, path: String) -> Int:
+    let spec = process_spec_create_piped(ffmpeg)
+    if spec <= 0:
+        return process_last_status()
+    let _hide = process_spec_add_arg(spec, "-hide_banner")
+    let _yes = process_spec_add_arg(spec, "-y")
+    let _log = process_spec_add_arg(spec, "-loglevel")
+    let _log_value = process_spec_add_arg(spec, "error")
+    let _format = process_spec_add_arg(spec, "-f")
+    let _format_value = process_spec_add_arg(spec, "lavfi")
+    let _input = process_spec_add_arg(spec, "-i")
+    let _input_value = process_spec_add_arg(spec, "testsrc2=size=320x180:rate=30")
+    let _frames = process_spec_add_arg(spec, "-frames:v")
+    let _frame_count = process_spec_add_arg(spec, "120")
+    let _pix_fmt = process_spec_add_arg(spec, "-pix_fmt")
+    let _pix_fmt_value = process_spec_add_arg(spec, "yuv420p")
+    let _output = process_spec_add_arg(spec, path)
+    let child = process_spawn(spec)
+    let _destroy = process_spec_destroy(spec)
+    if child <= 0:
+        return process_last_status()
+    let waited = process_wait(child, 60000)
+    if waited != 1:
+        let _close_wait = process_close(child)
+        return process_last_status()
+    let exit_code = process_exit_code(child)
+    let _stdout = process_stdout_capture_text(child)
+    let _stderr = process_stderr_capture_text(child)
+    let _close = process_close(child)
+    return exit_code
+
+pub fn ffmpeg_ensure_fixture(path: String) -> Int:
+    if os_exists(path):
+        return 0
+    let _made = os_makedirs("../.kain/fixtures")
+    let ffmpeg = ffmpeg_cli_path()
+    return ffmpeg_generate_fixture(ffmpeg, path)

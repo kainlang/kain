@@ -1,0 +1,54 @@
+use ffmpeg_abi::ffmpeg_copy_rgba_words
+
+const FRAME_WORD_MODULUS: Int = 1000000007
+
+pub struct FrameWordBuffer:
+    words: ptr<Int>
+    word_capacity: Int
+    width: Int
+    height: Int
+
+pub fn frame_word_buffer_new(width: Int, height: Int) -> FrameWordBuffer with Unsafe:
+    let safe_width = if width <= 0:
+        1
+    else:
+        width
+    let safe_height = if height <= 0:
+        1
+    else:
+        height
+    let capacity = safe_width * safe_height
+    return FrameWordBuffer {
+        words: alloc_zeroed(capacity, "Int"),
+        word_capacity: capacity,
+        width: safe_width,
+        height: safe_height
+    }
+
+pub fn frame_word_buffer_destroy(buffer: FrameWordBuffer) -> Int with Unsafe:
+    decay buffer.words
+    return 0
+
+pub fn frame_word_buffer_copy_from_decoder(buffer: FrameWordBuffer, decoder: Int) -> Int with Unsafe:
+    let address = ptr_to_int(buffer.words)
+    let copied: Int = collapse buffer.words:
+        ffmpeg_copy_rgba_words(decoder, address, buffer.word_capacity)
+    return copied
+
+pub fn frame_word_buffer_checksum(buffer: FrameWordBuffer, copied_words: Int) -> Int with Unsafe:
+    let limit = if copied_words < buffer.word_capacity:
+        copied_words
+    else:
+        buffer.word_capacity
+    let checksum: Int = observe buffer.words:
+        var index: Int = 0
+        var acc: Int = 2166136261
+        while index < limit:
+            let value = mem_load(ptr_offset(buffer.words, index, "Int"), "Int")
+            acc = ((acc ^ value) * 16777619) % FRAME_WORD_MODULUS
+            index = index + 1
+        acc
+    return checksum
+
+pub fn frame_word_buffer_address(buffer: FrameWordBuffer) -> Int:
+    return ptr_to_int(buffer.words)
