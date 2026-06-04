@@ -389,3 +389,35 @@
 - Minimal repro: Parse a `build.kn` containing `const KERNELS = ["search_kernel"]`, `let gpu = gpu_suite("gpu")` followed by an indented `.fragment("src/gpu/fragment.kn")`, or any fluent `.fragment(...)` method.
 - Evidence: `cargo test -p kain-build evaluated_build --target-dir Z:\_b\cargo-target\build-eval` initially failed with `Expected ':', got '='`, `Unexpected token: indentation`, and `keyword 'fragment' is a reserved keyword and cannot be used as an identifier`.
 - Suggested direction: Promote inferred constants, newline-tolerant fluent chains, and keyword-safe method identifiers into parser/typechecker truth so `crates/build/src/evaluated_build.rs` can eventually drop its build-surface normalizer.
+
+## 2026-06-04 - resonate keyword dogfooding / benchmark authoring
+
+### Only the first resonate handler fires when multiple resonate blocks target different world fields
+- Categories: correctness, runtime, bootstrap
+- Status: Active
+- Surface: LLVM lowering, native runtime resonated slot table (`abi_resonate_should_fire_*`), `stdlib_abi.c`
+- Symptom: When a single `.kn` file declares 4+ `resonate` blocks on different world state fields (e.g., `signal`, `counter`, `dampen_probe`, `alloc_probe`), only the first 1-2 handlers actually fire at runtime. The remaining handlers are silently registered but the post-store check never invokes them. With 8 resonate blocks, only 2 fired. With 4 blocks, only 1-2 fired. With 2 blocks, only the first fired. With 1 block, it works reliably.
+- Workflow impact: Benchmark authors cannot test dampen windows, entangle cascades, or alloc-driven resonates because additional handlers beyond the first are inoperative. This forced the resonate god-mode benchmark pack (`benchmark/cases_v2/resonate.kn`) to use only a single resonate block and design all 4 cases around it instead of the planned 8-case multi-handler layout.
+- Minimal repro: Create a `.kn` file with 2+ `resonate` blocks on different world fields, strike each field via patches, and observe via `resonate_fire_count()` / `resonate_absorb_count()` / world shadow fields that only the first handler's side effects are visible. `resonate_fire_core` (1st handler) passed while `resonate_dampen_window` (2nd handler) returned error code 410 (fires < 1).
+- Evidence: `kain run X:\benchmark\cases_v2\resonate.kn --target llvm` with 2+ handlers produces telemtry consistent with only the first handler firing; reducing to 1 handler makes all cases pass.
+- Suggested direction: Audit `ABI_RESONATE_SLOT_MAX` and the native slot registration path in `stdlib_abi.c` / LLVM codegen to ensure all `__kain_resonate_*` handlers are properly registered and dispatched regardless of count. Add a multi-handler regression test to `smoketest/src/semantics/resonate.kn`.
+
+### runtime_heap_validate returns non-zero after repeated alloc/decay cycles in a benchmark loop
+- Categories: correctness, runtime, benchmark
+- Status: Active
+- Surface: native runtime heap validator (`runtime_heap_validate`), allocator subsystem
+- Symptom: After 32 iterations of `alloc_zeroed` + `ptr_offset` + `mem_store` + `mem_load` + `decay` in a checksum loop, `runtime_heap_validate()` returns 1 (non-zero) even though no use-after-free or double-free is apparent. The alloc/decay pattern itself executes without crash or incorrect checksum, but the heap validator flags it.
+- Workflow impact: The resonate_raw_memory case cannot use `runtime_heap_validate()` as a guard, forcing removal of the verification check. The alloc/decay operations themselves function correctly (verified by deterministic checksum), making this a validator false-positive.
+- Minimal repro: Run `resonate_raw_memory_checksum(32, 1000000007)` — checksum is stable (6007648) but `runtime_heap_validate()` at end returns 1.
+- Evidence: `kain run X:\benchmark\cases_v2\resonate.kn --target llvm` — removing the `heap_ok != 0` guard changed checksum from error-code 1011 to stable value 6007648.
+- Suggested direction: Investigate whether the heap validator is tracking per-thread or global state that becomes stale across alloc/decay cycles, or whether there is a genuine leak in the decay path for small allocations. Add a minimal smoketest: alloc, decay, validate — repeat 32x.
+
+### Full v2 router cannot isolate a single pack when unrelated packs have native link failures
+- Categories: developer-experience, tooling, benchmark
+- Status: Active
+- Surface: `benchmark/cases_v2/.telemetryrouter/router.kn`, `kain run X:\benchmark`
+- Symptom: The router unconditionally imports and links all registered packs (vulkan_loader, gpu_cpu_pipeline, python_interop, etc.) before `KAIN_BENCH_V2_FILTER` can select cases. If any pack has a native link failure (e.g., Vulkan loader DLL not present), the entire `kain run X:\benchmark` fails, making it impossible to run a single working pack through the router.
+- Workflow impact: After wiring the resonate pack into the router (imports, dispatcher, main loop, build.kn), I could not run `$env:KAIN_BENCH_V2_FILTER="resonate"; kain run X:\benchmark` because the vulkan_loader pack's native link failure blocked the entire compilation. This forced reliance on standalone `kain run X:\benchmark\cases_v2\resonate.kn` for verification.
+- Minimal repro: `$env:KAIN_BENCH_V2_FILTER="resonate"; kain run X:\benchmark --target llvm` — hangs/timeouts on compilation of unrelated packs.
+- Evidence: `kain build X:\benchmark --target llvm` returns "Build failed" with no case-specific output; the router check also times out at 300s.
+- Suggested direction: Implement lazy pack loading in the router: only import/link pack modules whose case IDs or group IDs match the active filter. The focused router pattern (`gpu_router.kn`, `orchestrate_god_router.kn`) already exists as a workaround — consider making it the default behavior or providing a `--pack-filter` mechanism.
