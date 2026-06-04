@@ -81,7 +81,7 @@ pub fn smoke_json_lane() -> Int with Unsafe:
     if fmt_writer_build(writer) != rendered:
         return 17
 
-    let builder = string_builder_new(16)
+    var builder = string_builder_new(16)
     let builder_ptr: ptr<StringBuilder> = addr_of(builder, "StringBuilder")
     let _wrote = json_string_builder_push_value(builder_ptr, payload)
     if string_builder_to_string(builder) != rendered:

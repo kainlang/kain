@@ -1,8 +1,8 @@
 {
   "rounds": 256,
   "passes": 6,
-  "best_ms": 170,
-  "worst_ms": 197,
-  "total_ms": 1104,
-  "composition_checksum": 41819119
+  "best_ms": 176,
+  "worst_ms": 213,
+  "total_ms": 1190,
+  "composition_checksum": 41819371
 }

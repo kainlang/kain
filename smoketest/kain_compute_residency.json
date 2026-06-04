@@ -1,0 +1,193 @@
+{
+  "schema_version": 1,
+  "target": "llvm",
+  "compute_shader_count": 3,
+  "compute_shaders": [
+    {
+      "key": "shader::SmokeOrchestrateKernel::compute",
+      "shader": "SmokeOrchestrateKernel",
+      "module_name": "SmokeParticleStep__SmokeReductionKernel__SmokeOrchestrateKernel__SmokeVertex__SmokeGradient__SmokeVignette",
+      "stage": "compute",
+      "entry_point": "SmokeOrchestrateKernel",
+      "source": "kain-core",
+      "execution_domain": "tensor-stream",
+      "workgroup_size": [
+        8,
+        1,
+        1
+      ],
+      "dispatch_size": [
+        24,
+        1,
+        1
+      ],
+      "dynamic_shared_memory_bytes": 0,
+      "cuda_stream_policy": "default",
+      "cuda_graph_policy": "disabled",
+      "resource_binding_count": 2,
+      "tensor_binding_count": 2,
+      "stream_binding_count": 2,
+      "neural_node_count": 1,
+      "bindings": [
+        {
+          "key": "src",
+          "contract": "kain.shared.buffer",
+          "descriptor_kind": "storage_buffer",
+          "element_type": "u32",
+          "shape": [
+            24
+          ],
+          "strides": [
+            1
+          ],
+          "access_mode": "read",
+          "residency_role": "input",
+          "slot": 0,
+          "byte_length": 96,
+          "payload_file": "kain_compute_residency_shader_smokeorchestratekernel_compute_src.bin"
+        },
+        {
+          "key": "dst",
+          "contract": "kain.shared.buffer",
+          "descriptor_kind": "storage_buffer",
+          "element_type": "u32",
+          "shape": [
+            24
+          ],
+          "strides": [
+            1
+          ],
+          "access_mode": "write",
+          "residency_role": "output",
+          "slot": 1,
+          "byte_length": 96,
+          "payload_file": "kain_compute_residency_shader_smokeorchestratekernel_compute_dst.bin"
+        }
+      ]
+    },
+    {
+      "key": "shader::SmokeParticleStep::compute",
+      "shader": "SmokeParticleStep",
+      "module_name": "SmokeParticleStep__SmokeReductionKernel__SmokeOrchestrateKernel__SmokeVertex__SmokeGradient__SmokeVignette",
+      "stage": "compute",
+      "entry_point": "SmokeParticleStep",
+      "source": "kain-core",
+      "execution_domain": "tensor-stream",
+      "workgroup_size": [
+        8,
+        1,
+        1
+      ],
+      "dispatch_size": [
+        64,
+        1,
+        1
+      ],
+      "dynamic_shared_memory_bytes": 0,
+      "cuda_stream_policy": "default",
+      "cuda_graph_policy": "disabled",
+      "resource_binding_count": 2,
+      "tensor_binding_count": 2,
+      "stream_binding_count": 1,
+      "neural_node_count": 1,
+      "bindings": [
+        {
+          "key": "particles",
+          "contract": "kain.shared.buffer",
+          "descriptor_kind": "storage_buffer",
+          "element_type": "Vec4",
+          "shape": [
+            64
+          ],
+          "strides": [
+            1
+          ],
+          "access_mode": "read",
+          "residency_role": "state",
+          "slot": 0,
+          "byte_length": 1024,
+          "payload_file": "kain_compute_residency_shader_smokeparticlestep_compute_particles.bin"
+        },
+        {
+          "key": "field",
+          "contract": "kain.shared.buffer",
+          "descriptor_kind": "storage_buffer",
+          "element_type": "Vec4",
+          "shape": [
+            64
+          ],
+          "strides": [
+            1
+          ],
+          "access_mode": "read",
+          "residency_role": "input",
+          "slot": 1,
+          "byte_length": 1024,
+          "payload_file": "kain_compute_residency_shader_smokeparticlestep_compute_field.bin"
+        }
+      ]
+    },
+    {
+      "key": "shader::SmokeReductionKernel::compute",
+      "shader": "SmokeReductionKernel",
+      "module_name": "SmokeParticleStep__SmokeReductionKernel__SmokeOrchestrateKernel__SmokeVertex__SmokeGradient__SmokeVignette",
+      "stage": "compute",
+      "entry_point": "SmokeReductionKernel",
+      "source": "kain-core",
+      "execution_domain": "tensor-stream",
+      "workgroup_size": [
+        8,
+        8,
+        1
+      ],
+      "dispatch_size": [
+        8,
+        1,
+        1
+      ],
+      "dynamic_shared_memory_bytes": 0,
+      "cuda_stream_policy": "default",
+      "cuda_graph_policy": "disabled",
+      "resource_binding_count": 2,
+      "tensor_binding_count": 2,
+      "stream_binding_count": 2,
+      "neural_node_count": 1,
+      "bindings": [
+        {
+          "key": "src",
+          "contract": "kain.shared.buffer",
+          "descriptor_kind": "storage_buffer",
+          "element_type": "f32",
+          "shape": [
+            8
+          ],
+          "strides": [
+            1
+          ],
+          "access_mode": "read",
+          "residency_role": "input",
+          "slot": 0,
+          "byte_length": 32,
+          "payload_file": "kain_compute_residency_shader_smokereductionkernel_compute_src.bin"
+        },
+        {
+          "key": "dst",
+          "contract": "kain.shared.buffer",
+          "descriptor_kind": "storage_buffer",
+          "element_type": "f32",
+          "shape": [
+            8
+          ],
+          "strides": [
+            1
+          ],
+          "access_mode": "write",
+          "residency_role": "output",
+          "slot": 1,
+          "byte_length": 32,
+          "payload_file": "kain_compute_residency_shader_smokereductionkernel_compute_dst.bin"
+        }
+      ]
+    }
+  ]
+}

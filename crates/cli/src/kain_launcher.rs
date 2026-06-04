@@ -5510,33 +5510,38 @@ fn resolve_c_ffi_native_link_inputs(
     clang_cmd: &str,
     native_toolchain_tuning: &NativeToolchainTuning,
 ) -> Result<CffiNativeLinkInputs, String> {
-    if !source_has_c_ffi_imports(source) {
-        return Ok(CffiNativeLinkInputs::default());
-    }
-
     let prepare_dir = source_path
         .and_then(|path| path.parent())
         .filter(|path| !path.as_os_str().is_empty())
         .map(Path::to_path_buf)
         .or_else(|| std::env::current_dir().ok());
+    let mut import_names = BTreeSet::new();
+    import_names.extend(kain_c_ffi::detect_c_library_imports(source));
+    import_names.extend(discover_project_c_ffi_import_names(
+        source_path,
+        prepare_dir.as_deref(),
+    ));
+    if import_names.is_empty() {
+        return Ok(CffiNativeLinkInputs::default());
+    }
     let prepare = CPrepareContext {
         current_dir: prepare_dir,
         manifest_path: None,
     };
-    let outputs = kain_c_ffi::import_libraries_for_source(
-        source,
-        &CImportCOptions {
-            mode: CArtifactMode::Generate,
-            ..CImportCOptions::default()
-        },
-        &prepare,
-    )
-    .map_err(|err| err.to_string())?;
 
     let mut link_inputs = Vec::new();
     let mut link_libs = Vec::new();
     let compile_args = native_toolchain_tuning.clang_compile_args();
-    for output in outputs {
+    for import_name in import_names {
+        let output = kain_c_ffi::import_library(
+            &import_name,
+            &CImportCOptions {
+                mode: CArtifactMode::Generate,
+                ..CImportCOptions::default()
+            },
+            &prepare,
+        )
+        .map_err(|err| err.to_string())?;
         let inputs = kain_c_ffi::prepare_native_link_inputs(&output, clang_cmd, &compile_args)
             .map_err(|err| err.to_string())?;
         link_inputs.extend(inputs.link_inputs);
@@ -5547,6 +5552,80 @@ fn resolve_c_ffi_native_link_inputs(
         link_inputs,
         link_libs: unique_link_libs(link_libs),
     })
+}
+
+fn discover_project_c_ffi_import_names(
+    source_path: Option<&Path>,
+    prepare_dir: Option<&Path>,
+) -> Vec<String> {
+    let mut anchors = Vec::new();
+    if let Some(path) = source_path.and_then(|value| value.parent()) {
+        anchors.push(path.to_path_buf());
+    }
+    if let Some(path) = prepare_dir {
+        if !anchors.iter().any(|existing| existing == path) {
+            anchors.push(path.to_path_buf());
+        }
+    }
+    if let Ok(path) = std::env::current_dir() {
+        if !anchors.iter().any(|existing| existing == &path) {
+            anchors.push(path);
+        }
+    }
+
+    let normalized_source = source_path.map(normalize_project_match_path);
+    let mut discovered = BTreeSet::new();
+    for anchor in anchors {
+        let Ok(workspace) = blade::discover_workspace(&anchor) else {
+            continue;
+        };
+        let Some(blade_name) =
+            select_project_blade_name_for_source(&workspace, normalized_source.as_deref(), &anchor)
+        else {
+            continue;
+        };
+        for library in workspace.transitive_c_ffi_libraries_for(&blade_name) {
+            discovered.insert(library.name);
+        }
+        if !discovered.is_empty() {
+            break;
+        }
+    }
+
+    discovered.into_iter().collect()
+}
+
+fn select_project_blade_name_for_source(
+    workspace: &blade::BladeWorkspace,
+    normalized_source: Option<&Path>,
+    anchor: &Path,
+) -> Option<String> {
+    if let Some(source) = normalized_source {
+        if let Some(blade) = workspace
+            .blades
+            .iter()
+            .filter(|blade| source.starts_with(&blade.root))
+            .max_by_key(|blade| blade.root.components().count())
+        {
+            return Some(blade.name.clone());
+        }
+    }
+
+    if workspace.blades.len() == 1 {
+        return workspace.blades.first().map(|blade| blade.name.clone());
+    }
+
+    let normalized_anchor = normalize_project_match_path(anchor);
+    workspace
+        .blades
+        .iter()
+        .filter(|blade| normalized_anchor.starts_with(&blade.root))
+        .max_by_key(|blade| blade.root.components().count())
+        .map(|blade| blade.name.clone())
+}
+
+fn normalize_project_match_path(path: &Path) -> PathBuf {
+    fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
 }
 
 fn load_native_runtime_manifest(
@@ -7365,6 +7444,90 @@ pub fn helper_lane() -> Int:
             &tuning,
         )
         .expect("helper-import c ffi link inputs");
+
+        assert_eq!(link_inputs.link_inputs.len(), 1);
+        assert_eq!(
+            link_inputs.link_inputs[0]
+                .extension()
+                .and_then(|value| value.to_str()),
+            Some("bc")
+        );
+        assert!(link_inputs.link_inputs[0].exists());
+    }
+
+    #[test]
+    fn c_ffi_native_link_inputs_include_project_declared_libraries_for_project_entry() {
+        let temp_dir = tempfile::tempdir().expect("temp dir");
+        let src_dir = temp_dir.path().join("src");
+        let native_dir = temp_dir.path().join("native");
+        fs::create_dir_all(&src_dir).expect("src dir");
+        fs::create_dir_all(&native_dir).expect("native dir");
+
+        let main_path = src_dir.join("main.kn");
+        let helper_path = src_dir.join("helper.kn");
+        let header_path = native_dir.join("tiny.h");
+        let source_path = native_dir.join("tiny.c");
+        let manifest_path = temp_dir.path().join("KAIN.toml");
+
+        fs::write(
+            &manifest_path,
+            r#"
+[package]
+name = "cffi-project-entry"
+version = "0.1.0"
+
+[blade]
+name = "cffi-project-entry"
+kind = "kain_app"
+entry = "src/main.kn"
+source_roots = ["src"]
+module_roots = ["src"]
+
+[c_ffi]
+
+[[c_ffi.libraries]]
+name = "tiny"
+tier = "inline"
+header = "native/tiny.h"
+sources = ["native/tiny.c"]
+include_paths = ["native"]
+"#,
+        )
+        .expect("manifest");
+        fs::write(&header_path, "int tiny_add(int value);\n").expect("header");
+        fs::write(
+            &source_path,
+            "int tiny_add(int value) { return value + 1; }\n",
+        )
+        .expect("native source");
+        fs::write(
+            &main_path,
+            r#"
+use helper::helper_lane
+
+fn main() -> Int:
+    return helper_lane()
+"#,
+        )
+        .expect("main");
+        fs::write(
+            &helper_path,
+            r#"
+include "../native/tiny.h" as tiny
+
+pub fn helper_lane() -> Int:
+    return tiny_add(41)
+"#,
+        )
+        .expect("helper");
+
+        let source = fs::read_to_string(&main_path).expect("read main");
+        let clang_cmd = find_bundled_clang().unwrap_or_else(|| "clang".to_string());
+        let tuning =
+            parse_native_toolchain_tuning(Some("debug"), None, None, None).expect("debug tuning");
+        let link_inputs =
+            resolve_c_ffi_native_link_inputs(&source, Some(main_path.as_path()), &clang_cmd, &tuning)
+                .expect("project-declared c ffi link inputs");
 
         assert_eq!(link_inputs.link_inputs.len(), 1);
         assert_eq!(

@@ -69,7 +69,7 @@ pub fn smoke_text_lane() -> Int with Unsafe:
     let bool_spec = fmt_spec_bool_style(fmt_spec_uppercase(fmt_spec_prefix(fmt_spec_default(), "flag="), true), FMT_BOOL_STYLE_WORD)
     if fmt_bool_spec(true, bool_spec) != "flag=TRUE":
         return 20
-    let sb = string_builder_new(8)
+    var sb = string_builder_new(8)
     let sb_ptr: ptr<StringBuilder> = addr_of(sb, "StringBuilder")
     let _fmt_push_a = fmt_string_builder_push_string(sb_ptr, "id=")
     let _fmt_push_b = fmt_string_builder_push_int_spec(sb_ptr, 7, fmt_spec_plus(fmt_spec_default(), true))

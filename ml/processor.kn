@@ -1,0 +1,131 @@
+use std::fs
+use std::json
+use std::path
+use std::process
+use std::runtime
+use std::text
+use std::time
+
+const RAW_DIR: String = "ml/raw"
+const OUT_DIR: String = "ml/processed"
+const CHUNK_SIZE: Int = 8000
+const BUILD_TS: String = "2026-06-03T12:00:00.000Z"
+
+fn root() -> String:
+    var r = process_environment("KAIN_HOME")
+    if r == "":
+        r = process_current_working_directory()
+    r = text_replace_string(r, "/", "\\")
+    if text_starts_with_string(r, "\\\\?\\"): r = substring(r, 4, len(r))
+    if text_starts_with_string(r, ".\\"):     r = substring(r, 2, len(r))
+    while len(r) > 3 and text_ends_with_string(r, "\\"):
+        r = substring(r, 0, len(r) - 1)
+    if text_ends_with_string(r, "\\.kain") or text_ends_with_string(r, "\\ml"):
+        r = path_parent(r)
+    return r
+
+fn zero_pad(value: Int, width: Int) -> String:
+    var s = str(value)
+    while len(s) < width:
+        s = "0" + s
+    return s
+
+fn iso8601(epoch_ms: Int) -> String:
+    let dt = datetime_from_epoch_millis(epoch_ms)
+    let y = str(dt.year)
+    let mo = zero_pad(dt.month, 2)
+    let d = zero_pad(dt.day, 2)
+    let h = zero_pad(dt.hour, 2)
+    let mi = zero_pad(dt.minute, 2)
+    let s = zero_pad(dt.second, 2)
+    let ms = zero_pad(dt.millis, 3)
+    return y + "-" + mo + "-" + d + "T" + h + ":" + mi + ":" + s + "." + ms + "Z"
+
+fn chunk_text(text: String, max_size: Int) -> Array<String>:
+    let raw_len = len(text)
+    if raw_len <= max_size:
+        return [text]
+
+    let mut chunks: Array<String> = []
+    let mut start: Int = 0
+    let text_len = raw_len
+    while start < text_len:
+        var end = start + max_size
+        if end >= text_len:
+            end = text_len
+        else:
+            var boundary = end
+            while boundary > start:
+                let ch = char_at(text, boundary)
+                if ch == "\n":
+                    break
+                boundary = boundary - 1
+            if boundary > start:
+                end = boundary + 1
+            else:
+                end = start + max_size
+        push(chunks, substring(text, start, end))
+        start = end
+    return chunks
+
+fn main() -> Int:
+    let init = runtime_init()
+    if init != 0:
+        return 100 + init
+
+    let r = root()
+    let raw_dir = path_join(r, RAW_DIR)
+    let out_dir = path_join(r, OUT_DIR)
+    if fs_exists(raw_dir) == false:
+        println("missing: " + raw_dir)
+        return 1
+    if fs_exists(out_dir) == false:
+        fs_create_dir_all(out_dir)
+
+    // Try realtime clock; fall back to compile-time stamp if ABI returns epoch
+    let now_ms = now_millis()
+    let ts = if now_ms > 100000: iso8601(now_ms) else: BUILD_TS
+    let ts_c = text_replace_string(text_replace_string(ts, ":", ""), ".", "")
+    let out_path = path_join(out_dir, "kain_dataset_" + ts_c + ".jsonl")
+
+    let entries = fs_walk(raw_dir)
+    var total_chunks: Int = 0
+    var total_files: Int = 0
+    var output: String = ""
+
+    var ei: Int = 0
+    let ec = len(entries)
+    while ei < ec:
+        let ep = entries[ei].path
+        ei = ei + 1
+        if text_ends_with_string(ep, ".kn") == false or fs_is_file(ep) == false:
+            continue
+
+        let source = path_file_name(ep)
+        let content = fs_read_text(ep)
+        let chunks = chunk_text(content, CHUNK_SIZE)
+
+        var ci: Int = 0
+        let cc = len(chunks)
+        while ci < cc:
+            let chunk = chunks[ci]
+            let obj = json_object()
+            json_object_set_string(obj, "text", chunk)
+            json_object_set_string(obj, "source", source)
+            json_object_set_string(obj, "timestamp", ts)
+            json_object_set_string(obj, "language", "kain")
+            json_object_set_int(obj, "size", len(chunk))
+            if cc > 1:
+                json_object_set_int(obj, "chunk", ci)
+                json_object_set_int(obj, "chunk_total", cc)
+            let jl = json_stringify(obj)
+            output = output + jl + "\n"
+            ci = ci + 1
+
+        total_files = total_files + 1
+        total_chunks = total_chunks + cc
+
+    fs_atomic_write_text(out_path, output)
+    let _ = runtime_shutdown()
+    println("files=" + str(total_files) + " chunks=" + str(total_chunks) + " output=" + out_path)
+    return if total_files > 0: 0 else: 2

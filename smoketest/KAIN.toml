@@ -45,3 +45,23 @@ entry = "src/main.kn"
 artifact_root = ".kain/out/llvm"
 cache_root = ".kain/cache/build"
 profile = "debug"
+
+[c_ffi]
+tier = "inline"
+include_paths = ["native"]
+
+[[c_ffi.libraries]]
+name = "sqlite3"
+header = "native/sqlite3.h"
+sources = ["native/sqlite3.c"]
+
+[[c_ffi.libraries]]
+name = "smoketest_sqlite_pingpong"
+header = "native/smoketest_sqlite_pingpong.h"
+sources = ["native/smoketest_sqlite_pingpong.c"]
+
+[[c_ffi.libraries]]
+name = "smoketest_visualizer_bridge"
+header = "native/smoketest_visualizer_bridge.h"
+sources = ["native/smoketest_visualizer_bridge.c"]
+link_libs = ["user32", "gdi32", "opengl32"]

@@ -56,7 +56,7 @@ pub fn smoke_meta_lane() -> Int with Unsafe:
 
 
     # 4. Test std::compress (RLE compression streams)
-    let dest_buf = buffered_writer_new(16)
+    var dest_buf = buffered_writer_new(16)
     let dest_buf_ptr: ptr<BufferedWriter> = addr_of(dest_buf, "BufferedWriter")
     let flush_target = alloc_zeroed(16, "Int")
     
@@ -86,7 +86,7 @@ pub fn smoke_meta_lane() -> Int with Unsafe:
         return 114
 
     # Decompress using RleCompressionReader
-    let src_buf = buffered_reader_new(16)
+    var src_buf = buffered_reader_new(16)
     let src_buf_ptr: ptr<BufferedReader> = addr_of(src_buf, "BufferedReader")
     let _fill = buffered_reader_fill(src_buf_ptr, flush_target, 4)
     var cr = rle_reader_new(src_buf_ptr)
@@ -113,7 +113,7 @@ pub fn smoke_meta_lane() -> Int with Unsafe:
 
 
     # 5. Test std::tar (TarHeader block archive builder & reader)
-    let tar_write_buf = buffered_writer_new(128)
+    var tar_write_buf = buffered_writer_new(128)
     let tar_write_buf_ptr: ptr<BufferedWriter> = addr_of(tar_write_buf, "BufferedWriter")
     let tar_flush_target = alloc_zeroed(128, "Int")
     let tw = tar_writer_new(tar_write_buf_ptr)
@@ -129,7 +129,7 @@ pub fn smoke_meta_lane() -> Int with Unsafe:
     let _tw_f = buffered_writer_flush(tar_write_buf_ptr, tar_flush_target)
 
     # Read archive back using TarReader
-    let tar_read_buf = buffered_reader_new(128)
+    var tar_read_buf = buffered_reader_new(128)
     let tar_read_buf_ptr: ptr<BufferedReader> = addr_of(tar_read_buf, "BufferedReader")
     let _tar_fill = buffered_reader_fill(tar_read_buf_ptr, tar_flush_target, 128)
     let tr = tar_reader_new(tar_read_buf_ptr)

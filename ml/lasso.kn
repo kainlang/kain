@@ -3,57 +3,53 @@ use std::path
 use std::process
 use std::text
 
-const RAW_RELATIVE_ROOT: String = "ml/raw"
+const RAW: String = "ml/raw"
 
-fn repo_root() -> String:
-    var root = process_environment("KAIN_HOME")
-    if root == "":
-        root = process_current_working_directory()
-    root = norm(root)
-    if text_ends_with_string(root, "\\.kain") or text_ends_with_string(root, "\\ml"):
-        return path_parent(root)
-    return root
-
-fn norm(value: String) -> String:
-    var path_key = to_lower(text_replace_string(value, "/", "\\"))
-    if text_starts_with_string(path_key, "\\\\?\\"): path_key = substring(path_key, 4, len(path_key))
-    if text_starts_with_string(path_key, ".\\"): path_key = substring(path_key, 2, len(path_key))
-    while len(path_key) > 3 and text_ends_with_string(path_key, "\\"):
-        path_key = substring(path_key, 0, len(path_key) - 1)
-    return path_key
+fn root() -> String:
+    var r = process_environment("KAIN_HOME")
+    if r == "":
+        r = process_current_working_directory()
+    r = text_replace_string(r, "/", "\\")
+    if text_starts_with_string(r, "\\\\?\\"): r = substring(r, 4, len(r))
+    if text_starts_with_string(r, ".\\"):     r = substring(r, 2, len(r))
+    while len(r) > 3 and text_ends_with_string(r, "\\"):
+        r = substring(r, 0, len(r) - 1)
+    if text_ends_with_string(r, "\\.kain") or text_ends_with_string(r, "\\ml"):
+        r = path_parent(r)
+    return r
 
 fn main() -> Int:
-    let root = repo_root()
-    let raw = path_join(root, RAW_RELATIVE_ROOT)
+    let r = root()
+    let rl = len(r) + 1
+    let raw = path_join(r, RAW)
     if fs_exists(raw): fs_remove_dir_all(raw)
     fs_create_dir_all(raw)
-    let roots: Array<String> = ["blades", "benchmark/cases_v2", "benchmark/cases", "smoketest/src"]
-    var copied_total: Int = 0
-    var source_index: Int = 0
-    while source_index < len(roots):
-        let source_root = path_join(root, roots[source_index])
-        if fs_exists(source_root) == false:
-            println("missing source root: " + source_root)
+
+    let dirs = ["blades", "benchmark/cases_v2", "benchmark/cases", "smoketest/src"]
+    var n: Int = 0
+    var di: Int = 0
+    while di < len(dirs):
+        let src = path_join(r, dirs[di])
+        if fs_exists(src) == false:
+            println("missing: " + src)
             return 1
-        println("scan " + source_root)
-        let entries = fs_walk(source_root)
-        var entry_index: Int = 0
-        while entry_index < len(entries):
-            let entry_path = entries[entry_index].path
-            let key = norm(entry_path)
-            if fs_is_file(entry_path) and text_ends_with_string(key, ".kn"):
-                let rel = substring(key, len(root) + 1, len(key))
-                var dest = path_join(raw, rel)
-                if to_lower(path_file_name(rel)) == "main.kn":
-                    let parent = path_parent(rel)
-                    if parent != "" and path_file_name(parent) != "":
-                        dest = path_join(raw, path_join(parent, path_file_name(parent) + ".kn"))
-                let dest_parent = path_parent(dest)
-                if dest_parent != "": fs_create_dir_all(dest_parent)
-                fs_atomic_write_text(dest, fs_read_text(entry_path))
-                copied_total = copied_total + 1
-            entry_index = entry_index + 1
-        source_index = source_index + 1
-    println("copied_total=" + str(copied_total))
-    if copied_total == 0: return 2
-    return 0
+        let ents = fs_walk(src)
+        var ei: Int = 0
+        let ec = len(ents)
+        while ei < ec:
+            let ep = ents[ei].path
+            ei = ei + 1
+            if text_ends_with_string(ep, ".kn") == false or fs_is_file(ep) == false:
+                continue
+            // Normalize path and strip root prefix
+            let key = text_replace_string(ep, "/", "\\")
+            let skip: Int = if text_starts_with_string(key, "\\\\?\\"): 4 else: 0
+            let rel = substring(key, rl + skip, len(key))
+            // Flatten relative path into a single filename: replace \ with _
+            let flat = text_replace_string(rel, "\\", "_")
+            fs_copy_file_streaming(ep, path_join(raw, flat), 65536)
+            n = n + 1
+        di = di + 1
+
+    println("copied_total=" + str(n))
+    return if n > 0: 0 else: 2

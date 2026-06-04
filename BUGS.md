@@ -1,5 +1,34 @@
 # Kain Bug Log
 
+## 2026-06-03 - llvm/value-semantics
+### `let copy: Self = _self` inside a struct method can corrupt returned values in native LLVM runs
+
+- Categories: llvm, lowering, value-semantics, methods, smoketest
+- Severity: High
+- Status: Open in tree (2026-06-03)
+- Surface: authored struct methods that take `_self: Self_` and return `Self` through a local `let copy: Self = _self`.
+- Trigger: Running a tiny native LLVM repro or the original `smoketest/src/semantics/keyword_mesh.kn` lane before the smoke workaround.
+- Symptom:
+  - A returned struct copy can come back with corrupted fields under `kain run --target llvm`.
+  - Minimal repro with
+    - `struct KeywordMeshRecord { id: Int, payload: Int, tag: String }`
+    - `fn clone_self(_self: Self_) -> Self: let copy: Self = _self; return copy`
+    - then checking `clone.id == 1`
+    returns failure immediately in the native executable path.
+  - In smoketest, this surfaced as `semantics.keyword_mesh` failing with status `4` because the copied record no longer produced the expected summary string.
+- Why this is a bug: a by-value `Self` roundtrip inside an authored method should preserve all fields; corrupting the returned struct breaks basic value semantics and makes ordinary helper methods unsafe to trust in LLVM lanes.
+- Minimal repro:
+  - Write the tiny clone probe used during this pass and run:
+  - `kain run X:\scratch\keyword_mesh_clone_probe.kn --target llvm`
+- Evidence:
+  - `X:\.kain\reports\run\session-1780531771102-24468.json`
+  - `X:\.kain\reports\run\session-1780531748984-4180.json`
+  - The full smoketest failure before the workaround reported `failure_track = "semantics.keyword_mesh"` with `failure_code = 1754` in `smoketest/telemetry/full/summary.json`.
+- Current workaround:
+  - Avoid authored `clone_self`-style helpers that roundtrip `Self` by value in native LLVM proof lanes; operate on the original record or rebuild the needed scalar outputs directly.
+- Suggested direction:
+  - Audit LLVM lowering / runtime ABI for struct-by-value method self passing and return materialization, especially records containing strings or other nontrivial payloads.
+
 ## 2026-06-03 - typechecker/module-scope
 ### Imported authored packs leak top-level globals hard enough to collide on `main` and duplicate extern ownership
 

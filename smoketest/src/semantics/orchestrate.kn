@@ -30,7 +30,6 @@ world SmokeOrchestrateAuthority:
     state resonance: Int = 0
     state gpu_epoch: Int = 0
     surface web => SmokeOrchestratePanel
-    surface native_ui => SmokeOrchestratePanel
 
 world SmokeOrchestrateMirror:
     state signal_copy: Int = 1
