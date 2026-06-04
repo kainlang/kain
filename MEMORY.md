@@ -1,5 +1,24 @@
 # Kain Memory
 
+# 2026-06-04 - Stage-3 service API crate seeded for Kain-authored tooling
+
+What changed:
+
+- Added `crates/service-api` as the compiler-as-a-service seam for Kain tooling: Rust workspace/document host, diagnostics/check results, syntax-backed index, query helpers, formatter bridge, and native C ABI exports all live there.
+- Marked `crates/cli/src/lsp.rs` as deprecated source material only. Rust CLI LSP protocol glue should not be treated as the canonical tooling layer; future LSP handling should be authored in Kain above `kain-service-api`.
+- Registered the crate in the Cargo workspace and documented the ownership boundary in `GLOSSARY.MD` and `ARCHITECTURE.md`.
+
+Validation:
+
+- `cargo check -p kain-service-api --target-dir Z:\_b\cargo-target\service-api` passed before `Z:` filled up during the later test run.
+- `$env:CARGO_INCREMENTAL='0'; cargo test -p kain-service-api --target-dir F:\_b\cargo-target\service-api` passed `5/5`, covering check diagnostics, formatting, syntax index/query behavior, workspace host behavior, and ABI open/query/free roundtrip.
+
+Operational notes:
+
+- Use `F:\_b\cargo-target\service-api` or another roomy target dir for focused service-api Cargo tests while `Z:` has only a few MB free; the `Z:` failure was `os error 112`, not a service-api compile failure.
+- Keep `kain-service-api` as a native/Rust service layer, not an LSP server or JSON-RPC dispatcher. The native ABI should remain flat structs, explicit handles, pointer+len strings, arrays, status/error fields, and paired free functions.
+- The first implementation intentionally reuses `kain-driver`, `kain-error::DiagnosticReport`, `kain-core::TypedProgram`, and `kain-fmt`; do not fork compiler truth into a second diagnostic/type/formattter stack.
+
 # 2026-06-04 - Python host-object calls now preserve Kain named args as kwargs
 
 What changed:
@@ -34,6 +53,35 @@ Operational notes:
 - Do not name Kain facade wrappers exactly the same as raw C symbols emitted by an include alias. That caused GUI-mode recursion when a Kain `editor_presenter_open` wrapper shadowed the raw C symbol behind `ui_open`.
 - If `kain run` behavior does not match imported-module edits, clear the blade-local `.kain/cache/run`; this pass logged a run-cache bug because the stale executable survived a `gauntlet.kn` edit until the cache was removed.
 - For tool-driven fixture generation, prefer `std::process` specs with explicit args over shell strings. The existing `process_output_text`/`os_system` `-5` Windows spawn issue is already tracked in `FEEDBACK.md`.
+
+# 2026-06-04 - `resonate` landed as compiler-owned shadow-patch reactivity
+
+What changed:
+
+- Added the `resonate World.field dampen <duration>:` keyword as a core compiler-owned state-to-execution surface with portable metadata in `crates/resonate`.
+- Threaded the surface through `crates/core` parser/AST/typechecking, runtime-contract and realtime-bundle emission, runtime capability activation, formatter/driver consumers, and direct self-feedback rejection.
+- Lowered native LLVM resonance handlers as internal `__kain_resonate_*` functions and spliced guarded post-store calls after matching world-field stores through `abi_resonate_should_fire_i64` / `abi_resonate_should_fire_f64` plus `abi_resonate_exit`.
+- Added native runtime dampen/reentry/telemetry helpers in the stdlib ABI facade and public `std::intent` wrappers such as `resonate_fire_count`, `resonate_absorb_count`, `resonate_last_target`, and `resonate_last_dampen_ns`.
+- Wired a real smoketest album track at `smoketest/src/semantics/resonate.kn` that combines `world`, `entangle`, `patch`, `resonate`, `orchestrate`, and native telemetry counters. The track uses web-only surfaces so full LLVM smoke runs do not conflict with the album's single native UI root.
+
+Validation:
+
+- `cargo check -p kain-core -p kain-sys-codegen -p cli`
+- `cargo test -p kain-core --test compiler_owned_intent_test -- --nocapture`
+- `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_generates_world_patch_converge_and_orchestrate_paths -- --nocapture`
+- `rustfmt --edition 2021 --check crates\core\src\types.rs crates\core\tests\compiler_owned_intent_test.rs crates\resonate\src\lib.rs crates\sys-codegen\src\codegen_llvm\mod.rs crates\sys-codegen\tests\llvm_codegen_test.rs crates\ue5\src\codegen_ue5.rs`
+- `Z:\_b\cargo-target\resonate\debug\kain.exe stdlib-map --write`
+- `Z:\_b\cargo-target\resonate\debug\kain.exe stdlib-map --check`
+- `Z:\_b\cargo-target\resonate\debug\kain.exe check src/semantics/resonate.kn --target llvm`
+- `Z:\_b\cargo-target\resonate\debug\kain.exe check src/main.kn --target llvm`
+- `Z:\_b\cargo-target\resonate\debug\kain.exe run src/main.kn --target llvm`
+- `bazel build //runtime:native_core_runtime --config=dev`
+
+Operational notes:
+
+- Use a fresh Cargo/Bazel-built CLI for `resonate` validation until `X:\.kain\bin\kain.exe` is refreshed; stale launchers parse `resonate` as an ordinary top-level statement and fail near the block colon.
+- `dampen 0 ms` is valid and means no absorption window beyond active-target reentry suppression. Nonzero units normalize through `DampenWindow` to nanoseconds.
+- If full smoke `run` reports multiple `native_ui` roots after adding a world-heavy semantic lane, switch that lane's proof-only surfaces to `web` unless it intentionally owns the native UI root.
 
 # 2026-06-04 - `kain run` and cached LLVM file builds avoid debug-binary hash tax
 
@@ -105,7 +153,7 @@ Operational notes:
 
 - HLSL and WGSL should stay shared through `crates/shader-text`; USF should consume shared type/resource helpers where useful, while UE-specific shader/plugin policy remains in `crates/ue5-shaders`.
 - Direct WGSL tests use Naga parse/validate in `crates/gpu/tests/wgsl_codegen.rs`; this is the fast proof lane for WebGPU syntax drift.
-- Targeted `cargo test` commands that compile `kain-core` with `cfg(test)` currently trip unrelated resonance/runtime-contract drift (`collect_resonance_contracts`, `ItemSummary.resonances`, and `TypedItem::Resonate` match coverage). Non-test `cargo check` for the affected consumer crates passed.
+- Follow-up `resonate` work cleared the temporary core-test drift by covering `resonances[]`, `ItemSummary` counts, and `TypedItem::Resonate` match consumers with focused compiler-owned intent and LLVM codegen tests.
 
 # 2026-06-03 - LLVM impl `Self` copies preserve struct values again
 

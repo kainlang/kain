@@ -1,0 +1,432 @@
+use std::intent
+use std::json
+use std::python
+use std::runtime
+
+import math as py_math
+import moderngl as mgl
+import numpy as np
+
+const RESONATE_PY_MODULUS: Int = 1000000007
+const RESONATE_PY_CASE_COUNT: Int = 3
+const RESONATE_PY_KEY_COUNT: Int = 24
+const RESONATE_PY_DAMPEN_HOLD: Int = 2400
+
+component ResonatePyPanel():
+    render <panel title="resonate-py-24tet" />
+
+world ResonatePyAuthority:
+    state note_slot: Int = 0
+    state quarter_step: Int = 0
+    state velocity: Int = 0
+    state event_epoch: Int = 0
+    state ui_epoch: Int = 0
+    state shader_epoch: Int = 0
+    state resonance_hash: Int = 0
+    state dampen_probe: Int = 0
+    state dampen_shadow: Int = 0
+    state last_old: Int = 0
+    state last_new: Int = 0
+    state last_pitch_milli: Int = 0
+    surface web => ResonatePyPanel
+
+world ResonatePyMirror:
+    state note_slot_copy: Int = 0
+    state event_epoch_copy: Int = 0
+    state ui_epoch_copy: Int = 0
+    state shader_epoch_copy: Int = 0
+    state resonance_hash_copy: Int = 0
+    surface web => ResonatePyPanel
+
+entangle ResonatePyAuthority.note_slot <-> ResonatePyMirror.note_slot_copy with single_writer
+entangle ResonatePyAuthority.event_epoch <-> ResonatePyMirror.event_epoch_copy with single_writer
+entangle ResonatePyAuthority.ui_epoch <-> ResonatePyMirror.ui_epoch_copy with single_writer
+entangle ResonatePyAuthority.shader_epoch <-> ResonatePyMirror.shader_epoch_copy with single_writer
+entangle ResonatePyAuthority.resonance_hash <-> ResonatePyMirror.resonance_hash_copy with single_writer
+
+fn resonate_py_bool_score(value: Bool) -> Int:
+    if value:
+        return 1
+    return 0
+
+fn resonate_py_json_bool_text(value: Bool) -> String:
+    if value:
+        return "true"
+    return "false"
+
+fn resonate_py_json_escape(text: String) -> String:
+    let escaped = ""
+    let index = 0
+    while index < len(text):
+        let ch = char_at(text, index)
+        if ch == "\\":
+            escaped = escaped + "\\\\"
+        else if ch == "\"":
+            escaped = escaped + "\\\""
+        else if ch == "\n":
+            escaped = escaped + "\\n"
+        else if ch == "\r":
+            escaped = escaped + "\\r"
+        else if ch == "\t":
+            escaped = escaped + "\\t"
+        else:
+            escaped = escaped + ch
+        index = index + 1
+    return escaped
+
+fn resonate_py_json_string_value(text: String) -> String:
+    return "\"" + resonate_py_json_escape(text) + "\""
+
+fn resonate_py_mod(value: Int, modulus: Int) -> Int:
+    let folded = value % modulus
+    if folded < 0:
+        return folded + modulus
+    return folded
+
+fn resonate_py_mix(value: Int) -> Int:
+    return resonate_py_mod((value * 97) + 53, RESONATE_PY_MODULUS)
+
+fn resonate_py_world_score(note_slot: Int, epoch: Int, ui_epoch: Int, shader_epoch: Int, resonance_hash: Int) -> Int:
+    return resonate_py_mod((note_slot * 11) + (epoch * 17) + (ui_epoch * 23) + (shader_epoch * 29) + (resonance_hash * 7) + 131, RESONATE_PY_MODULUS)
+
+fn resonate_py_dispatch_style(value: Int, epoch: Int) -> Int:
+    return resonate_py_mod((value * 19) + (epoch * 31) + 211, RESONATE_PY_MODULUS)
+
+law resonate_py_note_in_bounds(value: Int) -> Bool:
+    return value >= 0 and value < RESONATE_PY_KEY_COUNT
+
+patch resonate_py_strike(authority: ResonatePyAuthority, note_slot: Int, velocity: Int, seed: Int) -> Int:
+    authority.note_slot = note_slot
+    authority.quarter_step = note_slot
+    authority.velocity = velocity
+    authority.event_epoch = authority.event_epoch + 1
+    authority.resonance_hash = resonate_py_mod(authority.resonance_hash + seed + note_slot + velocity + authority.event_epoch, RESONATE_PY_MODULUS)
+    return authority.event_epoch
+
+patch resonate_py_commit_visual(authority: ResonatePyAuthority, ui_epoch: Int, shader_epoch: Int, hash_delta: Int) -> Int:
+    authority.ui_epoch = ui_epoch
+    authority.shader_epoch = shader_epoch
+    authority.resonance_hash = resonate_py_mod(authority.resonance_hash + hash_delta + ui_epoch + shader_epoch, RESONATE_PY_MODULUS)
+    return authority.resonance_hash
+
+patch resonate_py_probe_dampen(authority: ResonatePyAuthority, value: Int) -> Int:
+    authority.dampen_probe = value
+    return authority.dampen_probe
+
+fn resonate_py_reset_state():
+    ResonatePyAuthority.note_slot = 0
+    ResonatePyAuthority.quarter_step = 0
+    ResonatePyAuthority.velocity = 0
+    ResonatePyAuthority.event_epoch = 0
+    ResonatePyAuthority.ui_epoch = 0
+    ResonatePyAuthority.shader_epoch = 0
+    ResonatePyAuthority.resonance_hash = 0
+    ResonatePyAuthority.dampen_probe = 0
+    ResonatePyAuthority.dampen_shadow = 0
+    ResonatePyAuthority.last_old = 0
+    ResonatePyAuthority.last_new = 0
+    ResonatePyAuthority.last_pitch_milli = 0
+
+fn resonate_py_dpg_available() -> Bool:
+    return python_module_available("dearpygui.dearpygui")
+
+fn resonate_py_bootstrap_python():
+    python_exec("import math as _math\nimport numpy as _np\nimport moderngl as _mgl\nif '_kain_resonate_py_state' not in globals():\n    _kain_resonate_py_state = {'mgl_ctx': None, 'mgl_buf': None}\n\ndef kain_resonate_py_reset():\n    st = _kain_resonate_py_state\n    if st['mgl_buf'] is not None:\n        try:\n            st['mgl_buf'].release()\n        except Exception:\n            pass\n        st['mgl_buf'] = None\n    if st['mgl_ctx'] is not None:\n        try:\n            st['mgl_ctx'].release()\n        except Exception:\n            pass\n        st['mgl_ctx'] = None\n    return 1\n\ndef kain_resonate_py_pitch_milli(note_slot):\n    return int(220.0 * (2.0 ** ((float(note_slot) - 12.0) / 24.0)) * 1000.0)\n\ndef kain_resonate_py_note_score(note_slot, velocity, epoch):\n    pitch = kain_resonate_py_pitch_milli(note_slot)\n    color = (pitch // 97 + velocity * 7 + epoch * 13) % 255\n    return int((pitch % 1000003) + color + note_slot * 17 + velocity * 3 + epoch)\n\ndef kain_resonate_py_keyboard_shadow(note_slot, velocity, epoch):\n    pitch = kain_resonate_py_pitch_milli(note_slot)\n    label = f'q{int(note_slot):02d}:{int(velocity)}:{pitch}'\n    return len(label) + pitch + int(epoch) + int(velocity) + (24 * 11)\n\ndef kain_resonate_py_mgl_prepare():\n    st = _kain_resonate_py_state\n    if st['mgl_ctx'] is None:\n        st['mgl_ctx'] = _mgl.create_standalone_context()\n    if st['mgl_buf'] is None:\n        seed = _np.zeros(24, dtype='f4').tobytes()\n        st['mgl_buf'] = st['mgl_ctx'].buffer(seed)\n    return st['mgl_buf'].size\n\ndef kain_resonate_py_mgl_push(note_slot, velocity, epoch):\n    kain_resonate_py_mgl_prepare()\n    st = _kain_resonate_py_state\n    arr = _np.zeros(24, dtype='f4')\n    arr[int(note_slot) % 24] = float(velocity) + (float(epoch) * 0.125)\n    st['mgl_buf'].write(arr.tobytes())\n    return int(st['mgl_buf'].size + int(arr.sum() * 100.0))\n")
+
+fn resonate_py_python_reset() -> Int:
+    resonate_py_bootstrap_python()
+    return to_int(python_call_raw("kain_resonate_py_reset", []))
+
+fn resonate_py_python_pitch_milli(note_slot: Int) -> Int:
+    resonate_py_bootstrap_python()
+    return to_int(python_call_raw("kain_resonate_py_pitch_milli", [note_slot]))
+
+fn resonate_py_python_note_score(note_slot: Int, velocity: Int, epoch: Int) -> Int:
+    resonate_py_bootstrap_python()
+    return to_int(python_call_raw("kain_resonate_py_note_score", [note_slot, velocity, epoch]))
+
+fn resonate_py_python_keyboard_shadow(note_slot: Int, velocity: Int, epoch: Int) -> Int:
+    resonate_py_bootstrap_python()
+    return to_int(python_call_raw("kain_resonate_py_keyboard_shadow", [note_slot, velocity, epoch]))
+
+fn resonate_py_python_mgl_prepare() -> Int:
+    resonate_py_bootstrap_python()
+    return to_int(python_call_raw("kain_resonate_py_mgl_prepare", []))
+
+fn resonate_py_python_mgl_push(note_slot: Int, velocity: Int, epoch: Int) -> Int:
+    resonate_py_bootstrap_python()
+    return to_int(python_call_raw("kain_resonate_py_mgl_push", [note_slot, velocity, epoch]))
+
+converge resonate_py_lane_mix(value: Int) -> Int:
+    spec reference:
+        return resonate_py_mix(value)
+    fast llvm_lane when target("llvm"):
+        return resonate_py_mod((value * 97) + 53, RESONATE_PY_MODULUS)
+
+orchestrate resonate_py_wave_pipeline(seed: Int, authority: ResonatePyAuthority) -> Int:
+    stage base: cpu resonate_py_mix(seed + authority.note_slot + authority.velocity) when capability("cpu.scalar") residency host transfer none policy static
+    stage py_ui: python resonate_py_python_keyboard_shadow(authority.note_slot, authority.velocity, authority.event_epoch) after base residency host fallback base policy telemetry_prefer_cpu
+    stage py_gl: python resonate_py_python_mgl_push(authority.note_slot, authority.velocity, authority.event_epoch) after py_ui residency host fallback degrade py_ui policy telemetry_prefer_cpu
+    stage tuned: converge resonate_py_lane_mix(base + py_ui + py_gl + authority.resonance_hash) deps [base, py_ui, py_gl] residency shared transfer shared_view policy telemetry_balance_latency
+    stage legal: law resonate_py_note_in_bounds(authority.note_slot) after tuned residency host policy static
+    stage mirrored: world resonate_py_world_score(authority.note_slot, authority.event_epoch, authority.ui_epoch, authority.shader_epoch, authority.resonance_hash) after legal requires legal residency shared transfer shared_view policy telemetry_balance_latency
+    stage committed: patch resonate_py_commit_visual(authority, resonate_py_mod(py_ui + tuned, RESONATE_PY_MODULUS), resonate_py_mod(py_gl + mirrored, RESONATE_PY_MODULUS), tuned) deps [py_ui, py_gl, mirrored] requires legal residency host policy telemetry_balance_latency
+    stage final_lane: dispatch resonate_py_dispatch_style(committed + py_gl, authority.event_epoch) deps [base, py_ui, py_gl, committed] residency shared transfer shared_view policy telemetry_balance_latency
+    if legal == false:
+        return base
+    return final_lane
+
+resonate ResonatePyAuthority.event_epoch dampen 0 ms:
+    ResonatePyAuthority.last_old = resonate_old_i64
+    ResonatePyAuthority.last_new = resonate_new_i64
+    ResonatePyAuthority.last_pitch_milli = resonate_py_python_pitch_milli(ResonatePyAuthority.note_slot)
+    ResonatePyAuthority.resonance_hash = resonate_py_wave_pipeline(ResonatePyAuthority.event_epoch + ResonatePyAuthority.note_slot + ResonatePyAuthority.velocity, ResonatePyAuthority)
+
+resonate ResonatePyAuthority.dampen_probe dampen 1 s:
+    ResonatePyAuthority.dampen_shadow = ResonatePyAuthority.dampen_probe + RESONATE_PY_DAMPEN_HOLD + ResonatePyAuthority.ui_epoch
+
+fn resonate_py_module_probe_score() -> Int:
+    let arange = python_call_attr_raw(np, "arange", [RESONATE_PY_KEY_COUNT])
+    let np_count = to_int(python_call_attr_raw(arange, "__len__", []))
+    let math_floor = to_int(python_call_attr_raw(py_math, "floor", [3.99]))
+    let version_text = to_string(python_getattr_raw(mgl, "__version__"))
+    return np_count + math_floor + len(version_text) + (resonate_py_bool_score(resonate_py_dpg_available()) * 24)
+
+fn resonate_py_shadow_patch_piano_checksum(iterations: Int, modulus: Int) -> Int with Unsafe:
+    let init_status = runtime_init()
+    if init_status != 0:
+        return 100 + init_status
+
+    resonate_py_reset_state()
+    let _python_reset = resonate_py_python_reset()
+    let _mgl_ready = resonate_py_python_mgl_prepare()
+    let fire_before = resonate_fire_count()
+    let absorb_before = resonate_absorb_count()
+    let patch_before = patch_journal_count()
+    let entangle_before = entangle_propagation_count()
+    let stage_before = orchestrate_stage_count()
+
+    let acc = 0
+    let round = 0
+    while round < iterations:
+        let note_slot = (round * 5 + 7) % RESONATE_PY_KEY_COUNT
+        let velocity = 40 + ((round * 11 + 13) % 71)
+        let epoch = resonate_py_strike(ResonatePyAuthority, note_slot, velocity, round + 19)
+        let damp0 = resonate_py_probe_dampen(ResonatePyAuthority, round + 100)
+        let shadow0 = ResonatePyAuthority.dampen_shadow
+        let damp1 = resonate_py_probe_dampen(ResonatePyAuthority, round + 101)
+        let packet = resonate_py_python_note_score(note_slot, velocity, epoch)
+        acc = resonate_py_mod(
+            acc
+                + packet
+                + ResonatePyAuthority.last_pitch_milli
+                + ResonatePyAuthority.ui_epoch
+                + ResonatePyAuthority.shader_epoch
+                + ResonatePyAuthority.resonance_hash
+                + ResonatePyMirror.note_slot_copy
+                + ResonatePyMirror.event_epoch_copy
+                + ResonatePyMirror.ui_epoch_copy
+                + ResonatePyMirror.shader_epoch_copy
+                + ResonatePyMirror.resonance_hash_copy
+                + shadow0
+                + damp0
+                + damp1
+                + resonate_py_bool_score(ResonatePyAuthority.last_new == epoch)
+                + resonate_py_bool_score(ResonatePyAuthority.dampen_shadow == shadow0),
+            modulus,
+        )
+        round = round + 1
+
+    let runtime_ok = (
+        patch_journal_count() > patch_before
+        and entangle_propagation_count() > entangle_before
+        and orchestrate_stage_count() > stage_before
+        and resonate_fire_count() > fire_before
+        and resonate_absorb_count() > absorb_before
+        and resonate_last_target() == "ResonatePyAuthority.dampen_probe"
+        and ResonatePyAuthority.last_old == (ResonatePyAuthority.event_epoch - 1)
+        and ResonatePyAuthority.last_new == ResonatePyAuthority.event_epoch
+    )
+    let _python_close = resonate_py_python_reset()
+    let shutdown_status = runtime_shutdown()
+    if shutdown_status != 0:
+        return 200 + shutdown_status
+    if runtime_ok == false:
+        return 7
+    return resonate_py_mod(acc + resonate_py_module_probe_score(), modulus)
+
+fn resonate_py_dearpygui_keyboard_checksum(iterations: Int, modulus: Int) -> Int with Unsafe:
+    let init_status = runtime_init()
+    if init_status != 0:
+        return 300 + init_status
+
+    resonate_py_reset_state()
+    let _python_reset = resonate_py_python_reset()
+    let dpg_ok = resonate_py_dpg_available()
+    let acc = RESONATE_PY_KEY_COUNT + resonate_py_bool_score(dpg_ok)
+    let round = 0
+    while round < iterations:
+        let note_slot = (round * 9 + 3) % RESONATE_PY_KEY_COUNT
+        let velocity = 32 + ((round * 7 + 5) % 84)
+        let epoch = resonate_py_strike(ResonatePyAuthority, note_slot, velocity, round + 29)
+        let direct_touch = resonate_py_python_keyboard_shadow(note_slot, velocity, epoch)
+        acc = resonate_py_mod(
+            acc
+                + direct_touch
+                + ResonatePyAuthority.ui_epoch
+                + ResonatePyAuthority.last_pitch_milli
+                + resonate_py_bool_score(dpg_ok)
+                + note_slot
+                + velocity,
+            modulus,
+        )
+        round = round + 1
+
+    let _python_close = resonate_py_python_reset()
+    let shutdown_status = runtime_shutdown()
+    if shutdown_status != 0:
+        return 400 + shutdown_status
+    return resonate_py_mod(acc + resonate_py_module_probe_score(), modulus)
+
+fn resonate_py_moderngl_buffer_checksum(iterations: Int, modulus: Int) -> Int with Unsafe:
+    let init_status = runtime_init()
+    if init_status != 0:
+        return 500 + init_status
+
+    resonate_py_reset_state()
+    let ctx = python_call_attr_raw(mgl, "create_standalone_context", [])
+    let seed = python_call_attr_raw(np, "zeros", [RESONATE_PY_KEY_COUNT, "float32"])
+    let seed_bytes = python_call_attr_raw(seed, "tobytes", [])
+    let buffer = python_call_attr_raw(ctx, "buffer", [seed_bytes])
+    let acc = to_int(python_getattr_raw(buffer, "size"))
+    let round = 0
+    while round < iterations:
+        let note_slot = (round * 13 + 1) % RESONATE_PY_KEY_COUNT
+        let velocity = 20 + ((round * 17 + 9) % 96)
+        let epoch = resonate_py_strike(ResonatePyAuthority, note_slot, velocity, round + 41)
+        let values = python_call_attr_raw(np, "zeros", [RESONATE_PY_KEY_COUNT, "float32"])
+        let lane_value = (velocity + epoch) as Float
+        let _set = python_call_attr_raw(values, "__setitem__", [note_slot, lane_value])
+        let raw = python_call_attr_raw(values, "tobytes", [])
+        let _write = python_call_attr_raw(buffer, "write", [raw])
+        let readback = python_call_attr_raw(buffer, "read", [])
+        let read_len = to_int(python_call_attr_raw(readback, "__len__", []))
+        let helper_push = resonate_py_python_mgl_push(note_slot, velocity, epoch)
+        acc = resonate_py_mod(
+            acc
+                + read_len
+                + helper_push
+                + ResonatePyAuthority.shader_epoch
+                + ResonatePyAuthority.resonance_hash
+                + ResonatePyMirror.shader_epoch_copy
+                + note_slot
+                + velocity,
+            modulus,
+        )
+        round = round + 1
+
+    let _buf_release = python_call_attr_raw(buffer, "release", [])
+    let _ctx_release = python_call_attr_raw(ctx, "release", [])
+    let _python_close = resonate_py_python_reset()
+    let shutdown_status = runtime_shutdown()
+    if shutdown_status != 0:
+        return 600 + shutdown_status
+    return resonate_py_mod(acc + resonate_py_module_probe_score(), modulus)
+
+pub fn resonate_py_case_count() -> Int:
+    return RESONATE_PY_CASE_COUNT
+
+pub fn resonate_py_case_id(index: Int) -> String:
+    if index == 0:
+        return "resonate_py_shadow_patch_piano"
+    if index == 1:
+        return "resonate_py_dearpygui_keyboard"
+    if index == 2:
+        return "resonate_py_moderngl_buffer"
+    return ""
+
+pub fn resonate_py_case_group(index: Int) -> String:
+    if index >= 0 and index < RESONATE_PY_CASE_COUNT:
+        return "resonate_py"
+    return ""
+
+pub fn resonate_py_case_title(index: Int) -> String:
+    if index == 0:
+        return "Resonate Py Shadow Patch Piano"
+    if index == 1:
+        return "Resonate Py DearPyGui Keyboard"
+    if index == 2:
+        return "Resonate Py ModernGL Buffer"
+    return ""
+
+pub fn resonate_py_case_iterations(index: Int) -> Int:
+    if index == 0:
+        return 96
+    if index == 1:
+        return 72
+    if index == 2:
+        return 84
+    return 0
+
+pub fn resonate_py_case_expected_checksum(index: Int) -> Int:
+    if index == 0:
+        return 255607093
+    if index == 1:
+        return 512851768
+    if index == 2:
+        return 173396464
+    return -1
+
+pub fn resonate_py_case_telemetry(case_id: String) -> String:
+    let dpg_name = "dearpygui.dearpygui"
+    let mgl_version = "moderngl"
+    if case_id == "resonate_py_shadow_patch_piano":
+        let content = "{"
+        content = content + "\"boundary_kind\":\"resonate-python-orchestrate\","
+        content = content + "\"tet\":24,"
+        content = content + "\"play_surface\":" + resonate_py_json_string_value("semantic-keyboard-shadow") + ","
+        content = content + "\"shader_surface\":" + resonate_py_json_string_value("moderngl-buffer") + ","
+        content = content + "\"resonate_targets\":" + resonate_py_json_string_value("event_epoch,dampen_probe") + ","
+        content = content + "\"dampen_window\":" + resonate_py_json_string_value("1s") + ","
+        content = content + "\"dpg_available_hint\":" + resonate_py_json_bool_text(true) + ","
+        content = content + "\"direct_imports\":" + resonate_py_json_string_value(dpg_name + "|" + mgl_version) + ","
+        content = content + "\"bench_intent\":" + resonate_py_json_string_value("shadow-patch-reactive-24tet-piano") + ","
+        content = content + "\"pack_focus\":" + resonate_py_json_string_value("resonate")
+        return content + "}"
+    if case_id == "resonate_py_dearpygui_keyboard":
+        let content = "{"
+        content = content + "\"boundary_kind\":\"dearpygui\","
+        content = content + "\"tet\":24,"
+        content = content + "\"module\":" + resonate_py_json_string_value(dpg_name) + ","
+        content = content + "\"availability_only\":" + resonate_py_json_bool_text(true) + ","
+        content = content + "\"dpg_available_hint\":" + resonate_py_json_bool_text(true) + ","
+        content = content + "\"bench_intent\":" + resonate_py_json_string_value("ui-keyboard-reactivity-with-runtime-blocker-probe") + ","
+        content = content + "\"pack_focus\":" + resonate_py_json_string_value("ui")
+        return content + "}"
+    if case_id == "resonate_py_moderngl_buffer":
+        let content = "{"
+        content = content + "\"boundary_kind\":\"moderngl\","
+        content = content + "\"tet\":24,"
+        content = content + "\"module_version\":" + resonate_py_json_string_value(mgl_version) + ","
+        content = content + "\"staging\":" + resonate_py_json_string_value("float32-buffer") + ","
+        content = content + "\"bench_intent\":" + resonate_py_json_string_value("gpu-staging-reactivity") + ","
+        content = content + "\"pack_focus\":" + resonate_py_json_string_value("gpu")
+        return content + "}"
+    let content = "{"
+    content = content + "\"pack_focus\":" + resonate_py_json_string_value("resonate_py")
+    return content + "}"
+
+pub fn resonate_py_case_checksum(case_id: String, iterations: Int, amplify: Int, modulus: Int) -> Int with Unsafe:
+    let repeat = 0
+    let acc = 0
+    while repeat < amplify:
+        if case_id == "resonate_py_shadow_patch_piano":
+            acc = (acc + resonate_py_shadow_patch_piano_checksum(iterations, modulus)) % modulus
+        else if case_id == "resonate_py_dearpygui_keyboard":
+            acc = (acc + resonate_py_dearpygui_keyboard_checksum(iterations, modulus)) % modulus
+        else if case_id == "resonate_py_moderngl_buffer":
+            acc = (acc + resonate_py_moderngl_buffer_checksum(iterations, modulus)) % modulus
+        else:
+            return -1
+        repeat = repeat + 1
+    return acc

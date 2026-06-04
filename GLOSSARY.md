@@ -42,7 +42,7 @@ Location rule: paths in this glossary are live in this checkout. Older docs may 
 
 **Collapse** - The exclusive ownership mutation scope in Kain. It says a region is being mutated under an owned, single-writer phase. Location: language truth in `crates/core/`; ownership model in `crates/ownership/`; native ownership substrate in `runtime/native/`.
 
-**Compiler-owned intents** - The semantic declaration family Kain treats as first-class language machinery instead of library sugar. The main set is `law`, `patch`, `converge`, `world`, `entangle`, and `orchestrate`, with machine-stone siblings such as `axiom`, `pulse`, `shatter`, and `teleport`. Location: `crates/core/`, `crates/sys-codegen/`, `runtime/native/`, `stdlib/intent.kn`.
+**Compiler-owned intents** - The semantic declaration family Kain treats as first-class language machinery instead of library sugar. The main set is `law`, `patch`, `resonate`, `converge`, `world`, `entangle`, and `orchestrate`, with machine-stone siblings such as `axiom`, `pulse`, `shatter`, and `teleport`. Location: `crates/core/`, `crates/sys-codegen/`, `runtime/native/`, `stdlib/intent.kn`.
 
 **Conformance** - The runtime-facing proof and contract lane that validates ABI and subsystem behavior below authored Kain demos. Location: `runtime/conformance/`.
 
@@ -130,6 +130,8 @@ Location rule: paths in this glossary are live in this checkout. Older docs may 
 
 **kain-run** - The unified immediate execution planner behind `kain run`, `kain run dev`, and `kain watch`. It resolves files, projects, manifests, Cargo/C/Node/Fabric inputs, and run metadata through one pipeline, while still carrying some legacy blade compatibility internally. Location: `crates/run/`.
 
+**kain-service-api** - The Stage-3 compiler-as-a-service crate for editor and Kain-authored tooling. It owns the Rust service API, in-memory workspace/document host, query/index surface, formatter bridge, diagnostic service results, and native C ABI handles over compiler truth. It is not an LSP server; LSP protocol handling should be authored in Kain above this layer. Location: `crates/service-api/`.
+
 **kain-semantic** - The reusable semantic coprocessor crate for compiler diagnostics, corpus intelligence, and oracle tooling. It owns the CPU compiler-side semantic pack consumer, the offline Kain/CUDA oracle forge, and domain failure modes for typo, import, shader, CUDA/PTX, Python interop, C ABI, ownership, world, converge, parser, and actor diagnostics. This is the primary crate path after the `error-semantic` rename. Location: `crates/semantic/`.
 
 **kain-error-semantic** - Compatibility shim crate that re-exports `kain-semantic` for legacy dependency paths. Use this only for transition; new code should depend on `kain-semantic` directly. Location: `crates/error-semantic/`.
@@ -189,6 +191,8 @@ Location rule: paths in this glossary are live in this checkout. Older docs may 
 **Reference** - The donor/reference corpus for external code, harvested material, and salvage surfaces. This is useful for research and assimilation, not as automatic truth. Location: `reference/`.
 
 **Research** - The repo's frontier-notes surface for optimization hunts, semantic frontier plans, and subsystem investigations. If a performance or architecture idea is not yet a landed subsystem truth, it usually starts here. Location: `research/`.
+
+**Resonate** - A compiler-owned state-to-execution tripwire written `resonate World.field dampen 16ms:`. It binds a handler to a world state slot, lowers native LLVM as a post-store shadow patch instead of a heap observer registry, emits `resonances[]` runtime/realtime metadata, and uses the native `state.resonate` dampen/reentry guard to absorb storms or direct feedback. Location: `crates/resonate/`, `crates/core/`, `crates/sys-codegen/`, `runtime/native/include/stdlib_abi.h`, `runtime/native/src/core/stdlib_abi.c`, `stdlib/intent.kn`.
 
 **Runtime blades** - The Kain-authored runtime-policy workspace above the raw C ABI floor. Use this phrase when talking about authored runtime policy, not the low-level native substrate itself. Location: `runtime/blades/`.
 

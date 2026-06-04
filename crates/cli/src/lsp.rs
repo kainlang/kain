@@ -1,3 +1,10 @@
+//! Deprecated historical Rust LSP implementation.
+//!
+//! This file is kept as source material for query heuristics during the
+//! Stage-3 service API migration. New compiler/tooling integration should use
+//! `kain-service-api`; future LSP protocol handling is expected to be authored
+//! in Kain above that native service layer.
+
 use std::collections::{hash_map::Entry, HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};

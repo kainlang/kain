@@ -1,7 +1,7 @@
 ---
 name: lang-semantics
 description: >-
-  Use when authoring, explaining, reviewing, or repairing Kain language-side semantics and feature usage across the authored `.kn` surface: modules/imports, functions/effects, data types, components/JSX, shaders/compute/comptime plans, actors, async, ownership and raw memory expressions, world/entangle/patch/law, converge/orchestrate, axiom/pulse/shatter/teleport, tests, macros, material/graph/editor/gameplay DSLs, and source-code anchors for how those Kain features work. Use this when writing IN Kain, not when changing parser/typechecker/lowering/runtime internals.
+  Use when authoring, explaining, reviewing, or repairing Kain language-side semantics and feature usage across the authored `.kn` surface: modules/imports, functions/effects, data types, components/JSX, shaders/compute/comptime plans, actors, async, ownership and raw memory expressions, world/entangle/patch/law/resonate, converge/orchestrate, axiom/pulse/shatter/teleport, tests, macros, material/graph/editor/gameplay DSLs, and source-code anchors for how those Kain features work. Use this when writing IN Kain, not when changing parser/typechecker/lowering/runtime internals.
 ---
 
 # Lang Semantics
@@ -19,8 +19,8 @@ This skill is the Kain language field manual. Use it to write real Kain, preserv
 ## Fast Operator Loop
 
 ```powershell
-rg -n "\b(world|entangle|patch|law|converge|orchestrate|axiom|pulse|teleport|shatter|shader|component|comptime|actor|collapse|observe|decay)\b" library_of_kain blades benchmark smoketest
-rg -n "Item::(World|Entangle|Patch|Law|Converge|Orchestrate|Axiom|Pulse|Shader|Component)|Expr::(Teleport|Collapse|Observe|Decay|StageCall)|ComputeMetadata" crates/core/src
+rg -n "\b(world|entangle|patch|law|resonate|converge|orchestrate|axiom|pulse|teleport|shatter|shader|component|comptime|actor|collapse|observe|decay)\b" library_of_kain blades benchmark smoketest
+rg -n "Item::(World|Entangle|Patch|Law|Resonate|Converge|Orchestrate|Axiom|Pulse|Shader|Component)|Expr::(Teleport|Collapse|Observe|Decay|StageCall)|ComputeMetadata" crates/core/src
 kain check <entry.kn> --target llvm
 kain run <entry.kn-or-blade> --target llvm
 ```
@@ -100,6 +100,7 @@ Core source anchors:
 | `world` | Named state authority/projection | `world Authority: state signal: Int = 1` | `parser.rs parse_world`, `types.rs check_world`, `runtime_contract.rs RuntimeWorldContract` |
 | `entangle` | State coupling between world fields | `entangle A.x <-> B.y with single_writer` | `crates/entangle`, `runtime/native/src/core/entangle.c` |
 | `patch` | Intentional journaled state mutation | `patch commit(world: World, value: Int) -> Int:` | `types.rs check_patch`, `runtime_contract.rs RuntimePatchContract`, `stdlib/intent.kn` |
+| `resonate` | State-to-execution shadow patch fired after matching world-field stores | `resonate Authority.signal dampen 16ms:` | `crates/resonate`, `types.rs check_resonate`, LLVM `compile_resonate`, `stdlib/intent.kn` |
 | `law` | Invariant predicate with Bool contract | `law in_bounds(x: Int) -> Bool:` | `types.rs check_law`, Z3 `keywords-law-runtime-accepts-only-bool-results.yaml` |
 | `converge` | Spec plus target/capability fast lanes | `spec reference`, `fast llvm_lane when target("llvm")` | `types.rs check_converge`, `runtime.rs select_converge_lane`, LLVM `compile_converge` |
 | `orchestrate` | Typed stage graph over silicon, invariants, Kain/C/Python, and compatibility adapters, including graph metadata for dependencies, residency, transfers, guards, fallbacks, law requirements, and policies | `stage x: gpu fn(value) when capability("gpu.compute") after seed residency device transfer host_to_device guarded by gpu_truth fallback degrade cpu_seed policy telemetry_prefer_gpu` | `crates/orchestrate`, `types.rs collect_orchestrate_stage_descriptors`, `runtime.rs execute_stage_call` |
@@ -251,9 +252,9 @@ Primary source anchors:
 - `crates/gpu/z3/proofs`: vector, layout, PTX, storage-buffer proof surfaces.
 - Examples: `benchmark/cases/gpu_graphics_submit/main.kn`, `library_of_kain/gpu_semantic_ping_pong.kn`, `blades/vulkain/src/vulkain.kn`.
 
-## World, Entangle, Patch, Law
+## World, Entangle, Patch, Law, Resonate
 
-Worlds are typed state authorities. Entangles couple fields between worlds. Patches are intentional mutations. Laws are invariant predicates.
+Worlds are typed state authorities. Entangles couple fields between worlds. Patches are intentional mutations. Laws are invariant predicates. Resonates bind execution to state mutation without a heap observer registry.
 
 ```kn
 component MirrorPanel():
@@ -279,6 +280,9 @@ patch commit_signal(authority: Authority, value: Int) -> Int:
     authority.signal = value
     authority.epoch = authority.epoch + 1
     return authority.signal
+
+resonate Authority.signal dampen 16ms:
+    Authority.epoch = Authority.epoch + resonate_new_i64
 ```
 
 World rules:
@@ -301,18 +305,27 @@ Patch and law rules:
 
 - `patch` is function-shaped but tracked as a mutation contract with mutation paths, invalidation keys, replay schema, collaboration event, and undo mode.
 - `law` must return `Bool`.
-- Public helpers in `std.intent` include `patch_journal_count`, `patch_last_path`, `entangle_propagation_count`, `entangle_last_authority`, `entangle_last_mirror`, `law_status`, `law_is_valid_status`.
+
+Resonate rules:
+
+- `resonate World.field dampen 16ms:` targets a world state slot and emits `resonances[]` metadata plus a generated handler symbol.
+- LLVM fires it as a post-store shadow patch through the native `state.resonate` dampen/reentry guard, not through an observer vector or queue.
+- Direct self-feedback is rejected: a resonance handler cannot directly assign its own target field.
+- Handler context locals are `resonate_old_i64`, `resonate_new_i64`, and `resonate_fired`.
+- Public helpers in `std.intent` include `patch_journal_count`, `patch_last_path`, `entangle_propagation_count`, `entangle_last_authority`, `entangle_last_mirror`, `law_status`, `law_is_valid_status`, `resonate_fire_count`, `resonate_absorb_count`, `resonate_last_target`, `resonate_last_old_i64`, `resonate_last_new_i64`, and `resonate_last_dampen_ns`.
 
 Primary source anchors:
 
-- `ast.rs`: `WorldDef`, `WorldStateSlot`, `WorldSurfaceProjection`, `EntangleDef`, `PatchDef`, `LawDef`.
-- `parser.rs`: `parse_world`, `parse_entangle`, `parse_patch`, `parse_law`.
-- `types.rs`: `check_world`, `check_entangle`, `check_patch`, `check_law`.
+- `ast.rs`: `WorldDef`, `WorldStateSlot`, `WorldSurfaceProjection`, `EntangleDef`, `PatchDef`, `LawDef`, `ResonateDef`.
+- `parser.rs`: `parse_world`, `parse_entangle`, `parse_patch`, `parse_law`, `parse_resonate`.
+- `types.rs`: `check_world`, `check_entangle`, `check_patch`, `check_law`, `check_resonate`.
 - `crates/entangle/src/lib.rs`: `EntangleGraph`, `EntanglePolicy::SingleWriter`, duplicate endpoint and mirror-write policy.
-- `runtime_contract.rs`: `RuntimeWorldContract`, `RuntimeEntangleContract`, `RuntimePatchContract`, `RuntimeLawContract`, capabilities `state.entangle`, `patch.transactions`, `law.invariants`.
+- `crates/resonate/src/lib.rs`: `ResonanceTarget`, `DampenWindow`, `ResonancePlan`, capability `state.resonate`.
+- `runtime_contract.rs`: `RuntimeWorldContract`, `RuntimeEntangleContract`, `RuntimePatchContract`, `RuntimeLawContract`, `RuntimeResonanceContract`, capabilities `state.entangle`, `patch.transactions`, `law.invariants`, `state.resonate`.
 - `runtime/native/include/entangle.h`, `runtime/native/src/core/entangle.c`: native registry and bounded C strings.
+- `runtime/native/include/stdlib_abi.h`, `runtime/native/src/core/stdlib_abi.c`: `abi_resonate_*` dampen, reentry, and telemetry helpers.
 - `runtime/native/src/core/kain_runtime_native_stdlib.c`: native stdlib counters/status helpers.
-- `stdlib/intent.kn`: public Kain wrappers for patch/law/entangle helpers.
+- `stdlib/intent.kn`: public Kain wrappers for patch/law/entangle/resonate helpers.
 - Z3: `crates/core/z3/proofs/keywords-law-runtime-accepts-only-bool-results.yaml`, `keywords-patch-cancel-rewinds-only-when-reversible.yaml`, `runtime/native/src/core/z3/proofs/native-entangle-*.yaml`, `native-stdlib-patch-journal-count-stays-within-capacity.yaml`.
 
 ## Converge
@@ -592,6 +605,7 @@ When authoring a semantic feature, expect these contract capabilities:
 - Editor/graph: `tooling.editor-surfaces`.
 - Patch: `patch.transactions`.
 - Law: `law.invariants`.
+- Resonate: `state.resonate`, `reactivity.shadow-patch`, `reactivity.dampen-window`.
 - Axiom: `machine.axiom`.
 - Pulse: `time.pulse`, `time.hardware-timer`.
 - Shatter: `memory.shatter`.

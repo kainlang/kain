@@ -1,0 +1,18 @@
+[package]
+name = "kain-service-api"
+version = "0.1.0"
+edition = "2021"
+description = "Compiler-as-a-service API and native bridge for Kain tooling"
+license = "MIT"
+
+[lib]
+crate-type = ["rlib", "cdylib"]
+
+[dependencies]
+kain-core = { path = "../core" }
+kain-driver = { path = "../driver", default-features = false }
+kain-error = { path = "../error" }
+kain-fmt = { path = "../fmt" }
+
+[dev-dependencies]
+tempfile = "3.8"

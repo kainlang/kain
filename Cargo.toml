@@ -19,6 +19,7 @@ members = [
     "crates/lattice",
     "crates/repl",
     "crates/check",
+    "crates/service-api",
     "crates/test",
     "crates/interop",
     "crates/foreign-abi",

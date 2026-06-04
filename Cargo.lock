@@ -2539,6 +2539,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "kain-service-api"
+version = "0.1.0"
+dependencies = [
+ "kain-core",
+ "kain-driver",
+ "kain-error",
+ "kain-fmt",
+ "tempfile",
+]
+
+[[package]]
 name = "kain-shader-text"
 version = "0.1.0"
 dependencies = [

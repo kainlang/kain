@@ -157,6 +157,7 @@ Machine stones, CPU, converge, SIMD:
 Stdlib-facing native helpers:
 
 - Co-trigger `runtime-stdlib` when the behavior is a domain API rather than generic runtime substrate.
+- `resonate` uses the generic stdlib ABI facade (`runtime/native/include/stdlib_abi.h`, `runtime/native/src/core/stdlib_abi.c`) for `abi_resonate_*` dampen, reentry, and telemetry helpers; keep those in lockstep with LLVM declarations and `stdlib/intent.kn` wrappers.
 - Update `stdlib/*.kn`, `stdlib/native/*.kn` if relevant, `crates/core/src/stdlib.rs` native declarations, canonical examples, and regenerate `stdlib/STDLIB_MAP.llm.md` when public surface changes.
 
 ## Validation Ladders

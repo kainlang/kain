@@ -1,6 +1,6 @@
 # Kain Keyword Catalog
 
-Snapshot: 2026-06-03
+Snapshot: 2026-06-04
 
 This file is the quick "what words does Kain actually own right now?" sheet.
 It is meant to stop the constant rediscovery loop.
@@ -22,9 +22,9 @@ This catalog counts authored Kain language words, not punctuation.
 ## Headline Count
 
 - `58` hard lexer keywords
-- `41` contextual or keyword-like parser words
+- `50` contextual or keyword-like parser words
 - `2` textual operator aliases: `and`, `or`
-- `101` practical authored Kain words to remember if you want the whole live surface
+- `110` practical authored Kain words to remember if you want the whole live surface
 
 ## Source Of Truth
 
@@ -56,13 +56,19 @@ These have dedicated token entries in `TokenKind`.
 
 `Pure`, `IO`, `async`, `Async`, `GPU`, `Reactive`, `Unsafe`
 
-## 2. Contextual Or Keyword-Like Parser Words (`49`)
+## 2. Contextual Or Keyword-Like Parser Words (`50`)
 
 These are not all tokenized as dedicated keywords, but the parser treats them like language words in specific positions.
 
 ### Compiler-Owned Declarations
 
-`patch`, `law`, `axiom`, `pulse`, `orchestrate`, `converge`, `world`, `entangle`, `shatter`, `teleport`
+`patch`, `law`, `resonate`, `axiom`, `pulse`, `orchestrate`, `converge`, `world`, `entangle`, `shatter`, `teleport`
+
+`resonate World.field dampen 16ms:` is Kain's compiler-owned state-to-execution
+tripwire. The frontend validates that the target is a world state slot, emits
+`resonances[]` runtime/realtime metadata, rejects direct self-feedback, and the
+LLVM lane splices the handler immediately after matching stores through the
+native `state.resonate` dampen/reentry guard.
 
 ### Import, Clause, And Selector Words
 
@@ -110,7 +116,7 @@ These are word forms for operators, not normal declaration keywords, but they st
 
 If you just want one big memory dump, this is the current authored Kain word surface counted above.
 
-`fn`, `let`, `mut`, `var`, `const`, `if`, `else`, `elif`, `match`, `for`, `while`, `loop`, `break`, `continue`, `return`, `defer`, `await`, `in`, `with`, `as`, `type`, `struct`, `enum`, `trait`, `impl`, `pub`, `mod`, `use`, `self`, `Self`, `true`, `false`, `none`, `component`, `shader`, `actor`, `state`, `spawn`, `send`, `receive`, `emit`, `comptime`, `macro`, `vertex`, `fragment`, `collapse`, `observe`, `decay`, `share`, `fanout`, `test`, `Pure`, `IO`, `async`, `Async`, `GPU`, `Reactive`, `Unsafe`, `patch`, `law`, `axiom`, `pulse`, `orchestrate`, `converge`, `world`, `entangle`, `shatter`, `teleport`, `include`, `import`, `from`, `where`, `stage`, `after`, `deps`, `residency`, `transfer`, `guarded`, `by`, `requires`, `policy`, `every`, `when`, `guarantee`, `fallback`, `spec`, `fast`, `verify`, `random`, `jitter`, `target`, `capability`, `to`, `via`, `surface`, `native_ui`, `viewport3d`, `web`, `ue5`, `compute`, `uniform`, `workgroup`, `dispatch`, `render`, `on`, `weak`, `single_writer`, `and`, `or`
+`fn`, `let`, `mut`, `var`, `const`, `if`, `else`, `elif`, `match`, `for`, `while`, `loop`, `break`, `continue`, `return`, `defer`, `await`, `in`, `with`, `as`, `type`, `struct`, `enum`, `trait`, `impl`, `pub`, `mod`, `use`, `self`, `Self`, `true`, `false`, `none`, `component`, `shader`, `actor`, `state`, `spawn`, `send`, `receive`, `emit`, `comptime`, `macro`, `vertex`, `fragment`, `collapse`, `observe`, `decay`, `share`, `fanout`, `test`, `Pure`, `IO`, `async`, `Async`, `GPU`, `Reactive`, `Unsafe`, `patch`, `law`, `resonate`, `axiom`, `pulse`, `orchestrate`, `converge`, `world`, `entangle`, `shatter`, `teleport`, `include`, `import`, `from`, `where`, `stage`, `after`, `deps`, `residency`, `transfer`, `guarded`, `by`, `requires`, `policy`, `every`, `when`, `guarantee`, `fallback`, `spec`, `fast`, `verify`, `random`, `jitter`, `target`, `capability`, `to`, `via`, `surface`, `native_ui`, `viewport3d`, `web`, `ue5`, `compute`, `uniform`, `workgroup`, `dispatch`, `render`, `on`, `weak`, `single_writer`, `and`, `or`
 
 ## 5. What This Catalog Deliberately Excludes
 
@@ -129,7 +135,7 @@ lowering. The current authored CUDA surface includes:
 
 ### Symbol-Only Surface
 
-Kain also owns a large symbolic surface that is not included in the `101`:
+Kain also owns a large symbolic surface that is not included in the `110`:
 
 `+`, `-`, `*`, `/`, `%`, `**`, `==`, `!=`, `<`, `>`, `<=`, `>=`, `&&`, `||`, `!`, `&`, `|`, `^`, `~`, `<<`, `>>`, `=`, `+=`, `-=`, `*=`, `/=`, `%=`, `&=`, `|=`, `^=`, `<<=`, `>>=`, `::`, `->`, `=>`, `@`, `??`, `?.`, `?`
 
@@ -149,4 +155,4 @@ Those are real reserved identifiers in the parser, but they are not part of the 
 
 - `lexer.rs` is the truth for hard keywords.
 - `parser.rs` is where the contextual language words show up.
-- The biggest "easy to forget" family is the contextual one: `patch`, `law`, `world`, `entangle`, `pulse`, `teleport`, `include`, `import`, `where`, `surface`, `compute`, `workgroup`, `dispatch`, `uniform`, `single_writer`, and friends.
+- The biggest "easy to forget" family is the contextual one: `patch`, `law`, `resonate`, `world`, `entangle`, `pulse`, `teleport`, `include`, `import`, `where`, `surface`, `compute`, `workgroup`, `dispatch`, `uniform`, `single_writer`, and friends.

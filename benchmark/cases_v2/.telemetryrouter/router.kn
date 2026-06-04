@@ -52,6 +52,14 @@ use python_stdlib_fused::python_stdlib_fused_case_id
 use python_stdlib_fused::python_stdlib_fused_case_iterations
 use python_stdlib_fused::python_stdlib_fused_case_telemetry
 use python_stdlib_fused::python_stdlib_fused_case_title
+use resonate_py::resonate_py_case_checksum
+use resonate_py::resonate_py_case_count
+use resonate_py::resonate_py_case_expected_checksum
+use resonate_py::resonate_py_case_group
+use resonate_py::resonate_py_case_id
+use resonate_py::resonate_py_case_iterations
+use resonate_py::resonate_py_case_telemetry
+use resonate_py::resonate_py_case_title
 use vulkan_loader::vulkan_loader_case_checksum
 use vulkan_loader::vulkan_loader_case_count
 use vulkan_loader::vulkan_loader_case_expected_checksum
@@ -505,6 +513,9 @@ fn run_case_checksum(case_id: String, iterations: Int, amplify: Int) -> Int with
     let python_stdlib_fused_checksum = python_stdlib_fused_case_checksum(case_id, iterations, amplify, ROUTER_MODULUS)
     if python_stdlib_fused_checksum >= 0:
         return python_stdlib_fused_checksum
+    let resonate_py_checksum = resonate_py_case_checksum(case_id, iterations, amplify, ROUTER_MODULUS)
+    if resonate_py_checksum >= 0:
+        return resonate_py_checksum
     let vulkan_loader_checksum = vulkan_loader_case_checksum(case_id, iterations, amplify, ROUTER_MODULUS)
     if vulkan_loader_checksum >= 0:
         return vulkan_loader_checksum
@@ -558,6 +569,8 @@ fn case_telemetry_json(pack_id: String, case_id: String) -> String:
         return python_with_pykain_case_telemetry(case_id)
     if pack_id == "python_stdlib_fused":
         return python_stdlib_fused_case_telemetry(case_id)
+    if pack_id == "resonate_py":
+        return resonate_py_case_telemetry(case_id)
     if pack_id == "vulkan_loader":
         return vulkan_loader_case_telemetry(case_id)
     if pack_id == "system_headers":
@@ -938,6 +951,23 @@ fn main() -> Int with Unsafe:
                 failure_count = failure_count + 1
             println("[bench-v2] " + case_id + " best=" + str(result.best_ms) + "ms avg=" + str(result.average_ms) + "ms status=" + result_status_text(result))
         python_stdlib_fused_index = python_stdlib_fused_index + 1
+
+    let resonate_py_index = 0
+    while resonate_py_index < resonate_py_case_count():
+        let case_id = resonate_py_case_id(resonate_py_index)
+        let case_group = resonate_py_case_group(resonate_py_index)
+        if case_selected(config.filter_text, case_id, case_group):
+            let result = run_case("resonate_py", case_id, case_group, resonate_py_case_title(resonate_py_index), resonate_py_case_iterations(resonate_py_index), resonate_py_case_expected_checksum(resonate_py_index), config)
+            let _track = write_track_report(result)
+            cases_json_items = append_json_item(cases_json_items, render_result_json(result))
+            table_rows = table_rows + format_result_row(result)
+            case_count = case_count + 1
+            if result.success:
+                success_count = success_count + 1
+            else:
+                failure_count = failure_count + 1
+            println("[bench-v2] " + case_id + " best=" + str(result.best_ms) + "ms avg=" + str(result.average_ms) + "ms status=" + result_status_text(result))
+        resonate_py_index = resonate_py_index + 1
 
     let vulkan_loader_index = 0
     while vulkan_loader_index < vulkan_loader_case_count():

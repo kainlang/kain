@@ -79,9 +79,14 @@ pub mod llvm_native_stage;
 pub mod lsp {
     pub async fn run_server() {
         eprintln!(
-            "KAIN LSP is legacy and is not part of the canonical Bazel build on this machine."
+            "KAIN's historical Rust LSP is deprecated and not part of the canonical Bazel build on this machine."
         );
-        eprintln!("The historical Rust implementation remains in crates/cli/src/lsp.rs.");
+        eprintln!(
+            "Use kain-service-api as the compiler service layer; a Kain-authored LSP should sit above it."
+        );
+        eprintln!(
+            "The old implementation remains in crates/cli/src/lsp.rs as source material only."
+        );
     }
 }
 pub mod native_ui_build;

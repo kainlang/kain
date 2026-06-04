@@ -371,7 +371,9 @@ resonate Reactor.signal dampen 1ms:
 
     let error =
         parse_and_typecheck(source).expect_err("direct resonance feedback should not typecheck");
-    assert!(error.to_string().contains("directly mutates its own target"));
+    assert!(error
+        .to_string()
+        .contains("directly mutates its own target"));
 }
 
 #[test]
