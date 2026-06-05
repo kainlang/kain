@@ -234,6 +234,10 @@ impl Tone {
         self.rgb.is_none()
     }
 
+    pub fn as_rgb(self) -> Option<RgbColor> {
+        self.rgb
+    }
+
     pub fn ratatui_color(self) -> Color {
         self.rgb
             .map(|rgb| Color::Rgb(rgb.r, rgb.g, rgb.b))
@@ -938,8 +942,7 @@ mod tests {
         let prefix = style.ansi_prefix();
         assert!(prefix.starts_with("\x1b["));
         assert!(prefix.ends_with('m'));
-        assert!(prefix.contains(";1;"));
-        assert!(prefix.contains(";3;"));
+        assert!(prefix.contains("1;3;"));
         assert!(prefix.contains("38;2;255;0;0"));
     }
 
@@ -1016,9 +1019,12 @@ mod tests {
     fn highlight_source_line_treats_type_names_as_type_role() {
         let theme = theme_by_name("slate");
         let out = theme.highlight_source_line("let x: MyType = 1", true);
-        let type_role = theme.tone(SemanticRole::SyntaxType).ansi_fg_prefix();
+        let type_rgb = theme.tone(SemanticRole::SyntaxType)
+            .as_rgb()
+            .expect("SyntaxType is mapped in slate");
+        let needle = format!("38;2;{};{};{}m", type_rgb.r, type_rgb.g, type_rgb.b);
         assert!(
-            out.contains(&type_role),
+            out.contains(&needle),
             "MyType should be colored with SyntaxType role; got: {out}"
         );
     }

@@ -45,13 +45,6 @@ status.info = "#5fd7ff"
 status.cached = "#bcbcbc"
 status.muted = "#8a8a8a"
 status.accent = "#bcbcbc"
-status.ok = "#7acd9d"
-status.error = "#c46a68"
-status.warning = "#cfab67"
-status.info = "#7aa4c5"
-status.cached = "#738391"
-status.muted = "#738391"
-status.accent = "#78b8b8"
 
 [themes.slate]
 aliases = ["hyperpop"]

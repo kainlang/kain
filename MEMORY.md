@@ -1,5 +1,36 @@
 # Kain Memory
 
+# 2026-06-04 - ANSI coloring unification, Phase 1 (lattice substrate extension)
+
+What changed:
+
+- Extended `crates/lattice` to be the canonical coloring substrate for all Kain CLI surfaces. No public-API breakage; the crate is now self-contained (no `kain-core` dep) and owns the new types below.
+- Added 7 new `SemanticRole` variants: `StatusOk`, `StatusError`, `StatusWarning`, `StatusInfo`, `StatusCached`, `StatusMuted`, `StatusAccent`. `SemanticRole::ALL` const grew from 34 to 41 entries, and the `key()` arm map is updated.
+- Added `LatticeStyle` (fg + bg + modifiers) with a builder API and an `ansi_prefix()` method that emits a true SGR sequence (bg then fg, with modifier codes `1;3;4;9;2` interleaved before colors). The struct is renamed from a first-pass `Style` to avoid collision with `ratatui::style::Style` already imported by lattice.
+- Added `LatticeModifiers` as a 5-bit bitflag (`BOLD=1`, `DIM=2`, `ITALIC=4`, `UNDERLINE=8`, `STRIKE=16`) with `NONE` const, `is_empty`, `contains`, and `union` via `BitOr`. Names chosen to avoid collision with `ratatui::style::Modifier`.
+- Added `Tone::as_rgb() -> Option<RgbColor>` accessor (the constructor `Tone::rgb(r,g,b)` still exists).
+- Added `LatticeTheme::ansi_paint_styled(role, text, modifiers, enabled)` and `LatticeTheme::highlight_source_line(source, enabled)`. The highlighter is a hand-rolled token-by-token pass: whitespace, `//` and `#` comments, `"..."`/`f"..."`/`r"..."` strings (string-prefix letter gets identifier role), `'.'` char literals, numbers (with optional `.digits`), identifiers (uppercase-starting = `SyntaxType`), `@` directive, multi-char operators (longest-first, list of 28: `**=` `+=` `-=` `*=`, `/=`, `%=`, `&=`, `|=`, `^=`, `<<=`, `>>=`, `??`, `?.`, `..`, `**`, `==`, `!=`, `<=`, `>=`, `&&`, `||`, `++`, `--`, `<<`, `>>`, `->`, `=>`, `::`, `</`), single-char punctuation. Keywords/types/directives get `LatticeModifiers::BOLD`; identifiers/operators get plain.
+- Added 7 new `status.*` role keys to all 6 themes in `crates/lattice/lattice.toml` (`plain`, `lattice`, `slate`, `graphite`, `arctic`, `sandstone`). In every theme, `status.error` matches `diag.error`, `status.warning` matches `diag.warning`, `status.cached` and `status.muted` use the comment color, `status.ok` uses a greenish desaturated value, `status.info` mirrors `diag.note`, and `status.accent` mirrors `ui.chrome.accent`.
+
+Validation:
+
+- `cargo test -p kain-lattice --lib -- --test-threads=1` passes all 14 tests (11 new tests for the new surface, plus the 3 pre-existing).
+- `cargo check -p kain-core -p kain-repl -p kain-commands --target-dir Z:\_b\cargo-target\lattice-phase1` passes cleanly (only pre-existing dead-code warnings, no new errors).
+- A full `cargo check --workspace` fails on `swc_common v0.38.0` with `unresolved import serde::__private` inside `crates/unreal/unreal_asset_base`. This is a pre-existing dep-version mismatch unrelated to Phase 1; tracked for a separate session.
+
+Files touched:
+
+- `X:\crates\lattice\src\lib.rs` (extended)
+- `X:\crates\lattice\lattice.toml` (7 status keys × 6 themes added)
+
+Next steps (do NOT start without explicit user approval):
+
+- Phase 2: introduce a `Painter` facade in `crates/lattice` that owns the theme lookup, `LatticeColorPreference` propagation, and a single `paint(role, text)` + `paint_styled(role, text, modifiers)` entry point. Migrate `crates/repl/src/highlight.rs` to call into it.
+- Phase 3: replace hardcoded ANSI in `crates/core/src/diagnostics.rs` and `crates/error/src/render.rs` with `Painter` calls. Remove `ariadne` from `crates/core` deps.
+- Phase 4: wire `Painter` into `crates/cli/src/progress.rs` and `crates/cli/src/kain_launcher.rs` (20+ colored output sites).
+- Phase 5: add `"theme": "<name>"` to `--format=json` output across commands.
+- Phase 6: delete `crates/error` (or fold it into `kain-core`) once the `Painter` path covers all surfaces.
+
 # 2026-06-04 - service API / std::kain readiness audit
 
 What changed:
