@@ -1,4 +1,4 @@
-use kaintana::kaintana_inset
+use layout::kaintana_inset
 use types::KaintanaContext
 use types::KaintanaRect
 use types::kaintana_rect

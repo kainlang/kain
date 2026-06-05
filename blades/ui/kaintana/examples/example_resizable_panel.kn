@@ -1,6 +1,6 @@
-use kaintana::kaintana_inset
-use kaintana::kaintana_split_left
-use kaintana::kaintana_split_right
+use layout::kaintana_inset
+use layout::kaintana_split_left
+use layout::kaintana_split_right
 use types::KaintanaContext
 use types::KaintanaRect
 use types::kaintana_rect

@@ -1,6 +1,6 @@
-use kaintana::kaintana_column_slot
-use kaintana::kaintana_inset
-use kaintana::kaintana_row_slot
+use layout::kaintana_column_slot
+use layout::kaintana_inset
+use layout::kaintana_row_slot
 use types::KaintanaContext
 use types::KaintanaRect
 use types::kaintana_rect
