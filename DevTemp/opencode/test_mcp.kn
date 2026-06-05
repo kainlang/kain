@@ -1,0 +1,6 @@
+use std::mcp
+use mcp_server
+
+pub fn main() -> Int with IO:
+    let tools = mcp_tool_defs()
+    return 0

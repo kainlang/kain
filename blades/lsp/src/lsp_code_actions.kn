@@ -1,0 +1,159 @@
+// LSP Code Actions — converts Kain DiagnosticFixIt structs into LSP 3.17 CodeAction JSON
+//
+// This module is imported by lsp.kn and must not import lsp.kn (circular).
+// Position/range builders are redefined inline to avoid pulling in lsp.kn.
+
+use std::json
+use std::kain
+
+// ─── Position / Range builders ───────────────────────────────────────────
+
+fn _ca_pos(line_num: Int, col: Int) -> JsonObject:
+    let p = json_object()
+    json_object_set_int(p, "line", line_num)
+    json_object_set_int(p, "character", col)
+    return p
+
+fn _ca_range(sl: Int, sc: Int, el: Int, ec: Int) -> JsonObject:
+    let r = json_object()
+    json_object_set(r, "start", _ca_pos(sl, sc))
+    json_object_set(r, "end", _ca_pos(el, ec))
+    return r
+
+// ─── Diagnostic to LSP diagnostic JSON ─────────────────────────────────────
+
+fn _lsp_json_diag(diag: Diagnostic) -> JsonObject:
+    let d = json_object()
+    json_object_set_string(d, "message", diag.message)
+    json_object_set_int(d, "severity", diag.severity)
+    json_object_set_string(d, "code", diag.code)
+    json_object_set_string(d, "source", "kain")
+    if diag.has_primary_range:
+        json_object_set(d, "range", _ca_range(
+            diag.primary_range.start.line_num, diag.primary_range.start.col,
+            diag.primary_range.end.line_num, diag.primary_range.end.col,
+        ))
+    else:
+        json_object_set(d, "range", _ca_range(0, 0, 0, 0))
+
+    let related = json_array()
+
+    // labels → relatedInformation
+    var i = 0
+    while i < len(diag.labels):
+        let label = diag.labels[i]
+        let info = json_object()
+        let loc = json_object()
+        json_object_set_string(loc, "uri", "file:///" + diag.file)
+        json_object_set(loc, "range", _ca_range(
+            label.range.start.line_num, label.range.start.col,
+            label.range.end.line_num, label.range.end.col,
+        ))
+        json_object_set(info, "location", loc)
+        json_object_set_string(info, "message", label.message)
+        let _p = json_array_push_object(related, info)
+        i = i + 1
+    0
+
+    // notes → relatedInformation (use primary_range for location)
+    i = 0
+    while i < len(diag.notes):
+        let info = json_object()
+        let loc = json_object()
+        json_object_set_string(loc, "uri", "file:///" + diag.file)
+        if diag.has_primary_range:
+            json_object_set(loc, "range", _ca_range(
+                diag.primary_range.start.line_num, diag.primary_range.start.col,
+                diag.primary_range.end.line_num, diag.primary_range.end.col,
+            ))
+        else:
+            json_object_set(loc, "range", _ca_range(0, 0, 0, 0))
+        json_object_set(info, "location", loc)
+        json_object_set_string(info, "message", diag.notes[i])
+        let _p = json_array_push_object(related, info)
+        i = i + 1
+    0
+
+    // help → relatedInformation (use primary_range for location)
+    i = 0
+    while i < len(diag.help):
+        let info = json_object()
+        let loc = json_object()
+        json_object_set_string(loc, "uri", "file:///" + diag.file)
+        if diag.has_primary_range:
+            json_object_set(loc, "range", _ca_range(
+                diag.primary_range.start.line_num, diag.primary_range.start.col,
+                diag.primary_range.end.line_num, diag.primary_range.end.col,
+            ))
+        else:
+            json_object_set(loc, "range", _ca_range(0, 0, 0, 0))
+        json_object_set(info, "location", loc)
+        json_object_set_string(info, "message", diag.help[i])
+        let _p = json_array_push_object(related, info)
+        i = i + 1
+    0
+
+    json_object_set_array(d, "relatedInformation", related)
+    return d
+
+// ─── CodeAction builder ────────────────────────────────────────────────────
+
+pub fn lsp_build_code_actions(doc: Document, diagnostics: Array<Diagnostic>) -> JsonArray:
+    let result_arr = json_array()
+    var di = 0
+    while di < len(diagnostics):
+        let diag = diagnostics[di]
+
+        // Determine whether this diagnostic has any primary fixits
+        var has_primary = false
+        var fi = 0
+        while fi < len(diag.fixits):
+            if diag.fixits[fi].primary:
+                has_primary = true
+            fi = fi + 1
+        0
+
+        fi = 0
+        while fi < len(diag.fixits):
+            let fixit = diag.fixits[fi]
+
+            // Prefer primary fixits, fall back to non-primary
+            if has_primary and !fixit.primary:
+                fi = fi + 1
+                continue
+
+            let action = json_object()
+            json_object_set_string(action, "title", fixit.message)
+            json_object_set_string(action, "kind", "quickfix")
+            json_object_set_bool(action, "isPreferred", fixit.confidence >= 80)
+
+            // diagnostics: array containing the source diagnostic
+            let diag_arr = json_array()
+            let _p = json_array_push_object(diag_arr, _lsp_json_diag(diag))
+            json_object_set_array(action, "diagnostics", diag_arr)
+
+            // edit: WorkspaceEdit { changes: { uri: [TextEdit] } }
+            let text_edit = json_object()
+            json_object_set(text_edit, "range", _ca_range(
+                fixit.range.start.line_num, fixit.range.start.col,
+                fixit.range.end.line_num, fixit.range.end.col,
+            ))
+            json_object_set_string(text_edit, "newText", fixit.replacement)
+
+            let edits_arr = json_array()
+            let _p2 = json_array_push_object(edits_arr, text_edit)
+
+            let changes = json_object()
+            json_object_set(changes, "file:///" + diag.file, edits_arr)
+
+            let edit = json_object()
+            json_object_set(edit, "changes", changes)
+
+            json_object_set(action, "edit", edit)
+
+            let _p3 = json_array_push_object(result_arr, action)
+            fi = fi + 1
+        0
+        di = di + 1
+    0
+    return result_arr

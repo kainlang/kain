@@ -1,0 +1,99 @@
+// LSP CodeLens provider — generates reference-count lenses for public symbols
+//
+// Exports: lsp_build_code_lens(doc: Document) -> JsonArray
+//
+// Build: kain check blades/lsp/src/lsp_code_lens.kn --target llvm
+
+use std::json
+use std::kain
+use state
+
+// ─── Public API ────────────────────────────────────────────────────────────
+
+pub fn lsp_build_code_lens(doc: Document) -> JsonArray:
+    let result = json_array()
+    let symbols = document_symbols(doc)
+    if len(symbols) == 0:
+        return result
+
+    var seen: Array<String> = []
+    var i = 0
+    while i < len(symbols):
+        let sym = symbols[i]
+        let kind = sym.kind
+
+        let is_target = match kind:
+            SymbolKind::Function => true
+            SymbolKind::Method => true
+            SymbolKind::Struct => true
+            SymbolKind::Enum => true
+            SymbolKind::Trait => true
+            SymbolKind::Component => true
+            SymbolKind::Actor => true
+            SymbolKind::TypeAlias => true
+            _ => false
+
+        if is_target:
+            let line_num = sym.location.range.start.line_num
+            let col = sym.location.range.start.col
+            let key = to_string(line_num) + ":" + to_string(col)
+
+            if _contains(seen, key) == false:
+                let locations = references_at(doc, line_num, col)
+                if len(locations) > 0:
+                    let count = len(locations)
+                    let lens = _build_code_lens(sym, count)
+                    let _p = json_array_push_object(result, lens)
+                push(seen, key)
+
+        i = i + 1
+
+    return result
+
+// ─── Internal helpers ──────────────────────────────────────────────────────
+
+fn _build_code_lens(sym: Symbol, count: Int) -> JsonObject:
+    let start_line = sym.location.range.start.line_num
+    let start_col = sym.location.range.start.col
+    let end_col = start_col + len(sym.name)
+
+    let lens = json_object()
+    json_object_set_object(lens, "range", _lens_range(start_line, start_col, start_line, end_col))
+
+    let cmd = json_object()
+    json_object_set_string(cmd, "title", _format_ref_count(count, sym.name))
+    json_object_set_string(cmd, "command", "editor.action.showReferences")
+
+    let args = json_array()
+    json_array_push_string(args, "file:///" + sym.location.path)
+    json_array_push_object(args, _lens_pos(start_line, start_col))
+    json_array_push_array(args, json_array())
+    json_object_set_array(cmd, "arguments", args)
+
+    json_object_set_object(lens, "command", cmd)
+    return lens
+
+fn _format_ref_count(count: Int, _name: String) -> String:
+    if count == 1:
+        return "1 reference"
+    return to_string(count) + " references"
+
+fn _lens_pos(line_num: Int, col: Int) -> JsonObject:
+    let p = json_object()
+    json_object_set_int(p, "line", line_num)
+    json_object_set_int(p, "character", col)
+    return p
+
+fn _lens_range(sl: Int, sc: Int, el: Int, ec: Int) -> JsonObject:
+    let r = json_object()
+    json_object_set_object(r, "start", _lens_pos(sl, sc))
+    json_object_set_object(r, "end", _lens_pos(el, ec))
+    return r
+
+fn _contains(arr: Array<String>, value: String) -> Bool:
+    var i = 0
+    while i < len(arr):
+        if arr[i] == value:
+            return true
+        i = i + 1
+    return false
