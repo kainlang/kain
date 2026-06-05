@@ -50,10 +50,17 @@ pub enum SemanticRole {
     SyntaxFamilyProof,
     SyntaxFamilyShader,
     SyntaxOperator,
+    StatusOk,
+    StatusError,
+    StatusWarning,
+    StatusInfo,
+    StatusCached,
+    StatusMuted,
+    StatusAccent,
 }
 
 impl SemanticRole {
-    pub const ALL: [Self; 34] = [
+    pub const ALL: [Self; 41] = [
         Self::UiChromeTitle,
         Self::UiChromeAccent,
         Self::UiChromeMuted,
@@ -88,6 +95,13 @@ impl SemanticRole {
         Self::SyntaxFamilyProof,
         Self::SyntaxFamilyShader,
         Self::SyntaxOperator,
+        Self::StatusOk,
+        Self::StatusError,
+        Self::StatusWarning,
+        Self::StatusInfo,
+        Self::StatusCached,
+        Self::StatusMuted,
+        Self::StatusAccent,
     ];
 
     pub fn key(self) -> &'static str {
@@ -126,6 +140,13 @@ impl SemanticRole {
             Self::SyntaxFamilyProof => "syntax.family.proof",
             Self::SyntaxFamilyShader => "syntax.family.shader",
             Self::SyntaxOperator => "syntax.operator",
+            Self::StatusOk => "status.ok",
+            Self::StatusError => "status.error",
+            Self::StatusWarning => "status.warning",
+            Self::StatusInfo => "status.info",
+            Self::StatusCached => "status.cached",
+            Self::StatusMuted => "status.muted",
+            Self::StatusAccent => "status.accent",
         }
     }
 }
@@ -232,6 +253,117 @@ impl Tone {
             None => "\x1b[0m".to_string(),
         }
     }
+
+    pub fn style(self, modifiers: LatticeModifiers) -> LatticeStyle {
+        LatticeStyle {
+            fg: self.rgb,
+            bg: None,
+            modifiers,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct LatticeModifiers(pub u8);
+
+impl LatticeModifiers {
+    pub const NONE: Self = Self(0);
+    pub const BOLD: Self = Self(1 << 0);
+    pub const DIM: Self = Self(1 << 1);
+    pub const ITALIC: Self = Self(1 << 2);
+    pub const UNDERLINE: Self = Self(1 << 3);
+    pub const STRIKE: Self = Self(1 << 4);
+
+    pub fn is_empty(self) -> bool {
+        self.0 == 0
+    }
+
+    pub fn contains(self, other: Self) -> bool {
+        (self.0 & other.0) == other.0
+    }
+
+    pub fn union(self, other: Self) -> Self {
+        Self(self.0 | other.0)
+    }
+
+    pub fn intersection(self, other: Self) -> Self {
+        Self(self.0 & other.0)
+    }
+}
+
+impl std::ops::BitOr for LatticeModifiers {
+    type Output = Self;
+    fn bitor(self, rhs: Self) -> Self {
+        self.union(rhs)
+    }
+}
+
+impl std::ops::BitOrAssign for LatticeModifiers {
+    fn bitor_assign(&mut self, rhs: Self) {
+        self.0 |= rhs.0;
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct LatticeStyle {
+    pub fg: Option<RgbColor>,
+    pub bg: Option<RgbColor>,
+    pub modifiers: LatticeModifiers,
+}
+
+impl LatticeStyle {
+    pub const fn new() -> Self {
+        Self {
+            fg: None,
+            bg: None,
+            modifiers: LatticeModifiers::NONE,
+        }
+    }
+
+    pub const fn fg_color(mut self, rgb: RgbColor) -> Self {
+        self.fg = Some(rgb);
+        self
+    }
+
+    pub const fn bg_color(mut self, rgb: RgbColor) -> Self {
+        self.bg = Some(rgb);
+        self
+    }
+
+    pub const fn with_modifiers(mut self, m: LatticeModifiers) -> Self {
+        self.modifiers = m;
+        self
+    }
+
+    pub fn ansi_prefix(&self) -> String {
+        let mut parts: Vec<String> = Vec::new();
+        if self.modifiers.contains(LatticeModifiers::BOLD) {
+            parts.push("1".to_string());
+        }
+        if self.modifiers.contains(LatticeModifiers::DIM) {
+            parts.push("2".to_string());
+        }
+        if self.modifiers.contains(LatticeModifiers::ITALIC) {
+            parts.push("3".to_string());
+        }
+        if self.modifiers.contains(LatticeModifiers::UNDERLINE) {
+            parts.push("4".to_string());
+        }
+        if self.modifiers.contains(LatticeModifiers::STRIKE) {
+            parts.push("9".to_string());
+        }
+        if let Some(bg) = self.bg {
+            parts.push(format!("48;2;{};{};{}", bg.r, bg.g, bg.b));
+        }
+        if let Some(fg) = self.fg {
+            parts.push(format!("38;2;{};{};{}", fg.r, fg.g, fg.b));
+        }
+        if parts.is_empty() {
+            String::new()
+        } else {
+            format!("\x1b[{}m", parts.join(";"))
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -275,6 +407,179 @@ impl LatticeTheme {
             return text.to_string();
         }
         format!("{}{}\x1b[0m", self.tone(role).ansi_fg_prefix(), text)
+    }
+
+    pub fn ansi_paint_styled(
+        &self,
+        role: SemanticRole,
+        text: &str,
+        modifiers: LatticeModifiers,
+        enabled: bool,
+    ) -> String {
+        if !enabled {
+            return text.to_string();
+        }
+        let style = self.tone(role).style(modifiers);
+        let prefix = style.ansi_prefix();
+        if prefix.is_empty() {
+            return text.to_string();
+        }
+        format!("{prefix}{text}\x1b[0m")
+    }
+
+    pub fn highlight_source_line(&self, source: &str, enabled: bool) -> String {
+        if !enabled || source.is_empty() {
+            return source.to_string();
+        }
+        let mut out = String::with_capacity(source.len() * 2);
+        let bytes = source.as_bytes();
+        let mut i = 0;
+        while i < bytes.len() {
+            let b = bytes[i];
+
+            if b == b' ' || b == b'\t' || b == b'\r' || b == b'\n' {
+                out.push(b as char);
+                i += 1;
+                continue;
+            }
+
+            if b == b'/' && i + 1 < bytes.len() && bytes[i + 1] == b'/' {
+                let end = find_byte(bytes, b'\n', i + 2).unwrap_or(bytes.len());
+                out.push_str(&self.ansi_paint(
+                    SemanticRole::SyntaxComment,
+                    &source[i..end],
+                    true,
+                ));
+                i = end;
+                continue;
+            }
+
+            if b == b'#' {
+                let end = find_byte(bytes, b'\n', i + 1).unwrap_or(bytes.len());
+                out.push_str(&self.ansi_paint(
+                    SemanticRole::SyntaxComment,
+                    &source[i..end],
+                    true,
+                ));
+                i = end;
+                continue;
+            }
+
+            if b == b'"' || (b == b'r' || b == b'f')
+                && i + 1 < bytes.len()
+                && bytes[i + 1] == b'"'
+            {
+                let prefix_len = if b == b'"' { 1 } else { 2 };
+                let content_start = i + prefix_len;
+                let end = find_string_end(bytes, content_start).unwrap_or(bytes.len());
+                let prefix_text = &source[i..content_start];
+                let body_text = &source[content_start..end];
+                if prefix_text.len() == 1 {
+                    out.push_str(&self.ansi_paint(
+                        SemanticRole::SyntaxIdentifier,
+                        prefix_text,
+                        true,
+                    ));
+                } else {
+                    out.push_str(&self.ansi_paint(
+                        SemanticRole::SyntaxIdentifier,
+                        &prefix_text[..1],
+                        true,
+                    ));
+                    out.push_str(&self.ansi_paint(
+                        SemanticRole::SyntaxString,
+                        &prefix_text[1..],
+                        true,
+                    ));
+                }
+                out.push_str(&self.ansi_paint(SemanticRole::SyntaxString, body_text, true));
+                i = end;
+                continue;
+            }
+
+            if b == b'\'' {
+                let end = find_char_end(bytes, i + 1).unwrap_or(bytes.len());
+                out.push_str(&self.ansi_paint(
+                    SemanticRole::SyntaxString,
+                    &source[i..end],
+                    true,
+                ));
+                i = end;
+                continue;
+            }
+
+            if b.is_ascii_digit() {
+                let end = scan_number(bytes, i);
+                out.push_str(&self.ansi_paint(
+                    SemanticRole::SyntaxNumber,
+                    &source[i..end],
+                    true,
+                ));
+                i = end;
+                continue;
+            }
+
+            if is_ident_start(b) {
+                let end = scan_ident(bytes, i);
+                let word = &source[i..end];
+                let role = classify_role_for_ident(word);
+                let modifiers = match role {
+                    SemanticRole::SyntaxKeywordCore
+                    | SemanticRole::SyntaxKeywordType
+                    | SemanticRole::SyntaxKeywordEffect
+                    | SemanticRole::SyntaxFamilyActor
+                    | SemanticRole::SyntaxFamilyWorld
+                    | SemanticRole::SyntaxFamilyOwnership
+                    | SemanticRole::SyntaxFamilyProof
+                    | SemanticRole::SyntaxFamilyShader
+                    | SemanticRole::SyntaxType
+                    | SemanticRole::SyntaxDirective => LatticeModifiers::BOLD,
+                    _ => LatticeModifiers::NONE,
+                };
+                out.push_str(&self.ansi_paint_styled(role, word, modifiers, true));
+                i = end;
+                continue;
+            }
+
+            if b == b'@' {
+                out.push_str(&self.ansi_paint_styled(
+                    SemanticRole::SyntaxDirective,
+                    "@",
+                    LatticeModifiers::BOLD,
+                    true,
+                ));
+                i += 1;
+                continue;
+            }
+
+            if let Some(op_end) = scan_multi_char_operator(bytes, i) {
+                out.push_str(&self.ansi_paint(
+                    SemanticRole::SyntaxOperator,
+                    &source[i..op_end],
+                    true,
+                ));
+                i = op_end;
+                continue;
+            }
+
+            if is_punctuation(b) {
+                out.push_str(&self.ansi_paint(
+                    SemanticRole::SyntaxOperator,
+                    &source[i..i + 1],
+                    true,
+                ));
+                i += 1;
+                continue;
+            }
+
+            out.push_str(&self.ansi_paint(
+                SemanticRole::SyntaxInvalid,
+                &source[i..i + 1],
+                true,
+            ));
+            i += 1;
+        }
+        out
     }
 
     pub fn clap_styles(&self) -> Styles {
@@ -473,6 +778,111 @@ fn nearest_ansi(tone: Tone) -> AnsiColor {
         .unwrap_or(AnsiColor::White)
 }
 
+fn classify_role_for_ident(word: &str) -> SemanticRole {
+    if let Some(role) = semantic_role_for_catalog_word(word) {
+        return role;
+    }
+    if looks_like_type_name(word) {
+        SemanticRole::SyntaxType
+    } else {
+        SemanticRole::SyntaxIdentifier
+    }
+}
+
+fn looks_like_type_name(name: &str) -> bool {
+    name.chars()
+        .next()
+        .map(|ch| ch.is_ascii_uppercase())
+        .unwrap_or(false)
+}
+
+fn find_byte(bytes: &[u8], needle: u8, from: usize) -> Option<usize> {
+    let mut i = from;
+    while i < bytes.len() {
+        if bytes[i] == needle {
+            return Some(i);
+        }
+        i += 1;
+    }
+    None
+}
+
+fn find_string_end(bytes: &[u8], from: usize) -> Option<usize> {
+    let mut i = from;
+    while i < bytes.len() {
+        match bytes[i] {
+            b'\\' if i + 1 < bytes.len() => i += 2,
+            b'"' => return Some(i + 1),
+            _ => i += 1,
+        }
+    }
+    None
+}
+
+fn find_char_end(bytes: &[u8], from: usize) -> Option<usize> {
+    let mut i = from;
+    while i < bytes.len() {
+        match bytes[i] {
+            b'\\' if i + 1 < bytes.len() => i += 2,
+            b'\'' => return Some(i + 1),
+            _ => i += 1,
+        }
+    }
+    None
+}
+
+fn scan_number(bytes: &[u8], from: usize) -> usize {
+    let mut i = from;
+    while i < bytes.len() && (bytes[i].is_ascii_digit() || bytes[i] == b'_') {
+        i += 1;
+    }
+    if i < bytes.len() && bytes[i] == b'.' && i + 1 < bytes.len() && bytes[i + 1].is_ascii_digit()
+    {
+        i += 1;
+        while i < bytes.len() && (bytes[i].is_ascii_digit() || bytes[i] == b'_') {
+            i += 1;
+        }
+    }
+    i
+}
+
+fn is_ident_start(b: u8) -> bool {
+    b.is_ascii_alphabetic() || b == b'_'
+}
+
+fn is_ident_continue(b: u8) -> bool {
+    b.is_ascii_alphanumeric() || b == b'_'
+}
+
+fn scan_ident(bytes: &[u8], from: usize) -> usize {
+    let mut i = from + 1;
+    while i < bytes.len() && is_ident_continue(bytes[i]) {
+        i += 1;
+    }
+    i
+}
+
+fn scan_multi_char_operator(bytes: &[u8], from: usize) -> Option<usize> {
+    const OPS: &[&str] = &[
+        "**=", "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "<<=", ">>=", "??", "?.", "..", "**", "==", "!=",
+        "<=", ">=", "&&", "||", "++", "--", "<<", ">>", "->", "=>", "::", "</",
+    ];
+    for op in OPS {
+        if bytes.len() >= from + op.len() && &bytes[from..from + op.len()] == op.as_bytes() {
+            return Some(from + op.len());
+        }
+    }
+    None
+}
+
+fn is_punctuation(b: u8) -> bool {
+    matches!(
+        b,
+        b'(' | b')' | b'[' | b']' | b'{' | b'}' | b',' | b'.' | b':' | b';' | b'?' | b'<' | b'>'
+            | b'+' | b'-' | b'*' | b'/' | b'%' | b'&' | b'|' | b'^' | b'~' | b'=' | b'!'
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -505,5 +915,135 @@ mod tests {
         );
         assert_eq!(classify_catalog_word("actor"), Some(KeywordFamily::Actor));
         assert_eq!(classify_catalog_word("shader"), Some(KeywordFamily::Shader));
+    }
+
+    #[test]
+    fn modifiers_cover_all_documented_bits() {
+        let combined = LatticeModifiers::BOLD | LatticeModifiers::DIM | LatticeModifiers::ITALIC
+            | LatticeModifiers::UNDERLINE | LatticeModifiers::STRIKE;
+        assert!(combined.contains(LatticeModifiers::BOLD));
+        assert!(combined.contains(LatticeModifiers::DIM));
+        assert!(combined.contains(LatticeModifiers::ITALIC));
+        assert!(combined.contains(LatticeModifiers::UNDERLINE));
+        assert!(combined.contains(LatticeModifiers::STRIKE));
+        assert!(LatticeModifiers::NONE.is_empty());
+        assert!(!LatticeModifiers::BOLD.is_empty());
+    }
+
+    #[test]
+    fn style_ansi_prefix_composes_modifiers_and_colors() {
+        let style = LatticeStyle::new()
+            .fg_color(RgbColor::new(255, 0, 0))
+            .with_modifiers(LatticeModifiers::BOLD | LatticeModifiers::ITALIC);
+        let prefix = style.ansi_prefix();
+        assert!(prefix.starts_with("\x1b["));
+        assert!(prefix.ends_with('m'));
+        assert!(prefix.contains(";1;"));
+        assert!(prefix.contains(";3;"));
+        assert!(prefix.contains("38;2;255;0;0"));
+    }
+
+    #[test]
+    fn style_ansi_prefix_emits_bg_then_fg() {
+        let style = LatticeStyle::new()
+            .fg_color(RgbColor::new(1, 2, 3))
+            .bg_color(RgbColor::new(4, 5, 6));
+        let prefix = style.ansi_prefix();
+        let bg_idx = prefix.find("48;2;4;5;6").expect("bg present");
+        let fg_idx = prefix.find("38;2;1;2;3").expect("fg present");
+        assert!(bg_idx < fg_idx, "bg must precede fg in the SGR sequence");
+    }
+
+    #[test]
+    fn ansi_paint_styled_disabled_returns_raw_text() {
+        let theme = theme_by_name("slate");
+        let out = theme.ansi_paint_styled(
+            SemanticRole::DiagError,
+            "boom",
+            LatticeModifiers::BOLD,
+            false,
+        );
+        assert_eq!(out, "boom");
+    }
+
+    #[test]
+    fn ansi_paint_styled_emits_sgr_when_enabled() {
+        let theme = theme_by_name("slate");
+        let out = theme.ansi_paint_styled(
+            SemanticRole::DiagError,
+            "boom",
+            LatticeModifiers::BOLD,
+            true,
+        );
+        assert!(out.starts_with("\x1b["));
+        assert!(out.contains("boom"));
+        assert!(out.ends_with("\x1b[0m"));
+    }
+
+    #[test]
+    fn highlight_source_line_disabled_returns_raw_text() {
+        let theme = theme_by_name("slate");
+        let line = "fn main() -> Int { 42 }";
+        assert_eq!(theme.highlight_source_line(line, false), line);
+    }
+
+    #[test]
+    fn highlight_source_line_paints_kain_keyword_operators_and_numbers() {
+        let theme = theme_by_name("slate");
+        let line = "fn main() -> Int { 42 }";
+        let out = theme.highlight_source_line(line, true);
+        assert!(out.starts_with("\x1b["));
+        assert!(out.contains("main"));
+        assert!(out.contains("42"));
+        assert!(out.contains("->"));
+        assert_ne!(out, line, "highlighting should add ANSI codes");
+    }
+
+    #[test]
+    fn highlight_source_line_colors_comments_and_strings() {
+        let theme = theme_by_name("slate");
+        let line = r#"let s = "hello" // trailing"#;
+        let out = theme.highlight_source_line(line, true);
+        assert!(out.contains("hello"));
+        assert!(out.contains("// trailing"));
+        let first_quote = out.find('"').expect("opening quote present");
+        let last_quote = out.rfind('"').expect("closing quote present");
+        let between = &out[first_quote..=last_quote];
+        assert!(between.contains("hello"));
+    }
+
+    #[test]
+    fn highlight_source_line_treats_type_names_as_type_role() {
+        let theme = theme_by_name("slate");
+        let out = theme.highlight_source_line("let x: MyType = 1", true);
+        let type_role = theme.tone(SemanticRole::SyntaxType).ansi_fg_prefix();
+        assert!(
+            out.contains(&type_role),
+            "MyType should be colored with SyntaxType role; got: {out}"
+        );
+    }
+
+    #[test]
+    fn status_roles_map_in_every_theme() {
+        for name in SUPPORTED_THEME_NAMES {
+            let theme = theme_by_name(name);
+            for role in [
+                SemanticRole::StatusOk,
+                SemanticRole::StatusError,
+                SemanticRole::StatusWarning,
+                SemanticRole::StatusInfo,
+                SemanticRole::StatusCached,
+                SemanticRole::StatusMuted,
+                SemanticRole::StatusAccent,
+            ] {
+                let _tone = theme.tone(role);
+            }
+        }
+    }
+
+    #[test]
+    fn theme_by_name_is_case_insensitive() {
+        assert_eq!(theme_by_name("Slate").name(), "slate");
+        assert_eq!(theme_by_name("HYPERPOP").name(), "slate");
     }
 }
