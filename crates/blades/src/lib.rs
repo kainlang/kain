@@ -1155,6 +1155,7 @@ fn extract_build_script_manifest(source: &str) -> KainManifest {
     let mut manifest = KainManifest::default();
     apply_package_manifest_from_build_script(source, &mut manifest);
     apply_blade_manifest_from_build_script(source, &mut manifest);
+    apply_project_manifest_from_build_script(source, &mut manifest);
     apply_blade_dependencies_from_build_script(source, &mut manifest);
     apply_build_defaults_from_build_script(source, &mut manifest);
     apply_run_defaults_from_build_script(source, &mut manifest);
@@ -1231,6 +1232,57 @@ fn apply_blade_manifest_from_build_script(source: &str, manifest: &mut KainManif
                 }
                 "compute_key" | "gpu_compute_key" => {
                     push_unique_strings(&mut manifest.blade.gpu.compute_keys, &values);
+                }
+                _ => {}
+            }
+        }
+    }
+}
+
+fn apply_project_manifest_from_build_script(source: &str, manifest: &mut KainManifest) {
+    // The new-style project() is a combined package+blade declaration. The string scanner
+    // mirrors merge_project_into_manifest() in the Rust evaluator so that blades using the
+    // new DAG build.kn API are still discoverable by the legacy scanner.
+    for (args, methods) in scan_string_call_chains(source, "project") {
+        if let Some(name) = args.first() {
+            manifest.package.name = Some(name.clone());
+            manifest.blade.name = Some(name.clone());
+        }
+        for (method, values, _) in methods {
+            match method.as_str() {
+                "version" => {
+                    assign_first_string(&values, &mut manifest.package.version);
+                    assign_first_string(&values, &mut manifest.blade.version);
+                }
+                "description" => {
+                    assign_first_string(&values, &mut manifest.package.description);
+                }
+                "kind" => {
+                    assign_first_string(&values, &mut manifest.blade.kind);
+                }
+                "entry" => {
+                    assign_first_path(&values, &mut manifest.blade.entry);
+                    assign_first_path(&values, &mut manifest.build.entry);
+                }
+                "source_root" | "source_roots" => {
+                    push_unique_paths_from_strings(&mut manifest.blade.source_roots, &values);
+                }
+                "module_root" | "module_roots" => {
+                    push_unique_paths_from_strings(&mut manifest.blade.module_roots, &values);
+                    push_unique_paths_from_strings(&mut manifest.build.module_roots, &values);
+                }
+                "target" | "targets" | "build_target" | "build_targets" => {
+                    push_unique_strings(&mut manifest.blade.build_targets, &values);
+                    push_unique_strings(&mut manifest.build.targets, &values);
+                }
+                "artifact_root" => {
+                    assign_first_path(&values, &mut manifest.build.artifact_root);
+                }
+                "cache_root" => {
+                    assign_first_path(&values, &mut manifest.build.cache_root);
+                }
+                "profile" => {
+                    assign_first_string(&values, &mut manifest.build.profile);
                 }
                 _ => {}
             }

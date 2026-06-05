@@ -65,6 +65,17 @@ fn build(ctx: BuildContext) -> BuildGraph:
         .file("build.kn")
         .file("KAIN.toml")
 
+    let defaults = build_defaults()
+        .entry("src/main.kn")
+        .artifact_root(".kain/out")
+        .cache_root(".kain/cache/build")
+        .profile("debug")
+        .target("llvm")
+
+    let run = run_defaults()
+        .entry("src/main.kn")
+        .target("llvm")
+
     let surface_check = check_task("surface-check-llvm")
         .project(pkg)
         .entry("src/kaintana.kn")
@@ -97,5 +108,7 @@ fn build(ctx: BuildContext) -> BuildGraph:
         .telemetry("kaintana.capsule")
 
     return build_graph(pkg)
+        .defaults(defaults)
+        .run(run)
         .sources(sources)
         .tasks(surface_check, main_check, root_exe, cert, capsule)
