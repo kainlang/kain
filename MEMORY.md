@@ -1,5 +1,30 @@
 # Kain Memory
 
+# 2026-06-05 - Raw Win32 window via native C include shim (C ABI proof)
+
+What changed:
+- Created `blades/c/platform/windows/` with a minimal Win32 window test that calls Windows API directly from Kain via `include native/win32_shim.h as win`.
+- NO C bridge code, no C source implementation — just a clean `.h` header with function declarations that the C-FFI extractor can parse, and a companion `.c` with only `#pragma comment(lib, "user32")`.
+- `MessageBoxA`, `CreateWindowExA`, `PeekMessageA`, `TranslateMessage`, `DispatchMessageA`, `DestroyWindow` all work at the C ABI level.
+- Message pump uses `alloc_zeroed` + `mem_store` + `ptr_to_int` pattern from `lang-systems` skill.
+- Used built-in `"STATIC"` window class to avoid `RegisterClassA` struct building.
+
+Key discoveries for future agents:
+- **Tagged-int leaks through C ABI for void* params**: Kain's tagged integer `0` encodes as `(0 << 3) | 1 = 1` in LLVM IR. When passed to a `void*` C parameter, the tag leaks. FIX: declare handle/pointer params as `unsigned long long` in the shim header (NOT `void*`). The vulkan loader subset header (`runtime/native/include/vulkan_loader_subset.h`) already uses `uintptr_t` for the same reason.
+- **const char* params become Kain String**: The C-FFI maps `const char*` to Kain `String` and auto-converts. This means `0` (Int) cannot be passed for NULL. For functions like `GetModuleHandleA(NULL)` that accept NULL strings, either change the param type to `unsigned long long` or pass a non-null string like `"user32"`.
+- **System header `<windows.h>` is too macro-heavy**: The real `windows.h` from Windows SDK fails the C-FFI regex extractor (WINAPI, __declspec, SAL annotations). Use a minimal shim header instead.
+- **No `&` address-of operator**: Kain has no C-style `&` for taking variable addresses. For struct pointer params, use `alloc_zeroed` + `mem_store` + `ptr_to_int` pattern, or avoid the need entirely by using built-in window classes.
+- **Natural include path**: `include native/foo.h as f` resolves relative to the source file's directory (NOT the project root). The companion `.c` must be in the same directory.
+- **Inline tier requires .c source**: The `[c_ffi]` section with `tier = "inline"` requires at least one source file in `sources`. An empty `.c` with `#pragma comment(lib, ...)` suffices for DLL imports.
+- **`kain check` can't test inline/system headers**: Use `kain build --target llvm` or `kain run --target llvm` for native-link C ABI tests.
+
+Validation:
+- `kain build src/main.kn --target llvm` compiles successfully
+- `kain run src/main.kn --target llvm` exits with code 0 (window created, 16-frame pump, destroyed)
+- IR verification: all Int arguments are untagged `i64`, String arguments are `i8*` pointers
+
+Files: `blades/c/platform/windows/{KAIN.toml, src/main.kn, src/native/win32_shim.h, src/native/win32_shim.c}`
+
 # 2026-06-05 - Kain Stdlib MCP modularization fix & LLM-native tool renaming
 
 What changed:
@@ -11331,10 +11356,12 @@ Architecture:
 - core/sources.py - bazel/launcher/sync state fetchers with TTL cache; SourceCache.tick() triggers due refreshes from the main loop.
 - core/registry.py - pkgutil.iter_modules discovers panel modules; instantiates the BasePanel subclass.
 - core/theme.py - dpg theme + font setup; resolves family names to C:\Windows\Fonts\*.ttf paths.
-- core/panel_base.py - BasePanel ABC with uild() / on_bus_event() / efresh() / shutdown().
+- core/panel_base.py - BasePanel ABC with uild() / on_bus_event() / 
+efresh() / shutdown().
 - panels/_common.py - shared widget helpers (header, kv_row, status dot, format_age, format_size, freshness_color).
 - panels/launcher_status.py - size / mtime / age for kain.exe + kn.exe; color-coded by staleness.
-- panels/bazel_status.py - live server_pid, output_base, epository_cache.
+- panels/bazel_status.py - live server_pid, output_base, 
+epository_cache.
 - panels/sync_status_panel.py - parses kain_bazel_sync.py status --json; heuristic key extraction + raw payload in collapsed group.
 - panels/commands_panel.py - groups all commands: entries by category; "Show advanced" toggle; modal confirm for destructive commands.
 - panels/log_panel.py - live ring buffer with auto-scroll.
