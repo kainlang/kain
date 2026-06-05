@@ -1,0 +1,76 @@
+// Full Win32 window test — raw Kain-to-OS via native include shim.
+// No C bridge code, no struct building — uses built-in "STATIC" class.
+//
+// Handle params are 'unsigned long long' in the shim to avoid
+// Kain's tagged-int leakage through the C ABI boundary.
+// String params stay 'const char*' for automatic String -> i8* conversion.
+// BUG DISCOVERY: GetModuleHandleA(NULL) fails because 0 is Int, not String.
+// For built-in window classes, hInstance=0 works fine.
+include native/win32_shim.h as win
+
+const WS_OVERLAPPED: Int = 0
+const WS_CAPTION: Int = 1310720       // 0x00C00000
+const WS_SYSMENU: Int = 524288        // 0x00080000
+const WS_THICKFRAME: Int = 262144     // 0x00040000
+const WS_MINIMIZEBOX: Int = 131072    // 0x00020000
+const WS_MAXIMIZEBOX: Int = 65536     // 0x00010000
+const WS_OVERLAPPEDWINDOW: Int = 13565952
+const WS_VISIBLE: Int = 268435456
+const STYLE: Int = 282001408          // OVERLAPPEDWINDOW | VISIBLE
+const CW_USEDEFAULT: Int = -2147483648
+const SW_SHOW: Int = 5
+const PM_REMOVE: Int = 1
+const WM_QUIT: Int = 18
+const BITMASK_U32: Int = 4294967295
+const MSG_CELLS: Int = 6
+const MSG_OFFSET_MESSAGE: Int = 1
+
+fn main() -> Int with Unsafe:
+    // --- create window using built-in "STATIC" class ---
+    // hInstance=0 works for system-registered classes
+    let hwnd = win_CreateWindowExA(
+        0, "STATIC", "Kain Spawned Window", STYLE,
+        CW_USEDEFAULT, CW_USEDEFAULT, 800, 600,
+        0, 0, 0, 0
+    )
+    if hwnd == 0:
+        return 95
+
+    // --- allocate MSG buffer for the message pump ---
+    let msg_buf: ptr<Int> = alloc_zeroed(MSG_CELLS, "Int")
+
+    // --- 16-frame peek-model message pump ---
+    let frame: Int = 0
+    while frame < 16:
+        // Zero the MSG buffer each frame
+        collapse msg_buf:
+            var ci: Int = 0
+            while ci < MSG_CELLS:
+                mem_store(ptr_offset(msg_buf, ci, "Int"), 0, "Int")
+                ci = ci + 1
+            0
+
+        // Drain all pending messages
+        let draining: Bool = true
+        while draining:
+            let has_msg = win_PeekMessageA(ptr_to_int(msg_buf), 0, 0, 0, PM_REMOVE)
+            if has_msg == 0:
+                draining = false
+            else:
+                let raw: Int = observe msg_buf:
+                    mem_load(ptr_offset(msg_buf, MSG_OFFSET_MESSAGE, "Int"), "Int")
+                let msg_id: Int = raw & BITMASK_U32
+                if msg_id == WM_QUIT:
+                    draining = false
+                    frame = 16
+                else:
+                    let _ = win_TranslateMessage(ptr_to_int(msg_buf))
+                    let _ = win_DispatchMessageA(ptr_to_int(msg_buf))
+
+        win_ShowWindow(hwnd, SW_SHOW)
+        frame = frame + 1
+
+    // --- teardown ---
+    let _ = win_DestroyWindow(hwnd)
+    decay msg_buf
+    return 0

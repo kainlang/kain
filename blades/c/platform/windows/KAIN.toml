@@ -1,0 +1,21 @@
+[package]
+name = "win32-raw-spawn"
+version = "0.1.0"
+description = "Minimal Kain test: native Win32 window via include-native shim + c_ffi metadata."
+
+[build]
+entry = "src/main.kn"
+artifact_root = ".kain/out/llvm"
+cache_root = ".kain/cache/build"
+profile = "debug"
+
+[c_ffi]
+tier = "inline"
+include_paths = ["src/native"]
+
+[[c_ffi.libraries]]
+name = "win32_shim"
+header = "src/native/win32_shim.h"
+sources = ["src/native/win32_shim.c"]
+include_paths = ["src/native"]
+link_libs = ["user32", "gdi32"]
