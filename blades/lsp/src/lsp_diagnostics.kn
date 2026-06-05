@@ -26,16 +26,16 @@ fn _diag_range(sl: Int, sc: Int, el: Int, ec: Int) -> JsonObject:
 
 fn _diag_severity(kind: String) -> Int:
     if kind == "error":
-        return state.LSP_DIAG_SEVERITY_ERROR
+        return LSP_DIAG_SEVERITY_ERROR
     if kind == "warning":
-        return state.LSP_DIAG_SEVERITY_WARNING
+        return LSP_DIAG_SEVERITY_WARNING
     if kind == "info":
-        return state.LSP_DIAG_SEVERITY_INFO
+        return LSP_DIAG_SEVERITY_INFO
     if kind == "hint":
-        return state.LSP_DIAG_SEVERITY_HINT
+        return LSP_DIAG_SEVERITY_HINT
     if kind == "help":
-        return state.LSP_DIAG_SEVERITY_HINT
-    return state.LSP_DIAG_SEVERITY_ERROR
+        return LSP_DIAG_SEVERITY_HINT
+    return LSP_DIAG_SEVERITY_ERROR
 
 // ─── Core diagnostic converter ───────────────────────────────────────────────
 
@@ -43,10 +43,10 @@ pub fn lsp_json_diagnostic(diag: Diagnostic) -> JsonObject:
     let d = json_object()
 
     // range
-    if diag.has_primary_diag_range:
+    if diag.has_primary_range:
         json_object_set(d, "range", _diag_range(
-            diag.primary_diag_range.start.line_num, diag.primary_diag_range.start.col,
-            diag.primary_diag_range.end.line_num, diag.primary_diag_range.end.col,
+            diag.primary_range.start.line_num, diag.primary_range.start.col,
+            diag.primary_range.end.line_num, diag.primary_range.end.col,
         ))
     else:
         json_object_set(d, "range", _diag_range(0, 0, 0, 0))
@@ -89,10 +89,10 @@ pub fn lsp_json_diagnostic(diag: Diagnostic) -> JsonObject:
         let note = diag.notes[i]
         let loc = json_object()
         json_object_set_string(loc, "uri", file_uri)
-        if diag.has_primary_diag_range:
+        if diag.has_primary_range:
             json_object_set(loc, "range", _diag_range(
-                diag.primary_diag_range.start.line_num, diag.primary_diag_range.start.col,
-                diag.primary_diag_range.end.line_num, diag.primary_diag_range.end.col,
+                diag.primary_range.start.line_num, diag.primary_range.start.col,
+                diag.primary_range.end.line_num, diag.primary_range.end.col,
             ))
         else:
             json_object_set(loc, "range", _diag_range(0, 0, 0, 0))
@@ -108,10 +108,10 @@ pub fn lsp_json_diagnostic(diag: Diagnostic) -> JsonObject:
         let h = diag.help[i]
         let loc = json_object()
         json_object_set_string(loc, "uri", file_uri)
-        if diag.has_primary_diag_range:
+        if diag.has_primary_range:
             json_object_set(loc, "range", _diag_range(
-                diag.primary_diag_range.start.line_num, diag.primary_diag_range.start.col,
-                diag.primary_diag_range.end.line_num, diag.primary_diag_range.end.col,
+                diag.primary_range.start.line_num, diag.primary_range.start.col,
+                diag.primary_range.end.line_num, diag.primary_range.end.col,
             ))
         else:
             json_object_set(loc, "range", _diag_range(0, 0, 0, 0))
@@ -145,7 +145,7 @@ pub fn lsp_publish_diagnostics(uri: String, check_result: CheckResult) -> JsonOb
 
     let notif = json_object()
     json_object_set(notif, "jsonrpc", "2.0")
-    json_object_set_string(notif, "method", state.METHOD_PUBLISH_DIAGNOSTICS)
+    json_object_set_string(notif, "method", METHOD_PUBLISH_DIAGNOSTICS)
     json_object_set(notif, "params", params)
     return notif
 

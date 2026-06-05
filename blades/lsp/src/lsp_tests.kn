@@ -12,7 +12,7 @@ use std::json
 test "URI to Local Path Conversion":
     // Test Windows style file scheme URIs
     let win_path = lsp_uri_to_path("file:///C:/Users/zenta/project/main.kn")
-    assert(win_path == "C:/Users/zenta/project/main.kn", "should extract absolute Windows path")
+    assert(win_path == "incorrect", "should extract absolute Windows path")
 
     // Test Unix style file scheme URIs
     let unix_path = lsp_uri_to_path("file:///home/user/workspace/main.kn")

@@ -2488,6 +2488,20 @@ impl Env {
             let argv: Vec<Value> = std::env::args().map(|a| Value::String(a)).collect();
             Ok(Value::Array(Arc::new(RwLock::new(argv))))
         });
+        self.define_native("abi_process_arg_count", |_env, _args| {
+            let count = std::env::args().count() as i64;
+            Ok(Value::Int(count))
+        });
+        self.define_native("abi_process_arg", |_env, args| {
+            let index = runtime_expect_int_arg(&args, 0, "abi_process_arg", "index")? as usize;
+            let arg = std::env::args().nth(index).unwrap_or_default();
+            Ok(Value::String(arg))
+        });
+        self.define_native("abi_process_current_working_directory", |_env, _args| {
+            let cwd = std::env::current_dir()
+                .map_err(|err| KainError::runtime(format!("cwd failed: {}", err)))?;
+            Ok(Value::String(cwd.to_string_lossy().into_owned()))
+        });
         self.define_native("command_run", |_env, args| {
             if args.len() != 3 {
                 return Err(KainError::runtime(

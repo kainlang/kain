@@ -113,7 +113,7 @@ pub fn lsp_default_caps() -> LspServerCaps:
         completion_provider: true,
         document_symbol_provider: true,
         workspace_symbol_provider: true,
-        semantic_tokens_provider: false,   // disabled - std::kain lowering bug
+        semantic_tokens_provider: true,
         formatting_provider: true,
         diagnostic_provider: true,
         code_action_provider: true,

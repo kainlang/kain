@@ -9,110 +9,12 @@
 use std::json
 use std::kain
 use transport
+use state
+use lsp_semantic_tokens
+use lsp_diagnostics
+use lsp_code_actions
+use lsp_code_lens
 
-// ─── LSP protocol constants ────────────────────────────────────────────────
-
-pub const LSP_PROTOCOL_VERSION: String = "3.0"
-
-// JSON-RPC error codes
-pub const LSP_ERR_PARSE:          Int = -32700
-pub const LSP_ERR_INVALID_REQ:   Int = -32600
-pub const LSP_ERR_METHOD_NOT_FOUND: Int = -32601
-pub const LSP_ERR_INVALID_PARAMS: Int = -32602
-pub const LSP_ERR_INTERNAL:      Int = -32603
-pub const LSP_ERR_SERVER_NOT_INITIALIZED: Int = -32002
-pub const LSP_ERR_REQUEST_CANCELLED: Int = -32800
-
-pub const LSP_DIAG_SEVERITY_ERROR:   Int = 1
-pub const LSP_DIAG_SEVERITY_WARNING: Int = 2
-pub const LSP_DIAG_SEVERITY_INFO:    Int = 3
-pub const LSP_DIAG_SEVERITY_HINT:    Int = 4
-
-// ─── JSON-RPC method names ─────────────────────────────────────────────────
-
-pub const METHOD_INITIALIZE:               String = "initialize"
-pub const METHOD_INITIALIZED:              String = "initialized"
-pub const METHOD_SHUTDOWN:                 String = "shutdown"
-pub const METHOD_EXIT:                     String = "exit"
-pub const METHOD_TEXT_DOC_DID_OPEN:        String = "textDocument/didOpen"
-pub const METHOD_TEXT_DOC_DID_CHANGE:      String = "textDocument/didChange"
-pub const METHOD_TEXT_DOC_DID_CLOSE:       String = "textDocument/didClose"
-pub const METHOD_TEXT_DOC_DID_SAVE:        String = "textDocument/didSave"
-pub const METHOD_TEXT_DOC_HOVER:           String = "textDocument/hover"
-pub const METHOD_TEXT_DOC_DEFINITION:      String = "textDocument/definition"
-pub const METHOD_TEXT_DOC_REFERENCES:      String = "textDocument/references"
-pub const METHOD_TEXT_DOC_COMPLETION:      String = "textDocument/completion"
-pub const METHOD_TEXT_DOC_DOCUMENT_SYMBOL: String = "textDocument/documentSymbol"
-pub const METHOD_TEXT_DOC_SEMANTIC_TOKENS: String = "textDocument/semanticTokens/full"
-pub const METHOD_TEXT_DOC_FORMATTING:      String = "textDocument/formatting"
-pub const METHOD_TEXT_DOC_DIAGNOSTIC:      String = "textDocument/diagnostic"
-pub const METHOD_WORKSPACE_SYMBOL:         String = "workspace/symbol"
-pub const METHOD_WORKSPACE_DID_CHANGE_WATCHED_FILES: String = "workspace/didChangeWatchedFiles"
-
-// Notification: server → client for diagnostic push
-pub const METHOD_PUBLISH_DIAGNOSTICS: String = "textDocument/publishDiagnostics"
-
-// ─── Server capabilities data (returned from initialize) ───────────────────
-
-pub struct LspServerCaps:
-    text_doc_sync_kind: Int    // 0=none, 1=full, 2=incremental
-    hover_provider: Bool
-    definition_provider: Bool
-    references_provider: Bool
-    completion_provider: Bool
-    document_symbol_provider: Bool
-    workspace_symbol_provider: Bool
-    semantic_tokens_provider: Bool
-    formatting_provider: Bool
-    diagnostic_provider: Bool
-
-pub fn lsp_default_caps() -> LspServerCaps:
-    return LspServerCaps {
-        text_doc_sync_kind: 1,     // Full document sync
-        hover_provider: true,
-        definition_provider: true,
-        references_provider: true,
-        completion_provider: true,
-        document_symbol_provider: true,
-        workspace_symbol_provider: true,
-        semantic_tokens_provider: false,   // disabled - std::kain lowering bug
-        formatting_provider: true,
-        diagnostic_provider: true,
-    }
-
-// ─── Document state tracking ───────────────────────────────────────────────
-
-pub struct LspDocument:
-    uri: String
-    path: String
-    version: Int
-    source: String
-    doc_handle: Document     // Handle from std::kain
-
-pub struct LspState:
-    initialized: Bool
-    workspace: Workspace
-    documents: Array<LspDocument>
-    next_doc_id: Int               // local tracking id
-
-pub fn lsp_state_new(ws: Workspace) -> LspState:
-    return LspState {
-        initialized: true,
-        workspace: ws,
-        documents: [],
-        next_doc_id: 1,
-    }
-
-// ─── URI / path helpers ────────────────────────────────────────────────────
-
-// Convert "file:///C:/foo/bar.kn" to "C:/foo/bar.kn"
-fn lsp_uri_to_path(uri: String) -> String:
-    let uri_len = len(uri)
-    if lsp_starts_with(uri, "file:///"):
-        return substring(uri, 8, uri_len)
-    if lsp_starts_with(uri, "file://"):
-        return substring(uri, 7, uri_len)
-    return uri
 
 // ─── JSON helpers ──────────────────────────────────────────────────────────
 
@@ -235,49 +137,6 @@ fn lsp_build_initialize_result(caps: LspServerCaps) -> JsonObject:
 
 // ─── Diagnostics converter ─────────────────────────────────────────────────
 
-fn lsp_diag_severity_from_kain(kind: String) -> Int:
-    if kind == "error":
-        return LSP_DIAG_SEVERITY_ERROR
-    if kind == "warning":
-        return LSP_DIAG_SEVERITY_WARNING
-    if kind == "info":
-        return LSP_DIAG_SEVERITY_INFO
-    if kind == "hint":
-        return LSP_DIAG_SEVERITY_HINT
-    if kind == "help":
-        return LSP_DIAG_SEVERITY_HINT
-    return LSP_DIAG_SEVERITY_ERROR
-
-fn lsp_json_diag_from_kain(diag: Diagnostic) -> JsonObject:
-    let d = json_object()
-    json_object_set_string(d, "message", diag.message)
-    json_object_set_int(d, "severity", lsp_diag_severity_from_kain(diag.kind))
-    json_object_set_string(d, "code", diag.code)
-    json_object_set_string(d, "source", "kain")
-    if diag.has_primary_range:
-        json_object_set(d, "range", lsp_json_range(
-            diag.primary_range.start.line_num, diag.primary_range.start.col,
-            diag.primary_range.end.line_num, diag.primary_range.end.col,
-        ))
-    else:
-        json_object_set(d, "range", lsp_json_range(0, 0, 0, 0))
-    return d
-
-fn lsp_json_diagnostics(diags: Array<Diagnostic>) -> JsonArray:
-    let arr = json_array()
-    var i = 0
-    while i < len(diags):
-        let _p = json_array_push_object(arr, lsp_json_diag_from_kain(diags[i]))
-        i = i + 1
-    return arr
-
-// ─── Publish diagnostics notification ──────────────────────────────────────
-
-fn lsp_publish_diagnostics(uri: String, check_result: CheckResult) -> JsonObject:
-    let params = json_object()
-    json_object_set_string(params, "uri", uri)
-    json_object_set_array(params, "diagnostics", lsp_json_diagnostics(check_result.diagnostics))
-    return lsp_jsonrpc_notification(METHOD_PUBLISH_DIAGNOSTICS, params)
 
 // ─── Completion converter ──────────────────────────────────────────────────
 
@@ -338,21 +197,12 @@ fn lsp_json_symbol_from_kain(sym: Symbol) -> JsonObject:
         json_object_set_string(s, "containerName", container_name)
     return s
 
-// ─── Semantic token converter ──────────────────────────────────────────────
-
-fn lsp_json_semantic_tokens(tokens: Array<SemanticToken>) -> JsonObject:
-    // NOTE: Returning empty tokens as a workaround for a LLVM IR lowering
-    // bug in std::kain's semantic_tokens() — array_push gets SemanticToken
-    // struct instead of i64. Full semantic token support blocked on compiler fix.
-    let result = json_object()
-    json_object_set_array(result, "data", json_array())
-    return result
 
 // ─── Main dispatch ─────────────────────────────────────────────────────────
 
 // Dispatch one LSP message and mutate state accordingly.
 // Returns false when the server should shut down.
-pub fn lsp_dispatch(state: LspState, raw_body: String, id_val: JsonValue, method: String, params_val: JsonValue) -> Bool:
+pub fn lsp_dispatch(lsp_state: LspState, raw_body: String, id_val: JsonValue, method: String, params_val: JsonValue) -> Bool:
     var running = true
 
     if method == METHOD_INITIALIZE:
@@ -360,243 +210,284 @@ pub fn lsp_dispatch(state: LspState, raw_body: String, id_val: JsonValue, method
         let result = lsp_build_initialize_result(caps)
         lsp_write_json(lsp_jsonrpc_response(id_val, result))
         lsp_info("initialized - Kain LSP ready")
-    else:
-        if method == METHOD_INITIALIZED:
-            lsp_info("client ready")
+    elif method == METHOD_INITIALIZED:
+        lsp_info("client ready")
+    elif method == METHOD_SHUTDOWN:
+        let result = json_object()
+        lsp_write_json(lsp_jsonrpc_response(id_val, result))
+        lsp_info("shutdown requested")
+        running = false
+    elif method == METHOD_TEXT_DOC_DID_OPEN:
+        let text_doc = json_get_value(params_val, "textDocument")
+        let uri = lsp_get_string(text_doc, "uri")
+        let path = lsp_uri_to_path(uri)
+        let source = lsp_get_string(text_doc, "text")
+        let version = lsp_get_int(text_doc, "version")
+
+        let doc_opt = open_document(lsp_state.workspace, path, source, version)
+        if doc_opt.is_some():
+            let doc = doc_opt.unwrap()
+            lsp_add_doc(lsp_state, uri, path, source, version, doc)
+            let check_result = check_document(doc)
+            let publish = lsp_publish_diagnostics(uri, check_result)
+            lsp_write_json(publish)
+            lsp_debug("didOpen: " + uri)
         else:
-            if method == METHOD_SHUTDOWN:
-                let result = json_object()
-                lsp_write_json(lsp_jsonrpc_response(id_val, result))
-                lsp_info("shutdown requested")
-                running = false
+            lsp_warn("didOpen: failed to open " + uri)
+    elif method == METHOD_TEXT_DOC_DID_CHANGE:
+        let text_doc = json_get_value(params_val, "textDocument")
+        let uri = lsp_get_string(text_doc, "uri")
+        let version = lsp_get_int(text_doc, "version")
+        let content_changes = json_get_value(params_val, "contentChanges")
+        let first_change = json_array_value_at(content_changes, 0)
+        let new_text = lsp_get_string(first_change, "text")
+
+        let idx = lsp_find_doc(lsp_state, uri)
+        if idx >= 0:
+            let doc = lsp_state.documents[idx]
+            let ok = update_document(doc.doc_handle, new_text, version)
+            if ok:
+                lsp_update_doc(lsp_state, idx, new_text, version)
+                let check_result = check_document(doc.doc_handle)
+                let publish = lsp_publish_diagnostics(uri, check_result)
+                lsp_write_json(publish)
+                lsp_debug("didChange: " + uri)
             else:
-                if method == METHOD_TEXT_DOC_DID_OPEN:
-                    let text_doc = json_get_value(params_val, "textDocument")
-                    let uri = lsp_get_string(text_doc, "uri")
-                    let path = lsp_uri_to_path(uri)
-                    let source = lsp_get_string(text_doc, "text")
-                    let version = lsp_get_int(text_doc, "version")
+                lsp_warn("didChange: update failed for " + uri)
+        else:
+            lsp_warn("didChange: unknown document " + uri)
+    elif method == METHOD_TEXT_DOC_DID_CLOSE:
+        let text_doc = json_get_value(params_val, "textDocument")
+        let uri = lsp_get_string(text_doc, "uri")
 
-                    let doc_opt = open_document(state.workspace, path, source, version)
-                    if doc_opt.is_some():
-                        let doc = doc_opt.unwrap()
-                        lsp_add_doc(state, uri, path, source, version, doc)
-                        let check_result = check_document(doc)
-                        let publish = lsp_publish_diagnostics(uri, check_result)
-                        lsp_write_json(publish)
-                        lsp_debug("didOpen: " + uri)
-                    else:
-                        lsp_warn("didOpen: failed to open " + uri)
-                else:
-                    if method == METHOD_TEXT_DOC_DID_CHANGE:
-                        let text_doc = json_get_value(params_val, "textDocument")
-                        let uri = lsp_get_string(text_doc, "uri")
-                        let version = lsp_get_int(text_doc, "version")
-                        let content_changes = json_get_value(params_val, "contentChanges")
-                        let first_change = json_array_value_at(content_changes, 0)
-                        let new_text = lsp_get_string(first_change, "text")
+        let idx = lsp_find_doc(lsp_state, uri)
+        if idx >= 0:
+            let doc = lsp_state.documents[idx]
+            let ok = close_document(doc.doc_handle)
+            if ok:
+                lsp_remove_doc(lsp_state, idx)
+                lsp_debug("didClose: " + uri)
+            else:
+                lsp_warn("didClose: close failed for " + uri)
+        else:
+            lsp_warn("didClose: unknown document " + uri)
+    elif method == METHOD_TEXT_DOC_DID_SAVE:
+        let text_doc = json_get_value(params_val, "textDocument")
+        let uri = lsp_get_string(text_doc, "uri")
+        let idx = lsp_find_doc(lsp_state, uri)
+        if idx >= 0:
+            let doc = lsp_state.documents[idx]
+            let check_result = check_document(doc.doc_handle)
+            let publish = lsp_publish_diagnostics(uri, check_result)
+            lsp_write_json(publish)
+    elif method == METHOD_TEXT_DOC_HOVER:
+        let pos_params = json_get_value(params_val, "textDocument")
+        let uri = lsp_get_string(pos_params, "uri")
+        let position = json_get_value(params_val, "position")
+        let pos_line = lsp_get_int(position, "line")
+        let pos_col = lsp_get_int(position, "character")
 
-                        let idx = lsp_find_doc(state, uri)
-                        if idx >= 0:
-                            let doc = state.documents[idx]
-                            let ok = update_document(doc.doc_handle, new_text, version)
-                            if ok:
-                                lsp_update_doc(state, idx, new_text, version)
-                                let check_result = check_document(doc.doc_handle)
-                                let publish = lsp_publish_diagnostics(uri, check_result)
-                                lsp_write_json(publish)
-                                lsp_debug("didChange: " + uri)
-                            else:
-                                lsp_warn("didChange: update failed for " + uri)
-                        else:
-                            lsp_warn("didChange: unknown document " + uri)
-                    else:
-                        if method == METHOD_TEXT_DOC_DID_CLOSE:
-                            let text_doc = json_get_value(params_val, "textDocument")
-                            let uri = lsp_get_string(text_doc, "uri")
+        let idx = lsp_find_doc(lsp_state, uri)
+        if idx >= 0:
+            let doc = lsp_state.documents[idx]
+            let hover_opt = hover_at(doc.doc_handle, pos_line, pos_col)
+            if hover_opt.is_some():
+                let hover = hover_opt.unwrap()
+                let result = json_object()
+                let contents_arr = json_array_from_strings([hover.contents])
+                json_object_set_array(result, "contents", contents_arr)
+                lsp_write_json(lsp_jsonrpc_response(id_val, result))
+            else:
+                lsp_write_json(lsp_jsonrpc_response(id_val, json_object()))
+        else:
+            lsp_write_json(lsp_jsonrpc_error(id_val, LSP_ERR_INVALID_PARAMS, "unknown document: " + uri))
+    elif method == METHOD_TEXT_DOC_DEFINITION:
+        let td_params = json_get_value(params_val, "textDocument")
+        let uri = lsp_get_string(td_params, "uri")
+        let position = json_get_value(params_val, "position")
+        let pos_line = lsp_get_int(position, "line")
+        let pos_col = lsp_get_int(position, "character")
 
-                            let idx = lsp_find_doc(state, uri)
-                            if idx >= 0:
-                                let doc = state.documents[idx]
-                                let ok = close_document(doc.doc_handle)
-                                if ok:
-                                    lsp_remove_doc(state, idx)
-                                    lsp_debug("didClose: " + uri)
-                                else:
-                                    lsp_warn("didClose: close failed for " + uri)
-                            else:
-                                lsp_warn("didClose: unknown document " + uri)
-                        else:
-                            if method == METHOD_TEXT_DOC_DID_SAVE:
-                                let text_doc = json_get_value(params_val, "textDocument")
-                                let uri = lsp_get_string(text_doc, "uri")
-                                let idx = lsp_find_doc(state, uri)
-                                if idx >= 0:
-                                    let doc = state.documents[idx]
-                                    let check_result = check_document(doc.doc_handle)
-                                    let publish = lsp_publish_diagnostics(uri, check_result)
-                                    lsp_write_json(publish)
-                            else:
-                                if method == METHOD_TEXT_DOC_HOVER:
-                                    let pos_params = json_get_value(params_val, "textDocument")
-                                    let uri = lsp_get_string(pos_params, "uri")
-                                    let position = json_get_value(params_val, "position")
-                                    let pos_line = lsp_get_int(position, "line")
-                                    let pos_col = lsp_get_int(position, "character")
+        let idx = lsp_find_doc(lsp_state, uri)
+        if idx >= 0:
+            let doc = lsp_state.documents[idx]
+            let locations = definition_at(doc.doc_handle, pos_line, pos_col)
+            let result_arr = json_array()
+            var i = 0
+            while i < len(locations):
+                let _p = json_array_push_object(result_arr, lsp_json_location(locations[i]))
+                i = i + 1
+            let result = json_object()
+            json_object_set_array(result, "result", result_arr)
+            lsp_write_json(lsp_jsonrpc_response(id_val, result))
+        else:
+            lsp_write_json(lsp_jsonrpc_error(id_val, LSP_ERR_INVALID_PARAMS, "unknown document: " + uri))
+    elif method == METHOD_TEXT_DOC_REFERENCES:
+        let td_params = json_get_value(params_val, "textDocument")
+        let uri = lsp_get_string(td_params, "uri")
+        let position = json_get_value(params_val, "position")
+        let pos_line = lsp_get_int(position, "line")
+        let pos_col = lsp_get_int(position, "character")
 
-                                    let idx = lsp_find_doc(state, uri)
-                                    if idx >= 0:
-                                        let doc = state.documents[idx]
-                                        let hover_opt = hover_at(doc.doc_handle, pos_line, pos_col)
-                                        if hover_opt.is_some():
-                                            let hover = hover_opt.unwrap()
-                                            let result = json_object()
-                                            let contents_arr = json_array_from_strings([hover.contents])
-                                            json_object_set_array(result, "contents", contents_arr)
-                                            lsp_write_json(lsp_jsonrpc_response(id_val, result))
-                                        else:
-                                            lsp_write_json(lsp_jsonrpc_response(id_val, json_object()))
-                                    else:
-                                        lsp_write_json(lsp_jsonrpc_error(id_val, LSP_ERR_INVALID_PARAMS, "unknown document: " + uri))
-                                else:
-                                    if method == METHOD_TEXT_DOC_DEFINITION:
-                                        let td_params = json_get_value(params_val, "textDocument")
-                                        let uri = lsp_get_string(td_params, "uri")
-                                        let position = json_get_value(params_val, "position")
-                                        let pos_line = lsp_get_int(position, "line")
-                                        let pos_col = lsp_get_int(position, "character")
+        let idx = lsp_find_doc(lsp_state, uri)
+        if idx >= 0:
+            let doc = lsp_state.documents[idx]
+            let locations = references_at(doc.doc_handle, pos_line, pos_col)
+            let result_arr = json_array()
+            var ri = 0
+            while ri < len(locations):
+                let _p = json_array_push_object(result_arr, lsp_json_location(locations[ri]))
+                ri = ri + 1
+            let result = json_object()
+            json_object_set_array(result, "result", result_arr)
+            lsp_write_json(lsp_jsonrpc_response(id_val, result))
+        else:
+            lsp_write_json(lsp_jsonrpc_error(id_val, LSP_ERR_INVALID_PARAMS, "unknown document: " + uri))
+    elif method == METHOD_TEXT_DOC_COMPLETION:
+        let td_params = json_get_value(params_val, "textDocument")
+        let uri = lsp_get_string(td_params, "uri")
+        let position = json_get_value(params_val, "position")
+        let pos_line = lsp_get_int(position, "line")
+        let pos_col = lsp_get_int(position, "character")
 
-                                        let idx = lsp_find_doc(state, uri)
-                                        if idx >= 0:
-                                            let doc = state.documents[idx]
-                                            let locations = definition_at(doc.doc_handle, pos_line, pos_col)
-                                            let result_arr = json_array()
-                                            var i = 0
-                                            while i < len(locations):
-                                                let _p = json_array_push_object(result_arr, lsp_json_location(locations[i]))
-                                                i = i + 1
-                                            let result = json_object()
-                                            json_object_set_array(result, "result", result_arr)
-                                            lsp_write_json(lsp_jsonrpc_response(id_val, result))
-                                        else:
-                                            lsp_write_json(lsp_jsonrpc_error(id_val, LSP_ERR_INVALID_PARAMS, "unknown document: " + uri))
-                                    else:
-                                        if method == METHOD_TEXT_DOC_REFERENCES:
-                                            let td_params = json_get_value(params_val, "textDocument")
-                                            let uri = lsp_get_string(td_params, "uri")
-                                            let position = json_get_value(params_val, "position")
-                                            let pos_line = lsp_get_int(position, "line")
-                                            let pos_col = lsp_get_int(position, "character")
+        let idx = lsp_find_doc(lsp_state, uri)
+        if idx >= 0:
+            let doc = lsp_state.documents[idx]
+            let completions = completions_at(doc.doc_handle, pos_line, pos_col)
+            let result_arr = json_array()
+            var ci = 0
+            while ci < len(completions):
+                let _p = json_array_push_object(result_arr, lsp_json_completion_from_kain(completions[ci]))
+                ci = ci + 1
+            let result = json_object()
+            json_object_set_array(result, "items", result_arr)
+            json_object_set_bool(result, "isIncomplete", false)
+            lsp_write_json(lsp_jsonrpc_response(id_val, result))
+        else:
+            lsp_write_json(lsp_jsonrpc_error(id_val, LSP_ERR_INVALID_PARAMS, "unknown document: " + uri))
+    elif method == METHOD_TEXT_DOC_DOCUMENT_SYMBOL:
+        let td_params = json_get_value(params_val, "textDocument")
+        let uri = lsp_get_string(td_params, "uri")
 
-                                            let idx = lsp_find_doc(state, uri)
-                                            if idx >= 0:
-                                                let doc = state.documents[idx]
-                                                let locations = references_at(doc.doc_handle, pos_line, pos_col)
-                                                let result_arr = json_array()
-                                                var ri = 0
-                                                while ri < len(locations):
-                                                    let _p = json_array_push_object(result_arr, lsp_json_location(locations[ri]))
-                                                    ri = ri + 1
-                                                let result = json_object()
-                                                json_object_set_array(result, "result", result_arr)
-                                                lsp_write_json(lsp_jsonrpc_response(id_val, result))
-                                            else:
-                                                lsp_write_json(lsp_jsonrpc_error(id_val, LSP_ERR_INVALID_PARAMS, "unknown document: " + uri))
-                                        else:
-                                            if method == METHOD_TEXT_DOC_COMPLETION:
-                                                let td_params = json_get_value(params_val, "textDocument")
-                                                let uri = lsp_get_string(td_params, "uri")
-                                                let position = json_get_value(params_val, "position")
-                                                let pos_line = lsp_get_int(position, "line")
-                                                let pos_col = lsp_get_int(position, "character")
+        let idx = lsp_find_doc(lsp_state, uri)
+        if idx >= 0:
+            let doc = lsp_state.documents[idx]
+            let symbols = document_symbols(doc.doc_handle)
+            let result_arr = json_array()
+            var si = 0
+            while si < len(symbols):
+                let _p = json_array_push_object(result_arr, lsp_json_symbol_from_kain(symbols[si]))
+                si = si + 1
+            lsp_write_json(lsp_jsonrpc_response(id_val, result_arr))
+        else:
+            lsp_write_json(lsp_jsonrpc_error(id_val, LSP_ERR_INVALID_PARAMS, "unknown document: " + uri))
+    elif method == METHOD_WORKSPACE_SYMBOL:
+        let query = lsp_get_string_or(params_val, "query", "")
 
-                                                let idx = lsp_find_doc(state, uri)
-                                                if idx >= 0:
-                                                    let doc = state.documents[idx]
-                                                    let completions = completions_at(doc.doc_handle, pos_line, pos_col)
-                                                    let result_arr = json_array()
-                                                    var ci = 0
-                                                    while ci < len(completions):
-                                                        let _p = json_array_push_object(result_arr, lsp_json_completion_from_kain(completions[ci]))
-                                                        ci = ci + 1
-                                                    let result = json_object()
-                                                    json_object_set_array(result, "items", result_arr)
-                                                    json_object_set_bool(result, "isIncomplete", false)
-                                                    lsp_write_json(lsp_jsonrpc_response(id_val, result))
-                                                else:
-                                                    lsp_write_json(lsp_jsonrpc_error(id_val, LSP_ERR_INVALID_PARAMS, "unknown document: " + uri))
-                                            else:
-                                                if method == METHOD_TEXT_DOC_DOCUMENT_SYMBOL:
-                                                    let td_params = json_get_value(params_val, "textDocument")
-                                                    let uri = lsp_get_string(td_params, "uri")
+        let symbols = workspace_symbols(lsp_state.workspace, query)
+        let result_arr = json_array()
+        var wi = 0
+        while wi < len(symbols):
+            let _p = json_array_push_object(result_arr, lsp_json_symbol_from_kain(symbols[wi]))
+            wi = wi + 1
+        lsp_write_json(lsp_jsonrpc_response(id_val, result_arr))
+    elif method == METHOD_TEXT_DOC_FORMATTING:
+        let td_params = json_get_value(params_val, "textDocument")
+        let uri = lsp_get_string(td_params, "uri")
 
-                                                    let idx = lsp_find_doc(state, uri)
-                                                    if idx >= 0:
-                                                        let doc = state.documents[idx]
-                                                        let symbols = document_symbols(doc.doc_handle)
-                                                        let result_arr = json_array()
-                                                        var si = 0
-                                                        while si < len(symbols):
-                                                            let _p = json_array_push_object(result_arr, lsp_json_symbol_from_kain(symbols[si]))
-                                                            si = si + 1
-                                                        lsp_write_json(lsp_jsonrpc_response(id_val, result_arr))
-                                                    else:
-                                                        lsp_write_json(lsp_jsonrpc_error(id_val, LSP_ERR_INVALID_PARAMS, "unknown document: " + uri))
-                                                else:
-                                                    if method == METHOD_WORKSPACE_SYMBOL:
-                                                        let query = lsp_get_string_or(params_val, "query", "")
+        let idx = lsp_find_doc(lsp_state, uri)
+        if idx >= 0:
+            let doc = lsp_state.documents[idx]
+            let fmt_result = format_document(doc.doc_handle)
+            let result_arr = json_array()
+            if fmt_result.formatted != "":
+                let edit = json_object()
+                json_object_set(edit, "range", lsp_json_range(0, 0, 999999, 0))
+                json_object_set_string(edit, "newText", fmt_result.formatted)
+                let _p = json_array_push_object(result_arr, edit)
+            lsp_write_json(lsp_jsonrpc_response(id_val, result_arr))
+        else:
+            lsp_write_json(lsp_jsonrpc_error(id_val, LSP_ERR_INVALID_PARAMS, "unknown document: " + uri))
+    elif method == METHOD_TEXT_DOC_DIAGNOSTIC:
+        let td_params = json_get_value(params_val, "textDocument")
+        let uri = lsp_get_string(td_params, "uri")
 
-                                                        let symbols = workspace_symbols(state.workspace, query)
-                                                        let result_arr = json_array()
-                                                        var wi = 0
-                                                        while wi < len(symbols):
-                                                            let _p = json_array_push_object(result_arr, lsp_json_symbol_from_kain(symbols[wi]))
-                                                            wi = wi + 1
-                                                        lsp_write_json(lsp_jsonrpc_response(id_val, result_arr))
-                                                    else:
-                                                            if method == METHOD_TEXT_DOC_FORMATTING:
-                                                                let td_params = json_get_value(params_val, "textDocument")
-                                                                let uri = lsp_get_string(td_params, "uri")
+        let idx = lsp_find_doc(lsp_state, uri)
+        if idx >= 0:
+            let doc = lsp_state.documents[idx]
+            let check_result = check_document(doc.doc_handle)
+            let result = lsp_build_diagnostic_result(uri, check_result)
+            lsp_write_json(lsp_jsonrpc_response(id_val, result))
+        else:
+            lsp_write_json(lsp_jsonrpc_error(id_val, LSP_ERR_INVALID_PARAMS, "unknown document: " + uri))
+    elif method == METHOD_TEXT_DOC_SEMANTIC_TOKENS:
+        let td_params = json_get_value(params_val, "textDocument")
+        let uri = lsp_get_string(td_params, "uri")
 
-                                                                let idx = lsp_find_doc(state, uri)
-                                                                if idx >= 0:
-                                                                    let doc = state.documents[idx]
-                                                                    let fmt_result = format_document(doc.doc_handle)
-                                                                    let result_arr = json_array()
-                                                                    if fmt_result.formatted != "":
-                                                                        let edit = json_object()
-                                                                        json_object_set(edit, "range", lsp_json_range(0, 0, 999999, 0))
-                                                                        json_object_set_string(edit, "newText", fmt_result.formatted)
-                                                                        let _p = json_array_push_object(result_arr, edit)
-                                                                    lsp_write_json(lsp_jsonrpc_response(id_val, result_arr))
-                                                                else:
-                                                                    lsp_write_json(lsp_jsonrpc_error(id_val, LSP_ERR_INVALID_PARAMS, "unknown document: " + uri))
-                                                            else:
-                                                                if method == METHOD_TEXT_DOC_DIAGNOSTIC:
-                                                                    let td_params = json_get_value(params_val, "textDocument")
-                                                                    let uri = lsp_get_string(td_params, "uri")
+        let idx = lsp_find_doc(lsp_state, uri)
+        if idx >= 0:
+            let doc = lsp_state.documents[idx]
+            let result = lsp_build_semantic_tokens(doc.doc_handle)
+            lsp_write_json(lsp_jsonrpc_response(id_val, result))
+        else:
+            lsp_write_json(lsp_jsonrpc_error(id_val, LSP_ERR_INVALID_PARAMS, "unknown document: " + uri))
+    elif method == METHOD_TEXT_DOC_CODE_ACTION:
+        let td_params = json_get_value(params_val, "textDocument")
+        let uri = lsp_get_string(td_params, "uri")
 
-                                                                    let idx = lsp_find_doc(state, uri)
-                                                                    if idx >= 0:
-                                                                        let doc = state.documents[idx]
-                                                                        let check_result = check_document(doc.doc_handle)
-                                                                        let result = json_object()
-                                                                        let kind = json_object()
-                                                                        json_object_set_string(kind, "kind", "full")
-                                                                        json_object_set_array(result, "items", lsp_json_diagnostics(check_result.diagnostics))
-                                                                        json_object_set(result, "resultId", kind)
-                                                                        lsp_write_json(lsp_jsonrpc_response(id_val, result))
-                                                                    else:
-                                                                        lsp_write_json(lsp_jsonrpc_error(id_val, LSP_ERR_INVALID_PARAMS, "unknown document: " + uri))
-                                                                else:
-                                                                    if method == METHOD_WORKSPACE_DID_CHANGE_WATCHED_FILES:
-                                                                        // No-op — we pick up changes via didChange
-                                                                        0
-                                                                    else:
-                                                                        // ── unknown method ──
-                                                                        if method != "":
-                                                                            lsp_warn("unhandled method: " + method)
-                                                                        if method != "" and !json_is_null(id_val):
-                                                                            lsp_write_json(lsp_jsonrpc_error(id_val, LSP_ERR_METHOD_NOT_FOUND, "method not found: " + method))
+        let idx = lsp_find_doc(lsp_state, uri)
+        if idx >= 0:
+            let doc = lsp_state.documents[idx]
+            let check_res = check_document(doc.doc_handle)
+            let result = lsp_build_code_actions(doc.doc_handle, check_res.diagnostics)
+            lsp_write_json(lsp_jsonrpc_response(id_val, result))
+        else:
+            lsp_write_json(lsp_jsonrpc_error(id_val, LSP_ERR_INVALID_PARAMS, "unknown document: " + uri))
+    elif method == METHOD_TEXT_DOC_CODE_LENS:
+        let td_params = json_get_value(params_val, "textDocument")
+        let uri = lsp_get_string(td_params, "uri")
+
+        let idx = lsp_find_doc(lsp_state, uri)
+        if idx >= 0:
+            let doc = lsp_state.documents[idx]
+            let result = lsp_build_code_lens(doc.doc_handle)
+            lsp_write_json(lsp_jsonrpc_response(id_val, result))
+        else:
+            lsp_write_json(lsp_jsonrpc_error(id_val, LSP_ERR_INVALID_PARAMS, "unknown document: " + uri))
+    elif method == METHOD_WORKSPACE_DID_CHANGE_WATCHED_FILES:
+        // No-op — we pick up changes via didChange
+        0
+    else:
+        // ── unknown method ──
+        if method != "":
+            lsp_warn("unhandled method: " + method)
+        if method != "" and !json_is_null(id_val):
+            lsp_write_json(lsp_jsonrpc_error(id_val, LSP_ERR_METHOD_NOT_FOUND, "method not found: " + method))
 
     return running
+
+pub fn lsp_run(ws: Workspace) -> Int with IO:
+    let lsp_state = lsp_state_new(ws)
+    lsp_info("kain-lsp starting...")
+
+    var running = true
+    while running:
+        let raw_body = lsp_read_message()
+        if raw_body == "":
+            running = false
+            continue
+
+        let root_val = json_parse_text(raw_body)
+        if json_is_object(root_val):
+            let root_obj = root_val
+            let method = json_string_or(root_obj, "method", "")
+            let id_val = json_get_value(root_obj, "id")
+            let params_val = json_get_value(root_obj, "params")
+
+            let keep_going = lsp_dispatch(lsp_state, raw_body, id_val, method, params_val)
+            if !keep_going:
+                running = false
+        else:
+            lsp_error("invalid JSON-RPC payload")
+
+    return 0

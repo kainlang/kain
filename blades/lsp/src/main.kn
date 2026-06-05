@@ -2,11 +2,32 @@ use std::json
 use std::kain
 use std::fs
 use std::mcp
+use std::process
 use transport
 use lsp
-use mcp_server as ms
+use mcp_host
 
 pub fn main() -> Int with IO:
-    let tools = ms.mcp_tool_defs()
-    let result = ms.mcp_dispatch_tool
-    return 0
+    let args = process_args()
+    var is_mcp = false
+    var i = 0
+    while i < len(args):
+        if args[i] == "mcp" or args[i] == "--mcp":
+            is_mcp = true
+        i = i + 1
+
+    let workspace_opt = open_workspace(".", CompileTarget::Llvm)
+    if workspace_opt.is_none():
+        lsp_error("failed to open workspace")
+        return 1
+
+    let ws = workspace_opt.unwrap()
+
+    if is_mcp:
+        let _ = mcp_run(ws, ".")
+        let _ = close_workspace(ws)
+        return 0
+    else:
+        let _ = lsp_run(ws)
+        let _ = close_workspace(ws)
+        return 0

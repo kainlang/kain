@@ -35,6 +35,10 @@ def parse_lsp_responses(data: bytes):
 
 
 def main():
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+    except Exception:
+        pass
     print("=== Kain LSP Smoke Test ===", flush=True)
 
     input_msgs = [
@@ -66,26 +70,26 @@ def main():
     responses = parse_lsp_responses(stdout_data)
     print(f"  Parsed {len(responses)} JSON-RPC messages", flush=True)
 
-    assert proc.returncode == 0, f"Expected exit 0, got {proc.returncode}"
-
-    resp_by_id = {r.get("id"): r for r in responses if "id" in r}
-    assert 1 in resp_by_id, "Missing initialize response"
-    assert "capabilities" in resp_by_id[1].get("result", {}), "Missing capabilities"
-    print("  ✓ initialize", flush=True)
-
-    if 2 in resp_by_id:
-        print(f"  ✓ hover id=2", flush=True)
-    else:
-        print("  ? no hover response", flush=True)
-
-    assert 10 in resp_by_id, "Missing shutdown response"
-    print("  ✓ shutdown", flush=True)
-
     stderr_lines = [l for l in stderr_data.decode().split("\n")
                     if l.strip() and "Run Once" not in l and "build graph" not in l
                     and "Succeeded" not in l]
     for line in stderr_lines:
         print(f"  [stderr] {line.strip()}", flush=True)
+
+    assert proc.returncode == 0, f"Expected exit 0, got {proc.returncode}"
+
+    resp_by_id = {r.get("id"): r for r in responses if "id" in r}
+    assert 1 in resp_by_id, "Missing initialize response"
+    assert "capabilities" in resp_by_id[1].get("result", {}), "Missing capabilities"
+    print("  [OK] initialize", flush=True)
+
+    if 2 in resp_by_id:
+        print(f"  [OK] hover id=2", flush=True)
+    else:
+        print("  ? no hover response", flush=True)
+
+    assert 10 in resp_by_id, "Missing shutdown response"
+    print("  [OK] shutdown", flush=True)
 
     print("\n=== ALL SMOKE TESTS PASSED ===", flush=True)
     return 0

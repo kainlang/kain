@@ -99,16 +99,10 @@ pub fn lsp_semantic_token_legend() -> JsonObject:
     json_object_set_array(result, "tokenModifiers", token_modifiers)
     return result
 
-// Build the LSP SemanticTokens result for a document.
-// Returns { "data": [d1, d2, d3, d4, d5, ...] } in LSP 3.17 delta format.
 pub fn lsp_build_semantic_tokens(doc: Document) -> JsonObject:
     let tokens = semantic_tokens(doc)
-    let result = json_object()
-    if len(tokens) == 0:
-        json_object_set_array(result, "data", json_array())
-        return result
-
     let sorted = _sort_tokens(tokens)
-    let data = _lsp_encode_tokens(sorted)
-    json_object_set_array(result, "data", data)
+    let encoded = _lsp_encode_tokens(sorted)
+    let result = json_object()
+    json_object_set_array(result, "data", encoded)
     return result

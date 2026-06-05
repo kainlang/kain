@@ -226,7 +226,7 @@ x:/.agents/skills/lang-projects/skill.md
 
 ## Kain Stdlib & Keywords MCP Server (`stdlib-mcp`)
 
-- The canonical, most efficient way to query the Kain Standard Library, look up keyword definitions, and retrieve code examples is using the **Kain Stdlib MCP Server (`stdlib-mcp`)** backed by `kain-mcp.py`.
+- The canonical, most efficient way to query the Kain Standard Library, look up keyword definitions, and retrieve code examples is using the **Kain Stdlib MCP Server (`stdlib-mcp`)** backed by the `kaindev` package.
 - Equip and invoke the following MCP tools for instant authoring context directly in your chat:
   - `list_stdlib_modules`: Lists all modules with public/private counts.
   - `get_module_symbols`: Lists all symbols defined in a specific module.
@@ -236,7 +236,7 @@ x:/.agents/skills/lang-projects/skill.md
   - `list_kain_keywords`: Displays the complete reference manual for Kain keywords (semantic keywords in rich detail, standard ones in a compact list).
   - `get_keyword_help`: Fetches detailed help for a specific keyword.
   - `search_kain_examples`: Performs a PyTorch-driven semantic search over instructions and standard library implementations to return real-world code examples.
-- **CLI/REPL Mode:** You can also run the script directly from your terminal using `py -3 kain-mcp.py --help` or run it in interactive mode with `py -3 kain-mcp.py -i` (supporting commands like `ls`, `show`, `search`, `keywords`, `info`, `source`, and `example`).
+- **CLI/REPL Mode:** You can also run the script directly from your terminal using `py -3 -m kaindev --help` or run it in interactive mode with `py -3 -m kaindev -i` (supporting commands like `ls`, `show`, `search`, `keywords`, `info`, `source`, and `example`).
 
 ## Canonical Commands
 

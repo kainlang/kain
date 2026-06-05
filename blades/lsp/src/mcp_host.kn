@@ -1,4 +1,4 @@
-// blades/lsp/src/mcp_server.kn
+// blades/lsp/src/mcp_host.kn
 // MCP protocol server exposing Kain compiler services as MCP tools for AI coding assistants.
 //
 // Note: std::mcp already exports mcp_server_new(name, version). A zero-argument wrapper

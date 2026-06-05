@@ -1,5 +1,52 @@
 # Kain Bug Log
 
+## 2026-06-05 - core/typechecker-trait-generic-exponential
+### Typechecker hangs (exponential blowup) on files with many dual-trait-bounded generics × many trait implementations
+
+- Categories: core, typechecker, traits, generics, performance
+- Severity: High
+- Status: Open in tree (2026-06-05)
+- Surface: `kain check` on `.kn` files that combine many generic functions with dual trait bounds and many struct trait implementations.
+- Trigger: A file with ~15 structs implementing 2 traits each + ~14 generic functions `<T: TraitA> ... where T: TraitB` causes the typechecker to enter exponential resolution and never complete.
+- Symptom:
+  - `kain check <file>.kn --target llvm` hangs indefinitely (tested up to 120s before kill).
+  - Individual modules check fine in isolation. The hang only occurs when the problematic file is checked.
+  - Reducing the number of generic functions OR the number of trait implementations resolves the hang.
+- Minimal repro:
+  - Create a file with 15+ structs implementing `TraitA` and `TraitB`, plus 14+ generic functions like `fn build_x<T: TraitA>(ctx: Ctx, builder: T) -> Result where T: TraitB`.
+  - Run `kain check <file>.kn --target llvm`.
+- Evidence:
+  - `blades/ui/kaintana/src/api/kaintana_ui.kn` had 15 builder structs implementing `KaintanaRenderable` + `KaintanaUiCompatible` and 14 generic `build_*` functions. Task 1 (`surface-check-llvm`) hung forever in the build.
+  - After removing the traits, trait impls, and generic functions, `kain check` completes in ~1 second.
+  - The typechecker enters the `typecheck` phase and never exits (build report shows phase=typecheck with no subsequent events).
+- Current workaround:
+  - Avoid dual-trait-bounded generics with many implementations. Use concrete per-type functions instead of generic dispatch.
+  - Split large files with many trait implementations into smaller modules.
+- Suggested direction:
+  - Investigate the typechecker's trait resolution / generic instantiation path for exponential behavior when processing `<T: A> ... where T: B` with N implementations.
+  - Consider caching or memoizing trait resolution results during generic function analysis.
+
+## 2026-06-05 - llvm/codegen-module-prefix
+### Referencing imported module functions with namespace prefix (e.g. `module.function(...)`) in LLVM/AOT codegen fails with 'Undefined variable: module'
+
+- Categories: llvm, lowering, codegen, modules
+- Severity: High
+- Status: Open in tree (2026-06-05)
+- Surface: LLVM codegen for files referencing imported module namespace functions using dot-notation prefixing.
+- Trigger: Compiling a project containing module-prefixed calls via `kain build` with target `llvm`.
+- Symptom:
+  - Codegen fails with error `error[Codegen Error]: while compiling '<fn>': Undefined variable: <module>` at the call site.
+- Why this is a bug: The frontend typechecker (`check` phase) resolves module prefixing correctly and passes. However, during the LLVM/AOT backend codegen phase, the compiler treats the module prefix identifier as a variable in the local/global scope instead of resolving it as a module namespace reference.
+- Minimal repro:
+  - Write `main.kn` importing `use my_module` and calling `my_module.my_function()`.
+  - Compile with `kain build main.kn --target llvm`.
+- Evidence:
+  - Codegen failed in `blades/lsp` for `mcp_host.mcp_run()` and `lsp.lsp_run()` inside `src/main.kn` with `Undefined variable: mcp_host` on 2026-06-05.
+- Current workaround:
+  - Import the module and call the functions directly without namespace prefixing (e.g. `use my_module` and then call `my_function()` directly), relying on Kain's global symbol import namespace model.
+- Suggested direction:
+  - Fix the LLVM IR codegen handler for `Expr::Field` representing module namespace member lookup so it resolves the module namespace reference correctly instead of treating the prefix as a variable identifier.
+
 ## 2026-06-04 - std::kain/interpreter-option
 ### `std::kain` workspace/document handles cannot be consumed ergonomically in authored Kain runtime flows
 

@@ -7869,6 +7869,19 @@ impl LlvmGenerator {
                 ));
                 return Ok((reg, target_ty.to_string()));
             }
+            if src_ty == "i64" {
+                let ptr_reg = self.next_reg();
+                self.emit(&format!(
+                    "  {} = inttoptr i64 {} to {}*",
+                    ptr_reg, val, target_ty
+                ));
+                let val_reg = self.next_reg();
+                self.emit(&format!(
+                    "  {} = load {}, {}* {}",
+                    val_reg, target_ty, target_ty, ptr_reg
+                ));
+                return Ok((val_reg, target_ty.to_string()));
+            }
         }
 
         if src_ty.ends_with('*') && target_ty == "i64" {

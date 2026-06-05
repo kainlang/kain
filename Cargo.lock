@@ -513,6 +513,7 @@ dependencies = [
  "kain-fmt",
  "kain-host",
  "kain-import",
+ "kain-lattice",
  "kain-omni",
  "kain-repair",
  "kain-repl",

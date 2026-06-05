@@ -11,7 +11,7 @@ This skill is the root Kain stdlib operator manual. Use it to write authored Kai
 ## Prime Directive
 
 - Prefer public root imports such as `use std::fs`, `use std::math`, `use std::http`, and `use std::ui`.
-- Query the atlas before spelunking. Use `kain-mcp.py`, then open exact source files only where needed.
+- Query the atlas before spelunking. Use `stdlib-mcp` tools or `py -3 -m kaindev`, then open exact source files only where needed.
 - Treat private `abi_*` symbols as stdlib-internal runtime wiring, not authoring APIs.
 - Treat `@extern` root stdlib functions as runtime-backed ABI surfaces. Escalate to the owning runtime/bootstrap lane when behavior is wrong.
 - Regenerate `stdlib/STDLIB_MAP.llm.md` and `stdlib/stdlib.map.json` whenever top-level `stdlib/*.kn` changes.
@@ -23,13 +23,13 @@ This skill is the root Kain stdlib operator manual. Use it to write authored Kai
 Use these commands first:
 
 ```powershell
-python kain-mcp.py --summary
-python kain-mcp.py --imports
-python kain-mcp.py --module fs --contains path --limit 40
-python kain-mcp.py --module math --contains vec3 --limit 40
-python kain-mcp.py --module python --contains python_ --limit 60
-python kain-mcp.py --search json --limit 40
-python kain-mcp.py --search thread --limit 40
+py -3 -m kaindev --summary
+py -3 -m kaindev --imports
+py -3 -m kaindev --module fs --contains path --limit 40
+py -3 -m kaindev --module math --contains vec3 --limit 40
+py -3 -m kaindev --module python --contains python_ --limit 60
+py -3 -m kaindev --search json --limit 40
+py -3 -m kaindev --search thread --limit 40
 rg -n "^use std::" library_of_kain blades benchmark smoketest
 rg -n "\b(fs_|tcp_|process_|graphics_|ui_|python_|hash_|text_|json_)\b" stdlib blades benchmark smoketest runtime
 kain check <entry.kn> --target llvm
@@ -66,7 +66,7 @@ Root stdlib truth is defined by live surface + proof wiring, not by a separate s
 
 A root capability is considered real when:
 
-- the public import exists in the live atlas (`kain-mcp.py --imports`)
+- the public import exists in the live atlas (`py -3 -m kaindev --imports`)
 - symbols and signatures appear in the generated map
 - smoke wiring exists and is called from the shared album flow
 - runtime-backed behavior is proven in the right lane (`runtime/conformance`, `benchmark`, `attrition`, or proof packs) when the claim requires it
@@ -103,7 +103,7 @@ authored Kain
 Primary source anchors:
 
 - Live root atlas: `stdlib/STDLIB_MAP.llm.md`, `stdlib/stdlib.map.json`
-- Atlas query helper: `kain-mcp.py`
+- Atlas query helper: `mcp/kaindev` package
 - Atlas generator: `crates/stdlib-map`
 - Root stdlib source: `stdlib/*.kn`
 - Stdlib loading and target profile ordering: `crates/core/src/stdlib.rs`
@@ -119,9 +119,9 @@ Primary source anchors:
 Do not trust hardcoded module counts in docs. Pull live truth from the atlas:
 
 ```powershell
-python kain-mcp.py --summary
-python kain-mcp.py --imports
-python kain-mcp.py --module python --contains python_ --limit 60
+py -3 -m kaindev --summary
+py -3 -m kaindev --imports
+py -3 -m kaindev --module python --contains python_ --limit 60
 ```
 
 ## Choose By Need

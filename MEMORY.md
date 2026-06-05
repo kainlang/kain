@@ -1,5 +1,27 @@
 # Kain Memory
 
+# 2026-06-05 - Kain Stdlib MCP modularization fix & LLM-native tool renaming
+
+What changed:
+- Fixed an import path issue in the modular MCP shim `mcp/kaindev/kain-mcp.py` where it was adding the package folder `X:\mcp\kaindev` to the Python search path instead of its parent directory `X:\mcp`.
+- Renamed all 8 FastMCP tool definitions under `X:\mcp\kaindev\tools/` to be clean, intuitive, and "native to LLMs" (removing the double prefix `kain-stdlib_kain_` and matching standard `stdlib-mcp` schemas):
+  - `kain_list_modules` -> `list_stdlib_modules`
+  - `kain_browse_module` -> `get_module_symbols`
+  - `kain_find_symbol` -> `search_stdlib_symbols`
+  - `kain_inspect_symbol` -> `get_symbol_details`
+  - `kain_show_source` -> `get_symbol_source`
+  - `kain_keywords` -> `list_kain_keywords`
+  - `kain_learn_keyword` -> `get_keyword_help`
+  - `kain_find_examples` -> `search_kain_examples`
+- Updated MCP server instructions in `mcp_server.py` and documentation in `README.md` to reflect the clean tool names.
+- Updated the Gemini MCP configuration file `C:\Users\zenta\.gemini\config\mcp_config.json` to point the `stdlib-mcp` command to `X:\mcp\kaindev\kain-mcp.py` (working directory `X:\mcp\kaindev`) to invoke the new modular server instead of the old root monolith.
+- Updated all references to the old root `kain-mcp.py` script in the `lang-stdlib` skill manual (`X:\.agents\skills\lang-stdlib\SKILL.md`) and in the main guide (`X:\AGENTS.md`) to use the new package runner command (`py -3 -m kaindev`).
+- Safely deleted the deprecated monolith file `X:\kain-mcp.py`.
+
+Validation:
+- Ran `py -3 X:\mcp\kaindev\kain-mcp.py --summary` and `py -3 X:\mcp\kaindev\kain-mcp.py -e "actor supervision"` to verify the CLI & PyTorch semantic search.
+- Successfully verified stdio FastMCP startup logs.
+
 # 2026-06-04 - ANSI coloring unification, Phase 5 (remaining CLI surfaces)
 
 What changed:
