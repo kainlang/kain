@@ -1,5 +1,58 @@
 # Kain Memory
 
+# 2026-06-04 - 24-TET effects module: world/entangle/pulse/resonate/converge/orchestrate/patch/law
+
+What changed:
+
+- Created `resonate_py_effects.kn` (843 lines): A modular audio effects engine authored entirely in Kain semantics.
+  - `world ResonatePyFxWorld` / `world ResonatePyFxMirror` — dual-world authority+mirror pattern for all 14+ effect parameters.
+  - `entangle` — 8 cross-world couplings (lfo1_phase, lfo2_phase, tremolo_depth, chorus_mix, delay_mix, distortion_drive, filter_cutoff, fx_epoch) using `single_writer` policy.
+  - `law value_in_fx_range` — parameter bound invariant witness.
+  - `patch` — journaled parameter mutation (`fx_patch_param`, `fx_patch_world_many`); `patch_journal_count()` verified in stress test.
+  - `converge` — 4 fast-lane dispatches (LFO shape sin/tri/saw/square/sample-hold, wet/dry mixing, waveshape clipping, param clamp).
+  - `orchestrate` — 4-stage typed effect pipeline (modulate → filter → spatial → output) with `capability("llvm")`, `residency shared`.
+  - `pulse` — 8ms jitter 1ms LFO modulator tick, writes world state.
+  - `resonate` — dampened handlers on `lfo1_rate` and `distortion_drive`; uses `resonate_old_i64`, `resonate_new_i64`, `resonate_fired`.
+  - Stress test (`fx_stress_test`) exercises every semantic construct, verifies patch journal count > 0, entangle propagation > 0.
+- Updated `resonate_py_surface.py`: Added `_effect_config` dict, `config_effects()` public API, 5 effect audio functions (tremolo, distortion, filter tilt, chorus, delay/echo), modified `play_note` to apply frame-level effects from Kain state.
+- Updated `resonate_py.kn`: Added effects module import, `fx.fx_reset_state`/`fx.fx_reset_mirror` init, `fx.fx_frame_tick` per frame, `py_surface.config_effects()` call with 16 effect params, added case index 3 (`resonate_py_effects_benchmark`) with 120 iterations.
+- Updated `build.kn`: Added `resonate_py_effects.kn` to check and executable input sets.
+
+Validation:
+- `kain check X:\blades\python\24_tet\src\resonate_py.kn --target llvm` passes (1/1).
+
+Key semantic lessons for future agents:
+- Kain module imports use `import module_path as alias`; access with `.` (not `::`): `fx.fx_frame_tick(fx.ResonatePyFxWorld)`.
+- Dual-world authority+mirror pattern: `world` owns mutable state, `mirror` is entangle target for read-only introspection.
+- `converge` needs `spec reference:` plus `fast <lane_name> when ...:` — `verify random(N)` tests N randomized inputs.
+- `orchestrate` stage syntax: `stage <name>: <runtime> <fn>(<args>) using capability("...") residency <mode> policy <mode>`.
+- `pulse` body writes world state directly; provides `pulse_tick`, `pulse_dt_ms`, `pulse_missed` locals.
+- `resonate` handler gives `resonate_old_i64: Int`, `resonate_new_i64: Int`, `resonate_fired: Bool`.
+- `patch` returns new value; `patch_journal_count()` is from `std::intent`.
+- `entangle` with `single_writer` requires matching types and one-sided write direction.
+- `use std::intent` provides `patch_journal_count()`, `entangle_propagation_count()`, `converge_mismatch_count()`, `resonate_fire_count()`, `orchestrate_stage_count()`.
+
+# 2026-06-04 - Expanded query_stdlib.py with FastMCP server and CLI enhancements
+
+What changed:
+
+- Rewrote `query_stdlib.py` to support dual-mode execution: standard CLI/REPL developer tool and an MCP server.
+- Added FastMCP server capability using the `fastmcp` package. Implemented 5 MCP tools:
+  - `list_stdlib_modules`: Lists all standard library modules in Kain, public/private symbol counts, and source file.
+  - `get_module_symbols`: Detailed symbol listing and signatures for a specific module.
+  - `search_stdlib_symbols`: High-speed search for symbols matching a keyword across modules.
+  - `get_symbol_details`: Retrieves full symbol details, signature, documentation, and notes.
+  - `get_symbol_source`: Extracts the actual Kain source code implementation from stdlib files.
+- Enhanced the CLI interface with:
+  - Colorized console outputs using ANSI color codes when stdout is a TTY.
+  - An interactive terminal shell explorer (`--interactive` or `-i`) with commands like `ls`, `show`, `search`, `info`, and `source`.
+  - A `--source` flag to inspect a symbol's code implementation directly from the CLI.
+
+Validation:
+
+- Tested CLI functions: `py -3 query_stdlib.py --summary`, `py -3 query_stdlib.py --module math --contains sin --source`.
+- Programmatically verified the registration and correctness of FastMCP tools.
+
 # 2026-06-04 - ANSI coloring unification, Phase 2 (Painter facade + REPL migration)
 
 What changed:

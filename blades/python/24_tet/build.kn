@@ -28,6 +28,7 @@ fn build(ctx: BuildContext) -> BuildGraph:
         .entry("src/resonate_py.kn")
         .target("llvm")
         .input("src/resonate_py.kn")
+    .input("src/resonate_py_effects.kn")
     .input("src/resonate_py_surface.py")
     .input("build.kn")
 
@@ -36,6 +37,7 @@ fn build(ctx: BuildContext) -> BuildGraph:
         .root_output("$blade/24_tet.exe")
         .requires("check-llvm")
         .input("src/resonate_py.kn")
+        .input("src/resonate_py_effects.kn")
         .input("src/resonate_py_surface.py")
         .input("build.kn")
 

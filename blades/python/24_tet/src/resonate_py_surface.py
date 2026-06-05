@@ -53,6 +53,109 @@ _key_geometry: dict[int, dict[str, Any]] | None = None
 _sound_cache: dict[int, pygame.mixer.Sound] = {}
 _frame_counter: int = 0
 
+# Kain-owned effect parameters (set via config_effects from Kain event loop)
+_effect_config: dict[str, int] = {
+    "lfo1_val": 0,
+    "lfo2_val": 0,
+    "chorus_mix": 0,
+    "delay_mix": 0,
+    "reverb_mix": 0,
+    "distortion_drive": 0,
+    "filter_cutoff": 1000,
+    "tremolo_depth": 0,
+    "tremolo_rate": 20,
+    "chorus_delay_ms": 18,
+    "chorus_rate": 15,
+    "delay_time_ms": 320,
+    "delay_feedback": 280,
+    "reverb_decay": 350,
+    "fx_epoch": 0,
+    "fx_frame": 0,
+    "mod_filter": 1000,
+    "mod_tremolo": 0,
+    "mod_chorus": 0,
+}
+
+
+# ---------------------------------------------------------------------------
+# Effect processing
+# ---------------------------------------------------------------------------
+
+def _apply_filter_tilt(samples: np.ndarray, cutoff: int, sample_rate: int = SAMPLE_RATE) -> np.ndarray:
+    """Apply a gentle lowpass/lowshelf filter tilt based on cutoff parameter.
+    cutoff: 0-1000 where 0=fully closed, 1000=fully open.
+    This is a simplified one-pole filter applied in frequency domain
+    via convolution with a short windowed-sinc kernel."""
+    if cutoff >= 950:
+        return samples
+    blend = max(0.02, (cutoff + 50) / 1050.0)
+    n = len(samples)
+    filtered = np.zeros_like(samples)
+    filtered[0] = samples[0]
+    for i in range(1, n):
+        filtered[i] = samples[i] * blend + filtered[i - 1] * (1.0 - blend)
+    return filtered
+
+
+def _apply_distortion(samples: np.ndarray, drive: int) -> np.ndarray:
+    """Soft-clip waveshaping. drive: 0-1000."""
+    if drive <= 5:
+        return samples
+    gain = 1.0 + (drive / 500.0)
+    shaped = np.tanh(samples * gain * 1.5)
+    norm = 1.0 / max(1e-6, float(np.max(np.abs(shaped))))
+    return shaped * min(norm, 1.0) * 0.92
+
+
+def _apply_chorus(samples: np.ndarray, mix: int, delay_ms: int, lfo: int) -> np.ndarray:
+    """Simple modulated delay. mix: 0-1000, delay_ms: delay time, lfo: modulate offset."""
+    if mix <= 5:
+        return samples
+    wet = mix / 1000.0
+    delay_samples = int((delay_ms * SAMPLE_RATE) / 1000)
+    if delay_samples < 2 or delay_samples >= len(samples):
+        return samples
+    # LFO modulates delay time by ±30%
+    lfo_mod = (lfo / 500.0) * delay_samples * 0.3
+    offset = max(1, delay_samples + int(lfo_mod))
+    chorus = np.roll(samples, offset, axis=0)
+    chorus[:offset] *= np.linspace(0.0, 1.0, offset, dtype=np.float32)[:, None]
+    return samples * (1.0 - wet) + chorus * wet * 0.6
+
+
+def _apply_delay_echo(samples: np.ndarray, mix: int, time_ms: int, feedback: int) -> np.ndarray:
+    """Simple delay/echo. mix: 0-1000, time_ms: delay time, feedback: 0-1000."""
+    if mix <= 5:
+        return samples
+    wet = mix / 1000.0
+    fb = (feedback / 1000.0) * 0.7
+    delay_samples = int((time_ms * SAMPLE_RATE) / 1000)
+    if delay_samples < 2 or delay_samples >= len(samples):
+        return samples
+    echo = np.zeros_like(samples)
+    for tap in range(1, 5):
+        tap_samples = delay_samples * tap
+        if tap_samples >= len(samples):
+            break
+        tap_gain = wet * (fb ** (tap - 1))
+        echo[tap_samples:] += samples[:-tap_samples] * tap_gain
+    return samples + echo
+
+
+def _apply_tremolo(samples: np.ndarray, depth: int, rate: int, lfo_phase: int) -> np.ndarray:
+    """Amplitude modulation. depth: 0-1000, rate: LFO rate, lfo_phase: 0-65535."""
+    if depth <= 5:
+        return samples
+    mod_depth = depth / 1000.0
+    n = len(samples)
+    t = np.arange(n, dtype=np.float32) / SAMPLE_RATE
+    # Convert phase to frequency: phase wraps at a rate determined by the tremolo_rate
+    phase_rad = (lfo_phase / 65535.0) * 2.0 * math.pi
+    lfo_freq = 0.5 + (rate / 15.0)  # ~0.5 to ~34 Hz
+    lfo = np.sin(phase_rad + 2.0 * math.pi * lfo_freq * t)
+    mod = 1.0 - mod_depth * 0.5 * (lfo * 0.5 + 0.5)
+    return samples * mod[:, None]
+
 
 # ---------------------------------------------------------------------------
 # Audio helpers
@@ -406,6 +509,54 @@ def hit_test(x_pos: int, y_pos: int) -> int:
 
 
 # ---------------------------------------------------------------------------
+# Effect configuration (called from Kain event loop)
+# ---------------------------------------------------------------------------
+
+def config_effects(
+    lfo1_val: int,
+    lfo2_val: int,
+    chorus_mix: int,
+    delay_mix: int,
+    reverb_mix: int,
+    distortion_drive: int,
+    filter_cutoff: int,
+    tremolo_depth: int,
+    tremolo_rate: int,
+    chorus_delay_ms: int,
+    delay_time_ms: int,
+    delay_feedback: int,
+    reverb_decay: int,
+    fx_epoch: int,
+    fx_frame: int,
+    mod_filter: int,
+    mod_tremolo: int,
+    mod_chorus: int,
+) -> int:
+    """Receive frame-level effect parameters from the Kain effects world."""
+    _effect_config.update({
+        "lfo1_val": lfo1_val,
+        "lfo2_val": lfo2_val,
+        "chorus_mix": chorus_mix,
+        "delay_mix": delay_mix,
+        "reverb_mix": reverb_mix,
+        "distortion_drive": distortion_drive,
+        "filter_cutoff": filter_cutoff,
+        "tremolo_depth": tremolo_depth,
+        "tremolo_rate": tremolo_rate,
+        "chorus_delay_ms": chorus_delay_ms,
+        "delay_time_ms": delay_time_ms,
+        "delay_feedback": delay_feedback,
+        "reverb_decay": reverb_decay,
+        "fx_epoch": fx_epoch,
+        "fx_frame": fx_frame,
+        "mod_filter": mod_filter,
+        "mod_tremolo": mod_tremolo,
+        "mod_chorus": mod_chorus,
+    })
+    return fx_epoch
+
+
+# ---------------------------------------------------------------------------
 # Public surface API
 # ---------------------------------------------------------------------------
 
@@ -446,11 +597,76 @@ def render_frame(
 
 def play_note(slot: int, velocity: int) -> int:
     """Synthesize and play audio for the given note. Returns 0."""
-    sound = _make_sound(int(slot))
+    slot_i = int(slot)
+    sound = _make_sound(slot_i)
     if sound is None:
         return 0
-    channel = pygame.mixer.Channel(int(slot) % 24)
+    channel = pygame.mixer.Channel(slot_i % 24)
     gain = max(0.18, min(1.0, velocity / 127.0))
+
+    # Apply frame-level effect modulation from Kain-owned state
+    ec = _effect_config
+    lfo1 = ec["lfo1_val"]
+    lfo2 = ec["lfo2_val"]
+    mod_chorus_val = ec["mod_chorus"]
+    mod_filter_val = ec["mod_filter"]
+    mod_tremolo_val = ec["mod_tremolo"]
+
+    # Tremolo: modulate gain
+    trem_depth = ec["tremolo_depth"]
+    trem_rate = ec["tremolo_rate"]
+    if trem_depth > 5:
+        # Apply tremolo by creating a modulated copy of the sound
+        sound_array = pygame.sndarray.samples(sound).copy().astype(np.float32)
+        # Simple LFO phase from mod_tremolo value (0-1000 scale)
+        lfo_phase = (mod_tremolo_val * 65535) // 1000 if mod_tremolo_val > 0 else 0
+        t = np.arange(len(sound_array), dtype=np.float32) / SAMPLE_RATE
+        phase_rad = (lfo_phase / 65535.0) * 2.0 * math.pi
+        lfo_freq = 0.5 + (trem_rate / 15.0)
+        lfo = np.sin(phase_rad + 2.0 * math.pi * lfo_freq * t)
+        mod = 1.0 - (trem_depth / 1000.0) * 0.5 * (lfo * 0.5 + 0.5)
+        if sound_array.ndim == 1:
+            sound_array *= mod
+        else:
+            sound_array *= mod[:, None]
+        sound_array = np.clip(sound_array, -32768, 32767).astype(np.int16)
+        sound = pygame.sndarray.make_sound(sound_array)
+
+    # Distortion: waveshape the sound buffer
+    dist_drive = ec["distortion_drive"]
+    if dist_drive > 5:
+        sound_array = pygame.sndarray.samples(sound).copy().astype(np.float32)
+        sound_array = _apply_distortion(sound_array, dist_drive)
+        sound_array = np.clip(sound_array, -32768, 32767).astype(np.int16)
+        sound = pygame.sndarray.make_sound(sound_array)
+
+    # Filter tilt from Kain-modulated filter_cutoff
+    filter_cut = mod_filter_val
+    if 0 < filter_cut < 950:
+        sound_array = pygame.sndarray.samples(sound).copy().astype(np.float32)
+        sound_array = _apply_filter_tilt(sound_array, filter_cut)
+        sound_array = np.clip(sound_array, -32768, 32767).astype(np.int16)
+        sound = pygame.sndarray.make_sound(sound_array)
+
+    # Chorus: modulated short delay
+    ch_mix = ec["chorus_mix"]
+    ch_delay = ec["chorus_delay_ms"]
+    if ch_mix > 5 and mod_chorus_val > 0:
+        sound_array = pygame.sndarray.samples(sound).copy().astype(np.float32)
+        sound_array = _apply_chorus(sound_array, ch_mix, ch_delay, lfo1)
+        sound_array = np.clip(sound_array, -32768, 32767).astype(np.int16)
+        sound = pygame.sndarray.make_sound(sound_array)
+
+    # Delay/echo
+    dl_mix = ec["delay_mix"]
+    dl_time = ec["delay_time_ms"]
+    dl_fb = ec["delay_feedback"]
+    if dl_mix > 5 and dl_time > 10:
+        sound_array = pygame.sndarray.samples(sound).copy().astype(np.float32)
+        sound_array = _apply_delay_echo(sound_array, dl_mix, dl_time, dl_fb)
+        sound_array = np.clip(sound_array, -32768, 32767).astype(np.int16)
+        sound = pygame.sndarray.make_sound(sound_array)
+
     channel.set_volume(gain * 0.92, gain * 0.86)
     channel.play(sound)
     return 0

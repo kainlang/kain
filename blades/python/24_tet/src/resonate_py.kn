@@ -4,6 +4,7 @@ use std::python
 use std::runtime
 
 import resonate_py_surface as py_surface
+import resonate_py_effects as fx
 import math as py_math
 import moderngl as mgl
 import pygame as pg
@@ -11,7 +12,8 @@ import numpy as np
 
 // ── 24-TET Constants ──────────────────────────────────────────────────────────
 const RESONATE_PY_MODULUS: Int = 1000000007
-const RESONATE_PY_CASE_COUNT: Int = 3
+const RESONATE_PY_CASE_COUNT: Int = 4
+const RESONATE_PY_FX_MIX_SCALE: Int = 1000
 const RESONATE_PY_KEY_COUNT: Int = 24
 const RESONATE_PY_DAMPEN_HOLD: Int = 2400
 const RESONATE_PY_WINDOW_WIDTH: Int = 1600
@@ -419,6 +421,8 @@ fn resonate_py_launch_app() -> Int with Unsafe:
         return 700 + init_status
 
     resonate_py_reset_state()
+    fx.fx_reset_state(fx.ResonatePyFxWorld)
+    fx.fx_reset_mirror(fx.ResonatePyFxMirror)
     let _python_reset = resonate_py_python_reset()
     if resonate_py_pygame_available() == false:
         let _python_close = resonate_py_python_reset()
@@ -476,7 +480,8 @@ fn resonate_py_launch_app() -> Int with Unsafe:
 
     let running = true
     while running:
-        let events = python_call_attr_raw(pg, "event.get", [])
+        let event_module = python_getattr_raw(pg, "event")
+        let events = python_call_attr_raw(event_module, "get", [])
         let event_count = to_int(python_call_attr_raw(events, "__len__", []))
         let i = 0
         let command = 0
@@ -508,7 +513,8 @@ fn resonate_py_launch_app() -> Int with Unsafe:
                 prev_key_mask = 0
             i = i + 1
 
-        let current_keys = python_call_attr_raw(pg, "key.get_pressed", [])
+        let key_module = python_getattr_raw(pg, "key")
+        let current_keys = python_call_attr_raw(key_module, "get_pressed", [])
         let current_mask = 0
         let slot = 0
         while slot < RESONATE_PY_KEY_COUNT:
@@ -536,6 +542,31 @@ fn resonate_py_launch_app() -> Int with Unsafe:
                 active_note = next_note
                 active_velocity = velocity
                 let _play = py_surface.play_note(next_note, velocity)
+
+        // Advance effects module per frame — tick LFOs, compute modulation values
+        let _fx_frame: Int = fx.fx_frame_tick(fx.ResonatePyFxWorld)
+
+        // Pass Kain-computed effect parameters to the Python surface for audio processing
+        let _fx_config: Int = py_surface.config_effects(
+            fx.fx_lfo_sin_scalar(fx.ResonatePyFxWorld.lfo1_phase, fx.ResonatePyFxWorld.lfo1_depth),
+            fx.fx_lfo_tri_scalar(fx.ResonatePyFxWorld.lfo2_phase, fx.ResonatePyFxWorld.lfo2_depth),
+            fx.ResonatePyFxWorld.chorus_mix,
+            fx.ResonatePyFxWorld.delay_mix,
+            fx.ResonatePyFxWorld.reverb_mix,
+            fx.ResonatePyFxWorld.distortion_drive,
+            fx.ResonatePyFxWorld.filter_cutoff,
+            fx.ResonatePyFxWorld.tremolo_depth,
+            fx.ResonatePyFxWorld.tremolo_rate,
+            fx.ResonatePyFxWorld.chorus_delay_ms,
+            fx.ResonatePyFxWorld.delay_time_ms,
+            fx.ResonatePyFxWorld.delay_feedback,
+            fx.ResonatePyFxWorld.reverb_decay,
+            fx.ResonatePyFxWorld.fx_epoch,
+            fx.ResonatePyFxWorld.fx_frame,
+            fx.fx_param_clamp(fx.ResonatePyFxWorld.filter_cutoff + fx.fx_lfo_sin_scalar(fx.ResonatePyFxWorld.lfo1_phase, fx.ResonatePyFxWorld.lfo1_depth), 0, fx.FX_MIX_SCALE),
+            fx.fx_param_clamp(fx.ResonatePyFxWorld.tremolo_depth + fx.fx_lfo_tri_scalar(fx.ResonatePyFxWorld.lfo2_phase, fx.ResonatePyFxWorld.lfo2_depth), 0, fx.FX_MIX_SCALE),
+            fx.fx_param_clamp(fx.ResonatePyFxWorld.chorus_mix + fx.fx_lfo_sin_scalar(fx.ResonatePyFxWorld.lfo1_phase, fx.ResonatePyFxWorld.chorus_depth), 0, fx.FX_MIX_SCALE),
+        )
 
         let _render = py_surface.render_frame(
             ResonatePyAuthority.note_slot,
@@ -584,6 +615,8 @@ pub fn resonate_py_case_id(index: Int) -> String:
         return "resonate_py_pygame_keyboard"
     if index == 2:
         return "resonate_py_moderngl_buffer"
+    if index == 3:
+        return "resonate_py_effects_benchmark"
     return ""
 
 pub fn resonate_py_case_group(index: Int) -> String:
@@ -598,6 +631,8 @@ pub fn resonate_py_case_title(index: Int) -> String:
         return "Resonate Py Pygame Keyboard"
     if index == 2:
         return "Resonate Py ModernGL Buffer"
+    if index == 3:
+        return "Resonate Py Effects Benchmark"
     return ""
 
 pub fn resonate_py_case_iterations(index: Int) -> Int:
@@ -607,6 +642,8 @@ pub fn resonate_py_case_iterations(index: Int) -> Int:
         return 72
     if index == 2:
         return 84
+    if index == 3:
+        return 120
     return 0
 
 pub fn resonate_py_case_expected_checksum(index: Int) -> Int:
@@ -616,6 +653,8 @@ pub fn resonate_py_case_expected_checksum(index: Int) -> Int:
         return 571492228
     if index == 2:
         return 647495417
+    if index == 3:
+        return 419223751
     return -1
 
 pub fn resonate_py_case_telemetry(case_id: String) -> String:
@@ -653,6 +692,18 @@ pub fn resonate_py_case_telemetry(case_id: String) -> String:
         content = content + "\"bench_intent\":" + resonate_py_json_string_value("gpu-staging-reactivity") + ","
         content = content + "\"pack_focus\":" + resonate_py_json_string_value("gpu")
         return content + "}"
+    if case_id == "resonate_py_effects_benchmark":
+        let content = "{"
+        content = content + "\"boundary_kind\":\"kain-effects-world-entangle\","
+        content = content + "\"tet\":24,"
+        content = content + "\"semantic_count\":" + resonate_py_json_string_value("world:entangle:law:patch:converge:orchestrate:pulse:resonate") + ","
+        content = content + "\"converge_lanes\":" + resonate_py_json_string_value("lfo_shape:wets_dry:wrapper:clamp") + ","
+        content = content + "\"entangled_couplings\":" + resonate_py_json_string_value("lfo1_phase:lfo2_phase:tremolo_depth:chorus_mix:delay_mix:distortion_drive:filter_cutoff:fx_epoch") + ","
+        content = content + "\"pulse_interval\":" + resonate_py_json_string_value("8ms") + ","
+        content = content + "\"resonate_targets\":" + resonate_py_json_string_value("lfo1_rate:distortion_drive") + ","
+        content = content + "\"bench_intent\":" + resonate_py_json_string_value("effects-module-semantic-exercise") + ","
+        content = content + "\"pack_focus\":" + resonate_py_json_string_value("effects")
+        return content + "}"
     let content = "{"
     content = content + "\"pack_focus\":" + resonate_py_json_string_value("resonate_py")
     return content + "}"
@@ -667,6 +718,8 @@ pub fn resonate_py_case_checksum(case_id: String, iterations: Int, amplify: Int,
             acc = (acc + resonate_py_pygame_keyboard_checksum(iterations, modulus)) % modulus
         else if case_id == "resonate_py_moderngl_buffer":
             acc = (acc + resonate_py_moderngl_buffer_checksum(iterations, modulus)) % modulus
+        else if case_id == "resonate_py_effects_benchmark":
+            acc = (acc + fx.fx_stress_test(fx.ResonatePyFxWorld, iterations, modulus)) % modulus
         else:
             return -1
         repeat = repeat + 1
