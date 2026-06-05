@@ -1,5 +1,34 @@
 # Kain Memory
 
+# 2026-06-04 - ANSI coloring unification, Phase 2 (Painter facade + REPL migration)
+
+What changed:
+
+- Added `Painter` struct to `crates/lattice/src/lib.rs` — a convenience wrapper that bundles a `&'static LatticeTheme` with a `enabled: bool` flag. This is the single object that every CLI surface passes around instead of juggling theme lookups and color-preference checks separately.
+- `Painter` API: `new(theme, enabled)`, `active_for_test(theme, enabled)`, `paint(role, text)`, `paint_styled(role, text, modifiers)`, `status_ok/error/warning/info/cached/muted/accent(text)`, `gutter/pointer/note/help/diag_error/diag_warning(text)`, `source_line(source)`, `line(role, text)`, `banner(text)` (StatusAccent + BOLD), `is_enabled()`, `theme()`, `tone_for_role(role) -> Tone`, `ratatui_color(role) -> Color`.
+- Added 14 new Painter unit tests: enabled/disabled paint, styled paint, all status methods, source_line delegation, banner accents, diag method mapping, ratatui_color, tone_for_role consistency, active_for_test equality. Total lattice tests: 28 (up from 14).
+- Added `ReplPalette::from_painter(painter: &Painter)` constructor to `crates/repl/src/theme.rs` — builds the 29-field ratatui palette from a single Painter object instead of 29 individual `theme.tone(SemanticRole::...).ratatui_color()` calls. The existing `repl_palette()` path is preserved; `from_painter` is the new migration path.
+- Added `active_painter() -> Painter` free function to `crates/core/src/tooling_config.rs` — bridges global tooling config (`active_ui_theme_name()` + `active_color_preference()`) into a ready-to-use Paintter. This is the equivalent of the proposed `Painter::active()` but as a free function since lattice cannot depend on `kain-core`.
+
+Validation:
+
+- `cargo test -p kain-lattice --lib -- --test-threads=1` → 28/28 pass.
+- `cargo check -p kain-core -p kain-repl -p kain-commands --target-dir Z:\_b\cargo-target\lattice-phase2` → clean compile (only pre-existing dead-code warnings + 1 new unused-import warning for `LatticeTheme` in theme.rs, now fixed).
+- `from_painter` is intentionally unused at this moment — it's the migration surface for Phase 3+ when REPL highlight.rs and diagnostics adopt Painter directly.
+
+Files touched:
+
+- `X:\crates\lattice\src\lib.rs` (Painter struct + impl + 14 tests)
+- `X:\crates\repl\src\theme.rs` (Painter import + `ReplPalette::from_painter`)
+- `X:\crates\core\src\tooling_config.rs` (Painter/theme_by_name import + `active_painter()`)
+
+Next steps (do NOT start without explicit user approval):
+
+- Phase 3: Unify the two diagnostic renderers (`crates/core/src/diagnostics.rs` and `crates/error/src/render.rs`) to use Painter, apply `highlight_source_line()` at the source-line injection point, remove ariadne.
+- Phase 4: Wire Painter into `crates/cli/src/progress.rs` and `crates/cli/src/kain_launcher.rs` (20+ colored output sites).
+- Phase 5: Add `"theme": "<name>"` to `--format=json` output across commands.
+- Phase 6: Delete `crates/error` or fold it into `kain-core`.
+
 # 2026-06-04 - ANSI coloring unification, Phase 1 (lattice substrate extension)
 
 What changed:

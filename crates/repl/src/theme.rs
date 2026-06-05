@@ -1,5 +1,5 @@
 use kain_core::tooling_config::active_kain_tooling_config;
-use kain_lattice::{supported_theme_names, theme_by_name, SemanticRole};
+use kain_lattice::{supported_theme_names, theme_by_name, Painter, SemanticRole};
 use ratatui::style::{Color, Modifier, Style};
 
 pub const DEFAULT_REPL_THEME: &str = "plain";
@@ -114,6 +114,41 @@ pub fn cycle_repl_theme_name(current: &str, reverse: bool) -> String {
 }
 
 impl ReplPalette {
+    pub fn from_painter(painter: &Painter) -> Self {
+        ReplPalette {
+            chrome_accent: painter.ratatui_color(SemanticRole::UiChromeTitle),
+            chrome_secondary: painter.ratatui_color(SemanticRole::UiChromeAccent),
+            chrome_muted: painter.ratatui_color(SemanticRole::UiChromeMuted),
+            border: painter.ratatui_color(SemanticRole::UiBorder),
+            border_focus: painter.ratatui_color(SemanticRole::UiBorderFocus),
+            panel_background: painter.ratatui_color(SemanticRole::UiPanelBackground),
+            panel_background_active: painter.ratatui_color(SemanticRole::UiPanelBackgroundActive),
+            text_primary: painter.ratatui_color(SemanticRole::UiTextPrimary),
+            text_muted: painter.ratatui_color(SemanticRole::UiTextMuted),
+            text_subtle: painter.ratatui_color(SemanticRole::UiTextSubtle),
+            status_fg: painter.ratatui_color(SemanticRole::UiStatusForeground),
+            status_bg: painter.ratatui_color(SemanticRole::UiStatusBackground),
+            title_info: painter.ratatui_color(SemanticRole::DiagNote),
+            title_success: painter.ratatui_color(SemanticRole::SyntaxFamilyWorld),
+            title_error: painter.ratatui_color(SemanticRole::DiagError),
+            number: painter.ratatui_color(SemanticRole::SyntaxNumber),
+            string: painter.ratatui_color(SemanticRole::SyntaxString),
+            identifier_type: painter.ratatui_color(SemanticRole::SyntaxType),
+            identifier_plain: painter.ratatui_color(SemanticRole::SyntaxIdentifier),
+            keyword: painter.ratatui_color(SemanticRole::SyntaxKeywordCore),
+            keyword_type: painter.ratatui_color(SemanticRole::SyntaxKeywordType),
+            keyword_effect: painter.ratatui_color(SemanticRole::SyntaxKeywordEffect),
+            keyword_actor: painter.ratatui_color(SemanticRole::SyntaxFamilyActor),
+            keyword_world: painter.ratatui_color(SemanticRole::SyntaxFamilyWorld),
+            keyword_ownership: painter.ratatui_color(SemanticRole::SyntaxFamilyOwnership),
+            keyword_proof: painter.ratatui_color(SemanticRole::SyntaxFamilyProof),
+            keyword_shader: painter.ratatui_color(SemanticRole::SyntaxFamilyShader),
+            operator: painter.ratatui_color(SemanticRole::SyntaxOperator),
+            directive: painter.ratatui_color(SemanticRole::SyntaxDirective),
+            invalid: painter.ratatui_color(SemanticRole::SyntaxInvalid),
+        }
+    }
+
     pub fn title_style(self) -> Style {
         Style::default()
             .fg(self.chrome_accent)

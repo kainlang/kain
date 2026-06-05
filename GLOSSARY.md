@@ -150,6 +150,12 @@ Location rule: paths in this glossary are live in this checkout. Older docs may 
 
 **Law** - A compiler-owned invariant predicate that must return `Bool`. Laws are the semantic "this condition is part of the contract" surface, not just ad hoc `if` statements. Location: `crates/core/`, public status helpers in `stdlib/intent.kn`.
 
+**Lattice** - The canonical coloring substrate for every Kain CLI surface. Lattice owns the `SemanticRole` taxonomy, theme parsing (`lattice.toml`), `LatticeTheme` lookup, `LatticeStyle` / `LatticeModifiers` types, `Tone` resolution, and the hand-rolled `highlight_source_line` token lex pass. Every CLI rendering path (REPL prompt, diagnostic gutter, progress bar, launcher banners, status lines) is expected to call into lattice instead of inlining raw ANSI escapes. The crate is self-contained: no `kain-core` dep, no `anstream`. Location: `crates/lattice/`, `crates/lattice/lattice.toml`.
+
+**LatticeModifiers** - The 5-bit bitflag pair to `LatticeStyle` (`BOLD=1`, `DIM=2`, `ITALIC=4`, `UNDERLINE=8`, `STRIKE=16`). `NONE` is `0`. Used in `Tone::style(modifiers)` and consumed by `LatticeStyle::ansi_prefix()` to interleave modifier codes (`1;3;4;9;2`) into the SGR sequence before fg/bg color codes. Renamed from a first-pass `Modifiers` to avoid collision with `ratatui::style::Modifier`. Location: `crates/lattice/src/lib.rs`.
+
+**LatticeStyle** - The fg + bg + modifiers composite that a renderer actually emits. Built via `Tone::style(LatticeModifiers)`, then `LatticeStyle::fg_color(...)`, `LatticeStyle::bg_color(...)`, `LatticeStyle::with_modifiers(...)`. `LatticeStyle::ansi_prefix()` produces the full SGR sequence in bg-then-fg order with modifier codes prepended. Renamed from a first-pass `Style` to avoid collision with `ratatui::style::Style` already imported by lattice. Location: `crates/lattice/src/lib.rs`.
+
 **Library of Kain** - The repo's dense authored example corpus. Use it as a vocabulary and proof surface for what Kain files can look like without loading giant subsystems first. Location: `library_of_kain/`.
 
 ## M
@@ -171,6 +177,8 @@ Location rule: paths in this glossary are live in this checkout. Older docs may 
 ## P
 
 **Package** - A stable first-party artifact intended to graduate beyond the blade proving ground. In repo terms, `blades/` are the forge; `packages/` are the official surfaces meant to become real ecosystem inventory. Location: `packages/`.
+
+**Painter** - The central coloring convenience wrapper in `kain-lattice`. A `Painter` bundles a `&'static LatticeTheme` with an `enabled: bool` flag and provides `paint(role, text)`, `paint_styled(role, text, modifiers)`, `status_ok/error/warning/info/cached/muted/accent(text)`, `gutter/pointer/note/help/diag_error/diag_warning(text)`, `source_line(source)`, `line(role, text)`, `banner(text)`, `tone_for_role(role)`, and `ratatui_color(role)`. Created via `Painter::new(theme, enabled)`, `Painter::active_for_test(theme, enabled)`, or the convenience `kain_core::tooling_config::active_painter()` which reads the active global theme and color-preference from tooling config. Every Kain CLI surface is expected to construct or receive a `Painter` instead of inlining `theme_by_name()` + `active_color_preference()` checks separately. Location: `crates/lattice/src/lib.rs` (struct + impl), `crates/core/src/tooling_config.rs` (`active_painter()` bridge).
 
 **Patch** - A compiler-owned journaled mutation declaration. It is the "intentional state change with runtime-tracked semantics" surface, not just a helper function that mutates something. Location: `crates/core/`, public helpers in `stdlib/intent.kn`.
 
@@ -219,6 +227,8 @@ Location rule: paths in this glossary are live in this checkout. Older docs may 
 **Stdlib** - The public root `stdlib/*.kn` surface exposed through imports like `std::fs`, `std::math`, `std::gpu`, `std::graphics`, `std::ui`, and `std::runtime`. New authored Kain code should prefer these root imports over private or native-only paths. Location: `stdlib/`.
 
 **STDLIB_MAP** - The generated atlas at `stdlib/STDLIB_MAP.llm.md` plus `stdlib/stdlib.map.json`. It is the one-scan map of the native root stdlib and should be queried, not hand-maintained. Location: `stdlib/STDLIB_MAP.llm.md`, `stdlib/stdlib.map.json`.
+
+**Status roles** - The seven `SemanticRole` variants added in Phase 1 of the ANSI coloring unification: `StatusOk`, `StatusError`, `StatusWarning`, `StatusInfo`, `StatusCached`, `StatusMuted`, `StatusAccent`. They give CLI surfaces (progress bars, status lines, banners, `crates/cli/src/progress.rs`, `crates/cli/src/kain_launcher.rs`) semantic color hooks that do not have to know about theme internals. In every shipped theme, `status.error` mirrors `diag.error`, `status.warning` mirrors `diag.warning`, `status.cached` and `status.muted` use the comment color, `status.ok` uses a greenish desaturated value, `status.info` mirrors `diag.note`, and `status.accent` mirrors `ui.chrome.accent`. Location: `crates/lattice/src/lib.rs`, `crates/lattice/lattice.toml`.
 
 ## T
 

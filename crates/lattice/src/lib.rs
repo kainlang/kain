@@ -887,6 +887,98 @@ fn is_punctuation(b: u8) -> bool {
     )
 }
 
+pub struct Painter {
+    theme: &'static LatticeTheme,
+    enabled: bool,
+}
+
+impl Painter {
+    pub fn new(theme: &'static LatticeTheme, enabled: bool) -> Self {
+        Self { theme, enabled }
+    }
+
+    pub fn active_for_test(theme: &'static LatticeTheme, enabled: bool) -> Self {
+        Self::new(theme, enabled)
+    }
+
+    pub fn is_enabled(&self) -> bool {
+        self.enabled
+    }
+
+    pub fn theme(&self) -> &'static LatticeTheme {
+        self.theme
+    }
+
+    pub fn tone_for_role(&self, role: SemanticRole) -> Tone {
+        self.theme.tone(role)
+    }
+
+    pub fn ratatui_color(&self, role: SemanticRole) -> Color {
+        self.theme.tone(role).ratatui_color()
+    }
+
+    pub fn paint(&self, role: SemanticRole, text: &str) -> String {
+        self.theme.ansi_paint(role, text, self.enabled)
+    }
+
+    pub fn paint_styled(&self, role: SemanticRole, text: &str, modifiers: LatticeModifiers) -> String {
+        self.theme.ansi_paint_styled(role, text, modifiers, self.enabled)
+    }
+
+    pub fn status_ok(&self, text: &str) -> String {
+        self.paint(SemanticRole::StatusOk, text)
+    }
+    pub fn status_error(&self, text: &str) -> String {
+        self.paint(SemanticRole::StatusError, text)
+    }
+    pub fn status_warning(&self, text: &str) -> String {
+        self.paint(SemanticRole::StatusWarning, text)
+    }
+    pub fn status_info(&self, text: &str) -> String {
+        self.paint(SemanticRole::StatusInfo, text)
+    }
+    pub fn status_cached(&self, text: &str) -> String {
+        self.paint(SemanticRole::StatusCached, text)
+    }
+    pub fn status_muted(&self, text: &str) -> String {
+        self.paint(SemanticRole::StatusMuted, text)
+    }
+    pub fn status_accent(&self, text: &str) -> String {
+        self.paint(SemanticRole::StatusAccent, text)
+    }
+
+    pub fn gutter(&self, text: &str) -> String {
+        self.paint(SemanticRole::DiagGutter, text)
+    }
+    pub fn pointer(&self, text: &str) -> String {
+        self.paint(SemanticRole::DiagPointer, text)
+    }
+    pub fn note(&self, text: &str) -> String {
+        self.paint(SemanticRole::DiagNote, text)
+    }
+    pub fn help(&self, text: &str) -> String {
+        self.paint(SemanticRole::DiagHelp, text)
+    }
+    pub fn diag_error(&self, text: &str) -> String {
+        self.paint(SemanticRole::DiagError, text)
+    }
+    pub fn diag_warning(&self, text: &str) -> String {
+        self.paint(SemanticRole::DiagWarning, text)
+    }
+
+    pub fn source_line(&self, source: &str) -> String {
+        self.theme.highlight_source_line(source, self.enabled)
+    }
+
+    pub fn line(&self, role: SemanticRole, text: &str) -> String {
+        self.paint(role, text)
+    }
+
+    pub fn banner(&self, text: &str) -> String {
+        self.paint_styled(SemanticRole::StatusAccent, text, LatticeModifiers::BOLD)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1052,4 +1144,133 @@ mod tests {
         assert_eq!(theme_by_name("Slate").name(), "slate");
         assert_eq!(theme_by_name("HYPERPOP").name(), "slate");
     }
+
+    fn test_painter() -> Painter {
+        Painter::new(theme_by_name("slate"), true)
+    }
+    fn test_painter_disabled() -> Painter {
+        Painter::new(theme_by_name("slate"), false)
+    }
+
+    #[test]
+    fn painter_new_remembers_theme_and_enabled() {
+        let p = test_painter();
+        assert!(p.is_enabled());
+        assert_eq!(p.theme().name(), "slate");
+    }
+
+    #[test]
+    fn painter_paint_enabled_wraps_sgr() {
+        let p = test_painter();
+        let out = p.paint(SemanticRole::DiagError, "fail");
+        assert!(out.starts_with("\x1b["));
+        assert!(out.contains("fail"));
+        assert!(out.ends_with("\x1b[0m"));
+    }
+
+    #[test]
+    fn painter_paint_disabled_returns_raw() {
+        let p = test_painter_disabled();
+        assert_eq!(p.paint(SemanticRole::DiagError, "fail"), "fail");
+    }
+
+    #[test]
+    fn painter_paint_styled_enabled_bold() {
+        let p = test_painter();
+        let out = p.paint_styled(SemanticRole::DiagError, "fail", LatticeModifiers::BOLD);
+        assert!(out.starts_with("\x1b["));
+        assert!(out.contains("1;"));
+        assert!(out.ends_with("\x1b[0m"));
+    }
+
+    #[test]
+    fn painter_paint_styled_disabled_returns_raw() {
+        let p = test_painter_disabled();
+        assert_eq!(
+            p.paint_styled(SemanticRole::DiagError, "fail", LatticeModifiers::BOLD),
+            "fail"
+        );
+    }
+
+    #[test]
+    fn painter_status_methods_delegate_to_correct_role() {
+        let p = test_painter();
+        let ok = p.status_ok("ok");
+        let err = p.status_error("err");
+        assert!(!ok.is_empty());
+        assert!(!err.is_empty());
+        let p_disabled = test_painter_disabled();
+        assert_eq!(p_disabled.status_ok("ok"), "ok");
+    }
+
+    #[test]
+    fn painter_source_line_delegates_to_theme() {
+        let p = test_painter();
+        let out = p.source_line("fn main() -> Int { 42 }");
+        assert!(out.starts_with("\x1b["));
+        assert!(out.contains("main"));
+        assert!(out.contains("42"));
+    }
+
+    #[test]
+    fn painter_source_line_disabled_returns_raw() {
+        let p = test_painter_disabled();
+        let line = "fn main() -> Int { 42 }";
+        assert_eq!(p.source_line(line), line);
+    }
+
+    #[test]
+    fn painter_banner_is_bold_accent() {
+        let p = test_painter();
+        let out = p.banner("Kain v0.1.0");
+        assert!(out.starts_with("\x1b["));
+        assert!(out.contains("1;"));
+        assert!(out.contains("Kain v0.1.0"));
+    }
+
+    #[test]
+    fn painter_banner_disabled_returns_raw() {
+        let p = test_painter_disabled();
+        assert_eq!(p.banner("Kain v0.1.0"), "Kain v0.1.0");
+    }
+
+    #[test]
+    fn painter_diag_methods_map_correctly() {
+        let p = test_painter();
+        assert!(p.gutter("│").contains("│"));
+        assert!(p.diag_error("error").contains("error"));
+        assert!(p.diag_warning("warn").contains("warn"));
+        assert!(p.note("note").contains("note"));
+        assert!(p.help("help").contains("help"));
+    }
+
+    #[test]
+    fn painter_ratatui_color_returns_resolved_color() {
+        let p = Painter::new(theme_by_name("slate"), true);
+        let c = p.ratatui_color(SemanticRole::DiagError);
+        use ratatui::style::Color;
+        match c {
+            Color::Rgb(r, g, b) => {
+                assert!(r > 0 || g > 0 || b > 0, "error color must be non-black");
+            }
+            _ => panic!("expected Rgb color"),
+        }
+    }
+
+    #[test]
+    fn painter_tone_for_role_consistent_with_theme() {
+        let theme = theme_by_name("slate");
+        let p = Painter::new(theme, true);
+        let tone = p.tone_for_role(SemanticRole::SyntaxComment);
+        assert_eq!(tone.ansi_fg_prefix(), theme.tone(SemanticRole::SyntaxComment).ansi_fg_prefix());
+    }
+
+    #[test]
+    fn painter_active_for_test_identical_to_new() {
+        let theme = theme_by_name("slate");
+        let a = Painter::new(theme, true);
+        let b = Painter::active_for_test(theme, true);
+        assert_eq!(a.is_enabled(), b.is_enabled());
+    }
+    
 }

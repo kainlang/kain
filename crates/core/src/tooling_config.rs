@@ -2,6 +2,7 @@ use crate::install_layout::{default_kain_install_layout, KAIN_CONFIG_ENV_VAR};
 use kain_lattice::{
     normalize_theme_name as normalize_lattice_theme_name,
     supported_theme_names as lattice_supported_theme_names,
+    theme_by_name, Painter,
 };
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
@@ -418,6 +419,12 @@ pub fn active_ui_theme_name() -> String {
 
 pub fn active_color_preference() -> KainColorPreference {
     active_kain_tooling_config().ui.color
+}
+
+pub fn active_painter() -> Painter {
+    let theme = theme_by_name(&active_ui_theme_name());
+    let enabled = active_color_preference().should_color_stderr();
+    Painter::new(theme, enabled)
 }
 
 fn normalize_theme_name(raw: &str) -> Result<String, String> {
