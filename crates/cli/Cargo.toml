@@ -15,6 +15,7 @@ path = "src/bin/kn.rs"
 
 [dependencies]
 kain-core = { path = "../core" }
+kain-lattice = { path = "../lattice" }
 blade = { path = "../blades" }
 kain-amalgamate = { path = "../amalgamate" }
 kain-build = { path = "../build" }

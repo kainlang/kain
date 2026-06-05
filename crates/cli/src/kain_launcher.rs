@@ -43,6 +43,7 @@ use kain_fmt::{format_source_with_options, FormatOptions};
 use kain_repl::{
     normalize_script_source, run_terminal_repl, ReplBuildMetadata, ReplTerminalConfig,
 };
+use kain_lattice::Painter;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
@@ -52,6 +53,10 @@ use std::process::Command;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
+
+fn p() -> Painter {
+    kain_core::tooling_config::active_painter()
+}
 
 #[derive(Debug, Default, Deserialize)]
 struct NativeRuntimeManifest {
@@ -1964,16 +1969,15 @@ fn build_watch_mode_watcher(
 }
 
 fn print_kain_build_report(report: &kain_build::BladeBuildReport) {
+    let painter = p();
+    let status_word = if report.is_success() {
+        painter.status_ok("succeeded")
+    } else {
+        painter.status_error("failed")
+    };
     println!(
         " Build {}: lane={} target={} host={}",
-        if report.is_success() {
-            "succeeded"
-        } else {
-            "failed"
-        },
-        report.lane.as_str(),
-        report.target,
-        report.host
+        status_word, report.lane.as_str(), report.target, report.host
     );
     println!(" Artifact root: {}", report.artifact_root.display());
     println!(" Report: {}", report.report_path.display());
@@ -1984,11 +1988,11 @@ fn print_kain_build_report(report: &kain_build::BladeBuildReport) {
         .count();
     for task in &report.tasks {
         let marker = match task.status {
-            kain_build::BuildTaskStatus::Cached => "cached",
-            kain_build::BuildTaskStatus::Succeeded => "ok",
-            kain_build::BuildTaskStatus::Planned => "planned",
-            kain_build::BuildTaskStatus::Skipped => "skipped",
-            kain_build::BuildTaskStatus::Failed => "failed",
+            kain_build::BuildTaskStatus::Cached => painter.status_cached("cached"),
+            kain_build::BuildTaskStatus::Succeeded => painter.status_ok("ok"),
+            kain_build::BuildTaskStatus::Planned => painter.status_info("planned"),
+            kain_build::BuildTaskStatus::Skipped => painter.status_muted("skipped"),
+            kain_build::BuildTaskStatus::Failed => painter.status_error("failed"),
         };
         println!("   {} {}", marker, task.id);
         for output in &task.outputs {
@@ -2607,7 +2611,7 @@ fn run_check_command(
                 supported_targets_csv()
             ));
         } else {
-            eprintln!(" Unknown check target. Use: {}", supported_targets_csv());
+            eprintln!("{} Unknown check target. Use: {}", p().status_error(""), supported_targets_csv());
         }
         return false;
     };
@@ -2679,19 +2683,19 @@ fn run_check_command(
         }
     }
 
+    let painter = p();
+    let status_word = if report.is_success() {
+        painter.status_ok("passed")
+    } else {
+        painter.status_error("failed")
+    };
     println!(
         " Check {}: {}/{} passed",
-        if report.is_success() {
-            "passed"
-        } else {
-            "failed"
-        },
-        report.passed,
-        report.total
+        status_word, report.passed, report.total
     );
     for file in report.files.iter().filter(|file| !file.passed()) {
         if let Some(error) = &file.error {
-            eprintln!("  {}: {}", file.path, error);
+            eprintln!("  {}: {}", painter.status_error(&file.path), error);
         }
     }
     if !report.is_success() {
@@ -2829,7 +2833,7 @@ fn run_test_command(
                 supported_targets_csv()
             ));
         } else {
-            eprintln!(" Unknown test target. Use: {}", supported_targets_csv());
+            eprintln!("{} Unknown test target. Use: {}", p().status_error(""), supported_targets_csv());
         }
         return false;
     };
@@ -2870,20 +2874,19 @@ fn run_test_command(
         }
     }
 
+    let painter = p();
+    let status_word = if report.is_success() {
+        painter.status_ok("passed")
+    } else {
+        painter.status_error("failed")
+    };
     println!(
         " Test {}: {}/{} passed; {} skipped",
-        if report.is_success() {
-            "passed"
-        } else {
-            "failed"
-        },
-        report.passed,
-        report.total,
-        report.skipped
+        status_word, report.passed, report.total, report.skipped
     );
     for case in report.cases.iter().filter(|case| case.skipped()) {
         if let Some(reason) = &case.skip_reason {
-            println!("  skipped {} [{}]: {}", case.path, case.mode, reason);
+            println!("  {} {} [{}]: {}", painter.status_muted("skipped"), case.path, case.mode, reason);
         }
     }
     for case in report.cases.iter().filter(|case| !case.passed()) {
@@ -2891,7 +2894,7 @@ fn run_test_command(
             continue;
         }
         if let Some(error) = &case.error {
-            eprintln!("  {} [{}]: {}", case.path, case.mode, error);
+            eprintln!("  {} [{}]: {}", painter.status_error(&case.path), case.mode, error);
         }
     }
     if !report.is_success() {

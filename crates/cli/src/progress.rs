@@ -1,9 +1,14 @@
 use kain_driver::{
     CompilerProgressPhase, ToolingProgressEvent, ToolingProgressSink, ToolingProgressStatus,
 };
+use kain_lattice::Painter;
 use std::io::{self, IsTerminal};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
+
+fn active_painter() -> Painter {
+    kain_core::tooling_config::active_painter()
+}
 
 pub fn stderr_progress_sink(enabled: bool) -> Option<ToolingProgressSink> {
     if !enabled || !io::stderr().is_terminal() {
@@ -22,9 +27,11 @@ pub fn stderr_progress_sink(enabled: bool) -> Option<ToolingProgressSink> {
 }
 
 fn render_event(event: &ToolingProgressEvent, cwd: &Path) -> Option<String> {
+    let p = active_painter();
     match event {
         ToolingProgressEvent::CheckDiscoveryStarted { root, target } => Some(format!(
-            " Discovering Kain sources under {} for {}...",
+            "{} Discovering Kain sources under {} for {}...",
+            p.status_info(""),
             display_path(root, cwd),
             target
         )),
@@ -32,14 +39,19 @@ fn render_event(event: &ToolingProgressEvent, cwd: &Path) -> Option<String> {
             total_files,
             target,
             ..
-        } => Some(format!(" Checking {total_files} file(s) for {target}...")),
+        } => Some(format!(
+            "{} Checking {total_files} file(s) for {target}...",
+            p.status_info("")
+        )),
         ToolingProgressEvent::CheckFileStarted {
             current,
             total,
             path,
             ..
         } => Some(format!(
-            " Checking {current}/{total}: {}",
+            "{} Checking {}: {}",
+            p.status_info(""),
+            p.status_info(&format!("{current}/{total}")),
             display_path(path, cwd)
         )),
         ToolingProgressEvent::CheckFileFinished {
@@ -50,7 +62,9 @@ fn render_event(event: &ToolingProgressEvent, cwd: &Path) -> Option<String> {
             ..
         } => match status {
             ToolingProgressStatus::Failed => Some(format!(
-                " Check failed {current}/{total}: {}",
+                "{} Check failed {}: {}",
+                p.status_error(""),
+                p.status_error(&format!("{current}/{total}")),
                 display_path(path, cwd)
             )),
             _ => None,
@@ -61,7 +75,9 @@ fn render_event(event: &ToolingProgressEvent, cwd: &Path) -> Option<String> {
             workspace_root,
             ..
         } => Some(format!(
-            " Planned {total_tasks} build task(s) for {target} in {}",
+            "{} Planned {} build task(s) for {target} in {}",
+            p.status_info(""),
+            p.status_info(&total_tasks.to_string()),
             display_path(workspace_root, cwd)
         )),
         ToolingProgressEvent::BuildTaskStarted {
@@ -69,7 +85,11 @@ fn render_event(event: &ToolingProgressEvent, cwd: &Path) -> Option<String> {
             total,
             description,
             ..
-        } => Some(format!(" Task {current}/{total}: {description}")),
+        } => Some(format!(
+            "{} Task {}: {description}",
+            p.status_info(""),
+            p.status_info(&format!("{current}/{total}"))
+        )),
         ToolingProgressEvent::BuildTaskFinished {
             current,
             total,
@@ -77,18 +97,26 @@ fn render_event(event: &ToolingProgressEvent, cwd: &Path) -> Option<String> {
             status,
             ..
         } => match status {
-            ToolingProgressStatus::Cached => {
-                Some(format!(" Cached {current}/{total}: {description}"))
-            }
-            ToolingProgressStatus::Skipped => {
-                Some(format!(" Skipped {current}/{total}: {description}"))
-            }
-            ToolingProgressStatus::Failed => {
-                Some(format!(" Build failed {current}/{total}: {description}"))
-            }
-            ToolingProgressStatus::Planned => {
-                Some(format!(" Planned {current}/{total}: {description}"))
-            }
+            ToolingProgressStatus::Cached => Some(format!(
+                "{} Cached {}: {description}",
+                p.status_cached(""),
+                p.status_cached(&format!("{current}/{total}"))
+            )),
+            ToolingProgressStatus::Skipped => Some(format!(
+                "{} Skipped {}: {description}",
+                p.status_muted(""),
+                p.status_muted(&format!("{current}/{total}"))
+            )),
+            ToolingProgressStatus::Failed => Some(format!(
+                "{} Build failed {}: {description}",
+                p.status_error(""),
+                p.status_error(&format!("{current}/{total}"))
+            )),
+            ToolingProgressStatus::Planned => Some(format!(
+                "{} Planned {}: {description}",
+                p.status_info(""),
+                p.status_info(&format!("{current}/{total}"))
+            )),
             _ => None,
         },
         ToolingProgressEvent::RunPlanReady {
@@ -97,7 +125,9 @@ fn render_event(event: &ToolingProgressEvent, cwd: &Path) -> Option<String> {
             workspace_root,
             ..
         } => Some(format!(
-            " Planned {total_units} run unit(s) for {target} in {}",
+            "{} Planned {} run unit(s) for {target} in {}",
+            p.status_info(""),
+            p.status_info(&total_units.to_string()),
             display_path(workspace_root, cwd)
         )),
         ToolingProgressEvent::RunUnitStarted {
@@ -106,7 +136,11 @@ fn render_event(event: &ToolingProgressEvent, cwd: &Path) -> Option<String> {
             label,
             target,
             ..
-        } => Some(format!(" Run {current}/{total}: {label} ({target})")),
+        } => Some(format!(
+            "{} Run {}: {label} ({target})",
+            p.status_info(""),
+            p.status_info(&format!("{current}/{total}"))
+        )),
         ToolingProgressEvent::RunUnitFinished {
             current,
             total,
@@ -114,21 +148,42 @@ fn render_event(event: &ToolingProgressEvent, cwd: &Path) -> Option<String> {
             status,
             ..
         } => match status {
-            ToolingProgressStatus::Failed => {
-                Some(format!(" Run failed {current}/{total}: {label}"))
-            }
-            ToolingProgressStatus::Planned => Some(format!(" Planned {current}/{total}: {label}")),
+            ToolingProgressStatus::Failed => Some(format!(
+                "{} Run failed {}: {label}",
+                p.status_error(""),
+                p.status_error(&format!("{current}/{total}"))
+            )),
+            ToolingProgressStatus::Planned => Some(format!(
+                "{} Planned {}: {label}",
+                p.status_info(""),
+                p.status_info(&format!("{current}/{total}"))
+            )),
             _ => None,
         },
         ToolingProgressEvent::RunHandOff { label, command, .. } => Some(match command {
-            Some(command) => format!(" Executing {command} for {label}"),
-            None => format!(" Executing {label}"),
+            Some(command) => format!(
+                "{} Executing {command} for {label}",
+                p.status_info("")
+            ),
+            None => format!(
+                "{} Executing {label}",
+                p.status_info("")
+            ),
         }),
         ToolingProgressEvent::CompilerPhase {
             source_path, phase, ..
         } => Some(match source_path {
-            Some(path) => format!("   {} {}", phase_label(*phase), display_path(path, cwd)),
-            None => format!("   {}", phase_label(*phase)),
+            Some(path) => format!(
+                "{}  {} {}",
+                p.status_muted(""),
+                p.status_muted(phase_label(*phase)),
+                display_path(path, cwd)
+            ),
+            None => format!(
+                "{}  {}",
+                p.status_muted(""),
+                p.status_muted(phase_label(*phase))
+            ),
         }),
     }
 }
