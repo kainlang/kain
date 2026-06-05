@@ -10,6 +10,7 @@ blades/c/ephemaris/
 mcp/.config/
 ml/raw
 ml/processed
+nul
 .config/*
 tidus/
 /$recycle.bin

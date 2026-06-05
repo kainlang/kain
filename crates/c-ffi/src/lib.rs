@@ -1,6 +1,7 @@
 mod config;
 mod extract;
 mod generate;
+mod libclang_extract;
 mod model;
 mod platform;
 mod system_registry;
@@ -183,13 +184,19 @@ fn import_library_spec(
     let fingerprints = collect_binding_fingerprints(&resolved)?;
     let hash = build_cache_hash(&resolved, &fingerprints, BRIDGE_FORMAT_VERSION);
     let cache_dir = default_cache_root(prepare).join("c_ffi").join(hash);
+    { let mut f = std::fs::OpenOptions::new().append(true).create(true).open("Z:/_b/tmp/resolve_lib.txt").unwrap(); use std::io::Write; let _ = write!(f, "cache_dir='{}' exists={}
+", cache_dir.display(), cache_dir.exists()); }
     kfs::create_dir_all(&cache_dir).map_err(fs_to_kain_error)?;
 
     let mut output = if let Some(output) =
         try_load_generated_import_output(&resolved, &cache_dir, options.output_dir.as_deref())?
     {
+        { let mut f = std::fs::OpenOptions::new().append(true).create(true).open("Z:/_b/tmp/resolve_lib.txt").unwrap(); use std::io::Write; let _ = write!(f, "CACHED OUTPUT FOUND
+"); }
         output
     } else {
+        { let mut f = std::fs::OpenOptions::new().append(true).create(true).open("Z:/_b/tmp/resolve_lib.txt").unwrap(); use std::io::Write; let _ = write!(f, "CALLING extract_binding_bundle
+"); }
         let bundle = extract_binding_bundle(&resolved)?;
         let (_, output) = write_generated_artifacts(
             &resolved,

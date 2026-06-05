@@ -12,6 +12,8 @@ startup --output_user_root=Z:/_b/output-user-root
 common --repo_env=TMP=Z:/_b/tmp
 common --repo_env=TEMP=Z:/_b/tmp
 common --repo_env=TMPDIR=Z:/_b/tmp
+# clang-sys needs LIBCLANG_PATH for crate resolution and build scripts
+common --repo_env=LIBCLANG_PATH
 common --action_env=TMP=Z:/_b/tmp
 common --action_env=TEMP=Z:/_b/tmp
 common --action_env=TMPDIR=Z:/_b/tmp
@@ -37,6 +39,8 @@ common --action_env=CommonProgramFiles(x86)
 common --action_env=NUMBER_OF_PROCESSORS
 common --action_env=PROCESSOR_ARCHITECTURE
 common --action_env=PROCESSOR_IDENTIFIER
+# clang-sys needs LIBCLANG_PATH at build time to find libclang.dll
+common --action_env=LIBCLANG_PATH
 
 build --disk_cache=Z:/_b/disk-cache
 build --jobs=HOST_CPUS*.625

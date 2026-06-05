@@ -28,9 +28,28 @@ pub fn extract_binding_bundle(resolved: &ResolvedCLibrary) -> Result<BindingBund
         sha256: hex_sha256(source.as_bytes()),
     };
 
-    let mut bundle = match extract_binding_bundle_from_ast(resolved, &options) {
+    // Priority: libclang (full C parsing) -> lang_c AST -> regex fallback
+    let mut bundle = match crate::libclang_extract::extract_binding_bundle_libclang(resolved) {
         Ok(bundle) => bundle,
-        Err(_) => extract_binding_bundle_from_regex(resolved, &strip_comments(&source))?,
+        Err(libclang_err) => match extract_binding_bundle_from_ast(resolved, &options) {
+            Ok(bundle) => bundle,
+            Err(ast_err) => {
+                let regex_result = extract_binding_bundle_from_regex(
+                    resolved,
+                    &strip_comments(&source),
+                );
+                match regex_result {
+                    Ok(bundle) => bundle,
+                    Err(regex_err) => {
+                        return Err(KainError::runtime(format!(
+                            "C FFI extraction failed for '{}': libclang={}; lang_c={}; regex={}",
+                            resolved.header_path.display(),
+                            libclang_err, ast_err, regex_err
+                        )));
+                    }
+                }
+            }
+        },
     };
     bundle.source_fingerprints = vec![fingerprint];
     Ok(bundle)
