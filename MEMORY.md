@@ -11220,3 +11220,48 @@ Validation:
   - Python smoke test (`python test_lsp.py`) sends 6 LSP messages, verifies 3+ JSON-RPC responses, exit code 0
 
 Status: Committed to repo as `blades/lsp/`.
+
+# 2026-06-05 - Kain Repo Manager (tools/kain_manager/)
+
+What changed:
+- New X:\tools\kain_manager\ - DearPyGui desktop tool for operating the Kain repo on Windows.
+- Replaces ad-hoc kain doctor / kain check invocations with a single GUI that surfaces launcher shim freshness, bazel server state, and source-of-truth sync drift at a glance.
+- Data-driven architecture: every path, panel, command, theme color, and refresh cadence lives in config.yaml.  Adding a new command button = append a YAML entry; adding a new panel = drop a file under panels/ + one YAML entry.  No Python edits for the common case.
+- Multi-file, scalable foundation: 11 core modules + 5 panel modules + plugin auto-discovery.  Thread-safe command runner with bus events; ring-buffer log with live streaming; no dpg calls from worker threads.
+
+Architecture:
+- core/config.py - YAML loader with ${paths.x} and ${env.Y} placeholder resolution; raises on typo.
+- core/bus.py - thread-safe event bus; main thread drains once per frame, workers post.
+- core/runner.py - subprocess runner with bounded thread pool; streams stdout/stderr to the bus.
+- core/sources.py - bazel/launcher/sync state fetchers with TTL cache; SourceCache.tick() triggers due refreshes from the main loop.
+- core/registry.py - pkgutil.iter_modules discovers panel modules; instantiates the BasePanel subclass.
+- core/theme.py - dpg theme + font setup; resolves family names to C:\Windows\Fonts\*.ttf paths.
+- core/panel_base.py - BasePanel ABC with uild() / on_bus_event() / efresh() / shutdown().
+- panels/_common.py - shared widget helpers (header, kv_row, status dot, format_age, format_size, freshness_color).
+- panels/launcher_status.py - size / mtime / age for kain.exe + kn.exe; color-coded by staleness.
+- panels/bazel_status.py - live server_pid, output_base, epository_cache.
+- panels/sync_status_panel.py - parses kain_bazel_sync.py status --json; heuristic key extraction + raw payload in collapsed group.
+- panels/commands_panel.py - groups all commands: entries by category; "Show advanced" toggle; modal confirm for destructive commands.
+- panels/log_panel.py - live ring buffer with auto-scroll.
+
+Build:
+- py -3 X:\tools\kain_manager\build.py --clean produces dist\kain_manager.exe (11 MB, onefile, noconsole).
+- PyInstaller flags worth remembering:
+  - --collect-submodules panels - REQUIRED because panels are loaded via importlib.import_module, which PyInstaller's static analysis misses.
+  - --add-data config.yaml;. - bundles the config next to the exe.
+- Source run: py -3 X:\tools\kain_manager\main.py.
+
+Validation:
+- 7/7 smoke tests pass: config loading, bus post/drain, runner real subprocess, panel auto-discovery, placeholder typo detection.
+- Built .exe runs cleanly (PID confirmed alive; no "Unhandled exception in script" dialog after the panels/collect-submodules fix).
+- Python launch renders all 4 sidebar panels + log panel correctly (screenshot saved to F:\DevTemp\opencode\kain_final.png).
+
+Gotchas hit:
+- dpg.add_font() takes a .ttf path, not a family name.  Resolved via _resolve_font_path() against C:\Windows\Fonts\.
+- dearpygui 2.x frame loop is while dpg.is_dearpygui_running(): dpg.render_dearpygui_frame() after dpg.setup_dearpygui().  dpg.start_dearpygui() is the 1.x pattern and exits immediately in 2.x.
+- PyInstaller with dynamic importlib.import_module requires --collect-submodules <pkg> or submodules silently disappear from the bundle.
+- Subprocess pipes need explicit proc.stdout.close() / proc.stderr.close() after proc.wait() to silence ResourceWarning and unblock the reader threads.
+- Bus subscribers only fire inside drain(); the main thread drains once per frame, tests must call drain() in a poll loop.
+- HiDPI Windows places the .exe window at ~(-127, 150) with size 2964x2032 on a 1536x864 screen.  Python source run positions correctly.  Workaround: user drags the window once at first launch; future v2 can pin a manifest.
+
+Status: Initial commit on local repo at X:\tools\kain_manager\.

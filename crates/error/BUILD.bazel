@@ -49,6 +49,7 @@ rust_library(
     aliases = aliases(),
     deps = [
         ":build_script",
+        "//crates/lattice:kain-lattice",
     ] + all_crate_deps(normal = True),
     proc_macro_deps = all_crate_deps(proc_macro = True),
     compile_data = COMMON_COMPILE_DATA,
@@ -64,6 +65,7 @@ rust_test(
     aliases = aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
     deps = [
         ":build_script",
+        "//crates/lattice:kain-lattice",
     ] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,
@@ -84,6 +86,7 @@ rust_test(
     deps = [
         ":build_script",
         ":kain-error",
+        "//crates/lattice:kain-lattice",
     ] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     compile_data = COMMON_COMPILE_DATA,

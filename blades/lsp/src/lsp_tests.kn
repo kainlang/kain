@@ -1,0 +1,66 @@
+// LSP Unit Tests
+//
+// These tests verify the state helpers, URI conversions, and JSON-RPC
+// formatting logic in state.kn and transport.kn.
+//
+// Run: kain test X:\blades\lsp\src
+
+use state
+use transport
+use std::json
+
+test "URI to Local Path Conversion":
+    // Test Windows style file scheme URIs
+    let win_path = lsp_uri_to_path("file:///C:/Users/zenta/project/main.kn")
+    assert(win_path == "C:/Users/zenta/project/main.kn", "should extract absolute Windows path")
+
+    // Test Unix style file scheme URIs
+    let unix_path = lsp_uri_to_path("file:///home/user/workspace/main.kn")
+    assert(unix_path == "home/user/workspace/main.kn", "should extract Unix path")
+
+    // Test raw/relative paths with no file scheme
+    let raw_path = lsp_uri_to_path("src/main.kn")
+    assert(raw_path == "src/main.kn", "should keep raw relative paths unchanged")
+
+test "JSON-RPC Message Builders":
+    let id_val = json_parse_text("42")
+    let result_obj = json_object()
+    json_object_set_string(result_obj, "status", "ready")
+
+    // Test lsp_jsonrpc_response builder
+    let resp = lsp_jsonrpc_response(id_val, result_obj)
+    assert(json_string_required(resp, "jsonrpc") == "2.0", "jsonrpc must be 2.0")
+    
+    // Check id value
+    let resp_id = json_get_value(resp, "id")
+    assert(json_stringify(resp_id) == "42", "id must match the original value")
+
+    // Check result object
+    let resp_result = json_get_value(resp, "result")
+    assert(json_is_object(resp_result), "result must be a JSON object")
+    assert(json_string_required(resp_result, "status") == "ready", "status field must match")
+
+test "JSON-RPC Error Builder":
+    let id_val = json_parse_text("99")
+    
+    // Test lsp_jsonrpc_error builder
+    let err_resp = lsp_jsonrpc_error(id_val, LSP_ERR_METHOD_NOT_FOUND, "Method not found")
+    assert(json_string_required(err_resp, "jsonrpc") == "2.0", "jsonrpc must be 2.0")
+    
+    let err_obj = json_get_value(err_resp, "error")
+    assert(json_is_object(err_obj), "error must be an object")
+    assert(json_int_required(err_obj, "code") == LSP_ERR_METHOD_NOT_FOUND, "error code must match")
+    assert(json_string_required(err_obj, "message") == "Method not found", "error message must match")
+
+test "JSON-RPC Notification Builder":
+    let params_obj = json_object()
+    json_object_set_string(params_obj, "uri", "file:///test.kn")
+    
+    // Test lsp_jsonrpc_notification builder
+    let notification = lsp_jsonrpc_notification(METHOD_TEXT_DOC_DID_OPEN, params_obj)
+    assert(json_string_required(notification, "jsonrpc") == "2.0", "jsonrpc must be 2.0")
+    assert(json_string_required(notification, "method") == METHOD_TEXT_DOC_DID_OPEN, "method must match")
+    
+    let params_val = json_get_value(notification, "params")
+    assert(json_is_object(params_val), "params must be an object")
+    assert(json_string_required(params_val, "uri") == "file:///test.kn", "param uri must match")

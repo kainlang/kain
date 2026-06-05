@@ -117,7 +117,7 @@ pub fn mcp_run(ws: Workspace, root_dir: String) -> Int with IO:
 // Tool dispatch
 // ═══════════════════════════════════════════════════════════════════
 
-fn mcp_dispatch_tool(ws: Workspace, root_dir: String, tool_name: String, args: JsonObject) -> JsonObject:
+pub fn mcp_dispatch_tool(ws: Workspace, root_dir: String, tool_name: String, args: JsonObject) -> JsonObject:
     if tool_name == "kain_check":
         return _tool_kain_check(ws, root_dir, args)
     elif tool_name == "kain_hover":
