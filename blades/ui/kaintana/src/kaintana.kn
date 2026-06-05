@@ -1,6 +1,8 @@
 use std::fs
+use std::intent
 use std::math
 use std::reload
+use std::runtime
 use std::text
 use std::ui
 use input::kaintana_action_axis_value
@@ -155,29 +157,124 @@ pub fn kaintana_theme_oxide_dcc() -> KaintanaTheme:
         signal: kaintana_color(92, 208, 255, 255),
     }
 
+// ─── Semantic State Authority ─────────────────────────────────────────────────
+// Kaintana's UI session state is modeled as a compiler-owned world.
+// Frame counters, widget metrics, and render statistics live here
+// and are entangled to a mirror for telemetry/presentation.
+
 component KaintanaReactivityPanel():
     render <panel title="Kaintana Reactivity" />
 
 world KaintanaReactivity:
+    state frame: Int = 0
     state signal: Int = 0
-    state signal_copy: Int = 0
     state layout_revision: Int = 0
+    state draw_command_count: Int = 0
+    state present_count: Int = 0
+    state widget_activate_count: Int = 0
+    state frame_budget_ms: Int = 16
     surface native_ui => KaintanaReactivityPanel
 
 world KaintanaReactivityMirror:
+    state frame_copy: Int = 0
     state signal_copy: Int = 0
     state layout_revision_copy: Int = 0
+    state draw_count_copy: Int = 0
+    state present_count_copy: Int = 0
+    state activate_count_copy: Int = 0
+    state frame_budget_copy: Int = 16
     surface web => KaintanaReactivityPanel
 
 entangle KaintanaReactivity.signal <-> KaintanaReactivityMirror.signal_copy with single_writer
 entangle KaintanaReactivity.layout_revision <-> KaintanaReactivityMirror.layout_revision_copy with single_writer
+entangle KaintanaReactivity.draw_command_count <-> KaintanaReactivityMirror.draw_count_copy with single_writer
+entangle KaintanaReactivity.present_count <-> KaintanaReactivityMirror.present_count_copy with single_writer
+
+// ─── Law: Invariant Predicates ───────────────────────────────────────────────
+
+law frame_budget_valid(budget: Int) -> Bool:
+    return budget >= 8 and budget <= 1000
+
+law color_channel_in_bounds(ch: Int) -> Bool:
+    return ch >= 0 and ch <= 255
+
+law session_valid_id(id: Int) -> Bool:
+    return id > 0
+
+// ─── Patch: Journaled State Mutations ────────────────────────────────────────
 
 patch kaintana_reactivity_commit(authority: KaintanaReactivity, value: Int) -> Int:
     authority.signal = value
     return authority.signal
 
+patch kaintana_reactivity_set_budget(authority: KaintanaReactivity, budget: Int) -> Int:
+    let capped = math_int_clamp(budget, 8, 1000)
+    authority.frame_budget_ms = capped
+    return authority.frame_budget_ms
+
+patch kaintana_reactivity_record_draw(authority: KaintanaReactivity, count: Int) -> Int:
+    authority.draw_command_count = authority.draw_command_count + count
+    authority.present_count = authority.present_count + 1
+    return authority.draw_command_count
+
+patch kaintana_reactivity_tick_frame(authority: KaintanaReactivity) -> Int:
+    authority.frame = authority.frame + 1
+    return authority.frame
+
+// ─── Resonate: State → Execution Tripwire ────────────────────────────────────
+// When signal changes (via patch), the resonate handler fires after 16ms
+// dampen window. This automatically updates the layout revision to reflect
+// the new state — without an explicit observer or callback registry.
+
 resonate KaintanaReactivity.signal dampen 16 ms:
     KaintanaReactivity.layout_revision = KaintanaReactivity.layout_revision + resonate_new_i64
+
+resonate KaintanaReactivity.draw_command_count dampen 8 ms:
+    KaintanaReactivity.frame = KaintanaReactivity.frame + 1
+
+// ─── Semantic Runtime Monitoring ───────────────────────────────────────────
+// Thin wrappers around std::intent so framework consumers can inspect
+// patch journal depth, entangle propagation, converge mismatch counts,
+// and resonate fire/absorb telemetry without importing std::intent directly.
+
+pub fn kaintana_semantic_patch_journal_depth() -> Int:
+    return patch_journal_count()
+
+pub fn kaintana_semantic_entangle_propagation_count() -> Int:
+    return entangle_propagation_count()
+
+pub fn kaintana_semantic_converge_mismatches() -> Int:
+    return converge_mismatch_count()
+
+pub fn kaintana_semantic_resonate_fires() -> Int:
+    return resonate_fire_count()
+
+pub fn kaintana_semantic_resonate_absorbs() -> Int:
+    return resonate_absorb_count()
+
+pub fn kaintana_semantic_orchestrate_stages() -> Int:
+    return orchestrate_stage_count()
+
+pub fn kaintana_semantic_entangle_last_authority() -> String:
+    return entangle_last_authority()
+
+pub fn kaintana_semantic_entangle_last_mirror() -> String:
+    return entangle_last_mirror()
+
+pub fn kaintana_semantic_resonate_last_target() -> String:
+    return resonate_last_target()
+
+pub fn kaintana_semantic_resonate_last_old() -> Int:
+    return resonate_last_old_i64()
+
+pub fn kaintana_semantic_resonate_last_new() -> Int:
+    return resonate_last_new_i64()
+
+pub fn kaintana_semantic_resonate_last_dampen_ns() -> Int:
+    return resonate_last_dampen_ns()
+
+pub fn kaintana_semantic_heap_validate() -> Int:
+    return runtime_heap_validate()
 
 pub fn kaintana_theme_named(theme_name: String) -> KaintanaTheme:
     if theme_name == "marine-terminal":
