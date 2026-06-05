@@ -1,0 +1,15 @@
+# Build artifacts
+.kain/
+generated/
+kain-lsp.ll
+kain-lsp.runtime_contract.json
+kain-lsp.realtime_app.json
+kain-lsp.exe
+
+# Temp test files
+stdin_pipe.txt
+stdout_pipe.txt
+stderr_pipe.txt
+stdin_test.txt
+stdout_test.txt
+stderr_test.txt

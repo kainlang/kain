@@ -1,0 +1,35 @@
+use std::build
+use std::test
+
+fn build(ctx: BuildContext) -> BuildGraph:
+    let app = project("kain-lsp")
+        .kind("kain_executable")
+        .version("0.1.0")
+        .description("Kain Language Server Protocol implementation in Kain")
+        .entry("src/main.kn")
+        .source_root("src")
+        .module_root("src")
+        .targets("llvm")
+        .artifact_root(".kain/out")
+        .cache_root(".kain/cache/build")
+        .profile("debug")
+
+    let sources = source_set("lsp-sources")
+        .glob("src/**/*.kn")
+        .file("build.kn")
+
+    let check = check_task("check-llvm")
+        .project(app)
+        .target("llvm")
+        .axis("target", "llvm")
+        .inputs(sources)
+
+    let root_exe = native_executable("kain-lsp-executable")
+        .project(app)
+        .output("$blade/kain-lsp.exe")
+        .requires(check)
+        .inputs(sources)
+
+    return build_graph(app)
+        .sources(sources)
+        .tasks(check, root_exe)

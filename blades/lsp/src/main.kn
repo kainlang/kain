@@ -1,0 +1,72 @@
+// Kain LSP Server — Entry point
+//
+// Reads Content-Length framed JSON-RPC messages from stdin,
+// dispatches to std::kain compiler services, writes responses to stdout.
+//
+// Build:  kain build src/main.kn --target llvm
+// Run:    kain-lsp.exe   (launched by editor via language client)
+//
+// Protocol: LSP 3.0 over stdin/stdout
+
+use std::json
+use std::kain
+use transport
+use lsp
+
+// ─── Entry point ───────────────────────────────────────────────────────────
+
+pub fn main() -> Int with IO:
+    lsp_info("Kain LSP server starting")
+
+    // Open a workspace at the current directory root.
+    // The editor sends workspace root in initialize params, but we hardcode
+    // the initial root as "." and let the workspace manage individual files.
+    let workspace_opt = open_workspace(".", CompileTarget::Llvm)
+    if workspace_opt.is_none():
+        lsp_error("failed to open workspace")
+        return 1
+
+    let ws = workspace_opt.unwrap()
+    let mut state = lsp_state_new(ws)
+    var running = true
+
+    lsp_info("entering main loop")
+
+    // Main event loop: read → parse → dispatch
+    while running:
+        let raw_body = lsp_read_message()
+        if raw_body == "":
+            lsp_info("stdin closed — shutting down")
+            running = false
+            continue
+
+        // Parse JSON body
+        let parsed = json_parse_text(raw_body)
+        if json_is_object(parsed) == false:
+            lsp_warn("non-object JSON on stdin — ignoring")
+            continue
+
+        let req_obj = parsed  // JsonValue is a JsonObject for objects
+        let method = lsp_get_string(req_obj, "method")
+        let has_id = json_has_key(req_obj, "id")
+        let mut id_val: JsonValue = json_parse_text("null")
+        if has_id:
+            id_val = json_get_value(req_obj, "id")
+        let mut params_val: JsonValue = json_parse_text("null")
+        if json_has_key(req_obj, "params"):
+            params_val = json_get_value(req_obj, "params")
+
+        // Skip notification (no id) on exit — handle it directly
+        if method == METHOD_EXIT:
+            lsp_info("exit notification received")
+            running = false
+            continue
+
+        // Dispatch
+        running = lsp_dispatch(state, raw_body, id_val, method, params_val)
+
+    // Cleanup
+    lsp_info("closing workspace")
+    let _closed = close_workspace(ws)
+    lsp_info("Kain LSP server stopped")
+    return 0

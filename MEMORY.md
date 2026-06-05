@@ -1,5 +1,34 @@
 # Kain Memory
 
+# 2026-06-04 - Expanded list_kain_keywords Tool to return Full Reference Manual
+
+What changed:
+- Modified `list_kain_keywords_tool` in `query_stdlib.py` to output the complete detailed reference manual for all 110 keywords in the Kain Keyword Catalog (`CATALOG.md`).
+- For each keyword, the output now includes the category, summary, description, and concrete syntax example, allowing agents to have immediate access to the full keyword reference without invoking the `get_keyword_help` tool multiple times.
+- Verified that the MCP server successfully starts up and executes the tool correctly.
+
+
+What changed:
+
+- Rewrote `query_stdlib.py` to support dual-mode execution: standard CLI/REPL developer tool and a FastMCP server.
+- Dynamically parses all 110 keywords from `CATALOG.md`, overlaying detailed summaries, descriptions, and syntax examples for the unique/semantic ones (such as resonate, axiom, stage, include, world, entangle, actor, converge, etc.).
+- Implemented a PyTorch/CUDA-based TF-IDF semantic indexer for the pretraining instructs/code files (`X:\ml\processed\kain_pretrain_2026-06-05T020601320Z.jsonl` or fallback scan of `X:\ml\raw`), complete with `.pt` binary serialization caching for instantaneous loads.
+- Enhanced the CLI interface with:
+  - Colorized console outputs using ANSI color codes when stdout is a TTY.
+  - An interactive terminal shell explorer (`--interactive` or `-i`) with commands like `ls`, `show`, `search`, `keywords`, `info <keyword|symbol>`, `source <module> <symbol>`, and `example <query>`.
+  - A `--source` flag to inspect a symbol's code implementation directly from the CLI.
+  - `--keywords`, `--keyword <kw>`, and `--example <query>` command-line arguments.
+- Added 8 MCP tools to the FastMCP server:
+  - `list_stdlib_modules`, `get_module_symbols`, `search_stdlib_symbols`, `get_symbol_details`, `get_symbol_source`.
+  - `list_kain_keywords` and `get_keyword_help` for custom language keywords documentation.
+  - `search_kain_examples` to search code examples (actors, teleport, shaders, orchestration, etc.) semantically on GPU/CPU.
+- Registered `stdlib-mcp` in both the Antigravity configuration (`C:\Users\zenta\.gemini\config\mcp_config.json`) and the Opencode configuration (`C:\Users\zenta\.config\opencode\opencode.jsonc`).
+
+Validation:
+
+- Tested CLI functions: `py -3 query_stdlib.py --summary`, `py -3 query_stdlib.py --keywords`, `py -3 query_stdlib.py --keyword teleport`, `py -3 query_stdlib.py --example "teleport and shatter"`.
+- Programmatically verified the registration and correctness of FastMCP tools.
+
 # 2026-06-04 - 24-TET effects module: world/entangle/pulse/resonate/converge/orchestrate/patch/law
 
 What changed:
@@ -11131,3 +11160,28 @@ Key files:
 - `crates/semantic/error_corpus/generated/century_burst_20260604/` — 100 promoted fixtures
 - `crates/semantic/scratch_errors.kn` — 19-entry representative proof file
 - `crates/semantic/.kain/reports/error_batches/century_burst_20260604.md` — full batch report
+
+# 2026-06-04 — Kain LSP Server Blade (blades/lsp/)
+
+What changed:
+- Created `blades/lsp/` — a full Kain Language Server Protocol implementation authored entirely in Kain.
+- `blades/lsp/build.kn`: Project authority with LLVM executable target, source/module roots, check and native executable tasks.
+- `blades/lsp/src/main.kn`: Entry point — stdin event loop, JSON-RPC message parsing, dispatch to `std::kain` compiler services. Uses `open_workspace()`, `read_line()`, `stdin_read_exact()` for LSP transport.
+- `blades/lsp/src/transport.kn`: Content-Length framed I/O — `lsp_read_message()`, `lsp_write_message()`, `lsp_write_json()`. Logging to stderr exclusively. JSON-RPC response/error/notification builder helpers.
+- `blades/lsp/src/lsp.kn` (602 lines): Full protocol dispatch — initialize, initialized, shutdown, exit, didOpen, didChange, didClose, didSave, hover, definition, references, completion, documentSymbol, workspace/symbol, formatting, textDocument/diagnostic. Diagnostics push via `textDocument/publishDiagnostics` notifications. Converts `std::kain` types (Location, Diagnostic, Completion, Symbol, SemanticToken) to LSP JSON shapes. Uses `json_object_*` / `json_array_push_*` API extensively.
+- `blades/lsp/test_lsp.py`: Python smoke test — batch-sends initialize/initialized/didOpen/hover/shutdown/exit messages, parses JSON-RPC responses from stdout, asserts exit code 0, capabilities response, hover, and shutdown.
+
+Semantics exercised:
+  - `use std::kain` — Workspace, Document, CheckResult, Location, Diagnostic, Completion, Symbol, SemanticToken, CompileTarget
+  - `use std::json` — `json_object()`, `json_object_set*()`, `json_object_get*()`, `json_array()`, `json_array_push_*()`, `json_parse_text()`, `json_stringify()`, `json_has_key()`
+  - `read_line()`, `stdout_write()`, `stderr_write()`, `stdin_read_exact()` — stdin/stdout transport
+  - Long-running event loop with `while running:`, mutable state (`LspState`, `Array<LspDocument>`)
+  - URI-to-path conversion, position/range utilities, diagnostic severity mapping
+  - `match` for CompletionKind and SymbolKind dispatch
+
+Validation:
+  - `kain check src/main.kn` passes with all modules resolved and no errors
+  - `kain run src/main.kn` starts the LSP server and processes messages
+  - Python smoke test (`python test_lsp.py`) sends 6 LSP messages, verifies 3+ JSON-RPC responses, exit code 0
+
+Status: Committed to repo as `blades/lsp/`.
