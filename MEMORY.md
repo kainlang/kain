@@ -1,5 +1,36 @@
 # Kain Memory
 
+# 2026-06-04 - ANSI coloring unification, Phase 5 (remaining CLI surfaces)
+
+What changed:
+
+- Colorized major CLI output surfaces in `crates/cli/src/kain_launcher.rs` using theme-aware Painter (104 insertions, 82 deletions).
+- Format command: error messages → status_error, success → status_ok/status_muted.
+- Compilation output: Compiled to / Generated executable → status_ok, Linking / Runtime contract / Realtime bundle / Compute residency / Shader bundle → status_info, Execution complete → status_ok, Native executable cache hit → status_cached, Warnings → status_warning.
+- Watch mode: Watching / File changed / Stopping → status_info.
+- Doctor: KAIN Doctor banner → banner(), Version / Build / Git / Profile / Target → status_info, Unresolved paths → status_warning.
+- Repair report: Repair Target / Profile / Mode / Safety Class → status_info, Fixes Applied → status_ok, Parser Proof status → status_info.
+- Config show: Kain Config banner → banner(), Path / Loaded / UI / Build / Native defaults / Diagnostics → status_info, Unresolved paths → status_warning.
+- Fixed invalid model name in oh-my-openagent.json config (`opencode/` → `opencode/big-pickle`).
+
+Validation:
+
+- `cargo check -p cli` → compiles clean.
+- `cargo test -p kain-lattice --lib` → 28/28 pass.
+
+Files touched:
+
+- `X:\crates\cli\src\kain_launcher.rs` (colorized 6 major CLI surfaces)
+- `C:\Users\zenta\.config\opencode\oh-my-openagent.json` (fixed invalid model name)
+- `X:\mcp\.config\opencode\oh-my-openagent.json` (fixed invalid model name)
+
+Commit: `48eb67c9c` — `lattice: Phase 5 - colorize remaining CLI surfaces through Painter`
+
+Remaining work (NOT yet done):
+
+- ~116 eprintln! lines and ~194 println! lines still use plain text (mostly in helper functions, error messages, and less-visible output sites).
+- Phase 6: Delete `crates/error` or fold into `kain-core`.
+
 # 2026-06-04 - ANSI coloring unification, Phase 4 (major CLI surfaces)
 
 What changed:
