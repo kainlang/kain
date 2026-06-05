@@ -1,5 +1,40 @@
 # Kain Memory
 
+# 2026-06-04 - ANSI coloring unification, Phase 3 (diagnostic renderer unification)
+
+What changed:
+
+- Added `kain-lattice` dependency to `kain-error` (`Cargo.toml` line 17). No circular deps: `kain-error` → `kain-lattice` (new), `kain-core` → `kain-error` + `kain-lattice` (existing).
+- Removed `TerminalPalette` (17 lines of hardcoded ANSI: 1;31 red, 1;33 yellow, 1;36 cyan, 1;34 blue, 1;32 green, dim=2) from `crates/error/src/render.rs`. Replaced with `Painter` from `kain_lattice`. The `DiagnosticRenderer` now stores `painter: Painter` instead of `palette: TerminalPalette`.
+- Removed `DiagnosticPalette` (35 lines, the pre-Painter prototype wrapping `LatticeTheme` + `enabled`) from `crates/core/src/diagnostics.rs`. Replaced with `active_painter()` from `kain_core::tooling_config`. All `palette.*method()` calls replaced with direct `painter.*method()` calls.
+- Both renderers now share the same color authority: lattice theme colors instead of hardcoded ANSI. Error renderer now uses `painter.diag_error/warning/note/help/gutter/banner/bold/dim` instead of `p.red/yellow/cyan/green/blue/bold/dim`. Core renderer replaced `palette.paint/severity_text/error_text/note_text/gutter_text/pointer_text`.
+- Added `highlight_source_line()` at both source-line rendering points: `error/render.rs:126` and `core/diagnostics.rs:155/343`. Source lines in diagnostic snippets now carry Kain syntax highlighting (keywords, types, strings, comments, numbers, operators) via the lattice hand-rolled tokenizer.
+- Added `severity_role()` and `painter_severity()` helper functions in both crates — maps `DiagnosticSeverity` to `SemanticRole` (Error→DiagError, Warning→DiagWarning, Note→DiagNote, Help→DiagHelp) and applies BOLD modifier.
+- Removed `ariadne` from `crates/core/Cargo.toml` — it was dead weight, never actually used for rendering.
+- The `Painter::bold(role, text)` and `Painter::dim(role, text)` methods (added during Phase 3 prep) are used by both renderers for severity-colored bold text and gutter-dimmed secondary text.
+
+Validation:
+
+- `cargo test -p kain-lattice --lib` → 28/28 pass.
+- `cargo test -p kain-error --lib` → 5/5 pass.
+- `cargo test -p kain-core --lib -- diagnostics` → 12/12 pass.
+- `cargo check -p kain-error -p kain-core` → 0 errors, 0 new warnings.
+- Full `cargo check --workspace` still fails on `swc_common v0.38.0` in `crates/unreal` — pre-existing dep-version mismatch, not from Phase 3.
+
+Files touched:
+
+- `X:\crates\error\Cargo.toml` (added kain-lattice dep)
+- `X:\crates\error\src\render.rs` (TerminalPalette → Painter, source-line highlighting, helpers)
+- `X:\crates\core\Cargo.toml` (removed ariadne)
+- `X:\crates\core\src\diagnostics.rs` (DiagnosticPalette → Painter, source-line highlighting)
+- `X:\crates\lattice\src\lib.rs` (bold/dim methods on Painter)
+
+Next steps (do NOT start without explicit user approval):
+
+- Phase 4: Wire Painter into `crates/cli/src/progress.rs` and `crates/cli/src/kain_launcher.rs` (20+ colored output sites). This is where "beautiful ANSI coloring" lands on every CLI surface.
+- Phase 5: Add `"theme": "<name>"` to `--format=json` output across commands.
+- Phase 6: Delete `crates/error` or fold it into `kain-core`.
+
 # 2026-06-04 - Expanded list_kain_keywords Tool to return Full Reference Manual
 
 What changed:

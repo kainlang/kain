@@ -147,16 +147,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ariadne"
-version = "0.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "44055e597c674aef7cb903b2b9f6e4cba1277ed0d2d61dae7cd52d7ffa81f8e2"
-dependencies = [
- "unicode-width 0.1.14",
- "yansi",
-]
-
-[[package]]
 name = "arrayvec"
 version = "0.7.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2149,7 +2139,6 @@ dependencies = [
 name = "kain-core"
 version = "0.1.0"
 dependencies = [
- "ariadne",
  "blade",
  "chumsky",
  "flume",
@@ -2235,6 +2224,7 @@ dependencies = [
 name = "kain-error"
 version = "0.2.0"
 dependencies = [
+ "kain-lattice",
  "once_cell",
  "serde",
  "serde_json",

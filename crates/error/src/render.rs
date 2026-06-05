@@ -1,9 +1,11 @@
-//! Terminal diagnostic renderer with ANSI color, Unicode-aware
-//! highlight placement, and multi-line source context.
+//! Terminal diagnostic renderer with lattice-backed ANSI coloring,
+//! Unicode-aware highlight placement, and multi-line source context.
 //!
 //! Renders `DiagnosticReport` into human-readable terminal output
 //! inspired by Rust's diagnostic style: file locations, line-number
 //! gutters, colored severity labels, and `^~~~` underlines.
+//!
+//! Now uses `kain_lattice::Painter` instead of hardcoded ANSI codes.
 
 use crate::label::FixItConfidence;
 use crate::registry::spec_for_code;
@@ -11,71 +13,20 @@ use crate::report::DiagnosticReport;
 use crate::severity::DiagnosticSeverity;
 use crate::source::SpanMapper;
 use crate::trace::format_trace;
+use kain_lattice::{Painter, SemanticRole, theme_by_name};
 
-// ── ANSI palette ─────────────────────────────────────────────────────
-
-#[derive(Debug, Clone, Copy)]
-pub struct TerminalPalette {
-    pub enabled: bool,
+fn severity_role(severity: DiagnosticSeverity) -> SemanticRole {
+    match severity {
+        DiagnosticSeverity::Error => SemanticRole::DiagError,
+        DiagnosticSeverity::Warning => SemanticRole::DiagWarning,
+        DiagnosticSeverity::Note => SemanticRole::DiagNote,
+        DiagnosticSeverity::Help => SemanticRole::DiagHelp,
+    }
 }
 
-impl TerminalPalette {
-    pub fn new(enabled: bool) -> Self {
-        Self { enabled }
-    }
-
-    fn sgr(&self, code: &str, text: &str) -> String {
-        if self.enabled {
-            format!("\x1b[{code}m{text}\x1b[0m")
-        } else {
-            text.to_string()
-        }
-    }
-
-    fn bold(&self, text: &str) -> String {
-        self.sgr("1", text)
-    }
-
-    fn red(&self, text: &str) -> String {
-        self.sgr("1;31", text)
-    }
-
-    fn yellow(&self, text: &str) -> String {
-        self.sgr("1;33", text)
-    }
-
-    fn cyan(&self, text: &str) -> String {
-        self.sgr("1;36", text)
-    }
-
-    fn blue(&self, text: &str) -> String {
-        self.sgr("1;34", text)
-    }
-
-    fn dim(&self, text: &str) -> String {
-        self.sgr("2", text)
-    }
-
-    fn green(&self, text: &str) -> String {
-        self.sgr("1;32", text)
-    }
-
-    pub fn severity_color(&self, severity: DiagnosticSeverity, text: &str) -> String {
-        match severity {
-            DiagnosticSeverity::Error => self.red(text),
-            DiagnosticSeverity::Warning => self.yellow(text),
-            DiagnosticSeverity::Note => self.cyan(text),
-            DiagnosticSeverity::Help => self.green(text),
-        }
-    }
-
-    pub fn gutter(&self, text: &str) -> String {
-        self.dim(text)
-    }
-
-    pub fn pointer(&self, text: &str) -> String {
-        self.bold(text)
-    }
+fn painter_severity(painter: &Painter, severity: DiagnosticSeverity, text: &str) -> String {
+    let role = severity_role(severity);
+    painter.bold(role, text)
 }
 
 fn normalize_diag_text(text: &str) -> String {
@@ -92,17 +43,18 @@ fn normalize_diag_text(text: &str) -> String {
 pub struct DiagnosticRenderer {
     span_mapper: SpanMapper,
     filename: String,
-    palette: TerminalPalette,
+    painter: Painter,
     /// When true, include debug traces in output.
     show_debug_trace: bool,
 }
 
 impl DiagnosticRenderer {
     pub fn new(source: &str, filename: &str, use_color: bool) -> Self {
+        let theme = theme_by_name("slate");
         Self {
             span_mapper: SpanMapper::new(source),
             filename: filename.to_string(),
-            palette: TerminalPalette::new(use_color),
+            painter: Painter::new(theme, use_color),
             show_debug_trace: false,
         }
     }
@@ -112,10 +64,11 @@ impl DiagnosticRenderer {
         filename: impl Into<String>,
         use_color: bool,
     ) -> Self {
+        let theme = theme_by_name("slate");
         Self {
             span_mapper,
             filename: filename.into(),
-            palette: TerminalPalette::new(use_color),
+            painter: Painter::new(theme, use_color),
             show_debug_trace: false,
         }
     }
@@ -127,7 +80,6 @@ impl DiagnosticRenderer {
 
     /// Render a single diagnostic report with source context.
     pub fn render(&self, report: &DiagnosticReport) -> String {
-        let p = &self.palette;
         let spec = spec_for_code(report.code);
         let code_str = spec.as_ref().map(|s| s.code.as_str()).unwrap_or("UNKNOWN");
 
@@ -137,13 +89,13 @@ impl DiagnosticRenderer {
         let severity_label = format!("{}[{}:{}]", report.severity, report.kind, code_str);
         out.push_str(&format!(
             "\n{}: {}\n",
-            p.severity_color(report.severity, &severity_label),
-            p.bold(&report.message)
+            painter_severity(&self.painter, report.severity, &severity_label),
+            self.painter.bold(severity_role(report.severity), &report.message)
         ));
 
         // ── Phase attribution ───────────────────────────────────────
         if report.phase != crate::report::CompilerPhase::Unknown {
-            out.push_str(&format!("   {} phase: {}\n", p.dim("="), report.phase));
+            out.push_str(&format!("   {} phase: {}\n", self.painter.dim(SemanticRole::DiagGutter, "="), report.phase));
         }
 
         // ── Source location + code snippet ──────────────────────────
@@ -163,18 +115,19 @@ impl DiagnosticRenderer {
             // File location
             out.push_str(&format!(
                 "  {} {}:{}:{}\n",
-                p.gutter("-->"),
+                self.painter.gutter("-->"),
                 file,
                 line_num,
                 range.start.col
             ));
-            out.push_str(&format!("   {}\n", p.gutter("|")));
+            out.push_str(&format!("   {}\n", self.painter.gutter("|")));
 
             // Source line
+            let highlighted_line = self.painter.source_line(line_content);
             out.push_str(&format!(
                 "{} {}\n",
-                p.gutter(&format!("{line_num:>3} |")),
-                line_content
+                self.painter.gutter(&format!("{line_num:>3} |")),
+                highlighted_line
             ));
 
             // Pointer underline
@@ -186,20 +139,20 @@ impl DiagnosticRenderer {
 
             out.push_str(&format!(
                 "   {} {}{}",
-                p.gutter("|"),
+                self.painter.gutter("|"),
                 " ".repeat(pointer_offset),
-                p.severity_color(report.severity, &"^".repeat(pointer_len)),
+                self.painter.bold(severity_role(report.severity), &"^".repeat(pointer_len)),
             ));
             if let Some(label) = primary_label {
                 out.push_str(&format!(
                     " {}",
-                    p.severity_color(report.severity, &label.message)
+                    self.painter.bold(severity_role(report.severity), &label.message)
                 ));
             }
             out.push('\n');
-            out.push_str(&format!("   {}\n", p.gutter("|")));
+            out.push_str(&format!("   {}\n", self.painter.gutter("|")));
         } else if let Some(path) = &report.file {
-            out.push_str(&format!("  {} {}", p.gutter("-->"), path.display()));
+            out.push_str(&format!("  {} {}", self.painter.gutter("-->"), path.display()));
             if let Some((line, col)) = report.location {
                 out.push_str(&format!(":{}:{}", line, col));
             }
@@ -224,11 +177,11 @@ impl DiagnosticRenderer {
             if label.primary {
                 out.push_str(&format!(
                     "   {} {}:{}:{}: {}\n",
-                    p.red("="),
+                    self.painter.diag_error("="),
                     loc.file,
                     loc.line,
                     loc.col,
-                    p.bold(&label.message)
+                    self.painter.bold(SemanticRole::DiagError, &label.message)
                 ));
             } else {
                 let kind_hint = match label.kind {
@@ -241,7 +194,7 @@ impl DiagnosticRenderer {
                 };
                 out.push_str(&format!(
                     "   {} {}:{}:{}: {}{}\n",
-                    p.blue("="),
+                    self.painter.note("="),
                     loc.file,
                     loc.line,
                     loc.col,
@@ -253,7 +206,7 @@ impl DiagnosticRenderer {
 
         // ── Notes ──────────────────────────────────────────────────
         for note in &report.notes {
-            out.push_str(&format!("   {} note: {}\n", p.cyan("="), note));
+            out.push_str(&format!("   {} note: {}\n", self.painter.note("="), note));
         }
         let normalized_notes = report
             .notes
@@ -272,14 +225,14 @@ impl DiagnosticRenderer {
             {
                 out.push_str(&format!(
                     "   {} note: {}\n",
-                    p.cyan("="),
+                    self.painter.note("="),
                     semantic.explanation
                 ));
             }
             if semantic.cascade_probability >= 0.55 {
                 out.push_str(&format!(
                     "   {} note: later diagnostics may cascade from this root error.\n",
-                    p.cyan("=")
+                    self.painter.note("=")
                 ));
             }
             if let Some(repair) = semantic.repairs.first() {
@@ -294,7 +247,7 @@ impl DiagnosticRenderer {
                 {
                     out.push_str(&format!(
                         "   {} help: {}\n",
-                        p.green("="),
+                        self.painter.help("="),
                         repair.description
                     ));
                 }
@@ -303,7 +256,7 @@ impl DiagnosticRenderer {
 
         // ── Help ───────────────────────────────────────────────────
         for help in &report.help {
-            out.push_str(&format!("   {} help: {}\n", p.green("="), help));
+            out.push_str(&format!("   {} help: {}\n", self.painter.help("="), help));
         }
 
         // ── Registry help ──────────────────────────────────────────
@@ -311,13 +264,13 @@ impl DiagnosticRenderer {
             if let Some(ref fix) = spec.fixit {
                 out.push_str(&format!(
                     "   {} help: suggested fix: `{fix}`\n",
-                    p.green("=")
+                    self.painter.help("=")
                 ));
             }
             if !spec.see_also.is_empty() {
                 out.push_str(&format!(
                     "   {} see also: {}\n",
-                    p.dim("="),
+                    self.painter.dim(SemanticRole::DiagGutter, "="),
                     spec.see_also.join(", ")
                 ));
             }
@@ -333,7 +286,7 @@ impl DiagnosticRenderer {
             if let Some(range) = &fixit.range {
                 out.push_str(&format!(
                     "   {} fix-it{confidence} {}:{}:{}: {} -> {:?}\n",
-                    p.green("="),
+                    self.painter.help("="),
                     range.file,
                     range.start.line,
                     range.start.col,
@@ -346,7 +299,7 @@ impl DiagnosticRenderer {
                     .span_to_location(fixit.span, self.filename.as_str());
                 out.push_str(&format!(
                     "   {} fix-it{confidence} {}:{}:{}: {} -> {:?}\n",
-                    p.green("="),
+                    self.painter.help("="),
                     loc.file,
                     loc.line,
                     loc.col,
@@ -358,13 +311,13 @@ impl DiagnosticRenderer {
 
         // ── Tags ───────────────────────────────────────────────────
         for tag in &report.tags {
-            out.push_str(&format!("   {} tag: {}\n", p.dim("="), tag));
+            out.push_str(&format!("   {} tag: {}\n", self.painter.dim(SemanticRole::DiagGutter, "="), tag));
         }
 
         // ── Registry docs reference ────────────────────────────────
         if let Some(spec) = &spec {
             if !spec.docs_key.is_empty() {
-                out.push_str(&format!("   {} docs: {}\n", p.dim("="), spec.docs_key));
+                out.push_str(&format!("   {} docs: {}\n", self.painter.dim(SemanticRole::DiagGutter, "="), spec.docs_key));
             }
         }
 
@@ -392,20 +345,19 @@ impl DiagnosticRenderer {
 
         // Summary footer
         if total > 0 {
-            let p = &self.palette;
-            let mut summary = format!("\n{}", p.bold("── Diagnostics summary ──\n"));
+            let mut summary = format!("\n{}", self.painter.banner("── Diagnostics summary ──\n"));
             if error_count > 0 {
-                summary.push_str(&format!("   {} error(s): {error_count}\n", p.red("•")));
+                summary.push_str(&format!("   {} error(s): {error_count}\n", self.painter.diag_error("•")));
             }
             if warning_count > 0 {
                 summary.push_str(&format!(
                     "   {} warning(s): {warning_count}\n",
-                    p.yellow("•")
+                    self.painter.diag_warning("•")
                 ));
             }
             let other = total - error_count - warning_count;
             if other > 0 {
-                summary.push_str(&format!("   {} other: {other}\n", p.dim("•")));
+                summary.push_str(&format!("   {} other: {other}\n", self.painter.dim(SemanticRole::DiagGutter, "•")));
             }
             out.push_str(&format!("{summary}\n"));
         }

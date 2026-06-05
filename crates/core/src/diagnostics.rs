@@ -4,54 +4,18 @@
 use crate::diagnostic_registry::spec_for_code;
 use crate::error::{DiagnosticReport, DiagnosticSeverity, KainError};
 use crate::span::Span;
-use crate::tooling_config::{active_color_preference, active_ui_theme_name};
+use crate::tooling_config::active_painter;
 pub use kain_error::{SourceLocation, SourceOriginSegment, SpanMapper};
-use kain_lattice::{theme_by_name, LatticeTheme, SemanticRole};
+use kain_lattice::{Painter, SemanticRole};
 
-#[derive(Debug, Clone, Copy)]
-struct DiagnosticPalette {
-    enabled: bool,
-    theme: &'static LatticeTheme,
-}
-
-impl DiagnosticPalette {
-    fn paint(&self, role: SemanticRole, text: &str) -> String {
-        self.theme.ansi_paint(role, text, self.enabled)
-    }
-
-    fn severity_text(&self, severity: DiagnosticSeverity, text: &str) -> String {
-        match severity {
-            DiagnosticSeverity::Error => self.paint(SemanticRole::DiagError, text),
-            DiagnosticSeverity::Warning => self.paint(SemanticRole::DiagWarning, text),
-            DiagnosticSeverity::Note => self.paint(SemanticRole::DiagNote, text),
-            DiagnosticSeverity::Help => self.paint(SemanticRole::DiagHelp, text),
-        }
-    }
-
-    fn error_text(&self, text: &str) -> String {
-        self.paint(SemanticRole::DiagError, text)
-    }
-
-    fn note_text(&self, text: &str) -> String {
-        self.paint(SemanticRole::DiagNote, text)
-    }
-
-    fn gutter_text(&self, text: &str) -> String {
-        self.paint(SemanticRole::DiagGutter, text)
-    }
-
-    fn pointer_text(&self, text: &str) -> String {
-        self.paint(SemanticRole::DiagPointer, text)
-    }
-}
-
-fn active_diagnostic_palette() -> DiagnosticPalette {
-    let enabled = active_color_preference().should_color_stderr();
-    let theme = active_ui_theme_name();
-    DiagnosticPalette {
-        enabled,
-        theme: theme_by_name(&theme),
-    }
+fn painter_severity(painter: &Painter, severity: DiagnosticSeverity, text: &str) -> String {
+    let role = match severity {
+        DiagnosticSeverity::Error => SemanticRole::DiagError,
+        DiagnosticSeverity::Warning => SemanticRole::DiagWarning,
+        DiagnosticSeverity::Note => SemanticRole::DiagNote,
+        DiagnosticSeverity::Help => SemanticRole::DiagHelp,
+    };
+    painter.bold(role, text)
 }
 
 fn normalize_diag_text(text: &str) -> String {
@@ -87,25 +51,25 @@ impl Diagnostics {
 
     /// Format an error with source context
     pub fn format_error(&self, error: &KainError) -> String {
-        let palette = active_diagnostic_palette();
+        let painter = active_painter();
         match error {
             KainError::Lexer { message, span } => {
-                self.format_with_context(&palette, "Lexer Error", message, *span)
+                self.format_with_context(&painter, "Lexer Error", message, *span)
             }
             KainError::Parser { message, span } => {
-                self.format_with_context(&palette, "Parse Error", message, *span)
+                self.format_with_context(&painter, "Parse Error", message, *span)
             }
             KainError::Type { message, span } => {
-                self.format_with_context(&palette, "Type Error", message, *span)
+                self.format_with_context(&painter, "Type Error", message, *span)
             }
             KainError::Effect { message, span } => {
-                self.format_with_context(&palette, "Effect Error", message, *span)
+                self.format_with_context(&painter, "Effect Error", message, *span)
             }
             KainError::Borrow { message, span } => {
-                self.format_with_context(&palette, "Borrow Error", message, *span)
+                self.format_with_context(&painter, "Borrow Error", message, *span)
             }
             KainError::Codegen { message, span } => {
-                self.format_with_context(&palette, "Codegen Error", message, *span)
+                self.format_with_context(&painter, "Codegen Error", message, *span)
             }
             KainError::CodegenWithLocation {
                 message,
@@ -115,31 +79,31 @@ impl Diagnostics {
                 ..
             } => format!(
                 "\n{}: {}\n  {} {}:{}:{}\n",
-                palette.error_text("error[Codegen]"),
+                painter.diag_error("error[Codegen]"),
                 message,
-                palette.gutter_text("-->"),
+                painter.gutter("-->"),
                 file,
                 line,
                 col
             ),
             KainError::Runtime { message } => {
-                format!("\n{}: {}\n", palette.error_text("error"), message)
+                format!("\n{}: {}\n", painter.diag_error("error"), message)
             }
-            KainError::Io(e) => format!("\n{}: IO error: {}\n", palette.error_text("error"), e),
+            KainError::Io(e) => format!("\n{}: IO error: {}\n", painter.diag_error("error"), e),
             KainError::Enhanced { .. } => error
                 .to_diagnostic_reports()
                 .into_iter()
                 .next()
-                .map(|report| self.format_diagnostic_report(&palette, &report))
+                .map(|report| self.format_diagnostic_report(&painter, &report))
                 .unwrap_or_else(|| format!("\n{}\n", error)),
-            KainError::Rich(report) => self.format_diagnostic_report(&palette, report),
+            KainError::Rich(report) => self.format_diagnostic_report(&painter, report),
             KainError::Multi(errors) => {
                 if errors.len() == 1 {
                     return self.format_error(&errors[0]);
                 }
                 let mut output = format!(
                     "\n{}: {} error(s) found:\n",
-                    palette.error_text("error"),
+                    painter.diag_error("error"),
                     errors.len()
                 );
                 for (i, err) in errors.iter().enumerate() {
@@ -153,14 +117,15 @@ impl Diagnostics {
 
     fn format_diagnostic_report(
         &self,
-        palette: &DiagnosticPalette,
+        painter: &Painter,
         report: &DiagnosticReport,
     ) -> String {
         let spec = spec_for_code(report.code);
         let mut output = String::new();
         output.push_str(&format!(
             "\n{}: {}\n",
-            palette.severity_text(
+            painter_severity(
+                painter,
                 report.severity,
                 &format!("{}[{}:{}]", report.severity, report.kind, spec.code_str)
             ),
@@ -178,16 +143,16 @@ impl Diagnostics {
                 .unwrap_or_else(|| range.file.clone());
             output.push_str(&format!(
                 "  {} {}:{}:{}\n",
-                palette.gutter_text("-->"),
+                painter.gutter("-->"),
                 file,
                 range.start.line,
                 range.start.col
             ));
-            output.push_str(&format!("   {}\n", palette.gutter_text("|")));
+            output.push_str(&format!("   {}\n", painter.gutter("|")));
             output.push_str(&format!(
                 "{} {}\n",
-                palette.gutter_text(&format!("{:>3} |", range.start.line)),
-                line_content
+                painter.gutter(&format!("{:>3} |", range.start.line)),
+                painter.source_line(line_content)
             ));
             let primary_label = report
                 .labels
@@ -196,19 +161,19 @@ impl Diagnostics {
                 .or_else(|| report.labels.iter().find(|label| label.span == span));
             output.push_str(&format!(
                 "   {} {}{}",
-                palette.gutter_text("|"),
+                painter.gutter("|"),
                 " ".repeat(pointer_offset),
-                palette.pointer_text(&"^".repeat(pointer_len)),
+                painter.pointer(&"^".repeat(pointer_len)),
             ));
             if let Some(label) = primary_label {
                 output.push_str(&format!(" {}", label.message));
             }
             output.push('\n');
-            output.push_str(&format!("   {}\n", palette.gutter_text("|")));
+            output.push_str(&format!("   {}\n", painter.gutter("|")));
         } else if let Some(path) = &report.file {
             output.push_str(&format!(
                 "  {} {}",
-                palette.gutter_text("-->"),
+                painter.gutter("-->"),
                 path.display()
             ));
             if let Some((line, col)) = report.location {
@@ -232,14 +197,14 @@ impl Diagnostics {
                 });
             output.push_str(&format!(
                 "   {} label {}:{}: {}\n",
-                palette.note_text("="),
+                painter.note("="),
                 loc.line,
                 loc.col,
                 label.message
             ));
         }
         for note in &report.notes {
-            output.push_str(&format!("   {} note: {}\n", palette.note_text("="), note));
+            output.push_str(&format!("   {} note: {}\n", painter.note("="), note));
         }
         let normalized_notes = report
             .notes
@@ -258,14 +223,14 @@ impl Diagnostics {
             {
                 output.push_str(&format!(
                     "   {} note: {}\n",
-                    palette.note_text("="),
+                    painter.note("="),
                     semantic.explanation
                 ));
             }
             if semantic.cascade_probability >= 0.55 {
                 output.push_str(&format!(
                     "   {} note: later diagnostics may cascade from this root error.\n",
-                    palette.note_text("=")
+                    painter.note("=")
                 ));
             }
             if let Some(repair) = semantic.repairs.first() {
@@ -280,20 +245,20 @@ impl Diagnostics {
                 {
                     output.push_str(&format!(
                         "   {} help: {}\n",
-                        palette.note_text("="),
+                        painter.help("="),
                         repair.description
                     ));
                 }
             }
         }
         for help in &report.help {
-            output.push_str(&format!("   {} help: {}\n", palette.note_text("="), help));
+            output.push_str(&format!("   {} help: {}\n", painter.help("="), help));
         }
         for fixit in &report.fixits {
             if let Some(range) = &fixit.range {
                 output.push_str(&format!(
                     "   {} fix-it {}:{}:{}: {} -> {:?}\n",
-                    palette.note_text("="),
+                    painter.note("="),
                     range.file,
                     range.start.line,
                     range.start.col,
@@ -306,7 +271,7 @@ impl Diagnostics {
                     .span_to_location(fixit.span, self.filename.as_str());
                 output.push_str(&format!(
                     "   {} fix-it {}:{}:{}: {} -> {:?}\n",
-                    palette.note_text("="),
+                    painter.note("="),
                     loc.file,
                     loc.line,
                     loc.col,
@@ -316,7 +281,7 @@ impl Diagnostics {
             }
         }
         for tag in &report.tags {
-            output.push_str(&format!("   {} tag: {}\n", palette.note_text("="), tag));
+            output.push_str(&format!("   {} tag: {}\n", painter.note("="), tag));
         }
         let semantic_help_available = report
             .semantic
@@ -328,7 +293,7 @@ impl Diagnostics {
             if let Some(default_suggestion) = spec.default_suggestion {
                 output.push_str(&format!(
                     "   {} help: {}\n",
-                    palette.note_text("="),
+                    painter.help("="),
                     default_suggestion
                 ));
             }
@@ -336,7 +301,7 @@ impl Diagnostics {
         if let Some(docs_key) = spec.docs_key {
             output.push_str(&format!(
                 "   {} reference: {}\n",
-                palette.note_text("="),
+                painter.note("="),
                 docs_key
             ));
         }
@@ -345,7 +310,7 @@ impl Diagnostics {
 
     fn format_with_context(
         &self,
-        palette: &DiagnosticPalette,
+        painter: &Painter,
         error_type: &str,
         message: &str,
         span: Span,
@@ -358,34 +323,34 @@ impl Diagnostics {
 
         output.push_str(&format!(
             "\n{}: {}\n",
-            palette.error_text(&format!("error[{error_type}]")),
+            painter.diag_error(&format!("error[{error_type}]")),
             message
         ));
 
         output.push_str(&format!(
             "  {} {}:{}:{}\n",
-            palette.gutter_text("-->"),
+            painter.gutter("-->"),
             range.file,
             range.start.line,
             range.start.col
         ));
 
-        output.push_str(&format!("   {}\n", palette.gutter_text("|")));
+        output.push_str(&format!("   {}\n", painter.gutter("|")));
 
         output.push_str(&format!(
             "{} {}\n",
-            palette.gutter_text(&format!("{:>3} |", range.start.line)),
-            line_content
+            painter.gutter(&format!("{:>3} |", range.start.line)),
+            painter.source_line(line_content)
         ));
 
         output.push_str(&format!(
             "   {} {}{}\n",
-            palette.gutter_text("|"),
+            painter.gutter("|"),
             " ".repeat(pointer_offset),
-            palette.pointer_text(&"^".repeat(pointer_len))
+            painter.pointer(&"^".repeat(pointer_len))
         ));
 
-        output.push_str(&format!("   {}\n", palette.gutter_text("|")));
+        output.push_str(&format!("   {}\n", painter.gutter("|")));
 
         output
     }

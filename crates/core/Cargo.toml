@@ -6,7 +6,6 @@ edition = "2021"
 [dependencies]
 logos = { workspace = true }
 chumsky = { workspace = true }
-ariadne = { workspace = true }
 thiserror = { workspace = true }
 indexmap = { workspace = true }
 petgraph = { workspace = true }

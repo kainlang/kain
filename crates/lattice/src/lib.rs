@@ -977,6 +977,14 @@ impl Painter {
     pub fn banner(&self, text: &str) -> String {
         self.paint_styled(SemanticRole::StatusAccent, text, LatticeModifiers::BOLD)
     }
+
+    pub fn bold(&self, role: SemanticRole, text: &str) -> String {
+        self.paint_styled(role, text, LatticeModifiers::BOLD)
+    }
+
+    pub fn dim(&self, role: SemanticRole, text: &str) -> String {
+        self.paint_styled(role, text, LatticeModifiers::DIM)
+    }
 }
 
 #[cfg(test)]
