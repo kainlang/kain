@@ -11387,3 +11387,73 @@ Gotchas hit:
 - HiDPI Windows places the .exe window at ~(-127, 150) with size 2964x2032 on a 1536x864 screen.  Python source run positions correctly.  Workaround: user drags the window once at first launch; future v2 can pin a manifest.
 
 Status: Initial commit on local repo at X:\tools\kain_manager\.
+
+## 2026-01-XX — libclang Integration for C-FFI (Windows SDK Support)
+
+**Status:** Successfully integrated libclang to parse real Windows SDK headers.
+
+**What Changed:**
+- Added `clang-sys = "0.29.3"` to `crates/c-ffi/Cargo.toml`
+- Created `crates/c-ffi/src/libclang_extract.rs` (400+ lines)
+  - Uses libclang to parse C headers with full macro expansion
+  - Extracts function declarations, struct definitions, typedefs, enums
+  - Falls back to lang_c or regex if libclang fails
+- Modified `crates/c-ffi/src/extract.rs` to try libclang first
+- Modified `crates/c-ffi/src/lib.rs` to register the libclang module
+- Updated `.bazelrc` to export `LIBCLANG_PATH` for Bazel builds
+
+**Test Results:**
+- `include <windows.h> as win` now parses the REAL Windows SDK header
+- Extracted 6,294 function declarations from Windows.h
+- Build succeeded: `kain build src/main.kn --target llvm`
+- Executable ran without crashing
+
+**Known Issues:**
+1. **Tagged-integer encoding leaks through C ABI**
+   - Kain encodes integers as `(val << 3) | 1` for NaN-boxing
+   - When passed to C functions expecting `void*` or `HWND`, the tag bit leaks
+   - Example: `MessageBoxA(0, ...)` passes HWND=1 instead of HWND=0
+   - Workaround: Use `unsigned long long` in C headers instead of `void*`
+   - Real fix: Compiler codegen must strip tags for C ABI calls
+
+2. **Cache pollution from failed runs**
+   - The C-FFI cache stores results even if extraction fails
+   - Old cache entries can prevent new extraction attempts
+   - Workaround: Delete `.kain/cache/c_ffi` when testing changes
+
+**Architecture:**
+```
+include <windows.h> as win
+    ↓
+lib.rs: detect_c_library_import_specs()
+    ↓
+lib.rs: import_library_spec()
+    ↓
+lib.rs: resolve_library_spec() → finds Windows SDK path
+    ↓
+extract.rs: extract_binding_bundle()
+    ↓
+libclang_extract.rs: extract_binding_bundle_libclang()
+    ↓ (if fails)
+extract.rs: extract_binding_bundle_from_ast() → lang_c
+    ↓ (if fails)
+extract.rs: extract_binding_bundle_from_regex() → regex
+    ↓
+generate.rs: generates Kain extern declarations
+```
+
+**Next Steps:**
+- Fix tagged-integer encoding in compiler codegen (crates/sys-codegen)
+- Add libclang to system_requirements in AGENTS.md
+- Test with Vulkan SDK headers
+- Test with complex C libraries (FFmpeg, SQLite)
+
+**Files Modified:**
+- `crates/c-ffi/Cargo.toml`
+- `crates/c-ffi/src/libclang_extract.rs` (new)
+- `crates/c-ffi/src/extract.rs`
+- `crates/c-ffi/src/lib.rs`
+- `.bazelrc`
+- `blades/c/platform/windows/src/main.kn`
+- `blades/c/platform/windows/KAIN.toml`
+
