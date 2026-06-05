@@ -146,6 +146,14 @@ use CRUSHER::crusher_case_id
 use CRUSHER::crusher_case_iterations
 use CRUSHER::crusher_case_telemetry
 use CRUSHER::crusher_case_title
+use fusion_chain::fusion_chain_case_checksum
+use fusion_chain::fusion_chain_case_count
+use fusion_chain::fusion_chain_case_expected_checksum
+use fusion_chain::fusion_chain_case_group
+use fusion_chain::fusion_chain_case_id
+use fusion_chain::fusion_chain_case_iterations
+use fusion_chain::fusion_chain_case_telemetry
+use fusion_chain::fusion_chain_case_title
 
 component BenchmarkRouterPanel():
     render <panel title="benchmark-router-v2" />
@@ -1168,6 +1176,23 @@ fn main() -> Int with Unsafe:
                 failure_count = failure_count + 1
             println("[bench-v2] " + case_id + " best=" + str(result.best_ms) + "ms avg=" + str(result.average_ms) + "ms status=" + result_status_text(result))
         crusher_index = crusher_index + 1
+
+    let fusion_index = 0
+    while fusion_index < fusion_chain_case_count():
+        let case_id = fusion_chain_case_id(fusion_index)
+        let case_group = fusion_chain_case_group(fusion_index)
+        if case_selected(config.filter_text, case_id, case_group):
+            let result = run_case("fusion_chain", case_id, case_group, fusion_chain_case_title(fusion_index), fusion_chain_case_iterations(fusion_index), fusion_chain_case_expected_checksum(fusion_index), config)
+            let _track = write_track_report(result)
+            cases_json_items = append_json_item(cases_json_items, render_result_json(result))
+            table_rows = table_rows + format_result_row(result)
+            case_count = case_count + 1
+            if result.success:
+                success_count = success_count + 1
+            else:
+                failure_count = failure_count + 1
+            println("[bench-v2] " + case_id + " best=" + str(result.best_ms) + "ms avg=" + str(result.average_ms) + "ms status=" + result_status_text(result))
+        fusion_index = fusion_index + 1
 
     if case_selected(config.filter_text, "array_scan", "core"):
         let result = run_case("router_core", "array_scan", "core", "Array Scan", 500000, 103499994, config)

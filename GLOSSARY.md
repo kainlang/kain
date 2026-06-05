@@ -192,7 +192,7 @@ Location rule: paths in this glossary are live in this checkout. Older docs may 
 
 ## Q
 
-**`query_stdlib.py`** - The fast stdlib lookup helper. New agents should use this before manually opening the huge stdlib atlas. Location: `query_stdlib.py`.
+**`kain-mcp.py`** - The fast stdlib lookup helper. New agents should use this before manually opening the huge stdlib atlas. Location: `kain-mcp.py`.
 
 ## R
 

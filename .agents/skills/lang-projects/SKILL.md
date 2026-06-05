@@ -23,12 +23,12 @@ Use these before inventing project structure:
 
 ```powershell
 rg -n "fn build\(ctx: BuildContext\)|build_check|test_suite|proof_obligation|bench_case|attrition_case|certify_gate|native_executable|platform_package|platform_requirement" build.kn blades apps templates docs stdlib
-python query_stdlib.py --module build --limit 80
-python query_stdlib.py --module test --limit 40
-python query_stdlib.py --module proof --limit 40
-python query_stdlib.py --module bench --limit 40
-python query_stdlib.py --module attrition --limit 40
-python query_stdlib.py --module certify --limit 40
+python kain-mcp.py --module build --limit 80
+python kain-mcp.py --module test --limit 40
+python kain-mcp.py --module proof --limit 40
+python kain-mcp.py --module bench --limit 40
+python kain-mcp.py --module attrition --limit 40
+python kain-mcp.py --module certify --limit 40
 kain check path\to\entry.kn --target llvm
 kain run path\to\entry.kn --target llvm
 kain run plan path\to\entry.kn --target llvm --json

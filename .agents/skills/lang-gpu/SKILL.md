@@ -21,9 +21,9 @@ This is the authored rendering and GPU pipeline field manual. Use it when Kain s
 
 ```powershell
 rg -n "\bshader (vertex|fragment|compute)\b|StorageBuffer|uniform .* @|std::gpu|std::graphics|graphics_shared" library_of_kain blades benchmark smoketest stdlib
-python query_stdlib.py --module gpu --limit 80
-python query_stdlib.py --module graphics --contains shader --limit 40
-python query_stdlib.py --module graphics::shared --limit 40
+python kain-mcp.py --module gpu --limit 80
+python kain-mcp.py --module graphics --contains shader --limit 40
+python kain-mcp.py --module graphics::shared --limit 40
 kain check <kernels.kn> --target spirv
 kain build <kernels.kn> --target spirv -o .kain/gpu/<pipeline>/<kernel>.spv
 kain gpu-artifacts <kernels.kn> --output .kain/gpu/<pipeline>/<kernel>.spv

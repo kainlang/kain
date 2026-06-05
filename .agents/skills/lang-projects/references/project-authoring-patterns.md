@@ -194,7 +194,7 @@ fn build(ctx: BuildContext) -> BuildGraph:
 
 - Read `build.kn` before assuming a project root is TOML-owned.
 - Run a dry-run JSON plan before rewriting structure.
-- Query `stdlib` with `query_stdlib.py` before opening huge generated maps.
+- Query `stdlib` with `kain-mcp.py` before opening huge generated maps.
 - Keep generated files out of source roots unless they are intended inputs.
 - Add evidence tasks when adding capability claims.
 - Put project lessons into `MEMORY.md` when they change future agent behavior.

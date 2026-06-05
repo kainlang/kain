@@ -25,7 +25,7 @@ fn main() -> Int:
     if fs_exists(raw): fs_remove_dir_all(raw)
     fs_create_dir_all(raw)
 
-    let dirs = ["blades", "benchmark/cases_v2", "benchmark/cases", "smoketest/src"]
+    let dirs = ["stdlib", "blades", "benchmark/cases_v2", "benchmark/cases", "smoketest/src"]
     var n: Int = 0
     var di: Int = 0
     while di < len(dirs):

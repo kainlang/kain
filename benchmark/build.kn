@@ -55,6 +55,7 @@ fn build(ctx: BuildContext) -> BuildGraph:
         .input("cases_v2/orchestrate_god.kn")
         .input("cases_v2/metal.kn")
         .input("cases_v2/CRUSHER.kn")
+        .input("cases_v2/fusion_chain.kn")
         .input("build.kn")
 
     let root_exe = native_executable("root-executable")
@@ -81,6 +82,7 @@ fn build(ctx: BuildContext) -> BuildGraph:
         .input("cases_v2/orchestrate_god.kn")
         .input("cases_v2/metal.kn")
         .input("cases_v2/CRUSHER.kn")
+        .input("cases_v2/fusion_chain.kn")
         .input("build.kn")
 
     let telemetry = exec_task("telemetry-v2")
@@ -108,6 +110,7 @@ fn build(ctx: BuildContext) -> BuildGraph:
         .input("cases_v2/orchestrate_god.kn")
         .input("cases_v2/metal.kn")
         .input("cases_v2/CRUSHER.kn")
+        .input("cases_v2/fusion_chain.kn")
         .input("build.kn")
         .arg("-NoProfile")
         .arg("-ExecutionPolicy")

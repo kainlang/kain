@@ -1,0 +1,174 @@
+{
+  "schema_version": 1,
+  "target": "llvm",
+  "render": {
+    "scenes": [],
+    "materials": []
+  },
+  "patches": [
+    {
+      "name": "kaintana_reactivity_commit",
+      "mutation_paths": [
+        "authority.signal"
+      ],
+      "undo_mode": "reversible",
+      "collaboration_event": "patch.kaintana_reactivity_commit"
+    }
+  ],
+  "worlds": [
+    {
+      "name": "KaintanaReactivity",
+      "state_slots": [
+        {
+          "name": "signal",
+          "type_name": "Int",
+          "initial_expr": "0"
+        },
+        {
+          "name": "signal_copy",
+          "type_name": "Int",
+          "initial_expr": "0"
+        },
+        {
+          "name": "layout_revision",
+          "type_name": "Int",
+          "initial_expr": "0"
+        }
+      ],
+      "surfaces": [
+        {
+          "kind": "native_ui",
+          "authored_expr": "KaintanaReactivityPanel",
+          "surface_key": "world.KaintanaReactivity.native_ui"
+        }
+      ]
+    },
+    {
+      "name": "KaintanaReactivityMirror",
+      "state_slots": [
+        {
+          "name": "signal_copy",
+          "type_name": "Int",
+          "initial_expr": "0"
+        },
+        {
+          "name": "layout_revision_copy",
+          "type_name": "Int",
+          "initial_expr": "0"
+        }
+      ],
+      "surfaces": [
+        {
+          "kind": "web",
+          "authored_expr": "KaintanaReactivityPanel",
+          "surface_key": "world.KaintanaReactivityMirror.web"
+        }
+      ]
+    }
+  ],
+  "active_world": {
+    "name": "KaintanaReactivity",
+    "state_slots": [
+      {
+        "name": "signal",
+        "type_name": "Int",
+        "initial_expr": "0"
+      },
+      {
+        "name": "signal_copy",
+        "type_name": "Int",
+        "initial_expr": "0"
+      },
+      {
+        "name": "layout_revision",
+        "type_name": "Int",
+        "initial_expr": "0"
+      }
+    ],
+    "surfaces": [
+      {
+        "kind": "native_ui",
+        "authored_expr": "KaintanaReactivityPanel",
+        "surface_key": "world.KaintanaReactivity.native_ui"
+      }
+    ]
+  },
+  "entanglements": [
+    {
+      "authority": "KaintanaReactivity.layout_revision",
+      "mirror": "KaintanaReactivityMirror.layout_revision_copy",
+      "policy": "single_writer",
+      "type_name": "Int"
+    },
+    {
+      "authority": "KaintanaReactivity.signal",
+      "mirror": "KaintanaReactivityMirror.signal_copy",
+      "policy": "single_writer",
+      "type_name": "Int"
+    }
+  ],
+  "resonances": [
+    {
+      "name": "resonate__KaintanaReactivity__signal",
+      "target": "KaintanaReactivity.signal",
+      "target_type": "Int",
+      "dampen": "16ms",
+      "dampen_ns": 16000000,
+      "handler_symbol": "__kain_resonate_resonate__KaintanaReactivity__signal",
+      "direct_mutation_paths": [
+        "KaintanaReactivity.layout_revision"
+      ]
+    }
+  ],
+  "shader_bundle_refs": [],
+  "assets": [],
+  "tool_caps": [
+    "patch.transactions",
+    "reactivity.shadow-patch",
+    "state.entangle",
+    "state.resonate",
+    "world.native-ui",
+    "world.web"
+  ],
+  "requirements": [
+    "host.raw-native",
+    "patch.transactions",
+    "reactivity.dampen-window",
+    "reactivity.shadow-patch",
+    "runtime.contract.bundle",
+    "shader.bundle.metadata",
+    "state.entangle",
+    "state.resonate",
+    "world.native-ui",
+    "world.web"
+  ],
+  "ui_contracts": {
+    "contract_version": "ui_slate_x100.authoring_contract.v1",
+    "widget_registry_json": null,
+    "command_registry_json": null,
+    "computed_registry_json": null,
+    "event_routes_json": null,
+    "hot_reload_json": null,
+    "focus_graph_json": null,
+    "selection_model_json": null,
+    "overlay_stack_json": null,
+    "motion_policy_json": null,
+    "paint_registry_json": null,
+    "motion_registry_json": null,
+    "workspace_schema_json": null,
+    "workspace_layout_json": "{\n  \"roots\": [],\n  \"persistence_key\": null,\n  \"virtualization_enabled\": false,\n  \"active_tabs\": {}\n}",
+    "workspace_layout": null,
+    "structure_index": [
+      {
+        "id": 2,
+        "identity_key": "2",
+        "kind": "component:KaintanaReactivityPanel",
+        "tab_default_active": false,
+        "min_width": null,
+        "min_height": null,
+        "max_width": null,
+        "max_height": null
+      }
+    ]
+  }
+}
