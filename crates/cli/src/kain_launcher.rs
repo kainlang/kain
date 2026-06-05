@@ -453,7 +453,7 @@ fn run_format_command(inputs: Vec<PathBuf>, check: bool, write: bool) -> bool {
 
     if using_stdin {
         if write {
-            eprintln!(" Format --write does not support stdin.");
+            eprintln!("{} Format --write does not support stdin.", p().status_error(""));
             return false;
         }
         let (source, source_name) = match if inputs.is_empty() {
@@ -483,7 +483,7 @@ fn run_format_command(inputs: Vec<PathBuf>, check: bool, write: bool) -> bool {
         };
         if check {
             if formatted != source {
-                eprintln!(" Formatting changes required: {}", source_name);
+                eprintln!("{} Formatting changes required: {}", p().status_error(""), source_name);
                 return false;
             }
             return true;
@@ -493,7 +493,7 @@ fn run_format_command(inputs: Vec<PathBuf>, check: bool, write: bool) -> bool {
     }
 
     if inputs.iter().any(|path| path == Path::new("-")) {
-        eprintln!(" Format stdin cannot be combined with file or directory paths.");
+        eprintln!("{} Format stdin cannot be combined with file or directory paths.", p().status_error(""));
         return false;
     }
 
@@ -517,7 +517,7 @@ fn run_format_command(inputs: Vec<PathBuf>, check: bool, write: bool) -> bool {
     };
 
     if expanded.len() > 1 && !check && !write {
-        eprintln!(" Format multiple files requires --check or --write.");
+        eprintln!("{} Format multiple files requires --check or --write.", p().status_error(""));
         return false;
     }
 
@@ -568,13 +568,13 @@ fn run_format_command(inputs: Vec<PathBuf>, check: bool, write: bool) -> bool {
                     continue;
                 }
                 if let Err(err) = fs::write(&path, &formatted) {
-                    eprintln!(" Failed to write {}: {}", path.display(), err);
+                    eprintln!("{} Failed to write {}: {}", p().status_error(""), path.display(), err);
                     success = false;
                     continue;
                 }
-                println!(" Formatted {}", path.display());
+                println!("{} Formatted {}", p().status_ok(""), path.display());
             } else {
-                println!(" Already formatted {}", path.display());
+                println!("{} Already formatted {}", p().status_muted(""), path.display());
             }
             continue;
         }
@@ -586,7 +586,8 @@ fn run_format_command(inputs: Vec<PathBuf>, check: bool, write: bool) -> bool {
         let total = changed_paths.len();
         for (index, path) in changed_paths.iter().enumerate() {
             eprintln!(
-                " Formatting changes required {}/{}: {}",
+                "{} Formatting changes required {}/{}: {}",
+                p().status_error(""),
                 index + 1,
                 total,
                 path.display()
@@ -1091,7 +1092,8 @@ fn run_source_with_session(
         match restore_native_executable_cache(target, &source, &paths) {
             Ok(Some(hit)) => {
                 println!(
-                    " Compiled to: {} ({} bytes)",
+                    "{} Compiled to: {} ({} bytes)",
+                    p().status_ok(""),
                     paths.backend_path.display(),
                     hit.backend_bytes
                 );
@@ -1106,22 +1108,23 @@ fn run_source_with_session(
                             .and_then(|value| value.to_str())
                             .map_or(false, |name| name.contains("runtime_contract"))
                         {
-                            println!(" Runtime contract: {}", sidecar.display());
+                            println!("{} Runtime contract: {}", p().status_info(""), sidecar.display());
                         } else if sidecar
                             .file_name()
                             .and_then(|value| value.to_str())
                             .map_or(false, |name| name.contains("realtime_app"))
                         {
-                            println!(" Realtime bundle: {}", sidecar.display());
+                            println!("{} Realtime bundle: {}", p().status_info(""), sidecar.display());
                         }
                     }
                 }
-                println!(" Linking executable...");
+                println!("{} Linking executable...", p().status_info(""));
                 eprintln!(
-                    " Native executable cache hit: {} ({} exe bytes)",
+                    "{} Native executable cache hit: {} ({} exe bytes)",
+                    p().status_cached(""),
                     hit.key, hit.executable_bytes
                 );
-                println!(" Generated executable: {}", paths.executable_path.display());
+                println!("{} Generated executable: {}", p().status_ok(""), paths.executable_path.display());
                 return true;
             }
             Ok(None) => {}
@@ -1166,7 +1169,8 @@ fn run_source_with_session(
                     return false;
                 }
                 println!(
-                    " Compiled to: {} ({} bytes)",
+                    "{} Compiled to: {} ({} bytes)",
+                    p().status_ok(""),
                     output_path.display(),
                     spv_bytes.len()
                 );
@@ -1210,7 +1214,8 @@ fn run_source_with_session(
                     return false;
                 }
                 println!(
-                    " Compiled to: {} ({} bytes)",
+                    "{} Compiled to: {} ({} bytes)",
+                    p().status_ok(""),
                     output_path.display(),
                     wasm_bytes.len()
                 );
@@ -1246,10 +1251,10 @@ fn run_source_with_session(
         match session.compile_hybrid_artifacts(&source) {
             Ok(artifacts) => match write_hybrid_bundle(&descriptor_path, artifacts) {
                 Ok(written) => {
-                    println!(" Compiled to: {}", written.descriptor_path.display());
-                    println!(" Hybrid JS: {}", written.js_path.display());
-                    println!(" Hybrid TS: {}", written.ts_path.display());
-                    println!(" Hybrid WASM: {}", written.wasm_path.display());
+                    println!("{} Compiled to: {}", p().status_ok(""), written.descriptor_path.display());
+                    println!("{} Hybrid JS: {}", p().status_info(""), written.js_path.display());
+                    println!("{} Hybrid TS: {}", p().status_info(""), written.ts_path.display());
+                    println!("{} Hybrid WASM: {}", p().status_info(""), written.wasm_path.display());
                     return true;
                 }
                 Err(err) => {
@@ -1283,7 +1288,7 @@ fn run_source_with_session(
                 if !trimmed_output.is_empty() && trimmed_output != "()" {
                     println!("{}", compiled_output);
                 }
-                println!(" Execution complete");
+                println!("{} Execution complete", p().status_ok(""));
             } else {
                 let default_ext = target_extension(target);
 
@@ -1354,7 +1359,8 @@ fn run_source_with_session(
                 }
 
                 println!(
-                    " Compiled to: {} ({} bytes)",
+                    "{} Compiled to: {} ({} bytes)",
+                    p().status_ok(""),
                     output_path.display(),
                     compiled_output.len()
                 );
@@ -1374,18 +1380,20 @@ fn run_source_with_session(
                             native_artifacts_require_gpu_runtime =
                                 staged.requires_gpu_runtime_dll();
                             println!(
-                                " Runtime contract: {}",
+                                "{} Runtime contract: {}",
+                                p().status_info(""),
                                 staged.runtime_contract_path.display()
                             );
-                            println!(" Realtime bundle: {}", staged.realtime_app_path.display());
+                            println!("{} Realtime bundle: {}", p().status_info(""), staged.realtime_app_path.display());
                             if let Some(compute_residency_path) = staged.compute_residency_path {
                                 println!(
-                                    " Compute residency: {}",
+                                    "{} Compute residency: {}",
+                                    p().status_info(""),
                                     compute_residency_path.display()
                                 );
                             }
                             if let Some(shader_bundle_path) = staged.shader_bundle_path {
-                                println!(" Shader bundle: {}", shader_bundle_path.display());
+                                println!("{} Shader bundle: {}", p().status_info(""), shader_bundle_path.display());
                             }
                         }
                         Err(err) => {
@@ -1396,7 +1404,7 @@ fn run_source_with_session(
                 }
 
                 for advisory in session.frontend_advisories() {
-                    eprintln!(" Warning: {}", advisory);
+                    eprintln!("{} Warning: {}", p().status_warning(""), advisory);
                 }
 
                 // Generate C++ reflection header for USF shaders (GODMODE Phase 3)
@@ -3247,13 +3255,14 @@ fn watch_mode(
     let r = running.clone();
 
     ctrlc::set_handler(move || {
-        println!("\n Stopping watch mode...");
+        println!("\n{} Stopping watch mode...", p().status_info(""));
         r.store(false, Ordering::SeqCst);
     })
     .expect("Error setting Ctrl-C handler");
 
     println!(
-        " Watching {} for changes... (Ctrl+C to stop)",
+        "{} Watching {} for changes... (Ctrl+C to stop)",
+        p().status_info(""),
         input.display()
     );
     println!("");
@@ -3285,7 +3294,7 @@ fn watch_mode(
                 // Drain any pending events
                 while rx.try_recv().is_ok() {}
 
-                println!(" File changed, recompiling...");
+                println!("{} File changed, recompiling...", p().status_info(""));
                 println!("");
                 run_compile_with_session(
                     &session,
@@ -4541,13 +4550,14 @@ fn print_repair_report(
     mode: kain_repair::RepairMode,
     profile: &str,
 ) {
-    println!(" Repair Target: {}", path.display());
-    println!(" Selected Profile: {}", profile);
-    println!(" Repair Mode: {:?}", mode);
-    println!(" Safety Class: {:?}", report.safety_class);
-    println!(" Unknown Risk: {:?}", report.remaining_unknown_risk);
+    println!("{} Repair Target: {}", p().status_info(""), path.display());
+    println!("{} Selected Profile: {}", p().status_info(""), profile);
+    println!("{} Repair Mode: {:?}", p().status_info(""), mode);
+    println!("{} Safety Class: {:?}", p().status_info(""), report.safety_class);
+    println!("{} Unknown Risk: {:?}", p().status_info(""), report.remaining_unknown_risk);
     println!(
-        " Parser Proof: {}",
+        "{} Parser Proof: {}",
+        p().status_info(""),
         match report.parser_proof_status() {
             Some(kain_repair::ParserProofStatus::Passed) => "passed",
             Some(kain_repair::ParserProofStatus::Failed) => "failed",
@@ -4556,13 +4566,13 @@ fn print_repair_report(
     );
 
     if report.fixes.is_empty() {
-        println!(" Fixes Applied: none needed");
-        println!(" Remaining Diagnostics: 0");
+        println!("{} Fixes Applied: none needed", p().status_ok(""));
+        println!("{} Remaining Diagnostics: 0", p().status_info(""));
         return;
     }
 
-    println!(" Fixes Applied: {}", report.fixes_applied);
-    println!(" Fixes:");
+    println!("{} Fixes Applied: {}", p().status_ok(""), report.fixes_applied);
+    println!("{} Fixes:", p().status_info(""));
     for fix in &report.fixes {
         let is_aggressive = is_aggressive_fix(fix);
         let note = fix.note.as_deref().unwrap_or("repair applied");
@@ -4573,7 +4583,7 @@ fn print_repair_report(
             note
         );
     }
-    println!(" Remaining Diagnostics: 0");
+    println!("{} Remaining Diagnostics: 0", p().status_info(""));
 }
 
 fn print_repair_tree_report(
@@ -4582,21 +4592,22 @@ fn print_repair_tree_report(
     mode: kain_repair::RepairMode,
     profile: &str,
 ) {
-    println!(" Repair Root: {}", root.display());
-    println!(" Selected Profile: {}", profile);
-    println!(" Repair Mode: {:?}", mode);
+    println!("{} Repair Root: {}", p().status_info(""), root.display());
+    println!("{} Selected Profile: {}", p().status_info(""), profile);
+    println!("{} Repair Mode: {:?}", p().status_info(""), mode);
     println!(
-        " Action Class: {}",
+        "{} Action Class: {}",
+        p().status_info(""),
         if matches!(mode, kain_repair::RepairMode::ApplyAggressive) {
             "aggressive"
         } else {
             "safe"
         }
     );
-    println!(" Files Scanned: {}", report.scanned);
-    println!(" Files Changed: {}", report.changed);
-    println!(" Files Written: {}", report.written);
-    println!(" Files Failed: {}", report.failed);
+    println!("{} Files Scanned: {}", p().status_info(""), report.scanned);
+    println!("{} Files Changed: {}", p().status_info(""), report.changed);
+    println!("{} Files Written: {}", p().status_info(""), report.written);
+    println!("{} Files Failed: {}", p().status_info(""), report.failed);
     for outcome in &report.outcomes {
         match &outcome.result {
             Ok(file_report) => {
@@ -4748,50 +4759,54 @@ fn print_doctor(active_launcher: LauncherKind) {
     let project_root = current_dir.as_ref().and_then(|cwd| find_project_root(cwd));
     let runtime_repo_sha = resolve_repo_head_sha_runtime(project_root.as_deref());
 
-    println!(" KAIN Doctor");
-    println!(" Version: {}", VERSION);
-    println!(" Build: {}", BUILD_NUMBER);
-    println!(" Build Tracking: {}", BUILD_TRACKING_MODE);
-    println!(" Built At (UTC): {}", format_build_time(BUILD_UNIX_TIME));
+    println!("{} KAIN Doctor", p().banner(""));
+    println!("{} Version: {}", p().status_info(""), VERSION);
+    println!("{} Build: {}", p().status_info(""), BUILD_NUMBER);
+    println!("{} Build Tracking: {}", p().status_info(""), BUILD_TRACKING_MODE);
+    println!("{} Built At (UTC): {}", p().status_info(""), format_build_time(BUILD_UNIX_TIME));
     println!(
-        " Git: {} (commit #{}, {})",
+        "{} Git: {} (commit #{}, {})",
+        p().status_info(""),
         BUILD_GIT_SHA, BUILD_GIT_COMMIT_COUNT, BUILD_GIT_DIRTY
     );
-    println!(" Profile: {}", BUILD_PROFILE);
+    println!("{} Profile: {}", p().status_info(""), BUILD_PROFILE);
     println!(
-        " Target Triple: {} (host {})",
+        "{} Target Triple: {} (host {})",
+        p().status_info(""),
         BUILD_TARGET_TRIPLE, BUILD_HOST_TRIPLE
     );
 
     match &current_exe {
         Some(path) => {
-            println!(" Binary Path: {}", path.display());
-            println!(" Binary Kind: {}", classify_binary_path(path));
+            println!("{} Binary Path: {}", p().status_info(""), path.display());
+            println!("{} Binary Kind: {}", p().status_info(""), classify_binary_path(path));
         }
-        None => println!(" Binary Path: <unknown>"),
+        None => println!("{} Binary Path: <unknown>", p().status_warning("")),
     }
     if let Some(layout) = &install_layout {
-        println!(" Kain Home: {}", layout.home_dir.display());
-        println!(" Kain User Bin: {}", layout.bin_dir.display());
-        println!(" Kain Config Path: {}", layout.config_path.display());
-        println!(" Kain Packages Dir: {}", layout.packages_dir.display());
-        println!(" Kain Tooling Dir: {}", layout.tooling_dir.display());
-        println!(" Kain Cache Dir: {}", layout.cache_dir.display());
-        println!(" Kain Generated Dir: {}", layout.generated_dir.display());
+        println!("{} Kain Home: {}", p().status_info(""), layout.home_dir.display());
+        println!("{} Kain User Bin: {}", p().status_info(""), layout.bin_dir.display());
+        println!("{} Kain Config Path: {}", p().status_info(""), layout.config_path.display());
+        println!("{} Kain Packages Dir: {}", p().status_info(""), layout.packages_dir.display());
+        println!("{} Kain Tooling Dir: {}", p().status_info(""), layout.tooling_dir.display());
+        println!("{} Kain Cache Dir: {}", p().status_info(""), layout.cache_dir.display());
+        println!("{} Kain Generated Dir: {}", p().status_info(""), layout.generated_dir.display());
         println!(
-            " Kain Install Manifest: {}",
+            "{} Kain Install Manifest: {}",
+            p().status_info(""),
             layout.install_manifest_path.display()
         );
     } else {
-        println!(" Kain Home: <unresolved>");
+        println!("{} Kain Home: <unresolved>", p().status_warning(""));
     }
     if let Some(source_path) = &tooling_config.source_path {
-        println!(" Active Config Source: {}", source_path.display());
+        println!("{} Active Config Source: {}", p().status_info(""), source_path.display());
     } else {
-        println!(" Active Config Source: <unresolved>");
+        println!("{} Active Config Source: <unresolved>", p().status_warning(""));
     }
     println!(
-        " Active Config Loaded: {}",
+        "{} Active Config Loaded: {}",
+        p().status_info(""),
         if tooling_config.loaded_from_disk {
             "yes"
         } else {
@@ -4799,13 +4814,15 @@ fn print_doctor(active_launcher: LauncherKind) {
         }
     );
     println!(
-        " CLI Theme: {} / color {} / experimental-help {}",
+        "{} CLI Theme: {} / color {} / experimental-help {}",
+        p().status_info(""),
         tooling_config.ui.theme,
         describe_color_preference(tooling_config.ui.color),
         tooling_config.ui.experimental_help
     );
     println!(
-        " Build Parallelism: cargo={} native={} (host cores {})",
+        "{} Build Parallelism: cargo={} native={} (host cores {})",
+        p().status_info(""),
         tooling_config.build.cargo_jobs,
         tooling_config.build.native_jobs,
         tooling_config.build.available_parallelism
@@ -5281,14 +5298,15 @@ fn run_config_show(json: bool) -> Result<(), String> {
         return Ok(());
     }
 
-    println!(" Kain Config");
+    println!("{} Kain Config", p().banner(""));
     if let Some(path) = &active.source_path {
-        println!(" Path: {}", path.display());
+        println!("{} Path: {}", p().status_info(""), path.display());
     } else {
-        println!(" Path: <unresolved>");
+        println!("{} Path: <unresolved>", p().status_warning(""));
     }
     println!(
-        " Loaded: {}",
+        "{} Loaded: {}",
+        p().status_info(""),
         if active.loaded_from_disk {
             "yes"
         } else {
@@ -5296,17 +5314,20 @@ fn run_config_show(json: bool) -> Result<(), String> {
         }
     );
     println!(
-        " UI: theme={} color={} experimental-help={}",
+        "{} UI: theme={} color={} experimental-help={}",
+        p().status_info(""),
         active.ui.theme,
         describe_color_preference(active.ui.color),
         active.ui.experimental_help
     );
     println!(
-        " Build: cargo-jobs={} native-jobs={} host-cores={}",
+        "{} Build: cargo-jobs={} native-jobs={} host-cores={}",
+        p().status_info(""),
         active.build.cargo_jobs, active.build.native_jobs, active.build.available_parallelism
     );
     println!(
-        " Native defaults: profile={} opt={} target-cpu={} debug-info={}",
+        "{} Native defaults: profile={} opt={} target-cpu={} debug-info={}",
+        p().status_info(""),
         active.build.native_profile.as_deref().unwrap_or("debug"),
         active.build.native_opt_level.as_deref().unwrap_or("0"),
         active
@@ -5317,7 +5338,8 @@ fn run_config_show(json: bool) -> Result<(), String> {
         active.build.native_debug_info.unwrap_or(true)
     );
     println!(
-        " Diagnostics: capture={} path={} store-ansi={}",
+        "{} Diagnostics: capture={} path={} store-ansi={}",
+        p().status_info(""),
         describe_diagnostic_capture_mode(active.diagnostics.capture),
         active.diagnostics.path.display(),
         active.diagnostics.store_ansi
