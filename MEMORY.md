@@ -1,5 +1,47 @@
 # Kain Memory
 
+# 2026-06-04 - ANSI coloring unification, Phase 4 (major CLI surfaces)
+
+What changed:
+
+- Added `kain-lattice` dependency to `kain-cli` (`crates/cli/Cargo.toml`). No cycle: `cli` → `kain-lattice` (new), `cli` → `kain-core` → `kain-lattice` (existing).
+- Added `active_painter()` helper function to `crates/cli/src/kain_launcher.rs` — calls `kain_core::tooling_config::active_painter()` to get theme-aware Painter.
+- Colorized `crates/cli/src/progress.rs::render_event()`:
+  - Status markers ( ,  ,  ,  ,  ) now use theme-aware Painter methods (status_info, status_error, status_cached, status_muted).
+  - Progress counters like "1/10" colorized by status type.
+  - Compiler phase labels (resolve, parse, typecheck, etc.) use muted tone.
+- Colorized `crates/cli/src/kain_launcher.rs::print_kain_build_report()`:
+  - "Build succeeded/failed" uses `status_ok/status_error`.
+  - Task markers (cached, ok, planned, skipped, failed) colorized with appropriate status roles.
+- Colorized `crates/cli/src/kain_launcher.rs::run_check_command()`:
+  - "Check passed/failed" summary colorized.
+  - Per-file error paths highlighted with `status_error`.
+  - "Unknown check target" error uses `status_error`.
+- Colorized `crates/cli/src/kain_launcher.rs::run_test_command()`:
+  - "Test passed/failed" summary colorized.
+  - Skipped cases use `status_muted`.
+  - Failed case paths highlighted with `status_error`.
+  - "Unknown test target" error uses `status_error`.
+
+Validation:
+
+- `cargo check -p cli` → compiles clean.
+- `cargo test -p kain-lattice --lib` → 28/28 pass.
+- `cargo test -p cli --lib` → all tests pass except pre-existing stack overflow in `fabric::tests::run_command_executes_local_fabric_manifest` (unrelated).
+
+Files touched:
+
+- `X:\crates\cli\Cargo.toml` (added kain-lattice dep)
+- `X:\crates\cli\src\progress.rs` (colorized render_event)
+- `X:\crates\cli\src\kain_launcher.rs` (colorized 3 functions + added helper)
+
+Commit: `f15041697` — `lattice: Phase 4 - colorize major CLI surfaces through Painter`
+
+Next steps (do NOT start without explicit user approval):
+
+- Phase 5: Colorize remaining CLI surfaces (compilation output, watch status, format command, package command, config show, doctor, repair, banner, all error prefixes). This covers ~300+ additional output sites in kain_launcher.rs.
+- Phase 6: Delete `crates/error` or fold into `kain-core`.
+
 # 2026-06-04 - ANSI coloring unification, Phase 3 (diagnostic renderer unification)
 
 What changed:
