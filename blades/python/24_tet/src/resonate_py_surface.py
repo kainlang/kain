@@ -1,7 +1,7 @@
-"""resonate_py_bridge — thin pygame/modernGL surface for Kain-owned 24-TET piano.
+"""resonate_py_surface — thin pygame/modernGL surface for Kain-owned 24-TET piano.
 
-Kain owns all musical logic (pitch, velocity, note names, scores, dynamics).
-Python owns only: window management, event polling, audio synthesis, and display.
+Kain owns: event loop, key dedup, state mutation, musical logic.
+Python owns: window init, rendering, audio synthesis, mouse hit-test, mgl staging.
 """
 
 from __future__ import annotations
@@ -25,17 +25,8 @@ import pygame
 WINDOW_WIDTH = 1600
 WINDOW_HEIGHT = 720
 WINDOW_TITLE = "resonate-py 24 TET"
-DIAG_FRAME_INTERVAL = 60  # print diagnostic every N frames
 SAMPLE_RATE = 44_100
 SYNTH_SECONDS = 1.45
-KEY_ORDER = [
-    pygame.K_z, pygame.K_s, pygame.K_x, pygame.K_d,
-    pygame.K_c, pygame.K_v, pygame.K_g, pygame.K_b,
-    pygame.K_h, pygame.K_n, pygame.K_j, pygame.K_m,
-    pygame.K_q, pygame.K_2, pygame.K_w, pygame.K_3,
-    pygame.K_e, pygame.K_r, pygame.K_5, pygame.K_t,
-    pygame.K_6, pygame.K_y, pygame.K_7, pygame.K_u,
-]
 WHITE_SLOTS = [0, 2, 4, 5, 7, 9, 11, 12, 14, 16, 17, 19, 21, 23]
 BLACK_SLOTS = [slot for slot in range(24) if slot not in WHITE_SLOTS]
 NOTE_NAMES = [
@@ -45,36 +36,26 @@ NOTE_NAMES = [
     "F#", "F#\u2191", "G", "G\u2191", "G#", "G#\u2191",
 ]
 
-STATE: dict[str, Any] = {
-    "mgl_ctx": None,
-    "mgl_buf": None,
-    "pygame_init": False,
-    "mixer_ready": False,
-    "screen": None,
-    "frame_surface": None,
-    "clock": None,
-    "font_title": None,
-    "font_body": None,
-    "font_small": None,
-    "font_tiny": None,
-    "backdrop": None,
-    "key_geometry": None,
-    "sound_cache": {},
-    "active_note": -1,
-    "active_velocity": 0,
-    "held_keys": set(),
-    "mouse_down": False,
-    "latched_note": -1,
-    "frame": 0,
-    "last_epoch": -1,
-    "last_command": 0,
-    "command_history": [],
-    "audio_hits": 0,
-}
+# Module-level state
+_mgl_ctx: moderngl.Context | None = None
+_mgl_buf: moderngl.Buffer | None = None
+_pygame_init: bool = False
+_mixer_ready: bool = False
+_screen: pygame.Surface | None = None
+_frame_surface: pygame.Surface | None = None
+_clock: pygame.time.Clock | None = None
+_font_title: pygame.font.Font | None = None
+_font_body: pygame.font.Font | None = None
+_font_small: pygame.font.Font | None = None
+_font_tiny: pygame.font.Font | None = None
+_backdrop: pygame.Surface | None = None
+_key_geometry: dict[int, dict[str, Any]] | None = None
+_sound_cache: dict[int, pygame.mixer.Sound] = {}
+_frame_counter: int = 0
 
 
 # ---------------------------------------------------------------------------
-# Audio helpers (pure computation, no Kain bridge needed)
+# Audio helpers
 # ---------------------------------------------------------------------------
 
 def _freq(slot: int) -> float:
@@ -82,12 +63,59 @@ def _freq(slot: int) -> float:
     return 220.0 * (2.0 ** ((float(slot) - 12.0) / 24.0))
 
 
+def _make_sound(note_slot: int) -> pygame.mixer.Sound | None:
+    if not _mixer_ready:
+        return None
+    cached = _sound_cache.get(note_slot)
+    if cached is not None:
+        return cached
+
+    sample_count = int(SAMPLE_RATE * SYNTH_SECONDS)
+    t = np.linspace(0.0, SYNTH_SECONDS, sample_count, endpoint=False, dtype=np.float32)
+    freq = _freq(note_slot)
+    fundamental = np.sin(2.0 * np.pi * freq * t)
+    harmonic_2 = 0.34 * np.sin(2.0 * np.pi * freq * 2.0 * t + 0.08)
+    harmonic_3 = 0.19 * np.sin(2.0 * np.pi * freq * 3.0 * t + 0.12)
+    harmonic_5 = 0.08 * np.sin(2.0 * np.pi * freq * 5.0 * t + 0.2)
+    body = fundamental + harmonic_2 + harmonic_3 + harmonic_5
+
+    attack = max(1, int(SAMPLE_RATE * 0.012))
+    decay = max(1, int(SAMPLE_RATE * 0.22))
+    release = max(1, int(SAMPLE_RATE * 0.58))
+    envelope = np.ones(sample_count, dtype=np.float32) * 0.66
+    envelope[:attack] = np.linspace(0.0, 1.0, attack, dtype=np.float32)
+    envelope[attack: attack + decay] = np.linspace(1.0, 0.7, decay, dtype=np.float32)
+    envelope[-release:] *= np.linspace(1.0, 0.0, release, dtype=np.float32)
+
+    rng = np.random.default_rng(note_slot + 4242)
+    hammer = rng.normal(0.0, 0.12, sample_count).astype(np.float32)
+    hammer *= np.exp(-42.0 * t, dtype=np.float32)
+
+    wave = (body * envelope) + (hammer * 0.18)
+    lowpass = np.exp(-3.5 * t, dtype=np.float32)
+    wave = wave * (0.78 + (0.22 * lowpass))
+    wave /= max(1.0, float(np.max(np.abs(wave))))
+
+    stereo = np.stack((wave * 0.97, wave * 0.9), axis=1)
+    sample = np.ascontiguousarray(np.int16(np.clip(stereo, -1.0, 1.0) * 32767))
+    sound = pygame.sndarray.make_sound(sample)
+    _sound_cache[note_slot] = sound
+    return sound
+
+
+def _active_voice_count() -> int:
+    if not _mixer_ready:
+        return 0
+    return sum(1 for slot in range(24) if pygame.mixer.Channel(slot).get_busy())
+
+
 # ---------------------------------------------------------------------------
 # Pygame init / teardown
 # ---------------------------------------------------------------------------
 
 def _ensure_pygame() -> None:
-    if STATE["pygame_init"]:
+    global _pygame_init, _mixer_ready, _clock, _font_title, _font_body, _font_small, _font_tiny
+    if _pygame_init:
         return
     pygame.mixer.pre_init(SAMPLE_RATE, -16, 2, 512)
     pygame.init()
@@ -96,35 +124,36 @@ def _ensure_pygame() -> None:
     try:
         pygame.mixer.init(SAMPLE_RATE, -16, 2, 512)
         pygame.mixer.set_num_channels(24)
-        STATE["mixer_ready"] = True
+        _mixer_ready = True
     except pygame.error:
-        STATE["mixer_ready"] = False
-    STATE["clock"] = pygame.time.Clock()
-    STATE["font_title"] = pygame.font.Font(None, 42)
-    STATE["font_body"] = pygame.font.Font(None, 28)
-    STATE["font_small"] = pygame.font.Font(None, 22)
-    STATE["font_tiny"] = pygame.font.Font(None, 18)
-    STATE["pygame_init"] = True
+        _mixer_ready = False
+    _clock = pygame.time.Clock()
+    _font_title = pygame.font.Font(None, 42)
+    _font_body = pygame.font.Font(None, 28)
+    _font_small = pygame.font.Font(None, 22)
+    _font_tiny = pygame.font.Font(None, 18)
+    _pygame_init = True
 
 
 def _ensure_window() -> None:
+    global _screen, _frame_surface
     _ensure_pygame()
-    if STATE["screen"] is None:
+    if _screen is None:
         try:
-            STATE["screen"] = pygame.display.set_mode(
+            _screen = pygame.display.set_mode(
                 (WINDOW_WIDTH, WINDOW_HEIGHT),
                 pygame.DOUBLEBUF | pygame.SCALED,
                 vsync=1,
             )
         except Exception:
-            STATE["screen"] = pygame.display.set_mode(
+            _screen = pygame.display.set_mode(
                 (WINDOW_WIDTH, WINDOW_HEIGHT),
                 pygame.DOUBLEBUF,
             )
         pygame.display.set_caption(WINDOW_TITLE)
-    if STATE["frame_surface"] is None:
-        STATE["frame_surface"] = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT)).convert()
-    if STATE["backdrop"] is None or STATE["key_geometry"] is None:
+    if _frame_surface is None:
+        _frame_surface = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT)).convert()
+    if _backdrop is None or _key_geometry is None:
         _rebuild_scene_cache()
 
 
@@ -145,7 +174,7 @@ def _draw_gradient(surface: pygame.Surface, rect: pygame.Rect, top: tuple[int, i
 
 
 def _draw_text(surface: pygame.Surface, text: str, pos: tuple[int, int], color: tuple[int, int, int], *, font_key: str = "font_body") -> None:
-    font = STATE[font_key]
+    font = globals()["_" + font_key]
     glyph = font.render(text, True, color)
     surface.blit(glyph, pos)
 
@@ -160,6 +189,7 @@ def _white_rect(index: int, count: int, key_top: int, key_bottom: int) -> pygame
 
 
 def _rebuild_scene_cache() -> None:
+    global _backdrop, _key_geometry
     backdrop = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT)).convert()
     _draw_gradient(backdrop, pygame.Rect(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT), (10, 12, 19), (23, 18, 15))
 
@@ -239,73 +269,12 @@ def _rebuild_scene_cache() -> None:
             "draw_order": 100 + index,
         }
 
-    STATE["backdrop"] = backdrop
-    STATE["key_geometry"] = key_geometry
+    _backdrop = backdrop
+    _key_geometry = key_geometry
 
 
 # ---------------------------------------------------------------------------
-# Audio synthesis (kept in Python — needs pygame mixer)
-# ---------------------------------------------------------------------------
-
-def _make_sound(note_slot: int) -> pygame.mixer.Sound | None:
-    if not STATE["mixer_ready"]:
-        return None
-    cached = STATE["sound_cache"].get(note_slot)
-    if cached is not None:
-        return cached
-
-    sample_count = int(SAMPLE_RATE * SYNTH_SECONDS)
-    t = np.linspace(0.0, SYNTH_SECONDS, sample_count, endpoint=False, dtype=np.float32)
-    freq = _freq(note_slot)
-    fundamental = np.sin(2.0 * np.pi * freq * t)
-    harmonic_2 = 0.34 * np.sin(2.0 * np.pi * freq * 2.0 * t + 0.08)
-    harmonic_3 = 0.19 * np.sin(2.0 * np.pi * freq * 3.0 * t + 0.12)
-    harmonic_5 = 0.08 * np.sin(2.0 * np.pi * freq * 5.0 * t + 0.2)
-    body = fundamental + harmonic_2 + harmonic_3 + harmonic_5
-
-    attack = max(1, int(SAMPLE_RATE * 0.012))
-    decay = max(1, int(SAMPLE_RATE * 0.22))
-    release = max(1, int(SAMPLE_RATE * 0.58))
-    envelope = np.ones(sample_count, dtype=np.float32) * 0.66
-    envelope[:attack] = np.linspace(0.0, 1.0, attack, dtype=np.float32)
-    envelope[attack: attack + decay] = np.linspace(1.0, 0.7, decay, dtype=np.float32)
-    envelope[-release:] *= np.linspace(1.0, 0.0, release, dtype=np.float32)
-
-    rng = np.random.default_rng(note_slot + 4242)
-    hammer = rng.normal(0.0, 0.12, sample_count).astype(np.float32)
-    hammer *= np.exp(-42.0 * t, dtype=np.float32)
-
-    wave = (body * envelope) + (hammer * 0.18)
-    lowpass = np.exp(-3.5 * t, dtype=np.float32)
-    wave = wave * (0.78 + (0.22 * lowpass))
-    wave /= max(1.0, float(np.max(np.abs(wave))))
-
-    stereo = np.stack((wave * 0.97, wave * 0.9), axis=1)
-    sample = np.ascontiguousarray(np.int16(np.clip(stereo, -1.0, 1.0) * 32767))
-    sound = pygame.sndarray.make_sound(sample)
-    STATE["sound_cache"][note_slot] = sound
-    return sound
-
-
-def _play_note(note_slot: int, velocity: int) -> None:
-    sound = _make_sound(note_slot)
-    if sound is None:
-        return
-    channel = pygame.mixer.Channel(int(note_slot) % 24)
-    gain = max(0.18, min(1.0, velocity / 127.0))
-    channel.set_volume(gain * 0.92, gain * 0.86)
-    channel.play(sound)
-    STATE["audio_hits"] += 1
-
-
-def _active_voice_count() -> int:
-    if not STATE["mixer_ready"]:
-        return 0
-    return sum(1 for slot in range(24) if pygame.mixer.Channel(slot).get_busy())
-
-
-# ---------------------------------------------------------------------------
-# UI rendering (driven by Kain-provided params)
+# UI rendering
 # ---------------------------------------------------------------------------
 
 def _ambient_color(resonance_hash: int, ui_epoch: int) -> tuple[int, int, int]:
@@ -325,13 +294,13 @@ def _draw_header(surface: pygame.Surface, active: int, velocity: int, epoch: int
     _draw_text(surface, f"resonate {resonance_hash % 100000:05d}", (1062, 92), (194, 210, 236), font_key="font_small")
 
     _draw_text(surface, f"note {caption}   velocity {velocity:03d}   pitch {pitch_value / 1000.0:.3f} Hz", (88, 112), (232, 216, 192), font_key="font_body")
-    _draw_text(surface, f"epoch {epoch}   ui {ui_epoch}   shader {shader_epoch}   audio {'on' if STATE['mixer_ready'] else 'off'}", (88, 138), (177, 188, 213), font_key="font_small")
+    _draw_text(surface, f"epoch {epoch}   ui {ui_epoch}   shader {shader_epoch}   audio {'on' if _mixer_ready else 'off'}", (88, 138), (177, 188, 213), font_key="font_small")
 
 
 def _draw_resonance_halo(surface: pygame.Surface, active: int, velocity: int, resonance_hash: int, ui_epoch: int, shader_epoch: int) -> None:
-    if active < 0:
+    if active < 0 or _key_geometry is None:
         return
-    key = STATE["key_geometry"][active]
+    key = _key_geometry[active]
     rect = key["rect"]
     center = rect.centerx
     halo = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
@@ -346,7 +315,9 @@ def _draw_resonance_halo(surface: pygame.Surface, active: int, velocity: int, re
 
 
 def _draw_key(surface: pygame.Surface, slot: int, active: bool, velocity: int, resonance_hash: int, ui_epoch: int, shader_epoch: int) -> None:
-    key = STATE["key_geometry"][slot]
+    if _key_geometry is None:
+        return
+    key = _key_geometry[slot]
     rect = key["rect"]
     note_name = NOTE_NAMES[slot]
     pitch_text = f"{_freq(slot):.2f}"
@@ -388,26 +359,27 @@ def _draw_key(surface: pygame.Surface, slot: int, active: bool, velocity: int, r
         pygame.draw.rect(surface, (255, 246, 221), meter, 1, border_radius=6)
 
 
-def _draw_diagnostic_overlay(surface: pygame.Surface, epoch: int, frame: int, velocity: int, resonance_hash: int, command: int) -> None:
-    """Draw real-time state counters in the top-right corner."""
+def _draw_diagnostic_overlay(surface: pygame.Surface, epoch: int, frame: int, velocity: int, resonance_hash: int) -> None:
     info = (
         f"frame {frame:05d}  ep {epoch:05d}  vel {velocity:03d}  "
-        f"cmd {command:02d}  hash {resonance_hash % 100000:05d}"
+        f"hash {resonance_hash % 100000:05d}"
     )
     bg = pygame.Rect(WINDOW_WIDTH - 620, 10, 606, 22)
     pygame.draw.rect(surface, (10, 12, 19, 180), bg, border_radius=6)
     _draw_text(surface, info, (WINDOW_WIDTH - 612, 12), (120, 200, 120), font_key="font_tiny")
 
 
-def _draw_keyboard(surface: pygame.Surface, note_slot: int, velocity: int, epoch: int, resonance_hash: int, pitch_value: int, ui_epoch: int, shader_epoch: int) -> None:
-    active = note_slot if 0 <= note_slot < 24 else STATE["active_note"]
+def _draw_keyboard(surface: pygame.Surface, note_slot: int, velocity: int, epoch: int, resonance_hash: int, pitch_value: int, ui_epoch: int, shader_epoch: int, active_note: int, active_velocity: int) -> None:
+    active = note_slot if 0 <= note_slot < 24 else active_note
     current_pitch = pitch_value if pitch_value > 0 else int(_freq(active if active >= 0 else 0) * 1000)
-    _draw_header(surface, active, velocity, epoch, resonance_hash, current_pitch, ui_epoch, shader_epoch)
-    _draw_resonance_halo(surface, active, velocity, resonance_hash, ui_epoch, shader_epoch)
+    current_velocity = velocity if velocity > 0 else active_velocity
+    _draw_header(surface, active, current_velocity, epoch, resonance_hash, current_pitch, ui_epoch, shader_epoch)
+    _draw_resonance_halo(surface, active, current_velocity, resonance_hash, ui_epoch, shader_epoch)
 
-    ordered = sorted(STATE["key_geometry"].values(), key=lambda item: item["draw_order"])
-    for item in ordered:
-        _draw_key(surface, item["slot"], item["slot"] == active, velocity, resonance_hash, ui_epoch, shader_epoch)
+    if _key_geometry is not None:
+        ordered = sorted(_key_geometry.values(), key=lambda item: item["draw_order"])
+        for item in ordered:
+            _draw_key(surface, item["slot"], item["slot"] == active, current_velocity, resonance_hash, ui_epoch, shader_epoch)
 
     footer_rect = pygame.Rect(980, WINDOW_HEIGHT - 70, 514, 34)
     pygame.draw.rect(surface, (24, 27, 37), footer_rect, border_radius=12)
@@ -417,184 +389,134 @@ def _draw_keyboard(surface: pygame.Surface, note_slot: int, velocity: int, epoch
 
 
 # ---------------------------------------------------------------------------
-# Event handling
+# Hit test
 # ---------------------------------------------------------------------------
 
-def _hit_test(pos: tuple[int, int]) -> int:
-    x_pos, y_pos = pos
-    black_first = sorted((STATE["key_geometry"][slot] for slot in BLACK_SLOTS), key=lambda item: item["draw_order"])
+def hit_test(x_pos: int, y_pos: int) -> int:
+    if _key_geometry is None:
+        return -2
+    black_first = sorted((_key_geometry[slot] for slot in BLACK_SLOTS), key=lambda item: item["draw_order"])
     for item in black_first:
         if item["rect"].collidepoint(x_pos, y_pos):
             return item["slot"]
     for slot in WHITE_SLOTS:
-        if STATE["key_geometry"][slot]["rect"].collidepoint(x_pos, y_pos):
+        if _key_geometry[slot]["rect"].collidepoint(x_pos, y_pos):
             return slot
     return -2
 
 
-def _event_note(event: pygame.event.Event) -> int:
-    if event.type == pygame.KEYDOWN:
-        if event.key == pygame.K_ESCAPE:
-            return -1
-        if event.key in KEY_ORDER:
-            held_keys = STATE["held_keys"]
-            if event.key not in held_keys:
-                held_keys.add(event.key)
-                return KEY_ORDER.index(event.key)
-            return -2
-    if event.type == pygame.KEYUP:
-        if event.key in KEY_ORDER:
-            STATE["held_keys"].discard(event.key)
-        return -2
-    if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-        if STATE["mouse_down"] == False:
-            STATE["mouse_down"] = True
-            return _hit_test(event.pos)
-        return -2
-    if event.type == pygame.MOUSEBUTTONUP and event.button == 1:
-        STATE["mouse_down"] = False
-        return -2
-    if event.type == pygame.WINDOWLEAVE:
-        STATE["mouse_down"] = False
-        STATE["held_keys"].clear()
-        return -2
-    return -2
-
-
 # ---------------------------------------------------------------------------
-# Game loop (event poll + render — triggered by Kain each frame)
+# Public surface API
 # ---------------------------------------------------------------------------
 
-def window_frame(
-    note_slot: int,
-    velocity: int,
-    epoch: int,
-    resonance_hash: int,
-    pitch_value: int,
-    ui_epoch: int,
-    shader_epoch: int,
-) -> int:
+def init() -> int:
+    """Initialize pygame, create window, build scene cache. Returns 1 on success."""
+    global _frame_counter
     _ensure_window()
-
-    selected_note = -2
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            return -1
-        event_note = _event_note(event)
-        if event_note == -1:
-            return -1
-        if event_note >= 0:
-            selected_note = event_note
-
-    if epoch != STATE["last_epoch"] and 0 <= note_slot < 24:
-        _play_note(int(note_slot), int(velocity))
-        STATE["last_epoch"] = int(epoch)
-        STATE["active_note"] = int(note_slot)
-        STATE["active_velocity"] = int(velocity)
-
-    active_note = STATE["active_note"] if STATE["active_note"] >= 0 else note_slot
-    active_velocity = STATE["active_velocity"] if STATE["active_velocity"] > 0 else velocity
-
-    frame_surface = STATE["frame_surface"]
-    frame_surface.blit(STATE["backdrop"], (0, 0))
-    _draw_keyboard(frame_surface, active_note, active_velocity, epoch, resonance_hash, pitch_value, ui_epoch, shader_epoch)
-    _draw_diagnostic_overlay(frame_surface, epoch, STATE["frame"], active_velocity, resonance_hash, STATE["last_command"])
-    STATE["screen"].blit(frame_surface, (0, 0))
-    pygame.display.flip()
-    STATE["clock"].tick(60)
-    STATE["frame"] += 1
-
-    result = 0
-    if selected_note >= 0:
-        STATE["active_note"] = selected_note
-        # Velocity stays Kain-owned — no local inflation, no +6 creep.
-        result = selected_note + 1
-
-    STATE["last_command"] = result
-    STATE["command_history"] = (STATE["command_history"] + [result])[-12:]
-
-    # Console diagnostic every DIAG_FRAME_INTERVAL frames
-    if STATE["frame"] % DIAG_FRAME_INTERVAL == 0:
-        cmd_hist = ",".join(str(c) for c in STATE["command_history"])
-        print(
-            f"[diag] frame={STATE['frame']:05d} ep={epoch:05d} "
-            f"note={active_note:02d} vel={active_velocity:03d} "
-            f"cmd={result} hist=[{cmd_hist}]"
-        )
-
-    return result
-
-
-# ---------------------------------------------------------------------------
-# Initialization / teardown
-# ---------------------------------------------------------------------------
-
-def reset() -> int:
-    if STATE["mgl_buf"] is not None:
-        try:
-            STATE["mgl_buf"].release()
-        except Exception:
-            pass
-        STATE["mgl_buf"] = None
-    if STATE["mgl_ctx"] is not None:
-        try:
-            STATE["mgl_ctx"].release()
-        except Exception:
-            pass
-        STATE["mgl_ctx"] = None
-    if STATE["mixer_ready"]:
-        pygame.mixer.stop()
-        STATE["sound_cache"] = {}
-    if STATE["pygame_init"]:
-        try:
-            pygame.quit()
-        except Exception:
-            pass
-    STATE.update(
-        {
-            "pygame_init": False,
-            "mixer_ready": False,
-            "screen": None,
-            "frame_surface": None,
-            "clock": None,
-            "font_title": None,
-            "font_body": None,
-            "font_small": None,
-            "font_tiny": None,
-            "backdrop": None,
-            "key_geometry": None,
-            "sound_cache": {},
-            "active_note": -1,
-            "active_velocity": 0,
-            "held_keys": set(),
-            "mouse_down": False,
-            "latched_note": -1,
-            "frame": 0,
-            "last_epoch": -1,
-            "audio_hits": 0,
-        }
-    )
-    return 1
-
-
-def pygame_init() -> int:
-    _ensure_pygame()
+    _frame_counter = 0
     version = pygame.get_sdl_version()
     return version[0] * 10000 + version[1] * 100 + version[2]
 
 
+def render_frame(
+    note_slot: int,
+    velocity: int,
+    epoch: int,
+    resonance_hash: int,
+    pitch_milli: int,
+    ui_epoch: int,
+    shader_epoch: int,
+    active_note: int,
+    active_velocity: int,
+) -> int:
+    """Render one frame. Returns 0."""
+    global _frame_counter
+    _ensure_window()
+
+    frame_surface = _frame_surface
+    frame_surface.blit(_backdrop, (0, 0))
+    _draw_keyboard(frame_surface, note_slot, velocity, epoch, resonance_hash, pitch_milli, ui_epoch, shader_epoch, active_note, active_velocity)
+    _draw_diagnostic_overlay(frame_surface, epoch, _frame_counter, velocity, resonance_hash)
+    _screen.blit(frame_surface, (0, 0))
+    pygame.display.flip()
+    _clock.tick(60)
+    _frame_counter += 1
+    return 0
+
+
+def play_note(slot: int, velocity: int) -> int:
+    """Synthesize and play audio for the given note. Returns 0."""
+    sound = _make_sound(int(slot))
+    if sound is None:
+        return 0
+    channel = pygame.mixer.Channel(int(slot) % 24)
+    gain = max(0.18, min(1.0, velocity / 127.0))
+    channel.set_volume(gain * 0.92, gain * 0.86)
+    channel.play(sound)
+    return 0
+
+
+def shutdown() -> int:
+    """Clean up pygame and moderngl. Returns 1."""
+    global _mgl_ctx, _mgl_buf, _pygame_init, _mixer_ready, _screen, _frame_surface
+    global _clock, _font_title, _font_body, _font_small, _font_tiny, _backdrop, _key_geometry
+    global _sound_cache, _frame_counter
+    if _mgl_buf is not None:
+        try:
+            _mgl_buf.release()
+        except Exception:
+            pass
+        _mgl_buf = None
+    if _mgl_ctx is not None:
+        try:
+            _mgl_ctx.release()
+        except Exception:
+            pass
+        _mgl_ctx = None
+    if _mixer_ready:
+        try:
+            pygame.mixer.stop()
+        except Exception:
+            pass
+        _sound_cache = {}
+    if _pygame_init:
+        try:
+            pygame.quit()
+        except Exception:
+            pass
+    _pygame_init = False
+    _mixer_ready = False
+    _screen = None
+    _frame_surface = None
+    _clock = None
+    _font_title = None
+    _font_body = None
+    _font_small = None
+    _font_tiny = None
+    _backdrop = None
+    _key_geometry = None
+    _sound_cache = {}
+    _frame_counter = 0
+    return 1
+
+
+# ---------------------------------------------------------------------------
+# ModernGL helpers (used by benchmark cases)
+# ---------------------------------------------------------------------------
+
 def mgl_prepare() -> int:
-    if STATE["mgl_ctx"] is None:
-        STATE["mgl_ctx"] = moderngl.create_standalone_context()
-    if STATE["mgl_buf"] is None:
+    global _mgl_ctx, _mgl_buf
+    if _mgl_ctx is None:
+        _mgl_ctx = moderngl.create_standalone_context()
+    if _mgl_buf is None:
         seed = np.zeros(24, dtype="f4").tobytes()
-        STATE["mgl_buf"] = STATE["mgl_ctx"].buffer(seed)
-    return STATE["mgl_buf"].size
+        _mgl_buf = _mgl_ctx.buffer(seed)
+    return _mgl_buf.size
 
 
 def mgl_push(note_slot: int, velocity: int, epoch: int) -> int:
     mgl_prepare()
     arr = np.zeros(24, dtype="f4")
     arr[int(note_slot) % 24] = float(velocity) + (float(epoch) * 0.125)
-    STATE["mgl_buf"].write(arr.tobytes())
-    return int(STATE["mgl_buf"].size + int(arr.sum() * 100.0))
+    _mgl_buf.write(arr.tobytes())
+    return int(_mgl_buf.size + int(arr.sum() * 100.0))

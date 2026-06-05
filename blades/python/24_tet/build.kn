@@ -28,15 +28,15 @@ fn build(ctx: BuildContext) -> BuildGraph:
         .entry("src/resonate_py.kn")
         .target("llvm")
         .input("src/resonate_py.kn")
-        .input("src/resonate_py_bridge.py")
-        .input("build.kn")
+    .input("src/resonate_py_surface.py")
+    .input("build.kn")
 
     let root_exe = native_executable("root-executable")
         .entry("src/resonate_py.kn")
         .root_output("$blade/24_tet.exe")
         .requires("check-llvm")
         .input("src/resonate_py.kn")
-        .input("src/resonate_py_bridge.py")
+        .input("src/resonate_py_surface.py")
         .input("build.kn")
 
     let cert = certify("24-tet.local")

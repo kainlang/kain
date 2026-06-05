@@ -3,7 +3,7 @@ use std::json
 use std::python
 use std::runtime
 
-import resonate_py_bridge as py_bridge
+import resonate_py_surface as py_surface
 import math as py_math
 import moderngl as mgl
 import pygame as pg
@@ -199,32 +199,22 @@ fn resonate_py_reset_state():
     ResonatePyAuthority.last_new = 0
     ResonatePyAuthority.last_pitch_milli = 0
 
-// ── Python Bridge Facades ─────────────────────────────────────────────────────
-// Thin wrappers: Kain owns app logic, Python owns pygame/modernGL surfaces
+// ── Python Surface Facades ────────────────────────────────────────────────────
+// Thin wrappers: Kain owns app logic, Python surface owns rendering/audio only
 fn resonate_py_pygame_available() -> Bool:
     return python_module_available("pygame")
 
 fn resonate_py_python_reset() -> Int:
-    return to_int(py_bridge.reset())
+    return to_int(py_surface.shutdown())
 
 fn resonate_py_python_pygame_init() -> Int:
-    return to_int(py_bridge.pygame_init())
+    return to_int(py_surface.init())
 
 fn resonate_py_python_mgl_prepare() -> Int:
-    return to_int(py_bridge.mgl_prepare())
+    return to_int(py_surface.mgl_prepare())
 
 fn resonate_py_python_mgl_push(note_slot: Int, velocity: Int, epoch: Int) -> Int:
-    return to_int(py_bridge.mgl_push(note_slot, velocity, epoch))
-
-fn resonate_py_python_window_frame(
-    note_slot: Int, velocity: Int, epoch: Int,
-    resonance_hash: Int, pitch_milli: Int,
-    ui_epoch: Int, shader_epoch: Int,
-) -> Int:
-    return to_int(py_bridge.window_frame(
-        note_slot, velocity, epoch, resonance_hash,
-        pitch_milli, ui_epoch, shader_epoch,
-    ))
+    return to_int(py_surface.mgl_push(note_slot, velocity, epoch))
 
 // ── Converge ──────────────────────────────────────────────────────────────────
 converge resonate_py_lane_mix(value: Int) -> Int:
@@ -442,11 +432,112 @@ fn resonate_py_launch_app() -> Int with Unsafe:
     let _module_score = resonate_py_module_probe_score()
     let frame = 0
 
+    let pg_QUIT = to_int(python_getattr_raw(pg, "QUIT"))
+    let pg_KEYDOWN = to_int(python_getattr_raw(pg, "KEYDOWN"))
+    let pg_KEYUP = to_int(python_getattr_raw(pg, "KEYUP"))
+    let pg_MOUSEBUTTONDOWN = to_int(python_getattr_raw(pg, "MOUSEBUTTONDOWN"))
+    let pg_MOUSEBUTTONUP = to_int(python_getattr_raw(pg, "MOUSEBUTTONUP"))
+    let pg_WINDOWLEAVE = to_int(python_getattr_raw(pg, "WINDOWLEAVE"))
+    let pg_K_ESCAPE = to_int(python_getattr_raw(pg, "K_ESCAPE"))
+
+    let KEY_ORDER = [
+        to_int(python_getattr_raw(pg, "K_z")),
+        to_int(python_getattr_raw(pg, "K_s")),
+        to_int(python_getattr_raw(pg, "K_x")),
+        to_int(python_getattr_raw(pg, "K_d")),
+        to_int(python_getattr_raw(pg, "K_c")),
+        to_int(python_getattr_raw(pg, "K_v")),
+        to_int(python_getattr_raw(pg, "K_g")),
+        to_int(python_getattr_raw(pg, "K_b")),
+        to_int(python_getattr_raw(pg, "K_h")),
+        to_int(python_getattr_raw(pg, "K_n")),
+        to_int(python_getattr_raw(pg, "K_j")),
+        to_int(python_getattr_raw(pg, "K_m")),
+        to_int(python_getattr_raw(pg, "K_q")),
+        to_int(python_getattr_raw(pg, "K_2")),
+        to_int(python_getattr_raw(pg, "K_w")),
+        to_int(python_getattr_raw(pg, "K_3")),
+        to_int(python_getattr_raw(pg, "K_e")),
+        to_int(python_getattr_raw(pg, "K_r")),
+        to_int(python_getattr_raw(pg, "K_5")),
+        to_int(python_getattr_raw(pg, "K_t")),
+        to_int(python_getattr_raw(pg, "K_6")),
+        to_int(python_getattr_raw(pg, "K_y")),
+        to_int(python_getattr_raw(pg, "K_7")),
+        to_int(python_getattr_raw(pg, "K_u")),
+    ]
+
+    let prev_key_mask = 0
+    let mouse_down = false
+    let active_note = -1
+    let active_velocity = 0
+
     println("resonate_py: launched 24-TET instrument. click keys or use the mapped rows; Esc closes.")
 
     let running = true
     while running:
-        let command = resonate_py_python_window_frame(
+        let events = python_call_attr_raw(pg, "event.get", [])
+        let event_count = to_int(python_call_attr_raw(events, "__len__", []))
+        let i = 0
+        let command = 0
+        while i < event_count:
+            let event = python_call_attr_raw(events, "__getitem__", [i])
+            let event_type = to_int(python_getattr_raw(event, "type"))
+            if event_type == pg_QUIT:
+                running = false
+            if event_type == pg_KEYDOWN:
+                let key = to_int(python_getattr_raw(event, "key"))
+                if key == pg_K_ESCAPE:
+                    running = false
+            if event_type == pg_MOUSEBUTTONDOWN:
+                let button = to_int(python_getattr_raw(event, "button"))
+                if button == 1 and mouse_down == false:
+                    mouse_down = true
+                    let pos = python_getattr_raw(event, "pos")
+                    let pos_x = to_int(python_call_attr_raw(pos, "__getitem__", [0]))
+                    let pos_y = to_int(python_call_attr_raw(pos, "__getitem__", [1]))
+                    let hit = to_int(py_surface.hit_test(pos_x, pos_y))
+                    if hit >= 0:
+                        command = hit + 1
+            if event_type == pg_MOUSEBUTTONUP:
+                let button = to_int(python_getattr_raw(event, "button"))
+                if button == 1:
+                    mouse_down = false
+            if event_type == pg_WINDOWLEAVE:
+                mouse_down = false
+                prev_key_mask = 0
+            i = i + 1
+
+        let current_keys = python_call_attr_raw(pg, "key.get_pressed", [])
+        let current_mask = 0
+        let slot = 0
+        while slot < RESONATE_PY_KEY_COUNT:
+            let key_code = KEY_ORDER[slot]
+            let is_pressed = to_int(python_call_attr_raw(current_keys, "__getitem__", [key_code])) != 0
+            if is_pressed:
+                current_mask = current_mask | (1 << slot)
+            slot = slot + 1
+
+        let slot2 = 0
+        while slot2 < RESONATE_PY_KEY_COUNT:
+            let was_pressed = ((prev_key_mask >> slot2) & 1) != 0
+            let is_pressed_now = ((current_mask >> slot2) & 1) != 0
+            if is_pressed_now and was_pressed == false:
+                command = slot2 + 1
+            slot2 = slot2 + 1
+
+        prev_key_mask = current_mask
+
+        if command > 0:
+            let next_note = command - 1
+            if resonate_py_note_in_bounds(next_note):
+                let velocity = resonate_py_app_velocity(frame, next_note)
+                let _epoch = resonate_py_drive_note(next_note, velocity, frame + 41)
+                active_note = next_note
+                active_velocity = velocity
+                let _play = py_surface.play_note(next_note, velocity)
+
+        let _render = py_surface.render_frame(
             ResonatePyAuthority.note_slot,
             ResonatePyAuthority.velocity,
             ResonatePyAuthority.event_epoch,
@@ -454,18 +545,10 @@ fn resonate_py_launch_app() -> Int with Unsafe:
             ResonatePyAuthority.last_pitch_milli,
             ResonatePyAuthority.ui_epoch,
             ResonatePyAuthority.shader_epoch,
+            active_note,
+            active_velocity,
         )
-        if command < 0:
-            running = false
-        else if command > 0:
-            // Python already deduplicates held keys via held_keys set,
-            // so every command > 0 is a genuinely new keypress.
-            // No need for last_command tracking or release_frames.
-            let next_note = command - 1
-            if resonate_py_note_in_bounds(next_note):
-                let velocity = resonate_py_app_velocity(frame, next_note)
-                let _epoch = resonate_py_drive_note(next_note, velocity, frame + 41)
-        // Console diagnostic every 120 frames
+
         if frame % 120 == 0:
             let d_note: String = "??"
             let ns: Int = ResonatePyAuthority.note_slot
