@@ -10981,3 +10981,40 @@ Blockers:
 - **Generic `where` clause limitation**: The `where T: KaintanaRectOps` pattern with trait+impl compiles at `kain check` but fails at LLVM native-exe compile. All layout functions now use concrete `KaintanaRect` types. If generic rect ops are needed later, the compiler's generic constraint lowering to LLVM needs investigation.
 - **Source tests and Z3 proof tasks** in `build.kn` still bypassed — `source_tests` fails because check-pass mode wraps executable scripts in module harness losing local variable access; `proof` fails from Python boto import error in environment's Z3 binding.
 - **C bridge .obj must exist** before LLVM link — if the companion `.c` source is updated, the `.obj` in `.kain/native/` must be recompiled. Not yet integrated into the build DAG (relies on pre-built artifact).
+# 2026-06-04 - Century error-corpus burst: 100 new fixtures across 20 shape families
+
+What changed:
+
+- **100 new error-corpus fixtures** generated, verified, promoted, and baked into `crates/semantic/error_corpus/generated/century_burst_20260604/`
+- **10 new template shapes** added to `crates/semantic/templates/error_case_templates.toml`: `type_return_mismatch`, `type_field_not_found`, `type_inexhaustive_match`, `ownership_double_decay`, `world_duplicate_surface`, `actor_message_mismatch`, `shader_uniform_binding_conflict`, `effect_async_in_sync`, `shader_resolve_error`, `type_cyclic_definition`
+- **20 total shape families** now in the template system (10 original + 10 new), each producing 5 fixtures = 100 total
+- **Batch spec** at `crates/semantic/batches/century_burst_20260604.toml` documents interview answers for future agents
+- **`scratch_errors.kn`** updated with 19 representative non-parse error entries (one per family, minus the parse-error family); `kain check` shows 24 distinct errors across 4 error codes (KAIN-TYPE-0001, KAIN-TYPE-0002, KAIN-TYPE-0003, KAIN-PARSE-0001 when included)
+
+Error distribution across the 100 verified fixtures:
+
+| Code | Count | Families |
+|------|-------|----------|
+| KAIN-TYPE-0001 | 45 | wrong_arg_count, effect_pure_io, type_return_mismatch, type_field_not_found, type_inexhaustive_match, effect_async_in_sync, entangle_wrong_type, converge_fast_lane_drift, world_duplicate_surface |
+| KAIN-TYPE-0002 | 45 | type_typo, ownership_decay_before_observe, ownership_double_decay, shader_host_call_boundary, shader_uniform_binding_conflict, shader_resolve_error, type_cyclic_definition, c_abi_missing_include_alias, python_alias_missing_import |
+| KAIN-TYPE-0003 | 5 | world_missing_surface |
+| KAIN-PARSE-0001 | 5 | actor_message_mismatch |
+
+Validation:
+
+- `python crates/semantic/scripts/error_batch.py --batch crates/semantic/batches/century_burst_20260604.toml --write-stage --verify --promote --overwrite` — **100/100 passed** in the batch pipeline, each individually verified by `kain check <fixture.kn> --target llvm`
+- `cargo test -p kain-semantic test_error_corpus_cases` — **passed** (corpus DB baked with new fixtures)
+- `cargo test -p kain-semantic sidecar_pack` — **passed** (3/3, pack round-trip and reranking intact)
+- `kain check crates/semantic/scratch_errors.kn --target llvm` — **24 errors detected** across 19 shape families with enriched diagnostics including spell-check, C ABI bridge hints, Python import repairs, corpus golden repairs, world declaration errors, entangle violation messages, and converge mismatch signals
+- Corpus metadata automatically rewritten with actual emitted codes/modes during verification
+- Templates updated with correct expected_mode values based on live compiler output
+
+Donor shapes mined from `benchmark/cases_v2/` (22 files including classic_core, core_actor, resonate, keyword_expansion, python_interop, gpu_cpu_pipeline, system_headers, vulkan_loader, etc.)
+
+Key files:
+
+- `crates/semantic/templates/error_case_templates.toml` — 20 shape templates (extended)
+- `crates/semantic/batches/century_burst_20260604.toml` — batch spec with interview answers
+- `crates/semantic/error_corpus/generated/century_burst_20260604/` — 100 promoted fixtures
+- `crates/semantic/scratch_errors.kn` — 19-entry representative proof file
+- `crates/semantic/.kain/reports/error_batches/century_burst_20260604.md` — full batch report
