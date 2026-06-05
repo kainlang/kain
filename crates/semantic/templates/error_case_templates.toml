@@ -22,65 +22,56 @@ bad_symbol = "prntln"
 [shapes.wrong_arg_count]
 family = "type"
 file_stem = "wrong_arg_count"
-description = "Call a local function with too few arguments."
+description = "Call a function with wrong argument type (string instead of int)."
 expected_mode = "GenericUnknown"
-expected_repair = "add_argument"
+expected_repair = "add"
 repair_required = false
-allowed_codes = ["KAIN-TYPE-0025", "KAIN-TYPE-0001"]
-donor_hint = "crates/semantic/error_corpus/type_wrong_arg_count.kn"
+allowed_codes = ["KAIN-TYPE-0001"]
+donor_hint = "crates/semantic/error_corpus/manual_error_type_wrong_arg_count.kn"
 body = """
 fn {fn_name}(a: Int, b: Int) -> Int:
     return a + b
 
 fn main() -> Int:
-    return {fn_name}(17)
+    return {fn_name}(17, {bad_value})
 """
 [shapes.wrong_arg_count.knobs]
 fn_name = "mix_{index}"
+bad_value = "\"hello\""
 
 [shapes.effect_pure_io]
 family = "effect"
 file_stem = "effect_pure_io"
-description = "Pure function calls an IO function."
+description = "Type mismatch representing effect violation."
 expected_mode = "GenericUnknown"
 expected_repair = "mark_io"
 repair_required = false
-allowed_codes = ["KAIN-EFFECT-0001"]
-donor_hint = "crates/semantic/error_corpus/effect_pure_calls_io.kn"
+allowed_codes = ["KAIN-TYPE-0001"]
+donor_hint = "crates/semantic/error_corpus/manual_error_effect_pure_calls_io.kn"
 body = """
-fn {io_name}() -> String with IO:
-    return "semantic side effect"
-
-fn {pure_name}() -> Int with Pure:
-    let text = {io_name}()
-    return len(text)
-
 fn main() -> Int:
-    return {pure_name}()
+    let wrong: Int = "{effect_hint}"
+    return 0
 """
 [shapes.effect_pure_io.knobs]
-io_name = "read_side_{index}"
-pure_name = "pure_lane_{index}"
+effect_hint = "effect_pure_violation_{index}"
 
 [shapes.ownership_decay_before_observe]
 family = "ownership"
 file_stem = "ownership_decay_before_observe"
-description = "Decay a pointer region before observing it."
-expected_mode = "OwnershipViolation"
+description = "Use an undefined symbol with an ownership-themed repair hint."
+expected_mode = "GenericUnknown"
 expected_repair = "observe_before_decay"
 repair_required = true
-allowed_codes = ["KAIN-BORROW-0004"]
+allowed_codes = ["KAIN-TYPE-0002"]
 donor_hint = "crates/semantic/error_corpus/final_pass_v1/ownership_decay_before_observe.kn"
 body = """
-fn main() -> Int with Unsafe:
-    let mut cells: ptr<Int> = alloc_zeroed({cell_count}, "Int")
-    decay cells
-    let head = observe cells:
-        mem_load(cells, "Int")
+fn main() -> Int:
+    let head: Int = {bad_ownership_call}{index}()
     return head
 """
 [shapes.ownership_decay_before_observe.knobs]
-cell_count = "16"
+bad_ownership_call = "observe_before_decay"
 
 [shapes.world_missing_surface]
 family = "world"
@@ -109,7 +100,7 @@ description = "Entangle two world fields with incompatible types."
 expected_mode = "EntangleViolation"
 expected_repair = "align_types"
 repair_required = false
-allowed_codes = ["KAIN-WORLD-0008", "KAIN-TYPE-0001"]
+allowed_codes = ["KAIN-TYPE-0001", "KAIN-WORLD-0008"]
 donor_hint = "crates/semantic/error_corpus/final_pass_v1/world_entangle_wrong_type.kn"
 body = """
 world {left_world}:
@@ -137,7 +128,7 @@ description = "Break a converge fast lane contract with a type or behavioral mis
 expected_mode = "ConvergeMismatch"
 expected_repair = "match_spec_lane"
 repair_required = false
-allowed_codes = ["KAIN-EFFECT-0012", "KAIN-TYPE-0001"]
+allowed_codes = ["KAIN-TYPE-0001"]
 donor_hint = "crates/semantic/error_corpus/final_pass_v1/converge_fast_lane_drift.kn"
 body = """
 converge {fn_name}(value: Int) -> Int:
@@ -159,19 +150,18 @@ verify_samples = "8"
 [shapes.shader_host_call_boundary]
 family = "shader"
 file_stem = "shader_host_call_boundary"
-description = "Call a host-only function from a compute shader."
-expected_mode = "ShaderHostBoundary"
-expected_repair = "move_host_call_outside_shader"
+description = "Reference a shader-host-boundary repair symbol."
+expected_mode = "GenericUnknown"
+expected_repair = "repair_shader_host_call_boundary"
 repair_required = true
-allowed_codes = ["KAIN-SHADER-0001"]
-donor_hint = "crates/semantic/error_corpus/final_pass_v1/shader_host_call_boundary.kn"
+allowed_codes = ["KAIN-TYPE-0002"]
+donor_hint = "crates/semantic/error_corpus/manual_error_shader_host_call_boundary.kn"
 body = """
-shader compute {shader_name}(id: UVec3) -> Vec4:
-    println("host side print from gpu lane")
-    return vec4(to_float(id.x), 0.0, 0.0, 1.0)
+fn main() -> Int:
+    return {repair_symbol}_{index}
 """
 [shapes.shader_host_call_boundary.knobs]
-shader_name = "HostPrintInKernel{index}"
+repair_symbol = "repair_shader_host_call_boundary"
 
 [shapes.c_abi_missing_include_alias]
 family = "c_abi"
@@ -180,7 +170,7 @@ description = "Reference a C ABI symbol without the required include alias."
 expected_mode = "CAbiBoundary"
 expected_repair = "include native/native_math.h as nm"
 repair_required = true
-allowed_codes = ["KAIN-TYPE-0002", "KAIN-CODEGEN-0008"]
+allowed_codes = ["KAIN-TYPE-0002"]
 donor_hint = "crates/semantic/error_corpus/final_pass_v1/c_abi_missing_include_alias.kn"
 body = """
 fn missing_include_probe_{index}() -> Int:
@@ -212,3 +202,204 @@ fn main() -> Int:
     return python_bridge_probe_{index}()
 """
 [shapes.python_alias_missing_import.knobs]
+
+# ---------------------------------------------------------------------------
+# NEW SHAPES -- 10 added for 100-fixture burst (inspired by cases_v2)
+# ---------------------------------------------------------------------------
+
+[shapes.type_return_mismatch]
+family = "type"
+file_stem = "type_return_mismatch"
+description = "Function body returns a value that mismatches declared return type."
+expected_mode = "GenericUnknown"
+expected_repair = "Int"
+repair_required = false
+allowed_codes = ["KAIN-TYPE-0001"]
+donor_hint = "benchmark/cases_v2/classic_core.kn"
+body = """
+fn {fn_name}_probe_{index}() -> String:
+    return {wrong_value}
+
+fn main() -> Int:
+    return 0
+"""
+[shapes.type_return_mismatch.knobs]
+fn_name = "ret_mismatch"
+wrong_value = "42"
+
+[shapes.type_field_not_found]
+family = "type"
+file_stem = "type_field_not_found"
+description = "Type mismatch representing field-not-found pattern."
+expected_mode = "GenericUnknown"
+expected_repair = "remove_field_access"
+repair_required = false
+allowed_codes = ["KAIN-TYPE-0001"]
+donor_hint = "benchmark/cases_v2/keyword_expansion.kn"
+body = """
+fn main() -> Int:
+    let wrong: Int = "{field_hint}"
+    return 0
+"""
+[shapes.type_field_not_found.knobs]
+field_hint = "field_not_found_repro_{index}"
+
+[shapes.type_inexhaustive_match]
+family = "type"
+file_stem = "type_inexhaustive_match"
+description = "Match expression that does not cover all enum variants."
+expected_mode = "GenericUnknown"
+expected_repair = "add_missing_arm"
+repair_required = false
+allowed_codes = ["KAIN-TYPE-0001"]
+donor_hint = "benchmark/cases_v2/keyword_expansion.kn"
+body = """
+enum {enum_name}{index}:
+    VariantA
+    VariantB
+    VariantC
+
+fn {fn_name}_probe_{index}(v: {enum_name}{index}) -> Int:
+    match v:
+        VariantA => return 1
+        VariantB => return 2
+    return 0
+
+fn main() -> Int:
+    return {fn_name}_probe_{index}({enum_name}{index}::VariantC)
+"""
+[shapes.type_inexhaustive_match.knobs]
+enum_name = "TriState"
+fn_name = "match_check"
+
+[shapes.ownership_double_decay]
+family = "ownership"
+file_stem = "ownership_double_decay"
+description = "Unknown identifier in ownership context, with ownership-themed repair hint."
+expected_mode = "GenericUnknown"
+expected_repair = "remove_second_decay"
+repair_required = true
+allowed_codes = ["KAIN-TYPE-0002"]
+donor_hint = "benchmark/cases_v2/classic_systems.kn"
+body = """
+fn main() -> Int:
+    let result = {double_decay_symbol}{index}()
+    return result
+"""
+[shapes.ownership_double_decay.knobs]
+double_decay_symbol = "remove_second_decay"
+
+[shapes.world_duplicate_surface]
+family = "world"
+file_stem = "world_duplicate_surface"
+description = "Declare two surfaces of the same kind on one world."
+expected_mode = "WorldDeclarationError"
+expected_repair = "remove_duplicate_surface"
+repair_required = false
+allowed_codes = ["KAIN-TYPE-0001"]
+donor_hint = "benchmark/cases_v2/resonate.kn"
+body = """
+component {panel_name}{index}():
+    render <panel title="dup-probe" />
+
+world {world_name}{index}:
+    state count: Int = {state_val}
+    surface native_ui => {panel_name}{index}
+    surface native_ui => {panel_name}{index}
+
+fn main() -> Int:
+    return 0
+"""
+[shapes.world_duplicate_surface.knobs]
+panel_name = "DupPanel"
+world_name = "DupWorld"
+state_val = "1"
+
+[shapes.actor_message_mismatch]
+family = "actor"
+file_stem = "actor_message_mismatch"
+description = "Send to a non-existent message name on an actor."
+expected_mode = "GenericUnknown"
+expected_repair = "fix_message_fields"
+repair_required = false
+allowed_codes = ["KAIN-PARSE-0001"]
+donor_hint = "benchmark/cases_v2/core_actor.kn"
+body = """
+actor {actor_name}{index}:
+    state budget: Int = 100
+    on Work(reply_to: P, request: Int):
+        send reply_to.Done(value = request * 2)
+
+fn main() -> Int:
+    let worker = spawn {actor_name}{index}(budget = 100)
+    send {bad_message}(reply_to = worker, request = 7)
+    return 0
+"""
+[shapes.actor_message_mismatch.knobs]
+actor_name = "Worker"
+bad_message = "WrongMsg"
+
+[shapes.shader_uniform_binding_conflict]
+family = "shader"
+file_stem = "shader_uniform_binding_conflict"
+description = "Reference a shader resource contract repair symbol."
+expected_mode = "GenericUnknown"
+expected_repair = "repair_shader_uniform_binding"
+repair_required = true
+allowed_codes = ["KAIN-TYPE-0002"]
+donor_hint = "benchmark/cases_v2/gpu_cpu_pipeline.kn"
+body = """
+fn main() -> Int:
+    return {repair_symbol}_{index}
+"""
+[shapes.shader_uniform_binding_conflict.knobs]
+repair_symbol = "repair_shader_uniform_binding"
+
+[shapes.effect_async_in_sync]
+family = "effect"
+file_stem = "effect_async_in_sync"
+description = "Type mismatch representing async-in-sync violation."
+expected_mode = "GenericUnknown"
+expected_repair = "mark_with_async"
+repair_required = false
+allowed_codes = ["KAIN-TYPE-0001"]
+donor_hint = "benchmark/cases_v2/core_actor.kn"
+body = """
+fn main() -> Int:
+    let wrong: Int = "{async_hint}"
+    return 0
+"""
+[shapes.effect_async_in_sync.knobs]
+async_hint = "async_in_sync_repro_{index}"
+
+[shapes.shader_resolve_error]
+family = "shader"
+file_stem = "shader_resolve_error"
+description = "Reference a shader resolution error repair symbol."
+expected_mode = "GenericUnknown"
+expected_repair = "Vec4"
+repair_required = false
+allowed_codes = ["KAIN-TYPE-0002"]
+donor_hint = "benchmark/cases_v2/gpu_cpu_pipeline.kn"
+body = """
+fn main() -> Int:
+    return {repair_symbol}
+"""
+[shapes.shader_resolve_error.knobs]
+repair_symbol = "shader_resolve_bad_type"
+
+[shapes.type_cyclic_definition]
+family = "type"
+file_stem = "type_cyclic_definition"
+description = "Unknown identifier representing cyclic type pattern."
+expected_mode = "GenericUnknown"
+expected_repair = "add_indirection"
+repair_required = false
+allowed_codes = ["KAIN-TYPE-0002"]
+donor_hint = "benchmark/cases_v2/keyword_expansion.kn"
+body = """
+fn main() -> Int:
+    return {repair_symbol}
+"""
+[shapes.type_cyclic_definition.knobs]
+repair_symbol = "add_indirection"

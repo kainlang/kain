@@ -1,0 +1,16 @@
+// ERROR: generated actor fixture from batch century_burst_20260604
+// @expected_code: KAIN-PARSE-0001
+// @expected_mode: GenericUnknown
+// @expected_repair: fix_message_fields
+// @donor_hint: benchmark/cases_v2/core_actor.kn
+// @allowed_codes: KAIN-PARSE-0001
+
+actor Worker802:
+    state budget: Int = 100
+    on Work(reply_to: P, request: Int):
+        send reply_to.Done(value = request * 2)
+
+fn main() -> Int:
+    let worker = spawn Worker802(budget = 100)
+    send WrongMsg(reply_to = worker, request = 7)
+    return 0

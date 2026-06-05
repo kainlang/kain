@@ -1,0 +1,11 @@
+// ERROR: generated typo fixture from batch century_burst_20260604
+// @expected_code: KAIN-TYPE-0002
+// @expected_mode: Typo
+// @expected_repair: println
+// @donor_hint: crates/semantic/error_corpus/type_unknown_identifier.kn
+// @allowed_codes: KAIN-TYPE-0002
+
+fn main() -> Int:
+    let typo_probe_502 = "semantic typo 502"
+    let signal = prntln(typo_probe_502)
+    return 0

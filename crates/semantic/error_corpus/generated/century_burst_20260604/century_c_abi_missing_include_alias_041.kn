@@ -1,0 +1,13 @@
+// ERROR: generated c_abi fixture from batch century_burst_20260604
+// @expected_code: KAIN-TYPE-0002
+// @expected_mode: CAbiBoundary
+// @expected_repair: include native/native_math.h as nm
+// @donor_hint: crates/semantic/error_corpus/final_pass_v1/c_abi_missing_include_alias.kn
+// @allowed_codes: KAIN-TYPE-0002
+
+fn missing_include_probe_661() -> Int:
+    let mixed = nm_mix(7, 11)
+    return mixed
+
+fn main() -> Int:
+    return missing_include_probe_661()

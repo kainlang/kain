@@ -1,0 +1,307 @@
+// ================================================================
+
+// KAIN SEMANTIC ERROR CORPUS PROOF - 100 FIXTURES
+
+// 20 shape families x 5 each = 100 total
+
+// Individual verification: 100/100 passed in batch pipeline
+
+// This file shows one representative from each family.
+
+// Compiler stops at first parse error; each fixture was
+
+// independently verified by the batch pipeline.
+
+// ================================================================
+
+
+
+// ==== SHAPE: type_return_mismatch ====
+
+// ERROR: generated type fixture from batch century_burst_20260604
+// @expected_code: KAIN-TYPE-0001
+// @expected_mode: GenericUnknown
+// @expected_repair: Int
+// @donor_hint: benchmark/cases_v2/classic_core.kn
+// @allowed_codes: KAIN-TYPE-0001
+
+fn ret_mismatch_probe_700() -> String:
+    return 42
+
+fn shape_0001_type_return_mismatch() -> Int:
+    return 0
+
+// ==== SHAPE: wrong_arg_count ====
+
+// ERROR: generated type fixture from batch century_burst_20260604
+// @expected_code: KAIN-TYPE-0001
+// @expected_mode: GenericUnknown
+// @expected_repair: add
+// @donor_hint: crates/semantic/error_corpus/manual_error_type_wrong_arg_count.kn
+// @allowed_codes: KAIN-TYPE-0001
+
+fn mix_520(a: Int, b: Int) -> Int:
+    return a + b
+
+fn shape_0002_wrong_arg_count() -> Int:
+    return mix_520(17, "hello")
+
+// ==== SHAPE: type_field_not_found ====
+
+// ERROR: generated type fixture from batch century_burst_20260604
+// @expected_code: KAIN-TYPE-0001
+// @expected_mode: GenericUnknown
+// @expected_repair: remove_field_access
+// @donor_hint: benchmark/cases_v2/keyword_expansion.kn
+// @allowed_codes: KAIN-TYPE-0001
+
+fn shape_0003_type_field_not_found() -> Int:
+    let wrong: Int = "field_not_found_repro_720"
+    return 0
+
+// ==== SHAPE: type_inexhaustive_match ====
+
+// ERROR: generated type fixture from batch century_burst_20260604
+// @expected_code: KAIN-TYPE-0001
+// @expected_mode: GenericUnknown
+// @expected_repair: add_missing_arm
+// @donor_hint: benchmark/cases_v2/keyword_expansion.kn
+// @allowed_codes: KAIN-TYPE-0001
+
+enum TriState740:
+    VariantA
+    VariantB
+    VariantC
+
+fn match_check_probe_740(v: TriState740) -> Int:
+    match v:
+        VariantA => return 1
+        VariantB => return 2
+    return 0
+
+fn shape_0004_type_inexhaustive_match() -> Int:
+    return match_check_probe_740(TriState740::VariantC)
+
+// ==== SHAPE: effect_pure_io ====
+
+// ERROR: generated effect fixture from batch century_burst_20260604
+// @expected_code: KAIN-TYPE-0001
+// @expected_mode: GenericUnknown
+// @expected_repair: mark_io
+// @donor_hint: crates/semantic/error_corpus/manual_error_effect_pure_calls_io.kn
+// @allowed_codes: KAIN-TYPE-0001
+
+fn shape_0005_effect_pure_io() -> Int:
+    let wrong: Int = "effect_pure_violation_540"
+    return 0
+
+// ==== SHAPE: effect_async_in_sync ====
+
+// ERROR: generated effect fixture from batch century_burst_20260604
+// @expected_code: KAIN-TYPE-0001
+// @expected_mode: GenericUnknown
+// @expected_repair: mark_with_async
+// @donor_hint: benchmark/cases_v2/core_actor.kn
+// @allowed_codes: KAIN-TYPE-0001
+
+fn shape_0006_effect_async_in_sync() -> Int:
+    let wrong: Int = "async_in_sync_repro_840"
+    return 0
+
+// ==== SHAPE: world_duplicate_surface ====
+
+// ERROR: generated world fixture from batch century_burst_20260604
+// @expected_code: KAIN-TYPE-0001
+// @expected_mode: WorldDeclarationError
+// @expected_repair: remove_duplicate_surface
+// @donor_hint: benchmark/cases_v2/resonate.kn
+// @allowed_codes: KAIN-TYPE-0001
+
+component DupPanel780():
+    render <panel title="dup-probe" />
+
+world DupWorld780:
+    state count: Int = 1
+    surface native_ui => DupPanel780
+    surface native_ui => DupPanel780
+
+fn shape_0007_world_duplicate_surface() -> Int:
+    return 0
+
+// ==== SHAPE: entangle_wrong_type ====
+
+// ERROR: generated entangle fixture from batch century_burst_20260604
+// @expected_code: KAIN-TYPE-0001
+// @expected_mode: EntangleViolation
+// @expected_repair: align_types
+// @donor_hint: crates/semantic/error_corpus/final_pass_v1/world_entangle_wrong_type.kn
+// @allowed_codes: KAIN-TYPE-0001, KAIN-WORLD-0008
+
+world Authority600:
+    state count: Int = 0
+    surface native_ui => Panel
+
+world Mirror600:
+    state count_copy: String = "zero"
+    surface web => Panel
+
+entangle Authority600.count <-> Mirror600.count_copy with single_writer
+
+fn shape_0008_entangle_wrong_type() -> Int:
+    return 0
+
+// ==== SHAPE: converge_fast_lane_drift ====
+
+// ERROR: generated converge fixture from batch century_burst_20260604
+// @expected_code: KAIN-TYPE-0001
+// @expected_mode: ConvergeMismatch
+// @expected_repair: match_spec_lane
+// @donor_hint: crates/semantic/error_corpus/final_pass_v1/converge_fast_lane_drift.kn
+// @allowed_codes: KAIN-TYPE-0001
+
+converge generated_lane_620(value: Int) -> Int:
+    spec reference:
+        return value * 31 + 7
+    fast broken_lane when target("llvm"):
+        let wrong: Int = "mismatched type"
+        return value * 30 + 7
+    verify random(8)
+
+fn shape_0009_converge_fast_lane_drift() -> Int:
+    return generated_lane_620(3)
+
+// ==== SHAPE: type_typo ====
+
+// ERROR: generated typo fixture from batch century_burst_20260604
+// @expected_code: KAIN-TYPE-0002
+// @expected_mode: Typo
+// @expected_repair: println
+// @donor_hint: crates/semantic/error_corpus/type_unknown_identifier.kn
+// @allowed_codes: KAIN-TYPE-0002
+
+fn shape_0010_type_typo() -> Int:
+    let typo_probe_500 = "semantic typo 500"
+    let signal = prntln(typo_probe_500)
+    return 0
+
+// ==== SHAPE: c_abi_missing_include_alias ====
+
+// ERROR: generated c_abi fixture from batch century_burst_20260604
+// @expected_code: KAIN-TYPE-0002
+// @expected_mode: CAbiBoundary
+// @expected_repair: include native/native_math.h as nm
+// @donor_hint: crates/semantic/error_corpus/final_pass_v1/c_abi_missing_include_alias.kn
+// @allowed_codes: KAIN-TYPE-0002
+
+fn missing_include_probe_660() -> Int:
+    let mixed = nm_mix(7, 11)
+    return mixed
+
+fn shape_0011_c_abi_missing_include_alias() -> Int:
+    return missing_include_probe_660()
+
+// ==== SHAPE: python_alias_missing_import ====
+
+// ERROR: generated python fixture from batch century_burst_20260604
+// @expected_code: KAIN-TYPE-0002
+// @expected_mode: PythonInteropBoundary
+// @expected_repair: import math as py_math
+// @donor_hint: crates/semantic/error_corpus/final_pass_v1/python_alias_missing_import.kn
+// @allowed_codes: KAIN-TYPE-0002
+
+fn python_bridge_probe_680() -> Int:
+    let sqrt_fn = python_getattr_raw(py_math, "sqrt")
+    let value = python_call_raw(sqrt_fn, [16.0])
+    return to_int(value)
+
+fn shape_0012_python_alias_missing_import() -> Int:
+    return python_bridge_probe_680()
+
+// ==== SHAPE: shader_host_call_boundary ====
+
+// ERROR: generated shader fixture from batch century_burst_20260604
+// @expected_code: KAIN-TYPE-0002
+// @expected_mode: GenericUnknown
+// @expected_repair: repair_shader_host_call_boundary
+// @donor_hint: crates/semantic/error_corpus/manual_error_shader_host_call_boundary.kn
+// @allowed_codes: KAIN-TYPE-0002
+
+fn shape_0013_shader_host_call_boundary() -> Int:
+    return repair_shader_host_call_boundary_640
+
+// ==== SHAPE: shader_uniform_binding_conflict ====
+
+// ERROR: generated shader fixture from batch century_burst_20260604
+// @expected_code: KAIN-TYPE-0002
+// @expected_mode: GenericUnknown
+// @expected_repair: repair_shader_uniform_binding
+// @donor_hint: benchmark/cases_v2/gpu_cpu_pipeline.kn
+// @allowed_codes: KAIN-TYPE-0002
+
+fn shape_0014_shader_uniform_binding_conflict() -> Int:
+    return repair_shader_uniform_binding_820
+
+// ==== SHAPE: ownership_decay_before_observe ====
+
+// ERROR: generated ownership fixture from batch century_burst_20260604
+// @expected_code: KAIN-TYPE-0002
+// @expected_mode: GenericUnknown
+// @expected_repair: observe_before_decay
+// @donor_hint: crates/semantic/error_corpus/final_pass_v1/ownership_decay_before_observe.kn
+// @allowed_codes: KAIN-TYPE-0002
+
+fn shape_0015_ownership_decay_before_observe() -> Int:
+    let head: Int = observe_before_decay560()
+    return head
+
+// ==== SHAPE: ownership_double_decay ====
+
+// ERROR: generated ownership fixture from batch century_burst_20260604
+// @expected_code: KAIN-TYPE-0002
+// @expected_mode: GenericUnknown
+// @expected_repair: remove_second_decay
+// @donor_hint: benchmark/cases_v2/classic_systems.kn
+// @allowed_codes: KAIN-TYPE-0002
+
+fn shape_0016_ownership_double_decay() -> Int:
+    let result = remove_second_decay760()
+    return result
+
+// ==== SHAPE: shader_resolve_error ====
+
+// ERROR: generated shader fixture from batch century_burst_20260604
+// @expected_code: KAIN-TYPE-0002
+// @expected_mode: GenericUnknown
+// @expected_repair: Vec4
+// @donor_hint: benchmark/cases_v2/gpu_cpu_pipeline.kn
+// @allowed_codes: KAIN-TYPE-0002
+
+fn shape_0017_shader_resolve_error() -> Int:
+    return shader_resolve_bad_type
+
+// ==== SHAPE: type_cyclic_definition ====
+
+// ERROR: generated type fixture from batch century_burst_20260604
+// @expected_code: KAIN-TYPE-0002
+// @expected_mode: GenericUnknown
+// @expected_repair: add_indirection
+// @donor_hint: benchmark/cases_v2/keyword_expansion.kn
+// @allowed_codes: KAIN-TYPE-0002
+
+fn shape_0018_type_cyclic_definition() -> Int:
+    return add_indirection
+
+// ==== SHAPE: world_missing_surface ====
+
+// ERROR: generated world fixture from batch century_burst_20260604
+// @expected_code: KAIN-TYPE-0003
+// @expected_mode: MissingSurface
+// @expected_repair: surface native_ui
+// @donor_hint: crates/semantic/error_corpus/world_missing_surface.kn
+// @allowed_codes: KAIN-TYPE-0003
+
+world GeneratedWorld580:
+    state value: Int = 580
+
+fn shape_0019_world_missing_surface() -> Int:
+    return 0

@@ -1,0 +1,12 @@
+// ERROR: generated world fixture from batch century_burst_20260604
+// @expected_code: KAIN-TYPE-0003
+// @expected_mode: MissingSurface
+// @expected_repair: surface native_ui
+// @donor_hint: crates/semantic/error_corpus/world_missing_surface.kn
+// @allowed_codes: KAIN-TYPE-0003
+
+world GeneratedWorld583:
+    state value: Int = 583
+
+fn main() -> Int:
+    return 0

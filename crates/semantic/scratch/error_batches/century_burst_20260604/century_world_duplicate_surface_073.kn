@@ -1,0 +1,17 @@
+// ERROR: generated world fixture from batch century_burst_20260604
+// @expected_code: KAIN-TYPE-0001
+// @expected_mode: WorldDeclarationError
+// @expected_repair: remove_duplicate_surface
+// @donor_hint: benchmark/cases_v2/resonate.kn
+// @allowed_codes: KAIN-TYPE-0001
+
+component DupPanel783():
+    render <panel title="dup-probe" />
+
+world DupWorld783:
+    state count: Int = 1
+    surface native_ui => DupPanel783
+    surface native_ui => DupPanel783
+
+fn main() -> Int:
+    return 0

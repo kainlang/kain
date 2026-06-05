@@ -26,6 +26,7 @@ pub use reconciliation::*
 pub use types::*
 pub use vulkan_adapter::*
 pub use widget_events::*
+pub use widgets_extras::*
 pub use winit_adapter::*
 
 fn kaintana_axiom_fallback(value: Int) -> Int:

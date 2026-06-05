@@ -1,0 +1,14 @@
+// ERROR: generated python fixture from batch century_burst_20260604
+// @expected_code: KAIN-TYPE-0002
+// @expected_mode: PythonInteropBoundary
+// @expected_repair: import math as py_math
+// @donor_hint: crates/semantic/error_corpus/final_pass_v1/python_alias_missing_import.kn
+// @allowed_codes: KAIN-TYPE-0002
+
+fn python_bridge_probe_683() -> Int:
+    let sqrt_fn = python_getattr_raw(py_math, "sqrt")
+    let value = python_call_raw(sqrt_fn, [16.0])
+    return to_int(value)
+
+fn main() -> Int:
+    return python_bridge_probe_683()

@@ -1,0 +1,110 @@
+[batch]
+name = "century_burst_20260604"
+prefix = "century"
+interview_error_family = "A"
+interview_count = "C"
+interview_authoring = "A"
+interview_error_system = "A"
+interview_examples = "A"
+
+# -- 5 each = 50 from existing shapes --
+[[cases]]
+shape = "type_typo"
+count = 5
+start_index = 500
+
+[[cases]]
+shape = "wrong_arg_count"
+count = 5
+start_index = 520
+
+[[cases]]
+shape = "effect_pure_io"
+count = 5
+start_index = 540
+
+[[cases]]
+shape = "ownership_decay_before_observe"
+count = 5
+start_index = 560
+
+[[cases]]
+shape = "world_missing_surface"
+count = 5
+start_index = 580
+
+[[cases]]
+shape = "entangle_wrong_type"
+count = 5
+start_index = 600
+
+[[cases]]
+shape = "converge_fast_lane_drift"
+count = 5
+start_index = 620
+
+[[cases]]
+shape = "shader_host_call_boundary"
+count = 5
+start_index = 640
+
+[[cases]]
+shape = "c_abi_missing_include_alias"
+count = 5
+start_index = 660
+
+[[cases]]
+shape = "python_alias_missing_import"
+count = 5
+start_index = 680
+
+# -- 5 each = 50 from new shapes --
+[[cases]]
+shape = "type_return_mismatch"
+count = 5
+start_index = 700
+
+[[cases]]
+shape = "type_field_not_found"
+count = 5
+start_index = 720
+
+[[cases]]
+shape = "type_inexhaustive_match"
+count = 5
+start_index = 740
+
+[[cases]]
+shape = "ownership_double_decay"
+count = 5
+start_index = 760
+
+[[cases]]
+shape = "world_duplicate_surface"
+count = 5
+start_index = 780
+
+[[cases]]
+shape = "actor_message_mismatch"
+count = 5
+start_index = 800
+
+[[cases]]
+shape = "shader_uniform_binding_conflict"
+count = 5
+start_index = 820
+
+[[cases]]
+shape = "effect_async_in_sync"
+count = 5
+start_index = 840
+
+[[cases]]
+shape = "shader_resolve_error"
+count = 5
+start_index = 860
+
+[[cases]]
+shape = "type_cyclic_definition"
+count = 5
+start_index = 880

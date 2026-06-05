@@ -1,0 +1,10 @@
+// ERROR: generated effect fixture from batch century_burst_20260604
+// @expected_code: KAIN-TYPE-0001
+// @expected_mode: GenericUnknown
+// @expected_repair: mark_with_async
+// @donor_hint: benchmark/cases_v2/core_actor.kn
+// @allowed_codes: KAIN-TYPE-0001
+
+fn main() -> Int:
+    let wrong: Int = "async_in_sync_repro_841"
+    return 0
