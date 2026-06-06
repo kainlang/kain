@@ -3,6 +3,9 @@ use blade::{
     BladeWorkspace, KainBuildTaskSection, KainManifest, ResolvedBlade, ResolvedCffiLibrary,
     FABRIC_MANIFEST_NAME, KAIN_BUILD_SCRIPT_NAMES,
 };
+use crate::native_link::{
+    link_native_binary, NativeEmit, NativeLinkRequest, NativeRuntimeArtifacts,
+};
 use kain_amalgamate::{
     pack_capsule, CapsuleCompression, CapsuleContents, CapsuleHeaderStyle, CapsuleIndexMode,
     CapsuleStorage, PackOptions, DEFAULT_PREVIEW_SYMBOL_LIMIT,
@@ -280,6 +283,7 @@ enum BuildTaskAdapter {
     KainCompile {
         source: PathBuf,
         target: CompileTarget,
+        emit: NativeEmit,
         primary_output: PathBuf,
         materialized_primary_output: Option<PathBuf>,
         root_component: Option<String>,
@@ -450,6 +454,7 @@ pub struct KainFileBuildOptions {
     pub input: PathBuf,
     pub output: Option<PathBuf>,
     pub target: CompileTarget,
+    pub emit: NativeEmit,
     pub profile: Option<String>,
     pub lane: Option<BuildLane>,
     pub dry_run: bool,
@@ -464,6 +469,7 @@ impl KainFileBuildOptions {
             input: input.into(),
             output: None,
             target,
+            emit: NativeEmit::default(),
             profile: None,
             lane: None,
             dry_run: false,
@@ -877,6 +883,7 @@ pub fn plan_kain_file(options: &KainFileBuildOptions) -> BuildResult<BladeBuildP
         adapter: BuildTaskAdapter::KainCompile {
             source,
             target: options.target,
+            emit: options.emit,
             primary_output,
             materialized_primary_output,
             root_component: None,
@@ -1172,6 +1179,7 @@ pub fn plan_kain_project(options: &KainProjectBuildOptions) -> BuildResult<Blade
                 adapter: BuildTaskAdapter::KainCompile {
                     source: entry.clone(),
                     target,
+                    emit: NativeEmit::default(),
                     primary_output,
                     materialized_primary_output: None,
                     root_component: None,
@@ -3125,6 +3133,7 @@ fn execute_task(
         BuildTaskAdapter::KainCompile {
             source,
             target,
+            emit,
             primary_output,
             materialized_primary_output,
             root_component,
@@ -3133,6 +3142,7 @@ fn execute_task(
             plan,
             source,
             *target,
+            *emit,
             primary_output,
             materialized_primary_output.as_ref(),
             root_component.as_deref(),
@@ -3612,6 +3622,7 @@ fn run_kain_compile(
     plan: &BladeBuildPlan,
     source_path: &Path,
     target: CompileTarget,
+    emit: NativeEmit,
     primary_output: &Path,
     materialized_primary_output: Option<&PathBuf>,
     root_component: Option<&str>,
@@ -3676,6 +3687,34 @@ fn run_kain_compile(
             primary_output,
             root_component,
         )?);
+
+        // ── Native binary linking ────────────────────────────────────
+        // After IR generation and artifact staging, produce the final
+        // native binary. Pure-compute programs link with -nostdlib;
+        // runtime-using programs need the native runtime bundle.
+        if emit != NativeEmit::Exe || target == CompileTarget::Llvm {
+            // For LLVM target + any emit mode, link the native binary.
+            // For sharedlib/staticlib/object, always link.
+            // For exe with C target, the C compiler handles linking.
+            let native_output = resolve_native_output_path(source_path, primary_output, emit);
+            let link_req = NativeLinkRequest {
+                emit,
+                llvm_ir_path: primary_output,
+                output_path: &native_output,
+                source_text: &source,
+                runtime_artifacts: NativeRuntimeArtifacts::default(),
+            };
+            match link_native_binary(&link_req) {
+                Ok(exe_path) => {
+                    eprintln!(" Native binary: {}", exe_path.display());
+                    artifacts.push(record_artifact("native-binary", &exe_path)?);
+                }
+                Err(err) => {
+                    eprintln!(" Native link skipped: {err}");
+                    eprintln!("   (clang may not be installed — install LLVM for native binaries)");
+                }
+            }
+        }
     }
 
     if let Some(materialized) = materialized_primary_output {
@@ -3694,6 +3733,25 @@ fn run_kain_compile(
         source_path.display(),
         primary_output.display()
     ))
+}
+
+/// Determine the native binary output path based on emit mode.
+/// For exe: `source_stem.exe` next to the .ll file.
+/// For other emits: `source_stem.<ext>` next to the .ll file.
+fn resolve_native_output_path(
+    source_path: &Path,
+    primary_output: &Path,
+    emit: NativeEmit,
+) -> PathBuf {
+    let stem = source_path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("output");
+    if let Some(parent) = primary_output.parent() {
+        parent.join(format!("{}.{}", stem, emit.extension()))
+    } else {
+        PathBuf::from(format!("{}.{}", stem, emit.extension()))
+    }
 }
 
 fn run_rust_artifacts(

@@ -2,8 +2,10 @@ use std::env;
 use std::path::PathBuf;
 
 pub(crate) mod evaluated_build;
+pub mod native_link;
 pub mod workspace;
 pub use workspace::*;
+pub use native_link::{NativeEmit, NativeLinkRequest, NativeRuntimeArtifacts, link_native_binary};
 
 pub use kain_host::{
     EngineModuleExport, EngineModuleExportConfig, HostResult, HostSession, HostType, KainError,
