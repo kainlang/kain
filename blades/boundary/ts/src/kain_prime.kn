@@ -1,0 +1,27 @@
+// boundary/ts — Kain exports for TypeScript FFI
+// Compile: kain build src/kain_prime.kn --target llvm
+
+fn is_prime(n: Int) -> Bool:
+    if n < 2:
+        return false
+    var i: Int = 2
+    while i * i <= n:
+        if n % i == 0:
+            return false
+        i = i + 1
+    return true
+
+fn nth_prime(n: Int) -> Int:
+    var count: Int = 0
+    var candidate: Int = 2
+    while true:
+        if is_prime(candidate):
+            count = count + 1
+            if count == n:
+                return candidate
+        candidate = candidate + 1
+    return 0
+
+fn main() -> Int:
+    let result = nth_prime(10001)  // 104743
+    return result

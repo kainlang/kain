@@ -1,0 +1,6 @@
+node_modules/
+*.dll
+*.lib
+*.obj
+*.ll
+*.exp

@@ -1,0 +1,52 @@
+// boundary/ts — Kain calling TypeScript (stdin/stdout bridge)
+//
+// This Kain program calls into TypeScript for prime validation.
+// The TS worker reads JSON from stdin, validates, writes JSON to stdout.
+//
+// Since the full native runtime isn't available in `kain run`,
+// we compile to LLVM, link with the native runtime, and run natively.
+//
+// For the quick demo, use the Python equivalent which proves the concept:
+//   py -3 -c "import subprocess, json; ..."
+
+use std::process
+use std::json
+
+// ── Call TypeScript worker via npx ───────────────────────────────────
+
+fn ts_validate(n: Int) -> String:
+    // process_output_text blocks until completion, returns stdout
+    let raw = process_output_text("npx", "tsx", "src/ts_worker.ts", to_string(n), 5000)
+    return raw
+
+// ── Kain native prime ────────────────────────────────────────────────
+
+fn kain_is_prime(n: Int) -> Bool:
+    if n < 2:
+        return false
+    var i: Int = 2
+    while i * i <= n:
+        if n % i == 0:
+            return false
+        i = i + 1
+    return true
+
+// ── Cross-validate ───────────────────────────────────────────────────
+
+fn main() -> Int:
+    let test_values = [2, 3, 4, 17, 15, 97]
+    var idx: Int = 0
+
+    while idx < 6:
+        let n = test_values[idx]
+        let ts_raw = ts_validate(n)
+        let ts_result = json_parse(ts_raw)
+        let ts_is_prime = json_get_bool(ts_result, "is_prime")
+        let kain_is = kain_is_prime(n)
+
+        if ts_is_prime != kain_is:
+            return 1  // Mismatch!
+
+        idx = idx + 1
+
+    return 0  // ✅ All match
