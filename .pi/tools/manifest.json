@@ -69,8 +69,8 @@
         "Use kain_lang when you need to compile Kain files to native code, run blades, check syntax/type correctness, or generate GPU shader artifacts."
       ],
       "actions": {
-        "check":        { "sig": "(target?)+json", "label": "Check",       "description": "Run the Kain typechecker and semantic analysis on a file or directory without producing output. Supports --json for structured diagnostics." },
-        "build":        { "sig": "(target?)+json", "label": "Build",       "description": "Compile a Kain file or project to a target backend: llvm, rust, cpp, wasm, spirv, cuda. Supports --json for structured diagnostics." },
+        "check":        { "sig": "(target?) +json", "label": "Check",       "description": "Run the Kain typechecker and semantic analysis on a file or directory without producing output. Set json:true for structured diagnostics." },
+        "build":        { "sig": "(target?)", "label": "Build",       "description": "Compile a Kain file or project to a target backend: llvm, rust, cpp, wasm, spirv, cuda." },
         "run":          { "sig": "(target?)", "label": "Run",         "description": "Compile and execute a Kain file or project." },
         "test":         { "sig": "(target?)", "label": "Test",        "description": "Run Kain-language test fixtures and inline #[test] blocks." },
         "amalgamate":   { "sig": "(target?)", "label": "Amalgamate",  "description": "Amalgamate an entire blade workspace or folder into a single self-contained .kn file." },

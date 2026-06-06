@@ -1,8 +1,9 @@
 /**
  * Kain Lang Tools — Compile, check, run, test, amalgamate, GPU artifacts
  *
- * Single router tool for all Kain language operations. Supports --json
- * structured output for agent-friendly diagnostics.
+ * Single router tool for all Kain language operations. Returns raw stdout/stderr
+ * so agents can read CLI output like a terminal. Supports --json for structured
+ * diagnostics on `check` (on `build`/`run` it falls back to raw output).
  *
  * Tool: kain_lang
  *   action: check          — Typecheck a .kn file or directory
@@ -27,11 +28,10 @@ interface KainResult {
   stdout: string;
   stderr: string;
   code: number;
-  /** The exact command + args that were executed */
   command: string;
   cwd: string;
-  /** If the binary itself couldn't be found */
   binaryNotFound: boolean;
+  timedOut: boolean;
 }
 
 function runKain(args: string[], cwd?: string): KainResult {
@@ -43,17 +43,18 @@ function runKain(args: string[], cwd?: string): KainResult {
     shell: true,
   });
 
-  const binaryNotFound =
-    result.error !== undefined &&
-    (result.error as any)?.code === "ENOENT";
+  const error = result.error as any;
+  const binaryNotFound = error?.code === "ENOENT";
+  const timedOut = error?.code === "ETIMEDOUT" || error?.code === "TIMEOUT";
 
   return {
     stdout: (result.stdout ?? "").trim(),
     stderr: (result.stderr ?? "").trim(),
-    code: result.status ?? (binaryNotFound ? -1 : -1),
+    code: result.status ?? (binaryNotFound ? -127 : timedOut ? -124 : -1),
     command: `kain ${args.join(" ")}`,
     cwd: cwdPath,
     binaryNotFound,
+    timedOut,
   };
 }
 
@@ -66,149 +67,44 @@ function findKainProject(dir: string): string | null {
 }
 
 // ===========================================================================
-// Output formatting
+// Single output formatter — raw terminal output, no smart parsing
 // ===========================================================================
 
-function formatSuccess(result: KainResult): string {
-  const lines = [`## ✅ \`${result.command}\` succeeded\n`];
-  if (result.stdout) lines.push(result.stdout.slice(0, 4000));
-  if (result.stderr) lines.push(`\n### stderr\n\`\`\`\n${result.stderr.slice(0, 1000)}\n\`\`\``);
-  return lines.join("\n");
-}
+function formatOutput(result: KainResult): string {
+  const icon = result.code === 0 ? "✅" : "❌";
+  const lines = [`${icon} \`${result.command}\``];
 
-function formatFailure(result: KainResult): string {
+  // Error conditions
   if (result.binaryNotFound) {
-    return (
-      `## ❌ \`kain\` binary not found\n\n` +
-      `The \`kain\` command is not on PATH or not installed. ` +
-      `Build it with \`kain_bazel build(target:'//:kain')\` first.`
-    );
+    lines.push("", "kain binary not found on PATH. Build it with:", "", "  kain_bazel build(target:'//:kain')");
+    return lines.join("\n");
+  }
+  if (result.timedOut) {
+    lines.push("Command timed out after 300s.");
+    return lines.join("\n");
   }
 
-  const lines = [`## ❌ \`${result.command}\` failed (exit ${result.code})\n`];
+  // Exit code
+  if (result.code !== 0) {
+    lines.push(`exit ${result.code}`);
+  }
 
-  // stderr is where the compiler puts diagnostics
+  // stdout
+  if (result.stdout) {
+    lines.push("", "── stdout ──────────────────────", result.stdout.slice(0, 30000));
+  }
+
+  // stderr  
   if (result.stderr) {
-    lines.push(result.stderr.slice(0, 8000));
+    lines.push("", "── stderr ──────────────────────", result.stderr.slice(0, 30000));
   }
 
-  // stdout sometimes also has useful info
-  if (result.stdout && !result.stderr) {
-    lines.push(result.stdout.slice(0, 4000));
-  }
-
-  // If genuinely empty, note that
-  if (!result.stderr && !result.stdout) {
-    lines.push(
-      "*(No output captured — empty response from kain)*\n\n" +
-      `**CWD:** \`${result.cwd}\`\n` +
-      `**Command:** \`${result.command}\`\n` +
-      "Possible causes: timeout, crash, or the kain binary needs rebuilding."
-    );
-  } else {
-    lines.push(`\n**CWD:** \`${result.cwd}\``);
+  // Empty response note
+  if (!result.stdout && !result.stderr) {
+    lines.push("(empty response — command produced no output)");
   }
 
   return lines.join("\n");
-}
-
-// ===========================================================================
-// JSON output formatter — parses `kain ... --json` and renders cleanly
-// ===========================================================================
-
-function formatJsonDiagnostics(result: KainResult): { text: string; diagnostics: any[] } {
-  const raw = result.stdout || result.stderr;
-  let diagnostics: any[] = [];
-  let parseError: string | null = null;
-  let summary: any = null;
-
-  if (raw) {
-    try {
-      const parsed = JSON.parse(raw);
-
-      // Kain check/build --json outputs a run-summary object:
-      // { target, total, passed, failed, files: [{ path, status, error?, diagnostic? }] }
-      if (parsed.files && Array.isArray(parsed.files)) {
-        summary = { total: parsed.total, passed: parsed.passed, failed: parsed.failed };
-        for (const file of parsed.files) {
-          if (file.diagnostic?.diagnostics) {
-            for (const d of file.diagnostic.diagnostics) {
-              d._file = file.path; // attach file context
-              diagnostics.push(d);
-            }
-          }
-          // For failures without structured diagnostics, synthesize one
-          if (file.status === "failed" && !file.diagnostic?.diagnostics?.length && file.error) {
-            diagnostics.push({
-              _file: file.path,
-              code: "BUILD-FAIL",
-              message: file.error.slice(0, 500),
-              severity: "error",
-              title: "Build Failed",
-            });
-          }
-        }
-      } else if (Array.isArray(parsed)) {
-        diagnostics = parsed;
-      } else if (parsed.errors && Array.isArray(parsed.errors)) {
-        diagnostics = parsed.errors;
-      } else {
-        diagnostics = [parsed];
-      }
-    } catch {
-      parseError = raw.slice(0, 2000);
-    }
-  }
-
-  // Build summary line
-  const errorCount = diagnostics.filter((d: any) => d.severity === "error" || !d.severity).length;
-  const warningCount = diagnostics.filter((d: any) => d.severity === "warning" || d.severity === "warn").length;
-
-  const lines = [
-    `## ${result.code === 0 ? "✅" : "❌"} \`${result.command}\``,
-  ];
-
-  if (summary) {
-    lines.push(`**Files:** ${summary.passed + summary.failed} (${summary.passed} ✅ / ${summary.failed} ❌) — **Errors:** ${errorCount} — **Warnings:** ${warningCount}`);
-  } else {
-    lines.push(`**Errors:** ${errorCount} — **Warnings:** ${warningCount}`);
-  }
-  lines.push("");
-
-  // Render each diagnostic
-  for (const diag of diagnostics.slice(0, 25)) {
-    const file = diag._file || diag.file || diag.primary_range?.file || "?";
-    const loc = diag.location || diag.primary_range || {};
-    const line = loc.line || loc.start?.line || 0;
-    const col = loc.column || loc.start?.column || 0;
-    const code = diag.code || "";
-    const prefix = diag.severity === "warning" || diag.severity === "warn" ? "⚠️" : "❌";
-    const msg = diag.message || diag.title || "(no message)";
-
-    lines.push(`${prefix} \`${code}\` — ${msg}`);
-    if (file !== "?") lines.push(`   ${file}:${line}:${col}`);
-    if (diag.semantic?.explanation) lines.push(`   ${diag.semantic.explanation}`);
-    if (diag.suggestion || diag.help) lines.push(`   💡 ${diag.suggestion || diag.help}`);
-    lines.push("");
-  }
-
-  if (diagnostics.length > 25) {
-    lines.push(`*... and ${diagnostics.length - 25} more*`);
-  }
-
-  if (summary && summary.passed > 0) {
-    lines.push(`--- ${summary.passed} file(s) passed, no issues.`);
-  }
-
-  if (parseError) {
-    lines.push("### Raw output (JSON parse failed)", "```", parseError, "```");
-  }
-
-  return {
-    text: lines.join("\n"),
-    diagnostics,
-    summary,
-  };
 }
 
 // ===========================================================================
@@ -223,7 +119,7 @@ export default function (pi: ExtensionAPI) {
       "Compile, check, run, and test Kain source files and projects — " +
       "typecheck workspaces, compile to LLVM/Rust/C++/WASM/SPIR-V/CUDA, " +
       "execute blades, run inline tests, amalgamate projects, and generate " +
-      "GPU shader artifacts. Supports --json for structured diagnostics.",
+      "GPU shader artifacts.",
     promptSnippet: "Compile, check, run, and test Kain source files and projects",
     promptGuidelines: [
       "Use kain_lang when you need to compile Kain files to native code, run blades, check syntax/type correctness, or generate GPU shader artifacts.",
@@ -245,7 +141,7 @@ export default function (pi: ExtensionAPI) {
       target: Type.Optional(Type.String({ description: "File or directory path. Defaults to nearest build.kn project." })),
       build_target: Type.Optional(Type.Enum({ llvm: "llvm", rust: "rust", cpp: "cpp", wasm: "wasm", spirv: "spirv", cuda: "cuda" }, { description: "Compilation target for 'build' action (default 'llvm')." })),
       output: Type.Optional(Type.String({ description: "Output directory for gpu_artifacts." })),
-      json: Type.Optional(Type.Boolean({ description: "Output diagnostics as structured JSON (supported by check and build). Set to true for agent-friendly error details.", default: false })),
+      json: Type.Optional(Type.Boolean({ description: "Request structured JSON diagnostics (supported by check). When the CLI doesn't support --json, falls back to raw output.", default: false })),
     }),
     async execute(_toolCallId: string, params: any, _signal: AbortSignal, _onUpdate: any, _ctx: any) {
       try {
@@ -256,88 +152,64 @@ export default function (pi: ExtensionAPI) {
 
         switch (params.action) {
           case "check":
+            // --json is only supported by check
             result = runKain(useJson ? ["check", target, "--json"] : ["check", target]);
             break;
-
           case "build":
-            result = runKain(useJson
-              ? ["build", target, "--target", params.build_target ?? "llvm", "--json"]
-              : ["build", target, "--target", params.build_target ?? "llvm"]);
+            result = runKain(["build", target, "--target", params.build_target ?? "llvm"]);
             break;
-
           case "run":
             result = runKain(["run", target]);
             break;
-
           case "test":
             result = runKain(["test", target]);
             break;
-
           case "amalgamate":
             result = runKain(["amalgamate", target]);
             break;
-
           case "gpu_artifacts":
-            result = runKain(["gpu-artifacts", target, ...(params.output ? ["--output", params.output] : [])]);
+            result = runKain([
+              "gpu-artifacts",
+              target,
+              ...(params.output ? ["--output", params.output] : []),
+            ]);
             break;
-
           default:
             return { content: [{ type: "text", text: `Unknown action '${params.action}'.` }], details: {}, isError: true };
         }
 
-        // Build the response
-        if (result.binaryNotFound) {
-          return {
-            content: [{ type: "text", text: formatFailure(result) }],
-            details: { action: params.action, binaryNotFound: true, command: result.command, cwd: result.cwd },
-            isError: true,
-          };
-        }
-
-        // JSON mode: parse and present structured diagnostics
+        // Parse JSON if requested — silently falls back if not parseable
+        let parsedJson: any = null;
         if (useJson) {
-          const formatted = formatJsonDiagnostics(result);
-          return {
-            content: [{ type: "text", text: formatted.text }],
-            details: {
-              action: params.action,
-              exitCode: result.code,
-              command: result.command,
-              cwd: result.cwd,
-              diagnostics: formatted.diagnostics,
-              rawJson: (result.stdout || result.stderr).slice(0, 20000),
-            },
-          };
+          const raw = result.stdout || result.stderr;
+          if (raw) {
+            try {
+              parsedJson = JSON.parse(raw);
+            } catch {
+              /* not JSON — that's fine, show raw */
+            }
+          }
         }
 
-        // Normal text mode
-        if (result.code !== 0) {
-          return {
-            content: [{ type: "text", text: formatFailure(result) }],
-            details: {
-              action: params.action,
-              exitCode: result.code,
-              command: result.command,
-              cwd: result.cwd,
-              stdout: result.stdout.slice(0, 10000),
-              stderr: result.stderr.slice(0, 10000),
-            },
-            isError: true,
-          };
-        }
+        const text = formatOutput(result);
 
         return {
-          content: [{ type: "text", text: formatSuccess(result) }],
+          content: [{ type: "text", text }],
           details: {
             action: params.action,
-            exitCode: 0,
+            exitCode: result.code,
             command: result.command,
             cwd: result.cwd,
+            binaryNotFound: result.binaryNotFound,
+            timedOut: result.timedOut,
+            parsedJson,
+            rawStdout: result.stdout.slice(0, 50000),
+            rawStderr: result.stderr.slice(0, 50000),
           },
         };
       } catch (e: any) {
         return {
-          content: [{ type: "text", text: `## ❌ \`kain ${params.action}\` threw\n\n${e.message}\n\`\`\`\n${e.stack?.slice(0, 1000)}\n\`\`\`` }],
+          content: [{ type: "text", text: `Error: ${e.message}` }],
           details: { action: params.action, error: e.message },
           isError: true,
         };
@@ -346,6 +218,6 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.on("session_start", async (_event, ctx) => {
-    ctx.ui.notify("🔧 Kain Lang tools loaded — --json support, better diagnostics", "info");
+    ctx.ui.notify("🔧 Kain Lang loaded — raw CLI output + --json support", "info");
   });
 }
