@@ -1,0 +1,561 @@
+// main.kn — Interactive GPU Julia Fractal Shader Editor
+use std::runtime
+use std::fs
+use std::alloc
+
+@extern
+@link_name("SetEnvironmentVariableA")
+fn my_SetEnvironmentVariableA(lpName: String, lpValue: String) -> Int
+
+@extern
+@link_name("CreateWindowExA")
+fn my_CreateWindowExA(
+    dwExStyle: Int,
+    lpClassName: String,
+    lpWindowName: String,
+    dwStyle: Int,
+    X: Int,
+    Y: Int,
+    nWidth: Int,
+    nHeight: Int,
+    hWndParent: ptr<Void>,
+    hMenu: ptr<Void>,
+    hInstance: ptr<Void>,
+    lpParam: ptr<Void>
+) -> ptr<Void>
+
+@extern
+@link_name("DestroyWindow")
+fn my_DestroyWindow(hWnd: ptr<Void>) -> Int
+
+@extern
+@link_name("IsWindow")
+fn my_IsWindow(hWnd: ptr<Void>) -> Int
+
+@extern
+@link_name("GetDC")
+fn my_GetDC(hWnd: ptr<Void>) -> ptr<Void>
+
+@extern
+@link_name("ReleaseDC")
+fn my_ReleaseDC(hWnd: ptr<Void>, hDC: ptr<Void>) -> Int
+
+@extern
+@link_name("PeekMessageA")
+fn my_PeekMessageA(
+    lpMsg: ptr<Void>,
+    hWnd: ptr<Void>,
+    wMsgFilterMin: Int,
+    wMsgFilterMax: Int,
+    wRemoveMsg: Int
+) -> Int
+
+@extern
+@link_name("TranslateMessage")
+fn my_TranslateMessage(lpMsg: ptr<Void>) -> Int
+
+@extern
+@link_name("DispatchMessageA")
+fn my_DispatchMessageA(lpMsg: ptr<Void>) -> Int
+
+@extern
+@link_name("Sleep")
+fn my_Sleep(dwMilliseconds: Int) -> Void
+
+@extern
+@link_name("GetLastError")
+fn my_GetLastError() -> Int
+
+@extern
+@link_name("GetModuleHandleA")
+fn my_GetModuleHandleA(lpModuleName: String) -> ptr<Void>
+
+@extern
+@link_name("GetProcAddress")
+fn my_GetProcAddress(hModule: ptr<Void>, lpProcName: String) -> ptr<Void>
+
+@extern
+@link_name("SetWindowLongPtrA")
+fn my_SetWindowLongPtrA(hWnd: ptr<Void>, nIndex: Int, dwNewLong: ptr<Void>) -> ptr<Void>
+
+@extern
+@link_name("ValidateRect")
+fn my_ValidateRect(hWnd: ptr<Void>, lpRect: ptr<Void>) -> Int
+
+@extern
+@link_name("CreateEventA")
+fn my_CreateEventA(
+    lpEventAttributes: ptr<Void>,
+    bManualReset: Int,
+    bInitialState: Int,
+    lpName: ptr<Void>
+) -> ptr<Void>
+
+@extern
+@link_name("CloseHandle")
+fn my_CloseHandle(hObject: ptr<Void>) -> Int
+
+@extern
+@link_name("GetFileType")
+fn my_GetFileType(hFile: ptr<Void>) -> Int
+
+@extern
+@link_name("StretchDIBits")
+fn my_StretchDIBits(
+    hdc: ptr<Void>,
+    xDest: Int,
+    yDest: Int,
+    DestWidth: Int,
+    DestHeight: Int,
+    xSrc: Int,
+    ySrc: Int,
+    SrcWidth: Int,
+    SrcHeight: Int,
+    lpBits: ptr<Void>,
+    lpbmi: ptr<Void>,
+    iUsage: Int,
+    dwRop: Int
+) -> Int
+
+@extern
+@link_name("CreateSolidBrush")
+fn win_CreateSolidBrush(color: Int) -> Int
+
+@extern
+@link_name("FillRect")
+fn win_FillRect(hdc: ptr<Void>, rect: ptr<Int>, hbrush: Int) -> Int
+
+@extern
+@link_name("DeleteObject")
+fn win_DeleteObject(hObject: Int) -> Int
+
+@extern
+@link_name("SetTextColor")
+fn win_SetTextColor(hdc: ptr<Void>, color: Int) -> Int
+
+@extern
+@link_name("SetBkMode")
+fn win_SetBkMode(hdc: ptr<Void>, mode: Int) -> Int
+
+@extern
+@link_name("TextOutA")
+fn win_TextOutA(hdc: ptr<Void>, x: Int, y: Int, lpString: String, nCount: Int) -> Int
+
+@extern
+@link_name("ShowWindow")
+fn win_ShowWindow(hWnd: ptr<Void>, nCmdShow: Int) -> Int
+
+@extern
+@link_name("UpdateWindow")
+fn win_UpdateWindow(hWnd: ptr<Void>) -> Int
+
+fn clamp_float(val: Float, min_val: Float, max_val: Float) -> Float:
+    if val < min_val:
+        return min_val
+    elif val > max_val:
+        return max_val
+    return val
+
+fn double_to_f32_bits(val: Float) -> Int with Unsafe:
+    if val == 0.0:
+        return 0
+    let bits: Int = bitcast(val, "I64")
+    let sign: Int = (bits >> 63) & 1
+    let exp: Int = ((bits >> 52) & 2047) - 1023 + 127
+    let mant: Int = (bits >> 29) & 8388607
+    
+    var final_exp: Int = exp
+    if exp < 0:
+        final_exp = 0
+    elif exp > 255:
+        final_exp = 255
+        
+    return (sign << 31) | (final_exp << 23) | mant
+
+fn f32_bits_to_double(bits: Int, pow_lut: ptr<Float>) -> Float with Unsafe:
+    if bits == 0:
+        return 0.0
+    let sign: Float = if (bits & 0x80000000) != 0: -1.0 else: 1.0
+    let exp: Int = (bits >> 23) & 0xFF
+    let mant: Int = bits & 0x7FFFFF
+    
+    if exp == 0 and mant == 0:
+        return 0.0
+        
+    let frac: Float = (mant as Float) / 8388608.0
+    let mantissa: Float = 1.0 + frac
+    let power: Float = mem_load(ptr_offset(pow_lut, exp, "Float"), "Float")
+    
+    return sign * mantissa * power
+
+fn store_float_bits(buf: ptr<Int>, f_idx: Int, val: Float) -> Void with Unsafe:
+    let bits = double_to_f32_bits(val)
+    let int_idx = f_idx / 2
+    let current = mem_load(ptr_offset(buf, int_idx, "Int"), "Int")
+    var next_val: Int = 0
+    if f_idx % 2 == 0:
+        next_val = (current & (0xFFFFFFFF << 32)) | (bits & 0xFFFFFFFF)
+    else:
+        next_val = (current & 0xFFFFFFFF) | (bits << 32)
+    mem_store(ptr_offset(buf, int_idx, "Int"), next_val, "Int")
+
+fn load_float_bits(buf: ptr<Int>, f_idx: Int, pow_lut: ptr<Float>) -> Float with Unsafe:
+    let int_idx = f_idx / 2
+    let current = mem_load(ptr_offset(buf, int_idx, "Int"), "Int")
+    var bits: Int = 0
+    if f_idx % 2 == 0:
+        bits = current & 0xFFFFFFFF
+    else:
+        bits = (current >> 32) & 0xFFFFFFFF
+    return f32_bits_to_double(bits, pow_lut)
+
+fn gdi_rgb(r: Int, g: Int, b: Int) -> Int:
+    return r | (g << 8) | (b << 16)
+
+fn gdi_fill_rect(hdc: ptr<Void>, x: Int, y: Int, w: Int, h: Int, color: Int) -> Int with Unsafe:
+    let brush = win_CreateSolidBrush(color)
+    let rect = alloc_zeroed(4, "Int")
+    mem_store(ptr_offset(rect, 0, "Int"), x, "Int")
+    mem_store(ptr_offset(rect, 1, "Int"), y, "Int")
+    mem_store(ptr_offset(rect, 2, "Int"), x + w, "Int")
+    mem_store(ptr_offset(rect, 3, "Int"), y + h, "Int")
+    let result = win_FillRect(hdc, rect, brush)
+    decay rect
+    let _ = win_DeleteObject(brush)
+    return result
+
+fn gdi_text(hdc: ptr<Void>, x: Int, y: Int, text: String, color: Int) -> Int with Unsafe:
+    let _ = win_SetTextColor(hdc, color)
+    let _ = win_SetBkMode(hdc, 1)  // TRANSPARENT = 1
+    return win_TextOutA(hdc, x, y, text, len(text))
+
+fn draw_slider(hdc: ptr<Void>, label: String, val: Float, min_val: Float, max_val: Float, y: Int) -> Void with Unsafe:
+    // Track background
+    let _ = gdi_fill_rect(hdc, 20, y, 472, 8, gdi_rgb(40, 44, 52))
+    
+    // Calculate handle position
+    let ratio = (val - min_val) / (max_val - min_val)
+    let handle_x = 20 + Int(ratio * 472.0) - 6
+    
+    // Draw active portion of track
+    let _ = gdi_fill_rect(hdc, 20, y, handle_x - 14, 8, gdi_rgb(41, 128, 185))
+    
+    // Draw handle
+    let _ = gdi_fill_rect(hdc, handle_x, y - 4, 12, 16, gdi_rgb(230, 126, 34))
+    
+    // Draw label and value
+    let text = label + ": " + str(val)
+    let _ = gdi_text(hdc, 20, y - 20, text, gdi_rgb(220, 220, 220))
+
+fn update_slider_value(mx: Int, min_val: Float, max_val: Float) -> Float:
+    var pct = Float(mx - 20) / 472.0
+    if pct < 0.0: pct = 0.0
+    if pct > 1.0: pct = 1.0
+    return min_val + (max_val - min_val) * pct
+
+fn main() -> Int with Unsafe, GPU:
+    let boot = runtime_init()
+    if boot != 0:
+        return boot
+
+    println("==================================================")
+    println("      KAIN INTERACTIVE GPU SHADER WORKBENCH       ")
+    println("==================================================")
+    println("Initializing window and shader residency...")
+
+    // Set environment variable
+    let res_json = ".kain/out/gpu/spirv/kain_compute_residency.json"
+    let env_ok = my_SetEnvironmentVariableA("KAIN_COMPUTE_RESIDENCY", res_json)
+    println("Set KAIN_COMPUTE_RESIDENCY status=" + str(env_ok))
+
+    // Precalculate exponents LUT
+    let pow_lut = alloc_zeroed(256, "Float")
+    var e: Int = 0
+    while e < 256:
+        let power_exp = e - 127
+        var power: Float = 1.0
+        if power_exp > 0:
+            var i: Int = 0
+            while i < power_exp:
+                power = power * 2.0
+                i = i + 1
+        elif power_exp < 0:
+            var i: Int = 0
+            let limit = 0 - power_exp
+            while i < limit:
+                power = power / 2.0
+                i = i + 1
+        mem_store(ptr_offset(pow_lut, e, "Float"), power, "Float")
+        e = e + 1
+
+    // Buffers
+    let prev_buf = alloc_zeroed(98304, "Int")
+    let next_buf = alloc_zeroed(98304, "Int")
+    let params_buf = alloc_zeroed(4, "Int")
+    let fb = alloc_zeroed(32768, "Int")
+
+    let bmi = alloc_zeroed(5, "Int")
+    mem_store(ptr_offset(bmi, 0, "Int"), (256 << 32) | 40, "Int")
+    mem_store(ptr_offset(bmi, 1, "Int"), (2097153 << 32) | 4294967040, "Int") // biWidth=256, biHeight=-256
+    mem_store(ptr_offset(bmi, 2, "Int"), 0, "Int")
+    mem_store(ptr_offset(bmi, 3, "Int"), 0, "Int")
+    mem_store(ptr_offset(bmi, 4, "Int"), 0, "Int")
+
+    let msg_buf = alloc_zeroed(6, "Int")
+    let msg_ptr = int_to_ptr(ptr_to_int(msg_buf), "ptr<Void>")
+
+    let prev_path = ".kain/out/gpu/spirv/kain_compute_residency_shader_previewshader_compute_prev.bin"
+    let next_path = ".kain/out/gpu/spirv/kain_compute_residency_shader_previewshader_compute_next.bin"
+    let params_path = ".kain/out/gpu/spirv/kain_compute_residency_shader_previewshader_compute_params.bin"
+
+    // Create window
+    // Width = 528, Height = 670 (512 canvas + 120 sliders + borders)
+    let style = 0x00CF0000 | 0x10000000 // WS_OVERLAPPEDWINDOW | WS_VISIBLE
+    let hwnd = my_CreateWindowExA(
+        0,
+        "STATIC",
+        "Kain Interactive GPU Shader Workbench",
+        style,
+        100,
+        100,
+        528,
+        670,
+        int_to_ptr(0, "Void"),
+        int_to_ptr(0, "Void"),
+        int_to_ptr(0, "Void"),
+        int_to_ptr(0, "Void")
+    )
+    if ptr_to_int(hwnd) == 0:
+        println("Failed to create window. LastError=" + str(my_GetLastError()))
+        let _ = runtime_shutdown()
+        return 1
+
+    // Subclass static window to DefWindowProcA
+    let user32 = my_GetModuleHandleA("user32.dll")
+    let def_wnd_proc = my_GetProcAddress(user32, "DefWindowProcA")
+    let old_proc = my_SetWindowLongPtrA(hwnd, -4, def_wnd_proc) // GWLP_WNDPROC = -4
+
+    let hdc = my_GetDC(hwnd)
+    let _ = win_ShowWindow(hwnd, 5) // SW_SHOW = 5
+    let _ = win_UpdateWindow(hwnd)
+
+    // Interactive parameters
+    var zoom: Float = 1.0
+    var c_re: Float = -0.7
+    var c_im: Float = 0.27015
+    var offset_x: Float = 0.0
+    var offset_y: Float = 0.0
+    var time: Float = 0.0
+    var speed: Float = 1.0
+
+    var is_dragging: Bool = false
+    var active_slider: Int = -1
+    var prev_mx: Int = 0
+    var prev_my: Int = 0
+
+    println("Entering workbench loop...")
+    var frame: Int = 0
+
+    while my_IsWindow(hwnd) != 0:
+        // 1. Process Window Messages
+        var has_msg = my_PeekMessageA(msg_ptr, int_to_ptr(0, "Void"), 0, 0, 1)
+        while has_msg != 0:
+            let msg_type = mem_load(ptr_offset(msg_buf, 1, "Int"), "Int") & 0xFFFFFFFF
+            let wParam = mem_load(ptr_offset(msg_buf, 2, "Int"), "Int")
+            let lParam = mem_load(ptr_offset(msg_buf, 3, "Int"), "Int")
+
+            let mx = lParam & 0xFFFF
+            let my = (lParam >> 16) & 0xFFFF
+
+            if msg_type == 16: // WM_CLOSE
+                println("WM_CLOSE received. Cleaning up...")
+                let _ = my_DestroyWindow(hwnd)
+            elif msg_type == 15: // WM_PAINT
+                let _ = my_ValidateRect(hwnd, int_to_ptr(0, "Void"))
+            elif msg_type == 20: // WM_ERASEBKGND
+                let _ = 0 // Skip dispatching to prevent white background erase
+            else:
+                if msg_type == 513: // WM_LBUTTONDOWN
+                    is_dragging = true
+                    if my >= 520 and my <= 535:
+                        active_slider = 0
+                        zoom = update_slider_value(mx, 0.1, 5.0)
+                    elif my >= 550 and my <= 565:
+                        active_slider = 1
+                        c_re = update_slider_value(mx, -2.0, 2.0)
+                    elif my >= 580 and my <= 595:
+                        active_slider = 2
+                        c_im = update_slider_value(mx, -2.0, 2.0)
+                    elif my >= 610 and my <= 625:
+                        active_slider = 3
+                        speed = update_slider_value(mx, 0.0, 5.0)
+                    elif my < 512:
+                        active_slider = 4
+                        prev_mx = mx
+                        prev_my = my
+                elif msg_type == 514: // WM_LBUTTONUP
+                    is_dragging = false
+                    active_slider = -1
+                elif msg_type == 512: // WM_MOUSEMOVE
+                    if is_dragging:
+                        if active_slider == 0:
+                            zoom = update_slider_value(mx, 0.1, 5.0)
+                        elif active_slider == 1:
+                            c_re = update_slider_value(mx, -2.0, 2.0)
+                        elif active_slider == 2:
+                            c_im = update_slider_value(mx, -2.0, 2.0)
+                        elif active_slider == 3:
+                            speed = update_slider_value(mx, 0.0, 5.0)
+                        elif active_slider == 4:
+                            let dx = mx - prev_mx
+                            let dy = my - prev_my
+                            offset_x = offset_x - (Float(dx) / (128.0 * zoom))
+                            offset_y = offset_y - (Float(dy) / (128.0 * zoom))
+                            prev_mx = mx
+                            prev_my = my
+                let _ = my_TranslateMessage(msg_ptr)
+                let _ = my_DispatchMessageA(msg_ptr)
+            has_msg = my_PeekMessageA(msg_ptr, int_to_ptr(0, "Void"), 0, 0, 1)
+
+        if my_IsWindow(hwnd) == 0:
+            break
+
+        // 2. Increment simulation time
+        time = time + 0.016 * speed
+
+        // 3. Stencil inputs to files
+        store_float_bits(params_buf, 0, zoom)
+        store_float_bits(params_buf, 1, c_re)
+        store_float_bits(params_buf, 2, c_im)
+        store_float_bits(params_buf, 3, offset_x)
+        store_float_bits(params_buf, 4, offset_y)
+        store_float_bits(params_buf, 5, time)
+
+        if frame == 0:
+            println("Writing params...")
+        let f_params = fs_open(params_path, "wb")
+        if ptr_to_int(f_params.handle) != 0:
+            let _ = fs_write(f_params, params_buf, 32) // 8 floats * 4 bytes = 32 bytes
+            let _ = fs_close(f_params)
+
+        if frame == 0:
+            println("Writing prev...")
+        let f_prev = fs_open(prev_path, "wb")
+        if ptr_to_int(f_prev.handle) != 0:
+            let _ = fs_write(f_prev, prev_buf, 786432)
+            let _ = fs_close(f_prev)
+
+        // Query starting handle to detect leaks during dispatch
+        let h_start = my_CreateEventA(int_to_ptr(0, "Void"), 0, 0, int_to_ptr(0, "Void"))
+        let _ = my_CloseHandle(h_start)
+
+        if frame == 0:
+            println("Dispatching shader...")
+        // 4. Dispatch compute shader
+        dispatch "shader::PreviewShader::compute" [32, 32, 1]
+
+        if frame == 0:
+            println("Reading next...")
+        // 5. Read back shader outputs
+        let f_next = fs_open(next_path, "rb")
+        if ptr_to_int(f_next.handle) != 0:
+            let _ = fs_read(f_next, next_buf, 786432)
+            let _ = fs_close(f_next)
+
+        if frame == 0:
+            println("Closing leaked residency handles...")
+        // 6. Workaround GPU runtime file handle leak by closing exactly the handles leaked during dispatch
+        let h_end = my_CreateEventA(int_to_ptr(0, "Void"), 0, 0, int_to_ptr(0, "Void"))
+        let _ = my_CloseHandle(h_end)
+        var h = ptr_to_int(h_start)
+        let end_h = ptr_to_int(h_end)
+        while h < end_h:
+            let h_ptr = int_to_ptr(h, "Void")
+            if my_GetFileType(h_ptr) == 1: // FILE_TYPE_DISK = 1
+                if frame == 0:
+                    println("Reclaiming leaked disk file handle: " + str(h))
+                let _ = my_CloseHandle(h_ptr)
+            h = h + 4
+
+        if frame == 0:
+            println("Packing pixels...")
+
+        // 7. Render texture grid to RGBA framebuffer
+        var y = 0
+        while y < 256:
+            var x = 0
+            while x < 256:
+                let idx0 = (y * 256 + x) * 3
+                let r_val0 = load_float_bits(next_buf, idx0, pow_lut)
+                let g_val0 = load_float_bits(next_buf, idx0 + 1, pow_lut)
+                let b_val0 = load_float_bits(next_buf, idx0 + 2, pow_lut)
+                let r0 = Int(clamp_float(r_val0, 0.0, 1.0) * 255.0)
+                let g0 = Int(clamp_float(g_val0, 0.0, 1.0) * 255.0)
+                let b0 = Int(clamp_float(b_val0, 0.0, 1.0) * 255.0)
+                let pixel0 = (255 << 24) | (r0 << 16) | (g0 << 8) | b0
+
+                let idx1 = (y * 256 + x + 1) * 3
+                let r_val1 = load_float_bits(next_buf, idx1, pow_lut)
+                let g_val1 = load_float_bits(next_buf, idx1 + 1, pow_lut)
+                let b_val1 = load_float_bits(next_buf, idx1 + 2, pow_lut)
+                let r1 = Int(clamp_float(r_val1, 0.0, 1.0) * 255.0)
+                let g1 = Int(clamp_float(g_val1, 0.0, 1.0) * 255.0)
+                let b1 = Int(clamp_float(b_val1, 0.0, 1.0) * 255.0)
+                let pixel1 = (255 << 24) | (r1 << 16) | (g1 << 8) | b1
+
+                let packed = (pixel1 << 32) | (pixel0 & 0xFFFFFFFF)
+                let int_idx = (y * 256 + x) / 2
+                mem_store(ptr_offset(fb, int_idx, "Int"), packed, "Int")
+                x = x + 2
+            y = y + 1
+
+        // 8. Draw image to window using StretchDIBits
+        let _ = my_StretchDIBits(
+            hdc,
+            0,
+            0,
+            512,
+            512,
+            0,
+            0,
+            256,
+            256,
+            int_to_ptr(ptr_to_int(fb), "ptr<Void>"),
+            int_to_ptr(ptr_to_int(bmi), "ptr<Void>"),
+            0,
+            0x00CC0020 // SRCCOPY
+        )
+
+        // 9. Draw GDI Controls below the canvas
+        // Clear background of controls area to a nice slate color
+        let _ = gdi_fill_rect(hdc, 0, 512, 512, 120, gdi_rgb(30, 32, 38))
+
+        draw_slider(hdc, "Zoom (Drag canvas to pan)", zoom, 0.1, 5.0, 532)
+        draw_slider(hdc, "C_real (Fractal Constant)", c_re, -2.0, 2.0, 562)
+        draw_slider(hdc, "C_imag (Fractal Constant)", c_im, -2.0, 2.0, 592)
+        draw_slider(hdc, "Simulation Speed", speed, 0.0, 5.0, 622)
+
+        // Validate window region to prevent message flood
+        let _ = my_ValidateRect(hwnd, int_to_ptr(0, "Void"))
+
+        // Copy outputs back to inputs for next tick
+        var c = 0
+        while c < 98304:
+            mem_store(ptr_offset(prev_buf, c, "Int"), mem_load(ptr_offset(next_buf, c, "Int"), "Int"), "Int")
+            c = c + 1
+
+        my_Sleep(16)
+        frame = frame + 1
+
+    println("Closing workbench...")
+    let _ = my_ReleaseDC(hwnd, hdc)
+    decay pow_lut
+    decay bmi
+    decay msg_buf
+    decay fb
+    decay next_buf
+    decay prev_buf
+    decay params_buf
+
+    let _ = runtime_shutdown()
+    return 0

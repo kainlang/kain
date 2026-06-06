@@ -13,6 +13,10 @@ path = "src/main.rs"
 name = "kn"
 path = "src/bin/kn.rs"
 
+[[bin]]
+name = "blade"
+path = "src/bin/blade.rs"
+
 [dependencies]
 kain-core = { path = "../core" }
 kain-lattice = { path = "../lattice" }

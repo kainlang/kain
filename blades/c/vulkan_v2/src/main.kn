@@ -1,6 +1,7 @@
 // main.kn — Pure Kain Win32 Fluid Sim Visualizer
 use std::runtime
 use std::fs
+use std::unicode
 
 @extern
 @link_name("SetEnvironmentVariableA")
@@ -26,6 +27,26 @@ fn my_CreateWindowExA(
 @extern
 @link_name("DestroyWindow")
 fn my_DestroyWindow(hWnd: ptr<Void>) -> Int
+
+@extern
+@link_name("_putenv")
+fn my_putenv(env_string: ptr<Void>) -> Int
+
+@extern
+@link_name("abi_cuda_last_status")
+fn my_abi_cuda_last_status() -> Int
+
+@extern
+@link_name("abi_cuda_last_error_kind")
+fn my_abi_cuda_last_error_kind() -> ptr<Void>
+
+@extern
+@link_name("abi_cuda_last_error_message")
+fn my_abi_cuda_last_error_message() -> ptr<Void>
+
+@extern
+@link_name("putchar")
+fn my_putchar(c: Int) -> Int
 
 @extern
 @link_name("IsWindow")
@@ -83,6 +104,39 @@ fn my_Sleep(dwMilliseconds: Int) -> Void
 @link_name("GetLastError")
 fn my_GetLastError() -> Int
 
+@extern
+@link_name("GetModuleHandleA")
+fn my_GetModuleHandleA(lpModuleName: String) -> ptr<Void>
+
+@extern
+@link_name("GetProcAddress")
+fn my_GetProcAddress(hModule: ptr<Void>, lpProcName: String) -> ptr<Void>
+
+@extern
+@link_name("SetWindowLongPtrA")
+fn my_SetWindowLongPtrA(hWnd: ptr<Void>, nIndex: Int, dwNewLong: ptr<Void>) -> ptr<Void>
+
+@extern
+@link_name("ValidateRect")
+fn my_ValidateRect(hWnd: ptr<Void>, lpRect: ptr<Void>) -> Int
+
+@extern
+@link_name("CreateEventA")
+fn my_CreateEventA(
+    lpEventAttributes: ptr<Void>,
+    bManualReset: Int,
+    bInitialState: Int,
+    lpName: ptr<Void>
+) -> ptr<Void>
+
+@extern
+@link_name("CloseHandle")
+fn my_CloseHandle(hObject: ptr<Void>) -> Int
+
+@extern
+@link_name("GetFileType")
+fn my_GetFileType(hFile: ptr<Void>) -> Int
+
 fn clamp_float(val: Float, min_val: Float, max_val: Float) -> Float:
     if val < min_val:
         return min_val
@@ -128,6 +182,29 @@ fn f32_bits_to_double(bits: Int, pow_lut: ptr<Float>) -> Float with Unsafe:
     
     return sign * mantissa * power
 
+fn print_c_str(p: ptr<Void>) -> Void with Unsafe:
+    if ptr_to_int(p) == 0:
+        return
+    var idx = 0
+    var c = mem_load(ptr_offset(p, idx, "I8"), "I8")
+    while c != 0:
+        let _ = my_putchar(c)
+        idx = idx + 1
+        c = mem_load(ptr_offset(p, idx, "I8"), "I8")
+    let _ = my_putchar(10) // newline
+
+fn set_crt_env(name: String, value: String) -> Void with Unsafe:
+    let env_str = name + "=" + value
+    let len_val = len(env_str)
+    let buf = alloc_zeroed(len_val + 1, "Int")
+    var i = 0
+    while i < len_val:
+        let c = byte_at(env_str, i)
+        mem_store(ptr_offset(buf, i, "I8"), c, "I8")
+        i = i + 1
+    mem_store(ptr_offset(buf, len_val, "I8"), 0, "I8")
+    let _ = my_putenv(int_to_ptr(ptr_to_int(buf), "ptr<Void>"))
+
 fn main() -> Int with Unsafe, GPU:
     let boot = runtime_init()
     if boot != 0:
@@ -138,13 +215,17 @@ fn main() -> Int with Unsafe, GPU:
     println("==================================================")
     println("Initializing Win32 window...")
 
-    // Set KAIN_COMPUTE_RESIDENCY environment variable
+    // Set environment variables for shader residency, bundle and runtime library
     let res_json = ".kain/out/gpu/spirv/kain_compute_residency.json"
-    let env_ok = my_SetEnvironmentVariableA("KAIN_COMPUTE_RESIDENCY", res_json)
-    println("Set environment variable status=" + str(env_ok))
+    let bundle_json = ".kain/out/gpu/spirv/gpu-artifacts-spirv.shader_bundle.json"
+    let dll_path = "X:\\.kain\\cache\\run\\llvm\\kain_gpu_runtime.dll"
+    set_crt_env("KAIN_COMPUTE_RESIDENCY", res_json)
+    set_crt_env("KAIN_CUDA_SHADER_BUNDLE", bundle_json)
+    set_crt_env("KAIN_GPU_RUNTIME_LIBRARY", dll_path)
+    println("Set environment variables for CRT residency, bundle, and library.")
 
-    // WS_OVERLAPPEDWINDOW = 13565964 | WS_VISIBLE = 268435456
-    let style = 13565964 | 268435456
+    // WS_OVERLAPPEDWINDOW = 0x00CF0000 | WS_VISIBLE = 0x10000000
+    let style = 0x00CF0000 | 0x10000000
     let hwnd = my_CreateWindowExA(
         0,
         "STATIC",
@@ -164,6 +245,12 @@ fn main() -> Int with Unsafe, GPU:
         println("Failed to create window. LastError=" + str(my_GetLastError()))
         let _ = runtime_shutdown()
         return 1
+
+    // Subclass the static window class to DefWindowProcA
+    let user32 = my_GetModuleHandleA("user32.dll")
+    let def_wnd_proc = my_GetProcAddress(user32, "DefWindowProcA")
+    let old_proc = my_SetWindowLongPtrA(hwnd, -4, def_wnd_proc) // GWLP_WNDPROC = -4
+    println("Subclassed window. Old proc=" + str(ptr_to_int(old_proc)))
 
     let hdc = my_GetDC(hwnd)
     println("hdc=" + str(ptr_to_int(hdc)))
@@ -203,6 +290,18 @@ fn main() -> Int with Unsafe, GPU:
     let msg_buf = alloc_zeroed(6, "Int")
     let msg_ptr = int_to_ptr(ptr_to_int(msg_buf), "ptr<Void>")
 
+    // Initialize center cell with density and velocity
+    var init_y: Int = 120
+    while init_y < 136:
+        var init_x: Int = 120
+        while init_x < 136:
+            let cell_idx = (init_y * 256 + init_x) * 3
+            store_i32(prev_buf, cell_idx + 2, double_to_f32_bits(10.0)) // density
+            store_i32(prev_buf, cell_idx, double_to_f32_bits(1.5))       // vx
+            store_i32(prev_buf, cell_idx + 1, double_to_f32_bits(1.5))   // vy
+            init_x = init_x + 1
+        init_y = init_y + 1
+
     let prev_path = ".kain/out/gpu/spirv/kain_compute_residency_shader_fluidstep_compute_prev.bin"
     let next_path = ".kain/out/gpu/spirv/kain_compute_residency_shader_fluidstep_compute_next.bin"
 
@@ -228,31 +327,35 @@ fn main() -> Int with Unsafe, GPU:
             if msg_type == 16: // WM_CLOSE
                 println("WM_CLOSE received. Destroying window...")
                 let _ = my_DestroyWindow(hwnd)
-            elif msg_type == 512: // WM_MOUSEMOVE
-                let wParam_val = mem_load(ptr_offset(msg_buf, 2, "Int"), "Int")
-                if (wParam_val & 1) != 0: // MK_LBUTTON is down
-                    let lParam_val = mem_load(ptr_offset(msg_buf, 3, "Int"), "Int")
-                    let mx = lParam_val & 65535
-                    let my = (lParam_val >> 16) & 65535
-                    let gx = mx / 2
-                    let gy = my / 2
-                    if gx >= 2 and gx < 254 and gy >= 2 and gy < 254:
-                        var dy: Int = -2
-                        while dy <= 2:
-                            var dx: Int = -2
-                            while dx <= 2:
-                                let nx = gx + dx
-                                let ny = gy + dy
-                                if nx >= 0 and nx < 256 and ny >= 0 and ny < 256:
-                                    let cell_idx = (ny * 256 + nx) * 3
-                                    store_i32(prev_buf, cell_idx + 2, double_to_f32_bits(10.0))
-                                    store_i32(prev_buf, cell_idx, double_to_f32_bits(Float(dx) * 2.5))
-                                    store_i32(prev_buf, cell_idx + 1, double_to_f32_bits(Float(dy) * 2.5))
-                                dx = dx + 1
-                            dy = dy + 1
-
-            let _ = my_TranslateMessage(msg_ptr)
-            let _ = my_DispatchMessageA(msg_ptr)
+            elif msg_type == 15: // WM_PAINT
+                let _ = my_ValidateRect(hwnd, int_to_ptr(0, "Void"))
+            elif msg_type == 20: // WM_ERASEBKGND
+                let _ = 0 // Skip dispatching to prevent white background erase
+            else:
+                if msg_type == 512: // WM_MOUSEMOVE
+                    let wParam_val = mem_load(ptr_offset(msg_buf, 2, "Int"), "Int")
+                    if (wParam_val & 1) != 0: // MK_LBUTTON is down
+                        let lParam_val = mem_load(ptr_offset(msg_buf, 3, "Int"), "Int")
+                        let mx = lParam_val & 65535
+                        let my = (lParam_val >> 16) & 65535
+                        let gx = mx / 2
+                        let gy = my / 2
+                        if gx >= 2 and gx < 254 and gy >= 2 and gy < 254:
+                            var dy: Int = -2
+                            while dy <= 2:
+                                var dx: Int = -2
+                                while dx <= 2:
+                                    let nx = gx + dx
+                                    let ny = gy + dy
+                                    if nx >= 0 and nx < 256 and ny >= 0 and ny < 256:
+                                        let cell_idx = (ny * 256 + nx) * 3
+                                        store_i32(prev_buf, cell_idx + 2, double_to_f32_bits(10.0))
+                                        store_i32(prev_buf, cell_idx, double_to_f32_bits(Float(dx) * 2.5))
+                                        store_i32(prev_buf, cell_idx + 1, double_to_f32_bits(Float(dy) * 2.5))
+                                    dx = dx + 1
+                                dy = dy + 1
+                let _ = my_TranslateMessage(msg_ptr)
+                let _ = my_DispatchMessageA(msg_ptr)
             loop_msg = my_PeekMessageA(msg_ptr, int_to_ptr(0, "Void"), 0, 0, 1)
 
         if frame == 0:
@@ -266,16 +369,36 @@ fn main() -> Int with Unsafe, GPU:
             println("Error: failed to open prev.bin for writing!")
             let _ = runtime_shutdown()
             return 1
+        if frame == 0:
+            var check_idx: Int = 0
+            var non_zero_count: Int = 0
+            while check_idx < 196608:
+                if load_i32(prev_buf, check_idx) != 0:
+                    non_zero_count = non_zero_count + 1
+                check_idx = check_idx + 1
+            println("Frame 0 prev_buf non-zero elements: " + str(non_zero_count))
         let bytes_written = fs_write(f_prev, prev_buf, 786432)
         if frame == 0:
             println("fs_write prev.bin bytes: " + str(bytes_written))
         let _ = fs_close(f_prev)
+
+        // Query starting handle to detect leaks during dispatch
+        let h_start = my_CreateEventA(int_to_ptr(0, "Void"), 0, 0, int_to_ptr(0, "Void"))
+        let _ = my_CloseHandle(h_start)
 
         if frame == 0:
             println("Dispatching shader...")
 
         // 3. Dispatch compute shader
         dispatch "shader::FluidStep::compute" [32, 32, 1]
+        if frame == 0:
+            let last_status = my_abi_cuda_last_status()
+            println("Last CUDA status: " + str(last_status))
+            if last_status != 0:
+                print("Error Kind: ")
+                let _ = print_c_str(my_abi_cuda_last_error_kind())
+                print("Error Message: ")
+                let _ = print_c_str(my_abi_cuda_last_error_message())
 
         if frame == 0:
             println("Shader dispatched. Reading next.bin...")
@@ -291,6 +414,13 @@ fn main() -> Int with Unsafe, GPU:
         let bytes_read = fs_read(f_next, next_buf, 786432)
         if frame == 0:
             println("fs_read next.bin bytes: " + str(bytes_read))
+            var check_idx: Int = 0
+            var non_zero_count: Int = 0
+            while check_idx < 196608:
+                if load_i32(next_buf, check_idx) != 0:
+                    non_zero_count = non_zero_count + 1
+                check_idx = check_idx + 1
+            println("Frame 0 next_buf non-zero elements: " + str(non_zero_count))
         let _ = fs_close(f_next)
 
         if frame == 0:
@@ -350,10 +480,13 @@ fn main() -> Int with Unsafe, GPU:
             int_to_ptr(ptr_to_int(fb), "ptr<Void>"),
             int_to_ptr(ptr_to_int(bmi), "ptr<Void>"),
             0,
-            13369376
+            0x00CC0020 // SRCCOPY
         )
         if frame == 0:
             println("StretchDIBits returned: " + str(draw_status))
+
+        // Validate client area after drawing to prevent WM_PAINT flood
+        let _ = my_ValidateRect(hwnd, int_to_ptr(0, "Void"))
 
         // 7. Copy next_buf to prev_buf for the next frame
         var c: Int = 0
@@ -361,7 +494,23 @@ fn main() -> Int with Unsafe, GPU:
             mem_store(ptr_offset(prev_buf, c, "Int"), mem_load(ptr_offset(next_buf, c, "Int"), "Int"), "Int")
             c = c + 1
 
+        // 8. Reclaim leaked file handles from GPU runtime dispatch
+        let h_end = my_CreateEventA(int_to_ptr(0, "Void"), 0, 0, int_to_ptr(0, "Void"))
+        let _ = my_CloseHandle(h_end)
+        var h = ptr_to_int(h_start)
+        let end_h = ptr_to_int(h_end)
+        if frame == 0:
+            println("Closing leaked residency handles...")
+        while h < end_h:
+            let h_ptr = int_to_ptr(h, "Void")
+            if my_GetFileType(h_ptr) == 1: // FILE_TYPE_DISK = 1
+                if frame == 0:
+                    println("Reclaiming leaked disk file handle: " + str(h))
+                let _ = my_CloseHandle(h_ptr)
+            h = h + 4
+
         my_Sleep(16)
+
         if frame % 60 == 0:
             println("Rendered frame: " + str(frame))
         frame = frame + 1

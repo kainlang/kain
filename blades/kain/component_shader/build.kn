@@ -1,0 +1,36 @@
+use std::build
+
+fn build(ctx: BuildContext) -> BuildGraph:
+    let app = project("starter")
+        .kind("kain_executable")
+        .version("0.1.0")
+        .description("Starter template for Kain projects")
+        .entry("src/main.kn")
+        .source_root("src")
+        .module_root("src")
+        .target("llvm")
+        .artifact_root(".kain/out")
+        .cache_root(".kain/cache/build")
+        .profile("debug")
+
+    let check = check_task("check-llvm")
+        .project(app)
+        .target("llvm")
+
+    let gpu = gpu_suite("gpu-artifacts")
+        .compute("src/kernel.comp.kn")
+        .targets("spirv")
+        .artifact_root(".kain/out/gpu")
+        .requires("check-llvm")
+
+    let exe = native_executable("root-executable")
+        .project(app)
+        .output("$blade/component_shader.exe")
+        .requires(check)
+        .requires(gpu)
+
+    return build_graph()
+        .project(app)
+        .task(check)
+        .task(gpu)
+        .task(exe)

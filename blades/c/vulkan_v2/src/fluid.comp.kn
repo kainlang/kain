@@ -42,8 +42,13 @@ shader compute FluidStep(id: UVec3) -> Void workgroup(8, 8, 1):
     let fx = sx - Float(ix)
     let fy = sy - Float(iy)
 
-    let nx = if ix + UInt(1) < gs: ix + UInt(1) else: ix
-    let ny = if iy + UInt(1) < gs: iy + UInt(1) else: iy
+    var nx: UInt = ix
+    if ix + UInt(1) < gs:
+        nx = ix + UInt(1)
+
+    var ny: UInt = iy
+    if iy + UInt(1) < gs:
+        ny = iy + UInt(1)
 
     let s00 = (iy * gs + ix) * UInt(3)
     let s10 = (iy * gs + nx) * UInt(3)

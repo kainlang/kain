@@ -39,10 +39,21 @@ shader compute FluidReactionStep(id: UVec3) -> Void workgroup(8, 8, 1):
     let v = prev[idx + UInt(1)]
 
     // Laplacian — 9-point stencil
-    let xl = if x > UInt(0): x - UInt(1) else: UInt(GRID_SIZE - 1)
-    let xr = if x < UInt(GRID_SIZE - 1): x + UInt(1) else: UInt(0)
-    let yu = if y > UInt(0): y - UInt(1) else: UInt(GRID_SIZE - 1)
-    let yd = if y < UInt(GRID_SIZE - 1): y + UInt(1) else: UInt(0)
+    var xl: UInt = UInt(GRID_SIZE - 1)
+    if x > UInt(0):
+        xl = x - UInt(1)
+
+    var xr: UInt = UInt(0)
+    if x < UInt(GRID_SIZE - 1):
+        xr = x + UInt(1)
+
+    var yu: UInt = UInt(GRID_SIZE - 1)
+    if y > UInt(0):
+        yu = y - UInt(1)
+
+    var yd: UInt = UInt(0)
+    if y < UInt(GRID_SIZE - 1):
+        yd = y + UInt(1)
 
     let cl = (y * UInt(GRID_SIZE) + xl) * UInt(2)
     let cr = (y * UInt(GRID_SIZE) + xr) * UInt(2)

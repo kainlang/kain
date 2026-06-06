@@ -1,0 +1,72 @@
+// kernel.comp.kn — Julia Fractal GPU Shader
+shader compute PreviewShader(id: UVec3) -> Void workgroup(8, 8, 1):
+    uniform prev: StorageBuffer<Float> @0
+    uniform next_: StorageBuffer<Float> @1
+    uniform params: StorageBuffer<Float> @2
+
+    comptime:
+        let compute = (
+            [32, 32, 1],
+            [
+                ("prev", "f32", ["196608"], "input", "kain.shared.buffer"),
+                ("next_", "f32", ["196608"], "output", "kain.shared.buffer"),
+                ("params", "f32", ["8"], "input", "kain.shared.buffer"),
+            ],
+            [],
+        )
+
+    let x = id.x
+    let y = id.y
+
+    if x > UInt(255) or y > UInt(255):
+        return
+
+    let gs = UInt(256)
+    
+    // Load parameters (zoom, cx, cy, offset_x, offset_y, time)
+    let zoom = params[0]
+    let c_re = params[1]
+    let c_im = params[2]
+    let off_x = params[3]
+    let off_y = params[4]
+    let time = params[5]
+
+    // Screen space [-1, 1] mapped to complex plane
+    let z_re = (Float(x) - 128.0) / (128.0 * zoom) + off_x
+    let z_im = (Float(y) - 128.0) / (128.0 * zoom) + off_y
+
+    var new_re = z_re
+    var new_im = z_im
+
+    var i: Int = 0
+    var max_iter: Int = 64
+    while i < max_iter:
+        let r2 = new_re * new_re
+        let i2 = new_im * new_im
+        if r2 + i2 > 4.0:
+            break
+        new_im = 2.0 * new_re * new_im + c_im
+        new_re = r2 - i2 + c_re
+        i = i + 1
+
+    var r: Float = 0.0
+    var g: Float = 0.0
+    var b: Float = 0.0
+
+    if i < max_iter:
+        let r_val = Float((i * 4 + Int(time * 5.0)) % 64) / 64.0
+        let g_val = Float((i * 8 + Int(time * 2.0)) % 64) / 64.0
+        let b_val = Float((i * 12) % 64) / 64.0
+        r = r_val
+        g = g_val
+        b = b_val
+    else:
+        r = 0.0
+        g = 0.0
+        b = 0.0
+
+    let idx = (y * gs + x) * UInt(3)
+    next_[idx] = r
+    next_[idx + UInt(1)] = g
+    next_[idx + UInt(2)] = b
+    return

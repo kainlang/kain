@@ -139,6 +139,19 @@ pub enum TokenKind {
     Unsafe,
 
     // === Literals ===
+    // Hex: 0xDEAD_BEEF, Octal: 0o777, Binary: 0b1010_0101
+    #[regex(r"0x[0-9a-fA-F][0-9a-fA-F_]*", |lex| {
+        let s = &lex.slice()[2..];
+        i64::from_str_radix(&s.replace('_', ""), 16).ok()
+    })]
+    #[regex(r"0o[0-7][0-7_]*", |lex| {
+        let s = &lex.slice()[2..];
+        i64::from_str_radix(&s.replace('_', ""), 8).ok()
+    })]
+    #[regex(r"0b[01][01_]*", |lex| {
+        let s = &lex.slice()[2..];
+        i64::from_str_radix(&s.replace('_', ""), 2).ok()
+    })]
     #[regex(r"[0-9][0-9_]*", |lex| lex.slice().replace('_', "").parse().ok())]
     Int(i64),
 
@@ -503,5 +516,68 @@ mod tests {
                 )),
             "grouped expression should not leak formatting tokens inside parentheses"
         );
+    }
+
+    // ── Hex, octal, and binary literal tests ──
+
+    #[test]
+    fn hex_literals() {
+        let tokens = Lexer::new("0xDEADBEEF").tokenize().unwrap();
+        assert_eq!(tokens.len(), 1);
+        assert_eq!(tokens[0].kind, TokenKind::Int(0xDEADBEEF));
+
+        let tokens = Lexer::new("0xFF").tokenize().unwrap();
+        assert_eq!(tokens[0].kind, TokenKind::Int(255));
+
+        let tokens = Lexer::new("0x0").tokenize().unwrap();
+        assert_eq!(tokens[0].kind, TokenKind::Int(0));
+
+        // Lowercase + underscore separator
+        let tokens = Lexer::new("0xdead_beef").tokenize().unwrap();
+        assert_eq!(tokens[0].kind, TokenKind::Int(0xDEAD_BEEF));
+    }
+
+    #[test]
+    fn octal_literals() {
+        let tokens = Lexer::new("0o77").tokenize().unwrap();
+        assert_eq!(tokens[0].kind, TokenKind::Int(63));
+
+        let tokens = Lexer::new("0o0").tokenize().unwrap();
+        assert_eq!(tokens[0].kind, TokenKind::Int(0));
+
+        let tokens = Lexer::new("0o777").tokenize().unwrap();
+        assert_eq!(tokens[0].kind, TokenKind::Int(511));
+    }
+
+    #[test]
+    fn binary_literals() {
+        let tokens = Lexer::new("0b1010_0101").tokenize().unwrap();
+        assert_eq!(tokens[0].kind, TokenKind::Int(0b10100101));
+
+        let tokens = Lexer::new("0b0").tokenize().unwrap();
+        assert_eq!(tokens[0].kind, TokenKind::Int(0));
+
+        let tokens = Lexer::new("0b1").tokenize().unwrap();
+        assert_eq!(tokens[0].kind, TokenKind::Int(1));
+    }
+
+    #[test]
+    fn hex_without_digits_falls_through_to_decimal_zero_plus_ident() {
+        let tokens = Lexer::new("0x").tokenize().unwrap();
+        assert_eq!(tokens.len(), 2);
+        assert_eq!(tokens[0].kind, TokenKind::Int(0));
+        assert!(matches!(tokens[1].kind, TokenKind::Ident(ref name) if name == "x"));
+    }
+
+    #[test]
+    fn decimal_literals_still_work() {
+        let tokens = Lexer::new("42").tokenize().unwrap();
+        assert_eq!(tokens[0].kind, TokenKind::Int(42));
+
+        let tokens = Lexer::new("1_000_000").tokenize().unwrap();
+        assert_eq!(tokens[0].kind, TokenKind::Int(1_000_000));
+
+        let tokens = Lexer::new("0").tokenize().unwrap();
+        assert_eq!(tokens[0].kind, TokenKind::Int(0));
     }
 }

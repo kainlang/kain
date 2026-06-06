@@ -209,6 +209,45 @@ pub enum ComputeExecutorError {
     UnsupportedCudaGraphPolicy { value: String },
 }
 
+/// Mirrors the same struct in nvidia_ptx.rs — tracks where to flush each output binding after
+/// GPU dispatch completes on the Vulkan path.
+#[derive(Debug, Clone)]
+struct OutputBindingTarget {
+    slot: u32,
+    payload_path: PathBuf,
+    byte_length: usize,
+}
+
+/// Write every GPU output binding back to its residency sidecar file, exactly as the CUDA PTX
+/// path does via `persist_output_bindings_to_sidecars` in nvidia_ptx.rs.  Without this, the
+/// Kain simulation loop reads stale (all-zero) data from disk every frame — producing a black
+/// screen even though the GPU computed valid results.
+fn persist_spirv_output_bindings(
+    output_targets: &[OutputBindingTarget],
+    output_bindings: &[(u32, Vec<u8>)],
+) -> Result<(), ComputeExecutorError> {
+    for target in output_targets {
+        let bytes = output_bindings
+            .iter()
+            .find(|(slot, _)| *slot == target.slot)
+            .map(|(_, b)| b)
+            .ok_or(ComputeExecutorError::MissingOutputBinding { binding: target.slot })?;
+        if bytes.len() != target.byte_length {
+            return Err(ComputeExecutorError::OutputBindingLengthMismatch {
+                binding: target.slot,
+                expected: target.byte_length,
+                actual: bytes.len(),
+                path: target.payload_path.display().to_string(),
+            });
+        }
+        fs::write(&target.payload_path, bytes).map_err(|err| ComputeExecutorError::WriteFile {
+            path: target.payload_path.display().to_string(),
+            message: err.to_string(),
+        })?;
+    }
+    Ok(())
+}
+
 pub type GpuComputeExecutor = VulkanComputeExecutor;
 
 pub struct VulkanComputeExecutor {
@@ -399,13 +438,15 @@ impl VulkanComputeExecutor {
         compute_residency_path: &Path,
         compute_key: &str,
     ) -> Result<GpuDispatchResult, ComputeExecutorError> {
-        let (spirv, request) = dispatch_request_from_sidecars(
+        let (spirv, request, output_targets) = dispatch_request_from_sidecars(
             shader_bundle_path,
             compute_residency_path,
             compute_key,
             None,
         )?;
-        self.run_dispatch_request(&spirv, &request)
+        let dispatch = self.run_dispatch_request(&spirv, &request)?;
+        persist_spirv_output_bindings(&output_targets, &dispatch.output_bindings)?;
+        Ok(dispatch)
     }
 
     pub fn run_dispatch_request(
@@ -842,7 +883,16 @@ pub extern "C" fn kain_gpu_runtime_dispatch_primary_compute(
         &compute_key,
         dispatch_override,
     )
-    .and_then(|(spirv, request)| executor.run_dispatch_request(&spirv, &request))
+    .and_then(|(spirv, dispatch_request, output_targets)| {
+        executor
+            .run_dispatch_request(&spirv, &dispatch_request)
+            .and_then(|dispatch| {
+                // Flush output bindings back to their residency sidecar files so that the
+                // Kain simulation loop sees the GPU-computed results on the next read.
+                persist_spirv_output_bindings(&output_targets, &dispatch.output_bindings)?;
+                Ok(dispatch)
+            })
+    })
     {
         Ok(dispatch) => {
             populate_dispatch_result(result, &dispatch, "dispatch ok");
@@ -861,7 +911,7 @@ fn dispatch_request_from_sidecars(
     compute_residency_path: &Path,
     compute_key: &str,
     dispatch_override: Option<[u32; 3]>,
-) -> Result<(Vec<u8>, GpuDispatchRequest), ComputeExecutorError> {
+) -> Result<(Vec<u8>, GpuDispatchRequest, Vec<OutputBindingTarget>), ComputeExecutorError> {
     let shader_bundle_json =
         fs::read_to_string(shader_bundle_path).map_err(|err| ComputeExecutorError::ReadFile {
             path: shader_bundle_path.display().to_string(),
@@ -913,6 +963,7 @@ fn dispatch_request_from_sidecars(
         .parent()
         .unwrap_or_else(|| Path::new("."));
     let mut bindings = Vec::with_capacity(entry.bindings.len());
+    let mut output_targets: Vec<OutputBindingTarget> = Vec::new();
     for binding in &entry.bindings {
         let payload_path = residency_root.join(&binding.payload_file);
         let bytes = fs::read(&payload_path).map_err(|err| ComputeExecutorError::ReadFile {
@@ -958,6 +1009,13 @@ fn dispatch_request_from_sidecars(
             message: err.to_string(),
         })?;
 
+        if access.is_output() {
+            output_targets.push(OutputBindingTarget {
+                slot: binding.slot,
+                payload_path: payload_path.clone(),
+                byte_length: bytes.len(),
+            });
+        }
         bindings.push(GpuDispatchBinding {
             key: binding.key.clone(),
             binding_slot: binding.slot,
@@ -987,6 +1045,7 @@ fn dispatch_request_from_sidecars(
             stream_binding_count: entry.stream_binding_count,
             neural_node_count: entry.neural_node_count,
         },
+        output_targets,
     ))
 }
 

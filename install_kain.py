@@ -645,10 +645,25 @@ def install_cli_binaries(context: InstallContext) -> list[Path]:
     if not context.dry_run:
         install_dir.mkdir(parents=True, exist_ok=True)
 
+    target_dir = context.repo_root / "target"
+    try:
+        res = subprocess.run(
+            ["cargo", "metadata", "--no-deps", "--format-version", "1"],
+            cwd=context.repo_root,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        metadata = json.loads(res.stdout)
+        if "target_directory" in metadata:
+            target_dir = Path(metadata["target_directory"])
+    except Exception:
+        pass
+
     installed_binaries: list[Path] = []
     extension = ".exe" if context.is_windows else ""
     for name in ("kain", "kn", "blade"):
-        source = context.repo_root / "target" / "release" / f"{name}{extension}"
+        source = target_dir / "release" / f"{name}{extension}"
         if not source.exists():
             raise RuntimeError(
                 f"Expected built binary at {source}. Re-run without --skip-build after cargo succeeds."

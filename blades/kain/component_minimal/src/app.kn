@@ -1,48 +1,38 @@
-// ============================================================================
-//  COMPONENT MINIMAL — Zero Bridge, Pure Kain + Win32 via libclang
-// ============================================================================
-//
-//  Architecture: NO C BRIDGE. libclang extracts 6294 functions from windows.h.
-//
-//   Layer 1: Direct Win32 via `include <windows.h> as win`
-//     Creates window (STATIC class), renders via GDI, pumps messages.
-//     All from Kain. Zero C code. Zero shim headers.
-//
-//   Layer 2: Component Definitions
-//     Counter, ToggleButton, IndicatorLight, Dashboard — JSX render trees.
-//     Compiler-validated UI contracts.
-//
-//   Layer 3: std::ui Reconciliation (headless, verifiable via frame hash)
-//
-//   Layer 4: std::reload Hot Reload
-//
-//   Experimental: GDI rendering directly from Kain — FillRect, TextOutA, etc.
-//   This is the Carmack layer. If the compiler accepts it, we win.
-// ============================================================================
-
 use std::runtime
-use std::ui
-use std::reload
 use std::alloc
 use std::fs
 use std::time
 
 include <windows.h> as win
 
-const APP_TITLE: String = "Component Minimal // Pure Kain + Win32"
-const APP_WIDTH: Int = 640
-const APP_HEIGHT: Int = 480
-const APP_FRAME_BUDGET: Int = 60
-const APP_REVISION: String = "component-minimal.rev-b"
+@extern @link_name("PeekMessageA")
+fn my_PeekMessageA(lpMsg: ptr<Int>, hWnd: Int, wMsgFilterMin: Int, wMsgFilterMax: Int, wRemoveMsg: Int) -> Int
+@extern @link_name("TranslateMessage")
+fn my_TranslateMessage(lpMsg: ptr<Int>) -> Int
+@extern @link_name("DispatchMessageA")
+fn my_DispatchMessageA(lpMsg: ptr<Int>) -> Int
+@extern @link_name("IsWindow")
+fn my_IsWindow(hWnd: Int) -> Int
+@extern @link_name("GetAsyncKeyState")
+fn my_GetAsyncKeyState(vKey: Int) -> Int
 
-// ═══════════════════════════════════════════════════════════════════════════════
-//  GDI Helpers
-// ═══════════════════════════════════════════════════════════════════════════════
+const APP_W: Int = 1280
+const APP_H: Int = 720
+const TITLE: String = "COMPONENT MINIMAL"
+const BG: Int = 0x0E0806
+const BG_PANEL: Int = 0x1A1412
+const BG_TOP: Int = 0x060402
+const ACCENT: Int = 0x4C80FF
+const TEXT_PRIMARY: Int = 0xD6EAF4
+const TEXT_SECONDARY: Int = 0xA4BEC6
+const GREEN: Int = 0x68FFD6
+const RED: Int = 0x6644FF
+const MAGIC: Int = 0x5f3759df
 
-fn gdi_rgb(r: Int, g: Int, b: Int) -> Int:
+fn rgb(r: Int, g: Int, b: Int) -> Int:
     return r | (g << 8) | (b << 16)
 
-fn gdi_fill_rect(hdc: Int, x: Int, y: Int, w: Int, h: Int, color: Int) -> Int with Unsafe:
+fn fill_rect(hdc: Int, x: Int, y: Int, w: Int, h: Int, color: Int) -> Int with Unsafe:
     let brush = win_CreateSolidBrush(color)
     let rect: ptr<Int> = alloc_zeroed(4, "Int")
     mem_store(ptr_offset(rect, 0, "Int"), x, "Int")
@@ -54,284 +44,310 @@ fn gdi_fill_rect(hdc: Int, x: Int, y: Int, w: Int, h: Int, color: Int) -> Int wi
     let _ = win_DeleteObject(brush)
     return result
 
-fn gdi_text(hdc: Int, x: Int, y: Int, text: String, color: Int) -> Int with Unsafe:
+fn draw_text(hdc: Int, x: Int, y: Int, text: String, color: Int) -> Int with Unsafe:
     let _ = win_SetTextColor(hdc, color)
-    let _ = win_SetBkMode(hdc, 1)  // TRANSPARENT = 1
+    let _ = win_SetBkMode(hdc, 1)
     return win_TextOutA(hdc, x, y, text, len(text))
 
-// ═══════════════════════════════════════════════════════════════════════════════
-//  Component Definitions
-// ═══════════════════════════════════════════════════════════════════════════════
+fn fast_invsqrt(x: Float) -> Float with Unsafe:
+    let half_x = x * 0.5
+    let buf: ptr<Int> = alloc_zeroed(2, "Int")
+    let float_ptr = int_to_ptr(ptr_to_int(buf), "ptr<Float>")
+    mem_store(float_ptr, x, "Float")
+    let i = mem_load(buf, "Int")
+    i = MAGIC - (i >> 1)
+    mem_store(buf, i, "Int")
+    let y = mem_load(float_ptr, "Float")
+    decay buf
+    y = y * (1.5 - (half_x * y * y))
+    return y
 
-component Counter(label: String, initial: Int):
-    state count: Int = initial
+component Counter(label: String):
+    render <box><text value={label} /></box>
 
-    fn increment(_self: Self_):
-        _self.count = _self.count + 1
+component Toggle(label: String):
+    render <box><text value={label} /></box>
 
-    fn decrement(_self: Self_):
-        _self.count = _self.count - 1
+component Indicator():
+    render <box><text value="GREEN" /></box>
 
-    render <box>
-        <text value={label} />
-    </box>
-
-component ToggleButton(label: String):
-    state on: Bool = false
-
-    fn flip(_self: Self_):
-        _self.on = _self.on == false
-
-    render <box>
-        <text value={label} />
-    </box>
-
-component IndicatorLight():
-    state phase: Int = 0
-
-    fn advance(_self: Self_):
-        _self.phase = (_self.phase + 1) % 3
-
-    render <box>
-        <text value="GREEN" />
-    </box>
-
-component Dashboard(version: String):
-    state frame_count: Int = 0
-    state signal: Int = 42
-
-    fn tick(_self: Self_):
-        _self.frame_count = _self.frame_count + 1
-        _self.signal = (_self.signal * 17 + 7) % 1000000007
-
-    render <panel title={"Dashboard v" + version}>
+component Dashboard():
+    render <panel title="Dashboard">
         <stack direction="vertical">
-            <box>
-                <text value="running" />
-                <text value="signal active" />
-            </box>
-            <Counter label="Clicks" initial={0} />
-            <Counter label="Errors" initial={0} />
-            <ToggleButton label="Debug Mode" />
-            <IndicatorLight />
+            <box><text value="running" /></box>
+            <Counter label="Clicks" />
+            <Toggle label="Debug" />
+            <Indicator />
         </stack>
     </panel>
 
-// ═══════════════════════════════════════════════════════════════════════════════
-//  Win32 Window — Create, Render, Pump
-// ═══════════════════════════════════════════════════════════════════════════════
+fn render_frame(hdc: Int, frame: Int, clicks: Int, errors: Int, debug: Int, phase: Int, sphere_anim: Int, mx: Int, my: Int, fps: Int) -> Int with Unsafe:
+    let _ = fill_rect(hdc, 0, 0, APP_W, APP_H, BG)
 
-fn create_window(title: String, width: Int, height: Int) -> Int with Unsafe:
-    // With the tagged-int fix, 0 for pointer params now correctly becomes null.
-    let hinstance = win_GetModuleHandleA("user32.dll")
-    // WS_OVERLAPPEDWINDOW = 13565964 | WS_VISIBLE = 268435456
-    let style = 13565964 | 268435456
+    let _ = fill_rect(hdc, 0, 0, APP_W, 48, BG_TOP)
+    let _ = draw_text(hdc, 20, 12, TITLE, ACCENT)
+    let fps_str = "FPS " + str(fps) + "  Frame " + str(frame)
+    let _ = draw_text(hdc, APP_W - 200, 12, fps_str, GREEN)
+    let _ = draw_text(hdc, 20, 32, "Kain + Hex + Win32 + GDI  |  magic: 0x5F3759DF  |  interactive", TEXT_SECONDARY)
+
+    let lx = 16
+    let ly = 64
+    let lw = 260
+    let lh = APP_H - 104
+    let _ = fill_rect(hdc, lx, ly, lw, lh, BG_PANEL)
+
+    let px = lx + 14
+    let py = ly + 14
+    let _ = draw_text(hdc, px, py, "COUNTERS", ACCENT)
+
+    let cy = py + 30
+    let _ = fill_rect(hdc, px, cy, lw - 28, 68, BG)
+    let _ = draw_text(hdc, px + 12, cy + 10, "CLICKS", TEXT_SECONDARY)
+    let _ = draw_text(hdc, px + 12, cy + 32, str(clicks), TEXT_PRIMARY)
+    let _ = fill_rect(hdc, px + 140, cy + 8, 44, 26, 0x342820)
+    let _ = draw_text(hdc, px + 154, cy + 14, "+", TEXT_PRIMARY)
+    let _ = fill_rect(hdc, px + 188, cy + 8, 44, 26, 0x342820)
+    let _ = draw_text(hdc, px + 202, cy + 14, "-", TEXT_PRIMARY)
+
+    let ey = cy + 80
+    let _ = fill_rect(hdc, px, ey, lw - 28, 68, BG)
+    let _ = draw_text(hdc, px + 12, ey + 10, "ERRORS", TEXT_SECONDARY)
+    let err_color = if errors > 0: RED else: TEXT_PRIMARY
+    let _ = draw_text(hdc, px + 12, ey + 32, str(errors), err_color)
+    let _ = fill_rect(hdc, px + 140, ey + 8, 44, 26, 0x342820)
+    let _ = draw_text(hdc, px + 154, ey + 14, "+", TEXT_PRIMARY)
+    let _ = fill_rect(hdc, px + 188, ey + 8, 44, 26, 0x342820)
+    let _ = draw_text(hdc, px + 202, ey + 14, "-", TEXT_PRIMARY)
+
+    let ty = ey + 80
+    let _ = fill_rect(hdc, px, ty, lw - 28, 48, BG)
+    let dbg_text = if debug != 0: "DEBUG MODE [ON]" else: "DEBUG MODE [OFF]"
+    let dbg_color = if debug != 0: GREEN else: TEXT_SECONDARY
+    let _ = draw_text(hdc, px + 12, ty + 16, dbg_text, dbg_color)
+
+    let iy = ty + 60
+    let _ = fill_rect(hdc, px, iy, lw - 28, 48, BG)
+    var ind_text = "GREEN"
+    var ind_color = GREEN
+    if phase == 1:
+        ind_text = "YELLOW"
+        ind_color = 0x4CB8FF
+    if phase == 2:
+        ind_text = "RED"
+        ind_color = RED
+    let _ = draw_text(hdc, px + 12, iy + 10, "INDICATOR", TEXT_SECONDARY)
+    let _ = draw_text(hdc, px + 12, iy + 28, ind_text, ind_color)
+
+    let rx = lx + lw + 16
+    let rw = 280
+    let _ = fill_rect(hdc, rx, ly, rw, lh, BG_PANEL)
+    let rpx = rx + 14
+    let _ = draw_text(hdc, rpx, py, "TELEMETRY", ACCENT)
+
+    let rpy = py + 30
+    let inv_val = fast_invsqrt(Float(frame + 1))
+    let inv_int = Int(inv_val * 100000.0)
+    let inv_str = "invsqrt(" + str(frame + 1) + ") = " + str(inv_int / 100000) + "." + str(inv_int % 100000)
+    let _ = draw_text(hdc, rpx, rpy, "INVSQRT", TEXT_SECONDARY)
+    let _ = draw_text(hdc, rpx, rpy + 22, inv_str, 0xD6A068)
+
+    let rpy2 = rpy + 60
+    let _ = draw_text(hdc, rpx, rpy2, "HOTKEYS", TEXT_SECONDARY)
+    let _ = draw_text(hdc, rpx, rpy2 + 22, "[C] +Click   [X] +Error", TEXT_PRIMARY)
+    let _ = draw_text(hdc, rpx, rpy2 + 40, "[D] Toggle   [R] Reset", TEXT_PRIMARY)
+    let _ = draw_text(hdc, rpx, rpy2 + 58, "[S] Sphere  [Q] Quit", TEXT_PRIMARY)
+
+    let rpy3 = rpy2 + 90
+    let _ = draw_text(hdc, rpx, rpy3, "MOUSE", TEXT_SECONDARY)
+    let _ = draw_text(hdc, rpx, rpy3 + 22, "(" + str(mx) + ", " + str(my) + ")", TEXT_PRIMARY)
+
+    let cx = rx + rw + 16
+    let cw = APP_W - cx - 16
+    let cy2 = ly
+    let ch = lh
+    let _ = fill_rect(hdc, cx, cy2, cw, ch, BG_PANEL)
+
+    let sphere_cx = cx + cw / 2
+    let sphere_cy = cy2 + ch / 2
+    let radius = 120
+    if cw < 260: radius = cw / 2 - 10
+    if ch < 260: radius = ch / 2 - 10
+
+    var r: Int = radius
+    let anim_phase = if sphere_anim != 0: Float(frame % 240) * 0.026 else: 0.0
+    while r > 0:
+        let dist = Float(r) / Float(radius)
+        let nz = dist
+        if nz > 1.0:
+            nz = 1.0
+        let nx = 0.3 * (1.0 - dist) * nz
+        let ny = 0.2 * (1.0 - dist) * nz
+        let light_z = -0.7
+        let light_y = 0.4
+        let light_x = 0.3 + anim_phase * 0.1
+        let diffuse = nz * (-light_z) + ny * light_y + nx * light_x + 0.15
+        if diffuse > 1.0:
+            diffuse = 1.0
+        if diffuse < 0.0:
+            diffuse = 0.0
+        let cr = Int(diffuse * (200.0 + ny * 55.0))
+        let cg = Int(diffuse * (120.0 + nx * 40.0))
+        let cb = Int(diffuse * (220.0 + nz * 35.0))
+        if cr > 255:
+            cr = 255
+        if cg > 255:
+            cg = 255
+        if cb > 255:
+            cb = 255
+        if cr < 0:
+            cr = 0
+        if cg < 0:
+            cg = 0
+        if cb < 0:
+            cb = 0
+        let color = rgb(cr, cg, cb)
+        let size = r * 2
+        let _ = fill_rect(hdc, sphere_cx - r, sphere_cy - r, size, size, color)
+        r = r - 1
+
+    let sphere_label = if sphere_anim != 0: "ANIMATED" else: "STATIC"
+    let sl_color = if sphere_anim != 0: 0xD668FF else: TEXT_SECONDARY
+    let _ = draw_text(hdc, sphere_cx - 44, sphere_cy + radius + 16, sphere_label, sl_color)
+
+    let sy = APP_H - 28
+    let _ = fill_rect(hdc, 0, sy, APP_W, 28, 0x060402)
+    let status_str = "STATUS: Running  |  Frame " + str(frame) + "  |  Mouse (" + str(mx) + "," + str(my) + ")"
+    if debug != 0:
+        status_str = status_str + "  [DEBUG]"
+    let _ = draw_text(hdc, 16, sy + 6, status_str, TEXT_SECONDARY)
+
+    return 0
+
+fn hit_button(mx: Int, my: Int, bx: Int, by: Int, bw: Int, bh: Int) -> Bool:
+    return mx >= bx and mx < bx + bw and my >= by and my < by + bh
+
+fn create_window() -> Int with Unsafe:
+    let hinst = win_GetModuleHandleA("user32.dll")
+    let style = 0x00CF0000 | 0x10000000
     let hwnd = win_CreateWindowExA(
-        0,                    // dwExStyle = 0
-        "STATIC",             // lpClassName
-        title,                // lpWindowName
-        style,                // dwStyle
-        100,                  // X
-        100,                  // Y
-        width,                // nWidth
-        height,               // nHeight
-        0,                    // hWndParent = NULL (fix untags this)
-        0,                    // hMenu = NULL (fix untags this)
-        hinstance,            // hInstance
-        0                     // lpParam = NULL (fix untags this)
+        0, "STATIC", TITLE, style,
+        60, 40, APP_W, APP_H,
+        0, 0, hinst, 0
     )
-    let _ = win_ShowWindow(hwnd, 5)     // SW_SHOW = 5
+    if hwnd != 0:
+        let user32 = win_GetModuleHandleA("user32.dll")
+        let def_wnd_proc = win_GetProcAddress(user32, "DefWindowProcA")
+        let _ = win_SetWindowLongPtrA(hwnd, -4, def_wnd_proc)
+    let _ = win_ShowWindow(hwnd, 5)
     let _ = win_UpdateWindow(hwnd)
     return hwnd
-
-// ═══════════════════════════════════════════════════════════════════════════════
-//  std::ui Reconciliation (headless)
-// ═══════════════════════════════════════════════════════════════════════════════
-
-fn build_ui(session_id: Int) -> Int with Unsafe:
-    let w = Float(APP_WIDTH)
-    let h = Float(APP_HEIGHT)
-
-    let root = ui_reconcile_labeled_node(
-        session_id, 0, "app.root", "root", "",
-        "application", "Component Minimal", 0.0, 0.0, w, h
-    )
-    let _ = ui_style_color_rgba(session_id, root, "ui.bg", 0.06, 0.08, 0.14, 1.0)
-
-    let header = ui_reconcile_labeled_node(
-        session_id, root, "app.header", "panel", "Header",
-        "header", "Dashboard", 16.0, 16.0, w - 32.0, 52.0
-    )
-    let _ = ui_style_color_rgba(session_id, header, "ui.panel", 0.11, 0.13, 0.20, 1.0)
-
-    let header_text = ui_reconcile_text_node(
-        session_id, header, "app.header.text", "header.text",
-        "Component Minimal // Pure Kain + Win32", 28.0, 34.0, w - 72.0, 22.0
-    )
-    let _ = ui_style_color_rgba(session_id, header_text, "ui.text", 1.0, 0.50, 0.30, 1.0)
-
-    let panel_w = (w - 48.0) / 2.0
-    let c1 = ui_reconcile_labeled_node(
-        session_id, root, "app.counter1", "panel", "Clicks: 0",
-        "counter", "Counter", 16.0, 84.0, panel_w, 72.0
-    )
-    let _ = ui_style_color_rgba(session_id, c1, "ui.panel", 0.15, 0.17, 0.24, 1.0)
-
-    let c1_text = ui_reconcile_text_node(
-        session_id, c1, "app.counter1.text", "counter.text",
-        "Clicks: 0", 24.0, 40.0, panel_w - 32.0, 22.0
-    )
-    let _ = ui_style_color_rgba(session_id, c1_text, "ui.text", 0.96, 0.92, 0.84, 1.0)
-
-    let c2 = ui_reconcile_labeled_node(
-        session_id, root, "app.counter2", "panel", "Errors: 0",
-        "counter", "Counter", w / 2.0 + 8.0, 84.0, panel_w, 72.0
-    )
-    let _ = ui_style_color_rgba(session_id, c2, "ui.panel", 0.15, 0.17, 0.24, 1.0)
-
-    let c2_text = ui_reconcile_text_node(
-        session_id, c2, "app.counter2.text", "counter.text",
-        "Errors: 0", w / 2.0 + 32.0, 40.0, panel_w - 32.0, 22.0
-    )
-    let _ = ui_style_color_rgba(session_id, c2_text, "ui.text", 0.96, 0.92, 0.84, 1.0)
-
-    let toggle = ui_reconcile_labeled_node(
-        session_id, root, "app.toggle", "panel", "Debug Mode",
-        "toggle", "Toggle", 16.0, 172.0, w - 32.0, 48.0
-    )
-    let _ = ui_style_color_rgba(session_id, toggle, "ui.panel", 0.11, 0.13, 0.20, 1.0)
-
-    let toggle_text = ui_reconcile_text_node(
-        session_id, toggle, "app.toggle.text", "toggle.text",
-        "Debug Mode [OFF]", 24.0, 30.0, w - 56.0, 22.0
-    )
-    let _ = ui_style_color_rgba(session_id, toggle_text, "ui.text", 0.96, 0.92, 0.84, 1.0)
-
-    let indicator = ui_reconcile_labeled_node(
-        session_id, root, "app.indicator", "panel", "GREEN",
-        "indicator", "Light", 16.0, 236.0, w - 32.0, 48.0
-    )
-    let _ = ui_style_color_rgba(session_id, indicator, "ui.panel", 0.11, 0.13, 0.20, 1.0)
-
-    let ind_text = ui_reconcile_text_node(
-        session_id, indicator, "app.indicator.text", "indicator.text",
-        "Indicator: GREEN", 24.0, 30.0, w - 56.0, 22.0
-    )
-    let _ = ui_style_color_rgba(session_id, ind_text, "ui.text", 0.96, 0.92, 0.84, 1.0)
-
-    let status = ui_reconcile_labeled_node(
-        session_id, root, "app.status", "panel", "ready",
-        "statusbar", "Status", 16.0, h - 36.0, w - 32.0, 24.0
-    )
-    let _ = ui_style_color_rgba(session_id, status, "ui.panel", 0.11, 0.13, 0.20, 1.0)
-
-    let status_str = "libclang: 6294 functions | " + APP_REVISION
-    let status_text = ui_reconcile_text_node(
-        session_id, status, "app.status.text", "status.text",
-        status_str, 20.0, h - 30.0, w - 48.0, 16.0
-    )
-    let _ = ui_style_color_rgba(session_id, status_text, "ui.text", 0.55, 0.60, 0.68, 1.0)
-
-    // Render
-    let _ = ui_frame_begin(session_id, 16.0)
-    let _ = ui_render_box(session_id, root, "ui.bg")
-    let _ = ui_render_box(session_id, header, "ui.panel")
-    let _ = ui_render_text_value(session_id, header_text, 0, "Component Minimal // Pure Kain + Win32", 28.0, 34.0, "ui.text")
-    let _ = ui_render_box(session_id, c1, "ui.panel")
-    let _ = ui_render_text_value(session_id, c1_text, 0, "Clicks: 0", 24.0, 40.0, "ui.text")
-    let _ = ui_render_box(session_id, c2, "ui.panel")
-    let _ = ui_render_text_value(session_id, c2_text, 0, "Errors: 0", w / 2.0 + 32.0, 40.0, "ui.text")
-    let _ = ui_render_box(session_id, toggle, "ui.panel")
-    let _ = ui_render_text_value(session_id, toggle_text, 0, "Debug Mode [OFF]", 24.0, 30.0, "ui.text")
-    let _ = ui_render_box(session_id, indicator, "ui.panel")
-    let _ = ui_render_text_value(session_id, ind_text, 0, "Indicator: GREEN", 24.0, 30.0, "ui.text")
-    let _ = ui_render_box(session_id, status, "ui.panel")
-    let _ = ui_render_text_value(session_id, status_text, 0, status_str, 20.0, h - 30.0, "ui.text")
-    let _ = ui_frame_submit(session_id)
-
-    return root
-
-// ═══════════════════════════════════════════════════════════════════════════════
-//  Main
-// ═══════════════════════════════════════════════════════════════════════════════
 
 fn main() -> Int with Unsafe:
     let boot = runtime_init()
     if boot != 0:
         return 100 + boot
 
-    // NOTE: MessageBoxA(0, ...) has tagged-int leakage on HWND param.
-    // The Windows platform blade works around this but we skip probing
-    // and go straight to CreateWindowExA which uses string class name.
-
-    // Create UI session
-    let session = ui_host_session_create("component-minimal", APP_TITLE, APP_WIDTH, APP_HEIGHT, "software")
-    if session <= 0:
-        let _ = runtime_shutdown()
-        return 11
-
-    // Hot reload
-    let gen = reload_begin(session, APP_REVISION)
-    if gen < 0:
-        let _ = runtime_shutdown()
-        return 12
-
-    let root = build_ui(session)
-
-    let committed = reload_commit(session)
-    if committed != gen:
-        let _ = runtime_shutdown()
-        return 13
-
-    // Create a real Win32 window — tagged-int fix should make this work now
-    let hwnd = create_window(APP_TITLE, APP_WIDTH, APP_HEIGHT)
+    let hwnd = create_window()
     if hwnd == 0:
         let _ = runtime_shutdown()
         return 14
 
-    // Render loop — draw on our own window
     var frame: Int = 0
-    while frame < APP_FRAME_BUDGET:
-        let hdc = win_GetDC(hwnd)
-        let _ = win_SetTextColor(hdc, gdi_rgb(255, 128, 76))
-        let _ = win_SetBkMode(hdc, 1)
-        let _ = win_TextOutA(hdc, 24, 24, "Component Minimal // Pure Kain + Win32 // tagged-int FIXED", 61)
-        let _ = win_SetTextColor(hdc, gdi_rgb(150, 164, 186))
-        let _ = win_TextOutA(hdc, 24, 48, "Frame " + str(frame) + " | CreateWindowExA with NULL params works!", 50 + len(str(frame)))
-        let _ = win_ReleaseDC(hwnd, hdc)
-        sleep_millis(16)
-        frame = frame + 1
+    var clicks: Int = 0
+    var errors: Int = 0
+    var debug_mode: Int = 0
+    var phase: Int = 0
+    var sphere_anim: Int = 1
+    var mx: Int = 0
+    var my: Int = 0
+    var fps: Int = 0
+    let msg_buf = alloc_zeroed(6, "Int")
 
-    let _ = win_DestroyWindow(hwnd)
-    let frames = frame
+    while my_IsWindow(hwnd) != 0:
+        var has_msg = my_PeekMessageA(msg_buf, 0, 0, 0, 1)
+        while has_msg != 0:
+            let msg_type = mem_load(ptr_offset(msg_buf, 1, "Int"), "Int") & 0xFFFFFFFF
+            if msg_type == 16:
+                let _ = win_DestroyWindow(hwnd)
+            if msg_type == 0x0201:
+                let lparam = mem_load(ptr_offset(msg_buf, 4, "Int"), "Int")
+                let cmx = lparam & 0xFFFF
+                let cmy = (lparam >> 16) & 0xFFFF
+                let lx = 16
+                let ly = 64
+                let cy = ly + 44
+                if hit_button(cmx, cmy, lx + 154, cy + 8, 44, 26):
+                    clicks = clicks + 1
+                if hit_button(cmx, cmy, lx + 202, cy + 8, 44, 26):
+                    if clicks > 0:
+                        clicks = clicks - 1
+                let ey = cy + 80
+                if hit_button(cmx, cmy, lx + 154, ey + 8, 44, 26):
+                    errors = errors + 1
+                if hit_button(cmx, cmy, lx + 202, ey + 8, 44, 26):
+                    if errors > 0:
+                        errors = errors - 1
+                let ty = ey + 80
+                if hit_button(cmx, cmy, lx + 14, ty, 232, 48):
+                    debug_mode = 1 - debug_mode
+                let iy = ty + 60
+                if hit_button(cmx, cmy, lx + 14, iy, 232, 48):
+                    phase = (phase + 1) % 3
+                let cx2 = 16 + 260 + 16 + 280 + 16
+                let cw2 = APP_W - cx2 - 16
+                if hit_button(cmx, cmy, cx2, 64, cw2, APP_H - 104):
+                    sphere_anim = 1 - sphere_anim
+            if msg_type == 0x0200:
+                let lparam = mem_load(ptr_offset(msg_buf, 4, "Int"), "Int")
+                mx = lparam & 0xFFFF
+                my = (lparam >> 16) & 0xFFFF
+            if msg_type == 15:
+                let _ = win_ValidateRect(hwnd, 0)
+            let _ = my_TranslateMessage(msg_buf)
+            let _ = my_DispatchMessageA(msg_buf)
+            has_msg = my_PeekMessageA(msg_buf, 0, 0, 0, 1)
 
-    // Telemetry
-    let hash = ui_host_frame_hash(session)
-    let draws = ui_host_presented_draw_count(session)
+        if (my_GetAsyncKeyState(0x43) & 0x8000) != 0:
+            clicks = clicks + 1
+        if (my_GetAsyncKeyState(0x58) & 0x8000) != 0:
+            errors = errors + 1
+        if (my_GetAsyncKeyState(0x44) & 0x8000) != 0:
+            debug_mode = 1 - debug_mode
+        if (my_GetAsyncKeyState(0x52) & 0x8000) != 0:
+            clicks = 0
+            errors = 0
+            debug_mode = 0
+            phase = 0
+        if (my_GetAsyncKeyState(0x53) & 0x8000) != 0:
+            sphere_anim = 1 - sphere_anim
+        if (my_GetAsyncKeyState(0x51) & 0x8000) != 0:
+            let _ = win_DestroyWindow(hwnd)
 
-    // Report
+        if my_IsWindow(hwnd) != 0:
+            if frame % 30 == 0:
+                fps = 30
+            let hdc = win_GetDC(hwnd)
+            let _ = render_frame(hdc, frame, clicks, errors, debug_mode, phase, sphere_anim, mx, my, fps)
+            let _ = win_ReleaseDC(hwnd, hdc)
+            let _ = win_ValidateRect(hwnd, 0)
+            sleep_millis(8)
+            frame = frame + 1
+
+    decay msg_buf
+
     var report = "=== COMPONENT MINIMAL REPORT ===\n"
-    report = report + "mode: zero C bridge — include <windows.h> as win\n"
-    report = report + "revision=" + APP_REVISION + "\n"
-    report = report + "hwnd=" + str(hwnd) + "\n"
-    report = report + "frames_rendered=" + str(frames) + "\n"
-    report = report + "reload_gen=" + str(gen) + "\n"
-    report = report + "reload_committed=" + str(committed) + "\n"
-    report = report + "frame_hash=" + str(hash) + "\n"
-    report = report + "draw_count=" + str(draws) + "\n"
-    report = report + "reload_lane=" + reload_lane_presentation() + "\n"
-    report = report + "restart_mode=" + reload_default_restart_mode() + "\n"
+    report = report + "frames=" + str(frame) + "\n"
+    report = report + "clicks=" + str(clicks) + "\n"
+    report = report + "errors=" + str(errors) + "\n"
+    report = report + "hex_constant=0x5F3759DF\n"
+    let inv2 = fast_invsqrt(2.0)
+    let inv2_int = Int(inv2 * 100000.0)
+    report = report + "invsqrt(2)=" + str(inv2_int / 100000) + "." + str(inv2_int % 100000) + "\n"
     let _ = fs_write_text(".kain/run/component_minimal_report.txt", report)
 
     let shutdown = runtime_shutdown()
     if shutdown != 0:
         return 200 + shutdown
-
-    if frames < 1:
+    if frame < 1:
         return 30
-    if hash <= 0:
-        return 31
-    if draws < 1:
-        return 32
-
     return 0

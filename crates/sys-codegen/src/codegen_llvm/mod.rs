@@ -17629,21 +17629,35 @@ impl LlvmGenerator {
                 continue;
             }
 
-            // Fix: untag Kain Int 0 -> null pointer for extern C ABI pointer params.
-            // Kain NaN-boxing: Int 0 -> LLVM IR (0 << 3) | 1 = 1.
-            // When passed to a C function expecting a pointer, leak the tag -> C gets 1 not NULL.
-            // For compile-time literal 0, emit pointer null instead of the tagged int.
-            if is_extern
-                && ty == "i64"
-                && val == "1"
-                && (param_ty.contains('*') || param_ty.starts_with('%'))
-            {
-                val = format!("{} null", param_ty);
-                ty = param_ty.clone();
-            }
-
             compiled_args.push(val);
             arg_types.push(ty);
+        }
+
+        // Fix: untag Kain tagged integers for extern C ABI calls.
+        // Kain tags Int values as (v << 3) | 1. When passed to C functions,
+        // the tag leaks — C receives 1 instead of 0 for NULL handle params.
+        // Post-process all i64 register args: select (val & 7 == 1) ? (val >> 3) : val
+        if is_extern {
+            for i in 0..compiled_args.len() {
+                if arg_types[i] == "i64" && compiled_args[i].starts_with('%') {
+                    let val = compiled_args[i].clone();
+                    let tag_check = self.next_reg();
+                    self.emit(&format!("  {} = and i64 {}, 7", tag_check, val));
+                    let is_tagged = self.next_reg();
+                    self.emit(&format!(
+                        "  {} = icmp eq i64 {}, 1",
+                        is_tagged, tag_check
+                    ));
+                    let untagged = self.next_reg();
+                    self.emit(&format!("  {} = ashr i64 {}, 3", untagged, val));
+                    let final_val = self.next_reg();
+                    self.emit(&format!(
+                        "  {} = select i1 {}, i64 {}, i64 {}",
+                        final_val, is_tagged, untagged, val
+                    ));
+                    compiled_args[i] = final_val;
+                }
+            }
         }
 
         let ret_ty = self
