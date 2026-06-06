@@ -1,0 +1,98 @@
+// blades/lsp/src/lsp_smoke_py.kn
+// LSP protocol smoke test — Kain asserts, Python runs the LSP subprocess.
+// Calls lsp_smoke_runner.py (sibling file) via subprocess.run.
+//
+// Known LSP bugs found via dogfooding:
+//   - LSP exits rc=1 after ~6 messages (shutdown/exit sequence issue)
+//   - documentSymbol, formatting, diagnostic, codeAction, codeLens not responding
+//   - python_eval returns raw objects for dicts (worked around via exec+globals)
+//   - tuple indexing on Python objects crashes (worked around via exec+globals)
+//
+// Run:  kain run blades/lsp/src/lsp_smoke_py.kn --target llvm
+
+use std::python
+
+import json as py_json
+import os as py_os
+import subprocess as sp
+
+pub fn main() -> Int with IO:
+    stderr_write("=== Kain LSP Smoke Test (Python interop) ===\n")
+
+    let getcwd_fn = python_getattr_raw(py_os, "getcwd")
+    let blade_root = to_string(python_call_raw(getcwd_fn, []))
+    let runner_path = blade_root + "\\lsp_smoke_runner.py"
+    let result_path = blade_root + "/.kain/_smoke_result.json"
+
+    stderr_write("runner: " + runner_path + "\n")
+
+    // Run the Python smoke runner
+    let run_fn = python_getattr_raw(sp, "run")
+    let cp = python_call_raw(run_fn, [["python", runner_path]])
+    let rc_script = to_int(python_getattr_raw(cp, "returncode"))
+    stderr_write("[smoke] runner rc=" + to_string(rc_script) + "\n")
+
+    // Read result: python_exec loads JSON → python_eval extracts primitives
+    // (python_eval returns materialized values for primitives, raw for dicts)
+    python_exec(
+        "import json\n" +
+        "with open(r'" + result_path + "', 'r') as f: _d = json.load(f)\n" +
+        "_rc = _d['rc']\n" +
+        "_n = _d['n']\n" +
+        "_ids = [r.get('id') for r in _d['responses']]\n"
+    )
+    let rc = to_int(python_eval("_rc"))
+    let n = to_int(python_eval("_n"))
+
+    // Check each known response ID is in the Python list
+    // (can't iterate Python lists from Kain — tuple indexing crashes)
+    let id_1  = to_int(python_eval("1 in _ids"))
+    let id_2  = to_int(python_eval("2 in _ids"))
+    let id_3  = to_int(python_eval("3 in _ids"))
+    let id_4  = to_int(python_eval("4 in _ids"))
+    let id_5  = to_int(python_eval("5 in _ids"))
+    let id_6  = to_int(python_eval("6 in _ids"))
+    let id_7  = to_int(python_eval("7 in _ids"))
+    let id_8  = to_int(python_eval("8 in _ids"))
+    let id_9  = to_int(python_eval("9 in _ids"))
+    let id_10 = to_int(python_eval("10 in _ids"))
+    let id_11 = to_int(python_eval("11 in _ids"))
+
+    stderr_write("[smoke] LSP rc=" + to_string(rc) + " responses=" + to_string(n) + "\n")
+
+    // Inline assertions
+    var bad = 0
+    var ok_count = 0
+
+    stderr_write("\n[exit code]\n")
+    if rc == 0: ok_count = ok_count + 1 else: bad = bad + 1
+    stderr_write("  [" + passfail(rc == 0) + "] rc=" + to_string(rc) + "\n")
+
+    stderr_write("\n[response count]\n")
+    if n >= 3: ok_count = ok_count + 1 else: bad = bad + 1
+    stderr_write("  [" + passfail(n >= 3) + "] " + to_string(n) + " responses\n")
+
+    let names = ["initialize","hover","completion","definition","references",
+                 "documentSymbol","formatting","diagnostic","codeAction",
+                 "codeLens","shutdown"]
+    let flags = [id_1 != 0, id_2 != 0, id_3 != 0, id_4 != 0, id_5 != 0,
+                 id_6 != 0, id_7 != 0, id_8 != 0, id_9 != 0, id_11 != 0, id_10 != 0]
+    var fi = 0
+    while fi < len(names):
+        stderr_write("\n[" + names[fi] + "]\n")
+        if flags[fi]: ok_count = ok_count + 1 else: bad = bad + 1
+        stderr_write("  [" + passfail(flags[fi]) + "] response present\n")
+        fi = fi + 1
+
+    // Cleanup
+    let _rm = python_call_raw(python_getattr_raw(py_os, "remove"), [result_path])
+
+    stderr_write("\n" + to_string(ok_count) + " passed, " + to_string(bad) + " failed\n")
+    if bad > 0:
+        return 1
+    stderr_write("=== ALL LSP SMOKE TESTS PASSED ===\n")
+    return 0
+
+fn passfail(cond: Bool) -> String:
+    if cond: return "OK"
+    return "FAIL"
