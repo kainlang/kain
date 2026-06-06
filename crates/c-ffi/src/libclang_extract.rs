@@ -59,15 +59,9 @@ pub fn extract_binding_bundle_libclang(
     for def in &defines {
         args.push(CString::new(format!("-D{}", def)).unwrap());
     }
-    // Add common defines for Windows SDK headers
-    args.push(CString::new("-D_WIN32").unwrap());
-    args.push(CString::new("-DWIN32").unwrap());
-    args.push(CString::new("-D_WIN64").unwrap());
-    args.push(CString::new("-DWINVER=0x0A00").unwrap());
-    args.push(CString::new("-D_WIN32_WINNT=0x0A00").unwrap());
-    args.push(CString::new("-DNTDDI_VERSION=0x0A000000").unwrap());
-    args.push(CString::new("-DUNICODE").unwrap());
-    args.push(CString::new("-D_UNICODE").unwrap());
+    // Platform-specific defines (e.g. _WIN32 for Windows SDK, _GNU_SOURCE for Linux)
+    // are injected by the resolution layer via system_registry::system_default_defines().
+    // The extractor trusts the config it receives.
 
     let arg_ptrs: Vec<*const i8> = args.iter().map(|a| a.as_ptr()).collect();
 
@@ -321,8 +315,32 @@ unsafe fn map_type_to_bridge(ty: CXType) -> Option<BridgeType> {
         CXType_Char_U | CXType_UChar | CXType_UShort => {
             Some(BridgeType::UnsignedInt("u16".to_string()))
         }
-        CXType_Int | CXType_Long => Some(BridgeType::SignedInt("i64".to_string())),
-        CXType_UInt | CXType_ULong => Some(BridgeType::UnsignedInt("u64".to_string())),
+        // int is always 32 bits on all 64-bit platforms (LLP64, LP64, ILP32).
+        CXType_Int => Some(BridgeType::SignedInt("i32".to_string())),
+        CXType_UInt => Some(BridgeType::UnsignedInt("u32".to_string())),
+        // long is platform-dependent: 32-bit on Windows LLP64, 64-bit on Linux LP64.
+        // Since we parse on the host without a cross target triple, use cfg!() to
+        // match the host ABI that libclang will see. For cross-compilation, a
+        // `-target` flag should be passed and `clang_Type_getSizeOf` (clang-sys 1.x)
+        // should be used instead.
+        CXType_Long | CXType_ULong => {
+            let is_unsigned = kind == CXType_ULong;
+            // On 64-bit Windows (LLP64), long is 32 bits. On 64-bit Linux (LP64), long is 64 bits.
+            let is_llp64 = cfg!(all(target_os = "windows", target_pointer_width = "64"));
+            if is_llp64 {
+                if is_unsigned {
+                    Some(BridgeType::UnsignedInt("u32".to_string()))
+                } else {
+                    Some(BridgeType::SignedInt("i32".to_string()))
+                }
+            } else {
+                if is_unsigned {
+                    Some(BridgeType::UnsignedInt("u64".to_string()))
+                } else {
+                    Some(BridgeType::SignedInt("i64".to_string()))
+                }
+            }
+        }
         CXType_LongLong => Some(BridgeType::SignedInt("i64".to_string())),
         CXType_ULongLong => Some(BridgeType::UnsignedInt("u64".to_string())),
         CXType_Float => Some(BridgeType::Float32),

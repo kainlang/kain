@@ -1086,6 +1086,7 @@ fn resolve_system_include(
         } else {
             system_registry::link_libs_for_header(family, header_name)
         };
+    let system_defines = system_registry::system_default_defines(family);
 
     let header_parent = header_path
         .parent()
@@ -1102,7 +1103,7 @@ fn resolve_system_include(
         shared_lib: None,
         symbols: BTreeMap::new(),
         include_paths: include_paths.clone(),
-        defines: Vec::new(),
+        defines: system_defines.clone(),
         link_libs: link_libs.clone(),
         toolchain_default_link: system_registry::current_target_uses_toolchain_default_link(family),
         sources: Vec::new(),
@@ -1116,7 +1117,7 @@ fn resolve_system_include(
     };
     let global_config = config::CFfiConfig {
         include_paths,
-        defines: Vec::new(),
+        defines: system_defines,
         link_libs: Vec::new(),
         cpp_options: Vec::new(),
         cpp_command: None,

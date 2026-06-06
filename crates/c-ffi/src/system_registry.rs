@@ -49,6 +49,8 @@ pub(crate) struct SystemHeaderFamily {
 pub(crate) struct SystemTargetPolicy {
     pub(crate) target: String,
     #[serde(default)]
+    pub(crate) defines: Vec<String>,
+    #[serde(default)]
     pub(crate) link_libs: Vec<String>,
     #[serde(default)]
     pub(crate) toolchain_default_link: bool,
@@ -309,6 +311,58 @@ fn header_link_policy_matches(policy: &SystemHeaderLinkPolicy, header_name: &str
             .as_deref()
             .map(|prefix| header_name.starts_with(&prefix.to_ascii_lowercase()))
             .unwrap_or(false)
+}
+
+/// Returns platform-appropriate default preprocessor defines for a system header family.
+/// These are NOT hardcoded in the extractor — they flow through the resolution layer so
+/// each platform gets only what it needs.
+pub(crate) fn system_default_defines(family: &SystemHeaderFamily) -> Vec<String> {
+    let target_key = current_target_key();
+    let mut defines = Vec::new();
+
+    match family.id.as_str() {
+        "windows-sdk" if target_key == "windows" => {
+            defines.extend_from_slice(&[
+                "_WIN32".to_string(),
+                "WIN32".to_string(),
+                "_WIN64".to_string(),
+                "WINVER=0x0A00".to_string(),
+                "_WIN32_WINNT=0x0A00".to_string(),
+                "NTDDI_VERSION=0x0A000000".to_string(),
+                "UNICODE".to_string(),
+                "_UNICODE".to_string(),
+            ]);
+        }
+        "posix" | "c-runtime" | "c-runtime-math" => {
+            if target_key == "linux" {
+                defines.push("_GNU_SOURCE".to_string());
+                defines.push("__linux__".to_string());
+                defines.push("__unix__".to_string());
+            } else if target_key == "macos" {
+                defines.push("__APPLE__".to_string());
+                defines.push("__MACH__".to_string());
+            }
+        }
+        "vulkan" | "ffmpeg" => {
+            // Vulkan/FFmpeg headers are cross-platform and self-contained.
+            // No platform-specific defines needed beyond what the SDK provides.
+        }
+        _ => {
+            // Unknown families: pass through with no extra defines.
+            // The include paths from the resolution layer should be sufficient.
+        }
+    }
+
+    // Merge any target-policy-level defines from the TOML (future-proofing).
+    if let Some(policy) = current_target_policy(family) {
+        for def in &policy.defines {
+            if !defines.iter().any(|existing| existing == def) {
+                defines.push(def.clone());
+            }
+        }
+    }
+
+    defines
 }
 
 fn push_unique_strings(output: &mut Vec<String>, values: &[String]) {
