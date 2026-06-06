@@ -93,6 +93,176 @@ fn compute_frame() -> Int with GPU, Unsafe:
 
 ---
 
+## Layer UI — Components (component, JSX)
+
+`component` is Kain's native UI abstraction. It is a **full React-like component model** — typed props, local state, methods, JSX render body, and JSX composition via `<ComponentName />`. Every `component` in the current codebase looks like this:
+
+```kn
+component App():
+    render <panel title="My App" />
+
+world MyWorld:
+    state signal: Int = 1
+    surface native_ui => App
+```
+
+**That is correct but it is also the bare minimum.** The power of `component` goes far beyond world surface declarations. Here's what component actually is.
+
+### Component Anatomy
+
+```kn
+component Counter(initial: Int, label: String):
+    state count: Int = initial
+
+    fn increment(_self: Self_) -> Int:
+        return _self.count + 1
+
+    fn label_text(_self: Self_) -> String:
+        return _self.label + ": " + str(_self.count)
+
+    render <box>
+        <text value={label_text()} />
+        <text value="clicks" />
+    </box>
+```
+
+A component has:
+- **Typed props** — `(initial: Int, label: String)` — like function parameters but for UI.
+- **Local state** — `state count: Int = initial` — with initializers that can reference props.
+- **Methods** — `fn increment(_self: Self_) -> Int` — functions that receive `_self: Self_` to access component state.
+- **JSX render body** — `render <box>...</box>` — the visual tree.
+- **Optional effects** — `component Widget() with Reactive:` — signals this component handles events.
+
+### JSX Composition: Components Calling Components
+
+Any JSX tag with an uppercase first letter is a **component call**:
+
+```kn
+component Button(label: String, kind: String):
+    state hovered: Bool = false
+    render <box>
+        <text value={label} />
+    </box>
+
+component Toolbar():
+    render <stack direction="horizontal">
+        <Button label="Save" kind="primary" />
+        <Button label="Load" kind="secondary" />
+        <Button label="Export" kind="ghost" />
+    </stack>
+
+component App():
+    render <panel title="Dashboard">
+        <Toolbar />
+        <Counter initial={0} label="Saves" />
+        <Counter initial={10} label="Edits" />
+        <text value="Status: ready" />
+    </panel>
+```
+
+**Tag case is the dispatch mechanism:**
+- `<panel>`, `<text>`, `<box>`, `<stack>` → lowercase → **native UI elements** (routed to `std::ui` renderer).
+- `<Button>`, `<Toolbar>`, `<Counter>` → uppercase → **component calls** (resolved to `component Button(...)` declarations in scope).
+
+### JSX Has Full Control Flow
+
+```kn
+component TodoList(items: [String], selected_index: Int):
+    render <stack direction="vertical">
+        for item in items:
+            <text value={item} />
+        if selected_index >= 0:
+            <text value={"Selected: " + items[selected_index]} />
+        else:
+            <text value="Nothing selected" />
+    </stack>
+```
+
+- **`for item in list:`** — loops inside JSX.
+- **`if cond:` / `else:`** — conditional rendering.
+- **`{expr}`** — expression interpolation in attributes and text.
+- **`<Fragment>`** — multiple root nodes without a wrapper element.
+
+### When To Use Component vs World vs Plain Fn
+
+| You want to... | Use | Because |
+|---|---|---|
+| Define a reusable piece of UI with its own state | `component` | Component owns its render tree, state, and methods |
+| Track application-level state that survives frame boundaries | `world` + `surface native_ui => Component` | World is the authority; component is the view |
+| Compose UI from smaller pieces | `component` calling `<OtherComponent />` | JSX composition — uppercase tags dispatch to components |
+| Bind a world to a root UI view | `surface native_ui => ComponentName` on world | This is the canonical world→UI wiring |
+| Do computation that produces no UI | `fn` | Components are for rendering; functions are for logic |
+| Render data from a world inside a component | Read `world.field` inside JSX `{expr}` | Components have read access to world state |
+| Handle live events, polling, input | `component` with `state` + Kaintana/UI bridge | Component state + event system = interactive UI |
+| Build a whole UI framework | `component` + `world` + `resonate` + `patch` | See Kaintana — component is the view layer in a full MVC |
+
+### Component Is NOT Tied To World
+
+This is the most important thing to unlearn. Every example in the repo places `component` immediately before a `world` that references it:
+
+```kn
+component SieveDisplayPanel():
+    render <panel title="Neural Entanglement Scope" />
+
+world CorticalAuthority:
+    state network_charge: Int = 0
+    surface native_ui => SieveDisplayPanel
+```
+
+This is **convention, not requirement**. A single file could host 10,000 components and zero worlds. Components can be composed, nested, and rendered independently of any world. The `surface native_ui => ComponentName` syntax is just one way to wire a world to a root component — it's not the only way, and it's not required for components to exist.
+
+### The Component's Place in the Decision Ladder
+
+Component sits at the very top of the decision ladder, alongside the other "what kind of thing am I building?" questions:
+
+```
+"Am I rendering UI?"
+  ├── Is it a single, reusable widget?          → component
+  ├── Is it application state behind the UI?     → world + surface => Component
+  ├── Is it an interactive widget framework?     → component + world + resonate + patch
+  └── Is it computation that feeds the UI?       → fn (called from component JSX {expr})
+```
+
+### Anti-Pattern: Component as World Decoration
+
+**Wrong:** Using component ONLY as a single-line `render <panel>` wrapper for world surfaces, never composing components, never using state or methods.
+
+```kn
+// Underutilized — component is just a title string
+component App():
+    render <panel title="My App" />
+```
+
+**Right:** Components as the full UI composition layer.
+
+```kn
+// Component as UI composition — the full model
+component MetricCard(title: String, value: Int, unit: String):
+    state expanded: Bool = false
+    fn display_value(_self: Self_) -> String:
+        return str(_self.value) + " " + _self.unit
+    render <box>
+        <text value={title} />
+        <text value={display_value()} />
+    </box>
+
+component Dashboard(signal: Int, hot: Int):
+    render <panel title="Neural Scope">
+        <stack direction="horizontal">
+            <MetricCard title="Signal" value={signal} unit="ms" />
+            <MetricCard title="Hot Synapses" value={hot} unit="nodes" />
+            <MetricCard title="Delta" value={signal - hot} unit="diff" />
+        </stack>
+        <text value="All systems nominal" />
+    </panel>
+```
+
+### Component vs Kaintana
+
+`component` is the language-level primitive. **Kaintana** (`blades/ui/kaintana/`) is a framework built ON TOP of components using `std::ui`, `world`, `entangle`, `resonate`, `patch`, `law`, and a desktop bridge. It provides themes, layout helpers, widget reconciliation, event routing, input handling, and Vulkan/winit desktop adapters. Think of `component` as the language's built-in `<div>` and Kaintana as its React. You can use component without Kaintana (via `std::ui` directly), but Kaintana gives you the full retained-mode widget framework.
+
+---
+
 ## Layer 1 — State Authority (world, entangle)
 
 ### `world` — Named, Compiler-Owned State Container
@@ -1113,6 +1283,7 @@ actor TrailArchivist:     // Frame recorder — "the lab notebook"
 | `pulse` | "Frame clock" | **Temporal driver** — any recurring beat that owns scheduling |
 | `teleport` | "Zero-copy transfer" | **Destructive handoff** — any ownership transfer between authorities |
 | `entangle` | "State mirroring" | **Compile-time coupling** — any bidirectional state relationship with policy |
+| `component` | "UI widget definition" | **Renderable view** — any typed, stateful, composable visual unit with props, state, methods, and JSX body. Can nest other components. Is to UI what `fn` is to logic. |
 
 ### When to Use the Hack Side
 
@@ -1132,6 +1303,7 @@ Reach for creative semantic usage when:
 
 | Anti-Pattern | Why It's Wrong | The Right Way |
 |---|---|---|
+| `component` only as `render <panel title="x" />` for world surfaces | Component is a full React model; using it as a title wrapper wastes props/state/methods/JSX composition | Compose components, use state, nest `<Other />` calls |
 | `fn set_param(w, v)` instead of `patch` | No journal, no telemetry, no epoch tracking | `patch set_param(w, v) -> Int:` |
 | `if v < 0 or v > MAX: return` instead of `law` | No compile witness, no contract | `law in_bounds(v) -> Bool:` |
 | Plain `while` + `sleep` instead of `pulse` | No jitter tolerance, no missed-beat tracking | `pulse clock every 16ms:` |
@@ -1149,8 +1321,11 @@ Reach for creative semantic usage when:
 
 | You want to... | Reach for... | NOT... |
 |---|---|---|
+| Define a reusable UI widget with state | `component` | `fn` that returns strings |
+| Compose UI from smaller pieces | `component` calling `<Other />` | Manual UI node reconciliation |
 | Track global state with surfaces | `world` | global `let mut` or module-level `var` |
 | Mirror state to another surface | `world` + `entangle` | Manual copy in a `fn` |
+| Bind a world to a root UI view | `world` with `surface => Component` | Ad hoc render function |
 | Record a state mutation | `patch` | Plain world field assignment |
 | Enforce a runtime constraint | `law` | `if` + `return` |
 | Pick the best implementation for the platform | `converge` | `if target == "..."` |
@@ -1194,6 +1369,8 @@ Reach for creative semantic usage when:
 9. **Effects are not decoration.** `with Pure`, `with IO`, `with Unsafe`, `with GPU` are compile-checked capability gates. Callers must be at least as permissive as callees.
 
 10. **Telemetry is the proof.** After any semantic construct, check the counters: `patch_journal_count()`, `entangle_propagation_count()`, `converge_mismatch_count()`, `resonate_fire_count()`, `orchestrate_stage_count()`, `actor_scheduler_queue_depth()`. If they're zero, your semantic feature isn't actually firing.
+
+11. **Component is the UI atom — compose it.** Every `component` in the repo currently looks like `render <panel title="x" />` because they're all used as world surface declarations. But component is a full React model: props, state, methods, JSX composition (`<Other />`), for/if, expressions. A file can host 10,000 components and zero worlds. Don't let the world-surface pattern trick you into underusing the most powerful UI primitive in the language.
 
 ---
 
