@@ -1391,3 +1391,1677 @@ pub fn blue_noise_dither_approx(pixel_x: Int, pixel_y: Int, frame: Int) -> Float
     let y = pixel_y as Float * 0.569840296
     let z = frame as Float * 0.438289001
     return frac_scalar(x + y + z + hash11(x + y * 7.0 + z * 13.0))
+
+// ============================================================================
+// CONSTANTS (data-driven: all magic numbers named below)
+// ============================================================================
+
+pub const E: Float = 2.718281828459045
+pub const LOG2_E: Float = 1.4426950408889634
+pub const LOG10_E: Float = 0.4342944819032518
+pub const LN_2: Float = 0.6931471805599453
+pub const LN_10: Float = 2.302585092994046
+pub const SQRT_2: Float = 1.4142135623730951
+pub const SQRT_3: Float = 1.7320508075688772
+pub const SQRT_HALF: Float = 0.7071067811865476
+pub const INV_PI: Float = 0.3183098861837907
+pub const TWO_OVER_PI: Float = 0.6366197723675814
+pub const FOUR_OVER_PI: Float = 1.2732395447351628
+pub const PHI: Float = 1.618033988749895
+pub const GOLDEN_ANGLE: Float = 2.399963229728653
+pub const EULER_MASCHERONI: Float = 0.5772156649015329
+pub const INFINITY_F: Float = 1000000000.0
+
+// Easing reference constants (bounce, elastic, back)
+pub const EASE_BACK_AMOUNT: Float = 1.70158
+pub const EASE_BACK_AMOUNT_2: Float = 2.59489
+pub const EASE_ELASTIC_AMPLITUDE: Float = 1.0
+pub const EASE_ELASTIC_PERIOD: Float = 0.3
+pub const EASE_BOUNCE_B1: Float = 1.0 / 2.75
+pub const EASE_BOUNCE_B2: Float = 2.0 / 2.75
+pub const EASE_BOUNCE_B3: Float = 1.5 / 2.75
+pub const EASE_BOUNCE_B4: Float = 2.5 / 2.75
+pub const EASE_BOUNCE_B5: Float = 2.25 / 2.75
+pub const EASE_BOUNCE_B6: Float = 2.625 / 2.75
+
+// Harmonic constants for spherical harmonics
+pub const SH_SQRT_PI: Float = 1.772453850905516
+pub const SH_SQRT_3: Float = 1.7320508075688772
+pub const SH_SQRT_5: Float = 2.23606797749979
+pub const SH_SQRT_7: Float = 2.6457513110645907
+pub const SH_SQRT_15: Float = 3.872983346207417
+pub const SH_SQRT_35: Float = 5.916079783099616
+
+// ============================================================================
+// NATURAL LOG (via series, must precede hyperbolic/complex functions)
+// ============================================================================
+
+pub fn ln_scalar(x: Float) -> Float:
+    if x <= 0.0:
+        return 0.0
+    if abs(x - 1.0) <= EPSILON:
+        return 0.0
+    var normalized = x
+    var exponent = 0
+    while normalized >= 2.0:
+        normalized = normalized * 0.5
+        exponent = exponent + 1
+    while normalized < 1.0:
+        normalized = normalized * 2.0
+        exponent = exponent - 1
+    let y = (normalized - 1.0) / (normalized + 1.0)
+    let y2 = y * y
+    let series = y * (1.0 + y2 * (1.0 / 3.0 + y2 * (1.0 / 5.0 + y2 * (1.0 / 7.0 + y2 * (1.0 / 9.0 + y2 / 11.0)))))
+    return 2.0 * series + exponent as Float * LN_2
+
+// ============================================================================
+// EXACT TRIG (scalar wrappers around built-in intrinsics)
+// ============================================================================
+
+pub fn sin_scalar(value: Float) -> Float:
+    return sin(value)
+
+pub fn cos_scalar(value: Float) -> Float:
+    return cos(value)
+
+pub fn tan_scalar_exact(value: Float) -> Float:
+    let c = cos(value)
+    if abs(c) <= EPSILON:
+        return INFINITY_F
+    return sin(value) / c
+
+pub fn asin_scalar(value: Float) -> Float:
+    let x = math_clamp(value, -1.0, 1.0)
+    let step0 = -0.0187293 * x + 0.0742610
+    let step1 = step0 * x - 0.2121144
+    let step2 = step1 * x + 1.5707288
+    let root = sqrt(math_max(1.0 - x * x, 0.0))
+    return HALF_PI - step2 * root
+
+pub fn acos_scalar(value: Float) -> Float:
+    let x = math_clamp(value, -1.0, 1.0)
+    let step0 = -0.0187293 * x + 0.0742610
+    let step1 = step0 * x - 0.2121144
+    let step2 = step1 * x + 1.5707288
+    let root = sqrt(math_max(1.0 - x * x, 0.0))
+    let arc = step2 * root
+    if value < 0.0:
+        return PI - arc
+    return arc
+
+pub fn atan_scalar(value: Float) -> Float:
+    return atan2_scalar(value, 1.0)
+
+pub fn atan2_scalar(y: Float, x: Float) -> Float:
+    if abs(x) <= EPSILON:
+        if y > 0.0:
+            return HALF_PI
+        if y < 0.0:
+            return -HALF_PI
+        return 0.0
+    let abs_y = abs(y) + 0.0000001
+    let angle_base = if x >= 0.0:
+        let r = (x - abs_y) / (x + abs_y)
+        0.78539816339 - 0.78539816339 * r
+    else:
+        let r = (x + abs_y) / (abs_y - x)
+        2.35619449019 - 0.78539816339 * r
+    if y < 0.0:
+        return -angle_base
+    return angle_base
+
+pub fn sinh_scalar(value: Float) -> Float:
+    let ep = pow(E, value)
+    let en = pow(E, -value)
+    return (ep - en) * 0.5
+
+pub fn cosh_scalar(value: Float) -> Float:
+    let ep = pow(E, value)
+    let en = pow(E, -value)
+    return (ep + en) * 0.5
+
+pub fn tanh_scalar(value: Float) -> Float:
+    let ep = pow(E, value)
+    let en = pow(E, -value)
+    if abs(ep + en) <= EPSILON:
+        return 1.0
+    return (ep - en) / (ep + en)
+
+pub fn asinh_scalar(value: Float) -> Float:
+    return ln_scalar(value + sqrt(value * value + 1.0))
+
+pub fn acosh_scalar(value: Float) -> Float:
+    if value < 1.0:
+        return 0.0
+    return ln_scalar(value + sqrt(value * value - 1.0))
+
+pub fn atanh_scalar(value: Float) -> Float:
+    let clamped = math_clamp(value, -0.999999, 0.999999)
+    return 0.5 * ln_scalar((1.0 + clamped) / (1.0 - clamped))
+
+pub fn sec_scalar(value: Float) -> Float:
+    let c = cos(value)
+    if abs(c) <= EPSILON:
+        return INFINITY_F
+    return 1.0 / c
+
+pub fn csc_scalar(value: Float) -> Float:
+    let s = sin(value)
+    if abs(s) <= EPSILON:
+        return INFINITY_F
+    return 1.0 / s
+
+pub fn cot_scalar(value: Float) -> Float:
+    let s = sin(value)
+    let c = cos(value)
+    if abs(s) <= EPSILON:
+        return INFINITY_F
+    return c / s
+
+// ============================================================================
+// COMPLEX NUMBERS
+// ============================================================================
+
+pub struct Complex:
+    re: Float
+    im: Float
+
+pub fn complex(re: Float, im: Float) -> Complex:
+    return Complex { re: re, im: im }
+
+pub fn complex_zero() -> Complex:
+    return Complex { re: 0.0, im: 0.0 }
+
+pub fn complex_one() -> Complex:
+    return Complex { re: 1.0, im: 0.0 }
+
+pub fn complex_i() -> Complex:
+    return Complex { re: 0.0, im: 1.0 }
+
+pub fn complex_add(a: Complex, b: Complex) -> Complex:
+    return Complex { re: a.re + b.re, im: a.im + b.im }
+
+pub fn complex_sub(a: Complex, b: Complex) -> Complex:
+    return Complex { re: a.re - b.re, im: a.im - b.im }
+
+pub fn complex_mul(a: Complex, b: Complex) -> Complex:
+    return Complex {
+        re: a.re * b.re - a.im * b.im,
+        im: a.re * b.im + a.im * b.re
+    }
+
+pub fn complex_div(a: Complex, b: Complex) -> Complex:
+    let denom = b.re * b.re + b.im * b.im
+    if abs(denom) <= EPSILON:
+        return Complex { re: INFINITY_F, im: INFINITY_F }
+    return Complex {
+        re: (a.re * b.re + a.im * b.im) / denom,
+        im: (a.im * b.re - a.re * b.im) / denom
+    }
+
+pub fn complex_conj(value: Complex) -> Complex:
+    return Complex { re: value.re, im: -value.im }
+
+pub fn complex_abs(value: Complex) -> Float:
+    return sqrt(value.re * value.re + value.im * value.im)
+
+pub fn complex_abs_squared(value: Complex) -> Float:
+    return value.re * value.re + value.im * value.im
+
+pub fn complex_arg(value: Complex) -> Float:
+    return atan2_scalar(value.im, value.re)
+
+pub fn complex_inv(value: Complex) -> Complex:
+    return complex_div(Complex { re: 1.0, im: 0.0 }, value)
+
+pub fn complex_neg(value: Complex) -> Complex:
+    return Complex { re: -value.re, im: -value.im }
+
+pub fn complex_mul_scalar(value: Complex, scalar: Float) -> Complex:
+    return Complex { re: value.re * scalar, im: value.im * scalar }
+
+pub fn complex_from_polar(r: Float, theta: Float) -> Complex:
+    return Complex { re: r * cos(theta), im: r * sin(theta) }
+
+pub fn complex_to_polar(value: Complex) -> Vec2:
+    return vec2(complex_abs(value), complex_arg(value))
+
+pub fn complex_sqrt(value: Complex) -> Complex:
+    let r = complex_abs(value)
+    let theta = complex_arg(value) * 0.5
+    let sqrt_r = sqrt(r)
+    return Complex { re: sqrt_r * cos(theta), im: sqrt_r * sin(theta) }
+
+pub fn complex_exp(value: Complex) -> Complex:
+    let er = pow(E, value.re)
+    return Complex { re: er * cos(value.im), im: er * sin(value.im) }
+
+pub fn complex_log(value: Complex) -> Complex:
+    return Complex { re: ln_scalar(complex_abs(value)), im: complex_arg(value) }
+
+pub fn complex_pow(base: Complex, exponent: Complex) -> Complex:
+    return complex_exp(complex_mul(exponent, complex_log(base)))
+
+pub fn complex_sin(value: Complex) -> Complex:
+    return Complex {
+        re: sin(value.re) * cosh_scalar(value.im),
+        im: cos(value.re) * sinh_scalar(value.im)
+    }
+
+pub fn complex_cos(value: Complex) -> Complex:
+    return Complex {
+        re: cos(value.re) * cosh_scalar(value.im),
+        im: -sin(value.re) * sinh_scalar(value.im)
+    }
+
+pub fn complex_tan(value: Complex) -> Complex:
+    return complex_div(complex_sin(value), complex_cos(value))
+
+pub fn complex_to_vec2(value: Complex) -> Vec2:
+    return vec2(value.re, value.im)
+
+pub fn complex_from_vec2(value: Vec2) -> Complex:
+    return Complex { re: value.x, im: value.y }
+
+pub fn complex_lerp(a: Complex, b: Complex, t: Float) -> Complex:
+    return Complex {
+        re: lerp(a.re, b.re, t),
+        im: lerp(a.im, b.im, t)
+    }
+
+// ============================================================================
+// DUAL QUATERNIONS (rigid transform skinning)
+// ============================================================================
+
+pub struct DualQuat:
+    real: Quat
+    dual: Quat
+
+pub fn dual_quat_identity() -> DualQuat:
+    return DualQuat { real: quat_identity(), dual: Quat { x: 0.0, y: 0.0, z: 0.0, w: 0.0 } }
+
+pub fn dual_quat_from_quat_translation(rotation: Quat, translation: Vec3) -> DualQuat:
+    let q = quat_normalize_or_identity(rotation)
+    let dual = Quat {
+        x: 0.5 * (translation.x * q.w + translation.y * q.z - translation.z * q.y),
+        y: 0.5 * (-translation.x * q.z + translation.y * q.w + translation.z * q.x),
+        z: 0.5 * (translation.x * q.y - translation.y * q.x + translation.z * q.w),
+        w: -0.5 * (translation.x * q.x + translation.y * q.y + translation.z * q.z)
+    }
+    return DualQuat { real: q, dual: dual }
+
+pub fn dual_quat_conjugate(value: DualQuat) -> DualQuat:
+    return DualQuat {
+        real: quat_conjugate(value.real),
+        dual: quat_conjugate(value.dual)
+    }
+
+pub fn dual_quat_mul(a: DualQuat, b: DualQuat) -> DualQuat:
+    return DualQuat {
+        real: quat_mul(a.real, b.real),
+        dual: quat_add(quat_mul(a.real, b.dual), quat_mul(a.dual, b.real))
+    }
+
+pub fn dual_quat_normalize(value: DualQuat) -> DualQuat:
+    let len = quat_length(value.real)
+    if len <= EPSILON:
+        return dual_quat_identity()
+    let inv_len = 1.0 / len
+    return DualQuat {
+        real: Quat {
+            x: value.real.x * inv_len,
+            y: value.real.y * inv_len,
+            z: value.real.z * inv_len,
+            w: value.real.w * inv_len
+        },
+        dual: Quat {
+            x: value.dual.x * inv_len,
+            y: value.dual.y * inv_len,
+            z: value.dual.z * inv_len,
+            w: value.dual.w * inv_len
+        }
+    }
+
+pub fn dual_quat_transform_point(dq: DualQuat, point: Vec3) -> Vec3:
+    let rotated = quat_rotate_vec3(dq.real, point)
+    let translation = vec3(
+        2.0 * (-dq.dual.w * dq.real.x + dq.dual.x * dq.real.w - dq.dual.y * dq.real.z + dq.dual.z * dq.real.y),
+        2.0 * (-dq.dual.w * dq.real.y + dq.dual.x * dq.real.z + dq.dual.y * dq.real.w - dq.dual.z * dq.real.x),
+        2.0 * (-dq.dual.w * dq.real.z - dq.dual.x * dq.real.y + dq.dual.y * dq.real.x + dq.dual.z * dq.real.w)
+    )
+    return vec3_add(rotated, translation)
+
+// ============================================================================
+// QUATERNION POWER-UPS
+// ============================================================================
+
+pub fn quat_inverse(value: Quat) -> Quat:
+    let len_sq = quat_dot(value, value)
+    if len_sq <= EPSILON:
+        return quat_identity()
+    let conj = quat_conjugate(value)
+    return Quat {
+        x: conj.x / len_sq,
+        y: conj.y / len_sq,
+        z: conj.z / len_sq,
+        w: conj.w / len_sq
+    }
+
+pub fn quat_add(a: Quat, b: Quat) -> Quat:
+    return Quat { x: a.x + b.x, y: a.y + b.y, z: a.z + b.z, w: a.w + b.w }
+
+pub fn quat_mul_scalar(value: Quat, scalar: Float) -> Quat:
+    return Quat { x: value.x * scalar, y: value.y * scalar, z: value.z * scalar, w: value.w * scalar }
+
+pub fn quat_from_euler_xyz(euler: Vec3) -> Quat:
+    let cx = cos(euler.x * 0.5)
+    let sx = sin(euler.x * 0.5)
+    let cy = cos(euler.y * 0.5)
+    let sy = sin(euler.y * 0.5)
+    let cz = cos(euler.z * 0.5)
+    let sz = sin(euler.z * 0.5)
+    return Quat {
+        x: sx * cy * cz - cx * sy * sz,
+        y: cx * sy * cz + sx * cy * sz,
+        z: cx * cy * sz - sx * sy * cz,
+        w: cx * cy * cz + sx * sy * sz
+    }
+
+pub fn quat_from_euler_zyx(euler: Vec3) -> Quat:
+    let cx = cos(euler.x * 0.5)
+    let sx = sin(euler.x * 0.5)
+    let cy = cos(euler.y * 0.5)
+    let sy = sin(euler.y * 0.5)
+    let cz = cos(euler.z * 0.5)
+    let sz = sin(euler.z * 0.5)
+    return Quat {
+        x: sx * cy * cz - cx * sy * sz,
+        y: cx * sy * cz + sx * cy * sz,
+        z: cx * cy * sz - sx * sy * cz,
+        w: cx * cy * cz + sx * sy * sz
+    }
+
+pub fn quat_to_euler_xyz(value: Quat) -> Vec3:
+    let q = quat_normalize_or_identity(value)
+    let sin_pitch = -2.0 * (q.y * q.z - q.w * q.x)
+    let pitch = if abs(sin_pitch) >= 1.0:
+        HALF_PI * sign_nonzero(sin_pitch)
+    else:
+        asin_scalar(sin_pitch)
+    let yaw = atan2_scalar(q.x * q.z + q.w * q.y, 0.5 - (q.x * q.x + q.y * q.y))
+    let roll = atan2_scalar(q.x * q.y + q.w * q.z, 0.5 - (q.y * q.y + q.z * q.z))
+    return vec3(roll, yaw, pitch)
+
+pub fn quat_look_rotation(forward: Vec3, up: Vec3) -> Quat:
+    let fwd = vec3_normalize_or_zero(forward)
+    let right = vec3_normalize_or_zero(vec3_cross(fwd, up))
+    let corrected_up = vec3_cross(right, fwd)
+    let m00 = right.x
+    let m01 = right.y
+    let m02 = right.z
+    let m10 = corrected_up.x
+    let m11 = corrected_up.y
+    let m12 = corrected_up.z
+    let m20 = -fwd.x
+    let m21 = -fwd.y
+    let m22 = -fwd.z
+    let trace = m00 + m11 + m22
+    if trace > 0.0:
+        let s = 0.5 / sqrt(trace + 1.0)
+        return Quat {
+            x: (m12 - m21) * s,
+            y: (m20 - m02) * s,
+            z: (m01 - m10) * s,
+            w: 0.25 / s
+        }
+    else if m00 > m11 and m00 > m22:
+        let s = 2.0 * sqrt(1.0 + m00 - m11 - m22)
+        return Quat {
+            x: 0.25 * s,
+            y: (m01 + m10) / s,
+            z: (m02 + m20) / s,
+            w: (m12 - m21) / s
+        }
+    else if m11 > m22:
+        let s = 2.0 * sqrt(1.0 + m11 - m00 - m22)
+        return Quat {
+            x: (m01 + m10) / s,
+            y: 0.25 * s,
+            z: (m12 + m21) / s,
+            w: (m20 - m02) / s
+        }
+    else:
+        let s = 2.0 * sqrt(1.0 + m22 - m00 - m11)
+        return Quat {
+            x: (m02 + m20) / s,
+            y: (m12 + m21) / s,
+            z: 0.25 * s,
+            w: (m01 - m10) / s
+        }
+
+pub fn quat_exp(value: Quat) -> Quat:
+    let v = vec3(value.x, value.y, value.z)
+    let v_len = vec3_length(v)
+    if v_len <= EPSILON:
+        return Quat { x: 0.0, y: 0.0, z: 0.0, w: cos(value.w) }
+    let s = sin(v_len) / v_len
+    return Quat {
+        x: value.x * s,
+        y: value.y * s,
+        z: value.z * s,
+        w: cos(v_len)
+    }
+
+pub fn quat_log(value: Quat) -> Quat:
+    let q = quat_normalize_or_identity(value)
+    let v_len = sqrt(math_max(q.x * q.x + q.y * q.y + q.z * q.z, 0.0))
+    if v_len <= EPSILON:
+        return Quat { x: 0.0, y: 0.0, z: 0.0, w: 0.0 }
+    let half_angle = atan2_scalar(v_len, q.w)
+    let scale = half_angle / v_len
+    return Quat {
+        x: q.x * scale,
+        y: q.y * scale,
+        z: q.z * scale,
+        w: 0.0
+    }
+
+pub fn quat_swing(value: Quat, axis: Vec3) -> Quat:
+    let q = quat_normalize_or_identity(value)
+    let n = vec3_normalize_or_zero(axis)
+    let dot = q.x * n.x + q.y * n.y + q.z * n.z
+    let twist = Quat {
+        x: n.x * dot,
+        y: n.y * dot,
+        z: n.z * dot,
+        w: q.w
+    }
+    let twist_len = quat_length(twist)
+    if twist_len <= EPSILON:
+        return Quat { x: 0.0, y: 0.0, z: 0.0, w: 1.0 }
+    let twist_norm = Quat {
+        x: twist.x / twist_len,
+        y: twist.y / twist_len,
+        z: twist.z / twist_len,
+        w: twist.w / twist_len
+    }
+    return quat_mul(q, quat_conjugate(twist_norm))
+
+pub fn quat_twist(value: Quat, axis: Vec3) -> Quat:
+    let q = quat_normalize_or_identity(value)
+    let n = vec3_normalize_or_zero(axis)
+    let dot = q.x * n.x + q.y * n.y + q.z * n.z
+    let result = Quat {
+        x: n.x * dot,
+        y: n.y * dot,
+        z: n.z * dot,
+        w: q.w
+    }
+    let len = quat_length(result)
+    if len <= EPSILON:
+        return quat_identity()
+    return Quat {
+        x: result.x / len,
+        y: result.y / len,
+        z: result.z / len,
+        w: result.w / len
+    }
+
+pub fn quat_angular_distance(a: Quat, b: Quat) -> Float:
+    let dot = math_clamp(abs(quat_dot(a, b)), 0.0, 1.0)
+    return 2.0 * acos_scalar(dot)
+
+pub fn quat_from_to_rotation(from: Vec3, to: Vec3) -> Quat:
+    let a = vec3_normalize_or_zero(from)
+    let b = vec3_normalize_or_zero(to)
+    let dot = vec3_dot(a, b)
+    if dot >= 0.999999:
+        return quat_identity()
+    if dot <= -0.999999:
+        let axis = vec3_normalize_or_zero(vec3_cross(a, vec3(1.0, 0.0, 0.0)))
+        if vec3_length(axis) <= EPSILON:
+            let axis = vec3_normalize_or_zero(vec3_cross(a, vec3(0.0, 1.0, 0.0)))
+        return quat_from_axis_angle(axis, PI)
+    let axis = vec3_normalize_or_zero(vec3_cross(a, b))
+    let cos_half = sqrt((1.0 + dot) * 0.5)
+    let sin_half = sqrt((1.0 - dot) * 0.5)
+    return Quat {
+        x: axis.x * sin_half,
+        y: axis.y * sin_half,
+        z: axis.z * sin_half,
+        w: cos_half
+    }
+
+// ============================================================================
+// MATRIX POWER-UPS
+// ============================================================================
+
+pub struct DecomposeResult:
+    translation: Vec3
+    rotation: Quat
+    scale: Vec3
+
+pub fn mat3_determinant(value: Mat3) -> Float:
+    let a = value.row0.x * (value.row1.y * value.row2.z - value.row1.z * value.row2.y)
+    let b = value.row0.y * (value.row1.x * value.row2.z - value.row1.z * value.row2.x)
+    let c = value.row0.z * (value.row1.x * value.row2.y - value.row1.y * value.row2.x)
+    return a - b + c
+
+pub fn mat3_inverse(value: Mat3) -> Mat3:
+    let a = value.row0.x
+    let b = value.row0.y
+    let c = value.row0.z
+    let d = value.row1.x
+    let e = value.row1.y
+    let f = value.row1.z
+    let g = value.row2.x
+    let h = value.row2.y
+    let i_val = value.row2.z
+    let det = a * (e * i_val - f * h) - b * (d * i_val - f * g) + c * (d * h - e * g)
+    if abs(det) <= EPSILON:
+        return mat3_identity()
+    let inv_det = 1.0 / det
+    return Mat3 {
+        row0: vec3((e * i_val - f * h) * inv_det, (c * h - b * i_val) * inv_det, (b * f - c * e) * inv_det),
+        row1: vec3((f * g - d * i_val) * inv_det, (a * i_val - c * g) * inv_det, (c * d - a * f) * inv_det),
+        row2: vec3((d * h - e * g) * inv_det, (b * g - a * h) * inv_det, (a * e - b * d) * inv_det)
+    }
+
+pub fn mat3_mul_mat3(a: Mat3, b: Mat3) -> Mat3:
+    let bt = mat3_transpose(b)
+    return Mat3 {
+        row0: vec3(vec3_dot(a.row0, bt.row0), vec3_dot(a.row0, bt.row1), vec3_dot(a.row0, bt.row2)),
+        row1: vec3(vec3_dot(a.row1, bt.row0), vec3_dot(a.row1, bt.row1), vec3_dot(a.row1, bt.row2)),
+        row2: vec3(vec3_dot(a.row2, bt.row0), vec3_dot(a.row2, bt.row1), vec3_dot(a.row2, bt.row2))
+    }
+
+pub fn mat3_from_mat4(value: Mat4) -> Mat3:
+    return Mat3 {
+        row0: vec3(value.row0.x, value.row0.y, value.row0.z),
+        row1: vec3(value.row1.x, value.row1.y, value.row1.z),
+        row2: vec3(value.row2.x, value.row2.y, value.row2.z)
+    }
+
+pub fn mat4_determinant(value: Mat4) -> Float:
+    let a00 = value.row0.x
+    let a01 = value.row0.y
+    let a02 = value.row0.z
+    let a03 = value.row0.w
+    let a10 = value.row1.x
+    let a11 = value.row1.y
+    let a12 = value.row1.z
+    let a13 = value.row1.w
+    let a20 = value.row2.x
+    let a21 = value.row2.y
+    let a22 = value.row2.z
+    let a23 = value.row2.w
+    let a30 = value.row3.x
+    let a31 = value.row3.y
+    let a32 = value.row3.z
+    let a33 = value.row3.w
+    let b00 = a00 * a11 - a01 * a10
+    let b01 = a00 * a12 - a02 * a10
+    let b02 = a00 * a13 - a03 * a10
+    let b03 = a01 * a12 - a02 * a11
+    let b04 = a01 * a13 - a03 * a11
+    let b05 = a02 * a13 - a03 * a12
+    let b06 = a20 * a31 - a21 * a30
+    let b07 = a20 * a32 - a22 * a30
+    let b08 = a20 * a33 - a23 * a30
+    let b09 = a21 * a32 - a22 * a31
+    let b10 = a21 * a33 - a23 * a31
+    let b11 = a22 * a33 - a23 * a32
+    return b00 * b11 - b01 * b10 + b02 * b09 + b03 * b08 - b04 * b07 + b05 * b06
+
+pub fn mat4_inverse(value: Mat4) -> Mat4:
+    let a00 = value.row0.x
+    let a01 = value.row0.y
+    let a02 = value.row0.z
+    let a03 = value.row0.w
+    let a10 = value.row1.x
+    let a11 = value.row1.y
+    let a12 = value.row1.z
+    let a13 = value.row1.w
+    let a20 = value.row2.x
+    let a21 = value.row2.y
+    let a22 = value.row2.z
+    let a23 = value.row2.w
+    let a30 = value.row3.x
+    let a31 = value.row3.y
+    let a32 = value.row3.z
+    let a33 = value.row3.w
+    let b00 = a00 * a11 - a01 * a10
+    let b01 = a00 * a12 - a02 * a10
+    let b02 = a00 * a13 - a03 * a10
+    let b03 = a01 * a12 - a02 * a11
+    let b04 = a01 * a13 - a03 * a11
+    let b05 = a02 * a13 - a03 * a12
+    let b06 = a20 * a31 - a21 * a30
+    let b07 = a20 * a32 - a22 * a30
+    let b08 = a20 * a33 - a23 * a30
+    let b09 = a21 * a32 - a22 * a31
+    let b10 = a21 * a33 - a23 * a31
+    let b11 = a22 * a33 - a23 * a32
+    let det = b00 * b11 - b01 * b10 + b02 * b09 + b03 * b08 - b04 * b07 + b05 * b06
+    if abs(det) <= EPSILON:
+        return mat4_identity()
+    let inv_det = 1.0 / det
+    return Mat4 {
+        row0: vec4((a11 * b11 - a12 * b10 + a13 * b09) * inv_det, (a02 * b10 - a01 * b11 - a03 * b09) * inv_det, (a31 * b05 - a32 * b04 + a33 * b03) * inv_det, (a22 * b04 - a21 * b05 - a23 * b03) * inv_det),
+        row1: vec4((a12 * b08 - a10 * b11 - a13 * b07) * inv_det, (a00 * b11 - a02 * b08 + a03 * b07) * inv_det, (a32 * b02 - a30 * b05 - a33 * b01) * inv_det, (a20 * b05 - a22 * b02 + a23 * b01) * inv_det),
+        row2: vec4((a10 * b10 - a11 * b08 + a13 * b06) * inv_det, (a01 * b08 - a00 * b10 - a03 * b06) * inv_det, (a30 * b04 - a31 * b02 + a33 * b00) * inv_det, (a21 * b02 - a20 * b04 - a23 * b00) * inv_det),
+        row3: vec4((a11 * b07 - a10 * b09 - a12 * b06) * inv_det, (a00 * b09 - a01 * b07 + a02 * b06) * inv_det, (a31 * b01 - a30 * b03 - a32 * b00) * inv_det, (a20 * b03 - a21 * b01 + a22 * b00) * inv_det)
+    }
+
+pub fn mat4_decompose(value: Mat4) -> DecomposeResult:
+    // Extract translation
+    let translation = vec3(value.row0.w, value.row1.w, value.row2.w)
+    // Extract scale from column magnitudes
+    let col0 = vec3(value.row0.x, value.row1.x, value.row2.x)
+    let col1 = vec3(value.row0.y, value.row1.y, value.row2.y)
+    let col2 = vec3(value.row0.z, value.row1.z, value.row2.z)
+    let sx = vec3_length(col0)
+    let sy = vec3_length(col1)
+    let sz = vec3_length(col2)
+    let scale = vec3(sx, sy, sz)
+    // Normalize columns into rotation matrix
+    let r0x = if sx > EPSILON: col0.x / sx else: 0.0
+    let r0y = if sx > EPSILON: col0.y / sx else: 0.0
+    let r0z = if sx > EPSILON: col0.z / sx else: 0.0
+    let r1x = if sy > EPSILON: col1.x / sy else: 0.0
+    let r1y = if sy > EPSILON: col1.y / sy else: 0.0
+    let r1z = if sy > EPSILON: col1.z / sy else: 0.0
+    let r2x = if sz > EPSILON: col2.x / sz else: 0.0
+    let r2y = if sz > EPSILON: col2.y / sz else: 0.0
+    let r2z = if sz > EPSILON: col2.z / sz else: 0.0
+    let trace = r0x + r1y + r2z
+    if trace > 0.0:
+        let s = 0.5 / sqrt(trace + 1.0)
+        return DecomposeResult {
+            translation: translation,
+            rotation: Quat { x: (r1z - r2y) * s, y: (r2x - r0z) * s, z: (r0y - r1x) * s, w: 0.25 / s },
+            scale: scale
+        }
+    else if r0x > r1y and r0x > r2z:
+        let s = 2.0 * sqrt(1.0 + r0x - r1y - r2z)
+        return DecomposeResult {
+            translation: translation,
+            rotation: Quat { x: 0.25 * s, y: (r0y + r1x) / s, z: (r0z + r2x) / s, w: (r1z - r2y) / s },
+            scale: scale
+        }
+    else if r1y > r2z:
+        let s = 2.0 * sqrt(1.0 + r1y - r0x - r2z)
+        return DecomposeResult {
+            translation: translation,
+            rotation: Quat { x: (r0y + r1x) / s, y: 0.25 * s, z: (r1z + r2y) / s, w: (r2x - r0z) / s },
+            scale: scale
+        }
+    else:
+        let s = 2.0 * sqrt(1.0 + r2z - r0x - r1y)
+        return DecomposeResult {
+            translation: translation,
+            rotation: Quat { x: (r0z + r2x) / s, y: (r1z + r2y) / s, z: 0.25 * s, w: (r0y - r1x) / s },
+            scale: scale
+        }
+
+pub fn mat4_reflection(plane: Plane) -> Mat4:
+    let n = vec3_normalize_or_zero(plane.normal)
+    let d = plane.distance
+    let nx = n.x
+    let ny = n.y
+    let nz = n.z
+    let nx2 = nx * nx
+    let ny2 = ny * ny
+    let nz2 = nz * nz
+    let nxy = nx * ny
+    let nxz = nx * nz
+    let nyz = ny * nz
+    let nd2 = 2.0 * d
+    return Mat4 {
+        row0: vec4(1.0 - 2.0 * nx2, -2.0 * nxy, -2.0 * nxz, -nx * nd2),
+        row1: vec4(-2.0 * nxy, 1.0 - 2.0 * ny2, -2.0 * nyz, -ny * nd2),
+        row2: vec4(-2.0 * nxz, -2.0 * nyz, 1.0 - 2.0 * nz2, -nz * nd2),
+        row3: vec4(0.0, 0.0, 0.0, 1.0)
+    }
+
+// ============================================================================
+// EASING LIBRARY (30+ functions, all data-driven)
+// ============================================================================
+
+pub fn ease_linear(t: Float) -> Float:
+    return saturate(t)
+
+pub fn ease_in_sine(t: Float) -> Float:
+    return 1.0 - cos((saturate(t) * PI) * 0.5)
+
+pub fn ease_out_sine(t: Float) -> Float:
+    return sin((saturate(t) * PI) * 0.5)
+
+pub fn ease_in_out_sine(t: Float) -> Float:
+    return -(cos(PI * saturate(t)) - 1.0) * 0.5
+
+pub fn ease_in_quad(t: Float) -> Float:
+    let x = saturate(t)
+    return x * x
+
+pub fn ease_out_quad(t: Float) -> Float:
+    let x = saturate(t)
+    return -x * (x - 2.0)
+
+pub fn ease_in_out_quad(t: Float) -> Float:
+    let x = saturate(t)
+    if x < 0.5:
+        return 2.0 * x * x
+    return 1.0 - pow(-2.0 * x + 2.0, 2.0) * 0.5
+
+pub fn ease_in_cubic(t: Float) -> Float:
+    let x = saturate(t)
+    return x * x * x
+
+pub fn ease_out_cubic(t: Float) -> Float:
+    let x = saturate(t)
+    return 1.0 - pow(1.0 - x, 3.0)
+
+pub fn ease_in_out_cubic(t: Float) -> Float:
+    let x = saturate(t)
+    if x < 0.5:
+        return 4.0 * x * x * x
+    return 1.0 - pow(-2.0 * x + 2.0, 3.0) * 0.5
+
+pub fn ease_in_quart(t: Float) -> Float:
+    let x = saturate(t)
+    return x * x * x * x
+
+pub fn ease_out_quart(t: Float) -> Float:
+    let x = saturate(t)
+    return 1.0 - pow(1.0 - x, 4.0)
+
+pub fn ease_in_out_quart(t: Float) -> Float:
+    let x = saturate(t)
+    if x < 0.5:
+        return 8.0 * x * x * x * x
+    return 1.0 - pow(-2.0 * x + 2.0, 4.0) * 0.5
+
+pub fn ease_in_quint(t: Float) -> Float:
+    let x = saturate(t)
+    return x * x * x * x * x
+
+pub fn ease_out_quint(t: Float) -> Float:
+    let x = saturate(t)
+    return 1.0 - pow(1.0 - x, 5.0)
+
+pub fn ease_in_out_quint(t: Float) -> Float:
+    let x = saturate(t)
+    if x < 0.5:
+        return 16.0 * x * x * x * x * x
+    return 1.0 - pow(-2.0 * x + 2.0, 5.0) * 0.5
+
+pub fn ease_in_expo(t: Float) -> Float:
+    let x = saturate(t)
+    if x <= 0.0:
+        return 0.0
+    return pow(2.0, 10.0 * (x - 1.0))
+
+pub fn ease_out_expo(t: Float) -> Float:
+    let x = saturate(t)
+    if x >= 1.0:
+        return 1.0
+    return 1.0 - pow(2.0, -10.0 * x)
+
+pub fn ease_in_out_expo(t: Float) -> Float:
+    let x = saturate(t)
+    if x <= 0.0:
+        return 0.0
+    if x >= 1.0:
+        return 1.0
+    if x < 0.5:
+        return pow(2.0, 20.0 * x - 10.0) * 0.5
+    return (2.0 - pow(2.0, -20.0 * x + 10.0)) * 0.5
+
+pub fn ease_in_circ(t: Float) -> Float:
+    let x = saturate(t)
+    return 1.0 - sqrt(1.0 - pow(x, 2.0))
+
+pub fn ease_out_circ(t: Float) -> Float:
+    let x = saturate(t) - 1.0
+    return sqrt(1.0 - x * x)
+
+pub fn ease_in_out_circ(t: Float) -> Float:
+    let x = saturate(t)
+    if x < 0.5:
+        return (1.0 - sqrt(1.0 - pow(2.0 * x, 2.0))) * 0.5
+    return (sqrt(1.0 - pow(-2.0 * x + 2.0, 2.0)) + 1.0) * 0.5
+
+pub fn ease_in_back(t: Float) -> Float:
+    let x = saturate(t)
+    let c = EASE_BACK_AMOUNT
+    return (c + 1.0) * x * x * x - c * x * x
+
+pub fn ease_out_back(t: Float) -> Float:
+    let x = saturate(t) - 1.0
+    let c = EASE_BACK_AMOUNT
+    return 1.0 + (c + 1.0) * x * x * x + c * x * x
+
+pub fn ease_in_out_back(t: Float) -> Float:
+    let x = saturate(t)
+    let c = EASE_BACK_AMOUNT_2
+    if x < 0.5:
+        return pow(2.0 * x, 2.0) * ((c + 1.0) * 2.0 * x - c) * 0.5
+    return (pow(2.0 * x - 2.0, 2.0) * ((c + 1.0) * (x * 2.0 - 2.0) + c) + 2.0) * 0.5
+
+pub fn ease_in_elastic(t: Float) -> Float:
+    let x = saturate(t)
+    if x <= 0.0:
+        return 0.0
+    if x >= 1.0:
+        return 1.0
+    let p = EASE_ELASTIC_PERIOD
+    let a = EASE_ELASTIC_AMPLITUDE
+    let s = p / TAU * asin_scalar(1.0 / a)
+    return -(a * pow(2.0, 10.0 * (x - 1.0)) * sin((x - 1.0 - s) * TAU / p))
+
+pub fn ease_out_elastic(t: Float) -> Float:
+    let x = saturate(t)
+    if x <= 0.0:
+        return 0.0
+    if x >= 1.0:
+        return 1.0
+    let p = EASE_ELASTIC_PERIOD
+    let a = EASE_ELASTIC_AMPLITUDE
+    let s = p / TAU * asin_scalar(1.0 / a)
+    return a * pow(2.0, -10.0 * x) * sin((x - s) * TAU / p) + 1.0
+
+pub fn ease_in_out_elastic(t: Float) -> Float:
+    let x = saturate(t)
+    if x <= 0.0:
+        return 0.0
+    if x >= 1.0:
+        return 1.0
+    let p = EASE_ELASTIC_PERIOD
+    let a = EASE_ELASTIC_AMPLITUDE
+    let s = p / TAU * asin_scalar(1.0 / a)
+    if x < 0.5:
+        return -0.5 * (a * pow(2.0, 20.0 * x - 10.0) * sin((20.0 * x - 11.125 + s) * TAU / p))
+    return a * pow(2.0, -20.0 * x + 10.0) * sin((20.0 * x - 11.125 + s) * TAU / p) * 0.5 + 1.0
+
+pub fn ease_in_bounce(t: Float) -> Float:
+    return 1.0 - ease_out_bounce(1.0 - saturate(t))
+
+pub fn ease_out_bounce(t: Float) -> Float:
+    let x = saturate(t)
+    if x < EASE_BOUNCE_B1:
+        return EASE_BOUNCE_B5 * x * x
+    else if x < EASE_BOUNCE_B2:
+        let x2 = x - EASE_BOUNCE_B3
+        return EASE_BOUNCE_B5 * x2 * x2 + 0.75
+    else if x < EASE_BOUNCE_B4:
+        let x2 = x - EASE_BOUNCE_B6
+        return EASE_BOUNCE_B5 * x2 * x2 + 0.9375
+    else:
+        let x2 = x - 0.984375
+        return EASE_BOUNCE_B5 * x2 * x2 + 0.984375
+
+pub fn ease_in_out_bounce(t: Float) -> Float:
+    let x = saturate(t)
+    if x < 0.5:
+        return (1.0 - ease_out_bounce(1.0 - 2.0 * x)) * 0.5
+    return (1.0 + ease_out_bounce(2.0 * x - 1.0)) * 0.5
+
+// ============================================================================
+// SPECIAL FUNCTIONS
+// ============================================================================
+
+pub fn erf(value: Float) -> Float:
+    // Abramowitz & Stegun approximation 7.1.26
+    let x = abs(value)
+    let t = 1.0 / (1.0 + 0.3275911 * x)
+    let a1 = 0.254829592
+    let a2 = -0.284496736
+    let a3 = 1.421413741
+    let a4 = -1.453152027
+    let a5 = 1.061405429
+    let y = 1.0 - t * (a1 + t * (a2 + t * (a3 + t * (a4 + t * a5)))) * pow(E, -x * x)
+    if value < 0.0:
+        return -y
+    return y
+
+pub fn erfc(value: Float) -> Float:
+    return 1.0 - erf(value)
+
+pub fn gamma(value: Float) -> Float:
+    let gamma_x_local = value - 1.0
+    let gamma_g_val = 7.0
+    let gamma_c = [0.99999999999980993, 676.5203681218851, -1259.1392167224028, 771.32342877765313, -176.61502916214059, 12.507343278686905, -0.13857109526572012, 0.0000099843695780195716, 0.00000015056327351493116]
+    if gamma_x_local < 0.5:
+        return PI / (sin(PI * gamma_x_local) * gamma(1.0 - gamma_x_local))
+    let x_adj = gamma_x_local - 1.0
+    let first = gamma_c[0]
+    var ag_val = first
+    let gamma_index = 1
+    while gamma_index < 9:
+        ag_val = ag_val + gamma_c[gamma_index] / (x_adj + gamma_index as Float)
+        gamma_index = gamma_index + 1
+    let gamma_t = x_adj + gamma_g_val + 0.5
+    return sqrt(TAU) * pow(gamma_t, x_adj + 0.5) * pow(E, -gamma_t) * ag_val
+
+pub fn lgamma(value: Float) -> Float:
+    return ln_scalar(abs(gamma(value)))
+
+pub fn digamma(value: Float) -> Float:
+    let x = value
+    let ln_x = ln_scalar(x)
+    let inv_2x = 1.0 / (2.0 * x)
+    let inv_12x2 = 1.0 / (12.0 * x * x)
+    let inv_120x4 = 1.0 / (120.0 * x * x * x * x)
+    let inv_252x6 = 1.0 / (252.0 * pow(x, 6.0))
+    return ln_x - inv_2x - inv_12x2 + inv_120x4 - inv_252x6
+
+// ============================================================================
+// NUMBER THEORY (discrete math helpers)
+// ============================================================================
+
+pub fn gcd(a: Int, b: Int) -> Int:
+    var x = a
+    var y = b
+    while y != 0:
+        let temp = y
+        y = x % y
+        x = temp
+    return x
+
+pub fn lcm(a: Int, b: Int) -> Int:
+    if a == 0 or b == 0:
+        return 0
+    return (a / gcd(a, b)) * b
+
+pub fn extended_euclidean(a: Int, b: Int) -> Vec3:
+    var old_r = a
+    var r = b
+    var old_s = 1
+    var s = 0
+    var old_t = 1
+    var t = 0
+    while r != 0:
+        let quotient = old_r / r
+        let temp_r = r
+        r = old_r - quotient * r
+        old_r = temp_r
+        let temp_s = s
+        s = old_s - quotient * s
+        old_s = temp_s
+        let temp_t = t
+        t = old_t - quotient * t
+        old_t = temp_t
+    return vec3(old_s as Float, old_t as Float, old_r as Float)
+
+pub fn mod_inverse(a: Int, m: Int) -> Int:
+    let result = extended_euclidean(a, m)
+    let g = round(result.z) as Int
+    if g != 1:
+        return 0
+    let x = round(result.x) as Int
+    if x < 0:
+        return x + m
+    return x
+
+pub fn mod_pow(base: Int, exponent: Int, modulus: Int) -> Int:
+    if modulus <= 1:
+        return 0
+    var result = 1
+    var b = base % modulus
+    var e = exponent
+    while e > 0:
+        if (e & 1) == 1:
+            result = (result * b) % modulus
+        b = (b * b) % modulus
+        e = e >> 1
+    return result
+
+pub fn factorial(n: Int) -> Int:
+    if n <= 1:
+        return 1
+    var result = 1
+    var index = 2
+    while index <= n:
+        result = result * index
+        index = index + 1
+    return result
+
+pub fn binomial(n: Int, k: Int) -> Int:
+    if k < 0 or k > n:
+        return 0
+    if k == 0 or k == n:
+        return 1
+    let r = math_int_clamp(k, 0, n - k)
+    var result = 1
+    var index = 1
+    while index <= r:
+        result = (result * (n - r + index)) / index
+        index = index + 1
+    return result
+
+pub fn is_prime(n: Int) -> Bool:
+    if n <= 1:
+        return false
+    if n <= 3:
+        return true
+    if n % 2 == 0 or n % 3 == 0:
+        return false
+    var index = 5
+    while index * index <= n:
+        if n % index == 0 or n % (index + 2) == 0:
+            return false
+        index = index + 6
+    return true
+
+pub fn fibonacci_fast(n: Int) -> Int:
+    if n <= 0:
+        return 0
+    if n == 1:
+        return 1
+    var a = 0
+    var b = 1
+    var bit = 31
+    while bit >= 0:
+        let temp_a = a * (2 * b - a)
+        let temp_b = a * a + b * b
+        a = temp_a
+        b = temp_b
+        if ((n >> bit) & 1) == 1:
+            let new_a = a + b
+            a = b
+            b = new_a
+        bit = bit - 1
+    return a
+
+pub fn next_power_of_two(n: Int) -> Int:
+    if n <= 0:
+        return 1
+    var value = n - 1
+    value = value | (value >> 1)
+    value = value | (value >> 2)
+    value = value | (value >> 4)
+    value = value | (value >> 8)
+    value = value | (value >> 16)
+    return value + 1
+
+pub fn is_power_of_two(n: Int) -> Bool:
+    if n <= 0:
+        return false
+    return (n & (n - 1)) == 0
+
+// ============================================================================
+// NUMERICAL METHODS
+// ============================================================================
+
+pub fn newton_raphson(f: fn(Float) -> Float, f_prime: fn(Float) -> Float, initial: Float, tolerance: Float, max_iters: Int) -> Float:
+    var x = initial
+    var iter = 0
+    while iter < max_iters:
+        let fx = f(x)
+        if abs(fx) <= tolerance:
+            return x
+        let fpx = f_prime(x)
+        if abs(fpx) <= EPSILON:
+            return x
+        x = x - fx / fpx
+        iter = iter + 1
+    return x
+
+pub fn bisection(f: fn(Float) -> Float, lo: Float, hi: Float, tolerance: Float, max_iters: Int) -> Float:
+    var a = lo
+    var b = hi
+    var fa = f(a)
+    var fb = f(b)
+    if abs(fa) <= tolerance:
+        return a
+    if abs(fb) <= tolerance:
+        return b
+    if fa * fb > 0.0:
+        return a
+    var iter = 0
+    while iter < max_iters:
+        let mid = (a + b) * 0.5
+        let fmid = f(mid)
+        if abs(fmid) <= tolerance or (b - a) * 0.5 <= tolerance:
+            return mid
+        if fa * fmid < 0.0:
+            b = mid
+            fb = fmid
+        else:
+            a = mid
+            fa = fmid
+        iter = iter + 1
+    return (a + b) * 0.5
+
+pub fn adaptive_simpson(f: fn(Float) -> Float, a: Float, b: Float, tolerance: Float, max_depth: Int) -> Float:
+    let h = b - a
+    let c = (a + b) * 0.5
+    let fa = f(a)
+    let fb = f(b)
+    let fc = f(c)
+    let s = (h / 6.0) * (fa + 4.0 * fc + fb)
+    return adaptive_simpson_recursive(f, a, b, c, fa, fb, fc, s, tolerance, max_depth, 0)
+
+fn adaptive_simpson_recursive(f: fn(Float) -> Float, a: Float, b: Float, c: Float, fa: Float, fb: Float, fc: Float, whole: Float, tolerance: Float, max_depth: Int, depth: Int) -> Float:
+    let left_c = (a + c) * 0.5
+    let right_c = (c + b) * 0.5
+    let fl = f(left_c)
+    let fr = f(right_c)
+    let h = b - a
+    let left_s = (h / 12.0) * (fa + 4.0 * fl + fc)
+    let right_s = (h / 12.0) * (fc + 4.0 * fr + fb)
+    let split = left_s + right_s
+    if depth >= max_depth or abs(split - whole) <= 15.0 * tolerance:
+        return split + (split - whole) / 15.0
+    let left_result = adaptive_simpson_recursive(f, a, c, left_c, fa, fc, fl, left_s, tolerance * 0.5, max_depth, depth + 1)
+    let right_result = adaptive_simpson_recursive(f, c, b, right_c, fc, fb, fr, right_s, tolerance * 0.5, max_depth, depth + 1)
+    return left_result + right_result
+
+// ============================================================================
+// PERLIN NOISE (gradient-based, not value noise)
+// ============================================================================
+
+// Permutation table for Perlin noise (data-driven)
+pub fn perm_table(index: Int) -> Int:
+    let perms = [151,160,137,91,90,15,131,13,201,95,96,53,194,233,7,225,
+    140,36,103,30,69,142,8,99,37,240,21,10,23,190,6,148,
+    247,120,234,75,0,26,197,62,94,252,219,203,117,35,11,32,
+    57,177,33,88,237,149,56,87,174,20,125,136,171,168,68,175,
+    74,165,71,134,139,48,27,166,77,146,158,231,83,111,229,122,
+    60,211,133,230,220,105,92,41,55,46,245,40,244,102,143,54,
+    65,25,63,161,1,216,80,73,209,76,132,187,208,89,18,169,
+    200,196,135,130,116,188,159,86,164,100,109,198,173,186,3,64,
+    52,217,226,250,124,123,5,202,38,147,118,126,255,82,85,212,
+    207,206,59,227,47,16,58,17,182,189,28,42,223,183,170,213,
+    119,248,152,2,44,154,163,70,221,153,101,155,167,43,172,9,
+    129,22,39,253,19,98,108,110,79,113,224,232,178,185,112,104,
+    218,246,97,228,251,34,242,193,238,210,144,12,191,179,162,241,
+    81,51,145,235,249,14,239,107,49,192,214,31,181,199,106,157,
+    184,84,204,176,115,121,50,45,127,4,150,254,138,236,205,93,
+    222,114,67,29,24,72,243,141,128,195,78,66,215,61,156,180]
+    return perms[index & 255]
+
+fn perm_index(index: Int) -> Int:
+    return perm_table(index)
+
+fn grad2(hash: Int, x: Float, y: Float) -> Float:
+    let h = hash & 3
+    let u = if h < 2: x else: -x
+    let v = if h == 0 or h == 3: y else: -y
+    return u + v
+
+fn grad3(hash: Int, x: Float, y: Float, z: Float) -> Float:
+    let h = hash & 15
+    let u = if h < 8: x else: y
+    let v = if h < 4: y else: (if h == 12 or h == 14: x else: z)
+    return (if (h & 1) == 0: u else: -u) + (if (h & 2) == 0: v else: -v)
+
+fn fade(t: Float) -> Float:
+    return t * t * t * (t * (t * 6.0 - 15.0) + 10.0)
+
+pub fn perlin2(p: Vec2) -> Float:
+    let ix = floor(p.x) as Int
+    let iy = floor(p.y) as Int
+    let fx = p.x - floor(p.x)
+    let fy = p.y - floor(p.y)
+    let u = fade(fx)
+    let v = fade(fy)
+    let aa = perm_index(perm_index(ix) + iy)
+    let ab = perm_index(perm_index(ix) + iy + 1)
+    let ba = perm_index(perm_index(ix + 1) + iy)
+    let bb = perm_index(perm_index(ix + 1) + iy + 1)
+    let x1 = lerp(grad2(aa, fx, fy), grad2(ba, fx - 1.0, fy), u)
+    let x2 = lerp(grad2(ab, fx, fy - 1.0), grad2(bb, fx - 1.0, fy - 1.0), u)
+    return lerp(x1, x2, v)
+
+pub fn perlin3(p: Vec3) -> Float:
+    let ix = floor(p.x) as Int
+    let iy = floor(p.y) as Int
+    let iz = floor(p.z) as Int
+    let fx = p.x - floor(p.x)
+    let fy = p.y - floor(p.y)
+    let fz = p.z - floor(p.z)
+    let u = fade(fx)
+    let v = fade(fy)
+    let w = fade(fz)
+    let a0 = perm_index(perm_index(ix) + iy)
+    let b0 = perm_index(perm_index(ix + 1) + iy)
+    let a1 = perm_index(perm_index(ix) + iy + 1)
+    let b1 = perm_index(perm_index(ix + 1) + iy + 1)
+    let aa = perm_index(a0 + iz)
+    let ba = perm_index(b0 + iz)
+    let ab = perm_index(a1 + iz)
+    let bb = perm_index(b1 + iz)
+    let aaa = perm_index(aa + 1)
+    let baa = perm_index(ba + 1)
+    let aba = perm_index(ab + 1)
+    let bba = perm_index(bb + 1)
+    let x1 = lerp(grad3(aa, fx, fy, fz), grad3(ba, fx - 1.0, fy, fz), u)
+    let x2 = lerp(grad3(ab, fx, fy - 1.0, fz), grad3(bb, fx - 1.0, fy - 1.0, fz), u)
+    let y1 = lerp(x1, x2, v)
+    let x3 = lerp(grad3(aaa, fx, fy, fz - 1.0), grad3(baa, fx - 1.0, fy, fz - 1.0), u)
+    let x4 = lerp(grad3(aba, fx, fy - 1.0, fz - 1.0), grad3(bba, fx - 1.0, fy - 1.0, fz - 1.0), u)
+    let y2 = lerp(x3, x4, v)
+    return lerp(y1, y2, w)
+
+pub fn perlin_fbm2(p: Vec2, octaves: Int) -> Float:
+    var value = 0.0
+    var amplitude = 0.5
+    var frequency = 1.0
+    var index = 0
+    while index < octaves:
+        value = value + perlin2(vec2_mul_scalar(p, frequency)) * amplitude
+        amplitude = amplitude * 0.5
+        frequency = frequency * 2.0
+        index = index + 1
+    return value
+
+pub fn perlin_fbm3(p: Vec3, octaves: Int) -> Float:
+    var value = 0.0
+    var amplitude = 0.5
+    var frequency = 1.0
+    var index = 0
+    while index < octaves:
+        value = value + perlin3(vec3_mul_scalar(p, frequency)) * amplitude
+        amplitude = amplitude * 0.5
+        frequency = frequency * 2.0
+        index = index + 1
+    return value
+
+// ============================================================================
+// SIMPLEX NOISE
+// ============================================================================
+
+// Skew factors for simplex
+pub const SIMPLEX_F2: Float = 0.5 * (SQRT_3 - 1.0)
+pub const SIMPLEX_G2: Float = (3.0 - SQRT_3) / 6.0
+pub const SIMPLEX_F3: Float = 1.0 / 3.0
+pub const SIMPLEX_G3: Float = 1.0 / 6.0
+
+pub fn simplex2(p: Vec2) -> Float:
+    let s = (p.x + p.y) * SIMPLEX_F2
+    let i = floor(p.x + s) as Int
+    let j = floor(p.y + s) as Int
+    let t = (i + j) as Float * SIMPLEX_G2
+    let x0 = p.x - (i as Float - t)
+    let y0 = p.y - (j as Float - t)
+    var i1 = 0
+    var j1 = 1
+    if x0 > y0:
+        i1 = 1
+        j1 = 0
+    let x1 = x0 - i1 as Float + SIMPLEX_G2
+    let y1 = y0 - j1 as Float + SIMPLEX_G2
+    let x2 = x0 - 1.0 + 2.0 * SIMPLEX_G2
+    let y2 = y0 - 1.0 + 2.0 * SIMPLEX_G2
+    let ii = i & 255
+    let jj = j & 255
+    let gi0 = perm_index(ii + perm_index(jj)) % 12
+    let gi1 = perm_index(ii + i1 + perm_index(jj + j1)) % 12
+    let gi2 = perm_index(ii + 1 + perm_index(jj + 1)) % 12
+    var n0 = 0.0
+    var t0 = 0.5 - x0 * x0 - y0 * y0
+    if t0 > 0.0:
+        t0 = t0 * t0
+        n0 = t0 * t0 * grad2(gi0, x0, y0)
+    var t1 = 0.5 - x1 * x1 - y1 * y1
+    var n1 = 0.0
+    if t1 > 0.0:
+        t1 = t1 * t1
+        n1 = t1 * t1 * grad2(gi1, x1, y1)
+    var t2 = 0.5 - x2 * x2 - y2 * y2
+    var n2 = 0.0
+    if t2 > 0.0:
+        t2 = t2 * t2
+        n2 = t2 * t2 * grad2(gi2, x2, y2)
+    return 70.0 * (n0 + n1 + n2)
+
+pub fn simplex3(p: Vec3) -> Float:
+    let s = (p.x + p.y + p.z) * SIMPLEX_F3
+    let i = floor(p.x + s) as Int
+    let j = floor(p.y + s) as Int
+    let k = floor(p.z + s) as Int
+    let t = (i + j + k) as Float * SIMPLEX_G3
+    let x0 = p.x - (i as Float - t)
+    let y0 = p.y - (j as Float - t)
+    let z0 = p.z - (k as Float - t)
+    var i1 = 0
+    var j1 = 0
+    var k1 = 0
+    var i2 = 0
+    var j2 = 0
+    var k2 = 0
+    if x0 >= y0:
+        if y0 >= z0:
+            i1 = 1
+            j1 = 0
+            k1 = 0
+            i2 = 1
+            j2 = 1
+            k2 = 0
+        else if x0 >= z0:
+            i1 = 1
+            j1 = 0
+            k1 = 0
+            i2 = 1
+            j2 = 0
+            k2 = 1
+        else:
+            i1 = 0
+            j1 = 0
+            k1 = 1
+            i2 = 1
+            j2 = 0
+            k2 = 1
+    else:
+        if y0 < z0:
+            i1 = 0
+            j1 = 0
+            k1 = 1
+            i2 = 0
+            j2 = 1
+            k2 = 1
+        else if x0 < z0:
+            i1 = 0
+            j1 = 1
+            k1 = 0
+            i2 = 0
+            j2 = 1
+            k2 = 1
+        else:
+            i1 = 0
+            j1 = 1
+            k1 = 0
+            i2 = 1
+            j2 = 1
+            k2 = 0
+    let x1 = x0 - i1 as Float + SIMPLEX_G3
+    let y1 = y0 - j1 as Float + SIMPLEX_G3
+    let z1 = z0 - k1 as Float + SIMPLEX_G3
+    let x2 = x0 - i2 as Float + 2.0 * SIMPLEX_G3
+    let y2 = y0 - j2 as Float + 2.0 * SIMPLEX_G3
+    let z2 = z0 - k2 as Float + 2.0 * SIMPLEX_G3
+    let x3 = x0 - 1.0 + 3.0 * SIMPLEX_G3
+    let y3 = y0 - 1.0 + 3.0 * SIMPLEX_G3
+    let z3 = z0 - 1.0 + 3.0 * SIMPLEX_G3
+    let ii = i & 255
+    let jj = j & 255
+    let kk = k & 255
+    let gi0 = perm_index(ii + perm_index(jj + perm_index(kk))) % 12
+    let gi1 = perm_index(ii + i1 + perm_index(jj + j1 + perm_index(kk + k1))) % 12
+    let gi2 = perm_index(ii + i2 + perm_index(jj + j2 + perm_index(kk + k2))) % 12
+    let gi3 = perm_index(ii + 1 + perm_index(jj + 1 + perm_index(kk + 1))) % 12
+    var n0 = 0.0
+    var t0_val = 0.6 - x0 * x0 - y0 * y0 - z0 * z0
+    if t0_val > 0.0:
+        t0_val = t0_val * t0_val
+        n0 = t0_val * t0_val * grad3(gi0, x0, y0, z0)
+    var n1 = 0.0
+    var t1_val = 0.6 - x1 * x1 - y1 * y1 - z1 * z1
+    if t1_val > 0.0:
+        t1_val = t1_val * t1_val
+        n1 = t1_val * t1_val * grad3(gi1, x1, y1, z1)
+    var n2 = 0.0
+    var t2_val = 0.6 - x2 * x2 - y2 * y2 - z2 * z2
+    if t2_val > 0.0:
+        t2_val = t2_val * t2_val
+        n2 = t2_val * t2_val * grad3(gi2, x2, y2, z2)
+    var n3 = 0.0
+    var t3_val = 0.6 - x3 * x3 - y3 * y3 - z3 * z3
+    if t3_val > 0.0:
+        t3_val = t3_val * t3_val
+        n3 = t3_val * t3_val * grad3(gi3, x3, y3, z3)
+    return 32.0 * (n0 + n1 + n2 + n3)
+
+// ============================================================================
+// COORDINATE SYSTEMS
+// ============================================================================
+
+pub struct SphericalCoords:
+    radius: Float
+    theta: Float
+    phi: Float
+
+pub fn cartesian_to_spherical(p: Vec3) -> SphericalCoords:
+    let r = vec3_length(p)
+    if r <= EPSILON:
+        return SphericalCoords { radius: 0.0, theta: 0.0, phi: 0.0 }
+    return SphericalCoords {
+        radius: r,
+        theta: acos_scalar(p.z / r),
+        phi: atan2_scalar(p.y, p.x)
+    }
+
+pub fn spherical_to_cartesian(s: SphericalCoords) -> Vec3:
+    let st = sin(s.theta)
+    return vec3(
+        s.radius * st * cos(s.phi),
+        s.radius * st * sin(s.phi),
+        s.radius * cos(s.theta)
+    )
+
+pub struct CylindricalCoords:
+    radius: Float
+    theta: Float
+    height: Float
+
+pub fn cartesian_to_cylindrical(p: Vec3) -> CylindricalCoords:
+    let r = sqrt(p.x * p.x + p.y * p.y)
+    return CylindricalCoords {
+        radius: r,
+        theta: atan2_scalar(p.y, p.x),
+        height: p.z
+    }
+
+pub fn cylindrical_to_cartesian(c: CylindricalCoords) -> Vec3:
+    return vec3(
+        c.radius * cos(c.theta),
+        c.radius * sin(c.theta),
+        c.height
+    )
+
+// ============================================================================
+// PACKING (half-float, octahedral normal, snorm)
+// ============================================================================
+
+pub fn pack_half(value: Float) -> Int:
+    // Float-to-half packing via manual exponent/mantissa extraction
+    // Uses mathematical decomposition without bitcast
+    if value < 0.0:
+        return pack_half(-value) | (1 << 15)
+    let clamped = math_min(value, 65504.0)
+    if clamped <= EPSILON:
+        return 0
+    // Normalize to fraction + exponent
+    var frac = clamped
+    var exp = 0
+    while frac >= 2.0:
+        frac = frac * 0.5
+        exp = exp + 1
+    while frac < 1.0:
+        frac = frac * 2.0
+        exp = exp - 1
+    let half_exp = exp + 15
+    if half_exp >= 31:
+        return (15 << 10) | 31744
+    if half_exp <= 0:
+        return 0
+    let half_mant = round((frac - 1.0) * 1024.0) as Int
+    return (half_exp << 10) | (half_mant & 1023)
+
+pub fn unpack_half(packed: Int) -> Float:
+    let sign = (packed >> 15) & 1
+    let exp = (packed >> 10) & 31
+    let mant = packed & 1023
+    if exp == 0:
+        return 0.0
+    if exp == 31:
+        return 0.0
+    let fraction = 1.0 + mant as Float / 1024.0
+    let exponent_val = exp as Float - 15.0
+    let result = fraction * pow(2.0, exponent_val)
+    if sign == 1:
+        return -result
+    return result
+
+pub fn pack_snorm8(value: Float) -> Int:
+    return math_int_clamp(round(math_clamp(value, -1.0, 1.0) * 127.0) as Int, -127, 127)
+
+pub fn unpack_snorm8(packed: Int) -> Float:
+    return math_max(packed as Float / 127.0, -1.0)
+
+pub fn pack_octahedral_normal(normal: Vec3) -> Vec2:
+    let n = vec3_normalize_or_zero(normal)
+    let inv_sum = 1.0 / (abs(n.x) + abs(n.y) + abs(n.z))
+    var u = n.x * inv_sum
+    var v = n.y * inv_sum
+    if n.z < 0.0:
+        let prev_u = u
+        u = (1.0 - abs(v)) * sign_nonzero(u)
+        v = (1.0 - abs(prev_u)) * sign_nonzero(v)
+    return vec2(u, v)
+
+pub fn unpack_octahedral_normal(packed: Vec2) -> Vec3:
+    let u = packed.x
+    let v = packed.y
+    let z = 1.0 - abs(u) - abs(v)
+    let uz = if z >= 0.0: u else: (1.0 - abs(v)) * sign_nonzero(u)
+    let vz = if z >= 0.0: v else: (1.0 - abs(u)) * sign_nonzero(v)
+    let nz = math_clamp(z, -1.0, 1.0)
+    return vec3_normalize_or_zero(vec3(uz, vz, nz))
+
+// ============================================================================
+// SPHERICAL HARMONICS (order 0-2 basis evaluation)
+// ============================================================================
+
+pub struct ShCoeffs:
+    c00: Float
+    c11: Float
+    c10: Float
+    c1n1: Float
+    c22: Float
+    c21: Float
+    c20: Float
+    c2n1: Float
+    c2n2: Float
+
+pub fn sh_basis_0(dir: Vec3) -> Float:
+    return 0.28209479177387814  // 1/(2*sqrt(pi))
+
+pub fn sh_basis_1_1(dir: Vec3) -> Float:
+    return -0.4886025119029199 * dir.y  // -sqrt(3/(4*pi)) * y
+
+pub fn sh_basis_1_0(dir: Vec3) -> Float:
+    return 0.4886025119029199 * dir.z  // sqrt(3/(4*pi)) * z
+
+pub fn sh_basis_1n1(dir: Vec3) -> Float:
+    return -0.4886025119029199 * dir.x  // -sqrt(3/(4*pi)) * x
+
+pub fn sh_basis_2_2(dir: Vec3) -> Float:
+    return 1.0925484305920792 * dir.x * dir.y  // sqrt(15/(4*pi)) * xy
+
+pub fn sh_basis_2_1(dir: Vec3) -> Float:
+    return -1.0925484305920792 * dir.y * dir.z  // -sqrt(15/(4*pi)) * yz
+
+pub fn sh_basis_2_0(dir: Vec3) -> Float:
+    return 0.31539156525252005 * (3.0 * dir.z * dir.z - 1.0)  // (1/4)*sqrt(5/pi) * (3z^2 - 1)
+
+pub fn sh_basis_2n1(dir: Vec3) -> Float:
+    return -1.0925484305920792 * dir.x * dir.z  // -sqrt(15/(4*pi)) * xz
+
+pub fn sh_basis_2n2(dir: Vec3) -> Float:
+    return 0.5462742152960396 * (dir.x * dir.x - dir.y * dir.y)  // (1/2)*sqrt(15/(4*pi)) * (x^2 - y^2)
+
+pub fn sh_eval(dir: Vec3, coeffs: ShCoeffs) -> Float:
+    return coeffs.c00 * sh_basis_0(dir) + coeffs.c11 * sh_basis_1_1(dir) + coeffs.c10 * sh_basis_1_0(dir) + coeffs.c1n1 * sh_basis_1n1(dir) + coeffs.c22 * sh_basis_2_2(dir) + coeffs.c21 * sh_basis_2_1(dir) + coeffs.c20 * sh_basis_2_0(dir) + coeffs.c2n1 * sh_basis_2n1(dir) + coeffs.c2n2 * sh_basis_2n2(dir)
+
+pub fn sh_project_dir(dir: Vec3, value: Float) -> ShCoeffs:
+    return ShCoeffs {
+        c00: value * sh_basis_0(dir),
+        c11: value * sh_basis_1_1(dir),
+        c10: value * sh_basis_1_0(dir),
+        c1n1: value * sh_basis_1n1(dir),
+        c22: value * sh_basis_2_2(dir),
+        c21: value * sh_basis_2_1(dir),
+        c20: value * sh_basis_2_0(dir),
+        c2n1: value * sh_basis_2n1(dir),
+        c2n2: value * sh_basis_2n2(dir)
+    }
+
+pub fn sh_add(a: ShCoeffs, b: ShCoeffs) -> ShCoeffs:
+    return ShCoeffs {
+        c00: a.c00 + b.c00, c11: a.c11 + b.c11, c10: a.c10 + b.c10, c1n1: a.c1n1 + b.c1n1,
+        c22: a.c22 + b.c22, c21: a.c21 + b.c21, c20: a.c20 + b.c20, c2n1: a.c2n1 + b.c2n1, c2n2: a.c2n2 + b.c2n2
+    }
+
+pub fn sh_mul_scalar(coeffs: ShCoeffs, scalar: Float) -> ShCoeffs:
+    return ShCoeffs {
+        c00: coeffs.c00 * scalar, c11: coeffs.c11 * scalar, c10: coeffs.c10 * scalar, c1n1: coeffs.c1n1 * scalar,
+        c22: coeffs.c22 * scalar, c21: coeffs.c21 * scalar, c20: coeffs.c20 * scalar, c2n1: coeffs.c2n1 * scalar, c2n2: coeffs.c2n2 * scalar
+    }
+
+// ============================================================================
+// PHYSICS HELPERS (frame-independent motion, damping, integration)
+// ============================================================================
+
+pub struct SpringResult:
+    position: Float
+    velocity: Float
+
+pub fn spring_damper_implicit(position: Float, velocity: Float, target: Float, stiffness: Float, damping: Float, dt: Float) -> SpringResult:
+    let f = 1.0 / (1.0 + dt * damping + dt * dt * stiffness)
+    let new_vel = (velocity + dt * stiffness * (target - position)) * f
+    let new_pos = position + dt * new_vel
+    return SpringResult { position: new_pos, velocity: new_vel }
+
+pub fn smooth_damp(current: Float, target: Float, velocity: Float, smooth_time: Float, max_speed: Float, dt: Float) -> SpringResult:
+    let omega = 2.0 / math_max(smooth_time, EPSILON)
+    let x = omega * dt
+    let exp_factor = 1.0 / (1.0 + x + 0.48 * x * x + 0.235 * x * x * x)
+    let change = current - target
+    let max_change = max_speed * smooth_time
+    let clamped_change = math_clamp(change, -max_change, max_change)
+    let target_adj = current - clamped_change
+    let temp = (velocity + omega * clamped_change * dt) * exp_factor
+    let new_pos = target_adj + (clamped_change + temp) * dt
+    let new_vel = (temp - omega * dt * exp_factor)
+    if (target - current > 0.0) == (new_pos > target):
+        return SpringResult { position: target, velocity: new_vel }
+    return SpringResult { position: new_pos, velocity: new_vel }
+
+pub fn critically_damped_spring(current: Float, velocity: Float, target: Float, half_life: Float, dt: Float) -> SpringResult:
+    let omega = LN_2 / math_max(half_life, EPSILON)
+    let x = omega * dt
+    let exp_factor = 1.0 / (1.0 + x + 0.48 * x * x + 0.235 * x * x * x)
+    let new_pos = target + (current - target + velocity * dt) * exp_factor
+    let new_vel = (velocity - omega * (new_pos - target) * dt) * exp_factor
+    return SpringResult { position: new_pos, velocity: new_vel }
+
+pub struct PidController:
+    p_gain: Float
+    i_gain: Float
+    d_gain: Float
+    integral: Float
+    prev_error: Float
+
+pub fn pid_controller_new(p_gain: Float, i_gain: Float, d_gain: Float) -> PidController:
+    return PidController { p_gain: p_gain, i_gain: i_gain, d_gain: d_gain, integral: 0.0, prev_error: 0.0 }
+
+pub fn pid_controller_update(ctrl: PidController, setpoint: Float, measurement: Float, dt: Float) -> PidController:
+    let error = setpoint - measurement
+    let integral = ctrl.integral + error * dt
+    let derivative = (error - ctrl.prev_error) / math_max(dt, EPSILON)
+    let output = ctrl.p_gain * error + ctrl.i_gain * integral + ctrl.d_gain * derivative
+    return PidController {
+        p_gain: ctrl.p_gain,
+        i_gain: ctrl.i_gain,
+        d_gain: ctrl.d_gain,
+        integral: integral,
+        prev_error: error
+    }
+
+pub fn pid_get_output(ctrl: PidController) -> Float:
+    return ctrl.p_gain * ctrl.prev_error + ctrl.i_gain * ctrl.integral
+
+

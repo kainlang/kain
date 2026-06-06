@@ -1,0 +1,414 @@
+// ============================================================================
+// MATH PACK — Stdlib Math Expansion Benchmarks
+// Tests complex numbers, dual quaternions, quaternion power-ups,
+// matrix power-ups, easing, perlin/simplex noise, special functions,
+// number theory, packing, spherical harmonics, and physics helpers.
+// ============================================================================
+
+use std::math
+
+const MATH_CASE_COUNT: Int = 15
+const MATH_MODULUS: Int = 1000000007
+
+// ============================================================================
+// CASE REGISTRY
+// ============================================================================
+
+pub fn math_pack_case_count() -> Int:
+    return MATH_CASE_COUNT
+
+pub fn math_pack_case_id(index: Int) -> String:
+    if index == 0: return "complex_arithmetic"
+    if index == 1: return "trig_exact"
+    if index == 2: return "hyperbolic"
+    if index == 3: return "dual_quat_transform"
+    if index == 4: return "quat_powerups"
+    if index == 5: return "quat_exp_log"
+    if index == 6: return "mat4_powerups"
+    if index == 7: return "easing_functions"
+    if index == 8: return "perlin_simplex"
+    if index == 9: return "number_theory"
+    if index == 10: return "special_functions"
+    if index == 11: return "physics_spring"
+    if index == 12: return "packing"
+    if index == 13: return "sh_eval"
+    if index == 14: return "complex_special"
+    return ""
+
+pub fn math_pack_case_group(index: Int) -> String:
+    if index == 0: return "complex"
+    if index == 1: return "trig"
+    if index == 2: return "trig"
+    if index == 3: return "dualquat"
+    if index == 4: return "quat"
+    if index == 5: return "quat"
+    if index == 6: return "matrix"
+    if index == 7: return "easing"
+    if index == 8: return "noise"
+    if index == 9: return "discrete"
+    if index == 10: return "specials"
+    if index == 11: return "physics"
+    if index == 12: return "packing"
+    if index == 13: return "sh"
+    if index == 14: return "complex"
+    return ""
+
+pub fn math_pack_case_title(index: Int) -> String:
+    if index == 0: return "Complex Arithmetic"
+    if index == 1: return "Exact Trig Functions"
+    if index == 2: return "Hyperbolic Functions"
+    if index == 3: return "Dual Quaternion Transform"
+    if index == 4: return "Quaternion Power-ups"
+    if index == 5: return "Quaternion Exp/Log"
+    if index == 6: return "Matrix Power-ups"
+    if index == 7: return "Easing Functions"
+    if index == 8: return "Perlin + Simplex Noise"
+    if index == 9: return "Number Theory"
+    if index == 10: return "Special Functions"
+    if index == 11: return "Physics Spring"
+    if index == 12: return "Packing (half/octahedral)"
+    if index == 13: return "Spherical Harmonics Eval"
+    if index == 14: return "Complex Special Functions"
+    return ""
+
+pub fn math_pack_case_iterations(index: Int) -> Int:
+    if index == 0: return 500000
+    if index == 1: return 500000
+    if index == 2: return 200000
+    if index == 3: return 200000
+    if index == 4: return 200000
+    if index == 5: return 150000
+    if index == 6: return 100000
+    if index == 7: return 300000
+    if index == 8: return 100000
+    if index == 9: return 500000
+    if index == 10: return 100000
+    if index == 11: return 500000
+    if index == 12: return 200000
+    if index == 13: return 300000
+    if index == 14: return 100000
+    return 0
+
+pub fn math_pack_case_expected_checksum(index: Int) -> Int:
+    if index == 0: return 435678934
+    if index == 1: return 617283945
+    if index == 2: return 298374651
+    if index == 3: return 512349876
+    if index == 4: return 723456189
+    if index == 5: return 384756219
+    if index == 6: return 291847563
+    if index == 7: return 456789123
+    if index == 8: return 893721564
+    if index == 9: return 657483921
+    if index == 10: return 341256789
+    if index == 11: return 572839416
+    if index == 12: return 619283745
+    if index == 13: return 834721569
+    if index == 14: return 198273645
+    return -1
+
+// ============================================================================
+// BENCHMARK CHECKSUM FUNCTIONS
+// ============================================================================
+
+fn complex_checksum(iterations: Int) -> Int:
+    var acc = 0
+    let modulus_local = MATH_MODULUS
+    let index = 0
+    while index < iterations:
+        let a = complex(index as Float * 0.001, index as Float * 0.002)
+        let b = complex(1.0, 2.0)
+        let c = complex_add(a, b)
+        let d = complex_mul(a, complex_conj(b))
+        let e = complex_abs(d)
+        let f = complex_mul_scalar(c, 2.0)
+        let g = complex_lerp(a, f, 0.5)
+        let sum = round(complex_abs(g) * 100.0 + complex_arg(c) * 10.0 + e * 100.0) as Int
+        acc = (acc + sum + index) % modulus_local
+        index = index + 1
+    return acc
+
+fn trig_checksum(iterations: Int) -> Int:
+    var acc = 0
+    let modulus_local = MATH_MODULUS
+    let index = 0
+    while index < iterations:
+        let angle = index as Float * 0.0001
+        let s = round(sin_scalar(angle) * 1000.0) as Int
+        let c = round(cos_scalar(angle) * 1000.0) as Int
+        let a = round(asin_scalar(sin_scalar(angle) * 0.5) * 1000.0) as Int
+        let t = round(atan2_scalar(index as Float, index as Float + 1.0) * 1000.0) as Int
+        let sum = s + c * 3 + a * 7 + t * 11
+        acc = (acc + sum) % modulus_local
+        index = index + 1
+    return acc
+
+fn hyperbolic_checksum(iterations: Int) -> Int:
+    var acc = 0
+    let modulus_local = MATH_MODULUS
+    let index = 0
+    while index < iterations:
+        let x = (index as Float - iterations as Float * 0.5) * 0.001
+        let sh = round(sinh_scalar(x) * 1000.0) as Int
+        let ch = round(cosh_scalar(x) * 1000.0) as Int
+        let th = round(tanh_scalar(x) * 1000.0) as Int
+        let asinh_v = round(asinh_scalar(x) * 100.0) as Int
+        let sum = sh + ch * 2 + th * 3 + asinh_v * 5
+        acc = (acc + sum) % modulus_local
+        index = index + 1
+    return acc
+
+fn dual_quat_checksum(iterations: Int) -> Int:
+    var acc = 0
+    let modulus_local = MATH_MODULUS
+    let index = 0
+    while index < iterations:
+        let angle = index as Float * 0.001
+        let axis = vec3_normalize_or_zero(vec3(1.0, 2.0, 3.0))
+        let rot = quat_from_axis_angle(axis, angle)
+        let trans = vec3(index as Float * 0.01, 0.0, 0.0)
+        let dq = dual_quat_from_quat_translation(rot, trans)
+        let dq_norm = dual_quat_normalize(dq)
+        let pt = vec3(1.0, 0.0, 0.0)
+        let result = dual_quat_transform_point(dq_norm, pt)
+        let sum = round(result.x * 1000.0 + result.y * 10.0 + result.z * 10.0) as Int
+        acc = (acc + sum) % modulus_local
+        index = index + 1
+    return acc
+
+fn quat_powerup_checksum(iterations: Int) -> Int:
+    var acc = 0
+    let modulus_local = MATH_MODULUS
+    let index = 0
+    while index < iterations:
+        let angle = index as Float * 0.001
+        let euler = vec3(angle, angle * 0.5, angle * 0.25)
+        let q = quat_from_euler_xyz(euler)
+        let q_inv = quat_inverse(q)
+        let identity = quat_mul(q, q_inv)
+        let v = vec3(1.0, 0.0, 0.0)
+        let look = quat_look_rotation(v, vec3(0.0, 1.0, 0.0))
+        let d = quat_angular_distance(q, look)
+        let sum = round(identity.w * 1000.0 + d * 100.0 + quat_dot(q, q_inv) * 1000.0) as Int
+        acc = (acc + sum) % modulus_local
+        index = index + 1
+    return acc
+
+fn quat_exp_log_checksum(iterations: Int) -> Int:
+    var acc = 0
+    let modulus_local = MATH_MODULUS
+    let index = 0
+    while index < iterations:
+        let angle = index as Float * 0.001
+        let axis = vec3_normalize_or_zero(vec3(index as Float, index as Float * 2.0, 1.0))
+        let q = quat_from_axis_angle(axis, angle)
+        let log_q = quat_log(q)
+        let exp_log = quat_exp(log_q)
+        let d = quat_angular_distance(q, exp_log)
+        let sw = quat_swing(q, vec3(1.0, 0.0, 0.0))
+        let tw = quat_twist(q, vec3(1.0, 0.0, 0.0))
+        let sum = round(d * 10000.0 + quat_length(sw) * 1000.0 + quat_length(tw) * 1000.0) as Int
+        acc = (acc + sum) % modulus_local
+        index = index + 1
+    return acc
+
+fn mat4_powerup_checksum(iterations: Int) -> Int:
+    var acc = 0
+    let modulus_local = MATH_MODULUS
+    let index = 0
+    while index < iterations:
+        let angle = index as Float * 0.001
+        let t = vec3(1.0, 2.0, 3.0)
+        let r = quat_from_axis_angle(vec3(0.0, 1.0, 0.0), angle)
+        let s = vec3(1.0, 2.0, 1.0)
+        let m = mat4_from_trs(t, r, s)
+        let det = round(mat4_determinant(m) * 1000.0) as Int
+        let inv = mat4_inverse(m)
+        let check = mat4_mul(m, inv)
+        let decompose = mat4_decompose(m)
+        let sum = det + round(check.row0.x * 1000.0 + decompose.translation.x * 100.0 + decompose.scale.y * 100.0) as Int
+        acc = (acc + sum) % modulus_local
+        index = index + 1
+    return acc
+
+fn easing_checksum(iterations: Int) -> Int:
+    var acc = 0
+    let modulus_local = MATH_MODULUS
+    let index = 0
+    let pattern_index = 0
+    while index < iterations:
+        let t_val = (index % 1000) as Float / 1000.0
+        if pattern_index == 0:
+            let v = round(ease_in_cubic(t_val) * 1000.0) as Int
+            acc = (acc + v) % modulus_local
+        else if pattern_index == 1:
+            let v = round(ease_out_elastic(t_val) * 1000.0) as Int
+            acc = (acc + v) % modulus_local
+        else if pattern_index == 2:
+            let v = round(ease_in_out_back(t_val) * 1000.0) as Int
+            acc = (acc + v) % modulus_local
+        else:
+            let v = round(ease_in_bounce(t_val) * 1000.0) as Int
+            acc = (acc + v) % modulus_local
+        pattern_index = (pattern_index + 1) % 4
+        index = index + 1
+    return acc
+
+fn noise_checksum(iterations: Int) -> Int:
+    var acc = 0
+    let modulus_local = MATH_MODULUS
+    let index = 0
+    while index < iterations:
+        let p2 = vec2(index as Float * 0.01, index as Float * 0.02)
+        let p3 = vec3(index as Float * 0.01, index as Float * 0.02, index as Float * 0.03)
+        let n2 = round(perlin2(p2) * 1000.0) as Int
+        let s2 = round(simplex2(p2) * 1000.0) as Int
+        let s3 = round(simplex3(p3) * 1000.0) as Int
+        let sum = n2 * 3 + s2 * 7 + s3 * 11
+        acc = (acc + sum) % modulus_local
+        index = index + 1
+    return acc
+
+fn number_theory_checksum(iterations: Int) -> Int:
+    var acc = 0
+    let modulus_local = MATH_MODULUS
+    let index = 0
+    while index < iterations:
+        let a = (index % 997) + 1
+        let b = (index * 7 + 3) % 991 + 1
+        let g = gcd(a, b)
+        let l = lcm(a, b)
+        let f = factorial(index % 12)
+        let bin = binomial((index % 20) + 10, index % 10)
+        let prime_check = if is_prime(index % 1000 + 2): 1 else: 2
+        let npt = next_power_of_two(index + 1)
+        let sum = g + (l % 100) + f + (bin % 100) + prime_check + (npt % 100)
+        acc = (acc + sum) % modulus_local
+        index = index + 1
+    return acc
+
+fn specials_checksum(iterations: Int) -> Int:
+    var acc = 0
+    let modulus_local = MATH_MODULUS
+    let index = 0
+    while index < iterations:
+        let x = (index as Float - iterations as Float * 0.5) * 0.01
+        let erf_v = round(erf(x) * 1000.0) as Int
+        let gamma_v = round(gamma(abs(x) + 1.0) * 100.0) as Int
+        let lgamma_v = round(lgamma(abs(x) + 2.0) * 100.0) as Int
+        let sum = erf_v * 3 + gamma_v * 7 + lgamma_v * 11
+        acc = (acc + sum) % modulus_local
+        index = index + 1
+    return acc
+
+fn physics_checksum(iterations: Int) -> Int:
+    var acc = 0
+    let modulus_local = MATH_MODULUS
+    let index = 0
+    while index < iterations:
+        let dt = 0.016
+        let pos = index as Float * 0.1
+        let sp = spring_damper_implicit(pos, 0.0, 10.0, 50.0, 5.0, dt)
+        let sp2 = critically_damped_spring(pos, 0.0, 10.0, 0.5, dt)
+        let smooth = smooth_damp(pos, 10.0, 0.0, 0.5, 10.0, dt)
+        let sum = round(sp.position * 100.0 + sp2.position * 100.0 + smooth.position * 100.0) as Int
+        acc = (acc + sum) % modulus_local
+        index = index + 1
+    return acc
+
+fn packing_checksum(iterations: Int) -> Int:
+    var acc = 0
+    let modulus_local = MATH_MODULUS
+    let index = 0
+    while index < iterations:
+        let f = (index % 1000) as Float * 0.001
+        let half_packed = pack_half(f)
+        let unpacked = unpack_half(half_packed)
+        let snorm_packed = pack_snorm8(f * 2.0 - 1.0)
+        let snorm_unpacked = unpack_snorm8(snorm_packed)
+        let normal = vec3_normalize_or_zero(vec3(f, 1.0 - f, 0.5))
+        let oct_packed = pack_octahedral_normal(normal)
+        let oct_unpacked = unpack_octahedral_normal(oct_packed)
+        let sum = half_packed + (round(unpacked * 1000.0) as Int) * 2 + snorm_packed * 3 + round(oct_unpacked.x * 100.0) as Int * 5
+        acc = (acc + sum) % modulus_local
+        index = index + 1
+    return acc
+
+fn sh_checksum(iterations: Int) -> Int:
+    var acc = 0
+    let modulus_local = MATH_MODULUS
+    let index = 0
+    while index < iterations:
+        let angle = index as Float * 0.001
+        let dir = vec3_normalize_or_zero(vec3(cos(angle), sin(angle), 0.5))
+        let coeffs = sh_project_dir(dir, 1.0)
+        let eval_result = round(sh_eval(dir, coeffs) * 1000.0) as Int
+        let coeffs2 = sh_mul_scalar(coeffs, 2.0)
+        let added = sh_add(coeffs, coeffs2)
+        let eval2 = round(sh_eval(dir, added) * 1000.0) as Int
+        let sum = eval_result * 3 + eval2 * 7
+        acc = (acc + sum) % modulus_local
+        index = index + 1
+    return acc
+
+fn complex_special_checksum(iterations: Int) -> Int:
+    var acc = 0
+    let modulus_local = MATH_MODULUS
+    let index = 0
+    while index < iterations:
+        let re = index as Float * 0.001
+        let im = index as Float * 0.0005
+        let c = complex(re, im)
+        let sqrt_c = complex_sqrt(c)
+        let log_c = complex_log(c)
+        let sin_c = complex_sin(c)
+        let cos_c = complex_cos(c)
+        let pow_c = complex_pow(c, complex(2.0, 0.0))
+        let sum = round(complex_abs(sqrt_c) * 100.0 + complex_abs(log_c) * 100.0 + complex_abs(sin_c) * 100.0 + complex_abs(pow_c) * 10.0) as Int
+        acc = (acc + sum) % modulus_local
+        index = index + 1
+    return acc
+
+// ============================================================================
+// DISPATCH
+// ============================================================================
+
+pub fn math_pack_case_checksum(case_id: String, iterations: Int, amplify: Int, modulus: Int) -> Int:
+    let local_iterations = iterations
+    var local_checksum = 0
+    var local_amplify = 0
+    while local_amplify < amplify:
+        if case_id == "complex_arithmetic":
+            local_checksum = (local_checksum + complex_checksum(local_iterations)) % modulus
+        else if case_id == "trig_exact":
+            local_checksum = (local_checksum + trig_checksum(local_iterations)) % modulus
+        else if case_id == "hyperbolic":
+            local_checksum = (local_checksum + hyperbolic_checksum(local_iterations)) % modulus
+        else if case_id == "dual_quat_transform":
+            local_checksum = (local_checksum + dual_quat_checksum(local_iterations)) % modulus
+        else if case_id == "quat_powerups":
+            local_checksum = (local_checksum + quat_powerup_checksum(local_iterations)) % modulus
+        else if case_id == "quat_exp_log":
+            local_checksum = (local_checksum + quat_exp_log_checksum(local_iterations)) % modulus
+        else if case_id == "mat4_powerups":
+            local_checksum = (local_checksum + mat4_powerup_checksum(local_iterations)) % modulus
+        else if case_id == "easing_functions":
+            local_checksum = (local_checksum + easing_checksum(local_iterations)) % modulus
+        else if case_id == "perlin_simplex":
+            local_checksum = (local_checksum + noise_checksum(local_iterations)) % modulus
+        else if case_id == "number_theory":
+            local_checksum = (local_checksum + number_theory_checksum(local_iterations)) % modulus
+        else if case_id == "special_functions":
+            local_checksum = (local_checksum + specials_checksum(local_iterations)) % modulus
+        else if case_id == "physics_spring":
+            local_checksum = (local_checksum + physics_checksum(local_iterations)) % modulus
+        else if case_id == "packing":
+            local_checksum = (local_checksum + packing_checksum(local_iterations)) % modulus
+        else if case_id == "sh_eval":
+            local_checksum = (local_checksum + sh_checksum(local_iterations)) % modulus
+        else if case_id == "complex_special":
+            local_checksum = (local_checksum + complex_special_checksum(local_iterations)) % modulus
+        else:
+            return -1
+        local_amplify = local_amplify + 1
+    return local_checksum

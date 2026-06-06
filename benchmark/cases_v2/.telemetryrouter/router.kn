@@ -154,6 +154,13 @@ use fusion_chain::fusion_chain_case_id
 use fusion_chain::fusion_chain_case_iterations
 use fusion_chain::fusion_chain_case_telemetry
 use fusion_chain::fusion_chain_case_title
+use math_pack::math_pack_case_checksum
+use math_pack::math_pack_case_count
+use math_pack::math_pack_case_expected_checksum
+use math_pack::math_pack_case_group
+use math_pack::math_pack_case_id
+use math_pack::math_pack_case_iterations
+use math_pack::math_pack_case_title
 
 component BenchmarkRouterPanel():
     render <panel title="benchmark-router-v2" />
@@ -565,6 +572,9 @@ fn run_case_checksum(case_id: String, iterations: Int, amplify: Int) -> Int with
     let crusher_checksum = crusher_case_checksum(case_id, iterations, amplify, ROUTER_MODULUS)
     if crusher_checksum >= 0:
         return crusher_checksum
+    let math_pack_checksum = math_pack_case_checksum(case_id, iterations, amplify, ROUTER_MODULUS)
+    if math_pack_checksum >= 0:
+        return math_pack_checksum
     let repeat = 0
     let acc = 0
     while repeat < amplify:
@@ -1193,6 +1203,23 @@ fn main() -> Int with Unsafe:
                 failure_count = failure_count + 1
             println("[bench-v2] " + case_id + " best=" + str(result.best_ms) + "ms avg=" + str(result.average_ms) + "ms status=" + result_status_text(result))
         fusion_index = fusion_index + 1
+
+    let math_pack_index = 0
+    while math_pack_index < math_pack_case_count():
+        let case_id = math_pack_case_id(math_pack_index)
+        let case_group = math_pack_case_group(math_pack_index)
+        if case_selected(config.filter_text, case_id, case_group):
+            let result = run_case("math_pack", case_id, case_group, math_pack_case_title(math_pack_index), math_pack_case_iterations(math_pack_index), math_pack_case_expected_checksum(math_pack_index), config)
+            let _track = write_track_report(result)
+            cases_json_items = append_json_item(cases_json_items, render_result_json(result))
+            table_rows = table_rows + format_result_row(result)
+            case_count = case_count + 1
+            if result.success:
+                success_count = success_count + 1
+            else:
+                failure_count = failure_count + 1
+            println("[bench-v2] " + case_id + " best=" + str(result.best_ms) + "ms avg=" + str(result.average_ms) + "ms status=" + result_status_text(result))
+        math_pack_index = math_pack_index + 1
 
     if case_selected(config.filter_text, "array_scan", "core"):
         let result = run_case("router_core", "array_scan", "core", "Array Scan", 500000, 103499994, config)
