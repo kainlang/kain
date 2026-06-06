@@ -151,7 +151,8 @@ function synthesizeDocs(repoRoot: string, data: any, module: any, symbol: any): 
     enum: `Enum \`${name}\` in \`${modPath}\`.`,
     trait: `Trait \`${name}\` in \`${modPath}\`.`,
   };
-  return `*[synthesized]* ${phrases[kind] || \`\`\${kind}\` item \`\${name}\` in \`\${modPath}\`.\`}\n\nSignature: \`\${symbol.signature || symbol.name}\`\n\nUse \`kain_stdlib → get_source\` for the full implementation.`;
+  const fallback = phrases[kind] || `\`${kind}\` item \`${name}\` in \`${modPath}\`.`;
+  return `*[synthesized]* ${fallback}\n\nSignature: \`${symbol.signature || symbol.name}\`\n\nUse \`kain_stdlib → get_source\` for the full implementation.`;
 }
 
 // Keyword data
