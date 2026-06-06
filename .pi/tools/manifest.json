@@ -116,6 +116,23 @@
       }
     },
     {
+      "id": "kain_native",
+      "name": "Kain Native Compiler",
+      "file": "kain-native-tools.ts",
+      "label": "Kain Native",
+      "description": "Zero-friction native binary emitter: compile Kain to .exe, .dll, .lib, .obj in one command. Bridges kain build (LLVM IR) through bundled clang to produce native binaries. Auto-detects runtime dependencies and links accordingly.",
+      "promptSnippet": "Compile Kain source to native binaries (.exe, .dll, .lib, .obj) in one shot",
+      "promptGuidelines": [
+        "Use kain_native to compile Kain source to native binaries without manual IR editing or clang invocation.",
+        "Default emit is 'exe' — produces a standalone executable next to the source file.",
+        "Use emit:'sharedlib' to produce a .dll/.so for FFI interop with Python, Node.js, Rust, C, etc.",
+        "The wrapper auto-detects whether the source needs libc and links accordingly."
+      ],
+      "actions": {
+        "build": { "sig": "(target)", "label": "Build", "description": "Compile a Kain .kn file to native binary. emit: exe(default), sharedlib, staticlib, object, llvm-ir. output: optional override path." }
+      }
+    },
+    {
       "id": "tools",
       "name": "Tool Discovery",
       "file": "tools.ts",
