@@ -1065,7 +1065,13 @@ fn resolve_system_include(
         find_kain_manifest_root(start_dir).unwrap_or_else(|| start_dir.to_path_buf());
 
     let mut include_paths = collect_system_include_roots_for_family(family);
-    let header_path = if let Some(shim_header) = family.shim_header.as_deref() {
+    // Try the real SDK header first (libclang can parse it).
+    // Fall back to the shim only if the real header can't be found.
+    let header_path = if let Some(real_header) =
+        find_system_header_under_roots(&normalized_target, &include_paths)
+    {
+        real_header
+    } else if let Some(shim_header) = family.shim_header.as_deref() {
         let (header_path, include_dir) =
             resolve_system_include_shim_header(family, shim_header, start_dir)?;
         push_existing_unique_path(&mut include_paths, include_dir);

@@ -267,7 +267,7 @@ unsafe fn extract_function(cursor: CXCursor, import_name: &str) -> Option<CFunct
         let param_name = if arg_name.is_empty() {
             format!("arg{i}")
         } else {
-            arg_name
+            sanitize_identifier(&arg_name)
         };
 
         let bridge_type = map_type_to_bridge(arg_type)
@@ -489,6 +489,28 @@ unsafe fn cxstring_to_string(cx: CXString) -> String {
         return String::new();
     }
     CStr::from_ptr(ptr).to_string_lossy().into_owned()
+}
+
+/// Sanitize a C identifier so it doesn't collide with Kain reserved keywords.
+fn sanitize_identifier(name: &str) -> String {
+    // Kain reserved keywords that commonly collide with C parameter names
+    static KAIN_RESERVED: &[&str] = &[
+        "sampler", "input", "output", "type", "world", "actor", "teleport",
+        "struct", "enum", "fn", "let", "mut", "use", "mod", "pub",
+        "as", "if", "else", "while", "for", "return", "match",
+        "impl", "trait", "where", "self", "super", "extern",
+        "true", "false", "void", "int", "float", "bool",
+        "const", "static", "unsafe", "ref", "move",
+        "pulse", "shader", "converge", "orchestrate",
+        "entangle", "resonate", "patch", "law", "axiom",
+        "shatter", "collapse", "observe", "decay",
+    ];
+    let lower = name.to_ascii_lowercase();
+    if KAIN_RESERVED.contains(&lower.as_str()) {
+        format!("{name}_")
+    } else {
+        name.to_string()
+    }
 }
 
 fn hex_sha256(data: &[u8]) -> String {
