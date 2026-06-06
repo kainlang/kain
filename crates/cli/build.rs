@@ -46,6 +46,19 @@ fn main() {
                 .unwrap_or(0)
         });
 
+    // Resolve git info early so it can be reused for build-number derivation.
+    let git_sha = env_override("KAIN_BUILD_GIT_SHA")
+        .or_else(|| git_output(&["rev-parse", "--short=12", "HEAD"]));
+    let git_commit_count = env_override("KAIN_BUILD_GIT_COMMIT_COUNT")
+        .or_else(|| git_output(&["rev-list", "--count", "HEAD"]));
+    let git_dirty = env_override("KAIN_BUILD_GIT_DIRTY").unwrap_or_else(|| {
+        match git_output(&["status", "--porcelain"]) {
+            Some(status) if status.is_empty() => "clean".to_string(),
+            Some(_) => "dirty".to_string(),
+            None => "unknown".to_string(),
+        }
+    });
+
     let managed_build_number = env::var("KAIN_BUILD_NUMBER")
         .ok()
         .map(|value| value.trim().to_string())
@@ -60,7 +73,21 @@ fn main() {
             number,
             build_tracking_mode.unwrap_or_else(|| "managed".to_string()),
         ),
-        None => ("unmanaged".to_string(), "unmanaged".to_string()),
+        None => {
+            // Auto-derive from git when KAIN_BUILD_NUMBER is not explicitly
+            // set.  This gives every build a trackable identity instead of
+            // silently marking it "unmanaged" just because nobody set an env
+            // var.  Bazel sandbox builds will still get "unmanaged" unless the
+            // .git directory is reachable or the sync layer passes
+            // --action_env, but normal Cargo / IDE builds get full tracking.
+            match (git_sha.as_ref(), git_commit_count.as_ref()) {
+                (Some(sha), Some(count)) => (
+                    format!("git-{}-{}", sha, count),
+                    "git".to_string(),
+                ),
+                _ => ("unmanaged".to_string(), "unmanaged".to_string()),
+            }
+        }
     };
 
     println!("cargo:rustc-env=KAIN_BUILD_NUMBER={}", build_number);
@@ -79,19 +106,8 @@ fn main() {
         env::var("HOST").unwrap_or_else(|_| "unknown".to_string())
     );
 
-    let git_sha = env_override("KAIN_BUILD_GIT_SHA")
-        .or_else(|| git_output(&["rev-parse", "--short=12", "HEAD"]))
-        .unwrap_or_else(|| "unknown".to_string());
-    let git_commit_count = env_override("KAIN_BUILD_GIT_COMMIT_COUNT")
-        .or_else(|| git_output(&["rev-list", "--count", "HEAD"]))
-        .unwrap_or_else(|| "0".to_string());
-    let git_dirty = env_override("KAIN_BUILD_GIT_DIRTY").unwrap_or_else(|| {
-        match git_output(&["status", "--porcelain"]) {
-            Some(status) if status.is_empty() => "clean".to_string(),
-            Some(_) => "dirty".to_string(),
-            None => "unknown".to_string(),
-        }
-    });
+    let git_sha = git_sha.unwrap_or_else(|| "unknown".to_string());
+    let git_commit_count = git_commit_count.unwrap_or_else(|| "0".to_string());
 
     println!("cargo:rustc-env=KAIN_GIT_SHA={}", git_sha);
     println!("cargo:rustc-env=KAIN_GIT_COMMIT_COUNT={}", git_commit_count);

@@ -1,5 +1,26 @@
 # Kain Memory
 
+# 2026-06-06 - Build tracking re-enabled for Bazel & Cargo builds
+
+What changed:
+
+- `crates/cli/build.rs`: When `KAIN_BUILD_NUMBER` env var is not set, the build script now auto-derives a build number from `git rev-parse --short=12 HEAD` + `git rev-list --count HEAD`, producing `git-{sha}-{count}` with tracking mode `"git"`. Falls back to `"unmanaged"` only when git is unavailable (e.g., Bazel sandbox without .git).
+- `scripts/python/kain_bazel_sync.py`: Added `bazel_build_tracking_args()` which computes `KAIN_BUILD_NUMBER=bazel-{config}-{short_sha}` and `KAIN_BUILD_TRACKING_MODE=bazel-{config}` and passes them as `--action_env` flags to every `bazel build` invocation. This ensures Bazel-built binaries carry trackable build identity.
+
+Why:
+
+- The `kain doctor` output was showing `Build: unmanaged` / `Build Tracking: unmanaged` for every build. The `KAIN_BUILD_NUMBER` env var was never being set during Bazel builds, so `build.rs` defaulted to "unmanaged". Now Cargo builds get git-derived tracking automatically, and Bazel builds get tracking via the sync script.
+
+Key details for future agents:
+
+- The `--action_env` flags are GLOBAL (affect all actions). If incremental build performance regresses, consider scoping to `build_script_env` on the specific `cargo_build_script` target instead.
+- The tracking mode naming convention: `bazel-{config}` for Bazel builds, `git` for auto-derived Cargo builds, `managed` when explicitly set via `KAIN_BUILD_NUMBER`.
+- Git info shows `unknown` in Bazel builds even with tracking because the sandbox has no `.git` directory. The build number itself carries the SHA.
+
+Validation:
+- `kain doctor` shows: `Build: bazel-dev-edd78737b9e8`, `Build Tracking: bazel-dev` ✅
+- Binary installed at `X:\.kain\bin\kain.exe` and `X:\.kain\bin\kn.exe`
+
 # 2026-06-05 - Raw Win32 window via native C include shim (C ABI proof)
 
 What changed:

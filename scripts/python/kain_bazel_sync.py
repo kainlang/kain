@@ -1255,8 +1255,27 @@ def cargo_bazel_repin(
         release_lock(lock_handle)
 
 
+def bazel_build_tracking_args(context: SyncContext) -> tuple[str, ...]:
+    """Return --action_env flags that embed build tracking into the binary."""
+    tracking_mode = context.sync_policy.get(
+        "build_tracking_mode", f"bazel-{context.bazel_config}"
+    )
+    if not isinstance(tracking_mode, str) or not tracking_mode.strip():
+        tracking_mode = f"bazel-{context.bazel_config}"
+    repo_sha = repo_head_sha(context.repo_root)
+    short_sha = repo_sha[:12] if len(repo_sha) >= 12 else repo_sha
+    build_number = f"{tracking_mode}-{short_sha}"
+    return (
+        f"--action_env=KAIN_BUILD_NUMBER={build_number}",
+        f"--action_env=KAIN_BUILD_TRACKING_MODE={tracking_mode}",
+    )
+
+
 def run_bazel_build_target(context: SyncContext, binary_name: str) -> CommandResult:
-    extra_args = bazel_python_args(context)
+    extra_args = (
+        *bazel_python_args(context),
+        *bazel_build_tracking_args(context),
+    )
     env = bazel_env(context)
     auto_repin = bool_from_policy(
         context.sync_policy.get("cargo_bazel_auto_repin_enabled"), True
