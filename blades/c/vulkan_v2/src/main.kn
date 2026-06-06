@@ -1,8 +1,7 @@
 // main.kn — GPU fluid simulator
-// Uses libclang C-FFI for Win32 window + Vulkan compute dispatch via SPIR-V
+// dispatch is a built-in Kain keyword (backend-agnostic — Vulkan or CUDA)
+// include <windows.h> uses libclang C-FFI parsing the real Windows SDK
 
-use std::cuda
-use std::gpu
 use std::runtime
 
 include <windows.h> as win
