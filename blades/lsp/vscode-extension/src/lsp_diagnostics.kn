@@ -1,0 +1,160 @@
+// LSP Diagnostics Converter — converts Kain compiler Diagnostic structs into
+// LSP 3.17 diagnostic JSON with relatedInformation from labels, notes, and help.
+//
+// This module builds JSON-RPC directly; it does NOT depend on transport.kn
+// or lsp.kn to avoid circular imports.
+
+use std::json
+use std::kain
+use state
+
+// ─── Position helpers ──────────────────────────────────────────────────────
+
+fn _diag_pos(line_num: Int, col: Int) -> JsonObject:
+    let p = json_object()
+    json_object_set_int(p, "line", line_num)
+    json_object_set_int(p, "character", col)
+    return p
+
+fn _diag_range(sl: Int, sc: Int, el: Int, ec: Int) -> JsonObject:
+    let r = json_object()
+    json_object_set(r, "start", _diag_pos(sl, sc))
+    json_object_set(r, "end", _diag_pos(el, ec))
+    return r
+
+// ─── Severity mapper ─────────────────────────────────────────────────────────
+
+fn _diag_severity(kind: String) -> Int:
+    if kind == "error":
+        return LSP_DIAG_SEVERITY_ERROR
+    if kind == "warning":
+        return LSP_DIAG_SEVERITY_WARNING
+    if kind == "info":
+        return LSP_DIAG_SEVERITY_INFO
+    if kind == "hint":
+        return LSP_DIAG_SEVERITY_HINT
+    if kind == "help":
+        return LSP_DIAG_SEVERITY_HINT
+    return LSP_DIAG_SEVERITY_ERROR
+
+// ─── Core diagnostic converter ───────────────────────────────────────────────
+
+pub fn lsp_json_diagnostic(diag: Diagnostic) -> JsonObject:
+    let d = json_object()
+
+    // range
+    if diag.has_primary_range:
+        json_object_set(d, "range", _diag_range(
+            diag.primary_range.start.line_num, diag.primary_range.start.col,
+            diag.primary_range.end.line_num, diag.primary_range.end.col,
+        ))
+    else:
+        json_object_set(d, "range", _diag_range(0, 0, 0, 0))
+
+    // severity
+    json_object_set_int(d, "severity", _diag_severity(diag.kind))
+
+    // code
+    json_object_set_string(d, "code", diag.code)
+
+    // source
+    json_object_set_string(d, "source", "kain")
+
+    // message
+    json_object_set_string(d, "message", diag.message)
+
+    // relatedInformation
+    let related = json_array()
+    let file_uri = "file:///" + diag.file
+
+    // labels
+    var i = 0
+    while i < len(diag.labels):
+        let label = diag.labels[i]
+        let loc = json_object()
+        json_object_set_string(loc, "uri", file_uri)
+        json_object_set(loc, "range", _diag_range(
+            label.range.start.line_num, label.range.start.col,
+            label.range.end.line_num, label.range.end.col,
+        ))
+        let info = json_object()
+        json_object_set(info, "location", loc)
+        json_object_set_string(info, "message", label.message)
+        let _p = json_array_push_object(related, info)
+        i = i + 1
+
+    // notes
+    i = 0
+    while i < len(diag.notes):
+        let note = diag.notes[i]
+        let loc = json_object()
+        json_object_set_string(loc, "uri", file_uri)
+        if diag.has_primary_range:
+            json_object_set(loc, "range", _diag_range(
+                diag.primary_range.start.line_num, diag.primary_range.start.col,
+                diag.primary_range.end.line_num, diag.primary_range.end.col,
+            ))
+        else:
+            json_object_set(loc, "range", _diag_range(0, 0, 0, 0))
+        let info = json_object()
+        json_object_set(info, "location", loc)
+        json_object_set_string(info, "message", note)
+        let _p = json_array_push_object(related, info)
+        i = i + 1
+
+    // help
+    i = 0
+    while i < len(diag.help):
+        let h = diag.help[i]
+        let loc = json_object()
+        json_object_set_string(loc, "uri", file_uri)
+        if diag.has_primary_range:
+            json_object_set(loc, "range", _diag_range(
+                diag.primary_range.start.line_num, diag.primary_range.start.col,
+                diag.primary_range.end.line_num, diag.primary_range.end.col,
+            ))
+        else:
+            json_object_set(loc, "range", _diag_range(0, 0, 0, 0))
+        let info = json_object()
+        json_object_set(info, "location", loc)
+        json_object_set_string(info, "message", h)
+        let _p = json_array_push_object(related, info)
+        i = i + 1
+
+    if json_array_length(related) > 0:
+        json_object_set(d, "relatedInformation", related)
+
+    return d
+
+// ─── Array converter ─────────────────────────────────────────────────────────
+
+pub fn lsp_json_diagnostics_array(diags: Array<Diagnostic>) -> JsonArray:
+    let arr = json_array()
+    var i = 0
+    while i < len(diags):
+        let _p = json_array_push_object(arr, lsp_json_diagnostic(diags[i]))
+        i = i + 1
+    return arr
+
+// ─── Publish diagnostics notification ───────────────────────────────────────
+
+pub fn lsp_publish_diagnostics(uri: String, check_result: CheckResult) -> JsonObject:
+    let params = json_object()
+    json_object_set_string(params, "uri", uri)
+    json_object_set(params, "diagnostics", lsp_json_diagnostics_array(check_result.diagnostics))
+
+    let notif = json_object()
+    json_object_set(notif, "jsonrpc", "2.0")
+    json_object_set_string(notif, "method", METHOD_PUBLISH_DIAGNOSTICS)
+    json_object_set(notif, "params", params)
+    return notif
+
+// ─── Diagnostic result builder ───────────────────────────────────────────────
+
+pub fn lsp_build_diagnostic_result(uri: String, check_result: CheckResult) -> JsonObject:
+    let _ = uri
+    let result = json_object()
+    json_object_set_string(result, "kind", "full")
+    json_object_set_string(result, "resultId", "kain-diagnostics")
+    json_object_set(result, "items", lsp_json_diagnostics_array(check_result.diagnostics))
+    return result

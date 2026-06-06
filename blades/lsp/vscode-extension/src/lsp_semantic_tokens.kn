@@ -1,0 +1,108 @@
+// LSP Semantic Tokens — converts std::kain semantic tokens to LSP 3.17 format
+//
+// This module produces the `textDocument/semanticTokens/full` response shape
+// and the server capability legend. It does NOT depend on lsp.kn or transport.kn
+// to avoid circular imports.
+
+use std::json
+use std::kain
+use state
+
+// ─── Internal helpers ────────────────────────────────────────────────────────
+
+// Clamp an Int to the inclusive range [low, high]
+fn _clamp(value: Int, low: Int, high: Int) -> Int:
+    if value < low:
+        return low
+    if value > high:
+        return high
+    return value
+
+// Modulo that always returns a non-negative result in [0, modulus-1]
+fn _mod_u16(value: Int, modulus: Int) -> Int:
+    let r = value % modulus
+    if r < 0:
+        return r + modulus
+    return r
+
+// Sort tokens by (start.line_num, start.col) using insertion sort
+fn _sort_tokens(tokens: Array<SemanticToken>) -> Array<SemanticToken>:
+    var n: Int = len(tokens)
+    var i: Int = 1
+    while i < n:
+        var j: Int = i
+        while j > 0:
+            let a_line = tokens[j - 1].range.start.line_num
+            let b_line = tokens[j].range.start.line_num
+            let a_col = tokens[j - 1].range.start.col
+            let b_col = tokens[j].range.start.col
+            if a_line > b_line or (a_line == b_line and a_col > b_col):
+                // swap
+                let tmp = tokens[j - 1]
+                tokens[j - 1] = tokens[j]
+                tokens[j] = tmp
+                j = j - 1
+            else:
+                j = 0  // break
+        i = i + 1
+    return tokens
+
+// Encode sorted tokens into LSP's 5-integer delta array
+fn _lsp_encode_tokens(tokens: Array<SemanticToken>) -> JsonArray:
+    let data = json_array()
+    var prev_line: Int = 0
+    var prev_start: Int = 0
+    var i: Int = 0
+    while i < len(tokens):
+        let token = tokens[i]
+        let start_line = token.range.start.line_num
+        let start_col = token.range.start.col
+        let end_col = token.range.end.col
+
+        let delta_line = _mod_u16(start_line - prev_line, 65536)
+        let delta_start = if start_line == prev_line:
+            _mod_u16(start_col - prev_start, 65536)
+        else:
+            start_col
+
+        let length = _clamp(end_col - start_col, 0, 65535)
+        let token_type = _clamp(token.token_type, 0, 18)
+        let token_modifiers = _clamp(token.token_modifiers, 0, 255)
+
+        let _p1 = json_array_push_int(data, delta_line)
+        let _p2 = json_array_push_int(data, delta_start)
+        let _p3 = json_array_push_int(data, length)
+        let _p4 = json_array_push_int(data, token_type)
+        let _p5 = json_array_push_int(data, token_modifiers)
+
+        prev_line = start_line
+        prev_start = start_col
+        i = i + 1
+    return data
+
+// ─── Public API ──────────────────────────────────────────────────────────────
+
+// Build the LSP semantic token legend for server capabilities.
+pub fn lsp_semantic_token_legend() -> JsonObject:
+    let token_types = json_array_from_strings([
+        "namespace", "type", "struct", "enum", "enumMember", "interface",
+        "typeParameter", "parameter", "variable", "property", "function",
+        "method", "macro", "keyword", "modifier", "comment", "string",
+        "number", "operator",
+    ])
+    let token_modifiers = json_array_from_strings([
+        "declaration", "definition", "readonly", "static", "deprecated",
+        "abstract", "async", "defaultLibrary",
+    ])
+    let result = json_object()
+    json_object_set_array(result, "tokenTypes", token_types)
+    json_object_set_array(result, "tokenModifiers", token_modifiers)
+    return result
+
+pub fn lsp_build_semantic_tokens(doc: Document) -> JsonObject:
+    let tokens = semantic_tokens(doc)
+    let sorted = _sort_tokens(tokens)
+    let encoded = _lsp_encode_tokens(sorted)
+    let result = json_object()
+    json_object_set_array(result, "data", encoded)
+    return result

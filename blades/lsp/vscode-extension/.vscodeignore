@@ -1,0 +1,17 @@
+.vscode
+.vscode-test
+.git
+*.vsix
+.DS_Store
+Thumbs.db
+node_modules/.cache
+node_modules/.package-lock.json
+# Exclude generated/cache dirs from the blade
+.kain
+generated
+*.ll
+*.obj
+*.json
+!package.json
+!language-configuration.json
+!**/kain.tmLanguage.json

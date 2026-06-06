@@ -5,6 +5,7 @@ kain-lsp.ll
 kain-lsp.runtime_contract.json
 kain-lsp.realtime_app.json
 kain-lsp.exe
+node_modules/
 
 # Temp test files
 stdin_pipe.txt

@@ -17629,6 +17629,19 @@ impl LlvmGenerator {
                 continue;
             }
 
+            // Fix: untag Kain Int 0 -> null pointer for extern C ABI pointer params.
+            // Kain NaN-boxing: Int 0 -> LLVM IR (0 << 3) | 1 = 1.
+            // When passed to a C function expecting a pointer, leak the tag -> C gets 1 not NULL.
+            // For compile-time literal 0, emit pointer null instead of the tagged int.
+            if is_extern
+                && ty == "i64"
+                && val == "1"
+                && (param_ty.contains('*') || param_ty.starts_with('%'))
+            {
+                val = format!("{} null", param_ty);
+                ty = param_ty.clone();
+            }
+
             compiled_args.push(val);
             arg_types.push(ty);
         }

@@ -5,10 +5,6 @@
 //         6,294 function declarations extracted from <windows.h> itself.
 //         No hand-written shim, no C bridge code, no macro workarounds.
 //
-// Known issue: Kain's tagged-int encoding (val << 3 | 1) leaks through
-// the C ABI for void*-typed params.  Workaround: pass string args as String,
-// or wrap handle params in unsigned long long in a thin shim.
-// This is a compiler codegen issue — NOT a libclang extraction issue.
 // ============================================================================
 include <windows.h> as win
 

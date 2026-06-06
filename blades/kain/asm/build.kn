@@ -1,0 +1,43 @@
+use std::build
+
+fn build(ctx: BuildContext) -> BuildGraph:
+    let pkg = package("asm")
+        .version("1.0.0")
+        .description("Space Invaders — inline asm + Win32, zero C bridge, pure metal Kain")
+
+    let blade_spec = blade("asm")
+        .kind("kain_library")
+        .entry("src/main.kn")
+        .source_root("src")
+        .module_root("src")
+        .build_target("llvm")
+
+    let defaults = build_defaults()
+        .entry("src/main.kn")
+        .artifact_root(".kain/out")
+        .cache_root(".kain/cache/build")
+        .profile("debug")
+        .target("llvm")
+
+    let check = build_check("check-llvm")
+        .entry("src/main.kn")
+        .target("llvm")
+        .axis("target", "llvm")
+        .input("src/main.kn")
+        .input("build.kn")
+        .input("KAIN.toml")
+
+    let root_exe = native_executable("root-executable")
+        .entry("src/main.kn")
+        .root_output("$blade/asm_space_invaders.exe")
+        .requires("check-llvm")
+        .input("src/main.kn")
+        .input("build.kn")
+        .input("KAIN.toml")
+
+    return build_graph()
+        .package(pkg)
+        .blade(blade_spec)
+        .defaults(defaults)
+        .task(check)
+        .task(root_exe)

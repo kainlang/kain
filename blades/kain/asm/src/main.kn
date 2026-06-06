@@ -1,0 +1,184 @@
+include <windows.h> as win
+
+const COL_GREEN: Int = 65280
+const MASK_32: Int = 4294967295
+
+fn asm_fill_dword(ptr: Int, count: Int, value: Int) with Unsafe:
+    asm("rep stosd",
+        ptr, count, value & MASK_32,
+        constraints = "{rdi},{rcx},{rax}",
+        clobbers = "rdi,rcx,rax",
+        memory = true, intel = true)
+
+fn asm_rdtsc(scratch: ptr<Int>) with Unsafe:
+    asm("rdtsc\nmov [($0)], eax",
+        ptr_to_int(scratch),
+        constraints = "{rdi}",
+        clobbers = "rax,rdx,rdi",
+        memory = true, intel = true)
+
+fn asm_pixel_set(byte_ptr: Int, byte_offset: Int, color: Int) with Unsafe:
+    asm("mov dword ptr [($0)+($1)], ($2)",
+        byte_ptr, byte_offset, color & MASK_32,
+        constraints = "{rdi},{rcx},{rax}",
+        clobbers = "rdi,rcx,rax",
+        memory = true, intel = true)
+
+fn verify_asm() -> Int with Unsafe:
+    let test_buf: ptr<Int> = alloc_zeroed(64, "Int")
+    asm_fill_dword(ptr_to_int(test_buf), 16, 3735928559 & MASK_32)
+    let first: Int = mem_load(test_buf, "Int")
+    if first != (3735928559 & MASK_32):
+        decay test_buf
+        return -1
+    let slot7: Int = mem_load(ptr_offset(test_buf, 7, "Int"), "Int")
+    let dword15: Int = (slot7 >> 32) & MASK_32
+    if dword15 != (3735928559 & MASK_32):
+        decay test_buf
+        return -2
+    let ts: ptr<Int> = alloc_zeroed(4, "Int")
+    asm_rdtsc(ts)
+    let tsc: Int = volatile_load(ts, "Int")
+    if tsc < 1000:
+        decay test_buf
+        decay ts
+        return -3
+    asm_pixel_set(ptr_to_int(test_buf), 0, 4278255360)
+    let gc: Int = mem_load(test_buf, "Int")
+    let lo: Int = gc & MASK_32
+    if lo != 4278255360:
+        decay test_buf
+        decay ts
+        return -4
+    decay test_buf
+    decay ts
+    return 0
+
+const FB_W: Int = 320
+const FB_H: Int = 240
+const FB_INTS: Int = FB_W * FB_H * 4 / 8
+const FB_PIXELS: Int = FB_W * FB_H
+
+fn fb_clear(fb: ptr<Int>) with Unsafe:
+    asm("rep stosd",
+        ptr_to_int(fb), FB_PIXELS, 0,
+        constraints = "{rdi},{rcx},{rax}",
+        clobbers = "rdi,rcx,rax",
+        memory = true, intel = true)
+
+fn bmi_make(w: Int, h: Int) -> ptr<Int> with Unsafe:
+    let bmi: ptr<Int> = alloc_zeroed(5, "Int")
+    mem_store(bmi, 40 | (w << 32), "Int")
+    let nh: Int = -h
+    let slot1: Int = (nh & MASK_32) | (1 << 32) | (32 << 48)
+    mem_store(ptr_offset(bmi, 1, "Int"), slot1, "Int")
+    return bmi
+
+fn bmi_free(bmi: ptr<Int>) with Unsafe:
+    decay bmi
+
+fn main() -> Int with Unsafe:
+    // 1. Verify asm works
+    let asm_ok: Int = verify_asm()
+    if asm_ok != 0:
+        return asm_ok
+
+    // 2. Allocate framebuffer
+    let fb: ptr<Int> = alloc_zeroed(FB_INTS, "Int")
+    if ptr_to_int(fb) == 0:
+        return -10
+
+    // 3. Scratch for rdtsc
+    let scratch: ptr<Int> = alloc_zeroed(4, "Int")
+    if ptr_to_int(scratch) == 0:
+        decay fb
+        return -11
+
+    // 4. BITMAPINFO
+    let bmi: ptr<Int> = bmi_make(FB_W, FB_H)
+    if ptr_to_int(bmi) == 0:
+        decay fb
+        decay scratch
+        return -12
+
+    // 5. Create window
+    let hinst = win_GetModuleHandleA(0)
+    let style: Int = 13565952 | 268435456
+    let hwnd = win_CreateWindowExA(0, "STATIC", "ASM SPACE INVADERS", style, 100, 100, 640, 480, 0, 0, hinst, 0)
+    if hwnd == 0:
+        decay fb
+        decay scratch
+        decay bmi
+        return -13
+
+    let _ = win_ShowWindow(hwnd, 5)
+    let _ = win_UpdateWindow(hwnd)
+
+    // 6. Message struct (MSG on x64 = ~40 bytes)
+    let msg: ptr<Int> = alloc_zeroed(6, "Int")
+    if ptr_to_int(msg) == 0:
+        decay fb
+        decay scratch
+        decay bmi
+        return -14
+
+    // 7. Main loop
+    var running: Int = 1
+    var px: Int = 9
+    while running != 0:
+        // Pump messages
+        var hm: Int = 1
+        while hm != 0:
+            let pm: Int = win_PeekMessageA(msg, 0, 0, 0, 1)
+            if pm == 0:
+                hm = 0
+            else:
+                let _ = win_TranslateMessage(msg)
+                let _ = win_DispatchMessageA(msg)
+                let mid: Int = volatile_load(ptr_offset(msg, 1, "Int"), "Int") & MASK_32
+                if mid == 18:
+                    running = 0
+                    hm = 0
+
+        if running == 0:
+            break
+
+        // Frame: rdtsc
+        asm_rdtsc(scratch)
+
+        // Frame: clear fb
+        fb_clear(fb)
+
+        // Frame: draw player
+        var dy: Int = 0
+        while dy < 12:
+            var dx: Int = 0
+            while dx < 14:
+                let off: Int = (200 + dy) * FB_W * 4 + (px * 16 + 1 + dx) * 4
+                asm_pixel_set(ptr_to_int(fb), off, COL_GREEN)
+                dx = dx + 1
+            dy = dy + 1
+
+        // Frame: input
+        let left: Int = win_GetAsyncKeyState(37)
+        let right: Int = win_GetAsyncKeyState(39)
+        if (left & 32768) != 0 and px > 0:
+            px = px - 1
+        if (right & 32768) != 0 and px < 19:
+            px = px + 1
+
+        // Frame: blit
+        let hdc: Int = win_GetDC(hwnd)
+        if hdc != 0:
+            let _ = win_StretchDIBits(hdc, 0, 0, 640, 480, 0, 0, FB_W, FB_H, fb, bmi, 0, 13369376)
+            let _ = win_ReleaseDC(hwnd, hdc)
+
+        // Frame: sleep
+        let _ = win_Sleep(33)
+
+    // Cleanup
+    bmi_free(bmi)
+    decay msg
+    decay scratch
+    decay fb
+    return 0

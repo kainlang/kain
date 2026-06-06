@@ -1,0 +1,161 @@
+// LSP Shared State Types — constants, structs, and constructors for LSP protocol
+// surfaces. Extracted from lsp.kn so both LSP and MCP protocol modules can share
+// the same type definitions without circular imports.
+//
+// This module owns NO protocol dispatch logic — only types + constants.
+
+use std::json
+use std::kain
+
+// ─── LSP protocol version ────────────────────────────────────────────────────
+
+pub const LSP_PROTOCOL_VERSION: String = "3.0"
+
+// ─── JSON-RPC error codes ────────────────────────────────────────────────────
+
+pub const LSP_ERR_PARSE:                   Int = -32700
+pub const LSP_ERR_INVALID_REQ:            Int = -32600
+pub const LSP_ERR_METHOD_NOT_FOUND:       Int = -32601
+pub const LSP_ERR_INVALID_PARAMS:         Int = -32602
+pub const LSP_ERR_INTERNAL:               Int = -32603
+pub const LSP_ERR_SERVER_NOT_INITIALIZED: Int = -32002
+pub const LSP_ERR_REQUEST_CANCELLED:      Int = -32800
+
+// ─── Diagnostic severity constants ───────────────────────────────────────────
+
+pub const LSP_DIAG_SEVERITY_ERROR:   Int = 1
+pub const LSP_DIAG_SEVERITY_WARNING: Int = 2
+pub const LSP_DIAG_SEVERITY_INFO:    Int = 3
+pub const LSP_DIAG_SEVERITY_HINT:    Int = 4
+
+// ─── Semantic token type constants (LSP semanticTokens/full) ─────────────────
+
+pub const SEM_TOKEN_NAMESPACE:   Int = 0
+pub const SEM_TOKEN_TYPE:        Int = 1
+pub const SEM_TOKEN_STRUCT:      Int = 2
+pub const SEM_TOKEN_ENUM:        Int = 3
+pub const SEM_TOKEN_ENUM_MEMBER: Int = 4
+pub const SEM_TOKEN_INTERFACE:   Int = 5
+pub const SEM_TOKEN_TYPE_PARAM:  Int = 6
+pub const SEM_TOKEN_PARAM:       Int = 7
+pub const SEM_TOKEN_VARIABLE:    Int = 8
+pub const SEM_TOKEN_PROPERTY:    Int = 9
+pub const SEM_TOKEN_FUNCTION:    Int = 10
+pub const SEM_TOKEN_METHOD:      Int = 11
+pub const SEM_TOKEN_MACRO:       Int = 12
+pub const SEM_TOKEN_KEYWORD:     Int = 13
+pub const SEM_TOKEN_MODIFIER:    Int = 14
+pub const SEM_TOKEN_COMMENT:     Int = 15
+pub const SEM_TOKEN_STRING:      Int = 16
+pub const SEM_TOKEN_NUMBER:      Int = 17
+pub const SEM_TOKEN_OPERATOR:    Int = 18
+
+// ─── Semantic token modifier constants ───────────────────────────────────────
+
+pub const SEM_MOD_DECLARATION:     Int = 0
+pub const SEM_MOD_DEFINITION:      Int = 1
+pub const SEM_MOD_READONLY:        Int = 2
+pub const SEM_MOD_STATIC:          Int = 3
+pub const SEM_MOD_DEPRECATED:      Int = 4
+pub const SEM_MOD_ABSTRACT:        Int = 5
+pub const SEM_MOD_ASYNC:           Int = 6
+pub const SEM_MOD_DEFAULT_LIBRARY: Int = 7
+
+// ─── LSP method name constants ───────────────────────────────────────────────
+
+pub const METHOD_INITIALIZE:                      String = "initialize"
+pub const METHOD_INITIALIZED:                     String = "initialized"
+pub const METHOD_SHUTDOWN:                        String = "shutdown"
+pub const METHOD_EXIT:                            String = "exit"
+pub const METHOD_TEXT_DOC_DID_OPEN:               String = "textDocument/didOpen"
+pub const METHOD_TEXT_DOC_DID_CHANGE:             String = "textDocument/didChange"
+pub const METHOD_TEXT_DOC_DID_CLOSE:              String = "textDocument/didClose"
+pub const METHOD_TEXT_DOC_DID_SAVE:               String = "textDocument/didSave"
+pub const METHOD_TEXT_DOC_HOVER:                  String = "textDocument/hover"
+pub const METHOD_TEXT_DOC_DEFINITION:             String = "textDocument/definition"
+pub const METHOD_TEXT_DOC_REFERENCES:             String = "textDocument/references"
+pub const METHOD_TEXT_DOC_COMPLETION:             String = "textDocument/completion"
+pub const METHOD_TEXT_DOC_DOCUMENT_SYMBOL:        String = "textDocument/documentSymbol"
+pub const METHOD_TEXT_DOC_SEMANTIC_TOKENS:        String = "textDocument/semanticTokens/full"
+pub const METHOD_TEXT_DOC_FORMATTING:             String = "textDocument/formatting"
+pub const METHOD_TEXT_DOC_DIAGNOSTIC:             String = "textDocument/diagnostic"
+pub const METHOD_TEXT_DOC_CODE_ACTION:            String = "textDocument/codeAction"
+pub const METHOD_TEXT_DOC_CODE_LENS:              String = "textDocument/codeLens"
+pub const METHOD_TEXT_DOC_SIGNATURE_HELP:         String = "textDocument/signatureHelp"
+pub const METHOD_TEXT_DOC_RENAME:                 String = "textDocument/rename"
+pub const METHOD_WORKSPACE_SYMBOL:                String = "workspace/symbol"
+pub const METHOD_WORKSPACE_DID_CHANGE_WATCHED_FILES: String = "workspace/didChangeWatchedFiles"
+pub const METHOD_PUBLISH_DIAGNOSTICS:             String = "textDocument/publishDiagnostics"
+
+// ─── Server capabilities — returned from initialize response ─────────────────
+
+pub struct LspServerCaps:
+    text_doc_sync_kind: Int       // 0=none, 1=full, 2=incremental
+    hover_provider: Bool
+    definition_provider: Bool
+    references_provider: Bool
+    completion_provider: Bool
+    document_symbol_provider: Bool
+    workspace_symbol_provider: Bool
+    semantic_tokens_provider: Bool
+    formatting_provider: Bool
+    diagnostic_provider: Bool
+    code_action_provider: Bool
+    code_lens_provider: Bool
+    signature_help_provider: Bool
+
+pub fn lsp_default_caps() -> LspServerCaps:
+    return LspServerCaps {
+        text_doc_sync_kind: 1,     // Full document sync
+        hover_provider: true,
+        definition_provider: true,
+        references_provider: true,
+        completion_provider: true,
+        document_symbol_provider: true,
+        workspace_symbol_provider: true,
+        semantic_tokens_provider: true,
+        formatting_provider: true,
+        diagnostic_provider: true,
+        code_action_provider: true,
+        code_lens_provider: true,
+        signature_help_provider: true,
+    }
+
+// ─── Document state tracking ─────────────────────────────────────────────────
+
+pub struct LspDocument:
+    uri: String
+    path: String
+    version: Int
+    source: String
+    doc_handle: Document           // Handle from std::kain
+
+pub struct LspState:
+    initialized: Bool
+    workspace: Workspace
+    documents: Array<LspDocument>
+    next_doc_id: Int               // Local tracking id
+    root_uri: String
+
+pub fn lsp_state_new(ws: Workspace) -> LspState:
+    return LspState {
+        initialized: true,
+        workspace: ws,
+        documents: [],
+        next_doc_id: 1,
+        root_uri: "",
+    }
+
+// ─── URI / path helpers ──────────────────────────────────────────────────────
+
+// Convert "file:///C:/foo/bar.kn" to "C:/foo/bar.kn"
+// Convert "file:///home/user/foo.kn" to "/home/user/foo.kn"
+pub fn lsp_uri_to_path(uri: String) -> String:
+    let uri_len = len(uri)
+    if uri_len >= 8:
+        if substring(uri, 0, 8) == "file:///":
+            return substring(uri, 8, uri_len)
+    if uri_len >= 7:
+        if substring(uri, 0, 7) == "file://":
+            return substring(uri, 7, uri_len)
+    return uri

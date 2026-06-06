@@ -1,0 +1,15 @@
+[package]
+name = "asm"
+version = "1.0.0"
+description = "Space Invaders — inline asm + Win32, zero C bridge, pure metal Kain"
+
+[blade]
+kind = "kain_library"
+entry = "src/main.kn"
+source_root = "src"
+module_root = "src"
+build_target = "llvm"
+
+[build]
+profile = "debug"
+target = "llvm"

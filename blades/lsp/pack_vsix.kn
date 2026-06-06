@@ -1,0 +1,55 @@
+// blades/lsp/pack_vsix.kn
+// Kain LSP → VS Code Extension (.vsix) packager
+//
+// Uses the JS stdlib (stdlib/js.kn) to load pack_vsix_impl.js via the Node
+// bridge. The impl script handles directory creation, file writing, binary
+// copying, npm install, and vsce packaging.
+//
+// Usage:   kain run blades/lsp/pack_vsix.kn
+//          (blade root defaults to the script's directory, blades/lsp)
+//
+// Output:  blades/lsp/kain-lsp-0.1.0.vsix
+
+use std::js
+use std::json
+
+fn log(msg: String) -> Unit:
+    stderr_write("[vsix-pack] " + msg + "\n")
+
+pub fn main() -> Int with IO:
+    // kain run sets cwd to the blade root, so "." is the blade dir.
+    // Use an absolute path for consistency.
+    var blade_root = js_bridge_call_method(js_web_path(), "resolve", ["."])
+
+    log("blade root: " + blade_root)
+
+    // ── Load the JS implementation module ────────────────────
+    // The impl script is next to this script in the blade root
+    let impl_path = js_bridge_call_method(js_web_path(), "join", [blade_root, "pack_vsix_impl.js"])
+    log("impl script: " + impl_path)
+
+    let impl_mod = node_require(impl_path)
+    log("impl module loaded")
+
+    // ── Call impl.pack(blade_root) ───────────────────────────
+    log("calling pack()...")
+    let result = js_bridge_call_method(impl_mod, "pack", [[blade_root]])
+
+    // ── Inspect result ───────────────────────────────────────
+    let ok_val = js_bridge_getattr_raw(result, "ok")
+    let ok_str = js_web_json_stringify(ok_val)
+
+    log("result: " + js_web_json_stringify(result))
+
+    if ok_str == "true":
+        let vsix_val = js_bridge_getattr_raw(result, "vsix")
+        let vsix_str = js_web_json_stringify(vsix_val)
+        log("")
+        log("SUCCESS! VSIX at: " + vsix_str)
+        log("Install with: code --install-extension " + vsix_str)
+        return 0
+    else:
+        let err_val = js_bridge_getattr_raw(result, "error")
+        let err_str = js_web_json_stringify(err_val)
+        log("FAILED: " + err_str)
+        return 1

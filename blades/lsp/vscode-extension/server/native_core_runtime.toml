@@ -1,0 +1,512 @@
+name = "kain-native-core-runtime"
+
+# Canonical production runtime manifest.
+# This lane is intentionally vendor-free: no vendored source trees, no baked
+# compatibility presenters, no OpenGL runtime host, and no hardcoded app/demo
+# lanes. It keeps only the Kain-owned ABI floor, runtime services, and raw
+# platform helpers needed by LLVM/direct-C/native builds.
+sources = [
+    "native/src/core/core.c",
+    "native/src/core/version.c",
+    "native/src/core/diagnostics.c",
+    "native/src/core/profile.c",
+    "native/src/core/handle.c",
+    "native/src/core/fixup.c",
+    "native/src/core/services.c",
+    "native/src/core/contract.c",
+    "native/src/core/entangle.c",
+    "native/src/core/cpu.c",
+    "native/src/core/converge.c",
+    "native/src/core/simd.c",
+    "native/src/core/wire.c",
+    "native/src/core/json.c",
+    "native/src/core/json_benchmark.c",
+    "native/src/core/ray_sphere_benchmark.c",
+    "native/src/core/machine_stones.c",
+    "native/src/core/stdlib_abi.c",
+    "native/src/core/input_system.c",
+    "native/src/core/net_system.c",
+    "native/src/core/process_system.c",
+    "native/src/core/graphics_system.c",
+    "native/src/core/renderer_backend.c",
+    "native/src/core/renderer_session.c",
+    "native/src/core/scene.c",
+    "native/src/core/reflection.c",
+    "native/src/core/realtime.c",
+    "native/src/core/cuda_runtime.c",
+    "native/src/core/attrition.c",
+    "native/src/core/batch_queue.c",
+    "native/src/core/async.c",
+    "native/src/core/compatibility.c",
+    "native/src/core/host_bridge.c",
+    "native/src/core/interop_zero_copy.c",
+    "native/src/core/interop_contracts.c",
+    "native/src/core/python_runtime.c",
+    "native/src/core/fanout.c",
+    "native/src/core/arena.c",
+    "native/src/core/buddy.c",
+    "native/src/core/deferred_free.c",
+    "native/src/core/memory.c",
+    "native/src/core/ownership.c",
+    "native/src/core/virtual_alloc.c",
+    "native/src/core/bitfield.c",
+    "native/src/core/union.c",
+    "native/src/core/actor.c",
+    "native/src/platform/platform.c",
+    "native/src/platform/platform_library.c",
+    "native/src/platform/os_system.c",
+    "native/src/ui/ui_compiled_bundle.c",
+    "native/src/ui/ui_system.c",
+    "native/src/ui/ui_host_adapter.c",
+    "native/src/ui/ui_runtime.c",
+    "native/src/ui/ui_hot_reload.c",
+]
+
+windows_sources = [
+    "native/src/platform/win32/kain_win32_app_host.c",
+    "native/src/platform/win32/kain_win32_input_host.c",
+    "native/src/platform/win32/win32_shared.c",
+]
+
+linux_sources = [
+    "native/src/platform/linux/linux_shared.c",
+]
+
+macos_sources = [
+    "native/src/platform/macos/macos_shared.c",
+]
+
+include_dirs = [
+    "native/include",
+]
+
+windows_defines = [
+    "WIN32_LEAN_AND_MEAN",
+    "_WIN32_WINNT=0x0A00",
+    "_CRT_DECLARE_NONSTDC_NAMES=0",
+]
+
+linux_defines = [
+    "_GNU_SOURCE",
+    "_POSIX_C_SOURCE=200112",
+    "_FILE_OFFSET_BITS=64",
+]
+
+[version]
+runtime_major = 0
+runtime_minor = 1
+runtime_patch = 0
+abi_major = 0
+abi_minor = 1
+abi_patch = 0
+
+[metadata]
+description = "KAIN native C runtime for compiled programs"
+target_platforms = ["windows", "linux", "macos"]
+active_platforms = ["windows", "linux", "macos"]
+runtime_lane = "raw-native"
+compatibility_class = "experimental"
+
+[[services]]
+key = "base.memory"
+name = "Base Memory Services"
+provider = "native-core"
+requirement = "required"
+status = "available"
+description = "Core allocation, retain/release, and memory management"
+
+[[services]]
+key = "memory.ownership"
+name = "Ownership State Guards"
+provider = "native-core"
+requirement = "required"
+status = "available"
+description = "Native collapse/observe/decay guards for helper-owned heap regions and imported pointer lifetimes"
+
+[[services]]
+key = "memory.shared-fanout"
+name = "Shared Fanout Runtime"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+platforms = ["windows", "linux", "macos"]
+description = "Native shared-memory fanout over real OS threads for compiler-owned share/fanout lowering"
+
+[[services]]
+key = "memory.atomic-seqcst"
+name = "SeqCst Atomic Cells"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+platforms = ["windows", "linux", "macos"]
+description = "Canonical seq-cst atomic cell ABI for native shared-memory fanout and LLVM fallback surfaces"
+
+[[services]]
+key = "memory.volatile"
+name = "Volatile Memory Cells"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+platforms = ["windows", "linux", "macos"]
+description = "Byte-exact volatile load/store ABI for MMIO and externally-observed memory"
+
+[[services]]
+key = "memory.atomic-v2"
+name = "Ordered Atomic Cells"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+platforms = ["windows", "linux", "macos"]
+description = "Explicit memory-order atomic load/store/RMW/CAS/fence ABI including bitwise RMW operations"
+
+[[services]]
+key = "base.diagnostics"
+name = "Base Diagnostics"
+provider = "native-core"
+requirement = "required"
+status = "available"
+description = "Structured diagnostics and error reporting"
+
+[[services]]
+key = "control.runtime-tiers"
+name = "Runtime Control Tiers"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+description = "Compile-time no-op, gated, and full-cost control tiers for diagnostics, profiling, and relocation bookkeeping"
+
+[[services]]
+key = "runtime.profile"
+name = "Runtime Profiling Zones"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+description = "Scoped push/pop profiling zones with compile-out tiers and fixed-cost native timing telemetry"
+
+[[services]]
+key = "memory.handles"
+name = "Generation Tagged Runtime Handles"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+description = "Index plus magic runtime handles for stale rejection across relocation and control-plane surfaces"
+
+[[services]]
+key = "memory.fixup"
+name = "Relocation Fixup Registry"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+description = "Known-ref registration, self-updating pointer patching, and handle-aware relocation tracking for helper-owned allocations"
+
+[[services]]
+key = "cpu.capabilities"
+name = "Native CPU Capability Service"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+description = "Runtime-published CPU feature bits for compiled converge selectors, including x86 AVX/AVX2/AVX-512 gates"
+
+[[services]]
+key = "machine.topology"
+name = "Machine Topology And Affinity"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+platforms = ["windows", "linux", "macos"]
+description = "Native logical-CPU count, thread identity, and current-thread affinity controls for systems blades"
+
+[[services]]
+key = "machine.virtual-memory"
+name = "Virtual Memory Pages"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+platforms = ["windows", "linux", "macos"]
+description = "Native page-size, map/unmap, and page-protection ABI for authored systems code"
+
+[[services]]
+key = "control.converge.autotune"
+name = "Converge Lane Selector And Telemetry"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+description = "Proof-bounded native converge lane selection, warm cache state, and fixed-ring telemetry for future silicon autotuning"
+
+[[services]]
+key = "machine.stones"
+name = "Machine Stones Runtime"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+description = "Native axiom predicates, pulse scheduler/snapshots, shatter SoA lane buffers, and teleport zero-copy handoff telemetry"
+
+[[services]]
+key = "data.json"
+name = "Native JSON Runtime"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+description = "Native JSON parse/render/object/array helpers for LLVM builtin calls over string, integer, boolean, null, object, and array values"
+
+[[services]]
+key = "interop.shared-contracts"
+name = "Neutral Shared Buffer And Image Contracts"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+description = "Runtime-owned shared buffer/image handles plus neutral info and byte snapshot lanes for Python, JS, GPU, and foreign host bridges"
+
+[[services]]
+key = "contract"
+name = "Runtime Contract"
+provider = "native-core"
+requirement = "required"
+status = "available"
+description = "Runtime contract bundle loading and validation"
+
+[[services]]
+key = "platform.app-host"
+name = "Native App Host"
+provider = "platform-win32"
+requirement = "required"
+status = "available"
+platforms = ["windows"]
+description = "Raw Win32 app/window host substrate without baked presenters or app policy"
+
+[[services]]
+key = "platform.input"
+name = "Native Input"
+provider = "platform-win32"
+requirement = "required"
+status = "available"
+platforms = ["windows"]
+description = "Canonical Kain input sessions, semantic actions, replay traces, and native platform event handling"
+
+[[services]]
+key = "gfx.viewport"
+name = "Native Viewport"
+provider = "platform-win32"
+requirement = "optional"
+status = "degraded"
+platforms = ["windows"]
+description = "Platform window handles and presenter attachment contract; concrete presenters now live in blades or packages"
+
+[[services]]
+key = "gfx.raw-native"
+name = "Raw Native Graphics"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+description = "Catalog-free graphics kernel for Kain-authored engines, buffers, SPIR-V modules, pipelines, and draw commands"
+
+[[services]]
+key = "gfx.shader.spirv"
+name = "SPIR-V Shader Modules"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+description = "Canonical native shader payload registration for Kain-authored graphics and compute pipelines"
+
+[[services]]
+key = "gfx.backend.vulkan"
+name = "Vulkan Backend Target"
+provider = "native-core"
+requirement = "optional"
+status = "degraded"
+platforms = ["windows", "linux"]
+description = "Runtime-owned Vulkan backend identity and capability target; concrete presenters live outside the C runtime"
+
+[[services]]
+key = "gfx.backend.d3d12"
+name = "DirectX 12 Backend Target"
+provider = "native-core"
+requirement = "optional"
+status = "degraded"
+platforms = ["windows"]
+description = "Runtime-owned DirectX 12 backend identity and capability target; concrete presenters live outside the C runtime"
+
+[[services]]
+key = "scene.runtime"
+name = "Scene Runtime"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+description = "Stable native scene handles and runtime-owned scene state access"
+
+[[services]]
+key = "scene.query"
+name = "Scene Query"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+description = "Picking, raycast, bounds, visibility, and selection query contracts"
+
+[[services]]
+key = "scene.mutation"
+name = "Scene Mutation"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+description = "Transactional scene mutation requests and receipts"
+
+[[services]]
+key = "asset.gltf"
+name = "glTF Asset Loader"
+provider = "native-core"
+requirement = "optional"
+status = "degraded"
+description = "The legacy runtime-owned glTF loader was removed from the active runtime; authored packages or blade-owned loaders must satisfy this seam"
+
+[[services]]
+key = "asset.ingestion"
+name = "Asset Ingestion"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+description = "Canonical descriptor-driven entry path for assets and emitted bundles"
+
+[[services]]
+key = "asset.realtime"
+name = "Realtime Bundle Loader"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+description = "Realtime bundle loading and scene management"
+
+[[services]]
+key = "ui.bundle"
+name = "Compiled UI Bundle"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+description = "Compiled UI bundle loading and overlay rendering"
+
+[[services]]
+key = "reflection"
+name = "Reflection Runtime"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+description = "Reflection payload loading and runtime type lookup"
+
+[[services]]
+key = "runtime.inspection"
+name = "Runtime Inspection"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+description = "Runtime-owned scene, resource, and binding inspection queries"
+
+[[services]]
+key = "device.reflection"
+name = "Device Reflection"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+description = "Backend, GPU, display, and hotplug capability descriptors"
+
+[[services]]
+key = "actor.runtime"
+name = "Actor Runtime"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+description = "Actor spawn, mailbox, lifecycle, and scheduling"
+
+[[services]]
+key = "actor.registry"
+name = "Actor Registry"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+description = "Named actor registration and lookup"
+
+[[services]]
+key = "async.runtime"
+name = "Async Runtime"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+description = "Task/future execution, wake/poll, and cancellation"
+
+[[services]]
+key = "async.timers"
+name = "Async Timers"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+description = "Timer registration and wake delivery"
+
+[[services]]
+key = "io.net"
+name = "IO Network"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+platforms = ["windows", "linux", "macos"]
+description = "Native TCP, protocol-aware HTTP client/server, capability-query, and Windows-first HTTPS/HTTP2 client primitives"
+
+[[services]]
+key = "io.process"
+name = "IO Process"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+platforms = ["windows", "linux", "macos"]
+description = "Native child-process, pipe, and PTY session management"
+
+[[services]]
+key = "gfx.compute"
+name = "Compute Runtime"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+description = "Compute bundle validation, dispatch planning, and native runtime handoff"
+
+[[services]]
+key = "gfx.compute.cuda"
+name = "CUDA PTX Dispatch"
+provider = "native-core"
+requirement = "optional"
+status = "degraded"
+platforms = ["windows", "linux"]
+description = "Windows-first NVIDIA PTX sidecar dispatch bridge backed by the external kain-gpu-runtime driver lane"
+
+[[services]]
+key = "ui.component"
+name = "UI Component Runtime"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+description = "Component state, invalidation, focus, and event routing"
+
+[[services]]
+key = "compatibility"
+name = "Compatibility and Hot Reload"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+description = "Version validation, migration, hot reload, and snapshot flow"
+
+[[services]]
+key = "host.bridge"
+name = "Host Bridge"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+description = "Plugin and foreign service integration"
+
+[[services]]
+key = "platform.library"
+name = "Native Dynamic Library Loader"
+provider = "native-core"
+requirement = "optional"
+status = "available"
+platforms = ["windows", "linux", "macos"]
+description = "Raw platform dynamic library open/resolve/close substrate for generated typed platform packages; no generic public ABI call surface is exposed"
+
+[link]
+windows = ["legacy_stdio_definitions", "user32", "gdi32", "shell32", "ws2_32", "winhttp", "advapi32"]
+linux = ["pthread", "dl", "rt", "m"]
+macos = []

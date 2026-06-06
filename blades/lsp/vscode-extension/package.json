@@ -1,0 +1,55 @@
+{
+  "name": "kain-lsp",
+  "displayName": "Kain Language Server",
+  "description": "Kain language support for VS Code — diagnostics, completions, hover, go-to-definition, references, formatting, semantic tokens, code actions, code lens. Bundles the Kain runtime + LSP server.",
+  "version": "0.1.0",
+  "publisher": "kain-lang",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Linters",
+    "Formatters"
+  ],
+  "keywords": [
+    "kain",
+    "lsp",
+    "language-server",
+    "mcp"
+  ],
+  "activationEvents": [
+    "onLanguage:kain"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "kain",
+        "extensions": [
+          ".kn"
+        ],
+        "aliases": [
+          "Kain",
+          "kain"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "kain",
+        "scopeName": "source.kain",
+        "path": "./syntaxes/kain.tmLanguage.json"
+      }
+    ]
+  },
+  "scripts": {},
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.85.0"
+  }
+}

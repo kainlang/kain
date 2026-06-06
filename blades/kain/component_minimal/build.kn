@@ -1,0 +1,47 @@
+use std::build
+
+fn build(ctx: BuildContext) -> BuildGraph:
+    let pkg = package("component_minimal")
+        .version("0.1.0")
+        .description("Minimal component + Win32 + std::ui + hot reload")
+
+    let blade_spec = blade("component_minimal")
+        .kind("kain_library")
+        .entry("src/app.kn")
+        .source_root("src")
+        .module_root("src")
+        .build_target("llvm")
+
+    let defaults = build_defaults()
+        .entry("src/app.kn")
+        .artifact_root(".kain/out")
+        .cache_root(".kain/cache/build")
+        .profile("debug")
+        .target("llvm")
+
+    let check = build_check("check-llvm")
+        .entry("src/app.kn")
+        .target("llvm")
+        .axis("target", "llvm")
+        .input("src/app.kn")
+        .input("src/native/minimal_bridge.h")
+        .input("src/native/minimal_bridge.c")
+        .input("build.kn")
+        .input("KAIN.toml")
+
+    let root_exe = native_executable("root-executable")
+        .entry("src/app.kn")
+        .root_output("$blade/component_minimal.exe")
+        .requires("check-llvm")
+        .input("src/app.kn")
+        .input("src/native/minimal_bridge.h")
+        .input("src/native/minimal_bridge.c")
+        .input("build.kn")
+        .input("KAIN.toml")
+
+    return build_graph()
+        .package(pkg)
+        .blade(blade_spec)
+        .defaults(defaults)
+        .task(check)
+        .task(root_exe)

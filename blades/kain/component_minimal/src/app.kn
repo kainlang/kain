@@ -1,0 +1,337 @@
+// ============================================================================
+//  COMPONENT MINIMAL — Zero Bridge, Pure Kain + Win32 via libclang
+// ============================================================================
+//
+//  Architecture: NO C BRIDGE. libclang extracts 6294 functions from windows.h.
+//
+//   Layer 1: Direct Win32 via `include <windows.h> as win`
+//     Creates window (STATIC class), renders via GDI, pumps messages.
+//     All from Kain. Zero C code. Zero shim headers.
+//
+//   Layer 2: Component Definitions
+//     Counter, ToggleButton, IndicatorLight, Dashboard — JSX render trees.
+//     Compiler-validated UI contracts.
+//
+//   Layer 3: std::ui Reconciliation (headless, verifiable via frame hash)
+//
+//   Layer 4: std::reload Hot Reload
+//
+//   Experimental: GDI rendering directly from Kain — FillRect, TextOutA, etc.
+//   This is the Carmack layer. If the compiler accepts it, we win.
+// ============================================================================
+
+use std::runtime
+use std::ui
+use std::reload
+use std::alloc
+use std::fs
+use std::time
+
+include <windows.h> as win
+
+const APP_TITLE: String = "Component Minimal // Pure Kain + Win32"
+const APP_WIDTH: Int = 640
+const APP_HEIGHT: Int = 480
+const APP_FRAME_BUDGET: Int = 60
+const APP_REVISION: String = "component-minimal.rev-b"
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  GDI Helpers
+// ═══════════════════════════════════════════════════════════════════════════════
+
+fn gdi_rgb(r: Int, g: Int, b: Int) -> Int:
+    return r | (g << 8) | (b << 16)
+
+fn gdi_fill_rect(hdc: Int, x: Int, y: Int, w: Int, h: Int, color: Int) -> Int with Unsafe:
+    let brush = win_CreateSolidBrush(color)
+    let rect: ptr<Int> = alloc_zeroed(4, "Int")
+    mem_store(ptr_offset(rect, 0, "Int"), x, "Int")
+    mem_store(ptr_offset(rect, 1, "Int"), y, "Int")
+    mem_store(ptr_offset(rect, 2, "Int"), x + w, "Int")
+    mem_store(ptr_offset(rect, 3, "Int"), y + h, "Int")
+    let result = win_FillRect(hdc, rect, brush)
+    decay rect
+    let _ = win_DeleteObject(brush)
+    return result
+
+fn gdi_text(hdc: Int, x: Int, y: Int, text: String, color: Int) -> Int with Unsafe:
+    let _ = win_SetTextColor(hdc, color)
+    let _ = win_SetBkMode(hdc, 1)  // TRANSPARENT = 1
+    return win_TextOutA(hdc, x, y, text, len(text))
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  Component Definitions
+// ═══════════════════════════════════════════════════════════════════════════════
+
+component Counter(label: String, initial: Int):
+    state count: Int = initial
+
+    fn increment(_self: Self_):
+        _self.count = _self.count + 1
+
+    fn decrement(_self: Self_):
+        _self.count = _self.count - 1
+
+    render <box>
+        <text value={label} />
+    </box>
+
+component ToggleButton(label: String):
+    state on: Bool = false
+
+    fn flip(_self: Self_):
+        _self.on = _self.on == false
+
+    render <box>
+        <text value={label} />
+    </box>
+
+component IndicatorLight():
+    state phase: Int = 0
+
+    fn advance(_self: Self_):
+        _self.phase = (_self.phase + 1) % 3
+
+    render <box>
+        <text value="GREEN" />
+    </box>
+
+component Dashboard(version: String):
+    state frame_count: Int = 0
+    state signal: Int = 42
+
+    fn tick(_self: Self_):
+        _self.frame_count = _self.frame_count + 1
+        _self.signal = (_self.signal * 17 + 7) % 1000000007
+
+    render <panel title={"Dashboard v" + version}>
+        <stack direction="vertical">
+            <box>
+                <text value="running" />
+                <text value="signal active" />
+            </box>
+            <Counter label="Clicks" initial={0} />
+            <Counter label="Errors" initial={0} />
+            <ToggleButton label="Debug Mode" />
+            <IndicatorLight />
+        </stack>
+    </panel>
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  Win32 Window — Create, Render, Pump
+// ═══════════════════════════════════════════════════════════════════════════════
+
+fn create_window(title: String, width: Int, height: Int) -> Int with Unsafe:
+    // With the tagged-int fix, 0 for pointer params now correctly becomes null.
+    let hinstance = win_GetModuleHandleA("user32.dll")
+    // WS_OVERLAPPEDWINDOW = 13565964 | WS_VISIBLE = 268435456
+    let style = 13565964 | 268435456
+    let hwnd = win_CreateWindowExA(
+        0,                    // dwExStyle = 0
+        "STATIC",             // lpClassName
+        title,                // lpWindowName
+        style,                // dwStyle
+        100,                  // X
+        100,                  // Y
+        width,                // nWidth
+        height,               // nHeight
+        0,                    // hWndParent = NULL (fix untags this)
+        0,                    // hMenu = NULL (fix untags this)
+        hinstance,            // hInstance
+        0                     // lpParam = NULL (fix untags this)
+    )
+    let _ = win_ShowWindow(hwnd, 5)     // SW_SHOW = 5
+    let _ = win_UpdateWindow(hwnd)
+    return hwnd
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  std::ui Reconciliation (headless)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+fn build_ui(session_id: Int) -> Int with Unsafe:
+    let w = Float(APP_WIDTH)
+    let h = Float(APP_HEIGHT)
+
+    let root = ui_reconcile_labeled_node(
+        session_id, 0, "app.root", "root", "",
+        "application", "Component Minimal", 0.0, 0.0, w, h
+    )
+    let _ = ui_style_color_rgba(session_id, root, "ui.bg", 0.06, 0.08, 0.14, 1.0)
+
+    let header = ui_reconcile_labeled_node(
+        session_id, root, "app.header", "panel", "Header",
+        "header", "Dashboard", 16.0, 16.0, w - 32.0, 52.0
+    )
+    let _ = ui_style_color_rgba(session_id, header, "ui.panel", 0.11, 0.13, 0.20, 1.0)
+
+    let header_text = ui_reconcile_text_node(
+        session_id, header, "app.header.text", "header.text",
+        "Component Minimal // Pure Kain + Win32", 28.0, 34.0, w - 72.0, 22.0
+    )
+    let _ = ui_style_color_rgba(session_id, header_text, "ui.text", 1.0, 0.50, 0.30, 1.0)
+
+    let panel_w = (w - 48.0) / 2.0
+    let c1 = ui_reconcile_labeled_node(
+        session_id, root, "app.counter1", "panel", "Clicks: 0",
+        "counter", "Counter", 16.0, 84.0, panel_w, 72.0
+    )
+    let _ = ui_style_color_rgba(session_id, c1, "ui.panel", 0.15, 0.17, 0.24, 1.0)
+
+    let c1_text = ui_reconcile_text_node(
+        session_id, c1, "app.counter1.text", "counter.text",
+        "Clicks: 0", 24.0, 40.0, panel_w - 32.0, 22.0
+    )
+    let _ = ui_style_color_rgba(session_id, c1_text, "ui.text", 0.96, 0.92, 0.84, 1.0)
+
+    let c2 = ui_reconcile_labeled_node(
+        session_id, root, "app.counter2", "panel", "Errors: 0",
+        "counter", "Counter", w / 2.0 + 8.0, 84.0, panel_w, 72.0
+    )
+    let _ = ui_style_color_rgba(session_id, c2, "ui.panel", 0.15, 0.17, 0.24, 1.0)
+
+    let c2_text = ui_reconcile_text_node(
+        session_id, c2, "app.counter2.text", "counter.text",
+        "Errors: 0", w / 2.0 + 32.0, 40.0, panel_w - 32.0, 22.0
+    )
+    let _ = ui_style_color_rgba(session_id, c2_text, "ui.text", 0.96, 0.92, 0.84, 1.0)
+
+    let toggle = ui_reconcile_labeled_node(
+        session_id, root, "app.toggle", "panel", "Debug Mode",
+        "toggle", "Toggle", 16.0, 172.0, w - 32.0, 48.0
+    )
+    let _ = ui_style_color_rgba(session_id, toggle, "ui.panel", 0.11, 0.13, 0.20, 1.0)
+
+    let toggle_text = ui_reconcile_text_node(
+        session_id, toggle, "app.toggle.text", "toggle.text",
+        "Debug Mode [OFF]", 24.0, 30.0, w - 56.0, 22.0
+    )
+    let _ = ui_style_color_rgba(session_id, toggle_text, "ui.text", 0.96, 0.92, 0.84, 1.0)
+
+    let indicator = ui_reconcile_labeled_node(
+        session_id, root, "app.indicator", "panel", "GREEN",
+        "indicator", "Light", 16.0, 236.0, w - 32.0, 48.0
+    )
+    let _ = ui_style_color_rgba(session_id, indicator, "ui.panel", 0.11, 0.13, 0.20, 1.0)
+
+    let ind_text = ui_reconcile_text_node(
+        session_id, indicator, "app.indicator.text", "indicator.text",
+        "Indicator: GREEN", 24.0, 30.0, w - 56.0, 22.0
+    )
+    let _ = ui_style_color_rgba(session_id, ind_text, "ui.text", 0.96, 0.92, 0.84, 1.0)
+
+    let status = ui_reconcile_labeled_node(
+        session_id, root, "app.status", "panel", "ready",
+        "statusbar", "Status", 16.0, h - 36.0, w - 32.0, 24.0
+    )
+    let _ = ui_style_color_rgba(session_id, status, "ui.panel", 0.11, 0.13, 0.20, 1.0)
+
+    let status_str = "libclang: 6294 functions | " + APP_REVISION
+    let status_text = ui_reconcile_text_node(
+        session_id, status, "app.status.text", "status.text",
+        status_str, 20.0, h - 30.0, w - 48.0, 16.0
+    )
+    let _ = ui_style_color_rgba(session_id, status_text, "ui.text", 0.55, 0.60, 0.68, 1.0)
+
+    // Render
+    let _ = ui_frame_begin(session_id, 16.0)
+    let _ = ui_render_box(session_id, root, "ui.bg")
+    let _ = ui_render_box(session_id, header, "ui.panel")
+    let _ = ui_render_text_value(session_id, header_text, 0, "Component Minimal // Pure Kain + Win32", 28.0, 34.0, "ui.text")
+    let _ = ui_render_box(session_id, c1, "ui.panel")
+    let _ = ui_render_text_value(session_id, c1_text, 0, "Clicks: 0", 24.0, 40.0, "ui.text")
+    let _ = ui_render_box(session_id, c2, "ui.panel")
+    let _ = ui_render_text_value(session_id, c2_text, 0, "Errors: 0", w / 2.0 + 32.0, 40.0, "ui.text")
+    let _ = ui_render_box(session_id, toggle, "ui.panel")
+    let _ = ui_render_text_value(session_id, toggle_text, 0, "Debug Mode [OFF]", 24.0, 30.0, "ui.text")
+    let _ = ui_render_box(session_id, indicator, "ui.panel")
+    let _ = ui_render_text_value(session_id, ind_text, 0, "Indicator: GREEN", 24.0, 30.0, "ui.text")
+    let _ = ui_render_box(session_id, status, "ui.panel")
+    let _ = ui_render_text_value(session_id, status_text, 0, status_str, 20.0, h - 30.0, "ui.text")
+    let _ = ui_frame_submit(session_id)
+
+    return root
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  Main
+// ═══════════════════════════════════════════════════════════════════════════════
+
+fn main() -> Int with Unsafe:
+    let boot = runtime_init()
+    if boot != 0:
+        return 100 + boot
+
+    // NOTE: MessageBoxA(0, ...) has tagged-int leakage on HWND param.
+    // The Windows platform blade works around this but we skip probing
+    // and go straight to CreateWindowExA which uses string class name.
+
+    // Create UI session
+    let session = ui_host_session_create("component-minimal", APP_TITLE, APP_WIDTH, APP_HEIGHT, "software")
+    if session <= 0:
+        let _ = runtime_shutdown()
+        return 11
+
+    // Hot reload
+    let gen = reload_begin(session, APP_REVISION)
+    if gen < 0:
+        let _ = runtime_shutdown()
+        return 12
+
+    let root = build_ui(session)
+
+    let committed = reload_commit(session)
+    if committed != gen:
+        let _ = runtime_shutdown()
+        return 13
+
+    // Create a real Win32 window — tagged-int fix should make this work now
+    let hwnd = create_window(APP_TITLE, APP_WIDTH, APP_HEIGHT)
+    if hwnd == 0:
+        let _ = runtime_shutdown()
+        return 14
+
+    // Render loop — draw on our own window
+    var frame: Int = 0
+    while frame < APP_FRAME_BUDGET:
+        let hdc = win_GetDC(hwnd)
+        let _ = win_SetTextColor(hdc, gdi_rgb(255, 128, 76))
+        let _ = win_SetBkMode(hdc, 1)
+        let _ = win_TextOutA(hdc, 24, 24, "Component Minimal // Pure Kain + Win32 // tagged-int FIXED", 61)
+        let _ = win_SetTextColor(hdc, gdi_rgb(150, 164, 186))
+        let _ = win_TextOutA(hdc, 24, 48, "Frame " + str(frame) + " | CreateWindowExA with NULL params works!", 50 + len(str(frame)))
+        let _ = win_ReleaseDC(hwnd, hdc)
+        sleep_millis(16)
+        frame = frame + 1
+
+    let _ = win_DestroyWindow(hwnd)
+    let frames = frame
+
+    // Telemetry
+    let hash = ui_host_frame_hash(session)
+    let draws = ui_host_presented_draw_count(session)
+
+    // Report
+    var report = "=== COMPONENT MINIMAL REPORT ===\n"
+    report = report + "mode: zero C bridge — include <windows.h> as win\n"
+    report = report + "revision=" + APP_REVISION + "\n"
+    report = report + "hwnd=" + str(hwnd) + "\n"
+    report = report + "frames_rendered=" + str(frames) + "\n"
+    report = report + "reload_gen=" + str(gen) + "\n"
+    report = report + "reload_committed=" + str(committed) + "\n"
+    report = report + "frame_hash=" + str(hash) + "\n"
+    report = report + "draw_count=" + str(draws) + "\n"
+    report = report + "reload_lane=" + reload_lane_presentation() + "\n"
+    report = report + "restart_mode=" + reload_default_restart_mode() + "\n"
+    let _ = fs_write_text(".kain/run/component_minimal_report.txt", report)
+
+    let shutdown = runtime_shutdown()
+    if shutdown != 0:
+        return 200 + shutdown
+
+    if frames < 1:
+        return 30
+    if hash <= 0:
+        return 31
+    if draws < 1:
+        return 32
+
+    return 0

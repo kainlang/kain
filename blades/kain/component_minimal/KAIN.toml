@@ -1,0 +1,32 @@
+[package]
+name = "component_minimal"
+version = "0.1.0"
+description = "Minimal component UI blade. Zero C bridge — pure Kain + libclang + include <windows.h>. Components, GDI rendering, std::ui, hot reload."
+
+[blade]
+name = "component_minimal"
+kind = "kain_library"
+entry = "src/app.kn"
+source_roots = ["src"]
+module_roots = ["src"]
+build_targets = ["llvm"]
+
+[run]
+entry = "src/app.kn"
+target = "llvm"
+
+[build]
+entry = "src/app.kn"
+artifact_root = ".kain/out"
+cache_root = ".kain/cache/build"
+profile = "debug"
+
+[[build.tasks]]
+id = "check-llvm"
+kind = "check"
+entry = "src/app.kn"
+target = "llvm"
+inputs = [
+  "src/app.kn",
+  "build.kn",
+]

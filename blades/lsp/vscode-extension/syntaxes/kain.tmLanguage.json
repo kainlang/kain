@@ -1,0 +1,130 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Kain",
+  "scopeName": "source.kain",
+  "fileTypes": [
+    "kn"
+  ],
+  "patterns": [
+    {
+      "include": "#comments"
+    },
+    {
+      "include": "#strings"
+    },
+    {
+      "include": "#numbers"
+    },
+    {
+      "include": "#keywords"
+    },
+    {
+      "include": "#types"
+    },
+    {
+      "include": "#operators"
+    },
+    {
+      "include": "#functions"
+    },
+    {
+      "include": "#attributes"
+    },
+    {
+      "include": "#constants"
+    }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.double-slash.kain",
+          "match": "//.*$"
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.kain",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [
+            {
+              "name": "constant.character.escape.kain",
+              "match": "\\\\."
+            }
+          ]
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.hex.kain",
+          "match": "\\b0[xX][0-9a-fA-F_]+\\b"
+        },
+        {
+          "name": "constant.numeric.float.kain",
+          "match": "\\b[0-9][0-9_]*\\.[0-9][0-9_]*([eE][+-]?[0-9]+)?\\b"
+        },
+        {
+          "name": "constant.numeric.integer.kain",
+          "match": "\\b[0-9][0-9_]*\\b"
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.kain",
+          "match": "\\b(fn|struct|enum|trait|actor|world|use|pub|let|var|if|elif|else|while|for|loop|match|return|include|as|is|in|spawn|send|ask|on|await|break|continue|with|orchestrate|converge|shatter|teleport|collapse|observe|decay|patch|law|entangle|resonate|pulse|axiom|shader|component|build|test|bench|prove|spec|impl|self|Self|dyn|move|ref|box|unsafe)\\b"
+        }
+      ]
+    },
+    "types": {
+      "patterns": [
+        {
+          "name": "entity.name.type.kain",
+          "match": "\\b(Int|Float|Bool|String|Any|Unit|JsonValue|JsonObject|JsonArray|Array|Map|Set|Option|Result|Location|Range|Span|Document|Workspace|Diagnostic|SemanticToken|Symbol|Completion|File|CompileTarget|BuildGraph|BladePackage|Void)\\b"
+        }
+      ]
+    },
+    "operators": {
+      "patterns": [
+        {
+          "name": "keyword.operator.kain",
+          "match": "(->|=>|::|[!=]==|[<>]=?|\\\\+|\\\\-|\\\\*|/|%|&&|\\|\\||!)"
+        }
+      ]
+    },
+    "functions": {
+      "patterns": [
+        {
+          "name": "entity.name.function.kain",
+          "match": "\\b([a-z_][A-Za-z0-9_]*)\\s*(?=\\()"
+        }
+      ]
+    },
+    "attributes": {
+      "patterns": [
+        {
+          "name": "entity.name.tag.kain",
+          "match": "@[A-Za-z_][A-Za-z0-9_]*"
+        }
+      ]
+    },
+    "constants": {
+      "patterns": [
+        {
+          "name": "constant.language.boolean.kain",
+          "match": "\\b(true|false)\\b"
+        },
+        {
+          "name": "constant.language.null.kain",
+          "match": "\\bnull\\b"
+        }
+      ]
+    }
+  }
+}

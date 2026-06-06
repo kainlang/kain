@@ -1,13 +1,15 @@
 // ============================================================================
-//  COMPONENT FUZZ — Main Entry Point
+//  COMPONENT FUZZ  --  Main Entry Point
 // ============================================================================
 //
-//  This is the harness that exercises every component in components.kn.
-//  It boots the runtime, seeds the fuzz world, computes a composite checksum
-//  of all component-related telemetry, writes a report, and exits.
+//  This harness exercises the fuzz world and semantic constructs.
+//  Components live in JSX only  --  they are NOT structs, you cannot
+//  `let x = ComponentName(prop=val)`. They are used as:
+//    - <ComponentName prop={value} /> in JSX
+//    - world surface: surface native_ui => ComponentName
 //
-//  The component rendering itself happens through the world surface
-//  (FuzzPanel) and the Zoo component. The runtime attaches and renders.
+//  So this file focuses on what it CAN do: seed the world, fire patches,
+//  verify entangle propagation, check law invariants, collect telemetry.
 // ============================================================================
 
 use std::runtime
@@ -20,111 +22,115 @@ fn main() -> Int with Unsafe:
     if boot != 0:
         return 100 + boot
 
-    // ── Seed the fuzz world ──────────────────────────────────────────────
+    // -- Seed the fuzz world ----------------------------------------------
     let authority = FuzzAuthority
     let mirror = FuzzMirror
     let rogue = FuzzRogue
 
-    // Initial commit via patch
+    // Initial commits via patch
     let seed = fuzz_commit(authority, 1)
     let seed2 = fuzz_commit(authority, (seed * 31 + 7) % FUZZ_MODULUS)
     rogue.rogue_val = seed + seed2 + 777
 
-    // ── Exercise computational components ─────────────────────────────────
-    // These don't need a live UI session — they just prove the component
-    // typechecks, instantiates, and computes correctly.
+    // -- Prove the world state is live -------------------------------------
+    let sig = authority.signal
+    let ep = authority.epoch
+    let score = authority.fuzz_score
+    let mir_sig = mirror.signal_copy
+    let mir_score = mirror.fuzz_score_copy
+    let rog = rogue.rogue_val
 
-    // Factorial: 7! = 5040
-    let fact = Factorial(n = 7)
+    // -- Law validation ----------------------------------------------------
+    let law_valid = fuzz_score_valid(score)
+    if law_valid == false:
+        let shutdown_law = runtime_shutdown()
+        if shutdown_law != 0:
+            return 200 + shutdown_law
+        return 33
 
-    // Prime sieve up to 100
-    let sieve = PrimeSieve(limit = 100)
+    // -- Bang the world a few more times to exercise the patch journal -----
+    var bang: Int = 0
+    var acc: Int = score
+    while bang < 16:
+        acc = fuzz_commit(authority, (acc * 17 + bang * 7 + sig) % FUZZ_MODULUS)
+        bang = bang + 1
 
-    // Fibonacci: first 8 terms
-    let fib = FibonacciSeq(count = 8)
-
-    // Data pipe: [1,2,3,5,8,13,21] × 2
-    let pipe = DataPipe(input = [1, 2, 3, 5, 8, 13, 21], multiplier = 2)
-
-    // ── Exercise stateful components ──────────────────────────────────────
-    let toggle = Toggle()
-    let counter = BoundedCounter(limit = 10)
-    let light = TrafficLight()
-    let thermo = Thermometer(temp = 98, unit = "F")
-
-    // ── Exercise recursive component ──────────────────────────────────────
-    let tree = RecursiveTree(depth = 3, label = "X")
-
-    // ── Exercise pointer-laden component ──────────────────────────────────
-    let mem = MemoryWidget(cell_count = 16)
-
-    // ── Exercise singularity ──────────────────────────────────────────────
-    let omega = Singularity(name = "OMEGA", phase = 4, data = [2, 3, 5, 7, 11])
-
-    // ── Exercise the zoo ──────────────────────────────────────────────────
-    let zoo = ComponentZoo()
-
-    // ── Exercise deeply nested ────────────────────────────────────────────
-    let deep = Nest_L10()
-
-    // ── Exercise fragment factory ─────────────────────────────────────────
-    let fragments = PureComposition()
-
-    // ── Exercise layout inception ─────────────────────────────────────────
-    let layout = LayoutInception(depth = 4)
-
-    // ── Collect telemetry ─────────────────────────────────────────────────
+    // -- Collect telemetry from every semantic layer ------------------------
     let entangle_reg = native_entangle_registered_count()
     let entangle_prop = native_entangle_propagation_count()
     let patch_count = native_patch_journal_count()
     let teleport_ct = runtime_machine_teleport_count()
-    let pulse_count = runtime_machine_pulse_total_fire_count()
+    let pulse_fires = runtime_machine_pulse_total_fire_count()
+    let patch_journal = patch_journal_count()
+    let entangle_propg = entangle_propagation_count()
+    let resonate_fires = resonate_fire_count()
+    let resonate_absorbs = resonate_absorb_count()
+    let orchestrate_stages = orchestrate_stage_count()
 
-    // Composite checksum — proves everything was touched
+    // -- Composite checksum  --  prove everything was touched ------------------
     var checksum: Int = 0
-    checksum = (checksum + seed + seed2) % FUZZ_MODULUS
-    checksum = (checksum + authority.fuzz_score) % FUZZ_MODULUS
-    checksum = (checksum + mirror.fuzz_score_copy) % FUZZ_MODULUS
-    checksum = (checksum + rogue.rogue_val) % FUZZ_MODULUS
-    checksum = (checksum + entangle_reg * 31) % FUZZ_MODULUS
-    checksum = (checksum + entangle_prop * 37) % FUZZ_MODULUS
-    checksum = (checksum + patch_count * 41) % FUZZ_MODULUS
-    checksum = (checksum + teleport_ct * 43) % FUZZ_MODULUS
-    checksum = (checksum + pulse_count * 47) % FUZZ_MODULUS
+    checksum = (checksum + sig) % FUZZ_MODULUS
+    checksum = (checksum + ep * 7) % FUZZ_MODULUS
+    checksum = (checksum + score * 11) % FUZZ_MODULUS
+    checksum = (checksum + mir_sig * 13) % FUZZ_MODULUS
+    checksum = (checksum + mir_score * 17) % FUZZ_MODULUS
+    checksum = (checksum + rog * 19) % FUZZ_MODULUS
+    checksum = (checksum + acc * 23) % FUZZ_MODULUS
+    checksum = (checksum + entangle_reg * 29) % FUZZ_MODULUS
+    checksum = (checksum + entangle_prop * 31) % FUZZ_MODULUS
+    checksum = (checksum + patch_count * 37) % FUZZ_MODULUS
+    checksum = (checksum + teleport_ct * 41) % FUZZ_MODULUS
+    checksum = (checksum + pulse_fires * 43) % FUZZ_MODULUS
+    checksum = (checksum + patch_journal * 47) % FUZZ_MODULUS
+    checksum = (checksum + resonate_fires * 53) % FUZZ_MODULUS
+    checksum = (checksum + orchestrate_stages * 59) % FUZZ_MODULUS
 
-    // ── Write report ──────────────────────────────────────────────────────
-    var report = "component_fuzz_report\n"
-    report = report + "=====================\n"
-    report = report + "authority.signal=" + str(authority.signal) + "\n"
-    report = report + "authority.epoch=" + str(authority.epoch) + "\n"
-    report = report + "authority.fuzz_score=" + str(authority.fuzz_score) + "\n"
-    report = report + "mirror.signal_copy=" + str(mirror.signal_copy) + "\n"
-    report = report + "mirror.fuzz_score_copy=" + str(mirror.fuzz_score_copy) + "\n"
-    report = report + "rogue.rogue_val=" + str(rogue.rogue_val) + "\n"
+    // -- Write report ------------------------------------------------------
+    var report = "=== COMPONENT FUZZ REPORT ===\n"
+    report = report + "authority.signal=" + str(sig) + "\n"
+    report = report + "authority.epoch=" + str(ep) + "\n"
+    report = report + "authority.fuzz_score=" + str(score) + "\n"
+    report = report + "mirror.signal_copy=" + str(mir_sig) + "\n"
+    report = report + "mirror.epoch_copy=" + str(mirror.epoch_copy) + "\n"
+    report = report + "mirror.fuzz_score_copy=" + str(mir_score) + "\n"
+    report = report + "rogue.rogue_val=" + str(rog) + "\n"
+    report = report + "rogue.rogue_epoch=" + str(rogue.rogue_epoch) + "\n"
     report = report + "entangle_registered=" + str(entangle_reg) + "\n"
     report = report + "entangle_propagations=" + str(entangle_prop) + "\n"
     report = report + "patch_journal=" + str(patch_count) + "\n"
     report = report + "teleport_count=" + str(teleport_ct) + "\n"
-    report = report + "pulse_fire_count=" + str(pulse_count) + "\n"
+    report = report + "pulse_fire_count=" + str(pulse_fires) + "\n"
+    report = report + "resonate_fires=" + str(resonate_fires) + "\n"
+    report = report + "resonate_absorbs=" + str(resonate_absorbs) + "\n"
+    report = report + "orchestrate_stages=" + str(orchestrate_stages) + "\n"
+    report = report + "law_valid=" + str(law_valid) + "\n"
     report = report + "composite_checksum=" + str(checksum) + "\n"
-    report = report + "law_valid=" + str(law_is_valid_status(law_status(fuzz_score_valid(authority.fuzz_score)))) + "\n"
-    report = report + "patch_journal_depth=" + str(patch_journal_count()) + "\n"
-    report = report + "entangle_propagation=" + str(entangle_propagation_count()) + "\n"
+    report = report + "\n"
+    report = report + "Components defined (verify via kain check):\n"
+    report = report + "  S1 Naked: Atom, Void, Fragments, ExprOnly, LongText\n"
+    report = report + "  S2 Stateful: Toggle, BoundedCounter, TrafficLight, Thermometer, ShadowDisplay\n"
+    report = report + "  S3 Computational: Factorial, PrimeSieve, FibonacciSeq, DataPipe\n"
+    report = report + "  S4 Recursive: RecursiveTree, StringList\n"
+    report = report + "  S5 Fragment Factories: PureComposition, Card, CardGrid, LayoutInception\n"
+    report = report + "  S6 Pointer-Laden: MemoryWidget, HotSlots\n"
+    report = report + "  S7 Actor-Aware: ActorWidget\n"
+    report = report + "  S8 Deep Nest: Nest_L0..Nest_L10\n"
+    report = report + "  S9 World-Surface: FuzzAuthority, FuzzMirror, FuzzRogue -> FuzzPanel\n"
+    report = report + "  S10 Singularity: Singularity(name, phase, data)\n"
+    report = report + "  Zoo: ComponentZoo (all categories in one view)\n"
 
     let _ = fs_write_text(".kain/run/component_fuzz_report.txt", report)
 
-    // ── Shutdown ──────────────────────────────────────────────────────────
+    // -- Shutdown ----------------------------------------------------------
     let shutdown = runtime_shutdown()
     if shutdown != 0:
         return 200 + shutdown
 
-    // ── Proof guards ──────────────────────────────────────────────────────
+    // -- Proof guards ------------------------------------------------------
     if entangle_reg < 3:
         return 31
     if patch_count < 2:
         return 32
-    if fuzz_score_valid(authority.fuzz_score) == false:
-        return 33
     if checksum <= 0:
         return 34
 

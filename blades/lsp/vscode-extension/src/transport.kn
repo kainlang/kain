@@ -1,0 +1,146 @@
+// LSP Transport Layer — Content-Length framed stdin/stdout
+//
+// Primitives:
+//   read_line()      — built-in, block until newline on stdin, return line
+//   stdout_write(s)  — built-in, write string to stdout
+//   stderr_write(s)  — built-in, write string to stderr
+//
+// LSP uses HTTP-style Content-Length framing:
+//   Content-Length: <bytes>\r\n
+//   \r\n
+//   <body exactly <bytes> long>
+//
+// All logging goes to stderr. Stdout is reserved for LSP protocol messages.
+
+use std::json
+
+// ─── Logging (stderr only — never touches stdout) ──────────────────────────
+
+pub fn lsp_log(level: String, message: String) -> Unit:
+    let ts_log = "[lsp:" + level + "] " + message + "\n"
+    stderr_write(ts_log)
+
+pub fn lsp_debug(msg: String) -> Unit:
+    lsp_log("debug", msg)
+
+pub fn lsp_info(msg: String) -> Unit:
+    lsp_log("info", msg)
+
+pub fn lsp_warn(msg: String) -> Unit:
+    lsp_log("warn", msg)
+
+pub fn lsp_error(msg: String) -> Unit:
+    lsp_log("error", msg)
+
+// ─── Reading LSP messages from stdin ────────────────────────────────────────
+
+// Read one Content-Length framed message from stdin.
+// Returns the raw JSON body string, or "" on EOF / parse failure.
+pub fn lsp_read_message() -> String:
+    var content_length: Int = 0
+
+    // Read headers until blank line
+    loop:
+        let header_line = read_line()
+        if header_line == "":
+            // End of headers (blank line) or EOF
+            break
+        let trimmed = lsp_trim_header_line(header_line)
+        if lsp_starts_with(trimmed, "Content-Length:"):
+            let len_str = lsp_after_colon(trimmed)
+            content_length = lsp_parse_int(len_str)
+
+    if content_length <= 0:
+        return ""
+
+    // Read body: use stdin_read_exact for exact byte count.
+    // read_line() cannot be used here because the body may not end with
+    // a newline, which would cause read_line() to consume bytes from
+    // the next message's Content-Length header (next message starts
+    // immediately after the body with no newline separator in LSP).
+    return stdin_read_exact(content_length)
+
+// ─── Writing LSP messages to stdout ────────────────────────────────────────
+
+// Write a raw string to stdout with Content-Length framing.
+pub fn lsp_write_message(msg: String) -> Unit:
+    let header = "Content-Length: " + to_string(len(msg)) + "\r\n\r\n"
+    stdout_write(header + msg)
+
+// Serialize a JsonObject and write it as an LSP response/notification.
+pub fn lsp_write_json(obj: JsonObject) -> Unit:
+    lsp_write_message(json_stringify(obj))
+
+// ─── Header helpers ─────────────────────────────────────────────────────────
+
+fn lsp_trim_header_line(input_line: String) -> String:
+    // Strip trailing \r if present
+    let line_len = len(input_line)
+    if line_len > 0 and char_at(input_line, line_len - 1) == "\r":
+        return substring(input_line, 0, line_len - 1)
+    return input_line
+
+fn lsp_starts_with(s: String, prefix: String) -> Bool:
+    if len(s) < len(prefix):
+        return false
+    var i = 0
+    while i < len(prefix):
+        if char_at(s, i) != char_at(prefix, i):
+            return false
+        i = i + 1
+    return true
+
+fn lsp_after_colon(s: String) -> String:
+    var i = 0
+    let s_len = len(s)
+    while i < s_len:
+        if char_at(s, i) == ":":
+            // Skip colon and any whitespace
+            var j = i + 1
+            while j < s_len and (char_at(s, j) == " " or char_at(s, j) == "\t"):
+                j = j + 1
+            return substring(s, j, s_len)
+        i = i + 1
+    return ""
+
+fn lsp_parse_int(s: String) -> Int:
+    var value: Int = 0
+    var i = 0
+    while i < len(s):
+        let ch_byte = ascii_byte_of(char_at(s, i))
+        if ch_byte >= 48 and ch_byte <= 57:   // '0' .. '9'
+            value = (value * 10) + (ch_byte - 48)
+        else:
+            break
+        i = i + 1
+    return value
+
+// ─── JSON-RPC response builders ────────────────────────────────────────────
+
+// Build {"jsonrpc":"2.0","id":<id>,"result":<result>}
+pub fn lsp_jsonrpc_response(id_val: JsonValue, result_obj: JsonObject) -> JsonObject:
+    let resp = json_object()
+    json_object_set(resp, "jsonrpc", "2.0")
+    json_object_set(resp, "id", id_val)
+    json_object_set(resp, "result", result_obj)
+    return resp
+
+// Build {"jsonrpc":"2.0","id":<id>,"error":{"code":<code>,"message":<msg>}}
+pub fn lsp_jsonrpc_error(id_val: JsonValue, code: Int, message: String) -> JsonObject:
+    let err_obj = json_object()
+    json_object_set_int(err_obj, "code", code)
+    json_object_set_string(err_obj, "message", message)
+
+    let resp = json_object()
+    json_object_set(resp, "jsonrpc", "2.0")
+    json_object_set(resp, "id", id_val)
+    json_object_set(resp, "error", err_obj)
+    return resp
+
+// Build {"jsonrpc":"2.0","method":<method>,"params":<params>}
+pub fn lsp_jsonrpc_notification(method: String, params_obj: JsonObject) -> JsonObject:
+    let notif = json_object()
+    json_object_set(notif, "jsonrpc", "2.0")
+    json_object_set_string(notif, "method", method)
+    json_object_set(notif, "params", params_obj)
+    return notif

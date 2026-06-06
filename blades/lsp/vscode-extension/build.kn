@@ -1,0 +1,43 @@
+use std::build
+use std::test
+
+fn build(ctx: BuildContext) -> BuildGraph:
+    let app = project("kain-lsp")
+        .kind("kain_executable")
+        .version("0.1.0")
+        .description("Kain LSP + MCP dual-protocol server — Language Server Protocol for editors and Model Context Protocol for AI coding agents")
+        .entry("src/main.kn")
+        .source_root("src")
+        .module_root("src")
+        .targets("llvm")
+        .artifact_root(".kain/out")
+        .cache_root(".kain/cache/build")
+        .profile("debug")
+
+    let sources = source_set("lsp-sources")
+        .glob("src/**/*.kn")
+        .file("build.kn")
+
+    let check = check_task("check-llvm")
+        .project(app)
+        .target("llvm")
+        .axis("target", "llvm")
+        .inputs(sources)
+
+    let tests = test_suite("lsp-tests")
+        .project(app)
+        .entry("src/lsp_tests.kn")
+        .target("llvm")
+        .requires(check)
+        .inputs(sources)
+
+    let root_exe = native_executable("kain-lsp-executable")
+        .project(app)
+        .output("$blade/kain-lsp.exe")
+        .requires(check)
+        .requires(tests)
+        .inputs(sources)
+
+    return build_graph(app)
+        .sources(sources)
+        .tasks(check, tests, root_exe)

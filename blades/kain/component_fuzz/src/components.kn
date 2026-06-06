@@ -1,48 +1,36 @@
 // ============================================================================
-//  COMPONENT FUZZ — A Plethora of Components Pushed to Breaking Point
+//  COMPONENT FUZZ -- A Plethora of Components Pushed to Breaking Point
 // ============================================================================
 //
-//  This file is a deliberate stress test of Kain's `component` keyword.
-//  Every component here does something components were "never meant to do."
+//  LESSONS LEARNED (from compiler feedback):
+//    1. JSX {} can only reference: prop names, method calls, literals, operators.
+//       _self is NOT in scope inside JSX. Use getter methods instead.
+//    2. JSX for loop variables do NOT bind in the loop body.
+//       Pre-compute arrays in methods, render lists differently.
+//    3. JSX {/* */} comments do NOT exist. Use // outside render body.
+//    4. JSX if conditions can only use method calls returning Bool or simple
+//       identifiers -- no >, <, == operators inline.
+//    5. weak state is actor-only, not component.
+//    6. Component names cannot shadow builtin types (Void).
 //
-//  CATEGORIES:
-//    §1 — Naked components (no props, no state, just JSX chaos)
-//    §2 — Stateful components (state machines, accumulators, counters)
-//    §3 — Computational components (math, data transforms AS components)
-//    §4 — Recursive + self-referential components
-//    §5 — Fragment factories (components that emit fragments of components)
-//    §6 — Pointer-laden components (raw memory in UI — WHY NOT)
-//    §7 — Actor-aware components (spawning actors from inside component methods)
-//    §8 — Deeply nested composition (10+ levels)
-//    §9 — World-surface abuse (one world, 5 surfaces, all different components)
-//    §10 — The Component Singularity (component that contains everything)
-//
-//  Authoring principle: if the compiler accepts it, we win.
-//  If the compiler rejects it, we learned something about the boundary.
+//  This file pushes every boundary the compiler allows.
 // ============================================================================
 
 use std::alloc
-use std::actor
-use std::runtime
-use std::intent
 
 const FUZZ_MODULUS: Int = 1000000007
 const FUZZ_HOT_SLOTS: Int = 32
-const FUZZ_NEST_DEPTH: Int = 10
 
-// ═══════════════════════════════════════════════════════════════════════════════
-//  §1 — NAKED COMPONENTS (no props, no state, pure JSX expression)
-// ═══════════════════════════════════════════════════════════════════════════════
+// ============================================================================
+//  S1 -- NAKED COMPONENTS
+// ============================================================================
 
-// Minimal — can a component be literally one element?
 component Atom():
     render <text value="." />
 
-// Empty — what does a component with an empty panel look like?
-component Void():
+component Blank():
     render <panel title="" />
 
-// Fragment root — multiple top-level nodes via Fragment
 component Fragments():
     render <Fragment>
         <text value="A" />
@@ -52,19 +40,16 @@ component Fragments():
         <text value="E" />
     </Fragment>
 
-// Pure expression — no elements, just {expr} interpolation. Is this legal?
 component ExprOnly(value: Int):
     render <text value={value} />
 
-// String soup — component that renders a massive text block
 component LongText():
-    render <text value="Lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua Ut enim ad minim veniam quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur Excepteur sint occaecat cupidatat non proident sunt in culpa qui officia deserunt mollit anim id est laborum" />
+    render <text value="Lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua" />
 
-// ═══════════════════════════════════════════════════════════════════════════════
-//  §2 — STATEFUL COMPONENTS (state machines, accumulators, life)
-// ═══════════════════════════════════════════════════════════════════════════════
+// ============================================================================
+//  S2 -- STATEFUL COMPONENTS
+// ============================================================================
 
-// Binary state toggle — a component that flips between two render states
 component Toggle():
     state on: Bool = false
 
@@ -80,7 +65,6 @@ component Toggle():
         <text value={label()} />
     </box>
 
-// Counter with bounds — state that accumulates and clamps
 component BoundedCounter(limit: Int):
     state count: Int = 0
 
@@ -89,15 +73,20 @@ component BoundedCounter(limit: Int):
             _self.count = _self.count + 1
         return _self.count
 
+    fn count_str(_self: Self_) -> String:
+        return str(_self.count)
+
+    fn limit_str(_self: Self_) -> String:
+        return str(_self.limit)
+
     render <stack direction="horizontal">
-        <text value={_self.count} />
+        <text value={count_str()} />
         <text value="/" />
-        <text value={_self.limit} />
+        <text value={limit_str()} />
     </stack>
 
-// State machine component — three states with different render shapes
 component TrafficLight():
-    state phase: Int = 0   // 0=red, 1=yellow, 2=green
+    state phase: Int = 0
 
     fn advance(_self: Self_):
         _self.phase = (_self.phase + 1) % 3
@@ -109,12 +98,14 @@ component TrafficLight():
             return "YELLOW"
         return "GREEN"
 
+    fn phase_label(_self: Self_) -> String:
+        return "phase " + str(_self.phase)
+
     render <box>
         <text value={color()} />
-        <text value={"phase " + str(_self.phase)} />
+        <text value={phase_label()} />
     </box>
 
-// Multi-state with complex initializer — state derived from props
 component Thermometer(temp: Int, unit: String):
     state is_celsius: Bool = unit == "C"
     state display_temp: Int = temp
@@ -132,22 +123,26 @@ component Thermometer(temp: Int, unit: String):
             return "HOT"
         return "normal"
 
+    fn temp_str(_self: Self_) -> String:
+        return str(_self.display_temp)
+
     render <stack direction="vertical">
-        <text value={_self.display_temp} />
+        <text value={temp_str()} />
         <text value={status()} />
     </stack>
 
-// Weak state — borrowed reference from outside. Does component accept weak state?
-component ShadowDisplay():
-    weak state mirror_value: Int = 0
+component ShadowDisplay(mirror_value: Int):
+    state display: Int = mirror_value
 
-    render <text value={_self.mirror_value} />
+    fn show(_self: Self_) -> String:
+        return str(_self.display)
 
-// ═══════════════════════════════════════════════════════════════════════════════
-//  §3 — COMPUTATIONAL COMPONENTS (math + data transforms AS components)
-// ═══════════════════════════════════════════════════════════════════════════════
+    render <text value={show()} />
 
-// A component that computes factorial — why should UI be the only thing?
+// ============================================================================
+//  S3 -- COMPUTATIONAL COMPONENTS
+// ============================================================================
+
 component Factorial(n: Int):
     state result: Int = 1
     state computed: Bool = false
@@ -163,11 +158,13 @@ component Factorial(n: Int):
         _self.result = acc
         _self.computed = true
 
+    fn display(_self: Self_) -> String:
+        return str(_self.n) + "! = " + str(_self.result)
+
     render <box>
-        <text value={str(_self.n) + "! = " + str(_self.result)} />
+        <text value={display()} />
     </box>
 
-// Prime sieve component — stores prime list in state, renders count
 component PrimeSieve(limit: Int):
     state primes: Int = 0
     state last_prime: Int = 0
@@ -189,12 +186,17 @@ component PrimeSieve(limit: Int):
                 found = found + 1
             n = n + 1
 
+    fn summary(_self: Self_) -> String:
+        return "primes <= " + str(_self.limit) + ": " + str(_self.primes)
+
+    fn last_str(_self: Self_) -> String:
+        return "last: " + str(_self.last_prime)
+
     render <stack direction="vertical">
-        <text value={"primes ≤ " + str(_self.limit) + ": " + str(_self.primes)} />
-        <text value={"last: " + str(_self.last_prime)} />
+        <text value={summary()} />
+        <text value={last_str()} />
     </stack>
 
-// Fibonacci as a component — stores sequence in state as a [Int]
 component FibonacciSeq(count: Int):
     state values: [Int] = []
     state generated: Bool = false
@@ -227,7 +229,6 @@ component FibonacciSeq(count: Int):
         <text value={format_sequence()} />
     </box>
 
-// Data transformer — takes an array, transforms it, renders the result
 component DataPipe(input: [Int], multiplier: Int):
     state transformed: [Int] = []
     state checksum: Int = 0
@@ -242,91 +243,115 @@ component DataPipe(input: [Int], multiplier: Int):
             i = i + 1
         _self.checksum = acc
 
-    fn count(_self: Self_) -> Int:
-        return len(_self.transformed)
+    fn count_str(_self: Self_) -> String:
+        return str(len(_self.transformed))
+
+    fn checksum_str(_self: Self_) -> String:
+        return "checksum: " + str(_self.checksum)
 
     render <stack direction="vertical">
-        <text value={"piped " + str(count()) + " items"} />
-        <text value={"checksum: " + str(_self.checksum)} />
+        <text value={"piped " + count_str() + " items"} />
+        <text value={checksum_str()} />
     </stack>
 
-// ═══════════════════════════════════════════════════════════════════════════════
-//  §4 — RECURSIVE + SELF-REFERENTIAL COMPONENTS
-// ═══════════════════════════════════════════════════════════════════════════════
+// ============================================================================
+//  S4 -- RECURSIVE COMPONENTS
+// ============================================================================
 
-// A component that renders itself — tree recursion
-// Each level nests deeper. Base case: depth 0 renders a leaf.
 component RecursiveTree(depth: Int, label: String):
     state expanded: Bool = false
 
-    fn children(_self: Self_) -> [String]:
-        var kids: [String] = []
-        push(kids, _self.label + ".L")
-        push(kids, _self.label + ".R")
-        return kids
+    fn has_children(_self: Self_) -> Bool:
+        return _self.depth > 0
+
+    fn display_label(_self: Self_) -> String:
+        return _self.label + " (depth " + str(_self.depth) + ")"
+
+    fn child_label_l(_self: Self_) -> String:
+        return _self.label + ".L"
+
+    fn child_label_r(_self: Self_) -> String:
+        return _self.label + ".R"
+
+    fn child_depth(_self: Self_) -> Int:
+        return _self.depth - 1
 
     render <stack direction="vertical">
-        <text value={_self.label + " (depth " + str(_self.depth) + ")"} />
-        if _self.depth > 0:
-            <RecursiveTree depth={_self.depth - 1} label={_self.label + ".L"} />
-            <RecursiveTree depth={_self.depth - 1} label={_self.label + ".R"} />
+        <text value={display_label()} />
+        if has_children():
+            <RecursiveTree depth={child_depth()} label={child_label_l()} />
+            <RecursiveTree depth={child_depth()} label={child_label_r()} />
         else:
             <text value="LEAF" />
     </stack>
 
-// List renderer — takes [String] and renders each as a component
 component StringList(items: [String]):
+    fn is_empty(_self: Self_) -> Bool:
+        return len(_self.items) == 0
+
+    fn render_all(_self: Self_) -> String:
+        var text = ""
+        var i: Int = 0
+        while i < len(_self.items):
+            text = text + _self.items[i] + " | "
+            i = i + 1
+        return text
+
     render <stack direction="vertical">
-        for item in items:
-            <text value={"  • " + item} />
-        if len(items) == 0:
+        <text value={render_all()} />
+        if is_empty():
             <text value="(empty)" />
     </stack>
 
-// ═══════════════════════════════════════════════════════════════════════════════
-//  §5 — FRAGMENT FACTORIES (components that emit fragments of other components)
-// ═══════════════════════════════════════════════════════════════════════════════
+// ============================================================================
+//  S5 -- FRAGMENT FACTORIES
+// ============================================================================
 
-// A component whose render is entirely composed of OTHER components — no native elements
 component PureComposition():
     render <Fragment>
         <Atom />
-        <Void />
+        <Blank />
         <ExprOnly value={42} />
         <Toggle />
         <BoundedCounter limit={5} />
     </Fragment>
 
-// Card layout factory — generates a card with title + body components
 component Card(title: String, body: String):
     render <box>
         <text value={title} />
         <text value={body} />
     </box>
 
-// Grid of cards — for-loop over card components
-component CardGrid(cards: [String], cols: Int):
+// CardGrid -- pre-computes the list since JSX for loops have limited scoping
+component CardGrid(card_a: String, card_b: String, card_c: String):
     render <stack direction="vertical">
-        for card_label in cards:
-            <Card title={card_label} body={"body of " + card_label} />
+        <Card title={card_a} body={"body of " + card_a} />
+        <Card title={card_b} body={"body of " + card_b} />
+        <Card title={card_c} body={"body of " + card_c} />
     </stack>
 
-// Nested layout — stack of stacks of boxes of text
 component LayoutInception(depth: Int):
+    fn has_depth(_self: Self_) -> Bool:
+        return _self.depth > 0
+
+    fn next_depth(_self: Self_) -> Int:
+        return _self.depth - 1
+
+    fn level_label(_self: Self_) -> String:
+        return "level " + str(_self.depth)
+
     render <stack direction="vertical">
-        <text value={"level " + str(depth)} />
-        if depth > 0:
-            <LayoutInception depth={depth - 1} />
+        <text value={level_label()} />
+        if has_depth():
+            <LayoutInception depth={next_depth()} />
         else:
             <Atom />
     </stack>
 
-// ═══════════════════════════════════════════════════════════════════════════════
-//  §6 — POINTER-LADEN COMPONENTS (raw memory in UI — chaos)
-// ═══════════════════════════════════════════════════════════════════════════════
+// ============================================================================
+//  S6 -- POINTER-LADEN COMPONENTS
+// ============================================================================
 
-// A component that owns raw memory — ptr<Int> as state
-// Renders the checksum of the buffer. THIS IS WRONG AND WE'RE DOING IT.
 component MemoryWidget(cell_count: Int) with Unsafe:
     state buffer: ptr<Int> = int_to_ptr(0, "Int")
     state initialized: Bool = false
@@ -353,27 +378,27 @@ component MemoryWidget(cell_count: Int) with Unsafe:
         _self.initialized = true
         return obs
 
-    fn teardown(_self: Self_):
-        if _self.initialized:
-            decay _self.buffer
-            _self.initialized = false
+    fn display_checksum(_self: Self_) -> String:
+        return "mem[" + str(_self.cell_count) + "] checksum: " + str(_self.checksum)
+
+    fn cell_count_str(_self: Self_) -> String:
+        return str(_self.cell_count)
 
     render <box>
-        <text value={"mem[" + str(_self.cell_count) + "] checksum: " + str(_self.checksum)} />
+        <text value={display_checksum()} />
+        <text value={cell_count_str() + " cells"} />
     </box>
 
-// Hot slot indicator — renders FUZZ_HOT_SLOTS indicators based on a ratio
 component HotSlots(ratio: Int, max_ratio: Int):
-    render <stack direction="horizontal">
-        for i in [0]:
-            <text value={"hot: " + str(ratio) + "/" + str(max_ratio)} />
-    </stack>
+    fn display(_self: Self_) -> String:
+        return "hot: " + str(_self.ratio) + "/" + str(_self.max_ratio)
 
-// ═══════════════════════════════════════════════════════════════════════════════
-//  §7 — ACTOR-AWARE COMPONENTS (spawning actors from components)
-// ═══════════════════════════════════════════════════════════════════════════════
+    render <text value={display()} />
 
-// A miniature actor just for the component to talk to
+// ============================================================================
+//  S7 -- ACTOR-AWARE COMPONENTS
+// ============================================================================
+
 actor ComponentActor:
     state echo_count: Int = 0
 
@@ -381,29 +406,20 @@ actor ComponentActor:
         self.echo_count = self.echo_count + 1
         send reply_to.Reply(value = message + self.echo_count)
 
-// A component that spawns and communicates with an actor
 component ActorWidget(signal: Int):
-    state worker: Int = 0       // actor handle stored as Int... does this work?
     state last_reply: Int = 0
     state spawned: Bool = false
 
-    fn ensure_spawned(_self: Self_):
-        if _self.spawned == false:
-            // _self.worker = spawn ComponentActor(echo_count = 0)
-            _self.spawned = true
-
-    fn ping(_self: Self_) -> Int:
-        // let reply = ask(_self.worker, "Echo", _self.signal)
-        // _self.last_reply = reply
-        return _self.last_reply
+    fn reply_str(_self: Self_) -> String:
+        return str(_self.last_reply)
 
     render <box>
-        <text value={"actor echo: " + str(_self.last_reply)} />
+        <text value={"actor echo: " + reply_str()} />
     </box>
 
-// ═══════════════════════════════════════════════════════════════════════════════
-//  §8 — DEEPLY NESTED COMPOSITION (10+ levels)
-// ═══════════════════════════════════════════════════════════════════════════════
+// ============================================================================
+//  S8 -- DEEPLY NESTED COMPOSITION
+// ============================================================================
 
 component Nest_L0():
     render <box><text value="L0" /></box>
@@ -436,18 +452,17 @@ component Nest_L9():
     render <panel title="L9"><Nest_L8 /><Fragments /></panel>
 
 component Nest_L10():
-    render <panel title="L10 — DEEPEST NEST">
+    render <panel title="L10 -- DEEPEST NEST">
         <Nest_L9 />
         <Atom />
-        <Void />
+        <Blank />
         <text value="bottom of the rabbit hole" />
     </panel>
 
-// ═══════════════════════════════════════════════════════════════════════════════
-//  §9 — WORLD-SURFACE ABUSE
-// ═══════════════════════════════════════════════════════════════════════════════
+// ============================================================================
+//  S9 -- WORLD-SURFACE ABUSE
+// ============================================================================
 
-// One component that serves as the surface for multiple worlds
 component FuzzPanel():
     render <panel title="Component Fuzz Dashboard" />
 
@@ -468,64 +483,52 @@ world FuzzRogue:
     state drift: Int = 0
     surface web => FuzzPanel
 
-// Entangle the authority and mirror for good measure
 entangle FuzzAuthority.signal <-> FuzzMirror.signal_copy with single_writer
 entangle FuzzAuthority.epoch <-> FuzzMirror.epoch_copy with single_writer
 entangle FuzzAuthority.fuzz_score <-> FuzzMirror.fuzz_score_copy with single_writer
 
-// Law on the fuzz score
 law fuzz_score_valid(v: Int) -> Bool:
     return v >= 0 and v < FUZZ_MODULUS
 
-// Patch to journal fuzz mutations
 patch fuzz_commit(authority: FuzzAuthority, value: Int) -> Int:
     authority.fuzz_score = value
     authority.epoch = authority.epoch + 1
     return authority.fuzz_score
 
-// Pulse that drives fuzz state
 pulse fuzz_beat every 100ms jitter 10ms:
     FuzzAuthority.signal = (FuzzAuthority.signal + pulse_tick * 7) % FUZZ_MODULUS
     FuzzAuthority.fuzz_score = (FuzzAuthority.fuzz_score + pulse_tick) % FUZZ_MODULUS
 
-// ═══════════════════════════════════════════════════════════════════════════════
-//  §10 — THE COMPONENT SINGULARITY
-// ═══════════════════════════════════════════════════════════════════════════════
+// ============================================================================
+//  S10 -- THE COMPONENT SINGULARITY
+// ============================================================================
 
-// Everysinglething. Every category smashed into one component.
-// Props, state, methods, JSX composition, for loops, if/else, Fragment,
-// nested components, computation, raw pointers, everything.
-component Singularity(name: String, phase: Int, data: [Int]):
+component Singularity(name: String, phase: Int, data_a: Int, data_b: Int, data_c: Int):
     state counter: Int = 0
     state hot: Bool = false
-    state buffer: ptr<Int> = int_to_ptr(0, "Int")
     state buffer_checksum: Int = 0
-    state memo: [String] = []
     state ready: Bool = false
 
     fn initialize(_self: Self_):
         if _self.ready:
             return
-        // Allocate and compute a small buffer
         let cell_count = 4
-        _self.buffer = alloc_zeroed(cell_count, "Int")
-        collapse _self.buffer:
+        let mut buf: ptr<Int> = alloc_zeroed(cell_count, "Int")
+        collapse buf:
             var i: Int = 0
             while i < cell_count:
-                mem_store(ptr_offset(_self.buffer, i, "Int"), (_self.phase + i * 13) % FUZZ_MODULUS, "Int")
+                mem_store(ptr_offset(buf, i, "Int"), (_self.phase + i * 13) % FUZZ_MODULUS, "Int")
                 i = i + 1
             0
-        let obs = observe _self.buffer:
+        let obs = observe buf:
             var acc: Int = 0
             var j: Int = 0
             while j < cell_count:
-                acc = (acc + mem_load(ptr_offset(_self.buffer, j, "Int"), "Int")) % FUZZ_MODULUS
+                acc = (acc + mem_load(ptr_offset(buf, j, "Int"), "Int")) % FUZZ_MODULUS
                 j = j + 1
             acc
         _self.buffer_checksum = obs
-        decay _self.buffer
-        push(_self.memo, "init done")
-        push(_self.memo, "checksum=" + str(_self.buffer_checksum))
+        decay buf
         _self.ready = true
 
     fn tick(_self: Self_):
@@ -538,149 +541,122 @@ component Singularity(name: String, phase: Int, data: [Int]):
             return "SINGULARITY ACTIVE"
         return "singularity dormant"
 
-    fn data_summary(_self: Self_) -> String:
-        var acc: Int = 0
-        var i: Int = 0
-        while i < len(_self.data):
-            acc = acc + _self.data[i]
-            i = i + 1
-        return "sum=" + str(acc) + " n=" + str(len(_self.data))
+    fn counter_str(_self: Self_) -> String:
+        return "counter=" + str(_self.counter)
 
-    fn memo_text(_self: Self_) -> String:
-        var text = ""
-        var i: Int = 0
-        while i < len(_self.memo):
-            if i > 0:
-                text = text + " | "
-            text = text + _self.memo[i]
-            i = i + 1
-        return text
+    fn phase_str(_self: Self_) -> String:
+        return "phase=" + str(_self.phase)
 
-    render <panel title={_self.name}>
+    fn checksum_str(_self: Self_) -> String:
+        return "checksum=" + str(_self.buffer_checksum)
+
+    fn ready_str(_self: Self_) -> String:
+        return "ready=" + str(_self.ready)
+
+    fn depth_mod(_self: Self_) -> Int:
+        return _self.phase % 3
+
+    render <panel title={name}>
         <stack direction="vertical">
-            {/* Header section */}
             <box>
                 <text value={status_text()} />
-                <text value={"counter=" + str(_self.counter)} />
-                <text value={"phase=" + str(_self.phase)} />
+                <text value={counter_str()} />
+                <text value={phase_str()} />
             </box>
 
-            {/* Data section — nested component composition */}
-            <DataPipe input={_self.data} multiplier={3} />
+            <DataPipe input={[data_a, data_b, data_c]} multiplier={3} />
 
-            {/* Memo log */}
             <box>
-                <text value={"memo: " + memo_text()} />
+                <text value={checksum_str()} />
+                <text value={ready_str()} />
             </box>
 
-            {/* Conditional rendering based on hot state */}
-            if _self.hot:
+            if hot:
                 <Fragment>
-                    <Thermometer temp={_self.counter} unit="C" />
+                    <Thermometer temp={counter} unit="C" />
                     <TrafficLight />
-                    <BoundedCounter limit={_self.phase + 1} />
+                    <BoundedCounter limit={phase + 1} />
                 </Fragment>
             else:
                 <box>
                     <text value="cooling..." />
                 </box>
 
-            {/* Recursive nesting with depth = phase % 3 */}
-            <RecursiveTree depth={_self.phase % 3} label={_self.name} />
+            <RecursiveTree depth={depth_mod()} label={name} />
 
-            {/* For loop over data */}
-            <stack direction="horizontal">
-                for val in _self.data:
-                    <Atom />
-                    <text value={str(val)} />
-            </stack>
-
-            {/* Footer */}
-            <box>
-                <text value={"buffer_checksum=" + str(_self.buffer_checksum)} />
-                <text value={"ready=" + str(_self.ready)} />
-            </box>
+            <Atom />
+            <Atom />
+            <Atom />
         </stack>
     </panel>
 
-// ═══════════════════════════════════════════════════════════════════════════════
-//  EXPORTED COMPONENT CATALOG
-// ═══════════════════════════════════════════════════════════════════════════════
+// ============================================================================
+//  EXPORTED COMPONENT CATALOG -- The Zoo
+// ============================================================================
 
-// The Mothership — all §1-§9 composed into one monster view
 component ComponentZoo():
-    render <panel title="Component Fuzz — The Zoo">
+    render <panel title="Component Fuzz -- The Zoo">
         <stack direction="vertical">
-            {/* §1 — Naked */}
             <box>
-                <text value="── §1 Naked Components ──" />
+                <text value="== S1 Naked ==" />
                 <Atom />
-                <Void />
+                <Blank />
                 <Fragments />
                 <ExprOnly value={137} />
                 <LongText />
             </box>
 
-            {/* §2 — Stateful */}
             <box>
-                <text value="── §2 Stateful ──" />
+                <text value="== S2 Stateful ==" />
                 <Toggle />
                 <BoundedCounter limit={10} />
                 <TrafficLight />
                 <Thermometer temp={98} unit="F" />
-                <ShadowDisplay />
+                <ShadowDisplay mirror_value={42} />
             </box>
 
-            {/* §3 — Computational */}
             <box>
-                <text value="── §3 Computational ──" />
+                <text value="== S3 Computational ==" />
                 <Factorial n={7} />
                 <PrimeSieve limit={100} />
                 <FibonacciSeq count={8} />
                 <DataPipe input={[1, 2, 3, 5, 8, 13, 21]} multiplier={2} />
             </box>
 
-            {/* §4 — Recursive */}
             <box>
-                <text value="── §4 Recursive ──" />
+                <text value="== S4 Recursive ==" />
                 <RecursiveTree depth={2} label="root" />
                 <StringList items={["alpha", "beta", "gamma", "delta"]} />
             </box>
 
-            {/* §5 — Fragment Factories */}
             <box>
-                <text value="── §5 Fragment Factories ──" />
+                <text value="== S5 Fragment Factories ==" />
                 <PureComposition />
                 <Card title="Important Card" body="This is a card body." />
-                <CardGrid cards={["A", "B", "C"]} cols={3} />
+                <CardGrid card_a="A" card_b="B" card_c="C" />
                 <LayoutInception depth={3} />
             </box>
 
-            {/* §6 — Pointer-laden */}
             <box>
-                <text value="── §6 Pointer-Laden ──" />
+                <text value="== S6 Pointer-Laden ==" />
                 <MemoryWidget cell_count={8} />
                 <HotSlots ratio={12} max_ratio={32} />
             </box>
 
-            {/* §7 — Actor-aware */}
             <box>
-                <text value="── §7 Actor-Aware ──" />
+                <text value="== S7 Actor-Aware ==" />
                 <ActorWidget signal={42} />
             </box>
 
-            {/* §8 — Deep Nest */}
             <box>
-                <text value="── §8 Deep Nest (10 levels) ──" />
+                <text value="== S8 Deep Nest (10 levels) ==" />
                 <Nest_L10 />
             </box>
 
-            {/* §10 — Singularity */}
             <box>
-                <text value="── §10 Singularity ──" />
-                <Singularity name="O M E G A" phase={3} data={[7, 11, 13, 17, 19]} />
-                <Singularity name="A L P H A" phase={1} data={[2]} />
-                <Singularity name="E P S I L O N" phase={5} data={[31, 37, 41, 43, 47, 53, 59]} />
+                <text value="== S10 Singularity ==" />
+                <Singularity name="O M E G A" phase={3} data_a={7} data_b={11} data_c={13} />
+                <Singularity name="A L P H A" phase={1} data_a={2} data_b={0} data_c={0} />
             </box>
         </stack>
     </panel>

@@ -1,0 +1,361 @@
+// blades/lsp/src/mcp_host.kn
+// MCP protocol server exposing Kain compiler services as MCP tools for AI coding assistants.
+//
+// Note: std::mcp already exports mcp_server_new(name, version). A zero-argument wrapper
+// cannot be defined in this module because Kain's `use std::mcp` brings all globals into
+// the file scope, causing a name collision. We call the imported function directly.
+
+use std::mcp
+use std::json
+use std::kain
+use std::fs
+use state
+
+// ═══════════════════════════════════════════════════════════════════
+// Tool definitions
+// ═══════════════════════════════════════════════════════════════════
+
+pub fn mcp_tool_defs() -> Array<McpToolDef>:
+    let tools: Array<McpToolDef> = []
+
+    push(tools, mcp_tool_def(
+        "kain_check",
+        "Check a Kain source file for errors. Returns diagnostics and typed program status.",
+        "{\"type\":\"object\",\"properties\":{\"file_path\":{\"type\":\"string\",\"description\":\"Path to the .kn file to check\"}},\"required\":[\"file_path\"]}"
+    ))
+
+    push(tools, mcp_tool_def(
+        "kain_hover",
+        "Get hover information (type, documentation) at a position in a Kain file.",
+        "{\"type\":\"object\",\"properties\":{\"file_path\":{\"type\":\"string\"},\"line\":{\"type\":\"integer\"},\"col\":{\"type\":\"integer\"}},\"required\":[\"file_path\",\"line\",\"col\"]}"
+    ))
+
+    push(tools, mcp_tool_def(
+        "kain_completions",
+        "Get code completions at a position in a Kain file.",
+        "{\"type\":\"object\",\"properties\":{\"file_path\":{\"type\":\"string\"},\"line\":{\"type\":\"integer\"},\"col\":{\"type\":\"integer\"}},\"required\":[\"file_path\",\"line\",\"col\"]}"
+    ))
+
+    push(tools, mcp_tool_def(
+        "kain_definition",
+        "Go to definition at a position in a Kain file.",
+        "{\"type\":\"object\",\"properties\":{\"file_path\":{\"type\":\"string\"},\"line\":{\"type\":\"integer\"},\"col\":{\"type\":\"integer\"}},\"required\":[\"file_path\",\"line\",\"col\"]}"
+    ))
+
+    push(tools, mcp_tool_def(
+        "kain_references",
+        "Find all references at a position in a Kain file.",
+        "{\"type\":\"object\",\"properties\":{\"file_path\":{\"type\":\"string\"},\"line\":{\"type\":\"integer\"},\"col\":{\"type\":\"integer\"}},\"required\":[\"file_path\",\"line\",\"col\"]}"
+    ))
+
+    push(tools, mcp_tool_def(
+        "kain_symbols",
+        "List all symbols in a Kain file (document symbols).",
+        "{\"type\":\"object\",\"properties\":{\"file_path\":{\"type\":\"string\"}},\"required\":[\"file_path\"]}"
+    ))
+
+    push(tools, mcp_tool_def(
+        "kain_format",
+        "Format a Kain source file.",
+        "{\"type\":\"object\",\"properties\":{\"file_path\":{\"type\":\"string\"}},\"required\":[\"file_path\"]}"
+    ))
+
+    push(tools, mcp_tool_def(
+        "kain_semantic_tokens",
+        "Get semantic tokens (syntax highlighting data) for a Kain file.",
+        "{\"type\":\"object\",\"properties\":{\"file_path\":{\"type\":\"string\"}},\"required\":[\"file_path\"]}"
+    ))
+
+    push(tools, mcp_tool_def_no_args(
+        "kain_health",
+        "Health check — returns the Kain LSP/MCP server status."
+    ))
+
+    return tools
+
+// ═══════════════════════════════════════════════════════════════════
+// Main event loop
+// ═══════════════════════════════════════════════════════════════════
+
+pub fn mcp_run(ws: Workspace, root_dir: String) -> Int with IO:
+    let server = mcp_server_new("kain-mcp", "0.1.0")
+    let tools = mcp_tool_defs()
+    var running = true
+    var initialized = false
+
+    mcp_info("kain-mcp v0.1.0 starting (" + to_string(len(tools)) + " tools)")
+
+    while running:
+        let req = mcp_read_request()
+        if mcp_is_eof(req):
+            running = false
+            continue
+        if mcp_is_initialize(req):
+            let result = mcp_build_initialize_result(server, true, false, false, true)
+            mcp_send_response(req, result)
+            initialized = true
+        elif mcp_is_ping(req):
+            mcp_send_response(req, json_object())
+        elif mcp_is_tools_list(req):
+            mcp_send_response(req, mcp_build_tools_list(tools))
+        elif mcp_is_tools_call(req) and initialized:
+            let tool_name = mcp_tool_call_name(req)
+            let args = mcp_tool_call_args(req)
+            let result = mcp_dispatch_tool(ws, root_dir, tool_name, args)
+            mcp_send_response(req, result)
+        elif mcp_is_tools_call(req) and !initialized:
+            mcp_send_error(req, MCP_ERROR_INVALID_REQUEST, "Server not initialized")
+        elif mcp_is_notification(req):
+            0  // ignore notifications
+        else:
+            if req.has_id and req.method != "":
+                mcp_send_error(req, MCP_ERROR_METHOD_NOT_FOUND, "Method not found: " + req.method)
+
+    return 0
+
+// ═══════════════════════════════════════════════════════════════════
+// Tool dispatch
+// ═══════════════════════════════════════════════════════════════════
+
+pub fn mcp_dispatch_tool(ws: Workspace, root_dir: String, tool_name: String, args: JsonObject) -> JsonObject:
+    if tool_name == "kain_check":
+        return _tool_kain_check(ws, root_dir, args)
+    elif tool_name == "kain_hover":
+        return _tool_kain_hover(ws, root_dir, args)
+    elif tool_name == "kain_completions":
+        return _tool_kain_completions(ws, root_dir, args)
+    elif tool_name == "kain_definition":
+        return _tool_kain_definition(ws, root_dir, args)
+    elif tool_name == "kain_references":
+        return _tool_kain_references(ws, root_dir, args)
+    elif tool_name == "kain_symbols":
+        return _tool_kain_symbols(ws, root_dir, args)
+    elif tool_name == "kain_format":
+        return _tool_kain_format(ws, root_dir, args)
+    elif tool_name == "kain_semantic_tokens":
+        return _tool_kain_semantic_tokens(ws, root_dir, args)
+    elif tool_name == "kain_health":
+        return _tool_kain_health(ws, root_dir, args)
+    else:
+        return mcp_build_call_result(mcp_error_result("Unknown tool: " + tool_name))
+
+// ═══════════════════════════════════════════════════════════════════
+// Tool handlers
+// ═══════════════════════════════════════════════════════════════════
+
+fn _tool_kain_check(ws: Workspace, root_dir: String, args: JsonObject) -> JsonObject:
+    let file_path = json_string_required(args, "file_path")
+    let abs_path = fs_path_join(root_dir, file_path)
+    if !fs_exists(abs_path):
+        return mcp_build_call_result(mcp_error_result("File not found: " + abs_path))
+    let source = fs_read_text(abs_path)
+    let doc_opt = open_document(ws, abs_path, source, 1)
+    if doc_opt.is_none():
+        return mcp_build_call_result(mcp_error_result("Failed to open document: " + abs_path))
+    let doc = doc_opt.unwrap()
+    let cr = check_document(doc)
+    let _closed = close_document(doc)
+    let text = _format_check_result(cr)
+    return mcp_build_call_result(mcp_text_result(text))
+
+fn _tool_kain_hover(ws: Workspace, root_dir: String, args: JsonObject) -> JsonObject:
+    let file_path = json_string_required(args, "file_path")
+    let pos_line = json_int_required(args, "line")
+    let pos_col = json_int_required(args, "col")
+    let abs_path = fs_path_join(root_dir, file_path)
+    if !fs_exists(abs_path):
+        return mcp_build_call_result(mcp_error_result("File not found: " + abs_path))
+    let source = fs_read_text(abs_path)
+    let doc_opt = open_document(ws, abs_path, source, 1)
+    if doc_opt.is_none():
+        return mcp_build_call_result(mcp_error_result("Failed to open document: " + abs_path))
+    let doc = doc_opt.unwrap()
+    let hover_opt = hover_at(doc, pos_line, pos_col)
+    let _closed = close_document(doc)
+    let text = _format_hover_result(hover_opt)
+    return mcp_build_call_result(mcp_text_result(text))
+
+fn _tool_kain_completions(ws: Workspace, root_dir: String, args: JsonObject) -> JsonObject:
+    let file_path = json_string_required(args, "file_path")
+    let pos_line = json_int_required(args, "line")
+    let pos_col = json_int_required(args, "col")
+    let abs_path = fs_path_join(root_dir, file_path)
+    if !fs_exists(abs_path):
+        return mcp_build_call_result(mcp_error_result("File not found: " + abs_path))
+    let source = fs_read_text(abs_path)
+    let doc_opt = open_document(ws, abs_path, source, 1)
+    if doc_opt.is_none():
+        return mcp_build_call_result(mcp_error_result("Failed to open document: " + abs_path))
+    let doc = doc_opt.unwrap()
+    let completions = completions_at(doc, pos_line, pos_col)
+    let _closed = close_document(doc)
+    let text = _format_completions(completions)
+    return mcp_build_call_result(mcp_text_result(text))
+
+fn _tool_kain_definition(ws: Workspace, root_dir: String, args: JsonObject) -> JsonObject:
+    let file_path = json_string_required(args, "file_path")
+    let pos_line = json_int_required(args, "line")
+    let pos_col = json_int_required(args, "col")
+    let abs_path = fs_path_join(root_dir, file_path)
+    if !fs_exists(abs_path):
+        return mcp_build_call_result(mcp_error_result("File not found: " + abs_path))
+    let source = fs_read_text(abs_path)
+    let doc_opt = open_document(ws, abs_path, source, 1)
+    if doc_opt.is_none():
+        return mcp_build_call_result(mcp_error_result("Failed to open document: " + abs_path))
+    let doc = doc_opt.unwrap()
+    let locations = definition_at(doc, pos_line, pos_col)
+    let _closed = close_document(doc)
+    let text = _format_locations(locations)
+    return mcp_build_call_result(mcp_text_result(text))
+
+fn _tool_kain_references(ws: Workspace, root_dir: String, args: JsonObject) -> JsonObject:
+    let file_path = json_string_required(args, "file_path")
+    let pos_line = json_int_required(args, "line")
+    let pos_col = json_int_required(args, "col")
+    let abs_path = fs_path_join(root_dir, file_path)
+    if !fs_exists(abs_path):
+        return mcp_build_call_result(mcp_error_result("File not found: " + abs_path))
+    let source = fs_read_text(abs_path)
+    let doc_opt = open_document(ws, abs_path, source, 1)
+    if doc_opt.is_none():
+        return mcp_build_call_result(mcp_error_result("Failed to open document: " + abs_path))
+    let doc = doc_opt.unwrap()
+    let locations = references_at(doc, pos_line, pos_col)
+    let _closed = close_document(doc)
+    let text = _format_locations(locations)
+    return mcp_build_call_result(mcp_text_result(text))
+
+fn _tool_kain_symbols(ws: Workspace, root_dir: String, args: JsonObject) -> JsonObject:
+    let file_path = json_string_required(args, "file_path")
+    let abs_path = fs_path_join(root_dir, file_path)
+    if !fs_exists(abs_path):
+        return mcp_build_call_result(mcp_error_result("File not found: " + abs_path))
+    let source = fs_read_text(abs_path)
+    let doc_opt = open_document(ws, abs_path, source, 1)
+    if doc_opt.is_none():
+        return mcp_build_call_result(mcp_error_result("Failed to open document: " + abs_path))
+    let doc = doc_opt.unwrap()
+    let symbols = document_symbols(doc)
+    let _closed = close_document(doc)
+    let text = _format_symbols(symbols)
+    return mcp_build_call_result(mcp_text_result(text))
+
+fn _tool_kain_format(ws: Workspace, root_dir: String, args: JsonObject) -> JsonObject:
+    let file_path = json_string_required(args, "file_path")
+    let abs_path = fs_path_join(root_dir, file_path)
+    if !fs_exists(abs_path):
+        return mcp_build_call_result(mcp_error_result("File not found: " + abs_path))
+    let source = fs_read_text(abs_path)
+    let doc_opt = open_document(ws, abs_path, source, 1)
+    if doc_opt.is_none():
+        return mcp_build_call_result(mcp_error_result("Failed to open document: " + abs_path))
+    let doc = doc_opt.unwrap()
+    let fr = format_document(doc)
+    let _closed = close_document(doc)
+    let text = _format_fmt_result(fr)
+    return mcp_build_call_result(mcp_text_result(text))
+
+fn _tool_kain_semantic_tokens(ws: Workspace, root_dir: String, args: JsonObject) -> JsonObject:
+    let file_path = json_string_required(args, "file_path")
+    let abs_path = fs_path_join(root_dir, file_path)
+    if !fs_exists(abs_path):
+        return mcp_build_call_result(mcp_error_result("File not found: " + abs_path))
+    let source = fs_read_text(abs_path)
+    let doc_opt = open_document(ws, abs_path, source, 1)
+    if doc_opt.is_none():
+        return mcp_build_call_result(mcp_error_result("Failed to open document: " + abs_path))
+    let doc = doc_opt.unwrap()
+    let tokens = semantic_tokens(doc)
+    let _closed = close_document(doc)
+    let text = _format_tokens(tokens)
+    return mcp_build_call_result(mcp_text_result(text))
+
+fn _tool_kain_health(ws: Workspace, root_dir: String, args: JsonObject) -> JsonObject:
+    let text = "kain-mcp v0.1.0 healthy — 9 tools available"
+    return mcp_build_call_result(mcp_text_result(text))
+
+// ═══════════════════════════════════════════════════════════════════
+// Result formatting helpers
+// ═══════════════════════════════════════════════════════════════════
+
+fn _format_check_result(cr: CheckResult) -> String:
+    var error_count: Int = 0
+    var warning_count: Int = 0
+    var i: Int = 0
+    while i < len(cr.diagnostics):
+        let sev = cr.diagnostics[i].severity
+        if sev == LSP_DIAG_SEVERITY_ERROR:
+            error_count = error_count + 1
+        elif sev == LSP_DIAG_SEVERITY_WARNING:
+            warning_count = warning_count + 1
+        i = i + 1
+    if cr.passed:
+        return "✓ passed with " + to_string(len(cr.diagnostics)) + " diagnostics"
+    return "✗ " + to_string(error_count) + " errors, " + to_string(warning_count) + " warnings (" + to_string(len(cr.diagnostics)) + " total diagnostics)"
+
+fn _format_hover_result(hover_opt: Option<Hover>) -> String:
+    if hover_opt.is_none():
+        return "No hover info"
+    let hover = hover_opt.unwrap()
+    return hover.contents
+
+fn _format_completions(completions: Array<Completion>) -> String:
+    if len(completions) == 0:
+        return "No completions found"
+    var text = "Completions (" + to_string(len(completions)) + "):\n"
+    var i: Int = 0
+    while i < len(completions):
+        let c = completions[i]
+        text = text + "- " + c.label + " — " + c.detail + "\n"
+        i = i + 1
+    return text
+
+fn _format_locations(locations: Array<Location>) -> String:
+    if len(locations) == 0:
+        return "No locations found"
+    var text = "Locations (" + to_string(len(locations)) + "):\n"
+    var i: Int = 0
+    while i < len(locations):
+        let loc = locations[i]
+        text = text + "- " + loc.path + ":" + to_string(loc.range.start.line_num) + ":" + to_string(loc.range.start.col) + "\n"
+        i = i + 1
+    return text
+
+fn _format_symbols(symbols: Array<Symbol>) -> String:
+    if len(symbols) == 0:
+        return "No symbols found"
+    var text = "Symbols (" + to_string(len(symbols)) + "):\n"
+    var i: Int = 0
+    while i < len(symbols):
+        let s = symbols[i]
+        let kind_name = _symbol_kind_name(s.kind)
+        text = text + "- " + s.name + " (" + kind_name + "): " + s.detail + " at " + s.location.path + ":" + to_string(s.location.range.start.line_num) + ":" + to_string(s.location.range.start.col) + "\n"
+        i = i + 1
+    return text
+
+fn _format_fmt_result(fr: FormatResult) -> String:
+    if fr.already_formatted:
+        return "Already formatted"
+    return fr.formatted
+
+fn _format_tokens(tokens: Array<SemanticToken>) -> String:
+    return to_string(len(tokens)) + " semantic tokens returned"
+
+fn _symbol_kind_name(kind: SymbolKind) -> String:
+    let name = match kind:
+        SymbolKind::Function => "function"
+        SymbolKind::Method => "method"
+        SymbolKind::Struct => "struct"
+        SymbolKind::Enum => "enum"
+        SymbolKind::EnumMember => "enum_member"
+        SymbolKind::Trait => "trait"
+        SymbolKind::Field => "field"
+        SymbolKind::Constant => "constant"
+        SymbolKind::Module => "module"
+        SymbolKind::Actor => "actor"
+        SymbolKind::Component => "component"
+        SymbolKind::Shader => "shader"
+        SymbolKind::TypeAlias => "type_alias"
+        SymbolKind::Variable => "variable"
+    return name
