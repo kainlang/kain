@@ -117,16 +117,38 @@ function formatFailure(result: KainResult): string {
 // ===========================================================================
 
 function formatJsonDiagnostics(result: KainResult): { text: string; diagnostics: any[] } {
-  // Try to parse stdout as JSON array of diagnostics
   const raw = result.stdout || result.stderr;
   let diagnostics: any[] = [];
   let parseError: string | null = null;
+  let summary: any = null;
 
   if (raw) {
-    // The JSON output could be an object with an "errors" field, or a raw array
     try {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) {
+
+      // Kain check/build --json outputs a run-summary object:
+      // { target, total, passed, failed, files: [{ path, status, error?, diagnostic? }] }
+      if (parsed.files && Array.isArray(parsed.files)) {
+        summary = { total: parsed.total, passed: parsed.passed, failed: parsed.failed };
+        for (const file of parsed.files) {
+          if (file.diagnostic?.diagnostics) {
+            for (const d of file.diagnostic.diagnostics) {
+              d._file = file.path; // attach file context
+              diagnostics.push(d);
+            }
+          }
+          // For failures without structured diagnostics, synthesize one
+          if (file.status === "failed" && !file.diagnostic?.diagnostics?.length && file.error) {
+            diagnostics.push({
+              _file: file.path,
+              code: "BUILD-FAIL",
+              message: file.error.slice(0, 500),
+              severity: "error",
+              title: "Build Failed",
+            });
+          }
+        }
+      } else if (Array.isArray(parsed)) {
         diagnostics = parsed;
       } else if (parsed.errors && Array.isArray(parsed.errors)) {
         diagnostics = parsed.errors;
@@ -138,44 +160,44 @@ function formatJsonDiagnostics(result: KainResult): { text: string; diagnostics:
     }
   }
 
-  if (diagnostics.length === 0 && !parseError) {
-    return {
-      text: result.code === 0
-        ? `## ✅ \`${result.command}\` — clean (no diagnostics)\n`
-        : `## ❌ \`${result.command}\` failed but no JSON diagnostics were parsed. Check details.errorRaw.`,
-      diagnostics: [],
-    };
-  }
-
-  const errorCount = diagnostics.filter((d: any) => d.level === "error" || !d.level).length;
-  const warningCount = diagnostics.filter((d: any) => d.level === "warning" || d.level === "warn").length;
+  // Build summary line
+  const errorCount = diagnostics.filter((d: any) => d.severity === "error" || !d.severity).length;
+  const warningCount = diagnostics.filter((d: any) => d.severity === "warning" || d.severity === "warn").length;
 
   const lines = [
     `## ${result.code === 0 ? "✅" : "❌"} \`${result.command}\``,
-    `**Errors:** ${errorCount} — **Warnings:** ${warningCount}`,
-    "",
   ];
 
-  for (const diag of diagnostics.slice(0, 25)) {
-    const loc = diag.location || diag.span || diag.range || {};
-    const file = loc.file || loc.filename || diag.file || "?";
-    const line = loc.line || loc.start_line || diag.line || 0;
-    const col = loc.column || loc.start_column || diag.column || 0;
-    const code = diag.code || diag.error_code || diag.id || "";
-    const level = diag.level === "warning" ? "⚠️" : diag.level === "warn" ? "⚠️" : "❌";
-    const msg = diag.message || diag.detail || diag.text || "(no message)";
+  if (summary) {
+    lines.push(`**Files:** ${summary.passed + summary.failed} (${summary.passed} ✅ / ${summary.failed} ❌) — **Errors:** ${errorCount} — **Warnings:** ${warningCount}`);
+  } else {
+    lines.push(`**Errors:** ${errorCount} — **Warnings:** ${warningCount}`);
+  }
+  lines.push("");
 
-    lines.push(`${level} \`${code}\` — ${msg}`);
+  // Render each diagnostic
+  for (const diag of diagnostics.slice(0, 25)) {
+    const file = diag._file || diag.file || diag.primary_range?.file || "?";
+    const loc = diag.location || diag.primary_range || {};
+    const line = loc.line || loc.start?.line || 0;
+    const col = loc.column || loc.start?.column || 0;
+    const code = diag.code || "";
+    const prefix = diag.severity === "warning" || diag.severity === "warn" ? "⚠️" : "❌";
+    const msg = diag.message || diag.title || "(no message)";
+
+    lines.push(`${prefix} \`${code}\` — ${msg}`);
     if (file !== "?") lines.push(`   ${file}:${line}:${col}`);
-    // suggestion / help
-    if (diag.suggestion || diag.help) {
-      lines.push(`   💡 ${diag.suggestion || diag.help}`);
-    }
+    if (diag.semantic?.explanation) lines.push(`   ${diag.semantic.explanation}`);
+    if (diag.suggestion || diag.help) lines.push(`   💡 ${diag.suggestion || diag.help}`);
     lines.push("");
   }
 
   if (diagnostics.length > 25) {
-    lines.push(`*... and ${diagnostics.length - 25} more diagnostics*`);
+    lines.push(`*... and ${diagnostics.length - 25} more*`);
+  }
+
+  if (summary && summary.passed > 0) {
+    lines.push(`--- ${summary.passed} file(s) passed, no issues.`);
   }
 
   if (parseError) {
@@ -185,6 +207,7 @@ function formatJsonDiagnostics(result: KainResult): { text: string; diagnostics:
   return {
     text: lines.join("\n"),
     diagnostics,
+    summary,
   };
 }
 
