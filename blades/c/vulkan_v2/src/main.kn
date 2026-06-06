@@ -1,0 +1,71 @@
+// main.kn — GPU fluid simulator
+// Uses libclang C-FFI for Win32 window + Vulkan compute dispatch via SPIR-V
+
+use std::cuda
+use std::gpu
+use std::runtime
+
+include <windows.h> as win
+
+const GRID: Int = 256
+const CELLS: Int = GRID * GRID
+const FLOATS: Int = CELLS * 3
+const BYTES: Int = FLOATS * 4
+
+fn main() -> Int with GPU, Unsafe:
+    let init = runtime_init()
+    if init != 0:
+        return 100 + init
+
+    // Allocate double-buffered fluid grids
+    let mut grid_a: ptr<Float> = alloc_zeroed(FLOATS, "Float")
+    let mut grid_b: ptr<Float> = alloc_zeroed(FLOATS, "Float")
+
+    // Seed the initial fluid state
+    seed_grid(grid_a)
+
+    // Create a simple Win32 message box to prove the window pipeline works
+    // Full interactive window would need message pump + rendering loop
+    let msg = "GPU Fluid Sim ready! Grid: 256x256, Dispatch: 32x32x1"
+    let title = "Kain GPU Fluid v2 — libclang + SPIR-V"
+
+    // Run simulation for a few frames via GPU compute dispatch
+    var frame: Int = 0
+    while frame < 4:
+        dispatch "shader::FluidStep::compute" [32, 32, 1]
+        frame = frame + 1
+
+    // Show result
+    let _ = win_MessageBoxA(0, msg, title, 0)
+
+    decay grid_a
+    decay grid_b
+
+    let shutdown = runtime_shutdown()
+    if shutdown != 0:
+        return 200 + shutdown
+    return 0
+
+fn seed_grid(grid: ptr<Float>) with Unsafe:
+    // Simple rotating velocity field with density at center
+    let hf: Float = Float(GRID) / 2.0
+    let mut idx: Int = 0
+    while idx < CELLS:
+        let x: Float = Float(idx % GRID) - hf
+        let y: Float = Float(idx / GRID) - hf
+        let dist_sq: Float = x * x + y * y
+
+        // Rotating velocity
+        let inv_dist: Float = 1.0 / (1.0 + dist_sq * 0.0005)
+        let vx: Float = -y * inv_dist * 0.8
+        let vy: Float = x * inv_dist * 0.8
+
+        // Density: strongest at center, fading outward
+        let density: Float = 1.0 / (1.0 + dist_sq * 0.001)
+
+        let base: Int = idx * 3
+        mem_store(ptr_offset(grid, base, "Float"), vx, "Float")
+        mem_store(ptr_offset(grid, base + 1, "Float"), vy, "Float")
+        mem_store(ptr_offset(grid, base + 2, "Float"), density, "Float")
+
+        idx = idx + 1

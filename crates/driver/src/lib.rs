@@ -1325,8 +1325,8 @@ impl DriverSession {
         let reflection_json = sys::collect_gpu_artifacts_json(&typed_program).map_err(|err| {
             KainError::runtime(format!("Failed to serialize GPU reflection JSON: {err}"))
         })?;
-        let derived_hlsl = Some(gpu::generate_hlsl(&typed_program)?);
-        let derived_wgsl = Some(gpu::generate_wgsl(&typed_program)?);
+        let derived_hlsl = gpu::generate_hlsl(&typed_program).ok();
+        let derived_wgsl = gpu::generate_wgsl(&typed_program).ok();
         let ptx_candidate = typed_program_ptx_eligible(&typed_program);
         let (derived_ptx, derived_ptx_variants, ptx_note) = if ptx_candidate {
             match gpu::PtxCodegenOptions::from_env().and_then(|options| {

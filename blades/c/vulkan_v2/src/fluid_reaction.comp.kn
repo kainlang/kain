@@ -1,0 +1,72 @@
+// fluid_reaction.comp.kn — Gray-Scott reaction-diffusion fluid simulation
+// Produces organic fluid-like patterns using a simple GPU compute kernel.
+//
+// Grid: GRID x GRID cells, each cell has [u, v] concentration.
+// u = activator, v = inhibitor
+// Each frame: diffusion pass + reaction pass
+
+shader compute FluidReactionStep(id: UVec3) -> Void workgroup(8, 8, 1):
+    uniform prev: StorageBuffer<Float> @0   // [u0, v0, u1, v1, ...] packed pairs
+    uniform next_: StorageBuffer<Float> @1   // output grid
+    uniform params: StorageBuffer<Float> @2  // [du, dv, feed, kill, dt, grid_size]
+
+    comptime:
+        let compute = (
+            [GRID_X, GRID_Y, 1],
+            [
+                ("prev", "f32", ["grid"], "input", "kain.shared.buffer"),
+                ("next_", "f32", ["grid"], "output", "kain.shared.buffer"),
+                ("params", "f32", ["6"], "input", "kain.shared.buffer"),
+            ],
+            [],
+        )
+
+    let x = id.x
+    let y = id.y
+    let grid = Float(GRID_SIZE)
+
+    if x >= UInt(GRID_SIZE) or y >= UInt(GRID_SIZE):
+        return
+
+    let du = params[0]
+    let dv = params[1]
+    let feed = params[2]
+    let kill = params[3]
+    let dt = params[4]
+
+    let idx = (y * UInt(GRID_SIZE) + x) * UInt(2)
+    let u = prev[idx]
+    let v = prev[idx + UInt(1)]
+
+    // Laplacian — 9-point stencil
+    let xl = if x > UInt(0): x - UInt(1) else: UInt(GRID_SIZE - 1)
+    let xr = if x < UInt(GRID_SIZE - 1): x + UInt(1) else: UInt(0)
+    let yu = if y > UInt(0): y - UInt(1) else: UInt(GRID_SIZE - 1)
+    let yd = if y < UInt(GRID_SIZE - 1): y + UInt(1) else: UInt(0)
+
+    let cl = (y * UInt(GRID_SIZE) + xl) * UInt(2)
+    let cr = (y * UInt(GRID_SIZE) + xr) * UInt(2)
+    let cu = (yu * UInt(GRID_SIZE) + x) * UInt(2)
+    let cd = (yd * UInt(GRID_SIZE) + x) * UInt(2)
+    let cul = (yu * UInt(GRID_SIZE) + xl) * UInt(2)
+    let cur = (yu * UInt(GRID_SIZE) + xr) * UInt(2)
+    let cdl = (yd * UInt(GRID_SIZE) + xl) * UInt(2)
+    let cdr = (yd * UInt(GRID_SIZE) + xr) * UInt(2)
+
+    let lap_u = prev[cl] + prev[cr] + prev[cu] + prev[cd] +
+                prev[cul] * 0.5 + prev[cur] * 0.5 + prev[cdl] * 0.5 + prev[cdr] * 0.5 -
+                u * 6.0
+    let lap_v = prev[cl + UInt(1)] + prev[cr + UInt(1)] + prev[cu + UInt(1)] + prev[cd + UInt(1)] +
+                prev[cul + UInt(1)] * 0.5 + prev[cur + UInt(1)] * 0.5 +
+                prev[cdl + UInt(1)] * 0.5 + prev[cdr + UInt(1)] * 0.5 -
+                v * 6.0
+
+    // Gray-Scott reaction
+    let uvv = u * v * v
+    let nu = u + (du * lap_u - uvv + feed * (1.0 - u)) * dt
+    let nv = v + (dv * lap_v + uvv - (feed + kill) * v) * dt
+
+    next_[idx] = max(0.0, min(1.0, nu))
+    next_[idx + UInt(1)] = max(0.0, min(1.0, nv))
+
+    return

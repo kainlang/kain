@@ -1,0 +1,42 @@
+use std::build
+
+fn build(ctx: BuildContext) -> BuildGraph:
+    let app = project("fluid-sim")
+        .kind("kain_executable")
+        .version("0.1.0")
+        .description("GPU fluid simulator — libclang C-FFI + SPIR-V compute")
+        .entry("src/main.kn")
+        .source_root("src")
+        .module_root("src")
+        .targets("llvm")
+        .artifact_root(".kain/out")
+        .cache_root(".kain/cache/build")
+        .profile("debug")
+
+    let sources = source_set("fluid-sources")
+        .glob("src/**/*.kn")
+        .file("build.kn")
+        .file("KAIN.toml")
+
+    let check = check_task("check-llvm")
+        .project(app)
+        .target("llvm")
+        .axis("target", "llvm")
+        .inputs(sources)
+
+    let gpu = gpu_suite("gpu-artifacts")
+        .compute("src/fluid.comp.kn")
+        .targets("spirv")
+        .artifact_root(".kain/out/gpu")
+        .requires("check-llvm")
+
+    let exe = native_executable("fluid-sim-exe")
+        .project(app)
+        .output("$blade/fluid_sim.exe")
+        .requires(check)
+        .requires(gpu)
+        .inputs(sources)
+
+    return build_graph(app)
+        .sources(sources)
+        .tasks(check, gpu, exe)
