@@ -91,23 +91,19 @@ export default function (pi: ExtensionAPI) {
           // LIST — Show every tool grouped by domain
           // ============================================================
           case "list": {
-            const lines = ["# 🧰 Kain Agent Tool Arsenal", ""];
+            const totalActions = domains.reduce((s: number, d: any) => s + Object.keys(d.actions ?? {}).length, 0);
+            const lines = [`═ KAIN ARSENAL (${domains.length} tools, ${totalActions} actions) ─${Array(40).fill("─").join("")}`];
             for (const domain of domains) {
-              const actions = Object.entries(domain.actions ?? {}) as [string, any][];
-              lines.push(
-                `## \`${domain.id}\``,
-                `> ${domain.description}`,
-                "",
-                `**File:** \`${domain.file}\``,
-                `**Actions (${actions.length}):**`,
-                "",
-              );
-              for (const [actionId, action] of actions) {
-                lines.push(`- **\`${actionId}\`** — ${action.description}`);
-              }
-              lines.push("");
+              const actionIds = Object.keys(domain.actions ?? {});
+              const count = actionIds.length;
+              const pad = count < 10 ? " " : "";
+              const actionList = actionIds.map((id: string) => {
+                const sig = domain.actions[id]?.sig;
+                return sig ? `${id}${sig}` : id;
+              });
+              lines.push(` ${domain.id.padEnd(15)} ${pad}(${count})  → ${actionList.join(" | ")}`);
             }
-            return { content: [{ type: "text", text: lines.join("\n") }], details: {} };
+            return { content: [{ type: "text", text: lines.join("\n") }], details: { domains: domains.map((d: any) => ({ id: d.id, actions: Object.keys(d.actions ?? {}) })) } };
           }
 
           // ============================================================

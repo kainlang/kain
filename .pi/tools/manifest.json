@@ -15,13 +15,13 @@
         "For semantic code search over real Kain examples, use the kain_examples tool instead."
       ],
       "actions": {
-        "list_modules":     { "label": "List Modules",     "description": "List all Kain stdlib modules with public/private symbol counts and source paths." },
-        "get_symbols":      { "label": "Get Module Symbols", "description": "List all symbols defined in a specific Kain stdlib module (e.g. 'math', 'os')." },
-        "search_symbols":   { "label": "Search Symbols",   "description": "Fuzzy-search Kain stdlib symbols by name, signature, or docs across the entire standard library or within a specific module." },
-        "get_details":      { "label": "Get Symbol Details", "description": "Get full documentation, signature, kind, and location for any stdlib symbol." },
-        "get_source":       { "label": "Get Symbol Source", "description": "Read the actual Kain source code implementation of any stdlib function, struct, or actor." },
-        "list_keywords":    { "label": "List Keywords",    "description": "Full Kain language keyword reference — compiler-owned semantic constructs (world, entangle, teleport, etc.) plus standard keywords." },
-        "get_keyword":      { "label": "Get Keyword Help", "description": "Detailed help for any specific Kain keyword: syntax models, descriptions, usage examples." }
+        "list_modules":     { "sig": "", "label": "List Modules",     "description": "List all Kain stdlib modules with public/private symbol counts and source paths." },
+        "get_symbols":      { "sig": "(mod)", "label": "Get Module Symbols", "description": "List all symbols defined in a specific Kain stdlib module (e.g. 'math', 'os')." },
+        "search_symbols":   { "sig": "(query)", "label": "Search Symbols",   "description": "Fuzzy-search Kain stdlib symbols by name, signature, or docs across the entire standard library or within a specific module." },
+        "get_details":      { "sig": "(mod,sym)", "label": "Get Symbol Details", "description": "Get full documentation, signature, kind, and location for any stdlib symbol." },
+        "get_source":       { "sig": "(mod,sym)", "label": "Get Symbol Source", "description": "Read the actual Kain source code implementation of any stdlib function, struct, or actor." },
+        "list_keywords":    { "sig": "", "label": "List Keywords",    "description": "Full Kain language keyword reference — compiler-owned semantic constructs (world, entangle, teleport, etc.) plus standard keywords." },
+        "get_keyword":      { "sig": "(kw)", "label": "Get Keyword Help", "description": "Detailed help for any specific Kain keyword: syntax models, descriptions, usage examples." }
       }
     },
     {
@@ -36,7 +36,7 @@
         "Be specific and descriptive in your query — 'actor supervision mailbox' works better than 'actor example'."
       ],
       "actions": {
-        "search":  { "label": "Search",  "description": "Semantically search function-level Kain code chunks using PyTorch/CUDA. Returns ranked results with file paths, line numbers, and code excerpts." }
+        "search":  { "sig": "(query)", "label": "Search",  "description": "Semantically search function-level Kain code chunks using PyTorch/CUDA. Returns ranked results with file paths, line numbers, and code excerpts." }
       }
     },
     {
@@ -50,12 +50,12 @@
         "Use kain_bazel for all Bazel operations: building the compiler, running smoke tests, managing server lifecycle, syncing runtime builds, and checking binary staleness."
       ],
       "actions": {
-        "build":        { "label": "Build",       "description": "Build any Bazel target. Common presets: //:kain (compiler CLI), //:kn (launcher), //runtime:all (native runtime), //:kain --config=release." },
-        "test":         { "label": "Test",        "description": "Run any Bazel test target. Common: //:developer_smoke_tests, //:crate_tests, //:key_crate_tests, //runtime:native_runtime_tests." },
-        "server":       { "label": "Server",      "description": "Manage the Bazel server lifecycle: status (check if alive), start (warm up), stop (shutdown), restart (cycle). A cold server adds 30-90s startup cost." },
-        "sync":         { "label": "Sync",        "description": "Check or regenerate native runtime Bazel build files. 'check' validates no drift; 'sync' regenerates from runtime/native manifests." },
-        "binary_age":   { "label": "Binary Age",  "description": "Check when the kain/kn binaries were last built and compare against the latest source commit. Detects stale binaries that need rebuilding." },
-        "freshness":    { "label": "Freshness",   "description": "Full repo freshness audit: Bazel server status + binary age vs source + native runtime sync status + last git commit. Single go/no-go signal." }
+        "build":        { "sig": "(target)", "label": "Build",       "description": "Build any Bazel target. Common presets: //:kain (compiler CLI), //:kn (launcher), //runtime:all (native runtime), //:kain --config=release." },
+        "test":         { "sig": "(target)", "label": "Test",        "description": "Run any Bazel test target. Common: //:developer_smoke_tests, //:crate_tests, //:key_crate_tests, //runtime:native_runtime_tests." },
+        "server":       { "sig": "(action)", "label": "Server",      "description": "Manage the Bazel server lifecycle: status (check if alive), start (warm up), stop (shutdown), restart (cycle). A cold server adds 30-90s startup cost." },
+        "sync":         { "sig": "(mode?)", "label": "Sync",        "description": "Check or regenerate native runtime Bazel build files. 'check' validates no drift; 'sync' regenerates from runtime/native manifests." },
+        "binary_age":   { "sig": "(bin?)", "label": "Binary Age",  "description": "Check when the kain/kn binaries were last built and compare against the latest source commit. Detects stale binaries that need rebuilding." },
+        "freshness":    { "sig": "", "label": "Freshness",   "description": "Full repo freshness audit: Bazel server status + binary age vs source + native runtime sync status + last git commit. Single go/no-go signal." }
       }
     },
     {
@@ -69,12 +69,12 @@
         "Use kain_lang when you need to compile Kain files to native code, run blades, check syntax/type correctness, or generate GPU shader artifacts."
       ],
       "actions": {
-        "check":        { "label": "Check",       "description": "Run the Kain typechecker and semantic analysis on a file or directory without producing output." },
-        "build":        { "label": "Build",       "description": "Compile a Kain file or project to a target backend: llvm, rust, cpp, wasm, spirv, cuda." },
-        "run":          { "label": "Run",         "description": "Compile and execute a Kain file or project." },
-        "test":         { "label": "Test",        "description": "Run Kain-language test fixtures and inline #[test] blocks." },
-        "amalgamate":   { "label": "Amalgamate",  "description": "Amalgamate an entire blade workspace or folder into a single self-contained .kn file." },
-        "gpu_artifacts":{ "label": "GPU Artifacts","description": "Compile a shader .kn file to SPIR-V, PTX, or other GPU binary artifacts." }
+        "check":        { "sig": "(target?)", "label": "Check",       "description": "Run the Kain typechecker and semantic analysis on a file or directory without producing output." },
+        "build":        { "sig": "(target?)", "label": "Build",       "description": "Compile a Kain file or project to a target backend: llvm, rust, cpp, wasm, spirv, cuda." },
+        "run":          { "sig": "(target?)", "label": "Run",         "description": "Compile and execute a Kain file or project." },
+        "test":         { "sig": "(target?)", "label": "Test",        "description": "Run Kain-language test fixtures and inline #[test] blocks." },
+        "amalgamate":   { "sig": "(target?)", "label": "Amalgamate",  "description": "Amalgamate an entire blade workspace or folder into a single self-contained .kn file." },
+        "gpu_artifacts":{ "sig": "(target?)", "label": "GPU Artifacts","description": "Compile a shader .kn file to SPIR-V, PTX, or other GPU binary artifacts." }
       }
     },
     {
@@ -89,9 +89,9 @@
         "Run tools action:'list' at the start of any session to see the full tool arsenal with descriptions."
       ],
       "actions": {
-        "list":         { "label": "List Tools",     "description": "List every available tool grouped by domain, with full descriptions and action breakdowns." },
-        "search":       { "label": "Search Tools",   "description": "Search for tools by keyword, description, or task. Returns matching tools from all domains with relevance scoring." },
-        "which":        { "label": "Which Tool",     "description": "Given a task description, recommends the optimal tool + action to use. The brain's primary reasoning interface." }
+        "list":         { "sig": "", "label": "List Tools",     "description": "List every available tool grouped by domain, with full descriptions and action breakdowns." },
+        "search":       { "sig": "(query)", "label": "Search Tools",   "description": "Search for tools by keyword, description, or task. Returns matching tools from all domains with relevance scoring." },
+        "which":        { "sig": "(task)", "label": "Which Tool",     "description": "Given a task description, recommends the optimal tool + action to use. The brain's primary reasoning interface." }
       }
     }
   ]
