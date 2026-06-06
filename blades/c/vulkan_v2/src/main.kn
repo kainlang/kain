@@ -225,7 +225,10 @@ fn main() -> Int with Unsafe, GPU:
             let msg_type = mem_load(ptr_offset(msg_buf, 1, "Int"), "Int") & 4294967295
             if frame == 0:
                 println("Msg " + str(msg_count) + " type: " + str(msg_type))
-            if msg_type == 512: // WM_MOUSEMOVE
+            if msg_type == 16: // WM_CLOSE
+                println("WM_CLOSE received. Destroying window...")
+                let _ = my_DestroyWindow(hwnd)
+            elif msg_type == 512: // WM_MOUSEMOVE
                 let wParam_val = mem_load(ptr_offset(msg_buf, 2, "Int"), "Int")
                 if (wParam_val & 1) != 0: // MK_LBUTTON is down
                     let lParam_val = mem_load(ptr_offset(msg_buf, 3, "Int"), "Int")
