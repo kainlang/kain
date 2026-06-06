@@ -40,6 +40,24 @@
       }
     },
     {
+      "id": "repo",
+      "name": "Repo Map",
+      "file": "repo-tools.ts",
+      "label": "Repo",
+      "description": "Navigate the Kain repo itself — topology, crate layout, runtime files, stdlib modules, and blade workspaces. Auto-generated from the filesystem so the map is always current.",
+      "promptSnippet": "Navigate and understand the Kain repo layout",
+      "promptGuidelines": [
+        "Use repo to understand the repo's physical layout — what crates exist, what runtime C files are where, and how the stdlib is organized.",
+        "Run 'repo map' at the start of any session to orient yourself.",
+        "Run 'repo update' when you add new crates or runtime files to regenerate the maps."
+      ],
+      "actions": {
+        "map":    { "sig": "(target?)", "label": "Map",    "description": "Show repo topology. Default: full view. Target: 'crates', 'runtime', 'stdlib', 'blades'." },
+        "update": { "sig": "", "label": "Update", "description": "Regenerate all MAP.md files + generated/repo_map.json from disk." },
+        "status": { "sig": "", "label": "Status", "description": "Quick repo snapshot: counts, last generated, how many descriptions are filled." }
+      }
+    },
+    {
       "id": "kain_bazel",
       "name": "Kain Bazel",
       "file": "kain-bazel-tools.ts",
@@ -75,6 +93,26 @@
         "test":         { "sig": "(target?)", "label": "Test",        "description": "Run Kain-language test fixtures and inline #[test] blocks." },
         "amalgamate":   { "sig": "(target?)", "label": "Amalgamate",  "description": "Amalgamate an entire blade workspace or folder into a single self-contained .kn file." },
         "gpu_artifacts":{ "sig": "(target?)", "label": "GPU Artifacts","description": "Compile a shader .kn file to SPIR-V, PTX, or other GPU binary artifacts." }
+      }
+    },
+    {
+      "id": "rg",
+      "name": "Ripgrep",
+      "file": "rg-tool.ts",
+      "label": "Rg",
+      "description": "God-mode code search: smart defaults with repo-aware scoping (stdlib, crates, runtime, blades, benchmark, smoketest, selfhost, agents, guides), five output modes (smart/files/count/content/json), automatic area distribution stats, deduplication, and follow-up refinement suggestions. Wraps ripgrep for maximum precision with minimal context waste.",
+      "promptSnippet": "Search file contents instantly with ripgrep (smart defaults, area-aware, no context nukes)",
+      "promptGuidelines": [
+        "Use rg when you need to find all references, definitions, or usages of a symbol, function, or pattern in the codebase.",
+        "Default mode is 'smart' — gives you stats, area breakdown, top matches, and refinement suggestions without flooding context.",
+        "Pass absolute paths directly: path:'X:/crates/ownership/' works, no need to relativize. Relative paths are joined to repo root.",
+        "Use scope presets for fast repo-aware search: 'stdlib' (stdlib/*.kn), 'crates' (crates/*.rs), 'runtime' (runtime/*.{c,h}), 'blades' (blades/*.kn), 'benchmark', 'smoketest'.",
+        "Use mode:'files' to just list matching files, mode:'count' for per-file hit counts sorted by frequency, mode:'content' for full match display with context.",
+        "Specify glob to narrow results: '*.kn' for Kain files, '*.rs' for Rust files, '*.ts' for TypeScript.",
+        "Use ignore-case:true for case-insensitive identifier search, fixed:true for literal strings with special regex chars."
+      ],
+      "actions": {
+        "search":  { "sig": "(pattern)", "label": "Search",  "description": "God-mode search with area-aware scoping and 5 output modes. Key params: pattern, scope (stdlib/crates/runtime/blades/benchmark/smoketest/selfhost/agents/guides), mode (smart/files/count/content), glob, ignore-case, fixed, context, max, json." }
       }
     },
     {

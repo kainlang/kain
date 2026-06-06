@@ -181,6 +181,14 @@ export default function (pi: ExtensionAPI) {
               { keywords: ["kain check", "typecheck", "kain build", "llvm", "compile to native", "kain run", "execute"], domain: "kain_lang", action: "build", rationale: "The Kain lang tool handles compilation, checking, and running .kn files." },
               { keywords: ["amalgamate", "single file", "bundle"], domain: "kain_lang", action: "amalgamate", rationale: "Combine blade workspaces into single files." },
               { keywords: ["shader", "spirv", "ptx", "gpu", "compute"], domain: "kain_lang", action: "gpu_artifacts", rationale: "Compile GPU shaders to SPIR-V, PTX, etc." },
+              { keywords: ["repo map", "repo layout", "crate layout", "what crates", "how is the repo", "codebase structure", "topology", "repo structure"], domain: "repo", action: "map", rationale: "The repo tool shows the full repository topology and file layout." },
+              { keywords: ["repo update", "regenerate", "map update", "update maps"], domain: "repo", action: "update", rationale: "Regenerates all MAP.md files and JSON from the current filesystem." },
+              { keywords: ["repo status", "repo snapshot", "how many crates", "count crates", "how many files"], domain: "repo", action: "status", rationale: "Quick summary of repo scale and description coverage." },
+              { keywords: ["search", "grep", "ripgrep", "find in files", "find references", "where is", "find usages", "find definition", "code search", "rg"], domain: "rg", action: "search", rationale: "God-mode ripgrep with area-aware scoping, 5 output modes, and smart summarization. Never context-nukes." },
+              { keywords: ["search stdlib", "find in standard library", "search kain stdlib for", "where in stdlib"], domain: "rg", action: "search", rationale: "Use rg with scope:'stdlib' to search only the Kain standard library .kn files." },
+              { keywords: ["search crates", "find in rust crates", "search compiler"], domain: "rg", action: "search", rationale: "Use rg with scope:'crates' to search only the Rust compiler source." },
+              { keywords: ["search runtime", "find in c runtime", "native c code"], domain: "rg", action: "search", rationale: "Use rg with scope:'runtime' to search only the native C runtime." },
+              { keywords: ["find all files", "list files containing", "which files have"], domain: "rg", action: "search", rationale: "Use rg with mode:'files' for a compact file listing, or mode:'count' for per-file hit counts." },
             ];
 
             for (const route of routes) {
