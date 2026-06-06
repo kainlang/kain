@@ -10,8 +10,8 @@ shader compute FluidStep(id: UVec3) -> Void workgroup(8, 8, 1):
         let compute = (
             [32, 32, 1],
             [
-                ("prev", "f32", ["grid"], "input", "kain.shared.buffer"),
-                ("next_", "f32", ["grid"], "output", "kain.shared.buffer"),
+                ("prev", "f32", ["196608"], "input", "kain.shared.buffer"),
+                ("next_", "f32", ["196608"], "output", "kain.shared.buffer"),
             ],
             [],
         )

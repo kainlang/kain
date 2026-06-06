@@ -95,7 +95,9 @@ function activate(context) {
         ),
       },
     },
-    transport: TransportKind.stdio,
+    // TransportKind.pipe = stdio without auto-appending --stdio flag.
+    // kain.exe doesn't accept --stdio; the LSP just reads/writes stdin/stdout.
+    transport: TransportKind.pipe,
   };
 
   const clientOptions = {

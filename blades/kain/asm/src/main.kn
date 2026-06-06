@@ -11,31 +11,38 @@ fn asm_fill_dword(ptr: Int, count: Int, value: Int) with Unsafe:
         memory = true, intel = true)
 
 fn asm_rdtsc(scratch: ptr<Int>) with Unsafe:
-    asm("rdtsc\nmov [($0)], eax",
+    asm("rdtsc\nmov [rdi], eax",
         ptr_to_int(scratch),
         constraints = "{rdi}",
         clobbers = "rax,rdx,rdi",
         memory = true, intel = true)
 
 fn asm_pixel_set(byte_ptr: Int, byte_offset: Int, color: Int) with Unsafe:
-    asm("mov dword ptr [($0)+($1)], ($2)",
+    asm("mov dword ptr [rdi+rcx], eax",
         byte_ptr, byte_offset, color & MASK_32,
         constraints = "{rdi},{rcx},{rax}",
         clobbers = "rdi,rcx,rax",
         memory = true, intel = true)
 
 fn verify_asm() -> Int with Unsafe:
-    let test_buf: ptr<Int> = alloc_zeroed(64, "Int")
-    asm_fill_dword(ptr_to_int(test_buf), 16, 3735928559 & MASK_32)
-    let first: Int = mem_load(test_buf, "Int")
-    if first != (3735928559 & MASK_32):
+    // Test 1: rep stosd fills dwords. mem_load reads 8 bytes (two dwords).
+    // We verify lower 32 bits match the fill pattern.
+    let test_buf: ptr<Int> = alloc_zeroed(68, "Int")
+    let pattern: Int = 3735928559 & MASK_32
+    asm_fill_dword(ptr_to_int(test_buf), 16, pattern)
+    let first64: Int = mem_load(test_buf, "Int")
+    if (first64 & MASK_32) != pattern:
         decay test_buf
         return -1
+    // Verify dword at offset 60 (byte offset 60 = 7.5 Ints, use slot 7 = byte 56)
+    // slot7 covers bytes 56-63 = dwords 14-15. dword15 is upper 32 bits of slot7.
     let slot7: Int = mem_load(ptr_offset(test_buf, 7, "Int"), "Int")
     let dword15: Int = (slot7 >> 32) & MASK_32
-    if dword15 != (3735928559 & MASK_32):
+    if dword15 != pattern:
         decay test_buf
         return -2
+
+    // Test 2: rdtsc returns a non-zero CPU cycle count
     let ts: ptr<Int> = alloc_zeroed(4, "Int")
     asm_rdtsc(ts)
     let tsc: Int = volatile_load(ts, "Int")
@@ -43,6 +50,9 @@ fn verify_asm() -> Int with Unsafe:
         decay test_buf
         decay ts
         return -3
+
+    // Test 3: pixel set writes a 32-bit value
+    // Write 4278255360 (0xFF00FF00 = green) at byte offset 0
     asm_pixel_set(ptr_to_int(test_buf), 0, 4278255360)
     let gc: Int = mem_load(test_buf, "Int")
     let lo: Int = gc & MASK_32
@@ -50,6 +60,7 @@ fn verify_asm() -> Int with Unsafe:
         decay test_buf
         decay ts
         return -4
+
     decay test_buf
     decay ts
     return 0
@@ -101,18 +112,13 @@ fn main() -> Int with Unsafe:
         decay scratch
         return -12
 
-    // 5. Create window
-    let hinst = win_GetModuleHandleA(0)
-    let style: Int = 13565952 | 268435456
-    let hwnd = win_CreateWindowExA(0, "STATIC", "ASM SPACE INVADERS", style, 100, 100, 640, 480, 0, 0, hinst, 0)
+    // 5. Use desktop window for rendering (like component_minimal)
+    let hwnd = win_GetDesktopWindow()
     if hwnd == 0:
         decay fb
         decay scratch
         decay bmi
         return -13
-
-    let _ = win_ShowWindow(hwnd, 5)
-    let _ = win_UpdateWindow(hwnd)
 
     // 6. Message struct (MSG on x64 = ~40 bytes)
     let msg: ptr<Int> = alloc_zeroed(6, "Int")
