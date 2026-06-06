@@ -2,10 +2,12 @@
 name: lang-c-abi
 description: >-
   Use when authoring, explaining, reviewing, or repairing Kain-side native and
-  foreign ABI boundaries: canonical natural `include ... as ...` C header imports,
-  angle-bracket system-header imports such as `include <stdio.h> as cstdio`,
-  companion `.c` source discovery, legacy/explicit `use c::...` imports,
-  optional explicit blade/package bridge
+  foreign ABI boundaries. **Libclang-powered: `include <windows.h> as win` extracts
+  605 functions from the real Windows SDK; `include <vulkan/vulkan.h> as vk` extracts
+  755 Vulkan functions. Zero shim headers needed for complex vendor headers.**
+  Covers canonical natural `include ... as ...` C header imports,
+  angle-bracket system-header imports, companion `.c` source discovery,
+  legacy/explicit `use c::...` imports, optional blade/package bridge
   metadata, `use rust::...`, Rust crate FFI, host JSON bridges, shared
   buffers/images/tensors/geometry, OS or vendor DLL contracts, handles,
   callbacks, strings, buffers, ABI/lifetime/status design, and app-level
@@ -36,6 +38,30 @@ dynamic loaders, syscalls, native handles, bridge crates, and unavoidable machin
 
 If the boundary also includes first-class Python imports, local `.py` helpers,
 or `std::python` materialization, co-read `lang-python`.
+
+## The Libclang Era (2026-06-05+)
+
+**C FFI is now near-zero-ceremony for the vast majority of headers.**
+
+The compiler embeds libclang (the real Clang C frontend) via `clang-sys`. This means:
+
+- `include <windows.h> as win` → 605 callable Win32 functions from the REAL Windows SDK
+- `include <vulkan/vulkan.h> as vk` → 755 callable Vulkan functions from the REAL Vulkan SDK
+- Any third-party C header with clean types (no SAL annotations) → full extraction
+
+**Extraction priority chain:** libclang → lang_c AST → regex fallback
+
+**What's automatic:** preprocessing, macro expansion, type resolution, struct/enum/typedef
+collection, function parameter extraction, callback detection, and Kain keyword sanitization.
+
+**What's NOT automatic yet:**
+- Tagged-int leakage for `void*`/handle params (codegen issue — 0 encodes as 1)
+- Struct initialization (no `&` address-of — use `alloc_zeroed` + `mem_store`)
+- Windows SAL annotation stripping (`_Check_return_opt_`, `_ACRTIMP` confuse the ABI classifier)
+
+**The old "write a shim header" approach is now an anti-pattern.** Only reach for shim
+headers when libclang is unavailable or when you're working around a specific codegen
+limitation (e.g., `uintptr_t` for handle params to dodge tagged-int leakage).
 
 ## Trigger Shape
 
@@ -75,7 +101,8 @@ Kain has several layers that make native interop more than a dumb foreign call:
 - Runtime-owned headers under `runtime/native/include` can resolve automatically. Do not require manifest ceremony for those.
 - Blade/package-owned bridges can declare explicit metadata when they own headers, sources, objects, static libs, bitcode, or shared libs.
 - `kain-foreign-abi` normalizes scalar, pointer, ownership, callback, aggregate, and calling-convention shape.
-- `kain-c-ffi` extracts headers, classifies callable/stubbed/unsupported symbols, emits Kain extern modules, reports, manifests, and bridge crates.
+- `kain-c-ffi` extracts headers via a **libclang-first priority chain** (libclang → lang_c AST → regex fallback). libclang is the real Clang frontend — it parses ANY C header with full preprocessing, macro expansion, and type resolution. This means complex headers like `<windows.h>` (605 functions), `<vulkan/vulkan.h>` (755 functions), and arbitrary vendor SDKs work without shim headers or manual bridge code.
+- The extraction chain: libclang uses the system's Clang installation (via `clang-sys`) for complete C parsing. If unavailable, falls back to `lang_c` (pure-Rust C parser). Final fallback is regex-based prototype matching.
 - `stdlib/platform.kn` gives Kain a handle-oriented dynamic library surface for explicit OS loader work.
 - `stdlib/interop.kn` and the host bridge substrate expose shared-buffer/image/tensor/geometry vocabulary for cross-language exchange.
 - `runtime/native` keeps ABI/service headers in C so Kain-authored code can bind to stable machine contracts.
@@ -204,24 +231,41 @@ crashes.
 
 ## System Header Include Pattern
 
-Use this when the header already belongs to a known system family and the real
-pain is ceremony, not package discovery:
+Use this when the header belongs to a known system family. **Libclang parses the REAL
+SDK header** — no shim, no subset, no hand-holding:
 
 ```kn
-include <stdio.h> as cstdio
-include <math.h> as cmath
-include <sys/mman.h> as posix_mman
-include <vulkan/vulkan.h> as vk
+include <windows.h> as win      # 605 functions from real Windows SDK
+include <vulkan/vulkan.h> as vk # 755 functions from real Vulkan SDK
+include <stdio.h> as cstdio     # C runtime (note: SAL annotations on Windows
+                                # may block some functions — see below)
+include <math.h> as cmath       # C runtime math
+include <sys/mman.h> as posix   # POSIX (Linux/macOS)
 ```
 
 Current repo truth:
 
-- Angle-bracket includes resolve through deterministic roots such as `KAIN_C_FFI_SYSTEM_INCLUDE_ROOTS`, `INCLUDE`, Windows SDK roots, POSIX include roots on Unix hosts, and Vulkan SDK roots instead of scanning the whole machine blindly.
-- The system lane is data-driven through `crates/c-ffi/system_headers.toml` plus `crates/c-ffi/src/system_registry.rs`; add families, headers, SDK env vars, library names, and platform policies there before adding new resolver branches.
-- The registry currently covers portable C runtime headers, a compiler-owned C runtime math subset for `math.h`, POSIX headers on Linux/macOS, Windows SDK headers on Windows, and Vulkan SDK headers through the Vulkan loader subset.
-- These imports are currently native-link oriented. They are ideal for LLVM/native packaging; live interpreter/test bridge loading still needs a real dynamic-library ownership story for the imported family.
-- Compiler-owned subset headers are intentional when hostile platform headers are too macro-heavy for the current extractor. `math.h` currently routes through `runtime/native/include/c_runtime_math_subset.h`; Vulkan routes through `runtime/native/include/vulkan_loader_subset.h` so loader handles and proc-address returns stay scalar-safe on LLVM (`vk_GetInstanceProcAddr(0, "...") -> Int`).
-- If the system family is unknown or the link policy is ambiguous, use explicit `[c_ffi]` metadata or a local C wrapper header instead of pretending the header is self-describing.
+- **libclang is the first-priority extractor.** `include <vulkan/vulkan.h> as vk` parses
+  the real `F:\Scoop\apps\vulkan\current\Include\vulkan\vulkan.h` and extracts 755
+  callable Vulkan functions with 0 unsupported. No shim needed.
+- Angle-bracket includes resolve through deterministic SDK/env roots declared in
+  `crates/c-ffi/system_headers.toml` plus `crates/c-ffi/src/system_registry.rs`.
+- The resolution layer now tries the **real SDK header first**, falling back to
+  compiler-owned shim headers only when the real header can't be found.
+- Platform-specific preprocessor defines (`_WIN32`/`WINVER` for Windows SDK,
+  `_GNU_SOURCE`/`__linux__` for Linux) are injected by the resolution layer via
+  `system_registry::system_default_defines()` — NOT hardcoded in the extractor.
+- C parameter names that collide with Kain reserved keywords (`sampler`, `input`,
+  `type`, `world`, etc.) are automatically sanitized by appending `_`.
+- These imports are native-link oriented (LLVM/native packaging). Live interpreter/
+  test bridge loading needs a real dynamic-library ownership story for the family.
+- **Known gap:** Windows SDK headers like `<stdio.h>` use SAL annotations
+  (`_Check_return_opt_`, `_ACRTIMP`, `__cdecl`) that the foreign ABI classifier
+  doesn't strip yet. Most functions show as `[unsupported]` with "by-value C typedef
+  ... not callable until layout metadata is available". This affects Microsoft's
+  CRT headers specifically — Vulkan, POSIX, and most third-party headers are clean.
+- If the system family is unknown or the link policy is ambiguous, use explicit
+  `[c_ffi]` metadata or a local C wrapper header.
 
 When a natural include exposes a raw C string result such as `const char *`,
 the generated extern surface should carry `@c_string_return` on both the
@@ -631,10 +675,11 @@ surface actually owns it. Use `use c::...` for C ABI calls.
 
 Use these when you need implementation truth:
 
-- `crates/c-ffi/system_headers.toml` and `crates/c-ffi/src/system_registry.rs`: registry-backed angle-bracket system header families, SDK/env roots, shim headers, per-target link policy, and package discovery metadata.
-- `crates/c-ffi/src/lib.rs`: canonical `include ... as ...` detection, `use c::` detection, resolution order, automatic runtime-owned headers, registry-backed system headers, cache, bridge loading, native link inputs.
+- `crates/c-ffi/src/libclang_extract.rs`: **libclang-backed C header extractor.** Uses `clang-sys` to parse C headers with full preprocessing, macro expansion, and type resolution. Entry point: `extract_binding_bundle_libclang()`. Type mapping: `map_type_to_bridge(CXType) -> BridgeType`. Also: `sanitize_identifier()` for Kain keyword collision avoidance.
+- `crates/c-ffi/system_headers.toml` and `crates/c-ffi/src/system_registry.rs`: registry-backed angle-bracket system header families, SDK/env roots, per-target link policy, and `system_default_defines()` for cross-platform preprocessor defines.
+- `crates/c-ffi/src/lib.rs`: canonical `include ... as ...` detection, `use c::` detection, resolution order (real header → shim fallback), automatic runtime-owned headers, registry-backed system headers, cache, bridge loading, native link inputs.
 - `crates/c-ffi/src/config.rs`: `[c_ffi]`, library metadata, and interop tiers.
-- `crates/c-ffi/src/extract.rs`: header parsing, regex fallback, callable/stubbed report entries, callback and named-type treatment.
+- `crates/c-ffi/src/extract.rs`: extraction priority chain (libclang → lang_c AST → regex fallback), callable/stubbed report entries, callback and named-type treatment.
 - `crates/c-ffi/src/generate.rs`: generated `.kn` module, bridge crate, binding reports, packaged bridge manifests, string and byte-buffer marshaling.
 - `crates/c-ffi/src/platform.rs`: target locks, generated platform modules, and package discovery metadata.
 - `crates/foreign-abi/src/lib.rs`: normalized ABI type graph, scalar table, pointer direction/ownership policy, callback metadata.
@@ -671,9 +716,9 @@ materialization helpers.
 For authored native interop:
 
 1. `rg` the import and bridge metadata.
-2. Read the C header directly; if it is too macro-heavy or complex, write a smaller C wrapper header rather than importing the full vendor dump.
-3. Inspect any existing generated report (`.kain/reports/*.json`) for callable/stubbed/unsupported entries.
-4. Run `kain check` on the Kain entry.
+2. **Trust libclang.** Complex vendor headers (windows.h, vulkan.h, cuda.h) are parsed by the real Clang frontend. You do NOT need to write a smaller wrapper header.
+3. Check the generated report (`.kain/cache/c_ffi/*/{name}_report.txt`) for callable/stubbed/unsupported entries. If most symbols are `[unsupported]` with "by-value C typedef" errors, the header likely uses SAL annotations or complex typedef chains the foreign ABI classifier doesn't handle yet.
+4. Run `kain build --target llvm` (not `kain check`) for native-link C ABI tests.
 5. Run the smallest smoke blade or file.
 6. Run the package/benchmark/attrition lane only when the change claims package health, performance, or long-horizon runtime cleanliness.
 
@@ -704,6 +749,7 @@ use `lang-python` for that half instead of jamming both models into one skill.
 
 - Requiring `KAIN.toml` for runtime-owned `use c::...`.
 - Teaching `use c::...` or deprecated `usec::...` as the default path for new local C wrappers when `include header.h as alias` is the canonical shape.
+- **Writing a shim header when libclang can parse the real header.** If `include <vulkan/vulkan.h> as vk` works (755 functions), do not hand-write a 5-function subset. The shim-headers in the registry exist as fallbacks for systems without libclang — not as the primary path.
 - Showing a local header import without the companion `.c` source or an explicit already-built library path.
 - Copying a large package bridge as the default shape for a new native package.
 - Calling native functions everywhere instead of writing one Kain facade.
