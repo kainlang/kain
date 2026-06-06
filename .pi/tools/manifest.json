@@ -1,0 +1,83 @@
+{
+  "version": 2,
+  "schema": "https://kain.dev/pi-tools-manifest-v2",
+  "note": "Canonical tool registry for the Kain pi agent. Add new domains here, then implement in the corresponding .ts file under .pi/extensions/.",
+  "domains": [
+    {
+      "id": "kain_stdlib",
+      "name": "Kain Standard Library",
+      "file": "kain-tools.ts",
+      "label": "Kain Stdlib",
+      "description": "Query Kain's complete standard library: modules, symbols, signatures, docs, source code, keyword reference, and semantic code search.",
+      "promptSnippet": "Query Kain stdlib modules, symbols, docs, keywords, and examples",
+      "promptGuidelines": [
+        "Use kain_stdlib for all Kain standard library lookups — finding symbols, checking function signatures, reading source, looking up language keywords, and semantically searching for code examples."
+      ],
+      "actions": {
+        "list_modules":     { "label": "List Modules",     "description": "List all Kain stdlib modules with public/private symbol counts and source paths." },
+        "get_symbols":      { "label": "Get Module Symbols", "description": "List all symbols defined in a specific Kain stdlib module (e.g. 'math', 'os')." },
+        "search_symbols":   { "label": "Search Symbols",   "description": "Fuzzy-search Kain stdlib symbols by name, signature, or docs across the entire standard library or within a specific module." },
+        "get_details":      { "label": "Get Symbol Details", "description": "Get full documentation, signature, kind, and location for any stdlib symbol." },
+        "get_source":       { "label": "Get Symbol Source", "description": "Read the actual Kain source code implementation of any stdlib function, struct, or actor." },
+        "list_keywords":    { "label": "List Keywords",    "description": "Full Kain language keyword reference — compiler-owned semantic constructs (world, entangle, teleport, etc.) plus standard keywords." },
+        "get_keyword":      { "label": "Get Keyword Help", "description": "Detailed help for any specific Kain keyword: syntax models, descriptions, usage examples." },
+        "search_examples":  { "label": "Search Examples",  "description": "Semantically search ~11,500 function-level Kain code chunks using PyTorch/CUDA. Returns real source definitions from benchmarks, blades, and stdlib." }
+      }
+    },
+    {
+      "id": "kain_bazel",
+      "name": "Kain Bazel",
+      "file": "kain-bazel-tools.ts",
+      "label": "Kain Bazel",
+      "description": "Build, test, and manage the Kain repo with Bazel — compile targets, run test suites, manage the Bazel server lifecycle, sync native runtime build files, and check binary freshness.",
+      "promptSnippet": "Build, test, and manage the Kain Bazel build system",
+      "promptGuidelines": [
+        "Use kain_bazel for all Bazel operations: building the compiler, running smoke tests, managing server lifecycle, syncing runtime builds, and checking binary staleness."
+      ],
+      "actions": {
+        "build":        { "label": "Build",       "description": "Build any Bazel target. Common presets: //:kain (compiler CLI), //:kn (launcher), //runtime:all (native runtime), //:kain --config=release." },
+        "test":         { "label": "Test",        "description": "Run any Bazel test target. Common: //:developer_smoke_tests, //:crate_tests, //:key_crate_tests, //runtime:native_runtime_tests." },
+        "server":       { "label": "Server",      "description": "Manage the Bazel server lifecycle: status (check if alive), start (warm up), stop (shutdown), restart (cycle). A cold server adds 30-90s startup cost." },
+        "sync":         { "label": "Sync",        "description": "Check or regenerate native runtime Bazel build files. 'check' validates no drift; 'sync' regenerates from runtime/native manifests." },
+        "binary_age":   { "label": "Binary Age",  "description": "Check when the kain/kn binaries were last built and compare against the latest source commit. Detects stale binaries that need rebuilding." },
+        "freshness":    { "label": "Freshness",   "description": "Full repo freshness audit: Bazel server status + binary age vs source + native runtime sync status + last git commit. Single go/no-go signal." }
+      }
+    },
+    {
+      "id": "kain_lang",
+      "name": "Kain Language",
+      "file": "kain-lang-tools.ts",
+      "label": "Kain Lang",
+      "description": "Compile, check, run, and test Kain source files and projects — LLVM native builds, workspace compilation, smoke tests, and GPU artifact generation.",
+      "promptSnippet": "Compile, check, and run Kain source files and projects",
+      "promptGuidelines": [
+        "Use kain_lang when you need to compile Kain files to native code, run blades, check syntax/type correctness, or generate GPU shader artifacts."
+      ],
+      "actions": {
+        "check":        { "label": "Check",       "description": "Run the Kain typechecker and semantic analysis on a file or directory without producing output." },
+        "build":        { "label": "Build",       "description": "Compile a Kain file or project to a target backend: llvm, rust, cpp, wasm, spirv, cuda." },
+        "run":          { "label": "Run",         "description": "Compile and execute a Kain file or project." },
+        "test":         { "label": "Test",        "description": "Run Kain-language test fixtures and inline #[test] blocks." },
+        "amalgamate":   { "label": "Amalgamate",  "description": "Amalgamate an entire blade workspace or folder into a single self-contained .kn file." },
+        "gpu_artifacts":{ "label": "GPU Artifacts","description": "Compile a shader .kn file to SPIR-V, PTX, or other GPU binary artifacts." }
+      }
+    },
+    {
+      "id": "tools",
+      "name": "Tool Discovery",
+      "file": "tools.ts",
+      "label": "Tools",
+      "description": "Discover, search, and navigate the full pi agent tool arsenal. Lists all available tools with descriptions, recommends the right tool for a task, and helps you understand the tool ecosystem.",
+      "promptSnippet": "Discover and navigate all available agent tools",
+      "promptGuidelines": [
+        "Use tools when you are unsure which tool to use for a given task, want to see what tools exist, or need a quick overview of the tool ecosystem.",
+        "Run tools action:'list' at the start of any session to see the full tool arsenal with descriptions."
+      ],
+      "actions": {
+        "list":         { "label": "List Tools",     "description": "List every available tool grouped by domain, with full descriptions and action breakdowns." },
+        "search":       { "label": "Search Tools",   "description": "Search for tools by keyword, description, or task. Returns matching tools from all domains with relevance scoring." },
+        "which":        { "label": "Which Tool",     "description": "Given a task description, recommends the optimal tool + action to use. The brain's primary reasoning interface." }
+      }
+    }
+  ]
+}
