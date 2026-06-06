@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "note": "Config for tools/repo_map_gen.py. Each area defines a scan + MAP.md + map.json triplet. gitignore handles file/dir exclusion automatically.",
+  "areas": [
+    {
+      "name": "Root",
+      "description": "Top-level repo directories",
+      "scan_path": ".",
+      "scan_mode": "folders",
+      "depth": 1,
+      "exclude": [
+        "$RECYCLE.BIN",
+        "System Volume Information"
+      ],
+      "output_map": "MAP.md",
+      "output_json": "map.json"
+    },
+    {
+      "name": "Crates",
+      "description": "Rust crates in the compiler workspace",
+      "scan_path": "crates",
+      "scan_mode": "folders",
+      "depth": 1,
+      "output_map": "crates/MAP.md",
+      "output_json": "crates/map.json"
+    },
+    {
+      "name": "Runtime Native Source",
+      "description": "C source files in the native runtime",
+      "scan_path": "runtime/native/src",
+      "scan_mode": "files",
+      "depth": 1,
+      "file_extensions": [
+        ".c"
+      ],
+      "output_map": "runtime/native/src/MAP.md",
+      "output_json": "runtime/native/src/map.json"
+    }
+  ]
+}

@@ -1,0 +1,44 @@
+#include .gitignore
+
+# ── Generated / Redundant ────────────────────────────────────────
+stdlib/stdlib.map.json
+stdlib/STDLIB_MAP.llm.md
+generated/
+benchmark/out/
+benchmark/generated/
+
+# ── Foreign-language benchmark code (not Kain) ──────────────────
+# Keep .kn files in benchmark/cases/, discard other-language twins
+benchmark/cases/*/main.cpp
+benchmark/cases/*/main.rs
+benchmark/cases/*/main.js
+benchmark/cases/*/main.py
+benchmark/cases/*/main.zig
+benchmark/cases/*/main.go
+benchmark/cases/*.erl
+benchmark/cases/**/*.erl
+benchmark/cases/*/Cargo.toml
+benchmark/cases/*/Cargo.lock
+
+# ── Peripheral directories ──────────────────────────────────────
+z3/
+attrition/
+unreal/
+reference/
+research/
+library_of_kain/
+ml/
+
+# ── Infrastructure / Tooling ────────────────────────────────────
+mcp/
+packages/
+.agents/
+.pi/
+.kain/
+.omo/
+.cargo/
+
+# ── Temp / Scratch ──────────────────────────────────────────────
+temp/
+tmp/
+scratch/

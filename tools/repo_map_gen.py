@@ -1,0 +1,313 @@
+#!/usr/bin/env python3
+"""
+Kain Repo Map Generator — Config-Driven
+========================================
+Reads `mapconfig.json` at the repo root to discover all map areas.
+No hardcoded paths. Each area defines its own scan behavior.
+
+Config schema (mapconfig.json):
+  version: 1
+  areas: [{
+    name, description, scan_path, scan_mode (folders|files),
+    depth, file_extensions, exclude, output_map, output_json
+  }]
+
+Usage:
+  py -3 tools/repo_map_gen.py          # regenerate
+  py -3 tools/repo_map_gen.py --check  # dry-run
+  py -3 tools/repo_map_gen.py --prune  # remove orphaned desc keys
+"""
+
+import json, os, subprocess, sys
+from datetime import datetime
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+CONFIG_PATH = REPO_ROOT / "mapconfig.json"
+OUTPUT_SUMMARY = REPO_ROOT / "generated" / "repo_map.json"
+
+
+def load_config():
+    if not CONFIG_PATH.exists():
+        print(f"Config not found: {CONFIG_PATH}", file=sys.stderr)
+        sys.exit(1)
+    with open(CONFIG_PATH) as f:
+        return json.load(f).get("areas", [])
+
+
+# ── Scanners ───────────────────────────────────────────────────────────────
+
+def git_ignored(path):
+    """Check if a path is gitignored. Uses relative paths (git expects them)."""
+    try:
+        rel = str(path.relative_to(REPO_ROOT)).replace("\\", "/")
+        # Test the path directly
+        r = subprocess.run(["git", "check-ignore", "-q", rel],
+                          cwd=REPO_ROOT, capture_output=True, timeout=5)
+        if r.returncode == 0: return True
+        # Also test with trailing slash for dir-only patterns like 'temp/*'
+        if path.is_dir():
+            r = subprocess.run(["git", "check-ignore", "-q", rel + "/"],
+                              cwd=REPO_ROOT, capture_output=True, timeout=5)
+            if r.returncode == 0: return True
+        return False
+    except:
+        return False
+
+
+def scan_folders(base, depth, extra_exclude):
+    """List subdirectories, filtered by gitignore + extra_exclude."""
+    extra = set(s.lower() for s in extra_exclude)
+    results = []
+    if depth <= 1:
+        for d in sorted(base.iterdir()):
+            if not d.is_dir(): continue
+            if d.name.lower() in extra: continue
+            # Skip weird Windows mount points (single letter + non-ASCII)
+            if len(d.name) == 2 and d.name[0].upper() == 'F' and ord(d.name[1]) > 127: continue
+            if git_ignored(d): continue
+            results.append({
+                "name": d.name,
+                "path": str(d.relative_to(REPO_ROOT)).replace("\\", "/"),
+            })
+    else:
+        for root, dirs, _ in os.walk(str(base)):
+            rp = Path(root)
+            if len(rp.relative_to(base).parts) > depth: continue
+            for d in sorted(dirs):
+                if d.lower() in extra: continue
+                full = rp / d
+                if git_ignored(full): continue
+                results.append({
+                    "name": d, "path": str(full.relative_to(REPO_ROOT)).replace("\\", "/"),
+                })
+    return results
+
+
+def scan_files(base, depth, extensions, extra_exclude):
+    """List files grouped by subdirectory, filtered by gitignore."""
+    extra = set(s.lower() for s in extra_exclude)
+    results = {}
+    exts = set(extensions) if extensions else None
+    if depth <= 1:
+        for d in sorted(base.iterdir()):
+            if d.is_dir() and d.name.lower() not in extra and not git_ignored(d):
+                files = sorted(f.name for f in d.iterdir()
+                               if f.is_file() and (exts is None or f.suffix in exts)
+                               and f.name.lower() not in extra and not git_ignored(f))
+                if files: results[d.name] = files
+            elif d.is_file() and (exts is None or d.suffix in exts):
+                if d.name.lower() in extra or git_ignored(d): continue
+                results.setdefault("__root__", []).append(d.name)
+        if "__root__" in results: results["__root__"].sort()
+    else:
+        for root, _, files in os.walk(str(base)):
+            rp = Path(root)
+            rel = rp.relative_to(base)
+            if len(rel.parts) > depth: continue
+            label = "/".join(rel.parts) if rel.parts else "__root__"
+            matching = []
+            for f in sorted(files):
+                if f.lower() in extra: continue
+                if exts is not None and Path(f).suffix not in exts: continue
+                if git_ignored(rp / f): continue
+                matching.append(f)
+            if matching: results[label] = matching
+    return results
+
+
+# ── MAP.md generators ──────────────────────────────────────────────────────
+
+def gen_folder_map(name, desc, items, descriptions=None):
+    """Generate folder MAP.md with descriptions loaded from map.json."""
+    descs = descriptions or {}
+    has_desc = any(descs.get(it["name"], "").strip() for it in items)
+    lines = [f"# {name} Map", f"> {desc}",
+             "> Auto-generated by `tools/repo_map_gen.py`",
+             f"> Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+             "", f"**{len(items)} entries**", ""]
+    if has_desc:
+        lines += ["| Item | Description |", "| :--- | :--- |"]
+        for it in items:
+            d = descs.get(it["name"], "").replace("|", "\\|").replace("\n", " ")
+            lines.append(f"| `{it['name']}/` | {d} |")
+    else:
+        lines += ["| Item |", "| :--- |"]
+        for it in items: lines.append(f"| `{it['name']}/` |")
+    lines.extend(["", "---",
+                  "> Edit descriptions in `map.json` (same directory)",
+                  "> Run `python tools/repo_map_gen.py` to regenerate this file."])
+    return "\n".join(lines) + "\n"
+
+
+def gen_file_map(name, desc, data, descriptions=None):
+    """Generate file MAP.md with descriptions loaded from map.json."""
+    descs = descriptions or {}
+    has_desc = any(descs.values())
+    lines = [f"# {name} Map", f"> {desc}",
+             "> Auto-generated by `tools/repo_map_gen.py`",
+             f"> Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+             "", f"**Files under** `{desc.lower()}`", ""]
+    for dn in sorted(data):
+        lines.append(f"## {'(root)' if dn == '__root__' else dn + '/'}\n")
+        if has_desc:
+            lines += ["| File | Description |", "| :--- | :--- |"]
+            for fn in data[dn]:
+                key = fn if dn == '__root__' else f"{dn}/{fn}"
+                d = descs.get(key, "").replace("|", "\\|").replace("\n", " ")
+                lines.append(f"| `{fn}` | {d} |")
+        else:
+            for fn in data[dn]: lines.append(f"- `{fn}`")
+        lines.append("")
+    lines.extend(["---",
+                  "> Edit descriptions in `map.json` (same directory)",
+                  "> Run `python tools/repo_map_gen.py` to regenerate this file."])
+    return "\n".join(lines) + "\n"
+
+
+# ── map.json template helpers ──────────────────────────────────────────────
+
+def folder_json(items): return {it["name"]: "" for it in items}
+
+def file_json(data):
+    r = {}
+    for dn, files in data.items():
+        pfx = "" if dn == "__root__" else dn + "/"
+        for fn in files: r[pfx + fn] = ""
+    return r
+
+
+def load_or_create_json(path, tpl_fn, tpl_arg):
+    if path.exists() and path.stat().st_size > 0:
+        try:
+            with open(path) as f: return json.load(f)
+        except json.JSONDecodeError:
+            print(f"  {path.relative_to(REPO_ROOT)} has invalid JSON, recreating template")
+    tpl = tpl_fn(tpl_arg)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w") as f: json.dump(tpl, f, indent=2)
+    print(f"  created {path.relative_to(REPO_ROOT)} (template)")
+    return tpl
+
+
+def merge_json(existing, fresh):
+    changed = False
+    for k in fresh:
+        if k not in existing: existing[k] = ""; changed = True
+    return changed
+
+
+def prune_json(existing, fresh):
+    removed = [k for k in list(existing) if k not in fresh]
+    for k in removed: del existing[k]
+    return removed
+
+
+def build_summary(all_data):
+    return {
+        "version": 2, "generated_at": datetime.now().isoformat(),
+        "areas": [{"name": a["name"], "scan_path": a["config"]["scan_path"],
+                    "scan_mode": a["config"]["scan_mode"],
+                    "entry_count": len(a["entries"]),
+                    "entries": a["entries"][:200]} for a in all_data],
+    }
+
+
+def write_file(path, content):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content, encoding="utf-8")
+    print(f"  wrote {path.relative_to(REPO_ROOT)}")
+
+
+def write_json(path, data):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
+    print(f"  wrote {path.relative_to(REPO_ROOT)}")
+
+
+# ── Main ───────────────────────────────────────────────────────────────────
+
+def main():
+    check = "--check" in sys.argv; prune = "--prune" in sys.argv
+    areas = load_config()
+    nfo = "Checking" if check else "Generating"
+    print(f"{nfo} repo maps from mapconfig.json ({len(areas)} area(s))...")
+
+    all_data = []; n_changes = 0
+
+    for area in areas:
+        name = area["name"]
+        scan_mode = area.get("scan_mode", "folders")
+        depth = area.get("depth", 1)
+        exts = area.get("file_extensions", None)
+        excl = set(area.get("exclude", []))
+        map_path = REPO_ROOT / area["output_map"]
+        json_path = REPO_ROOT / area["output_json"]
+        base_path = REPO_ROOT / area["scan_path"]
+
+        if not base_path.exists():
+            print(f"  Skipping '{name}': {base_path} not found"); continue
+
+        # ── Load existing descriptions from map.json ─────────────────
+        existing_descs = {}
+        if json_path.exists() and json_path.stat().st_size > 0:
+            try:
+                with open(json_path) as f: existing_descs = json.load(f)
+            except json.JSONDecodeError:
+                pass
+
+        # ── Scan ──────────────────────────────────────────────────────
+        is_folder = scan_mode in ("folders", "recursive_folders")
+        if is_folder:
+            items = scan_folders(base_path, depth, excl)
+            map_content = gen_folder_map(name, area.get("description", ""), items, existing_descs)
+            tpl = folder_json(items)
+            flat = items
+        else:
+            rdata = scan_files(base_path, depth, exts, excl)
+            map_content = gen_file_map(name, area.get("description", ""), rdata, existing_descs)
+            tpl = file_json(rdata)
+            flat = []
+            for dn, files in rdata.items():
+                pfx = "" if dn == "__root__" else dn + "/"
+                for fn in files: flat.append({"name": f"{pfx}{fn}", "path": str(base_path.relative_to(REPO_ROOT)) + "/" + fn})
+
+        if check:
+            if map_path.exists() and map_path.read_text(encoding="utf-8") != map_content:
+                print(f"  {map_path.relative_to(REPO_ROOT)} would change"); n_changes += 1
+            continue
+
+        # ── Write MAP.md ──────────────────────────────────────────────
+        write_file(map_path, map_content)
+
+        # ── Load/update map.json ───────────────────────────────────────
+        desc = load_or_create_json(json_path, folder_json if is_folder else file_json,
+                                   items if is_folder else rdata)
+        if merge_json(desc, tpl):
+            write_json(json_path, desc)
+            print(f"  updated {json_path.relative_to(REPO_ROOT)} (new keys)")
+        if prune:
+            removed = prune_json(desc, tpl)
+            if removed:
+                write_json(json_path, desc)
+                print(f"  pruned {len(removed)} orphaned key(s) from {json_path.relative_to(REPO_ROOT)}")
+
+        all_data.append({"name": name, "config": area, "entries": flat})
+
+    if not check:
+        write_json(OUTPUT_SUMMARY, build_summary(all_data))
+
+    if check:
+        if n_changes: print(f"\n{n_changes} file(s) would change."); return 1
+        print("All map files are current."); return 0
+
+    total = sum(len(a["entries"]) for a in all_data)
+    print(f"\nGenerated maps for {len(areas)} areas, {total} total entries")
+    print(f"Config: {CONFIG_PATH.relative_to(REPO_ROOT)}")
+    print("Edit descriptions in each area's map.json")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

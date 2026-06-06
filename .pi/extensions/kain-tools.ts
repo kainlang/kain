@@ -76,22 +76,42 @@ function modulePublicCounts(mod: any): [number, number] {
   return [syms.filter((s: any) => s.visibility === "public").length, syms.length - syms.filter((s: any) => s.visibility === "public").length];
 }
 
-function searchSymbol(symbol: any, query: string): boolean {
+function searchSymbol(symbol: any, query: string): number {
+  // Returns a SCORE (0 = no match, higher = better match)
   const haystack = ["name", "qualified_name", "signature", "source_path", "kind", "visibility", "docs"]
     .map((f) => String(symbol[f] ?? ""))
     .join(" ")
     .toLowerCase();
   const q = query.toLowerCase().trim();
-  if (haystack.includes(q)) return true;
-  const expanded = haystack.replace(/[_\-]/g, " ");
-  if (expanded.includes(q)) return true;
-  const tokens = q.split(/\s+/);
-  if (tokens.length > 1 && tokens.every((t) => expanded.includes(t))) return true;
-  try {
-    return new RegExp(`(?<![a-z])${q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![a-z])`).test(expanded);
-  } catch {
-    return false;
+  
+  // Tokenize query: split on whitespace and punctuation
+  const tokens = q.split(/[\s,;|]+/).filter(Boolean);
+  
+  // Single token: exact word-boundary match
+  if (tokens.length === 1) {
+    if (haystack.includes(q)) return 10;
+    const expanded = haystack.replace(/[_\-]/g, " ");
+    if (expanded.includes(q)) return 9;
+    try {
+      return new RegExp(`(?<![a-z])${q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![a-z])`).test(expanded) ? 8 : 0;
+    } catch {
+      return 0;
+    }
   }
+  
+  // Multi-token: OR match with score = count of matched tokens
+  const expanded = haystack.replace(/[_\-]/g, " ");
+  let matched = 0;
+  for (const token of tokens) {
+    // Word-boundary match preferred
+    try {
+      const re = new RegExp(`(?<![a-z])${token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![a-z])`, "i");
+      if (re.test(expanded)) { matched++; continue; }
+    } catch {}
+    // Fallback: substring match
+    if (expanded.includes(token)) { matched++; continue; }
+  }
+  return matched;
 }
 
 function extractSymbolSource(repoRoot: string, data: any, symbol: any, contextBefore: number = 2): string {
@@ -237,20 +257,26 @@ function handleGetSymbols(moduleName: string, includePrivate: boolean) {
 function handleSearchSymbols(query: string, moduleName?: string, kind?: string, includePrivate?: boolean, limit?: number) {
   const data = getStdlibData();
   const modules = moduleName ? [findModule(data, moduleName)] : iterModules(data);
-  const pairs: [any, any][] = [];
+  // Collect (score, mod, sym) tuples
+  const scored: { score: number; mod: any; sym: any }[] = [];
   for (const mod of modules) {
     for (const sym of mod.symbols ?? []) {
       if (!includePrivate && sym.visibility !== "public") continue;
       if (kind && sym.kind !== kind) continue;
-      if (searchSymbol(sym, query)) pairs.push([mod, sym]);
+      const score = searchSymbol(sym, query);
+      if (score > 0) scored.push({ score, mod, sym });
     }
   }
-  if (pairs.length === 0) return `No symbols matching '${query}'.`;
+  if (scored.length === 0) return `No symbols matching '${query}'.`;
+  // Sort by score descending, then alphabetically
+  scored.sort((a, b) => b.score - a.score || a.sym.name.localeCompare(b.sym.name));
   const cap = limit ?? 50;
-  const limited = pairs.slice(0, cap);
-  const lines = [`Found ${pairs.length} matching symbol(s) (showing ${Math.min(cap, pairs.length)}):`, "", "| Module | Symbol | Kind | Signature |", "| :--- | :--- | :--- | :--- |"];
-  for (const [mod, sym] of limited) lines.push(`| \`${mod.import_path}\` | \`${sym.name}\` | \`${sym.kind}\` | \`${sym.signature || sym.name}\` |`);
-  if (pairs.length > cap) lines.push(`\n*${pairs.length - cap} more — refine query or increase limit.*`);
+  const limited = scored.slice(0, cap);
+  const lines = [`Found ${scored.length} matching symbol(s) (showing ${Math.min(cap, scored.length)}):`, "", "| Score | Module | Symbol | Kind | Signature |", "| :--- | :--- | :--- | :--- | :--- |"];
+  for (const { score, mod, sym } of limited) {
+    lines.push(`| ${score} | \`${mod.import_path}\` | \`${sym.name}\` | \`${sym.kind}\` | \`${sym.signature || sym.name}\` |`);
+  }
+  if (scored.length > cap) lines.push(`\n*${scored.length - cap} more — refine query or increase limit.*`);
   return lines.join("\n");
 }
 
