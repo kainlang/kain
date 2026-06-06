@@ -1,12 +1,9 @@
 /**
- * Kain Stdlib Tools — Zero-cost Kain standard library access
+ * Kain Stdlib Tools — Navigate Kain's massive standard library
  *
- * Single router tool that dispatches to 8 sub-actions for querying Kain's
- * complete standard library: modules, symbols, signatures, docs, source
- * code, keyword reference, and semantic code search.
- *
- * Ported from ~/.pi/agent/extensions/kain-stdlib.ts, refactored into a
- * clean router pattern with a shared data layer.
+ * Dedicated router for querying Kain's complete standard library: 65+ modules,
+ * 3500+ public symbols, full keyword reference. For semantic code examples,
+ * use the `kain_examples` tool instead.
  *
  * Tool: kain_stdlib
  *   action: list_modules    — List all modules with symbol counts
@@ -16,14 +13,12 @@
  *   action: get_source      — Read the actual .kn source
  *   action: list_keywords   — Full Kain keyword reference
  *   action: get_keyword     — Help for a specific keyword
- *   action: search_examples — Semantic PyTorch/CUDA code search
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { readFileSync, existsSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { spawnSync } from "node:child_process";
 
 // ===========================================================================
 // Data layer — reads stdlib/stdlib.map.json and CATALOG.md
@@ -313,33 +308,6 @@ function handleGetKeyword(keyword: string) {
   return `## Keyword \`${keyword}\`\n\n**Summary:** ${details.summary}\n**Description:** ${details.description}\n\n### Syntax\n\`\`\`kn\n${details.syntax}\n\`\`\``;
 }
 
-function handleSearchExamples(query: string, limit?: number) {
-  const pyBin = process.platform === "win32" ? "py" : "python3";
-  const pyCode = [
-    "from kaindev.smart_search import smart_search; import json",
-    "results = smart_search(" + JSON.stringify(query) + ", limit=" + (limit ?? 3) + ")",
-    "print(json.dumps([[r['source'], r['score'], r['text'], r['kind'], r['symbol'], r['line_start'], r['line_end']] for r in results]))",
-  ].join("; ");
-  const proc = spawnSync(pyBin, ["-3", "-c", pyCode], { cwd: "X:/mcp", encoding: "utf-8", timeout: 120000, maxBuffer: 4 * 1024 * 1024, stdio: ["pipe", "pipe", "ignore"] });
-  const raw = (proc.stdout ?? "").trim();
-  if (!raw) {
-    const errMsg = (proc.stderr ?? "").slice(0, 500);
-    return `Search failed: ${errMsg || "empty response (timeout?)"}`;
-  }
-  try {
-    const results: [string, number, string, string, string, number, number][] = JSON.parse(raw);
-    if (results.length === 0) return `No examples found for "${query}".`;
-    const lines = [`### Kain Code Examples for '${query}'`, ""];
-    for (const [source, score, text, kind, symbol, lineStart, lineEnd] of results) {
-      lines.push(`#### [${results.indexOf([source, score, text, kind, symbol, lineStart, lineEnd]) + 1}] \`${kind}\` ${symbol} (Score: ${score.toFixed(3)}) — ${source}:${lineStart}`);
-      lines.push("```kn", text || "(empty)", "```", "");
-    }
-    return lines.join("\n");
-  } catch (e: any) {
-    return `Search parse error: ${e.message}`;
-  }
-}
-
 // ===========================================================================
 // Router tool definition
 // ===========================================================================
@@ -349,12 +317,14 @@ export default function (pi: ExtensionAPI) {
     name: "kain_stdlib",
     label: "Kain Stdlib",
     description:
-      "Query Kain's complete standard library — modules, symbols, signatures, docs, " +
-      "source code, keyword reference, and semantic code search. " +
-      "8 actions cover everything from listing modules to searching 11,500 code chunks with PyTorch/CUDA.",
-    promptSnippet: "Query Kain stdlib modules, symbols, docs, keywords, and examples",
+      "Navigate Kain's massive standard library — 65+ modules, 3500+ public symbols. " +
+      "List modules, inspect symbols, read signatures and docs, view source code, " +
+      "and explore the full keyword reference. For semantic code examples, use the " +
+      "`kain_examples` tool instead.",
+    promptSnippet: "Query Kain stdlib modules, symbols, docs, keywords, and source",
     promptGuidelines: [
-      "Use kain_stdlib for all Kain standard library lookups — finding symbols, checking function signatures, reading source, looking up language keywords, and semantically searching for code examples.",
+      "Use kain_stdlib for all Kain standard library lookups — finding symbols, checking function signatures, reading source, and looking up language keywords.",
+      "For semantic code search over real Kain examples across benchmarks, blades, and stdlib, use kain_examples instead.",
     ],
     parameters: Type.Object({
       action: Type.Enum(
@@ -366,7 +336,6 @@ export default function (pi: ExtensionAPI) {
           get_source: "get_source",
           list_keywords: "list_keywords",
           get_keyword: "get_keyword",
-          search_examples: "search_examples",
         },
         {
           description:
@@ -376,17 +345,16 @@ export default function (pi: ExtensionAPI) {
             "'get_details' — full docs for a symbol | " +
             "'get_source' — read the actual source | " +
             "'list_keywords' — keyword reference | " +
-            "'get_keyword' — help for one keyword | " +
-            "'search_examples' — semantic code search",
+            "'get_keyword' — help for one keyword",
         },
       ),
       module_name: Type.Optional(Type.String({ description: "Module name for get_symbols, get_details, get_source (e.g. 'math', 'os', 'json')." })),
       symbol_name: Type.Optional(Type.String({ description: "Symbol name for get_details, get_source (e.g. 'sin', 'os_mmap_anon')." })),
-      query: Type.Optional(Type.String({ description: "Search term for search_symbols or search_examples." })),
+      query: Type.Optional(Type.String({ description: "Search term for search_symbols (fuzzy-matches name, signature, docs)." })),
       kind: Type.Optional(Type.String({ description: "Optional kind filter for search_symbols: 'function', 'struct', 'actor', 'const', 'enum', 'trait'." })),
       keyword: Type.Optional(Type.String({ description: "Keyword name for get_keyword (e.g. 'world', 'teleport', 'fn', 'struct')." })),
       include_private: Type.Optional(Type.Boolean({ description: "Include private symbols (default false). Used with get_symbols, search_symbols." })),
-      limit: Type.Optional(Type.Number({ description: "Max results for search_symbols (default 50) or search_examples (default 3)." })),
+      limit: Type.Optional(Type.Number({ description: "Max results for search_symbols (default 50)." })),
       context_before: Type.Optional(Type.Number({ description: "Lines of context before the definition for get_source (default 2)." })),
     }),
     async execute(_toolCallId: string, params: any, _signal: AbortSignal, _onUpdate: any, _ctx: any) {
@@ -427,13 +395,8 @@ export default function (pi: ExtensionAPI) {
             result = handleGetKeyword(params.keyword);
             break;
 
-          case "search_examples":
-            if (!params.query) return { content: [{ type: "text", text: "Provide `query` for semantic search." }], details: {}, isError: true };
-            result = handleSearchExamples(params.query, params.limit);
-            break;
-
           default:
-            return { content: [{ type: "text", text: `Unknown action '${params.action}'. Valid: list_modules, get_symbols, search_symbols, get_details, get_source, list_keywords, get_keyword, search_examples.` }], details: {}, isError: true };
+            return { content: [{ type: "text", text: `Unknown action '${params.action}'. Valid: list_modules, get_symbols, search_symbols, get_details, get_source, list_keywords, get_keyword.` }], details: {}, isError: true };
         }
 
         return { content: [{ type: "text", text: result }], details: {} };
@@ -444,6 +407,6 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.on("session_start", async (_event, ctx) => {
-    ctx.ui.notify("📚 Kain Stdlib tools loaded — 8 actions in 1 router", "info");
+    ctx.ui.notify("📚 Kain Stdlib loaded — 7 actions (examples moved to kain_examples)", "info");
   });
 }

@@ -29,7 +29,8 @@ Domain: kain_bazel
 
 | Tool name | Domain | File | Actions |
 |---|---|---|---|
-| `kain_stdlib` | Standard Library | `kain-tools.ts` | list_modules, get_symbols, search_symbols, get_details, get_source, list_keywords, get_keyword, search_examples |
+| `kain_stdlib` | Standard Library | `kain-tools.ts` | list_modules, get_symbols, search_symbols, get_details, get_source, list_keywords, get_keyword |
+| `kain_examples` | Code Examples | `kain-examples-tools.ts` | search |
 | `kain_bazel` | Bazel Build System | `kain-bazel-tools.ts` | build, test, server, sync, binary_age, freshness |
 | `kain_lang` | Kain Language Operations | `kain-lang-tools.ts` | check, build, run, test, amalgamate, gpu_artifacts |
 | `tools` | Tool Discovery | `tools.ts` | list, search, which |

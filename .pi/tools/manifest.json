@@ -8,10 +8,11 @@
       "name": "Kain Standard Library",
       "file": "kain-tools.ts",
       "label": "Kain Stdlib",
-      "description": "Query Kain's complete standard library: modules, symbols, signatures, docs, source code, keyword reference, and semantic code search.",
-      "promptSnippet": "Query Kain stdlib modules, symbols, docs, keywords, and examples",
+      "description": "Navigate Kain's massive standard library — 65+ modules, 3500+ public symbols. List modules, inspect symbols, read signatures and docs, view source code, and explore the full keyword reference.",
+      "promptSnippet": "Query Kain stdlib modules, symbols, docs, keywords, and source",
       "promptGuidelines": [
-        "Use kain_stdlib for all Kain standard library lookups — finding symbols, checking function signatures, reading source, looking up language keywords, and semantically searching for code examples."
+        "Use kain_stdlib for all Kain standard library lookups — finding symbols, checking function signatures, reading source, and looking up language keywords.",
+        "For semantic code search over real Kain examples, use the kain_examples tool instead."
       ],
       "actions": {
         "list_modules":     { "label": "List Modules",     "description": "List all Kain stdlib modules with public/private symbol counts and source paths." },
@@ -20,8 +21,22 @@
         "get_details":      { "label": "Get Symbol Details", "description": "Get full documentation, signature, kind, and location for any stdlib symbol." },
         "get_source":       { "label": "Get Symbol Source", "description": "Read the actual Kain source code implementation of any stdlib function, struct, or actor." },
         "list_keywords":    { "label": "List Keywords",    "description": "Full Kain language keyword reference — compiler-owned semantic constructs (world, entangle, teleport, etc.) plus standard keywords." },
-        "get_keyword":      { "label": "Get Keyword Help", "description": "Detailed help for any specific Kain keyword: syntax models, descriptions, usage examples." },
-        "search_examples":  { "label": "Search Examples",  "description": "Semantically search ~11,500 function-level Kain code chunks using PyTorch/CUDA. Returns real source definitions from benchmarks, blades, and stdlib." }
+        "get_keyword":      { "label": "Get Keyword Help", "description": "Detailed help for any specific Kain keyword: syntax models, descriptions, usage examples." }
+      }
+    },
+    {
+      "id": "kain_examples",
+      "name": "Kain Code Examples",
+      "file": "kain-examples-tools.ts",
+      "label": "Kain Examples",
+      "description": "Semantically search ~11,500 real-world Kain code chunks using PyTorch/CUDA. Each chunk is a focused fn/actor/world/shader/struct/law/patch definition from benchmarks, blades, stdlib, demos, and the compiler test suite.",
+      "promptSnippet": "Semantic search for Kain code examples (PyTorch/CUDA over 11,500 chunks)",
+      "promptGuidelines": [
+        "Use kain_examples to find real-world Kain code patterns, idioms, and usage examples across the entire repo.",
+        "Be specific and descriptive in your query — 'actor supervision mailbox' works better than 'actor example'."
+      ],
+      "actions": {
+        "search":  { "label": "Search",  "description": "Semantically search function-level Kain code chunks using PyTorch/CUDA. Returns ranked results with file paths, line numbers, and code excerpts." }
       }
     },
     {
