@@ -1,0 +1,69 @@
+// ============================================================================
+//  ACTORS — Concurrent Game Event Processing
+// ============================================================================
+//  UrsinaBridge receives frame ticks and input from the Python side via
+//  python_actor_callback. All handlers are fire-and-forget — results are
+//  communicated through GameWorld state, not reply ports.
+//
+//  ADDING ACTORS:
+//    Drop a new `actor MyActor: state ... / on ...` block here,
+//    spawn it in main.kn, and wire its callbacks in bridge.kn.
+// ============================================================================
+
+use std::actor
+use std::python
+
+use world::GameWorld
+use world::commit_frame
+use world::commit_fps
+use world::commit_input
+use world::commit_entity_count
+use world::commit_status
+use helpers::ursina_mix
+
+// ── UrsinaBridge — main bridge between Ursina and Kain worlds ──
+//
+//  All handlers are fire-and-forget (no reply_to). This avoids LLVM
+//  codegen conflicts with multiple reply_to.addr allocas.
+//  Use ask()-based simulation via external wrapper actors if needed.
+
+actor UrsinaBridge:
+    state tick_count: Int = 0
+    state last_fps: Int = 0
+    state bias: Int = 31
+    state running: Bool = true
+
+    // ── Fire-and-forget: Ursina calls on every frame tick ──
+
+    on FrameTick(dt: Float, frame_number: Int):
+        self.tick_count = frame_number
+        let dt_ms: Int = to_int(dt * 1000.0)
+        if dt_ms > 0:
+            self.last_fps = 1000 / dt_ms
+        else:
+            self.last_fps = 60
+
+        let _ = commit_frame(GameWorld, frame_number)
+        let _ = commit_fps(GameWorld, self.last_fps)
+        GameWorld.checksum = ursina_mix(
+            GameWorld.checksum,
+            frame_number,
+            self.last_fps
+        )
+
+    // ── Fire-and-forget: keyboard events from Ursina ──
+
+    on KeyEvent(key_name: String):
+        let key_flag: Int = 1
+        let _ = commit_input(GameWorld, key_flag)
+
+    // ── Fire-and-forget: set entity count ──
+
+    on SetEntityCount(count: Int):
+        let _ = commit_entity_count(GameWorld, count)
+
+    // ── Fire-and-forget: shutdown ──
+
+    on Shutdown():
+        self.running = false
+        let _ = commit_status(GameWorld, 2)

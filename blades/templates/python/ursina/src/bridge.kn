@@ -1,0 +1,162 @@
+// ============================================================================
+//  BRIDGE — Python Bootstrap & Ursina Launcher
+// ============================================================================
+//  Contains ALL inline Python code. No .py files. The Python defines the
+//  Ursina app class, scene entities, camera, UI overlay, and Kain callback
+//  wiring. Modify the inline Python strings to change the visual scene.
+//
+//  The callbacks are pre-bound to __main__ globals (kain_frame_cb, kain_key_cb)
+//  by main.kn before this bootstrap runs - matching the actor_relay pattern.
+// ============================================================================
+
+use std::python
+
+// ── Build the full Ursina bootstrap script ──
+//
+//  The callbacks (kain_frame_cb, kain_key_cb) are already bound to __main__
+//  globals by main.kn. The Python code references them directly.
+
+pub fn build_ursina_bootstrap() -> String:
+    return """
+from ursina import *
+from ursina.prefabs.first_person_controller import FirstPersonController
+import math
+
+# ── Colors ──
+COLORS = [
+    color.red, color.orange, color.yellow, color.green,
+    color.azure, color.blue, color.violet, color.magenta,
+    color.pink, color.brown, color.lime, color.turquoise,
+]
+
+# ── App class ──
+class KainBridgeApp(Ursina):
+    def __init__(self):
+        super().__init__()
+        self.frame_count = 0
+        self.fps_counter = 0
+        self.fps_timer = 0.0
+
+        # ── Window ──
+        window.title = 'Kain + Ursina'
+        window.borderless = False
+        window.fullscreen = False
+        window.exit_button.visible = True
+        window.fps_counter.visible = True
+
+        # ── Ground ──
+        Entity(
+            model='quad',
+            scale=60,
+            position=(0, -0.5, 0),
+            rotation_x=90,
+            texture='white_cube',
+            color=color.dark_gray,
+            texture_scale=(30, 30),
+            collider='box',
+        )
+
+        # ── Grid lines ──
+        for i in range(-20, 21, 2):
+            Entity(model='cube', scale=(0.05, 0.05, 40),
+                   position=(i, 0, 0), color=color.gray)
+            Entity(model='cube', scale=(40, 0.05, 0.05),
+                   position=(0, 0, i), color=color.gray)
+
+        # ── Orbiting entities ──
+        self.entities = []
+        entity_data = [
+            (0.30, 8.0,  0.80, 2.0),
+            (0.35, 9.5,  0.95, 2.7),
+            (0.40, 11.0, 1.10, 3.4),
+            (0.45, 12.5, 1.25, 4.1),
+            (0.50, 14.0, 1.40, 4.8),
+            (0.55, 15.5, 1.55, 5.5),
+            (0.60, 17.0, 1.70, 6.2),
+        ]
+        for i, (scale, radius, speed, height) in enumerate(entity_data):
+            col = COLORS[i % len(COLORS)]
+            ent = Entity(
+                model='cube',
+                color=col,
+                scale=(scale, scale, scale),
+                position=(0, 0, 0),
+            )
+            self.entities.append({
+                'node': ent,
+                'radius': radius,
+                'speed': speed,
+                'angle': float(i) * 1.0,
+                'height': height,
+            })
+
+        # ── Camera ──
+        self.cam_angle = 0.0
+        camera.position = Vec3(0, 15, -30)
+        camera.look_at(Vec3(0, 0, 0))
+
+        # ── Title text ──
+        self.title_text = Text(
+            text='Kain + Ursina Template',
+            position=(-0.85, 0.45),
+            scale=2,
+            color=color.white,
+            parent=camera.ui,
+        )
+
+        # ── FPS display ──
+        self.fps_text = Text(
+            text='FPS: ---',
+            position=(-0.85, 0.38),
+            scale=1.2,
+            color=color.light_gray,
+            parent=camera.ui,
+        )
+
+    def update(self):
+        dt = time.dt
+        self.frame_count += 1
+        self.fps_timer += dt
+        self.fps_counter += 1
+
+        # Update FPS text every second
+        if self.fps_timer >= 1.0:
+            self.fps_text.text = f'FPS: {self.fps_counter}'
+            self.fps_timer = 0.0
+            self.fps_counter = 0
+
+        # Call Kain actor every frame
+        try:
+            kain_frame_cb(dt, self.frame_count)
+        except Exception:
+            pass
+
+        # Orbit all entities
+        for ent in self.entities:
+            ent['angle'] += ent['speed'] * dt * 60
+            rad = ent['radius']
+            a = ent['angle']
+            x = rad * math.cos(a)
+            z = rad * math.sin(a) * 0.3
+            ent['node'].position = Vec3(x, ent['height'], z)
+            ent['node'].rotation_y = math.degrees(a)
+
+        # Slow camera orbit
+        self.cam_angle += dt * 0.3
+        cx = 30 * math.sin(self.cam_angle)
+        cy = 15 + 5 * math.sin(self.cam_angle * 0.4)
+        cz = -30 * math.cos(self.cam_angle)
+        camera.position = Vec3(cx, cy, cz)
+        camera.look_at(Vec3(0, 0, 0))
+
+    def input(self, key):
+        try:
+            kain_key_cb(key)
+        except Exception:
+            pass
+
+# ── Create and run ──
+app = KainBridgeApp()
+app.run()
+print('URSINA_SESSION_ENDED')
+"""

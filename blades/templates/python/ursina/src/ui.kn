@@ -1,0 +1,48 @@
+// ============================================================================
+//  UI — Reusable Kain Component Library
+// ============================================================================
+//  Prop-based sub-components for composition. Drop new reusable widgets here.
+//  The root GameHUD is co-located with GameWorld in world.kn.
+//  These components receive data via props, not world state.
+// ============================================================================
+
+// ── Status Badge — green/red indicator ──
+
+component StatusBadge(label: String, active: Bool):
+    render <box>
+        <text value={label + ": "} />
+        <text value={if active: "RUNNING" else: "STOPPED"} />
+    </box>
+
+// ── FPS Display — standalone widget ──
+
+component FPSDisplay(fps: Int):
+    render <box>
+        <text value={"FPS: " + str(fps)} />
+    </box>
+
+// ── Entity Inspector — view entity metadata ──
+
+component EntityInspector(entity_id: Int, entity_count: Int):
+    render <box>
+        <text value={"entity #" + str(entity_id)} />
+        <text value={"total: " + str(entity_count)} />
+    </box>
+
+// ── Metric Card — value + label pair ──
+
+component MetricCard(label: String, value: Int):
+    render <box>
+        <text value={label} />
+        <text value={str(value)} />
+    </box>
+
+// ── Debug HUD — composite of sub-components ──
+
+component DebugHUD(fps: Int, entities: Int, keys: Int):
+    render <panel title="debug">
+        <FPSDisplay fps={fps} />
+        <MetricCard label="entities" value={entities} />
+        <MetricCard label="keys" value={keys} />
+        <StatusBadge label="engine" active={fps > 0} />
+    </panel>

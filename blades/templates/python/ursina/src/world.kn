@@ -1,0 +1,90 @@
+// ============================================================================
+//  WORLD — State Authority + Mirror + Entangle + Laws + Patches
+// ============================================================================
+//  All game state lives here. Worlds own the truth; everything else reads
+//  or patches. Add new state fields, surfaces, or entangles as needed.
+//  GameHUD component is co-located with its world (canonical pattern).
+// ============================================================================
+
+use std::intent
+
+// ── Root UI Component (co-located with world per canonical pattern) ──
+
+component GameHUD():
+    render <panel title="ursina + kain" />
+
+// ── Authority — mutable game state ──
+
+world GameWorld:
+    state frame: Int = 0
+    state fps: Int = 0
+    state entity_count: Int = 7
+    state checksum: Int = 0
+    state keys_pressed: Int = 0
+    state status: Int = 0         // 0 = running, 1 = paused, 2 = shutdown
+    surface native_ui => GameHUD
+
+// ── Mirror — read-only view for entangle propagation ──
+
+world GameMirror:
+    state frame_copy: Int = 0
+    state fps_copy: Int = 0
+    state entity_count_copy: Int = 0
+    state keys_pressed_copy: Int = 0
+    surface web => GameHUD
+
+// ── Entangle — compiler-owned reactive sync ──
+
+entangle GameWorld.frame <-> GameMirror.frame_copy with single_writer
+entangle GameWorld.fps <-> GameMirror.fps_copy with single_writer
+entangle GameWorld.entity_count <-> GameMirror.entity_count_copy with single_writer
+entangle GameWorld.keys_pressed <-> GameMirror.keys_pressed_copy with single_writer
+
+// ── Laws — invariant predicates ──
+
+law frame_valid(value: Int) -> Bool:
+    return value >= 0
+
+law fps_valid(value: Int) -> Bool:
+    return value >= 0 and value < 1000
+
+law entity_count_valid(value: Int) -> Bool:
+    return value >= 0 and value < 5000
+
+law status_valid(value: Int) -> Bool:
+    return value >= 0 and value <= 2
+
+// ── Patches — journaled world mutations ──
+
+patch commit_frame(authority: GameWorld, frame: Int) -> Int:
+    authority.frame = frame
+    return authority.frame
+
+patch commit_fps(authority: GameWorld, fps: Int) -> Int:
+    authority.fps = fps
+    return authority.fps
+
+patch commit_input(authority: GameWorld, key_flag: Int) -> Int:
+    authority.keys_pressed = authority.keys_pressed + key_flag
+    return authority.keys_pressed
+
+patch commit_entity_count(authority: GameWorld, count: Int) -> Int:
+    authority.entity_count = count
+    return authority.entity_count
+
+patch commit_status(authority: GameWorld, status: Int) -> Int:
+    authority.status = status
+    return authority.status
+
+patch commit_checksum(authority: GameWorld, checksum: Int) -> Int:
+    authority.checksum = checksum
+    return authority.checksum
+
+patch reset_game_world(authority: GameWorld) -> Int:
+    authority.frame = 0
+    authority.fps = 0
+    authority.entity_count = 7
+    authority.checksum = 0
+    authority.keys_pressed = 0
+    authority.status = 0
+    return 0

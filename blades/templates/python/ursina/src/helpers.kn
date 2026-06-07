@@ -1,0 +1,57 @@
+// ============================================================================
+//  HELPERS — Math, Packing, Constants
+// ============================================================================
+//  Pure utility functions with no external deps. Drop new helpers here.
+// ============================================================================
+
+pub const URSINA_MODULUS: Int = 1000000007
+pub const PACK_SHIFT: Int = 100000    // ceiling above any individual value
+
+// ── Modular arithmetic ──
+
+pub fn ursina_mod(value: Int, modulus: Int) -> Int:
+    let folded = value % modulus
+    if folded < 0:
+        return folded + modulus
+    return folded
+
+// ── Mixing ──
+
+pub fn ursina_mix(a: Int, b: Int, c: Int) -> Int:
+    return ursina_mod((a * 53) + (b * 37) + (c * 19) + 131, URSINA_MODULUS)
+
+pub fn ursina_mix_scalar(value: Int, seed: Int) -> Int:
+    return ursina_mod((value * 31 + seed) * 17 + 7, URSINA_MODULUS)
+
+pub fn ursina_mix_closed(value: Int, seed: Int) -> Int:
+    return ursina_mod(((value + seed) * 48 + 14) % URSINA_MODULUS, URSINA_MODULUS)
+
+// ── Actor message packing ──
+//  ask(actor_id, "MessageName", single_int_payload).
+//  Use pack/unpack when you need >1 values in a message.
+
+pub fn ursina_pack(a: Int, b: Int) -> Int:
+    return ursina_mod(a + b * PACK_SHIFT, URSINA_MODULUS)
+
+pub fn ursina_unpack_a(packed: Int) -> Int:
+    return packed % PACK_SHIFT
+
+pub fn ursina_unpack_b(packed: Int) -> Int:
+    return packed / PACK_SHIFT
+
+// ── Clamp ──
+
+pub fn ursina_clamp(value: Int, low: Int, high: Int) -> Int:
+    if value < low:
+        return low
+    if value > high:
+        return high
+    return value
+
+// ── Weighted combine ──
+
+pub fn ursina_weighted(a: Int, b: Int, c: Int, d: Int) -> Int:
+    return ursina_mod(
+        (a * 13) + (b * 17) + (c * 19) + (d * 23) + 131,
+        URSINA_MODULUS
+    )

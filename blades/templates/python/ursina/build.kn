@@ -1,0 +1,35 @@
+// ============================================================================
+//  URSINA TEMPLATE — Build Definition
+// ============================================================================
+//  Spawns a Kain-controlled Ursina 3D window with full semantic stack.
+//  Modify this to rename, retarget, or add build steps.
+// ============================================================================
+
+use std::build
+
+fn build(ctx: BuildContext) -> BuildGraph:
+    let app = project("ursina-template")
+        .kind("kain_executable")
+        .version("0.1.0")
+        .description("Kain + Ursina 3D Game Template - full semantic stack with actor bridge, world state, component UI, and Python interop")
+        .entry("src/main.kn")
+        .source_root("src")
+        .module_root("src")
+        .target("llvm")
+        .artifact_root(".kain/out")
+        .cache_root(".kain/cache/build")
+        .profile("debug")
+
+    let check = check_task("check-llvm")
+        .project(app)
+        .target("llvm")
+
+    let exe = native_executable("ursina-template")
+        .project(app)
+        .output("$blade/ursina_template.exe")
+        .requires(check)
+
+    return build_graph()
+        .project(app)
+        .task(check)
+        .task(exe)

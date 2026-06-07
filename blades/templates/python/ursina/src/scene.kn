@@ -1,0 +1,98 @@
+// ============================================================================
+//  SCENE — Entity Templates & Scene Configuration
+// ============================================================================
+//  Define entity layouts with shatter structs for cache-friendly SoA access.
+//  Add new entity presets, spawn configurations, or level blueprints here.
+// ============================================================================
+
+// ── Entity template — SoA layout for hot update loops ──
+
+shatter struct EntityTemplate:
+    pos_x: Float
+    pos_y: Float
+    pos_z: Float
+    scale_x: Float
+    scale_y: Float
+    scale_z: Float
+    color_r: Float
+    color_g: Float
+    color_b: Float
+    speed: Float
+    orbit_radius: Float
+    orbit_height: Float
+
+// ── Scene dimensions ──
+
+pub const SCENE_GRID_SIZE: Int = 20
+pub const SCENE_MIN_Y: Float = 0.0
+pub const SCENE_MAX_Y: Float = 40.0
+pub const CAMERA_START_DISTANCE: Float = 30.0
+pub const CAMERA_START_HEIGHT: Float = 15.0
+
+// ── Default entity count ──
+
+pub const DEFAULT_ENTITY_COUNT: Int = 7
+
+// ── Build the default orbiting entity set (fixed-size array) ──
+
+pub fn make_default_entities() -> [EntityTemplate]:
+    let count = DEFAULT_ENTITY_COUNT
+    let entities: [EntityTemplate] = [
+        EntityTemplate {
+            pos_x: 0.0, pos_y: 0.0, pos_z: 0.0,
+            scale_x: 0.3, scale_y: 0.3, scale_z: 0.3,
+            color_r: 0.3, color_g: 0.5, color_b: 0.7,
+            speed: 0.8, orbit_radius: 8.0, orbit_height: 2.0,
+        },
+        EntityTemplate {
+            pos_x: 0.0, pos_y: 0.0, pos_z: 0.0,
+            scale_x: 0.35, scale_y: 0.35, scale_z: 0.35,
+            color_r: 0.5, color_g: 0.3, color_b: 0.7,
+            speed: 0.95, orbit_radius: 9.5, orbit_height: 2.7,
+        },
+        EntityTemplate {
+            pos_x: 0.0, pos_y: 0.0, pos_z: 0.0,
+            scale_x: 0.4, scale_y: 0.4, scale_z: 0.4,
+            color_r: 0.7, color_g: 0.5, color_b: 0.3,
+            speed: 1.1, orbit_radius: 11.0, orbit_height: 3.4,
+        },
+        EntityTemplate {
+            pos_x: 0.0, pos_y: 0.0, pos_z: 0.0,
+            scale_x: 0.45, scale_y: 0.45, scale_z: 0.45,
+            color_r: 0.3, color_g: 0.7, color_b: 0.5,
+            speed: 1.25, orbit_radius: 12.5, orbit_height: 4.1,
+        },
+        EntityTemplate {
+            pos_x: 0.0, pos_y: 0.0, pos_z: 0.0,
+            scale_x: 0.5, scale_y: 0.5, scale_z: 0.5,
+            color_r: 0.7, color_g: 0.3, color_b: 0.5,
+            speed: 1.4, orbit_radius: 14.0, orbit_height: 4.8,
+        },
+        EntityTemplate {
+            pos_x: 0.0, pos_y: 0.0, pos_z: 0.0,
+            scale_x: 0.55, scale_y: 0.55, scale_z: 0.55,
+            color_r: 0.5, color_g: 0.7, color_b: 0.3,
+            speed: 1.55, orbit_radius: 15.5, orbit_height: 5.5,
+        },
+        EntityTemplate {
+            pos_x: 0.0, pos_y: 0.0, pos_z: 0.0,
+            scale_x: 0.6, scale_y: 0.6, scale_z: 0.6,
+            color_r: 0.7, color_g: 0.5, color_b: 0.7,
+            speed: 1.7, orbit_radius: 17.0, orbit_height: 6.2,
+        },
+    ]
+    return entities
+
+// ── Default camera orbit preset ──
+
+pub struct CameraPreset:
+    orbit_angle: Float
+    radius: Float
+    height: Float
+
+pub fn default_camera() -> CameraPreset:
+    return CameraPreset {
+        orbit_angle: 0.0,
+        radius: CAMERA_START_DISTANCE,
+        height: CAMERA_START_HEIGHT,
+    }

@@ -1,0 +1,47 @@
+// ============================================================================
+//  PIPELINE — Converge + Orchestrate + Pulse
+// ============================================================================
+//  Semantic machinery for dispatch, pipeline composition, and timing.
+//  Add new converge fast lanes, orchestrate stages, or pulse drivers here.
+//
+//  NOTE: Orchestrate stage clauses (when, deps, residency, etc.) must
+//  all be on the SAME LINE as the stage declaration.
+// ============================================================================
+
+use std::intent
+
+use world::GameWorld
+use world::commit_checksum
+use world::frame_valid
+use helpers::ursina_mix
+
+// ── CONVERGE: Entity Update Strategy Selector ──
+
+converge entity_update(entity_index: Int, frame: Int) -> Int:
+    spec reference:
+        return ((entity_index * 31 + frame) * 17 + 7) % 1000000007
+    fast closed_form_lane when target("llvm"):
+        return ((entity_index * 31 + frame) * 17 + 7) % 1000000007
+    verify random(4)
+
+// ── ORCHESTRATE: Game Loop Pipeline ──
+//
+//  All stage clauses (when, deps, requires, residency, policy) must
+//  be on the same line as `stage name: kind ...`.
+
+orchestrate ursina_game_loop(frame: Int, input_key: Int, entity_count: Int) -> Int:
+    stage process_input: cpu ursina_mix(frame, input_key, entity_count) when capability("cpu.scalar") residency host transfer none policy static
+    stage dispatch_update: converge entity_update(entity_count, frame) deps [process_input] residency host policy telemetry_prefer_cpu
+    stage validate_frame: law frame_valid(frame) deps [dispatch_update] residency host policy static
+    stage commit_state: patch commit_checksum(GameWorld, dispatch_update + frame) deps [dispatch_update] requires validate_frame residency host policy telemetry_balance_latency
+    return commit_state
+
+// ── Pipeline health check ──
+
+pub fn pipeline_health_check() -> Int:
+    let converge_before = converge_mismatch_count()
+    let _sample = entity_update(7, 42)
+    let converge_delta = converge_mismatch_count() - converge_before
+    if converge_delta > 0:
+        return -1
+    return 0
