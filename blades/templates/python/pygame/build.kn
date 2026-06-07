@@ -1,0 +1,16 @@
+use std::build
+
+fn build(ctx: BuildContext) -> BuildGraph:
+    let pkg = package("pygame-template").version("0.1.0").description("Kain + Pygame 2D Game Template with full semantic stack, actor bridge, world state, component UI, and Python interop")
+
+    let blade_spec = blade("pygame-template").kind("kain_application").entry("src/main.kn").source_root("src").module_root("src").build_target("llvm")
+
+    let defaults = build_defaults().entry("src/main.kn").artifact_root(".kain/out").cache_root(".kain/cache/build").profile("debug").target("llvm")
+
+    let run = run_defaults().entry("src/main.kn").target("llvm")
+
+    let check_llvm = build_check("check-llvm").entry("src/main.kn").target("llvm").axis("target", "llvm").telemetry("pygame.template").input("src/main.kn").input("src/actors.kn").input("src/bridge.kn").input("src/helpers.kn").input("src/pipeline.kn").input("src/scene.kn").input("src/ui.kn").input("src/world.kn").input("build.kn")
+
+    let root_exe = native_executable("pygame-template-exe").entry("src/main.kn").root_output("$blade/pygame_template.exe").requires("check-llvm").input("src/main.kn").input("src/actors.kn").input("src/bridge.kn").input("src/helpers.kn").input("src/pipeline.kn").input("src/scene.kn").input("src/ui.kn").input("src/world.kn").input("build.kn")
+
+    return build_graph().package(pkg).blade(blade_spec).defaults(defaults).run(run).task(check_llvm).task(root_exe)

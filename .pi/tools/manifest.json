@@ -133,6 +133,27 @@
       }
     },
     {
+      "id": "git",
+      "name": "Git",
+      "file": "git-tools.ts",
+      "label": "Git",
+      "description": "Repository operations router — git status, diff (with per-file history context), commit log (scoped to file or folder), and a recent activity feed grouped by day with area breakdown. All actions operate on the current git working tree.",
+      "promptSnippet": "Repository operations: status, diff+history, log, recent activity",
+      "promptGuidelines": [
+        "Use git for any git repository operations — checking status, showing diffs with context, browsing history, or seeing recent activity.",
+        "Use git action:'diff' for the 'what changed + why has it been changing' question — it pairs each diff hunk with recent history on the touched files.",
+        "Use git action:'recent' to see what's been changing across the repo, grouped by day with area breakdown (stdlib, crates, runtime, blades, …).",
+        "Use git action:'log' path:'X:/crates/foo/' to browse commit history scoped to a specific file or folder.",
+        "Use git action:'status' for a quick branch + dirty + last-commit snapshot."
+      ],
+      "actions": {
+        "status":  { "sig": "()",                                                  "label": "Status",  "description": "Branch, last commit, dirty state (staged/unstaged/untracked counts). Quick health check." },
+        "diff":    { "sig": "(path?, staged?, against?, history_per_file?, context?)", "label": "Diff",    "description": "Show working tree diff. For each touched file, also show recent history (last N commits touching it) so you know why it's been changing. Path scopes to a file/folder. staged:true shows staged changes. against:'main' diffs vs a ref." },
+        "log":     { "sig": "(path?, limit?, author?, since?)",                    "label": "Log",     "description": "Show commit history. path scopes to a file/folder. limit caps the result (default 20). author and since filter the range." },
+        "recent":  { "sig": "(limit?, since?, area?)",                             "label": "Recent",  "description": "Recent activity feed grouped by day with area breakdown. area filters to a top-level folder like 'crates' or 'stdlib'." }
+      }
+    },
+    {
       "id": "tools",
       "name": "Tool Discovery",
       "file": "tools.ts",

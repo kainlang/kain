@@ -56,6 +56,12 @@ build:maxperf --local_resources=memory=HOST_RAM
 
 build:dev --compilation_mode=dbg
 build:release --compilation_mode=opt
+build:speed --compilation_mode=opt
+build:speed --@rules_rust//rust/settings:extra_rustc_flags=-Clto=thin,-Ccodegen-units=1,-Cembed-bitcode=yes
+build:speed --jobs=HOST_CPUS
+build:speed --loading_phase_threads=HOST_CPUS
+build:speed --local_resources=cpu=HOST_CPUS
+build:speed --local_resources=memory=HOST_RAM
 build:warnings --@rules_rust//rust/settings:extra_rustc_flags=-Dwarnings
 
 test --test_output=errors

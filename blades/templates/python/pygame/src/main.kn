@@ -1,0 +1,184 @@
+// ============================================================================
+//  PYGAME TEMPLATE — Entry Point
+// ============================================================================
+//  Wires the semantic stack: probe -> seed -> bridge -> run -> validate.
+//
+//  PHASES:
+//    1. Probe      - check pygame module is available
+//    2. Pre-Sim    - warm up actors, exercise converge/orchestrate/pulse
+//    3. Bridge     - register python_actor_callback, bind to __main__
+//    4. Launch     - python_exec the Pygame bootstrap (BLOCKS)
+//    5. Validate   - check world state, mirror propagation, telemetry deltas
+//
+//  ADDING STUFF:
+//    - New actors?  Drop them in actors.kn and spawn in Phase 2.
+//    - New scene?   Edit sprite_data in bridge.kn's inline Python.
+//    - New state?   Add to world.kn: fields, entangles, laws, patches.
+//    - New UI?      Drop a component in world.kn or ui.kn, compose in GameHUD.
+//    - New pipeline? Add converge/orchestrate/pulse to pipeline.kn.
+// ============================================================================
+
+use std::runtime
+use std::actor
+use std::python
+use std::intent
+
+use world::GameWorld
+use world::GameMirror
+use world::commit_frame
+use world::commit_score
+use actors::PygameBridge
+use bridge::build_pygame_bootstrap
+use pipeline::sprite_update
+use pipeline::pygame_game_loop
+use pipeline::pipeline_health_check
+use helpers::pygame_mix
+use helpers::pygame_mod
+use helpers::PYGAME_MODULUS
+use helpers::COLLECTIBLE_COUNT
+
+// ── Phase 1: Probe ──
+
+fn probe_pygame_available() -> Int:
+    if python_module_available("pygame") == false:
+        return 10
+    return 0
+
+// ── Phase 2: Pre-Simulation ──
+//  Exercises the semantic stack without Pygame.
+
+fn run_pre_simulation(gate: PygameBridge, rounds: Int) -> Int:
+    var checksum: Int = 137
+    var round: Int = 0
+    while round < rounds:
+        // Exercise converge lane
+        let update_val = sprite_update(round % 8, round)
+        // Exercise actor relay
+        let reply = ask(gate, "Fold", checksum + round)
+        // Mix all results
+        checksum = pygame_mix(checksum + round, reply, update_val)
+        // Commit frame to world
+        let _ = commit_frame(GameWorld, round)
+        // Exercise orchestrate pipeline
+        let _pipeline_result = pygame_game_loop(
+            round,
+            GameWorld.player_x,
+            GameWorld.player_y,
+            GameWorld.score,
+            update_val,
+        )
+        round = round + 1
+
+    // Verify converge lanes
+    let health = pipeline_health_check()
+    if health != 0:
+        return -10
+
+    return checksum
+
+// ── Phase 3: Register Callback Bridge ──
+//  Creates Python callable objects that Pygame can invoke.
+
+fn register_pygame_bridge(gate: PygameBridge) -> (Any, Any):
+    // Create actor callback dispatchers
+    let frame_cb = python_actor_callback(gate as Int, "FrameTick")
+    let frame_fn = python_actor_callback_callable(frame_cb)
+
+    let event_cb = python_actor_callback(gate as Int, "InputEvent")
+    let event_fn = python_actor_callback_callable(event_cb)
+
+    // Bind to Python __main__ globals so Pygame bootstrap can reference them
+    let main_mod = python_import("__main__")
+    python_setattr(main_mod, "kain_frame_cb", frame_fn)
+    python_setattr(main_mod, "kain_event_cb", event_fn)
+
+    return (frame_fn, event_fn)
+
+// ── Phase 4: Launch Pygame ──
+//  Injects the inline Python. BLOCKS until window closes.
+
+fn launch_pygame() -> Int:
+    let _bootstrap = build_pygame_bootstrap()
+    let _result = python_exec(_bootstrap)
+    return 0
+
+// ── Phase 5: Validate ──
+//  After Pygame closes, verify worlds and telemetry.
+
+fn validate_after_shutdown() -> Int:
+    // World should have advanced at least a few frames
+    if GameWorld.frame <= 0:
+        return 50
+
+    // Mirror should have received entangle propagation
+    if GameMirror.frame_copy <= 0:
+        return 60
+
+    // Mirror should have received score propagation
+    if GameMirror.score_copy < 0:
+        return 65
+
+    // Telemetry should show pipeline activity
+    if orchestrate_stage_count() <= 0:
+        return 70
+
+    // Status must be clean (0 = running, 2 = shutdown)
+    let status = GameWorld.status
+    if status != 0 and status != 2:
+        return 80 + status
+
+    return 0
+
+// ── MAIN ──
+
+fn main() -> Int:
+    // ── Init runtime ──
+    let boot = runtime_init()
+    if boot != 0:
+        return 100 + boot
+
+    // ── Phase 1: Probe ──
+    let probe_status = probe_pygame_available()
+    if probe_status != 0:
+        // Pygame not available — run headless simulation
+        let gate = spawn PygameBridge()
+        let _warm = ask(gate, "Fold", 1)
+
+        let sim_result = run_pre_simulation(gate, 12)
+        if sim_result < 0:
+            let shutdown = runtime_shutdown()
+            return 90
+
+        let shutdown = runtime_shutdown()
+        if shutdown != 0:
+            return 500 + shutdown
+
+        if probe_status == 10:
+            return 0    // pygame module not installed — OK on CI
+        return probe_status
+
+    // ── Phase 2: Spawn bridge actor ──
+    let gate = spawn PygameBridge()
+    let _warm = ask(gate, "Fold", 1)
+
+    // ── Phase 3: Register callbacks ──
+    let (_frame_fn, _event_fn) = register_pygame_bridge(gate)
+
+    // ── Phase 4: Launch Pygame (BLOCKS) ──
+    let launch_result = launch_pygame()
+    if launch_result != 0:
+        let shutdown = runtime_shutdown()
+        return 200 + launch_result
+
+    // ── Phase 5: Validate ──
+    let validate_result = validate_after_shutdown()
+    if validate_result != 0:
+        let shutdown = runtime_shutdown()
+        return 300 + validate_result
+
+    // ── Clean shutdown ──
+    let shutdown = runtime_shutdown()
+    if shutdown != 0:
+        return 500 + shutdown
+
+    return 0

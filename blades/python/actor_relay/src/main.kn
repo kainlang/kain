@@ -1,0 +1,339 @@
+// ============================================================================
+//  PANDA3D ACTOR RELAY — Kain Actor Host-Bridge to Panda3D 3D Engine
+// ============================================================================
+//
+//  Uses python_actor_callback() to bridge Panda3D events into Kain actors.
+//  See docs/PYTHON.MD and docs/PYTHON_GUIDE.MD for the full bridge architecture.
+// ============================================================================
+
+use std::actor
+use std::python
+use std::runtime
+
+const PANDA_MODULUS: Int = 1000000007
+
+// ============================================================================
+//  COMPONENT
+// ============================================================================
+
+component PandaPanel():
+    render <panel title="Kain + Panda3D Actor Relay" />
+
+// ============================================================================
+//  WORLDS
+// ============================================================================
+
+world SceneWorld:
+    state frame: Int = 0
+    state total_events: Int = 0
+    state checksum: Int = 0
+    state fps: Int = 0
+    surface native_ui => PandaPanel
+
+world SceneMirror:
+    state frame_copy: Int = 0
+    state total_events_copy: Int = 0
+    state fps_copy: Int = 0
+    surface web => PandaPanel
+
+entangle SceneWorld.frame <-> SceneMirror.frame_copy with single_writer
+entangle SceneWorld.total_events <-> SceneMirror.total_events_copy with single_writer
+entangle SceneWorld.fps <-> SceneMirror.fps_copy with single_writer
+
+// ============================================================================
+//  LAWS
+// ============================================================================
+
+law frame_positive(value: Int) -> Bool:
+    return value >= 0
+
+// ============================================================================
+//  HELPERS
+// ============================================================================
+
+fn panda_mod(value: Int, modulus: Int) -> Int:
+    let folded = value % modulus
+    if folded < 0:
+        return folded + modulus
+    return folded
+
+fn panda_mix(a: Int, b: Int, c: Int) -> Int:
+    return panda_mod((a * 53) + (b * 37) + (c * 19) + 131, PANDA_MODULUS)
+
+// ============================================================================
+//  PANDA3DGATE — The Host-Bridge Actor
+// ============================================================================
+//
+//  Receives FrameTick and KeyEvent from Panda3D via python_actor_callback.
+//  Panda3D task callbacks → Python queue → dispatcher thread → actor mailbox.
+//  The actor updates entangled world state, readable by other Kain systems.
+
+actor Panda3DGate:
+    state frames_rendered: Int = 0
+    state bias: Int = 31
+
+    // Fire-and-forget frame tick from Panda3D (every 60th frame)
+    on FrameTick(tick_data: String):
+        self.frames_rendered = self.frames_rendered + 1
+        SceneWorld.frame = self.frames_rendered
+        SceneWorld.fps = self.frames_rendered % 60
+        SceneWorld.checksum = panda_mix(
+            self.frames_rendered,
+            SceneWorld.total_events,
+            self.frames_rendered
+        )
+
+    // Fire-and-forget keyboard event from Panda3D
+    on KeyEvent(key_data: String):
+        SceneWorld.total_events = SceneWorld.total_events + 1
+
+    // ask()-able relay for pre-Panda3D architecture simulation
+    on Fold(reply_to: P, request: Int):
+        let mix = panda_mix(request, self.bias, self.frames_rendered)
+        send reply_to.Reply(value = mix)
+
+// ============================================================================
+//  MODULE PROBE
+// ============================================================================
+
+fn probe_panda3d_available() -> Int:
+    if python_module_available("panda3d.core") == false:
+        return 10
+    if python_module_available("direct.showbase.ShowBase") == false:
+        return 11
+    if python_module_available("direct.task") == false:
+        return 12
+    return 0
+
+// ============================================================================
+//  MAIN
+// ============================================================================
+
+fn main() -> Int:
+    let authority = SceneWorld
+    let boot = runtime_init()
+    if boot != 0:
+        return 100 + boot
+
+    // Phase 1: Module Probe
+    let probe_status = probe_panda3d_available()
+    if probe_status != 0:
+        // Panda3D not available — architecture-only simulation
+        let gate = spawn Panda3DGate()
+        let _warm = ask(gate, "Fold", 1)
+        var checksum: Int = 137
+        var round: Int = 0
+        while round < 8:
+            let reply = ask(gate, "Fold", checksum + round)
+            checksum = panda_mix(checksum + round, reply, round * 7)
+            authority.frame = round
+            round = round + 1
+
+        let shutdown = runtime_shutdown()
+        if probe_status == 10:
+            return 0    // panda3d.core not found — expected on CI
+        return probe_status
+
+    // Phase 2: Spawn the Gate actor
+    let gate = spawn Panda3DGate()
+    let _warm = ask(gate, "Fold", 1)
+
+    // Phase 3: Pre-Panda3D architecture simulation
+    var checksum: Int = 137
+    var round: Int = 0
+    while round < 8:
+        let reply = ask(gate, "Fold", checksum + round)
+        checksum = panda_mix(checksum + round, reply, round * 7)
+        authority.frame = round
+        authority.total_events = round * 3
+        round = round + 1
+
+    if checksum <= 0:
+        let shutdown_sim = runtime_shutdown()
+        return 40
+
+    // Phase 4: Register python_actor_callback bridge
+    //
+    // Creates Python queue + callable + dispatcher thread for each message.
+    // We bind the callable function objects to __main__ globals
+    // so the Panda3D bootstrap can reference them by name.
+
+    let frame_cb = python_actor_callback(gate as Int, "FrameTick")
+    let frame_fn = python_actor_callback_callable(frame_cb)
+
+    let key_cb = python_actor_callback(gate as Int, "KeyEvent")
+    let key_fn = python_actor_callback_callable(key_cb)
+
+    // Bind callables to Python globals using python_setattr on __main__
+    let main_mod = python_import("__main__")
+    python_setattr(main_mod, "kain_frame_cb", frame_fn)
+    python_setattr(main_mod, "kain_key_cb", key_fn)
+
+    // Phase 5: Bootstrap Panda3D (BLOCKS until window closes)
+    //
+    // Stage A: Panda3D config
+    let panda_config = """
+from panda3d.core import loadPrcFileData
+loadPrcFileData('', 'win-size 1280 720')
+loadPrcFileData('', 'window-title Kain + Panda3D Actor Relay')
+loadPrcFileData('', 'show-frame-rate-meter #t')
+loadPrcFileData('', 'sync-video #f')
+"""
+    let _cfg = python_exec(panda_config)
+
+    // Stage B: KainPandaApp class (7 orbiting teapots, keyboard camera, FPS counter)
+    let panda_class = """
+from direct.showbase.ShowBase import ShowBase
+from direct.task import Task
+from panda3d.core import DirectionalLight, AmbientLight, TextNode, LineSegs
+import math
+
+class KainPandaApp(ShowBase):
+    def __init__(self, frame_cb, key_cb):
+        ShowBase.__init__(self)
+        self.frame_cb = frame_cb
+        self.key_cb = key_cb
+        self.frame_count = 0
+        self.disableMouse()
+
+        alight = AmbientLight('ambient')
+        alight.setColor((0.4, 0.4, 0.45, 1))
+        alnp = self.render.attachNewNode(alight)
+        self.render.setLight(alnp)
+
+        dlight = DirectionalLight('directional')
+        dlight.setColor((0.6, 0.55, 0.5, 1))
+        dlnp = self.render.attachNewNode(dlight)
+        dlnp.setHpr(45, -30, 0)
+        self.render.setLight(dlnp)
+
+        grid = LineSegs('grid')
+        grid.setColor(0.3, 0.3, 0.35, 0.4)
+        for i in range(-20, 21, 2):
+            grid.moveTo(i, -20, 0)
+            grid.drawTo(i, 20, 0)
+            grid.moveTo(-20, i, 0)
+            grid.drawTo(20, i, 0)
+        grid_node = grid.create()
+        self.render.attachNewNode(grid_node)
+
+        self.camera.setPos(0, -30, 15)
+        self.camera.lookAt(0, 0, 0)
+
+        self.teapots = []
+        for i in range(7):
+            teapot = self.loader.loadModel('models/misc/teapot')
+            teapot.setScale(0.3 + (i * 0.05))
+            r = (i % 3) / 3.0 + 0.3
+            g = ((i + 1) % 3) / 3.0 + 0.3
+            b = ((i + 2) % 3) / 3.0 + 0.3
+            teapot.setColor(r, g, b, 1.0)
+            teapot.reparentTo(self.render)
+            self.teapots.append({
+                'node': teapot,
+                'radius': 8.0 + (i * 1.5),
+                'speed': 0.8 + (i * 0.15),
+                'angle': i * 1.0,
+                'height': 2.0 + (i * 0.7)
+            })
+
+        self.title_text = self.add_onscreen_text(
+            'Kain + Panda3D Actor Relay', 0.05, 0.95, 0.08)
+        self.help_text = self.add_onscreen_text(
+            'ESC to exit | Arrows to orbit | W/S to zoom', 0.05, 0.05, 0.05)
+        self.fps_text = self.add_onscreen_text(
+            'FPS: ---', 0.05, 0.10, 0.05)
+
+        self.taskMgr.add(self.kain_frame_tick_task, 'kain_frame_tick')
+        self.taskMgr.add(self.kain_orbit_task, 'kain_orbit')
+        self.taskMgr.add(self.kain_camera_task, 'kain_camera')
+
+        self.accept('escape', self.kain_quit)
+
+        self.cam_orbit_angle = 0.0
+        self.cam_radius = 30.0
+        self.cam_height = 12.0
+        self.key_state = {}
+
+    def add_onscreen_text(self, text, x, y, scale):
+        tn = TextNode('onscreen')
+        tn.setText(text)
+        tn.setTextScale(scale)
+        tn.setTextColor(1, 1, 1, 0.9)
+        tn.setAlign(TextNode.ALeft)
+        np = self.aspect2d.attachNewNode(tn)
+        np.setPos(-1.3 + x * 2.6, 0, -1.0 + y * 2.0)
+        return tn
+
+    def kain_frame_tick_task(self, task):
+        dt = globalClock.getDt()
+        self.frame_count += 1
+        if self.frame_count % 60 == 0:
+            self.frame_cb(dt, self.frame_count)
+            fps = 1.0 / dt if dt > 0 else 0
+            self.fps_text.setText('FPS: ' + str(int(fps)))
+        return Task.cont
+
+    def kain_orbit_task(self, task):
+        dt = globalClock.getDt()
+        for tp in self.teapots:
+            tp['angle'] += tp['speed'] * dt
+            x = tp['radius'] * math.cos(tp['angle'])
+            z = tp['radius'] * math.sin(tp['angle'])
+            tp['node'].setPos(x, z * 0.3, tp['height'])
+            tp['node'].setHpr(tp['angle'] * 57.2958, 0, 0)
+        return Task.cont
+
+    def kain_camera_task(self, task):
+        dt = globalClock.getDt()
+        is_down = self.mouseWatcherNode.is_button_down
+        if is_down('arrow_left'):
+            self.cam_orbit_angle += 1.5 * dt
+        if is_down('arrow_right'):
+            self.cam_orbit_angle -= 1.5 * dt
+        if is_down('arrow_up'):
+            self.cam_height += 5.0 * dt
+        if is_down('arrow_down'):
+            self.cam_height -= 5.0 * dt
+        if is_down('w'):
+            self.cam_radius -= 10.0 * dt
+        if is_down('s'):
+            self.cam_radius += 10.0 * dt
+        self.cam_radius = max(8.0, min(60.0, self.cam_radius))
+        self.cam_height = max(3.0, min(40.0, self.cam_height))
+        cx = self.cam_radius * math.cos(self.cam_orbit_angle)
+        cy = self.cam_radius * math.sin(self.cam_orbit_angle)
+        self.camera.setPos(cx, cy, self.cam_height)
+        self.camera.lookAt(0, 0, 4)
+        return Task.cont
+
+    def kain_quit(self):
+        self.userExit()
+"""
+    let _class = python_exec(panda_class)
+
+    // Stage C: Create app and RUN (BLOCKS until window closes)
+    let panda_run = """
+app = KainPandaApp(
+    frame_cb=kain_frame_cb,
+    key_cb=kain_key_cb,
+)
+app.run()
+print('PANDA3D_SESSION_ENDED')
+"""
+    let _result = python_exec(panda_run)
+
+    // Phase 6: Panda3D closed — Final validation
+    if SceneWorld.frame <= 0:
+        let shutdown = runtime_shutdown()
+        return 50
+
+    let shutdown = runtime_shutdown()
+    if shutdown != 0:
+        return 500 + shutdown
+
+    let mirror_frame = SceneMirror.frame_copy
+    if mirror_frame == 0:
+        return 60
+
+    return 0

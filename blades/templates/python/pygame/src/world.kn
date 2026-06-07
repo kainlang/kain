@@ -1,0 +1,129 @@
+// ============================================================================
+//  WORLD — State Authority + Mirror + Entangle + Laws + Patches
+// ============================================================================
+//  All game state lives here. Worlds own the truth; everything else reads
+//  or patches. Add new state fields, surfaces, or entangles as needed.
+//  GameHUD component is co-located with its world (canonical pattern).
+// ============================================================================
+
+use std::intent
+
+use helpers::SCREEN_WIDTH
+use helpers::SCREEN_HEIGHT
+use helpers::pygame_clamp
+
+// ── Root UI Component (co-located with world per canonical pattern) ──
+
+component GameHUD():
+    render <panel title="pygame + kain" />
+
+// ── Authority — mutable game state ──
+
+world GameWorld:
+    state frame: Int = 0
+    state fps: Int = 60
+    state player_x: Int = 400
+    state player_y: Int = 500
+    state player_dx: Int = 0
+    state player_dy: Int = 0
+    state score: Int = 0
+    state sprites_alive: Int = 8
+    state keys_pressed: Int = 0
+    state status: Int = 0         // 0 = running, 1 = paused, 2 = shutdown
+    surface native_ui => GameHUD
+
+// ── Mirror — read-only view for entangle propagation ──
+
+world GameMirror:
+    state frame_copy: Int = 0
+    state fps_copy: Int = 60
+    state player_x_copy: Int = 400
+    state player_y_copy: Int = 500
+    state score_copy: Int = 0
+    state sprites_alive_copy: Int = 8
+    state keys_pressed_copy: Int = 0
+    state status_copy: Int = 0
+    surface web => GameHUD
+
+// ── Entangle — compiler-owned reactive sync ──
+
+entangle GameWorld.frame <-> GameMirror.frame_copy with single_writer
+entangle GameWorld.fps <-> GameMirror.fps_copy with single_writer
+entangle GameWorld.player_x <-> GameMirror.player_x_copy with single_writer
+entangle GameWorld.player_y <-> GameMirror.player_y_copy with single_writer
+entangle GameWorld.score <-> GameMirror.score_copy with single_writer
+entangle GameWorld.sprites_alive <-> GameMirror.sprites_alive_copy with single_writer
+entangle GameWorld.keys_pressed <-> GameMirror.keys_pressed_copy with single_writer
+entangle GameWorld.status <-> GameMirror.status_copy with single_writer
+
+// ── Laws — invariant predicates ──
+
+law frame_valid(value: Int) -> Bool:
+    return value >= 0
+
+law fps_valid(value: Int) -> Bool:
+    return value >= 0 and value < 1000
+
+law player_x_valid(value: Int) -> Bool:
+    return value >= 0 and value <= SCREEN_WIDTH
+
+law player_y_valid(value: Int) -> Bool:
+    return value >= 0 and value <= SCREEN_HEIGHT
+
+law score_valid(value: Int) -> Bool:
+    return value >= 0 and value < 1000000
+
+law status_valid(value: Int) -> Bool:
+    return value >= 0 and value <= 2
+
+// ── Patches — journaled world mutations ──
+
+patch commit_frame(authority: GameWorld, frame: Int) -> Int:
+    authority.frame = frame
+    return authority.frame
+
+patch commit_fps(authority: GameWorld, fps: Int) -> Int:
+    authority.fps = fps
+    return authority.fps
+
+patch commit_player_x(authority: GameWorld, x: Int) -> Int:
+    authority.player_x = pygame_clamp(x, 0, SCREEN_WIDTH)
+    return authority.player_x
+
+patch commit_player_y(authority: GameWorld, y: Int) -> Int:
+    authority.player_y = pygame_clamp(y, 0, SCREEN_HEIGHT)
+    return authority.player_y
+
+patch commit_player_vel(authority: GameWorld, dx: Int, dy: Int) -> Int:
+    authority.player_dx = dx
+    authority.player_dy = dy
+    return dx + dy
+
+patch commit_score(authority: GameWorld, score: Int) -> Int:
+    authority.score = score
+    return authority.score
+
+patch commit_sprites_alive(authority: GameWorld, count: Int) -> Int:
+    authority.sprites_alive = count
+    return authority.sprites_alive
+
+patch commit_input(authority: GameWorld, key_flag: Int) -> Int:
+    authority.keys_pressed = authority.keys_pressed + key_flag
+    return authority.keys_pressed
+
+patch commit_status(authority: GameWorld, status: Int) -> Int:
+    authority.status = status
+    return authority.status
+
+patch reset_game_world(authority: GameWorld) -> Int:
+    authority.frame = 0
+    authority.fps = 60
+    authority.player_x = 400
+    authority.player_y = 500
+    authority.player_dx = 0
+    authority.player_dy = 0
+    authority.score = 0
+    authority.sprites_alive = 8
+    authority.keys_pressed = 0
+    authority.status = 0
+    return 0

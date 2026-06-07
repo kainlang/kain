@@ -1,0 +1,35 @@
+use std::interop
+use std::python
+
+import numpy as np
+
+const MODULUS: Int = 1000000007
+const ITERATIONS: Int = 20000
+const BUFFER_CELLS: Int = 512
+const EXPECTED: Int = 20899830
+
+fn bool_score(value: Bool) -> Int:
+    if value:
+        return 1
+    return 0
+
+fn make_source_buffer() -> Any:
+    let base = python_call_attr_raw(np, "arange", [BUFFER_CELLS])
+    let bytes_view = python_call_attr_raw(base, "astype", ["uint8"])
+    return python_call_attr_raw(np, "ascontiguousarray", [bytes_view])
+
+fn main() -> Int:
+    let source = make_source_buffer()
+    var acc: Int = 0
+    var index: Int = 0
+
+    while index < ITERATIONS:
+        let shared_buffer = python_shared_buffer(source)
+        let info = interop_shared_buffer_info(shared_buffer)
+        let lane = info.byte_length + info.element_count + info.element_size + bool_score(info.zero_copy) + bool_score(info.ownership == "shared") + (index % 37)
+        acc = (acc + lane) % MODULUS
+        index = index + 1
+
+    if acc != EXPECTED:
+        return 1
+    return 0

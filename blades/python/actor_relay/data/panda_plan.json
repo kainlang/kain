@@ -1,0 +1,22 @@
+{
+    "window_title": "Kain + Panda3D — Actor Relay Bridge",
+    "teapot_count": 9,
+    "simulation_rounds": 8,
+    "seed": 137,
+    "camera": {
+        "start_x": 0,
+        "start_y": -30,
+        "start_z": 15,
+        "look_x": 0,
+        "look_y": 0,
+        "look_z": 0
+    },
+    "orbit": {
+        "base_radius": 8.0,
+        "base_speed": 1.2,
+        "spread": 2.0
+    },
+    "models": [
+        { "path": "models/misc/teapot", "name": "central_teapot", "x": 0, "y": 0, "z": 2 }
+    ]
+}

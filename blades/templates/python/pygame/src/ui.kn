@@ -1,0 +1,64 @@
+// ============================================================================
+//  UI — Reusable Kain Component Library
+// ============================================================================
+//  Prop-based sub-components for composition. Drop new reusable widgets here.
+//  The root GameHUD is co-located with GameWorld in world.kn.
+//  These components receive data via props, not world state.
+// ============================================================================
+
+// ── Status Badge — green/red indicator ──
+
+component StatusBadge(label: String, active: Bool):
+    render <box>
+        <text value={label + ": "} />
+        <text value={if active: "RUNNING" else: "STOPPED"} />
+    </box>
+
+// ── FPS Display — standalone widget ──
+
+component FPSDisplay(fps: Int):
+    render <box>
+        <text value={"FPS: " + str(fps)} />
+    </box>
+
+// ── Player Position Display ──
+
+component PositionDisplay(x: Int, y: Int):
+    render <box>
+        <text value={"Player: (" + str(x) + ", " + str(y) + ")"} />
+    </box>
+
+// ── Score Display ──
+
+component ScoreDisplay(score: Int):
+    render <box>
+        <text value={"Score: " + str(score)} />
+    </box>
+
+// ── Sprite Inspector — view sprite metadata ──
+
+component SpriteInspector(sprite_id: Int, sprite_count: Int):
+    render <box>
+        <text value={"sprite #" + str(sprite_id)} />
+        <text value={"alive: " + str(sprite_count)} />
+    </box>
+
+// ── Metric Card — value + label pair ──
+
+component MetricCard(label: String, value: Int):
+    render <box>
+        <text value={label} />
+        <text value={str(value)} />
+    </box>
+
+// ── Debug HUD — composite of sub-components ──
+
+component DebugHUD(fps: Int, score: Int, sprites: Int, keys: Int, px: Int, py: Int):
+    render <panel title="debug">
+        <FPSDisplay fps={fps} />
+        <ScoreDisplay score={score} />
+        <PositionDisplay x={px} y={py} />
+        <SpriteInspector sprite_id={0} sprite_count={sprites} />
+        <MetricCard label="keys" value={keys} />
+        <StatusBadge label="engine" active={fps > 0} />
+    </panel>

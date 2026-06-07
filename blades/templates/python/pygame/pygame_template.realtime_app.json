@@ -1,0 +1,613 @@
+{
+  "schema_version": 1,
+  "target": "llvm",
+  "render": {
+    "scenes": [],
+    "materials": []
+  },
+  "patches": [
+    {
+      "name": "commit_fps",
+      "mutation_paths": [
+        "authority.fps"
+      ],
+      "undo_mode": "reversible",
+      "collaboration_event": "patch.commit_fps"
+    },
+    {
+      "name": "commit_frame",
+      "mutation_paths": [
+        "authority.frame"
+      ],
+      "undo_mode": "reversible",
+      "collaboration_event": "patch.commit_frame"
+    },
+    {
+      "name": "commit_input",
+      "mutation_paths": [
+        "authority.keys_pressed"
+      ],
+      "undo_mode": "reversible",
+      "collaboration_event": "patch.commit_input"
+    },
+    {
+      "name": "commit_player_vel",
+      "mutation_paths": [
+        "authority.player_dx",
+        "authority.player_dy"
+      ],
+      "undo_mode": "reversible",
+      "collaboration_event": "patch.commit_player_vel"
+    },
+    {
+      "name": "commit_player_x",
+      "mutation_paths": [
+        "authority.player_x"
+      ],
+      "undo_mode": "best_effort",
+      "collaboration_event": "patch.commit_player_x"
+    },
+    {
+      "name": "commit_player_y",
+      "mutation_paths": [
+        "authority.player_y"
+      ],
+      "undo_mode": "best_effort",
+      "collaboration_event": "patch.commit_player_y"
+    },
+    {
+      "name": "commit_score",
+      "mutation_paths": [
+        "authority.score"
+      ],
+      "undo_mode": "reversible",
+      "collaboration_event": "patch.commit_score"
+    },
+    {
+      "name": "commit_sprites_alive",
+      "mutation_paths": [
+        "authority.sprites_alive"
+      ],
+      "undo_mode": "reversible",
+      "collaboration_event": "patch.commit_sprites_alive"
+    },
+    {
+      "name": "commit_status",
+      "mutation_paths": [
+        "authority.status"
+      ],
+      "undo_mode": "reversible",
+      "collaboration_event": "patch.commit_status"
+    },
+    {
+      "name": "reset_game_world",
+      "mutation_paths": [
+        "authority.fps",
+        "authority.frame",
+        "authority.keys_pressed",
+        "authority.player_dx",
+        "authority.player_dy",
+        "authority.player_x",
+        "authority.player_y",
+        "authority.score",
+        "authority.sprites_alive",
+        "authority.status"
+      ],
+      "undo_mode": "reversible",
+      "collaboration_event": "patch.reset_game_world"
+    }
+  ],
+  "laws": [
+    {
+      "name": "fps_valid",
+      "symbol": "fps_valid",
+      "param_types": [
+        "Int"
+      ],
+      "return_type": "Bool"
+    },
+    {
+      "name": "frame_valid",
+      "symbol": "frame_valid",
+      "param_types": [
+        "Int"
+      ],
+      "return_type": "Bool"
+    },
+    {
+      "name": "player_x_valid",
+      "symbol": "player_x_valid",
+      "param_types": [
+        "Int"
+      ],
+      "return_type": "Bool"
+    },
+    {
+      "name": "player_y_valid",
+      "symbol": "player_y_valid",
+      "param_types": [
+        "Int"
+      ],
+      "return_type": "Bool"
+    },
+    {
+      "name": "score_valid",
+      "symbol": "score_valid",
+      "param_types": [
+        "Int"
+      ],
+      "return_type": "Bool"
+    },
+    {
+      "name": "status_valid",
+      "symbol": "status_valid",
+      "param_types": [
+        "Int"
+      ],
+      "return_type": "Bool"
+    }
+  ],
+  "converges": [
+    {
+      "name": "collision_check",
+      "dispatcher_symbol": "collision_check",
+      "spec_lane": {
+        "lane_name": "reference",
+        "kind": "spec",
+        "symbol": "collision_check__reference"
+      },
+      "fast_lanes": [
+        {
+          "lane_name": "manhattan_lane",
+          "kind": "fast",
+          "selector": "target:llvm",
+          "symbol": "collision_check__manhattan_lane"
+        }
+      ],
+      "verify_random_count": 4
+    },
+    {
+      "name": "sprite_update",
+      "dispatcher_symbol": "sprite_update",
+      "spec_lane": {
+        "lane_name": "reference",
+        "kind": "spec",
+        "symbol": "sprite_update__reference"
+      },
+      "fast_lanes": [
+        {
+          "lane_name": "closed_form_lane",
+          "kind": "fast",
+          "selector": "target:llvm",
+          "symbol": "sprite_update__closed_form_lane"
+        }
+      ],
+      "verify_random_count": 4
+    }
+  ],
+  "worlds": [
+    {
+      "name": "GameMirror",
+      "state_slots": [
+        {
+          "name": "frame_copy",
+          "type_name": "Int",
+          "initial_expr": "0"
+        },
+        {
+          "name": "fps_copy",
+          "type_name": "Int",
+          "initial_expr": "60"
+        },
+        {
+          "name": "player_x_copy",
+          "type_name": "Int",
+          "initial_expr": "400"
+        },
+        {
+          "name": "player_y_copy",
+          "type_name": "Int",
+          "initial_expr": "500"
+        },
+        {
+          "name": "score_copy",
+          "type_name": "Int",
+          "initial_expr": "0"
+        },
+        {
+          "name": "sprites_alive_copy",
+          "type_name": "Int",
+          "initial_expr": "8"
+        },
+        {
+          "name": "keys_pressed_copy",
+          "type_name": "Int",
+          "initial_expr": "0"
+        },
+        {
+          "name": "status_copy",
+          "type_name": "Int",
+          "initial_expr": "0"
+        }
+      ],
+      "surfaces": [
+        {
+          "kind": "web",
+          "authored_expr": "GameHUD",
+          "surface_key": "world.GameMirror.web"
+        }
+      ]
+    },
+    {
+      "name": "GameWorld",
+      "state_slots": [
+        {
+          "name": "frame",
+          "type_name": "Int",
+          "initial_expr": "0"
+        },
+        {
+          "name": "fps",
+          "type_name": "Int",
+          "initial_expr": "60"
+        },
+        {
+          "name": "player_x",
+          "type_name": "Int",
+          "initial_expr": "400"
+        },
+        {
+          "name": "player_y",
+          "type_name": "Int",
+          "initial_expr": "500"
+        },
+        {
+          "name": "player_dx",
+          "type_name": "Int",
+          "initial_expr": "0"
+        },
+        {
+          "name": "player_dy",
+          "type_name": "Int",
+          "initial_expr": "0"
+        },
+        {
+          "name": "score",
+          "type_name": "Int",
+          "initial_expr": "0"
+        },
+        {
+          "name": "sprites_alive",
+          "type_name": "Int",
+          "initial_expr": "8"
+        },
+        {
+          "name": "keys_pressed",
+          "type_name": "Int",
+          "initial_expr": "0"
+        },
+        {
+          "name": "status",
+          "type_name": "Int",
+          "initial_expr": "0"
+        }
+      ],
+      "surfaces": [
+        {
+          "kind": "native_ui",
+          "authored_expr": "GameHUD",
+          "surface_key": "world.GameWorld.native_ui"
+        }
+      ]
+    }
+  ],
+  "active_world": {
+    "name": "GameWorld",
+    "state_slots": [
+      {
+        "name": "frame",
+        "type_name": "Int",
+        "initial_expr": "0"
+      },
+      {
+        "name": "fps",
+        "type_name": "Int",
+        "initial_expr": "60"
+      },
+      {
+        "name": "player_x",
+        "type_name": "Int",
+        "initial_expr": "400"
+      },
+      {
+        "name": "player_y",
+        "type_name": "Int",
+        "initial_expr": "500"
+      },
+      {
+        "name": "player_dx",
+        "type_name": "Int",
+        "initial_expr": "0"
+      },
+      {
+        "name": "player_dy",
+        "type_name": "Int",
+        "initial_expr": "0"
+      },
+      {
+        "name": "score",
+        "type_name": "Int",
+        "initial_expr": "0"
+      },
+      {
+        "name": "sprites_alive",
+        "type_name": "Int",
+        "initial_expr": "8"
+      },
+      {
+        "name": "keys_pressed",
+        "type_name": "Int",
+        "initial_expr": "0"
+      },
+      {
+        "name": "status",
+        "type_name": "Int",
+        "initial_expr": "0"
+      }
+    ],
+    "surfaces": [
+      {
+        "kind": "native_ui",
+        "authored_expr": "GameHUD",
+        "surface_key": "world.GameWorld.native_ui"
+      }
+    ]
+  },
+  "entanglements": [
+    {
+      "authority": "GameWorld.fps",
+      "mirror": "GameMirror.fps_copy",
+      "policy": "single_writer",
+      "type_name": "Int"
+    },
+    {
+      "authority": "GameWorld.frame",
+      "mirror": "GameMirror.frame_copy",
+      "policy": "single_writer",
+      "type_name": "Int"
+    },
+    {
+      "authority": "GameWorld.keys_pressed",
+      "mirror": "GameMirror.keys_pressed_copy",
+      "policy": "single_writer",
+      "type_name": "Int"
+    },
+    {
+      "authority": "GameWorld.player_x",
+      "mirror": "GameMirror.player_x_copy",
+      "policy": "single_writer",
+      "type_name": "Int"
+    },
+    {
+      "authority": "GameWorld.player_y",
+      "mirror": "GameMirror.player_y_copy",
+      "policy": "single_writer",
+      "type_name": "Int"
+    },
+    {
+      "authority": "GameWorld.score",
+      "mirror": "GameMirror.score_copy",
+      "policy": "single_writer",
+      "type_name": "Int"
+    },
+    {
+      "authority": "GameWorld.sprites_alive",
+      "mirror": "GameMirror.sprites_alive_copy",
+      "policy": "single_writer",
+      "type_name": "Int"
+    },
+    {
+      "authority": "GameWorld.status",
+      "mirror": "GameMirror.status_copy",
+      "policy": "single_writer",
+      "type_name": "Int"
+    }
+  ],
+  "orchestrations": [
+    {
+      "name": "handle_collectible_collision",
+      "return_type": "Int",
+      "graph_mode": true,
+      "stages": [
+        {
+          "runtime": "converge",
+          "kind": "converge",
+          "function": "collision_check",
+          "binding_name": "check",
+          "residency": "host",
+          "policy": "static",
+          "silicon_native": true,
+          "compatibility_adapter": false
+        },
+        {
+          "runtime": "cpu",
+          "kind": "cpu",
+          "function": "pygame_mod",
+          "binding_name": "compute_new_score",
+          "selector": "capability(\"cpu.scalar\")",
+          "dependencies": [
+            "check"
+          ],
+          "residency": "host",
+          "transfer": "none",
+          "policy": "static",
+          "silicon_native": true,
+          "compatibility_adapter": false
+        },
+        {
+          "runtime": "law",
+          "kind": "law",
+          "function": "score_valid",
+          "binding_name": "validate_score",
+          "dependencies": [
+            "compute_new_score"
+          ],
+          "residency": "host",
+          "policy": "static",
+          "silicon_native": true,
+          "compatibility_adapter": false
+        },
+        {
+          "runtime": "patch",
+          "kind": "patch",
+          "function": "commit_score",
+          "binding_name": "commit",
+          "dependencies": [
+            "compute_new_score"
+          ],
+          "residency": "host",
+          "policy": "static",
+          "silicon_native": true,
+          "compatibility_adapter": false
+        }
+      ]
+    },
+    {
+      "name": "pygame_game_loop",
+      "return_type": "Int",
+      "graph_mode": true,
+      "adaptive_policy": true,
+      "stages": [
+        {
+          "runtime": "law",
+          "kind": "law",
+          "function": "player_x_valid",
+          "binding_name": "validate_player_x",
+          "residency": "host",
+          "policy": "static",
+          "silicon_native": true,
+          "compatibility_adapter": false
+        },
+        {
+          "runtime": "law",
+          "kind": "law",
+          "function": "player_y_valid",
+          "binding_name": "validate_player_y",
+          "residency": "host",
+          "policy": "static",
+          "silicon_native": true,
+          "compatibility_adapter": false
+        },
+        {
+          "runtime": "converge",
+          "kind": "converge",
+          "function": "sprite_update",
+          "binding_name": "process_sprite",
+          "selector": "capability(\"cpu.scalar\")",
+          "residency": "host",
+          "transfer": "none",
+          "policy": "telemetry_prefer_cpu",
+          "adaptive_policy": true,
+          "silicon_native": true,
+          "compatibility_adapter": false
+        },
+        {
+          "runtime": "converge",
+          "kind": "converge",
+          "function": "collision_check",
+          "binding_name": "check_collision",
+          "dependencies": [
+            "process_sprite"
+          ],
+          "residency": "host",
+          "policy": "telemetry_prefer_cpu",
+          "adaptive_policy": true,
+          "silicon_native": true,
+          "compatibility_adapter": false
+        },
+        {
+          "runtime": "converge",
+          "kind": "converge",
+          "function": "pygame_mod",
+          "binding_name": "update_score",
+          "dependencies": [
+            "check_collision",
+            "process_sprite"
+          ],
+          "residency": "host",
+          "policy": "static",
+          "silicon_native": true,
+          "compatibility_adapter": false
+        },
+        {
+          "runtime": "patch",
+          "kind": "patch",
+          "function": "commit_score",
+          "binding_name": "commit_state",
+          "dependencies": [
+            "update_score"
+          ],
+          "residency": "host",
+          "requires": "validate_player_x",
+          "policy": "telemetry_balance_latency",
+          "adaptive_policy": true,
+          "silicon_native": true,
+          "compatibility_adapter": false
+        }
+      ]
+    }
+  ],
+  "shader_bundle_refs": [],
+  "assets": [],
+  "tool_caps": [
+    "converge.dispatch",
+    "law.invariants",
+    "orchestrate.pipeline",
+    "patch.transactions",
+    "scene.actors",
+    "state.entangle",
+    "world.native-ui",
+    "world.web"
+  ],
+  "requirements": [
+    "converge.dispatch",
+    "host.raw-native",
+    "law.invariants",
+    "orchestrate.pipeline",
+    "patch.transactions",
+    "runtime.contract.bundle",
+    "shader.bundle.metadata",
+    "state.entangle",
+    "world.native-ui",
+    "world.web"
+  ],
+  "ui_contracts": {
+    "contract_version": "ui_slate_x100.authoring_contract.v1",
+    "widget_registry_json": null,
+    "command_registry_json": null,
+    "computed_registry_json": null,
+    "event_routes_json": null,
+    "hot_reload_json": null,
+    "focus_graph_json": null,
+    "selection_model_json": null,
+    "overlay_stack_json": null,
+    "motion_policy_json": null,
+    "paint_registry_json": null,
+    "motion_registry_json": null,
+    "workspace_schema_json": null,
+    "workspace_layout_json": "{\n  \"roots\": [],\n  \"persistence_key\": null,\n  \"virtualization_enabled\": false,\n  \"active_tabs\": {}\n}",
+    "workspace_layout": null,
+    "structure_index": [
+      {
+        "id": 2,
+        "identity_key": "2",
+        "kind": "component:GameHUD",
+        "tab_default_active": false,
+        "min_width": null,
+        "min_height": null,
+        "max_width": null,
+        "max_height": null
+      }
+    ]
+  }
+}

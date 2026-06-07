@@ -1,0 +1,203 @@
+// ============================================================================
+//  BRIDGE — Python Bootstrap & Pygame Launcher
+// ============================================================================
+//  Contains ALL inline Python code. No .py files. The Python defines the
+//  Pygame window, sprites, player controller, HUD, and Kain callback wiring.
+//  Modify the inline Python strings to change the visual scene.
+//
+//  The callbacks are pre-bound to __main__ globals (kain_frame_cb,
+//  kain_event_cb) by main.kn before this bootstrap runs.
+// ============================================================================
+
+use std::python
+
+// ── Build the full Pygame bootstrap script ──
+//
+//  The callbacks (kain_frame_cb, kain_event_cb) are already bound to __main__
+//  globals by main.kn. The Python code references them directly.
+
+pub fn build_pygame_bootstrap() -> String:
+    return "
+import pygame
+import math
+import sys
+
+SCREEN_WIDTH = 800
+SCREEN_HEIGHT = 600
+PLAYER_SIZE = 32
+COLLECTIBLE_SIZE = 16
+FPS = 60
+PLAYER_SPEED = 300
+
+COLORS = [
+    (255, 50, 50),
+    (50, 255, 50),
+    (50, 50, 255),
+    (255, 255, 50),
+    (255, 50, 255),
+    (50, 255, 255),
+    (255, 128, 0),
+    (128, 0, 255),
+]
+
+pygame.init()
+screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+pygame.display.set_caption('Kain + Pygame Template')
+clock = pygame.time.Clock()
+font = pygame.font.Font(None, 36)
+small_font = pygame.font.Font(None, 24)
+
+sprite_data = [
+    {'radius': 100, 'speed': 0.8,  'angle': 0.0,     'height': -50},
+    {'radius': 130, 'speed': 0.9,  'angle': 0.79,    'height': -80},
+    {'radius': 160, 'speed': 1.0,  'angle': 1.57,    'height': -30},
+    {'radius': 190, 'speed': 1.1,  'angle': 2.36,    'height': -60},
+    {'radius': 80,  'speed': 0.7,  'angle': 3.14,    'height': -40},
+    {'radius': 220, 'speed': 1.2,  'angle': 3.93,    'height': -90},
+    {'radius': 60,  'speed': 0.6,  'angle': 4.71,    'height': -20},
+    {'radius': 250, 'speed': 1.3,  'angle': 5.50,    'height': -70},
+]
+
+sprites = []
+for i, data in enumerate(sprite_data):
+    col = COLORS[i % len(COLORS)]
+    sprites.append({
+        'radius': data['radius'],
+        'speed': data['speed'],
+        'angle': data['angle'],
+        'height': data['height'],
+        'color': col,
+        'alive': True,
+        'collected_this_frame': False,
+    })
+
+player_pos = [SCREEN_WIDTH // 2, SCREEN_HEIGHT - 100]
+score = 0
+frame_count = 0
+running = True
+kain_connected = True
+
+while running:
+    dt = clock.tick(FPS) / 1000.0
+    frame_count += 1
+
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            running = False
+        elif event.type == pygame.KEYDOWN:
+            try:
+                kain_event_cb('keydown', event.key)
+            except Exception:
+                kain_connected = False
+        elif event.type == pygame.KEYUP:
+            try:
+                kain_event_cb('keyup', event.key)
+            except Exception:
+                kain_connected = False
+
+    keys = pygame.key.get_pressed()
+    dx = 0
+    dy = 0
+    if keys[pygame.K_LEFT] or keys[pygame.K_a]:
+        dx = -PLAYER_SPEED
+    if keys[pygame.K_RIGHT] or keys[pygame.K_d]:
+        dx = PLAYER_SPEED
+    if keys[pygame.K_UP] or keys[pygame.K_w]:
+        dy = -PLAYER_SPEED
+    if keys[pygame.K_DOWN] or keys[pygame.K_s]:
+        dy = PLAYER_SPEED
+
+    player_pos[0] += dx * dt
+    player_pos[1] += dy * dt
+
+    if player_pos[0] < -PLAYER_SIZE:
+        player_pos[0] = SCREEN_WIDTH + PLAYER_SIZE
+    if player_pos[0] > SCREEN_WIDTH + PLAYER_SIZE:
+        player_pos[0] = -PLAYER_SIZE
+    if player_pos[1] < -PLAYER_SIZE:
+        player_pos[1] = SCREEN_HEIGHT + PLAYER_SIZE
+    if player_pos[1] > SCREEN_HEIGHT + PLAYER_SIZE:
+        player_pos[1] = -PLAYER_SIZE
+
+    center_x = SCREEN_WIDTH // 2
+    center_y = SCREEN_HEIGHT // 2
+
+    for i, sprite in enumerate(sprites):
+        if not sprite['alive']:
+            continue
+        sprite['angle'] += sprite['speed'] * dt
+        rad = sprite['radius']
+        a = sprite['angle']
+        sx = center_x + int(rad * math.cos(a))
+        sy = center_y + int(rad * math.sin(a) * 0.3) + sprite['height']
+        px, py = player_pos
+        dist = math.sqrt((px - sx)**2 + (py - sy)**2)
+        threshold = (PLAYER_SIZE / 2) + (COLLECTIBLE_SIZE / 2) + 4
+        if dist < threshold and sprite['alive']:
+            sprite['alive'] = False
+            sprite['collected_this_frame'] = True
+            score += 100
+
+    try:
+        kain_frame_cb(dt, frame_count)
+    except Exception:
+        kain_connected = False
+
+    screen.fill((10, 10, 20))
+
+    for i in range(0, SCREEN_WIDTH, 40):
+        pygame.draw.line(screen, (30, 30, 50), (i, 0), (i, SCREEN_HEIGHT), 1)
+    for i in range(0, SCREEN_HEIGHT, 40):
+        pygame.draw.line(screen, (30, 30, 50), (0, i), (SCREEN_WIDTH, i), 1)
+
+    for i, sprite in enumerate(sprites):
+        if not sprite['alive']:
+            continue
+        rad = sprite['radius']
+        a = sprite['angle']
+        sx = center_x + int(rad * math.cos(a))
+        sy = center_y + int(rad * math.sin(a) * 0.3) + sprite['height']
+        pulse = abs(math.sin(a * 2)) * 0.5 + 0.5
+        col = sprite['color']
+        glow_color = (col[0], col[1], col[2])
+        pygame.draw.circle(screen, glow_color, (sx, sy), COLLECTIBLE_SIZE + 4)
+        dark = (col[0] // 2, col[1] // 2, col[2] // 2)
+        pygame.draw.circle(screen, dark, (sx, sy), COLLECTIBLE_SIZE)
+
+    px, py = int(player_pos[0]), int(player_pos[1])
+    pygame.draw.rect(screen, (100, 200, 255),
+                     (px - PLAYER_SIZE // 2, py - PLAYER_SIZE // 2,
+                      PLAYER_SIZE, PLAYER_SIZE))
+    inner = PLAYER_SIZE - 8
+    pygame.draw.rect(screen, (60, 140, 200),
+                     (px - inner // 2, py - inner // 2, inner, inner))
+
+    fps_val = int(clock.get_fps())
+    fps_text = font.render('FPS: ' + str(fps_val), True, (200, 200, 200))
+    screen.blit(fps_text, (10, 10))
+
+    score_text = font.render('Score: ' + str(score), True, (255, 220, 50))
+    screen.blit(score_text, (10, 45))
+
+    alive_count = sum(1 for s in sprites if s['alive'])
+    sprite_text = small_font.render('Collectibles: ' + str(alive_count), True, (180, 180, 180))
+    screen.blit(sprite_text, (10, 80))
+
+    kain_status = 'CONNECTED' if kain_connected else 'OFFLINE'
+    kain_color = (100, 255, 100) if kain_connected else (255, 100, 100)
+    kain_text = small_font.render('Kain: ' + kain_status, True, kain_color)
+    screen.blit(kain_text, (10, 110))
+
+    title = font.render('Kain + Pygame Template', True, (255, 255, 255))
+    screen.blit(title, (SCREEN_WIDTH - title.get_width() - 10, 10))
+
+    help_text = small_font.render(
+        'Arrow Keys / WASD: Move | SPACE: Pause | ESC: Quit',
+        True, (150, 150, 150))
+    screen.blit(help_text, (SCREEN_WIDTH // 2 - help_text.get_width() // 2, SCREEN_HEIGHT - 40))
+
+    pygame.display.flip()
+
+pygame.quit()
+sys.exit(0)
+"

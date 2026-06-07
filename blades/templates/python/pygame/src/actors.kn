@@ -1,0 +1,148 @@
+// ============================================================================
+//  ACTORS — Concurrent Game Event Processing
+// ============================================================================
+//  PygameBridge receives frame ticks and input events from the Python side
+//  via python_actor_callback. Add new message handlers or specialized actors.
+//
+//  ADDING ACTORS:
+//    Drop a new `actor MyActor: state ... / on ...` block here,
+//    spawn it in main.kn, and wire its callbacks in bridge.kn.
+// ============================================================================
+
+use std::actor
+use std::python
+
+use world::GameWorld
+use world::commit_frame
+use world::commit_fps
+use world::commit_player_x
+use world::commit_player_y
+use world::commit_player_vel
+use world::commit_score
+use world::commit_sprites_alive
+use world::commit_input
+use world::commit_status
+use helpers::pygame_mix
+use helpers::pygame_clamp
+use helpers::wrap_x
+use helpers::wrap_y
+use helpers::SCREEN_WIDTH
+use helpers::SCREEN_HEIGHT
+use helpers::TARGET_FPS
+
+// ── Player movement speed (pixels per second) ──
+
+pub const PLAYER_SPEED: Int = 300
+
+// ── PygameBridge — main bridge between Pygame and Kain worlds ──
+//
+//  Receives fire-and-forget FrameTick and InputEvent from the Pygame
+//  Python loop via python_actor_callback. Updates GameWorld state
+//  through patches. Also supports ask()-based pre-bridge simulation.
+
+actor PygameBridge:
+    state tick_count: Int = 0
+    state last_fps: Int = 60
+    state bias: Int = 31
+    state running: Bool = true
+    state move_left: Bool = false
+    state move_right: Bool = false
+    state move_up: Bool = false
+    state move_down: Bool = false
+
+    // ── Fire-and-forget: Pygame calls this on every frame tick ──
+
+    on FrameTick(dt: Float, frame_number: Int):
+        self.tick_count = frame_number
+        let dt_ms: Int = to_int(dt * 1000.0)
+        if dt_ms > 0:
+            self.last_fps = 1000 / dt_ms
+        else:
+            self.last_fps = TARGET_FPS
+
+        // ── Compute player movement from accumulated input state ──
+        let dx: Int = 0
+        let dy: Int = 0
+        if self.move_left:
+            dx = 0 - PLAYER_SPEED
+        if self.move_right:
+            dx = PLAYER_SPEED
+        if self.move_up:
+            dy = 0 - PLAYER_SPEED
+        if self.move_down:
+            dy = PLAYER_SPEED
+
+        // Apply velocity scaled by delta time
+        let dt_norm: Int = to_int(dt * 60.0)
+        if dt_norm < 1:
+            dt_norm = 1
+        let move_x: Int = dx * dt_norm / 60
+        let move_y: Int = dy * dt_norm / 60
+
+        // Update player position with wrapping
+        let new_x = wrap_x(GameWorld.player_x + move_x)
+        let new_y = wrap_y(GameWorld.player_y + move_y)
+        let _ = commit_player_x(GameWorld, new_x)
+        let _ = commit_player_y(GameWorld, new_y)
+        let _ = commit_player_vel(GameWorld, dx, dy)
+
+        // Commit frame + fps telemetry
+        let _ = commit_frame(GameWorld, frame_number)
+        let _ = commit_fps(GameWorld, self.last_fps)
+
+        // Update running checksum
+        GameWorld.score = pygame_mix(
+            GameWorld.score,
+            frame_number,
+            self.last_fps
+        )
+
+    // ── Fire-and-forget: keyboard/event from Pygame ──
+
+    on InputEvent(event_type: String, key_code: Int):
+        // Track key state for continuous movement
+        if event_type == "keydown":
+            if key_code == 276 or key_code == 97:  // K_LEFT or 'a'
+                self.move_left = true
+            if key_code == 275 or key_code == 100:  // K_RIGHT or 'd'
+                self.move_right = true
+            if key_code == 273 or key_code == 119:  // K_UP or 'w'
+                self.move_up = true
+            if key_code == 274 or key_code == 115:  // K_DOWN or 's'
+                self.move_down = true
+            if key_code == 32:  // K_SPACE — pause toggle
+                if GameWorld.status == 0:
+                    let _ = commit_status(GameWorld, 1)
+                else:
+                    let _ = commit_status(GameWorld, 0)
+
+        if event_type == "keyup":
+            if key_code == 276 or key_code == 97:
+                self.move_left = false
+            if key_code == 275 or key_code == 100:
+                self.move_right = false
+            if key_code == 273 or key_code == 119:
+                self.move_up = false
+            if key_code == 274 or key_code == 115:
+                self.move_down = false
+
+        let _ = commit_input(GameWorld, 1)
+
+    // ── ask()-able: pre-bridge simulation relay ──
+
+    on Fold(reply_to: P, request: Int):
+        let mix = pygame_mix(request, self.bias, self.tick_count)
+        send reply_to.Reply(value = mix)
+
+    // ── ask()-able: entity count relay ──
+
+    on SpriteCount(reply_to: P, count: Int):
+        let _ = commit_sprites_alive(GameWorld, count)
+        send reply_to.Reply(value = count)
+
+    // ── ask()-able: shutdown signal ──
+
+    on Shutdown(reply_to: P):
+        self.running = false
+        let _ = commit_status(GameWorld, 2)
+        send reply_to.Reply(value = 0)

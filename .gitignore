@@ -6,6 +6,7 @@
 /packages/ephemaris
 blades/c/ephemaris/
 .omo/
+*.runtime_contract.json
 **/debug/
 mcp/.config/
 ml/raw

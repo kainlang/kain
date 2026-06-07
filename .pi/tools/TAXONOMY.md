@@ -34,6 +34,7 @@ Domain: kain_bazel
 | `kain_bazel` | Bazel Build System | `kain-bazel-tools.ts` | build, test, server, sync, binary_age, freshness |
 | `kain_lang` | Kain Language Operations | `kain-lang-tools.ts` | check, build, run, test, amalgamate, gpu_artifacts |
 | `tools` | Tool Discovery | `tools.ts` | list, search, which |
+| `git` | Git Repository | `git-tools.ts` | status, diff, log, recent |
 
 ### Adding a new domain
 

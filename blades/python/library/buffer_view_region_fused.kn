@@ -1,0 +1,24 @@
+use std::python
+
+import numpy as np
+
+const MODULUS: Int = 1000000007
+const ITERATIONS: Int = 10000000
+const BUFFER_CELLS: Int = 512
+const EXPECTED: Int = 469999795
+
+fn make_source_buffer() -> Any:
+    let base = python_call_attr_raw(np, "arange", [BUFFER_CELLS])
+    let bytes_view = python_call_attr_raw(base, "astype", ["uint8"])
+    return python_call_attr_raw(np, "ascontiguousarray", [bytes_view])
+
+fn main() -> Int:
+    let source = make_source_buffer()
+    let region = python_region_begin()
+    let checksum = python_region_buffer_view_checksum37(region, source, ITERATIONS, MODULUS)
+    let auto_released = python_region_end(region)
+    let final_checksum = (checksum + (auto_released * 41)) % MODULUS
+
+    if final_checksum != EXPECTED:
+        return 1
+    return 0

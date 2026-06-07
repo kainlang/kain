@@ -1,0 +1,89 @@
+// ============================================================================
+//  PIPELINE — Converge + Orchestrate + Pulse
+// ============================================================================
+//  Semantic machinery for dispatch, pipeline composition, and timing.
+//  Add new converge fast lanes, orchestrate stages, or pulse drivers here.
+//
+//  NOTE: Orchestrate stage clauses (when, deps, residency, etc.) must
+//  all be on the SAME LINE as the stage declaration.
+// ============================================================================
+
+use std::intent
+
+use world::GameWorld
+use world::commit_frame
+use world::commit_player_x
+use world::commit_player_y
+use world::commit_score
+use world::frame_valid
+use world::player_x_valid
+use world::player_y_valid
+use helpers::pygame_mix
+use helpers::pygame_mod
+use helpers::wrap_x
+use helpers::wrap_y
+use helpers::dist_sq
+use helpers::PYGAME_MODULUS
+use helpers::SCREEN_WIDTH
+use helpers::SCREEN_HEIGHT
+use helpers::COLLECTIBLE_COUNT
+
+// ── CONVERGE: Sprite Update Strategy Selector ──
+
+pub converge sprite_update(sprite_index: Int, frame: Int) -> Int:
+    spec reference:
+        return ((sprite_index * 31 + frame) * 17 + 7) % PYGAME_MODULUS
+    fast closed_form_lane when target("llvm"):
+        return ((sprite_index * 31 + frame) * 17 + 7) % PYGAME_MODULUS
+    verify random(4)
+
+// ── CONVERGE: Collision Detection Strategy ──
+
+pub converge collision_check(px: Int, py: Int, sx: Int, sy: Int) -> Bool:
+    spec reference:
+        return dist_sq(px, py, sx, sy) < 1200  // ~35px distance threshold squared
+    fast manhattan_lane when target("llvm"):
+        let dx = px - sx
+        let dy = py - sy
+        if dx < 0: dx = 0 - dx
+        if dy < 0: dy = 0 - dy
+        return dx + dy < 70  // ~35px manhattan threshold
+    verify random(4)
+
+// ── ORCHESTRATE: Game Loop Pipeline ──
+//
+//  All stage clauses (when, deps, requires, residency, policy) must
+//  be on the same line as `stage name: kind ...`.
+
+pub orchestrate pygame_game_loop(frame: Int, player_x: Int, player_y: Int, score: Int, sprite_seed: Int) -> Int:
+    stage validate_player_x: law player_x_valid(player_x) residency host policy static
+    stage validate_player_y: law player_y_valid(player_y) residency host policy static
+    stage process_sprite: converge sprite_update(sprite_seed, frame) when capability("cpu.scalar") residency host transfer none policy telemetry_prefer_cpu
+    stage check_collision: converge collision_check(player_x, player_y, frame % SCREEN_WIDTH, frame % SCREEN_HEIGHT) deps [process_sprite] residency host policy telemetry_prefer_cpu
+    stage update_score: converge pygame_mod(score + sprite_seed + frame, PYGAME_MODULUS) deps [process_sprite, check_collision] residency host policy static
+    stage commit_state: patch commit_score(GameWorld, update_score) deps [update_score] requires validate_player_x residency host policy telemetry_balance_latency
+    return commit_state
+
+// ── ORCHESTRATE: Collision Response Pipeline ──
+
+pub orchestrate handle_collectible_collision(player_x: Int, player_y: Int, sprite_x: Int, sprite_y: Int, current_score: Int) -> Int:
+    stage check: converge collision_check(player_x, player_y, sprite_x, sprite_y) residency host policy static
+    stage compute_new_score: cpu pygame_mod(current_score + 100, PYGAME_MODULUS) when capability("cpu.scalar") deps [check] residency host transfer none policy static
+    stage validate_score: law score_valid(current_score + 100) deps [compute_new_score] residency host policy static
+    stage commit: patch commit_score(GameWorld, compute_new_score) deps [compute_new_score] residency host policy static
+    return commit
+
+// ── PULSE: Game Heartbeat ──
+
+pulse game_heartbeat every 16 ms jitter 2 ms:
+    let _ = commit_frame(GameWorld, GameWorld.frame + 1)
+
+// ── Pipeline health check ──
+
+pub fn pipeline_health_check() -> Int:
+    let converge_before = converge_mismatch_count()
+    let _sample = sprite_update(3, 42)
+    let converge_delta = converge_mismatch_count() - converge_before
+    if converge_delta > 0:
+        return -1
+    return 0

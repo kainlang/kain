@@ -1,0 +1,91 @@
+// ============================================================================
+//  HELPERS — Math, Packing, Constants
+// ============================================================================
+//  Pure utility functions with no external deps. Drop new helpers here.
+// ============================================================================
+
+pub const PYGAME_MODULUS: Int = 1000000007
+pub const PACK_SHIFT: Int = 100000    // ceiling above any individual value
+pub const SCREEN_WIDTH: Int = 800
+pub const SCREEN_HEIGHT: Int = 600
+pub const TARGET_FPS: Int = 60
+
+// ── Modular arithmetic ──
+
+pub fn pygame_mod(value: Int, modulus: Int) -> Int:
+    let folded = value % modulus
+    if folded < 0:
+        return folded + modulus
+    return folded
+
+// ── Mixing ──
+
+pub fn pygame_mix(a: Int, b: Int, c: Int) -> Int:
+    return pygame_mod((a * 53) + (b * 37) + (c * 19) + 131, PYGAME_MODULUS)
+
+pub fn pygame_mix_scalar(value: Int, seed: Int) -> Int:
+    return pygame_mod((value * 31 + seed) * 17 + 7, PYGAME_MODULUS)
+
+// ── Actor message packing ──
+//  ask(actor_id, "MessageName", single_int_payload).
+//  Use pack/unpack when you need >1 values in a message.
+
+pub fn pygame_pack(a: Int, b: Int) -> Int:
+    return pygame_mod(a + b * PACK_SHIFT, PYGAME_MODULUS)
+
+pub fn pygame_unpack_a(packed: Int) -> Int:
+    return packed % PACK_SHIFT
+
+pub fn pygame_unpack_b(packed: Int) -> Int:
+    return packed / PACK_SHIFT
+
+// ── Clamp ──
+
+pub fn pygame_clamp(value: Int, low: Int, high: Int) -> Int:
+    if value < low:
+        return low
+    if value > high:
+        return high
+    return value
+
+// ── Weighted combine ──
+
+pub fn pygame_weighted(a: Int, b: Int, c: Int, d: Int) -> Int:
+    return pygame_mod(
+        (a * 13) + (b * 17) + (c * 19) + (d * 23) + 131,
+        PYGAME_MODULUS
+    )
+
+// ── 2D distance squared (avoids sqrt) ──
+
+pub fn dist_sq(x1: Int, y1: Int, x2: Int, y2: Int) -> Int:
+    let dx = x1 - x2
+    let dy = y1 - y2
+    return dx * dx + dy * dy
+
+// ── 2D manhattan distance ──
+
+pub fn manhattan_dist(x1: Int, y1: Int, x2: Int, y2: Int) -> Int:
+    let dx = x1 - x2
+    let dy = y1 - y2
+    if dx < 0:
+        dx = 0 - dx
+    if dy < 0:
+        dy = 0 - dy
+    return dx + dy
+
+// ── Wrap position within screen bounds ──
+
+pub fn wrap_x(x: Int) -> Int:
+    if x < 0:
+        return x + SCREEN_WIDTH
+    if x >= SCREEN_WIDTH:
+        return x - SCREEN_WIDTH
+    return x
+
+pub fn wrap_y(y: Int) -> Int:
+    if y < 0:
+        return y + SCREEN_HEIGHT
+    if y >= SCREEN_HEIGHT:
+        return y - SCREEN_HEIGHT
+    return y

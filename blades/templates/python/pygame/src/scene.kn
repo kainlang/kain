@@ -1,0 +1,100 @@
+// ============================================================================
+//  SCENE — Sprite Templates & Scene Configuration
+// ============================================================================
+//  Define sprite layouts with shatter structs for cache-friendly SoA access.
+//  Add new sprite presets, spawn configurations, or level blueprints here.
+// ============================================================================
+
+// ── Sprite template — SoA layout for hot update loops ──
+
+shatter struct SpriteTemplate:
+    pos_x: Int
+    pos_y: Int
+    vel_x: Int
+    vel_y: Int
+    size_w: Int
+    size_h: Int
+    color_r: Int
+    color_g: Int
+    color_b: Int
+    speed: Int
+    orbit_radius: Int
+    orbit_angle: Int
+
+// ── Scene dimensions ──
+
+pub const CENTER_X: Int = 400
+pub const CENTER_Y: Int = 300
+pub const PLAYER_START_X: Int = 400
+pub const PLAYER_START_Y: Int = 500
+pub const PLAYER_SIZE: Int = 32
+pub const COLLECTIBLE_SIZE: Int = 16
+pub const COLLECTIBLE_COUNT: Int = 8
+
+// ── Default sprite count ──
+
+pub const DEFAULT_SPRITE_COUNT: Int = COLLECTIBLE_COUNT
+
+// ── Build the default orbiting collectible set ──
+
+pub fn make_default_sprites() -> [SpriteTemplate]:
+    let count = COLLECTIBLE_COUNT
+    let sprites: [SpriteTemplate] = [
+        SpriteTemplate {
+            pos_x: 0, pos_y: 0,
+            vel_x: 0, vel_y: 0,
+            size_w: 16, size_h: 16,
+            color_r: 255, color_g: 50, color_b: 50,
+            speed: 80, orbit_radius: 100, orbit_angle: 0,
+        },
+        SpriteTemplate {
+            pos_x: 0, pos_y: 0,
+            vel_x: 0, vel_y: 0,
+            size_w: 16, size_h: 16,
+            color_r: 50, color_g: 255, color_b: 50,
+            speed: 90, orbit_radius: 130, orbit_angle: 45,
+        },
+        SpriteTemplate {
+            pos_x: 0, pos_y: 0,
+            vel_x: 0, vel_y: 0,
+            size_w: 16, size_h: 16,
+            color_r: 50, color_g: 50, color_b: 255,
+            speed: 100, orbit_radius: 160, orbit_angle: 90,
+        },
+        SpriteTemplate {
+            pos_x: 0, pos_y: 0,
+            vel_x: 0, vel_y: 0,
+            size_w: 16, size_h: 16,
+            color_r: 255, color_g: 255, color_b: 50,
+            speed: 110, orbit_radius: 190, orbit_angle: 135,
+        },
+        SpriteTemplate {
+            pos_x: 0, pos_y: 0,
+            vel_x: 0, vel_y: 0,
+            size_w: 16, size_h: 16,
+            color_r: 255, color_g: 50, color_b: 255,
+            speed: 70, orbit_radius: 80, orbit_angle: 180,
+        },
+        SpriteTemplate {
+            pos_x: 0, pos_y: 0,
+            vel_x: 0, vel_y: 0,
+            size_w: 16, size_h: 16,
+            color_r: 50, color_g: 255, color_b: 255,
+            speed: 120, orbit_radius: 220, orbit_angle: 225,
+        },
+        SpriteTemplate {
+            pos_x: 0, pos_y: 0,
+            vel_x: 0, vel_y: 0,
+            size_w: 16, size_h: 16,
+            color_r: 255, color_g: 128, color_b: 0,
+            speed: 60, orbit_radius: 60, orbit_angle: 270,
+        },
+        SpriteTemplate {
+            pos_x: 0, pos_y: 0,
+            vel_x: 0, vel_y: 0,
+            size_w: 16, size_h: 16,
+            color_r: 128, color_g: 0, color_b: 255,
+            speed: 130, orbit_radius: 250, orbit_angle: 315,
+        },
+    ]
+    return sprites
