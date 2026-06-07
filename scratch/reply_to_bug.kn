@@ -1,0 +1,26 @@
+// Minimal repro: duplicate %reply_to.addr SSA values
+// Three handlers, each with reply_to: P, all in the same actor turn function
+
+use std::actor
+
+actor Gate:
+    state tick: Int = 0
+
+    on Ping(reply_to: P, value: Int):
+        self.tick = value
+        send reply_to.Reply(value = value)
+
+    on Pong(reply_to: P, value: Int):
+        self.tick = value + 1
+        send reply_to.Reply(value = value)
+
+    on Boom(reply_to: P, value: Int):
+        self.tick = value + 2
+        send reply_to.Reply(value = value)
+
+fn main() -> Int:
+    let g = spawn Gate()
+    let a: Int = ask(g, "Ping", 1)
+    let b: Int = ask(g, "Pong", 2)
+    let c: Int = ask(g, "Boom", 3)
+    return a + b + c

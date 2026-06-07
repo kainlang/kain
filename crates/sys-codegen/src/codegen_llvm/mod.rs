@@ -14099,7 +14099,9 @@ impl LlvmGenerator {
                     val, p_ty, p_ty, field_ptr
                 ));
 
-                let addr_reg = format!("%{}.addr", param.name);
+                // Disambiguate param allocas by handler index so they don't collide
+                // in the entry block when multiple handlers share param names (e.g. reply_to: P).
+                let addr_reg = format!("%{}.addr_{}", param.name, i);
                 self.emit_entry_alloca(&addr_reg, &p_ty);
                 self.emit(&format!("  store {} {}, {}* {}", p_ty, val, p_ty, addr_reg));
                 self.locals.insert(param.name.clone(), (addr_reg, p_ty));
