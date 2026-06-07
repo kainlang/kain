@@ -3089,8 +3089,10 @@ fn execute_plan(
         .map_err(|err| BuildError::Config(format!("failed to serialize build report: {err}")))?;
     kfs::atomic_write_text(&report_path, &encoded)?;
     if failed {
+        let failed_count = report.tasks.iter().filter(|e| e.status == BuildTaskStatus::Failed).count();
         Err(BuildError::Command(format!(
-            "project build failed; report written to {}",
+            "project build failed ({} task(s) failed); full report at {}",
+            failed_count,
             report_path.display()
         )))
     } else {
@@ -3576,9 +3578,13 @@ fn run_external_evidence_command(
         }),
     )?;
     if !output.status.success() {
+        // Extract the most relevant portion of stderr for CLI display.
+        // The full stderr is always available in the evidence JSON report.
+        let stderr_summary = summarize_stderr_for_cli(&stderr);
         return Err(BuildError::Command(format!(
-            "{label} exited with status {}; report {}",
+            "{label} exited with status {}:\n{}\nFull evidence report: {}",
             output.status,
+            stderr_summary,
             report_path.display()
         )));
     }
@@ -3586,6 +3592,45 @@ fn run_external_evidence_command(
         "{label} succeeded; report {}",
         report_path.display()
     ))
+}
+
+/// Extract key error lines from stderr for compact CLI display.
+/// Shows a max of 15 lines, prioritising lines containing `error:` and the tail.
+fn summarize_stderr_for_cli(stderr: &str) -> String {
+    let lines: Vec<&str> = stderr.lines().collect();
+    if lines.is_empty() {
+        return "(no stderr output)".to_string();
+    }
+    // Collect error lines (case-insensitive "error:" or clang-style "error:" after filename)
+    let error_lines: Vec<&str> = lines.iter().filter(|l| l.to_ascii_lowercase().contains("error:")).copied().collect();
+    let mut out = String::new();
+    if !error_lines.is_empty() {
+        let take = error_lines.len().min(8);
+        for line in error_lines.iter().take(take) {
+            out.push_str(line);
+            out.push('\n');
+        }
+        if error_lines.len() > take {
+            out.push_str(&format!("... and {} more error lines\n", error_lines.len() - take));
+        }
+    } else {
+        // No explicit error: lines — show the tail (last 12 lines)
+        let tail = if lines.len() > 12 {
+            out.push_str(&format!("... ({} total stderr lines, showing last 12)\n", lines.len()));
+            &lines[lines.len() - 12..]
+        } else {
+            &lines[..]
+        };
+        for line in tail {
+            out.push_str(line);
+            out.push('\n');
+        }
+    }
+    // Trim trailing newline
+    while out.ends_with('\n') {
+        out.pop();
+    }
+    out
 }
 
 fn run_certify_task(
