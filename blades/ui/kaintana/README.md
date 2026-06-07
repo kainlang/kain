@@ -267,14 +267,15 @@ This is **exactly React's keyed reconciliation** — same idea, different langua
 | **Metric** | `kaintana_widget_metric` | ❌ | No | Label + right-aligned value |
 | **Chart Bar** | `kaintana_widget_chart_bar` | ❌ | No | Horizontal bar with label + value |
 | **Separator** | `kaintana_widget_separator` | ❌ | No | 1px horizontal rule |
-| **Progress Bar** | `kaintana_widget_progress_bar` | ❌ | No | Track + fill with centered value label |
-| **Collapsing Header** | `kaintana_widget_collapsing_header` | ❌ | ✅ | Accordion header, open/close toggle |
-| **Tooltip** | `kaintana_widget_tooltip` | ❌ | Hover | Appears above anchor on hover |
+| **Progress Bar** | `kaintana_widget_progress_bar` | ✅ `kaintana_progress_bar` | No | Track + fill with centered value label |
+| **Collapsing Header** | `kaintana_widget_collapsing_header` | ❌ | ✅ | Accordion header, open/close toggle. Use `kaintana_collapsing_header_begin` for auto-child hiding |
+| **Tooltip** | `kaintana_widget_tooltip` | ✅ `kaintana_tooltip` | Hover | Appears above anchor on hover. Builder resolves anchor by stable key |
 | **Spinner** | `kaintana_widget_spinner` | ❌ | No | Animated dot, frame index tracked |
 | **Toast** | `kaintana_widget_toast` | ❌ | No | Signal-left-border notification, auto-hides after 180 frames |
 | **Status Bar** | `kaintana_widget_status_bar` | ❌ | No | Shell-colored bar with left/right text |
 | **Toolbar** | `kaintana_widget_toolbar` | ❌ | No | Shell bar with bottom rule |
-| **Dropdown** | `kaintana_widget_dropdown` | ❌ | ✅ | Opens inline popup with items |
+| **Dropdown** | `kaintana_widget_dropdown` | ✅ `kaintana_dropdown` | ✅ | Opens inline popup with items |
+| **Scroll Area** | `kaintana_scroll_area` | ✅ `kaintana_scroll_area_builder` | No | Viewport + content height, scrollbar thumb, frustum culling helper |
 
 ### Extra Systems
 
@@ -340,8 +341,63 @@ All positions and sizes are manual (no auto-layout yet). These helpers make manu
 | `kaintana_column_slot(rect, index, height, gap)` | Row in a vertical list |
 | `kaintana_row_slot(rect, index, width, gap)` | Column in a horizontal list |
 | `kaintana_grid_cell(rect, cols, rows, col, row, gap_x, gap_y)` | Cell in a fixed grid |
+| `kaintana_layout_vertical(rect, gap)` | Start a vertical layout cursor |
+| `kaintana_layout_horizontal(rect, gap)` | Start a horizontal layout cursor |
+| `kaintana_layout_slot(cursor, size)` | Next slot in auto-layout, returns `{rect, cursor}` |
 
 ---
+
+## DPI Scaling
+
+Kaintana has first-class DPI scaling. Every widget and layout measurement auto-scales based on a detected or explicit DPI scale factor.
+
+### How It Works
+
+1. **Detection** — At session creation, the desktop bridge queries `GetDeviceCaps(LOGPIXELSY)` and computes `dpi_scale = system_dpi / 96`.
+2. **Storage** — The scale factor is stored in the `KaintanaContext.dpi_scale` field AND in the session's root node state (so raw `session_id`-based API functions can access it too).
+3. **Scaling** — Every widget function calls `let s = dpi_scale` and multiplies all pixel measurements by `s`. Magic numbers like `16.0`, `46.0`, `3.0` become `16.0 * s`, `46.0 * s`, `3.0 * s`.
+4. **Minimum 1px guarantee** — Rules and separator lines use `math_max(1.0, value * s)` so 1px rules at 100% don't disappear at 50%.
+
+### Controlling DPI
+
+The DPI scale can be set in two ways:
+
+**Auto-detect (default):** `dpi_scale = KAINTANA_DPI_AUTO (0.0)` in `KaintanaWindowSpec` — the framework queries the OS at session creation time.
+
+**Explicit override:** Set `KaintanaWindowSpec.dpi_scale` to a specific value:
+```kn
+let spec = kaintana_window_spec(..., dpi_scale = 1.5)   // 144 DPI / 150%
+let spec = kaintana_window_spec(..., dpi_scale = 2.0)   // 192 DPI / 200%
+```
+
+### Helpers
+
+```kn
+// Scale a Float value by current DPI
+kaintana_dp(ctx, 16.0)           → 16.0 * ctx.dpi_scale
+kaintana_dp_int(ctx, 16)         → Int(16 * ctx.dpi_scale)
+kaintana_font_size(ctx, 15.0)    → 15.0 * ctx.dpi_scale
+
+// From raw session_id (for immediate/retained API calls)
+kaintana_session_dpi_scale(session_id)  → Float scale
+```
+
+### What's Scaled
+
+| Layer | What Gets Scaled |
+|-------|-----------------|
+| **Widget internals** | Track widths, knob sizes, box checkboxes, toggle switches, paddings, rule heights, tooltip sizes, dropdown items, chart bars, progress bars, spinner dots, toast margins, status bar rules, toolbar rules, collapsing header rules, separator thickness, badge margins, and more |
+| **Label text padding** | All `rect.x + N` text positioning in panels, buttons, badges, toggles, checkboxes, text inputs, metrics, charts, collapsing headers, tooltips, toasts, status bars, toolbars, dropdowns |
+| **Rules & accents** | Accent bars, signal rules, focus rings, separator rules — minimum 1 physical pixel |
+| **Font sizes** | `kaintana_font_size(ctx, pts)` returns DPI-scaled point sizes |
+
+### What's NOT Scaled (Correctly)
+
+| Element | Reason |
+|---------|--------|
+| **Window dimensions** (`KaintanaWindowSpec.width/height`) | Window size is in physical pixels — the OS handles DPI virtualization |
+| **Layout ratios** (`kaintana_split_left(rect, 0.48, gap)`) | Splits and column slots are ratio-based, not pixel-based |
+| **Colors** | RGB values are unitless |
 
 ## Frame Lifecycle
 
@@ -477,13 +533,13 @@ It demonstrates:
 
 ### Known Gaps (vs egui / dear imgui — ranked by priority)
 
-**Tier 1 — Surface-level (moderate effort, high impact):**
-1. **Auto-layout** — no `ui.horizontal()` / `ui.vertical()` — all positions are manual
-2. **Scroll container** — no `ScrollArea`, content clips if taller than rect
-3. **Tooltip** — hover state → popup text (trivial, not yet exposed in builder API)
-4. **Collapsing header** — accordion exists but needs auto-child hiding
-5. **Combo box / dropdown** — dropdown exists at primitive level, no builder wrapper
-6. **Progress bar** — exists at primitive level, no builder wrapper
+**Tier 1 — Surface-level ✅ (2026-06-06)**
+1. ✅ **Auto-layout** — `kaintana_layout_vertical` / `kaintana_layout_horizontal` + `kaintana_layout_slot` (stateful cursor, no index tracking)
+2. ✅ **Scroll container** — `kaintana_scroll_area` + `kaintana_scroll_delta` + `kaintana_scroll_rect_visible` (scrollbar, content offset, frustum culling)
+3. ✅ **Tooltip builder** — `kaintana_tooltip`/`kaintana_tooltip_key`/`kaintana_tooltip_render` with anchor-by-stable-key resolution
+4. ✅ **Collapsing header auto-child hiding** — `kaintana_collapsing_header_begin` (returns Bool, Dear ImGui-style `if open:` pattern)
+5. ✅ **Dropdown builder** — `kaintana_dropdown`/`kaintana_dropdown_key`/`kaintana_dropdown_render` with item list and selected display
+6. ✅ **Progress bar builder** — `kaintana_progress_bar`/`kaintana_progress_bar_value`/`kaintana_progress_bar_render`
 
 **Tier 2 — Layout:**
 7. **Interactive splitters** — no resize handles between panels
@@ -549,6 +605,7 @@ Located at `z3/`:
 | `src/api/kaintana_ui.kn` | Builder-pattern API for panel, label, button, text_input, slider |
 | `src/api/widgets.kn` | Widget implementations for panel, label, button, text_input, slider (+ typed slider trait) |
 | `src/api/widgets_extras.kn` | Extra widgets: toggle, checkbox, badge, metric, chart_bar, separator, progress, collapsing_header, tooltip, spinner, toast, status_bar, toolbar, dropdown |
+| `src/api/widgets_scroll.kn` | Scroll container: scroll area, scroll delta, frustum culling, builder API |
 | `src/platform/desktop/desktop_adapter.kn` | Desktop (GDI) backend — @extern C FFI bindings |
 | `src/platform/vulkan/vulkan_adapter.kn` | Vulkan backend — graphics_session with SPIR-V |
 | `src/platform/winit/winit_adapter.kn` | Winit backend — std::ui host session |

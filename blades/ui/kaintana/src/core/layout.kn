@@ -45,3 +45,66 @@ pub fn kaintana_grid_cell(rect: KaintanaRect, columns: Float, rows: Float, colum
         cell_width,
         cell_height
     )
+
+// ─── Auto-Layout Cursor (ui.horizontal / ui.vertical equivalent) ───────────────
+// A stateful cursor for sequential auto-layout. Call kaintana_layout_vertical
+// or kaintana_layout_horizontal to start, then kaintana_layout_slot for each item.
+//
+// Usage:
+//   let mut cursor = kaintana_layout_vertical(panel_rect, 4.0)
+//   let slot1 = kaintana_layout_slot(cursor, 36.0)
+//   cursor = slot1.cursor
+//   let slot2 = kaintana_layout_slot(cursor, 24.0)
+//   cursor = slot2.cursor
+
+pub struct KaintanaLayoutSlot:
+    rect: KaintanaRect
+    cursor: KaintanaLayoutCursor
+
+pub struct KaintanaLayoutCursor:
+    x: Float
+    y: Float
+    width: Float
+    gap: Float
+    direction: Bool    // false = vertical, true = horizontal
+
+pub fn kaintana_layout_vertical(rect: KaintanaRect, gap: Float) -> KaintanaLayoutCursor:
+    return KaintanaLayoutCursor {
+        x: rect.x,
+        y: rect.y,
+        width: rect.width,
+        gap: gap,
+        direction: false,
+    }
+
+pub fn kaintana_layout_horizontal(rect: KaintanaRect, gap: Float) -> KaintanaLayoutCursor:
+    return KaintanaLayoutCursor {
+        x: rect.x,
+        y: rect.y,
+        width: rect.height,
+        gap: gap,
+        direction: true,
+    }
+
+pub fn kaintana_layout_slot(cursor: KaintanaLayoutCursor, size: Float) -> KaintanaLayoutSlot:
+    if cursor.direction:
+        // Horizontal: advance x, size is width, fixed height = container height
+        let slot = kaintana_rect(cursor.x, cursor.y, size, cursor.width)
+        let next = KaintanaLayoutCursor {
+            x: cursor.x + size + cursor.gap,
+            y: cursor.y,
+            width: cursor.width,
+            gap: cursor.gap,
+            direction: cursor.direction,
+        }
+        return KaintanaLayoutSlot { rect: slot, cursor: next }
+    // Vertical: advance y, size is height, fixed width = container width
+    let slot = kaintana_rect(cursor.x, cursor.y, cursor.width, size)
+    let next = KaintanaLayoutCursor {
+        x: cursor.x,
+        y: cursor.y + size + cursor.gap,
+        width: cursor.width,
+        gap: cursor.gap,
+        direction: cursor.direction,
+    }
+    return KaintanaLayoutSlot { rect: slot, cursor: next }

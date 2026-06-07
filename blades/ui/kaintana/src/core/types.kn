@@ -32,6 +32,9 @@ pub struct KaintanaTheme:
     muted: KaintanaColor
     signal: KaintanaColor
 
+pub const KAINTANA_DPI_AUTO: Float = 0.0
+pub const KAINTANA_DPI_STANDARD: Int = 96
+
 pub struct KaintanaWindowSpec:
     title: String
     width: Int
@@ -46,6 +49,7 @@ pub struct KaintanaWindowSpec:
     frame_report_path: String
     host_report_path: String
     screenshot_path: String
+    dpi_scale: Float
 
 pub struct KaintanaNodeId:
     key: SlotMapKey
@@ -61,6 +65,7 @@ pub struct KaintanaContext:
     stable_keys: StringIntMap
     frame_arena: ArenaAllocator
     desktop_enabled: Bool
+    dpi_scale: Float
     draw_count: Int
     command_checksum: Int
     status: Int
@@ -112,7 +117,7 @@ pub fn kaintana_node_invalid() -> KaintanaNodeId:
 pub fn kaintana_node_is_valid(node: KaintanaNodeId) -> Bool:
     return slot_map_key_is_valid(node.key)
 
-pub fn kaintana_window_spec(title: String, width: Int, height: Int, frame_budget: Int, backend_id: String, passive_backend_id: String, clear_red: Int, clear_green: Int, clear_blue: Int, accent_red: Int, accent_green: Int, accent_blue: Int, vertex_shader_path: String, fragment_shader_path: String, frame_report_path: String, host_report_path: String, screenshot_path: String) -> KaintanaWindowSpec:
+pub fn kaintana_window_spec(title: String, width: Int, height: Int, frame_budget: Int, backend_id: String, passive_backend_id: String, clear_red: Int, clear_green: Int, clear_blue: Int, accent_red: Int, accent_green: Int, accent_blue: Int, vertex_shader_path: String, fragment_shader_path: String, frame_report_path: String, host_report_path: String, screenshot_path: String, dpi_scale: Float) -> KaintanaWindowSpec:
     return KaintanaWindowSpec {
         title: title,
         width: width,
@@ -127,6 +132,7 @@ pub fn kaintana_window_spec(title: String, width: Int, height: Int, frame_budget
         frame_report_path: frame_report_path,
         host_report_path: host_report_path,
         screenshot_path: screenshot_path,
+        dpi_scale: dpi_scale,
     }
 
 pub fn kaintana_default_window_spec(title: String, width: Int, height: Int, backend_id: String) -> KaintanaWindowSpec:
@@ -147,7 +153,8 @@ pub fn kaintana_default_window_spec(title: String, width: Int, height: Int, back
         "",
         ".kain/run/kaintana_frame_report.txt",
         ".kain/run/kaintana_host_report.txt",
-        ".kain/run/kaintana_host.bmp"
+        ".kain/run/kaintana_host.bmp",
+        KAINTANA_DPI_AUTO
     )
 
 pub fn kaintana_window_rect(spec: KaintanaWindowSpec) -> KaintanaRect:

@@ -1,0 +1,235 @@
+{
+  "schema_version": 1,
+  "target": "llvm",
+  "render": {
+    "scenes": [],
+    "materials": []
+  },
+  "patches": [
+    {
+      "name": "commit_rogue_charge",
+      "mutation_paths": [
+        "rogue.rogue_charge",
+        "rogue.rogue_epoch"
+      ],
+      "undo_mode": "reversible",
+      "collaboration_event": "patch.commit_rogue_charge"
+    },
+    {
+      "name": "commit_sieve_charge",
+      "mutation_paths": [
+        "authority.epoch",
+        "authority.lock_state",
+        "authority.network_charge"
+      ],
+      "undo_mode": "best_effort",
+      "collaboration_event": "patch.commit_sieve_charge"
+    }
+  ],
+  "laws": [
+    {
+      "name": "charge_is_stable",
+      "symbol": "charge_is_stable",
+      "param_types": [
+        "Int"
+      ],
+      "return_type": "Bool"
+    }
+  ],
+  "converges": [
+    {
+      "name": "mix_lattice_charge",
+      "dispatcher_symbol": "mix_lattice_charge",
+      "spec_lane": {
+        "lane_name": "reference",
+        "kind": "spec",
+        "symbol": "mix_lattice_charge__reference"
+      },
+      "fast_lanes": [
+        {
+          "lane_name": "avx2_lane",
+          "kind": "fast",
+          "selector": "capability:cpu.x86.avx2",
+          "symbol": "mix_lattice_charge__avx2_lane"
+        }
+      ],
+      "verify_random_count": 8
+    }
+  ],
+  "worlds": [
+    {
+      "name": "CorticalAuthority",
+      "state_slots": [
+        {
+          "name": "network_charge",
+          "type_name": "Int",
+          "initial_expr": "0"
+        },
+        {
+          "name": "epoch",
+          "type_name": "Int",
+          "initial_expr": "0"
+        },
+        {
+          "name": "lock_state",
+          "type_name": "Int",
+          "initial_expr": "0"
+        }
+      ],
+      "surfaces": [
+        {
+          "kind": "native_ui",
+          "authored_expr": "SieveDisplayPanel",
+          "surface_key": "world.CorticalAuthority.native_ui"
+        }
+      ]
+    },
+    {
+      "name": "DeepMirror",
+      "state_slots": [
+        {
+          "name": "charge_copy",
+          "type_name": "Int",
+          "initial_expr": "0"
+        },
+        {
+          "name": "epoch_copy",
+          "type_name": "Int",
+          "initial_expr": "0"
+        },
+        {
+          "name": "lock_copy",
+          "type_name": "Int",
+          "initial_expr": "0"
+        }
+      ],
+      "surfaces": [
+        {
+          "kind": "web",
+          "authored_expr": "SieveDisplayPanel",
+          "surface_key": "world.DeepMirror.web"
+        }
+      ]
+    },
+    {
+      "name": "RogueProjection",
+      "state_slots": [
+        {
+          "name": "rogue_charge",
+          "type_name": "Int",
+          "initial_expr": "0"
+        },
+        {
+          "name": "rogue_epoch",
+          "type_name": "Int",
+          "initial_expr": "0"
+        }
+      ],
+      "surfaces": [
+        {
+          "kind": "web",
+          "authored_expr": "SieveDisplayPanel",
+          "surface_key": "world.RogueProjection.web"
+        }
+      ]
+    }
+  ],
+  "active_world": {
+    "name": "CorticalAuthority",
+    "state_slots": [
+      {
+        "name": "network_charge",
+        "type_name": "Int",
+        "initial_expr": "0"
+      },
+      {
+        "name": "epoch",
+        "type_name": "Int",
+        "initial_expr": "0"
+      },
+      {
+        "name": "lock_state",
+        "type_name": "Int",
+        "initial_expr": "0"
+      }
+    ],
+    "surfaces": [
+      {
+        "kind": "native_ui",
+        "authored_expr": "SieveDisplayPanel",
+        "surface_key": "world.CorticalAuthority.native_ui"
+      }
+    ]
+  },
+  "entanglements": [
+    {
+      "authority": "CorticalAuthority.epoch",
+      "mirror": "DeepMirror.epoch_copy",
+      "policy": "single_writer",
+      "type_name": "Int"
+    },
+    {
+      "authority": "CorticalAuthority.lock_state",
+      "mirror": "DeepMirror.lock_copy",
+      "policy": "single_writer",
+      "type_name": "Int"
+    },
+    {
+      "authority": "CorticalAuthority.network_charge",
+      "mirror": "DeepMirror.charge_copy",
+      "policy": "single_writer",
+      "type_name": "Int"
+    }
+  ],
+  "shader_bundle_refs": [],
+  "assets": [],
+  "tool_caps": [
+    "converge.dispatch",
+    "law.invariants",
+    "patch.transactions",
+    "scene.actors",
+    "state.entangle",
+    "world.native-ui",
+    "world.web"
+  ],
+  "requirements": [
+    "converge.dispatch",
+    "host.raw-native",
+    "law.invariants",
+    "patch.transactions",
+    "runtime.contract.bundle",
+    "shader.bundle.metadata",
+    "state.entangle",
+    "world.native-ui",
+    "world.web"
+  ],
+  "ui_contracts": {
+    "contract_version": "ui_slate_x100.authoring_contract.v1",
+    "widget_registry_json": null,
+    "command_registry_json": null,
+    "computed_registry_json": null,
+    "event_routes_json": null,
+    "hot_reload_json": null,
+    "focus_graph_json": null,
+    "selection_model_json": null,
+    "overlay_stack_json": null,
+    "motion_policy_json": null,
+    "paint_registry_json": null,
+    "motion_registry_json": null,
+    "workspace_schema_json": null,
+    "workspace_layout_json": "{\n  \"roots\": [],\n  \"persistence_key\": null,\n  \"virtualization_enabled\": false,\n  \"active_tabs\": {}\n}",
+    "workspace_layout": null,
+    "structure_index": [
+      {
+        "id": 2,
+        "identity_key": "2",
+        "kind": "component:SieveDisplayPanel",
+        "tab_default_active": false,
+        "min_width": null,
+        "min_height": null,
+        "max_width": null,
+        "max_height": null
+      }
+    ]
+  }
+}

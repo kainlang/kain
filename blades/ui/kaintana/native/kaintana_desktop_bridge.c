@@ -478,6 +478,19 @@ int kaintana_native_desktop_write_report(const char* path) {
     return 0;
 }
 
+int kaintana_native_desktop_get_system_dpi(void) {
+    HDC dc = GetDC(NULL);
+    if (dc == NULL) {
+        return 96;
+    }
+    int dpi = GetDeviceCaps(dc, LOGPIXELSY);
+    ReleaseDC(NULL, dc);
+    if (dpi < 96 || dpi > 480) {
+        return 96;
+    }
+    return dpi;
+}
+
 int kaintana_native_desktop_write_bmp(const char* path) {
     return kaintana_write_scene_bmp(path);
 }

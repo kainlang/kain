@@ -1,23 +1,27 @@
 use layout::kaintana_grid_cell
 use types::KaintanaContext
 use types::KaintanaRect
+use example_auto_layout::kaintana_example_auto_layout
 use example_data_grid::kaintana_example_data_grid
 use example_file_explorer::kaintana_example_file_explorer
 use example_keypad::kaintana_example_keypad
 use example_mega_button_test::kaintana_example_mega_button_test
 use example_modal_popup::kaintana_example_modal_popup
 use example_resizable_panel::kaintana_example_resizable_panel
+use example_scroll::kaintana_example_scroll_list
 use example_tabbed_pane::kaintana_example_tabbed_pane
 use example_todo_list::kaintana_example_todo_list
 
 pub fn kaintana_examples_render_tour(ctx: KaintanaContext, rect: KaintanaRect, body_font: Int, title_font: Int) -> KaintanaContext:
     var next = ctx
-    next = kaintana_example_todo_list(next, kaintana_grid_cell(rect, 2.0, 4.0, 0.0, 0.0, 18.0, 18.0), body_font, title_font)
-    next = kaintana_example_tabbed_pane(next, kaintana_grid_cell(rect, 2.0, 4.0, 1.0, 0.0, 18.0, 18.0), body_font, title_font)
-    next = kaintana_example_modal_popup(next, kaintana_grid_cell(rect, 2.0, 4.0, 0.0, 1.0, 18.0, 18.0), body_font, title_font)
-    next = kaintana_example_data_grid(next, kaintana_grid_cell(rect, 2.0, 4.0, 1.0, 1.0, 18.0, 18.0), body_font, title_font)
-    next = kaintana_example_keypad(next, kaintana_grid_cell(rect, 2.0, 4.0, 0.0, 2.0, 18.0, 18.0), body_font, title_font)
-    next = kaintana_example_resizable_panel(next, kaintana_grid_cell(rect, 2.0, 4.0, 1.0, 2.0, 18.0, 18.0), body_font, title_font)
-    next = kaintana_example_file_explorer(next, kaintana_grid_cell(rect, 2.0, 4.0, 0.0, 3.0, 18.0, 18.0), body_font, title_font)
-    next = kaintana_example_mega_button_test(next, kaintana_grid_cell(rect, 2.0, 4.0, 1.0, 3.0, 18.0, 18.0), body_font, title_font)
+    next = kaintana_example_todo_list(next, kaintana_grid_cell(rect, 2.0, 5.0, 0.0, 0.0, 18.0, 18.0), body_font, title_font)
+    next = kaintana_example_tabbed_pane(next, kaintana_grid_cell(rect, 2.0, 5.0, 1.0, 0.0, 18.0, 18.0), body_font, title_font)
+    next = kaintana_example_modal_popup(next, kaintana_grid_cell(rect, 2.0, 5.0, 0.0, 1.0, 18.0, 18.0), body_font, title_font)
+    next = kaintana_example_data_grid(next, kaintana_grid_cell(rect, 2.0, 5.0, 1.0, 1.0, 18.0, 18.0), body_font, title_font)
+    next = kaintana_example_keypad(next, kaintana_grid_cell(rect, 2.0, 5.0, 0.0, 2.0, 18.0, 18.0), body_font, title_font)
+    next = kaintana_example_resizable_panel(next, kaintana_grid_cell(rect, 2.0, 5.0, 1.0, 2.0, 18.0, 18.0), body_font, title_font)
+    next = kaintana_example_file_explorer(next, kaintana_grid_cell(rect, 2.0, 5.0, 0.0, 3.0, 18.0, 18.0), body_font, title_font)
+    next = kaintana_example_mega_button_test(next, kaintana_grid_cell(rect, 2.0, 5.0, 1.0, 3.0, 18.0, 18.0), body_font, title_font)
+    next = kaintana_example_auto_layout(next, kaintana_grid_cell(rect, 2.0, 5.0, 0.0, 4.0, 18.0, 18.0), body_font, title_font)
+    next = kaintana_example_scroll_list(next, kaintana_grid_cell(rect, 2.0, 5.0, 1.0, 4.0, 18.0, 18.0), body_font, title_font)
     return next

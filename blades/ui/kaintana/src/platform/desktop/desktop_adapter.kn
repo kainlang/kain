@@ -37,6 +37,9 @@ fn kaintana_native_desktop_frames_presented() -> Int
 fn kaintana_native_desktop_write_report(path: String) -> Int
 
 @extern
+fn kaintana_native_desktop_get_system_dpi() -> Int
+
+@extern
 fn kaintana_native_desktop_write_bmp(path: String) -> Int
 
 pub fn kaintana_desktop_probe() -> Int:
@@ -72,6 +75,12 @@ pub fn kaintana_desktop_host_write_screenshot(spec: KaintanaWindowSpec) -> Int:
 
 pub fn kaintana_desktop_host_write_report_path(path: String) -> Int:
     return kaintana_native_desktop_write_report(path)
+
+pub fn kaintana_desktop_get_system_dpi() -> Int:
+    return kaintana_native_desktop_get_system_dpi()
+
+pub fn kaintana_desktop_get_system_scale() -> Float:
+    return Float(kaintana_native_desktop_get_system_dpi()) / 96.0
 
 pub fn kaintana_desktop_host_write_screenshot_path(path: String) -> Int:
     return kaintana_native_desktop_write_bmp(path)

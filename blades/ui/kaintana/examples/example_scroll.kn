@@ -1,0 +1,52 @@
+// Example: Scroll Container
+//
+// Demonstrates kaintana_scroll_area with 50 scrollable items.
+// Up/down buttons push scroll delta. Items outside viewport are culled.
+// Wiring into main.kn: call from the inspector section with scroll_delta
+// from scroll wheel or action buttons.
+
+use kaintana::*
+use types::KaintanaContext
+use types::KaintanaRect
+use kaintana_ui::*
+
+pub fn kaintana_example_scroll_list(ctx: KaintanaContext, rect: KaintanaRect, body_font: Int, title_font: Int) -> KaintanaContext:
+    var next = ctx
+
+    let p0 = kaintana_panel(kaintana_ui_state(next), "Scroll List (50 items)")
+    let p1 = kaintana_panel_key(p0, "example.scroll.panel")
+    let p2 = kaintana_panel_rect(p1, rect)
+    let panel = kaintana_panel_render(next, p2)
+    next = panel.ctx
+
+    let viewport = kaintana_inset(rect, 8.0 * ctx.dpi_scale, 36.0 * ctx.dpi_scale, 8.0 * ctx.dpi_scale, 8.0 * ctx.dpi_scale)
+    let item_h = 30.0 * ctx.dpi_scale
+    let gap = 4.0 * ctx.dpi_scale
+    let item_count = 50
+    let content_h = Float(item_count) * (item_h + gap)
+
+    // Render the scroll area — this draws the panel background + scrollbar
+    let scroll = kaintana_scroll_area(next, "example.scroll.area", "items",
+        viewport, content_h)
+    next = scroll.ctx
+
+    // Render only visible items (culling via kaintana_scroll_rect_visible)
+    var i: Int = 0
+    while i < item_count:
+        let item_y = viewport.y - scroll.content_y + (Float(i) * (item_h + gap))
+        let item_rect = kaintana_rect(viewport.x + 4.0 * ctx.dpi_scale, item_y,
+            viewport.width - 16.0 * ctx.dpi_scale, item_h)
+
+        if kaintana_scroll_rect_visible(viewport, item_rect):
+            let label = "Item " + str(i)
+            let key = "example.scroll.item." + str(i)
+            let b0 = kaintana_button(kaintana_ui_state(next), label)
+            let b1 = kaintana_button_key(b0, key)
+            let b2 = kaintana_button_rect(b1, item_rect)
+            let b3 = kaintana_button_font(b2, body_font, 20.0 * ctx.dpi_scale)
+            let btn = kaintana_button_render(next, b3)
+            next = btn.ctx
+
+        i = i + 1
+
+    return next

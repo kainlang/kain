@@ -1,3 +1,5 @@
+include neural_lattice_bridge.h
+
 pub fn neural_lattice_presenter_probe() -> Int:
     return neural_lattice_native_probe()
 

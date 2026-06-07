@@ -39,6 +39,7 @@ int kaintana_native_desktop_run_window(int frame_budget);
 int kaintana_native_desktop_command_count(void);
 int kaintana_native_desktop_frames_presented(void);
 int kaintana_native_desktop_write_report(const char* path);
+int kaintana_native_desktop_get_system_dpi(void);
 int kaintana_native_desktop_write_bmp(const char* path);
 
 #ifdef __cplusplus

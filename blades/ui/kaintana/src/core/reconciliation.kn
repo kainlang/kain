@@ -4,6 +4,7 @@ use std::text
 use std::graphics
 use std::reload
 use std::ui
+use desktop_adapter::kaintana_desktop_get_system_scale
 use desktop_adapter::kaintana_desktop_scene_begin
 use types::KAINTANA_ERR_ARENA_EXHAUSTED
 use types::KAINTANA_ERR_NODE_CAPACITY
@@ -43,6 +44,11 @@ pub fn kaintana_context_create(app_name: String, spec: KaintanaWindowSpec, theme
     var stable_keys = typed_map_new()
     stable_keys = typed_map_set(stable_keys, "root", root_slot.key.raw)
     teardown_session = 0
+    let resolved_dpi = spec.dpi_scale
+    if resolved_dpi <= 0.0:
+        resolved_dpi = kaintana_desktop_get_system_scale()
+    // Store DPI in session state so raw immediate/retained functions can access it
+    let _dpi_store = ui_state_set_f64(session, root_native, "kaintana.system.dpi_scale", resolved_dpi)
     return KaintanaContext {
         session_id: session,
         root: KaintanaNodeId { key: root_slot.key },
@@ -54,6 +60,7 @@ pub fn kaintana_context_create(app_name: String, spec: KaintanaWindowSpec, theme
         stable_keys: stable_keys,
         frame_arena: arena_create(KAINTANA_FRAME_ARENA_CELLS),
         desktop_enabled: desktop_enabled,
+        dpi_scale: resolved_dpi,
         draw_count: 0,
         command_checksum: 0,
         status: KAINTANA_OK,
@@ -78,6 +85,7 @@ pub fn kaintana_context_begin_frame(ctx: KaintanaContext, revision_key: String, 
         stable_keys: ctx.stable_keys,
         frame_arena: reset_arena,
         desktop_enabled: ctx.desktop_enabled,
+        dpi_scale: ctx.dpi_scale,
         draw_count: 0,
         command_checksum: 0,
         status: KAINTANA_OK,
@@ -111,6 +119,7 @@ pub fn kaintana_context_with_parent(ctx: KaintanaContext, native_parent_id: Int)
         stable_keys: ctx.stable_keys,
         frame_arena: ctx.frame_arena,
         desktop_enabled: ctx.desktop_enabled,
+        dpi_scale: ctx.dpi_scale,
         draw_count: ctx.draw_count,
         command_checksum: ctx.command_checksum,
         status: ctx.status,
@@ -129,6 +138,7 @@ pub fn kaintana_context_mark_command(ctx: KaintanaContext, native_node_id: Int, 
         stable_keys: ctx.stable_keys,
         frame_arena: ctx.frame_arena,
         desktop_enabled: ctx.desktop_enabled,
+        dpi_scale: ctx.dpi_scale,
         draw_count: ctx.draw_count + 1,
         command_checksum: next_checksum,
         status: ctx.status,
@@ -148,6 +158,7 @@ pub fn kaintana_context_alloc_widget_cell(ctx: KaintanaContext, value: Int) -> K
             stable_keys: ctx.stable_keys,
             frame_arena: ctx.frame_arena,
             desktop_enabled: ctx.desktop_enabled,
+            dpi_scale: ctx.dpi_scale,
             draw_count: ctx.draw_count,
             command_checksum: ctx.command_checksum,
             status: KAINTANA_ERR_ARENA_EXHAUSTED,
@@ -164,6 +175,7 @@ pub fn kaintana_context_alloc_widget_cell(ctx: KaintanaContext, value: Int) -> K
         stable_keys: ctx.stable_keys,
         frame_arena: allocation.arena,
         desktop_enabled: ctx.desktop_enabled,
+        dpi_scale: ctx.dpi_scale,
         draw_count: ctx.draw_count,
         command_checksum: ctx.command_checksum,
         status: ctx.status,
@@ -200,6 +212,7 @@ pub fn kaintana_reconcile_node(ctx: KaintanaContext, kind: String, stable_key: S
             stable_keys: ctx.stable_keys,
             frame_arena: ctx.frame_arena,
             desktop_enabled: ctx.desktop_enabled,
+            dpi_scale: ctx.dpi_scale,
             draw_count: ctx.draw_count,
             command_checksum: ctx.command_checksum,
             status: KAINTANA_ERR_NODE_CAPACITY,
@@ -218,6 +231,7 @@ pub fn kaintana_reconcile_node(ctx: KaintanaContext, kind: String, stable_key: S
         stable_keys: stable,
         frame_arena: ctx.frame_arena,
         desktop_enabled: ctx.desktop_enabled,
+        dpi_scale: ctx.dpi_scale,
         draw_count: ctx.draw_count,
         command_checksum: ctx.command_checksum,
         status: ctx.status,

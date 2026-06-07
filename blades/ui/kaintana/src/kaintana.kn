@@ -10,6 +10,7 @@ use input::kaintana_action_event_count
 use input::kaintana_action_frame_index
 use input::kaintana_action_pressed
 use input::kaintana_action_trace_text
+use platform::desktop::desktop_adapter::kaintana_desktop_get_system_scale
 use platform::desktop::desktop_adapter::kaintana_desktop_host_frames_presented
 use types::KaintanaColor
 use types::KaintanaRect
@@ -29,7 +30,26 @@ pub use types::*
 pub use vulkan_adapter::*
 pub use widget_events::*
 pub use widgets_extras::*
+pub use widgets_scroll::*
 pub use winit_adapter::*
+
+// ─── DPI Scaling Helpers ────────────────────────────────────────────────────
+// Every widget and layout function that takes a pixel dimension should use
+// kaintana_dp() to scale the value by the context's DPI scale factor.
+// Apps constructing rects manually should also scale via kaintana_dp().
+//
+// The scale factor is resolved at context creation time:
+//   1. If KaintanaWindowSpec.dpi_scale > 0, use that value.
+//   2. Otherwise auto-detect from the desktop bridge (GetDeviceCaps LOGPIXELSY / 96).
+
+pub fn kaintana_dp(ctx: KaintanaContext, value: Float) -> Float:
+    return value * ctx.dpi_scale
+
+pub fn kaintana_dp_int(ctx: KaintanaContext, value: Int) -> Int:
+    return Int(Float(value) * ctx.dpi_scale)
+
+pub fn kaintana_font_size(ctx: KaintanaContext, size_pts: Float) -> Float:
+    return size_pts * ctx.dpi_scale
 
 fn kaintana_axiom_fallback(value: Int) -> Int:
     return value
@@ -299,7 +319,7 @@ pub fn kaintana_popover_spec(key: String, width: Float, height: Float, offset_x:
 
 pub fn kaintana_session_create(app_name: String, spec: KaintanaWindowSpec) -> Int:
     let session_id = ui_host_session_create(app_name, spec.title, spec.width, spec.height, spec.passive_backend_id)
-    let _root = ui_reconcile_labeled_node(
+    let root_node = ui_reconcile_labeled_node(
         session_id,
         0,
         "kaintana.root",
@@ -312,7 +332,22 @@ pub fn kaintana_session_create(app_name: String, spec: KaintanaWindowSpec) -> In
         Float(spec.width),
         Float(spec.height)
     )
+    // Resolve and store DPI scale in the session root node
+    var resolved_dpi = spec.dpi_scale
+    if resolved_dpi <= 0.0:
+        resolved_dpi = kaintana_desktop_get_system_scale()
+    let _dpi_store = ui_state_set_f64(session_id, root_node, "kaintana.system.dpi_scale", resolved_dpi)
     return session_id
+
+pub fn kaintana_session_dpi_scale(session_id: Int) -> Float:
+    // kaintana_session_create uses KAINTANA_ROOT_STABLE_KEY; kaintana_context_create uses "root"
+    let root_node = ui_node_find_by_stable_key(session_id, KAINTANA_ROOT_STABLE_KEY)
+    if root_node > 0:
+        return ui_state_f64(session_id, root_node, "kaintana.system.dpi_scale", 1.0)
+    let alt_root = ui_node_find_by_stable_key(session_id, "root")
+    if alt_root > 0:
+        return ui_state_f64(session_id, alt_root, "kaintana.system.dpi_scale", 1.0)
+    return 1.0
 
 pub fn kaintana_session_destroy(session_id: Int) -> Int:
     return ui_session_destroy(session_id)
@@ -462,16 +497,18 @@ pub fn kaintana_popover_rect(session_id: Int, anchor_node_id: Int, spec: Kaintan
     )
 
 pub fn kaintana_retained_region(session_id: Int, parent_id: Int, key: String, label: String, rect: KaintanaRect, theme: KaintanaTheme) -> Int:
+    let s = kaintana_session_dpi_scale(session_id)
     let node_id = kaintana_reconcile_visual_node(session_id, parent_id, "kaintana.region", key, label, "region", label, rect)
     let _fill = kaintana_render_fill_node(session_id, node_id, rect, "fill", theme.panel)
-    let _rule = kaintana_render_fill_node(session_id, node_id, kaintana_rect(rect.x, rect.y, rect.width, 3.0), "signal", theme.signal)
+    let _rule = kaintana_render_fill_node(session_id, node_id, kaintana_rect(rect.x, rect.y, rect.width, math_max(1.0, 3.0 * s)), "signal", theme.signal)
     return node_id
 
 pub fn kaintana_retained_surface(session_id: Int, parent_id: Int, key: String, surface_id: String, label: String, rect: KaintanaRect, theme: KaintanaTheme, font_resource_id: Int, baseline_y: Float) -> Int:
+    let s = kaintana_session_dpi_scale(session_id)
     let node_id = kaintana_reconcile_visual_node(session_id, parent_id, "kaintana.surface", key, surface_id, "region", label, rect)
     let _fill = kaintana_render_fill_node(session_id, node_id, rect, "fill", theme.shell)
-    let _rule = kaintana_render_fill_node(session_id, node_id, kaintana_rect(rect.x, rect.y, rect.width, 4.0), "accent", theme.accent)
-    let _title = kaintana_render_text_node(session_id, node_id, font_resource_id, label, rect.x + 18.0, rect.y + baseline_y, "ink", theme.ink)
+    let _rule = kaintana_render_fill_node(session_id, node_id, kaintana_rect(rect.x, rect.y, rect.width, math_max(1.0, 4.0 * s)), "accent", theme.accent)
+    let _title = kaintana_render_text_node(session_id, node_id, font_resource_id, label, rect.x + 18.0 * s, rect.y + baseline_y, "ink", theme.ink)
     return node_id
 
 pub fn kaintana_retained_label(session_id: Int, parent_id: Int, key: String, text_value: String, rect: KaintanaRect, theme: KaintanaTheme, font_resource_id: Int, baseline_y: Float) -> Int:
@@ -485,22 +522,25 @@ pub fn kaintana_retained_muted_label(session_id: Int, parent_id: Int, key: Strin
     return node_id
 
 pub fn kaintana_immediate_panel(session_id: Int, parent_id: Int, key: String, label: String, rect: KaintanaRect, theme: KaintanaTheme, font_resource_id: Int, baseline_y: Float) -> Int:
+    let s = kaintana_session_dpi_scale(session_id)
     let node_id = kaintana_reconcile_visual_node(session_id, parent_id, "kaintana.panel", key, label, "region", label, rect)
     let _fill = kaintana_render_fill_node(session_id, node_id, rect, "fill", theme.panel)
-    let _rule = kaintana_render_fill_node(session_id, node_id, kaintana_rect(rect.x, rect.y, rect.width, 3.0), "accent", theme.accent)
+    let _rule = kaintana_render_fill_node(session_id, node_id, kaintana_rect(rect.x, rect.y, rect.width, math_max(1.0, 3.0 * s)), "accent", theme.accent)
     if len(label) > 0:
-        let _text = kaintana_render_text_node(session_id, node_id, font_resource_id, label, rect.x + 16.0, rect.y + baseline_y, "ink", theme.ink)
+        let _text = kaintana_render_text_node(session_id, node_id, font_resource_id, label, rect.x + 16.0 * s, rect.y + baseline_y, "ink", theme.ink)
     return node_id
 
 pub fn kaintana_immediate_badge(session_id: Int, parent_id: Int, key: String, label: String, rect: KaintanaRect, theme: KaintanaTheme, font_resource_id: Int, baseline_y: Float) -> Int:
+    let s = kaintana_session_dpi_scale(session_id)
     let node_id = kaintana_reconcile_visual_node(session_id, parent_id, "kaintana.badge", key, label, "status", label, rect)
     let fill_color = kaintana_color_delta(theme.shell, 8)
     let _fill = kaintana_render_fill_node(session_id, node_id, rect, "fill", fill_color)
-    let text_x = rect.x + 12.0
+    let text_x = rect.x + 12.0 * s
     let _text = kaintana_render_text_node(session_id, node_id, font_resource_id, label, text_x, rect.y + baseline_y, "ink", theme.ink)
     return node_id
 
 pub fn kaintana_immediate_button(session_id: Int, parent_id: Int, key: String, label: String, rect: KaintanaRect, theme: KaintanaTheme, font_resource_id: Int, baseline_y: Float) -> Int:
+    let s = kaintana_session_dpi_scale(session_id)
     let node_id = kaintana_reconcile_focusable_visual_node(session_id, parent_id, "kaintana.button", key, label, "button", label, rect)
     let hovered = ui_node_has_flag(session_id, node_id, "hovered")
     let pressed = ui_node_has_flag(session_id, node_id, "pressed")
@@ -510,10 +550,11 @@ pub fn kaintana_immediate_button(session_id: Int, parent_id: Int, key: String, l
     if pressed != 0:
         fill_color = kaintana_color_delta(theme.accent, -18)
     let _fill = kaintana_render_fill_node(session_id, node_id, rect, "fill", fill_color)
-    let _text = kaintana_render_text_node(session_id, node_id, font_resource_id, label, rect.x + 16.0, rect.y + baseline_y, "ink", theme.ink)
+    let _text = kaintana_render_text_node(session_id, node_id, font_resource_id, label, rect.x + 16.0 * s, rect.y + baseline_y, "ink", theme.ink)
     return node_id
 
 pub fn kaintana_immediate_toolbar_button(session_id: Int, parent_id: Int, key: String, label: String, rect: KaintanaRect, theme: KaintanaTheme, font_resource_id: Int, baseline_y: Float) -> Int:
+    let s = kaintana_session_dpi_scale(session_id)
     let node_id = kaintana_reconcile_focusable_visual_node(session_id, parent_id, "kaintana.toolbar.button", key, label, "button", label, rect)
     let hovered = ui_node_has_flag(session_id, node_id, "hovered")
     let pressed = ui_node_has_flag(session_id, node_id, "pressed")
@@ -523,18 +564,19 @@ pub fn kaintana_immediate_toolbar_button(session_id: Int, parent_id: Int, key: S
     if pressed != 0:
         fill_color = kaintana_color_delta(theme.panel, -8)
     let _fill = kaintana_render_fill_node(session_id, node_id, rect, "fill", fill_color)
-    let _rule = kaintana_render_fill_node(session_id, node_id, kaintana_rect(rect.x, rect.y + rect.height - 3.0, rect.width, 3.0), "signal", theme.signal)
-    let _text = kaintana_render_text_node(session_id, node_id, font_resource_id, label, rect.x + 12.0, rect.y + baseline_y, "ink", theme.ink)
+    let _rule = kaintana_render_fill_node(session_id, node_id, kaintana_rect(rect.x, rect.y + rect.height - 3.0 * s, rect.width, math_max(1.0, 3.0 * s)), "signal", theme.signal)
+    let _text = kaintana_render_text_node(session_id, node_id, font_resource_id, label, rect.x + 12.0 * s, rect.y + baseline_y, "ink", theme.ink)
     return node_id
 
 pub fn kaintana_immediate_slider(session_id: Int, parent_id: Int, key: String, label: String, value: Float, min_value: Float, max_value: Float, rect: KaintanaRect, theme: KaintanaTheme, font_resource_id: Int, baseline_y: Float) -> Float:
+    let s = kaintana_session_dpi_scale(session_id)
     let node_id = kaintana_reconcile_focusable_visual_node(session_id, parent_id, "kaintana.slider", key, label, "slider", label, rect)
-    let track = kaintana_rect(rect.x + 16.0, rect.y + rect.height - 18.0, math_max(8.0, rect.width - 32.0), 6.0)
+    let track = kaintana_rect(rect.x + 16.0 * s, rect.y + rect.height - 18.0 * s, math_max(8.0 * s, rect.width - 32.0 * s), 6.0 * s)
     let resolved_value = kaintana_widget_slider_value(session_id, node_id, value, min_value, max_value, track)
     let span = math_max(0.001, max_value - min_value)
     let ratio = math_clamp((resolved_value - min_value) / span, 0.0, 1.0)
-    let fill = kaintana_rect(track.x, track.y, math_max(8.0, track.width * ratio), track.height)
-    let knob = kaintana_rect(track.x + (track.width * ratio) - 7.0, track.y - 7.0, 14.0, 20.0)
+    let fill = kaintana_rect(track.x, track.y, math_max(8.0 * s, track.width * ratio), track.height)
+    let knob = kaintana_rect(track.x + (track.width * ratio) - 7.0 * s, track.y - 7.0 * s, 14.0 * s, 20.0 * s)
     let hovered = ui_node_has_flag(session_id, node_id, "hovered")
     let dragging = ui_state_bool(session_id, node_id, "kaintana.pointer.dragging", 0)
     let fill_color = theme.accent
@@ -549,13 +591,14 @@ pub fn kaintana_immediate_slider(session_id: Int, parent_id: Int, key: String, l
     let _track = kaintana_render_fill_node(session_id, node_id, track, "track", theme.shell)
     let _fill = kaintana_render_fill_node(session_id, node_id, fill, "signal", fill_color)
     let _knob = kaintana_render_fill_node(session_id, node_id, knob, "knob", knob_color)
-    let _label = kaintana_render_text_node(session_id, node_id, font_resource_id, label, rect.x + 16.0, rect.y + baseline_y, "ink", theme.ink)
+    let _label = kaintana_render_text_node(session_id, node_id, font_resource_id, label, rect.x + 16.0 * s, rect.y + baseline_y, "ink", theme.ink)
     let value_text = str(Int(resolved_value))
-    let value_x = kaintana_right_aligned_text_x(session_id, font_resource_id, value_text, rect.x + rect.width - 16.0, rect.x + rect.width - 64.0)
+    let value_x = kaintana_right_aligned_text_x(session_id, font_resource_id, value_text, rect.x + rect.width - 16.0 * s, rect.x + rect.width - 64.0 * s)
     let _value = kaintana_render_text_node(session_id, node_id, font_resource_id, value_text, value_x, rect.y + baseline_y, "muted", theme.muted)
     return resolved_value
 
 pub fn kaintana_immediate_checkbox(session_id: Int, parent_id: Int, key: String, label: String, checked: Int, rect: KaintanaRect, theme: KaintanaTheme, font_resource_id: Int, baseline_y: Float) -> Int:
+    let s = kaintana_session_dpi_scale(session_id)
     let node_id = kaintana_reconcile_focusable_visual_node(session_id, parent_id, "kaintana.checkbox", key, label, "checkbox", label, rect)
     let current = ui_state_bool(session_id, node_id, "kaintana.checkbox.checked", checked)
     let toggled = current
@@ -567,14 +610,15 @@ pub fn kaintana_immediate_checkbox(session_id: Int, parent_id: Int, key: String,
         let _state = ui_state_set_bool(session_id, node_id, "kaintana.checkbox.checked", toggled)
     else:
         let _state = ui_state_set_bool(session_id, node_id, "kaintana.checkbox.checked", current)
-    let box_rect = kaintana_rect(rect.x, rect.y + 4.0, 20.0, 20.0)
+    let box_rect = kaintana_rect(rect.x, rect.y + 4.0 * s, 20.0 * s, 20.0 * s)
     let _box = kaintana_render_fill_node(session_id, node_id, box_rect, "fill", theme.shell)
     if toggled != 0:
-        let _mark = kaintana_render_fill_node(session_id, node_id, kaintana_rect(box_rect.x + 4.0, box_rect.y + 4.0, 12.0, 12.0), "signal", theme.signal)
-    let _label = kaintana_render_text_node(session_id, node_id, font_resource_id, label, rect.x + 32.0, rect.y + baseline_y, "ink", theme.ink)
+        let _mark = kaintana_render_fill_node(session_id, node_id, kaintana_rect(box_rect.x + 4.0 * s, box_rect.y + 4.0 * s, 12.0 * s, 12.0 * s), "signal", theme.signal)
+    let _label = kaintana_render_text_node(session_id, node_id, font_resource_id, label, rect.x + 32.0 * s, rect.y + baseline_y, "ink", theme.ink)
     return toggled
 
 pub fn kaintana_immediate_toggle(session_id: Int, parent_id: Int, key: String, label: String, enabled: Int, rect: KaintanaRect, theme: KaintanaTheme, font_resource_id: Int, baseline_y: Float) -> Int:
+    let s = kaintana_session_dpi_scale(session_id)
     let node_id = kaintana_reconcile_focusable_visual_node(session_id, parent_id, "kaintana.toggle", key, label, "switch", label, rect)
     let current = ui_state_bool(session_id, node_id, "kaintana.toggle.enabled", enabled)
     let next_value = current
@@ -586,19 +630,20 @@ pub fn kaintana_immediate_toggle(session_id: Int, parent_id: Int, key: String, l
         let _state = ui_state_set_bool(session_id, node_id, "kaintana.toggle.enabled", next_value)
     else:
         let _state = ui_state_set_bool(session_id, node_id, "kaintana.toggle.enabled", current)
-    let track = kaintana_rect(rect.x, rect.y + 2.0, 46.0, 24.0)
-    let knob_x = track.x + 2.0
+    let track = kaintana_rect(rect.x, rect.y + 2.0 * s, 46.0 * s, 24.0 * s)
+    let knob_x = track.x + 2.0 * s
     if next_value != 0:
-        knob_x = track.x + track.width - 20.0
+        knob_x = track.x + track.width - 20.0 * s
     let track_color = theme.shell
     if next_value != 0:
         track_color = kaintana_color_delta(theme.signal, -18)
     let _track = kaintana_render_fill_node(session_id, node_id, track, "fill", track_color)
-    let _knob = kaintana_render_fill_node(session_id, node_id, kaintana_rect(knob_x, track.y + 2.0, 18.0, 20.0), "ink", theme.ink)
-    let _label = kaintana_render_text_node(session_id, node_id, font_resource_id, label, rect.x + 60.0, rect.y + baseline_y, "ink", theme.ink)
+    let _knob = kaintana_render_fill_node(session_id, node_id, kaintana_rect(knob_x, track.y + 2.0 * s, 18.0 * s, 20.0 * s), "ink", theme.ink)
+    let _label = kaintana_render_text_node(session_id, node_id, font_resource_id, label, rect.x + 60.0 * s, rect.y + baseline_y, "ink", theme.ink)
     return next_value
 
 pub fn kaintana_immediate_text_input(session_id: Int, parent_id: Int, key: String, label: String, value: String, rect: KaintanaRect, theme: KaintanaTheme, font_resource_id: Int, baseline_y: Float) -> KaintanaTextInputResult:
+    let s = kaintana_session_dpi_scale(session_id)
     let node_id = kaintana_reconcile_focusable_visual_node(session_id, parent_id, "kaintana.text.input", key, value, "textbox", label, rect)
     let stored_value = ui_node_state_string(session_id, node_id, "kaintana.text.input.value", value)
     let resolved_value = stored_value
@@ -606,12 +651,12 @@ pub fn kaintana_immediate_text_input(session_id: Int, parent_id: Int, key: Strin
         resolved_value = ui_ime_text(session_id)
     let _state = ui_node_set_state_string(session_id, node_id, "kaintana.text.input.value", resolved_value)
     let _fill = kaintana_render_fill_node(session_id, node_id, rect, "fill", theme.panel)
-    let _label = kaintana_render_text_node(session_id, node_id, font_resource_id, label, rect.x + 14.0, rect.y + 14.0, "muted", theme.muted)
+    let _label = kaintana_render_text_node(session_id, node_id, font_resource_id, label, rect.x + 14.0 * s, rect.y + 14.0 * s, "muted", theme.muted)
     let rule_color = theme.accent
     if ui_focused_node(session_id) == node_id:
         rule_color = theme.signal
-    let _value = kaintana_render_text_node(session_id, node_id, font_resource_id, resolved_value, rect.x + 14.0, rect.y + baseline_y, "ink", theme.ink)
-    let _rule = kaintana_render_fill_node(session_id, node_id, kaintana_rect(rect.x, rect.y + rect.height - 3.0, rect.width, 3.0), "signal", rule_color)
+    let _value = kaintana_render_text_node(session_id, node_id, font_resource_id, resolved_value, rect.x + 14.0 * s, rect.y + baseline_y, "ink", theme.ink)
+    let _rule = kaintana_render_fill_node(session_id, node_id, kaintana_rect(rect.x, rect.y + rect.height - 3.0 * s, rect.width, math_max(1.0, 3.0 * s)), "signal", rule_color)
     return KaintanaTextInputResult { node_id: node_id, value: resolved_value }
 
 pub fn kaintana_immediate_metric(session_id: Int, parent_id: Int, key: String, label: String, value: String, rect: KaintanaRect, theme: KaintanaTheme, font_resource_id: Int, baseline_y: Float) -> Int:
@@ -622,11 +667,12 @@ pub fn kaintana_immediate_metric(session_id: Int, parent_id: Int, key: String, l
     return node_id
 
 pub fn kaintana_immediate_chart_bar(session_id: Int, parent_id: Int, key: String, label: String, value: Float, max_value: Float, rect: KaintanaRect, theme: KaintanaTheme, font_resource_id: Int, baseline_y: Float, fill_color: KaintanaColor) -> Int:
+    let s = kaintana_session_dpi_scale(session_id)
     let node_id = kaintana_reconcile_visual_node(session_id, parent_id, "kaintana.chart.bar", key, label, "meter", label, rect)
     let safe_max = math_max(0.001, max_value)
     let ratio = math_clamp(value / safe_max, 0.0, 1.0)
-    let bar_rect = kaintana_rect(rect.x, rect.y + 22.0, rect.width, math_max(6.0, rect.height - 26.0))
-    let fill_rect = kaintana_rect(bar_rect.x, bar_rect.y, math_max(6.0, bar_rect.width * ratio), bar_rect.height)
+    let bar_rect = kaintana_rect(rect.x, rect.y + 22.0 * s, rect.width, math_max(6.0 * s, rect.height - 26.0 * s))
+    let fill_rect = kaintana_rect(bar_rect.x, bar_rect.y, math_max(6.0 * s, bar_rect.width * ratio), bar_rect.height)
     let value_text = str(Int(value))
     let value_x = kaintana_right_aligned_text_x(session_id, font_resource_id, value_text, rect.x + rect.width, rect.x + (rect.width * 0.45))
     let _label = kaintana_render_text_node(session_id, node_id, font_resource_id, label, rect.x, rect.y + baseline_y, "muted", theme.muted)
