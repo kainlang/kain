@@ -64,20 +64,11 @@ pub struct ResolvedCLibrary {
 
 impl ResolvedCLibrary {
     pub fn native_runtime_linked(&self) -> bool {
-        self.runtime_owned && self.shared_lib_path.is_none() && self.tier.is_native_link()
+        self.runtime_owned && self.shared_lib_path.is_none()
     }
 
     pub fn source_backed_bitcode(&self) -> bool {
-        self.tier.wants_llvm_bitcode()
-            && (!self.source_paths.is_empty() || !self.bitcode_paths.is_empty())
-    }
-
-    pub fn has_direct_native_link_inputs(&self) -> bool {
-        self.shared_lib_path.is_some()
-            || !self.source_paths.is_empty()
-            || !self.object_paths.is_empty()
-            || !self.static_lib_paths.is_empty()
-            || !self.bitcode_paths.is_empty()
+        !self.source_paths.is_empty() || !self.bitcode_paths.is_empty()
     }
 }
 

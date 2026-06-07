@@ -1,0 +1,12 @@
+// Flat C ABI: no KAIN.toml, no tier, no [c_ffi] config.
+// Just a header, a .c source, and a Kain file.
+include native/math.h as m
+
+fn main() -> Int:
+    let sum = m_add(3, 4)
+    let prod = m_mul(5, 6)
+    if sum != 7:
+        return -1
+    if prod != 30:
+        return -2
+    return 0

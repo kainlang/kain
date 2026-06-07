@@ -45,7 +45,6 @@ inputs = [
 
 [[c_ffi.libraries]]
 name = "vulkain_bridge"
-tier = "inline"
 header = "native/vulkain_bridge.h"
 sources = ["native/vulkain_bridge.c"]
 include_paths = [

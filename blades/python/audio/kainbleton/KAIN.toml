@@ -42,8 +42,6 @@ inputs = [
 ]
 
 [c_ffi]
-tier = "inline"
-
 [[c_ffi.libraries]]
 name = "kainbleton_bridge"
 header = "src/native/kainbleton_bridge.h"

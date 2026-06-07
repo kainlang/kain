@@ -26,9 +26,7 @@ pub enum CInteropTier {
     #[default]
     Dynamic,
     Static,
-    Bitcode,
     Inline,
-    Fused,
 }
 
 impl CInteropTier {
@@ -41,11 +39,7 @@ impl CInteropTier {
     }
 
     pub fn wants_llvm_bitcode(self) -> bool {
-        matches!(self, Self::Bitcode | Self::Inline)
-    }
-
-    pub fn is_fused(self) -> bool {
-        matches!(self, Self::Fused)
+        matches!(self, Self::Inline)
     }
 }
 

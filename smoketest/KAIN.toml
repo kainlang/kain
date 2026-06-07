@@ -47,7 +47,6 @@ cache_root = ".kain/cache/build"
 profile = "debug"
 
 [c_ffi]
-tier = "inline"
 include_paths = ["native"]
 
 [[c_ffi.libraries]]

@@ -39,7 +39,6 @@ inputs = [
 
 [[c_ffi.libraries]]
 name = "python_lab_bridge"
-tier = "inline"
 header = "native/python_lab_bridge.h"
 sources = ["native/python_lab_bridge.c"]
 include_paths = ["native"]

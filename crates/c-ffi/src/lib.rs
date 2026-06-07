@@ -184,19 +184,13 @@ fn import_library_spec(
     let fingerprints = collect_binding_fingerprints(&resolved)?;
     let hash = build_cache_hash(&resolved, &fingerprints, BRIDGE_FORMAT_VERSION);
     let cache_dir = default_cache_root(prepare).join("c_ffi").join(hash);
-    { let mut f = std::fs::OpenOptions::new().append(true).create(true).open("Z:/_b/tmp/resolve_lib.txt").unwrap(); use std::io::Write; let _ = write!(f, "cache_dir='{}' exists={}
-", cache_dir.display(), cache_dir.exists()); }
     kfs::create_dir_all(&cache_dir).map_err(fs_to_kain_error)?;
 
     let mut output = if let Some(output) =
         try_load_generated_import_output(&resolved, &cache_dir, options.output_dir.as_deref())?
     {
-        { let mut f = std::fs::OpenOptions::new().append(true).create(true).open("Z:/_b/tmp/resolve_lib.txt").unwrap(); use std::io::Write; let _ = write!(f, "CACHED OUTPUT FOUND
-"); }
         output
     } else {
-        { let mut f = std::fs::OpenOptions::new().append(true).create(true).open("Z:/_b/tmp/resolve_lib.txt").unwrap(); use std::io::Write; let _ = write!(f, "CALLING extract_binding_bundle
-"); }
         let bundle = extract_binding_bundle(&resolved)?;
         let (_, output) = write_generated_artifacts(
             &resolved,
@@ -240,84 +234,46 @@ pub fn prepare_native_link_inputs(
         link_libs: collect_link_libs(resolved),
     };
 
+    // Runtime-owned imports are linked by the native runtime itself.
     if resolved.native_runtime_linked() {
         return Ok(inputs);
     }
 
-    match resolved.tier {
-        CInteropTier::Dynamic => {
-            let shared = resolved.shared_lib_path.as_ref().ok_or_else(|| {
-                KainError::runtime(format!(
-                    "C FFI dynamic import '{}' does not declare a shared library for native linking",
-                    resolved.import_name
-                ))
-            })?;
-            inputs
-                .link_inputs
-                .push(resolve_linkable_shared_library(shared)?);
-        }
-        CInteropTier::Static => {
-            push_existing_paths(&mut inputs.link_inputs, &resolved.object_paths, "object")?;
-            push_existing_paths(
-                &mut inputs.link_inputs,
-                &resolved.static_lib_paths,
-                "static library",
-            )?;
-            push_existing_paths(
-                &mut inputs.link_inputs,
-                &resolved.bitcode_paths,
-                "LLVM bitcode",
-            )?;
-            if let Some(shared) = &resolved.shared_lib_path {
-                let should_link_shared = !cfg!(windows) || resolved.static_lib_paths.is_empty();
-                if should_link_shared {
-                    inputs
-                        .link_inputs
-                        .push(resolve_linkable_shared_library(shared)?);
-                }
-            }
-            if inputs.link_inputs.is_empty()
-                && inputs.link_libs.is_empty()
-                && !resolved.config.toolchain_default_link
-            {
-                return Err(KainError::runtime(format!(
-                    "C FFI static import '{}' has no object, static library, bitcode, shared-library link input, or named link library",
-                    resolved.import_name
-                )));
-            }
-        }
-        CInteropTier::Bitcode | CInteropTier::Inline => {
-            push_existing_paths(
-                &mut inputs.link_inputs,
-                &resolved.bitcode_paths,
-                "LLVM bitcode",
-            )?;
-            let compiled = compile_c_sources_to_bitcode(output, clang_cmd, compile_args)?;
-            inputs.link_inputs.extend(compiled);
-            push_existing_paths(&mut inputs.link_inputs, &resolved.object_paths, "object")?;
-            push_existing_paths(
-                &mut inputs.link_inputs,
-                &resolved.static_lib_paths,
-                "static library",
-            )?;
-            if let Some(shared) = &resolved.shared_lib_path {
-                inputs
-                    .link_inputs
-                    .push(resolve_linkable_shared_library(shared)?);
-            }
-            if inputs.link_inputs.is_empty() {
-                return Err(KainError::runtime(format!(
-                    "C FFI {:?} import '{}' requires `sources` or `bitcode` entries",
-                    resolved.tier, resolved.import_name
-                )));
-            }
-        }
-        CInteropTier::Fused => {
-            return Err(KainError::runtime(format!(
-                "C FFI fused import '{}' must be runtime-owned in this layer; generic fused call lowering is a compiler/runtime command-surface contract, not a dynamic bridge fallback",
-                resolved.import_name
-            )));
-        }
+    // Compile C sources to LLVM bitcode if present.
+    if !resolved.source_paths.is_empty() {
+        let compiled = compile_c_sources_to_bitcode(output, clang_cmd, compile_args)?;
+        inputs.link_inputs.extend(compiled);
+    }
+
+    // Push pre-built bitcode, objects, static libraries, and shared libraries.
+    push_existing_paths(
+        &mut inputs.link_inputs,
+        &resolved.bitcode_paths,
+        "LLVM bitcode",
+    )?;
+    push_existing_paths(&mut inputs.link_inputs, &resolved.object_paths, "object")?;
+    push_existing_paths(
+        &mut inputs.link_inputs,
+        &resolved.static_lib_paths,
+        "static library",
+    )?;
+    if let Some(shared) = &resolved.shared_lib_path {
+        inputs
+            .link_inputs
+            .push(resolve_linkable_shared_library(shared)?);
+    }
+
+    // If we ended up with no link inputs at all, that's unusual but not a build-blocker.
+    // The LLVM linker will surface unresolved symbols with actual names.
+    if inputs.link_inputs.is_empty()
+        && inputs.link_libs.is_empty()
+        && !resolved.config.toolchain_default_link
+    {
+        eprintln!(
+            "note: C FFI import '{}' resolved but produced no native-link inputs or link libraries; \
+             upstream link errors will name the specific missing symbols",
+            resolved.import_name
+        );
     }
 
     Ok(inputs)
@@ -800,10 +756,7 @@ fn compile_c_sources_to_bitcode(
         for arg in compile_args {
             command.arg(arg);
         }
-        command.arg("-emit-llvm").arg("-c");
-        if matches!(resolved.tier, CInteropTier::Inline) {
-            command.arg("-flto=full");
-        }
+        command.arg("-emit-llvm").arg("-c").arg("-flto=full");
         for include_path in resolved
             .global_config
             .include_paths
@@ -1611,7 +1564,6 @@ fn resolve_library_from_manifest_root(
     library.bitcode = resolve_relative_paths(manifest_root, &library.bitcode);
     let mut config = config;
     config.include_paths = resolve_relative_paths(manifest_root, &config.include_paths);
-    validate_tier_contract(import_name, tier, runtime_owned, &library)?;
 
     Ok(Some((
         ResolvedCLibrary {
@@ -1807,29 +1759,6 @@ fn resolve_relative_paths(root: &Path, paths: &[PathBuf]) -> Vec<PathBuf> {
         .iter()
         .map(|path| resolve_relative_path(root, path))
         .collect()
-}
-
-fn validate_tier_contract(
-    import_name: &str,
-    tier: CInteropTier,
-    runtime_owned: bool,
-    library: &config::CLibraryConfig,
-) -> Result<(), KainError> {
-    if runtime_owned {
-        return Ok(());
-    }
-    if tier.is_fused() {
-        return Err(KainError::runtime(format!(
-            "C FFI fused import '{import_name}' must set runtime_owned = true; generic fused lowering is not a dynamic bridge"
-        )));
-    }
-    if tier.wants_llvm_bitcode() && library.sources.is_empty() && library.bitcode.is_empty() {
-        return Err(KainError::runtime(format!(
-            "C FFI {:?} import '{import_name}' requires `sources` or `bitcode` entries",
-            tier
-        )));
-    }
-    Ok(())
 }
 
 fn expand_platform_dynamic_library_tokens(path: &Path) -> PathBuf {
@@ -2833,7 +2762,7 @@ fn main() -> Int:
     }
 
     #[test]
-    fn fused_tier_rejects_generic_dynamic_bridge_fallback() {
+    fn fused_tier_rejected_as_unknown_variant() {
         let temp = TempDir::new().expect("temp dir");
         let root = temp.path();
         let native_dir = root.join("native");
@@ -2877,10 +2806,9 @@ fn main() -> Int:
                 manifest_path: Some(root.join("KAIN.toml")),
             },
         )
-        .expect_err("generic fused import should be gated");
+        .expect_err("fused tier should be rejected as unknown variant");
         let message = error.to_string();
-        assert!(message.contains("fused"));
-        assert!(message.contains("runtime_owned"));
+        assert!(message.contains("fused"), "error should mention fused: {message}");
     }
 
     #[test]
