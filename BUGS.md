@@ -42,6 +42,33 @@
   - Compile with `kain build main.kn --target llvm`.
 - Evidence:
   - Codegen failed in `blades/lsp` for `mcp_host.mcp_run()` and `lsp.lsp_run()` inside `src/main.kn` with `Undefined variable: mcp_host` on 2026-06-05.
+
+## 2026-06-07 - sys-codegen/llvm-duplicate-reply-to-addr
+### LLVM IR has duplicate `%reply_to.addr = alloca %KainReplyPort` in actor handlers
+
+- Categories: sys-codegen, llvm, codegen, actors
+- Severity: High
+- Status: Open in tree (2026-06-07)
+- Surface: LLVM codegen for actor messages with multiple handlers that each take `reply_to: P`.
+- Trigger: Building a Kain file with multiple actor message handlers via `kain build` with target `llvm`; the codegen emits duplicate `%reply_to.addr` SSA values in the same function.
+- Symptom:
+  - LLVM IR compilation fails with:
+    ```
+    X:\...\pygame_template.ll:2824:3: error: multiple definition of local value named 'reply_to.addr'
+     2824 |   %reply_to.addr = alloca %KainReplyPort
+          |   ^
+    ```
+  - The LLVM IR file is generated successfully (kain check passes) but clang/link step fails.
+- Why this is a bug: LLVM IR requires every local SSA value to have a unique name within a function. The codegen generates the same name `reply_to.addr` for each actor handler's reply port parameter when multiple handlers are present in the same actor or when actors are inlined into the same function scope.
+- Evidence:
+  - `X:\blades\templates\python\pygame\pygame_template.ll:2824` has three `%reply_to.addr` alloca instructions.
+  - The `P` type parameter in actor handlers (e.g. `on Fold(reply_to: P, ...)`) lowers to a `%KainReplyPort` alloca named `reply_to.addr` in `crates/sys-codegen/src/codegen_llvm/mod.rs`.
+  - The codegen likely reuses a static/constant name instead of disambiguating per handler.
+- Current workaround:
+  - Reduce to a single actor message handler per actor, or avoid multiple handlers that use `reply_to: P`.
+- Suggested direction:
+  - In `crates/sys-codegen/src/codegen_llvm/mod.rs`, when emitting the alloca for the reply port parameter, append a unique suffix (e.g. the message handler index or a counter) to the variable name to avoid SSA name collisions.
+- Discovered during: Build UX logging fix for `blades/templates/python/pygame`.
 - Current workaround:
   - Import the module and call the functions directly without namespace prefixing (e.g. `use my_module` and then call `my_function()` directly), relying on Kain's global symbol import namespace model.
 - Suggested direction:

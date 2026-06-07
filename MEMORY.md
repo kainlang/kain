@@ -11479,3 +11479,15 @@ generate.rs: generates Kain extern declarations
 - `blades/c/platform/windows/src/main.kn`
 - `blades/c/platform/windows/KAIN.toml`
 
+---
+
+## 2026-06-07 - Build UX: stderr now shows in CLI on failure
+
+**What changed:** `run_external_evidence_command` in `crates/build/src/workspace.rs` now plumbed the stderr summary into the error message instead of hiding it in the evidence JSON. Added `summarize_stderr_for_cli()` helper that extracts error lines or the tail of stderr.
+
+**Bug discovered:** `sys-codegen` emits duplicate `%reply_to.addr` alloca when multiple actor handlers have `reply_to: P` parameters. Logged in BUGS.md as `sys-codegen/llvm-duplicate-reply-to-addr`.
+
+**Next Steps:**
+- Fix the duplicate `reply_to.addr` SSA name collision in `crates/sys-codegen/src/codegen_llvm/mod.rs`
+- The LLVM IR codegen needs to disambiguate variable names per handler (append a counter/suffix)
+
