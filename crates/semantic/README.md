@@ -22,6 +22,15 @@ This document is guidance-first: how to work inside this crate, how to grow the 
 ├─────────────────────────────────────────────────────────────────────┤
 │                    crates/semantic (this crate)                      │
 │                                                                     │
+│  =================== OFFLINE ORACLE FORGE (build.kn) ============== │
+│  § kain build ───→ checks all sources, emits GPU artifacts, forges  │
+│                    the oracle binary index, and optionally distills  │
+│                    a CUDA-forged sidecar pack                        │
+│  § kain run ─────→ runs individual forge commands (health, embed,   │
+│                    search) against an already-built oracle           │
+│                                                                     │
+│  =================== ONLINE DIAGNOSTIC HOT PATH =================== │
+│                                                                     │
 │  lib.rs::analyze(packet)                                            │
 │    ├─ expert.rs  — Lane A: pure-Rust rule engine (sub-ms)           │
 │    │   ├─ classify_failure() — maps code + context → FailureMode    │
@@ -265,6 +274,70 @@ If the failure mode you need doesn't exist in `FailureMode`:
 
 ---
 
+## The build.kn Build Graph
+
+The entire pipeline is declared as a dependency graph in `build.kn`. One command builds everything:
+
+```powershell
+cd X:\crates\semantic
+kain build
+```
+
+This single command runs the full DAG:
+
+```
+          ┌───────────────────────────────────────────────────┐
+          │                  kain build                        │
+          │                                                   │
+          │  ┌──────────┐  ┌──────────────────────────────┐   │
+          │  │ orch host │  │       CUDA kernels           │   │
+          │  │ LLVM      │  │                              │   │
+          │  │ main.kn   │  │  check-oracle-cuda           │   │
+          │  └─────┬─────┘  │  check-oracle-transformer    │   │
+          │        │        │  check-oracle-training       │   │
+          │        │        │  check-oracle-error          │   │
+          │        │        │  check-oracle-repair         │   │
+          │        │        └─────────┬────────────────────┘   │
+          │        │                  │                        │
+          │        │        ┌─────────▼────────────────────┐   │
+          │        │        │   GPU artifact emission      │   │
+          │        │        │   (cuda → .ptx, .gpu.rs,     │   │
+          │        │        │    .reflect.json,            │   │
+          │        │        │    .shader_bundle.json)      │   │
+          │        │        └─────────┬────────────────────┘   │
+          │        │                  │                        │
+          │        └────────┬─────────┘                        │
+          │                 ▼                                  │
+          │    ┌──────────────────────────────────────┐        │
+          │    │  error-oracle-exe (native binary)     │        │
+          │    │  forges .kain/oracle/kain_error_oracle│        │
+          │    │  .bin + manifest.json                  │        │
+          │    └────────────────┬─────────────────────┘        │
+          │                     │                              │
+          │    ┌────────────────▼─────────────────────┐        │
+          │    │  distill-oracle-cuda-pack             │        │
+          │    │  (cargo run --example write_semantic  │        │
+          │    │   _pack --cuda-forged ...)            │        │
+          │    │  → manifest.json + prototypes.bin     │        │
+          │    │    + reranker.i8                      │        │
+          │    └──────────────────────────────────────┘        │
+          └───────────────────────────────────────────────────┘
+```
+
+The graph is defined in `build.kn` using `std::build`. Each task declares its `requires()` dependencies, so `kain build` parallelizes correctly: CUDA checks all run in parallel, GPU artifacts emit in parallel once each kernel passes, then the host executable builds after all artifacts are ready, and finally the CUDA-forged pack distills from the completed forge output.
+
+### Individual Build Targets
+
+You can run subsets of the DAG by name:
+
+| Command | What it does |
+|---------|-------------|
+| `kain build` | Full pipeline (all checks + artifacts + forge + pack distill) |
+| `kain run` | Forge oracle only (assumes prior build) |
+| `kain build --task check-oracle-host` | Check/orchestra host source only |
+| `kain build --task emit-oracle-cuda-artifacts` | Emit GPU artifacts for search kernel |
+| `kain build --task error-oracle-exe` | Check everything + forge the oracle binary |
+
 ## The CUDA Kernels
 
 The offline oracle pipeline has five Kain-authored CUDA compute shaders in `src/`. These run during the forge step, not on the compiler hot path.
@@ -283,35 +356,19 @@ The offline oracle pipeline has five Kain-authored CUDA compute shaders in `src/
 
 The pipeline has two lanes that run at different times:
 
-**Offline (forge time — `kain run src/main.kn -- forge`)**:
-1. `indexer.kn` scans repo source files into chunks
-2. `embedding.kn` produces packed u8 feature vectors per chunk
-3. `search_kernel.kn` or `error_kernel.kn` runs fused score+top-k on GPU
-4. `transformer_kernel.kn` optionally replaces hash embeddings with learned ones
-5. `training_kernel.kn` trains the transformer on the corpus
-6. Results are written as binary artifacts: `manifest.json`, `prototypes.bin`, `reranker.i8`
+**Offline (forge time — `kain build` or `kain run`)**
+1. `build.kn` orchestrates: check all sources → emit GPU artifacts → compile host exe
+2. The host `main.kn` runs the forge: `indexer.kn` scans repo chunks, `embedding.kn` produces packed u8 vectors, GPU kernels run fused score+top-k, `transformer_kernel.kn` optionally replaces hash embeddings
+3. `training_kernel.kn` trains the transformer on the corpus
+4. Results are written as binary artifacts: `manifest.json`, `prototypes.bin`, `reranker.i8`
 
-**Online (compiler hot path — `kain check`)**:
+**Online (compiler hot path — `kain check`)**
 1. The compiler builds a `DiagnosticSemanticPacket`
 2. `expert.rs` runs pure-Rust rules (Lane A) — sub-millisecond, no GPU
 3. `pack.rs` optionally loads a frozen sidecar pack and reranks (Lane B)
 4. Output is a `SemanticAnalysisReport` folded into the `DiagnosticReport`
 
 The CUDA kernels never run during compilation. They forge the pack offline; the compiler reads it through a deterministic CPU int8 reranker.
-
-### Building CUDA Artifacts
-
-Each kernel gets its own output directory to avoid residency JSON collisions:
-
-```powershell
-cd X:\crates\semantic
-
-kain gpu-artifacts src\search_kernel.kn --output .kain\oracle\gpu\search_kernel\search_kernel --target cuda
-kain gpu-artifacts src\error_kernel.kn --output .kain\oracle\gpu\error_kernel\error_kernel --target cuda
-kain gpu-artifacts src\repair_kernel.kn --output .kain\oracle\gpu\repair_kernel\repair_kernel --target cuda
-kain gpu-artifacts src\transformer_kernel.kn --output .kain\oracle\gpu\transformer\transformer --target cuda
-kain gpu-artifacts src\training_kernel.kn --output .kain\oracle\gpu\training\training --target cuda
-```
 
 ### Pack Lanes
 
@@ -352,7 +409,13 @@ Control which pack the compiler loads via `KAIN_SEMANTIC_LANE`:
 
 ---
 
-## Kain Source Files in src/
+## Kain Source Files
+
+### `build.kn` (root) — Build Graph Orchestrator
+
+This is the file you run when you type `kain build`. It declares the full DAG using `std::build`: check sources, emit GPU artifacts, forge the oracle binary, distill the sidecar pack. All task dependencies are explicit via `requires()`. See the [build.kn build graph section](#the-buildkn-build-graph) above for the full breakdown.
+
+### `src/*.kn` — Pipeline Sources
 
 | File | Role |
 |------|------|
@@ -388,9 +451,9 @@ Control which pack the compiler loads via `KAIN_SEMANTIC_LANE`:
 
 ## Full Proof Loop
 
-When you change anything in this crate, prove it end-to-end:
+When you change anything in this crate, prove it end-to-end. The build graph handles all orchestration — you don't run individual commands for each kernel.
 
-### 1. Check all Kain sources compile
+### 1. Full build — checks + artifacts + forge + pack distill
 
 ```powershell
 cd X:\crates\semantic
@@ -399,57 +462,60 @@ $env:TMP = 'Z:\_b\tmp'
 $env:TEMP = 'Z:\_b\tmp'
 $env:TMPDIR = 'Z:\_b\tmp'
 
-kain check src\main.kn --target llvm
-kain check src\search_kernel.kn --target cuda
-kain check src\error_kernel.kn --target cuda
-kain check src\repair_kernel.kn --target cuda
-kain check src\transformer_kernel.kn --target cuda
-kain check src\training_kernel.kn --target cuda
+kain build
 ```
 
-### 2. Build CUDA artifacts
+This single command runs the entire DAG defined in `build.kn`:
+- Checks the oracle host (`src/main.kn`) against LLVM target
+- Checks all five CUDA kernels (`search_kernel.kn`, `transformer_kernel.kn`, `training_kernel.kn`, `error_kernel.kn`, `repair_kernel.kn`) against CUDA target
+- Emits GPU artifacts (`.ptx`, `.gpu.rs`, `.reflect.json`, `.shader_bundle.json`) for each kernel into isolated directories
+- Compiles the host oracle executable and forges `kain_error_oracle.bin` + `manifest.json`
+- Distills the CUDA-forged sidecar pack (`manifest.json` + `prototypes.bin` + `reranker.i8`)
+
+All of this runs in the correct dependency order — CUDA checks in parallel, GPU artifact emission in parallel, then host exe, then pack distill.
+
+### 2. Run individual oracle commands (assumes build succeeded)
 
 ```powershell
-kain gpu-artifacts src\search_kernel.kn --output .kain\oracle\gpu\search_kernel\search_kernel --target cuda
-kain gpu-artifacts src\error_kernel.kn --output .kain\oracle\gpu\error_kernel\error_kernel --target cuda
-kain gpu-artifacts src\repair_kernel.kn --output .kain\oracle\gpu\repair_kernel\repair_kernel --target cuda
-kain gpu-artifacts src\transformer_kernel.kn --output .kain\oracle\gpu\transformer\transformer --target cuda
-kain gpu-artifacts src\training_kernel.kn --output .kain\oracle\gpu\training\training --target cuda
-```
+# Health check — verifies all index files contain what the forge produced
+kain run -- health
 
-### 3. Forge the oracle
-
-```powershell
-New-Item -ItemType Directory -Force X:\crates\semantic\.kain\oracle | Out-Null
-rg --files X:\crates\semantic\src X:\crates\error\src X:\crates\core\src X:\crates\check\src X:\crates\driver\src X:\crates\semantic\error_corpus X:\crates\semantic\symbol_corpus > X:\crates\semantic\.kain\oracle\source_manifest.txt
-$env:KAIN_SEMANTIC_FILE_MANIFEST = 'X:\crates\semantic\.kain\oracle\source_manifest.txt'
-
-kain run src\main.kn --target llvm -- forge
-kain run src\main.kn --target llvm -- health
-```
-
-### 4. Prove search works
-
-```powershell
-kain run src\main.kn --target llvm -- search kain "unknown identifier prntln expected println" 8
+# Search test — semantic search across the forged oracle
+kain run -- search kain "unknown identifier prntln expected println" 8
 ```
 
 Expected: 8 hits with `crates\semantic\error_corpus\type_unknown_identifier.kn` ranked first.
 
-### 5. Prove Rust side compiles and corpus tests pass
+```powershell
+# Embed preview — check the embedding pipeline produces sensible output
+kain run -- embed kain "unknown identifier prntln expected println"
+```
+
+### 3. Prove Rust side compiles and corpus tests pass
 
 ```powershell
 cargo test -p kain-semantic test_error_corpus_cases
 cargo test -p kain-semantic sidecar_pack
 ```
 
-### 6. Prove compiler integration
+### 4. Prove compiler integration
 
 ```powershell
 kain check X:\crates\semantic\error_corpus\type_unknown_identifier.kn --target llvm
 ```
 
 The output should show the enriched diagnostic with failure mode, explanation, and ranked repairs.
+
+### Fast path — corpus-only change
+
+If you only added error corpus fixtures and didn't touch CUDA kernels, Rust code, or pack wiring:
+
+```powershell
+python X:\crates\semantic\scripts\verify_error_corpus.py --changed
+cargo test -p kain-semantic test_error_corpus_cases
+```
+
+No GPU artifacts, no forge, no pack distill needed. Just verify the fixtures and bake them.
 
 ---
 
@@ -494,15 +560,15 @@ pub const TypeMyNewError: Self = Self::new("KAIN-TYPE-0099");
 
 | Task | Command |
 |------|---------|
-| Check all Kain sources | `kain check src\main.kn --target llvm` |
+| Full pipeline (check + build + forge) | `kain build` |
 | Verify error corpus fixtures | `python scripts\verify_error_corpus.py --changed` |
 | Run a batch | `python scripts\error_batch.py --batch batches\my_batch.toml --write-stage --verify --promote --bake` |
 | Run corpus tests | `cargo test -p kain-semantic test_error_corpus_cases` |
 | Run pack tests | `cargo test -p kain-semantic sidecar_pack` |
-| Forge oracle | `kain run src\main.kn --target llvm -- forge` |
-| Health check | `kain run src\main.kn --target llvm -- health` |
-| Search test | `kain run src\main.kn --target llvm -- search kain "error message" 8` |
-| Generate sidecar pack | `cargo run -p kain-semantic --features cuda-forged-pack --example write_semantic_pack` |
+| Health check | `kain run -- health` |
+| Search test | `kain run -- search kain "error message" 8` |
+| Embed preview | `kain run -- embed kain "error text"` |
+| Generate sidecar pack only | `cargo run -p kain-semantic --features cuda-forged-pack --example write_semantic_pack` |
 | Search existing corpus fixtures | `rg -n "@expected_code\|@expected_mode\|@expected_repair\|ERROR:" error_corpus` |
 
 ---

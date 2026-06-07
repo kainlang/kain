@@ -5559,22 +5559,42 @@ fn check_impl(env: &mut TypeEnv, imp: &Impl) -> KainResult<TypedImpl> {
     Ok(TypedImpl { ast: imp.clone() })
 }
 
+/// Walk a block and collect the types of top-level `return expr` statements.
+/// Nested returns (inside if/while/for) are not tracked — the Unknown fallback
+/// handles those cases. Returns Unknown if no returns are found.
+fn infer_return_type_from_body(env: &mut TypeEnv, block: &Block) -> KainResult<ResolvedType> {
+    let mut inferred = ResolvedType::Unknown;
+    for stmt in &block.stmts {
+        if let Stmt::Return(Some(expr), _) = stmt {
+            let expr_ty = infer_expr_type(env, expr, None)?;
+            if inferred == ResolvedType::Unknown {
+                inferred = expr_ty;
+            } else if !types_compatible(&inferred, &expr_ty) {
+                // Conflicting return types — keep Unknown
+                return Ok(ResolvedType::Unknown);
+            }
+        }
+    }
+    Ok(inferred)
+}
+
 fn check_function(env: &mut TypeEnv, f: &Function) -> KainResult<TypedFunction> {
     validate_generic_constraints(env, &f.generics, f.where_clause.as_ref(), "function")?;
-    let resolved_type = function_signature(env, f, None)?;
+    let mut resolved_type = function_signature(env, f, None)?;
     let effects = match &resolved_type {
         ResolvedType::Function { effects, .. } => effects.clone(),
         _ => EffectSet::new(),
     };
-    let ret = match &resolved_type {
+    let mut ret = match &resolved_type {
         ResolvedType::Function { ret, .. } => ret.as_ref().clone(),
         _ => ResolvedType::Unit,
     };
+    let had_explicit_return_type = f.return_type.is_some();
     validate_function_attributes(env, f, &ret)?;
 
     let ctx = SemanticContext {
         function_name: f.name.clone(),
-        return_type: ret,
+        return_type: ret.clone(),
         effects: effects.clone(),
     };
 
@@ -5585,6 +5605,25 @@ fn check_function(env: &mut TypeEnv, f: &Function) -> KainResult<TypedFunction> 
         }
         check_block_semantics(env, &f.body, &ctx)
     })?;
+
+    // Infer return type from body when no explicit annotation was given.
+    // Collect return expression types and unify; fall back to Unknown if
+    // the body has no return statements (e.g. functions that just produce a
+    // final expression value or diverge).
+    if !had_explicit_return_type {
+        let inferred = infer_return_type_from_body(env, &f.body)?;
+        if inferred != ResolvedType::Unknown && inferred != ResolvedType::Unit {
+            ret = inferred;
+            resolved_type = ResolvedType::Function {
+                params: match &resolved_type {
+                    ResolvedType::Function { params, .. } => params.clone(),
+                    _ => vec![],
+                },
+                ret: Box::new(ret.clone()),
+                effects: effects.clone(),
+            };
+        }
+    }
 
     Ok(TypedFunction {
         ast: f.clone(),
@@ -7448,7 +7487,7 @@ fn function_signature(
         .as_ref()
         .map(|ty| resolve_type_in_env(env, ty))
         .transpose()?
-        .unwrap_or(ResolvedType::Unit);
+        .unwrap_or(ResolvedType::Unknown);
     Ok(ResolvedType::Function {
         params,
         ret: Box::new(ret),

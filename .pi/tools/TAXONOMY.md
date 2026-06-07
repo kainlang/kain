@@ -132,8 +132,8 @@ Each domain extension file should follow this structure:
 
 | Tier | Tools | Quality | Notes |
 |---|---|---|---|
-| 🟢 | 1–6 router tools | Excellent | We're here: 4 tools |
-| 🟡 | 7–10 router tools | Manageable | Need clean naming |
+| 🟢 | 1–6 router tools | Excellent |  |
+| 🟡 | 7–10 router tools | Manageable | We're here: 10 tools (at hard ceiling) |
 | 🟠 | 11–15 router tools | Strained | Need aggressive dedup |
 | 🔴 | 16+ router tools | Degraded | Split into more domains or merge |
 
@@ -142,4 +142,7 @@ these as separate tools, only as parameters. This is how we scale to hundreds
 of operations.
 
 **Hard ceiling: 10 router tools.** Beyond that, start merging domains or
-introducing a second tier of meta-tools.
+introducing a second tier of meta-tools. We are AT the ceiling with the
+addition of `z3` — any future tool must come from adding actions to an
+existing domain, merging two domains, or introducing a meta-router
+(e.g. `lang` for all language ops).

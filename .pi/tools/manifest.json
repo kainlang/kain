@@ -169,6 +169,32 @@
         "search":       { "sig": "(query)", "label": "Search Tools",   "description": "Search for tools by keyword, description, or task. Returns matching tools from all domains with relevance scoring." },
         "which":        { "sig": "(task)", "label": "Which Tool",     "description": "Given a task description, recommends the optimal tool + action to use. The brain's primary reasoning interface." }
       }
+    },
+    {
+      "id": "z3",
+      "name": "Z3 Solver (MCP)",
+      "file": "z3-tools.ts",
+      "label": "Z3",
+      "description": "Router for the locally-installed z3-mcp server (uv tool install X:/mcp/polytools/z3-mcp). Spawns the `z3-mcp` stdio JSON-RPC server on first call, keeps it alive for the session, and forwards each action to the matching MCP tool. Covers source analysis, SMT-LIB v2 checking, structured proof cases, proof-pack admin, and counterexample-to-regression-test scaffolding.",
+      "promptSnippet": "Solver-backed proof authoring: analyze source, check SMT2, run structured proofs, scaffold regression tests",
+      "promptGuidelines": [
+        "Use z3 action:'check' for raw SMT-LIB v2 input (smt2 string, optional timeout_ms).",
+        "Use z3 action:'prove' for structured proof cases (kind + case dict, e.g. size_add_ok, range_check, state_machine_check).",
+        "Use z3 action:'analyze' to scan a source file (path, optional symbol/line) and surface proof opportunities.",
+        "Use z3 action:'extract' to materialize proof cases from a source file (path, optional symbol/line, save=true to write to a pack).",
+        "Use z3 action:'admin' for low-frequency ops: init_proof_pack, list_templates, discover_proof_packs, etc. (action + payload dict).",
+        "Use z3 action:'regress' to turn a Z3 counterexample into a regression test skeleton (template, counterexample, test_name?).",
+        "All actions accept an opaque `args` object that the z3-mcp server validates — when in doubt, call z3 action:'admin' with action='list_templates' first to see what kinds/cases are available.",
+        "Forward slashes in paths on Windows (X:/mcp/...). The server requires Z3_MCP_ROOT and Z3_MCP_POLYTOOLS_ROOT env vars, which the extension sets automatically from Z3_MCP_ROOT and Z3_MCP_POLYTOOLS_ROOT env vars (with sensible defaults)."
+      ],
+      "actions": {
+        "analyze":  { "sig": "(args)", "label": "Analyze Source",         "description": "Analyze a source file for proof opportunities. args: { path, symbol?, line?, context_lines?, max_findings?, max_bytes?, debug? }. Forwards to MCP tool analyze_source_file." },
+        "extract":  { "sig": "(args)", "label": "Extract Proof Cases",    "description": "Extract structured proof cases from a source file. args: { path, symbol?, line?, context_lines?, max_findings?, max_bytes?, save?, overwrite?, pack_path?, debug? }. Forwards to MCP tool extract_source_proof_cases." },
+        "check":    { "sig": "(args)", "label": "Check SMT2",             "description": "Run Z3 on raw SMT-LIB v2 input. args: { smt2, timeout_ms?, include_model?, include_stats?, project_root?, report_name? }. Forwards to MCP tool check_smt2. Returns { status: sat|unsat|unknown, model?, stats? }." },
+        "prove":    { "sig": "(args)", "label": "Run Proof",              "description": "Run a structured proof case via the DSL. args: { kind, case, timeout_ms?, project_root?, report_name? }. Forwards to MCP tool prove. Use kind from the helper catalog (size_add_ok, size_mul_ok, ptr_offset_ok, content_length_ok, buffer_growth_ok, signed_unsigned_cast_ok, range_check, bitvec_equiv, state_machine_check, optimize, find_counterexample)." },
+        "admin":    { "sig": "(args)", "label": "Admin (tool_router)",    "description": "Low-frequency admin actions via the MCP tool_router. args: { action, payload? }. Actions include: init_proof_pack, run_proof_pack, list_templates, suggest_proof_targets, coverage_report, query_proof_inventory, materialize_proof_candidates, automate_proof_candidates, discover_proof_packs, discover_proof_plugins, init_proof_plugin, install_proof_plugin, read_proof_plugin, run_workspace_proofs, how_to_use, claim_proof_task, proof_task_list, save_proof_case, save_proof_case_to_pack, read_proof_pack, inventory_pack_symbols." },
+        "regress":  { "sig": "(args)", "label": "Counterexample → Test",  "description": "Turn a Z3 counterexample into a regression test skeleton. args: { template, counterexample, test_name?, function_name?, language?, output_path?, context? }. language defaults to 'c'. Forwards to MCP tool counterexample_to_test." }
+      }
     }
   ]
 }
