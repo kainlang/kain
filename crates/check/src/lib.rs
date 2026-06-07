@@ -8,8 +8,11 @@ use kain_core::{emit_runtime_contract_bundle, CompileTarget, TypedItem, TypedPro
 use kain_driver::{
     DriverSession, ToolingProgressEvent, ToolingProgressSink, ToolingProgressStatus,
 };
+use kain_error::KainError;
 use kain_fs as kfs;
 use serde::{Deserialize, Serialize};
+mod validate;
+
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -148,6 +151,26 @@ pub fn check_source_with_session(
         options.progress.as_ref(),
     ) {
         Ok(checked) => {
+            // ── Semantic validation pass ─────────────────────────────────
+            // Runs proactive checks for invariants the typechecker doesn't
+            // enforce but the codegen/runtime requires.
+            let semantic_errors =
+                validate::validate_semantic_stack(&checked.typed);
+            if let Some(first) = semantic_errors.first() {
+                let error = KainError::rich(first.clone());
+                let diagnostic = error.diagnostic_json();
+                return CheckFileReport {
+                    path: source_name.to_string(),
+                    target: compile_target_name(target).to_string(),
+                    status: CheckStatus::Failed,
+                    item_count: 0,
+                    test_count: 0,
+                    required_capabilities: Vec::new(),
+                    error: Some(session.format_error(source_name, source, &error)),
+                    diagnostic,
+                };
+            }
+
             let bundle = emit_runtime_contract_bundle(&checked.typed, target);
             CheckFileReport {
                 path: source_name.to_string(),

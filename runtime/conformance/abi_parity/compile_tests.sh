@@ -44,16 +44,10 @@ if [[ -n "$SECURE_CRT_DEFINE" ]]; then
     CFLAGS+=("$SECURE_CRT_DEFINE")
 fi
 
-RUNTIME_SOURCES=(
-    "$NATIVE_DIR/src/core/memory.c"
-    "$NATIVE_DIR/src/core/union.c"
-    "$NATIVE_DIR/src/core/bitfield.c"
-)
+source "/../_shared/runtime_helpers.sh"
+RUNTIME_SOURCES=( "${ALL_RUNTIME_SOURCES[@]}" )
 
 LDFLAGS=()
-if [[ "${OSTYPE:-}" != "msys" && "${OSTYPE:-}" != "cygwin" && "${OSTYPE:-}" != "win32" ]]; then
-    LDFLAGS+=(-lm)
-fi
 
 run_with_timeout() {
     local seconds=$1

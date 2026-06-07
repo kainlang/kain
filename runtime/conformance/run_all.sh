@@ -8,6 +8,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RUNTIME_DIR="$(dirname "$SCRIPT_DIR")"
 WORKSPACE_ROOT="$(dirname "$RUNTIME_DIR")"
 
+# Normalize OSTYPE so Windows detection works across cygwin/msys/git-bash
+case "${OSTYPE:-}" in cygwin|msys|win32) OSTYPE=msys ;; esac
+
 # Cross-platform toolchain discovery — ensures clang/lld-link can find
 # MSVC CRT libraries on Windows, Xcode SDK on macOS, etc.
 TOOLCHAIN_PY="$WORKSPACE_ROOT/scripts/kain_toolchain.py"

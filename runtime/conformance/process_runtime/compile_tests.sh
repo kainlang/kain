@@ -28,7 +28,7 @@ LDFLAGS=""
 if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "msys2" || "$OSTYPE" == "win32" || "$OSTYPE" == "cygwin" ]]; then
     LDFLAGS="-lws2_32 -lshell32"
 else
-    LDFLAGS="-lpthread -lm"
+    LDFLAGS="$RUNTIME_LDFLAGS"
 fi
 
 "$C_COMPILER" $CFLAGS -c "$NATIVE_SRC/core/core.c" -o "$OUT_DIR/kain_runtime_core.o"

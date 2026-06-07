@@ -6,6 +6,9 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RUNTIME_DIR="$SCRIPT_DIR/../.."
 NATIVE_SRC="$RUNTIME_DIR/native/src"
+NATIVE_INCLUDE=
+
+source "$SCRIPT_DIR/../_shared/runtime_helpers.sh"
 NATIVE_INCLUDE="$RUNTIME_DIR/native/include"
 BIN_DIR="$SCRIPT_DIR/bin"
 
@@ -38,7 +41,7 @@ if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "win32" ]]; then
     LDFLAGS="-lws2_32 -luser32 -lgdi32"
     CFLAGS="$CFLAGS -D_CRT_SECURE_NO_WARNINGS -D_CRT_NONSTDC_NO_WARNINGS -Wno-deprecated-declarations -Wno-unused-parameter"
 else
-    LDFLAGS="-lpthread -lm"
+    LDFLAGS="$RUNTIME_LDFLAGS"
 fi
 
 echo "Using compiler: $C_COMPILER"

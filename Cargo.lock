@@ -2147,8 +2147,10 @@ dependencies = [
 name = "kain-check"
 version = "0.1.0"
 dependencies = [
+ "kain-actor",
  "kain-core",
  "kain-driver",
+ "kain-error",
  "kain-fs",
  "serde",
  "serde_json",

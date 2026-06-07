@@ -60,12 +60,8 @@ echo "Output: $OUT_DIR"
 echo "Compile timeout: ${COMPILE_TIMEOUT_SEC}s"
 echo ""
 
-RUNTIME_SOURCES=(
-    "$NATIVE_SRC/core/version.c"
-    "$NATIVE_SRC/core/diagnostics.c"
-    "$NATIVE_SRC/core/reflection.c"
-    "$NATIVE_SRC/core/scene.c"
-)
+source "/../_shared/runtime_helpers.sh"
+RUNTIME_SOURCES=( "${ALL_RUNTIME_SOURCES[@]}" )
 
 compile_test() {
     local test_name=$1

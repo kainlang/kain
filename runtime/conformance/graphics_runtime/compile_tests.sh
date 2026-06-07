@@ -32,7 +32,7 @@ if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "win32" || "$OSTYPE" == "cygwin" ]]; t
     PLATFORM_SHARED_SOURCE="$NATIVE_SRC/platform/win32/win32_shared.c"
     LDFLAGS="-lws2_32 -luser32 -lgdi32"
 else
-    LDFLAGS="-lpthread -lm"
+    LDFLAGS="$RUNTIME_LDFLAGS"
 fi
 
 echo "=== Compiling Graphics Runtime Smoke ==="
