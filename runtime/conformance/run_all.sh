@@ -8,6 +8,17 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RUNTIME_DIR="$(dirname "$SCRIPT_DIR")"
 WORKSPACE_ROOT="$(dirname "$RUNTIME_DIR")"
 
+# Cross-platform toolchain discovery — ensures clang/lld-link can find
+# MSVC CRT libraries on Windows, Xcode SDK on macOS, etc.
+TOOLCHAIN_PY="$WORKSPACE_ROOT/scripts/kain_toolchain.py"
+if [[ -f "$TOOLCHAIN_PY" ]]; then
+    if command -v python3 &>/dev/null; then
+        eval "$(python3 "$TOOLCHAIN_PY")"
+    elif command -v python &>/dev/null; then
+        eval "$(python "$TOOLCHAIN_PY")"
+    fi
+fi
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
