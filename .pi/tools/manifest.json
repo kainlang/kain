@@ -24,39 +24,7 @@
         "get_keyword":      { "sig": "(kw)", "label": "Get Keyword Help", "description": "Detailed help for any specific Kain keyword: syntax models, descriptions, usage examples." }
       }
     },
-    {
-      "id": "kain_examples",
-      "name": "Kain Code Examples",
-      "file": "kain-examples-tools.ts",
-      "label": "Kain Examples",
-      "description": "Semantically search ~11,500 real-world Kain code chunks using PyTorch/CUDA. Each chunk is a focused fn/actor/world/shader/struct/law/patch definition from benchmarks, blades, stdlib, demos, and the compiler test suite.",
-      "promptSnippet": "Semantic search for Kain code examples (PyTorch/CUDA over 11,500 chunks)",
-      "promptGuidelines": [
-        "Use kain_examples to find real-world Kain code patterns, idioms, and usage examples across the entire repo.",
-        "Be specific and descriptive in your query — 'actor supervision mailbox' works better than 'actor example'."
-      ],
-      "actions": {
-        "search":  { "sig": "(query)", "label": "Search",  "description": "Semantically search function-level Kain code chunks using PyTorch/CUDA. Returns ranked results with file paths, line numbers, and code excerpts." }
-      }
-    },
-    {
-      "id": "repo",
-      "name": "Repo Map",
-      "file": "repo-tools.ts",
-      "label": "Repo",
-      "description": "Navigate the Kain repo itself — topology, crate layout, runtime files, stdlib modules, and blade workspaces. Auto-generated from the filesystem so the map is always current.",
-      "promptSnippet": "Navigate and understand the Kain repo layout",
-      "promptGuidelines": [
-        "Use repo to understand the repo's physical layout — what crates exist, what runtime C files are where, and how the stdlib is organized.",
-        "Run 'repo map' at the start of any session to orient yourself.",
-        "Run 'repo update' when you add new crates or runtime files to regenerate the maps."
-      ],
-      "actions": {
-        "map":    { "sig": "(target?)", "label": "Map",    "description": "Show repo topology. Default: full view. Target: 'crates', 'runtime', 'stdlib', 'blades'." },
-        "update": { "sig": "", "label": "Update", "description": "Regenerate all MAP.md files + generated/repo_map.json from disk." },
-        "status": { "sig": "", "label": "Status", "description": "Quick repo snapshot: counts, last generated, how many descriptions are filled." }
-      }
-    },
+
     {
       "id": "kain_bazel",
       "name": "Kain Bazel",
@@ -95,26 +63,7 @@
         "gpu_artifacts":{ "sig": "(target?)", "label": "GPU Artifacts","description": "Compile a shader .kn file to SPIR-V, PTX, or other GPU binary artifacts." }
       }
     },
-    {
-      "id": "rg",
-      "name": "Ripgrep",
-      "file": "rg-tool.ts",
-      "label": "Rg",
-      "description": "God-mode code search: smart defaults with repo-aware scoping (stdlib, crates, runtime, blades, benchmark, smoketest, selfhost, agents, guides), five output modes (smart/files/count/content/json), automatic area distribution stats, deduplication, and follow-up refinement suggestions. Wraps ripgrep for maximum precision with minimal context waste.",
-      "promptSnippet": "Search file contents instantly with ripgrep (smart defaults, area-aware, no context nukes)",
-      "promptGuidelines": [
-        "Use rg when you need to find all references, definitions, or usages of a symbol, function, or pattern in the codebase.",
-        "Default mode is 'smart' — gives you stats, area breakdown, top matches, and refinement suggestions without flooding context.",
-        "Pass absolute paths directly: path:'X:/crates/ownership/' works, no need to relativize. Relative paths are joined to repo root.",
-        "Use scope presets for fast repo-aware search: 'stdlib' (stdlib/*.kn), 'crates' (crates/*.rs), 'runtime' (runtime/*.{c,h}), 'blades' (blades/*.kn), 'benchmark', 'smoketest'.",
-        "Use mode:'files' to just list matching files, mode:'count' for per-file hit counts sorted by frequency, mode:'content' for full match display with context.",
-        "Specify glob to narrow results: '*.kn' for Kain files, '*.rs' for Rust files, '*.ts' for TypeScript.",
-        "Use ignore-case:true for case-insensitive identifier search, fixed:true for literal strings with special regex chars."
-      ],
-      "actions": {
-        "search":  { "sig": "(pattern)", "label": "Search",  "description": "God-mode search with area-aware scoping and 5 output modes. Key params: pattern, scope (stdlib/crates/runtime/blades/benchmark/smoketest/selfhost/agents/guides), mode (smart/files/count/content), glob, ignore-case, fixed, context, max, json." }
-      }
-    },
+
     {
       "id": "kain_native",
       "name": "Kain Native Compiler",
@@ -151,6 +100,22 @@
         "diff":    { "sig": "(path?, staged?, against?, history_per_file?, context?)", "label": "Diff",    "description": "Show working tree diff. For each touched file, also show recent history (last N commits touching it) so you know why it's been changing. Path scopes to a file/folder. staged:true shows staged changes. against:'main' diffs vs a ref." },
         "log":     { "sig": "(path?, limit?, author?, since?)",                    "label": "Log",     "description": "Show commit history. path scopes to a file/folder. limit caps the result (default 20). author and since filter the range." },
         "recent":  { "sig": "(limit?, since?, area?)",                             "label": "Recent",  "description": "Recent activity feed grouped by day with area breakdown. area filters to a top-level folder like 'crates' or 'stdlib'." }
+      }
+    },
+    {
+      "id": "kain_sync",
+      "name": "Kain Binary Sync",
+      "file": "kain-sync.ts",
+      "label": "Kain Sync",
+      "description": "Sync the latest Bazel-built kain.exe/kn.exe to ~/.kain/bin/ so the compiler stays fresh. Uses 'bazel info output_base' to find the built binary, builds if missing, copies with backup, and verifies with 'kain doctor'.",
+      "promptSnippet": "Sync the latest Bazel-built Kain binary to ~/.kain/bin/",
+      "promptGuidelines": [
+        "Use kain_sync_binary when the user reports stale binary issues, 'kain doctor' shows drift, or the compiler seems out of date.",
+        "If kain_sync_binary fails, read BAZEL.md for the full Bazel workflow, server lifecycle, and build/sync guide."
+      ],
+      "actions": {
+        "binary": { "sig": "", "label": "Sync Binary", "description": "Build (if needed) and copy the latest kain.exe + kn.exe from Bazel output to ~/.kain/bin/. Falls back with BAZEL.md guidance on failure." },
+        "status": { "sig": "", "label": "Binary Status", "description": "Show when kain.exe was last built, its age, Bazel server state, git HEAD, and sync stamp info — all in one place." }
       }
     },
     {

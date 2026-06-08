@@ -15,7 +15,7 @@
  */
 
 #include "../../include/crash_handler.h"
-#include "../../include/diagnostics.h"
+
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -25,24 +25,21 @@
 
 #if defined(__GNUC__) || defined(__clang__)
 __attribute__((weak)) const KainCrashEntry __kain_crash_table[1];
-__attribute__((weak)) const size_t     __kain_crash_table_len;
 #else
 const KainCrashEntry __kain_crash_table[1];
-const size_t         __kain_crash_table_len;
 #endif
 
-static int crash_handler_initialized = 0;
+static int   crash_handler_initialized = 0;
+static size_t crash_table_count        = 0;
 
 /* ── Table lookup (binary search by instruction pointer) ──────────────── */
 
 static const KainCrashEntry *lookup_crash_entry(const void *ip) {
-    uint64_t ip_val = (uint64_t)(uintptr_t)ip;
-    if (!__kain_crash_table || __kain_crash_table_len == 0) {
-        return NULL;
-    }
+    if (crash_table_count == 0) return NULL;
 
+    uint64_t ip_val = (uint64_t)(uintptr_t)ip;
     size_t lo = 0;
-    size_t hi = __kain_crash_table_len;
+    size_t hi = crash_table_count;
     while (lo < hi) {
         size_t mid = lo + (hi - lo) / 2;
         if (__kain_crash_table[mid].fn_ptr <= ip_val) {
@@ -103,7 +100,13 @@ void __kain_crash_handler_init(void) {
     if (crash_handler_initialized) return;
     crash_handler_initialized = 1;
 
-    if (!__kain_crash_table || __kain_crash_table_len == 0) return;
+    /* Count table entries once (sentinel has fn_ptr == 0). */
+    if (__kain_crash_table) {
+        while (crash_table_count < 4096 && __kain_crash_table[crash_table_count].fn_ptr != 0) {
+            crash_table_count++;
+        }
+    }
+    if (crash_table_count == 0) return;
 
     __kain_crash_platform_register_handlers();
 }

@@ -1,6 +1,6 @@
 # Kain Pi Tools — Taxonomy
 
-**Last updated:** 2026-06-05
+**Last updated:** 2026-06-08
 
 This document defines the naming conventions, domain structure, and architectural
 rules for all pi agent tools in the Kain repo. Keeping this consistent is how we
@@ -30,9 +30,11 @@ Domain: kain_bazel
 | Tool name | Domain | File | Actions |
 |---|---|---|---|
 | `kain_stdlib` | Standard Library | `kain-tools.ts` | list_modules, get_symbols, search_symbols, get_details, get_source, list_keywords, get_keyword |
-| `kain_examples` | Code Examples | `kain-examples-tools.ts` | search |
 | `kain_bazel` | Bazel Build System | `kain-bazel-tools.ts` | build, test, server, sync, binary_age, freshness |
 | `kain_lang` | Kain Language Operations | `kain-lang-tools.ts` | check, build, run, test, amalgamate, gpu_artifacts |
+| `kain_native` | Native Binary | `kain-native-tools.ts` | build |
+| `kain_sync` | Binary Sync | `kain-sync.ts` | binary |
+| `z3` | Z3 Solver | `z3-tools.ts` | analyze, extract, check, prove, admin, regress |
 | `tools` | Tool Discovery | `tools.ts` | list, search, which |
 | `git` | Git Repository | `git-tools.ts` | status, diff, log, recent |
 

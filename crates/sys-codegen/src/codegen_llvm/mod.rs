@@ -1461,6 +1461,8 @@ impl LlvmGenerator {
                 if Self::is_llvm_instruction_line(s) {
                     let (line, col) =
                         self.byte_offset_to_line_column(span.start);
+                    // DWARF column limit is 65535 (u16 max)
+                    let col = col.min(65535);
                     let meta_id = self.debug_metadata_counter;
                     self.debug_metadata_counter += 1;
                     let scope_name = self
@@ -14150,26 +14152,26 @@ impl LlvmGenerator {
         // Emit the table itself.
         self.emit(&format!(
             "@__kain_crash_table = global [{} x %KainCrashEntry] [",
-            count
+            count + 1  /* +1 for sentinel */
         ));
         for (i, entry) in entries.iter().enumerate() {
             let fn_global = name_globals.get(&entry.fn_name).unwrap();
-            let comma = if i + 1 < count { "," } else { "" };
             self.emit(&format!(
-                "  %KainCrashEntry {{ i64 ptrtoint (i64* {} to i64), i32 {}, i32 {}, i8* getelementptr inbounds ([{} x i8], [{} x i8]* {}, i32 0, i32 0), i8* getelementptr inbounds ([{} x i8], [{} x i8]* {}, i32 0, i32 0) }}{}",
+                "  %KainCrashEntry {{ i64 ptrtoint (i64* {} to i64), i32 {}, i32 {}, i8* getelementptr inbounds ([{} x i8], [{} x i8]* {}, i32 0, i32 0), i8* getelementptr inbounds ([{} x i8], [{} x i8]* {}, i32 0, i32 0) }},",
                 entry.fn_ptr_name,
                 entry.line as u32,
                 entry.col as u32,
                 entry.fn_name.len() + 1, entry.fn_name.len() + 1, fn_global,
                 file_len, file_len, file_global,
-                comma
             ));
         }
+        // Sentinel entry (fn_ptr = 0) marks end of table.
+        self.emit(&format!(
+            "  %KainCrashEntry {{ i64 0, i32 0, i32 0, i8* getelementptr inbounds ([{} x i8], [{} x i8]* {}, i32 0, i32 0), i8* getelementptr inbounds ([{} x i8], [{} x i8]* {}, i32 0, i32 0) }}",
+            file_len, file_len, file_global, file_len, file_len, file_global
+        ));
         self.emit("]");
         self.emit("");
-
-        // Declare the runtime lookup symbol.
-        self.emit("declare void @__kain_crash_handler_init()");
     }
 
     fn compile_actor(&mut self, actor: &kain_core::types::TypedActor) -> KainResult<()> {
@@ -14402,7 +14404,7 @@ impl LlvmGenerator {
                 let id = self.debug_metadata_counter;
                 self.debug_metadata_counter += 1;
                 self.debug_footer_strings.push(format!(
-                    "!{} = distinct !DISubprogram(name: \"{}\", scope: !1, file: !1, line: {}, type: !{{}}, unit: !0)",
+                    "!{} = distinct !DISubprogram(name: \"{}\", scope: !1, file: !1, line: {}, type: null, unit: !0)",
                     id, handler_fn_name, line
                 ));
                 self.current_function_name = Some(handler_fn_name);
@@ -15270,7 +15272,7 @@ impl LlvmGenerator {
             self.debug_metadata_counter += 1;
             let (line, _col) = self.byte_offset_to_line_column(span.start);
             self.debug_footer_strings.push(format!(
-                "!{} = distinct !DISubprogram(name: \"{}\", scope: !1, file: !1, line: {}, type: !{{}}, unit: !0)",
+                "!{} = distinct !DISubprogram(name: \"{}\", scope: !1, file: !1, line: {}, type: null, unit: !0)",
                 id, callable_name, line
             ));
             Some(id)

@@ -83,16 +83,19 @@ NATIVE_CORE_RUNTIME = {
         'native/src/platform/win32/kain_win32_app_host.c',
         'native/src/platform/win32/kain_win32_input_host.c',
         'native/src/platform/win32/win32_shared.c',
+        'native/src/platform/win32/crash_handler_win32.c',
     ],
     "windows_cpp_srcs": [
     ],
     "linux_c_srcs": [
         'native/src/platform/linux/linux_shared.c',
+        'native/src/platform/linux/crash_handler_linux.c',
     ],
     "linux_cpp_srcs": [
     ],
     "macos_c_srcs": [
         'native/src/platform/macos/macos_shared.c',
+        'native/src/platform/macos/crash_handler_macos.c',
     ],
     "macos_cpp_srcs": [
     ],
