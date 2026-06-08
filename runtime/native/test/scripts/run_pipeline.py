@@ -660,6 +660,122 @@ def _parse_cbmc_output(output: str, module: str) -> dict:
     return result
 
 
+def _run_cbmc_harness_by_name(harness_name: str, unwind: int, cbmc_path: str, gcc_path: str | None) -> list:
+    """Run a specific hand-written CBMC harness by name (no catalog dependency)."""
+    import subprocess
+    import tempfile
+
+    custom_harness_dir = RUNTIME_DIR / "test" / "cbmc"
+
+    # Find harness file by exact name or by module matching
+    harness_file = None
+    if (custom_harness_dir / harness_name).exists():
+        harness_file = custom_harness_dir / harness_name
+    elif (custom_harness_dir / f"{harness_name}.c").exists():
+        harness_file = custom_harness_dir / f"{harness_name}.c"
+    elif (custom_harness_dir / f"check_{harness_name}.c").exists():
+        harness_file = custom_harness_dir / f"check_{harness_name}.c"
+    else:
+        # Fuzzy: name contains module name
+        for f in custom_harness_dir.iterdir():
+            if f.suffix == ".c" and harness_name in f.stem:
+                harness_file = f
+                break
+
+    if not harness_file:
+        print(f"No harness found matching '{harness_name}' in {custom_harness_dir}")
+        print("Available harnesses:")
+        for f in sorted([p for p in custom_harness_dir.iterdir() if p.suffix == ".c"]):
+            print(f"  {f.name}")
+        return []
+
+    print(f"\n{'='*60}")
+    print(f"  CBMC: {harness_file.name} [hand-written]")
+    print(f"{'='*60}")
+
+    # Determine which source modules this harness needs
+    mod_name = harness_file.stem.replace("check_", "")
+    source_path = RUNTIME_DIR / "src" / "core" / f"{mod_name}.c"
+    if not source_path.exists():
+        source_path = None
+
+    print(f"    Harness: {harness_file.name}")
+    if source_path:
+        print(f"    Source:   {source_path.name}")
+
+    try:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            result = None
+
+            if gcc_path:
+                # Preprocess with GCC
+                combined = Path(tmpdir) / f"{mod_name}_combined.c"
+                combined_code = ""
+                if source_path and source_path.exists():
+                    combined_code += source_path.read_text() + "\n"
+                combined_code += harness_file.read_text()
+                combined.write_text(combined_code, encoding="utf-8")
+
+                preprocessed = Path(tmpdir) / f"{mod_name}.i"
+                gcc_cmd = [gcc_path, "-E", "-std=c11",
+                           "-I", str(INCLUDE_DIR),
+                           "-I", str(RUNTIME_DIR / "src" / "core"),
+                           str(combined),
+                           "-o", str(preprocessed)]
+                gcc_proc = subprocess.run(gcc_cmd, capture_output=True, text=True, timeout=30)
+                if gcc_proc.returncode == 0:
+                    proc = subprocess.run(
+                        [cbmc_path, "--unwind", str(unwind), "--trace",
+                         str(preprocessed)],
+                        capture_output=True, text=True, timeout=120,
+                    )
+                    result = _parse_cbmc_output(proc.stdout + proc.stderr, harness_file.stem)
+                    result["exit_code"] = proc.returncode
+                    result["raw_output_bytes"] = len(proc.stdout + proc.stderr)
+
+            # Fall back to WSL
+            if (not result or result["status"] == "UNKNOWN") and source_path:
+                wsl_out = _run_cbmc_in_wsl(harness_file, source_path, harness_file.stem, unwind)
+                if wsl_out:
+                    stdout, stderr, rc = wsl_out
+                    result = _parse_cbmc_output(stdout + stderr, harness_file.stem)
+                    result["exit_code"] = rc
+                    result["raw_output_bytes"] = len(stdout + stderr)
+                    result["backend"] = "wsl"
+
+            if result:
+                result["harness"] = str(harness_file)
+                if result["status"] == "SUCCESS":
+                    print(f"  [OK] All {result['verified']} assertions verified")
+                elif result["status"] == "FAILED":
+                    print(f"  [FAIL] {result['failed']} violations")
+                    if result.get("failures"):
+                        # Deduplicate and show key failures
+                        seen = set()
+                        for fe in result["failures"]:
+                            key = fe.get("property", fe.get("description", ""))
+                            if key not in seen:
+                                seen.add(key)
+                                print(f"    - {fe['description'][:120]}")
+                                if len(seen) >= 10:
+                                    more = result['failed'] - len(seen)
+                                    if more > 0:
+                                        print(f"    ... and {more} more violations")
+                                    break
+                else:
+                    print(f"  [???] Status: {result['status']}")
+                return [result]
+
+    except subprocess.TimeoutExpired:
+        print(f"  [TIMEOUT] Exceeded 120s")
+        return [{"module": harness_file.stem, "status": "TIMEOUT"}]
+    except FileNotFoundError:
+        print("  CBMC executable not found on PATH")
+        return []
+
+    return []
+
+
 def cmd_cbmc(args: list[str]):
     """Run bounded model checking on runtime functions."""
     import subprocess
@@ -677,16 +793,52 @@ def cmd_cbmc(args: list[str]):
 
     unwind = 5
     module_filter = None
+    harness_name = None
+    list_harnesses = False
+    cbmc_path = _find_cbmc()
+    gcc_path = __import__("shutil").which("gcc")
     for a in args:
         if a.startswith("--unwind="):
             unwind = int(a.split("=", 1)[1])
         elif a.startswith("--module="):
             module_filter = a.split("=", 1)[1]
+        elif a.startswith("--harness="):
+            harness_name = a.split("=", 1)[1]
+        elif a == "--list-harnesses":
+            list_harnesses = True
         elif not a.startswith("--"):
             module_filter = a
 
     CBMC_HARNESS_DIR.mkdir(parents=True, exist_ok=True)
     CBMC_DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+    # List hand-written harnesses
+    custom_harness_dir = RUNTIME_DIR / "test" / "cbmc"
+    if list_harnesses:
+        if custom_harness_dir.exists():
+            print("Hand-written CBMC harnesses:")
+            for f in sorted([p for p in custom_harness_dir.iterdir() if p.suffix == ".c"]):
+                print(f"  {f.name}")
+        else:
+            print("No hand-written harnesses found.")
+        return
+
+    # If --harness specified, run just that harness (bypass module catalog)
+    if harness_name:
+        results_all = _run_cbmc_harness_by_name(harness_name, unwind, cbmc_path, gcc_path)
+        report = {
+            "cbmc_version": version,
+            "unwind_bound": unwind,
+            "modules_checked": len(results_all),
+            "modules_passed": sum(1 for r in results_all if r.get("status") == "SUCCESS"),
+            "modules_failed": sum(1 for r in results_all if r.get("status") == "FAILED"),
+            "results": results_all,
+        }
+        dump_json(CBMC_DATA_DIR / "report.json", report)
+        print(f"\n{'='*60}")
+        print(f"CBMC complete: {report['modules_passed']} passed, {report['modules_failed']} failed, {report['modules_checked']} total")
+        print(f"Report: {CBMC_DATA_DIR / 'report.json'}")
+        return
 
     catalog_path = DATA_DIR / "catalog.json"
     if not catalog_path.exists():

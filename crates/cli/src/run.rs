@@ -14,6 +14,7 @@ pub fn make_request(
     mode: RunMode,
     target: String,
     args: Vec<String>,
+    debug_info: bool,
     json: bool,
     trace: bool,
     keep_artifacts: bool,
@@ -38,6 +39,7 @@ pub fn make_request(
         .with_workspace_path(PathBuf::from("."))
         .with_blade(None)
         .tap(|request| {
+            request.debug_info = debug_info;
             request.json = json;
             request.trace = trace;
             request.keep_artifacts = keep_artifacts;

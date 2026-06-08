@@ -107,6 +107,7 @@ pub struct RunRequest {
     pub args: Vec<String>,
     pub workspace_path: PathBuf,
     pub blade: Option<String>,
+    pub debug_info: bool,
     pub json: bool,
     pub trace: bool,
     pub keep_artifacts: bool,
@@ -126,6 +127,7 @@ impl RunRequest {
             args: Vec::new(),
             workspace_path: PathBuf::from("."),
             blade: None,
+            debug_info: false,
             json: false,
             trace: false,
             keep_artifacts: false,
@@ -510,7 +512,7 @@ pub fn execute_plan(plan: RunPlan, request: &RunRequest) -> RunResult<RunReport>
                     target: run_target_name(unit.target).to_string(),
                 },
             )?;
-            execute_unit(unit, Some(&driver_progress))?
+            execute_unit(unit, request.debug_info, Some(&driver_progress))?
         };
         publish_progress_event(
             &events_path,
@@ -1310,13 +1312,14 @@ fn node_unit(kind: NodeRuntimeKind, workspace_root: &Path, entry: &Path) -> RunR
 
 fn execute_unit(
     unit: &RunUnit,
+    debug_info: bool,
     progress: Option<&ToolingProgressSink>,
 ) -> RunResult<RunUnitExecution> {
     let started_unix_ms = unix_timestamp_ms();
     let result = match &unit.adapter {
-        RunAdapter::KainInterpreter { entry } => run_kain(entry, unit, progress),
+        RunAdapter::KainInterpreter { entry } => run_kain(entry, unit, debug_info, progress),
         RunAdapter::KainNativeLlvm { entry, executable } => {
-            run_llvm(entry, executable, unit, progress)
+            run_llvm(entry, executable, unit, debug_info, progress)
         }
         RunAdapter::CExecutable {
             source,
@@ -1371,9 +1374,10 @@ fn run_llvm(
     entry: &Path,
     executable: &Path,
     unit: &RunUnit,
+    debug_info: bool,
     progress: Option<&ToolingProgressSink>,
 ) -> RunResult<RunUnitExecution> {
-    compile_llvm_if_needed(entry, executable, unit)?;
+    compile_llvm_if_needed(entry, executable, unit, debug_info)?;
     run_process(
         command_for_process(executable, unit, &unit.args),
         unit,
@@ -1384,6 +1388,7 @@ fn run_llvm(
 fn run_kain(
     entry: &Path,
     unit: &RunUnit,
+    debug_info: bool,
     progress: Option<&ToolingProgressSink>,
 ) -> RunResult<RunUnitExecution> {
     with_temporary_process_context(&unit.cwd, &unit.env, || {
@@ -1397,7 +1402,9 @@ fn run_kain(
                 command: None,
             },
         );
-        let value = DriverSession::default().compile_with_source_path_and_progress(
+        let value = DriverSession::default()
+            .with_debug_info(debug_info)
+            .compile_with_source_path_and_progress(
             &source,
             Some(entry),
             CompileTarget::Interpret,
@@ -1725,7 +1732,7 @@ fn apply_unit_environment(command: &mut Command, unit: &RunUnit) {
     }
 }
 
-fn compile_llvm_if_needed(entry: &Path, executable: &Path, unit: &RunUnit) -> RunResult<()> {
+fn compile_llvm_if_needed(entry: &Path, executable: &Path, unit: &RunUnit, debug_info: bool) -> RunResult<()> {
     let manifest = build_run_artifact_cache_manifest(
         "llvm",
         &llvm_compile_command_fingerprint()?,
@@ -1745,8 +1752,11 @@ fn compile_llvm_if_needed(entry: &Path, executable: &Path, unit: &RunUnit) -> Ru
         .arg("--target")
         .arg("llvm")
         .arg("--output")
-        .arg(executable)
-        .current_dir(unit.cwd.clone())
+        .arg(executable);
+    if debug_info {
+        command.arg("--debug");
+    }
+    command
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
     apply_unit_environment(&mut command, unit);

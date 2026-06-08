@@ -41,6 +41,10 @@ pub enum RunCommand {
         #[arg(long, default_value = "auto")]
         target: String,
 
+        /// Emit DWARF debug metadata in LLVM IR
+        #[arg(short = 'g', long = "debug")]
+        debug: bool,
+
         /// Emit the run report JSON to stdout
         #[arg(long)]
         json: bool,
@@ -868,6 +872,10 @@ pub enum KainCommand {
         /// Run target override
         #[arg(long, default_value = "auto")]
         target: String,
+
+        /// Emit DWARF debug metadata in LLVM IR (!DILocation, !DISubprogram, etc.)
+        #[arg(short = 'g', long = "debug")]
+        debug: bool,
 
         /// Emit the run report JSON to stdout
         #[arg(long)]

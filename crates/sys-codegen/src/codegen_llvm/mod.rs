@@ -1488,6 +1488,24 @@ impl LlvmGenerator {
         (line, col)
     }
 
+    /// Extract the source span from any statement variant.
+    fn stmt_span(stmt: &Stmt) -> Span {
+        match stmt {
+            Stmt::Let { span, .. } => *span,
+            Stmt::Expr(expr) => expr.span(),
+            Stmt::Defer { span, .. } => *span,
+            Stmt::Dispatch { span, .. } => *span,
+            Stmt::Return(_, span) => *span,
+            Stmt::Break(_, span) => *span,
+            Stmt::Continue(span) => *span,
+            Stmt::For { span, .. } => *span,
+            Stmt::Fanout { span, .. } => *span,
+            Stmt::While { span, .. } => *span,
+            Stmt::Loop { span, .. } => *span,
+            Stmt::Item(_) => Span::default(),
+        }
+    }
+
     fn remember_emitted_extern_symbols_from_output(&mut self) {
         let symbols: Vec<String> = self
             .output
@@ -16537,6 +16555,8 @@ impl LlvmGenerator {
     }
 
     fn compile_stmt(&mut self, stmt: &Stmt, remaining_stmts: &[Stmt]) -> KainResult<()> {
+        // Track source span for debug metadata (!DILocation).
+        self.current_source_span = Some(Self::stmt_span(stmt));
         match stmt {
             Stmt::Let {
                 pattern,
@@ -18157,6 +18177,8 @@ impl LlvmGenerator {
     }
 
     fn compile_expr(&mut self, expr: &Expr) -> KainResult<(String, String)> {
+        // Track source span for debug metadata (!DILocation).
+        self.current_source_span = Some(expr.span());
         match expr {
             Expr::Int(n, _) => Ok((format!("{}", n), "i64".to_string())),
             Expr::Float(f, _) => Ok((format!("{:.6}", f), "double".to_string())),
@@ -21016,6 +21038,45 @@ fn add(a: Int, b: Int) -> Int:
         assert!(
             !llvm.contains("!DILocation"),
             "must NOT emit !DILocation without -g flag\n{llvm}"
+        );
+    }
+
+    #[test]
+    fn debug_metadata_emits_per_statement_line_numbers() {
+        // Each statement is on a different line — debug info must reflect that.
+        let source = r#"
+fn demo(x: Int) -> Int:
+    let a = x + 1
+    let b = a * 2
+    let c = b - 3
+    return c
+"#;
+        let llvm = generate_with_debug(source, "demo.kn").expect("generate_with_debug");
+
+        // The `, !dbg !` suffixes should reference different !DILocation nodes
+        // because each statement starts on a different line.
+        let dbg_refs: Vec<&str> = llvm
+            .lines()
+            .filter(|line| line.contains(", !dbg !"))
+            .collect();
+        assert!(
+            dbg_refs.len() >= 4,
+            "expected at least 4 dbg-attached instructions, got {}\n{llvm}",
+            dbg_refs.len()
+        );
+
+        // Collect distinct DILocation lines.
+        let mut distinct_lines: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+        for line in llvm.lines() {
+            if line.contains("!DILocation(line:") {
+                distinct_lines.insert(line.to_string());
+            }
+        }
+        // We should have at least 3 distinct DILocation nodes (lines 3, 4, 5, 6).
+        assert!(
+            distinct_lines.len() >= 3,
+            "expected >=3 distinct !DILocation nodes (different lines), got {}\n{llvm}",
+            distinct_lines.len()
         );
     }
 
