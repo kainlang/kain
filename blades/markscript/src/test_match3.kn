@@ -1,7 +1,0 @@
-use src::ast
-
-pub fn test_match(root: ast::MksNode) -> Int:
-    match root:
-        ast::MksNode::Domain(x) =>
-            return 1
-        _ => return 0

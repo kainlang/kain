@@ -1,0 +1,765 @@
+// ============================================================================
+//  tree_scanner.kn — Actor-Based Parallel Pub Surface Scanner
+//
+//  Scans code files for public symbols and imports by fanning out work across
+//  multiple actor workers, each processing batches of files concurrently.
+//
+//  ARCHITECTURE (decision ladder):
+//    Layer 7 — Actor: ScanWorker processes batches concurrently via mailbox
+//    Layer 2 — Patch: collector_extend journals worker results into the world
+//    Layer 1 — World: TreeScanCollector holds accumulated serialized results
+//    Layer 0 — fn: scan_file (core), scan_directory (orchestrator), helpers
+//
+//  DATA FLOW:
+//    scan_directory() builds file batches from TreeResult
+//      -> spawns ScanWorker actors via actor_spawn()
+//      -> distributes batches via actor_send() (fire-and-forget)
+//        -> each worker scans files, accumulates results internally
+//      -> ask(worker_id, "GetResults", 0) triggers patch into TreeScanCollector
+//      -> deserialize TreeScanCollector.accumulated_text -> final ScanResult
+//
+//  NOTE: ask() accepts (actor_id, "MessageName", single_int_payload).
+//  Multi-value payloads are packed into a single Int (see pack/unpack helpers).
+//  Results too rich for a single Int are serialized to pipe-delimited text and
+//  accumulated into TreeScanCollector via journaled patches.
+// ============================================================================
+
+use std::text
+use std::fs
+use std::actor
+use std::time
+use tree_types::TreeEntry
+use tree_types::TreeResult
+use tree_scan_types::PubSymbol
+use tree_scan_types::ImportRef
+use tree_scan_types::ScanResult
+use tree_scan_types::ScanConfig
+use tree_scan_types::PubPattern
+use tree_scan_types::get_pub_patterns
+use tree_scan_types::get_import_patterns
+
+// ============================================================================
+//  CONSTANTS
+// ============================================================================
+
+const SCANNER_PACK_SHIFT:     Int = 100000
+const SCANNER_BINARY_CHECK:   Int = 4096
+const SCANNER_BATCH_SIZE:     Int = 16
+const SCANNER_MAX_WORKERS:    Int = 64
+
+// ============================================================================
+//  PACK / UNPACK - bijective encoding for ask() single-Int transport
+// ============================================================================
+
+fn pack(a: Int, b: Int) -> Int:
+    return a + b * SCANNER_PACK_SHIFT
+
+fn unpack_a(packed: Int) -> Int:
+    return packed % SCANNER_PACK_SHIFT
+
+fn unpack_b(packed: Int) -> Int:
+    return packed / SCANNER_PACK_SHIFT
+
+// ============================================================================
+//  MIN / MAX helpers
+// ============================================================================
+
+pub fn min_int(a: Int, b: Int) -> Int:
+    if a < b: return a
+    return b
+
+pub fn max_int(a: Int, b: Int) -> Int:
+    if a > b: return a
+    return b
+
+// ============================================================================
+//  SYMBOL NAME EXTRACTION
+//  After a pattern prefix (e.g. "pub fn "), extract the next word as the
+//  symbol name, stripping trailing (, <, {, :, ; characters.
+// ============================================================================
+
+fn extract_symbol_name(line_val: String, prefix: String) -> String:
+    // Slice off the prefix
+    let after: String = substring(line_val, len(prefix), len(line_val))
+    let trimmed: String = text_trim_string(after)
+    if len(trimmed) == 0:
+        return ""
+
+    // Take the first whitespace-delimited token
+    let parts: Array<String> = text_split_string(trimmed, " ")
+    if len(parts) == 0:
+        return ""
+    let name: String = text_trim_string(parts[0])
+    if len(name) == 0:
+        return ""
+
+    // Strip trailing structural characters
+    var end: Int = len(name) - 1
+    while end >= 0:
+        let ch: String = char_at(name, end)
+        if ch == "(" or ch == "<" or ch == "{" or ch == ":" or ch == ";" or ch == ",":
+            end = end - 1
+        else:
+            break
+
+    if end < 0:
+        return ""
+    return substring(name, 0, end + 1)
+
+// ============================================================================
+//  IMPORT MODULE EXTRACTION
+//  After an import prefix (e.g. "use ", "#include "), take the rest of the
+//  line as the imported module path.
+//
+//  For "from X import Y" patterns (Python), text_split_string on " import "
+//  returns [before, after]; parts[0] is X.
+// ============================================================================
+
+fn extract_import_module(line_val: String, prefix: String) -> String:
+    let after: String = substring(line_val, len(prefix), len(line_val))
+    let trimmed: String = text_trim_string(after)
+
+    // For "from X import Y" patterns (Python), extract just X
+    let import_parts: Array<String> = text_split_string(trimmed, " import ")
+    if len(import_parts) >= 2:
+        return text_trim_string(import_parts[0])
+
+    return trimmed
+
+// ============================================================================
+//  VISIBILITY DERIVATION
+//  Normalize language-specific visibility keywords to canonical forms.
+// ============================================================================
+
+fn derive_visibility(line_val: String) -> String:
+    if text_starts_with_string(line_val, "pub "):
+        return "pub"
+    if text_starts_with_string(line_val, "export "):
+        return "export"
+    if text_starts_with_string(line_val, "module.exports"):
+        return "export"
+    if text_starts_with_string(line_val, "exports."):
+        return "export"
+    if text_starts_with_string(line_val, "public "):
+        return "public"
+    return "public"
+
+// ============================================================================
+//  LANGUAGE SCANNABLE CHECK
+// ============================================================================
+
+fn language_has_patterns(language: String, include_pub: Bool, include_imports: Bool) -> Bool:
+    if include_pub == false and include_imports == false:
+        return false
+    if include_pub:
+        let pats: Array<PubPattern> = get_pub_patterns(language)
+        if len(pats) > 0:
+            return true
+    if include_imports:
+        let imps: Array<String> = get_import_patterns(language)
+        if len(imps) > 0:
+            return true
+    return false
+
+// ============================================================================
+//  BINARY DETECTION
+//  Check for null bytes in the first 4KB of a file.
+// ============================================================================
+
+fn is_binary_bytes(path: String, max_bytes: Int) -> Bool:
+    let check_size: Int = min_int(SCANNER_BINARY_CHECK, max_bytes)
+    if check_size <= 0:
+        return false
+    let bytes: Array<Int> = fs_read_bytes_range(path, 0, check_size)
+    if len(bytes) == 0:
+        return false
+    var bi: Int = 0
+    while bi < len(bytes):
+        if bytes[bi] == 0:
+            return true
+        bi = bi + 1
+    return false
+
+// ============================================================================
+//  DEFAULT EMPTY COLLECTIONS
+// ============================================================================
+
+fn empty_symbols() -> Array<PubSymbol>:
+    let e: Array<PubSymbol> = []
+    return e
+
+fn empty_imports() -> Array<ImportRef>:
+    let e: Array<ImportRef> = []
+    return e
+
+fn empty_errors() -> Array<String>:
+    let e: Array<String> = []
+    return e
+
+fn empty_scan_result_scanned() -> ScanResult:
+    return ScanResult{
+        pub_symbols: empty_symbols(),
+        imports: empty_imports(),
+        files_scanned: 0,
+        files_skipped: 0,
+        errors: empty_errors()
+    }
+
+fn empty_skipped_result() -> ScanResult:
+    return ScanResult{
+        pub_symbols: empty_symbols(),
+        imports: empty_imports(),
+        files_scanned: 0,
+        files_skipped: 1,
+        errors: empty_errors()
+    }
+
+// ============================================================================
+//  scan_file - Core scanning logic for a single file (Layer 0)
+//
+//  Reads a file, splits into lines, and checks each line against:
+//    1. Pub patterns for the detected language (e.g. "pub fn " -> function)
+//    2. Import patterns for the detected language (e.g. "use " -> import)
+//
+//  DESIGN: Plain fn - pure computation from text input.
+//  No state, no concurrency, no temporal semantics needed.
+// ============================================================================
+
+pub fn scan_file(
+    path: String,
+    language: String,
+    include_pub: Bool,
+    include_imports: Bool,
+    max_file_bytes: Int
+) -> ScanResult:
+
+    // Skip if no patterns exist for this language
+    if language_has_patterns(language, include_pub, include_imports) == false:
+        return empty_scan_result_scanned()
+
+    // Check file size before reading
+    print("[SCAN] file: " + path)
+    let meta: FsMetadata = fs_metadata(path)
+    print("[SCAN] meta ok, len=" + str(meta.len))
+    if max_file_bytes > 0 and meta.len > max_file_bytes:
+        return empty_skipped_result()
+
+    // Binary detection: null bytes in first 4KB
+    if is_binary_bytes(path, max_file_bytes):
+        return empty_skipped_result()
+
+    // Read file content
+    let content: String = fs_read_text(path)
+    if len(content) == 0:
+        return empty_scan_result_scanned()
+
+    // Split into lines
+    let lines: Array<String> = text_split_lines(content)
+    let line_count: Int = len(lines)
+
+    // Get patterns for this language
+    let pub_patterns: Array<PubPattern> = get_pub_patterns(language)
+    let import_patterns: Array<String> = get_import_patterns(language)
+
+    // Accumulators
+    var symbols:   Array<PubSymbol> = []
+    var imp_refs:  Array<ImportRef> = []
+    var errors:    Array<String> = []
+
+    // Process each line
+    var li: Int = 0
+    while li < line_count:
+        let raw_line: String = lines[li]
+        let line_val: String = text_trim_string(raw_line)
+        if len(line_val) == 0:
+            li = li + 1
+            continue
+
+        // Skip comment-only lines
+        let fc: String = char_at(line_val, 0)
+        if fc == "#" or fc == "/" or fc == ";":
+            li = li + 1
+            continue
+
+        // Check pub patterns (first match wins)
+        if include_pub:
+            var pi: Int = 0
+            while pi < len(pub_patterns):
+                let pat: PubPattern = pub_patterns[pi]
+                if text_starts_with_string(line_val, pat.prefix):
+                    let sym_name: String = extract_symbol_name(line_val, pat.prefix)
+                    if len(sym_name) > 0:
+                        let vis: String = derive_visibility(line_val)
+                        let sym: PubSymbol = PubSymbol{
+                            file_path: path,
+                            symbol_name: sym_name,
+                            symbol_kind: pat.kind,
+                            line_number: li + 1,
+                            visibility: vis,
+                            signature: line_val,
+                            language: language
+                        }
+                        push(symbols, sym)
+                    break
+                pi = pi + 1
+
+        // Check import patterns
+        if include_imports:
+            var ii: Int = 0
+            while ii < len(import_patterns):
+                let imp_prefix: String = import_patterns[ii]
+                if text_starts_with_string(line_val, imp_prefix):
+                    let module: String = extract_import_module(line_val, imp_prefix)
+                    if len(module) > 0:
+                        let iref: ImportRef = ImportRef{
+                            file_path: path,
+                            imported_module: module,
+                            import_kind: imp_prefix,
+                            language: language
+                        }
+                        push(imp_refs, iref)
+                    break
+                ii = ii + 1
+
+        li = li + 1
+
+    // Return ScanResult with found symbols and imports
+    return ScanResult{
+        pub_symbols: symbols,
+        imports: imp_refs,
+        files_scanned: 1,
+        files_skipped: 0,
+        errors: errors
+    }
+
+// ============================================================================
+//  SERIALIZATION - pipe-delimited text for actor-based transport
+//
+//  Format:
+//    SYM|file_path|symbol_name|kind|line|visibility|signature|language
+//    IMP|file_path|imported_module|import_kind|language
+//    ERR|error_message
+//    SUM|files_scanned|files_skipped|error_count
+//
+//  | is legal in Kain strings but never appears in file paths or symbol names.
+// ============================================================================
+
+pub fn serialize_scan_result(result: ScanResult) -> String:
+    var text: String = ""
+
+    // Pub symbols
+    var si: Int = 0
+    while si < len(result.pub_symbols):
+        let sym: PubSymbol = result.pub_symbols[si]
+        text = text + "SYM|" + sym.file_path + "|" + sym.symbol_name + "|"
+        text = text + sym.symbol_kind + "|" + str(sym.line_number) + "|"
+        text = text + sym.visibility + "|" + sym.signature + "|" + sym.language + "\n"
+        si = si + 1
+
+    // Imports
+    var ii: Int = 0
+    while ii < len(result.imports):
+        let imp: ImportRef = result.imports[ii]
+        text = text + "IMP|" + imp.file_path + "|" + imp.imported_module + "|"
+        text = text + imp.import_kind + "|" + imp.language + "\n"
+        ii = ii + 1
+
+    // Errors
+    var ei: Int = 0
+    while ei < len(result.errors):
+        text = text + "ERR|" + result.errors[ei] + "\n"
+        ei = ei + 1
+
+    // Summary line
+    text = text + "SUM|" + str(result.files_scanned) + "|"
+    text = text + str(result.files_skipped) + "|" + str(len(result.errors)) + "\n"
+
+    return text
+
+// ============================================================================
+//  DESERIALIZE - parse pipe-delimited text back into ScanResult
+// ============================================================================
+
+pub fn deserialize_scan_result(text: String) -> ScanResult:
+    var symbols:       Array<PubSymbol> = []
+    var import_refs:   Array<ImportRef> = []
+    var errors:        Array<String> = []
+    var files_scanned: Int = 0
+    var files_skipped: Int = 0
+
+    if len(text) == 0:
+        return empty_scan_result_scanned()
+
+    let lines: Array<String> = text_split_lines(text)
+    var li: Int = 0
+    while li < len(lines):
+        let line_val: String = text_trim_string(lines[li])
+        if len(line_val) == 0:
+            li = li + 1
+            continue
+
+        let parts: Array<String> = text_split_string(line_val, "|")
+        if len(parts) < 2:
+            li = li + 1
+            continue
+
+        let record_type: String = parts[0]
+
+        if record_type == "SYM" and len(parts) >= 8:
+            let sym: PubSymbol = PubSymbol{
+                file_path:   parts[1],
+                symbol_name: parts[2],
+                symbol_kind: parts[3],
+                line_number: parse_int_or_zero(parts[4]),
+                visibility:  parts[5],
+                signature:   parts[6],
+                language:    parts[7]
+            }
+            push(symbols, sym)
+
+        elif record_type == "IMP" and len(parts) >= 5:
+            let iref: ImportRef = ImportRef{
+                file_path:      parts[1],
+                imported_module: parts[2],
+                import_kind:    parts[3],
+                language:       parts[4]
+            }
+            push(import_refs, iref)
+
+        elif record_type == "ERR" and len(parts) >= 2:
+            push(errors, parts[1])
+
+        elif record_type == "SUM" and len(parts) >= 3:
+            files_scanned = parse_int_or_zero(parts[1])
+            files_skipped = parse_int_or_zero(parts[2])
+
+        li = li + 1
+
+    return ScanResult{
+        pub_symbols: symbols,
+        imports: import_refs,
+        files_scanned: files_scanned,
+        files_skipped: files_skipped,
+        errors: errors
+    }
+
+// ============================================================================
+//  parse_int_or_zero - minimal string-to-int parser
+// ============================================================================
+
+pub fn parse_int_or_zero(s: String) -> Int:
+    if len(s) == 0:
+        return 0
+    var result: Int = 0
+    var i: Int = 0
+    while i < len(s):
+        let ch: String = char_at(s, i)
+        if ch >= "0" and ch <= "9":
+            let digit: Int = text_ord(ch) - text_ord("0")
+            result = result * 10 + digit
+        else:
+            break
+        i = i + 1
+    return result
+
+// ============================================================================
+//  COMPONENT - ScanCollectorPanel (UI Layer)
+//
+//  Minimal surface required by every world declaration.
+// ============================================================================
+
+component ScanCollectorPanel():
+    render <panel title="scan-collector" />
+
+// ============================================================================
+//  WORLD - TreeScanCollector (Layer 1: State Authority)
+//
+//  Holds serialized scan results accumulated from all worker actors.
+//  Workers patch results here; the dispatcher reads after all complete.
+//
+//  DESIGN: Single world is the authority for merged scan output.
+//  No mirror needed - write-once-read-once per scan_directory call.
+// ============================================================================
+
+world TreeScanCollector:
+    state accumulated_text: String = ""
+    state total_scanned:    Int    = 0
+    state workers_done:     Int    = 0
+    surface native_ui => ScanCollectorPanel
+    surface web => ScanCollectorPanel
+
+// ============================================================================
+//  PATCH - collector_extend (Layer 2: Journaled Mutation)
+//
+//  Appends a worker's serialized results into the collector world.
+//  Each call bumps the epoch via implicit journal.
+// ============================================================================
+
+patch collector_extend(col: TreeScanCollector, text: String, scanned: Int):
+    col.accumulated_text = col.accumulated_text + text
+    col.total_scanned    = col.total_scanned + scanned
+
+// ============================================================================
+//  PATCH - collector_clear (Layer 2)
+//
+//  Resets the collector world between scan_directory calls.
+// ============================================================================
+
+patch collector_mark_worker_done(col: TreeScanCollector):
+    col.workers_done = col.workers_done + 1
+
+patch collector_clear(col: TreeScanCollector):
+    col.accumulated_text = ""
+    col.total_scanned    = 0
+    col.workers_done     = 0
+
+// ============================================================================
+//  ACTOR - ScanWorker (Layer 7: Concurrency)
+//
+//  Each worker processes a batch of files, accumulating results locally.
+//  Workers communicate via actor_send (fire-and-forget) for batches and
+//  ask (request-response) for result collection. Mailbox ordering guarantees
+//  that GetResults is processed after all prior ScanBatch messages.
+//
+//  State is private per actor - no shared memory, no locks.
+//
+//  on ScanBatch   - receives batch_text (pipe-delimited path|language lines)
+//  on GetResults  - called via ask, patches results into TreeScanCollector
+//  on Reset       - clears local state for reuse
+// ============================================================================
+
+actor ScanWorker:
+    state files_scanned:  Int    = 0
+    state files_skipped:  Int    = 0
+    state result_text:    String = ""
+    state max_file_bytes: Int    = 0
+
+    // ====================================================================
+    //  Setup - configure worker before processing batches
+    //
+    //  Called via ask after spawn. Sets max_file_bytes from config.
+    //  Mailbox ordering ensures this processes before any ScanBatch.
+    // ====================================================================
+
+    on Setup(reply_to: P, payload: Int):
+        self.max_file_bytes = payload
+        send reply_to.Reply(value = 0)
+
+    // ====================================================================
+    //  ScanBatch - process a batch of files
+    //
+    //  batch_text is newline-separated, each line: path|language
+    //  Worker scans every file and accumulates results locally.
+    //  Uses max_file_bytes set by Setup message for size/binary checks.
+    //  Fire-and-forget via actor_send - reply is informational.
+    // ====================================================================
+
+    on ScanBatch(reply_to: P, batch_text: String):
+        if len(batch_text) == 0:
+            send reply_to.Reply(value = 0)
+            return
+
+        let lines: Array<String> = text_split_lines(batch_text)
+        var li: Int = 0
+        while li < len(lines):
+            let entry_line: String = text_trim_string(lines[li])
+            if len(entry_line) > 0:
+                let parts: Array<String> = text_split_string(entry_line, "|")
+                let file_path: String = parts[0]
+                let language: String = "unknown"
+                if len(parts) >= 2:
+                    language = parts[1]
+
+                // Scan the file with config values
+                let file_result: ScanResult = scan_file(
+                    file_path,
+                    language,
+                    true,
+                    true,
+                    self.max_file_bytes
+                )
+
+                // Accumulate local state
+                self.files_scanned = self.files_scanned + file_result.files_scanned
+                self.files_skipped = self.files_skipped + file_result.files_skipped
+                self.result_text = self.result_text + serialize_scan_result(file_result)
+            li = li + 1
+
+        send reply_to.Reply(value = pack(self.files_scanned, self.files_skipped))
+
+    // ====================================================================
+    //  GetResults - patch accumulated results into collector world
+    //
+    //  Called via ask. Mailbox ordering ensures all prior ScanBatch
+    //  messages are processed before this fires.
+    //
+    //  Returns packed(files_scanned, files_skipped) via ask reply.
+    // ====================================================================
+
+    on GetResults():
+        // Journal results into the collector world
+        let _: Int = collector_extend(
+            TreeScanCollector,
+            self.result_text,
+            self.files_scanned
+        )
+
+        // Signal completion
+        let _: Int = collector_mark_worker_done(TreeScanCollector)
+
+        // Clear local state
+        self.files_scanned = 0
+        self.files_skipped = 0
+        self.result_text   = ""
+
+    // ====================================================================
+    //  Reset - clear all local state
+    // ====================================================================
+
+    on Reset():
+        self.files_scanned = 0
+        self.files_skipped = 0
+        self.result_text   = ""
+
+// ============================================================================
+//  BATCH BUILDER
+//  Splits a flat array of "path|language" entries into batches.
+// ============================================================================
+
+fn build_batches(file_list: Array<String>, batch_size: Int) -> Array<String>:
+    var batches: Array<String> = []
+    let total: Int = len(file_list)
+    var bi: Int = 0
+    while bi < total:
+        var batch_lines: Array<String> = []
+        var bj: Int = 0
+        while bj < batch_size and (bi + bj) < total:
+            push(batch_lines, file_list[bi + bj])
+            bj = bj + 1
+        let batch_text: String = text_join_strings(batch_lines, "\n")
+        push(batches, batch_text)
+        bi = bi + batch_size
+    return batches
+
+// ============================================================================
+//  scan_directory - Main entry point (Layer 0)
+//
+//  1. Flatten TreeResult entries into file list with language detection
+//  2. Split into batches of SCANNER_BATCH_SIZE
+//  3. Spawn ScanWorker actors via actor_spawn (returns Int IDs)
+//  4. Configure workers via ask(Setup, max_file_bytes)
+//  5. Distribute batches via actor_send (fire-and-forget, string payload)
+//  6. Collect results via ask (blocks until mailbox is drained)
+//  7. Deserialize TreeScanCollector.accumulated_text into final ScanResult
+//  8. Return the merged result
+//
+//  DESIGN: Plain fn - synchronous entry point that orchestrates actors.
+//  The actor fan-out is invisible to the caller.
+//
+//  NOTE: actor_spawn returns Int for storage in Array<Int>.
+//  ask() accepts (int_actor_id, "MessageName", single_int_payload).
+// ============================================================================
+
+// ============================================================================
+//  FLATTEN ENTRIES — Recursively collect all file entries from tree
+// ============================================================================
+
+fn flatten_file_entries(entries: Array<TreeEntry>) -> Array<TreeEntry>:
+    var flat: Array<TreeEntry> = []
+    var i = 0
+    while i < len(entries):
+        drain_file_entry(entries[i], flat)
+        i = i + 1
+    return flat
+
+fn drain_file_entry(entry: TreeEntry, out_list: Array<TreeEntry>):
+    if entry.entry_type == "file" or entry.entry_type == "File":
+        push(out_list, entry)
+    var i = 0
+    while i < len(entry.children):
+        drain_file_entry(entry.children[i], out_list)
+        i = i + 1
+
+// ============================================================================
+//  SEQUENTIAL SCAN — Fallback when actors are unavailable
+//  Scans all files one by one, directly merging results.
+// ============================================================================
+
+fn scan_sequential(files: Array<TreeEntry>, config: ScanConfig) -> ScanResult:
+    var all_symbols: Array<PubSymbol> = []
+    var all_imports: Array<ImportRef> = []
+    var total_scanned: Int = 0
+    var total_skipped: Int = 0
+    var all_errors: Array<String> = []
+
+    var i = 0
+    while i < len(files):
+        let entry = files[i]
+        let file_result = scan_file(entry.path, entry.language, config.include_pub, config.include_imports, config.max_file_bytes)
+        total_scanned = total_scanned + file_result.files_scanned
+        total_skipped = total_skipped + file_result.files_skipped
+
+        // Merge symbols
+        var si = 0
+        while si < len(file_result.pub_symbols):
+            push(all_symbols, file_result.pub_symbols[si])
+            si = si + 1
+
+        // Merge imports
+        var ii = 0
+        while ii < len(file_result.imports):
+            push(all_imports, file_result.imports[ii])
+            ii = ii + 1
+
+        // Merge errors
+        var ei = 0
+        while ei < len(file_result.errors):
+            push(all_errors, file_result.errors[ei])
+            ei = ei + 1
+
+        i = i + 1
+
+    return ScanResult{
+        pub_symbols: all_symbols,
+        imports: all_imports,
+        files_scanned: total_scanned,
+        files_skipped: total_skipped,
+        errors: all_errors
+    }
+
+// ============================================================================
+//  scan_directory — Main entry point (Layer 0)
+//
+//  Scans all files in the tree result for public symbols and imports.
+//  Attempts actor-based parallel scanning first; falls back to sequential
+//  if the actor runtime is not available in the current execution context.
+// ============================================================================
+
+// ============================================================================
+//  scan_directory — Main entry point (Layer 0)
+//
+//  Scans all files in the tree result for public symbols and imports.
+//  Uses scan_sequential to read every file and extract symbols/imports.
+// ============================================================================
+
+pub fn scan_directory(
+    root_path: String,
+    config: ScanConfig,
+    tree_result: TreeResult
+) -> ScanResult:
+    // Collect all file entries from the tree
+    print("[SCAN] dir called, entries=" + str(len(tree_result.entries)))
+    let file_entries = flatten_file_entries(tree_result.entries)
+    print("[SCAN] files to scan: " + str(len(file_entries)))
+
+    if len(file_entries) == 0:
+        return ScanResult{
+            pub_symbols: [],
+            imports: [],
+            files_scanned: 0,
+            files_skipped: 0,
+            errors: []
+        }
+
+    // Run the sequential scanner against all files
+    return scan_sequential(file_entries, config)

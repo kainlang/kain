@@ -1,150 +1,124 @@
 // ============================================================================
-//  ZERO-COPY LEXICAL ANALYZER
-//  MarkScript — Kain-powered intent-driven scripting language
-//
-//  Scans incoming .md source strings without performing a single dynamic
-//  heap allocation. Reads data into cache-aligned Token allocations tracking
-//  string offsets via std::text::TextSlice.
+//  MARKSCRIPT LEXER — Value-semantics tokenizer
+//  Token kinds are Int constants to avoid enum cross-module codegen issues.
+//  Uses value-return semantics (no ptr<T> parameters) for maximum codegen
+//  compatibility.
 // ============================================================================
 
 use std::text
-use std::ascii
 
-// ---------------------------------------------------------------------------
-//  Token Kind Enum
-// ---------------------------------------------------------------------------
+// --- Token kind constants ------------------------------------------------
 
-pub enum TokenKind:
-    Header1       // #
-    Header2       // ##
-    Blockquote    // >
-    TablePipe     // |
-    TextStr       // Loose raw literal strings
-    EOF
+pub const TOK_HEADER1:    Int = 0
+pub const TOK_HEADER2:    Int = 1
+pub const TOK_BLOCKQUOTE: Int = 2
+pub const TOK_TABLEPIPE:  Int = 3
+pub const TOK_TEXTSTR:    Int = 4
+pub const TOK_EOF:        Int = 5
 
-// ---------------------------------------------------------------------------
-//  Cache-Aligned Token Structure
-// ---------------------------------------------------------------------------
+// --- Data types ----------------------------------------------------------
 
-pub shatter struct Token:
-    kind:    TokenKind
-    slice:   TextSlice
+pub struct Token:
+    kind:    Int
+    text:    String
     line_no: Int
 
-// ---------------------------------------------------------------------------
-//  Lexer State (zero-copy cursor into source TextSlice)
-// ---------------------------------------------------------------------------
+pub struct LexerState:
+    source:  String
+    pos:     Int
+    len:     Int
+    line_no: Int
 
-pub shatter struct LexerState:
-    source_view:  TextSlice
-    cursor:       Int
-    length:       Int
-    current_line: Int
+// Token + updated state (value-semantics return)
+pub struct TokenResult:
+    token: Token
+    state: LexerState
 
-// ---------------------------------------------------------------------------
-//  Factory — create lexer state from a source String
-// ---------------------------------------------------------------------------
+// --- Constructor ----------------------------------------------------------
 
 pub fn create_lexer(content: String) -> LexerState:
-    let view = text_from(content)
-    let len = text_len(view)
+    let src_len = len(content)
     return LexerState {
-        source_view: view,
-        cursor: 0,
-        length: len,
-        current_line: 1
+        source: content,
+        pos: 0,
+        len: src_len,
+        line_no: 1
     }
 
-// ---------------------------------------------------------------------------
-//  Core lexer — zero-copy token scanner
-//
-//  Recursively skips whitespace, counts newlines, and matches structural
-//  Markdown tokens.  No heap allocations — all string data is represented
-//  as TextSlice views into the original source.
-//
-//  Tokens:
-//    #      → Header1
-//    ##     → Header2
-//    >      → Blockquote
-//    |      → TablePipe
-//    (text) → TextStr
-//    EOF    → EOF
-// ---------------------------------------------------------------------------
+// --- Accessors ------------------------------------------------------------
 
-pub fn next_token(state: ptr<LexerState>) -> Token with Unsafe:
-    // Terminal: end of input
-    if state.cursor >= state.length:
-        return Token {
-            kind:    TokenKind::EOF,
-            slice:   text_from(""),
-            line_no: state.current_line
-        }
+pub fn token_kind(tok: Token) -> Int:
+    return tok.kind
 
-    let current_char = text_char_at(state.source_view, state.cursor)
+pub fn token_text(tok: Token) -> String:
+    return tok.text
 
-    // Count newlines
-    if current_char == "\n":
-        state.current_line = state.current_line + 1
-        state.cursor = state.cursor + 1
-        return next_token(state)
+pub fn token_line_no(tok: Token) -> Int:
+    return tok.line_no
 
-    // Skip other whitespace (spaces, carriage returns, tabs)
-    if current_char == " " or current_char == "\r" or current_char == "\t":
-        state.cursor = state.cursor + 1
-        return next_token(state)
+// --- Core tokenizer -------------------------------------------------------
+// Takes a LexerState, returns a TokenResult containing the next token
+// and the updated state.
 
-    // Match structural tokens
+pub fn next_token(state: LexerState) -> TokenResult:
+    var s = state
+    var ch: String = ""
 
-    // # → Header1, ## → Header2
-    if current_char == "#":
-        let next_idx = state.cursor + 1
-        if next_idx < state.length and text_char_at(state.source_view, next_idx) == "#":
-            state.cursor = state.cursor + 2
-            return Token {
-                kind:    TokenKind::Header2,
-                slice:   text_from("##"),
-                line_no: state.current_line
-            }
-        state.cursor = state.cursor + 1
-        return Token {
-            kind:    TokenKind::Header1,
-            slice:   text_from("#"),
-            line_no: state.current_line
-        }
+    // Skip whitespace and newlines
+    loop:
+        if s.pos >= s.len:
+            let tok = Token { kind: TOK_EOF, text: "", line_no: s.line_no }
+            return TokenResult { token: tok, state: s }
 
-    // > → Blockquote
-    if current_char == ">":
-        state.cursor = state.cursor + 1
-        return Token {
-            kind:    TokenKind::Blockquote,
-            slice:   text_from(">"),
-            line_no: state.current_line
-        }
+        ch = get_ch(s.source, s.pos)
 
-    // | → TablePipe
-    if current_char == "|":
-        state.cursor = state.cursor + 1
-        return Token {
-            kind:    TokenKind::TablePipe,
-            slice:   text_from("|"),
-            line_no: state.current_line
-        }
+        if ch == "\n":
+            s.line_no = s.line_no + 1
+            s.pos = s.pos + 1
+            continue
 
-    // Default: consume text until newline or structural delimiter
-    let start_pos = state.cursor
-    while state.cursor < state.length:
-        let next_c = text_char_at(state.source_view, state.cursor)
-        if next_c == "\n" or next_c == "#" or next_c == ">" or next_c == "|":
+        if ch == " " or ch == "\r" or ch == "\t":
+            s.pos = s.pos + 1
+            continue
+
+        break
+
+    // Structural single-char tokens
+    if ch == "#":
+        let next_pos = s.pos + 1
+        if next_pos < s.len and get_ch(s.source, next_pos) == "#":
+            s.pos = next_pos + 1
+            let tok = Token { kind: TOK_HEADER2, text: "##", line_no: s.line_no }
+            return TokenResult { token: tok, state: s }
+        s.pos = s.pos + 1
+        let tok = Token { kind: TOK_HEADER1, text: "#", line_no: s.line_no }
+        return TokenResult { token: tok, state: s }
+
+    if ch == ">":
+        s.pos = s.pos + 1
+        let tok = Token { kind: TOK_BLOCKQUOTE, text: ">", line_no: s.line_no }
+        return TokenResult { token: tok, state: s }
+
+    if ch == "|":
+        s.pos = s.pos + 1
+        let tok = Token { kind: TOK_TABLEPIPE, text: "|", line_no: s.line_no }
+        return TokenResult { token: tok, state: s }
+
+    // Text — consume until structural delimiter or newline
+    let start = s.pos
+    loop:
+        if s.pos >= s.len:
             break
-        state.cursor = state.cursor + 1
+        let nch = get_ch(s.source, s.pos)
+        if nch == "\n" or nch == "#" or nch == ">" or nch == "|":
+            break
+        s.pos = s.pos + 1
 
-    let token_view = text_subslice(
-        state.source_view,
-        start_pos,
-        state.cursor - start_pos
-    )
-    return Token {
-        kind:    TokenKind::TextStr,
-        slice:   token_view,
-        line_no: state.current_line
-    }
+    let raw = text_substring_string(s.source, start, s.pos - start)
+    let tok = Token { kind: TOK_TEXTSTR, text: raw, line_no: s.line_no }
+    return TokenResult { token: tok, state: s }
+
+// --- Internal char helper -------------------------------------------------
+
+fn get_ch(source: String, pos: Int) -> String:
+    return text_substring_string(source, pos, 1)

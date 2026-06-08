@@ -17,6 +17,7 @@ use std::text
 use std::os_path
 
 use tree_types
+use tree_scan_types
 
 // ============================================================================
 //  JSON FORMAT  —  Machine-readable output for the PI bridge
@@ -182,6 +183,193 @@ pub fn format_summary_text(result: TreeResult) -> String with Pure:
             i = i + 1
 
     return output
+
+
+// ============================================================================
+//  SCAN RESULT FORMAT  —  Public API symbols + import graph rendering
+// ============================================================================
+
+pub fn format_scan_results(result: ScanResult, show_pub: Bool, show_imports: Bool) -> String with Pure:
+    var output = ""
+
+    // Build divider string
+    var divider = ""
+    var di = 0
+    while di < 50:
+        divider = divider + "─"
+        di = di + 1
+
+    // Check if we have any scan data
+    let has_symbols = len(result.pub_symbols) > 0
+    let has_imports = len(result.imports) > 0
+    let files_checked = result.files_scanned
+
+    // If no actual content was scanned (standalone mode), show a helpful message
+    if has_symbols == false and has_imports == false:
+        output = output + "\n" + divider + "\n"
+        output = output + "  Public API Surface\n"
+        output = output + divider + "\n"
+        output = output + "  No public symbols found in " + str(files_checked) + " files.\n"
+        if files_checked > 0:
+            output = output + "\n"
+            output = output + "  Tip: Run with `kain run` (full runtime) to scan file contents.\n"
+            output = output + "  Standalone executables cannot read file contents for scanning.\n"
+        return output
+
+    // ── Public Symbols ──
+    if show_pub and has_symbols:
+        let count = len(result.pub_symbols)
+        let distinct_files = count_distinct_files(result.pub_symbols)
+
+        output = output + "\n" + divider + "\n"
+        output = output + "  Public API Surface (" + str(count) + " symbols across " + str(distinct_files) + " files)\n"
+        output = output + divider + "\n"
+        output = output + "\n"
+
+        let grouped = group_symbols_by_file(result.pub_symbols)
+        var gi = 0
+        while gi < len(grouped):
+            let grp = grouped[gi]
+            output = output + "  " + grp.file_path + " (" + grp.language + "):\n"
+
+            var sj = 0
+            while sj < len(grp.symbols):
+                let sym = grp.symbols[sj]
+                output = output + "    pub " + sym.symbol_kind + " " + sym.symbol_name + "\n"
+                sj = sj + 1
+
+            output = output + "\n"
+            gi = gi + 1
+
+    // ── Imports ──
+    if show_imports and has_imports:
+        if show_pub and has_symbols:
+            output = output + "\n"
+
+        let imp_count = len(result.imports)
+        let distinct_imp_files = count_distinct_import_files(result.imports)
+
+        output = output + "\n" + divider + "\n"
+        output = output + "  Import Graph (" + str(imp_count) + " statements across " + str(distinct_imp_files) + " files)\n"
+        output = output + divider + "\n"
+        output = output + "\n"
+
+        let igroups = group_imports_by_file(result.imports)
+        var igi = 0
+        while igi < len(igroups):
+            let igrp = igroups[igi]
+            output = output + "  " + igrp.file_path + " imports:\n"
+
+            var ij = 0
+            while ij < len(igrp.imports):
+                let imp = igrp.imports[ij]
+                output = output + "    " + imp.import_kind + " " + imp.imported_module + "\n"
+                ij = ij + 1
+
+            output = output + "\n"
+            igi = igi + 1
+
+    return output
+
+
+// ============================================================================
+//  SCAN RESULT HELPERS
+// ============================================================================
+
+struct SymbolGroup:
+    file_path: String
+    language: String
+    symbols: Array<PubSymbol>
+
+struct ImportGroup:
+    file_path: String
+    imports: Array<ImportRef>
+
+
+fn group_symbols_by_file(symbols: Array<PubSymbol>) -> Array<SymbolGroup> with Pure:
+    let groups: Array<SymbolGroup> = []
+    var i = 0
+    while i < len(symbols):
+        let sym = symbols[i]
+        // Find or create group for this file
+        var found = false
+        var j = 0
+        while j < len(groups):
+            if groups[j].file_path == sym.file_path:
+                push(groups[j].symbols, sym)
+                found = true
+                break
+            j = j + 1
+        if found == false:
+            let new_group = SymbolGroup {
+                file_path: sym.file_path,
+                language: sym.language,
+                symbols: [sym]
+            }
+            push(groups, new_group)
+        i = i + 1
+    return groups
+
+
+fn group_imports_by_file(imports: Array<ImportRef>) -> Array<ImportGroup> with Pure:
+    let groups: Array<ImportGroup> = []
+    var i = 0
+    while i < len(imports):
+        let imp = imports[i]
+        var found = false
+        var j = 0
+        while j < len(groups):
+            if groups[j].file_path == imp.file_path:
+                push(groups[j].imports, imp)
+                found = true
+                break
+            j = j + 1
+        if found == false:
+            let new_group = ImportGroup {
+                file_path: imp.file_path,
+                imports: [imp]
+            }
+            push(groups, new_group)
+        i = i + 1
+    return groups
+
+
+fn count_distinct_files(symbols: Array<PubSymbol>) -> Int with Pure:
+    let seen: Array<String> = []
+    var count = 0
+    var i = 0
+    while i < len(symbols):
+        var found = false
+        var j = 0
+        while j < len(seen):
+            if seen[j] == symbols[i].file_path:
+                found = true
+                break
+            j = j + 1
+        if found == false:
+            push(seen, symbols[i].file_path)
+            count = count + 1
+        i = i + 1
+    return count
+
+
+fn count_distinct_import_files(imports: Array<ImportRef>) -> Int with Pure:
+    let seen: Array<String> = []
+    var count = 0
+    var i = 0
+    while i < len(imports):
+        var found = false
+        var j = 0
+        while j < len(seen):
+            if seen[j] == imports[i].file_path:
+                found = true
+                break
+            j = j + 1
+        if found == false:
+            push(seen, imports[i].file_path)
+            count = count + 1
+        i = i + 1
+    return count
 
 
 // ============================================================================

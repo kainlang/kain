@@ -3,64 +3,163 @@ use std::text
 
 // ============================================================================
 //  LANGUAGE MAP — extension-to-language lookup
+//  fs_path_extension() returns the extension WITHOUT leading dot (e.g. "kn")
+//  so map keys are stored without dots. Lookup is case-insensitive.
 // ============================================================================
 
 pub struct LangMapEntry:
     ext: String
     lang: String
 
+fn lang_entry(ext: String, lang: String) -> LangMapEntry:
+    return LangMapEntry{ext: to_lower(ext), lang: lang}
+
 pub fn build_language_map() -> Array<LangMapEntry>:
     let map = []
-    push(map, LangMapEntry{ext: ".kn",    lang: "kain"})
-    push(map, LangMapEntry{ext: ".rs",    lang: "rust"})
-    push(map, LangMapEntry{ext: ".c",     lang: "c"})
-    push(map, LangMapEntry{ext: ".h",     lang: "c"})
-    push(map, LangMapEntry{ext: ".cpp",   lang: "cpp"})
-    push(map, LangMapEntry{ext: ".py",    lang: "python"})
-    push(map, LangMapEntry{ext: ".ts",    lang: "typescript"})
-    push(map, LangMapEntry{ext: ".js",    lang: "javascript"})
-    push(map, LangMapEntry{ext: ".json",  lang: "json"})
-    push(map, LangMapEntry{ext: ".md",    lang: "markdown"})
-    push(map, LangMapEntry{ext: ".toml",  lang: "toml"})
-    push(map, LangMapEntry{ext: ".yaml",  lang: "yaml"})
-    push(map, LangMapEntry{ext: ".yml",   lang: "yaml"})
-    push(map, LangMapEntry{ext: ".bazel", lang: "bazel"})
-    push(map, LangMapEntry{ext: ".bzl",   lang: "bazel"})
-    push(map, LangMapEntry{ext: ".kt",    lang: "kotlin"})
-    push(map, LangMapEntry{ext: ".java",  lang: "java"})
-    push(map, LangMapEntry{ext: ".go",    lang: "go"})
-    push(map, LangMapEntry{ext: ".sh",    lang: "shell"})
-    push(map, LangMapEntry{ext: ".bat",   lang: "batch"})
-    push(map, LangMapEntry{ext: ".ps1",   lang: "powershell"})
-    push(map, LangMapEntry{ext: ".html",  lang: "html"})
-    push(map, LangMapEntry{ext: ".css",   lang: "css"})
-    push(map, LangMapEntry{ext: ".scss",  lang: "scss"})
-    push(map, LangMapEntry{ext: ".svg",   lang: "svg"})
-    push(map, LangMapEntry{ext: ".png",   lang: "image"})
-    push(map, LangMapEntry{ext: ".jpg",   lang: "image"})
-    push(map, LangMapEntry{ext: ".jpeg",  lang: "image"})
-    push(map, LangMapEntry{ext: ".gif",   lang: "image"})
-    push(map, LangMapEntry{ext: ".webp",  lang: "image"})
-    push(map, LangMapEntry{ext: ".ico",   lang: "image"})
-    push(map, LangMapEntry{ext: ".mp4",   lang: "video"})
-    push(map, LangMapEntry{ext: ".mp3",   lang: "audio"})
-    push(map, LangMapEntry{ext: ".wav",   lang: "audio"})
-    push(map, LangMapEntry{ext: ".ttf",   lang: "font"})
-    push(map, LangMapEntry{ext: ".woff2", lang: "font"})
-    push(map, LangMapEntry{ext: ".wasm",  lang: "wasm"})
-    push(map, LangMapEntry{ext: ".ll",    lang: "llvm"})
-    push(map, LangMapEntry{ext: ".spv",   lang: "spirv"})
-    push(map, LangMapEntry{ext: ".ptx",   lang: "cuda"})
-    push(map, LangMapEntry{ext: ".hlsl",  lang: "hlsl"})
-    push(map, LangMapEntry{ext: ".wgsl",  lang: "wgsl"})
-    push(map, LangMapEntry{ext: ".glsl",  lang: "glsl"})
+    // Source code languages
+    push(map, lang_entry("kn",     "kain"))
+    push(map, lang_entry("rs",     "rust"))
+    push(map, lang_entry("py",     "python"))
+    push(map, lang_entry("ts",     "typescript"))
+    push(map, lang_entry("tsx",    "typescript"))
+    push(map, lang_entry("js",     "javascript"))
+    push(map, lang_entry("jsx",    "javascript"))
+    push(map, lang_entry("c",      "c"))
+    push(map, lang_entry("h",      "c"))
+    push(map, lang_entry("cpp",    "cpp"))
+    push(map, lang_entry("hpp",    "cpp"))
+    push(map, lang_entry("cxx",    "cpp"))
+    push(map, lang_entry("cc",     "cpp"))
+    push(map, lang_entry("go",     "go"))
+    push(map, lang_entry("java",   "java"))
+    push(map, lang_entry("kt",     "kotlin"))
+    push(map, lang_entry("kts",    "kotlin"))
+    push(map, lang_entry("scala",  "scala"))
+    push(map, lang_entry("swift",  "swift"))
+    push(map, lang_entry("cs",     "csharp"))
+    push(map, lang_entry("rb",     "ruby"))
+    push(map, lang_entry("php",    "php"))
+    push(map, lang_entry("lua",    "lua"))
+    push(map, lang_entry("r",      "r"))
+    push(map, lang_entry("dart",   "dart"))
+    push(map, lang_entry("zig",    "zig"))
+    push(map, lang_entry("nim",    "nim"))
+    push(map, lang_entry("elm",    "elm"))
+    push(map, lang_entry("ex",     "elixir"))
+    push(map, lang_entry("exs",    "elixir"))
+    push(map, lang_entry("erl",    "erlang"))
+    push(map, lang_entry("hrl",    "erlang"))
+    push(map, lang_entry("hs",     "haskell"))
+    push(map, lang_entry("ml",     "ocaml"))
+    push(map, lang_entry("mli",    "ocaml"))
+    push(map, lang_entry("v",      "verilog"))
+    push(map, lang_entry("vh",     "verilog"))
+    push(map, lang_entry("sv",     "systemverilog"))
+    push(map, lang_entry("svelte", "svelte"))
+    push(map, lang_entry("vue",    "vue"))
+    push(map, lang_entry("graphql","graphql"))
+    push(map, lang_entry("gql",    "graphql"))
+    push(map, lang_entry("prisma", "prisma"))
+    push(map, lang_entry("proto",  "protobuf"))
+    // Assembly / LLVM / GPU
+    push(map, lang_entry("asm",    "assembly"))
+    push(map, lang_entry("s",      "assembly"))
+    push(map, lang_entry("ll",     "llvm"))
+    push(map, lang_entry("spv",    "spirv"))
+    push(map, lang_entry("ptx",    "cuda"))
+    push(map, lang_entry("hlsl",   "hlsl"))
+    push(map, lang_entry("wgsl",   "wgsl"))
+    push(map, lang_entry("glsl",   "glsl"))
+    // Web
+    push(map, lang_entry("html",   "html"))
+    push(map, lang_entry("htm",    "html"))
+    push(map, lang_entry("css",    "css"))
+    push(map, lang_entry("scss",   "scss"))
+    push(map, lang_entry("less",   "less"))
+    push(map, lang_entry("svg",    "svg"))
+    // Config / data
+    push(map, lang_entry("json",   "json"))
+    push(map, lang_entry("toml",   "toml"))
+    push(map, lang_entry("yaml",   "yaml"))
+    push(map, lang_entry("yml",    "yaml"))
+    push(map, lang_entry("xml",    "xml"))
+    push(map, lang_entry("cfg",    "config"))
+    push(map, lang_entry("ini",    "config"))
+    push(map, lang_entry("conf",   "config"))
+    push(map, lang_entry("sql",    "sql"))
+    push(map, lang_entry("cmake",  "cmake"))
+    push(map, lang_entry("mk",     "make"))
+    push(map, lang_entry("makefile","make"))
+    push(map, lang_entry("dockerfile","dockerfile"))
+    // Build / CI
+    push(map, lang_entry("bazel",  "bazel"))
+    push(map, lang_entry("bzl",    "bazel"))
+    push(map, lang_entry("lock",   "lockfile"))
+    push(map, lang_entry("wasm",   "wasm"))
+    // Scripting / shell
+    push(map, lang_entry("sh",     "shell"))
+    push(map, lang_entry("bash",   "shell"))
+    push(map, lang_entry("zsh",    "shell"))
+    push(map, lang_entry("bat",    "batch"))
+    push(map, lang_entry("cmd",    "batch"))
+    push(map, lang_entry("ps1",    "powershell"))
+    push(map, lang_entry("psm1",   "powershell"))
+    // Media
+    push(map, lang_entry("png",    "image"))
+    push(map, lang_entry("jpg",    "image"))
+    push(map, lang_entry("jpeg",   "image"))
+    push(map, lang_entry("gif",    "image"))
+    push(map, lang_entry("webp",   "image"))
+    push(map, lang_entry("ico",    "image"))
+    push(map, lang_entry("bmp",    "image"))
+    push(map, lang_entry("tiff",   "image"))
+    push(map, lang_entry("tif",    "image"))
+    push(map, lang_entry("mp4",    "video"))
+    push(map, lang_entry("avi",    "video"))
+    push(map, lang_entry("mkv",    "video"))
+    push(map, lang_entry("mov",    "video"))
+    push(map, lang_entry("webm",   "video"))
+    push(map, lang_entry("mp3",    "audio"))
+    push(map, lang_entry("wav",    "audio"))
+    push(map, lang_entry("flac",   "audio"))
+    push(map, lang_entry("ogg",    "audio"))
+    push(map, lang_entry("aac",    "audio"))
+    // Font
+    push(map, lang_entry("ttf",    "font"))
+    push(map, lang_entry("otf",    "font"))
+    push(map, lang_entry("woff",   "font"))
+    push(map, lang_entry("woff2",  "font"))
+    // Documents
+    push(map, lang_entry("md",     "markdown"))
+    push(map, lang_entry("markdown","markdown"))
+    push(map, lang_entry("rst",    "restructuredtext"))
+    push(map, lang_entry("txt",    "text"))
+    push(map, lang_entry("csv",    "csv"))
+    push(map, lang_entry("pdf",    "pdf"))
+    // Version control
+    push(map, lang_entry("gitignore","git"))
+    push(map, lang_entry("gitattributes","git"))
+    push(map, lang_entry("gitmodules","git"))
+    push(map, lang_entry("editorconfig","editorconfig"))
+    push(map, lang_entry("env",    "dotenv"))
     return map
 
+// Normalize an extension: strip leading dot, lowercase, trim whitespace
+pub fn normalize_ext(raw: String) -> String:
+    let mut normalized = to_lower(raw)
+    // Strip leading dot if present
+    if len(normalized) > 0 and char_at(normalized, 0) == ".":
+        normalized = substring(normalized, 1, len(normalized))
+    return normalized
+
 pub fn detect_language(ext: String) -> String:
+    let normalized = normalize_ext(ext)
+    if len(normalized) == 0:
+        return "unknown"
     let map = build_language_map()
     var i = 0
     while i < len(map):
-        if map[i].ext == ext:
+        if map[i].ext == normalized:
             return map[i].lang
         i = i + 1
     return "unknown"
@@ -71,21 +170,30 @@ pub fn detect_language(ext: String) -> String:
 
 pub fn is_ignored_dir(name: String) -> Bool:
     let folded = to_lower(name)
-    if folded == ".git":         return true
-    if folded == ".kain":        return true
-    if folded == "node_modules": return true
-    if folded == "target":       return true
-    if folded == "bazel-bin":    return true
-    if folded == "bazel-out":    return true
+    if folded == ".git":           return true
+    if folded == ".kain":          return true
+    if folded == "node_modules":   return true
+    if folded == "target":         return true
+    if folded == "bazel-bin":      return true
+    if folded == "bazel-out":      return true
     if folded == "bazel-testlogs": return true
-    if folded == "__pycache__":  return true
-    if folded == ".venv":        return true
-    if folded == "venv":         return true
-    if folded == ".idea":        return true
-    if folded == ".vscode":      return true
-    if folded == "dist":         return true
-    if folded == "build":        return true
-    if folded == ".cache":       return true
+    if folded == "__pycache__":    return true
+    if folded == ".venv":          return true
+    if folded == "venv":           return true
+    if folded == ".idea":          return true
+    if folded == ".vscode":        return true
+    if folded == "dist":           return true
+    if folded == "build":          return true
+    if folded == ".cache":         return true
+    if folded == ".next":          return true
+    if folded == ".nuxt":          return true
+    if folded == ".yarn":          return true
+    if folded == ".pytest_cache":  return true
+    if folded == ".mypy_cache":    return true
+    if folded == "elm-stuff":      return true
+    if folded == "_build":         return true
+    if folded == "deps":           return true
+    if folded == ".dart_tool":     return true
     return false
 
 pub fn is_hidden(name: String) -> Bool:
@@ -108,6 +216,9 @@ pub struct TreeConfig:
     max_entries: Int
     action: String
     format: String
+    scan_pub: Bool
+    scan_imports: Bool
+    scan_workers: Int
 
 pub struct TreeEntry:
     path: String

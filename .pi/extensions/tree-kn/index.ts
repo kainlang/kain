@@ -85,6 +85,9 @@ interface TreeConfig {
   includeHidden: boolean;
   format: string;
   maxEntries: number;
+  scan: boolean;
+  scanImports: boolean;
+  scanWorkers: number;
 }
 
 function executeTreeKn(config: TreeConfig): { stdout: string; stderr: string } {
@@ -98,6 +101,9 @@ function executeTreeKn(config: TreeConfig): { stdout: string; stderr: string } {
     if (config.includeHidden)     { cliArgs.push("--hidden"); }
     if (config.format !== "tree") { cliArgs.push("--format"); cliArgs.push(config.format); }
     if (config.maxEntries > 0)    { cliArgs.push("--max-entries"); cliArgs.push(String(config.maxEntries)); }
+    if (config.scan)              { cliArgs.push("--scan"); }
+    if (config.scanImports)       { cliArgs.push("--imports"); }
+    if (config.scanWorkers > 0)   { cliArgs.push("--scan-workers"); cliArgs.push(String(config.scanWorkers)); }
     for (const excl of config.exclude) { cliArgs.push("--exclude"); cliArgs.push(excl); }
 
     const cmd = [exeFile, ...cliArgs].map(a => a.includes(" ") ? `"${a}"` : a).join(" ");
@@ -131,6 +137,9 @@ function executeTreeKn(config: TreeConfig): { stdout: string; stderr: string } {
   if (config.includeHidden)     { cliArgs.push("--hidden"); }
   if (config.format !== "tree") { cliArgs.push("--format"); cliArgs.push(config.format); }
   if (config.maxEntries > 0)    { cliArgs.push("--max-entries"); cliArgs.push(String(config.maxEntries)); }
+  if (config.scan)              { cliArgs.push("--scan"); }
+  if (config.scanImports)       { cliArgs.push("--imports"); }
+  if (config.scanWorkers > 0)   { cliArgs.push("--scan-workers"); cliArgs.push(String(config.scanWorkers)); }
   for (const excl of config.exclude) { cliArgs.push("--exclude"); cliArgs.push(excl); }
 
   const allArgs = [kain.kainPath, "run", mainFile, "--target", "llvm", "--", ...cliArgs];
@@ -159,6 +168,9 @@ interface ExecuteParams {
   include_hidden?: boolean;
   format?: string;
   max_entries?: number;
+  scan?: boolean;
+  scan_imports?: boolean;
+  scan_workers?: number;
 }
 
 function buildConfig(params: ExecuteParams): TreeConfig {
@@ -170,6 +182,9 @@ function buildConfig(params: ExecuteParams): TreeConfig {
   const includeHidden = params.include_hidden === true;
   const format = (params.format || "tree").toLowerCase();
   const maxEntries = typeof params.max_entries === "number" ? params.max_entries : 0;
+  const scan = params.scan === true;
+  const scanImports = params.scan_imports === true;
+  const scanWorkers = typeof params.scan_workers === "number" ? params.scan_workers : 4;
 
   const validActions = ["tree", "list", "summary", "info"];
   if (!validActions.includes(action)) {
@@ -181,7 +196,7 @@ function buildConfig(params: ExecuteParams): TreeConfig {
     throw new Error(`Invalid format "${format}". Must be: ${validFormats.join(", ")}`);
   }
 
-  return { action, rootPath, depth, pattern, exclude, includeHidden, format, maxEntries };
+  return { action, rootPath, depth, pattern, exclude, includeHidden, format, maxEntries, scan, scanImports, scanWorkers };
 }
 
 // ---------------------------------------------------------------------------
@@ -259,6 +274,21 @@ const TreeKnParams = Type.Object({
       description: "Maximum entries to return (0 = unlimited, default: 0)",
     }),
   ),
+  scan: Type.Optional(
+    Type.Boolean({
+      description: "Scan source files for public symbols (functions, structs, classes, etc.)",
+    }),
+  ),
+  scan_imports: Type.Optional(
+    Type.Boolean({
+      description: "Scan source files for import/use/include statements",
+    }),
+  ),
+  scan_workers: Type.Optional(
+    Type.Number({
+      description: "Number of concurrent scan worker actors (default: 4)",
+    }),
+  ),
 });
 
 export default function treeKnExtension(pi: ExtensionAPI) {
@@ -276,6 +306,8 @@ export default function treeKnExtension(pi: ExtensionAPI) {
       "Use tree_kn action:'summary' for quick directory stats without listing every file.",
       "Use tree_kn action:'tree' depth:2 for a high-level overview of a directory.",
       "Use tree_kn action:'info' for metadata about a single file or directory.",
+      "Use tree_kn scan:true to find public symbols (functions, structs) in source files.",
+      "Use tree_kn scan_imports:true to trace import/use/include graphs across source files.",
     ],
     parameters: TreeKnParams,
 

@@ -1,98 +1,101 @@
 // ============================================================================
-//  MARKSCRIPT INDUSTRIAL RUNTIME ENGINE DRIVER
-// ============================================================================
-//
-//  Entry point for the MarkScript intent-compilation pipeline.
-//  Chains:  Lex → Parse → Compile → VM Init → IVT Register → Execute → Decay
-//
-//  The full pipeline runs against a hardcoded demo Markdown string:
-//    "# PipelineWorkspace\n## ProcessHotPath\n> apply vignette filter\n"
-//
+//  MARKSCRIPT RUNTIME ENGINE DRIVER
+//  Command-line entry point. Reads a .kn.md file, lexes it, compiles it
+//  to bytecode, and executes it through the VM.
+//  Usage: mks.exe <file.kn.md>
+//  Uses value semantics throughout (no ptr<T>) for codegen compatibility.
 // ============================================================================
 
-use std::os
+use std::text
 use std::fs
 use std::diagnostics
-use std::text
-use std::hash
-use src::lexer
-use src::ast
-use src::compiler
-use src::vm
+use lexer
+use ast
+use compiler
+use vm
 
-// ─── Private helpers ──────────────────────────────────────────────────────────
+// --- Demo handler stub ----------------------------------------------------
 
-// _string_hash — hash a String into a deterministic Int using FNV-1a 32-bit.
-// This replaces the pseudo-code "string_hash" used in the design README.
-fn _string_hash(s: String) -> Int:
-    let view = text_from(s)
-    let len = text_len(view)
-    var h: Int = hash::hash_fnv1a32_init()
-    var i: Int = 0
-    while i < len:
-        let byte: Int = text_byte_at(view, i)
-        h = hash::hash_fnv1a32_update_byte(h, byte)
-        i = i + 1
-    return h
-
-// ─── Demo callback ────────────────────────────────────────────────────────────
-
-// runtime_vignette_simulation_stub — a registered IVT handler that simulates a
-// native platform kernel execution.  In production this would bridge to GPU
-// filters, OS file ops, or network services.
-fn runtime_vignette_simulation_stub(hash_id: Int) -> Int with IO:
-    println("[NATIVE RUNTIME KERNEL EXECUTED] Intent signature hash match vector target: " + str(hash_id))
+fn runtime_stub(hash_id: Int) -> Int:
+    println("[INTENT] Fired intent hash: " + str(hash_id))
     return 200
 
-// ─── Entry point ──────────────────────────────────────────────────────────────
+// --- File reading ---------------------------------------------------------
 
-fn main(args: Array<String>) -> Int with Unsafe, IO:
-    // ── Banner ──────────────────────────────────────────────────────────────
+fn read_source(path: String) -> String:
+    let content = fs_read_text(path)
+    return content
+
+// --- Main entry point -----------------------------------------------------
+
+fn main(args: Array<String>) -> Int:
     println("=== MARKSCRIPT RUNTIME ENGINE v1.0 ===")
+    println("")
 
-    // ── Hardcoded demo source ───────────────────────────────────────────────
-    // This simulates reading an app.md file through the pipeline.
-    let demo_md_source: String = "# PipelineWorkspace\n## ProcessHotPath\n> apply vignette filter\n"
+    // Determine source
+    let arg_count = len(args)
+    var source: String = ""
+    
+    // Debug: print all args
+    var ai = 0
+    while ai < arg_count:
+        println("[ARGS] " + str(ai) + ": " + args[ai])
+        ai = ai + 1
+    
+    if arg_count >= 1:
+        let filepath = args[0]
+        source = read_source(filepath)
+        println("[INPUT] Loaded: " + filepath)
+    else:
+        // Fallback demo source
+        source = "# PipelineWorkspace\n## ProcessHotPath\n> apply vignette filter\n"
+        println("[INPUT] Using demo source (no file arg)")
 
-    // ── 1. LEX — zero-allocation token scan ─────────────────────────────────
-    let mut lex_state: lexer::LexerState = lexer::create_lexer(demo_md_source)
-    let mut structural_tokens: Array<lexer::Token> = []
+    // 1. Create lexer state
+    let lex = create_lexer(source)
 
-    loop:
-        let tok: lexer::Token = lexer::next_token(addr_of(lex_state, "LexerState"))
-        push(structural_tokens, tok)
-        if tok.kind == lexer::TokenKind::EOF:
-            break
+    // 2. Tokenize + Parse + Compile in one pass
+    let bc = compile_source(lex)
 
-    // ── 2. PARSE — build hierarchical AST ──────────────────────────────────
-    let root_ast: ast::MksNode = ast::parse_ast(structural_tokens)
+    let op_count = len(bc)
+    println("[COMPILE] Produced " + str(op_count) + " bytecode ops")
 
-    // ── 3. COMPILE — flatten AST into bytecode stream ──────────────────────
-    let compilation_package: compiler::CompilationOutput = compiler::compile_ast(root_ast)
+    // Print bytecode disassembly
+    var di = 0
+    while di < op_count:
+        let op = bc[di]
+        if op == 0:
+            println("        " + str(di) + ": OP_HALT")
+        elif op == 1:
+            di = di + 1
+            if di < op_count:
+                println("        " + str(di - 1) + ": OP_ENTER_DOMAIN  hash=" + str(bc[di]))
+        elif op == 2:
+            di = di + 1
+            if di < op_count:
+                println("        " + str(di - 1) + ": OP_ROUTINE_HEADER hash=" + str(bc[di]))
+        elif op == 3:
+            di = di + 1
+            if di < op_count:
+                println("        " + str(di - 1) + ": OP_PUSH_PARAM    hash=" + str(bc[di]))
+        elif op == 4:
+            println("        " + str(di) + ": OP_EXECUTE_CALL")
+        else:
+            println("        " + str(di) + ": UNKNOWN_OP " + str(op))
+        di = di + 1
 
-    // ── 4. VM INIT ──────────────────────────────────────────────────────────
-    let mut runtime_machine: vm::MarkScriptVM = vm::init_vm()
+    println("")
 
-    // ── 5. Register intent — map hash → native function address ────────────
-    let phrase_target_signature: Int = _string_hash("apply vignette filter")
+    // 3. Execute in VM
+    let vm = init_vm()
+    let er = execute_bytecode(vm, bc)
 
-    vm::register_intent_vector(
-        addr_of(runtime_machine, "MarkScriptVM"),
-        phrase_target_signature,
-        ptr_to_int(runtime_vignette_simulation_stub)
-    )
+    println("[EXEC] VM finished with accumulator: " + str(er.accumulator))
 
-    // ── 6. EXECUTE — fire the bytecode machine loop ────────────────────────
-    let execution_metric: Int = vm::execute_bytecode(
-        addr_of(runtime_machine, "MarkScriptVM"),
-        compilation_package.bytecode_stream,
-        compilation_package.stream_length
-    )
+    // 4. Call runtime stub for demo
+    let stub_result = runtime_stub(er.accumulator)
+    println("[STUB] Handler returned: " + str(stub_result))
 
-    // ── 7. CLEANUP — decay raw buffers ─────────────────────────────────────
-    decay compilation_package.bytecode_stream
-    decay runtime_machine.intent_vector_table
-
-    // ── 8. Report ───────────────────────────────────────────────────────────
-    println("=== ENGINE EXECUTION TERMINATED SAFELY WITH RET CODE: " + str(execution_metric) + " ===")
+    println("")
+    println("=== ENGINE EXECUTION TERMINATED SAFELY ===")
     return 0

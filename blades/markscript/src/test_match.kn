@@ -1,7 +1,0 @@
-use src::ast
-
-pub fn test_match(root: ast::MksNode) -> Int:
-    match root:
-        ast::MksNode::Domain { name: _, components: children } =>
-            return len(children)
-        _ => return 0

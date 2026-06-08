@@ -1,128 +1,60 @@
 // ============================================================================
-//  ZERO-ALLOCATION VIRTUAL MACHINE ENGINE WITH IVT REGISTER
-// ============================================================================
-//
-//  The MarkScript VM uses a flat Intent Vector Table (IVT) to map hashed
-//  phrase signatures to raw native function addresses.  Every allocation
-//  is done at init time — the execution loop itself performs zero heap
-//  allocations, operating entirely on pre-allocated IVT and bytecode
-//  buffers via raw pointer arithmetic.
-//
-//  OpCodes:
-//    0 = OpHalt        — terminate execution
-//    1 = OpPushParam   — push an inline hash parameter onto the virtual stack
-//    2 = OpExecuteCall — look up the preceding hash in the IVT and dispatch
-//
+//  MARKSCRIPT VIRTUAL MACHINE — Value-semantics bytecode executor
+//  No function pointers. Simple opcode dispatch.
 // ============================================================================
 
-// IntentHandlerSignature — type alias for native callbacks registered in the
-// Intent Vector Table.  Each handler receives the hash that matched it and
-// returns a status Int.
-pub type IntentHandlerSignature = fn(Int) -> Int
-
-// MarkScriptVM — the zero-allocation virtual machine runtime.
-//   instruction_pointer:   current position in the bytecode stream
-//   intent_vector_table:   raw allocation holding (hash, address) pairs
-//   ivt_capacity:          total cell count of the IVT buffer (512)
 pub struct MarkScriptVM:
-    instruction_pointer: Int
-    intent_vector_table: ptr<Int>
-    ivt_capacity:        Int
+    ip:          Int
+    accumulator: Int
 
-// init_vm — allocate a zeroed 512-cell IVT and return a fresh VM.
-pub fn init_vm() -> MarkScriptVM with Unsafe:
-    let ivt_alloc: ptr<Int> = alloc_zeroed(512, "Int")
-    return MarkScriptVM {
-        instruction_pointer: 0,
-        intent_vector_table: ivt_alloc,
-        ivt_capacity: 512
-    }
+// --- Execution result -----------------------------------------------------
 
-// register_intent_vector — insert a (phrase_hash → native_func_addr) mapping
-// into the VM's Intent Vector Table using open-addressing.
-// Bucket is computed as (phrase_hash % 512) * 2.
-// The hash is stored at bucket, the function address at bucket + 1.
-pub fn register_intent_vector(vm: ptr<MarkScriptVM>, phrase_hash: Int, native_func_addr: Int) with Unsafe:
-    collapse vm.intent_vector_table:
-        let bucket: Int = (phrase_hash % 512) * 2
-        mem_store(ptr_offset(vm.intent_vector_table, bucket, "Int"), phrase_hash, "Int")
-        mem_store(ptr_offset(vm.intent_vector_table, bucket + 1, "Int"), native_func_addr, "Int")
-        0
+pub struct ExecResult:
+    accumulator: Int
 
-// execute_bytecode — run the VM against a flat bytecode stream.
-// Returns the accumulated return value from the last OpExecuteCall dispatch.
-//
-// spec reference:  baseline scalar implementation
-// fast llvm_lane:  identical semantics, LLVM-optimised target
-pub converge execute_bytecode(vm: ptr<MarkScriptVM>, stream: ptr<Int>, length: Int) -> Int:
-    spec reference:
-        vm.instruction_pointer = 0
-        var accumulated_return_state: Int = 0
+// --- Constructor ----------------------------------------------------------
 
-        loop:
-            let opcode: Int = mem_load(ptr_offset(stream, vm.instruction_pointer, "Int"), "Int")
+pub fn init_vm() -> MarkScriptVM:
+    return MarkScriptVM { ip: 0, accumulator: 0 }
 
-            if opcode == 0:        // OpHalt
-                break
+// --- Execute bytecode -----------------------------------------------------
+// Bytecode: flat Array<Int> of [opcode, operand?, opcode, operand?, ...]
 
-            if opcode == 1:        // OpPushParam — skip past the inline hash
-                vm.instruction_pointer = vm.instruction_pointer + 2
+pub fn execute_bytecode(vm: MarkScriptVM, bc: Array<Int>) -> ExecResult:
+    let bc_len = len(bc)
+    var ip = vm.ip
+    var acc = vm.accumulator
+    var result: Int = 0
 
-            if opcode == 2:        // OpExecuteCall
-                // Read the hash that was pushed immediately before this call
-                let target_hash: Int = mem_load(
-                    ptr_offset(stream, vm.instruction_pointer - 1, "Int"), "Int"
-                )
+    while ip < bc_len:
+        let opcode = bc[ip]
 
-                // Probe the IVT with open addressing
-                let bucket: Int = (target_hash % 512) * 2
-                let matched_key: Int = mem_load(
-                    ptr_offset(vm.intent_vector_table, bucket, "Int"), "Int"
-                )
+        if opcode == 0: // OP_HALT
+            return ExecResult { accumulator: result }
 
-                if matched_key == target_hash:
-                    let raw_call_address: Int = mem_load(
-                        ptr_offset(vm.intent_vector_table, bucket + 1, "Int"), "Int"
-                    )
-                    // Reinterpret the stored address as a native function and call it
-                    let native_handler: IntentHandlerSignature =
-                        int_to_ptr(raw_call_address, "IntentHandlerSignature")
-                    accumulated_return_state = native_handler(target_hash)
+        elif opcode == 1: // OP_ENTER_DOMAIN
+            ip = ip + 1
+            if ip < bc_len:
+                acc = bc[ip]
+            ip = ip + 1
 
-                vm.instruction_pointer = vm.instruction_pointer + 1
+        elif opcode == 2: // OP_ROUTINE_HEADER
+            ip = ip + 1
+            if ip < bc_len:
+                acc = bc[ip]
+            ip = ip + 1
 
-        return accumulated_return_state
+        elif opcode == 3: // OP_PUSH_PARAM
+            ip = ip + 1
+            if ip < bc_len:
+                acc = acc + bc[ip]
+            ip = ip + 1
 
-    fast llvm_lane when target("llvm"):
-        vm.instruction_pointer = 0
-        var acc: Int = 0
+        elif opcode == 4: // OP_EXECUTE_CALL
+            result = acc
+            ip = ip + 1
 
-        loop:
-            let oc: Int = mem_load(ptr_offset(stream, vm.instruction_pointer, "Int"), "Int")
+        else:
+            ip = ip + 1
 
-            if oc == 0:
-                break
-
-            if oc == 1:
-                vm.instruction_pointer = vm.instruction_pointer + 2
-
-            if oc == 2:
-                let hash: Int = mem_load(
-                    ptr_offset(stream, vm.instruction_pointer - 1, "Int"), "Int"
-                )
-                let bkt: Int = (hash % 512) * 2
-                let key: Int = mem_load(
-                    ptr_offset(vm.intent_vector_table, bkt, "Int"), "Int"
-                )
-
-                if key == hash:
-                    let addr: Int = mem_load(
-                        ptr_offset(vm.intent_vector_table, bkt + 1, "Int"), "Int"
-                    )
-                    let handler_fn: IntentHandlerSignature =
-                        int_to_ptr(addr, "IntentHandlerSignature")
-                    acc = handler_fn(hash)
-
-                vm.instruction_pointer = vm.instruction_pointer + 1
-
-        return acc
+    return ExecResult { accumulator: result }

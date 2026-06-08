@@ -1,12 +1,11 @@
 // ============================================================================
-//  MARKSCRIPT COMPILER SOURCE BUILD AUTHORITY
+//  MARKSCRIPT BUILD AUTHORITY
 // ============================================================================
 
 use std::build
 
-pub fn build(ctx: BuildContext) -> BuildGraph:
-    // Define the core compilation package profile
-    let pkg = project("markscript")
+fn build(ctx: BuildContext) -> BuildGraph:
+    let app = project("markscript")
         .kind("kain_executable")
         .version("1.0.0")
         .description("The core zero-copy intent engine companion for Kain.")
@@ -14,26 +13,24 @@ pub fn build(ctx: BuildContext) -> BuildGraph:
         .source_root("src")
         .module_root("src")
         .target("llvm")
-        .profile("release")
+        .artifact_root(".kain/out")
+        .cache_root(".kain/cache/build")
+        .profile("debug")
 
-    // Enumerate the structural source dependency definitions
-    let sources = source_set("mks_engine_sources")
-        .glob("src/**/*.kn")
-        .file("build.kn")
-
-    // Bind verification tasks through the compiler pipeline
-    let check = check_task("verify_mks_compilation")
-        .project(pkg)
+    let check = check_task("check-llvm")
+        .project(app)
         .target("llvm")
-        .inputs(sources)
+        .input("src/lexer.kn")
+        .input("src/ast.kn")
+        .input("src/compiler.kn")
+        .input("src/vm.kn")
 
-    // Build task for the final hyper-optimized native machine executable
-    let exe = native_executable("markscript_compiler")
-        .project(pkg)
+    let exe = native_executable("root-executable")
+        .project(app)
         .output("$blade/mks.exe")
-        .requires(check)
-        .inputs(sources)
+        .requires("check-llvm")
 
-    return build_graph(pkg)
-        .sources(sources)
-        .tasks(check, exe)
+    return build_graph()
+        .project(app)
+        .task(check)
+        .task(exe)
