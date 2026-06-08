@@ -15,7 +15,6 @@ mks.exe servo_controller.md    →  161 bytecode ops, 6 data tables, 4 fenced co
 
 ## Table of Contents
 
-1. [The Vision](#the-vision)
 2. [How It Works](#how-it-works)
 3. [Quick Start](#quick-start)
 4. [Writing MarkScript — Language Reference](#writing-markscript--language-reference)
@@ -32,9 +31,6 @@ mks.exe servo_controller.md    →  161 bytecode ops, 6 data tables, 4 fenced co
 - Blockquotes (`>`) define **intents** (natural language commands)  
 - Tables (`|`) define **data** (parsed into contiguous memory matrices)
 - Fenced code blocks (`` ```kain ``) define **inline computation** (pass-through to the host language)
-
-The compiler does the rest. A `# PhysicsSim` becomes a domain. A `## ComputeForces` becomes a routine. A `> apply gravity` becomes an intent dispatch. A `| Mass | Velocity | Drag |` table becomes a zero-copy matrix in the VM's data table.
----
 
 ## How It Works
 
