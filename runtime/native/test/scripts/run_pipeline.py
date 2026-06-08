@@ -402,6 +402,18 @@ CBMC_HARNESS_TEMPLATE = """/*
  * CBMC explores ALL paths on ALL possible inputs within unwind bound.
  */
 
+// Basic type definitions needed by runtime function signatures
+typedef unsigned long long uint64_t;
+typedef unsigned int uint32_t;
+typedef unsigned short uint16_t;
+typedef unsigned char uint8_t;
+typedef long long int64_t;
+typedef int int32_t;
+typedef short int16_t;
+typedef signed char int8_t;
+typedef unsigned long long size_t;
+typedef long long ptrdiff_t;
+
 // Forward declarations of functions under test
 {harness_functions}
 
@@ -445,6 +457,59 @@ def _get_msvc_include_paths() -> str | None:
     return None
 
 
+def _run_cbmc_in_wsl(harness_path, source_path, mod_name, unwind=5) -> tuple[str, str, int] | None:
+    """Run CBMC via WSL (where Linux GCC headers work). Concatenates harness + source."""
+    import subprocess
+    import os
+
+    repo_path = Path(__file__).resolve().parent.parent.parent  # runtime/native
+    wsl_repo = f"/mnt/{repo_path.drive.lower()}{repo_path.as_posix()[2:]}".replace(":", "")
+
+    def to_wsl(p):
+        p = str(p)
+        if ":" in p:
+            drive = p[0].lower()
+            rest = p[2:].replace("\\", "/")
+            return f"/mnt/{drive}{rest}"
+        return p
+
+    # Concatenate source + harness into one file (source first to define types, then harness)
+    combined = harness_path.parent / f"combined_{mod_name}.c"
+    combined_code = ""
+    if source_path and source_path.exists():
+        combined_code += source_path.read_text() + "\n"
+    combined_code += harness_path.read_text()
+    combined.write_text(combined_code, encoding="utf-8")
+
+    combined_wsl = to_wsl(combined)
+
+    cmd = f"cd {wsl_repo} && cbmc --unwind {unwind} --trace {combined_wsl} -I include -I src/core"
+
+    try:
+        proc = subprocess.run(
+            ["wsl", "-d", "Ubuntu", "bash", "-c", cmd],
+            capture_output=True, text=True, timeout=120,
+        )
+        return proc.stdout, proc.stderr, proc.returncode
+    except FileNotFoundError:
+        return None
+    except subprocess.TimeoutExpired:
+        return "", "TIMEOUT", -1
+
+
+def _find_wsl_cbmc() -> bool:
+    """Check if CBMC is available via WSL."""
+    import subprocess
+    try:
+        result = subprocess.run(
+            ["wsl", "-d", "Ubuntu", "bash", "-c", "which cbmc && cbmc --version"],
+            capture_output=True, text=True, timeout=5,
+        )
+        return result.returncode == 0
+    except FileNotFoundError:
+        return False
+
+
 def _cbmc_check_installed() -> tuple[bool, str]:
     """Check if CBMC is installed and return its path."""
     cbmc_path = _find_cbmc()
@@ -461,7 +526,7 @@ def _cbmc_check_installed() -> tuple[bool, str]:
 def _generate_cbmc_harness(func_data: dict, unwind: int, include_dir: str) -> str:
     """Generate a CBMC harness for a single function."""
     funcs = func_data.get("all_functions", func_data.get("testable_top10", []))
-    testable = [f for f in funcs if f["testability_score"] >= 50 and f["param_count"] <= 2][:5]
+    testable = [f for f in funcs if f["param_count"] <= 2][:5]  # skip score filter for broad coverage
 
     if not testable:
         return None
@@ -503,19 +568,17 @@ def _generate_cbmc_harness(func_data: dict, unwind: int, include_dir: str) -> st
             param_count = len([p for p in param_str.split(",") if p.strip() and p.strip() != "void"])
 
         # Generate nondet call and assertion
+        # Use uninitialized variables — CBMC treats them as fully nondeterministic
         if param_count == 0:
             main_body.append(f"    {name}();")
             main_body.append(f"    __CPROVER_assert(1, \"{name}: call ok\");")
 
         elif param_count == 1:
-            main_body.append(f"    int __nondet_{name} = __CPROVER_rand();")
-            main_body.append(f"    {name}(__nondet_{name});")
+            main_body.append(f"    {{ void *__p; {name}(__p); }}")
             main_body.append(f"    __CPROVER_assert(1, \"{name}: call ok\");")
 
         elif param_count == 2:
-            main_body.append(f"    int __a_{name} = __CPROVER_rand();")
-            main_body.append(f"    int __b_{name} = __CPROVER_rand();")
-            main_body.append(f"    {name}(__a_{name}, __b_{name});")
+            main_body.append(f"    {{ void *__a; unsigned long long __b; {name}(__a, __b); }}")
             main_body.append(f"    __CPROVER_assert(1, \"{name}: call ok\");")
 
     if not main_body:
@@ -553,30 +616,43 @@ def _parse_cbmc_output(output: str, module: str) -> dict:
     elif "VERIFICATION FAILED" in output:
         result["status"] = "FAILED"
     else:
-        # Try to find more specific status
         for line in output.split("\n"):
             if "VERIFICATION" in line:
                 result["summary"] = line.strip()
 
-    # Count assertions
-    for match in re.finditer(r"assertion\s+(\w+).*?(SUCCESS|FAILURE|OK|VIOLATION)", output):
+    # Count properties in format "[name.kind.N] description: SUCCESS|FAILURE"
+    prop_pattern = re.compile(r'\[([^\]]+)\.(\w+)\.(\d+)\]\s*(.+?):\s*(SUCCESS|FAILURE|OK|VIOLATION)')
+    props = prop_pattern.findall(output)
+    for name, kind, num, desc, status in props:
         result["total"] += 1
-        status = match.group(2)
         if status in ("SUCCESS", "OK"):
             result["verified"] += 1
         elif status in ("FAILURE", "VIOLATION"):
             result["failed"] += 1
             result["failures"].append({
-                "assertion": match.group(1),
+                "property": f"{name}.{kind}.{num}",
+                "description": desc.strip(),
                 "status": status,
             })
 
-    # Extract counterexample trace if present
-    if "Trace for" in output or "Counterexample:" in output:
+    # Also count Violated property blocks (old-style format)
+    violated_blocks = re.findall(r'Violated property:\n  file (.+?) function (\S+) line (\d+)', output)
+    for filepath, func, line in violated_blocks:
+        # Only add if not already counted by the pattern above
+        if not any(f["description"] == f"{func}:{line}" for f in result["failures"]):
+            result["failed"] += 1
+            result["failures"].append({
+                "property": f"{func}:{line}",
+                "description": f"Violation in {func}:{line}",
+                "status": "VIOLATION",
+                "file": filepath,
+                "line": int(line),
+            })
+
+    # Extract counterexample trace
+    if "Trace for" in output:
         trace_start = output.find("Trace for")
-        if trace_start == -1:
-            trace_start = output.find("Counterexample:")
-        trace_end = output.find("\n\n", trace_start)
+        trace_end = output.find("\n\nVERIFICATION", trace_start)
         if trace_end == -1:
             trace_end = min(trace_start + 2000, len(output))
         result["trace"] = output[trace_start:trace_end]
@@ -587,6 +663,7 @@ def _parse_cbmc_output(output: str, module: str) -> dict:
 def cmd_cbmc(args: list[str]):
     """Run bounded model checking on runtime functions."""
     import subprocess
+    import tempfile
 
     installed, version = _cbmc_check_installed()
     if not installed:
@@ -619,6 +696,12 @@ def cmd_cbmc(args: list[str]):
     catalog = json.loads(catalog_path.read_text())
     results_all = []
 
+    # Check if GCC is available for preprocessing
+    gcc_path = __import__("shutil").which("gcc")
+    if not gcc_path:
+        print("WARNING: GCC not found on PATH. CBMC preprocessing may fail on Windows.")
+        gcc_path = None
+
     for mod_name in catalog["by_file"]:
         if module_filter and module_filter not in mod_name:
             continue
@@ -648,53 +731,88 @@ def cmd_cbmc(args: list[str]):
         print(f"{'='*60}")
 
         cbmc_path = _find_cbmc()
+        source_path = RUNTIME_DIR / "src" / "core" / f"{mod_name}.c"
+        print(f"    Harness: {harness_path.name}")
+        if source_path.exists():
+            print(f"    Source:   {source_path.name}")
 
-        # Add MSVC include paths for CBMC preprocessing on Windows
-        _msvc_env = _get_msvc_include_paths()
-        _proc_env = dict(__import__("os").environ)
-        if _msvc_env and "INCLUDE" not in _proc_env:
-            _proc_env["INCLUDE"] = _msvc_env
-
+        # Strategy: preprocess with GCC first, then run CBMC on preprocessed output
+        # This avoids CBMC's parser choking on MinGW/MSVC headers
         try:
-            proc = subprocess.run(
-                [cbmc_path, "--unwind", str(unwind), "--trace",
-                 "-I", str(INCLUDE_DIR),
-                 "-I", str(RUNTIME_DIR / "src" / "core"),
-                 str(harness_path)],
-                capture_output=True, text=True, timeout=60,
-                cwd=str(RUNTIME_DIR),
-                env=_proc_env,
-            )
+            with tempfile.TemporaryDirectory() as tmpdir:
+                preprocessed = Path(tmpdir) / f"{mod_name}.i"
 
-            result = _parse_cbmc_output(proc.stdout + proc.stderr, mod_name)
-            result["harness"] = str(harness_path)
-            result["exit_code"] = proc.returncode
-            result["raw_output_bytes"] = len(proc.stdout + proc.stderr)
-            results_all.append(result)
+                if gcc_path:
+                    # Concatenate source + harness (source first to define types)
+                    combined = Path(tmpdir) / f"{mod_name}_combined.c"
+                    combined_code = ""
+                    if source_path.exists():
+                        combined_code += source_path.read_text() + "\n"
+                    combined_code += harness_path.read_text()
+                    combined.write_text(combined_code, encoding="utf-8")
 
-            # Print summary
-            if result["status"] == "SUCCESS":
-                print(f"  [OK] All assertions verified ({result['verified']}/{result['total']})")
-            elif result["status"] == "FAILED":
-                print(f"  [FAIL] {result['failed']} assertions failed")
-                for f in result.get("failures", []):
-                    print(f"    - {f['assertion']}: {f['status']}")
-                if "trace" in result:
-                    print(f"    Trace: {result['trace'][:300]}")
-            else:
-                # Show stderr for diagnosis
-                err_lines = [l for l in (proc.stderr + proc.stdout).split("\n") if l.strip()]
-                for line in err_lines[-5:]:
-                    print(f"  {line[:120]}")
+                    gcc_cmd = [gcc_path, "-E", "-std=c11",
+                               "-I", str(INCLUDE_DIR),
+                               "-I", str(RUNTIME_DIR / "src" / "core"),
+                               str(combined),
+                               "-o", str(preprocessed)]
+                    gcc_proc = subprocess.run(gcc_cmd, capture_output=True, text=True, timeout=30)
+                    if gcc_proc.returncode != 0:
+                        print(f"    GCC preprocess failed:")
+                        for line in gcc_proc.stderr.strip().split("\n")[-5:]:
+                            print(f"      {line}")
+                        # Fall through to try WSL instead
+                        preprocessed = None
+                    else:
+                        preprocessed = preprocessed
+                else:
+                    preprocessed = None
+
+                # Run CBMC: try preprocessed file, then WSL
+                result = None
+                if preprocessed and preprocessed.exists():
+                    proc = subprocess.run(
+                        [cbmc_path, "--unwind", str(unwind), "--trace",
+                         str(preprocessed)],
+                        capture_output=True, text=True, timeout=60,
+                    )
+                    result = _parse_cbmc_output(proc.stdout + proc.stderr, mod_name)
+                    result["exit_code"] = proc.returncode
+                    result["raw_output_bytes"] = len(proc.stdout + proc.stderr)
+
+                # If preprocessed approach failed or wasn't available, try WSL
+                if (not result or result["status"] == "UNKNOWN") and source_path.exists():
+                    wsl_out = _run_cbmc_in_wsl(harness_path, source_path, mod_name, unwind)
+                    if wsl_out:
+                        stdout, stderr, rc = wsl_out
+                        result = _parse_cbmc_output(stdout + stderr, mod_name)
+                        result["exit_code"] = rc
+                        result["raw_output_bytes"] = len(stdout + stderr)
+                        result["backend"] = "wsl"
+                        if result["status"] == "SUCCESS":
+                            print(f"    Backend: WSL")
+
+                if result:
+                    result["harness"] = str(harness_path)
+                    results_all.append(result)
+
+                    if result["status"] == "SUCCESS":
+                        print(f"  [OK] All {result['verified']} assertions verified")
+                    elif result["status"] == "FAILED":
+                        print(f"  [FAIL] {result['failed']} violations")
+                        if result.get("failures"):
+                            for f_entry in result["failures"]:
+                                print(f"    - {f_entry['property']}: {f_entry['description'][:100]}")
+                    else:
+                        print(f"  [???] Status: {result['status']}")
 
         except subprocess.TimeoutExpired:
-            print(f"  [TIMEOUT] CBMC exceeded 60s for {mod_name}")
+            print(f"  [TIMEOUT] Exceeded 60s")
             results_all.append({"module": mod_name, "status": "TIMEOUT"})
         except FileNotFoundError:
             print("  CBMC executable not found on PATH")
             return
 
-    # Save results
     report = {
         "cbmc_version": version,
         "unwind_bound": unwind,
