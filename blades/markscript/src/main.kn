@@ -11,7 +11,6 @@ use std::fs
 use std::diagnostics
 use lexer
 use ast
-use compiler
 use vm
 
 // --- Demo handler stub ----------------------------------------------------
@@ -47,8 +46,9 @@ fn main(args: Array<String>) -> Int:
         source = read_source(filepath)
         println("[INPUT] Loaded: " + filepath)
     else:
-        // Fallback demo source
-        source = "# PipelineWorkspace\n## ProcessHotPath\n> apply vignette filter\n"
+        // Fallback demo source — exercises all features: domains, routines,
+        // intents (blockquote), tables, and fenced code blocks.
+        source = "# PipelineWorkspace\n## ProcessHotPath\n> apply vignette filter\n| Density | Viscosity | Friction |\n| 1.05    | 0.88      | 0.45     |\n\n\n> apply grain overlay\n\n\n```python\nprint(\"hello world\")\n```\n"
         println("[INPUT] Using demo source (no file arg)")
 
     // 1. Create lexer state
@@ -80,6 +80,34 @@ fn main(args: Array<String>) -> Int:
                 println("        " + str(di - 1) + ": OP_PUSH_PARAM    hash=" + str(bc[di]))
         elif op == 4:
             println("        " + str(di) + ": OP_EXECUTE_CALL")
+        elif op == 5:
+            di = di + 1
+            if di + 3 < op_count:
+                let handle = bc[di]
+                di = di + 1
+                let cols = bc[di]
+                di = di + 1
+                let rows = bc[di]
+                di = di + 1
+                let cnt = bc[di]
+                di = di + 1
+                println("        " + str(di - 5) + ": OP_PUSH_MATRIX  handle=" + str(handle) + " cols=" + str(cols) + " rows=" + str(rows) + " data_count=" + str(cnt))
+                // Advance past data values, accounting for outer loop's di = di + 1
+                if cnt == 0:
+                    di = di - 1
+                elif cnt > 1:
+                    var sdi: Int = 1
+                    while sdi < cnt and di < op_count:
+                        di = di + 1
+                        sdi = sdi + 1
+                // cnt == 1: di stays at first (and only) data value
+        elif op == 6:
+            di = di + 1
+            if di + 1 < op_count:
+                let lang = bc[di]
+                di = di + 1
+                let content = bc[di]
+                println("        " + str(di - 2) + ": OP_FENCED_CODE lang_hash=" + str(lang) + " content_hash=" + str(content))
         else:
             println("        " + str(di) + ": UNKNOWN_OP " + str(op))
         di = di + 1
@@ -91,6 +119,14 @@ fn main(args: Array<String>) -> Int:
     let er = execute_bytecode(vm, bc)
 
     println("[EXEC] VM finished with accumulator: " + str(er.accumulator))
+    println("[EXEC] Data tables: " + str(len(er.data_table)))
+    var tdi: Int = 0
+    while tdi < len(er.data_table):
+        let rec = er.data_table[tdi]
+        if len(rec.data) > 0:
+            println("[EXEC]   table[" + str(rec.handle_id) + "]: " + str(rec.cols) + "x" + str(rec.rows) + " = " + str(len(rec.data)) + " ints")
+        tdi = tdi + 1
+    println("[EXEC] Code blocks stored: " + str(len(er.code_blocks)))
 
     // 4. Call runtime stub for demo
     let stub_result = runtime_stub(er.accumulator)

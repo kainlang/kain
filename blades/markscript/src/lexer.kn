@@ -3,18 +3,48 @@
 //  Token kinds are Int constants to avoid enum cross-module codegen issues.
 //  Uses value-return semantics (no ptr<T> parameters) for maximum codegen
 //  compatibility.
+//
+//  Supports real-markdown constructs:
+//    - Headers 1-6 (# to ######)
+//    - Blockquotes (>)
+//    - Table pipes (|)
+//    - Fenced code blocks (```) — emits TOK_FENCE, parser handles rest
+//    - Unordered list markers (-, *, + at line start)
+//    - Ordered list markers (1. 2. 3.)
+//    - Horizontal rules (---, ***, ___)
+//    - NEWLINE tokens between non-structural content
+//    - Bold, italic, code span, and link tokens (declared for parser use)
+//    - Plain text
 // ============================================================================
 
 use std::text
 
 // --- Token kind constants ------------------------------------------------
+// Existing tokens (0-5)
+pub const TOK_HEADER1:      Int = 0
+pub const TOK_HEADER2:      Int = 1
+pub const TOK_BLOCKQUOTE:   Int = 2
+pub const TOK_TABLEPIPE:    Int = 3
+pub const TOK_TEXTSTR:      Int = 4
+pub const TOK_EOF:          Int = 5
 
-pub const TOK_HEADER1:    Int = 0
-pub const TOK_HEADER2:    Int = 1
-pub const TOK_BLOCKQUOTE: Int = 2
-pub const TOK_TABLEPIPE:  Int = 3
-pub const TOK_TEXTSTR:    Int = 4
-pub const TOK_EOF:        Int = 5
+// New tokens (6-22)
+pub const TOK_HEADER3:      Int = 6   // ###
+pub const TOK_HEADER4:      Int = 7   // ####
+pub const TOK_HEADER5:      Int = 8   // #####
+pub const TOK_HEADER6:      Int = 9   // ######
+pub const TOK_FENCE:        Int = 10  // ``` (opening/closing fenced code block)
+pub const TOK_LANG_TAG:     Int = 11  // the language name after ```
+pub const TOK_FENCED_CODE:  Int = 12  // content inside ```...```
+pub const TOK_BOLD:         Int = 13  // **text**
+pub const TOK_ITALIC:       Int = 14  // *text*
+pub const TOK_CODE_SPAN:    Int = 15  // `inline code`
+pub const TOK_LIST_UNORDERED: Int = 16  // -, *, + at start of line
+pub const TOK_LIST_ORDERED:   Int = 17  // 1. 2. 3.
+pub const TOK_LINK_TEXT:    Int = 18  // [text] part of [text](url)
+pub const TOK_LINK_URL:     Int = 19  // (url) part of [text](url)
+pub const TOK_HR:           Int = 20  // ---, ***, ___
+pub const TOK_NEWLINE:      Int = 21  // explicit newline token
 
 // --- Data types ----------------------------------------------------------
 
@@ -28,6 +58,12 @@ pub struct LexerState:
     pos:     Int
     len:     Int
     line_no: Int
+    // Track last emitted token kind for NEWLINE mode.
+    // -1 means "no token emitted yet" (treated as structural).
+    prev_kind: Int
+    // True after processing a newline — enables list/HR detection
+    // at the start of a line.
+    at_line_start: Bool
 
 // Token + updated state (value-semantics return)
 pub struct TokenResult:
@@ -42,7 +78,9 @@ pub fn create_lexer(content: String) -> LexerState:
         source: content,
         pos: 0,
         len: src_len,
-        line_no: 1
+        line_no: 1,
+        prev_kind: -1,
+        at_line_start: true
     }
 
 // --- Accessors ------------------------------------------------------------
@@ -56,6 +94,52 @@ pub fn token_text(tok: Token) -> String:
 pub fn token_line_no(tok: Token) -> Int:
     return tok.line_no
 
+// --- Internal helpers -----------------------------------------------------
+
+fn get_ch(source: String, pos: Int) -> String:
+    return text_substring_string(source, pos, 1)
+
+// Check if a line from the given position is a horizontal rule theme:
+// 3+ consecutive identical HR chars ('-', '*', '_') with only spaces/tabs
+// between them, terminated by newline or EOF.
+fn check_hr(source: String, pos: Int, hr_char: String) -> Bool:
+    var i = pos
+    var count: Int = 0
+    while i < len(source):
+        let c = get_ch(source, i)
+        if c == "\n" or c == "\r":
+            return count >= 3
+        if c == " " or c == "\t":
+            i = i + 1
+            continue
+        if c != hr_char:
+            return false
+        count = count + 1
+        i = i + 1
+    return count >= 3
+
+// --- Structural token classification -------------------------------------
+// Returns true if the token kind is a "line-bearing" structural construct
+// that already implies its own line break — newlines after these are
+// silently skipped instead of emitting a NEWLINE token.
+
+fn is_structural_token(kind: Int) -> Bool:
+    if kind == -1:
+        return true  // initial state, treat as structural
+    if (kind == TOK_HEADER1 or kind == TOK_HEADER2
+        or kind == TOK_HEADER3 or kind == TOK_HEADER4
+        or kind == TOK_HEADER5 or kind == TOK_HEADER6):
+        return true
+    if kind == TOK_BLOCKQUOTE or kind == TOK_TABLEPIPE:
+        return true
+    if kind == TOK_FENCE or kind == TOK_FENCED_CODE or kind == TOK_LANG_TAG:
+        return true
+    if kind == TOK_LIST_UNORDERED or kind == TOK_LIST_ORDERED:
+        return true
+    if kind == TOK_HR or kind == TOK_EOF:
+        return true
+    return false
+
 // --- Core tokenizer -------------------------------------------------------
 // Takes a LexerState, returns a TokenResult containing the next token
 // and the updated state.
@@ -64,17 +148,31 @@ pub fn next_token(state: LexerState) -> TokenResult:
     var s = state
     var ch: String = ""
 
-    // Skip whitespace and newlines
+    // === Whitespace skip + NEWLINE mode ===
+    // When a newline follows a non-structural (inline) token, emit
+    // TOK_NEWLINE instead of skipping it silently.
+
     loop:
         if s.pos >= s.len:
             let tok = Token { kind: TOK_EOF, text: "", line_no: s.line_no }
+            s.prev_kind = TOK_EOF
             return TokenResult { token: tok, state: s }
 
         ch = get_ch(s.source, s.pos)
 
+        // NEWLINE mode: previous token was inline text → emit TOK_NEWLINE
         if ch == "\n":
+            if is_structural_token(s.prev_kind) == false:
+                s.line_no = s.line_no + 1
+                s.pos = s.pos + 1
+                let tok = Token { kind: TOK_NEWLINE, text: "\n", line_no: s.line_no - 1 }
+                s.prev_kind = TOK_NEWLINE
+                s.at_line_start = true
+                return TokenResult { token: tok, state: s }
+            // Structural token → skip newline silently
             s.line_no = s.line_no + 1
             s.pos = s.pos + 1
+            s.at_line_start = true
             continue
 
         if ch == " " or ch == "\r" or ch == "\t":
@@ -83,28 +181,164 @@ pub fn next_token(state: LexerState) -> TokenResult:
 
         break
 
-    // Structural single-char tokens
+    // === Token detection ===
+    // Order matters: longest-match / most-specific patterns first.
+
+    // 1. Triple backtick → fenced code block ───────────────────────────────
+    //    Emits TOK_FENCE for the opening ```. The parser's parse_fenced_code
+    //    reads the language tag and content directly from the source
+    //    (starting at s.pos, which is right after the ```).
+    if ch == "`":
+        if s.pos + 2 < s.len:
+            let c1 = get_ch(s.source, s.pos + 1)
+            let c2 = get_ch(s.source, s.pos + 2)
+            if c1 == "`" and c2 == "`":
+                s.pos = s.pos + 3
+                let tok = Token { kind: TOK_FENCE, text: "```", line_no: s.line_no }
+                s.prev_kind = TOK_FENCE
+                s.at_line_start = false
+                return TokenResult { token: tok, state: s }
+        // Single backtick → inline code span (deferred to parser).
+        // Falls through to text consumption below.
+
+    // 2. # → heading (1-6) ─────────────────────────────────────────────────
     if ch == "#":
-        let next_pos = s.pos + 1
-        if next_pos < s.len and get_ch(s.source, next_pos) == "#":
-            s.pos = next_pos + 1
-            let tok = Token { kind: TOK_HEADER2, text: "##", line_no: s.line_no }
-            return TokenResult { token: tok, state: s }
-        s.pos = s.pos + 1
-        let tok = Token { kind: TOK_HEADER1, text: "#", line_no: s.line_no }
+        var hash_count: Int = 1
+        var peek_pos: Int = s.pos + 1
+        while peek_pos < s.len and hash_count < 6:
+            if get_ch(s.source, peek_pos) == "#":
+                hash_count = hash_count + 1
+                peek_pos = peek_pos + 1
+            else:
+                break
+
+        s.pos = peek_pos
+
+        var kind: Int = TOK_HEADER1
+        if hash_count == 2:
+            kind = TOK_HEADER2
+        elif hash_count == 3:
+            kind = TOK_HEADER3
+        elif hash_count == 4:
+            kind = TOK_HEADER4
+        elif hash_count == 5:
+            kind = TOK_HEADER5
+        elif hash_count == 6:
+            kind = TOK_HEADER6
+
+        let hash_text = text_substring_string(s.source, s.pos - hash_count, hash_count)
+        let tok = Token { kind: kind, text: hash_text, line_no: s.line_no }
+        s.prev_kind = kind
+        s.at_line_start = false
         return TokenResult { token: tok, state: s }
 
+    // 3. > → blockquote (unchanged) ───────────────────────────────────────
     if ch == ">":
         s.pos = s.pos + 1
         let tok = Token { kind: TOK_BLOCKQUOTE, text: ">", line_no: s.line_no }
+        s.prev_kind = TOK_BLOCKQUOTE
+        s.at_line_start = false
         return TokenResult { token: tok, state: s }
 
+    // 4. | → tablepipe (unchanged) ────────────────────────────────────────
     if ch == "|":
         s.pos = s.pos + 1
         let tok = Token { kind: TOK_TABLEPIPE, text: "|", line_no: s.line_no }
+        s.prev_kind = TOK_TABLEPIPE
+        s.at_line_start = false
         return TokenResult { token: tok, state: s }
 
-    // Text — consume until structural delimiter or newline
+    // 5. Line-start structural detection (list markers, HR) ────────────────
+    if s.at_line_start:
+
+        // Horizontal rule: 3+ identical chars (---, ***, ___)
+        if ch == "-":
+            if check_hr(s.source, s.pos, "-"):
+                while s.pos < s.len:
+                    let hc = get_ch(s.source, s.pos)
+                    if hc == "\n":
+                        break
+                    s.pos = s.pos + 1
+                let tok = Token { kind: TOK_HR, text: "---", line_no: s.line_no }
+                s.prev_kind = TOK_HR
+                s.at_line_start = false
+                return TokenResult { token: tok, state: s }
+            // Not HR — check for unordered list marker "- "
+            if s.pos + 1 < s.len and get_ch(s.source, s.pos + 1) == " ":
+                s.pos = s.pos + 2
+                let tok = Token { kind: TOK_LIST_UNORDERED, text: "- ", line_no: s.line_no }
+                s.prev_kind = TOK_LIST_UNORDERED
+                s.at_line_start = false
+                return TokenResult { token: tok, state: s }
+
+        if ch == "*":
+            if check_hr(s.source, s.pos, "*"):
+                while s.pos < s.len:
+                    let hc = get_ch(s.source, s.pos)
+                    if hc == "\n":
+                        break
+                    s.pos = s.pos + 1
+                let tok = Token { kind: TOK_HR, text: "***", line_no: s.line_no }
+                s.prev_kind = TOK_HR
+                s.at_line_start = false
+                return TokenResult { token: tok, state: s }
+            // Unordered list marker "* "
+            if s.pos + 1 < s.len and get_ch(s.source, s.pos + 1) == " ":
+                s.pos = s.pos + 2
+                let tok = Token { kind: TOK_LIST_UNORDERED, text: "* ", line_no: s.line_no }
+                s.prev_kind = TOK_LIST_UNORDERED
+                s.at_line_start = false
+                return TokenResult { token: tok, state: s }
+
+        if ch == "_":
+            if check_hr(s.source, s.pos, "_"):
+                while s.pos < s.len:
+                    let hc = get_ch(s.source, s.pos)
+                    if hc == "\n":
+                        break
+                    s.pos = s.pos + 1
+                let tok = Token { kind: TOK_HR, text: "___", line_no: s.line_no }
+                s.prev_kind = TOK_HR
+                s.at_line_start = false
+                return TokenResult { token: tok, state: s }
+
+        // Unordered list marker "+ "
+        if ch == "+":
+            if s.pos + 1 < s.len and get_ch(s.source, s.pos + 1) == " ":
+                s.pos = s.pos + 2
+                let tok = Token { kind: TOK_LIST_UNORDERED, text: "+ ", line_no: s.line_no }
+                s.prev_kind = TOK_LIST_UNORDERED
+                s.at_line_start = false
+                return TokenResult { token: tok, state: s }
+
+        // Ordered list marker: digits followed by ". "
+        let cv = text_ord(ch)
+        if cv >= 48 and cv <= 57:
+            var digit_end = s.pos
+            while digit_end < s.len:
+                let dc = get_ch(s.source, digit_end)
+                let dv = text_ord(dc)
+                if dv >= 48 and dv <= 57:
+                    digit_end = digit_end + 1
+                else:
+                    break
+            if digit_end + 1 < s.len:
+                let dot_ch = get_ch(s.source, digit_end)
+                let space_ch = get_ch(s.source, digit_end + 1)
+                if dot_ch == "." and space_ch == " ":
+                    let marker_text = text_substring_string(s.source, s.pos, digit_end + 2 - s.pos)
+                    s.pos = digit_end + 2
+                    let tok = Token { kind: TOK_LIST_ORDERED, text: marker_text, line_no: s.line_no }
+                    s.prev_kind = TOK_LIST_ORDERED
+                    s.at_line_start = false
+                    return TokenResult { token: tok, state: s }
+
+    // 6. ** → bold detection (deferred to parser; falls through to text) ──
+    // 7. * → italic detection (deferred to parser; falls through to text) ──
+    // 8. ` → code span detection (deferred to parser; falls through to text) ──
+    // 9. [ → link text detection (deferred to parser; falls through to text) ──
+
+    // 10. Text — consume until structural delimiter or newline ─────────────
     let start = s.pos
     loop:
         if s.pos >= s.len:
@@ -116,9 +350,6 @@ pub fn next_token(state: LexerState) -> TokenResult:
 
     let raw = text_substring_string(s.source, start, s.pos - start)
     let tok = Token { kind: TOK_TEXTSTR, text: raw, line_no: s.line_no }
+    s.prev_kind = TOK_TEXTSTR
+    s.at_line_start = false
     return TokenResult { token: tok, state: s }
-
-// --- Internal char helper -------------------------------------------------
-
-fn get_ch(source: String, pos: Int) -> String:
-    return text_substring_string(source, pos, 1)

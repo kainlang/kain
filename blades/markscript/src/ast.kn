@@ -2,6 +2,13 @@
 //  MARKSCRIPT AST PARSER — One-pass parser + bytecode compiler
 //  Reads tokens sequentially from a LexerState (value semantics) and emits
 //  bytecode ops directly into an Array<Int>.
+//
+//  COMPILER ABSORPTION: compile_source() lives here now (compiler.kn deleted).
+//  MATRIX SUPPORT: markdown tables parsed as contiguous Array<Int>, embedded
+//  in bytecode stream. The VM extracts them into its data_table at exec time.
+//  FENCED CODE: ```lang / code ``` blocks emit lang_hash + content_hash.
+//  The lexer handles the fence state machine; the parser reads the emitted
+//  TOK_LANG_TAG + TOK_FENCED_CODE tokens.
 // ============================================================================
 
 use std::text
@@ -14,6 +21,26 @@ pub const OP_ENTER_DOMAIN:   Int = 1
 pub const OP_ROUTINE_HEADER: Int = 2
 pub const OP_PUSH_PARAM:     Int = 3
 pub const OP_EXECUTE_CALL:   Int = 4
+pub const OP_PUSH_MATRIX:    Int = 5
+pub const OP_FENCED_CODE:    Int = 6
+
+// --- Matrix handle returned by the table parser --------------------------
+// The parser collects values, returns a handle. The caller (parse_source)
+// embeds handle_id + cols + rows + data in the bytecode stream so the VM
+// can reconstruct the data_table entry at exec time. No raw pointers
+// through bytecode — all values are Int.
+
+pub struct MatrixHandle:
+    handle_id: Int
+    data:       Array<Int>
+    cols:       Int
+    rows:       Int
+
+// --- Result struct for multi-value return (avoids tuple codegen issues) ----
+
+pub struct MatrixTableResult:
+    handle: MatrixHandle
+    state:  LexerState
 
 // --- Main parse entry -----------------------------------------------------
 
@@ -21,6 +48,7 @@ pub fn parse_source(state: LexerState) -> Array<Int>:
     var bc: Array<Int> = []
     var s = state
     var done = false
+    var next_handle: Int = 0
 
     while done == false:
         let nr = next_token(s)
@@ -30,6 +58,7 @@ pub fn parse_source(state: LexerState) -> Array<Int>:
 
         if kind == TOK_EOF:
             done = true
+
         elif kind == TOK_HEADER1:
             let name_nr = next_token(s)
             let name_tok = name_nr.token
@@ -37,6 +66,7 @@ pub fn parse_source(state: LexerState) -> Array<Int>:
             let name = token_text(name_tok)
             push(bc, OP_ENTER_DOMAIN)
             push(bc, hash_name(name))
+
         elif kind == TOK_HEADER2:
             let name_nr = next_token(s)
             let name_tok = name_nr.token
@@ -44,6 +74,7 @@ pub fn parse_source(state: LexerState) -> Array<Int>:
             let name = token_text(name_tok)
             push(bc, OP_ROUTINE_HEADER)
             push(bc, hash_name(name))
+
         elif kind == TOK_BLOCKQUOTE:
             let phrase_nr = next_token(s)
             let phrase_tok = phrase_nr.token
@@ -52,7 +83,52 @@ pub fn parse_source(state: LexerState) -> Array<Int>:
             push(bc, OP_PUSH_PARAM)
             push(bc, hash_name(phrase))
             push(bc, OP_EXECUTE_CALL)
+
+        elif kind == TOK_TABLEPIPE:
+            // First | already consumed by the lexer.
+            // Parse the table directly from raw source, get a handle.
+            let tresult = parse_matrix_table(s, next_handle)
+            s = tresult.state
+            next_handle = next_handle + 1
+
+            // Emit opcode + metadata + inline data so the VM can rebuild
+            // its data_table at exec time.
+            push(bc, OP_PUSH_MATRIX)
+            push(bc, tresult.handle.handle_id)
+            push(bc, tresult.handle.cols)
+            push(bc, tresult.handle.rows)
+            push(bc, len(tresult.handle.data))
+            var di: Int = 0
+            while di < len(tresult.handle.data):
+                push(bc, tresult.handle.data[di])
+                di = di + 1
+
+        elif kind == TOK_FENCE:
+            // The lexer's fence state machine already consumed the opening
+            // ``` and scanned ahead for the closing ``` + content.
+            // Next token will be TOK_LANG_TAG (language tag string)
+            // followed by TOK_FENCED_CODE (the code content).
+            let nr_lang = next_token(s)
+            s = nr_lang.state
+            let lang_text = token_text(nr_lang.token)
+
+            let nr_code = next_token(s)
+            s = nr_code.state
+            let code_text = token_text(nr_code.token)
+
+            push(bc, OP_FENCED_CODE)
+            push(bc, hash_name(lang_text))
+            push(bc, hash_name(code_text))
+
+        elif kind == TOK_NEWLINE:
+            // Significant newline between inline content — skip in the
+            // parser (the lexer uses it for paragraph detection).
+            continue
+
         else:
+            // TOK_TEXTSTR, TOK_HEADER3-6, TOK_HR, TOK_LIST_UNORDERED,
+            // TOK_LIST_ORDERED, TOK_BOLD, TOK_ITALIC, TOK_CODE_SPAN,
+            // TOK_LINK_TEXT, TOK_LINK_URL — skip for now (future extentions)
             continue
 
     push(bc, OP_HALT)
@@ -71,3 +147,133 @@ pub fn hash_name(s: String) -> Int:
         h = h * 31 + cv
         i = i + 1
     return h
+
+// ===========================================================================
+//  TABLE (MATRIX) PARSER
+//  Reads raw characters from the source (not through the tokenizer) because
+//  the tokenizer skips newlines between structural tokens and we need
+//  row/column boundaries.
+//
+//  The calling token (TOK_TABLEPIPE / "|") has already been consumed; the
+//  lexer's internal state (prev_kind, at_line_start) is updated on return
+//  so subsequent next_token() calls resume correctly.
+// ===========================================================================
+
+fn parse_matrix_table(state: LexerState, handle_id: Int) -> MatrixTableResult:
+    var s = state
+    var all_data: Array<Int> = []
+    var cols: Int = 0
+    var rows: Int = 0
+
+    // Read rows until we hit a line that doesn't start with '|'
+    loop:
+        // --- Read one row ------------------------------------------------
+        var row_data: Array<Int> = []
+        var cell_start = s.pos
+
+        loop:
+            if s.pos >= s.len:
+                break
+
+            let ch = text_substring_string(s.source, s.pos, 1)
+
+            if ch == "|" or ch == "\n":
+                // End of cell — extract the text between pipes
+                let cell_raw = text_substring_string(s.source, cell_start, s.pos - cell_start)
+                let cell_view = text_from(cell_raw)
+                let trimmed = text_materialize(text_trim(cell_view))
+
+                // Skip empty cells and separator rows (all dashes like "---")
+                if trimmed != "" and all_dashes(trimmed) == false:
+                    push(row_data, hash_name(trimmed))
+
+            if ch == "\n":
+                s.line_no = s.line_no + 1
+                s.pos = s.pos + 1
+                break   // end of this row
+
+            elif ch == "|":
+                s.pos = s.pos + 1
+                cell_start = s.pos
+                continue   // next cell in same row
+
+            else:
+                s.pos = s.pos + 1
+                continue   // accumulate cell characters
+
+        // --- Row complete ------------------------------------------------
+
+        if len(row_data) == 0:
+            break
+
+        if cols == 0:
+            cols = len(row_data)
+        rows = rows + 1
+
+        // Append row data to the flat array
+        var ri: Int = 0
+        while ri < len(row_data):
+            push(all_data, row_data[ri])
+            ri = ri + 1
+
+        // --- Peek ahead: does the next line start with '|'? --------------
+        var peek_pos = s.pos
+        var peek_line = s.line_no
+        loop:
+            if peek_pos >= s.len:
+                break
+            let pk = text_substring_string(s.source, peek_pos, 1)
+            if pk == "\n":
+                peek_line = peek_line + 1
+                peek_pos = peek_pos + 1
+            elif pk == " " or pk == "\r" or pk == "\t":
+                peek_pos = peek_pos + 1
+            else:
+                break
+
+        if peek_pos < s.len:
+            let pk = text_substring_string(s.source, peek_pos, 1)
+            if pk == "|":
+                // Next row starts! Advance state to the pipe.
+                s.pos = peek_pos
+                s.line_no = peek_line
+                continue   // back to row-reading loop
+
+        break   // no more rows
+
+    // Update lexer internal fields so subsequent next_token() calls resume
+    // correctly. at_line_start is true because we ended at a line boundary.
+    s.at_line_start = true
+    s.prev_kind = TOK_TABLEPIPE
+
+    return MatrixTableResult {
+        handle: MatrixHandle {
+            handle_id: handle_id,
+            data: all_data,
+            cols: cols,
+            rows: rows
+        },
+        state: s
+    }
+
+// --- Helper: check if a (trimmed) string is all dashes -------------------
+
+fn all_dashes(text: String) -> Bool:
+    let view = text_from(text)
+    let sl = text_len(view)
+    var i: Int = 0
+    while i < sl:
+        let ch = text_char_at(view, i)
+        if ch != "-":
+            return false
+        i = i + 1
+    return true
+
+// ===========================================================================
+//  COMPILER ENTRY POINT (absorbed from src/compiler.kn)
+//  Returns flat bytecode as Array<Int>. Matrix data is embedded inline
+//  in the bytecode stream after OP_PUSH_MATRIX for the VM to unpack.
+// ===========================================================================
+
+pub fn compile_source(state: LexerState) -> Array<Int>:
+    return parse_source(state)

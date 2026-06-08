@@ -1,36 +1,72 @@
 // ============================================================================
 //  MARKSCRIPT VIRTUAL MACHINE — Value-semantics bytecode executor
 //  No function pointers. Simple opcode dispatch.
+//  Supports matrix data tables and fenced code block storage.
 // ============================================================================
+
+// --- Matrix record --------------------------------------------------------
+// Stored in the VM's data_table at index == handle_id.
+
+pub struct MatrixRecord:
+    handle_id: Int
+    cols:      Int
+    rows:      Int
+    data:      Array<Int>
+
+// --- Fenced code record ---------------------------------------------------
+
+pub struct CodeBlockRecord:
+    lang_hash:    Int
+    content_hash: Int
+
+// --- VM state -------------------------------------------------------------
 
 pub struct MarkScriptVM:
     ip:          Int
     accumulator: Int
+    data_table:  Array<MatrixRecord>
+    code_blocks: Array<CodeBlockRecord>
 
 // --- Execution result -----------------------------------------------------
 
 pub struct ExecResult:
     accumulator: Int
+    data_table:  Array<MatrixRecord>
+    code_blocks: Array<CodeBlockRecord>
 
 // --- Constructor ----------------------------------------------------------
 
 pub fn init_vm() -> MarkScriptVM:
-    return MarkScriptVM { ip: 0, accumulator: 0 }
+    return MarkScriptVM {
+        ip: 0,
+        accumulator: 0,
+        data_table: [],
+        code_blocks: []
+    }
 
 // --- Execute bytecode -----------------------------------------------------
 // Bytecode: flat Array<Int> of [opcode, operand?, opcode, operand?, ...]
+// Matrix data is embedded inline: OP_PUSH_MATRIX, handle, cols, rows,
+//   data_count, d0, d1, ..., dN
+// Fenced code: OP_FENCED_CODE, lang_hash, content_hash
 
 pub fn execute_bytecode(vm: MarkScriptVM, bc: Array<Int>) -> ExecResult:
     let bc_len = len(bc)
     var ip = vm.ip
     var acc = vm.accumulator
+    var dt = vm.data_table
+    var cb = vm.code_blocks
     var result: Int = 0
 
     while ip < bc_len:
         let opcode = bc[ip]
 
         if opcode == 0: // OP_HALT
-            return ExecResult { accumulator: result }
+            return ExecResult {
+                accumulator: result,
+                data_table: dt,
+                code_blocks: cb
+            }
 
         elif opcode == 1: // OP_ENTER_DOMAIN
             ip = ip + 1
@@ -54,7 +90,68 @@ pub fn execute_bytecode(vm: MarkScriptVM, bc: Array<Int>) -> ExecResult:
             result = acc
             ip = ip + 1
 
+        elif opcode == 5: // OP_PUSH_MATRIX
+            ip = ip + 1
+            if ip + 3 >= bc_len:  // need at least handle + cols + rows + data_count
+                ip = bc_len
+                continue
+            let handle = bc[ip]
+            ip = ip + 1
+            let cols = bc[ip]
+            ip = ip + 1
+            let rows = bc[ip]
+            ip = ip + 1
+            let data_count = bc[ip]
+            ip = ip + 1
+
+            // Ensure data table is large enough
+            while len(dt) <= handle:
+                let empty_rec = MatrixRecord {
+                    handle_id: len(dt),
+                    cols: 0, rows: 0, data: []
+                }
+                push(dt, empty_rec)
+
+            // Read data values from inline bytecode
+            var matrix_data: Array<Int> = []
+            var di: Int = 0
+            while di < data_count:
+                if ip < bc_len:
+                    push(matrix_data, bc[ip])
+                    ip = ip + 1
+                di = di + 1
+
+            dt[handle] = MatrixRecord {
+                handle_id: handle,
+                cols: cols,
+                rows: rows,
+                data: matrix_data
+            }
+
+            acc = handle
+
+        elif opcode == 6: // OP_FENCED_CODE
+            ip = ip + 1
+            if ip + 1 >= bc_len:
+                ip = bc_len
+                continue
+            let lang_hash = bc[ip]
+            ip = ip + 1
+            let content_hash = bc[ip]
+            ip = ip + 1
+
+            push(cb, CodeBlockRecord {
+                lang_hash: lang_hash,
+                content_hash: content_hash
+            })
+
+            acc = lang_hash
+
         else:
             ip = ip + 1
 
-    return ExecResult { accumulator: result }
+    return ExecResult {
+        accumulator: result,
+        data_table: dt,
+        code_blocks: cb
+    }
