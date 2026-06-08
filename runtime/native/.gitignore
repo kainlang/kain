@@ -1,1 +1,12 @@
 test/cbmc/combined_*.c
+
+# Auto-generated CBMC harnesses (regenerated on every cbmc --module run)
+test/scripts/data/cbmc/harnesses/*.c
+test/scripts/data/cbmc/report.json
+test/scripts/data/cbmc/verification_history.json
+
+# CBMC verification failure logs
+test/logs/*.md
+
+# Build artifacts
+_build/

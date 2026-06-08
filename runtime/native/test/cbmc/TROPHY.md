@@ -1,12 +1,14 @@
 # 🏆 CBMC Trophy Case
 
-*auto-generated · last updated: 2026-06-08 02:53*
+*auto-generated · last updated: 2026-06-08 03:09*
 
 | file | asserts | status |
 |------|--------|--------|
 | arena.c | 833 | ✅ |
 | bitfield.c | 88 | ✅ |
+| cpu.c | 99 | ✅ |
 | crash_handler.c | 86 | ✅ |
+| handle.c | 420 | ✅ |
 | union.c | 240 | ✅ |
 | version.c | 122 | ✅ |
 | actor.c | — | ⏳ rerun |
@@ -18,7 +20,6 @@
 | contract.c | — | ⏳ |
 | converge.c | — | ⏳ |
 | core.c | — | ⏳ |
-| cpu.c | — | ⏳ |
 | cuda_runtime.c | — | ⏳ |
 | deferred_free.c | — | ⏳ |
 | diagnostics.c | — | ⏳ |
@@ -26,7 +27,6 @@
 | fanout.c | — | ⏳ |
 | fixup.c | — | ⏳ |
 | graphics_system.c | — | ⏳ |
-| handle.c | — | ⏳ |
 | host_bridge.c | — | ⏳ |
 | input_system.c | — | ⏳ |
 | interop_contracts.c | — | ⏳ |
@@ -52,7 +52,7 @@
 | virtual_alloc.c | — | ⏳ |
 | wire.c | — | ⏳ |
 
-**5/47 files verified · 1369 assertions, 0 violations**
+**7/47 files verified · 1888 assertions, 0 violations**
 
 ```
 python test/scripts/run_pipeline.py cbmc --harness check_<module>

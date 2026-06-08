@@ -23,7 +23,3 @@ After any complex edit in **`/crates`** or **`/runtime`**, call the advisor to:
 
 When writing or debugging Kain `.kn` files and you hit a complex issue — weird types, ownership errors, actor wiring not working, shader compilation failing — call the advisor to verify you're writing **correct, idiomatic Kain** before digging deeper or changing the compiler.
 
-
-## Debug
-
-- Never add debug lines to code or bootstrap or runtime code etc, debug lines are for amateurs and people who think codebases are a black box etc. 

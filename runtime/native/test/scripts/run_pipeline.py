@@ -526,10 +526,16 @@ def _cbmc_check_installed() -> tuple[bool, str]:
     return False, ""
 
 
-def _generate_cbmc_harness(func_data: dict, unwind: int, include_dir: str) -> str:
+def _generate_cbmc_harness(func_data: dict, unwind: int, include_dir: str, target_prefix: str = None) -> str:
     """Generate a CBMC harness for a single function."""
     funcs = func_data.get("all_functions", func_data.get("testable_top10", []))
-    testable = [f for f in funcs if f["param_count"] <= 2][:5]  # skip score filter for broad coverage
+
+    if target_prefix:
+        # WAR MODE: Grab every single function belonging to this subsystem
+        testable = [f for f in funcs if f["function"].startswith(target_prefix)]
+    else:
+        # Default behavior: pick top 5 functions with param_count <= 2
+        testable = [f for f in funcs if f["param_count"] <= 2][:5]
 
     if not testable:
         return None
@@ -570,18 +576,20 @@ def _generate_cbmc_harness(func_data: dict, unwind: int, include_dir: str) -> st
             param_str = sig_clean.split("(", 1)[1].split(")")[0].strip()
             param_count = len([p for p in param_str.split(",") if p.strip() and p.strip() != "void"])
 
-        # Generate nondet call and assertion
-        # Use uninitialized variables — CBMC treats them as fully nondeterministic
+        # Generate nondet call with 4KB static backing for pointer provenance
+        # CBMC needs real allocated memory for pointer validity — uninitialized void*
+        # triggers "invalid pointer" / "dead object" violations on every dereference.
+        # A 4KB local buffer gives the solver physical memory to reason about.
         if param_count == 0:
             main_body.append(f"    {name}();")
             main_body.append(f"    __CPROVER_assert(1, \"{name}: call ok\");")
 
         elif param_count == 1:
-            main_body.append(f"    {{ void *__p; {name}(__p); }}")
+            main_body.append(f"    {{ unsigned char __buf[4096]; void *__p = __buf; {name}(__p); }}")
             main_body.append(f"    __CPROVER_assert(1, \"{name}: call ok\");")
 
         elif param_count == 2:
-            main_body.append(f"    {{ void *__a; unsigned long long __b; {name}(__a, __b); }}")
+            main_body.append(f"    {{ unsigned char __buf[4096]; void *__a = __buf; unsigned long long __b; {name}(__a, __b); }}")
             main_body.append(f"    __CPROVER_assert(1, \"{name}: call ok\");")
 
     if not main_body:
@@ -782,6 +790,7 @@ def cmd_cbmc(args: list[str]):
     unwind = 5
     module_filter = None
     harness_name = None
+    target_prefix = None
     list_harnesses = False
     cbmc_path = _find_cbmc()
     gcc_path = __import__("shutil").which("gcc")
@@ -799,6 +808,10 @@ def cmd_cbmc(args: list[str]):
             harness_name = a.split("=", 1)[1]
         elif a == "--harness":
             harness_name = next(args_iter, None)
+        elif a.startswith("--prefix="):
+            target_prefix = a.split("=", 1)[1]
+        elif a == "--prefix":
+            target_prefix = next(args_iter, None)
         elif a == "--list-harnesses":
             list_harnesses = True
         elif not a.startswith("--"):
@@ -868,7 +881,7 @@ def cmd_cbmc(args: list[str]):
         if any(mod_name.startswith(p) for p in skip_patterns):
             continue
 
-        harness = _generate_cbmc_harness(funcs_data, unwind, str(INCLUDE_DIR))
+        harness = _generate_cbmc_harness(funcs_data, unwind, str(INCLUDE_DIR), target_prefix)
         if not harness:
             continue
 
