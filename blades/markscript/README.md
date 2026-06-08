@@ -1,6 +1,5 @@
 # MarkScript ~ The Prose-Native Scripting Runtime for Kain
-
-> **MarkScript is to Kain what Python is to C.**  
+ 
 > Your documentation is your program. Your README IS the executable.
 
 ```
@@ -10,13 +9,12 @@ mks.exe data_pipeline.md       →  171 bytecode ops, 8 data tables, 12 intents 
 mks.exe servo_controller.md    →  161 bytecode ops, 6 data tables, 4 fenced code blocks   →  EXECUTED
 ```
 
-**Yes, this README is a valid MarkScript program.** Run `mks.exe README.md` ~ it compiles itself, producing 625 opcodes from 567 lines of documentation. The headings are domains. The sections are routines. The tables are matrices. The code blocks are extracted. This file explains how it works AND IS ITSELF a working proof that it works.
+**this README is a valid MarkScript program.** Run `mks.exe README.md` ~ it compiles itself, producing 625 opcodes from 567 lines of documentation. The headings are domains. The sections are routines. The tables are matrices. The code blocks are extracted. This file explains how it works AND IS ITSELF a working proof that it works.
 
 ---
 
 ## Table of Contents
 
-1. [The Vision](#the-vision)
 2. [How It Works](#how-it-works)
 3. [Quick Start](#quick-start)
 4. [Writing MarkScript — Language Reference](#writing-markscript--language-reference)
@@ -27,40 +25,12 @@ mks.exe servo_controller.md    →  161 bytecode ops, 6 data tables, 4 fenced co
 9. [The Future](#the-future)
 10. [FAQ](#faq)
 
----
-
-## The Vision
-
-### Python-to-C, but for the Semantic Stack
-
-Python succeeded because it let you write programs without thinking about memory, types, or compilation. C exists for when you need performance, control, and systems-level guarantees.
-
-Kain is a systems language with a **compiler-owned semantic stack** — worlds, actors, converges, orchestrates, pulses, laws, patches, entanglements, ownership scopes, and more. These constructs give Kain unprecedented compile-time guarantees, but they require the programmer to climb a **decision ladder** to choose the right abstraction.
-
 **MarkScript removes the ladder entirely.** You write natural prose:
 - Headings (`#`) define **domains** (modules, namespaces)
 - Subheadings (`##`) define **routines** (functions, behaviors)
 - Blockquotes (`>`) define **intents** (natural language commands)  
 - Tables (`|`) define **data** (parsed into contiguous memory matrices)
 - Fenced code blocks (`` ```kain ``) define **inline computation** (pass-through to the host language)
-
-The compiler does the rest. A `# PhysicsSim` becomes a domain. A `## ComputeForces` becomes a routine. A `> apply gravity` becomes an intent dispatch. A `| Mass | Velocity | Drag |` table becomes a zero-copy matrix in the VM's data table.
-
-### The Core Insight
-
-**Documentation is the highest-fidelity specification of intent.** Every README describes what a program should do. MarkScript removes the translation step — the description IS the program. Stale docs become impossible because the docs are executing.
-
-### Who Is This For?
-
-| Role | Why MarkScript |
-|------|----------------|
-| **Game designer** | Write AI scripts and game logic in markdown. Engineers write the performance-critical IVT handlers in Kain. |
-| **Data engineer** | Express pipelines as prose with table-shaped data. The compiler validates the shape. |
-| **Robotics engineer** | Document your control loop as prose. The PID code lives in inline ` ```kain ` blocks, the motor params in tables. |
-| **LLM agent** | Write syntactically correct programs without knowing the host language's syntax. Markdown has zero syntax errors. |
-| **Systems engineer** | Write the IVT handlers in Kain with worlds, actors, and ownership. Give the domain experts markdown. |
-
----
 
 ## How It Works
 
