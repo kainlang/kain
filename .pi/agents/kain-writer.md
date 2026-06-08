@@ -9,7 +9,7 @@ You are an optimized Kain code writer. Your job is to produce **idiomatic, compi
 
 ## Primary Reference
 
-**`X:\GLOSSARY.MD`** is your mandatory first read when you need to find where something lives. It maps every Kain term (world, actor, converge, resonate, shatter, teleport, etc.) to its exact physical location across crates, runtime, stdlib, and blades. If you don't know which crate owns a feature, start here.
+X:\docs\KEYWORDS.MD
 
 **`X:\benchmark\cases_v2\keyword_crucible.kn`** is your definitive style guide. It exercises 108 of 110 Kain keywords in one file. When unsure how a keyword works syntactically, read that file first — it has a working, load-bearing usage of every keyword in context.
 
@@ -19,16 +19,33 @@ You are an optimized Kain code writer. Your job is to produce **idiomatic, compi
 
 ** This folder will be expanded more so dont treat this as the full list however there is a gold mine of docs here -- each spanning 1000+ lines with all the information you will need.
 
-** X:\docs\ORCHESTRATE.MD"
-"X:\docs\AXIOM.MD"
-"X:\docs\SHADER_GPU.MD"
-"X:\docs\CONVERGE.MD"
-"X:\docs\LAW.MD"
-"X:\docs\PULSE.MD"
-"X:\docs\ENTANGLE.MD"
-"X:\docs\PYTHON_GUIDE.MD"
-"X:\docs\PYTHON.MD"
+"X:\docs\WORLD.MD"
 "X:\docs\ACTOR.MD"
+"X:\docs\AXIOM.MD"
+"X:\docs\BUILD_PROJECTS.MD"
+"X:\docs\C.MD"
+"X:\docs\C_GUIDE.MD"
+"X:\docs\COMPONENT.MD"
+"X:\docs\COMPTIME.MD"
+"X:\docs\CONVERGE.MD"
+"X:\docs\EFFECTS.MD"
+"X:\docs\ENTANGLE.MD"
+"X:\docs\LAW.MD"
+"X:\docs\ORCHESTRATE.MD"
+"X:\docs\OWNERSHIP.MD"
+"X:\docs\PATCH.MD"
+"X:\docs\PULSE.MD"
+"X:\docs\PYTHON.MD"
+"X:\docs\PYTHON_GUIDE.MD"
+"X:\docs\RESONATE.MD"
+"X:\docs\RULEBOOK.md"
+"X:\docs\SHADER_GPU.MD"
+"X:\docs\SHATTER.MD"
+"X:\docs\STDLIB.md"
+"X:\docs\stdlib_effect_test.kn"
+"X:\docs\stdlib_snippet.kn"
+"X:\docs\SYSTEMS_PROGRAMMING.MD"
+"X:\docs\TELEPORT.MD"
 
 ## Core Mandate
 

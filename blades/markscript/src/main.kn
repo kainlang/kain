@@ -1,0 +1,98 @@
+// ============================================================================
+//  MARKSCRIPT INDUSTRIAL RUNTIME ENGINE DRIVER
+// ============================================================================
+//
+//  Entry point for the MarkScript intent-compilation pipeline.
+//  Chains:  Lex → Parse → Compile → VM Init → IVT Register → Execute → Decay
+//
+//  The full pipeline runs against a hardcoded demo Markdown string:
+//    "# PipelineWorkspace\n## ProcessHotPath\n> apply vignette filter\n"
+//
+// ============================================================================
+
+use std::os
+use std::fs
+use std::diagnostics
+use std::text
+use std::hash
+use src::lexer
+use src::ast
+use src::compiler
+use src::vm
+
+// ─── Private helpers ──────────────────────────────────────────────────────────
+
+// _string_hash — hash a String into a deterministic Int using FNV-1a 32-bit.
+// This replaces the pseudo-code "string_hash" used in the design README.
+fn _string_hash(s: String) -> Int:
+    let view = text_from(s)
+    let len = text_len(view)
+    var h: Int = hash::hash_fnv1a32_init()
+    var i: Int = 0
+    while i < len:
+        let byte: Int = text_byte_at(view, i)
+        h = hash::hash_fnv1a32_update_byte(h, byte)
+        i = i + 1
+    return h
+
+// ─── Demo callback ────────────────────────────────────────────────────────────
+
+// runtime_vignette_simulation_stub — a registered IVT handler that simulates a
+// native platform kernel execution.  In production this would bridge to GPU
+// filters, OS file ops, or network services.
+fn runtime_vignette_simulation_stub(hash_id: Int) -> Int with IO:
+    println("[NATIVE RUNTIME KERNEL EXECUTED] Intent signature hash match vector target: " + str(hash_id))
+    return 200
+
+// ─── Entry point ──────────────────────────────────────────────────────────────
+
+fn main(args: Array<String>) -> Int with Unsafe, IO:
+    // ── Banner ──────────────────────────────────────────────────────────────
+    println("=== MARKSCRIPT RUNTIME ENGINE v1.0 ===")
+
+    // ── Hardcoded demo source ───────────────────────────────────────────────
+    // This simulates reading an app.md file through the pipeline.
+    let demo_md_source: String = "# PipelineWorkspace\n## ProcessHotPath\n> apply vignette filter\n"
+
+    // ── 1. LEX — zero-allocation token scan ─────────────────────────────────
+    let mut lex_state: lexer::LexerState = lexer::create_lexer(demo_md_source)
+    let mut structural_tokens: Array<lexer::Token> = []
+
+    loop:
+        let tok: lexer::Token = lexer::next_token(addr_of(lex_state, "LexerState"))
+        push(structural_tokens, tok)
+        if tok.kind == lexer::TokenKind::EOF:
+            break
+
+    // ── 2. PARSE — build hierarchical AST ──────────────────────────────────
+    let root_ast: ast::MksNode = ast::parse_ast(structural_tokens)
+
+    // ── 3. COMPILE — flatten AST into bytecode stream ──────────────────────
+    let compilation_package: compiler::CompilationOutput = compiler::compile_ast(root_ast)
+
+    // ── 4. VM INIT ──────────────────────────────────────────────────────────
+    let mut runtime_machine: vm::MarkScriptVM = vm::init_vm()
+
+    // ── 5. Register intent — map hash → native function address ────────────
+    let phrase_target_signature: Int = _string_hash("apply vignette filter")
+
+    vm::register_intent_vector(
+        addr_of(runtime_machine, "MarkScriptVM"),
+        phrase_target_signature,
+        ptr_to_int(runtime_vignette_simulation_stub)
+    )
+
+    // ── 6. EXECUTE — fire the bytecode machine loop ────────────────────────
+    let execution_metric: Int = vm::execute_bytecode(
+        addr_of(runtime_machine, "MarkScriptVM"),
+        compilation_package.bytecode_stream,
+        compilation_package.stream_length
+    )
+
+    // ── 7. CLEANUP — decay raw buffers ─────────────────────────────────────
+    decay compilation_package.bytecode_stream
+    decay runtime_machine.intent_vector_table
+
+    // ── 8. Report ───────────────────────────────────────────────────────────
+    println("=== ENGINE EXECUTION TERMINATED SAFELY WITH RET CODE: " + str(execution_metric) + " ===")
+    return 0

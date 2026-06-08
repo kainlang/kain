@@ -1,0 +1,156 @@
+// ============================================================================
+//  SPATIAL ABSTRACT SYNTAX TREE - MarkScript AST Module
+//  Parses a flat token array from the zero-copy lexer and builds a
+//  hierarchical tree of Domains, Routines, and IntentPhrases.
+// ============================================================================
+
+use std::text
+use src::lexer
+
+// ---------------------------------------------------------------------------
+// Node types for the hierarchical AST
+// ---------------------------------------------------------------------------
+
+/// Top-level AST node. The parser always returns a "GlobalRoot" Domain that
+/// wraps every top-level Header1 section as a child Domain.
+pub enum MksNode:
+    /// Uninitialised or error placeholder.
+    Invalid
+
+    /// A top-level program geometry block.  `components` holds the child
+    /// Routines (and potentially nested Domains in a future revision).
+    Domain { name: String, components: Array<MksNode> }
+
+    /// A callable functional scope.  `execution_blocks` holds the ordered
+    /// list of IntentPhrases that make up the routine body.
+    Routine { name: String, execution_blocks: Array<MksNode> }
+
+    /// A semantic natural-language phrase mapped to an IVT hash key.
+    /// `parameters` is pre-allocated with 4 slots for argument data.
+    IntentPhrase { command: String, parameters: Array<String> }
+
+// ---------------------------------------------------------------------------
+// Parser state (shattered for potential SIMD/cache-line optimisation)
+// ---------------------------------------------------------------------------
+
+/// Lightweight parsing cursor over the flat token stream.
+pub shatter struct ParserState:
+    tokens_array: Array<lexer::Token>
+    token_index:  Int
+    total_tokens: Int
+
+// ---------------------------------------------------------------------------
+// Core parser
+// ---------------------------------------------------------------------------
+
+/// Parse a flat token array into a hierarchical AST.
+///
+/// Grammar (simplified):
+///   TranslationUnit  := ( Header1 TextStr DomainBody )*
+///   DomainBody       := ( Header2 TextStr RoutineBody | ... )*
+///   RoutineBody      := ( Blockquote TextStr IntentPhrase | ... )*
+///   IntentPhrase     := TextStr  (parameters array of 4 slots)
+///
+/// Returns a single "GlobalRoot" Domain containing all top-level domains.
+pub fn parse_ast(tokens: Array<lexer::Token>) -> MksNode with Unsafe:
+    let total = len(tokens)
+    var idx: Int = 0
+
+    // Container for all top-level Domain nodes
+    var root_children: Array<MksNode> = []
+
+    while idx < total:
+        let tok = tokens[idx]
+
+        if tok.kind == lexer::TokenKind::Header1:
+            // -- Consume the Header1 token, then grab the domain name --
+            idx = idx + 1
+
+            // The next token *must* be a TextStr containing the domain name.
+            // If for any reason it's not, skip.
+            if idx < total:
+                let name_tok = tokens[idx]
+                let domain_name = text_to_string(name_tok.slice)
+
+                // Advance past the name token
+                idx = idx + 1
+
+                // Collect child nodes inside this domain until the next
+                // Header1 or EOF.
+                var domain_children: Array<MksNode> = []
+
+                while idx < total:
+                    let sub = tokens[idx]
+
+                    // A Header1 closes the current domain.
+                    if sub.kind == lexer::TokenKind::Header1:
+                        break
+
+                    // A Header2 opens a Routine inside this domain.
+                    if sub.kind == lexer::TokenKind::Header2:
+                        idx = idx + 1
+
+                        if idx < total:
+                            let rout_tok = tokens[idx]
+                            let routine_name = text_to_string(rout_tok.slice)
+
+                            idx = idx + 1
+
+                            // Collect IntentPhrases inside this routine
+                            // until the next Header1, Header2, or EOF.
+                            var routine_blocks: Array<MksNode> = []
+
+                            while idx < total:
+                                let inner = tokens[idx]
+
+                                if inner.kind == lexer::TokenKind::Header1:
+                                    break
+                                if inner.kind == lexer::TokenKind::Header2:
+                                    break
+
+                                if inner.kind == lexer::TokenKind::Blockquote:
+                                    idx = idx + 1
+
+                                    if idx < total:
+                                        let phrase_tok = tokens[idx]
+                                        let raw_command = text_to_string(phrase_tok.slice)
+
+                                        // Build the IntentPhrase with 4 parameter slots.
+                                        let phrase_node = MksNode::IntentPhrase {
+                                            command: raw_command,
+                                            parameters: [],
+                                        }
+                                        push(routine_blocks, phrase_node)
+
+                                // Advance past whatever we just saw (or skipped).
+                                idx = idx + 1
+
+                            let routine_node = MksNode::Routine {
+                                name: routine_name,
+                                execution_blocks: routine_blocks,
+                            }
+                            push(domain_children, routine_node)
+                        else:
+                            // Ran out of tokens after Header2 — break out.
+                            break
+                    else:
+                        // Non-structural token inside a domain — skip.
+                        idx = idx + 1
+
+                let domain_node = MksNode::Domain {
+                    name: domain_name,
+                    components: domain_children,
+                }
+                push(root_children, domain_node)
+            else:
+                // Ran out of tokens after Header1 — break out.
+                break
+        else:
+            // Top-level non-structural content — skip.
+            idx = idx + 1
+
+    // Wrap everything in a synthetic "GlobalRoot" Domain.
+    return MksNode::Domain {
+        name: "GlobalRoot",
+        components: root_children,
+    }

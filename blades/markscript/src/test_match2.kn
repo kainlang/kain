@@ -1,0 +1,5 @@
+use src::ast
+
+pub fn test_match(root: ast::MksNode) -> Int:
+    let _ = root
+    return 0

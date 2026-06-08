@@ -87,58 +87,62 @@ interface TreeConfig {
   maxEntries: number;
 }
 
-function executeViaKain(config: TreeConfig): { stdout: string; stderr: string } {
-  const mainFile = resolveExtensionPath(path.join("src", "tree_main.kn"));
+function executeTreeKn(config: TreeConfig): { stdout: string; stderr: string } {
+  // Path A — use pre-built .exe (fast, no build output leak)
+  const exeFile = resolveExtensionPath("tree-kn.exe");
+  if (fs.existsSync(exeFile)) {
+    const cliArgs: string[] = [config.rootPath];
+    if (config.action !== "tree") { cliArgs.push("--action"); cliArgs.push(config.action); }
+    if (config.depth > 0)         { cliArgs.push("--depth"); cliArgs.push(String(config.depth)); }
+    if (config.pattern)           { cliArgs.push("--pattern"); cliArgs.push(config.pattern); }
+    if (config.includeHidden)     { cliArgs.push("--hidden"); }
+    if (config.format !== "tree") { cliArgs.push("--format"); cliArgs.push(config.format); }
+    if (config.maxEntries > 0)    { cliArgs.push("--max-entries"); cliArgs.push(String(config.maxEntries)); }
+    for (const excl of config.exclude) { cliArgs.push("--exclude"); cliArgs.push(excl); }
 
+    const cmd = [exeFile, ...cliArgs].map(a => a.includes(" ") ? `"${a}"` : a).join(" ");
+    const stdout = execSync(cmd, {
+      stdio: ["pipe", "pipe", "pipe"],
+      timeout: 30000,
+      windowsHide: true,
+      encoding: "utf8",
+    });
+    return { stdout, stderr: "" };
+  }
+
+  // Path B — fallback to kain run if .exe not built yet
+  const mainFile = resolveExtensionPath(path.join("src", "tree_main.kn"));
   if (!fs.existsSync(mainFile)) {
-    throw new Error(`tree-kn source not found: ${mainFile}`);
+    throw new Error(`tree-kn: neither .exe nor source found at ${resolveExtensionPath(".")}`);
   }
 
   const kain = checkKainAvailable();
   if (!kain.available) {
     throw new Error(
-      "Kain native binary not found. Install Kain or run kain_sync_binary to make tree_kn available."
+      "tree-kn .exe not built and Kain binary not found. Run kain build in " +
+      resolveExtensionPath(".") + " to build the executable."
     );
   }
 
-  // Build CLI args matching tree_main.kn parse_args contract:
-  //   tree-kn <rootPath> --action <val> --depth <n> --pattern <val> ...
-  // Flags are space-separated (--flag value), NOT equals (--flag=value).
-  // Root path is positional (first non-flag arg).
   const cliArgs: string[] = [config.rootPath];
-
   if (config.action !== "tree") { cliArgs.push("--action"); cliArgs.push(config.action); }
   if (config.depth > 0)         { cliArgs.push("--depth"); cliArgs.push(String(config.depth)); }
   if (config.pattern)           { cliArgs.push("--pattern"); cliArgs.push(config.pattern); }
   if (config.includeHidden)     { cliArgs.push("--hidden"); }
   if (config.format !== "tree") { cliArgs.push("--format"); cliArgs.push(config.format); }
   if (config.maxEntries > 0)    { cliArgs.push("--max-entries"); cliArgs.push(String(config.maxEntries)); }
+  for (const excl of config.exclude) { cliArgs.push("--exclude"); cliArgs.push(excl); }
 
-  for (const excl of config.exclude) {
-    cliArgs.push("--exclude");
-    cliArgs.push(excl);
-  }
-
-  const allArgs = [
-    kain.kainPath,
-    "run",
-    mainFile,
-    "--target", "llvm",
-    "--",
-    ...cliArgs,
-  ];
-
+  const allArgs = [kain.kainPath, "run", mainFile, "--target", "llvm", "--", ...cliArgs];
   const cmd = allArgs.map(a => a.includes(" ") ? `"${a}"` : a).join(" ");
-  const extensionDir = path.dirname(mainFile);
 
   const stdout = execSync(cmd, {
-    cwd: extensionDir,
+    cwd: path.dirname(mainFile),
     stdio: ["pipe", "pipe", "pipe"],
     timeout: 30000,
     windowsHide: true,
     encoding: "utf8",
   });
-
   return { stdout, stderr: "" };
 }
 
@@ -280,7 +284,7 @@ export default function treeKnExtension(pi: ExtensionAPI) {
 
       try {
         const config = buildConfig(params);
-        const { stdout } = executeViaKain(config);
+        const { stdout } = executeTreeKn(config);
         const output = capOutput(stdout);
 
         return {

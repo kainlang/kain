@@ -1,0 +1,116 @@
+// ============================================================================
+//  MARKSCRIPT BYTECODE ENCODER & INSTRUCTION COMPILER
+// ============================================================================
+//
+//  Flattens spatial AST definitions into an optimization-vector byte
+//  instruction stream (MksOpCode). Instead of interpreting slow raw text
+//  nodes during execution, it pre-compiles everything into flat integer
+//  arrays using Kain's raw memory intrinsics.
+//
+//  Exports:
+//    MksOpCode           — bytecode opcodes (OpHalt, OpPushParam, OpExecuteCall,
+//                          OpEnterDomain)
+//    CompilationOutput   — output buffer (bytecode_stream + stream_length)
+//    compile_ast         — AST → bytecode encoder
+//
+// ============================================================================
+
+use src::ast
+
+// ============================================================================
+//  BYTECODE OPCODES
+// ============================================================================
+
+pub enum MksOpCode:
+    OpHalt
+    OpPushParam
+    OpExecuteCall
+    OpEnterDomain
+
+// ============================================================================
+//  COMPILATION OUTPUT PACKAGE
+// ============================================================================
+
+pub shatter struct CompilationOutput:
+    bytecode_stream: ptr<Int>
+    stream_length:   Int
+
+// ============================================================================
+//  AST → BYTECODE COMPILER
+// ============================================================================
+//
+//  Walks the spatial AST tree:
+//    1. Allocates a zeroed buffer of 8192 Ints
+//    2. Expects root to be MksNode::Domain
+//    3. Iterates Domain.components, matching Routine nodes
+//    4. For each Routine.execution_blocks, matching IntentPhrase nodes
+//    5. Emits: OpPushParam, command_hash, OpExecuteCall per intent
+//    6. Terminates with OpHalt
+//
+//  Uses Kain's built-in raw memory intrinsics (no stdlib imports needed):
+//    alloc_zeroed, ptr_offset, mem_store, string_hash, len, [] indexing
+//
+// ============================================================================
+
+pub fn compile_ast(root: ast::MksNode) -> CompilationOutput with Unsafe:
+    // Allocate zeroed bytecode buffer — 8192 Int cells
+    let output_buffer: ptr<Int> = alloc_zeroed(8192, "Int")
+
+    // Emit cursor tracks the current write position
+    var emit_cursor: Int = 0
+
+    // Enter exclusive ownership scope on the output buffer
+    collapse output_buffer:
+        // The root must be a Domain node
+        match root:
+            // Destructure the Domain variant — bind all fields as domain_data
+            ast::MksNode::Domain(domain_data) =>
+                // Iterate over domain components (Routine nodes)
+                var i: Int = 0
+                let comp_len: Int = len(domain_data.components)
+                while i < comp_len:
+                    let child = domain_data.components[i]
+                    match child:
+                        // Destructure the Routine variant — bind all fields as rout_data
+                        ast::MksNode::Routine(rout_data) =>
+                            // Iterate over execution blocks (IntentPhrase nodes)
+                            var j: Int = 0
+                            let block_len: Int = len(rout_data.execution_blocks)
+                            while j < block_len:
+                                let intent_node = rout_data.execution_blocks[j]
+                                match intent_node:
+                                    // Destructure the IntentPhrase variant — bind all fields as phrase_data
+                                    ast::MksNode::IntentPhrase(phrase_data) =>
+                                        // Emit OpPushParam (value 1) at current cursor
+                                        mem_store(ptr_offset(output_buffer, emit_cursor, "Int"), 1, "Int")
+                                        emit_cursor = emit_cursor + 1
+
+                                        // Hash the command string to an integer key
+                                        let command_hash: Int = string_hash(phrase_data.command)
+
+                                        // Emit the command hash at cursor
+                                        mem_store(ptr_offset(output_buffer, emit_cursor, "Int"), command_hash, "Int")
+                                        emit_cursor = emit_cursor + 1
+
+                                        // Emit OpExecuteCall (value 2) at cursor
+                                        mem_store(ptr_offset(output_buffer, emit_cursor, "Int"), 2, "Int")
+                                        emit_cursor = emit_cursor + 1
+                                    _ => ()
+                                j = j + 1
+                        _ => ()
+                    i = i + 1
+            _ => ()
+
+        // Terminate the bytecode stream with OpHalt (value 0)
+        mem_store(ptr_offset(output_buffer, emit_cursor, "Int"), 0, "Int")
+        emit_cursor = emit_cursor + 1
+
+        // Collapse body yields 0 (discarded)
+        0
+
+    // Return the compiled output — pointer stays alive (ownership
+    // passes to the caller via the returned struct)
+    return CompilationOutput {
+        bytecode_stream: output_buffer,
+        stream_length: emit_cursor
+    }

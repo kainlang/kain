@@ -1,0 +1,150 @@
+// ============================================================================
+//  ZERO-COPY LEXICAL ANALYZER
+//  MarkScript — Kain-powered intent-driven scripting language
+//
+//  Scans incoming .md source strings without performing a single dynamic
+//  heap allocation. Reads data into cache-aligned Token allocations tracking
+//  string offsets via std::text::TextSlice.
+// ============================================================================
+
+use std::text
+use std::ascii
+
+// ---------------------------------------------------------------------------
+//  Token Kind Enum
+// ---------------------------------------------------------------------------
+
+pub enum TokenKind:
+    Header1       // #
+    Header2       // ##
+    Blockquote    // >
+    TablePipe     // |
+    TextStr       // Loose raw literal strings
+    EOF
+
+// ---------------------------------------------------------------------------
+//  Cache-Aligned Token Structure
+// ---------------------------------------------------------------------------
+
+pub shatter struct Token:
+    kind:    TokenKind
+    slice:   TextSlice
+    line_no: Int
+
+// ---------------------------------------------------------------------------
+//  Lexer State (zero-copy cursor into source TextSlice)
+// ---------------------------------------------------------------------------
+
+pub shatter struct LexerState:
+    source_view:  TextSlice
+    cursor:       Int
+    length:       Int
+    current_line: Int
+
+// ---------------------------------------------------------------------------
+//  Factory — create lexer state from a source String
+// ---------------------------------------------------------------------------
+
+pub fn create_lexer(content: String) -> LexerState:
+    let view = text_from(content)
+    let len = text_len(view)
+    return LexerState {
+        source_view: view,
+        cursor: 0,
+        length: len,
+        current_line: 1
+    }
+
+// ---------------------------------------------------------------------------
+//  Core lexer — zero-copy token scanner
+//
+//  Recursively skips whitespace, counts newlines, and matches structural
+//  Markdown tokens.  No heap allocations — all string data is represented
+//  as TextSlice views into the original source.
+//
+//  Tokens:
+//    #      → Header1
+//    ##     → Header2
+//    >      → Blockquote
+//    |      → TablePipe
+//    (text) → TextStr
+//    EOF    → EOF
+// ---------------------------------------------------------------------------
+
+pub fn next_token(state: ptr<LexerState>) -> Token with Unsafe:
+    // Terminal: end of input
+    if state.cursor >= state.length:
+        return Token {
+            kind:    TokenKind::EOF,
+            slice:   text_from(""),
+            line_no: state.current_line
+        }
+
+    let current_char = text_char_at(state.source_view, state.cursor)
+
+    // Count newlines
+    if current_char == "\n":
+        state.current_line = state.current_line + 1
+        state.cursor = state.cursor + 1
+        return next_token(state)
+
+    // Skip other whitespace (spaces, carriage returns, tabs)
+    if current_char == " " or current_char == "\r" or current_char == "\t":
+        state.cursor = state.cursor + 1
+        return next_token(state)
+
+    // Match structural tokens
+
+    // # → Header1, ## → Header2
+    if current_char == "#":
+        let next_idx = state.cursor + 1
+        if next_idx < state.length and text_char_at(state.source_view, next_idx) == "#":
+            state.cursor = state.cursor + 2
+            return Token {
+                kind:    TokenKind::Header2,
+                slice:   text_from("##"),
+                line_no: state.current_line
+            }
+        state.cursor = state.cursor + 1
+        return Token {
+            kind:    TokenKind::Header1,
+            slice:   text_from("#"),
+            line_no: state.current_line
+        }
+
+    // > → Blockquote
+    if current_char == ">":
+        state.cursor = state.cursor + 1
+        return Token {
+            kind:    TokenKind::Blockquote,
+            slice:   text_from(">"),
+            line_no: state.current_line
+        }
+
+    // | → TablePipe
+    if current_char == "|":
+        state.cursor = state.cursor + 1
+        return Token {
+            kind:    TokenKind::TablePipe,
+            slice:   text_from("|"),
+            line_no: state.current_line
+        }
+
+    // Default: consume text until newline or structural delimiter
+    let start_pos = state.cursor
+    while state.cursor < state.length:
+        let next_c = text_char_at(state.source_view, state.cursor)
+        if next_c == "\n" or next_c == "#" or next_c == ">" or next_c == "|":
+            break
+        state.cursor = state.cursor + 1
+
+    let token_view = text_subslice(
+        state.source_view,
+        start_pos,
+        state.cursor - start_pos
+    )
+    return Token {
+        kind:    TokenKind::TextStr,
+        slice:   token_view,
+        line_no: state.current_line
+    }
