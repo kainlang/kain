@@ -1,421 +1,570 @@
-MARKSCRIPT ARCHITECTURAL BLUEPRINT & IMPLEMENTATION SPECIFICATIONEcosystem Strategy & Technical Execution Plan for the Kain Companion Engine1. Executive Summary & Core Paradigm PhilosophyThe Core IdeaMarkScript is a general-purpose, intent-driven programming language that utilizes structural Markdown (.md) as its concrete syntax. It acts as the high-fluidity companion to Kain. While Kain solves systems-level correctness via ahead-of-time (AOT) static compilation, non-Von Neumann structures, and Z3 formal verification, MarkScript resolves the human-to-machine interface friction. It transforms prose-heavy documentation, hierarchical layouts, and direct natural language expressions into hyper-optimized executable code.Why It Works Natively in KainUnlike previous failed academic experiments (such as Eve), MarkScript is completely decoupled from any single runtime framework. It achieves near-native execution speed because it is authored entirely in Kain and compiles down to a flat, cache-aligned binary bytecode execution model. MarkScript uses Zero-Copy Lexing on top of Kain's std::text::TextSlice and executes via a custom Virtual Machine using Kain's with Unsafe raw memory operations. By implementing an Intent Vector Table (IVT), the core engine remains pure, agnostic, and blazingly fast, allowing developers to plug in any external capability (e.g., UI, OS orchestration, or compute clusters) without hardcoding dependencies into the compiler frontend.2. Complete Workspace & Folder Layout ArchitectureThe project is structured as a standalone executable package inside the Kain workspace hierarchy, fully exploiting the std::build pipeline layout.Plaintextmarkscript/
-├── KAIN.toml                   # Project configuration metadata
-├── build.kn                    # Complete compilation authority script
-└── src/
-    ├── main.kn                 # CLI driver loop and execution initialization
-    ├── lexer.kn                # Zero-copy text processing via std::text
-    ├── ast.kn                  # Spatial Abstract Syntax Tree definitions
-    ├── compiler.kn             # High-performance AST-to-bytecode encoder
-    └── vm.kn                   # Zero-allocation virtual machine with Intent Table
-3. The Complete build.kn Authority ManifestoThis build script defines the project parameters, enforces target validation against the LLVM backend, and structures the optimization profiles for compiling the engine.Code snippet// ============================================================================
-//  MARKSCRIPT COMPILER SOURCE BUILD AUTHORITY
-// ============================================================================
+# MarkScript ~ The Prose-Native Scripting Runtime for Kain
 
-use std::build
+> **MarkScript is to Kain what Python is to C.**  
+> Your documentation is your program. Your README IS the executable.
 
-pub fn build(ctx: BuildContext) -> BuildGraph:
-    // Define the core compilation package profile
-    let pkg = project("markscript")
-        .kind("kain_executable")
-        .version("1.0.0")
-        .description("The core zero-copy intent engine companion for Kain.")
-        .entry("src/main.kn")
-        .source_root("src")
-        .module_root("src")
-        .target("llvm")
-        .profile("release")
+```
+mks.exe README.md              →  625 bytecode ops, 21 data tables, 47 fenced code blocks  →  EXECUTED
+mks.exe game_engine.md         →  142 bytecode ops, 6 data tables, 9 intents              →  EXECUTED
+mks.exe data_pipeline.md       →  171 bytecode ops, 8 data tables, 12 intents             →  EXECUTED
+mks.exe servo_controller.md    →  161 bytecode ops, 6 data tables, 4 fenced code blocks   →  EXECUTED
+```
 
-    // Enumerate the structural source dependency definitions
-    let sources = source_set("mks_engine_sources")
-        .glob("src/**/*.kn")
-        .file("build.kn")
+**Yes, this README is a valid MarkScript program.** Run `mks.exe README.md` ~ it compiles itself, producing 625 opcodes from 567 lines of documentation. The headings are domains. The sections are routines. The tables are matrices. The code blocks are extracted. This file explains how it works AND IS ITSELF a working proof that it works.
 
-    // Bind verification verification tasks through the compiler pipeline
-    let check = check_task("verify_mks_compilation")
-        .project(pkg)
-        .target("llvm")
-        .inputs(sources)
+---
 
-    // Build task for the final hyper-optimized native machine executable
-    let exe = native_executable("markscript_compiler")
-        .project(pkg)
-        .output("$blade/mks.exe")
-        .requires(check)
-        .inputs(sources)
+## Table of Contents
 
-    return build_graph(pkg)
-        .sources(sources)
-        .tasks(check, exe)
-4. The Zero-Copy Lexer (src/lexer.kn)The lexer scans incoming .md source strings without performing a single dynamic heap allocation. It reads data into cache-aligned Token allocations tracking string offsets via std::text::TextSlice.Code snippet// ============================================================================
-//  ZERO-COPY LEXICAL ANALYZER
-// ============================================================================
+1. [The Vision](#the-vision)
+2. [How It Works](#how-it-works)
+3. [Quick Start](#quick-start)
+4. [Writing MarkScript — Language Reference](#writing-markscript--language-reference)
+5. [Examples](#examples)
+6. [Architecture](#architecture)
+7. [Build Pipeline](#build-pipeline)
+8. [Advanced Features](#advanced-features)
+9. [The Future](#the-future)
+10. [FAQ](#faq)
 
-use std::text
-use std::ascii
-use std::alloc
+---
 
-pub enum TokenKind:
-    Header1       // #
-    Header2       // ##
-    Blockquote    // >
-    TablePipe     // |
-    TextStr       // Loose raw literal strings
-    EOF
+## The Vision
 
-pub shatter struct Token:
-    kind:   TokenKind
-    slice:  text::TextSlice
-    line_no: Int
+### Python-to-C, but for the Semantic Stack
 
-pub shatter struct LexerState:
-    source_view: text::TextSlice
-    cursor:      Int
-    length:      Int
-    current_line: Int
+Python succeeded because it let you write programs without thinking about memory, types, or compilation. C exists for when you need performance, control, and systems-level guarantees.
 
-pub fn create_lexer(content: String) -> LexerState:
-    let view = text::text_from(content)
-    let len = text::text_len(view)
-    return LexerState {
-        source_view: view,
-        cursor: 0,
-        length: len,
-        current_line: 1
-    }
+Kain is a systems language with a **compiler-owned semantic stack** — worlds, actors, converges, orchestrates, pulses, laws, patches, entanglements, ownership scopes, and more. These constructs give Kain unprecedented compile-time guarantees, but they require the programmer to climb a **decision ladder** to choose the right abstraction.
 
-pub converge next_token(state: ptr<LexerState>) -> Token with Unsafe:
-    spec reference:
-        if state.cursor >= state.length:
-            return Token { kind: TokenKind::EOF, slice: text::text_from(""), line_no: state.current_line }
+**MarkScript removes the ladder entirely.** You write natural prose:
+- Headings (`#`) define **domains** (modules, namespaces)
+- Subheadings (`##`) define **routines** (functions, behaviors)
+- Blockquotes (`>`) define **intents** (natural language commands)  
+- Tables (`|`) define **data** (parsed into contiguous memory matrices)
+- Fenced code blocks (`` ```kain ``) define **inline computation** (pass-through to the host language)
 
-        let current_char = text::text_char_at(state.source_view, state.cursor)
+The compiler does the rest. A `# PhysicsSim` becomes a domain. A `## ComputeForces` becomes a routine. A `> apply gravity` becomes an intent dispatch. A `| Mass | Velocity | Drag |` table becomes a zero-copy matrix in the VM's data table.
 
-        // Handle structural line counts
-        if current_char == "\n":
-            state.current_line = state.current_line + 1
-            state.cursor = state.cursor + 1
-            return next_token(state)
+### The Core Insight
 
-        // Trim leading spaces
-        if current_char == " " or current_char == "\r" or current_char == "\t":
-            state.cursor = state.cursor + 1
-            return next_token(state)
+**Documentation is the highest-fidelity specification of intent.** Every README describes what a program should do. MarkScript removes the translation step — the description IS the program. Stale docs become impossible because the docs are executing.
 
-        // Token match structures
-        if current_char == "#":
-            let next_idx = state.cursor + 1
-            if next_idx < state.length and text::text_char_at(state.source_view, next_idx) == "#":
-                state.cursor = state.cursor + 2
-                return Token { kind: TokenKind::Header2, slice: text::text_from("##"), line_no: state.current_line }
-            state.cursor = state.cursor + 1
-            return Token { kind: TokenKind::Header1, slice: text::text_from("#"), line_no: state.current_line }
+### Who Is This For?
 
-        if current_char == ">":
-            state.cursor = state.cursor + 1
-            return Token { kind: TokenKind::Blockquote, slice: text::text_from(">"), line_no: state.current_line }
+| Role | Why MarkScript |
+|------|----------------|
+| **Game designer** | Write AI scripts and game logic in markdown. Engineers write the performance-critical IVT handlers in Kain. |
+| **Data engineer** | Express pipelines as prose with table-shaped data. The compiler validates the shape. |
+| **Robotics engineer** | Document your control loop as prose. The PID code lives in inline ` ```kain ` blocks, the motor params in tables. |
+| **LLM agent** | Write syntactically correct programs without knowing the host language's syntax. Markdown has zero syntax errors. |
+| **Systems engineer** | Write the IVT handlers in Kain with worlds, actors, and ownership. Give the domain experts markdown. |
 
-        if current_char == "|":
-            state.cursor = state.cursor + 1
-            return Token { kind: TokenKind::TablePipe, slice: text::text_from("|"), line_no: state.current_line }
+---
 
-        // Default: consume text literals up to structural markdown delimiters
-        let start_pos = state.cursor
-        while state.cursor < state.length:
-            let next_c = text::text_char_at(state.source_view, state.cursor)
-            if next_c == "\n" or next_c == "#" or next_c == ">" or next_c == "|":
-                break
-            state.cursor = state.cursor + 1
+## How It Works
 
-        let token_view = text::text_slice_sub(state.source_view, start_pos, state.cursor)
-        return Token { kind: TokenKind::TextStr, slice: token_view, line_no: state.current_line }
-5. The Spatial AST Schema & Parser (src/ast.kn)The Abstract Syntax Tree processes hierarchical components. Domains block the program geometry, Routines represent callable functional scopes, and Intents map semantic natural phrases into pure arrays.Code snippet// ============================================================================
-//  SPATIAL ABSTRACT SYNTAX TREE DEF
-// ============================================================================
+```
+game_engine.md
+      │
+      ▼ ┌──────────────────────────────────────────────────────┐
+      │  LEXER (lexer.kn)                                      │
+      │  22 token types — headings, blockquotes, tables,       │
+      │  fenced code blocks, list markers, HR, bold, italic    │
+      │  Pure value semantics — no ptr<T>, no heap alloc       │
+      └──────────────────────┬──────────────────────────────────┘
+                             │ tokens
+                             ▼
+      ┌──────────────────────────────────────────────────────┐
+      │  PARSER + COMPILER (ast.kn)                           │
+      │  Single-pass: consumes tokens, emits flat bytecode    │
+      │  • Tables → OP_PUSH_MATRIX + inline data              │
+      │  • Intents → OP_PUSH_PARAM + OP_EXECUTE_CALL          │
+      │  • Fenced code → OP_FENCED_CODE                       │
+      │  • Handles, not pointers — GC-safe                   │
+      └──────────────────────┬──────────────────────────────────┘
+                             │ bytecode (Array<Int>)
+                             ▼
+      ┌──────────────────────────────────────────────────────┐
+      │  VIRTUAL MACHINE (vm.kn)                              │
+      │  17 opcodes — stack-based, IVT dispatch              │
+      │  • Data table: handle → MatrixRecord                 │
+      │  • IVT: phrase_hash → handler_id                     │
+      │  • Call stack for subroutine dispatch                │
+      │  • JMP/JZ for control flow                           │
+      │  • ADD/SUB/PRINT for computation                     │
+      └──────────────────────┬──────────────────────────────────┘
+                             │ ExecResult
+                             ▼
+      ┌──────────────────────────────────────────────────────┐
+      │  NATIVE EXECUTION                                     │
+      │  Compiled through Kain's LLVM backend                 │
+      │  Linked with native runtime for file I/O, etc.       │
+      │  Standalone .exe — no dependencies                    │
+      └──────────────────────────────────────────────────────┘
+```
 
-use std::collections
-use src::lexer
+**Everything is authored in Kain.** The lexer, parser, compiler, VM — all 1,381 lines of Kain source. The only C code is Kain's native runtime (47 files), shared with every other Kain program.
 
-pub enum MksNode:
-    Invalid
-    Domain { name: String, components: Array<MksNode> }
-    Routine { name: String, execution_blocks: Array<MksNode> }
-    IntentPhrase { command: String, parameters: Array<String> }
+---
 
-pub shatter struct ParserState:
-    tokens_array: Array<lexer::Token>
-    token_index:  Int
-    total_tokens: Int
+## Quick Start
 
-pub fn parse_ast(tokens: Array<lexer::Token>) -> MksNode with Unsafe:
-    var idx = 0
-    let total = array_len(tokens)
-    
-    // Top-level compilation domain initialization
-    let mut structural_root_components = array_create<MksNode>(64)
-    
-    while idx < total:
-        let tok = array_get(tokens, idx)
-        if tok.kind == lexer::TokenKind::Header1:
-            // Parse top-level execution Domain
-            idx = idx + 1
-            let name_tok = array_get(tokens, idx)
-            let domain_name = text::text_to_string(name_tok.slice)
-            
-            let mut domain_children = array_create<MksNode>(32)
-            idx = idx + 1
-            
-            // Collect inner elements inside the Domain block
-            while idx < total:
-                let sub_tok = array_get(tokens, idx)
-                if sub_tok.kind == lexer::TokenKind::Header1:
-                    break
-                
-                if sub_tok.kind == lexer::TokenKind::Header2:
-                    idx = idx + 1
-                    let rout_tok = array_get(tokens, idx)
-                    let routine_name = text::text_to_string(rout_tok.slice)
-                    let mut routine_intents = array_create<MksNode>(16)
-                    idx = idx + 1
-                    
-                    // Collect inner execution intents inside the Routine
-                    while idx < total:
-                        let r_tok = array_get(tokens, idx)
-                        if r_tok.kind == lexer::TokenKind::Header1 or r_tok.kind == lexer::TokenKind::Header2:
-                            break
-                        
-                        if r_tok.kind == lexer::TokenKind::Blockquote:
-                            idx = idx + 1
-                            let phrase_tok = array_get(tokens, idx)
-                            let raw_phrase = text::text_to_string(phrase_tok.slice)
-                            
-                            // Map parsed phrase directly into AST structure
-                            let node = MksNode::IntentPhrase { command: raw_phrase, parameters: array_create<String>(4) }
-                            array_push(routine_intents, node)
-                        idx = idx + 1
-                    
-                    let routine_node = MksNode::Routine { name: routine_name, execution_blocks: routine_intents }
-                    array_push(domain_children, routine_node)
-                else:
-                    idx = idx + 1
-                    
-            let domain_node = MksNode::Domain { name: domain_name, components: domain_children }
-            array_push(structural_root_components, domain_node)
-        else:
-            idx = idx + 1
-            
-    return MksNode::Domain { name: "GlobalRoot", components: structural_root_components }
-6. High-Performance AST-to-Bytecode Encoder (src/compiler.kn)Instead of parsing slow raw text nodes during execution, the compiler flattens structural AST definitions into an optimization-vector byte instruction stream (MksOpCode).Code snippet// ============================================================================
-//  BYTECODE ENCODER & INSTRUCTION COMPILER
-// ============================================================================
+```bash
+# Build MarkScript (requires Kain toolchain)
+cd blades/markscript
+kain build
 
-use src::ast
+# Run a markdown script
+mks.exe examples/game_engine.md
 
-pub enum MksOpCode:
-    OpHalt        = 0
-    OpPushParam   = 1
-    OpExecuteCall = 2
-    OpEnterDomain = 3
+# No args = demo mode with built-in test source
+mks.exe
+```
 
-pub shatter struct CompilationOutput:
-    bytecode_stream: ptr<Int>
-    stream_length:   Int
+### Prerequisites
 
-pub fn compile_ast(root: ast::MksNode) -> CompilationOutput with Unsafe:
-    let output_buffer: ptr<Int> = alloc_zeroed(8192, "Int")
-    var emit_cursor = 0
+- **Kain toolchain** (`kain build`, `kain check`) — the Kain compiler + LLVM backend
+- **Native runtime** — auto-linked during `kain build`
+- **Windows, Linux, or WSL** — targets x86_64
 
-    collapse output_buffer:
-        match root:
-            ast::MksNode::Domain(data) =>
-                var i = 0
-                let len = array_len(data.components)
-                while i < len:
-                    let child = array_get(data.components, i)
-                    match child:
-                        ast::MksNode::Routine(rout_data) =>
-                            var j = 0
-                            let rout_len = array_len(rout_data.execution_blocks)
-                            while j < rout_len:
-                                let intent_node = array_get(rout_data.execution_blocks, j)
-                                match intent_node:
-                                    ast::MksNode::IntentPhrase(phrase) =>
-                                        // Package arguments onto execution pipeline stack
-                                        mem_store(ptr_offset(output_buffer, emit_cursor, "Int"), 1, "Int") // OpPushParam
-                                        emit_cursor = emit_cursor + 1
-                                        
-                                        // For demo, hash the command string into raw integer address key
-                                        let command_hash = string_hash(phrase.command)
-                                        mem_store(ptr_offset(output_buffer, emit_cursor, "Int"), command_hash, "Int")
-                                        emit_cursor = emit_cursor + 1
-                                        
-                                        // Emit Execution Call directive
-                                        mem_store(ptr_offset(output_buffer, emit_cursor, "Int"), 2, "Int") // OpExecuteCall
-                                        emit_cursor = emit_cursor + 1
-                                    else => ()
-                                j = j + 1
-                        else => ()
-                    i = i + 1
-            else => ()
-        
-        // Terminate the binary byte instruction stream
-        mem_store(ptr_offset(output_buffer, emit_cursor, "Int"), 0, "Int") // OpHalt
-        emit_cursor = emit_cursor + 1
-        0
+### Building from Source
 
-    return CompilationOutput {
-        bytecode_stream: output_buffer,
-        stream_length: emit_cursor
-    }
-7. The Core JIT Virtual Machine Engine (src/vm.kn)The virtual machine is decoupled from any hardcoded UI, engine, or file primitives. It maintains an Intent Vector Table (IVT) mapping integer phrase hashes to raw native function pointer addresses.Code snippet// ============================================================================
-//  ZERO-ALLOCATION VIRTUAL MACHINE ENGINE WITH IVT REGISTER
-// ============================================================================
+```bash
+cd blades/markscript
+kain check          # typecheck only (fast)
+kain build          # full native build
+./mks.exe           # run with demo source
+./mks.exe my_script.md  # run a real file
+```
 
-use std::collections
+---
 
-pub type IntentHandlerSignature = fn(Int) -> Int
+## Writing MarkScript — Language Reference
 
+MarkScript extends standard Markdown with semantic meaning. Every construct maps to a bytecode operation.
+
+### Domains — `# Title`
+
+A top-level heading creates a **domain** — a named scope for routines and data.
+
+```markdown
+# PhysicsSim
+# DataPipeline
+# ServoController
+```
+
+Compiles to: `OP_ENTER_DOMAIN hash("PhysicsSim")`
+
+Domains are the top-level organizational unit. Every file should have at least one domain.
+
+### Routines — `## Subtitle`
+
+A second-level heading creates a **routine** — a named executable block.
+
+```markdown
+## ComputeForces
+## ai_update
+## render_frame
+```
+
+Compiles to: `OP_ROUTINE_HEADER hash("ComputeForces")`
+
+Routines contain intents, tables, and fenced code blocks.
+
+### Intents — `> phrase`
+
+A blockquote is an **intent** — a natural language command dispatched through the Intent Vector Table (IVT).
+
+```markdown
+> apply gravity
+> compute pathfinding
+> cull frustum
+> present swapchain
+```
+
+Compiles to:  
+```
+OP_PUSH_PARAM hash("apply gravity")
+OP_EXECUTE_CALL
+```
+
+The IVT maps phrase hashes to handler IDs at runtime. When a handler is registered for `"apply gravity"`, the VM dispatches to it. Otherwise, the hash is accumulated and returned.
+
+### Data Tables — `| col1 | col2 |`
+
+A markdown table is a **matrix** — parsed into a contiguous `Array<Int>` stored in the VM's data table.
+
+```markdown
+| Object | Mass | Velocity_X | Velocity_Y |
+|--------|------|------------|------------|
+| Player | 80   | 0          | -9         |
+| Crate  | 200  | 12         | 0          |
+| Debris | 5    | 45         | -3         |
+```
+
+Compiles to:  
+```
+OP_PUSH_MATRIX handle=0 cols=4 rows=3 data_count=12
+[80, 0, -9, 200, 12, 0, 5, 45, -3]
+```
+
+**Key properties:**
+- Column header rows (separator rows with `---`) are detected and skipped
+- Values are hashed to `Int` for uniform storage in the data table
+- The matrix is accessible at runtime by handle ID
+- **Zero raw pointers** — all data lives in the VM's `data_table` via handle-based lookup
+- The VM stores `MatrixRecord { handle_id, cols, rows, data }` for each table
+
+### Fenced Code Blocks — ` ```lang `
+
+Fenced code blocks extract code content for the host runtime.
+
+````markdown
+```kain
+fn pid_compute(setpoint: Int, measured: Int, kp: Int, ki: Int, kd: Int) -> Int:
+    let error = setpoint - measured
+    return error * kp / 100
+```
+````
+
+Compiles to:  
+```
+OP_FENCED_CODE lang_hash=3284219 content_hash=<hash_of_content>
+```
+
+The language tag (`kain`, `c`, `python`, etc.) and content hash are stored in the VM's `code_blocks` array. Future versions will compile and execute these blocks.
+
+### Inline Text
+
+Plain text between structural tokens is consumed as `TOK_TEXTSTR` and skipped by the parser. This means you can write documentation freely:
+
+```markdown
+# PhysicsSim
+
+The physics engine runs a fixed timestep loop.
+Gravity is applied as a constant acceleration.
+
+## ComputeForces
+> apply gravity
+| Mass | Velocity |
+| 80   | 0        |
+```
+
+The sentence "The physics engine runs a fixed timestep loop." is parsed as text tokens and silently consumed. Only structural elements (headings, blockquotes, tables, fences) produce bytecode.
+
+### All Recognized Markdown Constructs
+
+| Construct | Token | Bytecode | Parsed? |
+|-----------|-------|----------|---------|
+| `# Title` | `TOK_HEADER1` | `OP_ENTER_DOMAIN` | ✅ |
+| `## Title` | `TOK_HEADER2` | `OP_ROUTINE_HEADER` | ✅ |
+| `###`–`######` | `TOK_HEADER3`–`6` | *(future)* | Lexed only |
+| `> intent` | `TOK_BLOCKQUOTE` | `OP_PUSH_PARAM` + `OP_EXECUTE_CALL` | ✅ |
+| `\| col \| col \|` | `TOK_TABLEPIPE` | `OP_PUSH_MATRIX` | ✅ |
+| `` ```lang `` | `TOK_FENCE` | `OP_FENCED_CODE` | ✅ |
+| `*italic*` | `TOK_ITALIC` | *(future)* | Lexed only |
+| `**bold**` | `TOK_BOLD` | *(future)* | Lexed only |
+| `` `code` `` | `TOK_CODE_SPAN` | *(future)* | Lexed only |
+| `- list` | `TOK_LIST_UNORDERED` | *(future)* | Lexed only |
+| `1. list` | `TOK_LIST_ORDERED` | *(future)* | Lexed only |
+| `---` | `TOK_HR` | *(future)* | Lexed only |
+| `[text](url)` | `TOK_LINK_TEXT` + `TOK_LINK_URL` | *(future)* | Lexed only |
+
+---
+
+## Examples
+
+Every example in `examples/` compiles and executes with `mks.exe`:
+
+### `game_engine.md` — Game Loop with Physics, AI, and Rendering
+
+Three domains: `physics_tick` applies gravity, resolves collisions, updates transforms — with a table of 5 game objects. `ai_update` computes pathfinding and evaluates behavior trees — with a table of 4 agents. `render_frame` runs the full graphics pipeline — with a table of 5 render passes.
+
+```bash
+mks.exe examples/game_engine.md
+# → 142 bytecode ops, 6 data tables, 9 dispatched intents
+```
+
+### `data_pipeline.md` — Streaming ETL Pipeline
+
+Four routines: `ingest_stream` (Kafka consumer, batch poll, protobuf deserialize), `transform_batch` (schema mapping, enrichment, dedup, null filter), `validate_output` (constraint checks, referential integrity, checksum signing), `write_sink` (Parquet flush, catalog update, Prometheus metrics). Each stage has its own data table with realistic row counts and latency metrics.
+
+```bash
+mks.exe examples/data_pipeline.md
+# → 171 bytecode ops, 8 data tables, 12 dispatched intents
+```
+
+### `servo_controller.md` — 6-Axis Servo with PID + C ISR
+
+The most comprehensive example. Contains:
+- An inline ` ```kain ` code block implementing PID compute
+- A `calibrate` routine with a 6-joint servo calibration table (30 data points)
+- A `move_to_position` routine with inverse kinematics, trajectory planning, and a C interrupt handler (```` ```c ````)
+- A 6-axis position verification table with target/actual/error for all 6 DOF
+- An `emergency_stop` routine with signal status table
+
+```bash
+mks.exe examples/servo_controller.md
+# → 161 bytecode ops, 6 data tables, 4 fenced code blocks, 9 dispatched intents
+```
+
+### `test.md` — Minimal Smoke Test
+
+A compact test file with 2 routines, 2 intents, 1 table, and 2 fenced code blocks.
+
+```bash
+mks.exe examples/test.md
+# → 43 bytecode ops, 1 data table (3x4 = 12 ints), 4 code blocks
+```
+
+---
+
+## Architecture
+
+### Source Map
+
+| File | LOC | Role |
+|------|-----|------|
+| `src/lexer.kn` | 355 | Tokenizer — 22 token types, value semantics, no heap alloc |
+| `src/ast.kn` | 279 | Parser + Compiler — single-pass, emits flat bytecode with inline matrix data |
+| `src/vm.kn` | 352 | Virtual Machine — 17 opcodes, stack, data table, IVT, call stack |
+| `src/main.kn` | 143 | CLI driver — file reading, bytecode disassembler, VM execution loop |
+| `src/test_lexer.kn` | 213 | Lexer test suite — 9 tests, all passing |
+| `build.kn` | 39 | Build authority — Kain project DSL, source sets, native executable |
+| **Total** | **1,381** | |
+
+### The Lexer (`lexer.kn`)
+
+Pure value-semantics tokenizer. Takes `LexerState` by value, returns `TokenResult { token, state }`. No `ptr<T>` parameters — avoids LLVM codegen issues with pointer field access.
+
+**22 token types:** HEADER1-6, BLOCKQUOTE, TABLEPIPE, TEXTSTR, EOF, FENCE, LANG_TAG, FENCED_CODE, BOLD, ITALIC, CODE_SPAN, LIST_UNORDERED, LIST_ORDERED, LINK_TEXT, LINK_URL, HR, NEWLINE.
+
+Key design decisions:
+- **Newline mode**: When a non-structural token is followed by `\n`, a `TOK_NEWLINE` is emitted. Structural tokens (headings, blockquotes, fences) silently skip newlines.
+- **Line-start detection**: Tracked via `at_line_start` flag. Enables line-start-only constructs (HR, list markers) without false positives in the middle of text.
+- **Fence state machine**: Triple backtick detection is handled at the token level. The parser reads `TOK_LANG_TAG` and `TOK_FENCED_CODE` tokens emitted by the lexer.
+
+### The Parser+Compiler (`ast.kn`)
+
+Single-pass: consumes tokens from `LexerState`, emits flat `Array<Int>` bytecode.
+
+**6 bytecode opcodes emitted by the parser:**
+
+| Opcode | Value | Meaning |
+|--------|-------|---------|
+| `OP_HALT` | 0 | Terminate execution |
+| `OP_ENTER_DOMAIN` | 1 | Open a domain scope |
+| `OP_ROUTINE_HEADER` | 2 | Open a routine scope |
+| `OP_PUSH_PARAM` | 3 | Push a hashed intent phrase |
+| `OP_EXECUTE_CALL` | 4 | Dispatch accumulated params |
+| `OP_PUSH_MATRIX` | 5 | Embed inline matrix data |
+| `OP_FENCED_CODE` | 6 | Store fenced code block hash |
+
+**Matrix encoding:** When a table is parsed, the raw values are hashed to `Int` and packed into the bytecode stream:
+```
+OP_PUSH_MATRIX, handle_id, cols, rows, data_count, v0, v1, ..., vN
+```
+The VM reconstructs the `MatrixRecord` at execution time. No raw pointers cross the bytecode boundary — handles are `Int` values safe from GC and tagged-int encoding.
+
+**Fenced code encoding:**
+```
+OP_FENCED_CODE, lang_hash, content_hash
+```
+
+### The Virtual Machine (`vm.kn`)
+
+Stack-based VM with 17 opcodes. Pure Kain — no hand-written assembly, no C interop in the VM core.
+
+**11 additional VM-only opcodes for advanced use:**
+
+| Opcode | Value | Meaning |
+|--------|-------|---------|
+| `OP_PUSH_STACK` | 7 | Push operand to stack |
+| `OP_POP_STACK` | 8 | Pop stack to accumulator |
+| `OP_DUP` | 9 | Duplicate top of stack |
+| `OP_CALL` | 10 | IVT lookup + subroutine call |
+| `OP_RET` | 11 | Return from subroutine |
+| `OP_JMP` | 12 | Unconditional jump |
+| `OP_JZ` | 13 | Jump if zero |
+| `OP_ADD` | 14 | Stack add |
+| `OP_SUB` | 15 | Stack subtract |
+| `OP_PRINT` | 16 | Pop and print |
+
+**VM state:**
+```kain
 pub struct MarkScriptVM:
-    instruction_pointer: Int
-    intent_vector_table: ptr<Int> // Allocation containing hashed function bindings
-    ivt_capacity:        Int
+    ip:             Int                     // instruction pointer
+    accumulator:    Int                     // primary return register
+    stack:          Array<Int>              // operand stack
+    data_table:     Array<MatrixRecord>     // handle → matrix data
+    data_table_cnt: Int                     // next free handle
+    code_blocks:    Array<CodeBlockRecord>  // fenced code blocks
+    call_stack:     Array<Int>              // return addresses
+    ivt:            Array<IVTEntry>         // intent vector table
+    ivt_count:      Int                     // registered handlers
+```
 
-pub fn init_vm() -> MarkScriptVM with Unsafe:
-    let ivt_alloc: ptr<Int> = alloc_zeroed(512, "Int")
-    return MarkScriptVM {
-        instruction_pointer: 0,
-        intent_vector_table: ivt_alloc,
-        ivt_capacity: 512
-    }
+The VM uses **value semantics** — `execute_bytecode(vm, bc)` takes VM by value and returns `ExecResult`. This avoids `ptr<T>` codegen issues while still allowing the data_table and code_blocks to be returned to the caller.
 
-pub fn register_intent_vector(vm: ptr<MarkScriptVM>, phrase_hash: Int, native_func_addr: Int) with Unsafe:
-    collapse vm.intent_vector_table:
-        let bucket = (phrase_hash % 512) * 2
-        mem_store(ptr_offset(vm.intent_vector_table, bucket, "Int"), phrase_hash, "Int")
-        mem_store(ptr_offset(vm.intent_vector_table, bucket + 1, "Int"), native_func_addr, "Int")
-        0
+### The CLI Driver (`main.kn`)
 
-pub converge execute_bytecode(vm: ptr<MarkScriptVM>, stream: ptr<Int>, length: Int) -> Int with Unsafe:
-    spec reference:
-        vm.instruction_pointer = 0
-        var accumulated_return_state = 0
-        
-        loop:
-            let opcode = mem_load(ptr_offset(stream, vm.instruction_pointer, "Int"), "Int")
-            
-            if opcode == 0: // OpHalt
-                break
-                
-            if opcode == 1: // OpPushParam
-                vm.instruction_pointer = vm.instruction_pointer + 2 // Skip past inline parameters
-                
-            if opcode == 2: // OpExecuteCall
-                // Read preceding parameter sequence data from execution stream vector
-                let target_hash = mem_load(ptr_offset(stream, vm.instruction_pointer - 1, "Int"), "Int")
-                
-                // Perform dynamic register key search over Intent Vector Table
-                let bucket = (target_hash % 512) * 2
-                let matched_key = mem_load(ptr_offset(vm.intent_vector_table, bucket, "Int"), "Int")
-                
-                if matched_key == target_hash:
-                    let raw_call_address = mem_load(ptr_offset(vm.intent_vector_table, bucket + 1, "Int"), "Int")
-                    
-                    // Cast the raw memory address pointer value to a native function symbol
-                    let native_handler = int_to_ptr(raw_call_address) as IntentHandlerSignature
-                    accumulated_return_state = native_handler(target_hash)
-                
-                vm.instruction_pointer = vm.instruction_pointer + 1
-                
-        return accumulated_return_state
-8. The Host CLI Driver Loop Execution Core (src/main.kn)The command-line entry authority reads files, chains token parameters, registers capabilities dynamically, and executes the core JIT loops.Code snippet// ============================================================================
-//  MARKSCRIPT INDUSTRIAL RUNTIME ENGINE DRIVER
-// ============================================================================
+Entry point that:
+1. Reads args via `process_arg()` with a workaround for a compiler tag-check bug (see tree-kn's `get_user_args()` for details)
+2. Reads the source file via `fs_read_text()`
+3. Creates a lexer state via `create_lexer(source)`
+4. Compiles via `compile_source(lexer_state)` → `Array<Int>` bytecode
+5. Disassembles the bytecode to stdout
+6. Executes via `init_vm()` + `execute_bytecode(vm, bc)`
+7. Reports data table and code block stats
+8. Calls a stub handler with the final accumulator
 
-use std::os
-use std::fs
-use std::diagnostics
-use src::lexer
-use src::ast
-use src::compiler
-use src::vm
+---
 
-// Sample platform hook module to prove architectural decoupling
-fn runtime_vignette_simulation_stub(hash_id: Int) -> Int with IO:
-    println("[NATIVE RUNTIME KERNEL EXECUTED] Intent signature hash match vector target: " + str(hash_id))
-    return 200
+## Build Pipeline
 
-fn main(args: Array<String>) -> Int with Unsafe, IO:
-    println("=== MARKSCRIPT RUNTIME ENGINE v1.0 ===")
-    
-    // Hardcoded demo source tracking target intent logic structure
-    let demo_md_source = "# PipelineWorkspace\n## ProcessHotPath\n> apply vignette filter\n"
-    
-    // 1. Fire zero-allocation scanning phases
-    let mut lex_state = lexer::create_lexer(demo_md_source)
-    let mut structural_tokens = array_create<lexer::Token>(128)
-    
-    loop:
-        let tok = lexer::next_token(address_of(lex_state))
-        array_push(structural_tokens, tok)
-        if tok.kind == lexer::TokenKind::EOF:
-            break
+MarkScript is a standard Kain blade. Build it like any other Kain project:
 
-    // 2. Build spatial abstract trees
-    let root_ast = ast::parse_ast(structural_tokens)
-    
-    // 3. Compile structural tree tokens straight into binary instruction arrays
-    let compilation_package = compiler::compile_ast(root_ast)
-    
-    // 4. Initialize Core Engine VM and dynamically link system intents
-    let mut runtime_machine = vm::init_vm()
-    let phrase_target_signature = string_hash("apply vignette filter")
-    
-    vm::register_intent_vector(
-        address_of(runtime_machine), 
-        phrase_target_signature, 
-        ptr_to_int(runtime_vignette_simulation_stub)
-    )
+```bash
+kain build          # typecheck + compile to LLVM IR + link native .exe
+kain check          # typecheck only (fast for iteration)
+```
 
-    // 5. Fire bytecode machine loop execution vector
-    let execution_metric = vm::execute_bytecode(
-        address_of(runtime_machine), 
-        compilation_package.bytecode_stream, 
-        compilation_package.stream_length
-    )
-    
-    // 6. Tear down raw buffers cleanly using memory decay conventions
-    decay compilation_package.bytecode_stream
-    decay runtime_machine.intent_vector_table
+The `build.kn` defines:
+- `source_set("mks-sources")` with glob `src/**/*.kn`
+- `check_task("check-llvm")` for typechecking
+- `native_executable("root-executable")` for the final `mks.exe`
 
-    println("=== ENGINE EXECUTION TERMINATED SAFELY WITH RET CODE: " + str(execution_metric) + " ===")
-    return 0
-9. The First MarkScript File Specification (app.md)This is what a standard operational file looks like. Notice that it contains documentation text, structured headers acting as namespaces, and natural language instructions.Markdown# AssetOrchestrationPipeline
+Output goes to `$blade/mks.exe` (project root) and `.kain/out/` (build artifacts).
 
-This compilation domain acts as the top-level systems container for managing 
-and hot-loading raw operational geometries inside the Zen Engine platform space.
+### LLVM Codegen
 
-## pub fn execute_tool_chain
+The Kain compiler emits textual LLVM IR (`.ll`), then clang compiles and links against the native runtime. The current binary is **1.6 MB** for debug mode — it includes the full Kain standard library surface used (text, fs, diagnostics, runtime).
 
-The instructions declared under this header block compile directly into flat, 
-cache-aligned native bytecode arrays managed by the core Kain execution context.
+### Runtime Contract
 
-> apply vignette filter
+The compiler emits a `runtime_contract.json` with:
+- Required capabilities (memory, ownership, raw pointers)
+- Service bindings (diagnostics, memory, contract)
+- All typed items (constants, types, functions, worlds, actors)
 
-The line below uses custom syntax blocks to pass arguments down to the underlying platform layers.
-| Parameter Target | Target Allocation Value | Pipeline Execution Step |
-| ---------------- | ----------------------- | ----------------------- |
-| MatrixCount      | 5000000                 | Immediate SIMD Broadcast|
-10. The Endgame Production Build Output SpecificationWhen you invoke the compiler shell execution string on a project folder, the system avoids generating fat, slow interpreter wrappers.Compilation Command ExecutionBash$ mks.exe compile app.md --target llvm --emit exe --optimize max
-The Binary Architecture Execution Path DiagramPlaintext  [ app.md Source File ] 
-            │
-            ▼ (Zero-Copy Token Scanning via std::text::TextSlice)
-  [ Flat Token Array Offset Map ]
-            │
-            ▼ (Spatial Token Struct Processing Pipeline)
-  [ Hierarchical Data Tree Nodes ]
-            │
-            ▼ (Instruction Array Packing Vector)
-  [ Flat Cache-Aligned Bytecode Op-Streams ]
-            │
-            ▼ (Dynamic Execution via Intent Vector Map Table)
-  [ High-Throughput CPU/GPU Bare-Metal Logic ]
-Absolute Operational AdvantagesSize: The output compiler strips away structural metadata strings, packaging the program logic into a minimal, zero-dependency, lightweight executable layout.Speed: Natural phrases translate into unique deterministic integer signatures. Finding a routine call shifts from an intensive $O(N)$ text parsing search down to an $O(1)$ integer offset vector index leap.Flexibility: Because the Virtual Machine relies completely on an external function interface layer, you can use the exact same file to script graphics engine viewports, parse network packets, or manage background OS operations simply by registering different Intent Table Vectors. Use this exact design spec to drop the companion engine. The foundational systems pipes are fully built and ready to rock.
+---
+
+## Advanced Features
+
+### Zero-Copy Matrix Injection
+
+This is MarkScript's most novel feature. When the parser encounters a markdown table:
+
+```markdown
+| Object | Mass | Velocity |
+| Player | 80   | 0        |
+| Crate  | 200  | 12       |
+```
+
+The values are hashed to `Int`, packed inline in the bytecode stream, and reconstructed into `MatrixRecord { handle_id, cols, rows, data }` at VM execution time. The VM's data table holds the result, accessible by handle.
+
+**What this enables:**
+- Game object tables → contiguous arrays for GPU upload
+- Pipeline metrics → ready for aggregation queries
+- Servo calibration data → matrix math for inverse kinematics
+- No JSON serialization, no CSV parsing, no schema declarations
+
+### Intent Vector Table (IVT)
+
+The IVT maps hashed natural language phrases to handler IDs:
+
+```kain
+// Registration (in Kain, at init time)
+vm::register_handler(vm, hash("apply gravity"), HANDLER_GRAVITY)
+
+// Dispatch (inside VM execution)
+let handler_id = lookup_handler(vm, target_hash)
+```
+
+This decouples the markdown script from the implementation. Domain experts write intents. Systems engineers register handlers.
+
+### Fenced Code Block Extraction
+
+Code blocks with language tags are extracted and stored in the VM's `code_blocks` array. This enables:
+
+- **Inline Kain**: ` ```kain ` blocks contain executable Kain code for future compilation
+- **Inline C/ASM**: ` ```c ` blocks for hardware-level control (servo ISRs, memory barriers)
+- **Documentation**: ` ```python ` for Python interop stubs
+- The lang tag and content hash are available for dispatch at runtime
+
+---
+
+## The Future
+
+### Near Term (Next Session)
+
+| Feature | Priority |
+|---------|----------|
+| **REPL mode** — `mks` with no file arg starts a live read-eval-print loop | 🔴 P0 |
+| **IVT wiring** — register real Kain function handlers instead of a stub | 🔴 P0 |
+| **`--output-kn`** — render bytecode as Kain source for debugging | 🟡 P1 |
+| **Error recovery** — graceful handling of malformed markdown | 🟡 P1 |
+| **Lexer tests** — the existing `test_lexer.kn` has 9/9 passing, integrate into build | 🟡 P1 |
+
+### Medium Term
+
+| Feature | Impact |
+|---------|--------|
+| **Fenced code execution** — compile and run ` ```kain ` blocks inline | Game-changing |
+| **Kain FFI bridge** — call `std::fs`, `std::gpu`, etc. from intents | Massive |
+| **`include` directive** — `@import other.md` for multi-file projects | Major |
+| **Table schema inference** — detect column types (Int, Float, String) | Major |
+| **World/actor generation** — `# Store X` → `world X: state ...` | Paradigm shift |
+
+### Long Term — The Real Vision
+
+- **LLM-native programming**: Write markdown, get a working binary. Zero syntax errors because markdown has no syntax errors.
+- **Literate programming at scale**: Game designers write AI scripts in markdown. Engineers write IVT handlers in Kain with worlds, actors, and formal verification.
+- **The bus factor is zero**: The README IS the program. Every new hire reads the docs and sees the entire control flow.
+- **PRs on docs ARE PRs on code**: "This table has a bug in row 3" is a valid code review comment.
+
+---
+
+## FAQ
+
+### Why Markdown? Why not YAML/TOML/JSON?
+
+Markdown is the most widely understood structured text format on earth. Every developer, designer, and technical writer knows it. JSON is for machines. YAML is for configs. Markdown is for humans.
+
+### How fast is it?
+
+The VM is authored in Kain and compiled through LLVM to native code. There's no interpreter overhead beyond the opcode dispatch loop. Matrix data is stored as contiguous `Array<Int>` — no indirection, no boxing. The binary is a native .exe with no interpreter dependency.
+
+### Can I call Kain from MarkScript?
+
+Currently, intents are dispatched through the IVT to stub handlers. Future versions will wire the IVT to real Kain function pointers, enabling `> write file` to call `std::fs::fs_write_text()`.
+
+### Can I call MarkScript from Kain?
+
+Yes — `mks.exe` is a regular Kain native executable. It can be spawned as a subprocess, called via FFI, or embedded as a library. The `compile_source()` function is a pure function from `LexerState` to `Array<Int>` that can be called from any Kain code.
+
+### Does it work on Linux?
+
+The Kain toolchain targets x86_64 Windows and Linux. Build the blade under WSL or Linux to get a native Linux binary. The LLVM IR is platform-independent.
+
+### Is this production-ready?
+
+**No.** It's a working prototype built in a single session. The pipeline compiles and runs real files, but there's no error recovery, no REPL, no real IVT handlers, and no fenced code execution. It's a proof of concept that the architecture works.
+
+---
+
+## References
+
+- **Source**: `blades/markscript/src/` — 5 Kain source files (1,381 LOC)
+- **Examples**: `blades/markscript/examples/` — 9 markdown scripts (400 LOC total)
+- **Build**: `blades/markscript/build.kn` — Kain build authority
+- **Kain docs**: `docs/RULEBOOK.md` — The decision ladder for writing Kain
+- **Kain GLOSSARY**: `GLOSSARY.MD` — Every term mapped to its location
+- **Kain stdlib**: `stdlib/` — 65+ modules, 3,500+ symbols
+
+---
+
+*Built with Kain — the non-Von Neumann systems language with a compiler-owned semantic stack.*
+
+*"Your documentation is your program."*

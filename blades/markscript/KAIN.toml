@@ -29,6 +29,5 @@ inputs = [
     "src/main.kn",
     "src/lexer.kn",
     "src/ast.kn",
-    "src/compiler.kn",
     "src/vm.kn",
 ]
