@@ -1,6 +1,8 @@
 # Build artifacts
 /target/
 **/*target*/
+/private
+private/
 **/*target*/**
 *.json
 *.exe

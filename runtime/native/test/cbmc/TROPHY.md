@@ -1,16 +1,18 @@
 # 🏆 CBMC Trophy Case
 
-*auto-generated · last updated: 2026-06-08 02:11*
+*auto-generated · last updated: 2026-06-08 02:53*
 
 | file | asserts | status |
 |------|--------|--------|
 | arena.c | 833 | ✅ |
+| bitfield.c | 88 | ✅ |
 | crash_handler.c | 86 | ✅ |
+| union.c | 240 | ✅ |
+| version.c | 122 | ✅ |
 | actor.c | — | ⏳ rerun |
 | async.c | — | ⏳ |
 | attrition.c | — | ⏳ |
 | batch_queue.c | — | ⏳ |
-| bitfield.c | — | ⏳ |
 | buddy.c | — | ⏳ |
 | compatibility.c | — | ⏳ |
 | contract.c | — | ⏳ |
@@ -47,12 +49,10 @@
 | services.c | — | ⏳ |
 | simd.c | — | ⏳ |
 | stdlib_abi.c | — | ⏳ |
-| union.c | — | ⏳ |
-| version.c | — | ⏳ |
 | virtual_alloc.c | — | ⏳ |
 | wire.c | — | ⏳ |
 
-**2/47 files verified · 919 assertions, 0 violations**
+**5/47 files verified · 1369 assertions, 0 violations**
 
 ```
 python test/scripts/run_pipeline.py cbmc --harness check_<module>
