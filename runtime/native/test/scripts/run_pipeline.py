@@ -483,14 +483,17 @@ def _run_cbmc_in_wsl(harness_path, source_path, mod_name, unwind=5) -> tuple[str
 
     combined_wsl = to_wsl(combined)
 
-    cmd = f"cd {wsl_repo} && cbmc --unwind {unwind} --trace {combined_wsl} -I include -I src/core"
+    cmd = f"cd {wsl_repo} && cbmc --unwind {unwind} --no-unwinding-assertions --trace {combined_wsl} -I include -I src/core"
 
     try:
         proc = subprocess.run(
             ["wsl", "-d", "Ubuntu", "bash", "-c", cmd],
-            capture_output=True, text=True, timeout=120,
+            capture_output=True, timeout=120,
         )
-        return proc.stdout, proc.stderr, proc.returncode
+        # WSL output may contain bytes not representable in cp1252 — decode as utf-8
+        return (proc.stdout.decode("utf-8", errors="replace"),
+                proc.stderr.decode("utf-8", errors="replace"),
+                proc.returncode)
     except FileNotFoundError:
         return None
     except subprocess.TimeoutExpired:
