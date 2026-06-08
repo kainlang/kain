@@ -15,15 +15,17 @@
 4. [The Machine Surface — std::machine](#4-the-machine-surface--stdmachine)
 5. [The Runtime Surface — std::runtime](#5-the-runtime-surface--stdruntime)
 6. [The Atomic & Memory Surface](#6-the-atomic--memory-surface)
-7. [MMIO — Memory-Mapped I/O](#7-mmio--memory-mapped-io)
-8. [Raw Memory & Ownership on Metal](#8-raw-memory--ownership-on-metal)
-9. [Semantic Fusion on Metal — The CRUSHER Pattern](#9-semantic-fusion-on-metal--the-crusher-pattern)
-10. [Hidden Pipelines — 8 Discoveries](#10-hidden-pipelines--8-discoveries)
-11. [The CRUSHER Pattern — Full Walkthrough](#11-the-crusher-pattern--full-walkthrough)
-12. [Effects on Metal](#12-effects-on-metal)
-13. [Validation & Proof](#13-validation--proof)
-14. [Anti-Patterns](#14-anti-patterns)
-15. [Quick Reference — Master Table of Every Metal Surface](#15-quick-reference--master-table-of-every-metal-surface)
+7. [The C/OS ABI Bridge — include ... as ...](#7-the-cos-abi-bridge--include--as-)
+8. [MMIO — Memory-Mapped I/O](#8-mmio--memory-mapped-io)
+9. [Raw Memory & Ownership on Metal](#9-raw-memory--ownership-on-metal)
+10. [Semantic Fusion on Metal — The CRUSHER Pattern](#10-semantic-fusion-on-metal--the-crusher-pattern)
+11. [Hidden Pipelines — 8 Discoveries](#11-hidden-pipelines--8-discoveries)
+12. [The CRUSHER Pattern — Full Walkthrough](#12-the-crusher-pattern--full-walkthrough)
+13. [Effects on Metal](#13-effects-on-metal)
+14. [Building & Inspecting Metal Code](#14-building--inspecting-metal-code)
+15. [Validation & Proof](#15-validation--proof)
+16. [Anti-Patterns](#16-anti-patterns)
+17. [Quick Reference — Master Table of Every Metal Surface](#17-quick-reference--master-table-of-every-metal-surface)
 
 ---
 
@@ -695,6 +697,240 @@ let tgt = target_current()
 let has_avx2 = target_has_feature("cpu.x86.avx2")
 ```
 
+### 3.16 ELF Binary Introspection (std::elf)
+
+Kain can read and parse ELF headers directly — no external tools needed:
+
+```kn
+use std::elf
+
+fn probe_elf(buffer: ptr<Int>) with Unsafe:
+    let hdr = elf_read_header(buffer)
+    // hdr.magic, hdr.class, hdr.data, hdr.type,
+    // hdr.machine, hdr.entry, hdr.phoff, hdr.shoff,
+    // hdr.phnum, hdr.shnum
+    if hdr.machine == ELF_MACHINE_X86_64:
+        println("ELF64 x86_64")
+```
+
+This is useful for JIT loaders, self-modifying code verification, and binary analysis — all without leaving Kain.
+
+### 3.17 Structured Diagnostics (std::diagnostics)
+
+```kn
+use std::diagnostics
+
+log_info("metal", "initializing VM page torture")
+log_warning("metal", "huge pages not available, falling back to 4K")
+log_error("metal", "vm_commit failed", 0xDEAD)
+progress_emit("page_torture", 42)
+
+// Debug dump memory to console
+let buf: ptr<Int> = alloc_zeroed(16, "Int")
+// ... write to buf ...
+debug_dump_memory("buf contents", buf, 16)
+decay buf
+
+// Status chain helpers
+let status = vm_commit(addr, size)
+if status_failed(status):
+    log_error("vm", "commit failed", status)
+```
+
+### 3.18 Real-Time Metal Patterns
+
+These are reusable patterns for common systems programming tasks, composed entirely from the surfaces documented above.
+
+**Pattern: Spinlock with PAUSE hint**
+```kn
+struct Spinlock:
+    locked: AtomicBool
+
+fn spinlock_acquire(lock: ptr<Spinlock>) with Unsafe:
+    loop:
+        if !atomic_bool_exchange(lock.locked, true):
+            break  // acquired
+        while atomic_bool_load(lock.locked, Ordering.Relaxed):
+            spin_loop_hint()  // asm("pause")
+
+fn spinlock_release(lock: ptr<Spinlock>) with Unsafe:
+    atomic_bool_store(lock.locked, false, Ordering.Release)
+```
+
+**Pattern: Lock-free ring buffer**
+```kn
+struct RingBuffer:
+    buffer: ptr<Int>
+    capacity: Int
+    head: AtomicInt  // writer index
+    tail: AtomicInt  // reader index
+
+fn ring_push(ring: ptr<RingBuffer>, value: Int) -> Bool with Unsafe:
+    let head = atomic_int_load(ring.head, Ordering.Acquire)
+    let tail = atomic_int_load(ring.tail, Ordering.Acquire)
+    let next = (head + 1) % ring.capacity
+    if next == tail:
+        return false  // full
+    mem_store(ptr_offset(ring.buffer, head, "Int"), value, "Int")
+    atomic_int_store(ring.head, next, Ordering.Release)
+    return true
+```
+
+**Pattern: Memory barrier with timestamp**
+```kn
+fn synchronized_tsc() -> Int with Unsafe:
+    lfence()           // serialize instruction stream
+    let tsc = rdtsc()  // read TSC
+    mfence()           // full barrier
+    return tsc
+```
+
+**Pattern: NUMA-aware memory allocation**
+```kn
+fn alloc_on_numa_node(bytes: Int, node: Int) -> ptr<Int> with Unsafe:
+    let pages = vm_reserve(bytes)
+    vm_commit(pages, bytes)
+    numa_bind_current_thread(node)
+    // pages are now physically allocated on the requested NUMA node
+    return pages
+```
+
+**Pattern: Cache-line aligned allocation with clflush**
+```kn
+fn aligned_flush_buffer(count: Int) -> ptr<Int> with Unsafe:
+    let line_size = cpu_cache_line_bytes()
+    let bytes = (count * 8) + line_size  // overallocate for alignment
+    let raw = alloc_zeroed(bytes / 8, "Int")
+    let raw_addr = ptr_to_int(raw)
+    let aligned_addr = (raw_addr + line_size - 1) & ~(line_size - 1)
+    let aligned = int_to_ptr(aligned_addr)
+    // clflush to ensure clean cache state
+    cache_flush(aligned)
+    return aligned
+```
+
+**Pattern: Read-modify-write with CAS retry**
+
+```kn
+fn atomic_update(ptr: ptr<Int>, f: fn(Int) -> Int) -> Int with Unsafe:
+    loop:
+        let observed = atomic_load_acquire(ptr)
+        let desired = f(observed)
+        if atomic_compare_exchange_seqcst(ptr, observed, desired):
+            return desired
+        spin_loop_hint()  // back-off on contention
+```
+
+**Pattern: Zero-copy cross-world handoff with telemetry**
+```kn
+fn teleport_and_verify(source: WorldA, dest: WorldB, value: Int) -> Int:
+    let base_teleports = runtime_machine_teleport_count()
+    let moved = teleport value from source to dest via bus
+    let after_teleports = runtime_machine_teleport_count()
+    if after_teleports == base_teleports + 1:
+        return moved  // teleport confirmed
+    return -1  // teleport failed
+```
+
+**Pattern: RDTSC profiling of a hot section**
+```kn
+fn profile_hot_section(iterations: Int) -> Int with Unsafe:
+    lfence()
+    let start = rdtsc()
+    let acc = 0
+    let i = 0
+    while i < iterations:
+        // hot work here
+        acc = acc + (i * 31 + 7)
+        i = i + 1
+    mfence()
+    let end = rdtsc()
+    let cycles = end - start
+    println("hot section took " + str(cycles) + " cycles for " + str(iterations) + " iterations")
+    return acc
+```
+
+### 3.20 Getting Started — Your First Metal Program
+
+Here's a complete, runnable Kain metal program you can write in 5 minutes:
+
+```kn
+// first_metal.kn — Your first Kain systems program
+use std::machine
+
+fn main() -> Int with Unsafe:
+    println("=== Metal System Probe ===")
+    
+    // CPU topology — zero C, direct from LLVM
+    println("Logical CPUs:  " + str(cpu_logical_count()))
+    println("Physical cores: " + str(cpu_core_count()))
+    println("Packages:       " + str(cpu_package_count()))
+    println("Cache line:     " + str(cpu_cache_line_bytes()) + " bytes")
+    println("NUMA nodes:     " + str(numa_node_count()))
+    println("Page size:      " + str(vm_page_size()) + " bytes")
+    
+    // Timestamp counter
+    lfence()
+    let tsc_start = rdtsc()
+    lfence()
+    let tsc_end = rdtsc()
+    println("RDTSC delta:    " + str(tsc_end - tsc_start) + " cycles")
+    
+    // Inline asm
+    asm("pause")
+    
+    // Fence barrier
+    sfence()
+    mfence()
+    
+    // Raw memory with ownership
+    let buf: ptr<Int> = alloc_zeroed(8, "Int")
+    collapse buf:
+        mem_store(buf, 42, "Int")
+        println("Buffer[0] = " + str(mem_load(buf, "Int")))
+        0
+    decay buf
+    
+    println("=== All metal surfaces verified ===")
+    return 0
+```
+
+```bash
+kain run first_metal.kn --target llvm
+```
+
+### 3.21 Compile-Time Computation in Metal (comptime)
+
+Kain's `comptime` blocks execute during compilation. This is useful for generating lookup tables, unrolling loops, or computing constants for metal code:
+
+```kn
+comptime:
+    // This runs at compile time
+    let table: ptr<Int> = alloc_zeroed(256, "Int")
+    let i = 0
+    while i < 256:
+        mem_store(ptr_offset(table, i, "Int"), (i * 31 + 7) % MODULUS, "Int")
+        i = i + 1
+    // table is baked into the binary
+```
+
+When used with `shatter struct` and `converge`, comptime can generate platform-specific fast paths without runtime overhead.
+
+**Comptime + converge for platform-specific tables:**
+```kn
+comptime:
+    // Generate a sine lookup table at compile time
+    let sin_table = alloc_zeroed(256, "Int")
+    let i = 0
+    while i < 256:
+        let radians = (i * 360 / 256) * 3.14159 / 180
+        mem_store(ptr_offset(sin_table, i, "Int"), sin(radians) * 1000, "Int")
+        i = i + 1
+    // sin_table is now a constant in the binary
+```
+
+The compiler evaluates the entire `comptime` block during code generation. No runtime setup, no initialization cost, no branches.
+
 ---
 
 ## 4. The Machine Surface — std::machine
@@ -927,11 +1163,81 @@ fn atomic_notify_all(address: ptr<Int>) -> Int
 
 ---
 
-## 7. MMIO — Memory-Mapped I/O
+## 7. The C/OS ABI Bridge — include ... as ...
+
+When you need to reach outside Kain's stdlib into OS-specific C APIs, the `include ... as ...` statement imports C header declarations directly into Kain as typed function bindings. This is the **only** approved way to cross into C on the metal path.
+
+### 7.1 Basic Import
+
+```kn
+// Import Windows API — extracts 605 functions from the real Windows SDK
+include <windows.h> as win
+
+// Now you can call Windows API functions:
+fn get_cursor_pos() -> (Int, Int) with Unsafe:
+    let point = win.POINT { x: 0, y: 0 }
+    win.GetCursorPos(bitcast(point))
+    return (point.x, point.y)
+```
+
+### 7.2 Vulkan Import (755 functions)
+
+```kn
+include <vulkan/vulkan.h> as vk
+
+fn create_vulkan_instance() with Unsafe:
+    let app_info = vk.VkApplicationInfo {
+        sType: vk.VK_STRUCTURE_TYPE_APPLICATION_INFO,
+        pApplicationName: "Kain Metal",
+        applicationVersion: 1,
+        apiVersion: vk.VK_API_VERSION_1_3,
+    }
+    // ...
+```
+
+### 7.3 Companion .c Source Discovery
+
+When `include <header.h> as name` is used, the compiler discovers companion `.c` files via the import path and compiles them alongside the Kain module. This means you can:
+
+- Import complex vendor headers with zero shim headers needed
+- Call platform-specific native APIs that aren't in Kain's stdlib
+- Write small C bridge functions co-located with Kain code
+
+### 7.4 When to Use vs stdlib
+
+| Situation | Recommended |
+|-----------|-------------|
+| OS syscall (getpid, mmap, etc.) | `std::os` |
+| CPU topology | `std::machine` |
+| Virtual memory | `std::machine` VM functions |
+| Windows-specific API (DirectX, Win32 UI) | `include <windows.h>` |
+| Vulkan/OpenGL/DirectX graphics | `include <vulkan/vulkan.h>` |
+| Linux-specific ioctl | `include <sys/ioctl.h>` |
+| Custom C library | `include <mylib.h>` |
+
+The rule: **if `std::os` or `std::machine` has it, use that. If not, import the C header.**
+
+### 7.5 Ownership at the ABI Boundary
+
+Pointers returned from C functions have `ImportedC` provenance. You can read/write them with `mem_load`/`mem_store` but ownership lifecycle (`collapse`/`decay`) is defined by the C API contract, not Kain's allocator:
+
+```kn
+include <windows.h> as win
+
+fn read_virtual_memory(process_handle: ptr<Int>, address: Int) -> Int with Unsafe:
+    let buffer: ptr<Int> = alloc_zeroed(1, "Int")
+    let bytes_read: Int = 0
+    win.ReadProcessMemory(process_handle, address, buffer, 8, bitcast(bytes_read))
+    let result = mem_load(buffer, "Int")
+    decay buffer  // Kain-owned memory, safe to decay
+    return result
+```
+
+## 8. MMIO — Memory-Mapped I/O
 
 Kain's `std::mmio` provides **20 symbols** for hardware register access — MMIO read/write, bit field manipulation, and endian conversion.
 
-### 7.1 Access Constants
+### 8.1 Access Constants
 
 ```kn
 const MMIO_ACCESS_RO: Int = 0     // Read-only register
@@ -940,7 +1246,7 @@ const MMIO_ACCESS_RW: Int = 2     // Read-write register
 const MMIO_ACCESS_W1C: Int = 3    // Write-1-to-clear register
 ```
 
-### 7.2 Endian Constants
+### 8.2 Endian Constants
 
 ```kn
 const MMIO_ENDIAN_NATIVE: Int = 0
@@ -948,7 +1254,7 @@ const MMIO_ENDIAN_LITTLE: Int = 1
 const MMIO_ENDIAN_BIG: Int = 2
 ```
 
-### 7.3 Bit Field Operations
+### 8.3 Bit Field Operations
 
 ```kn
 fn mmio_bit_mask(width: Int) -> Int              // Create bitmask of given width
@@ -957,7 +1263,7 @@ fn mmio_field_set(word, bit_offset, width, value) -> Int  // Insert bit field
 fn mmio_field_w1c(word, bit_offset, width, clear_bits) -> Int  // W1C field clear
 ```
 
-### 7.4 Endian Conversion
+### 8.4 Endian Conversion
 
 ```kn
 fn mmio_swap16(value: Int) -> Int
@@ -968,7 +1274,7 @@ fn mmio_to_big32(value: Int) -> Int
 fn mmio_from_big32(value: Int) -> Int
 ```
 
-### 7.5 MMIO Read/Write
+### 8.5 MMIO Read/Write
 
 ```kn
 fn mmio_read_int(address: ptr<Int>) -> Int           // Volatile MMIO read
@@ -980,11 +1286,11 @@ All MMIO operations use `volatile` semantics — the compiler will never elide o
 
 ---
 
-## 8. Raw Memory & Ownership on Metal
+## 9. Raw Memory & Ownership on Metal
 
 This is the heart of Kain systems programming. You manage raw memory with `ptr<T>`, `alloc_zeroed`, `collapse`/`observe`/`decay`, and pointer arithmetic through `ptr_offset`/`mem_load`/`mem_store`.
 
-### 8.1 The Universal Pattern
+### 9.1 The Universal Pattern
 
 ```kn
 // 1. Allocate
@@ -1005,7 +1311,7 @@ let head: Int = observe cells:
 decay cells
 ```
 
-### 8.2 Ownership Regions
+### 9.2 Ownership Regions
 
 The Kain ownership system recognizes **6 regions** with different access policies:
 
@@ -1018,7 +1324,7 @@ The Kain ownership system recognizes **6 regions** with different access policie
 | `ENTANGLED_MIRROR` | Mirror in entangle pair | N/A | NO | YES | YES |
 | `IMPORTED_POINTER` | ptr from C ABI or FFI | N/A | depends | depends | NO |
 
-### 8.3 Pointer Provenance
+### 9.3 Pointer Provenance
 
 Kain tracks provenance for every raw pointer:
 
@@ -1029,7 +1335,7 @@ Kain tracks provenance for every raw pointer:
 | ImportedAsm | Pointer from inline asm | `asm` operand |
 | LoweredRef | Pointer from collapse/observe | Implicit |
 
-### 8.4 Allocators
+### 9.4 Allocators
 
 Kain provides bump, arena, and pool allocators through `std::alloc`:
 
@@ -1052,7 +1358,7 @@ pool_free_block(pool, block.index)
 pool_allocator_destroy(pool)
 ```
 
-### 8.5 Pointer Conversions
+### 9.5 Pointer Conversions
 
 ```kn
 // Pointer to integer (address value)
@@ -1065,7 +1371,7 @@ let ptr: ptr<Int> = int_to_ptr(addr)
 let byte_ptr: ptr<Byte> = bitcast(ptr)
 ```
 
-### 8.6 Real Code — Full Ownership Lifecycle (from `metal.kn` case 2)
+### 9.6 Real Code — Full Ownership Lifecycle (from `metal.kn` case 2)
 
 ```kn
 fn raw_ownership_memory_checksum(iterations: Int, modulus: Int) -> Int:
@@ -1087,7 +1393,7 @@ fn raw_ownership_memory_checksum(iterations: Int, modulus: Int) -> Int:
     return acc
 ```
 
-### 8.7 Ephemeral Zero-Init Elision (from `metal.kn` case 8)
+### 9.7 Ephemeral Zero-Init Elision (from `metal.kn` case 8)
 
 When the compiler can prove that the first use of an allocated cell is a **dominating store** (i.e., every code path writes before reading), it **elides the zero-fill**. This is a compiler optimization that systems programmers can exploit:
 
@@ -1111,11 +1417,11 @@ The compiler sees that `mem_store` is the first operation inside `collapse` and 
 
 ---
 
-## 9. Semantic Fusion on Metal — The CRUSHER Pattern
+## 10. Semantic Fusion on Metal — The CRUSHER Pattern
 
 The most important insight in this document: **you can use the entire Kain semantic stack at the metal level**. This is not "write semantic OR write metal" — it's both, simultaneously.
 
-### 9.1 World as OS Cache (from `core_os.kn`)
+### 10.1 World as OS Cache (from `core_os.kn`)
 
 Seed OS values once into a world, entangle to a mirror, read from mirror at zero cost:
 
@@ -1150,7 +1456,7 @@ pub fn os_semantic_page() -> Int:
 
 The benchmark in `core_os.kn` proves the speedup is **substantial** — calling `os_getpagesize()` through the kernel vs reading from a world field. When you do 8 OS value reads per iteration at 10,000 iterations, the cache path wins by orders of magnitude.
 
-### 9.2 Patch as Journaled Metal Mutation
+### 10.2 Patch as Journaled Metal Mutation
 
 `patch` records every state change with journaling and epoch bumping:
 
@@ -1169,7 +1475,7 @@ patch crusher_commit(authority: CrusherAuthority, value: Int, import_score: Int,
 
 Every `patch` is journaled. `patch_journal_count()` tells you how many patches have been applied.
 
-### 9.3 Law as Metal Invariant
+### 10.3 Law as Metal Invariant
 
 ```kn
 law crusher_signal_in_bounds(value: Int) -> Bool:
@@ -1178,7 +1484,7 @@ law crusher_signal_in_bounds(value: Int) -> Bool:
 
 Use `law_status()` to check the invariant at runtime within an orchestrate pipeline.
 
-### 9.4 Converge as Metal Dispatch (from `core_os.kn` + `metal.kn` case 10)
+### 10.4 Converge as Metal Dispatch (from `core_os.kn` + `metal.kn` case 10)
 
 **Spec + closed-form fast lane + AVX2/AVX-512 capability-gated lanes + `verify random(N)`:**
 
@@ -1207,7 +1513,7 @@ converge converge_asm_lane_checksum(iterations: Int, modulus: Int) -> Int:
 
 The `verify random(N)` clause tells the compiler to fuzz-test the fast lanes against the spec lane with N random inputs at compile time.
 
-### 9.5 Orchestrate as Metal Pipeline
+### 10.5 Orchestrate as Metal Pipeline
 
 ```kn
 orchestrate crusher_pipeline(seed: Int, authority: CrusherAuthority) -> Int:
@@ -1227,7 +1533,7 @@ orchestrate crusher_pipeline(seed: Int, authority: CrusherAuthority) -> Int:
     return final_host
 ```
 
-### 9.6 Teleport as Zero-Copy Metal Handoff
+### 10.6 Teleport as Zero-Copy Metal Handoff
 
 ```kn
 let shard = CrusherShard {
@@ -1241,7 +1547,7 @@ let moved = teleport shard from CrusherAuthority to CrusherMirror via crusher_bu
 
 The compiler tracks the teleport as a zero-copy ownership transfer between worlds. `runtime_machine_teleport_count()` measures how many have occurred.
 
-### 9.7 Shatter as Metal Layout
+### 10.7 Shatter as Metal Layout
 
 ```kn
 shatter struct Particle:
@@ -1254,7 +1560,7 @@ shatter struct Particle:
 
 The compiler lowers `shatter struct` to **Structure-of-Arrays** layout — fields are stored in parallel arrays for SIMD-friendly access. When used with ownership collapse, the stack backing is SoA.
 
-### 9.8 Actor as Metal Pressure Vessel
+### 10.8 Actor as Metal Pressure Vessel
 
 ```kn
 actor CrusherRelay:
@@ -1271,7 +1577,43 @@ let actor_reply = ask(relay, "Fold", crusher_mod(piped + moved.salt + moved.phas
 
 Actors in the hot path give you **message-level concurrency with scheduler telemetry** (`actor_scheduler_total_enqueued()`, `actor_scheduler_total_dequeued()`).
 
-### 9.9 Pulse as Metal Tick
+### 10.9 Axiom as Metal Capability Contract
+
+`axiom` declares a capability assumption with a guarantee and fallback. On the metal path, this is how you tell the compiler "I know this CPU has AVX2" or "this call won't fault":
+
+```kn
+axiom avx2_available:
+    when capability("cpu.x86.avx2")
+    guarantee "vector operations will use 256-bit SIMD"
+    fallback scalar_fallback
+
+axiom vm_page_is_4k:
+    when target("windows")
+    guarantee "vm_page_size() returns 4096"
+    fallback vm_page_size()
+```
+
+The compiler uses axioms for optimization decisions — if you declare AVX2 as axiomatic, the compiler may emit VEX-coded instructions without runtime checks.
+
+### 10.10 Share + Fanout — Parallel Metal Lanes
+
+`share` and `fanout` extend the ownership system for parallel write lanes. Inside a `share` scope, `fanout` launches N parallel writer lanes:
+
+```kn
+fn parallel_metal_fill(buffer: ptr<Int>, count: Int, value: Int) with Unsafe:
+    share buffer:
+        fanout lanes = 4:
+            // Each lane gets a slice
+            let lane_id = lane_index()
+            let cells_per = count / 4
+            let start = lane_id * cells_per
+            let i = 0
+            while i < cells_per:
+                mem_store(ptr_offset(buffer, start + i, "Int"), value + lane_id, "Int")
+                i = i + 1
+```
+
+### 10.11 Pulse as Metal Tick
 
 ```kn
 pulse metal_tick every 1ms jitter 0.1ms:
@@ -1281,7 +1623,7 @@ pulse metal_tick every 1ms jitter 0.1ms:
 
 ---
 
-## 10. Hidden Pipelines — 8 Discoveries
+## 11. Hidden Pipelines — 8 Discoveries
 
 ### 10.1 Semantic OS Caching (from `core_os.kn`)
 
@@ -1349,11 +1691,11 @@ converge converge_asm_lane_checksum(iterations: Int, modulus: Int) -> Int:
 
 ---
 
-## 11. The CRUSHER Pattern — Full Walkthrough
+## 12. The CRUSHER Pattern — Full Walkthrough
 
 `CRUSHER.kn` case 1 (`crusher_actor_ownership_mesh_checksum`) is the **single most important systems programming example in Kain**. Let's walk through every line.
 
-### 11.1 Initialization
+### 12.1 Initialization
 
 ```kn
 fn crusher_actor_ownership_mesh_checksum(iterations: Int, modulus: Int) -> Int with Unsafe:
@@ -1364,7 +1706,7 @@ fn crusher_actor_ownership_mesh_checksum(iterations: Int, modulus: Int) -> Int w
 
 You MUST call `runtime_init()` before using the runtime scheduler, actors, teleport, or certain telemetry counters.
 
-### 11.2 World Seeding
+### 12.2 World Seeding
 
 ```kn
     let authority = CrusherAuthority
@@ -1377,7 +1719,7 @@ You MUST call `runtime_init()` before using the runtime scheduler, actors, telep
 
 World state is initialized with known values for deterministic checksums.
 
-### 11.3 Actor Spawn
+### 12.3 Actor Spawn
 
 ```kn
     let relay = spawn CrusherRelay(bias = 29)
@@ -1385,7 +1727,7 @@ World state is initialized with known values for deterministic checksums.
 
 Spawns a CrusherRelay actor with initial bias. The actor will receive messages via `on Fold(...)`.
 
-### 11.4 Baseline Telemetry
+### 12.4 Baseline Telemetry
 
 ```kn
     let base_patch = patch_journal_count()
@@ -1398,7 +1740,7 @@ Spawns a CrusherRelay actor with initial bias. The actor will receive messages v
 
 These are all baseline reads — we capture them before the hot loop to compute deltas later. Note `cpuid_sig` uses CPUID to seed machine entropy directly into the checksum.
 
-### 11.5 Raw Memory Allocation
+### 12.5 Raw Memory Allocation
 
 ```kn
     let cells: ptr<Int> = alloc_zeroed(CRUSHER_CELL_COUNT, "Int")   // 128 cells
@@ -1407,7 +1749,7 @@ These are all baseline reads — we capture them before the hot loop to compute 
 
 Two raw pointer buffers for the hot loop. Both will be used with collapse/observe/decay.
 
-### 11.6 The Hot Loop — Semantic Fusion
+### 12.6 The Hot Loop — Semantic Fusion
 
 ```kn
     let acc = 0
@@ -1486,7 +1828,7 @@ Hardware fences AND inline asm in the same loop iteration as actor/world/telepor
 
 Mirror reads via entangle propagation — `CrusherMirror.signal_copy` is automatically synced from `CrusherAuthority.signal` through the entangle.
 
-### 11.7 Final Fence and Memory Teardown
+### 12.7 Final Fence and Memory Teardown
 
 ```kn
     mfence()  // Full memory barrier at end of loop
@@ -1499,7 +1841,7 @@ Mirror reads via entangle propagation — `CrusherMirror.signal_copy` is automat
     decay log
 ```
 
-### 11.8 Telemetry Deltas
+### 12.8 Telemetry Deltas
 
 ```kn
     let patch_delta = patch_journal_count() - base_patch
@@ -1511,7 +1853,7 @@ Mirror reads via entangle propagation — `CrusherMirror.signal_copy` is automat
 
 Every semantic operation is measurable. You can verify that patches fired, entangle propagated, teleports occurred, and actor messages were scheduled.
 
-### 11.9 Shutdown and Return
+### 12.9 Shutdown and Return
 
 ```kn
     let shutdown_status = runtime_shutdown()
@@ -1529,11 +1871,11 @@ The checksum includes EVERYTHING — data values, telemetry deltas, mirror state
 
 ---
 
-## 12. Effects on Metal
+## 13. Effects on Metal
 
 Effects in Kain declare what your function does to the world. Every systems function must declare its effects.
 
-### 12.1 The Effect Hierarchy
+### 13.1 The Effect Hierarchy
 
 ```
 Pure  ← No side effects at all
@@ -1553,7 +1895,7 @@ GPU  ← Compute dispatch, shader interop
 
 You can compose effects: `with Unsafe, GPU`, `with IO, Unsafe`.
 
-### 12.2 When to Use Which
+### 13.2 When to Use Which
 
 | Effect | Operations Required |
 |--------|-------------------|
@@ -1563,7 +1905,7 @@ You can compose effects: `with Unsafe, GPU`, `with IO, Unsafe`.
 | `Async` | `async`, `await`, async actor messages |
 | `Pure` | arithmetic, string ops, no metal surfaces, no IO |
 
-### 12.3 The Rule
+### 13.3 The Rule
 
 **When in doubt, declare `with Unsafe`.** The compiler will tell you if you don't need it. But a missing `Unsafe` on a function that touches raw memory is a compile error:
 
@@ -1575,7 +1917,7 @@ fn good(cell: ptr<Int>) -> Int with Unsafe:
     return mem_load(cell, "Int")  // OK
 ```
 
-### 12.4 Effect Composition Rules
+### 13.4 Effect Composition Rules
 
 ```kn
 fn read_write_mmio(reg: ptr<Int>) -> Int with Unsafe, IO:
@@ -1588,11 +1930,117 @@ fn gpu_compute_with_asm() with GPU, Unsafe:
     dispatch "kernel" [32, 32, 1]            // GPU
 ```
 
+### 13.5 Effect Calling Rules
+
+When calling a function with stricter effects from a function with weaker effects, the compiler enforces the effect bound:
+
+```kn
+fn parent() with Unsafe:
+    child_with_pure()           // OK — Pure is weaker than Unsafe
+    child_with_io()             // OK — IO is weaker than Unsafe
+    child_with_unsafe()         // OK — same level
+
+fn parent_with_pure():
+    child_with_unsafe()         // ERROR — Unsafe is stronger than Pure
+```
+
+### 13.6 Effect Inference for Inline Asm
+
+Any function containing `asm(...)`, `lfence()`, `sfence()`, `mfence()`, `rdtsc()`, `cpuid_*()`, `mem_load`, `mem_store`, `ptr_to_int`, `int_to_ptr`, `volatile_load_int`, or `volatile_store_int` **must** declare `with Unsafe`. The compiler will give you an error if you forget.
+
 ---
 
-## 13. Validation & Proof
+## 14. Building & Inspecting Metal Code
 
-### 13.1 Deterministic Checksums
+### 14.1 Compilation Targets
+
+Kain compiles to multiple targets via the LLVM backend. For metal code, the relevant targets are:
+
+```bash
+# Typecheck only (fastest)
+kain check my_metal.kn
+
+# Build to LLVM IR (inspect the generated asm/fence/CPUID calls)
+kain build my_metal.kn --target llvm
+
+# Build to native executable
+kain build my_metal.kn --target llvm --emit exe
+
+# Build to native object file (for linking)
+kain build my_metal.kn --target llvm --emit object
+
+# Build to LLVM bitcode
+kain build my_metal.kn --target llvm --emit llvm-ir
+```
+
+### 14.2 Inspecting the Generated Code
+
+After building with `--emit llvm-ir`, inspect the `.ll` file to verify the compiler emitted the right instructions:
+
+```bash
+# Check for lfence/sfence/mfence calls
+findstr "fence" output.ll
+
+# Check for CPUID calls
+findstr "cpuid" output.ll
+
+# Check for inline asm blocks
+findstr "asm" output.ll
+
+# Check for calling convention prefixes
+findstr "win64cc\\|vectorcall" output.ll
+
+# Check for section attributes
+findstr "section" output.ll
+```
+
+### 14.3 Native Executable Emission
+
+```bash
+# One-step: compile + link to exe
+kain_native target=my_metal.kn emit=exe
+
+# DLL / shared library
+kain_native target=my_metal.kn emit=sharedlib
+
+# Static library
+kain_native target=my_metal.kn emit=staticlib
+
+# Object file only
+kain_native target=my_metal.kn emit=object
+
+# LLVM IR only (for manual inspection)
+kain_native target=my_metal.kn emit=llvm-ir
+```
+
+### 14.4 The full `build.kn` for Metal Projects
+
+```kn
+// build.kn — metal project manifest
+project "metal-demo":
+    version "0.1.0"
+    description "Low-level metal surfaces demo"
+    
+    target "x86_64-pc-windows-msvc"
+    target "x86_64-unknown-linux-gnu"
+    
+    dependencies:
+        stdlib >= "0.1.0"
+    
+    build:
+        default "exe"
+        
+    features:
+        "metal-asm"
+        "metal-vm"
+        "metal-fences"
+```
+
+---
+
+## 15. Validation & Proof
+
+### 15.1 Deterministic Checksums
 
 Every metal benchmark in `metal.kn`, `core_os.kn`, and `CRUSHER.kn` returns a **single integer checksum**. This is the primary validation mechanism:
 
@@ -1601,7 +2049,7 @@ kain run benchmark/cases_v2/metal.kn --target llvm
 # [metal] asm_pause_storm checksum=12345678 expected=12345678 ok=true
 ```
 
-### 13.2 Runtime Shape Checks
+### 15.2 Runtime Shape Checks
 
 Use runtime telemetry to verify semantic operations:
 
@@ -1614,7 +2062,7 @@ let enqueue_delta = actor_scheduler_total_enqueued() - base_enqueued
 
 If `patch_delta` is 0 when you expected 192 patches, something is wrong.
 
-### 13.3 Replay Verification
+### 15.3 Replay Verification
 
 The CRUSHER pattern runs every case twice and compares checksums:
 
@@ -1626,7 +2074,7 @@ let replay_checksum = crusher_case_checksum(case_id, iterations, 1, CRUSHER_MODU
 
 A drift of `true` means the system is non-deterministic or state leaked between runs.
 
-### 13.4 Z3 Proofs
+### 15.4 Z3 Proofs
 
 Ownership transitions, pointer bounds, buffer growth, and zero-init elision are **Z3-proven** in the Kain repository. The `crates/ownership` and `crates/core` directories contain proof packs that verify:
 
@@ -1635,7 +2083,41 @@ Ownership transitions, pointer bounds, buffer growth, and zero-init elision are 
 - `teleport` does not alias between worlds
 - Zero-init elision is sound when dominating store is proven
 
-### 13.5 Benchmark Harness
+### 15.5 Ownership Proof with Z3
+
+Kain's ownership system is backed by Z3 proofs that verify:
+
+- **Collapse state machine**: Every `collapse` -> `observe` -> `decay` sequence is valid. No double-collapse, no use-after-decay, no observe-after-collapse-without-collapse-first.
+- **Pointer bounds**: `ptr_offset` stays within the allocated region. The Z3 solver proves buffer bounds mathematically.
+- **Zero-init elision**: The compiler proves that the first access is a dominating `mem_store`, making the `alloc_zeroed` zero-fill safe to elide.
+- **Teleport affinity**: After `teleport X from A to B`, ownership of X resides in B. Reads from A are provably stale.
+
+Proof packs live in:
+```
+crates/ownership/src/proof/
+crates/core/src/types/ownership_proof.rs
+```
+
+### 15.6 Convergence Testing via Verify
+
+Every `converge` with `verify random(N)` generates N random inputs and tests every fast lane against the spec lane at compile time. If any lane disagrees, compilation fails:
+
+```kn
+converge bench_converge_checksum(iterations: Int) -> Int:
+    spec reference:
+        return scalar_accumulate(iterations)
+    fast affine_closed_form_lane when target("llvm"):
+        return closed_form_accumulate(iterations)
+    fast avx2_mix_lane when capability("cpu.x86.avx2"):
+        return closed_form_accumulate(iterations)
+    fast avx512_mix_lane when capability("cpu.x86.avx512f"):
+        return closed_form_accumulate(iterations)
+    verify random(8)  // 8 random inputs, all lanes must match spec
+```
+
+If `affine_closed_form_lane` gives a different result than `spec reference` for any of the 8 random inputs, the converge block fails at compile time.
+
+### 15.7 Benchmark Harness
 
 ```bash
 # Run all metal cases
@@ -1646,121 +2128,121 @@ kain run benchmark/cases_v2/core_os.kn --target llvm
 
 # Run the CRUSHER (everything fused)
 kain run benchmark/cases_v2/CRUSHER.kn --target llvm
+
+# Run with JSON telemetry
+kain run benchmark/cases_v2/metal.kn --target llvm --json
+
+# Run a single case via environment filter
+$env:KAIN_BENCH_V2_FILTER="metal"
+kain run benchmark/cases_v2/ --target llvm --json
+```
+
+### 15.8 Expected Output Verification
+
+Each benchmark prints structured results that you can pipe into validation scripts:
+
+```
+[metal] asm_pause_storm group=metal_asm iterations=500000 checksum=12345678 expected=12345678 elapsed_ms=42 ok=true
+[metal] asm_cache_flush group=metal_asm iterations=200000 checksum=87654321 expected=87654321 elapsed_ms=156 ok=true
+...
+[metal] all cases passed
+```
+
+A non-zero exit code means a checksum mismatch. The exit code encodes which case failed (`10 + case_index` from the standalone runner).
+
+---
+
+## 16. Anti-Patterns
+
+### 14.1 Compilation Targets
+
+Kain compiles to multiple targets via the LLVM backend. For metal code, the relevant targets are:
+
+```bash
+# Typecheck only (fastest)
+kain check my_metal.kn
+
+# Build to LLVM IR (inspect the generated asm/fence/CPUID calls)
+kain build my_metal.kn --target llvm
+
+# Build to native executable
+kain build my_metal.kn --target llvm --emit exe
+
+# Build to native object file (for linking)
+kain build my_metal.kn --target llvm --emit object
+
+# Build to LLVM bitcode
+kain build my_metal.kn --target llvm --emit llvm-ir
+```
+
+### 14.2 Inspecting the Generated Code
+
+After building with `--emit llvm-ir`, inspect the `.ll` file to verify the compiler emitted the right instructions:
+
+```bash
+# Check for lfence/sfence/mfence calls
+findstr "fence" output.ll
+
+# Check for CPUID calls
+findstr "cpuid" output.ll
+
+# Check for inline asm blocks
+findstr "asm" output.ll
+
+# Check for calling convention prefixes
+findstr "win64cc\|vectorcall" output.ll
+
+# Check for section attributes
+findstr "section" output.ll
+```
+
+### 14.3 Native Executable Emission
+
+```bash
+# One-step: compile + link to exe
+kain_native target=my_metal.kn emit=exe
+
+# DLL / shared library
+kain_native target=my_metal.kn emit=sharedlib
+
+# Static library
+kain_native target=my_metal.kn emit=staticlib
+
+# Object file only
+kain_native target=my_metal.kn emit=object
+
+# LLVM IR only (for manual inspection)
+kain_native target=my_metal.kn emit=llvm-ir
+```
+
+### 14.4 The full `build.kn` for Metal Projects
+
+```kn
+// build.kn — metal project manifest
+project "metal-demo":
+    version "0.1.0"
+    description "Low-level metal surfaces demo"
+    
+    target "x86_64-pc-windows-msvc"
+    target "x86_64-unknown-linux-gnu"
+    
+    dependencies:
+        stdlib >= "0.1.0"
+    
+    build:
+        default "exe"
+        
+    features:
+        "metal-asm"
+        "metal-vm"
+        "metal-fences"
 ```
 
 ---
 
-## 14. Anti-Patterns
+## 17. Quick Reference — Master Table of Every Metal Surface
 
-### 14.1 ❌ Raw Pointers Without Ownership (collapse/observe/decay)
-
-```kn
-// BAD — raw pointer use without ownership
-fn leaky(ptr: ptr<Int>) -> Int with Unsafe:
-    return mem_load(ptr, "Int")
-
-// GOOD — explicit ownership
-fn owned(ptr: ptr<Int>) -> Int with Unsafe:
-    return observe ptr:
-        mem_load(ptr, "Int")
-```
-
-### 14.2 ❌ `Unsafe` as a Trash Can
-
-```kn
-// BAD — marking everything Unsafe because you're too lazy to think
-fn everything(value: Int) -> Int with Unsafe:
-    return (value * 7) % modulus   // no unsafe operation needed!
-
-// GOOD — use Pure when you don't touch metal
-fn everything(value: Int) -> Int with Pure:
-    return (value * 7) % modulus   // Pure verified by compiler
-```
-
-### 14.3 ❌ Calling OS Functions in Hot Loops Without Caching
-
-```kn
-// BAD — 3 kernel calls per iteration
-while index < 100000:
-    let a = os_cpu_count()
-    let b = os_cpu_core_count()
-    let c = os_getpagesize()
-    ...
-
-// GOOD — seed once, read from world
-WorldOsAuthority.cpu_count = os_cpu_count()
-worldOsAuthority.cpu_cores = os_cpu_core_count()
-WorldOsAuthority.page_size = os_getpagesize()
-// ... in loop:
-while index < 100000:
-    let a = WorldOsMirror.cpu_count_copy       // field read, not syscall
-    let b = WorldOsMirror.cpu_cores_copy       // field read, not syscall
-    let c = WorldOsMirror.page_size_copy       // field read, not syscall
-```
-
-### 14.4 ❌ Using `volatile` for Normal Synchronization
-
-```kn
-// BAD — volatile is not atomic
-volatile_store_int(flag_ptr, 1)
-let val = volatile_load_int(flag_ptr)
-
-// GOOD — use atomics for shared memory
-atomic_store_release(flag_ptr, 1)
-let val = atomic_load_acquire(flag_ptr)
-```
-
-### 14.5 ❌ Not Checking Runtime Telemetry
-
-```kn
-// BAD — assume patch worked
-crusher_commit(authority, value, score, delta)
-// no verification that it actually committed
-
-// GOOD — check telemetry
-let base = patch_journal_count()
-crusher_commit(authority, value, score, delta)
-let applied = patch_journal_count() - base
-```
-
-### 14.6 ❌ Forgetting `defer` for Cleanup
-
-```kn
-// BAD — no cleanup on early return
-fn process() -> Int:
-    let buf: ptr<Int> = alloc_zeroed(64, "Int")
-    if some_condition:
-        return -1      // buf leaked!
-    decay buf
-    return 0
-
-// GOOD — use defer
-fn process() -> Int:
-    let buf: ptr<Int> = alloc_zeroed(64, "Int")
-    defer decay buf
-    if some_condition:
-        return -1      // defer runs, buf released
-    return 0
-```
-
-### 14.7 ❌ Using C When Kain Can Do It Natively
-
-```kn
-// BAD — reaching for C FFI for basic OS calls
-include <windows.h> as win
-fn get_page_size() -> Int:
-    return win.GetSystemInfo()  // unnecessary
-
-// GOOD — Kain native OS surface
-fn get_page_size() -> Int:
-    return os_getpagesize()     // direct LLVM->OS, no C involved
-```
-
----
-
-## 15. Quick Reference — Master Table of Every Metal Surface
-
-### 15.1 Inline Assembly
+### 17.1 Inline Assembly
 
 | Code | File | Effect |
 |------|------|--------|
@@ -1770,7 +2252,7 @@ fn get_page_size() -> Int:
 | `asm("ret")` | `metal.kn` case 11 | Function return (in @naked) |
 | `asm("rep stosd", ptr, cnt, val, constraints="...", clobbers="...")` | pattern | Fast memory fill |
 
-### 15.2 Memory Barriers
+### 17.2 Memory Barriers
 
 | Code | File | Purpose |
 |------|------|---------|
@@ -1782,7 +2264,7 @@ fn get_page_size() -> Int:
 | `atomic_fence_release()` | `std::memory` | Release fence |
 | `atomic_fence_acqrel()` | `std::memory` | Acquire+Release fence |
 
-### 15.3 CPU Intrinsics
+### 17.3 CPU Intrinsics
 
 | Code | File | Purpose |
 |------|------|---------|
@@ -1803,7 +2285,7 @@ fn get_page_size() -> Int:
 | `prefetch_write(ptr, locality)` | `std::machine` | Prefetch for write |
 | `cache_flush(ptr)` | `std::machine` | Clflush wrapper |
 
-### 15.4 Virtual Memory
+### 17.4 Virtual Memory
 
 | Code | File | Purpose |
 |------|------|---------|
@@ -1820,7 +2302,7 @@ fn get_page_size() -> Int:
 | `vm_map(count)` | `std::machine` | Reserve+commit |
 | `vm_map_huge(count)` | `std::machine` | Huge page map |
 
-### 15.5 Ownership & Raw Memory
+### 17.5 Ownership & Raw Memory
 
 | Code | File | Purpose |
 |------|------|---------|
@@ -1835,7 +2317,7 @@ fn get_page_size() -> Int:
 | `int_to_ptr(addr)` | `metal.kn` case 5 | Address to pointer |
 | `bitcast(ptr)` | pattern | Reinterpret pointer type |
 
-### 15.6 Atomics
+### 17.6 Atomics
 
 | Code | Source | Purpose |
 |------|--------|---------|
@@ -1850,7 +2332,7 @@ fn get_page_size() -> Int:
 | `atomic_int_wait(self, expected, ms)` | `std::atomic` | Futex wait |
 | `atomic_int_notify_one(self)` | `std::atomic` | Futex wake |
 
-### 15.7 MMIO
+### 17.7 MMIO
 
 | Code | Source | Purpose |
 |------|--------|---------|
@@ -1861,7 +2343,7 @@ fn get_page_size() -> Int:
 | `mmio_to_little32(val)` | `std::mmio` | Host to little-endian |
 | `mmio_from_little32(val)` | `std::mmio` | Little-endian to host |
 
-### 15.8 OS Syscalls
+### 17.8 OS Syscalls
 
 | Code | Source | Purpose |
 |------|--------|---------|
@@ -1871,7 +2353,7 @@ fn get_page_size() -> Int:
 | `io_uring_setup(entries)` | `std::os` | Linux io_uring setup |
 | `io_uring_enter(fd, submit, complete)` | `std::os` | Linux io_uring enter |
 
-### 15.9 OS Memory Functions
+### 17.9 OS Memory Functions
 
 | Code | Source | Purpose |
 |------|--------|---------|
@@ -1885,7 +2367,7 @@ fn get_page_size() -> Int:
 | `os_munlock(addr, size)` | `core_os.kn` verification | Unlock pages |
 | `os_getpagesize()` | `core_os.kn` verification | System page size |
 
-### 15.10 Runtime Telemetry
+### 17.10 Runtime Telemetry
 
 | Code | Source | Purpose |
 |------|--------|---------|
@@ -1899,7 +2381,7 @@ fn get_page_size() -> Int:
 | `actor_scheduler_busy_workers()` | `CRUSHER.kn` telemetry | Busy workers |
 | `native_runtime_heap_validate()` | `std::runtime` | Heap integrity check |
 
-### 15.11 Function Attributes
+### 17.11 Function Attributes
 
 | Attribute | Source | Purpose |
 |-----------|--------|---------|
@@ -1910,7 +2392,7 @@ fn get_page_size() -> Int:
 | `@callconv("vectorcall")` | `metal.kn` case 6 | Microsoft vectorcall ABI |
 | `@callconv("sysv64")` | pattern | System V AMD64 ABI |
 
-### 15.12 Semantic Constructs on the Metal Path
+### 17.12 Semantic Constructs on the Metal Path
 
 | Construct | Source | Role in Metal Code |
 |-----------|--------|-------------------|
@@ -1948,3 +2430,73 @@ kain run benchmark/cases_v2/CRUSHER.kn --target llvm
 Every checksum is deterministic. Every surface is real. Every pattern is load-bearing.
 
 **There is no C. There is no Python. There is only Kain, LLVM, and the machine.**
+
+---
+
+## Further Reading
+
+| Document | Path | Covers |
+|----------|------|--------|
+| Ownership Guide | `X:/docs/OWNERSHIP.MD` | Full collapse/observe/decay deep dive |
+| Rule Book | `X:/docs/RULEBOOK.MD` | Decision ladder, idiom guide |
+| C ABI Guide | `X:/docs/C_GUIDE.MD` | include/as, FFI patterns |
+| GPU Guide | `X:/docs/SHADER_GPU.MD` | Shader compute, GPU metal |
+| std::machine | `X:/stdlib/machine.kn` | 38 symbols — fences, VM, CPUID, prefetch |
+| std::os | `X:/stdlib/os.kn` | 127 symbols — all OS surface functions |
+| std::runtime | `X:/stdlib/runtime.kn` | 56 symbols — telemetry, SIMD, converge |
+| std::atomic | `X:/stdlib/atomic.kn` | 44 symbols — atomic types, wait/notify |
+| std::memory | `X:/stdlib/memory.kn` | 19 symbols — volatile, fences, low-level atomics |
+| std::mmio | `X:/stdlib/mmio.kn` | 20 symbols — MMIO read/write, bit fields |
+| std::sync | `X:/stdlib/sync.kn` | 62 symbols — MCS locks, RwLock, semaphore, CV |
+| std::simd | `X:/stdlib/simd.kn` | 16 symbols — vector types, gather/scatter |
+| std::thread | `X:/stdlib/thread.kn` | 18 symbols — thread spawn/join/affinity |
+| std::alloc | `X:/stdlib/alloc.kn` | 33 symbols — bump, arena, pool allocators |
+| std::bits | `X:/stdlib/bits.kn` | 17 symbols — popcount, rotations, truncations |
+| std::target | `X:/stdlib/target.kn` | 6 symbols — arch/OS/env detection |
+| std::elf | `X:/stdlib/elf.kn` | 11 symbols — ELF header parsing |
+| std::diagnostics | `X:/stdlib/diagnostics.kn` | 25 symbols — logging, debug dump, status |
+
+### Benchmark Source Files
+
+| File | Path | Lines | Exercises |
+|------|------|-------|-----------|
+| `metal.kn` | `benchmark/cases_v2/metal.kn` | 600 | 12 metal cases: asm, fences, CPUID, VM, CC, shatter, naked, converge+asm |
+| `core_os.kn` | `benchmark/cases_v2/core_os.kn` | 550 | 11 OS cases + 16 verification tests + semantic OS caching |
+| `CRUSHER.kn` | `benchmark/cases_v2/CRUSHER.kn` | 430 | 4 singularity cases: import mesh, actor-ownership-mesh, cache fusion, full send |
+| `keyword_crucible.kn` | `benchmark/cases_v2/keyword_crucible.kn` | 900 | 108/110 keywords exercised across 7 case groups |
+
+### Utility Scripts
+
+| Script | Path | Purpose |
+|--------|------|---------|
+| `run_metal.py` | `benchmark/scripts/run_metal.py` | Run all metal cases with JSON output |
+| `run_core_os.py` | `benchmark/scripts/run_core_os.py` | Run all OS verification tests |
+| `run_crusher.py` | `benchmark/scripts/run_crusher.py` | Run CRUSHER semantic singularity cases |
+
+### Doc Maintenance
+
+This document is verified against the benchmark repository. If you add a new metal surface, you must:
+
+1. Add a new case to `benchmark/cases_v2/metal.kn` or `benchmark/cases_v2/core_os.kn`
+2. Add the surface to the reference tables in Section 17
+3. Add a code example in the appropriate subsection
+4. Run all three benchmark files to confirm checksums
+5. Update the line counts in the Benchmark Source Files table
+
+---
+
+## Fundamentals Summary
+
+Kain's systems programming surface can be summarized in **seven fundamental patterns** — understand these, and you understand the entire metal stack:
+
+| # | Pattern | Key Constructs | Reference Code |
+|---|---------|---------------|----------------|
+| 1 | **Raw instruction emission** | `asm("...")`, `rdtsc()`, `cpuid_eax/ebx/ecx/edx` | `metal.kn` case 0, 1, 3 |
+| 2 | **Memory ordering & barriers** | `lfence()`, `sfence()`, `mfence()`, `atomic_*`, `volatile_*` | `metal.kn` case 4 |
+| 3 | **Raw memory lifecycle** | `alloc_zeroed` → `collapse` → `mem_store`/`mem_load` → `observe` → `decay` | `metal.kn` case 2 |
+| 4 | **Virtual memory management** | `vm_reserve` → `vm_commit` → `vm_protect_*` → `vm_lock`/`vm_unlock` → `vm_decommit` → `vm_unmap` | `metal.kn` case 5 |
+| 5 | **CPU topology & affinity** | `cpu_core_count()`, `current_thread_id()`, `set_current_thread_affinity()`, `numa_bind_current_thread()` | `metal.kn` case 3, 9 |
+| 6 | **OS kernel operations** | `os_getpid()`, `os_mmap_anon()`, `os_write_text()`, `os_syscall0-6`, `os_io_uring_*` | `core_os.kn` verification tests |
+| 7 | **Semantic fusion** | `world` + `entangle` + `patch` + `law` + `converge` + `orchestrate` + `actor` + `teleport` | `CRUSHER.kn` case 1 |
+
+Every other surface in this document is a specialization of one of these seven patterns. Each pattern is deterministic, checksum-verified, and proven in the benchmark repository.
