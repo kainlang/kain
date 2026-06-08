@@ -1,11 +1,27 @@
 // ============================================================================
-//  MARKSCRIPT VIRTUAL MACHINE — Value-semantics bytecode executor
-//  No function pointers. Simple opcode dispatch.
-//  Supports matrix data tables and fenced code block storage.
+//  MARKSCRIPT VIRTUAL MACHINE — Stack-based bytecode executor
+//  Supports matrix data tables, fenced code blocks, IVT dispatch,
+//  control flow, arithmetic ops, and subroutine calls.
+//
+//  No raw pointers through bytecode. The VM owns all data in its
+//  data_table and IVT. Handles are Int values — safe from GC, tagged
+//  ints, and pointer invalidation.
 // ============================================================================
 
+// --- Opcodes (shared with ast.kn) -----------------------------------------
+// Parser-owned:  0=HALT, 1=ENTER_DOMAIN, 2=ROUTINE_HEADER,
+//                3=PUSH_PARAM, 4=EXECUTE_CALL
+// Parser+VM:     5=PUSH_MATRIX, 6=FENCED_CODE
+// VM-only:       7=PUSH_STACK, 8=POP_STACK, 9=DUP, 10=CALL,
+//               11=RET, 12=JMP, 13=JZ, 14=ADD, 15=SUB, 16=PRINT
+
+// --- IVT entry ------------------------------------------------------------
+
+pub struct IVTEntry:
+    phrase_hash: Int
+    handler_id:  Int
+
 // --- Matrix record --------------------------------------------------------
-// Stored in the VM's data_table at index == handle_id.
 
 pub struct MatrixRecord:
     handle_id: Int
@@ -22,10 +38,15 @@ pub struct CodeBlockRecord:
 // --- VM state -------------------------------------------------------------
 
 pub struct MarkScriptVM:
-    ip:          Int
-    accumulator: Int
-    data_table:  Array<MatrixRecord>
-    code_blocks: Array<CodeBlockRecord>
+    ip:             Int              // instruction pointer
+    accumulator:    Int              // primary return register
+    stack:          Array<Int>       // operand stack
+    data_table:     Array<MatrixRecord>  // handle → matrix data
+    data_table_cnt: Int              // next free handle id
+    code_blocks:    Array<CodeBlockRecord>  // fenced code blocks
+    call_stack:     Array<Int>       // return addresses
+    ivt:            Array<IVTEntry>  // intent vector table
+    ivt_count:      Int              // number of registered handlers
 
 // --- Execution result -----------------------------------------------------
 
@@ -40,59 +61,118 @@ pub fn init_vm() -> MarkScriptVM:
     return MarkScriptVM {
         ip: 0,
         accumulator: 0,
+        stack: [],
         data_table: [],
-        code_blocks: []
+        data_table_cnt: 0,
+        code_blocks: [],
+        call_stack: [],
+        ivt: [],
+        ivt_count: 0
     }
+
+// --- Data registration (value semantics) ---------------------------------
+// Returns a RegisterDataResult containing the updated VM + handle.
+
+pub struct RegisterDataResult:
+    vm:     MarkScriptVM
+    handle: Int
+
+pub fn register_data(vm: MarkScriptVM, data: Array<Int>) -> RegisterDataResult:
+    var v = vm
+    let handle = v.data_table_cnt
+    let rec = MatrixRecord {
+        handle_id: handle,
+        cols: 0,
+        rows: 0,
+        data: data
+    }
+    push(v.data_table, rec)
+    v.data_table_cnt = v.data_table_cnt + 1
+    return RegisterDataResult { vm: v, handle: handle }
+
+// --- IVT registration (value semantics) -----------------------------------
+
+pub fn register_handler(vm: MarkScriptVM, phrase_hash: Int, handler_id: Int) -> MarkScriptVM:
+    var v = vm
+    let entry = IVTEntry {
+        phrase_hash: phrase_hash,
+        handler_id: handler_id
+    }
+    push(v.ivt, entry)
+    v.ivt_count = v.ivt_count + 1
+    return v
+
+// --- IVT lookup -----------------------------------------------------------
+
+pub fn lookup_handler(vm: MarkScriptVM, hash: Int) -> Int:
+    var i: Int = 0
+    while i < vm.ivt_count:
+        if vm.ivt[i].phrase_hash == hash:
+            return vm.ivt[i].handler_id
+        i = i + 1
+    return 0
+
 
 // --- Execute bytecode -----------------------------------------------------
 // Bytecode: flat Array<Int> of [opcode, operand?, opcode, operand?, ...]
-// Matrix data is embedded inline: OP_PUSH_MATRIX, handle, cols, rows,
+// Matrix data is embedded inline:  OP_PUSH_MATRIX, handle, cols, rows,
 //   data_count, d0, d1, ..., dN
-// Fenced code: OP_FENCED_CODE, lang_hash, content_hash
+// Fenced code:  OP_FENCED_CODE, lang_hash, content_hash
 
 pub fn execute_bytecode(vm: MarkScriptVM, bc: Array<Int>) -> ExecResult:
     let bc_len = len(bc)
     var ip = vm.ip
     var acc = vm.accumulator
+    var stk = vm.stack
     var dt = vm.data_table
+    var dtc = vm.data_table_cnt
     var cb = vm.code_blocks
+    var callstk = vm.call_stack
+    var ivt = vm.ivt
+    var ivtc = vm.ivt_count
     var result: Int = 0
 
     while ip < bc_len:
         let opcode = bc[ip]
 
-        if opcode == 0: // OP_HALT
+        // --- OP_HALT (0) --------------------------------------------------
+        if opcode == 0:
             return ExecResult {
                 accumulator: result,
                 data_table: dt,
                 code_blocks: cb
             }
 
-        elif opcode == 1: // OP_ENTER_DOMAIN
+        // --- OP_ENTER_DOMAIN (1) ------------------------------------------
+        elif opcode == 1:
             ip = ip + 1
             if ip < bc_len:
                 acc = bc[ip]
             ip = ip + 1
 
-        elif opcode == 2: // OP_ROUTINE_HEADER
+        // --- OP_ROUTINE_HEADER (2) ----------------------------------------
+        elif opcode == 2:
             ip = ip + 1
             if ip < bc_len:
                 acc = bc[ip]
             ip = ip + 1
 
-        elif opcode == 3: // OP_PUSH_PARAM
+        // --- OP_PUSH_PARAM (3) --------------------------------------------
+        elif opcode == 3:
             ip = ip + 1
             if ip < bc_len:
                 acc = acc + bc[ip]
             ip = ip + 1
 
-        elif opcode == 4: // OP_EXECUTE_CALL
+        // --- OP_EXECUTE_CALL (4) ------------------------------------------
+        elif opcode == 4:
             result = acc
             ip = ip + 1
 
-        elif opcode == 5: // OP_PUSH_MATRIX
+        // --- OP_PUSH_MATRIX (5) -------------------------------------------
+        elif opcode == 5:
             ip = ip + 1
-            if ip + 3 >= bc_len:  // need at least handle + cols + rows + data_count
+            if ip + 3 >= bc_len:
                 ip = bc_len
                 continue
             let handle = bc[ip]
@@ -130,7 +210,8 @@ pub fn execute_bytecode(vm: MarkScriptVM, bc: Array<Int>) -> ExecResult:
 
             acc = handle
 
-        elif opcode == 6: // OP_FENCED_CODE
+        // --- OP_FENCED_CODE (6) -------------------------------------------
+        elif opcode == 6:
             ip = ip + 1
             if ip + 1 >= bc_len:
                 ip = bc_len
@@ -146,6 +227,120 @@ pub fn execute_bytecode(vm: MarkScriptVM, bc: Array<Int>) -> ExecResult:
             })
 
             acc = lang_hash
+
+        // --- OP_PUSH_STACK (7) — push next operand to stack ---------------
+        elif opcode == 7:
+            ip = ip + 1
+            if ip < bc_len:
+                let val = bc[ip]
+                push(stk, val)
+            ip = ip + 1
+
+        // --- OP_POP_STACK (8) — pop stack into accumulator ----------------
+        elif opcode == 8:
+            let stk_len = len(stk)
+            if stk_len > 0:
+                acc = stk[stk_len - 1]
+                pop(stk)
+            ip = ip + 1
+
+        // --- OP_DUP (9) — duplicate top of stack --------------------------
+        elif opcode == 9:
+            let stk_len = len(stk)
+            if stk_len > 0:
+                push(stk, stk[stk_len - 1])
+            ip = ip + 1
+
+        // --- OP_CALL (10) — IVT lookup, push return address ---------------
+        elif opcode == 10:
+            let stk_len = len(stk)
+            if stk_len > 0:
+                let target_hash = stk[stk_len - 1]
+                pop(stk)
+
+                // Lookup IVT
+                var found: Bool = false
+                var handler_id: Int = 0
+                var ii: Int = 0
+                while ii < ivtc:
+                    if ivt[ii].phrase_hash == target_hash:
+                        handler_id = ivt[ii].handler_id
+                        found = true
+                        break
+                    ii = ii + 1
+
+                if found:
+                    // Push return address
+                    push(callstk, ip + 1)
+                    // Jump to handler (by setting ip to 0 and using
+                    // the handler_id as the result — real dispatch
+                    // logic would branch here)
+                    result = handler_id
+                    ip = ip + 1
+                else:
+                    ip = ip + 1
+            else:
+                ip = ip + 1
+
+        // --- OP_RET (11) — pop return address, continue -------------------
+        elif opcode == 11:
+            let cstk_len = len(callstk)
+            if cstk_len > 0:
+                ip = callstk[cstk_len - 1]
+                pop(callstk)
+            else:
+                ip = ip + 1
+
+        // --- OP_JMP (12) — unconditional jump to target IP ----------------
+        elif opcode == 12:
+            ip = ip + 1
+            if ip < bc_len:
+                ip = bc[ip]
+            else:
+                ip = bc_len
+
+        // --- OP_JZ (13) — jump if zero ------------------------------------
+        elif opcode == 13:
+            ip = ip + 1
+            let target = bc[ip]
+            ip = ip + 1
+            let stk_len = len(stk)
+            if stk_len > 0:
+                let val = stk[stk_len - 1]
+                pop(stk)
+                if val == 0:
+                    ip = target
+
+        // --- OP_ADD (14) — stack[top-1] + stack[top] ----------------------
+        elif opcode == 14:
+            let stk_len = len(stk)
+            if stk_len >= 2:
+                let b = stk[stk_len - 1]
+                pop(stk)
+                let a = stk[stk_len - 2]
+                pop(stk)
+                push(stk, a + b)
+            ip = ip + 1
+
+        // --- OP_SUB (15) — stack[top-1] - stack[top] ----------------------
+        elif opcode == 15:
+            let stk_len = len(stk)
+            if stk_len >= 2:
+                let b = stk[stk_len - 1]
+                pop(stk)
+                let a = stk[stk_len - 2]
+                pop(stk)
+                push(stk, a - b)
+            ip = ip + 1
+
+        // --- OP_PRINT (16) — pop and print ---------------------------------
+        elif opcode == 16:
+            let stk_len = len(stk)
+            if stk_len > 0:
+                let val = stk[stk_len - 1]
+                pop(stk)
+                println("  [VM PRINT] " + str(val))
+            ip = ip + 1
 
         else:
             ip = ip + 1

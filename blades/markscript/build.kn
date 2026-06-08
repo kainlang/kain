@@ -17,13 +17,15 @@ fn build(ctx: BuildContext) -> BuildGraph:
         .cache_root(".kain/cache/build")
         .profile("debug")
 
+    let sources = source_set("mks-sources")
+        .glob("src/**/*.kn")
+        .file("build.kn")
+        .file("KAIN.toml")
+
     let check = check_task("check-llvm")
         .project(app)
         .target("llvm")
-        .input("src/lexer.kn")
-        .input("src/ast.kn")
-        .input("src/compiler.kn")
-        .input("src/vm.kn")
+        .inputs(sources)
 
     let exe = native_executable("root-executable")
         .project(app)
@@ -32,5 +34,6 @@ fn build(ctx: BuildContext) -> BuildGraph:
 
     return build_graph()
         .project(app)
+        .sources(sources)
         .task(check)
         .task(exe)
