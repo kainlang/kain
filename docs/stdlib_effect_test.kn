@@ -1,0 +1,8 @@
+use std::runtime
+
+fn example() Pure:
+    runtime_init()
+    return runtime_shutdown()
+
+fn main() with IO:
+    example()

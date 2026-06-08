@@ -1,0 +1,135 @@
+use std::json
+use std::text
+
+// ============================================================================
+//  LANGUAGE MAP — extension-to-language lookup
+// ============================================================================
+
+pub struct LangMapEntry:
+    ext: String
+    lang: String
+
+pub fn build_language_map() -> Array<LangMapEntry>:
+    let map = []
+    push(map, LangMapEntry{ext: ".kn",    lang: "kain"})
+    push(map, LangMapEntry{ext: ".rs",    lang: "rust"})
+    push(map, LangMapEntry{ext: ".c",     lang: "c"})
+    push(map, LangMapEntry{ext: ".h",     lang: "c"})
+    push(map, LangMapEntry{ext: ".cpp",   lang: "cpp"})
+    push(map, LangMapEntry{ext: ".py",    lang: "python"})
+    push(map, LangMapEntry{ext: ".ts",    lang: "typescript"})
+    push(map, LangMapEntry{ext: ".js",    lang: "javascript"})
+    push(map, LangMapEntry{ext: ".json",  lang: "json"})
+    push(map, LangMapEntry{ext: ".md",    lang: "markdown"})
+    push(map, LangMapEntry{ext: ".toml",  lang: "toml"})
+    push(map, LangMapEntry{ext: ".yaml",  lang: "yaml"})
+    push(map, LangMapEntry{ext: ".yml",   lang: "yaml"})
+    push(map, LangMapEntry{ext: ".bazel", lang: "bazel"})
+    push(map, LangMapEntry{ext: ".bzl",   lang: "bazel"})
+    push(map, LangMapEntry{ext: ".kt",    lang: "kotlin"})
+    push(map, LangMapEntry{ext: ".java",  lang: "java"})
+    push(map, LangMapEntry{ext: ".go",    lang: "go"})
+    push(map, LangMapEntry{ext: ".sh",    lang: "shell"})
+    push(map, LangMapEntry{ext: ".bat",   lang: "batch"})
+    push(map, LangMapEntry{ext: ".ps1",   lang: "powershell"})
+    push(map, LangMapEntry{ext: ".html",  lang: "html"})
+    push(map, LangMapEntry{ext: ".css",   lang: "css"})
+    push(map, LangMapEntry{ext: ".scss",  lang: "scss"})
+    push(map, LangMapEntry{ext: ".svg",   lang: "svg"})
+    push(map, LangMapEntry{ext: ".png",   lang: "image"})
+    push(map, LangMapEntry{ext: ".jpg",   lang: "image"})
+    push(map, LangMapEntry{ext: ".jpeg",  lang: "image"})
+    push(map, LangMapEntry{ext: ".gif",   lang: "image"})
+    push(map, LangMapEntry{ext: ".webp",  lang: "image"})
+    push(map, LangMapEntry{ext: ".ico",   lang: "image"})
+    push(map, LangMapEntry{ext: ".mp4",   lang: "video"})
+    push(map, LangMapEntry{ext: ".mp3",   lang: "audio"})
+    push(map, LangMapEntry{ext: ".wav",   lang: "audio"})
+    push(map, LangMapEntry{ext: ".ttf",   lang: "font"})
+    push(map, LangMapEntry{ext: ".woff2", lang: "font"})
+    push(map, LangMapEntry{ext: ".wasm",  lang: "wasm"})
+    push(map, LangMapEntry{ext: ".ll",    lang: "llvm"})
+    push(map, LangMapEntry{ext: ".spv",   lang: "spirv"})
+    push(map, LangMapEntry{ext: ".ptx",   lang: "cuda"})
+    push(map, LangMapEntry{ext: ".hlsl",  lang: "hlsl"})
+    push(map, LangMapEntry{ext: ".wgsl",  lang: "wgsl"})
+    push(map, LangMapEntry{ext: ".glsl",  lang: "glsl"})
+    return map
+
+pub fn detect_language(ext: String) -> String:
+    let map = build_language_map()
+    var i = 0
+    while i < len(map):
+        if map[i].ext == ext:
+            return map[i].lang
+        i = i + 1
+    return "unknown"
+
+// ============================================================================
+//  IGNORE DIRS — always-skip directory names
+// ============================================================================
+
+pub fn is_ignored_dir(name: String) -> Bool:
+    let folded = to_lower(name)
+    if folded == ".git":         return true
+    if folded == ".kain":        return true
+    if folded == "node_modules": return true
+    if folded == "target":       return true
+    if folded == "bazel-bin":    return true
+    if folded == "bazel-out":    return true
+    if folded == "bazel-testlogs": return true
+    if folded == "__pycache__":  return true
+    if folded == ".venv":        return true
+    if folded == "venv":         return true
+    if folded == ".idea":        return true
+    if folded == ".vscode":      return true
+    if folded == "dist":         return true
+    if folded == "build":        return true
+    if folded == ".cache":       return true
+    return false
+
+pub fn is_hidden(name: String) -> Bool:
+    if name == "." or name == "..":
+        return false
+    if len(name) > 0 and char_at(name, 0) == ".":
+        return true
+    return false
+
+// ============================================================================
+//  CORE TYPES
+// ============================================================================
+
+pub struct TreeConfig:
+    root: String
+    max_depth: Int
+    include_hidden: Bool
+    pattern: String
+    exclude_patterns: Array<String>
+    max_entries: Int
+    action: String
+    format: String
+
+pub struct TreeEntry:
+    path: String
+    name: String
+    entry_type: String
+    size: Int
+    modified_ms: Int
+    extension: String
+    language: String
+    depth: Int
+    children: Array<TreeEntry>
+
+pub struct TreeSummary:
+    total_files: Int
+    total_dirs: Int
+    total_bytes: Int
+    by_extension: JsonObject
+    by_language: JsonObject
+
+pub struct TreeResult:
+    root: String
+    action: String
+    entries: Array<TreeEntry>
+    summary: TreeSummary
+    errors: Array<String>

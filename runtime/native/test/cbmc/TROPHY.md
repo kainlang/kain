@@ -1,31 +1,31 @@
 # 🏆 CBMC Trophy Case
 
-*auto-generated · last updated: 2026-06-08 03:09*
+*auto-generated · last updated: 2026-06-08 03:58*
 
 | file | asserts | status |
 |------|--------|--------|
 | arena.c | 833 | ✅ |
 | bitfield.c | 88 | ✅ |
+| buddy.c | 610 | ✅ |
 | cpu.c | 99 | ✅ |
 | crash_handler.c | 86 | ✅ |
+| deferred_free.c | 676 | ✅ |
+| entangle.c | 124 | ✅ |
+| fixup.c | 562 | ✅ |
 | handle.c | 420 | ✅ |
 | union.c | 240 | ✅ |
 | version.c | 122 | ✅ |
 | actor.c | — | ⏳ rerun |
+| batch_queue.c | — | ⏳ rerun |
 | async.c | — | ⏳ |
 | attrition.c | — | ⏳ |
-| batch_queue.c | — | ⏳ |
-| buddy.c | — | ⏳ |
 | compatibility.c | — | ⏳ |
 | contract.c | — | ⏳ |
 | converge.c | — | ⏳ |
 | core.c | — | ⏳ |
 | cuda_runtime.c | — | ⏳ |
-| deferred_free.c | — | ⏳ |
 | diagnostics.c | — | ⏳ |
-| entangle.c | — | ⏳ |
 | fanout.c | — | ⏳ |
-| fixup.c | — | ⏳ |
 | graphics_system.c | — | ⏳ |
 | host_bridge.c | — | ⏳ |
 | input_system.c | — | ⏳ |
@@ -52,7 +52,7 @@
 | virtual_alloc.c | — | ⏳ |
 | wire.c | — | ⏳ |
 
-**7/47 files verified · 1888 assertions, 0 violations**
+**11/47 files verified · 3860 assertions, 0 violations**
 
 ```
 python test/scripts/run_pipeline.py cbmc --harness check_<module>

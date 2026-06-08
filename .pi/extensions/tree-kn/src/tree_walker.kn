@@ -1,0 +1,221 @@
+use std::fs
+use std::json
+use std::text
+
+// Import from sibling module
+use tree_types::TreeConfig
+use tree_types::TreeEntry
+use tree_types::TreeSummary
+use tree_types::TreeResult
+use tree_types::detect_language
+use tree_types::is_hidden
+use tree_types::is_ignored_dir
+
+// ============================================================================
+//  PATH NORMALIZATION
+// ============================================================================
+
+fn normalize_path(path: String) -> String:
+    return replace(path, "\\", "/")
+
+// ============================================================================
+//  PATTERN MATCHING
+// ============================================================================
+
+pub fn matches_pattern(name: String, pattern: String) -> Bool:
+    return contains(to_lower(name), to_lower(pattern))
+
+fn matches_any_exclude(name: String, patterns: Array<String>) -> Bool:
+    if len(patterns) == 0:
+        return false
+    var i = 0
+    while i < len(patterns):
+        if contains(to_lower(name), to_lower(patterns[i])):
+            return true
+        i = i + 1
+    return false
+
+// ============================================================================
+//  ENTRY CONSTRUCTION
+// ============================================================================
+
+pub fn build_entry(dir_entry: FsDirEntry, depth: Int) -> TreeEntry:
+    let ext = fs_path_extension(dir_entry.path)
+    let lang = detect_language(ext)
+    return TreeEntry{
+        path: normalize_path(dir_entry.path),
+        name: dir_entry.file_name,
+        entry_type: dir_entry.file_type,
+        size: dir_entry.metadata.len,
+        modified_ms: dir_entry.metadata.modified_millis,
+        extension: ext,
+        language: lang,
+        depth: depth,
+        children: []
+    }
+
+// ============================================================================
+//  RECURSIVE WALKER
+// ============================================================================
+
+pub fn collect_entries(path: String, config: TreeConfig, depth: Int) -> Array<TreeEntry>:
+    // Depth limit check
+    if config.max_depth > 0 and depth >= config.max_depth:
+        let empty: Array<TreeEntry> = []
+        return empty
+
+    // Read directory
+    let dir_entries = fs_read_dir(path)
+    let result: Array<TreeEntry> = []
+    var count = 0
+
+    var i = 0
+    while i < len(dir_entries):
+        let dir_entry = dir_entries[i]
+        let name = dir_entry.file_name
+
+        // Skip . and .. pseudo-entries
+        if name == "." or name == "..":
+            i = i + 1
+            continue
+
+        // Skip hidden files and directories unless included
+        if is_hidden(name) and config.include_hidden == false:
+            i = i + 1
+            continue
+
+        // Skip known ignored directories
+        if dir_entry.file_type == "dir" and is_ignored_dir(name):
+            i = i + 1
+            continue
+
+        // Apply include pattern filter
+        if len(config.pattern) > 0:
+            if matches_pattern(name, config.pattern) == false:
+                i = i + 1
+                continue
+
+        // Apply exclude pattern filter
+        if matches_any_exclude(name, config.exclude_patterns):
+            i = i + 1
+            continue
+
+        // Build the tree entry from filesystem data
+        var entry = build_entry(dir_entry, depth + 1)
+
+        // Recurse into subdirectories if depth allows
+        if entry.entry_type == "dir":
+            let can_recurse = config.max_depth == 0 or (depth + 1) < config.max_depth
+            if can_recurse:
+                entry.children = collect_entries(entry.path, config, depth + 1)
+
+        push(result, entry)
+        count = count + 1
+
+        // Enforce entry limit
+        if config.max_entries > 0 and count >= config.max_entries:
+            break
+
+        i = i + 1
+
+    return result
+
+// ============================================================================
+//  TREE FLATTENING
+// ============================================================================
+
+fn flatten_all(entries: Array<TreeEntry>) -> Array<TreeEntry>:
+    let flat: Array<TreeEntry> = []
+    var i = 0
+    while i < len(entries):
+        push(flat, entries[i])
+        if len(entries[i].children) > 0:
+            let child_flat = flatten_all(entries[i].children)
+            var j = 0
+            while j < len(child_flat):
+                push(flat, child_flat[j])
+                j = j + 1
+        i = i + 1
+    return flat
+
+// ============================================================================
+//  SUMMARY BUILDER
+// ============================================================================
+
+pub fn build_summary(entries: Array<TreeEntry>) -> TreeSummary:
+    let flat = flatten_all(entries)
+    var total_files = 0
+    var total_dirs = 0
+    var total_bytes = 0
+    let by_ext = json_object()
+    let by_lang = json_object()
+
+    var i = 0
+    while i < len(flat):
+        let entry = flat[i]
+        if entry.entry_type == "file":
+            total_files = total_files + 1
+            total_bytes = total_bytes + entry.size
+
+            // Accumulate extension histogram
+            if len(entry.extension) > 0:
+                let ext_key = to_lower(entry.extension)
+                let ext_count = json_int_or(by_ext, ext_key, 0)
+                json_object_set_int(by_ext, ext_key, ext_count + 1)
+
+            // Accumulate language histogram
+            if len(entry.language) > 0:
+                let lang_key = to_lower(entry.language)
+                let lang_count = json_int_or(by_lang, lang_key, 0)
+                json_object_set_int(by_lang, lang_key, lang_count + 1)
+        else:
+            total_dirs = total_dirs + 1
+        i = i + 1
+
+    return TreeSummary{
+        total_files: total_files,
+        total_dirs: total_dirs,
+        total_bytes: total_bytes,
+        by_extension: by_ext,
+        by_language: by_lang
+    }
+
+// ============================================================================
+//  MAIN ENTRY POINT
+// ============================================================================
+
+pub fn walk_tree(config: TreeConfig) -> TreeResult:
+    let errs: Array<String> = []
+    let root_path = normalize_path(config.root)
+
+    // Validate root exists
+    if fs_exists(root_path) == false:
+        push(errs, "Root path not found: " + config.root)
+        let empty_summary = TreeSummary{
+            total_files: 0,
+            total_dirs: 0,
+            total_bytes: 0,
+            by_extension: json_object(),
+            by_language: json_object()
+        }
+        return TreeResult{
+            root: config.root,
+            action: config.action,
+            entries: [],
+            summary: empty_summary,
+            errors: errs
+        }
+
+    // Collect all entries recursively
+    let entries = collect_entries(root_path, config, 0)
+
+    // Build aggregate summary
+    let summary = build_summary(entries)
+
+    return TreeResult{
+        root: config.root,
+        action: config.action,
+        entries: entries,
+        summary: summary,
+        errors: errs
+    }

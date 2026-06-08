@@ -1,0 +1,17 @@
+use std::math
+use std::time
+use std::runtime
+
+fn bench_timing() with Pure:
+    let start = instant_now()
+    let sum = 0.0
+    for i in range(0, 1000):
+        sum = sum + fast_sin(pi() * to_float(i) / 500.0)
+    let elapsed = instant_elapsed(start)
+    let ms = duration_to_millis(elapsed)
+    println("Computed sum=" + to_string(sum) + " in " + to_string(ms) + "ms")
+
+fn main() with IO:
+    runtime_init()
+    bench_timing()
+    runtime_shutdown()

@@ -1,0 +1,408 @@
+// ============================================================================
+//  tree_main.kn — CLI entry point for tree-kn directory explorer
+// ============================================================================
+//
+//  Parses CLI arguments, builds TreeConfig, calls walk_tree() from the
+//  tree_walker module, formats output via tree_format, and prints results.
+//
+//  Ladder: Layer 0 — plain fn with IO effect. No world, no actor, no state
+//  machinery — just a sequential CLI tool that reads args, walks a directory,
+//  formats output, and exits.
+//
+//  Exit codes:
+//    0 — success, entries found
+//    1 — success, nothing found (grep convention)
+//    2 — error (path not found, runtime failure, walk errors)
+//  100+ — runtime init failure
+//  200+ — runtime shutdown failure
+//
+// ============================================================================
+
+use std::process
+use std::os_path
+use std::os
+use std::runtime
+use std::text
+use std::time
+use std::fs
+
+use tree_types
+use tree_walker
+use tree_format
+
+// ============================================================================
+//  CONSTANTS
+// ============================================================================
+
+const TREE_DEFAULT_MAX_DEPTH: Int = 0
+const TREE_DEFAULT_MAX_ENTRIES: Int = 0
+const TREE_DEFAULT_FORMAT: String = "tree"
+const TREE_DEFAULT_ACTION: String = "tree"
+
+// ============================================================================
+//  GET ARGS  —  Workaround for compiler tag-check bug in process_args()
+//
+//  Compiler LLVM IR bug: raw index 1 is incorrectly decoded as index 0
+//  when calling abi_process_arg(1), because the compiler's tag-bit check
+//  sees low bit = 1 and applies val>>3 (=0) instead of using raw 1.
+//  This causes argv[1] to be replaced with a duplicate of argv[0].
+//
+//  Workaround: skip raw index 1 entirely; use raw index 9 (decodes to 1)
+//  to retrieve argv[1]. For all i >= 2, process_arg(i) works correctly.
+//  Also skip argv[0] (the executable path) entirely.
+// ============================================================================
+
+pub fn get_user_args() -> Array<String>:
+    let count = process_arg_count()
+    let args: Array<String> = []
+
+    // Detect if the compiler bug is present: process_arg(1) should differ
+    // from process_arg(0) for well-formed command lines (argv[0] != argv[1]).
+    // If they're the same, the bug is active and we use the workaround.
+    let index_zero = process_arg(0)
+    let index_one = process_arg(1)
+    let need_workaround = count > 1 and index_zero == index_one
+
+    if count > 1:
+        if need_workaround:
+            // Compiler bug active: raw index 9 decodes to 1 via tag-check
+            push(args, process_arg(9))
+        else:
+            // No bug — normal indexing works
+            push(args, index_one)
+
+        // For indices >= 2, process_arg(i) works correctly
+        var i = 2
+        while i < count:
+            push(args, process_arg(i))
+            i = i + 1
+
+    return args
+
+
+// ============================================================================
+//  MAIN  —  CLI entry point
+// ============================================================================
+
+pub fn main() -> Int:
+    let argv = get_user_args()
+    let config = parse_args(argv)
+
+    // --help / -h shows usage and exits immediately (no runtime needed)
+    if config.action == "help":
+        print(usage())
+        return 0
+
+    // Initialize runtime for file system operations
+    let boot = runtime_init()
+    if boot != 0:
+        return 100 + boot
+
+    // --action info: show path metadata
+    if config.action == "info":
+        let exit_code = do_action_info(config.root)
+        let shutdown = runtime_shutdown()
+        if shutdown != 0:
+            return 200 + shutdown
+        return exit_code
+
+    // Validate path exists
+    if os_path_exists(config.root) == false:
+        print("tree-kn: path not found: " + config.root + "\n")
+        print(usage())
+        let shutdown = runtime_shutdown()
+        if shutdown != 0:
+            return 200 + shutdown
+        return 2
+
+    // Resolve to absolute path for consistent display
+    let resolved_root = os_path_abspath(config.root)
+
+    // Build final config with resolved root
+    let final_config = TreeConfig {
+        root: resolved_root,
+        max_depth: config.max_depth,
+        include_hidden: config.include_hidden,
+        pattern: config.pattern,
+        exclude_patterns: config.exclude_patterns,
+        max_entries: config.max_entries,
+        action: config.action,
+        format: config.format,
+    }
+
+    // Walk the directory tree
+    let result = walk_tree(final_config)
+
+    // Format and print based on requested format and action
+    if final_config.action == "summary":
+        // --action summary: show only the summary, no tree
+        print(format_summary_text(result))
+
+    elif final_config.format == "json":
+        // JSON always includes full data regardless of action
+        let json_text = format_json(result)
+        print(json_text)
+
+    elif final_config.format == "flat":
+        let flat_text = format_flat_text(result)
+        print(flat_text)
+        if len(result.errors) > 0:
+            var i = 0
+            while i < len(result.errors):
+                print("[ERROR] " + result.errors[i])
+                i = i + 1
+
+    else:
+        // Default: tree text with summary appended
+        let tree_text = format_tree_text(result)
+        print(tree_text)
+        print("")
+        print(format_summary_text(result))
+
+    // Shutdown runtime
+    let shutdown = runtime_shutdown()
+    if shutdown != 0:
+        return 200 + shutdown
+
+    // Determine exit code
+    if len(result.errors) > 0:
+        return 2
+    if len(result.entries) == 0:
+        return 1
+    return 0
+
+
+// ============================================================================
+//  INFO ACTION  —  Show metadata for a single path
+// ============================================================================
+
+fn do_action_info(path: String) -> Int:
+    // Resolve to absolute path first for reliable file operations
+    let abs_path = os_path_abspath(path)
+
+    if os_path_exists(abs_path) == false:
+        print("tree-kn: path not found: " + path)
+        return 2
+
+    var output = "Path: " + abs_path + "\n"
+    output = output + "  Type: "
+
+    let is_file = os_path_isfile(abs_path)
+    let is_dir = os_path_isdir(abs_path)
+    let is_symlink = os_path_islink(abs_path)
+
+    if is_symlink:
+        output = output + "symlink"
+    elif is_dir:
+        output = output + "directory"
+    elif is_file:
+        output = output + "file"
+    else:
+        output = output + "other"
+
+    output = output + "\n"
+
+    if is_file:
+        let size = os_path_getsize(abs_path)
+        output = output + "  Size: " + format_size(size) + "\n"
+
+        let ext = fs_path_extension(abs_path)
+        if len(ext) > 0:
+            output = output + "  Extension: " + ext + "\n"
+
+            let detected = detect_language(ext)
+            if detected != "unknown":
+                output = output + "  Language: " + detected + "\n"
+
+    let mtime = os_path_getmtime(abs_path)
+    if mtime > 0:
+        // os_path_getmtime returns seconds, convert to milliseconds
+        let mtime_ms = mtime * 1000
+        output = output + "  Modified: " + format_timestamp(mtime_ms) + "\n"
+
+    print(output)
+    return 0
+
+
+// ============================================================================
+//  ARGUMENT PARSING
+// ============================================================================
+
+pub fn parse_args(argv: Array<String>) -> TreeConfig:
+    var root = "."
+    var max_depth = TREE_DEFAULT_MAX_DEPTH
+    var include_hidden = false
+    var pattern = ""
+    var exclude_patterns: Array<String> = []
+    var max_entries = TREE_DEFAULT_MAX_ENTRIES
+    var action = TREE_DEFAULT_ACTION
+    var format = TREE_DEFAULT_FORMAT
+    var show_help = false
+    var found_positional = false
+
+    // get_user_args() already strips argv[0] (the executable path) and works
+    // around a compiler tag-check bug in abi_process_arg(). So argv here contains
+    // only the user-supplied arguments — start parsing from index 0.
+    var index = 0
+
+    while index < len(argv):
+        let arg = argv[index]
+
+        if arg == "--help" or arg == "-h":
+            show_help = true
+
+        elif arg == "--action" or arg == "-a":
+            if index + 1 < len(argv):
+                action = argv[index + 1]
+                index = index + 1
+
+        elif arg == "--depth" or arg == "-d":
+            if index + 1 < len(argv):
+                max_depth = parse_int_text(argv[index + 1])
+                index = index + 1
+
+        elif arg == "--pattern" or arg == "-p":
+            if index + 1 < len(argv):
+                pattern = argv[index + 1]
+                index = index + 1
+
+        elif arg == "--exclude" or arg == "-e":
+            if index + 1 < len(argv):
+                push(exclude_patterns, argv[index + 1])
+                index = index + 1
+
+        elif arg == "--format" or arg == "-f":
+            if index + 1 < len(argv):
+                format = argv[index + 1]
+                index = index + 1
+
+        elif arg == "--hidden" or arg == "-H":
+            include_hidden = true
+
+        elif arg == "--max-entries" or arg == "-m":
+            if index + 1 < len(argv):
+                max_entries = parse_int_text(argv[index + 1])
+                index = index + 1
+
+        elif arg == "--":
+            // Stop flag parsing — rest is positional
+            index = index + 1
+            var after_dash: Array<String> = []
+            while index < len(argv):
+                push(after_dash, argv[index])
+                index = index + 1
+            if len(after_dash) > 0:
+                root = after_dash[0]
+                found_positional = true
+            break
+
+        else:
+            // First non-flag argument is the root path
+            if found_positional == false:
+                root = arg
+                found_positional = true
+
+        index = index + 1
+
+    // Separate help from info: --help/-h shows usage text
+    // and exits; --action info shows path metadata.
+    if show_help:
+        action = "help"
+
+    return TreeConfig {
+        root: root,
+        max_depth: max_depth,
+        include_hidden: include_hidden,
+        pattern: pattern,
+        exclude_patterns: exclude_patterns,
+        max_entries: max_entries,
+        action: action,
+        format: format,
+    }
+
+
+// ============================================================================
+//  INTEGER PARSING  —  Manual string-to-int (no stdlib dependency)
+// ============================================================================
+
+fn parse_int_text(text: String) -> Int with Pure:
+    if len(text) == 0:
+        return 0
+
+    var sign = 1
+    var index = 0
+    if char_at(text, 0) == "-":
+        sign = -1
+        index = 1
+    elif char_at(text, 0) == "+":
+        index = 1
+
+    var value = 0
+    while index < len(text):
+        let ch = char_at(text, index)
+        var digit = 0
+
+        if ch == "0":
+            digit = 0
+        elif ch == "1":
+            digit = 1
+        elif ch == "2":
+            digit = 2
+        elif ch == "3":
+            digit = 3
+        elif ch == "4":
+            digit = 4
+        elif ch == "5":
+            digit = 5
+        elif ch == "6":
+            digit = 6
+        elif ch == "7":
+            digit = 7
+        elif ch == "8":
+            digit = 8
+        elif ch == "9":
+            digit = 9
+        else:
+            // Non-digit character — stop and return what we have so far
+            return value * sign
+
+        value = value * 10 + digit
+        index = index + 1
+
+    return value * sign
+
+
+// ============================================================================
+//  USAGE  —  Help text
+// ============================================================================
+
+pub fn usage() -> String:
+    var text = "tree-kn — fast directory tree explorer\n"
+    text = text + "\n"
+    text = text + "Usage:\n"
+    text = text + "  tree-kn <path>                           Tree view of path (default)\n"
+    text = text + "  tree-kn <path> --action tree|summary     Tree or summary output\n"
+    text = text + "  tree-kn <path> --action info             Show path metadata\n"
+    text = text + "  tree-kn <path> --depth <n>               Max depth (0 = unlimited)\n"
+    text = text + "  tree-kn <path> --pattern <glob>          Filter files by name\n"
+    text = text + "  tree-kn <path> --exclude <pat>           Exclude pattern (repeatable)\n"
+    text = text + "  tree-kn <path> --format json|tree|flat   Output format\n"
+    text = text + "  tree-kn <path> --hidden                  Include hidden files\n"
+    text = text + "  tree-kn <path> --max-entries <n>         Limit entries shown\n"
+    text = text + "  tree-kn --help                           Show this help\n"
+    text = text + "\n"
+    text = text + "Flags:\n"
+    text = text + "  -h, --help            Show this help message\n"
+    text = text + "  -a, --action <type>   tree (default) | summary | info\n"
+    text = text + "  -d, --depth <n>       Maximum directory depth\n"
+    text = text + "  -p, --pattern <glob>  Filter by filename pattern\n"
+    text = text + "  -e, --exclude <pat>   Exclude matching paths (repeatable)\n"
+    text = text + "  -f, --format <fmt>    tree (default) | json | flat\n"
+    text = text + "  -H, --hidden          Include hidden files\n"
+    text = text + "  -m, --max-entries <n> Maximum entries to display\n"
+    text = text + "\n"
+    text = text + "Exit codes:\n"
+    text = text + "  0  Entries found and displayed\n"
+    text = text + "  1  No entries found (nothing matches)\n"
+    text = text + "  2  Error (path not found, walk failure, etc.)\n"
+    return text

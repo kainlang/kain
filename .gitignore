@@ -9,6 +9,7 @@ private/
 /packages/ephemaris
 blades/c/ephemaris/
 .omo/
+*.i
 *.runtime_contract.json
 **/debug/
 mcp/.config/
