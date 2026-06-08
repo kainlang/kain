@@ -1,6 +1,6 @@
 # 🏆 CBMC Trophy Case
 
-*auto-generated · last updated: 2026-06-08 03:58*
+*auto-generated · last updated: 2026-06-08 19:41*
 
 | file | asserts | status |
 |------|--------|--------|
@@ -11,21 +11,25 @@
 | crash_handler.c | 86 | ✅ |
 | deferred_free.c | 676 | ✅ |
 | entangle.c | 124 | ✅ |
+| fanout.c | 302 | ✅ |
 | fixup.c | 562 | ✅ |
 | handle.c | 420 | ✅ |
+| services.c | 849 | ✅ |
 | union.c | 240 | ✅ |
 | version.c | 122 | ✅ |
+| virtual_alloc.c | 78 | ✅ |
 | actor.c | — | ⏳ rerun |
 | batch_queue.c | — | ⏳ rerun |
+| converge.c | — | ⏳ rerun |
+| memory.c | — | ⏳ rerun |
+| ownership.c | — | ⏳ rerun |
 | async.c | — | ⏳ |
 | attrition.c | — | ⏳ |
 | compatibility.c | — | ⏳ |
 | contract.c | — | ⏳ |
-| converge.c | — | ⏳ |
 | core.c | — | ⏳ |
 | cuda_runtime.c | — | ⏳ |
 | diagnostics.c | — | ⏳ |
-| fanout.c | — | ⏳ |
 | graphics_system.c | — | ⏳ |
 | host_bridge.c | — | ⏳ |
 | input_system.c | — | ⏳ |
@@ -34,9 +38,7 @@
 | json.c | — | ⏳ |
 | json_benchmark.c | — | ⏳ |
 | machine_stones.c | — | ⏳ |
-| memory.c | — | ⏳ |
 | net_system.c | — | ⏳ |
-| ownership.c | — | ⏳ |
 | process_system.c | — | ⏳ |
 | profile.c | — | ⏳ |
 | python_runtime.c | — | ⏳ |
@@ -46,13 +48,11 @@
 | renderer_backend.c | — | ⏳ |
 | renderer_session.c | — | ⏳ |
 | scene.c | — | ⏳ |
-| services.c | — | ⏳ |
 | simd.c | — | ⏳ |
 | stdlib_abi.c | — | ⏳ |
-| virtual_alloc.c | — | ⏳ |
 | wire.c | — | ⏳ |
 
-**11/47 files verified · 3860 assertions, 0 violations**
+**14/47 files verified · 5089 assertions, 0 violations**
 
 ```
 python test/scripts/run_pipeline.py cbmc --harness check_<module>

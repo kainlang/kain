@@ -566,6 +566,11 @@ struct LlvmGenerator {
     /// i64 locals that already carry native runtime Any / foreign-handle
     /// values and must not be reboxed as plain integers at the next call site.
     runtime_any_passthrough_locals: HashSet<String>,
+    /// i64 registers that carry tagged immediate values ((v << 3) | 1) and must be
+    /// untagged before passing to extern C ABI calls. Only registers from ptrtoint
+    /// of tagged i8* handles are tracked — raw function parameter registers are not
+    /// marked, which prevents corrupting odd integer constants like process_arg(1).
+    known_tagged_i64s: HashSet<String>,
     /// Maps function names to return type
     functions: HashMap<String, String>,
     /// Tracks function parameter LLVM types for call-site lowering.
@@ -783,6 +788,7 @@ impl LlvmGenerator {
             json_handle_locals: HashSet::new(),
             json_passthrough_locals: HashSet::new(),
             runtime_any_passthrough_locals: HashSet::new(),
+            known_tagged_i64s: HashSet::new(),
             functions: HashMap::new(),
             function_params: HashMap::new(),
             string_function_params: HashMap::new(),
@@ -1605,6 +1611,18 @@ impl LlvmGenerator {
         let l = format!("L{}", self.label_count);
         self.label_count += 1;
         l
+    }
+
+    /// Mark an i64 register as carrying a potentially tagged immediate value
+    /// ((v << 3) | 1) that must be untagged before passing to extern C ABI calls.
+    /// Called after `ptrtoint` of tagged i8* handles.
+    fn mark_known_tagged_i64(&mut self, reg: &str) {
+        self.known_tagged_i64s.insert(reg.to_string());
+    }
+
+    /// Check if an i64 register is known to carry a tagged immediate value.
+    fn is_known_tagged_i64(&self, reg: &str) -> bool {
+        reg.starts_with('%') && self.known_tagged_i64s.contains(reg)
     }
 
     fn sanitize_type_fragment(fragment: &str) -> String {
@@ -17645,6 +17663,10 @@ impl LlvmGenerator {
         func_name: &str,
         args: &[kain_core::ast::CallArg],
     ) -> KainResult<(String, String)> {
+        // Clear tagged-register tracking from any prior call.
+        // This set is populated by ptrtoint operations during argument
+        // compilation and consumed by the extern untagging pass below.
+        self.known_tagged_i64s.clear();
         if matches!(func_name, "py_call" | "py_call_raw") {
             let span = args
                 .first()
@@ -17739,6 +17761,7 @@ impl LlvmGenerator {
                         "  {} = ptrtoint {} {} to i64",
                         int_val, value_ty, value
                     ));
+                    self.mark_known_tagged_i64(&int_val);
                     value = int_val;
                     value_ty = "i64".to_string();
                 }
@@ -17771,6 +17794,7 @@ impl LlvmGenerator {
                     "  {} = ptrtoint {} {} to i64",
                     int_val, value_ty, value
                 ));
+                self.mark_known_tagged_i64(&int_val);
                 value = int_val;
                 value_ty = "i64".to_string();
             }
@@ -17989,6 +18013,7 @@ impl LlvmGenerator {
             if needs_cast_to_i64 {
                 let int_val = self.next_reg();
                 self.emit(&format!("  {} = ptrtoint {} {} to i64", int_val, ty, val));
+                self.mark_known_tagged_i64(&int_val);
                 compiled_args.push(int_val);
                 arg_types.push("i64".to_string());
                 continue;
@@ -18001,10 +18026,12 @@ impl LlvmGenerator {
         // Fix: untag Kain tagged integers for extern C ABI calls.
         // Kain tags Int values as (v << 3) | 1. When passed to C functions,
         // the tag leaks — C receives 1 instead of 0 for NULL handle params.
-        // Post-process all i64 register args: select (val & 7 == 1) ? (val >> 3) : val
+        // Only untag registers known to carry tagged values (from ptrtoint of
+        // tagged i8* handles). Raw function-parameter registers are not marked,
+        // which prevents corrupting odd integer constants like process_arg(1).
         if is_extern {
             for i in 0..compiled_args.len() {
-                if arg_types[i] == "i64" && compiled_args[i].starts_with('%') {
+                if arg_types[i] == "i64" && self.is_known_tagged_i64(&compiled_args[i]) {
                     let val = compiled_args[i].clone();
                     let tag_check = self.next_reg();
                     self.emit(&format!("  {} = and i64 {}, 7", tag_check, val));

@@ -53,43 +53,21 @@ const TREE_DEFAULT_FORMAT: String = "tree"
 const TREE_DEFAULT_ACTION: String = "tree"
 
 // ============================================================================
-//  GET ARGS  —  Workaround for compiler tag-check bug in process_args()
+//  GET ARGS  —  Strips argv[0] (executable path) and returns user args
 //
-//  Compiler LLVM IR bug: raw index 1 is incorrectly decoded as index 0
-//  when calling abi_process_arg(1), because the compiler's tag-bit check
-//  sees low bit = 1 and applies val>>3 (=0) instead of using raw 1.
-//  This causes argv[1] to be replaced with a duplicate of argv[0].
-//
-//  Workaround: skip raw index 1 entirely; use raw index 9 (decodes to 1)
-//  to retrieve argv[1]. For all i >= 2, process_arg(i) works correctly.
-//  Also skip argv[0] (the executable path) entirely.
+//  FIX 2026-06-08: The compiler tag-check bug in process_arg(1) is resolved.
+//  LLVM codegen now tracks tagged-register provenance and only applies
+//  extern-C untagging to known-tagged ptrtoint sources (not raw params).
+//  See crates/sys-codegen/src/codegen_llvm/mod.rs `known_tagged_i64s`.
 // ============================================================================
 
 pub fn get_user_args() -> Array<String>:
     let count = process_arg_count()
     let args: Array<String> = []
-
-    // Detect if the compiler bug is present: process_arg(1) should differ
-    // from process_arg(0) for well-formed command lines (argv[0] != argv[1]).
-    // If they're the same, the bug is active and we use the workaround.
-    let index_zero = process_arg(0)
-    let index_one = process_arg(1)
-    let need_workaround = count > 1 and index_zero == index_one
-
-    if count > 1:
-        if need_workaround:
-            // Compiler bug active: raw index 9 decodes to 1 via tag-check
-            push(args, process_arg(9))
-        else:
-            // No bug — normal indexing works
-            push(args, index_one)
-
-        // For indices >= 2, process_arg(i) works correctly
-        var i = 2
-        while i < count:
-            push(args, process_arg(i))
-            i = i + 1
-
+    var i = 1
+    while i < count:
+        push(args, process_arg(i))
+        i = i + 1
     return args
 
 

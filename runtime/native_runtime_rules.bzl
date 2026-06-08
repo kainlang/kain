@@ -9,6 +9,7 @@ WINDOWS_COPTS = [
     "/W3",
     "/std:c11",
     "/experimental:c11atomics",
+    "/Gy",  # Enable function-level linking for linker GC
 ]
 
 WINDOWS_CPP_COPTS = WINDOWS_COPTS + [
@@ -19,12 +20,16 @@ POSIX_C_COPTS = [
     "-Wall",
     "-Wextra",
     "-std=c11",
+    "-ffunction-sections",
+    "-fdata-sections",
 ]
 
 POSIX_CPP_COPTS = [
     "-Wall",
     "-Wextra",
     "-std=c++20",
+    "-ffunction-sections",
+    "-fdata-sections",
 ]
 
 RUNTIME_PRIVATE_HEADERS = [

@@ -177,6 +177,59 @@ struct NativeExecutableCacheHit {
     restored_sidecars: Vec<PathBuf>,
 }
 
+/// A precompiled native runtime archive (.a/.lib) ready to link.
+struct PrecompiledRuntimeArchive {
+    path: PathBuf,
+    link_libs: Vec<String>,
+}
+
+/// Resolve the precompiled native runtime archive path.
+///
+/// Priority:
+/// 1. `KAIN_RUNTIME_LIB_PATH` env var (explicit override)
+/// 2. `~/.kain/lib/libkain_runtime.a` or `kain_runtime.lib` (installed toolchain)
+fn resolve_precompiled_runtime_archive() -> Option<PrecompiledRuntimeArchive> {
+    use kain_core::install_layout;
+
+    // 1. Explicit env var
+    if let Ok(path) = std::env::var(install_layout::KAIN_RUNTIME_LIB_ENV_VAR) {
+        let p = PathBuf::from(path);
+        if p.exists() {
+            return Some(PrecompiledRuntimeArchive {
+                path: p,
+                link_libs: default_native_runtime_link_libs(),
+            });
+        }
+    }
+
+    // 2. Toolchain layout (~/.kain/lib/)
+    if let Some(layout) = install_layout::default_kain_install_layout() {
+        let lib_name = if cfg!(windows) {
+            "kain_runtime.lib"
+        } else {
+            "libkain_runtime.a"
+        };
+        let candidate = layout.lib_dir.join(lib_name);
+        if candidate.exists() {
+            return Some(PrecompiledRuntimeArchive {
+                path: candidate,
+                link_libs: default_native_runtime_link_libs(),
+            });
+        }
+
+        // Also check KAIN_HOME/lib/ for fallback
+        let fallback = layout.home_dir.join("lib").join(lib_name);
+        if fallback.exists() {
+            return Some(PrecompiledRuntimeArchive {
+                path: fallback,
+                link_libs: default_native_runtime_link_libs(),
+            });
+        }
+    }
+
+    None
+}
+
 impl NativeRuntimeElisionDecision {
     fn elide(reachable_functions: usize) -> Self {
         Self {
@@ -1715,10 +1768,27 @@ fn run_source_with_session(
                                 native_runtime_elision.reachable_external_targets.join(", ")
                             );
                         }
-                        if let Some(runtime_bundle) = match resolve_native_runtime_bundle() {
+                        // Prefer precompiled runtime archive over source compilation.
+                        // The archive is built with -ffunction-sections and linked
+                        // with --gc-sections so unused functions are dead-stripped.
+                        if let Some(archive) = resolve_precompiled_runtime_archive() {
+                            eprintln!(
+                                " Native runtime archive: {}",
+                                archive.path.display()
+                            );
+                            runtime_artifacts = NativeRuntimeCompiledArtifacts {
+                                loose_objects: Vec::new(),
+                                static_archives: vec![archive.path],
+                            };
+                            runtime_link_libs = archive.link_libs;
+                        } else if let Some(runtime_bundle) = match resolve_native_runtime_bundle()
+                        {
                             Ok(bundle) => bundle,
                             Err(err) => {
-                                eprintln!(" Failed to resolve native runtime bundle: {}", err);
+                                eprintln!(
+                                    " Failed to resolve native runtime bundle: {}",
+                                    err
+                                );
                                 return false;
                             }
                         } {

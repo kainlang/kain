@@ -680,12 +680,17 @@ def sanitized_python_env(base: dict[str, str]) -> dict[str, str]:
 def runtime_env(context: SyncContext) -> dict[str, str]:
     env = sanitized_python_env(os.environ.copy())
     temp_root = sync_temp_root(context)
+    kain_lib_dir = context.repo_kain_home / "lib"
+    is_windows = platform.system().lower() == "windows"
+    runtime_lib_name = "kain_runtime.lib" if is_windows else "libkain_runtime.a"
+    runtime_lib_path = kain_lib_dir / runtime_lib_name
     env.update(
         {
             "KAIN_REPO_ROOT": str(context.repo_root),
             "KAIN_HOME": str(context.repo_kain_home),
             "KAIN_CONFIG": str(context.repo_kain_config),
             "KAIN_STDLIB_PATH": str(context.repo_root / "stdlib"),
+            "KAIN_RUNTIME_LIB_PATH": str(runtime_lib_path) if runtime_lib_path.exists() else "",
             "KAIN_RUNTIME_C_PATH": str(context.repo_root / "runtime" / "runtime.c"),
             "KAIN_RUNTIME_MANIFEST_PATH": str(
                 context.repo_root / "runtime" / "native_core_runtime.toml"
@@ -1644,11 +1649,15 @@ def persist_windows_user_env(context: SyncContext) -> None:
             "winreg is unavailable; cannot persist Windows user env"
         ) from error
 
+    is_windows = platform.system().lower() == "windows"
+    runtime_lib_name = "kain_runtime.lib" if is_windows else "libkain_runtime.a"
+    runtime_lib_path = context.repo_kain_home / "lib" / runtime_lib_name
     values = {
         "KAIN_REPO_ROOT": str(context.repo_root),
         "KAIN_HOME": str(context.repo_kain_home),
         "KAIN_CONFIG": str(context.repo_kain_config),
         "KAIN_STDLIB_PATH": str(context.repo_root / "stdlib"),
+        "KAIN_RUNTIME_LIB_PATH": str(runtime_lib_path) if runtime_lib_path.exists() else "",
         "KAIN_RUNTIME_C_PATH": str(context.repo_root / "runtime" / "runtime.c"),
         "KAIN_RUNTIME_MANIFEST_PATH": str(
             context.repo_root / "runtime" / "native_core_runtime.toml"
@@ -1683,6 +1692,85 @@ def persist_windows_user_env(context: SyncContext) -> None:
             pass
 
 
+def _resolve_bazel_output_dir(context: SyncContext) -> Path | None:
+    """Run `bazel info bazel-bin` and return the output directory."""
+    result = run_capture(
+        ["bazel", "info", "bazel-bin", f"--config={context.bazel_config}"],
+        context.repo_root,
+        bazel_env(context),
+    )
+    if result.exit_code != 0:
+        return None
+    lines = [line.strip() for line in result.output_lines if line.strip()]
+    return Path(lines[-1]).resolve() if lines else None
+
+
+def sync_runtime_library(
+    context: SyncContext,
+    *,
+    skip_build: bool = False,
+) -> None:
+    """Build the native C runtime as a static library and copy it to ~/.kain/lib/.
+
+    The library is compiled with -ffunction-sections -fdata-sections so the
+    linker can dead-strip unused functions when --gc-sections is enabled.
+
+    On POSIX, Bazel cc_library produces a .a file directly at a known path.
+    On Windows (MSVC), cc_library produces .obj files in _objs/; we
+    archive them into a .lib using the MSVC librarian (lib.exe).
+    """
+    if not skip_build:
+        env = bazel_env(context)
+        build_args = [
+            "bazel",
+            "build",
+            "//runtime:native_core_runtime",
+            f"--config={context.bazel_config}",
+        ]
+        result = run_live(build_args, context.repo_root, env)
+        if result.exit_code != 0:
+            print(f"  [runtime] bazel build //runtime:native_core_runtime failed with exit code {result.exit_code}", file=sys.stderr)
+            return
+
+    bazel_bin = _resolve_bazel_output_dir(context)
+    if not bazel_bin:
+        print("  [runtime] unable to resolve bazel-bin; skipping runtime library sync", file=sys.stderr)
+        return
+
+    is_windows = platform.system().lower() == "windows"
+    lib_dir = context.repo_kain_home / "lib"
+    lib_dir.mkdir(parents=True, exist_ok=True)
+
+    if is_windows:
+        # MSVC: cc_library produces .obj files in _objs/ — archive into .lib
+        obj_dir = bazel_bin / "runtime" / "_objs" / "native_core_runtime_c"
+        obj_files = sorted(obj_dir.glob("*.obj")) if obj_dir.exists() else []
+        if not obj_files:
+            print(f"  [runtime] no .obj files found at {obj_dir}; skipping", file=sys.stderr)
+            return
+        dst_path = lib_dir / "kain_runtime.lib"
+        temp_path = dst_path.with_name(f"{dst_path.name}.tmp.{os.getpid()}")
+        lib_exe = shutil.which("lib.exe") or "lib.exe"
+        cmd = [lib_exe, "/OUT:" + str(temp_path)] + [str(f) for f in obj_files]
+        result = run_capture(cmd, context.repo_root)
+        if result.exit_code != 0:
+            print(f"  [runtime] lib.exe failed with exit code {result.exit_code}: {result.output_text[:200]}", file=sys.stderr)
+            return
+        os.replace(temp_path, dst_path)
+        size_str = f"{sum(f.stat().st_size for f in obj_files)} bytes (archived)"
+    else:
+        # POSIX: cc_library produces libnative_core_runtime.a directly
+        src_path = bazel_bin / "runtime" / "libnative_core_runtime.a"
+        if not src_path.exists():
+            print(f"  [runtime] static library not found at {src_path}; skipping", file=sys.stderr)
+            return
+        dst_path = lib_dir / "libkain_runtime.a"
+        copy_file_atomic(src_path, dst_path)
+        size_str = f"{src_path.stat().st_size} bytes"
+
+    print(f"  [runtime] {dst_path} ({size_str})")
+
+
 def sync_launchers(
     context: SyncContext,
     *,
@@ -1707,6 +1795,8 @@ def sync_launchers(
         if bash_path:
             print(f"BAZEL_SH  : {bash_path}")
         print()
+
+    sync_runtime_library(context, skip_build=skip_build)
 
     for attempt in range(1, MAX_SYNC_STAMP_ATTEMPTS + 1):
         source_data = source_stamp_data(

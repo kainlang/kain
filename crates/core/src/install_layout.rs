@@ -6,6 +6,7 @@ pub const KAIN_STDLIB_ENV_VAR: &str = "KAIN_STDLIB_PATH";
 pub const KAIN_RUNTIME_C_ENV_VAR: &str = "KAIN_RUNTIME_C_PATH";
 pub const KAIN_RUNTIME_MANIFEST_ENV_VARS: &[&str] =
     &["KAIN_RUNTIME_MANIFEST_PATH", "KAIN_RUNTIME_MANIFEST"];
+pub const KAIN_RUNTIME_LIB_ENV_VAR: &str = "KAIN_RUNTIME_LIB_PATH";
 pub const KAIN_CLANG_ENV_VAR: &str = "KAIN_CLANG_PATH";
 pub const KAIN_REPO_ROOT_ENV_VAR: &str = "KAIN_REPO_ROOT";
 
@@ -53,6 +54,7 @@ pub struct KainInstallLayout {
     pub toolchain_dir: PathBuf,
     pub llvm_bin_dir: PathBuf,
     pub packages_dir: PathBuf,
+    pub lib_dir: PathBuf,
     pub tooling_dir: PathBuf,
     pub cache_dir: PathBuf,
     pub generated_dir: PathBuf,
@@ -65,6 +67,7 @@ impl KainInstallLayout {
         Self {
             home_dir: home_dir.clone(),
             bin_dir: home_dir.join("bin"),
+            lib_dir: home_dir.join("lib"),
             config_path: home_dir.join("config.toml"),
             stdlib_dir: home_dir.join(STDLIB_DIR_NAME),
             runtime_dir: home_dir.join("runtime"),
@@ -123,6 +126,32 @@ pub fn resolve_runtime_c_path() -> Option<PathBuf> {
         &default_resource_search_roots(),
         RUNTIME_C_CANDIDATE_SUFFIXES,
     )
+}
+
+/// Resolve the path to the precompiled native runtime library.
+///
+/// Priority:
+/// 1. `KAIN_RUNTIME_LIB_PATH` env var (explicit override)
+/// 2. `~/.kain/lib/libkain_runtime.a` or `libkain_runtime.lib` (installed toolchain)
+/// 3. Repo-relative path to Bazel-built runtime library
+pub fn resolve_native_runtime_lib_path() -> Option<PathBuf> {
+    if let Some(explicit_path) = existing_env_path(KAIN_RUNTIME_LIB_ENV_VAR) {
+        return Some(explicit_path);
+    }
+
+    if let Some(layout) = default_kain_install_layout() {
+        let lib_name = if cfg!(windows) {
+            "kain_runtime.lib"
+        } else {
+            "libkain_runtime.a"
+        };
+        let candidate = layout.lib_dir.join(lib_name);
+        if candidate.exists() {
+            return Some(candidate);
+        }
+    }
+
+    None
 }
 
 pub fn resolve_native_runtime_manifest_path() -> Option<PathBuf> {

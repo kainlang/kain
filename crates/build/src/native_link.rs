@@ -3,6 +3,17 @@
 //! Extracted from `kain_launcher.rs` Run handler so both `kain build`
 //! and `kain run` share one clang invocation path.
 //!
+//! ## Runtime linking
+//!
+//! The native C runtime is shipped as a precompiled static library
+//! (`libkain_runtime.a` on Linux/macOS, `kain_runtime.lib` on Windows)
+//! compiled with `-ffunction-sections -fdata-sections`. When linked with
+//! `-Wl,--gc-sections` (Linux) or `/OPT:REF` (MSVC), the linker
+//! automatically dead-strips unreferenced runtime functions.
+//!
+//! Programs that don't use any runtime features skip the runtime entirely
+//! and link with `-nostdlib`.
+//!
 //! ## Emit modes
 //!
 //! | Emit      | Output     | Clang flags                  |
@@ -11,12 +22,6 @@
 //! | `SharedLib`| .dll/.so | `-shared`                    |
 //! | `StaticLib`| .lib/.a  | `-c` + `llvm-ar rcs`        |
 //! | `Object`  | .obj/.o   | `-c`                         |
-//!
-//! ## libc detection
-//!
-//! If the Kain source uses runtime functions (`use std::runtime`,
-//! `use std::process`, etc.), the linker pulls in the native runtime
-//! bundle. Pure-compute programs use `-nostdlib` and link directly.
 
 use kain_core::install_layout;
 use std::path::{Path, PathBuf};
@@ -90,6 +95,40 @@ pub struct NativeLinkRequest<'a> {
     pub runtime_artifacts: NativeRuntimeArtifacts,
 }
 
+// ── Precompiled runtime archive ──────────────────────────────────────
+
+/// Resolve path to the precompiled native runtime static library.
+///
+/// Priority:
+/// 1. `KAIN_RUNTIME_LIB_PATH` env var (explicit path)
+/// 2. `~/.kain/lib/libkain_runtime.a` or `kain_runtime.lib` (toolchain install)
+pub fn resolve_precompiled_runtime_archive() -> Option<PathBuf> {
+    if let Ok(path) = std::env::var(install_layout::KAIN_RUNTIME_LIB_ENV_VAR) {
+        let p = PathBuf::from(path);
+        if p.exists() {
+            return Some(p);
+        }
+    }
+
+    if let Some(layout) = install_layout::default_kain_install_layout() {
+        let lib_name = if cfg!(windows) {
+            "kain_runtime.lib"
+        } else {
+            "libkain_runtime.a"
+        };
+        let candidate = layout.lib_dir.join(lib_name);
+        if candidate.exists() {
+            return Some(candidate);
+        }
+        let fallback = layout.home_dir.join("lib").join(lib_name);
+        if fallback.exists() {
+            return Some(fallback);
+        }
+    }
+
+    None
+}
+
 // ── Clang discovery ──────────────────────────────────────────────────
 
 /// Find clang: bundled toolchain > `KAIN_CLANG_PATH` env > PATH > system install.
@@ -149,11 +188,24 @@ fn source_uses_runtime(source: &str) -> bool {
 pub fn link_native_binary(req: &NativeLinkRequest<'_>) -> Result<PathBuf, String> {
     let clang = find_clang().unwrap_or_else(|| "clang".to_string());
 
-    let needs_libc = source_uses_runtime(req.source_text) && !req.runtime_artifacts.loose_objects.is_empty();
+    let uses_runtime = source_uses_runtime(req.source_text);
+    let has_artifacts = !req.runtime_artifacts.loose_objects.is_empty()
+        || !req.runtime_artifacts.static_archives.is_empty();
+
+    let needs_libc = if has_artifacts {
+        // Caller supplied explicit runtime artifacts.
+        true
+    } else if uses_runtime {
+        // Source uses runtime features but no artifacts supplied.
+        // Try to find the precompiled runtime archive in the toolchain.
+        false // Will be resolved inside the emit-specific linker
+    } else {
+        false // Pure compute, no runtime needed
+    };
 
     match req.emit {
-        NativeEmit::Exe => link_exe(&clang, req, needs_libc),
-        NativeEmit::SharedLib => link_shared_lib(&clang, req, needs_libc),
+        NativeEmit::Exe => link_exe(&clang, req, uses_runtime, needs_libc),
+        NativeEmit::SharedLib => link_shared_lib(&clang, req, uses_runtime, needs_libc),
         NativeEmit::StaticLib => link_static_lib(&clang, req),
         NativeEmit::Object => link_object(&clang, req),
     }
@@ -169,22 +221,39 @@ fn base_clang_command(clang: &str, _req: &NativeLinkRequest<'_>) -> Command {
     cmd
 }
 
-fn link_exe(clang: &str, req: &NativeLinkRequest<'_>, needs_libc: bool) -> Result<PathBuf, String> {
+fn link_exe(clang: &str, req: &NativeLinkRequest<'_>, uses_runtime: bool, needs_libc: bool) -> Result<PathBuf, String> {
     let mut cmd = base_clang_command(clang, req);
 
-    if !needs_libc {
+    let has_artifacts = !req.runtime_artifacts.loose_objects.is_empty()
+        || !req.runtime_artifacts.static_archives.is_empty();
+
+    if !uses_runtime && !has_artifacts {
         // Pure compute — no C runtime needed
         cmd.arg("-nostdlib");
         #[cfg(windows)]
         cmd.arg("-Wl,/entry:main");
         #[cfg(not(windows))]
         cmd.arg("-Wl,-e,main");
-    } else {
+    } else if has_artifacts {
+        // Explicit runtime artifacts supplied
         for obj in &req.runtime_artifacts.loose_objects {
             cmd.arg(obj);
         }
         for archive in &req.runtime_artifacts.static_archives {
             cmd.arg(archive);
+        }
+    } else if uses_runtime {
+        // Source uses runtime but no artifacts supplied.
+        // Try the precompiled archive from the toolchain.
+        if let Some(archive) = resolve_precompiled_runtime_archive() {
+            cmd.arg(&archive);
+        } else {
+            return Err(
+                "source uses runtime features but no native runtime library found. "
+                .to_string()
+                + "Run `kain sync` or set KAIN_RUNTIME_LIB_PATH to the precompiled "
+                + "runtime archive (libkain_runtime.a / kain_runtime.lib)."
+            );
         }
     }
 
@@ -194,6 +263,14 @@ fn link_exe(clang: &str, req: &NativeLinkRequest<'_>, needs_libc: bool) -> Resul
     cmd.arg(req.llvm_ir_path);
     cmd.arg("-o").arg(req.output_path);
 
+    // Add linker dead-stripping flags
+    #[cfg(target_os = "linux")]
+    cmd.arg("-Wl,--gc-sections");
+    #[cfg(target_os = "macos")]
+    cmd.arg("-Wl,-dead_strip");
+    #[cfg(windows)]
+    cmd.arg("-Wl,/OPT:REF");
+
     for lib in &req.runtime_artifacts.link_libs {
         cmd.arg(format!("-l{}", lib));
     }
@@ -201,24 +278,45 @@ fn link_exe(clang: &str, req: &NativeLinkRequest<'_>, needs_libc: bool) -> Resul
     run_clang(cmd, req.output_path)
 }
 
-fn link_shared_lib(clang: &str, req: &NativeLinkRequest<'_>, needs_libc: bool) -> Result<PathBuf, String> {
+fn link_shared_lib(clang: &str, req: &NativeLinkRequest<'_>, uses_runtime: bool, needs_libc: bool) -> Result<PathBuf, String> {
     let mut cmd = base_clang_command(clang, req);
     cmd.arg("-shared");
 
-    if !needs_libc {
+    let has_artifacts = !req.runtime_artifacts.loose_objects.is_empty()
+        || !req.runtime_artifacts.static_archives.is_empty();
+
+    if !uses_runtime && !has_artifacts {
         cmd.arg("-nostdlib");
         cmd.arg("-Wl,-noentry");
-    } else {
+    } else if has_artifacts {
         for obj in &req.runtime_artifacts.loose_objects {
             cmd.arg(obj);
         }
         for archive in &req.runtime_artifacts.static_archives {
             cmd.arg(archive);
         }
+    } else if uses_runtime {
+        if let Some(archive) = resolve_precompiled_runtime_archive() {
+            cmd.arg(&archive);
+        } else {
+            return Err(
+                "source uses runtime features but no native runtime library found. "
+                .to_string()
+                + "Run `kain sync` or set KAIN_RUNTIME_LIB_PATH."
+            );
+        }
     }
 
     cmd.arg(req.llvm_ir_path);
     cmd.arg("-o").arg(req.output_path);
+
+    // Add linker dead-stripping flags
+    #[cfg(target_os = "linux")]
+    cmd.arg("-Wl,--gc-sections");
+    #[cfg(target_os = "macos")]
+    cmd.arg("-Wl,-dead_strip");
+    #[cfg(windows)]
+    cmd.arg("-Wl,/OPT:REF");
 
     for lib in &req.runtime_artifacts.link_libs {
         cmd.arg(format!("-l{}", lib));

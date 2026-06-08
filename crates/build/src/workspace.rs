@@ -3765,7 +3765,8 @@ fn run_kain_compile(
                 }
                 Err(err) => {
                     eprintln!(" Native link skipped: {err}");
-                    eprintln!("   (clang may not be installed — install LLVM for native binaries)");
+                    eprintln!("   Ensure clang is installed and the Kain runtime library is available.");
+                    eprintln!("   Run `kain sync` to build the runtime, or set KAIN_RUNTIME_LIB_PATH.");
                 }
             }
         }
