@@ -1,0 +1,91 @@
+// ============================================================================
+// YON MICRO BENCHMARK RUNNER - STANDALONE
+// ============================================================================
+// Direct one-to-one mirror of Yon's published micro-benchmarks.
+// Same iteration counts, same operation shapes, Kain runtime.
+//
+// Usage: kain run X:/benchmark/cases_v2/yon_micro_runner.kn --target llvm
+// ============================================================================
+
+use std::time
+use core_micro::core_micro_case_count
+use core_micro::core_micro_case_id
+use core_micro::core_micro_case_group
+use core_micro::core_micro_case_title
+use core_micro::core_micro_case_iterations
+use core_micro::core_micro_case_expected_checksum
+use core_micro::core_micro_case_checksum
+
+const MOD: Int = 1000000007
+
+fn bench(case_id: String, iters: Int, expected: Int, passes: Int) -> Int with Unsafe:
+    // Warmup
+    var w = 0
+    while w < 2:
+        let _ = core_micro_case_checksum(case_id, iters, 1, MOD)
+        w = w + 1
+
+    var checksum: Int = 0
+    var total: Int = 0
+    var best: Int = 999999999
+    var worst: Int = 0
+
+    var p = 0
+    while p < passes:
+        let t0 = now_millis()
+        checksum = core_micro_case_checksum(case_id, iters, 1, MOD)
+        let dt = now_millis() - t0
+        total = total + dt
+        if dt < best: best = dt
+        if dt > worst: worst = dt
+        p = p + 1
+
+    let avg = total / passes
+    let ns = (avg * 1000000) / (if iters == 0: 1 else: iters)
+    let match_ok = checksum == expected
+
+    println("| " + case_id + " | " + str(iters) + " | " + str(best) + "/" + str(avg) + "/" + str(worst) + " ms | " + str(ns) + " ns | " + checksum_status(match_ok) + " |")
+    return 0
+
+fn checksum_status(match_ok: Bool) -> String:
+    if match_ok:
+        return "OK"
+    return "FAIL"
+
+fn run_group(group: String, passes: Int) -> Int with Unsafe:
+    let n = core_micro_case_count()
+    var idx = 0
+    while idx < n:
+        let id = core_micro_case_id(idx)
+        let g = core_micro_case_group(idx)
+        if len(group) == 0 or g == group:
+            bench(id, core_micro_case_iterations(idx), core_micro_case_expected_checksum(idx), passes)
+        idx = idx + 1
+    return 0
+
+fn main() -> Int with Unsafe:
+    println("")
+    println("======================================================================")
+    println("  YON MICRO-BENCHMARK MIRROR")
+    println("  Kain Edition vs Yon (Leech lattice heap)")
+    println("")
+    println("  Yon reference numbers:")
+    println("    String.equal 1-char:          ~17 ns/op (O(1) Leech lattice)")
+    println("    String.equal 4096-char:       ~17 ns/op")
+    println("    String.equal 32768-char:      ~17 ns/op")
+    println("    HashMap.set 50k:              ~220 ns/op")
+    println("    HashMap.get 50k:              ~40 ns/op")
+    println("    Cell set+get:                 ~12.5 ns/op")
+    println("    Array/VoyagerList.get 1M:     ~27 ns/op (Golay accelerated)")
+    println("    Merkle build 4096 leaves:     ~2 ms")
+    println("    Merkle equal 4096:            <1 ms (O(1) Leech lattice)")
+    println("======================================================================")
+    println("")
+    println("| Case | Iterations | Best/Avg/Worst | ns/op | Checksum |")
+    println("|------|-----------|----------------|-------|----------|")
+
+    run_group("", 5)
+
+    println("")
+    println("Done.")
+    return 0

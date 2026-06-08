@@ -244,6 +244,7 @@ const char* kain_diagnostic_subsystem_name(KainDiagSubsystem subsystem) {
         case KAIN_DIAG_SUBSYSTEM_FIXUP:         return "FIXUP";
         case KAIN_DIAG_SUBSYSTEM_PROFILE:       return "PROFILE";
         case KAIN_DIAG_SUBSYSTEM_MACHINE:       return "MACHINE";
+        case KAIN_DIAG_SUBSYSTEM_CRASH:         return "CRASH";
         case KAIN_DIAG_SUBSYSTEM_UNKNOWN:
         default:                                 return "UNKNOWN";
     }

@@ -13,6 +13,13 @@ use classic_core::classic_case_expected_checksum
 use classic_core::classic_case_group
 use classic_core::classic_case_id
 use classic_core::classic_case_iterations
+use core_micro::core_micro_case_checksum
+use core_micro::core_micro_case_count
+use core_micro::core_micro_case_expected_checksum
+use core_micro::core_micro_case_group
+use core_micro::core_micro_case_id
+use core_micro::core_micro_case_iterations
+use core_micro::core_micro_case_title
 use classic_core::classic_case_title
 use classic_systems::classic_systems_case_checksum
 use classic_systems::classic_systems_case_count
@@ -575,6 +582,9 @@ fn run_case_checksum(case_id: String, iterations: Int, amplify: Int) -> Int with
     let math_pack_checksum = math_pack_case_checksum(case_id, iterations, amplify, ROUTER_MODULUS)
     if math_pack_checksum >= 0:
         return math_pack_checksum
+    let core_micro_checksum = core_micro_case_checksum(case_id, iterations, amplify, ROUTER_MODULUS)
+    if core_micro_checksum >= 0:
+        return core_micro_checksum
     let repeat = 0
     let acc = 0
     while repeat < amplify:
@@ -1203,6 +1213,23 @@ fn main() -> Int with Unsafe:
                 failure_count = failure_count + 1
             println("[bench-v2] " + case_id + " best=" + str(result.best_ms) + "ms avg=" + str(result.average_ms) + "ms status=" + result_status_text(result))
         fusion_index = fusion_index + 1
+
+    let core_micro_index = 0
+    while core_micro_index < core_micro_case_count():
+        let case_id = core_micro_case_id(core_micro_index)
+        let case_group = core_micro_case_group(core_micro_index)
+        if case_selected(config.filter_text, case_id, case_group):
+            let result = run_case("core_micro", case_id, case_group, core_micro_case_title(core_micro_index), core_micro_case_iterations(core_micro_index), core_micro_case_expected_checksum(core_micro_index), config)
+            let _track = write_track_report(result)
+            cases_json_items = append_json_item(cases_json_items, render_result_json(result))
+            table_rows = table_rows + format_result_row(result)
+            case_count = case_count + 1
+            if result.success:
+                success_count = success_count + 1
+            else:
+                failure_count = failure_count + 1
+            println("[bench-v2] " + case_id + " best=" + str(result.best_ms) + "ms avg=" + str(result.average_ms) + "ms status=" + result_status_text(result))
+        core_micro_index = core_micro_index + 1
 
     let math_pack_index = 0
     while math_pack_index < math_pack_case_count():

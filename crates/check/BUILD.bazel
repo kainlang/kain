@@ -32,6 +32,7 @@ rust_library(
     deps = [
         "//crates/core:kain-core",
         "//crates/driver:kain-driver",
+        "//crates/error:kain-error",
         "//crates/fs:kain-fs",
     ] + all_crate_deps(normal = True),
     proc_macro_deps = all_crate_deps(proc_macro = True),
@@ -46,6 +47,7 @@ rust_test(
     deps = [
         "//crates/core:kain-core",
         "//crates/driver:kain-driver",
+        "//crates/error:kain-error",
         "//crates/fs:kain-fs",
     ] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),

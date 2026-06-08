@@ -43,6 +43,7 @@ typedef enum {
     KAIN_DIAG_SUBSYSTEM_FIXUP,
     KAIN_DIAG_SUBSYSTEM_PROFILE,
     KAIN_DIAG_SUBSYSTEM_MACHINE,
+    KAIN_DIAG_SUBSYSTEM_CRASH,
 } KainDiagSubsystem;
 
 /* Diagnostic Severity Levels */

@@ -692,6 +692,7 @@ struct LlvmGenerator {
     debug_footer_strings: Vec<String>,
     current_source_span: Option<Span>,
     current_function_name: Option<String>,
+    current_debug_scope_id: Option<usize>,
     source_filename: String,
     line_starts: Vec<usize>,
 
@@ -750,6 +751,7 @@ struct LlvmFunctionState {
     debug_footer_strings: Vec<String>,
     current_source_span: Option<Span>,
     current_function_name: Option<String>,
+    current_debug_scope_id: Option<usize>,
     source_filename: String,
     line_starts: Vec<usize>,
 
@@ -848,10 +850,11 @@ impl LlvmGenerator {
 
             // ── DWARF debug metadata ──────────────────────────────────
             debug_info_enabled,
-            debug_metadata_counter: 100,
+            debug_metadata_counter: 200,
             debug_footer_strings: Vec::new(),
             current_source_span: None,
             current_function_name: None,
+            current_debug_scope_id: None,
             source_filename,
             line_starts,
 
@@ -909,6 +912,7 @@ impl LlvmGenerator {
             debug_footer_strings: self.debug_footer_strings.clone(),
             current_source_span: self.current_source_span,
             current_function_name: self.current_function_name.clone(),
+            current_debug_scope_id: self.current_debug_scope_id,
             source_filename: self.source_filename.clone(),
             line_starts: self.line_starts.clone(),
 
@@ -965,6 +969,7 @@ impl LlvmGenerator {
         self.debug_footer_strings = state.debug_footer_strings;
         self.current_source_span = state.current_source_span;
         self.current_function_name = state.current_function_name;
+        self.current_debug_scope_id = state.current_debug_scope_id;
         self.source_filename = state.source_filename;
         self.line_starts = state.line_starts;
 
@@ -1018,10 +1023,11 @@ impl LlvmGenerator {
 
         // Keep debug_info_enabled, source_filename, line_starts;
         // reset transient per-function debug state.
-        self.debug_metadata_counter = 100;
+        self.debug_metadata_counter = 200;
         self.debug_footer_strings.clear();
         self.current_source_span = None;
         self.current_function_name = None;
+        self.current_debug_scope_id = None;
     }
 
     fn collect_original_pointer_let_type_hints(&mut self, program: &TypedProgram) {
@@ -1458,11 +1464,11 @@ impl LlvmGenerator {
                     let meta_id = self.debug_metadata_counter;
                     self.debug_metadata_counter += 1;
                     let scope_name = self
-                        .current_function_name
-                        .as_deref()
-                        .unwrap_or("unknown");
+                        .current_debug_scope_id
+                        .map(|id| format!("!{}", id))
+                        .unwrap_or_else(|| "!1".to_string());
                     self.debug_footer_strings.push(format!(
-                        "!{} = !DILocation(line: {}, column: {}, scope: !{}_scope)",
+                        "!{} = !DILocation(line: {}, column: {}, scope: {})",
                         meta_id, line, col, scope_name
                     ));
                     self.output.push_str(&format!(", !dbg !{}", meta_id));
@@ -14143,30 +14149,23 @@ impl LlvmGenerator {
 
         // Emit the table itself.
         self.emit(&format!(
-            "@__kain_crash_table = private constant [{} x %KainCrashEntry] [",
+            "@__kain_crash_table = global [{} x %KainCrashEntry] [",
             count
         ));
-        for entry in &entries {
+        for (i, entry) in entries.iter().enumerate() {
             let fn_global = name_globals.get(&entry.fn_name).unwrap();
-            // ptrtoint avoids typed-pointer issues with varying function signatures.
+            let comma = if i + 1 < count { "," } else { "" };
             self.emit(&format!(
-                "  %KainCrashEntry {{ i64 ptrtoint (i64* {} to i64), i32 {}, i32 {}, i8* getelementptr inbounds ([{} x i8], [{} x i8]* {}, i32 0, i32 0), i8* getelementptr inbounds ([{} x i8], [{} x i8]* {}, i32 0, i32 0) }},",
+                "  %KainCrashEntry {{ i64 ptrtoint (i64* {} to i64), i32 {}, i32 {}, i8* getelementptr inbounds ([{} x i8], [{} x i8]* {}, i32 0, i32 0), i8* getelementptr inbounds ([{} x i8], [{} x i8]* {}, i32 0, i32 0) }}{}",
                 entry.fn_ptr_name,
                 entry.line as u32,
                 entry.col as u32,
                 entry.fn_name.len() + 1, entry.fn_name.len() + 1, fn_global,
                 file_len, file_len, file_global,
+                comma
             ));
         }
         self.emit("]");
-        self.emit("");
-
-        // Emit the table length as a separate constant so the runtime
-        // can binary-search without a sentinel.
-        self.emit(&format!(
-            "@__kain_crash_table_len = private constant i64 {}",
-            count as u64
-        ));
         self.emit("");
 
         // Declare the runtime lookup symbol.
@@ -14400,16 +14399,20 @@ impl LlvmGenerator {
             let handler_fn_name = format!("{}__actor_{}", name, handler.message_type);
             if self.debug_info_enabled {
                 let (line, _col) = self.byte_offset_to_line_column(handler.span.start);
+                let id = self.debug_metadata_counter;
+                self.debug_metadata_counter += 1;
                 self.debug_footer_strings.push(format!(
-                    "!{}_scope = distinct !DISubprogram(name: \"{}\", scope: !1, file: !1, line: {}, type: !{{}}, unit: !0)",
-                    handler_fn_name, handler_fn_name, line
+                    "!{} = distinct !DISubprogram(name: \"{}\", scope: !1, file: !1, line: {}, type: !{{}}, unit: !0)",
+                    id, handler_fn_name, line
                 ));
                 self.current_function_name = Some(handler_fn_name);
+                self.current_debug_scope_id = Some(id);
                 self.current_source_span = Some(handler.span);
             }
             self.compile_block(&handler.body)?;
             self.current_function_name = None;
             self.current_source_span = None;
+            self.current_debug_scope_id = None;
 
             // Normal fallthrough returns to the receive loop.
             self.emit(&format!(
@@ -15261,16 +15264,23 @@ impl LlvmGenerator {
         }
 
         // Emit per-function !DISubprogram debug metadata node.
-        if self.debug_info_enabled {
+        // LLVM requires numeric metadata IDs (!42), not named ones.
+        let subprogram_id = if self.debug_info_enabled {
+            let id = self.debug_metadata_counter;
+            self.debug_metadata_counter += 1;
             let (line, _col) = self.byte_offset_to_line_column(span.start);
             self.debug_footer_strings.push(format!(
-                "!{}_scope = distinct !DISubprogram(name: \"{}\", scope: !1, file: !1, line: {}, type: !{{}}, unit: !0)",
-                callable_name, callable_name, line
+                "!{} = distinct !DISubprogram(name: \"{}\", scope: !1, file: !1, line: {}, type: !{{}}, unit: !0)",
+                id, callable_name, line
             ));
-        }
+            Some(id)
+        } else {
+            None
+        };
 
         // Set debug metadata tracking for this function.
         self.current_function_name = Some(callable_name.to_string());
+        self.current_debug_scope_id = subprogram_id;
         self.current_source_span = Some(span);
 
         let body_result = match self.compile_block_with_result(body) {
@@ -15278,6 +15288,7 @@ impl LlvmGenerator {
             Err(error) => {
                 self.current_function_name = None;
                 self.current_source_span = None;
+                self.current_debug_scope_id = None;
                 return Err(match error {
                     KainError::Codegen { message, span } => KainError::codegen(
                         format!("while compiling '{}': {}", callable_name, message),
@@ -15316,6 +15327,7 @@ impl LlvmGenerator {
             self.current_return_type = None;
             self.current_function_name = None;
             self.current_source_span = None;
+            self.current_debug_scope_id = None;
 
             if self.debug_info_enabled {
                 let (line, col) = self.byte_offset_to_line_column(span.start);
@@ -15344,6 +15356,7 @@ impl LlvmGenerator {
         self.current_return_type = None;
         self.current_function_name = None;
         self.current_source_span = None;
+        self.current_debug_scope_id = None;
 
         // Record crash forensics entry for this function.
         if self.debug_info_enabled {

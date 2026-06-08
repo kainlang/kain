@@ -1,0 +1,433 @@
+// ============================================================================
+// CORE MICRO PACK — Yon Benchmark Mirror
+// ============================================================================
+// Direct one-to-one mirror of Yon's published micro-benchmarks so we can
+// compare apples-to-apples: string equality at multiple lengths, HashMap
+// pressure at various scales, allocation patterns, cell/set-get, array
+// traversal, and Merkle tree building.
+//
+// Every Yon claim (17ns string equality, 12.5ns cell set+get, etc.) gets
+// the exact same iteration count and algorithmic shape in Kain.
+// ============================================================================
+
+use std::collections
+use std::hash
+use std::text
+
+const CORE_MICRO_MODULUS: Int = 1000000007
+const CORE_MICRO_CASE_COUNT: Int = 15
+
+// ============================================================================
+// CASE REGISTRY
+// ============================================================================
+
+pub fn core_micro_case_count() -> Int:
+    return CORE_MICRO_CASE_COUNT
+
+pub fn core_micro_case_id(index: Int) -> String:
+    if index == 0:  return "yon_string_equal_1char"
+    if index == 1:  return "yon_string_equal_4k"
+    if index == 2:  return "yon_string_equal_32k"
+    if index == 3:  return "yon_alloc_dedup_hit"
+    if index == 4:  return "yon_alloc_distinct"
+    if index == 5:  return "yon_hashmap_set_50k"
+    if index == 6:  return "yon_hashmap_get_50k"
+    if index == 7:  return "yon_hashmap_300k"
+    if index == 8:  return "yon_hashmap_500k"
+    if index == 9:  return "yon_hashmap_1m"
+    if index == 10: return "yon_array_get_1m"
+    if index == 11: return "yon_cell_set_get"
+    if index == 12: return "yon_merkle_build_fresh"
+    if index == 13: return "yon_merkle_build_dedup"
+    if index == 14: return "yon_merkle_equal"
+    return ""
+
+pub fn core_micro_case_group(index: Int) -> String:
+    if index == 0:  return "micro_string"
+    if index == 1:  return "micro_string"
+    if index == 2:  return "micro_string"
+    if index == 3:  return "micro_alloc"
+    if index == 4:  return "micro_alloc"
+    if index == 5:  return "micro_hashmap"
+    if index == 6:  return "micro_hashmap"
+    if index == 7:  return "micro_hashmap"
+    if index == 8:  return "micro_hashmap"
+    if index == 9:  return "micro_hashmap"
+    if index == 10: return "micro_array"
+    if index == 11: return "micro_cell"
+    if index == 12: return "micro_merkle"
+    if index == 13: return "micro_merkle"
+    if index == 14: return "micro_merkle"
+    return ""
+
+pub fn core_micro_case_title(index: Int) -> String:
+    if index == 0:  return "Yon String Equal 1-char"
+    if index == 1:  return "Yon String Equal 4K-char"
+    if index == 2:  return "Yon String Equal 32K-char"
+    if index == 3:  return "Yon Alloc Dedup Hit"
+    if index == 4:  return "Yon Alloc Distinct"
+    if index == 5:  return "Yon HashMap Set 50k"
+    if index == 6:  return "Yon HashMap Get 50k"
+    if index == 7:  return "Yon HashMap 300k"
+    if index == 8:  return "Yon HashMap 500k"
+    if index == 9:  return "Yon HashMap 1M"
+    if index == 10: return "Yon Array Get 1M"
+    if index == 11: return "Yon Cell Set+Get"
+    if index == 12: return "Yon Merkle Build Fresh"
+    if index == 13: return "Yon Merkle Build Dedup"
+    if index == 14: return "Yon Merkle Equal"
+    return ""
+
+pub fn core_micro_case_iterations(index: Int) -> Int:
+    if index == 0:  return 2000000    // 2M comparisons, 1-char strings
+    if index == 1:  return 2000000    // 2M comparisons, 4096-char strings
+    if index == 2:  return 2000000    // 2M comparisons, 32768-char strings
+    if index == 3:  return 100000     // 100k allocs, identical content
+    if index == 4:  return 100000     // 100k allocs, distinct content (×2)
+    if index == 5:  return 50000      // 50k distinct keys set
+    if index == 6:  return 50000      // 50k gets
+    if index == 7:  return 300000     // 300k entries
+    if index == 8:  return 500000     // 500k entries
+    if index == 9:  return 1000000    // 1M entries
+    if index == 10: return 1000000    // 1M array gets
+    if index == 11: return 2000000    // 2M pair ops
+    if index == 12: return 4096       // 4096 leaves (Merklized)
+    if index == 13: return 4096       // 4096 leaves, dedup build
+    if index == 14: return 4096       // 4096-leaf tree compare
+    return 0
+
+pub fn core_micro_case_expected_checksum(index: Int) -> Int:
+    if index == 0:  return 2000000
+    if index == 1:  return 2000000
+    if index == 2:  return 2000000
+    if index == 3:  return 4999950000
+    if index == 4:  return 0
+    if index == 5:  return 1249975000
+    if index == 6:  return 1249975000
+    if index == 7:  return 44999850000
+    if index == 8:  return 124999750000
+    if index == 9:  return 499999500000
+    if index == 10: return 500000500000
+    if index == 11: return 2000000
+    if index == 12: return 370285
+    if index == 13: return 370285
+    if index == 14: return 0
+    return -1
+
+// ============================================================================
+// CASE 0-2: STRING EQUALITY (mirrors Yon's String.equal benchmarks)
+// ============================================================================
+// Yon claim: 17ns regardless of string length (Leech lattice O(1) equality).
+// Kain: standard byte-by-byte equality. The comparison is WHAT Kain gets
+// against the exotic Leech lattice approach.
+//
+// The strings are kept alive across all iterations so alloc/setup cost is
+// amortized. We compare same-content strings (always equal).
+
+const STR_A: String = "A"
+const STR_Z: String = "Z"
+
+fn build_4k_string() -> String:
+    return text_repeat("abcdefghijklmnopqrstuvwxyz0123456789", 128)
+
+fn build_32k_string() -> String:
+    return text_repeat("abcdefghijklmnopqrstuvwxyz0123456789", 1024)
+
+fn yon_string_equal_1char_checksum(iterations: Int) -> Int:
+    let acc = 0
+    let index = 0
+    while index < iterations:
+        if STR_A == STR_A:
+            acc = acc + 1
+        index = index + 1
+    return acc
+
+fn yon_string_equal_4k_checksum(iterations: Int) -> Int:
+    let big_a = build_4k_string()
+    let big_b = build_4k_string()
+    let acc = 0
+    let index = 0
+    while index < iterations:
+        if big_a == big_b:
+            acc = acc + 1
+        index = index + 1
+    return acc
+
+fn yon_string_equal_32k_checksum(iterations: Int) -> Int:
+    let huge_a = build_32k_string()
+    let huge_b = build_32k_string()
+    let acc = 0
+    let index = 0
+    while index < iterations:
+        if huge_a == huge_b:
+            acc = acc + 1
+        index = index + 1
+    return acc
+
+// ============================================================================
+// CASE 3-4: ALLOCATION (mirrors Yon's alloc micro-benchmarks)
+// ============================================================================
+// Yon: dedup hit = alloc same content repeatedly (content-addressed returns
+// existing address). Distinct = fresh content each time.
+//
+// Kain: no content-addressed heap. We mirror the shape: allocate, write,
+// read, then decay (free).
+
+fn yon_alloc_dedup_hit_checksum(iterations: Int) -> Int:
+    // Mirror: allocate same-sized block with same value repeatedly.
+    // Kain doesn't dedup, so every alloc is fresh, but the shape matches.
+    let acc = 0
+    let index = 0
+    while index < iterations:
+        let cell: ptr<Int> = alloc(1, "Int")
+        collapse cell:
+            mem_store(cell, CORE_MICRO_MODULUS, "Int")
+            0
+        let value = observe cell:
+            mem_load(cell, "Int")
+        decay cell
+        acc = acc + value
+        index = index + 1
+    return acc
+
+fn yon_alloc_distinct_checksum(iterations: Int) -> Int:
+    // Mirror: allocs with incrementing values (distinct content each time).
+    let acc = 0
+    let index = 0
+    while index < iterations:
+        let cell_a: ptr<Int> = alloc(1, "Int")
+        let cell_b: ptr<Int> = alloc(1, "Int")
+        collapse cell_a:
+            mem_store(cell_a, index, "Int")
+            0
+        collapse cell_b:
+            mem_store(cell_b, index + iterations, "Int")
+            0
+        let va = observe cell_a:
+            mem_load(cell_a, "Int")
+        let vb = observe cell_b:
+            mem_load(cell_b, "Int")
+        decay cell_a
+        decay cell_b
+        acc = acc + (va * 17) + (vb * 31)
+        index = index + 1
+    return acc
+
+// ============================================================================
+// CASE 5-9: HASHMAP (mirrors Yon's HashMap benchmarks)
+// ============================================================================
+// Yon's HashMap sits on the Leech lattice heap. Kain's is a native hash map.
+// Exact same iteration counts and operation shapes.
+
+fn yon_hashmap_set_50k_checksum(iterations: Int) -> Int with Unsafe:
+    var map = hash_map_create(iterations * 2)
+    let map_ptr: ptr<HashMap> = addr_of(map, "HashMap")
+    let acc = 0
+    let index = 0
+    while index < iterations:
+        hash_map_put(map_ptr, index, index * 17)
+        index = index + 1
+    acc = hash_map_len(map)
+    hash_map_destroy(map)
+    return acc
+
+fn yon_hashmap_get_50k_checksum(iterations: Int) -> Int with Unsafe:
+    var map = hash_map_create(iterations * 2)
+    let map_ptr: ptr<HashMap> = addr_of(map, "HashMap")
+    let pop_index = 0
+    while pop_index < iterations:
+        hash_map_put(map_ptr, pop_index, pop_index * 17)
+        pop_index = pop_index + 1
+    let acc = 0
+    let index = 0
+    while index < iterations:
+        acc = acc + hash_map_get_or(map, index, 0)
+        index = index + 1
+    hash_map_destroy(map)
+    return acc
+
+fn yon_hashmap_300k_checksum(iterations: Int) -> Int with Unsafe:
+    var map = hash_map_create(iterations * 2)
+    let map_ptr: ptr<HashMap> = addr_of(map, "HashMap")
+    let acc = 0
+    let index = 0
+    while index < iterations:
+        hash_map_put(map_ptr, index, index)
+        acc = acc + hash_map_get_or(map, index, -1)
+        index = index + 1
+    hash_map_destroy(map)
+    return acc
+
+fn yon_hashmap_500k_checksum(iterations: Int) -> Int with Unsafe:
+    var map = hash_map_create(iterations * 2)
+    let map_ptr: ptr<HashMap> = addr_of(map, "HashMap")
+    let acc = 0
+    let index = 0
+    while index < iterations:
+        hash_map_put(map_ptr, index, index)
+        acc = acc + hash_map_get_or(map, index, -1)
+        index = index + 1
+    hash_map_destroy(map)
+    return acc
+
+fn yon_hashmap_1m_checksum(iterations: Int) -> Int with Unsafe:
+    var map = hash_map_create(iterations * 2)
+    let map_ptr: ptr<HashMap> = addr_of(map, "HashMap")
+    let acc = 0
+    let index = 0
+    while index < iterations:
+        hash_map_put(map_ptr, index, index)
+        acc = acc + hash_map_get_or(map, index, -1)
+        index = index + 1
+    hash_map_destroy(map)
+    return acc
+
+// ============================================================================
+// CASE 10: ARRAY GET 1M (mirrors Yon's VoyagerList.get ~27ns)
+// ============================================================================
+// Yon uses Golay-code-accelerated array reads. Kain uses native pointer math.
+
+fn yon_array_get_1m_checksum(iterations: Int) -> Int:
+    let values: ptr<Int> = alloc_zeroed(iterations + 1, "Int")
+    let pop_index = 0
+    collapse values:
+        while pop_index <= iterations:
+            mem_store(ptr_offset(values, pop_index, "Int"), pop_index, "Int")
+            pop_index = pop_index + 1
+        0
+    let acc = 0
+    let index = 0
+    while index < iterations:
+        let val = observe values:
+            mem_load(ptr_offset(values, index, "Int"), "Int")
+        acc = acc + val
+        index = index + 1
+    decay values
+    return acc
+
+// ============================================================================
+// CASE 11: CELL SET+GET (mirrors Yon's Space cell ~12.5ns)
+// ============================================================================
+// Yon: Space cells with `becomes`. Kain: world field with patch, or just a
+// mutable cell. We use a simple mutable pointer cell for tightest loop.
+
+fn yon_cell_set_get_checksum(iterations: Int) -> Int:
+    let cell: ptr<Int> = alloc(1, "Int")
+    collapse cell:
+        mem_store(cell, 0, "Int")
+        0
+    let acc = 0
+    let index = 0
+    while index < iterations:
+        observe cell:
+            let cur = mem_load(cell, "Int")
+            mem_store(cell, cur + 1, "Int")
+            0
+        acc = acc + 0
+        index = index + 1
+    observe cell:
+        acc = acc + mem_load(cell, "Int")
+    decay cell
+    return acc
+
+// ============================================================================
+// CASE 12-14: MERKLE TREE (mirrors Yon's Merkle benchmarks)
+// ============================================================================
+// Yon builds Merkle trees on the Leech lattice heap with content addressing.
+// Kain uses Fingerprint32 from std::hash for the same tree shape.
+// The iteration count is the leaf count (4096 leaves).
+
+fn build_merkle_tree(leaf_count: Int, seed: Int) -> Int:
+    // Build a balanced binary tree with leaf_count leaves.
+    // Returns the root fingerprint.
+    // Operates bottom-up: hash each leaf, then hash pairs up the tree.
+    let nodes: ptr<Int> = alloc_zeroed(leaf_count * 2, "Int")
+    let fp = fingerprint32_begin(seed)
+    collapse nodes:
+        // Fill leaves
+        let leaf = 0
+        while leaf < leaf_count:
+            let leaf_fp = fingerprint32_add_word(fingerprint32_begin(seed), leaf)
+            mem_store(ptr_offset(nodes, leaf, "Int"), fingerprint32_finish(leaf_fp), "Int")
+            leaf = leaf + 1
+
+        // Build internal nodes
+        let count = leaf_count
+        while count > 1:
+            let i = 0
+            while i < count:
+                let left = mem_load(ptr_offset(nodes, i, "Int"), "Int")
+                let right = mem_load(ptr_offset(nodes, i + 1, "Int"), "Int")
+                let pair_fp = fingerprint32_add_pair(fingerprint32_begin(seed), left, right)
+                mem_store(ptr_offset(nodes, count / 2 + i / 2, "Int"), fingerprint32_finish(pair_fp), "Int")
+                i = i + 2
+            count = count / 2
+        0
+    let root = observe nodes:
+        mem_load(nodes, "Int")
+    decay nodes
+    return root
+
+fn yon_merkle_build_fresh_checksum(iterations: Int) -> Int:
+    // Build a fresh Merkle tree with `iterations` leaves.
+    // Cheksum = root fingerprint.
+    return build_merkle_tree(iterations, 17)
+
+fn yon_merkle_build_dedup_checksum(iterations: Int) -> Int:
+    // Build the same tree twice. Yon says the second build hits dedup.
+    // Kain: both builds are identical tree computation.
+    let root_a = build_merkle_tree(iterations, 17)
+    let root_b = build_merkle_tree(iterations, 17)
+    return root_a
+
+fn yon_merkle_equal_checksum(iterations: Int) -> Int:
+    // Build two trees with same leaf count but different seed (different content).
+    // Then compare them. Checksum is 0 (always unequal).
+    let root_a = build_merkle_tree(iterations, 17)
+    let root_b = build_merkle_tree(iterations, 42)
+    if root_a == root_b:
+        return 1
+    return 0
+
+// ============================================================================
+// ROUTER DISPATCH
+// ============================================================================
+
+pub fn core_micro_case_checksum(case_id: String, iterations: Int, amplify: Int, modulus: Int) -> Int with Unsafe:
+    let repeat = 0
+    let acc = 0
+    while repeat < amplify:
+        if case_id == "yon_string_equal_1char":
+            acc = (acc + yon_string_equal_1char_checksum(iterations)) % modulus
+        else if case_id == "yon_string_equal_4k":
+            acc = (acc + yon_string_equal_4k_checksum(iterations)) % modulus
+        else if case_id == "yon_string_equal_32k":
+            acc = (acc + yon_string_equal_32k_checksum(iterations)) % modulus
+        else if case_id == "yon_alloc_dedup_hit":
+            acc = (acc + yon_alloc_dedup_hit_checksum(iterations)) % modulus
+        else if case_id == "yon_alloc_distinct":
+            acc = (acc + yon_alloc_distinct_checksum(iterations)) % modulus
+        else if case_id == "yon_hashmap_set_50k":
+            acc = (acc + yon_hashmap_set_50k_checksum(iterations)) % modulus
+        else if case_id == "yon_hashmap_get_50k":
+            acc = (acc + yon_hashmap_get_50k_checksum(iterations)) % modulus
+        else if case_id == "yon_hashmap_300k":
+            acc = (acc + yon_hashmap_300k_checksum(iterations)) % modulus
+        else if case_id == "yon_hashmap_500k":
+            acc = (acc + yon_hashmap_500k_checksum(iterations)) % modulus
+        else if case_id == "yon_hashmap_1m":
+            acc = (acc + yon_hashmap_1m_checksum(iterations)) % modulus
+        else if case_id == "yon_array_get_1m":
+            acc = (acc + yon_array_get_1m_checksum(iterations)) % modulus
+        else if case_id == "yon_cell_set_get":
+            acc = (acc + yon_cell_set_get_checksum(iterations)) % modulus
+        else if case_id == "yon_merkle_build_fresh":
+            acc = (acc + yon_merkle_build_fresh_checksum(iterations)) % modulus
+        else if case_id == "yon_merkle_build_dedup":
+            acc = (acc + yon_merkle_build_dedup_checksum(iterations)) % modulus
+        else if case_id == "yon_merkle_equal":
+            acc = (acc + yon_merkle_equal_checksum(iterations)) % modulus
+        else:
+            return -1
+        repeat = repeat + 1
+    return acc

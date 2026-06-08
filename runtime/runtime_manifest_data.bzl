@@ -22,6 +22,7 @@ NATIVE_CORE_RUNTIME = {
     ],
     "common_c_srcs": [
         'native/src/core/core.c',
+        'native/src/core/crash_handler.c',
         'native/src/core/version.c',
         'native/src/core/diagnostics.c',
         'native/src/core/profile.c',
