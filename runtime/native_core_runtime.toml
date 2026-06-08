@@ -7,6 +7,7 @@ name = "kain-native-core-runtime"
 # platform helpers needed by LLVM/direct-C/native builds.
 sources = [
     "native/src/core/core.c",
+    "native/src/core/crash_handler.c",
     "native/src/core/version.c",
     "native/src/core/diagnostics.c",
     "native/src/core/profile.c",

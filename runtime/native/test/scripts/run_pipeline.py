@@ -477,8 +477,8 @@ def _run_cbmc_in_wsl(harness_path, source_path, mod_name, unwind=5) -> tuple[str
     combined = harness_path.parent / f"combined_{mod_name}.c"
     combined_code = ""
     if source_path and source_path.exists():
-        combined_code += source_path.read_text() + "\n"
-    combined_code += harness_path.read_text()
+        combined_code += source_path.read_text(encoding="utf-8") + "\n"
+    combined_code += harness_path.read_text(encoding="utf-8")
     combined.write_text(combined_code, encoding="utf-8")
 
     combined_wsl = to_wsl(combined)
@@ -711,10 +711,7 @@ def _run_cbmc_harness_by_name(harness_name: str, unwind: int, cbmc_path: str, gc
             # Fall back to GCC preprocessing (Windows native, messy with MinGW headers)
             if (not result or result["status"] == "UNKNOWN") and gcc_path:
                 combined = Path(tmpdir) / f"{mod_name}_combined.c"
-                combined_code = ""
-                if source_path and source_path.exists():
-                    combined_code += source_path.read_text() + "\n"
-                combined_code += harness_file.read_text()
+                combined_code = source_path.read_text(encoding="utf-8") + "\n" + harness_file.read_text(encoding="utf-8")
                 combined.write_text(combined_code, encoding="utf-8")
 
                 preprocessed = Path(tmpdir) / f"{mod_name}.i"
@@ -906,7 +903,7 @@ def cmd_cbmc(args: list[str]):
                 # Fall back to GCC preprocess + native CBMC
                 if (not result or result["status"] == "UNKNOWN") and gcc_path and source_path.exists():
                     combined = Path(tmpdir) / f"{mod_name}_combined.c"
-                    combined_code = source_path.read_text() + "\n" + harness_path.read_text()
+                    combined_code = source_path.read_text(encoding="utf-8") + "\n" + harness_path.read_text(encoding="utf-8")
                     combined.write_text(combined_code, encoding="utf-8")
 
                     gcc_proc = subprocess.run(

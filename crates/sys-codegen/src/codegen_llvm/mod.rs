@@ -502,6 +502,17 @@ enum ManualFindSubstringMissBehavior {
     HaystackLength,
 }
 
+/// A single entry in the compile-time crash forensics table.
+/// Serialized as `%KainCrashEntry` in the LLVM IR.
+#[derive(Debug, Clone)]
+struct CrashTableEntry {
+    fn_ptr_name: String,  // LLVM global name of the function (e.g. @add)
+    line: usize,
+    col: usize,
+    fn_name: String,      // human-readable function name (e.g. "add")
+    file: String,         // source filename
+}
+
 struct LlvmGenerator {
     output: String,
     reg_count: usize,
@@ -683,6 +694,9 @@ struct LlvmGenerator {
     current_function_name: Option<String>,
     source_filename: String,
     line_starts: Vec<usize>,
+
+    /// Accumulated crash forensics table entries (emitted when -g is on).
+    crash_table: Vec<CrashTableEntry>,
 }
 
 #[derive(Clone)]
@@ -738,6 +752,8 @@ struct LlvmFunctionState {
     current_function_name: Option<String>,
     source_filename: String,
     line_starts: Vec<usize>,
+
+    crash_table: Vec<CrashTableEntry>,
 }
 
 impl LlvmGenerator {
@@ -838,6 +854,8 @@ impl LlvmGenerator {
             current_function_name: None,
             source_filename,
             line_starts,
+
+            crash_table: Vec::new(),
         }
     }
 
@@ -893,6 +911,8 @@ impl LlvmGenerator {
             current_function_name: self.current_function_name.clone(),
             source_filename: self.source_filename.clone(),
             line_starts: self.line_starts.clone(),
+
+            crash_table: self.crash_table.clone(),
         }
     }
 
@@ -947,6 +967,8 @@ impl LlvmGenerator {
         self.current_function_name = state.current_function_name;
         self.source_filename = state.source_filename;
         self.line_starts = state.line_starts;
+
+        self.crash_table = state.crash_table;
     }
 
     fn reset_for_isolated_function_codegen(&mut self, return_type: &str) {
@@ -14046,6 +14068,11 @@ impl LlvmGenerator {
             self.emit_debug_metadata_footer();
         }
 
+        // 8. Emit crash forensics table
+        if self.debug_info_enabled && !self.crash_table.is_empty() {
+            self.emit_crash_table();
+        }
+
         Ok(())
     }
 
@@ -14077,6 +14104,73 @@ impl LlvmGenerator {
         for footer_line in &footer_lines {
             self.emit(footer_line);
         }
+    }
+
+    /// Emit the crash forensics table: a compile-time array of
+    /// `%KainCrashEntry` values the runtime binary-searches on SIGSEGV.
+    fn emit_crash_table(&mut self) {
+        let entries: Vec<CrashTableEntry> = self.crash_table.clone();
+        let count = entries.len();
+        if count == 0 {
+            return;
+        }
+        self.emit("");
+        self.emit("; ── Crash forensics table ─────────────────────────────────────");
+
+        // Emit string constants for function names and filenames.
+        let mut name_globals: HashMap<String, String> = HashMap::new();
+        let mut name_counter = 0usize;
+        for entry in &entries {
+            if !name_globals.contains_key(&entry.fn_name) {
+                let global = format!("@.crash.fn.{}", name_counter);
+                name_counter += 1;
+                let escaped = entry.fn_name.replace('\\', "\\\\").replace('"', "\\\"");
+                let len = entry.fn_name.len() + 1;
+                self.emit(&format!(
+                    "{} = private unnamed_addr constant [{} x i8] c\"{}\\00\"",
+                    global, len, escaped
+                ));
+                name_globals.insert(entry.fn_name.clone(), global);
+            }
+        }
+        let file_global = format!("@.crash.file.0");
+        let escaped_file = self.source_filename.replace('\\', "\\\\").replace('"', "\\\"");
+        let file_len = self.source_filename.len() + 1;
+        self.emit(&format!(
+            "{} = private unnamed_addr constant [{} x i8] c\"{}\\00\"",
+            file_global, file_len, escaped_file
+        ));
+
+        // Emit the table itself.
+        self.emit(&format!(
+            "@__kain_crash_table = private constant [{} x %KainCrashEntry] [",
+            count
+        ));
+        for entry in &entries {
+            let fn_global = name_globals.get(&entry.fn_name).unwrap();
+            // ptrtoint avoids typed-pointer issues with varying function signatures.
+            self.emit(&format!(
+                "  %KainCrashEntry {{ i64 ptrtoint (i64* {} to i64), i32 {}, i32 {}, i8* getelementptr inbounds ([{} x i8], [{} x i8]* {}, i32 0, i32 0), i8* getelementptr inbounds ([{} x i8], [{} x i8]* {}, i32 0, i32 0) }},",
+                entry.fn_ptr_name,
+                entry.line as u32,
+                entry.col as u32,
+                entry.fn_name.len() + 1, entry.fn_name.len() + 1, fn_global,
+                file_len, file_len, file_global,
+            ));
+        }
+        self.emit("]");
+        self.emit("");
+
+        // Emit the table length as a separate constant so the runtime
+        // can binary-search without a sentinel.
+        self.emit(&format!(
+            "@__kain_crash_table_len = private constant i64 {}",
+            count as u64
+        ));
+        self.emit("");
+
+        // Declare the runtime lookup symbol.
+        self.emit("declare void @__kain_crash_handler_init()");
     }
 
     fn compile_actor(&mut self, actor: &kain_core::types::TypedActor) -> KainResult<()> {
@@ -14371,6 +14465,8 @@ impl LlvmGenerator {
             "%KainActorSpawnConfig = type {{ i32 (i64, i8*, i8*)*, i8*, i64, i32, i32, i64, i32, [{} x i8], i32, i32 (i64, i8*, i8*, i32)*, i32, i32, i32, i32 }}",
             NATIVE_ACTOR_NAME_MAX_BYTES
         ));
+        // Crash forensics table entry: (fn_ptr_as_i64, line, col, fn_name*, file*)
+        self.emit("%KainCrashEntry = type { i64, i32, i32, i8*, i8* }");
         self.emit("");
     }
 
@@ -14384,6 +14480,7 @@ impl LlvmGenerator {
         self.emit("declare void @print_f64(double)");
         self.emit("declare void @print_bool(i1)");
         self.emit("declare void @print_str(i8*, i64)");
+        self.emit("declare void @__kain_crash_handler_init()");
         self.emit("declare i8* @to_string(i64)");
         self.emit("declare i8* @to_string_any(i64)");
         self.emit("declare i8* @str_concat(i8*, i8*)");
@@ -15095,6 +15192,9 @@ impl LlvmGenerator {
         if is_main {
             self.emit_machine_stones_entry_preamble();
         }
+        if is_main && self.debug_info_enabled {
+            self.emit("  call void @__kain_crash_handler_init()");
+        }
 
         if let Some(patch_name) = self.current_patch_name.clone() {
             let patch_name_ptr = self.compile_static_c_string_literal(&patch_name);
@@ -15216,6 +15316,18 @@ impl LlvmGenerator {
             self.current_return_type = None;
             self.current_function_name = None;
             self.current_source_span = None;
+
+            if self.debug_info_enabled {
+                let (line, col) = self.byte_offset_to_line_column(span.start);
+                self.crash_table.push(CrashTableEntry {
+                    fn_ptr_name: format!("@{}", llvm_name),
+                    line,
+                    col,
+                    fn_name: callable_name.to_string(),
+                    file: self.source_filename.clone(),
+                });
+            }
+
             return Ok(());
         }
 
@@ -15232,6 +15344,19 @@ impl LlvmGenerator {
         self.current_return_type = None;
         self.current_function_name = None;
         self.current_source_span = None;
+
+        // Record crash forensics entry for this function.
+        if self.debug_info_enabled {
+            let (line, col) = self.byte_offset_to_line_column(span.start);
+            self.crash_table.push(CrashTableEntry {
+                fn_ptr_name: format!("@{}", llvm_name),
+                line,
+                col,
+                fn_name: callable_name.to_string(),
+                file: self.source_filename.clone(),
+            });
+        }
+
         Ok(())
     }
 
