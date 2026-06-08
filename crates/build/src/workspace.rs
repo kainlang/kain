@@ -287,6 +287,7 @@ enum BuildTaskAdapter {
         primary_output: PathBuf,
         materialized_primary_output: Option<PathBuf>,
         root_component: Option<String>,
+        debug_info: bool,
     },
     NativeExecutable {
         entry: PathBuf,
@@ -461,6 +462,8 @@ pub struct KainFileBuildOptions {
     pub clean: bool,
     pub fail_fast: bool,
     pub progress: Option<ToolingProgressSink>,
+    /// Emit DWARF debug metadata in LLVM IR.
+    pub debug_info: bool,
 }
 
 impl KainFileBuildOptions {
@@ -476,6 +479,7 @@ impl KainFileBuildOptions {
             clean: false,
             fail_fast: true,
             progress: None,
+            debug_info: false,
         }
     }
 }
@@ -887,6 +891,7 @@ pub fn plan_kain_file(options: &KainFileBuildOptions) -> BuildResult<BladeBuildP
             primary_output,
             materialized_primary_output,
             root_component: None,
+            debug_info: options.debug_info,
         },
     }];
     let plan = config.into_plan(kain_driver::compile_target_name(options.target), tasks);
@@ -1183,6 +1188,7 @@ pub fn plan_kain_project(options: &KainProjectBuildOptions) -> BuildResult<Blade
                     primary_output,
                     materialized_primary_output: None,
                     root_component: None,
+                    debug_info: false,
                 },
             });
         }
@@ -3139,6 +3145,7 @@ fn execute_task(
             primary_output,
             materialized_primary_output,
             root_component,
+            debug_info,
         } => run_kain_compile(
             task,
             plan,
@@ -3148,6 +3155,7 @@ fn execute_task(
             primary_output,
             materialized_primary_output.as_ref(),
             root_component.as_deref(),
+            *debug_info,
             progress,
         ),
         BuildTaskAdapter::NativeExecutable {
@@ -3671,10 +3679,11 @@ fn run_kain_compile(
     primary_output: &Path,
     materialized_primary_output: Option<&PathBuf>,
     root_component: Option<&str>,
+    debug_info: bool,
     progress: Option<&ToolingProgressSink>,
 ) -> BuildResult<String> {
     let source = kfs::read_text(source_path)?;
-    let session = DriverSession::default();
+    let session = DriverSession::default().with_debug_info(debug_info);
     let mut artifacts = Vec::new();
     if let Some(parent) = primary_output.parent() {
         kfs::create_dir_all(parent)?;

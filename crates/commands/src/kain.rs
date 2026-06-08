@@ -794,6 +794,10 @@ pub enum KainCommand {
         #[arg(long)]
         clean: bool,
 
+        /// Emit DWARF debug metadata in LLVM IR (!DILocation, !DISubprogram, etc.)
+        #[arg(short = 'g', long = "debug")]
+        debug: bool,
+
         /// Build UE5 plugin from KAIN.toml [ue5] config
         #[arg(long)]
         ue5: bool,

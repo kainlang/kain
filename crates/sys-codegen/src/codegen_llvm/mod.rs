@@ -458,9 +458,39 @@ fn resolve_host_llvm_target_descriptor() -> &'static LlvmTargetDescriptor {
 }
 
 pub fn generate(program: &TypedProgram) -> KainResult<Vec<u8>> {
+    generate_with_options(program, false, None, "")
+}
+
+/// Generate LLVM IR with optional DWARF debug metadata.
+///
+/// When `debug_info` is true and `source` is provided, each instruction
+/// gets a `, !dbg !N` suffix pointing back to the original Kain source
+/// line.  Module-level `!DICompileUnit`, `!DIFile`, and per-function
+/// `!DISubprogram` metadata nodes are emitted as LLVM metadata.
+pub fn generate_with_debug(program: &TypedProgram, source: &str, filename: &str) -> KainResult<Vec<u8>> {
+    generate_with_options(program, true, Some(source), filename)
+}
+
+fn generate_with_options(
+    program: &TypedProgram,
+    debug_info: bool,
+    source: Option<&str>,
+    filename: &str,
+) -> KainResult<Vec<u8>> {
     let lowered = lower_typed_program_memory_for_target(program, CompileTarget::Llvm)?;
     validate_typed_program_memory_support(&lowered, CompileTarget::Llvm)?;
-    let mut gen = LlvmGenerator::new();
+    let line_starts: Vec<usize> = source
+        .map(|s| {
+            let mut starts = vec![0usize];
+            for (i, c) in s.char_indices() {
+                if c == '\n' {
+                    starts.push(i + 1);
+                }
+            }
+            starts
+        })
+        .unwrap_or_default();
+    let mut gen = LlvmGenerator::new(debug_info, filename.to_string(), line_starts);
     gen.collect_original_pointer_let_type_hints(program);
     gen.compile_module(&lowered)?;
     Ok(gen.output.into_bytes())
@@ -644,6 +674,15 @@ struct LlvmGenerator {
     /// so lowered callable parameters can recover struct pointee intent after
     /// ptr<T> normalization rewrites the ABI-visible type into Int.
     original_pointer_param_types: HashMap<Span, Type>,
+
+    // ── DWARF debug metadata ──────────────────────────────────────────
+    debug_info_enabled: bool,
+    debug_metadata_counter: usize,
+    debug_footer_strings: Vec<String>,
+    current_source_span: Option<Span>,
+    current_function_name: Option<String>,
+    source_filename: String,
+    line_starts: Vec<usize>,
 }
 
 #[derive(Clone)]
@@ -690,10 +729,19 @@ struct LlvmFunctionState {
     entry_alloca_insert_offset: Option<usize>,
     entry_preamble_insert_offset: Option<usize>,
     entry_hoisted_const_inits: HashSet<String>,
+
+    // ── DWARF debug metadata ──────────────────────────────────────────
+    debug_info_enabled: bool,
+    debug_metadata_counter: usize,
+    debug_footer_strings: Vec<String>,
+    current_source_span: Option<Span>,
+    current_function_name: Option<String>,
+    source_filename: String,
+    line_starts: Vec<usize>,
 }
 
 impl LlvmGenerator {
-    fn new() -> Self {
+    fn new(debug_info_enabled: bool, source_filename: String, line_starts: Vec<usize>) -> Self {
         Self {
             output: String::new(),
             reg_count: 0,
@@ -781,6 +829,15 @@ impl LlvmGenerator {
             entry_hoisted_const_inits: HashSet::new(),
             original_pointer_let_types: HashMap::new(),
             original_pointer_param_types: HashMap::new(),
+
+            // ── DWARF debug metadata ──────────────────────────────────
+            debug_info_enabled,
+            debug_metadata_counter: 100,
+            debug_footer_strings: Vec::new(),
+            current_source_span: None,
+            current_function_name: None,
+            source_filename,
+            line_starts,
         }
     }
 
@@ -828,6 +885,14 @@ impl LlvmGenerator {
             entry_alloca_insert_offset: self.entry_alloca_insert_offset,
             entry_preamble_insert_offset: self.entry_preamble_insert_offset,
             entry_hoisted_const_inits: self.entry_hoisted_const_inits.clone(),
+
+            debug_info_enabled: self.debug_info_enabled,
+            debug_metadata_counter: self.debug_metadata_counter,
+            debug_footer_strings: self.debug_footer_strings.clone(),
+            current_source_span: self.current_source_span,
+            current_function_name: self.current_function_name.clone(),
+            source_filename: self.source_filename.clone(),
+            line_starts: self.line_starts.clone(),
         }
     }
 
@@ -874,6 +939,14 @@ impl LlvmGenerator {
         self.entry_alloca_insert_offset = state.entry_alloca_insert_offset;
         self.entry_preamble_insert_offset = state.entry_preamble_insert_offset;
         self.entry_hoisted_const_inits = state.entry_hoisted_const_inits;
+
+        self.debug_info_enabled = state.debug_info_enabled;
+        self.debug_metadata_counter = state.debug_metadata_counter;
+        self.debug_footer_strings = state.debug_footer_strings;
+        self.current_source_span = state.current_source_span;
+        self.current_function_name = state.current_function_name;
+        self.source_filename = state.source_filename;
+        self.line_starts = state.line_starts;
     }
 
     fn reset_for_isolated_function_codegen(&mut self, return_type: &str) {
@@ -920,6 +993,13 @@ impl LlvmGenerator {
         self.entry_alloca_insert_offset = None;
         self.entry_preamble_insert_offset = None;
         self.entry_hoisted_const_inits.clear();
+
+        // Keep debug_info_enabled, source_filename, line_starts;
+        // reset transient per-function debug state.
+        self.debug_metadata_counter = 100;
+        self.debug_footer_strings.clear();
+        self.current_source_span = None;
+        self.current_function_name = None;
     }
 
     fn collect_original_pointer_let_type_hints(&mut self, program: &TypedProgram) {
@@ -1348,7 +1428,64 @@ impl LlvmGenerator {
 
     fn emit(&mut self, s: &str) {
         self.output.push_str(s);
+        if self.debug_info_enabled {
+            if let Some(span) = self.current_source_span {
+                if Self::is_llvm_instruction_line(s) {
+                    let (line, col) =
+                        self.byte_offset_to_line_column(span.start);
+                    let meta_id = self.debug_metadata_counter;
+                    self.debug_metadata_counter += 1;
+                    let scope_name = self
+                        .current_function_name
+                        .as_deref()
+                        .unwrap_or("unknown");
+                    self.debug_footer_strings.push(format!(
+                        "!{} = !DILocation(line: {}, column: {}, scope: !{}_scope)",
+                        meta_id, line, col, scope_name
+                    ));
+                    self.output.push_str(&format!(", !dbg !{}", meta_id));
+                }
+            }
+        }
         self.output.push('\n');
+    }
+
+    /// True when `line` looks like a function-body LLVM instruction
+    /// (has indentation, is not a label, comment, or directive).
+    fn is_llvm_instruction_line(line: &str) -> bool {
+        let trimmed = line.trim();
+        if trimmed.is_empty() || trimmed.starts_with(';') {
+            return false;
+        }
+        if trimmed.ends_with(':') {
+            return false;
+        }
+        if trimmed.starts_with("define ")
+            || trimmed.starts_with("declare ")
+            || trimmed.starts_with("source_filename")
+            || trimmed.starts_with("target ")
+            || trimmed.starts_with("attributes ")
+            || trimmed.starts_with("module ")
+            || trimmed.starts_with('!')
+        {
+            return false;
+        }
+        line.starts_with("  ")
+    }
+
+    /// Convert a byte offset into (1-based line, 1-based column)
+    /// using the pre-built line-start table.
+    fn byte_offset_to_line_column(&self, byte_offset: usize) -> (usize, usize) {
+        if self.line_starts.is_empty() {
+            return (1, byte_offset.saturating_add(1));
+        }
+        let line = match self.line_starts.binary_search(&byte_offset) {
+            Ok(found) => found + 1,
+            Err(insert) => insert,
+        };
+        let line = if line > 0 { line } else { 1 };
+        let col = byte_offset - self.line_starts[line - 1] + 1;
+        (line, col)
     }
 
     fn remember_emitted_extern_symbols_from_output(&mut self) {
@@ -13886,7 +14023,42 @@ impl LlvmGenerator {
         // 6. Emit Struct Destructors
         self.emit_struct_destructors();
 
+        // 7. Emit DWARF debug metadata footer
+        if self.debug_info_enabled {
+            self.emit_debug_metadata_footer();
+        }
+
         Ok(())
+    }
+
+    /// Emit the DWARF debug metadata footer: `!llvm.dbg.cu`, `!DICompileUnit`,
+    /// `!DIFile`, per-function `!DISubprogram` nodes, and all accumulated
+    /// `!DILocation` nodes from `debug_footer_strings`.
+    fn emit_debug_metadata_footer(&mut self) {
+        // Module-level debug flags.
+        self.emit("");
+        self.emit("!llvm.dbg.cu = !{!0}");
+        self.emit("!llvm.module.flags = !{!100, !101}");
+        self.emit("!100 = !{i32 2, !\"Dwarf Version\", i32 4}");
+        self.emit("!101 = !{i32 2, !\"Debug Info Version\", i32 3}");
+
+        // File node.
+        let escaped_filename = self.source_filename.replace('\\', "\\\\").replace('"', "\\\"");
+        self.emit(&format!(
+            "!1 = !DIFile(filename: \"{}\", directory: \".\")",
+            escaped_filename
+        ));
+
+        // Compile unit.
+        self.emit(&format!(
+            "!0 = distinct !DICompileUnit(language: DW_LANG_C, file: !1, producer: \"kain\", isOptimized: false, runtimeVersion: 0, emissionKind: FullDebug, enums: !{{}}, splitDebugInlining: false)"
+        ));
+
+        // Emit all accumulated debug metadata nodes (!DILocation, etc.).
+        let footer_lines: Vec<String> = self.debug_footer_strings.clone();
+        for footer_line in &footer_lines {
+            self.emit(footer_line);
+        }
     }
 
     fn compile_actor(&mut self, actor: &kain_core::types::TypedActor) -> KainResult<()> {
@@ -14113,7 +14285,19 @@ impl LlvmGenerator {
             }
 
             // Compile body.
+            let handler_fn_name = format!("{}__actor_{}", name, handler.message_type);
+            if self.debug_info_enabled {
+                let (line, _col) = self.byte_offset_to_line_column(handler.span.start);
+                self.debug_footer_strings.push(format!(
+                    "!{}_scope = distinct !DISubprogram(name: \"{}\", scope: !1, file: !1, line: {}, type: !{{}}, unit: !0)",
+                    handler_fn_name, handler_fn_name, line
+                ));
+                self.current_function_name = Some(handler_fn_name);
+                self.current_source_span = Some(handler.span);
+            }
             self.compile_block(&handler.body)?;
+            self.current_function_name = None;
+            self.current_source_span = None;
 
             // Normal fallthrough returns to the receive loop.
             self.emit(&format!(
@@ -14958,9 +15142,24 @@ impl LlvmGenerator {
             }
         }
 
+        // Emit per-function !DISubprogram debug metadata node.
+        if self.debug_info_enabled {
+            let (line, _col) = self.byte_offset_to_line_column(span.start);
+            self.debug_footer_strings.push(format!(
+                "!{}_scope = distinct !DISubprogram(name: \"{}\", scope: !1, file: !1, line: {}, type: !{{}}, unit: !0)",
+                callable_name, callable_name, line
+            ));
+        }
+
+        // Set debug metadata tracking for this function.
+        self.current_function_name = Some(callable_name.to_string());
+        self.current_source_span = Some(span);
+
         let body_result = match self.compile_block_with_result(body) {
             Ok(result) => result,
             Err(error) => {
+                self.current_function_name = None;
+                self.current_source_span = None;
                 return Err(match error {
                     KainError::Codegen { message, span } => KainError::codegen(
                         format!("while compiling '{}': {}", callable_name, message),
@@ -14997,6 +15196,8 @@ impl LlvmGenerator {
             self.emit("}");
             self.emit("");
             self.current_return_type = None;
+            self.current_function_name = None;
+            self.current_source_span = None;
             return Ok(());
         }
 
@@ -15011,6 +15212,8 @@ impl LlvmGenerator {
         self.emit("}");
         self.emit("");
         self.current_return_type = None;
+        self.current_function_name = None;
+        self.current_source_span = None;
         Ok(())
     }
 
@@ -20759,5 +20962,75 @@ fn demo(slot: ptr<Int>) -> Bool with Unsafe:
         assert!(err.contains(
             "failure ordering seq_cst must not be stronger than the success ordering relaxed"
         ));
+    }
+
+    #[test]
+    fn debug_metadata_emits_dbg_and_compile_unit() {
+        let source = r#"
+fn add(a: Int, b: Int) -> Int:
+    return a + b
+"#;
+        let llvm = generate_with_debug(source, "add.kn").expect("generate_with_debug");
+
+        // Module-level debug metadata must be present.
+        assert!(
+            llvm.contains("!llvm.dbg.cu"),
+            "must emit !llvm.dbg.cu\n{llvm}"
+        );
+        assert!(
+            llvm.contains("!DICompileUnit"),
+            "must emit !DICompileUnit\n{llvm}"
+        );
+        assert!(
+            llvm.contains("!DIFile"),
+            "must emit !DIFile\n{llvm}"
+        );
+        assert!(
+            llvm.contains("add.kn"),
+            "must reference the source filename\n{llvm}"
+        );
+
+        // Instructions must carry !dbg attachments.
+        assert!(
+            llvm.contains(", !dbg !"),
+            "instructions must have , !dbg !N suffixes\n{llvm}"
+        );
+        assert!(
+            llvm.contains("!DILocation"),
+            "must emit !DILocation nodes\n{llvm}"
+        );
+    }
+
+    #[test]
+    fn no_debug_metadata_without_flag() {
+        let source = r#"
+fn add(a: Int, b: Int) -> Int:
+    return a + b
+"#;
+        let llvm = generate_llvm_or_error(source).expect("generate");
+
+        assert!(
+            !llvm.contains("!dbg"),
+            "must NOT emit debug metadata without -g flag\n{llvm}"
+        );
+        assert!(
+            !llvm.contains("!DILocation"),
+            "must NOT emit !DILocation without -g flag\n{llvm}"
+        );
+    }
+
+    fn generate_with_debug(source: &str, filename: &str) -> Result<String, String> {
+        let tokens = Lexer::new(source)
+            .tokenize()
+            .map_err(|err| err.to_string())?;
+        let mapper = SpanMapper::new(source);
+        let ast = Parser::new(&tokens, &mapper, filename)
+            .parse()
+            .map_err(|err| err.to_string())?;
+        let typed =
+            types::check(&ast, &mapper, filename).map_err(|err| err.to_string())?;
+        super::generate_with_debug(&typed, source, filename)
+            .map(|bytes| String::from_utf8(bytes).expect("utf8 llvm output"))
+            .map_err(|err| err.to_string())
     }
 }

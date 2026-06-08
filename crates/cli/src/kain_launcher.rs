@@ -3753,6 +3753,7 @@ pub fn main_entry() {
                     targets,
                     lane,
                     clean,
+                    debug,
                     ue5,
                     r#rust,
                     embed,
@@ -3916,6 +3917,7 @@ pub fn main_entry() {
                                         options.output = output.clone();
                                         options.lane = lane;
                                         options.clean = clean;
+                                        options.debug_info = debug;
                                         options.progress = cli::progress::stderr_progress_sink(true);
                                         match kain_build::build_kain_file(&options) {
                                             Ok(report) => print_kain_build_report(&report),

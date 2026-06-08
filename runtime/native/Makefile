@@ -20,6 +20,7 @@ ifeq ($(UNAME_S),Linux)
   STATIC_EXT := .a
   PLATFORM_LIBS := -lpthread -lm -ldl
   EXE_EXT :=
+  HAS_SANITIZERS := 1
 endif
 ifeq ($(UNAME_S),Darwin)
   PLATFORM := darwin
@@ -28,13 +29,14 @@ ifeq ($(UNAME_S),Darwin)
   STATIC_EXT := .a
   PLATFORM_LIBS := -lpthread -ldl
   EXE_EXT :=
+  HAS_SANITIZERS := 1
 endif
 ifneq ($(findstring MINGW,$(UNAME_S)),)
   PLATFORM := windows
   SHARED_EXT := .dll
   SHARED_FLAG := -shared
   STATIC_EXT := .lib
-  PLATFORM_LIBS := -lws2_32 -luser32 -lgdi32 -lole32 -lshell32
+  PLATFORM_LIBS := -lws2_32 -luser32 -lgdi32 -lole32 -lshell32 -lwinhttp
   EXE_EXT := .exe
 endif
 ifneq ($(findstring CYGWIN,$(UNAME_S)),)
@@ -42,7 +44,7 @@ ifneq ($(findstring CYGWIN,$(UNAME_S)),)
   SHARED_EXT := .dll
   SHARED_FLAG := -shared
   STATIC_EXT := .lib
-  PLATFORM_LIBS := -lws2_32 -luser32 -lgdi32 -lole32 -lshell32
+  PLATFORM_LIBS := -lws2_32 -luser32 -lgdi32 -lole32 -lshell32 -lwinhttp
   EXE_EXT := .exe
 endif
 ifeq ($(OS),Windows_NT)
@@ -50,8 +52,19 @@ ifeq ($(OS),Windows_NT)
   SHARED_EXT := .dll
   SHARED_FLAG := -shared
   STATIC_EXT := .lib
-  PLATFORM_LIBS := -lws2_32 -luser32 -lgdi32 -lole32 -lshell32
+  PLATFORM_LIBS := -lws2_32 -luser32 -lgdi32 -lole32 -lshell32 -lwinhttp
   EXE_EXT := .exe
+endif
+
+# Sanitizers: only on platforms that support them (not MinGW/GCC)
+ifeq ($(HAS_SANITIZERS),1)
+  SAN_FLAGS := -fsanitize=address,undefined -fno-omit-frame-pointer
+  FUZZ_FLAGS := -fsanitize=fuzzer,address,undefined -fno-omit-frame-pointer
+  TSAN_FLAGS := -fsanitize=thread -g
+else
+  SAN_FLAGS :=
+  FUZZ_FLAGS :=
+  TSAN_FLAGS :=
 endif
 
 # ── Compiler ────────────────────────────────────────────────────────
@@ -67,8 +80,10 @@ endif
 
 # ── Source files ────────────────────────────────────────────────────
 CORE_SRCS := $(sort $(wildcard src/core/*.c))
-CORE_SRCS := $(filter-out %_benchmark.c,$(CORE_SRCS))
-CORE_OBJS := $(patsubst src/core/%.c,_build/obj/%.o,$(CORE_SRCS))
+CORE_SRCS := $(filter-out %_benchmark.c, $(CORE_SRCS))
+CORE_SRCS := $(filter-out src/core/python_runtime%.c, $(CORE_SRCS))
+CORE_SRCS := $(filter-out src/core/cuda_runtime%.c, $(CORE_SRCS))
+CORE_OBJS := $(patsubst src/core/%.c,_build/obj/core/%.o,$(CORE_SRCS))
 
 PLATFORM_SRCS := src/platform/platform.c
 ifeq ($(PLATFORM),windows)
@@ -76,15 +91,15 @@ ifeq ($(PLATFORM),windows)
 else
   PLATFORM_SRCS += src/platform/linux/linux_shared.c
 endif
-PLATFORM_OBJS := $(patsubst src/platform/%.c,_build/obj/%.o,$(PLATFORM_SRCS))
+PLATFORM_OBJS := $(patsubst src/platform/%.c,_build/obj/platform/%.o,$(PLATFORM_SRCS))
 
 ALL_OBJS := $(CORE_OBJS) $(PLATFORM_OBJS)
 
 # ── Test sources ────────────────────────────────────────────────────
-TEST_SMOKE_SRCS := $(wildcard test/smoke/*.c)
-TEST_PROP_SRCS := $(wildcard test/property/*.c)
-TEST_FUZZ_SRCS := $(wildcard test/fuzz/*.c)
-TEST_STRESS_SRCS := $(wildcard test/stress/*.c)
+TEST_SMOKE_SRCS := $(filter-out %_TEMPLATE.c, $(wildcard test/smoke/*.c))
+TEST_PROP_SRCS := $(filter-out %_TEMPLATE.c, $(wildcard test/property/*.c))
+TEST_FUZZ_SRCS := $(filter-out %_TEMPLATE.c, $(wildcard test/fuzz/*.c))
+TEST_STRESS_SRCS := $(filter-out %_TEMPLATE.c, $(wildcard test/stress/*.c))
 
 TEST_SMOKE_BINS := $(patsubst test/smoke/%.c,_build/test/smoke/%$(EXE_EXT),$(TEST_SMOKE_SRCS))
 TEST_PROP_BINS := $(patsubst test/property/%.c,_build/test/property/%$(EXE_EXT),$(TEST_PROP_SRCS))
@@ -138,7 +153,6 @@ $(LIBSHARED): $(ALL_OBJS)
 	@echo "  ✓ shared library: $@"
 
 # ── Tests with sanitizers ──────────────────────────────────────────
-SAN_FLAGS := -fsanitize=address,undefined -fno-omit-frame-pointer
 
 test: test-smoke test-property
 
@@ -187,7 +201,6 @@ _build/test/property/%$(EXE_EXT): test/property/%.c $(ALL_OBJS)
 	$(CC) $(CFLAGS) $(SAN_FLAGS) $< $(ALL_OBJS) -o $@ $(LDFLAGS)
 
 # ── Fuzz targets ────────────────────────────────────────────────────
-FUZZ_FLAGS := -fsanitize=fuzzer,address,undefined -fno-omit-frame-pointer
 
 fuzz: $(TEST_FUZZ_BINS)
 	@echo "=== fuzz targets ==="
@@ -202,7 +215,6 @@ _build/test/fuzz/%$(EXE_EXT): test/fuzz/%.c $(ALL_OBJS)
 	$(CC) $(CFLAGS) $(FUZZ_FLAGS) $< $(ALL_OBJS) -o $@ $(LDFLAGS)
 
 # ── Stress / thread-sanitizer tests ─────────────────────────────────
-TSAN_FLAGS := -fsanitize=thread -g
 
 stress: $(TEST_STRESS_BINS)
 	@echo "=== stress tests (TSan) ==="

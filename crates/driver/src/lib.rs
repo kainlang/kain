@@ -197,13 +197,29 @@ const TARGET_SPECS: &[TargetSpec] = &[
     },
 ];
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct DriverSession {
     ue5_metadata_dir: Option<PathBuf>,
     frontend_cache: RefCell<Option<CachedFrontendBundle>>,
     checked_frontend_cache: RefCell<Option<CachedCheckedFrontend>>,
     last_frontend_bundle: RefCell<Option<FrontendSourceBundle>>,
     frontend_advisories: RefCell<Vec<String>>,
+    /// When true, the LLVM backend emits DWARF debug metadata
+    /// (!DILocation, !DISubprogram, !DICompileUnit, etc.).
+    pub debug_info: bool,
+}
+
+impl Default for DriverSession {
+    fn default() -> Self {
+        Self {
+            ue5_metadata_dir: None,
+            frontend_cache: RefCell::new(None),
+            checked_frontend_cache: RefCell::new(None),
+            last_frontend_bundle: RefCell::new(None),
+            frontend_advisories: RefCell::new(Vec::new()),
+            debug_info: false,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -495,6 +511,12 @@ impl DriverSession {
 
     pub fn with_ue5_metadata_dir(mut self, path: impl Into<PathBuf>) -> Self {
         self.ue5_metadata_dir = Some(path.into());
+        self
+    }
+
+    /// Enable DWARF debug metadata in the LLVM backend (`-g` / `--debug`).
+    pub fn with_debug_info(mut self, debug_info: bool) -> Self {
+        self.debug_info = debug_info;
         self
     }
 
@@ -1118,14 +1140,30 @@ impl DriverSession {
                             target,
                             CompilerProgressPhase::Codegen,
                         );
-                        sys::generate_llvm(&typed_for_codegen).and_then(|bytes| {
-                            String::from_utf8(bytes).map_err(|err| {
-                                KainError::codegen(
-                                    format!("LLVM output was not valid UTF-8: {err}"),
-                                    Span::default(),
-                                )
+                        if self.debug_info {
+                            let filename = source_path
+                                .and_then(|p| p.file_name())
+                                .and_then(|n| n.to_str())
+                                .unwrap_or("unknown.kn");
+                            sys::generate_with_debug(&typed_for_codegen, source, filename)
+                                .and_then(|bytes| {
+                                    String::from_utf8(bytes).map_err(|err| {
+                                        KainError::codegen(
+                                            format!("LLVM output was not valid UTF-8: {err}"),
+                                            Span::default(),
+                                        )
+                                    })
+                                })
+                        } else {
+                            sys::generate_llvm(&typed_for_codegen).and_then(|bytes| {
+                                String::from_utf8(bytes).map_err(|err| {
+                                    KainError::codegen(
+                                        format!("LLVM output was not valid UTF-8: {err}"),
+                                        Span::default(),
+                                    )
+                                })
                             })
-                        })
+                        }
                     }
 
                     #[cfg(feature = "sys")]

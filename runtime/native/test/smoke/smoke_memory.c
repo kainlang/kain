@@ -1,5 +1,5 @@
 // Smoke test: core memory allocation primitives
-// Verifies kain_alloc, kain_realloc, kain_free link and work.
+// Verifies __kain_alloc, __kain_realloc, __kain_free (public API).
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
@@ -9,34 +9,36 @@
 
 int main(void) {
     // ── Basic alloc / free ──
-    void *p = kain_alloc(64);
+    void *p = __kain_alloc(64, 1, 0);
     assert(p != NULL && "alloc(64) returned NULL");
     memset(p, 0xAB, 64);
-    kain_free(p);
+    assert(__kain_free(p) == 0 && "free failed");
     printf("  alloc(64)/free: OK\n");
 
     // ── Realloc grow ──
-    void *p2 = kain_alloc(32);
+    uint8_t expected[32];
+    memset(expected, 0xCD, 32);
+    void *p2 = __kain_alloc(32, 1, 0);
     assert(p2 != NULL);
-    memset(p2, 0xCD, 32);
-    void *p3 = kain_realloc(p2, 128);
+    memcpy(p2, expected, 32);
+    void *p3 = __kain_realloc(p2, 128, 1, 1);
     assert(p3 != NULL && "realloc grow returned NULL");
     // Content should be preserved (first 32 bytes)
-    assert(memcmp(p3, p2, 32) == 0 && "realloc did not preserve content");
-    kain_free(p3);
+    assert(memcmp(p3, expected, 32) == 0 && "realloc did not preserve content");
+    __kain_free(p3);
     printf("  realloc(grow): OK\n");
 
+
     // ── Zero-size alloc ──
-    void *p4 = kain_alloc(0);
-    // Implementation may return NULL or a valid pointer; both are OK
-    if (p4) kain_free(p4);
+    void *p4 = __kain_alloc(0, 1, 0);
+    if (p4) __kain_free(p4);
     printf("  alloc(0): OK\n");
 
     // ── Large alloc ──
-    void *p5 = kain_alloc(1 << 20);  // 1MB
+    void *p5 = __kain_alloc(1 << 20, 1, 0);  // 1MB
     if (p5) {
         memset(p5, 0, 1 << 20);
-        kain_free(p5);
+        __kain_free(p5);
         printf("  alloc(1MB)/free: OK\n");
     } else {
         printf("  alloc(1MB): SKIP (OOM)\n");
