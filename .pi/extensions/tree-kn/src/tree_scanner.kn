@@ -30,6 +30,7 @@ use std::actor
 use std::time
 use tree_types::TreeEntry
 use tree_types::TreeResult
+use tree_types::detect_language
 use tree_scan_types::PubSymbol
 use tree_scan_types::ImportRef
 use tree_scan_types::ScanResult
@@ -238,9 +239,7 @@ pub fn scan_file(
         return empty_scan_result_scanned()
 
     // Check file size before reading
-    print("[SCAN] file: " + path)
     let meta: FsMetadata = fs_metadata(path)
-    print("[SCAN] meta ok, len=" + str(meta.len))
     if max_file_bytes > 0 and meta.len > max_file_bytes:
         return empty_skipped_result()
 
@@ -667,14 +666,21 @@ fn build_batches(file_list: Array<String>, batch_size: Int) -> Array<String>:
 fn flatten_file_entries(entries: Array<TreeEntry>) -> Array<TreeEntry>:
     var flat: Array<TreeEntry> = []
     var i = 0
+    print("[SCAN] flatten start, count=" + str(len(entries)))
     while i < len(entries):
+        print("[SCAN] flatten i=" + str(i))
         drain_file_entry(entries[i], flat)
+        print("[SCAN] flatten after drain i=" + str(i))
         i = i + 1
+    print("[SCAN] flatten done")
     return flat
 
 fn drain_file_entry(entry: TreeEntry, out_list: Array<TreeEntry>):
-    if entry.entry_type == "file" or entry.entry_type == "File":
-        push(out_list, entry)
+    print("[SCAN] drain: " + entry.name + " type=" + entry.entry_type)
+    // Push all entries (files and dirs) for scanning
+    print("[SCAN] push start")
+    push(out_list, entry)
+    print("[SCAN] push done, children=" + str(len(entry.children)))
     var i = 0
     while i < len(entry.children):
         drain_file_entry(entry.children[i], out_list)
@@ -742,24 +748,51 @@ fn scan_sequential(files: Array<TreeEntry>, config: ScanConfig) -> ScanResult:
 //  Uses scan_sequential to read every file and extract symbols/imports.
 // ============================================================================
 
-pub fn scan_directory(
-    root_path: String,
-    config: ScanConfig,
-    tree_result: TreeResult
-) -> ScanResult:
-    // Collect all file entries from the tree
-    print("[SCAN] dir called, entries=" + str(len(tree_result.entries)))
-    let file_entries = flatten_file_entries(tree_result.entries)
-    print("[SCAN] files to scan: " + str(len(file_entries)))
+pub fn scan_paths(paths: Array<String>, languages: Array<String>, config: ScanConfig) -> ScanResult:
+    var all_symbols: Array<PubSymbol> = []
+    var all_imports: Array<ImportRef> = []
+    var total_scanned: Int = 0
+    var total_skipped: Int = 0
+    var all_errors: Array<String> = []
 
-    if len(file_entries) == 0:
-        return ScanResult{
-            pub_symbols: [],
-            imports: [],
-            files_scanned: 0,
-            files_skipped: 0,
-            errors: []
-        }
+    var i = 0
+    while i < len(paths):
+        let file_result = scan_file(paths[i], languages[i], config.include_pub, config.include_imports, config.max_file_bytes)
+        total_scanned = total_scanned + file_result.files_scanned
+        total_skipped = total_skipped + file_result.files_skipped
+        var si = 0
+        while si < len(file_result.pub_symbols):
+            push(all_symbols, file_result.pub_symbols[si])
+            si = si + 1
+        var ii = 0
+        while ii < len(file_result.imports):
+            push(all_imports, file_result.imports[ii])
+            ii = ii + 1
+        var ei = 0
+        while ei < len(file_result.errors):
+            push(all_errors, file_result.errors[ei])
+            ei = ei + 1
+        i = i + 1
 
-    // Run the sequential scanner against all files
-    return scan_sequential(file_entries, config)
+    return ScanResult{
+        pub_symbols: all_symbols,
+        imports: all_imports,
+        files_scanned: total_scanned,
+        files_skipped: total_skipped,
+        errors: all_errors
+    }
+
+pub fn scan_root(root_path: String, config: ScanConfig) -> ScanResult:
+    // Use fs_walk to discover files directly, avoiding cross-module struct access
+    let dir_entries = fs_walk(root_path)
+    var paths: Array<String> = []
+    var langs: Array<String> = []
+    var i = 0
+    while i < len(dir_entries):
+        let entry = dir_entries[i]
+        if entry.file_type == "file":
+            let ext = fs_path_extension(entry.path)
+            push(paths, entry.path)
+            push(langs, detect_language(ext))
+        i = i + 1
+    return scan_paths(paths, langs, config)

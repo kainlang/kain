@@ -26,11 +26,22 @@ use std::text
 use std::time
 use std::fs
 
-use tree_types
-use tree_walker
-use tree_format
-use tree_scan_types
-use tree_scanner
+use tree_types::TreeConfig
+use tree_types::TreeEntry
+use tree_types::TreeResult
+use tree_types::TreeSummary
+use tree_walker::walk_tree
+use tree_format::format_json
+use tree_format::format_tree_text
+use tree_format::format_flat_text
+use tree_format::format_summary_text
+use tree_format::format_scan_results
+use tree_format::format_size
+use tree_format::format_timestamp
+use tree_scan_types::ScanConfig
+use tree_scan_types::ScanResult
+use tree_scanner::scan_paths
+use tree_scanner::scan_root
 
 // ============================================================================
 //  CONSTANTS
@@ -166,14 +177,13 @@ pub fn main() -> Int:
 
     // Run scan if requested
     if final_config.scan_pub or final_config.scan_imports:
-        print("[SCAN] scanning...")
         let scan_cfg = ScanConfig {
             include_pub: final_config.scan_pub,
             include_imports: final_config.scan_imports,
             max_file_bytes: 1048576,
             actor_count: final_config.scan_workers,
         }
-        let scan_res = scan_directory(resolved_root, scan_cfg, result)
+        let scan_res = scan_root(resolved_root, scan_cfg)
         let scan_out = format_scan_results(scan_res, final_config.scan_pub, final_config.scan_imports)
         print(scan_out)
 
