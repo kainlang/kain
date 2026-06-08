@@ -620,7 +620,9 @@ def _parse_cbmc_output(output: str, module: str) -> dict:
             if "VERIFICATION" in line:
                 result["summary"] = line.strip()
 
-    # Count properties in format "[name.kind.N] description: SUCCESS|FAILURE"
+    # Count properties in format "[name.kind.N] description: SUCCESS|FAILURE|VIOLATION"
+    # This is the authoritative format from CBMC 6.x — the old "Violated property:" blocks
+    # are redundant (same violations, different display). We count ONLY the structured format.
     prop_pattern = re.compile(r'\[([^\]]+)\.(\w+)\.(\d+)\]\s*(.+?):\s*(SUCCESS|FAILURE|OK|VIOLATION)')
     props = prop_pattern.findall(output)
     for name, kind, num, desc, status in props:
@@ -633,20 +635,6 @@ def _parse_cbmc_output(output: str, module: str) -> dict:
                 "property": f"{name}.{kind}.{num}",
                 "description": desc.strip(),
                 "status": status,
-            })
-
-    # Also count Violated property blocks (old-style format)
-    violated_blocks = re.findall(r'Violated property:\n  file (.+?) function (\S+) line (\d+)', output)
-    for filepath, func, line in violated_blocks:
-        # Only add if not already counted by the pattern above
-        if not any(f["description"] == f"{func}:{line}" for f in result["failures"]):
-            result["failed"] += 1
-            result["failures"].append({
-                "property": f"{func}:{line}",
-                "description": f"Violation in {func}:{line}",
-                "status": "VIOLATION",
-                "file": filepath,
-                "line": int(line),
             })
 
     # Extract counterexample trace
@@ -707,8 +695,18 @@ def _run_cbmc_harness_by_name(harness_name: str, unwind: int, cbmc_path: str, gc
         with tempfile.TemporaryDirectory() as tmpdir:
             result = None
 
-            if gcc_path:
-                # Preprocess with GCC
+            # Try WSL first (proper Linux GCC headers, no MinGW noise)
+            if source_path and source_path.exists():
+                wsl_out = _run_cbmc_in_wsl(harness_file, source_path, harness_file.stem, unwind)
+                if wsl_out:
+                    stdout, stderr, rc = wsl_out
+                    result = _parse_cbmc_output(stdout + stderr, harness_file.stem)
+                    result["exit_code"] = rc
+                    result["raw_output_bytes"] = len(stdout + stderr)
+                    result["backend"] = "wsl"
+
+            # Fall back to GCC preprocessing (Windows native, messy with MinGW headers)
+            if (not result or result["status"] == "UNKNOWN") and gcc_path:
                 combined = Path(tmpdir) / f"{mod_name}_combined.c"
                 combined_code = ""
                 if source_path and source_path.exists():
@@ -732,16 +730,6 @@ def _run_cbmc_harness_by_name(harness_name: str, unwind: int, cbmc_path: str, gc
                     result = _parse_cbmc_output(proc.stdout + proc.stderr, harness_file.stem)
                     result["exit_code"] = proc.returncode
                     result["raw_output_bytes"] = len(proc.stdout + proc.stderr)
-
-            # Fall back to WSL
-            if (not result or result["status"] == "UNKNOWN") and source_path:
-                wsl_out = _run_cbmc_in_wsl(harness_file, source_path, harness_file.stem, unwind)
-                if wsl_out:
-                    stdout, stderr, rc = wsl_out
-                    result = _parse_cbmc_output(stdout + stderr, harness_file.stem)
-                    result["exit_code"] = rc
-                    result["raw_output_bytes"] = len(stdout + stderr)
-                    result["backend"] = "wsl"
 
             if result:
                 result["harness"] = str(harness_file)
@@ -797,13 +785,20 @@ def cmd_cbmc(args: list[str]):
     list_harnesses = False
     cbmc_path = _find_cbmc()
     gcc_path = __import__("shutil").which("gcc")
-    for a in args:
+    args_iter = iter(args)
+    for a in args_iter:
         if a.startswith("--unwind="):
             unwind = int(a.split("=", 1)[1])
+        elif a == "--unwind":
+            unwind = int(next(args_iter, 5))
         elif a.startswith("--module="):
             module_filter = a.split("=", 1)[1]
+        elif a == "--module":
+            module_filter = next(args_iter, None)
         elif a.startswith("--harness="):
             harness_name = a.split("=", 1)[1]
+        elif a == "--harness":
+            harness_name = next(args_iter, None)
         elif a == "--list-harnesses":
             list_harnesses = True
         elif not a.startswith("--"):
@@ -817,7 +812,7 @@ def cmd_cbmc(args: list[str]):
     if list_harnesses:
         if custom_harness_dir.exists():
             print("Hand-written CBMC harnesses:")
-            for f in sorted([p for p in custom_harness_dir.iterdir() if p.suffix == ".c"]):
+            for f in sorted([p for p in custom_harness_dir.iterdir() if p.suffix == ".c" and not p.name.startswith("combined_")]):
                 print(f"  {f.name}")
         else:
             print("No hand-written harnesses found.")
@@ -888,52 +883,15 @@ def cmd_cbmc(args: list[str]):
         if source_path.exists():
             print(f"    Source:   {source_path.name}")
 
-        # Strategy: preprocess with GCC first, then run CBMC on preprocessed output
-        # This avoids CBMC's parser choking on MinGW/MSVC headers
+        # Strategy: try WSL first (clean Linux headers), then GCC preprocess as fallback
         try:
             with tempfile.TemporaryDirectory() as tmpdir:
                 preprocessed = Path(tmpdir) / f"{mod_name}.i"
 
-                if gcc_path:
-                    # Concatenate source + harness (source first to define types)
-                    combined = Path(tmpdir) / f"{mod_name}_combined.c"
-                    combined_code = ""
-                    if source_path.exists():
-                        combined_code += source_path.read_text() + "\n"
-                    combined_code += harness_path.read_text()
-                    combined.write_text(combined_code, encoding="utf-8")
-
-                    gcc_cmd = [gcc_path, "-E", "-std=c11",
-                               "-I", str(INCLUDE_DIR),
-                               "-I", str(RUNTIME_DIR / "src" / "core"),
-                               str(combined),
-                               "-o", str(preprocessed)]
-                    gcc_proc = subprocess.run(gcc_cmd, capture_output=True, text=True, timeout=30)
-                    if gcc_proc.returncode != 0:
-                        print(f"    GCC preprocess failed:")
-                        for line in gcc_proc.stderr.strip().split("\n")[-5:]:
-                            print(f"      {line}")
-                        # Fall through to try WSL instead
-                        preprocessed = None
-                    else:
-                        preprocessed = preprocessed
-                else:
-                    preprocessed = None
-
-                # Run CBMC: try preprocessed file, then WSL
                 result = None
-                if preprocessed and preprocessed.exists():
-                    proc = subprocess.run(
-                        [cbmc_path, "--unwind", str(unwind), "--trace",
-                         str(preprocessed)],
-                        capture_output=True, text=True, timeout=60,
-                    )
-                    result = _parse_cbmc_output(proc.stdout + proc.stderr, mod_name)
-                    result["exit_code"] = proc.returncode
-                    result["raw_output_bytes"] = len(proc.stdout + proc.stderr)
 
-                # If preprocessed approach failed or wasn't available, try WSL
-                if (not result or result["status"] == "UNKNOWN") and source_path.exists():
+                # Try WSL first — superior header handling
+                if source_path.exists():
                     wsl_out = _run_cbmc_in_wsl(harness_path, source_path, mod_name, unwind)
                     if wsl_out:
                         stdout, stderr, rc = wsl_out
@@ -941,8 +899,26 @@ def cmd_cbmc(args: list[str]):
                         result["exit_code"] = rc
                         result["raw_output_bytes"] = len(stdout + stderr)
                         result["backend"] = "wsl"
-                        if result["status"] == "SUCCESS":
-                            print(f"    Backend: WSL")
+
+                # Fall back to GCC preprocess + native CBMC
+                if (not result or result["status"] == "UNKNOWN") and gcc_path and source_path.exists():
+                    combined = Path(tmpdir) / f"{mod_name}_combined.c"
+                    combined_code = source_path.read_text() + "\n" + harness_path.read_text()
+                    combined.write_text(combined_code, encoding="utf-8")
+
+                    gcc_proc = subprocess.run(
+                        [gcc_path, "-E", "-std=c11",
+                         "-I", str(INCLUDE_DIR),
+                         "-I", str(RUNTIME_DIR / "src" / "core"),
+                         str(combined), "-o", str(preprocessed)],
+                        capture_output=True, text=True, timeout=30)
+                    if gcc_proc.returncode == 0:
+                        proc = subprocess.run(
+                            [cbmc_path, "--unwind", str(unwind), "--trace", str(preprocessed)],
+                            capture_output=True, text=True, timeout=60)
+                        result = _parse_cbmc_output(proc.stdout + proc.stderr, mod_name)
+                        result["exit_code"] = proc.returncode
+                        result["raw_output_bytes"] = len(proc.stdout + proc.stderr)
 
                 if result:
                     result["harness"] = str(harness_path)
