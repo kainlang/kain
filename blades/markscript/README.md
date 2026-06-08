@@ -1,6 +1,5 @@
 # MarkScript ~ The Prose-Native Scripting Runtime for Kain
-
-> **MarkScript is to Kain what Python is to C.**  
+ 
 > Your documentation is your program. Your README IS the executable.
 
 ```
