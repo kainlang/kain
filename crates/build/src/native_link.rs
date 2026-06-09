@@ -271,6 +271,12 @@ fn link_exe(clang: &str, req: &NativeLinkRequest<'_>, uses_runtime: bool, needs_
     #[cfg(windows)]
     cmd.arg("-Wl,/OPT:REF");
 
+    // Default runtime link libraries for the platform
+    for lib in platform_link_libs() {
+        cmd.arg(format!("-l{}", lib));
+    }
+
+    // Also pass any explicit link libs from the request
     for lib in &req.runtime_artifacts.link_libs {
         cmd.arg(format!("-l{}", lib));
     }
@@ -317,6 +323,11 @@ fn link_shared_lib(clang: &str, req: &NativeLinkRequest<'_>, uses_runtime: bool,
     cmd.arg("-Wl,-dead_strip");
     #[cfg(windows)]
     cmd.arg("-Wl,/OPT:REF");
+
+    // Default runtime link libraries for the platform
+    for lib in platform_link_libs() {
+        cmd.arg(format!("-l{}", lib));
+    }
 
     for lib in &req.runtime_artifacts.link_libs {
         cmd.arg(format!("-l{}", lib));
@@ -372,6 +383,26 @@ fn run_clang(mut cmd: Command, output: &Path) -> Result<PathBuf, String> {
         return Err(format!("clang exited with {status}"));
     }
     Ok(output.to_path_buf())
+}
+
+/// Default link libraries for the current platform.
+/// These are needed by the precompiled runtime archive.
+pub fn platform_link_libs() -> Vec<&'static str> {
+    if cfg!(windows) {
+        vec![
+            "legacy_stdio_definitions",
+            "user32",
+            "gdi32",
+            "shell32",
+            "ws2_32",
+            "winhttp",
+            "advapi32",
+        ]
+    } else if cfg!(target_os = "macos") {
+        Vec::new()
+    } else {
+        vec!["pthread", "dl", "rt", "m"]
+    }
 }
 
 fn find_ar() -> String {

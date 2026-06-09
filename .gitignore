@@ -5,6 +5,7 @@
 private/
 **/*target*/**
 *.json
+*.lnk
 *.exe
 /packages/ephemaris
 blades/c/ephemaris/
