@@ -1,63 +1,211 @@
 // ============================================================================
-//  MARKSCRIPT IVT BRIDGE — Intent Vector Table built-in handler dispatch
+//  MARKSCRIPT BRIDGE — IVT handler registry, intent → Kain stdlib binding
 //
-//  Maps natural-language intents to Kain stdlib functions through the IVT.
-//  Each handler receives typed MarkValue arguments and returns HandlerResult.
+//  Registers built-in intent handlers and dispatches to them when the VM
+//  encounters OP_EXECUTE_CALL or OP_CALL with a matching phrase hash.
 //
-//  HandlerResult and MarkValue are imported from vm and types respectively.
-//  Handler ID constants and registration utilities are defined here.
+//  Six built-in handlers (matching the spec):
+//    HANDLER_FS_READ=1    — read file "path"
+//    HANDLER_FS_WRITE=2   — write file "path" "content"
+//    HANDLER_PROCESS_RUN=3 — run "command"
+//    HANDLER_IMPORT_KAIN=4 — import kain "module"
+//    HANDLER_ASSERT=5     — assert value expected
+//    HANDLER_PRINT=6       — print value
 //
-//  Value semantics throughout — no ptr<T> in any function signature.
+//  Value semantics throughout. No ptr<T> parameters.
 // ============================================================================
 
-use std::text
 use std::fs
-use std::os
-use types       // MarkValue, mark_int, mark_string, mark_value_to_string
-use vm          // MarkScriptVM, HandlerResult, init_vm, register_handler
+use std::process
+use std::diagnostics
+use std::text
+use types       // MarkValue, mark_int, mark_string, mark_value_to_string,
+                // MARK_INT, MARK_FLOAT, MARK_STRING
+use vm          // MarkScriptVM, HandlerResult, register_handler, init_vm
 use parser      // hash_name
 
-// ===========================================================================
-//  BUILT-IN HANDLER IDS
-// ===========================================================================
+// --- Handler ID constants -------------------------------------------------
 
-pub const HANDLER_FS_READ:       Int = 1
-pub const HANDLER_FS_WRITE:      Int = 2
-pub const HANDLER_PROCESS_RUN:   Int = 3
-pub const HANDLER_IMPORT_KAIN:   Int = 4
-pub const HANDLER_ASSERT:        Int = 5
-pub const HANDLER_PRINT:         Int = 6
+pub const HANDLER_FS_READ:     Int = 1
+pub const HANDLER_FS_WRITE:    Int = 2
+pub const HANDLER_PROCESS_RUN: Int = 3
+pub const HANDLER_IMPORT_KAIN: Int = 4
+pub const HANDLER_ASSERT:      Int = 5
+pub const HANDLER_PRINT:       Int = 6
 
 // ===========================================================================
-//  REGISTRATION
+//  HANDLER REGISTRATION
 // ===========================================================================
 
-// Register a built-in handler by intent phrase.
-// Hashes the phrase with parser::hash_name, stores the mapping in the VM's IVT.
-
+// Register a built-in handler by phrase text (hashes it internally)
 pub fn register_builtin(vm: MarkScriptVM, phrase: String, handler_id: Int) -> MarkScriptVM:
     let phrase_hash = hash_name(phrase)
     return register_handler(vm, phrase_hash, handler_id)
 
-// Create a VM with all six built-in handlers pre-registered.
-
-pub fn init_vm_with_builtins() -> MarkScriptVM:
-    var v = init_vm()
-    v = register_builtin(v, "read file",       HANDLER_FS_READ)
-    v = register_builtin(v, "write file",      HANDLER_FS_WRITE)
-    v = register_builtin(v, "run",             HANDLER_PROCESS_RUN)
-    v = register_builtin(v, "import kain",     HANDLER_IMPORT_KAIN)
-    v = register_builtin(v, "assert",          HANDLER_ASSERT)
-    v = register_builtin(v, "print",           HANDLER_PRINT)
-    return v
-
 // ===========================================================================
-//  DISPATCH
+//  INDIVIDUAL HANDLER IMPLEMENTATIONS
 // ===========================================================================
 
-// Dispatch a handler by numeric ID.
-// Called from main.kn after execute_bytecode returns with er.handler_id > 0.
-// Routes to the appropriate handler implementation.
+// --- handler_fs_read — "read file" intent --------------------------------
+// args[0] = file path (string)
+fn handler_fs_read(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
+    var path: String = ""
+    if len(args) > 0:
+        if args[0].kind == MARK_STRING:
+            path = args[0].str_val
+        elif args[0].kind == MARK_INT:
+            path = str(args[0].int_val)
+
+    if path == "":
+        return HandlerResult {
+            vm: vm,
+            value: mark_string(""),
+            err: "read file: no path provided"
+        }
+
+    let content = fs_read_text(path)
+    return HandlerResult {
+        vm: vm,
+        value: mark_string(content),
+        err: ""
+    }
+
+// --- handler_fs_write — "write file" intent ------------------------------
+// args[0] = path, args[1] = content
+fn handler_fs_write(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
+    var path: String = ""
+    var content: String = ""
+
+    if len(args) > 0:
+        if args[0].kind == MARK_STRING:
+            path = args[0].str_val
+        elif args[0].kind == MARK_INT:
+            path = str(args[0].int_val)
+
+    if len(args) > 1:
+        if args[1].kind == MARK_STRING:
+            content = args[1].str_val
+        elif args[1].kind == MARK_INT:
+            content = str(args[1].int_val)
+
+    if path == "":
+        return HandlerResult {
+            vm: vm,
+            value: mark_int(0),
+            err: "write file: no path provided"
+        }
+
+    fs_write_text(path, content)
+    return HandlerResult {
+        vm: vm,
+        value: mark_int(1),
+        err: ""
+    }
+
+// --- handler_process_run — "run" intent ----------------------------------
+// args[0] = command string
+fn handler_process_run(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
+    var cmd: String = ""
+    if len(args) > 0:
+        if args[0].kind == MARK_STRING:
+            cmd = args[0].str_val
+        elif args[0].kind == MARK_INT:
+            cmd = str(args[0].int_val)
+
+    if cmd == "":
+        return HandlerResult {
+            vm: vm,
+            value: mark_int(0),
+            err: "run: no command provided"
+        }
+
+    // Use process_output_text for synchronous capture
+    // Signature: process_output_text(executable, arg0, arg1, arg2, timeout_ms)
+    let output = process_output_text(cmd, "", "", "", 5000)
+    return HandlerResult {
+        vm: vm,
+        value: mark_string(output),
+        err: ""
+    }
+
+// --- handler_import_kain — "import kain" intent --------------------------
+// args[0] = module path string
+fn handler_import_kain(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
+    var mod_path: String = ""
+    if len(args) > 0:
+        if args[0].kind == MARK_STRING:
+            mod_path = args[0].str_val
+        elif args[0].kind == MARK_INT:
+            mod_path = str(args[0].int_val)
+
+    if mod_path == "":
+        return HandlerResult {
+            vm: vm,
+            value: mark_int(0),
+            err: "import kain: no module path provided"
+        }
+
+    // For now, just acknowledge the import — actual module loading
+    // through the Kain compiler linking is a future feature.
+    println("[BRIDGE] import kain: " + mod_path + " (acknowledged)")
+    return HandlerResult {
+        vm: vm,
+        value: mark_string("imported " + mod_path),
+        err: ""
+    }
+
+// --- handler_assert — "assert" intent ------------------------------------
+// args[0] = actual, args[1] = expected
+fn handler_assert(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
+    if len(args) < 2:
+        return HandlerResult {
+            vm: vm,
+            value: mark_int(0),
+            err: "assert: need actual and expected values"
+        }
+
+    let actual = args[0]
+    let expected = args[1]
+
+    var equal: Bool = false
+    if actual.kind == expected.kind:
+        if actual.kind == MARK_INT:
+            equal = actual.int_val == expected.int_val
+        elif actual.kind == MARK_FLOAT:
+            equal = actual.float_val == expected.float_val
+        elif actual.kind == MARK_STRING:
+            equal = actual.str_val == expected.str_val
+
+    if equal:
+        return HandlerResult {
+            vm: vm,
+            value: mark_int(1),
+            err: ""
+        }
+    else:
+        let actual_str = mark_value_to_string(actual)
+        let expected_str = mark_value_to_string(expected)
+        return HandlerResult {
+            vm: vm,
+            value: mark_int(0),
+            err: "assertion failed: " + actual_str + " != " + expected_str
+        }
+
+// --- handler_print — "print" intent --------------------------------------
+// args[0] = value to print
+fn handler_print(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
+    if len(args) > 0:
+        let val_str = mark_value_to_string(args[0])
+        println("[PRINT] " + val_str)
+    return HandlerResult {
+        vm: vm,
+        value: mark_int(0),
+        err: ""
+    }
+
+// ===========================================================================
+//  DISPATCH — route handler_id to the correct implementation
+// ===========================================================================
 
 pub fn dispatch_handler(vm: MarkScriptVM, handler_id: Int, args: Array<MarkValue>) -> HandlerResult:
     if handler_id == HANDLER_FS_READ:
@@ -80,246 +228,18 @@ pub fn dispatch_handler(vm: MarkScriptVM, handler_id: Int, args: Array<MarkValue
         }
 
 // ===========================================================================
-//  HANDLER: FS_READ
-//  Intent:  > read file "path"
-//  Maps:    args[0] → std::fs::fs_read_text(path)
-//  Returns: file content as MARK_STRING
+//  INITIALIZE VM WITH ALL BUILT-IN HANDLERS
 // ===========================================================================
 
-fn handler_fs_read(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
-    if len(args) < 1:
-        return HandlerResult {
-            vm: vm,
-            value: mark_string(""),
-            err: "fs_read: expected 1 argument (path), got " + str(len(args))
-        }
-    let path_val = args[0]
-    if path_val.kind != MARK_STRING:
-        return HandlerResult {
-            vm: vm,
-            value: mark_string(""),
-            err: "fs_read: expected path as string, got kind " + str(path_val.kind)
-        }
+pub fn init_vm_with_builtins() -> MarkScriptVM:
+    var v = init_vm()
 
-    let content = fs_read_text(path_val.str_val)
-    return HandlerResult {
-        vm: vm,
-        value: mark_string(content),
-        err: ""
-    }
+    // Register all 6 built-in intents with their canonical phrases
+    v = register_builtin(v, "read file", HANDLER_FS_READ)
+    v = register_builtin(v, "write file", HANDLER_FS_WRITE)
+    v = register_builtin(v, "run", HANDLER_PROCESS_RUN)
+    v = register_builtin(v, "import kain", HANDLER_IMPORT_KAIN)
+    v = register_builtin(v, "assert", HANDLER_ASSERT)
+    v = register_builtin(v, "print", HANDLER_PRINT)
 
-// ===========================================================================
-//  HANDLER: FS_WRITE
-//  Intent:  > write file "path" "content"
-//  Maps:    args[0]=path, args[1]=content → std::fs::fs_write_text
-// ===========================================================================
-
-fn handler_fs_write(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
-    if len(args) < 2:
-        return HandlerResult {
-            vm: vm,
-            value: mark_int(0),
-            err: "fs_write: expected 2 arguments (path, content), got " + str(len(args))
-        }
-    let path_val = args[0]
-    let content_val = args[1]
-    if path_val.kind != MARK_STRING:
-        return HandlerResult {
-            vm: vm,
-            value: mark_int(0),
-            err: "fs_write: expected path as string"
-        }
-    if content_val.kind != MARK_STRING:
-        return HandlerResult {
-            vm: vm,
-            value: mark_int(0),
-            err: "fs_write: expected content as string"
-        }
-
-    fs_write_text(path_val.str_val, content_val.str_val)
-    return HandlerResult {
-        vm: vm,
-        value: mark_int(0),
-        err: ""
-    }
-
-// ===========================================================================
-//  HANDLER: PROCESS_RUN
-//  Intent:  > run "command"
-//  Maps:    args[0] → std::os::os_popen_read(command, 30s timeout)
-//  Returns: command stdout as MARK_STRING
-// ===========================================================================
-
-fn handler_process_run(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
-    if len(args) < 1:
-        return HandlerResult {
-            vm: vm,
-            value: mark_string(""),
-            err: "process_run: expected 1 argument (command), got " + str(len(args))
-        }
-    let cmd_val = args[0]
-    if cmd_val.kind != MARK_STRING:
-        return HandlerResult {
-            vm: vm,
-            value: mark_string(""),
-            err: "process_run: expected command as string, got kind " + str(cmd_val.kind)
-        }
-
-    // Run via shell and capture stdout
-    let output = os_popen_read(cmd_val.str_val, 30000)
-    return HandlerResult {
-        vm: vm,
-        value: mark_string(output),
-        err: ""
-    }
-
-// ===========================================================================
-//  HANDLER: IMPORT_KAIN
-//  Intent:  > import kain "module"
-//  Stub — acknowledges the request. Full Kain module reflection is TBD.
-// ===========================================================================
-
-fn handler_import_kain(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
-    if len(args) < 1:
-        return HandlerResult {
-            vm: vm,
-            value: mark_int(0),
-            err: "import_kain: expected 1 argument (module path), got " + str(len(args))
-        }
-    let path_val = args[0]
-    if path_val.kind != MARK_STRING:
-        return HandlerResult {
-            vm: vm,
-            value: mark_int(0),
-            err: "import_kain: expected module path as string"
-        }
-
-    println("[BRIDGE] import_kain: \"" + path_val.str_val + "\" — Kain module reflection TBD; handler registered as stub")
-    return HandlerResult {
-        vm: vm,
-        value: mark_int(0),
-        err: ""
-    }
-
-// ===========================================================================
-//  HANDLER: ASSERT
-//  Intent:  > assert actual expected
-//  Type-sensitive equality comparison.
-// ===========================================================================
-
-fn handler_assert(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
-    if len(args) < 2:
-        return HandlerResult {
-            vm: vm,
-            value: mark_int(0),
-            err: "assert: expected 2 arguments (actual, expected), got " + str(len(args))
-        }
-    let actual = args[0]
-    let expected = args[1]
-
-    var is_match: Bool = false
-    if actual.kind == MARK_INT and expected.kind == MARK_INT:
-        is_match = actual.int_val == expected.int_val
-    elif actual.kind == MARK_FLOAT and expected.kind == MARK_FLOAT:
-        is_match = actual.float_val == expected.float_val
-    elif actual.kind == MARK_STRING and expected.kind == MARK_STRING:
-        is_match = actual.str_val == expected.str_val
-    else:
-        is_match = false
-
-    if is_match == false:
-        let actual_s   = mark_value_to_string(actual)
-        let expected_s = mark_value_to_string(expected)
-        return HandlerResult {
-            vm: vm,
-            value: mark_int(0),
-            err: "assert failed: \"" + actual_s + "\" != \"" + expected_s + "\""
-        }
-
-    return HandlerResult {
-        vm: vm,
-        value: mark_int(1),
-        err: ""
-    }
-
-// ===========================================================================
-//  HANDLER: PRINT
-//  Intent:  > print value
-//  Prints the MarkValue's string representation to stdout.
-// ===========================================================================
-
-fn handler_print(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
-    if len(args) < 1:
-        println("[PRINT] (no value)")
-        return HandlerResult {
-            vm: vm,
-            value: mark_int(0),
-            err: ""
-        }
-    let val = args[0]
-    let repr = mark_value_to_string(val)
-    println("[PRINT] " + repr)
-    return HandlerResult {
-        vm: vm,
-        value: val,
-        err: ""
-    }
-
-// ===========================================================================
-//  BRIDGE TEST — register builtins and dispatch all six handlers
-// ===========================================================================
-
-fn bridge_test():
-    println("=== BRIDGE TEST: register builtins + dispatch ===")
-
-    // 1. Create VM with all built-in handlers
-    let vm = init_vm_with_builtins()
-    println("[TEST] VM initialized with " + str(vm.ivt_count) + " handlers")
-
-    // 2. Dispatch HANDLER_FS_READ (non-existent file → error)
-    println("[TEST] Dispatching HANDLER_FS_READ...")
-    let read_args: Array<MarkValue> = [ mark_string("_bridge_test_nonexistent.txt") ]
-    let rr = dispatch_handler(vm, HANDLER_FS_READ, read_args)
-    if rr.err == "":
-        println("[TEST] fs_read returned " + str(mark_value_to_string(rr.value)))
-    else:
-        println("[TEST] fs_read returned error: " + rr.err)
-
-    // 3. Dispatch HANDLER_PRINT
-    println("[TEST] Dispatching HANDLER_PRINT...")
-    let print_args: Array<MarkValue> = [ mark_string("Hello from Markscript bridge!") ]
-    let pr = dispatch_handler(vm, HANDLER_PRINT, print_args)
-    if pr.err != "":
-        println("[TEST] print error: " + pr.err)
-
-    // 4. Dispatch HANDLER_ASSERT — passing case
-    println("[TEST] Dispatching HANDLER_ASSERT (42 == 42)...")
-    let assert_pass: Array<MarkValue> = [ mark_int(42), mark_int(42) ]
-    let ar_pass = dispatch_handler(vm, HANDLER_ASSERT, assert_pass)
-    if ar_pass.err == "":
-        println("[TEST] assert(42, 42) passed")
-    else:
-        println("[TEST] assert(42, 42) unexpected failure: " + ar_pass.err)
-
-    // 5. Dispatch HANDLER_ASSERT — failing case
-    println("[TEST] Dispatching HANDLER_ASSERT (42 != 99)...")
-    let assert_fail: Array<MarkValue> = [ mark_int(42), mark_int(99) ]
-    let ar_fail = dispatch_handler(vm, HANDLER_ASSERT, assert_fail)
-    if ar_fail.err != "":
-        println("[TEST] assert(42, 99) correctly failed: " + ar_fail.err)
-    else:
-        println("[TEST] assert(42, 99) passed (unexpected)")
-
-    // 6. Dispatch HANDLER_FS_WRITE
-    println("[TEST] Dispatching HANDLER_FS_WRITE...")
-    let write_args: Array<MarkValue> = [
-        mark_string("_bridge_test_temp.txt"),
-        mark_string("bridge test content")
-    ]
-    let wr = dispatch_handler(vm, HANDLER_FS_WRITE, write_args)
-    if wr.err == "":
-        println("[TEST] fs_write succeeded")
-    else:
-        println("[TEST] fs_write error: " + wr.err)
-
-    println("=== BRIDGE TEST COMPLETE ===")
+    return v

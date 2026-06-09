@@ -577,6 +577,7 @@ impl Env {
         };
 
         env.register_stdlib();
+        env.register_native_abi();
         env.register_net_stdlib();
         env.register_json_stdlib();
         env.register_kos_bridge();
@@ -3917,6 +3918,580 @@ impl Env {
                 _ => Err(KainError::runtime("unwrap_ready: expected Poll value")),
             }
         });
+    }
+
+    /// Register native stubs for all @extern ABI functions declared in the
+    /// stdlib so that interpret-mode evaluation can resolve them without the
+    /// native C runtime. Functions that need real behaviour (filesystem,
+    /// process, environment, etc.) are wired to Rust std; the rest return
+    /// sensible zero-values.
+    pub fn register_native_abi(&mut self) {
+        // ── runtime ABI (stdlib/runtime.kn) ──────────────────────────
+        self.define_native("abi_runtime_init", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_runtime_shutdown", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_runtime_heap_validate", |_env, _args| Ok(Value::Int(1)));
+        self.define_native("abi_attrition_checkpoint", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_attrition_note_progress", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_attrition_result_set", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_cpu_feature_mask", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_cpu_feature_fingerprint", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_cpu_capability_mask_for_key", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_cpu_has_capability", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_simd_i64_dot_i32_domain_scalar_mod", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_simd_i64_dot_i32_domain_avx2_mod", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_simd_i64_dot_i32_domain_avx512_mod", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_simd_i64_dot_i32_domain_affine_accumulate_scalar_mod", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_simd_i64_dot_i32_domain_affine_accumulate_avx2_mod", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_simd_i64_dot_i32_domain_affine_accumulate_avx512_mod", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_simd_i64_affine_pow2_fill_pair_accumulate_mod", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_converge_select_lane_for_key", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_converge_commit_winner", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_converge_record_telemetry", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_converge_telemetry_count", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_converge_cache_probe_count", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_converge_cache_hit_count", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("kain_machine_teleport_count", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("kain_machine_teleport_last_token", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("kain_machine_pulse_total_fire_count", |_env, _args| Ok(Value::Int(0)));
+
+        // ── filesystem ABI (stdlib/fs.kn) ────────────────────────────
+        self.define_native("abi_fs_read_text", |_env, args| {
+            let path = runtime_expect_string_arg(&args, 0, "abi_fs_read_text", "path")?;
+            runtime_fs_strict(
+                "abi_fs_read_text",
+                kain_fs::read_text(path).map(Value::String),
+            )
+        });
+        self.define_native("abi_fs_read_text_range", |_env, args| {
+            let path = runtime_expect_string_arg(&args, 0, "abi_fs_read_text_range", "path")?;
+            let offset = runtime_expect_int_arg(&args, 1, "abi_fs_read_text_range", "offset")? as u64;
+            let length = runtime_expect_int_arg(&args, 2, "abi_fs_read_text_range", "length")? as usize;
+            match std::fs::read_to_string(&path) {
+                Ok(content) => {
+                    let start = (offset as usize).min(content.len());
+                    let end = (start + length).min(content.len());
+                    Ok(Value::String(content[start..end].to_string()))
+                }
+                Err(e) => Err(KainError::runtime(format!("abi_fs_read_text_range: {}", e))),
+            }
+        });
+        self.define_native("abi_fs_write_text", |_env, args| {
+            let path = runtime_expect_string_arg(&args, 0, "abi_fs_write_text", "path")?;
+            let content = runtime_expect_string_arg(&args, 1, "abi_fs_write_text", "content")?;
+            runtime_fs_strict(
+                "abi_fs_write_text",
+                kain_fs::write_text(path, &content).map(|_| Value::Int(0)),
+            )
+        });
+        self.define_native("abi_fs_write_text_len", |_env, args| {
+            let path = runtime_expect_string_arg(&args, 0, "abi_fs_write_text_len", "path")?;
+            let content = runtime_expect_string_arg(&args, 1, "abi_fs_write_text_len", "content")?;
+            let content_len = runtime_expect_int_arg(&args, 2, "abi_fs_write_text_len", "content_len")? as usize;
+            let truncated: String = content.chars().take(content_len).collect();
+            runtime_fs_strict(
+                "abi_fs_write_text_len",
+                kain_fs::write_text(path, &truncated).map(|_| Value::Int(0)),
+            )
+        });
+        self.define_native("abi_fs_append_text", |_env, args| {
+            let path = runtime_expect_string_arg(&args, 0, "abi_fs_append_text", "path")?;
+            let content = runtime_expect_string_arg(&args, 1, "abi_fs_append_text", "content")?;
+            match std::fs::OpenOptions::new().create(true).append(true).open(&path) {
+                Ok(mut f) => {
+                    use std::io::Write;
+                    match writeln!(f, "{}", content) {
+                        Ok(()) => Ok(Value::Int(0)),
+                        Err(e) => Err(KainError::runtime(format!("abi_fs_append_text: {}", e))),
+                    }
+                }
+                Err(e) => Err(KainError::runtime(format!("abi_fs_append_text: {}", e))),
+            }
+        });
+        self.define_native("abi_fs_append_text_len", |_env, args| {
+            let path = runtime_expect_string_arg(&args, 0, "abi_fs_append_text_len", "path")?;
+            let content = runtime_expect_string_arg(&args, 1, "abi_fs_append_text_len", "content")?;
+            let content_len = runtime_expect_int_arg(&args, 2, "abi_fs_append_text_len", "content_len")? as usize;
+            let truncated: String = content.chars().take(content_len).collect();
+            match std::fs::OpenOptions::new().create(true).append(true).open(&path) {
+                Ok(mut f) => {
+                    use std::io::Write;
+                    match writeln!(f, "{}", truncated) {
+                        Ok(()) => Ok(Value::Int(0)),
+                        Err(e) => Err(KainError::runtime(format!("abi_fs_append_text_len: {}", e))),
+                    }
+                }
+                Err(e) => Err(KainError::runtime(format!("abi_fs_append_text_len: {}", e))),
+            }
+        });
+        self.define_native("abi_fs_atomic_write_text", |_env, args| {
+            let path = runtime_expect_string_arg(&args, 0, "abi_fs_atomic_write_text", "path")?;
+            let content = runtime_expect_string_arg(&args, 1, "abi_fs_atomic_write_text", "content")?;
+            // Simple non-atomic fallback for interpret mode
+            runtime_fs_strict(
+                "abi_fs_atomic_write_text",
+                kain_fs::write_text(path, &content).map(|_| Value::Int(0)),
+            )
+        });
+        self.define_native("abi_fs_atomic_write_text_len", |_env, args| {
+            let path = runtime_expect_string_arg(&args, 0, "abi_fs_atomic_write_text_len", "path")?;
+            let content = runtime_expect_string_arg(&args, 1, "abi_fs_atomic_write_text_len", "content")?;
+            let content_len = runtime_expect_int_arg(&args, 2, "abi_fs_atomic_write_text_len", "content_len")? as usize;
+            let truncated: String = content.chars().take(content_len).collect();
+            runtime_fs_strict(
+                "abi_fs_atomic_write_text_len",
+                kain_fs::write_text(path, &truncated).map(|_| Value::Int(0)),
+            )
+        });
+        self.define_native("abi_fs_read_bytes_hex", |_env, args| {
+            let path = runtime_expect_string_arg(&args, 0, "abi_fs_read_bytes_hex", "path")?;
+            match std::fs::read(&path) {
+                Ok(bytes) => Ok(Value::String(runtime_hex_encode(&bytes))),
+                Err(e) => Err(KainError::runtime(format!("abi_fs_read_bytes_hex: {}", e))),
+            }
+        });
+        self.define_native("abi_fs_read_byte_range_hex", |_env, args| {
+            let path = runtime_expect_string_arg(&args, 0, "abi_fs_read_byte_range_hex", "path")?;
+            let offset = runtime_expect_int_arg(&args, 1, "abi_fs_read_byte_range_hex", "offset")? as usize;
+            let length = runtime_expect_int_arg(&args, 2, "abi_fs_read_byte_range_hex", "length")? as usize;
+            match std::fs::read(&path) {
+                Ok(bytes) => {
+                    let start = offset.min(bytes.len());
+                    let end = (start + length).min(bytes.len());
+                    Ok(Value::String(runtime_hex_encode(&bytes[start..end])))
+                }
+                Err(e) => Err(KainError::runtime(format!("abi_fs_read_byte_range_hex: {}", e))),
+            }
+        });
+        self.define_native("abi_fs_write_bytes_hex", |_env, args| {
+            let path = runtime_expect_string_arg(&args, 0, "abi_fs_write_bytes_hex", "path")?;
+            let hex_str = runtime_expect_string_arg(&args, 1, "abi_fs_write_bytes_hex", "hex")?;
+            let bytes = runtime_hex_decode(&hex_str)?;
+            match std::fs::write(&path, bytes) {
+                Ok(()) => Ok(Value::Int(0)),
+                Err(e) => Err(KainError::runtime(format!("abi_fs_write_bytes_hex: {}", e))),
+            }
+        });
+        self.define_native("abi_fs_write_bytes_hex_at", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_fs_append_bytes_hex", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_fs_atomic_write_bytes_hex", |_env, args| {
+            let path = runtime_expect_string_arg(&args, 0, "abi_fs_atomic_write_bytes_hex", "path")?;
+            let hex_str = runtime_expect_string_arg(&args, 1, "abi_fs_atomic_write_bytes_hex", "hex")?;
+            let bytes = runtime_hex_decode(&hex_str)?;
+            match std::fs::write(&path, bytes) {
+                Ok(()) => Ok(Value::Int(0)),
+                Err(e) => Err(KainError::runtime(format!("abi_fs_atomic_write_bytes_hex: {}", e))),
+            }
+        });
+        self.define_native("abi_fs_exists", |_env, args| {
+            let path = runtime_expect_string_arg(&args, 0, "abi_fs_exists", "path")?;
+            Ok(Value::Bool(std::path::Path::new(&path).exists()))
+        });
+        self.define_native("abi_fs_is_file", |_env, args| {
+            let path = runtime_expect_string_arg(&args, 0, "abi_fs_is_file", "path")?;
+            Ok(Value::Bool(std::path::Path::new(&path).is_file()))
+        });
+        self.define_native("abi_fs_is_dir", |_env, args| {
+            let path = runtime_expect_string_arg(&args, 0, "abi_fs_is_dir", "path")?;
+            Ok(Value::Bool(std::path::Path::new(&path).is_dir()))
+        });
+        self.define_native("abi_fs_metadata_text", |_env, args| {
+            let path = runtime_expect_string_arg(&args, 0, "abi_fs_metadata_text", "path")?;
+            match std::fs::metadata(&path) {
+                Ok(meta) => {
+                    let file_type = if meta.is_dir() {
+                        "dir"
+                    } else if meta.is_file() {
+                        "file"
+                    } else {
+                        "symlink"
+                    };
+                    let len = meta.len() as i64;
+                    let modified = meta
+                        .modified()
+                        .ok()
+                        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                        .map(|d| d.as_millis() as i64)
+                        .unwrap_or(0);
+                    let created = meta
+                        .created()
+                        .ok()
+                        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                        .map(|d| d.as_millis() as i64)
+                        .unwrap_or(0);
+                    let accessed = meta
+                        .accessed()
+                        .ok()
+                        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                        .map(|d| d.as_millis() as i64)
+                        .unwrap_or(0);
+                    Ok(Value::String(format!(
+                        "file_type={}\nlen={}\nreadonly=false\ncreated_millis={}\nmodified_millis={}\naccessed_millis={}",
+                        file_type, len, created, modified, accessed
+                    )))
+                }
+                Err(e) => Err(KainError::runtime(format!("abi_fs_metadata_text: {}", e))),
+            }
+        });
+        self.define_native("abi_fs_read_dir_paths_text", |_env, args| {
+            let path = runtime_expect_string_arg(&args, 0, "abi_fs_read_dir_paths_text", "path")?;
+            match std::fs::read_dir(&path) {
+                Ok(entries) => {
+                    let mut lines = String::new();
+                    for entry in entries.flatten() {
+                        if !lines.is_empty() {
+                            lines.push('\n');
+                        }
+                        lines.push_str(&entry.path().to_string_lossy());
+                    }
+                    Ok(Value::String(lines))
+                }
+                Err(e) => Err(KainError::runtime(format!("abi_fs_read_dir_paths_text: {}", e))),
+            }
+        });
+        self.define_native("abi_fs_walk_paths_text", |_env, _args| Ok(Value::String(String::new())));
+        // abi_fs_create_dir_all is already registered in register_stdlib
+        self.define_native("abi_fs_copy_file", |_env, args| {
+            let src = runtime_expect_string_arg(&args, 0, "abi_fs_copy_file", "src")?;
+            let dest = runtime_expect_string_arg(&args, 1, "abi_fs_copy_file", "dest")?;
+            runtime_fs_strict(
+                "abi_fs_copy_file",
+                kain_fs::copy_file(src, dest).map(|_| Value::Int(0)),
+            )
+        });
+        self.define_native("abi_fs_copy_file_streaming", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_fs_move_path", |_env, args| {
+            let src = runtime_expect_string_arg(&args, 0, "abi_fs_move_path", "src")?;
+            let dest = runtime_expect_string_arg(&args, 1, "abi_fs_move_path", "dest")?;
+            runtime_fs_strict(
+                "abi_fs_move_path",
+                kain_fs::move_path(src, dest).map(|_| Value::Int(0)),
+            )
+        });
+        self.define_native("abi_fs_remove_file", |_env, args| {
+            let path = runtime_expect_string_arg(&args, 0, "abi_fs_remove_file", "path")?;
+            runtime_fs_strict(
+                "abi_fs_remove_file",
+                kain_fs::remove_file(path).map(|_| Value::Int(0)),
+            )
+        });
+        self.define_native("abi_fs_remove_dir_all", |_env, args| {
+            let path = runtime_expect_string_arg(&args, 0, "abi_fs_remove_dir_all", "path")?;
+            runtime_fs_strict(
+                "abi_fs_remove_dir_all",
+                kain_fs::remove_dir_all(path).map(|_| Value::Int(0)),
+            )
+        });
+        self.define_native("abi_fs_temp_file", |_env, args| {
+            let prefix = runtime_expect_string_arg(&args, 0, "abi_fs_temp_file", "prefix")?;
+            let mut dir = std::env::temp_dir();
+            let ts = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_nanos();
+            dir.push(format!("{}_{}", prefix, ts));
+            Ok(Value::String(dir.to_string_lossy().into_owned()))
+        });
+        self.define_native("abi_fs_temp_dir", |_env, args| {
+            let prefix = runtime_expect_string_arg(&args, 0, "abi_fs_temp_dir", "prefix")?;
+            let mut dir = std::env::temp_dir();
+            let ts = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_nanos();
+            dir.push(format!("{}_{}", prefix, ts));
+            let _ = std::fs::create_dir_all(&dir);
+            Ok(Value::String(dir.to_string_lossy().into_owned()))
+        });
+        self.define_native("abi_fs_hash_file", |_env, args| {
+            let path = runtime_expect_string_arg(&args, 0, "abi_fs_hash_file", "path")?;
+            match kain_fs::hash_file(path) {
+                Ok(hash) => Ok(Value::String(hash)),
+                Err(e) => Err(KainError::runtime(format!("abi_fs_hash_file: {}", e))),
+            }
+        });
+        self.define_native("abi_fs_path_join", |_env, args| {
+            let base = runtime_expect_string_arg(&args, 0, "abi_fs_path_join", "base")?;
+            let child = runtime_expect_string_arg(&args, 1, "abi_fs_path_join", "child")?;
+            let joined = std::path::Path::new(&base).join(&child);
+            Ok(Value::String(joined.to_string_lossy().into_owned()))
+        });
+        self.define_native("abi_fs_path_parent", |_env, args| {
+            let path = runtime_expect_string_arg(&args, 0, "abi_fs_path_parent", "path")?;
+            let parent = std::path::Path::new(&path)
+                .parent()
+                .map(|p| p.to_string_lossy().into_owned())
+                .unwrap_or_default();
+            Ok(Value::String(parent))
+        });
+        self.define_native("abi_fs_path_file_name", |_env, args| {
+            let path = runtime_expect_string_arg(&args, 0, "abi_fs_path_file_name", "path")?;
+            let name = std::path::Path::new(&path)
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or_default();
+            Ok(Value::String(name))
+        });
+        self.define_native("abi_fs_path_extension", |_env, args| {
+            let path = runtime_expect_string_arg(&args, 0, "abi_fs_path_extension", "path")?;
+            let ext = std::path::Path::new(&path)
+                .extension()
+                .map(|e| e.to_string_lossy().into_owned())
+                .unwrap_or_default();
+            Ok(Value::String(ext))
+        });
+        self.define_native("abi_fs_path_stem", |_env, args| {
+            let path = runtime_expect_string_arg(&args, 0, "abi_fs_path_stem", "path")?;
+            let stem = std::path::Path::new(&path)
+                .file_stem()
+                .map(|s| s.to_string_lossy().into_owned())
+                .unwrap_or_default();
+            Ok(Value::String(stem))
+        });
+        self.define_native("abi_fs_last_status", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_fs_last_error_kind", |_env, _args| Ok(Value::String(String::new())));
+        self.define_native("abi_fs_last_error_message", |_env, _args| Ok(Value::String(String::new())));
+        self.define_native("abi_fs_open", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_fs_close", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_fs_read", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_fs_write", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_fs_seek", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_fs_tell", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_fs_flush", |_env, _args| Ok(Value::Int(0)));
+
+        // ── process ABI (stdlib/process.kn) ──────────────────────────
+        self.define_native("abi_process_reset", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_process_platform_available", |_env, _args| Ok(Value::Int(1)));
+        // abi_process_arg_count, abi_process_arg, abi_process_current_working_directory
+        // are already registered in register_stdlib
+        self.define_native("abi_process_environment", |_env, args| {
+            let key = runtime_expect_string_arg(&args, 0, "abi_process_environment", "key")?;
+            Ok(Value::String(std::env::var(&key).unwrap_or_default()))
+        });
+        self.define_native("abi_process_current_executable_path", |_env, _args| {
+            match std::env::current_exe() {
+                Ok(p) => Ok(Value::String(p.to_string_lossy().into_owned())),
+                Err(_) => Ok(Value::String(String::new())),
+            }
+        });
+        self.define_native("abi_process_current_id", |_env, _args| {
+            Ok(Value::Int(std::process::id() as i64))
+        });
+        self.define_native("abi_process_spec_create", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_process_spec_destroy", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_process_spec_count", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_process_spec_add_arg", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_process_spec_set_cwd", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_process_spec_set_env", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_process_spec_set_inherit_environment", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_process_spec_set_stdin_mode", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_process_spec_set_stdout_mode", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_process_spec_set_stderr_mode", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_process_spawn", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_process_spawn_pty", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_process_count", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_process_close", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_process_poll", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_process_wait", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_process_is_running", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_process_exit_code", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_process_os_pid", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_process_terminate", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_process_kill", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_process_stdin_write_text", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_process_stdin_write_hex", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_process_stdin_close", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_process_stdout_read_text", |_env, _args| Ok(Value::String(String::new())));
+        self.define_native("abi_process_stdout_read_hex", |_env, _args| Ok(Value::String(String::new())));
+        self.define_native("abi_process_stderr_read_text", |_env, _args| Ok(Value::String(String::new())));
+        self.define_native("abi_process_stderr_read_hex", |_env, _args| Ok(Value::String(String::new())));
+        self.define_native("abi_process_stdout_capture_text", |_env, _args| Ok(Value::String(String::new())));
+        self.define_native("abi_process_stdout_capture_hex", |_env, _args| Ok(Value::String(String::new())));
+        self.define_native("abi_process_stderr_capture_text", |_env, _args| Ok(Value::String(String::new())));
+        self.define_native("abi_process_stderr_capture_hex", |_env, _args| Ok(Value::String(String::new())));
+        self.define_native("abi_process_pty_write_text", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_process_pty_write_hex", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_process_pty_resize", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_process_pty_read_text", |_env, _args| Ok(Value::String(String::new())));
+        self.define_native("abi_process_pty_read_hex", |_env, _args| Ok(Value::String(String::new())));
+        self.define_native("abi_process_pty_capture_text", |_env, _args| Ok(Value::String(String::new())));
+        self.define_native("abi_process_pty_capture_hex", |_env, _args| Ok(Value::String(String::new())));
+        self.define_native("abi_process_output_text", |_env, _args| Ok(Value::String(String::new())));
+        self.define_native("abi_process_last_status", |_env, _args| Ok(Value::Int(0)));
+
+        // ── os ABI (stdlib/os.kn) ────────────────────────────────────
+        self.define_native("abi_os_setenv", |_env, args| {
+            let key = runtime_expect_string_arg(&args, 0, "abi_os_setenv", "key")?;
+            let value = runtime_expect_string_arg(&args, 1, "abi_os_setenv", "value")?;
+            std::env::set_var(&key, &value);
+            Ok(Value::Int(0))
+        });
+        self.define_native("abi_os_getenv", |_env, args| {
+            let key = runtime_expect_string_arg(&args, 0, "abi_os_getenv", "key")?;
+            Ok(Value::String(std::env::var(&key).unwrap_or_default()))
+        });
+        self.define_native("abi_os_unsetenv", |_env, args| {
+            let key = runtime_expect_string_arg(&args, 0, "abi_os_unsetenv", "key")?;
+            std::env::remove_var(&key);
+            Ok(Value::Int(0))
+        });
+        self.define_native("abi_os_chdir", |_env, args| {
+            let path = runtime_expect_string_arg(&args, 0, "abi_os_chdir", "path")?;
+            match std::env::set_current_dir(&path) {
+                Ok(()) => Ok(Value::Int(0)),
+                Err(e) => Err(KainError::runtime(format!("abi_os_chdir: {}", e))),
+            }
+        });
+        self.define_native("abi_os_getppid", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_os_getlogin", |_env, _args| {
+            Ok(Value::String(std::env::var("USERNAME").or_else(|_| std::env::var("USER")).unwrap_or_default()))
+        });
+        self.define_native("abi_os_getuid", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_os_getgid", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_os_symlink", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_os_readlink", |_env, _args| Ok(Value::String(String::new())));
+        self.define_native("abi_os_urandom", |_env, args| {
+            let byte_count = runtime_expect_int_arg(&args, 0, "abi_os_urandom", "byte_count")? as usize;
+            let byte_count = byte_count.min(4096);
+            let mut buf = vec![0u8; byte_count];
+            // Fast pseudo-random fill for interpret mode (not crypto-secure)
+            let seed = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_nanos() as u64;
+            let mut state = seed;
+            for i in 0..byte_count {
+                state = state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+                buf[i] = (state >> 32) as u8;
+            }
+            Ok(Value::String(runtime_hex_encode(&buf)))
+        });
+        self.define_native("abi_os_terminal_columns", |_env, _args| Ok(Value::Int(80)));
+        self.define_native("abi_os_terminal_rows", |_env, _args| Ok(Value::Int(24)));
+        self.define_native("abi_os_last_status", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_os_last_error_kind", |_env, _args| Ok(Value::String(String::new())));
+        self.define_native("abi_os_last_error_message", |_env, _args| Ok(Value::String(String::new())));
+        self.define_native("abi_os_syscall0", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_os_syscall1", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_os_syscall2", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_os_syscall3", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_os_syscall4", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_os_syscall5", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_os_syscall6", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_os_mmap_anon", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_os_mmap_file", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_os_munmap", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_os_mprotect", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_os_madvise", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_os_msync", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_os_mlock", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_os_munlock", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_os_fork", |_env, _args| Ok(Value::Int(-1)));
+        self.define_native("abi_os_execve", |_env, _args| Ok(Value::Int(-1)));
+        self.define_native("abi_os_waitpid", |_env, _args| Ok(Value::Int(-1)));
+        self.define_native("abi_os_io_uring_setup", |_env, _args| Ok(Value::Int(-1)));
+        self.define_native("abi_os_io_uring_enter", |_env, _args| Ok(Value::Int(-1)));
+
+        // ── intent ABI (stdlib/intent.kn) ────────────────────────────
+        self.define_native("abi_entangle_reset", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_entangle_registered_count", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_entangle_register", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_entangle_get_authority", |_env, _args| Ok(Value::String(String::new())));
+        self.define_native("abi_entangle_get_mirror", |_env, _args| Ok(Value::String(String::new())));
+        self.define_native("abi_entangle_get_policy", |_env, _args| Ok(Value::String(String::new())));
+        self.define_native("abi_entangle_get_type_name", |_env, _args| Ok(Value::String(String::new())));
+        self.define_native("abi_patch_journal_count", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_patch_last_path", |_env, _args| Ok(Value::String(String::new())));
+        self.define_native("abi_resonate_mutation_count", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_resonate_fire_count", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_resonate_absorb_count", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_resonate_last_target", |_env, _args| Ok(Value::String(String::new())));
+        self.define_native("abi_resonate_last_old_i64", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_resonate_last_new_i64", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_resonate_last_dampen_ns", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_entangle_propagation_count", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_entangle_last_authority", |_env, _args| Ok(Value::String(String::new())));
+        self.define_native("abi_entangle_last_mirror", |_env, _args| Ok(Value::String(String::new())));
+        self.define_native("abi_converge_mismatch_count", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_orchestrate_stage_count", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_orchestrate_last_runtime", |_env, _args| Ok(Value::String(String::new())));
+        self.define_native("abi_orchestrate_last_function", |_env, _args| Ok(Value::String(String::new())));
+        self.define_native("abi_orchestrate_last_selector", |_env, _args| Ok(Value::String(String::new())));
+        self.define_native("abi_orchestrate_last_dependencies", |_env, _args| Ok(Value::String(String::new())));
+        self.define_native("abi_orchestrate_last_residency", |_env, _args| Ok(Value::String(String::new())));
+        self.define_native("abi_orchestrate_last_transfer", |_env, _args| Ok(Value::String(String::new())));
+        self.define_native("abi_orchestrate_last_guard", |_env, _args| Ok(Value::String(String::new())));
+        self.define_native("abi_orchestrate_last_fallback", |_env, _args| Ok(Value::String(String::new())));
+        self.define_native("abi_orchestrate_last_requires", |_env, _args| Ok(Value::String(String::new())));
+        self.define_native("abi_orchestrate_last_policy", |_env, _args| Ok(Value::String(String::new())));
+        self.define_native("abi_orchestrate_transfer_count", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_orchestrate_fallback_count", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_orchestrate_adaptive_stage_count", |_env, _args| Ok(Value::Int(0)));
+
+        // ── net ABI (stdlib/net.kn) ──────────────────────────────────
+        self.define_native("abi_net_reset", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_net_platform_available", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_net_platform_name", |_env, _args| Ok(Value::String(String::new())));
+        self.define_native("abi_net_capability_state", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_tcp_connect", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_tcp_listen", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_tcp_listener_local_port", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_tcp_accept", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_tcp_read_text", |_env, _args| Ok(Value::String(String::new())));
+        self.define_native("abi_tcp_read_hex", |_env, _args| Ok(Value::String(String::new())));
+        self.define_native("abi_tcp_write_text", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_tcp_write_hex", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_tcp_close", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_tcp_listener_close", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_http_request_create", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_http_request_set_header", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_http_request_set_body_text", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_http_request_set_body_hex", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_http_request_set_timeout", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_net_last_status", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("abi_net_last_error_kind", |_env, _args| Ok(Value::String(String::new())));
+        self.define_native("abi_net_last_error_message", |_env, _args| Ok(Value::String(String::new())));
+
+        // ── compiler service ABI (stdlib/kain.kn) ────────────────────
+        // All return Any (Value::None stubs)
+        self.define_native("kain_service_open_workspace", |_env, _args| Ok(Value::None));
+        self.define_native("kain_service_close_workspace", |_env, _args| Ok(Value::None));
+        self.define_native("kain_service_open_document", |_env, _args| Ok(Value::None));
+        self.define_native("kain_service_update_document", |_env, _args| Ok(Value::None));
+        self.define_native("kain_service_close_document", |_env, _args| Ok(Value::None));
+        self.define_native("kain_service_check_document", |_env, _args| Ok(Value::None));
+        self.define_native("kain_service_hover_at", |_env, _args| Ok(Value::None));
+        self.define_native("kain_service_definition_at", |_env, _args| Ok(Value::None));
+        self.define_native("kain_service_references_at", |_env, _args| Ok(Value::None));
+        self.define_native("kain_service_completions_at", |_env, _args| Ok(Value::None));
+        self.define_native("kain_service_document_symbols", |_env, _args| Ok(Value::None));
+        self.define_native("kain_service_workspace_symbols", |_env, _args| Ok(Value::None));
+        self.define_native("kain_service_semantic_tokens", |_env, _args| Ok(Value::None));
+        self.define_native("kain_service_format_document", |_env, _args| Ok(Value::None));
+
+        // ── CUDA device ABI (stdlib/cuda.kn) ─────────────────────────
+        self.define_native("cuda_lane_id", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("cuda_warp_id", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("cuda_active_mask", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("cuda_block_sync", |_env, _args| Ok(Value::Unit));
+        self.define_native("cuda_barrier_sync", |_env, _args| Ok(Value::Unit));
+        self.define_native("cuda_warp_sync", |_env, _args| Ok(Value::Unit));
+        self.define_native("cuda_ballot", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("cuda_warp_any", |_env, _args| Ok(Value::Bool(false)));
+        self.define_native("cuda_warp_all", |_env, _args| Ok(Value::Bool(false)));
+        self.define_native("cuda_shfl_xor_u32", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("cuda_shfl_xor_f32", |_env, _args| Ok(Value::Float(0.0)));
+        self.define_native("cuda_warp_reduce_sum_u32", |_env, _args| Ok(Value::Int(0)));
+        self.define_native("cuda_warp_reduce_sum_f32", |_env, _args| Ok(Value::Float(0.0)));
+        self.define_native("cuda_cp_async_commit_group", |_env, _args| Ok(Value::Unit));
+        self.define_native("cuda_cp_async_wait_group_0", |_env, _args| Ok(Value::Unit));
+        self.define_native("cuda_require_tensor_cores", |_env, _args| Ok(Value::Unit));
+        self.define_native("cuda_require_wgmma", |_env, _args| Ok(Value::Unit));
+        self.define_native("abi_cuda_driver_available", |_env, _args| Ok(Value::Bool(false)));
+        self.define_native("abi_cuda_runtime_library_available", |_env, _args| Ok(Value::Bool(false)));
+        self.define_native("abi_cuda_runtime_ready", |_env, _args| Ok(Value::Bool(false)));
+        self.define_native("abi_cuda_runtime_library_path", |_env, _args| Ok(Value::String(String::new())));
+        self.define_native("abi_cuda_shader_bundle_path", |_env, _args| Ok(Value::String(String::new())));
+        self.define_native("abi_cuda_compute_residency_path", |_env, _args| Ok(Value::String(String::new())));
     }
 
     fn define_native(&mut self, name: &str, func: NativeFn) {

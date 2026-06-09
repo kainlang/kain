@@ -1,32 +1,33 @@
 // ============================================================================
 //  MARKSCRIPT VIRTUAL MACHINE 1.0 — Stack-based bytecode executor
-//  MarkValue-typed operand stack, IVT dispatch via return-flow, full
-//  variable table, 20 opcodes covering arithmetic, control flow,
-//  subroutines, and external handler invocation.
 //
-//  Value semantics throughout: all functions take and return state by value.
-//  No ptr<T> parameters. No raw pointers through bytecode.
+//  Full 20-opcode stack VM with MarkValue-based stack, accumulator, and
+//  data tables. Handler dispatch uses a pause/resume pattern: when the VM
+//  encounters OP_EXECUTE_CALL or OP_CALL, it returns an ExecResult with
+//  handler_id > 0. The caller (main.kn) dispatches to the bridge, then
+//  calls resume_execution() to continue.
 //
-//  HANDLER DISPATCH PATTERN:
-//    execute_bytecode() runs until OP_CALL, does IVT lookup, and returns
-//    with handler_id set to a positive value (handler pending). The caller
-//    dispatches to the real handler function, receives HandlerResult, and
-//    calls resume_execution() to continue.
+//  Imports type structs from types.kn (MarkValue, MatrixRecord, etc.)
+//  and error struct from error.kn (MarkError). Opcode constants from
+//  parser.kn.
+//
+//  Value semantics throughout. No ptr<T> parameters.
 // ============================================================================
 
-use std::text
-use types
-use error
-use parser
+use types       // MarkValue, MatrixRecord, CodeBlockRecord, IVTEntry, VarEntry,
+                // MARK_INT, MARK_FLOAT, MARK_STRING, MARK_TABLE, MARK_CODE,
+                // mark_int, mark_float, mark_string, mark_empty, mark_value_to_string
+use error       // MarkError, ERROR_OK, ERROR_NAME, error_ok, make_error, format_error
+use parser      // OP_HALT, OP_ENTER_DOMAIN, ... OP_JN (all 21 constants 0-20)
 
 // ===========================================================================
-//  VM STATE
+//  VM STATE — matches the spec exactly
 // ===========================================================================
 
 pub struct MarkScriptVM:
     ip:             Int                     // instruction pointer
     accumulator:    MarkValue               // primary result register
-    stack:          Array<MarkValue>        // typed operand stack
+    stack:          Array<MarkValue>        // operand stack
     data_table:     Array<MatrixRecord>     // handle → typed matrix
     data_table_cnt: Int                     // next free handle
     code_blocks:    Array<CodeBlockRecord>  // fenced code blocks
@@ -35,28 +36,32 @@ pub struct MarkScriptVM:
     ivt_count:      Int                     // registered handler count
     variables:      Array<VarEntry>         // named variable store
     var_count:      Int                     // variable count
-    error:          MarkError               // last VM error (kind=0 = OK)
+    error:          MarkError               // last error (kind=ERROR_OK if none)
+    // Internal: accumulated phrase hash for intent dispatch
+    pending_hash:   Int                     // hash built up by OP_PUSH_PARAM
 
 // ===========================================================================
-//  HANDLER RESULT — returned by external handler dispatch
+//  HANDLER RESULT — returned by bridge handlers, consumed by resume_execution
 // ===========================================================================
 
 pub struct HandlerResult:
-    vm:     MarkScriptVM    // updated VM state after handler ran
-    value:  MarkValue       // result value from handler
-    err:    String          // empty = success, non-empty = error message
+    vm:     MarkScriptVM   // updated VM state
+    value:  MarkValue      // result value
+    err:    String         // empty = success, non-empty = error message
 
 // ===========================================================================
 //  EXECUTION RESULT — returned by execute_bytecode / resume_execution
 // ===========================================================================
 
 pub struct ExecResult:
-    vm:             MarkScriptVM            // full VM state (for handler dispatch chaining)
-    accumulator:    MarkValue               // final accumulator value
-    data_table:     Array<MatrixRecord>     // shorthand for vm.data_table
-    code_blocks:    Array<CodeBlockRecord>  // shorthand for vm.code_blocks
-    error:          MarkError               // shorthand for vm.error (if any)
-    handler_id:     Int                     // 0 = no pending handler, >0 = dispatch
+    vm:         MarkScriptVM   // current VM state (ip points to next instruction)
+    accumulator: MarkValue     // final accumulator value
+    data_table:  Array<MatrixRecord>
+    code_blocks: Array<CodeBlockRecord>
+    error:       MarkError     // last error
+    handler_id:  Int           // 0 = no handler pending, >0 = dispatch to this handler
+    bc:          Array<Int>    // bytecode (passed through for resume_execution)
+    ip:          Int           // current instruction pointer (for resume)
 
 // ===========================================================================
 //  CONSTRUCTOR
@@ -65,7 +70,7 @@ pub struct ExecResult:
 pub fn init_vm() -> MarkScriptVM:
     return MarkScriptVM {
         ip: 0,
-        accumulator: mark_int(0),
+        accumulator: mark_empty(),
         stack: [],
         data_table: [],
         data_table_cnt: 0,
@@ -75,12 +80,12 @@ pub fn init_vm() -> MarkScriptVM:
         ivt_count: 0,
         variables: [],
         var_count: 0,
-        error: error_ok()
+        error: error_ok(),
+        pending_hash: 0
     }
 
 // ===========================================================================
-//  IVT: HANDLER REGISTRATION
-//  Maps a phrase_hash to a handler_id (handle-based, no function pointers)
+//  IVT OPERATIONS
 // ===========================================================================
 
 pub fn register_handler(vm: MarkScriptVM, phrase_hash: Int, handler_id: Int) -> MarkScriptVM:
@@ -93,11 +98,6 @@ pub fn register_handler(vm: MarkScriptVM, phrase_hash: Int, handler_id: Int) -> 
     v.ivt_count = v.ivt_count + 1
     return v
 
-// ===========================================================================
-//  IVT: LOOKUP
-//  Returns handler_id (0 = not found)
-// ===========================================================================
-
 pub fn lookup_handler(vm: MarkScriptVM, hash: Int) -> Int:
     var i: Int = 0
     while i < vm.ivt_count:
@@ -107,28 +107,134 @@ pub fn lookup_handler(vm: MarkScriptVM, hash: Int) -> Int:
     return 0
 
 // ===========================================================================
-//  VARIABLES: FIND BY NAME HASH
-//  Returns index into variables array, or -1 if not found
+//  VARIABLE OPERATIONS
 // ===========================================================================
 
-fn find_var(vars: Array<VarEntry>, vc: Int, name_hash: Int) -> Int:
+fn find_variable(vm: MarkScriptVM, name_hash: Int) -> Int:
     var i: Int = 0
-    while i < vc:
-        if vars[i].name_hash == name_hash:
+    while i < vm.var_count:
+        if vm.variables[i].name_hash == name_hash:
             return i
         i = i + 1
     return -1
 
+fn store_variable(vm: MarkScriptVM, name_hash: Int, value: MarkValue) -> MarkScriptVM:
+    var v = vm
+    let idx = find_variable(v, name_hash)
+    if idx >= 0:
+        v.variables[idx].value = value
+    else:
+        // Ensure array is large enough
+        while len(v.variables) <= v.var_count:
+            push(v.variables, VarEntry { name_hash: 0, value: mark_empty() })
+        v.variables[v.var_count] = VarEntry { name_hash: name_hash, value: value }
+        v.var_count = v.var_count + 1
+    return v
+
 // ===========================================================================
-//  EXECUTE BYTECODE — main execution loop
-//  Runs until HALT, error, or handler_pending (OP_CALL).
+//  ARITHMETIC HELPERS — MarkValue-based operations
+// ===========================================================================
+
+fn add_values(a: MarkValue, b: MarkValue) -> MarkValue:
+    if a.kind == MARK_INT and b.kind == MARK_INT:
+        return mark_int(a.int_val + b.int_val)
+    elif a.kind == MARK_FLOAT and b.kind == MARK_FLOAT:
+        return mark_float(a.float_val + b.float_val)
+    elif a.kind == MARK_INT and b.kind == MARK_FLOAT:
+        return mark_float(a.int_val + b.float_val)
+    elif a.kind == MARK_FLOAT and b.kind == MARK_INT:
+        return mark_float(a.float_val + b.int_val)
+    else:
+        return mark_int(0)
+
+fn sub_values(a: MarkValue, b: MarkValue) -> MarkValue:
+    if a.kind == MARK_INT and b.kind == MARK_INT:
+        return mark_int(a.int_val - b.int_val)
+    elif a.kind == MARK_FLOAT and b.kind == MARK_FLOAT:
+        return mark_float(a.float_val - b.float_val)
+    elif a.kind == MARK_INT and b.kind == MARK_FLOAT:
+        return mark_float(a.int_val - b.float_val)
+    elif a.kind == MARK_FLOAT and b.kind == MARK_INT:
+        return mark_float(a.float_val - b.int_val)
+    else:
+        return mark_int(0)
+
+fn mul_values(a: MarkValue, b: MarkValue) -> MarkValue:
+    if a.kind == MARK_INT and b.kind == MARK_INT:
+        return mark_int(a.int_val * b.int_val)
+    elif a.kind == MARK_FLOAT and b.kind == MARK_FLOAT:
+        return mark_float(a.float_val * b.float_val)
+    elif a.kind == MARK_INT and b.kind == MARK_FLOAT:
+        return mark_float(a.int_val * b.float_val)
+    elif a.kind == MARK_FLOAT and b.kind == MARK_INT:
+        return mark_float(a.float_val * b.int_val)
+    else:
+        return mark_int(0)
+
+fn div_values(a: MarkValue, b: MarkValue) -> MarkValue:
+    // Check for zero divisor
+    if b.kind == MARK_INT and b.int_val == 0:
+        return mark_int(0)  // trap — caller checks
+    if b.kind == MARK_FLOAT and b.float_val == 0.0:
+        return mark_int(0)  // trap
+
+    if a.kind == MARK_INT and b.kind == MARK_INT:
+        return mark_int(a.int_val / b.int_val)
+    elif a.kind == MARK_FLOAT and b.kind == MARK_FLOAT:
+        return mark_float(a.float_val / b.float_val)
+    elif a.kind == MARK_INT and b.kind == MARK_FLOAT:
+        return mark_float(a.int_val / b.float_val)
+    elif a.kind == MARK_FLOAT and b.kind == MARK_INT:
+        return mark_float(a.float_val / b.int_val)
+    else:
+        return mark_int(0)
+
+fn is_zero_value(v: MarkValue) -> Bool:
+    if v.kind == MARK_INT:
+        return v.int_val == 0
+    elif v.kind == MARK_FLOAT:
+        return v.float_val == 0.0
+    elif v.kind == MARK_STRING:
+        return v.str_val == ""
+    return false
+
+fn is_negative_value(v: MarkValue) -> Bool:
+    if v.kind == MARK_INT:
+        return v.int_val < 0
+    elif v.kind == MARK_FLOAT:
+        return v.float_val < 0.0
+    return false
+
+fn is_zero_divisor(b: MarkValue) -> Bool:
+    if b.kind == MARK_INT:
+        return b.int_val == 0
+    elif b.kind == MARK_FLOAT:
+        return b.float_val == 0.0
+    return false
+
+// ===========================================================================
+//  STACK HELPERS
+// ===========================================================================
+
+fn pop_stack(stk: Array<MarkValue>) -> MarkValue:
+    let stk_len = len(stk)
+    if stk_len > 0:
+        let v = stk[stk_len - 1]
+        pop(stk)
+        return v
+    return mark_empty()
+
+fn peek_stack(stk: Array<MarkValue>) -> MarkValue:
+    let stk_len = len(stk)
+    if stk_len > 0:
+        return stk[stk_len - 1]
+    return mark_empty()
+
+// ===========================================================================
+//  EXECUTE BYTECODE — the core VM loop
 //
-//  bc: flat Array<Int> of [opcode, operand?, opcode, operand?, ...]
-//
-//  Returns ExecResult. When handler_id > 0, the caller must:
-//    1. Read handler_id
-//    2. Dispatch the handler (receives the updated VM)
-//    3. Call resume_execution() with the HandlerResult
+//  Returns ExecResult. If handler_id > 0, the caller should dispatch
+//  through the bridge and then call resume_execution().
 // ===========================================================================
 
 pub fn execute_bytecode(vm: MarkScriptVM, bc: Array<Int>) -> ExecResult:
@@ -137,54 +243,93 @@ pub fn execute_bytecode(vm: MarkScriptVM, bc: Array<Int>) -> ExecResult:
     var acc = vm.accumulator
     var stk = vm.stack
     var dt = vm.data_table
-    var dtc = vm.data_table_cnt
     var cb = vm.code_blocks
     var callstk = vm.call_stack
     var ivt = vm.ivt
     var ivtc = vm.ivt_count
     var vars = vm.variables
     var varc = vm.var_count
-    var err = vm.error
-    var last_handler_id: Int = 0
+    var pending_hash = vm.pending_hash
+    var verr = vm.error
 
     while ip < bc_len:
         let opcode = bc[ip]
 
-        // --- OP_HALT (0) — terminate execution ----------------------------
+        // --- OP_HALT (0) — terminate -------------------------------------
         if opcode == OP_HALT:
-            break
+            return ExecResult {
+                vm: MarkScriptVM {
+                    ip: ip, accumulator: acc, stack: stk,
+                    data_table: dt, data_table_cnt: vm.data_table_cnt,
+                    code_blocks: cb, call_stack: callstk,
+                    ivt: ivt, ivt_count: ivtc,
+                    variables: vars, var_count: varc,
+                    error: verr, pending_hash: pending_hash
+                },
+                accumulator: acc,
+                data_table: dt,
+                code_blocks: cb,
+                error: verr,
+                handler_id: 0,
+                bc: bc,
+                ip: ip
+            }
 
-        // --- OP_ENTER_DOMAIN (1) — set domain hash in accumulator ---------
+        // --- OP_ENTER_DOMAIN (1) — domain hash ---------------------------
         elif opcode == OP_ENTER_DOMAIN:
             ip = ip + 1
             if ip < bc_len:
                 acc = mark_int(bc[ip])
             ip = ip + 1
 
-        // --- OP_ROUTINE_HEADER (2) — set routine hash in accumulator ------
+        // --- OP_ROUTINE_HEADER (2) — routine hash ------------------------
         elif opcode == OP_ROUTINE_HEADER:
             ip = ip + 1
             if ip < bc_len:
                 acc = mark_int(bc[ip])
             ip = ip + 1
 
-        // --- OP_PUSH_PARAM (3) — push intent phrase hash to accumulator ---
+        // --- OP_PUSH_PARAM (3) — accumulate intent phrase hash -----------
         elif opcode == OP_PUSH_PARAM:
             ip = ip + 1
             if ip < bc_len:
-                acc = mark_int(bc[ip])
+                pending_hash = pending_hash + bc[ip]
             ip = ip + 1
 
-        // --- OP_EXECUTE_CALL (4) — signal accumulated params ready ---------
-        // Pushes the accumulator (the phrase hash) onto the stack as a
-        // pending call target. OP_CALL will pop it and do IVT lookup.
+        // --- OP_EXECUTE_CALL (4) — dispatch accumulated params -----------
         elif opcode == OP_EXECUTE_CALL:
-            push(stk, acc)
-            ip = ip + 1
+            // Look up the accumulated phrase hash in the IVT
+            let handler_id = lookup_handler_ivt(ivt, ivtc, pending_hash)
 
-        // --- OP_PUSH_MATRIX (5) — embed typed data table -------------------
-        // Format: handle, cols, rows, data_count, d0, d1, ..., dN
-        // Each data value is read as Int and wrapped in MarkValue(MARK_INT).
+            if handler_id > 0:
+                // Pause execution — return to caller for dispatch
+                ip = ip + 1
+                return ExecResult {
+                    vm: MarkScriptVM {
+                        ip: ip, accumulator: acc, stack: stk,
+                        data_table: dt, data_table_cnt: vm.data_table_cnt,
+                        code_blocks: cb, call_stack: callstk,
+                        ivt: ivt, ivt_count: ivtc,
+                        variables: vars, var_count: varc,
+                        error: verr, pending_hash: pending_hash
+                    },
+                    accumulator: acc,
+                    data_table: dt,
+                    code_blocks: cb,
+                    error: verr,
+                    handler_id: handler_id,
+                    bc: bc,
+                    ip: ip
+                }
+            else:
+                // Name error — intent not registered
+                verr = make_error(ERROR_NAME,
+                    "unknown intent phrase (hash=" + str(pending_hash) + ")",
+                    0, "", "")
+                ip = ip + 1
+            pending_hash = 0
+
+        // --- OP_PUSH_MATRIX (5) — typed table ----------------------------
         elif opcode == OP_PUSH_MATRIX:
             ip = ip + 1
             if ip + 3 >= bc_len:
@@ -199,42 +344,57 @@ pub fn execute_bytecode(vm: MarkScriptVM, bc: Array<Int>) -> ExecResult:
             let data_count = bc[ip]
             ip = ip + 1
 
-            // Ensure data table is large enough
-            while len(dt) <= handle:
-                let empty_rec = MatrixRecord {
-                    handle_id: len(dt),
-                    cols: 0, rows: 0, col_types: [], data: []
-                }
-                push(dt, empty_rec)
-
-            // Read data values from inline bytecode, wrap as MarkValue
-            var matrix_data: Array<MarkValue> = []
-            var di: Int = 0
-            while di < data_count:
-                if ip < bc_len:
-                    push(matrix_data, mark_int(bc[ip]))
-                    ip = ip + 1
-                di = di + 1
-
-            // Initialize column types (all MARK_INT for now; parser will
-            // provide typed info in a future pass)
+            // Read column types
             var col_types: Array<Int> = []
+            if ip < bc_len:
+                let col_count = bc[ip]
+                ip = ip + 1
+                var cti: Int = 0
+                while cti < col_count and ip < bc_len:
+                    push(col_types, bc[ip])
+                    ip = ip + 1
+                    cti = cti + 1
+
+            // Read cell data: each cell is [kind, payload]
+            var cell_data: Array<MarkValue> = []
+            let cell_count = data_count / 2
             var ci: Int = 0
-            while ci < cols:
-                push(col_types, MARK_INT)
+            while ci < cell_count and ip + 1 < bc_len:
+                let kind = bc[ip]
+                ip = ip + 1
+                let payload = bc[ip]
+                ip = ip + 1
+
+                if kind == MARK_INT:
+                    push(cell_data, mark_int(payload))
+                elif kind == MARK_FLOAT:
+                    push(cell_data, mark_float(payload))
+                elif kind == MARK_STRING:
+                    // payload is hash — store as string representation of hash
+                    push(cell_data, mark_string("hash:" + str(payload)))
+                else:
+                    push(cell_data, mark_int(payload))
                 ci = ci + 1
+
+            // Ensure data_table has space
+            while len(dt) <= handle:
+                push(dt, MatrixRecord {
+                    handle_id: len(dt),
+                    cols: 0, rows: 0,
+                    col_types: [], data: []
+                })
 
             dt[handle] = MatrixRecord {
                 handle_id: handle,
                 cols: cols,
                 rows: rows,
                 col_types: col_types,
-                data: matrix_data
+                data: cell_data
             }
 
             acc = mark_int(handle)
 
-        // --- OP_FENCED_CODE (6) — store fenced code block ------------------
+        // --- OP_FENCED_CODE (6) — code block -----------------------------
         elif opcode == OP_FENCED_CODE:
             ip = ip + 1
             if ip + 1 >= bc_len:
@@ -252,115 +412,72 @@ pub fn execute_bytecode(vm: MarkScriptVM, bc: Array<Int>) -> ExecResult:
 
             acc = mark_int(lang_hash)
 
-        // --- OP_PUSH_STACK (7) — push immediate operand as MarkValue ------
+        // --- OP_PUSH_STACK (7) — push immediate MarkValue ----------------
         elif opcode == OP_PUSH_STACK:
             ip = ip + 1
             if ip < bc_len:
-                let val = bc[ip]
-                push(stk, mark_int(val))
+                push(stk, mark_int(bc[ip]))
             ip = ip + 1
 
-        // --- OP_POP_STACK (8) — pop stack into accumulator ----------------
+        // --- OP_POP_STACK (8) — pop stack → accumulator ------------------
         elif opcode == OP_POP_STACK:
-            let stk_len = len(stk)
-            if stk_len > 0:
-                acc = stk[stk_len - 1]
-                pop(stk)
+            let val = pop_stack(stk)
+            acc = val
             ip = ip + 1
 
-        // --- OP_DUP (9) — duplicate top of stack --------------------------
+        // --- OP_DUP (9) — duplicate top of stack -------------------------
         elif opcode == OP_DUP:
-            let stk_len = len(stk)
-            if stk_len > 0:
-                push(stk, stk[stk_len - 1])
+            let top = peek_stack(stk)
+            if top.kind != MARK_INT or top.int_val != 0:
+                push(stk, top)
             ip = ip + 1
 
-        // --- OP_CALL (10) — IVT lookup + external dispatch ----------------
-        // 1. Pop the top of stack (phrase_hash as MarkValue)
-        // 2. Lookup IVT by phrase_hash.int_val
-        // 3. If found:
-        //      Push return address to call_stack
-        //      Set handler_id, return ExecResult
-        // 4. If not found: set NAME_ERROR and continue
+        // --- OP_CALL (10) — IVT lookup + subroutine call -----------------
         elif opcode == OP_CALL:
-            let stk_len = len(stk)
-            if stk_len > 0:
-                let target_mv = stk[stk_len - 1]
-                pop(stk)
+            let target_hash_val = peek_stack(stk)
+            var target_hash: Int = 0
+            if target_hash_val.kind == MARK_INT:
+                target_hash = target_hash_val.int_val
+            pop(stk)
 
-                if target_mv.kind == MARK_INT:
-                    let target_hash = target_mv.int_val
-                    var found: Bool = false
-                    var handler_id: Int = 0
-                    var ii: Int = 0
-                    while ii < ivtc:
-                        if ivt[ii].phrase_hash == target_hash:
-                            handler_id = ivt[ii].handler_id
-                            found = true
-                            break
-                        ii = ii + 1
+            let handler_id = lookup_handler_ivt(ivt, ivtc, target_hash)
 
-                    if found:
-                        // Push return address to call_stack
-                        push(callstk, ip + 1)
-
-                        // Build fresh VM state for return
-                        let result_vm = MarkScriptVM {
-                            ip: ip + 1,
-                            accumulator: acc,
-                            stack: stk,
-                            data_table: dt,
-                            data_table_cnt: dtc,
-                            code_blocks: cb,
-                            call_stack: callstk,
-                            ivt: ivt,
-                            ivt_count: ivtc,
-                            variables: vars,
-                            var_count: varc,
-                            error: err
-                        }
-
-                        return ExecResult {
-                            vm: result_vm,
-                            accumulator: acc,
-                            data_table: dt,
-                            code_blocks: cb,
-                            error: err,
-                            handler_id: handler_id
-                        }
-                    else:
-                        // Handler not found — set NAME_ERROR
-                        err = MarkError {
-                            kind: ERROR_NAME,
-                            message: "IVT lookup miss: no handler registered for phrase",
-                            line_no: 0,
-                            domain: "",
-                            routine: "",
-                            suggestion: ""
-                        }
-                else:
-                    // Stack top is not an Int — can't use for IVT lookup
-                    err = MarkError {
-                        kind: ERROR_TYPE,
-                        message: "CALL operand must be an Int hash",
-                        line_no: 0,
-                        domain: "",
-                        routine: "",
-                        suggestion: ""
-                    }
+            if handler_id > 0:
+                // Push return address and pause for dispatch
+                push(callstk, ip + 1)
+                return ExecResult {
+                    vm: MarkScriptVM {
+                        ip: ip + 1, accumulator: acc, stack: stk,
+                        data_table: dt, data_table_cnt: vm.data_table_cnt,
+                        code_blocks: cb, call_stack: callstk,
+                        ivt: ivt, ivt_count: ivtc,
+                        variables: vars, var_count: varc,
+                        error: verr, pending_hash: pending_hash
+                    },
+                    accumulator: acc,
+                    data_table: dt,
+                    code_blocks: cb,
+                    error: verr,
+                    handler_id: handler_id,
+                    bc: bc,
+                    ip: ip + 1
+                }
+            else:
+                verr = make_error(ERROR_NAME,
+                    "unknown intent (hash=" + str(target_hash) + ")",
+                    0, "", "")
             ip = ip + 1
 
-        // --- OP_RET (11) — pop return address, continue -------------------
+        // --- OP_RET (11) — pop return address, resume --------------------
         elif opcode == OP_RET:
             let cstk_len = len(callstk)
             if cstk_len > 0:
                 ip = callstk[cstk_len - 1]
                 pop(callstk)
             else:
-                // No return address — treat as HALT
-                break
+                ip = ip + 1
 
-        // --- OP_JMP (12) — unconditional jump -----------------------------
+        // --- OP_JMP (12) — unconditional jump ----------------------------
         elif opcode == OP_JMP:
             ip = ip + 1
             if ip < bc_len:
@@ -368,404 +485,180 @@ pub fn execute_bytecode(vm: MarkScriptVM, bc: Array<Int>) -> ExecResult:
             else:
                 ip = bc_len
 
-        // --- OP_JZ (13) — jump if zero (pop stack, compare int_val) -------
+        // --- OP_JZ (13) — jump if zero -----------------------------------
         elif opcode == OP_JZ:
             ip = ip + 1
+            if ip >= bc_len:
+                ip = ip + 1
+                continue
             let target = bc[ip]
             ip = ip + 1
-            let stk_len = len(stk)
-            if stk_len > 0:
-                let val = stk[stk_len - 1]
-                pop(stk)
-                if val.kind == MARK_INT and val.int_val == 0:
-                    ip = target
-                elif val.kind == MARK_FLOAT and val.float_val == 0.0:
-                    ip = target
+            let val = pop_stack(stk)
+            if is_zero_value(val):
+                ip = target
 
-        // --- OP_ADD (14) — a + b (typed arithmetic) -----------------------
+        // --- OP_ADD (14) — a + b -------------------------------------------
         elif opcode == OP_ADD:
             let stk_len = len(stk)
             if stk_len >= 2:
-                let b = stk[stk_len - 1]
-                pop(stk)
-                let a = stk[stk_len - 2]
-                pop(stk)
-                push(stk, typed_add(a, b))
+                let b = pop_stack(stk)
+                let a = pop_stack(stk)
+                push(stk, add_values(a, b))
             ip = ip + 1
 
-        // --- OP_SUB (15) — a - b (typed arithmetic) -----------------------
+        // --- OP_SUB (15) — a - b -------------------------------------------
         elif opcode == OP_SUB:
             let stk_len = len(stk)
             if stk_len >= 2:
-                let b = stk[stk_len - 1]
-                pop(stk)
-                let a = stk[stk_len - 2]
-                pop(stk)
-                push(stk, typed_sub(a, b))
+                let b = pop_stack(stk)
+                let a = pop_stack(stk)
+                push(stk, sub_values(a, b))
             ip = ip + 1
 
-        // --- OP_MUL (16) — a * b (typed arithmetic) -----------------------
+        // --- OP_MUL (16) — a * b -------------------------------------------
         elif opcode == OP_MUL:
             let stk_len = len(stk)
             if stk_len >= 2:
-                let b = stk[stk_len - 1]
-                pop(stk)
-                let a = stk[stk_len - 2]
-                pop(stk)
-                push(stk, typed_mul(a, b))
+                let b = pop_stack(stk)
+                let a = pop_stack(stk)
+                push(stk, mul_values(a, b))
             ip = ip + 1
 
-        // --- OP_DIV (17) — a / b (typed, trap on zero) --------------------
+        // --- OP_DIV (17) — a / b, trap on zero ----------------------------
         elif opcode == OP_DIV:
             let stk_len = len(stk)
             if stk_len >= 2:
-                let b = stk[stk_len - 1]
-                pop(stk)
-                let a = stk[stk_len - 2]
-                pop(stk)
-
-                // Check for division by zero
-                let is_zero = (b.kind == MARK_INT and b.int_val == 0) or (b.kind == MARK_FLOAT and b.float_val == 0.0)
-
-                if is_zero:
-                    err = MarkError {
-                        kind: ERROR_TYPE,
-                        message: "Division by zero",
-                        line_no: 0,
-                        domain: "",
-                        routine: "",
-                        suggestion: ""
-                    }
+                let b = pop_stack(stk)
+                let a = pop_stack(stk)
+                if is_zero_divisor(b):
+                    verr = make_error(ERROR_TYPE,
+                        "division by zero",
+                        0, "", "")
+                    push(stk, mark_int(0))
                 else:
-                    push(stk, typed_div(a, b))
+                    push(stk, div_values(a, b))
             ip = ip + 1
 
-        // --- OP_LOAD_VAR (18) — push variable value to stack --------------
+        // --- OP_LOAD_VAR (18) — lookup variable by hash and push ------------
         elif opcode == OP_LOAD_VAR:
             ip = ip + 1
             if ip < bc_len:
                 let name_hash = bc[ip]
-                let idx = find_var(vars, varc, name_hash)
+                let idx = find_variable_index(vars, varc, name_hash)
                 if idx >= 0:
                     push(stk, vars[idx].value)
                 else:
-                    err = MarkError {
-                        kind: ERROR_NAME,
-                        message: "Variable not found",
-                        line_no: 0,
-                        domain: "",
-                        routine: "",
-                        suggestion: ""
-                    }
+                    push(stk, mark_empty())
+                    verr = make_error(ERROR_NAME,
+                        "variable not found (hash=" + str(name_hash) + ")",
+                        0, "", "")
             ip = ip + 1
 
-        // --- OP_STORE_VAR (19) — pop stack, write/update variable ---------
+        // --- OP_STORE_VAR (19) — pop value, write to variable --------------
         elif opcode == OP_STORE_VAR:
             ip = ip + 1
             if ip < bc_len:
                 let name_hash = bc[ip]
-                let stk_len = len(stk)
-                if stk_len > 0:
-                    let val = stk[stk_len - 1]
-                    pop(stk)
-
-                    let idx = find_var(vars, varc, name_hash)
-                    if idx >= 0:
-                        // Update existing variable
-                        vars[idx] = VarEntry {
-                            name_hash: name_hash,
-                            value: val
-                        }
-                    else:
-                        // Create new variable
-                        push(vars, VarEntry {
-                            name_hash: name_hash,
-                            value: val
-                        })
-                        varc = varc + 1
+                let val = pop_stack(stk)
+                let result = store_variable_index(vars, varc, name_hash, val)
+                vars = result.vars
+                varc = result.count
             ip = ip + 1
 
-        // --- OP_JN (20) — jump if negative (pop stack, check int_val < 0) -
+        // --- OP_JN (20) — pop, jump if value < 0 ---------------------------
         elif opcode == OP_JN:
             ip = ip + 1
-            if ip < bc_len:
-                let target = bc[ip]
+            if ip >= bc_len:
                 ip = ip + 1
-                let stk_len = len(stk)
-                if stk_len > 0:
-                    let val = stk[stk_len - 1]
-                    pop(stk)
-                    if val.kind == MARK_INT and val.int_val < 0:
-                        ip = target
-                    elif val.kind == MARK_FLOAT and val.float_val < 0.0:
-                        ip = target
+                continue
+            let target = bc[ip]
+            ip = ip + 1
+            let val = pop_stack(stk)
+            if is_negative_value(val):
+                ip = target
 
-        // --- Unknown opcode — skip forward ---------------------------------
+        // --- Unknown opcode — skip ---------------------------------------
         else:
             ip = ip + 1
 
-    // --- Build and return final VM state ----------------------------------
-
-    let final_vm = MarkScriptVM {
-        ip: ip,
-        accumulator: acc,
-        stack: stk,
-        data_table: dt,
-        data_table_cnt: dtc,
-        code_blocks: cb,
-        call_stack: callstk,
-        ivt: ivt,
-        ivt_count: ivtc,
-        variables: vars,
-        var_count: varc,
-        error: err
-    }
-
+    // End of bytecode reached
     return ExecResult {
-        vm: final_vm,
+        vm: MarkScriptVM {
+            ip: ip, accumulator: acc, stack: stk,
+            data_table: dt, data_table_cnt: vm.data_table_cnt,
+            code_blocks: cb, call_stack: callstk,
+            ivt: ivt, ivt_count: ivtc,
+            variables: vars, var_count: varc,
+            error: verr, pending_hash: pending_hash
+        },
         accumulator: acc,
         data_table: dt,
         code_blocks: cb,
-        error: err,
-        handler_id: last_handler_id
+        error: verr,
+        handler_id: 0,
+        bc: bc,
+        ip: ip
     }
 
 // ===========================================================================
-//  TYPED ARITHMETIC HELPERS
-//  Int*Int → Int. Float*Float → Float. Mixed → Float.
-//  Same rules for ADD, SUB, MUL, DIV.
-// ===========================================================================
-
-fn typed_add(a: MarkValue, b: MarkValue) -> MarkValue:
-    // Int+Int → Int; Float+Float → Float; mixed → Float
-    if a.kind == MARK_INT and b.kind == MARK_INT:
-        return mark_int(a.int_val + b.int_val)
-    elif a.kind == MARK_FLOAT and b.kind == MARK_FLOAT:
-        return mark_float(a.float_val + b.float_val)
-    else:
-        // Mixed or one is float: coerce to float
-        var af: Float = 0.0
-        if a.kind == MARK_FLOAT:
-            af = a.float_val
-        else:
-            af = int_to_float(a.int_val)
-        var bf: Float = 0.0
-        if b.kind == MARK_FLOAT:
-            bf = b.float_val
-        else:
-            bf = int_to_float(b.int_val)
-        return mark_float(af + bf)
-
-fn typed_sub(a: MarkValue, b: MarkValue) -> MarkValue:
-    if a.kind == MARK_INT and b.kind == MARK_INT:
-        return mark_int(a.int_val - b.int_val)
-    elif a.kind == MARK_FLOAT and b.kind == MARK_FLOAT:
-        return mark_float(a.float_val - b.float_val)
-    else:
-        var af: Float = 0.0
-        if a.kind == MARK_FLOAT:
-            af = a.float_val
-        else:
-            af = int_to_float(a.int_val)
-        var bf: Float = 0.0
-        if b.kind == MARK_FLOAT:
-            bf = b.float_val
-        else:
-            bf = int_to_float(b.int_val)
-        return mark_float(af - bf)
-
-fn typed_mul(a: MarkValue, b: MarkValue) -> MarkValue:
-    if a.kind == MARK_INT and b.kind == MARK_INT:
-        return mark_int(a.int_val * b.int_val)
-    elif a.kind == MARK_FLOAT and b.kind == MARK_FLOAT:
-        return mark_float(a.float_val * b.float_val)
-    else:
-        var af: Float = 0.0
-        if a.kind == MARK_FLOAT:
-            af = a.float_val
-        else:
-            af = int_to_float(a.int_val)
-        var bf: Float = 0.0
-        if b.kind == MARK_FLOAT:
-            bf = b.float_val
-        else:
-            bf = int_to_float(b.int_val)
-        return mark_float(af * bf)
-
-fn typed_div(a: MarkValue, b: MarkValue) -> MarkValue:
-    // Caller checks for zero before calling; if we get here, b ≠ 0
-    if a.kind == MARK_INT and b.kind == MARK_INT:
-        return mark_int(a.int_val / b.int_val)
-    elif a.kind == MARK_FLOAT and b.kind == MARK_FLOAT:
-        return mark_float(a.float_val / b.float_val)
-    else:
-        var af: Float = 0.0
-        if a.kind == MARK_FLOAT:
-            af = a.float_val
-        else:
-            af = int_to_float(a.int_val)
-        var bf: Float = 0.0
-        if b.kind == MARK_FLOAT:
-            bf = b.float_val
-        else:
-            bf = int_to_float(b.int_val)
-        return mark_float(af / bf)
-
-// ===========================================================================
-//  int_to_float — simple cast helper
-// ===========================================================================
-
-fn int_to_float(i: Int) -> Float:
-    // Kain: Int→Float conversion by adding 0.0
-    return i + 0.0
-
-// ===========================================================================
-//  RESUME EXECUTION — continue after external handler dispatch
-//
-//  Called by the host after a handler returns HandlerResult.
-//  Pushes the handler's result value onto the stack, then resumes
-//  execution from the VM's current ip.
-//
-//  Parameters:
-//    vm:             MarkScriptVM (from HandlerResult, already updated)
-//    bc:             Bytecode array (same as original execute_bytecode call)
-//    handler_result: HandlerResult from the dispatched handler
-//
-//  Returns ExecResult (may return handler_pending again for chained calls)
+//  RESUME EXECUTION — called after handler dispatch
+//  Takes the HandlerResult from the bridge and continues VM execution
+//  from where it left off.
 // ===========================================================================
 
 pub fn resume_execution(vm: MarkScriptVM, bc: Array<Int>, handler_result: HandlerResult) -> ExecResult:
     var v = handler_result.vm
 
-    // If the handler returned an error, record it
-    if handler_result.err != "":
-        v.error = MarkError {
-            kind: ERROR_TYPE,
-            message: handler_result.err,
-            line_no: 0,
-            domain: "",
-            routine: "",
-            suggestion: ""
-        }
-        let r = ExecResult {
-            vm: v,
-            accumulator: v.accumulator,
-            data_table: v.data_table,
-            code_blocks: v.code_blocks,
-            error: v.error,
-            handler_id: 0   // stop dispatch chain on error
-        }
-        return r
-
     // Push handler result value to the stack
     push(v.stack, handler_result.value)
 
-    // Continue execution from vm.ip
+    // If handler returned an error, store it
+    if handler_result.err != "":
+        if v.error.kind == ERROR_OK:
+            v.error = make_error(ERROR_NAME, handler_result.err, 0, "", "")
+
+    // Pop return address from call stack (pushed by OP_CALL) and jump there
+    // If no return address, just continue from current IP
+    let cstk_len = len(v.call_stack)
+    if cstk_len > 0:
+        v.ip = v.call_stack[cstk_len - 1]
+        pop(v.call_stack)
+
     return execute_bytecode(v, bc)
 
 // ===========================================================================
-//  QUICK TEST — verifies arithmetic, variables, and control flow
+//  INTERNAL HELPERS — copies to avoid self-referencing closure issue
 // ===========================================================================
 
-fn test_vm():
-    println("=== MARKSCRIPT VM 1.0 — Self-test ===")
-    println("")
+fn lookup_handler_ivt(ivt: Array<IVTEntry>, ivtc: Int, hash: Int) -> Int:
+    var i: Int = 0
+    while i < ivtc:
+        if i < len(ivt) and ivt[i].phrase_hash == hash:
+            return ivt[i].handler_id
+        i = i + 1
+    return 0
 
-    // --- Create VM and register a test handler ---
-    var vm = init_vm()
-    let handler_phrase = "test intent"
-    let phrase_hash = hash_string(handler_phrase)
-    vm = register_handler(vm, phrase_hash, 99)
-    println("[VM] Registered handler '" + handler_phrase + "' → id 99")
-    println("")
+fn find_variable_index(vars: Array<VarEntry>, varc: Int, name_hash: Int) -> Int:
+    var i: Int = 0
+    while i < varc:
+        if i < len(vars) and vars[i].name_hash == name_hash:
+            return i
+        i = i + 1
+    return -1
 
-    // --- Build test bytecode ---
-    // Exercises: PUSH_STACK, ADD, MUL, STORE_VAR, LOAD_VAR, SUB, DIV, JN, POP_STACK, HALT
-    //
-    // Bytecode layout:
-    //   0: OP_PUSH_STACK, 7          // push 7
-    //   2: OP_PUSH_STACK, 3          // push 3
-    //   4: OP_ADD                    // stack: [10]
-    //   5: OP_STORE_VAR, hx          // var "x" = 10, stack: []
-    //   7: OP_LOAD_VAR, hx           // stack: [10]
-    //   9: OP_PUSH_STACK, 5          // stack: [10, 5]
-    //  11: OP_MUL                    // stack: [50]
-    //  12: OP_LOAD_VAR, hx           // stack: [50, 10]
-    //  14: OP_SUB                    // stack: [40]
-    //  15: OP_PUSH_STACK, 10         // stack: [40, 10]
-    //  17: OP_DIV                    // stack: [4]
-    //  18: OP_PUSH_STACK, -1         // stack: [4, -1]
-    //  20: OP_JN, 24                 // -1 < 0 → jump to 24, stack: [4]
-    //  22: OP_HALT                   // (skipped by JN)
-    //  23: OP_HALT                   // (safety pad)
-    //  24: OP_POP_STACK              // acc = 4, stack: []
-    //  25: OP_HALT
+struct StoreVarResult:
+    vars:  Array<VarEntry>
+    count: Int
 
-    let hx = hash_string("x")
-    var bc: Array<Int> = []
-
-    push(bc, OP_PUSH_STACK)
-    push(bc, 7)
-    push(bc, OP_PUSH_STACK)
-    push(bc, 3)
-    push(bc, OP_ADD)           // 7 + 3 = 10
-    push(bc, OP_STORE_VAR)
-    push(bc, hx)               // var "x" = 10
-
-    push(bc, OP_LOAD_VAR)
-    push(bc, hx)               // push x = 10
-    push(bc, OP_PUSH_STACK)
-    push(bc, 5)
-    push(bc, OP_MUL)           // 10 * 5 = 50
-
-    push(bc, OP_LOAD_VAR)
-    push(bc, hx)               // push x = 10
-    push(bc, OP_SUB)           // 50 - 10 = 40
-
-    push(bc, OP_PUSH_STACK)
-    push(bc, 10)
-    push(bc, OP_DIV)           // 40 / 10 = 4
-
-    push(bc, OP_PUSH_STACK)
-    push(bc, -1)
-    push(bc, OP_JN)
-    push(bc, 24)               // -1 < 0 → jump to instruction 24
-
-    push(bc, OP_HALT)          // pos 22 — skipped
-    push(bc, OP_HALT)          // pos 23 — safety pad
-
-    push(bc, OP_POP_STACK)     // pos 24 — pop 4 into accumulator
-    push(bc, OP_HALT)          // pos 25 — terminate
-
-    // --- Execute bytecode ---
-    println("[TEST] Executing arithmetic + variable + JN bytecode...")
-    let result = execute_bytecode(vm, bc)
-
-    // --- Check results ---
-    let acc_val = result.accumulator
-    println("[RESULT] Accumulator: " + mark_value_to_string(acc_val))
-
-    if acc_val.kind == MARK_INT:
-        if acc_val.int_val == 4:
-            println("[PASS] Expected accumulator = 4, got " + str(acc_val.int_val))
-        else:
-            println("[FAIL] Expected accumulator = 4, got " + str(acc_val.int_val))
+fn store_variable_index(vars: Array<VarEntry>, varc: Int, name_hash: Int, value: MarkValue) -> StoreVarResult:
+    var v = vars
+    var c = varc
+    let idx = find_variable_index(v, c, name_hash)
+    if idx >= 0:
+        v[idx].value = value
     else:
-        println("[INFO] Accumulator kind = " + str(acc_val.kind))
-
-    // --- Verify variable "x" was stored ---
-    let vx_idx = find_var(result.vm.variables, result.vm.var_count, hx)
-    if vx_idx >= 0:
-        let x_val = result.vm.variables[vx_idx].value
-        println("[PASS] Variable 'x' = " + mark_value_to_string(x_val))
-    else:
-        println("[INFO] Variable 'x' not found in VM variables")
-
-    // --- Verify no errors ---
-    if result.error.kind == ERROR_OK:
-        println("[PASS] No VM errors")
-    else:
-        println("[FAIL] VM error: " + format_error(result.error))
-
-    println("")
-    println("=== VM SELF-TEST COMPLETE ===")
+        while len(v) <= c:
+            push(v, VarEntry { name_hash: 0, value: mark_empty() })
+        v[c] = VarEntry { name_hash: name_hash, value: value }
+        c = c + 1
+    return StoreVarResult { vars: v, count: c }

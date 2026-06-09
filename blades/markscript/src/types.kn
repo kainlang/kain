@@ -1,294 +1,303 @@
 // ============================================================================
-//  MARKSCRIPT TYPE SYSTEM — Typed runtime data and cell type inference
+//  MARKSCRIPT TYPE SYSTEM — MarkValue, MatrixRecord, type inference
 //
-//  Exports:
-//    MARK_INT, MARK_FLOAT, MARK_STRING, MARK_TABLE, MARK_CODE  (kind consts)
-//    MarkValue     — typed runtime data struct
-//    MatrixRecord  — typed table stored in the VM
-//    infer_cell_type()       — classify raw cell text
-//    parse_cell_value()      — parse text → MarkValue
-//    widen_column_type()     — widen column type when mixing Int+Float
-//    encode_mark_value()     — encode MarkValue as (kind, int_value) pair
-//    hash_string()           — simple string hash function
+//  Defines the typed runtime data model for Markscript 1.0. All values in
+//  the VM stack, accumulator, and data tables use MarkValue. Tables hold
+//  typed columns with MARK_INT, MARK_FLOAT, or MARK_STRING per column.
+//
+//  Value semantics throughout — functions return structs by value.
 // ============================================================================
 
 use std::text
 
-// --- Type kind constants ----------------------------------------------------
+// --- Type kind constants (spec: MarkValue kind field) --------------------
+
 pub const MARK_INT:    Int = 0
 pub const MARK_FLOAT:  Int = 1
 pub const MARK_STRING: Int = 2
 pub const MARK_TABLE:  Int = 3
 pub const MARK_CODE:   Int = 4
 
-// --- MarkValue — typed runtime data -----------------------------------------
+// --- Typed runtime value --------------------------------------------------
+
 pub struct MarkValue:
-    kind:      Int
+    kind:      Int       // MARK_INT, MARK_FLOAT, MARK_STRING, MARK_TABLE, MARK_CODE
     int_val:   Int
     float_val: Float
     str_val:   String
 
-// --- MatrixRecord — stored table in VM --------------------------------------
+// --- Table / matrix record ------------------------------------------------
+
 pub struct MatrixRecord:
     handle_id: Int
     cols:      Int
     rows:      Int
-    col_types: Array<Int>
-    data:      Array<MarkValue>
+    col_types: Array<Int>       // MARK_INT | MARK_FLOAT | MARK_STRING per column
+    data:      Array<MarkValue> // flat row-major cell data
 
-// ============================================================================
-//  TYPE INFERENCE
-// ============================================================================
-
-// --- Infer cell type from raw text ------------------------------------------
-pub fn infer_cell_type(cell_text: String) -> Int:
-    let trimmed = text_trim(text_from(cell_text))
-    let raw = text_materialize(trimmed)
-    if raw == "":
-        return MARK_STRING
-
-    // Boolean keywords → Int (1 or 0)
-    if raw == "true" or raw == "false" or raw == "yes" or raw == "no":
-        return MARK_INT
-
-    // Check if integer: optional '-' followed by all digits
-    var is_int = true
-    let view = text_from(raw)
-    let sl = text_len(view)
-    var i: Int = 0
-    if sl > 0 and text_char_at(view, i) == "-":
-        i = 1
-        if i >= sl:
-            is_int = false   // just "-" is not a valid integer
-    if is_int:
-        while i < sl:
-            let ch = text_char_at(view, i)
-            let cv = text_ord(ch)
-            if cv < 48 or cv > 57:
-                is_int = false
-                break
-            i = i + 1
-
-    if is_int and sl > 0:
-        // Make sure not just "-"
-        if text_char_at(view, 0) == "-" and sl == 1:
-            // fall through — just a dash, not an integer
-            var _: Int = 0
-        else:
-            return MARK_INT
-
-    // Check if float: has exactly one '.' with digits on both sides
-    var has_dot = false
-    var all_float_digits = true
-    var fi: Int = 0
-    if sl > 0 and text_char_at(view, fi) == "-":
-        fi = 1
-    while fi < sl:
-        let ch = text_char_at(view, fi)
-        if ch == "." and has_dot == false:
-            has_dot = true
-            fi = fi + 1
-            continue
-        let cv = text_ord(ch)
-        if cv < 48 or cv > 57:
-            all_float_digits = false
-            break
-        fi = fi + 1
-
-    if has_dot and all_float_digits:
-        return MARK_FLOAT
-
-    return MARK_STRING
-
-// --- Parse cell text into a MarkValue ---------------------------------------
-pub fn parse_cell_value(cell_text: String, kind: Int) -> MarkValue:
-    let trimmed = text_trim(text_from(cell_text))
-    let raw = text_materialize(trimmed)
-
-    if kind == MARK_INT:
-        // Boolean keywords
-        if raw == "true" or raw == "yes":
-            return MarkValue {
-                kind: MARK_INT, int_val: 1,
-                float_val: 0.0, str_val: ""
-            }
-        if raw == "false" or raw == "no":
-            return MarkValue {
-                kind: MARK_INT, int_val: 0,
-                float_val: 0.0, str_val: ""
-            }
-        // Parse integer from string
-        var val: Int = 0
-        var sign: Int = 1
-        var i: Int = 0
-        let view = text_from(raw)
-        let sl = text_len(view)
-        if i < sl and text_char_at(view, i) == "-":
-            sign = -1
-            i = 1
-        while i < sl:
-            let ch = text_char_at(view, i)
-            let cv = text_ord(ch)
-            val = val * 10 + (cv - 48)
-            i = i + 1
-        val = val * sign
-        return MarkValue {
-            kind: MARK_INT, int_val: val,
-            float_val: 0.0, str_val: ""
-        }
-
-    if kind == MARK_FLOAT:
-        // Parse float into components (int + frac parts)
-        // We store the parsed Float value for runtime use,
-        // but encode as hash for bytecode transport.
-        var int_part: Int = 0
-        var frac_part: Int = 0
-        var frac_div: Int = 1
-        var sign: Int = 1
-        var in_frac = false
-        var i: Int = 0
-        let view = text_from(raw)
-        let sl = text_len(view)
-        if i < sl and text_char_at(view, i) == "-":
-            sign = -1
-            i = 1
-        while i < sl:
-            let ch = text_char_at(view, i)
-            if ch == ".":
-                in_frac = true
-                i = i + 1
-                continue
-            let cv = text_ord(ch)
-            if in_frac:
-                frac_part = frac_part * 10 + (cv - 48)
-                frac_div = frac_div * 10
-            else:
-                int_part = int_part * 10 + (cv - 48)
-            i = i + 1
-
-        // Build float value using Kain's Float arithmetic
-        var float_val: Float = (int_part as Float)
-        if frac_div > 1:
-            let frac_float: Float = (frac_part as Float) / (frac_div as Float)
-            float_val = float_val + frac_float
-        if sign == -1:
-            float_val = -float_val
-
-        return MarkValue {
-            kind: MARK_FLOAT, int_val: 0,
-            float_val: float_val, str_val: raw
-        }
-
-    // Default: string
-    return MarkValue {
-        kind: MARK_STRING, int_val: 0,
-        float_val: 0.0, str_val: raw
-    }
-
-// --- Widen column type -------------------------------------------------------
-// Order: MARK_INT < MARK_FLOAT < MARK_STRING.
-// If a column contains both Int and Float → Float.
-// If any cell is String → String.
-pub fn widen_column_type(existing: Int, new_type: Int) -> Int:
-    if existing == MARK_STRING or new_type == MARK_STRING:
-        return MARK_STRING
-    if existing == MARK_FLOAT or new_type == MARK_FLOAT:
-        return MARK_FLOAT
-    return MARK_INT
-
-// ============================================================================
-//  VM DATA STRUCTURES
-// ============================================================================
-
-// --- CodeBlockRecord — fenced code block ------------------------------------
+// --- Fenced code block record ---------------------------------------------
 
 pub struct CodeBlockRecord:
     lang_hash:    Int
     content_hash: Int
 
-// --- IVTEntry — intent vector table entry -----------------------------------
+// --- IVT entry (intent → handler mapping) ---------------------------------
 
 pub struct IVTEntry:
     phrase_hash: Int
     handler_id:  Int
 
-// --- VarEntry — named variable entry ----------------------------------------
+// --- Variable entry (named variable store) --------------------------------
 
 pub struct VarEntry:
-    name_hash:  Int
-    value:      MarkValue
+    name_hash: Int
+    value:     MarkValue
 
-// ============================================================================
-//  MARKVALUE CONSTRUCTOR HELPERS
-// ============================================================================
+// ===========================================================================
+//  CONSTRUCTOR HELPERS — build typed MarkValue instances
+// ===========================================================================
 
 pub fn mark_int(val: Int) -> MarkValue:
     return MarkValue {
-        kind: MARK_INT, int_val: val,
-        float_val: 0.0, str_val: ""
+        kind: MARK_INT,
+        int_val: val,
+        float_val: 0.0,
+        str_val: ""
     }
 
 pub fn mark_float(val: Float) -> MarkValue:
     return MarkValue {
-        kind: MARK_FLOAT, int_val: 0,
-        float_val: val, str_val: ""
+        kind: MARK_FLOAT,
+        int_val: 0,
+        float_val: val,
+        str_val: ""
     }
 
 pub fn mark_string(val: String) -> MarkValue:
     return MarkValue {
-        kind: MARK_STRING, int_val: 0,
-        float_val: 0.0, str_val: val
+        kind: MARK_STRING,
+        int_val: 0,
+        float_val: 0.0,
+        str_val: val
     }
 
-// --- Display helper: MarkValue → human-readable string ---------------------
+pub fn mark_empty() -> MarkValue:
+    return MarkValue {
+        kind: MARK_INT,
+        int_val: 0,
+        float_val: 0.0,
+        str_val: ""
+    }
 
-pub fn mark_value_to_string(mv: MarkValue) -> String:
-    if mv.kind == MARK_INT:
-        return str(mv.int_val)
-    elif mv.kind == MARK_FLOAT:
-        return str(mv.float_val)
-    elif mv.kind == MARK_STRING:
-        return mv.str_val
-    elif mv.kind == MARK_TABLE:
+// ===========================================================================
+//  VALUE → STRING CONVERSION
+// ===========================================================================
+
+pub fn mark_value_to_string(val: MarkValue) -> String:
+    if val.kind == MARK_INT:
+        return str(val.int_val)
+    elif val.kind == MARK_FLOAT:
+        return str(val.float_val)
+    elif val.kind == MARK_STRING:
+        return val.str_val
+    elif val.kind == MARK_TABLE:
         return "<table>"
-    elif mv.kind == MARK_CODE:
+    elif val.kind == MARK_CODE:
         return "<code>"
     else:
-        return "<unknown:" + str(mv.kind) + ">"
+        return "<unknown:" + str(val.kind) + ">"
 
-// ============================================================================
-//  BYTECODE ENCODING
-// ============================================================================
+// ===========================================================================
+//  TYPE INFERENCE — detect cell type from text content
+// ===========================================================================
 
-// Encode a MarkValue into (kind, int_value) for bytecode transport.
-//   MARK_INT:    kind=0, val=actual integer
-//   MARK_FLOAT:  kind=1, val=hash of canonical float string
-//   MARK_STRING: kind=2, val=hash_name(str_val)
-// Returns a flat Array<Int> of [kind, value].
-pub fn encode_mark_value(val: MarkValue) -> Array<Int>:
-    if val.kind == MARK_INT:
-        return [val.kind, val.int_val]
-    if val.kind == MARK_FLOAT:
-        // Use canonical string representation as hash
-        let repr = str(val.float_val)
-        let h = hash_string(repr)
-        return [val.kind, h]
-    // MARK_STRING
-    let h = hash_string(val.str_val)
-    return [val.kind, h]
-
-// ============================================================================
-//  STRING HASH (mirrors parser.hash_name for self-contained use)
-// ============================================================================
-
-pub fn hash_string(s: String) -> Int:
+// Check if a string is entirely digits (possibly with leading '-')
+fn is_integer_literal(s: String) -> Bool:
     let view = text_from(s)
     let sl = text_len(view)
-    var h: Int = 0
+    if sl == 0:
+        return false
     var i: Int = 0
+    // Leading minus
+    if text_char_at(view, 0) == "-":
+        i = 1
+        if sl == 1:
+            return false
     while i < sl:
         let ch = text_char_at(view, i)
         let cv = text_ord(ch)
-        h = h * 31 + cv
+        if cv < 48 or cv > 57:
+            return false
         i = i + 1
-    return h
+    return true
+
+// Check if a string is a float (digits, optional '-', one '.', at least one digit each side)
+fn is_float_literal(s: String) -> Bool:
+    let view = text_from(s)
+    let sl = text_len(view)
+    if sl == 0:
+        return false
+    var i: Int = 0
+    var has_dot: Bool = false
+    var digit_before_dot: Bool = false
+    var digit_after_dot: Bool = false
+
+    if text_char_at(view, 0) == "-":
+        i = 1
+        if sl == 1:
+            return false
+
+    while i < sl:
+        let ch = text_char_at(view, i)
+        if ch == ".":
+            if has_dot:
+                return false
+            has_dot = true
+        else:
+            let cv = text_ord(ch)
+            if cv >= 48 and cv <= 57:
+                if has_dot == false:
+                    digit_before_dot = true
+                else:
+                    digit_after_dot = true
+            else:
+                return false
+        i = i + 1
+
+    if has_dot:
+        return digit_before_dot or digit_after_dot
+    return false
+
+// Check if text is a boolean-like word (true/false/yes/no)
+fn is_bool_literal(s: String) -> Bool:
+    let lower = text_materialize(text_trim(text_from(s)))
+    if lower == "true" or lower == "false":
+        return true
+    if lower == "yes" or lower == "no":
+        return true
+    return false
+
+// Returns MARK_INT, MARK_FLOAT, or MARK_STRING for a cell's text content
+pub fn infer_cell_type(cell_text: String) -> Int:
+    let trimmed = text_materialize(text_trim(text_from(cell_text)))
+    if trimmed == "":
+        return MARK_STRING
+
+    if is_bool_literal(trimmed):
+        return MARK_INT
+
+    if is_integer_literal(trimmed):
+        return MARK_INT
+
+    if is_float_literal(trimmed):
+        return MARK_FLOAT
+
+    return MARK_STRING
+
+// ===========================================================================
+//  CELL PARSING — convert text to typed MarkValue
+// ===========================================================================
+
+// Parse bool/int text to Int value
+fn parse_bool_or_int(s: String) -> Int:
+    let lower = text_materialize(text_trim(text_from(s)))
+    if lower == "true" or lower == "yes":
+        return 1
+    elif lower == "false" or lower == "no":
+        return 0
+
+    // Integer: parse manually (no std::parse_int yet)
+    var result: Int = 0
+    var neg: Bool = false
+    var i: Int = 0
+    let view = text_from(s)
+    let sl = text_len(view)
+
+    if sl > 0 and text_char_at(view, 0) == "-":
+        neg = true
+        i = 1
+
+    while i < sl:
+        let ch = text_char_at(view, i)
+        let cv = text_ord(ch)
+        if cv >= 48 and cv <= 57:
+            result = result * 10 + (cv - 48)
+        i = i + 1
+
+    if neg:
+        result = -result
+    return result
+
+// Parse float text to Float value
+fn parse_float_str(s: String) -> Float:
+    // Parse whole part
+    var whole: Int = 0
+    var frac: Int = 0
+    var frac_div: Int = 1
+    var neg: Bool = false
+    var in_fraction: Bool = false
+    var i: Int = 0
+
+    let view = text_from(s)
+    let sl = text_len(view)
+
+    if sl > 0 and text_char_at(view, 0) == "-":
+        neg = true
+        i = 1
+
+    while i < sl:
+        let ch = text_char_at(view, i)
+        if ch == ".":
+            in_fraction = true
+            i = i + 1
+            continue
+        let cv = text_ord(ch)
+        if cv >= 48 and cv <= 57:
+            let digit = cv - 48
+            if in_fraction:
+                frac = frac * 10 + digit
+                frac_div = frac_div * 10
+            else:
+                whole = whole * 10 + digit
+        i = i + 1
+
+    var fval: Float = whole
+    if frac_div > 1:
+        fval = fval + frac / frac_div
+
+    if neg:
+        fval = -fval
+    return fval
+
+// Parse cell text into MarkValue, widening to the column type if needed
+pub fn parse_cell_value(cell_text: String, col_type: Int) -> MarkValue:
+    let trimmed = text_materialize(text_trim(text_from(cell_text)))
+
+    if col_type == MARK_INT:
+        let ival = parse_bool_or_int(trimmed)
+        return mark_int(ival)
+
+    elif col_type == MARK_FLOAT:
+        if is_integer_literal(trimmed) or is_bool_literal(trimmed):
+            let ival = parse_bool_or_int(trimmed)
+            return mark_float(ival)
+        let fval = parse_float_str(trimmed)
+        return mark_float(fval)
+
+    else:
+        // MARK_STRING — store as-is
+        return mark_string(trimmed)
+
+// ===========================================================================
+//  COLUMN WIDENING
+//  If column has both Int and Float, → Float. If any String, → String.
+// ===========================================================================
+
+pub fn widen_column_type(existing: Int, new_cell_type: Int) -> Int:
+    if existing == MARK_STRING or new_cell_type == MARK_STRING:
+        return MARK_STRING
+    if existing == MARK_INT and new_cell_type == MARK_FLOAT:
+        return MARK_FLOAT
+    if existing == MARK_FLOAT and new_cell_type == MARK_INT:
+        return MARK_FLOAT
+    return existing

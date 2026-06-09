@@ -1,31 +1,38 @@
 // ============================================================================
-//  MARKSCRIPT ERROR SYSTEM — Structured runtime error reporting
-//  All errors are runtime errors (markdown cannot produce syntax errors).
-//  Every error carries kind, message, line number, domain, routine,
-//  and a did-you-mean suggestion string.
+//  MARKSCRIPT ERROR MODEL — MarkError, error kinds, formatting, did-you-mean
+//
+//  All errors are runtime errors with structured reporting. Markdown itself
+//  cannot produce parser errors (Invariant #1). Error constants use pub const
+//  to avoid enum cross-module codegen issues.
+//
+//  ERROR_OK = 0 means "no error" — used as sentinel for clean results.
 // ============================================================================
 
-// --- Error kind constants --------------------------------------------------
+use std::text
 
-pub const ERROR_OK:               Int = 0
-pub const ERROR_NAME:             Int = 1
-pub const ERROR_ARITY:            Int = 2
-pub const ERROR_BOUNDS:           Int = 3
-pub const ERROR_TYPE:             Int = 4
-pub const ERROR_IMPORT:           Int = 5
-pub const ERROR_CIRCULAR_IMPORT:  Int = 6
+// --- Error kind constants -------------------------------------------------
 
-// --- MarkError — structured VM error ---------------------------------------
+pub const ERROR_OK:              Int = 0
+pub const ERROR_NAME:            Int = 1   // IVT lookup miss
+pub const ERROR_ARITY:           Int = 2   // wrong argument count
+pub const ERROR_BOUNDS:          Int = 3   // table row/col out of range
+pub const ERROR_TYPE:            Int = 4   // type mismatch in cell
+pub const ERROR_IMPORT:          Int = 5   // @import path not found
+pub const ERROR_CIRCULAR_IMPORT: Int = 6   // import cycle detected
+
+// --- Error struct ---------------------------------------------------------
 
 pub struct MarkError:
-    kind:       Int      // one of ERROR_* constants (0 = no error)
+    kind:       Int      // one of the ERROR_* constants
     message:    String   // human-readable description
     line_no:    Int      // source line number
-    domain:     String   // current domain name at time of error
-    routine:    String   // current routine name at time of error
+    domain:     String   // current domain name
+    routine:    String   // current routine name
     suggestion: String   // did-you-mean hint (empty if none)
 
-// --- Constructor: no-error sentinel ----------------------------------------
+// ===========================================================================
+//  CONSTRUCTORS
+// ===========================================================================
 
 pub fn error_ok() -> MarkError:
     return MarkError {
@@ -37,44 +44,135 @@ pub fn error_ok() -> MarkError:
         suggestion: ""
     }
 
-// --- Constructor: named error ----------------------------------------------
-
-pub fn make_error(kind: Int, message: String, line_no: Int,
-                  domain: String, routine: String, suggestion: String) -> MarkError:
+pub fn make_error(kind: Int, message: String, line_no: Int, domain: String, routine: String) -> MarkError:
     return MarkError {
         kind: kind,
         message: message,
         line_no: line_no,
         domain: domain,
         routine: routine,
-        suggestion: suggestion
+        suggestion: ""
     }
 
-// --- Error kind name (for display) -----------------------------------------
+// ===========================================================================
+//  ERROR KIND → STRING
+// ===========================================================================
 
 pub fn error_kind_name(kind: Int) -> String:
-    if kind == ERROR_OK:              return "ok"
+    if kind == ERROR_OK:              return "OK"
     elif kind == ERROR_NAME:          return "name error"
     elif kind == ERROR_ARITY:         return "arity error"
     elif kind == ERROR_BOUNDS:        return "bounds error"
     elif kind == ERROR_TYPE:          return "type error"
     elif kind == ERROR_IMPORT:        return "import error"
-    elif kind == ERROR_CIRCULAR_IMPORT: return "circular import"
-    else:                             return "unknown error"
+    elif kind == ERROR_CIRCULAR_IMPORT: return "circular import error"
+    else:                             return "unknown error(" + str(kind) + ")"
 
-// --- Format error for display ----------------------------------------------
+// ===========================================================================
+//  ERROR FORMATTING
+//
+//  Format:
+//    Error: <kind>: <message>
+//      at line <N>, domain "<domain>", routine "<routine>"
+//      suggestion: <suggestion>
+// ===========================================================================
 
 pub fn format_error(err: MarkError) -> String:
     if err.kind == ERROR_OK:
         return ""
 
-    let kind_name = error_kind_name(err.kind)
-    var result = "Error: " + kind_name + ": " + err.message
-    result = result + "\n  at line " + str(err.line_no)
+    let name = error_kind_name(err.kind)
+    var result_str = "Error: " + name + ": " + err.message
+
+    if err.line_no > 0:
+        result_str = result_str + "\n  at line " + str(err.line_no)
     if err.domain != "":
-        result = result + ", domain \"" + err.domain + "\""
+        result_str = result_str + ", domain \"" + err.domain + "\""
     if err.routine != "":
-        result = result + ", routine \"" + err.routine + "\""
+        result_str = result_str + ", routine \"" + err.routine + "\""
+
     if err.suggestion != "":
-        result = result + "\n  suggestion: " + err.suggestion
-    return result
+        result_str = result_str + "\n  suggestion: " + err.suggestion
+
+    return result_str
+
+// ===========================================================================
+//  EDIT DISTANCE — Levenshtein between two strings
+//  Used for did-you-mean suggestions when an IVT lookup fails.
+// ===========================================================================
+
+pub fn edit_distance(a: String, b: String) -> Int:
+    let av = text_from(a)
+    let bv = text_from(b)
+    let al = text_len(av)
+    let bl = text_len(bv)
+
+    if al == 0:
+        return bl
+    if bl == 0:
+        return al
+
+    // Build two rows of edit distances
+    var prev: Array<Int> = []
+    var cur: Array<Int> = []
+
+    var j: Int = 0
+    while j <= bl:
+        push(prev, j)
+        push(cur, 0)
+        j = j + 1
+
+    var i: Int = 1
+    while i <= al:
+        cur[0] = i
+        var j2: Int = 1
+        while j2 <= bl:
+            let cost: Int = 0
+            if text_char_at(av, i - 1) != text_char_at(bv, j2 - 1):
+                cost = 1
+
+            // min of deletion, insertion, substitution
+            let del = prev[j2] + 1
+            let ins = cur[j2 - 1] + 1
+            let sub = prev[j2 - 1] + cost
+
+            var best = del
+            if ins < best:
+                best = ins
+            if sub < best:
+                best = sub
+            cur[j2] = best
+            j2 = j2 + 1
+
+        // Swap rows
+        var k: Int = 0
+        while k <= bl:
+            prev[k] = cur[k]
+            k = k + 1
+
+        i = i + 1
+
+    return prev[bl]
+
+// ===========================================================================
+//  DID-YOU-MEAN — search known phrases for closest match (edit distance ≤ 3)
+//  Returns the best suggestion, or empty string if none close enough.
+// ===========================================================================
+
+pub fn did_you_mean(target: String, known_phrases: Array<String>) -> String:
+    var best: String = ""
+    var best_dist: Int = 999
+    let max_dist: Int = 3
+
+    var i: Int = 0
+    while i < len(known_phrases):
+        let phrase = known_phrases[i]
+        let dist = edit_distance(target, phrase)
+        if dist < best_dist:
+            best_dist = dist
+            best = phrase
+        i = i + 1
+
+    if best_dist <= max_dist:
+        return best
+    return ""
