@@ -82,9 +82,13 @@ Markscript is a **markdown-native bytecode VM** that serves as Kain's companion 
 | `OP_RET` | 11 | Pop return address, resume execution |
 | `OP_JMP` | 12 | Unconditional jump to IP |
 | `OP_JZ` | 13 | Jump if zero (pop stack, compare) |
-| `OP_ADD` | 14 | Pop two, push sum |
-| `OP_SUB` | 15 | Pop two, push difference |
-| `OP_PRINT` | 16 | Pop and print to stdout |
+| `OP_ADD` | 14 | Pops two values, pushes their sum |
+| `OP_SUB` | 15 | Pops two values, pushes the difference (a - b) |
+| `OP_MUL` | 16 | Pops two values, pushes their product |
+| `OP_DIV` | 17 | Pops two values, pushes the quotient (a / b). Traps if zero. |
+| `OP_LOAD_VAR` | 18 | Takes a name_hash, looks up the variable, and pushes its value |
+| `OP_STORE_VAR` | 19 | Pops the top stack value and writes/updates it under name_hash |
+| `OP_JN` | 20 | Pops a value. Jumps to instruction pointer if value < 0 |
 
 ---
 
@@ -153,13 +157,14 @@ struct HandlerResult:
 
 ## Table Type System
 
-Tables are zero-copy matrices embedded in bytecode. Column types are inferred.
+Markscript tables are parsed into flat, contiguous memory matrices. The compiler automatically infers types row-by-row to construct zero-overhead Kain schemas.
 
 ### Type Detection
 
 | Cell Value | Inferred Type |
 |-----------|---------------|
 | `42`, `0`, `-9`, `5000000` | `Int` |
+| `true`, `false`, `yes`, `no` | `Int` (natively coerced to `1` or `0`) |
 | `1.05`, `2.3`, `0.001`, `-3.14` | `Float` |
 | Everything else | `String` |
 
