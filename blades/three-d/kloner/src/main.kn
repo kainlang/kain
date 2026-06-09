@@ -1,0 +1,85 @@
+use c::kaintana_desktop_bridge
+use c::vulkain_bridge
+use kaintana_ui::*
+use kloner_lattice::*
+use kloner_scene::*
+use kloner_session::*
+use kloner_state::*
+use kloner_ui::*
+use reconciliation::kaintana_context_destroy
+use std::fs
+use std::runtime
+use std::ui
+
+fn kloner_make_fonts(session: Int) -> KlonerUiFonts:
+    return KlonerUiFonts {
+        body_font: native_ui_font_create(session, "font.kloner.body", "Consolas", 16.0),
+        title_font: native_ui_font_create(session, "font.kloner.title", "Segoe UI", 28.0),
+        badge_font: native_ui_font_create(session, "font.kloner.badge", "Segoe UI", 14.0),
+        micro_font: native_ui_font_create(session, "font.kloner.micro", "Consolas", 12.0),
+    }
+
+fn main() -> Int:
+    let boot = native_runtime_init()
+    if boot != 0:
+        return 100 + boot
+
+    fs_create_dir_all(".kain")
+    fs_create_dir_all(fs_path_join(".kain", "run"))
+
+    var session = kloner_session_open()
+    let settings = session.settings
+    let spec = kloner_build_window_spec(settings)
+    let theme = kloner_theme(settings.theme_name)
+
+    var ctx = kaintana_context("kloner.same-window", spec, theme, false)
+    let fonts = kloner_make_fonts(ctx.session_id)
+    ctx = kaintana_begin(ctx, settings.revision_key, 8.333)
+    let ui_frame = kloner_render_ui(ctx, spec, session, fonts)
+    ctx = kaintana_commit(ui_frame.ctx)
+    session = kloner_session_apply_ui_frame(session, ui_frame)
+    session = kloner_session_capture_ui(session, ctx, session.transport_ms)
+
+    let authority = KlonerAuthority
+    let _mode_commit = kloner_commit_active_mode(authority, session.controls.layout_mode)
+    let _clone_commit = kloner_commit_clone_total(authority, session.controls.clone_count)
+    let _hash_commit = kloner_commit_preview_hash(authority, session.runtime.preview_hash)
+
+    fs_write_text(settings.snapshot_path, kloner_session_frame_report_text(session, 0))
+    fs_atomic_write_text(settings.export_preview_path, kloner_session_export_preview_json(session))
+
+    let presenter = kloner_present_same_window(session)
+    fs_write_text(settings.frame_report_path, kloner_session_frame_report_text(session, presenter.status))
+    fs_write_text(settings.scene_report_path, kloner_scene_report_text(session, presenter))
+
+    var exit_code = 0
+    if !kloner_validate_mode(session.controls.layout_mode):
+        exit_code = 20
+    if !kloner_validate_clone_budget_law(session.controls.clone_count):
+        exit_code = 21
+    if !kloner_validate_preview_hash(session.runtime.preview_hash):
+        exit_code = 22
+    if ctx.draw_count < 24:
+        exit_code = 23
+    if ctx.command_checksum <= 0:
+        exit_code = 24
+    if !fs_exists(settings.frame_report_path) or !fs_exists(settings.scene_report_path) or !fs_exists(settings.export_preview_path):
+        exit_code = 25
+    if presenter.vulkan_available != 1:
+        exit_code = 34
+    if presenter.status != 0:
+        exit_code = 35
+    if presenter.frames_presented < 1:
+        exit_code = 36
+    if presenter.vertices_drawn < session.controls.clone_count:
+        exit_code = 37
+    if presenter.math_score <= 0:
+        exit_code = 38
+
+    let _destroy = kaintana_context_destroy(ctx)
+    let shutdown = native_runtime_shutdown()
+    if shutdown != 0:
+        return 200 + shutdown
+    if exit_code != 0:
+        return exit_code
+    return 0

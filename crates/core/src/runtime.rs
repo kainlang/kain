@@ -535,6 +535,12 @@ pub struct Env {
     undone_patch_records: Vec<ReplayablePatchRecord>,
     patch_collaboration_events: Vec<PatchCollaborationEvent>,
     extension_state: HashMap<String, Arc<dyn Any + Send + Sync>>,
+    /// Registered pulse definitions for the event loop
+    pulses: Vec<PulseDef>,
+    /// Registered resonate definitions for reactive world-state hooks
+    resonates: Vec<ResonateDef>,
+    /// Last-tick time per resonate for dampening
+    resonate_last_fired: HashMap<String, std::time::Instant>,
 }
 
 impl Env {
@@ -574,6 +580,9 @@ impl Env {
             undone_patch_records: Vec::new(),
             patch_collaboration_events: Vec::new(),
             extension_state: HashMap::new(),
+            pulses: Vec::new(),
+            resonates: Vec::new(),
+            resonate_last_fired: HashMap::new(),
         };
 
         env.register_stdlib();
@@ -4880,8 +4889,11 @@ impl Env {
             TypedItem::Orchestrate(orchestrate) => {
                 self.register_orchestrate_value(&orchestrate.ast);
             }
-            TypedItem::Pulse(_) => {}
-            TypedItem::Resonate(_) => {
+            TypedItem::Pulse(p) => {
+                self.pulses.push(p.ast.clone());
+            }
+            TypedItem::Resonate(r) => {
+                self.resonates.push(r.ast.clone());
                 self.ensure_active_capability(kain_resonate::RESONATE_CAPABILITY_KEY.to_string());
             }
             TypedItem::Component(c) => self.register_component(c.ast.clone()),
@@ -4898,6 +4910,12 @@ impl Env {
                 );
             }
             TypedItem::Enum(e) => {
+                // Register the enum type name itself so it can be referenced
+                // in patterns and type annotations (e.g. `let x: Color`).
+                self.define(
+                    e.ast.name.clone(),
+                    Value::StructConstructor(e.ast.name.clone(), Vec::new()),
+                );
                 for variant in &e.ast.variants {
                     let variant_name = format!("{}::{}", e.ast.name, variant.name);
                     self.define(variant_name.clone(), Value::Function(variant_name.clone()));
@@ -5140,11 +5158,95 @@ pub fn interpret_with_env(env: &mut Env, program: &TypedProgram) -> KainResult<V
     env.set_execution_lane(ExecutionLane::Interpret);
     env.register_typed_program(program)?;
     env.apply_registered_extensions();
-    if env.functions.contains_key("main") {
+    let result = if env.functions.contains_key("main") {
         env.call_named_function("main", Vec::new())
     } else {
         Ok(Value::Unit)
+    };
+
+    // Run pulse event loop if any pulses are registered.
+    // Each pulse fires its body on the configured interval.
+    if !env.pulses.is_empty() {
+        run_pulse_loop(env)?;
     }
+
+    result
+}
+
+/// Poll-based pulse event loop.
+/// Checks elapsed time for each registered pulse and fires the body
+/// when the interval has elapsed.
+fn run_pulse_loop(env: &mut Env) -> KainResult<()> {
+    let start = std::time::Instant::now();
+    // Track last tick per pulse
+    let mut last_ticks: HashMap<String, std::time::Instant> = HashMap::new();
+    // Convert pulse durations to microseconds for comparison
+    let pulse_specs: Vec<(String, i64, Block)> = env
+        .pulses
+        .iter()
+        .map(|p| {
+            let interval_us = match p.interval.unit.as_str() {
+                "ns" => (p.interval.value / 1_000).max(1),
+                "us" | "µs" => p.interval.value,
+                "ms" => p.interval.value * 1_000,
+                "s" => p.interval.value * 1_000_000,
+                _ => {
+                    eprintln!(
+                        "pulse: unknown unit '{}' for '{}', defaulting to ms",
+                        p.interval.unit, p.name
+                    );
+                    p.interval.value * 1_000
+                }
+            };
+            (p.name.clone(), interval_us, p.body.clone())
+        })
+        .collect();
+
+    // Run for at most 60 seconds or until a pulse signals stop.
+    let max_duration = std::time::Duration::from_secs(60);
+    loop {
+        if start.elapsed() >= max_duration {
+            eprintln!("pulse: event loop timeout after 60s, stopping");
+            break;
+        }
+
+        let now = std::time::Instant::now();
+        let mut any_fired = false;
+        for (name, interval_us, body) in &pulse_specs {
+            let last = last_ticks.entry(name.clone()).or_insert(start);
+            let elapsed_us = (now - *last).as_micros() as i64;
+            if elapsed_us >= *interval_us {
+                any_fired = true;
+                *last = now;
+                env.push_scope();
+                match eval_block(env, body) {
+                    Ok(val) => {
+                        if let Value::Return(_) = val {
+                            env.pop_scope();
+                            eprintln!("pulse '{}': body returned, pulse loop exiting", name);
+                            return Ok(());
+                        }
+                        if let Value::Break(_) = val {
+                            env.pop_scope();
+                            eprintln!("pulse '{}': body break, skipping remaining ticks", name);
+                            return Ok(());
+                        }
+                    }
+                    Err(err) => {
+                        env.pop_scope();
+                        eprintln!("pulse '{}': error in body: {}", name, err);
+                    }
+                }
+                env.pop_scope();
+            }
+        }
+
+        if !any_fired {
+            // Sleep a short time to avoid busy-looping
+            std::thread::sleep(std::time::Duration::from_millis(1));
+        }
+    }
+    Ok(())
 }
 
 fn runtime_importer_file(source_file: Option<&str>) -> Option<PathBuf> {
@@ -5612,13 +5714,67 @@ fn eval_stmt(env: &mut Env, stmt: &Stmt) -> KainResult<Value> {
             }
             Ok(Value::Unit)
         }
+        Stmt::Item(item) => {
+            register_inner_item(env, item)?;
+            Ok(Value::Unit)
+        }
         _ => Ok(Value::Unit),
     }
 }
 
+/// Register an inner item (from `Stmt::Item`) in the current scope.
+/// Inner items are function-local declarations like nested functions,
+/// structs, enums, and consts.
+fn register_inner_item(env: &mut Env, item: &Item) -> KainResult<()> {
+    match item {
+        Item::Function(f) => {
+            if !is_extern_runtime_declaration(f) {
+                env.functions.insert(f.name.clone(), f.clone());
+                env.define(f.name.clone(), Value::Function(f.name.clone()));
+            }
+        }
+        Item::Struct(s) => {
+            let field_names = s.fields.iter().map(|fld| fld.name.clone()).collect();
+            env.define(
+                s.name.clone(),
+                Value::StructConstructor(s.name.clone(), field_names),
+            );
+        }
+        Item::Enum(e) => {
+            env.define(
+                e.name.clone(),
+                Value::StructConstructor(e.name.clone(), Vec::new()),
+            );
+            for variant in &e.variants {
+                let variant_name = format!("{}::{}", e.name, variant.name);
+                env.define(variant_name.clone(), Value::Function(variant_name.clone()));
+                let alias = selfhost_enum_variant_alias_name(&e.name, &variant.name);
+                let alias_value = match &variant.fields {
+                    VariantFields::Unit => {
+                        Value::EnumVariant(e.name.clone(), variant.name.clone(), Vec::new())
+                    }
+                    VariantFields::Tuple(_) | VariantFields::Struct(_) => {
+                        Value::Function(variant_name)
+                    }
+                };
+                env.define(alias, alias_value);
+            }
+        }
+        Item::Const(c) => {
+            let value = eval_expr(env, &c.value)?;
+            env.define(c.name.clone(), value);
+        }
+        _ => {
+            // Other inner items (modules, impls, etc.) are silently skipped
+            // in the tree-walk interpreter.
+        }
+    }
+    Ok(())
+}
+
 fn eval_assignment(env: &mut Env, target: &Expr, value: Value) -> KainResult<()> {
     let target_path = runtime_patch_target_path(target);
-    if let Some(path) = &target_path {
+    if let Some(ref path) = target_path {
         env.ensure_entangle_write_allowed(path)?;
     }
 
@@ -5700,10 +5856,71 @@ fn eval_assignment(env: &mut Env, target: &Expr, value: Value) -> KainResult<()>
     };
 
     result?;
+    // Check for resonate hooks after assignment
+    if let Some(ref path) = target_path {
+        trigger_resonates(env, path);
+    }
     if let Some(path) = target_path {
         env.propagate_entangled_write(&path, assigned_value)?;
     }
     Ok(())
+}
+
+/// Check registered resonates and fire any whose target matches the changed path.
+fn trigger_resonates(env: &mut Env, changed_path: &str) {
+    // Resonate targets are dotted paths like "World.field"
+    let changed_segments: Vec<&str> = changed_path.split('.').collect();
+
+    for resonate in &env.resonates.clone() {
+        let target_path = resonate.target.authored_path();
+        let target_segments: Vec<&str> = target_path.split('.').collect();
+
+        // Check if the changed path matches the resonate target
+        // A match means either exact match or the resonate target is a prefix
+        if changed_segments.len() >= target_segments.len()
+            && target_segments
+                .iter()
+                .zip(changed_segments.iter())
+                .all(|(a, b)| a == b)
+        {
+            // Check dampening
+            let now = std::time::Instant::now();
+            let dampen_us = resonate
+                .dampen
+                .as_ref()
+                .map(|d| match d.unit.as_str() {
+                    "ns" => (d.value / 1_000).max(1),
+                    "us" | "µs" => d.value,
+                    "ms" => d.value * 1_000,
+                    "s" => d.value * 1_000_000,
+                    _ => d.value * 1_000, // default ms
+                })
+                .unwrap_or(0);
+
+            let last = env
+                .resonate_last_fired
+                .entry(resonate.name.clone())
+                .or_insert(std::time::Instant::now() - std::time::Duration::from_secs(999));
+
+            let elapsed_us = (now - *last).as_micros() as i64;
+            if elapsed_us >= dampen_us {
+                *last = now;
+                // Fire the resonate body
+                env.push_scope();
+                match eval_block(env, &resonate.body) {
+                    Ok(val) => {
+                        if let Value::Return(_) = val {
+                            eprintln!("resonate '{}': body returned", resonate.name);
+                        }
+                    }
+                    Err(err) => {
+                        eprintln!("resonate '{}': error in body: {}", resonate.name, err);
+                    }
+                }
+                env.pop_scope();
+            }
+        }
+    }
 }
 
 fn assign_entangled_field_path(current: Value, fields: &[&str], value: Value) -> KainResult<()> {
@@ -5773,18 +5990,53 @@ fn apply_runtime_ownership_transition(
     span: Span,
 ) -> KainResult<()> {
     let region_id = runtime_ownership_region_id(target);
+    let region_kind = infer_ownership_region_kind(target);
     let region = env
         .ownership_regions
         .entry(region_id.clone())
-        .or_insert_with(|| {
-            OwnershipRegionDescriptor::new(region_id.clone(), OwnershipRegionKind::HeapAllocation)
-        });
+        .or_insert_with(|| OwnershipRegionDescriptor::new(region_id.clone(), region_kind));
     region.apply(transition).map(|_| ()).map_err(|err| {
         KainError::runtime(format!(
             "{operation} ownership transition failed for '{region_id}' at {}..{}: {err}",
             span.start, span.end
         ))
     })
+}
+
+/// Infer the ownership region kind from the target expression.
+/// This ensures correct transition rules for stack locals vs heap allocations.
+fn infer_ownership_region_kind(target: &Expr) -> OwnershipRegionKind {
+    match target {
+        // Direct variable access → local stack allocation
+        Expr::Ident(_, _) => OwnershipRegionKind::LocalAlloca,
+        // Address-of or ref to a local → the underlying target determines kind
+        Expr::AddrOf { value, .. } | Expr::Ref { value, .. } => {
+            infer_ownership_region_kind(value)
+        }
+        // Parens are transparent
+        Expr::Paren(value, _) => infer_ownership_region_kind(value),
+        // Dereferencing a pointer → imported pointer or heap allocation
+        Expr::Deref(value, _) => match value.as_ref() {
+            // Pointer received from C FFI → imported pointer
+            Expr::Ident(name, _) if name.starts_with("c_") || name.starts_with("raw_") => {
+                OwnershipRegionKind::ImportedPointer
+            }
+            _ => OwnershipRegionKind::HeapAllocation,
+        },
+        // Heap-allocated target → heap allocation
+        Expr::Call { callee, .. } => match callee.as_ref() {
+            Expr::Ident(name, _)
+                if name == "alloc"
+                    || name == "alloc_zeroed"
+                    || name == "realloc_mem" =>
+            {
+                OwnershipRegionKind::HeapAllocation
+            }
+            _ => OwnershipRegionKind::LocalAlloca,
+        },
+        // Default — safe fallback to heap allocation for complex targets
+        _ => OwnershipRegionKind::HeapAllocation,
+    }
 }
 
 fn eval_scoped_ownership_expr(
@@ -6797,6 +7049,16 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
 
             for arm in arms {
                 if pattern_matches(&arm.pattern, &val) {
+                    // Check guard clause if present
+                    if let Some(guard) = &arm.guard {
+                        env.push_scope();
+                        bind_pattern(env, &arm.pattern, &val);
+                        let guard_val = eval_expr(env, guard)?;
+                        env.pop_scope();
+                        if let Value::Bool(false) = guard_val {
+                            continue; // Guard failed, try next arm
+                        }
+                    }
                     env.push_scope();
                     bind_pattern(env, &arm.pattern, &val);
                     let res = eval_expr(env, &arm.body)?;
@@ -7227,6 +7489,7 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
             let orchestrates = env.orchestrates.clone();
             let worlds = env.worlds.clone();
             let entanglements = env.entanglements.clone();
+            let parent_actors = env.actors.clone();
             let global_scope = env.scopes.first().cloned().unwrap_or_default();
             let actor_name = actor.clone();
             let self_sender = tx.clone();
@@ -7249,7 +7512,7 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
                     inline_modules,
                     loaded_filesystem_modules,
                     methods,
-                    actors: HashMap::new(),
+                    actors: parent_actors,
                     actor_ids: ActorIdAllocator::starting_after(
                         id.as_u64().saturating_mul(1_000_000),
                     ),
@@ -7265,6 +7528,9 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
                     undone_patch_records: Vec::new(),
                     patch_collaboration_events: Vec::new(),
                     extension_state: HashMap::new(),
+                    pulses: Vec::new(),
+                    resonates: Vec::new(),
+                    resonate_last_fired: HashMap::new(),
                 };
 
                 actor_env.register_stdlib();
@@ -7471,7 +7737,47 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
             )?;
             Ok(Value::Unit)
         }
-        Expr::Teleport { value, .. } => eval_expr(env, value),
+        Expr::Teleport {
+            value,
+            source_world,
+            target_world,
+            channel,
+            span: _,
+        } => {
+            // Validate both worlds exist before the handoff.
+            if !env.worlds.contains_key(source_world) {
+                return Err(KainError::runtime(format!(
+                    "teleport source world '{}' does not exist",
+                    source_world
+                )));
+            }
+            if !env.worlds.contains_key(target_world) {
+                return Err(KainError::runtime(format!(
+                    "teleport target world '{}' does not exist",
+                    target_world
+                )));
+            }
+            if let Some(ref ch) = channel {
+                if ch.is_empty() {
+                    return Err(KainError::runtime(
+                        "teleport channel name must not be empty".to_string(),
+                    ));
+                }
+            }
+            // In the tree-walk interpreter, teleport passes through the value
+            // with world-crossing logged. Full ownership transfer between
+            // world regions is handled by LLVM codegen.
+            eprintln!(
+                "teleport: crossing from '{}' to '{}'{}",
+                source_world,
+                target_world,
+                channel
+                    .as_ref()
+                    .map(|c| format!(" via '{}'", c))
+                    .unwrap_or_default()
+            );
+            eval_expr(env, value)
+        }
 
         Expr::Paren(inner, _) => eval_expr(env, inner),
 
@@ -9372,12 +9678,45 @@ fn pattern_matches(pattern: &Pattern, value: &Value) -> bool {
                             .zip(v_fields.iter())
                             .all(|(p, v)| pattern_matches(p, v))
                     }
-                    _ => false,
+                    VariantPatternFields::Struct(field_pats) => {
+                        // Struct variant fields are matched by name but stored
+                        // positionally; fall through to positional matching.
+                        if field_pats.len() != v_fields.len() {
+                            return false;
+                        }
+                        field_pats
+                            .iter()
+                            .map(|(_, pat)| pat)
+                            .zip(v_fields.iter())
+                            .all(|(p, v)| pattern_matches(p, v))
+                    }
                 }
             } else {
                 false
             }
         }
+        Pattern::Struct {
+            name, fields, rest, ..
+        } => {
+            if let Value::Struct(v_name, v_fields) = value {
+                if name != v_name {
+                    return false;
+                }
+                let v_fields = v_fields.read().unwrap();
+                if !rest && fields.len() != v_fields.len() {
+                    return false;
+                }
+                fields.iter().all(|(field_name, field_pat)| {
+                    match v_fields.get(field_name) {
+                        Some(field_val) => pattern_matches(field_pat, field_val),
+                        None => false,
+                    }
+                })
+            } else {
+                false
+            }
+        }
+        Pattern::Or(pats, _) => pats.iter().any(|p| pattern_matches(p, value)),
         _ => false,
     }
 }
@@ -9407,7 +9746,36 @@ fn bind_pattern(env: &mut Env, pattern: &Pattern, value: &Value) {
                             bind_pattern(env, p, v);
                         }
                     }
+                    VariantPatternFields::Struct(field_pats) => {
+                        for ((_, pat), v) in field_pats.iter().zip(v_fields.iter()) {
+                            bind_pattern(env, pat, v);
+                        }
+                    }
                     _ => {}
+                }
+            }
+        }
+        Pattern::Struct {
+            name: _,
+            fields,
+            rest: _,
+            ..
+        } => {
+            if let Value::Struct(_, v_fields) = value {
+                let v_fields = v_fields.read().unwrap();
+                for (field_name, field_pat) in fields {
+                    if let Some(field_val) = v_fields.get(field_name) {
+                        bind_pattern(env, field_pat, field_val);
+                    }
+                }
+            }
+        }
+        Pattern::Or(pats, _) => {
+            // Bind from the first matching pattern
+            for p in pats {
+                if pattern_matches(p, value) {
+                    bind_pattern(env, p, value);
+                    break;
                 }
             }
         }

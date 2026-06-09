@@ -1,0 +1,308 @@
+use std::reload
+use std::ui
+use kaintana::*
+use kaintana::kaintana_theme_named
+
+fn kaintana_is_digit_char(ch: String) -> Bool:
+    return ch == "0" or ch == "1" or ch == "2" or ch == "3" or ch == "4" or ch == "5" or ch == "6" or ch == "7" or ch == "8" or ch == "9"
+
+fn kaintana_digit_value(ch: String) -> Int:
+    if ch == "0":
+        return 0
+    if ch == "1":
+        return 1
+    if ch == "2":
+        return 2
+    if ch == "3":
+        return 3
+    if ch == "4":
+        return 4
+    if ch == "5":
+        return 5
+    if ch == "6":
+        return 6
+    if ch == "7":
+        return 7
+    if ch == "8":
+        return 8
+    return 9
+
+fn kaintana_parse_int_text(text: String) -> Int:
+    if len(text) == 0:
+        return 0
+    var sign: Int = 1
+    var index: Int = 0
+    if char_at(text, 0) == "-":
+        sign = -1
+        index = 1
+    var value: Int = 0
+    while index < len(text):
+        if !kaintana_is_digit_char(char_at(text, index)):
+            return value * sign
+        value = value * 10 + kaintana_digit_value(char_at(text, index))
+        index = index + 1
+    return value * sign
+
+fn kaintana_showcase_frame_budget_or_default(default_value: Int) -> Int:
+    let override_text = env("KAINTANA_EXAMPLES_FRAME_BUDGET")
+    if len(override_text) == 0:
+        return default_value
+    let override_value = kaintana_parse_int_text(override_text)
+    if override_value <= 0:
+        return default_value
+    return override_value
+
+fn kaintana_showcase_window_spec() -> KaintanaWindowSpec:
+    return kaintana_window_spec(
+        "Kaintana // Modern Surface",
+        1440,
+        960,
+        kaintana_showcase_frame_budget_or_default(180),
+        kaintana_backend_desktop(),
+        "software",
+        14,
+        18,
+        24,
+        255,
+        128,
+        76,
+        "",
+        "",
+        ".kain/run/kaintana_showcase_frame.txt",
+        ".kain/run/kaintana_showcase_host.txt",
+        ".kain/run/kaintana_showcase.bmp"
+    )
+
+fn kaintana_showcase_harness_spec() -> KaintanaHarnessSpec:
+    return kaintana_harness_spec(
+        ".kain/run/kaintana_showcase_snapshot.txt",
+        ".kain/run/kaintana_showcase_input_trace.txt"
+    )
+
+fn bind_action_map(action_session: Int) -> Int:
+    let _activate = kaintana_action_bind(action_session, kaintana_key_down_binding("Enter", "ui.activate.focused"))
+    let _activate_release = kaintana_action_bind(action_session, kaintana_key_up_binding("Enter", "ui.activate.focused"))
+    let _reload = kaintana_action_bind(action_session, kaintana_key_down_binding("KeyR", "service.reload.focused"))
+    let _reload_release = kaintana_action_bind(action_session, kaintana_key_up_binding("KeyR", "service.reload.focused"))
+    let _clipboard = kaintana_action_bind(action_session, kaintana_key_down_binding("KeyC", "service.clipboard.copy"))
+    let _clipboard_release = kaintana_action_bind(action_session, kaintana_key_up_binding("KeyC", "service.clipboard.copy"))
+    let _menu = kaintana_action_bind(action_session, kaintana_key_down_binding("KeyM", "service.menu.open"))
+    let _menu_release = kaintana_action_bind(action_session, kaintana_key_up_binding("KeyM", "service.menu.open"))
+    let _dialog = kaintana_action_bind(action_session, kaintana_key_down_binding("KeyD", "service.dialog.request"))
+    let _dialog_release = kaintana_action_bind(action_session, kaintana_key_up_binding("KeyD", "service.dialog.request"))
+    let _orbit_axis = kaintana_axis_bind(action_session, kaintana_axis_binding("human.pointer", "axis", "orbit_x", "showcase.orbit.x", 0.25))
+    return 1
+
+fn press_key(action_session: Int, code: String) -> Int:
+    let _down = kaintana_action_push_key_down(action_session, "keyboard.showcase", code)
+    return kaintana_action_begin_frame(action_session, 16.0)
+
+fn release_key(action_session: Int, code: String) -> Int:
+    let _up = kaintana_action_push_key_up(action_session, "keyboard.showcase", code)
+    return kaintana_action_begin_frame(action_session, 16.0)
+
+fn pump_axis(action_session: Int, value: Float) -> Int:
+    let _axis = kaintana_action_push_axis(action_session, "human.pointer", "pointer.showcase", "orbit_x", value)
+    return kaintana_action_begin_frame(action_session, 16.0)
+
+fn pump_agent_intent(action_session: Int, action: String, command_text: String) -> Int:
+    let _intent = kaintana_action_push_agent_intent(action_session, "codex", action, command_text, 0.98)
+    return kaintana_action_begin_frame(action_session, 16.0)
+
+fn action_status_text(action_session: Int) -> String:
+    return str(kaintana_action_frame_index(action_session)) + "f/" + str(kaintana_action_event_count(action_session)) + "e"
+
+fn seed_desktop_scene(spec: KaintanaWindowSpec, theme: KaintanaTheme, headline: String) -> Int:
+    let _scene = kaintana_desktop_scene_begin(spec)
+    let _shell = kaintana_desktop_emit_fill(kaintana_rect(0.0, 0.0, Float(spec.width), Float(spec.height)), theme.shell)
+    let _hero = kaintana_desktop_emit_fill(kaintana_rect(28.0, 28.0, Float(spec.width - 56), 76.0), theme.panel)
+    let _rule = kaintana_desktop_emit_fill(kaintana_rect(28.0, 28.0, Float(spec.width - 56), 4.0), theme.accent)
+    let _title = kaintana_desktop_emit_text(kaintana_text("KAINTANA // MODERN SURFACE"), 52.0, 74.0, theme.ink, 22)
+    return kaintana_desktop_emit_text(kaintana_text(headline), 52.0, 102.0, theme.muted, 13)
+
+fn main() -> Int:
+    let runtime_status = native_runtime_init()
+    if runtime_status != 0:
+        return 100 + runtime_status
+
+    if kaintana_desktop_probe() != 1:
+        return 20
+
+    let _action_reset = kaintana_action_reset()
+    let spec = kaintana_showcase_window_spec()
+    let harness = kaintana_showcase_harness_spec()
+    let theme = kaintana_theme_named("solar-broadcast")
+    let _desktop_seed = seed_desktop_scene(spec, theme, "reload-aware retained + immediate package surface")
+    let session = kaintana_session_create("kaintana-showcase", spec)
+    let action_session = kaintana_action_session_create("kaintana-showcase.actions")
+    let _bindings = bind_action_map(action_session)
+    let _action_frame = kaintana_action_begin_frame(action_session, 16.0)
+    let body_font = native_ui_font_create(session, "font.kaintana.body", "Segoe UI", 15.0)
+    let title_font = native_ui_font_create(session, "font.kaintana.title", "Bahnschrift SemiBold", 24.0)
+    let badge_font = native_ui_font_create(session, "font.kaintana.badge", "Consolas", 12.0)
+    let micro_font = native_ui_font_create(session, "font.kaintana.micro", "Segoe UI", 11.0)
+    let _frame = kaintana_begin_frame(session, "kaintana.showcase.v4.build-kn.reload", 16.0)
+
+    let window_rect = kaintana_window_rect(spec)
+    let shell_rect = kaintana_inset(window_rect, 18.0, 18.0, 18.0, 18.0)
+    let header_rect = kaintana_rect(shell_rect.x, shell_rect.y, shell_rect.width, 68.0)
+    let footer_rect = kaintana_rect(shell_rect.x, shell_rect.y + shell_rect.height - 52.0, shell_rect.width, 52.0)
+    let work_rect = kaintana_rect(shell_rect.x, header_rect.y + header_rect.height + 12.0, shell_rect.width, footer_rect.y - (header_rect.y + header_rect.height + 12.0) - 12.0)
+    let sidebar_rect = kaintana_split_left(work_rect, 0.27, 12.0)
+    let inspector_rect = kaintana_split_right(work_rect, 0.73, 12.0)
+    let center_rect = kaintana_rect(sidebar_rect.x + sidebar_rect.width + 12.0, work_rect.y, inspector_rect.x - (sidebar_rect.x + sidebar_rect.width + 12.0) - 12.0, work_rect.height)
+    let stage_rect = kaintana_split_top(center_rect, 0.56, 12.0)
+    let chart_rect = kaintana_split_bottom(center_rect, 0.56, 12.0)
+
+    let shell_node = kaintana_retained_region(session, 0, "showcase.shell", "showcase.shell", shell_rect, theme)
+    let header_panel = kaintana_immediate_panel(session, shell_node, "showcase.header", "", header_rect, theme, badge_font, 22.0)
+    let sidebar_panel = kaintana_immediate_panel(session, shell_node, "showcase.sidebar", "", sidebar_rect, theme, badge_font, 20.0)
+    let stage_panel = kaintana_retained_surface(session, shell_node, "showcase.stage", "surface.showcase.stage", "SHOWCASE", stage_rect, theme, badge_font, 18.0)
+    let inspector_panel = kaintana_retained_region(session, shell_node, "showcase.inspector", "showcase.inspector", inspector_rect, theme)
+    let footer_panel = kaintana_immediate_panel(session, shell_node, "showcase.footer", "", footer_rect, theme, badge_font, 20.0)
+    let chart_panel = kaintana_retained_region(session, shell_node, "showcase.chart", "showcase.chart", chart_rect, theme)
+
+    let header_inner = kaintana_inset(header_rect, 16.0, 14.0, 16.0, 12.0)
+    let sidebar_inner = kaintana_inset(sidebar_rect, 18.0, 18.0, 18.0, 18.0)
+    let stage_inner = kaintana_inset(stage_rect, 22.0, 24.0, 22.0, 22.0)
+    let inspector_inner = kaintana_inset(inspector_rect, 18.0, 18.0, 18.0, 18.0)
+    let footer_inner = kaintana_inset(footer_rect, 16.0, 12.0, 16.0, 10.0)
+    let chart_inner = kaintana_inset(chart_rect, 18.0, 18.0, 18.0, 18.0)
+
+    let _brand = kaintana_immediate_badge(session, header_panel, "showcase.badge.brand", "KAINTANA", kaintana_rect(header_inner.x, header_inner.y + 1.0, 142.0, 28.0), theme, badge_font, 18.0)
+    let toolbar_band = kaintana_rect(header_inner.x + 156.0, header_inner.y, 366.0, 30.0)
+    let menu_button = kaintana_immediate_toolbar_button(session, header_panel, "showcase.toolbar.menu", "Menu", kaintana_row_slot(toolbar_band, 0.0, 88.0, 8.0), theme, micro_font, 22.0)
+    let reload_button = kaintana_immediate_toolbar_button(session, header_panel, "showcase.toolbar.reload", "Reload", kaintana_row_slot(toolbar_band, 1.0, 98.0, 8.0), theme, micro_font, 22.0)
+    let snapshot_button = kaintana_immediate_toolbar_button(session, header_panel, "showcase.toolbar.snapshot", "Snapshot", kaintana_row_slot(toolbar_band, 2.0, 112.0, 8.0), theme, micro_font, 22.0)
+    let _backend_badge = kaintana_immediate_badge(session, header_panel, "showcase.badge.backend", spec.backend_id, kaintana_rect(header_inner.x + header_inner.width - 224.0, header_inner.y + 1.0, 96.0, 28.0), theme, badge_font, 18.0)
+    let _reload_badge = kaintana_immediate_badge(session, header_panel, "showcase.badge.reload", "gen " + str(kaintana_hot_reload_generation(session)), kaintana_rect(header_inner.x + header_inner.width - 116.0, header_inner.y + 1.0, 100.0, 28.0), theme, badge_font, 18.0)
+
+    let compose_button = kaintana_immediate_button(session, inspector_panel, "showcase.compose", "Compose Surface", kaintana_rect(inspector_inner.x, inspector_inner.y + 54.0, inspector_inner.width, 44.0), theme, body_font, 26.0)
+    let command_input = kaintana_immediate_text_input(session, inspector_panel, "showcase.command", "revision.key", "reload://presentation/live", kaintana_rect(inspector_inner.x, inspector_inner.y + 112.0, inspector_inner.width, 64.0), theme, body_font, 40.0)
+    let preview_toggle = kaintana_immediate_toggle(session, inspector_panel, "showcase.toggle.preview", "preview lane armed", 1, kaintana_rect(inspector_inner.x, inspector_inner.y + 192.0, inspector_inner.width, 30.0), theme, micro_font, 20.0)
+    let trace_checkbox = kaintana_immediate_checkbox(session, inspector_panel, "showcase.checkbox.trace", "record trace snapshot", 1, kaintana_rect(inspector_inner.x, inspector_inner.y + 232.0, inspector_inner.width, 28.0), theme, micro_font, 18.0)
+
+    let settings_menu = kaintana_menu_create(session, "showcase.settings.menu")
+    let _menu_preferences = kaintana_menu_add_item(session, settings_menu, kaintana_menu_item("showcase.menu.preferences", "Preferences", 301))
+    let _menu_snapshot = kaintana_menu_add_item(session, settings_menu, kaintana_menu_item("showcase.menu.snapshot", "Write Snapshot", 302))
+    let _menu_reset = kaintana_menu_add_item(session, settings_menu, kaintana_menu_item("showcase.menu.reset", "Reset Surface", 303))
+    let popover_spec = kaintana_popover_spec("showcase.popover", 264.0, 132.0, -12.0, 10.0)
+
+    var surface_score: Int = kaintana_public_surface_score(spec)
+    let _compose_click = kaintana_click_node(session, compose_button)
+    while kaintana_poll_event(session) == 1:
+        if kaintana_action_activated(session, action_session, compose_button, "ui.activate.focused") == 1:
+            surface_score = surface_score + 17
+
+    let _focus_snapshot = kaintana_focus_node(session, snapshot_button)
+    let _snapshot_press = press_key(action_session, "Enter")
+    if kaintana_action_activated(session, action_session, snapshot_button, "ui.activate.focused") == 1:
+        surface_score = surface_score + 13
+    let _snapshot_release = release_key(action_session, "Enter")
+
+    let _focus_reload = kaintana_focus_node(session, reload_button)
+    let _reload_press = press_key(action_session, "KeyR")
+    if kaintana_action_activated(session, action_session, reload_button, "service.reload.focused") == 1:
+        surface_score = surface_score + 11
+    let _reload_release = release_key(action_session, "KeyR")
+
+    let _orbit_axis = pump_axis(action_session, 4.0)
+    let _agent_intent = pump_agent_intent(action_session, "showcase.route.surface", "route hot reload presentation lane through kaintana")
+    let orbit_value = kaintana_action_axis_value(action_session, "showcase.orbit.x")
+    let action_status = action_status_text(action_session)
+    let headline = "KAINTANA // " + reload_lane_presentation() + " // " + reload_default_restart_mode() + " // score=" + str(surface_score)
+
+    let _copy_press = press_key(action_session, "KeyC")
+    if kaintana_action_pressed(action_session, "service.clipboard.copy") == 1:
+        let _copy = kaintana_clipboard_copy_text(session, headline)
+    let clipboard_text = kaintana_clipboard_text(session)
+    let _copy_release = release_key(action_session, "KeyC")
+
+    let _focus_input = kaintana_focus_node(session, command_input.node_id)
+    let _ime_begin = kaintana_ime_begin(session, command_input.node_id)
+    let _ime_commit = kaintana_ime_commit_text(session, "reload://presentation/live")
+
+    let _menu_press = press_key(action_session, "KeyM")
+    if kaintana_action_pressed(action_session, "service.menu.open") == 1:
+        let _menu_open = kaintana_menu_open_below_node(session, settings_menu, menu_button, 8.0)
+        let _popover_open = kaintana_popover_open(session, menu_button, popover_spec)
+    let _menu_release = release_key(action_session, "KeyM")
+
+    var dialog_result: Int = 0
+    var dialog_text: String = ""
+    let _dialog_press = press_key(action_session, "KeyD")
+    if kaintana_action_pressed(action_session, "service.dialog.request") == 1:
+        let dialog_id = kaintana_dialog_request(session, "confirm", "Commit Showcase Snapshot", headline)
+        let _dialog_response = kaintana_dialog_respond(session, dialog_id, 7, "accepted")
+    dialog_result = kaintana_dialog_poll_response(session)
+    dialog_text = kaintana_dialog_response_text(session)
+    let _dialog_release = release_key(action_session, "KeyD")
+
+    let menu_item_count = kaintana_menu_item_count(session, settings_menu)
+    let _sidebar_title = kaintana_retained_label(session, sidebar_panel, "showcase.sidebar.title", "HOT RELOAD", kaintana_rect(sidebar_inner.x, sidebar_inner.y, sidebar_inner.width, 24.0), theme, badge_font, 18.0)
+    let _sidebar_package = kaintana_immediate_metric(session, sidebar_panel, "showcase.metric.package", "package surface", reload_package_surface(), kaintana_rect(sidebar_inner.x, sidebar_inner.y + 42.0, sidebar_inner.width, 20.0), theme, micro_font, 16.0)
+    let _sidebar_lane = kaintana_immediate_metric(session, sidebar_panel, "showcase.metric.lane", "presentation lane", reload_lane_presentation(), kaintana_rect(sidebar_inner.x, sidebar_inner.y + 68.0, sidebar_inner.width, 20.0), theme, micro_font, 16.0)
+    let _sidebar_restart = kaintana_immediate_metric(session, sidebar_panel, "showcase.metric.restart", "restart mode", reload_default_restart_mode(), kaintana_rect(sidebar_inner.x, sidebar_inner.y + 94.0, sidebar_inner.width, 20.0), theme, micro_font, 16.0)
+    let _sidebar_trace = kaintana_immediate_metric(session, sidebar_panel, "showcase.metric.trace", "action frames", action_status, kaintana_rect(sidebar_inner.x, sidebar_inner.y + 120.0, sidebar_inner.width, 20.0), theme, micro_font, 16.0)
+    let _sidebar_dialog = kaintana_retained_muted_label(session, sidebar_panel, "showcase.sidebar.dialog", "dialog=" + dialog_text + " // clipboard=" + str(len(clipboard_text)), kaintana_rect(sidebar_inner.x, sidebar_inner.y + 156.0, sidebar_inner.width, 40.0), theme, micro_font, 14.0)
+
+    let _stage_title = kaintana_retained_label(session, stage_panel, "showcase.stage.title", "RETAINED + IMMEDIATE // SAME LANE", kaintana_rect(stage_inner.x, stage_inner.y, stage_inner.width, 28.0), theme, title_font, 24.0)
+    let _stage_subtitle = kaintana_retained_muted_label(session, stage_panel, "showcase.stage.subtitle", "menus, dialogs, clipboard, IME, metrics, and hot reload state in one proof surface", kaintana_rect(stage_inner.x, stage_inner.y + 34.0, stage_inner.width, 24.0), theme, micro_font, 14.0)
+    let _stage_headline = kaintana_retained_label(session, stage_panel, "showcase.stage.headline", headline, kaintana_rect(stage_inner.x, stage_inner.y + 70.0, stage_inner.width, 24.0), theme, body_font, 18.0)
+    let wave_rect = kaintana_rect(stage_inner.x, stage_inner.y + 116.0, stage_inner.width - 16.0, 156.0)
+    let _wave_back = kaintana_primitive_fill(session, stage_panel, "showcase.wave.back", wave_rect, theme.shell)
+    let _wave_bar0 = kaintana_primitive_fill(session, stage_panel, "showcase.wave.bar0", kaintana_rect(wave_rect.x + 22.0, wave_rect.y + 84.0, 60.0, 52.0), theme.signal)
+    let _wave_bar1 = kaintana_primitive_fill(session, stage_panel, "showcase.wave.bar1", kaintana_rect(wave_rect.x + 102.0, wave_rect.y + 48.0, 60.0, 88.0), theme.accent)
+    let _wave_bar2 = kaintana_primitive_fill(session, stage_panel, "showcase.wave.bar2", kaintana_rect(wave_rect.x + 182.0, wave_rect.y + 28.0, 60.0, 108.0), theme.signal)
+    let _wave_bar3 = kaintana_primitive_fill(session, stage_panel, "showcase.wave.bar3", kaintana_rect(wave_rect.x + 262.0, wave_rect.y + 60.0, 60.0, 76.0), theme.accent)
+    let _wave_bar4 = kaintana_primitive_fill(session, stage_panel, "showcase.wave.bar4", kaintana_rect(wave_rect.x + 342.0, wave_rect.y + 20.0, 60.0, 116.0), theme.signal)
+    let _wave_note = kaintana_primitive_text(session, stage_panel, "showcase.wave.note", "desktop bridge primitives keep pace with the newer retained UI host", kaintana_rect(wave_rect.x + 18.0, wave_rect.y + 10.0, wave_rect.width - 36.0, 16.0), theme.muted, micro_font, 12.0)
+
+    let _inspector_title = kaintana_retained_label(session, inspector_panel, "showcase.inspector.title", "SYSTEMS", kaintana_rect(inspector_inner.x, inspector_inner.y, inspector_inner.width, 24.0), theme, badge_font, 18.0)
+    let preview_energy = kaintana_immediate_slider(session, inspector_panel, "showcase.slider.score", "surface.score", Float(surface_score), 0.0, 2400.0, kaintana_rect(inspector_inner.x, inspector_inner.y + 278.0, inspector_inner.width, 62.0), theme, body_font, 18.0)
+    let preview_orbit = kaintana_immediate_slider(session, inspector_panel, "showcase.slider.orbit", "orbit.axis", orbit_value * 100.0, 0.0, 200.0, kaintana_rect(inspector_inner.x, inspector_inner.y + 350.0, inspector_inner.width, 62.0), theme, body_font, 18.0)
+    let _inspector_clip = kaintana_immediate_metric(session, inspector_panel, "showcase.metric.clipboard", "clipboard bytes", str(len(clipboard_text)), kaintana_rect(inspector_inner.x, inspector_inner.y + 430.0, inspector_inner.width, 20.0), theme, micro_font, 16.0)
+    let _inspector_menu = kaintana_immediate_metric(session, inspector_panel, "showcase.metric.menu", "menu items", str(menu_item_count), kaintana_rect(inspector_inner.x, inspector_inner.y + 456.0, inspector_inner.width, 20.0), theme, micro_font, 16.0)
+    let _inspector_toggle = kaintana_immediate_metric(session, inspector_panel, "showcase.metric.toggle", "flags", str(preview_toggle + trace_checkbox), kaintana_rect(inspector_inner.x, inspector_inner.y + 482.0, inspector_inner.width, 20.0), theme, micro_font, 16.0)
+
+    let _chart_title = kaintana_retained_label(session, chart_panel, "showcase.chart.title", "PACKAGE MODERNIZATION", kaintana_rect(chart_inner.x, chart_inner.y, chart_inner.width, 24.0), theme, badge_font, 18.0)
+    let chart_lane = kaintana_rect(chart_inner.x, chart_inner.y + 42.0, chart_inner.width, chart_inner.height - 42.0)
+    let _chart_surface = kaintana_immediate_chart_bar(session, chart_panel, "showcase.chart.surface", "surface", Float(surface_score), 2400.0, kaintana_column_slot(chart_lane, 0.0, 58.0, 10.0), theme, body_font, 16.0, theme.signal)
+    let _chart_events = kaintana_immediate_chart_bar(session, chart_panel, "showcase.chart.events", "events", Float(kaintana_action_event_count(action_session) * 20), 400.0, kaintana_column_slot(chart_lane, 1.0, 58.0, 10.0), theme, body_font, 16.0, theme.accent)
+    let _chart_menu = kaintana_immediate_chart_bar(session, chart_panel, "showcase.chart.menu", "menu", Float(menu_item_count * 60), 240.0, kaintana_column_slot(chart_lane, 2.0, 58.0, 10.0), theme, body_font, 16.0, theme.signal)
+    let _chart_orbit = kaintana_immediate_chart_bar(session, chart_panel, "showcase.chart.orbit", "orbit", preview_orbit, 200.0, kaintana_column_slot(chart_lane, 3.0, 58.0, 10.0), theme, body_font, 16.0, theme.accent)
+
+    if kaintana_popover_is_open(session, menu_button, popover_spec) != 0:
+        let pop_rect = kaintana_popover_rect(session, menu_button, popover_spec)
+        let pop_panel = kaintana_immediate_panel(session, header_panel, "showcase.popover.panel", "SETTINGS", pop_rect, theme, badge_font, 20.0)
+        let pop_inner = kaintana_inset(pop_rect, 14.0, 36.0, 14.0, 14.0)
+        let _pop_a = kaintana_retained_label(session, pop_panel, "showcase.popover.a", "reload lane // " + reload_lane_presentation(), kaintana_rect(pop_inner.x, pop_inner.y, pop_inner.width, 18.0), theme, micro_font, 14.0)
+        let _pop_b = kaintana_retained_label(session, pop_panel, "showcase.popover.b", "restart mode // " + reload_default_restart_mode(), kaintana_rect(pop_inner.x, pop_inner.y + 22.0, pop_inner.width, 18.0), theme, micro_font, 14.0)
+        let _pop_c = kaintana_retained_label(session, pop_panel, "showcase.popover.c", "menu items // " + str(menu_item_count), kaintana_rect(pop_inner.x, pop_inner.y + 44.0, pop_inner.width, 18.0), theme, micro_font, 14.0)
+
+    if kaintana_focused_node(session) == command_input.node_id:
+        let _focus_ring = kaintana_render_focus_ring(session, command_input.node_id, theme, 2.0)
+
+    let _footer_package = kaintana_retained_muted_label(session, footer_panel, "showcase.footer.package", reload_package_surface(), kaintana_rect(footer_inner.x, footer_inner.y, 220.0, 18.0), theme, micro_font, 14.0)
+    let _footer_state = kaintana_retained_label(session, footer_panel, "showcase.footer.state", "actions=" + action_status + " // dialog=" + str(dialog_result), kaintana_rect(footer_inner.x + 236.0, footer_inner.y, 280.0, 18.0), theme, micro_font, 14.0)
+    let _footer_command = kaintana_retained_muted_label(session, footer_panel, "showcase.footer.command", command_input.value, kaintana_rect(footer_inner.x + 532.0, footer_inner.y, footer_inner.width - 532.0, 18.0), theme, micro_font, 14.0)
+
+    let _commit = kaintana_commit_frame(session)
+    let draw_count = ui_draw_command_count(session)
+    let presented_draws = ui_host_presented_draw_count(session)
+    let _frame_report = kaintana_write_frame_report(session, spec, theme, headline)
+    let _harness = kaintana_write_harness_artifacts(session, action_session, spec, theme, headline, harness)
+    let _host_report = kaintana_desktop_host_write_report(spec)
+    let _host_bmp = kaintana_desktop_host_write_screenshot(spec)
+    let host_status = kaintana_desktop_host_run_window(spec)
+    let _action_destroy = kaintana_action_session_destroy(action_session)
+    let _session_destroy = kaintana_session_destroy(session)
+    let shutdown = native_runtime_shutdown()
+
+    let shape_ok = draw_count >= 24 and presented_draws >= 1 and menu_item_count == 3 and dialog_result != 0 and surface_score > 0 and host_status == 0
+
+    if shutdown != 0:
+        return 200 + shutdown
+    if shape_ok == false:
+        return 2
+    return 0

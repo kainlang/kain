@@ -1,0 +1,345 @@
+// ============================================================================
+//  cli.kn — MarkScript CLI argument parser and dispatcher
+//
+//  Design follows tree-kn's proven pattern:
+//    get_user_args() → strips argv[0], returns clean Array<String>
+//    parse_args()    → flag + subcommand parsing → MksConfig
+//    usage()         → clap-like help text, exit codes, subcommands
+//
+//  Ladder: Layer 0 — plain fn with Pure effect. No world, no actor.
+//  Just CLI hygiene that translates argv into a typed config struct.
+//
+//  Subcommands:
+//    run <file>       Compile and execute (default)
+//    check <file>     Compile-only, validate, no VM execution
+//    disasm <file>    Disassemble bytecode dump
+//    repl             Interactive REPL mode
+//    eval <intent>    One-shot intent execution
+//    init <name>      Scaffold a new markscript project
+//    handlers         List registered IVT handlers
+//    doc <file>       Render as clean documentation (strip VM output)
+//
+//  Exit codes:
+//    0   — success
+//    1   — usage/help shown
+//    2   — file not found, parse error, runtime error
+//    3   — unknown subcommand or flag
+// ============================================================================
+
+use std::process
+
+// ===========================================================================
+//  MARKSCRIPT CONFIG — typed result of CLI argument parsing
+// ===========================================================================
+
+pub struct MksConfig:
+    subcommand:  String        // "run", "check", "disasm", "repl", "eval", "init", "handlers", "doc"
+    filepath:    String        // path to .md file
+    eval_expr:   String        // inline intent for eval subcommand
+    project_name: String       // project name for init subcommand
+    quiet:       Bool          // suppress runtime logging (—quiet, -q)
+    json:        Bool          // structured JSON output (—json)
+    show_help:   Bool          // —help / -h flag
+    show_version: Bool         // —version / -v flag
+
+// ===========================================================================
+//  GET USER ARGS  —  strips argv[0] (executable path)
+//
+//  FIX 2026-06-08: The compiler tag-check bug in process_arg(1) is resolved.
+//  LLVM codegen now tracks tagged-register provenance and only applies
+//  extern-C untagging to known-tagged ptrtoint sources (not raw params).
+//  See crates/sys-codegen/src/codegen_llvm/mod.rs `known_tagged_i64s`.
+// ===========================================================================
+
+pub fn get_user_args() -> Array<String>:
+    let count = process_arg_count()
+    let args: Array<String> = []
+    var i = 1
+    while i < count:
+        push(args, process_arg(i))
+        i = i + 1
+    return args
+
+// ===========================================================================
+//  DEFAULT CONFIG  —  sensible zero values
+// ===========================================================================
+
+const SUBCOMMAND_RUN:   String = "run"
+const SUBCOMMAND_CHECK:  String = "check"
+const SUBCOMMAND_DISASM: String = "disasm"
+const SUBCOMMAND_REPL:   String = "repl"
+const SUBCOMMAND_EVAL:   String = "eval"
+const SUBCOMMAND_INIT:   String = "init"
+const SUBCOMMAND_HANDLERS: String = "handlers"
+const SUBCOMMAND_DOC:    String = "doc"
+const SUBCOMMAND_NONE:   String = ""
+
+pub fn default_config() -> MksConfig:
+    return MksConfig {
+        subcommand: SUBCOMMAND_RUN,
+        filepath: "",
+        eval_expr: "",
+        project_name: "",
+        quiet: false,
+        json: false,
+        show_help: false,
+        show_version: false,
+    }
+
+// ===========================================================================
+//  USAGE  —  clap-like help text
+// ===========================================================================
+
+pub fn usage() -> String:
+    var text = "MarkScript Runtime Engine 1.0\n"
+    text = text + "Prose-native scripting runtime for Kain.\n"
+    text = text + "Your documentation is your program.\n"
+    text = text + "\n"
+    text = text + "USAGE:\n"
+    text = text + "  mks <subcommand> [options] [args]\n"
+    text = text + "  mks [<file>]                    Default subcommand: run\n"
+    text = text + "\n"
+    text = text + "SUBCOMMANDS:\n"
+    text = text + "  run <file.md>       Compile and execute a markscript file (default)\n"
+    text = text + "  check <file.md>     Compile-only — validate bytecode, no VM execution\n"
+    text = text + "  disasm <file.md>    Disassemble — dump bytecode opcodes and exit\n"
+    text = text + "  repl                Interactive REPL — type intents, see results\n"
+    text = text + "  eval <intent>       One-shot — compile and dispatch a single intent\n"
+    text = text + "  init <name>         Scaffold a new markscript project directory\n"
+    text = text + "  handlers            List all registered IVT handlers\n"
+    text = text + "  doc <file.md>       Render as clean documentation (strip VM output)\n"
+    text = text + "\n"
+    text = text + "FLAGS:\n"
+    text = text + "  -h, --help          Show this help message and exit\n"
+    text = text + "  -v, --version       Show version and exit\n"
+    text = text + "  -q, --quiet         Suppress runtime logging and telemetry\n"
+    text = text + "      --json          Output structured JSON (where supported)\n"
+    text = text + "\n"
+    text = text + "EXAMPLES:\n"
+    text = text + "  mks run game_engine.md        Compile and run a game script\n"
+    text = text + "  mks check script.md           Validate a markscript file\n"
+    text = text + "  mks disasm servo.md           Dump bytecode\n"
+    text = text + "  mks repl                      Start interactive session\n"
+    text = text + "  mks eval '> print \"hello\"'   One-shot intent\n"
+    text = text + "  mks init my-pipeline           Create a new markscript project\n"
+    text = text + "  mks handlers                   List registered handlers\n"
+    text = text + "\n"
+    text = text + "EXIT CODES:\n"
+    text = text + "  0   Success\n"
+    text = text + "  1   Help or version shown (no error)\n"
+    text = text + "  2   Error — file not found, parse failure, runtime\n"
+    text = text + "  3   Unknown subcommand or flag\n"
+    text = text + "\n"
+    text = text + "INVARIANTS:\n"
+    text = text + "  Markdown has no syntax errors. Every #, >, |, and ``` is valid.\n"
+    text = text + "  The only errors are runtime errors — name not found, arity mismatch,\n"
+    text = text + "  bounds violation, import failure.\n"
+    return text
+
+pub fn version() -> String:
+    return "MarkScript Runtime Engine 1.0\n"
+
+// ===========================================================================
+//  PARSE INT  —  manual string-to-int (no stdlib dependency)
+// ===========================================================================
+
+fn parse_int_text(text: String) -> Int with Pure:
+    if len(text) == 0:
+        return 0
+    var sign = 1
+    var index = 0
+    if char_at(text, 0) == "-":
+        sign = -1
+        index = 1
+    elif char_at(text, 0) == "+":
+        index = 1
+    var value = 0
+    while index < len(text):
+        let ch = char_at(text, index)
+        var digit = 0
+        if ch == "0": digit = 0
+        elif ch == "1": digit = 1
+        elif ch == "2": digit = 2
+        elif ch == "3": digit = 3
+        elif ch == "4": digit = 4
+        elif ch == "5": digit = 5
+        elif ch == "6": digit = 6
+        elif ch == "7": digit = 7
+        elif ch == "8": digit = 8
+        elif ch == "9": digit = 9
+        else: return value * sign
+        value = value * 10 + digit
+        index = index + 1
+    return value * sign
+
+// ===========================================================================
+//  RECOGNIZED SUBCOMMAND SET
+// ===========================================================================
+
+fn is_subcommand(s: String) -> Bool:
+    if s == SUBCOMMAND_RUN:     return true
+    if s == SUBCOMMAND_CHECK:   return true
+    if s == SUBCOMMAND_DISASM:  return true
+    if s == SUBCOMMAND_REPL:    return true
+    if s == SUBCOMMAND_EVAL:    return true
+    if s == SUBCOMMAND_INIT:    return true
+    if s == SUBCOMMAND_HANDLERS: return true
+    if s == SUBCOMMAND_DOC:    return true
+    return false
+
+// ===========================================================================
+//  PARSE ARGS  —  translate argv into MksConfig
+//
+//  Subcommand-first parsing:
+//    mks run file.md       → subcommand="run",   filepath="file.md"
+//    mks check file.md     → subcommand="check",  filepath="file.md"
+//    mks disasm file.md    → subcommand="disasm", filepath="file.md"
+//    mks repl              → subcommand="repl"
+//    mks eval '<intent>'   → subcommand="eval",   eval_expr='<intent>'
+//    mks init my-project   → subcommand="init",   project_name="my-project"
+//    mks handlers          → subcommand="handlers"
+//    mks doc file.md       → subcommand="doc",    filepath="file.md"
+//    mks file.md           → no subcommand, defaults to "run"
+//    mks                   → no args, defaults to "repl"
+//    mks --help            → show_help=true
+//
+//  Flags can appear anywhere (after subcommand, before file, etc.).
+//  -- stops flag parsing.
+// ===========================================================================
+
+pub fn parse_args(argv: Array<String>) -> MksConfig:
+    var cfg = default_config()
+    var found_subcommand = false
+    var found_positional = false
+    var flags_done = false    // after --, everything is positional
+
+    var index = 0
+    while index < len(argv):
+        let arg = argv[index]
+
+        // After --, no more flag parsing
+        if arg == "--":
+            flags_done = true
+            index = index + 1
+            continue
+
+        // Flag parsing (before --)
+        if flags_done == false and char_at(arg, 0) == "-":
+            if arg == "--help" or arg == "-h":
+                cfg.show_help = true
+
+            elif arg == "--version" or arg == "-v":
+                cfg.show_version = true
+
+            elif arg == "--quiet" or arg == "-q":
+                cfg.quiet = true
+
+            elif arg == "--json":
+                cfg.json = true
+
+            // Unknown flags are silently skipped
+
+            index = index + 1
+            continue
+
+        // Positional argument parsing
+        if found_subcommand == false:
+            // First positional could be a subcommand or a filepath
+            if is_subcommand(arg):
+                cfg.subcommand = arg
+                found_subcommand = true
+
+                // Special subcommands that take no filepath
+                if arg == SUBCOMMAND_REPL or arg == SUBCOMMAND_HANDLERS:
+                    // Nothing more needed
+                    index = index + 1
+                    continue
+
+                // Subcommands that consume the next positional
+                // (handled below when we look for positional values)
+                index = index + 1
+                continue
+
+            else:
+                // No subcommand found — first positional is a filepath,
+                // subcommand defaults to "run"
+                cfg.filepath = arg
+                found_positional = true
+                found_subcommand = true  // implicit "run"
+                index = index + 1
+                continue
+
+        // We have a subcommand but haven't consumed positional values yet
+        if found_subcommand and found_positional == false:
+            if cfg.subcommand == SUBCOMMAND_RUN:
+                cfg.filepath = arg
+                found_positional = true
+
+            elif cfg.subcommand == SUBCOMMAND_CHECK:
+                cfg.filepath = arg
+                found_positional = true
+
+            elif cfg.subcommand == SUBCOMMAND_DISASM:
+                cfg.filepath = arg
+                found_positional = true
+
+            elif cfg.subcommand == SUBCOMMAND_EVAL:
+                cfg.eval_expr = arg
+                found_positional = true
+
+            elif cfg.subcommand == SUBCOMMAND_INIT:
+                cfg.project_name = arg
+                found_positional = true
+
+            elif cfg.subcommand == SUBCOMMAND_DOC:
+                cfg.filepath = arg
+                found_positional = true
+
+            else:
+                // Unexpected positional for this subcommand
+                // Fall through — extra args are ignored
+                found_positional = true
+
+            index = index + 1
+            continue
+
+        // Extra positional args — ignore for now
+        index = index + 1
+
+    // Post-processing: if no subcommand detected and no filepath, default to repl
+    if found_subcommand == false:
+        cfg.subcommand = SUBCOMMAND_REPL
+
+    return cfg
+
+// ===========================================================================
+//  SUBCOMMAND DISPATCH HELPERS
+// ===========================================================================
+
+// Check if a subcommand requires a filepath and it's missing
+pub fn needs_filepath(subcommand: String) -> Bool:
+    if subcommand == SUBCOMMAND_RUN:     return true
+    if subcommand == SUBCOMMAND_CHECK:   return true
+    if subcommand == SUBCOMMAND_DISASM:  return true
+    if subcommand == SUBCOMMAND_DOC:     return true
+    return false
+
+// Check if a subcommand is "needs-rebuild" (doesn't just print info)
+pub fn needs_vm_execution(subcommand: String) -> Bool:
+    if subcommand == SUBCOMMAND_RUN:     return true
+    if subcommand == SUBCOMMAND_CHECK:   return true
+    if subcommand == SUBCOMMAND_REPL:    return true
+    if subcommand == SUBCOMMAND_EVAL:    return true
+    return false
+
+// Human-readable subcommand name for error messages
+pub fn subcommand_name(subcommand: String) -> String:
+    if subcommand == SUBCOMMAND_RUN:     return "run"
+    if subcommand == SUBCOMMAND_CHECK:   return "check"
+    if subcommand == SUBCOMMAND_DISASM:  return "disasm"
+    if subcommand == SUBCOMMAND_REPL:    return "repl"
+    if subcommand == SUBCOMMAND_EVAL:    return "eval"
+    if subcommand == SUBCOMMAND_INIT:    return "init"
+    if subcommand == SUBCOMMAND_HANDLERS: return "handlers"
+    if subcommand == SUBCOMMAND_DOC:     return "doc"
+    return "unknown"

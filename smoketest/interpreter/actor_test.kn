@@ -1,0 +1,112 @@
+// ============================================================================
+// actor_test.kn — Actor spawn, send, ask
+//
+// Tests:
+//   1. Actor declaration with state and typed message handlers
+//   2. Spawn an actor with initial state values
+//   3. Send a fire-and-forget message to an actor
+//   4. Ask a request-reply message and read the reply
+//   5. Multiple actors, different message types
+//
+// NOTE: ask() always takes exactly 3 args: (actor_ref, "MessageName", payload).
+// Multi-value payloads must be packed into a single Int.
+// send from outside the actor system (in main) uses actor_ref.Message(args).
+// ============================================================================
+
+use std::runtime
+use std::actor
+
+// Pack two small ints into one for ask() single-payload transport
+fn pack_two(a: Int, b: Int) -> Int:
+    return a + b * 100000
+
+fn unpack_a(packed: Int) -> Int:
+    return packed % 100000
+
+fn unpack_b(packed: Int) -> Int:
+    return packed / 100000
+
+// --- Counter actor: tracks a count ---
+actor Counter:
+    state count: Int = 0
+
+    on Increment(reply_to: P):
+        self.count = self.count + 1
+        send reply_to.Reply(value = self.count)
+
+    on GetValue(reply_to: P):
+        send reply_to.Reply(value = self.count)
+
+    on Reset(reply_to: P):
+        self.count = 0
+        send reply_to.Reply(value = 0)
+
+// --- Calculator actor: arithmetic with a bias ---
+actor Calculator:
+    state bias: Int = 0
+
+    on Compute(reply_to: P, packed: Int):
+        let a = unpack_a(packed)
+        let b = unpack_b(packed)
+        let result = a + b + self.bias
+        send reply_to.Reply(value = result)
+
+// --- Logger actor: counts log events ---
+actor Logger:
+    state log_count: Int = 0
+
+    on Log(reply_to: P, message: Int):
+        self.log_count = self.log_count + 1
+        send reply_to.Reply(value = self.log_count)
+
+    on GetLogCount(reply_to: P):
+        send reply_to.Reply(value = self.log_count)
+
+fn main() -> Int:
+    // Spawn a counter actor
+    let counter = spawn Counter(count = 0)
+
+    // Ask Increment 3 times (payload 0 — unused)
+    let _v1 = ask(counter, "Increment", 0)
+    let _v2 = ask(counter, "Increment", 0)
+    let _v3 = ask(counter, "Increment", 0)
+
+    // Ask for the value — should be 3
+    let count_val = ask(counter, "GetValue", 0)
+    if count_val != 3:
+        return 1
+
+    // Reset and verify
+    let _reset_ack = ask(counter, "Reset", 0)
+    let count_after = ask(counter, "GetValue", 0)
+    if count_after != 0:
+        return 2
+
+    // Spawn calculator with bias 10
+    let calc = spawn Calculator(bias = 10)
+
+    // Ask Compute with packed (5, 7): 5 + 7 + 10 = 22
+    let add_result = ask(calc, "Compute", pack_two(5, 7))
+    if add_result != 22:
+        return 3
+
+    // Ask Compute with packed (3, 4): 3 + 4 + 10 = 17
+    let mul_result = ask(calc, "Compute", pack_two(3, 4))
+    if mul_result != 17:
+        return 4
+
+    // Spawn calculator without bias
+    let calc2 = spawn Calculator(bias = 0)
+    let add2_result = ask(calc2, "Compute", pack_two(5, 7))
+    if add2_result != 12:
+        return 5
+
+    // Logger: log events, query count
+    let logger = spawn Logger(log_count = 0)
+    let _l1 = ask(logger, "Log", 42)
+    let _l2 = ask(logger, "Log", 99)
+    let log_count_val = ask(logger, "GetLogCount", 0)
+    if log_count_val != 2:
+        return 6
+
+    return 42

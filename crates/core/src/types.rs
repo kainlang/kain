@@ -1077,6 +1077,7 @@ pub struct TypeEnv<'a> {
     in_patch: bool,
     in_world: bool,
     in_comptime: bool,
+    relaxed_checks: bool,
     span_mapper: &'a SpanMapper,
     filename: &'a str,
 }
@@ -1125,6 +1126,7 @@ impl<'a> TypeEnv<'a> {
             in_patch: false,
             in_world: false,
             in_comptime: false,
+            relaxed_checks: false,
             span_mapper,
             filename,
         };
@@ -3899,6 +3901,74 @@ where
     finish_accumulated(errors, TypedProgram { items: typed_items })
 }
 
+/// Type-check with relaxed rules for tree-walk interpretation.
+/// Worlds may omit surfaces, converge lane signatures are warnings, and
+/// orchestrate guard/residency checks are soft.
+pub fn check_for_interpret(
+    program: &Program,
+    span_mapper: &SpanMapper,
+    filename: &str,
+) -> KainResult<TypedProgram> {
+    check_for_interpret_with_extra_globals(
+        program,
+        span_mapper,
+        filename,
+        std::iter::empty::<(String, ResolvedType)>(),
+    )
+}
+
+pub fn check_for_interpret_with_extra_globals<I>(
+    program: &Program,
+    span_mapper: &SpanMapper,
+    filename: &str,
+    extra_globals: I,
+) -> KainResult<TypedProgram>
+where
+    I: IntoIterator<Item = (String, ResolvedType)>,
+{
+    let mut env = TypeEnv::new(span_mapper, filename);
+    env.relaxed_checks = true;
+    let mut errors = Vec::new();
+    for (name, ty) in extra_globals {
+        env.define_global(name, ty);
+    }
+
+    for item in &program.items {
+        predeclare_item_types(&mut env, item);
+    }
+
+    let mut second_pass_ok = vec![false; program.items.len()];
+    for (index, item) in program.items.iter().enumerate() {
+        match register_item_types(&mut env, item) {
+            Ok(()) => second_pass_ok[index] = true,
+            Err(error) => extend_accumulated_errors(&mut errors, error),
+        }
+    }
+
+    let mut third_pass_ok = vec![false; program.items.len()];
+    for (index, item) in program.items.iter().enumerate() {
+        if !second_pass_ok[index] {
+            continue;
+        }
+        match register_item_types(&mut env, item) {
+            Ok(()) => third_pass_ok[index] = true,
+            Err(error) => extend_accumulated_errors(&mut errors, error),
+        }
+    }
+
+    let mut typed_items = Vec::new();
+    for (index, item) in program.items.iter().enumerate() {
+        if !second_pass_ok[index] || !third_pass_ok[index] {
+            continue;
+        }
+        if let Err(error) = check_item_into(&mut env, item, &mut typed_items) {
+            extend_accumulated_errors(&mut errors, error);
+        }
+    }
+
+    finish_accumulated(errors, TypedProgram { items: typed_items })
+}
+
 fn predeclare_item_types(env: &mut TypeEnv, item: &Item) {
     match item {
         Item::Struct(s) => {
@@ -5350,6 +5420,7 @@ fn infer_expr_type_read_only(env: &TypeEnv, expr: &Expr) -> KainResult<ResolvedT
         in_patch: env.in_patch,
         in_world: env.in_world,
         in_comptime: env.in_comptime,
+        relaxed_checks: env.relaxed_checks,
         span_mapper: env.span_mapper,
         filename: env.filename,
     };
@@ -5966,13 +6037,23 @@ fn check_converge(env: &mut TypeEnv, converge: &ConvergeDef) -> KainResult<Typed
             let lane_signature =
                 function_signature(env, &converge_lane_function_view(converge, lane), None)?;
             if lane_signature != expected_signature {
-                return Err(env.type_error(
-                    format!(
-                        "Converge lane '{}' does not match dispatcher signature",
+                if env.relaxed_checks {
+                    // In interpret mode, lane signature mismatches are warnings.
+                    // The tree-walk interpreter handles lane dispatch through
+                    // the runtime selector rather than compile-time matching.
+                    eprintln!(
+                        "note: converge lane '{}' signature does not match dispatcher (tolerated in interpret mode)",
                         lane.lane_name
-                    ),
-                    lane.span,
-                ));
+                    );
+                } else {
+                    return Err(env.type_error(
+                        format!(
+                            "Converge lane '{}' does not match dispatcher signature",
+                            lane.lane_name
+                        ),
+                        lane.span,
+                    ));
+                }
             }
         }
         Ok(TypedConverge {
@@ -6006,16 +6087,27 @@ fn check_world(env: &mut TypeEnv, world: &WorldDef) -> KainResult<TypedWorld> {
         env.types.insert(world.name.clone(), world_ty.clone());
         env.define_global(world.name.clone(), world_ty);
         if world.surfaces.is_empty() {
-            let report = env
-                .type_report(
-                    DiagnosticCode::TypeWorldMissingSurface,
-                    format!("world '{}' must declare at least one surface", world.name),
-                    world.span,
-                    "world has no surface projections",
-                )
-                .note("Worlds currently need at least one surface projection so they can materialize into a runtime-facing view.")
-                .help("Add a line like `surface native_ui => MyPanel` inside the world body.");
-            return Err(KainError::rich(report));
+            if env.relaxed_checks {
+                // In interpret mode, worlds without surfaces are allowed.
+                // The tree-walk interpreter handles world state without
+                // requiring surface projections (which are materialization
+                // concepts for LLVM codegen).
+                eprintln!(
+                    "note: world '{}' has no surface projections (tolerated in interpret mode)",
+                    world.name
+                );
+            } else {
+                let report = env
+                    .type_report(
+                        DiagnosticCode::TypeWorldMissingSurface,
+                        format!("world '{}' must declare at least one surface", world.name),
+                        world.span,
+                        "world has no surface projections",
+                    )
+                    .note("Worlds currently need at least one surface projection so they can materialize into a runtime-facing view.")
+                    .help("Add a line like `surface native_ui => MyPanel` inside the world body.");
+                return Err(KainError::rich(report));
+            }
         }
         for surface in &world.surfaces {
             if !seen_surface_kinds.insert(surface.kind) {
@@ -6208,22 +6300,36 @@ fn validate_orchestrate_stage_metadata(
         match env.global_origins.get(guard) {
             Some(origin) if origin.kind == "axiom" => {}
             Some(origin) => {
-                return Err(env.type_error(
-                    format!(
-                        "orchestrate '{}' stage '{}' guard '{}' must reference an axiom, found {}",
+                if env.relaxed_checks {
+                    eprintln!(
+                        "note: orchestrate '{}' stage '{}' guard '{}' references a {}, not an axiom (tolerated in interpret mode)",
                         orchestrate.name, stage.binding_name, guard, origin.kind
-                    ),
-                    orchestrate.span,
-                ));
+                    );
+                } else {
+                    return Err(env.type_error(
+                        format!(
+                            "orchestrate '{}' stage '{}' guard '{}' must reference an axiom, found {}",
+                            orchestrate.name, stage.binding_name, guard, origin.kind
+                        ),
+                        orchestrate.span,
+                    ));
+                }
             }
             None => {
-                return Err(env.type_error(
-                    format!(
-                        "orchestrate '{}' stage '{}' guard '{}' does not resolve to an axiom",
+                if env.relaxed_checks {
+                    eprintln!(
+                        "note: orchestrate '{}' stage '{}' guard '{}' does not resolve to an axiom (tolerated in interpret mode)",
                         orchestrate.name, stage.binding_name, guard
-                    ),
-                    orchestrate.span,
-                ));
+                    );
+                } else {
+                    return Err(env.type_error(
+                        format!(
+                            "orchestrate '{}' stage '{}' guard '{}' does not resolve to an axiom",
+                            orchestrate.name, stage.binding_name, guard
+                        ),
+                        orchestrate.span,
+                    ));
+                }
             }
         }
     }
@@ -6234,16 +6340,26 @@ fn validate_orchestrate_stage_metadata(
             | (OrchestrateTransfer::DeviceToHost, Some(OrchestrateResidency::Device))
             | (OrchestrateTransfer::SharedView, Some(OrchestrateResidency::Host))
             | (OrchestrateTransfer::SharedView, Some(OrchestrateResidency::Device)) => {
-                return Err(env.type_error(
-                    format!(
-                        "orchestrate '{}' stage '{}' transfer '{}' is incompatible with residency '{}'",
+                if env.relaxed_checks {
+                    eprintln!(
+                        "note: orchestrate '{}' stage '{}' transfer '{}' is incompatible with residency '{}' (tolerated in interpret mode)",
                         orchestrate.name,
                         stage.binding_name,
                         transfer.as_str(),
                         stage.metadata.residency_name()
-                    ),
-                    orchestrate.span,
-                ));
+                    );
+                } else {
+                    return Err(env.type_error(
+                        format!(
+                            "orchestrate '{}' stage '{}' transfer '{}' is incompatible with residency '{}'",
+                            orchestrate.name,
+                            stage.binding_name,
+                            transfer.as_str(),
+                            stage.metadata.residency_name()
+                        ),
+                        orchestrate.span,
+                    ));
+                }
             }
             _ => {}
         }

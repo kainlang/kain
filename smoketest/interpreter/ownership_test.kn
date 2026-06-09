@@ -1,0 +1,136 @@
+// ============================================================================
+// ownership_test.kn — Collapse, Observe, Decay ownership lifecycle
+//
+// Tests:
+//   1. alloc_zeroed + mem_store + mem_load
+//   2. collapse scope — enter exclusive mutable access, write, return value
+//   3. observe scope — enter shared read-only access, read, return value
+//   4. decay — release memory
+//   5. Multiple collapse/observe cycles on same pointer
+//   6. ptr_offset for pointer arithmetic
+//   7. Ownership with stack-allocated variables (addr_of pattern)
+// ============================================================================
+
+use std::runtime
+use std::machine
+
+// Test 1: Basic alloc + store + load
+fn test_basic_alloc() -> Int:
+    let mut cell: ptr<Int> = alloc_zeroed(1, "Int")
+    collapse cell:
+        mem_store(cell, 42, "Int")
+        0
+    let val: Int = observe cell:
+        mem_load(cell, "Int")
+    decay cell
+    return val
+
+// Test 2: Multiple collapse/observe cycles
+fn test_multi_cycle() -> Int:
+    let mut cell: ptr<Int> = alloc_zeroed(1, "Int")
+
+    // Write 100
+    collapse cell:
+        mem_store(cell, 100, "Int")
+        0
+
+    // Read 100
+    let a: Int = observe cell:
+        mem_load(cell, "Int")
+    if a != 100:
+        decay cell
+        return -1
+
+    // Write 200
+    collapse cell:
+        mem_store(cell, 200, "Int")
+        0
+
+    // Read 200
+    let b: Int = observe cell:
+        mem_load(cell, "Int")
+
+    decay cell
+    return b
+
+// Test 3: Allocate array, write via ptr_offset, read back
+fn test_array_ops() -> Int:
+    let n = 4
+    let mut cells: ptr<Int> = alloc_zeroed(n, "Int")
+
+    collapse cells:
+        var i: Int = 0
+        while i < n:
+            mem_store(ptr_offset(cells, i, "Int"), (i + 1) * 10, "Int")
+            i = i + 1
+        0
+
+    let third: Int = observe cells:
+        mem_load(ptr_offset(cells, 2, "Int"), "Int")
+
+    // Sum all via ptr_offset
+    let total: Int = observe cells:
+        var sum: Int = 0
+        var j: Int = 0
+        while j < n:
+            sum = sum + mem_load(ptr_offset(cells, j, "Int"), "Int")
+            j = j + 1
+        sum
+
+    decay cells
+
+    if third != 30:
+        return -1
+    // 10 + 20 + 30 + 40 = 100
+    if total != 100:
+        return -2
+    return third
+
+// Test 4: Collapse returns value directly
+fn test_collapse_return() -> Int:
+    let mut cell: ptr<Int> = alloc_zeroed(1, "Int")
+    let result: Int = collapse cell:
+        mem_store(cell, 77, "Int")
+        mem_load(cell, "Int")
+    decay cell
+    return result
+
+// Test 5: Observe with computed expression
+fn test_observe_compute() -> Int:
+    let mut cell: ptr<Int> = alloc_zeroed(1, "Int")
+    collapse cell:
+        mem_store(cell, 50, "Int")
+        0
+    let doubled: Int = observe cell:
+        let v = mem_load(cell, "Int")
+        v * 2
+    decay cell
+    return doubled
+
+fn main() -> Int:
+    // Test basic alloc
+    let basic = test_basic_alloc()
+    if basic != 42:
+        return 1
+
+    // Test multi cycle
+    let multi = test_multi_cycle()
+    if multi != 200:
+        return 2
+
+    // Test array ops
+    let arr = test_array_ops()
+    if arr != 30:
+        return 3
+
+    // Test collapse return
+    let coll_ret = test_collapse_return()
+    if coll_ret != 77:
+        return 4
+
+    // Test observe compute
+    let obs_comp = test_observe_compute()
+    if obs_comp != 100:
+        return 5
+
+    return 42

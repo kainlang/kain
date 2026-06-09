@@ -1,0 +1,179 @@
+use std::math
+use std::text
+use std::ui
+use render_commands::kaintana_record_fill
+use render_commands::kaintana_record_text
+use render_commands::kaintana_text_size_from_baseline
+use render_commands::KAINTANA_COMMAND_FILL
+use reconciliation::kaintana_reconcile_node
+use reconciliation::kaintana_context_mark_command
+use types::KaintanaColor
+use types::KaintanaContext
+use types::KaintanaRect
+use types::KaintanaRenderResult
+use types::kaintana_rect
+use widget_events::kaintana_widget_take_activation
+
+// ─── Scroll Area ──────────────────────────────────────────────────────────────
+// A retained scroll container that tracks vertical scroll offset and renders
+// a scrollbar thumb. Callers use kaintana_scroll_content_y() to offset child
+// widget positions and kaintana_scroll_delta() to push scroll changes
+// (e.g. from mouse wheel or up/down buttons).
+//
+// Usage:
+//   let scroll = kaintana_scroll_area(ctx, "my.scroll", viewport_rect, content_height)
+//   // For each child, offset y by -scroll.content_y
+//   let child_rect = kaintana_rect(x, viewport_rect.y - scroll.content_y + row_y, w, h)
+//   // Only render if child intersects viewport
+//   kaintana_scrollbar draws automatically inside scroll_area
+
+pub struct KaintanaScrollResult:
+    content_y: Float       // positive scroll offset — subtract from child y positions
+    scroll_max: Float      // max scroll_y value (0 if content fits)
+    visible_ratio: Float   // viewport_height / content_height, clamped to [0, 1]
+    viewport_rect: KaintanaRect
+    ctx: KaintanaContext
+    native_node_id: Int
+
+// ─── Core Scroll Area ─────────────────────────────────────────────────────────
+
+pub fn kaintana_scroll_area(
+    ctx: KaintanaContext,
+    stable_key: StringView,
+    label: StringView,
+    viewport_rect: KaintanaRect,
+    content_height: Float
+) -> KaintanaScrollResult:
+    let s = ctx.dpi_scale
+    let viewport_h = math_max(1.0, viewport_rect.height)
+    let scroll_max_val = math_max(0.0, content_height - viewport_h)
+    let key_str = string_view_materialize(stable_key)
+
+    // Reconcile the scroll container node
+    var result = kaintana_reconcile_node(ctx, "kaintana.scroll", stable_key, label, "region", label, viewport_rect, false)
+    let session_id = result.ctx.session_id
+    let native_id = result.native_node_id
+
+    // Read/write scroll offset
+    var scroll_y = ui_state_f64(session_id, native_id, "kaintana.scroll.y", 0.0)
+    scroll_y = math_clamp(scroll_y, 0.0, scroll_max_val)
+
+    // Apply any pending delta from programmatic scroll
+    let pending_delta = ui_state_f64(session_id, native_id, "kaintana.scroll.pending_delta", 0.0)
+    if pending_delta != 0.0:
+        scroll_y = scroll_y + pending_delta
+        scroll_y = math_clamp(scroll_y, 0.0, scroll_max_val)
+        let _clear_delta = ui_state_set_f64(session_id, native_id, "kaintana.scroll.pending_delta", 0.0)
+
+    let _store_y = ui_state_set_f64(session_id, native_id, "kaintana.scroll.y", scroll_y)
+
+    // Fill background
+    var next = kaintana_record_fill(result.ctx, native_id, viewport_rect, "fill", ctx.theme.panel)
+
+    // Scrollbar
+    let scrollbar_w = 8.0 * s
+    let scrollbar_visible = scroll_max_val > 1.0
+    if scrollbar_visible:
+        let visible_ratio = math_clamp(viewport_h / math_max(1.0, content_height), 0.01, 1.0)
+        let thumb_h = math_max(16.0 * s, viewport_h * visible_ratio)
+        let track_h = viewport_h - (4.0 * s)
+        let thumb_y_ratio = scroll_y / scroll_max_val
+        let thumb_y = viewport_rect.y + 2.0 * s + (thumb_y_ratio * (track_h - thumb_h))
+
+        let track_rect = kaintana_rect(
+            viewport_rect.x + viewport_rect.width - scrollbar_w,
+            viewport_rect.y + 2.0 * s,
+            scrollbar_w,
+            track_h
+        )
+        let thumb_rect = kaintana_rect(
+            track_rect.x + 2.0 * s,
+            thumb_y,
+            math_max(4.0 * s, scrollbar_w - 4.0 * s),
+            thumb_h
+        )
+
+        next = kaintana_record_fill(next, native_id, track_rect, "scroll.track", ctx.theme.shell)
+        next = kaintana_record_fill(next, native_id, thumb_rect, "scroll.thumb", ctx.theme.accent)
+
+    defer kaintana_context_mark_command(next, native_id, KAINTANA_COMMAND_FILL)
+    return KaintanaScrollResult {
+        content_y: scroll_y,
+        scroll_max: scroll_max_val,
+        visible_ratio: math_clamp(viewport_h / math_max(1.0, content_height), 0.0, 1.0),
+        viewport_rect: viewport_rect,
+        ctx: next,
+        native_node_id: native_id,
+    }
+
+// ─── Push Scroll Delta (call from mouse wheel handler, buttons, etc.) ─────────
+
+pub fn kaintana_scroll_delta(ctx: KaintanaContext, stable_key: StringView, delta: Float) -> KaintanaContext:
+    let key_str = string_view_materialize(stable_key)
+    // Find the scroll container's native node by stable key
+    let existing = ui_node_find_by_stable_key(ctx.session_id, key_str)
+    if existing <= 0:
+        return ctx
+    let current_delta = ui_state_f64(ctx.session_id, existing, "kaintana.scroll.pending_delta", 0.0)
+    let _store = ui_state_set_f64(ctx.session_id, existing, "kaintana.scroll.pending_delta", current_delta + delta)
+    return ctx
+
+// ─── Convenience: Check if a rect is visible in the viewport ──────────────────
+
+pub fn kaintana_scroll_rect_visible(viewport: KaintanaRect, child_rect: KaintanaRect) -> Bool:
+    let child_bottom = child_rect.y + child_rect.height
+    let viewport_bottom = viewport.y + viewport.height
+    if child_bottom < viewport.y:
+        return false
+    if child_rect.y > viewport_bottom:
+        return false
+    return true
+
+// ─── Builder-Pattern Scroll Area ──────────────────────────────────────────────
+
+pub struct KaintanaScrollAreaBuilder:
+    stable_key: StringView
+    label: StringView
+    viewport_rect: KaintanaRect
+    content_height: Float
+
+pub fn kaintana_scroll_area_builder(
+    ui_state: KaintanaUi,
+    label: String,
+    content_height: Float
+) -> KaintanaScrollAreaBuilder:
+    return KaintanaScrollAreaBuilder {
+        stable_key: kaintana_text(label),
+        label: kaintana_text(label),
+        viewport_rect: kaintana_rect(0.0, 0.0, 0.0, 0.0),
+        content_height: content_height,
+    }
+
+pub fn kaintana_scroll_area_builder_key(
+    builder: KaintanaScrollAreaBuilder,
+    stable_key: String
+) -> KaintanaScrollAreaBuilder:
+    return KaintanaScrollAreaBuilder {
+        stable_key: kaintana_text(stable_key),
+        label: builder.label,
+        viewport_rect: builder.viewport_rect,
+        content_height: builder.content_height,
+    }
+
+pub fn kaintana_scroll_area_builder_rect(
+    builder: KaintanaScrollAreaBuilder,
+    viewport_rect: KaintanaRect,
+    content_height: Float
+) -> KaintanaScrollAreaBuilder:
+    return KaintanaScrollAreaBuilder {
+        stable_key: builder.stable_key,
+        label: builder.label,
+        viewport_rect: viewport_rect,
+        content_height: content_height,
+    }
+
+pub fn kaintana_scroll_area_builder_render(
+    ctx: KaintanaContext,
+    builder: KaintanaScrollAreaBuilder
+) -> KaintanaScrollResult:
+    return kaintana_scroll_area(ctx, builder.stable_key, builder.label, builder.viewport_rect, builder.content_height)

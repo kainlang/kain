@@ -1,0 +1,28 @@
+// === Basic Interpreter Test ===
+// Tests: world without surface (T1a), enum registration (T2a),
+// struct matching (T2b), inner item (T2b)
+
+struct Point:
+    x: Int
+    y: Int
+
+enum Color:
+    Red
+    Green
+    Blue
+
+fn make_red() -> Color:
+    return Color::Red
+
+fn get_x(p: Point) -> Int:
+    return p.x
+
+// World without surface — should succeed in interpret mode
+world TestWorld:
+    state count: Int = 0
+
+fn main() -> Int:
+    let r: Color = make_red()
+    match r:
+        Color::Red => return 1
+        _ => return 0

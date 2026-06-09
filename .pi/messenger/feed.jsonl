@@ -1,3 +1,0 @@
-{"ts":"2026-06-09T06:58:58.184Z","type":"join","agent":"QuickXenon"}
-{"ts":"2026-06-09T06:59:45.504Z","type":"plan.start","agent":"QuickXenon","target":"(prompt)","preview":"max passes 1"}
-{"ts":"2026-06-09T06:59:45.509Z","type":"plan.pass.start","agent":"QuickXenon","target":"(prompt)","preview":"pass 1/1"}

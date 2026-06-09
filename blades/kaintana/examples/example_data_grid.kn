@@ -1,0 +1,55 @@
+use layout::kaintana_column_slot
+use layout::kaintana_inset
+use layout::kaintana_row_slot
+use types::KaintanaContext
+use types::KaintanaRect
+use types::kaintana_rect
+use kaintana_ui::*
+
+fn grid_label(ctx: KaintanaContext, rect: KaintanaRect, key: String, text: String, font: Int) -> KaintanaContext:
+    let l0 = kaintana_label(kaintana_ui_state(ctx), text)
+    let l1 = kaintana_label_key(l0, key)
+    let l2 = kaintana_label_rect(l1, rect)
+    let l3 = kaintana_label_font(l2, font, 19.0)
+    let result = kaintana_label_render(ctx, l3)
+    return result.ctx
+
+fn grid_header(ctx: KaintanaContext, rect: KaintanaRect, key: String, label: String, font: Int) -> KaintanaContext:
+    let b0 = kaintana_button(kaintana_ui_state(ctx), label)
+    let b1 = kaintana_button_key(b0, key)
+    let b2 = kaintana_button_rect(b1, rect)
+    let b3 = kaintana_button_font(b2, font, 20.0)
+    let result = kaintana_button_render(ctx, b3)
+    return result.ctx
+
+fn grid_row(ctx: KaintanaContext, row: KaintanaRect, key_prefix: String, name: String, status: String, owner: String, ms: String, font: Int) -> KaintanaContext:
+    var next = ctx
+    next = grid_label(next, kaintana_row_slot(row, 0.0, 160.0, 8.0), key_prefix + ".name", name, font)
+    next = grid_label(next, kaintana_row_slot(row, 1.0, 110.0, 8.0), key_prefix + ".status", status, font)
+    next = grid_label(next, kaintana_row_slot(row, 2.0, 110.0, 8.0), key_prefix + ".owner", owner, font)
+    next = grid_label(next, kaintana_row_slot(row, 3.0, 62.0, 8.0), key_prefix + ".ms", ms, font)
+    return next
+
+pub fn kaintana_example_data_grid(ctx: KaintanaContext, rect: KaintanaRect, body_font: Int, title_font: Int) -> KaintanaContext:
+    var next = ctx
+    let p0 = kaintana_panel(kaintana_ui_state(next), "Data Grid")
+    let p1 = kaintana_panel_key(p0, "example.grid.panel")
+    let p2 = kaintana_panel_rect(p1, rect)
+    let p3 = kaintana_panel_font(p2, title_font, 26.0)
+    let panel = kaintana_panel_render(next, p3)
+    next = panel.ctx
+
+    let table = kaintana_inset(rect, 14.0, 50.0, 14.0, 12.0)
+    next = grid_label(next, kaintana_rect(table.x, table.y, table.width, 22.0), "grid.virtual.note", "virtual window: rows 240-247 of 10000", body_font)
+    let header = kaintana_column_slot(table, 1.0, 28.0, 4.0)
+    next = grid_header(next, kaintana_row_slot(header, 0.0, 160.0, 8.0), "grid.h.name", "Name ^", body_font)
+    next = grid_header(next, kaintana_row_slot(header, 1.0, 110.0, 8.0), "grid.h.status", "Status", body_font)
+    next = grid_header(next, kaintana_row_slot(header, 2.0, 110.0, 8.0), "grid.h.owner", "Owner", body_font)
+    next = grid_header(next, kaintana_row_slot(header, 3.0, 62.0, 8.0), "grid.h.ms", "ms", body_font)
+    next = grid_row(next, kaintana_column_slot(table, 2.0, 22.0, 4.0), "grid.r240", "row_0240", "hot", "agent", "03", body_font)
+    next = grid_row(next, kaintana_column_slot(table, 3.0, 22.0, 4.0), "grid.r241", "row_0241", "ok", "user", "09", body_font)
+    next = grid_row(next, kaintana_column_slot(table, 4.0, 22.0, 4.0), "grid.r242", "row_0242", "ok", "host", "11", body_font)
+    next = grid_row(next, kaintana_column_slot(table, 5.0, 22.0, 4.0), "grid.r243", "row_0243", "slow", "gpu", "27", body_font)
+    next = grid_row(next, kaintana_column_slot(table, 6.0, 22.0, 4.0), "grid.r244", "row_0244", "ok", "agent", "08", body_font)
+    next = grid_row(next, kaintana_column_slot(table, 7.0, 22.0, 4.0), "grid.r245", "row_0245", "hot", "host", "04", body_font)
+    return next

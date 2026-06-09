@@ -1,0 +1,46 @@
+use layout::kaintana_inset
+use types::KaintanaContext
+use types::KaintanaRect
+use types::kaintana_rect
+use kaintana_ui::*
+
+fn modal_button(ctx: KaintanaContext, rect: KaintanaRect, key: String, label: String, font: Int) -> KaintanaContext:
+    let b0 = kaintana_button(kaintana_ui_state(ctx), label)
+    let b1 = kaintana_button_key(b0, key)
+    let b2 = kaintana_button_rect(b1, rect)
+    let b3 = kaintana_button_font(b2, font, 23.0)
+    let result = kaintana_button_render(ctx, b3)
+    return result.ctx
+
+fn modal_label(ctx: KaintanaContext, rect: KaintanaRect, key: String, text: String, font: Int) -> KaintanaContext:
+    let l0 = kaintana_label(kaintana_ui_state(ctx), text)
+    let l1 = kaintana_label_key(l0, key)
+    let l2 = kaintana_label_rect(l1, rect)
+    let l3 = kaintana_label_font(l2, font, 22.0)
+    let result = kaintana_label_render(ctx, l3)
+    return result.ctx
+
+fn modal_panel(ctx: KaintanaContext, rect: KaintanaRect, key: String, title: String, font: Int) -> KaintanaContext:
+    let p0 = kaintana_panel(kaintana_ui_state(ctx), title)
+    let p1 = kaintana_panel_key(p0, key)
+    let p2 = kaintana_panel_rect(p1, rect)
+    let p3 = kaintana_panel_font(p2, font, 25.0)
+    let result = kaintana_panel_render(ctx, p3)
+    return result.ctx
+
+pub fn kaintana_example_modal_popup(ctx: KaintanaContext, rect: KaintanaRect, body_font: Int, title_font: Int) -> KaintanaContext:
+    var next = ctx
+    next = modal_panel(next, rect, "example.modal.panel", "Modal Popup", title_font)
+    let inner = kaintana_inset(rect, 14.0, 50.0, 14.0, 14.0)
+    next = modal_button(next, kaintana_rect(inner.x, inner.y, 180.0, 36.0), "modal.open", "Open Modal", body_font)
+    next = modal_button(next, kaintana_rect(inner.x + 196.0, inner.y, 150.0, 36.0), "modal.underlay", "Blocked", body_font)
+    next = modal_label(next, kaintana_rect(inner.x, inner.y + 52.0, inner.width, 28.0), "modal.note", "overlay is appended after underlay, proving stack order", body_font)
+
+    let modal_open: Bool = true
+    if modal_open:
+        let dialog = kaintana_rect(inner.x + 82.0, inner.y + 90.0, inner.width - 164.0, 96.0)
+        next = modal_panel(next, dialog, "modal.dialog", "Warning")
+        next = modal_label(next, kaintana_rect(dialog.x + 14.0, dialog.y + 34.0, dialog.width - 28.0, 24.0), "modal.message", "Changes are staged, not published.", body_font)
+        next = modal_button(next, kaintana_rect(dialog.x + 18.0, dialog.y + dialog.height - 32.0, 92.0, 26.0), "modal.cancel", "Cancel", body_font)
+        next = modal_button(next, kaintana_rect(dialog.x + dialog.width - 112.0, dialog.y + dialog.height - 32.0, 94.0, 26.0), "modal.continue", "Continue", body_font)
+    return next

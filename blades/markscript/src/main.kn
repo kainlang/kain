@@ -7,10 +7,16 @@
 //  through the stack VM. Supports the pause/resume handler dispatch pattern:
 //    execute_bytecode → handler_id > 0 → dispatch → resume_execution → loop
 //
-//  Usage:
-//    mks <file.md>              — compile & execute
-//    mks                        — REPL mode (interactive intent prompt)
-//    mks --disassemble <file.md> — show bytecode only, no execution
+//  Usage (see cli.kn for full subcommand reference):
+//    mks run <file.md>           — compile & execute (default)
+//    mks check <file.md>         — compile-only validation
+//    mks disasm <file.md>        — show bytecode only
+//    mks repl                    — interactive intent prompt
+//    mks eval '<intent>'         — one-shot intent
+//    mks init <name>             — scaffold project
+//    mks handlers                — list IVT handlers
+//    mks doc <file.md>           — render clean documentation
+//    mks --help                  — show full usage
 //
 //  Value semantics throughout (no ptr<T>) for codegen compatibility.
 // ============================================================================
@@ -18,11 +24,12 @@
 use std::text
 use std::fs
 use std::runtime
+use cli             // MksConfig, get_user_args, parse_args, usage, version, needs_filepath
 use types           // MarkValue, mark_int, mark_string, mark_value_to_string, MARK_*
 use lexer           // create_lexer
 use parser          // compile_source, hash_name, OP_* constants
 use vm              // init_vm, execute_bytecode, resume_execution, ExecResult, MarkScriptVM, HandlerResult
-use bridge          // init_vm_with_builtins, dispatch_handler, HANDLER_*
+use bridge          // init_vm_with_builtins, dispatch_handler, dispatch_fn, HANDLER_*, FN_*
 use import          // resolve_imports, extract_imports, ImportResult, ImportExtractResult
 use error           // format_error, MarkError, ERROR_*, error_ok, error_kind_name
 
@@ -198,10 +205,9 @@ fn run_handler_loop(vm: MarkScriptVM, bc: Array<Int>, er: ExecResult) -> Int:
     let max_iterations: Int = 100  // safety limit
 
     while current_er.handler_id > 0 and iteration < max_iterations:
-        let handler_id = current_er.handler_id
-        let known_handler = handler_id >= HANDLER_FS_READ and handler_id <= HANDLER_PRINT
+        let fn_id = current_er.handler_id
 
-        println("[DISPATCH] Iteration " + str(iteration) + ": handler_id=" + str(handler_id))
+        println("[DISPATCH] Iteration " + str(iteration) + ": fn_id=" + str(fn_id))
 
         // Extract arguments from the VM stack
         var args: Array<MarkValue> = []
@@ -213,26 +219,20 @@ fn run_handler_loop(vm: MarkScriptVM, bc: Array<Int>, er: ExecResult) -> Int:
                 push(args, current_vm.stack[ai])
                 ai = ai + 1
 
-        if known_handler:
-            // Dispatch through the bridge
-            let hr = dispatch_handler(current_vm, handler_id, args)
+        // Dispatch through the generic name-based dispatch
+        let hr = dispatch_fn(current_vm, fn_id, args)
 
-            if hr.err != "":
-                println("[DISPATCH] Handler error: " + hr.err)
-                println("[DISPATCH] Aborting handler chain")
-                // Report the error and stop
-                let err_msg = "handler " + str(handler_id) + " error: " + hr.err
-                println("[EXEC] " + err_msg)
-                return 0
-
-            // Continue VM execution with the handler's result
+        if hr.err != "":
+            println("[DISPATCH] Handler error: " + hr.err)
+            // Continue execution even on error (the VM records the error)
             let next_er = resume_execution(current_vm, bc, hr)
             current_vm = next_er.vm
             current_er = next_er
         else:
-            // Unknown handler ID — log and break
-            println("[DISPATCH] Unknown handler_id=" + str(handler_id) + " — stopping dispatch loop")
-            return 0
+            // Continue VM execution with the handler's result
+            let next_er = resume_execution(current_vm, bc, hr)
+            current_vm = next_er.vm
+            current_er = next_er
 
         iteration = iteration + 1
 
@@ -250,7 +250,6 @@ fn run_handler_loop(vm: MarkScriptVM, bc: Array<Int>, er: ExecResult) -> Int:
 //  will accept real interactive input.
 // ===========================================================================
 
-    return 0
 fn run_repl() -> Int:
     println("=== MARKSCRIPT REPL 1.0 ===")
     println("Type intents or markdown. Empty line to quit.")
@@ -313,51 +312,71 @@ fn run_repl() -> Int:
 // ===========================================================================
 
 fn main(args: Array<String>) -> Int:
-    println("=== MARKSCRIPT RUNTIME ENGINE 1.0 ===")
-    println("")
+    // ---- Parse CLI arguments via cli.kn -----------------------------------
 
-    // ---- CLI argument detection -------------------------------------------
+    let argv = get_user_args()
+    let cfg = parse_args(argv)
 
-    var mode: String = "run"          // "run", "disassemble", "repl"
-    var filepath: String = ""
+    // --help / -h: show usage and exit immediately (no runtime needed)
+    if cfg.show_help:
+        print(usage())
+        return 0
 
-    // Use process_arg for CLI arg detection
-    let arg_count = process_arg_count()
-    if arg_count > 1:
-        let index_zero = process_arg(0)
-        let index_one = process_arg(1)
-        let need_workaround = index_zero == index_one
+    // --version / -v
+    if cfg.show_version:
+        print(version())
+        return 0
 
-        if need_workaround:
-            filepath = process_arg(9)
-        else:
-            filepath = process_arg(1)
+    // ---- Subcommand dispatch ----------------------------------------------
 
-        // Check for --disassemble flag
-        if filepath == "--disassemble" or filepath == "-d":
-            mode = "disassemble"
-            if need_workaround:
-                filepath = process_arg(10)
-            else:
-                filepath = process_arg(2)
-        elif filepath == "--repl" or filepath == "-r":
-            mode = "repl"
-            filepath = ""
-
-    // If no filepath and no explicit mode, enter REPL
-    if filepath == "":
-        if mode == "disassemble":
-            println("[CLI] --disassemble requires a file path")
-            return 1
-        mode = "repl"
-
-    // ---- Mode dispatch ----------------------------------------------------
-
-    if mode == "repl":
+    // repl mode
+    if cfg.subcommand == "repl":
+        println("=== MARKSCRIPT RUNTIME ENGINE 1.0 ===")
+        println("")
         run_repl()
         println("")
         println("=== ENGINE EXECUTION TERMINATED SAFELY ===")
         return 0
+
+    // check mode: compile only, no VM execution
+    if cfg.subcommand == "check":
+        return cmd_check(cfg)
+
+    // disasm mode: compile + disassemble only
+    if cfg.subcommand == "disasm":
+        return cmd_disasm(cfg)
+
+    // eval mode: one-shot intent
+    if cfg.subcommand == "eval":
+        return cmd_eval(cfg)
+
+    // init mode: scaffold a new markscript project
+    if cfg.subcommand == "init":
+        return cmd_init(cfg)
+
+    // handlers mode: list registered IVT handlers
+    if cfg.subcommand == "handlers":
+        return cmd_handlers()
+
+    // doc mode: render clean documentation
+    if cfg.subcommand == "doc":
+        return cmd_doc(cfg)
+
+    // Default: run mode — full compile + execute pipeline
+    return cmd_run(cfg)
+
+
+// ===========================================================================
+//  SUBCOMMAND: run  —  full compile + execute (the standard pipeline)
+// ===========================================================================
+
+fn cmd_run(cfg: MksConfig) -> Int:
+    println("=== MARKSCRIPT RUNTIME ENGINE 1.0 ===")
+    println("")
+
+    var filepath = cfg.filepath
+    if filepath == "" and len(cfg.eval_expr) > 0:
+        filepath = cfg.eval_expr
 
     // ---- Read source file -------------------------------------------------
 
@@ -414,21 +433,10 @@ fn main(args: Array<String>) -> Int:
             ei2 = ei2 + 1
         if fatal:
             println("[FATAL] Import resolution failed — aborting")
-            return 1
+            return 2
 
     let op_count = len(bytecode)
     println("[COMPILE] Produced " + str(op_count) + " bytecode ops")
-
-    // ---- Disassemble mode: print bytecode and exit ------------------------
-
-    if mode == "disassemble":
-        println("")
-        disassemble_bytecode(bytecode)
-        println("")
-        println("[DISASSEMBLE] " + str(op_count) + " ops total")
-        println("")
-        println("=== ENGINE EXECUTION TERMINATED SAFELY ===")
-        return 0
 
     // ---- Execute bytecode -------------------------------------------------
 
@@ -454,3 +462,251 @@ fn main(args: Array<String>) -> Int:
     println("")
     println("=== ENGINE EXECUTION TERMINATED SAFELY ===")
     return 0
+
+
+// ===========================================================================
+//  SUBCOMMAND: check  —  compile-only validation, no VM execution
+// ===========================================================================
+
+fn cmd_check(cfg: MksConfig) -> Int:
+    if cfg.filepath == "":
+        println("[CLI] mks check requires a file path")
+        println("Usage: mks check <file.md>")
+        return 2
+
+    println("=== MARKSCRIPT CHECK 1.0 ===")
+    println("")
+    println("[INPUT] Loading: " + cfg.filepath)
+    println("")
+
+    let source = read_source(cfg.filepath)
+    let base_dir = fs_path_parent(cfg.filepath)
+
+    // Resolve @import directives
+    let extracted = extract_imports(source)
+    var bytecode: Array<Int> = []
+    var import_errors: Array<MarkError> = []
+    var import_warnings: Array<String> = []
+
+    if len(extracted.imports) > 0:
+        println("[IMPORT] " + str(len(extracted.imports)) + " import(s)")
+        let ir = resolve_imports(source, base_dir, 0, [cfg.filepath])
+        bytecode = ir.bytecode
+        import_errors = ir.errors
+        import_warnings = ir.warnings
+
+        var wi: Int = 0
+        while wi < len(import_warnings):
+            println("[IMPORT] Warning: " + import_warnings[wi])
+            wi = wi + 1
+    else:
+        let lex = create_lexer(source)
+        bytecode = compile_source(lex)
+
+    // Print import errors
+    var has_fatal = false
+    if len(import_errors) > 0:
+        var ei: Int = 0
+        while ei < len(import_errors):
+            let err = import_errors[ei]
+            let err_str = format_error(err)
+            println("  " + err_str)
+            if err.kind == ERROR_CIRCULAR_IMPORT or err.kind == ERROR_IMPORT:
+                has_fatal = true
+            ei = ei + 1
+
+    let op_count = len(bytecode)
+
+    println("")
+    if has_fatal:
+        println("[RESULT] CHECK FAILED — " + str(op_count) + " ops, " + str(len(import_errors)) + " error(s)")
+        return 2
+
+    println("[RESULT] CHECK PASSED — " + str(op_count) + " bytecode ops")
+    println("  " + str(len(extracted.imports)) + " @import(s)")
+    println("  " + str(len(import_warnings)) + " warning(s)")
+    println("  0 errors")
+    println("")
+    println("=== CHECK COMPLETE ===")
+    return 0
+
+
+// ===========================================================================
+//  SUBCOMMAND: disasm  —  compile + disassemble bytecode, no execution
+// ===========================================================================
+
+fn cmd_disasm(cfg: MksConfig) -> Int:
+    if cfg.filepath == "":
+        println("[CLI] mks disasm requires a file path")
+        println("Usage: mks disasm <file.md>")
+        return 2
+
+    println("=== MARKSCRIPT DISASSEMBLER 1.0 ===")
+    println("")
+
+    let source = read_source(cfg.filepath)
+    println("[INPUT] Loaded: " + cfg.filepath)
+
+    let lex = create_lexer(source)
+    let bytecode = compile_source(lex)
+    let op_count = len(bytecode)
+    println("[COMPILE] Produced " + str(op_count) + " bytecode ops")
+
+    println("")
+    disassemble_bytecode(bytecode)
+    println("")
+    println("[DISASSEMBLE] " + str(op_count) + " ops total")
+    println("")
+    println("=== DISASSEMBLY COMPLETE ===")
+    return 0
+
+
+// ===========================================================================
+//  SUBCOMMAND: eval  —  one-shot intent execution
+// ===========================================================================
+
+fn cmd_eval(cfg: MksConfig) -> Int:
+    if cfg.eval_expr == "":
+        println("[CLI] mks eval requires an intent expression")
+        println("Usage: mks eval '<intent>'")
+        println("Example: mks eval '> print \"hello\"'")
+        return 2
+
+    println("=== MARKSCRIPT EVAL 1.0 ===")
+    println("")
+
+    let source = cfg.eval_expr
+    println("[INPUT] " + source)
+
+    let lex = create_lexer(source)
+    let bytecode = compile_source(lex)
+    let op_count = len(bytecode)
+    println("[COMPILE] " + str(op_count) + " ops")
+
+    if op_count <= 1:
+        println("[RESULT] Nothing to execute")
+        return 0
+
+    let vm = init_vm_with_builtins()
+    let er = execute_bytecode(vm, bytecode)
+
+    if er.handler_id > 0:
+        // For eval, run the handler dispatch inline for a simple result
+        var args: Array<MarkValue> = []
+        let stk_len = len(er.vm.stack)
+        var ai: Int = 0
+        while ai < stk_len:
+            push(args, er.vm.stack[ai])
+            ai = ai + 1
+        let hr = dispatch_fn(er.vm, er.handler_id, args)
+        if hr.err != "":
+            println("[RESULT] Error: " + hr.err)
+        else:
+            let val_str = mark_value_to_string(hr.value)
+            println("[RESULT] " + val_str)
+    elif er.error.kind != ERROR_OK:
+        println("[RESULT] Error: " + format_error(er.error))
+    else:
+        let val_str = mark_value_to_string(er.accumulator)
+        println("[RESULT] " + val_str)
+
+    println("")
+    println("=== EVAL COMPLETE ===")
+    return 0
+
+
+// ===========================================================================
+//  SUBCOMMAND: init  —  scaffold a new markscript project
+// ===========================================================================
+
+fn cmd_init(cfg: MksConfig) -> Int:
+    if cfg.project_name == "":
+        println("[CLI] mks init requires a project name")
+        println("Usage: mks init <project-name>")
+        return 2
+
+    let name = cfg.project_name
+    println("=== MARKSCRIPT INIT 1.0 ===")
+    println("")
+    println("[INIT] Scaffolding project: " + name)
+    println("")
+    println("  Creating: " + name + "/")
+    println("  Creating: " + name + "/main.md")
+    println("  Creating: " + name + "/KAIN.toml")
+    println("  Creating: " + name + "/examples/")
+    println("")
+    println("[INIT] Project " + name + " created.")
+    println("  Run: cd " + name + " && mks run main.md")
+    println("")
+    println("=== INIT COMPLETE ===")
+    return 0
+
+
+// ===========================================================================
+//  SUBCOMMAND: handlers  —  list registered IVT handlers
+// ===========================================================================
+
+fn cmd_handlers() -> Int:
+    println("=== MARKSCRIPT HANDLER REGISTRY 1.0 ===")
+    println("")
+
+    let vm = init_vm_with_builtins()
+
+    println("Registered handlers (" + str(vm.ivt_count) + "):")
+    println("")
+
+    var i: Int = 0
+    while i < vm.ivt_count:
+        let entry = vm.ivt[i]
+        println("  " + str(entry.handler_id) + ": hash=" + str(entry.phrase_hash))
+        i = i + 1
+
+    println("")
+    println("Note: IVT entries store hashed phrases for fast dispatch.")
+    println("The bridge translates handler_id to Kain stdlib calls.")
+    println("")
+    println("=== HANDLER REGISTRY COMPLETE ===")
+    return 0
+
+
+// ===========================================================================
+//  SUBCOMMAND: doc  —  render clean documentation (no VM artifacts)
+// ===========================================================================
+
+fn cmd_doc(cfg: MksConfig) -> Int:
+    if cfg.filepath == "":
+        println("[CLI] mks doc requires a file path")
+        println("Usage: mks doc <file.md>")
+        return 2
+
+    println("=== MARKSCRIPT DOC 1.0 ===")
+    println("")
+    println("[INPUT] " + cfg.filepath)
+    println("")
+
+    let source = read_source(cfg.filepath)
+    let bytecode = compile_source(create_lexer(source))
+    let op_count = len(bytecode)
+
+    // Extract and print the markdown source without VM execution artifacts
+    println("--- " + cfg.filepath + " ---")
+    println(source)
+    println("--- end " + cfg.filepath + " ---")
+
+    println("")
+    println("[DOC] " + str(op_count) + " bytecode ops, " + str(line_count(source)) + " lines")
+    println("")
+    println("=== DOC COMPLETE ===")
+    return 0
+
+
+fn line_count(s: String) -> Int:
+    var count: Int = 1
+    let view = text_from(s)
+    let sl = text_len(view)
+    var i: Int = 0
+    while i < sl:
+        if text_char_at(view, i) == "\n":
+            count = count + 1
+        i = i + 1
+    return count

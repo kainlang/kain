@@ -1,7 +1,7 @@
 // ============================================================================
 //                          std::os  —  The Mothership OS Module
 // ============================================================================
-//  Zig-flavored OS substrate meets Python ergonomics.
+//  
 //  Uses the 'import os' mental model: one module, everything the OS gives you.
 //
 //  Architecture:

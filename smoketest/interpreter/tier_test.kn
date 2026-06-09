@@ -1,0 +1,100 @@
+// === Interpreter Tier 1-3 Test Suite ===
+
+// --- Tier 1a: World without surfaces ---
+world NoSurfaceWorld:
+    state counter: Int = 0
+
+// --- Struct and Enum ---
+struct Point:
+    x: Int
+    y: Int
+
+enum Color:
+    Red
+    Green(Int)
+    Blue(Int, Int, Int)
+
+// --- Tier 2a: Enum type reference ---
+fn make_red() -> Color:
+    return Color::Red
+
+fn make_green(v: Int) -> Color:
+    return Color::Green(v)
+
+fn make_blue(r: Int, g: Int, b: Int) -> Color:
+    return Color::Blue(r, g, b)
+
+// --- Tier 2b: Struct destructuring ---
+fn get_x(p: Point) -> Int:
+    return p.x
+
+fn match_point(p: Point) -> Int:
+    match p:
+        Point { x: 0, y: 0 } => return 0
+        Point { x, y } if x > y => return 1
+        Point { x, y } => return x + y
+
+// --- Tier 2b: Or-patterns ---
+fn is_red_or_green(c: Color) -> Bool:
+    match c:
+        Color::Red | Color::Green(_) => return true
+        _ => return false
+
+// --- Tier 2b: Guard clauses ---
+fn classify(n: Int) -> Int:
+    match n:
+        x if x < 0 => return -1
+        x if x == 0 => return 0
+        x if x > 0 and x < 100 => return 1
+        _ => return 2
+
+// --- Tier 2b: Nested inner function ---
+fn outer_use_inner(a: Int) -> Int:
+    fn inner(b: Int) -> Int:
+        return b + 100
+    return inner(a)
+
+// --- Tier 2c: Teleport worlds ---
+world SourceWorld:
+    state value: Int = 0
+    surface native_ui => SourceWorld
+
+world TargetWorld:
+    state value: Int = 0
+    surface native_ui => TargetWorld
+
+// --- Tier 2d: Ownership ---
+fn ownership_observe_local() -> Int:
+    let x = 42
+    observe x:
+        return x
+    return 0
+
+// --- Tier 3a: Pulse ---
+pulse heartbeat every 100ms:
+    let dummy = 1
+
+// --- Tier 3c: Actor ---
+actor Counter:
+    state count: Int = 0
+
+    on increment:
+        self.count = self.count + 1
+
+    on get_count:
+        send self.count
+
+// --- Main ---
+fn main() -> Int:
+    let r = make_red()
+    let g = make_green(5)
+    let b = make_blue(1, 2, 3)
+
+    let p = Point { x: 10, y: 20 }
+    let px = get_x(p)
+
+    let inner_test = outer_use_inner(5)
+
+    let obs = ownership_observe_local()
+
+    return px

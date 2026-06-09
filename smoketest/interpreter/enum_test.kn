@@ -1,0 +1,18 @@
+// Test enum type reference + variant matching
+enum Color:
+    Red
+    Green
+    Blue
+
+fn describe(c: Color) -> Color:
+    match c:
+        Color::Red => return Color::Green
+        Color::Green => return Color::Blue
+        Color::Blue => return Color::Red
+
+fn main() -> Int:
+    let c: Color = Color::Red
+    let d: Color = describe(c)
+    match d:
+        Color::Green => return 42
+        _ => return 0

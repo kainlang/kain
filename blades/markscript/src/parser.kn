@@ -53,6 +53,23 @@ pub const OP_JN:             Int = 20
 //  Used for domain names, routine names, intent phrases, and lang tags.
 // ===========================================================================
 
+pub fn float_to_int(f: Float) -> Int:
+    // Truncate toward zero
+    if f >= 0.0:
+        var result: Int = 0
+        var remaining: Float = f
+        while remaining >= 1.0:
+            result = result + 1
+            remaining = remaining - 1.0
+        return result
+    else:
+        var result: Int = 0
+        var remaining: Float = -f
+        while remaining >= 1.0:
+            result = result + 1
+            remaining = remaining - 1.0
+        return -result
+
 pub fn hash_name(s: String) -> Int:
     let view = text_from(s)
     let sl = text_len(view)
@@ -64,6 +81,535 @@ pub fn hash_name(s: String) -> Int:
         h = h * 31 + cv
         i = i + 1
     return h
+
+// ===========================================================================
+//  MARKSCRIPT MINI-LANGUAGE PARSER
+//  Compiles code inside ```markscript fence blocks into VM opcodes 7-20.
+//  Supports: let/assign, arithmetic (+-*/), while/if/else, function calls,
+//  comparisons (>, <), and comments (#).
+// ===========================================================================
+
+// --- Mini-language token types -------------------------------------------
+
+const MS_TOK_LET:    Int = 0
+const MS_TOK_WHILE:  Int = 1
+const MS_TOK_IF:     Int = 2
+const MS_TOK_ELSE:   Int = 3
+const MS_TOK_IDENT:  Int = 4
+const MS_TOK_INT:    Int = 5
+const MS_TOK_STRING: Int = 6
+const MS_TOK_PLUS:   Int = 7
+const MS_TOK_MINUS:  Int = 8
+const MS_TOK_STAR:   Int = 9
+const MS_TOK_SLASH:  Int = 10
+const MS_TOK_EQ:     Int = 11
+const MS_TOK_GT:     Int = 12
+const MS_TOK_LT:     Int = 13
+const MS_TOK_LPAREN: Int = 14
+const MS_TOK_RPAREN: Int = 15
+const MS_TOK_COMMA:  Int = 16
+const MS_TOK_COLON:  Int = 17
+const MS_TOK_EOF_MS: Int = 18
+
+struct MSToken:
+    kind: Int
+    text: String
+
+fn ms_token_eof() -> MSToken:
+    return MSToken { kind: MS_TOK_EOF_MS, text: "" }
+
+fn ms_token_make(kind: Int, text: String) -> MSToken:
+    return MSToken { kind: kind, text: text }
+
+// --- String helpers ------------------------------------------------------
+
+fn split_lines(text: String) -> Array<String>:
+    var lines: Array<String> = []
+    var start: Int = 0
+    var i: Int = 0
+    let tlen = len(text)
+    while i < tlen:
+        let ch = text_substring_string(text, i, 1)
+        if ch == "\n":
+            let ln = text_substring_string(text, start, i - start)
+            push(lines, ln)
+            start = i + 1
+        i = i + 1
+    if start <= tlen:
+        let ln = text_substring_string(text, start, tlen - start)
+        push(lines, ln)
+    return lines
+
+fn count_indent(ln: String) -> Int:
+    var count: Int = 0
+    var i: Int = 0
+    let slen = len(ln)
+    while i < slen:
+        let ch = text_substring_string(ln, i, 1)
+        if ch == " ":
+            count = count + 1
+        elif ch == "\t":
+            count = count + 4
+        else:
+            break
+        i = i + 1
+    return count
+
+fn trim_left(ln: String) -> String:
+    var i: Int = 0
+    let slen = len(ln)
+    while i < slen:
+        let ch = text_substring_string(ln, i, 1)
+        if ch == " " or ch == "\t":
+            i = i + 1
+        else:
+            break
+    return text_substring_string(ln, i, slen - i)
+
+fn trim_right(ln: String) -> String:
+    var i: Int = len(ln) - 1
+    while i >= 0:
+        let ch = text_substring_string(ln, i, 1)
+        if ch == " " or ch == "\t" or ch == "\r":
+            i = i - 1
+        else:
+            break
+    if i < 0:
+        return ""
+    return text_substring_string(ln, 0, i + 1)
+
+fn trim_ms(ln: String) -> String:
+    return trim_right(trim_left(ln))
+
+fn ms_parse_int(text: String) -> Int:
+    var result: Int = 0
+    var neg: Bool = false
+    var i: Int = 0
+    let slen = len(text)
+    if slen > 0 and text_substring_string(text, 0, 1) == "-":
+        neg = true
+        i = 1
+    while i < slen:
+        let ch = text_substring_string(text, i, 1)
+        let cv = text_ord(ch)
+        if cv >= 48 and cv <= 57:
+            result = result * 10 + (cv - 48)
+        i = i + 1
+    if neg:
+        return -result
+    return result
+
+// --- Mini-language tokenizer (per ln) ----------------------------------
+
+fn tokenize_ms_line(ln: String) -> Array<MSToken>:
+    var tokens: Array<MSToken> = []
+    var pos: Int = 0
+    let slen = len(ln)
+    while pos < slen:
+        let ch = text_substring_string(ln, pos, 1)
+        // Whitespace
+        if ch == " " or ch == "\t":
+            pos = pos + 1
+            continue
+        // Comment
+        if ch == "#":
+            break
+        // String literal
+        if ch == "\"":
+            pos = pos + 1
+            var str_start = pos
+            while pos < slen:
+                let sc = text_substring_string(ln, pos, 1)
+                if sc == "\"":
+                    break
+                pos = pos + 1
+            let str_content = text_substring_string(ln, str_start, pos - str_start)
+            if pos < slen:
+                pos = pos + 1
+            push(tokens, ms_token_make(MS_TOK_STRING, str_content))
+            continue
+        // Operators and delimiters
+        if ch == "+":
+            push(tokens, ms_token_make(MS_TOK_PLUS, "+"))
+            pos = pos + 1
+            continue
+        if ch == "-":
+            push(tokens, ms_token_make(MS_TOK_MINUS, "-"))
+            pos = pos + 1
+            continue
+        if ch == "*":
+            push(tokens, ms_token_make(MS_TOK_STAR, "*"))
+            pos = pos + 1
+            continue
+        if ch == "/":
+            push(tokens, ms_token_make(MS_TOK_SLASH, "/"))
+            pos = pos + 1
+            continue
+        if ch == "=":
+            push(tokens, ms_token_make(MS_TOK_EQ, "="))
+            pos = pos + 1
+            continue
+        if ch == ">":
+            push(tokens, ms_token_make(MS_TOK_GT, ">"))
+            pos = pos + 1
+            continue
+        if ch == "<":
+            push(tokens, ms_token_make(MS_TOK_LT, "<"))
+            pos = pos + 1
+            continue
+        if ch == "(":
+            push(tokens, ms_token_make(MS_TOK_LPAREN, "("))
+            pos = pos + 1
+            continue
+        if ch == ")":
+            push(tokens, ms_token_make(MS_TOK_RPAREN, ")"))
+            pos = pos + 1
+            continue
+        if ch == ",":
+            push(tokens, ms_token_make(MS_TOK_COMMA, ","))
+            pos = pos + 1
+            continue
+        if ch == ":":
+            push(tokens, ms_token_make(MS_TOK_COLON, ":"))
+            pos = pos + 1
+            continue
+        // Number
+        let cv = text_ord(ch)
+        if cv >= 48 and cv <= 57:
+            var num_start = pos
+            while pos < slen:
+                let nc = text_substring_string(ln, pos, 1)
+                let nv = text_ord(nc)
+                if nv >= 48 and nv <= 57:
+                    pos = pos + 1
+                else:
+                    break
+            let num_text = text_substring_string(ln, num_start, pos - num_start)
+            push(tokens, ms_token_make(MS_TOK_INT, num_text))
+            continue
+        // Identifier or keyword
+        if (cv >= 65 and cv <= 90) or (cv >= 97 and cv <= 122) or ch == "_":
+            var ident_start = pos
+            while pos < slen:
+                let ic = text_substring_string(ln, pos, 1)
+                let iv = text_ord(ic)
+                if (iv >= 65 and iv <= 90) or (iv >= 97 and iv <= 122) or (iv >= 48 and iv <= 57) or ic == "_":
+                    pos = pos + 1
+                else:
+                    break
+            let ident_text = text_substring_string(ln, ident_start, pos - ident_start)
+            if ident_text == "let":
+                push(tokens, ms_token_make(MS_TOK_LET, ident_text))
+            elif ident_text == "while":
+                push(tokens, ms_token_make(MS_TOK_WHILE, ident_text))
+            elif ident_text == "if":
+                push(tokens, ms_token_make(MS_TOK_IF, ident_text))
+            elif ident_text == "else":
+                push(tokens, ms_token_make(MS_TOK_ELSE, ident_text))
+            else:
+                push(tokens, ms_token_make(MS_TOK_IDENT, ident_text))
+            continue
+        // Unknown — skip
+        pos = pos + 1
+    push(tokens, ms_token_eof())
+    return tokens
+
+// --- Expression parser (recursive descent, emits to bc) ------------------
+
+fn ms_parse_factor(tokens: Array<MSToken>, pos: Int, bc: Array<Int>) -> Int:
+    if pos >= len(tokens):
+        return pos
+    let tok = tokens[pos]
+    if tok.kind == MS_TOK_INT:
+        let ival = ms_parse_int(tok.text)
+        push(bc, OP_PUSH_STACK)
+        push(bc, ival)
+        return pos + 1
+    elif tok.kind == MS_TOK_STRING:
+        let shash = hash_name(tok.text)
+        push(bc, OP_PUSH_STACK)
+        push(bc, shash)
+        return pos + 1
+    elif tok.kind == MS_TOK_IDENT:
+        if pos + 1 < len(tokens) and tokens[pos + 1].kind == MS_TOK_LPAREN:
+            return ms_parse_call_expr(tokens, pos, bc)
+        push(bc, OP_LOAD_VAR)
+        push(bc, hash_name(tok.text))
+        return pos + 1
+    elif tok.kind == MS_TOK_LPAREN:
+        var p = pos + 1
+        p = ms_parse_expr(tokens, p, bc)
+        if p < len(tokens) and tokens[p].kind == MS_TOK_RPAREN:
+            p = p + 1
+        return p
+    else:
+        return pos + 1
+
+fn ms_parse_term(tokens: Array<MSToken>, pos: Int, bc: Array<Int>) -> Int:
+    var p = ms_parse_factor(tokens, pos, bc)
+    loop:
+        if p >= len(tokens):
+            break
+        let tok = tokens[p]
+        if tok.kind == MS_TOK_STAR or tok.kind == MS_TOK_SLASH:
+            let op_kind = tok.kind
+            p = p + 1
+            p = ms_parse_factor(tokens, p, bc)
+            if op_kind == MS_TOK_STAR:
+                push(bc, OP_MUL)
+            else:
+                push(bc, OP_DIV)
+        else:
+            break
+    return p
+
+fn ms_parse_expr(tokens: Array<MSToken>, pos: Int, bc: Array<Int>) -> Int:
+    var p = ms_parse_term(tokens, pos, bc)
+    loop:
+        if p >= len(tokens):
+            break
+        let tok = tokens[p]
+        if tok.kind == MS_TOK_PLUS or tok.kind == MS_TOK_MINUS:
+            let op_kind = tok.kind
+            p = p + 1
+            p = ms_parse_term(tokens, p, bc)
+            if op_kind == MS_TOK_PLUS:
+                push(bc, OP_ADD)
+            else:
+                push(bc, OP_SUB)
+        else:
+            break
+    return p
+
+// --- Function call in expression -----------------------------------------
+
+fn ms_parse_call_expr(tokens: Array<MSToken>, pos: Int, bc: Array<Int>) -> Int:
+    let func_name = tokens[pos].text
+    var p = pos + 2
+    loop:
+        if p >= len(tokens):
+            break
+        let tok = tokens[p]
+        if tok.kind == MS_TOK_RPAREN:
+            p = p + 1
+            break
+        if tok.kind == MS_TOK_COMMA:
+            p = p + 1
+            continue
+        if tok.kind == MS_TOK_EOF_MS:
+            break
+        p = ms_parse_expr(tokens, p, bc)
+    push(bc, OP_PUSH_PARAM)
+    push(bc, hash_name(func_name))
+    push(bc, OP_EXECUTE_CALL)
+    return p
+
+// --- Statement parsers ---------------------------------------------------
+
+fn ms_parse_let(tokens: Array<MSToken>, bc: Array<Int>):
+    if len(tokens) < 4:
+        return
+    let var_name = tokens[1].text
+    var p = 3
+    p = ms_parse_expr(tokens, p, bc)
+    push(bc, OP_STORE_VAR)
+    push(bc, hash_name(var_name))
+
+fn ms_parse_assign(tokens: Array<MSToken>, bc: Array<Int>):
+    if len(tokens) < 3:
+        return
+    let var_name = tokens[0].text
+    var p = 2
+    p = ms_parse_expr(tokens, p, bc)
+    push(bc, OP_STORE_VAR)
+    push(bc, hash_name(var_name))
+
+// --- Comparison helper ---------------------------------------------------
+
+struct CompInfo:
+    has_comp: Bool
+    op_kind:  Int
+    op_pos:   Int
+
+fn find_comparison(tokens: Array<MSToken>, start: Int, end: Int) -> CompInfo:
+    var i: Int = start
+    while i < end:
+        let tk = tokens[i]
+        if tk.kind == MS_TOK_GT or tk.kind == MS_TOK_LT:
+            return CompInfo { has_comp: true, op_kind: tk.kind, op_pos: i }
+        i = i + 1
+    return CompInfo { has_comp: false, op_kind: 0, op_pos: 0 }
+
+fn slice_tokens(tokens: Array<MSToken>, start: Int, end: Int) -> Array<MSToken>:
+    var result: Array<MSToken> = []
+    var i: Int = start
+    while i < end and i < len(tokens):
+        push(result, tokens[i])
+        i = i + 1
+    push(result, ms_token_eof())
+    return result
+
+// --- While loop compilation ----------------------------------------------
+
+fn ms_parse_while(lines: Array<String>, line_idx: Int, indent: Int, tokens: Array<MSToken>, bc: Array<Int>) -> Int:
+    let loop_start = len(bc)
+    let cond_end = len(tokens) - 2
+
+    let comp = find_comparison(tokens, 1, cond_end)
+    if comp.has_comp:
+        if comp.op_kind == MS_TOK_LT:
+            let right_tokens = slice_tokens(tokens, comp.op_pos + 1, cond_end)
+            ms_parse_expr(right_tokens, 0, bc)
+            let left_tokens = slice_tokens(tokens, 1, comp.op_pos)
+            ms_parse_expr(left_tokens, 0, bc)
+            push(bc, OP_SUB)
+        else:
+            let left_tokens = slice_tokens(tokens, 1, comp.op_pos)
+            ms_parse_expr(left_tokens, 0, bc)
+            let right_tokens = slice_tokens(tokens, comp.op_pos + 1, cond_end)
+            ms_parse_expr(right_tokens, 0, bc)
+            push(bc, OP_SUB)
+        push(bc, OP_PUSH_STACK)
+        push(bc, 1)
+        push(bc, OP_SUB)
+        push(bc, OP_JN)
+        let jn_patch = len(bc)
+        push(bc, 0)
+        let next_idx = parse_ms_block(lines, line_idx + 1, indent, bc)
+        push(bc, OP_JMP)
+        push(bc, loop_start)
+        bc[jn_patch] = len(bc)
+        return next_idx
+    else:
+        let cond_tokens = slice_tokens(tokens, 1, cond_end)
+        ms_parse_expr(cond_tokens, 0, bc)
+        push(bc, OP_JZ)
+        let jz_patch = len(bc)
+        push(bc, 0)
+        let next_idx = parse_ms_block(lines, line_idx + 1, indent, bc)
+        push(bc, OP_JMP)
+        push(bc, loop_start)
+        bc[jz_patch] = len(bc)
+        return next_idx
+
+// --- If/else compilation -------------------------------------------------
+
+fn ms_parse_if(lines: Array<String>, line_idx: Int, indent: Int, tokens: Array<MSToken>, bc: Array<Int>) -> Int:
+    let cond_end = len(tokens) - 2
+
+    let comp = find_comparison(tokens, 1, cond_end)
+    if comp.has_comp:
+        if comp.op_kind == MS_TOK_LT:
+            let right_tokens = slice_tokens(tokens, comp.op_pos + 1, cond_end)
+            ms_parse_expr(right_tokens, 0, bc)
+            let left_tokens = slice_tokens(tokens, 1, comp.op_pos)
+            ms_parse_expr(left_tokens, 0, bc)
+            push(bc, OP_SUB)
+        else:
+            let left_tokens = slice_tokens(tokens, 1, comp.op_pos)
+            ms_parse_expr(left_tokens, 0, bc)
+            let right_tokens = slice_tokens(tokens, comp.op_pos + 1, cond_end)
+            ms_parse_expr(right_tokens, 0, bc)
+            push(bc, OP_SUB)
+        push(bc, OP_PUSH_STACK)
+        push(bc, 1)
+        push(bc, OP_SUB)
+        push(bc, OP_JN)
+        let jn_patch = len(bc)
+        push(bc, 0)
+        var next_idx = parse_ms_block(lines, line_idx + 1, indent, bc)
+        var has_else = false
+        if next_idx < len(lines):
+            let nl = trim_ms(lines[next_idx])
+            let ni = count_indent(lines[next_idx])
+            if ni == indent:
+                let nt = tokenize_ms_line(nl)
+                if len(nt) > 2 and nt[0].kind == MS_TOK_ELSE and nt[1].kind == MS_TOK_COLON:
+                    has_else = true
+        if has_else:
+            push(bc, OP_JMP)
+            let jmp_patch = len(bc)
+            push(bc, 0)
+            bc[jn_patch] = len(bc)
+            next_idx = parse_ms_block(lines, next_idx + 1, indent, bc)
+            bc[jmp_patch] = len(bc)
+        else:
+            bc[jn_patch] = len(bc)
+        return next_idx
+    else:
+        let cond_tokens = slice_tokens(tokens, 1, cond_end)
+        ms_parse_expr(cond_tokens, 0, bc)
+        push(bc, OP_JZ)
+        let jz_patch = len(bc)
+        push(bc, 0)
+        var next_idx = parse_ms_block(lines, line_idx + 1, indent, bc)
+        var has_else = false
+        if next_idx < len(lines):
+            let nl = trim_ms(lines[next_idx])
+            let ni = count_indent(lines[next_idx])
+            if ni == indent:
+                let nt = tokenize_ms_line(nl)
+                if len(nt) > 2 and nt[0].kind == MS_TOK_ELSE and nt[1].kind == MS_TOK_COLON:
+                    has_else = true
+        if has_else:
+            push(bc, OP_JMP)
+            let jmp_patch = len(bc)
+            push(bc, 0)
+            bc[jz_patch] = len(bc)
+            next_idx = parse_ms_block(lines, next_idx + 1, indent, bc)
+            bc[jmp_patch] = len(bc)
+        else:
+            bc[jz_patch] = len(bc)
+        return next_idx
+
+// --- Block parser (indentation-based) ------------------------------------
+
+fn parse_ms_block(lines: Array<String>, start_idx: Int, parent_indent: Int, bc: Array<Int>) -> Int:
+    var idx = start_idx
+    while idx < len(lines):
+        let raw_line = lines[idx]
+        let indent = count_indent(raw_line)
+        if indent <= parent_indent:
+            break
+        let ln = trim_ms(raw_line)
+        if ln == "":
+            idx = idx + 1
+            continue
+        if len(ln) > 0 and text_substring_string(ln, 0, 1) == "#":
+            idx = idx + 1
+            continue
+        let tokens = tokenize_ms_line(ln)
+        if len(tokens) <= 1:
+            idx = idx + 1
+            continue
+        let first = tokens[0]
+        if first.kind == MS_TOK_LET:
+            if len(tokens) >= 4:
+                ms_parse_let(tokens, bc)
+            idx = idx + 1
+        elif first.kind == MS_TOK_WHILE:
+            idx = ms_parse_while(lines, idx, indent, tokens, bc)
+        elif first.kind == MS_TOK_IF:
+            idx = ms_parse_if(lines, idx, indent, tokens, bc)
+        elif first.kind == MS_TOK_IDENT:
+            if len(tokens) > 2 and tokens[1].kind == MS_TOK_EQ:
+                ms_parse_assign(tokens, bc)
+            elif len(tokens) > 2 and tokens[1].kind == MS_TOK_LPAREN:
+                ms_parse_call_expr(tokens, 0, bc)
+                push(bc, OP_POP_STACK)
+            else:
+                ms_parse_expr(tokens, 0, bc)
+                push(bc, OP_POP_STACK)
+            idx = idx + 1
+        else:
+            idx = idx + 1
+    return idx
+
+// --- Main entry point for ```markscript blocks ---------------------------
+
+pub fn parse_markscript_block(code_text: String, bc: Array<Int>):
+    let lines = split_lines(code_text)
+    parse_ms_block(lines, 0, -1, bc)
 
 // ===========================================================================
 //  HELPER: check if a trimmed string is all dashes (separator row marker)
@@ -283,7 +829,7 @@ fn parse_matrix_table(state: LexerState, handle_id: Int) -> TableParseResult:
 
         first_row = false
 
-        // --- Peek ahead: next line starts with '|'? ----------------------
+        // --- Peek ahead: next ln starts with '|'? ----------------------
         var peek_pos3 = s.pos
         var peek_line3 = s.line_no
         loop:
@@ -435,9 +981,10 @@ pub fn parse_source(state: LexerState) -> Array<Int>:
                 if mv.kind == MARK_INT:
                     push(bc, mv.int_val)
                 elif mv.kind == MARK_FLOAT:
-                    // Store as two ints: whole part and fractional representation
-                    // Simplified: store as int representation
-                    push(bc, mv.int_val)  // placeholder — float stored as nearest int
+                    // Scale float → Int for bytecode (Array<Int> can't hold Float)
+                    // Scale factor 1,000,000 gives 6 decimal places of precision
+                    let scaled = float_to_int(mv.float_val * 1000000.0)
+                    push(bc, scaled)
                 elif mv.kind == MARK_STRING:
                     push(bc, hash_name(mv.str_val))
                 else:
@@ -445,18 +992,77 @@ pub fn parse_source(state: LexerState) -> Array<Int>:
                 ci = ci + 1
 
         elif kind == TOK_FENCE:
-            // Parse fenced code block: read next tokens for lang tag + content
-            let nr_lang = next_token(s)
-            s = nr_lang.state
-            let lang_text = token_text(nr_lang.token)
+            // Parse fenced code block: extract content directly from source
+            // to avoid the token stream (which would break on characters
+            // like > and < that the lexer treats as blockquotes).
+            let content_start = s.pos
 
-            let nr_code = next_token(s)
-            s = nr_code.state
-            let code_text = token_text(nr_code.token)
+            // Skip tokens until closing ``` or EOF to advance lexer state
+            var closed = false
+            loop:
+                let nr = next_token(s)
+                s = nr.state
+                let k = token_kind(nr.token)
+                if k == TOK_FENCE:
+                    closed = true
+                    break
+                elif k == TOK_EOF:
+                    break
 
-            push(bc, OP_FENCED_CODE)
-            push(bc, hash_name(lang_text))
-            push(bc, hash_name(code_text))
+            // Extract raw content from source between the two fences
+            var raw = ""
+            if closed:
+                let end_pos = s.pos - 3
+                if end_pos > content_start:
+                    raw = text_substring_string(s.source, content_start, end_pos - content_start)
+            else:
+                raw = text_substring_string(s.source, content_start, s.pos - content_start)
+
+            // Parse first non-empty line as language tag, rest as code
+            var lang_text = ""
+            var code_text = ""
+            var rp: Int = 0
+            let rlen = len(raw)
+
+            // Skip leading whitespace / newlines
+            while rp < rlen:
+                let rc = text_substring_string(raw, rp, 1)
+                if rc == " " or rc == "\t" or rc == "\n" or rc == "\r":
+                    rp = rp + 1
+                else:
+                    break
+
+            // Read first non-empty line as language tag
+            var ls: Int = rp
+            while rp < rlen:
+                let rc = text_substring_string(raw, rp, 1)
+                if rc == "\n" or rc == "\r":
+                    break
+                rp = rp + 1
+
+            if rp > ls:
+                lang_text = trim_ms(text_substring_string(raw, ls, rp - ls))
+
+            // Skip newline after language tag
+            if rp < rlen:
+                let rc = text_substring_string(raw, rp, 1)
+                if rc == "\r":
+                    rp = rp + 1
+                    if rp < rlen and text_substring_string(raw, rp, 1) == "\n":
+                        rp = rp + 1
+                elif rc == "\n":
+                    rp = rp + 1
+
+            // Remainder is code text
+            if rp < rlen:
+                code_text = text_substring_string(raw, rp, rlen - rp)
+
+            if lang_text == "markscript":
+                parse_markscript_block(code_text, bc)
+            else:
+                push(bc, OP_FENCED_CODE)
+                push(bc, hash_name(lang_text))
+                push(bc, hash_name(code_text))
 
         elif kind == TOK_NEWLINE:
             continue

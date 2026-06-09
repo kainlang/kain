@@ -368,7 +368,10 @@ pub fn execute_bytecode(vm: MarkScriptVM, bc: Array<Int>) -> ExecResult:
                 if kind == MARK_INT:
                     push(cell_data, mark_int(payload))
                 elif kind == MARK_FLOAT:
-                    push(cell_data, mark_float(payload))
+                    // Decode scaled int back to float (divided by 1,000,000)
+                    let fval: Float = payload
+                    let decoded: Float = fval / 1000000.0
+                    push(cell_data, mark_float(decoded))
                 elif kind == MARK_STRING:
                     // payload is hash — store as string representation of hash
                     push(cell_data, mark_string("hash:" + str(payload)))

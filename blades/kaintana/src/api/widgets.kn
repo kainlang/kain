@@ -1,0 +1,131 @@
+use std::math
+use std::text
+use std::ui
+use render_commands::kaintana_record_fill
+use render_commands::kaintana_record_text
+use render_commands::kaintana_text_size_from_baseline
+use render_commands::KAINTANA_COMMAND_FILL
+use render_commands::KAINTANA_COMMAND_TEXT
+use reconciliation::kaintana_reconcile_node
+use reconciliation::kaintana_context_mark_command
+use types::KaintanaColor
+use types::KaintanaContext
+use types::KaintanaRect
+use types::KaintanaRenderResult
+use types::kaintana_color
+use types::kaintana_rect
+use widget_events::kaintana_widget_slider_value
+use widget_events::kaintana_widget_take_activation
+
+fn kaintana_widget_color_channel(value: Int, delta: Int) -> Int:
+    return math_int_clamp(value + delta, 0, 255)
+
+pub fn kaintana_widget_color_delta(color: KaintanaColor, delta: Int) -> KaintanaColor:
+    return kaintana_color(
+        kaintana_widget_color_channel(color.red, delta),
+        kaintana_widget_color_channel(color.green, delta),
+        kaintana_widget_color_channel(color.blue, delta),
+        color.alpha
+    )
+
+pub trait KaintanaWidget:
+    fn widget_kind(_self: Self_) -> String
+    fn is_focusable(_self: Self_) -> Bool
+
+pub struct KaintanaWidgetDescriptor:
+    kind: String
+    focusable: Bool
+
+impl KaintanaWidget for KaintanaWidgetDescriptor:
+    fn widget_kind(_self: Self_) -> String:
+        return _self.kind
+    fn is_focusable(_self: Self_) -> Bool:
+        return _self.focusable
+
+pub fn kaintana_widget_panel(ctx: KaintanaContext, stable_key: StringView, label: StringView, rect: KaintanaRect, font_resource_id: Int, baseline_y: Float) -> KaintanaRenderResult:
+    let s = ctx.dpi_scale
+    var result = kaintana_reconcile_node(ctx, "kaintana.panel", stable_key, label, "region", label, rect, false)
+    var next = kaintana_record_fill(result.ctx, result.native_node_id, rect, "fill", ctx.theme.panel)
+    next = kaintana_record_text(next, result.native_node_id, font_resource_id, label, rect.x + 16.0 * s, rect.y + baseline_y, "ink", ctx.theme.ink, kaintana_text_size_from_baseline(baseline_y))
+    return KaintanaRenderResult { ctx: next, node: result.node, native_node_id: result.native_node_id, activated: 0, value: 0.0 }
+
+pub fn kaintana_widget_label(ctx: KaintanaContext, stable_key: StringView, text: StringView, rect: KaintanaRect, font_resource_id: Int, baseline_y: Float, muted: Bool) -> KaintanaRenderResult:
+    var result = kaintana_reconcile_node(ctx, "kaintana.label", stable_key, text, "label", text, rect, false)
+    let color = ctx.theme.ink
+    if muted:
+        color = ctx.theme.muted
+    let next = kaintana_record_text(result.ctx, result.native_node_id, font_resource_id, text, rect.x, rect.y + baseline_y, "ink", color, kaintana_text_size_from_baseline(baseline_y))
+    return KaintanaRenderResult { ctx: next, node: result.node, native_node_id: result.native_node_id, activated: 0, value: 0.0 }
+
+pub fn kaintana_widget_button(ctx: KaintanaContext, stable_key: StringView, label: StringView, rect: KaintanaRect, font_resource_id: Int, baseline_y: Float) -> KaintanaRenderResult:
+    let s = ctx.dpi_scale
+    var result = kaintana_reconcile_node(ctx, "kaintana.button", stable_key, label, "button", label, rect, true)
+    let hovered = ui_node_has_flag(result.ctx.session_id, result.native_node_id, "hovered")
+    let pressed = ui_node_has_flag(result.ctx.session_id, result.native_node_id, "pressed")
+    let fill_color = ctx.theme.accent
+    if hovered != 0:
+        fill_color = kaintana_widget_color_delta(ctx.theme.accent, 14)
+    if pressed != 0:
+        fill_color = kaintana_widget_color_delta(ctx.theme.accent, -18)
+    var next = kaintana_record_fill(result.ctx, result.native_node_id, rect, "fill", fill_color)
+    next = kaintana_record_text(next, result.native_node_id, font_resource_id, label, rect.x + 16.0 * s, rect.y + baseline_y, "ink", ctx.theme.ink, kaintana_text_size_from_baseline(baseline_y))
+    let activated = kaintana_widget_take_activation(next.session_id, result.native_node_id)
+    defer kaintana_context_mark_command(next, result.native_node_id, KAINTANA_COMMAND_FILL)
+    return KaintanaRenderResult { ctx: next, node: result.node, native_node_id: result.native_node_id, activated: activated, value: 0.0 }
+
+pub fn kaintana_widget_text_input(ctx: KaintanaContext, stable_key: StringView, label: StringView, value: StringView, rect: KaintanaRect, font_resource_id: Int, baseline_y: Float) -> KaintanaRenderResult:
+    let s = ctx.dpi_scale
+    var result = kaintana_reconcile_node(ctx, "kaintana.text.input", stable_key, value, "textbox", label, rect, true)
+    var next = kaintana_record_fill(result.ctx, result.native_node_id, rect, "fill", ctx.theme.panel)
+    next = kaintana_record_text(next, result.native_node_id, font_resource_id, value, rect.x + 14.0 * s, rect.y + baseline_y, "ink", ctx.theme.ink, kaintana_text_size_from_baseline(baseline_y))
+    let rule = kaintana_rect(rect.x, rect.y + rect.height - 3.0 * s, rect.width, 3.0 * s)
+    let rule_color = ctx.theme.accent
+    if ui_focused_node(result.ctx.session_id) == result.native_node_id:
+        rule_color = ctx.theme.signal
+    next = kaintana_record_fill(next, result.native_node_id, rule, "kaintana.input.signal", rule_color)
+    let activated = kaintana_widget_take_activation(next.session_id, result.native_node_id)
+    defer kaintana_context_mark_command(next, result.native_node_id, KAINTANA_COMMAND_FILL)
+    return KaintanaRenderResult { ctx: next, node: result.node, native_node_id: result.native_node_id, activated: activated, value: 0.0 }
+
+pub trait KaintanaSliderValue:
+    fn to_float(_self: Self_) -> Float
+
+pub struct KaintanaSliderTypedValue:
+    value: Float
+
+impl KaintanaSliderValue for KaintanaSliderTypedValue:
+    fn to_float(_self: Self_) -> Float:
+        return _self.value
+
+pub fn kaintana_widget_slider(ctx: KaintanaContext, stable_key: StringView, label: StringView, value: Float, min_value: Float, max_value: Float, rect: KaintanaRect, font_resource_id: Int, baseline_y: Float) -> KaintanaRenderResult:
+    let s = ctx.dpi_scale
+    var result = kaintana_reconcile_node(ctx, "kaintana.slider", stable_key, label, "slider", label, rect, true)
+    let track = kaintana_rect(rect.x + 16.0 * s, rect.y + rect.height - 18.0 * s, math_max(8.0 * s, rect.width - 32.0 * s), 6.0 * s)
+    let resolved_value = kaintana_widget_slider_value(result.ctx.session_id, result.native_node_id, value, min_value, max_value, track)
+    let span = math_max(0.001, max_value - min_value)
+    let ratio = math_clamp((resolved_value - min_value) / span, 0.0, 1.0)
+    let fill = kaintana_rect(track.x, track.y, math_max(8.0 * s, track.width * ratio), track.height)
+    let knob = kaintana_rect(track.x + (track.width * ratio) - 7.0 * s, track.y - 7.0 * s, 14.0 * s, 20.0 * s)
+    let dragging = ui_state_bool(result.ctx.session_id, result.native_node_id, "kaintana.pointer.dragging", 0)
+    let hovered = ui_node_has_flag(result.ctx.session_id, result.native_node_id, "hovered")
+    let fill_color = ctx.theme.accent
+    let knob_color = ctx.theme.signal
+    if hovered != 0:
+        fill_color = kaintana_widget_color_delta(ctx.theme.accent, 10)
+        knob_color = kaintana_widget_color_delta(ctx.theme.signal, 12)
+    if dragging != 0:
+        fill_color = kaintana_widget_color_delta(ctx.theme.accent, 18)
+        knob_color = kaintana_widget_color_delta(ctx.theme.signal, 18)
+    var next = kaintana_record_fill(result.ctx, result.native_node_id, rect, "fill", ctx.theme.panel)
+    next = kaintana_record_fill(next, result.native_node_id, track, "kaintana.slider.track", ctx.theme.shell)
+    next = kaintana_record_fill(next, result.native_node_id, fill, "kaintana.slider.fill", fill_color)
+    next = kaintana_record_fill(next, result.native_node_id, knob, "kaintana.slider.knob", knob_color)
+    next = kaintana_record_text(next, result.native_node_id, font_resource_id, label, rect.x + 16.0 * s, rect.y + baseline_y, "ink", ctx.theme.ink, kaintana_text_size_from_baseline(baseline_y))
+    defer kaintana_context_mark_command(next, result.native_node_id, KAINTANA_COMMAND_FILL)
+    return KaintanaRenderResult { ctx: next, node: result.node, native_node_id: result.native_node_id, activated: 0, value: resolved_value }
+
+pub fn kaintana_widget_slider_typed<T>(ctx: KaintanaContext, stable_key: StringView, label: StringView, value: T, min_value: T, max_value: T, rect: KaintanaRect, font_resource_id: Int, baseline_y: Float) -> KaintanaRenderResult where T: KaintanaSliderValue:
+    let v = value.to_float()
+    let min_v = min_value.to_float()
+    let max_v = max_value.to_float()
+    return kaintana_widget_slider(ctx, stable_key, label, v, min_v, max_v, rect, font_resource_id, baseline_y)

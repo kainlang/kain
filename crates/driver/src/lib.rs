@@ -632,7 +632,16 @@ impl DriverSession {
             target,
             CompilerProgressPhase::Typecheck,
         );
-        let typed = types::check_with_extra_globals(&ast, &span_mapper, &filename, extra_globals)?;
+        let typed = if target == CompileTarget::Interpret {
+            types::check_for_interpret_with_extra_globals(
+                &ast,
+                &span_mapper,
+                &filename,
+                extra_globals,
+            )?
+        } else {
+            types::check_with_extra_globals(&ast, &span_mapper, &filename, extra_globals)?
+        };
         let checked = CheckedFrontend { ast, typed };
 
         if can_cache_checked {

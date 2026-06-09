@@ -1,1 +1,4 @@
 /agents
+/messenger
+messenger/
+*.jsonl

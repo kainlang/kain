@@ -1,0 +1,6 @@
+// Test: world without surfaces should work in interpret mode (relaxed checks)
+world TestWorld:
+    state count: Int = 0
+
+fn main() -> Int:
+    return 42  // Minimal test — just verify world parses without requiring surface

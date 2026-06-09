@@ -1,0 +1,328 @@
+use std::collections
+use std::fs
+use std::hash
+use std::math
+use types::KaintanaTheme
+use types::KaintanaWindowSpec
+use types::kaintana_backend_vulkan
+use types::kaintana_color
+use types::kaintana_window_spec
+
+pub const KLONER_MODE_GRID: Int = 1
+pub const KLONER_MODE_RADIAL: Int = 2
+pub const KLONER_MODE_HONEYCOMB: Int = 3
+pub const KLONER_MODE_HELIX: Int = 4
+pub const KLONER_MIN_CLONES: Int = 1
+pub const KLONER_MAX_CLONES: Int = 1000000
+pub const KLONER_TARGET_FPS: Int = 120
+
+pub struct KlonerSettings:
+    title: String
+    theme_name: String
+    width: Int
+    height: Int
+    frame_budget: Int
+    target_fps: Int
+    revision_key: String
+    clear_red: Int
+    clear_green: Int
+    clear_blue: Int
+    accent_red: Int
+    accent_green: Int
+    accent_blue: Int
+    frame_report_path: String
+    host_report_path: String
+    screenshot_path: String
+    snapshot_path: String
+    export_preview_path: String
+    scene_report_path: String
+    vulkain_report_path: String
+    vulkain_vertex_shader_path: String
+    vulkain_fragment_shader_path: String
+    reference_root: String
+    reference_spec_path: String
+
+pub struct KlonerControls:
+    clone_count: Int
+    layout_mode: Int
+    grid_width: Int
+    grid_rows: Int
+    spacing: Float
+    radial_radius: Float
+    sphere_radius: Float
+    wave_amount: Float
+    animation_speed: Float
+    camera_yaw: Float
+    camera_pitch: Float
+
+pub struct KlonerRuntimeState:
+    active_mode: Int
+    clone_total: Int
+    current_time_ms: Int
+    preview_hash: Int
+    export_signature: Int
+    ui_draw_count: Int
+    ui_checksum: Int
+    status_text: String
+
+pub struct KlonerReferenceInfo:
+    line_count: Int
+    byte_count: Int
+    asset_label: String
+
+pub struct KlonerUiFonts:
+    body_font: Int
+    title_font: Int
+    badge_font: Int
+    micro_font: Int
+
+converge kloner_hash_lane(value: Int) -> Int:
+    spec reference:
+        return hash_mix32(8191, value)
+    fast llvm_lane when target("llvm"):
+        return hash_mix32(8191, value)
+    verify random(8)
+
+fn kloner_is_digit_char(ch: String) -> Bool:
+    return ch == "0" or ch == "1" or ch == "2" or ch == "3" or ch == "4" or ch == "5" or ch == "6" or ch == "7" or ch == "8" or ch == "9"
+
+fn kloner_digit_value(ch: String) -> Int:
+    if ch == "0":
+        return 0
+    if ch == "1":
+        return 1
+    if ch == "2":
+        return 2
+    if ch == "3":
+        return 3
+    if ch == "4":
+        return 4
+    if ch == "5":
+        return 5
+    if ch == "6":
+        return 6
+    if ch == "7":
+        return 7
+    if ch == "8":
+        return 8
+    return 9
+
+fn kloner_parse_int_text(text: String) -> Int:
+    if len(text) == 0:
+        return 0
+    var sign = 1
+    var index = 0
+    if char_at(text, 0) == "-":
+        sign = -1
+        index = 1
+    var value = 0
+    while index < len(text):
+        if !kloner_is_digit_char(char_at(text, index)):
+            return value * sign
+        value = value * 10 + kloner_digit_value(char_at(text, index))
+        index = index + 1
+    return value * sign
+
+fn kloner_frame_budget_or_default(default_value: Int) -> Int:
+    let override_text = env("KLONER_FRAME_BUDGET")
+    if len(override_text) == 0:
+        return default_value
+    let override_value = kloner_parse_int_text(override_text)
+    if override_value <= 0:
+        return default_value
+    return override_value
+
+pub fn kloner_settings() -> KlonerSettings:
+    let run_root = fs_path_join(".kain", "run")
+    let vulkain_root = "../vulkain/.kain/gpu/basic_window"
+    return KlonerSettings {
+        title: "Kloner // Kaintana x Vulkain 3D MoGraph",
+        theme_name: "oxide-dcc",
+        width: 1720,
+        height: 1040,
+        frame_budget: kloner_frame_budget_or_default(0),
+        target_fps: KLONER_TARGET_FPS,
+        revision_key: "kloner-kaintana-vulkain-interactive-v4",
+        clear_red: 7,
+        clear_green: 10,
+        clear_blue: 16,
+        accent_red: 255,
+        accent_green: 156,
+        accent_blue: 74,
+        frame_report_path: fs_path_join(run_root, "kloner_frame.txt"),
+        host_report_path: fs_path_join(run_root, "kloner_host.txt"),
+        screenshot_path: fs_path_join(run_root, "kloner.bmp"),
+        snapshot_path: fs_path_join(run_root, "kloner_snapshot.txt"),
+        export_preview_path: fs_path_join(run_root, "kloner_export_preview.json"),
+        scene_report_path: fs_path_join(run_root, "kloner_scene.txt"),
+        vulkain_report_path: fs_path_join(run_root, "kloner_vulkain_report.txt"),
+        vulkain_vertex_shader_path: fs_path_join(vulkain_root, "vulkain_basic.vert.spv"),
+        vulkain_fragment_shader_path: fs_path_join(vulkain_root, "vulkain_basic.frag.spv"),
+        reference_root: "reference",
+        reference_spec_path: fs_path_join("reference", "KCloner.tsx"),
+    }
+
+pub fn kloner_window_title() -> String:
+    return "Kloner // Kaintana x Vulkain 3D MoGraph"
+
+pub fn kloner_reference_label() -> String:
+    return "KCloner.tsx"
+
+pub fn kloner_build_window_spec(settings: KlonerSettings) -> KaintanaWindowSpec:
+    return kaintana_window_spec(
+        settings.title,
+        settings.width,
+        settings.height,
+        settings.frame_budget,
+        kaintana_backend_vulkan(),
+        "software",
+        settings.clear_red,
+        settings.clear_green,
+        settings.clear_blue,
+        settings.accent_red,
+        settings.accent_green,
+        settings.accent_blue,
+        settings.vulkain_vertex_shader_path,
+        settings.vulkain_fragment_shader_path,
+        settings.frame_report_path,
+        settings.host_report_path,
+        settings.screenshot_path
+    )
+
+pub fn kloner_theme(theme_name: String) -> KaintanaTheme:
+    return KaintanaTheme {
+        name: theme_name,
+        shell: kaintana_color(12, 16, 24, 255),
+        panel: kaintana_color(28, 34, 46, 255),
+        accent: kaintana_color(255, 156, 74, 255),
+        ink: kaintana_color(236, 240, 234, 255),
+        muted: kaintana_color(150, 160, 176, 255),
+        signal: kaintana_color(92, 208, 255, 255),
+    }
+
+pub fn kloner_clamp_clone_count(value: Int) -> Int:
+    return math_int_clamp(value, KLONER_MIN_CLONES, KLONER_MAX_CLONES)
+
+pub fn kloner_validate_layout_mode(value: Int) -> Bool:
+    return value >= KLONER_MODE_GRID and value <= KLONER_MODE_HELIX
+
+pub fn kloner_validate_clone_budget(value: Int) -> Bool:
+    return value >= KLONER_MIN_CLONES and value <= KLONER_MAX_CLONES
+
+pub fn kloner_layout_name(mode: Int) -> String:
+    if mode == KLONER_MODE_GRID:
+        return "GRID"
+    if mode == KLONER_MODE_RADIAL:
+        return "RADIAL"
+    if mode == KLONER_MODE_HONEYCOMB:
+        return "HONEYCOMB"
+    return "HELIX"
+
+pub fn kloner_grid_side_for_count(count: Int) -> Int:
+    var side = 1
+    let safe_count = kloner_clamp_clone_count(count)
+    while side * side * side < safe_count and side < 256:
+        side = side + 1
+    return side
+
+pub fn kloner_grid_columns_for_count(count: Int) -> Int:
+    var columns = 1
+    let safe_count = kloner_clamp_clone_count(count)
+    while columns * columns < safe_count and columns < 4096:
+        columns = columns + 1
+    return columns
+
+pub fn kloner_controls_with_derived_grid(controls: KlonerControls) -> KlonerControls:
+    let safe_count = kloner_clamp_clone_count(controls.clone_count)
+    var columns = controls.grid_width
+    var rows = controls.grid_rows
+    if controls.layout_mode == KLONER_MODE_GRID:
+        columns = kloner_grid_side_for_count(safe_count)
+        rows = columns
+    if controls.layout_mode == KLONER_MODE_HONEYCOMB:
+        columns = kloner_grid_columns_for_count(safe_count)
+        rows = (safe_count + columns - 1) / columns
+    if controls.layout_mode == KLONER_MODE_RADIAL:
+        columns = kloner_grid_columns_for_count(safe_count)
+        rows = columns
+    if controls.layout_mode == KLONER_MODE_HELIX:
+        columns = kloner_grid_columns_for_count(safe_count)
+        rows = columns
+    return KlonerControls {
+        clone_count: safe_count,
+        layout_mode: controls.layout_mode,
+        grid_width: columns,
+        grid_rows: rows,
+        spacing: controls.spacing,
+        radial_radius: controls.radial_radius,
+        sphere_radius: controls.sphere_radius,
+        wave_amount: controls.wave_amount,
+        animation_speed: controls.animation_speed,
+        camera_yaw: controls.camera_yaw,
+        camera_pitch: controls.camera_pitch,
+    }
+
+pub fn kloner_default_controls() -> KlonerControls:
+    return kloner_controls_with_derived_grid(KlonerControls {
+        clone_count: KLONER_MAX_CLONES,
+        layout_mode: KLONER_MODE_HONEYCOMB,
+        grid_width: 1000,
+        grid_rows: 1000,
+        spacing: 0.72,
+        radial_radius: 44.0,
+        sphere_radius: 0.21,
+        wave_amount: 0.44,
+        animation_speed: 1.35,
+        camera_yaw: 0.72,
+        camera_pitch: -0.38,
+    })
+
+pub fn kloner_runtime_state_from_controls(controls: KlonerControls, current_time_ms: Int, ui_draw_count: Int, ui_checksum: Int) -> KlonerRuntimeState:
+    let seed = hash_quad32(controls.clone_count, controls.layout_mode * 17, controls.grid_width * 31, current_time_ms + ui_checksum)
+    let preview_hash = kloner_hash_lane(seed)
+    return KlonerRuntimeState {
+        active_mode: controls.layout_mode,
+        clone_total: controls.clone_count,
+        current_time_ms: current_time_ms,
+        preview_hash: preview_hash,
+        export_signature: hash_pair32(preview_hash, controls.clone_count + 131),
+        ui_draw_count: ui_draw_count,
+        ui_checksum: ui_checksum,
+        status_text: "same-window // Kaintana command stream feeding Vulkain presenter",
+    }
+
+pub fn kloner_reference_line_count(text: String) -> Int:
+    if len(text) == 0:
+        return 0
+    var count = 1
+    var index = 0
+    while index < len(text):
+        if char_at(text, index) == "\n":
+            count = count + 1
+        index = index + 1
+    return count
+
+pub fn kloner_reference_info(settings: KlonerSettings) -> KlonerReferenceInfo:
+    var reference_source = ""
+    if fs_exists(settings.reference_spec_path):
+        reference_source = fs_read_text(settings.reference_spec_path)
+    return KlonerReferenceInfo {
+        line_count: kloner_reference_line_count(reference_source),
+        byte_count: len(reference_source),
+        asset_label: kloner_reference_label(),
+    }
+
+pub fn kloner_to_milli(value: Float) -> Int:
+    return Int(value * 1000.0)
+
+pub fn kloner_headline(snapshot: KlonerRuntimeState) -> String:
+    return "KLONER // " + kloner_layout_name(snapshot.active_mode) + " // clones=" + str(snapshot.clone_total) + " // ui=" + str(snapshot.ui_draw_count)
+
+pub fn kloner_scene_summary(controls: KlonerControls) -> String:
+    return "layout=" + kloner_layout_name(controls.layout_mode) + "\nclones=" + str(controls.clone_count) + "\ngrid_width=" + str(controls.grid_width) + "\ngrid_rows=" + str(controls.grid_rows) + "\nspacing_milli=" + str(kloner_to_milli(controls.spacing)) + "\nradial_radius_milli=" + str(kloner_to_milli(controls.radial_radius)) + "\nsphere_radius_milli=" + str(kloner_to_milli(controls.sphere_radius)) + "\nwave_amount_milli=" + str(kloner_to_milli(controls.wave_amount)) + "\nanimation_speed_milli=" + str(kloner_to_milli(controls.animation_speed))
+
+pub fn kloner_frame_report_text(settings: KlonerSettings, controls: KlonerControls, snapshot: KlonerRuntimeState, reference: KlonerReferenceInfo, presenter_status: Int) -> String:
+    return "blade=kloner\nbackend=kaintana+vulkain.same_window\ntarget_fps=" + str(settings.target_fps) + "\nframe_budget=" + str(settings.frame_budget) + "\nheadline=" + kloner_headline(snapshot) + "\nreference=" + kloner_reference_label() + "\nreference_lines=" + str(reference.line_count) + "\nreference_bytes=" + str(reference.byte_count) + "\npreview_hash=" + str(snapshot.preview_hash) + "\nexport_signature=" + str(snapshot.export_signature) + "\nui_draw_count=" + str(snapshot.ui_draw_count) + "\nui_checksum=" + str(snapshot.ui_checksum) + "\npresenter_status=" + str(presenter_status) + "\n" + kloner_scene_summary(controls) + "\n"
+
+pub fn kloner_export_preview_json(settings: KlonerSettings, controls: KlonerControls, snapshot: KlonerRuntimeState, reference: KlonerReferenceInfo) -> String:
+    return "{\n  \"blade\": \"kloner\",\n  \"reference\": \"" + kloner_reference_label() + "\",\n  \"backend\": \"kaintana-vulkain-same-window\",\n  \"layout\": \"" + kloner_layout_name(controls.layout_mode) + "\",\n  \"clone_count\": " + str(controls.clone_count) + ",\n  \"target_fps\": " + str(settings.target_fps) + ",\n  \"ui_draw_count\": " + str(snapshot.ui_draw_count) + ",\n  \"preview_hash\": " + str(snapshot.preview_hash) + "\n}\n"

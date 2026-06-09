@@ -1,0 +1,122 @@
+use std::build
+use std::test
+use std::proof
+use std::certify
+
+const KAINTANA_SOURCE_ROOTS = [
+    "src",
+    "src/api",
+    "src/core",
+    "src/platform/desktop",
+    "src/platform/vulkan",
+    "src/platform/winit",
+    "examples",
+]
+
+const KAINTANA_ALL_INPUTS = [
+    "src/kaintana.kn",
+    "src/main.kn",
+    "src/api/kaintana_ui.kn",
+    "src/api/widgets.kn",
+    "src/api/widgets_extras.kn",
+    "src/api/widgets_scroll.kn",
+    "src/core/input.kn",
+    "src/core/layout.kn",
+    "src/core/reconciliation.kn",
+    "src/core/render_commands.kn",
+    "src/core/theme.kn",
+    "src/core/types.kn",
+    "src/core/widget_events.kn",
+    "src/platform/desktop/desktop_adapter.kn",
+    "src/platform/vulkan/vulkan_adapter.kn",
+    "src/platform/winit/winit_adapter.kn",
+    "examples/example_data_grid.kn",
+    "examples/example_file_explorer.kn",
+    "examples/example_keypad.kn",
+    "examples/example_mega_button_test.kn",
+    "examples/example_modal_popup.kn",
+    "examples/example_resizable_panel.kn",
+    "examples/example_tabbed_pane.kn",
+    "examples/example_todo_list.kn",
+    "examples/example_tour_suite.kn",
+    "examples/example_auto_layout.kn",
+    "examples/example_comprehensive.kn",
+    "examples/example_scroll.kn",
+    "native/kaintana_desktop_bridge.h",
+    "native/kaintana_desktop_bridge.c",
+    "build.kn",
+    "KAIN.toml",
+]
+
+fn build(ctx: BuildContext) -> BuildGraph:
+    let pkg = project("kaintana")
+        .kind("kain_library")
+        .version("0.1.0")
+        .description("Blade-owned Kain UI framework with hot-reload-aware retained and immediate authoring lanes — modernized with resonate, defer, where, and capsule_set amalgamation.")
+        .entry("src/kaintana.kn")
+        .source_roots(KAINTANA_SOURCE_ROOTS)
+        .module_roots(KAINTANA_SOURCE_ROOTS)
+        .targets("llvm")
+        .artifact_root(".kain/out")
+        .cache_root(".kain/cache/build")
+        .profile("debug")
+
+    let sources = source_set("kaintana-sources")
+        .glob("src/**/*.kn")
+        .glob("examples/**/*.kn")
+        .glob("native/**/*.{h,c}")
+        .file("build.kn")
+        .file("KAIN.toml")
+
+    let defaults = build_defaults()
+        .entry("src/main.kn")
+        .artifact_root(".kain/out")
+        .cache_root(".kain/cache/build")
+        .profile("debug")
+        .target("llvm")
+
+    let run = run_defaults()
+        .entry("src/main.kn")
+        .target("llvm")
+
+    let surface_check = check_task("surface-check-llvm")
+        .project(pkg)
+        .entry("src/kaintana.kn")
+        .target("llvm")
+        .axis("target", "llvm")
+        .telemetry("llm.surface")
+
+    let main_check = check_task("check-llvm")
+        .project(pkg)
+        .entry("src/main.kn")
+        .target("llvm")
+        .axis("target", "llvm")
+        .telemetry("llm.evidence", "kaintana.main")
+
+    let root_exe = native_executable("root-executable")
+        .entry("src/main.kn")
+        .root_output("$root/kaintana.exe")
+        .arg("--no-verify-llvm")
+        .requires("surface-check-llvm", "check-llvm")
+        .input("src/main.kn")
+        .input("src/kaintana.kn")
+        .input("native/kaintana_desktop_bridge.h")
+        .input("native/kaintana_desktop_bridge.c")
+        .input("build.kn")
+        .input("KAIN.toml")
+
+    let cert = certify("kaintana.local")
+        .requires(surface_check, main_check, root_exe)
+
+    let capsule = capsule_set("kaintana")
+        .after(cert)
+        .source("$root/kaintana.kn")
+        .tag("portable")
+        .tag("kaintana")
+        .telemetry("kaintana.capsule")
+
+    return build_graph(pkg)
+        .defaults(defaults)
+        .run(run)
+        .sources(sources)
+        .tasks(surface_check, main_check, root_exe, cert, capsule)

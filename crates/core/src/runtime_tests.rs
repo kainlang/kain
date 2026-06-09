@@ -40,7 +40,7 @@ fn interpret_test_source(source: &str) -> Value {
         .parse()
         .expect("parse test source");
     comptime::eval_program(&mut ast).expect("run comptime");
-    let typed_program = types::check(&ast, &span_mapper, "<runtime-test>").expect("typecheck");
+    let typed_program = types::check_for_interpret(&ast, &span_mapper, "<runtime-test>").expect("typecheck");
     interpret(&typed_program).expect("interpret")
 }
 

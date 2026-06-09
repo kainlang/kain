@@ -1,16 +1,25 @@
 // ============================================================================
-//  MARKSCRIPT BRIDGE — IVT handler registry, intent → Kain stdlib binding
+//  MARKSCRIPT BRIDGE — Generic name-based IVT handler registry
 //
-//  Registers built-in intent handlers and dispatches to them when the VM
-//  encounters OP_EXECUTE_CALL or OP_CALL with a matching phrase hash.
+//  Replaces the old 6-handler hardcoded dispatch with a name-based registry
+//  that can map any Kain stdlib function to an intent phrase. The registry
+//  is a compile-time const table — function-name-hash → function-ID.
+//  The IVT (on the VM) maps intent-phrase-hash → function-ID. Dispatch
+//  iterates over function-ID to call the correct Kain stdlib function.
 //
-//  Six built-in handlers (matching the spec):
-//    HANDLER_FS_READ=1    — read file "path"
-//    HANDLER_FS_WRITE=2   — write file "path" "content"
-//    HANDLER_PROCESS_RUN=3 — run "command"
-//    HANDLER_IMPORT_KAIN=4 — import kain "module"
-//    HANDLER_ASSERT=5     — assert value expected
-//    HANDLER_PRINT=6       — print value
+//  Twelve built-in handlers (original 6 + 6 new stdlib bridges):
+//    FN_FS_READ_TEXT=1      — read file "path"
+//    FN_FS_WRITE_TEXT=2     — write file "path" "content"
+//    FN_FS_EXISTS=3         — file exists "path"
+//    FN_PROCESS_OUTPUT=4    — run "command"
+//    FN_PROCESS_SPAWN=5     — spawn "command" (full process API)
+//    FN_IMPORT_KAIN=6       — import kain "module"
+//    FN_ASSERT=7            — assert value expected
+//    FN_PRINTLN=8           — print value
+//    FN_STR=9               — str(value) → string
+//    FN_LEN=10              — len(string) → int
+//    FN_PUSH=11             — push value to vm stack
+//    FN_POP=12              — pop value from vm stack
 //
 //  Value semantics throughout. No ptr<T> parameters.
 // ============================================================================
@@ -24,31 +33,145 @@ use types       // MarkValue, mark_int, mark_string, mark_value_to_string,
 use vm          // MarkScriptVM, HandlerResult, register_handler, init_vm
 use parser      // hash_name
 
-// --- Handler ID constants -------------------------------------------------
-
-pub const HANDLER_FS_READ:     Int = 1
-pub const HANDLER_FS_WRITE:    Int = 2
-pub const HANDLER_PROCESS_RUN: Int = 3
-pub const HANDLER_IMPORT_KAIN: Int = 4
-pub const HANDLER_ASSERT:      Int = 5
-pub const HANDLER_PRINT:       Int = 6
-
 // ===========================================================================
-//  HANDLER REGISTRATION
+//  FUNCTION ID CONSTANTS — primary dispatch table (12 total)
 // ===========================================================================
 
-// Register a built-in handler by phrase text (hashes it internally)
+pub const FN_FS_READ_TEXT:     Int = 1
+pub const FN_FS_WRITE_TEXT:    Int = 2
+pub const FN_FS_EXISTS:        Int = 3
+pub const FN_PROCESS_OUTPUT:   Int = 4
+pub const FN_PROCESS_SPAWN:    Int = 5
+pub const FN_IMPORT_KAIN:      Int = 6
+pub const FN_ASSERT:           Int = 7
+pub const FN_PRINTLN:          Int = 8
+pub const FN_STR:              Int = 9
+pub const FN_LEN:              Int = 10
+pub const FN_PUSH:             Int = 11
+pub const FN_POP:              Int = 12
+
+const REGISTRY_SIZE: Int = 12
+
+// --- Backward-compatible aliases (old HANDLER_* → new FN_*) ----------------
+
+pub const HANDLER_FS_READ:     Int = FN_FS_READ_TEXT
+pub const HANDLER_FS_WRITE:    Int = FN_FS_WRITE_TEXT
+pub const HANDLER_PROCESS_RUN: Int = FN_PROCESS_OUTPUT
+pub const HANDLER_IMPORT_KAIN: Int = FN_IMPORT_KAIN
+pub const HANDLER_ASSERT:      Int = FN_ASSERT
+pub const HANDLER_PRINT:       Int = FN_PRINTLN
+
+// ===========================================================================
+//  NAME-BASED HANDLER REGISTRY — const table of function-name → function-ID
+//
+//  Each entry pairs a registered function name with its dispatch ID.
+//  The lookup_fn_id() function searches this table at runtime.
+//  Adding a new stdlib function requires:
+//    1. Add a FN_* constant above
+//    2. Add name + ID to the const tables below
+//    3. Write the handler function
+//    4. Add an elif branch in dispatch_fn()
+// ===========================================================================
+
+struct HandlerEntry:
+    name_hash: Int
+    handler_fn: Int    // function ID
+
+// --- Const registry tables (parallel arrays) -------------------------------
+
+const BUILTIN_NAMES: Array<String> = [
+    "fs_read_text",
+    "fs_write_text",
+    "fs_exists",
+    "process_output_text",
+    "process_spawn",
+    "import_kain",
+    "assert",
+    "println",
+    "str",
+    "len",
+    "push",
+    "pop"
+]
+
+const BUILTIN_IDS: Array<Int> = [
+    FN_FS_READ_TEXT,
+    FN_FS_WRITE_TEXT,
+    FN_FS_EXISTS,
+    FN_PROCESS_OUTPUT,
+    FN_PROCESS_SPAWN,
+    FN_IMPORT_KAIN,
+    FN_ASSERT,
+    FN_PRINTLN,
+    FN_STR,
+    FN_LEN,
+    FN_PUSH,
+    FN_POP
+]
+
+// ---- Registry operations --------------------------------------------------
+
+// Register a function name → function ID mapping
+// (In the current implementation, the registry is compile-time const.
+//  This function is a forward-compat stub for when the registry moves
+//  into the VM for dynamic registration.)
+pub fn register_fn(name: String, fn_id: Int) -> Int:
+    // For now, validate that the name is in the const table
+    let found = lookup_fn_id(hash_name(name))
+    if found == fn_id:
+        return 0   // already registered with the right ID
+    elif found > 0:
+        // Name exists but with different ID — warn
+        println("[BRIDGE] Warning: " + name + " re-registered with different ID (" + str(fn_id) + " vs " + str(found) + ")")
+        return -1
+    else:
+        // Dynamic registration not yet supported; just log
+        println("[BRIDGE] Note: dynamic registration of '" + name + "' (fn_id=" + str(fn_id) + ") — will be active when VM-based registry is implemented")
+        return 0
+
+// Initialize all built-in handlers (no-op for const registry, kept as API stub)
+pub fn init_builtins() -> Int:
+    return 0
+
+// Look up a function ID by its name hash.
+// Searches the const BUILTIN_NAMES table, hashing each name at lookup time.
+pub fn lookup_fn_id(name_hash: Int) -> Int:
+    var i: Int = 0
+    while i < REGISTRY_SIZE:
+        if hash_name(BUILTIN_NAMES[i]) == name_hash:
+            return BUILTIN_IDS[i]
+        i = i + 1
+    return 0
+
+// ===========================================================================
+//  IVT REGISTRATION — map intent phrases to function IDs
+// ===========================================================================
+
+// Keep old register_builtin for backward compat
 pub fn register_builtin(vm: MarkScriptVM, phrase: String, handler_id: Int) -> MarkScriptVM:
     let phrase_hash = hash_name(phrase)
     return register_handler(vm, phrase_hash, handler_id)
+
+// Register all standard intent phrases in the VM's IVT
+pub fn register_stdlib_handlers(vm: MarkScriptVM) -> MarkScriptVM:
+    var v = vm
+    v = register_handler(v, hash_name("read file"), FN_FS_READ_TEXT)
+    v = register_handler(v, hash_name("write file"), FN_FS_WRITE_TEXT)
+    v = register_handler(v, hash_name("file exists"), FN_FS_EXISTS)
+    v = register_handler(v, hash_name("run"), FN_PROCESS_OUTPUT)
+    v = register_handler(v, hash_name("spawn"), FN_PROCESS_SPAWN)
+    v = register_handler(v, hash_name("import kain"), FN_IMPORT_KAIN)
+    v = register_handler(v, hash_name("assert"), FN_ASSERT)
+    v = register_handler(v, hash_name("print"), FN_PRINTLN)
+    return v
 
 // ===========================================================================
 //  INDIVIDUAL HANDLER IMPLEMENTATIONS
 // ===========================================================================
 
-// --- handler_fs_read — "read file" intent --------------------------------
+// --- handler_fs_read_text — "read file" intent ----------------------------
 // args[0] = file path (string)
-fn handler_fs_read(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
+fn handler_fs_read_text(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
     var path: String = ""
     if len(args) > 0:
         if args[0].kind == MARK_STRING:
@@ -70,9 +193,9 @@ fn handler_fs_read(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
         err: ""
     }
 
-// --- handler_fs_write — "write file" intent ------------------------------
+// --- handler_fs_write_text — "write file" intent --------------------------
 // args[0] = path, args[1] = content
-fn handler_fs_write(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
+fn handler_fs_write_text(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
     var path: String = ""
     var content: String = ""
 
@@ -102,9 +225,33 @@ fn handler_fs_write(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
         err: ""
     }
 
-// --- handler_process_run — "run" intent ----------------------------------
+// --- handler_fs_exists — "file exists" intent -----------------------------
+// args[0] = file path (string)
+fn handler_fs_exists(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
+    var path: String = ""
+    if len(args) > 0:
+        if args[0].kind == MARK_STRING:
+            path = args[0].str_val
+        elif args[0].kind == MARK_INT:
+            path = str(args[0].int_val)
+
+    if path == "":
+        return HandlerResult {
+            vm: vm,
+            value: mark_int(0),
+            err: "file exists: no path provided"
+        }
+
+    let exists = fs_exists(path)
+    if exists:
+        return HandlerResult { vm: vm, value: mark_int(1), err: "" }
+    else:
+        return HandlerResult { vm: vm, value: mark_int(0), err: "" }
+
+// --- handler_process_output — "run" intent --------------------------------
 // args[0] = command string
-fn handler_process_run(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
+// Uses process_output_text for synchronous capture with timeout
+fn handler_process_output(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
     var cmd: String = ""
     if len(args) > 0:
         if args[0].kind == MARK_STRING:
@@ -119,9 +266,57 @@ fn handler_process_run(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResul
             err: "run: no command provided"
         }
 
-    // Use process_output_text for synchronous capture
-    // Signature: process_output_text(executable, arg0, arg1, arg2, timeout_ms)
     let output = process_output_text(cmd, "", "", "", 5000)
+    return HandlerResult {
+        vm: vm,
+        value: mark_string(output),
+        err: ""
+    }
+
+// --- handler_process_spawn — "spawn" intent -------------------------------
+// args[0] = command string
+// Uses the full process spec API: create spec → set pipe → spawn → wait → capture
+fn handler_process_spawn(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
+    var cmd: String = ""
+    if len(args) > 0:
+        if args[0].kind == MARK_STRING:
+            cmd = args[0].str_val
+        elif args[0].kind == MARK_INT:
+            cmd = str(args[0].int_val)
+
+    if cmd == "":
+        return HandlerResult {
+            vm: vm,
+            value: mark_int(0),
+            err: "spawn: no command provided"
+        }
+
+    // Create process spec and configure for piped output
+    let spec_id = process_spec_create(cmd)
+    process_spec_set_pipe_stdio(spec_id)
+
+    // Spawn the process
+    let proc_id = process_spawn(spec_id)
+
+    // Wait for completion (10 second timeout)
+    let wait_result = process_wait(proc_id, 10000)
+    if wait_result == 0:
+        return HandlerResult {
+            vm: vm,
+            value: mark_int(0),
+            err: "spawn: process timed out or failed to start"
+        }
+
+    // Capture stdout text
+    let output = process_stdout_capture_text(proc_id)
+
+    // Get exit code (informational, not returned currently)
+    let exit_code = process_exit_code(proc_id)
+
+    // Clean up
+    process_close(proc_id)
+    process_spec_destroy(spec_id)
+
     return HandlerResult {
         vm: vm,
         value: mark_string(output),
@@ -191,9 +386,9 @@ fn handler_assert(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
             err: "assertion failed: " + actual_str + " != " + expected_str
         }
 
-// --- handler_print — "print" intent --------------------------------------
+// --- handler_println — "print" intent ------------------------------------
 // args[0] = value to print
-fn handler_print(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
+fn handler_println(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
     if len(args) > 0:
         let val_str = mark_value_to_string(args[0])
         println("[PRINT] " + val_str)
@@ -203,43 +398,145 @@ fn handler_print(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
         err: ""
     }
 
+// --- handler_str — convert MarkValue to string ---------------------------
+// args[0] = any MarkValue
+fn handler_str(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
+    if len(args) > 0:
+        let val_str = mark_value_to_string(args[0])
+        return HandlerResult {
+            vm: vm,
+            value: mark_string(val_str),
+            err: ""
+        }
+    return HandlerResult {
+        vm: vm,
+        value: mark_string(""),
+        err: "str: no value provided"
+    }
+
+// --- handler_len — return length of string or int ------------------------
+// args[0] = string (as MarkValue) or int
+fn handler_len(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
+    if len(args) > 0:
+        let val = args[0]
+        if val.kind == MARK_STRING:
+            return HandlerResult {
+                vm: vm,
+                value: mark_int(len(val.str_val)),
+                err: ""
+            }
+        elif val.kind == MARK_INT:
+            // For ints, return the absolute value as "length"
+            var abs_val = val.int_val
+            if abs_val < 0:
+                abs_val = -abs_val
+            return HandlerResult {
+                vm: vm,
+                value: mark_int(abs_val),
+                err: ""
+            }
+        else:
+            return HandlerResult {
+                vm: vm,
+                value: mark_int(0),
+                err: "len: unsupported type"
+            }
+    return HandlerResult {
+        vm: vm,
+        value: mark_int(0),
+        err: "len: no value provided"
+    }
+
+// --- handler_push — push value onto VM stack -----------------------------
+// args[0] = value to push
+fn handler_push(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
+    if len(args) > 0:
+        var v = vm
+        push(v.stack, args[0])
+        return HandlerResult {
+            vm: v,
+            value: mark_int(1),
+            err: ""
+        }
+    return HandlerResult {
+        vm: vm,
+        value: mark_int(0),
+        err: "push: no value provided"
+    }
+
+// --- handler_pop — pop value from VM stack -------------------------------
+fn handler_pop(vm: MarkScriptVM, args: Array<MarkValue>) -> HandlerResult:
+    let stk_len = len(vm.stack)
+    if stk_len > 0:
+        var v = vm
+        let val = v.stack[stk_len - 1]
+        pop(v.stack)
+        return HandlerResult {
+            vm: v,
+            value: val,
+            err: ""
+        }
+    return HandlerResult {
+        vm: vm,
+        value: mark_int(0),
+        err: "pop: stack is empty"
+    }
+
 // ===========================================================================
-//  DISPATCH — route handler_id to the correct implementation
+//  GENERIC DISPATCH — route function ID to the correct handler
+//
+//  This is the single dispatch point. All handler routing goes through
+//  this function. Adding a new handler requires:
+//    1. Add a FN_* constant
+//    2. Add name + ID to BUILTIN_NAMES / BUILTIN_IDS
+//    3. Write the handler function
+//    4. Add an elif branch here
+//    5. Register an intent phrase in register_stdlib_handlers()
 // ===========================================================================
 
-pub fn dispatch_handler(vm: MarkScriptVM, handler_id: Int, args: Array<MarkValue>) -> HandlerResult:
-    if handler_id == HANDLER_FS_READ:
-        return handler_fs_read(vm, args)
-    elif handler_id == HANDLER_FS_WRITE:
-        return handler_fs_write(vm, args)
-    elif handler_id == HANDLER_PROCESS_RUN:
-        return handler_process_run(vm, args)
-    elif handler_id == HANDLER_IMPORT_KAIN:
+pub fn dispatch_fn(vm: MarkScriptVM, fn_id: Int, args: Array<MarkValue>) -> HandlerResult:
+    if fn_id == FN_FS_READ_TEXT:
+        return handler_fs_read_text(vm, args)
+    elif fn_id == FN_FS_WRITE_TEXT:
+        return handler_fs_write_text(vm, args)
+    elif fn_id == FN_FS_EXISTS:
+        return handler_fs_exists(vm, args)
+    elif fn_id == FN_PROCESS_OUTPUT:
+        return handler_process_output(vm, args)
+    elif fn_id == FN_PROCESS_SPAWN:
+        return handler_process_spawn(vm, args)
+    elif fn_id == FN_IMPORT_KAIN:
         return handler_import_kain(vm, args)
-    elif handler_id == HANDLER_ASSERT:
+    elif fn_id == FN_ASSERT:
         return handler_assert(vm, args)
-    elif handler_id == HANDLER_PRINT:
-        return handler_print(vm, args)
+    elif fn_id == FN_PRINTLN:
+        return handler_println(vm, args)
+    elif fn_id == FN_STR:
+        return handler_str(vm, args)
+    elif fn_id == FN_LEN:
+        return handler_len(vm, args)
+    elif fn_id == FN_PUSH:
+        return handler_push(vm, args)
+    elif fn_id == FN_POP:
+        return handler_pop(vm, args)
     else:
         return HandlerResult {
             vm: vm,
             value: mark_int(0),
-            err: "unknown handler_id: " + str(handler_id)
+            err: "unknown function id: " + str(fn_id)
         }
 
 // ===========================================================================
-//  INITIALIZE VM WITH ALL BUILT-IN HANDLERS
+//  BACKWARD-COMPATIBLE WRAPPERS
 // ===========================================================================
 
+// Old dispatch_handler — delegates to the new dispatch_fn
+pub fn dispatch_handler(vm: MarkScriptVM, handler_id: Int, args: Array<MarkValue>) -> HandlerResult:
+    return dispatch_fn(vm, handler_id, args)
+
+// Old init_vm_with_builtins — uses the new registry + IVT registration
 pub fn init_vm_with_builtins() -> MarkScriptVM:
+    init_builtins()
     var v = init_vm()
-
-    // Register all 6 built-in intents with their canonical phrases
-    v = register_builtin(v, "read file", HANDLER_FS_READ)
-    v = register_builtin(v, "write file", HANDLER_FS_WRITE)
-    v = register_builtin(v, "run", HANDLER_PROCESS_RUN)
-    v = register_builtin(v, "import kain", HANDLER_IMPORT_KAIN)
-    v = register_builtin(v, "assert", HANDLER_ASSERT)
-    v = register_builtin(v, "print", HANDLER_PRINT)
-
+    v = register_stdlib_handlers(v)
     return v

@@ -1,0 +1,163 @@
+// ============================================================================
+// patterns_test.kn — Match patterns: enum variants, payload binding, guards
+//
+// Tests:
+//   1. Enum type names in scope — Color::Red referenced in let and match
+//   2. Match with variable binding and guards on struct fields
+//   3. Wildcard pattern fallthrough — `_ => expr`
+//   4. Enum with payload patterns — `Shape::Circle(r) => r`
+//   5. Multiple match arms with different enum variants
+//
+// NOTE: The tree-walk interpreter parser supports:
+//   - Enum variant patterns: `Color::Red => ...`
+//   - Payload binding: `Shape::Circle(r) => ...`
+//   - Guard patterns with explicit values (not bare variable catch-all guards)
+//   - Wildcard: `_ => ...`
+//   Struct destructuring and or-patterns are tested via field access / multi-arm.
+// ============================================================================
+
+struct Point:
+    x: Int
+    y: Int
+
+enum Color:
+    Red
+    Green
+    Blue
+
+enum Shape:
+    Circle(Int)
+    Square(Int)
+    Triangle(Int, Int)
+
+// Test 1: Simple enum variant matching — each variant gets its own arm
+fn test_enum_variant(c: Color) -> Int:
+    match c:
+        Color::Red => return 1
+        Color::Green => return 2
+        Color::Blue => return 3
+
+// Test 2: Enum matching with wildcard fallback
+fn test_enum_wildcard(c: Color) -> Int:
+    match c:
+        Color::Red => return 100
+        Color::Green => return 200
+        _ => return 300
+
+// Test 3: Int matching with specific value arms
+fn test_int_match(n: Int) -> Int:
+    match n:
+        0 => return 0
+        1 => return 10
+        2 => return 20
+        3 => return 30
+        _ => return -1
+
+// Test 4: Enum with single payload — Shape::Circle(r)
+fn test_payload_circle(s: Shape) -> Int:
+    match s:
+        Shape::Circle(r) => return r
+        Shape::Square(side) => return side
+        _ => return 0
+
+// Test 5: Enum with multiple payloads — Shape::Triangle(a, b)
+fn test_payload_triangle(s: Shape) -> Int:
+    match s:
+        Shape::Triangle(a, b) => return a + b
+        _ => return 0
+
+// Test 6: Enum type as return value and in let binding
+fn test_enum_in_let() -> Color:
+    let c: Color = Color::Red
+    return c
+
+// Test 7: Struct field access in match body (not destructuring in pattern)
+fn test_struct_field_access(p: Point) -> Int:
+    match p:
+        Point => return p.x + p.y
+    return 0
+
+// Test 8: Match on payload with computation
+fn test_payload_compute(s: Shape) -> Int:
+    match s:
+        Shape::Circle(r) => return r * r
+        Shape::Square(side) => return side * side
+        Shape::Triangle(a, b) => return a * b
+    return 0
+
+fn main() -> Int:
+    // Simple enum variant match
+    let v1 = test_enum_variant(Color::Red)
+    if v1 != 1:
+        return 1
+    let v2 = test_enum_variant(Color::Green)
+    if v2 != 2:
+        return 2
+    let v3 = test_enum_variant(Color::Blue)
+    if v3 != 3:
+        return 3
+
+    // Enum wildcard
+    let gw1 = test_enum_wildcard(Color::Red)
+    if gw1 != 100:
+        return 4
+    let gw2 = test_enum_wildcard(Color::Green)
+    if gw2 != 200:
+        return 5
+    let gw3 = test_enum_wildcard(Color::Blue)
+    if gw3 != 300:
+        return 6
+
+    // Int match
+    let im1 = test_int_match(0)
+    if im1 != 0:
+        return 7
+    let im2 = test_int_match(2)
+    if im2 != 20:
+        return 8
+    let im3 = test_int_match(5)
+    if im3 != -1:
+        return 9
+
+    // Enum payload matching
+    let pc1 = test_payload_circle(Shape::Circle(7))
+    if pc1 != 7:
+        return 10
+    let pc2 = test_payload_circle(Shape::Square(13))
+    if pc2 != 13:
+        return 11
+    let pc3 = test_payload_circle(Shape::Triangle(1, 2))
+    if pc3 != 0:
+        return 12
+
+    // Multi-payload matching
+    let pt1 = test_payload_triangle(Shape::Triangle(4, 9))
+    if pt1 != 13:
+        return 13
+    let pt2 = test_payload_triangle(Shape::Circle(1))
+    if pt2 != 0:
+        return 14
+
+    // Enum in let binding
+    let el = test_enum_in_let()
+    match el:
+        Color::Red => 1
+        _ => return 15
+
+    // Struct field access in match body
+    let fa = test_struct_field_access(Point { x: 15, y: 25 })
+    if fa != 40:
+        return 16
+
+    // Payload compute
+    let pcomp1 = test_payload_compute(Shape::Circle(5))
+    if pcomp1 != 25:
+        return 17
+    let pcomp2 = test_payload_compute(Shape::Square(4))
+    if pcomp2 != 16:
+        return 18
+    let pcomp3 = test_payload_compute(Shape::Triangle(3, 7))
+    if pcomp3 != 21:
+        return 19
+
+    return 42

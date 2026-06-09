@@ -1,0 +1,12 @@
+//@ mode: prove-pass
+//@ proof-expect: unsat
+//@ smt2: (declare-const left Int)
+//@ smt2: (declare-const right Int)
+//@ smt2: (declare-const total Int)
+//@ smt2: (assert (>= left 0))
+//@ smt2: (assert (>= right 0))
+//@ smt2: (assert (= total (+ left right)))
+//@ smt2: (assert (< total left))
+
+fn build_kn_evidence_proof_anchor() -> Int:
+    return 0

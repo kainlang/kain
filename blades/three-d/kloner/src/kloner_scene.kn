@@ -1,0 +1,126 @@
+use kloner_session::*
+use kloner_state::*
+use std::fs
+use std::math
+use vulkain::VulkainKlonerPacket
+use vulkain::vulkain_frames_presented
+use vulkain::vulkain_probe
+use vulkain::vulkain_run_kloner_packet
+use vulkain::vulkain_vertices_drawn
+use vulkain::vulkain_write_report
+
+pub struct KlonerPresenterResult:
+    status: Int
+    vulkan_available: Int
+    frames_presented: Int
+    vertices_drawn: Int
+    math_score: Int
+
+pub struct KlonerLayoutProbe:
+    first_x: Float
+    first_y: Float
+    first_z: Float
+    far_x: Float
+    far_y: Float
+    far_z: Float
+
+pub fn kloner_layout_probe(controls: KlonerControls) -> KlonerLayoutProbe:
+    let spacing = math_max(controls.spacing, 0.01)
+    var first = vec3_zero()
+    var far = vec3_zero()
+    if controls.layout_mode == KLONER_MODE_GRID:
+        let side = Float(controls.grid_width)
+        first = vec3(-side * spacing * 0.5, -side * spacing * 0.25, -side * spacing * 0.5)
+        far = vec3(side * spacing * 0.5, side * spacing * 0.25, side * spacing * 0.5)
+    if controls.layout_mode == KLONER_MODE_RADIAL:
+        first = vec3(controls.radial_radius, 0.0, 0.0)
+        far = vec3(-controls.radial_radius, controls.wave_amount, controls.radial_radius * 0.5)
+    if controls.layout_mode == KLONER_MODE_HONEYCOMB:
+        first = vec3(0.0 - Float(controls.grid_width) * spacing * 0.5, 0.0, 0.0)
+        far = vec3(Float(controls.grid_width) * spacing * 0.5, controls.wave_amount, Float(controls.grid_rows) * spacing * 0.8660254)
+    if controls.layout_mode == KLONER_MODE_HELIX:
+        first = vec3(controls.radial_radius, -40.0 * spacing, 0.0)
+        far = vec3(0.0 - controls.radial_radius, 40.0 * spacing, 0.0)
+    return KlonerLayoutProbe {
+        first_x: first.x,
+        first_y: first.y,
+        first_z: first.z,
+        far_x: far.x,
+        far_y: far.y,
+        far_z: far.z,
+    }
+
+pub fn kloner_math_probe_score(controls: KlonerControls) -> Int:
+    let axis = vec3_normalize_or_zero(vec3(controls.spacing, controls.wave_amount + 0.11, controls.radial_radius * 0.01))
+    let orbit = quat_from_axis_angle(vec3_up(), controls.camera_yaw)
+    let rotated = quat_rotate_vec3(orbit, axis)
+    let transform = mat4_from_trs(vec3(controls.spacing, controls.wave_amount, controls.sphere_radius), orbit, vec3_one())
+    let point = mat4_transform_point(transform, rotated)
+    let color = hsv_to_rgb(Hsv { h: math_clamp(controls.animation_speed * 0.12, 0.0, 1.0), s: 0.82, v: 1.0 })
+    let noise = fbm2(vec2(controls.spacing, controls.wave_amount + 0.13), 4)
+    let score = vec3_length(point) + vec3_length(color) + noise + controls.radial_radius
+    return Int(score * 1000.0)
+
+pub fn kloner_presenter_packet(session: KlonerSession) -> VulkainKlonerPacket:
+    let settings = session.settings
+    let controls = session.controls
+    let snapshot = session.runtime
+    return VulkainKlonerPacket {
+        title: kloner_window_title(),
+        width: settings.width,
+        height: settings.height,
+        frame_budget: settings.frame_budget,
+        clear_red: settings.clear_red,
+        clear_green: settings.clear_green,
+        clear_blue: settings.clear_blue,
+        accent_red: settings.accent_red,
+        accent_green: settings.accent_green,
+        accent_blue: settings.accent_blue,
+        clone_count: controls.clone_count,
+        layout_mode: controls.layout_mode,
+        grid_width: controls.grid_width,
+        grid_rows: controls.grid_rows,
+        spacing_milli: kloner_to_milli(controls.spacing),
+        radial_radius_milli: kloner_to_milli(controls.radial_radius),
+        sphere_radius_milli: kloner_to_milli(controls.sphere_radius),
+        wave_milli: kloner_to_milli(controls.wave_amount),
+        speed_milli: kloner_to_milli(controls.animation_speed),
+        target_fps: settings.target_fps,
+        camera_yaw_milli: kloner_to_milli(controls.camera_yaw),
+        camera_pitch_milli: kloner_to_milli(controls.camera_pitch),
+        ui_draw_count: snapshot.ui_draw_count,
+        ui_checksum: snapshot.ui_checksum,
+        vertex_shader_path: settings.vulkain_vertex_shader_path,
+        fragment_shader_path: settings.vulkain_fragment_shader_path,
+        vertex_entry_point: "main",
+        fragment_entry_point: "main",
+    }
+
+pub fn kloner_present_same_window(session: KlonerSession) -> KlonerPresenterResult:
+    let settings = session.settings
+    let controls = session.controls
+    let available = vulkain_probe()
+    if available != 1:
+        return KlonerPresenterResult {
+            status: 91,
+            vulkan_available: available,
+            frames_presented: 0,
+            vertices_drawn: 0,
+            math_score: kloner_math_probe_score(controls),
+        }
+    let status = vulkain_run_kloner_packet(kloner_presenter_packet(session))
+    let _report = vulkain_write_report(settings.vulkain_report_path)
+    return KlonerPresenterResult {
+        status: status,
+        vulkan_available: available,
+        frames_presented: vulkain_frames_presented(),
+        vertices_drawn: vulkain_vertices_drawn(),
+        math_score: kloner_math_probe_score(controls),
+    }
+
+pub fn kloner_scene_report_text(session: KlonerSession, presenter: KlonerPresenterResult) -> String:
+    let settings = session.settings
+    let controls = session.controls
+    let snapshot = session.runtime
+    let probe = kloner_layout_probe(controls)
+    return "scene=kloner.same_window\nbackend=vulkan\nkaintana_overlay=1\nplatform=" + kloner_session_platform_status(session) + "\nauthoring_lane=" + kloner_session_lane_summary(session) + "\nlayout=" + kloner_layout_name(controls.layout_mode) + "\nlogical_clone_count=" + str(controls.clone_count) + "\ngrid_width=" + str(controls.grid_width) + "\ngrid_rows=" + str(controls.grid_rows) + "\ntarget_fps=" + str(settings.target_fps) + "\ntransport_ms=" + str(session.transport_ms) + "\nframes_presented=" + str(presenter.frames_presented) + "\nvertices_drawn=" + str(presenter.vertices_drawn) + "\nmath_score=" + str(presenter.math_score) + "\nui_draw_count=" + str(snapshot.ui_draw_count) + "\nui_checksum=" + str(snapshot.ui_checksum) + "\nfirst_probe=" + str(probe.first_x) + "," + str(probe.first_y) + "," + str(probe.first_z) + "\nfar_probe=" + str(probe.far_x) + "," + str(probe.far_y) + "," + str(probe.far_z) + "\nstatus=" + str(presenter.status) + "\n"

@@ -1,0 +1,199 @@
+use layout::kaintana_column_slot
+use layout::kaintana_inset
+use layout::kaintana_row_slot
+use layout::kaintana_split_left
+use layout::kaintana_split_right
+use layout::kaintana_split_top
+use layout::kaintana_split_bottom
+use layout::kaintana_grid_cell
+use types::KaintanaContext
+use types::KaintanaRect
+use types::kaintana_rect
+use kaintana_ui::*
+
+fn demo_toggle_row(ctx: KaintanaContext, rect: KaintanaRect, font: Int) -> KaintanaContext:
+    let b0 = kaintana_toggle(kaintana_ui_state(ctx), "Show Details")
+    let b1 = kaintana_toggle_key(b0, "demo.toggle.details")
+    let b2 = kaintana_toggle_rect(b1, rect)
+    let b3 = kaintana_toggle_value(b2, 1)
+    let result = kaintana_toggle_render(ctx, b3)
+    return result.ctx
+
+fn demo_checkbox_row(ctx: KaintanaContext, rect: KaintanaRect, key: String, label: String, font: Int) -> KaintanaContext:
+    let b0 = kaintana_checkbox(kaintana_ui_state(ctx), label)
+    let b1 = kaintana_checkbox_key(b0, key)
+    let b2 = kaintana_checkbox_rect(b1, rect)
+    let b3 = kaintana_checkbox_font(b2, font, 20.0)
+    let result = kaintana_checkbox_render(ctx, b3)
+    return result.ctx
+
+fn demo_badge_row(ctx: KaintanaContext, rect: KaintanaRect, key: String, label: String, font: Int) -> KaintanaContext:
+    let b0 = kaintana_badge(kaintana_ui_state(ctx), label)
+    let b1 = kaintana_badge_key(b0, key)
+    let b2 = kaintana_badge_rect(b1, rect)
+    let b3 = kaintana_badge_font(b2, font, 20.0)
+    let result = kaintana_badge_render(ctx, b3)
+    return result.ctx
+
+fn demo_metric_row(ctx: KaintanaContext, rect: KaintanaRect, key: String, label: String, value: String, font: Int) -> KaintanaContext:
+    let b0 = kaintana_metric(kaintana_ui_state(ctx), label, value)
+    let b1 = kaintana_metric_key(b0, key)
+    let b2 = kaintana_metric_rect(b1, rect)
+    let b3 = kaintana_metric_font(b2, font, 20.0)
+    let result = kaintana_metric_render(ctx, b3)
+    return result.ctx
+
+fn demo_progress_row(ctx: KaintanaContext, rect: KaintanaRect, key: String, label: String, val: Float, max_val: Float, font: Int) -> KaintanaContext:
+    let b0 = kaintana_progress_bar(kaintana_ui_state(ctx), label)
+    let b1 = kaintana_progress_bar_key(b0, key)
+    let b2 = kaintana_progress_bar_rect(b1, rect)
+    let b3 = kaintana_progress_bar_font(b2, font, 20.0)
+    let b4 = kaintana_progress_bar_value(b3, val, max_val)
+    let result = kaintana_progress_bar_render(ctx, b4)
+    return result.ctx
+
+fn demo_collapse_row(ctx: KaintanaContext, rect: KaintanaRect, key: String, label: String, open: Int, font: Int) -> KaintanaContext:
+    let b0 = kaintana_collapsing_header(kaintana_ui_state(ctx), label)
+    let b1 = kaintana_collapsing_header_key(b0, key)
+    let b2 = kaintana_collapsing_header_rect(b1, rect)
+    let b3 = kaintana_collapsing_header_font(b2, font, 22.0)
+    let b4 = kaintana_collapsing_header_open(b3, open)
+    let result = kaintana_collapsing_header_render(ctx, b4)
+    return result.ctx
+
+fn demo_separator(ctx: KaintanaContext, rect: KaintanaRect, key: String) -> KaintanaContext:
+    let b0 = kaintana_separator(kaintana_ui_state(ctx))
+    let b1 = kaintana_separator_key(b0, key)
+    let b2 = kaintana_separator_rect(b1, rect)
+    let result = kaintana_separator_render(ctx, b2)
+    return result.ctx
+
+fn demo_chart_row(ctx: KaintanaContext, rect: KaintanaRect, key: String, label: String, val: Float, max_val: Float, font: Int) -> KaintanaContext:
+    let b0 = kaintana_chart_bar(kaintana_ui_state(ctx), label, val, max_val)
+    let b1 = kaintana_chart_bar_key(b0, key)
+    let b2 = kaintana_chart_bar_rect(b1, rect)
+    let b3 = kaintana_chart_bar_font(b2, font, 20.0)
+    let result = kaintana_chart_bar_render(ctx, b3)
+    return result.ctx
+
+fn demo_toast(ctx: KaintanaContext, rect: KaintanaRect, key: String, msg: String, font: Int) -> KaintanaContext:
+    let b0 = kaintana_toast(kaintana_ui_state(ctx), msg)
+    let b1 = kaintana_toast_key(b0, key)
+    let b2 = kaintana_toast_rect(b1, rect)
+    let b3 = kaintana_toast_font(b2, font, 20.0)
+    let result = kaintana_toast_render(ctx, b3)
+    return result.ctx
+
+fn demo_spinner_widget(ctx: KaintanaContext, rect: KaintanaRect, key: String) -> KaintanaContext:
+    let b0 = kaintana_spinner(kaintana_ui_state(ctx))
+    let b1 = kaintana_spinner_rect(b0, rect)
+    let result = kaintana_spinner_render(ctx, b1)
+    return result.ctx
+
+fn demo_status_bar(ctx: KaintanaContext, rect: KaintanaRect, key: String, left: String, right: String, font: Int) -> KaintanaContext:
+    let b0 = kaintana_status_bar(kaintana_ui_state(ctx), left, right)
+    let b1 = kaintana_status_bar_key(b0, key)
+    let b2 = kaintana_status_bar_rect(b1, rect)
+    let b3 = kaintana_status_bar_font(b2, font, 20.0)
+    let result = kaintana_status_bar_render(ctx, b3)
+    return result.ctx
+
+fn demo_toolbar(ctx: KaintanaContext, rect: KaintanaRect, key: String, font: Int) -> KaintanaContext:
+    let b0 = kaintana_toolbar(kaintana_ui_state(ctx), "Tools")
+    let b1 = kaintana_toolbar_key(b0, key)
+    let b2 = kaintana_toolbar_rect(b1, rect)
+    let b3 = kaintana_toolbar_font(b2, font, 20.0)
+    let result = kaintana_toolbar_render(ctx, b3)
+    return result.ctx
+
+fn demo_dropdown(ctx: KaintanaContext, rect: KaintanaRect, key: String, label: String, selected: String, font: Int) -> KaintanaContext:
+    let items: [String] = ["Option A", "Option B", "Option C", "Option D"]
+    let b0 = kaintana_dropdown(kaintana_ui_state(ctx), label, selected)
+    let b1 = kaintana_dropdown_key(b0, key)
+    let b2 = kaintana_dropdown_rect(b1, rect)
+    let b3 = kaintana_dropdown_font(b2, font, 20.0)
+    let b4 = kaintana_dropdown_items(b3, items)
+    let result = kaintana_dropdown_render(ctx, b4)
+    return result.ctx
+
+pub fn kaintana_example_comprehensive(ctx: KaintanaContext, rect: KaintanaRect, body_font: Int, title_font: Int) -> KaintanaContext:
+    var next = ctx
+
+    let p0 = kaintana_panel(kaintana_ui_state(next), "Kaintana Widget Gallery")
+    let p1 = kaintana_panel_key(p0, "demo.comprehensive.panel")
+    let p2 = kaintana_panel_rect(p1, rect)
+    let p3 = kaintana_panel_font(p2, title_font, 28.0)
+    let panel = kaintana_panel_render(next, p3)
+    next = panel.ctx
+
+    let body = kaintana_inset(rect, 16.0, 54.0, 16.0, 16.0)
+
+    let section_h: Float = 28.0
+    let row_h: Float = 26.0
+
+    let left = kaintana_split_left(body, 0.48, 16.0)
+    let right = kaintana_split_right(body, 0.48, 16.0)
+
+    var y_cursor: Float = body.y
+
+    y_cursor = y_cursor + 4.0
+
+    next = demo_toggle_row(next, kaintana_rect(left.x, y_cursor, left.width, row_h), body_font)
+    y_cursor = y_cursor + row_h + 4.0
+
+    next = demo_checkbox_row(next, kaintana_rect(left.x, y_cursor, left.width, row_h), "demo.chk.1", "Enable Feature X", body_font)
+    y_cursor = y_cursor + row_h
+    next = demo_checkbox_row(next, kaintana_rect(left.x, y_cursor, left.width, row_h), "demo.chk.2", "Auto-save", body_font)
+    y_cursor = y_cursor + row_h
+    next = demo_checkbox_row(next, kaintana_rect(left.x, y_cursor, left.width, row_h), "demo.chk.3", "Show Grid", body_font)
+    y_cursor = y_cursor + row_h + 4.0
+
+    next = demo_badge_row(next, kaintana_rect(left.x, y_cursor, left.width, row_h), "demo.badge.1", "active", body_font)
+    y_cursor = y_cursor + row_h + 4.0
+
+    next = demo_separator(next, kaintana_rect(left.x, y_cursor, left.width, 6.0), "demo.sep.1")
+    y_cursor = y_cursor + 10.0
+
+    next = demo_metric_row(next, kaintana_rect(left.x, y_cursor, left.width, row_h), "demo.metric.1", "Frame Time", "16ms", body_font)
+    y_cursor = y_cursor + row_h
+    next = demo_metric_row(next, kaintana_rect(left.x, y_cursor, left.width, row_h), "demo.metric.2", "Draw Calls", "142", body_font)
+    y_cursor = y_cursor + row_h
+    next = demo_metric_row(next, kaintana_rect(left.x, y_cursor, left.width, row_h), "demo.metric.3", "Memory", "2.4GB", body_font)
+    y_cursor = y_cursor + row_h + 4.0
+
+    next = demo_progress_row(next, kaintana_rect(left.x, y_cursor, left.width, row_h), "demo.prog.1", "Loading", 67.0, 100.0, body_font)
+    y_cursor = y_cursor + row_h + 4.0
+
+    next = demo_collapse_row(next, kaintana_rect(left.x, y_cursor, left.width, section_h), "demo.collapse.1", "Advanced Settings", 0, body_font)
+    y_cursor = y_cursor + section_h + 4.0
+
+    next = demo_chart_row(next, kaintana_rect(left.x, y_cursor, left.width, 36.0), "demo.chart.1", "CPU", 72.0, 100.0, body_font)
+    y_cursor = y_cursor + 40.0
+    next = demo_chart_row(next, kaintana_rect(left.x, y_cursor, left.width, 36.0), "demo.chart.2", "GPU", 88.0, 100.0, body_font)
+    y_cursor = y_cursor + 40.0
+    next = demo_chart_row(next, kaintana_rect(left.x, y_cursor, left.width, 36.0), "demo.chart.3", "MEM", 45.0, 100.0, body_font)
+
+    var ry_cursor: Float = body.y + 4.0
+
+    next = demo_spinner_widget(next, kaintana_rect(right.x + right.width - 32.0, ry_cursor, 24.0, 24.0), "demo.spin.1")
+    ry_cursor = ry_cursor + 30.0
+
+    next = demo_toast(next, kaintana_rect(right.x, ry_cursor, right.width, 36.0), "demo.toast.1", "File saved successfully", body_font)
+    ry_cursor = ry_cursor + 42.0
+
+    next = demo_toast(next, kaintana_rect(right.x, ry_cursor, right.width, 36.0), "demo.toast.2", "Connection re-established", body_font)
+    ry_cursor = ry_cursor + 42.0
+
+    next = demo_dropdown(next, kaintana_rect(right.x, ry_cursor, right.width, row_h), "demo.drop.1", "Render Mode", "Option A", body_font)
+    ry_cursor = ry_cursor + row_h + 4.0
+
+    next = demo_dropdown(next, kaintana_rect(right.x, ry_cursor, right.width, row_h), "demo.drop.2", "Theme", "Option B", body_font)
+    ry_cursor = ry_cursor + row_h + 8.0
+
+    next = demo_toolbar(next, kaintana_rect(right.x, ry_cursor, right.width, 32.0), "demo.toolbar.1", body_font)
+    ry_cursor = ry_cursor + 38.0
+
+    let status_h: Float = 28.0
+    next = demo_status_bar(next, kaintana_rect(right.x, body.y + body.height - status_h, right.width, status_h), "demo.status.1", "Ready", "14 widgets shown", body_font)
+
+    return next
