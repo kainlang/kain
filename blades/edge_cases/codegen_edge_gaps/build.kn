@@ -1,0 +1,38 @@
+// ============================================================================
+//  CODEGEN EDGE GAPS BUILD AUTHORITY
+//  LLVM codegen edge-case regression tests for 6 gaps discovered during
+//  markscript development. Supports agent-usable CLI flags via main entry:
+//    --vm          Run test inside an isolated process (VM wrapper)
+//    --test NAME   Run a specific named test
+//    --list        List available tests
+//    --verbose     Enable verbose diagnostic output
+// ============================================================================
+
+use std::build
+
+fn build(ctx: BuildContext) -> BuildGraph:
+    let app = project("codegen-edge-gaps")
+        .kind("kain_executable")
+        .version("0.1.0")
+        .description("LLVM codegen edge-case regression tests for 6 gaps discovered during markscript development.")
+        .entry("src/main.kn")
+        .source_root("src")
+        .module_root("src")
+        .target("llvm")
+        .artifact_root(".kain/out")
+        .cache_root(".kain/cache/build")
+        .profile("debug")
+
+    let sources = source_set("codegen-edge-sources")
+        .glob("src/**/*.kn")
+        .file("build.kn")
+
+    let check = check_task("check-llvm")
+        .project(app)
+        .target("llvm")
+        .inputs(sources)
+
+    return build_graph()
+        .project(app)
+        .sources(sources)
+        .task(check)

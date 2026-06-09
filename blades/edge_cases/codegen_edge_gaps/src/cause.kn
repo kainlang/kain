@@ -1,0 +1,370 @@
+// ============================================================================
+//  CAUSE.KN — PRIMARY TEST FILE
+//
+//  This is where most agents will write code. Define the root cause of a bug,
+//  edge case, or semantic experiment here.
+//
+//  IMPORTS:
+//    effect.kn      — Downstream effect modeling (imported)
+//    spookymagic.kn — Black-box / spooky-magic behaviors (imported)
+//
+//  PATTERN:
+//    1. Define your test function: pub fn test_<name>() -> Int
+//    2. Return 0 on success, non-zero on failure
+//    3. Register it in the TEST_TABLE at the bottom of this file
+//    4. The diagnostics module discovers tests automatically
+//
+//  6 CODEGEN GAPS (from X:\research\patch_edge_cases_plan.md):
+//    Gap 1 — :: leaks into LLVM type names (module-scoped enum)
+//    Gap 2 — py_getattr_raw fallback for Kain struct pointers
+//    Gap 3 — Named-field enum variant destructure (_0 positional clash)
+//    Gap 4 — Function pointers via ptr_to_int (missing self.functions lookup)
+//    Gap 5 — return in match arm (ret + dead br + invalid PHI predecessor)
+//    Gap 6 — PHI + break/continue in loops (dead predecessor from break)
+// ============================================================================
+
+use effect
+use spookymagic
+
+// ===========================================================================
+//  TEST TABLE — Register your tests here
+//  Format: { name: String, tag: String, description: String }
+// ===========================================================================
+
+pub struct CauseTest:
+    name:        String
+    tag:         String    // Maps to a test function name
+    description: String
+
+// ===========================================================================
+//  RUN TEST BY TAG — Dispatch test execution by tag name
+//  Replaces function pointers for codegen compatibility.
+// ===========================================================================
+
+pub fn run_cause_test_by_tag(tag: String) -> Int:
+    if tag == "cause_sanity":
+        return test_cause_sanity()
+    if tag == "cause_gap1_module_enum":
+        return test_gap1_module_enum()
+    if tag == "cause_gap2_struct_field":
+        return test_gap2_struct_field()
+    if tag == "cause_gap3_named_destructure":
+        return test_gap3_named_destructure()
+    if tag == "cause_gap4_fn_ptr":
+        return test_gap4_fn_ptr()
+    if tag == "cause_gap5_return_in_match":
+        return test_gap5_return_in_match()
+    if tag == "cause_gap6_break_phi":
+        return test_gap6_break_phi()
+    return 1  // unknown test
+
+// ===========================================================================
+//  GAP 1: Module-scoped enum (:: leaks into LLVM type names)
+//
+//  map_type() and register_type_definitions_recursive() use raw authored
+//  names in LLVM IR. `mod foo { enum Bar { ... } }` produces `%foo::Bar`
+//  which is invalid LLVM (colons are not legal in LLVM identifiers).
+//  sanitize_symbol_fragment() exists but is not applied to enum names.
+//
+//  This test defines an enum inside a module and exercises it. The test
+//  passes if the compiler typechecks and compiles successfully.
+// ===========================================================================
+
+pub mod gap1_shapes:
+    pub enum Gap1Shape:
+        Circle
+        Square
+        Triangle
+
+pub fn test_gap1_module_enum() -> Int:
+    println("  [gap1] Testing module-scoped enum compilation...")
+
+    let s = gap1_shapes::Gap1Shape::Circle
+
+    // Exercise the enum to prove the compiled types are valid
+    match s:
+        gap1_shapes::Gap1Shape::Circle =>
+            println("  [gap1]   Circle variant matched correctly")
+        gap1_shapes::Gap1Shape::Square =>
+            println("  [gap1]   Square variant matched correctly")
+        gap1_shapes::Gap1Shape::Triangle =>
+            println("  [gap1]   Triangle variant matched correctly")
+
+    println("  [gap1] PASS: Module-scoped enum compiled successfully")
+    return 0
+
+// ===========================================================================
+//  GAP 2: py_getattr_raw fallback for Kain struct pointers
+//
+//  When a Kain struct is returned from a function, the LLVM type lowers to
+//  i64 (pointer). The Expr::Field handler at lines 18771-18777 short-circuits
+//  to py_getattr_raw whenever object_ty == "i64", without checking whether
+//  the i64 is a Kain struct pointer or a Python bridge. This produces
+//  broken field access that tries to call the Python runtime on a Kain type.
+//
+//  This test returns a struct from a function and accesses its fields.
+//  The test passes if the compiler generates correct GEP-based field access
+//  (no py_getattr_raw call in the emitted IR).
+// ===========================================================================
+
+struct Gap2Point:
+    x: Int
+    y: Int
+
+fn gap2_make_point(x: Int, y: Int) -> Gap2Point:
+    return Gap2Point { x: x, y: y }
+
+pub fn test_gap2_struct_field() -> Int:
+    println("  [gap2] Testing Kain struct field access from function return...")
+
+    let p = gap2_make_point(42, 99)
+    let px = p.x
+    let py = p.y
+
+    println("  [gap2]   Point fields: x=" + str(px) + ", y=" + str(py))
+
+    if px == 42 and py == 99:
+        println("  [gap2] PASS: Struct field access produces correct values")
+        return 0
+
+    println("  [gap2] FAIL: Expected (42, 99), got (" + str(px) + ", " + str(py) + ")")
+    return 1
+
+// ===========================================================================
+//  GAP 3: Named-field enum variant destructure
+//
+//  Payload struct fields are registered as "_0", "_1" (positional names)
+//  at line 13348-13352. But bind_variant_pattern_fields() at line 10968-10992
+//  looks up authored field names like "name", "components" and fails.
+//  The test defines an enum with named payload fields, constructs a variant,
+//  and destructures it with named field patterns.
+//
+//  This test passes if the named pattern bindings compile correctly.
+// ===========================================================================
+
+enum Gap3Foo:
+    Bar { x: Int, y: String }
+    Baz(Int)
+    Qux
+
+pub fn test_gap3_named_destructure() -> Int:
+    println("  [gap3] Testing named-field enum variant destructure...")
+
+    let v = Gap3Foo::Bar { x: 42, y: "hello" }
+
+    match v:
+        Gap3Foo::Bar { x: bx, y: by } =>
+            println("  [gap3]   Destructured Bar: x=" + str(bx) + ", y=" + by)
+            if bx == 42 and by == "hello":
+                println("  [gap3] PASS: Named-field destructure correct")
+            else:
+                println("  [gap3] FAIL: Unexpected values in Bar pattern, got (" + str(bx) + ", " + by + ")")
+                return 1
+
+        Gap3Foo::Baz(val) =>
+            println("  [gap3] FAIL: Unexpected Baz variant, val=" + str(val))
+            return 1
+
+        Gap3Foo::Qux =>
+            println("  [gap3] FAIL: Unexpected Qux variant")
+            return 1
+
+    return 0
+
+// ===========================================================================
+//  GAP 4: Function pointers via ptr_to_int
+//
+//  The Expr::Ident handler checks ssa_locals, locals, const_globals,
+//  python_import_globals, and world_globals — but never checks
+//  self.functions. Functions are registered (line 12968, 13013, 13168)
+//  but never looked up during Ident resolution in codegen.
+//
+//  This test assigns a local function to a variable (triggering Ident
+//  resolution for a function name). The test passes if the compiler
+//  accepts `let f = gap4_helper` without "Undefined variable".
+// ===========================================================================
+
+fn gap4_helper(v: Int) -> Int:
+    return v * 2
+
+pub fn test_gap4_fn_ptr() -> Int:
+    println("  [gap4] Testing function as value...")
+
+    // Reference the function by name — triggers Expr::Ident function lookup
+    let f = gap4_helper
+
+    // Also verify the function still works through direct call
+    let result = gap4_helper(21)
+    println("  [gap4]   Called gap4_helper(21) = " + str(result))
+
+    if result == 42:
+        println("  [gap4] PASS: Function reference compiles and direct call works")
+        return 0
+
+    println("  [gap4] FAIL: Expected 42, got " + str(result))
+    return 1
+
+// ===========================================================================
+//  GAP 5: return in match arm
+//
+//  When a match arm body contains `return`, the `ret` instruction terminates
+//  the block. But the match compiler (line 20506-20519) unconditionally
+//  emits `br label %merge` and pushes to the PHI incoming list — producing
+//  a branch after a terminator and an invalid PHI predecessor.
+//
+//  This test uses a multi-statement match arm ending with `return`.
+//  The test passes if the match + return compiles without LLVM verifier
+//  errors and produces correct runtime results.
+// ===========================================================================
+
+fn gap5_lookup(v: Int) -> Int:
+    match v:
+        0 =>
+            let _ = 1
+            return 42
+        1 =>
+            let _ = 1
+            return 99
+        _ =>
+            let _ = 1
+            return v * 2
+    return 0
+
+pub fn test_gap5_return_in_match() -> Int:
+    println("  [gap5] Testing return in match arm...")
+
+    let r1 = gap5_lookup(0)
+    let r2 = gap5_lookup(1)
+    let r3 = gap5_lookup(7)
+
+    println("  [gap5]   Results: gap5_lookup(0)=" + str(r1) +
+            ", gap5_lookup(1)=" + str(r2) +
+            ", gap5_lookup(7)=" + str(r3))
+
+    if r1 == 42 and r2 == 99 and r3 == 14:
+        println("  [gap5] PASS: Return in match arm works correctly")
+        return 0
+
+    println("  [gap5] FAIL: Expected (42, 99, 14), got (" +
+            str(r1) + ", " + str(r2) + ", " + str(r3) + ")")
+    return 1
+
+// ===========================================================================
+//  GAP 6: PHI + break/continue in loops
+//
+//  When break or continue appears inside an if/match arm within a loop body,
+//  that arm's block branches to loop_end/loop_cond instead of the if/match
+//  merge label. But the PHI node at the merge label still lists that block
+//  as a predecessor — creating an invalid PHI.
+//
+//  This test uses `break` inside an if-expression assigned to a variable
+//  (which creates a PHI at the if-merge point). The break block terminates
+//  at loop_end, creating the invalid PHI predecessor. The test also places
+//  additional statements after the if-expression to exercise the merge block.
+//
+//  The test passes if the pattern compiles without LLVM verifier errors
+//  and produces correct runtime results.
+// ===========================================================================
+
+pub fn test_gap6_break_phi() -> Int:
+    println("  [gap6] Testing break/continue with PHI in loops...")
+
+    var sum: Int = 0
+    var i: Int = 0
+
+    while i < 10:
+        // This if-expression creates a PHI node at the merge point.
+        // The break arm branches to loop_end instead of the merge label,
+        // creating an invalid PHI predecessor.
+        let discard = if i >= 5:
+            break
+        else:
+            0
+
+        sum = sum + i
+        i = i + 1
+
+    println("  [gap6]   Sum after loop: " + str(sum))
+
+    // Expected: 0 + 1 + 2 + 3 + 4 = 10 (breaks at i=5)
+    if sum == 10:
+        println("  [gap6] PASS: Break + PHI loop produces correct sum")
+        return 0
+
+    println("  [gap6] FAIL: Expected 10, got " + str(sum))
+    return 1
+
+// ===========================================================================
+//  TEST: Basic Cause Sanity
+//  Verifies that all imports resolve and the module compiles correctly.
+// ===========================================================================
+
+pub fn test_cause_sanity() -> Int:
+    println("  [cause] Running sanity check...")
+
+    // Verify effect module is accessible
+    let eff_result = effect_sanity_check()
+    if eff_result != 0:
+        println("  [cause] FAIL: effect_sanity_check() returned " + str(eff_result))
+        return 1
+
+    // Verify spookymagic module is accessible
+    let spooky_result = spookymagic_sanity_check()
+    if spooky_result != 0:
+        println("  [cause] FAIL: spookymagic_sanity_check() returned " + str(spooky_result))
+        return 1
+
+    println("  [cause] PASS: All imports resolve correctly")
+    return 0
+
+// ===========================================================================
+//  TEST TABLE — Register your tests here
+//  The diagnostics module iterates this table to discover and run tests.
+// ===========================================================================
+
+pub fn get_cause_tests() -> Array<CauseTest>:
+    var tests: Array<CauseTest> = []
+
+    push(tests, CauseTest {
+        name: "cause_sanity",
+        tag: "cause_sanity",
+        description: "Verifies all imports resolve and modules compile correctly"
+    })
+
+    push(tests, CauseTest {
+        name: "cause_gap1_module_enum",
+        tag: "cause_gap1_module_enum",
+        description: "Gap 1 — Module-scoped enum (:: leak into LLVM type names)"
+    })
+
+    push(tests, CauseTest {
+        name: "cause_gap2_struct_field",
+        tag: "cause_gap2_struct_field",
+        description: "Gap 2 — Struct field access (py_getattr_raw fallback for Kain struct)"
+    })
+
+    push(tests, CauseTest {
+        name: "cause_gap3_named_destructure",
+        tag: "cause_gap3_named_destructure",
+        description: "Gap 3 — Named-field enum variant destructure (_0 positional clash)"
+    })
+
+    push(tests, CauseTest {
+        name: "cause_gap4_fn_ptr",
+        tag: "cause_gap4_fn_ptr",
+        description: "Gap 4 — Function reference as value (missing self.functions lookup)"
+    })
+
+    push(tests, CauseTest {
+        name: "cause_gap5_return_in_match",
+        tag: "cause_gap5_return_in_match",
+        description: "Gap 5 — Return in match arm (ret + dead br + invalid PHI)"
+    })
+
+    push(tests, CauseTest {
+        name: "cause_gap6_break_phi",
+        tag: "cause_gap6_break_phi",
+        description: "Gap 6 — Break/continue PHI in loops (dead PHI predecessor)"
+    })
+
+    return tests

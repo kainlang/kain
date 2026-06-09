@@ -1,0 +1,37 @@
+// ============================================================================
+//  DEBUG TEMPLATE BUILD AUTHORITY
+//  Supports agent-usable CLI flags via the main entry point:
+//    --vm          Run test inside an isolated process (VM wrapper)
+//    --test NAME   Run a specific named test
+//    --list        List available tests
+//    --verbose     Enable verbose diagnostic output
+// ============================================================================
+
+use std::build
+
+fn build(ctx: BuildContext) -> BuildGraph:
+    let app = project("debug-template")
+        .kind("kain_executable")
+        .version("1.0.0")
+        .description("Canonical debug template for rapid Kain edge-case testing.")
+        .entry("src/main.kn")
+        .source_root("src")
+        .module_root("src")
+        .target("llvm")
+        .artifact_root(".kain/out")
+        .cache_root(".kain/cache/build")
+        .profile("debug")
+
+    let sources = source_set("debug-sources")
+        .glob("src/**/*.kn")
+        .file("build.kn")
+
+    let check = check_task("check-llvm")
+        .project(app)
+        .target("llvm")
+        .inputs(sources)
+
+    return build_graph()
+        .project(app)
+        .sources(sources)
+        .task(check)

@@ -1,0 +1,144 @@
+// ============================================================================
+//  CODEGEN EDGE GAPS — MAIN ENTRY POINT
+//
+//  CLI Flags (agent-usable):
+//    --vm              Run test inside an isolated process (VM wrapper)
+//    --test <name>     Run a specific named test
+//    --list            List all available tests
+//    --verbose         Enable verbose diagnostic output
+//    --help            Show usage
+//
+//  Default behavior (no flags): run diagnostics on all modules.
+//
+//  Usage:
+//    kain run                     # typecheck + run diagnostics
+//    kain run -- --vm             # run inside isolated process
+//    kain run -- --test cause      # run only cause.kn tests
+//    kain run -- --verbose --list # list tests with details
+// ============================================================================
+
+use std::process
+use std::io
+use diagnostics
+use vm
+
+// ===========================================================================
+//  HELP TEXT
+// ===========================================================================
+
+fn print_help():
+    println("CODEGEN EDGE GAPS — LLVM Codegen Regression Suite")
+    println("")
+    println("USAGE:")
+    println("  kain run                        Run full diagnostics suite")
+    println("  kain run -- --vm                Run inside isolated process")
+    println("  kain run -- --test <name>       Run a specific test")
+    println("  kain run -- --list              List all available tests")
+    println("  kain run -- --verbose           Enable verbose output")
+    println("  kain run -- --help              Show this help")
+    println("")
+    println("TEST FILES:")
+    println("  cause.kn        Primary test functions — 6 codegen gap regressions")
+    println("  effect.kn       Cascading failure effect modeling")
+    println("  spookymagic.kn  Heisenbugs, timing-dependent, optimizer-sensitive gaps")
+    println("")
+    println("ARCHITECTURE:")
+    println("  diagnostics.kn  Orchestrator — integrates all modules and prints reports")
+    println("  vm.kn           Isolated process wrapper (--vm flag)")
+    println("  main.kn         CLI entry point (this file)")
+
+// ===========================================================================
+//  PARSE CLI FLAGS
+// ===========================================================================
+
+struct CliFlags:
+    use_vm:     Bool
+    test_name:  String
+    list_tests: Bool
+    verbose:    Bool
+    show_help:  Bool
+
+fn parse_flags(args: Array<String>) -> CliFlags:
+    var flags = CliFlags {
+        use_vm: false,
+        test_name: "",
+        list_tests: false,
+        verbose: false,
+        show_help: false
+    }
+
+    var i: Int = 0
+    while i < len(args):
+        let arg = args[i]
+
+        if arg == "--vm":
+            flags.use_vm = true
+        elif arg == "--test":
+            i = i + 1
+            if i < len(args):
+                flags.test_name = args[i]
+        elif arg == "--list":
+            flags.list_tests = true
+        elif arg == "--verbose" or arg == "-v":
+            flags.verbose = true
+        elif arg == "--help" or arg == "-h":
+            flags.show_help = true
+
+        i = i + 1
+
+    return flags
+
+// ===========================================================================
+//  MAIN
+// ===========================================================================
+
+fn main(args: Array<String>) -> Int:
+    let user_args = process_user_args()
+
+    // If no user args, run default diagnostics
+    if len(user_args) == 0:
+        let result = run_diagnostics("all", false)
+        return result
+
+    let flags = parse_flags(user_args)
+
+    // --help
+    if flags.show_help:
+        print_help()
+        return 0
+
+    // --list
+    if flags.list_tests:
+        list_tests(flags.verbose)
+        return 0
+
+    // --vm: run inside isolated process
+    if flags.use_vm:
+        var filter = flags.test_name
+        if filter == "":
+            filter = "all"
+
+        println("=== CODEGEN EDGE GAPS — VM ISOLATION MODE ===")
+        println("[VM] Running test '" + filter + "' in isolated process...")
+        println("")
+
+        let exit_code = run_in_vm(filter, flags.verbose)
+
+        println("")
+        println("[VM] Isolation complete. Exit code: " + str(exit_code))
+        return exit_code
+
+    // Direct execution (no VM)
+    var filter = flags.test_name
+    if filter == "":
+        filter = "all"
+
+    println("=== CODEGEN EDGE GAPS — DIRECT EXECUTION ===")
+    println("[RUN] Test: " + filter)
+    println("")
+
+    let exit_code = run_diagnostics(filter, flags.verbose)
+
+    println("")
+    println("[RUN] Complete. Exit code: " + str(exit_code))
+    return exit_code

@@ -1,0 +1,213 @@
+// ============================================================================
+//  EFFECT.KN — CODEGEN FAILURE CASCADE MODELING
+//
+//  Models the downstream cascading effects when an LLVM codegen gap is hit.
+//  Each gap produces a distinct failure signature:
+//
+//    Gap 1 (:: in type names)     → invalid IR → LLVM verifier rejection
+//    Gap 2 (py_getattr_raw)       → silent wrong struct field read
+//    Gap 3 (named-field destructure) -> wrong enum variant payload extraction
+//    Gap 4 (ptr_to_int missing)   → linker undefined symbol crash
+//    Gap 5 (return in match arm)  → dead PHI predecessor → LLVM crash
+//    Gap 6 (break/continue PHI)   → PHI node mismatch → miscompilation
+//
+//  IMPORTED BY: cause.kn
+//  IMPORTS:      spookymagic.kn (for optimizer-sensitivity modeling)
+//
+//  PATTERN:
+//    Helper functions model what *actually* breaks downstream when a
+//    particular codegen gap is triggered at the IR level.
+// ============================================================================
+
+use spookymagic
+
+// ===========================================================================
+//  SANITY CHECK — Verifies module integrity
+//  Called by cause.kn during startup to confirm imports resolve.
+// ===========================================================================
+
+pub fn effect_sanity_check() -> Int:
+    // Module compiles and function is callable
+    return 0
+
+// ===========================================================================
+//  compute_effect — Models cascading failure severity from a codegen gap
+//
+//  The input encodes which gap was hit (1–6). The function models the
+//  downstream failure severity:
+//    0 = silent correct code (no effect)
+//    1 = silent wrong data (most dangerous — no crash, just wrong output)
+//    2 = LLVM verifier rejection (detectable at compile-time)
+//    3 = LLVM crash / assertion failure (detectable at compile-time)
+//    4 = linker error (undefined symbol)
+//    5 = runtime misbehaviour / incorrect values
+//    6 = process crash at runtime
+//
+//  Parameters:
+//    input: Int — Gap index (1–6) from cause.kn
+//
+//  Returns: Int — Cascading failure severity code
+// ===========================================================================
+
+pub fn compute_effect(input: Int) -> Int:
+    // Map gap number to cascading failure severity
+    // Each gap produces a characteristic downstream failure mode.
+    if input <= 0:
+        return 0  // no gap triggered
+
+    let severity = if input == 1:
+        2  // :: in type names → LLVM verifier rejects the IR
+    elif input == 2:
+        1  // py_getattr_raw → silent wrong struct field (no crash!)
+    elif input == 3:
+        1  // named-field destructure → wrong payload extracted silently
+    elif input == 4:
+        4  // ptr_to_int missing → linker undefined symbol crash
+    elif input == 5:
+        3  // return in match arm → dead PHI predecessor → LLVM crash
+    elif input == 6:
+        5  // break/continue PHI mismatch → runtime misbehaviour
+    else:
+        0  // unknown gap
+
+    // Amplify by spooky factor if optimizer-dependent behaviour
+    let spooky_factor = get_spooky_factor()
+    if spooky_factor != 1 and severity > 0:
+        severity = severity + 1
+        if severity > 6:
+            severity = 6
+
+    return severity
+
+// ===========================================================================
+//  EFFECT METADATA — Describes what failure mode this effect models
+// ===========================================================================
+
+pub struct EffectMetadata:
+    name:        String
+    severity:    Int      // 0=info, 1=silent-wrong-data, 2=verifier-reject, 3=LLVM-crash, 4=linker-error, 5=runtime-misbehave, 6=process-crash
+    description: String
+    source_file: String   // Which file caused this effect
+    gap_index:   Int      // Which codegen gap (1-6) this pertains to
+    ir_pattern:  String   // What IR construct is malformed
+
+pub fn get_effect_metadata() -> EffectMetadata:
+    return EffectMetadata {
+        name: "codegen_failure_cascade",
+        severity: 0,
+        description: "Models cascading failure when an LLVM codegen gap produces invalid IR",
+        source_file: "cause.kn",
+        gap_index: 0,
+        ir_pattern: "unknown"
+    }
+
+// ===========================================================================
+//  EFFECT TABLE — Register codegen gap effect models here
+// ===========================================================================
+
+pub struct EffectEntry:
+    name:    String
+    tag:     String    // Maps to a compute function name
+    meta:    EffectMetadata
+
+// ===========================================================================
+//  RUN EFFECT BY TAG — Dispatch compute by tag name
+// ===========================================================================
+
+pub fn run_effect_compute_by_tag(tag: String, input: Int) -> Int:
+    if tag == "gap1_type_names":
+        return compute_effect(1)
+    elif tag == "gap2_py_getattr":
+        return compute_effect(2)
+    elif tag == "gap3_named_destructure":
+        return compute_effect(3)
+    elif tag == "gap4_ptr_to_int":
+        return compute_effect(4)
+    elif tag == "gap5_return_match":
+        return compute_effect(5)
+    elif tag == "gap6_break_continue_phi":
+        return compute_effect(6)
+    return compute_effect(input)  // treat as gap index directly
+
+pub fn get_effect_table() -> Array<EffectEntry>:
+    var effects: Array<EffectEntry> = []
+
+    push(effects, EffectEntry {
+        name: "Gap 1 — :: in type names",
+        tag: "gap1_type_names",
+        meta: EffectMetadata {
+            name: "gap1_type_names",
+            severity: 2,
+            description: ":: leaks into LLVM type names → verifier rejects IR type",
+            source_file: "cause.kn",
+            gap_index: 1,
+            ir_pattern: "Invalid LLVM struct type name containing '::'"
+        }
+    })
+
+    push(effects, EffectEntry {
+        name: "Gap 2 — py_getattr_raw fallback",
+        tag: "gap2_py_getattr",
+        meta: EffectMetadata {
+            name: "gap2_py_getattr",
+            severity: 1,
+            description: "py_getattr_raw incorrectly fires for Kain-to-Kain struct field access",
+            source_file: "cause.kn",
+            gap_index: 2,
+            ir_pattern: "Wrong GEP or load for struct field offset"
+        }
+    })
+
+    push(effects, EffectEntry {
+        name: "Gap 3 — Named-field enum destructure",
+        tag: "gap3_named_destructure",
+        meta: EffectMetadata {
+            name: "gap3_named_destructure",
+            severity: 1,
+            description: "Pattern matching looks for authored field names but payload fields are _0, _1",
+            source_file: "cause.kn",
+            gap_index: 3,
+            ir_pattern: "Mismatched enum variant payload accessor"
+        }
+    })
+
+    push(effects, EffectEntry {
+        name: "Gap 4 — ptr_to_int missing function pointers",
+        tag: "gap4_ptr_to_int",
+        meta: EffectMetadata {
+            name: "gap4_ptr_to_int",
+            severity: 4,
+            description: "Ident resolver never checks self.functions → linker undefined symbol",
+            source_file: "cause.kn",
+            gap_index: 4,
+            ir_pattern: "Undefined external symbol in LLVM IR"
+        }
+    })
+
+    push(effects, EffectEntry {
+        name: "Gap 5 — return in match arm",
+        tag: "gap5_return_match",
+        meta: EffectMetadata {
+            name: "gap5_return_match",
+            severity: 3,
+            description: "return in match arm produces ret + br + dead PHI predecessor → LLVM assert failure",
+            source_file: "cause.kn",
+            gap_index: 5,
+            ir_pattern: "ret instruction in non-final block with PHI predecessor"
+        }
+    })
+
+    push(effects, EffectEntry {
+        name: "Gap 6 — break/continue PHI mismatch",
+        tag: "gap6_break_continue_phi",
+        meta: EffectMetadata {
+            name: "gap6_break_continue_phi",
+            severity: 5,
+            description: "PHI node predecessor mismatches from break/continue in loops → miscompilation",
+            source_file: "cause.kn",
+            gap_index: 6,
+            ir_pattern: "PHI node with incorrect predecessor count from loop exit"
+        }
+    })
+
+    return effects

@@ -1,0 +1,165 @@
+// ============================================================================
+//  SPOOKYMAGIC.KN — SPOOKY CODEGEN BEHAVIORS
+//
+//  Models "spooky" codegen failures — Heisenbugs that only reproduce under
+//  certain optimization levels, LLVM version-specific quirks, timing-dependent
+//  IR emission failures, or gaps that produce subtly wrong output only when
+//  specific compiler flags interact.
+//
+//  The 6 LLVM codegen gaps have varying degrees of "spookiness":
+//
+//    Gap 2 (py_getattr_raw):     Silent wrong data — worst kind (no crash)
+//    Gap 3 (named destructure):  Only triggers on named-variant patterns
+//    Gap 5 (return in match):    May be optimizer-level dependent
+//    Gap 6 (break/continue PHI): Often O1/O2-only (O0 hides the bug)
+//
+//  IMPORTED BY: cause.kn, effect.kn
+//  IMPORTS:      None (standalone — no circular dependencies)
+//
+//  PATTERN:
+//    Use this file when:
+//    - A codegen gap only reproduces at -O2 but not -O0
+//    - Different LLVM versions produce different failure modes
+//    - The emitted IR depends on function ordering or inlining decisions
+//    - Multiple gaps converge to produce one "spooky" miscompilation
+// ============================================================================
+
+// ===========================================================================
+//  SANITY CHECK — Verifies module integrity
+// ===========================================================================
+
+pub fn spookymagic_sanity_check() -> Int:
+    return 0
+
+// ===========================================================================
+//  get_spooky_factor — Returns optimizer-sensitivity multiplier
+//
+//  Models how sensitive a codegen gap is to optimization level.
+//  Some gaps only manifest at -O1/-O2, others disappear at -O0, and
+//  some are LLVM-version-specific.
+//
+//  Factor meaning:
+//    1 = not optimizer-sensitive (reproduces at any -O level)
+//    2 = -O2-only reproduction (common for PHI-related gaps)
+//    3 = LLVM version-specific (works on LLVM 18, fails on LLVM 19)
+//    4 = ordering-dependent (function placement in module affects output)
+//    5 = timing-dependent (thread interleaving or async emission)
+// ===========================================================================
+
+pub fn get_spooky_factor() -> Int:
+    // Simulate an optimizer-level-dependent spooky factor.
+    // In a real test, this would query the actual optimization level
+    // or LLVM version from the build context.
+    //
+    // For the regression suite, we enumerate the known spooky profiles:
+    //   Gap 6 (break/continue PHI) is known to be -O2-only on LLVM 18
+    //   Gap 5 (return in match) may appear/disappear with inlining
+    return 1
+
+// ===========================================================================
+//  run_spooky_test — Simulates optimizer-version-dependent codegen outcome
+//
+//  Takes a gap index (1-6) and returns whether the gap produces different
+//  IR output depending on optimization context. This models "spooky" gaps
+//  where the same Kain source emits different IR under different compiler
+//  flags, function ordering, or LLVM version.
+//
+//  Parameters:
+//    seed: Int — Gap index (1-6) or synthetic IR pattern hash
+//
+//  Returns: Int — Spookiness indicator:
+//    0 = deterministic (same IR every time)
+//    1 = optimizer-level dependent
+//    2 = LLVM-version dependent
+//    3 = ordering-dependent (function position in module matters)
+//    4 = non-deterministic (varies run-to-run)
+// ===========================================================================
+
+pub fn run_spooky_test(seed: Int) -> Int:
+    // Map gap indices to their spookiness profile
+    if seed == 5:
+        // Gap 5 (return in match): optimizer-level dependent on some LLVM versions
+        return 1
+    elif seed == 6:
+        // Gap 6 (break/continue PHI): known to be -O2-only
+        return 1
+    elif seed == 4:
+        // Gap 4 (ptr_to_int): deterministic — always missing the same symbol
+        return 0
+    elif seed == 2 or seed == 3:
+        // Gaps 2 & 3 (silent wrong data): deterministic but silent — spooky in a different way
+        return 0
+    elif seed == 1:
+        // Gap 1 (:: in type names): deterministic — always produces invalid IR
+        return 0
+
+    // Unknown seed: return input unchanged
+    return seed
+
+// ===========================================================================
+//  SPOOKY ERROR — Structured error for optimizer/version-dependent gaps
+// ===========================================================================
+
+pub struct SpookyError:
+    kind:          String    // e.g., "heisenbug", "optimizer_sensitive", "llvm_version_dependent"
+    probability:   Float     // 0.0 – 1.0 reproduction probability
+    trigger:       String    // What triggers it (opt level, LLVM version, function order)
+    evidence:      String    // How to detect it happened (IR diff, assertion, wrong output)
+    affected_gaps: String    // Which codegen gaps (1-6) this spooky error relates to
+
+pub fn create_spooky_error(kind: String, probability: Float, trigger: String) -> SpookyError:
+    return SpookyError {
+        kind: kind,
+        probability: probability,
+        trigger: trigger,
+        evidence: "",
+        affected_gaps: ""
+    }
+
+// ===========================================================================
+//  SPOOKY TABLE — Register spooky codegen behaviors here
+// ===========================================================================
+
+pub struct SpookyEntry:
+    name:        String
+    description: String
+    tag:         String    // Maps to a spooky behavior tag in dispatch logic
+    gap:         Int       // Which gap (1-6) this entry relates to
+    spookiness:  Int       // 0-4 spookiness level (see run_spooky_test)
+
+pub fn get_spooky_table() -> Array<SpookyEntry>:
+    var entries: Array<SpookyEntry> = []
+
+    push(entries, SpookyEntry {
+        name: "gap6_break_continue_phi",
+        description: "PHI predecessor mismatch from break/continue — -O2-only on LLVM 18, disappears at -O0",
+        tag: "gap6_break_continue_phi",
+        gap: 6,
+        spookiness: 1
+    })
+
+    push(entries, SpookyEntry {
+        name: "gap5_return_match_arm",
+        description: "return in match arm — optimizer-level dependent; some LLVM versions add dead PHI pred at -O1",
+        tag: "gap5_return_match_arm",
+        gap: 5,
+        spookiness: 1
+    })
+
+    push(entries, SpookyEntry {
+        name: "gap2_silent_wrong_data",
+        description: "py_getattr_raw fallback — silent wrong struct field; worst spookiness because no crash",
+        tag: "gap2_silent_wrong_data",
+        gap: 2,
+        spookiness: 0
+    })
+
+    push(entries, SpookyEntry {
+        name: "gap3_named_destructure",
+        description: "Named-field enum destructure fails silently — field names _0/_1 mismatch",
+        tag: "gap3_named_destructure",
+        gap: 3,
+        spookiness: 0
+    })
+
+    return entries
