@@ -1,0 +1,245 @@
+// ============================================================================
+//  MARKSCRIPT @IMPORT RESOLUTION SYSTEM
+//
+//  Resolves @import "path" directives at compile time (before lexing).
+//  Imports are transitive — imported files may themselves contain @import
+//  directives, resolved recursively up to MAX_IMPORT_DEPTH (16).
+//
+//  The caller (main.kn) receives merged bytecode ready for VM execution.
+//  Resolution is source-text-level: import lines are stripped, clean sources
+//  are concatenated, and the merged text is compiled as one unit.
+//
+//  Value semantics throughout — no ptr<T> in any function signature.
+// ============================================================================
+
+use std::text
+use std::fs
+use lexer
+use parser      // compile_source, hash_name
+use error       // MarkError, ERROR_IMPORT, ERROR_CIRCULAR_IMPORT, error_ok
+
+// ===========================================================================
+//  CONSTANTS
+// ===========================================================================
+
+pub const MAX_IMPORT_DEPTH: Int = 16
+
+// ===========================================================================
+//  TYPES
+// ===========================================================================
+
+// --- ImportExtractResult — returned by extract_imports ----------------------
+
+pub struct ImportExtractResult:
+    imports:      Array<String>   // list of @import "path" paths
+    clean_source: String          // source with @import lines removed
+
+// --- ImportResult — returned by resolve_imports ----------------------------
+
+pub struct ImportResult:
+    bytecode:    Array<Int>       // merged bytecode from all files
+    errors:      Array<MarkError> // resolution errors (empty on success)
+    warnings:    Array<String>    // e.g., duplicate domain warnings
+
+// ===========================================================================
+//  EXTRACT @IMPORT DIRECTIVES
+// ===========================================================================
+
+// Scan source text for lines matching the @import pattern:
+//   @import "path/to/file.md"
+// Returns matching paths and the source with @import lines removed.
+
+pub fn extract_imports(source: String) -> ImportExtractResult:
+    var imports:      Array<String> = []
+    var clean_lines:  Array<String> = []
+
+    // Split source into individual lines
+    let lines = text_split_lines(source)
+
+    var i: Int = 0
+    while i < len(lines):
+        let current_line = lines[i]
+
+        // Trim leading/trailing whitespace for detection
+        let trimmed = text_trim_string(current_line)
+
+        // Check for @import directive
+        if text_starts_with_string(trimmed, "@import "):
+            // Extract the double-quoted path: @import "path"
+            let after_prefix = text_substring_string(trimmed, 8, len(trimmed) - 8)
+            let after_space = text_trim_string(after_prefix)
+
+            // Must start with "
+            if text_starts_with_string(after_space, "\""):
+                let inner = text_substring_string(after_space, 1, len(after_space) - 1)
+                // Find the closing "
+                let quote_pos = text_find(text_from(inner), "\"")
+                if quote_pos >= 0:
+                    let import_path = text_substring_string(inner, 0, quote_pos)
+                    push(imports, import_path)
+                else:
+                    // No closing quote — store trimmed form for diagnostics
+                    push(imports, after_space)
+            else:
+                // No opening quote — store raw
+                push(imports, trimmed)
+
+            // Do NOT add this line to clean_source
+        else:
+            push(clean_lines, current_line)
+
+        i = i + 1
+
+    // Rejoin clean lines into a single source string
+    var clean_source: String = ""
+    var j: Int = 0
+    while j < len(clean_lines):
+        if j > 0:
+            clean_source = clean_source + "\n"
+        clean_source = clean_source + clean_lines[j]
+        j = j + 1
+
+    return ImportExtractResult {
+        imports: imports,
+        clean_source: clean_source
+    }
+
+// ===========================================================================
+//  CIRCULAR IMPORT DETECTION
+// ===========================================================================
+
+// Check whether a resolved absolute path already exists in the visited set.
+// visited is an Array<String> of previously resolved absolute paths.
+
+pub fn is_circular(path: String, visited: Array<String>) -> Bool:
+    var i: Int = 0
+    while i < len(visited):
+        if visited[i] == path:
+            return true
+        i = i + 1
+    return false
+
+// ===========================================================================
+//  RECURSIVE IMPORT RESOLUTION
+// ===========================================================================
+
+// Resolve all @import directives in a source file, returning merged bytecode.
+//
+// Parameters:
+//   source    — raw source text (may contain @import lines)
+//   base_dir  — directory of the importing file (for relative path resolution)
+//   depth     — current recursion depth (start at 0)
+//   visited   — Array<String> of resolved absolute paths (start with [])
+//
+// Resolution strategy:
+//   1. Extract @import directives → clean source + import paths
+//   2. For each path: resolve, check depth/circularity, read, recurse
+//   3. Concatenate all clean sources into one merged text
+//   4. Compile the merged text via parser::compile_source
+//   5. Return ImportResult with merged bytecode + any errors/warnings
+
+pub fn resolve_imports(source: String, base_dir: String, depth: Int, visited: Array<String>) -> ImportResult:
+    var all_errors:   Array<MarkError> = []
+    var all_warnings: Array<String> = []
+
+    // 1. Extract @import directives from this file
+    let extracted = extract_imports(source)
+
+    // 2. Start with the clean (stripped) source
+    var merged_source = extracted.clean_source
+
+    // 3. Check import depth limit
+    if depth > MAX_IMPORT_DEPTH:
+        push(all_errors, MarkError {
+            kind: ERROR_IMPORT,
+            message: "maximum import depth (" + str(MAX_IMPORT_DEPTH) + ") exceeded",
+            line_no: 0,
+            domain: "",
+            routine: "",
+            suggestion: "check for circular or deeply nested imports"
+        })
+        // Compile what we have and return early
+        let lex = create_lexer(merged_source)
+        let bc = compile_source(lex)
+        return ImportResult {
+            bytecode: bc,
+            errors: all_errors,
+            warnings: all_warnings
+        }
+
+    // 4. Process each import directive
+    var i: Int = 0
+    while i < len(extracted.imports):
+        let import_path = extracted.imports[i]
+
+        // Resolve relative to base_dir
+        let resolved_path = fs_path_join(base_dir, import_path)
+
+        // Check for circular imports
+        if is_circular(resolved_path, visited):
+            push(all_errors, MarkError {
+                kind: ERROR_CIRCULAR_IMPORT,
+                message: "circular import detected: \"" + import_path + "\"",
+                line_no: 0,
+                domain: "",
+                routine: "",
+                suggestion: "remove the import from the cycle — already visited: " + resolved_path
+            })
+            i = i + 1
+            continue
+
+        // Try to read the imported file
+        let read_result = fs_try_read_text(resolved_path)
+        if read_result.ok == false:
+            push(all_errors, MarkError {
+                kind: ERROR_IMPORT,
+                message: "import not found: \"" + import_path + "\" resolved to \"" + resolved_path + "\"",
+                line_no: 0,
+                domain: "",
+                routine: "",
+                suggestion: "check that the file exists at the resolved path"
+            })
+            i = i + 1
+            continue
+
+        let imported_content = read_result.value
+
+        // Build new visited set (Array<String> does not support + for concat)
+        var new_visited: Array<String> = []
+        var vi: Int = 0
+        while vi < len(visited):
+            push(new_visited, visited[vi])
+            vi = vi + 1
+        push(new_visited, resolved_path)
+
+        // Recursively resolve imports in the imported file
+        let import_dir = fs_path_parent(resolved_path)
+        let sub_result = resolve_imports(imported_content, import_dir, depth + 1, new_visited)
+
+        // Collect errors and warnings from the recursive call
+        var ei: Int = 0
+        while ei < len(sub_result.errors):
+            push(all_errors, sub_result.errors[ei])
+            ei = ei + 1
+        var wi: Int = 0
+        while wi < len(sub_result.warnings):
+            push(all_warnings, sub_result.warnings[wi])
+            wi = wi + 1
+
+        // Append the imported file's clean (import-stripped) content
+        // Re-extract to get the clean source for the imported file
+        let sub_extracted = extract_imports(imported_content)
+        merged_source = merged_source + "\n" + sub_extracted.clean_source
+
+        i = i + 1
+
+    // 5. Compile the merged source into bytecode
+    let lex = create_lexer(merged_source)
+    let bc = compile_source(lex)
+
+    // 6. Return result
+    return ImportResult {
+        bytecode: bc,
+        errors: all_errors,
+        warnings: all_warnings
+    }

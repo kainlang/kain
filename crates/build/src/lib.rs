@@ -5,7 +5,18 @@ pub(crate) mod evaluated_build;
 pub mod native_link;
 pub mod workspace;
 pub use workspace::*;
-pub use native_link::{NativeEmit, NativeLinkRequest, NativeRuntimeArtifacts, link_native_binary};
+pub use native_link::{NativeEmit, NativeLinkRequest, NativeRuntimeArtifacts, link_native_binary, platform_link_libs};
+
+/// Default C++ link libraries for the current platform.
+pub fn platform_cpp_link_libs() -> Vec<&'static str> {
+    if cfg!(windows) {
+        Vec::new()
+    } else if cfg!(target_os = "macos") {
+        vec!["c++"]
+    } else {
+        vec!["stdc++"]
+    }
+}
 
 pub use kain_host::{
     EngineModuleExport, EngineModuleExportConfig, HostResult, HostSession, HostType, KainError,

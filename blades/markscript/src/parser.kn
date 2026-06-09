@@ -1,0 +1,520 @@
+// ============================================================================
+//  MARKSCRIPT PARSER — Single-pass token→bytecode compiler
+//
+//  Reads tokens sequentially from a LexerState (value semantics) and emits
+//  bytecode ops directly into an Array<Int>.
+//
+//  Changes from ast.kn (v0.9):
+//    1. Full 20-opcode set with spec-defined constants
+//    2. Table type inference via types module (MarkValue kinds)
+//    3. @import directive resolution (compile-time, recursive)
+//    4. compile_source_with_imports() for import-aware compilation
+//    5. hash_name() preserved for backward compat
+//
+//  Opcode ownership:
+//    Parser-emitted: 0=HALT, 1=ENTER_DOMAIN, 2=ROUTINE_HEADER,
+//                    3=PUSH_PARAM, 4=EXECUTE_CALL, 5=PUSH_MATRIX,
+//                    6=FENCED_CODE
+//    VM-only:        7=PUSH_STACK, 8=POP_STACK, 9=DUP, 10=CALL,
+//                    11=RET, 12=JMP, 13=JZ, 14=ADD, 15=SUB,
+//                    16=MUL, 17=DIV, 18=LOAD_VAR, 19=STORE_VAR,
+//                    20=JN
+// ============================================================================
+
+use std::text
+use std::fs
+use lexer
+use types
+
+// ============================================================================
+//  BYTECODE OPCODES — All 20, spec-defined values
+// ============================================================================
+
+// --- Parser-emitted (7) ----------------------------------------------------
+pub const OP_HALT:           Int = 0
+pub const OP_ENTER_DOMAIN:   Int = 1
+pub const OP_ROUTINE_HEADER: Int = 2
+pub const OP_PUSH_PARAM:     Int = 3
+pub const OP_EXECUTE_CALL:   Int = 4
+pub const OP_PUSH_MATRIX:    Int = 5
+pub const OP_FENCED_CODE:    Int = 6
+
+// --- VM-only (13) ----------------------------------------------------------
+pub const OP_PUSH_STACK:     Int = 7
+pub const OP_POP_STACK:      Int = 8
+pub const OP_DUP:            Int = 9
+pub const OP_CALL:           Int = 10
+pub const OP_RET:            Int = 11
+pub const OP_JMP:            Int = 12
+pub const OP_JZ:             Int = 13
+pub const OP_ADD:            Int = 14
+pub const OP_SUB:            Int = 15
+pub const OP_MUL:            Int = 16
+pub const OP_DIV:            Int = 17
+pub const OP_LOAD_VAR:       Int = 18
+pub const OP_STORE_VAR:      Int = 19
+pub const OP_JN:             Int = 20
+
+// ============================================================================
+//  IMPORT CONTEXT — Tracks @import state during recursive parsing
+// ============================================================================
+
+pub struct ImportContext:
+    resolved_paths: Array<String>   // canonical paths already imported
+    depth:          Int             // current import nesting depth
+    base_dir:       String          // directory for resolving relative imports
+    next_handle:    Int             // next free matrix handle id
+
+// ============================================================================
+//  PARSE RESULT — Value-semantics return from recursive parse
+// ============================================================================
+
+pub struct ParseResult:
+    bytecode:    Array<Int>
+    state:       LexerState
+    next_handle: Int
+
+// ============================================================================
+//  MATRIX HANDLE — Returned by the table parser
+// ============================================================================
+
+pub struct MatrixHandle:
+    handle_id: Int
+    data:      Array<Int>   // flat [kind0, val0, kind1, val1, ...]
+    cols:      Int
+    rows:      Int
+    col_types: Array<Int>   // per-column inferred types
+
+pub struct MatrixTableResult:
+    handle: MatrixHandle
+    state:  LexerState
+
+// ============================================================================
+//  MAIN ENTRY POINTS
+// ============================================================================
+
+// --- Plain compile (no @import resolution) ----------------------------------
+pub fn compile_source(state: LexerState) -> Array<Int>:
+    let ctx = ImportContext {
+        resolved_paths: [],
+        depth: 0,
+        base_dir: "",
+        next_handle: 0
+    }
+    let result = parse_source(state, ctx)
+    push(result.bytecode, OP_HALT)
+    return result.bytecode
+
+// --- Import-aware compile ---------------------------------------------------
+pub fn compile_source_with_imports(state: LexerState, base_dir: String) -> Array<Int>:
+    let ctx = ImportContext {
+        resolved_paths: [],
+        depth: 0,
+        base_dir: base_dir,
+        next_handle: 0
+    }
+    let result = parse_source(state, ctx)
+    push(result.bytecode, OP_HALT)
+    return result.bytecode
+
+// ============================================================================
+//  CORE PARSER LOOP
+// ============================================================================
+
+fn parse_source(state: LexerState, ctx: ImportContext) -> ParseResult:
+    var bc: Array<Int> = []
+    var s = state
+    var nh = ctx.next_handle
+    var done = false
+
+    while done == false:
+        let nr = next_token(s)
+        let tok = nr.token
+        s = nr.state
+        let kind = token_kind(tok)
+
+        if kind == TOK_EOF:
+            done = true
+
+        elif kind == TOK_HEADER1:
+            // Domain: # Name → OP_ENTER_DOMAIN hash
+            let name_nr = next_token(s)
+            let name_tok = name_nr.token
+            s = name_nr.state
+            let name = token_text(name_tok)
+            push(bc, OP_ENTER_DOMAIN)
+            push(bc, hash_name(name))
+
+        elif kind == TOK_HEADER2:
+            // Routine: ## Name → OP_ROUTINE_HEADER hash
+            let name_nr = next_token(s)
+            let name_tok = name_nr.token
+            s = name_nr.state
+            let name = token_text(name_tok)
+            push(bc, OP_ROUTINE_HEADER)
+            push(bc, hash_name(name))
+
+        elif kind == TOK_BLOCKQUOTE:
+            // Intent: > phrase → OP_PUSH_PARAM hash + OP_EXECUTE_CALL
+            let phrase_nr = next_token(s)
+            let phrase_tok = phrase_nr.token
+            s = phrase_nr.state
+            let phrase = token_text(phrase_tok)
+            push(bc, OP_PUSH_PARAM)
+            push(bc, hash_name(phrase))
+            push(bc, OP_EXECUTE_CALL)
+
+        elif kind == TOK_TABLEPIPE:
+            // Table: | col | col | → OP_PUSH_MATRIX with typed data
+            let tresult = parse_matrix_table(s, nh)
+            s = tresult.state
+            let h = tresult.handle
+            nh = nh + 1
+
+            push(bc, OP_PUSH_MATRIX)
+            push(bc, h.handle_id)
+            push(bc, h.cols)
+            push(bc, h.rows)
+
+            // data_count = total Int values in data stream
+            // Each cell is (kind, value) = 2 ints
+            let data_len = len(h.data)
+            push(bc, data_len)
+
+            var di: Int = 0
+            while di < data_len:
+                push(bc, h.data[di])
+                di = di + 1
+
+        elif kind == TOK_FENCE:
+            // Fenced code block: ``` lang / code / ```
+            let nr_lang = next_token(s)
+            s = nr_lang.state
+            let lang_text = token_text(nr_lang.token)
+
+            let nr_code = next_token(s)
+            s = nr_code.state
+            let code_text = token_text(nr_code.token)
+
+            push(bc, OP_FENCED_CODE)
+            push(bc, hash_name(lang_text))
+            push(bc, hash_name(code_text))
+
+        elif kind == TOK_TEXTSTR:
+            // Text token — might be @import directive
+            let text = token_text(tok)
+            if is_import_directive(text):
+                if ctx.depth >= 16:
+                    println("[WARN] Import depth limit (16) exceeded, skipping: " + text)
+                    continue
+                let import_path = extract_import_path(text)
+                if import_path == "":
+                    continue
+                let resolved = resolve_import_path(ctx.base_dir, import_path)
+                if path_is_resolved(ctx.resolved_paths, resolved):
+                    println("[WARN] Circular import detected: " + resolved)
+                    continue
+
+                // Read and parse the imported file
+                let imported_content = fs_read_text(resolved)
+                let child_lexer = create_lexer(imported_content)
+                let child_ctx = ImportContext {
+                    resolved_paths: push_copy(ctx.resolved_paths, resolved),
+                    depth: ctx.depth + 1,
+                    base_dir: get_parent_dir(resolved),
+                    next_handle: nh
+                }
+                let child_result = parse_source(child_lexer, child_ctx)
+
+                // Merge child bytecode (without trailing OP_HALT)
+                merge_bytecode(bc, child_result.bytecode)
+                nh = child_result.next_handle
+            else:
+                // Regular text — skip (documentation)
+                continue
+
+        elif kind == TOK_NEWLINE:
+            // Significant newline — skip in parser
+            continue
+
+        else:
+            // TOK_HEADER3-6, TOK_HR, TOK_LIST_UNORDERED,
+            // TOK_LIST_ORDERED, TOK_BOLD, TOK_ITALIC, TOK_CODE_SPAN,
+            // TOK_LINK_TEXT, TOK_LINK_URL — reserved, skipped
+            continue
+
+    return ParseResult {
+        bytecode: bc,
+        state: s,
+        next_handle: nh
+    }
+
+// ============================================================================
+//  @IMPORT DIRECTIVE HANDLING
+// ============================================================================
+
+// Check if a text token starts with the @import directive.
+fn is_import_directive(text: String) -> Bool:
+    return text_starts_with_string(text, "@import")
+
+// Extract the quoted path from '@import "path/to/file.md"'.
+// Returns the path between the first pair of double-quotes.
+fn extract_import_path(text: String) -> String:
+    let view = text_from(text)
+    let quote_start = text_find(view, "\"")
+    if quote_start < 0:
+        return ""
+    let after_quote = quote_start + 1
+    let quote_end = text_find_from(view, "\"", after_quote)
+    if quote_end < 0:
+        return ""
+    return text_substring_string(text, after_quote, quote_end - after_quote)
+
+// Resolve an import path relative to the base directory.
+// Handles ./ and ../ prefix segments.
+// Joins with / separator and normalizes .. components.
+fn resolve_import_path(base_dir: String, import_path: String) -> String:
+    // Normalize base_dir: ensure it ends with /
+    var dir = base_dir
+    if text_ends_with_string(dir, "/") == false and text_ends_with_string(dir, "\\") == false:
+        dir = dir + "/"
+
+    // Split import_path into segments
+    let normalized_import = text_replace_string(import_path, "\\", "/")
+    let segments = text_split_string(normalized_import, "/")
+
+    // Start with base_dir segments
+    let dir_segments = text_split_string(text_replace_string(dir, "\\", "/"), "/")
+
+    // Build resolved path segments from base_dir
+    var result_segs: Array<String> = []
+    var dsi: Int = 0
+    while dsi < len(dir_segments):
+        let seg = dir_segments[dsi]
+        if seg != "":
+            push(result_segs, seg)
+        dsi = dsi + 1
+
+    // Process import segments (resolve . and ..)
+    var si: Int = 0
+    while si < len(segments):
+        let seg = segments[si]
+        if seg == "." or seg == "":
+            si = si + 1
+            continue
+        if seg == "..":
+            if len(result_segs) > 0:
+                pop(result_segs)
+            si = si + 1
+            continue
+        push(result_segs, seg)
+        si = si + 1
+
+    // Rejoin with /
+    return text_join_strings(result_segs, "/")
+
+// Get the parent directory of a file path.
+fn get_parent_dir(path: String) -> String:
+    let normalized = text_replace_string(path, "\\", "/")
+    var last_pos: Int = -1
+    var search_pos: Int = 0
+    loop:
+        let pos = text_find_from(text_from(normalized), "/", search_pos)
+        if pos < 0:
+            break
+        last_pos = pos
+        search_pos = pos + 1
+
+    if last_pos < 0:
+        return "./"
+    return text_substring_string(normalized, 0, last_pos) + "/"
+
+// Check if a resolved path is already in the resolved list (circular detection).
+fn path_is_resolved(resolved: Array<String>, path: String) -> Bool:
+    var i: Int = 0
+    while i < len(resolved):
+        if resolved[i] == path:
+            return true
+        i = i + 1
+    return false
+
+// Push a copy of the array with a new element appended.
+fn push_copy(arr: Array<String>, val: String) -> Array<String>:
+    var result: Array<String> = []
+    var i: Int = 0
+    while i < len(arr):
+        push(result, arr[i])
+        i = i + 1
+    push(result, val)
+    return result
+
+// Merge child bytecode into parent.
+// Child bytecode from parse_source does not have trailing OP_HALT.
+fn merge_bytecode(parent: Array<Int>, child: Array<Int>):
+    var i: Int = 0
+    while i < len(child):
+        push(parent, child[i])
+        i = i + 1
+
+// ============================================================================
+//  STRING HASH — Simple polynomial hash for names/phrases
+// ============================================================================
+
+pub fn hash_name(s: String) -> Int:
+    let view = text_from(s)
+    let sl = text_len(view)
+    var h: Int = 0
+    var i: Int = 0
+    while i < sl:
+        let ch = text_char_at(view, i)
+        let cv = text_ord(ch)
+        h = h * 31 + cv
+        i = i + 1
+    return h
+
+// ============================================================================
+//  TABLE (MATRIX) PARSER — Typed cell inference
+//
+//  Reads raw characters from the source (not through the tokenizer) because
+//  the tokenizer skips newlines between structural tokens and we need
+//  row/column boundaries.
+//
+//  Each cell is encoded as (kind, value) in the bytecode stream, where:
+//    MARK_INT:    kind=0, value=actual integer
+//    MARK_FLOAT:  kind=1, value=hash of float string
+//    MARK_STRING: kind=2, value=hash of cell text
+// ============================================================================
+
+fn parse_matrix_table(state: LexerState, handle_id: Int) -> MatrixTableResult:
+    var s = state
+    var all_data: Array<Int> = []
+    var cols: Int = 0
+    var rows: Int = 0
+    var col_types: Array<Int> = []
+
+    loop:
+        // --- Read one row ------------------------------------------------
+        var row_data: Array<MarkValue> = []
+        var row_has_data = false
+        var cell_start = s.pos
+
+        loop:
+            if s.pos >= s.len:
+                break
+
+            let ch = text_substring_string(s.source, s.pos, 1)
+
+            if ch == "|" or ch == "\n":
+                // End of cell — extract text between pipes
+                let cell_raw = text_substring_string(s.source, cell_start, s.pos - cell_start)
+                let cell_view = text_from(cell_raw)
+                let trimmed = text_materialize(text_trim(cell_view))
+
+                if trimmed != "":
+                    // Skip separator rows (all dashes with optional colons/spaces)
+                    if is_separator_row(trimmed) == false:
+                        // Infer type and parse value
+                        let cell_type = infer_cell_type(trimmed)
+                        let cell_val = parse_cell_value(trimmed, cell_type)
+                        push(row_data, cell_val)
+                        row_has_data = true
+                    // else: separator row cell → skip
+
+            if ch == "\n":
+                s.line_no = s.line_no + 1
+                s.pos = s.pos + 1
+                break   // end of this row
+
+            elif ch == "|":
+                s.pos = s.pos + 1
+                cell_start = s.pos
+                continue   // next cell in same row
+
+            else:
+                s.pos = s.pos + 1
+                continue   // accumulate cell characters
+
+        // --- Row complete ------------------------------------------------
+
+        if row_has_data == false:
+            break
+
+        // Set up column types on first data row
+        if cols == 0:
+            cols = len(row_data)
+            // Initialize col_types from the first row
+            var ci: Int = 0
+            while ci < cols:
+                push(col_types, row_data[ci].kind)
+                ci = ci + 1
+
+        // Widen column types based on this row
+        var wci: Int = 0
+        while wci < len(row_data) and wci < len(col_types):
+            col_types[wci] = widen_column_type(col_types[wci], row_data[wci].kind)
+            wci = wci + 1
+
+        rows = rows + 1
+
+        // Encode each cell as (kind, value) pair → flat data array
+        var ri: Int = 0
+        while ri < len(row_data):
+            let encoded = encode_mark_value(row_data[ri])
+            // encoded is [kind, value]
+            push(all_data, encoded[0])
+            push(all_data, encoded[1])
+            ri = ri + 1
+
+        // --- Peek ahead: does the next line start with '|'? --------------
+        var peek_pos = s.pos
+        var peek_line = s.line_no
+        loop:
+            if peek_pos >= s.len:
+                break
+            let pk = text_substring_string(s.source, peek_pos, 1)
+            if pk == "\n":
+                peek_line = peek_line + 1
+                peek_pos = peek_pos + 1
+            elif pk == " " or pk == "\r" or pk == "\t":
+                peek_pos = peek_pos + 1
+            else:
+                break
+
+        if peek_pos < s.len:
+            let pk = text_substring_string(s.source, peek_pos, 1)
+            if pk == "|":
+                s.pos = peek_pos
+                s.line_no = peek_line
+                continue
+
+        break
+
+    // Update lexer internal fields for correct resumption
+    s.at_line_start = true
+    s.prev_kind = TOK_TABLEPIPE
+
+    return MatrixTableResult {
+        handle: MatrixHandle {
+            handle_id: handle_id,
+            data: all_data,
+            cols: cols,
+            rows: rows,
+            col_types: col_types
+        },
+        state: s
+    }
+
+// --- Check if a trimmed cell value is a separator row pattern --------------
+// Separator rows contain only |, -, :, and spaces.
+fn is_separator_row(text: String) -> Bool:
+    let view = text_from(text)
+    let sl = text_len(view)
+    var i: Int = 0
+    while i < sl:
+        let ch = text_char_at(view, i)
+        if ch == "-" or ch == ":" or ch == " " or ch == "\t":
+            i = i + 1
+            continue
+        // Any other character means it's not a separator
+        return false
+    return sl > 0   // non-empty string of only - : space/tab

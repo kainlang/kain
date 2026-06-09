@@ -1,0 +1,80 @@
+// ============================================================================
+//  MARKSCRIPT ERROR SYSTEM — Structured runtime error reporting
+//  All errors are runtime errors (markdown cannot produce syntax errors).
+//  Every error carries kind, message, line number, domain, routine,
+//  and a did-you-mean suggestion string.
+// ============================================================================
+
+// --- Error kind constants --------------------------------------------------
+
+pub const ERROR_OK:               Int = 0
+pub const ERROR_NAME:             Int = 1
+pub const ERROR_ARITY:            Int = 2
+pub const ERROR_BOUNDS:           Int = 3
+pub const ERROR_TYPE:             Int = 4
+pub const ERROR_IMPORT:           Int = 5
+pub const ERROR_CIRCULAR_IMPORT:  Int = 6
+
+// --- MarkError — structured VM error ---------------------------------------
+
+pub struct MarkError:
+    kind:       Int      // one of ERROR_* constants (0 = no error)
+    message:    String   // human-readable description
+    line_no:    Int      // source line number
+    domain:     String   // current domain name at time of error
+    routine:    String   // current routine name at time of error
+    suggestion: String   // did-you-mean hint (empty if none)
+
+// --- Constructor: no-error sentinel ----------------------------------------
+
+pub fn error_ok() -> MarkError:
+    return MarkError {
+        kind: ERROR_OK,
+        message: "",
+        line_no: 0,
+        domain: "",
+        routine: "",
+        suggestion: ""
+    }
+
+// --- Constructor: named error ----------------------------------------------
+
+pub fn make_error(kind: Int, message: String, line_no: Int,
+                  domain: String, routine: String, suggestion: String) -> MarkError:
+    return MarkError {
+        kind: kind,
+        message: message,
+        line_no: line_no,
+        domain: domain,
+        routine: routine,
+        suggestion: suggestion
+    }
+
+// --- Error kind name (for display) -----------------------------------------
+
+pub fn error_kind_name(kind: Int) -> String:
+    if kind == ERROR_OK:              return "ok"
+    elif kind == ERROR_NAME:          return "name error"
+    elif kind == ERROR_ARITY:         return "arity error"
+    elif kind == ERROR_BOUNDS:        return "bounds error"
+    elif kind == ERROR_TYPE:          return "type error"
+    elif kind == ERROR_IMPORT:        return "import error"
+    elif kind == ERROR_CIRCULAR_IMPORT: return "circular import"
+    else:                             return "unknown error"
+
+// --- Format error for display ----------------------------------------------
+
+pub fn format_error(err: MarkError) -> String:
+    if err.kind == ERROR_OK:
+        return ""
+
+    let kind_name = error_kind_name(err.kind)
+    var result = "Error: " + kind_name + ": " + err.message
+    result = result + "\n  at line " + str(err.line_no)
+    if err.domain != "":
+        result = result + ", domain \"" + err.domain + "\""
+    if err.routine != "":
+        result = result + ", routine \"" + err.routine + "\""
+    if err.suggestion != "":
+        result = result + "\n  suggestion: " + err.suggestion
+    return result

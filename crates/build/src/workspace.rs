@@ -3766,7 +3766,7 @@ fn run_kain_compile(
                 Err(err) => {
                     eprintln!(" Native link skipped: {err}");
                     eprintln!("   Ensure clang is installed and the Kain runtime library is available.");
-                    eprintln!("   Run `kain sync` to build the runtime, or set KAIN_RUNTIME_LIB_PATH.");
+                    eprintln!("   Ensure a precompiled runtime archive exists at $KAIN_HOME/lib/kain_runtime.lib (or set KAIN_RUNTIME_LIB_PATH).");
                 }
             }
         }

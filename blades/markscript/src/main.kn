@@ -1,142 +1,473 @@
 // ============================================================================
-//  MARKSCRIPT RUNTIME ENGINE DRIVER
-//  Command-line entry point. Reads a .kn.md file, lexes it, compiles it
-//  to bytecode, and executes it through the VM.
-//  Usage: mks.exe <file.kn.md>
-//  Uses value semantics throughout (no ptr<T>) for codegen compatibility.
+//  MARKSCRIPT RUNTIME ENGINE DRIVER 1.0
+//  CLI, disassembler, import resolution, execution pipeline, handler dispatch.
+//
+//  Entry point for the Markscript VM. Reads a .md file (or REPL input),
+//  resolves @import directives, lexes, compiles to bytecode, and executes
+//  through the stack VM. Supports the pause/resume handler dispatch pattern:
+//    execute_bytecode → handler_id > 0 → dispatch → resume_execution → loop
+//
+//  Usage:
+//    mks <file.md>              — compile & execute
+//    mks                        — REPL mode (interactive intent prompt)
+//    mks --disassemble <file.md> — show bytecode only, no execution
+//
+//  Value semantics throughout (no ptr<T>) for codegen compatibility.
 // ============================================================================
 
 use std::text
 use std::fs
-use std::diagnostics
-use std::runtime
-use lexer
-use ast
-use vm
+use std::process
+use std::os
+use types           // MarkValue, mark_int, mark_string, mark_value_to_string, MARK_*
+use lexer           // create_lexer
+use parser          // compile_source, hash_name, OP_* constants
+use vm              // init_vm, execute_bytecode, resume_execution, ExecResult, MarkScriptVM
+use bridge          // init_vm_with_builtins, dispatch_handler, HANDLER_*
+use import          // resolve_imports, extract_imports, ImportResult, ImportExtractResult, MarkError
+use error           // format_error, MarkError, ERROR_*, error_ok, error_kind_name
 
-// --- Demo handler stub ----------------------------------------------------
-
-fn runtime_stub(hash_id: Int) -> Int:
-    println("[INTENT] Fired intent hash: " + str(hash_id))
-    return 200
-
-// --- File reading ---------------------------------------------------------
+// ===========================================================================
+//  FILE READING
+// ===========================================================================
 
 fn read_source(path: String) -> String:
-    let content = fs_read_text(path)
-    return content
+    return fs_read_text(path)
 
-// --- Main entry point -----------------------------------------------------
+// ===========================================================================
+//  OPCODE NAME TABLE (all 20, matching the spec)
+// ===========================================================================
 
-fn main(args: Array<String>) -> Int:
-    println("=== MARKSCRIPT RUNTIME ENGINE v1.0 ===")
-    println("")
+fn opcode_name(op: Int) -> String:
+    if op == OP_HALT:           return "OP_HALT"
+    elif op == OP_ENTER_DOMAIN: return "OP_ENTER_DOMAIN"
+    elif op == OP_ROUTINE_HEADER: return "OP_ROUTINE_HEADER"
+    elif op == OP_PUSH_PARAM:   return "OP_PUSH_PARAM"
+    elif op == OP_EXECUTE_CALL: return "OP_EXECUTE_CALL"
+    elif op == OP_PUSH_MATRIX:  return "OP_PUSH_MATRIX"
+    elif op == OP_FENCED_CODE:  return "OP_FENCED_CODE"
+    elif op == OP_PUSH_STACK:   return "OP_PUSH_STACK"
+    elif op == OP_POP_STACK:    return "OP_POP_STACK"
+    elif op == OP_DUP:          return "OP_DUP"
+    elif op == OP_CALL:         return "OP_CALL"
+    elif op == OP_RET:          return "OP_RET"
+    elif op == OP_JMP:          return "OP_JMP"
+    elif op == OP_JZ:           return "OP_JZ"
+    elif op == OP_ADD:          return "OP_ADD"
+    elif op == OP_SUB:          return "OP_SUB"
+    elif op == OP_MUL:          return "OP_MUL"
+    elif op == OP_DIV:          return "OP_DIV"
+    elif op == OP_LOAD_VAR:     return "OP_LOAD_VAR"
+    elif op == OP_STORE_VAR:    return "OP_STORE_VAR"
+    elif op == OP_JN:           return "OP_JN"
+    else:                       return "UNKNOWN(" + str(op) + ")"
 
-    // Determine source — using workaround for compiler tag-check bug
-    // in process_arg(1). See tree-kn's get_user_args() for details.
-    let arg_count = process_arg_count()
-    var source: String = ""
-    
-    if arg_count > 1:
-        let index_zero = process_arg(0)
-        let index_one = process_arg(1)
-        let need_workaround = index_zero == index_one
-        
-        var filepath: String = ""
-        if need_workaround:
-            // Compiler bug: raw index 9 decodes to 1 via tag-check
-            filepath = process_arg(9)
-        else:
-            filepath = process_arg(1)
-        
-        source = read_source(filepath)
-        println("[INPUT] Loaded: " + filepath)
-    else:
-        // Fallback demo source — exercises all features: domains, routines,
-        // intents (blockquote), tables, and fenced code blocks.
-        source = "# PipelineWorkspace\n## ProcessHotPath\n> apply vignette filter\n| Density | Viscosity | Friction |\n| 1.05    | 0.88      | 0.45     |\n\n\n> apply grain overlay\n\n\n```python\nprint(\"hello world\")\n```\n"
-        println("[INPUT] Using demo source (no file arg)")
+// ===========================================================================
+//  DISASSEMBLER — typed bytecode dump
+// ===========================================================================
 
-    // 1. Create lexer state
-    let lex = create_lexer(source)
+fn is_no_operand_op(op: Int) -> Bool:
+    if op == OP_HALT: return true
+    if op == OP_EXECUTE_CALL: return true
+    if op == OP_POP_STACK: return true
+    if op == OP_DUP: return true
+    if op == OP_CALL: return true
+    if op == OP_RET: return true
+    if op == OP_ADD: return true
+    if op == OP_SUB: return true
+    if op == OP_MUL: return true
+    if op == OP_DIV: return true
+    return false
 
-    // 2. Tokenize + Parse + Compile in one pass
-    let bc = compile_source(lex)
+fn is_single_operand_op(op: Int) -> Bool:
+    if op == OP_ENTER_DOMAIN: return true
+    if op == OP_ROUTINE_HEADER: return true
+    if op == OP_PUSH_PARAM: return true
+    if op == OP_PUSH_STACK: return true
+    if op == OP_JMP: return true
+    if op == OP_JZ: return true
+    if op == OP_LOAD_VAR: return true
+    if op == OP_STORE_VAR: return true
+    if op == OP_JN: return true
+    return false
 
+fn disassemble_bytecode(bc: Array<Int>):
     let op_count = len(bc)
-    println("[COMPILE] Produced " + str(op_count) + " bytecode ops")
+    println("[DISASSEMBLY] " + str(op_count) + " ops")
 
-    // Print bytecode disassembly
-    var di = 0
+    var di: Int = 0
     while di < op_count:
         let op = bc[di]
-        if op == 0:
-            println("        " + str(di) + ": OP_HALT")
-        elif op == 1:
+        let name = opcode_name(op)
+        let prefix = "  " + str(di) + ": "
+
+        // 1. No-operand opcodes (HALT, EXECUTE_CALL, POP_STACK, DUP, etc.)
+        if is_no_operand_op(op):
+            println(prefix + name)
+            di = di + 1
+
+        // 2. Single-operand opcodes (ENTER_DOMAIN, PUSH_STACK, JMP, etc.)
+        elif is_single_operand_op(op):
             di = di + 1
             if di < op_count:
-                println("        " + str(di - 1) + ": OP_ENTER_DOMAIN  hash=" + str(bc[di]))
-        elif op == 2:
+                println(prefix + name + "  operand=" + str(bc[di]))
+            else:
+                println(prefix + name + "  (truncated)")
             di = di + 1
-            if di < op_count:
-                println("        " + str(di - 1) + ": OP_ROUTINE_HEADER hash=" + str(bc[di]))
-        elif op == 3:
+
+        // 3. OP_FENCED_CODE(6) — 2 operands: lang_hash, content_hash
+        elif op == OP_FENCED_CODE:
             di = di + 1
-            if di < op_count:
-                println("        " + str(di - 1) + ": OP_PUSH_PARAM    hash=" + str(bc[di]))
-        elif op == 4:
-            println("        " + str(di) + ": OP_EXECUTE_CALL")
-        elif op == 5:
+            if di + 1 >= op_count:
+                println(prefix + name + "  (truncated)")
+                di = di + 1
+                continue
+            let lang_hash = bc[di]
             di = di + 1
-            if di + 3 < op_count:
-                let handle = bc[di]
-                di = di + 1
-                let cols = bc[di]
-                di = di + 1
-                let rows = bc[di]
-                di = di + 1
-                let cnt = bc[di]
-                di = di + 1
-                println("        " + str(di - 5) + ": OP_PUSH_MATRIX  handle=" + str(handle) + " cols=" + str(cols) + " rows=" + str(rows) + " data_count=" + str(cnt))
-                // Advance past data values, accounting for outer loop's di = di + 1
-                if cnt == 0:
-                    di = di - 1
-                elif cnt > 1:
-                    var sdi: Int = 1
-                    while sdi < cnt and di < op_count:
-                        di = di + 1
-                        sdi = sdi + 1
-                // cnt == 1: di stays at first (and only) data value
-        elif op == 6:
+            let content_hash = bc[di]
             di = di + 1
-            if di + 1 < op_count:
-                let lang = bc[di]
+            println(prefix + name + "  lang_hash=" + str(lang_hash) + "  content_hash=" + str(content_hash))
+
+        // 4. OP_PUSH_MATRIX(5) — variable operands
+        elif op == OP_PUSH_MATRIX:
+            di = di + 1
+            if di + 3 >= op_count:
+                println(prefix + name + "  (truncated header)")
                 di = di + 1
-                let content = bc[di]
-                println("        " + str(di - 2) + ": OP_FENCED_CODE lang_hash=" + str(lang) + " content_hash=" + str(content))
+                continue
+            let handle = bc[di]
+            di = di + 1
+            let cols = bc[di]
+            di = di + 1
+            let rows = bc[di]
+            di = di + 1
+            let data_count = bc[di]
+            di = di + 1
+
+            println(prefix + name + "  handle=" + str(handle) + "  cols=" + str(cols) + "  rows=" + str(rows) + "  data_count=" + str(data_count))
+
+            // Skip past data values
+            var sdi: Int = 0
+            while sdi < data_count:
+                if di < op_count:
+                    di = di + 1
+                sdi = sdi + 1
+
         else:
-            println("        " + str(di) + ": UNKNOWN_OP " + str(op))
-        di = di + 1
+            println(prefix + name)
+            di = di + 1
 
-    println("")
+// ===========================================================================
+//  EXECUTION REPORT — print VM results after running bytecode
+// ===========================================================================
 
-    // 3. Execute in VM
-    let vm = init_vm()
-    let er = execute_bytecode(vm, bc)
-
-    println("[EXEC] VM finished with accumulator: " + str(er.accumulator))
+fn print_execution_report(er: ExecResult):
+    let acc_str = mark_value_to_string(er.accumulator)
+    println("[EXEC] VM accumulator: " + acc_str)
     println("[EXEC] Data tables: " + str(len(er.data_table)))
+
     var tdi: Int = 0
     while tdi < len(er.data_table):
         let rec = er.data_table[tdi]
         if len(rec.data) > 0:
-            println("[EXEC]   table[" + str(rec.handle_id) + "]: " + str(rec.cols) + "x" + str(rec.rows) + " = " + str(len(rec.data)) + " ints")
+            println("[EXEC]   table[" + str(rec.handle_id) + "]: "
+                + str(rec.cols) + "x" + str(rec.rows)
+                + " = " + str(len(rec.data)) + " cells")
         tdi = tdi + 1
+
     println("[EXEC] Code blocks stored: " + str(len(er.code_blocks)))
 
-    // 4. Call runtime stub for demo
-    let stub_result = runtime_stub(er.accumulator)
-    println("[STUB] Handler returned: " + str(stub_result))
+    // Print VM error if any
+    if er.error.kind != ERROR_OK:
+        let err_str = format_error(er.error)
+        println("[EXEC] VM error: " + err_str)
+
+// ===========================================================================
+//  HANDLER DISPATCH LOOP
+//  After execute_bytecode returns with er.handler_id > 0:
+//    1. Identify the handler
+//    2. Extract arguments from the VM stack
+//    3. Dispatch to bridge
+//    4. Call resume_execution to continue VM
+//    5. Loop until handler_id == 0 (no more pending handlers)
+// ===========================================================================
+
+fn run_handler_loop(vm: MarkScriptVM, bc: Array<Int>, er: ExecResult):
+    var current_vm = er.vm
+    var current_er = er
+    var iteration: Int = 0
+    let max_iterations: Int = 100  // safety limit
+
+    while current_er.handler_id > 0 and iteration < max_iterations:
+        let handler_id = current_er.handler_id
+        let known_handler = handler_id >= HANDLER_FS_READ and handler_id <= HANDLER_PRINT
+
+        println("[DISPATCH] Iteration " + str(iteration) + ": handler_id=" + str(handler_id))
+
+        // Extract arguments from the VM stack
+        var args: Array<MarkValue> = []
+        let stk_len = len(current_vm.stack)
+        if stk_len > 0:
+            // Collect all values currently on the stack as arguments
+            var ai: Int = 0
+            while ai < stk_len:
+                push(args, current_vm.stack[ai])
+                ai = ai + 1
+
+        if known_handler:
+            // Dispatch through the bridge
+            let hr = dispatch_handler(current_vm, handler_id, args)
+
+            if hr.err != "":
+                println("[DISPATCH] Handler error: " + hr.err)
+                println("[DISPATCH] Aborting handler chain")
+                // Report the error and stop
+                let err_msg = "handler " + str(handler_id) + " error: " + hr.err
+                println("[EXEC] " + err_msg)
+                return
+
+            // Continue VM execution with the handler's result
+            let next_er = resume_execution(current_vm, bc, hr)
+            current_vm = next_er.vm
+            current_er = next_er
+        else:
+            // Unknown handler ID — log and break
+            println("[DISPATCH] Unknown handler_id=" + str(handler_id) + " — stopping dispatch loop")
+            return
+
+        iteration = iteration + 1
+
+    if iteration >= max_iterations:
+        println("[DISPATCH] Reached iteration limit (" + str(max_iterations) + ") — possible infinite handler loop")
+
+    println("[DISPATCH] Handler chain complete (" + str(iteration) + " dispatch(s))")
+
+// ===========================================================================
+//  REPL MODE — Interactive intent prompt
+//
+//  Demonstrates the Markscript REPL with a set of hardcoded intents.
+//  Each line is compiled and executed as a standalone markdown snippet.
+//  When stdin reading becomes available in Kain's stdlib, this function
+//  will accept real interactive input.
+// ===========================================================================
+
+fn run_repl():
+    println("=== MARKSCRIPT REPL 1.0 ===")
+    println("Type intents or markdown. Empty line to quit.")
+    println("")
+
+    // Demo REPL session — processes hardcoded intents through the full pipeline
+    let repl_lines: Array<String> = [
+        "# ReplSession",
+        "## demo",
+        "> print \"Hello from Markscript REPL\"",
+        "> assert 42 42",
+        "> print \"All assertions passed\"",
+        ""
+    ]
+
+    var line_idx: Int = 0
+    while line_idx < len(repl_lines):
+        let current_line = repl_lines[line_idx]
+
+        if current_line == "":
+            println("")
+            println("=== REPL session ended ===")
+            return
+
+        println("> " + current_line)
+
+        // Build a mini-source from the current line
+        var source = current_line
+
+        // Lex + compile
+        let lex = create_lexer(source)
+        let bc = compile_source(lex)
+
+        if len(bc) <= 1:
+            // Only OP_HALT — nothing executable
+            line_idx = line_idx + 1
+            continue
+
+        // Execute with built-in handlers
+        let vm = init_vm_with_builtins()
+        let er = execute_bytecode(vm, bc)
+
+        // Check for handler dispatch
+        if er.handler_id > 0:
+            run_handler_loop(vm, bc, er)
+            // After handler loop, show final accumulator
+            println("  => " + mark_value_to_string(er.accumulator))
+        elif er.error.kind != ERROR_OK:
+            let err_str = format_error(er.error)
+            println("  ERROR: " + err_str)
+        else:
+            println("  => " + mark_value_to_string(er.accumulator))
+
+        line_idx = line_idx + 1
+
+    println("=== REPL COMPLETE ===")
+
+// ===========================================================================
+//  MAIN ENTRY POINT
+// ===========================================================================
+
+fn main(args: Array<String>) -> Int:
+    println("=== MARKSCRIPT RUNTIME ENGINE 1.0 ===")
+    println("")
+
+    // ---- CLI argument detection -------------------------------------------
+
+    var user_args: Array<String> = process_user_args()
+    var using_user_args: Bool = true
+
+    if len(user_args) == 0:
+        using_user_args = false
+
+    var mode: String = "run"          // "run", "disassemble", "repl"
+    var filepath: String = ""
+
+    if using_user_args:
+        var arg_i: Int = 0
+        while arg_i < len(user_args):
+            let arg = user_args[arg_i]
+            if arg == "--disassemble" or arg == "-d":
+                mode = "disassemble"
+            elif arg == "--repl" or arg == "-r":
+                mode = "repl"
+            else:
+                filepath = arg
+            arg_i = arg_i + 1
+    else:
+        // Fallback: process_arg for compiler compat
+        let arg_count = process_arg_count()
+        if arg_count > 1:
+            let index_zero = process_arg(0)
+            let index_one = process_arg(1)
+            let need_workaround = index_zero == index_one
+
+            if need_workaround:
+                filepath = process_arg(9)
+            else:
+                filepath = process_arg(1)
+
+            // Check for --disassemble flag
+            if filepath == "--disassemble" or filepath == "-d":
+                mode = "disassemble"
+                if need_workaround:
+                    filepath = process_arg(10)
+                else:
+                    filepath = process_arg(2)
+            elif filepath == "--repl" or filepath == "-r":
+                mode = "repl"
+                filepath = ""
+
+    // If no filepath and no explicit mode, enter REPL
+    if filepath == "":
+        if mode == "disassemble":
+            println("[CLI] --disassemble requires a file path")
+            return 1
+        mode = "repl"
+
+    // ---- Mode dispatch ----------------------------------------------------
+
+    if mode == "repl":
+        run_repl()
+        println("")
+        println("=== ENGINE EXECUTION TERMINATED SAFELY ===")
+        return 0
+
+    // ---- Read source file -------------------------------------------------
+
+    var source: String = ""
+    if filepath != "":
+        source = read_source(filepath)
+        println("[INPUT] Loaded: " + filepath)
+    else:
+        // Fallback demo source — exercises all features
+        source = "# PipelineWorkspace\n## ProcessHotPath\n> apply vignette filter\n| Density | Viscosity | Friction |\n| 1.05    | 0.88      | 0.45     |\n\n\n> apply grain overlay\n\n\n```python\nprint(\"hello world\")\n```\n"
+        println("[INPUT] Using demo source (no file arg)")
+
+    // ---- Resolve @import directives ---------------------------------------
+
+    var base_dir: String = fs_path_parent(filepath)
+    var bytecode: Array<Int> = []
+    var import_errors: Array<MarkError> = []
+    var import_warnings: Array<String> = []
+
+    // Check if source has @import directives
+    let extracted = extract_imports(source)
+    if len(extracted.imports) > 0:
+        println("[IMPORT] Resolving " + str(len(extracted.imports)) + " import(s)...")
+        let ir = resolve_imports(source, base_dir, 0, [filepath])
+        bytecode = ir.bytecode
+        import_errors = ir.errors
+        import_warnings = ir.warnings
+
+        // Print warnings
+        var wi: Int = 0
+        while wi < len(import_warnings):
+            println("[IMPORT] Warning: " + import_warnings[wi])
+            wi = wi + 1
+    else:
+        // No imports — compile directly
+        let lex = create_lexer(source)
+        bytecode = compile_source(lex)
+
+    // Print any import errors
+    if len(import_errors) > 0:
+        var ei: Int = 0
+        while ei < len(import_errors):
+            let err = import_errors[ei]
+            let err_str = format_error(err)
+            println(err_str)
+            ei = ei + 1
+        // If hard errors, abort
+        var fatal: Bool = false
+        var ei2: Int = 0
+        while ei2 < len(import_errors):
+            let err_kind = import_errors[ei2].kind
+            if err_kind == ERROR_CIRCULAR_IMPORT or err_kind == ERROR_IMPORT:
+                fatal = true
+            ei2 = ei2 + 1
+        if fatal:
+            println("[FATAL] Import resolution failed — aborting")
+            return 1
+
+    let op_count = len(bytecode)
+    println("[COMPILE] Produced " + str(op_count) + " bytecode ops")
+
+    // ---- Disassemble mode: print bytecode and exit ------------------------
+
+    if mode == "disassemble":
+        println("")
+        disassemble_bytecode(bytecode)
+        println("")
+        println("[DISASSEMBLE] " + str(op_count) + " ops total")
+        println("")
+        println("=== ENGINE EXECUTION TERMINATED SAFELY ===")
+        return 0
+
+    // ---- Execute bytecode -------------------------------------------------
+
+    println("")
+    let vm = init_vm_with_builtins()
+    println("[EXEC] Starting VM (registered " + str(vm.ivt_count) + " built-in handlers)...")
+    let er = execute_bytecode(vm, bytecode)
+
+    // Print execution report
+    println("")
+    print_execution_report(er)
+
+    // ---- Handler dispatch loop --------------------------------------------
+
+    if er.handler_id > 0:
+        println("")
+        println("[DISPATCH] Pending handler_id=" + str(er.handler_id) + " — entering dispatch loop")
+        run_handler_loop(vm, bytecode, er)
+    else:
+        println("")
+        println("[DISPATCH] No pending handlers")
 
     println("")
     println("=== ENGINE EXECUTION TERMINATED SAFELY ===")

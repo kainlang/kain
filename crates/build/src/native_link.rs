@@ -251,8 +251,9 @@ fn link_exe(clang: &str, req: &NativeLinkRequest<'_>, uses_runtime: bool, needs_
             return Err(
                 "source uses runtime features but no native runtime library found. "
                 .to_string()
-                + "Run `kain sync` or set KAIN_RUNTIME_LIB_PATH to the precompiled "
-                + "runtime archive (libkain_runtime.a / kain_runtime.lib)."
+                + "Ensure a precompiled runtime archive exists at $KAIN_HOME/lib/kain_runtime.lib "
+                + "(or set KAIN_RUNTIME_LIB_PATH). If developing from the monorepo, "
+                + "run `python scripts/python/kain_bazel_sync.py sync`."
             );
         }
     }
@@ -308,7 +309,9 @@ fn link_shared_lib(clang: &str, req: &NativeLinkRequest<'_>, uses_runtime: bool,
             return Err(
                 "source uses runtime features but no native runtime library found. "
                 .to_string()
-                + "Run `kain sync` or set KAIN_RUNTIME_LIB_PATH."
+                + "Ensure a precompiled runtime archive exists at $KAIN_HOME/lib/kain_runtime.lib "
+                + "(or set KAIN_RUNTIME_LIB_PATH). If developing from the monorepo, "
+                + "run `python scripts/python/kain_bazel_sync.py sync`."
             );
         }
     }

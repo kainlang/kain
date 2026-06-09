@@ -57,7 +57,7 @@ Markscript is a **markdown-native bytecode VM** that serves as Kain's companion 
 
 ---
 
-## Bytecode Opcodes (17 Total)
+## Bytecode Opcodes (20 Total)
 
 ### Parser-Emitted (7)
 

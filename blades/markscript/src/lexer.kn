@@ -4,6 +4,9 @@
 //  Uses value-return semantics (no ptr<T> parameters) for maximum codegen
 //  compatibility.
 //
+//  Verified against MARKSCRIPT.MD spec — all 22 token types match.
+//  Token constants: TOK_HEADER1=0 through TOK_NEWLINE=21.
+//
 //  Supports real-markdown constructs:
 //    - Headers 1-6 (# to ######)
 //    - Blockquotes (>)

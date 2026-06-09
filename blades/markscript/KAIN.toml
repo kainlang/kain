@@ -28,6 +28,10 @@ target = "llvm"
 inputs = [
     "src/main.kn",
     "src/lexer.kn",
-    "src/ast.kn",
+    "src/types.kn",
+    "src/error.kn",
+    "src/parser.kn",
     "src/vm.kn",
+    "src/bridge.kn",
+    "src/import.kn",
 ]

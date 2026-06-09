@@ -6785,31 +6785,11 @@ fn platform_link_libs(link: &NativeRuntimeLinkManifest) -> Vec<String> {
 }
 
 fn default_native_runtime_link_libs() -> Vec<String> {
-    if cfg!(windows) {
-        vec![
-            "legacy_stdio_definitions".to_string(),
-            "user32".to_string(),
-            "gdi32".to_string(),
-            "shell32".to_string(),
-            "ws2_32".to_string(),
-            "winhttp".to_string(),
-            "advapi32".to_string(),
-        ]
-    } else if cfg!(target_os = "linux") {
-        vec!["pthread".to_string(), "dl".to_string(), "rt".to_string(), "m".to_string()]
-    } else {
-        Vec::new()
-    }
+    kain_build::platform_link_libs().iter().map(|s| s.to_string()).collect()
 }
 
 fn default_native_runtime_cpp_link_libs() -> Vec<String> {
-    if cfg!(windows) {
-        Vec::new()
-    } else if cfg!(target_os = "macos") {
-        vec!["c++".to_string()]
-    } else {
-        vec!["stdc++".to_string()]
-    }
+    kain_build::platform_cpp_link_libs().iter().map(|s| s.to_string()).collect()
 }
 
 fn find_native_runtime_manifest() -> Option<PathBuf> {

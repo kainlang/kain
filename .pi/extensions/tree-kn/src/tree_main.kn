@@ -249,9 +249,8 @@ pub fn parse_args(argv: Array<String>) -> TreeConfig:
     var show_help = false
     var found_positional = false
 
-    // get_user_args() already strips argv[0] (the executable path) and works
-    // around a compiler tag-check bug in abi_process_arg(). So argv here contains
-    // only the user-supplied arguments — start parsing from index 0.
+    // get_user_args() already strips argv[0] (the executable path).
+    // argv here contains only the user-supplied arguments — start parsing from index 0.
     var index = 0
 
     while index < len(argv):

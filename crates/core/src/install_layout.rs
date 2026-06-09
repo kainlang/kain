@@ -128,32 +128,6 @@ pub fn resolve_runtime_c_path() -> Option<PathBuf> {
     )
 }
 
-/// Resolve the path to the precompiled native runtime library.
-///
-/// Priority:
-/// 1. `KAIN_RUNTIME_LIB_PATH` env var (explicit override)
-/// 2. `~/.kain/lib/libkain_runtime.a` or `libkain_runtime.lib` (installed toolchain)
-/// 3. Repo-relative path to Bazel-built runtime library
-pub fn resolve_native_runtime_lib_path() -> Option<PathBuf> {
-    if let Some(explicit_path) = existing_env_path(KAIN_RUNTIME_LIB_ENV_VAR) {
-        return Some(explicit_path);
-    }
-
-    if let Some(layout) = default_kain_install_layout() {
-        let lib_name = if cfg!(windows) {
-            "kain_runtime.lib"
-        } else {
-            "libkain_runtime.a"
-        };
-        let candidate = layout.lib_dir.join(lib_name);
-        if candidate.exists() {
-            return Some(candidate);
-        }
-    }
-
-    None
-}
-
 pub fn resolve_native_runtime_manifest_path() -> Option<PathBuf> {
     if let Some(explicit_path) = existing_env_path_from_any(KAIN_RUNTIME_MANIFEST_ENV_VARS) {
         return Some(explicit_path);
