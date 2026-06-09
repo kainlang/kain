@@ -139,6 +139,32 @@ pub fn resolve_native_runtime_manifest_path() -> Option<PathBuf> {
     )
 }
 
+/// Find clang: bundled toolchain > PATH `clang --version` > system installs.
+/// This is the canonical single source of truth for clang discovery.
+pub fn find_clang() -> Option<PathBuf> {
+    // 1. Bundled toolchain (KAIN_CLANG_PATH env or repo-relative toolchain)
+    if let Some(path) = resolve_bundled_clang_path() {
+        return Some(path);
+    }
+    // 2. PATH
+    if std::process::Command::new("clang")
+        .arg("--version")
+        .output()
+        .is_ok()
+    {
+        return Some(PathBuf::from("clang"));
+    }
+    // 3. System installs
+    #[cfg(windows)]
+    {
+        let p = PathBuf::from(r"C:\Program Files\LLVM\bin\clang.exe");
+        if p.exists() {
+            return Some(p);
+        }
+    }
+    None
+}
+
 pub fn resolve_bundled_clang_path() -> Option<PathBuf> {
     if let Some(explicit_path) = existing_env_path(KAIN_CLANG_ENV_VAR) {
         return Some(explicit_path);

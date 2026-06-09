@@ -93,6 +93,10 @@ pub struct NativeLinkRequest<'a> {
     pub source_text: &'a str,
     /// Pre-compiled runtime artifacts (empty = pure compute, uses `-nostdlib`).
     pub runtime_artifacts: NativeRuntimeArtifacts,
+    /// Extra clang arguments appended before the LLVM IR input.
+    /// Used by `kain run` to pass toolchain tuning flags (opt level,
+    /// target CPU, debug info, section flags, etc.).
+    pub extra_args: Vec<String>,
 }
 
 // ── Precompiled runtime archive ──────────────────────────────────────
@@ -131,32 +135,9 @@ pub fn resolve_precompiled_runtime_archive() -> Option<PathBuf> {
 
 // ── Clang discovery ──────────────────────────────────────────────────
 
-/// Find clang: bundled toolchain > `KAIN_CLANG_PATH` env > PATH > system install.
+/// Find clang via the canonical discovery function in install_layout.
 pub fn find_clang() -> Option<String> {
-    // 1. Explicit env var
-    if let Some(path) = install_layout::resolve_bundled_clang_path() {
-        return Some(path.to_string_lossy().to_string());
-    }
-
-    // 2. PATH
-    if std::process::Command::new("clang")
-        .arg("--version")
-        .output()
-        .is_ok()
-    {
-        return Some("clang".to_string());
-    }
-
-    // 3. Standard system installs
-    #[cfg(windows)]
-    {
-        let default_path = r"C:\Program Files\LLVM\bin\clang.exe";
-        if Path::new(default_path).exists() {
-            return Some(default_path.to_string());
-        }
-    }
-
-    None
+    install_layout::find_clang().map(|p| p.to_string_lossy().to_string())
 }
 
 // ── libc detection ───────────────────────────────────────────────────
@@ -224,6 +205,11 @@ fn base_clang_command(clang: &str, _req: &NativeLinkRequest<'_>) -> Command {
 fn link_exe(clang: &str, req: &NativeLinkRequest<'_>, uses_runtime: bool, needs_libc: bool) -> Result<PathBuf, String> {
     let mut cmd = base_clang_command(clang, req);
 
+    // Append caller-supplied extra args (toolchain tuning, etc.)
+    for arg in &req.extra_args {
+        cmd.arg(arg);
+    }
+
     let has_artifacts = !req.runtime_artifacts.loose_objects.is_empty()
         || !req.runtime_artifacts.static_archives.is_empty();
 
@@ -289,6 +275,11 @@ fn link_shared_lib(clang: &str, req: &NativeLinkRequest<'_>, uses_runtime: bool,
     let mut cmd = base_clang_command(clang, req);
     cmd.arg("-shared");
 
+    // Append caller-supplied extra args (toolchain tuning, etc.)
+    for arg in &req.extra_args {
+        cmd.arg(arg);
+    }
+
     let has_artifacts = !req.runtime_artifacts.loose_objects.is_empty()
         || !req.runtime_artifacts.static_archives.is_empty();
 
@@ -343,6 +334,10 @@ fn link_static_lib(clang: &str, req: &NativeLinkRequest<'_>) -> Result<PathBuf, 
     // Step 1: compile to object
     let obj_path = req.output_path.with_extension("obj");
     let mut compile_cmd = base_clang_command(clang, req);
+    // Append caller-supplied extra args (toolchain tuning, etc.)
+    for arg in &req.extra_args {
+        compile_cmd.arg(arg);
+    }
     compile_cmd.arg("-c");
     compile_cmd.arg(req.llvm_ir_path);
     compile_cmd.arg("-o").arg(&obj_path);
@@ -373,6 +368,10 @@ fn link_static_lib(clang: &str, req: &NativeLinkRequest<'_>) -> Result<PathBuf, 
 
 fn link_object(clang: &str, req: &NativeLinkRequest<'_>) -> Result<PathBuf, String> {
     let mut cmd = base_clang_command(clang, req);
+    // Append caller-supplied extra args (toolchain tuning, etc.)
+    for arg in &req.extra_args {
+        cmd.arg(arg);
+    }
     cmd.arg("-c");
     cmd.arg(req.llvm_ir_path);
     cmd.arg("-o").arg(req.output_path);

@@ -3757,6 +3757,7 @@ fn run_kain_compile(
                 output_path: &native_output,
                 source_text: &source,
                 runtime_artifacts: NativeRuntimeArtifacts::default(),
+                extra_args: Vec::new(),
             };
             match link_native_binary(&link_req) {
                 Ok(exe_path) => {
@@ -4404,7 +4405,7 @@ fn run_c_shared_library(
             header.display()
         )));
     }
-    let clang = find_clang(workspace_root)?;
+    let clang = find_clang(workspace_root);
     if let Some(parent) = canonical_output.parent() {
         kfs::create_dir_all(parent)?;
     }
@@ -5680,19 +5681,8 @@ fn with_file_name_suffix(base: &Path, suffix: &str, extension: &str) -> PathBuf 
     base.with_file_name(format!("{stem}{suffix}.{extension}"))
 }
 
-fn find_clang(workspace_root: &Path) -> BuildResult<PathBuf> {
-    if let Some(candidate) = kain_core::install_layout::resolve_bundled_clang_path() {
-        return Ok(candidate);
-    }
-    for ancestor in workspace_root.ancestors() {
-        for relative in ["toolchain/llvm/bin/clang.exe", "toolchain/llvm/bin/clang"] {
-            let candidate = ancestor.join(relative);
-            if candidate.exists() {
-                return Ok(candidate);
-            }
-        }
-    }
-    Ok(PathBuf::from("clang"))
+fn find_clang(_workspace_root: &Path) -> PathBuf {
+    kain_core::install_layout::find_clang().unwrap_or_else(|| PathBuf::from("clang"))
 }
 
 fn clean_build_roots(plan: &BladeBuildPlan) -> BuildResult<()> {

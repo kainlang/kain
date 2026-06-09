@@ -1046,20 +1046,9 @@ fn verify_ouroboros(contract: &BootstrapContract, backend: BootstrapBackend) -> 
 }
 
 fn resolve_clang_command() -> Result<String, String> {
-    if let Some(path) = kain_core::install_layout::resolve_bundled_clang_path() {
-        return Ok(path.to_string_lossy().into_owned());
-    }
-    if which::which("clang").is_ok() {
-        return Ok("clang".to_string());
-    }
-    if cfg!(windows) {
-        let windows_default = PathBuf::from(r"C:\Program Files\LLVM\bin\clang.exe");
-        if windows_default.exists() {
-            return Ok(windows_default.to_string_lossy().into_owned());
-        }
-    }
-
-    Err("unable to locate clang; set KAIN_CLANG_PATH or install clang".to_string())
+    kain_core::install_layout::find_clang()
+        .map(|p| p.to_string_lossy().into_owned())
+        .ok_or_else(|| "unable to locate clang; set KAIN_CLANG_PATH or install clang".to_string())
 }
 
 fn initialize_report(

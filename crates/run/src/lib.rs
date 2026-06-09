@@ -2635,19 +2635,8 @@ fn find_latest_repo_local_staged_kain_binary(root: &Path) -> Option<PathBuf> {
     best.map(|(_, path)| path)
 }
 
-fn find_clang(workspace_root: &Path) -> PathBuf {
-    if let Some(candidate) = kain_core::install_layout::resolve_bundled_clang_path() {
-        return candidate;
-    }
-    for ancestor in workspace_root.ancestors() {
-        for relative in ["toolchain/llvm/bin/clang.exe", "toolchain/llvm/bin/clang"] {
-            let candidate = ancestor.join(relative);
-            if candidate.exists() {
-                return candidate;
-            }
-        }
-    }
-    PathBuf::from("clang")
+fn find_clang(_workspace_root: &Path) -> PathBuf {
+    kain_core::install_layout::find_clang().unwrap_or_else(|| PathBuf::from("clang"))
 }
 
 fn path_stem_or_name(path: &Path) -> String {

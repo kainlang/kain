@@ -1689,29 +1689,9 @@ fn run_source_with_session(
 
                     println!(" Linking executable...");
 
-                    // Find clang: bundled toolchain > PATH > system install
-                    let clang_cmd = find_bundled_clang()
-                        .or_else(|| {
-                            // Try PATH
-                            if std::process::Command::new("clang")
-                                .arg("--version")
-                                .output()
-                                .is_ok()
-                            {
-                                Some("clang".to_string())
-                            } else {
-                                None
-                            }
-                        })
-                        .or_else(|| {
-                            // Try standard Windows install
-                            let default_path = r"C:\Program Files\LLVM\bin\clang.exe";
-                            if std::path::Path::new(default_path).exists() {
-                                Some(default_path.to_string())
-                            } else {
-                                None
-                            }
-                        })
+                    // Find clang via canonical discovery
+                    let clang_cmd = kain_core::install_layout::find_clang()
+                        .map(|p| p.to_string_lossy().to_string())
                         .unwrap_or_else(|| "clang".to_string());
 
                     let native_toolchain_tuning = match resolve_native_toolchain_tuning() {
@@ -1721,8 +1701,6 @@ fn run_source_with_session(
                             return false;
                         }
                     };
-                    let mut cmd = std::process::Command::new(&clang_cmd);
-                    kain_core::install_layout::apply_windows_msvc_link_env(&mut cmd);
                     let mut runtime_link_libs = Vec::new();
                     let mut runtime_artifacts = NativeRuntimeCompiledArtifacts::default();
                     let cffi_source = session
@@ -1741,6 +1719,8 @@ fn run_source_with_session(
                         }
                     };
 
+                    // DEPRECATED(2026-06-08): --gc-sections handles dead-stripping.
+                    // This elision check will be removed after platform stability.
                     let native_runtime_elision = match llvm_native_runtime_elision_decision(
                         target,
                         &output_path,
@@ -1813,54 +1793,65 @@ fn run_source_with_session(
                         }
                     }
 
+                    // ── Build toolchain tuning extra args ────────────
+                    let mut clang_extra_args = native_toolchain_tuning.clang_compile_args();
                     if target == CompileTarget::C {
-                        cmd.arg("-std=c11");
+                        clang_extra_args.push("-std=c11".to_string());
+                    }
+                    // Additional GC/dead-strip tuning beyond what link_native_binary adds
+                    if cfg!(windows) && !native_toolchain_tuning.debug_info {
+                        clang_extra_args.push("-Wl,/DEBUG:NONE".to_string());
+                    }
+                    if native_toolchain_tuning.profile != NativeToolchainProfile::Debug {
+                        if cfg!(windows) {
+                            clang_extra_args.push("-Wl,/OPT:ICF".to_string());
+                        }
                     }
 
-                    native_toolchain_tuning.apply_to_clang_command(&mut cmd);
-                    cmd.arg(&output_path);
-
-                    for object in runtime_artifacts.loose_objects {
-                        cmd.arg(object);
-                    }
-                    for archive in runtime_artifacts.static_archives {
-                        cmd.arg(archive);
-                    }
-
-                    cmd.arg("-o").arg(&exe_path);
-                    if target == CompileTarget::Llvm {
-                        cmd.arg("-Wno-override-module");
-                    }
-                    if cfg!(windows) {
-                        cmd.arg("-Wl,/subsystem:console");
-                    }
-                    native_toolchain_tuning.apply_link_gc_flags(&mut cmd);
-
-                    for link_input in &cffi_link_inputs.link_inputs {
-                        cmd.arg(link_input);
-                    }
-
-                    runtime_link_libs = if native_runtime_elision.can_elide {
-                        unique_link_libs([runtime_link_libs, cffi_link_inputs.link_libs].concat())
+                    // ── Build NativeRuntimeArtifacts ─────────────────
+                    let link_artifacts = if native_runtime_elision.can_elide
+                        && cffi_link_inputs.link_inputs.is_empty()
+                    {
+                        // Pure compute — empty artifacts, link_native_binary uses -nostdlib
+                        kain_build::NativeRuntimeArtifacts::default()
+                    } else if native_runtime_elision.can_elide {
+                        // Runtime elided but C FFI inputs exist
+                        kain_build::NativeRuntimeArtifacts {
+                            loose_objects: cffi_link_inputs.link_inputs.clone(),
+                            static_archives: Vec::new(),
+                            link_libs: cffi_link_inputs.link_libs.clone(),
+                        }
                     } else {
-                        unique_link_libs(
+                        // Runtime needed — combine runtime artifacts + C FFI inputs
+                        let mut loose = runtime_artifacts.loose_objects.clone();
+                        loose.extend(cffi_link_inputs.link_inputs.clone());
+                        // Don't include platform link libs — link_native_binary adds them
+                        let libs = unique_link_libs(
                             [
-                                runtime_link_libs,
-                                cffi_link_inputs.link_libs,
-                                default_native_runtime_link_libs(),
+                                runtime_link_libs.clone(),
+                                cffi_link_inputs.link_libs.clone(),
                             ]
                             .concat(),
-                        )
+                        );
+                        kain_build::NativeRuntimeArtifacts {
+                            loose_objects: loose,
+                            static_archives: runtime_artifacts.static_archives.clone(),
+                            link_libs: libs,
+                        }
                     };
 
-                    for link_lib in runtime_link_libs {
-                        cmd.arg(format!("-l{}", link_lib));
-                    }
+                    // ── Link via shared native_link path ─────────────
+                    let link_req = kain_build::NativeLinkRequest {
+                        emit: kain_build::NativeEmit::Exe,
+                        llvm_ir_path: &output_path,
+                        output_path: &exe_path,
+                        source_text: &source,
+                        runtime_artifacts: link_artifacts,
+                        extra_args: clang_extra_args,
+                    };
 
-                    let status = cmd.status();
-
-                    match status {
-                        Ok(s) if s.success() => {
+                    match kain_build::link_native_binary(&link_req) {
+                        Ok(_) => {
                             println!(" Generated executable: {}", exe_path.display());
                             if native_runtime_elision.can_elide {
                                 match store_native_executable_cache(
@@ -1895,18 +1886,8 @@ fn run_source_with_session(
                                 }
                             }
                         }
-                        Ok(_) => {
-                            eprintln!(" Linking failed.");
-                            return false;
-                        }
-                        Err(_) => {
-                            eprintln!(" 'clang' not found in PATH or standard locations.");
-                            eprintln!("   To generate an executable, install LLVM and run:");
-                            eprintln!(
-                                "   clang {} -o {}",
-                                output_path.display(),
-                                exe_path.display()
-                            );
+                        Err(err) => {
+                            eprintln!(" Linking failed: {}", err);
                             return false;
                         }
                     }
@@ -2518,6 +2499,23 @@ fn llvm_native_runtime_elision_decision(
     cffi_link_inputs: &CffiNativeLinkInputs,
     native_artifacts_require_gpu_runtime: bool,
 ) -> Result<NativeRuntimeElisionDecision, String> {
+    // DEPRECATED(2026-06-08): The linker's --gc-sections flag now dead-strips
+    // unreferenced runtime functions. This entire function (IR text scanner +
+    // reachability analysis) is redundant and will be removed once the linker
+    // path is confirmed stable across all platforms.
+    //
+    // Set KAIN_NATIVE_RUNTIME_ELISION=bypass to skip IR scanning and always
+    // link the full runtime (default after stabilization). With --gc-sections
+    // on Linux and /OPT:REF on Windows, unused runtime functions are
+    // dead-stripped regardless, so there is no size penalty.
+    //
+    // See native_toolchain_tuning::apply_link_gc_flags() for the linker flags
+    // and crates/build/src/native_link.rs for the runtime build pipeline.
+    if std::env::var("KAIN_NATIVE_RUNTIME_ELISION").as_deref() == Ok("bypass") {
+        return Ok(NativeRuntimeElisionDecision::keep(
+            "elision bypassed (--gc-sections handles dead-stripping)".to_string()
+        ));
+    }
     if target != CompileTarget::Llvm {
         return Ok(NativeRuntimeElisionDecision::keep(
             "native runtime elision is only available for LLVM artifacts",
@@ -2549,6 +2547,9 @@ fn llvm_native_runtime_elision_decision(
     Ok(llvm_native_runtime_elision_decision_from_ir(&ir))
 }
 
+// DEPRECATED(2026-06-08): --gc-sections linker flag now dead-strips unreferenced
+// runtime functions. This IR text scanner is redundant and will be removed once
+// the linker path is confirmed stable across all platforms.
 fn llvm_native_runtime_elision_decision_from_ir(ir: &str) -> NativeRuntimeElisionDecision {
     let reachability = kain_driver::analyze_llvm_ir_reachability(ir, &["main"]);
     if !reachability.defined_functions.contains("main") {
@@ -4821,7 +4822,7 @@ fn print_doctor(active_launcher: LauncherKind) {
     let runtime_c = find_runtime_c();
     let runtime_manifest = find_native_runtime_manifest();
     let resolved_clang = if cfg!(feature = "sys") {
-        find_bundled_clang()
+        kain_core::install_layout::find_clang().map(|p| p.to_string_lossy().to_string())
     } else {
         None
     };
@@ -6811,7 +6812,8 @@ mod tests {
     use super::{
         apply_config_key_value, build_native_runtime_archive_fingerprint,
         build_native_runtime_compile_fingerprint, build_native_runtime_object_cache_paths,
-        default_native_runtime_link_libs, default_runtime_cache_root, find_bundled_clang,
+        default_native_runtime_link_libs, default_runtime_cache_root,
+        // DEPRECATED(2026-06-08): --gc-sections handles dead-stripping now.
         llvm_native_runtime_elision_decision_from_ir, load_editable_kain_config,
         load_native_runtime_manifest, native_runtime_object_cache_is_fresh,
         parse_native_runtime_depfile, parse_native_toolchain_tuning, platform_link_libs,
@@ -6857,6 +6859,7 @@ entry:
 }
 "#;
 
+        // DEPRECATED(2026-06-08): --gc-sections handles dead-stripping now.
         let decision = llvm_native_runtime_elision_decision_from_ir(ir);
 
         assert!(decision.can_elide, "{decision:?}");
@@ -6882,6 +6885,7 @@ entry:
 }
 "#;
 
+        // DEPRECATED(2026-06-08): --gc-sections handles dead-stripping now.
         let decision = llvm_native_runtime_elision_decision_from_ir(ir);
 
         assert!(!decision.can_elide);
@@ -6906,6 +6910,7 @@ entry:
 }
 "#;
 
+        // DEPRECATED(2026-06-08): --gc-sections handles dead-stripping now.
         let decision = llvm_native_runtime_elision_decision_from_ir(ir);
 
         assert!(decision.can_elide, "{decision:?}");
@@ -6976,6 +6981,7 @@ entry:
         let (sliced, _stats) = slice_llvm_native_executable_ir(ir)
             .expect("slice")
             .expect("expected slice");
+        // DEPRECATED(2026-06-08): --gc-sections handles dead-stripping now.
         let decision = llvm_native_runtime_elision_decision_from_ir(&sliced);
 
         assert!(sliced.contains("define void @handler"));
@@ -7007,6 +7013,7 @@ entry:
         let (sliced, _stats) = slice_llvm_native_executable_ir(ir)
             .expect("slice")
             .expect("expected slice");
+        // DEPRECATED(2026-06-08): --gc-sections handles dead-stripping now.
         let decision = llvm_native_runtime_elision_decision_from_ir(&sliced);
 
         assert!(sliced.contains("declare void @registered_from_global"));
@@ -7554,7 +7561,9 @@ pub fn helper_lane() -> Int:
 
         assert!(frontend_source.contains("use c::tiny"));
 
-        let clang_cmd = find_bundled_clang().unwrap_or_else(|| "clang".to_string());
+        let clang_cmd = kain_core::install_layout::find_clang()
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or_else(|| "clang".to_string());
         let tuning =
             parse_native_toolchain_tuning(Some("debug"), None, None, None).expect("debug tuning");
         let link_inputs = resolve_c_ffi_native_link_inputs(
@@ -7595,7 +7604,9 @@ fn main() -> Int:
         .expect("main");
 
         let source = fs::read_to_string(&main_path).expect("read main");
-        let clang_cmd = find_bundled_clang().unwrap_or_else(|| "clang".to_string());
+        let clang_cmd = kain_core::install_layout::find_clang()
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or_else(|| "clang".to_string());
         let tuning =
             parse_native_toolchain_tuning(Some("debug"), None, None, None).expect("debug tuning");
         let link_inputs = resolve_c_ffi_native_link_inputs(
@@ -7679,7 +7690,9 @@ pub fn helper_lane() -> Int:
         .expect("helper");
 
         let source = fs::read_to_string(&main_path).expect("read main");
-        let clang_cmd = find_bundled_clang().unwrap_or_else(|| "clang".to_string());
+        let clang_cmd = kain_core::install_layout::find_clang()
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or_else(|| "clang".to_string());
         let tuning =
             parse_native_toolchain_tuning(Some("debug"), None, None, None).expect("debug tuning");
         let link_inputs = resolve_c_ffi_native_link_inputs(
@@ -7701,10 +7714,6 @@ pub fn helper_lane() -> Int:
     }
 }
 
-fn find_bundled_clang() -> Option<String> {
-    kain_core::install_layout::resolve_bundled_clang_path()
-        .map(|path| path.to_string_lossy().into_owned())
-}
 
 fn find_binary(name: &str, fallback: Option<&str>) -> Option<PathBuf> {
     if std::process::Command::new(name)

@@ -252,36 +252,35 @@ pub fn test_gap5_return_in_match() -> Int:
 // ===========================================================================
 //  GAP 6: PHI + break/continue in loops
 //
-//  When break or continue appears inside an if/match arm within a loop body,
-//  that arm's block branches to loop_end/loop_cond instead of the if/match
-//  merge label. But the PHI node at the merge label still lists that block
-//  as a predecessor — creating an invalid PHI.
+//  When break or continue appears inside a match arm within a loop body,
+//  that arm's block branches to loop_end instead of the match's merge label.
+//  But the match compiler emits a PHI/merge block that lists the break arm
+//  as a predecessor — creating an invalid PHI with a dead predecessor.
 //
-//  This test uses `break` inside an if-expression assigned to a variable
-//  (which creates a PHI at the if-merge point). The break block terminates
-//  at loop_end, creating the invalid PHI predecessor. The test also places
-//  additional statements after the if-expression to exercise the merge block.
+//  In this test, the match is used as a statement (not a value-bearing
+//  expression). The break arm's block branches to loop_end. The match's
+//  merge block still has the break arm as a predecessor, which creates
+//  an invalid CFG in the LLVM IR.
 //
-//  The test passes if the pattern compiles without LLVM verifier errors
-//  and produces correct runtime results.
+//  The test passes if the compiler compiles this pattern without LLVM
+//  verifier errors and produces correct runtime results.
 // ===========================================================================
 
 pub fn test_gap6_break_phi() -> Int:
-    println("  [gap6] Testing break/continue with PHI in loops...")
+    println("  [gap6] Testing break/continue PHI in loops...")
 
     var sum: Int = 0
     var i: Int = 0
 
     while i < 10:
-        // This if-expression creates a PHI node at the merge point.
-        // The break arm branches to loop_end instead of the merge label,
-        // creating an invalid PHI predecessor.
-        let discard = if i >= 5:
-            break
-        else:
-            0
-
-        sum = sum + i
+        // The match statement creates a merge block. The 5-arm with break
+        // branches to loop_end instead of the merge, creating a dead
+        // predecessor in the match's merge block.
+        match i:
+            5 =>
+                break
+            _ =>
+                sum = sum + i
         i = i + 1
 
     println("  [gap6]   Sum after loop: " + str(sum))

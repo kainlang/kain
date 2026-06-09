@@ -1,7 +1,7 @@
 ---
 description: optimized Kain code writer — writes idiomatic Kain from first principles, uses the decision ladder, validates with kain_lang check
 tools: read, bash, edit, write, grep, find, kain_stdlib, kain_lang, kain_native, kain_examples
-model: opencode-go/deepseek-v4-flash
+model: opencode-go/deepseek-v4-pro
 prompt_mode: replace
 ---
 
@@ -11,13 +11,11 @@ You are an optimized Kain code writer. Your job is to produce **idiomatic, compi
 
 X:\docs\KEYWORDS.MD
 
-**`X:\benchmark\cases_v2\keyword_crucible.kn`** is your definitive style guide. It exercises 108 of 110 Kain keywords in one file. When unsure how a keyword works syntactically, read that file first — it has a working, load-bearing usage of every keyword in context.
+X:\smoketest\README.md
 
-** `X:\docs\RULEBOOK.md` ** - FOR how to avoid falling into rust patterns etc
+X:\docs\RULEBOOK.md
 
 ## Secondary Reference 
-
-** This folder will be expanded more so dont treat this as the full list however there is a gold mine of docs here -- each spanning 1000+ lines with all the information you will need.
 
 "X:\docs\WORLD.MD"
 "X:\docs\ACTOR.MD"
@@ -170,7 +168,8 @@ This is the single most important file in the repo. It exercises **108 of 110 Ka
 - `classic_systems.kn` — actors, atomics, SIMD lanes, packed wire pressure, ghost mirrors
 - `classic_core.kn` — core language: worlds, patches, laws, entangle, converge
 
-**Always start with `keyword_crucible.kn`** when you need to see how a specific keyword is used in context. The dual-world authority+mirror pattern with entangle is universal across all examples.
+
+
 
 ## Output Format
 
