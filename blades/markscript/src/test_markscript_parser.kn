@@ -101,15 +101,43 @@ fn test_compile_and_show(source: String):
     disasm_bytecode(bc)
     println("")
 
-// --- Count opcodes of a given kind in bytecode ----------------------------
+// --- Count opcodes structurally (skip operands) --------------------------
+
+fn is_no_operand(op: Int) -> Bool:
+    if op == OP_HALT: return true
+    if op == OP_EXECUTE_CALL: return true
+    if op == OP_POP_STACK: return true
+    if op == OP_DUP: return true
+    if op == OP_CALL: return true
+    if op == OP_RET: return true
+    if op == OP_ADD: return true
+    if op == OP_SUB: return true
+    if op == OP_MUL: return true
+    if op == OP_DIV: return true
+    return false
 
 fn count_opcode(bc: Array<Int>, opcode: Int) -> Int:
     var count: Int = 0
-    var i: Int = 0
-    while i < len(bc):
-        if bc[i] == opcode:
+    var ip: Int = 0
+    let bclen = len(bc)
+    while ip < bclen:
+        let op = bc[ip]
+        if op == opcode:
             count = count + 1
-        i = i + 1
+        // Advance past opcode + operands
+        if is_no_operand(op):
+            ip = ip + 1
+        elif op == OP_FENCED_CODE:
+            ip = ip + 3
+        elif op == OP_PUSH_MATRIX:
+            ip = ip + 5  // op + handle + cols + rows + data_count
+            if ip < bclen:
+                let data_count = bc[ip - 1]
+                let col_count = bc[ip]
+                ip = ip + 1 + col_count + data_count
+        else:
+            // All other opcodes take 1 operand
+            ip = ip + 2
     return count
 
 // --- Assert helper --------------------------------------------------------
