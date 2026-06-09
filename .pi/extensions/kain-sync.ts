@@ -2,10 +2,11 @@
  * kain-sync — Update the Kain binary from Bazel's output base
  *
  * Single tool + command that finds the latest Bazel-built kain.exe/kn.exe
- * and copies it to ~/.kain/bin/. No PowerShell escaping nightmares.
+ * and copies it to $KAIN_HOME/bin/ (preferred) or ~/.kain/bin/ (fallback).
+ * No PowerShell escaping nightmares.
  *
  * Tool: kain_sync_binary
- *   Syncs kain + kn binaries from Bazel output to ~/.kain/bin/
+ *   Syncs kain + kn binaries from Bazel output to KAIN_HOME/bin/
  *
  * Command: /kain-sync
  *   Same thing but callable interactively
@@ -93,10 +94,17 @@ function buildBinary(): { success: boolean; output: string } {
   return { success: true, output: result.stdout.slice(0, 2000) };
 }
 
+/** Resolve Kain home directory — respects KAIN_HOME env var, falls back to ~/.kain */
+function kainHomeDir(): string {
+  if (process.env.KAIN_HOME) return process.env.KAIN_HOME;
+  const userHome = process.env.USERPROFILE || process.env.HOME || "C:\\Users\\zenta";
+  return join(userHome, ".kain");
+}
+
 /** Sync a binary from source to target with backup */
 function syncBinary(source: string, binary: "kain" | "kn"): { success: boolean; target: string; message: string } {
-  const home = process.env.USERPROFILE || "C:\\Users\\zenta";
-  const binDir = join(home, ".kain", "bin");
+  const kainHome = kainHomeDir();
+  const binDir = join(kainHome, "bin");
   const target = join(binDir, `${binary}.exe`);
   const bak = join(binDir, `${binary}.exe.bak`);
 
@@ -165,10 +173,10 @@ function gatherStatus(): {
   git: { commit: string | null; date: string | null; message: string | null };
   syncStamp: any;
 } {
-  const home = process.env.USERPROFILE || "C:\\Users\\zenta";
-  const activePath = join(home, ".kain", "bin", "kain.exe");
-  const bakPath = join(home, ".kain", "bin", "kain.exe.bak");
-  const stampPath = join(home, ".kain", "state", "state", "kain_sync_stamp.json");
+  const kainHome = kainHomeDir();
+  const activePath = join(kainHome, "bin", "kain.exe");
+  const bakPath = join(kainHome, "bin", "kain.exe.bak");
+  const stampPath = join(kainHome, "state", "state", "kain_sync_stamp.json");
 
   // Bazel server
   const serverResult = run("bazel", ["info", "server_pid", "--config=dev"], { timeout: 15_000 });
@@ -427,7 +435,7 @@ function formatResult(lines: string[], isError: boolean): { content: { type: str
 export default function (pi: ExtensionAPI) {
   // ── Command: /kain-sync ──
   pi.registerCommand("kain-sync", {
-    description: "Sync latest Bazel-built binary to ~/.kain/bin/",
+    description: "Sync latest Bazel-built binary to $KAIN_HOME/bin/ (or ~/.kain/bin/)",
     handler: async (_args, ctx) => {
       const result = await runSync(ctx);
       if (result.isError) {
@@ -440,8 +448,8 @@ export default function (pi: ExtensionAPI) {
   pi.registerTool({
     name: "kain_sync_binary",
     label: "Sync Kain Binary",
-    description: "Copy the latest Bazel-built kain.exe into ~/.kain/bin/ so `kain build/run/check` use the freshest compiler. If this fails, read BAZEL.md for the full workflow guide.",
-    promptSnippet: "Sync the latest Bazel-built Kain binary to ~/.kain/bin/",
+    description: "Copy the latest Bazel-built kain.exe into $KAIN_HOME/bin/ (or ~/.kain/bin/) so `kain build/run/check` use the freshest compiler. If this fails, read BAZEL.md for the full workflow guide.",
+    promptSnippet: "Sync the latest Bazel-built Kain binary to KAIN_HOME/bin/",
     promptGuidelines: [
       "Use kain_sync_binary when the user reports stale binary issues, 'kain doctor' shows drift, or the compiler seems out of date.",
       "If kain_sync_binary fails, read BAZEL.md for the full Bazel workflow, server lifecycle, and build/sync guide.",

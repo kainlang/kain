@@ -6790,10 +6790,13 @@ fn default_native_runtime_link_libs() -> Vec<String> {
             "legacy_stdio_definitions".to_string(),
             "user32".to_string(),
             "gdi32".to_string(),
+            "shell32".to_string(),
             "ws2_32".to_string(),
+            "winhttp".to_string(),
+            "advapi32".to_string(),
         ]
     } else if cfg!(target_os = "linux") {
-        vec!["m".to_string()]
+        vec!["pthread".to_string(), "dl".to_string(), "rt".to_string(), "m".to_string()]
     } else {
         Vec::new()
     }

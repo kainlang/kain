@@ -117,6 +117,15 @@ The bootstrap compiler lives in **67 Rust crates** (`crates/`) — parser, typec
 | **`FEEDBACK.md`** | Fundamental language/runtime/toolchain pain. |
 | **`BUGS.md`** | Confirmed defects, sharp edges, solver-backed failures. |
 
+
+## Kain bin 
+- In this developer env Kain exe and the config for it are stored locally in the repo for faster iteration 
+"X:\.kain\lib"
+"X:\.kain\stdlib"
+"X:\.kain\toolchain"
+"X:\.kain\bin"
+
+
 ## ⚡ PI TOOL ARSENAL
 
 This is the most important section in this file. Read it. Follow it. Every tool below exists because people kept doing things manually. Stop.
