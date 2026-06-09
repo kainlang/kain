@@ -1,4 +1,6 @@
 # MarkScript ~ The Prose-Native Scripting Runtime for Kain
+
+## Note this file is not the offical contract. This was made prior to designing the official spec. For the official contract and spec, see MARKSCRIPT.MD. THIS README WILL contain outdated information in the future however to preserve the pilot idea and the fact when this was written it compiled on accident, it will remain in the directory.
  
 > Your documentation is your program. Your README IS the executable.
 
