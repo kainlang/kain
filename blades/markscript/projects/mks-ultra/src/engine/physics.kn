@@ -1,0 +1,92 @@
+// ============================================================================
+//  PHYSICS ENGINE CORE — Vec3, RigidBody, PhysicsWorld
+//
+//  Foundation types and operations for the mks-ultra physics simulation.
+//  All functions use Layer 0 (fn + struct) with value semantics:
+//  no mutation, each function returns a new instance.
+//
+//  Uses Kain's built-in Vec3 type (tuple with .x / .y / .z fields).
+//  Constructor: vec3(x, y, z) — available from std::math.
+// ============================================================================
+
+use std::math    // vec3, vec3_dot, vec3_cross, vec3_length, etc.
+
+// ===========================================================================
+//  RigidBody — Dynamic simulation body
+// ===========================================================================
+
+pub struct RigidBody:
+    position:     Vec3
+    velocity:     Vec3
+    acceleration: Vec3
+    mass:         Float
+    mass_inv:     Float
+    radius:       Float
+
+// ===========================================================================
+//  PhysicsWorld — Simulation container
+// ===========================================================================
+
+pub struct PhysicsWorld:
+    bodies: Array<RigidBody>
+    gravity: Float
+    dt: Float
+
+// ===========================================================================
+//  World lifecycle
+// ===========================================================================
+
+pub fn init_world(gravity: Float, dt: Float) -> PhysicsWorld:
+    return PhysicsWorld {
+        bodies: [],
+        gravity: gravity,
+        dt: dt
+    }
+
+pub fn add_body(world: PhysicsWorld, pos: Vec3, vel: Vec3, mass: Float, radius: Float) -> PhysicsWorld:
+    let mass_inv = 1.0 / mass
+    let body = RigidBody {
+        position: pos,
+        velocity: vel,
+        acceleration: vec3(0.0, 0.0, 0.0),
+        mass: mass,
+        mass_inv: mass_inv,
+        radius: radius
+    }
+    return PhysicsWorld {
+        bodies: world.bodies + [body],
+        gravity: world.gravity,
+        dt: world.dt
+    }
+
+// ===========================================================================
+//  Simulation step (stub — will be replaced by integrator)
+// ===========================================================================
+
+pub fn apply_gravity(world: PhysicsWorld) -> PhysicsWorld:
+    return world
+
+pub fn integrate(world: PhysicsWorld, body_index: Int) -> (PhysicsWorld, RigidBody):
+    return (world, world.bodies[body_index])
+
+pub fn step_world(world: PhysicsWorld) -> PhysicsWorld:
+    return world
+
+// ===========================================================================
+//  Vec3 helpers (complement std::math)
+// ===========================================================================
+
+pub fn vec3_zero() -> Vec3:
+    return vec3(0.0, 0.0, 0.0)
+
+pub fn vec3_add(a: Vec3, b: Vec3) -> Vec3:
+    return vec3(a.x + b.x, a.y + b.y, a.z + b.z)
+
+pub fn vec3_sub(a: Vec3, b: Vec3) -> Vec3:
+    return vec3(a.x - b.x, a.y - b.y, a.z - b.z)
+
+pub fn vec3_mul_scalar(v: Vec3, s: Float) -> Vec3:
+    return vec3(v.x * s, v.y * s, v.z * s)
+
+pub fn vec3_mul(a: Vec3, b: Vec3) -> Vec3:
+    return vec3(a.x * b.x, a.y * b.y, a.z * b.z)
