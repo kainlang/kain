@@ -1,0 +1,193 @@
+shader compute mocap_supermotion_livelink() -> Void:
+    // Per-joint world-space positions (xyz used, w ignored).
+    uniform in_joints: StorageBuffer<Vec4> @0
+    uniform prev_joints: StorageBuffer<Vec4> @1
+    uniform parents: StorageBuffer<Int> @2
+
+    // Per-joint motion command stream.
+    uniform mod_type: StorageBuffer<Int> @3
+    uniform params_a: StorageBuffer<Vec4> @4
+    uniform params_b: StorageBuffer<Vec4> @5
+    uniform params_c: StorageBuffer<Vec4> @6
+
+    // Outputs for downstream retarget/export.
+    uniform out_joints: StorageBuffer<Vec4> @7
+    uniform out_rotations: StorageBuffer<Vec4> @8
+
+    uniform joint_count: UInt @9
+    uniform time_sec: Float @10
+    uniform delta_time: Float @11
+    uniform floor_y: Float @12
+    uniform global_intensity: Float @13
+    uniform random_seed: Float @14
+    uniform eps: Float @15
+
+    uniform LOCAL_SIZE_X: UInt @100
+    uniform LOCAL_SIZE_Y: UInt @101
+    uniform LOCAL_SIZE_Z: UInt @102
+
+    let joint = dispatch_thread_id.x
+    if joint >= joint_count:
+        return
+
+    let p0 = in_joints[joint]
+    let p_prev = prev_joints[joint]
+    let parent = parents[joint]
+    let mode = mod_type[joint]
+    let a = params_a[joint]
+    let b = params_b[joint]
+    let c = params_c[joint]
+
+    let dt = max(delta_time, eps)
+    let t = time_sec + joint as Float * a.w
+
+    let h0 = fract(sin(joint as Float * 12.9898 + random_seed * 78.233) * 43758.5453)
+    let h1 = fract(sin(joint as Float * 9.137 + random_seed * 17.113) * 22578.1459)
+    let h2 = fract(sin(joint as Float * 5.731 + random_seed * 99.271) * 11939.7791)
+
+    let mut pos = p0.xyz
+    let vel = (p0.xyz - p_prev.xyz) / dt
+    let speed = length(vel)
+
+    // Root fallback: keep identity rotation but still allow positional modulation.
+    let parent_pos = if parent < 0: p0.xyz - vec3(0.0, 1.0, 0.0) else: in_joints[parent as UInt].xyz
+    let mut forward = normalize(pos - parent_pos + vec3(eps, 0.0, 0.0))
+
+    // Modes (mocap-specialized):
+    // 0 passthrough
+    // 1 velocity_tail, 2 drag, 3 foot_lock, 4 spiral_stabilize, 5 jitter_kill
+    // 6 aim_up, 7 swing, 8 lean, 9 vortex, 10 shock, 11 pose_noise
+    // 12 magnet_root, 13 breathe_chain, 14 floor_snap, 15 overdrive
+    if mode == 1:
+        pos = pos - vel * a.x
+    else:
+        if mode == 2:
+            let drag = 1.0 / (1.0 + speed * a.x)
+            pos = p_prev.xyz + (pos - p_prev.xyz) * drag
+        else:
+            if mode == 3:
+                let lock_mask = if speed < a.x: 1.0 else: 0.0
+                let lock_y = floor_y + b.x
+                pos = vec3(pos.x, pos.y * (1.0 - lock_mask) + lock_y * lock_mask, pos.z)
+            else:
+                if mode == 4:
+                    let ang = t * a.x
+                    pos = pos + vec3(cos(ang) * a.y, 0.0, sin(ang) * a.y)
+                    forward = normalize(forward + vec3(cos(ang), 0.0, sin(ang)) * b.x)
+                else:
+                    if mode == 5:
+                        let anti = 1.0 / (1.0 + speed * a.x)
+                        let n = vec3(h0 - 0.5, h1 - 0.5, h2 - 0.5) * b.x * anti
+                        pos = pos + n
+                    else:
+                        if mode == 6:
+                            let world_up = vec3(0.0, 1.0, 0.0)
+                            forward = normalize(forward + world_up * a.x)
+                        else:
+                            if mode == 7:
+                                let sw = sin(t * a.x + joint as Float * b.x)
+                                pos = pos + vec3(sw * a.y, abs(sw) * b.y, cos(t * a.x) * a.y)
+                            else:
+                                if mode == 8:
+                                    let lean = clamp(speed * a.x, -b.x, b.x)
+                                    forward = normalize(forward + normalize(vel + vec3(eps, 0.0, 0.0)) * lean)
+                                else:
+                                    if mode == 9:
+                                        let cdir = normalize(vec3(-pos.z, 0.0, pos.x) + vec3(eps, 0.0, 0.0))
+                                        pos = pos + cdir * a.x
+                                        forward = normalize(forward + cdir * b.x)
+                                    else:
+                                        if mode == 10:
+                                            let pulse = 1.0 / (1.0 + abs(sin(t * a.x)) * b.x)
+                                            pos = pos + normalize(vel + vec3(eps, 0.0, 0.0)) * pulse * a.y
+                                        else:
+                                            if mode == 11:
+                                                let nx = fract(sin((t + h0) * 17.3) * 15731.3) - 0.5
+                                                let ny = fract(sin((t + h1) * 11.9) * 12653.8) - 0.5
+                                                let nz = fract(sin((t + h2) * 23.7) * 19483.1) - 0.5
+                                                pos = pos + vec3(nx, ny, nz) * a.x * global_intensity
+                                            else:
+                                                if mode == 12:
+                                                    let root = in_joints[0].xyz
+                                                    let to_root = root - pos
+                                                    pos = pos + to_root * a.x
+                                                else:
+                                                    if mode == 13:
+                                                        pos = pos + vec3(0.0, sin(t * a.x + joint as Float * b.x) * a.y, 0.0)
+                                                    else:
+                                                        if mode == 14:
+                                                            let snap = if pos.y < floor_y + a.x: 1.0 else: 0.0
+                                                            pos = vec3(pos.x, pos.y * (1.0 - snap) + (floor_y + a.x) * snap, pos.z)
+                                                        else:
+                                                            if mode == 15:
+                                                                let turbo = 1.0 + abs(sin(t * a.x)) * a.y
+                                                                pos = pos + vel * b.x * turbo
+                                                                forward = normalize(forward + normalize(vel + vec3(eps, 0.0, 0.0)) * c.x)
+
+    // Stabilized basis construction (forward + dynamic up).
+    let world_up = vec3(0.0, 1.0, 0.0)
+    let world_right = vec3(1.0, 0.0, 0.0)
+    let align = abs(dot(forward, world_up))
+    let up_ref = if align > 0.95: world_right else: world_up
+    let right = normalize(cross(up_ref, forward) + vec3(eps, 0.0, 0.0))
+    let up = normalize(cross(forward, right) + vec3(0.0, eps, 0.0))
+
+    let m00 = right.x
+    let m01 = up.x
+    let m02 = forward.x
+    let m10 = right.y
+    let m11 = up.y
+    let m12 = forward.y
+    let m20 = right.z
+    let m21 = up.z
+    let m22 = forward.z
+
+    let trace = m00 + m11 + m22
+    let mut qx = 0.0
+    let mut qy = 0.0
+    let mut qz = 0.0
+    let mut qw = 1.0
+
+    if trace > 0.0:
+        let s = sqrt(max(trace + 1.0, eps)) * 2.0
+        qw = 0.25 * s
+        qx = (m21 - m12) / max(s, eps)
+        qy = (m02 - m20) / max(s, eps)
+        qz = (m10 - m01) / max(s, eps)
+    else:
+        if m00 > m11:
+            if m00 > m22:
+                let s = sqrt(max(1.0 + m00 - m11 - m22, eps)) * 2.0
+                qw = (m21 - m12) / max(s, eps)
+                qx = 0.25 * s
+                qy = (m01 + m10) / max(s, eps)
+                qz = (m02 + m20) / max(s, eps)
+            else:
+                let s = sqrt(max(1.0 + m22 - m00 - m11, eps)) * 2.0
+                qw = (m10 - m01) / max(s, eps)
+                qx = (m02 + m20) / max(s, eps)
+                qy = (m12 + m21) / max(s, eps)
+                qz = 0.25 * s
+        else:
+            if m11 > m22:
+                let s = sqrt(max(1.0 + m11 - m00 - m22, eps)) * 2.0
+                qw = (m02 - m20) / max(s, eps)
+                qx = (m01 + m10) / max(s, eps)
+                qy = 0.25 * s
+                qz = (m12 + m21) / max(s, eps)
+            else:
+                let s = sqrt(max(1.0 + m22 - m00 - m11, eps)) * 2.0
+                qw = (m10 - m01) / max(s, eps)
+                qx = (m02 + m20) / max(s, eps)
+                qy = (m12 + m21) / max(s, eps)
+                qz = 0.25 * s
+
+    let q = vec4(qx, qy, qz, qw)
+    let q_len = max(length(q), eps)
+    let inv_q_len = 1.0 / q_len
+    let nq = vec4(qx * inv_q_len, qy * inv_q_len, qz * inv_q_len, qw * inv_q_len)
+
+    out_joints[joint] = vec4(pos.x, pos.y, pos.z, 1.0)
+    out_rotations[joint] = nq
+
+    return

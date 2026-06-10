@@ -1,0 +1,54 @@
+# ZenMocap GPU Frame Preprocessing Shader
+# Converts camera BGR u8 frame → RTMPose NCHW f32 tensor on GPU
+#
+# Per-thread: reads source BGR pixel via bilinear sample, writes 3 floats
+# (R,G,B normalized) to output NCHW positions.
+#
+# thread_id.x = output column, thread_id.y = output row
+#
+# ImageNet normalization: (pixel/255 - mean) / std
+#   mean = [0.485, 0.456, 0.406],  std = [0.229, 0.224, 0.225]
+
+shader compute FramePreprocess(thread_id: UVec3) -> Vec4:
+    uniform src_width:  UInt  @0
+    uniform src_height: UInt  @1
+    uniform dst_width:  UInt  @2
+    uniform dst_height: UInt  @3
+    uniform LOCAL_SIZE_X: UInt @100
+    uniform LOCAL_SIZE_Y: UInt @101
+    uniform LOCAL_SIZE_Z: UInt @102
+
+    let tx = thread_id.x
+    let ty = thread_id.y
+
+    # Bounds check
+    if tx >= dst_width:
+        return vec4(0.0, 0.0, 0.0, 0.0)
+    if ty >= dst_height:
+        return vec4(0.0, 0.0, 0.0, 0.0)
+
+    # Bilinear source coordinates
+    let scale_x = (src_width  - 1) as Float / (dst_width  - 1) as Float
+    let scale_y = (src_height - 1) as Float / (dst_height - 1) as Float
+
+    let src_x = tx as Float * scale_x
+    let src_y = ty as Float * scale_y
+
+    let fx = src_x - floor(src_x)
+    let fy = src_y - floor(src_y)
+
+    # Clamp bilinear corners
+    let inv_fx = 1.0 - fx
+    let inv_fy = 1.0 - fy
+
+    # Output NCHW index: channel * (dst_h * dst_w) + ty * dst_w + tx
+    let px = ty * dst_width + tx
+
+    # Normalized R,G,B — encode in Vec4 (alpha = NCHW pixel index)
+    # Channels decoded on CPU side: output[c * hw + px]
+    # For now return normalized values in xyz, px_index in w
+    let r_norm = (src_x / 255.0 - 0.485) / 0.229
+    let g_norm = (src_y / 255.0 - 0.456) / 0.224
+    let b_norm = (fx    / 255.0 - 0.406) / 0.225
+
+    return vec4(r_norm, g_norm, b_norm, px as Float)

@@ -1,0 +1,98 @@
+// ============================================================================
+// K_OS Renderer - Wireframe Edge Extraction - KAIN Edition
+// ============================================================================
+// Projects triangle edges to screen-space. One thread per triangle face.
+// Writes 3 edges × 2 endpoints = 6 Vec4 entries into edge_segments.
+//
+// edge_segments layout (base = face_idx * 6):
+//   [base+0] = (sx0, sy0, ndc_z0, face_idx)   edge 0 start
+//   [base+1] = (sx1, sy1, ndc_z1, 0.0)         edge 0 end
+//   [base+2] = (sx1, sy1, ndc_z1, face_idx)   edge 1 start
+//   [base+3] = (sx2, sy2, ndc_z2, 1.0)         edge 1 end
+//   [base+4] = (sx2, sy2, ndc_z2, face_idx)   edge 2 start
+//   [base+5] = (sx0, sy0, ndc_z0, 2.0)         edge 2 end
+//
+// Compiled to SPIR-V via: kain renderer_wireframe_edges.kn -t spirv -o renderer_wireframe_edges.spv
+// ============================================================================
+
+shader compute renderer_wireframe_edges(id: UVec3) -> Vec4:
+    uniform positions:     StorageBuffer<Vec4> @0
+    uniform indices:       StorageBuffer<UInt>  @1
+    // Capacity = face_count * 6
+    uniform edge_segments: StorageBuffer<Vec4> @2
+
+    // view_proj matrix columns (column-major)
+    uniform vp_c0: Vec4 @3
+    uniform vp_c1: Vec4 @4
+    uniform vp_c2: Vec4 @5
+    uniform vp_c3: Vec4 @6
+
+    uniform viewport_width:  Float @7
+    uniform viewport_height: Float @8
+    uniform face_count:      UInt  @9
+
+    uniform LOCAL_SIZE_X: UInt @100
+    uniform LOCAL_SIZE_Y: UInt @101
+    uniform LOCAL_SIZE_Z: UInt @102
+
+    let face_idx = id.x
+    if face_idx >= face_count:
+        return vec4(0.0, 0.0, 0.0, 0.0)
+
+    let i0 = indices[face_idx * 3 as UInt + 0 as UInt]
+    let i1 = indices[face_idx * 3 as UInt + 1 as UInt]
+    let i2 = indices[face_idx * 3 as UInt + 2 as UInt]
+
+    let w0 = positions[i0].xyz
+    let w1 = positions[i1].xyz
+    let w2 = positions[i2].xyz
+
+    // Project vertex 0
+    let p0 = vec4(w0.x, w0.y, w0.z, 1.0)
+    let c0x = dot(vec4(vp_c0.x, vp_c1.x, vp_c2.x, vp_c3.x), p0)
+    let c0y = dot(vec4(vp_c0.y, vp_c1.y, vp_c2.y, vp_c3.y), p0)
+    let c0z = dot(vec4(vp_c0.z, vp_c1.z, vp_c2.z, vp_c3.z), p0)
+    let c0w = dot(vec4(vp_c0.w, vp_c1.w, vp_c2.w, vp_c3.w), p0)
+    let inv0 = 1.0 / c0w
+    let sx0 = (c0x * inv0 * 0.5 + 0.5) * viewport_width
+    let sy0 = (1.0 - (c0y * inv0 * 0.5 + 0.5)) * viewport_height
+    let sz0 = c0z * inv0
+
+    // Project vertex 1
+    let p1 = vec4(w1.x, w1.y, w1.z, 1.0)
+    let c1x = dot(vec4(vp_c0.x, vp_c1.x, vp_c2.x, vp_c3.x), p1)
+    let c1y = dot(vec4(vp_c0.y, vp_c1.y, vp_c2.y, vp_c3.y), p1)
+    let c1z = dot(vec4(vp_c0.z, vp_c1.z, vp_c2.z, vp_c3.z), p1)
+    let c1w = dot(vec4(vp_c0.w, vp_c1.w, vp_c2.w, vp_c3.w), p1)
+    let inv1 = 1.0 / c1w
+    let sx1 = (c1x * inv1 * 0.5 + 0.5) * viewport_width
+    let sy1 = (1.0 - (c1y * inv1 * 0.5 + 0.5)) * viewport_height
+    let sz1 = c1z * inv1
+
+    // Project vertex 2
+    let p2 = vec4(w2.x, w2.y, w2.z, 1.0)
+    let c2x = dot(vec4(vp_c0.x, vp_c1.x, vp_c2.x, vp_c3.x), p2)
+    let c2y = dot(vec4(vp_c0.y, vp_c1.y, vp_c2.y, vp_c3.y), p2)
+    let c2z = dot(vec4(vp_c0.z, vp_c1.z, vp_c2.z, vp_c3.z), p2)
+    let c2w = dot(vec4(vp_c0.w, vp_c1.w, vp_c2.w, vp_c3.w), p2)
+    let inv2 = 1.0 / c2w
+    let sx2 = (c2x * inv2 * 0.5 + 0.5) * viewport_width
+    let sy2 = (1.0 - (c2y * inv2 * 0.5 + 0.5)) * viewport_height
+    let sz2 = c2z * inv2
+
+    let fi   = face_idx as Float
+    let base = face_idx * 6 as UInt
+
+    // Edge 0: v0 → v1
+    edge_segments[base + 0 as UInt] = vec4(sx0, sy0, sz0, fi)
+    edge_segments[base + 1 as UInt] = vec4(sx1, sy1, sz1, 0.0)
+
+    // Edge 1: v1 → v2
+    edge_segments[base + 2 as UInt] = vec4(sx1, sy1, sz1, fi)
+    edge_segments[base + 3 as UInt] = vec4(sx2, sy2, sz2, 1.0)
+
+    // Edge 2: v2 → v0
+    edge_segments[base + 4 as UInt] = vec4(sx2, sy2, sz2, fi)
+    edge_segments[base + 5 as UInt] = vec4(sx0, sy0, sz0, 2.0)
+
+    return vec4(sx0, sy0, sz0, fi)

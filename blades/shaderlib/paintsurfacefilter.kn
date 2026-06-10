@@ -1,0 +1,3 @@
+// KAIN Paint Surface Filter - starter authored in k-os-kain
+shader compute paint_surface_filter(id: UVec3) -> Vec4:
+    return vec4(0.0, 0.0, 0.0, 1.0)

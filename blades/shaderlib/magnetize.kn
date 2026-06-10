@@ -1,0 +1,132 @@
+// ============================================================================
+// K_OS Sculpt Physics Magnetize - KAIN Edition
+// ============================================================================
+// Vertices snap to nearest of N magnetic poles around brush
+// Compiled to SPIR-V via: kain sculpt_physics_magnetize.kn -t spirv -o sculpt_physics_magnetize.spv
+// ============================================================================
+
+shader compute physics_magnetize(id: UVec3) -> Vec4:
+    // Storage buffers
+    uniform positions: StorageBuffer<Vec4> @0
+    uniform normals: StorageBuffer<Vec4> @1
+    uniform candidates: StorageBuffer<UInt> @3
+    uniform counter: StorageBuffer<UInt> @4
+    
+    // Brush params (matching BrushParamsV2 layout)
+    uniform center: Vec4 @5
+    uniform normal: Vec4 @6
+    uniform radius: Float @7
+    uniform strength: Float @8
+    uniform hardness: Float @9
+    uniform flags: UInt @10
+    uniform vertex_count: UInt @11
+    uniform alpha_mode: UInt @12
+    uniform alpha_scale: Float @13
+    uniform random_seed: Float @14
+    uniform extras0: Vec4 @15
+    uniform extras1: Vec4 @16
+    uniform extras2: Vec4 @17
+    uniform extras3: Vec4 @18
+    uniform extras4: Vec4 @19
+    uniform extras5: Vec4 @20
+    
+    uniform LOCAL_SIZE_X: UInt @100
+    uniform LOCAL_SIZE_Y: UInt @101
+    uniform LOCAL_SIZE_Z: UInt @102
+    
+    let FLAG_SUBTRACT = 1 as UInt
+    let ALPHA_DISABLED = 0 as UInt
+    let PI = 3.14159265359
+    
+    // Get vertex index (handles candidate list or full dispatch)
+    let vertex_idx_raw = id.x
+    let count = counter[0]
+    let mut vertex_idx = 0 as UInt
+    
+    if count > 0 as UInt:
+        if vertex_idx_raw >= count:
+            return vec4(0.0, 0.0, 0.0, 0.0)
+        vertex_idx = candidates[vertex_idx_raw]
+    else:
+        if vertex_idx_raw >= vertex_count:
+            return vec4(0.0, 0.0, 0.0, 0.0)
+        vertex_idx = vertex_idx_raw
+    
+    let pos = positions[vertex_idx].xyz
+    let nor = normals[vertex_idx].xyz
+    let center_pos = center.xyz
+    let axis = normalize(normal.xyz)
+    
+    let to_center = pos - center_pos
+    let dist = length(to_center)
+    if dist > radius:
+        return vec4(0.0, 0.0, 0.0, 0.0)
+    
+    // Falloff calculation
+    let t = clamp(dist / radius, 0.0, 1.0)
+    let soft = 1.0 - t * t
+    let hard = 1.0 - t
+    let mut weight = mix(soft, hard, hardness)
+    
+    // Apply pressure
+    weight = weight * center.w
+    
+    // Magnetize parameters
+    let pole_count = max(floor(extras0.x), 2.0)
+    let snap_strength = extras1.x
+    let pole_radius = extras2.x
+    
+    // Project to plane perpendicular to axis
+    let along_axis = dot(to_center, axis)
+    let on_plane = to_center - axis * along_axis
+    let plane_dist = length(on_plane)
+    
+    if plane_dist < 0.001:
+        return vec4(0.0, 0.0, 0.0, 0.0)
+    
+    // Find nearest magnetic pole using proper angle calculation
+    let radial = normalize(on_plane + vec3(0.0001, 0.0, 0.0))
+    let current_angle = atan2(radial.z, radial.x)
+    
+    // Quantize to nearest pole
+    let angle_step = 2.0 * PI / pole_count
+    let pole_index = floor((current_angle + PI) / angle_step)
+    let nearest_pole_angle = pole_index * angle_step - PI
+    
+    // Hash for pole position variation
+    let pole_hash = fract(sin(random_seed * 12.9898 + floor(nearest_pole_angle / angle_step) * 78.233) * 43758.5453)
+    let pole_offset = pole_hash * 0.2 + 0.6
+    
+    // Pole position in plane
+    let pole_dist = pole_radius * radius * pole_offset
+    let pole_x = cos(nearest_pole_angle) * pole_dist
+    let pole_z = sin(nearest_pole_angle) * pole_dist
+    
+    // Reconstruct 3D pole position
+    let radial_plane = normalize(on_plane)
+    let tangent_plane = cross(axis, radial_plane)
+    let pole_on_plane = radial_plane * pole_x + tangent_plane * pole_z
+    let pole_pos = center_pos + pole_on_plane + axis * along_axis
+    
+    // Attraction to nearest pole
+    let to_pole = pole_pos - pos
+    let dist_to_pole = length(to_pole)
+    
+    let attraction_dir = if dist_to_pole > 0.001:
+        normalize(to_pole)
+    else:
+        vec3(0.0, 0.0, 0.0)
+    
+    // Magnetic force (inverse square law approximation)
+    let magnetic_force = snap_strength / max(dist_to_pole * dist_to_pole, 0.01)
+    let clamped_force = min(magnetic_force, 1.0)
+    
+    let mut displacement = attraction_dir * clamped_force * weight * strength
+    
+    // Subtract mode (repel from poles)
+    if (flags & FLAG_SUBTRACT) != 0 as UInt:
+        displacement = -displacement
+    
+    let new_pos = pos + displacement
+    positions[vertex_idx] = vec4(new_pos.x, new_pos.y, new_pos.z, 1.0)
+    return vec4(new_pos.x, new_pos.y, new_pos.z, 1.0)

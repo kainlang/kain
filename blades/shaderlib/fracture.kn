@@ -1,0 +1,123 @@
+// ============================================================================
+// K_OS Sculpt Physics Fracture - KAIN Edition
+// ============================================================================
+// Simulates surface cracking with radial displacement away from crack lines
+// Compiled to SPIR-V via: kain sculpt_physics_fracture.kn -t spirv -o sculpt_physics_fracture.spv
+// ============================================================================
+
+shader compute physics_fracture(id: UVec3) -> Vec4:
+    // Storage buffers
+    uniform positions: StorageBuffer<Vec4> @0
+    uniform normals: StorageBuffer<Vec4> @1
+    uniform candidates: StorageBuffer<UInt> @3
+    uniform counter: StorageBuffer<UInt> @4
+    
+    // Brush params (matching BrushParamsV2 layout)
+    uniform center: Vec4 @5
+    uniform normal: Vec4 @6
+    uniform radius: Float @7
+    uniform strength: Float @8
+    uniform hardness: Float @9
+    uniform flags: UInt @10
+    uniform vertex_count: UInt @11
+    uniform alpha_mode: UInt @12
+    uniform alpha_scale: Float @13
+    uniform random_seed: Float @14
+    uniform extras0: Vec4 @15
+    uniform extras1: Vec4 @16
+    uniform extras2: Vec4 @17
+    uniform extras3: Vec4 @18
+    uniform extras4: Vec4 @19
+    uniform extras5: Vec4 @20
+    
+    uniform LOCAL_SIZE_X: UInt @100
+    uniform LOCAL_SIZE_Y: UInt @101
+    uniform LOCAL_SIZE_Z: UInt @102
+    
+    let FLAG_SUBTRACT = 1 as UInt
+    let ALPHA_DISABLED = 0 as UInt
+    let PI = 3.14159265359
+    
+    // Get vertex index (handles candidate list or full dispatch)
+    let vertex_idx_raw = id.x
+    let count = counter[0]
+    let mut vertex_idx = 0 as UInt
+    
+    if count > 0 as UInt:
+        if vertex_idx_raw >= count:
+            return vec4(0.0, 0.0, 0.0, 0.0)
+        vertex_idx = candidates[vertex_idx_raw]
+    else:
+        if vertex_idx_raw >= vertex_count:
+            return vec4(0.0, 0.0, 0.0, 0.0)
+        vertex_idx = vertex_idx_raw
+    
+    let pos = positions[vertex_idx].xyz
+    let nor = normals[vertex_idx].xyz
+    let center_pos = center.xyz
+    let axis = normalize(normal.xyz)
+    
+    let to_center = pos - center_pos
+    let dist = length(to_center)
+    if dist > radius:
+        return vec4(0.0, 0.0, 0.0, 0.0)
+    
+    // Falloff calculation
+    let t = clamp(dist / radius, 0.0, 1.0)
+    let soft = 1.0 - t * t
+    let hard = 1.0 - t
+    let mut weight = mix(soft, hard, hardness)
+    
+    // Apply pressure
+    weight = weight * center.w
+    
+    // Fracture parameters
+    let crack_count = max(floor(extras0.x), 3.0)
+    let crack_width = extras1.x
+    let crack_depth = extras2.x
+    
+    // Project to plane perpendicular to axis
+    let along_axis = dot(to_center, axis)
+    let on_plane = to_center - axis * along_axis
+    let plane_dist = length(on_plane)
+    
+    if plane_dist < 0.001:
+        return vec4(0.0, 0.0, 0.0, 0.0)
+    
+    // Find nearest crack line using proper angle calculation
+    let radial = normalize(on_plane + vec3(0.0001, 0.0, 0.0))
+    let current_angle = atan2(radial.z, radial.x)
+    
+    // Quantize to nearest crack
+    let angle_step = 2.0 * PI / crack_count
+    let crack_index = floor((current_angle + PI) / angle_step)
+    let nearest_crack_angle = crack_index * angle_step - PI
+    
+    // Hash function for crack variation
+    let crack_hash = fract(sin(random_seed * 12.9898 + crack_index * 78.233) * 43758.5453)
+    let crack_offset = crack_hash * 0.3 - 0.15
+    
+    // Calculate distance to crack line using vector projection
+    let crack_dir = vec3(cos(nearest_crack_angle + crack_offset), 0.0, sin(nearest_crack_angle + crack_offset))
+    let to_crack = on_plane - crack_dir * dot(on_plane, crack_dir)
+    let dist_to_crack = length(to_crack)
+    
+    // Crack influence (sharp falloff at crack edges)
+    let crack_influence = 1.0 - smoothstep(0.0, crack_width * radius, dist_to_crack)
+    
+    // Direction: away from crack line (perpendicular to crack)
+    let crack_perpendicular = normalize(to_crack + vec3(0.0001, 0.0, 0.0))
+    
+    // Displacement: push away from crack + sink along normal
+    let lateral_push = crack_perpendicular * crack_influence * crack_depth * 0.5
+    let vertical_sink = -nor * crack_influence * crack_depth * 0.3
+    
+    let mut displacement = (lateral_push + vertical_sink) * weight * strength
+    
+    // Subtract mode (heal cracks)
+    if (flags & FLAG_SUBTRACT) != 0 as UInt:
+        displacement = -displacement
+    
+    let new_pos = pos + displacement
+    positions[vertex_idx] = vec4(new_pos.x, new_pos.y, new_pos.z, 1.0)
+    return vec4(new_pos.x, new_pos.y, new_pos.z, 1.0)

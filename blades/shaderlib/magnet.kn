@@ -1,0 +1,96 @@
+// ============================================================================
+// K_OS Sculpt Physics Magnet - KAIN Edition
+// ============================================================================
+// Sticky attractor with snap threshold for magnetic pull effect
+// Compiled to SPIR-V via: kain sculpt_physics_magnet.kn -t spirv -o sculpt_physics_magnet.spv
+// ============================================================================
+
+shader compute physics_magnet(id: UVec3) -> Vec4:
+    // Storage buffers
+    uniform positions: StorageBuffer<Vec4> @0
+    uniform normals: StorageBuffer<Vec4> @1
+    uniform candidates: StorageBuffer<UInt> @3
+    uniform counter: StorageBuffer<UInt> @4
+    
+    // Brush params (matching BrushParamsV2 layout)
+    uniform center: Vec4 @5
+    uniform normal: Vec4 @6
+    uniform radius: Float @7
+    uniform strength: Float @8
+    uniform hardness: Float @9
+    uniform flags: UInt @10
+    uniform vertex_count: UInt @11
+    uniform alpha_mode: UInt @12
+    uniform alpha_scale: Float @13
+    uniform random_seed: Float @14
+    uniform extras0: Vec4 @15
+    uniform extras1: Vec4 @16
+    uniform extras2: Vec4 @17
+    uniform extras3: Vec4 @18
+    uniform extras4: Vec4 @19
+    uniform extras5: Vec4 @20
+    
+    uniform LOCAL_SIZE_X: UInt @100
+    uniform LOCAL_SIZE_Y: UInt @101
+    uniform LOCAL_SIZE_Z: UInt @102
+    
+    let FLAG_SUBTRACT = 1 as UInt
+    let ALPHA_DISABLED = 0 as UInt
+    
+    // Get vertex index (handles candidate list or full dispatch)
+    let vertex_idx_raw = id.x
+    let count = counter[0]
+    let mut vertex_idx = 0 as UInt
+    
+    if count > 0 as UInt:
+        if vertex_idx_raw >= count:
+            return vec4(0.0, 0.0, 0.0, 0.0)
+        vertex_idx = candidates[vertex_idx_raw]
+    else:
+        if vertex_idx_raw >= vertex_count:
+            return vec4(0.0, 0.0, 0.0, 0.0)
+        vertex_idx = vertex_idx_raw
+    
+    let pos = positions[vertex_idx].xyz
+    let center_pos = center.xyz
+    
+    let to_center = center_pos - pos
+    let dist = length(to_center)
+    if dist > radius:
+        return vec4(0.0, 0.0, 0.0, 0.0)
+    if dist < 0.0001:
+        return vec4(0.0, 0.0, 0.0, 0.0)
+    
+    // Falloff calculation
+    let t = clamp(dist / radius, 0.0, 1.0)
+    let soft = 1.0 - t * t
+    let hard = 1.0 - t
+    let mut weight = mix(soft, hard, hardness)
+    
+    // Alpha sampling (simplified - texture would go here)
+    if alpha_mode != ALPHA_DISABLED:
+        let local_pos = pos - center_pos
+        let uv_x = (local_pos.x / radius + 1.0) * 0.5 * alpha_scale
+        let uv_y = (local_pos.z / radius + 1.0) * 0.5 * alpha_scale
+        // textureSampleLevel would go here
+        weight = weight * 1.0
+    
+    // Apply pressure
+    weight = weight * center.w
+    
+    // Snap effect: stronger pull at close range
+    let snap_threshold = extras0.x
+    let snap_boost = smoothstep(snap_threshold, 0.0, dist)
+    weight = mix(weight, 1.0, snap_boost * 0.5)
+    
+    // Calculate displacement
+    let dir = normalize(to_center)
+    let mut displacement = dir * dist * weight * strength
+    
+    // Subtract mode
+    if (flags & FLAG_SUBTRACT) != 0 as UInt:
+        displacement = -displacement
+    
+    let new_pos = pos + displacement
+    positions[vertex_idx] = vec4(new_pos.x, new_pos.y, new_pos.z, 1.0)
+    return vec4(new_pos.x, new_pos.y, new_pos.z, 1.0)

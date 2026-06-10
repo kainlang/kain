@@ -1,0 +1,66 @@
+shader compute mocap_skeleton() -> Void:
+    uniform in_joints: StorageBuffer<Float> @0
+    uniform out_joints: StorageBuffer<Float> @1
+    uniform parents: StorageBuffer<Int> @2
+    uniform rest_lengths: StorageBuffer<Float> @3
+
+    uniform joint_count: UInt @4
+    uniform stiffness: Float @5
+    uniform solver_iterations: Int @6
+    uniform max_correction: Float @7
+    uniform eps: Float @8
+
+    uniform LOCAL_SIZE_X: UInt @100
+    uniform LOCAL_SIZE_Y: UInt @101
+    uniform LOCAL_SIZE_Z: UInt @102
+
+    let joint = dispatch_thread_id.x
+    if joint >= joint_count:
+        return
+
+    let base = joint * 4
+    let parent = parents[joint]
+    let cx = in_joints[base + 0]
+    let cy = in_joints[base + 1]
+    let cz = in_joints[base + 2]
+    let cw = in_joints[base + 3]
+
+    if parent < 0:
+        out_joints[base + 0] = cx
+        out_joints[base + 1] = cy
+        out_joints[base + 2] = cz
+        out_joints[base + 3] = cw
+        return
+
+    let pidx = parent as UInt
+    let pbase = pidx * 4
+    let parent_pos = vec3(
+        in_joints[pbase + 0],
+        in_joints[pbase + 1],
+        in_joints[pbase + 2]
+    )
+
+    let original = vec3(cx, cy, cz)
+    let target_len = rest_lengths[joint]
+    let soft = clamp(stiffness, 0.0, 1.0)
+
+    let mut solved = original
+    let mut iter = 0
+    while iter < solver_iterations:
+        let dir = solved - parent_pos
+        let dist = max(length(dir), eps)
+        let n = dir / dist
+        let err = target_len - dist
+        let corr = clamp(err, -max_correction, max_correction)
+        solved = solved + n * (corr * soft)
+        iter = iter + 1
+
+    let keep = 1.0 - soft
+    let out_pos = original * keep + solved * soft
+
+    out_joints[base + 0] = out_pos.x
+    out_joints[base + 1] = out_pos.y
+    out_joints[base + 2] = out_pos.z
+    out_joints[base + 3] = cw
+
+    return

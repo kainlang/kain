@@ -1,0 +1,14 @@
+// Shader builder domain source seed.
+// Registry bindings are fed from sources/kain/domains/shader/shader_builder_registry.json.
+
+struct ShaderBuilderKernelConfig:
+    profile_id: String
+    domain_target: String
+    entry_point: String
+
+fn default_shader_builder_kernel_config() -> ShaderBuilderKernelConfig with Pure:
+    let config = ShaderBuilderKernelConfig()
+    config.profile_id = "surface_pbr"
+    config.domain_target = "materials"
+    config.entry_point = "main"
+    config

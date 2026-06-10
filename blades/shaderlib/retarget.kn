@@ -1,0 +1,48 @@
+shader compute mocap_retarget(id: UVec3) -> Vec4:
+    // COCO-17 to custom rig remap.
+    // mapping[j] = source coco joint index, -1 means synthesize from parent.
+    uniform coco_joints: StorageBuffer<Vec4> @0
+    uniform mapping: StorageBuffer<Int> @1
+    uniform rig_parents: StorageBuffer<Int> @2
+    uniform rig_rest_offsets: StorageBuffer<Vec4> @3
+    uniform out_rig_joints: StorageBuffer<Vec4> @4
+
+    uniform rig_joint_count: UInt @5
+    uniform coco_joint_count: UInt @6
+    uniform offset_scale: Float @7
+    uniform eps: Float @8
+
+    uniform LOCAL_SIZE_X: UInt @100
+    uniform LOCAL_SIZE_Y: UInt @101
+    uniform LOCAL_SIZE_Z: UInt @102
+
+    let joint = id.x
+    if joint >= rig_joint_count:
+        return vec4(0.0, 0.0, 0.0, 0.0)
+
+    let src_idx = mapping[joint]
+    let rest = rig_rest_offsets[joint]
+    let mut out_v = rest
+
+    if src_idx >= 0:
+        let s = src_idx as UInt
+        if s < coco_joint_count:
+            out_v = coco_joints[s]
+        else:
+            out_v = rest
+    else:
+        let parent = rig_parents[joint]
+        if parent >= 0:
+            let p = parent as UInt
+            let p_src = mapping[p]
+            if p_src >= 0 && (p_src as UInt) < coco_joint_count:
+                let p_pos = coco_joints[p_src as UInt].xyz
+                let off = rest.xyz * offset_scale
+                out_v = vec4(p_pos.x + off.x, p_pos.y + off.y, p_pos.z + off.z, max(rest.w, eps))
+            else:
+                out_v = rest
+        else:
+            out_v = rest
+
+    out_rig_joints[joint] = out_v
+    return out_v

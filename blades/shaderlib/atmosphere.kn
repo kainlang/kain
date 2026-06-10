@@ -1,0 +1,83 @@
+// ============================================================================
+// Zen Atmosphere - KAIN Screen-Space Light Field
+// ============================================================================
+// Generates a fullscreen atmospheric lighting field for Zen's universal viewport.
+// The output is row-padded so the host can copy the buffer straight into a
+// texture without extra repacking.
+// ============================================================================
+
+shader compute renderer_zen_atmosphere(id: UVec3) -> Vec4:
+    uniform output_rgba:       StorageBuffer<Vec4> @0
+    uniform viewport_width:    UInt @1
+    uniform viewport_height:   UInt @2
+    uniform row_stride_pixels: UInt @3
+
+    uniform time_seconds:      Float @4
+    uniform camera_forward:    Vec4  @5
+    uniform sun_dir:           Vec4  @6
+    uniform sun_color:         Vec4  @7
+    uniform sky_top:           Vec4  @8
+    uniform sky_horizon:       Vec4  @9
+    uniform ground_color:      Vec4  @10
+    uniform fog_color:         Vec4  @11
+    uniform accent_color:      Vec4  @12
+    uniform shadow_color:      Vec4  @13
+    uniform fog_density:       Float @14
+    uniform shadow_strength:   Float @15
+    uniform glow_strength:     Float @16
+    uniform haze_strength:     Float @17
+    uniform sun_disk_power:    Float @18
+
+    uniform LOCAL_SIZE_X: UInt @100
+    uniform LOCAL_SIZE_Y: UInt @101
+    uniform LOCAL_SIZE_Z: UInt @102
+
+    let px = id.x
+    let py = id.y
+    if px >= viewport_width:
+        return vec4(0.0, 0.0, 0.0, 0.0)
+    if py >= viewport_height:
+        return vec4(0.0, 0.0, 0.0, 0.0)
+
+    let width_f = max(viewport_width as Float, 1.0)
+    let height_f = max(viewport_height as Float, 1.0)
+    let uvx = (px as Float + 0.5) / width_f
+    let uvy = (py as Float + 0.5) / height_f
+    let centered_x = uvx * 2.0 - 1.0
+    let centered_y = 1.0 - uvy * 2.0
+
+    let sky_mix = clamp(uvy, 0.0, 1.0)
+    let horizon_glow = exp(-abs(centered_y) * 7.5) * haze_strength
+    let forward = normalize(camera_forward.xyz + vec3(0.0001, 0.0, 0.0))
+    let sun_n = normalize(sun_dir.xyz + vec3(0.0001, 0.0, 0.0))
+    let view_dir = normalize(vec3(centered_x, centered_y, 1.0) + forward * 0.18 + vec3(0.0001, 0.0, 0.0))
+
+    let sky_grad = mix(sky_horizon.xyz, sky_top.xyz, smoothstep(0.0, 1.0, sky_mix))
+    let ground_mix = smoothstep(-0.25, 0.16, centered_y)
+    let mut color = mix(ground_color.xyz, sky_grad, ground_mix)
+
+    let sun_alignment = clamp(dot(view_dir, normalize(-sun_n + vec3(0.0001, 0.0, 0.0))), 0.0, 1.0)
+    let sun_disk = pow(sun_alignment, sun_disk_power) * glow_strength
+    let sun_halo = pow(sun_alignment, max(sun_disk_power * 0.24, 4.0)) * glow_strength * 0.45
+
+    let band = sin(centered_x * 13.0 + time_seconds * 0.21) * 0.5 + 0.5
+    let cloud = sin(centered_x * 6.0 + time_seconds * 0.12) * cos(centered_y * 8.0 - time_seconds * 0.07)
+    let cloud_mask = clamp(cloud * 0.5 + 0.5, 0.0, 1.0)
+    let shadow_band = (1.0 - smoothstep(0.12, 0.9, sun_alignment)) * band * cloud_mask * shadow_strength
+    let haze = horizon_glow * (0.45 + band * 0.55)
+
+    color = color + fog_color.xyz * haze
+    color = mix(color, shadow_color.xyz, shadow_band * 0.42)
+    color = color + sun_color.xyz * sun_disk
+    color = color + mix(accent_color.xyz, sun_color.xyz, 0.55) * sun_halo
+
+    let forward_glow = clamp(dot(forward, normalize(-sun_n + vec3(0.0001, 0.0, 0.0))), 0.0, 1.0)
+    color = color + accent_color.xyz * forward_glow * 0.08
+
+    let vignette = 1.0 - clamp(length(vec2(centered_x, centered_y)) * (0.45 + fog_density * 5.0), 0.0, 0.45)
+    color = color * vignette
+
+    let output_index = py * row_stride_pixels + px
+    let final_color = vec4(max(color.x, 0.0), max(color.y, 0.0), max(color.z, 0.0), 1.0)
+    output_rgba[output_index] = final_color
+    return final_color

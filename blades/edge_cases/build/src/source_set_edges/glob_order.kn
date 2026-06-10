@@ -1,0 +1,125 @@
+// ============================================================================
+//  glob_order.kn [P] — Glob declaration order does not affect file list
+//
+//  Creates two sub-build.kn files: one with .glob("*.kn").glob("*.h") and
+//  one with .glob("*.h").glob("*.kn"). Asserts both produce the same set
+//  of files in the same order.
+// ============================================================================
+
+use runner
+use assert
+
+use std::fs       // fs_write_text, fs_create_dir_all, fs_remove_dir_all, fs_path_join
+use std::process  // process_spec_create_piped, process_spec_add_arg, process_spawn,
+                  // process_wait, process_stdout_capture_text, process_stderr_capture_text,
+                  // process_close
+use std::text      // text_join_strings
+
+// ---------------------------------------------------------------------------
+//  Helper: run `kain check` and return combined output
+// ---------------------------------------------------------------------------
+
+fn run_check(path: String) -> String:
+    let spec = process_spec_create_piped("kain")
+    if spec <= 0:
+        return "SPEC_FAIL:" + str(spec)
+    let _a0 = process_spec_add_arg(spec, "check")
+    let _a1 = process_spec_add_arg(spec, path)
+    let child = process_spawn(spec)
+    if child <= 0:
+        return "SPAWN_FAIL:" + str(child)
+    let _waited = process_wait(child, 30000)
+    let captured_stdout = process_stdout_capture_text(child)
+    let captured_stderr = process_stderr_capture_text(child)
+    let _close = process_close(child)
+    return captured_stdout + "||STDERR||" + captured_stderr
+
+// ---------------------------------------------------------------------------
+//  Test: glob order does not affect resolved file list
+// ---------------------------------------------------------------------------
+
+pub fn test_glob_order() -> TestResult:
+    let tmp = ".kain/tmp/glob_order/"
+    let _ = fs_create_dir_all(tmp)
+
+    // Create source files with different names/extensions.
+    let src_dir = fs_path_join(tmp, "src")
+    fs_create_dir_all(src_dir)
+    fs_write_text(fs_path_join(src_dir, "alpha.kn"),
+        "pub fn alpha() -> String:\n    return \"alpha\"\n")
+    fs_write_text(fs_path_join(src_dir, "beta.kn"),
+        "pub fn beta() -> String:\n    return \"beta\"\n")
+    fs_write_text(fs_path_join(src_dir, "gamma.kn"),
+        "pub fn gamma() -> String:\n    return \"gamma\"\n")
+    fs_write_text(fs_path_join(src_dir, "main.kn"), "fn main() -> Int:\n    return 0\n")
+
+    // Build A: .glob("*.kn") then .glob("*.h") — .h glob matches nothing.
+    let lines_a: Array<String> = []
+    push(lines_a, "use std::build")
+    push(lines_a, "fn build(ctx: BuildContext) -> BuildGraph:")
+    push(lines_a, "    let app = project(\"order-test-a\")")
+    push(lines_a, "        .kind(\"kain_executable\")")
+    push(lines_a, "        .version(\"1.0.0\")")
+    push(lines_a, "        .entry(\"src/main.kn\")")
+    push(lines_a, "        .targets(\"llvm\")")
+    push(lines_a, "        .artifact_root(\".kain/out\")")
+    push(lines_a, "        .cache_root(\".kain/cache\")")
+    push(lines_a, "    let src_set = source_set(\"sources\")")
+    push(lines_a, "        .root(\"src\")")
+    push(lines_a, "        .glob(\"src/*.kn\")")
+    push(lines_a, "        .glob(\"src/*.h\")")
+    push(lines_a, "    let chk = check_task(\"verify\")")
+    push(lines_a, "        .project(app)")
+    push(lines_a, "        .target(\"llvm\")")
+    push(lines_a, "        .inputs(src_set)")
+    push(lines_a, "    return build_graph(app).tasks(chk)")
+    let build_a_text = text_join_strings(lines_a, "\n")
+
+    // Build B: .glob("*.h") then .glob("*.kn") — reversed order.
+    let lines_b: Array<String> = []
+    push(lines_b, "use std::build")
+    push(lines_b, "fn build(ctx: BuildContext) -> BuildGraph:")
+    push(lines_b, "    let app = project(\"order-test-b\")")
+    push(lines_b, "        .kind(\"kain_executable\")")
+    push(lines_b, "        .version(\"1.0.0\")")
+    push(lines_b, "        .entry(\"src/main.kn\")")
+    push(lines_b, "        .targets(\"llvm\")")
+    push(lines_b, "        .artifact_root(\".kain/out\")")
+    push(lines_b, "        .cache_root(\".kain/cache\")")
+    push(lines_b, "    let src_set = source_set(\"sources\")")
+    push(lines_b, "        .root(\"src\")")
+    push(lines_b, "        .glob(\"src/*.h\")")
+    push(lines_b, "        .glob(\"src/*.kn\")")
+    push(lines_b, "    let chk = check_task(\"verify\")")
+    push(lines_b, "        .project(app)")
+    push(lines_b, "        .target(\"llvm\")")
+    push(lines_b, "        .inputs(src_set)")
+    push(lines_b, "    return build_graph(app).tasks(chk)")
+    let build_b_text = text_join_strings(lines_b, "\n")
+
+    let path_a = fs_path_join(tmp, "build_a.kn")
+    let path_b = fs_path_join(tmp, "build_b.kn")
+    fs_write_text(path_a, build_a_text)
+    fs_write_text(path_b, build_b_text)
+
+    let captured_a = run_check(path_a)
+    let captured_b = run_check(path_b)
+
+    let _ = fs_remove_dir_all(tmp)
+    return assert_deterministic("glob_order", captured_a, captured_b)
+
+// ---------------------------------------------------------------------------
+//  Registration
+// ---------------------------------------------------------------------------
+
+pub fn get_tests() -> Array<TestCase>:
+    let mut list: Array<TestCase> = []
+    list = add_to_list(list, TestCase{
+        name: "glob_order",
+        tag: "glob_order",
+        category: "source_set_edges",
+        function: test_glob_order,
+        description: "Glob declaration order does not affect the resolved file list",
+        expected: "PASS"
+    })
+    return list

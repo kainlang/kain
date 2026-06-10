@@ -1,0 +1,98 @@
+// ============================================================================
+//  multi_root_overlap.kn [P] — Overlapping source roots resolve deterministically
+//
+//  Creates two source roots (src/a/ and src/b/) each with the same relative
+//  path. Runs `kain check` twice and asserts the resolution is consistent.
+// ============================================================================
+
+use runner
+use assert
+
+use std::fs       // fs_write_text, fs_create_dir_all, fs_remove_dir_all, fs_path_join
+use std::process  // process_spec_create_piped, process_spec_add_arg, process_spawn,
+                  // process_wait, process_stdout_capture_text, process_stderr_capture_text,
+                  // process_close
+use std::text      // text_join_strings
+
+// ---------------------------------------------------------------------------
+//  Helper: run `kain check` and return combined output
+// ---------------------------------------------------------------------------
+
+fn run_check(path: String) -> String:
+    let spec = process_spec_create_piped("kain")
+    if spec <= 0:
+        return "SPEC_FAIL:" + str(spec)
+    let _a0 = process_spec_add_arg(spec, "check")
+    let _a1 = process_spec_add_arg(spec, path)
+    let child = process_spawn(spec)
+    if child <= 0:
+        return "SPAWN_FAIL:" + str(child)
+    let _waited = process_wait(child, 30000)
+    let captured_stdout = process_stdout_capture_text(child)
+    let captured_stderr = process_stderr_capture_text(child)
+    let _close = process_close(child)
+    return captured_stdout + "||STDERR||" + captured_stderr
+
+// ---------------------------------------------------------------------------
+//  Test: overlapping roots produce deterministic resolution
+// ---------------------------------------------------------------------------
+
+pub fn test_multi_root_overlap() -> TestResult:
+    let tmp = ".kain/tmp/multi_root_overlap/"
+    let _ = fs_create_dir_all(tmp)
+
+    // Create two source roots with the same relative path.
+    let root_a = fs_path_join(tmp, "src/a")
+    let root_b = fs_path_join(tmp, "src/b")
+    fs_create_dir_all(root_a)
+    fs_create_dir_all(root_b)
+
+    // Each root has its own module.kn with a unique symbol.
+    fs_write_text(fs_path_join(root_a, "module_a.kn"),
+        "pub fn version_a() -> String:\n    return \"A\"\n")
+    fs_write_text(fs_path_join(root_b, "module_b.kn"),
+        "pub fn version_b() -> String:\n    return \"B\"\n")
+
+    // Build.kn using both roots as source_roots AND module_roots.
+    let lines: Array<String> = []
+    push(lines, "use std::build")
+    push(lines, "fn build(ctx: BuildContext) -> BuildGraph:")
+    push(lines, "    let app = project(\"overlap-test\")")
+    push(lines, "        .kind(\"kain_executable\")")
+    push(lines, "        .version(\"1.0.0\")")
+    push(lines, "        .entry(\"src/a/module_a.kn\")")
+    push(lines, "        .source_roots([\"src/a\", \"src/b\"])")
+    push(lines, "        .module_roots([\"src/a\", \"src/b\"])")
+    push(lines, "        .targets(\"llvm\")")
+    push(lines, "        .artifact_root(\".kain/out\")")
+    push(lines, "        .cache_root(\".kain/cache\")")
+    push(lines, "    let chk = check_task(\"verify\")")
+    push(lines, "        .project(app)")
+    push(lines, "        .target(\"llvm\")")
+    push(lines, "    return build_graph(app).tasks(chk)")
+    let build_text = text_join_strings(lines, "\n")
+
+    let build_path = fs_path_join(tmp, "build.kn")
+    fs_write_text(build_path, build_text)
+
+    let captured1 = run_check(build_path)
+    let captured2 = run_check(build_path)
+
+    let _ = fs_remove_dir_all(tmp)
+    return assert_deterministic("multi_root_overlap", captured1, captured2)
+
+// ---------------------------------------------------------------------------
+//  Registration
+// ---------------------------------------------------------------------------
+
+pub fn get_tests() -> Array<TestCase>:
+    let mut list: Array<TestCase> = []
+    list = add_to_list(list, TestCase{
+        name: "multi_root_overlap",
+        tag: "multi_root_overlap",
+        category: "project_config",
+        function: test_multi_root_overlap,
+        description: "When two source roots contain files with the same relative path, resolution is deterministic",
+        expected: "PASS"
+    })
+    return list

@@ -1,0 +1,159 @@
+// ============================================================================
+//  runner.kn — Test discovery and execution engine
+//
+//  Layer 0: Plain fn, struct. No world/actor/entangle/patch/law.
+//
+//  Architecture:
+//    - Each category module exports `get_tests() -> Array<TestCase>`.
+//    - `discover_tests()` calls every category's `get_tests()` and
+//      aggregates results. (Stub: returns empty until categories exist.)
+//    - `run_one()` executes one test, `run_all()` executes everything.
+//
+//  Module-level mutable state is not supported in Kain — we use explicit
+//  accumulator functions instead.
+// ============================================================================
+
+// ── Types ─────────────────────────────────────────────────────────────────
+
+/// Outcome of a single determinism test.
+/// Use the constructor helpers `make_ok()`, `make_fail()`, `make_skip()`.
+pub struct TestResult:
+    status: String   // "PASS", "FAIL", or "SKIP"
+    name:   String
+    detail: String
+
+/// Descriptor for one test case. The `function` field holds the test body.
+pub struct TestCase:
+    name:        String
+    tag:         String          // short alias — often same as name
+    category:    String          // one of the 8 category folder names
+    function:    fn() -> TestResult
+    description: String          // human-readable one-liner
+    expected:    String          // "PASS" or "FAIL"
+
+// ── TestResult constructors ───────────────────────────────────────────────
+
+pub fn make_ok(name: String, detail: String) -> TestResult:
+    return TestResult{ status: "PASS", name: name, detail: detail }
+
+pub fn make_fail(name: String, detail: String) -> TestResult:
+    return TestResult{ status: "FAIL", name: name, detail: detail }
+
+pub fn make_skip(name: String, reason: String) -> TestResult:
+    return TestResult{ status: "SKIP", name: name, detail: reason }
+
+// ── TestResult queries ────────────────────────────────────────────────────
+
+pub fn is_ok(result: TestResult) -> Bool:
+    return result.status == "PASS"
+
+pub fn is_fail(result: TestResult) -> Bool:
+    return result.status == "FAIL"
+
+pub fn is_skip(result: TestResult) -> Bool:
+    return result.status == "SKIP"
+
+pub fn result_status(result: TestResult) -> String:
+    return result.status
+
+pub fn result_name(result: TestResult) -> String:
+    return result.name
+
+pub fn result_detail(result: TestResult) -> String:
+    return result.detail
+
+// ── Registration helper ───────────────────────────────────────────────────
+
+/// Helper: append one TestCase to an accumulator array and return it.
+/// Category modules call this in their `get_tests()` functions to build
+/// their test list incrementally.
+pub fn add_to_list(list: Array<TestCase>, tc: TestCase) -> Array<TestCase>:
+    push(list, tc)
+    return list
+
+// ── Discovery ─────────────────────────────────────────────────────────────
+
+/// Returns every test discovered from all category modules.
+///
+/// Currently returns an empty array because no category modules exist yet.
+/// Writers 2 & 3 will add imports for each category's `get_tests()`
+/// function, and the full build will aggregate them here.
+///
+/// Pattern (when categories exist):
+///   let mut all: Array<TestCase> = []
+///   all = merge_lists(all, project_config_get_tests())
+///   all = merge_lists(all, source_set_get_tests())
+///   ... etc ...
+///   return all
+pub fn discover_tests() -> Array<TestCase>:
+    let mut all: Array<TestCase> = []
+
+    // -- Placeholder: categories will be imported and aggregated here --
+    // When Writers 2 & 3 create category files, each exports a
+    // `get_<category>_tests()` function. Uncomment and wire them:
+    //
+    // all = merge_lists(all, get_project_config_tests())
+    // all = merge_lists(all, get_source_set_edge_tests())
+    // all = merge_lists(all, get_graph_edge_tests())
+    // all = merge_lists(all, get_target_edge_tests())
+    // all = merge_lists(all, get_profile_edge_tests())
+    // all = merge_lists(all, get_caching_tests())
+    // all = merge_lists(all, get_comptime_edge_tests())
+    // all = merge_lists(all, get_import_edge_tests())
+
+    return all
+
+/// Merge two test-case arrays. Returns `target` with `source` appended.
+pub fn merge_lists(target: Array<TestCase>, source: Array<TestCase>) -> Array<TestCase>:
+    var i = 0
+    while i < len(source):
+        push(target, source[i])
+        i = i + 1
+    return target
+
+// ── Run one test ──────────────────────────────────────────────────────────
+
+/// Execute a single test function and return its outcome.
+pub fn run_one(tc: TestCase) -> TestResult:
+    let result = tc.function()
+
+    if is_fail(result):
+        println("  [FAIL] " + tc.name + " — " + result_detail(result))
+    elif is_skip(result):
+        println("  [SKIP] " + tc.name + " — " + result_detail(result))
+    else:
+        println("  [PASS] " + tc.name)
+
+    return result
+
+// ── Run by category ──────────────────────────────────────────────────────
+
+/// Execute every test whose `category` field matches the given name.
+pub fn run_category(category_name: String) -> Array<TestResult>:
+    let all = discover_tests()
+    let mut results: Array<TestResult> = []
+    println("")
+    println("=== Category: " + category_name + " ===")
+    var i = 0
+    while i < len(all):
+        let entry = all[i]
+        if entry.category == category_name:
+            let r = run_one(entry)
+            push(results, r)
+        i = i + 1
+    return results
+
+// ── Run all ───────────────────────────────────────────────────────────────
+
+/// Execute every registered test across every category.
+pub fn run_all() -> Array<TestResult>:
+    let all = discover_tests()
+    let mut results: Array<TestResult> = []
+    println("")
+    println("=== Running all tests (" + str(len(all)) + " discovered) ===")
+    var i = 0
+    while i < len(all):
+        let r = run_one(all[i])
+        push(results, r)
+        i = i + 1
+    return results

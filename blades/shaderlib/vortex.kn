@@ -1,0 +1,94 @@
+// ============================================================================
+// K_OS Sculpt Physics Vortex - KAIN Edition
+// ============================================================================
+// Spiral force around brush axis with optional inward pull
+// Compiled to SPIR-V via: kain sculpt_physics_vortex.kn -t spirv -o sculpt_physics_vortex.spv
+// ============================================================================
+
+shader compute physics_vortex(id: UVec3) -> Vec4:
+    // Storage buffers
+    uniform positions: StorageBuffer<Vec4> @0
+    uniform normals: StorageBuffer<Vec4> @1
+    uniform candidates: StorageBuffer<UInt> @3
+    uniform counter: StorageBuffer<UInt> @4
+    
+    // Brush params (matching BrushParamsV2 layout)
+    uniform center: Vec4 @5
+    uniform normal: Vec4 @6
+    uniform radius: Float @7
+    uniform strength: Float @8
+    uniform hardness: Float @9
+    uniform flags: UInt @10
+    uniform vertex_count: UInt @11
+    uniform alpha_mode: UInt @12
+    uniform alpha_scale: Float @13
+    uniform random_seed: Float @14
+    uniform extras0: Vec4 @15
+    uniform extras1: Vec4 @16
+    uniform extras2: Vec4 @17
+    uniform extras3: Vec4 @18
+    uniform extras4: Vec4 @19
+    uniform extras5: Vec4 @20
+    
+    uniform LOCAL_SIZE_X: UInt @100
+    uniform LOCAL_SIZE_Y: UInt @101
+    uniform LOCAL_SIZE_Z: UInt @102
+    
+    let FLAG_SUBTRACT = 1 as UInt
+    let ALPHA_DISABLED = 0 as UInt
+    
+    // Get vertex index (handles candidate list or full dispatch)
+    let vertex_idx_raw = id.x
+    let count = counter[0]
+    let mut vertex_idx = 0 as UInt
+    
+    if count > 0 as UInt:
+        if vertex_idx_raw >= count:
+            return vec4(0.0, 0.0, 0.0, 0.0)
+        vertex_idx = candidates[vertex_idx_raw]
+    else:
+        if vertex_idx_raw >= vertex_count:
+            return vec4(0.0, 0.0, 0.0, 0.0)
+        vertex_idx = vertex_idx_raw
+    
+    let pos = positions[vertex_idx].xyz
+    let center_pos = center.xyz
+    let axis = normalize(normal.xyz)
+    
+    let to_center = pos - center_pos
+    let dist = length(to_center)
+    if dist > radius:
+        return vec4(0.0, 0.0, 0.0, 0.0)
+    
+    // Falloff calculation
+    let t = clamp(dist / radius, 0.0, 1.0)
+    let soft = 1.0 - t * t
+    let hard = 1.0 - t
+    let mut weight = mix(soft, hard, hardness)
+    
+    // Apply pressure
+    weight = weight * center.w
+    
+    // Vortex parameters
+    let vortex_strength = extras0.x
+    let inward_pull = extras1.x
+    
+    // Project to plane perpendicular to axis
+    let along_axis = dot(to_center, axis)
+    let on_plane = to_center - axis * along_axis
+    let plane_dist = length(on_plane)
+    
+    if plane_dist < 0.001:
+        return vec4(0.0, 0.0, 0.0, 0.0)
+    
+    // Tangent direction (perpendicular to both axis and radial)
+    let radial = normalize(on_plane)
+    let tangent = cross(axis, radial)
+    
+    // Vortex: rotate around axis + optional inward pull
+    let rotation = tangent * vortex_strength * weight * strength
+    let pull = -radial * plane_dist * inward_pull * weight * strength * 0.5
+    
+    let new_pos = pos + rotation + pull
+    positions[vertex_idx] = vec4(new_pos.x, new_pos.y, new_pos.z, 1.0)
+    return vec4(new_pos.x, new_pos.y, new_pos.z, 1.0)

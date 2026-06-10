@@ -1,0 +1,147 @@
+// ============================================================================
+//  report.kn — Structured report generation
+//
+//  Produces both JSON and console output. Used by the CLI entry point.
+//  Layer 0: plain fn, struct. No world/actor/entangle/patch/law.
+// ============================================================================
+
+use std::json   // json_object, json_object_set_string, json_object_set_int,
+                // json_object_set_array, json_array, json_array_push_object,
+                // json_object_set_object, json_stringify
+use std::fs     // fs_write_text, fs_create_dir_all, fs_path_parent
+use std::time   // now_millis
+use std::fmt    // fmt_pad_right
+use runner      // TestResult, TestCase, result_status, result_name,
+                // result_detail, is_ok, is_fail, is_skip
+
+// ---------------------------------------------------------------------------
+//  Summary struct
+// ---------------------------------------------------------------------------
+
+/// Aggregated pass/fail/skip counts.
+pub struct Summary:
+    total:   Int
+    passed:  Int
+    failed:  Int
+    skipped: Int
+
+// ---------------------------------------------------------------------------
+//  Compute summary
+// ---------------------------------------------------------------------------
+
+/// Iterate results and return aggregated counts.
+pub fn compute_summary(results: Array<TestResult>) -> Summary:
+    let mut s = Summary{ total: len(results), passed: 0, failed: 0, skipped: 0 }
+    var i = 0
+    while i < len(results):
+        if is_ok(results[i]):
+            s.passed = s.passed + 1
+        elif is_fail(results[i]):
+            s.failed = s.failed + 1
+        else:
+            s.skipped = s.skipped + 1
+        i = i + 1
+    return s
+
+// ---------------------------------------------------------------------------
+//  JSON report
+// ---------------------------------------------------------------------------
+
+/// Write a structured JSON report to the given path.
+pub fn write_json_report(results: Array<TestResult>, list: Array<TestCase>, output_path: String) -> Unit:
+    // Ensure output directory exists.
+    let parent = fs_path_parent(output_path)
+    if parent != "":
+        fs_create_dir_all(parent)
+
+    let summary = compute_summary(results)
+
+    // Build the root JSON object.
+    let mut root = json_object()
+    root = json_object_set_string(root, "suite", "build-determinism-suite")
+    root = json_object_set_string(root, "version", "1.0.0")
+    root = json_object_set_string(root, "timestamp", str(now_millis()))
+    root = json_object_set_string(root, "timestamp_hint", "epoch-milliseconds")
+
+    // Summary block.
+    let mut sum_obj = json_object()
+    sum_obj = json_object_set_int(sum_obj, "total", summary.total)
+    sum_obj = json_object_set_int(sum_obj, "passed", summary.passed)
+    sum_obj = json_object_set_int(sum_obj, "failed", summary.failed)
+    sum_obj = json_object_set_int(sum_obj, "skipped", summary.skipped)
+    root = json_object_set_object(root, "summary", sum_obj)
+
+    // Results array.
+    let mut results_arr = json_array()
+    var i = 0
+    while i < len(results):
+        let r = results[i]
+        let mut entry = json_object()
+        entry = json_object_set_string(entry, "name", result_name(r))
+        entry = json_object_set_string(entry, "status", result_status(r))
+        entry = json_object_set_string(entry, "detail", result_detail(r))
+
+        // Attach category if we have the matching test case.
+        if i < len(list):
+            entry = json_object_set_string(entry, "category", list[i].category)
+            entry = json_object_set_string(entry, "description", list[i].description)
+
+        results_arr = json_array_push_object(results_arr, entry)
+        i = i + 1
+    root = json_object_set_array(root, "results", results_arr)
+
+    let text = json_stringify(root)
+    fs_write_text(output_path, text)
+    println("JSON report written to: " + output_path)
+
+// ---------------------------------------------------------------------------
+//  Console report (table)
+// ---------------------------------------------------------------------------
+
+/// Print a formatted table to stdout.
+pub fn print_console_report(results: Array<TestResult>) -> Unit:
+    if len(results) == 0:
+        println("No test results to display.")
+    else:
+        println("")
+
+        // Build separator line.
+        let mut sep = ""
+        var k = 0
+        while k < 78:
+            sep = sep + "─"
+            k = k + 1
+
+        println(sep)
+
+        // Header
+        let h_status  = fmt_pad_right("STATUS",  8, " ")
+        let h_name    = fmt_pad_right("NAME",    28, " ")
+        let h_detail  = "DETAIL"
+        println(h_status + " " + h_name + " " + h_detail)
+        println(sep)
+
+        var i = 0
+        while i < len(results):
+            let r = results[i]
+            let status = fmt_pad_right(result_status(r), 8, " ")
+            let name   = fmt_pad_right(result_name(r),   28, " ")
+            let detail = result_detail(r)
+            println(status + " " + name + " " + detail)
+            i = i + 1
+
+        println(sep)
+        println("")
+
+// ---------------------------------------------------------------------------
+//  Summary line
+// ---------------------------------------------------------------------------
+
+/// Print a one-line summary: "31 tests: 28 passed, 2 failed, 1 skipped".
+pub fn print_summary(results: Array<TestResult>) -> Unit:
+    let s = compute_summary(results)
+    let part1 = str(s.total) + " tests: " + str(s.passed) + " passed, "
+    let part2 = str(s.failed) + " failed, " + str(s.skipped) + " skipped"
+    let msg = part1 + part2
+    println("")
+    println(msg)

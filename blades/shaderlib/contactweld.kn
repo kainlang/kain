@@ -1,0 +1,43 @@
+shader compute mocap_contact_weld(id: UVec3) -> Vec4:
+    uniform in_joints: StorageBuffer<Vec4> @0
+    uniform out_joints: StorageBuffer<Vec4> @1
+    uniform contact_pos: StorageBuffer<Vec4> @2
+    uniform contact_mask: StorageBuffer<Float> @3
+
+    uniform parents: StorageBuffer<Int> @4
+    uniform stiffness: Float @5
+    uniform eps: Float @6
+    uniform joint_count: UInt @7
+
+    uniform LOCAL_SIZE_X: UInt @100
+    uniform LOCAL_SIZE_Y: UInt @101
+    uniform LOCAL_SIZE_Z: UInt @102
+
+    let joint = id.x
+    if joint >= joint_count:
+        return vec4(0.0, 0.0, 0.0, 0.0)
+
+    let src = in_joints[joint]
+    let c = contact_pos[joint]
+    let m = clamp(contact_mask[joint], 0.0, 1.0)
+    let s = clamp(stiffness, 0.0, 1.0)
+
+    // Direct weld on contacts.
+    let direct = src.xyz * (1.0 - m * s) + c.xyz * (m * s)
+
+    // Propagate correction from immediate parent contact state (cheap IK-like pull).
+    let parent_i = parents[joint]
+    let mut out_p = direct
+    if parent_i >= 0:
+        let p = parent_i as UInt
+        if p < joint_count:
+            let pm = clamp(contact_mask[p], 0.0, 1.0)
+            if pm > eps:
+                let parent_src = in_joints[p].xyz
+                let parent_tgt = contact_pos[p].xyz
+                let parent_delta = (parent_tgt - parent_src) * pm * s
+                out_p = out_p + parent_delta * 0.5
+
+    let out_v = vec4(out_p.x, out_p.y, out_p.z, src.w)
+    out_joints[joint] = out_v
+    return out_v

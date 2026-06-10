@@ -1,0 +1,78 @@
+// ============================================================================
+// K_OS Renderer - Frustum Culling Compute Shader - KAIN Edition
+// ============================================================================
+// Per-instance GPU frustum culling. Tests AABB against 6 frustum planes.
+// Uses center + half-extent projection trick (no ternary, no inner fns).
+//
+// Compiled to SPIR-V via: kain renderer_cull_frustum.kn -t spirv -o renderer_cull_frustum.spv
+// ============================================================================
+
+shader compute renderer_cull_frustum(id: UVec3) -> Vec4:
+    // Per-instance AABB
+    uniform aabb_min:  StorageBuffer<Vec4> @0
+    uniform aabb_max:  StorageBuffer<Vec4> @1
+
+    // Output: 1 = visible, 0 = culled
+    uniform visibility: StorageBuffer<UInt> @2
+
+    // Frustum planes: Vec4(nx, ny, nz, d)  —  dot(normal, p) + d >= 0 → inside
+    uniform plane0: Vec4 @3
+    uniform plane1: Vec4 @4
+    uniform plane2: Vec4 @5
+    uniform plane3: Vec4 @6
+    uniform plane4: Vec4 @7
+    uniform plane5: Vec4 @8
+
+    uniform instance_count: UInt @9
+
+    uniform LOCAL_SIZE_X: UInt @100
+    uniform LOCAL_SIZE_Y: UInt @101
+    uniform LOCAL_SIZE_Z: UInt @102
+
+    let instance_idx = id.x
+    if instance_idx >= instance_count:
+        return vec4(0.0, 0.0, 0.0, 0.0)
+
+    let bmin = aabb_min[instance_idx].xyz
+    let bmax = aabb_max[instance_idx].xyz
+
+    // AABB vs plane: distance = dot(n, center) + d + dot(abs(n), half_extent)
+    // If < 0 → fully outside that half-space → cull
+    let center   = (bmax + bmin) * 0.5
+    let half_ext = (bmax - bmin) * 0.5
+
+    let abs0 = vec3(abs(plane0.x), abs(plane0.y), abs(plane0.z))
+    let abs1 = vec3(abs(plane1.x), abs(plane1.y), abs(plane1.z))
+    let abs2 = vec3(abs(plane2.x), abs(plane2.y), abs(plane2.z))
+    let abs3 = vec3(abs(plane3.x), abs(plane3.y), abs(plane3.z))
+    let abs4 = vec3(abs(plane4.x), abs(plane4.y), abs(plane4.z))
+    let abs5 = vec3(abs(plane5.x), abs(plane5.y), abs(plane5.z))
+
+    let dist0 = dot(plane0.xyz, center) + plane0.w + dot(abs0, half_ext)
+    let dist1 = dot(plane1.xyz, center) + plane1.w + dot(abs1, half_ext)
+    let dist2 = dot(plane2.xyz, center) + plane2.w + dot(abs2, half_ext)
+    let dist3 = dot(plane3.xyz, center) + plane3.w + dot(abs3, half_ext)
+    let dist4 = dot(plane4.xyz, center) + plane4.w + dot(abs4, half_ext)
+    let dist5 = dot(plane5.xyz, center) + plane5.w + dot(abs5, half_ext)
+
+    if dist0 < 0.0:
+        visibility[instance_idx] = 0 as UInt
+        return vec4(0.0, 0.0, 0.0, 0.0)
+    if dist1 < 0.0:
+        visibility[instance_idx] = 0 as UInt
+        return vec4(0.0, 0.0, 0.0, 0.0)
+    if dist2 < 0.0:
+        visibility[instance_idx] = 0 as UInt
+        return vec4(0.0, 0.0, 0.0, 0.0)
+    if dist3 < 0.0:
+        visibility[instance_idx] = 0 as UInt
+        return vec4(0.0, 0.0, 0.0, 0.0)
+    if dist4 < 0.0:
+        visibility[instance_idx] = 0 as UInt
+        return vec4(0.0, 0.0, 0.0, 0.0)
+    if dist5 < 0.0:
+        visibility[instance_idx] = 0 as UInt
+        return vec4(0.0, 0.0, 0.0, 0.0)
+
+    visibility[instance_idx] = 1 as UInt
+    return vec4(1.0, 0.0, 0.0, 0.0)

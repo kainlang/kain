@@ -5630,11 +5630,88 @@ fn check_impl(env: &mut TypeEnv, imp: &Impl) -> KainResult<TypedImpl> {
     Ok(TypedImpl { ast: imp.clone() })
 }
 
+/// Recursively check if a block (or any nested block) contains a bare `return`
+/// statement with no expression.
+fn block_has_bare_return(block: &Block) -> bool {
+    for stmt in &block.stmts {
+        if stmt_has_bare_return(stmt) {
+            return true;
+        }
+    }
+    false
+}
+
+fn stmt_has_bare_return(stmt: &Stmt) -> bool {
+    match stmt {
+        Stmt::Return(None, _) => return true,
+        Stmt::Return(Some(expr), _) => return expr_has_bare_return(expr),
+        Stmt::Expr(expr) => return expr_has_bare_return(expr),
+        Stmt::For { body, .. } | Stmt::While { body, .. } | Stmt::Loop { body, .. } => {
+            return block_has_bare_return(body);
+        }
+        Stmt::Let { value: Some(expr), .. } => return expr_has_bare_return(expr),
+        Stmt::Defer { expr, .. } => return expr_has_bare_return(expr),
+        _ => false,
+    }
+}
+
+fn expr_has_bare_return(expr: &Expr) -> bool {
+    match expr {
+        Expr::If {
+            then_branch,
+            else_branch,
+            ..
+        } => {
+            if block_has_bare_return(then_branch) {
+                return true;
+            }
+            if let Some(else_branch) = else_branch {
+                return else_branch_has_bare_return(else_branch);
+            }
+            false
+        }
+        Expr::Match { arms, .. } => {
+            for arm in arms {
+                if expr_has_bare_return(&arm.body) {
+                    return true;
+                }
+            }
+            false
+        }
+        Expr::Lambda { body, .. } => expr_has_bare_return(body),
+        Expr::Block(inner_block, _) => block_has_bare_return(inner_block),
+        _ => false,
+    }
+}
+
+fn else_branch_has_bare_return(branch: &ElseBranch) -> bool {
+    match branch {
+        ElseBranch::Else(block) => block_has_bare_return(block),
+        ElseBranch::ElseIf(cond, block, next) => {
+            if block_has_bare_return(block) {
+                return true;
+            }
+            // Also check the condition expression for nested blocks
+            if expr_has_bare_return(cond) {
+                return true;
+            }
+            if let Some(next) = next {
+                return else_branch_has_bare_return(next);
+            }
+            false
+        }
+    }
+}
+
 /// Walk a block and collect the types of top-level `return expr` statements.
-/// Nested returns (inside if/while/for) are not tracked — the Unknown fallback
-/// handles those cases. Returns Unknown if no returns are found.
+/// Nested returns (inside if/while/for) are not tracked for type inference —
+/// the Unknown fallback handles those cases. Returns Unknown if no valued
+/// returns are found.
+/// When bare `return` (no expression) statements exist anywhere in the body
+/// with no valued returns, the function return type is Unit.
 fn infer_return_type_from_body(env: &mut TypeEnv, block: &Block) -> KainResult<ResolvedType> {
     let mut inferred = ResolvedType::Unknown;
+    let mut has_bare_return = false;
     for stmt in &block.stmts {
         if let Stmt::Return(Some(expr), _) = stmt {
             let expr_ty = infer_expr_type(env, expr, None)?;
@@ -5644,7 +5721,12 @@ fn infer_return_type_from_body(env: &mut TypeEnv, block: &Block) -> KainResult<R
                 // Conflicting return types — keep Unknown
                 return Ok(ResolvedType::Unknown);
             }
+        } else if let Stmt::Return(None, _) = stmt {
+            has_bare_return = true;
         }
+    }
+    if inferred == ResolvedType::Unknown && has_bare_return {
+        return Ok(ResolvedType::Unit);
     }
     Ok(inferred)
 }
@@ -5683,8 +5765,18 @@ fn check_function(env: &mut TypeEnv, f: &Function) -> KainResult<TypedFunction> 
     // final expression value or diverge).
     if !had_explicit_return_type {
         let inferred = infer_return_type_from_body(env, &f.body)?;
-        if inferred != ResolvedType::Unknown && inferred != ResolvedType::Unit {
+        if inferred != ResolvedType::Unknown {
             ret = inferred;
+        } else if block_has_bare_return(&f.body) {
+            // No valued returns found, but bare returns exist (possibly nested
+            // inside if/while/match blocks). Default to Unit so codegen emits
+            // a void function rather than i64 + ret void mismatch.
+            ret = ResolvedType::Unit;
+        }
+        if ret != (match &resolved_type {
+            ResolvedType::Function { ret, .. } => ret.as_ref().clone(),
+            _ => ResolvedType::Unit,
+        }) {
             resolved_type = ResolvedType::Function {
                 params: match &resolved_type {
                     ResolvedType::Function { params, .. } => params.clone(),

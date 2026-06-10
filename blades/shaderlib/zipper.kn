@@ -1,0 +1,159 @@
+// ============================================================================
+// K_OS Sculpt Stamp Zipper - KAIN Edition
+// ============================================================================
+// Creates sharp ridges along stroke direction with alternating peaks/valleys
+// Compiled to SPIR-V via: kain sculpt_stamp_zipper.kn -t spirv -o sculpt_stamp_zipper.spv
+// ============================================================================
+
+shader compute stamp_zipper(id: UVec3) -> Vec4:
+    // Storage buffers
+    uniform positions: StorageBuffer<Vec4> @0
+    uniform normals: StorageBuffer<Vec4> @1
+    uniform candidates: StorageBuffer<UInt> @3
+    uniform counter: StorageBuffer<UInt> @4
+    
+    // Brush params (matching BrushParamsV2.1 layout)
+    uniform center: Vec4 @5
+    uniform normal: Vec4 @6
+    uniform velocity: Vec4 @7
+    uniform prev_center: Vec3 @8
+    uniform stroke_distance: Float @9
+    uniform radius: Float @10
+    uniform strength: Float @11
+    uniform hardness: Float @12
+    uniform spacing: Float @13
+    uniform flags: UInt @14
+    uniform vertex_count: UInt @15
+    uniform candidate_count: UInt @16
+    uniform alpha_mode: UInt @17
+    uniform alpha_scale: Float @18
+    uniform alpha_rotation: Float @19
+    uniform alpha_offset: Vec2 @20
+    uniform alpha_blend_weight: Float @21
+    uniform alpha_mirror: UInt @22
+    uniform jitter_position: Float @23
+    uniform jitter_rotation: Float @24
+    uniform jitter_strength: Float @25
+    uniform random_seed: Float @26
+    uniform extras0: Vec4 @27
+    uniform extras1: Vec4 @28
+    uniform extras2: Vec4 @29
+    uniform extras3: Vec4 @30
+    uniform extras4: Vec4 @31
+    uniform extras5: Vec4 @32
+    
+    uniform LOCAL_SIZE_X: UInt @100
+    uniform LOCAL_SIZE_Y: UInt @101
+    uniform LOCAL_SIZE_Z: UInt @102
+    
+    let FLAG_SUBTRACT = 1 as UInt
+    let FLAG_FRONT_FACES_ONLY = 2 as UInt
+    let ALPHA_DISABLED = 0 as UInt
+    let PI = 3.14159265359
+    
+    // Get vertex index (handles candidate list or full dispatch)
+    let vertex_idx_raw = id.x
+    let count = counter[0]
+    let mut vertex_idx = 0 as UInt
+    
+    if count > 0 as UInt:
+        if vertex_idx_raw >= count:
+            return vec4(0.0, 0.0, 0.0, 0.0)
+        vertex_idx = candidates[vertex_idx_raw]
+    else:
+        if vertex_idx_raw >= vertex_count:
+            return vec4(0.0, 0.0, 0.0, 0.0)
+        vertex_idx = vertex_idx_raw
+    
+    let pos = positions[vertex_idx].xyz
+    let nor = normals[vertex_idx].xyz
+    let center_pos = center.xyz
+    let brush_normal = normal.xyz
+    
+    let to_center = pos - center_pos
+    let dist = length(to_center)
+    if dist > radius:
+        return vec4(0.0, 0.0, 0.0, 0.0)
+    
+    // Front face check
+    if (flags & FLAG_FRONT_FACES_ONLY) != 0 as UInt:
+        if dot(nor, -brush_normal) < 0.0:
+            return vec4(0.0, 0.0, 0.0, 0.0)
+    
+    // Calculate weight (simple falloff - KAIN doesn't support exp)
+    let t = clamp(dist / radius, 0.0, 1.0)
+    let soft = 1.0 - t * t
+    let hard = 1.0 - t
+    let mut weight = mix(soft, hard, hardness)
+    
+    // Sample alpha (inlined)
+    let surface_local = to_center - dot(to_center, brush_normal) * brush_normal
+    if alpha_mode != ALPHA_DISABLED:
+        let mut uv = (vec2(surface_local.x, surface_local.z) / radius + 1.0) * 0.5
+        let centered = uv - vec2(0.5, 0.5)
+        let cos_r = cos(alpha_rotation)
+        let sin_r = sin(alpha_rotation)
+        let rotated = vec2(
+            centered.x * cos_r - centered.y * sin_r,
+            centered.x * sin_r + centered.y * cos_r
+        )
+        let scaled = rotated / alpha_scale
+        uv = scaled + vec2(0.5, 0.5) + alpha_offset
+        if (alpha_mirror & 1 as UInt) != 0 as UInt:
+            uv = vec2(1.0 - uv.x, uv.y)
+        if (alpha_mirror & 2 as UInt) != 0 as UInt:
+            uv = vec2(uv.x, 1.0 - uv.y)
+        weight = weight * alpha_blend_weight
+    
+    // Apply pressure
+    weight = weight * center.w
+
+    
+    // Zipper parameters
+    let tooth_frequency = extras0.x
+    let tooth_height = extras1.x
+    let tooth_sharpness = extras2.x
+    
+    // Calculate stroke direction and perpendicular
+    let stroke_dir = normalize(velocity.xyz + vec3(0.0001, 0.0, 0.0))
+    let perp_dir = normalize(cross(brush_normal, stroke_dir))
+    
+    // Project position onto stroke axis
+    let along_stroke = dot(surface_local, stroke_dir)
+    let along_perp = dot(surface_local, perp_dir)
+    
+    // Create sawtooth wave for sharp teeth
+    let phase = along_stroke * tooth_frequency * PI * 2.0
+    let sawtooth = fract(phase / (PI * 2.0)) * 2.0 - 1.0
+    
+    // Apply sharpness to create sharper peaks
+    let mut tooth_wave = sawtooth
+    if tooth_sharpness > 1.0:
+        // Sharpen by raising to power
+        let sign_val = tooth_wave
+        if sign_val < 0.0:
+            tooth_wave = -1.0
+        else:
+            tooth_wave = 1.0
+        let abs_val = abs(sawtooth)
+        let mut sharpened = abs_val
+        let mut i = 1.0
+        while i < tooth_sharpness:
+            sharpened = sharpened * abs_val
+            i = i + 1.0
+        tooth_wave = tooth_wave * sharpened
+    
+    // Modulate by perpendicular distance for ridge shape
+    let perp_falloff = 1.0 - abs(along_perp) / radius
+    let perp_falloff_smooth = clamp(perp_falloff, 0.0, 1.0)
+    
+    let zipper_height = tooth_wave * tooth_height * perp_falloff_smooth
+    
+    let mut displacement = brush_normal * zipper_height * weight * strength
+    
+    if (flags & FLAG_SUBTRACT) != 0 as UInt:
+        displacement = -displacement
+
+    let new_pos = pos + displacement
+    positions[vertex_idx] = vec4(new_pos.x, new_pos.y, new_pos.z, 1.0)
+    return vec4(new_pos.x, new_pos.y, new_pos.z, 1.0)

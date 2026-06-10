@@ -1,0 +1,153 @@
+// ============================================================================
+//  diff.kn — Artifact comparison utilities
+//
+//  Used by the determinism verification pipeline and the CLI --mode verify
+//  path. Layer 0: plain fn. No world/actor/entangle/patch/law.
+// ============================================================================
+
+use std::fs      // fs_hash_file, fs_is_file, fs_walk
+use std::crypto  // sha256
+use std::text    // text_join_strings
+
+// ---------------------------------------------------------------------------
+//  Single-file diff
+// ---------------------------------------------------------------------------
+
+/// Compare two files byte-for-byte. Returns an empty string if identical,
+/// or a human-readable diff description if they differ.
+pub fn diff_files(file1: String, file2: String) -> String:
+    let h1 = fs_hash_file(file1)
+    let h2 = fs_hash_file(file2)
+
+    if h1 == h2:
+        return ""
+
+    // Hashes differ — produce a diagnostic.
+    let mut output = "DIFF: " + file1 + " vs " + file2 + "\n"
+    output = output + "  SHA256(" + file1 + "): " + h1 + "\n"
+    output = output + "  SHA256(" + file2 + "): " + h2 + "\n"
+
+    return output
+
+// ---------------------------------------------------------------------------
+//  Directory-level diff
+// ---------------------------------------------------------------------------
+
+/// Recursively compare two directories. Returns empty string if identical,
+/// or a listing of files that are missing, extra, or different.
+pub fn diff_directories(dir1: String, dir2: String) -> String:
+    let files1 = collect_file_relative_paths(dir1)
+    let files2 = collect_file_relative_paths(dir2)
+
+    let mut diffs: Array<String> = []
+
+    // Check for files in dir1 but not dir2 (missing).
+    var i = 0
+    while i < len(files1):
+        let f = files1[i]
+        let full1 = fs_path_join(dir1, f)
+        let full2 = fs_path_join(dir2, f)
+        if !fs_is_file(full2):
+            push(diffs, "MISSING from dir2: " + f)
+        else:
+            let h1 = fs_hash_file(full1)
+            let h2 = fs_hash_file(full2)
+            if h1 != h2:
+                push(diffs, "DIFFER: " + f + " (hash1=" + h1 + " hash2=" + h2 + ")")
+        i = i + 1
+
+    // Check for files in dir2 but not dir1 (extra).
+    var j = 0
+    while j < len(files2):
+        let f = files2[j]
+        let full1 = fs_path_join(dir1, f)
+        if !fs_is_file(full1):
+            push(diffs, "EXTRA in dir2: " + f)
+        j = j + 1
+
+    if len(diffs) == 0:
+        return ""
+
+    return text_join_strings(diffs, "\n")
+
+// ---------------------------------------------------------------------------
+//  Checksum tree
+// ---------------------------------------------------------------------------
+
+/// Compute a deterministic checksum of all files in a directory tree.
+/// Walks the tree sorted, hashes each file with SHA256, and combines
+/// them into a single SHA256 of the concatenation.
+///
+/// This is the core determinism check:
+///   checksum_tree(pass1_dir) == checksum_tree(pass2_dir)
+pub fn checksum_tree(root: String) -> String:
+    let entries = fs_walk(root)
+
+    // Collect file paths, filter to files only.
+    let mut paths: Array<String> = []
+    var i = 0
+    while i < len(entries):
+        let entry = entries[i]
+        if fs_is_file(entry.path):
+            push(paths, entry.path)
+        i = i + 1
+
+    // Sort paths for deterministic ordering.
+    let sorted = sort_strings_asc(paths)
+
+    // Build a combined string of all hashes.
+    let mut combined = ""
+    var j = 0
+    while j < len(sorted):
+        let path = sorted[j]
+        let h = fs_hash_file(path)
+        combined = combined + path + ":" + h + "\n"
+        j = j + 1
+
+    // Hash the combined string to produce a single checksum.
+    return sha256(combined)
+
+// ---------------------------------------------------------------------------
+//  File manifest
+// ---------------------------------------------------------------------------
+
+/// Returns a sorted list of all file paths in a directory tree.
+/// The sort order is critical — it must be deterministic.
+pub fn compute_file_manifest(dir: String) -> Array<String>:
+    return collect_file_relative_paths(dir)
+
+// ---------------------------------------------------------------------------
+//  Internal helpers
+// ---------------------------------------------------------------------------
+
+/// Collect all file paths from a directory tree, sorted ascending.
+fn collect_file_relative_paths(root: String) -> Array<String>:
+    let entries = fs_walk(root)
+    let mut files: Array<String> = []
+
+    var i = 0
+    while i < len(entries):
+        let entry = entries[i]
+        if fs_is_file(entry.path):
+            push(files, entry.path)
+        i = i + 1
+
+    return sort_strings_asc(files)
+
+/// Insertion sort for Array<String>, ascending.
+fn sort_strings_asc(arr: Array<String>) -> Array<String>:
+    let n = len(arr)
+    if n <= 1:
+        return arr
+
+    var i = 1
+    while i < n:
+        let key = arr[i]
+        var j = i - 1
+        while j >= 0 and arr[j] > key:
+            arr[j + 1] = arr[j]
+            j = j - 1
+        arr[j + 1] = key
+        i = i + 1
+
+    return arr

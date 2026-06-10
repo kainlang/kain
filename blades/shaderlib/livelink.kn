@@ -1,0 +1,110 @@
+shader compute mocap_livelink() -> Void:
+    uniform in_joints: StorageBuffer<Float> @0
+    uniform parents: StorageBuffer<Int> @1
+    uniform out_rotations: StorageBuffer<Float> @2
+
+    uniform joint_count: UInt @3
+    uniform eps: Float @4
+
+    uniform LOCAL_SIZE_X: UInt @100
+    uniform LOCAL_SIZE_Y: UInt @101
+    uniform LOCAL_SIZE_Z: UInt @102
+
+    let joint = dispatch_thread_id.x
+    if joint >= joint_count:
+        return
+
+    let base = joint * 4
+    let parent = parents[joint]
+
+    if parent < 0:
+        out_rotations[base + 0] = 0.0
+        out_rotations[base + 1] = 0.0
+        out_rotations[base + 2] = 0.0
+        out_rotations[base + 3] = 1.0
+        return
+
+    let pidx = parent as UInt
+    let pbase = pidx * 4
+
+    let cx = in_joints[base + 0]
+    let cy = in_joints[base + 1]
+    let cz = in_joints[base + 2]
+
+    let px = in_joints[pbase + 0]
+    let py = in_joints[pbase + 1]
+    let pz = in_joints[pbase + 2]
+
+    let forward = normalize(vec3(cx - px, cy - py, cz - pz) + vec3(eps, 0.0, 0.0))
+    let world_up = vec3(0.0, 1.0, 0.0)
+    let world_right = vec3(1.0, 0.0, 0.0)
+    let align = abs(dot(forward, world_up))
+    let up_ref = if align > 0.95: world_right else: world_up
+
+    let right = normalize(cross(up_ref, forward) + vec3(eps, 0.0, 0.0))
+    let up = normalize(cross(forward, right))
+
+    let m00 = right.x
+    let m01 = up.x
+    let m02 = forward.x
+    let m10 = right.y
+    let m11 = up.y
+    let m12 = forward.y
+    let m20 = right.z
+    let m21 = up.z
+    let m22 = forward.z
+
+    let trace = m00 + m11 + m22
+    let mut qx = 0.0
+    let mut qy = 0.0
+    let mut qz = 0.0
+    let mut qw = 1.0
+
+    if trace > 0.0:
+        let s = sqrt(max(trace + 1.0, eps)) * 2.0
+        qw = 0.25 * s
+        qx = (m21 - m12) / max(s, eps)
+        qy = (m02 - m20) / max(s, eps)
+        qz = (m10 - m01) / max(s, eps)
+    else:
+        if m00 > m11:
+            if m00 > m22:
+                let s = sqrt(max(1.0 + m00 - m11 - m22, eps)) * 2.0
+                qw = (m21 - m12) / max(s, eps)
+                qx = 0.25 * s
+                qy = (m01 + m10) / max(s, eps)
+                qz = (m02 + m20) / max(s, eps)
+            else:
+                let s = sqrt(max(1.0 + m22 - m00 - m11, eps)) * 2.0
+                qw = (m10 - m01) / max(s, eps)
+                qx = (m02 + m20) / max(s, eps)
+                qy = (m12 + m21) / max(s, eps)
+                qz = 0.25 * s
+        else:
+            if m11 > m22:
+                let s = sqrt(max(1.0 + m11 - m00 - m22, eps)) * 2.0
+                qw = (m02 - m20) / max(s, eps)
+                qx = (m01 + m10) / max(s, eps)
+                qy = 0.25 * s
+                qz = (m12 + m21) / max(s, eps)
+            else:
+                let s = sqrt(max(1.0 + m22 - m00 - m11, eps)) * 2.0
+                qw = (m10 - m01) / max(s, eps)
+                qx = (m02 + m20) / max(s, eps)
+                qy = (m12 + m21) / max(s, eps)
+                qz = 0.25 * s
+
+    let q = vec4(qx, qy, qz, qw)
+    let q_len = max(length(q), eps)
+    let inv_q_len = 1.0 / q_len
+    qx = qx * inv_q_len
+    qy = qy * inv_q_len
+    qz = qz * inv_q_len
+    qw = qw * inv_q_len
+
+    out_rotations[base + 0] = qx
+    out_rotations[base + 1] = qy
+    out_rotations[base + 2] = qz
+    out_rotations[base + 3] = qw
+
+    return

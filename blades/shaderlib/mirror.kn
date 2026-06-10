@@ -1,0 +1,26 @@
+shader compute mocap_mirror(id: UVec3) -> Vec4:
+    // Mirror across XZ plane equivalent for character rigs:
+    // flip X and swap left/right joint pairs.
+    uniform in_joints: StorageBuffer<Vec4> @0
+    // swap_map[j] = mirrored source index for joint j.
+    uniform swap_map: StorageBuffer<Int> @1
+    uniform out_joints: StorageBuffer<Vec4> @2
+
+    uniform joint_count: UInt @3
+    uniform mirror_x: Float @4
+    uniform eps: Float @5
+
+    uniform LOCAL_SIZE_X: UInt @100
+    uniform LOCAL_SIZE_Y: UInt @101
+    uniform LOCAL_SIZE_Z: UInt @102
+
+    let joint = id.x
+    if joint >= joint_count:
+        return vec4(0.0, 0.0, 0.0, 0.0)
+
+    let src_i = swap_map[joint]
+    let src = if src_i >= 0 && (src_i as UInt) < joint_count: in_joints[src_i as UInt] else: in_joints[joint]
+
+    let out_v = vec4(src.x * mirror_x, src.y, src.z, max(src.w, eps))
+    out_joints[joint] = out_v
+    return out_v

@@ -1,0 +1,205 @@
+// ============================================================================
+// K_OS Sculpt Artistic Voronoi - KAIN Edition
+// ============================================================================
+// Displaces based on Voronoi cell distance (creates cellular/organic patterns)
+// Uses distance to nearest cell center for displacement
+// Compiled to SPIR-V via: kain sculpt_artistic_voronoi.kn -t spirv -o sculpt_artistic_voronoi.spv
+// ============================================================================
+
+shader compute artistic_voronoi(id: UVec3) -> Vec4:
+    // Storage buffers
+    uniform positions: StorageBuffer<Vec4> @0
+    uniform normals: StorageBuffer<Vec4> @1
+    uniform candidates: StorageBuffer<UInt> @3
+    uniform counter: StorageBuffer<UInt> @4
+    
+    // Brush params (matching BrushParamsV2.1 layout)
+    uniform center: Vec4 @5
+    uniform normal: Vec4 @6
+    uniform velocity: Vec4 @7
+    uniform prev_center: Vec3 @8
+    uniform stroke_distance: Float @9
+    uniform radius: Float @10
+    uniform strength: Float @11
+    uniform hardness: Float @12
+    uniform spacing: Float @13
+    uniform flags: UInt @14
+    uniform vertex_count: UInt @15
+    uniform candidate_count: UInt @16
+    uniform alpha_mode: UInt @17
+    uniform alpha_scale: Float @18
+    uniform alpha_rotation: Float @19
+    uniform alpha_offset: Vec2 @20
+    uniform alpha_blend_weight: Float @21
+    uniform alpha_mirror: UInt @22
+    uniform jitter_position: Float @23
+    uniform jitter_rotation: Float @24
+    uniform jitter_strength: Float @25
+    uniform random_seed: Float @26
+    uniform extras0: Vec4 @27  // x = cell_count
+    uniform extras1: Vec4 @28  // x = cell_randomness
+    uniform extras2: Vec4 @29  // x = displacement_scale
+    uniform extras3: Vec4 @30  // x = border_sharpness
+    uniform extras4: Vec4 @31
+    uniform extras5: Vec4 @32
+    
+    uniform LOCAL_SIZE_X: UInt @100
+    uniform LOCAL_SIZE_Y: UInt @101
+    uniform LOCAL_SIZE_Z: UInt @102
+    
+    let FLAG_SUBTRACT = 1 as UInt
+    let FLAG_FRONT_FACES_ONLY = 2 as UInt
+    let ALPHA_DISABLED = 0 as UInt
+    let PI = 3.14159265359
+    
+    // Get vertex index (handles candidate list or full dispatch)
+    let vertex_idx_raw = id.x
+    let count = counter[0]
+    let mut vertex_idx = 0 as UInt
+    
+    if count > 0 as UInt:
+        if vertex_idx_raw >= count:
+            return vec4(0.0, 0.0, 0.0, 0.0)
+        vertex_idx = candidates[vertex_idx_raw]
+    else:
+        if vertex_idx_raw >= vertex_count:
+            return vec4(0.0, 0.0, 0.0, 0.0)
+        vertex_idx = vertex_idx_raw
+    
+    let pos = positions[vertex_idx].xyz
+    let nor = normals[vertex_idx].xyz
+    let center_pos = center.xyz
+    let brush_normal = normal.xyz
+    
+    let to_center = pos - center_pos
+    let dist = length(to_center)
+    if dist > radius:
+        return vec4(0.0, 0.0, 0.0, 0.0)
+    
+    // Front face check
+    if (flags & FLAG_FRONT_FACES_ONLY) != 0 as UInt:
+        if dot(nor, -brush_normal) < 0.0:
+            return vec4(0.0, 0.0, 0.0, 0.0)
+    
+    // Calculate weight (simple falloff)
+    let t = clamp(dist / radius, 0.0, 1.0)
+    let soft = 1.0 - t * t
+    let hard = 1.0 - t
+    let mut weight = mix(soft, hard, hardness)
+    
+    // Sample alpha (inlined)
+    let surface_local = to_center - dot(to_center, brush_normal) * brush_normal
+    if alpha_mode != ALPHA_DISABLED:
+        let mut uv = (vec2(surface_local.x, surface_local.z) / radius + 1.0) * 0.5
+        let centered = uv - vec2(0.5, 0.5)
+        let cos_r = cos(alpha_rotation)
+        let sin_r = sin(alpha_rotation)
+        let rotated = vec2(
+            centered.x * cos_r - centered.y * sin_r,
+            centered.x * sin_r + centered.y * cos_r
+        )
+        let scaled = rotated / alpha_scale
+        uv = scaled + vec2(0.5, 0.5) + alpha_offset
+        if (alpha_mirror & 1 as UInt) != 0 as UInt:
+            uv = vec2(1.0 - uv.x, uv.y)
+        if (alpha_mirror & 2 as UInt) != 0 as UInt:
+            uv = vec2(uv.x, 1.0 - uv.y)
+        weight = weight * alpha_blend_weight
+    
+    // Apply pressure
+    weight = weight * center.w
+    
+    // Voronoi parameters
+    let cell_count = max(extras0.x, 1.0)
+    let cell_randomness = clamp(extras1.x, 0.0, 1.0)
+    let displacement_scale = extras2.x
+    let border_sharpness = max(extras3.x, 0.1)
+    
+    // Project position onto surface plane
+    let local_2d = vec2(surface_local.x, surface_local.z)
+    let voronoi_pos = local_2d * cell_count
+    
+    // Grid cell
+    let grid_cell = vec2(floor(voronoi_pos.x), floor(voronoi_pos.y))
+    
+    // Find nearest and second nearest Voronoi cell centers
+    let mut min_dist1 = 999.0
+    let mut min_dist2 = 999.0
+    let mut nearest_cell = vec2(0.0, 0.0)
+    let mut cell_id = 0.0
+    
+    // Check 3x3 neighborhood
+    let mut dy = -1.0
+    while dy <= 1.0:
+        let mut dx = -1.0
+        while dx <= 1.0:
+            let neighbor_cell = grid_cell + vec2(dx, dy)
+            
+            // Generate random offset for this cell
+            let cell_hash_x = fract(sin(dot(neighbor_cell, vec2(12.9898, 78.233)) + random_seed) * 43758.5453)
+            let cell_hash_y = fract(sin(dot(neighbor_cell, vec2(93.9898, 67.345)) + random_seed) * 43758.5453)
+            
+            // Cell center with randomness
+            let cell_offset = vec2(
+                mix(0.5, cell_hash_x, cell_randomness),
+                mix(0.5, cell_hash_y, cell_randomness)
+            )
+            let cell_center = neighbor_cell + cell_offset
+            
+            // Distance to this cell center
+            let to_cell = voronoi_pos - cell_center
+            let cell_dist = length(to_cell)
+            
+            // Update nearest and second nearest
+            if cell_dist < min_dist1:
+                min_dist2 = min_dist1
+                min_dist1 = cell_dist
+                nearest_cell = neighbor_cell
+                cell_id = neighbor_cell.x * 7.0 + neighbor_cell.y * 13.0
+            else:
+                if cell_dist < min_dist2:
+                    min_dist2 = cell_dist
+            
+            dx = dx + 1.0
+        dy = dy + 1.0
+    
+    // Calculate Voronoi features
+    let cell_value = min_dist1 / cell_count
+    let border_dist = min_dist2 - min_dist1
+    
+    // Create cell pattern (distance from center)
+    let cell_pattern = 1.0 - smoothstep(0.0, 0.5, cell_value)
+    
+    // Create border pattern (sharp edges between cells)
+    let border_pattern = 1.0 - smoothstep(0.0, 0.1 / border_sharpness, border_dist)
+    
+    // Combine patterns
+    let voronoi_value = cell_pattern * (1.0 - border_pattern * 0.8)
+    
+    // Add per-cell height variation
+    let cell_height_hash = fract(sin(cell_id + random_seed) * 43758.5453)
+    let cell_height_variation = 0.5 + cell_height_hash * 0.5
+    
+    // Add subtle noise within cells
+    let noise_p = vec3(
+        dot(vec3(local_2d.x, local_2d.y, random_seed), vec3(127.1, 311.7, 74.7)),
+        dot(vec3(local_2d.x, local_2d.y, random_seed), vec3(269.5, 183.3, 246.1)),
+        dot(vec3(local_2d.x, local_2d.y, random_seed), vec3(113.5, 271.9, 124.6))
+    )
+    let noise = fract(sin(noise_p) * 43758.5453)
+    let noise_variation = 0.9 + noise.x * 0.2
+    
+    // Final Voronoi displacement value
+    let final_value = voronoi_value * cell_height_variation * noise_variation
+    
+    // Calculate displacement
+    let displacement_amount = final_value * displacement_scale * weight * strength
+    let mut displacement = nor * displacement_amount
+    
+    // Subtract mode
+    if (flags & FLAG_SUBTRACT) != 0 as UInt:
+        displacement = -displacement
+    
+    let new_pos = pos + displacement
+    positions[vertex_idx] = vec4(new_pos.x, new_pos.y, new_pos.z, 1.0)
+    return vec4(new_pos.x, new_pos.y, new_pos.z, 1.0)

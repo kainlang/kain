@@ -1,0 +1,266 @@
+shader compute renderer_hyper_resolve(id: UVec3) -> Vec4:
+    uniform hdr_current:        StorageBuffer<Vec4> @0
+    uniform depth_current:      StorageBuffer<Float> @1
+    uniform normal_current:     StorageBuffer<Vec4> @2
+    uniform albedo_current:     StorageBuffer<Vec4> @3
+    uniform material_current:   StorageBuffer<Vec4> @4
+    uniform motion_vectors:     StorageBuffer<Vec4> @5
+    uniform history_color:      StorageBuffer<Vec4> @6
+    uniform history_aux:        StorageBuffer<Vec4> @7
+    uniform blue_noise:         StorageBuffer<Float> @8
+    uniform out_color:          StorageBuffer<Vec4> @9
+    uniform out_debug:          StorageBuffer<Vec4> @10
+
+    uniform viewport_width:          UInt  @11
+    uniform viewport_height:         UInt  @12
+    uniform frame_index:             UInt  @13
+    uniform history_blend:           Float @14
+    uniform history_boost:           Float @15
+    uniform temporal_stability:      Float @16
+    uniform gather_radius:           Float @17
+    uniform indirect_gain:           Float @18
+    uniform diffuse_gain:            Float @19
+    uniform spec_gain:               Float @20
+    uniform ao_strength:             Float @21
+    uniform emissive_gain:           Float @22
+    uniform roughness_bias:          Float @23
+    uniform metallic_bias:           Float @24
+    uniform normal_reject_power:     Float @25
+    uniform depth_reject_scale:      Float @26
+    uniform clamp_strength:          Float @27
+    uniform vignette_strength:       Float @28
+    uniform curvature_gain:          Float @29
+    uniform sparkle_gain:            Float @30
+    uniform env_top:                 Vec4  @31
+    uniform env_mid:                 Vec4  @32
+    uniform env_bottom:              Vec4  @33
+    uniform sun_dir:                 Vec4  @34
+    uniform sun_color:               Vec4  @35
+    uniform fog_color:               Vec4  @36
+    uniform fog_density:             Float @37
+    uniform debug_mode:              UInt  @38
+
+    uniform LOCAL_SIZE_X: UInt @100
+    uniform LOCAL_SIZE_Y: UInt @101
+    uniform LOCAL_SIZE_Z: UInt @102
+
+    let px = id.x
+    let py = id.y
+    if px >= viewport_width:
+        return vec4(0.0, 0.0, 0.0, 0.0)
+    if py >= viewport_height:
+        return vec4(0.0, 0.0, 0.0, 0.0)
+
+    let width_f = max(viewport_width as Float, 1.0)
+    let height_f = max(viewport_height as Float, 1.0)
+    let width_max = max(width_f - 1.0, 0.0)
+    let height_max = max(height_f - 1.0, 0.0)
+    let pixel_idx = py * viewport_width + px
+    let eps = 0.000001
+    let two_pi = 6.2831853
+    let luma_axis = vec3(0.2126, 0.7152, 0.0722)
+
+    let hdr_raw = hdr_current[pixel_idx]
+    let depth = clamp(depth_current[pixel_idx], 0.0, 1.0)
+    let normal_raw = normal_current[pixel_idx]
+    let albedo_raw = albedo_current[pixel_idx]
+    let material_raw = material_current[pixel_idx]
+    let motion_raw = motion_vectors[pixel_idx]
+    let noise_seed = blue_noise[pixel_idx]
+
+    let normal = normalize(normal_raw.xyz * 2.0 - vec3(1.0, 1.0, 1.0) + vec3(eps, 0.0, 0.0))
+    let albedo = clamp(albedo_raw.xyz, vec3(0.0, 0.0, 0.0), vec3(1.0, 1.0, 1.0))
+    let roughness = clamp(material_raw.y + roughness_bias, 0.02, 1.0)
+    let metallic = clamp(material_raw.z + metallic_bias, 0.0, 1.0)
+    let emissive = max(material_raw.w * emissive_gain, 0.0)
+
+    let uvx = (px as Float + 0.5) / width_f
+    let uvy = (py as Float + 0.5) / height_f
+    let centered_x = uvx * 2.0 - 1.0
+    let centered_y = 1.0 - uvy * 2.0
+    let view_dir = normalize(vec3(centered_x, centered_y, 1.0) + vec3(eps, 0.0, 0.0))
+
+    let env_t0 = clamp(normal.y * 0.5 + 0.5, 0.0, 1.0)
+    let env_lower = mix(env_bottom.xyz, env_mid.xyz, env_t0)
+    let env_upper = mix(env_mid.xyz, env_top.xyz, env_t0)
+    let env_mix = smoothstep(0.15, 0.85, env_t0)
+    let env_color = mix(env_lower, env_upper, env_mix)
+
+    let sun_n = normalize(sun_dir.xyz + vec3(eps, 0.0, 0.0))
+    let ndotl = max(dot(normal, sun_n), 0.0)
+    let half_vec = normalize(sun_n + view_dir + vec3(eps, 0.0, 0.0))
+    let ndoth = max(dot(normal, half_vec), 0.0)
+    let direct_diffuse = albedo * ndotl * diffuse_gain
+    let direct_spec = sun_color.xyz * pow(ndoth, mix(96.0, 4.0, roughness)) * spec_gain
+
+    let prev_uvx = clamp(uvx - motion_raw.x, 0.0, 1.0)
+    let prev_uvy = clamp(uvy - motion_raw.y, 0.0, 1.0)
+    let prev_px = clamp(prev_uvx * width_f, 0.0, width_max) as UInt
+    let prev_py = clamp(prev_uvy * height_f, 0.0, height_max) as UInt
+    let prev_idx = prev_py * viewport_width + prev_px
+
+    let history_col = history_color[prev_idx]
+    let history_data = history_aux[prev_idx]
+    let history_normal = normalize(history_data.xyz * 2.0 - vec3(1.0, 1.0, 1.0) + vec3(eps, 0.0, 0.0))
+    let history_depth = clamp(history_col.w, 0.0, 1.0)
+
+    let history_depth_factor = 1.0 - clamp(abs(history_depth - depth) * depth_reject_scale, 0.0, 1.0)
+    let history_normal_factor = pow(clamp(dot(normal, history_normal), 0.0, 1.0), normal_reject_power)
+    let history_weight = clamp(history_blend * history_boost * history_depth_factor * history_normal_factor, 0.0, 1.0)
+
+    let mut gather_weight_sum = 0.0
+    let mut gather_radiance = vec3(0.0, 0.0, 0.0)
+    let mut gather_normal = vec3(0.0, 0.0, 0.0)
+    let mut gather_albedo = vec3(0.0, 0.0, 0.0)
+    let mut gather_depth = 0.0
+    let mut occlusion_sum = 0.0
+    let mut curvature_sum = 0.0
+    let mut variance_sum = 0.0
+    let mut reservoir_best = 0.0
+    let mut reservoir_color = hdr_raw.xyz
+    let mut reservoir_normal = normal
+    let mut reservoir_depth = depth
+    let mut reservoir_luma = dot(hdr_raw.xyz, luma_axis)
+
+    let mut ring = 0
+    while ring < 4:
+        let ring_f = ring as Float
+        let ring_radius = gather_radius * (ring_f + 1.0) / 4.0
+        let angle_seed = frame_index as Float * 0.75487766 + ring_f * 1.6180339 + noise_seed * two_pi
+
+        let mut tap = 0
+        while tap < 8:
+            let tap_f = tap as Float
+            let angle = angle_seed + tap_f * (two_pi / 8.0)
+            let ox = cos(angle) * ring_radius
+            let oy = sin(angle) * ring_radius
+
+            let sx_f = clamp(px as Float + ox, 0.0, width_max)
+            let sy_f = clamp(py as Float + oy, 0.0, height_max)
+            let sx = sx_f as UInt
+            let sy = sy_f as UInt
+            let sample_idx = sy * viewport_width + sx
+
+            let sample_hdr = hdr_current[sample_idx]
+            let sample_depth = clamp(depth_current[sample_idx], 0.0, 1.0)
+            let sample_normal_raw = normal_current[sample_idx]
+            let sample_albedo_raw = albedo_current[sample_idx]
+            let sample_material = material_current[sample_idx]
+            let sample_normal = normalize(sample_normal_raw.xyz * 2.0 - vec3(1.0, 1.0, 1.0) + vec3(eps, 0.0, 0.0))
+            let sample_albedo = clamp(sample_albedo_raw.xyz, vec3(0.0, 0.0, 0.0), vec3(1.0, 1.0, 1.0))
+            let sample_roughness = clamp(sample_material.y + roughness_bias, 0.02, 1.0)
+            let sample_metallic = clamp(sample_material.z + metallic_bias, 0.0, 1.0)
+            let sample_emissive = max(sample_material.w * emissive_gain, 0.0)
+
+            let depth_factor = 1.0 - clamp(abs(sample_depth - depth) * depth_reject_scale, 0.0, 1.0)
+            let normal_factor = pow(clamp(dot(normal, sample_normal), 0.0, 1.0), normal_reject_power)
+            let roughness_factor = 1.0 - abs(sample_roughness - roughness)
+            let metallic_factor = 1.0 - abs(sample_metallic - metallic)
+            let spatial_factor = 1.0 / (1.0 + ring_radius)
+            let horizon = clamp(dot(sample_normal, normal) * 0.5 + 0.5, 0.0, 1.0)
+            let sample_luma = dot(sample_hdr.xyz, luma_axis)
+            let reservoir_w = max(depth_factor * normal_factor * roughness_factor * metallic_factor * spatial_factor * (0.25 + horizon) * (0.2 + sample_luma + sample_emissive), 0.0)
+
+            let sample_diff = sample_hdr.xyz - hdr_raw.xyz
+            let sample_var = dot(sample_diff * sample_diff, vec3(0.3333, 0.3333, 0.3333))
+            variance_sum = variance_sum + sample_var * max(depth_factor * normal_factor, 0.0)
+
+            let curvature = 1.0 - clamp(dot(normal, sample_normal), 0.0, 1.0)
+            curvature_sum = curvature_sum + curvature * depth_factor
+            occlusion_sum = occlusion_sum + (1.0 - depth_factor) * normal_factor
+
+            gather_weight_sum = gather_weight_sum + reservoir_w
+            gather_radiance = gather_radiance + sample_hdr.xyz * reservoir_w
+            gather_normal = gather_normal + sample_normal * reservoir_w
+            gather_albedo = gather_albedo + sample_albedo * reservoir_w
+            gather_depth = gather_depth + sample_depth * reservoir_w
+
+            if reservoir_w > reservoir_best:
+                reservoir_best = reservoir_w
+                reservoir_color = sample_hdr.xyz
+                reservoir_normal = sample_normal
+                reservoir_depth = sample_depth
+                reservoir_luma = sample_luma
+
+            tap = tap + 1
+
+        ring = ring + 1
+
+    let inv_gather = 1.0 / max(gather_weight_sum, eps)
+    let gathered_color = gather_radiance * inv_gather
+    let gathered_normal = normalize(gather_normal * inv_gather + vec3(eps, 0.0, 0.0))
+    let gathered_albedo = clamp(gather_albedo * inv_gather, vec3(0.0, 0.0, 0.0), vec3(1.0, 1.0, 1.0))
+    let gathered_depth = gather_depth * inv_gather
+    let variance = variance_sum * inv_gather
+    let curvature = curvature_sum * inv_gather
+    let ao = 1.0 - clamp(occlusion_sum * inv_gather * ao_strength, 0.0, 1.0)
+
+    let bent_normal = normalize(mix(gathered_normal, reservoir_normal, clamp(reservoir_best * 0.15, 0.0, 1.0)) + vec3(eps, 0.0, 0.0))
+    let reflected = reflect(vec3(0.0, 0.0, 0.0) - view_dir, bent_normal)
+    let refl_t = clamp(reflected.y * 0.5 + 0.5, 0.0, 1.0)
+    let refl_env0 = mix(env_bottom.xyz, env_mid.xyz, refl_t)
+    let refl_env1 = mix(env_mid.xyz, env_top.xyz, refl_t)
+    let reflected_env = mix(refl_env0, refl_env1, smoothstep(0.2, 0.8, refl_t))
+
+    let diffuse_probe = mix(env_color, gathered_color, clamp(indirect_gain, 0.0, 1.0))
+    let diffuse_indirect = diffuse_probe * gathered_albedo * ao
+
+    let spec_core = mix(reflected_env, reservoir_color, clamp(1.0 - roughness, 0.0, 1.0))
+    let spec_secondary = mix(spec_core, gathered_color, clamp(roughness * 0.5, 0.0, 1.0))
+    let spec_indirect = spec_secondary * mix(spec_gain, spec_gain * 1.5, metallic)
+
+    let sparkle_seed = fract(noise_seed * 91.137 + frame_index as Float * 0.071)
+    let sparkle_mask = step(0.93, sparkle_seed)
+    let sparkle_n = pow(max(dot(reflected, sun_n), 0.0), mix(512.0, 48.0, roughness))
+    let sparkle = sun_color.xyz * sparkle_n * sparkle_mask * sparkle_gain * (0.5 + metallic)
+
+    let curvature_light = env_color * curvature * curvature_gain
+    let emissive_color = albedo * emissive
+    let neighborhood_mix = mix(gathered_color, reservoir_color, clamp(history_weight * temporal_stability, 0.0, 1.0))
+    let clamp_center = mix(hdr_raw.xyz, neighborhood_mix, clamp(clamp_strength, 0.0, 1.0))
+
+    let mut resolved = clamp_center
+    resolved = mix(resolved, history_col.xyz, history_weight)
+    resolved = resolved + direct_diffuse + direct_spec
+    resolved = resolved + diffuse_indirect * diffuse_gain
+    resolved = resolved + spec_indirect
+    resolved = resolved + curvature_light
+    resolved = resolved + emissive_color
+    resolved = resolved + sparkle
+
+    let fog_term = 1.0 - exp(-max(depth, 0.0) * fog_density)
+    resolved = mix(resolved, fog_color.xyz, clamp(fog_term, 0.0, 1.0))
+
+    let vignette_center_x = uvx - 0.5
+    let vignette_center_y = uvy - 0.5
+    let vignette_dist = sqrt(vignette_center_x * vignette_center_x + vignette_center_y * vignette_center_y)
+    let vignette = 1.0 - clamp(vignette_dist * vignette_strength, 0.0, 1.0)
+    resolved = resolved * vignette
+
+    let history_debug = history_weight
+    let ao_debug = ao
+    let variance_debug = clamp(variance * 4.0, 0.0, 1.0)
+    let reservoir_debug = clamp(reservoir_best * 0.05, 0.0, 1.0)
+
+    let mut final_rgb = resolved
+    if debug_mode == UInt(1):
+        final_rgb = vec3(ao_debug, ao_debug, ao_debug)
+    if debug_mode == UInt(2):
+        final_rgb = vec3(history_debug, variance_debug, reservoir_debug)
+    if debug_mode == UInt(3):
+        final_rgb = bent_normal * 0.5 + vec3(0.5, 0.5, 0.5)
+    if debug_mode == UInt(4):
+        final_rgb = vec3(curvature, curvature, curvature)
+    if debug_mode == UInt(5):
+        final_rgb = reservoir_color
+    if debug_mode == UInt(6):
+        let dd = clamp(abs(gathered_depth - reservoir_depth) * depth_reject_scale, 0.0, 1.0)
+        final_rgb = vec3(dd, history_debug, ao_debug)
+
+    let final_a = clamp(mix(depth, reservoir_depth, clamp(history_weight * 0.5, 0.0, 1.0)), 0.0, 1.0)
+    let final_out = vec4(final_rgb.x, final_rgb.y, final_rgb.z, final_a)
+    let debug_out = vec4(ao_debug, history_debug, variance_debug, reservoir_debug)
+
+    out_color[pixel_idx] = final_out
+    out_debug[pixel_idx] = debug_out
+    return final_out

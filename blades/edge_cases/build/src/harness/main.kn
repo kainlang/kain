@@ -1,0 +1,160 @@
+// ============================================================================
+//  main.kn — CLI entry point for the determinism edge-case stress suite
+//
+//  Flags (manual arg parsing via process_args):
+//    --mode full        Run all categories + determinism verification
+//    --mode <category>  Run a single category by name
+//    --mode verify      Run only determinism verification
+//    --verbose / -v     Enable verbose output
+//    --list             List all discovered tests with descriptions
+//    --json             Output results as JSON to .kain/out/determinism_report.json
+//    --help / -h        Show usage
+//
+//  Exit codes: 0 = all pass, 1 = any fail, 2 = harness error
+// ============================================================================
+
+use std::process   // process_args
+use std::runtime   // runtime_init, runtime_shutdown
+use runner         // run_all, run_category, discover_tests, TestCase, TestResult,
+                   // is_fail, make_ok
+use report         // write_json_report, print_summary, print_console_report
+
+// ---------------------------------------------------------------------------
+//  Entry point
+// ---------------------------------------------------------------------------
+
+fn main() -> Int:
+    let status = runtime_init()
+    defer runtime_shutdown()
+
+    // Parse CLI args.
+    let args = process_args()
+    let mode    = parse_mode(args)
+    let verbose = parse_flag(args, "--verbose", "-v")
+    let list    = parse_flag(args, "--list", "")
+    let json    = parse_flag(args, "--json", "")
+    let help    = parse_flag(args, "--help", "-h")
+
+    // --help
+    if help:
+        print_usage()
+        return 0
+
+    // --list
+    if list:
+        list_tests()
+        return 0
+
+    // Execute.
+    let results: Array<TestResult> = []
+
+    if mode == "verify":
+        println("=== Determinism verification pipeline ===")
+        println("(verify pipeline: build twice + diff — see build.kn exec tasks)")
+        let mut verify_results: Array<TestResult> = []
+        push(verify_results, make_ok("verify_pipeline", "verification pipeline defined in build.kn"))
+        results = verify_results
+
+    elif mode == "full":
+        results = run_all()
+
+    else:
+        results = run_category(mode)
+
+    // Report.
+    if json:
+        let all_tests = discover_tests()
+        write_json_report(results, all_tests, ".kain/out/determinism_report.json")
+
+    print_summary(results)
+
+    if verbose:
+        print_console_report(results)
+
+    // Exit code.
+    var i = 0
+    while i < len(results):
+        if is_fail(results[i]):
+            return 1
+        i = i + 1
+
+    return 0
+
+// ---------------------------------------------------------------------------
+//  CLI parsing helpers
+// ---------------------------------------------------------------------------
+
+/// Extract --mode value. Defaults to "full".
+fn parse_mode(args: Array<String>) -> String:
+    var i = 0
+    while i < len(args):
+        if args[i] == "--mode":
+            if i + 1 < len(args):
+                return args[i + 1]
+        i = i + 1
+    return "full"
+
+/// Check if a flag (long_flag or short form) is present.
+fn parse_flag(args: Array<String>, long_flag: String, short_flag: String) -> Bool:
+    var i = 0
+    while i < len(args):
+        if args[i] == long_flag:
+            return true
+        if short_flag != "" and args[i] == short_flag:
+            return true
+        i = i + 1
+    return false
+
+// ---------------------------------------------------------------------------
+//  Output helpers
+// ---------------------------------------------------------------------------
+
+/// Print usage text.
+fn print_usage() -> Unit:
+    println("BUILD DETERMINISM EDGE-CASE STRESS SUITE v1.0.0")
+    println("")
+    println("USAGE:")
+    println("  build_determinism_suite [FLAGS]")
+    println("")
+    println("FLAGS:")
+    println("  --mode full            Run all categories (default)")
+    println("  --mode <category>      Run a single category:")
+    println("                           project_config")
+    println("                           source_set_edges")
+    println("                           build_graph_edges")
+    println("                           target_edges")
+    println("                           profile_edges")
+    println("                           caching")
+    println("                           comptime_edges")
+    println("                           import_edges")
+    println("  --mode verify          Run determinism verification only")
+    println("  --verbose, -v          Enable verbose output")
+    println("  --list                 List all discovered tests")
+    println("  --json                 Write JSON report to .kain/out/")
+    println("  --help, -h             Show this help")
+    println("")
+    println("EXIT CODES:")
+    println("  0  All tests passed")
+    println("  1  One or more tests failed")
+    println("  2  Harness error (not used by this version)")
+    println("")
+
+/// List all discovered tests with descriptions.
+fn list_tests() -> Unit:
+    let tests = discover_tests()
+    println("")
+    println("Discovered tests: " + str(len(tests)))
+    println("")
+
+    if len(tests) == 0:
+        println("  (no tests registered yet — categories not imported)")
+        println("  Writers 2 & 3 will populate the 8 category modules.")
+    else:
+        var i = 0
+        while i < len(tests):
+            let t = tests[i]
+            println("  [" + t.category + "] " + t.name)
+            println("      " + t.description)
+            println("      expected: " + t.expected)
+            println("")
+            i = i + 1

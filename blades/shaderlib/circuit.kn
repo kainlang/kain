@@ -1,0 +1,197 @@
+// ============================================================================
+// K_OS Sculpt Artistic Circuit - KAIN Edition
+// ============================================================================
+// Creates electronic circuit board patterns with traces and pads
+// Uses grid-based displacement with Manhattan distance
+// Compiled to SPIR-V via: kain sculpt_artistic_circuit.kn -t spirv -o sculpt_artistic_circuit.spv
+// ============================================================================
+
+shader compute artistic_circuit(id: UVec3) -> Vec4:
+    // Storage buffers
+    uniform positions: StorageBuffer<Vec4> @0
+    uniform normals: StorageBuffer<Vec4> @1
+    uniform candidates: StorageBuffer<UInt> @3
+    uniform counter: StorageBuffer<UInt> @4
+    
+    // Brush params (matching BrushParamsV2.1 layout)
+    uniform center: Vec4 @5
+    uniform normal: Vec4 @6
+    uniform velocity: Vec4 @7
+    uniform prev_center: Vec3 @8
+    uniform stroke_distance: Float @9
+    uniform radius: Float @10
+    uniform strength: Float @11
+    uniform hardness: Float @12
+    uniform spacing: Float @13
+    uniform flags: UInt @14
+    uniform vertex_count: UInt @15
+    uniform candidate_count: UInt @16
+    uniform alpha_mode: UInt @17
+    uniform alpha_scale: Float @18
+    uniform alpha_rotation: Float @19
+    uniform alpha_offset: Vec2 @20
+    uniform alpha_blend_weight: Float @21
+    uniform alpha_mirror: UInt @22
+    uniform jitter_position: Float @23
+    uniform jitter_rotation: Float @24
+    uniform jitter_strength: Float @25
+    uniform random_seed: Float @26
+    uniform extras0: Vec4 @27  // x = trace_width
+    uniform extras1: Vec4 @28  // x = pad_size
+    uniform extras2: Vec4 @29  // x = grid_spacing
+    uniform extras3: Vec4 @30  // x = trace_height
+    uniform extras4: Vec4 @31
+    uniform extras5: Vec4 @32
+    
+    uniform LOCAL_SIZE_X: UInt @100
+    uniform LOCAL_SIZE_Y: UInt @101
+    uniform LOCAL_SIZE_Z: UInt @102
+    
+    let FLAG_SUBTRACT = 1 as UInt
+    let FLAG_FRONT_FACES_ONLY = 2 as UInt
+    let ALPHA_DISABLED = 0 as UInt
+    let PI = 3.14159265359
+    
+    // Get vertex index (handles candidate list or full dispatch)
+    let vertex_idx_raw = id.x
+    let count = counter[0]
+    let mut vertex_idx = 0 as UInt
+    
+    if count > 0 as UInt:
+        if vertex_idx_raw >= count:
+            return vec4(0.0, 0.0, 0.0, 0.0)
+        vertex_idx = candidates[vertex_idx_raw]
+    else:
+        if vertex_idx_raw >= vertex_count:
+            return vec4(0.0, 0.0, 0.0, 0.0)
+        vertex_idx = vertex_idx_raw
+    
+    let pos = positions[vertex_idx].xyz
+    let nor = normals[vertex_idx].xyz
+    let center_pos = center.xyz
+    let brush_normal = normal.xyz
+    
+    let to_center = pos - center_pos
+    let dist = length(to_center)
+    if dist > radius:
+        return vec4(0.0, 0.0, 0.0, 0.0)
+    
+    // Front face check
+    if (flags & FLAG_FRONT_FACES_ONLY) != 0 as UInt:
+        if dot(nor, -brush_normal) < 0.0:
+            return vec4(0.0, 0.0, 0.0, 0.0)
+    
+    // Calculate weight (simple falloff)
+    let t = clamp(dist / radius, 0.0, 1.0)
+    let soft = 1.0 - t * t
+    let hard = 1.0 - t
+    let mut weight = mix(soft, hard, hardness)
+    
+    // Sample alpha (inlined)
+    let surface_local = to_center - dot(to_center, brush_normal) * brush_normal
+    if alpha_mode != ALPHA_DISABLED:
+        let mut uv = (vec2(surface_local.x, surface_local.z) / radius + 1.0) * 0.5
+        let centered = uv - vec2(0.5, 0.5)
+        let cos_r = cos(alpha_rotation)
+        let sin_r = sin(alpha_rotation)
+        let rotated = vec2(
+            centered.x * cos_r - centered.y * sin_r,
+            centered.x * sin_r + centered.y * cos_r
+        )
+        let scaled = rotated / alpha_scale
+        uv = scaled + vec2(0.5, 0.5) + alpha_offset
+        if (alpha_mirror & 1 as UInt) != 0 as UInt:
+            uv = vec2(1.0 - uv.x, uv.y)
+        if (alpha_mirror & 2 as UInt) != 0 as UInt:
+            uv = vec2(uv.x, 1.0 - uv.y)
+        weight = weight * alpha_blend_weight
+    
+    // Apply pressure
+    weight = weight * center.w
+    
+    // Circuit parameters
+    let trace_width = max(extras0.x, 0.01)
+    let pad_size = max(extras1.x, 0.02)
+    let grid_spacing = max(extras2.x, 0.1)
+    let trace_height = extras3.x
+    
+    // Project position onto surface plane
+    let local_2d = vec2(surface_local.x, surface_local.z)
+    
+    // Grid coordinates
+    let grid_pos = local_2d / grid_spacing
+    let grid_cell = vec2(floor(grid_pos.x), floor(grid_pos.y))
+    let cell_local = fract(grid_pos)
+    
+    // Generate deterministic random values for this cell
+    let cell_hash = fract(sin(dot(grid_cell, vec2(12.9898, 78.233)) + random_seed) * 43758.5453)
+    let cell_hash2 = fract(sin(dot(grid_cell, vec2(93.9898, 67.345)) + random_seed) * 43758.5453)
+    
+    // Decide if this cell has a pad (30% chance)
+    let has_pad = cell_hash > 0.7
+    
+    // Calculate distance to pad center
+    let to_pad_center = cell_local - vec2(0.5, 0.5)
+    let pad_dist = length(to_pad_center)
+    
+    let mut circuit_value = 0.0
+    
+    // Draw pad
+    if has_pad:
+        let pad_radius = pad_size / grid_spacing
+        if pad_dist < pad_radius:
+            circuit_value = 1.0
+    
+    // Draw traces (Manhattan routing)
+    let trace_half_width = trace_width / grid_spacing * 0.5
+    
+    // Horizontal traces
+    let h_dist = abs(cell_local.y - 0.5)
+    if h_dist < trace_half_width:
+        // Check if trace should exist (based on neighboring cells)
+        let left_hash = fract(sin(dot(grid_cell + vec2(-1.0, 0.0), vec2(12.9898, 78.233)) + random_seed) * 43758.5453)
+        let right_hash = fract(sin(dot(grid_cell + vec2(1.0, 0.0), vec2(12.9898, 78.233)) + random_seed) * 43758.5453)
+        
+        if left_hash > 0.7 or right_hash > 0.7 or has_pad:
+            let trace_profile = 1.0 - smoothstep(0.0, trace_half_width, h_dist)
+            circuit_value = max(circuit_value, trace_profile * 0.7)
+    
+    // Vertical traces
+    let v_dist = abs(cell_local.x - 0.5)
+    if v_dist < trace_half_width:
+        // Check if trace should exist
+        let top_hash = fract(sin(dot(grid_cell + vec2(0.0, 1.0), vec2(12.9898, 78.233)) + random_seed) * 43758.5453)
+        let bottom_hash = fract(sin(dot(grid_cell + vec2(0.0, -1.0), vec2(12.9898, 78.233)) + random_seed) * 43758.5453)
+        
+        if top_hash > 0.7 or bottom_hash > 0.7 or has_pad:
+            let trace_profile = 1.0 - smoothstep(0.0, trace_half_width, v_dist)
+            circuit_value = max(circuit_value, trace_profile * 0.7)
+    
+    // Add via holes at intersections
+    let intersection_dist = max(h_dist, v_dist)
+    if intersection_dist < trace_half_width * 0.3:
+        if cell_hash2 > 0.8:
+            circuit_value = max(circuit_value, 0.5)
+    
+    // Add subtle noise to traces
+    let noise_p = vec3(
+        dot(vec3(local_2d.x, local_2d.y, random_seed), vec3(127.1, 311.7, 74.7)),
+        dot(vec3(local_2d.x, local_2d.y, random_seed), vec3(269.5, 183.3, 246.1)),
+        dot(vec3(local_2d.x, local_2d.y, random_seed), vec3(113.5, 271.9, 124.6))
+    )
+    let noise = fract(sin(noise_p.x) * 43758.5453)
+    let noise_variation = 0.9 + noise * 0.2
+    
+    circuit_value = circuit_value * noise_variation
+    
+    // Calculate displacement
+    let displacement_amount = circuit_value * trace_height * weight * strength
+    let mut displacement = nor * displacement_amount
+    
+    // Subtract mode
+    if (flags & FLAG_SUBTRACT) != 0 as UInt:
+        displacement = -displacement
+    
+    let new_pos = pos + displacement
+    positions[vertex_idx] = vec4(new_pos.x, new_pos.y, new_pos.z, 1.0)
+    return vec4(new_pos.x, new_pos.y, new_pos.z, 1.0)

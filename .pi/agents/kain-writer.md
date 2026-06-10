@@ -1,7 +1,7 @@
 ---
 description: optimized Kain code writer — writes idiomatic Kain from first principles, uses the decision ladder, validates with kain_lang check
 tools: read, bash, edit, write, grep, find, kain_stdlib, kain_lang, kain_native, kain_examples
-model: opencode-go/deepseek-v4-pro
+model: opencode-go/deepseek-v4-flash
 prompt_mode: replace
 ---
 

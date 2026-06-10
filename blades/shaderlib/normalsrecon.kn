@@ -1,0 +1,73 @@
+// ============================================================================
+// K_OS Renderer - Normal Reconstruction Pass A - KAIN Edition
+// ============================================================================
+// One thread per triangle face. Accumulates area-weighted face normals into
+// per-vertex normal accumulators.
+// Host must zero normals_accum before dispatch.
+//
+// Compiled to SPIR-V via: kain renderer_normals_recon.kn -t spirv -o renderer_normals_recon.spv
+// ============================================================================
+
+shader compute renderer_normals_recon(id: UVec3) -> Vec4:
+    uniform positions:    StorageBuffer<Vec4> @0
+    uniform indices:      StorageBuffer<UInt>  @1
+    // (nx_sum, ny_sum, nz_sum, area_sum) — pre-zeroed by host
+    uniform normals_accum: StorageBuffer<Vec4> @2
+
+    uniform face_count:   UInt @3
+    uniform vertex_count: UInt @4
+
+    uniform LOCAL_SIZE_X: UInt @100
+    uniform LOCAL_SIZE_Y: UInt @101
+    uniform LOCAL_SIZE_Z: UInt @102
+
+    let face_idx = id.x
+    if face_idx >= face_count:
+        return vec4(0.0, 0.0, 0.0, 0.0)
+
+    let i0 = indices[face_idx * 3 as UInt + 0 as UInt]
+    let i1 = indices[face_idx * 3 as UInt + 1 as UInt]
+    let i2 = indices[face_idx * 3 as UInt + 2 as UInt]
+
+    let p0 = positions[i0].xyz
+    let p1 = positions[i1].xyz
+    let p2 = positions[i2].xyz
+
+    // Face normal — magnitude = 2 * face area
+    let e1 = p1 - p0
+    let e2 = p2 - p0
+    let face_normal = cross(e1, e2)
+
+    let area = length(face_normal) * 0.5
+    if area < 0.0000001:
+        return vec4(0.0, 0.0, 0.0, 0.0)
+
+    // Area-weighted normal contribution
+    let weighted_n = face_normal * area
+
+    // Accumulate into each vertex (non-atomic; acceptable for smooth normals)
+    let prev0 = normals_accum[i0]
+    normals_accum[i0] = vec4(
+        prev0.x + weighted_n.x,
+        prev0.y + weighted_n.y,
+        prev0.z + weighted_n.z,
+        prev0.w + area
+    )
+
+    let prev1 = normals_accum[i1]
+    normals_accum[i1] = vec4(
+        prev1.x + weighted_n.x,
+        prev1.y + weighted_n.y,
+        prev1.z + weighted_n.z,
+        prev1.w + area
+    )
+
+    let prev2 = normals_accum[i2]
+    normals_accum[i2] = vec4(
+        prev2.x + weighted_n.x,
+        prev2.y + weighted_n.y,
+        prev2.z + weighted_n.z,
+        prev2.w + area
+    )
+
+    return vec4(weighted_n.x, weighted_n.y, weighted_n.z, area)

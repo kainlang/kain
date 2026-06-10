@@ -1,0 +1,43 @@
+shader compute mocap_spring_follow(id: UVec3) -> Vec4:
+    uniform in_joints: StorageBuffer<Vec4> @0
+    uniform prev_joints: StorageBuffer<Vec4> @1
+    // Read+write integration velocity buffer.
+    uniform velocity: StorageBuffer<Vec4> @2
+    uniform out_joints: StorageBuffer<Vec4> @3
+    uniform stiffness: StorageBuffer<Float> @4
+    uniform damping: StorageBuffer<Float> @5
+
+    uniform dt: Float @6
+    uniform eps: Float @7
+    uniform joint_count: UInt @8
+
+    uniform LOCAL_SIZE_X: UInt @100
+    uniform LOCAL_SIZE_Y: UInt @101
+    uniform LOCAL_SIZE_Z: UInt @102
+
+    let joint = id.x
+    if joint >= joint_count:
+        return vec4(0.0, 0.0, 0.0, 0.0)
+
+    let cur = in_joints[joint]
+    let prev = prev_joints[joint]
+    let mut vel = velocity[joint]
+
+    let pos = prev.xyz
+    let target = cur.xyz
+    let dt_safe = max(dt, eps)
+    let k = max(stiffness[joint], 0.0)
+    let d = max(damping[joint], 0.0)
+
+    // Critically damped-ish second-order follower:
+    // accel = -k*(pos-target) - d*vel
+    let accel = (target - pos) * k - vel.xyz * d
+    let next_vel = vel.xyz + accel * dt_safe
+    let next_pos = pos + next_vel * dt_safe
+
+    vel = vec4(next_vel.x, next_vel.y, next_vel.z, 0.0)
+    let out_v = vec4(next_pos.x, next_pos.y, next_pos.z, cur.w)
+
+    velocity[joint] = vel
+    out_joints[joint] = out_v
+    return out_v

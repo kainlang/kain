@@ -1,0 +1,43 @@
+shader compute mocap_facial_blend(id: UVec3) -> Vec4:
+    // One thread per blendshape channel.
+    // Channel is driven by two landmarks projected on a selected axis.
+    uniform landmarks: StorageBuffer<Vec4> @0
+    uniform idx_a: StorageBuffer<Int> @1
+    uniform idx_b: StorageBuffer<Int> @2
+    uniform axis: StorageBuffer<Vec4> @3     // xyz direction
+    uniform scale: StorageBuffer<Float> @4
+    uniform bias: StorageBuffer<Float> @5
+    uniform out_weights: StorageBuffer<Float> @6
+
+    uniform blend_count: UInt @7
+    uniform landmark_count: UInt @8
+    uniform eps: Float @9
+
+    uniform LOCAL_SIZE_X: UInt @100
+    uniform LOCAL_SIZE_Y: UInt @101
+    uniform LOCAL_SIZE_Z: UInt @102
+
+    let ch = id.x
+    if ch >= blend_count:
+        return vec4(0.0, 0.0, 0.0, 0.0)
+
+    let ia = idx_a[ch]
+    let ib = idx_b[ch]
+    if ia < 0 || ib < 0:
+        out_weights[ch] = 0.0
+        return vec4(0.0, 0.0, 0.0, 0.0)
+
+    let a = ia as UInt
+    let b = ib as UInt
+    if a >= landmark_count || b >= landmark_count:
+        out_weights[ch] = 0.0
+        return vec4(0.0, 0.0, 0.0, 0.0)
+
+    let pa = landmarks[a].xyz
+    let pb = landmarks[b].xyz
+    let n = normalize(axis[ch].xyz + vec3(eps, 0.0, 0.0))
+    let d = dot(pb - pa, n)
+
+    let w = clamp(d * scale[ch] + bias[ch], 0.0, 1.0)
+    out_weights[ch] = w
+    return vec4(w, 0.0, 0.0, 0.0)

@@ -1,0 +1,127 @@
+// ============================================================================
+//  host_env_leakage.kn — [P] Host environment variables must not leak into
+//  build.kn evaluation. Building with different env var values must produce
+//  identical output.
+//
+//  Category: comptime_edges
+//  Expected: PASS — artifacts match despite different env var values
+// ============================================================================
+
+use runner        // TestResult, TestCase, make_ok, make_fail, add_to_list, is_fail
+use diff          // checksum_tree
+
+use std::fs       // fs_write_text, fs_create_dir_all, fs_remove_dir_all, fs_path_join
+use std::process  // process_spec_create_piped, process_spec_add_arg, process_spec_set_cwd,
+                  // process_spec_set_env, process_spawn, process_wait, process_exit_code,
+                  // process_stdout_capture_text, process_stderr_capture_text, process_close
+use std::os       // os_getcwd, os_unsetenv
+use std::text     // text_join_strings
+
+// ── Private types ─────────────────────────────────────────────────────────
+
+struct KainResult:
+    exit_code: Int
+    stdout_text: String
+    stderr_text: String
+
+// ── Helpers ───────────────────────────────────────────────────────────────
+
+fn ecs_run_build_with_env(project_dir: String, key: String, value: String) -> KainResult:
+    let spec = process_spec_create_piped("kain")
+    process_spec_add_arg(spec, "build")
+    process_spec_add_arg(spec, "--clean")
+    process_spec_add_arg(spec, project_dir)
+    process_spec_set_cwd(spec, project_dir)
+    process_spec_set_env(spec, key, value)
+    let pid = process_spawn(spec)
+    process_wait(pid, 120000)
+    let code = process_exit_code(pid)
+    let stdout = process_stdout_capture_text(pid)
+    let stderr = process_stderr_capture_text(pid)
+    process_close(pid)
+    return KainResult{ exit_code: code, stdout_text: stdout, stderr_text: stderr }
+
+fn ecs_write_project(test_dir: String) -> Unit:
+    let build_lines: Array<String> = [
+        "use std::build",
+        "",
+        "fn build(ctx: BuildContext) -> BuildGraph:",
+        "    let app = project(\"test-app\")",
+        "        .version(\"1.0.0\")",
+        "        .kind(\"kain_executable\")",
+        "        .entry(\"main.kn\")",
+        "        .source_roots([\".\"])",
+        "        .module_roots([\".\"])",
+        "        .targets(\"llvm\")",
+        "        .artifact_root(\".kain/out\")",
+        "        .cache_root(\".kain/cache\")",
+        "        .profile(\"debug\")",
+        "",
+        "    let src = source_set(\"src\")",
+        "        .glob(\"*.kn\")",
+        "",
+        "    let chk = check_task(\"check\")",
+        "        .project(app)",
+        "        .target(\"llvm\")",
+        "        .inputs(src)",
+        "",
+        "    return build_graph(app).sources(src).tasks(chk)",
+    ]
+    let content = text_join_strings(build_lines, "\n")
+    fs_write_text(fs_path_join(test_dir, "build.kn"), content)
+
+    let main_lines: Array<String> = [
+        "fn main() -> Int:",
+        "    return 42",
+    ]
+    let main_content = text_join_strings(main_lines, "\n")
+    fs_write_text(fs_path_join(test_dir, "main.kn"), main_content)
+
+fn ecs_assert_eq(name: String, sum1: String, sum2: String) -> TestResult:
+    if sum1 == sum2:
+        return make_ok(name, "hermetic")
+    return make_fail(name, "env leakage detected")
+
+// ── Test function ─────────────────────────────────────────────────────────
+
+pub fn test_host_env_leakage() -> TestResult:
+    let root = os_getcwd()
+    let tmp_root = fs_path_join(fs_path_join(root, ".kain"), "tmp")
+    let test_dir = fs_path_join(tmp_root, "host_env_leakage")
+
+    fs_remove_dir_all(test_dir)
+    defer fs_remove_dir_all(test_dir)
+    fs_create_dir_all(test_dir)
+
+    ecs_write_project(test_dir)
+    let artifact_dir = fs_path_join(fs_path_join(test_dir, ".kain"), "out")
+
+    // Pass 1: build with env var = alpha
+    let r1 = ecs_run_build_with_env(test_dir, "TEST_LEAK_VAR", "alpha")
+    if r1.exit_code != 0:
+        return make_fail("host_env_leakage", "pass alpha: " + r1.stderr_text)
+    let alpha_sum = checksum_tree(artifact_dir)
+
+    // Pass 2: build with env var = beta
+    let r2 = ecs_run_build_with_env(test_dir, "TEST_LEAK_VAR", "beta")
+    if r2.exit_code != 0:
+        return make_fail("host_env_leakage", "pass beta: " + r2.stderr_text)
+    let beta_sum = checksum_tree(artifact_dir)
+
+    os_unsetenv("TEST_LEAK_VAR")
+
+    return ecs_assert_eq("host_env_leakage", alpha_sum, beta_sum)
+
+// ── Registration ──────────────────────────────────────────────────────────
+
+pub fn get_tests() -> Array<TestCase>:
+    let mut list: Array<TestCase> = []
+    list = add_to_list(list, TestCase{
+        name: "host_env_leakage",
+        tag: "host_env_leakage",
+        category: "comptime_edges",
+        function: test_host_env_leakage,
+        description: "Host environment variables do not leak into build determinism",
+        expected: "PASS"
+    })
+    return list

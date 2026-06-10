@@ -1,0 +1,91 @@
+shader compute mocap_ik_reach(id: UVec3) -> Vec4:
+    // Two-bone IK per end-effector.
+    //
+    // Important runtime contract:
+    // `out_joints` should be prefilled with `in_joints` before this dispatch.
+    // This kernel only overwrites the [grandparent, parent, effector] joints
+    // for each effector chain.
+    uniform in_joints: StorageBuffer<Vec4> @0
+    uniform out_joints: StorageBuffer<Vec4> @1
+    uniform parents: StorageBuffer<Int> @2
+    uniform target_pos: StorageBuffer<Vec4> @3
+    uniform effector_joint: StorageBuffer<Int> @4
+
+    uniform effector_count: UInt @5
+    uniform joint_count: UInt @6
+    uniform reach_stiffness: Float @7
+    uniform chain_softness: Float @8
+    uniform eps: Float @9
+
+    uniform LOCAL_SIZE_X: UInt @100
+    uniform LOCAL_SIZE_Y: UInt @101
+    uniform LOCAL_SIZE_Z: UInt @102
+
+    let eidx = id.x
+    if eidx >= effector_count:
+        return vec4(0.0, 0.0, 0.0, 0.0)
+
+    let eff_i = effector_joint[eidx]
+    if eff_i < 0:
+        return vec4(0.0, 0.0, 0.0, 0.0)
+
+    let e = eff_i as UInt
+    if e >= joint_count:
+        return vec4(0.0, 0.0, 0.0, 0.0)
+
+    let p_i = parents[e]
+    if p_i < 0:
+        return vec4(0.0, 0.0, 0.0, 0.0)
+    let p = p_i as UInt
+    if p >= joint_count:
+        return vec4(0.0, 0.0, 0.0, 0.0)
+
+    let g_i = parents[p]
+    if g_i < 0:
+        return vec4(0.0, 0.0, 0.0, 0.0)
+    let g = g_i as UInt
+    if g >= joint_count:
+        return vec4(0.0, 0.0, 0.0, 0.0)
+
+    let g0 = in_joints[g]
+    let p0 = in_joints[p]
+    let e0 = in_joints[e]
+    let tgt = target_pos[eidx]
+
+    let g_pos = g0.xyz
+    let p_pos = p0.xyz
+    let e_pos = e0.xyz
+    let t_pos = tgt.xyz
+
+    let l1 = max(length(p_pos - g_pos), eps)
+    let l2 = max(length(e_pos - p_pos), eps)
+
+    let gt = t_pos - g_pos
+    let raw_d = length(gt)
+    let max_d = max(l1 + l2 - chain_softness, eps)
+    let d = clamp(raw_d, eps, max_d)
+    let dir = normalize(gt + vec3(eps, 0.0, 0.0))
+
+    // Build bend plane from current chain orientation.
+    let old_n = normalize(cross(p_pos - g_pos, e_pos - p_pos) + vec3(0.0, eps, 0.0))
+    let side = normalize(cross(old_n, dir) + vec3(eps, 0.0, 0.0))
+
+    // Law of cosines projected elbow position.
+    let x = (l1 * l1 - l2 * l2 + d * d) / max(2.0 * d, eps)
+    let y_sq = max(l1 * l1 - x * x, 0.0)
+    let y = sqrt(y_sq)
+
+    let elbow_base = g_pos + dir * x
+    let bend_sign = if dot(side, p_pos - elbow_base) < 0.0: -1.0 else: 1.0
+    let p_solved = elbow_base + side * (y * bend_sign)
+    let e_solved = g_pos + dir * d
+
+    let s = clamp(reach_stiffness, 0.0, 1.0)
+    let p_new = p_pos * (1.0 - s) + p_solved * s
+    let e_new = e_pos * (1.0 - s) + e_solved * s
+
+    out_joints[g] = vec4(g_pos.x, g_pos.y, g_pos.z, g0.w)
+    out_joints[p] = vec4(p_new.x, p_new.y, p_new.z, p0.w)
+    out_joints[e] = vec4(e_new.x, e_new.y, e_new.z, e0.w)
+
+    return vec4(e_new.x, e_new.y, e_new.z, e0.w)

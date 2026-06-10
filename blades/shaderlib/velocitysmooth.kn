@@ -1,0 +1,50 @@
+shader compute mocap_velocity_smooth(id: UVec3) -> Vec4:
+    // ring layout: frame_ring[frame * joint_count + joint]
+    uniform in_joints: StorageBuffer<Vec4> @0
+    uniform frame_ring: StorageBuffer<Vec4> @1
+    uniform out_joints: StorageBuffer<Vec4> @2
+
+    uniform ring_size: UInt @3
+    uniform ring_head: UInt @4
+    uniform sigma: Float @5
+    uniform joint_count: UInt @6
+    uniform dt: Float @7
+    uniform eps: Float @8
+
+    uniform LOCAL_SIZE_X: UInt @100
+    uniform LOCAL_SIZE_Y: UInt @101
+    uniform LOCAL_SIZE_Z: UInt @102
+
+    let joint = id.x
+    if joint >= joint_count:
+        return vec4(0.0, 0.0, 0.0, 0.0)
+
+    let n = max(ring_size, 1 as UInt)
+    let head = if n > 0 as UInt: ring_head % n else: 0 as UInt
+    let cur = in_joints[joint]
+    let dt_safe = max(dt, eps)
+    let s2 = max(sigma * sigma, eps)
+
+    let mut w_sum = 0.0
+    let mut v_sum = vec3(0.0, 0.0, 0.0)
+    let mut k = 0 as UInt
+    while k < n:
+        let frame_idx = (head + n - k) % n
+        let idx = frame_idx * joint_count + joint
+        let prev = frame_ring[idx]
+        let v = (cur.xyz - prev.xyz) / dt_safe
+        let x = k as Float
+        // Gaussian-like falloff (no exp required).
+        let w = 1.0 / (1.0 + (x * x) / (2.0 * s2))
+        v_sum = v_sum + v * w
+        w_sum = w_sum + w
+        k = k + 1
+
+    let v_smooth = v_sum / max(w_sum, eps)
+    // Reintegrate from previous frame at ring_head.
+    let prev_cur = frame_ring[head * joint_count + joint]
+    let p = prev_cur.xyz + v_smooth * dt_safe
+    let out_v = vec4(p.x, p.y, p.z, cur.w)
+
+    out_joints[joint] = out_v
+    return out_v

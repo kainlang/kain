@@ -1,0 +1,93 @@
+// ============================================================================
+//  missing_file.kn [F] — .file() referencing non-existent file — det. error
+//
+//  Creates a sub-build.kn with a source_set .file("src/ghost.kn") pointing
+//  to a file that does not exist. Runs `kain check` twice and asserts the
+//  error output is byte-identical.
+// ============================================================================
+
+use runner
+use assert
+
+use std::fs       // fs_write_text, fs_create_dir_all, fs_remove_dir_all, fs_path_join
+use std::process  // process_spec_create_piped, process_spec_add_arg, process_spawn,
+                  // process_wait, process_stdout_capture_text, process_stderr_capture_text,
+                  // process_close
+use std::text      // text_join_strings
+
+// ---------------------------------------------------------------------------
+//  Helper: run `kain check` and return stderr
+// ---------------------------------------------------------------------------
+
+fn run_check_stderr(path: String) -> String:
+    let spec = process_spec_create_piped("kain")
+    if spec <= 0:
+        return "SPEC_FAIL:" + str(spec)
+    let _a0 = process_spec_add_arg(spec, "check")
+    let _a1 = process_spec_add_arg(spec, path)
+    let child = process_spawn(spec)
+    if child <= 0:
+        return "SPAWN_FAIL:" + str(child)
+    let _waited = process_wait(child, 30000)
+    let err = process_stderr_capture_text(child)
+    let _close = process_close(child)
+    return err
+
+// ---------------------------------------------------------------------------
+//  Test: missing file produces deterministic error
+// ---------------------------------------------------------------------------
+
+pub fn test_missing_file() -> TestResult:
+    let tmp = ".kain/tmp/missing_file/"
+    let _ = fs_create_dir_all(tmp)
+
+    // Create minimal entry source (exists) but .file() target does not.
+    let src_dir = fs_path_join(tmp, "src")
+    fs_create_dir_all(src_dir)
+    fs_write_text(fs_path_join(src_dir, "main.kn"), "fn main() -> Int:\n    return 0\n")
+
+    // Sub-build.kn with source_set.file("src/ghost.kn") — file does not exist.
+    let lines: Array<String> = []
+    push(lines, "use std::build")
+    push(lines, "fn build(ctx: BuildContext) -> BuildGraph:")
+    push(lines, "    let app = project(\"test\")")
+    push(lines, "        .kind(\"kain_executable\")")
+    push(lines, "        .version(\"1.0.0\")")
+    push(lines, "        .entry(\"src/main.kn\")")
+    push(lines, "        .targets(\"llvm\")")
+    push(lines, "        .artifact_root(\".kain/out\")")
+    push(lines, "        .cache_root(\".kain/cache\")")
+    push(lines, "    let bad_src = source_set(\"bad\")")
+    push(lines, "        .root(\"src\")")
+    push(lines, "        .file(\"src/ghost.kn\")")
+    push(lines, "    let chk = check_task(\"verify\")")
+    push(lines, "        .project(app)")
+    push(lines, "        .target(\"llvm\")")
+    push(lines, "        .inputs(bad_src)")
+    push(lines, "    return build_graph(app).tasks(chk)")
+    let build_text = text_join_strings(lines, "\n")
+
+    let build_path = fs_path_join(tmp, "build.kn")
+    fs_write_text(build_path, build_text)
+
+    let err1 = run_check_stderr(build_path)
+    let err2 = run_check_stderr(build_path)
+
+    let _ = fs_remove_dir_all(tmp)
+    return assert_consistent_error("missing_file", err1, err2)
+
+// ---------------------------------------------------------------------------
+//  Registration
+// ---------------------------------------------------------------------------
+
+pub fn get_tests() -> Array<TestCase>:
+    let mut list: Array<TestCase> = []
+    list = add_to_list(list, TestCase{
+        name: "missing_file",
+        tag: "missing_file",
+        category: "source_set_edges",
+        function: test_missing_file,
+        description: "source_set.file(\"src/ghost.kn\") referencing non-existent file produces consistent error",
+        expected: "FAIL"
+    })
+    return list

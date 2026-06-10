@@ -107,14 +107,14 @@ pub fn format_tree_entry(entry: TreeEntry, prefix: String, is_last: Bool) -> Str
 
     // Build the name part — append "/" to directories
     var name_part = entry.name
-    if entry.entry_type == "dir":
+    if entry.entry_type == "directory":
         name_part = name_part + "/"
 
     let size_str = " (" + format_size(entry.size) + ")"
     var line_text = prefix + connector + name_part + size_str
 
     // Recurse into children if this is a directory
-    if entry.entry_type == "dir" and len(entry.children) > 0:
+    if entry.entry_type == "directory" and len(entry.children) > 0:
         var child_prefix = prefix + "│   "
         if is_last:
             child_prefix = prefix + "    "
@@ -425,7 +425,7 @@ fn flatten_entries(entries: Array<TreeEntry>, root_prefix: String) -> Array<Tree
         push(result, entries[i])
 
         // Recurse into directory children
-        if entries[i].entry_type == "dir" and len(entries[i].children) > 0:
+        if entries[i].entry_type == "directory" and len(entries[i].children) > 0:
             let children = flatten_entries(entries[i].children, root_prefix)
             var j = 0
             while j < len(children):
@@ -465,7 +465,7 @@ fn sort_flat_entries(entries: Array<TreeEntry>) -> Array<TreeEntry> with Pure:
 fn flat_entry_order(a: TreeEntry, b: TreeEntry) -> Int with Pure:
     // Dirs before files
     if a.entry_type != b.entry_type:
-        if a.entry_type == "dir":
+        if a.entry_type == "directory":
             return -1
         return 1
 

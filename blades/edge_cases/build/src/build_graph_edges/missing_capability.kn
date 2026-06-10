@@ -1,0 +1,93 @@
+// ============================================================================
+//  missing_capability.kn [P] — Missing capability gracefully skipped
+//
+//  Creates a sub-build.kn with two tasks: one gated on
+//  .requires_capability("nonexistent.cap") and one normal task. Runs
+//  `kain check` twice and asserts the skip/no-skip decision is consistent.
+// ============================================================================
+
+use runner
+use assert
+
+use std::fs       // fs_write_text, fs_create_dir_all, fs_remove_dir_all, fs_path_join
+use std::process  // process_spec_create_piped, process_spec_add_arg, process_spawn,
+                  // process_wait, process_stdout_capture_text, process_stderr_capture_text,
+                  // process_close
+use std::text      // text_join_strings
+
+// ---------------------------------------------------------------------------
+//  Helper: run `kain check` and return combined output
+// ---------------------------------------------------------------------------
+
+fn run_check(path: String) -> String:
+    let spec = process_spec_create_piped("kain")
+    if spec <= 0:
+        return "SPEC_FAIL:" + str(spec)
+    let _a0 = process_spec_add_arg(spec, "check")
+    let _a1 = process_spec_add_arg(spec, path)
+    let child = process_spawn(spec)
+    if child <= 0:
+        return "SPAWN_FAIL:" + str(child)
+    let _waited = process_wait(child, 30000)
+    let captured_stdout = process_stdout_capture_text(child)
+    let captured_stderr = process_stderr_capture_text(child)
+    let _close = process_close(child)
+    return captured_stdout + "||STDERR||" + captured_stderr
+
+// ---------------------------------------------------------------------------
+//  Test: missing capability — deterministic skip
+// ---------------------------------------------------------------------------
+
+pub fn test_missing_capability() -> TestResult:
+    let tmp = ".kain/tmp/missing_capability/"
+    let _ = fs_create_dir_all(tmp)
+
+    // Create minimal source file.
+    let src_dir = fs_path_join(tmp, "src")
+    fs_create_dir_all(src_dir)
+    fs_write_text(fs_path_join(src_dir, "main.kn"), "fn main() -> Int:\n    return 0\n")
+
+    let lines: Array<String> = []
+    push(lines, "use std::build")
+    push(lines, "fn build(ctx: BuildContext) -> BuildGraph:")
+    push(lines, "    let app = project(\"cap-test\")")
+    push(lines, "        .kind(\"kain_executable\")")
+    push(lines, "        .version(\"1.0.0\")")
+    push(lines, "        .entry(\"src/main.kn\")")
+    push(lines, "        .targets(\"llvm\")")
+    push(lines, "        .artifact_root(\".kain/out\")")
+    push(lines, "        .cache_root(\".kain/cache\")")
+    push(lines, "    let main_task = check_task(\"main-check\")")
+    push(lines, "        .project(app)")
+    push(lines, "        .target(\"llvm\")")
+    push(lines, "    let gpu_task = check_task(\"gpu-check\")")
+    push(lines, "        .project(app)")
+    push(lines, "        .target(\"llvm\")")
+    push(lines, "        .requires_capability(\"nonexistent.cap\")")
+    push(lines, "    return build_graph(app).tasks(main_task, gpu_task)")
+    let build_text = text_join_strings(lines, "\n")
+
+    let build_path = fs_path_join(tmp, "build.kn")
+    fs_write_text(build_path, build_text)
+
+    let captured1 = run_check(build_path)
+    let captured2 = run_check(build_path)
+
+    let _ = fs_remove_dir_all(tmp)
+    return assert_deterministic("missing_capability", captured1, captured2)
+
+// ---------------------------------------------------------------------------
+//  Registration
+// ---------------------------------------------------------------------------
+
+pub fn get_tests() -> Array<TestCase>:
+    let mut list: Array<TestCase> = []
+    list = add_to_list(list, TestCase{
+        name: "missing_capability",
+        tag: "missing_capability",
+        category: "build_graph_edges",
+        function: test_missing_capability,
+        description: "Task with .requires_capability() on missing capability is gracefully skipped — deterministically",
+        expected: "PASS"
+    })
+    return list

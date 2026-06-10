@@ -1,0 +1,41 @@
+shader compute mocap_stabilize_root(id: UVec3) -> Vec4:
+    uniform in_joints: StorageBuffer<Vec4> @0
+    uniform prev_joints: StorageBuffer<Vec4> @1
+    uniform out_local: StorageBuffer<Vec4> @2
+    // Single-entry output buffer: out_velocity[0]
+    uniform out_velocity: StorageBuffer<Vec4> @3
+
+    uniform root_idx: UInt @4
+    uniform dt: Float @5
+    uniform smoothing: Float @6
+    uniform joint_count: UInt @7
+    uniform eps: Float @8
+
+    uniform LOCAL_SIZE_X: UInt @100
+    uniform LOCAL_SIZE_Y: UInt @101
+    uniform LOCAL_SIZE_Z: UInt @102
+
+    let joint = id.x
+    if joint >= joint_count:
+        return vec4(0.0, 0.0, 0.0, 0.0)
+
+    let root = min(root_idx, joint_count - 1)
+    let root_cur = in_joints[root]
+    let root_prev = prev_joints[root]
+    let dt_safe = max(dt, eps)
+
+    // Frame root velocity.
+    let v_raw = (root_cur.xyz - root_prev.xyz) / dt_safe
+    let prev_v = out_velocity[0].xyz
+    let t = clamp(smoothing, 0.0, 1.0)
+    let v = prev_v * (1.0 - t) + v_raw * t
+
+    if joint == 0:
+        out_velocity[0] = vec4(v.x, v.y, v.z, 0.0)
+
+    // Localize every joint around root.
+    let src = in_joints[joint]
+    let local = src.xyz - root_cur.xyz
+    let out_v = vec4(local.x, local.y, local.z, src.w)
+    out_local[joint] = out_v
+    return out_v

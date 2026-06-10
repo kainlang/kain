@@ -1,0 +1,71 @@
+shader compute mocap_denoise() -> Void:
+    uniform raw_joints: StorageBuffer<Float> @0
+    uniform history_joints: StorageBuffer<Float> @1
+    uniform out_joints: StorageBuffer<Float> @2
+
+    uniform joint_count: UInt @3
+    uniform delta_time: Float @4
+    uniform min_cutoff: Float @5
+    uniform beta: Float @6
+    uniform d_cutoff: Float @7
+    uniform jitter_response: Float @8
+    uniform max_blend: Float @9
+    uniform min_blend: Float @10
+    uniform eps: Float @11
+
+    uniform LOCAL_SIZE_X: UInt @100
+    uniform LOCAL_SIZE_Y: UInt @101
+    uniform LOCAL_SIZE_Z: UInt @102
+
+    let joint = dispatch_thread_id.x
+    let base = joint * 4
+
+    if joint >= joint_count:
+        return
+
+    let raw = vec3(
+        raw_joints[base + 0],
+        raw_joints[base + 1],
+        raw_joints[base + 2]
+    )
+    let hist = vec3(
+        history_joints[base + 0],
+        history_joints[base + 1],
+        history_joints[base + 2]
+    )
+
+    let dt_safe = max(delta_time, eps)
+    let inv_dt = 1.0 / dt_safe
+    let delta = raw - hist
+    let velocity = delta * inv_dt
+    let speed = length(velocity)
+
+    // One-Euro style adaptive cutoff
+    let cutoff = min_cutoff + beta * speed
+    let cutoff_safe = max(cutoff, eps)
+    let tau = 1.0 / (6.2831853 * cutoff_safe)
+    let alpha = 1.0 / (1.0 + tau * inv_dt)
+
+    // Derivative channel influence to suppress micro-jitter
+    let d_cutoff_safe = max(d_cutoff, eps)
+    let d_tau = 1.0 / (6.2831853 * d_cutoff_safe)
+    let d_alpha = 1.0 / (1.0 + d_tau * inv_dt)
+    let d_smoothed = velocity * d_alpha
+    let jitter_mag = length(d_smoothed)
+    let jitter_boost = clamp(jitter_mag * jitter_response, 0.0, 1.0)
+
+    let alpha_boosted = alpha + jitter_boost * (1.0 - alpha)
+    let alpha_clamped_high = min(alpha_boosted, max_blend)
+    let blend = max(alpha_clamped_high, min_blend)
+
+    let filtered = hist * (1.0 - blend) + raw * blend
+    let raw_conf = raw_joints[base + 3]
+    let hist_conf = history_joints[base + 3]
+    let conf = hist_conf * (1.0 - blend) + raw_conf * blend
+
+    out_joints[base + 0] = filtered.x
+    out_joints[base + 1] = filtered.y
+    out_joints[base + 2] = filtered.z
+    out_joints[base + 3] = conf
+
+    return

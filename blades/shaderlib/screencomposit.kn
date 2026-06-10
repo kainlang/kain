@@ -1,0 +1,101 @@
+// ============================================================================
+// K_OS Renderer - Screen Composite + Tone-Map - KAIN Edition
+// ============================================================================
+// Final screen-space pass. Reads linear HDR colour buffer, applies:
+//   - Exposure
+//   - ACES filmic tone-map (or Reinhard or linear)
+//   - sRGB gamma encode
+//   - Vignette
+//   - Optional wireframe tint (flat, no depth edge detection)
+//
+// 2D dispatch: id.x = pixel column (px), id.y = pixel row (py)
+// Compiled to SPIR-V via: kain renderer_screen_composit.kn -t spirv -o renderer_screen_composit.spv
+// ============================================================================
+
+shader compute renderer_screen_composit(id: UVec3) -> Vec4:
+    uniform hdr_buffer:  StorageBuffer<Vec4> @0
+    uniform ldr_output:  StorageBuffer<Vec4> @1
+
+    // Post-process params
+    uniform exposure:         Float @2
+    uniform gamma:            Float @3
+    uniform vignette_radius:  Float @4
+    uniform vignette_smooth:  Float @5
+    uniform tonemap_mode:     UInt  @6   // 0 = linear, 1 = ACES, 2 = Reinhard
+    uniform wire_tint:        Vec4  @7   // rgba wire tint colour
+    uniform wire_tint_weight: Float @8   // 0 = none, 1 = full tint
+
+    uniform viewport_width:  UInt @9
+    uniform viewport_height: UInt @10
+
+    uniform LOCAL_SIZE_X: UInt @100
+    uniform LOCAL_SIZE_Y: UInt @101
+    uniform LOCAL_SIZE_Z: UInt @102
+
+    let TONEMAP_LINEAR   = 0 as UInt
+    let TONEMAP_ACES     = 1 as UInt
+    let TONEMAP_REINHARD = 2 as UInt
+
+    let px = id.x
+    let py = id.y
+    if px >= viewport_width:
+        return vec4(0.0, 0.0, 0.0, 0.0)
+    if py >= viewport_height:
+        return vec4(0.0, 0.0, 0.0, 0.0)
+
+    let pixel_idx = py * viewport_width + px
+
+    // Sample HDR
+    let hdr_raw = hdr_buffer[pixel_idx]
+    let mut hdr_r = hdr_raw.x * exposure
+    let mut hdr_g = hdr_raw.y * exposure
+    let mut hdr_b = hdr_raw.z * exposure
+
+    // ACES filmic (Krzysztof Narkowicz approximation) — inlined per channel
+    if tonemap_mode == TONEMAP_ACES:
+        let a = 2.51
+        let b = 0.03
+        let c = 2.43
+        let d = 0.59
+        let e = 0.14
+        hdr_r = clamp((hdr_r * (hdr_r * a + b)) / (hdr_r * (hdr_r * c + d) + e), 0.0, 1.0)
+        hdr_g = clamp((hdr_g * (hdr_g * a + b)) / (hdr_g * (hdr_g * c + d) + e), 0.0, 1.0)
+        hdr_b = clamp((hdr_b * (hdr_b * a + b)) / (hdr_b * (hdr_b * c + d) + e), 0.0, 1.0)
+
+    if tonemap_mode == TONEMAP_REINHARD:
+        hdr_r = hdr_r / (hdr_r + 1.0)
+        hdr_g = hdr_g / (hdr_g + 1.0)
+        hdr_b = hdr_b / (hdr_b + 1.0)
+
+    // Clamp to [0,1]
+    hdr_r = clamp(hdr_r, 0.0, 1.0)
+    hdr_g = clamp(hdr_g, 0.0, 1.0)
+    hdr_b = clamp(hdr_b, 0.0, 1.0)
+
+    // Gamma encode (sRGB approx via pow)
+    let inv_g = 1.0 / gamma
+    let mut ldr_r = pow(hdr_r, inv_g)
+    let mut ldr_g = pow(hdr_g, inv_g)
+    let mut ldr_b = pow(hdr_b, inv_g)
+
+    // Vignette: darken towards screen edges
+    let uvx = (px as Float + 0.5) / viewport_width as Float
+    let uvy = (py as Float + 0.5) / viewport_height as Float
+    let centered_x = uvx - 0.5
+    let centered_y = uvy - 0.5
+    let vdist = sqrt(centered_x * centered_x + centered_y * centered_y)
+    let vig = 1.0 - clamp((vdist - vignette_radius) / vignette_smooth, 0.0, 1.0)
+    ldr_r = ldr_r * vig
+    ldr_g = ldr_g * vig
+    ldr_b = ldr_b * vig
+
+    // Wire tint overlay (flat colour blend)
+    let tint_r = wire_tint.x
+    let tint_g = wire_tint.y
+    let tint_b = wire_tint.z
+    ldr_r = mix(ldr_r, tint_r, wire_tint_weight)
+    ldr_g = mix(ldr_g, tint_g, wire_tint_weight)
+    ldr_b = mix(ldr_b, tint_b, wire_tint_weight)
+
+    ldr_output[pixel_idx] = vec4(ldr_r, ldr_g, ldr_b, hdr_raw.w)
+    return vec4(ldr_r, ldr_g, ldr_b, hdr_raw.w)

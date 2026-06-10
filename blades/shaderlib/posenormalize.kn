@@ -1,0 +1,39 @@
+shader compute mocap_pose_normalize(id: UVec3) -> Vec4:
+    uniform in_joints: StorageBuffer<Vec4> @0
+    uniform out_joints: StorageBuffer<Vec4> @1
+    uniform parents: StorageBuffer<Int> @2
+    uniform ref_lengths: StorageBuffer<Float> @3
+
+    uniform root_joint: UInt @4
+    uniform scale_factor: Float @5
+    uniform eps: Float @6
+    uniform joint_count: UInt @7
+
+    uniform LOCAL_SIZE_X: UInt @100
+    uniform LOCAL_SIZE_Y: UInt @101
+    uniform LOCAL_SIZE_Z: UInt @102
+
+    let joint = id.x
+    if joint >= joint_count:
+        return vec4(0.0, 0.0, 0.0, 0.0)
+
+    let root = min(root_joint, joint_count - 1)
+    let root_pos = in_joints[root].xyz
+    let src = in_joints[joint]
+
+    // Translate root to origin.
+    let local = src.xyz - root_pos
+
+    let parent_i = parents[joint]
+    let mut s = max(scale_factor, eps)
+    if parent_i >= 0:
+        let p = parent_i as UInt
+        if p < joint_count:
+            let cur_len = length(in_joints[joint].xyz - in_joints[p].xyz)
+            let ref_len = max(ref_lengths[joint], eps)
+            s = s * (ref_len / max(cur_len, eps))
+
+    let out_p = local * s
+    let out_v = vec4(out_p.x, out_p.y, out_p.z, src.w)
+    out_joints[joint] = out_v
+    return out_v

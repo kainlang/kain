@@ -1,0 +1,204 @@
+struct PaintLayerParams:
+    base_color: Vec3
+    roughness: Float
+    metallic: Float
+    normal_strength: Float
+    height_scale: Float
+    wetness: Float
+
+fn brush_falloff(distance: Float, radius: Float, hardness: Float) -> Float:
+    let normalized = clamp(1.0 - distance / radius, 0.0, 1.0)
+    return pow(normalized, max(hardness, 0.001))
+
+fn fresnel_schlick(cos_theta: Float, f0: Vec3) -> Vec3:
+    let power = pow(clamp(1.0 - cos_theta, 0.0, 1.0), 5.0)
+    return f0 + (vec3(1.0, 1.0, 1.0) - f0) * power
+
+fn distribution_ggx(n: Vec3, h: Vec3, roughness: Float) -> Float:
+    let a = roughness * roughness
+    let a2 = a * a
+    let n_dot_h = max(dot(n, h), 0.0)
+    let n_dot_h2 = n_dot_h * n_dot_h
+    let denom_inner = n_dot_h2 * (a2 - 1.0) + 1.0
+    let denom = 3.14159265 * denom_inner * denom_inner
+    return a2 / max(denom, 0.0001)
+
+fn geometry_schlick_ggx(n_dot_v: Float, roughness: Float) -> Float:
+    let r = roughness + 1.0
+    let k = (r * r) / 8.0
+    return n_dot_v / (n_dot_v * (1.0 - k) + k)
+
+fn geometry_smith(n: Vec3, v: Vec3, l: Vec3, roughness: Float) -> Float:
+    let n_dot_v = max(dot(n, v), 0.0)
+    let n_dot_l = max(dot(n, l), 0.0)
+    let ggx_v = geometry_schlick_ggx(n_dot_v, roughness)
+    let ggx_l = geometry_schlick_ggx(n_dot_l, roughness)
+    return ggx_v * ggx_l
+
+fn blend_angle_weight(normal: Vec3, brush_dir: Vec3) -> Float:
+    let facing = max(dot(normalize(normal), normalize(brush_dir)), 0.0)
+    return facing * facing
+
+fn triplanar_weights(normal: Vec3, sharpness: Float) -> Vec3:
+    let n = abs(normalize(normal))
+    let weights = vec3(pow(n.x, sharpness), pow(n.y, sharpness), pow(n.z, sharpness))
+    let total = max(weights.x + weights.y + weights.z, 0.0001)
+    return weights / total
+
+fn compute_wet_mix(base_roughness: Float, wetness: Float) -> Float:
+    return mix(base_roughness, base_roughness * 0.35, clamp(wetness, 0.0, 1.0))
+
+shader compute paint_accumulate_kernel(id: UVec3) -> Vec4:
+    uniform positions: StorageBuffer<Vec4> @0
+    uniform normals: StorageBuffer<Vec4> @1
+    uniform tangents: StorageBuffer<Vec4> @2
+    uniform uv0: StorageBuffer<Vec4> @3
+    uniform brush_center: Vec4 @4
+    uniform brush_color: Vec4 @5
+    uniform brush_params: Vec4 @6
+    uniform material_params: Vec4 @7
+    uniform stroke_velocity: Vec4 @8
+    uniform brush_alpha: Sampler2D @9
+    uniform surface_height: Sampler2D @10
+    uniform wetness_map: Sampler2D @11
+    uniform LOCAL_SIZE_X: UInt @100
+    uniform LOCAL_SIZE_Y: UInt @101
+    uniform CFG_ENABLE_HEIGHT: UInt @102
+    uniform CFG_ENABLE_WET_BLEND: UInt @103
+    uniform CFG_ENABLE_DIRECTIONAL_RAKE: UInt @104
+
+    let idx = id.x
+    let pos = positions[idx]
+    let normal4 = normals[idx]
+    let tangent4 = tangents[idx]
+    let uv = uv0[idx]
+    let world_pos = vec3(pos.x, pos.y, pos.z)
+    let world_normal = normalize(vec3(normal4.x, normal4.y, normal4.z))
+    let world_tangent = normalize(vec3(tangent4.x, tangent4.y, tangent4.z))
+    let to_brush = world_pos - vec3(brush_center.x, brush_center.y, brush_center.z)
+    let radius = brush_params.x
+    let hardness = brush_params.y
+    let opacity = brush_params.z
+    let paint_mode = brush_params.w
+    let distance = length(to_brush)
+    let radial_base = clamp(1.0 - distance / radius, 0.0, 1.0)
+    let radial = pow(radial_base, max(hardness, 0.001))
+    let alpha = sample(brush_alpha, vec2(uv.x, uv.y)).r
+    let height_mask = sample(surface_height, vec2(uv.x, uv.y)).r
+    let wetness = sample(wetness_map, vec2(uv.x, uv.y)).r
+    let brush_dir = normalize(vec3(stroke_velocity.x, stroke_velocity.y, stroke_velocity.z) + vec3(0.0001, 0.0, 0.0))
+    let facing = max(dot(world_normal, brush_dir), 0.0)
+    let angle_weight = facing * facing
+    let tangent_flow = max(dot(world_tangent, brush_dir), 0.0)
+    let tri_normal = abs(world_normal)
+    let tri_raw = vec3(pow(tri_normal.x, material_params.w), pow(tri_normal.y, material_params.w), pow(tri_normal.z, material_params.w))
+    let tri_total = max(tri_raw.x + tri_raw.y + tri_raw.z, 0.0001)
+    let tri = tri_raw / tri_total
+
+    var deposition = radial * alpha * opacity
+    if CFG_ENABLE_HEIGHT:
+        deposition = deposition * mix(1.0, height_mask, material_params.z)
+
+    if CFG_ENABLE_DIRECTIONAL_RAKE:
+        deposition = deposition * mix(1.0, tangent_flow, 0.65)
+
+    deposition = deposition * mix(0.5, 1.0, angle_weight)
+
+    let roughness = material_params.x
+    let metallic = material_params.y
+    let wet_roughness = mix(roughness, roughness * 0.35, clamp(wetness, 0.0, 1.0))
+
+    var out_color = vec3(brush_color.x, brush_color.y, brush_color.z) * deposition
+    if CFG_ENABLE_WET_BLEND:
+        out_color = mix(out_color, out_color * (1.0 - wet_roughness), wetness)
+
+    if paint_mode > 0.5:
+        out_color = mix(out_color, vec3(deposition, deposition * tri.y, deposition * tri.z), 0.4)
+
+    return vec4(out_color.x + metallic * 0.1, out_color.y, out_color.z + wet_roughness * 0.1, deposition)
+
+shader fragment paint_preview_fragment(frag_pos: Vec3, normal: Vec3, uv: Vec2, tangent: Vec3, bitangent: Vec3) -> Vec4:
+    uniform camera_pos: Vec3 @0
+    uniform light_pos: Vec3 @1
+    uniform light_color: Vec3 @2
+    uniform light_intensity: Float @3
+    uniform base_color_map: Sampler2D @4
+    uniform normal_map: Sampler2D @5
+    uniform orm_map: Sampler2D @6
+    uniform paint_albedo_map: Sampler2D @7
+    uniform paint_material_map: Sampler2D @8
+    uniform paint_height_map: Sampler2D @9
+    uniform paint_wetness_map: Sampler2D @10
+    uniform brush_reveal_map: Sampler2D @11
+    uniform layer_params: Vec4 @12
+    uniform wet_params: Vec4 @13
+    uniform CFG_ENABLE_CLEARCOAT: UInt @100
+    uniform CFG_ENABLE_SUBSURFACE: UInt @101
+    uniform CFG_ENABLE_HEIGHT_BLEND: UInt @102
+
+    let base_albedo = sample(base_color_map, uv).rgb
+    let orm = sample(orm_map, uv)
+    let base_ao = orm.r
+    let base_roughness = orm.g
+    let base_metallic = orm.b
+    let packed_normal = sample(normal_map, uv).rgb * 2.0 - 1.0
+    let shading_normal = normalize(vec3(packed_normal.x, packed_normal.y, packed_normal.z) + normal)
+
+    let paint_albedo = sample(paint_albedo_map, uv).rgb
+    let paint_material = sample(paint_material_map, uv)
+    let paint_height = sample(paint_height_map, uv).r
+    let paint_wetness = sample(paint_wetness_map, uv).r
+    let reveal = sample(brush_reveal_map, uv).r
+
+    var blend = reveal
+    if CFG_ENABLE_HEIGHT_BLEND:
+        blend = blend * mix(1.0, paint_height, wet_params.z)
+
+    let final_albedo = mix(base_albedo, paint_albedo, blend)
+    let final_roughness = mix(base_roughness, paint_material.g, blend)
+    let final_metallic = mix(base_metallic, paint_material.b, blend)
+    let final_wetness = clamp(paint_wetness * wet_params.x, 0.0, 1.0)
+    let adjusted_roughness = mix(final_roughness, final_roughness * 0.35, final_wetness)
+
+    let view_dir = normalize(camera_pos - frag_pos)
+    let light_dir = normalize(light_pos - frag_pos)
+    let half_vec = normalize(view_dir + light_dir)
+    let n_dot_l = max(dot(shading_normal, light_dir), 0.0)
+    let n_dot_v = max(dot(shading_normal, view_dir), 0.0)
+    let h_dot_v = max(dot(half_vec, view_dir), 0.0)
+
+    let f0 = mix(vec3(0.04, 0.04, 0.04), final_albedo, final_metallic)
+    let fresnel_power = pow(clamp(1.0 - h_dot_v, 0.0, 1.0), 5.0)
+    let f = f0 + (vec3(1.0, 1.0, 1.0) - f0) * fresnel_power
+
+    let a = adjusted_roughness * adjusted_roughness
+    let a2 = a * a
+    let n_dot_h = max(dot(shading_normal, half_vec), 0.0)
+    let n_dot_h2 = n_dot_h * n_dot_h
+    let denom_inner = n_dot_h2 * (a2 - 1.0) + 1.0
+    let ndf = a2 / max(3.14159265 * denom_inner * denom_inner, 0.0001)
+
+    let r = adjusted_roughness + 1.0
+    let k = (r * r) / 8.0
+    let ggx_v = n_dot_v / (n_dot_v * (1.0 - k) + k)
+    let ggx_l = n_dot_l / (n_dot_l * (1.0 - k) + k)
+    let g = ggx_v * ggx_l
+
+    let specular = (ndf * g * f) / max(4.0 * n_dot_l * n_dot_v, 0.0001)
+    let kd = (vec3(1.0, 1.0, 1.0) - f) * (1.0 - final_metallic)
+    let diffuse = kd * final_albedo / 3.14159265
+    let radiance = light_color * light_intensity
+
+    var color = (diffuse + specular) * radiance * n_dot_l
+    color = color + final_albedo * base_ao * 0.03
+    color = mix(color, color + final_albedo * final_wetness * 0.1, wet_params.y)
+
+    if CFG_ENABLE_CLEARCOAT:
+        let coat = pow(1.0 - max(dot(view_dir, shading_normal), 0.0), 4.0)
+        color = color + vec3(coat, coat, coat) * layer_params.x
+
+    if CFG_ENABLE_SUBSURFACE:
+        let rim = pow(1.0 - max(dot(view_dir, shading_normal), 0.0), 2.0)
+        color = color + final_albedo * rim * layer_params.y
+
+    return vec4(color.x, color.y, color.z, 1.0)

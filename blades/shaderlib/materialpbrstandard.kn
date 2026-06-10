@@ -1,0 +1,178 @@
+// Standard PBR Material Shader (Metallic/Roughness Workflow)
+// Optimized for Rust + wgpu integration via GPU artifacts
+// Cook-Torrance BRDF with full texture support
+// All calculations inlined for KAIN compatibility
+
+// ============================================================================
+// COMPUTE SHADER - PBR Material Evaluation
+// ============================================================================
+
+shader compute material_pbr_standard(id: UVec3) -> Vec4:
+    // G-Buffer inputs (read-only storage buffers)
+    uniform positions: StorageBuffer<Vec4> @0
+    uniform normals: StorageBuffer<Vec4> @1
+    uniform uvs: StorageBuffer<Vec4> @2
+    uniform tangents: StorageBuffer<Vec4> @3
+    
+    // Texture maps (sampler2D)
+    uniform albedo_map: Sampler2D @4
+    uniform normal_map: Sampler2D @5
+    uniform metallic_map: Sampler2D @6
+    uniform roughness_map: Sampler2D @7
+    uniform ao_map: Sampler2D @8
+    uniform emissive_map: Sampler2D @9
+    
+    // Material parameters (uniforms)
+    uniform base_color: Vec4 @10
+    uniform metallic_factor: Float @11
+    uniform roughness_factor: Float @12
+    uniform emissive_strength: Float @13
+    uniform normal_strength: Float @14
+    uniform ao_strength: Float @15
+    
+    // Scene parameters (uniforms)
+    uniform camera_position: Vec4 @16
+    uniform sun_direction: Vec4 @17
+    uniform sun_color: Vec4 @18
+    uniform sun_intensity: Float @19
+    uniform ambient_color: Vec3 @20
+    
+    // Viewport dimensions (uniforms)
+    uniform viewport_width: UInt @21
+    uniform viewport_height: UInt @22
+    
+    // Output buffer (read-write storage buffer)
+    uniform color_out: StorageBuffer<Vec4> @23
+    
+    // Permutation flags (specialization constants)
+    uniform CFG_ENABLE_NORMAL_MAPPING: UInt @100
+    uniform CFG_ENABLE_AO: UInt @101
+    uniform CFG_ENABLE_EMISSIVE: UInt @102
+    uniform CFG_HIGH_QUALITY: UInt @103
+    
+    // Workgroup size (specialization constants)
+    uniform LOCAL_SIZE_X: UInt @104
+    uniform LOCAL_SIZE_Y: UInt @105
+    
+    // Calculate pixel index
+    let pixel_x = id.x
+    let pixel_y = id.y
+    let pixel_index = pixel_y * viewport_width + pixel_x
+    
+    // Early exit if out of bounds
+    if pixel_x >= viewport_width:
+        return vec4(0.0, 0.0, 0.0, 0.0)
+    if pixel_y >= viewport_height:
+        return vec4(0.0, 0.0, 0.0, 0.0)
+    
+    // Sample G-buffer
+    let position = positions[pixel_index]
+    let normal_packed = normals[pixel_index]
+    let uv_packed = uvs[pixel_index]
+    let tangent_packed = tangents[pixel_index]
+    
+    // Unpack data
+    let world_pos = vec3(position.x, position.y, position.z)
+    let world_normal = normalize(vec3(normal_packed.x, normal_packed.y, normal_packed.z))
+    let uv = vec2(uv_packed.x, uv_packed.y)
+    let world_tangent = normalize(vec3(tangent_packed.x, tangent_packed.y, tangent_packed.z))
+    let bitangent_sign = tangent_packed.w
+    
+    // Sample material textures
+    let albedo_sample = sample(albedo_map, uv)
+    let albedo = albedo_sample.rgb * base_color.rgb
+    let alpha = albedo_sample.a * base_color.a
+    
+    let metallic_value = sample(metallic_map, uv).r * metallic_factor
+    let roughness_value = sample(roughness_map, uv).r * roughness_factor
+    
+    // Apply normal mapping (optional via permutation)
+    var mapped_normal = world_normal
+    if CFG_ENABLE_NORMAL_MAPPING:
+        let tangent_normal_packed = sample(normal_map, uv).rgb
+        // Unpack normal
+        let unpacked = tangent_normal_packed * 2.0 - 1.0
+        let tangent_normal = normalize(vec3(unpacked.x * normal_strength, unpacked.y * normal_strength, unpacked.z))
+        // Apply TBN
+        let bitangent = cross(world_normal, world_tangent) * bitangent_sign
+        let tbn_x = world_tangent * tangent_normal.x
+        let tbn_y = bitangent * tangent_normal.y
+        let tbn_z = world_normal * tangent_normal.z
+        mapped_normal = normalize(tbn_x + tbn_y + tbn_z)
+    
+    // Sample AO (optional via permutation)
+    var ao_value = 1.0
+    if CFG_ENABLE_AO:
+        ao_value = mix(1.0, sample(ao_map, uv).r, ao_strength)
+    
+    // Sample emissive (optional via permutation)
+    var emissive = vec3(0.0, 0.0, 0.0)
+    if CFG_ENABLE_EMISSIVE:
+        emissive = sample(emissive_map, uv).rgb * emissive_strength
+    
+    // View direction
+    let view_dir = normalize(vec3(camera_position.x, camera_position.y, camera_position.z) - world_pos)
+    
+    // Calculate F0 (reflectance at normal incidence)
+    let dielectric_f0 = vec3(0.04, 0.04, 0.04)
+    let f0 = mix(dielectric_f0, albedo, metallic_value)
+    
+    // ========================================================================
+    // LIGHTING CALCULATION - Cook-Torrance BRDF (all inlined)
+    // ========================================================================
+    
+    // Directional light (sun)
+    let light_dir = normalize(vec3(sun_direction.x, sun_direction.y, sun_direction.z))
+    let halfway = normalize(view_dir + light_dir)
+    
+    let n_dot_l = max(dot(mapped_normal, light_dir), 0.0)
+    let n_dot_v = max(dot(mapped_normal, view_dir), 0.0)
+    let n_dot_h = max(dot(mapped_normal, halfway), 0.0)
+    let v_dot_h = max(dot(view_dir, halfway), 0.0)
+    
+    // Fresnel-Schlick (inlined)
+    let fresnel_power = pow(clamp(1.0 - v_dot_h, 0.0, 1.0), 5.0)
+    let f = f0 + (vec3(1.0, 1.0, 1.0) - f0) * fresnel_power
+    
+    // GGX Distribution (inlined)
+    let a = roughness_value * roughness_value
+    let a2 = a * a
+    let n_dot_h2 = n_dot_h * n_dot_h
+    let denom_inner = n_dot_h2 * (a2 - 1.0) + 1.0
+    let d = a2 / max(3.14159265 * denom_inner * denom_inner, 0.0001)
+    
+    // Geometry Smith (inlined)
+    let r = roughness_value + 1.0
+    let k = (r * r) / 8.0
+    let ggx_v = n_dot_v / (n_dot_v * (1.0 - k) + k)
+    let ggx_l = n_dot_l / (n_dot_l * (1.0 - k) + k)
+    let g = ggx_v * ggx_l
+    
+    // Specular term
+    let numerator = d * g * f
+    let denominator = 4.0 * n_dot_v * n_dot_l + 0.0001
+    let specular = numerator / denominator
+    
+    // Energy conservation
+    let ks = f
+    let kd = (vec3(1.0, 1.0, 1.0) - ks) * (1.0 - metallic_value)
+    
+    // Outgoing radiance
+    let radiance = vec3(sun_color.x, sun_color.y, sun_color.z) * sun_intensity
+    let lo = (kd * albedo / 3.14159265 + specular) * radiance * n_dot_l
+    
+    // Ambient lighting (IBL approximation)
+    let ambient = ambient_color * albedo * ao_value
+    
+    // Final color
+    var final_color = ambient + lo + emissive
+    
+    // High quality mode: additional ambient occlusion darkening
+    if CFG_HIGH_QUALITY:
+        final_color = final_color * mix(1.0, ao_value, 0.5)
+    
+    // Write output
+    let output = vec4(final_color.x, final_color.y, final_color.z, alpha)
+    color_out[pixel_index] = output
+    
+    return output

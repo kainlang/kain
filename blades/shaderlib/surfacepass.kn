@@ -1,0 +1,78 @@
+// ============================================================================
+// K_OS Renderer - Depth Pre-Pass Compute Shader - KAIN Edition
+// ============================================================================
+// Projects each vertex through MVP and writes NDC depth into a flat buffer.
+// Host must clear depth_out to 1.0 before dispatch.
+// One thread per vertex.
+//
+// Compiled to SPIR-V via: kain renderer_surface_pass.kn -t spirv -o renderer_surface_pass.spv
+// ============================================================================
+
+shader compute renderer_surface_pass(id: UVec3) -> Vec4:
+    uniform positions: StorageBuffer<Vec4> @0
+    // Output: flat depth buffer (one Float per pixel, row-major)
+    // Host clears to 1.0 before dispatch
+    uniform depth_out: StorageBuffer<Float> @1
+
+    // MVP matrix — column-major, 4 columns as Vec4
+    uniform mvp_c0: Vec4 @2
+    uniform mvp_c1: Vec4 @3
+    uniform mvp_c2: Vec4 @4
+    uniform mvp_c3: Vec4 @5
+
+    uniform viewport_width:  UInt @6
+    uniform viewport_height: UInt @7
+    uniform vertex_count:    UInt @8
+
+    uniform LOCAL_SIZE_X: UInt @100
+    uniform LOCAL_SIZE_Y: UInt @101
+    uniform LOCAL_SIZE_Z: UInt @102
+
+    let vertex_idx = id.x
+    if vertex_idx >= vertex_count:
+        return vec4(0.0, 0.0, 0.0, 0.0)
+
+    let world = positions[vertex_idx].xyz
+    let pos4  = vec4(world.x, world.y, world.z, 1.0)
+
+    // MVP multiply (column-major)
+    let cx = dot(vec4(mvp_c0.x, mvp_c1.x, mvp_c2.x, mvp_c3.x), pos4)
+    let cy = dot(vec4(mvp_c0.y, mvp_c1.y, mvp_c2.y, mvp_c3.y), pos4)
+    let cz = dot(vec4(mvp_c0.z, mvp_c1.z, mvp_c2.z, mvp_c3.z), pos4)
+    let cw = dot(vec4(mvp_c0.w, mvp_c1.w, mvp_c2.w, mvp_c3.w), pos4)
+
+    // Behind camera
+    if cw <= 0.0:
+        return vec4(0.0, 0.0, 0.0, 0.0)
+
+    let inv_w  = 1.0 / cw
+    let ndc_x  = cx * inv_w
+    let ndc_y  = cy * inv_w
+    let ndc_z  = cz * inv_w
+
+    // NDC → screen pixels (y-flip for top-left origin)
+    let sx_f = (ndc_x * 0.5 + 0.5) * viewport_width as Float
+    let sy_f = (1.0 - (ndc_y * 0.5 + 0.5)) * viewport_height as Float
+
+    // Out of screen
+    if sx_f < 0.0:
+        return vec4(0.0, 0.0, 0.0, 0.0)
+    if sy_f < 0.0:
+        return vec4(0.0, 0.0, 0.0, 0.0)
+
+    let sx = sx_f as UInt
+    let sy = sy_f as UInt
+
+    if sx >= viewport_width:
+        return vec4(0.0, 0.0, 0.0, 0.0)
+    if sy >= viewport_height:
+        return vec4(0.0, 0.0, 0.0, 0.0)
+
+    let depth      = clamp(ndc_z, 0.0, 1.0)
+    let pixel_idx  = sy * viewport_width + sx
+    let current    = depth_out[pixel_idx]
+
+    if depth < current:
+        depth_out[pixel_idx] = depth
+
+    return vec4(sx_f, sy_f, depth, 1.0)

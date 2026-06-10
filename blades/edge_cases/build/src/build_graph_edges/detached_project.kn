@@ -1,0 +1,98 @@
+// ============================================================================
+//  detached_project.kn [F] — Unattached project reference — det. error
+//
+//  Creates project A and project B, but only adds project A to the build
+//  graph. A task references project B, which is detached. Runs `kain check`
+//  twice and asserts error is byte-identical.
+// ============================================================================
+
+use runner
+use assert
+
+use std::fs       // fs_write_text, fs_create_dir_all, fs_remove_dir_all, fs_path_join
+use std::process  // process_spec_create_piped, process_spec_add_arg, process_spawn,
+                  // process_wait, process_stdout_capture_text, process_stderr_capture_text,
+                  // process_close
+use std::text      // text_join_strings
+
+// ---------------------------------------------------------------------------
+//  Helper: run `kain check` and return stderr
+// ---------------------------------------------------------------------------
+
+fn run_check_stderr(path: String) -> String:
+    let spec = process_spec_create_piped("kain")
+    if spec <= 0:
+        return "SPEC_FAIL:" + str(spec)
+    let _a0 = process_spec_add_arg(spec, "check")
+    let _a1 = process_spec_add_arg(spec, path)
+    let child = process_spawn(spec)
+    if child <= 0:
+        return "SPAWN_FAIL:" + str(child)
+    let _waited = process_wait(child, 30000)
+    let err = process_stderr_capture_text(child)
+    let _close = process_close(child)
+    return err
+
+// ---------------------------------------------------------------------------
+//  Test: detached project reference produces deterministic error
+// ---------------------------------------------------------------------------
+
+pub fn test_detached_project() -> TestResult:
+    let tmp = ".kain/tmp/detached_project/"
+    let _ = fs_create_dir_all(tmp)
+
+    // Create minimal source files — one per project.
+    let src_dir = fs_path_join(tmp, "src")
+    fs_create_dir_all(src_dir)
+    fs_write_text(fs_path_join(src_dir, "main.kn"), "fn main() -> Int:\n    return 0\n")
+
+    let lines: Array<String> = []
+    push(lines, "use std::build")
+    push(lines, "fn build(ctx: BuildContext) -> BuildGraph:")
+    push(lines, "    let proj_a = project(\"project-a\")")
+    push(lines, "        .kind(\"kain_executable\")")
+    push(lines, "        .version(\"1.0.0\")")
+    push(lines, "        .entry(\"src/main.kn\")")
+    push(lines, "        .targets(\"llvm\")")
+    push(lines, "        .artifact_root(\".kain/out\")")
+    push(lines, "        .cache_root(\".kain/cache\")")
+    push(lines, "    let proj_b = project(\"project-b\")")
+    push(lines, "        .kind(\"kain_executable\")")
+    push(lines, "        .version(\"1.0.0\")")
+    push(lines, "        .entry(\"src/main.kn\")")
+    push(lines, "        .targets(\"llvm\")")
+    push(lines, "        .artifact_root(\".kain/out\")")
+    push(lines, "        .cache_root(\".kain/cache\")")
+    push(lines, "    let a_task = check_task(\"a-task\")")
+    push(lines, "        .project(proj_a)")
+    push(lines, "        .target(\"llvm\")")
+    push(lines, "    let b_task = check_task(\"b-task\")")
+    push(lines, "        .project(proj_b)")
+    push(lines, "        .target(\"llvm\")")
+    push(lines, "    return build_graph(proj_a).tasks(a_task, b_task)")
+    let build_text = text_join_strings(lines, "\n")
+
+    let build_path = fs_path_join(tmp, "build.kn")
+    fs_write_text(build_path, build_text)
+
+    let err1 = run_check_stderr(build_path)
+    let err2 = run_check_stderr(build_path)
+
+    let _ = fs_remove_dir_all(tmp)
+    return assert_consistent_error("detached_project", err1, err2)
+
+// ---------------------------------------------------------------------------
+//  Registration
+// ---------------------------------------------------------------------------
+
+pub fn get_tests() -> Array<TestCase>:
+    let mut list: Array<TestCase> = []
+    list = add_to_list(list, TestCase{
+        name: "detached_project",
+        tag: "detached_project",
+        category: "build_graph_edges",
+        function: test_detached_project,
+        description: "Task referencing project not added to build_graph produces consistent error",
+        expected: "FAIL"
+    })
+    return list

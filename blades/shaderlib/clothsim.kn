@@ -1,0 +1,41 @@
+shader compute mocap_cloth_sim(id: UVec3) -> Vec4:
+    // PBD-lite cloth point solver on attachment points.
+    uniform in_points: StorageBuffer<Vec4> @0
+    uniform prev_points: StorageBuffer<Vec4> @1
+    uniform attach_pos: StorageBuffer<Vec4> @2
+    uniform attach_mask: StorageBuffer<Float> @3 // 0..1 pin weight
+    uniform out_points: StorageBuffer<Vec4> @4
+
+    uniform dt: Float @5
+    uniform gravity: Float @6
+    uniform damping: Float @7
+    uniform stiffness: Float @8
+    uniform eps: Float @9
+    uniform point_count: UInt @10
+
+    uniform LOCAL_SIZE_X: UInt @100
+    uniform LOCAL_SIZE_Y: UInt @101
+    uniform LOCAL_SIZE_Z: UInt @102
+
+    let p = id.x
+    if p >= point_count:
+        return vec4(0.0, 0.0, 0.0, 0.0)
+
+    let cur = in_points[p]
+    let prev = prev_points[p]
+    let pin = attach_pos[p]
+    let m = clamp(attach_mask[p], 0.0, 1.0)
+
+    let dt_safe = max(dt, eps)
+    let damp = clamp(damping, 0.0, 1.0)
+    let k = clamp(stiffness, 0.0, 1.0)
+
+    // Verlet-style prediction.
+    let vel = (cur.xyz - prev.xyz) * damp
+    let pred = cur.xyz + vel + vec3(0.0, -gravity, 0.0) * (dt_safe * dt_safe)
+
+    // Attachment projection.
+    let solved = pred * (1.0 - m * k) + pin.xyz * (m * k)
+    let out_v = vec4(solved.x, solved.y, solved.z, cur.w)
+    out_points[p] = out_v
+    return out_v

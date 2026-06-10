@@ -1,0 +1,141 @@
+// ============================================================================
+//  assert.kn — Determinism-specific assertion helpers
+//
+//  Every edge-case test function in Writers 2 & 3 uses these.
+//  Layer 0: plain fn. No world/actor/entangle/patch/law.
+// ============================================================================
+
+use std::fs      // fs_hash_file, fs_is_file, fs_path_join
+use runner       // TestResult, make_ok, make_fail
+
+// ---------------------------------------------------------------------------
+//  Value comparison
+// ---------------------------------------------------------------------------
+
+/// Compare two string values from two build passes.
+pub fn assert_deterministic(name: String, pass1_value: String, pass2_value: String) -> TestResult:
+    if pass1_value == pass2_value:
+        return make_ok(name, "deterministic — values match")
+    else:
+        let detail = "pass1: " + pass1_value + " | pass2: " + pass2_value
+        return make_fail(name, detail)
+
+// ---------------------------------------------------------------------------
+//  Error-output consistency (for expected-failure tests)
+// ---------------------------------------------------------------------------
+
+/// For tests that expect a FAIL: asserts that two error outputs are
+/// byte-for-byte identical.
+pub fn assert_consistent_error(name: String, error1: String, error2: String) -> TestResult:
+    if error1 == error2:
+        return make_ok(name, "error output is deterministic")
+    else:
+        let detail = "error1: " + error1 + " | error2: " + error2
+        return make_fail(name, detail)
+
+// ---------------------------------------------------------------------------
+//  Byte-level file comparison
+// ---------------------------------------------------------------------------
+
+/// Compare two files by SHA256 hash.
+pub fn assert_byte_identical(name: String, file1: String, file2: String) -> TestResult:
+    let h1 = fs_hash_file(file1)
+    let h2 = fs_hash_file(file2)
+    if h1 == h2:
+        return make_ok(name, "byte-identical — SHA256 " + h1)
+    else:
+        let detail = "hash1: " + h1 + " | hash2: " + h2
+        return make_fail(name, detail)
+
+// ---------------------------------------------------------------------------
+//  File-list comparison
+// ---------------------------------------------------------------------------
+
+/// Compare two string arrays for identical content and order.
+pub fn assert_file_list_identical(name: String, list1: Array<String>, list2: Array<String>) -> TestResult:
+    let n1 = len(list1)
+    let n2 = len(list2)
+    if n1 != n2:
+        let detail = "list lengths differ: " + str(n1) + " vs " + str(n2)
+        return make_fail(name, detail)
+
+    var i = 0
+    while i < n1:
+        if list1[i] != list2[i]:
+            let detail = "entry " + str(i) + " differs: " + list1[i] + " vs " + list2[i]
+            return make_fail(name, detail)
+        i = i + 1
+
+    return make_ok(name, "file lists identical (" + str(n1) + " entries)")
+
+// ---------------------------------------------------------------------------
+//  Full-artifact determinism check
+// ---------------------------------------------------------------------------
+
+/// Recursively compare every file in two build output directories.
+pub fn assert_artifacts_deterministic(name: String, dir1: String, dir2: String) -> TestResult:
+    let files1 = collect_files_sorted(dir1)
+    let files2 = collect_files_sorted(dir2)
+
+    let count1 = len(files1)
+    let count2 = len(files2)
+    if count1 != count2:
+        let detail = "artifact count differs: " + str(count1) + " vs " + str(count2)
+        return make_fail(name, detail)
+
+    var i = 0
+    while i < count1:
+        let f1 = fs_path_join(dir1, files1[i])
+        let f2 = fs_path_join(dir2, files2[i])
+
+        if files1[i] != files2[i]:
+            let detail = "file " + str(i) + " name differs: " + files1[i] + " vs " + files2[i]
+            return make_fail(name, detail)
+
+        let h1 = fs_hash_file(f1)
+        let h2 = fs_hash_file(f2)
+        if h1 != h2:
+            let detail = files1[i] + " hash differs: " + h1 + " vs " + h2
+            return make_fail(name, detail)
+
+        i = i + 1
+
+    return make_ok(name, "all " + str(count1) + " artifacts deterministic")
+
+// ---------------------------------------------------------------------------
+//  Internal: collect relative file paths from a directory tree, sorted
+// ---------------------------------------------------------------------------
+
+fn collect_files_sorted(root: String) -> Array<String>:
+    let entries = fs_walk(root)
+    let mut files: Array<String> = []
+
+    var i = 0
+    while i < len(entries):
+        let entry = entries[i]
+        if fs_is_file(entry.path):
+            push(files, entry.path)
+        i = i + 1
+
+    return sort_strings_asc(files)
+
+// ---------------------------------------------------------------------------
+//  Internal: simple insertion sort for Array<String> (ascending)
+// ---------------------------------------------------------------------------
+
+fn sort_strings_asc(arr: Array<String>) -> Array<String>:
+    let n = len(arr)
+    if n <= 1:
+        return arr
+
+    var i = 1
+    while i < n:
+        let key = arr[i]
+        var j = i - 1
+        while j >= 0 and arr[j] > key:
+            arr[j + 1] = arr[j]
+            j = j - 1
+        arr[j + 1] = key
+        i = i + 1
+
+    return arr

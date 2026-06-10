@@ -1,0 +1,79 @@
+shader compute mocap_audio_motion(id: UVec3) -> Vec4:
+    // Input pose + FFT magnitudes + per-joint group tag.
+    // group_map values:
+    // 0 hips/core, 1 arms, 2 hands, 3 default subtle.
+    uniform in_pose: StorageBuffer<Vec4> @0
+    uniform fft_mag: StorageBuffer<Float> @1
+    uniform group_map: StorageBuffer<Int> @2
+    uniform out_pose: StorageBuffer<Vec4> @3
+
+    uniform joint_count: UInt @4
+    uniform fft_count: UInt @5
+    uniform bass_end: UInt @6
+    uniform mid_end: UInt @7
+    uniform high_end: UInt @8
+    uniform hip_gain: Float @9
+    uniform arm_gain: Float @10
+    uniform hand_gain: Float @11
+    uniform time_sec: Float @12
+    uniform eps: Float @13
+
+    uniform LOCAL_SIZE_X: UInt @100
+    uniform LOCAL_SIZE_Y: UInt @101
+    uniform LOCAL_SIZE_Z: UInt @102
+
+    let joint = id.x
+    if joint >= joint_count:
+        return vec4(0.0, 0.0, 0.0, 0.0)
+
+    let fft_n = max(fft_count, 1 as UInt)
+    let b_end = min(max(bass_end, 1 as UInt), fft_n)
+    let m_end = min(max(mid_end, b_end + 1 as UInt), fft_n)
+    let h_end = min(max(high_end, m_end + 1 as UInt), fft_n)
+
+    let mut bass_sum = 0.0
+    let mut bi = 0 as UInt
+    while bi < b_end:
+        bass_sum = bass_sum + max(fft_mag[bi], 0.0)
+        bi = bi + 1
+    let bass = bass_sum / max(b_end as Float, eps)
+
+    let mut mid_sum = 0.0
+    let mut mi = b_end
+    while mi < m_end:
+        mid_sum = mid_sum + max(fft_mag[mi], 0.0)
+        mi = mi + 1
+    let mid = mid_sum / max((m_end - b_end) as Float, eps)
+
+    let mut high_sum = 0.0
+    let mut hi = m_end
+    while hi < h_end:
+        high_sum = high_sum + max(fft_mag[hi], 0.0)
+        hi = hi + 1
+    let high = high_sum / max((h_end - m_end) as Float, eps)
+
+    let src = in_pose[joint]
+    let g = group_map[joint]
+    let phase = time_sec * 6.2831853 + joint as Float * 0.37
+
+    let mut pos = src.xyz
+    if g == 0:
+        // Hips/core follow bass with vertical lift + horizontal sway.
+        pos = pos + vec3(sin(phase) * bass * hip_gain * 0.35, bass * hip_gain, cos(phase * 0.7) * bass * hip_gain * 0.25)
+    else:
+        if g == 1:
+            // Arms follow mids with wider lateral motion.
+            let side = if (joint as Int & 1) == 0: -1.0 else: 1.0
+            pos = pos + vec3(side * sin(phase * 1.4) * mid * arm_gain, cos(phase) * mid * arm_gain * 0.35, 0.0)
+        else:
+            if g == 2:
+                // Hands react to highs with twitchy small-amplitude detail.
+                pos = pos + vec3(sin(phase * 3.0) * high * hand_gain * 0.4, abs(sin(phase * 2.1)) * high * hand_gain * 0.3, cos(phase * 2.7) * high * hand_gain * 0.25)
+            else:
+                // Default subtle full-band motion.
+                let full = (bass + mid + high) * (1.0 / 3.0)
+                pos = pos + vec3(0.0, full * 0.05, 0.0)
+
+    let out_v = vec4(pos.x, pos.y, pos.z, src.w)
+    out_pose[joint] = out_v
+    return out_v

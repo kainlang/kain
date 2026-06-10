@@ -1,0 +1,82 @@
+// ============================================================================
+//  zero_length_strings.kn [F] — Zero-length strings produce consistent errors
+//
+//  Creates a sub-build.kn with empty-string .version("") and .kind(""),
+//  runs `kain check` twice, and asserts error output is byte-identical.
+// ============================================================================
+
+use runner
+use assert
+
+use std::fs       // fs_write_text, fs_create_dir_all, fs_remove_dir_all, fs_path_join
+use std::process  // process_spec_create_piped, process_spec_add_arg, process_spawn,
+                  // process_wait, process_stdout_capture_text, process_stderr_capture_text,
+                  // process_close
+use std::text      // text_join_strings
+
+// ---------------------------------------------------------------------------
+//  Helper: run `kain check` and return stderr only
+// ---------------------------------------------------------------------------
+
+fn run_check_stderr(path: String) -> String:
+    let spec = process_spec_create_piped("kain")
+    if spec <= 0:
+        return "SPEC_FAIL:" + str(spec)
+    let _a0 = process_spec_add_arg(spec, "check")
+    let _a1 = process_spec_add_arg(spec, path)
+    let child = process_spawn(spec)
+    if child <= 0:
+        return "SPAWN_FAIL:" + str(child)
+    let _waited = process_wait(child, 30000)
+    let err = process_stderr_capture_text(child)
+    let _close = process_close(child)
+    return err
+
+// ---------------------------------------------------------------------------
+//  Test: empty-string fields produce deterministic error
+// ---------------------------------------------------------------------------
+
+pub fn test_zero_length_strings() -> TestResult:
+    let tmp = ".kain/tmp/zero_length_strings/"
+    let _ = fs_create_dir_all(tmp)
+
+    // Sub-build.kn with zero-length project name, kind, and version.
+    let lines: Array<String> = []
+    push(lines, "use std::build")
+    push(lines, "fn build(ctx: BuildContext) -> BuildGraph:")
+    push(lines, "    let app = project(\"\")")
+    push(lines, "        .kind(\"\")")
+    push(lines, "        .version(\"\")")
+    push(lines, "        .entry(\"src/main.kn\")")
+    push(lines, "        .targets(\"llvm\")")
+    push(lines, "    let chk = check_task(\"verify\")")
+    push(lines, "        .project(app)")
+    push(lines, "        .target(\"llvm\")")
+    push(lines, "    return build_graph(app).tasks(chk)")
+    let build_text = text_join_strings(lines, "\n")
+
+    let build_path = fs_path_join(tmp, "build.kn")
+    fs_write_text(build_path, build_text)
+
+    // Run twice, capture stderr (expected-fail test).
+    let err1 = run_check_stderr(build_path)
+    let err2 = run_check_stderr(build_path)
+
+    let _ = fs_remove_dir_all(tmp)
+    return assert_consistent_error("zero_length_strings", err1, err2)
+
+// ---------------------------------------------------------------------------
+//  Registration
+// ---------------------------------------------------------------------------
+
+pub fn get_tests() -> Array<TestCase>:
+    let mut list: Array<TestCase> = []
+    list = add_to_list(list, TestCase{
+        name: "zero_length_strings",
+        tag: "zero_length_strings",
+        category: "project_config",
+        function: test_zero_length_strings,
+        description: "Empty-string .version(\"\") and .kind(\"\") produce consistent error messages",
+        expected: "FAIL"
+    })
+    return list

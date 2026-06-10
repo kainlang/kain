@@ -5,8 +5,11 @@
 private/
 **/*target*/**
 *.json
+*.jsonl
 *.lnk
 *.exe
+/spec
+spec/
 /packages/ephemaris
 blades/c/ephemaris/
 .omo/

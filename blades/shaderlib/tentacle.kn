@@ -1,0 +1,221 @@
+// ============================================================================
+// K_OS Sculpt Hybrid Tentacle - KAIN Edition
+// ============================================================================
+// Creates organic tentacle-like extrusions that follow stroke path with
+// undulating sine wave motion. Combines directional displacement with
+// multi-frequency wave modulation for lifelike tentacle growth.
+// 
+// Parameters:
+//   extras0.x = tentacle_length (0.1-5.0) - How far tentacles extend
+//   extras1.x = wave_frequency (0.5-10.0) - Oscillation frequency along length
+//   extras2.x = wave_amplitude (0.0-1.0) - Lateral undulation strength
+//   extras3.x = taper_amount (0.0-1.0) - How much tentacle thins at tip
+//   extras0.y = twist_rate (0.0-5.0) - Spiral rotation along length
+//   extras1.y = sucker_frequency (0.0-20.0) - Radial bump frequency
+//   extras2.y = sucker_depth (0.0-0.5) - Depth of sucker indentations
+//
+// Compiled to SPIR-V via: kain sculpt_hybrid_tentacle.kn -t spirv -o sculpt_hybrid_tentacle.spv
+// ============================================================================
+
+shader compute hybrid_tentacle(id: UVec3) -> Vec4:
+    // Storage buffers
+    uniform positions: StorageBuffer<Vec4> @0
+    uniform normals: StorageBuffer<Vec4> @1
+    uniform candidates: StorageBuffer<UInt> @3
+    uniform counter: StorageBuffer<UInt> @4
+    
+    // Brush params (matching BrushParamsV2.1 layout)
+    uniform center: Vec4 @5
+    uniform normal: Vec4 @6
+    uniform velocity: Vec4 @7
+    uniform prev_center: Vec3 @8
+    uniform stroke_distance: Float @9
+    uniform radius: Float @10
+    uniform strength: Float @11
+    uniform hardness: Float @12
+    uniform spacing: Float @13
+    uniform flags: UInt @14
+    uniform vertex_count: UInt @15
+    uniform candidate_count: UInt @16
+    uniform alpha_mode: UInt @17
+    uniform alpha_scale: Float @18
+    uniform alpha_rotation: Float @19
+    uniform alpha_offset: Vec2 @20
+    uniform alpha_blend_weight: Float @21
+    uniform alpha_mirror: UInt @22
+    uniform jitter_position: Float @23
+    uniform jitter_rotation: Float @24
+    uniform jitter_strength: Float @25
+    uniform random_seed: Float @26
+    uniform extras0: Vec4 @27
+    uniform extras1: Vec4 @28
+    uniform extras2: Vec4 @29
+    uniform extras3: Vec4 @30
+    uniform extras4: Vec4 @31
+    uniform extras5: Vec4 @32
+    
+    uniform LOCAL_SIZE_X: UInt @100
+    uniform LOCAL_SIZE_Y: UInt @101
+    uniform LOCAL_SIZE_Z: UInt @102
+    
+    let FLAG_SUBTRACT = 1 as UInt
+    let FLAG_FRONT_FACES_ONLY = 2 as UInt
+    let ALPHA_DISABLED = 0 as UInt
+    let PI = 3.14159265359
+    
+    // Get vertex index (handles candidate list or full dispatch)
+    let vertex_idx_raw = id.x
+    let count = counter[0]
+    let mut vertex_idx = 0 as UInt
+    
+    if count > 0 as UInt:
+        if vertex_idx_raw >= count:
+            return vec4(0.0, 0.0, 0.0, 0.0)
+        vertex_idx = candidates[vertex_idx_raw]
+    else:
+        if vertex_idx_raw >= vertex_count:
+            return vec4(0.0, 0.0, 0.0, 0.0)
+        vertex_idx = vertex_idx_raw
+    
+    let pos = positions[vertex_idx].xyz
+    let nor = normals[vertex_idx].xyz
+    let center_pos = center.xyz
+    let brush_normal = normal.xyz
+    
+    let to_center = pos - center_pos
+    let dist = length(to_center)
+    if dist > radius:
+        return vec4(0.0, 0.0, 0.0, 0.0)
+    
+    // Front face check
+    if (flags & FLAG_FRONT_FACES_ONLY) != 0 as UInt:
+        if dot(nor, -brush_normal) < 0.0:
+            return vec4(0.0, 0.0, 0.0, 0.0)
+    
+    // Calculate weight (simple falloff)
+    let t = clamp(dist / radius, 0.0, 1.0)
+    let soft = 1.0 - t * t
+    let hard = 1.0 - t
+    let mut weight = mix(soft, hard, hardness)
+    
+    // Sample alpha (inlined)
+    let surface_local = to_center - dot(to_center, brush_normal) * brush_normal
+    if alpha_mode != ALPHA_DISABLED:
+        let mut uv = (vec2(surface_local.x, surface_local.z) / radius + 1.0) * 0.5
+        let centered = uv - vec2(0.5, 0.5)
+        let cos_r = cos(alpha_rotation)
+        let sin_r = sin(alpha_rotation)
+        let rotated = vec2(
+            centered.x * cos_r - centered.y * sin_r,
+            centered.x * sin_r + centered.y * cos_r
+        )
+        let scaled = rotated / alpha_scale
+        uv = scaled + vec2(0.5, 0.5) + alpha_offset
+        if (alpha_mirror & 1 as UInt) != 0 as UInt:
+            uv = vec2(1.0 - uv.x, uv.y)
+        if (alpha_mirror & 2 as UInt) != 0 as UInt:
+            uv = vec2(uv.x, 1.0 - uv.y)
+        weight = weight * alpha_blend_weight
+    
+    // Apply pressure
+    weight = weight * center.w
+    
+    // ========================================================================
+    // TENTACLE ALGORITHM
+    // ========================================================================
+    
+    // Extract parameters
+    let tentacle_length = clamp(extras0.x, 0.1, 5.0)
+    let wave_frequency = clamp(extras1.x, 0.5, 10.0)
+    let wave_amplitude = clamp(extras2.x, 0.0, 1.0)
+    let taper_amount = clamp(extras3.x, 0.0, 1.0)
+    let twist_rate = clamp(extras0.y, 0.0, 5.0)
+    let sucker_frequency = clamp(extras1.y, 0.0, 20.0)
+    let sucker_depth = clamp(extras2.y, 0.0, 0.5)
+    
+    // Calculate stroke direction (tentacle growth direction)
+    let stroke_dir = normalize(velocity.xyz + vec3(0.0001, 0.0, 0.0))
+    
+    // Calculate radial distance from stroke axis
+    let axis_projection = dot(to_center, stroke_dir)
+    let radial_vec = to_center - axis_projection * stroke_dir
+    let radial_dist = length(radial_vec)
+    let radial_dir = normalize(radial_vec + vec3(0.0001, 0.0, 0.0))
+    
+    // Normalized position along tentacle (0 = base, 1 = tip)
+    let tentacle_t = clamp(dist / (radius * tentacle_length), 0.0, 1.0)
+    
+    // Taper: tentacle gets thinner toward tip
+    let taper_factor = 1.0 - tentacle_t * taper_amount
+    let effective_radius = radius * taper_factor
+    
+    // Check if vertex is within tapered radius
+    if radial_dist > effective_radius:
+        return vec4(0.0, 0.0, 0.0, 0.0)
+    
+    // ========================================================================
+    // UNDULATING WAVE MOTION
+    // ========================================================================
+    
+    // Primary sine wave along tentacle length
+    let wave_phase = tentacle_t * wave_frequency * 2.0 * PI
+    let wave_offset = sin(wave_phase + random_seed) * wave_amplitude * radius
+    
+    // Secondary wave (different frequency for organic feel)
+    let wave2_phase = tentacle_t * wave_frequency * 1.618 * 2.0 * PI
+    let wave2_offset = sin(wave2_phase + random_seed * 1.5) * wave_amplitude * radius * 0.5
+    
+    // Create perpendicular direction for wave displacement
+    let wave_dir = normalize(cross(stroke_dir, brush_normal))
+    let wave_displacement = wave_dir * (wave_offset + wave2_offset)
+    
+    // ========================================================================
+    // SPIRAL TWIST
+    // ========================================================================
+    
+    // Rotate radial direction around stroke axis based on distance along tentacle
+    let twist_angle = tentacle_t * twist_rate * 2.0 * PI
+    let cos_twist = cos(twist_angle)
+    let sin_twist = sin(twist_angle)
+    
+    // Rodrigues rotation formula around stroke_dir axis (single line to avoid parser issues)
+    let twist_radial = radial_dir * cos_twist + cross(stroke_dir, radial_dir) * sin_twist + stroke_dir * dot(stroke_dir, radial_dir) * (1.0 - cos_twist)
+    
+    // ========================================================================
+    // SUCKER PATTERN (radial bumps)
+    // ========================================================================
+    
+    let mut sucker_displacement = 0.0
+    if sucker_frequency > 0.0:
+        // Angular position around tentacle
+        let angle = atan2(radial_vec.z, radial_vec.x)
+        
+        // Create radial bump pattern
+        let sucker_phase = tentacle_t * sucker_frequency * 2.0 * PI
+        let angular_phase = angle * 4.0  // 4 rows of suckers
+        let sucker_pattern = sin(sucker_phase) * sin(angular_phase)
+        
+        // Only create indentations (negative displacement)
+        if sucker_pattern > 0.5:
+            sucker_displacement = -(sucker_pattern - 0.5) * sucker_depth * radius
+    
+    // ========================================================================
+    // COMBINE ALL DISPLACEMENTS
+    // ========================================================================
+    
+    // Base extrusion along stroke direction
+    let base_extrusion = stroke_dir * tentacle_t * tentacle_length * radius
+    
+    // Radial displacement (with twist and sucker pattern)
+    let radial_displacement = twist_radial * sucker_displacement
+    
+    // Total displacement
+    let mut displacement = (base_extrusion + wave_displacement + radial_displacement) * weight * strength
+    
+    // Subtract mode
+    if (flags & FLAG_SUBTRACT) != 0 as UInt:
+        displacement = -displacement
+    
+    let new_pos = pos + displacement
+    positions[vertex_idx] = vec4(new_pos.x, new_pos.y, new_pos.z, 1.0)
+    return vec4(new_pos.x, new_pos.y, new_pos.z, 1.0)

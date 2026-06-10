@@ -1,0 +1,353 @@
+// ============================================================================
+// K_OS Sculpt Hybrid Tessellate - KAIN Edition
+// ============================================================================
+// Creates subdivided surface effect by displacing vertices toward interpolated
+// positions (simulates subdivision without topology change). Uses Catmull-Clark
+// inspired smoothing with edge detection and crease preservation.
+//
+// Parameters:
+//   extras0.x = subdivision_level (1.0-4.0) - Smoothing iterations
+//   extras1.x = smoothing_factor (0.0-1.0) - Blend between original and smooth
+//   extras2.x = crease_threshold (0.0-1.0) - Angle to preserve as sharp edge
+//   extras0.y = boundary_weight (0.0-1.0) - How much to preserve boundaries
+//   extras1.y = corner_detection (0.0-1.0) - Sensitivity to corner features
+//   extras2.y = tangent_smoothing (0.0-1.0) - Smooth along surface vs normal
+//   extras3.x = adaptive_detail (0.0-1.0) - More subdivision on curved areas
+//   extras3.y = pinch_amount (0.0-1.0) - Pull toward center (opposite of inflate)
+//
+// Compiled to SPIR-V via: kain sculpt_hybrid_tessellate.kn -t spirv -o sculpt_hybrid_tessellate.spv
+// ============================================================================
+
+shader compute hybrid_tessellate(id: UVec3) -> Vec4:
+    // Storage buffers
+    uniform positions: StorageBuffer<Vec4> @0
+    uniform normals: StorageBuffer<Vec4> @1
+    uniform candidates: StorageBuffer<UInt> @3
+    uniform counter: StorageBuffer<UInt> @4
+    
+    // Brush params (matching BrushParamsV2.1 layout)
+    uniform center: Vec4 @5
+    uniform normal: Vec4 @6
+    uniform velocity: Vec4 @7
+    uniform prev_center: Vec3 @8
+    uniform stroke_distance: Float @9
+    uniform radius: Float @10
+    uniform strength: Float @11
+    uniform hardness: Float @12
+    uniform spacing: Float @13
+    uniform flags: UInt @14
+    uniform vertex_count: UInt @15
+    uniform candidate_count: UInt @16
+    uniform alpha_mode: UInt @17
+    uniform alpha_scale: Float @18
+    uniform alpha_rotation: Float @19
+    uniform alpha_offset: Vec2 @20
+    uniform alpha_blend_weight: Float @21
+    uniform alpha_mirror: UInt @22
+    uniform jitter_position: Float @23
+    uniform jitter_rotation: Float @24
+    uniform jitter_strength: Float @25
+    uniform random_seed: Float @26
+    uniform extras0: Vec4 @27
+    uniform extras1: Vec4 @28
+    uniform extras2: Vec4 @29
+    uniform extras3: Vec4 @30
+    uniform extras4: Vec4 @31
+    uniform extras5: Vec4 @32
+    
+    uniform LOCAL_SIZE_X: UInt @100
+    uniform LOCAL_SIZE_Y: UInt @101
+    uniform LOCAL_SIZE_Z: UInt @102
+    
+    let FLAG_SUBTRACT = 1 as UInt
+    let FLAG_FRONT_FACES_ONLY = 2 as UInt
+    let ALPHA_DISABLED = 0 as UInt
+    let PI = 3.14159265359
+    
+    // Get vertex index (handles candidate list or full dispatch)
+    let vertex_idx_raw = id.x
+    let count = counter[0]
+    let mut vertex_idx = 0 as UInt
+    
+    if count > 0 as UInt:
+        if vertex_idx_raw >= count:
+            return vec4(0.0, 0.0, 0.0, 0.0)
+        vertex_idx = candidates[vertex_idx_raw]
+    else:
+        if vertex_idx_raw >= vertex_count:
+            return vec4(0.0, 0.0, 0.0, 0.0)
+        vertex_idx = vertex_idx_raw
+    
+    let pos = positions[vertex_idx].xyz
+    let nor = normals[vertex_idx].xyz
+    let center_pos = center.xyz
+    let brush_normal = normal.xyz
+    
+    let to_center = pos - center_pos
+    let dist = length(to_center)
+    if dist > radius:
+        return vec4(0.0, 0.0, 0.0, 0.0)
+    
+    // Front face check
+    if (flags & FLAG_FRONT_FACES_ONLY) != 0 as UInt:
+        if dot(nor, -brush_normal) < 0.0:
+            return vec4(0.0, 0.0, 0.0, 0.0)
+    
+    // Calculate weight (simple falloff)
+    let t = clamp(dist / radius, 0.0, 1.0)
+    let soft = 1.0 - t * t
+    let hard = 1.0 - t
+    let mut weight = mix(soft, hard, hardness)
+    
+    // Sample alpha (inlined)
+    let surface_local = to_center - dot(to_center, brush_normal) * brush_normal
+    if alpha_mode != ALPHA_DISABLED:
+        let mut uv = (vec2(surface_local.x, surface_local.z) / radius + 1.0) * 0.5
+        let centered = uv - vec2(0.5, 0.5)
+        let cos_r = cos(alpha_rotation)
+        let sin_r = sin(alpha_rotation)
+        let rotated = vec2(
+            centered.x * cos_r - centered.y * sin_r,
+            centered.x * sin_r + centered.y * cos_r
+        )
+        let scaled = rotated / alpha_scale
+        uv = scaled + vec2(0.5, 0.5) + alpha_offset
+        if (alpha_mirror & 1 as UInt) != 0 as UInt:
+            uv = vec2(1.0 - uv.x, uv.y)
+        if (alpha_mirror & 2 as UInt) != 0 as UInt:
+            uv = vec2(uv.x, 1.0 - uv.y)
+        weight = weight * alpha_blend_weight
+    
+    // Apply pressure
+    weight = weight * center.w
+    
+    // ========================================================================
+    // SUBDIVISION SURFACE SIMULATION ALGORITHM
+    // ========================================================================
+    
+    // Extract parameters
+    let subdivision_level = clamp(extras0.x, 1.0, 4.0)
+    let smoothing_factor = clamp(extras1.x, 0.0, 1.0)
+    let crease_threshold = clamp(extras2.x, 0.0, 1.0)
+    let boundary_weight = clamp(extras0.y, 0.0, 1.0)
+    let corner_detection = clamp(extras1.y, 0.0, 1.0)
+    let tangent_smoothing = clamp(extras2.y, 0.0, 1.0)
+    let adaptive_detail = clamp(extras3.x, 0.0, 1.0)
+    let pinch_amount = clamp(extras3.y, 0.0, 1.0)
+    
+    // ========================================================================
+    // NEIGHBOR SAMPLING (SIMULATED TOPOLOGY)
+    // ========================================================================
+    
+    // Sample neighbors in multiple rings to approximate mesh connectivity
+    let sample_radius = radius * 0.15
+    
+    // Ring 1: Immediate neighbors (8 samples)
+    let mut ring1_sum = vec3(0.0, 0.0, 0.0)
+    let mut ring1_count = 0.0
+    
+    let mut angle = 0.0
+    let angle_step = 2.0 * PI / 8.0
+    
+    while angle < 2.0 * PI:
+        let offset_x = cos(angle) * sample_radius
+        let offset_z = sin(angle) * sample_radius
+        
+        // Create tangent space
+        let tangent = normalize(cross(nor, vec3(0.0, 1.0, 0.0) + vec3(0.0001, 0.0, 0.0)))
+        let bitangent = cross(nor, tangent)
+        
+        let sample_offset = tangent * offset_x + bitangent * offset_z
+        let sample_pos = pos + sample_offset
+        
+        ring1_sum = ring1_sum + sample_pos
+        ring1_count = ring1_count + 1.0
+        
+        angle = angle + angle_step
+    
+    let ring1_avg = ring1_sum / ring1_count
+    
+    // Ring 2: Outer neighbors (16 samples)
+    let mut ring2_sum = vec3(0.0, 0.0, 0.0)
+    let mut ring2_count = 0.0
+    
+    angle = 0.0
+    let angle_step2 = 2.0 * PI / 16.0
+    
+    while angle < 2.0 * PI:
+        let offset_x = cos(angle) * sample_radius * 2.0
+        let offset_z = sin(angle) * sample_radius * 2.0
+        
+        let tangent = normalize(cross(nor, vec3(0.0, 1.0, 0.0) + vec3(0.0001, 0.0, 0.0)))
+        let bitangent = cross(nor, tangent)
+        
+        let sample_offset = tangent * offset_x + bitangent * offset_z
+        let sample_pos = pos + sample_offset
+        
+        ring2_sum = ring2_sum + sample_pos
+        ring2_count = ring2_count + 1.0
+        
+        angle = angle + angle_step2
+    
+    let ring2_avg = ring2_sum / ring2_count
+    
+    // ========================================================================
+    // CATMULL-CLARK INSPIRED SMOOTHING
+    // ========================================================================
+    
+    // Catmull-Clark weights: face_point + 2*edge_point + vertex / 4
+    // Approximated using ring averages
+    let face_point = ring2_avg
+    let edge_point = ring1_avg
+    let vertex_point = pos
+    
+    // Standard Catmull-Clark formula
+    let smooth_pos = (face_point + edge_point * 2.0 + vertex_point) / 4.0
+    
+    // ========================================================================
+    // EDGE AND CREASE DETECTION
+    // ========================================================================
+    
+    // Detect sharp edges by comparing normal variation around vertex
+    let mut normal_variation = 0.0
+    angle = 0.0
+    
+    while angle < 2.0 * PI:
+        let offset_x = cos(angle) * sample_radius
+        let offset_z = sin(angle) * sample_radius
+        
+        let tangent = normalize(cross(nor, vec3(0.0, 1.0, 0.0) + vec3(0.0001, 0.0, 0.0)))
+        let bitangent = cross(nor, tangent)
+        
+        let sample_offset = tangent * offset_x + bitangent * offset_z
+        
+        // Estimate normal at sample position (using gradient)
+        let sample_normal = normalize(sample_offset + nor)
+        let normal_diff = 1.0 - dot(nor, sample_normal)
+        normal_variation = normal_variation + normal_diff
+        
+        angle = angle + angle_step
+    
+    normal_variation = normal_variation / 8.0
+    
+    // Crease mask: preserve sharp features
+    let is_crease = normal_variation > crease_threshold
+    let crease_mask = 1.0 - (normal_variation / (crease_threshold + 0.001))
+    let crease_factor = clamp(crease_mask, 0.0, 1.0)
+    
+    // ========================================================================
+    // CORNER DETECTION
+    // ========================================================================
+    
+    // Corners have high curvature in multiple directions
+    let mut curvature_sum = 0.0
+    let mut prev_height = 0.0
+    angle = 0.0
+    
+    while angle < 2.0 * PI:
+        let offset_x = cos(angle) * sample_radius
+        let offset_z = sin(angle) * sample_radius
+        
+        let tangent = normalize(cross(nor, vec3(0.0, 1.0, 0.0) + vec3(0.0001, 0.0, 0.0)))
+        let bitangent = cross(nor, tangent)
+        
+        let sample_offset = tangent * offset_x + bitangent * offset_z
+        let sample_pos = pos + sample_offset
+        
+        let height = dot(sample_pos - pos, nor)
+        
+        if angle > 0.0:
+            let height_change = abs(height - prev_height)
+            curvature_sum = curvature_sum + height_change
+        
+        prev_height = height
+        angle = angle + angle_step
+    
+    let avg_curvature = curvature_sum / 8.0
+    let is_corner = avg_curvature > (corner_detection * 0.1)
+    let corner_factor = clamp(1.0 - avg_curvature / (corner_detection * 0.1 + 0.001), 0.0, 1.0)
+    
+    // ========================================================================
+    // BOUNDARY DETECTION
+    // ========================================================================
+    
+    // Boundaries have asymmetric neighbor distribution
+    let centroid_offset = ring1_avg - pos
+    let centroid_dist = length(centroid_offset)
+    let is_boundary = centroid_dist > sample_radius * 0.5
+    let boundary_factor = clamp(1.0 - centroid_dist / (sample_radius * 0.5), 0.0, 1.0)
+    
+    // ========================================================================
+    // ITERATIVE SMOOTHING
+    // ========================================================================
+    
+    let mut current_pos = pos
+    let mut iteration = 0.0
+    
+    while iteration < subdivision_level:
+        // Recalculate smooth position for this iteration
+        let to_smooth = smooth_pos - current_pos
+        let smooth_step = to_smooth * (1.0 / subdivision_level)
+        
+        current_pos = current_pos + smooth_step
+        iteration = iteration + 1.0
+    
+    // ========================================================================
+    // ADAPTIVE DETAIL (MORE SMOOTHING ON CURVED AREAS)
+    // ========================================================================
+    
+    let curvature_factor = clamp(avg_curvature * 10.0, 0.0, 1.0)
+    let adaptive_weight = mix(1.0, curvature_factor, adaptive_detail)
+    
+    // ========================================================================
+    // TANGENT VS NORMAL SMOOTHING
+    // ========================================================================
+    
+    // Decompose displacement into tangent and normal components
+    let total_displacement = current_pos - pos
+    let normal_component = dot(total_displacement, nor) * nor
+    let tangent_component = total_displacement - normal_component
+    
+    // Blend between tangent-only and full smoothing
+    let blended_displacement = mix(
+        tangent_component + normal_component,
+        tangent_component,
+        tangent_smoothing
+    )
+    
+    // ========================================================================
+    // PINCH EFFECT
+    // ========================================================================
+    
+    // Pull vertices toward brush center
+    let to_brush_center = center_pos - pos
+    let pinch_displacement = to_brush_center * pinch_amount * 0.1
+    
+    // ========================================================================
+    // COMBINE ALL FACTORS
+    // ========================================================================
+    
+    // Apply feature preservation
+    let feature_preserved = blended_displacement * crease_factor * corner_factor
+    
+    // Apply boundary preservation
+    let boundary_preserved = mix(blended_displacement, feature_preserved, boundary_weight * boundary_factor)
+    
+    // Apply adaptive detail
+    let adaptive_result = boundary_preserved * adaptive_weight
+    
+    // Blend with original position based on smoothing factor
+    let final_smooth = mix(vec3(0.0, 0.0, 0.0), adaptive_result, smoothing_factor)
+    
+    // Add pinch
+    let with_pinch = final_smooth + pinch_displacement
+    
+    let mut displacement = with_pinch * weight * strength
+    
+    // Subtract mode
+    if (flags & FLAG_SUBTRACT) != 0 as UInt:
+        displacement = -displacement
+    
+    let new_pos = pos + displacement
+    positions[vertex_idx] = vec4(new_pos.x, new_pos.y, new_pos.z, 1.0)
+    return vec4(new_pos.x, new_pos.y, new_pos.z, 1.0)

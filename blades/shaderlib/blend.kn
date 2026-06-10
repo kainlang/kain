@@ -1,0 +1,31 @@
+shader compute mocap_blend(id: UVec3) -> Vec4:
+    // Two source takes and per-joint alpha.
+    uniform take_a: StorageBuffer<Vec4> @0
+    uniform take_b: StorageBuffer<Vec4> @1
+    uniform alpha_per_joint: StorageBuffer<Float> @2
+    uniform out_pose: StorageBuffer<Vec4> @3
+
+    uniform joint_count: UInt @4
+    uniform alpha_bias: Float @5
+    uniform eps: Float @6
+
+    uniform LOCAL_SIZE_X: UInt @100
+    uniform LOCAL_SIZE_Y: UInt @101
+    uniform LOCAL_SIZE_Z: UInt @102
+
+    let joint = id.x
+    if joint >= joint_count:
+        return vec4(0.0, 0.0, 0.0, 0.0)
+
+    let a = take_a[joint]
+    let b = take_b[joint]
+
+    let raw_alpha = alpha_per_joint[joint] + alpha_bias
+    let t = clamp(raw_alpha, 0.0, 1.0)
+
+    let p = a.xyz * (1.0 - t) + b.xyz * t
+    let w = a.w * (1.0 - t) + b.w * t
+    let out_v = vec4(p.x, p.y, p.z, max(w, eps))
+
+    out_pose[joint] = out_v
+    return out_v

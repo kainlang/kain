@@ -1,0 +1,44 @@
+shader compute mocap_crowd(id: UVec3) -> Vec4:
+    // One thread per character root for cheap crowd separation.
+    uniform in_roots: StorageBuffer<Vec4> @0
+    uniform out_roots: StorageBuffer<Vec4> @1
+
+    uniform actor_count: UInt @2
+    uniform dt: Float @3
+    uniform neighbor_radius: Float @4
+    uniform avoid_strength: Float @5
+    uniform max_speed: Float @6
+    uniform eps: Float @7
+
+    uniform LOCAL_SIZE_X: UInt @100
+    uniform LOCAL_SIZE_Y: UInt @101
+    uniform LOCAL_SIZE_Z: UInt @102
+
+    let agent = id.x
+    if agent >= actor_count:
+        return vec4(0.0, 0.0, 0.0, 0.0)
+
+    let root_pose = in_roots[agent]
+    let self_p = root_pose.xyz
+    let r = max(neighbor_radius, eps)
+
+    let mut repel = vec3(0.0, 0.0, 0.0)
+    let mut i = 0 as UInt
+    while i < actor_count:
+        if i != agent:
+            let other = in_roots[i].xyz
+            let d = self_p - other
+            let dist = length(d)
+            if dist < r:
+                let t = (r - dist) / r
+                repel = repel + normalize(d + vec3(eps, 0.0, 0.0)) * t
+        i = i + 1
+
+    let v = repel * avoid_strength
+    let sp = length(v)
+    let v_limited = if sp > max_speed: v * (max_speed / max(sp, eps)) else: v
+    let p = self_p + v_limited * dt
+
+    let out_v = vec4(p.x, p.y, p.z, root_pose.w)
+    out_roots[agent] = out_v
+    return out_v

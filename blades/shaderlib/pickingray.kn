@@ -1,0 +1,89 @@
+// ============================================================================
+// K_OS Renderer - GPU Ray-Triangle Picking - KAIN Edition
+// ============================================================================
+// Möller–Trumbore intersection fully inlined. One thread per triangle face.
+//
+// result[0] = (t, bary_u, bary_v, face_idx_as_float)
+// Host initialises result[0].x = 9999999.0 before dispatch.
+// After dispatch: result[0].x < 9999999.0 → hit occurred.
+//
+// Compiled to SPIR-V via: kain renderer_picking_ray.kn -t spirv -o renderer_picking_ray.spv
+// ============================================================================
+
+shader compute renderer_picking_ray(id: UVec3) -> Vec4:
+    uniform positions:     StorageBuffer<Vec4> @0
+    uniform indices:       StorageBuffer<UInt>  @1
+    // result[0] = (t, bary_u, bary_v, face_idx_as_float)
+    uniform result:        StorageBuffer<Vec4> @2
+
+    uniform ray_origin:    Vec4 @3
+    uniform ray_direction: Vec4 @4
+
+    uniform face_count: UInt  @5
+    uniform t_min:      Float @6
+    uniform t_max:      Float @7
+
+    uniform LOCAL_SIZE_X: UInt @100
+    uniform LOCAL_SIZE_Y: UInt @101
+    uniform LOCAL_SIZE_Z: UInt @102
+
+    let EPSILON = 0.0000001
+
+    let face_idx = id.x
+    if face_idx >= face_count:
+        return vec4(0.0, 0.0, 0.0, 0.0)
+
+    let i0 = indices[face_idx * 3 as UInt + 0 as UInt]
+    let i1 = indices[face_idx * 3 as UInt + 1 as UInt]
+    let i2 = indices[face_idx * 3 as UInt + 2 as UInt]
+
+    let v0 = positions[i0].xyz
+    let v1 = positions[i1].xyz
+    let v2 = positions[i2].xyz
+
+    let ro = ray_origin.xyz
+    let rd = ray_direction.xyz
+
+    // Möller–Trumbore — inlined
+    let e1 = v1 - v0
+    let e2 = v2 - v0
+    let h  = cross(rd, e2)
+    let a  = dot(e1, h)
+
+    // Parallel to triangle
+    if a > -EPSILON:
+        if a < EPSILON:
+            return vec4(0.0, 0.0, 0.0, 0.0)
+
+    let f  = 1.0 / a
+    let s  = ro - v0
+    let u  = f * dot(s, h)
+
+    if u < 0.0:
+        return vec4(0.0, 0.0, 0.0, 0.0)
+    if u > 1.0:
+        return vec4(0.0, 0.0, 0.0, 0.0)
+
+    let q  = cross(s, e1)
+    let v  = f * dot(rd, q)
+
+    if v < 0.0:
+        return vec4(0.0, 0.0, 0.0, 0.0)
+
+    let uv_sum = u + v
+    if uv_sum > 1.0:
+        return vec4(0.0, 0.0, 0.0, 0.0)
+
+    let t = f * dot(e2, q)
+
+    if t < t_min:
+        return vec4(0.0, 0.0, 0.0, 0.0)
+    if t > t_max:
+        return vec4(0.0, 0.0, 0.0, 0.0)
+
+    // Hit — write if closer than current best (race-benign for picking)
+    let current_t = result[0].x
+    if t < current_t:
+        result[0] = vec4(t, u, v, face_idx as Float)
+
+    return vec4(t, u, v, face_idx as Float)

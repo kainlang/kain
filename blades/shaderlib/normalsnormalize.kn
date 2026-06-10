@@ -1,0 +1,37 @@
+// ============================================================================
+// K_OS Renderer - Normal Normalize Pass B - KAIN Edition
+// ============================================================================
+// Reads accumulated (nx_sum, ny_sum, nz_sum, area_sum) from Pass A and
+// normalizes each entry into a unit normal.
+//
+// Compiled to SPIR-V via: kain renderer_normals_normalize.kn -t spirv -o renderer_normals_normalize.spv
+// ============================================================================
+
+shader compute renderer_normals_normalize(id: UVec3) -> Vec4:
+    // Accumulated normals from renderer_normals_recon
+    uniform normals_accum: StorageBuffer<Vec4> @0
+    // Final unit normals output
+    uniform normals_out:   StorageBuffer<Vec4> @1
+
+    uniform vertex_count: UInt @2
+
+    uniform LOCAL_SIZE_X: UInt @100
+    uniform LOCAL_SIZE_Y: UInt @101
+    uniform LOCAL_SIZE_Z: UInt @102
+
+    let vertex_idx = id.x
+    if vertex_idx >= vertex_count:
+        return vec4(0.0, 0.0, 0.0, 0.0)
+
+    let accum = normals_accum[vertex_idx]
+    let n_sum = accum.xyz
+    let w     = accum.w
+
+    // Degenerate vertex — default to world-up
+    if w < 0.0000001:
+        normals_out[vertex_idx] = vec4(0.0, 1.0, 0.0, 0.0)
+        return vec4(0.0, 1.0, 0.0, 0.0)
+
+    let n = normalize(n_sum)
+    normals_out[vertex_idx] = vec4(n.x, n.y, n.z, 0.0)
+    return vec4(n.x, n.y, n.z, 0.0)

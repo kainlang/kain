@@ -14,4 +14,4 @@
 
 ## run_simulation
 > step 1000 frames
-> print "Simulation complete: 1000 frames at 0.016s = 16 seconds simulated"
+> print "Simulation complete: 10000 frames at 0.016s = 16 seconds simulated"

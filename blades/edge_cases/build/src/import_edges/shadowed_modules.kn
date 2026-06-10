@@ -1,0 +1,125 @@
+// ============================================================================
+//  shadowed_modules.kn — [P] When a local module shadows a stdlib module,
+//  the compiler must resolve the conflict deterministically every time.
+//
+//  Category: import_edges
+//  Expected: PASS — resolution result is deterministic across runs
+// ============================================================================
+
+use runner        // TestResult, TestCase, make_ok, make_fail, add_to_list, is_fail
+
+use std::fs       // fs_write_text, fs_create_dir_all, fs_remove_dir_all, fs_path_join
+use std::process  // process_spec_create_piped, process_spec_add_arg, process_spec_set_cwd,
+                  // process_spawn, process_wait, process_exit_code,
+                  // process_stdout_capture_text, process_stderr_capture_text, process_close
+use std::os       // os_getcwd
+use std::text     // text_join_strings
+
+// ── Private types ─────────────────────────────────────────────────────────
+
+struct KainResult:
+    exit_code: Int
+    stdout_text: String
+    stderr_text: String
+
+// ── Helpers ───────────────────────────────────────────────────────────────
+
+fn ecs_run_check(project_dir: String) -> KainResult:
+    let spec = process_spec_create_piped("kain")
+    process_spec_add_arg(spec, "check")
+    process_spec_add_arg(spec, project_dir)
+    process_spec_set_cwd(spec, project_dir)
+    let pid = process_spawn(spec)
+    process_wait(pid, 60000)
+    let code = process_exit_code(pid)
+    let stdout = process_stdout_capture_text(pid)
+    let stderr = process_stderr_capture_text(pid)
+    process_close(pid)
+    return KainResult{ exit_code: code, stdout_text: stdout, stderr_text: stderr }
+
+fn ecs_write_project(test_dir: String) -> Unit:
+    // Local module "os" that shadows std::os
+    let local_os_lines: Array<String> = [
+        "pub fn getcwd() -> String:",
+        "    return \"local_overridden\"",
+    ]
+    let local_os = text_join_strings(local_os_lines, "\n")
+    fs_write_text(fs_path_join(test_dir, "os.kn"), local_os)
+
+    // Build.kn that uses both local os and std::os
+    let build_lines: Array<String> = [
+        "use std::build",
+        "use os",
+        "use std::os",
+        "",
+        "fn build(ctx: BuildContext) -> BuildGraph:",
+        "    let app = project(\"test-app\")",
+        "        .version(\"1.0.0\")",
+        "        .kind(\"kain_executable\")",
+        "        .entry(\"main.kn\")",
+        "        .source_roots([\".\"])",
+        "        .module_roots([\".\"])",
+        "        .targets(\"llvm\")",
+        "        .artifact_root(\".kain/out\")",
+        "        .cache_root(\".kain/cache\")",
+        "        .profile(\"debug\")",
+        "",
+        "    let src = source_set(\"src\")",
+        "        .glob(\"*.kn\")",
+        "",
+        "    let chk = check_task(\"check\")",
+        "        .project(app)",
+        "        .target(\"llvm\")",
+        "        .inputs(src)",
+        "",
+        "    return build_graph(app).sources(src).tasks(chk)",
+    ]
+    let content = text_join_strings(build_lines, "\n")
+    fs_write_text(fs_path_join(test_dir, "build.kn"), content)
+
+    let main_lines: Array<String> = [
+        "fn main() -> Int:",
+        "    return 0",
+    ]
+    let main_content = text_join_strings(main_lines, "\n")
+    fs_write_text(fs_path_join(test_dir, "main.kn"), main_content)
+
+fn ecs_assert_eq(name: String, text1: String, text2: String) -> TestResult:
+    if text1 == text2:
+        return make_ok(name, "deterministic resolution")
+    return make_fail(name, "differs between runs")
+
+// ── Test function ─────────────────────────────────────────────────────────
+
+pub fn test_shadowed_modules() -> TestResult:
+    let root = os_getcwd()
+    let tmp_root = fs_path_join(fs_path_join(root, ".kain"), "tmp")
+    let test_dir = fs_path_join(tmp_root, "shadowed_modules")
+
+    fs_remove_dir_all(test_dir)
+    defer fs_remove_dir_all(test_dir)
+    fs_create_dir_all(test_dir)
+
+    ecs_write_project(test_dir)
+
+    let r1 = ecs_run_check(test_dir)
+    let r2 = ecs_run_check(test_dir)
+
+    let combined1 = r1.stderr_text + r1.stdout_text
+    let combined2 = r2.stderr_text + r2.stdout_text
+
+    return ecs_assert_eq("shadowed_modules", combined1, combined2)
+
+// ── Registration ──────────────────────────────────────────────────────────
+
+pub fn get_tests() -> Array<TestCase>:
+    let mut list: Array<TestCase> = []
+    list = add_to_list(list, TestCase{
+        name: "shadowed_modules",
+        tag: "shadowed_modules",
+        category: "import_edges",
+        function: test_shadowed_modules,
+        description: "Local module shadowing stdlib produces deterministic resolution",
+        expected: "PASS"
+    })
+    return list

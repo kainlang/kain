@@ -1,0 +1,169 @@
+// ============================================================================
+// K_OS Sculpt Artistic Fur - KAIN Edition
+// ============================================================================
+// Generates fur-like directional spikes using noise-driven displacement
+// Displacement follows flow direction with clumping behavior
+// Compiled to SPIR-V via: kain sculpt_artistic_fur.kn -t spirv -o sculpt_artistic_fur.spv
+// ============================================================================
+
+shader compute artistic_fur(id: UVec3) -> Vec4:
+    // Storage buffers
+    uniform positions: StorageBuffer<Vec4> @0
+    uniform normals: StorageBuffer<Vec4> @1
+    uniform candidates: StorageBuffer<UInt> @3
+    uniform counter: StorageBuffer<UInt> @4
+    
+    // Brush params (matching BrushParamsV2.1 layout)
+    uniform center: Vec4 @5
+    uniform normal: Vec4 @6
+    uniform velocity: Vec4 @7
+    uniform prev_center: Vec3 @8
+    uniform stroke_distance: Float @9
+    uniform radius: Float @10
+    uniform strength: Float @11
+    uniform hardness: Float @12
+    uniform spacing: Float @13
+    uniform flags: UInt @14
+    uniform vertex_count: UInt @15
+    uniform candidate_count: UInt @16
+    uniform alpha_mode: UInt @17
+    uniform alpha_scale: Float @18
+    uniform alpha_rotation: Float @19
+    uniform alpha_offset: Vec2 @20
+    uniform alpha_blend_weight: Float @21
+    uniform alpha_mirror: UInt @22
+    uniform jitter_position: Float @23
+    uniform jitter_rotation: Float @24
+    uniform jitter_strength: Float @25
+    uniform random_seed: Float @26
+    uniform extras0: Vec4 @27  // x = fur_length
+    uniform extras1: Vec4 @28  // x = fur_density
+    uniform extras2: Vec4 @29  // x = fur_clumping
+    uniform extras3: Vec4 @30  // x = flow_strength
+    uniform extras4: Vec4 @31
+    uniform extras5: Vec4 @32
+    
+    uniform LOCAL_SIZE_X: UInt @100
+    uniform LOCAL_SIZE_Y: UInt @101
+    uniform LOCAL_SIZE_Z: UInt @102
+    
+    let FLAG_SUBTRACT = 1 as UInt
+    let FLAG_FRONT_FACES_ONLY = 2 as UInt
+    let ALPHA_DISABLED = 0 as UInt
+    let PI = 3.14159265359
+    
+    // Get vertex index (handles candidate list or full dispatch)
+    let vertex_idx_raw = id.x
+    let count = counter[0]
+    let mut vertex_idx = 0 as UInt
+    
+    if count > 0 as UInt:
+        if vertex_idx_raw >= count:
+            return vec4(0.0, 0.0, 0.0, 0.0)
+        vertex_idx = candidates[vertex_idx_raw]
+    else:
+        if vertex_idx_raw >= vertex_count:
+            return vec4(0.0, 0.0, 0.0, 0.0)
+        vertex_idx = vertex_idx_raw
+    
+    let pos = positions[vertex_idx].xyz
+    let nor = normals[vertex_idx].xyz
+    let center_pos = center.xyz
+    let brush_normal = normal.xyz
+    
+    let to_center = pos - center_pos
+    let dist = length(to_center)
+    if dist > radius:
+        return vec4(0.0, 0.0, 0.0, 0.0)
+    
+    // Front face check
+    if (flags & FLAG_FRONT_FACES_ONLY) != 0 as UInt:
+        if dot(nor, -brush_normal) < 0.0:
+            return vec4(0.0, 0.0, 0.0, 0.0)
+    
+    // Calculate weight (simple falloff)
+    let t = clamp(dist / radius, 0.0, 1.0)
+    let soft = 1.0 - t * t
+    let hard = 1.0 - t
+    let mut weight = mix(soft, hard, hardness)
+    
+    // Sample alpha (inlined)
+    let surface_local = to_center - dot(to_center, brush_normal) * brush_normal
+    if alpha_mode != ALPHA_DISABLED:
+        let mut uv = (vec2(surface_local.x, surface_local.z) / radius + 1.0) * 0.5
+        let centered = uv - vec2(0.5, 0.5)
+        let cos_r = cos(alpha_rotation)
+        let sin_r = sin(alpha_rotation)
+        let rotated = vec2(
+            centered.x * cos_r - centered.y * sin_r,
+            centered.x * sin_r + centered.y * cos_r
+        )
+        let scaled = rotated / alpha_scale
+        uv = scaled + vec2(0.5, 0.5) + alpha_offset
+        if (alpha_mirror & 1 as UInt) != 0 as UInt:
+            uv = vec2(1.0 - uv.x, uv.y)
+        if (alpha_mirror & 2 as UInt) != 0 as UInt:
+            uv = vec2(uv.x, 1.0 - uv.y)
+        weight = weight * alpha_blend_weight
+    
+    // Apply pressure
+    weight = weight * center.w
+    
+    // Fur parameters
+    let fur_length = max(extras0.x, 0.01)
+    let fur_density = clamp(extras1.x, 0.1, 10.0)
+    let fur_clumping = clamp(extras2.x, 0.0, 1.0)
+    let flow_strength = clamp(extras3.x, 0.0, 1.0)
+    
+    // Calculate flow direction (blend between normal and velocity)
+    let vel_dir = normalize(velocity.xyz + vec3(0.0001, 0.0, 0.0))
+    let flow_dir = normalize(mix(nor, vel_dir, flow_strength))
+    
+    // Generate fur strand pattern using multi-scale noise
+    let noise_pos = pos * fur_density + vec3(random_seed, random_seed, random_seed)
+    
+    // High frequency noise for individual strands
+    let noise_p1 = vec3(
+        dot(noise_pos, vec3(127.1, 311.7, 74.7)),
+        dot(noise_pos, vec3(269.5, 183.3, 246.1)),
+        dot(noise_pos, vec3(113.5, 271.9, 124.6))
+    )
+    let noise1 = fract(sin(noise_p1) * 43758.5453)
+    
+    // Low frequency noise for clumping
+    let clump_pos = pos * (fur_density * 0.3) + vec3(random_seed * 2.0, random_seed * 2.0, random_seed * 2.0)
+    let noise_p2 = vec3(
+        dot(clump_pos, vec3(127.1, 311.7, 74.7)),
+        dot(clump_pos, vec3(269.5, 183.3, 246.1)),
+        dot(clump_pos, vec3(113.5, 271.9, 124.6))
+    )
+    let noise2 = fract(sin(noise_p2) * 43758.5453)
+    
+    // Combine noises for fur pattern
+    let strand_mask = noise1.x
+    let clump_mask = noise2.x
+    
+    // Create sharp fur strands (threshold the noise)
+    let strand_threshold = 0.5 - fur_clumping * 0.3
+    let strand_value = smoothstep(strand_threshold, strand_threshold + 0.1, strand_mask)
+    
+    // Apply clumping
+    let clump_value = smoothstep(0.3, 0.7, clump_mask)
+    let fur_mask = strand_value * mix(1.0, clump_value, fur_clumping)
+    
+    // Add directional variation to fur
+    let direction_noise = (noise1.y * 2.0 - 1.0) * 0.3
+    let direction_offset = cross(flow_dir, nor) * direction_noise
+    let final_direction = normalize(flow_dir + direction_offset)
+    
+    // Calculate fur displacement
+    let fur_height = fur_mask * fur_length
+    let mut displacement = final_direction * fur_height * weight * strength
+    
+    // Subtract mode
+    if (flags & FLAG_SUBTRACT) != 0 as UInt:
+        displacement = -displacement
+    
+    let new_pos = pos + displacement
+    positions[vertex_idx] = vec4(new_pos.x, new_pos.y, new_pos.z, 1.0)
+    return vec4(new_pos.x, new_pos.y, new_pos.z, 1.0)

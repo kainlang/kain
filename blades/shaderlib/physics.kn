@@ -1,0 +1,107 @@
+shader compute mocap_physics() -> Void:
+    uniform in_joints: StorageBuffer<Float> @0
+    uniform prev_joints: StorageBuffer<Float> @1
+    uniform out_joints: StorageBuffer<Float> @2
+
+    uniform joint_count: UInt @3
+    uniform floor_y: Float @4
+    uniform lock_velocity_thresh: Float @5
+    uniform lock_blend: Float @6
+    uniform repel_strength: Float @7
+    uniform delta_time: Float @8
+    uniform eps: Float @9
+    uniform ankle_start: Int @10
+    uniform ankle_end: Int @11
+    uniform toe_start: Int @12
+    uniform toe_end: Int @13
+    uniform capsule_a_joint: UInt @14
+    uniform capsule_b_joint: UInt @15
+    uniform capsule_radius: Float @16
+    uniform limb_radius: Float @17
+
+    uniform LOCAL_SIZE_X: UInt @100
+    uniform LOCAL_SIZE_Y: UInt @101
+    uniform LOCAL_SIZE_Z: UInt @102
+
+    let joint = dispatch_thread_id.x
+    if joint >= joint_count:
+        return
+
+    let base = joint * 4
+
+    let x = in_joints[base + 0]
+    let y = in_joints[base + 1]
+    let z = in_joints[base + 2]
+    let w = in_joints[base + 3]
+
+    let px = prev_joints[base + 0]
+    let py = prev_joints[base + 1]
+    let pz = prev_joints[base + 2]
+
+    let dt_safe = max(delta_time, eps)
+    let vx = x - px
+    let vy = y - py
+    let vz = z - pz
+    let speed = length(vec3(vx / dt_safe, vy / dt_safe, vz / dt_safe))
+
+    let joint_i = joint as Int
+    let in_ankle = joint_i >= ankle_start && joint_i <= ankle_end
+    let in_toe = joint_i >= toe_start && joint_i <= toe_end
+    let is_foot = in_ankle || in_toe
+    let lock_gate = if speed < lock_velocity_thresh: 1.0 else: 0.0
+    let lock_weight = if is_foot: lock_gate * lock_blend else: 0.0
+
+    let y_floor = max(y, floor_y)
+    let oy = y * (1.0 - lock_weight) + y_floor * lock_weight
+
+    let mut ox = x
+    let mut oy2 = oy
+    let mut oz = z
+
+    let cap_a_valid = capsule_a_joint < joint_count
+    let cap_b_valid = capsule_b_joint < joint_count
+    let can_collide = cap_a_valid && cap_b_valid && joint != capsule_a_joint && joint != capsule_b_joint
+    if can_collide:
+        let cap_a_base = capsule_a_joint * 4
+        let cap_b_base = capsule_b_joint * 4
+
+        let a = vec3(
+            in_joints[cap_a_base + 0],
+            in_joints[cap_a_base + 1],
+            in_joints[cap_a_base + 2]
+        )
+        let b = vec3(
+            in_joints[cap_b_base + 0],
+            in_joints[cap_b_base + 1],
+            in_joints[cap_b_base + 2]
+        )
+        let p = vec3(ox, oy2, oz)
+
+        let ab = b - a
+        let ap = p - a
+        let ab_len2 = max(dot(ab, ab), eps)
+        let t = clamp(dot(ap, ab) / ab_len2, 0.0, 1.0)
+        let closest = a + ab * t
+        let delta = p - closest
+        let dist = length(delta)
+        let min_dist = max(capsule_radius + limb_radius, eps)
+        let penetration = min_dist - dist
+
+        if penetration > 0.0:
+            let nx = if dist > eps: delta.x / dist else: 1.0
+            let ny = if dist > eps: delta.y / dist else: 0.0
+            let nz = if dist > eps: delta.z / dist else: 0.0
+            let push = penetration * max(repel_strength, 0.0)
+            ox = ox + nx * push
+            oy2 = oy2 + ny * push * 0.25
+            oz = oz + nz * push
+
+    if lock_weight > 0.0:
+        oy2 = max(oy2, floor_y)
+
+    out_joints[base + 0] = ox
+    out_joints[base + 1] = oy2
+    out_joints[base + 2] = oz
+    out_joints[base + 3] = w
+
+    return

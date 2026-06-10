@@ -85,7 +85,7 @@ pub fn collect_entries(path: String, config: TreeConfig, depth: Int) -> Array<Tr
             continue
 
         // Skip known ignored directories
-        if dir_entry.file_type == "dir" and is_ignored_dir(name):
+        if dir_entry.file_type == "directory" and is_ignored_dir(name):
             i = i + 1
             continue
 
@@ -104,7 +104,7 @@ pub fn collect_entries(path: String, config: TreeConfig, depth: Int) -> Array<Tr
         var entry = build_entry(dir_entry, depth + 1)
 
         // Recurse into subdirectories if depth allows
-        if entry.entry_type == "dir":
+        if entry.entry_type == "directory":
             let can_recurse = config.max_depth == 0 or (depth + 1) < config.max_depth
             if can_recurse:
                 entry.children = collect_entries(entry.path, config, depth + 1)

@@ -1,0 +1,51 @@
+shader compute mocap_hand_fk(id: UVec3) -> Vec4:
+    // Finger FK from per-joint bend/spread values.
+    // Each joint solves from parent + directional offset.
+    uniform in_joints: StorageBuffer<Vec4> @0
+    uniform out_joints: StorageBuffer<Vec4> @1
+    uniform parents: StorageBuffer<Int> @2
+    uniform base_dir: StorageBuffer<Vec4> @3   // canonical local direction
+    uniform bone_length: StorageBuffer<Float> @4
+    uniform bend_angle: StorageBuffer<Float> @5 // radians
+    uniform spread_angle: StorageBuffer<Float> @6 // radians
+    uniform hand_side: StorageBuffer<Float> @7  // -1 left, +1 right
+
+    uniform joint_count: UInt @8
+    uniform angle_scale: Float @9
+    uniform eps: Float @10
+
+    uniform LOCAL_SIZE_X: UInt @100
+    uniform LOCAL_SIZE_Y: UInt @101
+    uniform LOCAL_SIZE_Z: UInt @102
+
+    let joint = id.x
+    if joint >= joint_count:
+        return vec4(0.0, 0.0, 0.0, 0.0)
+
+    let p_i = parents[joint]
+    let src = in_joints[joint]
+
+    if p_i < 0:
+        out_joints[joint] = src
+        return src
+
+    let p = p_i as UInt
+    if p >= joint_count:
+        out_joints[joint] = src
+        return src
+
+    let parent_pos = in_joints[p].xyz
+    let dir0 = normalize(base_dir[joint].xyz + vec3(eps, 0.0, 0.0))
+    let len = max(bone_length[joint], eps)
+    let side = hand_side[joint]
+    let bend = bend_angle[joint] * angle_scale
+    let spread = spread_angle[joint] * angle_scale
+
+    // Approximate FK directional modulation without full matrix stack.
+    let dir_tmp = dir0 + vec3(0.0, sin(bend), 0.0) + vec3(side * sin(spread), 0.0, cos(spread) - 1.0) + vec3(eps, 0.0, 0.0)
+    let dir = normalize(dir_tmp)
+
+    let p_out = parent_pos + dir * len
+    let out_v = vec4(p_out.x, p_out.y, p_out.z, src.w)
+    out_joints[joint] = out_v
+    return out_v

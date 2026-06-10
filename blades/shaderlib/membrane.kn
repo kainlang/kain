@@ -1,0 +1,267 @@
+// ============================================================================
+// K_OS Sculpt Hybrid Membrane - KAIN Edition
+// ============================================================================
+// Creates thin membrane surfaces that stretch between vertices like soap
+// bubbles. Calculates minimal surface approximation by averaging neighbor
+// positions with tension-based relaxation. Simulates elastic membrane physics.
+//
+// Parameters:
+//   extras0.x = tension (0.1-2.0) - Surface tension strength (higher = tighter)
+//   extras1.x = thickness (0.01-0.5) - Membrane thickness
+//   extras2.x = elasticity (0.0-1.0) - How much membrane resists stretching
+//   extras0.y = damping (0.0-1.0) - Motion damping factor
+//   extras1.y = neighbor_radius (0.5-3.0) - Range for neighbor averaging
+//   extras2.y = curvature_bias (0.0-1.0) - Prefer positive/negative curvature
+//   extras3.x = ripple_frequency (0.0-10.0) - Surface wave frequency
+//   extras3.y = ripple_amplitude (0.0-0.5) - Surface wave strength
+//
+// Compiled to SPIR-V via: kain sculpt_hybrid_membrane.kn -t spirv -o sculpt_hybrid_membrane.spv
+// ============================================================================
+
+shader compute hybrid_membrane(id: UVec3) -> Vec4:
+    // Storage buffers
+    uniform positions: StorageBuffer<Vec4> @0
+    uniform normals: StorageBuffer<Vec4> @1
+    uniform candidates: StorageBuffer<UInt> @3
+    uniform counter: StorageBuffer<UInt> @4
+    
+    // Brush params (matching BrushParamsV2.1 layout)
+    uniform center: Vec4 @5
+    uniform normal: Vec4 @6
+    uniform velocity: Vec4 @7
+    uniform prev_center: Vec3 @8
+    uniform stroke_distance: Float @9
+    uniform radius: Float @10
+    uniform strength: Float @11
+    uniform hardness: Float @12
+    uniform spacing: Float @13
+    uniform flags: UInt @14
+    uniform vertex_count: UInt @15
+    uniform candidate_count: UInt @16
+    uniform alpha_mode: UInt @17
+    uniform alpha_scale: Float @18
+    uniform alpha_rotation: Float @19
+    uniform alpha_offset: Vec2 @20
+    uniform alpha_blend_weight: Float @21
+    uniform alpha_mirror: UInt @22
+    uniform jitter_position: Float @23
+    uniform jitter_rotation: Float @24
+    uniform jitter_strength: Float @25
+    uniform random_seed: Float @26
+    uniform extras0: Vec4 @27
+    uniform extras1: Vec4 @28
+    uniform extras2: Vec4 @29
+    uniform extras3: Vec4 @30
+    uniform extras4: Vec4 @31
+    uniform extras5: Vec4 @32
+    
+    uniform LOCAL_SIZE_X: UInt @100
+    uniform LOCAL_SIZE_Y: UInt @101
+    uniform LOCAL_SIZE_Z: UInt @102
+    
+    let FLAG_SUBTRACT = 1 as UInt
+    let FLAG_FRONT_FACES_ONLY = 2 as UInt
+    let ALPHA_DISABLED = 0 as UInt
+    let PI = 3.14159265359
+    
+    // Get vertex index (handles candidate list or full dispatch)
+    let vertex_idx_raw = id.x
+    let count = counter[0]
+    let mut vertex_idx = 0 as UInt
+    
+    if count > 0 as UInt:
+        if vertex_idx_raw >= count:
+            return vec4(0.0, 0.0, 0.0, 0.0)
+        vertex_idx = candidates[vertex_idx_raw]
+    else:
+        if vertex_idx_raw >= vertex_count:
+            return vec4(0.0, 0.0, 0.0, 0.0)
+        vertex_idx = vertex_idx_raw
+    
+    let pos = positions[vertex_idx].xyz
+    let nor = normals[vertex_idx].xyz
+    let center_pos = center.xyz
+    let brush_normal = normal.xyz
+    
+    let to_center = pos - center_pos
+    let dist = length(to_center)
+    if dist > radius:
+        return vec4(0.0, 0.0, 0.0, 0.0)
+    
+    // Front face check
+    if (flags & FLAG_FRONT_FACES_ONLY) != 0 as UInt:
+        if dot(nor, -brush_normal) < 0.0:
+            return vec4(0.0, 0.0, 0.0, 0.0)
+    
+    // Calculate weight (simple falloff)
+    let t = clamp(dist / radius, 0.0, 1.0)
+    let soft = 1.0 - t * t
+    let hard = 1.0 - t
+    let mut weight = mix(soft, hard, hardness)
+    
+    // Sample alpha (inlined)
+    let surface_local = to_center - dot(to_center, brush_normal) * brush_normal
+    if alpha_mode != ALPHA_DISABLED:
+        let mut uv = (vec2(surface_local.x, surface_local.z) / radius + 1.0) * 0.5
+        let centered = uv - vec2(0.5, 0.5)
+        let cos_r = cos(alpha_rotation)
+        let sin_r = sin(alpha_rotation)
+        let rotated = vec2(
+            centered.x * cos_r - centered.y * sin_r,
+            centered.x * sin_r + centered.y * cos_r
+        )
+        let scaled = rotated / alpha_scale
+        uv = scaled + vec2(0.5, 0.5) + alpha_offset
+        if (alpha_mirror & 1 as UInt) != 0 as UInt:
+            uv = vec2(1.0 - uv.x, uv.y)
+        if (alpha_mirror & 2 as UInt) != 0 as UInt:
+            uv = vec2(uv.x, 1.0 - uv.y)
+        weight = weight * alpha_blend_weight
+    
+    // Apply pressure
+    weight = weight * center.w
+    
+    // ========================================================================
+    // MEMBRANE PHYSICS ALGORITHM
+    // ========================================================================
+    
+    // Extract parameters
+    let tension = clamp(extras0.x, 0.1, 2.0)
+    let thickness = clamp(extras1.x, 0.01, 0.5)
+    let elasticity = clamp(extras2.x, 0.0, 1.0)
+    let damping = clamp(extras0.y, 0.0, 1.0)
+    let neighbor_radius = clamp(extras1.y, 0.5, 3.0)
+    let curvature_bias = clamp(extras2.y, 0.0, 1.0)
+    let ripple_frequency = clamp(extras3.x, 0.0, 10.0)
+    let ripple_amplitude = clamp(extras3.y, 0.0, 0.5)
+    
+    // ========================================================================
+    // NEIGHBOR AVERAGING (MINIMAL SURFACE APPROXIMATION)
+    // ========================================================================
+    
+    // Sample neighboring vertices to approximate local surface
+    // In a real implementation, this would use actual mesh topology
+    // Here we approximate by sampling nearby positions in a pattern
+    
+    let sample_radius = radius * neighbor_radius * 0.2
+    let mut neighbor_sum = vec3(0.0, 0.0, 0.0)
+    let mut neighbor_count = 0.0
+    
+    // Sample 8 neighbors in a circular pattern
+    let mut angle = 0.0
+    let angle_step = 2.0 * PI / 8.0
+    
+    while angle < 2.0 * PI:
+        let sample_offset = vec3(
+            cos(angle) * sample_radius,
+            0.0,
+            sin(angle) * sample_radius
+        )
+        
+        // Rotate sample offset to align with surface normal
+        let tangent = normalize(cross(brush_normal, vec3(0.0, 1.0, 0.0)) + vec3(0.0001, 0.0, 0.0))
+        let bitangent = cross(brush_normal, tangent)
+        let rotated_offset = sample_offset.x * tangent + sample_offset.y * brush_normal + sample_offset.z * bitangent
+        
+        let sample_pos = pos + rotated_offset
+        
+        // Add to neighbor average
+        neighbor_sum = neighbor_sum + sample_pos
+        neighbor_count = neighbor_count + 1.0
+        
+        angle = angle + angle_step
+    
+    let neighbor_avg = neighbor_sum / neighbor_count
+    
+    // ========================================================================
+    // TENSION-BASED RELAXATION
+    // ========================================================================
+    
+    // Calculate vector toward average neighbor position (minimal surface)
+    let to_avg = neighbor_avg - pos
+    let relaxation_force = to_avg * tension
+    
+    // ========================================================================
+    // CURVATURE CALCULATION
+    // ========================================================================
+    
+    // Estimate local curvature using second derivative approximation
+    let curvature_dir = neighbor_avg - pos
+    let curvature_magnitude = length(curvature_dir)
+    let curvature_normal = normalize(curvature_dir + vec3(0.0001, 0.0, 0.0))
+    
+    // Check if curvature aligns with surface normal (convex vs concave)
+    let curvature_sign = dot(curvature_normal, nor)
+    
+    // Apply curvature bias (prefer convex or concave)
+    let curvature_factor = mix(1.0, abs(curvature_sign), curvature_bias)
+    
+    // ========================================================================
+    // ELASTIC RESISTANCE
+    // ========================================================================
+    
+    // Calculate stretch from original position
+    // Use distance from brush center as proxy for original state
+    let original_dist = dist
+    let current_dist = length(pos + relaxation_force - center_pos)
+    let stretch = abs(current_dist - original_dist) / radius
+    
+    // Elastic force opposes stretching
+    let elastic_resistance = stretch * elasticity
+    let elastic_factor = 1.0 - clamp(elastic_resistance, 0.0, 0.9)
+    
+    // ========================================================================
+    // THICKNESS DISPLACEMENT
+    // ========================================================================
+    
+    // Displace along normal to create thickness
+    // Thickness varies with curvature (thinner at high curvature)
+    let thickness_factor = 1.0 - curvature_magnitude / (sample_radius * 2.0)
+    let thickness_displacement = nor * thickness * radius * thickness_factor
+    
+    // ========================================================================
+    // SURFACE RIPPLES
+    // ========================================================================
+    
+    let mut ripple_displacement = vec3(0.0, 0.0, 0.0)
+    if ripple_frequency > 0.0:
+        // Create traveling wave pattern
+        let wave_phase = dist / radius * ripple_frequency * 2.0 * PI + stroke_distance * 10.0
+        let wave_value = sin(wave_phase + random_seed)
+        
+        // Secondary wave at different frequency
+        let wave2_phase = dist / radius * ripple_frequency * 1.618 * 2.0 * PI + stroke_distance * 15.0
+        let wave2_value = sin(wave2_phase + random_seed * 1.5)
+        
+        // Combine waves
+        let combined_wave = (wave_value + wave2_value * 0.5) / 1.5
+        
+        // Ripple along normal direction
+        ripple_displacement = nor * combined_wave * ripple_amplitude * radius
+    
+    // ========================================================================
+    // DAMPING
+    // ========================================================================
+    
+    // Reduce displacement based on damping factor
+    let damping_factor = 1.0 - damping * 0.5
+    
+    // ========================================================================
+    // COMBINE ALL FORCES
+    // ========================================================================
+    
+    // Base membrane relaxation
+    let membrane_displacement = relaxation_force * curvature_factor * elastic_factor
+    
+    // Total displacement
+    let total_displacement = (membrane_displacement + thickness_displacement + ripple_displacement) * damping_factor
+    
+    let mut displacement = total_displacement * weight * strength
+    
+    // Subtract mode
+    if (flags & FLAG_SUBTRACT) != 0 as UInt:
+        displacement = -displacement
+    
+    let new_pos = pos + displacement
+    positions[vertex_idx] = vec4(new_pos.x, new_pos.y, new_pos.z, 1.0)
+    return vec4(new_pos.x, new_pos.y, new_pos.z, 1.0)

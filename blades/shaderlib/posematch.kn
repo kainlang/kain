@@ -1,0 +1,32 @@
+shader compute mocap_pose_match(id: UVec3) -> Vec4:
+    // Each invocation scores one DB pose.
+    // pose_db layout: pose_db[pose * joint_count + joint]
+    uniform query_pose: StorageBuffer<Vec4> @0
+    uniform pose_db: StorageBuffer<Vec4> @1
+    uniform weights: StorageBuffer<Float> @2
+    uniform out_score: StorageBuffer<Float> @3
+
+    uniform pose_count: UInt @4
+    uniform joint_count: UInt @5
+    uniform eps: Float @6
+
+    uniform LOCAL_SIZE_X: UInt @100
+    uniform LOCAL_SIZE_Y: UInt @101
+    uniform LOCAL_SIZE_Z: UInt @102
+
+    let pose = id.x
+    if pose >= pose_count:
+        return vec4(0.0, 0.0, 0.0, 0.0)
+
+    let mut score = 0.0
+    let mut j = 0 as UInt
+    while j < joint_count:
+        let q = query_pose[j]
+        let d = pose_db[pose * joint_count + j]
+        let diff = q.xyz - d.xyz
+        let w = max(weights[j], eps)
+        score = score + dot(diff, diff) * w
+        j = j + 1
+
+    out_score[pose] = score
+    return vec4(score, 0.0, 0.0, 0.0)

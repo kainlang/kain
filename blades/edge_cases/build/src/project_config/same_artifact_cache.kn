@@ -1,0 +1,90 @@
+// ============================================================================
+//  same_artifact_cache.kn [P] — Same path for artifact_root and cache_root
+//
+//  Creates a sub-build.kn with both .artifact_root() and .cache_root()
+//  pointing to the same ".kain/shared/" path. Runs `kain check` twice and
+//  asserts the behavior (error or pass) is deterministic.
+// ============================================================================
+
+use runner
+use assert
+
+use std::fs       // fs_write_text, fs_create_dir_all, fs_remove_dir_all, fs_path_join
+use std::process  // process_spec_create_piped, process_spec_add_arg, process_spawn,
+                  // process_wait, process_stdout_capture_text, process_stderr_capture_text,
+                  // process_close
+use std::text      // text_join_strings
+
+// ---------------------------------------------------------------------------
+//  Helper: run `kain check` and return combined output
+// ---------------------------------------------------------------------------
+
+fn run_check(path: String) -> String:
+    let spec = process_spec_create_piped("kain")
+    if spec <= 0:
+        return "SPEC_FAIL:" + str(spec)
+    let _a0 = process_spec_add_arg(spec, "check")
+    let _a1 = process_spec_add_arg(spec, path)
+    let child = process_spawn(spec)
+    if child <= 0:
+        return "SPAWN_FAIL:" + str(child)
+    let _waited = process_wait(child, 30000)
+    let captured_stdout = process_stdout_capture_text(child)
+    let captured_stderr = process_stderr_capture_text(child)
+    let _close = process_close(child)
+    return captured_stdout + "||STDERR||" + captured_stderr
+
+// ---------------------------------------------------------------------------
+//  Test: same artifact + cache root — deterministic behavior
+// ---------------------------------------------------------------------------
+
+pub fn test_same_artifact_cache() -> TestResult:
+    let tmp = ".kain/tmp/same_artifact_cache/"
+    let _ = fs_create_dir_all(tmp)
+
+    // Create minimal source file.
+    let src_dir = fs_path_join(tmp, "src")
+    fs_create_dir_all(src_dir)
+    fs_write_text(fs_path_join(src_dir, "main.kn"), "fn main() -> Int:\n    return 0\n")
+
+    // Sub-build.kn with artifact_root and cache_root set to the same path.
+    let lines: Array<String> = []
+    push(lines, "use std::build")
+    push(lines, "fn build(ctx: BuildContext) -> BuildGraph:")
+    push(lines, "    let app = project(\"test\")")
+    push(lines, "        .kind(\"kain_executable\")")
+    push(lines, "        .version(\"1.0.0\")")
+    push(lines, "        .entry(\"src/main.kn\")")
+    push(lines, "        .targets(\"llvm\")")
+    push(lines, "        .artifact_root(\".kain/shared\")")
+    push(lines, "        .cache_root(\".kain/shared\")")
+    push(lines, "    let chk = check_task(\"verify\")")
+    push(lines, "        .project(app)")
+    push(lines, "        .target(\"llvm\")")
+    push(lines, "    return build_graph(app).tasks(chk)")
+    let build_text = text_join_strings(lines, "\n")
+
+    let build_path = fs_path_join(tmp, "build.kn")
+    fs_write_text(build_path, build_text)
+
+    let captured1 = run_check(build_path)
+    let captured2 = run_check(build_path)
+
+    let _ = fs_remove_dir_all(tmp)
+    return assert_deterministic("same_artifact_cache", captured1, captured2)
+
+// ---------------------------------------------------------------------------
+//  Registration
+// ---------------------------------------------------------------------------
+
+pub fn get_tests() -> Array<TestCase>:
+    let mut list: Array<TestCase> = []
+    list = add_to_list(list, TestCase{
+        name: "same_artifact_cache",
+        tag: "same_artifact_cache",
+        category: "project_config",
+        function: test_same_artifact_cache,
+        description: "Setting artifact_root and cache_root to the same path is handled deterministically",
+        expected: "PASS"
+    })
+    return list

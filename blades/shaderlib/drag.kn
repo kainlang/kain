@@ -1,0 +1,137 @@
+shader compute sculpt_engine_surface_drag(id: UVec3) -> Vec4:
+    uniform positions: StorageBuffer<Vec4> @0
+    uniform normals: StorageBuffer<Vec4> @1
+    uniform candidates: StorageBuffer<UInt> @3
+    uniform counter: StorageBuffer<UInt> @4
+    uniform center: Vec4 @5
+    uniform normal: Vec4 @6
+    uniform velocity: Vec4 @7
+    uniform prev_center: Vec3 @8
+    uniform stroke_distance: Float @9
+    uniform radius: Float @10
+    uniform strength: Float @11
+    uniform hardness: Float @12
+    uniform spacing: Float @13
+    uniform flags: UInt @14
+    uniform vertex_count: UInt @15
+    uniform candidate_count: UInt @16
+    uniform alpha_mode: UInt @17
+    uniform alpha_scale: Float @18
+    uniform alpha_rotation: Float @19
+    uniform alpha_offset: Vec2 @20
+    uniform alpha_blend_weight: Float @21
+    uniform alpha_mirror: UInt @22
+    uniform jitter_position: Float @23
+    uniform jitter_rotation: Float @24
+    uniform jitter_strength: Float @25
+    uniform random_seed: Float @26
+    uniform extras0: Vec4 @27
+    uniform extras1: Vec4 @28
+    uniform extras2: Vec4 @29
+    uniform extras3: Vec4 @30
+    uniform extras4: Vec4 @31
+    uniform extras5: Vec4 @32
+    uniform LOCAL_SIZE_X: UInt @100
+    uniform LOCAL_SIZE_Y: UInt @101
+    uniform LOCAL_SIZE_Z: UInt @102
+
+    let FLAG_SUBTRACT = 1 as UInt
+    let FLAG_FRONT_FACES_ONLY = 2 as UInt
+    let ALPHA_DISABLED = 0 as UInt
+    let eps = 0.0001
+
+    let vertex_idx_raw = id.x
+    let count = counter[0]
+    let mut vertex_idx = 0 as UInt
+
+    if count > 0 as UInt:
+        if vertex_idx_raw >= count:
+            return vec4(0.0, 0.0, 0.0, 0.0)
+        vertex_idx = candidates[vertex_idx_raw]
+    else:
+        if vertex_idx_raw >= vertex_count:
+            return vec4(0.0, 0.0, 0.0, 0.0)
+        vertex_idx = vertex_idx_raw
+
+    let pos = positions[vertex_idx].xyz
+    let nor = normalize(normals[vertex_idx].xyz)
+    let center_pos = center.xyz
+    let brush_normal = normalize(normal.xyz)
+    let to_center = pos - center_pos
+    let dist = length(to_center)
+    if dist > radius:
+        return vec4(0.0, 0.0, 0.0, 0.0)
+
+    if (flags & FLAG_FRONT_FACES_ONLY) != 0 as UInt:
+        if dot(nor, -brush_normal) < 0.0:
+            return vec4(0.0, 0.0, 0.0, 0.0)
+
+    let t = clamp(dist / radius, 0.0, 1.0)
+    let soft = 1.0 - t * t
+    let hard = 1.0 - t
+    let crest = soft * soft
+    let mut weight = mix(soft, hard, hardness)
+
+    let surface_local = to_center - dot(to_center, brush_normal) * brush_normal
+    if alpha_mode != ALPHA_DISABLED:
+        let mut uv = (vec2(surface_local.x, surface_local.z) / radius + 1.0) * 0.5
+        let centered = uv - vec2(0.5, 0.5)
+        let cos_r = cos(alpha_rotation)
+        let sin_r = sin(alpha_rotation)
+        let rotated = vec2(
+            centered.x * cos_r - centered.y * sin_r,
+            centered.x * sin_r + centered.y * cos_r
+        )
+        let scaled = rotated / max(alpha_scale, eps)
+        uv = scaled + vec2(0.5, 0.5) + alpha_offset
+        if (alpha_mirror & 1 as UInt) != 0 as UInt:
+            uv = vec2(1.0 - uv.x, uv.y)
+        if (alpha_mirror & 2 as UInt) != 0 as UInt:
+            uv = vec2(uv.x, 1.0 - uv.y)
+        let alpha_mask = max(0.0, 1.0 - length((uv - vec2(0.5, 0.5)) * 2.0))
+        weight = mix(weight, weight * alpha_mask, alpha_blend_weight)
+
+    weight = weight * center.w
+
+    if jitter_strength > 0.0:
+        let hash_p = pos + vec3(random_seed + jitter_position, random_seed + jitter_rotation, random_seed)
+        let mut p3 = fract(hash_p * 0.1031)
+        p3 = p3 + dot(p3, vec3(p3.y, p3.z, p3.x) + 33.33)
+        let noise = fract((p3.x + p3.y) * p3.z)
+        weight = weight * (1.0 + (noise - 0.5) * jitter_strength)
+
+    let raw_stroke = velocity.xyz + (center_pos - prev_center)
+    let raw_tangent = raw_stroke - nor * dot(raw_stroke, nor)
+    let fallback_tangent = vec3(nor.z, 0.0, -nor.x)
+    let mut tangent = vec3(1.0, 0.0, 0.0)
+    if length(raw_tangent) > eps:
+        tangent = normalize(raw_tangent)
+    else:
+        if length(fallback_tangent) > eps:
+            tangent = normalize(fallback_tangent)
+
+    let radial_plane = to_center - nor * dot(to_center, nor)
+    let mut radial_dir = tangent
+    if length(radial_plane) > eps:
+        radial_dir = normalize(radial_plane)
+
+    let drag_strength = extras0.x
+    let lift_strength = extras0.y
+    let pinch_strength = extras0.z
+    let rake_strength = extras0.w
+    let plane_bias = clamp(extras1.x, 0.0, 1.0)
+    let normal_follow = clamp(extras1.y, 0.0, 1.0)
+
+    let drag = tangent * drag_strength * weight
+    let rake = (tangent - radial_dir * dot(tangent, radial_dir)) * rake_strength * crest
+    let pinch = -radial_dir * pinch_strength * soft
+    let lift = mix(brush_normal, nor, normal_follow) * lift_strength * mix(weight, crest, plane_bias)
+
+    let mut displacement = (drag + rake + pinch + lift) * strength
+
+    if (flags & FLAG_SUBTRACT) != 0 as UInt:
+        displacement = -displacement
+
+    let new_pos = pos + displacement
+    positions[vertex_idx] = vec4(new_pos.x, new_pos.y, new_pos.z, 1.0)
+    return vec4(new_pos.x, new_pos.y, new_pos.z, 1.0)

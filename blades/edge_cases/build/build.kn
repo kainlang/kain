@@ -1,0 +1,270 @@
+// ============================================================================
+//  BUILD DETERMINISM EDGE-CASE STRESS SUITE — BUILD AUTHORITY
+//
+//  This build.kn is both:
+//  1. A valid build authority for the test suite itself (primary function)
+//  2. A demonstration of build.kn edge cases in its own structure:
+//     - Multiple source roots with overlapping file trees
+//     - Source sets that intentionally overlap (tests deduplication)
+//     - Complex task dependency chains (tests topological sort stability)
+//     - exec_task determinism verification pipeline (build twice, diff)
+//     - Per-category check tasks for subset running
+//     - Certification gate over all tasks
+//
+//  Category check tasks run independently — debug one edge-case category
+//  without waiting for all others.
+// ============================================================================
+
+use std::build
+
+// ---------------------------------------------------------------------------
+//  build() — the mandatory entry point called by the Kain compiler
+// ---------------------------------------------------------------------------
+
+fn build(ctx: BuildContext) -> BuildGraph:
+    // -- Source roots — one per edge-case category + harness infrastructure
+    let source_roots = [
+        "src/harness",
+        "src/project_config",
+        "src/source_set_edges",
+        "src/build_graph_edges",
+        "src/target_edges",
+        "src/profile_edges",
+        "src/caching",
+        "src/comptime_edges",
+        "src/import_edges",
+    ]
+
+    // -- Project definition -------------------------------------------------
+    let app = project("build-determinism-suite")
+        .kind("kain_executable")
+        .version("1.0.0")
+        .description("Determinism stress-testing suite for the Kain build.kn evidence DAG system.")
+        .entry("src/harness/main.kn")
+        .source_roots(source_roots)
+        .module_roots(source_roots)
+        .targets("llvm")
+        .artifact_root(".kain/out")
+        .cache_root(".kain/cache/build")
+        .profile("debug")
+
+    // -- Source sets (one per category — enables subset running) ------------
+
+    // Harness: test runner, assertions, reporting
+    let harness_src = source_set("harness-sources")
+        .root("src/harness")
+        .glob("src/harness/**/*.kn")
+
+    // Category 1: Project config edge cases
+    let project_config_src = source_set("project-config-sources")
+        .root("src/project_config")
+        .glob("src/project_config/**/*.kn")
+
+    // Category 2: Source set edge cases
+    let source_set_edge_src = source_set("source-set-edge-sources")
+        .root("src/source_set_edges")
+        .glob("src/source_set_edges/**/*.kn")
+
+    // Category 3: Build graph edge cases
+    let graph_edge_src = source_set("build-graph-edge-sources")
+        .root("src/build_graph_edges")
+        .glob("src/build_graph_edges/**/*.kn")
+
+    // Category 4: Target edge cases
+    let target_edge_src = source_set("target-edge-sources")
+        .root("src/target_edges")
+        .glob("src/target_edges/**/*.kn")
+
+    // Category 5: Profile edge cases
+    let profile_edge_src = source_set("profile-edge-sources")
+        .root("src/profile_edges")
+        .glob("src/profile_edges/**/*.kn")
+
+    // Category 6: Cache & output edge cases
+    let caching_src = source_set("caching-sources")
+        .root("src/caching")
+        .glob("src/caching/**/*.kn")
+
+    // Category 7: Comptime edge cases
+    let comptime_edge_src = source_set("comptime-edge-sources")
+        .root("src/comptime_edges")
+        .glob("src/comptime_edges/**/*.kn")
+
+    // Category 8: Import resolution edge cases
+    let import_edge_src = source_set("import-edge-sources")
+        .root("src/import_edges")
+        .glob("src/import_edges/**/*.kn")
+
+    // Full source set — intentionally overlaps with category sets
+    // This tests that overlapping source sets deduplicate correctly.
+    let all_src = source_set("all-sources")
+        .glob("src/**/*.kn")
+        .file("build.kn")
+        .file("readme.md")
+
+    // -- Check tasks (one per category — subset runnable) -------------------
+
+    let check_harness = check_task("check-harness")
+        .project(app)
+        .target("llvm")
+        .inputs(harness_src)
+
+    let check_project_config = check_task("check-project-config")
+        .project(app)
+        .target("llvm")
+        .inputs(project_config_src)
+        .requires("check-harness")
+
+    let check_source_set = check_task("check-source-set")
+        .project(app)
+        .target("llvm")
+        .inputs(source_set_edge_src)
+        .requires("check-harness")
+
+    let check_graph = check_task("check-graph")
+        .project(app)
+        .target("llvm")
+        .inputs(graph_edge_src)
+        .requires("check-harness")
+
+    let check_target = check_task("check-target")
+        .project(app)
+        .target("llvm")
+        .inputs(target_edge_src)
+        .requires("check-harness")
+
+    let check_profile = check_task("check-profile")
+        .project(app)
+        .target("llvm")
+        .inputs(profile_edge_src)
+        .requires("check-harness")
+
+    let check_caching = check_task("check-caching")
+        .project(app)
+        .target("llvm")
+        .inputs(caching_src)
+        .requires("check-harness")
+
+    let check_comptime = check_task("check-comptime")
+        .project(app)
+        .target("llvm")
+        .inputs(comptime_edge_src)
+        .requires("check-harness")
+
+    let check_import = check_task("check-import")
+        .project(app)
+        .target("llvm")
+        .inputs(import_edge_src)
+        .requires("check-harness")
+
+    // Full typecheck — depends on every category check passing first
+    let check_full = check_task("check-llvm")
+        .project(app)
+        .target("llvm")
+        .inputs(all_src)
+        .requires(
+            check_harness,
+            check_project_config,
+            check_source_set,
+            check_graph,
+            check_target,
+            check_profile,
+            check_caching,
+            check_comptime,
+            check_import,
+        )
+
+    // -- Determinism verification pipeline ----------------------------------
+    //
+    //  Build twice with --clean and compare outputs.
+    //  .always_run() ensures the cache doesn't mask non-determinism.
+    //
+    //  det-pass-1: clean build → capture artifacts
+    //  det-pass-2: clean build again → capture artifacts
+    //  det-verify: compare pass 1 vs pass 2 artifacts (byte-for-byte)
+    //
+    //  If passes 1 and 2 produce identical artifacts, the build is
+    //  deterministic under the given configuration.
+
+    let det_pass_1 = exec_task("det-pass-1")
+        .command("kain")
+        .arg("build")
+        .arg("--clean")
+        .cwd("$root")
+        .requires("check-llvm")
+        .always_run()
+
+    let det_pass_2 = exec_task("det-pass-2")
+        .command("kain")
+        .arg("build")
+        .arg("--clean")
+        .cwd("$root")
+        .requires("det-pass-1")
+        .always_run()
+
+    let det_verify = exec_task("det-verify")
+        .command("python")
+        .arg("src/harness/verify_determinism.py")
+        .arg("--pass1-root")
+        .arg(".kain/out")
+        .arg("--pass2-root")
+        .arg(".kain/out")
+        .arg("--report")
+        .arg("$root/.kain/out/determinism_report.json")
+        .cwd("$root")
+        .requires(det_pass_1, det_pass_2)
+        .always_run()
+
+    // -- Native executable (the test runner itself) -------------------------
+
+    let exe = native_executable("root-executable")
+        .project(app)
+        .output("$blade/build_determinism_suite.exe")
+        .requires(check_full, det_verify)
+
+    // -- Certification gate -------------------------------------------------
+
+    let cert = certify("build-determinism.local")
+        .requires(check_full, det_verify, exe)
+
+    // -- Build graph assembly -----------------------------------------------
+    //
+    //  Source sets are registered BOTH individually (for per-category tasks)
+    //  AND via the overlapping all-sources set (for the full check).
+    //
+    //  Tasks are registered in two groups:
+    //    1. Category checks + full check (typecheck layer)
+    //    2. Determinism pipeline + exe + cert (execution layer)
+
+    return build_graph(app)
+        .sources(
+            harness_src,
+            project_config_src,
+            source_set_edge_src,
+            graph_edge_src,
+            target_edge_src,
+            profile_edge_src,
+            caching_src,
+            comptime_edge_src,
+            import_edge_src,
+            all_src,
+        )
+        .tasks(
+            check_harness,
+            check_project_config,
+            check_source_set,
+            check_graph,
+            check_target,
+            check_profile,
+            check_caching,
+            check_comptime,
+            check_import,
+            check_full,
+        )
+        .tasks(
+            det_pass_1,
+            det_pass_2,
+            det_verify,
+            exe,
+            cert,
+        )
