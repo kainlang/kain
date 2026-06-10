@@ -1,17 +1,19 @@
 // ============================================================================
-//  UI TEMPLATE — Interactive Hex Color Mixer
+//  UI TEMPLATE — Interactive Hex Color Mixer (Entry Point)
 //  Pure Kain std::ui — real text input + live color preview.
 //
 //  Type hex codes (e.g. "FF8040") to see the color update in real time.
 //  Click preset swatches to pick common colors.
 //
 //  Ladder rung: Layer 0 (fn) — raw imperative event loop.
-//  Zero dependencies beyond std::ui + std::fmt + std::text.
+//  Imports color, input, and ui helpers from sibling modules.
 // ============================================================================
 
 use std::ui
-use std::fmt
-use std::text
+use std::runtime
+use color
+use input
+use ui
 
 // ============================================================================
 //  WINDOW
@@ -21,204 +23,14 @@ const WIN_W: Int = 820
 const WIN_H: Int = 620
 
 // ============================================================================
-//  RGB COLOR STRUCT
-// ============================================================================
-
-struct Rgb:
-    r: Int = 128
-    g: Int = 128
-    b: Int = 128
-
-fn rgb_new(r: Int, g: Int, b: Int) -> Rgb:
-    return Rgb { r: r, g: g, b: b }
-
-fn rgb_float(v: Int) -> Float:
-    return (v as Float) / 255.0
-
-// ============================================================================
-//  HEX UTILITIES
-// ============================================================================
-
-fn hex_digit(c: String) -> Int:
-    if c == "0": return 0
-    if c == "1": return 1
-    if c == "2": return 2
-    if c == "3": return 3
-    if c == "4": return 4
-    if c == "5": return 5
-    if c == "6": return 6
-    if c == "7": return 7
-    if c == "8": return 8
-    if c == "9": return 9
-    if (c == "A") or (c == "a"): return 10
-    if (c == "B") or (c == "b"): return 11
-    if (c == "C") or (c == "c"): return 12
-    if (c == "D") or (c == "d"): return 13
-    if (c == "E") or (c == "e"): return 14
-    if (c == "F") or (c == "f"): return 15
-    return -1
-
-fn is_hex_char(c: String) -> Bool:
-    let d = hex_digit(c)
-    return d >= 0
-
-fn parse_hex_rgb(hex: String) -> Rgb:
-    if hex == "":
-        return rgb_new(128, 128, 128)
-    let view = text_from(hex)
-    let length = text_len(view)
-    var r: Int = 0
-    var g: Int = 0
-    var b: Int = 0
-    if length >= 1:
-        r = hex_digit(text_char_at(view, 0)) * 16
-    if length >= 2:
-        r = r + hex_digit(text_char_at(view, 1))
-    if length >= 3:
-        g = hex_digit(text_char_at(view, 2)) * 16
-    if length >= 4:
-        g = g + hex_digit(text_char_at(view, 3))
-    if length >= 5:
-        b = hex_digit(text_char_at(view, 4)) * 16
-    if length >= 6:
-        b = b + hex_digit(text_char_at(view, 5))
-    return rgb_new(r, g, b)
-
-fn rgb_to_hex(c: Rgb) -> String:
-    return fmt_hex_u32(c.r) + fmt_hex_u32(c.g) + fmt_hex_u32(c.b)
-
-// ============================================================================
-//  PRESET COLORS
-// ============================================================================
-
-const PRESET_COUNT: Int = 8
-
-fn preset_rgb(index: Int) -> Rgb:
-    if index == 0: return rgb_new(240, 128, 130)   // Coral
-    if index == 1: return rgb_new(100, 200, 180)   // Teal
-    if index == 2: return rgb_new(180, 130, 255)   // Purple
-    if index == 3: return rgb_new(255, 215, 0)     // Gold
-    if index == 4: return rgb_new(70,  130, 200)   // Slate
-    if index == 5: return rgb_new(255, 105, 180)   // HotPink
-    if index == 6: return rgb_new(50,  180, 100)   // Forest
-    if index == 7: return rgb_new(220, 140, 60)    // Orange
-    return rgb_new(128, 128, 128)
-
-fn preset_label(index: Int) -> String:
-    if index == 0: return "Coral"
-    if index == 1: return "Teal"
-    if index == 2: return "Purple"
-    if index == 3: return "Gold"
-    if index == 4: return "Slate"
-    if index == 5: return "HotPink"
-    if index == 6: return "Forest"
-    if index == 7: return "Orange"
-    return "Gray"
-
-// ============================================================================
-//  STRING HELPERS
-// ============================================================================
-
-fn string_len(s: String) -> Int:
-    return text_len(text_from(s))
-
-fn string_char_at(s: String, index: Int) -> String:
-    return text_char_at(text_from(s), index)
-
-fn string_substring(s: String, start: Int, length: Int) -> String:
-    return text_substring_string(s, start, length)
-
-// ============================================================================
-//  HEX INPUT BUILDER
-//  Build a display string with cursor underscore at hex_index
-// ============================================================================
-
-fn build_display_hex(hex: String, hex_index: Int) -> String:
-    let full = text_from(hex)
-    let flen = text_len(full)
-
-    // Build: "#" + chars before cursor + "_" + chars after cursor
-    var result: String = "#"
-    var i: Int = 0
-    while i < hex_index:
-        if i < flen:
-            result = result + text_char_at(full, i)
-        else:
-            result = result + "."
-        i = i + 1
-
-    if hex_index < 6:
-        result = result + "_"
-
-    i = hex_index
-    while i < 6:
-        if i < flen:
-            result = result + text_char_at(full, i)
-        else:
-            result = result + "."
-        i = i + 1
-    return result
-
-// ============================================================================
-//  INSERT CHARACTER INTO HEX STRING AT POSITION
-// ============================================================================
-
-fn hex_insert(hex: String, pos: Int, ch: String) -> String:
-    let full = text_from(hex)
-    let flen = text_len(full)
-    var result: String = ""
-    var i: Int = 0
-    while i < pos:
-        if i < flen:
-            result = result + text_char_at(full, i)
-        i = i + 1
-    result = result + ch
-    i = pos
-    while i < 5:
-        if i < flen:
-            result = result + text_char_at(full, i)
-        i = i + 1
-    return result
-
-fn hex_delete(hex: String, pos: Int) -> String:
-    let full = text_from(hex)
-    let flen = text_len(full)
-    var result: String = ""
-    var i: Int = 0
-    while i < pos - 1:
-        if i < flen:
-            result = result + text_char_at(full, i)
-        i = i + 1
-    i = pos
-    while i < 6:
-        if i < flen:
-            result = result + text_char_at(full, i)
-        i = i + 1
-    return result
-
-// ============================================================================
-//  RENDER A BUTTON
-// ============================================================================
-
-fn render_button(session: Int, node_id: Int, label: String,
-                 x: Float, y: Float, w: Float, h: Float,
-                 fill_r: Float, fill_g: Float, fill_b: Float,
-                 font_id: Int):
-    ui_node_set_rect(session, node_id, x, y, w, h)
-    ui_style_color_rgba(session, node_id, "btn.fill", fill_r, fill_g, fill_b, 1.0)
-    ui_render_box_at(session, node_id, x, y, w, h, "btn.fill")
-
-    let lw: Float = ui_text_width(session, font_id, label)
-    let lx: Float = x + (w - lw) / 2.0
-    let ly: Float = y + h - 10.0
-    ui_style_color_rgba(session, 0, "btn.text", 1.0, 1.0, 1.0, 1.0)
-    ui_render_text_value(session, 0, font_id, label, lx, ly, "btn.text")
-
-// ============================================================================
 //  MAIN ENTRY POINT
 // ============================================================================
 
 fn main() -> Int:
+    // --- Initialize native runtime ---
+    let _ = native_runtime_init()
+    defer native_runtime_shutdown()
+
     // --- Create session with window ---
     let session = ui_host_session_create(
         "ui-template",
@@ -277,29 +89,21 @@ fn main() -> Int:
         // ================================================================
         //  RENDER — Background
         // ================================================================
-        let bg = ui_node_create(session, "background")
-        ui_node_set_rect(session, bg, 0.0, 0.0, win_wf, win_hf)
-        ui_style_color_rgba(session, bg, "fill", 0.10, 0.10, 0.14, 1.0)
-        ui_render_box_at(session, bg, 0.0, 0.0, win_wf, win_hf, "fill")
+        let bg = render_filled_box(session, ui_node_create(session, "background"),
+                                   0.0, 0.0, win_wf, win_hf,
+                                   0.10, 0.10, 0.14, 1.0, "fill")
 
         // --- Title bar ---
-        let bar = ui_node_create(session, "title-bar")
-        ui_node_set_rect(session, bar, 0.0, 0.0, win_wf, 46.0)
-        ui_style_color_rgba(session, bar, "fill", 0.15, 0.15, 0.21, 1.0)
-        ui_render_box_at(session, bar, 0.0, 0.0, win_wf, 46.0, "fill")
+        let bar = render_filled_box(session, ui_node_create(session, "title-bar"),
+                                    0.0, 0.0, win_wf, 46.0,
+                                    0.15, 0.15, 0.21, 1.0, "fill")
 
-        ui_style_color_rgba(session, 0, "title.text", 0.95, 0.95, 1.0, 1.0)
-        ui_render_text_value(
-            session, 0, title_font, "Kain UI Template — Hex Color Mixer",
-            20.0, 32.0, "title.text",
-        )
+        render_label(session, title_font, "Kain UI Template — Hex Color Mixer",
+                     20.0, 32.0, 0.95, 0.95, 1.0, 1.0, "title.text")
 
-        ui_style_color_rgba(session, 0, "sub", 0.45, 0.50, 0.60, 1.0)
-        ui_render_text_value(
-            session, 0, small_font,
-            "Pure Kain stdlib. Type hex codes, click presets, see colors.",
-            20.0, 64.0, "sub",
-        )
+        render_label(session, small_font,
+                     "Pure Kain stdlib. Type hex codes, click presets, see colors.",
+                     20.0, 64.0, 0.45, 0.50, 0.60, 1.0, "sub")
 
         // ================================================================
         //  LEFT PANEL — Color Preview
@@ -308,10 +112,9 @@ fn main() -> Int:
         let pg: Float = rgb_float(color.g)
         let pb: Float = rgb_float(color.b)
 
-        let preview_node = ui_node_create(session, "color-preview")
-        ui_node_set_rect(session, preview_node, preview_x, preview_y, preview_w, preview_h)
-        ui_style_color_rgba(session, preview_node, "preview.fill", pr, pg, pb, 1.0)
-        ui_render_box_at(session, preview_node, preview_x, preview_y, preview_w, preview_h, "preview.fill")
+        let preview_node = render_filled_box(session, ui_node_create(session, "color-preview"),
+                                             preview_x, preview_y, preview_w, preview_h,
+                                             pr, pg, pb, 1.0, "preview.fill")
 
         // --- Border overlay ---
         let border = ui_node_create(session, "preview-border")
@@ -320,51 +123,44 @@ fn main() -> Int:
         ui_style_color_rgba(session, border, "border", 0.25, 0.25, 0.35, 1.0)
         // Re-render fill on top so border is behind
         ui_style_color_rgba(session, preview_node, "preview.fill", pr, pg, pb, 1.0)
-        ui_render_box_at(session, preview_node, preview_x, preview_y, preview_w, preview_h, "preview.fill")
+        ui_render_box_at(session, preview_node, preview_x, preview_y,
+                         preview_w, preview_h, "preview.fill")
 
         // --- RGB readout ---
         let hex_label = rgb_to_hex(color)
         let rgb_label = "RGB(" + str(color.r) + ", " + str(color.g) + ", " + str(color.b) + ")  #" + hex_label
-        ui_style_color_rgba(session, 0, "rgb-label", 0.85, 0.85, 0.90, 1.0)
-        ui_render_text_value(
-            session, 0, mono_font, rgb_label,
-            preview_x, preview_y + preview_h + 28.0, "rgb-label",
-        )
+        render_label(session, mono_font, rgb_label,
+                     preview_x, preview_y + preview_h + 28.0,
+                     0.85, 0.85, 0.90, 1.0, "rgb-label")
 
         // ================================================================
         //  RIGHT PANEL — Hex Input
         // ================================================================
-        ui_style_color_rgba(session, 0, "section", 0.80, 0.82, 0.90, 1.0)
-        ui_render_text_value(session, 0, heading_font, "Hex Input", right_x, 100.0, "section")
+        render_label(session, heading_font, "Hex Input",
+                     right_x, 100.0, 0.80, 0.82, 0.90, 1.0, "section")
 
         // --- Input field background ---
-        let input_node = ui_node_create(session, "hex-input-bg")
-        ui_node_set_rect(session, input_node, input_field_x, input_field_y,
-                         input_field_w, input_field_h)
-        ui_style_color_rgba(session, input_node, "input.bg", 0.16, 0.16, 0.22, 1.0)
-        ui_render_box_at(session, input_node, input_field_x, input_field_y,
-                         input_field_w, input_field_h, "input.bg")
+        let input_node = render_filled_box(session, ui_node_create(session, "hex-input-bg"),
+                                           input_field_x, input_field_y,
+                                           input_field_w, input_field_h,
+                                           0.16, 0.16, 0.22, 1.0, "input.bg")
 
         let display_hex = build_display_hex(hex_input, hex_index)
-        ui_style_color_rgba(session, 0, "input.text", 0.90, 0.92, 1.0, 1.0)
-        ui_render_text_value(
-            session, 0, mono_font, display_hex,
-            input_field_x + 12.0, input_field_y + 30.0, "input.text",
-        )
+        render_label(session, mono_font, display_hex,
+                     input_field_x + 12.0, input_field_y + 30.0,
+                     0.90, 0.92, 1.0, 1.0, "input.text")
 
         // --- Hint ---
-        ui_style_color_rgba(session, 0, "hint", 0.35, 0.38, 0.45, 1.0)
-        ui_render_text_value(
-            session, 0, small_font,
-            "Click the field, then type hex digits — Enter to apply, Backspace to delete",
-            right_x, input_field_y + input_field_h + 20.0, "hint",
-        )
+        render_label(session, small_font,
+                     "Click the field, then type hex digits — Enter to apply, Backspace to delete",
+                     right_x, input_field_y + input_field_h + 20.0,
+                     0.35, 0.38, 0.45, 1.0, "hint")
 
         // ================================================================
         //  PRESETS
         // ================================================================
-        ui_style_color_rgba(session, 0, "section", 0.80, 0.82, 0.90, 1.0)
-        ui_render_text_value(session, 0, heading_font, "Presets", right_x, presets_y, "section")
+        render_label(session, heading_font, "Presets",
+                     right_x, presets_y, 0.80, 0.82, 0.90, 1.0, "section")
 
         var pi: Int = 0
         while pi < PRESET_COUNT:
@@ -373,25 +169,25 @@ fn main() -> Int:
             let psize: Float = 52.0
 
             let pr2 = preset_rgb(pi)
-            let pnode = ui_node_create(session, "preset-swatch-" + str(pi))
-            ui_node_set_rect(session, pnode, px, py, psize, psize)
-            ui_style_color_rgba(session, pnode, "swatch.fill",
-                                rgb_float(pr2.r), rgb_float(pr2.g), rgb_float(pr2.b), 1.0)
-            ui_render_box_at(session, pnode, px, py, psize, psize, "swatch.fill")
+            let pnode = render_filled_box(session,
+                              ui_node_create(session, "preset-swatch-" + str(pi)),
+                              px, py, psize, psize,
+                              rgb_float(pr2.r), rgb_float(pr2.g), rgb_float(pr2.b),
+                              1.0, "swatch.fill")
 
             let plabel = preset_label(pi)
             let plabel_w: Float = ui_text_width(session, small_font, plabel)
             let plabel_x: Float = px + (psize - plabel_w) / 2.0
-            ui_style_color_rgba(session, 0, "preset.text", 0.70, 0.72, 0.80, 1.0)
-            ui_render_text_value(session, 0, small_font, plabel,
-                                 plabel_x, py + psize + 18.0, "preset.text")
+            render_label(session, small_font, plabel,
+                         plabel_x, py + psize + 18.0,
+                         0.70, 0.72, 0.80, 1.0, "preset.text")
             pi = pi + 1
 
         // ================================================================
         //  ACTION BUTTONS
         // ================================================================
-        ui_style_color_rgba(session, 0, "section", 0.80, 0.82, 0.90, 1.0)
-        ui_render_text_value(session, 0, heading_font, "Actions", right_x, actions_y, "section")
+        render_label(session, heading_font, "Actions",
+                     right_x, actions_y, 0.80, 0.82, 0.90, 1.0, "section")
 
         let apply_btn = ui_node_create(session, "btn-apply")
         render_button(session, apply_btn, "Apply Hex",
@@ -406,8 +202,8 @@ fn main() -> Int:
         // ================================================================
         //  COLOR HISTORY
         // ================================================================
-        ui_style_color_rgba(session, 0, "section", 0.80, 0.82, 0.90, 1.0)
-        ui_render_text_value(session, 0, heading_font, "History", right_x, hist_y, "section")
+        render_label(session, heading_font, "History",
+                     right_x, hist_y, 0.80, 0.82, 0.90, 1.0, "section")
 
         var hi: Int = 0
         while hi < 4:
@@ -422,24 +218,25 @@ fn main() -> Int:
 
             if hhex != "":
                 let hc = parse_hex_rgb(hhex)
-                let hnode = ui_node_create(session, "hist-" + str(hi))
-                ui_node_set_rect(session, hnode, hx, hy, hsize, hsize)
-                ui_style_color_rgba(session, hnode, "hist.fill",
-                                    rgb_float(hc.r), rgb_float(hc.g), rgb_float(hc.b), 1.0)
-                ui_render_box_at(session, hnode, hx, hy, hsize, hsize, "hist.fill")
+                let hnode = render_filled_box(session,
+                                  ui_node_create(session, "hist-" + str(hi)),
+                                  hx, hy, hsize, hsize,
+                                  rgb_float(hc.r), rgb_float(hc.g), rgb_float(hc.b),
+                                  1.0, "hist.fill")
             else:
-                let eh = ui_node_create(session, "hist-empty-" + str(hi))
-                ui_node_set_rect(session, eh, hx, hy, hsize, hsize)
-                ui_style_color_rgba(session, eh, "hist.empty", 0.14, 0.14, 0.18, 1.0)
-                ui_render_box_at(session, eh, hx, hy, hsize, hsize, "hist.empty")
+                let eh = render_filled_box(session,
+                              ui_node_create(session, "hist-empty-" + str(hi)),
+                              hx, hy, hsize, hsize,
+                              0.14, 0.14, 0.18, 1.0, "hist.empty")
 
             hi = hi + 1
 
         // ================================================================
         //  STATUS BAR
         // ================================================================
-        ui_style_color_rgba(session, 0, "status", 0.45, 0.48, 0.55, 1.0)
-        ui_render_text_value(session, 0, small_font, status_msg, 20.0, win_hf - 30.0, "status")
+        render_label(session, small_font, status_msg,
+                     20.0, win_hf - 30.0,
+                     0.45, 0.48, 0.55, 1.0, "status")
 
         // ================================================================
         //  EVENT HANDLING

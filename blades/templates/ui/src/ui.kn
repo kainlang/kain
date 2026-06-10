@@ -1,0 +1,49 @@
+// ============================================================================
+//  UI TEMPLATE — Rendering helpers (box, text, button)
+// ============================================================================
+
+use std::ui
+
+// ============================================================================
+//  RENDER A FILLED RECTANGLE
+//  Creates a node, sets its rect, sets fill color, draws it.
+//  Returns the node ID for reuse or event targeting.
+// ============================================================================
+
+pub fn render_filled_box(session: Int, node_id: Int, x: Float, y: Float,
+                     w: Float, h: Float, r: Float, g: Float, b: Float,
+                     a: Float, style_key: String) -> Int:
+    ui_node_set_rect(session, node_id, x, y, w, h)
+    ui_style_color_rgba(session, node_id, style_key, r, g, b, a)
+    ui_render_box_at(session, node_id, x, y, w, h, style_key)
+    return node_id
+
+// ============================================================================
+//  RENDER A TEXT LABEL
+//  Sets text color and renders text at the given position.
+// ============================================================================
+
+pub fn render_label(session: Int, font_id: Int, text: String, x: Float,
+                y: Float, r: Float, g: Float, b: Float, a: Float,
+                style_key: String):
+    ui_style_color_rgba(session, 0, style_key, r, g, b, a)
+    ui_render_text_value(session, 0, font_id, text, x, y, style_key)
+
+// ============================================================================
+//  RENDER A BUTTON
+//  Fills a rectangle with the given color, then centers the label text.
+// ============================================================================
+
+pub fn render_button(session: Int, node_id: Int, label: String,
+                 x: Float, y: Float, w: Float, h: Float,
+                 fill_r: Float, fill_g: Float, fill_b: Float,
+                 font_id: Int):
+    ui_node_set_rect(session, node_id, x, y, w, h)
+    ui_style_color_rgba(session, node_id, "btn.fill", fill_r, fill_g, fill_b, 1.0)
+    ui_render_box_at(session, node_id, x, y, w, h, "btn.fill")
+
+    let lw: Float = ui_text_width(session, font_id, label)
+    let lx: Float = x + (w - lw) / 2.0
+    let ly: Float = y + h - 10.0
+    ui_style_color_rgba(session, 0, "btn.text", 1.0, 1.0, 1.0, 1.0)
+    ui_render_text_value(session, 0, font_id, label, lx, ly, "btn.text")

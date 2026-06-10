@@ -1,0 +1,101 @@
+// ============================================================================
+//  UI TEMPLATE — Color module (Rgb struct, hex ops, preset palette)
+// ============================================================================
+
+use std::fmt
+use std::text
+
+// ============================================================================
+//  RGB COLOR STRUCT
+// ============================================================================
+
+pub struct Rgb:
+    r: Int = 128
+    g: Int = 128
+    b: Int = 128
+
+pub fn rgb_new(r: Int, g: Int, b: Int) -> Rgb:
+    return Rgb { r: r, g: g, b: b }
+
+pub fn rgb_float(v: Int) -> Float:
+    return (v as Float) / 255.0
+
+// ============================================================================
+//  HEX UTILITIES
+// ============================================================================
+
+pub fn hex_digit(c: String) -> Int:
+    if c == "0": return 0
+    if c == "1": return 1
+    if c == "2": return 2
+    if c == "3": return 3
+    if c == "4": return 4
+    if c == "5": return 5
+    if c == "6": return 6
+    if c == "7": return 7
+    if c == "8": return 8
+    if c == "9": return 9
+    if (c == "A") or (c == "a"): return 10
+    if (c == "B") or (c == "b"): return 11
+    if (c == "C") or (c == "c"): return 12
+    if (c == "D") or (c == "d"): return 13
+    if (c == "E") or (c == "e"): return 14
+    if (c == "F") or (c == "f"): return 15
+    return -1
+
+pub fn is_hex_char(c: String) -> Bool:
+    let d = hex_digit(c)
+    return d >= 0
+
+pub fn parse_hex_rgb(hex: String) -> Rgb:
+    if hex == "":
+        return rgb_new(128, 128, 128)
+    let view = text_from(hex)
+    let length = text_len(view)
+    var r: Int = 0
+    var g: Int = 0
+    var b: Int = 0
+    if length >= 1:
+        r = hex_digit(text_char_at(view, 0)) * 16
+    if length >= 2:
+        r = r + hex_digit(text_char_at(view, 1))
+    if length >= 3:
+        g = hex_digit(text_char_at(view, 2)) * 16
+    if length >= 4:
+        g = g + hex_digit(text_char_at(view, 3))
+    if length >= 5:
+        b = hex_digit(text_char_at(view, 4)) * 16
+    if length >= 6:
+        b = b + hex_digit(text_char_at(view, 5))
+    return rgb_new(r, g, b)
+
+pub fn rgb_to_hex(c: Rgb) -> String:
+    return fmt_hex_u32(c.r) + fmt_hex_u32(c.g) + fmt_hex_u32(c.b)
+
+// ============================================================================
+//  PRESET COLORS
+// ============================================================================
+
+pub const PRESET_COUNT: Int = 8
+
+pub fn preset_rgb(index: Int) -> Rgb:
+    if index == 0: return rgb_new(240, 128, 130)   // Coral
+    if index == 1: return rgb_new(100, 200, 180)   // Teal
+    if index == 2: return rgb_new(180, 130, 255)   // Purple
+    if index == 3: return rgb_new(255, 215, 0)     // Gold
+    if index == 4: return rgb_new(70,  130, 200)   // Slate
+    if index == 5: return rgb_new(255, 105, 180)   // HotPink
+    if index == 6: return rgb_new(50,  180, 100)   // Forest
+    if index == 7: return rgb_new(220, 140, 60)    // Orange
+    return rgb_new(128, 128, 128)
+
+pub fn preset_label(index: Int) -> String:
+    if index == 0: return "Coral"
+    if index == 1: return "Teal"
+    if index == 2: return "Purple"
+    if index == 3: return "Gold"
+    if index == 4: return "Slate"
+    if index == 5: return "HotPink"
+    if index == 6: return "Forest"
+    if index == 7: return "Orange"
+    return "Gray"

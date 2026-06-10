@@ -117,3 +117,6 @@ pub fn jit_test_suite() -> Int with Unsafe:
 
     println("[JIT] All self-tests passed!")
     return 0
+
+fn main() -> Int with Unsafe:
+    return jit_test_suite()

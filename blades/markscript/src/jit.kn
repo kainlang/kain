@@ -9,7 +9,7 @@
 // ============================================================================
 
 use std::machine
-use std::intent
+// intent unused — removed
 use parser          // OP_*, hash_name
 use types           // MarkValue, mark_int
 use error           // MarkError, ERROR_*, error_ok, make_error
@@ -110,7 +110,11 @@ fn emit_prologue(arr: Array<Int>) -> Array<Int>:
     return arr
 
 fn emit_epilogue(arr: Array<Int>) -> Array<Int>:
-    emit_rr(arr, X64_REX_W, 0x89, 4, 5)  // mov rsp, rbp  (discard operand stack)
+    // mov rsp, rbp - discard operand stack by restoring RSP to frame base
+    // Encoding: REX.W 89 /r where reg=RBP(source), rm=RSP(dest) = 48 89 EC
+    push(arr, X64_REX_W)
+    push(arr, 0x89)
+    push(arr, 0xEC)  // ModRM: mod=11, reg=5(RBP), rm=4(RSP)
     push(arr, X64_POP_RBX)               // restore RBX
     push(arr, X64_POP_RBP)               // restore RBP
     push(arr, X64_RET)                   // return (result in RAX)
@@ -156,7 +160,11 @@ fn emit_add_rbp(arr: Array<Int>, rsp_off: Int) -> Array<Int>:
     // Pop b into RBX, pop a into RAX
     emit_mov_rbp_disp(arr, 3, -8 - (rsp_off - 8), false)  // mov rbx, [top-1]
     emit_mov_rbp_disp(arr, 0, -8 - (rsp_off - 16), false) // mov rax, [top-2]
-    emit_rr(arr, X64_REX_W, 0x01, 0, 3)                    // add rax, rbx
+    // ADD r/m64, r64: reg=source(r64), rm=dest(r/m64)
+    // Want: RAX += RBX -> dest=RAX(rm=0), src=RBX(reg=3) -> ModRM(3,3,0)=0xD8
+    push(arr, X64_REX_W)
+    push(arr, 0x01)
+    push(arr, 0xD8)  // ModRM: mod=11, reg=3(RBX), rm=0(RAX) = ADD RAX, RBX
     // Store result at [top-2] position (new top after 2 pops)
     emit_mov_rbp_disp(arr, 0, -8 - (rsp_off - 16), true)   // mov [result_slot], rax
     return arr
@@ -164,7 +172,11 @@ fn emit_add_rbp(arr: Array<Int>, rsp_off: Int) -> Array<Int>:
 fn emit_sub_rbp(arr: Array<Int>, rsp_off: Int) -> Array<Int>:
     emit_mov_rbp_disp(arr, 3, -8 - (rsp_off - 8), false)
     emit_mov_rbp_disp(arr, 0, -8 - (rsp_off - 16), false)
-    emit_rr(arr, X64_REX_W, 0x29, 0, 3)                    // sub rax, rbx
+    // SUB r/m64, r64: reg=source(r64), rm=dest(r/m64)
+    // Want: RAX -= RBX -> dest=RAX(rm=0), src=RBX(reg=3) -> ModRM(3,3,0)=0xD8
+    push(arr, X64_REX_W)
+    push(arr, 0x29)
+    push(arr, 0xD8)  // ModRM: mod=11, reg=3(RBX), rm=0(RAX) = SUB RAX, RBX
     emit_mov_rbp_disp(arr, 0, -8 - (rsp_off - 16), true)
     return arr
 
@@ -233,6 +245,14 @@ fn emit_jn_rbp(arr: Array<Int>, rsp_off: Int) -> Array<Int>:
     emit_rr(arr, X64_REX_W, 0x85, 0, 0)                 // test rax, rax
     return arr
 
+// Emit the Jcc opcode + rel32 after the pop+test emitted by emit_jz_rbp/emit_jn_rbp.
+// cc: 0x84 = JZ (je), 0x88 = JS (js)
+fn emit_jcc_rel32(arr: Array<Int>, cc: Int, rel: Int) -> Array<Int>:
+    push(arr, 0x0F)
+    push(arr, cc)
+    emit_u32(arr, rel)
+    return arr
+
 // ===========================================================================
 //  FIXUP RESOLUTION — patch placeholder jump displacements after compilation
 // ============================================================================
@@ -242,9 +262,10 @@ fn apply_fixups(code_arr: Array<Int>, fixups: Array<FixupEntry>, native_offsets:
     while fi < len(fixups):
         let f = fixups[fi]
         let target_native = native_offsets[f.target_ip]
-        // For JMP: RIP after the 5-byte instruction = patch_at + 5
-        // For Jcc: RIP after the 6-byte sequence = patch_at + 6
-        let rip_after = if f.kind == 0: f.patch_at + 5 else: f.patch_at + 6
+        // RIP after instruction = patch_at + 4 for both cases:
+        //   JMP (5 bytes): 0xE9 at patch_at-1, disp at patch_at..patch_at+3, RIP = (patch_at-1)+5 = patch_at+4
+        //   Jcc (6 bytes): 0x0F at patch_at-2, 0x8x at patch_at-1, disp at patch_at..patch_at+3, RIP = (patch_at-2)+6 = patch_at+4
+        let rip_after = f.patch_at + 4
         let rel = target_native - rip_after
         code_arr[f.patch_at] = rel & 0xFF
         code_arr[f.patch_at + 1] = (rel >> 8) & 0xFF
@@ -269,6 +290,7 @@ fn null_ptr_byte() -> ptr<Byte>:
 
 pub fn jit_compile_block(bytecode: Array<Int>, start_ip: Int, end_ip: Int) -> JitResult with Unsafe:
     let bc_len = len(bytecode)
+    println("[JIT-DBG:0] entry bc_len=" + str(bc_len))
 
     // Initialize native_offsets array: one slot per bytecode IP
     var native_offsets: Array<Int> = []
@@ -326,11 +348,12 @@ pub fn jit_compile_block(bytecode: Array<Int>, start_ip: Int, end_ip: Int) -> Ji
             if ip + 3 >= bc_len:
                 ip = bc_len
                 continue
-            ip = ip + 4  // handle, cols, rows, data_count
+            let data_count = bytecode[ip + 3]  // save data_count before skip
+            ip = ip + 4  // skip handle, cols, rows, data_count
             if ip < bc_len:
-                let cc = bytecode[ip]
-                ip = ip + 1 + cc
-            ip = ip + 1
+                let cc = bytecode[ip]  // col_count
+                ip = ip + 1 + cc       // skip col_count + col_types
+            ip = ip + data_count       // skip cell data
 
         // ── OP_FENCED_CODE (6) — skip 3 bytes ───────────────────────
         elif op == 6:
@@ -386,7 +409,7 @@ pub fn jit_compile_block(bytecode: Array<Int>, start_ip: Int, end_ip: Int) -> Ji
                     // Forward jump — placeholder + fixup
                     let patch_start = len(code_arr) + 1  // +1 for the 0xE9 opcode
                     code_arr = emit_jmp_placeholder(code_arr)
-                    push(fixups, FixupEntry { patch_at: patch_start, target_ip: target, is_jmp: true })
+                    push(fixups, FixupEntry { patch_at: patch_start, target_ip: target, kind: 0 })
             ip = ip + 1
 
         // ── OP_JZ (13) — pop, jump if zero ──────────────────────────
@@ -406,13 +429,8 @@ pub fn jit_compile_block(bytecode: Array<Int>, start_ip: Int, end_ip: Int) -> Ji
                     emit_u32(code_arr, rel)
                 else:
                     let patch_start = len(code_arr) + 2  // +2 for 0F 84
-                    push(code_arr, 0x0F)
-                    push(code_arr, 0x84)
-                    push(code_arr, 0)
-                    push(code_arr, 0)
-                    push(code_arr, 0)
-                    push(code_arr, 0)
-                    push(fixups, FixupEntry { patch_at: patch_start, target_ip: target, is_jmp: false })
+                    code_arr = emit_jcc_rel32(code_arr, 0x84, 0)
+                    push(fixups, FixupEntry { patch_at: patch_start, target_ip: target, kind: 1 })
             ip = ip + 1
 
         // ── OP_ADD (14) — a + b ─────────────────────────────────────
@@ -489,21 +507,18 @@ pub fn jit_compile_block(bytecode: Array<Int>, start_ip: Int, end_ip: Int) -> Ji
                     emit_u32(code_arr, rel)
                 else:
                     let patch_start = len(code_arr) + 2  // +2 for 0F 88
-                    push(code_arr, 0x0F)
-                    push(code_arr, 0x88)
-                    push(code_arr, 0)
-                    push(code_arr, 0)
-                    push(code_arr, 0)
-                    push(code_arr, 0)
-                    push(fixups, FixupEntry { patch_at: patch_start, target_ip: target, is_jmp: false })
+                    code_arr = emit_jcc_rel32(code_arr, 0x88, 0)
+                    push(fixups, FixupEntry { patch_at: patch_start, target_ip: target, kind: 1 })
             ip = ip + 1
 
         // ── Unknown opcode — skip ───────────────────────────────────
         else:
             ip = ip + 1
 
+    println("[JIT-DBG:3a] before apply_fixups")
     // Resolve forward jump fixups
     apply_fixups(code_arr, fixups, native_offsets)
+    println("[JIT-DBG:3b] after apply_fixups, code_size=" + str(len(code_arr)) + ", has_ret=" + str(code_arr[len(code_arr) - 1] == X64_RET))
 
     // Ensure epilogue if not already emitted
     if len(code_arr) > 0:
@@ -522,11 +537,14 @@ pub fn jit_compile_block(bytecode: Array<Int>, start_ip: Int, end_ip: Int) -> Ji
     if code_size < 1:
         return JitResult { code_ptr: null_ptr_byte(), code_size: 0, error: "empty bytecode" }
 
+    println("[JIT-DBG:4a] before page_size")
     let alloc_size = code_size
     let page_size = vm_page_size()
+    println("[JIT-DBG:4b] page_size=" + str(page_size))
     if alloc_size % page_size > 0:
         alloc_size = (alloc_size / page_size + 1) * page_size
 
+    println("[JIT-DBG:4] allocating " + str(alloc_size) + " bytes")
     let buf = vm_map(alloc_size)
     if ptr_to_int(buf) == 0:
         return JitResult { code_ptr: null_ptr_byte(), code_size: 0, error: "vm_map failed" }
@@ -537,13 +555,12 @@ pub fn jit_compile_block(bytecode: Array<Int>, start_ip: Int, end_ip: Int) -> Ji
         return JitResult { code_ptr: null_ptr_byte(), code_size: 0, error: "protect failed" }
 
     // Copy code bytes to RWX memory
-    collapse buf:
-        var i: Int = 0
-        while i < code_size:
-            let byte_val: Byte = code_arr[i] as Byte
-            mem_store(ptr_offset(buf, i, "Byte"), byte_val, "Byte")
-            i = i + 1
-        0
+    var i: Int = 0
+    while i < code_size:
+        let byte_val: Byte = code_arr[i] as Byte
+        let bp = ptr_offset(buf, i, "Byte")
+        mem_store(bp, byte_val, "Byte")
+        i = i + 1
 
     // Flush instruction cache
     var ci: Int = 0
@@ -564,6 +581,9 @@ pub fn jit_compile_block(bytecode: Array<Int>, start_ip: Int, end_ip: Int) -> Ji
 // ============================================================================
 
 pub fn call_jit(code_ptr: ptr<Byte>) -> Int with Unsafe:
+    // Safety check: refuse null code pointer
+    if ptr_to_int(code_ptr) == 0:
+        return -1
     let scratch: ptr<Int> = alloc_zeroed(2, "Int")
     mem_store(scratch, ptr_to_int(code_ptr), "Int")
     mem_store(ptr_offset(scratch, 1, "Int"), 0, "Int")
@@ -591,7 +611,7 @@ shatter struct CacheStore:
     bytes:    Int
     compiles: Int
 
-fn init_cache() -> CacheStore:
+pub fn init_cache() -> CacheStore:
     return CacheStore {
         hashes: [], ptrs: [], sizes: [],
         count: 0, hits: 0, misses: 0,
@@ -602,7 +622,7 @@ struct LookupResult:
     found: Bool
     ptr:   ptr<Byte>
 
-fn cache_lookup(cache: CacheStore, hash: Int) -> LookupResult:
+pub fn cache_lookup(cache: CacheStore, hash: Int) -> LookupResult:
     var i: Int = 0
     while i < cache.count:
         if cache.hashes[i] == hash:
@@ -610,7 +630,7 @@ fn cache_lookup(cache: CacheStore, hash: Int) -> LookupResult:
         i = i + 1
     return LookupResult { found: false, ptr: null_ptr_byte() }
 
-fn cache_register(cache: CacheStore, hash: Int, ptr: ptr<Byte>, size: Int) -> CacheStore:
+pub fn cache_register(cache: CacheStore, hash: Int, ptr: ptr<Byte>, size: Int) -> CacheStore:
     var c = cache
     push(c.hashes, hash)
     push(c.ptrs, ptr)
@@ -620,12 +640,12 @@ fn cache_register(cache: CacheStore, hash: Int, ptr: ptr<Byte>, size: Int) -> Ca
     c.compiles = c.compiles + 1
     return c
 
-fn cache_record_hit(cache: CacheStore) -> CacheStore:
+pub fn cache_record_hit(cache: CacheStore) -> CacheStore:
     var c = cache
     c.hits = c.hits + 1
     return c
 
-fn cache_record_miss(cache: CacheStore) -> CacheStore:
+pub fn cache_record_miss(cache: CacheStore) -> CacheStore:
     var c = cache
     c.misses = c.misses + 1
     return c
@@ -641,162 +661,94 @@ pub fn jit_execute(bc: Array<Int>) -> Int with Unsafe:
         return -1
     return call_jit(jr.code_ptr)
 
+fn run_jit_test(label: String, bc: Array<Int>, expected: Int) -> Int with Unsafe:
+    let r = jit_compile_block(bc, 0, len(bc))
+    if r.code_size < 1:
+        println("[JIT] FAIL " + label + ": compile failed - " + r.error)
+        return 1
+    if ptr_to_int(r.code_ptr) == 0:
+        println("[JIT] FAIL " + label + ": null code_ptr")
+        return 1
+    println("[JIT] " + label + ": " + str(len(bc)) + " bc ops, " + str(r.code_size) + " bytes")
+    let res = call_jit(r.code_ptr)
+    if res != expected:
+        println("[JIT] FAIL " + label + ": got " + str(res) + ", expected " + str(expected))
+        return 1
+    return 0
+
 pub fn jit_selftest() -> Int with Unsafe:
+    println("[JIT] Running self-tests...")
+
     // Test 0: just halt
-    let test0: Array<Int> = [0]
-    let r0 = jit_compile_block(test0, 0, 1)
-    let res0 = call_jit(r0.code_ptr)
-    println("[JIT] halt: " + str(res0) + " (" + str(r0.code_size) + " bytes)")
-    if res0 != 0:
+    if run_jit_test("halt", [0], 0) != 0:
         return 1
 
     // Test 1: push 42, halt
-    let test1: Array<Int> = [7, 42, 0]
-    let r1 = jit_compile_block(test1, 0, 3)
-    let res1 = call_jit(r1.code_ptr)
-    println("[JIT] push 42: " + str(res1) + " (" + str(r1.code_size) + " bytes)")
-    if res1 != 42:
+    if run_jit_test("push 42", [7, 42, 0], 42) != 0:
         return 1
 
     // Test 2: 1+2=3
-    let test2: Array<Int> = [7, 1, 7, 2, 14, 0]
-    let r2 = jit_compile_block(test2, 0, 6)
-    let res2 = call_jit(r2.code_ptr)
-    println("[JIT] 1+2: " + str(res2) + " (" + str(r2.code_size) + " bytes)")
-    if res2 != 3:
-        println("[JIT] FAIL: 1+2")
+    if run_jit_test("1+2", [7, 1, 7, 2, 14, 0], 3) != 0:
         return 1
 
     // Test 3: 100-30=70
-    let test3: Array<Int> = [7, 100, 7, 30, 15, 0]
-    let r3 = jit_compile_block(test3, 0, 6)
-    let res3 = call_jit(r3.code_ptr)
-    println("[JIT] 100-30: " + str(res3) + " (" + str(r3.code_size) + " bytes)")
-    if res3 != 70:
-        println("[JIT] FAIL: 100-30")
+    if run_jit_test("100-30", [7, 100, 7, 30, 15, 0], 70) != 0:
         return 1
 
     // Test 4: 7*6=42
-    let test4: Array<Int> = [7, 7, 7, 6, 16, 0]
-    let r4 = jit_compile_block(test4, 0, 6)
-    let res4 = call_jit(r4.code_ptr)
-    println("[JIT] 7*6: " + str(res4) + " (" + str(r4.code_size) + " bytes)")
-    if res4 != 42:
-        println("[JIT] FAIL: 7*6")
+    if run_jit_test("7*6", [7, 7, 7, 6, 16, 0], 42) != 0:
         return 1
 
     // Test 5: 100/5=20
-    let test5: Array<Int> = [7, 100, 7, 5, 17, 0]
-    let r5 = jit_compile_block(test5, 0, 6)
-    let res5 = call_jit(r5.code_ptr)
-    println("[JIT] 100/5: " + str(res5) + " (" + str(r5.code_size) + " bytes)")
-    if res5 != 20:
-        println("[JIT] FAIL: 100/5")
+    if run_jit_test("100/5", [7, 100, 7, 5, 17, 0], 20) != 0:
         return 1
 
     // Test 6: dup + pop
-    let test6: Array<Int> = [7, 42, 9, 8, 0]
-    let r6 = jit_compile_block(test6, 0, 5)
-    let res6 = call_jit(r6.code_ptr)
-    println("[JIT] dup+pop: " + str(res6) + " (" + str(r6.code_size) + " bytes)")
-    if res6 != 42:
-        println("[JIT] FAIL: dup")
+    if run_jit_test("dup+pop", [7, 42, 9, 8, 0], 42) != 0:
         return 1
 
-    // Test 7: LOAD_VAR + STORE_VAR
-    let test7: Array<Int> = [7, 100, 18, 1, 19, 2, 0]
-    let r7 = jit_compile_block(test7, 0, 7)
-    let res7 = call_jit(r7.code_ptr)
-    println("[JIT] load/store var: " + str(res7) + " (" + str(r7.code_size) + " bytes)")
-    if res7 != 100:
-        println("[JIT] FAIL: var")
+    // Test 7: STORE_VAR then LOAD_VAR (same slot)
+    if run_jit_test("load/store var", [7, 100, 19, 0, 18, 0, 0], 100) != 0:
         return 1
 
     // Test 8: EXECUTE_CALL skip
-    let test8: Array<Int> = [7, 42, 3, 12345, 4, 0]
-    let r8 = jit_compile_block(test8, 0, 6)
-    let res8 = call_jit(r8.code_ptr)
-    println("[JIT] exec_call skip: " + str(res8) + " (" + str(r8.code_size) + " bytes)")
-    if res8 != 42:
-        println("[JIT] FAIL: exec_call")
+    if run_jit_test("exec_call skip", [7, 42, 3, 12345, 4, 0], 42) != 0:
         return 1
 
     // Test 9: OP_CALL skip
-    let test9: Array<Int> = [7, 77, 10, 0]
-    let r9 = jit_compile_block(test9, 0, 4)
-    let res9 = call_jit(r9.code_ptr)
-    println("[JIT] op_call skip: " + str(res9) + " (" + str(r9.code_size) + " bytes)")
-    if res9 != 77:
-        println("[JIT] FAIL: op_call")
+    if run_jit_test("op_call skip", [7, 77, 10, 0], 77) != 0:
         return 1
 
     // Test 10: OP_RET skip
-    let test10: Array<Int> = [7, 55, 11, 0]
-    let r10 = jit_compile_block(test10, 0, 4)
-    let res10 = call_jit(r10.code_ptr)
-    println("[JIT] ret skip: " + str(res10) + " (" + str(r10.code_size) + " bytes)")
-    if res10 != 55:
-        println("[JIT] FAIL: ret")
+    if run_jit_test("ret skip", [7, 55, 11, 0], 55) != 0:
         return 1
 
     // Test 11: ENTER_DOMAIN + ROUTINE_HEADER skip
-    let test11: Array<Int> = [1, 7777, 2, 8888, 7, 33, 0]
-    let r11 = jit_compile_block(test11, 0, 7)
-    let res11 = call_jit(r11.code_ptr)
-    println("[JIT] domain+header: " + str(res11) + " (" + str(r11.code_size) + " bytes)")
-    if res11 != 33:
-        println("[JIT] FAIL: domain")
+    if run_jit_test("domain+header", [1, 7777, 2, 8888, 7, 33, 0], 33) != 0:
         return 1
 
     // Test 12: FENCED_CODE skip
-    let test12: Array<Int> = [6, 100, 200, 0]
-    let r12 = jit_compile_block(test12, 0, 4)
-    let res12 = call_jit(r12.code_ptr)
-    println("[JIT] fenced code: " + str(res12) + " (" + str(r12.code_size) + " bytes)")
+    if run_jit_test("fenced code", [6, 100, 200, 0], 0) != 0:
+        return 1
 
     // Test 13: PUSH_MATRIX skip + push 42
-    let test13: Array<Int> = [5, 0, 2, 2, 4, 1, 0, 0, 0, 1, 0, 7, 42, 0]
-    let r13 = jit_compile_block(test13, 0, 14)
-    let res13 = call_jit(r13.code_ptr)
-    println("[JIT] matrix skip+push: " + str(res13) + " (" + str(r13.code_size) + " bytes)")
-    if res13 != 42:
-        println("[JIT] FAIL: PUSH_MATRIX")
+    if run_jit_test("matrix skip+push", [5, 0, 2, 2, 4, 1, 0, 0, 0, 1, 0, 7, 42, 0], 42) != 0:
         return 1
 
     // Test 14: JMP forward skip
-    let test14: Array<Int> = [7, 99, 12, 5, 7, 1, 0]
-    let r14 = jit_compile_block(test14, 0, 7)
-    let res14 = call_jit(r14.code_ptr)
-    println("[JIT] jmp forward: " + str(res14) + " (" + str(r14.code_size) + " bytes)")
-    if res14 != 99:
-        println("[JIT] FAIL: jmp")
+    if run_jit_test("jmp forward", [7, 99, 12, 5, 7, 1, 0], 99) != 0:
         return 1
 
     // Test 15: JZ skip on non-zero
-    let test15: Array<Int> = [7, 5, 13, 5, 7, 88, 0]
-    let r15 = jit_compile_block(test15, 0, 7)
-    let res15 = call_jit(r15.code_ptr)
-    println("[JIT] jz non-zero: " + str(res15) + " (" + str(r15.code_size) + " bytes)")
-    if res15 != 88:
-        println("[JIT] FAIL: jz")
+    if run_jit_test("jz non-zero", [7, 5, 13, 5, 7, 88, 0], 88) != 0:
         return 1
 
     // Test 16: JN skip on positive
-    let test16: Array<Int> = [7, 5, 20, 5, 7, 77, 0]
-    let r16 = jit_compile_block(test16, 0, 7)
-    let res16 = call_jit(r16.code_ptr)
-    println("[JIT] jn positive: " + str(res16) + " (" + str(r16.code_size) + " bytes)")
-    if res16 != 77:
-        println("[JIT] FAIL: jn")
+    if run_jit_test("jn positive", [7, 5, 20, 5, 7, 77, 0], 77) != 0:
         return 1
 
     // Test 17: Store then load same variable
-    let test17: Array<Int> = [7, 123, 19, 0, 18, 0, 8, 0]
-    let r17 = jit_compile_block(test17, 0, 8)
-    let res17 = call_jit(r17.code_ptr)
-    println("[JIT] store+load var: " + str(res17) + " (" + str(r17.code_size) + " bytes)")
-    if res17 != 123:
-        println("[JIT] FAIL: store+load var")
+    if run_jit_test("store+load var", [7, 123, 19, 0, 18, 0, 8, 0], 123) != 0:
         return 1
 
     println("[JIT] All self-tests passed!")

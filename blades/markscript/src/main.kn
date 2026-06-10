@@ -738,23 +738,11 @@ fn cmd_jit() -> Int with Unsafe:
     println("=== MARKSCRIPT JIT 1.0 ===")
     println("")
 
-    // Run self-test: compile a simple block (push 42, halt)
+    // Run self-tests (compile + execute)
     let test_result = jit_selftest()
     if test_result != 0:
         println("[JIT] Self-test FAILED")
         return test_result
-
-    // Try with a more complex sequence: push 1, push 2, add, halt
-    let test_bc_2: Array<Int> = [7, 1, 7, 2, 14, 0]
-    let result_2 = jit_compile_block(test_bc_2, 0, 6)
-    if result_2.error == "":
-        println("[JIT] Arithmetic block: " + str(result_2.code_size) + " bytes at ptr=" + str(ptr_to_int(result_2.code_ptr)))
-        // Try calling the arithmetic block
-        println("[JIT] About to call arithmetic block...")
-        let arith_result = call_jit(result_2.code_ptr)
-        println("[JIT] Arithmetic call result: " + str(arith_result))
-    else:
-        println("[JIT] Arithmetic block FAILED: " + result_2.error)
 
     println("")
     println("=== JIT DIAGNOSTIC COMPLETE ===")

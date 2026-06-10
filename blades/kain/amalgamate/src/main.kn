@@ -1,5 +1,0 @@
-use std::io
-
-fn main() -> Int:
-    println("hello world")
-    return 0
