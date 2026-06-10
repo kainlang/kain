@@ -373,6 +373,10 @@ fn main(args: Array<String>) -> Int with IO, Unsafe:
     if cfg.subcommand == "jit":
         return cmd_jit()
 
+    // jit-run mode: compile and execute via JIT
+    if cfg.subcommand == "jit-run":
+        return cmd_jit_run(cfg)
+
     // Default: run mode — full compile + execute pipeline
     return cmd_run(cfg)
 
@@ -754,5 +758,41 @@ fn cmd_jit() -> Int with Unsafe:
 
     println("")
     println("=== JIT DIAGNOSTIC COMPLETE ===")
+    return 0
+
+
+// ===========================================================================
+//  SUBCOMMAND: jit-run  —  compile and execute via JIT (no VM)
+//  Reads a .md file, compiles to bytecode, runs through native JIT.
+// ===========================================================================
+
+fn cmd_jit_run(cfg: MksConfig) -> Int with Unsafe:
+    if cfg.filepath == "":
+        println("[CLI] mks jit-run requires a file path")
+        println("Usage: mks jit-run <file.md>")
+        return 2
+
+    println("=== MARKSCRIPT JIT-RUN 1.0 ===")
+    println("")
+
+    let source = read_source(cfg.filepath)
+    println("[INPUT] Loaded: " + cfg.filepath)
+
+    let lex = create_lexer(source)
+    let bytecode = compile_source(lex)
+    let op_count = len(bytecode)
+    println("[COMPILE] Produced " + str(op_count) + " bytecode ops")
+
+    if op_count <= 1:
+        println("[JIT-RUN] Nothing to execute")
+        return 0
+
+    println("")
+    println("[JIT-RUN] Compiling to x86-64 native code...")
+    let result = jit_execute(bytecode)
+    println("[JIT-RUN] Native execution result: " + str(result))
+
+    println("")
+    println("=== JIT-RUN COMPLETE ===")
     return 0
 

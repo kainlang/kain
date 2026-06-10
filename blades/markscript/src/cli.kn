@@ -72,8 +72,9 @@ const SUBCOMMAND_EVAL:   String = "eval"
 const SUBCOMMAND_INIT:   String = "init"
 const SUBCOMMAND_HANDLERS: String = "handlers"
 const SUBCOMMAND_DOC:    String = "doc"
-const SUBCOMMAND_JIT:    String = "jit"
-const SUBCOMMAND_NONE:   String = ""
+const SUBCOMMAND_JIT:     String = "jit"
+const SUBCOMMAND_JIT_RUN: String = "jit-run"
+const SUBCOMMAND_NONE:    String = ""
 
 pub fn default_config() -> MksConfig:
     return MksConfig {
@@ -110,6 +111,7 @@ pub fn usage() -> String:
     text = text + "  handlers            List all registered IVT handlers\n"
     text = text + "  doc <file.md>       Render as clean documentation (strip VM output)\n"
     text = text + "  jit                 Run JIT self-test and diagnostics\n"
+    text = text + "  jit-run <file.md>   Compile and execute via JIT (no VM)\n"
     text = text + "\n"
     text = text + "FLAGS:\n"
     text = text + "  -h, --help          Show this help message and exit\n"
@@ -187,7 +189,8 @@ fn is_subcommand(s: String) -> Bool:
     if s == SUBCOMMAND_INIT:    return true
     if s == SUBCOMMAND_HANDLERS: return true
     if s == SUBCOMMAND_DOC:    return true
-    if s == SUBCOMMAND_JIT:    return true
+    if s == SUBCOMMAND_JIT:     return true
+    if s == SUBCOMMAND_JIT_RUN:  return true
     return false
 
 // ===========================================================================
@@ -253,7 +256,7 @@ pub fn parse_args(argv: Array<String>) -> MksConfig:
                 found_subcommand = true
 
                 // Special subcommands that take no filepath
-                if arg == SUBCOMMAND_REPL or arg == SUBCOMMAND_HANDLERS or arg == SUBCOMMAND_JIT:
+                if arg == SUBCOMMAND_REPL or arg == SUBCOMMAND_HANDLERS or arg == SUBCOMMAND_JIT or arg == SUBCOMMAND_JIT_RUN:
                     // Nothing more needed
                     index = index + 1
                     continue
@@ -298,6 +301,10 @@ pub fn parse_args(argv: Array<String>) -> MksConfig:
                 cfg.filepath = arg
                 found_positional = true
 
+            elif cfg.subcommand == SUBCOMMAND_JIT_RUN:
+                cfg.filepath = arg
+                found_positional = true
+
             else:
                 // Unexpected positional for this subcommand
                 // Fall through — extra args are ignored
@@ -325,7 +332,8 @@ pub fn needs_filepath(subcommand: String) -> Bool:
     if subcommand == SUBCOMMAND_CHECK:   return true
     if subcommand == SUBCOMMAND_DISASM:  return true
     if subcommand == SUBCOMMAND_DOC:     return true
-    if subcommand == SUBCOMMAND_JIT:     return false
+    if subcommand == SUBCOMMAND_JIT:      return false
+    if subcommand == SUBCOMMAND_JIT_RUN:   return true
     return false
 
 // Check if a subcommand is "needs-rebuild" (doesn't just print info)
@@ -346,5 +354,6 @@ pub fn subcommand_name(subcommand: String) -> String:
     if subcommand == SUBCOMMAND_INIT:    return "init"
     if subcommand == SUBCOMMAND_HANDLERS: return "handlers"
     if subcommand == SUBCOMMAND_DOC:     return "doc"
-    if subcommand == SUBCOMMAND_JIT:     return "jit"
+    if subcommand == SUBCOMMAND_JIT:      return "jit"
+    if subcommand == SUBCOMMAND_JIT_RUN:   return "jit-run"
     return "unknown"
