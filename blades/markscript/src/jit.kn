@@ -534,6 +534,8 @@ pub fn jit_compile_block(bytecode: Array<Int>, start_ip: Int, end_ip: Int) -> Ji
     // =========================================================================
 
     let code_size = len(code_arr)
+    println("[JIT-DBG:5] compilation done, code_size=" + str(code_size))
+    return JitResult { code_ptr: null_ptr_byte(), code_size: 0, error: "test-no-exec" }
     if code_size < 1:
         return JitResult { code_ptr: null_ptr_byte(), code_size: 0, error: "empty bytecode" }
 
