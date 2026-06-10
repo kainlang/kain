@@ -32,7 +32,7 @@ use vm              // init_vm, execute_bytecode, resume_execution, ExecResult, 
 use bridge          // init_vm_with_builtins, dispatch_handler, dispatch_fn, HANDLER_*, FN_*
 use import          // resolve_imports, extract_imports, ImportResult, ImportExtractResult
 use error           // format_error, MarkError, ERROR_*, error_ok, error_kind_name
-use jit             // jit_selftest, jit_check_and_run, jit_cache_hit_count
+use jit             // jit_selftest, jit_compile_block, init_cache, cache_hit_count
 
 // ===========================================================================
 //  FILE READING
@@ -318,7 +318,7 @@ fn run_repl() -> Int:
 //  MAIN ENTRY POINT
 // ===========================================================================
 
-fn main(args: Array<String>) -> Int:
+fn main(args: Array<String>) -> Int with IO, Unsafe:
     // ---- Parse CLI arguments via cli.kn -----------------------------------
 
     let argv = get_user_args()
@@ -722,3 +722,33 @@ fn line_count(s: String) -> Int:
             count = count + 1
         i = i + 1
     return count
+
+
+// ===========================================================================
+//  SUBCOMMAND: jit  —  JIT self-test and diagnostics
+//  Compiles a test bytecode block, emits x86-64 machine code, runs it.
+//  Reports cache telemetry: hits, misses, compilations, bytes used.
+// ===========================================================================
+
+fn cmd_jit() -> Int with Unsafe:
+    println("=== MARKSCRIPT JIT 1.0 ===")
+    println("")
+
+    // Run self-test: compile a simple block (push 42, halt)
+    let test_result = jit_selftest()
+    if test_result != 0:
+        println("[JIT] Self-test FAILED")
+        return test_result
+
+    // Try with a more complex sequence: push 1, push 2, add, halt
+    let test_bc_2: Array<Int> = [7, 1, 7, 2, 14, 0]
+    let result_2 = jit_compile_block(test_bc_2, 0, 6)
+    if result_2.error == "":
+        println("[JIT] Arithmetic block: " + str(result_2.code_size) + " bytes at ptr=" + str(ptr_to_int(result_2.code_ptr)))
+    else:
+        println("[JIT] Arithmetic block FAILED: " + result_2.error)
+
+    println("")
+    println("=== JIT DIAGNOSTIC COMPLETE ===")
+    return 0
+

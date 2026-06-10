@@ -10,109 +10,67 @@ use types::KaintanaContext
 use types::KaintanaRect
 use types::kaintana_rect
 use kaintana_ui::*
+use widgets_extras::*
 
 fn demo_toggle_row(ctx: KaintanaContext, rect: KaintanaRect, font: Int) -> KaintanaContext:
-    let b0 = kaintana_toggle(kaintana_ui_state(ctx), "Show Details")
-    let b1 = kaintana_toggle_key(b0, "demo.toggle.details")
-    let b2 = kaintana_toggle_rect(b1, rect)
-    let b3 = kaintana_toggle_value(b2, 1)
-    let result = kaintana_toggle_render(ctx, b3)
+    let result = kaintana_widget_toggle(ctx, "demo.toggle.details", "Show Details", 1, rect, font, 20.0)
     return result.ctx
 
 fn demo_checkbox_row(ctx: KaintanaContext, rect: KaintanaRect, key: String, label: String, font: Int) -> KaintanaContext:
-    let b0 = kaintana_checkbox(kaintana_ui_state(ctx), label)
-    let b1 = kaintana_checkbox_key(b0, key)
-    let b2 = kaintana_checkbox_rect(b1, rect)
-    let b3 = kaintana_checkbox_font(b2, font, 20.0)
-    let result = kaintana_checkbox_render(ctx, b3)
+    let result = kaintana_widget_checkbox(ctx, key, label, 0, rect, font, 20.0)
     return result.ctx
 
 fn demo_badge_row(ctx: KaintanaContext, rect: KaintanaRect, key: String, label: String, font: Int) -> KaintanaContext:
-    let b0 = kaintana_badge(kaintana_ui_state(ctx), label)
-    let b1 = kaintana_badge_key(b0, key)
-    let b2 = kaintana_badge_rect(b1, rect)
-    let b3 = kaintana_badge_font(b2, font, 20.0)
-    let result = kaintana_badge_render(ctx, b3)
+    let result = kaintana_widget_badge(ctx, key, label, rect, font, 20.0)
     return result.ctx
 
 fn demo_metric_row(ctx: KaintanaContext, rect: KaintanaRect, key: String, label: String, value: String, font: Int) -> KaintanaContext:
-    let b0 = kaintana_metric(kaintana_ui_state(ctx), label, value)
-    let b1 = kaintana_metric_key(b0, key)
-    let b2 = kaintana_metric_rect(b1, rect)
-    let b3 = kaintana_metric_font(b2, font, 20.0)
-    let result = kaintana_metric_render(ctx, b3)
+    let result = kaintana_widget_metric(ctx, key, label, value, rect, font, 20.0)
     return result.ctx
 
 fn demo_progress_row(ctx: KaintanaContext, rect: KaintanaRect, key: String, label: String, val: Float, max_val: Float, font: Int) -> KaintanaContext:
-    let b0 = kaintana_progress_bar(kaintana_ui_state(ctx), label)
+    let b0 = kaintana_progress_bar(kaintana_ui_state(ctx), label, val, max_val)
     let b1 = kaintana_progress_bar_key(b0, key)
     let b2 = kaintana_progress_bar_rect(b1, rect)
     let b3 = kaintana_progress_bar_font(b2, font, 20.0)
-    let b4 = kaintana_progress_bar_value(b3, val, max_val)
-    let result = kaintana_progress_bar_render(ctx, b4)
+    let result = kaintana_progress_bar_render(ctx, b3)
     return result.ctx
 
 fn demo_collapse_row(ctx: KaintanaContext, rect: KaintanaRect, key: String, label: String, open: Int, font: Int) -> KaintanaContext:
-    let b0 = kaintana_collapsing_header(kaintana_ui_state(ctx), label)
-    let b1 = kaintana_collapsing_header_key(b0, key)
-    let b2 = kaintana_collapsing_header_rect(b1, rect)
-    let b3 = kaintana_collapsing_header_font(b2, font, 22.0)
-    let b4 = kaintana_collapsing_header_open(b3, open)
-    let result = kaintana_collapsing_header_render(ctx, b4)
+    let result = kaintana_widget_collapsing_header(ctx, key, label, open, rect, font, 22.0)
     return result.ctx
 
 fn demo_separator(ctx: KaintanaContext, rect: KaintanaRect, key: String) -> KaintanaContext:
-    let b0 = kaintana_separator(kaintana_ui_state(ctx))
-    let b1 = kaintana_separator_key(b0, key)
-    let b2 = kaintana_separator_rect(b1, rect)
-    let result = kaintana_separator_render(ctx, b2)
+    let result = kaintana_widget_separator(ctx, key, rect, ctx.theme.muted)
     return result.ctx
 
 fn demo_chart_row(ctx: KaintanaContext, rect: KaintanaRect, key: String, label: String, val: Float, max_val: Float, font: Int) -> KaintanaContext:
-    let b0 = kaintana_chart_bar(kaintana_ui_state(ctx), label, val, max_val)
-    let b1 = kaintana_chart_bar_key(b0, key)
-    let b2 = kaintana_chart_bar_rect(b1, rect)
-    let b3 = kaintana_chart_bar_font(b2, font, 20.0)
-    let result = kaintana_chart_bar_render(ctx, b3)
+    let result = kaintana_widget_chart_bar(ctx, key, label, val, max_val, rect, font, 20.0, ctx.theme.signal)
     return result.ctx
 
 fn demo_toast(ctx: KaintanaContext, rect: KaintanaRect, key: String, msg: String, font: Int) -> KaintanaContext:
-    let b0 = kaintana_toast(kaintana_ui_state(ctx), msg)
-    let b1 = kaintana_toast_key(b0, key)
-    let b2 = kaintana_toast_rect(b1, rect)
-    let b3 = kaintana_toast_font(b2, font, 20.0)
-    let result = kaintana_toast_render(ctx, b3)
+    let result = kaintana_widget_toast(ctx, key, msg, rect, font, 20.0)
     return result.ctx
 
 fn demo_spinner_widget(ctx: KaintanaContext, rect: KaintanaRect, key: String) -> KaintanaContext:
-    let b0 = kaintana_spinner(kaintana_ui_state(ctx))
-    let b1 = kaintana_spinner_rect(b0, rect)
-    let result = kaintana_spinner_render(ctx, b1)
+    let result = kaintana_widget_spinner(ctx, key, rect, ctx.theme.accent)
     return result.ctx
 
 fn demo_status_bar(ctx: KaintanaContext, rect: KaintanaRect, key: String, left: String, right: String, font: Int) -> KaintanaContext:
-    let b0 = kaintana_status_bar(kaintana_ui_state(ctx), left, right)
-    let b1 = kaintana_status_bar_key(b0, key)
-    let b2 = kaintana_status_bar_rect(b1, rect)
-    let b3 = kaintana_status_bar_font(b2, font, 20.0)
-    let result = kaintana_status_bar_render(ctx, b3)
+    let result = kaintana_widget_status_bar(ctx, key, left, right, rect, font, 20.0)
     return result.ctx
 
 fn demo_toolbar(ctx: KaintanaContext, rect: KaintanaRect, key: String, font: Int) -> KaintanaContext:
-    let b0 = kaintana_toolbar(kaintana_ui_state(ctx), "Tools")
-    let b1 = kaintana_toolbar_key(b0, key)
-    let b2 = kaintana_toolbar_rect(b1, rect)
-    let b3 = kaintana_toolbar_font(b2, font, 20.0)
-    let result = kaintana_toolbar_render(ctx, b3)
+    let result = kaintana_widget_toolbar(ctx, key, "Tools", rect, font, 20.0)
     return result.ctx
 
 fn demo_dropdown(ctx: KaintanaContext, rect: KaintanaRect, key: String, label: String, selected: String, font: Int) -> KaintanaContext:
     let items: [String] = ["Option A", "Option B", "Option C", "Option D"]
-    let b0 = kaintana_dropdown(kaintana_ui_state(ctx), label, selected)
+    let b0 = kaintana_dropdown(kaintana_ui_state(ctx), label, items)
     let b1 = kaintana_dropdown_key(b0, key)
     let b2 = kaintana_dropdown_rect(b1, rect)
     let b3 = kaintana_dropdown_font(b2, font, 20.0)
-    let b4 = kaintana_dropdown_items(b3, items)
+    let b4 = kaintana_dropdown_selected(b3, selected)
     let result = kaintana_dropdown_render(ctx, b4)
     return result.ctx
 

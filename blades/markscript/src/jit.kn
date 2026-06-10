@@ -475,49 +475,49 @@ fn jit_compile_block(bytecode: Array<Int>, start_ip: Int, end_ip: Int) -> JitRes
     // Step 2: Allocate RWX memory and copy code
     let code_size = len(code_arr)
     if code_size < 1:
-        return JitResult { code_ptr: null, code_size: 0, error: "empty code" }
+        return JitResult { code_ptr: null_ptr_byte(), code_size: 0, error: "empty code" }
 
-    let page_size = vm_page_size()
     let alloc_size = code_size
-    // Round up to page size
+    let page_size = vm_page_size()
     if alloc_size % page_size > 0:
         alloc_size = (alloc_size / page_size + 1) * page_size
 
-    let buf = vm_reserve(alloc_size)
+    // Use vm_map to allocate RWX memory (reserve + commit + RW in one call)
+    let buf = vm_map(alloc_size)
     if ptr_to_int(buf) == 0:
-        return JitResult { code_ptr: null, code_size: 0, error: "vm_reserve failed" }
+        return JitResult { code_ptr: null_ptr_byte(), code_size: 0, error: "vm_map failed" }
 
-    let committed = vm_commit(buf, alloc_size)
-    if committed != 0:
-        let _ = vm_unmap(buf, alloc_size)
-        return JitResult { code_ptr: null, code_size: 0, error: "vm_commit failed" }
-
+    // Ensure execute permission
     let prot = vm_protect_execute_read_write(buf, alloc_size)
     if prot != 0:
-        let _ = vm_unmap(buf, alloc_size)
-        return JitResult { code_ptr: null, code_size: 0, error: "vm_protect_rwx failed" }
+        let _ = vm_release(buf, alloc_size)
+        return JitResult { code_ptr: null_ptr_byte(), code_size: 0, error: "vm_protect_execute_read_write failed" }
 
     // Step 3: Copy machine code bytes from array to executable buffer
     collapse buf:
         var i: Int = 0
         while i < code_size:
-            let byte = code_arr[i]
-            mem_store(ptr_offset(buf, i, "Byte"), byte, "Byte")
+            let byte_val: Byte = code_arr[i] as Byte
+            mem_store(ptr_offset(buf, i, "Byte"), byte_val, "Byte")
             i = i + 1
-        0  // collapse body yields unused value
+        0
 
     // Flush instruction cache (required for JIT on x86)
+    // Use cache_flush on each cache line
     var ci: Int = 0
+    let cache_line = cpu_cache_line_bytes()
     while ci < code_size:
-        // Flush each cache line
-        let line_start = ptr_offset(buf, ci, "Byte")
-        clflush(line_start)
-        ci = ci + 64  // cache line size
+        let byte_ptr = ptr_offset(buf, ci, "Byte")
+        let flush_ptr: ptr<Int> = int_to_ptr(ptr_to_int(byte_ptr), "ptr<Int>")
+        cache_flush(flush_ptr)
+        ci = ci + cache_line
 
-    mfence()
+    full_fence()
 
+    // Convert vm_map's ptr<Int> to ptr<Byte> for the result
+    let result_ptr: ptr<Byte> = int_to_ptr(ptr_to_int(buf), "ptr<Byte>")
     return JitResult {
-        code_ptr: buf,
+        code_ptr: result_ptr,
         code_size: code_size,
         error: ""
     }
@@ -525,6 +525,14 @@ fn jit_compile_block(bytecode: Array<Int>, start_ip: Int, end_ip: Int) -> JitRes
 // ===========================================================================
 //  HELPER: skip OP_PUSH_MATRIX operands
 // ===========================================================================
+
+// Helper: create a null pointer
+fn null_ptr_byte() -> ptr<Byte>:
+    return int_to_ptr(0, "ptr<Byte>")
+
+// Helper: check if a pointer is null
+fn is_null(p: ptr<Byte>) -> Bool:
+    return ptr_to_int(p) == 0
 
 fn skip_push_matrix(bc: Array<Int>, ip: Int) -> Int:
     var pos = ip + 1
@@ -589,8 +597,8 @@ fn block_signature(bc: Array<Int>, start_ip: Int, end_ip: Int) -> Int:
     return h
 
 // ===========================================================================
-//  WORLD-BASED CODE CACHE
-//  Stores compiled native code blocks. Uses patch for journaled updates.
+//  CODE CACHE — stores compiled native code blocks
+//  Uses plain arrays and structs (world/patch integration TBD based on Kain syntax)
 // ===========================================================================
 
 struct CacheEntry:
@@ -599,35 +607,59 @@ struct CacheEntry:
     code_size:  Int
     exec_count: Int
 
-world JitCache:
-    state entries:    Array<CacheEntry>
-    state total_bytes: Int = 0
-    state max_bytes:   Int = 4194304  // 4MB cache
-    state compile_count: Int = 0
-    state hit_count:    Int = 0
-    state miss_count:   Int = 0
+// Cache state — initialized lazily via init_jit_cache()
+// Using a struct passed through all cache functions avoids Kain module-var issues
+struct JitCacheState:
+    entries:      Array<CacheEntry>
+    total_bytes:  Int
+    max_bytes:    Int
+    compile_count: Int
+    hit_count:    Int
+    miss_count:   Int
 
-patch patch_cache_entry(world: JitCache, hash: Int, ptr: ptr<Byte>, size: Int) -> Int:
-    push(world.entries, CacheEntry {
+fn init_cache() -> JitCacheState:
+    return JitCacheState {
+        entries: [],
+        total_bytes: 0,
+        max_bytes: 4194304,
+        compile_count: 0,
+        hit_count: 0,
+        miss_count: 0
+    }
+
+struct CacheResult:
+    state: JitCacheState
+    entry: CacheEntry
+    index: Int
+
+fn cache_register(state: JitCacheState, hash: Int, ptr: ptr<Byte>, size: Int) -> JitCacheState:
+    var s = state
+    push(s.entries, CacheEntry {
         block_hash: hash,
         code_ptr: ptr,
         code_size: size,
         exec_count: 0
     })
-    world.total_bytes = world.total_bytes + size
-    world.compile_count = world.compile_count + 1
-    return len(world.entries) - 1
+    s.total_bytes = s.total_bytes + size
+    s.compile_count = s.compile_count + 1
+    return s
 
-fn lookup_cache(world: JitCache, hash: Int) -> CacheEntry:
+fn cache_lookup(state: JitCacheState, hash: Int) -> CacheResult:
+    var s = state
     var i: Int = 0
-    while i < len(world.entries):
-        if world.entries[i].block_hash == hash:
-            world.entries[i].exec_count = world.entries[i].exec_count + 1
-            world.hit_count = world.hit_count + 1
-            return world.entries[i]
+    while i < len(s.entries):
+        let entry = s.entries[i]
+        if entry.block_hash == hash:
+            s.hit_count = s.hit_count + 1
+            // Note: per-entry exec_count not updated (LLVM codegen limitation)
+            return CacheResult { state: s, entry: entry, index: i }
         i = i + 1
-    world.miss_count = world.miss_count + 1
-    return CacheEntry { block_hash: 0, code_ptr: null, code_size: 0, exec_count: 0 }
+    s.miss_count = s.miss_count + 1
+    return CacheResult {
+        state: s,
+        entry: CacheEntry { block_hash: 0, code_ptr: null_ptr_byte(), code_size: 0, exec_count: 0 },
+        index: -1
+    }
 
 // ===========================================================================
 //  CONVERGE SELECTOR — The JIT dispatch point
@@ -646,23 +678,17 @@ fn lookup_cache(world: JitCache, hash: Int) -> CacheEntry:
 // ===========================================================================
 
 // ===========================================================================
-//  JIT WORKER ACTOR — background compilation
-//  Receives bytecode traces, compiles to native code, registers in cache.
+//  JIT COMPILATION TRIGGER — compiles and caches a bytecode block
+//  Called when a block is identified as hot. Runs synchronously for now;
+//  future versions should use an actor for background compilation.
 // ===========================================================================
 
-actor JITWorker:
-    state worker_id: Int
-    state jobs_done: Int = 0
-
-    on Compile(reply_to: P, bc: Array<Int>, start_ip: Int, end_ip: Int):
-        self.jobs_done = self.jobs_done + 1
-        let result = jit_compile_block(bc, start_ip, end_ip)
-        if result.error == "":
-            let hash = block_signature(bc, start_ip, end_ip)
-            let _idx = patch_cache_entry(JitCache, hash, result.code_ptr, result.code_size)
-            send reply_to.Compiled(hash = hash, code_ptr = result.code_ptr)
-        else:
-            send reply_to.CompileFailed(error = result.error)
+fn jit_compile_and_cache(state: JitCacheState, bc: Array<Int>, start_ip: Int, end_ip: Int) -> JitCacheState with Unsafe:
+    let result = jit_compile_block(bc, start_ip, end_ip)
+    if result.error == "":
+        let hash = block_signature(bc, start_ip, end_ip)
+        return cache_register(state, hash, result.code_ptr, result.code_size)
+    return state
 
 // ===========================================================================
 //  JIT INTEGRATION POINT — called from execute_bytecode
@@ -673,38 +699,37 @@ actor JITWorker:
 //  Subsequent executions use the JIT-compiled native code.
 // ===========================================================================
 
-pub fn jit_check_and_run(vm: MarkScriptVM, bc: Array<Int>, ip: Int, loop_start: Int) -> ExecResult with Unsafe:
+pub fn jit_check_and_run(state: JitCacheState, vm: MarkScriptVM, bc: Array<Int>, ip: Int, loop_start: Int) -> ExecResult with Unsafe:
     let hash = block_signature(bc, loop_start, ip)
-    let cached = lookup_cache(JitCache, hash)
+    let cr = cache_lookup(state, hash)
 
-    if cached.code_ptr != null:
-        // JIT code exists — run it
-        // For real integration, this would call the native code directly
-        // and return the result as an ExecResult
-        // Currently: fall through to interpreter (JIT stubs are functional)
+    if is_null(cr.entry.code_ptr):
+        // Not compiled — not hot enough yet
+        // Future: trigger JIT compilation if hot
+        let _miss = cr.state.miss_count
     else:
-        // Not compiled — check if hot and queue compilation
-        // The hot detection is handled by the caller (resonate on counters)
-        JitCache.miss_count = JitCache.miss_count + 1
+        // JIT code exists — would run via native call
+        // Future: int_to_ptr(cr.entry.code_ptr) + asm call
+        let _hit = cr.state.hit_count
 
-    // Fall back to interpreter for now
+    // For now: always fall back to interpreter (native execution coming)
     return execute_bytecode(vm, bc)
 
 // ===========================================================================
-//  TELEMETRY
+//  TELEMETRY — access the cache state struct fields
 // ===========================================================================
 
-pub fn jit_cache_hit_count() -> Int:
-    return JitCache.hit_count
+pub fn cache_hit_count(state: JitCacheState) -> Int:
+    return state.hit_count
 
-pub fn jit_cache_miss_count() -> Int:
-    return JitCache.miss_count
+pub fn cache_miss_count(state: JitCacheState) -> Int:
+    return state.miss_count
 
-pub fn jit_cache_compile_count() -> Int:
-    return JitCache.compile_count
+pub fn cache_compile_count(state: JitCacheState) -> Int:
+    return state.compile_count
 
-pub fn jit_cache_byte_count() -> Int:
-    return JitCache.total_bytes
+pub fn cache_byte_count(state: JitCacheState) -> Int:
+    return state.total_bytes
 
 // ===========================================================================
 //  TEST: emit a simple block and verify it

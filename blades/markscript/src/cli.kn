@@ -72,6 +72,7 @@ const SUBCOMMAND_EVAL:   String = "eval"
 const SUBCOMMAND_INIT:   String = "init"
 const SUBCOMMAND_HANDLERS: String = "handlers"
 const SUBCOMMAND_DOC:    String = "doc"
+const SUBCOMMAND_JIT:    String = "jit"
 const SUBCOMMAND_NONE:   String = ""
 
 pub fn default_config() -> MksConfig:
@@ -186,6 +187,7 @@ fn is_subcommand(s: String) -> Bool:
     if s == SUBCOMMAND_INIT:    return true
     if s == SUBCOMMAND_HANDLERS: return true
     if s == SUBCOMMAND_DOC:    return true
+    if s == SUBCOMMAND_JIT:    return true
     return false
 
 // ===========================================================================
