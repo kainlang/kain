@@ -273,7 +273,7 @@ Error: name error: unknown intent "apply graviti"
 Markscript's standard library is written in Markscript itself — markdown files that use intents to dispatch to Kain stdlib functions through the IVT. Each file is both documentation and a valid program.
 
 ```
-markscript/
+std/
 ├── io.md          — file read, write, list, exists
 ├── math.md        — arithmetic, random, clamp, min, max
 ├── build.md       — project check, build, run, test
@@ -387,7 +387,7 @@ markscript/
 │   ├── import.kn               — @import resolution, cycle detection, namespace merge
 │   └── test_lexer.kn           — comprehensive tokenizer test suite
 │
-├── markscript/                  — Markscript stdlib (written in Markscript)
+├── std/                          — Markscript stdlib (written in Markscript)
 │   ├── io.md
 │   ├── math.md
 │   ├── build.md
