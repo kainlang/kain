@@ -1,0 +1,64 @@
+// ============================================================================
+//  AMALGAMATE EDGE CASE — BUILD AUTHORITY
+//
+//  Tests the amalgamate capsule pipeline:
+//    1. check → compile → certify → capsule_set
+//    2. Capsule file can be imported from another project as-is
+//    3. Module resolution reads directly from capsule files
+// ============================================================================
+
+use std::build
+
+fn build(ctx: BuildContext) -> BuildGraph:
+    let app = project("amalgamate-edge-case")
+        .kind("kain_executable")
+        .version("1.0.0")
+        .description("Tests portable amalgamation capsules that can be imported from other projects as-is.")
+        .entry("src/main.kn")
+        .source_root("src")
+        .module_root("src")
+        .target("llvm")
+        .artifact_root(".kain/out")
+        .cache_root(".kain/cache/build")
+        .profile("debug")
+
+    let sources = source_set("amalgamate-sources")
+        .glob("src/**/*.kn")
+        .file("build.kn")
+        .file("spawn.kn")
+
+    let main_check = check_task("check-main")
+        .project(app)
+        .entry("src/main.kn")
+        .target("llvm")
+
+    // Full module surface check — validates all 6 modules compile
+    let surface_check = check_task("check-surface")
+        .project(app)
+        .entry("src")
+        .target("llvm")
+
+    // Build the native executable
+    let root_exe = native_executable("amalgamate-exe")
+        .project(app)
+        .output("$blade/debug-template.exe")
+        .requires(main_check, surface_check)
+
+    // Certify the build is complete
+    let cert = certify("amalgamate.local")
+        .requires(main_check, surface_check, root_exe)
+
+    // Auto-emit a portable source capsule after certify
+    // This capsule can be dropped into any project's module_root
+    // and imported with `use <module-name>` — no unpacking needed.
+    let capsule = capsule_set("amalgamate")
+        .after(cert)
+        .source("$root/src")
+        .tag("portable")
+        .tag("amalgamation-test")
+        .telemetry("amalgamate.capsule")
+
+    return build_graph()
+        .project(app)
+        .sources(sources)
+        .tasks(main_check, surface_check, root_exe, cert, capsule)

@@ -1,0 +1,89 @@
+// ============================================================================
+//  SPOOKYMAGIC.KN — BLACK-BOX / SPOOKY-MAGIC BEHAVIORS
+//
+//  For weird, multi-cause, or unexpected behaviors that produce "spooky magic"
+//  — results that appear to come from nowhere, Heisenbugs, timing-dependent
+//  failures, or behaviors that don't fit clean cause→effect modeling.
+//
+//  IMPORTED BY: cause.kn, effect.kn
+//  IMPORTS:      None (standalone — no circular dependencies)
+//
+//  PATTERN:
+//    Use this file when:
+//    - A bug only reproduces 20% of the time
+//    - The behavior changes based on seemingly unrelated code
+//    - You need a black-box that produces surprising outputs
+//    - Multiple causes converge to produce one "spooky" outcome
+// ============================================================================
+
+// ===========================================================================
+//  SANITY CHECK — Verifies module integrity
+// ===========================================================================
+
+pub fn spookymagic_sanity_check() -> Int:
+    return 0
+
+// ===========================================================================
+//  get_spooky_factor — Returns a spooky multiplier
+//  In the base template, returns 1 (identity). Replace with your own
+//  unpredictable logic: random seeds, environment-dependent values,
+//  timing-sensitive computations, etc.
+// ===========================================================================
+
+pub fn get_spooky_factor() -> Int:
+    // Base: identity (no spooky effect)
+    // Replace with: random(), os-dependent values, pointer hashes, etc.
+    return 1
+
+// ===========================================================================
+//  run_spooky_test — Black-box behavior test
+//  Takes an input and potentially transforms it in unpredictable ways.
+//
+//  Parameters:
+//    seed: Int — Input seed value
+//
+//  Returns: Int — Potentially surprising result
+// ===========================================================================
+
+pub fn run_spooky_test(seed: Int) -> Int:
+    // Base: pass-through (no transformation)
+    // Replace with your spooky logic
+    return seed
+
+// ===========================================================================
+//  SPOOKY ERROR — A structured error case for black-box failures
+// ===========================================================================
+
+pub struct SpookyError:
+    kind:        String    // e.g., "heisenbug", "race_window", "cache_coherence"
+    probability: Float     // 0.0 – 1.0 reproduction probability
+    trigger:     String    // What triggers it
+    evidence:    String    // How to detect it happened
+
+pub fn create_spooky_error(kind: String, probability: Float, trigger: String) -> SpookyError:
+    return SpookyError {
+        kind: kind,
+        probability: probability,
+        trigger: trigger,
+        evidence: ""
+    }
+
+// ===========================================================================
+//  SPOOKY TABLE — Register spooky behaviors here
+// ===========================================================================
+
+pub struct SpookyEntry:
+    name:        String
+    description: String
+    tag:         String    // Maps to a spooky behavior tag in dispatch logic
+
+pub fn get_spooky_table() -> Array<SpookyEntry>:
+    var entries: Array<SpookyEntry> = []
+
+    push(entries, SpookyEntry {
+        name: "identity",
+        description: "Base identity — no spooky effect (replace with real behavior)",
+        tag: "identity"
+    })
+
+    return entries
