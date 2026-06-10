@@ -32,6 +32,7 @@ use vm              // init_vm, execute_bytecode, resume_execution, ExecResult, 
 use bridge          // init_vm_with_builtins, dispatch_handler, dispatch_fn, HANDLER_*, FN_*
 use import          // resolve_imports, extract_imports, ImportResult, ImportExtractResult
 use error           // format_error, MarkError, ERROR_*, error_ok, error_kind_name
+use jit             // jit_selftest, jit_check_and_run, jit_cache_hit_count
 
 // ===========================================================================
 //  FILE READING
@@ -367,6 +368,10 @@ fn main(args: Array<String>) -> Int:
     // doc mode: render clean documentation
     if cfg.subcommand == "doc":
         return cmd_doc(cfg)
+
+    // jit mode: JIT self-test and diagnostics
+    if cfg.subcommand == "jit":
+        return cmd_jit()
 
     // Default: run mode — full compile + execute pipeline
     return cmd_run(cfg)

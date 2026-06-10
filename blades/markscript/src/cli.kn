@@ -108,6 +108,7 @@ pub fn usage() -> String:
     text = text + "  init <name>         Scaffold a new markscript project directory\n"
     text = text + "  handlers            List all registered IVT handlers\n"
     text = text + "  doc <file.md>       Render as clean documentation (strip VM output)\n"
+    text = text + "  jit                 Run JIT self-test and diagnostics\n"
     text = text + "\n"
     text = text + "FLAGS:\n"
     text = text + "  -h, --help          Show this help message and exit\n"
@@ -250,7 +251,7 @@ pub fn parse_args(argv: Array<String>) -> MksConfig:
                 found_subcommand = true
 
                 // Special subcommands that take no filepath
-                if arg == SUBCOMMAND_REPL or arg == SUBCOMMAND_HANDLERS:
+                if arg == SUBCOMMAND_REPL or arg == SUBCOMMAND_HANDLERS or arg == SUBCOMMAND_JIT:
                     // Nothing more needed
                     index = index + 1
                     continue
@@ -322,6 +323,7 @@ pub fn needs_filepath(subcommand: String) -> Bool:
     if subcommand == SUBCOMMAND_CHECK:   return true
     if subcommand == SUBCOMMAND_DISASM:  return true
     if subcommand == SUBCOMMAND_DOC:     return true
+    if subcommand == SUBCOMMAND_JIT:     return false
     return false
 
 // Check if a subcommand is "needs-rebuild" (doesn't just print info)
@@ -342,4 +344,5 @@ pub fn subcommand_name(subcommand: String) -> String:
     if subcommand == SUBCOMMAND_INIT:    return "init"
     if subcommand == SUBCOMMAND_HANDLERS: return "handlers"
     if subcommand == SUBCOMMAND_DOC:     return "doc"
+    if subcommand == SUBCOMMAND_JIT:     return "jit"
     return "unknown"

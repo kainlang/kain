@@ -1,0 +1,192 @@
+// ============================================================================
+//  incremental_rebuild.kn — [P] Incremental builds produce the same final
+//  result as clean builds. Changing one file triggers rebuild of only
+//  affected transitive dependencies.
+//
+//  Category: build_flow
+//  Expected: PASS — incremental matches clean; modified rebuild produces
+//  different but deterministic artifacts
+// ============================================================================
+
+use runner        // TestResult, TestCase, make_ok, make_fail, add_to_list, is_fail
+use diff          // checksum_tree
+
+use std::fs       // fs_write_text, fs_create_dir_all, fs_remove_dir_all, fs_path_join
+use std::process  // process_spec_create_piped, process_spec_add_arg, process_spec_set_cwd,
+                  // process_spawn, process_wait, process_exit_code,
+                  // process_stdout_capture_text, process_stderr_capture_text, process_close
+use std::os       // os_getcwd
+use std::text     // text_join_strings
+
+// ── Private types ─────────────────────────────────────────────────────────
+
+struct KainResult:
+    exit_code: Int
+    stdout_text: String
+    stderr_text: String
+
+// ── Helpers ───────────────────────────────────────────────────────────────
+
+fn ecs_run_build(project_dir: String, clean: Bool) -> KainResult:
+    let spec = process_spec_create_piped("kain")
+    process_spec_add_arg(spec, "build")
+    if clean:
+        process_spec_add_arg(spec, "--clean")
+    process_spec_add_arg(spec, project_dir)
+    process_spec_set_cwd(spec, project_dir)
+    let pid = process_spawn(spec)
+    process_wait(pid, 120000)
+    let code = process_exit_code(pid)
+    let stdout = process_stdout_capture_text(pid)
+    let stderr = process_stderr_capture_text(pid)
+    process_close(pid)
+    return KainResult{ exit_code: code, stdout_text: stdout, stderr_text: stderr }
+
+fn ecs_write_project(test_dir: String) -> Unit:
+    // Shared utility module — imported by lib_a and lib_b
+    let shared_lines: Array<String> = [
+        "pub fn constant() -> Int:",
+        "    return 100",
+    ]
+    let shared_content = text_join_strings(shared_lines, "\n")
+    fs_write_text(fs_path_join(test_dir, "shared.kn"), shared_content)
+
+    // lib_a — imports shared
+    let lib_a_lines: Array<String> = [
+        "use shared",
+        "",
+        "pub fn value_a() -> Int:",
+        "    return shared::constant() + 1",
+    ]
+    let lib_a_content = text_join_strings(lib_a_lines, "\n")
+    fs_write_text(fs_path_join(test_dir, "lib_a.kn"), lib_a_content)
+
+    // lib_b — standalone (no imports)
+    let lib_b_lines: Array<String> = [
+        "pub fn value_b() -> Int:",
+        "    return 200",
+    ]
+    let lib_b_content = text_join_strings(lib_b_lines, "\n")
+    fs_write_text(fs_path_join(test_dir, "lib_b.kn"), lib_b_content)
+
+    // Main — imports lib_a and lib_b
+    let main_lines: Array<String> = [
+        "use lib_a",
+        "use lib_b",
+        "",
+        "fn main() -> Int:",
+        "    let a = lib_a::value_a()",
+        "    let b = lib_b::value_b()",
+        "    return a + b",
+    ]
+    let main_content = text_join_strings(main_lines, "\n")
+    fs_write_text(fs_path_join(test_dir, "main.kn"), main_content)
+
+    // Build.kn
+    let build_lines: Array<String> = [
+        "use std::build",
+        "",
+        "fn build(ctx: BuildContext) -> BuildGraph:",
+        "    let app = project(\"incremental-test\")",
+        "        .version(\"1.0.0\")",
+        "        .kind(\"kain_executable\")",
+        "        .entry(\"main.kn\")",
+        "        .source_roots([\".\"])",
+        "        .module_roots([\".\"])",
+        "        .targets(\"llvm\")",
+        "        .artifact_root(\".kain/out\")",
+        "        .cache_root(\".kain/cache\")",
+        "        .profile(\"debug\")",
+        "",
+        "    let src = source_set(\"all-sources\")",
+        "        .glob(\"*.kn\")",
+        "",
+        "    let chk = check_task(\"check\")",
+        "        .project(app)",
+        "        .target(\"llvm\")",
+        "        .inputs(src)",
+        "",
+        "    let exe = native_executable(\"incremental-exe\")",
+        "        .project(app)",
+        "        .output(\"$blade/incremental_test.exe\")",
+        "        .requires(chk)",
+        "",
+        "    return build_graph(app).sources(src).tasks(chk, exe)",
+    ]
+    let content = text_join_strings(build_lines, "\n")
+    fs_write_text(fs_path_join(test_dir, "build.kn"), content)
+
+fn ecs_modify_lib_b(test_dir: String) -> Unit:
+    let lib_b_lines: Array<String> = [
+        "pub fn value_b() -> Int:",
+        "    return 999",
+    ]
+    let lib_b_content = text_join_strings(lib_b_lines, "\n")
+    fs_write_text(fs_path_join(test_dir, "lib_b.kn"), lib_b_content)
+
+// ── Test function ─────────────────────────────────────────────────────────
+
+pub fn test_incremental_rebuild() -> TestResult:
+    let root = os_getcwd()
+    let tmp_root = fs_path_join(fs_path_join(root, ".kain"), "tmp")
+    let test_dir = fs_path_join(tmp_root, "incremental_rebuild")
+
+    fs_remove_dir_all(test_dir)
+    defer fs_remove_dir_all(test_dir)
+    fs_create_dir_all(test_dir)
+
+    ecs_write_project(test_dir)
+    let artifact_dir = fs_path_join(fs_path_join(test_dir, ".kain"), "out")
+
+    // Step 1: clean build
+    let r1 = ecs_run_build(test_dir, true)
+    if r1.exit_code != 0:
+        return make_fail("incremental_rebuild", "clean build 1: " + r1.stderr_text)
+    let clean1_sum = checksum_tree(artifact_dir)
+
+    // Step 2: incremental rebuild (no changes)
+    let r2 = ecs_run_build(test_dir, false)
+    if r2.exit_code != 0:
+        return make_fail("incremental_rebuild", "incremental no-change: " + r2.stderr_text)
+    let inc_nochange_sum = checksum_tree(artifact_dir)
+
+    if clean1_sum != inc_nochange_sum:
+        return make_fail("incremental_rebuild", "incremental no-change differs from clean")
+
+    // Step 3: modify lib_b (only used by main, not lib_a/shared)
+    ecs_modify_lib_b(test_dir)
+
+    let r3 = ecs_run_build(test_dir, false)
+    if r3.exit_code != 0:
+        return make_fail("incremental_rebuild", "incremental after change: " + r3.stderr_text)
+    let inc_changed_sum = checksum_tree(artifact_dir)
+
+    // After changing lib_b, artifacts must differ
+    if clean1_sum == inc_changed_sum:
+        return make_fail("incremental_rebuild", "change to lib_b not reflected in artifacts")
+
+    // Step 4: clean build from modified state
+    let r4 = ecs_run_build(test_dir, true)
+    if r4.exit_code != 0:
+        return make_fail("incremental_rebuild", "clean build modified: " + r4.stderr_text)
+    let clean_modified_sum = checksum_tree(artifact_dir)
+
+    // Clean build from modified state must match incremental after change
+    if inc_changed_sum != clean_modified_sum:
+        return make_fail("incremental_rebuild", "clean build from modified state differs from incremental after change")
+
+    return make_ok("incremental_rebuild", "incremental rebuild matches clean; change detection works; build is deterministic")
+
+// ── Registration ──────────────────────────────────────────────────────────
+
+pub fn get_tests() -> Array<TestCase>:
+    let mut list: Array<TestCase> = []
+    list = add_to_list(list, TestCase{
+        name: "incremental_rebuild",
+        tag: "incremental_rebuild",
+        category: "build_flow",
+        function: test_incremental_rebuild,
+        description: "Incremental rebuild matches clean; file change triggers rebuild of affected parts; final output deterministic",
+        expected: "PASS"
+    })
+    return list

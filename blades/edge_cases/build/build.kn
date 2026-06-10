@@ -33,6 +33,7 @@ fn build(ctx: BuildContext) -> BuildGraph:
         "src/caching",
         "src/comptime_edges",
         "src/import_edges",
+        "src/build_flow",
     ]
 
     // -- Project definition -------------------------------------------------
@@ -94,6 +95,11 @@ fn build(ctx: BuildContext) -> BuildGraph:
     let import_edge_src = source_set("import-edge-sources")
         .root("src/import_edges")
         .glob("src/import_edges/**/*.kn")
+
+    // Category 9: Build flow pipeline tests
+    let build_flow_src = source_set("build-flow-sources")
+        .root("src/build_flow")
+        .glob("src/build_flow/**/*.kn")
 
     // Full source set — intentionally overlaps with category sets
     // This tests that overlapping source sets deduplicate correctly.
@@ -157,6 +163,12 @@ fn build(ctx: BuildContext) -> BuildGraph:
         .inputs(import_edge_src)
         .requires("check-harness")
 
+    let check_build_flow = check_task("check-build-flow")
+        .project(app)
+        .target("llvm")
+        .inputs(build_flow_src)
+        .requires("check-harness")
+
     // Full typecheck — depends on every category check passing first
     let check_full = check_task("check-llvm")
         .project(app)
@@ -172,6 +184,7 @@ fn build(ctx: BuildContext) -> BuildGraph:
             check_caching,
             check_comptime,
             check_import,
+            check_build_flow,
         )
 
     // -- Determinism verification pipeline ----------------------------------
@@ -247,6 +260,7 @@ fn build(ctx: BuildContext) -> BuildGraph:
             caching_src,
             comptime_edge_src,
             import_edge_src,
+            build_flow_src,
             all_src,
         )
         .tasks(
@@ -259,6 +273,7 @@ fn build(ctx: BuildContext) -> BuildGraph:
             check_caching,
             check_comptime,
             check_import,
+            check_build_flow,
             check_full,
         )
         .tasks(
