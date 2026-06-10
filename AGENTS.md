@@ -67,6 +67,7 @@ The bootstrap compiler lives in **67 Rust crates** (`crates/`) — parser, typec
 
 ## CRITICAL REQUIRED READING IF AUTHORING KAIN
 
+- **`X:\docs\KAIN_BY_EXAMPLE.md`** ⬅️ CANONICAL — 1037 lines, every Kain feature with a compilable snippet. Read this FIRST before any other doc. Asm, raw memory, world/entangle, actors, converge, orchestrate, shatter, teleport, GPU — all with real working code.
 - **`X:\GLOSSARY.MD`** — Maps every Kain term to its physical location. Start here when you don't know where something lives.
 - **`X:\docs\RULEBOOK.md`** — The decision ladder. Which construct to use for which problem.
 - **`X:\benchmark\cases_v2\keyword_crucible.kn`** — 108/110 keywords in context. The definitive syntax reference.

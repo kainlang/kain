@@ -24,6 +24,7 @@ X:\
 ├── benchmark\
 │   └── cases_v2\     ← 29 canonical Kain benchmarks (keyword_crucible.kn is the definitive one)
 ├── smoketest\README.md"      ← language proof surface (kain check / kain test fixtures)
+├── KAIN_BY_EXAMPLE.MD  ← ⚠️ CANONICAL: 1037-line reference with a compilable snippet per feature. Read this FIRST.
 ├── GLOSSARY.MD       ← ⚠️ MANDATORY: maps every Kain term to its physical location
 ├── docs\             ← 
 ├── .pi\agents\       ← subagent definitions (kain-writer.md, worker.md, etc.)
@@ -70,6 +71,7 @@ X:\
 
 ### 5. For docs and architecture maps
 - **`read X:\GLOSSARY.MD`** — ⚠️ MANDATORY FIRST READ: maps every Kain term to its physical location (world → crates/core, actor → crates/actor + runtime/native/src/core/actor.c, converge → crates/core + runtime/native/include/converge.h, etc.). If you don't know where something lives, start here.
+- **`read X:\docs\KAIN_BY_EXAMPLE.md`** — ⚠️ CANONICAL REQUIRED READING: every Kain feature with a compilable snippet. Asm, raw memory, world/entangle, actors, converge, orchestrate, shatter, teleport, GPU — all with working code. Start here before ANY other doc.
 - **`read X:\docs\RULEBOOK.md`** — the decision ladder and construct reference
 - **`read X:\docs\CATALOG.MD`** — keyword catalog
 - **`read X:\docs\MEMORY.md`** — known traps and unresolved risks
