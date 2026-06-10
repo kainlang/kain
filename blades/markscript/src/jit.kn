@@ -81,11 +81,11 @@ struct EmitState:
 fn emit_byte(state: ptr<EmitState>, byte: Int) -> Int with Unsafe:
     let pos = mem_load(state, "Int") as ptr<Byte>
     let buf_field = ptr_to_int(pos)  // shouldn't do this, but we need the offset
-    // Actually, let's use a simpler approach: track offset as int
+    // track offset as int
     return 0
 
 // ===========================================================================
-//  BETTER APPROACH: emit to a temporary Int array, then copy to RWX memory
+//  emit to a temporary Int array, then copy to RWX memory
 //  This avoids pointer-based EmitState complexity. The Int array is
 //  a growable buffer. After emission, we allocate RWX memory and copy.
 // ===========================================================================
@@ -149,22 +149,9 @@ fn emit_prologue(arr: Array<Int>, stack_frame_size: Int) -> Array<Int>:
     // push rbp
     push(arr, X64_PUSH_RBP)
     // mov rbp, rsp
-    emit_rr(arr, X64_REX_W, 0x89, 5, 4)    // 89 EA? wait, 89 /mov r,mr + ModRM
-    // Actually: mov rbp, rsp = REX.W + 89 /r where /r means:
-    //   opcode 0x89: MR destination = r/m, source = reg
-    //   mov r/m64, r64
-    //   ModRM: mod=3, reg=rbp(5), rm=rsp(4) = 0xEC
-    //   Wait, 0x89 with REX.W and ModRM(3,5,4):
-    //   48 89 EC = mov rsp, rbp? No...
-    //   48 89 E8 = mov rax, rbp
-    //   48 89 EC = mov rsp, rbp (r/m = rsp, reg = rbp)
-    // We want: mov rbp, rsp = 48 89 E5 
-    // That's mod=3, reg=rsp(4), rm=rbp(5) = 11000100 = 0xC4... no
-    // 48 89 E5: REX.W, 89, ModRM(3,4,5) = 0xE5
-    // In ModRM: mod=3, reg=4, rm=5 => 11 100 101 = 0xE5. Yes!
+    emit_rr(arr, X64_REX_W, 0x89, 5, 4)    
     let modrm = x64_modrm(3, 4, 5)  // reg=rsp(4), rm=rbp(5)
     push(arr, modrm)
-    // sub rsp, stack_frame_size (if > 0)
     if stack_frame_size > 0:
         push(arr, X64_REX_W)
         push(arr, 0x81)  // 81 /0 = sub r/m64, imm32
