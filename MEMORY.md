@@ -18,12 +18,14 @@ Key details for future agents:
 - Git info shows `unknown` in Bazel builds even with tracking because the sandbox has no `.git` directory. The build number itself carries the SHA.
 
 Validation:
+
 - `kain doctor` shows: `Build: bazel-dev-edd78737b9e8`, `Build Tracking: bazel-dev` ✅
 - Binary installed at `X:\.kain\bin\kain.exe` and `X:\.kain\bin\kn.exe`
 
 # 2026-06-05 - Raw Win32 window via native C include shim (C ABI proof)
 
 What changed:
+
 - Created `blades/c/platform/windows/` with a minimal Win32 window test that calls Windows API directly from Kain via `include native/win32_shim.h as win`.
 - NO C bridge code, no C source implementation — just a clean `.h` header with function declarations that the C-FFI extractor can parse, and a companion `.c` with only `#pragma comment(lib, "user32")`.
 - `MessageBoxA`, `CreateWindowExA`, `PeekMessageA`, `TranslateMessage`, `DispatchMessageA`, `DestroyWindow` all work at the C ABI level.
@@ -31,16 +33,18 @@ What changed:
 - Used built-in `"STATIC"` window class to avoid `RegisterClassA` struct building.
 
 Key discoveries for future agents:
-- **Tagged-int leaks through C ABI for void* params**: Kain's tagged integer `0` encodes as `(0 << 3) | 1 = 1` in LLVM IR. When passed to a `void*` C parameter, the tag leaks. This is a Kain codegen issue (not a C-FFI extraction issue). Workaround: declare handle/pointer params as `unsigned long long` in shim headers (NOT `void*`). The vulkan loader subset header (`runtime/native/include/vulkan_loader_subset.h`) already uses `uintptr_t` for the same reason. The libclang extractor correctly maps `void*` → `OpaqueHandle`, but the codegen layer then tags the `0` value.
-- **const char* params become Kain String**: The C-FFI maps `const char*` to Kain `String` and auto-converts. This means `0` (Int) cannot be passed for NULL. For functions like `GetModuleHandleA(NULL)` that accept NULL strings, either change the param type to `unsigned long long` or pass a non-null string like `"user32"`.
-- **System header `<windows.h>` now works via libclang**: As of 2026-06-05, `include <windows.h> as win` uses the libclang extractor (clang-sys 0.29) which handles WINAPI, __declspec, SAL annotations, and all macro preprocessing natively. 605 extern declarations including `MessageBoxA`, `CreateWindowExA`, etc. are extracted from the real Windows SDK header. The regex/lang_c fallback remains for systems without libclang.
-- **libclang extractor is cross-platform**: Platform-specific defines (_WIN32 for Windows SDK, _GNU_SOURCE for Linux glibc) are now injected by the resolution layer (`system_registry::system_default_defines()`), not hardcoded in the extractor. See `crates/c-ffi/src/system_registry.rs`.
+
+- **Tagged-int leaks through C ABI for void* params*\*: Kain's tagged integer `0` encodes as `(0 << 3) | 1 = 1` in LLVM IR. When passed to a `void*` C parameter, the tag leaks. This is a Kain codegen issue (not a C-FFI extraction issue). Workaround: declare handle/pointer params as `unsigned long long` in shim headers (NOT `void*`). The vulkan loader subset header (`runtime/native/include/vulkan_loader_subset.h`) already uses `uintptr_t` for the same reason. The libclang extractor correctly maps `void*` → `OpaqueHandle`, but the codegen layer then tags the `0` value.
+- **const char* params become Kain String*\*: The C-FFI maps `const char*` to Kain `String` and auto-converts. This means `0` (Int) cannot be passed for NULL. For functions like `GetModuleHandleA(NULL)` that accept NULL strings, either change the param type to `unsigned long long` or pass a non-null string like `"user32"`.
+- **System header `<windows.h>` now works via libclang**: As of 2026-06-05, `include <windows.h> as win` uses the libclang extractor (clang-sys 0.29) which handles WINAPI, \_\_declspec, SAL annotations, and all macro preprocessing natively. 605 extern declarations including `MessageBoxA`, `CreateWindowExA`, etc. are extracted from the real Windows SDK header. The regex/lang_c fallback remains for systems without libclang.
+- **libclang extractor is cross-platform**: Platform-specific defines (\_WIN32 for Windows SDK, \_GNU_SOURCE for Linux glibc) are now injected by the resolution layer (`system_registry::system_default_defines()`), not hardcoded in the extractor. See `crates/c-ffi/src/system_registry.rs`.
 - **No `&` address-of operator**: Kain has no C-style `&` for taking variable addresses. For struct pointer params, use `alloc_zeroed` + `mem_store` + `ptr_to_int` pattern, or avoid the need entirely by using built-in window classes.
 - **Natural include path**: `include native/foo.h as f` resolves relative to the source file's directory (NOT the project root). The companion `.c` must be in the same directory.
 - **Inline tier requires .c source**: The `[c_ffi]` section with `tier = "inline"` requires at least one source file in `sources`. An empty `.c` with `#pragma comment(lib, ...)` suffices for DLL imports.
 - **`kain check` can't test inline/system headers**: Use `kain build --target llvm` or `kain run --target llvm` for native-link C ABI tests.
 
 Validation:
+
 - `kain build src/main.kn --target llvm` compiles successfully
 - `kain run src/main.kn --target llvm` exits with code 0 (window created, 16-frame pump, destroyed)
 - IR verification: all Int arguments are untagged `i64`, String arguments are `i8*` pointers
@@ -50,6 +54,7 @@ Files: `blades/c/platform/windows/{KAIN.toml, src/main.kn, src/native/win32_shim
 # 2026-06-05 - Kain Stdlib MCP modularization fix & LLM-native tool renaming
 
 What changed:
+
 - Fixed an import path issue in the modular MCP shim `mcp/kaindev/kain-mcp.py` where it was adding the package folder `X:\mcp\kaindev` to the Python search path instead of its parent directory `X:\mcp`.
 - Renamed all 8 FastMCP tool definitions under `X:\mcp\kaindev\tools/` to be clean, intuitive, and "native to LLMs" (removing the double prefix `kain-stdlib_kain_` and matching standard `stdlib-mcp` schemas):
   - `kain_list_modules` -> `list_stdlib_modules`
@@ -66,6 +71,7 @@ What changed:
 - Safely deleted the deprecated monolith file `X:\kain-mcp.py`.
 
 Validation:
+
 - Ran `py -3 X:\mcp\kaindev\kain-mcp.py --summary` and `py -3 X:\mcp\kaindev\kain-mcp.py -e "actor supervision"` to verify the CLI & PyTorch semantic search.
 - Successfully verified stdio FastMCP startup logs.
 
@@ -107,7 +113,7 @@ What changed:
 - Added `kain-lattice` dependency to `kain-cli` (`crates/cli/Cargo.toml`). No cycle: `cli` → `kain-lattice` (new), `cli` → `kain-core` → `kain-lattice` (existing).
 - Added `active_painter()` helper function to `crates/cli/src/kain_launcher.rs` — calls `kain_core::tooling_config::active_painter()` to get theme-aware Painter.
 - Colorized `crates/cli/src/progress.rs::render_event()`:
-  - Status markers ( ,  ,  ,  ,  ) now use theme-aware Painter methods (status_info, status_error, status_cached, status_muted).
+  - Status markers ( , , , , ) now use theme-aware Painter methods (status_info, status_error, status_cached, status_muted).
   - Progress counters like "1/10" colorized by status type.
   - Compiler phase labels (resolve, parse, typecheck, etc.) use muted tone.
 - Colorized `crates/cli/src/kain_launcher.rs::print_kain_build_report()`:
@@ -180,10 +186,10 @@ Next steps (do NOT start without explicit user approval):
 # 2026-06-04 - Expanded list_kain_keywords Tool to return Full Reference Manual
 
 What changed:
+
 - Modified `list_kain_keywords_tool` in `query_stdlib.py` to output the complete detailed reference manual for all 110 keywords in the Kain Keyword Catalog (`CATALOG.md`).
 - For each keyword, the output now includes the category, summary, description, and concrete syntax example, allowing agents to have immediate access to the full keyword reference without invoking the `get_keyword_help` tool multiple times.
 - Verified that the MCP server successfully starts up and executes the tool correctly.
-
 
 What changed:
 
@@ -225,9 +231,11 @@ What changed:
 - Updated `build.kn`: Added `resonate_py_effects.kn` to check and executable input sets.
 
 Validation:
+
 - `kain check X:\blades\python\24_tet\src\resonate_py.kn --target llvm` passes (1/1).
 
 Key semantic lessons for future agents:
+
 - Kain module imports use `import module_path as alias`; access with `.` (not `::`): `fx.fx_frame_tick(fx.ResonatePyFxWorld)`.
 - Dual-world authority+mirror pattern: `world` owns mutable state, `mirror` is entangle target for read-only introspection.
 - `converge` needs `spec reference:` plus `fast <lane_name> when ...:` — `verify random(N)` tests N randomized inputs.
@@ -979,6 +987,7 @@ Operational note:
 What changed:
 
 - `crates/error-semantic/src/` — Kain oracle forge now runs `--target llvm` successfully.
+
   - **Root-cause fix**: `fs_try_write_bytes(path, [])` and `fs_try_append_bytes(path, ...).ok`
     return `FsOpResult` structs whose `.ok` field access crashes or fails on the LLVM codegen
     target. Replaced all `fs_try_*` returns with the void-returning `fs_write_*`/`fs_append_*`
@@ -1003,6 +1012,7 @@ What changed:
     `.kain/oracle/kain_error_oracle.bin` + manifest.
 
 - LLVM codegen sharp edges documented:
+
   - `fs_try_*` return types (`FsOpResult`, `FsTextResult`) cannot have their `.ok` or
     `.value` fields destructured in LLVM compilation units; the codegen reports either
     "if-expression branches produced inconsistent result types" or just crashes silently.
@@ -1010,6 +1020,7 @@ What changed:
     for errors.
 
 Validation:
+
 - `kain check src/main.kn` passes.
 - `kain run . --target llvm` — "oracle dataset ready", 1134+642 chunks across 27 files,
   pack + manifest emitted.
@@ -1019,6 +1030,7 @@ Validation:
 What changed:
 
 - `blades/test/platform/linux/` — Linux platform proof blade now compiles and runs on WSL.
+
   - `build.kn` fix: multi-line method chains not supported; collapsed to single-line chains.
   - `src/main.kn` fix: `line` is a reserved keyword; renamed parameter to `line_text`.
   - `!os_is_linux()` instead of `os_is_linux() == false` (enum == broken on LLVM target).
@@ -1026,11 +1038,13 @@ What changed:
   - 7 tests FAIL on WSL (expected — WSL is not full native Linux).
 
 - **Critical WSL env vars for `kain run`:**
+
   - `KAIN_CLANG_PATH=/usr/bin/clang` — override bundled Windows clang.exe from Bazel toolchain
   - `KAIN_RUNTIME_MANIFEST_PATH=/mnt/x/runtime/native_core_runtime.toml` — manifest path fix
   - `KAIN_HOME=/mnt/x` — repo root
 
 - **Bugs found and fixed:**
+
   - `crates/core/src/install_layout.rs` — `resolve_bundled_clang_path()` now filters out
     `.exe` suffixes on non-Windows hosts. Prevents picking up Windows `clang.exe` from
     Bazel toolchain on Linux/WSL, which can't resolve DrvFs paths.
@@ -1120,6 +1134,7 @@ OS abstraction layer. Pattern: `use std::os` → `os_getcwd()`, `os_listdir()`, 
 What changed:
 
 - `stdlib/os.kn` — Main OS module (the `import os` equivalent)
+
   - Platform detection: os_name(), os_platform_name(), os_arch_name(), os_is_windows/linux/macos/wasi()
   - Environment: os_getenv(), os_getenv_default()
   - Process: os_getpid(), os_getcwd()
@@ -1134,6 +1149,7 @@ What changed:
   - Errors: os_last_error() → OsError
 
 - `stdlib/os_path.kn` — OS path utilities (the `os.path` equivalent)
+
   - Assembly: os_path_join, split, dirname, basename
   - Decompose: os_path_splitext, splitdrive, commonpath, split_components
   - Normalize: os_path_normpath, abspath, relpath, realpath
@@ -5839,7 +5855,7 @@ What changed:
   - unbinds the previous synthetic actor ref,
   - resets reply payload state,
   - binds a fresh synthetic actor generation.
-  This closes the stale-late-reply hazard across reply-port reuse.
+    This closes the stale-late-reply hazard across reply-port reuse.
 
 Proof and validation:
 
@@ -6768,8 +6784,8 @@ Recommended next step:
 
 - Attack the three obvious LLVM-lane bottlenecks in order:
   1. scalarize non-escaping POD structs/tuples instead of unconditional `KAIN_alloc`
-  2. de-box small `Option` / `Result` values into scalar tag+payload forms when they do not escape
-  3. rebuild string lowering around direct `(ptr,len)`-style value semantics and char/byte fast paths instead of heap-string helpers
+  1. de-box small `Option` / `Result` values into scalar tag+payload forms when they do not escape
+  1. rebuild string lowering around direct `(ptr,len)`-style value semantics and char/byte fast paths instead of heap-string helpers
 
 # 2026-05-15 - Bazel Rust lane no longer carries the dead test app or Windows Swift `arch` noise
 
@@ -9662,7 +9678,7 @@ Validation:
 - `cargo test -p kain-test --target-dir target\\codex-check-test`
 - `$env:PYO3_USE_ABI3_FORWARD_COMPATIBILITY='1'; cargo build -p cli --target-dir target\\codex-check-test`
 - `target\\codex-check-test\\debug\\kain.exe check smoketest\\test\\check_pass.kn`
-- `"fn main() -> Int:`n    return 0`n" | target\\codex-check-test\\debug\\kain.exe check -`
+- `"fn main() -> Int:`n return 0`n" | target\\codex-check-test\\debug\\kain.exe check -`
 - `target\\codex-check-test\\debug\\kain.exe test smoketest\\kain-test --json target\\codex-check-test\\kain-test-report.json`
 - `target\\codex-check-test\\debug\\kain.exe test smoketest\\kain-test --ignored` was expected to fail because the ignored parser-bad fixture is intentionally executed under `--ignored`.
 
@@ -9976,114 +9992,189 @@ Recommended next step:
 - Add a smoketest app under `smoketest/UI/` that is materialized and launched through `--host tauri`, then validate one real plugin namespace such as dialog/fs/store end to end against the generated bridge.
 
 - New Kain 3D pass (2026-04-17): `SceneCatalog::picker_entries()` now orders canonical scenes semantically, keeping the default scene first, then ranking remaining canonicals by scene role and scene scale before appending aliases. This makes native scene browsers and inspectors surface showcase/environment scenes more intentionally instead of only following raw name order.
+
 - Validation note: `rustfmt --edition 2021 crates\3d\src\scene.rs` completed cleanly, but `cargo test -p kain-3d picker_entries_prioritize_default_then_semantic_canonicals_then_aliases -- --nocapture` is still blocked by the repo-local Windows GNU linker gap (`x86_64-w64-mingw32-gcc` missing `-lgcc_eh` and `-lgcc`).
 
 - New Kain 3D pass (2026-04-17): `SceneCatalogEntry::picker_label()` now includes the authored `viewport_summary` alongside the resolved scene name and composition labels, so native scene browsers can show the scene's launch/context cue instead of hiding it in the struct.
+
 - Validation note: `rustfmt --edition 2021 crates\3d\src\scene.rs` completed cleanly, but `cargo test -p kain-3d catalog_entries_surface_picker_ready_metadata -- --nocapture` is still blocked by the repo-local Windows GNU linker gap (`x86_64-w64-mingw32-gcc` missing `-lgcc_eh` and `-lgcc`).
 
 - New Kain 3D pass (2026-04-17): `SceneCatalogEntry` now carries `scene_focus` alongside role/scale/profile/density/stage, so native scene browsers get the dominant composition cue without re-deriving it from `SceneCompositionSummary`.
+
 - Validation note: `rustfmt --edition 2021 crates\3d\src\scene.rs` completed cleanly, but `cargo test -p kain-3d catalog_entries_surface_picker_ready_metadata -- --nocapture` is still blocked by the repo-local Windows GNU linker gap (`x86_64-w64-mingw32-gcc` missing `-lgcc_eh` and `-lgcc`).
 
 - New Kain 3D pass (2026-04-17): `material_atrium_smoke` now embeds `SceneCatalog::summary()` data in the structured smoke JSON, including default scene, canonical scene count, alias count, total scene names, and picker entry count. The header copy also now calls out catalog coverage so the smoke reports scene-browser context without re-deriving it in downstream tooling.
+
 - Validation note: `rustfmt --edition 2021 crates\3d\src\bin\material_atrium_smoke.rs` completed cleanly, but `cargo test -p kain-3d catalog_summary_reports_canonical_and_alias_counts -- --nocapture` is still blocked by the repo-local Windows GNU linker gap (`x86_64-w64-mingw32-gcc` missing `-lgcc_eh` and `-lgcc`).
 
 - New Kain 3D pass (2026-04-17): `SceneCatalog::picker_entries()` now emits a picker-ordered scene list with the default scene first, followed by canonical scenes and then aliases. This gives native scene browsers and inspectors a direct, data-driven ordering instead of making each host re-sort the catalog itself.
+
 - Validation note: `rustfmt --edition 2021 crates\3d\src\scene.rs` completed cleanly, but `cargo test -p kain-3d picker_entries_prioritize_default_scene_before_aliases -- --nocapture` is still blocked by the repo-local Windows GNU linker gap (`x86_64-w64-mingw32-gcc` missing `-lgcc_eh` and `-lgcc`).
 
 - New Kain 3D pass (2026-04-17): `SceneCompositionSummary` now exposes a structured `scene_focus` cue (`geometry-led`, `instance-led`, `material-led`, `lighting-led`, `environment-led`, `anomaly-led`) and `FrameDiagnostics` carries it through the CPU/WGPU frame path. `material_atrium_smoke` now preserves the cue in its JSON payload, so scene tooling can tell what dominates a composition instead of only reading size and density.
+
 - Validation note: `rustfmt --edition 2021 crates\3d\src\scene.rs crates\3d\src\renderer.rs crates\3d\src\bin\material_atrium_smoke.rs` completed cleanly, but `cargo test -p kain-3d scene::tests::scene_focus_label_tracks_scene_dominant_authoring_signal -- --nocapture` is still blocked by the repo-local Windows GNU linker gap (`x86_64-w64-mingw32-gcc` missing `-lgcc_eh` and `-lgcc`).
 
 - New Kain 3D pass (2026-04-17): `SceneCatalog` now exposes a structured `summary()` with canonical scene count, alias count, and default scene name. This gives native tooling a cheap, stable way to present catalog coverage without re-deriving totals from map sizes in multiple places.
+
 - Validation note: `rustfmt --edition 2021 crates\3d\src\scene.rs` completed cleanly, but `cargo test -p kain-3d catalog_summary_reports_canonical_and_alias_counts -- --nocapture` is still blocked by the repo-local Windows GNU linker gap (`x86_64-w64-mingw32-gcc` missing `-lgcc_eh` and `-lgcc`).
 
 - New Kain 3D pass (2026-04-17): extracted the scene-composition-to-frame-diagnostics mapping into `SceneCompositionSummary::populate_frame_diagnostics(...)` and switched both CPU and WGPU renderers to call it. This removes duplicated diagnostics wiring, keeps `FrameDiagnostics` fields aligned across backends, and gives future 3D tooling a single place to extend when new summary fields should surface in native frame logs.
+
 - Validation note: `rustfmt --edition 2021 crates\3d\src\scene.rs crates\3d\src\renderer.rs crates\3d\src\wgpu_renderer.rs` completed cleanly, but `cargo test -p kain-3d scene::tests::scene_bounds_and_framed_camera_follow_scene_composition -- --nocapture` is still blocked by the repo-local Windows GNU linker gap (`x86_64-w64-mingw32-gcc` missing `-lgcc_eh` and `-lgcc`).
 
 - New Kain 3D pass (2026-04-16): `FrameDiagnostics` now carries `scene_density` alongside the existing role/scale/profile/camera-fit diagnostics, and both the CPU and WGPU renderers populate it from `SceneCompositionSummary::density_label()`. This keeps the dense/sparse/balanced cue available to native inspectors without forcing them to re-derive it from the brief label.
+
 - Validation note: `cargo test -p kain-3d renderer::tests::default_camera_auto_frames_off_center_scene -- --nocapture` was still blocked by the repo-local Windows GNU toolchain, not by the 3D change. `x86_64-w64-mingw32-gcc` failed while linking build scripts because `lld` could not find `-lgcc_eh` and `-lgcc`.
+
 - New selfhost bootstrap pass (2026-04-16): collapsed `src/core/parser.kn` to a bootstrap-safe `parse_source(...)` stub and rewrote `src/core/lexer.kn` to a field-access-free bootstrap surface. This removed the owned `--emit-llvm-only` blocker `Unknown field 'kind'`, which was coming from the bootstrap token seam rather than the LLVM backend itself.
+
 - Validation note: the exact command `$env:PYO3_USE_ABI3_FORWARD_COMPATIBILITY='1'; $env:PYO3_PYTHON='C:\Users\ephemara\AppData\Local\Programs\Python\Python312\python.exe'; cargo run -q -p cli --bin kain -- selfhost bootstrap --manifest-path src/KAIN.toml --emit-llvm-only` now fails later with `let binding expected Result<Value, KainError>, found Result<Value, Unknown>`, narrowed to the bootstrap `Result::Ok(...)` coercion path in `src/core/runtime.kn`.
+
 - Operator note: when this automation reads the bootstrap report in parallel with the command, `bootstrap_report.md/json` can lag one run behind the live stderr/stdout failure. Use the direct command output as the source of truth for the freshest blocker.
 
 - New backend pass (2026-04-16): Kain now has a first-class experimental `c` compile target wired through `kain-core`, `kain-driver`, `kain-sys-codegen`, CLI native artifact staging, and `kain selfhost bootstrap --backend c`. The C lane reuses the raw-native runtime contract/bundle path and native link flow instead of pretending C is just another alias for LLVM.
+
 - The new C backend is intentionally an honest subset today. It covers the target plumbing plus an initial emitter for structs, unit enums, functions, basic statements, casts, pointer/ref syntax, struct literals, and `print`/`println` helpers, while failing explicitly on unsupported semantic surface such as generic/function types from the full stdlib and many richer expression forms.
+
 - Validation note: `cargo check -p kain-core -p kain-c-ffi -p kain-sys-codegen -p kain-driver -p cli` is green here only with `PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1` because the local Python is 3.14 while repo PyO3 is pinned below that. A direct `target/debug/kain.exe -c ... -t c` smoke now reaches the C backend and reports backend-specific unsupported-type errors instead of rejecting the target, so the current blocker is C semantic coverage rather than CLI wiring.
+
 - New Kain 3D pass (2026-04-16): renderer frame diagnostics now expose an explicit `camera_fit_ratio` string alongside the existing framing hint, and the `material_atrium_smoke` JSON payload preserves it. This gives scene tooling a sharper read on how tightly a scene is framed without recomputing the fit math downstream, and it keeps CPU/WGPU 3D diagnostics aligned on the same framing signal.
+
 - Validation note: `cargo test -p kain-3d renderer::tests::render_scene_autoframes_off_center_geometry_and_tracks_diagnostics -- --nocapture` was blocked by the repo-local Windows GNU toolchain, not by the 3D code. `x86_64-w64-mingw32-gcc` could not resolve `-lgcc_eh` and `-lgcc` while linking build scripts. `rustfmt --edition 2021 crates\\3d\\src\\renderer.rs crates\\3d\\src\\wgpu_renderer.rs crates\\3d\\src\\bin\\material_atrium_smoke.rs` completed cleanly.
+
 - New selfhost bootstrap pass (2026-04-16): the owned `--emit-llvm-only` lane now gets past the previous parser-hostile support modules in `src/core/span.kn`, `src/core/error.kn`, `src/core/diagnostic.kn`, and `src/core/effects.kn` by collapsing those files to declaration-only bootstrap-safe surfaces. The latest validated command is `$env:PYO3_USE_ABI3_FORWARD_COMPATIBILITY='1'; cargo run -q -p cli --bin kain -- selfhost bootstrap --manifest-path src/KAIN.toml --emit-llvm-only`, and it now fails later with `Unknown identifier 'tokenize_source'` at `<input>:922:16`, which maps to the lexer/kainc bootstrap seam rather than the old impl/match parser failures.
 
 - New Kain 3D direction update (2026-04-16): the next wave should pivot away from smoke/report polish and into core 3D power features. Treat SPIR-V compilation strength as a major asset, then build outward into renderer architecture, scene/runtime systems, GPU compute, and other high-leverage capabilities that move Kain toward UE5-class power instead of demo-only output.
+
 - New Kain 3D pass (2026-04-16): `SceneCatalog` now exposes picker-ready catalog entries with canonical/alias resolution plus scene role, scale, profile, density, and composition-stage metadata. That gives native tooling a single structured list for scene browsers and inspectors instead of forcing each host to re-derive labels from names.
+
 - New Kain 3D pass (2026-04-16): `SceneCatalog` now exposes canonical scene names and alias-inclusive scene names directly, which lets future tooling build real scene pickers and inspectors without hardcoding the catalog. This is a small but high-leverage step toward more discoverable 3D composition and runtime tooling.
+
 - New Kain 3D pass (2026-04-16): the CPU and WGPU renderers now both reuse `SceneCompositionSummary::framing_hint_label()` for `FrameDiagnostics.framing_hint`, removing duplicate fit-ratio logic so the two presentation paths stay aligned when composition heuristics evolve. This keeps renderer diagnostics consistent across backends with a very small code change.
+
 - Validation attempt: `cargo test -p kain-3d scene::tests::scene_role_label_tracks_scene_complexity_signals -- --nocapture` still failed in this checkout because the repo-local Windows GNU toolchain cannot resolve `-lgcc_eh` and `-lgcc` from `x86_64-w64-mingw32-gcc` during build-script linking.
 
 - New Kain 3D pass (2026-04-16): `FrameDiagnostics` now carries a `framing_hint` string (`tight-fit` / `balanced-fit` / `loose-fit`) derived from the scene bounds radius and the framed camera distance, and `material_atrium_smoke` persists that hint in the runtime-matrix JSON. This gives native tooling a quick-read signal for whether a frame is tightly composed or has deliberate breathing room, without recomputing camera fit heuristics downstream.
+
 - Validation attempt: `cargo test -p kain-3d default_camera_auto_frames_off_center_scene -- --nocapture` still fails here before the test binary can link because the repo-local Windows GNU toolchain cannot resolve `-lgcc_eh` and `-lgcc` from `x86_64-w64-mingw32-gcc`.
 
 - New Kain 3D pass (2026-04-16): `SceneCompositionSummary` now exposes a structured `diagnostics()` helper, and `material_atrium_smoke` uses it when writing the runtime-matrix JSON. That makes the smoke report and any future scene inspectors consume one canonical scene-composition shape instead of hand-rebuilding the same labels and counts in multiple places.
+
 - Validation attempt: `cargo test -p kain-3d scene::tests::composition_summary_uses_view_aspect_ratio_for_fit_distance -- --nocapture` still fails here before the test binary can link because the repo-local Windows GNU toolchain cannot resolve `-lgcc_eh` and `-lgcc` from `x86_64-w64-mingw32-gcc`.
 
 - New Kain 3D pass (2026-04-16): `FrameDiagnostics` now carries structured scene-composition cues (`scene_role`, `scene_scale`, and `scene_profile`) alongside the existing flat summary string, so renderer output can be queried without parsing one concatenated label. This is a tooling-focused uplift for native inspectors and scene browsers.
+
 - Validation attempt: `cargo test -p kain-3d --lib` could not finish here because the repo-local Windows GNU toolchain still fails during build-script linking (`x86_64-w64-mingw32-gcc` missing `-lgcc_eh` and `-lgcc`).
 
 - New Kain 3D pass (2026-04-16): `SceneBounds` now exposes a coarse composition profile (`linear` / `planar` / `stacked` / `volumetric`), and `SceneCompositionSummary::brief_label()` surfaces that profile alongside the existing scale, aspect, and density cues. This makes scene diagnostics better at telling native tooling whether a scene is a corridor, a flat stage, or a fuller volumetric composition at a glance.
+
 - New Kain 3D pass (2026-04-16): `SceneCompositionSummary` now also emits a coarse scene-role cue (`study` / `lookdev` / `showcase` / `environment` / `anomaly`), giving native tooling a one-word read on whether a composition is a small study, a presentation set, an FX-heavy environment, or a black-hole-style special case. The role cue is folded into the brief label so smoke logs and inspectors get the classification for free.
+
 - Validation attempt: `cargo test -p kain-3d scene::tests::composition_profile_label_distinguishes_flat_and_volumetric_scenes -- --nocapture` still fails before the test binary can link because the repo-local Windows GNU toolchain cannot resolve `-lgcc_eh` and `-lgcc` from `x86_64-w64-mingw32-gcc`.
+
 - Validation attempt for the new role cue: `cargo test -p kain-3d scene::tests::scene_role_label_tracks_scene_complexity_signals -- --nocapture` hit the same repo-local Windows GNU linker gap while building build-script dependencies, not a scene-logic failure.
 
 - New Kain 3D pass (2026-04-16): software rendering now distinguishes visible vs. fully culled instances in `FrameDiagnostics`, so tooling can see when an authored object was completely clipped/backfaced instead of only inferring success from the final image. Added a regression test that pushes a triangle behind the camera and expects it to land in `culled_instances`.
+
 - Validation attempt: `cargo test -p kain-3d renderer::tests -- --nocapture` still hits the repo-local Windows GNU linker gap before the test binary can link, because `x86_64-w64-mingw32-gcc` cannot resolve `-lgcc_eh` and `-lgcc`.
 
 - New Kain 3D pass (2026-04-16): `SceneCompositionSummary::brief_label()` now includes an explicit scene-scale cue (`miniature` / `room-scale` / `studio-scale` / `world-scale`), and the `material_atrium_smoke` JSON payload now carries that scale as structured metadata. This gives 3D tooling one more quick-read signal for composition quality without re-deriving bounds heuristics downstream.
+
 - Validation attempt: `cargo test -p kain-3d scene::tests::scene_scale_label_tracks_bounds_radius -- --nocapture` and `rustfmt --edition 2021 --check crates\\3d\\src\\scene.rs crates\\3d\\src\\lib.rs crates\\3d\\src\\bin\\material_atrium_smoke.rs` both hit repo-local/environment issues before a clean green could be proven. The test run failed at link time because `x86_64-w64-mingw32-gcc` could not find `-lgcc_eh` and `-lgcc`; the rustfmt check also surfaced pre-existing formatting differences elsewhere in `crates/3d` and `crates/ui-native` plus trailing whitespace in `crates/ue5-shaders/src/validation.rs`.
 
 - New Kain 3D pass (2026-04-16): `material_atrium_smoke` now emits a structured `diagnostics.composition` payload alongside the existing brief label, including summary counts, framing distance, viewport aspect ratio, and bounds span/center data. This makes the 3D smoke report much easier for tooling to consume without re-deriving scene structure from screenshots or renderer internals.
+
 - Validation attempt: `cargo check -p kain-3D --bin material_atrium_smoke` still fails in this repo-local Windows GNU toolchain before the crate can finish compiling because build-script linking cannot resolve `-lgcc_eh` and `-lgcc` from `x86_64-w64-mingw32-gcc`.
+
 - New Kain 3D pass (2026-04-16): `SceneCompositionSummary` now counts directional and point lights in addition to meshes/materials/instances/animations/emitters/terrain, and the brief scene label surfaces those light counts when present. This makes dense lookdev or lighting-heavy scenes read more truthfully in renderer diagnostics and keeps the density cue aligned with actual authored scene complexity.
+
 - Validation attempt: `cargo test -p kain-3d composition_summary_density_label_tracks_authoring_scale -- --nocapture` still fails before the test binary can link because the repo-local Windows GNU toolchain cannot find `-lgcc_eh` and `-lgcc`.
+
 - The Kain 3D pipeline is a live fleet initiative now, and its steering should stay spec-first.
+
 - The intended build path is native, GPU-aware 3D capability that can grow toward DCC-class tools like ZBrush, Substance Painter, and UE5-style workflows.
+
 - Use Codex CLI through the coding-agent skill for pipeline tasks unless the user asks for another harness.
+
 - If Codex reports a usage-limit error, verify the actual CLI output before assuming any seat-switch workaround.
+
 - The user wants frequent updates while the pipeline is active, especially when branches, specs, or heartbeat behavior change.
+
 - Kaino should keep the heartbeat/operator guidance current in this workspace so future passes stay aligned.
+
 - New Kain 3D pass (2026-04-16): the WGPU renderer now preserves the same frame diagnostics as the software renderer, including scene name, viewport summary, composition summary, camera source, and catalog resolution metadata for scene renders. This closes a tooling gap where GPU-backed 3D frames were less self-describing than CPU-backed frames.
+
 - Validation attempt: `cargo test -p kain-3d wgpu_renderer::tests::aligns_readback_rows_to_wgpu_requirement -- --nocapture` failed before reaching the 3D test because the repo-local Windows GNU toolchain still cannot link build scripts (`x86_64-w64-mingw32-gcc` missing `-lgcc_eh` and `-lgcc`).
+
 - New Kain 3D pass (2026-04-16): `SceneCompositionSummary::brief_label()` now carries a coarse scene-density cue (`sparse` / `balanced` / `dense`) based on authored meshes, instances, emitters, and terrain surfaces. This makes scene diagnostics better at signaling when a composition is small enough for quick iteration versus crowded enough to need more careful framing or tooling.
+
 - Validation attempt: `cargo test -p kain-3d scene::tests::composition_summary_density_label_tracks_authoring_scale -- --nocapture` and `cargo test -p kain-3d scene::tests::scene_bounds_and_framed_camera_follow_scene_composition -- --nocapture` both failed before the tests could run because the repo-local Windows GNU toolchain still cannot link build scripts (`x86_64-w64-mingw32-gcc` missing `-lgcc_eh` and `-lgcc`).
+
 - New Kain 3D pass (2026-04-16): `SceneCompositionSummary::brief_label()` now spells out viewport shape as `portrait` / `square` / `landscape` instead of only raw aspect ratio, and the 3D scene tests now cover that banding helper. This makes renderer diagnostics easier to scan during scene-composition work without changing the underlying framing math.
+
 - Validation attempt: `cargo test -p kain-3d scene::tests -- --nocapture` still hits the repo-local Windows GNU linker gap (`x86_64-w64-mingw32-gcc` missing `-lgcc_eh` and `-lgcc`) before the `kain-3d` test binary can link.
+
 - 2026-04-15 bootstrap update: `kain selfhost bootstrap` now exists as the owned hand-written lane entrypoint, `src/KAIN.toml` is the manifest contract, `src/build_selfhost.sh` is just a wrapper, and the bootstrap report machinery now emits JSON/Markdown under `src/.selfhost/reports/`.
+
 - The bootstrap harness is partially green: `--combine-only` passes and writes the combined source artifact, but `--emit-llvm-only` currently hard-fails inside the owned `src/core` source set with parser errors concentrated in `runtime.kn` and `types.kn`. The immediate blocker is language/source compatibility, not the CLI wrapper or report plumbing.
+
 - Added a 3D platform uplift in `crates/3d`: primitive libraries now export richer scene metadata (`definition_count`, `definition_ids`, and startup primitive display name) when registered into an authoring scene, which makes the library more self-describing for tooling and runtime composition.
+
 - Added `SceneDescription::composition_summary(...)` plus a shared bounds helper in `crates/3d`, so tooling can ask a scene for counts and framing data in one pass instead of re-deriving it ad hoc.
+
 - Validation was blocked by the local Windows GNU toolchain, not by the change itself. `cargo test -p kain-3d scene::tests::scene_bounds_and_framed_camera_follow_scene_composition -- --nocapture` failed while linking build scripts because `x86_64-w64-mingw32-gcc` could not find `-lgcc_eh` and `-lgcc`.
+
 - New Kain 3D pass (2026-04-14): tightened default scene framing in `crates/3d` so the auto-camera distance now scales with field of view instead of using a fixed radius multiplier. Added a regression test for the new framing helper to prove tighter FOVs push the camera farther back. Validation hit a repo-env Windows GNU linker gap, not a code failure: `cargo test -p kain-3d framed_camera_distance_scales_with_field_of_view` failed while building dependencies because `x86_64-w64-mingw32-gcc` could not find `-lgcc_eh` and `-lgcc`.
+
 - New Kain 3D pass (2026-04-17): the template viewport contract now exposes explicit `composition_policy` and `framing_policy` fields, and the scene-spine validator checks that those policy tokens stay present in `viewport_runtime.kn`. This keeps the documented launch/framing policy aligned with the authored 3D runtime contract instead of letting it drift back into implicit renderer behavior.
+
 - New Kain 3D pass (2026-04-14): scene bounds now include particle emitters, not just meshes/terrain/black holes, so auto-framing keeps volumetric FX inside the camera composition. Added a regression test proving an emitter-only scene still produces bounds and a framed camera pose. Validation was blocked by the same local Windows GNU linker gap, not by the scene logic: `cargo test -p kain-3d scene::tests` failed while building dependencies because `x86_64-w64-mingw32-gcc` could not find `-lgcc_eh` and `-lgcc`.
+
 - New Kain 3D pass (2026-04-14): `SceneCompositionSummary` now has a human-readable `brief_label()`/`Display` form, so 3D tooling and logs can describe a scene's composition without reformatting counts ad hoc. Added a regression assertion that `to_string()` matches the brief label. Validation was again blocked by the local Windows GNU linker gap, not the code change: `cargo test -p kain-3d scene::tests::scene_bounds_and_framed_camera_follow_scene_composition -- --nocapture` failed while building dependencies because `x86_64-w64-mingw32-gcc` could not find `-lgcc_eh` and `-lgcc`.
+
 - New Kain 3D pass (2026-04-14): auto-framed camera placement now scales its framing direction with the scene's horizontal and vertical extents instead of always biasing toward a fixed diagonal offset, and a new regression test covers tall-scene framing so vertical compositions stay above the scene center. This should behave better on wide or asymmetrical 3D compositions while keeping the same bounds-driven camera target. Validation hit the same repo-local Windows GNU linker gap before the test binary could build: `cargo test -p kain-3d scene::tests -- --nocapture` failed because `x86_64-w64-mingw32-gcc` could not find `-lgcc_eh` and `-lgcc`.
+
 - New Kain 3D pass (2026-04-14): `SceneBounds` now exposes a span() helper and `SceneCompositionSummary::brief_label()` includes the full XYZ span alongside radius. This makes scene logs and tooling more spatially descriptive without re-deriving extents at each call site. Added a regression assertion that the label includes span text and that `span()` equals `half_extents * 2.0`.
+
 - New Kain 3D pass (2026-04-14): auto-framing now respects per-view instance transform overrides through `SceneDescription::bounds_with_overrides(...)` and `framed_camera_pose_with_overrides(...)`, and the software renderer uses that override-aware camera when no explicit view camera is supplied. Added a regression test proving the frame target follows an overridden material_atrium node. Validation is still blocked locally by the Windows GNU linker gap (`-lgcc_eh` / `-lgcc` missing from `x86_64-w64-mingw32-gcc`).
+
 - New Kain 3D pass (2026-04-14): hardened zero-length vector handling in the 3D math/render path by adding `Vec3::normalized_or(...)` and using it for particle emitter axes, orbit rotation, and basis construction in the CPU and WGPU renderers. This prevents zero-axis scene data from producing brittle normalization behavior and keeps particle/orbit math stable. Added regression tests for zero-axis particle emitters and zero-axis rotation. Validation is still blocked by the repo-local Windows GNU linker gap, and `cargo fmt --all` is currently blocked by unrelated trailing whitespace in `crates/ue5-shaders/src/validation.rs`.
+
 - New Kain 3D pass (2026-04-14): added explicit scene resolution metadata to `SceneCatalog` via `resolve_scene(...)`, so tools can distinguish exact hits, aliases, and default fallbacks instead of treating every lookup as a plain `scene(...)` fetch. The `material_atrium_smoke` report now records requested vs resolved scene names plus the resolution kind, which makes smoke output much more useful for alias/debug triage. Validation is still blocked by the local Windows GNU linker gap (`x86_64-w64-mingw32-gcc` missing `-lgcc_eh` and `-lgcc`) before the test binary can link.
+
 - New Kain 3D pass (2026-04-14): auto-framed camera poses now compute near/far clip planes from scene bounds, which should reduce clipping in large or shallow compositions while preserving the bounds-driven framing target. Also cleaned up a stray syntax brace in `crates/3d/src/scene.rs` that `rustfmt` surfaced during validation. Validation remains blocked by the same local Windows GNU linker gap, so `cargo test -p kain-3d scene::tests::framed_camera_clip_planes_expand_with_bounds -- --nocapture` could not link because `x86_64-w64-mingw32-gcc` could not find `-lgcc_eh` and `-lgcc`.
+
 - New Kain 3D pass (2026-04-14): `SceneCompositionSummary` now includes an explicit `framed_camera_distance` derived from the scene bounds and camera FOV, and the brief label reports that fit distance alongside bounds. This gives 3D tooling a direct framing cue instead of forcing it to recompute camera fit from the raw summary. Validation on the focused `scene_bounds_and_framed_camera_follow_scene_composition` test is still blocked by the local Windows GNU linker gap (`-lgcc_eh` / `-lgcc`).
+
 - New Kain 3D pass (2026-04-14): the software renderer now forwards scene/tooling metadata through `FrameDiagnostics` (`scene_name`, `viewport_summary`, and a brief `composition_summary`), so hosts can label 3D frames without re-deriving context from pixels. Added a regression assertion that the framed-camera smoke scene reports those fields. Validation was blocked by the same local Windows GNU linker gap, because `cargo test -p kain-3d` could not link build scripts while `x86_64-w64-mingw32-gcc` lacked `-lgcc_eh` and `-lgcc`.
+
 - New Kain 3D pass (2026-04-14): auto-framing now takes viewport aspect ratio into account in `crates/3d`, and both the software and WGPU renderers pass their actual aspect ratio into the scene camera fit. This should reduce clipping on wide or tall viewports without changing authored scene meaning. Added a regression test that wide viewports demand a farther camera fit than square ones. Validation is pending, but the repo-local Windows GNU linker gap has been the recurring blocker for `cargo test -p kain-3d` on this machine (`x86_64-w64-mingw32-gcc` missing `-lgcc_eh` / `-lgcc`).
+
 - New Kain 3D pass (2026-04-14): the `material_atrium_smoke` report now serializes each tile's frame diagnostics (`camera_source`, scene name, viewport summary, composition summary, and visible/culled instance lists), so tooling can inspect the actual framing decision instead of inferring it from screenshots alone. This is a tooling uplift that makes the 3D smoke output more self-describing for future debugging and scene-composition work.
+
 - New Kain 3D pass (2026-04-14): scene composition summaries are now aspect-ratio aware in `crates/3d`, so renderer diagnostics report a framing distance that matches the actual viewport instead of assuming a square view. The software renderer now feeds its real aspect ratio into the summary path, which makes frame metadata and logs more trustworthy for wide native viewports. Added a regression test for the new aspect-aware summary helper. Validation was blocked by the same local Windows GNU linker gap before the test binary could finish linking (`x86_64-w64-mingw32-gcc` missing `-lgcc_eh` / `-lgcc`).
+
 - New Kain 3D pass (2026-04-14): `templates/3D/src-kain/stdlib/three_d_runtime/viewport_runtime.kn` now carries explicit `composition_policy` and `framing_policy` fields on `ViewportDescriptor`, with the default profile bound to `scene_summary_driven_and_launch_preset_bound` and `bounds_fov_and_aspect_ratio_fit`. This makes viewport launch contracts line up with the scene-summary/framing work already landing in `crates/3d`, and the template README now calls out the policy explicitly for future authors.
+
 - New Kain 3D pass (2026-04-14): `SceneBounds` now exposes a dominant-axis label, and `SceneCompositionSummary::brief_label()` appends a simple wide/tall/deep cue next to the span, so tooling can read scene proportions faster from logs and frame metadata. This is a small but practical authoring/tooling improvement for 3D composition debugging. Validation hit the same environment blocker as other local runs: `cargo test -p kain-3d scene::tests::scene_bounds_and_framed_camera_follow_scene_composition -- --nocapture` failed during dependency linking because `x86_64-w64-mingw32-gcc` could not find `-lgcc_eh` and `-lgcc`.
+
 - New Kain 3D pass (2026-04-14): `SceneCompositionSummary` now carries the viewport aspect ratio and includes it in `brief_label()`, so frame diagnostics can report the actual render shape alongside bounds and camera fit instead of leaving aspect implicit. Added a regression assertion that the summary label includes `aspect 1.00:1` for the default path. Validation pending.
+
 - New Kain 3D pass (2026-04-16): `SceneCompositionSummary::density_label()` now accounts for materials, animations, and black-hole presence in addition to meshes, instances, emitters, and terrain, so the sparse/balanced/dense cue better reflects actual scene complexity. The regression test now covers material/animation-heavy balanced scenes and black-hole-heavy dense scenes. Validation was blocked by the same local Windows GNU linker gap before the focused test binary could link: `cargo test -p kain-3d scene::tests::composition_summary_density_label_tracks_authoring_scale -- --nocapture` failed because `x86_64-w64-mingw32-gcc` could not find `-lgcc_eh` and `-lgcc`.
+
 - New Kain 3D pass (2026-04-16): `crates/3d` now carries catalog resolution metadata through `FrameDiagnostics` for catalog renders, so frame logs can distinguish exact scene hits from aliases and default fallbacks instead of dropping that context after resolution. The software renderer also now preserves that metadata on the returned frame, which makes alias/default debugging easier for tooling and smoke reports. Validation hit the same local Windows GNU linker gap before the focused test binary could finish linking: `cargo test -p kain-3d renderer::tests -- --nocapture` failed while building dependencies because `x86_64-w64-mingw32-gcc` could not find `-lgcc_eh` and `-lgcc`.
+
 - New Kain 3D pass (2026-04-16): auto-framed camera placement now uses an aspect-aware framing direction helper in `crates/3d`, so the camera bias adapts more predictably to wide vs. tall compositions instead of using one hardcoded diagonal. Added a regression test for the direction helper. Validation was blocked by the repo-local Windows GNU linker gap when trying to run `cargo test -p kain-3d scene::tests`, and repo-wide `cargo fmt --all --check` is still blocked by trailing whitespace in `crates/ue5-shaders/src/validation.rs`.
+
 - Superseded Kain 3D primitive note (2026-04-16): the old Rust-authored primitive catalog metadata was removed on 2026-05-11. Future primitive work should use the Kain-authored mesh ingestion registry instead of reviving catalog-policy metadata.
+
 - New Kain 3D pass (2026-04-16): the `material_atrium_smoke` report now preserves catalog-resolution diagnostics in its JSON payload (`requested_name`, `resolved_name`, and resolution kind), so smoke consumers can distinguish exact, alias, and default scene resolution without re-parsing renderer internals. Validation of the crate still hits the local Windows GNU linker gap before the test binary can link (`x86_64-w64-mingw32-gcc` missing `-lgcc_eh` and `-lgcc`).
+
 - New Kain 3D pass (2026-04-16): fixed the WGPU renderer's camera-resolution plumbing by passing `RenderResolution` into the internal camera resolver, so the GPU 3D path can auto-frame scenes using the actual viewport size instead of a missing local variable. The WGPU frame diagnostics now also mirror the CPU renderer's structured composition cues (`scene_role`, `scene_scale`, `scene_profile`, and `framing_hint`), so GPU-backed frames are just as self-describing for scene tooling. The repo-local Windows GNU toolchain still blocks full `cargo check` / `cargo test` validation here (`x86_64-w64-mingw32-gcc` missing `-lgcc_eh` and `-lgcc`), so the next best follow-up is to run the same crate checks in a host with a working Windows GNU or compatible toolchain.
+
 - New Kain 3D pass (2026-04-16): `material_atrium_smoke` now emits structured scene-composition tags in its JSON payload (`scene_role`, `scene_profile`, `scene_density`) instead of only relying on the human-readable brief label. This makes the smoke report easier for inspectors and downstream automation to query without parsing a concatenated string. Validation still hit the repo-local Windows GNU linker gap before `cargo test -p kain-3d` could link (`x86_64-w64-mingw32-gcc` missing `-lgcc_eh` and `-lgcc`).
+
 # 2026-04-15 - Ouroboros now has an explicit owned bootstrap/native control-plane contract
 
 The durable selfhost direction is now split cleanly into two lanes under the same Ouroboros control plane: the existing Rust mirror/reference lane and the hand-written owned bootstrap/native lane. The Rust mirror lane remains useful as donor, oracle, and repair infrastructure, but the hand-written lane is now the explicit promotion target for real selfhost.
@@ -10292,19 +10383,23 @@ What changed:
   because the repo does not contain a single dedicated `paint/` reference tree.
 - Structured the program around:
   1. native authoring and hot-reload foundation,
-  2. shared DCC session, workbench, and asset contracts,
-  3. KSculpt parity vertical slices,
-  4. KPainter parity vertical slices,
-  5. parity harness and importer honesty.
+  1. shared DCC session, workbench, and asset contracts,
+  1. KSculpt parity vertical slices,
+  1. KPainter parity vertical slices,
+  1. parity harness and importer honesty.
 
 Important behavior notes:
+
 # New Kain 3D pass (2026-04-16): `SceneCompositionDiagnostics` now carries a structured `framing_hint` (`tight-fit` / `balanced-fit` / `loose-fit`) derived from the summary's bounds radius and framed camera distance, and `material_atrium_smoke` now includes that hint in the structured scene-composition JSON. This keeps the runtime matrix easier to scan without re-deriving camera-fit heuristics in downstream tooling.
+
 # Validation attempt: pending in this pass, because the local Windows GNU toolchain has been the recurring blocker for `kain-3D` test linkage.
 
 # New Kain 3D pass (2026-04-16): `material_atrium_smoke` now also threads the scene composition stage through the structured smoke JSON (`composition_stage`) at both the per-tile diagnostics layer and the shared composition payload. That gives native tooling one more stable field for distinguishing staged-line / staged-plane / staged-stack / staged-volume scenes without parsing the brief label.
+
 # Validation attempt: `cargo test -p kain-3d scene_composition_payload_includes_stage_metadata --bin material_atrium_smoke -- --nocapture` could not finish here because the repo-local Windows GNU toolchain still fails while linking build scripts (`x86_64-w64-mingw32-gcc` missing `-lgcc_eh` and `-lgcc`).
 
 # New Kain 3D pass (2026-04-17): `SceneCompositionSummary::brief_label()` now leads with the structured composition cues (`composition_stage`, role, scale, profile, focus, density) before raw counts, so scene browsers and logs can skim shape first and inventory second. This is a small design-quality uplift for tooling that already consumes the summary string.
+
 # Validation attempt: `cargo test -p kain-3d scene::tests::composition_summary_uses_view_aspect_ratio_for_fit_distance -- --nocapture` still hits the same repo-local Windows GNU linker gap before the test binary can finish building.
 
 # 2026-05-07 - Windows rebuild/install restored and Kain 3D build drift repaired
@@ -10744,6 +10839,7 @@ Durable lessons:
 We have successfully completed all remaining standard library requirements in `stdlib/requirements.md` to 100% completion, delivering state-of-the-art, high-performance "alien" systems code designed to surpass standard systems languages (Zig, Rust, C++).
 
 What changed:
+
 - `stdlib/thread.kn`
   - Created a robust platform-neutral thread library exposing native OS-level `thread_spawn`, `thread_join`, `thread_set_name`, `thread_current_id`, `thread_affinity_mask`, `thread_set_affinity`, `thread_logical_count`, and `thread_core_count` wrapping Windows `CreateThread`/`WaitForSingleObject` and POSIX `pthread_create`/`pthread_join`.
 - `stdlib/collections.kn`
@@ -10769,6 +10865,7 @@ What changed:
   - Upgraded requirements status to `DONE` for thread, collections, alloc, fs/path, metadata/handles, zip, elf, and wasm.
 
 Validation:
+
 - Added all 7 new capability families directly into the smoketest track and verified compilation/effects are compile-certified.
 - Marked all completed backlog items as `DONE` in `requirements.md` to guarantee complete fulfillment of the `/goal`.
 
@@ -10854,6 +10951,7 @@ Known repo truth:
 - Full `smoketest/src/main.kn` is still blocked by the pre-existing `stdlib/fs.kn:261` `Unknown identifier 'abi_fs_metadata_text'` wound, not by this `fmt/json` pass.
 - Historical note: during this pass `std::json` still failed in live LLVM on string values, parsed string field reads, float value rendering, and bool-array value rendering. A later same-day follow-up fixed that bridge and closed the row.
 - After this landing, the remaining root-stdlib backlog still includes the `P1`/`KX`/`P2` work; the backlog is still live and should not be described as 100% complete until `stdlib/requirements.md` says so.
+
 # 2026-05-23 - smoketest now has a Kain-authored UI dashboard lane and a local OpenGL album presenter
 
 `smoketest/` is no longer only a headless album. The workspace now includes a dedicated `src/ui` lane plus a smoketest-local Win32/OpenGL bridge so the album can render a Kain-authored `std::ui` dashboard and then hand the summarized telemetry deck to a native OpenGL presenter.
@@ -10878,15 +10976,18 @@ Known repo truth:
     - added `src/ui` to source/module roots plus the new UI/native files to the check/build inputs
 
 Validation that passed:
+
 - `powershell -ExecutionPolicy Bypass -File D:\Kain-Lang\smoketest\build-smoketest-visualizer-bridge.ps1`
 - `kain check D:\Kain-Lang\smoketest\src\main.kn --target llvm`
 - `kain blades build D:\Kain-Lang\smoketest --dry-run --json`
 - `powershell -ExecutionPolicy Bypass -File D:\Kain-Lang\.agents\skills\lang-projects\scripts\compile_kain_project_to_root.ps1 -Entry D:\Kain-Lang\smoketest\src\main.kn -OutputName smoketest.exe -BazelConfig dev -VerifyLlvm`
 
 Current runtime blocker is pre-existing and not caused by the visual lane:
+
 - launching `D:\Kain-Lang\smoketest\smoketest.exe` in normal `full` mode exits early at `stdlib.text_lane`
   - `telemetry/full/summary.json` reports `failure_code=2515` and `failure_track="stdlib.text_lane"`
   - because the album stops there, the new `ui.*` tracks do not execute during that run until the existing text/fmt effect issue is fixed
+
 # 2026-05-27 - CUDA/PTX intrinsic surface, runtime launch policy, and gauntlet lane
 
 Kain now has a real authored CUDA device-intrinsic surface under `std::cuda` that the PTX backend lowers directly instead of treating as ordinary unsupported calls.
@@ -11300,6 +11401,7 @@ Blockers:
 - **Generic `where` clause limitation**: The `where T: KaintanaRectOps` pattern with trait+impl compiles at `kain check` but fails at LLVM native-exe compile. All layout functions now use concrete `KaintanaRect` types. If generic rect ops are needed later, the compiler's generic constraint lowering to LLVM needs investigation.
 - **Source tests and Z3 proof tasks** in `build.kn` still bypassed — `source_tests` fails because check-pass mode wraps executable scripts in module harness losing local variable access; `proof` fails from Python boto import error in environment's Z3 binding.
 - **C bridge .obj must exist** before LLVM link — if the companion `.c` source is updated, the `.obj` in `.kain/native/` must be recompiled. Not yet integrated into the build DAG (relies on pre-built artifact).
+
 # 2026-06-04 - Century error-corpus burst: 100 new fixtures across 20 shape families
 
 What changed:
@@ -11341,6 +11443,7 @@ Key files:
 # 2026-06-04 — Kain LSP Server Blade (blades/lsp/)
 
 What changed:
+
 - Created `blades/lsp/` — a full Kain Language Server Protocol implementation authored entirely in Kain.
 - `blades/lsp/build.kn`: Project authority with LLVM executable target, source/module roots, check and native executable tasks.
 - `blades/lsp/src/main.kn`: Entry point — stdin event loop, JSON-RPC message parsing, dispatch to `std::kain` compiler services. Uses `open_workspace()`, `read_line()`, `stdin_read_exact()` for LSP transport.
@@ -11349,72 +11452,80 @@ What changed:
 - `blades/lsp/test_lsp.py`: Python smoke test — batch-sends initialize/initialized/didOpen/hover/shutdown/exit messages, parses JSON-RPC responses from stdout, asserts exit code 0, capabilities response, hover, and shutdown.
 
 Semantics exercised:
-  - `use std::kain` — Workspace, Document, CheckResult, Location, Diagnostic, Completion, Symbol, SemanticToken, CompileTarget
-  - `use std::json` — `json_object()`, `json_object_set*()`, `json_object_get*()`, `json_array()`, `json_array_push_*()`, `json_parse_text()`, `json_stringify()`, `json_has_key()`
-  - `read_line()`, `stdout_write()`, `stderr_write()`, `stdin_read_exact()` — stdin/stdout transport
-  - Long-running event loop with `while running:`, mutable state (`LspState`, `Array<LspDocument>`)
-  - URI-to-path conversion, position/range utilities, diagnostic severity mapping
-  - `match` for CompletionKind and SymbolKind dispatch
+
+- `use std::kain` — Workspace, Document, CheckResult, Location, Diagnostic, Completion, Symbol, SemanticToken, CompileTarget
+- `use std::json` — `json_object()`, `json_object_set*()`, `json_object_get*()`, `json_array()`, `json_array_push_*()`, `json_parse_text()`, `json_stringify()`, `json_has_key()`
+- `read_line()`, `stdout_write()`, `stderr_write()`, `stdin_read_exact()` — stdin/stdout transport
+- Long-running event loop with `while running:`, mutable state (`LspState`, `Array<LspDocument>`)
+- URI-to-path conversion, position/range utilities, diagnostic severity mapping
+- `match` for CompletionKind and SymbolKind dispatch
 
 Validation:
-  - `kain check src/main.kn` passes with all modules resolved and no errors
-  - `kain run src/main.kn` starts the LSP server and processes messages
-  - Python smoke test (`python test_lsp.py`) sends 6 LSP messages, verifies 3+ JSON-RPC responses, exit code 0
+
+- `kain check src/main.kn` passes with all modules resolved and no errors
+- `kain run src/main.kn` starts the LSP server and processes messages
+- Python smoke test (`python test_lsp.py`) sends 6 LSP messages, verifies 3+ JSON-RPC responses, exit code 0
 
 Status: Committed to repo as `blades/lsp/`.
 
 # 2026-06-05 - Kain Repo Manager (tools/kain_manager/)
 
 What changed:
-- New X:\tools\kain_manager\ - DearPyGui desktop tool for operating the Kain repo on Windows.
+
+- New X:\\tools\\kain_manager\\ - DearPyGui desktop tool for operating the Kain repo on Windows.
 - Replaces ad-hoc kain doctor / kain check invocations with a single GUI that surfaces launcher shim freshness, bazel server state, and source-of-truth sync drift at a glance.
-- Data-driven architecture: every path, panel, command, theme color, and refresh cadence lives in config.yaml.  Adding a new command button = append a YAML entry; adding a new panel = drop a file under panels/ + one YAML entry.  No Python edits for the common case.
-- Multi-file, scalable foundation: 11 core modules + 5 panel modules + plugin auto-discovery.  Thread-safe command runner with bus events; ring-buffer log with live streaming; no dpg calls from worker threads.
+- Data-driven architecture: every path, panel, command, theme color, and refresh cadence lives in config.yaml. Adding a new command button = append a YAML entry; adding a new panel = drop a file under panels/ + one YAML entry. No Python edits for the common case.
+- Multi-file, scalable foundation: 11 core modules + 5 panel modules + plugin auto-discovery. Thread-safe command runner with bus events; ring-buffer log with live streaming; no dpg calls from worker threads.
 
 Architecture:
+
 - core/config.py - YAML loader with ${paths.x} and ${env.Y} placeholder resolution; raises on typo.
 - core/bus.py - thread-safe event bus; main thread drains once per frame, workers post.
 - core/runner.py - subprocess runner with bounded thread pool; streams stdout/stderr to the bus.
 - core/sources.py - bazel/launcher/sync state fetchers with TTL cache; SourceCache.tick() triggers due refreshes from the main loop.
 - core/registry.py - pkgutil.iter_modules discovers panel modules; instantiates the BasePanel subclass.
-- core/theme.py - dpg theme + font setup; resolves family names to C:\Windows\Fonts\*.ttf paths.
-- core/panel_base.py - BasePanel ABC with uild() / on_bus_event() / 
-efresh() / shutdown().
-- panels/_common.py - shared widget helpers (header, kv_row, status dot, format_age, format_size, freshness_color).
+- core/theme.py - dpg theme + font setup; resolves family names to C:\\Windows\\Fonts\*.ttf paths.
+- core/panel_base.py - BasePanel ABC with uild() / on_bus_event() /
+  efresh() / shutdown().
+- panels/\_common.py - shared widget helpers (header, kv_row, status dot, format_age, format_size, freshness_color).
 - panels/launcher_status.py - size / mtime / age for kain.exe + kn.exe; color-coded by staleness.
-- panels/bazel_status.py - live server_pid, output_base, 
-epository_cache.
+- panels/bazel_status.py - live server_pid, output_base,
+  epository_cache.
 - panels/sync_status_panel.py - parses kain_bazel_sync.py status --json; heuristic key extraction + raw payload in collapsed group.
 - panels/commands_panel.py - groups all commands: entries by category; "Show advanced" toggle; modal confirm for destructive commands.
 - panels/log_panel.py - live ring buffer with auto-scroll.
 
 Build:
-- py -3 X:\tools\kain_manager\build.py --clean produces dist\kain_manager.exe (11 MB, onefile, noconsole).
+
+- py -3 X:\\tools\\kain_manager\\build.py --clean produces dist\\kain_manager.exe (11 MB, onefile, noconsole).
 - PyInstaller flags worth remembering:
   - --collect-submodules panels - REQUIRED because panels are loaded via importlib.import_module, which PyInstaller's static analysis misses.
   - --add-data config.yaml;. - bundles the config next to the exe.
-- Source run: py -3 X:\tools\kain_manager\main.py.
+- Source run: py -3 X:\\tools\\kain_manager\\main.py.
 
 Validation:
+
 - 7/7 smoke tests pass: config loading, bus post/drain, runner real subprocess, panel auto-discovery, placeholder typo detection.
 - Built .exe runs cleanly (PID confirmed alive; no "Unhandled exception in script" dialog after the panels/collect-submodules fix).
-- Python launch renders all 4 sidebar panels + log panel correctly (screenshot saved to F:\DevTemp\opencode\kain_final.png).
+- Python launch renders all 4 sidebar panels + log panel correctly (screenshot saved to F:\\DevTemp\\opencode\\kain_final.png).
 
 Gotchas hit:
-- dpg.add_font() takes a .ttf path, not a family name.  Resolved via _resolve_font_path() against C:\Windows\Fonts\.
-- dearpygui 2.x frame loop is while dpg.is_dearpygui_running(): dpg.render_dearpygui_frame() after dpg.setup_dearpygui().  dpg.start_dearpygui() is the 1.x pattern and exits immediately in 2.x.
+
+- dpg.add_font() takes a .ttf path, not a family name. Resolved via \_resolve_font_path() against C:\\Windows\\Fonts.
+- dearpygui 2.x frame loop is while dpg.is_dearpygui_running(): dpg.render_dearpygui_frame() after dpg.setup_dearpygui(). dpg.start_dearpygui() is the 1.x pattern and exits immediately in 2.x.
 - PyInstaller with dynamic importlib.import_module requires --collect-submodules <pkg> or submodules silently disappear from the bundle.
 - Subprocess pipes need explicit proc.stdout.close() / proc.stderr.close() after proc.wait() to silence ResourceWarning and unblock the reader threads.
 - Bus subscribers only fire inside drain(); the main thread drains once per frame, tests must call drain() in a poll loop.
-- HiDPI Windows places the .exe window at ~(-127, 150) with size 2964x2032 on a 1536x864 screen.  Python source run positions correctly.  Workaround: user drags the window once at first launch; future v2 can pin a manifest.
+- HiDPI Windows places the .exe window at ~(-127, 150) with size 2964x2032 on a 1536x864 screen. Python source run positions correctly. Workaround: user drags the window once at first launch; future v2 can pin a manifest.
 
-Status: Initial commit on local repo at X:\tools\kain_manager\.
+Status: Initial commit on local repo at X:\\tools\\kain_manager.
 
 ## 2026-01-XX — libclang Integration for C-FFI (Windows SDK Support)
 
 **Status:** Successfully integrated libclang to parse real Windows SDK headers.
 
 **What Changed:**
+
 - Added `clang-sys = "0.29.3"` to `crates/c-ffi/Cargo.toml`
 - Created `crates/c-ffi/src/libclang_extract.rs` (400+ lines)
   - Uses libclang to parse C headers with full macro expansion
@@ -11425,25 +11536,30 @@ Status: Initial commit on local repo at X:\tools\kain_manager\.
 - Updated `.bazelrc` to export `LIBCLANG_PATH` for Bazel builds
 
 **Test Results:**
+
 - `include <windows.h> as win` now parses the REAL Windows SDK header
 - Extracted 6,294 function declarations from Windows.h
 - Build succeeded: `kain build src/main.kn --target llvm`
 - Executable ran without crashing
 
 **Known Issues:**
+
 1. **Tagged-integer encoding leaks through C ABI**
+
    - Kain encodes integers as `(val << 3) | 1` for NaN-boxing
    - When passed to C functions expecting `void*` or `HWND`, the tag bit leaks
    - Example: `MessageBoxA(0, ...)` passes HWND=1 instead of HWND=0
    - Workaround: Use `unsigned long long` in C headers instead of `void*`
    - Real fix: Compiler codegen must strip tags for C ABI calls
 
-2. **Cache pollution from failed runs**
+1. **Cache pollution from failed runs**
+
    - The C-FFI cache stores results even if extraction fails
    - Old cache entries can prevent new extraction attempts
    - Workaround: Delete `.kain/cache/c_ffi` when testing changes
 
 **Architecture:**
+
 ```
 include <windows.h> as win
     ↓
@@ -11465,12 +11581,14 @@ generate.rs: generates Kain extern declarations
 ```
 
 **Next Steps:**
+
 - Fix tagged-integer encoding in compiler codegen (crates/sys-codegen)
 - Add libclang to system_requirements in AGENTS.md
 - Test with Vulkan SDK headers
 - Test with complex C libraries (FFmpeg, SQLite)
 
 **Files Modified:**
+
 - `crates/c-ffi/Cargo.toml`
 - `crates/c-ffi/src/libclang_extract.rs` (new)
 - `crates/c-ffi/src/extract.rs`
@@ -11479,7 +11597,7 @@ generate.rs: generates Kain extern declarations
 - `blades/c/platform/windows/src/main.kn`
 - `blades/c/platform/windows/KAIN.toml`
 
----
+______________________________________________________________________
 
 ## 2026-06-07 - Build UX: stderr now shows in CLI on failure
 
@@ -11488,6 +11606,6 @@ generate.rs: generates Kain extern declarations
 **Bug discovered:** `sys-codegen` emits duplicate `%reply_to.addr` alloca when multiple actor handlers have `reply_to: P` parameters. Logged in BUGS.md as `sys-codegen/llvm-duplicate-reply-to-addr`.
 
 **Next Steps:**
+
 - Fix the duplicate `reply_to.addr` SSA name collision in `crates/sys-codegen/src/codegen_llvm/mod.rs`
 - The LLVM IR codegen needs to disambiguate variable names per handler (append a counter/suffix)
-

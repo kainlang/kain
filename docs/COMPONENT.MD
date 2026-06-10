@@ -2,31 +2,31 @@
 
 > *"Components are the UI layer of Kain. They own their render tree, their state, and their composition graph — independently of worlds, functions, or any other language construct. Every interactive surface in Kain ultimately flows through a component."*
 
-**Last updated:** 2026-06-08  
+**Last updated:** 2026-06-08
 **Based on:** `crates/core/src/ast.rs:153,543-617`, `crates/core/src/parser.rs:59,429,762,996`, `stdlib/ui.kn`, `blades/kain/component_minimal/src/app.kn`, `blades/kain/component_fuzz/src/components.kn`, `RULEBOOK.md` (lines 90–295)
 
----
+______________________________________________________________________
 
 ## Table of Contents
 
 1. [What Is a Kain Component?](#1-what-is-a-kain-component)
-2. [The Core Idea](#2-the-core-idea)
-3. [Component Anatomy](#3-component-anatomy)
-4. [JSX Syntax Reference](#4-jsx-syntax-reference)
-5. [Tag Dispatch — Uppercase vs Lowercase](#5-tag-dispatch--uppercase-vs-lowercase)
-6. [World + Component Wiring](#6-world--component-wiring)
-7. [Component vs World vs Fn](#7-component-vs-world-vs-fn)
-8. [Component vs Kaintana](#8-component-vs-kaintana)
-9. [Component Patterns](#9-component-patterns)
-10. [Surface Kinds](#10-surface-kinds)
-11. [Under-Utilized Ideas](#11-under-utilized-ideas)
-12. [Combining with Other Keywords](#12-combining-with-other-keywords)
-13. [Validation and Error Diagnostics](#13-validation-and-error-diagnostics)
-14. [Source Anchors](#14-source-anchors)
-15. [Anti-Patterns](#15-anti-patterns)
-16. [Quick Reference](#16-quick-reference)
+1. [The Core Idea](#2-the-core-idea)
+1. [Component Anatomy](#3-component-anatomy)
+1. [JSX Syntax Reference](#4-jsx-syntax-reference)
+1. [Tag Dispatch — Uppercase vs Lowercase](#5-tag-dispatch--uppercase-vs-lowercase)
+1. [World + Component Wiring](#6-world--component-wiring)
+1. [Component vs World vs Fn](#7-component-vs-world-vs-fn)
+1. [Component vs Kaintana](#8-component-vs-kaintana)
+1. [Component Patterns](#9-component-patterns)
+1. [Surface Kinds](#10-surface-kinds)
+1. [Under-Utilized Ideas](#11-under-utilized-ideas)
+1. [Combining with Other Keywords](#12-combining-with-other-keywords)
+1. [Validation and Error Diagnostics](#13-validation-and-error-diagnostics)
+1. [Source Anchors](#14-source-anchors)
+1. [Anti-Patterns](#15-anti-patterns)
+1. [Quick Reference](#16-quick-reference)
 
----
+______________________________________________________________________
 
 ## 1. What Is a Kain Component?
 
@@ -45,6 +45,7 @@ component Counter(initial: Int, label: String):
 ```
 
 Every component is:
+
 - **Self-contained** — owns its state, methods, and render tree
 - **Composable** — calls other components via uppercase JSX tags
 - **Renderable** — produces a JSX visual tree lowered to `std::ui` native nodes
@@ -67,7 +68,7 @@ component Name(props…):
 | `effects` | No | Effect annotations (`with Reactive`, `with Unsafe`) |
 | `render` | **Yes** | The JSX tree this component produces |
 
----
+______________________________________________________________________
 
 ## 2. The Core Idea
 
@@ -118,7 +119,7 @@ component Name(props…):
 └─────────────────────────────────────────────────────────────┘
 ```
 
----
+______________________________________________________________________
 
 ## 3. Component Anatomy
 
@@ -140,6 +141,7 @@ Callers pass props as JSX attributes:
 ```
 
 **Prop rules:**
+
 - Props are typed — `String`, `Int`, `Bool`, `[Int]`, etc.
 - Props are read-only inside the component body
 - Props can be referenced in state initializers and methods
@@ -185,6 +187,7 @@ component BoundedCounter(limit: Int):
 ```
 
 **State rules:**
+
 - Each state field is typed: `state name: Type = initial`
 - Initializers can reference props: `state display_temp: Int = temp`
 - State is mutable only through `_self` in methods (never directly in JSX)
@@ -224,6 +227,7 @@ component Thermometer(temp: Int, unit: String):
 ```
 
 **Method rules:**
+
 - The first parameter MUST be `_self: Self_` to access component state
 - Methods can return values for use in JSX `{expr}` interpolation
 - Methods can mutate state: `_self.count = _self.count + 1`
@@ -285,7 +289,7 @@ render <box>
 
 The render body is the visual output of the component. It lowers to `std::ui` native nodes through the compiler's JSX codegen path.
 
----
+______________________________________________________________________
 
 ## 4. JSX Syntax Reference
 
@@ -329,6 +333,7 @@ render <stack direction="horizontal">
 ```
 
 **Props are passed as JSX attributes:**
+
 - Literal strings: `label="Save"`
 - Expressions: `initial={0}`, `items={my_array}`
 - Boolean shorthand: treat `{true}` as `enabled={true}`
@@ -346,6 +351,7 @@ component Calc(a: Int, b: Int):
 ```
 
 **In attributes:**
+
 ```kn
 <text value={label_text()} />
 <Counter initial={count + 1} />
@@ -353,6 +359,7 @@ component Calc(a: Int, b: Int):
 ```
 
 **Limitations** (from fuzz testing):
+
 - `{expr}` can reference: prop names, method calls, literals, operators
 - `_self` is NOT in scope inside JSX — use getter methods instead
 - JSX `if` conditions can only use method calls returning `Bool` or simple identifiers — not `>`, `<`, `==` operators inline
@@ -375,11 +382,13 @@ render <stack direction="vertical">
 ```
 
 **`for item in list:` rules:**
+
 - `item` binds to each element of `list`
 - The loop body is a single JSX node (use `<Fragment>` for multiples)
 - Loop variables have LIMITED scope in the body — pre-compute in methods when needed
 
 **`if cond:` / `elif cond:` / `else:` rules:**
+
 - Conditions must evaluate to `Bool`
 - Each branch body is a single JSX node
 - `elif` is supported (from the `else if` pattern)
@@ -423,36 +432,39 @@ Use fragments when a component needs to return multiple top-level nodes without 
 The component fuzz blade (`blades/kain/component_fuzz/`) discovered these compiler limits:
 
 1. **`_self` is NOT in scope inside JSX.** Use getter methods instead:
+
    ```kn
    // ❌ Will NOT compile
    render <text value={_self.count} />
-   
+
    // ✅ Use a method
    fn count_str(_self: Self_) -> String:
        return str(_self.count)
    render <text value={count_str()} />
    ```
 
-2. **JSX `for` loop variables do NOT bind in the loop body for complex types.** Pre-compute arrays in methods, render lists differently.
+1. **JSX `for` loop variables do NOT bind in the loop body for complex types.** Pre-compute arrays in methods, render lists differently.
+
    ```kn
    // ❌ Limited binding
    for item in items:
        <Card title={item.title} />   // may not bind
-   
+
    // ✅ Pre-compute in method
    fn render_all(_self: Self_) -> String:
        // build string manually
    render <text value={render_all()} />
    ```
 
-3. **JSX `{/* */}` comments do NOT exist.** Use `//` comments outside the render body.
+1. **JSX `{/* */}` comments do NOT exist.** Use `//` comments outside the render body.
 
-4. **JSX `if` conditions can only use method calls returning `Bool` or simple identifiers.** Expressions like `count > 0` are NOT valid inline:
+1. **JSX `if` conditions can only use method calls returning `Bool` or simple identifiers.** Expressions like `count > 0` are NOT valid inline:
+
    ```kn
    // ❌ Will NOT compile
    if count > 0:
        <text value="yes" />
-   
+
    // ✅ Use a method
    fn has_items(_self: Self_) -> Bool:
        return _self.count > 0
@@ -460,11 +472,11 @@ The component fuzz blade (`blades/kain/component_fuzz/`) discovered these compil
        <text value="yes" />
    ```
 
-5. **`weak` state is actor-only**, not component. Components use regular `state`.
+1. **`weak` state is actor-only**, not component. Components use regular `state`.
 
-6. **Component names cannot shadow builtin types** (e.g., `Void`).
+1. **Component names cannot shadow builtin types** (e.g., `Void`).
 
----
+______________________________________________________________________
 
 ## 5. Tag Dispatch — Uppercase vs Lowercase
 
@@ -507,12 +519,13 @@ component Zoo():
 ### Design Rationale
 
 The uppercase/lowercase distinction gives the reader immediate visual feedback:
+
 - **Uppercase** = I am calling another component. I am composing UI.
 - **Lowercase** = I am using a native primitive. I am at the leaf of the render tree.
 
 This is familiar from React/JSX, but in Kain it is the ONLY resolution mechanism — there is no separate component registry or string-based lookup.
 
----
+______________________________________________________________________
 
 ## 6. World + Component Wiring
 
@@ -599,7 +612,7 @@ world TelemetryWorld:
     surface viewport3d => "RenderView"    // 3D viewport (string key, not component)
 ```
 
----
+______________________________________________________________________
 
 ## 7. Component vs World vs Fn
 
@@ -628,7 +641,7 @@ world TelemetryWorld:
   └── Is it computation that feeds the UI?                    → fn (called from component {expr})
 ```
 
----
+______________________________________________________________________
 
 ## 8. Component vs Kaintana
 
@@ -645,7 +658,7 @@ world TelemetryWorld:
 
 You can use `component` without Kaintana (via `std::ui` directly). Kaintana gives you the full retained-mode widget framework on top of components.
 
----
+______________________________________________________________________
 
 ## 9. Component Patterns
 
@@ -891,7 +904,7 @@ component Dashboard():
 
 The full file also includes `fill_rect()`, `draw_text()`, `fast_invsqrt()`, `create_window()`, and a Win32 message pump with `PeekMessageA`/`TranslateMessage`/`DispatchMessageA` via `@extern` — all in one file with components as the UI layer.
 
----
+______________________________________________________________________
 
 ## 10. Surface Kinds
 
@@ -915,7 +928,7 @@ world MultiSurfaceWorld:
 
 The **same component** can be rendered through multiple surface kinds — the component author doesn't need to know which backend renders it.
 
----
+______________________________________________________________________
 
 ## 11. Under-Utilized Ideas
 
@@ -1023,7 +1036,7 @@ component PureComposition():
 
 The `std::ui` module exposes hot reload functions (`native_ui_hot_reload_begin`, `native_ui_hot_reload_commit`, etc.). Components can participate in hot-reload workflows when paired with Kaintana or a compatible runtime.
 
----
+______________________________________________________________________
 
 ## 12. Combining with Other Keywords
 
@@ -1132,7 +1145,7 @@ orchestrate Pipeline:
     stage render: world { surface native_ui => App }
 ```
 
----
+______________________________________________________________________
 
 ## 13. Validation and Error Diagnostics
 
@@ -1169,6 +1182,7 @@ Duplicate surfaces are caught:
 ### Typechecking JSX
 
 The typechecker (`crates/core/src/types.rs`) validates:
+
 - Attribute types match prop types
 - Component exists in scope
 - Condition expressions return `Bool`
@@ -1186,7 +1200,7 @@ The typechecker (`crates/core/src/types.rs`) validates:
 | `unexpected token` | Using `{/* comment */}` in JSX |
 | `expected Bool` | Using comparison operators in JSX `if` condition |
 
----
+______________________________________________________________________
 
 ## 14. Source Anchors
 
@@ -1254,7 +1268,7 @@ The typechecker (`crates/core/src/types.rs`) validates:
 | `PATCH.MD` | Patches + component surfaces |
 | `ACTOR.MD` | Actor + component integration examples |
 
----
+______________________________________________________________________
 
 ## 15. Anti-Patterns
 
@@ -1397,7 +1411,7 @@ component Bad():
 
 **Right:** Use regular `state` in components. Weak references are for actor systems only.
 
----
+______________________________________________________________________
 
 ## 16. Quick Reference
 
@@ -1452,6 +1466,6 @@ kain native src/app.kn --emit exe  # Produce native executable
 📁 smoketest/src/semantics/         → Component in smoke test context
 ```
 
----
+______________________________________________________________________
 
 *Component is the UI layer of Kain. It is the language's answer to "how do I build a screen?" — a first-class, compiler-owned, world-independent UI abstraction with typed props, local state, methods, JSX composition, and multiple surface backends. The more you compose, state-manage, and method-encapsulate in your components, the more the compiler can help you.*

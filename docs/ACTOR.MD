@@ -2,29 +2,29 @@
 
 > *"Actors are the spine of concurrent Kain. Every real system — a game engine, a file server, a GPU pipeline, a web router — decomposes naturally into actors talking through mailboxes. This document is the canonical reference for how they work, how far you can push them, and when to use them."*
 
----
+______________________________________________________________________
 
 ## Table of Contents
 
 1. [What Is a Kain Actor?](#1-what-is-a-kain-actor)
-2. [The Actor Model in Kain](#2-the-actor-model-in-kain)
-3. [Language Surface — Syntax and Semantics](#3-language-surface--syntax-and-semantics)
-4. [Runtime Architecture](#4-runtime-architecture)
-5. [The Mailbox System](#5-the-mailbox-system)
-6. [Reply Ports and `ask` — The Request/Response Protocol](#6-reply-ports-and-ask--the-requestresponse-protocol)
-7. [Supervision Trees — Fault Tolerance at Scale](#7-supervision-trees--fault-tolerance-at-scale)
-8. [Monitors and Links — Failure Propagation](#8-monitors-and-links--failure-propagation)
-9. [Actor Registry and Addressing](#9-actor-registry-and-addressing)
-10. [The Scheduler — Fairness, Lanes, and Worker Pools](#10-the-scheduler--fairness-lanes-and-worker-pools)
-11. [Ownership and Lifecycle](#11-ownership-and-lifecycle)
-12. [Execution Classes and Locality](#12-execution-classes-and-locality)
-13. [Actors + Kain Semantics — The Full Fusion](#13-actors--kain-semantics--the-full-fusion)
-14. [Use Cases — From 3D to Servers](#14-use-cases--from-3d-to-servers)
-15. [Performance and Tuning](#15-performance-and-tuning)
-16. [Best Practices and Anti-Patterns](#16-best-practices-and-anti-patterns)
-17. [Appendix — Complete std::actor API](#17-appendix--complete-stdactor-api)
+1. [The Actor Model in Kain](#2-the-actor-model-in-kain)
+1. [Language Surface — Syntax and Semantics](#3-language-surface--syntax-and-semantics)
+1. [Runtime Architecture](#4-runtime-architecture)
+1. [The Mailbox System](#5-the-mailbox-system)
+1. [Reply Ports and `ask` — The Request/Response Protocol](#6-reply-ports-and-ask--the-requestresponse-protocol)
+1. [Supervision Trees — Fault Tolerance at Scale](#7-supervision-trees--fault-tolerance-at-scale)
+1. [Monitors and Links — Failure Propagation](#8-monitors-and-links--failure-propagation)
+1. [Actor Registry and Addressing](#9-actor-registry-and-addressing)
+1. [The Scheduler — Fairness, Lanes, and Worker Pools](#10-the-scheduler--fairness-lanes-and-worker-pools)
+1. [Ownership and Lifecycle](#11-ownership-and-lifecycle)
+1. [Execution Classes and Locality](#12-execution-classes-and-locality)
+1. [Actors + Kain Semantics — The Full Fusion](#13-actors--kain-semantics--the-full-fusion)
+1. [Use Cases — From 3D to Servers](#14-use-cases--from-3d-to-servers)
+1. [Performance and Tuning](#15-performance-and-tuning)
+1. [Best Practices and Anti-Patterns](#16-best-practices-and-anti-patterns)
+1. [Appendix — Complete std::actor API](#17-appendix--complete-stdactor-api)
 
----
+______________________________________________________________________
 
 ## 1. What Is a Kain Actor?
 
@@ -44,6 +44,7 @@ actor Worker:
 ```
 
 Every actor in Kain is defined by:
+
 - **Private state** — declared with `state`, never shared, never accessed from outside the actor.
 - **Message handlers** — declared with `on`, each handler processes one message type.
 - **A typed reply port `: P`** — the compiler-injected contract for `ask` request-response patterns.
@@ -56,7 +57,7 @@ Kain's actor model solves a fundamental tension: **how do you write correct conc
 
 The answer is radical isolation. Each actor is a single-threaded logical process. It processes one message at a time. Its state cannot be observed or mutated from the outside except through messages it explicitly handles. This is the **Erlang/BEAM model** — battle-tested for decades in telecom switches handling millions of concurrent sessions — but integrated directly into Kain's ownership system, world graph, and zero-copy data plane.
 
----
+______________________________________________________________________
 
 ## 2. The Actor Model in Kain
 
@@ -65,10 +66,11 @@ The answer is radical isolation. Each actor is a single-threaded logical process
 Kain actors are **not** just async tasks. They are a first-class language construct with compiler-owned semantics, a dedicated native runtime, and deep integration with Kain's other semantic primitives (world, entangle, shatter, teleport, collapse/observe/decay, converge, pulse, patch, law).
 
 The design draws from four lineages:
+
 1. **Erlang/OTP** — supervision trees, let-it-crash philosophy, mailbox isolation.
-2. **Akka** — typed actor contracts, restart policies, mailbox configuration.
-3. **BEAM VM internals** — lightweight process scheduling, preemptive fairness.
-4. **Kain's own semantic graph** — actors can participate in world state, entangle propagation, shatter/teleport zero-copy transfers, and converge fast-lane dispatch.
+1. **Akka** — typed actor contracts, restart policies, mailbox configuration.
+1. **BEAM VM internals** — lightweight process scheduling, preemptive fairness.
+1. **Kain's own semantic graph** — actors can participate in world state, entangle propagation, shatter/teleport zero-copy transfers, and converge fast-lane dispatch.
 
 ### Capability Model
 
@@ -96,7 +98,7 @@ The compiler recognizes five structural archetypes (`ActorBehaviorKind`):
 | `EventStream` | Processes a stream of events, often backed by a pulse or world subscription |
 | `WorkerPool` | Homogeneous pool of identical workers for throughput scaling |
 
----
+______________________________________________________________________
 
 ## 3. Language Surface — Syntax and Semantics
 
@@ -117,6 +119,7 @@ actor EchoServer:
 ```
 
 Key rules:
+
 - **`state` fields are private.** No outside code can read or write them directly.
 - **`self` is mutable inside handlers.** This is safe because only one message is processed at a time.
 - **`reply_to: P` is a compiler-injected typed reply port.** `P` is a synthetic actor reference that accepts exactly the reply message shapes the handler defines via `send reply_to.<Message>(...)`.
@@ -169,14 +172,15 @@ on Compute(reply_to: P, val: Int):
 ```
 
 The compiler:
+
 1. Creates a reply-port actor ref for this `ask` call
-2. Injects the reply-port ref into the message payload
-3. When the handler does `send reply_to.Reply(...)`, the runtime routes the reply back to the waiting caller
-4. The caller's thread unblocks and receives the value
+1. Injects the reply-port ref into the message payload
+1. When the handler does `send reply_to.Reply(...)`, the runtime routes the reply back to the waiting caller
+1. The caller's thread unblocks and receives the value
 
 This is **not** a second actor spawn. Reply ports are lightweight, per-thread, generation-tagged synthetic references. The runtime reuses them across multiple `ask` calls via a TLS cache.
 
----
+______________________________________________________________________
 
 ## 4. Runtime Architecture
 
@@ -208,6 +212,7 @@ This is **not** a second actor spawn. Reply ports are lightweight, per-thread, g
 The global actor table is a fixed-size array of 1024 slots (`KAIN_ACTOR_TABLE_CAPACITY`). Each slot holds either a `KainActorState_Internal*` or NULL. A 64-bit occupancy bitmap tracks which slots are in use. The table is protected by a single mutex.
 
 Actor IDs are 64-bit values encoding:
+
 - **Slot index** (10 bits, for 1024 slots)
 - **Generation counter** (32 bits, bumped on each reuse of a slot — prevents stale-handle bugs)
 - **Execution class** (4 bits)
@@ -219,7 +224,7 @@ This means actor refs are **generation-tagged**: if an actor terminates and its 
 
 By default, the scheduler uses a **worker pool** of 4 threads (`KAIN_ACTOR_SCHEDULER_WORKER_COUNT`). Actors are not threads; they are lightweight message-processing units scheduled onto the pool. The scheduler also has an **overflow mode**: when all workers are busy and the queue is deep, it can spawn temporary threads to drain the backlog.
 
----
+______________________________________________________________________
 
 ## 5. The Mailbox System
 
@@ -235,6 +240,7 @@ Mailbox:
 ```
 
 Key properties:
+
 - **Thread-safe for concurrent sends** — multiple senders can enqueue simultaneously.
 - **Single-consumer receive** — only the owning actor thread drains the mailbox.
 - **Bounded or unbounded capacity** — default 1024, configurable to unbounded (0).
@@ -255,20 +261,22 @@ MailboxPolicy {
 ### Inline Ask Payload Policy
 
 The runtime supports two policies for the first message of an `ask`:
+
 - **Copy** (default) — the payload is heap-allocated and copied into the mailbox.
 - **Borrowed** — the caller's stack-allocated payload is lent to the actor for the first microcell turn. The actor must call `kain_actor_message_release()` to acknowledge release. This avoids an allocation for hot-path ask calls.
 
 ### Ownership of Message Data
 
 Message data ownership flows:
+
 1. **Sender** allocates and owns the data before `send`.
-2. On successful `send`, ownership **transfers to the mailbox**.
-3. On `receive`, ownership **transfers to the receiving actor**.
-4. The receiver **must release** message data with `kain_actor_message_release()`.
+1. On successful `send`, ownership **transfers to the mailbox**.
+1. On `receive`, ownership **transfers to the receiving actor**.
+1. The receiver **must release** message data with `kain_actor_message_release()`.
 
 If `send` fails (e.g., mailbox full), the sender **retains ownership** and must free.
 
----
+______________________________________________________________________
 
 ## 6. Reply Ports and `ask` — The Request/Response Protocol
 
@@ -277,11 +285,11 @@ If `send` fails (e.g., mailbox full), the sender **retains ownership** and must 
 The compiler lowers `ask(actor, "MessageName", payload)` into:
 
 1. **Prepare a reply port** — `kain_actor_reply_port_prepare_direct()` creates a per-thread synthetic actor ref with a fresh generation token.
-2. **Send the ask message** — `kain_actor_ask_send_ref()` enqueues the message with the reply-port ref embedded.
-3. **Inline fast path** — if the target actor's mailbox is empty and the actor is not already owned by the scheduler, the runtime processes the message **inline on the caller's thread** as a single microcell turn. This avoids context-switch overhead for low-load actors.
-4. **Wait for reply** — `kain_actor_reply_port_wait()` blocks the caller's thread, spinning for 256 iterations, then falling back to OS wait primitives.
-5. **Timeout** — if no reply arrives within the timeout (default 30s), the reply port is destroyed and the caller gets an error.
-6. **Reply routing** — when the handler does `send reply_to.Reply(value = N)`, the runtime uses `kain_actor_reply_port_send_handle()` to match the generation-tagged ref and deliver the reply directly to the waiting caller, without a global actor-table lookup.
+1. **Send the ask message** — `kain_actor_ask_send_ref()` enqueues the message with the reply-port ref embedded.
+1. **Inline fast path** — if the target actor's mailbox is empty and the actor is not already owned by the scheduler, the runtime processes the message **inline on the caller's thread** as a single microcell turn. This avoids context-switch overhead for low-load actors.
+1. **Wait for reply** — `kain_actor_reply_port_wait()` blocks the caller's thread, spinning for 256 iterations, then falling back to OS wait primitives.
+1. **Timeout** — if no reply arrives within the timeout (default 30s), the reply port is destroyed and the caller gets an error.
+1. **Reply routing** — when the handler does `send reply_to.Reply(value = N)`, the runtime uses `kain_actor_reply_port_send_handle()` to match the generation-tagged ref and deliver the reply directly to the waiting caller, without a global actor-table lookup.
 
 ### The Reply-Port Lifecycle
 
@@ -298,7 +306,7 @@ Reply ports are **reused**. After a successful roundtrip, the port is rearmed by
 
 `ask` looks like a future but it's **not** — it's a direct synchronous block on the caller's thread. This is intentional: actors in Kain can also participate in Kain's world graph, where state propagation is deterministic and synchronous within a tick. `ask` preserves this determinism boundary. For truly async work, Kain has a separate `async`/`future`/`poll` mechanism in `runtime/native/include/async.h`.
 
----
+______________________________________________________________________
 
 ## 7. Supervision Trees — Fault Tolerance at Scale
 
@@ -373,7 +381,7 @@ typedef struct {
 
 These are queryable at the Kain level via `actor_supervision_observed_child_exit_count()`, `actor_supervision_restart_attempt_count()`, `actor_supervision_escalation_count()`, and `actor_supervision_limit_hit()`.
 
----
+______________________________________________________________________
 
 ## 8. Monitors and Links — Failure Propagation
 
@@ -391,6 +399,7 @@ on ExitNotification(type_tag: Int, data: ptr<Int>):
 ```
 
 Monitors are:
+
 - Unidirectional (A watches B, B doesn't know about A)
 - Many-to-many (many actors can watch one; one can watch many)
 - Idempotent (duplicate registrations are no-ops)
@@ -417,7 +426,7 @@ Normal exits (normal shutdown, graceful stop) do **not** propagate through links
 | **Link** | You want crash co-destiny. E.g., a request handler linked to its session actor — if the session dies, the handler should die too. |
 | **Supervisor** | You control the lifecycle. You *own* the children and decide restart policy. E.g., a database connection pool supervisor. |
 
----
+______________________________________________________________________
 
 ## 9. Actor Registry and Addressing
 
@@ -433,6 +442,7 @@ let exists = actor_registry_has("global-logger")  // Bool
 ```
 
 Use patterns:
+
 - **Named services** — register your HTTP router, logging sink, or telemetry collector.
 - **Discovery** — actors can find each other by well-known names.
 - **External entry points** — C FFI code can look up actors by name.
@@ -451,7 +461,7 @@ ActorPath {
 
 This is the model — the native runtime currently uses flat string names.
 
----
+______________________________________________________________________
 
 ## 10. The Scheduler — Fairness, Lanes, and Worker Pools
 
@@ -509,7 +519,7 @@ The default microcell turn budget is 64 messages (`KAIN_ACTOR_DEFAULT_MICROCELL_
 
 Actors can cooperatively yield by returning `YIELDED` from their turn function. The scheduler re-enqueues them at the back of the ring.
 
----
+______________________________________________________________________
 
 ## 11. Ownership and Lifecycle
 
@@ -546,26 +556,26 @@ FAILED ────────────┘ (if restart policy triggers)
 The runtime guarantees a strict cleanup order during actor termination:
 
 1. Set state to `SHUTTING_DOWN`
-2. Close mailbox (reject new sends)
-3. Wait for bootstrap/turn function to return
-4. Optionally drain remaining mailbox messages
-5. Notify all monitors of exit
-6. Propagate to linked actors (if abnormal exit)
-7. Notify supervisor for restart decision
-8. Remove from registry
-9. Free all monitor node allocations
-10. Free all link node allocations
-11. Free all queued mailbox messages
-12. Destroy synchronization primitives
-13. Release retained `user_data` reference
-14. Join/close thread
-15. Set state to `TERMINATED` or `FAILED`
-16. Free actor state structure
-17. Clear slot and bump generation in actor table
+1. Close mailbox (reject new sends)
+1. Wait for bootstrap/turn function to return
+1. Optionally drain remaining mailbox messages
+1. Notify all monitors of exit
+1. Propagate to linked actors (if abnormal exit)
+1. Notify supervisor for restart decision
+1. Remove from registry
+1. Free all monitor node allocations
+1. Free all link node allocations
+1. Free all queued mailbox messages
+1. Destroy synchronization primitives
+1. Release retained `user_data` reference
+1. Join/close thread
+1. Set state to `TERMINATED` or `FAILED`
+1. Free actor state structure
+1. Clear slot and bump generation in actor table
 
 This is verified by Z3 proofs in `runtime/native/src/core/z3/proofs-experimental/`.
 
----
+______________________________________________________________________
 
 ## 12. Execution Classes and Locality
 
@@ -593,7 +603,7 @@ Every actor has an **execution class** that defines *how* it executes:
 
 These are carried in the generation-tagged actor ref, so the runtime always knows *where* and *how* an actor runs — no second-guessing or dispatch-table indirection.
 
----
+______________________________________________________________________
 
 ## 13. Actors + Kain Semantics — The Full Fusion
 
@@ -655,6 +665,7 @@ converge fusion_fast_mix(value: Int, seed: Int) -> Int:
 ```
 
 Inside an actor handler:
+
 ```kn
 on Signal(reply_to: P, payload: Int):
     let mixed = fusion_fast_mix(signal_val + seed, self.bias + self.turns)
@@ -671,6 +682,7 @@ pulse fusion_tick_driver every 8 ms:
 ```
 
 And actors can appear as stages in `orchestrate` pipelines:
+
 ```kn
 orchestrate fusion_signal_pipeline(value: Int, tick: Int) -> Int:
     stage host_mix: cpu fusion_mix(value + tick) ...
@@ -680,12 +692,14 @@ orchestrate fusion_signal_pipeline(value: Int, tick: Int) -> Int:
 ### Actors + Patch + Law
 
 Actors can trigger patches:
+
 ```kn
 on Signal(reply_to: P, payload: Int):
     let tick = fusion_strike_signal(FusionAuthority, new_signal)  // patch from actor
 ```
 
 And law invariants guard the world state before patches commit:
+
 ```kn
 law fusion_signal_in_bounds(value: Int) -> Bool:
     return value >= 0 and value < FUSION_MODULUS
@@ -709,7 +723,7 @@ world mutation (patch)
 
 This is 7 layers of Kain semantics, all fused through an actor as the coordination point. This isn't a theoretical demo — it's a benchmark that runs every CI cycle.
 
----
+______________________________________________________________________
 
 ## 14. Use Cases — From 3D to Servers
 
@@ -734,6 +748,7 @@ actor RenderWorker:       // Presents frames, counts draw calls
 These three actors are fire-and-forget (`send`). The game loop advances world state via `patch`, which triggers `entangle` propagation to a mirror world, and the actors read the mirror. This is lock-free, race-free concurrency with no explicit synchronization.
 
 **3D tool example:** A DCC (digital content creation) tool could use actors for:
+
 - `UndoManager` — serialized command history, runs on a dedicated thread so undo is never blocked by rendering.
 - `GPUCompiler` — receives shader source, returns compiled SPIR-V via `ask`. Runs on an accelerator lane.
 - `AssetImporter` — watches a directory, imports FBX/glTF on change. Collapses raw file data, observes parsed meshes, decays the raw buffer.
@@ -873,7 +888,7 @@ actor PythonBridge:
 
 This is a `HOSTCELL` actor. Its state is a pointer to CPython's interpreter state. Messages are Kain requests that get forwarded to Python execution. The actor provides a **safe Kain interface** to an inherently unsafe FFI boundary.
 
----
+______________________________________________________________________
 
 ## 15. Performance and Tuning
 
@@ -898,12 +913,14 @@ This is a `HOSTCELL` actor. Its state is a pointer to CPython's interpreter stat
 ### Turn Budget
 
 The microcell turn budget (default 64 messages) controls fairness vs. throughput:
+
 - **Lower** (16–32): More context switches, fairer scheduling. Good for latency-sensitive workloads.
 - **Higher** (128–256): Fewer switches, better throughput for batch workloads. Risk of head-of-line blocking.
 
 ### Inline Ask Fast Path
 
 The inline ask fast path (executing the first message directly on the caller's thread) is a significant optimization for low-load actors. It avoids:
+
 - Enqueuing into the scheduler ring
 - Waking a worker thread
 - Context switching
@@ -913,35 +930,36 @@ For hot `ask` calls where the target actor is idle, the roundtrip time approache
 ### Overflow Thread Spawning
 
 When the scheduler ring is full and all workers are busy, the runtime spawns temporary threads. Tracked by `actor_scheduler_overflow_thread_spawns()`. If this number is climbing, either:
+
 - Increase worker count
 - Increase queue capacity
 - Add more actors (to shard work) rather than making individual actors do too much
 
----
+______________________________________________________________________
 
 ## 16. Best Practices and Anti-Patterns
 
 ### ✅ Do
 
 1. **Supervision trees for fault isolation.** Always design your system as a tree. The root supervisor restarts critical infrastructure; leaf supervisors restart pools.
-2. **`ask` for request-response, `send` for notifications.** Don't add reply ports to fire-and-forget messages.
-3. **Bounded mailboxes for services.** Unbounded mailboxes are a memory leak waiting to happen if a consumer falls behind.
-4. **Monitor critical actors.** A metrics collector that monitors your database pool can alert on unexpected exits.
-5. **Use actor names in the registry for well-known services.** Don't pass raw actor IDs through startup code.
-6. **Pack multi-value replies into `Int` using modulus arithmetic for `ask`.** The single-`Int` reply is a temporary limitation; packing is the established pattern.
-7. **Use `collapse/observe/decay` inside actor handlers for FFI, GPU buffers, and raw I/O.** The actor's single-threaded invariants make ownership tracking tractable.
-8. **Register scheduler telemetry in production.** `actor_scheduler_queue_depth()` and `actor_scheduler_overflow_thread_spawns()` are your early-warning system for overload.
+1. **`ask` for request-response, `send` for notifications.** Don't add reply ports to fire-and-forget messages.
+1. **Bounded mailboxes for services.** Unbounded mailboxes are a memory leak waiting to happen if a consumer falls behind.
+1. **Monitor critical actors.** A metrics collector that monitors your database pool can alert on unexpected exits.
+1. **Use actor names in the registry for well-known services.** Don't pass raw actor IDs through startup code.
+1. **Pack multi-value replies into `Int` using modulus arithmetic for `ask`.** The single-`Int` reply is a temporary limitation; packing is the established pattern.
+1. **Use `collapse/observe/decay` inside actor handlers for FFI, GPU buffers, and raw I/O.** The actor's single-threaded invariants make ownership tracking tractable.
+1. **Register scheduler telemetry in production.** `actor_scheduler_queue_depth()` and `actor_scheduler_overflow_thread_spawns()` are your early-warning system for overload.
 
 ### ❌ Don't
 
 1. **Don't share mutable state between actors.** Use `entangle`/world state for shared reactive state, or pass data in messages.
-2. **Don't block inside an actor handler.** Long-running work (file I/O, network calls) should delegate to I/O lanes or async tasks, not block the worker thread.
-3. **Don't create flat actor systems without supervision.** If every actor is a peer, a single crash can cascade. Use supervision trees.
-4. **Don't ignore `ask` timeouts.** The default is 30 seconds. If your handler might take longer (e.g., GPU compilation), set realistic timeouts.
-5. **Don't leak message data.** Every `receive` must be paired with `kain_actor_message_release()`. The Z3 proofs verify this at the runtime level; don't circumvent it at the Kain level.
-6. **Don't use actors where a function would suffice.** Not everything needs an actor. Simple data transformations, pure computations, and stateless utilities should be functions. Actors are for stateful, concurrent, long-lived processes.
+1. **Don't block inside an actor handler.** Long-running work (file I/O, network calls) should delegate to I/O lanes or async tasks, not block the worker thread.
+1. **Don't create flat actor systems without supervision.** If every actor is a peer, a single crash can cascade. Use supervision trees.
+1. **Don't ignore `ask` timeouts.** The default is 30 seconds. If your handler might take longer (e.g., GPU compilation), set realistic timeouts.
+1. **Don't leak message data.** Every `receive` must be paired with `kain_actor_message_release()`. The Z3 proofs verify this at the runtime level; don't circumvent it at the Kain level.
+1. **Don't use actors where a function would suffice.** Not everything needs an actor. Simple data transformations, pure computations, and stateless utilities should be functions. Actors are for stateful, concurrent, long-lived processes.
 
----
+______________________________________________________________________
 
 ## 17. Appendix — Complete std::actor API
 
@@ -1024,7 +1042,7 @@ The `std::actor` module exposes 74 public symbols. Here are all the Kain-level w
 | `actor_default_ask_timeout_ms()` | `→ Int` (30000) |
 | `actor_default_shutdown_grace_ms()` | `→ Int` (5000) |
 
----
+______________________________________________________________________
 
 ## Further Reading
 
@@ -1036,6 +1054,6 @@ The `std::actor` module exposes 74 public symbols. Here are all the Kain-level w
 - **Blades**: `blades/experiments/convergence/`, `blades/experiments/pong/`, `blades/network/domains/` — real-world actor usage in complete Kain projects.
 - **Smoketest**: `smoketest/src/semantics/actor.kn` — the canonical actor correctness proof.
 
----
+______________________________________________________________________
 
 > *Actors are not an add-on. They are the concurrency primitive Kain was built around. When in doubt, spawn an actor. When sure, spawn a supervisor. When very sure, check the Z3 proofs.*

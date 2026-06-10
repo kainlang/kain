@@ -1,9 +1,6 @@
 # Rules Rust
 
-This repository provides rules for building [Rust][rust] projects with [Bazel][bazel].
-
-[bazel]: https://bazel.build/
-[rust]: http://www.rust-lang.org/
+This repository provides rules for building [Rust] projects with [Bazel].
 
 <!-- TODO: Render generated docs on the github pages site again, https://bazelbuild.github.io/rules_rust/ -->
 
@@ -61,3 +58,6 @@ We test these rules against the latest rolling releases of Bazel, and aim for co
 We aim to support Linux and macOS.
 
 We do not have sufficient maintainer expertise to support Windows. Most things probably work, but we have had to disable many tests in CI because we lack the expertise to fix them. We welcome contributions to help improve its support.
+
+[bazel]: https://bazel.build/
+[rust]: http://www.rust-lang.org/

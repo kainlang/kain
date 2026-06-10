@@ -3,31 +3,31 @@
 **Status:** Research synthesis, 2026-06-07
 **Based on:** `crates/entangle/src/lib.rs`, `crates/core/src/parser.rs`, `crates/core/src/types.rs`, `crates/core/src/runtime_contract.rs`, `crates/core/src/runtime.rs`, `crates/core/src/realtime_app_bundle.rs`, `crates/sys-codegen/src/codegen_llvm/mod.rs`, `runtime/native/include/entangle.h`, `runtime/native/src/core/entangle.c`, `runtime/native/src/core/stdlib_abi.c`, `stdlib/intent.kn`, `smoketest/src/semantics/entangle.kn`, `benchmark/cases_v2/fusion_chain.kn`, `blades/experiments/cortical_sieve/`, `blades/python/24_tet/src/resonate_py_effects.kn`, CATALOG.MD, RULEBOOK.MD, lang-semantics SKILL
 
----
+______________________________________________________________________
 
 ## Table of Contents
 
 1. [What is Entangle?](#what-is-entangle)
-2. [The Core Idea — Compiler-Owned State Coupling](#the-core-idea)
-3. [Syntax Reference](#syntax-reference)
-4. [How It Works — Full Pipeline](#how-it-works)
-5. [The Policy Layer — SingleWriter](#the-policy-layer)
-6. [Endpoint Resolution — Type Matching](#endpoint-resolution)
-7. [Runtime Contract Metadata](#runtime-contract-metadata)
-8. [Native C Runtime Registry](#native-c-runtime)
-9. [LLVM Codegen — Propagation](#llvm-codegen)
-10. [Stdlib Telemetry API](#stdlib-telemetry-api)
-11. [The Dual-World Authority+Mirror Pattern](#the-dual-world-pattern)
-12. [Fusion Patterns](#fusion-patterns)
-13. [Under-Utilized Ideas — Creative Semantic Abuse](#under-utilized-ideas)
-14. [Combining with Other Keywords](#combining-with-other-keywords)
-15. [Compilation and Validation Ladder](#validation-ladder)
-16. [Z3 Proofs](#z3-proofs)
-17. [Source Anchors](#source-anchors)
-18. [Anti-Patterns](#anti-patterns)
-19. [Quick Reference](#quick-reference)
+1. [The Core Idea — Compiler-Owned State Coupling](#the-core-idea)
+1. [Syntax Reference](#syntax-reference)
+1. [How It Works — Full Pipeline](#how-it-works)
+1. [The Policy Layer — SingleWriter](#the-policy-layer)
+1. [Endpoint Resolution — Type Matching](#endpoint-resolution)
+1. [Runtime Contract Metadata](#runtime-contract-metadata)
+1. [Native C Runtime Registry](#native-c-runtime)
+1. [LLVM Codegen — Propagation](#llvm-codegen)
+1. [Stdlib Telemetry API](#stdlib-telemetry-api)
+1. [The Dual-World Authority+Mirror Pattern](#the-dual-world-pattern)
+1. [Fusion Patterns](#fusion-patterns)
+1. [Under-Utilized Ideas — Creative Semantic Abuse](#under-utilized-ideas)
+1. [Combining with Other Keywords](#combining-with-other-keywords)
+1. [Compilation and Validation Ladder](#validation-ladder)
+1. [Z3 Proofs](#z3-proofs)
+1. [Source Anchors](#source-anchors)
+1. [Anti-Patterns](#anti-patterns)
+1. [Quick Reference](#quick-reference)
 
----
+______________________________________________________________________
 
 ## What is Entangle?
 
@@ -41,7 +41,7 @@ The key insight: **this is not event-driven, not a callback, not a message, and 
 
 The entangle graph lives in `crates/entangle/src/lib.rs` — a portable Rust crate that owns the policy and endpoint graph. Language meaning stays in `kain-core`; target adapters consume these descriptors without inventing a second entanglement model.
 
----
+______________________________________________________________________
 
 ## The Core Idea
 
@@ -74,7 +74,7 @@ When you write `entangle A.field <-> B.field with single_writer`, you are tellin
 
 This is the **antithesis of manual synchronization** — you don't write the propagation code, you don't check that you're writing the right mirror, and you don't wire up event handlers. The compiler owns the coupling.
 
----
+______________________________________________________________________
 
 ## Syntax Reference
 
@@ -85,6 +85,7 @@ entangle <Endpoint> <-> <Endpoint> with <Policy>
 ```
 
 Where:
+
 - `<Endpoint>` is a dotted path like `WorldName.field_name` (at least 2 segments)
 - `<->` is the coupling arrow (parsed as `<`, `->`)
 - `with` introduces the policy keyword
@@ -126,15 +127,16 @@ right_endpoint = ident ( "." ident )+    // at least 2 segments
 ```
 
 The parser:
-1. Expects contextual keyword `entangle`
-2. Parses left endpoint via `parse_entangle_endpoint()` — a dot-separated ident chain with minimum 2 segments
-3. Expects `<` then `->`
-4. Parses right endpoint
-5. Expects `with`
-6. Matches `single_writer` policy
-7. Returns `Item::Entangle(EntangleDef { left, right, policy, ... })`
 
----
+1. Expects contextual keyword `entangle`
+1. Parses left endpoint via `parse_entangle_endpoint()` — a dot-separated ident chain with minimum 2 segments
+1. Expects `<` then `->`
+1. Parses right endpoint
+1. Expects `with`
+1. Matches `single_writer` policy
+1. Returns `Item::Entangle(EntangleDef { left, right, policy, ... })`
+
+______________________________________________________________________
 
 ## How It Works — Full Pipeline
 
@@ -169,10 +171,10 @@ The parser:
 The typechecker (`types.rs: check_entangle`) performs these checks:
 
 1. **Endpoint uniqueness** — each endpoint participates in at most one entangle
-2. **Endpoint exists** — each endpoint root must be a declared world
-3. **Endpoint fields exist** — each field segment must resolve to a valid struct field
-4. **Type matching** — both endpoint types must match (after `peel_shared_refs`)
-5. **No self-entanglement** — `A.x <-> A.x` is rejected as duplicate endpoint
+1. **Endpoint exists** — each endpoint root must be a declared world
+1. **Endpoint fields exist** — each field segment must resolve to a valid struct field
+1. **Type matching** — both endpoint types must match (after `peel_shared_refs`)
+1. **No self-entanglement** — `A.x <-> A.x` is rejected as duplicate endpoint
 
 ```rust
 fn check_entangle(env: &mut TypeEnv, entangle: &EntangleDef) -> KainResult<TypedEntangle> {
@@ -209,6 +211,7 @@ The interpreter runtime (`runtime.rs`) handles entangle through:
 - **`assign_entangled_endpoint`** — performs the actual value assignment on the mirror
 
 The `EntangleGraph` (from `crates/entangle`) maintains:
+
 - `bindings` — all registered binding descriptors
 - `mirrors_by_authority` — map from authority to its mirrors
 - `authority_by_mirror` — map from mirror to its authority
@@ -221,9 +224,9 @@ The LLVM codegen (`codegen_llvm/mod.rs`) handles entangle through:
 - **`collect_native_entanglements`** — collects all `NativeEntangleBinding` from the typed AST
 - **`emit_entangle_i64_propagation`** — emits LLVM IR that:
   1. Ensures the mirror world is initialized (calls its init function)
-  2. Gets a GEP pointer to the mirror field
-  3. Stores the propagated value
-  4. Calls `abi_entangle_record_i64()` for telemetry
+  1. Gets a GEP pointer to the mirror field
+  1. Stores the propagated value
+  1. Calls `abi_entangle_record_i64()` for telemetry
 - **`native_entangle_authority_binding`** / **`native_entangle_mirror_binding`** — look up bindings by endpoint path
 
 The LLVM IR generated looks like:
@@ -235,7 +238,7 @@ store i64 %value, i64* %mirror_ptr
 %status = call i64 @abi_entangle_record_i64(i8* @".authority.path", i8* @".mirror.path", i64 %value)
 ```
 
----
+______________________________________________________________________
 
 ## The Policy Layer — SingleWriter
 
@@ -248,14 +251,17 @@ store i64 %value, i64* %mirror_ptr
 ### How Single-Writer Works
 
 1. **Registration**: When `EntangleGraph::register()` is called with `SingleWriter`, it:
+
    - Adds the mirror to `mirrors_by_authority[authority]`
    - Records the authority in `authority_by_mirror[mirror]`
 
-2. **Write enforcement**: Before any world field write, the interpreter calls `ensure_write_allowed()`:
+1. **Write enforcement**: Before any world field write, the interpreter calls `ensure_write_allowed()`:
+
    - If the endpoint is a mirror (found in `authority_by_mirror`), the write is **denied**
    - Error: `"cannot write entangle mirror '{endpoint}' directly under single_writer; write authority '{authority}' instead"`
 
-3. **Propagation**: After a successful write to an authority endpoint, `propagate_entangled_write()`:
+1. **Propagation**: After a successful write to an authority endpoint, `propagate_entangled_write()`:
+
    - Looks up `mirrors_for_authority(endpoint)`
    - Calls `assign_entangled_endpoint()` for each mirror with the new value
 
@@ -271,12 +277,13 @@ pub enum EntanglePolicy {
 ```
 
 The `EntangleBindingDescriptor` already carries a generic policy field, and the parser is structured to accept new policy keywords via the `kain_entangle::SINGLE_WRITER_POLICY` constant. Adding a new policy requires:
-1. Add a variant to `EntanglePolicy`
-2. Add the policy string constant
-3. Add the parser match arm
-4. Implement the propagation/synchronization strategy
 
----
+1. Add a variant to `EntanglePolicy`
+1. Add the policy string constant
+1. Add the parser match arm
+1. Implement the propagation/synchronization strategy
+
+______________________________________________________________________
 
 ## Endpoint Resolution — Type Matching
 
@@ -285,8 +292,8 @@ The `EntangleBindingDescriptor` already carries a generic policy field, and the 
 The function `resolve_entangle_endpoint_type` in `types.rs` walks the dotted path:
 
 1. **Root lookup**: The first segment is looked up via `env.lookup(root)` — must resolve to a world
-2. **Field traversal**: Each subsequent segment is resolved as a struct field via `peel_shared_refs` + struct field lookup
-3. **Type comparison**: After resolution, both endpoint types are compared with `peel_shared_refs`
+1. **Field traversal**: Each subsequent segment is resolved as a struct field via `peel_shared_refs` + struct field lookup
+1. **Type comparison**: After resolution, both endpoint types are compared with `peel_shared_refs`
 
 ### What Types Can Be Entangled
 
@@ -314,7 +321,7 @@ if peel_shared_refs(&left_ty) != peel_shared_refs(&right_ty) {
 }
 ```
 
----
+______________________________________________________________________
 
 ## Runtime Contract Metadata
 
@@ -359,7 +366,7 @@ fn realtime_entangle_binding(entangle: &TypedEntangle) -> RealtimeEntangleBindin
 
 This ensures the runtime contract and realtime bundles both carry the entangle topology for downstream tooling, inspection, and gate validation.
 
----
+______________________________________________________________________
 
 ## Native C Runtime
 
@@ -386,6 +393,7 @@ int entangle_registry_get(size_t index, KainRuntimeEntangleBinding* out_binding)
 ```
 
 **Constants:**
+
 - `ENTANGLE_MAX_BINDINGS` = 128 — Z3-proven capacity
 - `ENTANGLE_MAX_PATH` = 256 — max length for authority/mirror path strings
 - `ENTANGLE_MAX_POLICY` = 64 — max length for policy string
@@ -406,6 +414,7 @@ static size_t g_kain_entangle_binding_count = 0;
 - **`entangle_registry_get()`** — retrieves a binding by index
 
 The string copy function `runtime_copy_entangle_text` has Z3 proofs:
+
 - `native-entangle-copy-text-fits-destination-before-null-copy.yaml` — proves copy text fits before null termination
 - `native-entangle-register-count-stays-within-capacity.yaml` — proves register count stays within capacity
 
@@ -434,7 +443,7 @@ const char* abi_entangle_last_authority(void) { ... }
 const char* abi_entangle_last_mirror(void) { ... }
 ```
 
----
+______________________________________________________________________
 
 ## LLVM Codegen — Propagation
 
@@ -458,9 +467,9 @@ struct NativeEntangleBinding {
 When a world field write is compiled, the codegen checks if the written field is an **authority** endpoint via `native_entangle_authority_binding()`. If it is, it emits `emit_entangle_i64_propagation()` which:
 
 1. Looks up the mirror world's init function
-2. Gets a GEP (GetElementPtr) into the mirror's global struct at the correct field index
-3. Stores the propagated value
-4. Calls `abi_entangle_record_i64()` for telemetry
+1. Gets a GEP (GetElementPtr) into the mirror's global struct at the correct field index
+1. Stores the propagated value
+1. Calls `abi_entangle_record_i64()` for telemetry
 
 The field index is determined by `self.field_index(mirror_world, mirror_field)` which looks up the world struct's member layout.
 
@@ -469,7 +478,7 @@ The field index is determined by `self.field_index(mirror_world, mirror_field)` 
 - **`native_entangle_authority_binding(path)`** — finds the binding where `path` is the authority side
 - **`native_entangle_mirror_binding(path)`** — finds the binding where `path` is the mirror side (used for write guard generation)
 
----
+______________________________________________________________________
 
 ## Stdlib Telemetry API
 
@@ -534,7 +543,7 @@ let entangle_delta = entangle_propagation_count() - entangle_before
 if entangle_delta < 1: return -11    // entangle never propagated
 ```
 
----
+______________________________________________________________________
 
 ## The Dual-World Pattern
 
@@ -561,6 +570,7 @@ entangle RenderAuthority.particles <-> RenderMirror.particles_copy with single_w
 ```
 
 **Why this pattern exists:**
+
 - The authority world owns mutable state (typically with a `native_ui` surface for the main thread)
 - The mirror world receives state via entangle propagation and exposes it through a `web` surface for read-only inspection
 - The compiler-owned observer graph handles propagation at zero cost
@@ -618,7 +628,7 @@ entangle FxWorld.fx_epoch <-> FxWorldMirror.fx_epoch_copy with single_writer
 
 The convention in the codebase is to name mirror fields with a `_copy` suffix (`signal_copy`, `frame_copy`, `phase_copy`). This is a convention, not a requirement — any matching type works.
 
----
+______________________________________________________________________
 
 ## Fusion Patterns
 
@@ -649,11 +659,12 @@ resonate FusionAuthority.signal dampen 0 ms:
 ```
 
 **What happens in one write:**
+
 1. A `patch` writes `FusionAuthority.signal = value` → triggers entangle propagation
-2. Entangle propagates `signal` to `FusionMirror.signal_copy` automatically
-3. `resonate` fires on the write (after the store) → runs `fusion_signal_pipeline` (an orchestrate)
-4. The orchestrate result is written to `FusionAuthority.shadow` (a different field)
-5. Downstream actors read `shadow` instead of `signal` — they see the **processed** value
+1. Entangle propagates `signal` to `FusionMirror.signal_copy` automatically
+1. `resonate` fires on the write (after the store) → runs `fusion_signal_pipeline` (an orchestrate)
+1. The orchestrate result is written to `FusionAuthority.shadow` (a different field)
+1. Downstream actors read `shadow` instead of `signal` — they see the **processed** value
 
 This is cascaded semantic processing — state change → propagate → pipeline → new state → consumption. All three constructs (`entangle`, `resonate`, `orchestrate`) work together without any ad hoc wiring.
 
@@ -739,13 +750,14 @@ fn verify_entangle_fired() -> Int:
 ```
 
 Error codes from the fusion chain:
+
 - `-10` = resonate never fired
 - `-11` = entangle never propagated
 - `-12` = teleport never happened
 - `-13` = patch journal overflow
 - `-14` = orchestrate never ran
 
----
+______________________________________________________________________
 
 ## Under-Utilized Ideas
 
@@ -839,7 +851,7 @@ orchestrate verified_pipeline(value: Int) -> Int:
     return process
 ```
 
----
+______________________________________________________________________
 
 ## Combining with Other Keywords
 
@@ -905,7 +917,7 @@ Actors can read mirror state and write authority state. This is the canonical co
 
 Entangled mirror worlds can have different surface kinds than authorities. Authority has `native_ui`, mirror has `web`. The same state is synchronized for both platforms.
 
----
+______________________________________________________________________
 
 ## Validation Ladder
 
@@ -946,7 +958,7 @@ pub fn smoke_entangle_lane() -> Int:
     return 0
 ```
 
----
+______________________________________________________________________
 
 ## Z3 Proofs
 
@@ -968,7 +980,7 @@ This prevents buffer overflows in the C registry.
 
 This is checked at runtime (`if (g_kain_entangle_binding_count >= ENTANGLE_MAX_BINDINGS) { return -3; }`) and the Z3 proof verifies the invariant holds for the maximum declarable program size.
 
----
+______________________________________________________________________
 
 ## Source Anchors
 
@@ -1033,7 +1045,7 @@ This is checked at runtime (`if (g_kain_entangle_binding_count >= ENTANGLE_MAX_B
 | `blades/experiments/convergence/src/*.kn` | Rat telemetry entangle (experiment/visualization decoupling) |
 | `library_of_kain/semantics.kn` | Compact full semantic stack with entangle |
 
----
+______________________________________________________________________
 
 ## Anti-Patterns
 
@@ -1108,7 +1120,7 @@ Every entangled field incurs LLVM propagation code. If you're entangling 50 fiel
 
 Without `entangle_propagation_count()` deltas, you have no proof the coupling actually fired. Always guard with telemetry in benchmarks and tests.
 
----
+______________________________________________________________________
 
 ## Quick Reference
 

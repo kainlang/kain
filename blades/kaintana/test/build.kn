@@ -1,0 +1,67 @@
+// ─── Kaintana Test Build Configuration ────────────────────────────────────
+// Test build.kn that imports kaintana source roots so test files can
+// resolve kaintana module paths (types, widgets, layout, etc.).
+//
+// Run with:   kain check test/run_tests.kn
+// or:         kain build test/run_tests.kn
+
+use std::build
+
+const TEST_SOURCE_ROOTS: [String] = [
+    "test",
+    "../src",
+    "../src/api",
+    "../src/core",
+    "../src/platform/desktop",
+    "../src/platform/vulkan",
+    "../src/platform/winit",
+    "../examples",
+]
+
+const TEST_INPUTS: [String] = [
+    "build.kn",
+    "run_tests.kn",
+    "test_runner.kn",
+    "core/test_types.kn",
+    "core/test_layout.kn",
+    "core/test_layout_advanced.kn",
+    "core/test_render_commands.kn",
+    "core/test_theme.kn",
+    "widgets/test_panel.kn",
+    "widgets/test_label.kn",
+    "widgets/test_button.kn",
+    "widgets/test_text_input.kn",
+    "widgets/test_slider.kn",
+    "widgets/test_extra_widgets.kn",
+    "widgets/test_containers.kn",
+    "scroll/test_scroll_area.kn",
+    "scroll/test_scroll_visibility.kn",
+    "events/test_widget_events.kn",
+    "events/test_input_system.kn",
+    "integration/test_session_lifecycle.kn",
+    "integration/test_full_pipeline.kn",
+    "integration/test_multi_frame.kn",
+    "extra/test_reconciliation.kn",
+    "extra/test_builder_api.kn",
+]
+
+fn build(ctx: BuildContext) -> BuildGraph:
+    let pkg = project("kaintana-tests")
+        .kind("kain_test")
+        .version("0.1.0")
+        .description("Kaintana UI framework test suite")
+        .source_roots(TEST_SOURCE_ROOTS)
+        .module_roots(TEST_SOURCE_ROOTS)
+        .targets("llvm")
+
+    let check_task_id = check_task("kaintana-test-check")
+        .project(pkg)
+        .entry("run_tests.kn")
+        .target("llvm")
+
+    return build_graph(pkg)
+        .sources(source_set("kaintana-tests")
+            .glob("test/**/*.kn")
+            .glob("../src/**/*.kn")
+            .file("build.kn"))
+        .tasks(check_task_id)

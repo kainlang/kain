@@ -3,27 +3,27 @@
 **Status:** Research synthesis, 2026-06-07
 **Based on:** `benchmark/cases_v2/orchestrate_god.kn`, `benchmark/cases_v2/gpu_cpu_pipeline.kn`, `benchmark/cases_v2/orchestration.kn`, `blades/python/24_tet/src/resonate_py_effects.kn`, `benchmark/cases_v2/fusion_chain.kn`, `smoketest/src/semantics/orchestrate.kn`, `crates/core/src/types.rs`, `crates/core/src/ast.rs`, `crates/core/src/parser.rs`, `crates/core/src/runtime.rs`, `crates/core/src/runtime_contract.rs`, `crates/orchestrate/src/stage.rs`, `crates/orchestrate/src/planner.rs`, `crates/sys-codegen/src/codegen_llvm/mod.rs`, `stdlib/intent.kn`, `runtime/native/src/core/stdlib_abi.c`, RULEBOOK.MD, CATALOG.MD, PULSE.MD
 
----
+______________________________________________________________________
 
 ## Table of Contents
 
 1. [What Is Orchestrate?](#what-is-orchestrate)
-2. [The Core Idea — Write Pipelines, Not Call Chains](#the-core-idea)
-3. [Syntax Reference](#syntax-reference)
-4. [Three Authoring Styles](#three-authoring-styles)
-5. [Stage Kind Reference — 12 Runtimes](#stage-kind-reference)
-6. [Graph Metadata — Dependencies, Residency, Transfers, Guards, Fallback](#graph-metadata)
-7. [Full Pipeline — Source to Runtime](#full-pipeline)
-8. [The Orchestrate Patterns — How to Use It](#the-orchestrate-patterns)
-9. [Combining with Other Keywords](#combining-with-other-keywords)
-10. [Under-Utilized Ideas — Creative Semantic Abuse](#under-utilized-ideas)
-11. [Native C Runtime & Stdlib Telemetry](#native-c-runtime)
-12. [Validation Ladder](#validation-ladder)
-13. [Anti-Patterns](#anti-patterns)
-14. [Quick Reference](#quick-reference)
-15. [Source Anchors](#source-anchors)
+1. [The Core Idea — Write Pipelines, Not Call Chains](#the-core-idea)
+1. [Syntax Reference](#syntax-reference)
+1. [Three Authoring Styles](#three-authoring-styles)
+1. [Stage Kind Reference — 12 Runtimes](#stage-kind-reference)
+1. [Graph Metadata — Dependencies, Residency, Transfers, Guards, Fallback](#graph-metadata)
+1. [Full Pipeline — Source to Runtime](#full-pipeline)
+1. [The Orchestrate Patterns — How to Use It](#the-orchestrate-patterns)
+1. [Combining with Other Keywords](#combining-with-other-keywords)
+1. [Under-Utilized Ideas — Creative Semantic Abuse](#under-utilized-ideas)
+1. [Native C Runtime & Stdlib Telemetry](#native-c-runtime)
+1. [Validation Ladder](#validation-ladder)
+1. [Anti-Patterns](#anti-patterns)
+1. [Quick Reference](#quick-reference)
+1. [Source Anchors](#source-anchors)
 
----
+______________________________________________________________________
 
 ## What Is Orchestrate?
 
@@ -45,7 +45,7 @@ orchestrate orchestration_omega_pipeline(seed: Int, authority: Authority) -> Int
 
 A single `orchestrate` block declares everything: the stage names, what each runs (`cpu`, `gpu`, `law`, `patch`, `world`, `converge`, `dispatch`...), what it depends on, where it runs (`host`, `device`), what data moves, which axioms guard it, what law must pass before it fires, and what happens if it fails. The compiler validates the whole DAG — cycles, unknown stages, transfer/residency contradictions — **before a single line of code runs**.
 
----
+______________________________________________________________________
 
 ## The Core Idea — Write Pipelines, Not Call Chains
 
@@ -84,7 +84,7 @@ A single `orchestrate` block declares everything: the stage names, what each run
 | LAYER 2: STATE INTEGRITY | "Invariant predicate inside stage?" | `law` inside `stage` |
 | LAYER 2: STATE INTEGRITY | "Journaled mutation inside stage?" | `patch` inside `stage` |
 
----
+______________________________________________________________________
 
 ## Syntax Reference
 
@@ -134,7 +134,7 @@ orchestrate full(value: Int, authority: Authority) -> Int:
     return committed
 ```
 
----
+______________________________________________________________________
 
 ## Three Authoring Styles
 
@@ -275,7 +275,7 @@ orchestrate orchestrate_god_reconcile_pipeline(value: Int, authority: Orchestrat
 
 **When to use this style:** Any pipeline with GPU acceleration, cross-platform runtimes, or mission-critical failure handling. The graph metadata tells the compiler and runtime exactly what you intend.
 
----
+______________________________________________________________________
 
 ## Stage Kind Reference — 12 Runtimes
 
@@ -325,7 +325,7 @@ All silicon-native stages (`cpu`, `gpu`, `dispatch`, `converge`, `law`, `patch`,
 - `python` → calls through the Python bridge (`py_call`)
 - `node` → calls through the Node.js bridge (`js_call`)
 
----
+______________________________________________________________________
 
 ## Graph Metadata — Dependencies, Residency, Transfers, Guards, Fallback
 
@@ -380,7 +380,7 @@ All silicon-native stages (`cpu`, `gpu`, `dispatch`, `converge`, `law`, `patch`,
 
 Adaptive policies increment `orchestrate_adaptive_stage_count` for telemetry.
 
----
+______________________________________________________________________
 
 ## Full Pipeline — Source to Runtime
 
@@ -426,7 +426,7 @@ runtime.rs:register_orchestrate_value()
 | No duplicate names | Two stages called `base` → "duplicate stage" |
 | Stages before locals | Variable decl before stage → "must declare stage steps before local computation" |
 
----
+______________________________________________________________________
 
 ## The Orchestrate Patterns — How to Use It
 
@@ -524,10 +524,11 @@ shader compute CpuGpuBridgeKernel(id: UVec3) -> Void workgroup(8, 1, 1):
 ```
 
 From `benchmark/cases_v2/gpu_cpu_pipeline.kn`. This pattern shows the **full GPU stack** in one file:
+
 1. A `shader compute` kernel (SPIR-V via `StorageBuffer`, `UVec3`, `workgroup(8,1,1)`)
-2. A `converge` function for the GPU stage to call
-3. An `orchestrate` that chains `gpu → law`
-4. A telemetry probe that verifies the pipeline fired
+1. A `converge` function for the GPU stage to call
+1. An `orchestrate` that chains `gpu → law`
+1. A telemetry probe that verifies the pipeline fired
 
 The `comptime` block inside the shader declares the dispatch metadata (`dispatch_size`, `bindings`, `buffer types`) that the host-side CUDA/SPIR-V runtime consumes when launching the kernel.
 
@@ -623,7 +624,7 @@ orchestrate fusion_signal_pipeline(value: Int, tick: Int) -> Int:
 
 The chain: **patch writes → resonate fires → orchestrate runs → world shadow updates**. This is the critical join point where reactive state changes flow through a typed pipeline back into world state.
 
----
+______________________________________________________________________
 
 ## Combining with Other Keywords
 
@@ -714,7 +715,7 @@ dispatch "shader::OrchestrateGodKernel::compute" [17, 4, 1]
 
 The launch key matches the `shader compute`'s comptime metadata. The runtime looks up the shader bundle, validates workgroup/dispatch sizes against the manifest, and launches.
 
----
+______________________________________________________________________
 
 ## Under-Utilized Ideas — Creative Semantic Abuse
 
@@ -748,7 +749,7 @@ One orchestrate calling another as a stage works (they compile to plain function
 
 The planner policies exist (`telemetry_prefer_gpu`, `telemetry_balance_latency`) but they're static per stage. A pulse-driven telemetry probe that measures GPU load and adjusts policy dynamically would be the next step in adaptive orchestration.
 
----
+______________________________________________________________________
 
 ## Native C Runtime & Stdlib Telemetry
 
@@ -803,10 +804,11 @@ orchestrate_merge_status(left: Int, right: Int) -> Int  // first non-zero
 ### Runtime Contract
 
 When any orchestrate exists, the program emits:
+
 - **Capability:** `orchestrate.pipeline` — auto-added to the runtime contract
 - **Contract entry per orchestrate:** `RuntimeOrchestrationContract { name, return_type, graph_mode, adaptive_policy, stages: Vec<RuntimeOrchestrationStageContract> }` — each stage with all its metadata (runtime kind, function, deps, residency, transfer, guard, fallback, requires, policy, silicon_native flag)
 
----
+______________________________________________________________________
 
 ## Validation Ladder
 
@@ -836,7 +838,7 @@ kain build <file.kn> --target llvm
 # runtime_contract.json shows "orchestrations" with full stage metadata
 ```
 
----
+______________________________________________________________________
 
 ## Anti-Patterns
 
@@ -925,7 +927,7 @@ fn run() -> Int:
     return 0
 ```
 
----
+______________________________________________________________________
 
 ## Quick Reference
 
@@ -945,13 +947,13 @@ fn run() -> Int:
 | **Validation** | Cycles, unknown stages, duplicate names, guard type, transfer/residency, stages-before-locals |
 | **LLVM codegen** | `compile_named_callable` + `abi_orchestrate_stage_begin_graph` per stage |
 | **Capability** | `orchestrate.pipeline` |
-| **Stdlib** | `std::intent` — 4 counters, 11 last-* fields, 2 status functions |
+| **Stdlib** | `std::intent` — 4 counters, 11 last-\* fields, 2 status functions |
 | **Canonical examples** | `benchmark/cases_v2/orchestrate_god.kn` (full metadata), `benchmark/cases_v2/orchestration.kn` (selector-only), `benchmark/cases_v2/gpu_cpu_pipeline.kn` (minimal guard) |
 | **Effects engine** | `blades/python/24_tet/src/resonate_py_effects.kn` (9-stage pipeline) |
 | **Resonate join point** | `benchmark/cases_v2/fusion_chain.kn` (resonate → orchestrate → world) |
 | **Dispatcher** | `crates/core/src/runtime.rs` — `execute_stage_call()` routes 12 runtimes |
 
----
+______________________________________________________________________
 
 ## Source Anchors
 
@@ -981,11 +983,11 @@ fn run() -> Int:
 |------|---------|
 | `crates/orchestrate/src/stage.rs` | 12 `OrchestrateStageKind`s, `OrchestrateResidency`, `OrchestrateTransfer`, `OrchestrateFallback` |
 | `crates/orchestrate/src/graph.rs` | `OrchestrateGraphPlan`, `OrchestrateGraphValidation` (DAG validation, cycle detection) |
-| `crates/orchestrate/src/planner.rs` | `OrchestratePlannerPolicy` (static, telemetry_prefer_*) |
+| `crates/orchestrate/src/planner.rs` | `OrchestratePlannerPolicy` (static, telemetry_prefer\_\*) |
 
 ### Native C Runtime
 
 | File | Content |
 |------|---------|
-| `runtime/native/include/stdlib_abi.h` | 18 ABI declarations: begin/begin_ex/begin_graph, end_i64, count, 11 last_* fields, transfer/fallback/adaptive counts |
+| `runtime/native/include/stdlib_abi.h` | 18 ABI declarations: begin/begin_ex/begin_graph, end_i64, count, 11 last\_\* fields, transfer/fallback/adaptive counts |
 | `runtime/native/src/core/stdlib_abi.c` | 16 global state variables, `abi_orchestrate_stage_begin_graph` (full metadata recording), `abi_orchestrate_stage_end_i64` (passthrough) |

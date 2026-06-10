@@ -1,4 +1,5 @@
 ## Introduction
+
 - You are a compiler engineer working in a highly complex private codebase for a new non Von Non Neumann language called Kain. Kain is about to be public soon after private development of 6 years so you are in the final stretch of dogfooding it and writing it along with patching up bugs in the boostrap (crates/README.md) and the runtime bugs that are written against a massive set of 47 C files (runtime/native/README.md) You must be ready to be in hybrid mode and switch across languages on the fly as one task may be patching the bootstrap and working in rust and the other may be writing and authoring a full kain project.
 
 - What is Kain?
@@ -51,7 +52,7 @@ Underneath the language sits a **portable C11 native runtime** (`runtime/native/
 
 ### The Compiler
 
-The bootstrap compiler lives in **67 Rust crates** (`crates/`) — parser, typechecker, LLVM codegen, GPU backends (SPIR-V/PTX/HLSL/WGSL), WASM emitter, C/Python/Rust/Node.js runtime bridges, semantic error intelligence, LSP service API, and UE5 code generation. 
+The bootstrap compiler lives in **67 Rust crates** (`crates/`) — parser, typechecker, LLVM codegen, GPU backends (SPIR-V/PTX/HLSL/WGSL), WASM emitter, C/Python/Rust/Node.js runtime bridges, semantic error intelligence, LSP service API, and UE5 code generation.
 
 ### Key Numbers
 
@@ -64,44 +65,46 @@ The bootstrap compiler lives in **67 Rust crates** (`crates/`) — parser, typec
 - **11,500+ semantic code chunks** indexed for agent search
 - **29 benchmark cases** in `cases_v2/` exercising every semantic layer
 
-## CRITICAL REQUIRED READING IF AUTHORING KAIN ##
+## CRITICAL REQUIRED READING IF AUTHORING KAIN
+
 - **`X:\GLOSSARY.MD`** — Maps every Kain term to its physical location. Start here when you don't know where something lives.
 - **`X:\docs\RULEBOOK.md`** — The decision ladder. Which construct to use for which problem.
 - **`X:\benchmark\cases_v2\keyword_crucible.kn`** — 108/110 keywords in context. The definitive syntax reference.
 
 ## OPTIONAL DOCS IF YOU GET STUCK WRITING KAIN
 
-"X:\docs\WORLD.MD"
-"X:\docs\ACTOR.MD"
-"X:\docs\AXIOM.MD"
-"X:\docs\BUILD_PROJECTS.MD"
-"X:\docs\C.MD"
-"X:\docs\C_GUIDE.MD"
-"X:\docs\COMPONENT.MD"
-"X:\docs\COMPTIME.MD"
-"X:\docs\CONVERGE.MD"
-"X:\docs\EFFECTS.MD"
-"X:\docs\ENTANGLE.MD"
-"X:\docs\KEYWORDS.MD"
-"X:\docs\LAW.MD"
-"X:\docs\ORCHESTRATE.MD"
-"X:\docs\OWNERSHIP.MD"
-"X:\docs\PATCH.MD"
-"X:\docs\PULSE.MD"
-"X:\docs\PYTHON.MD"
-"X:\docs\PYTHON_GUIDE.MD"
-"X:\docs\RESONATE.MD"
-"X:\docs\RULEBOOK.md"
-"X:\docs\SHADER_GPU.MD"
-"X:\docs\SHATTER.MD"
-"X:\docs\STDLIB.md"
-"X:\docs\stdlib_effect_test.kn"
-"X:\docs\stdlib_snippet.kn"
-"X:\docs\SYSTEMS_PROGRAMMING.MD"
-"X:\docs\TELEPORT.MD"
+"X:\\docs\\WORLD.MD"
+"X:\\docs\\ACTOR.MD"
+"X:\\docs\\AXIOM.MD"
+"X:\\docs\\BUILD_PROJECTS.MD"
+"X:\\docs\\C.MD"
+"X:\\docs\\C_GUIDE.MD"
+"X:\\docs\\COMPONENT.MD"
+"X:\\docs\\COMPTIME.MD"
+"X:\\docs\\CONVERGE.MD"
+"X:\\docs\\EFFECTS.MD"
+"X:\\docs\\ENTANGLE.MD"
+"X:\\docs\\KEYWORDS.MD"
+"X:\\docs\\LAW.MD"
+"X:\\docs\\ORCHESTRATE.MD"
+"X:\\docs\\OWNERSHIP.MD"
+"X:\\docs\\PATCH.MD"
+"X:\\docs\\PULSE.MD"
+"X:\\docs\\PYTHON.MD"
+"X:\\docs\\PYTHON_GUIDE.MD"
+"X:\\docs\\RESONATE.MD"
+"X:\\docs\\RULEBOOK.md"
+"X:\\docs\\SHADER_GPU.MD"
+"X:\\docs\\SHATTER.MD"
+"X:\\docs\\STDLIB.md"
+"X:\\docs\\stdlib_effect_test.kn"
+"X:\\docs\\stdlib_snippet.kn"
+"X:\\docs\\SYSTEMS_PROGRAMMING.MD"
+"X:\\docs\\TELEPORT.MD"
+
 ### Authoring — Write Real Kain Language
 
-- **Kain is its own category.** Not Rust with new syntax. 
+- **Kain is its own category.** Not Rust with new syntax.
 - **`smoketest/` for proofs.** Wire into `smoketest/build.kn`.
 - **`blades/` for reusable packages.** Don't strand one-off files.
 - **Low-level is welcome.** Mix high-level semantics with raw memory, FFI, native calls.
@@ -117,14 +120,13 @@ The bootstrap compiler lives in **67 Rust crates** (`crates/`) — parser, typec
 | **`FEEDBACK.md`** | Fundamental language/runtime/toolchain pain. |
 | **`BUGS.md`** | Confirmed defects, sharp edges, solver-backed failures. |
 
+## Kain bin
 
-## Kain bin 
-- In this developer env Kain exe and the config for it are stored locally in the repo for faster iteration 
-"X:\.kain\lib"
-"X:\.kain\stdlib"
-"X:\.kain\toolchain"
-"X:\.kain\bin"
-
+- In this developer env Kain exe and the config for it are stored locally in the repo for faster iteration
+  "X:.kain\\lib"
+  "X:.kain\\stdlib"
+  "X:.kain\\toolchain"
+  "X:.kain\\bin"
 
 ## ⚡ PI TOOL ARSENAL
 
@@ -139,6 +141,7 @@ This is the most important section in this file. Read it. Follow it. Every tool 
 | **`kain_lang`** | `check`, `build`, `run`, `test`, `amalgamate`, `gpu_artifacts` | Manually chaining commands to compile/test Kain. Use `--json` for structured diagnostics. |
 | **`kain_native`** | `emit: exe/sharedlib/staticlib/object/llvm-ir` | Manually invoking clang on LLVM IR. One-shot .kn → binary. |
 | **`kain_bazel`** | `build`, `test`, `server`, `sync`, `binary_age`, `freshness` | Manually running bazel commands. Manages server lifecycle for you. |
+
 ### Research
 
 | Tool | Actions | Use This Instead Of |
@@ -149,7 +152,6 @@ This is the most important section in this file. Read it. Follow it. Every tool 
 
 | **`tools`** | `list`, `search`, `which` | Forgetting what tools exist. Run `tools list` at session start. |
 
-
 ## 🧠 MEMORY — Current State & Risks
 
 > *(Search `MEMORY.md` for full detail. This section is updated by agents during work.)*
@@ -159,7 +161,7 @@ This is the most important section in this file. Read it. Follow it. Every tool 
 - Windows Bazel != Linux truth. Prove Linux behavior in WSL.
 - Extension/skill authoring: TypeScript in `~/.pi/agent/extensions/`.
 
----
+______________________________________________________________________
 
 ## 📚 CATALOG — Language Surface Quick Reference
 
@@ -186,16 +188,17 @@ This is the most important section in this file. Read it. Follow it. Every tool 
 | `use` | Standard | Module import |
 | `include` | Standard | C header import |
 
----
+______________________________________________________________________
 
 ## 🔧 PI ECOSYSTEM
 
 ### How This File Gets Loaded
 
 Pi loads `AGENTS.md` from three sources, **concatenated**:
+
 1. `~/.pi/agent/AGENTS.md` — global (all projects)
-2. Parent directory walk from cwd — finds this file at repo root
-3. Current directory
+1. Parent directory walk from cwd — finds this file at repo root
+1. Current directory
 
 Disable with `--no-context-files` or `-nc`.
 
@@ -223,7 +226,7 @@ Disable with `--no-context-files` or `-nc`.
 
 Ask pi to build custom tools. Extensions are TypeScript in `~/.pi/agent/extensions/`. Use `pi.registerTool()`, `pi.registerCommand()`, and event hooks (`tool_call`, `session_start`, etc.). NPM dependencies work.
 
----
+______________________________________________________________________
 
 ## 🏗️ BAZEL — THE TRUTH BUILD LANE (READ THIS BEFORE BUILDING ANYTHING)
 
@@ -232,15 +235,30 @@ Ask pi to build custom tools. Extensions are TypeScript in `~/.pi/agent/extensio
 ### Building the Compiler
 
 ```powershell
-# Build the compiler (debug, daily dev)
+# Build the compiler (opt mode — fast binary, daily dev)
 bazel build //:kain --config=dev
 
-# Release build (benchmarks)
+# Debug the compiler itself (dbg mode — slow binary, full debug info)
+bazel build //:kain --config=debug
+
+# Release build (benchmarks, CI)
 bazel build //:kain --config=release
+
+# Max performance (opt + thin LTO, slow link)
+bazel build //:kain --config=speed
 
 # Build the native C runtime
 bazel build //runtime:native_core_runtime --config=dev
 ```
+
+**Config reference:**
+
+| Flag | Mode | When to use |
+|------|------|-------------|
+| `--config=dev` (default) | **opt** | Daily dev — fast compiler, no LTO. The compiler does heavy LLVM codegen; an opt binary runs 3-10x faster than debug. |
+| `--config=debug` | **dbg** | Debugging the Rust compiler itself (panics, stepping through rustc). Only needed when hacking bootstrap crates. |
+| `--config=release` | opt | Benchmarks, release CI |
+| `--config=speed` | opt + thin LTO | Max compiler binary performance (longer link time)
 
 ### Syncing to ~/.kain/bin/ — MANDATORY AFTER EVERY BUILD
 
@@ -265,7 +283,7 @@ kain_bazel action:'server' server_action:'status'   # check if alive
 kain_bazel action:'server' server_action:'stop'     # free resources
 ```
 
-**Idle timeout:** 3 hours. Re-warm on long sessions. Cache lives at `Z:/_b/` (must be on Z drive, not inside X:\ workspace).
+**Idle timeout:** 3 hours. Re-warm on long sessions. Cache lives at `Z:/_b/` (must be on Z drive, not inside X:\\ workspace).
 
 ### Key Targets
 
@@ -286,7 +304,7 @@ kain_bazel action:'server' server_action:'stop'     # free resources
 
 **Cargo is only for:** `cargo check` (fast Rust typecheck), `cargo clippy`, or isolating whether a build failure is Bazel-specific. Never for producing a working compiler.
 
----
+______________________________________________________________________
 
 ## 🔨 KAIN CLI COMMAND QUICK REFERENCE
 
@@ -368,7 +386,7 @@ kain gpu-artifacts shaders.kn --target spirv --no-derived
 | `KAIN_HOME` | `.kain` home directory override |
 | `KAIN_BENCH_V2_FILTER` | Comma-separated benchmark case filter |
 
----
+______________________________________________________________________
 
 ## 🏗️ BUILDING KAIN SOURCE TO NATIVE — THE LLVM PIPELINE
 
@@ -392,7 +410,7 @@ kain gpu-artifacts shaders.kn --target spirv --no-derived
 | `kain run` hangs in WSL | Set `KAIN_CLANG_PATH=/usr/bin/clang` + WSL env vars |
 | Stale binary / missing features | Run `kain_sync_binary` |
 
----
+______________________________________________________________________
 
 ## 🐧 WSL / LINUX LANE
 
@@ -405,6 +423,7 @@ cd /mnt/x
 ```
 
 **`kain run` needs env overrides:**
+
 ```bash
 KAIN_CLANG_PATH=/usr/bin/clang \
 KAIN_RUNTIME_MANIFEST_PATH=/mnt/x/runtime/native_core_runtime.toml \
@@ -414,7 +433,7 @@ KAIN_HOME=/mnt/x \
 
 **Rule:** Windows Bazel != Linux truth. Prove Linux behavior in WSL.
 
----
+______________________________________________________________________
 
 ## 🚀 GIT
 
@@ -423,16 +442,14 @@ KAIN_HOME=/mnt/x \
 - Tag feature commits.
 - Never hide uncertainty — say if a proof/benchmark wasn't run.
 
----
+______________________________________________________________________
 
 ## 🛠️ TOOLCHAIN
 
 - **Scoop** on `F:/` — install anything. No permission needed. Keep off `C:/`.
+
 - **pi extensions** — TypeScript tools in `~/.pi/agent/extensions/`.
+
 - **pi packages** — share via npm/git.
 
-
-
-
-
-- Quick hint -- if you want the best example in the repo of authored kain -- "X:\benchmark\cases_v2\fusion_chain.kn" this is likely it (also the rest of the cases_v2 folder too)
+- Quick hint -- if you want the best example in the repo of authored kain -- "X:\\benchmark\\cases_v2\\fusion_chain.kn" this is likely it (also the rest of the cases_v2 folder too)

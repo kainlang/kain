@@ -1,4 +1,5 @@
----
+______________________________________________________________________
+
 name: Bug report
 about: Create a report to help us improve
 title: ''
@@ -6,10 +7,11 @@ labels: needs-triage
 assignees: ''
 type: Bug
 
----
+______________________________________________________________________
 
 **Description**
 A clear and concise description of what the bug is, including:
+
 - what's the current (wrong) behavior?
 - what's the expected behavior?
 

@@ -38,37 +38,37 @@ This document tracks capability parity, not donor file-count parity. We do not n
 ## Operating Rules
 
 1. Treat this file as the live root-stdlib source of truth.
-2. Do not silently delete incomplete rows. If scope changes, split or rename the row and keep the history legible.
-3. When you finish a requirement, update its `Status` to `DONE` in this file during the same change.
-4. If you partially finish something, leave it `PARTIAL` and tighten the requirement text so the remaining gap is obvious.
-5. If a row is blocked on compiler/runtime work, mark it `BLOCKED` and name the owning surface in the row notes or commit message.
-6. Do not count overlay-only, blade-only, or ad hoc helper code as stdlib completion.
-7. Do not hand-edit `stdlib/STDLIB_MAP.llm.md` or `stdlib/stdlib.map.json`.
-8. Prefer typed structs, enums, views, iterators, and builders over text blobs and `Any` handles when a capability is meant to be a reusable public API.
-9. Prefer Kain-shaped semantic leverage over donor mimicry. If Zig has three modules and Kain can honestly subsume them into one stronger surface, do that, but update this backlog accordingly.
-10. Keep the public root import obvious. If a capability becomes large enough to deserve its own root module, do not bury it forever inside an unrelated module.
-11. Ensure before writing you are well versed in Kain and read the $lang-skills including $lang-semantics, $lang-systems, $lang-stdlib, and other applicable skills ($lang-gpu, $lang-projects, and $lang-interop etc)
+1. Do not silently delete incomplete rows. If scope changes, split or rename the row and keep the history legible.
+1. When you finish a requirement, update its `Status` to `DONE` in this file during the same change.
+1. If you partially finish something, leave it `PARTIAL` and tighten the requirement text so the remaining gap is obvious.
+1. If a row is blocked on compiler/runtime work, mark it `BLOCKED` and name the owning surface in the row notes or commit message.
+1. Do not count overlay-only, blade-only, or ad hoc helper code as stdlib completion.
+1. Do not hand-edit `stdlib/STDLIB_MAP.llm.md` or `stdlib/stdlib.map.json`.
+1. Prefer typed structs, enums, views, iterators, and builders over text blobs and `Any` handles when a capability is meant to be a reusable public API.
+1. Prefer Kain-shaped semantic leverage over donor mimicry. If Zig has three modules and Kain can honestly subsume them into one stronger surface, do that, but update this backlog accordingly.
+1. Keep the public root import obvious. If a capability becomes large enough to deserve its own root module, do not bury it forever inside an unrelated module.
+1. Ensure before writing you are well versed in Kain and read the $lang-skills including $lang-semantics, $lang-systems, $lang-stdlib, and other applicable skills ($lang-gpu, $lang-projects, and $lang-interop etc)
 
 ## Definition Of Done
 
 A stdlib requirement is not complete until all applicable items below are true:
 
 1. The public root `std::*` API exists in `stdlib/*.kn`.
-2. Any required compiler, portable-crate, or `runtime/native` backing work exists and is wired end-to-end.
-3. The generated atlas is refreshed:
+1. Any required compiler, portable-crate, or `runtime/native` backing work exists and is wired end-to-end.
+1. The generated atlas is refreshed:
    - `cargo run -q -p kain-stdlib-map --bin kain_stdlib_map_tool -- --write`
    - `cargo run -q -p kain-stdlib-map --bin kain_stdlib_map_tool -- --check`
-4. The new surface is meshed into `smoketest/`:
+1. The new surface is meshed into `smoketest/`:
    - add or extend `smoketest/src/stdlib/*_lane.kn`
    - import and call the lane from `smoketest/src/main.kn`
    - add any new files to `smoketest/build.kn`
    - bump `total_tracks` in `smoketest/src/main.kn` if a new track is added
    - when practical, make at least one non-stdlib track or blade consume the new surface so it is not an isolated vanity test
-5. If the capability is runtime-backed, add or extend the relevant conformance lane under `runtime/conformance/`.
-6. If the capability is performance-sensitive, branchless, allocator-heavy, or claims to beat conventional designs, add or extend a benchmark lane under `benchmark/`.
-7. If the capability owns resources, sessions, handles, or teardown-sensitive state, add or extend an attrition lane under `attrition/`.
-8. If the capability relies on unsafe math, pointer/index arithmetic, packed bit layouts, or branchless invariants, add or extend a Z3 proof case and leave a code comment pointing at the proof path.
-9. Update `MEMORY.md` when the change materially alters how future agents should understand stdlib completion, caveats, or evidence.
+1. If the capability is runtime-backed, add or extend the relevant conformance lane under `runtime/conformance/`.
+1. If the capability is performance-sensitive, branchless, allocator-heavy, or claims to beat conventional designs, add or extend a benchmark lane under `benchmark/`.
+1. If the capability owns resources, sessions, handles, or teardown-sensitive state, add or extend an attrition lane under `attrition/`.
+1. If the capability relies on unsafe math, pointer/index arithmetic, packed bit layouts, or branchless invariants, add or extend a Z3 proof case and leave a code comment pointing at the proof path.
+1. Update `MEMORY.md` when the change materially alters how future agents should understand stdlib completion, caveats, or evidence.
 
 ## Delivery Rules For New Families
 

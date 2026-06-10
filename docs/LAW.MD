@@ -3,28 +3,28 @@
 **Status:** Research synthesis, 2026-06-07
 **Based on:** `crates/core/src/ast.rs`, `crates/core/src/parser.rs`, `crates/core/src/types.rs`, `crates/core/src/runtime_contract.rs`, `crates/core/src/realtime_app_bundle.rs`, `crates/core/src/runtime.rs`, `crates/sys-codegen/src/codegen_llvm/mod.rs`, `crates/orchestrate/src/stage.rs`, `stdlib/intent.kn`, `smoketest/src/semantics/law.kn`, `smoketest/src/semantics/orchestrate.kn`, `crates/semantic/symbol_corpus/*.kn`, `blades/experiments/convergence/src/*.kn`, `blades/python/24_tet/src/resonate_py_effects.kn`, RULEBOOK.MD, CATALOG.MD, GLOSSARY.MD, PULSE.MD
 
----
+______________________________________________________________________
 
 ## Table of Contents
 
 1. [What Is Law?](#what-is-law)
-2. [The Core Idea — Compiler-Owned Invariant Predicate](#the-core-idea)
-3. [Syntax Reference](#syntax-reference)
-4. [How It Works — Full Pipeline](#how-it-works)
-5. [The Law Patterns — How to Use It](#the-law-patterns)
-6. [Under-Utilized Ideas — Creative Semantic Abuse](#under-utilized-ideas)
-7. [Combining with Other Keywords](#combining-with-other-keywords)
-8. [Stdlib Telemetry API](#stdlib-telemetry-api)
-9. [Runtime Contract Metadata](#runtime-contract-metadata)
-10. [LLVM Codegen](#llvm-codegen)
-11. [Native C Runtime](#native-c-runtime)
-12. [Z3 Proofs](#z3-proofs)
-13. [Validation Ladder](#validation-ladder)
-14. [Anti-Patterns](#anti-patterns)
-15. [Quick Reference](#quick-reference)
-16. [Source Anchors](#source-anchors)
+1. [The Core Idea — Compiler-Owned Invariant Predicate](#the-core-idea)
+1. [Syntax Reference](#syntax-reference)
+1. [How It Works — Full Pipeline](#how-it-works)
+1. [The Law Patterns — How to Use It](#the-law-patterns)
+1. [Under-Utilized Ideas — Creative Semantic Abuse](#under-utilized-ideas)
+1. [Combining with Other Keywords](#combining-with-other-keywords)
+1. [Stdlib Telemetry API](#stdlib-telemetry-api)
+1. [Runtime Contract Metadata](#runtime-contract-metadata)
+1. [LLVM Codegen](#llvm-codegen)
+1. [Native C Runtime](#native-c-runtime)
+1. [Z3 Proofs](#z3-proofs)
+1. [Validation Ladder](#validation-ladder)
+1. [Anti-Patterns](#anti-patterns)
+1. [Quick Reference](#quick-reference)
+1. [Source Anchors](#source-anchors)
 
----
+______________________________________________________________________
 
 ## What Is Law?
 
@@ -39,7 +39,7 @@ A `law` is **not** a fancy `if` statement. It is a **compiler-owned invariant de
 
 Where a normal `fn` is "here's a computation," a `law` is "here's a truth about my system."
 
----
+______________________________________________________________________
 
 ## The Core Idea — Compiler-Owned Invariant Predicate
 
@@ -76,7 +76,7 @@ Where a normal `fn` is "here's a computation," a `law` is "here's a truth about 
 
 The RULEBOOK says: *"A `law` is not 'an `if` statement that checks bounds.' It is a compiler-owned invariant declaration."*
 
----
+______________________________________________________________________
 
 ## Syntax Reference
 
@@ -134,7 +134,7 @@ law world_invariant(authority: Authority) -> Bool:
 | Visibility (pub, private) | ✅ Parser | Works as expected |
 | Attributes stable | ✅ Parser | Works |
 
----
+______________________________________________________________________
 
 ## How It Works — Full Pipeline
 
@@ -172,7 +172,7 @@ The key detail: **`env.in_patch = true`** is set during law typechecking. This m
 
 **Interpreter:** Law values are registered in `runtime.laws: HashMap<String, LawDef>` and looked up by name when called. `Value::Law(name)` is a variant in the value enum.
 
----
+______________________________________________________________________
 
 ## The Law Patterns — How to Use It
 
@@ -191,7 +191,7 @@ fn guarded_set(authority: Authority, value: Int) -> Int:
     return 0
 ```
 
-**Why law not `if`:** The law is visible in the runtime contract. Any tool can inspect this program and know "signal must be in [0, MODULUS)". Orchestrate stages can use it. The `law_status` return follows the standard status vocabulary (0 = valid, -1 = invalid).
+**Why law not `if`:** The law is visible in the runtime contract. Any tool can inspect this program and know "signal must be in \[0, MODULUS)". Orchestrate stages can use it. The `law_status` return follows the standard status vocabulary (0 = valid, -1 = invalid).
 
 ### Pattern 2: Domain Invariant (The Rat Experiment)
 
@@ -277,7 +277,7 @@ The chain: **law guards → patch writes → entangle propagates**. The mirror n
 
 **Why law not inline `if`:** The law is a named, contract-visible invariant. The same law can be reused across multiple patches, functions, and orchestrate stages. A single change to the law updates all guards.
 
----
+______________________________________________________________________
 
 ## Under-Utilized Ideas — Creative Semantic Abuse
 
@@ -391,7 +391,7 @@ fn set_signal(authority: Authority, value: Int) -> Int
 
 This would enlist the compiler to verify that `signal_in_bounds` is always called (and passes) before `set_signal` executes.
 
----
+______________________________________________________________________
 
 ## Combining with Other Keywords
 
@@ -502,7 +502,7 @@ pulse check_beat every 1s:
         Authority.error_state = 1
 ```
 
----
+______________________________________________________________________
 
 ## Stdlib Telemetry API
 
@@ -548,7 +548,7 @@ Unlike entangle (`entangle_propagation_count`), patch (`patch_journal_count`), r
 
 Workaround: use the checksum-folding pattern to make law evaluation observable.
 
----
+______________________________________________________________________
 
 ## Runtime Contract Metadata
 
@@ -578,7 +578,7 @@ if summary.entanglements > 0 {
 
 No equivalent exists for laws.
 
----
+______________________________________________________________________
 
 ## LLVM Codegen
 
@@ -602,7 +602,7 @@ This emits a standard LLVM function: prologue, local allocation, expression lowe
 
 **No two-function fire wrapper** (unlike pulse). **No snapshot function** (unlike pulse). **No slot table** (unlike pulse). Law compiles to a plain `Bool(...) -> i8` function. That's it.
 
----
+______________________________________________________________________
 
 ## Native C Runtime
 
@@ -620,7 +620,7 @@ What does NOT exist:
 
 This is the correct design. Law is a lightweight predicate — the entire stack is: Kain source → parser → typechecker → `compile_named_callable` → plain LLVM IR → native function. No runtime substrate needed.
 
----
+______________________________________________________________________
 
 ## Z3 Proofs
 
@@ -636,7 +636,7 @@ There are no Z3 proofs for law. Unlike:
 
 Law doesn't need proofs because it has no native runtime registry, no slot table, no counters, no arithmetic with edge cases. It's a function call. The Z3 proof for a law would be in the user's domain — e.g., "prove the law's Boolean logic is equivalent to its mathematical specification" — not in the runtime substrate.
 
----
+______________________________________________________________________
 
 ## Validation Ladder
 
@@ -691,7 +691,7 @@ pub fn smoke_law_lane() -> Int:
     return 0
 ```
 
----
+______________________________________________________________________
 
 ## Anti-Patterns
 
@@ -807,7 +807,7 @@ The checksum-folding pattern is the most elegant way to prove evaluation without
 let checksum = (a + b + law_status(signal_in_bounds(value))) % MODULUS
 ```
 
----
+______________________________________________________________________
 
 ## Quick Reference
 
@@ -836,7 +836,7 @@ let checksum = (a + b + law_status(signal_in_bounds(value))) % MODULUS
 | **Domain-model example** | `blades/experiments/convergence/src/*.kn` — 9 laws for maze geometry |
 | **Checksum-folding example** | `crates/semantic/symbol_corpus/main.kn` (13 variants) |
 
----
+______________________________________________________________________
 
 ## Source Anchors
 

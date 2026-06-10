@@ -126,6 +126,7 @@ rust_binary(
     visibility = ["//visibility:public"],
 )
 ```
+
 Note, the vendored dependency is not yet accessible.
 
 Before you can build, you have to define how to load the vendored dependencies. For that,

@@ -15,12 +15,14 @@ This document describes the complete workflow for refreshing KAIN's UE5 metadata
 ### Automated Refresh (Recommended)
 
 **Windows:**
+
 ```bash
 cd unreal/scripts
 refresh_all_metadata.bat
 ```
 
 **Linux/Mac:**
+
 ```bash
 cd unreal/scripts
 chmod +x refresh_all_metadata.sh
@@ -28,21 +30,24 @@ chmod +x refresh_all_metadata.sh
 ```
 
 This runs the core extraction pipeline:
+
 1. Scan UE5 installations for engine types
-2. Extract module dependency graphs
-3. Verify metadata completeness
+1. Extract module dependency graphs
+1. Verify metadata completeness
 
 ### Full Refresh (All Metadata)
 
 For a complete metadata refresh including all optional files:
 
 **Windows:**
+
 ```bash
 cd unreal/scripts
 refresh_all_metadata_full.bat
 ```
 
 **Linux/Mac:**
+
 ```bash
 cd unreal/scripts
 chmod +x refresh_all_metadata_full.sh
@@ -50,13 +55,14 @@ chmod +x refresh_all_metadata_full.sh
 ```
 
 This runs the complete extraction pipeline:
+
 1. Engine type scanning
-2. Module dependency graphs
-3. UHT validation rules
-4. Shader knowledge
-5. Editor attributes
-6. Virtual function obligations
-7. Metadata verification
+1. Module dependency graphs
+1. UHT validation rules
+1. Shader knowledge
+1. Editor attributes
+1. Virtual function obligations
+1. Metadata verification
 
 ## Configuration
 
@@ -83,6 +89,7 @@ Edit `ue5_paths_config.json` with your UE5 installation paths:
 ```
 
 **Key points:**
+
 - Add all possible installation paths for each version
 - Scripts will try each path in order until one succeeds
 - Set `"enabled": false` to skip a version
@@ -95,6 +102,7 @@ python verify_config.py
 ```
 
 This checks:
+
 - Config file is valid JSON
 - At least one enabled installation exists
 - Paths are accessible
@@ -109,6 +117,7 @@ This checks:
 Scans UE5 headers for engine types.
 
 **Usage:**
+
 ```bash
 # All configured installations
 python ue5_scanner.py --config ue5_paths_config.json
@@ -118,12 +127,14 @@ python ue5_scanner.py "D:/UE_5.7/Engine/Source" ../metadata/engine_5.7_scanned.j
 ```
 
 **Output:**
+
 - `engine_5.4_scanned.json`
 - `engine_5.5_scanned.json`
 - `engine_5.6_scanned.json`
 - `engine_5.7_scanned.json`
 
 **Extracts:**
+
 - UCLASS types with inheritance
 - USTRUCT types with fields
 - UENUM types with values
@@ -135,6 +146,7 @@ python ue5_scanner.py "D:/UE_5.7/Engine/Source" ../metadata/engine_5.7_scanned.j
 Extracts module dependency information from .Build.cs files.
 
 **Usage:**
+
 ```bash
 # All configured installations
 python module_graph_extractor.py --config ue5_paths_config.json
@@ -144,12 +156,14 @@ python module_graph_extractor.py "D:/UE_5.7/Engine/Source" --engine-scan ../meta
 ```
 
 **Output:**
+
 - `module_graph_5.4.json`
 - `module_graph_5.5.json`
 - `module_graph_5.6.json`
 - `module_graph_5.7.json`
 
 **Extracts:**
+
 - Module names and categories
 - Public/private dependencies
 - Transitive dependency closure
@@ -163,6 +177,7 @@ python module_graph_extractor.py "D:/UE_5.7/Engine/Source" --engine-scan ../meta
 Extracts UHT validation rules from UnrealHeaderTool source.
 
 **Usage:**
+
 ```bash
 python uht_extractor.py "D:/UE_5.7/Engine/Source/Programs/UnrealHeaderTool"
 ```
@@ -170,6 +185,7 @@ python uht_extractor.py "D:/UE_5.7/Engine/Source/Programs/UnrealHeaderTool"
 **Output:** `uht_rules.json`
 
 **Extracts:**
+
 - UPROPERTY validation rules
 - UFUNCTION validation rules
 - Replication rules
@@ -180,6 +196,7 @@ python uht_extractor.py "D:/UE_5.7/Engine/Source/Programs/UnrealHeaderTool"
 Extracts HLSL type information and shader validation rules.
 
 **Usage:**
+
 ```bash
 python shader_extractor.py "D:/UE_5.7/Engine/Shaders"
 ```
@@ -187,6 +204,7 @@ python shader_extractor.py "D:/UE_5.7/Engine/Shaders"
 **Output:** `shader_knowledge.json`
 
 **Extracts:**
+
 - HLSL built-in types
 - HLSL keywords
 - Binding slot rules
@@ -197,6 +215,7 @@ python shader_extractor.py "D:/UE_5.7/Engine/Shaders"
 Extracts editor attribute definitions from Slate and PropertyEditor source.
 
 **Usage:**
+
 ```bash
 python editor_attributes_extractor.py "D:/UE_5.7/Engine/Source"
 ```
@@ -204,6 +223,7 @@ python editor_attributes_extractor.py "D:/UE_5.7/Engine/Source"
 **Output:** `editor_attributes.json`
 
 **Extracts:**
+
 - @slider, @color_picker, @button definitions
 - Property type mappings
 - Widget composition rules
@@ -213,6 +233,7 @@ python editor_attributes_extractor.py "D:/UE_5.7/Engine/Source"
 Extracts virtual function requirements for UE5 classes.
 
 **Usage:**
+
 ```bash
 python virtual_obligations_extractor.py "D:/UE_5.7/Engine/Source"
 ```
@@ -220,6 +241,7 @@ python virtual_obligations_extractor.py "D:/UE_5.7/Engine/Source"
 **Output:** `virtual_obligations.json`
 
 **Extracts:**
+
 - Pure virtual functions that must be overridden
 - Virtual functions with default implementations
 - Interface requirements
@@ -231,11 +253,13 @@ python virtual_obligations_extractor.py "D:/UE_5.7/Engine/Source"
 Validates metadata completeness and consistency.
 
 **Usage:**
+
 ```bash
 python verify_scan.py
 ```
 
 **Checks:**
+
 - All required metadata files exist
 - JSON is valid and parseable
 - Cross-references are consistent
@@ -247,6 +271,7 @@ python verify_scan.py
 All generated files are written to `unreal/metadata/`:
 
 ### Core Files (Auto-Generated)
+
 - `engine_5.4_scanned.json` - UE5 5.4 type information
 - `engine_5.5_scanned.json` - UE5 5.5 type information
 - `engine_5.6_scanned.json` - UE5 5.6 type information
@@ -257,12 +282,14 @@ All generated files are written to `unreal/metadata/`:
 - `module_graph_5.7.json` - UE5 5.7 module dependencies
 
 ### Curated Files (Manually Maintained)
+
 - `engine_knowledge.json` - Curated engine type database
 - `widget_registry.json` - Slate widget types
 - `named_colors.json` - Named color definitions
 - `constructor_formats.json` - Constructor format strings
 
 ### Optional Files (Enhanced Validation)
+
 - `uht_rules.json` - UHT validation rules
 - `shader_knowledge.json` - HLSL type information
 - `editor_attributes.json` - Editor attribute definitions
@@ -336,35 +363,39 @@ kain build --ue5
 **Cause:** None of the configured paths exist or are accessible.
 
 **Solution:**
+
 1. Edit `ue5_paths_config.json`
-2. Add your actual UE5 installation paths
-3. Ensure paths point to `Engine/Source` directory
-4. Run `python verify_config.py` to check
+1. Add your actual UE5 installation paths
+1. Ensure paths point to `Engine/Source` directory
+1. Run `python verify_config.py` to check
 
 ### "Python is not installed"
 
 **Cause:** Python not in PATH or not installed.
 
 **Solution:**
+
 1. Install Python 3.7+ from python.org
-2. During installation, check "Add Python to PATH"
-3. Restart terminal/command prompt
-4. Verify: `python --version`
+1. During installation, check "Add Python to PATH"
+1. Restart terminal/command prompt
+1. Verify: `python --version`
 
 ### "Module graph extraction failed"
 
 **Cause:** Engine scan files not found.
 
 **Solution:**
+
 1. Run `ue5_scanner.py` first
-2. Ensure `engine_{version}_scanned.json` files exist
-3. Then run `module_graph_extractor.py`
+1. Ensure `engine_{version}_scanned.json` files exist
+1. Then run `module_graph_extractor.py`
 
 ### "Permission denied" on Linux/Mac
 
 **Cause:** Shell scripts not executable.
 
 **Solution:**
+
 ```bash
 chmod +x refresh_all_metadata.sh
 chmod +x refresh_all_metadata_full.sh
@@ -375,18 +406,20 @@ chmod +x refresh_all_metadata_full.sh
 **Cause:** Malformed JSON in config or output files.
 
 **Solution:**
+
 1. Validate config: `python -m json.tool ue5_paths_config.json`
-2. Delete corrupted output files
-3. Re-run extraction scripts
+1. Delete corrupted output files
+1. Re-run extraction scripts
 
 ### "Metadata verification failed"
 
 **Cause:** Missing or incomplete metadata files.
 
 **Solution:**
+
 1. Check which files are missing in error output
-2. Re-run specific extraction script
-3. If persistent, check UE5 installation integrity
+1. Re-run specific extraction script
+1. If persistent, check UE5 installation integrity
 
 ## Adding a New UE5 Version
 
@@ -419,6 +452,7 @@ python verify_scan.py
 ```
 
 Check for:
+
 - `engine_5.8_scanned.json`
 - `module_graph_5.8.json`
 
@@ -455,6 +489,7 @@ The config file supports multiple drives per version:
 ```
 
 **How it works:**
+
 - Scripts try each path in order
 - First valid path is used
 - Remaining paths are ignored
@@ -463,9 +498,10 @@ The config file supports multiple drives per version:
 ## Version Detection
 
 The scripts automatically detect UE5 version from:
+
 1. Config file `version` field
-2. Path structure (`UE_5.7` → version 5.7)
-3. Engine version header files
+1. Path structure (`UE_5.7` → version 5.7)
+1. Engine version header files
 
 **Priority:** Config > Path > Header
 
@@ -474,6 +510,7 @@ The scripts automatically detect UE5 version from:
 ### 1. Version Control
 
 **Commit generated metadata files to git:**
+
 - Team members don't need to regenerate
 - Ensures consistent builds
 - Tracks metadata changes over time
@@ -486,6 +523,7 @@ git commit -m "Update UE5 metadata for version 5.7"
 ### 2. Regular Updates
 
 **Refresh metadata when:**
+
 - Upgrading to a new UE5 version
 - Adding new engine modules to your project
 - Encountering "unknown type" errors in KAIN
@@ -518,11 +556,13 @@ tar -czf metadata_backup_$(date +%Y%m%d).tar.gz *.json  # Linux/Mac
 **Document manual edits to curated files:**
 
 When editing `engine_knowledge.json` manually:
+
 1. Add a comment explaining the change
-2. Include the date and reason
-3. Commit with descriptive message
+1. Include the date and reason
+1. Commit with descriptive message
 
 Example:
+
 ```json
 {
   "types": {
@@ -562,10 +602,11 @@ kain build --ue5 --watch-metadata
 ```
 
 When metadata files change:
+
 1. Compiler detects file modification
-2. Reloads affected metadata
-3. Validates new metadata
-4. Continues build with updated knowledge
+1. Reloads affected metadata
+1. Validates new metadata
+1. Continues build with updated knowledge
 
 **Note:** Hot-reload is implemented in task 0.10.
 
@@ -621,33 +662,34 @@ jobs:
 | editor_attributes_extractor.py | 30 seconds | 300 KB |
 | virtual_obligations_extractor.py | 1 minute | 1 MB |
 
-**Total (core):** 3-5 minutes per version  
+**Total (core):** 3-5 minutes per version\
 **Total (full):** 5-10 minutes per version
 
 ### Optimization Tips
 
 1. **Disable unused versions** in config
-2. **Run in parallel** for multiple versions (manual)
-3. **Use SSD** for faster file I/O
-4. **Increase Python memory** for large scans
+1. **Run in parallel** for multiple versions (manual)
+1. **Use SSD** for faster file I/O
+1. **Increase Python memory** for large scans
 
 ## Support
 
 ### Getting Help
 
 1. **Check README.md** for script usage
-2. **Run verify_scan.py** to diagnose issues
-3. **Check error messages** for specific guidance
-4. **Review this workflow document** for troubleshooting
+1. **Run verify_scan.py** to diagnose issues
+1. **Check error messages** for specific guidance
+1. **Review this workflow document** for troubleshooting
 
 ### Reporting Issues
 
 When reporting metadata extraction issues, include:
+
 1. UE5 version and installation path
-2. Python version (`python --version`)
-3. Config file contents
-4. Full error message
-5. Output of `verify_scan.py`
+1. Python version (`python --version`)
+1. Config file contents
+1. Full error message
+1. Output of `verify_scan.py`
 
 ## Future Enhancements
 
@@ -665,19 +707,19 @@ When reporting metadata extraction issues, include:
 To add new extraction scripts:
 
 1. Support `--config` flag for multi-version
-2. Use same config file format
-3. Write output to `../metadata/`
-4. Add error handling for missing paths
-5. Update README.md with usage
-6. Add to refresh scripts
-7. Add verification checks
+1. Use same config file format
+1. Write output to `../metadata/`
+1. Add error handling for missing paths
+1. Update README.md with usage
+1. Add to refresh scripts
+1. Add verification checks
 
 ## License
 
 These scripts are part of the KAIN compiler project. See the main LICENSE file for details.
 
----
+______________________________________________________________________
 
-**Last Updated:** 2026-02-12  
-**Version:** 1.0  
+**Last Updated:** 2026-02-12\
+**Version:** 1.0\
 **Maintainer:** KAIN Development Team

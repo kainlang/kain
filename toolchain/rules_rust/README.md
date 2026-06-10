@@ -1,6 +1,6 @@
 # Rust Rules
 
-* Postsubmit [![Build status](https://badge.buildkite.com/76523cc666caab9ca91c2a08d9ac8f84af28cb25a92f387293.svg?branch=main)](https://buildkite.com/bazel/rustlang-rules-rust-postsubmit?branch=main)
+- Postsubmit [![Build status](https://badge.buildkite.com/76523cc666caab9ca91c2a08d9ac8f84af28cb25a92f387293.svg?branch=main)](https://buildkite.com/bazel/rustlang-rules-rust-postsubmit?branch=main)
 
 ## Overview
 
@@ -15,8 +15,8 @@ The fastest way to try this in an empty project is to click the green "Use this 
 General discussions and announcements take place in the [GitHub Discussions](https://github.com/bazelbuild/rules_rust/discussions), but there are
 additional places where community members gather to discuss `rules_rust`.
 
-* Chat: [#rust](https://bazelbuild.slack.com/archives/CSV56UT0F) channel on Bazel Slack: [https://slack.bazel.build/](https://slack.bazel.build/)
-* **Archived** Developer mailing list: [groups.google.com/g/rules_rust](https://groups.google.com/g/rules_rust)
+- Chat: [#rust](https://bazelbuild.slack.com/archives/CSV56UT0F) channel on Bazel Slack: [https://slack.bazel.build/](https://slack.bazel.build/)
+- **Archived** Developer mailing list: [groups.google.com/g/rules_rust](https://groups.google.com/g/rules_rust)
 
 ## Documentation
 

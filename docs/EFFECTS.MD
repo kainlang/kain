@@ -3,28 +3,28 @@
 **Status:** Research synthesis, 2026-06-08
 **Based on:** `crates/core/src/effects.rs` (canonical effect system — Effect enum, EffectSet, can_call, check_effect_call), `crates/core/src/parser.rs` (parse_effects, parse_function_header_clauses), `crates/core/src/types.rs` (effect checking at call sites, per-keyword effect assignment, SemanticContext, raw memory + asm + dispatch effect gates), `crates/core/src/lexer.rs` (effect tokens), `crates/core/src/ast.rs` (effects: Vec<Effect> on Function/Component/TraitMethod/FunctionType), `crates/sys-codegen/src/codegen_rust/mod.rs` (unsafe emission for Unsafe effect), `smoketest/src/semantics/effects.kn` (only dedicated effect test), `benchmark/cases_v2/keyword_crucible.kn` (all 6 user effects exercised), `benchmark/cases_v2/CRUSHER.kn` (GPU+Unsafe composition), `stdlib/sync.kn` (60+ Unsafe functions), `stdlib/io.kn` (30+ Unsafe functions), `blades/kain/asm/src/main.kn` (Unsafe on every function), `blades/kain/component_shader/src/main.kn` (Unsafe, GPU composition), RULEBOOK.MD, lang-semantics SKILL, lang-systems SKILL
 
----
+______________________________________________________________________
 
 ## Table of Contents
 
 1. [What Are Effects?](#what-are-effects)
-2. [The Eight Effects](#the-eight-effects)
-3. [The Core Algorithm — can_call()](#the-core-algorithm)
-4. [Syntax Reference](#syntax-reference)
-5. [The Effect Lattice — What Can Call What](#the-effect-lattice)
-6. [Per-Keyword Effect Rules — The Complete Matrix](#per-keyword-effect-rules)
-7. [The Auto-Emission Trap — pulse and resonate](#the-auto-emission-trap)
-8. [Effect Design Patterns — How to Actually Use Effects](#effect-design-patterns)
-9. [Real-World Usage Survey — What People Actually Write](#real-world-usage-survey)
-10. [Missed Opportunities — Where Effects Could Have Caught Bugs](#missed-opportunities)
-11. [The Koka Connection — What Kain Has vs Koka](#the-koka-connection)
-12. [Known Gaps in the Implementation](#known-gaps-in-the-implementation)
-13. [Validation Ladder](#validation-ladder)
-14. [Anti-Patterns](#anti-patterns)
-15. [Quick Reference](#quick-reference)
-16. [Source Anchors](#source-anchors)
+1. [The Eight Effects](#the-eight-effects)
+1. [The Core Algorithm — can_call()](#the-core-algorithm)
+1. [Syntax Reference](#syntax-reference)
+1. [The Effect Lattice — What Can Call What](#the-effect-lattice)
+1. [Per-Keyword Effect Rules — The Complete Matrix](#per-keyword-effect-rules)
+1. [The Auto-Emission Trap — pulse and resonate](#the-auto-emission-trap)
+1. [Effect Design Patterns — How to Actually Use Effects](#effect-design-patterns)
+1. [Real-World Usage Survey — What People Actually Write](#real-world-usage-survey)
+1. [Missed Opportunities — Where Effects Could Have Caught Bugs](#missed-opportunities)
+1. [The Koka Connection — What Kain Has vs Koka](#the-koka-connection)
+1. [Known Gaps in the Implementation](#known-gaps-in-the-implementation)
+1. [Validation Ladder](#validation-ladder)
+1. [Anti-Patterns](#anti-patterns)
+1. [Quick Reference](#quick-reference)
+1. [Source Anchors](#source-anchors)
 
----
+______________________________________________________________________
 
 ## What Are Effects?
 
@@ -70,7 +70,7 @@ The key insight: **effects are declared by the programmer, not inferred by the c
 |---|---|---|
 | Effects | "Function annotations" | **Compile-time lattice** — every function inhabits a point in the effect partial order, and call edges must respect `can_call()` subset semantics |
 
----
+______________________________________________________________________
 
 ## The Eight Effects
 
@@ -100,7 +100,7 @@ These exist in the `Effect` enum but **cannot be written in source code**. They 
 
 These are **dead effect codes** — no expression checks for them, no compiler diagnostic references them for enforcement. They exist in the `can_call()` HashSet but serve no safety guarantee. They are vestigial from the original effect design and may be removed or implemented in the future.
 
----
+______________________________________________________________________
 
 ## The Core Algorithm — can_call()
 
@@ -125,9 +125,9 @@ pub fn can_call(&self, callee: &EffectSet) -> bool {
 Four rules, no exceptions:
 
 1. **Pure is the bottom** — Every effect set can call `Pure` functions.
-2. **Pure is gated** — A `Pure` function cannot call anything non-pure.
-3. **Unsafe is the top** — A function with `Unsafe` can call any function, regardless of effects.
-4. **Subset for everything else** — The caller must have every effect the callee requires.
+1. **Pure is gated** — A `Pure` function cannot call anything non-pure.
+1. **Unsafe is the top** — A function with `Unsafe` can call any function, regardless of effects.
+1. **Subset for everything else** — The caller must have every effect the callee requires.
 
 ### What This Means in Practice
 
@@ -162,7 +162,7 @@ EffectViolation: Pure function 'compute' cannot call IO function 'log_result'
 
 The two help messages are the fundamental design choice: **broaden the caller** (make your function less pure) or **restructure** (keep purity at the boundary). This is the central tension of the effect system.
 
----
+______________________________________________________________________
 
 ## Syntax Reference
 
@@ -237,7 +237,7 @@ trait Loggable:
     fn log(self: Self_) with IO
 ```
 
----
+______________________________________________________________________
 
 ## The Effect Lattice — What Can Call What
 
@@ -265,7 +265,7 @@ trait Loggable:
 
 The rule: caller must be a **superset** of callee's effects.
 
----
+______________________________________________________________________
 
 ## Per-Keyword Effect Rules — The Complete Matrix
 
@@ -336,7 +336,7 @@ These two constructs bypass effect checking entirely. The body can call any func
 | **`axiom`** | Capability declaration, no executable body |
 | **`actor`** | Actor `on` handlers act as functions (inherit effects from handler body) |
 
----
+______________________________________________________________________
 
 ## The Auto-Emission Trap — pulse and resonate
 
@@ -373,7 +373,7 @@ pulse render_clock every 16ms:
     io_log_frame(pulse_tick, result)                    // ✅ effect-checked
 ```
 
----
+______________________________________________________________________
 
 ## Effect Design Patterns — How to Actually Use Effects
 
@@ -492,7 +492,7 @@ async fn fetch_and_dispatch(url: String) -> Int with Async, IO, GPU:
     return 0
 ```
 
----
+______________________________________________________________________
 
 ## Real-World Usage Survey — What People Actually Write
 
@@ -512,6 +512,7 @@ A survey of every effect annotation in the repo reveals a stark pattern:
 ### The Unsafe Problem
 
 The overwhelming pattern is: **`with Unsafe` on everything.** Most functions in the repo either:
+
 - Have `with Unsafe` because they do raw memory work
 - Call functions that have `with Unsafe`, so they ALSO need `with Unsafe`
 - Are entry points that chain through Unsafe functions
@@ -554,12 +555,12 @@ This is actually correct for a systems language — it mirrors Rust's `unsafe` k
 Until effect handlers or unsafe blocks are added, the practical advice is:
 
 1. **Use effects on library functions.** Your `stdlib`-style code should declare effects precisely.
-2. **Accept Unsafe propagation.** For application code, `with Unsafe` on entry points is fine — it's honest about what the program does.
-3. **Use Pure for pure math.** The 5 `Pure` annotations in the repo are exactly right — small, self-contained pure functions.
-4. **Use GPU+Unsafe for GPU work.** The composition pattern is correct and well-established.
-5. **Don't fight the system.** The effect lattice is simple for a reason — complex effect hierarchies need handler blocks, which Kain doesn't have yet.
+1. **Accept Unsafe propagation.** For application code, `with Unsafe` on entry points is fine — it's honest about what the program does.
+1. **Use Pure for pure math.** The 5 `Pure` annotations in the repo are exactly right — small, self-contained pure functions.
+1. **Use GPU+Unsafe for GPU work.** The composition pattern is correct and well-established.
+1. **Don't fight the system.** The effect lattice is simple for a reason — complex effect hierarchies need handler blocks, which Kain doesn't have yet.
 
----
+______________________________________________________________________
 
 ## Missed Opportunities — Where Effects Could Have Caught Bugs
 
@@ -593,6 +594,7 @@ fn innocent_looking(value: Int) -> Int with Pure:
 ### Miss #3: No Effect Violation Tests
 
 The only effect test file (`smoketest/src/semantics/effects.kn`) creates functions with each effect and calls them from an `Unsafe` entry point. It does NOT test:
+
 - A `Pure` function calling an `IO` function (should fail at compile time)
 - An `IO` function calling a `GPU` function (should fail)
 - Effect cascading through nested calls
@@ -614,13 +616,14 @@ A law that does GPU dispatch is conceptually wrong — laws are predicates. But 
 ### Miss #5: `Alloc` and `Panic` Are Dead Effect Codes
 
 These two effects exist in the enum, are auto-added for `pulse`/`resonate`, but:
+
 - No expression ever checks for them
 - No diagnostic ever references them
 - They affect `can_call()` (they're in the HashSet) but no call ever has them as the differentiating effect
 
 They're effectively documentation — they SAY "this pulse body can allocate and panic" but they don't DO anything about it.
 
----
+______________________________________________________________________
 
 ## The Koka Connection — What Kain Has vs Koka
 
@@ -642,7 +645,8 @@ Kain's effect syntax (`with IO, Async:`) is directly inspired by Koka, but the s
 
 1. **Effect inference** — The compiler COULD check that a function declared `with Pure` doesn't actually perform IO/GPU/Unsafe operations. This would close Miss #2 automatically.
 
-2. **Effect handlers** — A `handle { ... }` block that intercepts effects would allow the Unsafe-encapsulation pattern:
+1. **Effect handlers** — A `handle { ... }` block that intercepts effects would allow the Unsafe-encapsulation pattern:
+
    ```kn
    // Hypothetical future Kain:
    fn safe_wrapper() -> Int with IO:
@@ -651,17 +655,17 @@ Kain's effect syntax (`with IO, Async:`) is directly inspired by Koka, but the s
        // safe_wrapper is IO, not Unsafe
    ```
 
-3. **Effect aliases** — `alias SystemIO = IO, Unsafe, Alloc` would reduce the repetition of `with IO, Unsafe` everywhere.
+1. **Effect aliases** — `alias SystemIO = IO, Unsafe, Alloc` would reduce the repetition of `with IO, Unsafe` everywhere.
 
 ### What Kain Has That Koka Doesn't
 
 1. **`Unsafe` as top** — Koka has no concept of an effect that subsumes all others. Kain's `Unsafe` is a deliberate escape hatch for systems programming.
 
-2. **Per-construct auto-emission** — `pulse` and `resonate` getting all effects is a Kain-specific design choice that acknowledges the reality of top-level orchestration code.
+1. **Per-construct auto-emission** — `pulse` and `resonate` getting all effects is a Kain-specific design choice that acknowledges the reality of top-level orchestration code.
 
-3. **Integration with the decision ladder** — Effects in Kain are part of a larger semantic framework (world, patch, law, converge) that Koka doesn't have.
+1. **Integration with the decision ladder** — Effects in Kain are part of a larger semantic framework (world, patch, law, converge) that Koka doesn't have.
 
----
+______________________________________________________________________
 
 ## Known Gaps in the Implementation
 
@@ -680,7 +684,7 @@ These are documented gaps between what effects SHOULD do and what they currently
 
 The **high-severity gaps** (raw memory not gated) mean that the effect system is currently a **documentation and convention tool**, not a safety enforcement tool. It's still valuable — it communicates intent and catches call-site mismatches — but it doesn't provide the full safety guarantees that the docs imply.
 
----
+______________________________________________________________________
 
 ## Validation Ladder
 
@@ -705,7 +709,7 @@ kain check stdlib/sync.kn
 kain check stdlib/io.kn
 ```
 
----
+______________________________________________________________________
 
 ## Anti-Patterns
 
@@ -810,7 +814,7 @@ fn honest_caller() -> Int with IO, Unsafe:    // honestly propagate Unsafe
     return verified_unsafe_op()
 ```
 
----
+______________________________________________________________________
 
 ## Quick Reference
 
@@ -843,7 +847,7 @@ fn honest_caller() -> Int with IO, Unsafe:    // honestly propagate Unsafe
 | **Canonical test** | `smoketest/src/semantics/effects.kn` — 5 effects + Unsafe entry point |
 | **Canonical benchmark** | `benchmark/cases_v2/keyword_crucible.kn` — all 6 user effects exercised |
 
----
+______________________________________________________________________
 
 ## Source Anchors
 

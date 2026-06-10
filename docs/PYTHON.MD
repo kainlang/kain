@@ -1,59 +1,60 @@
 # Kain Python Interop — Full Research
 
-> **Date**: 2026-06-06  
-> **Files inspected**:  
-> - `crates/python/src/lib.rs` (5896 lines) — Rust PyO3 stdlib bridge  
-> - `crates/interop/src/lib.rs` — Neutral shared contracts  
-> - `runtime/native/src/core/python_runtime.c` (3336 lines) — **Native C CPython bridge**  
-> - `runtime/native/src/core/python_runtime_region.c` — Cached region operations  
-> - `runtime/native/src/core/python_runtime_async.c` — Async future engine  
-> - `runtime/native/src/core/python_runtime_buffers.c` — Buffer protocol adoption  
-> - `runtime/native/src/core/python_runtime_gpu.c` — GPU tensor interop  
-> - `stdlib/python.kn` — Kain stdlib Python surface  
-> - `crates/core/src/parser.rs` — First-class `import`/`from` syntax  
-> - `benchmark/cases_v2/python_interop.kn` — 15-case benchmark suite  
-> - `blades/python/py_c/` — Canonical interop proof  
-> - `blades/python/audio/kainbleton/` — DAW workbench (Pyglet window + Python bridge)  
+> **Date**: 2026-06-06
+> **Files inspected**:
+>
+> - `crates/python/src/lib.rs` (5896 lines) — Rust PyO3 stdlib bridge
+> - `crates/interop/src/lib.rs` — Neutral shared contracts
+> - `runtime/native/src/core/python_runtime.c` (3336 lines) — **Native C CPython bridge**
+> - `runtime/native/src/core/python_runtime_region.c` — Cached region operations
+> - `runtime/native/src/core/python_runtime_async.c` — Async future engine
+> - `runtime/native/src/core/python_runtime_buffers.c` — Buffer protocol adoption
+> - `runtime/native/src/core/python_runtime_gpu.c` — GPU tensor interop
+> - `stdlib/python.kn` — Kain stdlib Python surface
+> - `crates/core/src/parser.rs` — First-class `import`/`from` syntax
+> - `benchmark/cases_v2/python_interop.kn` — 15-case benchmark suite
+> - `blades/python/py_c/` — Canonical interop proof
+> - `blades/python/audio/kainbleton/` — DAW workbench (Pyglet window + Python bridge)
 
----
+______________________________________________________________________
 
 ## Table of Contents
 
 1. [Executive Summary](#1-executive-summary)
-2. [Architecture — Three-Layer Stack](#2-architecture--three-layer-stack)
-3. [Layer 1: C Native Runtime](#3-layer-1-c-native-runtime)
-4. [Layer 2: Rust PyO3 Bridge](#4-layer-2-rust-pyo3-bridge)
-5. [Layer 3: Kain Stdlib Surface](#5-layer-3-kain-stdlib-surface)
-6. [First-Class Python Import Syntax](#6-first-class-python-import-syntax)
-7. [Value System — Tagged Any Encoding](#7-value-system--tagged-any-encoding)
-8. [CPython Discovery and Loading](#8-cpython-discovery-and-loading)
-9. [GIL Management](#9-gil-management)
-10. [Buffer Protocol — Zero-Copy Adoption](#10-buffer-protocol--zero-copy-adoption)
-11. [GPU Integration — CUDA Array Interface and DLPack](#11-gpu-integration--cuda-array-interface-and-dlpack)
-12. [Async Future Engine](#12-async-future-engine)
-13. [Actor Callback Integration](#13-actor-callback-integration)
-14. [Region API — Cached Batched Operations](#14-region-api--cached-batched-operations)
-15. [Shared Contracts — Cross-Runtime Data Exchange](#15-shared-contracts--cross-runtime-data-exchange)
-16. [Typed Views — Python Image, Tensor, Geometry](#16-typed-views--python-image-tensor-geometry)
-17. [Materialization — Ownership Modes](#17-materialization--ownership-modes)
-18. [Bidirectional Export](#18-bidirectional-export)
-19. [Benchmarks and Performance Characteristics](#19-benchmarks-and-performance-characteristics)
-20. [GPU with Python](#20-gpu-with-python)
-21. [Native C Speed with Python](#21-native-c-speed-with-python)
-22. [Python for Window Management](#22-python-for-window-management)
-23. [Full API Reference](#23-full-api-reference)
-24. [Orchestrate Integration — Python as a First-Class Stage](#24-orchestrate-integration--python-as-a-first-class-stage)
-25. [When to Use Python](#25-when-to-use-python)
+1. [Architecture — Three-Layer Stack](#2-architecture--three-layer-stack)
+1. [Layer 1: C Native Runtime](#3-layer-1-c-native-runtime)
+1. [Layer 2: Rust PyO3 Bridge](#4-layer-2-rust-pyo3-bridge)
+1. [Layer 3: Kain Stdlib Surface](#5-layer-3-kain-stdlib-surface)
+1. [First-Class Python Import Syntax](#6-first-class-python-import-syntax)
+1. [Value System — Tagged Any Encoding](#7-value-system--tagged-any-encoding)
+1. [CPython Discovery and Loading](#8-cpython-discovery-and-loading)
+1. [GIL Management](#9-gil-management)
+1. [Buffer Protocol — Zero-Copy Adoption](#10-buffer-protocol--zero-copy-adoption)
+1. [GPU Integration — CUDA Array Interface and DLPack](#11-gpu-integration--cuda-array-interface-and-dlpack)
+1. [Async Future Engine](#12-async-future-engine)
+1. [Actor Callback Integration](#13-actor-callback-integration)
+1. [Region API — Cached Batched Operations](#14-region-api--cached-batched-operations)
+1. [Shared Contracts — Cross-Runtime Data Exchange](#15-shared-contracts--cross-runtime-data-exchange)
+1. [Typed Views — Python Image, Tensor, Geometry](#16-typed-views--python-image-tensor-geometry)
+1. [Materialization — Ownership Modes](#17-materialization--ownership-modes)
+1. [Bidirectional Export](#18-bidirectional-export)
+1. [Benchmarks and Performance Characteristics](#19-benchmarks-and-performance-characteristics)
+1. [GPU with Python](#20-gpu-with-python)
+1. [Native C Speed with Python](#21-native-c-speed-with-python)
+1. [Python for Window Management](#22-python-for-window-management)
+1. [Full API Reference](#23-full-api-reference)
+1. [Orchestrate Integration — Python as a First-Class Stage](#24-orchestrate-integration--python-as-a-first-class-stage)
+1. [When to Use Python](#25-when-to-use-python)
 
----
+______________________________________________________________________
 
 ## 1. Executive Summary
 
 Kain's Python interop is a **three-layer, runtime-integrated bridge** — not a subprocess, not a JSON pipe, not a single PyO3 binding. It is:
 
 1. **A native C runtime** — `python_runtime.c` dynamically loads the CPython shared library, resolves 50+ Python C API functions via `dlsym`/`GetProcAddress`, manages GIL state, and implements the full buffer protocol, CUDA array interface, DLPack, async futures, and actor callbacks **entirely in C**.
-2. **A Rust PyO3 bridge** — `crates/python/src/lib.rs` registers 60+ builtins into Kain's standard library for interpreter-mode use (eval, exec, call, tensor views, image views, materialization).
-3. **A Kain stdlib surface** — `stdlib/python.kn` provides ergonomic wrappers (`python_call`, `python_tensor`, `python_gpu_buffer`, etc.) and first-class `import` syntax.
+1. **A Rust PyO3 bridge** — `crates/python/src/lib.rs` registers 60+ builtins into Kain's standard library for interpreter-mode use (eval, exec, call, tensor views, image views, materialization).
+1. **A Kain stdlib surface** — `stdlib/python.kn` provides ergonomic wrappers (`python_call`, `python_tensor`, `python_gpu_buffer`, etc.) and first-class `import` syntax.
 
 **The C layer is the hot path.** The Rust/PyO3 layer is the cold path used for interpreted mode and `use std::python` surface functions. When running compiled (LLVM native) Kain, the **C runtime handles every Python call directly** — no Rust code touched, no PyO3 involved.
 
@@ -82,7 +83,7 @@ Kain's Python interop is a **three-layer, runtime-integrated bridge** — not a 
 └──────────────────────────────────────────────────────────────────┘
 ```
 
----
+______________________________________________________________________
 
 ## 2. Architecture — Three-Layer Stack
 
@@ -140,7 +141,7 @@ Files (3336 + 1557 + 1696 + 1525 + ~500 = ~8600 lines of C):
 
 - Manages a persistent `PyDict` scope (extension state `"kain.python.scope"`)
 - Provides the `_raw` vs auto-convert function pairs
-- Implements typed image/tensor/geometry view logic  
+- Implements typed image/tensor/geometry view logic
 - Handles materialization mode selection (auto/shared/owned)
 - Exports native buffers back to NumPy, PyTorch, trimesh
 
@@ -162,7 +163,7 @@ pub fn python_gpu_storage_buffer(target: Any, debug_name: String) -> GpuBuffer:
     // ... computes residency flags, queue flags, builds GpuBuffer
 ```
 
----
+______________________________________________________________________
 
 ## 3. Layer 1: C Native Runtime
 
@@ -258,7 +259,7 @@ typedef struct {
 
 That's **50+ CPython C API function pointers** loaded at runtime. This includes modern fast paths: `PyObject_CallOneArg` (Python 3.11+) and `PyObject_Vectorcall` (Python 3.10+).
 
----
+______________________________________________________________________
 
 ## 4. Layer 2: Rust PyO3 Bridge
 
@@ -272,7 +273,7 @@ Python::with_gil(|py| {
     let builtins = py.import("builtins")
         .expect("failed to import Python builtins");
     scope.set_item("__builtins__", builtins);
-    env.set_extension_state(PYTHON_EXTENSION_KEY, 
+    env.set_extension_state(PYTHON_EXTENSION_KEY,
         Arc::new(PythonScopeState {
             scope: RwLock::new(scope.into()),
         }));
@@ -311,8 +312,8 @@ enum MaterializationMode {
 }
 ```
 
-For shared backing on NumPy: it calls `.reshape(-1)` and stores the flat view.  
-For PyTorch: it calls `.detach().cpu().contiguous().reshape(-1)`.  
+For shared backing on NumPy: it calls `.reshape(-1)` and stores the flat view.
+For PyTorch: it calls `.detach().cpu().contiguous().reshape(-1)`.
 For owned: it exports bytes via `.tobytes()` and decodes element-by-element.
 
 ### 4.4 Backend Detection
@@ -327,7 +328,7 @@ fn detect_backend(target: &PyAny) -> String {
 }
 ```
 
----
+______________________________________________________________________
 
 ## 5. Layer 3: Kain Stdlib Surface
 
@@ -359,7 +360,7 @@ fn python_tensor_gpu_residency_flags(info: KainSharedBufferInfo) -> Int:
 
 This logic determines whether a Python tensor is CPU-hosted (host-visible), CUDA device-local, or CUDA with host access. The interop lane (cuda_array_interface, dlpack, dlpack_device) is reported via `python_tensor_interop_info`.
 
----
+______________________________________________________________________
 
 ## 6. First-Class Python Import Syntax
 
@@ -409,9 +410,9 @@ from python_lab.bridge import tensor_tail,       // Multiple members
 When a Python import is encountered at LLVM-native runtime, the C code:
 
 1. Walks up from the importer file's directory looking for `module.py` or `module/__init__.py`
-2. Prepends found roots to `sys.path`
-3. Clears stale cached modules from `sys.modules` (for the package prefix)
-4. Calls `PyImport_ImportModule`
+1. Prepends found roots to `sys.path`
+1. Clears stale cached modules from `sys.modules` (for the package prefix)
+1. Calls `PyImport_ImportModule`
 
 ```c
 static void kain_py_prepare_import_context(const char* importer_file) {
@@ -424,7 +425,7 @@ static void kain_py_prepare_import_context(const char* importer_file) {
 }
 ```
 
----
+______________________________________________________________________
 
 ## 7. Value System — Tagged Any Encoding
 
@@ -487,7 +488,7 @@ static int kain_py_try_fast_trunc_i64_result(PyObject* result, long long* out_va
 
 This is used by the region API's `python_region_call_raw_f64_trunc_i64` and the standalone `py_call_raw_f64_trunc_i64`. It's the **fastest path** for numeric calls like `math.sqrt(x)`.
 
----
+______________________________________________________________________
 
 ## 8. CPython Discovery and Loading
 
@@ -523,7 +524,7 @@ if (!g_kain_python_api.Py_IsInitialized()) {
 
 The library is stored in `g_kain_python_api.dll` (HMODULE or `void*`), and all function pointers are resolved once at startup. The `g_kain_python_api.ready` flag prevents re-initialization.
 
----
+______________________________________________________________________
 
 ## 9. GIL Management
 
@@ -579,7 +580,7 @@ static void kain_py_tensor_destructor(void* payload) {
 }
 ```
 
----
+______________________________________________________________________
 
 ## 10. Buffer Protocol — Zero-Copy Adoption
 
@@ -675,7 +676,7 @@ static long long kain_py_residue_sum37_mod(long long iterations, long long modul
 
 This avoids `iterations` Python calls — it's a single buffer borrow + O(1) math.
 
----
+______________________________________________________________________
 
 ## 11. GPU Integration — CUDA Array Interface and DLPack
 
@@ -787,7 +788,7 @@ pub fn python_gpu_uniform_buffer(target: Any, debug_name: String) -> GpuBuffer:
     // Same but with GPU_ACCESS_READ and GPU_DESCRIPTOR_UNIFORM_BUFFER
 ```
 
----
+______________________________________________________________________
 
 ## 12. Async Future Engine
 
@@ -796,8 +797,8 @@ pub fn python_gpu_uniform_buffer(target: Any, debug_name: String) -> GpuBuffer:
 The async future engine (`python_runtime_async.c`) provides **true non-blocking Python calls** via:
 
 1. A **dedicated OS thread** running the Python awaitable with a fresh asyncio event loop
-2. A **Kain task** (`KainTaskId`) that polls the settlement status
-3. **Atomic settlement** — only one thread can settle the future
+1. A **Kain task** (`KainTaskId`) that polls the settlement status
+1. **Atomic settlement** — only one thread can settle the future
 
 ### 12.2 Lifecycle
 
@@ -875,7 +876,7 @@ atomic_int settlement_kind;
 KainPythonAsyncMutex lock;  // CRITICAL_SECTION or pthread_mutex_t
 ```
 
----
+______________________________________________________________________
 
 ## 13. Actor Callback Integration
 
@@ -884,9 +885,9 @@ KainPythonAsyncMutex lock;  // CRITICAL_SECTION or pthread_mutex_t
 Python can register a **callable that delivers messages to a Kain actor**. When Python calls the callable, the C runtime:
 
 1. Takes the positional args + kwargs from Python
-2. Serializes them into a JSON payload with `callback_id`
-3. Calls `abi_actor_send(actor_id, message_name, payload)`
-4. Increments `delivered_count`
+1. Serializes them into a JSON payload with `callback_id`
+1. Calls `abi_actor_send(actor_id, message_name, payload)`
+1. Increments `delivered_count`
 
 ### 13.2 Thread Structure
 
@@ -918,7 +919,7 @@ pub fn python_actor_callback(actor_id: Int, message_name: String) -> Any:
 
 The callback is a Python callable that, when invoked, pushes args to a Python list queue, and the monitor thread pops from the queue and sends Kain actor messages.
 
----
+______________________________________________________________________
 
 ## 14. Region API — Cached Batched Operations
 
@@ -1028,7 +1029,7 @@ python_region_generic_call_count(region)      // Generic (slow path) calls
 python_region_fast_call_count(region)         // Fast path calls (f64→i64)
 ```
 
----
+______________________________________________________________________
 
 ## 15. Shared Contracts — Cross-Runtime Data Exchange
 
@@ -1083,7 +1084,7 @@ let info = interop_shared_image_info(shared_image)
 // info.labels, info.byte_length, info.zero_copy
 ```
 
----
+______________________________________________________________________
 
 ## 16. Typed Views — Python Image, Tensor, Geometry
 
@@ -1162,7 +1163,7 @@ py_geometry_set_vertex(view, 0, [1.0, 2.0, 3.0])
 
 Resolution logic (Rust layer): if the target has `.vertices` and `.faces` attrs, treat as trimesh; otherwise use raw array pairs.
 
----
+______________________________________________________________________
 
 ## 17. Materialization — Ownership Modes
 
@@ -1225,17 +1226,19 @@ The `kain_shared_buffer_from_py(target)` function (in `python_runtime_buffers.c`
 ### 17.4 Shared vs Owned Semantics
 
 **Shared mode** (`ownership == "shared"`):
+
 - Keeps a reference to the original Python object
 - Mutations via `kain_tensor_set` go through `PyObject_SetItem` on the original Python object
 - **Changes are immediately visible in Python** (zero-copy round-trip)
 - Requires: C-contiguous, writable
 
 **Owned mode** (`ownership == "owned"`):
+
 - Calls `.copy()` on the Python object first
 - Mutations are isolated from the original
 - Always works regardless of contiguity
 
----
+______________________________________________________________________
 
 ## 18. Bidirectional Export
 
@@ -1268,7 +1271,7 @@ let trimesh_mesh = kain_geometry_to_py(native, "trimesh")  // trimesh.Trimesh ob
 let tuple = kain_geometry_to_py(native, "tuple")    // (vertices, faces)
 ```
 
----
+______________________________________________________________________
 
 ## 19. Benchmarks and Performance Characteristics
 
@@ -1306,7 +1309,7 @@ entangle PyAuthority.sqrt_4 <-> PyMirror.sqrt_4_copy with single_writer
 fn bench_tau_read(iterations: Int) -> TauResult:
     // Cached: zero Python bridge crossings
     acc_cache = (acc_cache + PyMirror.tau_copy + PyMirror.pi_copy) % P_MOD
-    
+
     // Raw: Python bridge every iteration
     let tau = to_int(python_getattr_raw(py_math, "tau"))
     let pi = to_int(python_getattr_raw(py_math, "pi"))
@@ -1340,6 +1343,7 @@ The asyncio-future case is notable — it creates real asyncio `Future` objects,
 | Fused checksum37 (20k iters) | 20,000 | **~0µs each** | Single buffer borrow, O(1) formula |
 
 **Key insight**: The region fast call lane (`python_region_bound_sqrt_fast`) at 150,000 iterations per run is about **5-10x faster** than raw `py_call_attr_raw` because:
+
 - The import is cached (1 miss, 149,999 hits)
 - The attr is cached (1 miss per binding, rest hits)
 - The call uses `PyObject_Vectorcall` + fast `f64→i64` truncation
@@ -1364,7 +1368,7 @@ The telemetry metadata in the benchmark provides exact expectations:
 
 This proves that **all 30,000 calls in a 30,000-iteration region-sqrt run go through the fast numeric lane** — zero generic calls, zero GIL re-entries.
 
----
+______________________________________________________________________
 
 ## 20. GPU with Python
 
@@ -1391,8 +1395,8 @@ Python NumPy/PyTorch/Tensor
 The C runtime detects CUDA tensors by checking:
 
 1. `.device` attribute → `"cuda:7"` → parsed to `device_kind="cuda"`, `device_ordinal=7`
-2. `__cuda_array_interface__` attribute → reads `version`, `shape`, `strides`, `typestr`, `data[0]` (device pointer)
-3. `__dlpack_device__` → reads `(type_code=2, ordinal)` → DLPack support confirmed
+1. `__cuda_array_interface__` attribute → reads `version`, `shape`, `strides`, `typestr`, `data[0]` (device pointer)
+1. `__dlpack_device__` → reads `(type_code=2, ordinal)` → DLPack support confirmed
 
 ### 20.3 GPU Residency Computation (Stdlib)
 
@@ -1407,6 +1411,7 @@ fn python_tensor_gpu_residency_flags(info: KainSharedBufferInfo) -> Int:
 ```
 
 This produces:
+
 - CPU tensor: `IMPORTED | ZERO_COPY | HOST_VISIBLE | HOST_COHERENT | SHARED`
 - CUDA tensor: `IMPORTED | ZERO_COPY | DEVICE_LOCAL`
 
@@ -1428,6 +1433,7 @@ self.device = 'cuda:7'
 ```
 
 The benchmark verifies:
+
 - `descriptor.byte_length == 128` (4×8 float32)
 - `descriptor.device_kind == "cuda"`
 - `descriptor.device_ordinal == 7`
@@ -1436,7 +1442,7 @@ The benchmark verifies:
 - `descriptor.dlpack_capable == true`
 - `descriptor.cuda_array_interface_version >= 3`
 
----
+______________________________________________________________________
 
 ## 21. Native C Speed with Python
 
@@ -1475,13 +1481,13 @@ fn main():
     // Python creates numpy array
     let numpy_signal = python_call_attr_raw(py_lab, "make_numpy_grid", [plan_text, seed])
     let shared_numpy = python_tensor_shared(numpy_signal)
-    
+
     // C function processes data
     let native_bias = python_lab_bridge_bias(signature)
     let native_mix = python_lab_bridge_mix(sig1, sig2)
     let native_fold = python_lab_bridge_fold4(a, b, c, d)
     let native_route = python_lab_bridge_window_route(w, h, frames, fold)
-    
+
     // Mutations sync back to Python via shared backing
     kain_tensor_set(shared_numpy, [row, col], new_value)
     let after = to_int(py_tensor_signature(numpy_signal))  // Python sees change
@@ -1497,7 +1503,7 @@ The C functions run at **native CPU speed** — no Python interpreter involved, 
 - Window routing / UI layout math
 - Any operation that would be slow in Python
 
----
+______________________________________________________________________
 
 ## 22. Python for Window Management
 
@@ -1513,7 +1519,7 @@ fn module_probe_lane(plan: Any, plan_text: String) -> Int:
     let direct_color = python_call_attr_raw(pygame, "Color", [17, 19, 23])
     let g = to_int(python_getattr_raw(direct_color, "g"))
     // g == 19
-    
+
     // Create pygame surfaces for rendering
     let surface = python_call_attr_raw(pygame, "Surface", [width, height])
     // Shared image contract for pixels
@@ -1577,7 +1583,7 @@ import flet as flet
 
 These run within Kain's own main loop, so there's no framework ownership conflict. Kain calls `window.dispatch_events()` or `app.pump()` as part of its frame budget.
 
----
+______________________________________________________________________
 
 ## 23. Full API Reference
 
@@ -1699,7 +1705,7 @@ These run within Kain's own main loop, so there's no framework ownership conflic
 | `python_gpu_uniform_buffer(target, name)` | Tensor → GPU uniform buffer |
 | `python_tensor_interop_info(target)` | Full interop metadata |
 
----
+______________________________________________________________________
 
 ## 24. Orchestrate Integration — Python as a First-Class Stage
 
@@ -1844,7 +1850,7 @@ The orchestrate keyword gives Python interop capabilities that raw `py_call` can
 | **Telemetry** | Stage count, transfer count, fallback count tracked automatically | You count manually |
 | **Cross-runtime fusion** | Python → C → Converge → GPU → Law → Patch in one graph | Coordinate separate subsystems manually |
 
----
+______________________________________________________________________
 
 ## 25. When to Use Python
 
@@ -1878,16 +1884,16 @@ The orchestrate keyword gives Python interop capabilities that raw `py_call` can
 
 1. **Use regions** for any hot loop calling Python — they amortize GIL cost, cache imports and attrs, and provide fast numeric call lanes.
 
-2. **Prefer shared backing** over owned — it's free and syncs bidirectionally.
+1. **Prefer shared backing** over owned — it's free and syncs bidirectionally.
 
-3. **Use the fused checksum37 operation** when you need to prove data integrity across iterations — it's O(1) and avoids any per-iteration Python calls.
+1. **Use the fused checksum37 operation** when you need to prove data integrity across iterations — it's O(1) and avoids any per-iteration Python calls.
 
-4. **Pre-import and pre-bind** callables before hot loops — bind `math.sqrt` once at region start, then call it directly.
+1. **Pre-import and pre-bind** callables before hot loops — bind `math.sqrt` once at region start, then call it directly.
 
-5. **Use `python_gpu_storage_buffer`** for CUDA tensors to avoid host round-trips.
+1. **Use `python_gpu_storage_buffer`** for CUDA tensors to avoid host round-trips.
 
-6. **Use the C FFI bridge** for genuinely hot numerical work — `include` a `.c` file, call it from Kain, pass Python data via shared buffer.
+1. **Use the C FFI bridge** for genuinely hot numerical work — `include` a `.c` file, call it from Kain, pass Python data via shared buffer.
 
----
+______________________________________________________________________
 
 *This document was written by directly inspecting the actual source code: 5 C runtime files (~8,600 lines total), 1 Rust bridge file (5,896 lines), 1 interop crate, the stdlib Python module, the parser, 3 benchmark suites (python_interop = 15 cases, python_semantic, python_stdlib_fused), and real-world blade examples (py_c, kainbleton). Every claim is backed by code inspection.*

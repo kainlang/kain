@@ -3,28 +3,28 @@
 **Status:** Research synthesis, 2026-06-08
 **Based on:** `crates/core/src/parser.rs` (parse_shatter_struct, "shatter" contextual keyword), `crates/core/src/ast.rs` (SHATTER_ATTRIBUTE_NAME, is_shattered), `crates/core/src/types.rs` (shatter struct typechecking), `crates/core/src/runtime_contract.rs` (RuntimeShatterContract, collect_shatter_contracts), `crates/sys-codegen/src/codegen_llvm/mod.rs` (ShatteredArrayBacking, ShatteredArrayLocal, compile_shattered_array_literal, compile_shattered_field_ptr, emit_shatter_lane_bases, emit_stack_shatter_lane_bases), `runtime/native/include/machine_stones.h` (KAIN_MACHINE_CAP_MEMORY_SHATTER, kain_machine_shatter_alloc, kain_machine_shatter_lane_ptr, kain_machine_shatter_lane_base, kain_machine_shatter_free), `runtime/native/src/core/machine_stones.c` (KainMachineShatterBuffer, shatter allocation implementation), `runtime/native/src/core/z3/proofs/native-machine-shatter-lane-offset-stays-in-payload.yaml`, `runtime/native/src/core/z3/proofs/native-machine-shatter-lane-base-shift-offset-stays-in-payload.yaml`, `runtime/native/src/core/z3/proofs-experimental/machine-shatter-shift-offset-equivalence.smt2`, `smoketest/src/semantics/shatter.kn`, `benchmark/cases/machine_stones_shatter_loop/main.kn`, `benchmark/cases/semantic_singularity_shatter_only/main.kn`, `benchmark/cases/pulse_teleport_decay_mesh/main.kn`, `benchmark/cases_v2/keyword_crucible.kn`, `benchmark/cases_v2/fusion_chain.kn`, RULEBOOK.MD, lang-semantics SKILL
 
----
+______________________________________________________________________
 
 ## Table of Contents
 
 1. [What is Shatter?](#what-is-shatter)
-2. [The Core Idea — Compiler-Owned SoA](#the-core-idea)
-3. [Syntax Reference](#syntax-reference)
-4. [How It Works — Full Pipeline](#how-it-works)
-5. [SoA vs AoS — Layout Comparison](#soa-vs-aos)
-6. [Heap vs Stack Allocation](#heap-vs-stack-allocation)
-7. [Shatter + Teleport](#shatter--teleport)
-8. [Shatter + Axiom](#shatter--axiom)
-9. [Under-Utilized Ideas](#under-utilized-ideas)
-10. [Combining with Other Keywords](#combining-with-other-keywords)
-11. [Native C API](#native-c-api)
-12. [Z3 Proofs](#z3-proofs)
-13. [Validation Ladder](#validation-ladder)
-14. [Source Anchors](#source-anchors)
-15. [Anti-Patterns](#anti-patterns)
-16. [Quick Reference](#quick-reference)
+1. [The Core Idea — Compiler-Owned SoA](#the-core-idea)
+1. [Syntax Reference](#syntax-reference)
+1. [How It Works — Full Pipeline](#how-it-works)
+1. [SoA vs AoS — Layout Comparison](#soa-vs-aos)
+1. [Heap vs Stack Allocation](#heap-vs-stack-allocation)
+1. [Shatter + Teleport](#shatter--teleport)
+1. [Shatter + Axiom](#shatter--axiom)
+1. [Under-Utilized Ideas](#under-utilized-ideas)
+1. [Combining with Other Keywords](#combining-with-other-keywords)
+1. [Native C API](#native-c-api)
+1. [Z3 Proofs](#z3-proofs)
+1. [Validation Ladder](#validation-ladder)
+1. [Source Anchors](#source-anchors)
+1. [Anti-Patterns](#anti-patterns)
+1. [Quick Reference](#quick-reference)
 
----
+______________________________________________________________________
 
 ## What is Shatter?
 
@@ -54,7 +54,7 @@ This is critical for **SIMD-friendly, cache-line-optimized hot loops**. When ite
 
 The key insight: **shatter is not a separate keyword** — it is a modifier before `struct` (parsed as `shatter struct Name:`). The parser pushes a `#[shatter]` attribute and delegates to the normal struct parser. The compiler owns all layout decisions.
 
----
+______________________________________________________________________
 
 ## The Core Idea — Compiler-Owned SoA
 
@@ -90,7 +90,7 @@ When you write `shatter struct Particle:`, you are telling the compiler:
 
 > "This struct will be used in hot loops with array access. Arrange the fields in separate contiguous lanes so that iterating over N elements accesses consecutive memory within each lane. You own the layout — I own the `.field` access syntax."
 
----
+______________________________________________________________________
 
 ## Syntax Reference
 
@@ -104,6 +104,7 @@ shatter struct <Name>:
 ```
 
 Where:
+
 - `shatter` is the contextual keyword (must appear immediately before `struct`)
 - `<Name>` is an identifier for the struct
 - `<field>` is a field name
@@ -116,10 +117,11 @@ shatter_struct = "shatter" "struct" ident ":" indent field_list dedent
 ```
 
 The parser:
+
 1. Expects contextual keyword `shatter`
-2. Pushes `Attribute { name: SHATTER_ATTRIBUTE_NAME, args: Vec::new(), span: start }`
-3. Delegates to `parse_struct_with_attrs(vis, attrs)` — the normal struct parser
-4. The struct body is parsed identically to a regular struct
+1. Pushes `Attribute { name: SHATTER_ATTRIBUTE_NAME, args: Vec::new(), span: start }`
+1. Delegates to `parse_struct_with_attrs(vis, attrs)` — the normal struct parser
+1. The struct body is parsed identically to a regular struct
 
 ```rust
 fn parse_shatter_struct(&mut self, vis: Visibility, mut attrs: Vec<Attribute>) -> KainResult<Item> {
@@ -178,7 +180,7 @@ shatter struct PulseShard:
     hot: Bool
 ```
 
----
+______________________________________________________________________
 
 ## How It Works — Full Pipeline
 
@@ -281,6 +283,7 @@ This is the single source of truth for "is this struct shattered?" — used by t
 The typechecker (`types.rs`) has **no special validation** for shatter structs. A `shatter struct` is typechecked as a regular struct. The `#[shatter]` attribute is preserved through typecheck and passed to codegen.
 
 This means:
+
 - Field types are checked normally
 - Generics work normally
 - Visibility modifiers work normally
@@ -369,12 +372,12 @@ store <field_ty> <value>, <field_ty>* %elem0_lane0_typed
 When accessing `particles[lane].x` (`compile_shattered_field_ptr`):
 
 1. Checks if the array is in `self.shattered_array_locals`
-2. Finds the field index in the struct's fields
-3. If a lane base is available and index is proven in-bounds:
+1. Finds the field index in the struct's fields
+1. If a lane base is available and index is proven in-bounds:
    - Computes `byte_offset = element_index * 8` (or `element_index << 3`)
    - Uses `getelementptr inbounds` on the lane base pointer
    - Bitcasts to the field type
-4. If runtime-backed fallback:
+1. If runtime-backed fallback:
    - Calls `@kain_machine_shatter_lane_ptr(handle, field_lane, element_index)`
 
 ```llvm
@@ -394,7 +397,7 @@ When accessing `particles[lane].x` (`compile_shattered_field_ptr`):
 
 The native runtime provides a simple contiguous SoA buffer. See [Native C API](#native-c-api) below for full details.
 
----
+______________________________________________________________________
 
 ## SoA vs AoS — Layout Comparison
 
@@ -441,17 +444,19 @@ Memory: [x0,x1,x2,...,xN] [y0,y1,y2,...,yN] [vx0,vx1,...,vxN] [vy0,vy1,...,vyN] 
 ### The Compiler's Decision
 
 The compiler decides the exact SoA layout. Current implementation:
+
 - Each slot is `KAIN_MACHINE_SHATTER_SLOT_BYTES` = 8 bytes (`i64` width)
 - Fields smaller than 8 bytes use 1 slot
 - All lanes are the same length (`element_count`)
 - Layout: `lane0[0..N]`, `lane1[0..N]`, ..., `laneM[0..N]`
 
 The LLVM codegen chooses between **heap-backed** (runtime allocate) and **stack-backed** (alloca per lane) based on:
+
 - Whether the array is a local that never escapes field-projection or len-only use
 - If stack-safe (`expr_is_safe_stack_shatter_use` proves no escape), stack lane buffers are used
 - Otherwise, heap allocation via `kain_machine_shatter_alloc`
 
----
+______________________________________________________________________
 
 ## Heap vs Stack Allocation
 
@@ -469,6 +474,7 @@ The LLVM codegen makes an optimization decision when lowering shattered array li
 ```
 
 Used when:
+
 - The array escapes its scope
 - The array is passed to functions
 - The array is stored in a struct or returned
@@ -486,12 +492,14 @@ Used when:
 ```
 
 Used when:
+
 - The local variable is a stack-local array of shattered structs
 - Every use is a closed field-projection (`arr[lane].field`) or len() call
 - The `expr_is_safe_stack_shatter_use` analysis proves no escaping access
 - The scope is tracked in `stack_shatter_candidate_scopes`
 
 The safety analysis (`expr_is_safe_stack_shatter_use`) recursively checks:
+
 - Direct field projections: `arr[i].field` ✓
 - Assignments: `arr[i].field = value` ✓
 - Function calls with the array as argument: X (escapes)
@@ -513,7 +521,7 @@ if let Some(local) = self.shattered_array_locals.remove(var_name) {
 
 Stack-backed allocations don't need explicit free — they're alloca'd and cleaned up by the standard stack frame teardown.
 
----
+______________________________________________________________________
 
 ## Shatter + Teleport
 
@@ -543,10 +551,11 @@ pulse relay_clock every 4ms jitter 1ms:
 ```
 
 When a shattered struct is teleported:
+
 1. The entire struct value is serialized/lifted from the source world
-2. Transported via the named bus/channel
-3. Materialized in the target world
-4. The SoA layout is **preserved** in both source and target — the struct still uses `.field` syntax
+1. Transported via the named bus/channel
+1. Materialized in the target world
+1. The SoA layout is **preserved** in both source and target — the struct still uses `.field` syntax
 
 ### From the Semantic Singularity Benchmark
 
@@ -573,7 +582,7 @@ let teleports = runtime_machine_teleport_count()
 
 The `runtime_machine_teleport_count()` fuction tracks all teleports, including shattered struct transfers. The `fusion_pulse_actor_teleport` benchmark logs 512 teleport events across 8 shattered shards.
 
----
+______________________________________________________________________
 
 ## Shatter + Axiom
 
@@ -651,7 +660,7 @@ When any shattered struct is present in the program, the `memory.shatter` capabi
 
 This means: **if you declare `capability("memory.shatter")` in an axiom, the runtime contract will confirm shatter is available when your program uses it.**
 
----
+______________________________________________________________________
 
 ## Under-Utilized Ideas — Creative Semantic Abuse
 
@@ -785,7 +794,7 @@ resonate Settings.config dampen 16ms:
 
 **Under-explored:** Per-lane resonate triggers that fire only when a specific field lane changes.
 
----
+______________________________________________________________________
 
 ## Combining with Other Keywords
 
@@ -844,7 +853,7 @@ Changes to shattered struct fields in worlds trigger resonate handlers.
 
 Converge lanes can select different SoA-processing algorithms based on capabilities or data size.
 
----
+______________________________________________________________________
 
 ## Native C API
 
@@ -862,6 +871,7 @@ typedef struct KainMachineShatterBuffer {
 ```
 
 Layout in memory:
+
 ```
 data: [lane0_elem0] [lane0_elem1] ... [lane0_elemN]
       [lane1_elem0] [lane1_elem1] ... [lane1_elemN]
@@ -1045,7 +1055,7 @@ declare void @kain_machine_shatter_free(i8*)
 
 This is always present in the current runtime's capability mask — shatter is always supported on builds that include the machine stones runtime.
 
----
+______________________________________________________________________
 
 ## Z3 Proofs
 
@@ -1137,7 +1147,7 @@ The result is `UNSAT` — the fast path is as safe as the checked runtime path.
 
 The result is `UNSAT` — the shift-by-3 optimization is guaranteed equivalent to multiply-by-8 for any index within the SoA element domain.
 
----
+______________________________________________________________________
 
 ## Validation Ladder
 
@@ -1263,7 +1273,7 @@ fn main() -> Int:
     // ... hot loop with ownership (collapse/observe/decay) and raw memory
 ```
 
----
+______________________________________________________________________
 
 ## Source Anchors
 
@@ -1339,7 +1349,7 @@ fn main() -> Int:
 | `benchmark/cases/pulse_teleport_decay_mesh/main.kn` | `PulseShard` — teleport + pulse + ownership fusion |
 | `benchmark/cases_v2/keyword_crucible.kn` | `CrucibleShard` — exercises shatter among 108 keywords |
 
----
+______________________________________________________________________
 
 ## Anti-Patterns
 
@@ -1410,6 +1420,7 @@ fn compute(v: Vector..., count: Int):
 ```
 
 Shatter provides **SoA memory layout** — it does NOT emit SIMD instructions. The contiguous lane memory is SIMD-friendly, but you still need:
+
 - Auto-vectorization by the compiler backend (LLVM)
 - Explicit SIMD intrinsics (`std::machine` ISA helpers)
 - `converge` lanes with capability-gated SIMD paths
@@ -1470,7 +1481,7 @@ let raw = bitcast(particles, ptr<Particle>)
 
 Shatter buffer handles are opaque pointers to the `KainMachineShatterBuffer` C struct — not castable to the logical struct type. Always use `.field` access syntax and let the compiler lower it to lane-indexed loads.
 
----
+______________________________________________________________________
 
 ## Quick Reference
 

@@ -1,11 +1,11 @@
 // Example: Auto-Layout with kaintana_layout_vertical / kaintana_layout_horizontal
 //
 // Demonstrates the stateful layout cursor pattern — no manual index tracking.
-// Uses the builder API + layout cursor helpers together.
 
-use kaintana::*
+use layout::*
 use types::KaintanaContext
 use types::KaintanaRect
+use types::kaintana_rect
 use kaintana_ui::*
 
 pub fn kaintana_example_auto_layout(ctx: KaintanaContext, rect: KaintanaRect, body_font: Int, title_font: Int) -> KaintanaContext:

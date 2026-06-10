@@ -3,31 +3,31 @@
 **Status:** Research synthesis, 2026-06-08
 **Based on:** `crates/core/src/ast.rs`, `crates/core/src/parser.rs`, `crates/core/src/types.rs`, `crates/core/src/runtime_contract.rs`, `crates/core/src/realtime_app_bundle.rs`, `crates/core/src/runtime.rs`, `crates/sys-codegen/src/codegen_llvm/mod.rs`, `runtime/native/include/stdlib_abi.h`, `runtime/native/src/core/stdlib_abi.c`, `stdlib/intent.kn`, `smoketest/src/semantics/patch.kn`, `benchmark/cases_v2/fusion_chain.kn`, `benchmark/cases_v2/keyword_crucible.kn`, `benchmark/cases/pulse_teleport_decay_mesh/main.kn`, `crates/core/tests/compiler_owned_intent_test.rs`, `crates/entangle/src/lib.rs`, GLOSSARY.MD, RULEBOOK.MD, LAW.MD, ENTANGLE.MD
 
----
+______________________________________________________________________
 
 ## Table of Contents
 
 1. [What is Patch?](#what-is-patch)
-2. [The Core Idea — Journaled Transactional Mutation](#the-core-idea)
-3. [Syntax Reference](#syntax-reference)
-4. [How It Works — Full Pipeline](#how-it-works)
-5. [The Patch Patterns — How to Use It](#the-patch-patterns)
-6. [Patch + Law](#patch--law)
-7. [Journal and Undo Semantics](#journal-and-undo-semantics)
-8. [Undo Mode Inference](#undo-mode-inference)
-9. [Under-Utilized Ideas — Creative Semantic Abuse](#under-utilized-ideas)
-10. [Combining with Other Keywords](#combining-with-other-keywords)
-11. [Stdlib Telemetry API](#stdlib-telemetry-api)
-12. [Runtime Contract Metadata](#runtime-contract-metadata)
-13. [Native ABI Reference](#native-abi-reference)
-14. [LLVM Codegen](#llvm-codegen)
-15. [Z3 Proofs](#z3-proofs)
-16. [Validation Ladder](#validation-ladder)
-17. [Anti-Patterns](#anti-patterns)
-18. [Quick Reference](#quick-reference)
-19. [Source Anchors](#source-anchors)
+1. [The Core Idea — Journaled Transactional Mutation](#the-core-idea)
+1. [Syntax Reference](#syntax-reference)
+1. [How It Works — Full Pipeline](#how-it-works)
+1. [The Patch Patterns — How to Use It](#the-patch-patterns)
+1. [Patch + Law](#patch--law)
+1. [Journal and Undo Semantics](#journal-and-undo-semantics)
+1. [Undo Mode Inference](#undo-mode-inference)
+1. [Under-Utilized Ideas — Creative Semantic Abuse](#under-utilized-ideas)
+1. [Combining with Other Keywords](#combining-with-other-keywords)
+1. [Stdlib Telemetry API](#stdlib-telemetry-api)
+1. [Runtime Contract Metadata](#runtime-contract-metadata)
+1. [Native ABI Reference](#native-abi-reference)
+1. [LLVM Codegen](#llvm-codegen)
+1. [Z3 Proofs](#z3-proofs)
+1. [Validation Ladder](#validation-ladder)
+1. [Anti-Patterns](#anti-patterns)
+1. [Quick Reference](#quick-reference)
+1. [Source Anchors](#source-anchors)
 
----
+______________________________________________________________________
 
 ## What is Patch?
 
@@ -44,7 +44,7 @@ A `patch` is **not** a function with a fancy name. It is a **compiler-owned muta
 
 Where a normal `fn` is "here's a computation," a `patch` is "here's a unit of state change."
 
----
+______________________________________________________________________
 
 ## The Core Idea — Journaled Transactional Mutation
 
@@ -91,7 +91,7 @@ The RULEBOOK says: *"A `patch` is not 'a function that writes to a world.' It is
 | `fn` | "Plain computation" | **No journal** — a `fn` that mutates world state does so without journaling, undo, or telemetry |
 | `world` | "Global named state" | **Mutation target** — patches write to world fields, which are the only mutable storage for patches |
 
----
+______________________________________________________________________
 
 ## Syntax Reference
 
@@ -168,14 +168,14 @@ patch <name> ( <params> ) [ -> <return_type> ] : <block>
 The parser (`parse_patch()` at line ~1727 of `parser.rs`):
 
 1. Expects contextual keyword `patch`
-2. Parses the name via `parse_ident()`
-3. Expects `(`
-4. Parses params via `parse_params()`
-5. Expects `)`
-6. Checks for optional `->` — if present, parses the return type
-7. Expects `:`
-8. Parses the body block
-9. Returns `Item::Patch(PatchDef { name, params, return_type, body, visibility, attributes, span })`
+1. Parses the name via `parse_ident()`
+1. Expects `(`
+1. Parses params via `parse_params()`
+1. Expects `)`
+1. Checks for optional `->` — if present, parses the return type
+1. Expects `:`
+1. Parses the body block
+1. Returns `Item::Patch(PatchDef { name, params, return_type, body, visibility, attributes, span })`
 
 Key difference from `fn` parsing: the return type is optional. This is the same as `fn` but different from `law` (which requires `-> Bool`).
 
@@ -192,7 +192,7 @@ Key difference from `fn` parsing: the return type is optional. This is the same 
 | Attributes stable | ✅ Parser | Works |
 | Effects are tracked | ✅ Typechecker | Patch can declare IO, Async, GPU, Unsafe effects |
 
----
+______________________________________________________________________
 
 ## How It Works — Full Pipeline
 
@@ -226,10 +226,10 @@ Key difference from `fn` parsing: the return type is optional. This is the same 
 The typechecker (`types.rs: check_patch` at line ~5750) performs these steps:
 
 1. **Sets `env.in_patch = true`** — this gives the body access to world state that a normal `fn` body would not have
-2. **Creates a function view** via `patch_function_view(patch)` — wraps the `PatchDef` as a `Function` (with no generics, optional return type)
-3. **Calls `check_function`** — the same typechecker path used for `fn`, `law`, `converge`, and `orchestrate`
-4. **Collects mutation paths** — `collect_patch_mutation_paths_from_block()` walks every statement and expression in the body, finds all field assignments (`expr.field = value`), and records them as `"struct.field"` strings
-5. **Infers undo mode** — checks if any statement in the body contains runtime best-effort effects (see [Undo Mode Inference](#undo-mode-inference))
+1. **Creates a function view** via `patch_function_view(patch)` — wraps the `PatchDef` as a `Function` (with no generics, optional return type)
+1. **Calls `check_function`** — the same typechecker path used for `fn`, `law`, `converge`, and `orchestrate`
+1. **Collects mutation paths** — `collect_patch_mutation_paths_from_block()` walks every statement and expression in the body, finds all field assignments (`expr.field = value`), and records them as `"struct.field"` strings
+1. **Infers undo mode** — checks if any statement in the body contains runtime best-effort effects (see [Undo Mode Inference](#undo-mode-inference))
 
 ```rust
 fn check_patch(env: &mut TypeEnv, patch: &PatchDef) -> KainResult<TypedPatch> {
@@ -275,10 +275,10 @@ rf undone_patch_records: Vec<ReplayablePatchRecord> — undone records
 **Lifecycle of a patch call in the interpreter:**
 
 1. **`register_patch_value()`** — on program load, the patch is registered in the `patches` HashMap and defined as `Value::Patch(name)` in the environment
-2. **Call-time dispatch** — when the patch name is called as a function, the interpreter looks up `Value::Patch(name)`, retrieves the `PatchDef`, and interprets the body
-3. **`begin_active_patch()`** — before body execution, pushes an `ActivePatchFrame` with the patch name, undo mode, and an empty changes list
-4. **`record_patch_change()`** — during body execution, every world field write calls this, recording the path, target, old value, and new value
-5. **`finish_active_patch()`** — after body execution, pops the frame, sorts+deduplicates mutation paths, creates a `PatchRuntimeRecord` and a `ReplayablePatchRecord`, pushes them to their respective histories, clears the undone records stack, and records a collaboration event (`"patch.{name}.applied"`)
+1. **Call-time dispatch** — when the patch name is called as a function, the interpreter looks up `Value::Patch(name)`, retrieves the `PatchDef`, and interprets the body
+1. **`begin_active_patch()`** — before body execution, pushes an `ActivePatchFrame` with the patch name, undo mode, and an empty changes list
+1. **`record_patch_change()`** — during body execution, every world field write calls this, recording the path, target, old value, and new value
+1. **`finish_active_patch()`** — after body execution, pops the frame, sorts+deduplicates mutation paths, creates a `PatchRuntimeRecord` and a `ReplayablePatchRecord`, pushes them to their respective histories, clears the undone records stack, and records a collaboration event (`"patch.{name}.applied"`)
 
 ```rust
 fn begin_active_patch(&mut self, name: &str) {
@@ -299,8 +299,8 @@ fn begin_active_patch(&mut self, name: &str) {
 The LLVM codegen (`codegen_llvm/mod.rs: compile_patch` at line ~15378) wraps the patch function body with:
 
 1. **`current_patch_name` tracking** — stores the patch name so that field writes inside the body can emit `abi_patch_record_i64()` calls
-2. **`compile_named_callable()` delegation** — emits the standard LLVM function prologue, local allocation, expression lowering, and return
-3. **Journal instrumentation** — the codegen emits calls to:
+1. **`compile_named_callable()` delegation** — emits the standard LLVM function prologue, local allocation, expression lowering, and return
+1. **Journal instrumentation** — the codegen emits calls to:
    - `abi_patch_begin(patch_name)` at function entry
    - `abi_patch_record_i64(patch_name, path, old_value, new_value)` after every field write
    - `abi_patch_commit(patch_name)` at function exit (before return)
@@ -322,7 +322,7 @@ entry:
 }
 ```
 
----
+______________________________________________________________________
 
 ## The Patch Patterns — How to Use It
 
@@ -337,9 +337,10 @@ patch commit_signal(authority: Authority, value: Int) -> Int:
 ```
 
 This is the "hello world" of patches. Three things happen:
+
 1. `authority.signal` is assigned `value` (journaled)
-2. The patch returns the new signal value
-3. The journal records the old→new transition
+1. The patch returns the new signal value
+1. The journal records the old→new transition
 
 ### Pattern 2: Multi-Field Patch
 
@@ -367,6 +368,7 @@ patch commit_signal(authority: Authority, value: Int) -> Int:
 ```
 
 **Why epoch matters:**
+
 - Resonate handlers fire on field writes — if you write the same value to `signal` repeatedly, the resonate handler may not fire. An epoch bump guarantees a visible state change.
 - Entangle propagation records the propagation count — epoch bumps increment the counter.
 - Telemetry deltas (`patch_journal_count()`) prove the patch fired.
@@ -434,6 +436,7 @@ orchestrate crucible_signal_pipeline(value: Int, epoch: Int) -> Int:
 ```
 
 **Key details:**
+
 - `patch crucible_commit_ack(CrucibleAuthority)` — the stage kind is `patch`, and the call passes the world as argument
 - `deps [world_score, gpu_tune]` — patch stage depends on prior computation stages
 - `requires law_check` — the law stage must pass before the patch runs
@@ -467,7 +470,7 @@ commit_ack(authority)            // second patch — journals ack increment
 
 Each patch in the chain has its own journal entry. The total journal count is the sum of all patch invocations.
 
----
+______________________________________________________________________
 
 ## Patch + Law
 
@@ -537,7 +540,7 @@ law check_and_reset(authority: Authority) -> Bool:   // conceptually impure
 
 This is allowed by the typechecker but violates the convention that laws should be pure. The compiler does not enforce purity for laws (effect permissions are tracked but not restricted).
 
----
+______________________________________________________________________
 
 ## Journal and Undo Semantics
 
@@ -564,6 +567,7 @@ static char g_kain_native_active_patch[128] = "";
 ```
 
 **Key characteristics:**
+
 - Maximum 256 entries (Z3-proven capacity)
 - Flat array, not a ring buffer — once full, `abi_patch_record_i64()` returns `-3`
 - Entries are never removed — `undo` only marks entries as `undone = 1`
@@ -578,6 +582,7 @@ begin → record* → commit
 **1. `abi_patch_begin(patch_name)`** — copies the patch name into the global active-patch slot. Returns 0.
 
 **2. `abi_patch_record_i64(patch_name, path, old_value, new_value)`** — creates a journal entry:
+
 - Checks `g_kain_native_patch_journal_count < ABI_PATCH_JOURNAL_MAX` → returns `-3` if full
 - Selects the entry at `g_kain_native_patch_journal[g_kain_native_patch_journal_count]`
 - Copies patch_name, path, old_value, new_value
@@ -586,6 +591,7 @@ begin → record* → commit
 - Returns 0
 
 **3. `abi_patch_commit(patch_name)`** — marks all uncommitted entries for this patch name as committed:
+
 - Iterates through the journal
 - Sets `committed = 1` for matching `active && !committed` entries
 - Clears the active-patch slot
@@ -594,6 +600,7 @@ begin → record* → commit
 ### Undo
 
 **`abi_patch_undo_last()`** — finds the most recent committed entry that is not yet undone:
+
 - Scans the journal backward from the end
 - Returns the `old_value` of the first matching entry and sets `undone = 1`
 - Returns 0 if no undoable entry exists
@@ -619,6 +626,7 @@ fn revert_last(authority: Authority) -> Int:
 ### Journal Capacity and Telemetry
 
 The journal has a hard limit of 256 entries. When the journal is full:
+
 - New `abi_patch_record_i64()` calls return `-3`
 - `patch_journal_count()` still reports 256 (or whatever the current count is)
 - Telemetry delta guards must account for this: `if patch_delta < 1 and patch_before < 256: return -13`
@@ -634,7 +642,7 @@ if patch_delta < 1 and patch_before < 256:
     return -13    // error: patch never fired
 ```
 
----
+______________________________________________________________________
 
 ## Undo Mode Inference
 
@@ -716,7 +724,7 @@ fn runtime_contract_marks_calling_patches_as_best_effort() {
 }
 ```
 
----
+______________________________________________________________________
 
 ## Under-Utilized Ideas — Creative Semantic Abuse
 
@@ -737,9 +745,10 @@ fn audit_state(authority: Authority) -> Int:
 ### 2. Patch as Time-Travel Debugger
 
 Because patches record old→new transitions, you can build a time-travel debugger that:
+
 1. Captures the journal state at snapshot points
-2. Replays patches by calling them again
-3. Uses `abi_patch_undo_last()` to step backward through mutations
+1. Replays patches by calling them again
+1. Uses `abi_patch_undo_last()` to step backward through mutations
 
 ```kn
 fn snapshot_journal() -> Int:
@@ -814,7 +823,7 @@ fn prove_patches_fired(expected: Int) -> Int:
 
 This is the standard pattern in all fusion chain benchmarks — every patch-dependent test guards its correctness with `patch_journal_count()` deltas.
 
----
+______________________________________________________________________
 
 ## Combining with Other Keywords
 
@@ -951,7 +960,7 @@ patch commit_shard(authority: Authority, shard: PulseShard) -> Int:
     return authority.signal
 ```
 
----
+______________________________________________________________________
 
 ## Stdlib Telemetry API
 
@@ -1019,6 +1028,7 @@ if patch_delta < 1 and patch_before < 256:
 ```
 
 Error codes from the fusion chain:
+
 - `-10` = resonate never fired
 - `-11` = entangle never propagated
 - `-12` = teleport never happened
@@ -1031,7 +1041,7 @@ There is **no `abi_patch_begin()` or `abi_patch_commit()`** in the stdlib surfac
 
 There is **no `abi_patch_undo_last()`** in the stdlib surface either. Undo is available only through the native ABI (`extern fn abi_patch_undo_last()`) if you declare it manually — but there's no standard wrapper for it in `std::intent`.
 
----
+______________________________________________________________________
 
 ## Runtime Contract Metadata
 
@@ -1105,7 +1115,7 @@ assert!(bundle.required_capabilities.iter()
     .any(|capability| capability.key == "reactivity.shadow-patch"));
 ```
 
----
+______________________________________________________________________
 
 ## Native ABI Reference
 
@@ -1148,15 +1158,18 @@ static char g_kain_native_active_patch[128] = "";
 ### Function Semantics
 
 #### `abi_patch_begin`
+
 ```c
 int64_t abi_patch_begin(const char* patch_name) {
     abi_copy_text(g_kain_native_active_patch, sizeof(g_kain_native_active_patch), patch_name);
     return 0;
 }
 ```
+
 Copies the patch name into the global active-patch slot. Always returns 0.
 
 #### `abi_patch_record_i64`
+
 ```c
 int64_t abi_patch_record_i64(const char* patch_name, const char* path,
                                int64_t old_value, int64_t new_value) {
@@ -1178,9 +1191,11 @@ int64_t abi_patch_record_i64(const char* patch_name, const char* path,
     return 0;
 }
 ```
+
 Creates a new journal entry. Returns `-3` if the journal is full (≥256 entries).
 
 #### `abi_patch_commit`
+
 ```c
 int64_t abi_patch_commit(const char* patch_name) {
     int64_t committed = 0;
@@ -1197,9 +1212,11 @@ int64_t abi_patch_commit(const char* patch_name) {
     return committed;
 }
 ```
+
 Marks all matching uncommitted entries as committed. Clears the active-patch slot. Returns the number of entries committed.
 
 #### `abi_patch_undo_last`
+
 ```c
 int64_t abi_patch_undo_last(void) {
     int64_t index;
@@ -1213,17 +1230,21 @@ int64_t abi_patch_undo_last(void) {
     return 0;
 }
 ```
+
 Finds the most recent committed+un-undone entry, marks it undone, and returns its old_value. Returns 0 if no entry found.
 
 #### `abi_patch_journal_count`
+
 ```c
 int64_t abi_patch_journal_count(void) {
     return g_kain_native_patch_journal_count;
 }
 ```
+
 Returns the total number of journal entries recorded (monotonic counter).
 
 #### `abi_patch_last_path`
+
 ```c
 const char* abi_patch_last_path(void) {
     if (g_kain_native_patch_journal_count <= 0) {
@@ -1232,9 +1253,10 @@ const char* abi_patch_last_path(void) {
     return string_new(g_kain_native_patch_journal[g_kain_native_patch_journal_count - 1].path);
 }
 ```
+
 Returns the mutation path of the last journal entry. Returns empty string if journal is empty.
 
----
+______________________________________________________________________
 
 ## LLVM Codegen
 
@@ -1284,7 +1306,7 @@ When `current_patch_name` is `None` (outside a patch), field writes emit only th
 
 Unlike `pulse` (which emits a fire wrapper and a snapshot function) and `resonate` (which emits a handler symbol with synthesized params), **patch emits exactly one function** — the patch body itself, with inline journal instrumentation. There is no separate "begin" or "commit" function. The begin/record/commit calls are embedded directly in the patch's LLVM IR.
 
----
+______________________________________________________________________
 
 ## Z3 Proofs
 
@@ -1299,6 +1321,7 @@ Two Z3 proofs exist for the native patch journal, both in `runtime/native/src/co
 **What it proves:** When `abi_patch_record_i64()` records a new journal entry, the journal capacity guard ensures that the count stays at or below `ABI_PATCH_JOURNAL_MAX = 256`.
 
 **Z3 encoding:**
+
 ```
 journal_count >= 0
 journal_count < 256
@@ -1318,6 +1341,7 @@ journal_count < 256
 **What it proves:** The patch journal has a known concurrent-safety issue. Two threads calling `abi_patch_record_i64()` concurrently can read the same `g_kain_native_patch_journal_count` before either increments it, causing both records to claim the same slot. The second write overwrites the first. The journal count advances by 1 instead of 2.
 
 **Z3 encoding (SMT-LIB v2):**
+
 ```
 initial_count >= 0
 initial_count < 255
@@ -1339,7 +1363,7 @@ next_b = read_b + 1
 
 **Tags:** `native-runtime`, `stdlib`, `patch`, `journal`, `race`, `lost-update`
 
----
+______________________________________________________________________
 
 ## Validation Ladder
 
@@ -1426,9 +1450,10 @@ pub fn smoke_patch_lane() -> Int:
 ```
 
 Key assertions from the smoketest:
+
 1. `patch_journal_count() < 1` → return 2 (patch didn't journal)
-2. `entangle_propagation_count() < 1` → return 3 (entangle didn't propagate from the patch write)
-3. Cross-file law validation and checksum computation work
+1. `entangle_propagation_count() < 1` → return 3 (entangle didn't propagate from the patch write)
+1. Cross-file law validation and checksum computation work
 
 ### Test Suite
 
@@ -1451,7 +1476,7 @@ fn runtime_executes_patch_converge_law_and_orchestrate_and_records_patch_transac
 }
 ```
 
----
+______________________________________________________________________
 
 ## Anti-Patterns
 
@@ -1626,7 +1651,7 @@ patch set_position(authority: Authority, x: Int, y: Int) -> Int:
 
 A single patch with multiple field writes is one journaled transaction. Two separate patches are two independent journal entries — if the first succeeds and the second fails, the world is in an inconsistent state.
 
----
+______________________________________________________________________
 
 ## Quick Reference
 
@@ -1659,7 +1684,7 @@ A single patch with multiple field writes is one journaled transaction. Two sepa
 | **Apex example** | `benchmark/cases/pulse_teleport_decay_mesh/main.kn` — `commit_pulse` called 54000 times in hot loop |
 | **Best-effort test** | `crates/core/tests/compiler_owned_intent_test.rs` — `best_effort_patch_source()` |
 
----
+______________________________________________________________________
 
 ## Source Anchors
 

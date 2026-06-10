@@ -1,9 +1,9 @@
 # C Interop — Usage Guide
 
-> **File**: `docs/C_GUIDE.MD`  
+> **File**: `docs/C_GUIDE.MD`
 > **Read `C.MD` first for the full architecture.** This guide is purely about **writing fast C-interop Kain**.
 
----
+______________________________________________________________________
 
 ## The One Rule
 
@@ -13,7 +13,7 @@ Every C bridge crossing costs *something* — thunk setup, pointer marshaling, A
 
 This guide teaches you how to **cross fewer times, cross faster when you do, and eliminate crossing entirely for hot paths.**
 
----
+______________________________________________________________________
 
 ## Performance Ladder
 
@@ -42,7 +42,7 @@ This guide teaches you how to **cross fewer times, cross faster when you do, and
                   └─────────────────────────────────────────────────────┘
 ```
 
----
+______________________________________________________________________
 
 ## Strategy 1 — Eliminate the Bridge Entirely
 
@@ -119,7 +119,7 @@ fn system_header_math_wave_checksum(iterations: Int, modulus: Int) -> Int:
 
 This calls 4 C functions per iteration (120,000 iterations = 480,000 C calls in the benchmark). The system header registry auto-resolves linker dependencies — `<math.h>` links `-lm` on Linux, auto-resolves to the toolchain default CRT on Windows.
 
----
+______________________________________________________________________
 
 ## Strategy 2 — The Minimal Include
 
@@ -167,10 +167,11 @@ int math_mul(int a, int b) {
 ### 2.2 How Companion Discovery Works
 
 The compiler sees `include native/math.h as m`, resolves `native/math.h` relative to the source file, discovers `native/math.c` as a sibling, and automatically:
+
 1. Parses `math.h` via libclang (or lang_c AST, or regex fallback)
-2. Generates an alias extern surface with `m_` prefix (e.g. `m_add`, `m_mul`)
-3. Compiles `math.c` as a translation unit into the native link
-4. Binds the real C symbols via `@link_name` on the alias thunks
+1. Generates an alias extern surface with `m_` prefix (e.g. `m_add`, `m_mul`)
+1. Compiles `math.c` as a translation unit into the native link
+1. Binds the real C symbols via `@link_name` on the alias thunks
 
 **This is the canonical shape for local C wrappers.** Zero manifest, zero ceremony.
 
@@ -237,7 +238,7 @@ my_blade/
 
 The compiler discovers the `.c` by taking the header path, replacing `.h` with `.c`, and checking if the file exists. You can override this with `[c_ffi]` metadata for complex cases, but for the common case it Just Works.
 
----
+______________________________________________________________________
 
 ## Strategy 3 — System Headers
 
@@ -269,8 +270,9 @@ fn probe_math():
 ```
 
 The registry resolves `<math.h>` through the `c-runtime-math` family, which:
+
 - On **Windows**: auto-links through the toolchain CRT default
-- On **Linux**: appends `-lm`  
+- On **Linux**: appends `-lm`
 - On **macOS**: appends `-System`
 
 ### 3.3 `<windows.h>` — 6,294 Win32 Functions in One Line
@@ -324,6 +326,7 @@ fn vulkan_probe() -> Int:
 ```
 
 The registry resolves `<vulkan/vulkan.h>` through the `vulkan` family:
+
 - Locates the Vulkan SDK via `VULKAN_SDK`, `KAIN_PLATFORM_VULKAN_SDK`, or standard install paths
 - Links against `vulkan-1.lib` (Windows), `-lvulkan` (Linux), or `MoltenVK` (macOS)
 - All 755 callable Vulkan functions extracted with **zero unsupported entries**
@@ -339,7 +342,7 @@ include <sys/mman.h> as posix       // POSIX mmap (Linux/macOS)
 include <pthread.h> as pthread      // POSIX threads (Linux/macOS)
 ```
 
----
+______________________________________________________________________
 
 ## Strategy 4 — Large C Libraries (SQLite Pattern)
 
@@ -375,11 +378,12 @@ sqlite/
 ```
 
 The compiler:
+
 1. Sees `include sqlite3.h as sql`
-2. Discovers `sqlite3.c` as sibling
-3. Parses `sqlite3.h` via libclang (full preprocessing, macro expansion)
-4. Compiles `sqlite3.c` into the native link
-5. Exposes a `sql_`-prefixed extern surface
+1. Discovers `sqlite3.c` as sibling
+1. Parses `sqlite3.h` via libclang (full preprocessing, macro expansion)
+1. Compiles `sqlite3.c` into the native link
+1. Exposes a `sql_`-prefixed extern surface
 
 ### 4.3 Wrapping the C Surface in Kain Facades
 
@@ -416,7 +420,7 @@ For functions that return `const char*` strings, the alias extern surface carrie
 
 For functions that need custom setup (e.g. `sqlite3_open` with a `sqlite3**`), write a small C wrapper in a companion `.c` that does the pointer dance, and call the wrapper from Kain. This keeps the Kain side safe.
 
----
+______________________________________________________________________
 
 ## Strategy 5 — The Kain Facade Pattern
 
@@ -463,6 +467,7 @@ pub fn presenter_present_rgba_words(
 ```
 
 **Rules:**
+
 - The Kain facade name should be different from the raw C symbol. Don't name your wrapper `ff_open_media` if the C function is `ff_open_media` — doing so can make the alias thunk call the Kain wrapper instead of the extern and recurse until the native lane crashes.
 - One native package = one Kain capability module.
 - Only the facade module imports the C header. The rest of the app imports the Kain module.
@@ -486,7 +491,7 @@ let version = sql_libversion()
 let full_msg = "SQLite version: " + version   // safe — owned copy
 ```
 
----
+______________________________________________________________________
 
 ## Strategy 6 — Multi-Library Bridges (FFmpeg + Presenter Pattern)
 
@@ -579,7 +584,7 @@ include <libavcodec/avcodec.h> as avc            // system FFmpeg header
 
 Both get the same alias treatment — just with different resolution paths.
 
----
+______________________________________________________________________
 
 ## Strategy 7 — Inline Assembly
 
@@ -656,7 +661,7 @@ asm("<instruction>",
 - **intel = true**: Intel syntax (default). Set to false for AT&T syntax
 - **return value**: `asm()` can optionally return a value: `let ticks = asm("rdtsc", ...)`
 
----
+______________________________________________________________________
 
 ## Strategy 8 — Manual Memory Management
 
@@ -743,7 +748,7 @@ while my_IsWindow(hwnd) != 0:
 decay msg_buf
 ```
 
----
+______________________________________________________________________
 
 ## Strategy 9 — @extern @link_name for Single Functions
 
@@ -765,6 +770,7 @@ fn peek_message(lpMsg: ptr<Int>, hWnd: Int,
 ```
 
 This is useful for:
+
 - Prototyping before switching to `include <header.h>`
 - Single-function dependencies where the full header is overkill
 - Functions with complex signatures that need custom parameters
@@ -779,7 +785,7 @@ This is useful for:
 | System headers with auto-link | `include <math.h> as cmath` |
 | Complex bridge with static libs | `include` + `[c_ffi]` metadata |
 
----
+______________________________________________________________________
 
 ## Strategy 10 — Handle Lifecycle
 
@@ -824,12 +830,13 @@ pub fn ffmpeg_last_error() -> String:
 ```
 
 **Rules:**
+
 - Prefer `open/create` plus `close/destroy` pairs over hidden global state
 - Name handles as handles in Kain (`media`, `decoder`, `db`)
 - A stale handle should be rejected by the native side
 - Wrap the status check in Kain: `if handle <= 0: return -1`
 
----
+______________________________________________________________________
 
 ## Strategy 11 — The Full Win32 GDI App Pattern
 
@@ -886,7 +893,7 @@ while my_IsWindow(hwnd) != 0:
 decay msg_buf
 ```
 
-### 11.3 GDI Drawing (All Through include <windows.h> as win)
+### 11.3 GDI Drawing (All Through include \<windows.h> as win)
 
 ```kain
 fn fill_rect(hdc: Int, x: Int, y: Int, w: Int, h: Int, color: Int) -> Int with Unsafe:
@@ -909,7 +916,7 @@ fn draw_text(hdc: Int, x: Int, y: Int, text: String, color: Int) -> Int with Uns
 
 This proves that a full Win32 application (window, GDI painting, message loop, user input, sphere rendering) can be written in Kain with **zero `use c::`, zero manual externs, zero manifest ceremony** — just `include <windows.h> as win`.
 
----
+______________________________________________________________________
 
 ## Strategy 12 — Platform Packages
 
@@ -951,7 +958,7 @@ fn library_symbol_probe(path: String, symbol: String) -> Int:
     return 0
 ```
 
----
+______________________________________________________________________
 
 ## Strategy 13 — Converge + C: Native as a Fast Lane
 
@@ -1002,7 +1009,7 @@ orchestrate preflight(seed: Int, signal: Int) -> Int:
     return final_lane
 ```
 
----
+______________________________________________________________________
 
 ## Anti-Patterns
 
@@ -1073,6 +1080,7 @@ let result = 3 + 4
 ### ❌ Returning Raw Pointers Without Length, Ownership, and Destroy Policy
 
 If a C function returns a pointer, you need to know:
+
 - How many elements? (length)
 - Who owns the memory? (Kain or C?)
 - How is it freed? (which destroy function?)
@@ -1092,7 +1100,7 @@ pub fn ffmpeg_open_media(path: String) -> Int:
     return ff_open_media(path)
 ```
 
----
+______________________________________________________________________
 
 ## Quick Reference Card
 
@@ -1185,7 +1193,7 @@ lldb ./blades/c/platform/windows/src/main.exe
 # Now you're stopped at `let result = win_MessageBoxA(...)` — inspect registers, step in.
 ```
 
----
+______________________________________________________________________
 
 ## Appendix: Extraction Priority Chain
 
@@ -1220,6 +1228,6 @@ When Kain encounters `include <header.h> as alias` or `include "path/to/header.h
 - **Tagged-int leakage** for `void*`/handle params — 0 encodes as 1 in some codegen paths. Use `uintptr_t` in shim headers as a workaround if needed.
 - **Struct initialization** — no `&` address-of. Use `alloc_zeroed` + `mem_store`.
 
----
+______________________________________________________________________
 
 *This guide was written by analyzing: 7 blades at `blades/c/`, 5 blades at `blades/kain/`, 2 benchmark files at `benchmark/cases_v2/` (system_headers, vulkan_loader), `smoketest/src/interop/sqlite_rally.kn`, the complete C-FFI crate (`crates/c-ffi/`), the system header registry (`crates/c-ffi/system_headers.toml`), and the C ABI skill documentation. Every example is backed by real, checkable Kain code from the repository.*

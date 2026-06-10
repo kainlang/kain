@@ -54,7 +54,8 @@ build:maxperf --loading_phase_threads=HOST_CPUS
 build:maxperf --local_resources=cpu=HOST_CPUS
 build:maxperf --local_resources=memory=HOST_RAM
 
-build:dev --compilation_mode=dbg
+build:dev --compilation_mode=opt
+build:debug --compilation_mode=dbg
 build:release --compilation_mode=opt
 build:speed --compilation_mode=opt
 build:speed --@rules_rust//rust/settings:extra_rustc_flags=-Clto=thin,-Ccodegen-units=1,-Cembed-bitcode=yes

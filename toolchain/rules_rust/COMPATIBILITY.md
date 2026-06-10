@@ -87,9 +87,9 @@ meaning the behavior of the flag cannot change in a backwards incompatible way.
 Experimental and incompatible flags should be added to `settings.bzl` files based on the scope
 of the change.
 
-| scope         | file to update                  |
+| scope | file to update |
 | ------------- | ------------------------------- |
-| `//rust/...`  | `//rust/settings:settings.bzl`  |
+| `//rust/...` | `//rust/settings:settings.bzl` |
 | `//cargo/...` | `//cargo/settings:settings.bzl` |
 
 Bug fixes are not a breaking change by default. We'll use Common Sense (and we
@@ -101,16 +101,16 @@ follow cargo's behavior are considered bug fixes.
 ## How to make a backwards incompatible change?
 
 1. Create a GitHub issue (example:
-[Split rust_library into smaller rules#591](https://github.com/bazelbuild/rules_rust/issues/591)).
-2. Describe the change, motivation for the change, provide migration
-instructions/tooling.
-3. Add a build setting into `//rust:incompatible.bzl` that removes the old
-behavior (whenever possible) or changes the current behavior (when just
-removing the old behavior is not possible). Ideally, users should not need to
-manually flip incompatible flags.
-4. Mention the link to the GitHub issue in error messages. Do not add a
-deprecation warning (warnings make the deprecation visible to every user
-building a project, not only to the maintainers of the project or the rules).
-5. Mention the issue in the `CHANGELOG` file.
-6. Give the community 3 months from the first release mentioning the issue until
-the flag flip to migrate.
+   [Split rust_library into smaller rules#591](https://github.com/bazelbuild/rules_rust/issues/591)).
+1. Describe the change, motivation for the change, provide migration
+   instructions/tooling.
+1. Add a build setting into `//rust:incompatible.bzl` that removes the old
+   behavior (whenever possible) or changes the current behavior (when just
+   removing the old behavior is not possible). Ideally, users should not need to
+   manually flip incompatible flags.
+1. Mention the link to the GitHub issue in error messages. Do not add a
+   deprecation warning (warnings make the deprecation visible to every user
+   building a project, not only to the maintainers of the project or the rules).
+1. Mention the issue in the `CHANGELOG` file.
+1. Give the community 3 months from the first release mentioning the issue until
+   the flag flip to migrate.

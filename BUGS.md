@@ -1,6 +1,7 @@
 # Kain Bug Log
 
 ## 2026-06-05 - core/typechecker-trait-generic-exponential
+
 ### Typechecker hangs (exponential blowup) on files with many dual-trait-bounded generics × many trait implementations
 
 - Categories: core, typechecker, traits, generics, performance
@@ -27,6 +28,7 @@
   - Consider caching or memoizing trait resolution results during generic function analysis.
 
 ## 2026-06-05 - llvm/codegen-module-prefix
+
 ### Referencing imported module functions with namespace prefix (e.g. `module.function(...)`) in LLVM/AOT codegen fails with 'Undefined variable: module'
 
 - Categories: llvm, lowering, codegen, modules
@@ -44,6 +46,7 @@
   - Codegen failed in `blades/lsp` for `mcp_host.mcp_run()` and `lsp.lsp_run()` inside `src/main.kn` with `Undefined variable: mcp_host` on 2026-06-05.
 
 ## 2026-06-07 - sys-codegen/llvm-duplicate-reply-to-addr
+
 ### LLVM IR has duplicate `%reply_to.addr = alloca %KainReplyPort` in actor handlers
 
 - Categories: sys-codegen, llvm, codegen, actors
@@ -75,6 +78,7 @@
   - Fix the LLVM IR codegen handler for `Expr::Field` representing module namespace member lookup so it resolves the module namespace reference correctly instead of treating the prefix as a variable identifier.
 
 ## 2026-06-04 - std::kain/interpreter-option
+
 ### `std::kain` workspace/document handles cannot be consumed ergonomically in authored Kain runtime flows
 
 - Categories: stdlib, service-api, interpreter, option, tooling
@@ -99,6 +103,7 @@
   - Audit generic method resolution and runtime dispatch for `Option<T>` where `T` is a user-defined/public struct returned from stdlib bridge code.
 
 ## 2026-06-04 - std::kain/llvm-struct-arrays
+
 ### `std::kain::semantic_tokens()` trips LLVM lowering when bridge wrappers push struct values into arrays
 
 - Categories: llvm, sys-codegen, stdlib, service-api, arrays
@@ -121,6 +126,7 @@
   - Audit array lowering for user-defined/nested struct element types in `crates/sys-codegen`, especially the value representation expected by `array_push`.
 
 ## 2026-06-03 - cli/run-cache
+
 ### `kain run --target llvm` can reuse stale executables after imported module edits
 
 - Categories: cli, run-cache, llvm, modules, developer-experience
@@ -148,6 +154,7 @@
   - Emit the cache hit/miss and source fingerprint in the run report so stale executable suspicions are easy to confirm.
 
 ## 2026-06-03 - llvm/value-semantics
+
 ### `let copy: Self = _self` inside a struct method can corrupt returned values in native LLVM runs
 
 - Categories: llvm, lowering, value-semantics, methods, smoketest
@@ -161,7 +168,7 @@
     - `struct KeywordMeshRecord { id: Int, payload: Int, tag: String }`
     - `fn clone_self(_self: Self_) -> Self: let copy: Self = _self; return copy`
     - then checking `clone.id == 1`
-    returns failure immediately in the native executable path.
+      returns failure immediately in the native executable path.
   - In smoketest, this surfaced as `semantics.keyword_mesh` failing with status `4` because the copied record no longer produced the expected summary string.
 - Why this is a bug: a by-value `Self` roundtrip inside an authored method should preserve all fields; corrupting the returned struct breaks basic value semantics and makes ordinary helper methods unsafe to trust in LLVM lanes.
 - Minimal repro:
@@ -186,6 +193,7 @@
   - Keep paired direct sys-codegen and driver/CLI monomorphization regressions for future impl-method changes; the driver path can expose stale `Self` / `Self_` annotations even when direct lowering looks correct.
 
 ## 2026-06-03 - typechecker/module-scope
+
 ### Imported authored packs leak top-level globals hard enough to collide on `main` and duplicate extern ownership
 
 - Categories: typechecker, modules, authoring, benchmark
@@ -210,6 +218,7 @@
   - Tighten module scoping so imported top-level functions/externs remain module-qualified unless explicitly exported into a shared global namespace.
 
 ## 2026-06-02 - benchmark/cases_v2/gpu
+
 ### Filtered v2 benchmark runs still compile/link unrelated packs before filtering
 
 - Categories: benchmark, gpu, v2-router, link-policy, developer-experience
@@ -231,9 +240,10 @@
   - Make v2 pack selection lazy enough to avoid importing unrelated packs during filtered runs, or split root executables per pack family.
   - Fix Vulkan link propagation so natural Vulkan loader imports automatically pass `vulkan-1` into the LLVM native link step.
 
----
+______________________________________________________________________
 
 ## 2026-06-02 - sys-codegen/llvm
+
 ### Generic aggregate names from GPU-facing stdlib imports can emit invalid LLVM type names
 
 - Categories: llvm, codegen, gpu, stdlib, developer-experience
@@ -253,9 +263,10 @@
 - Suggested direction:
   - Add a backend regression test for generic struct names with punctuation so `kain check`/LLVM lowering cannot drift apart again.
 
----
+______________________________________________________________________
 
 ## 2026-06-01 - cli/build-tests
+
 ### CLI unit-test targets fail even though the production launcher builds
 
 - Categories: build-system, cli, tests, bazel, cargo
@@ -279,9 +290,10 @@
   - Repair the generated Bazel CLI unit-test dependency graph or split a smaller launcher-only test target.
   - Remove or replace the stale `include_str!` fixture path and update selfhost test AST initializers with `where_clause`.
 
----
+______________________________________________________________________
 
 ## 2026-06-01 - stdlib/python-runtime
+
 ### Python async future close can hang when the callback worker never settles
 
 - Categories: runtime, stdlib, python, async, smoketest
@@ -303,9 +315,10 @@
 - Suggested direction:
   - Make Python future close/cancel idempotent and bounded, expose settlement/error state clearly, and add a focused runtime-backed stdlib test that proves pending callback cleanup cannot hang the caller.
 
----
+______________________________________________________________________
 
 ## 2026-05-30 - sys-codegen/llvm
+
 ### Small authored Kain helper shapes can pass check but emit invalid LLVM PHI IR
 
 - Categories: llvm, lowering, typechecker, developer-experience
@@ -326,9 +339,10 @@
   - Rewrite inline scalar `if` expressions as explicit `var` assignments.
   - Avoid accumulating `Array<String>` tokens in tiny helpers; use `text_tokenize_whitespace` and direct streaming metadata scoring.
 
----
+______________________________________________________________________
 
 ## 2026-05-29 - c-ffi/include-lane
+
 ### Natural `include ... as ...` C bridge can emit duplicate LLVM declarations at link time
 
 - Categories: importer, c-ffi, llvm, codegen
@@ -346,9 +360,10 @@
 - Current workaround:
   - Use explicit `use c::...` with `[c_ffi] tier = "dynamic"` and a bridge dll+import-lib pair (`scratch/kdoom/interop/main_usec.kn` + `kdoom_bridge.dll/.lib`), which runs successfully.
 
----
+______________________________________________________________________
 
 ## 2026-05-29 - import/c-ffi
+
 ### Duplicate declaration inflation from `kain import-c` causes immediate type collisions on large legacy C trees
 
 - Categories: importer, c-ffi, parser, type-system
@@ -368,7 +383,8 @@
   - Add importer-side declaration coalescing keyed by ABI-equivalent type/function signatures before emitting `.kn`.
   - Preserve module ownership while avoiding global symbol collisions (auto-prefixing or namespaced lowering for repeated external C tags/functions).
 
----
+______________________________________________________________________
+
 ## 2026-05-24 - runtime/stdlib_abi — patch journal audit (tool-z3-bug-hunter)
 
 ### Concurrent Slot Overwrite and Lost Update in Native Patch Journal
@@ -382,10 +398,10 @@
 - Why this is a bug: `abi_patch_record_i64` selects `g_kain_native_patch_journal[g_kain_native_patch_journal_count]` and increments `g_kain_native_patch_journal_count` without any writer serialization, so the slot claim and count publish are not atomic as a unit.
 - Minimal repro: Two host threads concurrently call any patch-recording surface that reaches `abi_patch_record_i64`; the same risk applies to future Kain-side patch/test/proof flows that dogfood the patch journal concurrently.
 - Evidence: The Z3 witness admits `initial_count = 0`, `read_a = 0`, `read_b = 0`, shared `slot_a = slot_b = 0`, and `final_count = 1`, which violates the expected two-success contract of distinct slots plus `initial_count + 2`.
-- Z3 Proof: [native-stdlib-patch-journal-concurrent-slot-overwrite.yaml](file:///D:/Kain-Lang/runtime/native/src/core/z3/proofs/native-stdlib-patch-journal-concurrent-slot-overwrite.yaml)
+- Z3 Proof: \[native-stdlib-patch-journal-concurrent-slot-overwrite.yaml\](file:///D:/Kain-Lang/runtime/native/src/core/z3/proofs/native-stdlib-patch-journal-concurrent-slot-overwrite.yaml)
 - Suggested direction: Reuse the service-registry commit gate pattern or add a dedicated patch-journal mutation lock so slot selection, entry population, and count publication happen in one serialized commit step.
 
----
+______________________________________________________________________
 
 ## 2026-05-22 - runtime/memory — atomic ordering audit (tool-z3-bug-hunter)
 
@@ -404,7 +420,7 @@
 - Fix landed: The runtime now normalizes invalid failure-order shapes, clamps any stronger-than-success failure ordering before the C11 primitive executes, and emits warning-once diagnostics when it had to repair the request. LLVM lowering now rejects invalid failure orderings up front, and the parser preserves explicit failure orderings so the lowering validation is not silently masked.
 - Regression evidence: [native-memory-cas-failure-order-clamp-prevents-ub.yaml](/D:/Kain-Lang/runtime/native/src/core/z3/proofs/native-memory-cas-failure-order-clamp-prevents-ub.yaml), [memory-atomic-compare-exchange-validation-rejects-invalid-failure-orderings.yaml](/D:/Kain-Lang/crates/sys-codegen/z3/proofs/memory-atomic-compare-exchange-validation-rejects-invalid-failure-orderings.yaml), `cargo test -p kain-core compare_exchange_ -- --nocapture`, `cargo test -p kain-sys-codegen rejects_ -- --nocapture`, `bazel test //runtime:native_test_atomic_memory_ordering`
 
----
+______________________________________________________________________
 
 ### Silent ACQUIRE→RELEASE Remap in Atomic Store With No Diagnostic
 
@@ -421,7 +437,7 @@
 - Fix landed: The runtime now emits a warning once before canonicalizing invalid plain-store orderings to release semantics, and LLVM lowering rejects acquire/acq_rel orderings for plain stores instead of silently remapping them.
 - Regression evidence: [memory-atomic-store-validation-rejects-acquire-and-acqrel.yaml](/D:/Kain-Lang/crates/sys-codegen/z3/proofs/memory-atomic-store-validation-rejects-acquire-and-acqrel.yaml), `cargo test -p kain-sys-codegen rejects_ -- --nocapture`, `bazel test //runtime:native_test_atomic_memory_ordering`
 
----
+______________________________________________________________________
 
 ## 2026-05-22 - runtime/ownership — write-ordering audit (tool-z3-bug-hunter)
 
@@ -441,7 +457,9 @@
 - Regression evidence: [native-ownership-clear-slot-clears-occupied-before-decayed.yaml](/D:/Kain-Lang/runtime/native/src/core/z3/proofs/native-ownership-clear-slot-clears-occupied-before-decayed.yaml), `bazel test //runtime:native_test_ownership_memory`
 
 ## 2026-05-22 - runtime/ownership
+
 ### Stale Pointer Aliasing & Registry Capacity Leak in Decay
+
 - Categories: correctness, resource-leak, aliasing, runtime
 - Severity: Critical
 - Status: Fixed in tree (2026-05-22)
@@ -457,7 +475,9 @@
 - Regression evidence: `bazel test //runtime:native_test_ownership_memory`
 
 ## 2026-05-22 - runtime/stdlib_abi
+
 ### UNC Path Creation Failure on Windows
+
 - Categories: correctness, fs, runtime
 - Severity: High
 - Status: Fixed in tree (2026-05-22)
@@ -473,7 +493,9 @@
 - Regression evidence: `bazel test //runtime:native_test_stdlib_abi_fs`
 
 ## 2026-05-22 - runtime/actor
+
 ### Actor Monitor Record Memory Leak
+
 - Categories: correctness, resource-leak, performance, runtime
 - Severity: High
 - Status: Fixed in tree (2026-05-22)
@@ -489,7 +511,9 @@
 - Regression evidence: `bazel test //runtime:native_test_actor_monitor_link`
 
 ## 2026-05-22 - runtime/memory
+
 ### Unchecked Relocation Failure in Realloc
+
 - Categories: correctness, soundness, UB, runtime, memory
 - Severity: Critical
 - Status: Fixed in tree (2026-05-22)
@@ -505,7 +529,9 @@
 - Regression evidence: `bazel test //runtime:native_test_ownership_memory`
 
 ## 2026-05-22 - runtime/actor
+
 ### Lazy Init Double-Enter Race in Actor Runtime
+
 - Categories: correctness, race, startup, runtime
 - Severity: Critical
 - Status: Fixed in tree (2026-05-22)
@@ -521,7 +547,9 @@
 - Regression evidence: [actor-runtime-atomic-once-prevents-double-enter.yaml](/D:/Kain-Lang/runtime/native/src/core/z3/proofs/actor-runtime-atomic-once-prevents-double-enter.yaml), `bash runtime/conformance/actor_runtime/run_tests.sh --test-timeout 20`, `python runtime/native/src/core/z3/scripts/05_benchmark_sync_pathways.py`
 
 ## 2026-05-22 - runtime/services
+
 ### Concurrent Slot Overwrite and Lost Update in Service Registry
+
 - Categories: correctness, race, runtime, registry
 - Severity: Critical
 - Status: Fixed in tree (2026-05-22)
@@ -537,7 +565,9 @@
 - Regression evidence: [native-services-commit-gate-prevents-slot-overwrite.yaml](/D:/Kain-Lang/runtime/native/src/core/z3/proofs/native-services-commit-gate-prevents-slot-overwrite.yaml), `bash runtime/conformance/02_service_registry/compile_test.sh`, `python runtime/native/src/core/z3/scripts/05_benchmark_sync_pathways.py`
 
 ## 2026-05-23 - crates/sys-codegen/codegen_llvm
+
 ### Double-to-Bool Truthiness Treats NaN As False On LLVM
+
 - Categories: correctness, soundness, miscompile
 - Severity: High
 - Status: Fixed in tree (2026-05-24)
@@ -548,11 +578,12 @@
 - Minimal repro: Compile any Kain program on the LLVM path that converts a `Float` produced from a `NaN`-yielding expression such as `0.0 / 0.0` into `Bool`.
 - Evidence: `crates/sys-codegen/src/codegen_llvm/mod.rs:8870`, `crates/core/src/runtime.rs:119`, `crates/sys-codegen/z3/generated/float_semantic_audit.md`, and `crates/sys-codegen/z3/reports/20260524T000203Z-casts-double-to-bool-nan-truthiness-mismatch-pack-local.json`.
 - Z3 angle: A floating-point model proves a concrete witness `x = NaN` where runtime truthiness and LLVM truthiness disagree.
-- Z3 Proof: [casts-double-to-bool-nan-truthiness-mismatch.yaml](file:///D:/Kain-Lang/crates/sys-codegen/z3/proofs/casts-double-to-bool-nan-truthiness-mismatch.yaml)
+- Z3 Proof: \[casts-double-to-bool-nan-truthiness-mismatch.yaml\](file:///D:/Kain-Lang/crates/sys-codegen/z3/proofs/casts-double-to-bool-nan-truthiness-mismatch.yaml)
 - Fix landed: LLVM float truthiness now lowers through `fcmp une`, and float conditions in `if` / `while` now route through the same `i1` coercion helper instead of trusting the source expression to already be boolean.
 - Regression evidence: [casts-double-to-bool-unordered-nonzero-aligns-with-runtime-truthiness.yaml](/D:/Kain-Lang/crates/sys-codegen/z3/proofs/casts-double-to-bool-unordered-nonzero-aligns-with-runtime-truthiness.yaml), `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_lowers_float_truthiness_inequality_and_int_casts_through_total_ieee_paths --target-dir target\codex-float-semantics`
 
 ### Raw `fptosi` Lowering Admits Undefined Double Inputs
+
 - Categories: correctness, soundness, UB, miscompile
 - Severity: Critical
 - Status: Fixed in tree (2026-05-24)
@@ -563,11 +594,12 @@
 - Minimal repro: Compile any Kain program on the LLVM path that narrows a float from `1.0 / 0.0`, `-1.0 / 0.0`, `0.0 / 0.0`, or a very large finite magnitude into `Int`; the same hazard also exists in integer `pow` and floor-based lowering.
 - Evidence: `crates/sys-codegen/src/codegen_llvm/mod.rs:6514`, `:8593`, `:8858-8866`, `:14764`, `:15411`, `:16744`, `crates/core/src/runtime.rs:98`, and `crates/sys-codegen/z3/reports/20260524T000211Z-casts-double-to-int-unguarded-fptosi-precondition-gap-pack-local.json`.
 - Z3 angle: A floating-point domain proof finds `x = +oo` as an immediate witness where the emitted LLVM `fptosi` precondition is false.
-- Z3 Proof: [casts-double-to-int-unguarded-fptosi-precondition-gap.yaml](file:///D:/Kain-Lang/crates/sys-codegen/z3/proofs/casts-double-to-int-unguarded-fptosi-precondition-gap.yaml)
+- Z3 Proof: \[casts-double-to-int-unguarded-fptosi-precondition-gap.yaml\](file:///D:/Kain-Lang/crates/sys-codegen/z3/proofs/casts-double-to-int-unguarded-fptosi-precondition-gap.yaml)
 - Fix landed: LLVM now centralizes `double -> int` lowering through the saturating intrinsic family `llvm.fptosi.sat.*.f64`, covering shared casts, `floor(Float) -> Int`, stringification narrowing, explicit casts, and integer `pow` postprocessing.
 - Regression evidence: [casts-double-to-int-saturating-intrinsic-preserves-in-range-raw-cast.yaml](/D:/Kain-Lang/crates/sys-codegen/z3/proofs/casts-double-to-int-saturating-intrinsic-preserves-in-range-raw-cast.yaml), `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_lowers_floor_builtin_with_llvm_intrinsic --target-dir target\codex-float-semantics`, `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_lowers_float_truthiness_inequality_and_int_casts_through_total_ieee_paths --target-dir target\codex-float-semantics`
 
 ### Float Equality And Inequality Ignore Kain's Epsilon Semantics
+
 - Categories: correctness, soundness, miscompile
 - Severity: High
 - Status: Fixed in tree (2026-05-24)
@@ -578,12 +610,14 @@
 - Minimal repro: Compile any Kain program on the LLVM path that compares `0.0` with `0.0000000000000001` using `==` or `!=`.
 - Evidence: `crates/sys-codegen/src/codegen_llvm/mod.rs:8939`, `:16750`, `:16758`, `crates/core/src/runtime.rs:8058-8062`, `crates/sys-codegen/z3/generated/float_semantic_audit.md`, and `crates/sys-codegen/z3/reports/20260524T000218Z-control-float-equality-ignores-epsilon-runtime-semantics-pack-local.json`.
 - Z3 angle: A minimized arithmetic witness uses `a = 0.0` and `b = 1e-16`, which is inside the runtime epsilon window but not exactly equal, so both equality and inequality semantics diverge.
-- Z3 Proof: [control-float-equality-ignores-epsilon-runtime-semantics.yaml](file:///D:/Kain-Lang/crates/sys-codegen/z3/proofs/control-float-equality-ignores-epsilon-runtime-semantics.yaml)
+- Z3 Proof: \[control-float-equality-ignores-epsilon-runtime-semantics.yaml\](file:///D:/Kain-Lang/crates/sys-codegen/z3/proofs/control-float-equality-ignores-epsilon-runtime-semantics.yaml)
 - Fix landed: The runtime semantic owner now uses exact IEEE float `==` / `!=`, and LLVM float inequality uses `fcmp une` so `NaN != x` stays true like the interpreter and the other compiled backends.
 - Regression evidence: [control-float-exact-equality-aligns-with-compiled-ieee-semantics.yaml](/D:/Kain-Lang/crates/core/z3/proofs/control-float-exact-equality-aligns-with-compiled-ieee-semantics.yaml), `cargo test -p kain-core runtime_float --lib --target-dir target\codex-float-semantics`, `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_lowers_float_truthiness_inequality_and_int_casts_through_total_ieee_paths --target-dir target\codex-float-semantics`
 
 ## 2026-06-04 - runtime/core/array_new
+
 ### array_new: capacity multiplication wraps, causing undersized malloc and heap overflow
+
 - Categories: correctness, heap-overflow, unsigned-overflow, allocation
 - Severity: Critical
 - Status: Patched-and-Verified
@@ -600,7 +634,9 @@
 - Patch verification: Z3 proves UNSAT — no `cap >= 4` passing the guard can cause `(size_t)cap * 8` to wrap. Proof: [verify-patch-array-new-capacity-guard.yaml](runtime/native/src/core/z3/proofs/verify-patch-array-new-capacity-guard.yaml)
 
 ## 2026-06-04 - runtime/core/array_push
+
 ### array_push: signed overflow on cap doubling + unsigned overflow on allocation size
+
 - Categories: correctness, signed-overflow, UB, heap-overflow, allocation
 - Severity: Critical
 - Status: Patched-and-Verified
@@ -617,7 +653,9 @@
 - Patch verification: Z3 proves UNSAT — no `cap >= 4` with `new_cap > cap` and `new_cap <= 0x1FFFFFFFFFFFFFFF` can cause `(size_t)new_cap * 8` to wrap. Proof: [verify-patch-array-push-capacity-guard.yaml](runtime/native/src/core/z3/proofs/verify-patch-array-push-capacity-guard.yaml)
 
 ## 2026-06-04 - runtime/net/http
+
 ### abi_http_request_set_body_text: body_length + 1 wraps on SIZE_MAX input
+
 - Categories: correctness, unsigned-overflow, allocation, net
 - Severity: High
 - Status: Patched-and-Verified
@@ -634,7 +672,9 @@
 - Patch verification: Z3 proves UNSAT — no `body_length` passing `abi_net_size_add_overflow` can produce `body_alloc_size == 0`. Proof: [verify-patch-http-body-add-guard.yaml](runtime/native/src/core/z3/proofs/verify-patch-http-body-add-guard.yaml)
 
 ## 2026-06-04 - runtime/json/clone
+
 ### json_clone_value: calloc(field_count, sizeof(KainJsonEntry)) overflows for large object
+
 - Categories: correctness, unsigned-overflow, allocation, json
 - Severity: High
 - Status: Patched-and-Verified
@@ -651,6 +691,7 @@
 - Patch verification: Z3 proves UNSAT for both guards — no `field_count <= 0x0FFFFFFFFFFFFFFF` can cause `(size_t)field_count * 16` to wrap, and no `item_count <= 0x1FFFFFFFFFFFFFFF` can cause `(size_t)item_count * 8` to wrap. Proof: [verify-patch-json-clone-calloc-guard.yaml](runtime/native/src/core/z3/proofs/verify-patch-json-clone-calloc-guard.yaml)
 
 ### `asyncio.Future.result()` Crashes The Native Python Bridge
+
 - Categories: runtime, interop, crash
 - Severity: High
 - Status: Fixed in tree (2026-05-27)
@@ -663,6 +704,7 @@
 - Regression evidence: direct Kain probe crossing the old crash value (`Future.result()` returning values through `24`), `kain check benchmark/cases_v2/python_stdlib_fused.kn --target llvm`, and filtered v2 benchmark run `KAIN_BENCH_V2_FILTER=python_stdlib ... kain run X:\benchmark --target llvm --json` with all four rows `status=ok`.
 
 ### Native LLVM exes can crash when Python host objects cross helper-function boundaries
+
 - Categories: runtime, interop, crash, codegen
 - Severity: High
 - Status: Fixed in tree (2026-05-28)
@@ -675,7 +717,9 @@
 - Regression evidence: `cargo test -p kain-sys-codegen --test llvm_codegen_test llvm_lowers_implicit_void_ -- --nocapture`, compiled native repro `X:\tmp_python_helper_boundary_repro.kn` printing `ok`, and compiled native helper-return repro `X:\tmp_python_helper_return_repro.kn` printing `return_ok`.
 
 ## 2026-06-01 - gpu/PTX compute residency
+
 ### PTX compute-residency sidecars under-allocate `Bool` and `Vec3` storage buffers
+
 - Categories: correctness, soundness, gpu, runtime, interop
 - Severity: Critical
 - Status: Patched

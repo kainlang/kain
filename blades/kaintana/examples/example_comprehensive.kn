@@ -6,26 +6,41 @@ use layout::kaintana_split_right
 use layout::kaintana_split_top
 use layout::kaintana_split_bottom
 use layout::kaintana_grid_cell
+use std::text
 use types::KaintanaContext
 use types::KaintanaRect
 use types::kaintana_rect
+use types::kaintana_text
 use kaintana_ui::*
 use widgets_extras::*
 
 fn demo_toggle_row(ctx: KaintanaContext, rect: KaintanaRect, font: Int) -> KaintanaContext:
-    let result = kaintana_widget_toggle(ctx, "demo.toggle.details", "Show Details", 1, rect, font, 20.0)
+    let result = kaintana_widget_toggle(ctx,
+        kaintana_text("demo.toggle.details"),
+        kaintana_text("Show Details"),
+        1, rect, font, 20.0)
     return result.ctx
 
 fn demo_checkbox_row(ctx: KaintanaContext, rect: KaintanaRect, key: String, label: String, font: Int) -> KaintanaContext:
-    let result = kaintana_widget_checkbox(ctx, key, label, 0, rect, font, 20.0)
+    let result = kaintana_widget_checkbox(ctx,
+        kaintana_text(key),
+        kaintana_text(label),
+        0, rect, font, 20.0)
     return result.ctx
 
 fn demo_badge_row(ctx: KaintanaContext, rect: KaintanaRect, key: String, label: String, font: Int) -> KaintanaContext:
-    let result = kaintana_widget_badge(ctx, key, label, rect, font, 20.0)
+    let result = kaintana_widget_badge(ctx,
+        kaintana_text(key),
+        kaintana_text(label),
+        rect, font, 20.0)
     return result.ctx
 
 fn demo_metric_row(ctx: KaintanaContext, rect: KaintanaRect, key: String, label: String, value: String, font: Int) -> KaintanaContext:
-    let result = kaintana_widget_metric(ctx, key, label, value, rect, font, 20.0)
+    let result = kaintana_widget_metric(ctx,
+        kaintana_text(key),
+        kaintana_text(label),
+        kaintana_text(value),
+        rect, font, 20.0)
     return result.ctx
 
 fn demo_progress_row(ctx: KaintanaContext, rect: KaintanaRect, key: String, label: String, val: Float, max_val: Float, font: Int) -> KaintanaContext:
@@ -37,31 +52,47 @@ fn demo_progress_row(ctx: KaintanaContext, rect: KaintanaRect, key: String, labe
     return result.ctx
 
 fn demo_collapse_row(ctx: KaintanaContext, rect: KaintanaRect, key: String, label: String, open: Int, font: Int) -> KaintanaContext:
-    let result = kaintana_widget_collapsing_header(ctx, key, label, open, rect, font, 22.0)
+    let result = kaintana_widget_collapsing_header(ctx,
+        kaintana_text(key),
+        kaintana_text(label),
+        open, rect, font, 22.0)
     return result.ctx
 
 fn demo_separator(ctx: KaintanaContext, rect: KaintanaRect, key: String) -> KaintanaContext:
-    let result = kaintana_widget_separator(ctx, key, rect, ctx.theme.muted)
+    let result = kaintana_widget_separator(ctx, kaintana_text(key), rect, ctx.theme.muted)
     return result.ctx
 
 fn demo_chart_row(ctx: KaintanaContext, rect: KaintanaRect, key: String, label: String, val: Float, max_val: Float, font: Int) -> KaintanaContext:
-    let result = kaintana_widget_chart_bar(ctx, key, label, val, max_val, rect, font, 20.0, ctx.theme.signal)
+    let result = kaintana_widget_chart_bar(ctx,
+        kaintana_text(key),
+        kaintana_text(label),
+        val, max_val, rect, font, 20.0, ctx.theme.signal)
     return result.ctx
 
 fn demo_toast(ctx: KaintanaContext, rect: KaintanaRect, key: String, msg: String, font: Int) -> KaintanaContext:
-    let result = kaintana_widget_toast(ctx, key, msg, rect, font, 20.0)
+    let result = kaintana_widget_toast(ctx,
+        kaintana_text(key),
+        kaintana_text(msg),
+        rect, font, 20.0)
     return result.ctx
 
 fn demo_spinner_widget(ctx: KaintanaContext, rect: KaintanaRect, key: String) -> KaintanaContext:
-    let result = kaintana_widget_spinner(ctx, key, rect, ctx.theme.accent)
+    let result = kaintana_widget_spinner(ctx, kaintana_text(key), rect, ctx.theme.accent)
     return result.ctx
 
 fn demo_status_bar(ctx: KaintanaContext, rect: KaintanaRect, key: String, left: String, right: String, font: Int) -> KaintanaContext:
-    let result = kaintana_widget_status_bar(ctx, key, left, right, rect, font, 20.0)
+    let result = kaintana_widget_status_bar(ctx,
+        kaintana_text(key),
+        kaintana_text(left),
+        kaintana_text(right),
+        rect, font, 20.0)
     return result.ctx
 
 fn demo_toolbar(ctx: KaintanaContext, rect: KaintanaRect, key: String, font: Int) -> KaintanaContext:
-    let result = kaintana_widget_toolbar(ctx, key, "Tools", rect, font, 20.0)
+    let result = kaintana_widget_toolbar(ctx,
+        kaintana_text(key),
+        kaintana_text("Tools"),
+        rect, font, 20.0)
     return result.ctx
 
 fn demo_dropdown(ctx: KaintanaContext, rect: KaintanaRect, key: String, label: String, selected: String, font: Int) -> KaintanaContext:

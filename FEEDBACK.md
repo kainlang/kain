@@ -3,6 +3,7 @@
 ## 2026-06-03 - benchmark v2 stress-pack ergonomics
 
 ### The v2 benchmark harness assumes every case has a replay-stable golden checksum
+
 - Categories: benchmark, developer-experience, semantics, runtime
 - Status: Active
 - Surface: `benchmark/cases_v2/.telemetryrouter/router.kn`, stress-style authored packs such as `CRUSHER.kn`
@@ -15,6 +16,7 @@
 ## 2026-06-02 - first-class GPU authoring ergonomics
 
 ### CPU/GPU orchestration works, but the language still exposes too much runtime plumbing
+
 - Categories: gpu, benchmark, runtime, bootstrap, developer-experience
 - Status: Active
 - Surface: authored `shader compute`, `dispatch`, `std::cuda`, `std::gpu`, v2 benchmark routing, LLVM lowering
@@ -27,6 +29,7 @@
 ## 2026-05-31 - C system-header import ergonomics
 
 ### Host CRT headers are too hostile for the current extractor without curated subsets
+
 - Categories: developer-experience, c-ffi, importer, windows, stdlib
 - Status: Active
 - Surface: `include <math.h> as cmath` through `crates/c-ffi`
@@ -38,6 +41,7 @@
 ## 2026-05-30 - semantic oracle authored Kain LLVM/CUDA proof
 
 ### Semantic ranking work exposed several Kain authoring and lowering sharp edges
+
 - Categories: correctness, developer-experience, compiler, cuda, llvm
 - Status: Active
 - Surface: authored Kain -> LLVM/CUDA proof loop
@@ -50,6 +54,7 @@
 ## 2026-05-27 - std::mcp / identifier and JSON helper sharp edges
 
 ### `std::mcp` dogfood hit two surprising language traps while wiring the stdlib
+
 - Categories: correctness, developer-experience, stdlib, parser
 - Status: Active
 - Surface: stdlib / typechecker
@@ -62,6 +67,7 @@
 ## 2026-05-24 - std::z3 / std::proof runtime dogfood
 
 ### Running a proof-heavy Kain lane trips RC release-after-free in the LLVM runtime
+
 - Categories: correctness, regression, runtime, interop
 - Status: Active
 - Surface: runtime
@@ -74,6 +80,7 @@
 ## 2026-05-22 - stdlib module loading / typechecker
 
 ### StringIntMap Shadow: stdlib/collections.kn loaded twice under multi-import workspace
+
 - Categories: correctness, regression, developer-experience
 - Status: Patched
 - Surface: typechecker
@@ -83,11 +90,12 @@
 - Evidence: `error[TYPE:KAIN-TYPE-0001]: struct 'StringIntMap' shadows an existing type symbol --> stdlib/collections.kn:88:5`
 - Suggested direction: Module registry dedup was the confirmed fix. Verify the dedup applies globally to the workspace import graph, not just per-file, so that any two files importing the same stdlib module through different transitive paths don't double-register its types.
 
----
+______________________________________________________________________
 
 ## 2026-05-22 - typechecker / effect system
 
 ### comptime block constants are not visible in runtime function bodies
+
 - Categories: correctness, developer-experience
 - Status: Active
 - Surface: typechecker
@@ -97,11 +105,12 @@
 - Evidence: `error[TYPE:KAIN-TYPE-0001]: Unknown identifier 'SMOKE_COMPTIME_MAGIC' --> smoketest/src/semantics/comptime.kn:9`
 - Suggested direction: Decide whether `comptime` constants should be promoted to module scope (accessible at runtime as regular consts) or remain strictly compile-time only with a clear diagnostic that says so. If they are compile-time only, the language spec/specimen should be updated to avoid implying they can be used in runtime fn bodies.
 
----
+______________________________________________________________________
 
 ## 2026-05-22 - stdlib / naming
 
 ### stdlib function name collision: first_error defined in both std::diagnostics and user code
+
 - Categories: correctness, developer-experience
 - Status: Active
 - Surface: stdlib / typechecker
@@ -111,11 +120,12 @@
 - Evidence: `error[TYPE:KAIN-TYPE-0001]: function 'first_error' collides with an existing global from function --> smoketest/src/main.kn:44, label 58:5: previous function 'first_error' is here (stdlib/diagnostics.kn:58:5)`
 - Suggested direction: Either namespace stdlib globals under a module prefix at the typechecker level (so `first_error` in user code doesn't collide with `diagnostics::first_error`), or document all globally-injected stdlib names somewhere scannable so authors know which names are reserved. The current situation is silent until check time.
 
----
+______________________________________________________________________
 
 ## 2026-05-22 - Windows launcher / check workflow
 
 ### Parallel `kain check` commands can race launcher cache replacement
+
 - Categories: developer-experience, performance
 - Status: Active
 - Surface: tooling
@@ -125,11 +135,12 @@
 - Evidence: Failure came from `scripts/windows/launch-bazel-cli.ps1:530` while three sibling targeted checks passed; rerunning the failed command serially passed.
 - Suggested direction: Add a cross-process lock or retry loop around launcher replacement in `launch-bazel-cli.ps1`, or make `kain check` skip launcher cache replacement when the active synced binary already matches the stamp.
 
----
+______________________________________________________________________
 
 ## 2026-05-22 - interpreter / stdlib / python bridge
 
 ### `std::fs` externs are not reliably usable from interpreter-mode Python-FFI runners
+
 - Categories: correctness, developer-experience, interop
 - Status: Bypass-Applied
 - Surface: stdlib
@@ -139,21 +150,24 @@
 - Evidence: Initial failures were `Kain error: Runtime error: Undefined: abi_fs_path_join` and then `Kain error: Runtime error: Undefined: abi_fs_create_dir_all` from the interpret-target runner lane.
 - Suggested direction: Either register the `std::fs` ABI surface for interpreter-mode runs that already support Python FFI, or make interpreter extern resolution lazy so importing a module with unused `@extern` fs helpers does not fail the whole run.
 
----
+______________________________________________________________________
 
 ## 2026-05-22 - GPU / HLSL lowering
 
 ### HLSL shader lowering does not support `std::math::fbm2`
+
 - Categories: correctness, developer-experience, gpu
 - Status: Bypass-Applied
 - Surface: gpu
 - Symptom: the `gpu-hlsl` build task failed with `Kain error: Codegen error ... Unsupported function call in shader: 'fbm2'`.
 - Workflow impact: The smoketest album built and certified almost completely, but the final DAG still failed because the fragment shader track used `fbm2`, which currently works in the math/std surface but not in HLSL shader lowering.
 
----
+______________________________________________________________________
 
 ## 2026-05-23 - native JSON runtime / stdlib
+
 ### native JSON bridge mis-handled string values and broader non-int value lanes under LLVM
+
 - Categories: correctness, developer-experience, runtime
 - Status: Verified
 - Surface: stdlib
@@ -166,11 +180,12 @@
 - Evidence: `smoketest:gpu-hlsl` failed in `smoketest/.kain/reports/build/session-1779448114057-30408.json` with `Unsupported function call in shader: 'fbm2'`.
 - Suggested direction: Teach the HLSL backend to lower `fbm2` (and likely adjacent std math shader helpers), or emit an earlier target-specific diagnostic during `check` so authors know which shader helpers are unavailable before the GPU artifact task runs.
 
----
+______________________________________________________________________
 
 ## 2026-05-22 - runtime / smoketest certification
 
 ### Native RC release-underflow diagnostics still leak through successful smoketest telemetry lanes
+
 - Categories: correctness, developer-experience, runtime
 - Status: Active
 - Surface: runtime
@@ -180,11 +195,12 @@
 - Evidence: `smoketest/.kain/reports/build/session-1779457854992-28372.json` shows `smoketest:album-attrition`, `smoketest:album-benchmark`, and `smoketest:telemetry-full` succeeding while their task messages include repeated `RC release underflow` diagnostics; the embedded run reports include `session-1779458535954-22196.json`, `session-1779458747313-7452.json`, and `session-1779458958960-39684.json`.
 - Suggested direction: Root-cause the surviving signed ref-count teardown path and either eliminate the underflow or promote it into a fail-fast runtime/attrition result so certification cannot look clean while the native substrate still reports RC corruption.
 
----
+______________________________________________________________________
 
 ## 2026-05-22 - run reporting / telemetry workflow
 
 ### `kain run` reports success even when an interpret-target `main() -> Int` returns nonzero
+
 - Categories: correctness, developer-experience, tooling
 - Status: Active
 - Surface: tooling
@@ -194,11 +210,12 @@
 - Evidence: `smoketest/.kain/reports/run/session-1779458958960-39684.json` records `status: "succeeded"`, `exit_code: 0`, and `output: "3001"` for the failed full-mode run; the corresponding `smoketest/telemetry/full/summary.json` from that run reported `failure_code: 3001` and `failure_track: "interop.c_abi_album"`.
 - Suggested direction: Treat a nonzero numeric `main() -> Int` result as a failed run status for interpret-target `kain run`, or add a separate explicit failure field that build/telemetry tasks honor instead of only the host process exit code.
 
----
+______________________________________________________________________
 
 ## 2026-05-22 - project helper / native executable
 
 ### `native_executable` can fail under the default Bazel-resolved `kain.exe` even when the same project compiles cleanly with a working CLI binary
+
 - Categories: correctness, developer-experience, build
 - Status: Active
 - Surface: build
@@ -208,10 +225,12 @@
 - Evidence: `smoketest/.kain/reports/build/session-1779459491862-32992.json` failed at `smoketest:root-executable`, and `smoketest/.kain/out/llvm/x86_64-windows/dev/x86_64-windows/smoketest/smoketest-root-executable/kain-evidence.json` captured the missing-`.ll` clang error. The same DAG later succeeded as `smoketest/.kain/reports/build/session-1779460677572-36848.json` when `KAIN_BIN` pointed at the cargo-built CLI.
 - Suggested direction: Audit the Bazel-resolved CLI / helper-script path for raw-native output staging so the emitted `.ll` survives through the clang link step, or let `native_executable` prefer an explicitly resolved working `kain.exe` without requiring a manual env override.
 
----
+______________________________________________________________________
 
 ## 2026-05-22 - LLVM / TLS section control
+
 ### `@thread_local` plus custom `@section` loses the authored initializer on Windows LLVM runs
+
 - Categories: correctness, developer-experience, lowering, runtime
 - Status: Patched
 - Surface: lowering
@@ -221,10 +240,12 @@
 - Evidence: `smoketest/.kain/cache/run/abi_control_probe.ll` contained `@__kain_smoke_tls_counter = thread_local global i64 7, section ".tls.kain.smoke"`, but the executable from `./target/debug/kain.exe run smoketest/src/systems/abi_control_probe.kn --target llvm` exited with `16`, implying the TLS read observed `0` while the plain `@thread_local` + separate sectioned const probe exited with `5007023`.
 - Suggested direction: Keep the COFF TLS normalization rule documented and covered by both LLVM IR regression tests and full smoketest runtime coverage so future ABI/section-control work does not regress back into zero-reading custom TLS storage.
 
----
+______________________________________________________________________
 
 ## 2026-05-23 - native CLI authoring / LLVM executable lane
+
 ### Native LLVM executables do not currently offer a trustworthy argv surface for authored Kain CLIs
+
 - Categories: correctness, developer-experience, tooling, lowering
 - Status: Patched
 - Surface: lowering
@@ -234,10 +255,12 @@
 - Evidence: during `blades/kg` bring-up on 2026-05-23, direct `args()` usage had to be removed after the native path behaved as if argv ingress was missing; a PowerShell wrapper then wrote `kg.args` beside `kg.exe`, and even that workaround became part of the debugging path instead of normal CLI forwarding.
 - Suggested direction: make argv a first-class native-runtime contract for LLVM/direct-C executables, cover it with a tiny authored CLI smoke test, and document whether `args()` is guaranteed across interpreter, `kain run --target llvm`, and `native_executable` blade outputs.
 
----
+______________________________________________________________________
 
 ## 2026-05-23 - actor ask / LLVM native authoring
+
 ### `ask(...)->String` actor replies used to materialize as integer-looking output in LLVM/native runs
+
 - Categories: correctness, developer-experience, lowering, runtime
 - Status: Patched
 - Surface: lowering
@@ -247,10 +270,12 @@
 - Evidence: before the `Flush` reroute, `D:\Kain-Lang\kg.exe 'kg_parse_config' 'D:\Kain-Lang\blades\kg\src\main.kn' --line-number` produced a bare integer-like payload instead of the two matching source lines. On 2026-05-23, LLVM/native lowering was patched to carry actor reply payload types, handler reply-contract inference was fixed for generic reply-port parameter names, and actor spawn lowering was fixed to honor authored state defaults instead of silently zero-filling omitted fields. `D:\Kain-Lang\runtime\fixtures\native_actor_ask_roundtrip\main.kn` now proves `Int`, `Bool`, and `String` ask/reply roundtrips under `kain run ... --target llvm`, including a `String` reply through a non-`reply_to` generic port name.
 - Suggested direction: keep the fixture in the native proof lane so future actor/lowering work cannot regress `String` ask replies or actor state default initialization.
 
----
+______________________________________________________________________
 
 ## 2026-05-23 - stdlib random proof lane
+
 ### `verify random(n)` currently rejects converge functions with pointer parameters
+
 - Categories: correctness, developer-experience, proof
 - Status: Active
 - Surface: proof
@@ -260,10 +285,12 @@
 - Evidence: failure points at `stdlib/random.kn:258` on `pub converge shattered_rng_buffer_update(buf: ptr<Int>, output: ptr<Int>, lanes: Int) -> Int:` with the `verify random(n)` diagnostic above.
 - Suggested direction: either extend `verify random(n)` so pointer-bearing converge signatures can be proved when the pointer arguments are not part of the randomized domain, or emit a more structured diagnostic with the supported parameter shapes and a sanctioned escape hatch for pointer-oriented converge kernels.
 
----
+______________________________________________________________________
 
 ## 2026-05-23 - wasm authored semantics / codegen
+
 ### `alloc_zeroed` plus `collapse/observe/decay` in authored wasm specimens hit `Function 'map_new' not found`
+
 - Categories: correctness, developer-experience, wasm
 - Status: Active
 - Surface: wasm codegen / authored semantics
@@ -273,10 +300,12 @@
 - Evidence: `website/kain/.kain/reports/build/session-1779568374054-2088.json`
 - Suggested direction: inspect the wasm lowering path for authored allocation/ownership helpers and trace why it reaches a missing `map_new` dependency. This looks like a real authored-surface lowering gap rather than a website-specific bug.
 
----
+______________________________________________________________________
 
 ## 2026-05-23 - benchmark v2 semantics authoring
+
 ### `check-llvm` and native LLVM compile disagree on direct writes to entangle mirror state
+
 - Categories: correctness, developer-experience, tooling
 - Status: Active
 - Surface: lowering
@@ -286,10 +315,12 @@
 - Evidence: `D:\Kain-Lang\benchmark\.kain\out\llvm\x86_64-windows\dev\x86_64-windows\benchmark-v2\benchmark-v2-root-executable\kain-evidence.json` included `error[Codegen Error]: while compiling 'ghost_mirror_checksum': cannot write entangle mirror 'ClassicGhostMirror.signal_copy' directly; write authority 'ClassicGhostAuthority.signal'` even though `check-llvm` had already passed.
 - Suggested direction: make the `check --target llvm` path reject the same mirror-side writes that native lowering rejects, or downgrade native lowering to a shared earlier diagnostic pass so authored Kain gets one consistent truth.
 
----
+______________________________________________________________________
 
 ## 2026-05-24 - python import gauntlet / test harness
+
 ### repo-root `kain test` loses importer-relative Python sibling/package resolution that direct `kain run` preserves
+
 - Categories: correctness, developer-experience, interop, tooling
 - Status: Active
 - Surface: interop
@@ -299,10 +330,12 @@
 - Evidence: direct run emitted the full gauntlet report and artifacts under `blades/test/fabric_FFI/python/python_import_gauntlet/outputs/`, while repo-root test failed with `ModuleNotFoundError: No module named 'ecosystem_local'`.
 - Suggested direction: preserve/import `source_file` context into the source-test harness for Python `import` items, or teach the harness to seed importer-relative search roots before evaluating tests so blade-local sibling `.py` and package imports behave the same in `test` and `run`.
 
----
+______________________________________________________________________
 
 ## 2026-05-27 - semantic_search native dogfood
+
 ### `check --target llvm` accepts tuple destructuring shape that native LLVM lowering rejects
+
 - Categories: correctness, developer-experience, lowering
 - Status: Bypass-Applied
 - Surface: lowering
@@ -312,11 +345,12 @@
 - Evidence: `X:\mcp\semantic_search\.kain\reports\run\session-1779861427025-8704.json`
 - Suggested direction: either teach LLVM lowering this tuple storage shape or make `check --target llvm` reject unsupported tuple destructuring with the same diagnostic before run/build.
 
----
+______________________________________________________________________
 
 ## 2026-05-27 - semantic_search CUDA dogfood
 
 ### `fs_copy_file_streaming` returns byte count while adjacent fs APIs expose status codes
+
 - Categories: developer-experience, stdlib, correctness
 - Status: Active
 - Surface: stdlib
@@ -327,6 +361,7 @@
 - Suggested direction: Rename/document the function as byte-count-returning or add a boolean/status wrapper so authors do not infer the wrong contract from adjacent fs APIs.
 
 ### `to_string(Float)` currently truncates sub-1 scores to `0`
+
 - Categories: developer-experience, stdlib, correctness
 - Status: Active
 - Surface: stdlib
@@ -337,6 +372,7 @@
 - Suggested direction: Fix runtime/std float formatting or expose a standard fixed-precision formatter for CLI and JSON surfaces.
 
 ### CUDA shader lowering rejects explicit `UInt(u8_storage_load)` widening
+
 - Categories: developer-experience, gpu, correctness
 - Status: Active
 - Surface: gpu
@@ -347,6 +383,7 @@
 - Suggested direction: Teach GPU lowering an explicit scalar integer widening cast from `u8`/`i8` to `UInt`/`Int`, or emit a targeted diagnostic recommending the supported widening idiom.
 
 ### Large binary sidecar writes need a more reliable byte API than append loops
+
 - Categories: correctness, runtime, stdlib, performance
 - Status: Patched
 - Surface: stdlib
@@ -357,7 +394,9 @@
 - Suggested direction: either make the raw byte read/write/append helpers consistent and reliable for large sidecars, or document the hex-safe file path as the expected contract for large binary payloads.
 
 ## 2026-05-30 - semantic oracle manifest forge
+
 ### LLVM native `fs_read_dir_paths_text` crashed during recursive source indexing
+
 - Categories: correctness, runtime, stdlib, developer-experience
 - Status: Bypass-Applied
 - Surface: stdlib
@@ -368,6 +407,7 @@
 - Suggested direction: Add a focused native FS conformance case for `fs_read_dir_paths_text` on Windows absolute paths and recursive consumption, then fix the native LLVM/runtime path or return a safe status/error instead of crashing.
 
 ### LLVM native process output returned status `-5` for source scanner commands
+
 - Categories: correctness, runtime, stdlib, developer-experience
 - Status: Bypass-Applied
 - Surface: stdlib
@@ -377,10 +417,12 @@
 - Evidence: The run printed `scanner: F:\Scoop\apps\rustup\current\.cargo\bin\rg.exe`, `status: -5`, and `manifest: 0 bytes` for every configured seed directory.
 - Suggested direction: Add a native process conformance test for Windows absolute executables plus quoted absolute path arguments and report the underlying OS error in `process_last_status`/stderr instead of only `-5`.
 
----
+______________________________________________________________________
 
 ## 2026-06-03 - evaluated build.kn authoring
+
 ### Build DSL ergonomics still need parser-native support
+
 - Categories: developer-experience, parser, tooling
 - Status: Bypass-Applied
 - Surface: parser, build
@@ -393,6 +435,7 @@
 ## 2026-06-04 - resonate keyword dogfooding / benchmark authoring
 
 ### Only the first resonate handler fires when multiple resonate blocks target different world fields
+
 - Categories: correctness, runtime, bootstrap
 - Status: Active
 - Surface: LLVM lowering, native runtime resonated slot table (`abi_resonate_should_fire_*`), `stdlib_abi.c`
@@ -403,6 +446,7 @@
 - Suggested direction: Audit `ABI_RESONATE_SLOT_MAX` and the native slot registration path in `stdlib_abi.c` / LLVM codegen to ensure all `__kain_resonate_*` handlers are properly registered and dispatched regardless of count. Add a multi-handler regression test to `smoketest/src/semantics/resonate.kn`.
 
 ### runtime_heap_validate returns non-zero after repeated alloc/decay cycles in a benchmark loop
+
 - Categories: correctness, runtime, benchmark
 - Status: Active
 - Surface: native runtime heap validator (`runtime_heap_validate`), allocator subsystem
@@ -413,6 +457,7 @@
 - Suggested direction: Investigate whether the heap validator is tracking per-thread or global state that becomes stale across alloc/decay cycles, or whether there is a genuine leak in the decay path for small allocations. Add a minimal smoketest: alloc, decay, validate — repeat 32x.
 
 ### Full v2 router cannot isolate a single pack when unrelated packs have native link failures
+
 - Categories: developer-experience, tooling, benchmark
 - Status: Active
 - Surface: `benchmark/cases_v2/.telemetryrouter/router.kn`, `kain run X:\benchmark`

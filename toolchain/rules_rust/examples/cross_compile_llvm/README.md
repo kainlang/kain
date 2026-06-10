@@ -59,8 +59,8 @@ Suppose you want to compile a Rust binary that supports linux on both, X86 and A
 In that case, you have to configure three LLVM targets:
 
 1. LLVM for the host
-2. LLVM for X86 (x86_64)
-3. LLVM for ARM (aarch64)
+1. LLVM for X86 (x86_64)
+1. LLVM for ARM (aarch64)
 
 For the host LLVM, you just specify a LLVM version and then register the toolchain as usual. The target LLVM toolchains, however, have dependencies on system libraries for the target platform. Therefore, it is required to download a so- called sysroot that contains a root file system with all those system libraries for the specific target platform. To do so, please add the following to your MODULE.bazel
 

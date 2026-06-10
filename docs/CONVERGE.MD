@@ -3,33 +3,33 @@
 **Status:** Research synthesis, 2026-06-07
 **Based on:** `crates/core/src/parser.rs`, `crates/core/src/ast.rs`, `crates/core/src/types.rs`, `crates/core/src/runtime_contract.rs`, `crates/core/src/runtime.rs`, `crates/sys-codegen/src/codegen_llvm/mod.rs`, `runtime/native/include/converge.h`, `runtime/native/src/core/converge.c`, `stdlib/intent.kn`, `stdlib/runtime.kn`, `smoketest/src/semantics/converge.kn`, `blades/experiments/convergence/src/` (6 files, the canonical hack-side proof), `blades/test/converge-autotune-probe/src/main.kn`, `benchmark/cases_v2/fusion_chain.kn`, `benchmark/cases/scalar_mix/main.kn`, `benchmark/cases/semantic_singularity_converge_only/main.kn`, `blades/python/24_tet/src/resonate_py_effects.kn`, `stdlib/random.kn` (stdlib `xoshiro_scramble` converge), CATALOG.MD, RULEBOOK.MD, lang-semantics SKILL
 
----
+______________________________________________________________________
 
 ## Table of Contents
 
 1. [What is Converge?](#what-is-converge)
-2. [The Core Idea — Spec + Alternatives + Verification](#the-core-idea)
-3. [Syntax Reference](#syntax-reference)
-4. [How It Works — Full Pipeline](#how-it-works)
-5. [The Two-Level Architecture](#two-level-architecture)
-6. [Selectors — Target and Capability](#selectors)
-7. [Verify Random — The Arbitration Mechanism](#verify-random)
-8. [The Interpreter Lane Selection Algorithm](#interpreter-lane-selection)
-9. [LLVM Codegen — Static and Dynamic Dispatch](#llvm-codegen)
-10. [Native C Autotune Cache](#native-c-autotune-cache)
-11. [Stdlib Telemetry and Runtime API](#stdlib-telemetry)
-12. [The Obvious Use Case — Performance Lane Selection](#obvious-use-case)
-13. [The Hack Side — The Convergence Rat Experiment](#the-rat-experiment)
-14. [Creative Semantic Abuse — New Under-Utilized Ideas](#creative-abuse)
-15. [Combining with Other Keywords](#combining-with-other-keywords)
-16. [Real-World Usage Across the Repo](#real-world-usage)
-17. [Z3 Proofs](#z3-proofs)
-18. [Validation Ladder](#validation-ladder)
-19. [Source Anchors](#source-anchors)
-20. [Anti-Patterns](#anti-patterns)
-21. [Quick Reference](#quick-reference)
+1. [The Core Idea — Spec + Alternatives + Verification](#the-core-idea)
+1. [Syntax Reference](#syntax-reference)
+1. [How It Works — Full Pipeline](#how-it-works)
+1. [The Two-Level Architecture](#two-level-architecture)
+1. [Selectors — Target and Capability](#selectors)
+1. [Verify Random — The Arbitration Mechanism](#verify-random)
+1. [The Interpreter Lane Selection Algorithm](#interpreter-lane-selection)
+1. [LLVM Codegen — Static and Dynamic Dispatch](#llvm-codegen)
+1. [Native C Autotune Cache](#native-c-autotune-cache)
+1. [Stdlib Telemetry and Runtime API](#stdlib-telemetry)
+1. [The Obvious Use Case — Performance Lane Selection](#obvious-use-case)
+1. [The Hack Side — The Convergence Rat Experiment](#the-rat-experiment)
+1. [Creative Semantic Abuse — New Under-Utilized Ideas](#creative-abuse)
+1. [Combining with Other Keywords](#combining-with-other-keywords)
+1. [Real-World Usage Across the Repo](#real-world-usage)
+1. [Z3 Proofs](#z3-proofs)
+1. [Validation Ladder](#validation-ladder)
+1. [Source Anchors](#source-anchors)
+1. [Anti-Patterns](#anti-patterns)
+1. [Quick Reference](#quick-reference)
 
----
+______________________________________________________________________
 
 ## What is Converge?
 
@@ -48,7 +48,7 @@ converge mix(value: Int) -> Int:
 
 The key insight: **`converge` is not just a performance abstraction.** It is a **multi-strategy selection construct** where the `spec` lane is the ground truth, the `fast` lanes are competing alternatives, and `verify random(N)` is the arbitration mechanism. The selector (`target("llvm")`, `capability("cpu.x86.avx2")`) determines which lane is active. The verify clause proves all active lanes produce the same result for random inputs.
 
----
+______________________________________________________________________
 
 ## The Core Idea
 
@@ -75,7 +75,7 @@ The key insight: **`converge` is not just a performance abstraction.** It is a *
 |---|---|---|
 | `converge` | "Performance lane selector (SIMD)" | **Strategy selector** — any spec + alternative(s) with verification. Maze-solving strategy picker. Algorithm selector. Quality-of-service lane. A/B test framework. |
 
----
+______________________________________________________________________
 
 ## Syntax Reference
 
@@ -92,6 +92,7 @@ converge <name>(<params>) -> <return_type>:
 ```
 
 Where:
+
 - `<name>` is a user-defined identifier (becomes the dispatch function)
 - `<params>` are function parameters
 - `<return_type>` is the return type (all lanes must match)
@@ -153,14 +154,15 @@ selector = target(<string>) | capability(<string>)
 ```
 
 Parser rules:
-1. Exactly one `spec` lane required
-2. At least one `fast` lane required
-3. `verify` is optional
-4. Lanes are parsed in order, spec first then fast
-5. Selectors are parsed as `target("...")` or `capability("...")`
-6. `verify random(N)` requires N >= 0
 
----
+1. Exactly one `spec` lane required
+1. At least one `fast` lane required
+1. `verify` is optional
+1. Lanes are parsed in order, spec first then fast
+1. Selectors are parsed as `target("...")` or `capability("...")`
+1. `verify random(N)` requires N >= 0
+
+______________________________________________________________________
 
 ## How It Works — Full Pipeline
 
@@ -202,10 +204,10 @@ Parser rules:
 The typechecker (`types.rs: check_converge`) performs:
 
 1. **Signature derivation** — derives a function signature from the converge declaration (name, params, return_type)
-2. **Spec checking** — type-checks the spec lane body as a function with that signature
-3. **Fast lane checking** — type-checks each fast lane body
-4. **Signature matching** — verifies each fast lane's signature matches the dispatcher signature
-5. **Verify type support** — if `verify random(N)` is present, ensures the return type supports equality comparison
+1. **Spec checking** — type-checks the spec lane body as a function with that signature
+1. **Fast lane checking** — type-checks each fast lane body
+1. **Signature matching** — verifies each fast lane's signature matches the dispatcher signature
+1. **Verify type support** — if `verify random(N)` is present, ensures the return type supports equality comparison
 
 ```rust
 fn check_converge(env: &mut TypeEnv, converge: &ConvergeDef) -> KainResult<TypedConverge> {
@@ -224,7 +226,7 @@ fn check_converge(env: &mut TypeEnv, converge: &ConvergeDef) -> KainResult<Typed
 }
 ```
 
----
+______________________________________________________________________
 
 ## The Two-Level Architecture
 
@@ -235,11 +237,11 @@ Converge has a **two-level architecture** — an interpreter/runtime path for th
 In the interpreter (`runtime.rs`), `select_converge_lane()` implements a simple linear scan:
 
 1. Iterate fast lanes in declaration order
-2. For each lane, if a selector is present, evaluate it:
+1. For each lane, if a selector is present, evaluate it:
    - `target("llvm")` → compiled target check
    - `capability("cpu.x86.avx2")` → runtime capability probe
-3. If no selector or selector matches, use this lane
-4. If no fast lane matches, fall back to spec
+1. If no selector or selector matches, use this lane
+1. If no fast lane matches, fall back to spec
 
 After selection, `verify_converge_selected_against_spec()` calls both the spec lane and the selected lane with random arguments and checks for divergence. Any mismatch is recorded via `converge_mismatch_count()`.
 
@@ -248,8 +250,8 @@ After selection, `verify_converge_selected_against_spec()` calls both the spec l
 In native LLVM (`codegen_llvm/mod.rs`), `compile_converge()` emits:
 
 1. **Spec function** — compiled as a normal callable
-2. **Fast lane functions** — each compiled as a separate callable
-3. **Dispatch function** — the converge name becomes a function that:
+1. **Fast lane functions** — each compiled as a separate callable
+1. **Dispatch function** — the converge name becomes a function that:
    - Statically resolves `target("...")` selectors at compile time
    - Emits runtime CPU capability probes for `capability("...")` selectors
    - Caches the chosen lane in a static variable (once per process)
@@ -257,7 +259,7 @@ In native LLVM (`codegen_llvm/mod.rs`), `compile_converge()` emits:
 
 The LLVM dispatch function caches the lane selection using `kain_converge_cache_key(converge_key, shape_key)` and the native `abi_converge_select_lane_for_key()` function, which probes the autotune cache.
 
----
+______________________________________________________________________
 
 ## Selectors — Target and Capability
 
@@ -298,7 +300,7 @@ fast always_eligible_lane:
 
 No-selector lanes are selected first (they're scanned in declaration order), so the order of fast lanes matters.
 
----
+______________________________________________________________________
 
 ## Verify Random — The Arbitration Mechanism
 
@@ -321,11 +323,12 @@ fn verify_converge_selected_against_spec(env, converge, selected_lane, args, sel
 ```
 
 In native LLVM, the verify clause generates startup code that:
+
 1. Generates N random argument sets
-2. Calls the spec lane and each fast lane
-3. Compares results
-4. Calls `abi_converge_record_telemetry()` to record mismatches
-5. The mismatch count can be queried via `converge_mismatch_count()`
+1. Calls the spec lane and each fast lane
+1. Compares results
+1. Calls `abi_converge_record_telemetry()` to record mismatches
+1. The mismatch count can be queried via `converge_mismatch_count()`
 
 ### The Canonical Usage Pattern
 
@@ -340,7 +343,7 @@ converge mix(value: Int) -> Int:
 
 The verify clause proves that for 8 random inputs, the selected fast lane produces the same output as the spec. If the fast lane diverges (because of a bug or different behavior), the mismatch is recorded and can be detected at runtime.
 
----
+______________________________________________________________________
 
 ## The Interpreter Lane Selection Algorithm
 
@@ -366,12 +369,13 @@ fn select_converge_lane<'a>(env: &Env, converge: &'a ConvergeDef) -> &'a Converg
 ```
 
 **Key properties:**
+
 - Lanes are scanned in declaration order
 - First matching lane wins (no tie-breaking)
 - No-selector lanes are always eligible
 - Fallback to spec if no fast lane matches (spec is always eligible)
 
----
+______________________________________________________________________
 
 ## LLVM Codegen — Static and Dynamic Dispatch
 
@@ -424,13 +428,14 @@ fast_lane_avx2:
 ```
 
 **Key properties:**
+
 - Target selectors are resolved statically at compile time
 - Capability selectors generate runtime CPU mask probes
 - The lane selection is cached after the first call (static variable, once-per-process)
 - The dispatch is a direct call, not an indirect function pointer
 - Spec and fast lanes are compiled as separate `define` functions
 
----
+______________________________________________________________________
 
 ## Native C Autotune Cache
 
@@ -493,7 +498,7 @@ abi_converge_record_telemetry(converge_key, shape_key, lane_index, elapsed_ticks
 
 The telemetry ring buffer supports the silicon autotune pipeline (`proofs-experimental/converge-autotune-selector-ring.smt2`).
 
----
+______________________________________________________________________
 
 ## Stdlib Telemetry and Runtime API
 
@@ -531,7 +536,7 @@ converge xoshiro_scramble(s1: Int) -> Int:
         return rotl(s1 * 17, 13) + (s1 >> 17) * 7
 ```
 
----
+______________________________________________________________________
 
 ## The Obvious Use Case — Performance Lane Selection
 
@@ -572,7 +577,7 @@ converge render_frame(authority: RenderAuth, mode: Bool) -> Int:
 
 The `mode` parameter is a `Bool` selector — when `true`, the `degraded_path` lane activates (no `when` clause means always eligible). This is converge as **quality-of-service dispatch** — the calling code controls which lane runs.
 
----
+______________________________________________________________________
 
 ## The Hack Side — The Convergence Rat Experiment
 
@@ -618,7 +623,7 @@ fn chaos_maze_distance(sig: Int, start: Int, target: Int, w: Int, h: Int) -> Int
     return base + ((sig * 3) % 7) + ((start + target) % 3)
 ```
 
-Each returns a distance estimate. Converge picks which estimate is the "winner" for this frame. The actual pathfinding (BFS, A*, random walk) runs separately in the `orchestrate` block — converge is only choosing the **strategy outcome**, not the path itself.
+Each returns a distance estimate. Converge picks which estimate is the "winner" for this frame. The actual pathfinding (BFS, A\*, random walk) runs separately in the `orchestrate` block — converge is only choosing the **strategy outcome**, not the path itself.
 
 ### The Orchestrate Frame
 
@@ -645,7 +650,7 @@ orchestrate rat_frame_step(maze: ptr<Int>, start: Int, target: Int, telemetry: R
 | `converge` is verified | `verify random(8)` checks the winner against spec |
 | `converge` is strategy selection, not just speed | Each lane implements a fundamentally different strategy |
 
----
+______________________________________________________________________
 
 ## Creative Semantic Abuse — Under-Utilized Ideas
 
@@ -753,7 +758,7 @@ pulse render_clock every 16ms jitter 2ms:
 
 The converge selects between high-quality and degraded rendering based on overload detection.
 
----
+______________________________________________________________________
 
 ## Combining with Other Keywords
 
@@ -832,7 +837,7 @@ converge read_signal(authority: Authority, mirror: Mirror) -> Int:
         return mirror.signal_copy
 ```
 
----
+______________________________________________________________________
 
 ## Real-World Usage Across the Repo
 
@@ -928,7 +933,7 @@ converge fx_param_clamp(value: Int, lo: Int, hi: Int) -> Int: ...
 
 Each converge selects between a scalar reference and an LLVM-compiled fast lane, all wired into a 9-stage `orchestrate` pipeline driven by an 8ms `pulse`.
 
----
+______________________________________________________________________
 
 ## Z3 Proofs
 
@@ -937,6 +942,7 @@ Each converge selects between a scalar reference and an LLVM-compiled fast lane,
 **File:** `runtime/native/src/core/z3/proofs-experimental/converge-autotune-selector-ring.smt2`
 
 This experimental proof verifies the circular telemetry buffer's safety properties:
+
 - The cursor (atomic-fetch-add) never outruns the slot indices
 - The ring buffer masking (`cursor & (CAP - 1)`) is correct for power-of-two capacity
 - No concurrent write to the same slot from different threads corrupts the structure
@@ -947,7 +953,7 @@ This experimental proof verifies the circular telemetry buffer's safety properti
 
 This proof covers the stable hash tokens used by converge keys (alongside axiom/pulse/shatter/teleport tokens). It verifies that capability name → token mappings are collision-free within the declared set.
 
----
+______________________________________________________________________
 
 ## Validation Ladder
 
@@ -995,7 +1001,7 @@ pub fn smoke_converge_lane() -> Int:
     return 0
 ```
 
----
+______________________________________________________________________
 
 ## Source Anchors
 
@@ -1078,7 +1084,7 @@ pub fn smoke_converge_lane() -> Int:
 | `blades/python/24_tet/src/resonate_py_effects.kn` | 4 converges in audio DSP orchestrate pipeline |
 | `benchmark/cases/actor_ownership_backpressure/main.kn` | Converge in actor ownership stress test |
 
----
+______________________________________________________________________
 
 ## Anti-Patterns
 
@@ -1170,7 +1176,7 @@ fast avx2_lane when capability("cpu.x86.avx2")
 
 Then `any_lane` will be selected even when AVX2 is available, because it's declared first. Order lanes from most-specific to least-specific.
 
----
+______________________________________________________________________
 
 ## Quick Reference
 

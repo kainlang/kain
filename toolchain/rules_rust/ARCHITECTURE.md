@@ -18,7 +18,7 @@ rules integrating with rules_rust.
 the core rules should be able to ignore all other packages.
 
 `//rust:defs.bzl` is the file that all users of `rules_rust` will be using.
-Everything in this file can be used (depended on) and is supported  (though
+Everything in this file can be used (depended on) and is supported (though
 stability is not currently guaranteed across commits, see
 [#600](https://github.com/bazelbuild/rules_rust/issues/600)). Typically this
 file re-exports definitions from other files, typically from `//rust/private`.
@@ -36,12 +36,12 @@ When core rules need custom tools (such as process wrapper, launcher, test
 runner, and so on), they should be stored in `//rust/tools` (for public tools)
 or in `//rust/private/tools` (for private tools). These should:
 
-* be essential (it does not make sense to have core rules without them)
-* have few or no third party dependencies, and their third party dependencies
-    should be checked in.
-* be usable for cross compilation
-* have only essential requirements on the host system (requiring that a custom
-    library is installed on the system is frowned upon)
+- be essential (it does not make sense to have core rules without them)
+- have few or no third party dependencies, and their third party dependencies
+  should be checked in.
+- be usable for cross compilation
+- have only essential requirements on the host system (requiring that a custom
+  library is installed on the system is frowned upon)
 
 ## //examples (@examples)
 

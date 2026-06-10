@@ -1,0 +1,77 @@
+// ─── Kaintana Test Runner ─────────────────────────────────────────────────
+// Shared utilities for the Kaintana test suite.
+// Provides a common test harness: run a test, run a group, print results.
+//
+// Usage in a test file:
+//   use test_runner::*
+//   pub fn run() -> Int:
+//       let mut passed: Int = 0
+//       let mut total: Int = 0
+//       let r = run_test("my test", fn_test_one)
+//       passed = passed + r
+//       total = total + 1
+//       ...
+//       print_test_summary("My Module", passed, total)
+//       if passed == total: return 1
+//       return 0
+
+use std::test
+
+pub const TEST_INDENT: String = "  "
+
+pub fn run_test(label: String, test_fn: fn() -> Int) -> Int:
+    // Run a single test case.
+    // Returns 1 if passed, 0 if failed.
+    // Prints the result inline.
+    let result = test_fn()
+    if result == 1:
+        print(TEST_INDENT + "✓ " + label)
+        return 1
+    print(TEST_INDENT + "✗ " + label + " — FAILED")
+    return 0
+
+pub fn run_test_with_detail(label: String, test_fn: fn() -> TestOutcome) -> TestOutcome:
+    // Run a single test case using std::test outcomes.
+    let outcome = test_fn()
+    if test_outcome_ok(outcome):
+        print(TEST_INDENT + "✓ " + label)
+    else:
+        print(TEST_INDENT + "✗ " + label + " — " + outcome.detail)
+    return outcome
+
+pub fn print_test_summary(module_name: String, passed: Int, total: Int) -> Int:
+    // Print a summary line for a module run.
+    print("[" + module_name + "] " + str(passed) + "/" + str(total) + " passed")
+    if passed == total:
+        print("  ✅ All tests passed")
+        return 1
+    print("  ❌ " + str(total - passed) + " test(s) failed")
+    return 0
+
+pub fn assert_eq_int(label: String, actual: Int, expected: Int) -> TestOutcome:
+    // Assert that two Int values are equal.
+    if actual == expected:
+        return test_pass(label)
+    return test_fail(label, "expected " + str(expected) + " got " + str(actual))
+
+pub fn assert_eq_float(label: String, actual: Float, expected: Float) -> TestOutcome:
+    // Assert that two Float values are equal.
+    if actual == expected:
+        return test_pass(label)
+    return test_fail(label, "expected " + str(expected) + " got " + str(actual))
+
+pub fn assert_eq_string(label: String, actual: String, expected: String) -> TestOutcome:
+    // Assert that two String values are equal.
+    if actual == expected:
+        return test_pass(label)
+    return test_fail(label, "expected \"" + expected + "\" got \"" + actual + "\"")
+
+pub fn assert_true(label: String, condition: Bool) -> TestOutcome:
+    if condition:
+        return test_pass(label)
+    return test_fail(label, "expected true, got false")
+
+pub fn assert_false(label: String, condition: Bool) -> TestOutcome:
+    if not condition:
+        return test_pass(label)
+    return test_fail(label, "expected false, got true")

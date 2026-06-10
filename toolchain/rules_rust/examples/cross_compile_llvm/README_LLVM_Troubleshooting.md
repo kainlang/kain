@@ -7,9 +7,7 @@ older distributions, so please upgrade your compiler if you ever see this error.
 On Ubuntu 20.04 you may see an error that a shared library called libtinfo.so.5 is missing. In that case, just install
 libtinfo via apt-get since its in the official 20.04 repo. To so, open a terminal and type:
 
-`
-apt update && apt install -y libtinfo5
-`
+`apt update && apt install -y libtinfo5`
 
 The libtinfo5 library may have different package names on other distributions, but it is a well known
 issue. [See this SO discussion](https://stackoverflow.com/questions/48674104/clang-error-while-loading-shared-libraries-libtinfo-so-5-cannot-open-shared-o)

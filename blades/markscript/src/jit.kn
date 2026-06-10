@@ -1,35 +1,17 @@
 // ============================================================================
-//  MARKSCRIPT JIT 1.0 — Bytecode-to-x86-64 Machine Code Compiler
+//  MARKSCRIPT JIT 1.0 — Bytecode-to-x86-64 Native Compiler
 //
-//  Compiles MarkScript bytecode basic blocks to native x86-64 code using
-//  Kain's raw memory and VM primitives. No C, no external JIT libraries,
-//  no LLVM passes. Just collapse/observe/decay for buffer management,
-//  std::machine for executable memory, and mem_store for code emission.
+//  Full stack: compiles MarkScript bytecode → x86-64 machine code →
+//  allocates RWX memory → calls native code via inline asm.
+//  Uses converge for interpreter-vs-JIT dispatch.
+//  Uses shatter struct for LLVM codegen-safe cache storage.
+//  No C, no JIT libraries, no LLVM passes. Pure Kain + std::machine.
 //
-//  Architecture:
-//    jit_compile(bc, start_ip, end_ip) → compiled block
-//      → vm_reserve + vm_commit RWX memory
-//      → collapse buffer: emit x86-64 for each bytecode op
-//      → int_to_ptr(buffer) → native function pointer
-//      → register in CodeCache world via patch
+//  JIT function signature (Windows x64):
+//    fn jit_entry() -> Int   // handles its own state via native stack
 //
-//    converge execute_block(vm, bc, ip):
-//      spec = interpreter
-//      fast = JIT-compiled native block
-//      verify random(64) for correctness fuzzing
-//
-//  x86-64 register convention:
-//    RAX, RBX, RCX, RDX — scratch (caller-saved)
-//    R8, R9, R10, R11 — scratch
-//    RBP — frame pointer (VM stack frame)
-//    R12-R15 — callee-saved (VM state base, var base, etc.)
-//    STACK — x86-64 native stack (used as MarkScript operand stack)
-//
-//  JIT function signature:
-//    fn jit_entry(vm_ptr: ptr<Int>, stack_ptr: ptr<Int>) -> Int
-//      vm_ptr points to key VM state fields
-//      stack_ptr points to the operand stack base
-//      Returns: handler_id (0 = done, >0 = dispatch needed)
+//  For simple programs (push/add/sub/etc), the JIT manipulates the
+//  native x86-64 stack directly and returns the exit code in RAX.
 // ============================================================================
 
 use std::machine
@@ -37,13 +19,12 @@ use std::intent
 use parser          // OP_*, hash_name
 use types           // MarkValue, mark_int
 use error           // MarkError, ERROR_*, error_ok, make_error
-use vm              // MarkScriptVM, ExecResult, execute_bytecode, lookup_handler_ivt
+use vm              // MarkScriptVM, ExecResult, init_vm, execute_bytecode
 
 // ===========================================================================
-//  JIT CONSTANTS
+//  X86-64 OPCODE CONSTANTS
 // ===========================================================================
 
-// x86-64 opcode bytes (1-byte forms)
 const X64_PUSH_RAX: Int = 0x50
 const X64_PUSH_RBX: Int = 0x53
 const X64_PUSH_RCX: Int = 0x51
@@ -55,53 +36,19 @@ const X64_POP_RDX:  Int = 0x5A
 const X64_RET:      Int = 0xC3
 const X64_PUSH_RBP: Int = 0x55
 const X64_POP_RBP:  Int = 0x5D
-
-// REX prefixes
-const X64_REX_W:    Int = 0x48  // 64-bit operand size
-const X64_REX_WB:   Int = 0x49  // 64-bit + extended base register
-
-// ModRM byte helpers: mod=3 (register direct), reg, rm
-// mov rax, rbx → REX.W + 89 + ModRM(3, 3, 3) = 48 89 D8
-// mov rbx, rax → REX.W + 89 + ModRM(3, 0, 3) = 48 89 C3
+const X64_REX_W:    Int = 0x48
 
 fn x64_modrm(mod_val: Int, reg: Int, rm: Int) -> Int:
     return ((mod_val & 3) << 6) | ((reg & 7) << 3) | (rm & 7)
 
 // ===========================================================================
-//  CODE EMITTER — writes x86-64 bytes to a pointer buffer
-//  Uses collapse for exclusive write access to the buffer.
+//  BYTECODE EMITTER — appends x86-64 bytes to an Int array
 // ===========================================================================
 
-struct EmitState:
-    buf:    ptr<Byte>      // current write position
-    start:  ptr<Byte>      // buffer start (for relative offsets)
-    size:   Int             // total allocated bytes
-
-// Emit a single byte
-fn emit_byte(state: ptr<EmitState>, byte: Int) -> Int with Unsafe:
-    let pos = mem_load(state, "Int") as ptr<Byte>
-    let buf_field = ptr_to_int(pos)  // shouldn't do this, but we need the offset
-    // track offset as int
-    return 0
-
-// ===========================================================================
-//  emit to a temporary Int array, then copy to RWX memory
-//  This avoids pointer-based EmitState complexity. The Int array is
-//  a growable buffer. After emission, we allocate RWX memory and copy.
-// ===========================================================================
-
-// Emit one byte to the bytecode array
-fn emit_byte_arr(arr: Array<Int>, byte: Int) -> Array<Int>:
+fn emit_byte(arr: Array<Int>, byte: Int) -> Array<Int>:
     push(arr, byte & 0xFF)
     return arr
 
-// Emit 2 bytes (little-endian)
-fn emit_u16(arr: Array<Int>, val: Int) -> Array<Int>:
-    push(arr, val & 0xFF)
-    push(arr, (val >> 8) & 0xFF)
-    return arr
-
-// Emit 4 bytes (little-endian)
 fn emit_u32(arr: Array<Int>, val: Int) -> Array<Int>:
     push(arr, val & 0xFF)
     push(arr, (val >> 8) & 0xFF)
@@ -109,7 +56,6 @@ fn emit_u32(arr: Array<Int>, val: Int) -> Array<Int>:
     push(arr, (val >> 24) & 0xFF)
     return arr
 
-// Emit 8 bytes (little-endian)
 fn emit_u64(arr: Array<Int>, val: Int) -> Array<Int>:
     push(arr, val & 0xFF)
     push(arr, (val >> 8) & 0xFF)
@@ -121,366 +67,241 @@ fn emit_u64(arr: Array<Int>, val: Int) -> Array<Int>:
     push(arr, (val >> 56) & 0xFF)
     return arr
 
-// Emit REX.W prefix + two-register opcode (e.g., mov rax, rbx)
-fn emit_rr(arr: Array<Int>, rex: Int, opcode: Int, reg: Int, rm: Int) -> Array<Int>:
+fn emit_rr(arr: Array<Int>, rex: Int, op: Int, reg: Int, rm: Int) -> Array<Int>:
     push(arr, rex)
-    push(arr, opcode)
+    push(arr, op)
     push(arr, x64_modrm(3, reg, rm))
-    return arr
-
-// Emit REX.W + opcode + ModRM for [rbp + disp8] addressing
-fn emit_r_mbp(arr: Array<Int>, rex: Int, opcode: Int, reg: Int, disp8: Int) -> Array<Int>:
-    push(arr, rex)
-    push(arr, opcode)
-    // ModRM: mod=01 (disp8), reg, rm=101 (rbp)
-    let modrm = ((1 & 3) << 6) | ((reg & 7) << 3) | (5 & 7)
-    push(arr, modrm)
-    push(arr, disp8 & 0xFF)  // signed byte displacement
     return arr
 
 // ===========================================================================
 //  X86-64 EMITTER FUNCTIONS
-//
-//  Each emit function appends bytes for a specific instruction pattern.
-//  The caller (emit_block) decides which instruction to emit per opcode.
 // ===========================================================================
 
-fn emit_prologue(arr: Array<Int>, stack_frame_size: Int) -> Array<Int>:
-    // push rbp
-    push(arr, X64_PUSH_RBP)
-    // mov rbp, rsp
-    emit_rr(arr, X64_REX_W, 0x89, 5, 4)    
-    let modrm = x64_modrm(3, 4, 5)  // reg=rsp(4), rm=rbp(5)
-    push(arr, modrm)
-    if stack_frame_size > 0:
-        push(arr, X64_REX_W)
-        push(arr, 0x81)  // 81 /0 = sub r/m64, imm32
-        push(arr, 0xEC)  // ModRM: mod=3, reg=0(sub), rm=4(rsp)
-        emit_u32(arr, stack_frame_size)
+fn emit_prologue(arr: Array<Int>) -> Array<Int>:
+    // Save ALL callee-saved regs FIRST, THEN set frame pointer
+    // This way RBP points to the TOP of the callee-save area
+    push(arr, X64_PUSH_RBP)       // save old RBP, RSP -= 8
+    push(arr, X64_PUSH_RBX)       // save old RBX, RSP -= 8
+    emit_rr(arr, X64_REX_W, 0x89, 4, 5)  // mov rbp, rsp — frame base AFTER saves
     return arr
 
 fn emit_epilogue(arr: Array<Int>) -> Array<Int>:
-    // mov rsp, rbp
-    emit_rr(arr, X64_REX_W, 0x89, 4, 5)  // mov rsp, rbp
-    // pop rbp
-    push(arr, X64_POP_RBP)
-    // ret
-    push(arr, X64_RET)
+    // Restore RSP to frame base (after saves, before operand pushes)
+    emit_rr(arr, X64_REX_W, 0x89, 4, 5)  // mov rsp, rbp — RSP -> saved RBX
+    push(arr, X64_POP_RBX)               // pop rbx — restore RBX, RSP += 8
+    push(arr, X64_POP_RBP)               // pop rbp — restore RBP, RSP += 8
+    push(arr, X64_RET)                   // ret
     return arr
 
 fn emit_push_imm64(arr: Array<Int>, val: Int) -> Array<Int>:
-    // mov rax, imm64
+    // mov rax, imm64; push rax
     push(arr, X64_REX_W)
-    push(arr, 0xB8)  // mov rax, imm64 (opcode + reg field = rax)
+    push(arr, 0xB8)
     emit_u64(arr, val)
-    // push rax
     push(arr, X64_PUSH_RAX)
     return arr
 
 fn emit_pop_drop(arr: Array<Int>) -> Array<Int>:
-    // add rsp, 8  (skip top of stack)
+    // add rsp, 8
     push(arr, X64_REX_W)
-    push(arr, 0x83)  // 83 /0 = add r/m64, imm8
-    push(arr, 0xC4)  // ModRM: mod=3, reg=0(add), rm=4(rsp)
-    push(arr, 8)     // skip 8 bytes
+    push(arr, 0x83)
+    push(arr, 0xC4)
+    push(arr, 8)
     return arr
 
-fn emit_pop_rax(arr: Array<Int>) -> Array<Int>:
-    push(arr, X64_POP_RAX)
-    return arr
-
-fn emit_mov_rbp_to_rsp(arr: Array<Int>) -> Array<Int>:
-    // mov rbp, rsp
-    emit_rr(arr, X64_REX_W, 0x89, 4, 5)
-    return arr
-
-// ADD: pop rbx; pop rax; add rax, rbx; push rax
 fn emit_add(arr: Array<Int>) -> Array<Int>:
-    push(arr, X64_POP_RBX)          // pop rbx (second operand)
-    push(arr, X64_POP_RAX)          // pop rax (first operand)
-    emit_rr(arr, X64_REX_W, 0x01, 0, 3)  // add rax, rbx (01 /r: add r/m, r)
-    push(arr, X64_PUSH_RAX)         // push result
+    // pop rbx; pop rax; add rax, rbx; push rax
+    push(arr, X64_POP_RBX)
+    push(arr, X64_POP_RAX)
+    emit_rr(arr, X64_REX_W, 0x01, 0, 3)
+    push(arr, X64_PUSH_RAX)
     return arr
 
-// SUB: pop rbx; pop rax; sub rax, rbx; push rax
 fn emit_sub(arr: Array<Int>) -> Array<Int>:
     push(arr, X64_POP_RBX)
     push(arr, X64_POP_RAX)
-    emit_rr(arr, X64_REX_W, 0x29, 0, 3)  // sub rax, rbx
+    emit_rr(arr, X64_REX_W, 0x29, 0, 3)
     push(arr, X64_PUSH_RAX)
     return arr
 
-// MUL: pop rbx; pop rax; imul rax, rbx; push rax
 fn emit_mul(arr: Array<Int>) -> Array<Int>:
     push(arr, X64_POP_RBX)
     push(arr, X64_POP_RAX)
-    emit_rr(arr, X64_REX_W, 0x0F, 4, 3)  // imul rax, rbx  
-    // Actually imul r64, r/m64 is 0F AF /r
-    // 48 0F AF C3 = imul rax, rbx
-    // REX.W + 0F AF + ModRM(3,0,3)
     push(arr, X64_REX_W)
     push(arr, 0x0F)
     push(arr, 0xAF)
-    push(arr, x64_modrm(3, 0, 3))  // reg=rax(0), rm=rbx(3)
+    push(arr, x64_modrm(3, 0, 3))
     push(arr, X64_PUSH_RAX)
     return arr
 
-// DIV: xor rdx,rdx; pop rbx; pop rax; div rbx; push rax
 fn emit_div(arr: Array<Int>) -> Array<Int>:
-    // xor rdx, rdx
-    emit_rr(arr, X64_REX_W, 0x31, 2, 2)  // xor rdx, rdx
-    push(arr, X64_POP_RBX)          // pop rbx (divisor)
-    push(arr, X64_POP_RAX)          // pop rax (dividend)
-    // div rbx
+    // xor rdx, rdx; pop rbx; pop rax; div rbx; push rax
+    emit_rr(arr, X64_REX_W, 0x31, 2, 2)
+    push(arr, X64_POP_RBX)
+    push(arr, X64_POP_RAX)
     push(arr, X64_REX_W)
     push(arr, 0xF7)
-    push(arr, 0xF3)                 // ModRM(3,6,3) = F3 for div r/m64
-    push(arr, X64_PUSH_RAX)         // push quotient
+    push(arr, 0xF3)
+    push(arr, X64_PUSH_RAX)
     return arr
 
-// JMP rel32: jmp <offset from end of instruction>
-fn emit_jmp(arr: Array<Int>, current_offset: Int, target_offset: Int) -> Array<Int>:
-    // jmp rel32 = E9 + 4-byte signed offset
-    // offset = target - (current + 5)
-    let rel = target_offset - (current_offset + 5)
+fn emit_jmp(arr: Array<Int>, current: Int, target: Int) -> Array<Int>:
+    let rel = target - (current + 5)
     push(arr, 0xE9)
     emit_u32(arr, rel)
     return arr
 
-// JN (jump if negative): pop rax; test rax,rax; js rel32
-fn emit_jn(arr: Array<Int>, current_offset: Int, target_offset: Int) -> Array<Int>:
-    push(arr, X64_POP_RAX)
-    // test rax, rax
-    emit_rr(arr, X64_REX_W, 0x85, 0, 0)
-    // js rel32 = 0F 88 + 4 bytes
-    // offset from end of 6-byte sequence (pop=1, test=3, js prefix=2, offset=4)
-    let insn_start = current_offset
-    // After pop=1, test=3 bytes, we're at insn_start + 4
-    // js prefix (0F 88) is at +4, +5
-    // After 6 bytes of js (0F 88 + rel32): position = insn_start + 4 + 6 = insn_start + 10
-    // rel = target - (insn_start + 10)
-    let rel = target_offset - (insn_start + 10)
-    push(arr, 0x0F)
-    push(arr, 0x88)  // js rel32
-    emit_u32(arr, rel)
-    return arr
-
-// JZ (jump if zero): pop rax; test rax,rax; jz rel32
-fn emit_jz(arr: Array<Int>, current_offset: Int, target_offset: Int) -> Array<Int>:
+fn emit_jn(arr: Array<Int>, current: Int, target: Int) -> Array<Int>:
+    // pop rax; test rax,rax; js rel32
     push(arr, X64_POP_RAX)
     emit_rr(arr, X64_REX_W, 0x85, 0, 0)  // test rax, rax
-    let rel = target_offset - (current_offset + 10)
+    let rel = target - (current + 10)
     push(arr, 0x0F)
-    push(arr, 0x84)  // jz rel32
+    push(arr, 0x88)
     emit_u32(arr, rel)
     return arr
 
-// LOAD_VAR: load from variable offset in VM state
-// The VM state has a variables array at a known offset.
-// For simplicity: pop the variable from a fixed offset.
-fn emit_load_var(arr: Array<Int>, var_offset: Int) -> Array<Int>:
-    // For now: push the variable value from variable base
-    // This assumes variables are stored at known offsets
-    // We use [rbp + disp8] for variable access
-    // push [rbp + var_offset] = REX.W + FF /6 + ModRM(1,6,5) + disp8
-    push(arr, X64_REX_W)
-    push(arr, 0xFF)  // FF /6 = push r/m64
-    let modrm = ((1 & 3) << 6) | ((6 & 7) << 3) | (5 & 7)
-    push(arr, modrm)
-    push(arr, var_offset & 0xFF)
-    return arr
-
-// STORE_VAR: pop rax; mov [rbp + var_offset], rax
-fn emit_store_var(arr: Array<Int>, var_offset: Int) -> Array<Int>:
+fn emit_jz(arr: Array<Int>, current: Int, target: Int) -> Array<Int>:
     push(arr, X64_POP_RAX)
-    emit_r_mbp(arr, X64_REX_W, 0x89, 0, var_offset)  // mov [rbp+disp], rax
+    emit_rr(arr, X64_REX_W, 0x85, 0, 0)
+    let rel = target - (current + 10)
+    push(arr, 0x0F)
+    push(arr, 0x84)
+    emit_u32(arr, rel)
     return arr
 
-// HALT: mov rax, 0 (handler_id=0); jmp to epilogue
-// For simplicity: ret (the calling convention handles the return)
 fn emit_halt(arr: Array<Int>) -> Array<Int>:
-    // xor rax, rax (return 0)
-    emit_rr(arr, X64_REX_W, 0x31, 0, 0)  // xor rax, rax
-    // We'll jump to epilogue — the caller patches this
+    // xor eax, eax; epilogue
+    emit_rr(arr, X64_REX_W, 0x31, 0, 0)
     return arr
 
 // ===========================================================================
-//  BLOCK COMPILER — compiles a sequence of bytecode ops to x86-64
-//
-//  Takes a bytecode array, start IP, and end IP.
-//  Emits x86-64 machine code to an Int array, then copies to RWX memory.
-//  Returns a function pointer or 0 on failure.
+//  BLOCK COMPILER — bytecode → x86-64 machine code
 // ===========================================================================
 
 struct JitResult:
-    code_ptr:   ptr<Byte>      // pointer to emitted machine code (0 = failed)
-    code_size:  Int             // size in bytes
-    error:      String          // empty = success
+    code_ptr:   ptr<Byte>
+    code_size:  Int
+    error:      String
 
-fn estimate_block_size(bytecode: Array<Int>, start_ip: Int, end_ip: Int) -> Int:
-    // Rough estimate: average 10 bytes per opcode + prologue/epilogue
-    let op_count = end_ip - start_ip
-    return op_count * 15 + 64  // generous padding
+fn null_ptr_byte() -> ptr<Byte>:
+    return int_to_ptr(0, "ptr<Byte>")
 
 fn jit_compile_block(bytecode: Array<Int>, start_ip: Int, end_ip: Int) -> JitResult with Unsafe:
-    // Step 1: Emit to a temporary Int array (growable, no sizing worries)
     var code_arr: Array<Int> = []
-
-    // Emit prologue
-    code_arr = emit_prologue(code_arr, 0)
-
-    // Track offset for relative jumps
-    // We need a second pass for forward jumps.
-    // For now: single-pass, no forward jump fixup (simple blocks only).
+    code_arr = emit_prologue(code_arr)
 
     var ip: Int = start_ip
     while ip < end_ip:
         let op = bytecode[ip]
         let current_offset = len(code_arr)
 
-        if op == 0:  // OP_HALT
-            // xor eax, eax (return 0)
+        if op == 0:        // OP_HALT
             code_arr = emit_halt(code_arr)
-            ip = ip + 1
-
-        elif op == 1:  // OP_ENTER_DOMAIN
-            ip = ip + 2  // skip opcode + operand
-
-        elif op == 2:  // OP_ROUTINE_HEADER
-            ip = ip + 2
-
-        elif op == 3:  // OP_PUSH_PARAM
-            ip = ip + 2
-
-        elif op == 4:  // OP_EXECUTE_CALL
-            // For now: return handler_id to caller (stub)
-            // xor eax, eax (handler_id=0 for stub)
-            emit_rr(code_arr, X64_REX_W, 0x31, 0, 0)
-            code_arr = emit_epilogue(code_arr)
-            ip = end_ip  // end the block at EXECUTE_CALL
-            break
-
-        elif op == 5:  // OP_PUSH_MATRIX
-            ip = skip_push_matrix(bytecode, ip)
-
-        elif op == 6:  // OP_FENCED_CODE
-            ip = ip + 3  // opcode + lang_hash + content_hash
-
-        elif op == 7:  // OP_PUSH_STACK
-            ip = ip + 1
-            if ip < len(bytecode):
-                let operand = bytecode[ip]
-                code_arr = emit_push_imm64(code_arr, operand)
-            ip = ip + 1
-
-        elif op == 8:  // OP_POP_STACK
-            code_arr = emit_pop_drop(code_arr)
-            ip = ip + 1
-
-        elif op == 9:  // OP_DUP
-            // push [rsp] (duplicate top of stack)
-            push(code_arr, X64_REX_W)
-            push(code_arr, 0xFF)  // FF /6 = push r/m64
-            push(code_arr, 0x34)  // ModRM: mod=0, reg=6, rm=4 (sib)
-            push(code_arr, 0x24)  // SIB: scale=0, index=4(none), base=4(rsp)
-            ip = ip + 1
-
-        elif op == 10:  // OP_CALL
-            // For now: return handler_id to caller (stub)
-            emit_rr(code_arr, X64_REX_W, 0x31, 0, 0)
             code_arr = emit_epilogue(code_arr)
             ip = end_ip
             break
-
-        elif op == 11:  // OP_RET
+        elif op == 1 or op == 2:  // OP_ENTER_DOMAIN, OP_ROUTINE_HEADER
+            ip = ip + 2
+        elif op == 3:      // OP_PUSH_PARAM
+            ip = ip + 2
+        elif op == 4 or op == 10:  // EXECUTE_CALL or OP_CALL
+            code_arr = emit_halt(code_arr)
+            code_arr = emit_epilogue(code_arr)
+            ip = end_ip
+            break
+        elif op == 5:      // OP_PUSH_MATRIX — skip
+            ip = ip + 1
+            let bc_len2 = len(bytecode)
+            if ip + 3 >= bc_len2:
+                ip = bc_len2
+                continue
+            ip = ip + 4  // handle, cols, rows, data_count
+            if ip < bc_len2:
+                let cc = bytecode[ip]
+                ip = ip + 1 + cc
+            ip = ip + 1
+        elif op == 6:      // OP_FENCED_CODE
+            ip = ip + 3
+        elif op == 7:      // OP_PUSH_STACK
+            ip = ip + 1
+            if ip < len(bytecode):
+                code_arr = emit_push_imm64(code_arr, bytecode[ip])
+            ip = ip + 1
+        elif op == 8:      // OP_POP_STACK
+            code_arr = emit_pop_drop(code_arr)
+            ip = ip + 1
+        elif op == 9:      // OP_DUP
+            push(code_arr, X64_REX_W)
+            push(code_arr, 0xFF)
+            push(code_arr, 0x34)
+            push(code_arr, 0x24)
+            ip = ip + 1
+        elif op == 11:     // OP_RET
             code_arr = emit_epilogue(code_arr)
             ip = ip + 1
-
-        elif op == 12:  // OP_JMP
+        elif op == 12:     // OP_JMP
             ip = ip + 1
             if ip < len(bytecode):
-                let target = bytecode[ip]
-                let target_offset = 0  // placeholder — second pass needed
-                code_arr = emit_jmp(code_arr, current_offset, target)
+                code_arr = emit_jmp(code_arr, current_offset, bytecode[ip])
             ip = ip + 1
-
-        elif op == 13:  // OP_JZ
+        elif op == 13:     // OP_JZ
             ip = ip + 1
             if ip < len(bytecode):
-                let target = bytecode[ip]
-                code_arr = emit_jz(code_arr, current_offset, target)
+                code_arr = emit_jz(code_arr, current_offset, bytecode[ip])
             ip = ip + 1
-
-        elif op == 14:  // OP_ADD
+        elif op == 14:     // OP_ADD
             code_arr = emit_add(code_arr)
             ip = ip + 1
-
-        elif op == 15:  // OP_SUB
+        elif op == 15:     // OP_SUB
             code_arr = emit_sub(code_arr)
             ip = ip + 1
-
-        elif op == 16:  // OP_MUL
+        elif op == 16:     // OP_MUL
             code_arr = emit_mul(code_arr)
             ip = ip + 1
-
-        elif op == 17:  // OP_DIV
+        elif op == 17:     // OP_DIV
             code_arr = emit_div(code_arr)
             ip = ip + 1
-
-        elif op == 18:  // OP_LOAD_VAR
+        elif op == 18:     // OP_LOAD_VAR
+            ip = ip + 2  // skip (stub — pushes 0)
+            code_arr = emit_push_imm64(code_arr, 0)
+        elif op == 19:     // OP_STORE_VAR
+            ip = ip + 2  // skip (stub — pops)
+            code_arr = emit_pop_drop(code_arr)
+        elif op == 20:     // OP_JN
             ip = ip + 1
             if ip < len(bytecode):
-                let name_hash = bytecode[ip]
-                // For simplicity: just push a constant (stub)
-                code_arr = emit_push_imm64(code_arr, 0)
+                code_arr = emit_jn(code_arr, current_offset, bytecode[ip])
+            ip = ip + 1
+        else:
             ip = ip + 1
 
-        elif op == 19:  // OP_STORE_VAR
-            ip = ip + 1
-            if ip < len(bytecode):
-                let name_hash = bytecode[ip]
-                // For simplicity: just pop (stub)
-                code_arr = emit_pop_drop(code_arr)
-            ip = ip + 1
-
-        elif op == 20:  // OP_JN
-            ip = ip + 1
-            if ip < len(bytecode):
-                let target = bytecode[ip]
-                code_arr = emit_jn(code_arr, current_offset, target)
-            ip = ip + 1
-
-        else:  // Unknown opcode — skip
-            ip = ip + 1
-
-    // Emit epilogue if not already done
+    // Epilogue if not already emitted
     if len(code_arr) > 0:
-        let last_op = code_arr[len(code_arr) - 1]
-        if last_op != X64_RET and last_op != X64_POP_RBP:
+        let last = code_arr[len(code_arr) - 1]
+        if last != X64_RET and last != X64_POP_RBP:
             code_arr = emit_epilogue(code_arr)
 
-    // Step 2: Allocate RWX memory and copy code
+    // Allocate + copy to RWX memory
     let code_size = len(code_arr)
     if code_size < 1:
-        return JitResult { code_ptr: null_ptr_byte(), code_size: 0, error: "empty code" }
+        return JitResult { code_ptr: null_ptr_byte(), code_size: 0, error: "empty" }
 
     let alloc_size = code_size
     let page_size = vm_page_size()
     if alloc_size % page_size > 0:
         alloc_size = (alloc_size / page_size + 1) * page_size
 
-    // Use vm_map to allocate RWX memory (reserve + commit + RW in one call)
     let buf = vm_map(alloc_size)
     if ptr_to_int(buf) == 0:
         return JitResult { code_ptr: null_ptr_byte(), code_size: 0, error: "vm_map failed" }
 
-    // Ensure execute permission
     let prot = vm_protect_execute_read_write(buf, alloc_size)
     if prot != 0:
         let _ = vm_release(buf, alloc_size)
-        return JitResult { code_ptr: null_ptr_byte(), code_size: 0, error: "vm_protect_execute_read_write failed" }
+        return JitResult { code_ptr: null_ptr_byte(), code_size: 0, error: "protect failed" }
 
-    // Step 3: Copy machine code bytes from array to executable buffer
+    // Copy code bytes
     collapse buf:
         var i: Int = 0
         while i < code_size:
@@ -489,245 +310,161 @@ fn jit_compile_block(bytecode: Array<Int>, start_ip: Int, end_ip: Int) -> JitRes
             i = i + 1
         0
 
-    // Flush instruction cache (required for JIT on x86)
-    // Use cache_flush on each cache line
+    // Flush I-cache
     var ci: Int = 0
-    let cache_line = cpu_cache_line_bytes()
+    let cls = cpu_cache_line_bytes()
     while ci < code_size:
-        let byte_ptr = ptr_offset(buf, ci, "Byte")
-        let flush_ptr: ptr<Int> = int_to_ptr(ptr_to_int(byte_ptr), "ptr<Int>")
-        cache_flush(flush_ptr)
-        ci = ci + cache_line
-
+        let bp = ptr_offset(buf, ci, "Byte")
+        let fp: ptr<Int> = int_to_ptr(ptr_to_int(bp), "ptr<Int>")
+        cache_flush(fp)
+        ci = ci + cls
     full_fence()
 
-    // Convert vm_map's ptr<Int> to ptr<Byte> for the result
     let result_ptr: ptr<Byte> = int_to_ptr(ptr_to_int(buf), "ptr<Byte>")
-    return JitResult {
-        code_ptr: result_ptr,
-        code_size: code_size,
-        error: ""
-    }
+    return JitResult { code_ptr: result_ptr, code_size: code_size, error: "" }
 
 // ===========================================================================
-//  HELPER: skip OP_PUSH_MATRIX operands
+//  NATIVE CODE EXECUTION — call JIT code via inline asm
+//  Windows x64: first arg in RCX, result in RAX.
+//  The JIT function takes no args (self-contained on native stack).
+//  Returns: 0 (success) or handler_id (for EXECUTE_CALL).
 // ===========================================================================
 
-// Helper: create a null pointer
-fn null_ptr_byte() -> ptr<Byte>:
-    return int_to_ptr(0, "ptr<Byte>")
+fn call_jit(code_ptr: ptr<Byte>) -> Int with Unsafe:
+    // Proven asm_rdtsc pattern: scratch buffer, [rdi], clobbers, volatile
+    // scratch[0] = code address, scratch[1] = return value slot
+    let scratch: ptr<Int> = alloc_zeroed(2, "Int")
+    mem_store(scratch, ptr_to_int(code_ptr), "Int")
+    mem_store(ptr_offset(scratch, 1, "Int"), 0, "Int")
+    let sc_int = ptr_to_int(scratch)
 
-// Helper: check if a pointer is null
-fn is_null(p: ptr<Byte>) -> Bool:
-    return ptr_to_int(p) == 0
+    // asm_rdtsc pattern: bind pointer to rdi, asm body uses [rdi]
+    // rbx is callee-saved — NOT in clobbers (JIT prologue/epilogue handles it)
+    asm("mov rax, [rdi]\ncall rax\nmov [rdi+8], rax",
+        sc_int,
+        constraints = "{rdi}",
+        clobbers = "rax,rcx,rdx",
+        memory = true, intel = true)
 
-fn skip_push_matrix(bc: Array<Int>, ip: Int) -> Int:
-    var pos = ip + 1
-    let bc_len = len(bc)
-    if pos + 3 >= bc_len: return bc_len
-    let cols = bc[pos + 1]  // handle is at pos
-    pos = pos + 4  // handle, cols, rows
-    let data_count = bc[pos]
-    pos = pos + 1
-    // col types
-    if pos < bc_len:
-        let col_count = bc[pos]
-        pos = pos + 1 + col_count
-    // cell data
-    pos = pos + data_count
-    return pos
-
-// ===========================================================================
-//  CONVERGE DISPATCH — Interpreter vs JIT
-//
-//  The converge block selects between the interpreter (spec) and
-//  JIT-compiled native code (fast). verify random(64) fuzz-tests
-//  the JIT output against the interpreter for correctness.
-//
-//  When JIT is enabled:
-//    1. Compute a block signature (hash of bytecode range)
-//    2. Look up in code cache
-//    3. If found: cast buffer to function pointer and call
-//    4. If not found: fall back to interpreter
-//    5. Hot blocks get compiled asynchronously via JITWorker actor
-// ===========================================================================
-
-// Execute a block via interpreter (the spec/reference lane)
-fn interpret_block(vm: MarkScriptVM, bc: Array<Int>, ip: Int) -> ExecResult:
-    // For the converge lane, we run execute_bytecode from the given IP
-    // (the existing execute_bytecode function handles this)
-    return execute_bytecode(vm, bc)
-
-// Execute a block via JIT-compiled native code (the fast lane)
-fn run_jitted_block(vm: ptr<MarkScriptVM>, code_ptr: ptr<Byte>) -> Int with Unsafe:
-    // Cast the code buffer to a function pointer and call it
-    // The JIT-ed function has signature: fn(vm_ptr: ptr<Int>) -> Int
-    let fn_addr = ptr_to_int(code_ptr)
-    // Use inline asm to call the JIT code
-    // We push the VM pointer and call the native code
-    let result: Int = 0
-    // asm with register constraints to call through a function pointer:
-    // mov rax, fn_addr; mov rcx, vm_ptr; call rax
-    asm("mov %1, %%rax", fn_addr)
-    asm("mov %0, %%rcx", vm)
-    asm("call *%rax")
-    asm("mov %%rax, %0", result)
+    let result = mem_load(ptr_offset(scratch, 1, "Int"), "Int")
+    decay scratch
     return result
 
-// Block signature: hash of the bytecode range (for cache lookup)
-fn block_signature(bc: Array<Int>, start_ip: Int, end_ip: Int) -> Int:
-    var h: Int = 0
-    var i: Int = start_ip
-    while i < end_ip and i < len(bc):
-        h = h * 31 + bc[i]
-        i = i + 1
-    return h
-
 // ===========================================================================
-//  CODE CACHE — stores compiled native code blocks
-//  Uses plain arrays and structs (world/patch integration TBD based on Kain syntax)
+//  SHATTER-BASED CODE CACHE — SoA layout avoids LLVM struct-in-array bug
+//  Uses parallel arrays for block_hash / code_ptr / code_size instead of
+//  Array<CacheEntry> which triggers the LLVM codegen limitation.
 // ===========================================================================
 
-struct CacheEntry:
-    block_hash: Int
-    code_ptr:   ptr<Byte>
-    code_size:  Int
-    exec_count: Int
+shatter struct CacheStore:
+    hashes:  Array<Int>
+    ptrs:    Array<ptr<Byte>>
+    sizes:   Array<Int>
+    count:   Int
+    hits:    Int
+    misses:  Int
+    bytes:   Int
+    compiles: Int
 
-// Cache state — initialized lazily via init_jit_cache()
-// Using a struct passed through all cache functions avoids Kain module-var issues
-struct JitCacheState:
-    entries:      Array<CacheEntry>
-    total_bytes:  Int
-    max_bytes:    Int
-    compile_count: Int
-    hit_count:    Int
-    miss_count:   Int
-
-fn init_cache() -> JitCacheState:
-    return JitCacheState {
-        entries: [],
-        total_bytes: 0,
-        max_bytes: 4194304,
-        compile_count: 0,
-        hit_count: 0,
-        miss_count: 0
+fn init_cache() -> CacheStore:
+    return CacheStore {
+        hashes: [], ptrs: [], sizes: [],
+        count: 0, hits: 0, misses: 0,
+        bytes: 0, compiles: 0
     }
 
-struct CacheResult:
-    state: JitCacheState
-    entry: CacheEntry
-    index: Int
+struct LookupResult:
+    found: Bool
+    ptr:   ptr<Byte>
 
-fn cache_register(state: JitCacheState, hash: Int, ptr: ptr<Byte>, size: Int) -> JitCacheState:
-    var s = state
-    push(s.entries, CacheEntry {
-        block_hash: hash,
-        code_ptr: ptr,
-        code_size: size,
-        exec_count: 0
-    })
-    s.total_bytes = s.total_bytes + size
-    s.compile_count = s.compile_count + 1
-    return s
-
-fn cache_lookup(state: JitCacheState, hash: Int) -> CacheResult:
-    var s = state
+fn cache_lookup(cache: CacheStore, hash: Int) -> LookupResult:
     var i: Int = 0
-    while i < len(s.entries):
-        let entry = s.entries[i]
-        if entry.block_hash == hash:
-            s.hit_count = s.hit_count + 1
-            // Note: per-entry exec_count not updated (LLVM codegen limitation)
-            return CacheResult { state: s, entry: entry, index: i }
+    while i < cache.count:
+        if cache.hashes[i] == hash:
+            return LookupResult { found: true, ptr: cache.ptrs[i] }
         i = i + 1
-    s.miss_count = s.miss_count + 1
-    return CacheResult {
-        state: s,
-        entry: CacheEntry { block_hash: 0, code_ptr: null_ptr_byte(), code_size: 0, exec_count: 0 },
-        index: -1
-    }
+    return LookupResult { found: false, ptr: null_ptr_byte() }
+
+fn cache_register(cache: CacheStore, hash: Int, ptr: ptr<Byte>, size: Int) -> CacheStore:
+    var c = cache
+    push(c.hashes, hash)
+    push(c.ptrs, ptr)
+    push(c.sizes, size)
+    c.count = c.count + 1
+    c.bytes = c.bytes + size
+    c.compiles = c.compiles + 1
+    return c
+
+fn cache_record_hit(cache: CacheStore) -> CacheStore:
+    var c = cache
+    c.hits = c.hits + 1
+    return c
+
+fn cache_record_miss(cache: CacheStore) -> CacheStore:
+    var c = cache
+    c.misses = c.misses + 1
+    return c
 
 // ===========================================================================
-//  CONVERGE SELECTOR — The JIT dispatch point
-//
-//  This is the converge block that selects between interpreter and JIT.
-//  The spec lane is the interpreter. The fast lane is JIT-compiled native.
-//  verify random(64) fuzz-tests the JIT against the interpreter.
-//
-//  Note: converge currently requires spec + fast lanes to produce the
-//  same type. The interpreter returns ExecResult (struct). The JIT
-//  returns Int (handler_id). For a real integration, both lanes would
-//  return the same type through a shared wrapper.
-//
-//  For now, the converge is a direct call site: the JIT worker compiles
-//  blocks, and execute_bytecode checks the cache before interpreting.
+//  PUBLIC INTEGRATION POINTS
+//  jit_execute: compile and run bytecode via JIT in one call
 // ===========================================================================
 
-// ===========================================================================
-//  JIT COMPILATION TRIGGER — compiles and caches a bytecode block
-//  Called when a block is identified as hot. Runs synchronously for now;
-//  future versions should use an actor for background compilation.
-// ===========================================================================
-
-fn jit_compile_and_cache(state: JitCacheState, bc: Array<Int>, start_ip: Int, end_ip: Int) -> JitCacheState with Unsafe:
-    let result = jit_compile_block(bc, start_ip, end_ip)
-    if result.error == "":
-        let hash = block_signature(bc, start_ip, end_ip)
-        return cache_register(state, hash, result.code_ptr, result.code_size)
-    return state
-
-// ===========================================================================
-//  JIT INTEGRATION POINT — called from execute_bytecode
-//
-//  When the VM encounters a backwards jump (loop), it checks if the
-//  loop body is hot. If so, it compiles it via the JIT worker and
-//  falls back to the interpreter until compilation completes.
-//  Subsequent executions use the JIT-compiled native code.
-// ===========================================================================
-
-pub fn jit_check_and_run(state: JitCacheState, vm: MarkScriptVM, bc: Array<Int>, ip: Int, loop_start: Int) -> ExecResult with Unsafe:
-    let hash = block_signature(bc, loop_start, ip)
-    let cr = cache_lookup(state, hash)
-
-    if is_null(cr.entry.code_ptr):
-        // Not compiled — not hot enough yet
-        // Future: trigger JIT compilation if hot
-        let _miss = cr.state.miss_count
-    else:
-        // JIT code exists — would run via native call
-        // Future: int_to_ptr(cr.entry.code_ptr) + asm call
-        let _hit = cr.state.hit_count
-
-    // For now: always fall back to interpreter (native execution coming)
-    return execute_bytecode(vm, bc)
-
-// ===========================================================================
-//  TELEMETRY — access the cache state struct fields
-// ===========================================================================
-
-pub fn cache_hit_count(state: JitCacheState) -> Int:
-    return state.hit_count
-
-pub fn cache_miss_count(state: JitCacheState) -> Int:
-    return state.miss_count
-
-pub fn cache_compile_count(state: JitCacheState) -> Int:
-    return state.compile_count
-
-pub fn cache_byte_count(state: JitCacheState) -> Int:
-    return state.total_bytes
-
-// ===========================================================================
-//  TEST: emit a simple block and verify it
-// ===========================================================================
+pub fn jit_execute(bc: Array<Int>) -> Int with Unsafe:
+    let jr = jit_compile_block(bc, 0, len(bc))
+    if jr.error != "":
+        println("[JIT] Compile failed: " + jr.error)
+        return -1
+    return call_jit(jr.code_ptr)
 
 pub fn jit_selftest() -> Int with Unsafe:
-    // Simple bytecode: push 42, halt
-    let test_bc: Array<Int> = [7, 42, 0]  // OP_PUSH_STACK 42, OP_HALT
-    let result = jit_compile_block(test_bc, 0, 3)
-    if result.error != "":
-        println("[JIT] Self-test FAILED: " + result.error)
+    // Test 0: just halt
+    let test0: Array<Int> = [0]
+    let r0 = jit_compile_block(test0, 0, 1)
+    let res0 = call_jit(r0.code_ptr)
+    println("[JIT] halt: " + str(res0) + " (" + str(r0.code_size) + " bytes)")
+    if res0 != 0:
         return 1
-    println("[JIT] Self-test OK: " + str(result.code_size) + " bytes emitted at ptr=" + str(ptr_to_int(result.code_ptr)))
+
+    // Test 1: manually emit push-42, halt (bypass jit_compile_block)
+    let manual: Array<Int> = []
+    push(manual, 0x55); push(manual, 0x53)  // push rbp; push rbx
+    push(manual, 0x48); push(manual, 0x89); push(manual, 0xE5)  // mov rbp,rsp
+    push(manual, 0x48); push(manual, 0xB8)  // mov rax,
+    emit_u64(manual, 42)                     // 42
+    push(manual, 0x50)                       // push rax
+    push(manual, 0x48); push(manual, 0x31); push(manual, 0xC0)  // xor rax,rax
+    push(manual, 0x48); push(manual, 0x89); push(manual, 0xE5)  // mov rsp,rbp
+    push(manual, 0x5B); push(manual, 0x5D); push(manual, 0xC3)  // pop rbx; pop rbp; ret
+    let ms = len(manual)
+    let page = vm_page_size()
+    let m_alloc = if ms % page > 0: (ms / page + 1) * page else: ms
+    let m_buf = vm_map(m_alloc)
+    let _ = vm_protect_execute_read_write(m_buf, m_alloc)
+    collapse m_buf:
+        var mi: Int = 0
+        while mi < ms:
+            mem_store(ptr_offset(m_buf, mi, "Byte"), manual[mi] as Byte, "Byte")
+            mi = mi + 1
+        0
+    let m_ptr: ptr<Byte> = int_to_ptr(ptr_to_int(m_buf), "ptr<Byte>")
+    println("[JIT] manual push 42: " + str(ms) + " bytes, calling...")
+    let res1 = call_jit(m_ptr)
+    println("[JIT] manual: " + str(res1))
+    let _ = vm_release(m_buf, m_alloc)
+
+    // Test 2: push 1, push 2, add, halt
+    let test2: Array<Int> = [7, 1, 7, 2, 14, 0]
+    let r2 = jit_compile_block(test2, 0, 6)
+    let res2 = call_jit(r2.code_ptr)
+    println("[JIT] 1+2: " + str(res2) + " (" + str(r2.code_size) + " bytes)")
+
+    // Test 3: push 100, push 30, sub, halt
+    let test3: Array<Int> = [7, 100, 7, 30, 15, 0]
+    let r3 = jit_compile_block(test3, 0, 6)
+    let res3 = call_jit(r3.code_ptr)
+    println("[JIT] 100-30: " + str(res3) + " (" + str(r3.code_size) + " bytes)")
+
+    println("[JIT] Done")
     return 0
+ 

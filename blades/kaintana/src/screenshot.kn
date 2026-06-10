@@ -1,0 +1,160 @@
+// ─── Kaintana Screenshot Utility ─────────────────────────────────────────────
+// Auto-snapshot the desktop UI to timestamped BMP files.
+//
+// Layer 0  — Pure utility (fn, struct).  No world / entangle / patch coupling.
+//            The screenshot utility is a thin wrapper around the existing
+//            kaintana_native_desktop_write_bmp / kaintana_desktop_host_write_screenshot_path
+//            extern that renders the current GDI scene into a BMP file.
+//
+// Design notes:
+//  • Screenshot captures the CURRENT frame that was already rendered via
+//    kaintana_render_scene() — call AFTER kaintana_commit_frame() or
+//    during the render phase.
+//  • Filenames are unique per millisecond so no global counter is needed.
+//  • Zero dependency on kaintana.kn — only imports types and the desktop adapter.
+//  • Works with headless mode when the desktop bridge is probed.
+
+use std::fs
+use std::math
+use std::text
+use std::time
+use types::KaintanaContext
+use platform::desktop::desktop_adapter::kaintana_desktop_host_write_screenshot_path
+
+// ─── Constants ───────────────────────────────────────────────────────────────
+
+pub const KAINTANA_SCREENSHOT_OK: Int = 0
+pub const KAINTANA_SCREENSHOT_ERR_DIR: Int = -1
+pub const KAINTANA_SCREENSHOT_ERR_WRITE: Int = -2
+pub const KAINTANA_SCREENSHOT_ERR_LIMIT: Int = -3
+pub const KAINTANA_SCREENSHOT_ERR_NO_SCENE: Int = -4
+
+pub const KAINTANA_SCREENSHOT_EVENT_ACTIVATION: String = "activation"
+pub const KAINTANA_SCREENSHOT_EVENT_FRAME: String = "frame"
+pub const KAINTANA_SCREENSHOT_EVENT_SHUTDOWN: String = "shutdown"
+
+// ─── Config ──────────────────────────────────────────────────────────────────
+
+pub struct KaintanaScreenshotConfig:
+    /// Capture every N frames (0 = manual only).
+    auto_capture_interval: Int
+
+    /// Directory for screenshot output (relative or absolute path).
+    output_dir: String
+
+    /// Filename prefix before the timestamp component.
+    prefix: String
+
+    /// Maximum screenshots before auto-stop (0 = unlimited).
+    max_screenshots: Int
+
+    /// Event name that triggers a capture: "activation", "frame", "shutdown".
+    /// When empty, only auto_capture_interval drives automatic captures.
+    capture_on_event: String
+
+// ─── Init ────────────────────────────────────────────────────────────────────
+
+pub fn kaintana_screenshot_init(output_dir: String) -> KaintanaScreenshotConfig:
+    return KaintanaScreenshotConfig {
+        auto_capture_interval: 0,
+        output_dir: output_dir,
+        prefix: "screenshot",
+        max_screenshots: 0,
+        capture_on_event: "",
+    }
+
+// ─── Internal Helpers ────────────────────────────────────────────────────────
+
+fn kaintana_screenshot_pad(value: Int, width: Int) -> String:
+    let text = str(value)
+    let pad_count = math_max(0, width - len(text))
+    if pad_count > 0:
+        return text_repeat("0", pad_count) + text
+    return text
+
+fn kaintana_screenshot_timestamp() -> String:
+    /// Returns a compact timestamp string: YYYYMMDD_HHMMSS
+    let now = now_millis()
+    let dt = datetime_from_epoch_millis(now)
+    let y = str(dt.year)
+    let m = kaintana_screenshot_pad(dt.month, 2)
+    let d = kaintana_screenshot_pad(dt.day, 2)
+    let h = kaintana_screenshot_pad(dt.hour, 2)
+    let mi = kaintana_screenshot_pad(dt.minute, 2)
+    let s = kaintana_screenshot_pad(dt.second, 2)
+    return y + m + d + "_" + h + mi + s
+
+fn kaintana_screenshot_epoch_ms_str() -> String:
+    /// Millisecond epoch timestamp suffix for uniqueness.
+    return str(now_millis())
+
+// ─── Core API ────────────────────────────────────────────────────────────────
+
+pub fn kaintana_screenshot_capture(ctx: KaintanaContext, config: KaintanaScreenshotConfig) -> Int:
+    /// Take one screenshot NOW and write it to <output_dir>/<prefix>_<ts>_<epoch_ms>.bmp.
+    ///
+    /// Returns KAINTANA_SCREENSHOT_OK (0) on success, or a negative error code.
+    ///
+    /// The actual GDI scene is rendered by the desktop bridge — this function
+    /// must be called AFTER kaintana_commit_frame() or the scene commands must
+    /// already be pushed via kaintana_desktop_push_rect / push_text.
+
+    // 1. Ensure output directory exists.
+    let _dir_result = fs_create_dir_all(config.output_dir)
+
+    // 2. Build a unique filename.
+    let timestamp = kaintana_screenshot_timestamp()
+    let epoch_ms = kaintana_screenshot_epoch_ms_str()
+    let filename = config.prefix + "_" + timestamp + "_" + epoch_ms + ".bmp"
+
+    // 3. Join with output directory.
+    let full_path = abi_fs_path_join(config.output_dir, filename)
+
+    // 4. Write the BMP via the desktop bridge extern.
+    let result = kaintana_desktop_host_write_screenshot_path(full_path)
+
+    if result == 0:
+        return KAINTANA_SCREENSHOT_OK
+    return KAINTANA_SCREENSHOT_ERR_WRITE
+
+pub fn kaintana_screenshot_auto(ctx: KaintanaContext, config: KaintanaScreenshotConfig, frame_index: Int) -> Int:
+    /// Conditionally take a screenshot based on the auto-capture interval.
+    ///
+    /// If config.auto_capture_interval > 0 and frame_index is a multiple of the
+    /// interval, a screenshot is captured.  Otherwise this is a no-op returning 0.
+    ///
+    /// This is the primary entry point for per-frame screenshot loops.
+
+    if config.auto_capture_interval <= 0:
+        return KAINTANA_SCREENSHOT_OK
+
+    if frame_index % config.auto_capture_interval != 0:
+        return KAINTANA_SCREENSHOT_OK
+
+    return kaintana_screenshot_capture(ctx, config)
+
+pub fn kaintana_screenshot_force(ctx: KaintanaContext, config: KaintanaScreenshotConfig, event_name: String) -> Int:
+    /// Trigger a screenshot on a named event.
+    ///
+    /// If config.capture_on_event matches event_name, a screenshot is captured.
+    /// Useful for binding screenshot capture to widget activation, shutdown, etc.
+
+    if len(config.capture_on_event) == 0:
+        return KAINTANA_SCREENSHOT_OK
+
+    if config.capture_on_event != event_name:
+        return KAINTANA_SCREENSHOT_OK
+
+    return kaintana_screenshot_capture(ctx, config)
+
+pub fn kaintana_screenshot_reconfigure(ctx: KaintanaContext, config: KaintanaScreenshotConfig, interval: Int, max: Int, event: String) -> KaintanaScreenshotConfig:
+    /// Return an updated config with new auto-capture parameters.
+    /// The caller should assign the result back to their config variable.
+
+    return KaintanaScreenshotConfig {
+        auto_capture_interval: interval,
+        output_dir: config.output_dir,
+        prefix: config.prefix,
+        max_screenshots: max,
+        capture_on_event: event,
+    }

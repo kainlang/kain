@@ -7,7 +7,7 @@
 > **Definitive Reference:** `benchmark/cases_v2/fusion_chain.kn` (all 7 layers), `benchmark/cases_v2/keyword_crucible.kn`
 > **Rule Book:** `docs/RULEBOOK.md`
 
----
+______________________________________________________________________
 
 ## Quick Index
 
@@ -124,7 +124,7 @@
 | `workgroup` | Contextual | GPU & Shaders | L0 | `SHADER_GPU.MD` |
 | `world` | Contextual | State Authority — L1 | L1 | `WORLD.MD` |
 
----
+______________________________________________________________________
 
 ## Legend
 
@@ -135,7 +135,7 @@
 | **Operator Alias** | Word-form alias for a symbolic operator (`&&` → `and`, `\|\|` → `or`) |
 | **Reserved** | TokenKind exists in lexer but NO parser production rule — using it causes a parse error |
 
----
+______________________________________________________________________
 
 ## Decision Ladder Map
 
@@ -181,7 +181,7 @@ LAYER 0: PLAIN      │ fn · let · mut · var · const
                     │ and · or
 ```
 
----
+______________________________________________________________________
 
 ## DOC REFERENCE MAP
 
@@ -200,11 +200,12 @@ LAYER 0: PLAIN      │ fn · let · mut · var · const
 | Foreign & Import | `C.MD`, `PYTHON.MD` |
 | Rule Book | `RULEBOOK.md` |
 
----
+______________________________________________________________________
 
 # GROUP 1: Core Control & Binding (20 keywords)
 
 ## `fn`
+
 **Kind:** Hard Lexer
 **Category:** Core Control & Binding
 **Layer:** L0
@@ -221,9 +222,10 @@ fn generic_sum<T: Numeric>(a: T, b: T) -> T with Pure where T: Default:
 
 > **See:** `docs/RULEBOOK.md` (Layer 0), `docs/EFFECTS.MD`, `patch`, `converge`
 
----
+______________________________________________________________________
 
 ## `let`
+
 **Kind:** Hard Lexer
 **Category:** Core Control & Binding
 **Layer:** L0
@@ -238,9 +240,10 @@ let result = compute(value)
 
 > **See:** `mut`, `var`, `const`
 
----
+______________________________________________________________________
 
 ## `mut`
+
 **Kind:** Hard Lexer
 **Category:** Core Control & Binding
 **Layer:** L0
@@ -254,9 +257,10 @@ counter = counter + 1
 
 > **See:** `let`, `var`, `const`
 
----
+______________________________________________________________________
 
 ## `var`
+
 **Kind:** Hard Lexer
 **Category:** Core Control & Binding
 **Layer:** L0
@@ -273,9 +277,10 @@ while index < 10:
 
 > **See:** `let`, `mut`, `const`
 
----
+______________________________________________________________________
 
 ## `const`
+
 **Kind:** Hard Lexer
 **Category:** Core Control & Binding
 **Layer:** L0
@@ -290,9 +295,10 @@ const LABEL: String = "keyword-crucible"
 
 > **See:** `let`, `comptime`
 
----
+______________________________________________________________________
 
 ## `if`
+
 **Kind:** Hard Lexer
 **Category:** Core Control & Binding
 **Layer:** L0
@@ -310,9 +316,10 @@ else:
 
 > **See:** `elif`, `else`, `match`
 
----
+______________________________________________________________________
 
 ## `else`
+
 **Kind:** Hard Lexer
 **Category:** Core Control & Binding
 **Layer:** L0
@@ -328,9 +335,10 @@ else:
 
 > **See:** `if`, `elif`
 
----
+______________________________________________________________________
 
 ## `elif`
+
 **Kind:** Hard Lexer
 **Category:** Core Control & Binding
 **Layer:** L0
@@ -350,9 +358,10 @@ else:
 
 > **See:** `if`, `else`
 
----
+______________________________________________________________________
 
 ## `match`
+
 **Kind:** Hard Lexer
 **Category:** Core Control & Binding
 **Layer:** L0
@@ -370,9 +379,10 @@ fn describe(mode: CrucibleMode) -> String with Pure:
 
 > **See:** `if`, `enum`
 
----
+______________________________________________________________________
 
 ## `for`
+
 **Kind:** Hard Lexer
 **Category:** Core Control & Binding
 **Layer:** L0
@@ -389,9 +399,10 @@ for i in 0..10:
 
 > **See:** `in`, `while`, `loop`, `component`
 
----
+______________________________________________________________________
 
 ## `while`
+
 **Kind:** Hard Lexer
 **Category:** Core Control & Binding
 **Layer:** L0
@@ -407,9 +418,10 @@ while i < iterations:
 
 > **See:** `for`, `loop`, `break`, `continue`
 
----
+______________________________________________________________________
 
 ## `loop`
+
 **Kind:** Hard Lexer
 **Category:** Core Control & Binding
 **Layer:** L0
@@ -426,9 +438,10 @@ let result: Int = loop:
 
 > **See:** `while`, `break`, `continue`, `defer`
 
----
+______________________________________________________________________
 
 ## `break`
+
 **Kind:** Hard Lexer
 **Category:** Core Control & Binding
 **Layer:** L0
@@ -447,9 +460,10 @@ while true:
 
 > **See:** `loop`, `while`, `for`, `continue`
 
----
+______________________________________________________________________
 
 ## `continue`
+
 **Kind:** Hard Lexer
 **Category:** Core Control & Binding
 **Layer:** L0
@@ -467,9 +481,10 @@ while i < iterations:
 
 > **See:** `break`, `loop`, `while`, `for`, `defer`
 
----
+______________________________________________________________________
 
 ## `return`
+
 **Kind:** Hard Lexer
 **Category:** Core Control & Binding
 **Layer:** L0
@@ -485,9 +500,10 @@ fn clamp(v: Int, lo: Int, hi: Int) -> Int:
 
 > **See:** `defer`, `fn`
 
----
+______________________________________________________________________
 
 ## `defer`
+
 **Kind:** Contextual
 **Category:** Core Control & Binding
 **Layer:** L0
@@ -508,9 +524,10 @@ fn process() -> Int:
 
 > **See:** `collapse`, `decay`, `return`, `break`, `continue`
 
----
+______________________________________________________________________
 
 ## `await`
+
 **Kind:** Contextual
 **Category:** Core Control & Binding
 **Layer:** L0
@@ -528,9 +545,10 @@ fn use_async(v: Int) -> Int:
 
 > **See:** `async`, `Async`, `EFFECTS.MD`
 
----
+______________________________________________________________________
 
 ## `in`
+
 **Kind:** Hard Lexer
 **Category:** Core Control & Binding
 **Layer:** L0
@@ -550,9 +568,10 @@ render <list>
 
 > **See:** `for`, `component`
 
----
+______________________________________________________________________
 
 ## `with`
+
 **Kind:** Hard Lexer
 **Category:** Core Control & Binding
 **Layer:** L0
@@ -572,9 +591,10 @@ fn unsafe_read(p: ptr<Int>) -> Int with Unsafe:
 
 > **See:** `Pure`, `IO`, `Unsafe`, `Async`, `GPU`, `Reactive`, `EFFECTS.MD`
 
----
+______________________________________________________________________
 
 ## `as`
+
 **Kind:** Contextual
 **Category:** Core Control & Binding
 **Layer:** L0
@@ -592,11 +612,12 @@ import json as py_json
 
 > **See:** `include`, `import`, `type`
 
----
+______________________________________________________________________
 
 # GROUP 2: Types, Modules & Visibility (10 keywords)
 
 ## `type`
+
 **Kind:** Hard Lexer
 **Category:** Types, Modules & Visibility
 **Layer:** L0
@@ -611,9 +632,10 @@ type Distance = Float
 
 > **See:** `struct`, `enum`
 
----
+______________________________________________________________________
 
 ## `struct`
+
 **Kind:** Hard Lexer
 **Category:** Types, Modules & Visibility
 **Layer:** L0
@@ -637,9 +659,10 @@ let pkt = CruciblePacket {
 
 > **See:** `enum`, `impl`, `trait`, `shatter`
 
----
+______________________________________________________________________
 
 ## `enum`
+
 **Kind:** Hard Lexer
 **Category:** Types, Modules & Visibility
 **Layer:** L0
@@ -660,9 +683,10 @@ enum Option<T>:
 
 > **See:** `struct`, `match`, `type`
 
----
+______________________________________________________________________
 
 ## `trait`
+
 **Kind:** Hard Lexer
 **Category:** Types, Modules & Visibility
 **Layer:** L0
@@ -681,9 +705,10 @@ trait CrucibleStable:
 
 > **See:** `impl`, `struct`, `where`
 
----
+______________________________________________________________________
 
 ## `impl`
+
 **Kind:** Hard Lexer
 **Category:** Types, Modules & Visibility
 **Layer:** L0
@@ -703,9 +728,10 @@ impl CrucibleMetric for CruciblePacket:
 
 > **See:** `trait`, `struct`, `Self`
 
----
+______________________________________________________________________
 
 ## `pub`
+
 **Kind:** Hard Lexer
 **Category:** Types, Modules & Visibility
 **Layer:** L0
@@ -725,9 +751,10 @@ pub mod crucible_util:
 
 > **See:** `mod`, `use`
 
----
+______________________________________________________________________
 
 ## `mod`
+
 **Kind:** Hard Lexer
 **Category:** Types, Modules & Visibility
 **Layer:** L0
@@ -744,9 +771,10 @@ pub mod crucible_util:
 
 > **See:** `pub`, `use`, `self`
 
----
+______________________________________________________________________
 
 ## `use`
+
 **Kind:** Hard Lexer
 **Category:** Types, Modules & Visibility
 **Layer:** L0
@@ -762,9 +790,10 @@ use std::machine
 
 > **See:** `mod`, `include`, `import`, `C.MD`
 
----
+______________________________________________________________________
 
 ## `self`
+
 **Kind:** Hard Lexer
 **Category:** Types, Modules & Visibility
 **Layer:** L0
@@ -782,9 +811,10 @@ fn score(_self: Self_) -> Int:
 
 > **See:** `Self`, `use`, `impl`
 
----
+______________________________________________________________________
 
 ## `Self`
+
 **Kind:** Hard Lexer
 **Category:** Types, Modules & Visibility
 **Layer:** L0
@@ -800,11 +830,12 @@ impl CruciblePacket:
 
 > **See:** `self`, `impl`, `trait`
 
----
+______________________________________________________________________
 
 # GROUP 3: Built-in Literals (3 keywords)
 
 ## `true`
+
 **Kind:** Hard Lexer
 **Category:** Built-in Literals
 **Layer:** L0
@@ -822,9 +853,10 @@ fn always_valid() -> Bool:
 
 > **See:** `false`, `none`
 
----
+______________________________________________________________________
 
 ## `false`
+
 **Kind:** Hard Lexer
 **Category:** Built-in Literals
 **Layer:** L0
@@ -842,9 +874,10 @@ fn is_invalid(v: Int) -> Bool:
 
 > **See:** `true`, `none`
 
----
+______________________________________________________________________
 
 ## `none`
+
 **Kind:** Hard Lexer
 **Category:** Built-in Literals
 **Layer:** L0
@@ -859,11 +892,12 @@ if nullable == none:
 
 > **See:** `true`, `false`, `Option`
 
----
+______________________________________________________________________
 
 # GROUP 4: Effects (7 keywords)
 
 ## `Pure`
+
 **Kind:** Hard Lexer
 **Category:** Effects
 **Layer:** L0
@@ -883,9 +917,10 @@ fn fold(values: [Int], modulus: Int) -> Int with Pure:
 
 > **See:** `IO`, `Unsafe`, `Async`, `GPU`, `Reactive`, `EFFECTS.MD`
 
----
+______________________________________________________________________
 
 ## `IO`
+
 **Kind:** Hard Lexer
 **Category:** Effects
 **Layer:** L0
@@ -903,9 +938,10 @@ fn read_config(path: String) -> String with IO:
 
 > **See:** `Pure`, `Unsafe`, `EFFECTS.MD`
 
----
+______________________________________________________________________
 
 ## `async`
+
 **Kind:** Contextual
 **Category:** Effects
 **Layer:** L0
@@ -924,9 +960,10 @@ fn resolve_async(v: Int, seed: Int) -> Int:
 
 > **See:** `Async`, `await`, `EFFECTS.MD`
 
----
+______________________________________________________________________
 
 ## `Async`
+
 **Kind:** Hard Lexer
 **Category:** Effects
 **Layer:** L0
@@ -941,9 +978,10 @@ async fn fetch_data(id: Int) -> Result<Data, Error> with Async:
 
 > **See:** `async`, `await`, `EFFECTS.MD`
 
----
+______________________________________________________________________
 
 ## `GPU`
+
 **Kind:** Hard Lexer
 **Category:** Effects
 **Layer:** L0
@@ -958,9 +996,10 @@ fn run_kernel(data: ptr<Float>) -> Int with GPU, Unsafe:
 
 > **See:** `dispatch`, `shader`, `compute`, `Unsafe`, `EFFECTS.MD`, `SHADER_GPU.MD`
 
----
+______________________________________________________________________
 
 ## `Reactive`
+
 **Kind:** Hard Lexer
 **Category:** Effects
 **Layer:** L0
@@ -979,9 +1018,10 @@ component Button() with Reactive:
 
 > **See:** `resonate`, `component`, `EFFECTS.MD`
 
----
+______________________________________________________________________
 
 ## `Unsafe`
+
 **Kind:** Hard Lexer
 **Category:** Effects
 **Layer:** L0
@@ -1005,11 +1045,12 @@ fn ownership_chain() -> Int with Unsafe:
 
 > **See:** `collapse`, `observe`, `decay`, `asm`, `GPU`, `EFFECTS.MD`
 
----
+______________________________________________________________________
 
 # GROUP 5: State Authority — LAYER 1 (8 keywords)
 
 ## `world`
+
 **Kind:** Contextual
 **Category:** State Authority — L1
 **Layer:** L1
@@ -1029,9 +1070,10 @@ world CrucibleAuthority:
 
 > **See:** `entangle`, `surface`, `state`, `patch`, `WORLD.MD`
 
----
+______________________________________________________________________
 
 ## `entangle`
+
 **Kind:** Contextual
 **Category:** State Authority — L1
 **Layer:** L1
@@ -1045,9 +1087,10 @@ entangle CrucibleAuthority.epoch  <-> CrucibleMirror.epoch_copy  with single_wri
 
 > **See:** `world`, `single_writer`, `ENTANGLE.MD`
 
----
+______________________________________________________________________
 
 ## `single_writer`
+
 **Kind:** Contextual
 **Category:** State Authority — L1
 **Layer:** L1
@@ -1060,9 +1103,10 @@ entangle Authority.signal <-> Mirror.signal_copy with single_writer
 
 > **See:** `entangle`, `world`, `ENTANGLE.MD`
 
----
+______________________________________________________________________
 
 ## `surface`
+
 **Kind:** Contextual
 **Category:** State Authority — L1
 **Layer:** L1
@@ -1081,9 +1125,10 @@ world CrucibleMirror:
 
 > **See:** `world`, `component`, `native_ui`, `web`, `viewport3d`, `ue5`, `COMPONENT.MD`
 
----
+______________________________________________________________________
 
 ## `native_ui`
+
 **Kind:** Contextual
 **Category:** State Authority — L1
 **Layer:** L1
@@ -1098,9 +1143,10 @@ world CrucibleAuthority:
 
 > **See:** `surface`, `world`, `web`, `COMPONENT.MD`
 
----
+______________________________________________________________________
 
 ## `viewport3d`
+
 **Kind:** Contextual
 **Category:** State Authority — L1
 **Layer:** L1
@@ -1115,9 +1161,10 @@ world SceneWorld:
 
 > **See:** `surface`, `world`, `native_ui`
 
----
+______________________________________________________________________
 
 ## `web`
+
 **Kind:** Contextual
 **Category:** State Authority — L1
 **Layer:** L1
@@ -1132,9 +1179,10 @@ world CrucibleMirror:
 
 > **See:** `surface`, `world`, `native_ui`
 
----
+______________________________________________________________________
 
 ## `ue5`
+
 **Kind:** Contextual
 **Category:** State Authority — L1
 **Layer:** L1
@@ -1149,11 +1197,12 @@ world UnrealBridge:
 
 > **See:** `surface`, `world`, `native_ui`, `viewport3d`
 
----
+______________________________________________________________________
 
 # GROUP 6: State Integrity — LAYER 2 (2 keywords)
 
 ## `patch`
+
 **Kind:** Contextual
 **Category:** State Integrity — L2
 **Layer:** L2
@@ -1176,9 +1225,10 @@ patch crucible_reset(authority: CrucibleAuthority) -> Int:
 
 > **See:** `world`, `law`, `orchestrate`, `PATCH.MD`
 
----
+______________________________________________________________________
 
 ## `law`
+
 **Kind:** Contextual
 **Category:** State Integrity — L2
 **Layer:** L2
@@ -1198,11 +1248,12 @@ law crucible_in_range(s: Int, lo: Int, hi: Int) -> Bool:
 
 > **See:** `patch`, `orchestrate`, `guarded`, `LAW.MD`
 
----
+______________________________________________________________________
 
 # GROUP 7: Dispatch — LAYER 3 (8 keywords)
 
 ## `converge`
+
 **Kind:** Contextual
 **Category:** Dispatch — L3
 **Layer:** L3
@@ -1222,9 +1273,10 @@ converge crucible_fast_mix(v: Int, seed: Int) -> Int:
 
 > **See:** `spec`, `fast`, `verify`, `random`, `when`, `target`, `capability`, `CONVERGE.MD`
 
----
+______________________________________________________________________
 
 ## `spec`
+
 **Kind:** Contextual
 **Category:** Dispatch — L3
 **Layer:** L3
@@ -1238,9 +1290,10 @@ spec reference:
 
 > **See:** `converge`, `fast`, `verify`, `CONVERGE.MD`
 
----
+______________________________________________________________________
 
 ## `fast`
+
 **Kind:** Contextual
 **Category:** Dispatch — L3
 **Layer:** L3
@@ -1256,9 +1309,10 @@ fast llvm_lane when target("llvm"):
 
 > **See:** `converge`, `spec`, `when`, `target`, `capability`, `CONVERGE.MD`
 
----
+______________________________________________________________________
 
 ## `verify`
+
 **Kind:** Contextual
 **Category:** Dispatch — L3
 **Layer:** L3
@@ -1271,9 +1325,10 @@ verify random(8)
 
 > **See:** `converge`, `spec`, `fast`, `random`, `CONVERGE.MD`
 
----
+______________________________________________________________________
 
 ## `random`
+
 **Kind:** Contextual
 **Category:** Dispatch — L3
 **Layer:** L3
@@ -1287,14 +1342,16 @@ verify random(256)  // more exhaustive
 
 > **See:** `converge`, `verify`, `CONVERGE.MD`
 
----
+______________________________________________________________________
 
 ## `when`
+
 **Kind:** Contextual
 **Category:** Dispatch — L3 / Machine Stones — L6
 **Layer:** L3 / L6
 
 Guard introducer for conditional clauses. Used in two contexts:
+
 - **Converge fast lanes:** `fast label when target("llvm")` — selects a fast lane when the target matches.
 - **Axiom predicates:** `when target("llvm")`, `when arch("x86_64")`, `when capability("memory.shatter")` — declares capability assumptions.
 
@@ -1311,9 +1368,10 @@ axiom machine_truth:
 
 > **See:** `converge`, `fast`, `axiom`, `target`, `capability`, `guarantee`, `CONVERGE.MD`, `AXIOM.MD`
 
----
+______________________________________________________________________
 
 ## `target`
+
 **Kind:** Contextual
 **Category:** Dispatch — L3
 **Layer:** L3
@@ -1331,9 +1389,10 @@ axiom win_truth:
 
 > **See:** `converge`, `when`, `capability`, `axiom`, `CONVERGE.MD`, `AXIOM.MD`
 
----
+______________________________________________________________________
 
 ## `capability`
+
 **Kind:** Contextual
 **Category:** Dispatch — L3
 **Layer:** L3
@@ -1351,11 +1410,12 @@ axiom machine_truth:
 
 > **See:** `converge`, `when`, `target`, `axiom`, `CONVERGE.MD`, `AXIOM.MD`
 
----
+______________________________________________________________________
 
 # GROUP 8: Stage Graph — LAYER 4 (11 keywords)
 
 ## `orchestrate`
+
 **Kind:** Contextual
 **Category:** Stage Graph — L4
 **Layer:** L4
@@ -1372,9 +1432,10 @@ orchestrate crucible_signal_pipeline(value: Int, epoch: Int) -> Int:
 
 > **See:** `stage`, `after`, `deps`, `residency`, `transfer`, `guarded`, `by`, `requires`, `policy`, `fallback`, `ORCHESTRATE.MD`
 
----
+______________________________________________________________________
 
 ## `stage`
+
 **Kind:** Contextual
 **Category:** Stage Graph — L4
 **Layer:** L4
@@ -1388,9 +1449,10 @@ stage gpu_tune: gpu crucible_fast_mix(world_score + epoch, 7) after world_score 
 
 > **See:** `orchestrate`, `after`, `deps`, `residency`, `transfer`, `policy`, `ORCHESTRATE.MD`
 
----
+______________________________________________________________________
 
 ## `after`
+
 **Kind:** Contextual
 **Category:** Stage Graph — L4
 **Layer:** L4
@@ -1403,9 +1465,10 @@ stage law_check: law crucible_signal_valid(host_base) after fast_lane residency 
 
 > **See:** `orchestrate`, `stage`, `deps`, `ORCHESTRATE.MD`
 
----
+______________________________________________________________________
 
 ## `deps`
+
 **Kind:** Contextual
 **Category:** Stage Graph — L4
 **Layer:** L4
@@ -1418,9 +1481,10 @@ stage patch_step: patch crucible_commit_ack(CrucibleAuthority) deps [world_score
 
 > **See:** `orchestrate`, `stage`, `after`, `ORCHESTRATE.MD`
 
----
+______________________________________________________________________
 
 ## `residency`
+
 **Kind:** Contextual
 **Category:** Stage Graph — L4
 **Layer:** L4
@@ -1435,9 +1499,10 @@ stage world_score: world ... residency shared
 
 > **See:** `orchestrate`, `stage`, `transfer`, `ORCHESTRATE.MD`
 
----
+______________________________________________________________________
 
 ## `transfer`
+
 **Kind:** Contextual
 **Category:** Stage Graph — L4
 **Layer:** L4
@@ -1451,9 +1516,10 @@ stage shared_stage: ... residency shared transfer shared_view
 
 > **See:** `orchestrate`, `stage`, `residency`, `ORCHESTRATE.MD`
 
----
+______________________________________________________________________
 
 ## `guarded`
+
 **Kind:** Contextual
 **Category:** Stage Graph — L4
 **Layer:** L4
@@ -1466,9 +1532,10 @@ stage gpu_tune: gpu cb_fast_mix(...) guarded by crucible_silicon_truth fallback 
 
 > **See:** `orchestrate`, `stage`, `by`, `axiom`, `fallback`, `ORCHESTRATE.MD`
 
----
+______________________________________________________________________
 
 ## `by`
+
 **Kind:** Contextual
 **Category:** Stage Graph — L4
 **Layer:** L4
@@ -1481,9 +1548,10 @@ guarded by crucible_silicon_truth
 
 > **See:** `orchestrate`, `guarded`, `axiom`, `ORCHESTRATE.MD`
 
----
+______________________________________________________________________
 
 ## `requires`
+
 **Kind:** Contextual
 **Category:** Stage Graph — L4
 **Layer:** L4
@@ -1496,9 +1564,10 @@ stage patch_step: patch crucible_commit_ack(...) requires law_check residency ho
 
 > **See:** `orchestrate`, `stage`, `law`, `ORCHESTRATE.MD`
 
----
+______________________________________________________________________
 
 ## `policy`
+
 **Kind:** Contextual
 **Category:** Stage Graph — L4
 **Layer:** L4
@@ -1513,9 +1582,10 @@ policy static
 
 > **See:** `orchestrate`, `stage`, `ORCHESTRATE.MD`
 
----
+______________________________________________________________________
 
 ## `fallback`
+
 **Kind:** Contextual
 **Category:** Stage Graph — L4
 **Layer:** L4
@@ -1530,11 +1600,12 @@ fallback backup_stage
 
 > **See:** `orchestrate`, `stage`, `guarded`, `ORCHESTRATE.MD`
 
----
+______________________________________________________________________
 
 # GROUP 9: Temporal — LAYER 5 (5 keywords)
 
 ## `pulse`
+
 **Kind:** Contextual
 **Category:** Temporal — L5
 **Layer:** L5
@@ -1552,9 +1623,10 @@ pulse fx_modulation every 8ms jitter 1ms:
 
 > **See:** `every`, `jitter`, `resonate`, `PULSE.MD`
 
----
+______________________________________________________________________
 
 ## `every`
+
 **Kind:** Contextual
 **Category:** Temporal — L5
 **Layer:** L5
@@ -1568,9 +1640,10 @@ pulse slow_tick every 1s:
 
 > **See:** `pulse`, `jitter`, `PULSE.MD`
 
----
+______________________________________________________________________
 
 ## `jitter`
+
 **Kind:** Contextual
 **Category:** Temporal — L5
 **Layer:** L5
@@ -1583,9 +1656,10 @@ pulse heartbeat every 16 ms jitter 2 ms:
 
 > **See:** `pulse`, `every`, `PULSE.MD`
 
----
+______________________________________________________________________
 
 ## `resonate`
+
 **Kind:** Contextual
 **Category:** Temporal — L5
 **Layer:** L5
@@ -1607,9 +1681,10 @@ resonate FxWorld.distortion_drive dampen 32ms:
 
 > **See:** `dampen`, `pulse`, `patch`, `RESONATE.MD`
 
----
+______________________________________________________________________
 
 ## `dampen`
+
 **Kind:** Contextual
 **Category:** Temporal — L5
 **Layer:** L5
@@ -1623,11 +1698,12 @@ resonate field dampen 0 ms:  // only re-entrant suppression
 
 > **See:** `resonate`, `pulse`, `RESONATE.MD`
 
----
+______________________________________________________________________
 
 # GROUP 10: Machine Stones — LAYER 6 (7 keywords)
 
 ## `axiom`
+
 **Kind:** Contextual
 **Category:** Machine Stones — L6
 **Layer:** L6
@@ -1646,9 +1722,10 @@ axiom crucible_machine_truth:
 
 > **See:** `when`, `target`, `capability`, `guarantee`, `fallback`, `guarded`, `by`, `AXIOM.MD`
 
----
+______________________________________________________________________
 
 ## `guarantee`
+
 **Kind:** Contextual
 **Category:** Machine Stones — L6
 **Layer:** L6
@@ -1662,9 +1739,10 @@ guarantee "CUDA compute capability >= 7.0"
 
 > **See:** `axiom`, `AXIOM.MD`
 
----
+______________________________________________________________________
 
 ## `shatter`
+
 **Kind:** Contextual
 **Category:** Machine Stones — L6
 **Layer:** L6
@@ -1689,9 +1767,10 @@ shatter struct Particle:
 
 > **See:** `struct`, `teleport`, `SHATTER.MD`
 
----
+______________________________________________________________________
 
 ## `teleport`
+
 **Kind:** Contextual
 **Category:** Machine Stones — L6
 **Layer:** L6
@@ -1705,9 +1784,10 @@ let moved = teleport shard from CrucibleAuthority to CrucibleMirror via crucible
 
 > **See:** `from`, `to`, `via`, `world`, `TELEPORT.MD`
 
----
+______________________________________________________________________
 
 ## `via`
+
 **Kind:** Contextual
 **Category:** Machine Stones — L6
 **Layer:** L6
@@ -1721,9 +1801,10 @@ teleport data from WorldA to WorldB via shared_pulse_bus
 
 > **See:** `teleport`, `from`, `to`, `TELEPORT.MD`
 
----
+______________________________________________________________________
 
 ## `to`
+
 **Kind:** Contextual
 **Category:** Machine Stones — L6
 **Layer:** L6
@@ -1736,9 +1817,10 @@ teleport shard from CrucibleAuthority to CrucibleMirror via crucible_shard_bus
 
 > **See:** `teleport`, `from`, `via`, `TELEPORT.MD`
 
----
+______________________________________________________________________
 
 ## `from`
+
 **Kind:** Contextual
 **Category:** Machine Stones — L6 / Foreign & Import
 **Layer:** L6
@@ -1755,11 +1837,12 @@ from json import dumps
 
 > **See:** `teleport`, `to`, `import`, `TELEPORT.MD`, `PYTHON.MD`
 
----
+______________________________________________________________________
 
 # GROUP 11: Systems — LAYER 7 (10 keywords)
 
 ## `actor`
+
 **Kind:** Contextual
 **Category:** Systems — L7
 **Layer:** L7
@@ -1782,14 +1865,16 @@ actor CrucibleRelayActor:
 
 > **See:** `state`, `spawn`, `send`, `on`, `ACTOR.MD`
 
----
+______________________________________________________________________
 
 ## `state`
+
 **Kind:** Contextual
 **Category:** Systems — L7 / Components & UI
 **Layer:** L7
 
 Persistent state field declaration. Used in two contexts:
+
 - **Actor state:** `state field: Type = initial` — durable state that persists across message handler invocations, accessed as `self.field`.
 - **Component state:** `state field: Type = initial` — local UI state that persists across render cycles.
 
@@ -1809,9 +1894,10 @@ component Counter():
 
 > **See:** `actor`, `component`, `world`, `ACTOR.MD`, `COMPONENT.MD`
 
----
+______________________________________________________________________
 
 ## `spawn`
+
 **Kind:** Hard Lexer
 **Category:** Systems — L7
 **Layer:** L7
@@ -1826,9 +1912,10 @@ let teleporter = spawn CrucibleTeleporter(done = 0, last = 0)
 
 > **See:** `actor`, `send`, `on`, `ACTOR.MD`
 
----
+______________________________________________________________________
 
 ## `send`
+
 **Kind:** Hard Lexer
 **Category:** Systems — L7
 **Layer:** L7
@@ -1842,9 +1929,10 @@ send reply_to.Reply(value = result)
 
 > **See:** `actor`, `spawn`, `on`, `ACTOR.MD`
 
----
+______________________________________________________________________
 
 ## `on`
+
 **Kind:** Hard Lexer
 **Category:** Systems — L7
 **Layer:** L7
@@ -1867,9 +1955,10 @@ on Verify(reply_to: P, val: Int):
 
 > **See:** `actor`, `spawn`, `send`, `ACTOR.MD`
 
----
+______________________________________________________________________
 
 ## `collapse`
+
 **Kind:** Contextual
 **Category:** Systems — L7
 **Layer:** L7
@@ -1887,9 +1976,10 @@ collapse cells:
 
 > **See:** `observe`, `decay`, `share`, `OWNERSHIP.MD`
 
----
+______________________________________________________________________
 
 ## `observe`
+
 **Kind:** Contextual
 **Category:** Systems — L7
 **Layer:** L7
@@ -1911,9 +2001,10 @@ let total: Int = observe partials:
 
 > **See:** `collapse`, `decay`, `share`, `OWNERSHIP.MD`
 
----
+______________________________________________________________________
 
 ## `decay`
+
 **Kind:** Contextual
 **Category:** Systems — L7
 **Layer:** L7
@@ -1932,9 +2023,10 @@ defer decay buf
 
 > **See:** `collapse`, `observe`, `defer`, `OWNERSHIP.MD`
 
----
+______________________________________________________________________
 
 ## `share`
+
 **Kind:** Contextual
 **Category:** Systems — L7
 **Layer:** L7
@@ -1954,9 +2046,10 @@ share partials:
 
 > **See:** `fanout`, `collapse`, `observe`, `OWNERSHIP.MD`
 
----
+______________________________________________________________________
 
 ## `fanout`
+
 **Kind:** Contextual
 **Category:** Systems — L7
 **Layer:** L7
@@ -1972,11 +2065,12 @@ share buffer:
 
 > **See:** `share`, `collapse`, `OWNERSHIP.MD`
 
----
+______________________________________________________________________
 
 # GROUP 12: GPU & Shaders (7 keywords)
 
 ## `shader`
+
 **Kind:** Contextual
 **Category:** GPU & Shaders
 **Layer:** L0
@@ -2003,9 +2097,10 @@ shader compute CrucibleKernel(id: UVec3) -> Void workgroup(8, 8, 1):
 
 > **See:** `vertex`, `fragment`, `compute`, `uniform`, `workgroup`, `dispatch`, `SHADER_GPU.MD`
 
----
+______________________________________________________________________
 
 ## `vertex`
+
 **Kind:** Contextual
 **Category:** GPU & Shaders
 **Layer:** L0
@@ -2020,9 +2115,10 @@ shader vertex MyVertex(position: Vec3, uv: Vec2) -> Vec4:
 
 > **See:** `shader`, `fragment`, `compute`, `SHADER_GPU.MD`
 
----
+______________________________________________________________________
 
 ## `fragment`
+
 **Kind:** Contextual
 **Category:** GPU & Shaders
 **Layer:** L0
@@ -2038,9 +2134,10 @@ shader fragment MyFragment(uv: Vec2) -> Vec4:
 
 > **See:** `shader`, `vertex`, `compute`, `SHADER_GPU.MD`
 
----
+______________________________________________________________________
 
 ## `compute`
+
 **Kind:** Contextual
 **Category:** GPU & Shaders
 **Layer:** L0
@@ -2056,9 +2153,10 @@ shader compute MyKernel(id: UVec3) -> Void workgroup(8, 8, 1):
 
 > **See:** `shader`, `vertex`, `fragment`, `workgroup`, `uniform`, `dispatch`, `SHADER_GPU.MD`
 
----
+______________________________________________________________________
 
 ## `uniform`
+
 **Kind:** Contextual
 **Category:** GPU & Shaders
 **Layer:** L0
@@ -2074,9 +2172,10 @@ uniform dst: StorageBuffer<UInt> @1
 
 > **See:** `shader`, `compute`, `vertex`, `fragment`, `SHADER_GPU.MD`
 
----
+______________________________________________________________________
 
 ## `workgroup`
+
 **Kind:** Contextual
 **Category:** GPU & Shaders
 **Layer:** L0
@@ -2090,9 +2189,10 @@ shader compute LargeKernel(id: UVec3) -> Void workgroup(32, 32, 1):
 
 > **See:** `shader`, `compute`, `SHADER_GPU.MD`
 
----
+______________________________________________________________________
 
 ## `dispatch`
+
 **Kind:** Contextual
 **Category:** GPU & Shaders
 **Layer:** L0
@@ -2109,11 +2209,12 @@ fn run_kernel() -> Int with GPU, Unsafe:
 
 > **See:** `shader`, `compute`, `GPU`, `Unsafe`, `SHADER_GPU.MD`
 
----
+______________________________________________________________________
 
 # GROUP 13: Compile-Time (2 keywords)
 
 ## `comptime`
+
 **Kind:** Contextual
 **Category:** Compile-Time
 **Layer:** L0
@@ -2137,9 +2238,10 @@ shader compute CrucibleKernel(id: UVec3) -> Void workgroup(8, 8, 1):
 
 > **See:** `shader`, `compute`, `macro`
 
----
+______________________________________________________________________
 
 ## `macro`
+
 **Kind:** Contextual
 **Category:** Compile-Time
 **Layer:** L0
@@ -2156,11 +2258,12 @@ let folded = crucible_fold!(acc + index)
 
 > **See:** `comptime`
 
----
+______________________________________________________________________
 
 # GROUP 14: Foreign & Import (4 keywords)
 
 ## `include`
+
 **Kind:** Contextual
 **Category:** Foreign & Import
 **Layer:** L0
@@ -2176,9 +2279,10 @@ include native/shim.h as my_abi
 
 > **See:** `import`, `as`, `C.MD`
 
----
+______________________________________________________________________
 
 ## `import`
+
 **Kind:** Contextual
 **Category:** Foreign & Import
 **Layer:** L0
@@ -2196,9 +2300,10 @@ fn encode(value: String) -> String:
 
 > **See:** `from`, `as`, `include`, `PYTHON.MD`
 
----
+______________________________________________________________________
 
 ## `where`
+
 **Kind:** Contextual
 **Category:** Types, Modules & Visibility
 **Layer:** L0
@@ -2214,11 +2319,12 @@ fn crucible_packet_summary<T: CrucibleMetric>(p: T, salt: Int) -> Int with Pure 
 
 > **See:** `trait`, `fn`, `type`
 
----
+______________________________________________________________________
 
 # GROUP 15: Components & UI (3 keywords)
 
 ## `component`
+
 **Kind:** Contextual
 **Category:** Components & UI
 **Layer:** UI
@@ -2243,9 +2349,10 @@ component Dashboard():
 
 > **See:** `state`, `render`, `surface`, `COMPONENT.MD`
 
----
+______________________________________________________________________
 
 ## `render`
+
 **Kind:** Contextual
 **Category:** Components & UI
 **Layer:** UI
@@ -2269,9 +2376,10 @@ component TodoList(items: [String]):
 
 > **See:** `component`, `COMPONENT.MD`
 
----
+______________________________________________________________________
 
 ## `weak`
+
 **Kind:** Contextual
 **Category:** Systems — L7
 **Layer:** L7
@@ -2294,11 +2402,12 @@ fn crucible_weak_touch(value: Int) -> Int with Unsafe:
 
 > **See:** `collapse`, `observe`, `decay`, `ptr`, `OWNERSHIP.MD`
 
----
+______________________________________________________________________
 
 # GROUP 16: Testing (1 keyword)
 
 ## `test`
+
 **Kind:** Contextual
 **Category:** Testing
 **Layer:** L0
@@ -2316,11 +2425,12 @@ test fn test_bounds():
 
 > **See:** `fn`
 
----
+______________________________________________________________________
 
 # GROUP 17: Operator Aliases (2 keywords)
 
 ## `and`
+
 **Kind:** Operator Alias
 **Category:** Operator Aliases
 **Layer:** L0
@@ -2336,9 +2446,10 @@ let valid: Bool = a > 0 and b < LIMIT
 
 > **See:** `or`
 
----
+______________________________________________________________________
 
 ## `or`
+
 **Kind:** Operator Alias
 **Category:** Operator Aliases
 **Layer:** L0
@@ -2354,11 +2465,12 @@ let flag: Bool = a == none or a == 0
 
 > **See:** `and`
 
----
+______________________________________________________________________
 
 # GROUP 18: Reserved (2 keywords)
 
 ## `emit`
+
 **Kind:** Hard Lexer
 **Category:** Reserved
 **Layer:** N/A
@@ -2372,9 +2484,10 @@ let flag: Bool = a == none or a == 0
 
 > **See:** `receive`, `keyword_crucible.kn` (gaps comment)
 
----
+______________________________________________________________________
 
 ## `receive`
+
 **Kind:** Hard Lexer
 **Category:** Reserved
 **Layer:** N/A
@@ -2388,55 +2501,69 @@ let flag: Bool = a == none or a == 0
 
 > **See:** `emit`, `keyword_crucible.kn` (gaps comment)
 
----
+______________________________________________________________________
 
 # Appendix: Keyword Groups by Decision Layer
 
 ## Layer 0 — Plain Code (34 keywords)
+
 `fn` `let` `mut` `var` `const` `if` `else` `elif` `match` `for` `while` `loop` `break` `continue` `return` `defer` `await` `in` `with` `as` `type` `struct` `enum` `trait` `impl` `pub` `mod` `use` `self` `Self` `true` `false` `none` `where`
 *Effects:* `Pure` `IO` `async` `Async` `GPU` `Reactive` `Unsafe`
 *Operator Aliases:* `and` `or`
 *Reserved:* `emit` `receive`
 
 ## Layer UI — Components (3 keywords)
+
 `component` `render` `state` (also L7)
 
 ## Layer 1 — State Authority (8 keywords)
+
 `world` `entangle` `single_writer` `surface` `native_ui` `viewport3d` `web` `ue5`
 
 ## Layer 2 — State Integrity (2 keywords)
+
 `patch` `law`
 
 ## Layer 3 — Dispatch (8 keywords)
+
 `converge` `spec` `fast` `verify` `random` `when` `target` `capability`
 
 ## Layer 4 — Stage Graph (11 keywords)
+
 `orchestrate` `stage` `after` `deps` `residency` `transfer` `guarded` `by` `requires` `policy` `fallback`
 
 ## Layer 5 — Temporal (5 keywords)
+
 `pulse` `every` `jitter` `resonate` `dampen`
 
 ## Layer 6 — Machine Stones (7 keywords)
+
 `axiom` `guarantee` `shatter` `teleport` `via` `to` `from`
 
 ## Layer 7 — Systems (10 keywords)
+
 `actor` `state` `spawn` `send` `on` `collapse` `observe` `decay` `share` `fanout`
 
 ## Foreign & Import (3 keywords + from)
+
 `include` `import` `from` `as`
 
 ## GPU & Shaders (7 keywords)
+
 `shader` `vertex` `fragment` `compute` `uniform` `workgroup` `dispatch`
 
 ## Compile-Time (2 keywords)
+
 `comptime` `macro`
 
 ## Testing (1 keyword)
+
 `test`
 
 ## Operator Aliases (2 keywords)
+
 `and` `or`
 
----
+______________________________________________________________________
 
 *End of Keyword Dictionary · 110 keywords documented · 108 exercisable · 2 reserved (emit, receive) with no parser rules yet*

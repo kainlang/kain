@@ -39,7 +39,7 @@ use_repo(rust, "rust_toolchains")
 register_toolchains("@rust_toolchains//:all")
 ```
 
-Then, create or open the  WORKSPACE.bzlmod file and add the CC rules:
+Then, create or open the WORKSPACE.bzlmod file and add the CC rules:
 
 ```starlark
 ###############################################################################
@@ -58,7 +58,6 @@ http_archive(
     sha256 = "d75a040c32954da0d308d3f2ea2ba735490f49b3a7aa3e4b40259ca4b814f825",
 )
 ```
-
 
 ## C++ Target
 

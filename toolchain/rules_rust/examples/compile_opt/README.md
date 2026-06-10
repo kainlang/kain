@@ -3,7 +3,7 @@
 Each binary target can have its own compiler options, and these can be customised differently for different optimisation levels.
 This takes three steps:
 
-1) In your root folder `BUILD.bazel`, add the following entry:
+1. In your root folder `BUILD.bazel`, add the following entry:
 
 ```Starlark
 config_setting(
@@ -14,16 +14,16 @@ config_setting(
 )
 ```
 
-2) Add config option in `.bazelrc` to enable LTO together with optimized build.
+2. Add config option in `.bazelrc` to enable LTO together with optimized build.
 
 ```Starlark
 common:opt --compilation_mode=opt
 common:opt --@rules_rust//rust/settings:lto=thin
 ```
 
-3) In your binary target, add the optimization flags & strip settings prefixed with -C.
-For a complete list of Rust compiler optimization flag, please read the
-[official cargo documentation](https://doc.rust-lang.org/cargo/reference/profiles.html).
+3. In your binary target, add the optimization flags & strip settings prefixed with -C.
+   For a complete list of Rust compiler optimization flag, please read the
+   [official cargo documentation](https://doc.rust-lang.org/cargo/reference/profiles.html).
 
 ```Starlark
 load("@rules_rust//rust:defs.bzl", "rust_binary")

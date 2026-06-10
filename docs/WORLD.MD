@@ -3,30 +3,30 @@
 **Status:** Research synthesis, 2026-06-08
 **Based on:** `crates/core/src/ast.rs`, `crates/core/src/parser.rs`, `crates/core/src/types.rs`, `crates/core/src/runtime_contract.rs`, `crates/core/src/runtime.rs`, `crates/sys-codegen/src/codegen_llvm/mod.rs`, `runtime/native/include/machine_stones.h`, `stdlib/intent.kn`, `smoketest/src/semantics/world.kn`, `benchmark/cases_v2/fusion_chain.kn`, `blades/experiments/convergence/src/world.kn`, `blades/python/24_tet/src/resonate_py_effects.kn`, GLOSSARY.MD, RULEBOOK.MD, CATALOG.MD
 
----
+______________________________________________________________________
 
 ## Table of Contents
 
 1. [What is World?](#what-is-world)
-2. [The Core Idea — Compiler-Owned State Authority](#the-core-idea)
-3. [Syntax Reference](#syntax-reference)
-4. [How It Works — Full Pipeline](#how-it-works)
-5. [Surface Projections](#surface-projections)
-6. [The World Patterns](#the-world-patterns)
-7. [World + Entangle](#world--entangle)
-8. [Under-Utilized Ideas — Creative Semantic Abuse](#under-utilized-ideas)
-9. [Combining with Other Keywords](#combining-with-other-keywords)
-10. [Stdlib Telemetry API](#stdlib-telemetry-api)
-11. [Runtime Contract Metadata](#runtime-contract-metadata)
-12. [LLVM Codegen](#llvm-codegen)
-13. [Native C Runtime](#native-c-runtime)
-14. [Z3 Proofs](#z3-proofs)
-15. [Validation Ladder](#validation-ladder)
-16. [Anti-Patterns](#anti-patterns)
-17. [Quick Reference](#quick-reference)
-18. [Source Anchors](#source-anchors)
+1. [The Core Idea — Compiler-Owned State Authority](#the-core-idea)
+1. [Syntax Reference](#syntax-reference)
+1. [How It Works — Full Pipeline](#how-it-works)
+1. [Surface Projections](#surface-projections)
+1. [The World Patterns](#the-world-patterns)
+1. [World + Entangle](#world--entangle)
+1. [Under-Utilized Ideas — Creative Semantic Abuse](#under-utilized-ideas)
+1. [Combining with Other Keywords](#combining-with-other-keywords)
+1. [Stdlib Telemetry API](#stdlib-telemetry-api)
+1. [Runtime Contract Metadata](#runtime-contract-metadata)
+1. [LLVM Codegen](#llvm-codegen)
+1. [Native C Runtime](#native-c-runtime)
+1. [Z3 Proofs](#z3-proofs)
+1. [Validation Ladder](#validation-ladder)
+1. [Anti-Patterns](#anti-patterns)
+1. [Quick Reference](#quick-reference)
+1. [Source Anchors](#source-anchors)
 
----
+______________________________________________________________________
 
 ## What is World?
 
@@ -44,7 +44,7 @@ A world is **not a global variable**. It is a **compiler-owned state authority**
 
 Worlds are the backbone of Kain's state semantics. Every other LAYER 1-7 construct either reads from a world (`patch`, `resonate`, `pulse`), writes to a world (`patch`, `teleport`), couples worlds (`entangle`), or projects world state (`surface`). Without worlds, there is no state graph — only unmanaged variables.
 
----
+______________________________________________________________________
 
 ## The Core Idea — Compiler-Owned State Authority
 
@@ -88,7 +88,7 @@ Every other compiler-owned semantic construct relates to world as either:
 
 Without `world`, none of the other constructs have anything to operate on.
 
----
+______________________________________________________________________
 
 ## Syntax Reference
 
@@ -103,6 +103,7 @@ Without `world`, none of the other constructs have anything to operate on.
 ```
 
 Where:
+
 - `world` is a contextual keyword (recognized in item-start position)
 - `<Name>` is the world identifier (used in dotted paths like `WorldName.field`)
 - `state` introduces a state slot with name, type, and initializer
@@ -165,11 +166,11 @@ surface_projection:
 The parser (`parse_world()` at line ~2035 in `crates/core/src/parser.rs`):
 
 1. Expects contextual keyword `world` (registered in `is_contextual_item_start_name` at line 702)
-2. Parses the world name as an identifier
-3. Expects `:` then an indented block
-4. Within the block, dispatches on `TokenKind::State` → `parse_world_state_slot()` or on the ident `"surface"` → `parse_world_surface_projection()`
-5. Anything else produces an error: `"Expected 'state' or 'surface' inside world block"`
-6. Returns `Item::World(WorldDef { name, states, surfaces, visibility, attributes, span })`
+1. Parses the world name as an identifier
+1. Expects `:` then an indented block
+1. Within the block, dispatches on `TokenKind::State` → `parse_world_state_slot()` or on the ident `"surface"` → `parse_world_surface_projection()`
+1. Anything else produces an error: `"Expected 'state' or 'surface' inside world block"`
+1. Returns `Item::World(WorldDef { name, states, surfaces, visibility, attributes, span })`
 
 ### AST Types (from ast.rs)
 
@@ -204,7 +205,7 @@ pub enum WorldSurfaceKind {
 }
 ```
 
----
+______________________________________________________________________
 
 ## How It Works — Full Pipeline
 
@@ -247,17 +248,17 @@ pub enum WorldSurfaceKind {
 The typechecker `check_world()` in `types.rs` performs:
 
 1. **State slot type resolution** — each `state ty` is resolved via `resolve_type_in_env()`
-2. **Initializer type checking** — each `initial` expression type is inferred and compared against the declared state type via `ensure_type_compatible()`
-3. **Surface requirement** — if no surfaces are declared, the typechecker produces a diagnostic with:
+1. **Initializer type checking** — each `initial` expression type is inferred and compared against the declared state type via `ensure_type_compatible()`
+1. **Surface requirement** — if no surfaces are declared, the typechecker produces a diagnostic with:
    - Code: `TypeWorldMissingSurface`
    - Message: `"world 'Name' must declare at least one surface"`
    - Note: `"Worlds currently need at least one surface projection so they can materialize into a runtime-facing view."`
    - Help: `"Add a line like 'surface native_ui => MyPanel' inside the world body."`
-4. **Duplicate surface detection** — a `HashSet<WorldSurfaceKind>` tracks seen surface kinds; duplicate kinds produce: `"world 'Name' declares duplicate 'native_ui' surface"`
-5. **Surface validation** — `check_world_surface_projection()` validates the expression based on the surface kind:
+1. **Duplicate surface detection** — a `HashSet<WorldSurfaceKind>` tracks seen surface kinds; duplicate kinds produce: `"world 'Name' declares duplicate 'native_ui' surface"`
+1. **Surface validation** — `check_world_surface_projection()` validates the expression based on the surface kind:
    - `NativeUi` / `Web` → expects a component identifier or call expression
    - `Viewport3d` / `Ue5` → expects an identifier or string literal
-6. **Global registration** — the world name is registered both as a `ResolvedType::Struct` and as a `global_origins` entry (kind: `"world"`), making it available for `entangle`, `resonate`, and field access.
+1. **Global registration** — the world name is registered both as a `ResolvedType::Struct` and as a `global_origins` entry (kind: `"world"`), making it available for `entangle`, `resonate`, and field access.
 
 ```rust
 fn check_world(env: &mut TypeEnv, world: &WorldDef) -> KainResult<TypedWorld> {
@@ -357,7 +358,7 @@ already_init:
 
 During program startup, `emit_machine_stones_entry_preamble()` calls all world init functions. When any referencing code loads a world field, the init function is called on first access via the lazy init guard pattern.
 
----
+______________________________________________________________________
 
 ## Surface Projections
 
@@ -432,7 +433,7 @@ Error: world 'OrphanWorld' must declare at least one surface
   = help: Add a line like `surface native_ui => MyPanel` inside the world body.
 ```
 
----
+______________________________________________________________________
 
 ## The World Patterns
 
@@ -548,6 +549,7 @@ world RatTelemetry:
 ```
 
 **Characteristics:**
+
 - Holds raw buffer pointers (`ptr<Int>`) for maze trails — NOT entangled
 - Holds scalar telemetry counters that ARE entangled to a mirror
 - The world acts as the central aggregator for experiment data
@@ -645,6 +647,7 @@ pub world ResonatePyFxMirror:
 ```
 
 **Characteristics:**
+
 - 30+ state slots in the authority world
 - Only a subset are entangled to the mirror (useful for introspection)
 - Organized by semantic section (LFO, Chorus, Delay, Reverb, etc.)
@@ -678,6 +681,7 @@ world FusionMirror:
 ```
 
 **Characteristics:**
+
 - Small number of fields that are updated every frame
 - Every authority field is entangled to a mirror field
 - The world is the hub for a full causal chain: patch → resonate → entangle → pulse → actor → teleport
@@ -685,7 +689,7 @@ world FusionMirror:
 
 **When to use:** Game loops, realtime systems, frame-driven state, where every field participates in the causal chain.
 
----
+______________________________________________________________________
 
 ## World + Entangle
 
@@ -704,9 +708,9 @@ The left and right endpoints must be dotted paths with at least 2 segments: `Wor
 ### What Entangle Enables for Worlds
 
 1. **Authority-Mirror coupling** — one world writes, the other receives. The mirror is guaranteed fresh by the propagation graph.
-2. **Multi-surface projection** — authority has `native_ui`, mirror has `web`. Same state, different render targets.
-3. **Read-safe observation** — actors and components can read from mirrors without worrying about write conflicts.
-4. **Zero-cost propagation** — the compiler emits GEP + store + telemetry call at the LLVM level. No heap observer, no callback, no message queue.
+1. **Multi-surface projection** — authority has `native_ui`, mirror has `web`. Same state, different render targets.
+1. **Read-safe observation** — actors and components can read from mirrors without worrying about write conflicts.
+1. **Zero-cost propagation** — the compiler emits GEP + store + telemetry call at the LLVM level. No heap observer, no callback, no message queue.
 
 ### What Entangle Restricts on Worlds
 
@@ -735,7 +739,7 @@ entangle Authority.value <-> Mirror.value_copy with single_writer
 
 For full details on entangle semantics, policies, telemetry, and patterns, see `X:/docs/ENTANGLE.MD`.
 
----
+______________________________________________________________________
 
 ## Under-Utilized Ideas — Creative Semantic Abuse
 
@@ -857,7 +861,7 @@ world PythonInterop:
 
 **Under-explored:** Worlds explicitly designed as the semantic boundary between Kain and Python — Python owns the ML computation, Kain owns the state authority and UI projection.
 
----
+______________________________________________________________________
 
 ## Combining with Other Keywords
 
@@ -999,7 +1003,7 @@ converge compute_mix(value: Int, depth: Int) -> Int:
 
 While converge doesn't directly reference worlds, the values passed to converge lanes often come from world state reads.
 
----
+______________________________________________________________________
 
 ## Stdlib Telemetry API
 
@@ -1044,7 +1048,7 @@ While worlds themselves don't have dedicated telemetry counters (unlike entangle
 
 All world-related telemetry lives in `stdlib/intent.kn` and `stdlib/runtime.kn`. Query with `kain_stdlib search_symbols --query "world" --module "runtime"`.
 
----
+______________________________________________________________________
 
 ## Runtime Contract Metadata
 
@@ -1106,7 +1110,7 @@ The capabilities are collected from the world declarations and emitted alongside
 
 In `realtime_app_bundle.rs`, each world contributes metadata about its surfaces and state slots for the realtime app manifest.
 
----
+______________________________________________________________________
 
 ## LLVM Codegen
 
@@ -1167,6 +1171,7 @@ struct WorldGlobalInfo {
 ```
 
 This map is used during codegen to:
+
 - Look up the world's init function when a world field is referenced
 - Look up the world's global and field when generating entangle propagation
 - Look up the world's field path for `native_world_field_path()`
@@ -1175,7 +1180,7 @@ This map is used during codegen to:
 
 The function `native_world_field_path(struct_name, field)` returns `Some("WorldName.field")` if the struct is a registered world, or `None` if not. This is used by the entangle propagation codegen to verify that mirror fields exist in the world's struct definition.
 
----
+______________________________________________________________________
 
 ## Native C Runtime
 
@@ -1191,9 +1196,9 @@ The native C runtime in `runtime/native/include/machine_stones.h` supports world
 World-specific C runtime support exists for:
 
 1. **World init function calls** — the machine stones entry preamble calls `__kain_init_world_*()` for each declared world
-2. **Entangle propagation** — the C entangle registry (`entangle.c`) tracks which worlds participate in entangle via their endpoint paths
-3. **Teleport** — the teleport API (`machine_stones.c`) moves values between world globals
-4. **Telemetry counters** — the ABI functions (`stdlib_abi.c`) track world-touching operations
+1. **Entangle propagation** — the C entangle registry (`entangle.c`) tracks which worlds participate in entangle via their endpoint paths
+1. **Teleport** — the teleport API (`machine_stones.c`) moves values between world globals
+1. **Telemetry counters** — the ABI functions (`stdlib_abi.c`) track world-touching operations
 
 ### No Dedicated World Registry
 
@@ -1201,7 +1206,7 @@ Unlike entangle (which has `entangle_registry_register()`, `entangle_registry_ge
 
 The absence of a `world.h` / `world.c` is deliberate: worlds are LLVM-level constructs with no C runtime overhead beyond their initialization.
 
----
+______________________________________________________________________
 
 ## Z3 Proofs
 
@@ -1221,13 +1226,14 @@ World doesn't need standalone proofs because it is the substrate — other const
 - **Teleport machine stones proofs** verify that cross-world teleport doesn't corrupt state
 
 A Z3 proof for world would be needed if there were:
+
 - A bounded world registry (currently worlds are LLVM globals with no runtime-imposed limit)
 - A world lifecycle state machine (init → active → teardown)
 - A world capacity constraint (max fields, max surfaces)
 
 None of these exist yet, so no proofs are needed.
 
----
+______________________________________________________________________
 
 ## Validation Ladder
 
@@ -1298,7 +1304,7 @@ pub fn smoke_world_lane() -> Int:
     return 0
 ```
 
----
+______________________________________________________________________
 
 ## Anti-Patterns
 
@@ -1456,7 +1462,7 @@ world Engine:
 
 Every world should have at least one surface, even if it's just a debug panel. Without a surface, the world's state is invisible at runtime.
 
----
+______________________________________________________________________
 
 ## Quick Reference
 
@@ -1485,7 +1491,7 @@ Every world should have at least one surface, even if it's just a debug panel. W
 | **Real-world example** | `blades/python/24_tet/src/resonate_py_effects.kn` — 30+ field effects engine |
 | **Experiment example** | `blades/experiments/convergence/src/world.kn` — telemetry aggregator |
 
----
+______________________________________________________________________
 
 ## Source Anchors
 

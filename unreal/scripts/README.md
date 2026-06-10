@@ -37,6 +37,7 @@ This file defines all UE5 installation paths across multiple drives and versions
 ```
 
 **How it works:**
+
 - The scripts try each path in order until they find a valid UE5 installation
 - You can disable versions by setting `"enabled": false`
 - Add your custom installation paths to the `paths` array
@@ -47,12 +48,14 @@ This file defines all UE5 installation paths across multiple drives and versions
 ### 1. ue5_scanner.py
 
 Scans UE5 headers and extracts:
+
 - Classes (UCLASS) with inheritance, functions, properties
 - Structs (USTRUCT) with fields
 - Enums (UENUM) with values
 - Include paths and module mappings
 
 **Usage:**
+
 ```bash
 # Single installation
 python ue5_scanner.py "D:/UE_5.7/Engine/Source" ../metadata/engine_5.7_scanned.json
@@ -69,6 +72,7 @@ python ue5_scanner.py --legacy "D:/UE_5.7/Engine/Source" ../metadata/legacy_scan
 ### 2. module_graph_extractor.py
 
 Scans .Build.cs files and extracts:
+
 - Module names and categories (Runtime, Editor, Developer, etc.)
 - Public and private dependencies
 - Transitive dependency closure
@@ -77,6 +81,7 @@ Scans .Build.cs files and extracts:
 - API symbol → module mappings
 
 **Usage:**
+
 ```bash
 # Single installation
 python module_graph_extractor.py "D:/UE_5.7/Engine/Source" --engine-scan ../metadata/engine_5.7_scanned.json
@@ -92,6 +97,7 @@ python module_graph_extractor.py --config ue5_paths_config.json
 Extracts Unreal Header Tool validation rules from UHT source code.
 
 **Usage:**
+
 ```bash
 python uht_extractor.py "D:/UE_5.7/Engine/Source/Programs/UnrealHeaderTool"
 ```
@@ -103,6 +109,7 @@ python uht_extractor.py "D:/UE_5.7/Engine/Source/Programs/UnrealHeaderTool"
 Extracts HLSL type information and shader validation rules.
 
 **Usage:**
+
 ```bash
 python shader_extractor.py "D:/UE_5.7/Engine/Shaders"
 ```
@@ -114,6 +121,7 @@ python shader_extractor.py "D:/UE_5.7/Engine/Shaders"
 Extracts editor attribute definitions (@slider, @color_picker, etc.) from Slate and PropertyEditor source.
 
 **Usage:**
+
 ```bash
 python editor_attributes_extractor.py "D:/UE_5.7/Engine/Source"
 ```
@@ -125,6 +133,7 @@ python editor_attributes_extractor.py "D:/UE_5.7/Engine/Source"
 Extracts virtual function requirements for UE5 classes (which virtuals must be overridden).
 
 **Usage:**
+
 ```bash
 python virtual_obligations_extractor.py "D:/UE_5.7/Engine/Source"
 ```
@@ -136,11 +145,13 @@ python virtual_obligations_extractor.py "D:/UE_5.7/Engine/Source"
 Validates metadata completeness and consistency.
 
 **Usage:**
+
 ```bash
 python verify_scan.py
 ```
 
 **Checks:**
+
 - All required metadata files exist
 - JSON is valid and parseable
 - Cross-references are consistent
@@ -151,6 +162,7 @@ python verify_scan.py
 Extracts code corpus from .kn files for analysis and testing.
 
 **Usage:**
+
 ```bash
 python corpus_extractor.py ../kn_library
 ```
@@ -164,6 +176,7 @@ python corpus_extractor.py ../kn_library
 ### Option 1: Automated Refresh (Recommended)
 
 **Core metadata (fast, 3-5 minutes):**
+
 ```bash
 cd unreal/scripts
 refresh_all_metadata.bat        # Windows
@@ -171,6 +184,7 @@ refresh_all_metadata.bat        # Windows
 ```
 
 **Full metadata (complete, 5-10 minutes):**
+
 ```bash
 cd unreal/scripts
 refresh_all_metadata_full.bat   # Windows
@@ -178,21 +192,24 @@ refresh_all_metadata_full.bat   # Windows
 ```
 
 This will:
+
 1. Scan all configured UE5 installations
-2. Extract module dependency graphs
-3. Extract optional metadata (UHT rules, shaders, etc.) - full only
-4. Verify metadata completeness
-5. Report any issues
+1. Extract module dependency graphs
+1. Extract optional metadata (UHT rules, shaders, etc.) - full only
+1. Verify metadata completeness
+1. Report any issues
 
 ### Option 2: Verify Configuration First
 
 Before running extraction, verify your config:
+
 ```bash
 cd unreal/scripts
 python verify_config.py
 ```
 
 This checks:
+
 - Config file is valid JSON
 - At least one UE5 installation is accessible
 - Output directory is writable
@@ -200,22 +217,26 @@ This checks:
 ### Option 3: Manual Extraction
 
 1. **Edit config file:**
+
    ```bash
    cd unreal/scripts
    # Edit ue5_paths_config.json with your UE5 installation paths
    ```
 
-2. **Run scanner:**
+1. **Run scanner:**
+
    ```bash
    python ue5_scanner.py --config ue5_paths_config.json
    ```
 
-3. **Extract module graphs:**
+1. **Extract module graphs:**
+
    ```bash
    python module_graph_extractor.py --config ue5_paths_config.json
    ```
 
-4. **Verify:**
+1. **Verify:**
+
    ```bash
    python verify_scan.py
    ```
@@ -256,6 +277,7 @@ All generated files are written to `unreal/metadata/`:
 ### "Permission denied" on Linux/Mac
 
 **Solution:** Make the shell script executable:
+
 ```bash
 chmod +x refresh_all_metadata.sh
 ```
@@ -263,6 +285,7 @@ chmod +x refresh_all_metadata.sh
 ## Adding a New UE5 Version
 
 1. **Edit config:**
+
    ```json
    {
      "version": "5.8",
@@ -274,16 +297,19 @@ chmod +x refresh_all_metadata.sh
    }
    ```
 
-2. **Run refresh:**
+1. **Run refresh:**
+
    ```bash
    refresh_all_metadata.bat  # or .sh on Linux/Mac
    ```
 
-3. **Verify output:**
+1. **Verify output:**
+
    - Check `unreal/metadata/engine_5.8_scanned.json`
    - Check `unreal/metadata/module_graph_5.8.json`
 
-4. **Update KAIN compiler:**
+1. **Update KAIN compiler:**
+
    - Rebuild the compiler to load the new metadata
    - Test with your plugins
 
@@ -304,6 +330,7 @@ The config file supports multiple drives per version:
 ```
 
 The scripts will use the **first valid path** found. This is useful when:
+
 - UE5 is installed on different drives on different machines
 - You have multiple team members with different setups
 - You're using network drives or external storage
@@ -335,27 +362,28 @@ cargo build --release --package cli
 
 1. **Version Control:** Commit the generated metadata files to git so team members don't need to regenerate them.
 
-2. **Regular Updates:** Refresh metadata when:
+1. **Regular Updates:** Refresh metadata when:
+
    - Upgrading to a new UE5 version
    - Adding new engine modules to your project
    - Encountering "unknown type" errors in KAIN
 
-3. **Validation:** Always run `verify_scan.py` after extraction to catch issues early.
+1. **Validation:** Always run `verify_scan.py` after extraction to catch issues early.
 
-4. **Backup:** Keep backups of working metadata files before regenerating.
+1. **Backup:** Keep backups of working metadata files before regenerating.
 
-5. **Documentation:** Document any manual edits to `engine_knowledge.json` (the curated database).
+1. **Documentation:** Document any manual edits to `engine_knowledge.json` (the curated database).
 
 ## Contributing
 
 When adding new extraction scripts:
 
 1. Support the `--config` flag for multi-version extraction
-2. Use the same config file format (`ue5_paths_config.json`)
-3. Write output to `../metadata/` directory
-4. Add error handling for missing paths
-5. Update this README with usage instructions
-6. Add the script to `refresh_all_metadata.bat` and `.sh`
+1. Use the same config file format (`ue5_paths_config.json`)
+1. Write output to `../metadata/` directory
+1. Add error handling for missing paths
+1. Update this README with usage instructions
+1. Add the script to `refresh_all_metadata.bat` and `.sh`
 
 ## License
 

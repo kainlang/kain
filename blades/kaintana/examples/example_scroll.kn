@@ -5,10 +5,14 @@
 // Wiring into main.kn: call from the inspector section with scroll_delta
 // from scroll wheel or action buttons.
 
-use kaintana::*
+use layout::kaintana_inset
+use std::text
 use types::KaintanaContext
 use types::KaintanaRect
+use types::kaintana_rect
+use types::kaintana_text
 use kaintana_ui::*
+use widgets_scroll::*
 
 pub fn kaintana_example_scroll_list(ctx: KaintanaContext, rect: KaintanaRect, body_font: Int, title_font: Int) -> KaintanaContext:
     var next = ctx
@@ -22,11 +26,13 @@ pub fn kaintana_example_scroll_list(ctx: KaintanaContext, rect: KaintanaRect, bo
     let viewport = kaintana_inset(rect, 8.0 * ctx.dpi_scale, 36.0 * ctx.dpi_scale, 8.0 * ctx.dpi_scale, 8.0 * ctx.dpi_scale)
     let item_h = 30.0 * ctx.dpi_scale
     let gap = 4.0 * ctx.dpi_scale
-    let item_count = 50
+    let item_count: Int = 50
     let content_h = Float(item_count) * (item_h + gap)
 
     // Render the scroll area — this draws the panel background + scrollbar
-    let scroll = kaintana_scroll_area(next, "example.scroll.area", "items",
+    let scroll = kaintana_scroll_area(next,
+        kaintana_text("example.scroll.area"),
+        kaintana_text("items"),
         viewport, content_h)
     next = scroll.ctx
 

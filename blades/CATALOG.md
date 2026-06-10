@@ -2,7 +2,7 @@
 
 Every project under `X:/blades/` — what it is, what it's trying to achieve, and which Kain semantic layers it exercises.
 
----
+______________________________________________________________________
 
 ## `c/` — C ABI / FFI Integration
 
@@ -25,7 +25,7 @@ Projects that stress-test Kain's ability to interface with native C code through
 | **vulkain** | Raw reusable Vulkan window package for Kain LLVM blades — provides `vulkain_probe`, `vulkain_run_window`, `vulkain_run_mesh_scene`, `vulkain_run_kloner_same_window` | Give other Kain projects a reusable Vulkan presentation surface. Includes two example blades: a mesh-scene demo and a std-math-bounce-game that uses worlds, actors, entangle, shatter, teleport, and stdlib math for a bouncing-cube simulation | C FFI (`c::vulkain_bridge`), `[c_ffi]` with platform Vulkan package, Kain facade module, `world`/`entangle`/`shatter`/`actor`/`pulse`/`patch`/`axiom`/`converge`/`orchestrate`/`teleport`, `std::math` (vec3, quat, AABB, ray, noise, FBM), `std::input`, GPU compute |
 | **vulkan_v2** | GPU fluid simulator with two compute shader variants: semi-Lagrangian fluid advection + Gray-Scott reaction-diffusion. Rendered via Win32 GDI `StretchDIBits` | Pure Kain Win32 window + SPIR-V compute dispatch for fluid simulation. Multi-kernel GPU pipeline with file-based staging, GDI pixel packing, and handle-leak reclamation | `shader compute` with `StorageBuffer`, `dispatch`, `@extern` Win32/GDI FFI, `bitcast`, `alloc_zeroed`, `fs_open`/`fs_write`/`fs_read`/`fs_close`, `_putenv`, CUDA runtime queries |
 
----
+______________________________________________________________________
 
 ## `cuda/` — CUDA GPU Compute
 
@@ -36,7 +36,7 @@ Projects that exercise Kain's CUDA/PTX compilation pipeline, GPU compute kernels
 | **mcp** | GPU-accelerated semantic search MCP (Model Context Protocol) server for the Kain repo. Indexes source, builds embeddings, serves search via CUDA-scored kernels. Full MCP stdio tool | End-to-end semantic code search: file chunking → embedding → binary index → CUDA scoring kernel → CUDA top-k kernel → results merge. Includes a "God mode" fused single-kernel score+topk path. Exposes MCP tools for search, reindex, and health | `std::cuda` (cuda_runtime_state, cuda_dispatch, cuda_binding_payload, cuda_pack_u32_array_le), `std::python`, `std::fs`, `std::process`, GPU compute shader kernels authored in Kain, shader bundle + residency manifest, MCP stdio protocol |
 | **ptx_1** | Author-first CUDA/PTX stress test — multi-stage GPU pipeline (field generation → blur → colorize) validated against a C++ reference comparator | Full multi-stage CUDA compute pipeline authored in Kain (3 kernels), staged payloads, dispatched to GPU, output verified against a C++ CPU implementation, BMP output with diff images | `shader compute` CUDA kernels, `comptime` blocks with dispatch/binding metadata, `std::cuda` (cuda_pack, cuda_dispatch_primary_compute, cuda_binding_payload_path, cuda_zero_output_payloads, cuda_copy_binding_payload), `std::fs`, `std::process` (spawn C++ verifier), multi-kernel pipeline |
 
----
+______________________________________________________________________
 
 ## `network/` — Networking / Protocol Libraries
 
@@ -46,7 +46,7 @@ Projects that exercise Kain's CUDA/PTX compilation pipeline, GPU compute kernels
 | **http** | HTTP request/response helper library for reusable Kain blades — wraps `std::net` with JSON payload helpers | Provide `http_build_json_request`, `http_send_json_request`, `http_respond_json` — a small facade over std::net for JSON-based HTTP communication | `std::net`, JSON HTTP request/response helpers, library-style Kain blade with public API |
 | **json** | JSON serialization and parsing library — `JsonValue` struct with kind/bool/int/string fields, serialization to/from text | Provide a lightweight JSON parsing/serialization dependency for other blades | Pure Kain library, custom struct types, string-to-value parsing, value-to-string serialization, `pub` module exports |
 
----
+______________________________________________________________________
 
 ## `sims/` — Simulation / Visualization
 
@@ -56,7 +56,7 @@ Projects that exercise Kain's CUDA/PTX compilation pipeline, GPU compute kernels
 | **fluid-studio** | Data-driven fluid simulator with Kaintana UI controls, authored GPU shaders, and Vulkain 3D presentation | Full semantic simulation pipeline: world/patch/entangle/law/converge/orchestrate layers, shatter structs for impulse data, actor relays, fluid pulse clock, teleport between worlds, collapse/observe/decay memory patterns, presented through Vulkain with multiple proof probes | `world`/`entangle`/`shatter`/`actor`/`patch`/`law`/`pulse`/`converge`/`orchestrate`/`teleport`, `collapse`/`observe`/`decay`, `std::hash`, `std::math`, `std::intent`, Kaintana widget framework, C FFI bridges (kaintana_desktop_bridge, vulkain_bridge), multi-source-root project with cross-blade dependencies, SPIR-V surface shader |
 | **spirv-visualizer** | Data-driven SPIR-V capability visualizer — scans the Kain repo for SPIR-V artifacts, catalogs them with metadata, previews in a Vulkain Kloner window | Scan configurable directories for `*.spv`, `*.reflect.json`, shader bundles; extract byte-level metadata (binding counts, entry points, module sizes); select best renderable pair (vertex+fragment) or proxy scene; render via Vulkain Kloner. Writes detailed catalog and report files | `world`/`entangle`/`shatter`/`actor`/`patch`/`law`/`axiom`/`converge`/`orchestrate`/`teleport`, `std::math`, `std::fs` (fs_walk_paths_text, fs_write_bytes_hex), `std::json`, C FFI (`c::vulkain_bridge`), Vulkain Kloner multi-instance renderer, config-driven scan, catalog production with renderable/compute/capability scoring, `spawn`/`ask` actor relay |
 
----
+______________________________________________________________________
 
 ## `python/` — Python Interop Projects
 
@@ -71,7 +71,7 @@ Projects that exercise Kain's first-class Python interop (`import ...`, `from ..
 | **24_tet** | Empty directory — name likely refers to 24-tone equal temperament (microtonal music) | Placeholder / not yet implemented | — |
 | **actor_relay** | Empty directory | Placeholder for actor-relay experiments | — |
 
----
+______________________________________________________________________
 
 ## `three-d/` — 3D Graphics Applications
 
@@ -81,7 +81,7 @@ Projects that exercise Kain's first-class Python interop (`import ...`, `from ..
 | **zender** | GPU-accelerated data-driven sculpting system — a Kain-native ZBrush clone with Vulkan rendering, Catmull-Clark subdivision, and a sculpt benchmark suite with 7 brush types | Load GLB 3D assets → Catmull-Clark subdivision → GPU particle scene → Vulkan window with orbiting particles → GPU compute brush kernels (Clay Build-Up, Smooth, Pinch, Inflate, DamStandard, Move, Flatten) → detailed telemetry/reports. Full sculpting benchmark with 7 brush types and 6 GPU compute shaders | `world`/`entangle`/`mirror`, `shatter struct`, `teleport`, `law`/`patch`, `converge`, `component`, `shader compute` (6 GPU brush kernels with StorageBuffer uniforms), `spirv`/`cuda` compile targets, C FFI (`include native/zender_vulkan.h`), vec3/quat/mat4 math, `pulse`, `certify_gate`, extensive JSON/report writing |
 | **sculpt** | Empty directory | Sculpting work lives in `zender/src/sculpt/` instead | — |
 
----
+______________________________________________________________________
 
 ## `ui/` — UI Framework Ecosystem
 
@@ -93,7 +93,7 @@ Projects that exercise Kain's first-class Python interop (`import ...`, `from ..
 | **kaintana-vulkan-test** | Foreign presenter acceptance blade for Kaintana's Vulkan embed lane | Proves the Vulkan adapter works without contaminating the default desktop executable — Kaintana session with Vulkan backend, worlds/entangles/converges/orchestrates, info dashboard | `world`/`entangle`/`patch`/`law`/`converge`/`orchestrate`, C FFI bridges, `native_entangle_registered_count`/`native_entangle_propagation_count`, frame/host reports |
 | **kain-tui** | Small yazi-like Kain terminal file explorer (j/k navigation, h/l parent/enter, r refresh, q quit) with a pulse clock mode | Terminal file browser + animated pulse clock face with orbit animation — proves the runtime pulse system fires in real-time with configurable cadence (250ms jitter 25ms) | `pulse` (250ms jitter 25ms), `runtime_machine_pulse_total_fire_count()`, `std::fs`, `std::process`, `std::text`, `std::time`, `datetime_from_epoch_millis` |
 
----
+______________________________________________________________________
 
 ## `kain/` — Starter Template
 
@@ -101,7 +101,7 @@ Projects that exercise Kain's first-class Python interop (`import ...`, `from ..
 |---------|-----------|----------------------------|-------------------|
 | **kain/** | Minimal "hello world" Kain project starter template | Blank-slate starting point for new Kain projects. Defines a build graph with project config, LLVM target, debug profile, check task, and native executable task | Basic `use std::build` build graph DSL, native executable compilation pipeline |
 
----
+______________________________________________________________________
 
 ## `edge_cases/` — Compiler / Runtime Edge Case Tests
 
@@ -111,7 +111,7 @@ Projects that exercise Kain's first-class Python interop (`import ...`, `from ..
 | **codegen_edge_gaps** | Precision regression test suite for 6 LLVM codegen edge-case gaps discovered during markscript development | Capture and fix 6 distinct LLVM codegen failure modes: `::` leaking into LLVM type names, `py_getattr_raw` fallback firing incorrectly for Kain-to-Kain struct access, named-field enum variant destructure failures, function pointers missing from resolver, `return` in match arm producing dead PHI predecessor, PHI node predecessor mismatches from `break`/`continue` | 4-layer architecture (cause → effect → spookymagic → diagnostics), VM isolation wrapper, test table pattern with discoverable test registration, CLI flag parsing |
 | **runtime** | Debug template for rapid Kain edge-case testing — self-replicating cloner script (`spawn.kn`) copies the entire template | Provide a surgical instrument for rapid single-bug reproduction. Contains the same 4-layer architecture as codegen_edge_gaps, precompiled `debug-template.exe` for immediate use, and a self-replicating cloner that duplicates the template with one command | `std::fs`, `std::path`, `std::process`, `std::runtime`, `std::text`, CLI flag parsing, `runtime_init`/`runtime_shutdown` lifecycle, self-replicating project cloner |
 
----
+______________________________________________________________________
 
 ## `example/` — Canonical Kain Example / Interactive Workbench
 
@@ -119,19 +119,19 @@ Projects that exercise Kain's first-class Python interop (`import ...`, `from ..
 |---------|-----------|----------------------------|-------------------|
 | **example/** | The definitive "first file future agents should inspect" — most comprehensive example in blades (154 KB Kain source, 12 files). Full Kain surface: UI, graphics, input, networking, actors, worlds, themes, layout, runtime workbench | Serve as the canonical reference for what fully authored Kain looks like. Demonstrate every major Kain subsystem: enums, match, for loops, vec!/format!/println macros, observe/collapse/decay ownership, worlds, actors, native stdlib services, raw memory, shaders, UI, graphics, process, net, fs, input, effects, async values. Verify LLVM IR contains correct ABI calls | `match`, `for`/`range`, `vec!`/`format!`/`println!`, `observe`/`collapse`/`decay`, `world`, `actor`, `@extern fn`, `entangle`, UI host attachment, graphics ABI, input system, `NativeMetric` trait, 10+ native stdlib subsystem probes |
 
----
+______________________________________________________________________
 
 ## `experiments/` — Experimental / Research Projects
 
 | Project | What It Is | What It's Trying To Achieve | Key Kain Features |
 |---------|-----------|----------------------------|-------------------|
-| **convergence** (Schrödinger's Rats) | Maze-solving simulation where three rats (BFS, A*, Random Walk) compete every frame — `converge` picks the winning strategy, `orchestrate` runs all three algorithms, Python/pygame shows colored trails | Prove that Kain's semantic constructs (`converge`, `orchestrate`, `world`, `patch`, `law`, `actor`, `shatter`, `pulse`, `teleport`) are general-purpose relationship descriptors, not domain-locked to CPU dispatch. The same `converge` that picks an AVX2 lane can pick a maze-solving strategy | `converge` with `spec reference`, `fast` lanes, `verify random(8)`, capability-based lane selection; `orchestrate` for typed multi-algorithm composition; `world`/`patch`/`law`/`actor`/`shatter struct`/`pulse`/`teleport`/`collapse`/`decay`, `ptr<Int>` raw buffers, `alloc_zeroed`, Python interop |
+| **convergence** (Schrödinger's Rats) | Maze-solving simulation where three rats (BFS, A\*, Random Walk) compete every frame — `converge` picks the winning strategy, `orchestrate` runs all three algorithms, Python/pygame shows colored trails | Prove that Kain's semantic constructs (`converge`, `orchestrate`, `world`, `patch`, `law`, `actor`, `shatter`, `pulse`, `teleport`) are general-purpose relationship descriptors, not domain-locked to CPU dispatch. The same `converge` that picks an AVX2 lane can pick a maze-solving strategy | `converge` with `spec reference`, `fast` lanes, `verify random(8)`, capability-based lane selection; `orchestrate` for typed multi-algorithm composition; `world`/`patch`/`law`/`actor`/`shatter struct`/`pulse`/`teleport`/`collapse`/`decay`, `ptr<Int>` raw buffers, `alloc_zeroed`, Python interop |
 | **neural_lattice** | Semantic entanglement visualization — OpenGL window showing Kain's compiler-owned semantics in real time. Kain computes a "neural lattice" (128 synapses) through worlds, entangles, collapse/observe/decay, converge, actor, pulse, teleport. C side renders a dual-waveform visualization with 5 interactive modes | Demonstrate a computation-then-visualization split where Kain owns semantics and C owns pixels. The bridge is 22 integers — no pointers, no structs, no callbacks. Every Kain semantic construct's effect is directly visible in the OpenGL window | `world` (3 worlds: CorticalAuthority, DeepMirror, RogueProjection), `entangle` (3 couplings), `law`, `patch`, `converge`, `actor` (NeuralIgniter), `pulse` (4ms jitter 1ms), `teleport`, `collapse`/`observe`/`decay`, `shatter struct` (ShatteredSynapse), raw `ptr<Int>` buffers, C bridge (`use c::neural_lattice_bridge`), proof guards with specific error exit codes |
 | **pong** | Pong game implementation with world/entangle/actors/ownership model — 1460x900 Win32 OpenGL window, vector arcade oscilloscope aesthetic, two panels (authority + mirror), 100,000 swarm particles, chaos mode, drift detection | A "native UI Pong state-lattice demo for Kain worlds, entangle, actors, and ownership transitions." The authority world owns the game state, the mirror world is entangled for comparison/drift detection. 18 entangled fields including paddle, ball, score, swarm energy. Includes Z3 proof scaffolding | `world` (PongAuthority, PongMirror with 18 state fields each), `entangle`, `use c::pong_window_bridge` C FFI, `component App()` with JSX-like render, JSON-driven configuration via `load_pong_config`, `@extern` function declarations, theme system with structured layout constants |
 | **quantum_entangled_automata** | Cellular automata simulation using Kain's quantum/entanglement semantics — imports `std::proof`, `std::bench`, `std::attrition`, `std::certify` | A formally verifiable, benchmarked, attrition-tested cellular automata experiment with certification evidence. Scaffold stage with build graph but minimal implementation | `std::proof`, `std::bench`, `std::attrition`, `std::certify` evidence toolkit, build graph with check task and native executable |
 | **ulta** | Empty scaffold — three empty subdirs (`cloner/`, `fluid-sim/`, `ui/`), zero-byte `build.kn` | Warehouse for future experiments | — |
 
----
+______________________________________________________________________
 
 ## `boundary/` — FFI Boundary Demos
 
@@ -139,7 +139,7 @@ Projects that exercise Kain's first-class Python interop (`import ...`, `from ..
 |---------|-----------|----------------------------|-------------------|
 | **ts** | Dual-direction TypeScript/Kain FFI boundary demo — TS calls Kain via native DLL (koffi), Kain calls TS via process bridge (Node.js worker). Cross-validates prime computations | Demonstrate Kain can be called from TypeScript (compiled DLL loaded via FFI) and can call into TypeScript (spawning a Node.js worker process). Uses prime number computation as cross-validation test case | Compilation to native DLL, `use std::process` with `process_output_text()`, `use std::json` (json_parse, json_get_bool, json_get_int), `runtime_init`/`runtime_shutdown`, koffi FFI library for TS native binding |
 
----
+______________________________________________________________________
 
 ## `lsp/` — Language Server Protocol + MCP Server
 
@@ -147,15 +147,15 @@ Projects that exercise Kain's first-class Python interop (`import ...`, `from ..
 |---------|-----------|----------------------------|-------------------|
 | **lsp/** | Dual-protocol server implementing LSP v3.0 (editor integration) + MCP (AI coding assistants). 82.9 KB Kain source across 11 files. Bundled as VS Code extension (25.2 MB .vsix) | Provide IDE-grade developer tools for Kain: diagnostics, completions, hover info, go-to-definition, references, formatting, semantic tokens, code actions, code lenses. MCP side exposes same services as tools for AI coding agents. Uses `std::kain` compiler services as backend | `std::json` for JSON-RPC, `std::kain` compiler service API (Document, Diagnostic, Symbol, Location), `std::mcp` for MCP protocol, `std::fs`, `std::process`, LSP Content-Length framed stdin/stdout transport, semantic token encoding (LSP 3.17 5-integer delta), code action FixIt→TextEdit conversion, code lens for reference counts, document tracking with URI↔path conversion, `node_require()` for VSIX packaging, `IO` effect annotation, unit tests with `test "name":` and `assert()` |
 
----
+______________________________________________________________________
 
 ## `markscript/` — Prose-Native Scripting Runtime
 
 | Project | What It Is | What It's Trying To Achieve | Key Kain Features |
 |---------|-----------|----------------------------|-------------------|
-| **markscript/** | Complete markdown-native bytecode VM — Kain's companion language for configuration, orchestration, and executable documentation. 15,000 lines across 9 files. Lexer (22 token types), parser/compiler (20 opcodes), stack VM, IVT bridge, @import resolution, structured error system. Produces `mks.exe` | Allow writing executable programs in pure Markdown. Every `#`, `>`, `|`, and ````` is valid syntax. Headings are domains, sections are routines, blockquotes are intents, tables are matrices, code blocks are extracted. The only errors are runtime errors. The README itself is a valid MarkScript program (625 ops from 567 lines) | Full VM implementation in pure Kain: lexer, parser, stack VM (20 opcodes), IVT (Intent Vector Table) bridge with 6 built-in handlers, recursive @import resolution (MAX_IMPORT_DEPTH=16), typed runtime values (MarkValue with Int/Float/String/Table/Code), table type inference, disassembler with typed bytecode dump, REPL mode, structured error system with kind/message/line/domain/routine/did-you-mean, `std::text`, `std::fs`, `std::process`, `std::os` |
+| **markscript/** | Complete markdown-native bytecode VM — Kain's companion language for configuration, orchestration, and executable documentation. 15,000 lines across 9 files. Lexer (22 token types), parser/compiler (20 opcodes), stack VM, IVT bridge, @import resolution, structured error system. Produces `mks.exe` | Allow writing executable programs in pure Markdown. Every `#`, `>`, `|`, and \`\`\`\`\` is valid syntax. Headings are domains, sections are routines, blockquotes are intents, tables are matrices, code blocks are extracted. The only errors are runtime errors. The README itself is a valid MarkScript program (625 ops from 567 lines) | Full VM implementation in pure Kain: lexer, parser, stack VM (20 opcodes), IVT (Intent Vector Table) bridge with 6 built-in handlers, recursive @import resolution (MAX_IMPORT_DEPTH=16), typed runtime values (MarkValue with Int/Float/String/Table/Code), table type inference, disassembler with typed bytecode dump, REPL mode, structured error system with kind/message/line/domain/routine/did-you-mean, `std::text`, `std::fs`, `std::process`, `std::os` |
 
----
+______________________________________________________________________
 
 ## `templates/` — Project Starters
 
@@ -170,7 +170,7 @@ Projects that exercise Kain's first-class Python interop (`import ...`, `from ..
 | **python/pyglet/** | Kain + Pyglet template | 🔲 Scaffold only (hello world) |
 | **three-d/** | Minimal 3D project template | 🔲 Scaffold only (same as starter) |
 
----
+______________________________________________________________________
 
 ## `test/` — Proof / Test / Certification Blades
 
@@ -190,15 +190,15 @@ Projects that exercise Kain's first-class Python interop (`import ...`, `from ..
 | **stdlib-foundations** | Proof blade for `std::text`, `std::collections`, `std::crypto`, `std::alloc` — ~400 lines with 6 probe functions | Exercise the foundational stdlib in depth: text views/strings, ASCII utils, semver parse/compare/format, JSON construction/parsing, fmt writer, typed maps, queues, deques, priority queues, slot maps, SHA-256, HMAC-SHA256, BLAKE3, random bytes, bump/arena/pool allocators | `std::text`, `std::ascii`, `std::fmt`, `std::json`, `std::semver`, `std::collections` (typed_map, queue, deque, priority_queue, slot_map), `std::crypto` (sha256, hmac_sha256, blake3, random_bytes), `std::alloc` (bump/arena/pool), `Unsafe`, `decay` |
 | **windows** | Win32 native window test blade — two approaches: pure `@extern` to `user32!MessageBoxA` and `include native/win32_window.h` for full Win32 window with WNDPROC | Prove Kain can call native Windows APIs via two methods: (1) zero C sidecar with `@extern` annotation directly to DLL exports, and (2) C header include with sibling `.c` for full window creation. Key demonstration of Kain's native ABI capabilities on Windows | `@extern`/`@link_name` for direct DLL function imports, `include native/win32_window.h as win`, C sibling source discovery (`.c` sidecar), native Win32 window creation with WNDPROC |
 
----
+______________________________________________________________________
 
 ## `tools/` — Utility Tools
 
 | Project | What It Is | What It's Trying To Achieve | Key Kain Features |
 |---------|-----------|----------------------------|-------------------|
-| **kg** (killgrep) | Actor-sharded Kain grep CLI tool — full-featured file search utility with pattern matching, recursive directory traversal, case-insensitive search, line numbers, files-only mode, count mode, hidden file support, stats, worker count control | Provide a fast, concurrent grep-like tool using Kain's actor system for parallel file scanning (up to 8 workers). Outputs to repo-root `kg.exe` | `actor` system for parallel worker sharding, `std::fs` for file enumeration and reading, `std::process` for user args, `std::text`/`std::time`, `std::runtime`, CLI flag parsing from first principles, recursive directory traversal with ignore logic (.git, .kain, node_modules, target, bazel-*), batch distribution (16 files per push) |
+| **kg** (killgrep) | Actor-sharded Kain grep CLI tool — full-featured file search utility with pattern matching, recursive directory traversal, case-insensitive search, line numbers, files-only mode, count mode, hidden file support, stats, worker count control | Provide a fast, concurrent grep-like tool using Kain's actor system for parallel file scanning (up to 8 workers). Outputs to repo-root `kg.exe` | `actor` system for parallel worker sharding, `std::fs` for file enumeration and reading, `std::process` for user args, `std::text`/`std::time`, `std::runtime`, CLI flag parsing from first principles, recursive directory traversal with ignore logic (.git, .kain, node_modules, target, bazel-\*), batch distribution (16 files per push) |
 
----
+______________________________________________________________________
 
 ## `_old/` — Archived Projects
 
@@ -208,7 +208,7 @@ Projects that exercise Kain's first-class Python interop (`import ...`, `from ..
 | **kain-fsx** | Older Kain library for filesystem/path utilities — path resolution, joining, directory creation, text read/write with fallbacks, JSON file ops. Predates `std::fs` | Archived (superseded by stdlib) |
 | **kain-process-kit** | Older Kain library for process/command execution helpers — process run, result-to-JSON, command formatting, ready logging, piped process execution. Predates `std::process` | Archived (superseded by stdlib) |
 
----
+______________________________________________________________________
 
 ## Quick Stats
 
@@ -233,4 +233,3 @@ Projects that exercise Kain's first-class Python interop (`import ...`, `from ..
 | `tools/` | 1 | 0 | 0 |
 | `_old/` | 0 | 0 | 3 |
 | **Total** | **61** | **10** | **3** |
-

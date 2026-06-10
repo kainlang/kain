@@ -2,7 +2,7 @@
 
 This folder now uses a strict split between source, catalog, runners, and generated output so benchmark work can scale without turning into a dump ground.
 
-UPDATE MAY25TH -- FUTURE BENCHMARKS SHOULD NOW RUN IN cases_v2 as we can now make multiple benchmarks in a single file 
+UPDATE MAY25TH -- FUTURE BENCHMARKS SHOULD NOW RUN IN cases_v2 as we can now make multiple benchmarks in a single file
 
 ## Layout
 

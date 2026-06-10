@@ -3,34 +3,34 @@
 **Status:** Research synthesis, 2026-06-08
 **Based on:** `crates/resonate/src/lib.rs`, `crates/core/src/parser.rs`, `crates/core/src/ast.rs`, `crates/core/src/types.rs`, `crates/core/src/runtime_contract.rs`, `crates/core/src/runtime.rs`, `crates/core/src/realtime_app_bundle.rs`, `crates/sys-codegen/src/codegen_llvm/mod.rs`, `runtime/native/include/stdlib_abi.h`, `runtime/native/src/core/stdlib_abi.c`, `stdlib/intent.kn`, `smoketest/src/semantics/resonate.kn`, `benchmark/cases_v2/resonate.kn`, `benchmark/cases_v2/fusion_chain.kn`, `benchmark/cases_v2/keyword_crucible.kn`, `blades/python/24_tet/src/resonate_py_effects.kn`, CATALOG.MD, RULEBOOK.MD, lang-semantics SKILL, lang-systems SKILL
 
----
+______________________________________________________________________
 
 ## Table of Contents
 
 1. [What is Resonate?](#what-is-resonate)
-2. [The Core Idea — Compiler-Owned Reactive Tripwire](#the-core-idea)
-3. [Syntax Reference](#syntax-reference)
-4. [How It Works — Full Pipeline](#how-it-works)
-5. [The Body Environment — resonate_old_i64, resonate_new_i64, resonate_fired](#the-body-environment)
-6. [Dampening Semantics](#dampening-semantics)
-7. [The Self-Feedback Rule](#the-self-feedback-rule)
-8. [Effect Model](#effect-model)
-9. [Runtime Contract Metadata](#runtime-contract-metadata)
-10. [LLVM Codegen — Guarded Post-Store Call](#llvm-codegen)
-11. [Native C Runtime — Slot Table, Dampening, Reentry Guard](#native-c-runtime)
-12. [Stdlib Telemetry API](#stdlib-telemetry-api)
-13. [The Resonate Patterns](#the-resonate-patterns)
-14. [Resonate + Pulse](#resonate--pulse)
-15. [Under-Utilized Ideas — Creative Semantic Abuse](#under-utilized-ideas)
-16. [Combining with Other Keywords](#combining-with-other-keywords)
-17. [Native ABI Reference](#native-abi-reference)
-18. [Validation Ladder](#validation-ladder)
-19. [Z3 Proofs](#z3-proofs)
-20. [Source Anchors](#source-anchors)
-21. [Anti-Patterns](#anti-patterns)
-22. [Quick Reference](#quick-reference)
+1. [The Core Idea — Compiler-Owned Reactive Tripwire](#the-core-idea)
+1. [Syntax Reference](#syntax-reference)
+1. [How It Works — Full Pipeline](#how-it-works)
+1. [The Body Environment — resonate_old_i64, resonate_new_i64, resonate_fired](#the-body-environment)
+1. [Dampening Semantics](#dampening-semantics)
+1. [The Self-Feedback Rule](#the-self-feedback-rule)
+1. [Effect Model](#effect-model)
+1. [Runtime Contract Metadata](#runtime-contract-metadata)
+1. [LLVM Codegen — Guarded Post-Store Call](#llvm-codegen)
+1. [Native C Runtime — Slot Table, Dampening, Reentry Guard](#native-c-runtime)
+1. [Stdlib Telemetry API](#stdlib-telemetry-api)
+1. [The Resonate Patterns](#the-resonate-patterns)
+1. [Resonate + Pulse](#resonate--pulse)
+1. [Under-Utilized Ideas — Creative Semantic Abuse](#under-utilized-ideas)
+1. [Combining with Other Keywords](#combining-with-other-keywords)
+1. [Native ABI Reference](#native-abi-reference)
+1. [Validation Ladder](#validation-ladder)
+1. [Z3 Proofs](#z3-proofs)
+1. [Source Anchors](#source-anchors)
+1. [Anti-Patterns](#anti-patterns)
+1. [Quick Reference](#quick-reference)
 
----
+______________________________________________________________________
 
 ## What is Resonate?
 
@@ -47,7 +47,7 @@ The key insight: **`resonate` replaces `if old != new { handler() }` polling or 
 
 Resonate sits in **LAYER 5: TEMPORAL** of Kain's decision ladder, alongside `pulse`. While `pulse` fires on a recurring timed schedule, `resonate` fires reactively when state changes.
 
----
+______________________________________________________________________
 
 ## The Core Idea
 
@@ -98,7 +98,7 @@ The key distinction:
 | **Effect permissions** | All (IO, Async, GPU, Reactive, Unsafe, Alloc, Panic) | All | Actor-scoped |
 | **Telemetry** | `resonate_fire_count`, `resonate_absorb_count` | `runtime_machine_pulse_total_fire_count()` | Actor-specific |
 
----
+______________________________________________________________________
 
 ## Syntax Reference
 
@@ -110,6 +110,7 @@ resonate <World.field> [dampen <duration>]:
 ```
 
 Where:
+
 - `<World.field>` is a dotted path to a world state field (e.g., `FxWorld.distortion_drive`)
 - `dampen` is an optional contextual keyword
 - `<duration>` is `Integer Unit` (e.g., `0ms`, `32ms`, `1s`)
@@ -151,13 +152,14 @@ duration = integer unit              // unit in ns, us, ms, s, tick, ticks
 ```
 
 The parser flow:
+
 1. Expects contextual keyword `resonate`
-2. Calls `parse_resonate_endpoint()` — parses a dot-separated ident chain with minimum 2 segments
-3. If `dampen` contextual keyword follows, calls `parse_pulse_duration()` to parse the dampen window
-4. Expects colon
-5. Parses block
-6. Generates a synthetic name `resonate__{target}__{segments}` from the target path
-7. Returns `Item::Resonate(ResonateDef { name, target, dampen, body, ... })`
+1. Calls `parse_resonate_endpoint()` — parses a dot-separated ident chain with minimum 2 segments
+1. If `dampen` contextual keyword follows, calls `parse_pulse_duration()` to parse the dampen window
+1. Expects colon
+1. Parses block
+1. Generates a synthetic name `resonate__{target}__{segments}` from the target path
+1. Returns `Item::Resonate(ResonateDef { name, target, dampen, body, ... })`
 
 ```rust
 // ast.rs
@@ -187,7 +189,7 @@ Resonate target must be a stable dotted lvalue path like World.state
 
 This is because resonate only makes sense as a tripwire on world fields. A bare identifier or single-segment path cannot participate in a resonate.
 
----
+______________________________________________________________________
 
 ## How It Works — Full Pipeline
 
@@ -223,10 +225,10 @@ This is because resonate only makes sense as a tripwire on world fields. A bare 
 The typechecker (`types.rs: check_resonate`) performs:
 
 1. **Endpoint resolution** — resolves target field via `resolve_resonate_endpoint_type()`, must be a world field
-2. **Self-feedback detection** — collects all patch mutation paths in the body, checks if any directly mutate the target field
-3. **Dampen validation** — validates dampen value >= 0, valid unit (ns/us/ms/s/tick/ticks)
-4. **Body typechecking** — body is compiled as a unit-returning block with broad effects
-5. **Local injection** — `resonate_old_i64`, `resonate_new_i64`, `resonate_fired` are defined in the body scope
+1. **Self-feedback detection** — collects all patch mutation paths in the body, checks if any directly mutate the target field
+1. **Dampen validation** — validates dampen value >= 0, valid unit (ns/us/ms/s/tick/ticks)
+1. **Body typechecking** — body is compiled as a unit-returning block with broad effects
+1. **Local injection** — `resonate_old_i64`, `resonate_new_i64`, `resonate_fired` are defined in the body scope
 
 ```rust
 fn check_resonate(env: &mut TypeEnv, resonate: &ResonateDef) -> KainResult<TypedResonate> {
@@ -273,9 +275,9 @@ This is intentional. Resonate requires the native ABI slot table that only exist
 The LLVM codegen handles resonate through a **guarded post-store pattern**:
 
 1. **World field store detection** — When the codegen compiles a store to a world struct field, it calls `native_resonance_binding(field_path)` to check if a resonate is registered on that field
-2. **Old value capture** — If a resonate binding exists, the old value is captured before the store (for `i64` fields this comes from a load of the existing field value)
-3. **Store** — The new value is written to the world field
-4. **Guard + handler call** — `emit_resonance_after_store()` emits the should_fire check, conditional branch, handler call, and exit call
+1. **Old value capture** — If a resonate binding exists, the old value is captured before the store (for `i64` fields this comes from a load of the existing field value)
+1. **Store** — The new value is written to the world field
+1. **Guard + handler call** — `emit_resonance_after_store()` emits the should_fire check, conditional branch, handler call, and exit call
 
 The LLVM IR emitted looks like:
 
@@ -303,23 +305,26 @@ done:
   ; continue with next code
 ```
 
----
+______________________________________________________________________
 
 ## The Body Environment — resonate_old_i64, resonate_new_i64, resonate_fired
 
 Every resonate body has exactly three auto-injected locals:
 
 ### `resonate_old_i64: Int` (I64)
+
 - **The value before the write** — the old state of the watched field
 - **Zero for initial state** (no prior write) for non-i64 types that are zero-extended
 - Use for: comparison, differential computation, detecting direction of change
 
 ### `resonate_new_i64: Int` (I64)
+
 - **The value after the write** — the new state of the watched field
 - **Always the value just stored** by the triggering write
 - Use for: processing the new state, cascading to other fields, running pipelines
 
 ### `resonate_fired: Bool`
+
 - **Always true** in the handler body (the guard already checked should_fire)
 - Provided for correctness — any code path that checks this will always see `true`
 - Use for: conditional logic that semantically depends on "we actually fired"
@@ -356,7 +361,7 @@ resonate Authority.signal dampen 0 ms:
     ) % MODULUS
 ```
 
----
+______________________________________________________________________
 
 ## Dampening Semantics
 
@@ -445,7 +450,7 @@ The sum `fire_count + absorb_count` equals `mutation_count` (total number of tim
 | `s` | 1,000,000,000 | `value * 1_000_000_000` |
 | `tick` / `ticks` | 1,000,000 | `value * 1_000_000` (treated as ms) |
 
----
+______________________________________________________________________
 
 ## The Self-Feedback Rule
 
@@ -468,8 +473,8 @@ if plan.directly_mutates_target() {
 ### How It's Enforced
 
 1. `check_resonate()` calls `collect_patch_mutation_paths_from_block()` which walks the body AST and collects all paths that are written via `patch` or direct world field assignment
-2. `ResonancePlan::directly_mutates_target()` checks if any collected path **equals** the target path or **starts with** `target + "."` (for struct field sub-paths)
-3. If any match is found, the compiler returns a type error — the resonate is rejected
+1. `ResonancePlan::directly_mutates_target()` checks if any collected path **equals** the target path or **starts with** `target + "."` (for struct field sub-paths)
+1. If any match is found, the compiler returns a type error — the resonate is rejected
 
 ### What You Write Instead
 
@@ -490,7 +495,7 @@ resonate Auth.signal dampen 0 ms:
 
 The self-feedback rule applies to **direct** mutation of the target field path. Writing to other world fields (including the target world's different fields) is perfectly fine.
 
----
+______________________________________________________________________
 
 ## Effect Model
 
@@ -508,7 +513,7 @@ Resonate bodies are permitted the broadest effects of any Kain construct, on par
 
 **Resonate bodies accept ALL effects** — they are the most permissive semantic constructs in Kain, alongside `pulse`. This is because code that reacts to state changes needs full access to the program's capabilities.
 
----
+______________________________________________________________________
 
 ## Runtime Contract Metadata
 
@@ -569,7 +574,7 @@ fn collect_resonance_contracts(items: &[TypedItem]) -> Vec<RuntimeResonanceContr
 }
 ```
 
----
+______________________________________________________________________
 
 ## LLVM Codegen — Guarded Post-Store Call
 
@@ -691,7 +696,7 @@ struct NativeResonanceInfo {
 
 These are stored in the codegen context and looked up during world field store lowering via `native_resonance_binding(path)`.
 
----
+______________________________________________________________________
 
 ## Native C Runtime — Slot Table, Dampening, Reentry Guard
 
@@ -735,6 +740,7 @@ static KainNativeResonanceSlot* abi_resonate_slot_for(const char* target) {
 ```
 
 **Three outcomes:**
+
 - **Match found** — return existing slot
 - **Empty slot found** — first touch for this target: init and return
 - **All 128 slots full** — return NULL (the mutation is absorbed/ignored)
@@ -768,7 +774,7 @@ The `active_depth` counter prevents a resonate handler from triggering itself re
 
 This is a **reentrancy safety** mechanism, not a dampening mechanism. Dampening is about time; reentry guard is about stack safety.
 
----
+______________________________________________________________________
 
 ## Stdlib Telemetry API
 
@@ -834,7 +840,7 @@ fn prove_resonate_absorbed() -> Int:
     return 0
 ```
 
----
+______________________________________________________________________
 
 ## The Resonate Patterns
 
@@ -969,7 +975,7 @@ resonate FusionAuthority.signal dampen 0 ms:
 
 The handler records old/new values, then runs an orchestrate pipeline, and writes the result to a shadow field. Actors downstream read the shadow instead of the raw signal.
 
----
+______________________________________________________________________
 
 ## Resonate + Pulse
 
@@ -1024,23 +1030,26 @@ Every 16ms: pulse computes signal → writes to Authority.signal → resonate fi
 ### Choosing Between Pulse and Resonate
 
 Use **pulse** when:
+
 - You need a recurring timed beat
 - You own the timing (frame clock, LFO, health beat)
 - You want `pulse_tick` / `pulse_dt_ms` / `pulse_missed` timing locals
 
 Use **resonate** when:
+
 - You need to react to external or non-periodic state changes
 - You want dampening (debouncing) of rapid changes
 - You want `resonate_old_i64` / `resonate_new_i64` / `resonate_fired` change locals
 - The trigger is a world state write, not a clock
 
 Use **both** when:
+
 - A pulse drives periodic writes and a resonate processes the changes
 - The pulse is the temporal driver and the resonate is the reactive processor
 
 See also: [PULSE.MD](PULSE.MD) for the full pulse reference.
 
----
+______________________________________________________________________
 
 ## Under-Utilized Ideas — Creative Semantic Abuse
 
@@ -1127,7 +1136,7 @@ resonate PerformanceWorld.frame_time_ms dampen 500ms:
 
 **Under-explored:** Using resonate to reactively adjust visual quality based on frame-time telemetry.
 
----
+______________________________________________________________________
 
 ## Combining with Other Keywords
 
@@ -1254,7 +1263,7 @@ resonate Auth.signal dampen 10ms:
         send(worker, "Process", resonate_new_i64)
 ```
 
----
+______________________________________________________________________
 
 ## Native ABI Reference
 
@@ -1340,7 +1349,7 @@ static int64_t abi_resonate_should_fire_common(
 }
 ```
 
----
+______________________________________________________________________
 
 ## Validation Ladder
 
@@ -1443,13 +1452,14 @@ if entangle_propagation_count() - entangle_before < 1:
 ```
 
 Error codes from the fusion chain:
+
 - `-10` = resonate never fired
 - `-11` = entangle never propagated
 - `-12` = teleport never happened
 - `-13` = patch journal overflow
 - `-14` = orchestrate never ran
 
----
+______________________________________________________________________
 
 ## Z3 Proofs
 
@@ -1458,6 +1468,7 @@ Error codes from the fusion chain:
 **Currently unproven** — the slot table (`ABI_RESONATE_SLOT_MAX = 128`) is a bounded constant, but no Z3 proof file exists yet for the resonate slot capacity invariant. This is an area for future formal verification work, similar to the entangle registry proofs.
 
 **Expected invariants to prove:**
+
 - Slot count never exceeds `ABI_RESONATE_SLOT_MAX` (128)
 - Slot target string copy fits within 256-byte buffer
 - `active_depth` never goes negative (decrement-only after increment)
@@ -1473,7 +1484,7 @@ The Z3 data catalog (`runtime/native/src/core/z3/data/`) flags the resonate code
 | `g_kain_native_resonate_slots` | 30 | Global mutable slot array accessed without lock — but this is by design (single-threaded mutation context for world field stores) |
 | `g_kain_native_resonate_fire_count` increment | 55 | Counter state mutates without lock or atomic primitive — **Note:** In practice, world field stores are single-threaded in the current execution model, so non-atomic increments are correct; multi-threaded world access would need atomic counters |
 
----
+______________________________________________________________________
 
 ## Source Anchors
 
@@ -1566,7 +1577,7 @@ The Z3 data catalog (`runtime/native/src/core/z3/data/`) flags the resonate code
 | `benchmark/cases_v2/keyword_crucible.kn` | Case 3 "Semantic Full" — resonate as one of 108 keywords, telemetry delta guards |
 | `blades/python/24_tet/src/resonate_py_effects.kn` | Real-world audio DSP: resonate on `lfo1_rate` (16ms dampen) and `distortion_drive` (32ms dampen) in a modular effects engine |
 
----
+______________________________________________________________________
 
 ## Anti-Patterns
 
@@ -1639,6 +1650,7 @@ resonate Auth.signal dampen 0 ms:
 ```
 
 Resonate handlers are **synchronous** — they run in the same call stack as the world field store, before any subsequent code. This means:
+
 - The handler's side effects are visible immediately after the store
 - If the handler panics, the store is fully complete
 - There is no scheduler, no queue, no deferral
@@ -1704,7 +1716,7 @@ fn test():
 
 **Why:** Resonate only works on world state fields. Local variables and plain struct fields don't have the world store lowering that inserts the should_fire guard.
 
----
+______________________________________________________________________
 
 ## Quick Reference
 

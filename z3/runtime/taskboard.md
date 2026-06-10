@@ -10,6 +10,7 @@
 - Highest severity: `critical` (`788375`)
 
 ## Top Tasks
+
 - `critical` `counterexample` `services` `contract.c::contract_analyze_services` (task `contract.c::contract_analyze_services`, score `788375`)
 - `critical` `counterexample` `fanout` `fanout.c::kain_fanout_runtime_init` (task `fanout.c::kain_fanout_runtime_init`, score `786275`)
 - `critical` `counterexample` `stdlib` `core.c::kain_map_rebuild_tiny_dispatch` (task `core.c::kain_map_rebuild_tiny_dispatch`, score `779550`)
@@ -62,6 +63,7 @@
 - `high` `manual_model_needed` `net` `net_system.c::abi_net_clear_request_from_server_queue` (task `net_system.c::abi_net_clear_request_from_server_queue`, score `592425`)
 
 ## Domains
+
 - `services`: remaining `45`, completed `11`, high `788375`
   - `services.c`: remaining `31`, completed `5`, high `562775`
 - `fanout`: remaining `8`, completed `6`, high `786275`
@@ -155,6 +157,7 @@ Full JSON board is written alongside this summary.
 ## Claimed This Session (2026-06-04)
 
 ### Critical Bugs — Solver-Proved (sat, bug confirmed)
+
 | Task | Proof | Score | Status |
 |------|-------|-------|--------|
 | `core.c::array_new` (line 1242) | [native-core-array-new-capacity-mul-overflow.yaml](runtime/native/src/core/z3/proofs/native-core-array-new-capacity-mul-overflow.yaml) | 749550 | Proved |
@@ -162,11 +165,13 @@ Full JSON board is written alongside this summary.
 | `json.c::json_clone_value` (lines 369,381) | [native-json-clone-value-calloc-overflow.yaml](runtime/native/src/core/z3/proofs/native-json-clone-value-calloc-overflow.yaml) | 607950 | Proved |
 
 ### High Bugs — Solver-Proved (sat, bug confirmed)
+
 | Task | Proof | Score | Status |
 |------|-------|-------|--------|
 | `net_system.c::abi_http_request_set_body_text` (line 2072) | [native-net-http-request-set-body-text-addition-overflow.yaml](runtime/native/src/core/z3/proofs/native-net-http-request-set-body-text-addition-overflow.yaml) | 762425 | Proved |
 
 ### Safety Verified (sat, but intentional/by-design)
+
 | Task | Proof | Score | Status |
 |------|-------|-------|--------|
 | `core.c::kain_map_rebuild_tiny_dispatch` (line 2574) | [native-map-tiny-rebuild-fingerprint-mul-bounded.yaml](runtime/native/src/core/z3/proofs/native-map-tiny-rebuild-fingerprint-mul-bounded.yaml) | 779550 | Verified-Safe |

@@ -1,5 +1,4 @@
-lazy-static.rs
-==============
+# lazy-static.rs
 
 A macro for declaring lazily evaluated statics in Rust.
 
@@ -18,7 +17,6 @@ as well as anything that requires non-const function calls to be computed.
 `1.40.0+`
 
 This version is explicitly tested in CI and may only be bumped in new minor versions. Any changes to the supported minimum version will be called out in the release notes.
-
 
 # Getting Started
 
@@ -93,8 +91,8 @@ fn main() {
 
 Licensed under either of
 
- * Apache License, Version 2.0, ([LICENSE-APACHE](LICENSE-APACHE) or https://www.apache.org/licenses/LICENSE-2.0)
- * MIT license ([LICENSE-MIT](LICENSE-MIT) or https://opensource.org/licenses/MIT)
+- Apache License, Version 2.0, ([LICENSE-APACHE](LICENSE-APACHE) or https://www.apache.org/licenses/LICENSE-2.0)
+- MIT license ([LICENSE-MIT](LICENSE-MIT) or https://opensource.org/licenses/MIT)
 
 at your option.
 

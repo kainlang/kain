@@ -1,9 +1,9 @@
 # Python Interop — Performance Guide
 
-> **File**: `docs/PYTHON_GUIDE.MD`  
+> **File**: `docs/PYTHON_GUIDE.MD`
 > **Read `PYTHON.MD` first for the full architecture.** This guide is purely about **writing fast Python-interop Kain**.
 
----
+______________________________________________________________________
 
 ## The One Rule
 
@@ -13,7 +13,7 @@ Every Python bridge crossing costs *something* — GIL acquire, value materializ
 
 This guide teaches you how to **cross fewer times, cross faster when you do, and eliminate crossing entirely for hot paths.**
 
----
+______________________________________________________________________
 
 ## Performance Ladder
 
@@ -47,7 +47,7 @@ This guide teaches you how to **cross fewer times, cross faster when you do, and
                   └─────────────────────────────────────┘
 ```
 
----
+______________________________________________________________________
 
 ## Strategy 1 — Eliminate the Bridge Entirely
 
@@ -112,6 +112,7 @@ fn hotloop_cached(iterations: Int) -> Int:
 **Performance**: ~infinite speedup vs raw Python per-iteration calls. The entangled mirror read is a struct field access in Kain — it compiles to a memory load.
 
 **Real benchmark evidence** (from `python_semantic.kn`):
+
 ```
 [RAW]    Python bridge each iter: 1250 ms (25 us/op)
 [CACHED] Entangled mirror read:   0 ms (near-zero)
@@ -146,7 +147,7 @@ checksum = periods * fused_base + residue_sum37(iterations, modulus)
 
 No Python calls. No GIL re-entry. No per-iteration overhead.
 
----
+______________________________________________________________________
 
 ## Strategy 2 — The Region: Batched Operations
 
@@ -241,7 +242,7 @@ let auto_released = python_region_end(region)  // releases all views
 println("auto_released=" + str(auto_released))  // should be ITERATIONS
 ```
 
----
+______________________________________________________________________
 
 ## Strategy 3 — Pre-Bind Callables + Fast Call Lane
 
@@ -279,8 +280,8 @@ let _ = python_region_end(region)
 `python_region_call_raw_f64_trunc_i64` uses:
 
 1. **`PyObject_Vectorcall`** (Python 3.10+) or **`PyObject_CallOneArg`** (Python 3.11+) — the fastest CPython calling conventions, bypassing tuple creation
-2. **`PyLong_AsLongLong`** or **`kain_py_try_trunc_f64_to_i64`** — direct C numeric extraction, no materialization to Kain's tagged value system
-3. **Cached attr** — the function reference was bound at region start, so there's no per-call `PyObject_GetAttrString`
+1. **`PyLong_AsLongLong`** or **`kain_py_try_trunc_f64_to_i64`** — direct C numeric extraction, no materialization to Kain's tagged value system
+1. **Cached attr** — the function reference was bound at region start, so there's no per-call `PyObject_GetAttrString`
 
 ### 3.3 Benchmark Evidence
 
@@ -299,7 +300,7 @@ generic_calls=0     ← zero slow-path calls
 
 At 150,000 iterations, same profile: **150,000 fast calls, 0 generic calls**.
 
----
+______________________________________________________________________
 
 ## Strategy 4 — Shared Backing Over Owned
 
@@ -333,9 +334,10 @@ case "uint8":
 ### 4.2 When Shared Fails (And How to Fix It)
 
 Shared backing requires:
+
 1. **C-contiguous** buffer — no strides
-2. **Writable** — `flags.writeable == true`
-3. **CPU backend** — CUDA tensors are `host_accessible=false`, so shared mode doesn't apply
+1. **Writable** — `flags.writeable == true`
+1. **CPU backend** — CUDA tensors are `host_accessible=false`, so shared mode doesn't apply
 
 ```kain
 // FAILS: stride slice is not contiguous
@@ -367,7 +369,7 @@ else:
     // Slow path: owned copy, mutations isolated
 ```
 
----
+______________________________________________________________________
 
 ## Strategy 5 — Buffer Views: Open Once, Measure Free
 
@@ -413,15 +415,16 @@ let _ = python_region_end(region)
 ### 5.3 Real Benchmark
 
 From `benchmark_cases_python_buffer_view_region_probe_main.kn`:
+
 - 20,000 iterations
 - Each iteration: open buffer view, read 5 metadata fields, release
 - Region tracks all open/close automatically
 - Telemetry confirms: `views_opened=20000`, `views_released=20000`, `auto_released=20000`
 
-**Without region**: ~20µs per iteration.  
+**Without region**: ~20µs per iteration.
 **With region**: ~2µs per iteration.
 
----
+______________________________________________________________________
 
 ## Strategy 6 — Direct C FFI + Shared Backing
 
@@ -457,13 +460,14 @@ void fast_process_buffer(unsigned char* buf, size_t len) {
 ```
 
 The `kain_shared_buffer_from_py` call in the C runtime tries:
+
 1. Buffer protocol adoption: `PyObject_GetBuffer` → gets `buf` pointer
-2. Creates a `KainPythonBorrowedBufferOwner` with `kain_interop_zero_copy_owner_create`
-3. The C FFI receives the buffer pointer through the interop zero-copy owner system
+1. Creates a `KainPythonBorrowedBufferOwner` with `kain_interop_zero_copy_owner_create`
+1. The C FFI receives the buffer pointer through the interop zero-copy owner system
 
 **No copies. No GIL for the C work. Native CPU speed.**
 
----
+______________________________________________________________________
 
 ## Strategy 7 — The `_raw` Variant: Avoid Unnecessary Conversion
 
@@ -500,7 +504,7 @@ let view = py_tensor_view(raw)
 let element = py_tensor_get(view, [5])              // single element, no full conversion
 ```
 
----
+______________________________________________________________________
 
 ## Strategy 8 — GPU Promotion: Skip the Host
 
@@ -513,9 +517,10 @@ let gpu_buffer = python_gpu_storage_buffer(raw_tensor, "input_matrix")
 ```
 
 The promotion path:
+
 1. `python_tensor_shared(raw_tensor)` — zero-copy adoption (buffer protocol)
-2. `python_tensor_interop_info_from_tensor` — extracts shape, dtype, strides
-3. `gpu_import_shared_buffer` — GPU upload, sets residency flags
+1. `python_tensor_interop_info_from_tensor` — extracts shape, dtype, strides
+1. `gpu_import_shared_buffer` — GPU upload, sets residency flags
 
 ### 8.2 CUDA → GPU Path (No Host Trip)
 
@@ -554,7 +559,7 @@ let result = python_tensor_owned(output.cpu())
 let value = kain_tensor_get(result, [0])
 ```
 
----
+______________________________________________________________________
 
 ## Strategy 9 — Orchestrate: Python as a First-Class Stage
 
@@ -811,7 +816,7 @@ json_object_set_string(payload, "declared_stage_kinds",
     "cpu,c,python,converge,gpu,law,patch,dispatch,world,kain")
 ```
 
----
+______________________________________________________________________
 
 ## Strategy 10 — The PyObject Call Contraction
 
@@ -857,7 +862,7 @@ let sqrt_bias_fn = python_call_raw("kain_make_sqrt_bias", [42])
 let result = to_int(python_call_raw(sqrt_bias_fn, [16.0]))  // sqrt(16) + tau + 42
 ```
 
----
+______________________________________________________________________
 
 ## Quick Reference Card
 
@@ -892,7 +897,7 @@ let result = to_int(python_call_raw(sqrt_bias_fn, [16.0]))  // sqrt(16) + tau + 
 | typed view | Object handle | Bounds-checked indexing |
 | entangled world state | World struct fields | ~infinite speedup vs bridge |
 
----
+______________________________________________________________________
 
 ## Appendix: The One Command to Prove You're Fast
 
@@ -903,6 +908,7 @@ kain run X:/blades/python/library/region_bound_sqrt_fast.kn --target llvm
 ```
 
 Expected output:
+
 ```
 python_region_bound_sqrt_fast_smoke
 checksum=...
@@ -917,10 +923,11 @@ auto_released=0
 ```
 
 If `generic_calls > 0`, you're hitting a slow path. Check that:
+
 - You're using `python_region_call_raw_f64_trunc_i64` (not `python_region_call_raw_args`)
 - The callable is pre-bound (not re-resolved each time)
 - You're not passing kwargs or complex positional args
 
----
+______________________________________________________________________
 
 *This guide was written by analyzing: 6 library benchmark case files (at blades/python/library/), 3 benchmark/cases_v2 files (python_interop, python_semantic, python_stdlib_fused, resonate_py), the complete C runtime (~8,600 lines), the Rust bridge (5,896 lines), and the stdlib Python module. Every claim is backed by code evidence with measurable, reproducible outcomes.*

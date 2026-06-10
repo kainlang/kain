@@ -3,38 +3,38 @@
 **Status:** Research synthesis, 2026-06-07
 **Based on:** `crates/core/src/ast.rs`, `crates/core/src/parser.rs`, `crates/core/src/types.rs`, `crates/gpu/`, `crates/gpu-runtime/`, `crates/shader-text/`, `crates/sys-codegen/src/codegen_llvm/mod.rs`, `crates/sys-codegen/src/codegen_rust/gpu_artifacts.rs`, `crates/sys-codegen/src/codegen_rust/gpu_host.rs`, `crates/cli/src/gpu_artifacts.rs`, `crates/driver/src/lib.rs`, `stdlib/gpu.kn`, `stdlib/graphics.kn`, `stdlib/cuda.kn`, `stdlib/build.kn`, `benchmark/cases_v2/gpu_cpu_pipeline.kn`, `benchmark/cases/gpu_graphics_submit/main.kn`, `library_of_kain/`, `blades/cuda/`, RULEBOOK.MD, lang-gpu SKILL, lang-semantics SKILL
 
----
+______________________________________________________________________
 
 ## Table of Contents
 
 1. [Introduction — The Dual Nature of GPU Work](#introduction)
-2. [Shader Authoring in Kain](#shader-authoring)
-3. [Shader Syntax Reference](#shader-syntax)
-4. [Uniform Bindings and Resource Kinds](#uniform-bindings)
-5. [Compute Metadata — The `comptime` Plan](#compute-metadata)
-6. [Host-Side Dispatch — The `dispatch` Keyword](#host-dispatch)
-7. [The Full GPU Pipeline](#full-pipeline)
-8. [Backend: SPIR-V (Vulkan)](#backend-spirv)
-9. [Backend: PTX / CUDA (NVIDIA)](#backend-ptx)
-10. [Backend: HLSL (DirectX)](#backend-hlsl)
-11. [Backend: WGSL (WebGPU)](#backend-wgsl)
-12. [GPU Runtime Executors](#gpu-runtime)
-13. [Stdlib: `std::gpu` — Resource Policy](#stdlib-gpu)
-14. [Stdlib: `std::graphics` — Rendering Commands](#stdlib-graphics)
-15. [Stdlib: `std::cuda` — CUDA Bridge](#stdlib-cuda)
-16. [Using GPU in `build.kn`](#build-kn)
-17. [The CLI `gpu-artifacts` Command](#cli)
-18. [Semantic Fusion — Worlds, Entangle, Patches, Laws, and Shaders](#semantic-fusion)
-19. [Real Examples: LLM Training Kernels](#llm-training)
-20. [Real Examples: Fluid Simulation Kernels](#fluid-sim)
-21. [Real Examples: Graphics Pipeline](#graphics-pipeline)
-22. [Real Examples: Sculpt Brush Kernels](#sculpt-brushes)
-23. [Anti-Patterns](#anti-patterns)
-24. [Validation Ladder](#validation-ladder)
-25. [Source Anchors](#source-anchors)
-26. [Quick Reference](#quick-reference)
+1. [Shader Authoring in Kain](#shader-authoring)
+1. [Shader Syntax Reference](#shader-syntax)
+1. [Uniform Bindings and Resource Kinds](#uniform-bindings)
+1. [Compute Metadata — The `comptime` Plan](#compute-metadata)
+1. [Host-Side Dispatch — The `dispatch` Keyword](#host-dispatch)
+1. [The Full GPU Pipeline](#full-pipeline)
+1. [Backend: SPIR-V (Vulkan)](#backend-spirv)
+1. [Backend: PTX / CUDA (NVIDIA)](#backend-ptx)
+1. [Backend: HLSL (DirectX)](#backend-hlsl)
+1. [Backend: WGSL (WebGPU)](#backend-wgsl)
+1. [GPU Runtime Executors](#gpu-runtime)
+1. [Stdlib: `std::gpu` — Resource Policy](#stdlib-gpu)
+1. [Stdlib: `std::graphics` — Rendering Commands](#stdlib-graphics)
+1. [Stdlib: `std::cuda` — CUDA Bridge](#stdlib-cuda)
+1. [Using GPU in `build.kn`](#build-kn)
+1. [The CLI `gpu-artifacts` Command](#cli)
+1. [Semantic Fusion — Worlds, Entangle, Patches, Laws, and Shaders](#semantic-fusion)
+1. [Real Examples: LLM Training Kernels](#llm-training)
+1. [Real Examples: Fluid Simulation Kernels](#fluid-sim)
+1. [Real Examples: Graphics Pipeline](#graphics-pipeline)
+1. [Real Examples: Sculpt Brush Kernels](#sculpt-brushes)
+1. [Anti-Patterns](#anti-patterns)
+1. [Validation Ladder](#validation-ladder)
+1. [Source Anchors](#source-anchors)
+1. [Quick Reference](#quick-reference)
 
----
+______________________________________________________________________
 
 ## Introduction
 
@@ -52,6 +52,7 @@ Kain has a **dual GPU architecture**: shader authoring and host-side dispatch ar
 **Key insight:** A single `.kn` file can contain `shader compute` items AND host-side `dispatch "key" [x, y, z]` statements AND world/entangle/patch/law/converge/orchestrate semantics. The compiler separates GPU kernels from host code during compilation, emits sidecar artifacts for the GPU kernels, and the host code calls them through the runtime.
 
 The canonical example is `benchmark/cases_v2/gpu_cpu_pipeline.kn` — a single file with:
+
 - 2 `world` declarations with `entangle`
 - 1 `law`, 1 `patch`, 1 `converge`, 1 `orchestrate`
 - Ownership regions (`collapse`/`observe`/`decay`)
@@ -59,7 +60,7 @@ The canonical example is `benchmark/cases_v2/gpu_cpu_pipeline.kn` — a single f
 - `dispatch` statements for GPU launch
 - Runtime contract telemetry for all semantic layers
 
----
+______________________________________________________________________
 
 ## Shader Authoring
 
@@ -125,7 +126,7 @@ Uniform binding syntax: `uniform name: Type @binding_number`
 | `Sampler2D` | Sampler2D | Texture2D | texture_2d<f32> | tex |
 | `Vec3A` | vec3<f32> | float3 | vec3<f32> | v3.f32 |
 
----
+______________________________________________________________________
 
 ## Shader Syntax
 
@@ -155,6 +156,7 @@ shader compute MyKernel(id: UVec3) -> Void workgroup(8, 8, 1):
 ```
 
 The `workgroup(N, M, K)` after the return type sets the workgroup size. For:
+
 - HLSL: emitted as `[numthreads(N, M, K)]`
 - WGSL: emitted as `@workgroup_size(N, M, K)`
 - SPIR-V: emitted as `LocalSize` execution mode
@@ -182,6 +184,7 @@ shader vertex SmokeVertex(position: Vec3, uv: Vec2) -> Vec4:
 ### Shader Body Capabilities
 
 Shader bodies support:
+
 - `let` bindings with type inference
 - Arithmetic (`+`, `-`, `*`, `/`, `%`)
 - Comparisons (`==`, `!=`, `<`, `<=`, `>`, `>=`)
@@ -197,6 +200,7 @@ Shader bodies support:
 - `break` / `continue`
 
 Shader bodies do NOT support:
+
 - `for` loops — use `while` with explicit bounds
 - `loop` / `fanout` / `defer`
 - `dispatch` statements (host-side only)
@@ -212,7 +216,7 @@ Shader bodies do NOT support:
 | `fragment` | `-> Vec4` | Returns pixel color |
 | `vertex` | `-> Vec4` | Returns clip-space position |
 
----
+______________________________________________________________________
 
 ## Uniform Bindings and Resource Kinds
 
@@ -223,6 +227,7 @@ uniform name: Type @binding_number
 ```
 
 The binding number maps to descriptor set slots:
+
 - SPIR-V: `@group(0) @binding(N)` or DescriptorSet=0, Binding=N
 - HLSL: `register(bN)`, `register(tN)`, `register(uN)`
 - WGSL: `@group(0) @binding(N)`
@@ -242,7 +247,7 @@ The `shader-text` crate classifies each uniform by name and type:
 
 Special uniforms `LOCAL_SIZE_X`, `LOCAL_SIZE_Y`, `LOCAL_SIZE_Z` are reserved for accessing workgroup dimensions inside shader bodies. They are recognized by name matching (not type) and are NOT emitted as actual resource bindings — they get inlined as compile-time constants matching the `workgroup(...)` value.
 
----
+______________________________________________________________________
 
 ## Compute Metadata
 
@@ -267,6 +272,7 @@ shader compute MyKernel(id: UVec3) -> Void:
 ### Legacy vs Extended Form
 
 **Legacy (dispatch + tensors + nodes):**
+
 ```kn
 let compute = (
     [32, 1, 1],                                       // dispatch
@@ -276,6 +282,7 @@ let compute = (
 ```
 
 **Extended (workgroup + dispatch + tensors + streams + nodes):**
+
 ```kn
 let compute = (
     [8, 1, 1],                                        // workgroup_size
@@ -318,11 +325,12 @@ let compute = (
 ### Compute Metadata in the Runtime Contract
 
 The compute plan is serialized into:
+
 - `shader_bundle.json` — GPU runtime shader catalog
 - `kain_compute_residency.json` — compute metadata with workgroup/dispatch/binding info
 - The `gpu.compute` and `gpu.compute-dispatch` capabilities are emitted
 
----
+______________________________________________________________________
 
 ## Host-Side Dispatch
 
@@ -340,10 +348,10 @@ fn compute_frame() -> Int with GPU, Unsafe:
 ### Dispatch Rules
 
 1. **Compute key MUST be a string literal:** `"shader::KernelName::compute"`
-2. **Dimensions are workgroup counts**, not thread counts (e.g., `[32, 1, 1]` launches 32 workgroups)
-3. **The function must be annotated** `with GPU, Unsafe`
-4. **Runtime auto-selects** Vulkan or CUDA executor
-5. **Sidecars** (`shader_bundle.json`, `kain_compute_residency.json`) are auto-discovered
+1. **Dimensions are workgroup counts**, not thread counts (e.g., `[32, 1, 1]` launches 32 workgroups)
+1. **The function must be annotated** `with GPU, Unsafe`
+1. **Runtime auto-selects** Vulkan or CUDA executor
+1. **Sidecars** (`shader_bundle.json`, `kain_compute_residency.json`) are auto-discovered
 
 ### LLVM Codegen
 
@@ -354,6 +362,7 @@ The LLVM backend lowers `dispatch` to a call to `abi_gpu_dispatch`:
 ```
 
 This is declared in the LLVM preamble as:
+
 ```llvm
 declare i64 @abi_gpu_dispatch(i8*, i64, i64, i64)
 ```
@@ -387,7 +396,7 @@ orchestrate gpu_cpu_host_pipeline(value: Int) -> Int:
     return staged
 ```
 
----
+______________________________________________________________________
 
 ## The Full GPU Pipeline
 
@@ -486,7 +495,7 @@ fn gpu_cpu_manifest_checksum(iterations: Int, modulus: Int) -> Int:
     // ... validate and fold into checksum ...
 ```
 
----
+______________________________________________________________________
 
 ## Backend: SPIR-V (Vulkan)
 
@@ -520,7 +529,7 @@ kain gpu-artifacts <file>.kn --target spirv --output .kain/gpu/
 spirv-val --target-env vulkan1.3 .kain/gpu/<file>.spv
 ```
 
----
+______________________________________________________________________
 
 ## Backend: PTX / CUDA (NVIDIA)
 
@@ -566,12 +575,13 @@ pub struct PtxCodegenOptions {
 ### CUDA Runtime Bridge
 
 The `NvidiaPtxExecutor` in `crates/gpu-runtime/src/nvidia_ptx.rs`:
+
 - Loads PTX modules via the CUDA Driver API
 - Creates per-module CUmodule + CUfunction handles
 - Manages kernel argument buffers and grid/block dimensions
 - Handles `cuLaunchKernel` dispatch with automatic parameter sizing
 
----
+______________________________________________________________________
 
 ## Backend: HLSL (DirectX)
 
@@ -585,11 +595,11 @@ The `hlsl::generate()` function produces HLSL text by:
    - `cbuffer` for uniform parameters
    - `Texture2D` + `SamplerState` for sampled textures
    - `RWStructuredBuffer<T>` for storage buffers
-2. Emitting the entry point function:
+1. Emitting the entry point function:
    - `[numthreads(x, y, z)]` for compute
    - Vertex: `struct Input` + `struct Output { float4 position : SV_Position; }`
    - Fragment: `struct Input` + `struct Output { float4 color : SV_Target0; }`
-3. Generating the shader body from the Kain AST
+1. Generating the shader body from the Kain AST
 
 ### HLSL Resource Declarations
 
@@ -607,7 +617,7 @@ SamplerState input_texture_sampler : register(s0);
 RWStructuredBuffer<float4> output_buffer : register(u1);
 ```
 
----
+______________________________________________________________________
 
 ## Backend: WGSL (WebGPU)
 
@@ -618,12 +628,12 @@ RWStructuredBuffer<float4> output_buffer : register(u1);
 The `wgsl::generate()` function produces WGSL text by:
 
 1. Emitting buffer/var declarations using WGSL `@group(0) @binding(N)` syntax
-2. Automatic sampler generation for texture bindings (WGSL requires explicit samplers)
-3. Emitting the entry point:
+1. Automatic sampler generation for texture bindings (WGSL requires explicit samplers)
+1. Emitting the entry point:
    - Compute: `@compute @workgroup_size(x, y, z) fn name(...)`
    - Vertex: `@vertex fn name(...) -> struct Output`
    - Fragment: `@fragment fn name(...) -> @location(0) vec4<f32>`
-4. Generating the shader body
+1. Generating the shader body
 
 ### WGSL Resource Declarations
 
@@ -643,7 +653,7 @@ The `wgsl::generate()` function produces WGSL text by:
 
 The WGSL backend tracks `used_bindings` to avoid duplicate binding slots and auto-reserves sampler bindings shifted by +1 from their corresponding texture bindings. If `SAMPLER_N` is already in use, it searches for the next available slot.
 
----
+______________________________________________________________________
 
 ## GPU Runtime Executors
 
@@ -678,6 +688,7 @@ pub struct GpuRuntimeDispatchResult {
 ### Vulkan Compute Executor
 
 `VulkanComputeExecutor` in `executor.rs`:
+
 - Creates Vulkan compute pipeline from SPIR-V shader modules
 - Manages descriptor sets for uniform/buffer/image bindings
 - Dispatches via `vkCmdDispatch`
@@ -686,13 +697,14 @@ pub struct GpuRuntimeDispatchResult {
 ### NVIDIA PTX Executor
 
 `NvidiaPtxExecutor` in `nvidia_ptx.rs`:
+
 - Loads PTX via `cuModuleLoadData`
 - Extracts kernel entry via `cuModuleGetFunction`
 - Packs kernel arguments and launches via `cuLaunchKernel`
 - Supports persisted kernels for repeated dispatch
 - Thread-safe via `std::sync::Mutex`
 
----
+______________________________________________________________________
 
 ## Stdlib: `std::gpu` — Resource Policy
 
@@ -781,7 +793,7 @@ pub const GPU_ACCESS_WRITE: Int = 2
 pub const GPU_ACCESS_READ_WRITE: Int = GPU_ACCESS_READ | GPU_ACCESS_WRITE
 ```
 
----
+______________________________________________________________________
 
 ## Stdlib: `std::graphics` — Rendering Commands
 
@@ -824,7 +836,7 @@ fn graphics_mesh_create(session_id: Int, label: String, vertex_buffer_id: Int, i
 fn graphics_draw_mesh(session_id: Int, pipeline_id: Int, mesh_id: Int, instance_count: Int) -> Int
 ```
 
----
+______________________________________________________________________
 
 ## Stdlib: `std::cuda` — CUDA Bridge
 
@@ -889,7 +901,7 @@ fn cuda_warp_reduce_sum_u32(value: UInt) -> UInt
 fn cuda_warp_reduce_sum_f32(value: Float) -> Float
 ```
 
----
+______________________________________________________________________
 
 ## Using GPU in `build.kn`
 
@@ -949,7 +961,7 @@ The `gpu_suite` task produces a task of kind `"gpu"` that is consumed by the ben
 
 The `cuda_artifacts` task is shorthand for `exec_task().command("kain").target("cuda")` — it runs `kain gpu-artifacts --target cuda` during the build pipeline.
 
----
+______________________________________________________________________
 
 ## The CLI `gpu-artifacts` Command
 
@@ -1005,7 +1017,7 @@ src/shaders.kn
 7. Write compute residency sidecar (JSON)
 ```
 
----
+______________________________________________________________________
 
 ## Semantic Fusion
 
@@ -1089,6 +1101,7 @@ fn gpu_cpu_semantic_staging_checksum(iterations: Int, modulus: Int) -> Int:
 ```
 
 This is the **telemetry delta guard** pattern applied to GPU pipelines. Error codes from this benchmark:
+
 - Return `2` if `patch_journal_count() < 1` or `entangle_propagation_count() < iterations` or `converge_mismatch_count() > 0`
 - Return `17` if compute manifest path doesn't exist
 - Return `23` if compute key missing from manifest
@@ -1105,7 +1118,7 @@ fn gpu_cpu_full_pipeline_checksum(iterations: Int, modulus: Int) -> Int with GPU
     return gpu_cpu_mod(semantic + resource + manifest + dispatch_score + ..., modulus)
 ```
 
----
+______________________________________________________________________
 
 ## Real Examples: LLM Training Kernels
 
@@ -1151,6 +1164,7 @@ shader compute CrossEntropySoftmaxBackward(id: UVec3) -> Void:
 ```
 
 Other kernels in the training suite:
+
 - `MatMulBackward_DInput` — dInp[M,K] = dOut[M,N] @ W[N,K]^T
 - `MatMulBackward_DWeight` — dW[N,K] = A[M,N]^T @ dOut[M,K]
 - `MatMulBackward_DBias` — dB[K] = reduce(dOut[:,:,K])
@@ -1189,7 +1203,7 @@ Other kernels in the training suite:
 - `RepairPolicyConflictScan` — policy conflict scanning
 - `RepairConsensusVoteReduce` — consensus vote reduction
 
----
+______________________________________________________________________
 
 ## Real Examples: Fluid Simulation Kernels
 
@@ -1206,11 +1220,12 @@ shader compute quantum_particle_advection(id: UVec3) -> Vec4:
 ```
 
 Other fluid kernels:
+
 - `quantum_velocity_field` — velocity field computation
 - `quantum_fluid_pressure_project` — pressure projection
 - `quantum_feedback_composite` — feedback compositing (multipass fusion)
 
----
+______________________________________________________________________
 
 ## Real Examples: Graphics Pipeline
 
@@ -1243,13 +1258,14 @@ fn main() -> Int:
 
 This is 20,000 frame submissions with mesh creation, pipeline creation, and draw command validation — all in authored Kain using `std::graphics`.
 
----
+______________________________________________________________________
 
 ## Real Examples: Sculpt Brush Kernels
 
 From the Zender 3D sculpting suite:
 
 6 compute kernels for digital sculpting:
+
 - `ClayBuildUpKernel` — vertex displacement along normals with brush falloff
 - `SmoothKernel` — Laplacian smoothing
 - `PinchKernel` — vertex pinch/collect
@@ -1259,7 +1275,7 @@ From the Zender 3D sculpting suite:
 
 Each uses `StorageBuffer<Float>` for vertex positions and parameters, with `workgroup(256, 1, 1)`.
 
----
+______________________________________________________________________
 
 ## Anti-Patterns
 
@@ -1334,7 +1350,7 @@ const COMPUTE_KEY: String = "shader::CpuGpuBridgeKernel::compute"
 // In shader shader — the key is derived from kernel name
 shader compute CpuGpuBridgeKernel(id: UVec3) -> Void: ...
 
-// In dispatch — reference the constant  
+// In dispatch — reference the constant
 dispatch COMPUTE_KEY [32, 1, 1]
 ```
 
@@ -1349,7 +1365,7 @@ fn verify_manifest() -> Bool:
     return json_has_key(entry, "key")
 ```
 
----
+______________________________________________________________________
 
 ## Validation Ladder
 
@@ -1384,7 +1400,7 @@ kain gpu-artifacts src/shaders.kn --target spirv --output .kain/gpu/
 kain gpu-artifacts src/cuda_kernels.kn --target cuda --output .kain/gpu/cuda/
 ```
 
----
+______________________________________________________________________
 
 ## Source Anchors
 
@@ -1466,7 +1482,7 @@ kain gpu-artifacts src/cuda_kernels.kn --target cuda --output .kain/gpu/cuda/
 | `library_of_kain/benchmark_cases_file_copy_raw_kain_lades_cuda_ptx_1_src_src.kn` | 3 CUDA specimen kernels: field, blur, colorize |
 | `library_of_kain/benchmark_cases_file_copy_raw_kain_lades_cuda_llm_symbol_corpus_fragment.kn` | Vertex + fragment shader examples for smoke test rendering |
 
----
+______________________________________________________________________
 
 ## Quick Reference
 

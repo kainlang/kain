@@ -31,8 +31,8 @@ Prost requires a custom toolchain that you have to define.
 The setup requires three steps to complete:
 
 1. Configure rules and dependencies in MODULE.bazel
-2. Configure a custom Prost toolchain
-3. Register custom Prost toolchain.
+1. Configure a custom Prost toolchain
+1. Register custom Prost toolchain.
 
 To keep the build hermetic, we use the LLVM Clang compiler to compile all C/C++ dependencies.
 

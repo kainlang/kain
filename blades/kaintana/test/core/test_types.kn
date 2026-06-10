@@ -1,0 +1,231 @@
+// ─── Kaintana Type Tests ──────────────────────────────────────────────────
+// Tests for KaintanaRect, KaintanaColor, KaintanaTheme construction
+// and their helper functions. These are pure data tests with no session.
+
+use std::math
+use std::test
+use test_runner::*
+use types::KaintanaRect
+use types::KaintanaColor
+use types::KaintanaTheme
+use types::kaintana_rect
+use types::kaintana_color
+use types::kaintana_node_invalid
+use types::kaintana_node_is_valid
+use types::kaintana_default_window_spec
+use types::kaintana_window_rect
+use types::kaintana_window_spec
+use types::kaintana_backend_headless
+use types::kaintana_backend_desktop
+use types::kaintana_backend_vulkan
+use types::KAINTANA_OK
+use types::KAINTANA_ERR_NODE_CAPACITY
+use types::KAINTANA_ERR_ARENA_EXHAUSTED
+use types::KAINTANA_NODE_CAPACITY
+use types::KAINTANA_FRAME_ARENA_CELLS
+use types::KAINTANA_DPI_AUTO
+use types::KAINTANA_DPI_STANDARD
+
+// ─── KaintanaRect Tests ───────────────────────────────────────────────────
+
+fn test_rect_construction() -> Int:
+    let r = kaintana_rect(10.0, 20.0, 100.0, 200.0)
+    if r.x != 10.0: return 0
+    if r.y != 20.0: return 0
+    if r.width != 100.0: return 0
+    if r.height != 200.0: return 0
+    return 1
+
+fn test_rect_zero_size() -> Int:
+    let r = kaintana_rect(0.0, 0.0, 0.0, 0.0)
+    if r.x != 0.0: return 0
+    if r.y != 0.0: return 0
+    if r.width != 0.0: return 0
+    if r.height != 0.0: return 0
+    return 1
+
+fn test_rect_negative() -> Int:
+    let r = kaintana_rect(-10.0, -20.0, -5.0, -8.0)
+    // Negative sizes are allowed at construction; layout math clamps them
+    if r.x != -10.0: return 0
+    if r.y != -20.0: return 0
+    if r.width != -5.0: return 0
+    if r.height != -8.0: return 0
+    return 1
+
+fn test_rect_large_dimensions() -> Int:
+    let r = kaintana_rect(0.0, 0.0, 16384.0, 16384.0)
+    if r.width != 16384.0: return 0
+    if r.height != 16384.0: return 0
+    return 1
+
+// ─── KaintanaColor Tests ─────────────────────────────────────────────────
+
+fn test_color_construction() -> Int:
+    let c = kaintana_color(255, 128, 76, 255)
+    if c.red != 255: return 0
+    if c.green != 128: return 0
+    if c.blue != 76: return 0
+    if c.alpha != 255: return 0
+    return 1
+
+fn test_color_zero() -> Int:
+    let c = kaintana_color(0, 0, 0, 0)
+    if c.red != 0: return 0
+    if c.alpha != 0: return 0
+    return 1
+
+fn test_color_max() -> Int:
+    let c = kaintana_color(255, 255, 255, 255)
+    if c.red != 255: return 0
+    if c.green != 255: return 0
+    if c.blue != 255: return 0
+    if c.alpha != 255: return 0
+    return 1
+
+fn test_color_partial_alpha() -> Int:
+    let c = kaintana_color(100, 150, 200, 128)
+    if c.alpha != 128: return 0
+    return 1
+
+// ─── KaintanaTheme Tests ──────────────────────────────────────────────────
+
+fn test_theme_solar_broadcast() -> Int:
+    let t = kaintana_theme_solar_broadcast()
+    if t.name != "solar-broadcast": return 0
+    if t.shell.red != 14: return 0
+    if t.shell.green != 18: return 0
+    if t.shell.blue != 30: return 0
+    if t.accent.red != 255: return 0
+    if t.accent.green != 128: return 0
+    if t.accent.blue != 76: return 0
+    if t.ink.red != 244: return 0
+    if t.ink.green != 234: return 0
+    if t.ink.blue != 214: return 0
+    if t.muted.red != 150: return 0
+    if t.muted.green != 164: return 0
+    if t.muted.blue != 186: return 0
+    if t.signal.red != 104: return 0
+    if t.signal.green != 255: return 0
+    if t.signal.blue != 214: return 0
+    return 1
+
+fn test_theme_marine_terminal() -> Int:
+    let t = kaintana_theme_marine_terminal()
+    if t.name != "marine-terminal": return 0
+    if t.shell.red != 10: return 0
+    if t.accent.red != 32: return 0
+    if t.accent.green != 196: return 0
+    return 1
+
+fn test_theme_kawaii_voltage() -> Int:
+    let t = kaintana_theme_kawaii_voltage()
+    if t.name != "kawaii-voltage": return 0
+    if t.accent.red != 255: return 0
+    if t.accent.green != 118: return 0
+    return 1
+
+fn test_theme_oxide_dcc() -> Int:
+    let t = kaintana_theme_oxide_dcc()
+    if t.name != "oxide-dcc": return 0
+    if t.accent.red != 255: return 0
+    if t.accent.green != 156: return 0
+    return 1
+
+fn test_theme_named_valid() -> Int:
+    let t = kaintana_theme_named("marine-terminal")
+    if t.name != "marine-terminal": return 0
+    return 1
+
+fn test_theme_named_fallback() -> Int:
+    // Unknown name falls back to solar-broadcast
+    let t = kaintana_theme_named("nonexistent-theme")
+    if t.name != "solar-broadcast": return 0
+    return 1
+
+fn test_theme_named_empty() -> Int:
+    let t = kaintana_theme_named("")
+    if t.name != "solar-broadcast": return 0
+    return 1
+
+// ─── Node Id Tests ────────────────────────────────────────────────────────
+
+fn test_node_invalid() -> Int:
+    let n = kaintana_node_invalid()
+    if kaintana_node_is_valid(n):
+        return 0
+    return 1
+
+// ─── Window Spec Tests ───────────────────────────────────────────────────
+
+fn test_window_spec_default() -> Int:
+    let spec = kaintana_default_window_spec("Test", 800, 600, kaintana_backend_headless())
+    if spec.title != "Test": return 0
+    if spec.width != 800: return 0
+    if spec.height != 600: return 0
+    if spec.backend_id != kaintana_backend_headless(): return 0
+    if spec.dpi_scale != KAINTANA_DPI_AUTO: return 0
+    return 1
+
+fn test_window_rect() -> Int:
+    let spec = kaintana_default_window_spec("Test", 1024, 768, kaintana_backend_headless())
+    let r = kaintana_window_rect(spec)
+    if r.x != 0.0: return 0
+    if r.y != 0.0: return 0
+    if r.width != 1024.0: return 0
+    if r.height != 768.0: return 0
+    return 1
+
+fn test_window_spec_full() -> Int:
+    let spec = kaintana_window_spec("Full", 640, 480, 60, "headless", "software", 0, 0, 0, 255, 128, 64, "", "", "report.txt", "host.txt", "shot.bmp", 1.5)
+    if spec.title != "Full": return 0
+    if spec.width != 640: return 0
+    if spec.frame_budget != 60: return 0
+    if spec.clear.red != 0: return 0
+    if spec.accent.red != 255: return 0
+    if spec.dpi_scale != 1.5: return 0
+    return 1
+
+// ─── Constants Tests ─────────────────────────────────────────────────────
+
+fn test_constants() -> Int:
+    if KAINTANA_OK != 0: return 0
+    if KAINTANA_ERR_NODE_CAPACITY != -10: return 0
+    if KAINTANA_ERR_ARENA_EXHAUSTED != -11: return 0
+    if KAINTANA_NODE_CAPACITY <= 0: return 0
+    if KAINTANA_FRAME_ARENA_CELLS <= 0: return 0
+    if KAINTANA_DPI_STANDARD != 96: return 0
+    if kaintana_backend_headless() != "headless": return 0
+    if kaintana_backend_desktop() != "desktop": return 0
+    if kaintana_backend_vulkan() != "vulkan": return 0
+    return 1
+
+// ─── Run ─────────────────────────────────────────────────────────────────
+
+pub fn run() -> Int:
+    print("=== Kaintana Type Tests ===")
+    var passed: Int = 0
+    var total: Int = 0
+
+    passed = passed + run_test("rect construction", test_rect_construction); total = total + 1
+    passed = passed + run_test("rect zero size", test_rect_zero_size); total = total + 1
+    passed = passed + run_test("rect negative", test_rect_negative); total = total + 1
+    passed = passed + run_test("rect large dimensions", test_rect_large_dimensions); total = total + 1
+    passed = passed + run_test("color construction", test_color_construction); total = total + 1
+    passed = passed + run_test("color zero", test_color_zero); total = total + 1
+    passed = passed + run_test("color max", test_color_max); total = total + 1
+    passed = passed + run_test("color partial alpha", test_color_partial_alpha); total = total + 1
+    passed = passed + run_test("theme solar broadcast", test_theme_solar_broadcast); total = total + 1
+    passed = passed + run_test("theme marine terminal", test_theme_marine_terminal); total = total + 1
+    passed = passed + run_test("theme kawaii voltage", test_theme_kawaii_voltage); total = total + 1
+    passed = passed + run_test("theme oxide dcc", test_theme_oxide_dcc); total = total + 1
+    passed = passed + run_test("theme named valid", test_theme_named_valid); total = total + 1
+    passed = passed + run_test("theme named fallback", test_theme_named_fallback); total = total + 1
+    passed = passed + run_test("theme named empty", test_theme_named_empty); total = total + 1
+    passed = passed + run_test("node invalid", test_node_invalid); total = total + 1
+    passed = passed + run_test("window spec default", test_window_spec_default); total = total + 1
+    passed = passed + run_test("window rect", test_window_rect); total = total + 1
+    passed = passed + run_test("window spec full", test_window_spec_full); total = total + 1
+    passed = passed + run_test("constants", test_constants); total = total + 1
+
+    return print_test_summary("core/test_types", passed, total)

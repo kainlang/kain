@@ -4,23 +4,23 @@
 > **Read after**: RULEBOOK.md
 > **See also**: C_GUIDE.MD (C interop), PYTHON_GUIDE.MD (Python interop), GLOSSARY.MD (term map)
 
----
+______________________________________________________________________
 
 ## Table of Contents
 
 1. [The One File — build.kn is the Authority](#1-the-one-file--buildkn-is-the-authority)
-2. [The Evidence DAG — Build Graph Concepts](#2-the-evidence-dag--build-graph-concepts)
-3. [Project Layout — Standard Structure](#3-project-layout--standard-structure)
-4. [CLI Command Reference](#4-cli-command-reference)
-5. [Build Targets — Full Target Table](#5-build-targets--full-target-table)
-6. [DWARF Debug Metadata](#6-dwarf-debug-metadata)
-7. [Environment Variables](#7-environment-variables)
-8. [Module & Import System](#8-module--import-system)
-9. [Real build.kn Examples — Annotated Walkthroughs](#9-real-buildkn-examples--annotated-walkthroughs)
-10. [build.kn DSL Reference](#10-buildkn-dsl-reference)
-11. [Quick Reference](#11-quick-reference)
+1. [The Evidence DAG — Build Graph Concepts](#2-the-evidence-dag--build-graph-concepts)
+1. [Project Layout — Standard Structure](#3-project-layout--standard-structure)
+1. [CLI Command Reference](#4-cli-command-reference)
+1. [Build Targets — Full Target Table](#5-build-targets--full-target-table)
+1. [DWARF Debug Metadata](#6-dwarf-debug-metadata)
+1. [Environment Variables](#7-environment-variables)
+1. [Module & Import System](#8-module--import-system)
+1. [Real build.kn Examples — Annotated Walkthroughs](#9-real-buildkn-examples--annotated-walkthroughs)
+1. [build.kn DSL Reference](#10-buildkn-dsl-reference)
+1. [Quick Reference](#11-quick-reference)
 
----
+______________________________________________________________________
 
 ## 1. The One File — build.kn is the Authority
 
@@ -80,7 +80,7 @@ fn build(ctx: BuildContext) -> BuildGraph:
 - **`$blade/` and `$root/` prefixes** — path interpolation. `$blade` resolves to the blade's output root, `$root` to the workspace root.
 - **Builder pattern** — every spec struct uses fluent `.method()` chaining that returns a new copy. Nothing is mutated in place.
 
----
+______________________________________________________________________
 
 ## 2. The Evidence DAG — Build Graph Concepts
 
@@ -135,7 +135,7 @@ Tasks understand these path prefixes:
 | `$blade` | Blade output root (usually `.kain/out/`) |
 | `$task` | Task cache root (usually `.kain/cache/build/<task-id>/`) |
 
----
+______________________________________________________________________
 
 ## 3. Project Layout — Standard Structure
 
@@ -185,7 +185,7 @@ fn main() -> Int:
 
 Use `kain init my-project` to scaffold — it creates the standard layout, a starter `build.kn`, and a `src/main.kn`.
 
----
+______________________________________________________________________
 
 ## 4. CLI Command Reference
 
@@ -225,7 +225,7 @@ kain check -
 
 **What it produces**: Exit code 0 (success) or non-zero (failure). JSON report if requested. Diagnostics formatted to stderr.
 
----
+______________________________________________________________________
 
 ### Build — `kain build`
 
@@ -273,7 +273,7 @@ kain build -o dist/app.exe --target llvm
 
 **What it produces**: Depends on target — `.exe` (llvm), `.wasm` (wasm), `.c` (c), etc.
 
----
+______________________________________________________________________
 
 ### Run — `kain run`
 
@@ -320,7 +320,7 @@ kain run src/main.kn --keep-artifacts
 | `--keep-artifacts` | Keep cached/generated artifacts |
 | `--dry-run` | Print resolved plan without executing |
 
----
+______________________________________________________________________
 
 ### Test — `kain test`
 
@@ -369,7 +369,7 @@ kain test src/ --fail-fast
 //@ needs-target:wasm  — skip unless wasm target is available
 ```
 
----
+______________________________________________________________________
 
 ### Format — `kain fmt`
 
@@ -394,7 +394,7 @@ kain fmt -
 | `--check` | Only check, don't write |
 | `-w, --write` | Rewrite files in place |
 
----
+______________________________________________________________________
 
 ### Doctor — `kain doctor`
 
@@ -422,7 +422,7 @@ kain doctor --repair src/main.kn --profile aggressive
 
 **What it reports**: Binary version, build SHA, profile, target triple, Kain HOME, config path, stdlib roots, runtime C path, LLVM Clang path, PATH matches, supported targets, sync status.
 
----
+______________________________________________________________________
 
 ### Config — `kain config`
 
@@ -457,7 +457,7 @@ kain config init
 | `ui.color` | string | `"auto"` | Color policy |
 | `diagnostics.capture` | bool | `false` | Capture diagnostics to file |
 
----
+______________________________________________________________________
 
 ### Clean — `kain clean`
 
@@ -489,7 +489,7 @@ kain clean blades/kain/asm/
 | `--dry-run` | Print plan without removing |
 | `--json` | Emit JSON |
 
----
+______________________________________________________________________
 
 ### Amalgamate — `kain amalgamate`
 
@@ -530,7 +530,7 @@ kain amalgamate src/ -o lib.kn --capsule-set my-lib
 | `--capsule-set <NAME>` | Sidecar set name |
 | `--header <MODE>` | minimal, rich, or off |
 
----
+______________________________________________________________________
 
 ### GPU Artifacts — `kain gpu-artifacts`
 
@@ -563,7 +563,7 @@ kain gpu-artifacts shaders.kn --no-derived
 | `--no-residency` | Skip compute residency sidecars |
 | `--no-derived` | Skip derived cross-target artifacts |
 
----
+______________________________________________________________________
 
 ### Import C — `kain import-c`
 
@@ -603,7 +603,7 @@ kain import-c vendor/sdk --fail-fast
 | `--report-json <FILE>` | Failure report |
 | `--fail-fast` | Stop on first failure |
 
----
+______________________________________________________________________
 
 ### Import Platform — `kain import platform`
 
@@ -637,7 +637,7 @@ kain import platform vulkan -o gen/vulkan/
 | `--dry-run` | Preview without writing |
 | `--report-json <FILE>` | Write lock/report JSON |
 
----
+______________________________________________________________________
 
 ### Language Server — `kain lsp`
 
@@ -650,7 +650,7 @@ kain lsp
 
 Supports LSP-compatible editors (VS Code, VSCodium, Neovim, etc.).
 
----
+______________________________________________________________________
 
 ### Init — `kain init`
 
@@ -669,7 +669,7 @@ kain init ./my-project
 
 Creates: `build.kn`, `src/main.kn`, `KAIN.toml`.
 
----
+______________________________________________________________________
 
 ## 5. Build Targets — Full Target Table
 
@@ -694,7 +694,7 @@ Creates: `build.kn`, `src/main.kn`, `KAIN.toml`.
 
 **Default target** for `kain build` without `--target`: `llvm`.
 
----
+______________________________________________________________________
 
 ## 6. DWARF Debug Metadata
 
@@ -740,6 +740,7 @@ lldb ./blades/c/platform/windows/src/main.exe
 ```
 
 **What you get**:
+
 - Kain source file paths in backtraces
 - Kain line numbers mapped to IR instructions
 - Local variable names (when the optimizer doesn't eliminate them)
@@ -755,7 +756,7 @@ kain config set build.native-profile debug       # Use debug profile
 
 **Important**: DWARF is only meaningful for `--target llvm`. Other targets (wasm, js, spirv) don't support native debug metadata.
 
----
+______________________________________________________________________
 
 ## 7. Environment Variables
 
@@ -785,10 +786,11 @@ The Kain toolchain respects these environment variables:
 | `KAIN_TOOLING_DIR` | Tooling directory | `$KAIN_HOME/tooling` |
 
 **Config resolution order**:
+
 1. `--config <PATH>` flag (explicit override)
-2. `KAIN_CONFIG` env var
-3. Search parent directories for `.kain/config.toml`
-4. `$KAIN_HOME/config.toml`
+1. `KAIN_CONFIG` env var
+1. Search parent directories for `.kain/config.toml`
+1. `$KAIN_HOME/config.toml`
 
 ### Bench-Specific Variables
 
@@ -802,7 +804,7 @@ let telemetry = exec_task("telemetry-v2")
     .env("KAIN_BENCH_V2_TRACK_ROOT", "$root/out/reports/v2_tracks")
 ```
 
----
+______________________________________________________________________
 
 ## 8. Module & Import System
 
@@ -824,19 +826,23 @@ use rust::serde                        # Rust interop module
 When the compiler encounters `use feature::panel`, it searches in this order:
 
 1. **Local filesystem** (relative to the importing file and its parents):
+
    - `<importing_dir>/feature/panel.kn`
    - `<importing_dir>/src/feature/panel.kn`
    - `<importing_dir>/src/core/feature.kn`
    - `<importing_dir>/feature/panel.kn`
    - Walks UP parent directories checking the same patterns
 
-2. **Blade module roots** (from build.kn's `module_root()` or `module_roots()`):
+1. **Blade module roots** (from build.kn's `module_root()` or `module_roots()`):
+
    - `<module_root>/feature/panel.kn`
 
-3. **Stdlib roots** (from `KAIN_STDLIB_PATH`):
+1. **Stdlib roots** (from `KAIN_STDLIB_PATH`):
+
    - `<stdlib_root>/feature/panel.kn`
 
-4. **Installed packages** (from `KAIN_HOME/packages/`):
+1. **Installed packages** (from `KAIN_HOME/packages/`):
+
    - `<package_root>/<module_root>/feature/panel.kn`
 
 ### Stdlib Module Aliases
@@ -861,11 +867,11 @@ std::native::<module>  →  strips the "native/" prefix
 A `use my_app::utils` in `src/main.kn` inside a workspace with `module_root("src")` resolves:
 
 1. `<project>/src/my_app/utils.kn` ← **found here**
-2. `<project>/src/main/my_app/utils.kn` (importer-relative)
-3. `<project>/my_app/utils.kn` (workspace root)
-4. `<stdlib>/my_app/utils.kn` (stdlib fallback)
+1. `<project>/src/main/my_app/utils.kn` (importer-relative)
+1. `<project>/my_app/utils.kn` (workspace root)
+1. `<stdlib>/my_app/utils.kn` (stdlib fallback)
 
----
+______________________________________________________________________
 
 ## 9. Real build.kn Examples — Annotated Walkthroughs
 
@@ -921,7 +927,7 @@ fn build(ctx: BuildContext) -> BuildGraph:
 
 **Pattern**: `package()` + `blade()` + `build_defaults()` + `build_check()` + `native_executable()` → `build_graph()`. Every project follows this core pattern.
 
----
+______________________________________________________________________
 
 ### 9.2 C Interop Blade — `blades/c/sqlite/` pattern
 
@@ -966,6 +972,7 @@ fn build(ctx: BuildContext) -> BuildGraph:
 ```
 
 **Key differences from minimal**:
+
 - Uses `project()` shorthand instead of separate `package()` + `blade()`
 - `source_set()` groups sources with glob patterns
 - `.inputs(sources)` passes the entire source set (not individual files)
@@ -998,7 +1005,7 @@ cache_root = ".kain/cache/build"
 profile = "debug"
 ```
 
----
+______________________________________________________________________
 
 ### 9.3 Full Workspace — `smoketest/build.kn`
 
@@ -1118,13 +1125,14 @@ fn build(ctx: BuildContext) -> BuildGraph:
 ```
 
 **Key patterns**:
+
 - **Custom task factory** — `smoke_mode()` is a Kain function that returns a `BuildTask`. This keeps the build graph DRY.
 - **Multi-target** — one project produces LLVM + SPIR-V + WASM artifacts.
 - **Certification** — `certify()` is a meta-task that runs after everything else and attests the whole pipeline passed.
 - **Capsule set** — final portable artifact with source, artifacts, and evidence.
 - **Telemetry** — `.telemetry()` attaches evidence channels to each task for CI observability.
 
----
+______________________________________________________________________
 
 ### 9.4 Benchmark Project — `benchmark/build.kn`
 
@@ -1217,6 +1225,7 @@ fn build(ctx: BuildContext) -> BuildGraph:
 ```
 
 **Key patterns**:
+
 - `exec_task()` runs arbitrary commands (PowerShell, bash, python, etc.)
 - `.env()` sets environment variables for the spawned process
 - `.stdout()` / `.stderr()` redirect output to files
@@ -1225,7 +1234,7 @@ fn build(ctx: BuildContext) -> BuildGraph:
 - `run_defaults()` configures watch mode paths
 - `workspace_defaults()` sets workspace-wide defaults
 
----
+______________________________________________________________________
 
 ### 9.5 GPU + C FFI Blade — `blades/c/vulkan_v2/build.kn`
 
@@ -1277,11 +1286,12 @@ fn build(ctx: BuildContext) -> BuildGraph:
 ```
 
 **Key patterns**:
+
 - GPU artifacts are a **separate task** with its own dependency edge
 - The native executable depends on GPU artifacts — ensures shaders are compiled first
 - `.compute()` specifies the compute shader source file
 
----
+______________________________________________________________________
 
 ### 9.6 UI Framework Blade — `blades/ui/kaintana/build.kn`
 
@@ -1360,7 +1370,7 @@ fn build(ctx: BuildContext) -> BuildGraph:
         .tasks(surface_check, main_check, root_exe, cert, capsule)
 ```
 
----
+______________________________________________________________________
 
 ## 10. build.kn DSL Reference
 
@@ -1588,7 +1598,7 @@ build_graph()
     .run(run_defaults)          # Register run defaults
 ```
 
----
+______________________________________________________________________
 
 ## 11. Quick Reference
 
@@ -1688,6 +1698,6 @@ use c::win32     → (C interop module)
 use rust::serde  → (Rust interop module)
 ```
 
----
+______________________________________________________________________
 
 > **Pro tip**: When you're unsure how a build graph works, run `kain doctor` first — it tells you exactly what environment you're in, which targets are available, and where everything lives. Then run `kain run plan src/main.kn` to see exactly what the build graph will do before it does it.

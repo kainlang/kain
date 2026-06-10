@@ -48,19 +48,19 @@ Important language-wide rule: native/Rust/C code provides capabilities, ABI subs
 The repo currently spans five connected layers:
 
 1. `crates/core`
-Language semantics, parsing, typing, effects, comptime, interpreter lanes, runtime-contract emission, shader metadata, and other compiler-owned truth.
+   Language semantics, parsing, typing, effects, comptime, interpreter lanes, runtime-contract emission, shader metadata, and other compiler-owned truth.
 
-2. Materialization, import, build, and capsule orchestration
-`crates/driver`, `crates/omni`, `crates/selfhost`, `crates/build`, `crates/run`, `crates/amalgamate`, and importer crates turn Kain semantic truth into emitted bundles, packaged artifacts, portable source capsules, immediate execution plans, imported surfaces, and multi-runtime workflows.
+1. Materialization, import, build, and capsule orchestration
+   `crates/driver`, `crates/omni`, `crates/selfhost`, `crates/build`, `crates/run`, `crates/amalgamate`, and importer crates turn Kain semantic truth into emitted bundles, packaged artifacts, portable source capsules, immediate execution plans, imported surfaces, and multi-runtime workflows.
 
-3. Runtime and host bridges
-`runtime/native` is the canonical ABI floor and C runtime substrate. `crates/host`, `crates/sdk`, `crates/reflect`, `crates/foreign-abi`, `crates/c-ffi`, `crates/crate-ffi`, `crates/python`, `crates/node`, `crates/codebase`, and `crates/interop` provide host/runtime integration.
+1. Runtime and host bridges
+   `runtime/native` is the canonical ABI floor and C runtime substrate. `crates/host`, `crates/sdk`, `crates/reflect`, `crates/foreign-abi`, `crates/c-ffi`, `crates/crate-ffi`, `crates/python`, `crates/node`, `crates/codebase`, and `crates/interop` provide host/runtime integration.
 
-4. UI, native desktop, and 3D
-`crates/ui`, `crates/ui-native`, and `crates/3d` are the semantic UI and accelerated native presentation stack. The low-level single-file LLVM UI lane lives at the C ABI floor in `runtime/native/include/ui_system.h` and `runtime/native/src/ui/ui_system.c`: it exposes sessions, host frame presentation metadata, arbitrary authored node kinds, stable node keys, rects, styles, accessibility labels, text/font/resource handles, clipboard/IME/drag/menu/dialog state, events, hit testing, focus, dirty tracking, hot reload generations, and draw-command buffers without a host-owned component catalog. The compiled-bundle/runtime reload lane now sits beside it in `runtime/native/include/ui_runtime.h`, `runtime/native/include/ui_hot_reload.h`, `runtime/native/src/ui/ui_runtime.c`, and `runtime/native/src/ui/ui_hot_reload.c`: bundle reload/state transfer is cross-platform by API, file-watch live reload works everywhere the runtime can stat the bundle path, and the shared-memory control ring is hidden behind platform-specific backends instead of being baked into the UI architecture. The low-level native graphics lane lives at `runtime/native/include/graphics_system.h` and `runtime/native/src/core/graphics_system.c`: it exposes sessions, backend targets, SPIR-V module registration, authored buffers, meshes, pipelines, frame submission, draw-command inspection, and diagnostics without a host-owned scene or primitive catalog.
+1. UI, native desktop, and 3D
+   `crates/ui`, `crates/ui-native`, and `crates/3d` are the semantic UI and accelerated native presentation stack. The low-level single-file LLVM UI lane lives at the C ABI floor in `runtime/native/include/ui_system.h` and `runtime/native/src/ui/ui_system.c`: it exposes sessions, host frame presentation metadata, arbitrary authored node kinds, stable node keys, rects, styles, accessibility labels, text/font/resource handles, clipboard/IME/drag/menu/dialog state, events, hit testing, focus, dirty tracking, hot reload generations, and draw-command buffers without a host-owned component catalog. The compiled-bundle/runtime reload lane now sits beside it in `runtime/native/include/ui_runtime.h`, `runtime/native/include/ui_hot_reload.h`, `runtime/native/src/ui/ui_runtime.c`, and `runtime/native/src/ui/ui_hot_reload.c`: bundle reload/state transfer is cross-platform by API, file-watch live reload works everywhere the runtime can stat the bundle path, and the shared-memory control ring is hidden behind platform-specific backends instead of being baked into the UI architecture. The low-level native graphics lane lives at `runtime/native/include/graphics_system.h` and `runtime/native/src/core/graphics_system.c`: it exposes sessions, backend targets, SPIR-V module registration, authored buffers, meshes, pipelines, frame submission, draw-command inspection, and diagnostics without a host-owned scene or primitive catalog.
 
-5. Target adapters
-`crates/web`, `crates/wasm`, `crates/script`, `crates/gpu`, `crates/gpu-runtime`, and the `crates/ue5*` family consume compiler-owned contracts for specific runtime environments.
+1. Target adapters
+   `crates/web`, `crates/wasm`, `crates/script`, `crates/gpu`, `crates/gpu-runtime`, and the `crates/ue5*` family consume compiler-owned contracts for specific runtime environments.
 
 ## Non-Negotiable Ownership
 
@@ -144,8 +144,7 @@ Language semantics, parsing, typing, effects, comptime, interpreter lanes, runti
 - [release](release): machine-readable release-blocking policy surface. `release/readiness_policy.json` is the source of truth for the repo-level readiness matrix: hook commands to rerun benchmark/attrition/conformance lanes, import-shape rules for root stdlib benchmark cases, and feature coverage entries that map concrete capabilities such as float-array literal indexing, graphics stdlib importability, root stdlib domains, actor roundtrips, and runtime conformance categories to durable evidence ids. `scripts/python/release_readiness_gate.py` executes or reuses those hooks, inspects the generated JSON reports, and fails explicitly on proxy/caveated release rows, missing `use std::<domain>` imports, or uncovered feature classes. Use `--profile quick --run` for the focused pre-release matrix and `--profile full --run` when actor/async/diagnostics/ABI/reflection/host-bridge/hot-reload/platform conformance must also block release.
 - `benchmark/cases/semantic_singularity_*`: Kain-only fused-semantics attribution matrix. The full `semantic_singularity` boss fight keeps all weird semantics live, while `no_actor`, `no_entangle`, `no_patch`, `shatter_only`, `actor_only`, and `converge_only` isolate the major subsystem costs in one comma-selectable benchmark report. The matrix proof lives under `benchmark/cases/semantic_singularity/z3`.
 - `benchmark/cases/semantic_singularity_crucible`: Kain-only native LLVM crucible. It keeps the semantic singularity hot loop intact but adds enum `match`, trait/impl syntax, top-level const/type alias, `comptime`, shader declarations, `vec!`/`format!`/string indexing, Option/Result/Future/`await`, bitwise packet math, and raw `realloc_mem` plus `collapse`/`observe`/`decay` preflight checks in one checksum-guarded file. Its local SMT files prove the preflight checksum, raw memory offsets, shatter/hot-loop index bounds, and bit-vector packet mix.
-- `benchmark/cases/quantumerlang`: Kain/Erlang semantic-flex row, not the fair mailbox latency row. Erlang runs 64 stateful processes and 300,000 synchronous request/reply mailbox folds; Kain computes the same checksum with `shatter struct` lane metadata, `collapse`/`observe`/`decay` helper memory, `converge`, and a boot-time `teleport` plus entangled world patch. The bounds proof lives under `benchmark/cases/quantumerlang
-
+- `benchmark/cases/quantumerlang`: Kain/Erlang semantic-flex row, not the fair mailbox latency row. Erlang runs 64 stateful processes and 300,000 synchronous request/reply mailbox folds; Kain computes the same checksum with `shatter struct` lane metadata, `collapse`/`observe`/`decay` helper memory, `converge`, and a boot-time `teleport` plus entangled world patch. The bounds proof lives under \`benchmark/cases/quantumerlang
 
 ## Key Crates
 
@@ -356,9 +355,7 @@ Build artifacts are deliberately workspace-local and disposable:
 
 `[build]` in root or blade `KAIN.toml` can override `artifact_root`, `cache_root`, and `profile`, while CLI `--lane bootstrap|dev|release|dist|selfhost` chooses the invalidation lane. `build.kn` is the preferred live authority for explicit DAG work: `build_check(...)`, `test_suite(...)`, `proof_obligation(...)`, `bench_case(...)`, `attrition_case(...)`, `native_executable(...)`, and `certify_gate(...)` add build, proof, benchmark, attrition, executable, and certificate tasks with inputs, outputs, dependency requirements, matrix axes, telemetry channels, and host capability gates. Legacy `build_task(...).kind(...)` remains accepted. `KAIN.toml` remains the compatibility lane for metadata not yet promoted into script authority, especially C-FFI library declarations.
 
-
 The important rule is: the mirror lane proves reference and repair behavior, while the owned lane proves real selfhost direction. Keep the Rust mirror lane available for comparison, but promote the manifest-first hand-written lane as the compiler that is supposed to survive once bootstrap is over.
-
 
 The architecture rule here is the same as the viewport and compute lanes: shader-canvas execution can optimize presentation, but it must stay subordinate to compiler-owned bundle truth rather than inventing a renderer-local UI shader dialect.
 
