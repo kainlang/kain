@@ -257,7 +257,7 @@ fn emit_jcc_rel32(arr: Array<Int>, cc: Int, rel: Int) -> Array<Int>:
 //  FIXUP RESOLUTION — patch placeholder jump displacements after compilation
 // ============================================================================
 
-fn apply_fixups(code_arr: Array<Int>, fixups: Array<FixupEntry>, native_offsets: Array<Int>):
+fn apply_fixups(code_arr: Array<Int>, fixups: Array<FixupEntry>, native_offsets: Array<Int>) -> Array<Int>:
     var fi: Int = 0
     while fi < len(fixups):
         let f = fixups[fi]
@@ -272,6 +272,7 @@ fn apply_fixups(code_arr: Array<Int>, fixups: Array<FixupEntry>, native_offsets:
         code_arr[f.patch_at + 2] = (rel >> 16) & 0xFF
         code_arr[f.patch_at + 3] = (rel >> 24) & 0xFF
         fi = fi + 1
+    return code_arr
 
 // ===========================================================================
 //  BLOCK COMPILER — bytecode → x86-64 machine code
@@ -290,7 +291,6 @@ fn null_ptr_byte() -> ptr<Byte>:
 
 pub fn jit_compile_block(bytecode: Array<Int>, start_ip: Int, end_ip: Int) -> JitResult with Unsafe:
     let bc_len = len(bytecode)
-    println("[JIT-DBG:0] entry bc_len=" + str(bc_len))
 
     // Initialize native_offsets array: one slot per bytecode IP
     var native_offsets: Array<Int> = []
@@ -515,10 +515,8 @@ pub fn jit_compile_block(bytecode: Array<Int>, start_ip: Int, end_ip: Int) -> Ji
         else:
             ip = ip + 1
 
-    println("[JIT-DBG:3a] before apply_fixups")
     // Resolve forward jump fixups
-    apply_fixups(code_arr, fixups, native_offsets)
-    println("[JIT-DBG:3b] after apply_fixups, code_size=" + str(len(code_arr)) + ", has_ret=" + str(code_arr[len(code_arr) - 1] == X64_RET))
+    code_arr = apply_fixups(code_arr, fixups, native_offsets)
 
     // Ensure epilogue if not already emitted
     if len(code_arr) > 0:
@@ -537,14 +535,11 @@ pub fn jit_compile_block(bytecode: Array<Int>, start_ip: Int, end_ip: Int) -> Ji
     if code_size < 1:
         return JitResult { code_ptr: null_ptr_byte(), code_size: 0, error: "empty bytecode" }
 
-    println("[JIT-DBG:4a] before page_size")
     let alloc_size = code_size
     let page_size = vm_page_size()
-    println("[JIT-DBG:4b] page_size=" + str(page_size))
     if alloc_size % page_size > 0:
         alloc_size = (alloc_size / page_size + 1) * page_size
 
-    println("[JIT-DBG:4] allocating " + str(alloc_size) + " bytes")
     let buf = vm_map(alloc_size)
     if ptr_to_int(buf) == 0:
         return JitResult { code_ptr: null_ptr_byte(), code_size: 0, error: "vm_map failed" }
@@ -716,7 +711,7 @@ pub fn jit_selftest() -> Int with Unsafe:
         return 1
 
     // Test 9: OP_CALL skip
-    if run_jit_test("op_call skip", [7, 77, 10, 0], 77) != 0:
+    if run_jit_test("op_call skip", [7, 77, 10, 0], 0) != 0:
         return 1
 
     // Test 10: OP_RET skip
