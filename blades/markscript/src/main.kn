@@ -209,15 +209,21 @@ fn run_handler_loop(vm: MarkScriptVM, bc: Array<Int>, er: ExecResult) -> Int:
 
         println("[DISPATCH] Iteration " + str(iteration) + ": fn_id=" + str(fn_id))
 
-        // Extract arguments from the VM stack
+        // Extract arguments from the VM stack and pop them
+        // The mini-language pushes argument values before EXECUTE_CALL.
+        // We consume them here; resume_execution pushes only the handler result.
+        // POP_STACK in the bytecode will consume the handler result.
         var args: Array<MarkValue> = []
         let stk_len = len(current_vm.stack)
         if stk_len > 0:
-            // Collect all values currently on the stack as arguments
             var ai: Int = 0
             while ai < stk_len:
                 push(args, current_vm.stack[ai])
                 ai = ai + 1
+            // Pop all argument values to prevent stack leaking across dispatches
+            while stk_len > 0:
+                pop(current_vm.stack)
+                stk_len = stk_len - 1
 
         // Dispatch through the generic name-based dispatch
         let hr = dispatch_fn(current_vm, fn_id, args)
@@ -657,8 +663,9 @@ fn cmd_handlers() -> Int:
 
     var i: Int = 0
     while i < vm.ivt_count:
-        let entry = vm.ivt[i]
-        println("  " + str(entry.handler_id) + ": hash=" + str(entry.phrase_hash))
+        let phrase = vm.ivt_phrases[i]
+        let hid = vm.ivt_handler_ids[i]
+        println("  " + str(hid) + ": hash=" + str(phrase))
         i = i + 1
 
     println("")

@@ -32,7 +32,8 @@ pub struct MarkScriptVM:
     data_table_cnt: Int                     // next free handle
     code_blocks:    Array<CodeBlockRecord>  // fenced code blocks
     call_stack:     Array<Int>              // return addresses
-    ivt:            Array<IVTEntry>         // intent vector table
+    ivt_phrases:    Array<Int>              // intent phrases (parallel with handler_ids)
+    ivt_handler_ids: Array<Int>             // handler IDs (parallel with phrases)
     ivt_count:      Int                     // registered handler count
     variables:      Array<VarEntry>         // named variable store
     var_count:      Int                     // variable count
@@ -76,7 +77,8 @@ pub fn init_vm() -> MarkScriptVM:
         data_table_cnt: 0,
         code_blocks: [],
         call_stack: [],
-        ivt: [],
+        ivt_phrases: [],
+        ivt_handler_ids: [],
         ivt_count: 0,
         variables: [],
         var_count: 0,
@@ -89,20 +91,34 @@ pub fn init_vm() -> MarkScriptVM:
 // ===========================================================================
 
 pub fn register_handler(vm: MarkScriptVM, phrase_hash: Int, handler_id: Int) -> MarkScriptVM:
-    var v = vm
-    let entry = IVTEntry {
-        phrase_hash: phrase_hash,
-        handler_id: handler_id
+    var p = vm.ivt_phrases
+    var h = vm.ivt_handler_ids
+    var c = vm.ivt_count
+    push(p, phrase_hash)
+    push(h, handler_id)
+    c = c + 1
+    return MarkScriptVM {
+        ip: vm.ip,
+        accumulator: vm.accumulator,
+        stack: vm.stack,
+        data_table: vm.data_table,
+        data_table_cnt: vm.data_table_cnt,
+        code_blocks: vm.code_blocks,
+        call_stack: vm.call_stack,
+        ivt_phrases: p,
+        ivt_handler_ids: h,
+        ivt_count: c,
+        variables: vm.variables,
+        var_count: vm.var_count,
+        error: vm.error,
+        pending_hash: vm.pending_hash
     }
-    push(v.ivt, entry)
-    v.ivt_count = v.ivt_count + 1
-    return v
 
 pub fn lookup_handler(vm: MarkScriptVM, hash: Int) -> Int:
     var i: Int = 0
     while i < vm.ivt_count:
-        if vm.ivt[i].phrase_hash == hash:
-            return vm.ivt[i].handler_id
+        if i < len(vm.ivt_phrases) and vm.ivt_phrases[i] == hash:
+            return vm.ivt_handler_ids[i]
         i = i + 1
     return 0
 
@@ -245,7 +261,8 @@ pub fn execute_bytecode(vm: MarkScriptVM, bc: Array<Int>) -> ExecResult:
     var dt = vm.data_table
     var cb = vm.code_blocks
     var callstk = vm.call_stack
-    var ivt = vm.ivt
+    var ivt_p = vm.ivt_phrases
+    var ivt_h = vm.ivt_handler_ids
     var ivtc = vm.ivt_count
     var vars = vm.variables
     var varc = vm.var_count
@@ -262,7 +279,7 @@ pub fn execute_bytecode(vm: MarkScriptVM, bc: Array<Int>) -> ExecResult:
                     ip: ip, accumulator: acc, stack: stk,
                     data_table: dt, data_table_cnt: vm.data_table_cnt,
                     code_blocks: cb, call_stack: callstk,
-                    ivt: ivt, ivt_count: ivtc,
+                    ivt_phrases: ivt_p, ivt_handler_ids: ivt_h, ivt_count: ivtc,
                     variables: vars, var_count: varc,
                     error: verr, pending_hash: pending_hash
                 },
@@ -299,17 +316,19 @@ pub fn execute_bytecode(vm: MarkScriptVM, bc: Array<Int>) -> ExecResult:
         // --- OP_EXECUTE_CALL (4) — dispatch accumulated params -----------
         elif opcode == OP_EXECUTE_CALL:
             // Look up the accumulated phrase hash in the IVT
-            let handler_id = lookup_handler_ivt(ivt, ivtc, pending_hash)
+            let handler_id = lookup_handler_ivt(ivt_p, ivt_h, ivtc, pending_hash)
 
             if handler_id > 0:
                 // Pause execution — return to caller for dispatch
+                // Reset pending_hash BEFORE pausing so it doesn't accumulate across dispatches
+                pending_hash = 0
                 ip = ip + 1
                 return ExecResult {
                     vm: MarkScriptVM {
                         ip: ip, accumulator: acc, stack: stk,
                         data_table: dt, data_table_cnt: vm.data_table_cnt,
                         code_blocks: cb, call_stack: callstk,
-                        ivt: ivt, ivt_count: ivtc,
+                        ivt_phrases: ivt_p, ivt_handler_ids: ivt_h, ivt_count: ivtc,
                         variables: vars, var_count: varc,
                         error: verr, pending_hash: pending_hash
                     },
@@ -443,7 +462,7 @@ pub fn execute_bytecode(vm: MarkScriptVM, bc: Array<Int>) -> ExecResult:
                 target_hash = target_hash_val.int_val
             pop(stk)
 
-            let handler_id = lookup_handler_ivt(ivt, ivtc, target_hash)
+            let handler_id = lookup_handler_ivt(ivt_p, ivt_h, ivtc, target_hash)
 
             if handler_id > 0:
                 // Push return address and pause for dispatch
@@ -453,7 +472,7 @@ pub fn execute_bytecode(vm: MarkScriptVM, bc: Array<Int>) -> ExecResult:
                         ip: ip + 1, accumulator: acc, stack: stk,
                         data_table: dt, data_table_cnt: vm.data_table_cnt,
                         code_blocks: cb, call_stack: callstk,
-                        ivt: ivt, ivt_count: ivtc,
+                        ivt_phrases: ivt_p, ivt_handler_ids: ivt_h, ivt_count: ivtc,
                         variables: vars, var_count: varc,
                         error: verr, pending_hash: pending_hash
                     },
@@ -484,7 +503,8 @@ pub fn execute_bytecode(vm: MarkScriptVM, bc: Array<Int>) -> ExecResult:
         elif opcode == OP_JMP:
             ip = ip + 1
             if ip < bc_len:
-                ip = bc[ip]
+                let target = bc[ip]
+                ip = target
             else:
                 ip = bc_len
 
@@ -590,7 +610,7 @@ pub fn execute_bytecode(vm: MarkScriptVM, bc: Array<Int>) -> ExecResult:
             ip: ip, accumulator: acc, stack: stk,
             data_table: dt, data_table_cnt: vm.data_table_cnt,
             code_blocks: cb, call_stack: callstk,
-            ivt: ivt, ivt_count: ivtc,
+            ivt_phrases: ivt_p, ivt_handler_ids: ivt_h, ivt_count: ivtc,
             variables: vars, var_count: varc,
             error: verr, pending_hash: pending_hash
         },
@@ -633,11 +653,11 @@ pub fn resume_execution(vm: MarkScriptVM, bc: Array<Int>, handler_result: Handle
 //  INTERNAL HELPERS — copies to avoid self-referencing closure issue
 // ===========================================================================
 
-fn lookup_handler_ivt(ivt: Array<IVTEntry>, ivtc: Int, hash: Int) -> Int:
+fn lookup_handler_ivt(phrases: Array<Int>, handler_ids: Array<Int>, ivtc: Int, hash: Int) -> Int:
     var i: Int = 0
     while i < ivtc:
-        if i < len(ivt) and ivt[i].phrase_hash == hash:
-            return ivt[i].handler_id
+        if i < len(phrases) and phrases[i] == hash:
+            return handler_ids[i]
         i = i + 1
     return 0
 
