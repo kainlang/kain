@@ -10953,7 +10953,7 @@ impl LlvmGenerator {
             return Ok(());
         }
 
-        let payload_ty = format!("%{}", payload_struct_name);
+        let payload_ty = format!("%{}", Self::llvm_named_type_name(&payload_struct_name));
         let payload_ptr_ty = format!("{}*", payload_ty);
         let payload_ptr_ptr = self.next_reg();
         self.emit(&format!(
@@ -12724,7 +12724,7 @@ impl LlvmGenerator {
             reply_port_value_with_handle, REPLY_PORT_LLVM_TYPE, reply_port_value, reply_port_handle
         ));
 
-        let request_payload_ty = format!("%{}", request_payload_name);
+        let request_payload_ty = format!("%{}", Self::llvm_named_type_name(&request_payload_name));
         let request_payload_ptr_ty = format!("{}*", request_payload_ty);
         let request_payload_ptr = self.next_reg();
         self.emit_entry_alloca(&request_payload_ptr, &request_payload_ty);
@@ -14222,7 +14222,7 @@ impl LlvmGenerator {
 
     fn compile_actor(&mut self, actor: &kain_core::types::TypedActor) -> KainResult<()> {
         let name = &actor.ast.name;
-        let struct_ty = format!("%{}", name);
+        let struct_ty = format!("%{}", Self::llvm_named_type_name(name));
 
         self.reg_count = 0;
         self.locals.clear();
@@ -14390,7 +14390,7 @@ impl LlvmGenerator {
 
             // Extract payload as the handler-specific message struct.
             let msg_struct_name = format!("{}_{}", name, handler.message_type);
-            let msg_struct_ty = format!("%{}", msg_struct_name);
+            let msg_struct_ty = format!("%{}", Self::llvm_named_type_name(&msg_struct_name));
             let payload = self.next_reg();
             self.emit(&format!(
                 "  {} = bitcast i8* {} to {}*",
@@ -14794,8 +14794,13 @@ impl LlvmGenerator {
                 continue;
             }
 
-            let struct_ty = format!("%{}", name);
-            let dtor_name = format!("dtor_{}", name);
+            // Skip non-canonical names — the sanitized alias is also in the map
+            if name != Self::llvm_named_type_name(&name) {
+                continue;
+            }
+
+            let struct_ty = format!("%{}", Self::llvm_named_type_name(&name));
+            let dtor_name = format!("dtor_{}", Self::llvm_named_type_name(&name));
 
             self.emit(&format!("define void @{}(i8* %ptr_void) {{", dtor_name));
             self.emit_label("entry");
@@ -19053,7 +19058,7 @@ impl LlvmGenerator {
                 let def = self.struct_defs.get(name).cloned().ok_or_else(|| {
                     KainError::codegen(format!("Unknown struct: {}", name), *span)
                 })?;
-                let struct_ty = format!("%{}", name);
+                let struct_ty = format!("%{}", Self::llvm_named_type_name(name));
                 if self.value_aggregate_structs.contains(name) {
                     let mut aggregate_value = "zeroinitializer".to_string();
                     let mut provided: HashMap<String, Expr> = fields.iter().cloned().collect();
@@ -19103,7 +19108,7 @@ impl LlvmGenerator {
                     .iter()
                     .any(|(_, field_ty)| field_ty == "i8*" || field_ty.starts_with('%'))
                 {
-                    let dtor_name = format!("dtor_{}", name);
+                    let dtor_name = format!("dtor_{}", Self::llvm_named_type_name(name));
                     self.emit(&format!(
                         "  call void @KAIN_set_destructor(i8* {}, void (i8*)* @{})",
                         mem_reg, dtor_name
@@ -19314,7 +19319,7 @@ impl LlvmGenerator {
                         *span,
                 ))?;
 
-                let struct_ty = format!("%{}", actor);
+                let struct_ty = format!("%{}", Self::llvm_named_type_name(actor));
                 let turn_fn_ty = "i32 (i64, i8*, i8*, i32)";
 
                 // Allocate the compiler-owned actor state on the heap.
@@ -19428,7 +19433,7 @@ impl LlvmGenerator {
                 // Register a destructor for owned actor state when RC fields exist.
                 let has_rc_fields = def.iter().any(|(_, ty)| ty == "i8*" || ty.starts_with("%"));
                 if has_rc_fields {
-                    let dtor_name = format!("dtor_{}", actor);
+                    let dtor_name = format!("dtor_{}", Self::llvm_named_type_name(actor));
                     self.emit(&format!(
                         "  call void @KAIN_set_destructor(i8* {}, void (i8*)* @{})",
                         mem_reg, dtor_name
@@ -19553,7 +19558,7 @@ impl LlvmGenerator {
                         ("null".to_string(), "0".to_string())
                     } else {
                         let payload_struct_name = format!("{}_{}", actor_name, message);
-                        let payload_ty = format!("%{}", payload_struct_name);
+                        let payload_ty = format!("%{}", Self::llvm_named_type_name(&payload_struct_name));
                         let payload_ptr_ty = format!("{}*", payload_ty);
                         let payload_ptr = self.next_reg();
                         self.emit_entry_alloca(&payload_ptr, &payload_ty);
@@ -20411,7 +20416,7 @@ impl LlvmGenerator {
                     return Ok(result);
                 }
 
-                let struct_ty = format!("%{}", enum_name);
+                let struct_ty = format!("%{}", Self::llvm_named_type_name(enum_name));
                 let ptr_ty = format!("{}*", struct_ty);
 
                 // Allocate Enum struct
@@ -20438,7 +20443,7 @@ impl LlvmGenerator {
                     "  {} = bitcast i8* {} to {}",
                     enum_ptr, mem_reg, ptr_ty
                 ));
-                let dtor_name = format!("dtor_{}", enum_name);
+                let dtor_name = format!("dtor_{}", Self::llvm_named_type_name(enum_name));
                 self.emit(&format!(
                     "  call void @KAIN_set_destructor(i8* {}, void (i8*)* @{})",
                     mem_reg, dtor_name
@@ -20455,7 +20460,7 @@ impl LlvmGenerator {
 
                 // Handle Payload
                 let payload_struct_name = format!("{}_{}", enum_name, variant);
-                let payload_ty = format!("%{}", payload_struct_name);
+                let payload_ty = format!("%{}", Self::llvm_named_type_name(&payload_struct_name));
                 let payload_ptr_ty = format!("{}*", payload_ty);
 
                 // Check if payload struct exists (implies non-empty payload)

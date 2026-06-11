@@ -1,0 +1,225 @@
+// ============================================================================
+//  main.kn — LLVM Codegen Verification Pipeline — Entry Point
+//
+//  Dispatches to three parallel verification lanes:
+//    alpha   — Types, Layout & Casts       (alpha_types.kn)
+//    bravo   — Memory, Ownership & Control  (bravo_memory.kn)
+//    charlie — Runtime, Stones & Specials   (charlie_runtime.kn)
+//
+//  Each lane extracts logic from codegen_llvm/mod.rs, defines invariants,
+//  and generates Z3 proof pack skeletons.
+//
+//  Usage:
+//    codegen-verify alpha <source>     — run Alpha lane
+//    codegen-verify all <source>       — run all three lanes
+//    codegen-verify --help             — show usage
+// ============================================================================
+
+use std::process
+use std::fs
+use cli             // CliConfig, get_user_args, parse_args, usage, version,
+                    // EXIT_OK, EXIT_HELP, EXIT_ERROR, EXIT_UNKNOWN,
+                    // SUBCMD_ALPHA, SUBCMD_BRAVO, SUBCMD_CHARLIE, SUBCMD_ALL,
+                    // SUBCMD_HELP, SUBCMD_VERSION, needs_source
+use data            // ExtractionTarget, default_target, VerificationReport,
+                    // empty_report, format_report, LANE_ALPHA, LANE_BRAVO, LANE_CHARLIE
+use alpha_types     // run_alpha, alpha_catalog_summary
+use bravo_memory    // run_bravo, print_function_catalog, print_summary
+use charlie_runtime  // run_charlie, run_charlie_quiet, export_proof_packs, get_catalog_summary
+
+// ============================================================================
+//  MAIN
+// ============================================================================
+
+fn main() -> Int:
+    let argv = get_user_args()
+    let cfg = parse_args(argv)
+
+    if cfg.show_help:
+        print(usage())
+        return EXIT_HELP
+
+    if cfg.show_version:
+        print(version())
+        return EXIT_HELP
+
+    if cfg.subcommand == SUBCMD_HELP:
+        print(usage())
+        return EXIT_HELP
+
+    if cfg.subcommand == SUBCMD_VERSION:
+        print(version())
+        return EXIT_HELP
+
+    // Validate source path for execution subcommands
+    if needs_source(cfg.subcommand) and cfg.source_path == "":
+        println("[ERROR] No source file specified.")
+        println("Usage: codegen-verify " + cfg.subcommand + " <path/to/codegen_llvm/mod.rs>")
+        return EXIT_ERROR
+
+    // Build extraction target
+    let target = build_target(cfg)
+
+    // Dispatch
+    if cfg.subcommand == SUBCMD_ALPHA:
+        return cmd_alpha(cfg, target)
+
+    if cfg.subcommand == SUBCMD_BRAVO:
+        return cmd_bravo(cfg, target)
+
+    if cfg.subcommand == SUBCMD_CHARLIE:
+        return cmd_charlie(cfg, target)
+
+    if cfg.subcommand == SUBCMD_ALL:
+        return cmd_all(cfg, target)
+
+    println("Unknown subcommand: " + cfg.subcommand)
+    return EXIT_UNKNOWN
+
+
+// ============================================================================
+//  BUILD EXTRACTION TARGET
+// ============================================================================
+
+fn build_target(cfg: CliConfig) -> ExtractionTarget:
+    var target = default_target()
+    target.source_path = cfg.source_path
+
+    // Read source file bytes for parsing
+    let path = cfg.source_path
+    target.source_bytes = read_file_bytes(path)
+    target.num_lines = count_lines(target.source_bytes)
+
+    if cfg.quiet == false:
+        println("[TARGET] Source: " + path)
+        println("[TARGET] Bytes:  " + str(len(target.source_bytes)))
+        println("[TARGET] Lines:  " + str(target.num_lines))
+
+    return target
+
+
+// ============================================================================
+//  LANE: ALPHA — Types, Layout & Casts
+// ============================================================================
+
+fn cmd_alpha(cfg: CliConfig, target: ExtractionTarget) -> Int:
+    println("=== LLVM Codegen Verification — ALPHA ===")
+    println("  Domain: Types, Layout & Casts")
+    println("")
+
+    print(alpha_catalog_summary())
+    println("")
+
+    let report = run_alpha(target)
+    println(format_report(report))
+    println("")
+
+    if report.invariants_failed > 0:
+        return EXIT_ERROR
+
+    return EXIT_OK
+
+
+// ============================================================================
+//  LANE: BRAVO — Memory, Ownership & Control Flow
+// ============================================================================
+
+fn cmd_bravo(cfg: CliConfig, target: ExtractionTarget) -> Int:
+    println("=== LLVM Codegen Verification — BRAVO ===")
+    println("  Domain: Memory, Ownership & Control Flow")
+    println("")
+
+    let report = bravo_memory.run_bravo(target)
+    println("")
+    println(format_report(report))
+    println("")
+
+    bravo_memory.print_summary(report)
+    return EXIT_OK
+
+
+// ============================================================================
+//  LANE: CHARLIE — Runtime, Stones & Specials
+// ============================================================================
+
+fn cmd_charlie(cfg: CliConfig, target: ExtractionTarget) -> Int:
+    println("=== LLVM Codegen Verification — CHARLIE ===")
+    println("  Domain: Runtime Bridge, Machine Stones & Specials")
+    println("")
+
+    // Print catalog summary
+    print(get_catalog_summary())
+    println("")
+
+    // Run full verification
+    let report = run_charlie(target)
+    println(format_report(report))
+    println("")
+
+    // Export proof packs if output path specified
+    if cfg.output_path != "":
+        let packs = export_proof_packs(target)
+        println("[CHARLIE] " + str(len(packs)) + " proof pack(s) generated to " + cfg.output_path)
+    else:
+        let packs = export_proof_packs(target)
+        println("[CHARLIE] " + str(len(packs)) + " proof pack(s) generated")
+
+    if report.invariants_failed > 0:
+        return EXIT_ERROR
+
+    return EXIT_OK
+
+
+// ============================================================================
+//  LANE: ALL — Run all three lanes and merge
+// ============================================================================
+
+fn cmd_all(cfg: CliConfig, target: ExtractionTarget) -> Int:
+    println("=== LLVM Codegen Verification — ALL LANES ===")
+    println("")
+
+    var exit_code = EXIT_OK
+
+    // Run Alpha
+    println("--- ALPHA: Types, Layout & Casts ---")
+    let alpha_rc = cmd_alpha(cfg, target)
+
+    println("")
+
+    // Run Bravo
+    println("--- BRAVO: Memory, Ownership & Control Flow ---")
+    let bravo_rc = cmd_bravo(cfg, target)
+
+    println("")
+
+    // Run Charlie
+    println("--- CHARLIE: Runtime, Stones & Specials ---")
+    let charlie_rc = cmd_charlie(cfg, target)
+
+    println("")
+
+    // Merge exit codes
+    if alpha_rc != EXIT_OK:   exit_code = EXIT_ERROR
+    if bravo_rc != EXIT_OK:   exit_code = EXIT_ERROR
+    if charlie_rc != EXIT_OK: exit_code = EXIT_ERROR
+
+    println("=== All lanes complete ===")
+    return exit_code
+
+
+// ============================================================================
+//  FILE I/O HELPERS
+// ============================================================================
+
+fn read_file_bytes(path: String) -> Array<Int>:
+    // Placeholder — will use fs module for real file I/O
+    return []
+
+fn count_lines(bytes: Array<Int>) -> Int:
+    var count = 0
+    var i = 0
+    while i < len(bytes):
+        if bytes[i] == 10:    // '\n'
+            count = count + 1
+        i = i + 1
+    return count

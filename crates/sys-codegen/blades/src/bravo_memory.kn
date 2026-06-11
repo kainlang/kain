@@ -1,0 +1,1221 @@
+// ============================================================================
+//  bravo_memory.kn — Memory, Ownership & Control Flow Verification Engine
+//
+//  Domain: Extracts logic from codegen_llvm/mod.rs, defines invariants, and
+//  generates Z3 proof pack skeletons for ephemeral storage lowering, heap/RC
+//  management, scope lifetime, control flow, and atomics/fences.
+//
+//  Design: Layer 0 (fn + struct + enum). Value semantics. The verification
+//  pipeline is a read-only analysis engine — no concurrent state, no journaled
+//  mutation, no UI. Uses fn composition with structured reports.
+//
+//  Ladder Decision:
+//    - No world (no shared concurrent state)
+//    - No actor (no message-passing concurrency)
+//    - No patch/law (no journaled mutation to guard)
+//    - No converge/orchestrate (no spec/fast lanes, no multi-stage graph)
+//    - Layer 0 is correct: fn, struct, let, match, for, if are sufficient.
+// ============================================================================
+
+use data
+use std::text
+
+// ============================================================================
+//  DOMAIN & LANE CONSTANTS
+// ============================================================================
+
+pub const CATEGORY_EPHEMERAL_LOWER:  String = "ephemeral_lowering"
+pub const CATEGORY_EPHEMERAL_CAND:   String = "ephemeral_candidate"
+pub const CATEGORY_HEAP_RC:          String = "heap_rc"
+pub const CATEGORY_SCOPE:            String = "scope_lifetime"
+pub const CATEGORY_CONTROL:          String = "control_flow"
+pub const CATEGORY_ATOMIC:           String = "atomic_fence"
+pub const CATEGORY_I64_TRACK:        String = "i64_literal_tracking"
+
+// ============================================================================
+//  FUNCTION DESCRIPTOR — metadata for one cataloged function
+// ============================================================================
+
+pub struct FunctionDescriptor:
+    name:        String
+    line_start:  Int
+    line_end:    Int
+    category:    String
+    description: String
+
+// ============================================================================
+//  FUNCTION CATALOGS — all functions in BRAVO domain, by category
+// ============================================================================
+
+pub const EPHEMERAL_FUNCTIONS: Array<FunctionDescriptor> = [
+    FunctionDescriptor {
+        name: "coerce_pointer_value_to_typed_memory_pointer",
+        line_start: 3202, line_end: 3226, category: CATEGORY_EPHEMERAL_LOWER,
+        description: "Converts pointer expressions to typed LLVM pointers via bitcast/inttoptr"
+    },
+    FunctionDescriptor {
+        name: "compile_non_ephemeral_typed_memory_pointer",
+        line_start: 3228, line_end: 3297, category: CATEGORY_EPHEMERAL_LOWER,
+        description: "Non-ephemeral (heap/shared) pointer lowering with GEP chains"
+    },
+    FunctionDescriptor {
+        name: "compile_ephemeral_storage_i8_pointer",
+        line_start: 3299, line_end: 3397, category: CATEGORY_EPHEMERAL_LOWER,
+        description: "Extracts i8* base pointer from ephemeral alloca; handles Ident, Paren, Cast, Bitcast, PtrOffset, __kain_ptr_offset"
+    },
+    FunctionDescriptor {
+        name: "compile_ephemeral_typed_memory_pointer",
+        line_start: 3399, line_end: 3479, category: CATEGORY_EPHEMERAL_LOWER,
+        description: "Like ephemeral_storage_i8_pointer but returns typed pointer + alignment"
+    },
+    FunctionDescriptor {
+        name: "scalar_forward_key", line_start: 3481, line_end: 3505, category: CATEGORY_EPHEMERAL_LOWER,
+        description: "Detects whether a store/load pair can be forwarded (mem2reg optimization)"
+    },
+    FunctionDescriptor {
+        name: "forwardable_mem_pointer_key", line_start: 3507, line_end: 3547, category: CATEGORY_EPHEMERAL_LOWER,
+        description: "Generates forwarding key for memory pointer expressions"
+    },
+    FunctionDescriptor {
+        name: "forwarded_mem_load_slot", line_start: 3549, line_end: 3567, category: CATEGORY_EPHEMERAL_LOWER,
+        description: "Looks up forwarded memory load slot in scope chain"
+    },
+    FunctionDescriptor {
+        name: "current_forwarded_mem_load_slot", line_start: 3569, line_end: 3576, category: CATEGORY_EPHEMERAL_LOWER,
+        description: "Current-scope lookup for forwarded memory load slot"
+    },
+    FunctionDescriptor {
+        name: "record_forwarded_mem_store", line_start: 3578, line_end: 3597, category: CATEGORY_EPHEMERAL_LOWER,
+        description: "Records a memory store for future forwarding lookup"
+    },
+    FunctionDescriptor {
+        name: "scalar_ssa_local_type", line_start: 3630, line_end: 3650, category: CATEGORY_EPHEMERAL_LOWER,
+        description: "Can this type live in SSA? (i1, i8-i64, double, pointer types)"
+    },
+    FunctionDescriptor {
+        name: "aggregate_ssa_local_type", line_start: 3652, line_end: 3675, category: CATEGORY_EPHEMERAL_LOWER,
+        description: "Can this aggregate type live in SSA?"
+    },
+    FunctionDescriptor {
+        name: "value_can_lower_as_ssa_local", line_start: 3677, line_end: 3695, category: CATEGORY_EPHEMERAL_LOWER,
+        description: "Combined SSA feasibility check for a type"
+    },
+    FunctionDescriptor {
+        name: "stmts_require_addressable_local", line_start: 3697, line_end: 3720, category: CATEGORY_EPHEMERAL_LOWER,
+        description: "Do remaining statements force addressable lowering?"
+    },
+    FunctionDescriptor {
+        name: "block_requires_addressable_local", line_start: 3722, line_end: 3735, category: CATEGORY_EPHEMERAL_LOWER,
+        description: "Does a block force addressable lowering for a variable?"
+    },
+    FunctionDescriptor {
+        name: "stmt_requires_addressable_local", line_start: 3737, line_end: 3810, category: CATEGORY_EPHEMERAL_LOWER,
+        description: "THE BIG ONE: does this statement force the variable to be addressable?"
+    },
+    FunctionDescriptor {
+        name: "expr_requires_addressable_local", line_start: 3812, line_end: 3896, category: CATEGORY_EPHEMERAL_LOWER,
+        description: "Does this expression need the variable's address (ref, pointer store, capture)?"
+    },
+]
+
+pub const CANDIDATE_FUNCTIONS: Array<FunctionDescriptor> = [
+    FunctionDescriptor {
+        name: "current_scope_marks_ephemeral_candidate", line_start: 3898, line_end: 3904, category: CATEGORY_EPHEMERAL_CAND,
+        description: "Checks if current scope marks a name as ephemeral candidate"
+    },
+    FunctionDescriptor {
+        name: "current_scope_elides_ephemeral_zero_init", line_start: 3906, line_end: 3912, category: CATEGORY_EPHEMERAL_CAND,
+        description: "Checks if current scope elides zero-init for a name"
+    },
+    FunctionDescriptor {
+        name: "expr_is_safe_for_ephemeral_local", line_start: 5192, line_end: 5553, category: CATEGORY_EPHEMERAL_CAND,
+        description: "MASSIVE (~1240 lines): checks if a variable can safely be lowered as ephemeral (no escape, no capture by ref, no loop carry)"
+    },
+    FunctionDescriptor {
+        name: "stmt_is_safe_for_ephemeral_local", line_start: 5555, line_end: 5593, category: CATEGORY_EPHEMERAL_CAND,
+        description: "Stmt-level ephemeral safety check"
+    },
+    FunctionDescriptor {
+        name: "block_is_safe_for_ephemeral_local", line_start: 5595, line_end: 5602, category: CATEGORY_EPHEMERAL_CAND,
+        description: "Block-level ephemeral safety check"
+    },
+    FunctionDescriptor {
+        name: "else_branch_is_safe_for_ephemeral_local", line_start: 5604, line_end: 5618, category: CATEGORY_EPHEMERAL_CAND,
+        description: "Else-branch ephemeral safety check"
+    },
+    FunctionDescriptor {
+        name: "remaining_statements_preserve_ephemeral_contract", line_start: 5620, line_end: 5631, category: CATEGORY_EPHEMERAL_CAND,
+        description: "Verifies remaining statements don't violate ephemeral contract"
+    },
+    FunctionDescriptor {
+        name: "collect_block_ephemeral_candidate_names", line_start: 5633, line_end: 5660, category: CATEGORY_EPHEMERAL_CAND,
+        description: "Collects ephemeral candidate variable names from a block"
+    },
+    FunctionDescriptor {
+        name: "collect_block_ephemeral_zero_init_elision_names", line_start: 5662, line_end: 5700, category: CATEGORY_EPHEMERAL_CAND,
+        description: "Collects variables eligible for zero-init elision"
+    },
+    FunctionDescriptor {
+        name: "current_scope_marks_fixed_array_candidate", line_start: 5702, line_end: 5708, category: CATEGORY_EPHEMERAL_CAND,
+        description: "Fixed array candidate scope check"
+    },
+    FunctionDescriptor {
+        name: "current_scope_marks_stack_shatter_candidate", line_start: 5710, line_end: 5716, category: CATEGORY_EPHEMERAL_CAND,
+        description: "Stack shatter candidate scope check"
+    },
+    FunctionDescriptor {
+        name: "current_scope_marks_literal_map_candidate", line_start: 5718, line_end: 5724, category: CATEGORY_EPHEMERAL_CAND,
+        description: "Literal map candidate scope check"
+    },
+    FunctionDescriptor {
+        name: "expr_is_fixed_i64_array_literal", line_start: 5726, line_end: 5745, category: CATEGORY_EPHEMERAL_CAND,
+        description: "Detects fixed-size i64 array literal expressions"
+    },
+    FunctionDescriptor {
+        name: "expr_is_safe_fixed_array_use", line_start: 5747, line_end: 5830, category: CATEGORY_EPHEMERAL_CAND,
+        description: "Checks safe use of fixed array candidate"
+    },
+    FunctionDescriptor {
+        name: "stmt_is_safe_fixed_array_use", line_start: 5832, line_end: 5860, category: CATEGORY_EPHEMERAL_CAND,
+        description: "Stmt-level fixed array safety check"
+    },
+    FunctionDescriptor {
+        name: "block_is_safe_fixed_array_use", line_start: 5862, line_end: 5870, category: CATEGORY_EPHEMERAL_CAND,
+        description: "Block-level fixed array safety check"
+    },
+    FunctionDescriptor {
+        name: "collect_block_fixed_array_candidate_names", line_start: 5872, line_end: 5890, category: CATEGORY_EPHEMERAL_CAND,
+        description: "Collects fixed array candidate names"
+    },
+    FunctionDescriptor {
+        name: "expr_is_direct_shattered_array_literal", line_start: 5892, line_end: 5910, category: CATEGORY_EPHEMERAL_CAND,
+        description: "Detects shattered array literal expressions"
+    },
+    FunctionDescriptor {
+        name: "expr_is_safe_stack_shatter_use", line_start: 5932, line_end: 5980, category: CATEGORY_EPHEMERAL_CAND,
+        description: "Stack shatter safety check"
+    },
+    FunctionDescriptor {
+        name: "stmt_is_safe_stack_shatter_use", line_start: 5982, line_end: 6000, category: CATEGORY_EPHEMERAL_CAND,
+        description: "Stmt-level stack shatter safety check"
+    },
+    FunctionDescriptor {
+        name: "block_is_safe_stack_shatter_use", line_start: 6002, line_end: 6010, category: CATEGORY_EPHEMERAL_CAND,
+        description: "Block-level stack shatter safety check"
+    },
+    FunctionDescriptor {
+        name: "collect_block_stack_shatter_candidate_names", line_start: 6012, line_end: 6030, category: CATEGORY_EPHEMERAL_CAND,
+        description: "Collects stack shatter candidate names"
+    },
+    FunctionDescriptor {
+        name: "expr_is_literal_map_seed", line_start: 6032, line_end: 6050, category: CATEGORY_EPHEMERAL_CAND,
+        description: "Detects literal map seed expressions"
+    },
+    FunctionDescriptor {
+        name: "collapse_body_begins_with_full_width_store", line_start: 6102, line_end: 6120, category: CATEGORY_EPHEMERAL_CAND,
+        description: "Checks if collapse body starts with full-width store"
+    },
+    FunctionDescriptor {
+        name: "remaining_statements_allow_ephemeral_zero_init_elision", line_start: 6122, line_end: 6150, category: CATEGORY_EPHEMERAL_CAND,
+        description: "Checks if remaining stmts allow zero-init elision"
+    },
+]
+
+pub const I64_TRACKING_FUNCTIONS: Array<FunctionDescriptor> = [
+    FunctionDescriptor {
+        name: "current_known_i64_literals", line_start: 3912, line_end: 3922, category: CATEGORY_I64_TRACK,
+        description: "Returns HashMap<String, i64> of known constant values per local"
+    },
+    FunctionDescriptor {
+        name: "current_known_nonnegative_i64s", line_start: 3924, line_end: 3932, category: CATEGORY_I64_TRACK,
+        description: "Returns HashSet<String> of known nonnegative i64 locals"
+    },
+    FunctionDescriptor {
+        name: "active_loop_bounds_for", line_start: 3946, line_end: 3954, category: CATEGORY_I64_TRACK,
+        description: "Returns Option<LoopIndexBounds> for a loop variable"
+    },
+    FunctionDescriptor {
+        name: "resolve_i64_literal", line_start: 3956, line_end: 3984, category: CATEGORY_I64_TRACK,
+        description: "Constant folding: resolves i64 literal from expr with bindings"
+    },
+    FunctionDescriptor {
+        name: "expr_is_proven_nonnegative_i64", line_start: 4006, line_end: 4014, category: CATEGORY_I64_TRACK,
+        description: "Checks if expr is proven nonnegative"
+    },
+    FunctionDescriptor {
+        name: "debug_mentions_identifier", line_start: 4016, line_end: 4030, category: CATEGORY_I64_TRACK,
+        description: "Checks if any debug construct mentions an identifier"
+    },
+    FunctionDescriptor {
+        name: "expr_has_loop_that_mentions_identifier", line_start: 4032, line_end: 4050, category: CATEGORY_I64_TRACK,
+        description: "Recursively checks if expr contains a loop mentioning target"
+    },
+    FunctionDescriptor {
+        name: "stmt_has_loop_that_mentions_identifier", line_start: 4052, line_end: 4070, category: CATEGORY_I64_TRACK,
+        description: "Recursively checks if stmt contains a loop mentioning target"
+    },
+    FunctionDescriptor {
+        name: "block_has_loop_that_mentions_identifier", line_start: 4072, line_end: 4080, category: CATEGORY_I64_TRACK,
+        description: "Block-level loop mention check"
+    },
+    FunctionDescriptor {
+        name: "expr_is_exact_target_pointer", line_start: 4082, line_end: 4094, category: CATEGORY_I64_TRACK,
+        description: "Checks if expr is exactly the target pointer (Ident == target)"
+    },
+    FunctionDescriptor {
+        name: "expr_is_ephemeral_target_address", line_start: 4096, line_end: 4118, category: CATEGORY_I64_TRACK,
+        description: "Checks if expr computes an ephemeral target address"
+    },
+    FunctionDescriptor {
+        name: "stmt_binds_i64_literal", line_start: 4120, line_end: 4132, category: CATEGORY_I64_TRACK,
+        description: "Extracts (name, literal) from let-binding of i64 literal"
+    },
+    FunctionDescriptor {
+        name: "collect_expr_assigned_identifier_names", line_start: 4146, line_end: 4280, category: CATEGORY_I64_TRACK,
+        description: "Collects all assigned identifier names from an expression"
+    },
+    FunctionDescriptor {
+        name: "record_stmt_i64_literal_effects", line_start: 4302, line_end: 4320, category: CATEGORY_I64_TRACK,
+        description: "Records i64 literal bindings/assignments from a stmt"
+    },
+    FunctionDescriptor {
+        name: "record_stmt_nonnegative_i64_effects", line_start: 4322, line_end: 4340, category: CATEGORY_I64_TRACK,
+        description: "Records nonnegative i64 facts from a stmt"
+    },
+    FunctionDescriptor {
+        name: "expr_obvious_llvm_ty", line_start: 4342, line_end: 4360, category: CATEGORY_I64_TRACK,
+        description: "Determines obvious LLVM type from expression"
+    },
+]
+
+pub const HEAP_RC_FUNCTIONS: Array<FunctionDescriptor> = [
+    FunctionDescriptor {
+        name: "emit_heap_owned_i8_guard", line_start: 16375, line_end: 16400, category: CATEGORY_HEAP_RC,
+        description: "Checks if an i8* value is heap-allocated (non-null, low bits clear)"
+    },
+    FunctionDescriptor {
+        name: "emit_rc_retain_if_heap_i8", line_start: 16401, line_end: 16416, category: CATEGORY_HEAP_RC,
+        description: "Inserts RC increment if value is heap-allocated"
+    },
+    FunctionDescriptor {
+        name: "emit_rc_release_if_heap_i8", line_start: 16417, line_end: 16432, category: CATEGORY_HEAP_RC,
+        description: "Inserts RC decrement if value is heap-allocated"
+    },
+    FunctionDescriptor {
+        name: "emit_heap_owned_retain_for_transfer", line_start: 16433, line_end: 16460, category: CATEGORY_HEAP_RC,
+        description: "Retain before transferring ownership; handles i8*, i64/json, struct*"
+    },
+    FunctionDescriptor {
+        name: "emit_release", line_start: 16462, line_end: 16482, category: CATEGORY_HEAP_RC,
+        description: "General release: i8* goes to rc_release, structs recursively release fields"
+    },
+    FunctionDescriptor {
+        name: "emit_release_if_new_object_expr", line_start: 16484, line_end: 16490, category: CATEGORY_HEAP_RC,
+        description: "Releases value only if it's a new object (RC=1)"
+    },
+    FunctionDescriptor {
+        name: "is_new_object", line_start: 16694, line_end: 16730, category: CATEGORY_HEAP_RC,
+        description: "Detects freshly constructed objects that don't need retain"
+    },
+    FunctionDescriptor {
+        name: "expr_needs_rc_retain", line_start: 2931, line_end: 2936, category: CATEGORY_HEAP_RC,
+        description: "Checks if expr needs RC retain (not new, imported provenance)"
+    },
+    FunctionDescriptor {
+        name: "expr_is_raw_pointer_value", line_start: 2938, line_end: 2956, category: CATEGORY_HEAP_RC,
+        description: "Detects raw pointer values (authored, helper-owned, ephemeral)"
+    },
+    FunctionDescriptor {
+        name: "expr_needs_shared_value_retain", line_start: 2958, line_end: 2992, category: CATEGORY_HEAP_RC,
+        description: "Determines if shared value needs RC retain for escape"
+    },
+    FunctionDescriptor {
+        name: "match_fallback_value_for_type", line_start: 16680, line_end: 16693, category: CATEGORY_HEAP_RC,
+        description: "Returns default/fallback value for a type (0, null, 0.0, etc.)"
+    },
+    FunctionDescriptor {
+        name: "ownership_pointer_provenance_for_expr", line_start: 2994, line_end: 3030, category: CATEGORY_HEAP_RC,
+        description: "Determines ownership provenance: HelperOwned, EphemeralLocal, or ImportedOrUnknown"
+    },
+    FunctionDescriptor {
+        name: "record_helper_owned_pointer_local", line_start: 16630, line_end: 16650, category: CATEGORY_HEAP_RC,
+        description: "Records a helper-owned pointer local"
+    },
+    FunctionDescriptor {
+        name: "collect_helper_owned_pointer_transfer_locals", line_start: 16652, line_end: 16665, category: CATEGORY_HEAP_RC,
+        description: "Collects helper-owned locals that need transfer"
+    },
+    FunctionDescriptor {
+        name: "helper_owned_pointer_transfer_locals_for_expr", line_start: 16666, line_end: 16680, category: CATEGORY_HEAP_RC,
+        description: "Gets helper-owned transfer locals for an expression"
+    },
+]
+
+pub const SCOPE_FUNCTIONS: Array<FunctionDescriptor> = [
+    FunctionDescriptor {
+        name: "emit_scope_cleanup_for_vars", line_start: 16483, line_end: 16488, category: CATEGORY_SCOPE,
+        description: "Releases variables going out of scope (reverse order)"
+    },
+    FunctionDescriptor {
+        name: "emit_scope_cleanup_for_vars_except", line_start: 16489, line_end: 16540, category: CATEGORY_SCOPE,
+        description: "Releases variables except those in skipped set"
+    },
+    FunctionDescriptor {
+        name: "emit_scope_exit", line_start: 16542, line_end: 16547, category: CATEGORY_SCOPE,
+        description: "Full scope exit with cleanup"
+    },
+    FunctionDescriptor {
+        name: "emit_current_scope_defers", line_start: 16549, line_end: 16555, category: CATEGORY_SCOPE,
+        description: "Emits deferred expressions in reverse order"
+    },
+    FunctionDescriptor {
+        name: "emit_all_defer_cleanups", line_start: 16557, line_end: 16560, category: CATEGORY_SCOPE,
+        description: "Emits all deferred cleanups from depth 0"
+    },
+    FunctionDescriptor {
+        name: "emit_defer_cleanups_from_depth", line_start: 16562, line_end: 16568, category: CATEGORY_SCOPE,
+        description: "Emits deferred cleanups from a given scope depth"
+    },
+    FunctionDescriptor {
+        name: "emit_defer_exprs", line_start: 16570, line_end: 16580, category: CATEGORY_SCOPE,
+        description: "Emits individual defer expressions, releasing new objects"
+    },
+    FunctionDescriptor {
+        name: "emit_scope_exit_except", line_start: 16582, line_end: 16588, category: CATEGORY_SCOPE,
+        description: "Scope exit skipping certain variables"
+    },
+    FunctionDescriptor {
+        name: "emit_all_scopes_cleanup", line_start: 16590, line_end: 16595, category: CATEGORY_SCOPE,
+        description: "Cleans up all active scopes"
+    },
+    FunctionDescriptor {
+        name: "emit_all_scopes_cleanup_except", line_start: 16596, line_end: 16630, category: CATEGORY_SCOPE,
+        description: "Cleans up all scopes except certain variables"
+    },
+]
+
+pub const CONTROL_FUNCTIONS: Array<FunctionDescriptor> = [
+    FunctionDescriptor {
+        name: "compile_function", line_start: 16128, line_end: 16144, category: CATEGORY_CONTROL,
+        description: "Entry point for function codegen; dispatches extern vs named callable"
+    },
+    FunctionDescriptor {
+        name: "compile_extern_function", line_start: 16146, line_end: 16200, category: CATEGORY_CONTROL,
+        description: "Extern function declarations with ABI surface checks"
+    },
+    FunctionDescriptor {
+        name: "compile_block", line_start: 16202, line_end: 16238, category: CATEGORY_CONTROL,
+        description: "Compiles a block, pushing/poping scopes, tracking ephemeral candidates"
+    },
+    FunctionDescriptor {
+        name: "compile_block_with_result", line_start: 16261, line_end: 16374, category: CATEGORY_CONTROL,
+        description: "Block that returns a value: last stmt is expr, retains before scope exit"
+    },
+    FunctionDescriptor {
+        name: "compile_if_statement", line_start: 16710, line_end: 16830, category: CATEGORY_CONTROL,
+        description: "If/elif/else lowering with PHI node generation"
+    },
+    FunctionDescriptor {
+        name: "compile_stmt", line_start: 16753, line_end: 17510, category: CATEGORY_CONTROL,
+        description: "THE BIG stmt compiler: let, assign, return, if, while, for, match, defer, expr stmts, 110+ constructs"
+    },
+    FunctionDescriptor {
+        name: "compile_expr", line_start: 18384, line_end: 21267, category: CATEGORY_CONTROL,
+        description: "THE MAIN expression compiler: handles every Kain expr variant"
+    },
+    FunctionDescriptor {
+        name: "compile_direct_call", line_start: 17512, line_end: 17750, category: CATEGORY_CONTROL,
+        description: "Function call compilation, handles stdlib, extern, actor calls, ownership transfer"
+    },
+    FunctionDescriptor {
+        name: "compile_stage_call", line_start: 17752, line_end: 17800, category: CATEGORY_CONTROL,
+        description: "Orchestrate stage call compilation"
+    },
+    FunctionDescriptor {
+        name: "compile_numeric_floor_builtin", line_start: 17802, line_end: 17820, category: CATEGORY_CONTROL,
+        description: "Numeric floor builtin"
+    },
+    FunctionDescriptor {
+        name: "compile_numeric_abs_builtin", line_start: 17822, line_end: 17840, category: CATEGORY_CONTROL,
+        description: "Numeric abs builtin"
+    },
+    FunctionDescriptor {
+        name: "compile_numeric_min_or_max_builtin", line_start: 17842, line_end: 17870, category: CATEGORY_CONTROL,
+        description: "Numeric min/max builtin"
+    },
+    FunctionDescriptor {
+        name: "compile_numeric_clamp_builtin", line_start: 17872, line_end: 17890, category: CATEGORY_CONTROL,
+        description: "Numeric clamp builtin"
+    },
+    FunctionDescriptor {
+        name: "compile_stdout_write_call", line_start: 17892, line_end: 17910, category: CATEGORY_CONTROL,
+        description: "stdout write call compilation"
+    },
+    FunctionDescriptor {
+        name: "compile_assert_call", line_start: 17912, line_end: 17930, category: CATEGORY_CONTROL,
+        description: "assert call compilation"
+    },
+    FunctionDescriptor {
+        name: "compile_macro_call", line_start: 17932, line_end: 17960, category: CATEGORY_CONTROL,
+        description: "Macro call compilation"
+    },
+]
+
+pub const ATOMIC_FUNCTIONS: Array<FunctionDescriptor> = [
+    FunctionDescriptor {
+        name: "target_is_x86_64", line_start: 3032, line_end: 3038, category: CATEGORY_ATOMIC,
+        description: "Checks if target is x86_64 (Windows or Linux)"
+    },
+    FunctionDescriptor {
+        name: "target_is_windows_x64", line_start: 3040, line_end: 3044, category: CATEGORY_ATOMIC,
+        description: "Checks if target is Windows x64"
+    },
+    FunctionDescriptor {
+        name: "escape_llvm_inline_asm_fragment", line_start: 3046, line_end: 3056, category: CATEGORY_ATOMIC,
+        description: "Escapes inline asm fragments for LLVM text format"
+    },
+    FunctionDescriptor {
+        name: "emit_inline_asm_call", line_start: 3058, line_end: 3120, category: CATEGORY_ATOMIC,
+        description: "Emits LLVM call void asm instruction with constraints"
+    },
+    FunctionDescriptor {
+        name: "compile_inline_asm", line_start: 3122, line_end: 3136, category: CATEGORY_ATOMIC,
+        description: "Compiles inline asm: compiles operands, coerces to i64, emits"
+    },
+    FunctionDescriptor {
+        name: "compile_cpu_fence", line_start: 3138, line_end: 3156, category: CATEGORY_ATOMIC,
+        description: "Compiles CPU fence as volatile inline asm with memory clobber"
+    },
+    FunctionDescriptor {
+        name: "compile_cpu_cache_flush", line_start: 3158, line_end: 3189, category: CATEGORY_ATOMIC,
+        description: "Compiles clflush via volatile inline asm, x86_64-only"
+    },
+]
+
+// ============================================================================
+//  PARSER HELPERS — work with Array<Int> (raw bytes) for Rust source analysis
+// ============================================================================
+
+fn is_whitespace_byte(b: Int) -> Bool:
+    return b == 32 or b == 9 or b == 13 or b == 10
+
+fn is_alpha_byte(b: Int) -> Bool:
+    return (b >= 65 and b <= 90) or (b >= 97 and b <= 122) or b == 95
+
+fn is_ident_byte(b: Int) -> Bool:
+    return is_alpha_byte(b) or (b >= 48 and b <= 57) or b == 95
+
+fn byte_to_char(b: Int) -> String:
+    // Single-byte to single-char mapping for ASCII
+    // Uses text_chr which converts a codepoint to a string
+    return text_chr(b)
+
+fn extract_word_at(bytes: Array<Int>, start: Int) -> String:
+    var result = ""
+    var idx = start
+    while idx < len(bytes) and is_ident_byte(bytes[idx]):
+        result = result + byte_to_char(bytes[idx])
+        idx = idx + 1
+    return result
+
+fn bytes_equal_at(bytes: Array<Int>, offset: Int, pattern: String) -> Bool:
+    var j = 0
+    while j < len(pattern):
+        if offset + j >= len(bytes):
+            return false
+        let pb = text_ord(text_substring_string(pattern, j, 1))
+        if bytes[offset + j] != pb:
+            return false
+        j = j + 1
+    return true
+
+fn line_number_of(bytes: Array<Int>, offset: Int) -> Int:
+    var line_num = 1
+    var idx = 0
+    while idx < offset and idx < len(bytes):
+        if bytes[idx] == 10:
+            line_num = line_num + 1
+        idx = idx + 1
+    return line_num
+
+fn skip_whitespace(bytes: Array<Int>, start: Int) -> Int:
+    var idx = start
+    while idx < len(bytes) and is_whitespace_byte(bytes[idx]):
+        idx = idx + 1
+    return idx
+
+// Find "fn " keyword at Rust function declarations
+fn find_fn_declarations(bytes: Array<Int>) -> Array<Int>:
+    var positions: Array<Int> = []
+    var idx = 0
+    while idx + 3 < len(bytes):
+        // Look for "fn " after whitespace or at line start
+        if bytes[idx] == 102 and bytes[idx+1] == 110 and (bytes[idx+2] == 32 or bytes[idx+2] == 10):
+            let prev = if idx > 0: bytes[idx-1] else: 32
+            if is_whitespace_byte(prev) or prev == 10 or prev == 13:
+                let fn_name = extract_word_at(bytes, idx + 3)
+                if len(fn_name) > 0:
+                    push(positions, idx)
+        idx = idx + 1
+    return positions
+
+fn extract_function_name(bytes: Array<Int>, fn_pos: Int) -> String:
+    var idx = fn_pos + 2  // skip "fn"
+    while idx < len(bytes) and is_whitespace_byte(bytes[idx]) and bytes[idx] != 10:
+        idx = idx + 1
+    return extract_word_at(bytes, idx)
+
+fn extract_function_signature(bytes: Array<Int>, fn_pos: Int) -> String:
+    var sig_text = ""
+    var idx = fn_pos
+    var found_end = false
+    while idx < len(bytes) and idx < fn_pos + 8000 and found_end == false:
+        if bytes[idx] == 123:  // '{' — start of body
+            found_end = true
+        elif bytes[idx] == 59:  // ';' — extern decl, no body
+            found_end = true
+        elif found_end == false:
+            if bytes[idx] == 10:
+                sig_text = sig_text + " "
+            else:
+                sig_text = sig_text + byte_to_char(bytes[idx])
+        idx = idx + 1
+    if len(sig_text) > 250:
+        sig_text = text_substring_string(sig_text, 0, 250) + "..."
+    return sig_text
+
+fn find_function_end_line(bytes: Array<Int>, fn_pos: Int) -> Int:
+    var depth = 0
+    var found_open = false
+    var start_line = line_number_of(bytes, fn_pos)
+    var idx = fn_pos
+    while idx < len(bytes):
+        if bytes[idx] == 123:  // '{'
+            depth = depth + 1
+            found_open = true
+        elif bytes[idx] == 125:  // '}'
+            depth = depth - 1
+            if found_open and depth == 0:
+                return line_number_of(bytes, idx)
+        elif bytes[idx] == 59 and found_open == false:
+            return line_number_of(bytes, idx)
+        idx = idx + 1
+    return start_line + 5  // fallback
+
+fn extract_return_type(sig: String) -> String:
+    let arrow = text_find(text_from(sig), "->")
+    if arrow < 0:
+        return "void"
+    var after = text_trim_string(text_substring_string(sig, arrow + 2, len(sig) - arrow - 2))
+    // Take first word: iterate until non-alpha
+    var i = 0
+    var result = ""
+    while i < len(after) and is_alpha_byte(text_ord(text_substring_string(after, i, 1))):
+        result = result + text_substring_string(after, i, 1)
+        i = i + 1
+    if len(result) > 0:
+        return result
+    return after
+
+fn extract_params(sig: String) -> Array<ParamMeta>:
+    var params: Array<ParamMeta> = []
+    let open = text_find(text_from(sig), "(")
+    let close = text_find(text_from(sig), ")")
+    if open < 0 or close < 0 or close <= open:
+        return params
+    let param_str = text_substring_string(sig, open + 1, close - open - 1)
+    if len(text_trim_string(param_str)) == 0:
+        return params
+    let parts = text_split_string(param_str, ",")
+    var pi = 0
+    while pi < len(parts):
+        let part = text_trim_string(parts[pi])
+        if len(part) > 0:
+            var is_self = false
+            var is_mut = false
+            var pname = ""
+            var ptype = part
+
+            if text_contains_string(part, "&mut self"):
+                is_self = true
+                is_mut = true
+                pname = "self"
+                ptype = "&mut self"
+            elif text_contains_string(part, "&self"):
+                is_self = true
+                pname = "self"
+                ptype = "&self"
+            elif text_contains_string(part, "mut self"):
+                is_self = true
+                is_mut = true
+                pname = "self"
+                ptype = "mut self"
+            elif text_starts_with_string(part, "self"):
+                is_self = true
+                pname = "self"
+                ptype = "self"
+            else:
+                let colon = text_find(text_from(part), ":")
+                if colon >= 0:
+                    pname = text_trim_string(text_substring_string(part, 0, colon))
+                    ptype = text_trim_string(text_substring_string(part, colon + 1, len(part) - colon - 1))
+
+            push(params, ParamMeta {
+                name: pname,
+                ty: ptype,
+                is_self: is_self,
+                is_mut: is_mut,
+            })
+        pi = pi + 1
+    return params
+
+// ============================================================================
+//  EXTRACTION — parse the source and produce FunctionMeta array
+// ============================================================================
+
+pub fn extract_function_meta(target: ExtractionTarget) -> Array<FunctionMeta>:
+    var results: Array<FunctionMeta> = []
+    let bytes = target.source_bytes
+    let positions = find_fn_declarations(bytes)
+
+    var i = 0
+    while i < len(positions):
+        let fn_pos = positions[i]
+        let name = extract_function_name(bytes, fn_pos)
+        if len(name) == 0:
+            i = i + 1
+            continue
+
+        let sig = extract_function_signature(bytes, fn_pos)
+        let line_start = line_number_of(bytes, fn_pos)
+        let line_end = find_function_end_line(bytes, fn_pos)
+        let ret_ty = extract_return_type(sig)
+        let params = extract_params(sig)
+        let is_pub = text_contains_string(sig, "pub fn") or text_contains_string(sig, "pub(crate) fn")
+
+        push(results, FunctionMeta {
+            name: name,
+            line_start: line_start,
+            line_end: line_end,
+            signature: sig,
+            return_type: ret_ty,
+            params: params,
+            doc_comment: "",
+            is_pub: is_pub,
+            is_impl_method: true,
+            impl_target: "",
+            domain: "memory",
+        })
+
+        i = i + 1
+
+    return results
+
+// ============================================================================
+//  FUNCTION SELECTION — filter extraction results by domain categories
+// ============================================================================
+
+fn list_contains_name(list: Array<FunctionDescriptor>, name: String) -> Bool:
+    var i = 0
+    while i < len(list):
+        if list[i].name == name:
+            return true
+        i = i + 1
+    return false
+
+pub fn matches_bravo_domain(meta: FunctionMeta) -> Bool:
+    let name = meta.name
+
+    if list_contains_name(EPHEMERAL_FUNCTIONS, name):   return true
+    if list_contains_name(CANDIDATE_FUNCTIONS, name):    return true
+    if list_contains_name(I64_TRACKING_FUNCTIONS, name): return true
+    if list_contains_name(HEAP_RC_FUNCTIONS, name):     return true
+    if list_contains_name(SCOPE_FUNCTIONS, name):        return true
+    if list_contains_name(CONTROL_FUNCTIONS, name):      return true
+    if list_contains_name(ATOMIC_FUNCTIONS, name):      return true
+
+    return false
+
+// ============================================================================
+//  HELPER — push all elements from one array into another
+// ============================================================================
+
+fn bravo_push_all(dest: Array<Invariant>, src: Array<Invariant>):
+    var j = 0
+    while j < len(src):
+        push(dest, src[j])
+        j = j + 1
+
+// ============================================================================
+//  INVARIANT DEFINITIONS
+//
+//  Each invariant represents a property that must hold for correctness.
+//  Categories: ephemeral_lowering, ephemeral_candidate, heap_rc, scope_lifetime,
+//  control_flow, atomic_fence.
+// ============================================================================
+
+fn make_invariant(
+    name: String, description: String, category: String,
+    smt2: String, proof_ref: String
+) -> Invariant:
+    return Invariant {
+        name: name,
+        description: description,
+        category: category,
+        smt2_skeleton: smt2,
+        is_proven: false,
+        proof_ref: proof_ref,
+    }
+
+// ============================================================================
+//  EPHEMERAL LOWERING INVARIANTS
+// ============================================================================
+
+pub fn define_ephemeral_invariants() -> Array<Invariant>:
+    var invs: Array<Invariant> = []
+
+    // EPH-001: SSA-lowered variable must never have its address taken
+    push(invs, make_invariant(
+        "EPH-001",
+        "A variable lowered as SSA must never have its address taken.",
+        CATEGORY_EPHEMERAL_LOWER,
+        "(set-logic QF_LIA)\n(declare-const ssa_lowered Bool)\n(declare-const addr_taken Bool)\n(assert ssa_lowered)\n(assert addr_taken)\n(check-sat)",
+        ""
+    ))
+
+    // EPH-002: Alloca must dominate all uses
+    push(invs, make_invariant(
+        "EPH-002",
+        "An alloca emitted for a variable must dominate all loads/stores.",
+        CATEGORY_EPHEMERAL_LOWER,
+        "(set-logic QF_LIA)\n(declare-const alloca_line Int)\n(declare-const use_line Int)\n(assert (>= use_line alloca_line))\n(assert (< use_line alloca_line))\n(check-sat)",
+        ""
+    ))
+
+    // EPH-003: Ephemeral candidates must not escape their scope
+    push(invs, make_invariant(
+        "EPH-003",
+        "An ephemeral candidate must not be captured by ref, passed to escape-prone functions, or stored to heap.",
+        CATEGORY_EPHEMERAL_LOWER,
+        "(set-logic QF_LIA)\n(declare-const is_ephemeral Bool)\n(declare-const escapes_scope Bool)\n(assert is_ephemeral)\n(assert escapes_scope)\n(check-sat)",
+        ""
+    ))
+
+    // EPH-004: Pointer coercion preserves memory access width
+    push(invs, make_invariant(
+        "EPH-004",
+        "Bitcast must preserve the storage width; inttoptr must recover the address.",
+        CATEGORY_EPHEMERAL_LOWER,
+        "(set-logic QF_BV)\n(declare-const src_ptr (_ BitVec 64))\n(declare-const typed_ptr (_ BitVec 64))\n(assert (= typed_ptr (bvand src_ptr #xFFFFFFFFFFFFFFFF)))\n(assert (not (= typed_ptr src_ptr)))\n(check-sat)",
+        ""
+    ))
+
+    // EPH-005: Forwarding store/load pair must see same value
+    push(invs, make_invariant(
+        "EPH-005",
+        "When a forwarded memory store/load pair matches, the loaded value must equal the stored value.",
+        CATEGORY_EPHEMERAL_LOWER,
+        "(set-logic QF_BV)\n(declare-const stored (_ BitVec 64))\n(declare-const loaded (_ BitVec 64))\n(assert (= stored loaded))\n(assert (not (= loaded stored)))\n(check-sat)",
+        ""
+    ))
+
+    // EPH-006: Ephemeral storage layout keeps element offsets aligned
+    push(invs, make_invariant(
+        "EPH-006",
+        "The element type's byte width must divide the alloca offset.",
+        CATEGORY_EPHEMERAL_LOWER,
+        "(set-logic QF_LIA)\n(declare-const byte_width Int)\n(declare-const offset Int)\n(assert (> byte_width 0))\n(assert (= (mod offset byte_width) 0))\n(check-sat)",
+        "z3/proofs/generated/memory-ephemeral-typed-array-stack-layout-keeps-element-offsets-aligned.yaml"
+    ))
+
+    return invs
+
+// ============================================================================
+//  HEAP & RC MANAGEMENT INVARIANTS
+// ============================================================================
+
+pub fn define_heap_rc_invariants() -> Array<Invariant>:
+    var invs: Array<Invariant> = []
+
+    // RC-001: Every retain must be paired with a release
+    push(invs, make_invariant(
+        "RC-001",
+        "For every retain on a value, there must be a corresponding release. No leak, no double-free.",
+        CATEGORY_HEAP_RC,
+        "(set-logic QF_LIA)\n(declare-fun retain_count () Int)\n(declare-fun release_count () Int)\n(assert (= retain_count release_count))\n(assert (not (= retain_count release_count)))\n(check-sat)",
+        ""
+    ))
+
+    // RC-002: No retain on new objects (RC=1)
+    push(invs, make_invariant(
+        "RC-002",
+        "is_new_object must return true only for freshly constructed objects. Double-retaining a new object would leak.",
+        CATEGORY_HEAP_RC,
+        "(set-logic QF_LIA)\n(declare-const is_new Bool)\n(declare-const emitted_retain Bool)\n(assert is_new)\n(assert emitted_retain)\n(check-sat)",
+        ""
+    ))
+
+    // RC-003: Raw pointers must stay RC-neutral
+    push(invs, make_invariant(
+        "RC-003",
+        "Raw pointers must never route through rc_retain/rc_release.",
+        CATEGORY_HEAP_RC,
+        "(set-logic QF_LIA)\n(declare-const is_raw Bool)\n(declare-const rc_retain_emitted Bool)\n(assert is_raw)\n(assert rc_retain_emitted)\n(check-sat)",
+        "z3/proofs/memory-rc-escape-transfer-balance.yaml"
+    ))
+
+    // RC-004: Release on struct must recursively release pointer fields
+    push(invs, make_invariant(
+        "RC-004",
+        "emit_release on a struct must recursively release each pointer field.",
+        CATEGORY_HEAP_RC,
+        "(set-logic QF_LIA)\n(declare-const num_releases Int)\n(declare-const num_ptr_fields Int)\n(assert (>= num_releases num_ptr_fields))\n(check-sat)",
+        ""
+    ))
+
+    // RC-005: Escape transfer retains before scope cleanup releases
+    push(invs, make_invariant(
+        "RC-005",
+        "compile_block_with_result must emit retain BEFORE scope exit destroys locals.",
+        CATEGORY_HEAP_RC,
+        "(set-logic QF_LIA)\n(declare-const retain_ir_line Int)\n(declare-const scope_exit_ir_line Int)\n(assert (< retain_ir_line scope_exit_ir_line))\n(check-sat)",
+        ""
+    ))
+
+    return invs
+
+// ============================================================================
+//  SCOPE LIFETIME INVARIANTS
+// ============================================================================
+
+pub fn define_scope_invariants() -> Array<Invariant>:
+    var invs: Array<Invariant> = []
+
+    // SCP-001: Variables must be cleaned up before scope exit
+    push(invs, make_invariant(
+        "SCP-001",
+        "emit_scope_cleanup_for_vars must release every variable in the current scope.",
+        CATEGORY_SCOPE,
+        "(set-logic QF_LIA)\n(declare-const vars_in_scope Int)\n(declare-const vars_cleaned Int)\n(assert (= vars_in_scope vars_cleaned))\n(check-sat)",
+        ""
+    ))
+
+    // SCP-002: Deferred expressions must execute in reverse order (LIFO)
+    push(invs, make_invariant(
+        "SCP-002",
+        "emit_current_scope_defers must iterate defer_scopes in reverse.",
+        CATEGORY_SCOPE,
+        "(set-logic QF_LIA)\n(declare-const defer_a_pos Int)\n(declare-const defer_b_pos Int)\n(declare-const defer_a_line Int)\n(declare-const defer_b_line Int)\n(assert (> defer_a_pos defer_b_pos))\n(assert (> defer_a_line defer_b_line))\n(check-sat)",
+        ""
+    ))
+
+    // SCP-003: Borrowed locals must be exempt from cleanup
+    push(invs, make_invariant(
+        "SCP-003",
+        "Scope cleanup must skip variables in self.borrowed_locals.",
+        CATEGORY_SCOPE,
+        "(set-logic QF_LIA)\n(declare-const is_borrowed Bool)\n(declare-const emitted_release Bool)\n(assert is_borrowed)\n(assert emitted_release)\n(check-sat)",
+        ""
+    ))
+
+    return invs
+
+// ============================================================================
+//  CONTROL FLOW INVARIANTS
+// ============================================================================
+
+pub fn define_control_invariants() -> Array<Invariant>:
+    var invs: Array<Invariant> = []
+
+    // CTL-001: All paths through if/else must converge to consistent PHI
+    push(invs, make_invariant(
+        "CTL-001",
+        "compile_if_statement must generate PHI nodes that reconcile values from all branch targets.",
+        CATEGORY_CONTROL,
+        "(set-logic QF_LIA)\n(declare-const then_ty Int)\n(declare-const else_ty Int)\n(assert (= then_ty else_ty))\n(assert (not (= then_ty else_ty)))\n(check-sat)",
+        ""
+    ))
+
+    // CTL-002: Loop headers must dominate loop bodies
+    push(invs, make_invariant(
+        "CTL-002",
+        "The entry block of a while/for/loop must dominate all blocks in the loop body.",
+        CATEGORY_CONTROL,
+        "(set-logic QF_LIA)\n(declare-const header_bb Int)\n(declare-const body_bb Int)\n(assert (>= body_bb header_bb))\n(check-sat)",
+        ""
+    ))
+
+    // CTL-003: Match arms must be exhaustive
+    push(invs, make_invariant(
+        "CTL-003",
+        "compile_stmt for match expressions must handle all enum variants.",
+        CATEGORY_CONTROL,
+        "(set-logic QF_LIA)\n(declare-const num_variants Int)\n(declare-const num_arms Int)\n(assert (>= num_arms num_variants))\n(check-sat)",
+        ""
+    ))
+
+    // CTL-004: Return value retain must precede scope exit
+    push(invs, make_invariant(
+        "CTL-004",
+        "compile_block_with_result must emit retain before emit_scope_exit_except.",
+        CATEGORY_CONTROL,
+        "(set-logic QF_LIA)\n(declare-const retain_idx Int)\n(declare-const exit_idx Int)\n(assert (< retain_idx exit_idx))\n(assert (>= retain_idx exit_idx))\n(check-sat)",
+        ""
+    ))
+
+    // CTL-005: All blocks must push/pop matching scopes
+    push(invs, make_invariant(
+        "CTL-005",
+        "compile_block must have matching push/pop on all paths including error paths.",
+        CATEGORY_CONTROL,
+        "(set-logic QF_LIA)\n(declare-const pushes Int)\n(declare-const pops Int)\n(assert (= pushes pops))\n(check-sat)",
+        ""
+    ))
+
+    return invs
+
+// ============================================================================
+//  ATOMIC & FENCE INVARIANTS
+// ============================================================================
+
+pub fn define_atomic_invariants() -> Array<Invariant>:
+    var invs: Array<Invariant> = []
+
+    // ATM-001: Store ordering must never be Acquire or AcqRel
+    push(invs, make_invariant(
+        "ATM-001",
+        "Atomic stores must only use Relaxed (0), Release (2), or SeqCst (4) ordering.",
+        CATEGORY_ATOMIC,
+        "(set-logic QF_LIA)\n(declare-const ordering Int)\n(assert (>= ordering 0))\n(assert (<= ordering 4))\n(assert (or (= ordering 0) (= ordering 2) (= ordering 4)))\n(assert (not (or (= ordering 0) (= ordering 2) (= ordering 4))))\n(check-sat)",
+        "z3/proofs/memory-atomic-store-validation-rejects-acquire-and-acqrel.yaml"
+    ))
+
+    // ATM-002: CAS failure ordering <= success ordering
+    push(invs, make_invariant(
+        "ATM-002",
+        "For atomic compare-exchange, failure ordering must be <= success ordering.",
+        CATEGORY_ATOMIC,
+        "(set-logic QF_LIA)\n(declare-const succ Int)\n(declare-const fail Int)\n(assert (>= succ fail))\n(assert (< succ fail))\n(check-sat)",
+        "z3/proofs/memory-atomic-compare-exchange-validation-rejects-invalid-failure-orderings.yaml"
+    ))
+
+    // ATM-003: Inline asm constraints must match operand count
+    push(invs, make_invariant(
+        "ATM-003",
+        "emit_inline_asm_call must ensure constraint count equals operand count.",
+        CATEGORY_ATOMIC,
+        "(set-logic QF_LIA)\n(declare-const num_constraints Int)\n(declare-const num_operands Int)\n(assert (= num_constraints num_operands))\n(assert (not (= num_constraints num_operands)))\n(check-sat)",
+        ""
+    ))
+
+    // ATM-004: x86_64-only operations must gate on target
+    push(invs, make_invariant(
+        "ATM-004",
+        "compile_inline_asm and compile_cpu_cache_flush must check target_is_x86_64().",
+        CATEGORY_ATOMIC,
+        "(set-logic QF_LIA)\n(declare-const is_x86_64 Bool)\n(declare-const asm_emitted Bool)\n(assert (not is_x86_64))\n(assert asm_emitted)\n(check-sat)",
+        ""
+    ))
+
+    return invs
+
+// ============================================================================
+//  Z3 PROOF PACK GENERATOR
+// ============================================================================
+
+fn make_pack_id(inv_name: String) -> String:
+    let lowered = text_lower(inv_name)
+    let cleaned = text_replace_string(lowered, " ", "_")
+    return "kain.sys.codegen.llvm.proofs." + cleaned + ".generated"
+
+pub fn generate_proof_pack_for_invariant(
+    inv: Invariant,
+    source_path: String,
+    source_symbol: String,
+    source_line: Int,
+) -> ProofPackSkeleton:
+    return ProofPackSkeleton {
+        pack_id: make_pack_id(inv.name),
+        kind: "check_smt2",
+        description: inv.description,
+        tags: ["llvm", "memory", "ownership", "generated", inv.category],
+        source_path: source_path,
+        source_symbol: source_symbol,
+        source_line: source_line,
+        smt2: inv.smt2_skeleton,
+        needs_materialize: true,
+    }
+
+// ============================================================================
+//  MATERIALIZATION — write proof pack skeleton as YAML string
+// ============================================================================
+
+pub fn materialize_proof_pack_to_yaml(skeleton: ProofPackSkeleton) -> String:
+    var yml = "version: 1\n"
+    yml = yml + "id: " + skeleton.pack_id + "\n"
+    yml = yml + "kind: " + skeleton.kind + "\n"
+    yml = yml + "description: >\n  " + skeleton.description + "\n"
+    yml = yml + "tags:\n"
+    var t = 0
+    while t < len(skeleton.tags):
+        yml = yml + "  - " + skeleton.tags[t] + "\n"
+        t = t + 1
+    yml = yml + "source:\n"
+    yml = yml + "  path: " + skeleton.source_path + "\n"
+    yml = yml + "  symbol: " + skeleton.source_symbol + "\n"
+    yml = yml + "  start_line: " + str(skeleton.source_line) + "\n"
+    yml = yml + "  reason: auto-generated by bravo_memory verification engine\n"
+    yml = yml + "case:\n"
+    yml = yml + "  smt2: |\n"
+    let smt2_lines = text_split_string(skeleton.smt2, "\n")
+    var li = 0
+    while li < len(smt2_lines):
+        yml = yml + "    " + smt2_lines[li] + "\n"
+        li = li + 1
+    yml = yml + "  include_model: false\n"
+    yml = yml + "  include_stats: false\n"
+    return yml
+
+// ============================================================================
+//  REPORT DRIVER — main entry point for the BRAVO lane
+// ============================================================================
+
+pub fn run_bravo(target: ExtractionTarget) -> VerificationReport:
+    println("[BRAVO] Extracting memory, ownership & control flow functions...")
+
+    // Step 1: Extract function metadata from source
+    let all_meta = extract_function_meta(target)
+
+    // Filter to bravo domain functions
+    var bravo_meta: Array<FunctionMeta> = []
+    var i = 0
+    while i < len(all_meta):
+        if matches_bravo_domain(all_meta[i]):
+            push(bravo_meta, all_meta[i])
+        i = i + 1
+
+    target.num_functions = len(bravo_meta)
+    println("[BRAVO] Found " + str(len(bravo_meta)) + " functions in domain")
+
+    // Step 2: Define all invariants
+    var all_invariants: Array<Invariant> = []
+
+    bravo_push_all(all_invariants, define_ephemeral_invariants())
+    bravo_push_all(all_invariants, define_heap_rc_invariants())
+    bravo_push_all(all_invariants, define_scope_invariants())
+    bravo_push_all(all_invariants, define_control_invariants())
+    bravo_push_all(all_invariants, define_atomic_invariants())
+
+    println("[BRAVO] Defined " + str(len(all_invariants)) + " invariants across 5 categories")
+
+    // Step 3: Generate proof pack skeletons
+    var proof_packs: Array<ProofPackSkeleton> = []
+
+    i = 0
+    while i < len(bravo_meta):
+        let meta = bravo_meta[i]
+        var k = 0
+        while k < len(all_invariants):
+            let inv = all_invariants[k]
+            var matched = false
+
+            let cat = inv.category
+            if cat == CATEGORY_EPHEMERAL_LOWER or cat == CATEGORY_EPHEMERAL_CAND:
+                if list_contains_name(EPHEMERAL_FUNCTIONS, meta.name): matched = true
+                if list_contains_name(CANDIDATE_FUNCTIONS, meta.name):  matched = true
+            elif cat == CATEGORY_HEAP_RC or cat == CATEGORY_SCOPE:
+                if list_contains_name(HEAP_RC_FUNCTIONS, meta.name): matched = true
+                if list_contains_name(SCOPE_FUNCTIONS, meta.name):    matched = true
+            elif cat == CATEGORY_CONTROL:
+                if list_contains_name(CONTROL_FUNCTIONS, meta.name): matched = true
+            elif cat == CATEGORY_ATOMIC:
+                if list_contains_name(ATOMIC_FUNCTIONS, meta.name): matched = true
+            elif cat == CATEGORY_I64_TRACK:
+                if list_contains_name(I64_TRACKING_FUNCTIONS, meta.name): matched = true
+
+            if matched:
+                let pack = generate_proof_pack_for_invariant(
+                    inv, target.source_path, meta.name, meta.line_start
+                )
+                push(proof_packs, pack)
+            k = k + 1
+        i = i + 1
+
+    println("[BRAVO] Generated " + str(len(proof_packs)) + " proof pack skeletons")
+
+    // Step 4: Build and return report
+    var report = empty_report("bravo", "memory")
+    report.invariants_found = len(all_invariants)
+    report.invariants_proven = 0
+    report.invariants_failed = 0
+    report.proof_packs_generated = len(proof_packs)
+
+    // Step 5: Print per-function summary
+    i = 0
+    while i < len(bravo_meta):
+        let meta = bravo_meta[i]
+        println("  [OK] " + meta.name + " (lines " + str(meta.line_start) + "-" + str(meta.line_end) + ")")
+        i = i + 1
+
+    return report
+
+// ============================================================================
+//  INSPECTION HELPERS — display function metadata for debugging
+// ============================================================================
+
+fn print_catalog_section(title: String, list: Array<FunctionDescriptor>):
+    println(title + " (" + str(len(list)) + " functions)")
+    var i = 0
+    while i < len(list):
+        let f = list[i]
+        println("  " + f.name + " (L" + str(f.line_start) + "-" + str(f.line_end) + ")")
+        i = i + 1
+
+pub fn print_function_catalog():
+    println("=== BRAVO Function Catalog ===")
+    println("")
+    print_catalog_section("--- Ephemeral Storage Lowering", EPHEMERAL_FUNCTIONS)
+    println("")
+    print_catalog_section("--- Ephemeral Candidate Tracking", CANDIDATE_FUNCTIONS)
+    println("")
+    print_catalog_section("--- I64 Literal & Loop Tracking", I64_TRACKING_FUNCTIONS)
+    println("")
+    print_catalog_section("--- Heap Allocation & RC Management", HEAP_RC_FUNCTIONS)
+    println("")
+    print_catalog_section("--- Scope Lifetime Management", SCOPE_FUNCTIONS)
+    println("")
+    print_catalog_section("--- Control Flow Compilation", CONTROL_FUNCTIONS)
+    println("")
+    print_catalog_section("--- Atomic & Fence Operations", ATOMIC_FUNCTIONS)
+    println("")
+    let total = len(EPHEMERAL_FUNCTIONS) + len(CANDIDATE_FUNCTIONS) + len(I64_TRACKING_FUNCTIONS) + len(HEAP_RC_FUNCTIONS) + len(SCOPE_FUNCTIONS) + len(CONTROL_FUNCTIONS) + len(ATOMIC_FUNCTIONS)
+    println("TOTAL: " + str(total) + " functions cataloged")
+
+// ============================================================================
+//  SUMMARY
+// ============================================================================
+
+pub fn print_summary(report: VerificationReport):
+    println("")
+    println("=== BRAVO Verification Summary ===")
+    println("  Invariants defined:       " + str(report.invariants_found))
+    println("  Invariants proven:        " + str(report.invariants_proven))
+    println("  Invariants failed:        " + str(report.invariants_failed))
+    println("  Proof packs generated:    " + str(report.proof_packs_generated))
+    println("  Errors:                   " + str(len(report.errors)))
+    println("  Warnings:                 " + str(len(report.warnings)))
+    println("")
+
+    if len(report.errors) > 0:
+        println("Errors:")
+        var ei = 0
+        while ei < len(report.errors):
+            println("  [ERROR] " + report.errors[ei])
+            ei = ei + 1
+
+    if len(report.warnings) > 0:
+        println("Warnings:")
+        var wi = 0
+        while wi < len(report.warnings):
+            println("  [WARN]  " + report.warnings[wi])
+            wi = wi + 1

@@ -1,0 +1,160 @@
+// ============================================================================
+//  data.kn — Shared data structures for LLVM codegen extraction pipeline
+//
+//  Every blade module imports this file. It defines the canonical types for
+//  representing extracted codegen logic, invariants, IR patterns, and Z3 proof
+//  pack skeletons. This is the single source of truth for all three lanes.
+//
+//  Design: Value semantics, no ptr<T>, Layer 0 (fn + struct + enum).
+// ============================================================================
+
+// ============================================================================
+//  EXTRACTION TARGET — what we're analyzing
+// ============================================================================
+
+pub struct ExtractionTarget:
+    source_path:    String       // path to codegen_llvm/mod.rs
+    source_bytes:   Array<Int>   // raw bytes for parsing
+    num_lines:      Int
+    num_functions:  Int
+    target_triple:  String       // e.g. "x86_64-pc-windows-msvc"
+
+// ============================================================================
+//  FUNCTION METADATA — extracted from a single Rust fn in the codegen
+// ============================================================================
+
+pub struct FunctionMeta:
+    name:           String       // e.g. "compile_expr", "map_type_from_ast"
+    line_start:     Int          // 1-based line number
+    line_end:       Int
+    signature:      String       // raw Rust signature line
+    return_type:    String       // simplified return type
+    params:         Array<ParamMeta>
+    doc_comment:    String       // /// doc comments
+    is_pub:         Bool
+    is_impl_method: Bool
+    impl_target:    String       // struct name if impl method, else ""
+    domain:         String       // "types", "memory", "control", "runtime", "stones", "special"
+
+// ============================================================================
+//  PARAM METADATA
+// ============================================================================
+
+pub struct ParamMeta:
+    name:     String
+    ty:       String
+    is_self:  Bool
+    is_mut:   Bool
+
+// ============================================================================
+//  LLVM IR PATTERN — a pattern of IR instructions emitted by a function
+// ============================================================================
+
+pub struct IrPattern:
+    pattern_id:      String       // unique ID, e.g. "if-else-branch-phi"
+    description:     String
+    instructions:    Array<String>  // LLVM IR instruction templates
+    invariants:      Array<Invariant>
+    source_function: String       // which codegen fn emits this pattern
+
+// ============================================================================
+//  INVARIANT — a property that must hold for correctness
+// ============================================================================
+
+pub struct Invariant:
+    name:           String
+    description:    String
+    category:       String       // "bounds", "alignment", "types", "ownership", "control", "abi"
+    smt2_skeleton:  String       // SMT-LIB v2 template with placeholders
+    is_proven:      Bool
+    proof_ref:      String       // path to Z3 proof pack if proven
+
+// ============================================================================
+//  Z3 PROOF PACK SKELETON — ready to materialize as a .yaml proof pack
+// ============================================================================
+
+pub struct ProofPackSkeleton:
+    pack_id:         String
+    kind:            String       // "check_smt2", "prove", "check_invariant"
+    description:     String
+    tags:            Array<String>
+    source_path:     String
+    source_symbol:   String
+    source_line:     Int
+    smt2:            String
+    needs_materialize: Bool
+
+// ============================================================================
+//  VERIFICATION REPORT — output of running verification on a function
+// ============================================================================
+
+pub struct VerificationReport:
+    function_name:  String
+    domain:         String
+    invariants_found:     Int
+    invariants_proven:    Int
+    invariants_failed:    Int
+    proof_packs_generated: Int
+    errors:         Array<String>
+    warnings:       Array<String>
+
+// ============================================================================
+//  DOMAIN CONSTANTS — the six domains of the LLVM codegen
+// ============================================================================
+
+pub const DOMAIN_TYPES:    String = "types"
+pub const DOMAIN_MEMORY:   String = "memory"
+pub const DOMAIN_CONTROL:  String = "control"
+pub const DOMAIN_RUNTIME:  String = "runtime"
+pub const DOMAIN_STONES:   String = "stones"
+pub const DOMAIN_SPECIAL:  String = "special"
+
+// ============================================================================
+//  SUBCOMMAND CONSTANTS — three lanes
+// ============================================================================
+
+pub const LANE_ALPHA:   String = "alpha"     // types + layout + casts
+pub const LANE_BRAVO:   String = "bravo"     // memory + ownership + control
+pub const LANE_CHARLIE: String = "charlie"   // runtime + stones + special
+
+// ============================================================================
+//  DEFAULT CONFIG
+// ============================================================================
+
+pub fn default_target() -> ExtractionTarget:
+    return ExtractionTarget {
+        source_path: "",
+        source_bytes: [],
+        num_lines: 0,
+        num_functions: 0,
+        target_triple: "x86_64-pc-windows-msvc",
+    }
+
+pub fn empty_report(name: String, domain: String) -> VerificationReport:
+    return VerificationReport {
+        function_name: name,
+        domain: domain,
+        invariants_found: 0,
+        invariants_proven: 0,
+        invariants_failed: 0,
+        proof_packs_generated: 0,
+        errors: [],
+        warnings: [],
+    }
+
+// ============================================================================
+//  HELPER: format a report as JSON-like string for stdout
+// ============================================================================
+
+pub fn format_report(report: VerificationReport) -> String:
+    var s = "{\n"
+    s = s + "  \"function\": \"" + report.function_name + "\",\n"
+    s = s + "  \"domain\": \"" + report.domain + "\",\n"
+    s = s + "  \"invariants_found\": " + str(report.invariants_found) + ",\n"
+    s = s + "  \"invariants_proven\": " + str(report.invariants_proven) + ",\n"
+    s = s + "  \"invariants_failed\": " + str(report.invariants_failed) + ",\n"
+    s = s + "  \"proof_packs_generated\": " + str(report.proof_packs_generated) + ",\n"
+    s = s + "  \"errors\": " + str(len(report.errors)) + ",\n"
+    s = s + "  \"warnings\": " + str(len(report.warnings)) + "\n"
+    s = s + "}"
+    return s

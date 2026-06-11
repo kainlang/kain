@@ -1,0 +1,186 @@
+// ============================================================================
+//  cli.kn — CLI argument parser for LLVM codegen verification pipeline
+//
+//  Subcommands:
+//    alpha <source>     Run Alpha lane  — Types, Layout & Casts
+//    bravo <source>     Run Bravo lane  — Memory, Ownership & Control Flow
+//    charlie <source>   Run Charlie lane — Runtime, Stones & Specials
+//    all <source>       Run all three lanes and merge reports
+//    help               Show this help
+//    version            Show version
+//
+//  Design: Subcommand-first parsing, value semantics.
+// ============================================================================
+
+use std::process
+
+// ============================================================================
+//  EXIT CODES
+// ============================================================================
+
+pub const EXIT_OK:      Int = 0
+pub const EXIT_HELP:    Int = 1
+pub const EXIT_ERROR:   Int = 2
+pub const EXIT_UNKNOWN: Int = 3
+
+// ============================================================================
+//  SUBCOMMAND CONSTANTS
+// ============================================================================
+
+pub const SUBCMD_ALPHA:   String = "alpha"
+pub const SUBCMD_BRAVO:   String = "bravo"
+pub const SUBCMD_CHARLIE: String = "charlie"
+pub const SUBCMD_ALL:     String = "all"
+pub const SUBCMD_HELP:    String = "help"
+pub const SUBCMD_VERSION: String = "version"
+pub const SUBCMD_NONE:    String = ""
+
+// ============================================================================
+//  CLI CONFIG
+// ============================================================================
+
+pub struct CliConfig:
+    subcommand:   String
+    source_path:  String     // path to codegen_llvm/mod.rs
+    output_path:  String     // --output / -o
+    quiet:        Bool
+    json:         Bool
+    show_help:    Bool
+    show_version: Bool
+
+pub fn default_config() -> CliConfig:
+    return CliConfig {
+        subcommand: SUBCMD_HELP,
+        source_path: "",
+        output_path: "",
+        quiet: false,
+        json: false,
+        show_help: false,
+        show_version: false,
+    }
+
+// ============================================================================
+//  GET USER ARGS
+// ============================================================================
+
+pub fn get_user_args() -> Array<String>:
+    return process_user_args()
+
+// ============================================================================
+//  USAGE
+// ============================================================================
+
+pub fn usage() -> String:
+    var text = "LLVM Codegen Verification 0.1.0\n"
+    text = text + "Extract, verify, and proof-check the LLVM codegen backend.\n"
+    text = text + "\n"
+    text = text + "USAGE:\n"
+    text = text + "  codegen-verify <lane> <source> [options]\n"
+    text = text + "\n"
+    text = text + "LANES:\n"
+    text = text + "  alpha <source>       Types, Layout & Casts verification\n"
+    text = text + "  bravo <source>       Memory, Ownership & Control Flow verification\n"
+    text = text + "  charlie <source>     Runtime Bridge, Machine Stones & Specials\n"
+    text = text + "  all <source>         Run all three lanes, merge reports\n"
+    text = text + "  help                 Show this help\n"
+    text = text + "  version              Show version\n"
+    text = text + "\n"
+    text = text + "FLAGS:\n"
+    text = text + "  -h, --help           Show help\n"
+    text = text + "  -v, --version        Show version\n"
+    text = text + "  -q, --quiet          Suppress output\n"
+    text = text + "      --json           Structured JSON output\n"
+    text = text + "  -o, --output <path>  Output directory for proof packs\n"
+    text = text + "\n"
+    text = text + "EXAMPLES:\n"
+    text = text + "  codegen-verify alpha ../src/codegen_llvm/mod.rs\n"
+    text = text + "  codegen-verify all ../src/codegen_llvm/mod.rs --json\n"
+    text = text + "  codegen-verify bravo ../src/codegen_llvm/mod.rs -o z3/proofs/generated/\n"
+    return text
+
+pub fn version() -> String:
+    return "LLVM Codegen Verification 0.1.0\n"
+
+// ============================================================================
+//  RECOGNIZED SUBCMD
+// ============================================================================
+
+fn is_subcommand(s: String) -> Bool:
+    if s == SUBCMD_ALPHA:   return true
+    if s == SUBCMD_BRAVO:   return true
+    if s == SUBCMD_CHARLIE: return true
+    if s == SUBCMD_ALL:     return true
+    if s == SUBCMD_HELP:    return true
+    if s == SUBCMD_VERSION: return true
+    return false
+
+// ============================================================================
+//  PARSE ARGS
+// ============================================================================
+
+pub fn parse_args(argv: Array<String>) -> CliConfig:
+    var cfg = default_config()
+    var found_subcommand = false
+    var found_source = false
+    var flags_done = false
+
+    var index = 0
+    while index < len(argv):
+        let arg = argv[index]
+
+        if arg == "--":
+            flags_done = true
+            index = index + 1
+            continue
+
+        if flags_done == false and char_at(arg, 0) == "-":
+            if arg == "--help" or arg == "-h":
+                cfg.show_help = true
+            elif arg == "--version" or arg == "-v":
+                cfg.show_version = true
+            elif arg == "--quiet" or arg == "-q":
+                cfg.quiet = true
+            elif arg == "--json":
+                cfg.json = true
+            elif arg == "--output" or arg == "-o":
+                if index + 1 < len(argv):
+                    cfg.output_path = argv[index + 1]
+                    index = index + 1
+            index = index + 1
+            continue
+
+        if found_subcommand == false:
+            if is_subcommand(arg):
+                cfg.subcommand = arg
+                found_subcommand = true
+                index = index + 1
+                continue
+            else:
+                // Unknown — treat as help
+                cfg.subcommand = SUBCMD_HELP
+                index = index + 1
+                continue
+
+        if found_subcommand and found_source == false:
+            cfg.source_path = arg
+            found_source = true
+            index = index + 1
+            continue
+
+        index = index + 1
+
+    if found_subcommand == false:
+        cfg.subcommand = SUBCMD_HELP
+
+    return cfg
+
+// ============================================================================
+//  DISPATCH HELPERS
+// ============================================================================
+
+pub fn needs_source(subcommand: String) -> Bool:
+    if subcommand == SUBCMD_ALPHA:   return true
+    if subcommand == SUBCMD_BRAVO:   return true
+    if subcommand == SUBCMD_CHARLIE: return true
+    if subcommand == SUBCMD_ALL:     return true
+    return false

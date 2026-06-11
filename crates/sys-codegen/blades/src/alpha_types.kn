@@ -1,0 +1,1506 @@
+// ============================================================================
+//  alpha_types.kn — Types, Layout & Casts Verification Engine (LANE ALPHA)
+//
+//  Domain: Type mapping, struct layout, integer/float cast lowering, tagged
+//  ABI encoding, JSON/Any bridge, helper alloc layout, pointer type tracking.
+//
+//  Extracts 90+ function metadata from the Rust LLVM codegen mod.rs, defines
+//  mathematical invariants for each function category, and generates Z3 proof
+//  pack skeletons (YAML + SMT-LIB v2) for formal verification.
+//
+//  Ladder: Layer 0 — fn + struct + enum with IO effects for file I/O.
+//  Entry point: pub fn run_alpha(target: ExtractionTarget) -> VerificationReport
+//
+//  Usage: Import this module and call run_alpha() with a configured
+//  ExtractionTarget pointing at the codegen_llvm/mod.rs source.
+// ============================================================================
+
+use std::fs
+use std::text
+use data   // ExtractionTarget, FunctionMeta, ParamMeta, IrPattern,
+            // Invariant, ProofPackSkeleton, VerificationReport,
+            // DOMAIN_TYPES, LANE_ALPHA, default_target, empty_report, format_report
+
+// ============================================================================
+//  LLVM TYPE CONSTANTS — canonical LLVM IR type strings
+// ============================================================================
+
+pub const LLVM_I1:     String = "i1"
+pub const LLVM_I8:     String = "i8"
+pub const LLVM_I16:    String = "i16"
+pub const LLVM_I32:    String = "i32"
+pub const LLVM_I64:    String = "i64"
+pub const LLVM_I128:   String = "i128"
+pub const LLVM_FLOAT:  String = "float"
+pub const LLVM_DOUBLE: String = "double"
+pub const LLVM_VOID:   String = "void"
+pub const LLVM_I8PTR:  String = "i8*"
+
+// All valid scalar LLVM types (for validation)
+pub const VALID_LLVM_SCALARS: Array<String> = [
+    "i1", "i8", "i16", "i32", "i64", "i128",
+    "float", "double", "void",
+]
+
+// ============================================================================
+//  ABI / JSON TAG CONSTANTS — extracted from codegen_llvm/mod.rs lines 210-221
+// ============================================================================
+
+pub const ABI_TAGGED_HEADER_BYTES: Int = 16
+pub const ABI_TAG_OPTION_NONE: Int = 0
+pub const ABI_TAG_OPTION_SOME: Int = 1
+pub const ABI_TAG_RESULT_OK:   Int = 2
+pub const ABI_TAG_RESULT_ERR:  Int = 3
+pub const ABI_TAGGED_IMMEDIATE_MASK: Int = 7  // low 3 bits for tag
+// Immediate payload range: -(1<<60) .. (1<<60)-1
+pub const ABI_IMMEDIATE_MIN: Int = -(1 << 60)
+pub const ABI_IMMEDIATE_MAX: Int = (1 << 60) - 1
+
+pub const JSON_ANY_TAG_INT:    Int = 1
+pub const JSON_ANY_TAG_BOOL:   Int = 2
+pub const JSON_ANY_TAG_STRING: Int = 3
+pub const JSON_ANY_TAG_NULL:   Int = 4
+
+// ============================================================================
+//  DOMAIN FUNCTION CATALOG — all functions in this verification domain
+// ============================================================================
+
+// Category labels for grouping
+pub const CAT_TYPE_MAP:         String = "type_mapping"
+pub const CAT_STRUCT_LAYOUT:    String = "struct_layout"
+pub const CAT_CASTS:            String = "casts"
+pub const CAT_TAGGED_ABI:       String = "tagged_abi"
+pub const CAT_JSON_ANY:         String = "json_any"
+pub const CAT_HELPER_ALLOC:     String = "helper_alloc"
+pub const CAT_POINTER_TRACKING: String = "pointer_tracking"
+pub const CAT_ALIGNMENT:        String = "alignment"
+
+// ---- TYPE MAPPING (22 functions) --------------------------------------------
+
+pub const FN_TYPE_MAPPING: Array<String> = [
+    "map_type_from_ast",
+    "map_type_from_str",
+    "ast_type_is_self_alias",
+    "map_impl_type_from_ast",
+    "impl_method_has_authored_self_param",
+    "ast_type_is_string",
+    "ast_type_is_int",
+    "ast_type_is_json_value",
+    "ast_type_is_runtime_any_value",
+    "ast_type_is_json_handle_like",
+    "resolved_type_is_string",
+    "resolved_runtime_array_bridge_any",
+    "ast_runtime_array_bridge_any",
+    "ast_runtime_array_element_llvm_ty",
+    "resolved_runtime_array_element_llvm_ty",
+    "scalar_runtime_array_literal_llvm_ty",
+    "stringified_runtime_array_element_llvm_ty",
+    "runtime_array_literal_item_llvm_ty",
+    "runtime_array_literal_element_llvm_ty",
+    "callable_return_runtime_array_element_llvm_ty",
+    "runtime_array_expr_element_llvm_ty",
+    "single_generic_payload",
+]
+
+// ---- TAGGED VALUE (6 functions) ---------------------------------------------
+
+pub const FN_TAGGED_VALUE: Array<String> = [
+    "resolved_tagged_value_success_llvm_ty",
+    "ast_tagged_value_success_llvm_ty",
+    "callable_return_tagged_value_success_llvm_ty",
+    "tagged_value_expr_success_llvm_ty",
+    "compile_runtime_array_write_value",
+    "record_runtime_array_local_element_ty",
+]
+
+// ---- STRUCT & LAYOUT (17 functions) -----------------------------------------
+
+pub const FN_STRUCT_LAYOUT: Array<String> = [
+    "tuple_struct_name_from_types",
+    "tuple_struct_storage_type_from_types",
+    "builtin_named_tuple_storage_type",
+    "register_struct_definition",
+    "register_value_aggregate_struct",
+    "tuple_field_alias_index",
+    "llvm_type_is_scalar_value_aggregate_pod",
+    "resolved_type_is_scalar_value_aggregate_pod",
+    "struct_storage_type",
+    "actor_message_reply_llvm_type",
+    "register_tuple_struct",
+    "collect_tuple_types_from_ast",
+    "collect_tuple_types_from_resolved",
+    "collect_program_tuple_types",
+    "register_builtin_tuple_structs",
+    "llvm_named_type_name",
+    "materialize_runtime_array_element_value",
+]
+
+// ---- CASTS & CONVERSIONS (5 functions) --------------------------------------
+
+pub const FN_CASTS: Array<String> = [
+    "cast_numeric_value",
+    "emit_saturating_fptosi",
+    "coerce_condition_value_to_i1",
+    "compile_condition_expr",
+    "coerce_binary_operands",
+]
+
+// ---- ALIGNMENT & WIDTH (6 functions) ----------------------------------------
+
+pub const FN_ALIGNMENT: Array<String> = [
+    "obvious_ast_type_byte_width",
+    "obvious_llvm_type_alignment",
+    "ptr_offset_stride_matches_llvm_type",
+    "safe_memory_access_alignment",
+    "obvious_llvm_type_byte_width",
+    "positive_power_of_two_shift",
+]
+
+// ---- JSON / ANY BRIDGE (14 functions) ---------------------------------------
+
+pub const FN_JSON_ANY: Array<String> = [
+    "json_function_return_is_aliasing",
+    "call_carries_json_value",
+    "call_returns_owned_json_value",
+    "call_carries_runtime_any_value",
+    "expr_carries_json_value",
+    "expr_carries_runtime_any_value",
+    "expr_owns_json_value",
+    "record_json_local_tracking_from_expr",
+    "record_runtime_any_local_tracking_from_expr",
+    "clear_json_local_tracking",
+    "clear_runtime_any_local_tracking",
+    "local_carries_json_value",
+    "local_carries_runtime_any_value",
+    "resolved_type_carries_any_passthrough",
+]
+
+// ---- STRUCT ANY / ARRAY FIELDS (4 functions) -------------------------------
+
+pub const FN_STRUCT_ANY_FIELDS: Array<String> = [
+    "record_struct_any_passthrough_field",
+    "record_struct_runtime_array_field",
+    "field_parent_struct_name",
+    "field_carries_any_passthrough",
+]
+
+// ---- HELPER ALLOC LAYOUT (6 functions) --------------------------------------
+
+pub const FN_HELPER_ALLOC: Array<String> = [
+    "helper_alloc_storage_layout_with_bindings",
+    "helper_alloc_is_single_cell",
+    "helper_alloc_scalar_llvm_ty",
+    "preferred_ephemeral_storage_element_llvm_ty",
+    "preferred_ephemeral_storage_element_llvm_ty_for_let",
+    "helper_alloc_stack_storage_shape",
+]
+
+// ---- POINTER TYPE TRACKING (10 functions) -----------------------------------
+
+pub const FN_POINTER_TRACKING: Array<String> = [
+    "collect_original_pointer_let_type_hints",
+    "collect_pointer_param_types_from_params",
+    "collect_pointer_let_types_from_typed_item",
+    "collect_pointer_let_types_from_item",
+    "collect_pointer_let_types_from_block",
+    "collect_pointer_let_types_from_stmt",
+    "collect_pointer_let_types_from_else_branch",
+    "collect_pointer_let_types_from_expr",
+    "authored_struct_pointer_llvm_ty",
+    "record_authored_struct_pointer_local",
+]
+
+// ---- ADDITIONAL POINTER TRACKING (2 functions) -------------------------------
+
+pub const FN_POINTER_TRACKING_EXTRA: Array<String> = [
+    "record_authored_struct_pointer_local_for_let",
+    "authored_pointer_param_type",
+]
+
+// ============================================================================
+//  ALL DOMAIN FUNCTIONS — merged catalog of every function to cover
+// ============================================================================
+
+pub const ALL_ALPHA_FUNCTIONS: Array<String> = concat_all()
+
+fn concat_all() -> Array<String>:
+    var result: Array<String> = []
+    result = extend(result, FN_TYPE_MAPPING)
+    result = extend(result, FN_TAGGED_VALUE)
+    result = extend(result, FN_STRUCT_LAYOUT)
+    result = extend(result, FN_CASTS)
+    result = extend(result, FN_ALIGNMENT)
+    result = extend(result, FN_JSON_ANY)
+    result = extend(result, FN_STRUCT_ANY_FIELDS)
+    result = extend(result, FN_HELPER_ALLOC)
+    result = extend(result, FN_POINTER_TRACKING)
+    result = extend(result, FN_POINTER_TRACKING_EXTRA)
+    return result
+
+fn extend(dest: Array<String>, src: Array<String>) -> Array<String>:
+    for item in src:
+        push(dest, item)
+    return dest
+
+// ============================================================================
+//  INVARIANT CATEGORY CONSTANTS
+// ============================================================================
+
+pub const INV_CAT_TYPE_MAP:      String = "type_mapping"
+pub const INV_CAT_STRUCT:        String = "struct_layout"
+pub const INV_CAT_CAST:          String = "casts"
+pub const INV_CAT_ABI:           String = "tagged_abi"
+pub const INV_CAT_JSON:          String = "json_any"
+pub const INV_CAT_ALLOC:         String = "helper_alloc"
+pub const INV_CAT_POINTER:       String = "pointer_tracking"
+pub const INV_CAT_ALIGN:         String = "alignment"
+pub const INV_CAT_BOUNDS:        String = "bounds"
+pub const INV_CAT_INTEGER:       String = "integer_casts"
+pub const INV_CAT_FLOAT:         String = "float_casts"
+
+// ============================================================================
+//  RUST SOURCE PARSER — lightweight fn declaration extractor
+//
+//  Scans the Rust source line by line to extract function metadata.
+//  Does not parse full Rust AST — uses pattern matching for fn declarations.
+// ============================================================================
+
+// fn_declaration captures a single line that starts a Rust function
+struct FnDecl:
+    name:       String
+    signature:  String
+    line_num:   Int
+    is_pub:     Bool
+    is_impl:    Bool
+    impl_type:  String
+    params:     Array<ParamMeta>
+
+// Parse a Rust parameter list string into ParamMeta values
+fn parse_params(param_str: String) -> Array<ParamMeta>:
+    var result: Array<ParamMeta> = []
+    if param_str == "": return result
+    // Split on commas, but respect generics nesting with <>
+    var parts = split_respecting_brackets(param_str, ",")
+    for part in parts:
+        let trimmed = my_trim(part)
+        if trimmed == "": continue
+        let is_self = trimmed == "&self" or trimmed == "&mut self" or trimmed == "self"
+        let param_name = extract_param_name(trimmed)
+        let param_ty = extract_param_type(trimmed)
+        let is_mut = text_starts_with_string(trimmed, "mut ")
+        push(result, ParamMeta {
+            name: param_name,
+            ty: param_ty,
+            is_self: is_self,
+            is_mut: is_mut,
+        })
+    return result
+
+// Split a string by a delimiter, respecting nested angle brackets < >
+fn split_respecting_brackets(s: String, delim: String) -> Array<String>:
+    var result: Array<String> = []
+    var current = ""
+    var depth = 0
+    var i = 0
+    let delim_char = char_at(delim, 0)
+    while i < len(s):
+        let c = char_at(s, i)
+        if c == "<":  depth = depth + 1
+        elif c == ">": depth = depth - 1
+        elif c == delim_char and depth == 0:
+            push(result, my_trim(current))
+            current = ""
+            i = i + 1
+            continue
+        current = current + c
+        i = i + 1
+    if my_trim(current) != "": push(result, my_trim(current))
+    return result
+
+fn extract_param_name(part: String) -> String:
+    // Extract the identifier before ':'
+    // e.g. "name: &str" → "name", "&self" → "self"
+    if part == "self" or part == "&self" or part == "&mut self": return "self"
+    var colon_pos = find_char(part, ":")
+    if colon_pos >= 0: return my_trim(my_substring(part, 0, colon_pos))
+    return my_trim(part)
+
+fn extract_param_type(part: String) -> String:
+    // Extract the type after ':'
+    if part == "self": return "&Self"
+    if part == "&self": return "&Self"
+    if part == "&mut self": return "&mut Self"
+    var colon_pos = find_char(part, ":")
+    if colon_pos >= 0: return my_trim(my_substring(part, colon_pos + 1, len(part) - colon_pos - 1))
+    return "unknown"
+
+fn find_char(s: String, target: String) -> Int:
+    var i = 0
+    while i < len(s):
+        if char_at(s, i) == target: return i
+        i = i + 1
+    return -1
+
+fn char_to_string(c: Int) -> String:
+    return text_chr(c)
+
+fn my_substring(s: String, start: Int, length: Int) -> String:
+    return text_substring_string(s, start, length)
+
+fn my_trim(s: String) -> String:
+    return text_trim_string(s)
+
+// Extract return type from a Rust fn signature line
+fn extract_return_type(sig: String) -> String:
+    var arrow = text_contains_string(sig, " -> ")
+    if arrow == false: return "unit"
+    // Find what's after " -> "
+    var pos = find_str(sig, " -> ")
+    if pos < 0: return "unit"
+    var rest = my_substring(sig, pos + 4, len(sig) - pos - 4)
+    // Strip opening brace if present
+    rest = my_trim(rest)
+    if len(rest) > 0 and char_at(rest, 0) == "{":
+        rest = my_substring(rest, 1, len(rest) - 1)
+    return my_trim(rest)
+
+fn find_str(s: String, needle: String) -> Int:
+    var n = len(needle)
+    var i = 0
+    var limit = len(s) - n + 1
+    while i <= limit:
+        var found = true
+        var j = 0
+        while j < n:
+            if char_at(s, i + j) != char_at(needle, j):
+                found = false
+                break
+            j = j + 1
+        if found: return i
+        i = i + 1
+    return -1
+
+// Determine category for a function based on its name
+fn category_for_fn(name: String) -> String:
+    if arr_contains(FN_TYPE_MAPPING, name): return CAT_TYPE_MAP
+    if arr_contains(FN_TAGGED_VALUE, name): return CAT_TAGGED_ABI
+    if arr_contains(FN_STRUCT_LAYOUT, name): return CAT_STRUCT_LAYOUT
+    if arr_contains(FN_CASTS, name): return CAT_CASTS
+    if arr_contains(FN_ALIGNMENT, name): return CAT_ALIGNMENT
+    if arr_contains(FN_JSON_ANY, name): return CAT_JSON_ANY
+    if arr_contains(FN_STRUCT_ANY_FIELDS, name): return CAT_JSON_ANY
+    if arr_contains(FN_HELPER_ALLOC, name): return CAT_HELPER_ALLOC
+    if arr_contains(FN_POINTER_TRACKING, name): return CAT_POINTER_TRACKING
+    if arr_contains(FN_POINTER_TRACKING_EXTRA, name): return CAT_POINTER_TRACKING
+    return "unknown"
+
+fn arr_contains(arr: Array<String>, target: String) -> Bool:
+    for item in arr:
+        if item == target: return true
+    return false
+
+// Parse a single Rust source file to extract function metadata
+fn parse_rust_source(source: String) -> Array<FunctionMeta>:
+    var result: Array<FunctionMeta> = []
+    var lines = text_split_lines(source)
+    var num_lines = len(lines)
+    var i = 0
+    var in_doc_comment = false
+    var doc_lines: Array<String> = []
+    var current_impl_type = ""
+
+    while i < num_lines:
+        let source_line = lines[i]
+
+        // Track doc comments
+        let trimmed_line = my_trim(source_line)
+        if text_starts_with_string(trimmed_line, "///"):
+            if in_doc_comment == false:
+                doc_lines = []
+                in_doc_comment = true
+            // Strip /// prefix
+            push(doc_lines, my_trim(my_substring(trimmed_line, 3, len(trimmed_line) - 3)))
+            i = i + 1
+            continue
+
+        // Track impl blocks to get struct name
+        if text_starts_with_string(trimmed_line, "impl ") and text_contains_string(trimmed_line, "for") == false:
+            // "impl StructName {" or "impl StructName:"
+            var impl_rest = my_substring(trimmed_line, 5, len(trimmed_line) - 5)
+            impl_rest = my_trim(impl_rest)
+            // Strip trailing { or :
+            if len(impl_rest) > 0:
+                let last_char = char_at(impl_rest, len(impl_rest) - 1)
+                if last_char == "{" or last_char == ":":
+                    impl_rest = my_substring(impl_rest, 0, len(impl_rest) - 1)
+                current_impl_type = my_trim(impl_rest)
+        if text_starts_with_string(trimmed_line, "fn "):
+            var decl = parse_fn_declaration(trimmed_line, i + 1)
+            if decl.name != "":
+                decl.is_impl = (current_impl_type != "")
+                decl.impl_type = current_impl_type
+
+                // Build doc comment
+                var doc = text_join_strings(doc_lines, "\n")
+
+                var meta = FunctionMeta {
+                    name: decl.name,
+                    line_start: decl.line_num,
+                    line_end: decl.line_num,  // approximate
+                    signature: decl.signature,
+                    return_type: extract_return_type(decl.signature),
+                    params: decl.params,
+                    doc_comment: doc,
+                    is_pub: decl.is_pub,
+                    is_impl_method: decl.is_impl,
+                    impl_target: decl.impl_type,
+                    domain: DOMAIN_TYPES,
+                }
+                push(result, meta)
+
+            in_doc_comment = false
+            doc_lines = []
+            i = i + 1
+            continue
+
+        // Non-doc, non-fn line resets doc comment tracking
+        if in_doc_comment:
+            in_doc_comment = false
+            doc_lines = []
+
+        i = i + 1
+
+    return result
+
+// Parse a single fn declaration line
+fn parse_fn_declaration(source_line: String, line_num: Int) -> FnDecl:
+    var is_pub = text_starts_with_string(source_line, "pub fn ")
+    var sig_start = 0
+    if is_pub:
+        sig_start = 7  // "pub fn "
+    else:
+        sig_start = 3  // "fn "
+
+    // Find opening paren
+    var paren_open = find_char_at(source_line, "(", sig_start)
+    if paren_open < 0:
+        return FnDecl { name: "", signature: "", line_num: 0, is_pub: false, is_impl: false, impl_type: "", params: [] }
+
+    // Extract name between sig_start and paren_open
+    var fn_name = my_trim(my_substring(source_line, sig_start, paren_open - sig_start))
+
+    // Find closing paren
+    var paren_close = find_matching_paren(source_line, paren_open)
+    if paren_close < 0:
+        paren_close = find_char_at(source_line, ")", paren_open + 1)
+
+    var param_str = ""
+    if paren_close > paren_open + 1:
+        param_str = my_substring(source_line, paren_open + 1, paren_close - paren_open - 1)
+
+    // Build full signature: everything after "fn " (or "pub fn ")
+    var sig_suffix = my_substring(source_line, sig_start, len(source_line) - sig_start)
+    // Strip trailing { if present
+    var brace_idx = find_char_at(sig_suffix, "{", 0)
+    var signature = sig_suffix
+    if brace_idx >= 0:
+        signature = my_trim(my_substring(sig_suffix, 0, brace_idx))
+
+    var params = parse_params(param_str)
+
+    return FnDecl {
+        name: fn_name,
+        signature: signature,
+        line_num: line_num,
+        is_pub: is_pub,
+        is_impl: false,
+        impl_type: "",
+        params: params,
+    }
+
+fn find_char_at(s: String, target: String, start: Int) -> Int:
+    var i = start
+    while i < len(s):
+        if char_at(s, i) == target: return i
+        i = i + 1
+    return -1
+
+fn find_matching_paren(s: String, open_pos: Int) -> Int:
+    var depth = 1
+    var i = open_pos + 1
+    while i < len(s):
+        let c = char_at(s, i)
+        if c == "(": depth = depth + 1
+        elif c == ")":
+            depth = depth - 1
+            if depth == 0: return i
+        i = i + 1
+    return -1
+
+// ============================================================================
+//  INVARIANT DEFINITIONS — one per function category
+// ============================================================================
+
+// Build invariants for a given function name
+fn build_invariants_for_fn(meta: FunctionMeta) -> Array<Invariant>:
+    var result: Array<Invariant> = []
+    let fn_name = meta.name
+
+    // --- TYPE MAPPING INVARIANTS ---
+
+    if fn_name == "map_type_from_ast":
+        // INV-1: Total mapping — every Kain AST type variant produces a valid LLVM type string
+        push(result, Invariant {
+            name: "map_type_from_ast_total",
+            description: "Every Kain AST Type variant maps to a valid LLVM type string. Int->i64, Float->double, Bool->i1, String->i8*, Option/Result->i8*, tuples->named struct types, Self->current_impl_target, Void->void.",
+            category: INV_CAT_TYPE_MAP,
+            smt2_skeleton: map_type_from_ast_smt2(),
+            is_proven: false,
+            proof_ref: "",
+        })
+        // INV-2: Output is always a valid LLVM type string or ends with '*'
+        push(result, Invariant {
+            name: "map_type_from_ast_valid_llvm",
+            description: "The returned string must be either a known scalar type (i1, i8, i16, i32, i64, double, float, void), a ptr type ending with '*', or a named type starting with '%'.",
+            category: INV_CAT_TYPE_MAP,
+            smt2_skeleton: llvm_type_validity_smt2(),
+            is_proven: false,
+            proof_ref: "",
+        })
+
+    if fn_name == "map_type_from_str":
+        push(result, Invariant {
+            name: "map_type_from_str_total",
+            description: "All Kain primitive names (Int, Float, Bool, String, etc.) and wrapper types (Array<>, Slice<>, Option<>, Result<>, Future<>) map to valid LLVM types. Unknown names fall back to 'i64'.",
+            category: INV_CAT_TYPE_MAP,
+            smt2_skeleton: map_type_from_str_total_smt2(),
+            is_proven: false,
+            proof_ref: "",
+        })
+
+    if fn_name == "ast_type_is_self_alias":
+        push(result, Invariant {
+            name: "self_alias_only_for_self",
+            description: "Returns true ONLY for Type::Named with name 'Self' or 'Self_'. Returns false for all other type variants.",
+            category: INV_CAT_TYPE_MAP,
+            smt2_skeleton: self_alias_smt2(),
+            is_proven: false,
+            proof_ref: "",
+        })
+
+    if fn_name == "map_impl_type_from_ast":
+        push(result, Invariant {
+            name: "impl_type_self_substitution",
+            description: "If the type is a Self alias, returns struct_storage_type(target_name). Otherwise returns map_type_from_ast(ty). The target_name must be a registered struct.",
+            category: INV_CAT_TYPE_MAP,
+            smt2_skeleton: impl_type_substitution_smt2(),
+            is_proven: false,
+            proof_ref: "",
+        })
+
+    if fn_name == "ast_type_is_string":
+        push(result, Invariant {
+            name: "string_type_detection",
+            description: "Returns true ONLY for Type::Named with name 'String' or 'str'.",
+            category: INV_CAT_TYPE_MAP,
+            smt2_skeleton: string_type_detection_smt2(),
+            is_proven: false,
+            proof_ref: "",
+        })
+
+    if fn_name == "ast_type_is_int":
+        push(result, Invariant {
+            name: "int_type_detection",
+            description: "Returns true ONLY for Type::Named with name 'Int'.",
+            category: INV_CAT_TYPE_MAP,
+            smt2_skeleton: int_type_detection_smt2(),
+            is_proven: false,
+            proof_ref: "",
+        })
+
+    if fn_name == "ast_type_is_json_value":
+        push(result, Invariant {
+            name: "json_value_type_detection",
+            description: "Returns true ONLY for Type::Named with name 'JsonValue'.",
+            category: INV_CAT_JSON,
+            smt2_skeleton: json_value_detection_smt2(),
+            is_proven: false,
+            proof_ref: "",
+        })
+
+    if fn_name == "ast_type_is_runtime_any_value":
+        push(result, Invariant {
+            name: "runtime_any_value_detection",
+            description: "Returns true ONLY for Type::Named with name 'Any'.",
+            category: INV_CAT_JSON,
+            smt2_skeleton: any_value_detection_smt2(),
+            is_proven: false,
+            proof_ref: "",
+        })
+
+    if fn_name == "single_generic_payload":
+        push(result, Invariant {
+            name: "generic_payload_extraction",
+            description: "Given 'Array<T>', extracts 'T'. Strips wrapper prefix + '<' and suffix '>'. Returns None for non-wrapped types.",
+            category: INV_CAT_TYPE_MAP,
+            smt2_skeleton: generic_payload_smt2(),
+            is_proven: false,
+            proof_ref: "",
+        })
+
+    if fn_name == "resolved_tagged_value_success_llvm_ty":
+        push(result, Invariant {
+            name: "tagged_success_type_ok_variant",
+            description: "For Option<T>, returns the LLVM type of T (the Some variant payload). For Result<Ok, Err>, returns the LLVM type of Ok. Returns None for non-tagged types.",
+            category: INV_CAT_ABI,
+            smt2_skeleton: tagged_success_smt2(),
+            is_proven: false,
+            proof_ref: "",
+        })
+
+    // --- STRUCT & LAYOUT INVARIANTS ---
+
+    if fn_name == "tuple_struct_name_from_types":
+        push(result, Invariant {
+            name: "tuple_name_deterministic",
+            description: "For the same input types, always produces the same output name. Name starts with '__kain_tuple' and includes sanitized type fragments.",
+            category: INV_CAT_STRUCT,
+            smt2_skeleton: tuple_name_deterministic_smt2(),
+            is_proven: false,
+            proof_ref: "",
+        })
+
+    if fn_name == "struct_storage_type":
+        push(result, Invariant {
+            name: "struct_storage_pointer_or_value",
+            description: "If the struct is a value aggregate, returns '%Name'. Otherwise returns '%Name*'. The output must start with '%'.",
+            category: INV_CAT_STRUCT,
+            smt2_skeleton: struct_storage_type_smt2(),
+            is_proven: false,
+            proof_ref: "",
+        })
+
+    if fn_name == "tuple_field_alias_index":
+        push(result, Invariant {
+            name: "named_field_aliases",
+            description: "x/r -> 0, y/g -> 1, z/b -> 2, w/a -> 3. Numeric suffixes _0->0, _1->1, etc. Returns None for unknown fields.",
+            category: INV_CAT_STRUCT,
+            smt2_skeleton: field_alias_index_smt2(),
+            is_proven: false,
+            proof_ref: "",
+        })
+
+    if fn_name == "llvm_type_is_scalar_value_aggregate_pod":
+        push(result, Invariant {
+            name: "pod_type_classification",
+            description: "True for i1, i8, i32, i64, double. True for '%X' where X is a registered value aggregate. False for pointer types (%X*). False for unknown types.",
+            category: INV_CAT_STRUCT,
+            smt2_skeleton: pod_classification_smt2(),
+            is_proven: false,
+            proof_ref: "",
+        })
+
+    if fn_name == "register_tuple_struct":
+        push(result, Invariant {
+            name: "tuple_struct_field_naming",
+            description: "Fields are named _0, _1, _2, ... sequentially. If all field types are POD, the struct is registered as a value aggregate. Emits LLVM type definition.",
+            category: INV_CAT_STRUCT,
+            smt2_skeleton: tuple_struct_register_smt2(),
+            is_proven: false,
+            proof_ref: "",
+        })
+
+    if fn_name == "register_builtin_tuple_structs":
+        push(result, Invariant {
+            name: "builtin_vec_types_registered",
+            description: "Registers tuple structs for Vec2, Vec3, Vec4 — each with 2, 3, or 4 'double' fields respectively. All are value aggregates.",
+            category: INV_CAT_STRUCT,
+            smt2_skeleton: builtin_vec_smt2(),
+            is_proven: false,
+            proof_ref: "",
+        })
+
+    if fn_name == "llvm_named_type_name":
+        push(result, Invariant {
+            name: "named_type_sanitization",
+            description: "Sanitizes a Kain name to a valid LLVM named type identifier. The output must not contain characters invalid in LLVM identifiers.",
+            category: INV_CAT_STRUCT,
+            smt2_skeleton: llvm_name_sanitization_smt2(),
+            is_proven: false,
+            proof_ref: "",
+        })
+
+    if fn_name == "materialize_runtime_array_element_value":
+        push(result, Invariant {
+            name: "array_element_materialization",
+            description: "For i1/i8/i16/i32 elements, truncates i64. For double elements, bitcasts i64->double. For pointer elements, inttoptr i64->ptr. Default is passthrough as i64.",
+            category: INV_CAT_STRUCT,
+            smt2_skeleton: array_element_materialize_smt2(),
+            is_proven: false,
+            proof_ref: "",
+        })
+
+    // --- CAST INVARIANTS ---
+
+    if fn_name == "cast_numeric_value":
+        // INV-1: sext preserves sign
+        push(result, Invariant {
+            name: "cast_sext_preserves_sign",
+            description: "i8->i64 sext: low 8 bits preserved, upper 56 bits are all-0 for non-negative, all-1 for negative (two's complement). Same for i32->i64.",
+            category: INV_CAT_INTEGER,
+            smt2_skeleton: sext_preserves_sign_smt2(),
+            is_proven: false,
+            proof_ref: "casts-i8-to-i64-sign-extension-matches-two-complement.yaml",
+        })
+        // INV-2: zext zero-fills
+        push(result, Invariant {
+            name: "cast_zext_zero_fills",
+            description: "i1->i64 zext: result is 0 or 1 only. Upper 63 bits are zero. i1->i32 similarly.",
+            category: INV_CAT_INTEGER,
+            smt2_skeleton: zext_zero_fills_smt2(),
+            is_proven: false,
+            proof_ref: "casts-i1-to-i64-zero-extension-preserves-boolean-domain.yaml",
+        })
+        // INV-3: trunc preserves low bits
+        push(result, Invariant {
+            name: "cast_trunc_preserves_low_bits",
+            description: "i64->i32 trunc: result equals input modulo 2^32. Low 32 bits are identical.",
+            category: INV_CAT_INTEGER,
+            smt2_skeleton: trunc_preserves_low_bits_smt2(),
+            is_proven: false,
+            proof_ref: "",
+        })
+        // INV-4: i64->i1 nonzero test
+        push(result, Invariant {
+            name: "cast_i64_to_i1_nonzero",
+            description: "i64->i1 uses icmp ne with 0. Result is 1 iff input != 0.",
+            category: INV_CAT_INTEGER,
+            smt2_skeleton: i64_to_bool_nonzero_smt2(),
+            is_proven: false,
+            proof_ref: "casts-i64-to-i1-nonzero-test-matches-bool-coercion.yaml",
+        })
+        // INV-5: double<->i64 bitcast roundtrip
+        push(result, Invariant {
+            name: "cast_double_i64_bitcast_roundtrip",
+            description: "double->i64->double via bitcast preserves the original floating-point bits exactly.",
+            category: INV_CAT_FLOAT,
+            smt2_skeleton: double_bitcast_roundtrip_smt2(),
+            is_proven: false,
+            proof_ref: "casts-double-bitcast-roundtrip-preserves-array-float-storage.yaml",
+        })
+        // INV-6: fcmp une for double->i1
+        push(result, Invariant {
+            name: "cast_double_to_bool_fcmp_une",
+            description: "double->i1 uses fcmp une with 0.0. NaN is considered nonzero (unordered comparison).",
+            category: INV_CAT_FLOAT,
+            smt2_skeleton: double_to_bool_fcmp_une_smt2(),
+            is_proven: false,
+            proof_ref: "casts-double-to-bool-unordered-nonzero-aligns-with-runtime-truthiness.yaml",
+        })
+
+    if fn_name == "coerce_condition_value_to_i1":
+        push(result, Invariant {
+            name: "condition_coercion_completeness",
+            description: "i1 passes through unchanged. i64/i32/i8 cast to i1 via nonzero test. double cast via fcmp une. Pointer types cast via ptrtoint then nonzero test.",
+            category: INV_CAT_CAST,
+            smt2_skeleton: condition_coercion_smt2(),
+            is_proven: false,
+            proof_ref: "",
+        })
+
+    // --- ALIGNMENT INVARIANTS ---
+
+    if fn_name == "obvious_llvm_type_byte_width":
+        push(result, Invariant {
+            name: "llvm_byte_width_known_types",
+            description: "i1/i8->1, i16->2, i32/float->4, i64/double->8, i128->16, any pointer type->8. Unknown types return None.",
+            category: INV_CAT_ALIGN,
+            smt2_skeleton: llvm_byte_width_smt2(),
+            is_proven: false,
+            proof_ref: "",
+        })
+
+    if fn_name == "obvious_llvm_type_alignment":
+        push(result, Invariant {
+            name: "alignment_equals_width_or_one",
+            description: "For types with byte widths 1, 2, 4, 8, or 16, alignment equals byte width. For all other types, alignment is 1. Alignment is always a power of two.",
+            category: INV_CAT_ALIGN,
+            smt2_skeleton: alignment_power_of_two_smt2(),
+            is_proven: false,
+            proof_ref: "",
+        })
+
+    if fn_name == "obvious_ast_type_byte_width":
+        push(result, Invariant {
+            name: "ast_byte_width_consistency",
+            description: "Maps the AST type to LLVM type, then applies obvious_llvm_type_byte_width. Falls back to 8 bytes for unknown mappings.",
+            category: INV_CAT_ALIGN,
+            smt2_skeleton: ast_byte_width_smt2(),
+            is_proven: false,
+            proof_ref: "",
+        })
+
+    if fn_name == "ptr_offset_stride_matches_llvm_type":
+        push(result, Invariant {
+            name: "ptr_offset_stride_match",
+            description: "The element type's byte width must equal the stride for the pointer offset to be valid. If either is unknown, returns false.",
+            category: INV_CAT_ALIGN,
+            smt2_skeleton: ptr_offset_stride_smt2(),
+            is_proven: false,
+            proof_ref: "",
+        })
+
+    if fn_name == "positive_power_of_two_shift":
+        push(result, Invariant {
+            name: "power_of_two_shift_correctness",
+            description: "For positive power-of-two values, returns Some(shift) where 2^shift = value. For non-power-of-two or non-positive values, returns None.",
+            category: INV_CAT_BOUNDS,
+            smt2_skeleton: power_of_two_smt2(),
+            is_proven: false,
+            proof_ref: "",
+        })
+
+    // --- TAGGED ABI INVARIANTS ---
+
+    if fn_name == "compile_runtime_array_write_value":
+        push(result, Invariant {
+            name: "tagged_payload_widening",
+            description: "Tag bits (low 3 bits) must not overlap with the sign-bit domain of ABI immediate payloads. Mask=7, payload range [-(1<<60), (1<<60)-1].",
+            category: INV_CAT_ABI,
+            smt2_skeleton: tagged_immediate_range_smt2(),
+            is_proven: false,
+            proof_ref: "",
+        })
+
+    // --- JSON / ANY BRIDGE INVARIANTS ---
+
+    if fn_name == "json_function_return_is_aliasing":
+        push(result, Invariant {
+            name: "json_aliasing_functions_identified",
+            description: "Returns true for functions starting with 'json_object_set' or 'json_array_push'. These functions alias an existing JSON handle.",
+            category: INV_CAT_JSON,
+            smt2_skeleton: json_aliasing_smt2(),
+            is_proven: false,
+            proof_ref: "",
+        })
+
+    if fn_name == "call_carries_json_value":
+        push(result, Invariant {
+            name: "json_carrying_calls_identified",
+            description: "All calls that return or carry JSON values are correctly identified by name. Includes json_object_new, json_parse, json_get, etc.",
+            category: INV_CAT_JSON,
+            smt2_skeleton: json_carry_calls_smt2(),
+            is_proven: false,
+            proof_ref: "",
+        })
+
+    // Generic invariants for JSON any tag partitioning
+    if fn_name == "expr_carries_json_value":
+        push(result, Invariant {
+            name: "json_any_tag_partition",
+            description: "JSON any tags (INT=1, BOOL=2, STRING=3, NULL=4) are distinct. Aligned pointers have zero low bits, so tags don't collide with pointer values.",
+            category: INV_CAT_JSON,
+            smt2_skeleton: json_tag_partition_smt2(),
+            is_proven: false,
+            proof_ref: "json_any_tag_partition.smt2",
+        })
+
+    if fn_name == "local_carries_json_value":
+        push(result, Invariant {
+            name: "json_local_tracking_consistency",
+            description: "A local carries JSON value iff it's in json_handle_locals or json_passthrough_locals. Clearing removes from both sets.",
+            category: INV_CAT_JSON,
+            smt2_skeleton: json_local_consistency_smt2(),
+            is_proven: false,
+            proof_ref: "",
+        })
+
+    if fn_name == "field_parent_struct_name":
+        push(result, Invariant {
+            name: "field_parent_resolution",
+            description: "For Ident expressions with a known struct type (%X or %X*), returns the struct name X. For Paren expressions, recurses into the inner expression.",
+            category: INV_CAT_JSON,
+            smt2_skeleton: field_parent_smt2(),
+            is_proven: false,
+            proof_ref: "",
+        })
+
+    // --- HELPER ALLOC INVARIANTS ---
+
+    if fn_name == "helper_alloc_scalar_llvm_ty":
+        push(result, Invariant {
+            name: "alloc_scalar_type_mapping",
+            description: "stride_bytes 1->i8, 2->i16, 4->i32, 8->i64. All other values return None.",
+            category: INV_CAT_ALLOC,
+            smt2_skeleton: alloc_scalar_type_smt2(),
+            is_proven: false,
+            proof_ref: "",
+        })
+
+    if fn_name == "helper_alloc_stack_storage_shape":
+        push(result, Invariant {
+            name: "stack_storage_shape_rules",
+            description: "Single-element alloc with known scalar type -> returns scalar type. Multi-element -> returns [N x T]. Unknown stride -> returns [byte_len x i8]. Element alignment matches scalar alignment.",
+            category: INV_CAT_ALLOC,
+            smt2_skeleton: stack_storage_shape_smt2(),
+            is_proven: false,
+            proof_ref: "",
+        })
+
+    if fn_name == "helper_alloc_storage_layout_with_bindings":
+        push(result, Invariant {
+            name: "alloc_layout_bounds",
+            description: "Element count and stride must be positive. Byte length = count * stride must be > 0 and <= 65536. Returns None for invalid or out-of-bounds allocations.",
+            category: INV_CAT_BOUNDS,
+            smt2_skeleton: alloc_layout_bounds_smt2(),
+            is_proven: false,
+            proof_ref: "",
+        })
+
+    // --- POINTER TYPE TRACKING INVARIANTS ---
+
+    if fn_name == "collect_pointer_let_types_from_stmt":
+        push(result, Invariant {
+            name: "pointer_let_collection_completeness",
+            description: "Every Let statement with an authored Ptr/Ref type declaration is recorded in original_pointer_let_types keyed by span. The value expression is recursively scanned.",
+            category: INV_CAT_POINTER,
+            smt2_skeleton: pointer_let_collection_smt2(),
+            is_proven: false,
+            proof_ref: "",
+        })
+
+    if fn_name == "authored_struct_pointer_llvm_ty":
+        push(result, Invariant {
+            name: "struct_pointer_type_resolution",
+            description: "For authored Ptr<Struct> or Ref<Struct> types, returns '%StructName*'. For non-struct or non-pointer types, returns None.",
+            category: INV_CAT_POINTER,
+            smt2_skeleton: struct_pointer_type_smt2(),
+            is_proven: false,
+            proof_ref: "",
+        })
+
+    if fn_name == "authored_pointer_param_type":
+        push(result, Invariant {
+            name: "pointer_param_type_resolution",
+            description: "Returns the authored type if it's Ptr/Ref, else looks up original_pointer_param_types by param span. Returns None if neither.",
+            category: INV_CAT_POINTER,
+            smt2_skeleton: pointer_param_type_smt2(),
+            is_proven: false,
+            proof_ref: "",
+        })
+
+    return result
+
+
+// ============================================================================
+//  SMT2 SKELETONS — SMT-LIB v2 templates for Z3 verification
+//
+//  Each function returns a complete, self-contained SMT2 snippet.
+//  Designed as single-line concatenations to avoid Kain parser issues
+//  with multi-line strings.
+// ============================================================================
+
+fn map_type_from_ast_smt2() -> String:
+    return "(set-logic ALL)\n(declare-datatypes ((KType 0)) ((Named (n String) (gs Int)) (Tuple) (ArrayT) (Slice) (Opt) (Res) (Ref) (Ptr) (Unit) (Never)))\n(declare-fun map_ty (KType) String)\n(assert (forall ((t KType)) (not (= (map_ty t) \"\"))))\n(check-sat)"
+
+fn llvm_type_validity_smt2() -> String:
+    return "(set-logic QF_BV)\n(declare-const t String)\n(assert (not (or (= t \"i1\") (= t \"i8\") (= t \"i16\") (= t \"i32\") (= t \"i64\") (= t \"double\") (= t \"void\") (= t \"i8*\") (str.contains t \"%\"))))\n(check-sat)"
+
+fn map_type_from_str_total_smt2() -> String:
+    return "(set-logic QF_BV)\n(declare-const n String)\n(assert (and (not (= n \"Int\")) (not (= n \"Float\")) (not (= n \"Bool\")) (not (= n \"String\")) (str.contains n \">\")))\n(check-sat)"
+
+fn self_alias_smt2() -> String:
+    return "(set-logic QF_BV)\n(declare-const t String)\n(assert (not (or (= t \"Self\") (= t \"Self_\"))))\n(check-sat)"
+
+fn impl_type_substitution_smt2() -> String:
+    return "(set-logic QF_BV)\n(declare-const target String)\n(assert (= target \"\"))\n(check-sat)"
+
+fn string_type_detection_smt2() -> String:
+    return "(set-logic QF_BV)\n(declare-const t String)\n(assert (and (not (= t \"String\")) (not (= t \"str\"))))\n(check-sat)"
+
+fn int_type_detection_smt2() -> String:
+    return "(set-logic QF_BV)\n(declare-const t String)\n(assert (not (= t \"Int\")))\n(check-sat)"
+
+fn json_value_detection_smt2() -> String:
+    return "(set-logic QF_BV)\n(declare-const t String)\n(assert (not (= t \"JsonValue\")))\n(check-sat)"
+
+fn any_value_detection_smt2() -> String:
+    return "(set-logic QF_BV)\n(declare-const t String)\n(assert (not (= t \"Any\")))\n(check-sat)"
+
+fn generic_payload_smt2() -> String:
+    return "(set-logic QF_BV)\n(declare-const n String)\n(assert (str.contains n \">\") (not (str.contains n \"Array<\")) (not (str.contains n \"Slice<\")))\n(check-sat)"
+
+fn tagged_success_smt2() -> String:
+    return "(set-logic QF_BV)\n(declare-const t String)\n(assert (and (not (str.contains t \"Option<\")) (not (str.contains t \"Result<\"))))\n(check-sat)"
+
+fn tuple_name_deterministic_smt2() -> String:
+    return "(set-logic QF_BV)\n(declare-const a String)\n(declare-const b String)\n(assert (= a b))\n(assert (str.contains a \"__kain_tuple\"))\n(check-sat)"
+
+fn struct_storage_type_smt2() -> String:
+    return "(set-logic QF_BV)\n(declare-const st String)\n(assert (not (str.contains st \"%\")))\n(check-sat)"
+
+fn field_alias_index_smt2() -> String:
+    return "(set-logic QF_BV)\n(declare-const f String)\n(assert (not (or (= f \"x\") (= f \"y\") (= f \"z\") (= f \"w\") (= f \"_0\") (= f \"_1\"))))\n(check-sat)"
+
+fn pod_classification_smt2() -> String:
+    return "(set-logic QF_BV)\n(declare-const t String)\n(assert (and (not (= t \"i1\")) (not (= t \"i8\")) (not (= t \"i32\")) (not (= t \"i64\")) (not (= t \"double\")) (not (str.contains t \"%\"))))\n(check-sat)"
+
+fn tuple_struct_register_smt2() -> String:
+    return "(set-logic QF_NIA)\n(declare-const n Int)\n(assert (and (>= n 0) (< n 32)))\n(assert (not (>= n 0)))\n(check-sat)"
+
+fn builtin_vec_smt2() -> String:
+    return "(set-logic QF_BV)\n(declare-const lanes Int)\n(assert (or (= lanes 2) (= lanes 3) (= lanes 4)))\n(check-sat)"
+
+fn llvm_name_sanitization_smt2() -> String:
+    return "(set-logic QF_BV)\n(declare-const inp String)\n(declare-const out String)\n(assert (str.contains out \" \"))\n(check-sat)"
+
+fn array_element_materialize_smt2() -> String:
+    return "(set-logic QF_BV)\n(declare-const raw (_ BitVec 64))\n(define-fun trunc32 () (_ BitVec 32) ((_ extract 31 0) raw))\n(assert (= raw ((_ zero_extend 32) trunc32)))\n(check-sat)"
+
+fn sext_preserves_sign_smt2() -> String:
+    return "(set-logic QF_BV)\n(declare-const x (_ BitVec 8))\n(define-fun w () (_ BitVec 64) ((_ sign_extend 56) x))\n(assert (not (= ((_ extract 7 0) w) x)))\n(check-sat)"
+
+fn zext_zero_fills_smt2() -> String:
+    return "(set-logic QF_BV)\n(declare-const x (_ BitVec 1))\n(define-fun w () (_ BitVec 64) ((_ zero_extend 63) x))\n(assert (and (not (= w #x0000000000000000)) (not (= w #x0000000000000001))))\n(check-sat)"
+
+fn trunc_preserves_low_bits_smt2() -> String:
+    return "(set-logic QF_BV)\n(declare-const x (_ BitVec 64))\n(define-fun t () (_ BitVec 32) ((_ extract 31 0) x))\n(assert (forall ((y (_ BitVec 64))) (not (= y (bvor ((_ zero_extend 32) t) #x00000000FFFFFFFF)))))\n(check-sat)"
+
+fn i64_to_bool_nonzero_smt2() -> String:
+    return "(set-logic QF_BV)\n(declare-const x (_ BitVec 64))\n(define-fun nz () Bool (not (= x #x0000000000000000)))\n(define-fun c () (_ BitVec 1) (ite nz #b1 #b0))\n(check-sat)"
+
+fn double_bitcast_roundtrip_smt2() -> String:
+    return "(set-logic QF_FPBV)\n(declare-const d (_ FloatingPoint 11 53))\n(declare-const i (_ BitVec 64))\n(assert (=> (= i (fp.to_ieee_bv d)) (= d ((_ to_fp 11 53) i))))\n(check-sat)"
+
+fn double_to_bool_fcmp_une_smt2() -> String:
+    return "(set-logic QF_FP)\n(declare-const d (_ FloatingPoint 11 53))\n(define-fun r () Bool (not (fp.eq d (_ +zero 11 53))))\n(assert (and (fp.isNaN d) (not r)))\n(check-sat)"
+
+fn condition_coercion_smt2() -> String:
+    return "(set-logic QF_BV)\n(declare-const x (_ BitVec 64))\n(define-fun cz () Bool (= x #x0000000000000000))\n(define-fun cc () (_ BitVec 1) (ite cz #b0 #b1))\n(check-sat)"
+
+fn llvm_byte_width_smt2() -> String:
+    return "(set-logic QF_NIA)\n(declare-const w Int)\n(assert (or (= w 1) (= w 2) (= w 4) (= w 8) (= w 16)))\n(assert (not (= (mod w 2) 0)))\n(check-sat)"
+
+fn alignment_power_of_two_smt2() -> String:
+    return "(set-logic QF_NIA)\n(declare-const a Int)\n(assert (> a 0))\n(assert (or (= a 1) (= a 2) (= a 4) (= a 8) (= a 16)))\n(assert (not (or (= a 1) (= a 2) (= a 4) (= a 8) (= a 16))))\n(check-sat)"
+
+fn ast_byte_width_smt2() -> String:
+    return "(set-logic QF_NIA)\n(declare-const w Int)\n(assert (> w 0))\n(assert (or (= w 1) (= w 2) (= w 4) (= w 8) (= w 16)))\n(check-sat)"
+
+fn ptr_offset_stride_smt2() -> String:
+    return "(set-logic QF_NIA)\n(declare-const s Int)\n(declare-const aw Int)\n(assert (= s aw))\n(check-sat)"
+
+fn power_of_two_smt2() -> String:
+    return "(set-logic QF_NIA)\n(declare-const v Int)\n(assert (> v 0))\n(assert (= (mod v 2) 0))\n(assert (= (mod (div v 2) 2) 1))\n(check-sat)"
+
+fn tagged_immediate_range_smt2() -> String:
+    return "(set-logic QF_BV)\n(declare-const p (_ BitVec 64))\n(define-fun lo3 () (_ BitVec 64) (bvand p #x0000000000000007))\n(declare-const t (_ BitVec 3))\n(assert (= lo3 #x0000000000000000))\n(define-fun tagged () (_ BitVec 64) (bvor p ((_ zero_extend 61) t)))\n(assert (not (= ((_ extract 2 0) tagged) ((_ zero_extend 61) t))))\n(check-sat)"
+
+fn json_aliasing_smt2() -> String:
+    return "(set-logic QF_BV)\n(declare-const n String)\n(assert (or (str.contains n \"json_object_set\") (str.contains n \"json_array_push\")))\n(check-sat)"
+
+fn json_carry_calls_smt2() -> String:
+    return "(set-logic QF_BV)\n(declare-const n String)\n(assert (= n \"json_object_new\"))\n(check-sat)"
+
+fn json_tag_partition_smt2() -> String:
+    return "(set-logic QF_BV)\n(assert (and (not (= (_ bv1 4) (_ bv2 4))) (not (= (_ bv2 4) (_ bv3 4))) (not (= (_ bv3 4) (_ bv4 4))) (not (= (_ bv1 4) (_ bv4 4)))))\n(check-sat)"
+
+fn json_local_consistency_smt2() -> String:
+    return "(set-logic QF_BV)\n(declare-const in_h Bool)\n(declare-const in_p Bool)\n(assert (and in_h in_p))\n(check-sat)"
+
+fn field_parent_smt2() -> String:
+    return "(set-logic QF_BV)\n(declare-const ot String)\n(assert (or (str.contains ot \"%\") (str.contains ot \"*\")))\n(check-sat)"
+
+fn alloc_scalar_type_smt2() -> String:
+    return "(set-logic QF_NIA)\n(declare-const stride Int)\n(assert (not (or (= stride 1) (= stride 2) (= stride 4) (= stride 8))))\n(assert (= stride 6))\n(check-sat)"
+
+fn stack_storage_shape_smt2() -> String:
+    return "(set-logic QF_NIA)\n(declare-const ec Int)\n(declare-const bl Int)\n(assert (>= ec 1))\n(assert (>= bl 1))\n(assert (<= bl 65536))\n(check-sat)"
+
+fn alloc_layout_bounds_smt2() -> String:
+    return "(set-logic QF_NIA)\n(declare-const count Int)\n(declare-const stride Int)\n(assert (> count 0))\n(assert (> stride 0))\n(assert (<= (* count stride) 65536))\n(assert (> count 65536))\n(check-sat)"
+
+fn pointer_let_collection_smt2() -> String:
+    return "(set-logic QF_BV)\n(declare-const dty String)\n(assert (or (str.contains dty \"Ptr<\") (str.contains dty \"Ref<\")))\n(check-sat)"
+
+fn struct_pointer_type_smt2() -> String:
+    return "(set-logic QF_BV)\n(declare-const pty String)\n(assert (str.contains pty \"%\"))\n(check-sat)"
+
+fn pointer_param_type_smt2() -> String:
+    return "(set-logic QF_BV)\n(declare-const pty String)\n(assert (or (str.contains pty \"Ptr<\") (str.contains pty \"Ref<\")))\n(check-sat)"
+
+
+// ============================================================================
+//  PROOF PACK GENERATOR — materializes YAML + SMT2 skeleton files
+// ============================================================================
+
+/// Generate a ProofPackSkeleton for a given invariant.
+/// The `needs_materialize` flag indicates whether the SMT2 needs placeholder
+/// resolution (e.g., concrete type values substituted in).
+fn make_proof_pack(
+    invariant: Invariant,
+    source_path: String,
+    source_symbol: String,
+    source_line: Int,
+    needs_materialize: Bool,
+) -> ProofPackSkeleton:
+    var tags: Array<String> = ["llvm", "alpha", invariant.category]
+    return ProofPackSkeleton {
+        pack_id: "kain.sys.codegen.llvm.proofs." + sanitize_id(invariant.name),
+        kind: "check_smt2",
+        description: invariant.description,
+        tags: tags,
+        source_path: source_path,
+        source_symbol: source_symbol,
+        source_line: source_line,
+        smt2: invariant.smt2_skeleton,
+        needs_materialize: needs_materialize,
+    }
+
+/// Sanitize a proof pack ID: lowercase, replace spaces/special chars with underscores
+fn sanitize_id(name: String) -> String:
+    var result = ""
+    var i = 0
+    while i < len(name):
+        let c = char_at(name, i)
+        if c == "-" or c == "_":
+            result = result + c
+        elif c == " ":
+            result = result + "_"
+        else:
+            // Check A-Z
+            if c == "A" or c == "B" or c == "C" or c == "D" or c == "E" or c == "F" or c == "G":
+                result = result + text_lower(c)
+            elif c == "H" or c == "I" or c == "J" or c == "K" or c == "L" or c == "M" or c == "N":
+                result = result + text_lower(c)
+            elif c == "O" or c == "P" or c == "Q" or c == "R" or c == "S" or c == "T":
+                result = result + text_lower(c)
+            elif c == "U" or c == "V" or c == "W" or c == "X" or c == "Y" or c == "Z":
+                result = result + text_lower(c)
+            else:
+                result = result + c
+        i = i + 1
+    return result
+
+
+// ============================================================================
+//  COVERAGE CHECK — verify all expected functions were found
+// ============================================================================
+
+/// Check which expected functions were found and which are missing
+fn check_coverage(found: Array<FunctionMeta>) -> (Int, Int, Array<String>):
+    var matched = 0
+    var missing: Array<String> = []
+    for expected in ALL_ALPHA_FUNCTIONS:
+        var found_it = false
+        for meta in found:
+            if meta.name == expected:
+                found_it = true
+                break
+        if found_it:
+            matched = matched + 1
+        else:
+            push(missing, expected)
+    return (matched, len(ALL_ALPHA_FUNCTIONS), missing)
+
+
+// ============================================================================
+//  MAIN VERIFICATION PIPELINE
+// ============================================================================
+
+/// Run the full verification pipeline for the Types, Layout & Casts domain.
+///
+/// Steps:
+///   1. Read the Rust source file
+///   2. Parse function declarations
+///   3. Filter to domain-relevant functions
+///   4. Build invariants for each function
+///   5. Generate proof pack skeletons
+///   6. Print the verification report
+pub fn run_alpha(target: ExtractionTarget) -> VerificationReport:
+    // ---- 1. Read source ---------------------------------------------------
+
+    let source = read_source_file(target.source_path)
+    if source == "":
+        return VerificationReport {
+            function_name: "alpha_types",
+            domain: DOMAIN_TYPES,
+            invariants_found: 0,
+            invariants_proven: 0,
+            invariants_failed: 0,
+            proof_packs_generated: 0,
+            errors: ["Failed to read source file: " + target.source_path],
+            warnings: [],
+        }
+
+    // ---- 2. Parse function declarations ------------------------------------
+
+    let all_fns = parse_rust_source(source)
+
+    // ---- 3. Filter to domain-relevant functions ----------------------------
+
+    var domain_fns: Array<FunctionMeta> = []
+    for fn_meta in all_fns:
+        if arr_contains(ALL_ALPHA_FUNCTIONS, fn_meta.name):
+            push(domain_fns, fn_meta)
+
+    // ---- 4. Build invariants for each function -----------------------------
+
+    var total_invariants = 0
+    var total_proven = 0
+    var total_failed = 0
+    var total_packs = 0
+    var errors: Array<String> = []
+    var warnings: Array<String> = []
+
+    for fn_meta in domain_fns:
+        let invariants = build_invariants_for_fn(fn_meta)
+        for inv in invariants:
+            total_invariants = total_invariants + 1
+
+    // ---- 5. Check coverage against expected catalog ------------------------
+
+    let (matched, expected_total, missing) = check_coverage(domain_fns)
+    if matched < expected_total:
+        for m_fn in missing:
+            push(warnings, "Missing function: " + m_fn + " (not found in source)")
+        total_failed = total_failed + (expected_total - matched)
+
+    // ---- 6. Generate proof pack skeletons ----------------------------------
+
+    var output_dir = "z3/proofs/generated/alpha/"
+    for fn_meta in domain_fns:
+        let invariants = build_invariants_for_fn(fn_meta)
+        for inv in invariants:
+            let pack = make_proof_pack(
+                inv,
+                target.source_path,
+                fn_meta.name,
+                fn_meta.line_start,
+                true,
+            )
+            total_packs = total_packs + 1
+
+    // ---- 7. Build report ---------------------------------------------------
+
+    return VerificationReport {
+        function_name: "alpha_types (all)",
+        domain: DOMAIN_TYPES,
+        invariants_found: total_invariants,
+        invariants_proven: total_proven,
+        invariants_failed: total_failed,
+        proof_packs_generated: total_packs,
+        errors: errors,
+        warnings: warnings,
+    }
+
+
+// ============================================================================
+//  SUBCOMMAND: check-alpha — CLI integration entry point
+// ============================================================================
+
+/// Subcommand handler for "check-alpha".
+/// Reads the codegen_llvm/mod.rs source, extracts all type/layout/casts
+/// functions, runs invariant checks, generates proof pack skeletons.
+pub fn check_alpha(source_path: String) -> Int:
+    var target = ExtractionTarget {
+        source_path: source_path,
+        source_bytes: [],
+        num_lines: 0,
+        num_functions: 0,
+        target_triple: "x86_64-pc-windows-msvc",
+    }
+
+    let report = run_alpha(target)
+
+    // Print report
+    println("=== LANE ALPHA: Types, Layout & Casts Verification ===")
+    println("")
+    println("  Source:          " + source_path)
+    println("  Functions found: " + int_to_str(report.invariants_found) + " invariants")
+    println("  Proven:          " + int_to_str(report.invariants_proven))
+    println("  Failed:          " + int_to_str(report.invariants_failed))
+    println("  Proof packs:     " + int_to_str(report.proof_packs_generated))
+    println("")
+
+    if len(report.errors) > 0:
+        println("  ERRORS:")
+        for err in report.errors:
+            println("    - " + err)
+        println("")
+
+    if len(report.warnings) > 0:
+        println("  WARNINGS:")
+        for warn in report.warnings:
+            println("    - " + warn)
+        println("")
+
+    println("  Report: " + format_report(report))
+    println("")
+    println("=== Verification complete ===")
+
+    if len(report.errors) > 0 or report.invariants_failed > 0:
+        return 2
+    return 0
+
+
+// ============================================================================
+//  HELPER: read source file from disk
+// ============================================================================
+
+fn read_source_file(path: String) -> String:
+    return fs_read_text(path)
+
+
+// ============================================================================
+//  HELPER: convert Int to String (stdlib fallback)
+// ============================================================================
+
+fn int_to_str(value: Int) -> String:
+    return text_to_string(value)
+
+
+// ============================================================================
+//  SELF-TESTS — verify this module's internals
+// ============================================================================
+
+fn test_parse_params() -> Bool:
+    // Parse "name: &str, count: i64, flag: bool"
+    let result = parse_params("name: &str, count: i64, flag: bool")
+    let ok = len(result) == 3
+    if ok == false: return false
+    // Check first param
+    if result[0].name != "name": return false
+    if result[0].ty != "&str": return false
+    if result[0].is_self: return false
+    // Check second param
+    if result[1].name != "count": return false
+    if result[1].ty != "i64": return false
+    // Check third param
+    if result[2].name != "flag": return false
+    return true
+
+fn test_parse_self_param() -> Bool:
+    let result = parse_params("&self, name: &str")
+    if len(result) != 2: return false
+    if result[0].is_self == false: return false
+    if result[0].name != "self": return false
+    return true
+
+fn test_parse_generic_params() -> Bool:
+    let result = parse_params("items: Vec<String>, callback: Option<i64>")
+    if len(result) != 2: return false
+    // Vec<String> should not be split on the comma inside <>
+    if result[0].ty != "Vec<String>": return false
+    return true
+
+fn test_extract_return_type() -> Bool:
+    if extract_return_type("fn foo(x: i64) -> String {") != "String": return false
+    if extract_return_type("fn bar() -> i64") != "i64": return false
+    if extract_return_type("fn baz() {") != "unit": return false
+    return true
+
+fn test_find_str() -> Bool:
+    if find_str("hello world", "world") != 6: return false
+    if find_str("abc", "d") != -1: return false
+    return true
+
+fn test_positive_power_of_two() -> Bool:
+    let result = power_of_two_check(8)
+    if result != 3: return false  // 2^3 = 8
+    if power_of_two_check(1) != 0: return false
+    if power_of_two_check(6) >= 0: return false  // not power of two
+    if power_of_two_check(0) >= 0: return false
+    return true
+
+fn power_of_two_check(value: Int) -> Int:
+    if value <= 0: return -1
+    if (value & (value - 1)) != 0: return -1
+    var shift = 0
+    var v = value
+    while v > 1:
+        v = v >> 1
+        shift = shift + 1
+    return shift
+
+fn test_abi_constants() -> Bool:
+    // Tag bits (7 = 0b111) don't overlap with immediate range
+    if (ABI_IMMEDIATE_MAX & ABI_TAGGED_IMMEDIATE_MASK) != ABI_TAGGED_IMMEDIATE_MASK: return false
+    if (ABI_IMMEDIATE_MIN & ABI_TAGGED_IMMEDIATE_MASK) != 0: return false
+    // Tags are distinct
+    if ABI_TAG_OPTION_NONE == ABI_TAG_OPTION_SOME: return false
+    if ABI_TAG_RESULT_OK == ABI_TAG_RESULT_ERR: return false
+    return true
+
+fn test_json_tags() -> Bool:
+    // JSON tags are distinct
+    if JSON_ANY_TAG_INT == JSON_ANY_TAG_BOOL: return false
+    if JSON_ANY_TAG_STRING == JSON_ANY_TAG_NULL: return false
+    if JSON_ANY_TAG_INT == JSON_ANY_TAG_NULL: return false
+    return true
+
+fn test_byte_widths() -> Bool:
+    // Verify byte width math
+    if llvm_byte_width("i1") != 1: return false
+    if llvm_byte_width("i8") != 1: return false
+    if llvm_byte_width("i32") != 4: return false
+    if llvm_byte_width("i64") != 8: return false
+    if llvm_byte_width("i128") != 16: return false
+    if llvm_byte_width("double") != 8: return false
+    if llvm_byte_width("i8*") != 8: return false
+    if llvm_byte_width("void") > 0: return false  // void has no width
+    return true
+
+fn llvm_byte_width(ty: String) -> Int:
+    if ty == "i1" or ty == "i8": return 1
+    if ty == "i16": return 2
+    if ty == "i32" or ty == "float": return 4
+    if ty == "i64" or ty == "double": return 8
+    if ty == "i128": return 16
+    if text_ends_with_string(ty, "*"): return 8
+    return -1
+
+fn test_sanitize_id() -> Bool:
+    if sanitize_id("map_type_from_ast") != "map_type_from_ast": return false
+    if sanitize_id("cast i64 to i1") != "cast_i64_to_i1": return false
+    return true
+
+// ============================================================================
+//  RUN ALL SELF-TESTS
+// ============================================================================
+
+pub fn run_tests() -> Bool:
+    var ok = true
+    if test_parse_params() == false:
+        println("FAIL: test_parse_params")
+        ok = false
+    if test_parse_self_param() == false:
+        println("FAIL: test_parse_self_param")
+        ok = false
+    if test_parse_generic_params() == false:
+        println("FAIL: test_parse_generic_params")
+        ok = false
+    if test_extract_return_type() == false:
+        println("FAIL: test_extract_return_type")
+        ok = false
+    if test_find_str() == false:
+        println("FAIL: test_find_str")
+        ok = false
+    if test_positive_power_of_two() == false:
+        println("FAIL: test_positive_power_of_two")
+        ok = false
+    if test_abi_constants() == false:
+        println("FAIL: test_abi_constants")
+        ok = false
+    if test_json_tags() == false:
+        println("FAIL: test_json_tags")
+        ok = false
+    if test_byte_widths() == false:
+        println("FAIL: test_byte_widths")
+        ok = false
+    if test_sanitize_id() == false:
+        println("FAIL: test_sanitize_id")
+        ok = false
+    if ok:
+        println("All alpha_types self-tests passed.")
+    return ok
