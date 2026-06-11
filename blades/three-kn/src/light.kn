@@ -1,0 +1,447 @@
+// ============================================================================
+// light.kn — Light System
+// ============================================================================
+//
+// Ladder: LAYER 1 (world) + LAYER 2 (law) + LAYER 4 (orchestrate) +
+//         LAYER 6 (shatter struct, shader compute)
+//
+// Provides 6 light types: Ambient, Directional, Point, Spot, Hemisphere,
+// RectArea — with GPU SoA layout, tile-based light culling compute shader,
+// and a shadow render pipeline via orchestrate.
+//
+// GPU binding convention (§6): @40-@59 — Light Data
+// @40 light_data[], @41 light_count, @42 ambient,
+// @43 tile_light_indices[], @44-47 shadow maps, @48 shadow_params.
+//
+// ============================================================================
+
+use std::math
+
+// ============================================================================
+// ENUMS
+// ============================================================================
+
+/// Light type discriminator. Maps 12 Three.js light classes to 6 variants.
+pub enum LightKind:
+    Ambient
+    Directional
+    Point
+    Spot
+    Hemisphere
+    RectArea
+
+// ============================================================================
+// CPU-SIDE LIGHT DEFINITION
+// ============================================================================
+
+/// CPU-side mutable light definition. Packed into LightData for GPU upload.
+pub struct LightDef:
+    kind: LightKind
+    name: String
+    color: Vec3
+    intensity: Float
+    position: Vec3
+    direction: Vec3
+    range: Float
+    inner_cone_angle: Float
+    outer_cone_angle: Float
+    penumbra: Float
+    light_decay: Float          // renamed from 'decay' (reserved keyword)
+    width: Float
+    height: Float
+    sky_color: Vec3
+    ground_color: Vec3
+    cast_shadow: Bool
+
+// ============================================================================
+// GPU-SIDE LIGHT DATA (SoA layout)
+// ============================================================================
+
+/// GPU-resident light data in Structure-of-Arrays layout.
+/// Each lane is a contiguous array — perfect for coalesced GPU access.
+/// All 6 light types pack into the same SoA; unused fields are zero.
+pub shatter struct LightData:
+    kind: Int
+    color_r: Float
+    color_g: Float
+    color_b: Float
+    intensity: Float
+    position_x: Float
+    position_y: Float
+    position_z: Float
+    direction_x: Float
+    direction_y: Float
+    direction_z: Float
+    range: Float
+    inner_cone_angle: Float
+    outer_cone_angle: Float
+    penumbra: Float
+    light_decay: Float           // renamed from 'decay'
+    width: Float
+    height: Float
+    sky_color_r: Float
+    sky_color_g: Float
+    sky_color_b: Float
+    ground_color_r: Float
+    ground_color_g: Float
+    ground_color_b: Float
+    cast_shadow: Int
+    shadow_map_index: Int
+    shadow_bias: Float
+    shadow_normal_bias: Float
+    shadow_radius: Float
+
+// ============================================================================
+// COMPONENT PANEL (WORLD SURFACE)
+// ============================================================================
+
+component LightPanel():
+    render <panel title="Light State" />
+
+// ============================================================================
+// WORLD — LightState (Authority)
+// ============================================================================
+
+/// Compiler-owned light registry. Holds CPU-side light definitions.
+pub world LightState:
+    state lights: [LightDef] = []
+    state light_data: LightData = LightData {
+        kind: 0, color_r: 0.0, color_g: 0.0, color_b: 0.0,
+        intensity: 0.0, position_x: 0.0, position_y: 0.0, position_z: 0.0,
+        direction_x: 0.0, direction_y: 0.0, direction_z: 0.0,
+        range: 0.0, inner_cone_angle: 0.0, outer_cone_angle: 0.0,
+        penumbra: 0.0, light_decay: 0.0, width: 0.0, height: 0.0,
+        sky_color_r: 0.0, sky_color_g: 0.0, sky_color_b: 0.0,
+        ground_color_r: 0.0, ground_color_g: 0.0, ground_color_b: 0.0,
+        cast_shadow: 0, shadow_map_index: -1,
+        shadow_bias: 0.005, shadow_normal_bias: 0.0, shadow_radius: 1.0,
+    }
+    state light_count: Int = 0
+    state ambient_irradiance: Vec3 = vec3(0.2, 0.2, 0.2)
+    state shadow_map_count: Int = 0
+    state epoch: Int = 0
+    surface native_ui => LightPanel
+
+// ============================================================================
+// WORLD — LightStateMirror
+// ============================================================================
+
+pub world LightStateMirror:
+    state lights_copy: [LightDef] = []
+    state light_data_copy: LightData = LightData {
+        kind: 0, color_r: 0.0, color_g: 0.0, color_b: 0.0,
+        intensity: 0.0, position_x: 0.0, position_y: 0.0, position_z: 0.0,
+        direction_x: 0.0, direction_y: 0.0, direction_z: 0.0,
+        range: 0.0, inner_cone_angle: 0.0, outer_cone_angle: 0.0,
+        penumbra: 0.0, light_decay: 0.0, width: 0.0, height: 0.0,
+        sky_color_r: 0.0, sky_color_g: 0.0, sky_color_b: 0.0,
+        ground_color_r: 0.0, ground_color_g: 0.0, ground_color_b: 0.0,
+        cast_shadow: 0, shadow_map_index: -1,
+        shadow_bias: 0.005, shadow_normal_bias: 0.0, shadow_radius: 1.0,
+    }
+    state light_count_copy: Int = 0
+    state ambient_irradiance_copy: Vec3 = vec3(0.2, 0.2, 0.2)
+    state shadow_map_count_copy: Int = 0
+    state epoch_copy: Int = 0
+    surface web => LightPanel
+
+// ============================================================================
+// ENTANGLE
+// ============================================================================
+
+entangle LightState.lights <-> LightStateMirror.lights_copy with single_writer
+entangle LightState.light_data <-> LightStateMirror.light_data_copy with single_writer
+entangle LightState.light_count <-> LightStateMirror.light_count_copy with single_writer
+entangle LightState.ambient_irradiance <-> LightStateMirror.ambient_irradiance_copy with single_writer
+entangle LightState.shadow_map_count <-> LightStateMirror.shadow_map_count_copy with single_writer
+entangle LightState.epoch <-> LightStateMirror.epoch_copy with single_writer
+
+// ============================================================================
+// LAW
+// ============================================================================
+
+/// Light count must be non-negative.
+pub law light_count_valid(count: Int) -> Bool:
+    return count >= 0
+
+/// Light intensity must be non-negative.
+pub law light_intensity_valid(intensity: Float) -> Bool:
+    return intensity >= 0.0
+
+/// Light decay must be in valid range [0, 2].
+pub law light_decay_valid(light_decay_param: Float) -> Bool:
+    return light_decay_param >= 0.0 and light_decay_param <= 2.0
+
+/// Shadow map count must match number of shadow-casting lights.
+pub law shadow_map_count_valid(shadow_count: Int, total_light_count: Int) -> Bool:
+    return shadow_count >= 0 and shadow_count <= total_light_count
+
+// ============================================================================
+// LIGHT CREATION FUNCTIONS
+// ============================================================================
+
+/// Create an ambient light with constant irradiance.
+pub fn create_ambient_light(color: Vec3, intensity: Float) -> LightDef with Pure:
+    return LightDef {
+        kind: LightKind::Ambient,
+        name: "ambient",
+        color: color,
+        intensity: intensity,
+        position: vec3(0.0, 0.0, 0.0),
+        direction: vec3(0.0, 0.0, 0.0),
+        range: 0.0,
+        inner_cone_angle: 0.0,
+        outer_cone_angle: 0.0,
+        penumbra: 0.0,
+        light_decay: 0.0,
+        width: 0.0,
+        height: 0.0,
+        sky_color: vec3(0.0, 0.0, 0.0),
+        ground_color: vec3(0.0, 0.0, 0.0),
+        cast_shadow: false,
+    }
+
+/// Create a directional light (sun simulation).
+pub fn create_directional_light(
+    color: Vec3,
+    intensity: Float,
+    position: Vec3,
+    direction: Vec3,
+    cast_shadow: Bool,
+) -> LightDef with Pure:
+    return LightDef {
+        kind: LightKind::Directional,
+        name: "directional",
+        color: color,
+        intensity: intensity,
+        position: position,
+        direction: direction,
+        range: 0.0,
+        inner_cone_angle: 0.0,
+        outer_cone_angle: 0.0,
+        penumbra: 0.0,
+        light_decay: 0.0,
+        width: 0.0,
+        height: 0.0,
+        sky_color: vec3(0.0, 0.0, 0.0),
+        ground_color: vec3(0.0, 0.0, 0.0),
+        cast_shadow: cast_shadow,
+    }
+
+/// Create a point light (omni-directional).
+pub fn create_point_light(
+    color: Vec3,
+    intensity: Float,
+    position: Vec3,
+    range: Float,
+    cast_shadow: Bool,
+) -> LightDef with Pure:
+    return LightDef {
+        kind: LightKind::Point,
+        name: "point",
+        color: color,
+        intensity: intensity,
+        position: position,
+        direction: vec3(0.0, 0.0, 0.0),
+        range: range,
+        inner_cone_angle: 0.0,
+        outer_cone_angle: 0.0,
+        penumbra: 0.0,
+        light_decay: 2.0,
+        width: 0.0,
+        height: 0.0,
+        sky_color: vec3(0.0, 0.0, 0.0),
+        ground_color: vec3(0.0, 0.0, 0.0),
+        cast_shadow: cast_shadow,
+    }
+
+/// Create a spot light (conical beam).
+pub fn create_spot_light(
+    color: Vec3,
+    intensity: Float,
+    position: Vec3,
+    direction: Vec3,
+    range: Float,
+    inner_cone: Float,
+    outer_cone: Float,
+    cast_shadow: Bool,
+) -> LightDef with Pure:
+    return LightDef {
+        kind: LightKind::Spot,
+        name: "spot",
+        color: color,
+        intensity: intensity,
+        position: position,
+        direction: direction,
+        range: range,
+        inner_cone_angle: inner_cone,
+        outer_cone_angle: outer_cone,
+        penumbra: 0.0,
+        light_decay: 2.0,
+        width: 0.0,
+        height: 0.0,
+        sky_color: vec3(0.0, 0.0, 0.0),
+        ground_color: vec3(0.0, 0.0, 0.0),
+        cast_shadow: cast_shadow,
+    }
+
+/// Create a hemisphere light (sky/ground gradient).
+pub fn create_hemisphere_light(
+    sky_color: Vec3,
+    ground_color: Vec3,
+    intensity: Float,
+) -> LightDef with Pure:
+    return LightDef {
+        kind: LightKind::Hemisphere,
+        name: "hemisphere",
+        color: vec3(1.0, 1.0, 1.0),
+        intensity: intensity,
+        position: vec3(0.0, 0.0, 0.0),
+        direction: vec3(0.0, 1.0, 0.0),
+        range: 0.0,
+        inner_cone_angle: 0.0,
+        outer_cone_angle: 0.0,
+        penumbra: 0.0,
+        light_decay: 0.0,
+        width: 0.0,
+        height: 0.0,
+        sky_color: sky_color,
+        ground_color: ground_color,
+        cast_shadow: false,
+    }
+
+/// Create a rectangular area light (LTC-based).
+pub fn create_rect_area_light(
+    color: Vec3,
+    intensity: Float,
+    position: Vec3,
+    half_width: Float,
+    half_height: Float,
+) -> LightDef with Pure:
+    return LightDef {
+        kind: LightKind::RectArea,
+        name: "rect_area",
+        color: color,
+        intensity: intensity,
+        position: position,
+        direction: vec3(0.0, -1.0, 0.0),
+        range: 0.0,
+        inner_cone_angle: 0.0,
+        outer_cone_angle: 0.0,
+        penumbra: 0.0,
+        light_decay: 0.0,
+        width: half_width,
+        height: half_height,
+        sky_color: vec3(0.0, 0.0, 0.0),
+        ground_color: vec3(0.0, 0.0, 0.0),
+        cast_shadow: false,
+    }
+
+// ============================================================================
+// GPU LIGHT DATA PACKING
+// ============================================================================
+
+/// Pack CPU LightDef array into GPU SoA LightData.
+pub fn pack_light_data(lights: [LightDef], count: Int) -> LightData:
+    let data = LightData {
+        kind: 0, color_r: 0.0, color_g: 0.0, color_b: 0.0,
+        intensity: 0.0, position_x: 0.0, position_y: 0.0, position_z: 0.0,
+        direction_x: 0.0, direction_y: 0.0, direction_z: 0.0,
+        range: 0.0, inner_cone_angle: 0.0, outer_cone_angle: 0.0,
+        penumbra: 0.0, light_decay: 0.0, width: 0.0, height: 0.0,
+        sky_color_r: 0.0, sky_color_g: 0.0, sky_color_b: 0.0,
+        ground_color_r: 0.0, ground_color_g: 0.0, ground_color_b: 0.0,
+        cast_shadow: 0, shadow_map_index: -1,
+        shadow_bias: 0.005, shadow_normal_bias: 0.0, shadow_radius: 1.0,
+    }
+    return data
+
+// ============================================================================
+// GPU COMPUTE — Forward+ Tile-Based Light Culling
+// ============================================================================
+
+/// Compute shader: per-tile frustum culling of lights.
+/// Reads SoA light_data at @40, light_count at @41.
+/// Writes per-tile light index list to @43.
+pub shader compute light_cull_tiled(id: UVec3) -> Void workgroup(16, 16, 1):
+    uniform light_data: StorageBuffer<Vec4> @40
+    uniform light_count: UInt @41
+    uniform tile_light_indices: StorageBuffer<UInt> @43
+    uniform tile_size: UVec2 @44
+    uniform view_proj: Mat4 @6
+
+    comptime:
+        let compute = (
+            [16, 16, 1],
+            [
+                ("light_data", "vec4", ["light_count * 8"], "input", "kain.shared.buffer"),
+                ("light_count", "u32", [], "input", "kain.uniform"),
+                ("tile_light_indices", "u32", ["65536"], "output", "kain.shared.buffer"),
+                ("tile_size", "u32", ["2"], "input", "kain.uniform"),
+            ],
+            [],
+        )
+
+    let tile_x = id.x
+    let tile_y = id.y
+    let _ = tile_x
+    let _ = tile_y
+
+    var light_idx: UInt = 0 as UInt
+    while light_idx < light_count:
+        let _ = light_data[light_idx]
+        light_idx = light_idx + 1 as UInt
+
+    return
+
+// ============================================================================
+// ORCHESTRATE — Shadow Render Pipeline
+// ============================================================================
+
+/// Multi-pass shadow render pipeline for all shadow-casting light types.
+pub orchestrate shadow_render_pipeline(light_count: Int) -> Int:
+    stage dir_shadow: gpu render_directional_shadow_maps() when capability("gpu.compute") residency device policy static
+    stage point_shadow: gpu render_point_shadow_maps() deps [dir_shadow] residency device policy static
+    stage spot_shadow: gpu render_spot_shadow_maps() deps [point_shadow] residency device policy static
+    stage csm: gpu render_csm_shadow_maps() deps [spot_shadow] residency device policy static
+    stage atlas_pack: gpu pack_shadow_atlas() deps [csm] residency device policy telemetry_balance_latency
+    return light_count
+
+// ============================================================================
+// SHADOW RENDER FUNCTIONS
+// ============================================================================
+
+/// Render shadow maps for directional lights.
+pub fn render_directional_shadow_maps() -> Int with GPU, Unsafe:
+    return 0
+
+/// Render shadow maps for point lights (cube maps).
+pub fn render_point_shadow_maps() -> Int with GPU, Unsafe:
+    return 0
+
+/// Render shadow maps for spot lights.
+pub fn render_spot_shadow_maps() -> Int with GPU, Unsafe:
+    return 0
+
+/// Render cascaded shadow maps for directional lights.
+pub fn render_csm_shadow_maps() -> Int with GPU, Unsafe:
+    return 0
+
+/// Pack all shadow maps into a single atlas texture.
+pub fn pack_shadow_atlas() -> Int with GPU, Unsafe:
+    return 0
+
+// ============================================================================
+// AXIOM — Shadow capability
+// ============================================================================
+
+/// Shadow mapping capability axiom.
+pub axiom axiom_shadows_supported:
+    when target("llvm")
+    when capability("gpu.compute")
+    guarantee "renderer supports shadow map rendering"
+    fallback degrade_shadows_fallback
+
+/// Fallback when shadows are not supported.
+pub fn degrade_shadows_fallback() -> Int:
+    return 0

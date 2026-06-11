@@ -43,7 +43,7 @@ fn build(ctx: BuildContext) -> BuildGraph:
         .telemetry("llm.evidence", "three-kn.core")
 
     let gpu = gpu_suite("gpu-artifacts")
-        .compute("src/audio.kn")
+        .compute("src/compute.kn")
         .targets("spirv", "hlsl")
         .artifact_root(".kain/out/gpu")
         .requires("check-llvm")

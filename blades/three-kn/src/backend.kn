@@ -2,12 +2,6 @@
 //  BACKEND — Graphics Backend Selection
 //  Layer 6 (axiom) + Layer 3 (converge)
 // ============================================================================
-//
-//  Four axiom declarations, one per graphics API, each declaring the required
-//  machine capabilities. converge select_backend() selects at runtime.
-//
-//  CONSTANTS for backend identifiers passed to std::graphics::backend_select().
-// ============================================================================
 
 use std::runtime
 
@@ -15,17 +9,29 @@ use std::runtime
 //  BACKEND IDENTIFIER CONSTANTS
 // ============================================================================
 
-const GRAPHICS_BACKEND_AUTO: String = "auto"
-const GRAPHICS_BACKEND_VULKAN: String = "vulkan"
-const GRAPHICS_BACKEND_DX12: String = "dx12"
-const GRAPHICS_BACKEND_METAL: String = "metal"
-const GRAPHICS_BACKEND_WEBGPU: String = "webgpu"
+const GRAPHICS_BACKEND_AUTO: Int = 0
+const GRAPHICS_BACKEND_VULKAN: Int = 1
+const GRAPHICS_BACKEND_DX12: Int = 2
+const GRAPHICS_BACKEND_METAL: Int = 3
+const GRAPHICS_BACKEND_WEBGPU: Int = 4
+
+const BACKEND_NAMES: [String] = [
+    "auto",
+    "vulkan",
+    "dx12",
+    "metal",
+    "webgpu",
+]
+
+fn backend_id_to_name(id: Int) -> String with Pure:
+    if id >= 0 and id < len(BACKEND_NAMES):
+        return BACKEND_NAMES[id]
+    return "auto"
 
 // ============================================================================
 //  AXIOM DECLARATIONS
 // ============================================================================
 
-/// Vulkan 1.3 backend with push constants, descriptor indexing, and compute
 axiom vulkan_supported:
     when target("llvm")
     when capability("gfx.vulkan")
@@ -33,7 +39,6 @@ axiom vulkan_supported:
     guarantee "Vulkan 1.3: push constants, descriptor indexing, compute dispatch"
     fallback check_dx12
 
-/// DirectX 12 Ultimate with DXR raytracing, mesh shaders, and compute
 axiom dx12_supported:
     when target("llvm")
     when capability("gfx.dx12")
@@ -41,7 +46,6 @@ axiom dx12_supported:
     guarantee "DirectX 12 Ultimate: raytracing, mesh shaders, compute"
     fallback check_metal
 
-/// Metal 3 with argument buffers, GPU-driven rendering, and compute
 axiom metal_supported:
     when target("llvm")
     when capability("gfx.metal")
@@ -49,7 +53,6 @@ axiom metal_supported:
     guarantee "Metal 3: argument buffers, GPU-driven rendering, compute"
     fallback check_webgpu
 
-/// WebGPU with WGSL shaders, bind groups, and compute pass
 axiom webgpu_supported:
     when target("llvm")
     when capability("gfx.webgpu")
@@ -61,8 +64,7 @@ axiom webgpu_supported:
 //  FALLBACK FUNCTIONS
 // ============================================================================
 
-fn check_dx12() -> String:
-    /// Fallback from Vulkan: try DX12, then Metal, then WebGPU, then software.
+fn check_dx12() -> Int:
     let dx12_ready: Int = runtime_cpu_has_capability("gfx.dx12")
     if dx12_ready != 0:
         return GRAPHICS_BACKEND_DX12
@@ -74,8 +76,7 @@ fn check_dx12() -> String:
         return GRAPHICS_BACKEND_WEBGPU
     return GRAPHICS_BACKEND_AUTO
 
-fn check_metal() -> String:
-    /// Fallback from DX12: try Metal, then WebGPU, then software.
+fn check_metal() -> Int:
     let metal_ready: Int = runtime_cpu_has_capability("gfx.metal")
     if metal_ready != 0:
         return GRAPHICS_BACKEND_METAL
@@ -84,25 +85,20 @@ fn check_metal() -> String:
         return GRAPHICS_BACKEND_WEBGPU
     return GRAPHICS_BACKEND_AUTO
 
-fn check_webgpu() -> String:
-    /// Fallback from Metal: try WebGPU, then software.
+fn check_webgpu() -> Int:
     let webgpu_ready: Int = runtime_cpu_has_capability("gfx.webgpu")
     if webgpu_ready != 0:
         return GRAPHICS_BACKEND_WEBGPU
     return GRAPHICS_BACKEND_AUTO
 
-fn check_software() -> String:
-    /// Ultimate fallback: let the runtime decide.
+fn check_software() -> Int:
     return GRAPHICS_BACKEND_AUTO
 
 // ============================================================================
 //  CONVERGE SELECT BACKEND
 // ============================================================================
 
-/// Select the best graphics backend for the current machine.
-/// Spec: return AUTO and let the runtime decide.
-/// Fast lanes: try each backend when the capability is available.
-converge select_backend() -> String:
+converge select_backend() -> Int:
     spec reference:
         return GRAPHICS_BACKEND_AUTO
 
@@ -125,16 +121,7 @@ converge select_backend() -> String:
 // ============================================================================
 
 fn test_select_backend() -> Int with Pure:
-    /// Test that select_backend returns a valid backend string.
-    let backend: String = select_backend()
-    if backend == GRAPHICS_BACKEND_AUTO:
-        return 1
-    if backend == GRAPHICS_BACKEND_VULKAN:
-        return 1
-    if backend == GRAPHICS_BACKEND_DX12:
-        return 1
-    if backend == GRAPHICS_BACKEND_METAL:
-        return 1
-    if backend == GRAPHICS_BACKEND_WEBGPU:
+    let backend: Int = select_backend()
+    if backend >= GRAPHICS_BACKEND_AUTO and backend <= GRAPHICS_BACKEND_WEBGPU:
         return 1
     return 0

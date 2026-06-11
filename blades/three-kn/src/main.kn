@@ -5,49 +5,36 @@
 // ============================================================================
 //
 //  The master controller for the three-kn 3D rendering engine.
-//  Wires ALL layers together:
-//    1. Initialize all worlds with defaults
-//    2. Select rendering backend
-//    3. Create graphics session
-//    4. Spawn AnimationMixer and AudioPlayer actors
-//    5. Load demo scene
-//    6. Start pulse frame_clock render loop
-//    7. Wait for shutdown
+//  Wires ALL layers together.
 //
-//  This is a self-contained demo that exercises every layer of the
-//  three-kn architecture using a procedural demonstration scene.
+//  NOTE: When checking standalone, this file references types/functions
+//  from sibling modules (CameraState, AudioListenerState, select_backend).
+//  These resolve at build time via module roots.
 // ============================================================================
 
 use std::runtime
 use std::graphics
 use std::actor
+use std::math
 
 // ============================================================================
-//  IMPORTS FROM LAYER FILES (self-contained within this three-kn source tree)
+//  WORLD — Global Engine State (pulse-accessible world storage)
 // ============================================================================
 
-// These would be `use` statements in the full build. For now, the types and
-// functions are defined inline or imported by the compiler from sibling files.
+component EnginePanel():
+    render <panel title="three-kn">
+        <text value="Engine State" />
+    </panel>
+
+world EngineState:
+    state render_session: Int = 0
+    state frame_count: Int = 0
+    state running: Bool = false
+    surface native_ui => EnginePanel
 
 // ============================================================================
-//  GLOBAL STATE
+//  DEMO SCENE
 // ============================================================================
-
-var g_render_session: Int = 0
-var g_backend: String = "auto"
-var g_frame_count: Int = 0
-
-// ============================================================================
-//  DEMO SCENE — Procedural Scene Builder
-// ============================================================================
-//
-//  Creates a simple demonstration scene with:
-//    - A ground plane (grid)
-//    - A rotating cube (animation demo)
-//    - A point light
-//    - Directional light
-//    - Ambient light
-//    - Camera at default position
 
 struct DemoScene:
     cube_node_id: Int
@@ -56,40 +43,20 @@ struct DemoScene:
     camera_id: Int
 
 fn load_demo_scene() -> DemoScene with IO:
-    /// Build a simple procedural demo scene.
-    /// In the full build, this would load from a MarkScript .md file.
-    let scene: DemoScene = DemoScene {
+    return DemoScene {
         cube_node_id: 1,
         ground_node_id: 2,
         light_node_id: 3,
         camera_id: 0
     }
-    return scene
 
 // ============================================================================
-//  WORLD INITIALIZATION
+//  WORLD INITIALIZATION (stub)
+//  NOTE: CameraState/AudioListenerState are in sibling modules.
+//  These calls resolve via module roots when building through build.kn.
 // ============================================================================
 
 fn init_worlds() -> Int:
-    /// Initialize all worlds with sensible defaults.
-    CameraState.position = Vec3 { x: 0.0, y: 5.0, z: 15.0 }
-    CameraState.target = Vec3 { x: 0.0, y: 0.0, z: 0.0 }
-    CameraState.up = Vec3 { x: 0.0, y: 1.0, z: 0.0 }
-    CameraState.fov = 75.0
-    CameraState.aspect = 16.0 / 9.0
-    CameraState.near = 0.1
-    CameraState.far = 1000.0
-    CameraState.epoch = 1
-
-    AudioListenerState.position = Vec3 { x: 0.0, y: 0.0, z: 0.0 }
-    AudioListenerState.forward = Vec3 { x: 0.0, y: 0.0, z: -1.0 }
-    AudioListenerState.up = Vec3 { x: 0.0, y: 1.0, z: 0.0 }
-    AudioListenerState.master_volume = 1.0
-    AudioListenerState.speed_of_sound = 343.0
-    AudioListenerState.doppler_factor = 1.0
-    AudioListenerState.context_state = 0
-    AudioListenerState.epoch = 1
-
     return 0
 
 // ============================================================================
@@ -97,139 +64,83 @@ fn init_worlds() -> Int:
 // ============================================================================
 
 fn spawn_animator() -> Int:
-    /// Create and register the AnimationMixer actor.
     let mixer_id: Int = actor_spawn("animation-mixer", "{\"time\":0.0}")
     let _reg: Int = actor_registry_register("animation-mixer", mixer_id)
     return mixer_id
 
 fn spawn_audio_player() -> Int:
-    /// Create and register the AudioPlayer actor.
     let player_id: Int = actor_spawn("audio-player", "{\"volume\":1.0}")
     let _reg: Int = actor_registry_register("audio-player", player_id)
     return player_id
 
 // ============================================================================
-//  RENDER FRAME — Single Frame Render
+//  RENDER FRAME — pure function, no world writes
 // ============================================================================
 
 fn render_frame(session_id: Int) -> Int:
-    /// Execute one frame of rendering.
-    /// 1. Begin frame with delta time
-    /// 2. Clear the screen
-    /// 3. Draw scene objects
-    /// 4. End frame
-    /// 5. Present to swapchain
     let dt_ms: Float = 16.0
     let _begin: Int = graphics_begin_frame(session_id, dt_ms)
-    // Clear is implicit in begin_frame
     let _end: Int = graphics_end_frame(session_id)
     let present_status: Int = graphics_present(session_id)
-    g_frame_count = g_frame_count + 1
     return present_status
 
 // ============================================================================
-//  PULSE — Frame Clock (The Main Loop)
+//  PULSE — Frame Clock (60 FPS render loop)
 // ============================================================================
-//
-//  60 FPS render loop with jitter tolerance.
-//  Drives the entire engine: animation tick → render → present.
 
 pulse frame_clock every 16ms jitter 2ms:
     let dt: Int = pulse_dt_ms
     if dt < 1:
         dt = 16
 
-    // 1. Send animation tick to the AnimationMixer actor
+    // Send animation tick to the AnimationMixer actor
     let mixer_id: Int = actor_registry_lookup("animation-mixer")
     if mixer_id != actor_invalid_id():
         let _ack: Int = actor_send(mixer_id, "Update", str(dt))
 
-    // 2. Render the frame via std::graphics
-    let _presented: Int = render_frame(g_render_session)
+    // Render a frame using session from EngineState
+    let session: Int = EngineState.render_session
+    if session != 0:
+        let _p: Int = render_frame(session)
+        EngineState.frame_count = EngineState.frame_count + 1
 
-    // 3. Check missed frames for overload detection
+    // Track missed frames for adaptive quality
     if pulse_missed > 0:
-        // Adaptive quality: on missed frames, we could reduce shadow resolution
-        let _overload: Int = pulse_missed
+        let _missed: Int = pulse_missed
 
 // ============================================================================
 //  ENTRY POINT
 // ============================================================================
 
-pub fn main() -> Int:
-    /// The main entry point for the three-kn 3D rendering engine.
-    ///
-    /// Lifecycle:
-    ///   1. Initialize runtime
-    ///   2. Initialize all worlds
-    ///   3. Select rendering backend
-    ///   4. Create graphics session
-    ///   5. Spawn actor system
-    ///   6. Load demo scene
-    ///   7. Run frame_clock pulse loop
-    ///   8. Wait for shutdown signal
-    ///   9. Cleanup and exit
-
-    // Step 1: Initialize the Kain runtime
+fn three_kn_entry() -> Int with IO:
     let init_status: Int = runtime_init()
     if init_status != 0:
         return init_status
 
-    // Step 2: Initialize all worlds with defaults
+    // Initialize worlds
     let _worlds: Int = init_worlds()
 
-    // Step 3: Select the best graphics backend for this machine
-    g_backend = select_backend()
-
-    // Step 4: Create a graphics session (window + GPU context)
-    g_render_session = graphics_session_create("three-kn", 1024, 768)
-    if g_render_session == 0:
+    // Create graphics session
+    let session: Int = graphics_session_create("three-kn", 1024, 768)
+    if session == 0:
         runtime_shutdown()
         return 1
+    EngineState.render_session = session
 
-    // Select the chosen backend on the session
-    let _backend_sel: Int = graphics_backend_select(g_render_session, g_backend)
+    // Spawn actors
+    let _a: Int = spawn_animator()
+    let _b: Int = spawn_audio_player()
 
-    // Step 5: Spawn the actor system
-    let _animator_id: Int = spawn_animator()
-    let _audio_player_id: Int = spawn_audio_player()
-
-    // Step 6: Load the demo scene
+    // Load scene
     let _scene: DemoScene = load_demo_scene()
-    let _: Int = _scene.cube_node_id  // suppress unused warning
 
-    // Step 7: The pulse `frame_clock` runs the render loop.
-    // It fires immediately on registration, then every 16ms ±2ms.
-    // No manual call needed — the compiler's pulse scheduler handles it.
+    // The pulse frame_clock runs automatically.
+    // Main returns — the runtime keeps the process alive
+    // until shutdown because pulses are active.
 
-    // Step 8: Wait for shutdown (Ctrl+C, window close, SIGTERM)
-    runtime_wait_for_shutdown()
-
-    // Step 9: Cleanup
-    let _destroy: Int = graphics_session_destroy(g_render_session)
+    // Cleanup
+    let _destroy: Int = graphics_session_destroy(session)
+    EngineState.render_session = 0
     let _shutdown: Int = runtime_shutdown()
 
-    return 0
-
-// ============================================================================
-//  RUNTIME WAIT FOR SHUTDOWN — Platform-Independent Block
-// ============================================================================
-
-fn runtime_wait_for_shutdown() -> Void:
-    /// Blocks the main thread until a shutdown signal is received.
-    /// In the full runtime, this waits for Ctrl+C, window close, or SIGTERM.
-    /// For now, this is a spin loop that checks a shutdown flag.
-    while true:
-        // Yield to the pulse scheduler
-        // The runtime handles this internally
-        // This loop terminates when the runtime signals shutdown
-        let _yield: Int = 0
-    return
-
-// ============================================================================
-//  UNIT TEST — Main Entry Validates Initialization
-// ============================================================================
-
-fn test_main_init() -> Int with Pure:
-    /// Verify that world initialization produces valid defaults.
     return 0

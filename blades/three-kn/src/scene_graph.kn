@@ -1,0 +1,162 @@
+// ============================================================================
+//  THREE-KN SCENE GRAPH — Compiler-owned transform hierarchy
+// ============================================================================
+//
+//  Layer 1: world + entangle — authority/mirror pattern
+//  Layer 2: patch + law — journaled mutations + invariants
+//  Layer 5: resonate — propagate transforms on epoch change
+//  Layer 0: struct, fn — SceneNode, look_at
+//  Layer UI: component — SceneViewport stub
+//
+//  The scene graph is a tree of SceneNode objects. Each node has a local
+//  transform (TRS) and a world transform propagated from its ancestors.
+//
+//  Nodes are stored in fixed-capacity arrays to avoid dynamic allocation
+//  inside world state (Kain does not support array concatenation on slices).
+// ============================================================================
+
+use std::math
+use math
+
+// ============================================================================
+//  SCENE VIEWPORT — Stub component
+// ============================================================================
+
+/// Placeholder viewport component — will be wired to actual render surface.
+component SceneViewport():
+    render <viewport3d id="main" />
+
+// ============================================================================
+//  CONSTANTS
+// ============================================================================
+
+/// Maximum number of scene graph nodes (static capacity).
+const SCENE_GRAPH_MAX_NODES: Int = 1024
+
+// ============================================================================
+//  SCENE NODE
+// ============================================================================
+
+/// A single node in the scene graph hierarchy.
+pub struct SceneNode:
+    /// Unique node ID (0 = unused slot)
+    id: Int = 0
+    /// Human-readable name
+    name: String = ""
+    /// Parent node ID (-1 = root, -2 = unused)
+    parent_id: Int = -2
+    /// Child node IDs (stored as siblings in array, parent tracks via child_ids)
+    local_position: Vec3Wrapper = Vec3Wrapper { x: 0.0, y: 0.0, z: 0.0 }
+    /// Local rotation relative to parent
+    local_rotation: QuatWrapper = QuatWrapper { x: 0.0, y: 0.0, z: 0.0, w: 1.0 }
+    /// Local scale relative to parent
+    local_scale: Vec3Wrapper = Vec3Wrapper { x: 1.0, y: 1.0, z: 1.0 }
+    /// Whether this node is visible
+    visible: Bool = true
+    /// Whether this node frustum culls its children
+    frustum_culled: Bool = true
+    /// Render order override
+    render_order: Int = 0
+    /// Layer mask (bitfield for camera visibility)
+    layer_mask: Int = 1
+
+// ============================================================================
+//  WORLDS — Authority + Mirror
+// ============================================================================
+
+/// Scene graph authority world — owns all mutation rights.
+pub world SceneGraphWorld:
+    /// Max capacity for the node array
+    state max_nodes: Int = SCENE_GRAPH_MAX_NODES
+    /// Epoch counter — bumped on every structural or transform change
+    state epoch: Int = 0
+    /// Fog type: 0=none, 1=linear, 2=exponential, 3=exponential_squared
+    state fog_type: Int = 0
+    /// Fog near distance (linear fog)
+    state fog_near: Float = 1.0
+    /// Fog far distance (linear fog)
+    state fog_far: Float = 100.0
+    /// Surface projection
+    surface viewport3d => "main_viewport"
+
+/// Mirror world — read-only consumer receives entangled state.
+pub world SceneGraphMirror:
+    state max_nodes: Int = SCENE_GRAPH_MAX_NODES
+    state epoch: Int = 0
+    state fog_type: Int = 0
+    state fog_near: Float = 1.0
+    state fog_far: Float = 100.0
+    surface viewport3d => "main_viewport"
+
+// ============================================================================
+//  ENTANGLE — Compiler-owned state propagation
+// ============================================================================
+
+entangle SceneGraphWorld.epoch <-> SceneGraphMirror.epoch with single_writer
+entangle SceneGraphWorld.fog_type <-> SceneGraphMirror.fog_type with single_writer
+entangle SceneGraphWorld.fog_near <-> SceneGraphMirror.fog_near with single_writer
+entangle SceneGraphWorld.fog_far <-> SceneGraphMirror.fog_far with single_writer
+
+// ============================================================================
+//  LAWS — Invariant predicates
+// ============================================================================
+
+/// Epoch must never overflow or go negative.
+pub law epoch_valid(sg: SceneGraphWorld) -> Bool:
+    return sg.epoch >= 0
+
+/// Fog near must be less than fog far when linear fog is active.
+pub law fog_range_valid(sg: SceneGraphWorld) -> Bool:
+    if sg.fog_type == 1:
+        return sg.fog_near < sg.fog_far
+    return true
+
+// ============================================================================
+//  PATCHES — Journaled mutations on world state
+// ============================================================================
+
+/// Bump the epoch counter (signals a scene graph change).
+pub patch bump_epoch(state: SceneGraphWorld) -> Int:
+    state.epoch = state.epoch + 1
+    return state.epoch
+
+/// Set fog parameters.
+pub patch set_fog(state: SceneGraphWorld, fog_type: Int, near: Float, far: Float) -> SceneGraphWorld:
+    state.fog_type = fog_type
+    state.fog_near = near
+    state.fog_far = far
+    state.epoch = state.epoch + 1
+    return state
+
+// ============================================================================
+//  RESONATE — Triggered on epoch change
+// ============================================================================
+
+/// When the scene graph epoch changes, perform any required propagation.
+resonate SceneGraphWorld.epoch dampen 16ms:
+    // Epoch changed — placeholder for transform propagation.
+    // The actual DAG traversal will be implemented when the node array
+    // API supports dynamic operations.
+    let old_val: Int = resonate_old_i64
+    let new_val: Int = resonate_new_i64
+
+// ============================================================================
+//  UTILITY FUNCTIONS
+// ============================================================================
+
+/// Standalone look_at: returns a view matrix for eye->target with up vector.
+pub fn look_at(eye: Vec3Wrapper, target: Vec3Wrapper, up: Vec3Wrapper) -> Mat4Wrapper:
+    let result = mat4_look_at(
+        vec3(eye.x, eye.y, eye.z),
+        vec3(target.x, target.y, target.z),
+        vec3(up.x, up.y, up.z)
+    )
+    // Convert internal Mat4 to Mat4Wrapper via from_internal_mat4
+    return Mat4Wrapper {
+        elements: [
+            result.row0.x, result.row1.x, result.row2.x, result.row3.x,
+            result.row0.y, result.row1.y, result.row2.y, result.row3.y,
+            result.row0.z, result.row1.z, result.row2.z, result.row3.z,
+            result.row0.w, result.row1.w, result.row2.w, result.row3.w,
+        ]
+    }

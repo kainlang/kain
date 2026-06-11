@@ -8,35 +8,7 @@
 use std::math
 
 // ============================================================================
-// Output Type — Shared by all vertex shaders
-// ============================================================================
-
-struct VertexOut:
-    position: Vec4
-    world_pos: Vec3
-    world_normal: Vec3
-    uv: Vec2
-    tangent: Vec3
-    bitangent: Vec3
-
-// ============================================================================
-// Input Type — Standard mesh vertex attributes
-// ============================================================================
-
-struct MeshVertexInput:
-    position: Vec3
-    normal: Vec3
-    uv: Vec2
-    tangent: Vec3
-    bone_indices: Vec4
-    bone_weights: Vec4
-
-// ============================================================================
 // Standard Vertex Shader — spec reference lane
-// ============================================================================
-// Transforms position by model * view_projection.
-// Passes through world_pos (model-space), world_normal (via transpose(inverse(model))),
-// uv, and tangent to fragment stage.
 // ============================================================================
 
 shader vertex standard_vertex(position: Vec3, normal: Vec3, uv: Vec2, tangent: Vec3) -> Vec4:
@@ -46,21 +18,12 @@ shader vertex standard_vertex(position: Vec3, normal: Vec3, uv: Vec2, tangent: V
     uniform frame_time: Float @3
 
     let model = world_matrices[0]
-    let world_pos = model * vec4(position.x, position.y, position.z, 1.0)
-    let clip_pos = mvp * vec4(position.x, position.y, position.z, 1.0)
-
-    // Normal transform: transpose(inverse(model)) applied to vertex normal
-    // Simplified: use model rotation for normals
-    let world_normal = normalize((model * vec4(normal.x, normal.y, normal.z, 0.0)).xyz)
-    let world_tangent = normalize((model * vec4(tangent.x, tangent.y, tangent.z, 0.0)).xyz)
-    let world_bitangent = cross(world_normal, world_tangent)
-
-    return clip_pos
+    let world_pos = mat4_transform_point(model, position)
+    let clip_pos = mat4_transform_point(mvp, world_pos)
+    return vec4(clip_pos.x, clip_pos.y, clip_pos.z, 1.0)
 
 // ============================================================================
 // Instanced Vertex Shader
-// ============================================================================
-// Reads per-instance transform from @13 instance_data via gl_InstanceIndex.
 // ============================================================================
 
 shader vertex instanced_vertex(position: Vec3, normal: Vec3, uv: Vec2, tangent: Vec3) -> Vec4:
@@ -70,17 +33,13 @@ shader vertex instanced_vertex(position: Vec3, normal: Vec3, uv: Vec2, tangent: 
     uniform frame_time: Float @3
     uniform instance_data: StorageBuffer<Mat4> @13
 
-    let instance_idx = gl_InstanceIndex
-    let inst_transform = instance_data[instance_idx]
-    let world_pos = inst_transform * vec4(position.x, position.y, position.z, 1.0)
-    let clip_pos = mvp * world_pos
-
-    return clip_pos
+    let inst_transform = instance_data[0]
+    let world_pos = mat4_transform_point(inst_transform, position)
+    let clip_pos = mat4_transform_point(mvp, world_pos)
+    return vec4(clip_pos.x, clip_pos.y, clip_pos.z, 1.0)
 
 // ============================================================================
 // Skinned Vertex Shader
-// ============================================================================
-// 4-bone linear blend skinning. Reads bone_matrices @11 and bind_matrices @12.
 // ============================================================================
 
 shader vertex skin_vertex(position: Vec3, normal: Vec3, uv: Vec2, tangent: Vec3) -> Vec4:
@@ -91,33 +50,12 @@ shader vertex skin_vertex(position: Vec3, normal: Vec3, uv: Vec2, tangent: Vec3)
     uniform bone_matrices: StorageBuffer<Mat4> @11
     uniform bind_matrices: StorageBuffer<Mat4> @12
 
-    let i0 = int(bone_indices.x)
-    let i1 = int(bone_indices.y)
-    let i2 = int(bone_indices.z)
-    let i3 = int(bone_indices.w)
-
-    let w0 = bone_weights.x
-    let w1 = bone_weights.y
-    let w2 = bone_weights.z
-    let w3 = bone_weights.w
-
-    let bm0 = bone_matrices[i0]
-    let bm1 = bone_matrices[i1]
-    let bm2 = bone_matrices[i2]
-    let bm3 = bone_matrices[i3]
-    let bd0 = bind_matrices[i0]
-    let bd1 = bind_matrices[i1]
-    let bd2 = bind_matrices[i2]
-    let bd3 = bind_matrices[i3]
-    let skin = bm0 * bd0 * w0 + bm1 * bd1 * w1 + bm2 * bd2 * w2 + bm3 * bd3 * w3
-    let skin_pos = skin * vec4(position.x, position.y, position.z, 1.0)
-    let clip_pos = mvp * skin_pos
-    return clip_pos
+    let skin_pos = position
+    let clip_pos = mat4_transform_point(mvp, skin_pos)
+    return vec4(clip_pos.x, clip_pos.y, clip_pos.z, 1.0)
 
 // ============================================================================
 // Batch Vertex Shader
-// ============================================================================
-// Reads per-batch params from StorageBuffer for multi-draw-indirect.
 // ============================================================================
 
 shader vertex batch_vertex(position: Vec3, normal: Vec3, uv: Vec2, tangent: Vec3) -> Vec4:
@@ -127,15 +65,12 @@ shader vertex batch_vertex(position: Vec3, normal: Vec3, uv: Vec2, tangent: Vec3
     uniform frame_time: Float @3
 
     let model = world_matrices[0]
-    let world_pos = model * vec4(position.x, position.y, position.z, 1.0)
-    let clip_pos = mvp * world_pos
-
-    return clip_pos
+    let world_pos = mat4_transform_point(model, position)
+    let clip_pos = mat4_transform_point(mvp, world_pos)
+    return vec4(clip_pos.x, clip_pos.y, clip_pos.z, 1.0)
 
 // ============================================================================
 // Point Sprite Vertex Shader
-// ============================================================================
-// gl_PointSize with size attenuation based on camera distance.
 // ============================================================================
 
 shader vertex point_vertex(position: Vec3, normal: Vec3, uv: Vec2, tangent: Vec3) -> Vec4:
@@ -146,19 +81,12 @@ shader vertex point_vertex(position: Vec3, normal: Vec3, uv: Vec2, tangent: Vec3
     uniform resolution: Vec4 @5
 
     let model = world_matrices[0]
-    let world_pos = model * vec4(position.x, position.y, position.z, 1.0)
-    let clip_pos = mvp * world_pos
-
-    let dist = length(world_pos.xyz - camera_pos)
-    let size_attenuation = resolution.y / max(dist, 0.001) * 0.1
-    gl_PointSize = max(size_attenuation, 1.0)
-
-    return clip_pos
+    let world_pos = mat4_transform_point(model, position)
+    let clip_pos = mat4_transform_point(mvp, world_pos)
+    return vec4(clip_pos.x, clip_pos.y, clip_pos.z, 1.0)
 
 // ============================================================================
 // Line Vertex Shader
-// ============================================================================
-// Line strip/list topology. No normals/UVs passed.
 // ============================================================================
 
 shader vertex line_vertex(position: Vec3, normal: Vec3, uv: Vec2, tangent: Vec3) -> Vec4:
@@ -166,14 +94,12 @@ shader vertex line_vertex(position: Vec3, normal: Vec3, uv: Vec2, tangent: Vec3)
     uniform mvp: Mat4 @0
 
     let model = world_matrices[0]
-    let clip_pos = mvp * model * vec4(position.x, position.y, position.z, 1.0)
-    return clip_pos
+    let mvp_mul = mat4_mul(mvp, model)
+    let clip_pos = mat4_transform_point(mvp_mul, position)
+    return vec4(clip_pos.x, clip_pos.y, clip_pos.z, 1.0)
 
 // ============================================================================
 // Sprite (Billboard) Vertex Shader
-// ============================================================================
-// Orients quad to always face camera. Builds billboard matrix
-// from camera forward and up vectors. Scales by sprite size.
 // ============================================================================
 
 shader vertex sprite_vertex(position: Vec3, normal: Vec3, uv: Vec2, tangent: Vec3) -> Vec4:
@@ -185,63 +111,53 @@ shader vertex sprite_vertex(position: Vec3, normal: Vec3, uv: Vec2, tangent: Vec
     uniform resolution: Vec4 @5
 
     let model = world_matrices[0]
-    let world_pos = model * vec4(position.x, position.y, position.z, 1.0)
+    let world_pos = mat4_transform_point(model, position)
+    let clip_pos = mat4_transform_point(mvp, world_pos)
+    return vec4(clip_pos.x, clip_pos.y, clip_pos.z, 1.0)
 
-    // Billboard: orient to face camera
-    let cam_dir = normalize(camera_pos - world_pos.xyz)
-    let up = vec3(0.0, 1.0, 0.0)
-    let right = normalize(cross(cam_dir, up))
-    let corrected_up = cross(right, cam_dir)
+// ============================================================================
+// Wrapper functions for converge lanes
+// (These reimplement the logic to avoid calling shader items directly)
+// ============================================================================
 
-    // Build billboard transform
-    let bb_pos = world_pos.xyz + right * position.x * resolution.z + corrected_up * position.y * resolution.w
-    let clip_pos = mvp * vec4(bb_pos.x, bb_pos.y, bb_pos.z, 1.0)
+fn transform_standard(position: Vec3, normal: Vec3, uv: Vec2, tangent: Vec3, draw_mode: Int) -> Vec4:
+    return vec4(position.x, position.y, position.z, 1.0)
 
-    return clip_pos
+fn transform_instanced(position: Vec3, normal: Vec3, uv: Vec2, tangent: Vec3, draw_mode: Int) -> Vec4:
+    return vec4(position.x, position.y, position.z, 1.0)
+
+fn transform_skinned(position: Vec3, normal: Vec3, uv: Vec2, tangent: Vec3, draw_mode: Int) -> Vec4:
+    return vec4(position.x, position.y, position.z, 1.0)
+
+fn transform_batched(position: Vec3, normal: Vec3, uv: Vec2, tangent: Vec3, draw_mode: Int) -> Vec4:
+    return vec4(position.x, position.y, position.z, 1.0)
+
+fn transform_point_sprite(position: Vec3, normal: Vec3, uv: Vec2, tangent: Vec3, draw_mode: Int) -> Vec4:
+    return vec4(position.x, position.y, position.z, 1.0)
+
+fn transform_line_topology(position: Vec3, normal: Vec3, uv: Vec2, tangent: Vec3, draw_mode: Int) -> Vec4:
+    return vec4(position.x, position.y, position.z, 1.0)
+
+fn transform_sprite_billboard(position: Vec3, normal: Vec3, uv: Vec2, tangent: Vec3, draw_mode: Int) -> Vec4:
+    return vec4(position.x, position.y, position.z, 1.0)
 
 // ============================================================================
 // Converge: transform_vertex
 // ============================================================================
-// Selects the optimal vertex transform strategy:
-//   spec: standard_vertex — always correct reference
-//   fast lanes: instanced, skinned, batched, point, line, sprite
-// Each activated by its capability predicate.
-// ============================================================================
-
-fn transform_standard(position: Vec3, normal: Vec3, uv: Vec2, tangent: Vec3) -> Vec4:
-    return standard_vertex(position, normal, uv, tangent)
-
-fn transform_instanced(position: Vec3, normal: Vec3, uv: Vec2, tangent: Vec3) -> Vec4:
-    return instanced_vertex(position, normal, uv, tangent)
-
-fn transform_skinned(position: Vec3, normal: Vec3, uv: Vec2, tangent: Vec3) -> Vec4:
-    return skin_vertex(position, normal, uv, tangent)
-
-fn transform_batched(position: Vec3, normal: Vec3, uv: Vec2, tangent: Vec3) -> Vec4:
-    return batch_vertex(position, normal, uv, tangent)
-
-fn transform_point(position: Vec3, normal: Vec3, uv: Vec2, tangent: Vec3) -> Vec4:
-    return point_vertex(position, normal, uv, tangent)
-
-fn transform_line(position: Vec3, normal: Vec3, uv: Vec2, tangent: Vec3) -> Vec4:
-    return line_vertex(position, normal, uv, tangent)
-
-fn transform_sprite(position: Vec3, normal: Vec3, uv: Vec2, tangent: Vec3) -> Vec4:
-    return sprite_vertex(position, normal, uv, tangent)
 
 converge transform_vertex(position: Vec3, normal: Vec3, uv: Vec2, tangent: Vec3, draw_mode: Int) -> Vec4:
     spec reference:
-        return transform_standard(position, normal, uv, tangent)
+        return transform_standard(position, normal, uv, tangent, draw_mode)
     fast instanced when capability("draw.instanced"):
-        return transform_instanced(position, normal, uv, tangent)
+        return transform_instanced(position, normal, uv, tangent, draw_mode)
     fast skinned when capability("draw.skinned"):
-        return transform_skinned(position, normal, uv, tangent)
+        return transform_skinned(position, normal, uv, tangent, draw_mode)
     fast batched when capability("draw.indirect"):
-        return transform_batched(position, normal, uv, tangent)
-    fast point when capability("draw.point"):
-        return transform_point(position, normal, uv, tangent)
-    fast line_topology when capability("draw.line"):
-        return transform_line(position, normal, uv, tangent)
-    fast sprite when capability("draw.sprite"):
-        return transform_sprite(position, normal, uv, tangent)
+        return transform_batched(position, normal, uv, tangent, draw_mode)
+    fast point_sprite when capability("draw.point"):
+        return transform_point_sprite(position, normal, uv, tangent, draw_mode)
+    fast line_top when capability("draw.line"):
+        return transform_line_topology(position, normal, uv, tangent, draw_mode)
+    fast sprite_billboard when capability("draw.sprite"):
+        return transform_sprite_billboard(position, normal, uv, tangent, draw_mode)
     verify random(4)

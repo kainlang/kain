@@ -17,7 +17,7 @@ use std::math
 // ============================================================================
 
 /// Infinity constant for AABB initialization
-const INFINITY: Float = 3.40282347e+38
+const INFINITY_MAX: Float = 340282346638528859811704183484516925440.0
 
 // ============================================================================
 //  CONVERSION HELPERS — wrapper ↔ internal std::math types
@@ -94,11 +94,11 @@ pub struct Vec2Wrapper:
 
 pub impl Vec2Wrapper:
     /// Construct zero vector (0, 0)
-    pub fn new() -> Vec2Wrapper:
+    pub fn create() -> Vec2Wrapper:
         return Vec2Wrapper { x: 0.0, y: 0.0 }
 
     /// Construct from scalar components
-    pub fn new_from_scalars(x: Float, y: Float) -> Vec2Wrapper:
+    pub fn create_from_scalars(x: Float, y: Float) -> Vec2Wrapper:
         return Vec2Wrapper { x: x, y: y }
 
     /// Clone self
@@ -205,11 +205,11 @@ pub struct Vec3Wrapper:
 
 pub impl Vec3Wrapper:
     /// Construct zero vector
-    pub fn new() -> Vec3Wrapper:
+    pub fn create() -> Vec3Wrapper:
         return Vec3Wrapper { x: 0.0, y: 0.0, z: 0.0 }
 
     /// Construct from scalar components
-    pub fn new_from_scalars(x: Float, y: Float, z: Float) -> Vec3Wrapper:
+    pub fn create_from_scalars(x: Float, y: Float, z: Float) -> Vec3Wrapper:
         return Vec3Wrapper { x: x, y: y, z: z }
 
     /// Clone self
@@ -337,11 +337,6 @@ pub impl Vec3Wrapper:
         let result = vec3_refract(to_internal_vec3(self), to_internal_vec3(normal), eta)
         return from_internal_vec3(result)
 
-    /// Faceforward: orient normal toward incident direction
-    pub fn faceforward(self: Vec3Wrapper, incident: Vec3Wrapper, reference: Vec3Wrapper) -> Vec3Wrapper:
-        let result = vec3_faceforward(to_internal_vec3(self), to_internal_vec3(incident), to_internal_vec3(reference))
-        return from_internal_vec3(result)
-
     /// Transform as point (w=1) by 4x4 matrix
     pub fn apply_matrix4(self: Vec3Wrapper, m: Mat4Wrapper) -> Vec3Wrapper:
         let result = mat4_transform_point(to_internal_mat4(m), to_internal_vec3(self))
@@ -362,7 +357,8 @@ pub impl Vec3Wrapper:
         let dot_val = vec3_dot(to_internal_vec3(self), to_internal_vec3(other))
         let len_self = vec3_length(to_internal_vec3(self))
         let len_other = vec3_length(to_internal_vec3(other))
-        return fast_acos(math_clamp(dot_val / (len_self * len_other), -1.0, 1.0))
+        let cos_angle = math_clamp(dot_val / (len_self * len_other), -1.0, 1.0)
+        return fast_acos(cos_angle)
 
     /// Convert to Vec2 (drop z)
     pub fn to_vec2(self: Vec3Wrapper) -> Vec2Wrapper:
@@ -414,11 +410,11 @@ pub struct Vec4Wrapper:
 
 pub impl Vec4Wrapper:
     /// Construct zero vector w=0
-    pub fn new() -> Vec4Wrapper:
+    pub fn create() -> Vec4Wrapper:
         return Vec4Wrapper { x: 0.0, y: 0.0, z: 0.0, w: 0.0 }
 
     /// Construct from scalars
-    pub fn new_from_scalars(x: Float, y: Float, z: Float, w: Float) -> Vec4Wrapper:
+    pub fn create_from_scalars(x: Float, y: Float, z: Float, w: Float) -> Vec4Wrapper:
         return Vec4Wrapper { x: x, y: y, z: z, w: w }
 
     /// Clone self
@@ -505,11 +501,11 @@ pub struct QuatWrapper:
 
 pub impl QuatWrapper:
     /// Construct identity quaternion
-    pub fn new() -> QuatWrapper:
+    pub fn create() -> QuatWrapper:
         return QuatWrapper { x: 0.0, y: 0.0, z: 0.0, w: 1.0 }
 
     /// Construct from scalars
-    pub fn new_from_scalars(x: Float, y: Float, z: Float, w: Float) -> QuatWrapper:
+    pub fn create_from_scalars(x: Float, y: Float, z: Float, w: Float) -> QuatWrapper:
         return QuatWrapper { x: x, y: y, z: z, w: w }
 
     /// Clone self
@@ -572,20 +568,23 @@ pub impl QuatWrapper:
 
     /// Construct from unit vectors (shortest arc from -> to)
     pub fn from_unit_vectors(from: Vec3Wrapper, to: Vec3Wrapper) -> QuatWrapper:
-        let dot = vec3_dot(to_internal_vec3(from), to_internal_vec3(to))
+        let from_vec = to_internal_vec3(from)
+        let to_vec = to_internal_vec3(to)
+        let dot_val = vec3_dot(from_vec, to_vec)
         let eps: Float = 0.000001
-        if dot > 1.0 - eps:
+        if dot_val > 1.0 - eps:
             return QuatWrapper { x: 0.0, y: 0.0, z: 0.0, w: 1.0 }
-        if dot < -1.0 + eps:
-            // 180-degree rotation: find perpendicular axis
-            let axis = vec3_cross(to_internal_vec3(from), vec3_right())
+        if dot_val < -1.0 + eps:
+            let right_vec = vec3_right()
+            let mut axis = vec3_cross(from_vec, right_vec)
             if vec3_length(axis) < eps:
-                axis = vec3_cross(to_internal_vec3(from), vec3_up())
+                let up_vec = vec3_up()
+                axis = vec3_cross(from_vec, up_vec)
             let norm_axis = vec3_normalize_or_zero(axis)
-            return from_internal_quat(quat_from_axis_angle(norm_axis, math.PI))
-        let axis = vec3_cross(to_internal_vec3(from), to_internal_vec3(to))
-        let cos_half = math.sqrt((1.0 + dot) * 0.5)
-        let sin_half = math.sqrt((1.0 - dot) * 0.5)
+            return from_internal_quat(quat_from_axis_angle(norm_axis, PI))
+        let axis = vec3_cross(from_vec, to_vec)
+        let cos_half = sqrt((1.0 + dot_val) * 0.5)
+        let sin_half = sqrt((1.0 - dot_val) * 0.5)
         let norm_axis = vec3_normalize_or_zero(axis)
         return QuatWrapper {
             x: norm_axis.x * sin_half,
@@ -611,23 +610,33 @@ pub impl QuatWrapper:
 
     /// Angular distance between two quaternions
     pub fn angle_to(self: QuatWrapper, other: QuatWrapper) -> Float:
-        let dot_val = math_clamp(
-            quat_dot(to_internal_quat(self), to_internal_quat(other)),
-            -1.0, 1.0
-        )
-        return fast_acos(2.0 * dot_val * dot_val - 1.0)
+        let dot_val = quat_dot(to_internal_quat(self), to_internal_quat(other))
+        let clamped = math_clamp(dot_val, -1.0, 1.0)
+        return fast_acos(2.0 * clamped * clamped - 1.0)
 
-    /// Convert to 3x3 rotation matrix
+    /// Convert to 3x3 rotation matrix (column-major)
     pub fn to_mat3(self: QuatWrapper) -> Mat3Wrapper:
         let q = to_internal_quat(self)
-        let xx = q.x * q.x; let yy = q.y * q.y; let zz = q.z * q.z
-        let xy = q.x * q.y; let xz = q.x * q.z; let xw = q.x * q.w
-        let yz = q.y * q.z; let yw = q.y * q.w; let zw = q.z * q.w
+        let xx = q.x * q.x
+        let yy = q.y * q.y
+        let zz = q.z * q.z
+        let xy = q.x * q.y
+        let xz = q.x * q.z
+        let xw = q.x * q.w
+        let yz = q.y * q.z
+        let yw = q.y * q.w
+        let zw = q.z * q.w
         return Mat3Wrapper {
             elements: [
-                1.0 - 2.0 * (yy + zz), 2.0 * (xy + zw),       2.0 * (xz - yw),
-                2.0 * (xy - zw),       1.0 - 2.0 * (xx + zz), 2.0 * (yz + xw),
-                2.0 * (xz + yw),       2.0 * (yz - xw),       1.0 - 2.0 * (xx + yy),
+                1.0 - 2.0 * (yy + zz),
+                2.0 * (xy + zw),
+                2.0 * (xz - yw),
+                2.0 * (xy - zw),
+                1.0 - 2.0 * (xx + zz),
+                2.0 * (yz + xw),
+                2.0 * (xz + yw),
+                2.0 * (yz - xw),
+                1.0 - 2.0 * (xx + yy),
             ]
         }
 
@@ -659,7 +668,7 @@ pub struct Mat3Wrapper:
 
 pub impl Mat3Wrapper:
     /// Construct identity matrix
-    pub fn new() -> Mat3Wrapper:
+    pub fn create() -> Mat3Wrapper:
         return Mat3Wrapper {
             elements: [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
         }
@@ -668,13 +677,13 @@ pub impl Mat3Wrapper:
     pub fn clone(self: Mat3Wrapper) -> Mat3Wrapper:
         return Mat3Wrapper { elements: self.elements }
 
-    /// Identity matrix
+    /// Identity matrix (static)
     pub fn identity() -> Mat3Wrapper:
         return Mat3Wrapper {
             elements: [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
         }
 
-    /// Set all 9 elements
+    /// Set all 9 elements (row-major input, stored column-major)
     pub fn set(self: Mat3Wrapper, e00: Float, e01: Float, e02: Float,
                 e10: Float, e11: Float, e12: Float,
                 e20: Float, e21: Float, e22: Float) -> Mat3Wrapper:
@@ -690,19 +699,18 @@ pub impl Mat3Wrapper:
     pub fn mul(self: Mat3Wrapper, other: Mat3Wrapper) -> Mat3Wrapper:
         let a = self.elements
         let b = other.elements
-        // column-major: a[col*3 + row]
-        let result: [Float] = []
-        var col: Int = 0
-        while col < 3:
-            var row: Int = 0
-            while row < 3:
-                let val = a[col * 3 + 0] * b[0 * 3 + row]
-                        + a[col * 3 + 1] * b[1 * 3 + row]
-                        + a[col * 3 + 2] * b[2 * 3 + row]
-                result = result + [val]
-                row = row + 1
-            col = col + 1
-        return Mat3Wrapper { elements: result }
+        let r00 = a[0] * b[0] + a[3] * b[1] + a[6] * b[2]
+        let r01 = a[0] * b[3] + a[3] * b[4] + a[6] * b[5]
+        let r02 = a[0] * b[6] + a[3] * b[7] + a[6] * b[8]
+        let r10 = a[1] * b[0] + a[4] * b[1] + a[7] * b[2]
+        let r11 = a[1] * b[3] + a[4] * b[4] + a[7] * b[5]
+        let r12 = a[1] * b[6] + a[4] * b[7] + a[7] * b[8]
+        let r20 = a[2] * b[0] + a[5] * b[1] + a[8] * b[2]
+        let r21 = a[2] * b[3] + a[5] * b[4] + a[8] * b[5]
+        let r22 = a[2] * b[6] + a[5] * b[7] + a[8] * b[8]
+        return Mat3Wrapper {
+            elements: [r00, r10, r20, r01, r11, r21, r02, r12, r22]
+        }
 
     /// Multiply by Vec3
     pub fn multiply_vec3(self: Mat3Wrapper, v: Vec3Wrapper) -> Vec3Wrapper:
@@ -717,28 +725,47 @@ pub impl Mat3Wrapper:
     /// Determinant
     pub fn determinant(self: Mat3Wrapper) -> Float:
         let e = self.elements
-        // column-major: e[col*3 + row]
-        let a = e[0]; let b = e[3]; let c = e[6]
-        let d = e[1]; let e_v = e[4]; let f = e[7]
-        let g = e[2]; let h = e[5]; let i_v = e[8]
+        let a = e[0]
+        let b = e[3]
+        let c = e[6]
+        let d = e[1]
+        let e_v = e[4]
+        let f = e[7]
+        let g = e[2]
+        let h = e[5]
+        let i_v = e[8]
         return a * (e_v * i_v - f * h) - b * (d * i_v - f * g) + c * (d * h - e_v * g)
 
     /// Inverse (returns identity if singular)
     pub fn inverse(self: Mat3Wrapper) -> Mat3Wrapper:
         let e = self.elements
-        let a = e[0]; let b = e[3]; let c = e[6]
-        let d = e[1]; let e_v = e[4]; let f = e[7]
-        let g = e[2]; let h = e[5]; let i_v = e[8]
-        let det = a * (e_v * i_v - f * h) - b * (d * i_v - f * g) + c * (d * h - e_v * g)
+        let a = e[0]
+        let b = e[3]
+        let c = e[6]
+        let d = e[1]
+        let e_v = e[4]
+        let f = e[7]
+        let g = e[2]
+        let h = e[5]
+        let i_v = e[8]
+        let det1 = a * (e_v * i_v - f * h)
+        let det2 = b * (d * i_v - f * g)
+        let det3 = c * (d * h - e_v * g)
+        let det = det1 - det2 + det3
         if abs(det) < 0.000001:
-            return Mat3Wrapper::identity()
+            return Mat3Wrapper.identity()
         let inv_det = 1.0 / det
+        let m00 = (e_v * i_v - f * h) * inv_det
+        let m10 = (c * h - b * i_v) * inv_det
+        let m20 = (b * f - c * e_v) * inv_det
+        let m01 = (f * g - d * i_v) * inv_det
+        let m11 = (a * i_v - c * g) * inv_det
+        let m21 = (c * d - a * f) * inv_det
+        let m02 = (d * h - e_v * g) * inv_det
+        let m12 = (b * g - a * h) * inv_det
+        let m22 = (a * e_v - b * d) * inv_det
         return Mat3Wrapper {
-            elements: [
-                (e_v * i_v - f * h) * inv_det, (c * h - b * i_v) * inv_det, (b * f - c * e_v) * inv_det,
-                (f * g - d * i_v) * inv_det, (a * i_v - c * g) * inv_det, (c * d - a * f) * inv_det,
-                (d * h - e_v * g) * inv_det, (b * g - a * h) * inv_det, (a * e_v - b * d) * inv_det,
-            ]
+            elements: [m00, m10, m20, m01, m11, m21, m02, m12, m22]
         }
 
     /// Construct from upper-left 3x3 of a Mat4
@@ -754,9 +781,9 @@ pub impl Mat3Wrapper:
 
     /// Build normal matrix from a 4x4 transform: inverse(transpose(upper3x3))
     pub fn get_normal_matrix(m: Mat4Wrapper) -> Mat3Wrapper:
-        let upper = Mat3Wrapper::from_mat4(m)
-        let inv = upper.inverse()
-        return inv.transpose()
+        let upper = Mat3Wrapper.from_mat4(m)
+        let inv_val = upper.inverse()
+        return inv_val.transpose()
 
     /// Component-wise equality
     pub fn equals(self: Mat3Wrapper, other: Mat3Wrapper) -> Bool:
@@ -782,7 +809,7 @@ pub struct Mat4Wrapper:
 
 pub impl Mat4Wrapper:
     /// Construct identity matrix
-    pub fn new() -> Mat4Wrapper:
+    pub fn create() -> Mat4Wrapper:
         return Mat4Wrapper {
             elements: [1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0]
         }
@@ -791,7 +818,7 @@ pub impl Mat4Wrapper:
     pub fn clone(self: Mat4Wrapper) -> Mat4Wrapper:
         return Mat4Wrapper { elements: self.elements }
 
-    /// Identity matrix
+    /// Identity matrix (static)
     pub fn identity() -> Mat4Wrapper:
         return Mat4Wrapper {
             elements: [1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0]
@@ -814,10 +841,22 @@ pub impl Mat4Wrapper:
     /// Determinant
     pub fn determinant(self: Mat4Wrapper) -> Float:
         let m = self.elements
-        let a00 = m[0]; let a01 = m[4]; let a02 = m[8];  let a03 = m[12]
-        let a10 = m[1]; let a11 = m[5]; let a12 = m[9];  let a13 = m[13]
-        let a20 = m[2]; let a21 = m[6]; let a22 = m[10]; let a23 = m[14]
-        let a30 = m[3]; let a31 = m[7]; let a32 = m[11]; let a33 = m[15]
+        let a00 = m[0]
+        let a01 = m[4]
+        let a02 = m[8]
+        let a03 = m[12]
+        let a10 = m[1]
+        let a11 = m[5]
+        let a12 = m[9]
+        let a13 = m[13]
+        let a20 = m[2]
+        let a21 = m[6]
+        let a22 = m[10]
+        let a23 = m[14]
+        let a30 = m[3]
+        let a31 = m[7]
+        let a32 = m[11]
+        let a33 = m[15]
         let b00 = a00 * a11 - a01 * a10
         let b01 = a00 * a12 - a02 * a10
         let b02 = a00 * a13 - a03 * a10
@@ -835,10 +874,22 @@ pub impl Mat4Wrapper:
     /// Inverse (returns identity if singular)
     pub fn inverse(self: Mat4Wrapper) -> Mat4Wrapper:
         let m = self.elements
-        let a00 = m[0]; let a01 = m[4]; let a02 = m[8];  let a03 = m[12]
-        let a10 = m[1]; let a11 = m[5]; let a12 = m[9];  let a13 = m[13]
-        let a20 = m[2]; let a21 = m[6]; let a22 = m[10]; let a23 = m[14]
-        let a30 = m[3]; let a31 = m[7]; let a32 = m[11]; let a33 = m[15]
+        let a00 = m[0]
+        let a01 = m[4]
+        let a02 = m[8]
+        let a03 = m[12]
+        let a10 = m[1]
+        let a11 = m[5]
+        let a12 = m[9]
+        let a13 = m[13]
+        let a20 = m[2]
+        let a21 = m[6]
+        let a22 = m[10]
+        let a23 = m[14]
+        let a30 = m[3]
+        let a31 = m[7]
+        let a32 = m[11]
+        let a33 = m[15]
         let b00 = a00 * a11 - a01 * a10
         let b01 = a00 * a12 - a02 * a10
         let b02 = a00 * a13 - a03 * a10
@@ -853,27 +904,26 @@ pub impl Mat4Wrapper:
         let b11 = a22 * a33 - a23 * a32
         let det = b00 * b11 - b01 * b10 + b02 * b09 + b03 * b08 - b04 * b07 + b05 * b06
         if abs(det) < 0.000001:
-            return Mat4Wrapper::identity()
+            return Mat4Wrapper.identity()
         let inv_det = 1.0 / det
+        let m00 = (a11 * b11 - a12 * b10 + a13 * b09) * inv_det
+        let m10 = (-a10 * b11 + a12 * b08 - a13 * b07) * inv_det
+        let m20 = (a10 * b10 - a11 * b08 + a13 * b06) * inv_det
+        let m30 = (-a10 * b09 + a11 * b07 - a12 * b06) * inv_det
+        let m01 = (-a01 * b11 + a02 * b10 - a03 * b09) * inv_det
+        let m11 = (a00 * b11 - a02 * b08 + a03 * b07) * inv_det
+        let m21 = (-a00 * b10 + a01 * b08 - a03 * b06) * inv_det
+        let m31 = (a00 * b09 - a01 * b07 + a02 * b06) * inv_det
+        let m02 = (a01 * b05 - a02 * b04 + a03 * b03) * inv_det
+        let m12 = (-a00 * b05 + a02 * b02 - a03 * b01) * inv_det
+        let m22 = (a00 * b04 - a01 * b02 + a03 * b00) * inv_det
+        let m32 = (-a00 * b03 + a01 * b01 - a02 * b00) * inv_det
+        let m03 = (-a01 * b05 + a02 * b04 - a03 * b03) * inv_det
+        let m13 = (a00 * b05 - a02 * b02 + a03 * b01) * inv_det
+        let m23 = (-a00 * b04 + a01 * b02 - a03 * b00) * inv_det
+        let m33 = (a00 * b03 - a01 * b01 + a02 * b00) * inv_det
         return Mat4Wrapper {
-            elements: [
-                (a11 * b11 - a12 * b10 + a13 * b09) * inv_det,
-                (-a10 * b11 + a12 * b08 - a13 * b07) * inv_det,
-                (a10 * b10 - a11 * b08 + a13 * b06) * inv_det,
-                (-a10 * b09 + a11 * b07 - a12 * b06) * inv_det,
-                (-a01 * b11 + a02 * b10 - a03 * b09) * inv_det,
-                (a00 * b11 - a02 * b08 + a03 * b07) * inv_det,
-                (-a00 * b10 + a01 * b08 - a03 * b06) * inv_det,
-                (a00 * b09 - a01 * b07 + a02 * b06) * inv_det,
-                (a01 * b05 - a02 * b04 + a03 * b03) * inv_det,
-                (-a00 * b05 + a02 * b02 - a03 * b01) * inv_det,
-                (a00 * b04 - a01 * b02 + a03 * b00) * inv_det,
-                (-a00 * b03 + a01 * b01 - a02 * b00) * inv_det,
-                (-a01 * b05 + a02 * b04 - a03 * b03) * inv_det,
-                (a00 * b05 - a02 * b02 + a03 * b01) * inv_det,
-                (-a00 * b04 + a01 * b02 - a03 * b00) * inv_det,
-                (a00 * b03 - a01 * b01 + a02 * b00) * inv_det,
-            ]
+            elements: [m00, m10, m20, m30, m01, m11, m21, m31, m02, m12, m22, m32, m03, m13, m23, m33]
         }
 
     /// Transform a point (w=1) by this matrix
@@ -896,17 +946,17 @@ pub impl Mat4Wrapper:
         let result = mat4_scale(to_internal_vec3(scale_vec))
         return from_internal_mat4(result)
 
-    /// X-axis rotation matrix
+    /// X-axis rotation matrix (angle in radians)
     pub fn rotation_x(angle: Float) -> Mat4Wrapper:
         let result = mat4_rotation_x(angle)
         return from_internal_mat4(result)
 
-    /// Y-axis rotation matrix
+    /// Y-axis rotation matrix (angle in radians)
     pub fn rotation_y(angle: Float) -> Mat4Wrapper:
         let result = mat4_rotation_y(angle)
         return from_internal_mat4(result)
 
-    /// Z-axis rotation matrix
+    /// Z-axis rotation matrix (angle in radians)
     pub fn rotation_z(angle: Float) -> Mat4Wrapper:
         let result = mat4_rotation_z(angle)
         return from_internal_mat4(result)
@@ -928,59 +978,53 @@ pub impl Mat4Wrapper:
     /// Decompose to position, quaternion, scale (assumes TRS with no skew)
     pub fn decompose(self: Mat4Wrapper) -> (Vec3Wrapper, QuatWrapper, Vec3Wrapper):
         let m = self.elements
-        // Extract position (translation column = column 3)
         let pos = Vec3Wrapper { x: m[12], y: m[13], z: m[14] }
-        // Extract scale from column lengths
         let sx = vec3_length(vec3(m[0], m[1], m[2]))
         let sy = vec3_length(vec3(m[4], m[5], m[6]))
         let sz = vec3_length(vec3(m[8], m[9], m[10]))
-        // Check for negative scale (reflection)
         let det = self.determinant()
-        let final_sx = sx
-        let final_sy = sy
         var final_sz = sz
         if det < 0.0:
             final_sz = -sz
-        // Build rotation matrix from normalized columns
         let inv_sx = 1.0 / sx
         let inv_sy = 1.0 / sy
         let inv_sz = 1.0 / sz
-        let rot_m = Mat3Wrapper {
-            elements: [
-                m[0] * inv_sx, m[1] * inv_sx, m[2] * inv_sx,
-                m[4] * inv_sy, m[5] * inv_sy, m[6] * inv_sy,
-                m[8] * inv_sz, m[9] * inv_sz, m[10] * inv_sz,
-            ]
-        }
-        // Convert rotation matrix to quaternion
-        let trace = rot_m.elements[0] + rot_m.elements[4] + rot_m.elements[8]
-        var quat_x: Float = 0.0; var quat_y: Float = 0.0; var quat_z: Float = 0.0; var quat_w: Float = 1.0
+        let rot_el: [Float] = [
+            m[0] * inv_sx, m[1] * inv_sx, m[2] * inv_sx,
+            m[4] * inv_sy, m[5] * inv_sy, m[6] * inv_sy,
+            m[8] * inv_sz, m[9] * inv_sz, m[10] * inv_sz,
+        ]
+        let trace = rot_el[0] + rot_el[4] + rot_el[8]
+        var qx: Float = 0.0
+        var qy: Float = 0.0
+        var qz: Float = 0.0
+        var qw: Float = 1.0
         if trace > 0.0:
-            let s = 0.5 / math.sqrt(trace + 1.0)
-            quat_w = 0.25 / s
-            quat_x = (rot_m.elements[5] - rot_m.elements[7]) * s
-            quat_y = (rot_m.elements[6] - rot_m.elements[2]) * s
-            quat_z = (rot_m.elements[1] - rot_m.elements[3]) * s
-        elif rot_m.elements[0] > rot_m.elements[4] and rot_m.elements[0] > rot_m.elements[8]:
-            let s = 2.0 * math.sqrt(1.0 + rot_m.elements[0] - rot_m.elements[4] - rot_m.elements[8])
-            quat_x = 0.25 * s
-            quat_y = (rot_m.elements[3] + rot_m.elements[1]) / s
-            quat_z = (rot_m.elements[6] + rot_m.elements[2]) / s
-            quat_w = (rot_m.elements[5] - rot_m.elements[7]) / s
-        elif rot_m.elements[4] > rot_m.elements[8]:
-            let s = 2.0 * math.sqrt(1.0 + rot_m.elements[4] - rot_m.elements[0] - rot_m.elements[8])
-            quat_x = (rot_m.elements[3] + rot_m.elements[1]) / s
-            quat_y = 0.25 * s
-            quat_z = (rot_m.elements[7] + rot_m.elements[5]) / s
-            quat_w = (rot_m.elements[6] - rot_m.elements[2]) / s
+            let s = 0.5 / sqrt(trace + 1.0)
+            qw = 0.25 / s
+            qx = (rot_el[5] - rot_el[7]) * s
+            qy = (rot_el[6] - rot_el[2]) * s
+            qz = (rot_el[1] - rot_el[3]) * s
+        elif rot_el[0] > rot_el[4] and rot_el[0] > rot_el[8]:
+            let s = 2.0 * sqrt(1.0 + rot_el[0] - rot_el[4] - rot_el[8])
+            qx = 0.25 * s
+            qy = (rot_el[3] + rot_el[1]) / s
+            qz = (rot_el[6] + rot_el[2]) / s
+            qw = (rot_el[5] - rot_el[7]) / s
+        elif rot_el[4] > rot_el[8]:
+            let s = 2.0 * sqrt(1.0 + rot_el[4] - rot_el[0] - rot_el[8])
+            qx = (rot_el[3] + rot_el[1]) / s
+            qy = 0.25 * s
+            qz = (rot_el[7] + rot_el[5]) / s
+            qw = (rot_el[6] - rot_el[2]) / s
         else:
-            let s = 2.0 * math.sqrt(1.0 + rot_m.elements[8] - rot_m.elements[0] - rot_m.elements[4])
-            quat_x = (rot_m.elements[6] + rot_m.elements[2]) / s
-            quat_y = (rot_m.elements[7] + rot_m.elements[5]) / s
-            quat_z = 0.25 * s
-            quat_w = (rot_m.elements[1] - rot_m.elements[3]) / s
-        let quat = QuatWrapper { x: quat_x, y: quat_y, z: quat_z, w: quat_w }
-        let scale = Vec3Wrapper { x: final_sx, y: final_sy, z: final_sz }
+            let s = 2.0 * sqrt(1.0 + rot_el[8] - rot_el[0] - rot_el[4])
+            qx = (rot_el[6] + rot_el[2]) / s
+            qy = (rot_el[7] + rot_el[5]) / s
+            qz = 0.25 * s
+            qw = (rot_el[1] - rot_el[3]) / s
+        let quat = QuatWrapper { x: qx, y: qy, z: qz, w: qw }
+        let scale = Vec3Wrapper { x: sx, y: sy, z: final_sz }
         return (pos, quat, scale)
 
     /// Extract position (translation) from matrix
@@ -990,7 +1034,7 @@ pub impl Mat4Wrapper:
 
     /// Set position (translation) without affecting rotation/scale
     pub fn set_position(self: Mat4Wrapper, pos: Vec3Wrapper) -> Mat4Wrapper:
-        let result = self.clone()
+        let result = Mat4Wrapper { elements: self.elements }
         result.elements[12] = pos.x
         result.elements[13] = pos.y
         result.elements[14] = pos.z
@@ -1048,12 +1092,12 @@ pub impl Mat4Wrapper:
 
 /// Euler angle rotation order variants
 pub enum EulerOrder:
-    XYZ = 0
-    YXZ = 1
-    ZXY = 2
-    ZYX = 3
-    YZX = 4
-    XZY = 5
+    XYZ
+    YXZ
+    ZXY
+    ZYX
+    YZX
+    XZY
 
 /// Euler angles with configurable rotation order.
 pub struct EulerWrapper:
@@ -1064,11 +1108,11 @@ pub struct EulerWrapper:
 
 pub impl EulerWrapper:
     /// Construct zero euler with XYZ order
-    pub fn new() -> EulerWrapper:
+    pub fn create() -> EulerWrapper:
         return EulerWrapper { x: 0.0, y: 0.0, z: 0.0, order: EulerOrder::XYZ }
 
     /// Construct from angles
-    pub fn new_from_angles(x: Float, y: Float, z: Float, order: EulerOrder) -> EulerWrapper:
+    pub fn create_from_angles(x: Float, y: Float, z: Float, order: EulerOrder) -> EulerWrapper:
         return EulerWrapper { x: x, y: y, z: z, order: order }
 
     /// Set all angles
@@ -1081,13 +1125,16 @@ pub impl EulerWrapper:
 
     /// Convert to quaternion (uses order)
     pub fn to_quat(self: EulerWrapper) -> QuatWrapper:
-        let cx = math.cos(self.x * 0.5)
-        let sx = math.sin(self.x * 0.5)
-        let cy = math.cos(self.y * 0.5)
-        let sy = math.sin(self.y * 0.5)
-        let cz = math.cos(self.z * 0.5)
-        let sz = math.sin(self.z * 0.5)
-        let qx: Float = 0.0; let qy: Float = 0.0; let qz: Float = 0.0; let qw: Float = 1.0
+        let cx = cos(self.x * 0.5)
+        let sx = sin(self.x * 0.5)
+        let cy = cos(self.y * 0.5)
+        let sy = sin(self.y * 0.5)
+        let cz = cos(self.z * 0.5)
+        let sz = sin(self.z * 0.5)
+        var qx: Float = 0.0
+        var qy: Float = 0.0
+        var qz: Float = 0.0
+        var qw: Float = 1.0
         if self.order == EulerOrder::XYZ:
             qx = sx * cy * cz + cx * sy * sz
             qy = cx * sy * cz - sx * cy * sz
@@ -1122,11 +1169,20 @@ pub impl EulerWrapper:
 
     /// Build euler from quaternion with given order
     pub fn set_from_quat(self: EulerWrapper, q: QuatWrapper, order: EulerOrder) -> EulerWrapper:
-        // Build rotation matrix from quaternion
-        let qx = q.x; let qy = q.y; let qz = q.z; let qw = q.w
-        let xx = qx * qx; let yy = qy * qy; let zz = qz * qz
-        let xy = qx * qy; let xz = qx * qz; let xw = qx * qw
-        let yz = qy * qz; let yw = qy * qw; let zw = qz * qw
+        let quat = to_internal_quat(q)
+        let qx = quat.x
+        let qy = quat.y
+        let qz = quat.z
+        let qw = quat.w
+        let xx = qx * qx
+        let yy = qy * qy
+        let zz = qz * qz
+        let xy = qx * qy
+        let xz = qx * qz
+        let xw = qx * qw
+        let yz = qy * qz
+        let yw = qy * qw
+        let zw = qz * qw
         let m11 = 1.0 - 2.0 * (yy + zz)
         let m12 = 2.0 * (xy + zw)
         let m13 = 2.0 * (xz - yw)
@@ -1137,50 +1193,64 @@ pub impl EulerWrapper:
         let m32 = 2.0 * (yz - xw)
         let m33 = 1.0 - 2.0 * (xx + yy)
         let eps: Float = 0.000001
-        var ex: Float = 0.0; var ey: Float = 0.0; var ez: Float = 0.0
+        var ex: Float = 0.0
+        var ey: Float = 0.0
+        var ez: Float = 0.0
         if order == EulerOrder::XYZ:
-            ey = math.asin(math_clamp(m13, -1.0, 1.0))
-            if abs(m13) < 1.0 - eps:
+            let ey_inner = math_clamp(m13, -1.0, 1.0)
+            ey = fast_atan2(ey_inner, sqrt(1.0 - ey_inner * ey_inner))
+            let abs_cos = abs(cos(ey))
+            if abs_cos > eps:
                 ex = fast_atan2(-m23, m33)
                 ez = fast_atan2(-m12, m11)
             else:
                 ex = fast_atan2(m32, m22)
                 ez = 0.0
         elif order == EulerOrder::YXZ:
-            ex = math.asin(math_clamp(-m23, -1.0, 1.0))
-            if abs(m23) < 1.0 - eps:
+            let ex_inner = math_clamp(-m23, -1.0, 1.0)
+            ex = fast_atan2(ex_inner, sqrt(1.0 - ex_inner * ex_inner))
+            let abs_cos = abs(cos(ex))
+            if abs_cos > eps:
                 ey = fast_atan2(m13, m33)
                 ez = fast_atan2(m21, m22)
             else:
                 ey = fast_atan2(-m31, m11)
                 ez = 0.0
         elif order == EulerOrder::ZXY:
-            ex = math.asin(math_clamp(m32, -1.0, 1.0))
-            if abs(m32) < 1.0 - eps:
+            let ex_inner = math_clamp(m32, -1.0, 1.0)
+            ex = fast_atan2(ex_inner, sqrt(1.0 - ex_inner * ex_inner))
+            let abs_cos = abs(cos(ex))
+            if abs_cos > eps:
                 ey = fast_atan2(-m31, m33)
                 ez = fast_atan2(-m12, m22)
             else:
                 ey = 0.0
                 ez = fast_atan2(m21, m11)
         elif order == EulerOrder::ZYX:
-            ey = math.asin(math_clamp(-m31, -1.0, 1.0))
-            if abs(m31) < 1.0 - eps:
+            let ey_inner = math_clamp(-m31, -1.0, 1.0)
+            ey = fast_atan2(ey_inner, sqrt(1.0 - ey_inner * ey_inner))
+            let abs_cos = abs(cos(ey))
+            if abs_cos > eps:
                 ex = fast_atan2(m32, m33)
                 ez = fast_atan2(m21, m11)
             else:
                 ex = 0.0
                 ez = fast_atan2(-m12, m22)
         elif order == EulerOrder::YZX:
-            ez = math.asin(math_clamp(m21, -1.0, 1.0))
-            if abs(m21) < 1.0 - eps:
+            let ez_inner = math_clamp(m21, -1.0, 1.0)
+            ez = fast_atan2(ez_inner, sqrt(1.0 - ez_inner * ez_inner))
+            let abs_cos = abs(cos(ez))
+            if abs_cos > eps:
                 ex = fast_atan2(-m23, m22)
                 ey = fast_atan2(-m31, m11)
             else:
                 ex = 0.0
                 ey = fast_atan2(m13, m33)
         elif order == EulerOrder::XZY:
-            ez = math.asin(math_clamp(-m12, -1.0, 1.0))
-            if abs(m12) < 1.0 - eps:
+            let ez_inner = math_clamp(-m12, -1.0, 1.0)
+            ez = fast_atan2(ez_inner, sqrt(1.0 - ez_inner * ez_inner))
+            let abs_cos = abs(cos(ez))
+            if abs_cos > eps:
                 ex = fast_atan2(m32, m22)
                 ey = fast_atan2(m13, m11)
             else:
@@ -1209,11 +1279,11 @@ pub struct ColorWrapper:
 
 pub impl ColorWrapper:
     /// Construct white color
-    pub fn new() -> ColorWrapper:
+    pub fn create() -> ColorWrapper:
         return ColorWrapper { r: 1.0, g: 1.0, b: 1.0 }
 
     /// Construct from RGB components in [0, 1]
-    pub fn new_rgb(r: Float, g: Float, b: Float) -> ColorWrapper:
+    pub fn create_rgb(r: Float, g: Float, b: Float) -> ColorWrapper:
         return ColorWrapper { r: r, g: g, b: b }
 
     /// Construct from hex integer 0xRRGGBB
@@ -1240,15 +1310,10 @@ pub impl ColorWrapper:
 
     /// Convert to hex integer 0xRRGGBB
     pub fn to_hex(self: ColorWrapper) -> Int:
-        let r = (math_clamp(self.r, 0.0, 1.0) * 255.0) as Int
-        let g = (math_clamp(self.g, 0.0, 1.0) * 255.0) as Int
-        let b = (math_clamp(self.b, 0.0, 1.0) * 255.0) as Int
-        return (r << 16) | (g << 8) | b
-
-    /// Convert to hex string "#RRGGBB"
-    pub fn to_hex_string(self: ColorWrapper) -> String:
-        let hex_val = self.to_hex()
-        return "#" + int_to_hex(hex_val, 6)
+        let ri = (math_clamp(self.r, 0.0, 1.0) * 255.0) as Int
+        let gi = (math_clamp(self.g, 0.0, 1.0) * 255.0) as Int
+        let bi = (math_clamp(self.b, 0.0, 1.0) * 255.0) as Int
+        return (ri << 16) | (gi << 8) | bi
 
     /// Set from HSL color space
     pub fn from_hsl(self: ColorWrapper, h: Float, s: Float, l: Float) -> ColorWrapper:

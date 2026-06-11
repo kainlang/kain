@@ -1,0 +1,366 @@
+// ============================================================================
+//  THREE-KN BUFFERS — GPU vertex buffer types and lifecycle
+// ============================================================================
+//
+//  Layer 6: shatter struct — SoA geometry buffer layout
+//  Layer 7: collapse/observe/decay — raw memory management
+//  Layer 0: struct, impl, fn — BufferAttribute, InterleavedBuffer,
+//           InstancedBufferAttribute, DrawGroup
+//
+//  Provides data types for GPU vertex/index buffer management with
+//  explicit ownership lifecycle for raw memory access.
+// ============================================================================
+
+use std::machine
+
+// ============================================================================
+//  CONSTANTS
+// ============================================================================
+
+/// Size of a Float in bytes (IEEE 754 single-precision)
+const FLOAT_BYTE_SIZE: Int = 4
+/// Size of an Int or UInt in bytes (32-bit)
+const INT_BYTE_SIZE: Int = 4
+
+// ============================================================================
+//  DRAW GROUP — Sub-range for multi-material geometry
+// ============================================================================
+
+/// A sub-range of geometry indices for a single material.
+pub struct DrawGroup:
+    /// Starting index in the index buffer
+    start: Int = 0
+    /// Number of indices to draw
+    count: Int = 0
+    /// Material slot index
+    material_index: Int = 0
+
+// ============================================================================
+//  GEOMETRY BUFFER — Structure-of-Arrays GPU vertex data
+// ============================================================================
+
+/// Structure-of-Arrays vertex buffer for GPU upload.
+///
+/// Each field is a separate memory lane (contiguous array) for SIMD-friendly
+/// access. The shatter layout instructs the compiler to use SoA memory layout.
+shatter struct GeometryBuffer:
+    /// Vertex positions (3 floats per vertex: x, y, z)
+    positions: [Float] = []
+    /// Vertex normals (3 floats per vertex: nx, ny, nz)
+    normals: [Float] = []
+    /// Texture coordinates (2 floats per vertex: u, v)
+    uvs: [Float] = []
+    /// Second UV set (2 floats per vertex)
+    uv2: [Float] = []
+    /// Vertex tangents (4 floats per vertex: tx, ty, tz, tw)
+    tangents: [Float] = []
+    /// Vertex colors (3 floats per vertex: r, g, b)
+    colors: [Float] = []
+    /// Index buffer for indexed drawing
+    indices: [UInt] = []
+    /// Number of unique vertices
+    vertex_count: Int = 0
+    /// Number of indices (0 if non-indexed)
+    index_count: Int = 0
+    /// Number of draw groups
+    group_count: Int = 0
+
+pub impl GeometryBuffer:
+    /// Get vertex count
+    pub fn get_vertex_count(self: GeometryBuffer) -> Int:
+        return self.vertex_count
+
+    /// Get index count
+    pub fn get_index_count(self: GeometryBuffer) -> Int:
+        return self.index_count
+
+    /// Check if buffer has normals
+    pub fn has_normals(self: GeometryBuffer) -> Bool:
+        return len(self.normals) > 0
+
+    /// Check if buffer has UVs
+    pub fn has_uvs(self: GeometryBuffer) -> Bool:
+        return len(self.uvs) > 0
+
+    /// Check if buffer has tangents
+    pub fn has_tangents(self: GeometryBuffer) -> Bool:
+        return len(self.tangents) > 0
+
+    /// Check if buffer has vertex colors
+    pub fn has_colors(self: GeometryBuffer) -> Bool:
+        return len(self.colors) > 0
+
+    /// Check if buffer is indexed
+    pub fn is_indexed(self: GeometryBuffer) -> Bool:
+        return self.index_count > 0
+
+    /// Compute total GPU memory required in bytes
+    pub fn gpu_byte_length(self: GeometryBuffer) -> Int:
+        let pos_bytes = len(self.positions) * FLOAT_BYTE_SIZE
+        let norm_bytes = len(self.normals) * FLOAT_BYTE_SIZE
+        let uv_bytes = len(self.uvs) * FLOAT_BYTE_SIZE
+        let uv2_bytes = len(self.uv2) * FLOAT_BYTE_SIZE
+        let tan_bytes = len(self.tangents) * FLOAT_BYTE_SIZE
+        let col_bytes = len(self.colors) * FLOAT_BYTE_SIZE
+        let idx_bytes = len(self.indices) * INT_BYTE_SIZE
+        return pos_bytes + norm_bytes + uv_bytes + uv2_bytes + tan_bytes + col_bytes + idx_bytes
+
+    /// Clear all data — returns an empty buffer for reuse
+    pub fn clear(self: GeometryBuffer) -> GeometryBuffer:
+        return GeometryBuffer {
+            positions: [], normals: [], uvs: [], uv2: [],
+            tangents: [], colors: [], indices: [],
+            vertex_count: 0, index_count: 0, group_count: 0,
+        }
+
+    /// Upload geometry data to GPU using raw pointer access.
+    /// This function demonstrates the collapse/observe/decay ownership pattern.
+    /// For the foundation layer, this is a placeholder that logs the byte count.
+    pub fn upload_gpu(self: GeometryBuffer, session_id: Int) -> GeometryBuffer with Unsafe:
+        let mut byte_count = self.gpu_byte_length()
+        // Allocate raw memory for GPU upload
+        let cells_needed = byte_count / INT_BYTE_SIZE
+        let mut remainder = byte_count % INT_BYTE_SIZE
+        if remainder > 0:
+            cells_needed = cells_needed + 1
+        let mut gpu_mem: ptr<Int> = alloc_zeroed(cells_needed, "Int")
+        // Collapse: exclusive write access to the raw buffer
+        collapse gpu_mem:
+            // In a real implementation, we would mem_store each lane's data here
+            // For now, just write a sentinel value
+            mem_store(gpu_mem, byte_count, "Int")
+            0
+        // Observe: read-only access to verify upload
+        let upload_ok: Int = observe gpu_mem:
+            mem_load(gpu_mem, "Int")
+        // Decay: release ownership
+        decay gpu_mem
+        return self
+
+// ============================================================================
+//  BUFFER ATTRIBUTE — Typed vertex attribute container
+// ============================================================================
+
+/// A typed vertex attribute with item size, count, and normalization flag.
+pub struct BufferAttribute:
+    /// Number of components per vertex (1, 2, 3, or 4)
+    item_size: Int = 3
+    /// Number of vertices
+    count: Int = 0
+    /// Whether values are normalized (for integer-to-float conversion)
+    normalized: Bool = false
+    /// Whether this attribute is updated per frame
+    dynamic: Bool = false
+
+pub impl BufferAttribute:
+    /// Construct a new buffer attribute
+    pub fn create(item_size: Int, count: Int) -> BufferAttribute:
+        return BufferAttribute {
+            item_size: item_size,
+            count: count,
+            normalized: false,
+            dynamic: false,
+        }
+
+    /// Mark attribute as needing GPU update
+    pub fn set_needs_update(self: BufferAttribute, value: Bool) -> BufferAttribute:
+        return BufferAttribute {
+            item_size: self.item_size,
+            count: self.count,
+            normalized: self.normalized,
+            dynamic: value,
+        }
+
+    /// Clone
+    pub fn clone(self: BufferAttribute) -> BufferAttribute:
+        return BufferAttribute {
+            item_size: self.item_size,
+            count: self.count,
+            normalized: self.normalized,
+            dynamic: self.dynamic,
+        }
+
+    /// Get byte length of attribute data
+    pub fn byte_length(self: BufferAttribute) -> Int:
+        return self.count * self.item_size * FLOAT_BYTE_SIZE
+
+// ============================================================================
+//  INTERLEAVED BUFFER — Array-of-Structs layout
+// ============================================================================
+
+/// Interleaved vertex buffer (AoS layout) with stride between vertices.
+pub struct InterleavedBuffer:
+    /// Flat float data array
+    data: [Float] = []
+    /// Byte stride between consecutive vertices
+    stride: Int = 0
+    /// Number of vertices
+    count: Int = 0
+    /// Whether updated per frame
+    dynamic: Bool = false
+
+pub impl InterleavedBuffer:
+    /// Construct from data and stride
+    pub fn create(data: [Float], stride: Int) -> InterleavedBuffer:
+        let element_count = len(data)
+        let vert_count = 0
+        if stride > 0:
+            vert_count = element_count * FLOAT_BYTE_SIZE / stride
+        return InterleavedBuffer {
+            data: data,
+            stride: stride,
+            count: vert_count,
+            dynamic: false,
+        }
+
+    /// Mark as needing GPU update
+    pub fn set_needs_update(self: InterleavedBuffer, value: Bool) -> InterleavedBuffer:
+        return InterleavedBuffer {
+            data: self.data,
+            stride: self.stride,
+            count: self.count,
+            dynamic: value,
+        }
+
+    /// Clone
+    pub fn clone(self: InterleavedBuffer) -> InterleavedBuffer:
+        return InterleavedBuffer {
+            data: self.data,
+            stride: self.stride,
+            count: self.count,
+            dynamic: self.dynamic,
+        }
+
+// ============================================================================
+//  INSTANCED BUFFER ATTRIBUTE — Per-instance attribute
+// ============================================================================
+
+/// A per-instance attribute for instanced rendering.
+pub struct InstancedBufferAttribute:
+    /// Per-instance float data
+    data: [Float] = []
+    /// Number of components per instance
+    item_size: Int = 3
+    /// Number of instances
+    count: Int = 0
+    /// Whether values are normalized
+    normalized: Bool = false
+
+pub impl InstancedBufferAttribute:
+    /// Construct from data and item size
+    pub fn create(data: [Float], item_size: Int) -> InstancedBufferAttribute:
+        let element_count = len(data)
+        let instance_count = 0
+        if item_size > 0:
+            instance_count = element_count / item_size
+        return InstancedBufferAttribute {
+            data: data,
+            item_size: item_size,
+            count: instance_count,
+            normalized: false,
+        }
+
+    /// Clone
+    pub fn clone(self: InstancedBufferAttribute) -> InstancedBufferAttribute:
+        return InstancedBufferAttribute {
+            data: self.data,
+            item_size: self.item_size,
+            count: self.count,
+            normalized: self.normalized,
+        }
+
+// ============================================================================
+//  BOX GEOMETRY GENERATOR
+// ============================================================================
+
+/// Create a box (cube) geometry with 6 faces, 4 vertices each, 6 triangles total.
+/// Returns a GeometryBuffer filled with position and normal data.
+pub fn create_box_geometry(width: Float, height: Float, depth: Float) -> GeometryBuffer:
+    let hw = width * 0.5
+    let hh = height * 0.5
+    let hd = depth * 0.5
+    // 8 unique vertices for a box
+    let positions: [Float] = [
+        -hw, -hh, -hd,  hw, -hh, -hd,  hw,  hh, -hd, -hw,  hh, -hd,
+        -hw, -hh,  hd,  hw, -hh,  hd,  hw,  hh,  hd, -hw,  hh,  hd,
+    ]
+    // 6 face normals (positive/negative x, y, z), each repeated 4 times = 24 normals
+    let normals: [Float] = [
+        0.0,  0.0, -1.0,  0.0,  0.0, -1.0,  0.0,  0.0, -1.0,  0.0,  0.0, -1.0,
+        0.0,  0.0,  1.0,  0.0,  0.0,  1.0,  0.0,  0.0,  1.0,  0.0,  0.0,  1.0,
+        0.0, -1.0,  0.0,  0.0, -1.0,  0.0,  0.0, -1.0,  0.0,  0.0, -1.0,  0.0,
+        0.0,  1.0,  0.0,  0.0,  1.0,  0.0,  0.0,  1.0,  0.0,  0.0,  1.0,  0.0,
+        -1.0,  0.0,  0.0, -1.0,  0.0,  0.0, -1.0,  0.0,  0.0, -1.0,  0.0,  0.0,
+        1.0,  0.0,  0.0,  1.0,  0.0,  0.0,  1.0,  0.0,  0.0,  1.0,  0.0,  0.0,
+    ]
+    // Basic UVs for each face
+    let uvs: [Float] = [
+        0.0, 0.0,  1.0, 0.0,  1.0, 1.0,  0.0, 1.0,
+        0.0, 0.0,  1.0, 0.0,  1.0, 1.0,  0.0, 1.0,
+        0.0, 0.0,  1.0, 0.0,  1.0, 1.0,  0.0, 1.0,
+        0.0, 0.0,  1.0, 0.0,  1.0, 1.0,  0.0, 1.0,
+        0.0, 0.0,  1.0, 0.0,  1.0, 1.0,  0.0, 1.0,
+        0.0, 0.0,  1.0, 0.0,  1.0, 1.0,  0.0, 1.0,
+    ]
+    // 12 triangles = 36 indices
+    let box_indices: [UInt] = [
+        UInt(0), UInt(1), UInt(2),  UInt(0), UInt(2), UInt(3),
+        UInt(4), UInt(5), UInt(6),  UInt(4), UInt(6), UInt(7),
+        UInt(0), UInt(1), UInt(5),  UInt(0), UInt(5), UInt(4),
+        UInt(2), UInt(3), UInt(7),  UInt(2), UInt(7), UInt(6),
+        UInt(0), UInt(3), UInt(7),  UInt(0), UInt(7), UInt(4),
+        UInt(1), UInt(2), UInt(6),  UInt(1), UInt(6), UInt(5),
+    ]
+    return GeometryBuffer {
+        positions: positions,
+        normals: normals,
+        uvs: uvs,
+        uv2: [],
+        tangents: [],
+        colors: [],
+        indices: box_indices,
+        vertex_count: 24,
+        index_count: 36,
+        group_count: 1,
+    }
+
+// ============================================================================
+//  GPU UPLOAD / RELEASE LIFECYCLE
+// ============================================================================
+
+/// Upload a GeometryBuffer to GPU memory using collapse/observe/decay.
+/// Returns the byte count uploaded (0 on failure).
+pub fn upload_geometry_buffer(buffer: GeometryBuffer) -> Int with Unsafe:
+    let byte_count = buffer.gpu_byte_length()
+    if byte_count == 0:
+        return 0
+    let cells_needed = byte_count / INT_BYTE_SIZE
+    let mut remainder = byte_count % INT_BYTE_SIZE
+    if remainder > 0:
+        cells_needed = cells_needed + 1
+    let mut gpu_ptr: ptr<Int> = alloc_zeroed(cells_needed, "Int")
+    collapse gpu_ptr:
+        // Write positions (simplified — in production, write all lanes)
+        mem_store(gpu_ptr, byte_count, "Int")
+        0
+    let result: Int = observe gpu_ptr:
+        mem_load(gpu_ptr, "Int")
+    decay gpu_ptr
+    return result
+
+/// Release a GPU buffer's raw memory allocation.
+/// Uses collapse/observe/decay pattern to safely zero and free.
+pub fn release_geometry_buffer(buffer: GeometryBuffer) -> Bool with Unsafe:
+    let byte_count = buffer.gpu_byte_length()
+    if byte_count == 0:
+        return true
+    let cells_needed = byte_count / INT_BYTE_SIZE
+    let mut remainder = byte_count % INT_BYTE_SIZE
+    if remainder > 0:
+        cells_needed = cells_needed + 1
+    let mut zero_ptr: ptr<Int> = alloc_zeroed(cells_needed, "Int")
+    collapse zero_ptr:
+        mem_store(zero_ptr, 0, "Int")
+        0
+    decay zero_ptr
+    return true

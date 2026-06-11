@@ -1,0 +1,966 @@
+// ============================================================================
+//  THREE-KN MATH TYPES — Compound geometry types and interpolation
+// ============================================================================
+//
+//  Layer 0: struct, impl, fn Pure
+//  Layer 3: converge (for interpolation dispatch)
+//
+//  Provides Box2/Box3/Sphere/Ray/Plane/Frustum/Triangle/Line3/Cylindrical/
+//  Spherical wrappers, plus interpolation converge and MathUtils functions.
+// ============================================================================
+
+use std::math
+
+// ============================================================================
+//  CONSTANTS
+// ============================================================================
+
+const INFINITY_MAX: Float = 340282346638528859811704183484516925440.0
+
+// ============================================================================
+//  BOX2
+// ============================================================================
+
+/// 2D axis-aligned bounding box with min/max corners.
+pub struct Box2:
+    min: Vec2Wrapper = Vec2Wrapper { x: INFINITY_MAX, y: INFINITY_MAX }
+    max: Vec2Wrapper = Vec2Wrapper { x: -INFINITY_MAX, y: -INFINITY_MAX }
+
+pub impl Box2:
+    /// Construct empty box
+    pub fn create() -> Box2:
+        return Box2 {
+            min: Vec2Wrapper { x: INFINITY_MAX, y: INFINITY_MAX },
+            max: Vec2Wrapper { x: -INFINITY_MAX, y: -INFINITY_MAX },
+        }
+
+    /// Set min and max
+    pub fn set(self: Box2, min: Vec2Wrapper, max: Vec2Wrapper) -> Box2:
+        return Box2 { min: min, max: max }
+
+    /// Clone
+    pub fn clone(self: Box2) -> Box2:
+        return Box2 { min: self.min, max: self.max }
+
+    /// Make empty
+    pub fn make_empty(self: Box2) -> Box2:
+        return Box2 {
+            min: Vec2Wrapper { x: INFINITY_MAX, y: INFINITY_MAX },
+            max: Vec2Wrapper { x: -INFINITY_MAX, y: -INFINITY_MAX },
+        }
+
+    /// Check if empty
+    pub fn is_empty(self: Box2) -> Bool:
+        return self.max.x < self.min.x or self.max.y < self.min.y
+
+    /// Expand box to include a point
+    pub fn expand_by_point(self: Box2, point: Vec2Wrapper) -> Box2:
+        return Box2 {
+            min: Vec2Wrapper {
+                x: math_min(self.min.x, point.x),
+                y: math_min(self.min.y, point.y),
+            },
+            max: Vec2Wrapper {
+                x: math_max(self.max.x, point.x),
+                y: math_max(self.max.y, point.y),
+            },
+        }
+
+    /// Expand box by a vector (2D margin)
+    pub fn expand_by_vec2(self: Box2, v: Vec2Wrapper) -> Box2:
+        return Box2 {
+            min: Vec2Wrapper {
+                x: self.min.x - v.x,
+                y: self.min.y - v.y,
+            },
+            max: Vec2Wrapper {
+                x: self.max.x + v.x,
+                y: self.max.y + v.y,
+            },
+        }
+
+    /// Check if point is inside box
+    pub fn contains_point(self: Box2, point: Vec2Wrapper) -> Bool:
+        let x_ok = point.x >= self.min.x and point.x <= self.max.x
+        let y_ok = point.y >= self.min.y and point.y <= self.max.y
+        return x_ok and y_ok
+
+    /// Get center point
+    pub fn center(self: Box2) -> Vec2Wrapper:
+        return Vec2Wrapper {
+            x: (self.min.x + self.max.x) * 0.5,
+            y: (self.min.y + self.max.y) * 0.5,
+        }
+
+    /// Get size (width, height)
+    pub fn size(self: Box2) -> Vec2Wrapper:
+        return Vec2Wrapper {
+            x: self.max.x - self.min.x,
+            y: self.max.y - self.min.y,
+        }
+
+    /// Union with another box
+    pub fn union_box(self: Box2, other: Box2) -> Box2:
+        return Box2 {
+            min: Vec2Wrapper {
+                x: math_min(self.min.x, other.min.x),
+                y: math_min(self.min.y, other.min.y),
+            },
+            max: Vec2Wrapper {
+                x: math_max(self.max.x, other.max.x),
+                y: math_max(self.max.y, other.max.y),
+            },
+        }
+
+    /// Intersect with another box
+    pub fn intersect(self: Box2, other: Box2) -> Box2:
+        return Box2 {
+            min: Vec2Wrapper {
+                x: math_max(self.min.x, other.min.x),
+                y: math_max(self.min.y, other.min.y),
+            },
+            max: Vec2Wrapper {
+                x: math_min(self.max.x, other.max.x),
+                y: math_min(self.max.y, other.max.y),
+            },
+        }
+
+    /// Equality
+    pub fn equals(self: Box2, other: Box2) -> Bool:
+        return self.min.equals(other.min) and self.max.equals(other.max)
+
+
+// ============================================================================
+//  BOX3
+// ============================================================================
+
+/// 3D axis-aligned bounding box with min/max corners.
+pub struct Box3:
+    min: Vec3Wrapper = Vec3Wrapper { x: INFINITY_MAX, y: INFINITY_MAX, z: INFINITY_MAX }
+    max: Vec3Wrapper = Vec3Wrapper { x: -INFINITY_MAX, y: -INFINITY_MAX, z: -INFINITY_MAX }
+
+pub impl Box3:
+    /// Construct empty box
+    pub fn create() -> Box3:
+        return Box3 {
+            min: Vec3Wrapper { x: INFINITY_MAX, y: INFINITY_MAX, z: INFINITY_MAX },
+            max: Vec3Wrapper { x: -INFINITY_MAX, y: -INFINITY_MAX, z: -INFINITY_MAX },
+        }
+
+    /// Set min and max
+    pub fn set(self: Box3, min: Vec3Wrapper, max: Vec3Wrapper) -> Box3:
+        return Box3 { min: min, max: max }
+
+    /// Set from center and size
+    pub fn set_from_center_and_size(self: Box3, center: Vec3Wrapper, size: Vec3Wrapper) -> Box3:
+        let half_val = Vec3Wrapper {
+            x: size.x * 0.5, y: size.y * 0.5, z: size.z * 0.5
+        }
+        return Box3 {
+            min: Vec3Wrapper {
+                x: center.x - half_val.x, y: center.y - half_val.y, z: center.z - half_val.z
+            },
+            max: Vec3Wrapper {
+                x: center.x + half_val.x, y: center.y + half_val.y, z: center.z + half_val.z
+            },
+        }
+
+    /// Clone
+    pub fn clone(self: Box3) -> Box3:
+        return Box3 { min: self.min, max: self.max }
+
+    /// Make empty
+    pub fn make_empty(self: Box3) -> Box3:
+        return Box3 {
+            min: Vec3Wrapper { x: INFINITY_MAX, y: INFINITY_MAX, z: INFINITY_MAX },
+            max: Vec3Wrapper { x: -INFINITY_MAX, y: -INFINITY_MAX, z: -INFINITY_MAX },
+        }
+
+    /// Check if empty
+    pub fn is_empty(self: Box3) -> Bool:
+        return self.max.x < self.min.x or self.max.y < self.min.y or self.max.z < self.min.z
+
+    /// Expand to include a point
+    pub fn expand_by_point(self: Box3, point: Vec3Wrapper) -> Box3:
+        let internal_aabb_box3 = Aabb {
+            min: vec3(self.min.x, self.min.y, self.min.z),
+            max: vec3(self.max.x, self.max.y, self.max.z),
+        }
+        let expand_result = aabb_expand_point(internal_aabb_box3, vec3(point.x, point.y, point.z))
+        return Box3 {
+            min: Vec3Wrapper { x: expand_result.min.x, y: expand_result.min.y, z: expand_result.min.z },
+            max: Vec3Wrapper { x: expand_result.max.x, y: expand_result.max.y, z: expand_result.max.z },
+        }
+
+    /// Expand to include another box
+    pub fn expand_by_box(self: Box3, other: Box3) -> Box3:
+        return Box3 {
+            min: Vec3Wrapper {
+                x: math_min(self.min.x, other.min.x),
+                y: math_min(self.min.y, other.min.y),
+                z: math_min(self.min.z, other.min.z),
+            },
+            max: Vec3Wrapper {
+                x: math_max(self.max.x, other.max.x),
+                y: math_max(self.max.y, other.max.y),
+                z: math_max(self.max.z, other.max.z),
+            },
+        }
+
+    /// Check if point is inside
+    pub fn contains_point(self: Box3, point: Vec3Wrapper) -> Bool:
+        let internal_box_aabb = Aabb {
+            min: vec3(self.min.x, self.min.y, self.min.z),
+            max: vec3(self.max.x, self.max.y, self.max.z),
+        }
+        return aabb_contains_point(internal_box_aabb, vec3(point.x, point.y, point.z))
+
+    /// Get center point
+    pub fn center(self: Box3) -> Vec3Wrapper:
+        return Vec3Wrapper {
+            x: (self.min.x + self.max.x) * 0.5,
+            y: (self.min.y + self.max.y) * 0.5,
+            z: (self.min.z + self.max.z) * 0.5,
+        }
+
+    /// Get size (extents)
+    pub fn size(self: Box3) -> Vec3Wrapper:
+        return Vec3Wrapper {
+            x: self.max.x - self.min.x,
+            y: self.max.y - self.min.y,
+            z: self.max.z - self.min.z,
+        }
+
+    /// Union with another box
+    pub fn union_box(self: Box3, other: Box3) -> Box3:
+        return Box3 {
+            min: Vec3Wrapper {
+                x: math_min(self.min.x, other.min.x),
+                y: math_min(self.min.y, other.min.y),
+                z: math_min(self.min.z, other.min.z),
+            },
+            max: Vec3Wrapper {
+                x: math_max(self.max.x, other.max.x),
+                y: math_max(self.max.y, other.max.y),
+                z: math_max(self.max.z, other.max.z),
+            },
+        }
+
+    /// Intersect with another box
+    pub fn intersect(self: Box3, other: Box3) -> Box3:
+        return Box3 {
+            min: Vec3Wrapper {
+                x: math_max(self.min.x, other.min.x),
+                y: math_max(self.min.y, other.min.y),
+                z: math_max(self.min.z, other.min.z),
+            },
+            max: Vec3Wrapper {
+                x: math_min(self.max.x, other.max.x),
+                y: math_min(self.max.y, other.max.y),
+                z: math_min(self.max.z, other.max.z),
+            },
+        }
+
+    /// Apply matrix4 transform (transforms all 8 corners, recomputes AABB)
+    pub fn apply_matrix4(self: Box3, m: Mat4Wrapper) -> Box3:
+        let corners: [Vec3Wrapper] = [
+            Vec3Wrapper { x: self.min.x, y: self.min.y, z: self.min.z },
+            Vec3Wrapper { x: self.max.x, y: self.min.y, z: self.min.z },
+            Vec3Wrapper { x: self.min.x, y: self.max.y, z: self.min.z },
+            Vec3Wrapper { x: self.min.x, y: self.min.y, z: self.max.z },
+            Vec3Wrapper { x: self.max.x, y: self.max.y, z: self.min.z },
+            Vec3Wrapper { x: self.max.x, y: self.min.y, z: self.max.z },
+            Vec3Wrapper { x: self.min.x, y: self.max.y, z: self.max.z },
+            Vec3Wrapper { x: self.max.x, y: self.max.y, z: self.max.z },
+        ]
+        var new_min = corners[0].apply_matrix4(m)
+        var new_max = new_min
+        var i: Int = 1
+        while i < 8:
+            let pt = corners[i].apply_matrix4(m)
+            new_min = Vec3Wrapper {
+                x: math_min(new_min.x, pt.x),
+                y: math_min(new_min.y, pt.y),
+                z: math_min(new_min.z, pt.z),
+            }
+            new_max = Vec3Wrapper {
+                x: math_max(new_max.x, pt.x),
+                y: math_max(new_max.y, pt.y),
+                z: math_max(new_max.z, pt.z),
+            }
+            i = i + 1
+        return Box3 { min: new_min, max: new_max }
+
+    /// Equality
+    pub fn equals(self: Box3, other: Box3) -> Bool:
+        return self.min.equals(other.min) and self.max.equals(other.max)
+
+
+// ============================================================================
+//  SPHERE
+// ============================================================================
+
+/// Bounding sphere with center and radius.
+pub struct Sphere:
+    center: Vec3Wrapper = Vec3Wrapper { x: 0.0, y: 0.0, z: 0.0 }
+    radius: Float = -1.0
+
+pub impl Sphere:
+    /// Construct empty sphere (radius -1)
+    pub fn create() -> Sphere:
+        return Sphere { center: Vec3Wrapper { x: 0.0, y: 0.0, z: 0.0 }, radius: -1.0 }
+
+    /// Construct with center and radius
+    pub fn create_with_center(center: Vec3Wrapper, radius: Float) -> Sphere:
+        return Sphere { center: center, radius: radius }
+
+    /// Clone
+    pub fn clone(self: Sphere) -> Sphere:
+        return Sphere { center: self.center, radius: self.radius }
+
+    /// Set center and radius
+    pub fn set(self: Sphere, center: Vec3Wrapper, radius: Float) -> Sphere:
+        return Sphere { center: center, radius: radius }
+
+    /// Check if empty
+    pub fn is_empty(self: Sphere) -> Bool:
+        return self.radius < 0.0
+
+    /// Make empty
+    pub fn make_empty(self: Sphere) -> Sphere:
+        return Sphere { center: self.center, radius: -1.0 }
+
+    /// Check if point is inside sphere
+    pub fn contains_point(self: Sphere, point: Vec3Wrapper) -> Bool:
+        let internal = BoundingSphere {
+            center: vec3(self.center.x, self.center.y, self.center.z),
+            radius: self.radius,
+        }
+        return sphere_contains_point(internal, vec3(point.x, point.y, point.z))
+
+    /// Distance from center to point
+    pub fn distance_to_point(self: Sphere, point: Vec3Wrapper) -> Float:
+        let dx = point.x - self.center.x
+        let dy = point.y - self.center.y
+        let dz = point.z - self.center.z
+        let dist = sqrt(dx * dx + dy * dy + dz * dz)
+        return math_max(0.0, dist - self.radius)
+
+    /// Check intersection with another sphere
+    pub fn intersect_sphere(self: Sphere, other: Sphere) -> Bool:
+        let dx = other.center.x - self.center.x
+        let dy = other.center.y - self.center.y
+        let dz = other.center.z - self.center.z
+        let dist_sq = dx * dx + dy * dy + dz * dz
+        let radius_sum = self.radius + other.radius
+        return dist_sq <= radius_sum * radius_sum
+
+    /// Apply matrix4 transform
+    pub fn apply_matrix4(self: Sphere, m: Mat4Wrapper) -> Sphere:
+        let new_center = self.center.apply_matrix4(m)
+        // Approximate scale from matrix
+        let e = m.elements
+        let sx = vec3_length(vec3(e[0], e[1], e[2]))
+        let sy = vec3_length(vec3(e[4], e[5], e[6]))
+        let sz = vec3_length(vec3(e[8], e[9], e[10]))
+        let max_scale = math_max(sx, math_max(sy, sz))
+        return Sphere { center: new_center, radius: self.radius * max_scale }
+
+    /// Equality
+    pub fn equals(self: Sphere, other: Sphere) -> Bool:
+        return self.center.equals(other.center) and self.radius == other.radius
+
+
+// ============================================================================
+//  RAY
+// ============================================================================
+
+/// Ray with origin and direction for intersection tests.
+pub struct Ray:
+    origin: Vec3Wrapper = Vec3Wrapper { x: 0.0, y: 0.0, z: 0.0 }
+    direction: Vec3Wrapper = Vec3Wrapper { x: 0.0, y: 0.0, z: -1.0 }
+
+pub impl Ray:
+    /// Construct ray
+    pub fn create() -> Ray:
+        return Ray {
+            origin: Vec3Wrapper { x: 0.0, y: 0.0, z: 0.0 },
+            direction: Vec3Wrapper { x: 0.0, y: 0.0, z: -1.0 },
+        }
+
+    /// Construct with origin and direction
+    pub fn create_from(origin: Vec3Wrapper, direction: Vec3Wrapper) -> Ray:
+        return Ray { origin: origin, direction: direction }
+
+    /// Clone
+    pub fn clone(self: Ray) -> Ray:
+        return Ray { origin: self.origin, direction: self.direction }
+
+    /// Set origin and direction
+    pub fn set(self: Ray, origin: Vec3Wrapper, direction: Vec3Wrapper) -> Ray:
+        return Ray { origin: origin, direction: direction }
+
+    /// Point along ray: origin + direction * t
+    pub fn at(self: Ray, t: Float) -> Vec3Wrapper:
+        return Vec3Wrapper {
+            x: self.origin.x + self.direction.x * t,
+            y: self.origin.y + self.direction.y * t,
+            z: self.origin.z + self.direction.z * t,
+        }
+
+    /// Distance to a point
+    pub fn distance_to_point(self: Ray, point: Vec3Wrapper) -> Float:
+        let dx = point.x - self.origin.x
+        let dy = point.y - self.origin.y
+        let dz = point.z - self.origin.z
+        let dot_val = dx * self.direction.x + dy * self.direction.y + dz * self.direction.z
+        let proj_x = dx - dot_val * self.direction.x
+        let proj_y = dy - dot_val * self.direction.y
+        let proj_z = dz - dot_val * self.direction.z
+        return sqrt(proj_x * proj_x + proj_y * proj_y + proj_z * proj_z)
+
+    /// Squared distance to a point
+    pub fn distance_sq_to_point(self: Ray, point: Vec3Wrapper) -> Float:
+        let dx = point.x - self.origin.x
+        let dy = point.y - self.origin.y
+        let dz = point.z - self.origin.z
+        let dot_val = dx * self.direction.x + dy * self.direction.y + dz * self.direction.z
+        let proj_x = dx - dot_val * self.direction.x
+        let proj_y = dy - dot_val * self.direction.y
+        let proj_z = dz - dot_val * self.direction.z
+        return proj_x * proj_x + proj_y * proj_y + proj_z * proj_z
+
+    /// Intersect with a sphere: returns (hit, distance)
+    pub fn intersect_sphere(self: Ray, sphere: Sphere) -> (Bool, Float):
+        let oc_x = self.origin.x - sphere.center.x
+        let oc_y = self.origin.y - sphere.center.y
+        let oc_z = self.origin.z - sphere.center.z
+        let a_sq = self.direction.x * self.direction.x
+        let a_sq_y = self.direction.y * self.direction.y
+        let a_sq_z = self.direction.z * self.direction.z
+        let a = a_sq + a_sq_y + a_sq_z
+        let b = 2.0 * (oc_x * self.direction.x + oc_y * self.direction.y + oc_z * self.direction.z)
+        let c = oc_x * oc_x + oc_y * oc_y + oc_z * oc_z - sphere.radius * sphere.radius
+        let disc = b * b - 4.0 * a * c
+        if disc < 0.0:
+            return (false, -1.0)
+        let sqrt_disc = sqrt(disc)
+        let t1 = (-b - sqrt_disc) / (2.0 * a)
+        let t2 = (-b + sqrt_disc) / (2.0 * a)
+        if t1 >= 0.0:
+            return (true, t1)
+        if t2 >= 0.0:
+            return (true, t2)
+        return (false, -1.0)
+
+    /// Intersect with a box: uses ray_vs_aabb from std::math
+    pub fn intersect_box(self: Ray, box: Box3) -> (Bool, Float):
+        let internal_ray = Ray3 {
+            origin: vec3(self.origin.x, self.origin.y, self.origin.z),
+            direction: vec3(self.direction.x, self.direction.y, self.direction.z),
+        }
+        let box_aabb = Aabb {
+            min: vec3(box.min.x, box.min.y, box.min.z),
+            max: vec3(box.max.x, box.max.y, box.max.z),
+        }
+        let rayhit = ray_vs_aabb(internal_ray, box_aabb)
+        if rayhit.hit:
+            return (true, rayhit.distance)
+        return (false, -1.0)
+
+    /// Intersect with a triangle: uses ray_vs_triangle from std::math
+    pub fn intersect_triangle(self: Ray, a: Vec3Wrapper, b: Vec3Wrapper, c: Vec3Wrapper) -> (Bool, Float, Float, Float):
+        let internal_ray = Ray3 {
+            origin: vec3(self.origin.x, self.origin.y, self.origin.z),
+            direction: vec3(self.direction.x, self.direction.y, self.direction.z),
+        }
+        let hit = ray_vs_triangle(
+            internal_ray,
+            vec3(a.x, a.y, a.z),
+            vec3(b.x, b.y, b.z),
+            vec3(c.x, c.y, c.z)
+        )
+        if hit.hit:
+            let u = hit.barycentric.x
+            let v = hit.barycentric.y
+            return (true, hit.distance, u, v)
+        return (false, -1.0, 0.0, 0.0)
+
+    /// Apply matrix4 transform
+    pub fn apply_matrix4(self: Ray, m: Mat4Wrapper) -> Ray:
+        let new_origin = self.origin.apply_matrix4(m)
+        let new_direction = self.direction.apply_matrix4(m).sub(
+            Vec3Wrapper { x: 0.0, y: 0.0, z: 0.0 }.apply_matrix4(m)
+        )
+        return Ray { origin: new_origin, direction: new_direction.normalize() }
+
+    /// Equality
+    pub fn equals(self: Ray, other: Ray) -> Bool:
+        return self.origin.equals(other.origin) and self.direction.equals(other.direction)
+
+
+// ============================================================================
+//  PLANE
+// ============================================================================
+
+/// Infinite plane defined by normal and constant (dot(normal, point) = constant).
+pub struct PlaneWrapper:
+    normal: Vec3Wrapper = Vec3Wrapper { x: 1.0, y: 0.0, z: 0.0 }
+    constant: Float = 0.0
+
+pub impl PlaneWrapper:
+    /// Construct plane with normal and constant
+    pub fn create() -> PlaneWrapper:
+        return PlaneWrapper {
+            normal: Vec3Wrapper { x: 1.0, y: 0.0, z: 0.0 },
+            constant: 0.0,
+        }
+
+    /// Construct from normal and constant
+    pub fn create_from(normal: Vec3Wrapper, constant: Float) -> PlaneWrapper:
+        return PlaneWrapper { normal: normal, constant: constant }
+
+    /// Clone
+    pub fn clone(self: PlaneWrapper) -> PlaneWrapper:
+        return PlaneWrapper { normal: self.normal, constant: self.constant }
+
+    /// Set normal and constant
+    pub fn set(self: PlaneWrapper, normal: Vec3Wrapper, constant: Float) -> PlaneWrapper:
+        return PlaneWrapper { normal: normal, constant: constant }
+
+    /// Set from a point on the plane and the normal
+    pub fn set_from_point_normal(self: PlaneWrapper, point: Vec3Wrapper, normal: Vec3Wrapper) -> PlaneWrapper:
+        let internal = plane_from_point_normal(
+            vec3(point.x, point.y, point.z),
+            vec3(normal.x, normal.y, normal.z)
+        )
+        return PlaneWrapper {
+            normal: Vec3Wrapper { x: internal.normal.x, y: internal.normal.y, z: internal.normal.z },
+            constant: internal.distance,
+        }
+
+    /// Normalize the plane (ensures normal is unit length)
+    pub fn normalize(self: PlaneWrapper) -> PlaneWrapper:
+        let internal = Plane {
+            normal: vec3(self.normal.x, self.normal.y, self.normal.z),
+            distance: self.constant,
+        }
+        let result = plane_normalize(internal)
+        return PlaneWrapper {
+            normal: Vec3Wrapper { x: result.normal.x, y: result.normal.y, z: result.normal.z },
+            constant: result.distance,
+        }
+
+    /// Signed distance from point to plane
+    pub fn distance_to_point(self: PlaneWrapper, point: Vec3Wrapper) -> Float:
+        let internal = Plane {
+            normal: vec3(self.normal.x, self.normal.y, self.normal.z),
+            distance: self.constant,
+        }
+        return plane_signed_distance(internal, vec3(point.x, point.y, point.z))
+
+    /// Project point onto plane
+    pub fn project_point(self: PlaneWrapper, point: Vec3Wrapper) -> Vec3Wrapper:
+        let dist = self.distance_to_point(point)
+        return Vec3Wrapper {
+            x: point.x - self.normal.x * dist,
+            y: point.y - self.normal.y * dist,
+            z: point.z - self.normal.z * dist,
+        }
+
+    /// Get coplanar point (projection of origin onto plane)
+    pub fn coplanar_point(self: PlaneWrapper) -> Vec3Wrapper:
+        return Vec3Wrapper {
+            x: self.normal.x * self.constant,
+            y: self.normal.y * self.constant,
+            z: self.normal.z * self.constant,
+        }
+
+    /// Equality
+    pub fn equals(self: PlaneWrapper, other: PlaneWrapper) -> Bool:
+        return self.normal.equals(other.normal) and self.constant == other.constant
+
+
+// ============================================================================
+//  FRUSTUM
+// ============================================================================
+
+/// View frustum with 6 planes for culling.
+pub struct FrustumWrapper:
+    planes: [PlaneWrapper] = []
+
+pub impl FrustumWrapper:
+    /// Construct empty frustum
+    pub fn create() -> FrustumWrapper:
+        return FrustumWrapper { planes: [] }
+
+    /// Set from projection-view matrix (extracts 6 frustum planes)
+    pub fn set_from_projection_matrix(self: FrustumWrapper, m: Mat4Wrapper) -> FrustumWrapper:
+        let e = m.elements
+        // Standard Gribb/Hartmann plane extraction
+        let left = PlaneWrapper {
+            normal: Vec3Wrapper { x: e[3] + e[0], y: e[7] + e[4], z: e[11] + e[8] },
+            constant: e[15] + e[12],
+        }
+        let right = PlaneWrapper {
+            normal: Vec3Wrapper { x: e[3] - e[0], y: e[7] - e[4], z: e[11] - e[8] },
+            constant: e[15] - e[12],
+        }
+        let bottom = PlaneWrapper {
+            normal: Vec3Wrapper { x: e[3] + e[1], y: e[7] + e[5], z: e[11] + e[9] },
+            constant: e[15] + e[13],
+        }
+        let top = PlaneWrapper {
+            normal: Vec3Wrapper { x: e[3] - e[1], y: e[7] - e[5], z: e[11] - e[9] },
+            constant: e[15] - e[13],
+        }
+        let near = PlaneWrapper {
+            normal: Vec3Wrapper { x: e[3] + e[2], y: e[7] + e[6], z: e[11] + e[10] },
+            constant: e[15] + e[14],
+        }
+        let far = PlaneWrapper {
+            normal: Vec3Wrapper { x: e[3] - e[2], y: e[7] - e[6], z: e[11] - e[10] },
+            constant: e[15] - e[14],
+        }
+        let norm_left = left.normalize()
+        let norm_right = right.normalize()
+        let norm_bottom = bottom.normalize()
+        let norm_top = top.normalize()
+        let norm_near = near.normalize()
+        let norm_far = far.normalize()
+        return FrustumWrapper {
+            planes: [norm_left, norm_right, norm_top, norm_bottom, norm_near, norm_far]
+        }
+
+    /// Check if point is inside frustum
+    pub fn contains_point(self: FrustumWrapper, point: Vec3Wrapper) -> Bool:
+        var i: Int = 0
+        while i < 6:
+            let dist = self.planes[i].distance_to_point(point)
+            if dist < 0.0:
+                return false
+            i = i + 1
+        return true
+
+    /// Check if box intersects frustum
+    pub fn intersects_box(self: FrustumWrapper, box: Box3) -> Bool:
+        var i: Int = 0
+        while i < 6:
+            let p_normal = self.planes[i].normal
+            let p_constant = self.planes[i].constant
+            // Find the vertex (p-vertex) most in the negative half-space
+            var px: Float = 0.0
+            if p_normal.x > 0.0:
+                px = box.min.x
+            else:
+                px = box.max.x
+            var py: Float = 0.0
+            if p_normal.y > 0.0:
+                py = box.min.y
+            else:
+                py = box.max.y
+            var pz: Float = 0.0
+            if p_normal.z > 0.0:
+                pz = box.min.z
+            else:
+                pz = box.max.z
+            let dist = p_normal.x * px + p_normal.y * py + p_normal.z * pz - p_constant
+            if dist > 0.0:
+                return false
+            i = i + 1
+        return true
+
+    /// Check if sphere intersects frustum
+    pub fn intersects_sphere(self: FrustumWrapper, sphere: Sphere) -> Bool:
+        var i: Int = 0
+        while i < 6:
+            let dist = self.planes[i].distance_to_point(sphere.center)
+            if dist < -sphere.radius:
+                return false
+            i = i + 1
+        return true
+
+
+// ============================================================================
+//  TRIANGLE
+// ============================================================================
+
+/// Single triangle with barycentric coordinate helpers.
+pub struct Triangle:
+    a: Vec3Wrapper = Vec3Wrapper { x: 0.0, y: 0.0, z: 0.0 }
+    b: Vec3Wrapper = Vec3Wrapper { x: 0.0, y: 0.0, z: 0.0 }
+    c: Vec3Wrapper = Vec3Wrapper { x: 0.0, y: 0.0, z: 0.0 }
+
+pub impl Triangle:
+    /// Construct triangle from three vertices
+    pub fn create(a: Vec3Wrapper, b: Vec3Wrapper, c: Vec3Wrapper) -> Triangle:
+        return Triangle { a: a, b: b, c: c }
+
+    /// Clone
+    pub fn clone(self: Triangle) -> Triangle:
+        return Triangle { a: self.a, b: self.b, c: self.c }
+
+    /// Get area of triangle
+    pub fn area(self: Triangle) -> Float:
+        let ab = self.b.sub(self.a)
+        let ac = self.c.sub(self.a)
+        let cross_vec = ab.cross(ac)
+        return cross_vec.length() * 0.5
+
+    /// Get midpoint (centroid)
+    pub fn midpoint(self: Triangle) -> Vec3Wrapper:
+        return Vec3Wrapper {
+            x: (self.a.x + self.b.x + self.c.x) / 3.0,
+            y: (self.a.y + self.b.y + self.c.y) / 3.0,
+            z: (self.a.z + self.b.z + self.c.z) / 3.0,
+        }
+
+    /// Get normal (normalized cross product of edges)
+    pub fn normal(self: Triangle) -> Vec3Wrapper:
+        let ab = self.b.sub(self.a)
+        let ac = self.c.sub(self.a)
+        return ab.cross(ac).normalize()
+
+    /// Get barycentric coordinates of a point
+    pub fn barycoord_from_point(self: Triangle, point: Vec3Wrapper) -> (Float, Float, Float):
+        let v0 = self.c.sub(self.a)
+        let v1 = self.b.sub(self.a)
+        let v2 = point.sub(self.a)
+        let dot00 = v0.dot(v0)
+        let dot01 = v0.dot(v1)
+        let dot02 = v0.dot(v2)
+        let dot11 = v1.dot(v1)
+        let dot12 = v1.dot(v2)
+        let inv_denom = 1.0 / (dot00 * dot11 - dot01 * dot01)
+        let u_val = (dot11 * dot02 - dot01 * dot12) * inv_denom
+        let v_val = (dot00 * dot12 - dot01 * dot02) * inv_denom
+        let w_val = 1.0 - u_val - v_val
+        return (u_val, v_val, w_val)
+
+    /// Check if point is inside triangle
+    pub fn contains_point(self: Triangle, point: Vec3Wrapper) -> Bool:
+        let (u, v, w) = self.barycoord_from_point(point)
+        return u >= 0.0 and v >= 0.0 and w >= 0.0
+
+    /// Equality
+    pub fn equals(self: Triangle, other: Triangle) -> Bool:
+        return self.a.equals(other.a) and self.b.equals(other.b) and self.c.equals(other.c)
+
+
+// ============================================================================
+//  LINE3
+// ============================================================================
+
+/// 3D line segment defined by start and end points.
+pub struct Line3:
+    start: Vec3Wrapper = Vec3Wrapper { x: 0.0, y: 0.0, z: 0.0 }
+    end: Vec3Wrapper = Vec3Wrapper { x: 0.0, y: 0.0, z: 0.0 }
+
+pub impl Line3:
+    /// Construct line segment
+    pub fn create() -> Line3:
+        return Line3 {
+            start: Vec3Wrapper { x: 0.0, y: 0.0, z: 0.0 },
+            end: Vec3Wrapper { x: 0.0, y: 0.0, z: 0.0 },
+        }
+
+    /// Construct from start and end points
+    pub fn create_from(start: Vec3Wrapper, end: Vec3Wrapper) -> Line3:
+        return Line3 { start: start, end: end }
+
+    /// Clone
+    pub fn clone(self: Line3) -> Line3:
+        return Line3 { start: self.start, end: self.end }
+
+    /// Set start and end
+    pub fn set(self: Line3, start: Vec3Wrapper, end: Vec3Wrapper) -> Line3:
+        return Line3 { start: start, end: end }
+
+    /// Get center point
+    pub fn center(self: Line3) -> Vec3Wrapper:
+        return Vec3Wrapper {
+            x: (self.start.x + self.end.x) * 0.5,
+            y: (self.start.y + self.end.y) * 0.5,
+            z: (self.start.z + self.end.z) * 0.5,
+        }
+
+    /// Get delta (end - start)
+    pub fn delta(self: Line3) -> Vec3Wrapper:
+        return self.end.sub(self.start)
+
+    /// Get squared length
+    pub fn distance_sq(self: Line3) -> Float:
+        let d = self.delta()
+        return d.length_squared()
+
+    /// Get length
+    pub fn distance(self: Line3) -> Float:
+        let d = self.delta()
+        return d.length()
+
+    /// Point along line: start + delta * t (t in [0, 1])
+    pub fn at(self: Line3, t: Float) -> Vec3Wrapper:
+        return Vec3Wrapper {
+            x: self.start.x + (self.end.x - self.start.x) * t,
+            y: self.start.y + (self.end.y - self.start.y) * t,
+            z: self.start.z + (self.end.z - self.start.z) * t,
+        }
+
+    /// Closest point on line to another point
+    pub fn closest_point_to_point(self: Line3, point: Vec3Wrapper) -> Vec3Wrapper:
+        let d = self.delta()
+        let dot_val = Vec3Wrapper {
+            x: point.x - self.start.x,
+            y: point.y - self.start.y,
+            z: point.z - self.start.z,
+        }.dot(d)
+        let len_sq = d.length_squared()
+        if len_sq == 0.0:
+            return self.start
+        let t = math_clamp(dot_val / len_sq, 0.0, 1.0)
+        return self.at(t)
+
+    /// Apply matrix4 transform
+    pub fn apply_matrix4(self: Line3, m: Mat4Wrapper) -> Line3:
+        return Line3 {
+            start: self.start.apply_matrix4(m),
+            end: self.end.apply_matrix4(m),
+        }
+
+    /// Equality
+    pub fn equals(self: Line3, other: Line3) -> Bool:
+        return self.start.equals(other.start) and self.end.equals(other.end)
+
+
+// ============================================================================
+//  CYLINDRICAL
+// ============================================================================
+
+/// Cylindrical coordinates: radius, theta (azimuthal), y (height).
+pub struct Cylindrical:
+    radius: Float = 1.0
+    theta: Float = 0.0
+    y: Float = 0.0
+
+pub impl Cylindrical:
+    /// Construct from radius, theta, y
+    pub fn create(radius: Float, theta: Float, y: Float) -> Cylindrical:
+        return Cylindrical { radius: radius, theta: theta, y: y }
+
+    /// Set components
+    pub fn set(self: Cylindrical, radius: Float, theta: Float, y: Float) -> Cylindrical:
+        return Cylindrical { radius: radius, theta: theta, y: y }
+
+    /// Set from Vec3 (converts Cartesian to cylindrical)
+    pub fn set_from_vec3(self: Cylindrical, v: Vec3Wrapper) -> Cylindrical:
+        return Cylindrical {
+            radius: sqrt(v.x * v.x + v.z * v.z),
+            theta: fast_atan2(v.x, v.z),
+            y: v.y,
+        }
+
+    /// Convert to Vec3 (Cartesian)
+    pub fn to_vec3(self: Cylindrical) -> Vec3Wrapper:
+        return Vec3Wrapper {
+            x: self.radius * sin(self.theta),
+            y: self.y,
+            z: self.radius * cos(self.theta),
+        }
+
+
+// ============================================================================
+//  SPHERICAL
+// ============================================================================
+
+/// Spherical coordinates: radius, phi (polar), theta (azimuthal).
+pub struct Spherical:
+    radius: Float = 1.0
+    phi: Float = 0.0
+    theta: Float = 0.0
+
+pub impl Spherical:
+    /// Construct from radius, phi, theta
+    pub fn create(radius: Float, phi: Float, theta: Float) -> Spherical:
+        return Spherical { radius: radius, phi: phi, theta: theta }
+
+    /// Set components
+    pub fn set(self: Spherical, radius: Float, phi: Float, theta: Float) -> Spherical:
+        return Spherical { radius: radius, phi: phi, theta: theta }
+
+    /// Clone
+    pub fn clone(self: Spherical) -> Spherical:
+        return Spherical { radius: self.radius, phi: self.phi, theta: self.theta }
+
+    /// Set from Vec3 (converts Cartesian to spherical)
+    pub fn set_from_vec3(self: Spherical, v: Vec3Wrapper) -> Spherical:
+        let r = sqrt(v.x * v.x + v.y * v.y + v.z * v.z)
+        if r == 0.0:
+            return Spherical { radius: 0.0, phi: 0.0, theta: 0.0 }
+        return Spherical {
+            radius: r,
+            phi: fast_acos(math_clamp(v.y / r, -1.0, 1.0)),
+            theta: fast_atan2(v.z, v.x),
+        }
+
+    /// Convert to Vec3 (Cartesian)
+    pub fn to_vec3(self: Spherical) -> Vec3Wrapper:
+        let sin_phi = sin(self.phi)
+        return Vec3Wrapper {
+            x: self.radius * sin_phi * cos(self.theta),
+            y: self.radius * cos(self.phi),
+            z: self.radius * sin_phi * sin(self.theta),
+        }
+
+    /// Make safe (clamp phi away from poles)
+    pub fn make_safe(self: Spherical) -> Spherical:
+        let eps: Float = 0.000001
+        return Spherical {
+            radius: self.radius,
+            phi: math_clamp(self.phi, eps, PI - eps),
+            theta: self.theta,
+        }
+
+
+// ============================================================================
+//  MATH UTILITY FUNCTIONS
+// ============================================================================
+
+/// Linear interpolation
+pub fn lerp_simple(a: Float, b: Float, t: Float) -> Float:
+    return a + (b - a) * t
+
+/// Smoothstep
+pub fn smoothstep_simple(edge0: Float, edge1: Float, x: Float) -> Float:
+    return smoothstep(edge0, edge1, x)
+
+/// Smootherstep
+pub fn smootherstep_simple(edge0: Float, edge1: Float, x: Float) -> Float:
+    return smootherstep(edge0, edge1, x)
+
+/// Inverse lerp: returns t such that lerp(a, b, t) = value
+pub fn inverse_lerp_simple(a: Float, b: Float, value: Float) -> Float:
+    return inverse_lerp(a, b, value)
+
+/// Degrees to radians
+pub fn deg_to_rad(degrees: Float) -> Float:
+    return degrees_to_radians(degrees)
+
+/// Radians to degrees
+pub fn rad_to_deg(radians: Float) -> Float:
+    return radians_to_degrees(radians)
+
+/// Clamp value to [min, max]
+pub fn clamp_simple(value: Float, min: Float, max: Float) -> Float:
+    return math_clamp(value, min, max)
+
+/// Euclidean modulo (always positive)
+pub fn euclidean_modulo(value: Int, modulo: Int) -> Int:
+    let result = value % modulo
+    if result < 0:
+        return result + modulo
+    return result
+
+/// Map value from [a1, a2] to [b1, b2]
+pub fn map_linear(x: Float, a1: Float, a2: Float, b1: Float, b2: Float) -> Float:
+    let t = (x - a1) / (a2 - a1)
+    return b1 + (b2 - b1) * t

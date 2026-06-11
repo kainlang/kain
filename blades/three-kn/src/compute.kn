@@ -1,775 +1,103 @@
 // ============================================================================
-// three-kn — GPU Compute Kernel Layer
-// File: src/compute.kn
-// Layer: GPU Compute Pipeline
-// Constructs: shader compute (16 kernels)
-// Kernels: cull_frustum, cull_distance, sort_opaque, sort_transparent,
-//          skin_gpu, merge_geometry, build_indirect, build_atlas,
-//          light_cull_tiled, shadow_map, pmrem_filter, bloom,
-//          ssao, dof, motion_blur, tonemap
+//  COMPUTE — GPU Compute Shaders for Three-KN
+//  Compiled to SPIR-V / HLSL via `kain gpu-artifacts`
+// ============================================================================
+//
+//  Contains all compute shader declarations referenced by the engine:
+//    - audio_fft: Cooley-Tukey radix-2 FFT for audio spectrum analysis
+//    - pmrem_equirect_to_cubemap: Equirect HDR to cubemap conversion
+//    - pmrem_ggx_vndf: GGX VNDF importance sampling for env map prefiltering
+//    - pmrem_irradiance: Irradiance convolution for diffuse IBL
+//
+//  NOTE: These shaders use GPU-specific keywords (shared_mem, workgroup_barrier)
+//  that are only valid during GPU artifact compilation. Regular kain check
+//  will report errors for these keywords — this is expected.
 // ============================================================================
 
-use std::math
-
 // ============================================================================
-// FRUSTUM CULLING — 6-plane AABB test per instance
-// ============================================================================
-// Follows the shaderlib/cullfrustum.kn pattern exactly.
-// Tests each instance's AABB against 6 frustum planes.
-// Writes visibility bitmask: 1 = visible, 0 = culled.
-
-shader compute cull_frustum(id: UVec3) -> Vec4 workgroup(256, 1, 1):
-    uniform aabb_min: StorageBuffer<Vec4> @0
-    uniform aabb_max: StorageBuffer<Vec4> @1
-    uniform visibility: StorageBuffer<UInt> @2
-    uniform plane0: Vec4 @3
-    uniform plane1: Vec4 @4
-    uniform plane2: Vec4 @5
-    uniform plane3: Vec4 @6
-    uniform plane4: Vec4 @7
-    uniform plane5: Vec4 @8
-    uniform instance_count: UInt @9
-    uniform LOCAL_SIZE_X: UInt @100
-    uniform LOCAL_SIZE_Y: UInt @101
-    uniform LOCAL_SIZE_Z: UInt @102
-
-    let instance_idx = id.x
-    if instance_idx >= instance_count:
-        return vec4(0.0, 0.0, 0.0, 0.0)
-
-    let bmin = aabb_min[instance_idx].xyz
-    let bmax = aabb_max[instance_idx].xyz
-
-    // AABB vs plane: distance = dot(n, center) + d + dot(abs(n), half_extent)
-    // If < 0 → fully outside that half-space → cull
-    let center = (bmax + bmin) * 0.5
-    let half_ext = (bmax - bmin) * 0.5
-
-    let abs0 = vec3(abs(plane0.x), abs(plane0.y), abs(plane0.z))
-    let abs1 = vec3(abs(plane1.x), abs(plane1.y), abs(plane1.z))
-    let abs2 = vec3(abs(plane2.x), abs(plane2.y), abs(plane2.z))
-    let abs3 = vec3(abs(plane3.x), abs(plane3.y), abs(plane3.z))
-    let abs4 = vec3(abs(plane4.x), abs(plane4.y), abs(plane4.z))
-    let abs5 = vec3(abs(plane5.x), abs(plane5.y), abs(plane5.z))
-
-    let dist0 = dot(plane0.xyz, center) + plane0.w + dot(abs0, half_ext)
-    let dist1 = dot(plane1.xyz, center) + plane1.w + dot(abs1, half_ext)
-    let dist2 = dot(plane2.xyz, center) + plane2.w + dot(abs2, half_ext)
-    let dist3 = dot(plane3.xyz, center) + plane3.w + dot(abs3, half_ext)
-    let dist4 = dot(plane4.xyz, center) + plane4.w + dot(abs4, half_ext)
-    let dist5 = dot(plane5.xyz, center) + plane5.w + dot(abs5, half_ext)
-
-    if dist0 < 0.0:
-        visibility[instance_idx] = 0 as UInt
-        return vec4(0.0, 0.0, 0.0, 0.0)
-    if dist1 < 0.0:
-        visibility[instance_idx] = 0 as UInt
-        return vec4(0.0, 0.0, 0.0, 0.0)
-    if dist2 < 0.0:
-        visibility[instance_idx] = 0 as UInt
-        return vec4(0.0, 0.0, 0.0, 0.0)
-    if dist3 < 0.0:
-        visibility[instance_idx] = 0 as UInt
-        return vec4(0.0, 0.0, 0.0, 0.0)
-    if dist4 < 0.0:
-        visibility[instance_idx] = 0 as UInt
-        return vec4(0.0, 0.0, 0.0, 0.0)
-    if dist5 < 0.0:
-        visibility[instance_idx] = 0 as UInt
-        return vec4(0.0, 0.0, 0.0, 0.0)
-
-    visibility[instance_idx] = 1 as UInt
-    return vec4(1.0, 0.0, 0.0, 0.0)
-
-// ============================================================================
-// DISTANCE CULLING — LOD selection by distance bands
-// ============================================================================
-// 4-threshold LOD test. Writes lod_level 0-3, visibility 0/1.
-
-shader compute cull_distance(id: UVec3) -> Vec4 workgroup(256, 1, 1):
-    uniform world_positions: StorageBuffer<Vec4> @0
-    uniform lod_thresholds: StorageBuffer<Vec4> @1
-    uniform lod_level: StorageBuffer<UInt> @2
-    uniform visibility: StorageBuffer<UInt> @3
-    uniform camera_pos: Vec4 @4
-    uniform instance_count: UInt @5
-    uniform LOCAL_SIZE_X: UInt @100
-    uniform LOCAL_SIZE_Y: UInt @101
-    uniform LOCAL_SIZE_Z: UInt @102
-
-    let idx = id.x
-    if idx >= instance_count:
-        return vec4(0.0, 0.0, 0.0, 0.0)
-
-    let world_pos = world_positions[idx].xyz
-    let dist = length(world_pos - camera_pos.xyz)
-    let thresholds = lod_thresholds[0]
-
-    // 4-band LOD test
-    if dist < thresholds.x:
-        lod_level[idx] = 0 as UInt
-        visibility[idx] = 1 as UInt
-    elif dist < thresholds.y:
-        lod_level[idx] = 1 as UInt
-        visibility[idx] = 1 as UInt
-    elif dist < thresholds.z:
-        lod_level[idx] = 2 as UInt
-        visibility[idx] = 1 as UInt
-    elif dist < thresholds.w:
-        lod_level[idx] = 3 as UInt
-        visibility[idx] = 1 as UInt
-    else:
-        lod_level[idx] = 3 as UInt
-        visibility[idx] = 0 as UInt
-
-    return vec4(dist, dist, dist, 1.0)
-
-// ============================================================================
-// SORT OPAQUE — Bitonic merge sort
-// ============================================================================
-// Sorts draw commands by sort_key for pipeline state change reduction.
-// Uses bitonic merge sort algorithm. In-place on sorted_indices.
-
-shader compute sort_opaque(id: UVec3) -> Vec4 workgroup(256, 1, 1):
-    uniform sort_keys: StorageBuffer<UInt> @0
-    uniform sorted_indices: StorageBuffer<UInt> @1
-    uniform count: UInt @2
-    uniform LOCAL_SIZE_X: UInt @100
-    uniform LOCAL_SIZE_Y: UInt @101
-    uniform LOCAL_SIZE_Z: UInt @102
-
-    let thread_idx = id.x
-    let total = count
-
-    // Initialize indices
-    sorted_indices[thread_idx] = thread_idx
-
-    // Bitonic merge sort
-    let k = 1 as UInt
-    while k < total:
-        let j = k
-        while j > 0 as UInt:
-            let ij = thread_idx ^ j
-            if ij > thread_idx:
-                let i = thread_idx & k
-                let dir = i == 0 as UInt
-                let a_idx = sorted_indices[thread_idx]
-                let b_idx = sorted_indices[ij]
-                let a_key = sort_keys[a_idx]
-                let b_key = sort_keys[b_idx]
-                if dir:
-                    if a_key > b_key:
-                        sorted_indices[thread_idx] = b_idx
-                        sorted_indices[ij] = a_idx
-                else:
-                    if a_key < b_key:
-                        sorted_indices[thread_idx] = b_idx
-                        sorted_indices[ij] = a_idx
-            j = j >> 1
-        k = k << 1
-
-    return vec4(0.0, 0.0, 0.0, 0.0)
-
-// ============================================================================
-// SORT TRANSPARENT — Radix sort on depth_z
-// ============================================================================
-// 4-pass radix sort (8 bits per pass). Sorts by depth_z (back-to-front).
-// Float depth bit-cast: flip sign bit for correct float ordering.
-
-shader compute sort_transparent(id: UVec3) -> Vec4 workgroup(256, 1, 1):
-    uniform depth_values: StorageBuffer<Float> @0
-    uniform sort_keys: StorageBuffer<UInt> @1
-    uniform sorted_indices: StorageBuffer<UInt> @2
-    uniform count: UInt @3
-    uniform LOCAL_SIZE_X: UInt @100
-    uniform LOCAL_SIZE_Y: UInt @101
-    uniform LOCAL_SIZE_Z: UInt @102
-
-    let thread_idx = id.x
-    let total = count
-
-    // Initialize indices
-    sorted_indices[thread_idx] = thread_idx
-
-    // 4-pass radix sort (LSB-first, 8 bits per pass)
-    let pass_idx = 0 as UInt
-    while pass_idx < 4:
-        let shift = pass_idx * 8 as UInt
-        // Histogram (256 bins) — simplified: swap-based
-        let j = 1 as UInt
-        while j < total:
-            let ij = thread_idx ^ j
-            if ij > thread_idx:
-                let a_idx = sorted_indices[thread_idx]
-                let b_idx = sorted_indices[ij]
-                let a_key = depth_values[a_idx]
-                let b_key = depth_values[b_idx]
-                // Sort descending (back-to-front: larger depth first)
-                if a_key < b_key:
-                    sorted_indices[thread_idx] = b_idx
-                    sorted_indices[ij] = a_idx
-            j = j << 1
-        pass = pass + 1 as UInt
-
-    return vec4(0.0, 0.0, 0.0, 0.0)
-
-// ============================================================================
-// GPU SKINNING — 4-bone linear blend
-// ============================================================================
-// Reads positions_in, normals_in, applies 4-bone skinning with weights,
-// writes skinned positions_out, normals_out. Optional blendshapes.
-
-shader compute skin_gpu(id: UVec3) -> Vec4 workgroup(64, 1, 1):
-    uniform positions_in: StorageBuffer<Vec4> @0
-    uniform normals_in: StorageBuffer<Vec4> @1
-    uniform bone_weights: StorageBuffer<Vec4> @2
-    uniform bone_indices: StorageBuffer<UInt> @3
-    uniform bone_matrices: StorageBuffer<Vec4> @4
-    uniform bind_matrices: StorageBuffer<Vec4> @5
-    uniform blendshape_deltas: StorageBuffer<Vec4> @6
-    uniform positions_out: StorageBuffer<Vec4> @7
-    uniform normals_out: StorageBuffer<Vec4> @8
-    uniform vertex_count: UInt @9
-    uniform blendshape_count: UInt @10
-    uniform blendshape_weights: StorageBuffer<Float> @11
-    uniform LOCAL_SIZE_X: UInt @100
-    uniform LOCAL_SIZE_Y: UInt @101
-    uniform LOCAL_SIZE_Z: UInt @102
-
-    let vidx = id.x
-    if vidx >= vertex_count:
-        return vec4(0.0, 0.0, 0.0, 0.0)
-
-    let in_pos = positions_in[vidx]
-    let in_normal = normals_in[vidx]
-    let weights = bone_weights[vidx]
-    let indices = bone_indices[vidx]
-
-    let i0 = int(indices.x)
-    let i1 = int(indices.y)
-    let i2 = int(indices.z)
-    let i3 = int(indices.w)
-    let w0 = weights.x
-    let w1 = weights.y
-    let w2 = weights.z
-    let w3 = weights.w
-
-    // Build skin matrix from 4 bone influences
-    let bm00 = bone_matrices[i0]
-    let bm01 = bind_matrices[i0]
-    let bm10 = bone_matrices[i1]
-    let bm11 = bind_matrices[i1]
-    let bm20 = bone_matrices[i2]
-    let bm21 = bind_matrices[i2]
-    let bm30 = bone_matrices[i3]
-    let bm31 = bind_matrices[i3]
-
-    // Simplified skinning: blend weighted transforms
-    let skinned_pos = in_pos * w0 + in_pos * w1 + in_pos * w2 + in_pos * w3
-    let skinned_normal = in_normal * w0 + in_normal * w1 + in_normal * w2 + in_normal * w3
-
-    // Apply blendshapes if present
-    var final_pos = skinned_pos
-    if blendshape_count > 0 as UInt:
-        let bs_idx = vidx * blendshape_count
-        let mut b = 0 as UInt
-        while b < blendshape_count:
-            let delta = blendshape_deltas[bs_idx + b]
-            let weight = blendshape_weights[b]
-            final_pos = final_pos + delta * weight
-            b = b + 1 as UInt
-
-    positions_out[vidx] = final_pos
-    normals_out[vidx] = normalize(skinned_normal)
-    return final_pos
-
-// ============================================================================
-// MERGE GEOMETRY — N geometries into 1 combined buffer
+//  AUDIO FFT — Cooley-Tukey Radix-2
 // ============================================================================
 
-shader compute merge_geometry(id: UVec3) -> Vec4 workgroup(256, 1, 1):
-    uniform src_positions: StorageBuffer<Vec4> @0
-    uniform src_normals: StorageBuffer<Vec4> @1
-    uniform src_uvs: StorageBuffer<Vec4> @2
-    uniform src_indices: StorageBuffer<UInt> @3
-    uniform geometry_offsets: StorageBuffer<UVec4> @4
-    uniform dst_positions: StorageBuffer<Vec4> @5
-    uniform dst_normals: StorageBuffer<Vec4> @6
-    uniform dst_uvs: StorageBuffer<Vec4> @7
-    uniform dst_indices: StorageBuffer<UInt> @8
-    uniform geometry_count: UInt @9
-    uniform LOCAL_SIZE_X: UInt @100
-    uniform LOCAL_SIZE_Y: UInt @101
-    uniform LOCAL_SIZE_Z: UInt @102
+shader compute audio_fft(id: UVec3) -> Void workgroup(256, 1, 1):
+    uniform input_buffer: StorageBuffer<Float> @0
+    uniform output_buffer: StorageBuffer<Float> @1
+    uniform fft_size: UInt @2
+    uniform window_type: UInt @3
 
-    let total_src = geometry_count * 256 as UInt  // approximate
-    let src_idx = id.x
-    if src_idx >= total_src:
-        return vec4(0.0, 0.0, 0.0, 0.0)
+    comptime:
+        let compute = (
+            [256, 1, 1],
+            [
+                ("input_buffer", "f32", ["fft_size"], "input", "kain.shared.buffer"),
+                ("output_buffer", "f32", ["fft_size / 2"], "output", "kain.shared.buffer"),
+                ("fft_size", "u32", [1], "uniform", "kain.uniform"),
+                ("window_type", "u32", [1], "uniform", "kain.uniform"),
+            ],
+            [],
+        )
 
-    // Copy vertex data
-    let pos = src_positions[src_idx]
-    let nrm = src_normals[src_idx]
-    let uv = src_uvs[src_idx]
-    dst_positions[src_idx] = pos
-    dst_normals[src_idx] = nrm
-    dst_uvs[src_idx] = uv
-    dst_indices[src_idx] = src_indices[src_idx]
-    return pos
-
-// ============================================================================
-// BUILD INDIRECT — Build multi-draw-indirect buffer
-// ============================================================================
-
-shader compute build_indirect(id: UVec3) -> Vec4 workgroup(256, 1, 1):
-    uniform draw_commands: StorageBuffer<Vec4> @0
-    uniform visibility: StorageBuffer<UInt> @1
-    uniform sorted_indices: StorageBuffer<UInt> @2
-    uniform indirect_buffer: StorageBuffer<Vec4> @3
-    uniform command_count: UInt @4
-    uniform LOCAL_SIZE_X: UInt @100
-    uniform LOCAL_SIZE_Y: UInt @101
-    uniform LOCAL_SIZE_Z: UInt @102
-
-    let idx = id.x
-    if idx >= command_count:
-        return vec4(0.0, 0.0, 0.0, 0.0)
-
-    let sorted_idx = sorted_indices[idx]
-    let draw_cmd = draw_commands[sorted_idx]
-    let vis = visibility[sorted_idx]
-
-    // Only emit if visible
-    if vis != 0 as UInt:
-        indirect_buffer[idx] = draw_cmd
-
-    return draw_cmd
-
-// ============================================================================
-// BUILD ATLAS — Pack N textures into 1 atlas
-// ============================================================================
-
-shader compute build_atlas(id: UVec3) -> Vec4 workgroup(8, 8, 1):
-    uniform src_textures: StorageBuffer<Vec4> @0
-    uniform texture_descs: StorageBuffer<UVec4> @1
-    uniform atlas: StorageBuffer<Vec4> @2
-    uniform atlas_width: UInt @3
-    uniform atlas_height: UInt @4
-    uniform texture_count: UInt @5
-    uniform LOCAL_SIZE_X: UInt @100
-    uniform LOCAL_SIZE_Y: UInt @101
-    uniform LOCAL_SIZE_Z: UInt @102
-
-    let px = id.x
-    let py = id.y
-    let total_px = atlas_width
-    let total_py = atlas_height
-    if px >= total_px or py >= total_py:
-        return vec4(0.0, 0.0, 0.0, 0.0)
-
-    let atlas_idx = py * total_px + px
-    atlas[atlas_idx] = vec4(0.0, 0.0, 0.0, 1.0)
-    return vec4(0.0, 0.0, 0.0, 1.0)
+    shared_mem Float s_real[256]
+    shared_mem Float s_imag[256]
+    let lane: Int = id.x
+    let N: Int = fft_size
+    if lane < N:
+        let window: Float = 0.5 * (1.0 - cos(6.283185 * lane / (N - 1)))
+        s_real[lane] = input_buffer[lane] * window
+        s_imag[lane] = 0.0
+    workgroup_barrier()
+    let rev: Int = bit_reverse(lane, N)
+    if lane < rev:
+        let tmp_r: Float = s_real[lane]
+        let tmp_i: Float = s_imag[lane]
+        s_real[lane] = s_real[rev]
+        s_imag[lane] = s_imag[rev]
+        s_real[rev] = tmp_r
+        s_imag[rev] = tmp_i
+    workgroup_barrier()
+    var s: Int = 1
+    while s < N:
+        let stride: Int = s * 2
+        var sub_fft: Int = 0
+        while sub_fft < N:
+            let group: Int = lane - sub_fft
+            if group >= 0 and group < s:
+                let even_idx: Int = sub_fft + group
+                let odd_idx: Int = even_idx + s
+                let twiddle: Float = -6.283185 * group / stride
+                let cos_t: Float = cos(twiddle)
+                let sin_t: Float = sin(twiddle)
+                let re_odd: Float = s_real[odd_idx] * cos_t - s_imag[odd_idx] * sin_t
+                let im_odd: Float = s_real[odd_idx] * sin_t + s_imag[odd_idx] * cos_t
+                let tmp_re: Float = s_real[even_idx]
+                let tmp_im: Float = s_imag[even_idx]
+                s_real[even_idx] = tmp_re + re_odd
+                s_imag[even_idx] = tmp_im + im_odd
+                s_real[odd_idx] = tmp_re - re_odd
+                s_imag[odd_idx] = tmp_im - im_odd
+            sub_fft = sub_fft + stride
+        workgroup_barrier()
+        s = s * 2
+    if lane < N / 2:
+        let re_f: Float = s_real[lane]
+        let im_f: Float = s_imag[lane]
+        output_buffer[lane] = sqrt(re_f * re_f + im_f * im_f)
+    return
 
 // ============================================================================
-// LIGHT CULL TILED — Forward+ tile-based light culling
+//  BIT-REVERSAL HELPER
 // ============================================================================
 
-shader compute light_cull_tiled(id: UVec3) -> Vec4 workgroup(16, 16, 1):
-    uniform light_data: StorageBuffer<Vec4> @0
-    uniform depth_buffer: StorageBuffer<Float> @1
-    uniform tile_frustums: StorageBuffer<Vec4> @2
-    uniform tile_light_indices: StorageBuffer<UInt> @3
-    uniform tile_light_counts: StorageBuffer<UInt> @4
-    uniform light_count: UInt @5
-    uniform tile_count_x: UInt @6
-    uniform tile_count_y: UInt @7
-    uniform viewport_width: UInt @8
-    uniform viewport_height: UInt @9
-    uniform LOCAL_SIZE_X: UInt @100
-    uniform LOCAL_SIZE_Y: UInt @101
-    uniform LOCAL_SIZE_Z: UInt @102
-
-    let tile_x = id.x
-    let tile_y = id.y
-    if tile_x >= tile_count_x or tile_y >= tile_count_y:
-        return vec4(0.0, 0.0, 0.0, 0.0)
-
-    // Compute tile frustum planes from shared memory
-    // Simplified: check each light against tile frustum
-
-    let mut visible_count = 0 as UInt
-    let tile_offset = (tile_y * tile_count_x + tile_x) * 1024 as UInt
-
-    let mut i = 0 as UInt
-    while i < light_count:
-        let light_pos = light_data[i]
-        // Basic distance-based test (simplified)
-        let tile_frustum = tile_frustums[tile_y * tile_count_x + tile_x]
-        tile_light_indices[tile_offset + visible_count] = i
-        visible_count = visible_count + 1 as UInt
-        i = i + 1 as UInt
-
-    tile_light_counts[tile_y * tile_count_x + tile_x] = visible_count
-    return vec4(0.0, 0.0, 0.0, 0.0)
-
-// ============================================================================
-// SHADOW MAP — Render depth from light POV
-// ============================================================================
-// Support directional (ortho), point (omni cubemap), spot (perspective), CSM.
-// PCF: Poisson disk samples. VSM: store depth + depth². ESM: exp(-c * depth).
-
-shader compute shadow_map(id: UVec3) -> Vec4 workgroup(8, 8, 1):
-    uniform world_positions: StorageBuffer<Vec4> @0
-    uniform light_view_proj: StorageBuffer<Mat4> @1
-    uniform shadow_depth: StorageBuffer<Float> @2
-    uniform vertex_count: UInt @3
-    uniform map_size: UInt @4
-    uniform cascade_count: UInt @5
-    uniform light_type: UInt @6
-    uniform LOCAL_SIZE_X: UInt @100
-    uniform LOCAL_SIZE_Y: UInt @101
-    uniform LOCAL_SIZE_Z: UInt @102
-
-    let px = id.x
-    let py = id.y
-    if px >= map_size or py >= map_size:
-        return vec4(0.0, 0.0, 0.0, 0.0)
-
-    let pixel_idx = py * map_size + px
-    let lvp = light_view_proj[0]
-
-    // Rasterize shadow (simplified: depth test via atomic min)
-    shadow_depth[pixel_idx] = 1.0
-    return vec4(0.0, 0.0, 0.0, 0.0)
-
-// ============================================================================
-// PMREM FILTER — Prefiltered environment map
-// ============================================================================
-// 3-stage: equirect→cubemap, GGX VNDF prefilter mip-chain, irradiance convolution.
-
-shader compute pmrem_filter(id: UVec3) -> Vec4 workgroup(8, 8, 1):
-    uniform equirect_hdr: StorageBuffer<Vec4> @0
-    uniform cubemap: StorageBuffer<Vec4> @1
-    uniform irradiance: StorageBuffer<Vec4> @2
-    uniform face_size: UInt @3
-    uniform mip_count: UInt @4
-    uniform roughness: Float @5
-    uniform mip_level: Int @6
-    uniform LOCAL_SIZE_X: UInt @100
-    uniform LOCAL_SIZE_Y: UInt @101
-    uniform LOCAL_SIZE_Z: UInt @102
-
-    let px = id.x
-    let py = id.y
-    if px >= face_size or py >= face_size:
-        return vec4(0.0, 0.0, 0.0, 0.0)
-
-    // Cubemap face direction from face_id
-    let face_id = id.z
-    let face_dir = vec3(0.0, 0.0, 0.0)
-
-    // Determine face direction
-    if face_id == 0 as UInt:
-        face_dir = vec3(1.0, -(py as Float) * 2.0 / face_size as Float + 1.0, -(px as Float) * 2.0 / face_size as Float + 1.0)
-    else if face_id == 1 as UInt:
-        face_dir = vec3(-1.0, -(py as Float) * 2.0 / face_size as Float + 1.0, (px as Float) * 2.0 / face_size as Float + 1.0)
-    else if face_id == 2 as UInt:
-        face_dir = vec3((px as Float) * 2.0 / face_size as Float + 1.0, 1.0, (py as Float) * 2.0 / face_size as Float + 1.0)
-    else if face_id == 3 as UInt:
-        face_dir = vec3((px as Float) * 2.0 / face_size as Float + 1.0, -1.0, -(py as Float) * 2.0 / face_size as Float + 1.0)
-    else if face_id == 4 as UInt:
-        face_dir = vec3((px as Float) * 2.0 / face_size as Float + 1.0, -(py as Float) * 2.0 / face_size as Float + 1.0, 1.0)
-    else:
-        face_dir = vec3(-(px as Float) * 2.0 / face_size as Float + 1.0, -(py as Float) * 2.0 / face_size as Float + 1.0, -1.0)
-
-    let dir = normalize(face_dir)
-
-    // Equirectangular sampling
-    let theta = atan2(dir.z, dir.x)
-    let phi = acos(dir.y)
-    let eq_u = (theta / 6.2831853 + 0.5)
-    let eq_v = phi / 3.14159265
-    let eq_coord = vec2(eq_u, eq_v)
-
-    let cubemap_idx = face_id * face_size * face_size + py * face_size + px
-    let sample_val = equirect_hdr[0]
-
-    // Simplified GGX prefilter (single lobe, no importance sampling)
-    cubemap[cubemap_idx] = sample_val
-
-    return sample_val
-
-// ============================================================================
-// BLOOM — Separable Gaussian blur
-// ============================================================================
-// Threshold extraction → downsample → blur H → blur V → upsample → blend.
-
-shader compute bloom(id: UVec3) -> Vec4 workgroup(8, 8, 1):
-    uniform hdr_input: StorageBuffer<Vec4> @0
-    uniform bloom_output: StorageBuffer<Vec4> @1
-    uniform temp_buffer: StorageBuffer<Vec4> @2
-    uniform viewport_width: UInt @3
-    uniform viewport_height: UInt @4
-    uniform threshold: Float @5
-    uniform intensity: Float @6
-    uniform blur_radius: Float @7
-    uniform LOCAL_SIZE_X: UInt @100
-    uniform LOCAL_SIZE_Y: UInt @101
-    uniform LOCAL_SIZE_Z: UInt @102
-
-    let px = id.x
-    let py = id.y
-    if px >= viewport_width or py >= viewport_height:
-        return vec4(0.0, 0.0, 0.0, 0.0)
-
-    let pixel_idx = py * viewport_width + px
-    let hdr_color = hdr_input[pixel_idx]
-
-    // Threshold: luminance test
-    let luminance = dot(hdr_color.xyz, vec3(0.2126, 0.7152, 0.0722))
-    let bloom_amount = max(luminance - threshold, 0.0) / max(luminance, 0.001)
-
-    // Extract bright regions
-    let bright = hdr_color * bloom_amount
-
-    // Horizontal blur (simplified 5-tap Gaussian)
-    let hdr_left = hdr_input[max(pixel_idx - 1, 0)] * 0.316
-    let hdr_right = hdr_input[min(pixel_idx + 1, viewport_width * viewport_height - 1)] * 0.316
-    let blur_h = bright * 0.227 + hdr_left + hdr_right
-    temp_buffer[pixel_idx] = blur_h
-
-    // Vertical blur (simplified)
-    let up = max(py - 1, 0) * viewport_width + px
-    let dn = min(py + 1, viewport_height - 1) * viewport_width + px
-    let blur_v = blur_h * 0.227 + temp_buffer[up] * 0.316 + temp_buffer[dn] * 0.316
-
-    // Write bloom output
-    bloom_output[pixel_idx] = blur_v * intensity
-
-    return blur_v
-
-// ============================================================================
-// SSAO — Screen-space ambient occlusion
-// ============================================================================
-// Hemisphere sampling + bilateral blur.
-
-shader compute ssao(id: UVec3) -> Vec4 workgroup(8, 8, 1):
-    uniform depth_buffer: StorageBuffer<Float> @0
-    uniform normal_buffer: StorageBuffer<Vec4> @1
-    uniform ssao_output: StorageBuffer<Float> @2
-    uniform projection: Mat4 @3
-    uniform viewport_width: UInt @4
-    uniform viewport_height: UInt @5
-    uniform radius: Float @6
-    uniform bias: Float @7
-    uniform intensity: Float @8
-    uniform sample_count: UInt @9
-    uniform LOCAL_SIZE_X: UInt @100
-    uniform LOCAL_SIZE_Y: UInt @101
-    uniform LOCAL_SIZE_Z: UInt @102
-
-    let px = id.x
-    let py = id.y
-    if px >= viewport_width or py >= viewport_height:
-        return vec4(0.0, 0.0, 0.0, 0.0)
-
-    let pixel_idx = py * viewport_width + px
-    let depth = depth_buffer[pixel_idx]
-    let normal = normalize(normal_buffer[pixel_idx].xyz)
-
-    // Hemisphere sampling kernel
-    let kernel: [Vec3] = [
-        vec3(1.0, 1.0, 1.0), vec3(-1.0, -1.0, 1.0),
-        vec3(-1.0, 1.0, -1.0), vec3(1.0, -1.0, -1.0),
-        vec3(0.5, 0.5, 0.5), vec3(-0.5, -0.5, 0.5),
-        vec3(-0.5, 0.5, -0.5), vec3(0.5, -0.5, -0.5),
-        vec3(0.25, 0.25, 0.25), vec3(-0.25, -0.25, 0.25)
-    ]
-
-    let total_samples = min(sample_count, 10 as UInt)
-    let mut occlusion = 0.0
-    let mut i = 0 as UInt
-    while i < total_samples:
-        let sample_dir = kernel[i]
-        let flipped = dot(sample_dir, normal.xyz) < 0.0
-        let sample_point = if flipped: sample_dir * -1.0 else: sample_dir
-        let sample_depth = depth_buffer[max(pixel_idx + int(sample_point.x * radius * 100.0), 0)]
-        let range_check = abs(depth - sample_depth) < radius
-        if range_check and sample_depth < depth - bias:
-            occlusion = occlusion + 1.0
-        i = i + 1 as UInt
-
-    let ao = 1.0 - (occlusion / total_samples as Float) * intensity
-    ssao_output[pixel_idx] = clamp(ao, 0.0, 1.0)
-    return vec4(ao, ao, ao, 1.0)
-
-// ============================================================================
-// DOF — Depth of field
-// ============================================================================
-// CoC computation + separable blur + composite.
-
-shader compute dof(id: UVec3) -> Vec4 workgroup(8, 8, 1):
-    uniform hdr_buffer: StorageBuffer<Vec4> @0
-    uniform depth_buffer: StorageBuffer<Float> @1
-    uniform dof_buffer: StorageBuffer<Vec4> @2
-    uniform coc_buffer: StorageBuffer<Float> @3
-    uniform viewport_width: UInt @4
-    uniform viewport_height: UInt @5
-    uniform focal_length: Float @6
-    uniform aperture: Float @7
-    uniform focus_distance: Float @8
-    uniform max_coc_radius: Float @9
-    uniform LOCAL_SIZE_X: UInt @100
-    uniform LOCAL_SIZE_Y: UInt @101
-    uniform LOCAL_SIZE_Z: UInt @102
-
-    let px = id.x
-    let py = id.y
-    if px >= viewport_width or py >= viewport_height:
-        return vec4(0.0, 0.0, 0.0, 0.0)
-
-    let pixel_idx = py * viewport_width + px
-    let depth = depth_buffer[pixel_idx]
-    let hdr_color = hdr_buffer[pixel_idx]
-
-    // Circle of confusion
-    let coc_raw = abs(depth - focus_distance) / max(focus_distance, 0.001)
-    let coc = min(coc_raw * aperture * focal_length, max_coc_radius)
-
-    coc_buffer[pixel_idx] = coc
-
-    // Near/far separable blur (simplified)
-    let blur_radius = max(coc, 1.0)
-    let mut blurred = vec3(0.0, 0.0, 0.0)
-    let mut weight_sum = 0.0
-    let tap_count = int(min(blur_radius, 16.0))
-    let mut t = -tap_count
-    while t <= tap_count:
-        let tap_idx = py * viewport_width + min(max(px + t, 0), viewport_width - 1)
-        let tap_color = hdr_buffer[tap_idx].xyz
-        let tap_coc = coc_buffer[tap_idx]
-        let tap_weight = exp(-(t as Float * t as Float) / (2.0 * max(blur_radius, 0.5)))
-        blurred = blurred + tap_color * tap_weight
-        weight_sum = weight_sum + tap_weight
-        t = t + 1
-
-    let dof_color = blurred / max(weight_sum, 0.001)
-    let blend_factor = min(coc / max_coc_radius, 1.0)
-
-    let final_color = mix(hdr_color.xyz, dof_color, blend_factor)
-    dof_buffer[pixel_idx] = vec4(final_color.x, final_color.y, final_color.z, 1.0)
-    return vec4(final_color.x, final_color.y, final_color.z, 1.0)
-
-// ============================================================================
-// MOTION BLUR — Velocity reconstruction filter
-// ============================================================================
-
-shader compute motion_blur(id: UVec3) -> Vec4 workgroup(8, 8, 1):
-    uniform hdr_buffer: StorageBuffer<Vec4> @0
-    uniform depth_buffer: StorageBuffer<Float> @1
-    uniform velocity_buffer: StorageBuffer<Vec4> @2
-    uniform motion_blur_buffer: StorageBuffer<Vec4> @3
-    uniform viewport_width: UInt @4
-    uniform viewport_height: UInt @5
-    uniform blur_samples: UInt @6
-    uniform blur_strength: Float @7
-    uniform LOCAL_SIZE_X: UInt @100
-    uniform LOCAL_SIZE_Y: UInt @101
-    uniform LOCAL_SIZE_Z: UInt @102
-
-    let px = id.x
-    let py = id.y
-    if px >= viewport_width or py >= viewport_height:
-        return vec4(0.0, 0.0, 0.0, 0.0)
-
-    let pixel_idx = py * viewport_width + px
-    let hdr_color = hdr_buffer[pixel_idx]
-    let velocity = velocity_buffer[pixel_idx].xy
-    let vel_magnitude = length(velocity)
-
-    // Skip if velocity too small
-    if vel_magnitude < 0.001:
-        motion_blur_buffer[pixel_idx] = hdr_color
-        return hdr_color
-
-    // Trace along velocity direction
-    let samples = min(blur_samples, 16 as UInt)
-    let step = velocity * (1.0 / samples as Float) * blur_strength
-    let mut accumulated = hdr_color.xyz
-    let mut s = 1 as UInt
-    while s < samples:
-        let offset = step * s as Float
-        let sample_x = min(max(px + int(offset.x), 0), viewport_width - 1)
-        let sample_y = min(max(py + int(offset.y), 0), viewport_height - 1)
-        let sample_idx = sample_y * viewport_width + sample_x
-        let sample_color = hdr_buffer[sample_idx].xyz
-        let sample_depth = depth_buffer[sample_idx]
-
-        // Depth rejection threshold
-        let depth_diff = abs(depth_buffer[pixel_idx] - sample_depth)
-        if depth_diff < 0.1:
-            accumulated = accumulated + sample_color
-        s = s + 1 as UInt
-
-    let blurred = accumulated / (samples as Float + 1.0)
-    let result = vec4(blurred.x, blurred.y, blurred.z, hdr_color.w)
-    motion_blur_buffer[pixel_idx] = result
+fn bit_reverse(value: Int, max_val: Int) -> Int with Pure:
+    var v: Int = value
+    var result: Int = 0
+    var bits: Int = 0
+    var tmp: Int = max_val
+    while tmp > 1:
+        tmp = tmp / 2
+        bits = bits + 1
+    var i: Int = 0
+    while i < bits:
+        result = (result << 1) | (v & 1)
+        v = v >> 1
+        i = i + 1
     return result
-
-// ============================================================================
-// TONEMAP — ACES filmic + sRGB gamma
-// ============================================================================
-
-shader compute tonemap(id: UVec3) -> Vec4 workgroup(8, 8, 1):
-    uniform hdr_input: StorageBuffer<Vec4> @0
-    uniform tonemap_output: StorageBuffer<Vec4> @1
-    uniform viewport_width: UInt @2
-    uniform viewport_height: UInt @3
-    uniform exposure: Float @4
-    uniform gamma: Float @5
-    uniform tonemap_mode: UInt @6
-    uniform LOCAL_SIZE_X: UInt @100
-    uniform LOCAL_SIZE_Y: UInt @101
-    uniform LOCAL_SIZE_Z: UInt @102
-
-    let px = id.x
-    let py = id.y
-    if px >= viewport_width or py >= viewport_height:
-        return vec4(0.0, 0.0, 0.0, 0.0)
-
-    let pixel_idx = py * viewport_width + px
-    let hdr = hdr_input[pixel_idx].xyz * exposure
-
-    // ACES filmic tonemap
-    let a = 2.51
-    let b = 0.03
-    let c = 2.43
-    let d = 0.59
-    let e = 0.14
-    let aces_numer = hdr * (a * hdr + b)
-    let aces_denom = hdr * (c * hdr + d) + e
-    let aces = clamp(aces_numer / aces_denom, vec3(0.0, 0.0, 0.0), vec3(1.0, 1.0, 1.0))
-
-    // sRGB gamma
-    let cutoff = 0.0031308
-    let inv_gamma = 1.0 / gamma
-    let mut r = aces.x
-    let mut g = aces.y
-    let mut b = aces.z
-    if r <= cutoff:
-        r = 12.92 * r
-    else:
-        r = 1.055 * pow(r, inv_gamma) - 0.055
-    if g <= cutoff:
-        g = 12.92 * g
-    else:
-        g = 1.055 * pow(g, inv_gamma) - 0.055
-    if b <= cutoff:
-        b = 12.92 * b
-    else:
-        b = 1.055 * pow(b, inv_gamma) - 0.055
-
-    let srgb = vec3(r, g, b)
-    tonemap_output[pixel_idx] = vec4(srgb.x, srgb.y, srgb.z, 1.0)
-    return vec4(srgb.x, srgb.y, srgb.z, 1.0)

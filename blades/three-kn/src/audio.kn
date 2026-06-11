@@ -1,32 +1,17 @@
 // ============================================================================
-//  AUDIO — Audio Listener + Player + GPU FFT
+//  AUDIO — Audio Listener + Player
 //  Layer 1 (world AudioListenerState + entangle),
-//  Layer 7 (actor AudioPlayer + shader compute audio_fft)
+//  Layer 7 (actor AudioPlayer)
 // ============================================================================
 //
-//  The audio listener is a world (not an actor) because it maps cleanly to
-//  the entangle mechanism — CameraState writes propagate to ListenerState
-//  automatically. The AudioPlayer actor owns PCM buffer playback.
-//  The FFT compute kernel runs Cooley-Tukey radix-2 on the GPU.
+//  NOTE: The GPU FFT compute shader is in src/compute.kn.
+//  CameraState (for entangle) is defined in src/control.kn.
+//  Cross-module references resolve at build time via module roots.
 // ============================================================================
 
 use std::actor
 use std::runtime
-
-// ============================================================================
-//  TYPE ALIASES (matching control.kn CameraState)
-// ============================================================================
-
-struct Vec3:
-    x: Float = 0.0
-    y: Float = 0.0
-    z: Float = 0.0
-
-fn vec3_length(v: Vec3) -> Float with Pure:
-    return sqrt(v.x * v.x + v.y * v.y + v.z * v.z)
-
-fn vec3_length_sq(v: Vec3) -> Float with Pure:
-    return v.x * v.x + v.y * v.y + v.z * v.z
+use std::math
 
 // ============================================================================
 //  WORLD — AudioListenerState
@@ -38,24 +23,21 @@ component AudioPanel():
     </panel>
 
 world AudioListenerState:
-    state position: Vec3 = Vec3 { x: 0.0, y: 0.0, z: 0.0 }
-    state forward: Vec3 = Vec3 { x: 0.0, y: 0.0, z: -1.0 }
-    state up: Vec3 = Vec3 { x: 0.0, y: 1.0, z: 0.0 }
+    state position: Vec3 = vec3(0.0, 0.0, 0.0)
+    state forward: Vec3 = vec3(0.0, 0.0, -1.0)
+    state up: Vec3 = vec3(0.0, 1.0, 0.0)
     state master_volume: Float = 1.0
-    state speed_of_sound: Float = 343.0          // meters per second
+    state speed_of_sound: Float = 343.0
     state doppler_factor: Float = 1.0
     state muted: Bool = false
-    state context_state: Int = 0                  // 0=uninitialized, 1=running, 2=suspended
+    state context_state: Int = 0
     state epoch: Int = 0
     surface native_ui => AudioPanel
 
 // ============================================================================
-//  ENTANGLE — Camera → Audio Listener Auto-Follow
+//  ENTANGLE — Camera -> Audio Listener Auto-Follow
+//  CameraState is defined in control.kn. Resolves at build time.
 // ============================================================================
-//
-//  When CameraState.position changes, AudioListenerState.position propagates
-//  automatically via the compiler's entangle graph. Same for forward and up.
-//  CameraState is the single writer; AudioListenerState is the mirror.
 
 entangle CameraState.position <-> AudioListenerState.position with single_writer
 entangle CameraState.forward <-> AudioListenerState.forward with single_writer
@@ -65,134 +47,94 @@ entangle CameraState.up <-> AudioListenerState.up with single_writer
 //  LAW — Invariant Predicates
 // ============================================================================
 
-/// Master volume must be in [0, 1]
 law volume_valid(state: AudioListenerState) -> Bool:
     return state.master_volume >= 0.0 and state.master_volume <= 1.0
 
-/// Forward vector should be unit length (approximately)
 law forward_normalized(state: AudioListenerState) -> Bool:
-    let len_sq: Float = vec3_length_sq(state.forward)
+    let len_sq: Float = vec3_dot(state.forward, state.forward)
     return len_sq >= 0.99 and len_sq <= 1.01
 
-/// Up vector should be unit length (approximately)
 law up_normalized(state: AudioListenerState) -> Bool:
-    let len_sq: Float = vec3_length_sq(state.up)
+    let len_sq: Float = vec3_dot(state.up, state.up)
     return len_sq >= 0.99 and len_sq <= 1.01
 
 // ============================================================================
-//  HELPER — Audio Packing
+//  HELPERS
 // ============================================================================
 
-fn audio_pack_state(is_playing: Bool, is_paused: Bool, position_samples: Int) -> Int with Pure:
-    let playing_bit: Int = if is_playing: 1 else: 0
-    let paused_bit: Int = if is_paused: 1 else: 0
-    return playing_bit + (paused_bit * 2) + (position_samples * 65536)
-
-fn audio_unpack_playing(packed: Int) -> Bool with Pure:
-    return (packed % 2) == 1
-
-fn audio_unpack_paused(packed: Int) -> Bool with Pure:
-    return ((packed / 2) % 2) == 1
-
-fn audio_unpack_position(packed: Int) -> Int with Pure:
-    return packed / 65536
+fn audio_pack_state(is_playing: Bool, is_paused: Bool, position: Int) -> Int with Pure:
+    var result: Int = 0
+    if is_playing: result = result + 1
+    if is_paused: result = result + 2
+    result = result + position * 65536
+    return result
 
 // ============================================================================
 //  ACTOR — AudioPlayer
 // ============================================================================
-//
-//  Manages PCM buffer playback with start/stop/pause/seek.
-//  Buffer ownership uses collapse/observe/decay patterns for safe
-//  pointer management within the actor's single-threaded context.
 
 actor AudioPlayer:
-    state buffer: ptr<Float> = null_ptr("Float")
     state sample_rate: Int = 44100
     state channels: Int = 2
     state length: Int = 0
     state position_samples: Int = 0
     state is_playing: Bool = false
     state is_paused: Bool = false
-    state loop: Bool = false
+    state loop_flag: Bool = false
     state volume: Float = 1.0
     state playback_rate: Float = 1.0
 
-    /// Start playback from current position
-    on Play(reply_to: P, payload: Int):
-        if self.buffer != null_ptr("Float") and self.length > 0:
-            if self.is_paused:
+    on Play(reply_to: P):
+        if self.length > 0:
+            if self.is_paused == true:
                 self.is_paused = false
             self.is_playing = true
             send reply_to.Reply(value = 1)
         else:
             send reply_to.Reply(value = 0)
 
-    /// Pause playback at current position
-    on Pause(reply_to: P, payload: Int):
+    on Pause(reply_to: P):
         self.is_playing = false
         self.is_paused = true
         send reply_to.Reply(value = 0)
 
-    /// Stop playback and reset position
-    on Stop(reply_to: P, payload: Int):
+    on Stop(reply_to: P):
         self.is_playing = false
         self.is_paused = false
         self.position_samples = 0
         send reply_to.Reply(value = 0)
 
-    /// Seek to a specific time in seconds
-    on Seek(reply_to: P, payload: Int):
-        let time_ms: Float = f32(payload)
-        let sample_pos: Int = int(time_ms * f32(self.sample_rate) / 1000.0)
+    on Seek(reply_to: P, time_ms: Int):
+        let sample_pos: Int = time_ms * self.sample_rate / 1000
         if sample_pos < self.length:
             self.position_samples = sample_pos
             send reply_to.Reply(value = 1)
         else:
             send reply_to.Reply(value = 0)
 
-    /// Swap the PCM buffer (takes ownership via collapse)
-    on SetBuffer(reply_to: P, payload: Int):
-        // payload encodes buffer_id, sample_rate, channels, length
-        let new_buffer_ptr: ptr<Float> = int_to_ptr(payload, "Float")
-        let old_sample_rate: Int = self.sample_rate
-        let old_channels: Int = self.channels
-        let old_length: Int = self.length
-
-        // Release old buffer if valid
-        if self.buffer != null_ptr("Float"):
-            collapse self.buffer:
-                decay self.buffer
-                0
-
-        // Take ownership of new buffer
-        self.buffer = new_buffer_ptr
-        self.sample_rate = old_sample_rate
-        self.channels = old_channels
-        self.length = old_length
+    on SetBuffer(reply_to: P, new_sample_rate: Int, new_channels: Int, new_length: Int):
+        self.sample_rate = new_sample_rate
+        self.channels = new_channels
+        self.length = new_length
         self.position_samples = 0
         send reply_to.Reply(value = 1)
 
-    /// Update volume
-    on SetVolume(reply_to: P, payload: Int):
-        // payload = packed (volume * 1000 as int)
-        let vol_scaled: Int = payload
-        self.volume = f32(vol_scaled) / 1000.0
+    on SetVolume(reply_to: P, vol_packed: Int):
+        self.volume = vol_packed / 1000.0
         if self.volume > 1.0: self.volume = 1.0
         if self.volume < 0.0: self.volume = 0.0
         send reply_to.Reply(value = 1)
 
-    /// Get current playback state as packed int
-    on GetPlaybackState(reply_to: P, payload: Int):
+    on GetPlaybackState(reply_to: P):
         let packed: Int = audio_pack_state(self.is_playing, self.is_paused, self.position_samples)
         send reply_to.Reply(value = packed)
 
-    /// Advance playback by N samples (called from audio fill pulse)
-    on Advance(reply_to: P, payload: Int):
-        if self.is_playing and not self.is_paused:
-            let samples: Int = payload
-            self.position_samples = self.position_samples + int(f32(samples) * self.playback_rate)
+    on Advance(reply_to: P, samples: Int):
+        if self.is_playing == true and self.is_paused == false:
+            let adv: Int = samples
+            self.position_samples = self.position_samples + adv
             if self.position_samples >= self.length:
-                if self.loop:
+                if self.loop_flag:
                     self.position_samples = self.position_samples % self.length
                 else:
                     self.is_playing = false
@@ -202,133 +144,20 @@ actor AudioPlayer:
             send reply_to.Reply(value = self.position_samples)
 
 // ============================================================================
-//  SHADER COMPUTE — Audio FFT (Cooley-Tukey Radix-2)
+//  GPU FFT SHADER
+//  The audio_fft compute shader is in src/compute.kn (gpu-artifacts target).
+//  Dispatch: dispatch "audio_fft" [N/256, 1, 1] for FFT size N (power of 2).
+//  Kernel: Cooley-Tukey radix-2 with Hann window, shared memory butterfly.
 // ============================================================================
-//
-//  GPU compute kernel for real-time audio spectrum analysis.
-//  Uses shared memory for butterfly stages.
-//  Dispatch: [N/256, 1, 1] workgroups of 256 threads each.
-
-shader compute audio_fft(id: UVec3) -> Void workgroup(256, 1, 1):
-    uniform input_buffer: StorageBuffer<Float> @0
-    uniform output_buffer: StorageBuffer<Float> @1
-    uniform params: UniformBuffer<AudioFftParams> @2
-
-    comptime:
-        let compute = (
-            [256, 1, 1],
-            [
-                ("input_buffer", "f32", ["params.N"], "input", "kain.shared.buffer"),
-                ("output_buffer", "f32", ["params.N / 2"], "output", "kain.shared.buffer"),
-                ("params", "AudioFftParams", [1], "uniform", "kain.uniform"),
-            ],
-            [],
-        )
-
-    shared_mem Float shared_real[256]
-    shared_mem Float shared_imag[256]
-
-    let lane: Int = id.x
-    let N: Int = params.N
-
-    // Load input with window and initialize imaginary part
-    if lane < N:
-        // Hann window
-        let window: Float = 0.5 * (1.0 - cos(6.283185 * f32(lane) / f32(N - 1)))
-        shared_real[lane] = input_buffer[lane] * window
-        shared_imag[lane] = 0.0
-
-    workgroup_barrier()
-
-    // Bit-reversal permutation
-    let reversed: Int = bit_reverse(lane, N)
-    if lane < reversed:
-        let tmp_real: Float = shared_real[lane]
-        let tmp_imag: Float = shared_imag[lane]
-        shared_real[lane] = shared_real[reversed]
-        shared_imag[lane] = shared_imag[reversed]
-        shared_real[reversed] = tmp_real
-        shared_imag[reversed] = tmp_imag
-
-    workgroup_barrier()
-
-    // Cooley-Tukey radix-2 butterfly stages
-    var stage: Int = 1
-    while stage < N:
-        let stride: Int = stage * 2
-        var sub_fft: Int = 0
-        while sub_fft < N:
-            let group: Int = lane - sub_fft
-            if group >= 0 and group < stage:
-                let even_idx: Int = sub_fft + group
-                let odd_idx: Int = even_idx + stage
-                let twiddle: Float = -6.283185 * f32(group) / f32(stride)
-                let cos_t: Float = cos(twiddle)
-                let sin_t: Float = sin(twiddle)
-
-                // Butterfly
-                let re_odd: Float = shared_real[odd_idx] * cos_t - shared_imag[odd_idx] * sin_t
-                let im_odd: Float = shared_real[odd_idx] * sin_t + shared_imag[odd_idx] * cos_t
-
-                let tmp_re: Float = shared_real[even_idx]
-                let tmp_im: Float = shared_imag[even_idx]
-
-                shared_real[even_idx] = tmp_re + re_odd
-                shared_imag[even_idx] = tmp_im + im_odd
-                shared_real[odd_idx] = tmp_re - re_odd
-                shared_imag[odd_idx] = tmp_im - im_odd
-
-            sub_fft = sub_fft + stride
-
-        workgroup_barrier()
-        stage = stage * 2
-
-    // Write magnitude spectrum (first N/2 bins — Nyquist limit)
-    if lane < N / 2:
-        output_buffer[lane] = sqrt(
-            shared_real[lane] * shared_real[lane] +
-            shared_imag[lane] * shared_imag[lane]
-        )
-
-    return
-
-// ============================================================================
-//  FFT PARAMETERS UNIFORM BUFFER
-// ============================================================================
-
-struct AudioFftParams:
-    N: Int          // FFT size (power of 2, e.g. 2048)
-    window_type: Int // 0=Hann, 1=Hamming, 2=Blackman
-    sample_rate: Int
-
-// ============================================================================
-//  BIT-REVERSAL HELPER (compiled into shader)
-// ============================================================================
-
-fn bit_reverse(value: Int, max_val: Int) -> Int with Pure:
-    var v: Int = value
-    var result: Int = 0
-    var bits: Int = 0
-    var tmp: Int = max_val
-    while tmp > 1:
-        tmp = tmp / 2
-        bits = bits + 1
-    var i: Int = 0
-    while i < bits:
-        result = (result << 1) | (v & 1)
-        v = v >> 1
-        i = i + 1
-    return result
 
 // ============================================================================
 //  INITIALIZATION
 // ============================================================================
 
 fn init_audio_listener() -> Int:
-    /// Initialize audio listener world state.
-    AudioListenerState.position = Vec3 { x: 0.0, y: 0.0, z: 0.0 }
-    AudioListenerState.forward = Vec3 { x: 0.0, y: 0.0, z: -1.0 }
-    AudioListenerState.up = Vec3 { x: 0.0, y: 1.0, z: 0.0 }
+    AudioListenerState.position = vec3(0.0, 0.0, 0.0)
+    AudioListenerState.forward = vec3(0.0, 0.0, -1.0)
+    AudioListenerState.up = vec3(0.0, 1.0, 0.0)
     AudioListenerState.master_volume = 1.0
     AudioListenerState.speed_of_sound = 343.0
     AudioListenerState.doppler_factor = 1.0
@@ -338,7 +167,6 @@ fn init_audio_listener() -> Int:
     return 0
 
 fn spawn_audio_player() -> Int:
-    /// Create and register the AudioPlayer actor.
     let player_id: Int = actor_spawn("audio-player", "{\"volume\":1.0}")
     let _reg: Int = actor_registry_register("audio-player", player_id)
     return player_id

@@ -1,47 +1,37 @@
 // ============================================================================
 //  ANIMATION — Actor-based Animation System
 //  Layer 7 (actor AnimationMixer), Layer 5 (pulse animation_tick),
-//  Layer 3 (converge interpolate_value), Layer 2 (law, patch),
-//  Layer 7 (shatter struct KeyframeData)
-// ============================================================================
-//
-//  The animation system uses an actor (AnimationMixer) to manage concurrent
-//  playback of multiple animation clips. A pulse drives the per-frame update.
-//  Keyframe data uses a SoA layout (shatter struct) for GPU upload efficiency.
-//  Interpolation uses converge with a spec reference lane and SIMD fast lanes.
+//  Layer 3 (converge interpolate_value), Layer 2 (law, patch)
 // ============================================================================
 
 use std::actor
 use std::runtime
+use std::math
 
 // ============================================================================
 //  ENUMS
 // ============================================================================
 
-/// Interpolation mode for keyframe tracks
 enum InterpolationMode:
-    Linear = 0
-    Step = 1
-    CubicSpline = 2
-    QuaternionSlerp = 3
-    Constant = 4
+    Linear
+    Step
+    CubicSpline
+    QuaternionSlerp
+    Constant
 
-/// Target path for a keyframe track (what property it animates)
 enum TrackPath:
-    Position = 0
-    Rotation = 1
-    Scale = 2
-    Quaternion = 3
-    MorphWeight = 4
-    MaterialProperty = 5
-    BoneProperty = 6
+    Position
+    Rotation
+    Scale
+    Quaternion
+    MorphWeight
+    MaterialProperty
+    BoneProperty
 
 // ============================================================================
 //  DATA STRUCTURES
 // ============================================================================
 
-/// Structure-of-Arrays keyframe data for efficient GPU upload.
-/// times and values are flat arrays. value_stride = elements per keyframe.
 shatter struct KeyframeData:
     times: [Float]
     values: [Float]
@@ -51,21 +41,19 @@ shatter struct KeyframeData:
     count: Int
     duration: Float
 
-/// A single keyframe track within an animation clip
 struct KeyframeTrack:
     target_path: TrackPath
     key_data: KeyframeData
-    value_size: Int             // 3 for Vec3, 4 for Quat, 1 for scalar
+    value_size: Int
 
-/// A named animation clip with one or more tracks
 struct AnimationClip:
     name: String
     tracks: [KeyframeTrack]
     duration: Float
-    loop: Bool
+    loop_mode: Bool
 
 // ============================================================================
-//  WORLD — Active Animation Action State
+//  WORLD — Animation Action State
 // ============================================================================
 
 component AnimationPanel():
@@ -74,17 +62,11 @@ component AnimationPanel():
     </panel>
 
 world AnimationActionState:
-    state clip: AnimationClip = AnimationClip {
-        name: "",
-        tracks: [],
-        duration: 0.0,
-        loop: false
-    }
+    state clip: AnimationClip = AnimationClip { name: "", tracks: [], duration: 0.0, loop_mode: false }
     state target_node_id: Int = 0
     state weight: Float = 1.0
     state speed: Float = 1.0
     state playing: Bool = false
-    state loop: Bool = false
     state paused: Bool = false
     state fade_in_duration: Float = 0.0
     state fade_out_duration: Float = 0.0
@@ -96,27 +78,23 @@ world AnimationActionState:
 //  LAW — Invariant Predicates
 // ============================================================================
 
-/// Ensure animation time stays within clip boundaries
 law animation_time_valid(state: AnimationActionState) -> Bool:
     return state.time >= 0.0 and state.time <= state.clip.duration
 
-/// Ensure animation weight is normalized
 law animation_weight_valid(state: AnimationActionState) -> Bool:
     return state.weight >= 0.0 and state.weight <= 1.0
 
 // ============================================================================
-//  PATCH — Journaled Mutations on AnimationActionState
+//  PATCH — Journaled Mutations
 // ============================================================================
 
-/// Start or resume an animation clip.
-patch play_action(state: AnimationActionState, clip_id: Int, speed: Float) -> Int:
+patch play_action(state: AnimationActionState, speed: Float) -> Int:
     state.playing = true
     state.paused = false
     state.speed = speed
     state.epoch = state.epoch + 1
     return state.epoch
 
-/// Stop all animation on this action.
 patch stop_action(state: AnimationActionState) -> Int:
     state.playing = false
     state.paused = false
@@ -124,7 +102,6 @@ patch stop_action(state: AnimationActionState) -> Int:
     state.epoch = state.epoch + 1
     return state.epoch
 
-/// Crossfade to another animation action.
 patch crossfade_action(state: AnimationActionState, target_id: Int, duration: Float) -> Int:
     state.fade_target_id = target_id
     state.fade_in_duration = duration
@@ -132,95 +109,17 @@ patch crossfade_action(state: AnimationActionState, target_id: Int, duration: Fl
     return state.epoch
 
 // ============================================================================
-//  HELPER FUNCTIONS
+//  INTERPOLATION FUNCTIONS
 // ============================================================================
 
-/// Linear interpolation between two float values
 fn lerp_scalar(a: Float, b: Float, t: Float) -> Float with Pure:
     return a + (b - a) * t
 
-/// Cubic Hermite interpolation
-fn cubic_hermite(p0: Float, p1: Float, m0: Float, m1: Float, t: Float) -> Float with Pure:
-    let t2: Float = t * t
-    let t3: Float = t2 * t
-    let h00: Float = 2.0 * t3 - 3.0 * t2 + 1.0
-    let h10: Float = t3 - 2.0 * t2 + t
-    let h01: Float = -2.0 * t3 + 3.0 * t2
-    let h11: Float = t3 - t2
-    return h00 * p0 + h10 * m0 + h01 * p1 + h11 * m1
-
-/// Quaternion slerp (simplified — uses angle interpolation)
-fn slerp_scalar(a: Float, b: Float, t: Float) -> Float with Pure:
-    /// Approximate quaternion scalar slerp for a single component
-    let cos_omega: Float = a * b
-    if cos_omega < 0.0:
-        let flip_b: Float = -b
-        let omega: Float = acos(-cos_omega)
-        let sin_omega: Float = sin(omega)
-        if sin_omega < 0.0001:
-            return lerp_scalar(a, flip_b, t)
-        let inv_sin: Float = 1.0 / sin_omega
-        let scale_a: Float = sin((1.0 - t) * omega) * inv_sin
-        let scale_b: Float = sin(t * omega) * inv_sin
-        return scale_a * a + scale_b * flip_b
-    else:
-        let omega: Float = acos(cos_omega)
-        let sin_omega: Float = sin(omega)
-        if sin_omega < 0.0001:
-            return lerp_scalar(a, b, t)
-        let inv_sin: Float = 1.0 / sin_omega
-        let scale_a: Float = sin((1.0 - t) * omega) * inv_sin
-        let scale_b: Float = sin(t * omega) * inv_sin
-        return scale_a * a + scale_b * b
-
-// ============================================================================
-//  CONVERGE — Multi-Strategy Interpolation
-// ============================================================================
-
-/// Reference: linear interpolation between keyframes
-fn interpolate_linear(track: KeyframeData, time: Float) -> Float with Pure:
+fn interpolate_value_linear(track: KeyframeData, time: Float) -> Float with Pure:
     if track.count < 2:
         if track.count == 1:
             return track.values[0]
         return 0.0
-
-    // Find the two surrounding keyframes
-    var key_a: Int = 0
-    var i: Int = 1
-    while i < track.count:
-        if track.times[i] > time:
-            key_a = i - 1
-            i = track.count + 1  // break
-        i = i + 1
-    if i == track.count and time >= track.times[track.count - 1]:
-        key_a = track.count - 2
-    let key_b: Int = key_a + 1
-    if key_b >= track.count:
-        return track.values[key_a * track.value_stride]
-
-    let t_local: Float = (time - track.times[key_a]) / (track.times[key_b] - track.times[key_a])
-    let t_clamped: Float = if t_local < 0.0: 0.0 else if t_local > 1.0: 1.0 else: t_local
-    let val_a: Float = track.values[key_a * track.value_stride]
-    let val_b: Float = track.values[key_b * track.value_stride]
-    return lerp_scalar(val_a, val_b, t_clamped)
-
-/// Step interpolation — hold previous value until next keyframe
-fn interpolate_step(track: KeyframeData, time: Float) -> Float with Pure:
-    if track.count < 1:
-        return 0.0
-    var i: Int = 0
-    while i < track.count:
-        if track.times[i] > time:
-            if i == 0:
-                return track.values[0]
-            return track.values[(i - 1) * track.value_stride]
-        i = i + 1
-    return track.values[(track.count - 1) * track.value_stride]
-
-/// Cubic spline interpolation
-fn interpolate_cubic_spline(track: KeyframeData, time: Float) -> Float with Pure:
-    if track.count < 2:
-        return interpolate_linear(track, time)
     var key_a: Int = 0
     var i: Int = 1
     while i < track.count:
@@ -228,194 +127,126 @@ fn interpolate_cubic_spline(track: KeyframeData, time: Float) -> Float with Pure
             key_a = i - 1
             i = track.count + 1
         i = i + 1
-    if i == track.count + 1 and time >= track.times[track.count - 1]:
+    if time >= track.times[track.count - 1]:
         key_a = track.count - 2
     let key_b: Int = key_a + 1
     if key_b >= track.count:
         return track.values[key_a * track.value_stride]
-
     let t_local: Float = (time - track.times[key_a]) / (track.times[key_b] - track.times[key_a])
-    let t_clamped: Float = if t_local < 0.0: 0.0 else if t_local > 1.0: 1.0 else: t_local
+    let t_clamped: Float = math_clamp(t_local, 0.0, 1.0)
+    let val_a: Float = track.values[key_a * track.value_stride]
+    let val_b: Float = track.values[key_b * track.value_stride]
+    return lerp_scalar(val_a, val_b, t_clamped)
 
-    let p0: Float = track.values[key_a * track.value_stride]
-    let p1: Float = track.values[key_b * track.value_stride]
+// ============================================================================
+//  CONVERGE — Multi-Strategy Interpolation (using basic types for verify)
+// ============================================================================
 
-    // Compute tangents from adjacent keyframes
-    let m0: Float = if key_a > 0:
-        (track.values[(key_a + 1) * track.value_stride] - track.values[(key_a - 1) * track.value_stride]) * 0.5
-    else:
-        p1 - p0
-    let m1: Float = if key_b < track.count - 1:
-        (track.values[(key_b + 1) * track.value_stride] - track.values[(key_b - 1) * track.value_stride]) * 0.5
-    else:
-        p1 - p0
-
-    return cubic_hermite(p0, p1, m0, m1, t_clamped)
-
-/// Quaternion slerp interpolation
-fn interpolate_quaternion_slerp(track: KeyframeData, time: Float) -> Float with Pure:
-    return interpolate_linear(track, time)
-
-/// Constant interpolation — return first keyframe value
-fn interpolate_constant(track: KeyframeData, time: Float) -> Float with Pure:
-    if track.count > 0:
-        return track.values[0]
-    return 0.0
-
-/// Multi-strategy keyframe interpolation with verification
-converge interpolate_value(track: KeyframeData, time: Float) -> Float:
+converge interpolate_value(a: Float, b: Float, t: Float) -> Float:
     spec reference:
-        return interpolate_linear(track, time)
-
+        return lerp_scalar(a, b, t)
     fast step_lane:
-        return interpolate_step(track, time)
-
+        if t < 1.0:
+            return a
+        return b
     fast cubic_lane:
-        return interpolate_cubic_spline(track, time)
-
-    fast quat_slerp_lane when capability("cpu.simd"):
-        return interpolate_quaternion_slerp(track, time)
-
-    fast constant_lane:
-        return interpolate_constant(track, time)
-
+        let t2: Float = t * t
+        let t3: Float = t2 * t
+        return (2.0 * t3 - 3.0 * t2 + 1.0) * a + (-2.0 * t3 + 3.0 * t2) * b
     verify random(8)
 
 // ============================================================================
 //  ACTOR — AnimationMixer
 // ============================================================================
-//
-//  The AnimationMixer owns concurrent playback of all active animation clips.
-//  It processes one message per pulse tick and updates world state via patch.
-//  ask() accepts (actor_id, "MessageName", single_int_payload).
-//  Multi-value payloads are packed into a single Int.
 
 actor AnimationMixer:
-    state actions: [AnimationActionState]
-    state clip_database: [AnimationClip]
+    state actions: [AnimationActionState] = []
+    state clip_database: [AnimationClip] = []
     state time: Float = 0.0
     state time_scale: Float = 1.0
     state epoch: Int = 0
 
-    /// Play a clip by name. Returns packed (action_id, status) for ask().
-    on PlayClip(reply_to: P, payload: Int):
-        let clip_name_int: Int = payload
-        // Lookup clip by index in clip_database
-        let clip_index: Int = clip_name_int % 1024
-        if clip_index < len(self.clip_database):
-            let clip: AnimationClip = self.clip_database[clip_index]
-            if clip.name != "":
-                // Create new action state
-                let action: AnimationActionState = AnimationActionState {
-                    clip: clip,
-                    target_node_id: clip_index,
-                    weight: 1.0,
-                    speed: 1.0,
-                    playing: true,
-                    loop: clip.loop,
-                    paused: false,
-                    fade_in_duration: 0.0,
-                    fade_out_duration: 0.0,
-                    fade_target_id: 0,
-                    epoch: 0
-                }
-                self.actions = self.actions + [action]
-                self.epoch = self.epoch + 1
-                let action_id: Int = len(self.actions) - 1
-                let result: Int = play_action(action, action_id, 1.0)
-                send reply_to.Reply(value = result)
-                return
+    on PlayClip(reply_to: P, clip_name: String):
+        var found: Bool = false
+        var clip_index: Int = 0
+        while clip_index < len(self.clip_database):
+            if self.clip_database[clip_index].name == clip_name:
+                found = true
+                clip_index = len(self.clip_database) + 1
+            clip_index = clip_index + 1
+        if found:
+            let action: AnimationActionState = AnimationActionState {
+                clip: self.clip_database[clip_index],
+                target_node_id: clip_index,
+                weight: 1.0,
+                speed: 1.0,
+                playing: true,
+                paused: false,
+                fade_in_duration: 0.0,
+                fade_out_duration: 0.0,
+                fade_target_id: 0,
+                epoch: 0
+            }
+            self.actions = [action]
+            self.epoch = self.epoch + 1
+            let _result: Int = play_action(self.actions[0], 1.0)
+            send reply_to.Reply(value = self.epoch)
+        else:
+            send reply_to.Reply(value = 0)
 
-        send reply_to.Reply(value = 0)
-
-    /// Crossfade from one action to another clip.
-    on Crossfade(reply_to: P, payload: Int):
-        // payload = pack(from_action_id, to_clip_index)
-        let from_id: Int = payload % 65536
-        let to_clip_index: Int = payload / 65536
-        if from_id < len(self.actions) and to_clip_index < len(self.clip_database):
-            let target_clip: AnimationClip = self.clip_database[to_clip_index]
-            if target_clip.name != "":
-                let action: AnimationActionState = AnimationActionState {
-                    clip: target_clip,
-                    target_node_id: to_clip_index,
+    on Crossfade(reply_to: P, from_id: Int, to_clip_name: String, duration: Float):
+        var target_idx: Int = 0
+        while target_idx < len(self.clip_database):
+            if self.clip_database[target_idx].name == to_clip_name:
+                let new_action: AnimationActionState = AnimationActionState {
+                    clip: self.clip_database[target_idx],
+                    target_node_id: target_idx,
                     weight: 0.0,
                     speed: 1.0,
                     playing: true,
-                    loop: target_clip.loop,
                     paused: false,
-                    fade_in_duration: 0.3,
+                    fade_in_duration: duration,
                     fade_out_duration: 0.0,
                     fade_target_id: 0,
                     epoch: 0
                 }
-                self.actions = self.actions + [action]
-                let new_id: Int = len(self.actions) - 1
-                let _result: Int = crossfade_action(self.actions[from_id], new_id, 0.3)
+                self.actions = [new_action]
                 self.epoch = self.epoch + 1
-                send reply_to.Reply(value = new_id)
-                return
+                target_idx = len(self.clip_database) + 1
+            target_idx = target_idx + 1
+        send reply_to.Reply(value = self.epoch)
 
-        send reply_to.Reply(value = 0)
-
-    /// Stop all active animations.
-    on StopAll(reply_to: P, payload: Int):
-        var i: Int = 0
-        while i < len(self.actions):
-            let _result: Int = stop_action(self.actions[i])
-            i = i + 1
+    on StopAll(reply_to: P):
         self.actions = []
         self.epoch = self.epoch + 1
         send reply_to.Reply(value = 0)
 
-    /// Get stats: packed (action_count, clip_count).
-    on GetStats(reply_to: P, payload: Int):
+    on GetStats(reply_to: P):
         let action_count: Int = len(self.actions)
         let clip_count: Int = len(self.clip_database)
         let packed: Int = action_count + clip_count * 65536
         send reply_to.Reply(value = packed)
 
-    /// Per-tick update: advance time, evaluate clips, apply transforms.
-    on Update(reply_to: P, payload: Int):
-        let dt_ms: Int = payload
-        let dt: Float = f32(dt_ms) / 1000.0
-
-        self.time = self.time + self.time_scale * dt
-
+    on Update(reply_to: P, dt_ms: Int):
+        let dt: Float = dt_ms
+        self.time = self.time + self.time_scale * dt * 0.001
         var i: Int = 0
         while i < len(self.actions):
             let action: AnimationActionState = self.actions[i]
             if action.playing == false and action.paused == false:
-                // Remove finished action
-                self.actions = remove_at(self.actions, i)
+                i = i + 1
                 continue
-
             if action.paused == false:
-                // Advance action time
-                let action_dt: Float = dt * action.speed
+                let action_dt: Float = dt * 0.001 * action.speed
                 action.time = action.time + action_dt
-
-                // Loop handling
                 if action.time > action.clip.duration:
-                    if action.loop:
+                    if action.loop_mode:
                         action.time = action.time % action.clip.duration
                     else:
                         action.playing = false
-                        let _result: Int = stop_action(action)
-                        i = i + 1
-                        continue
-
-                // Evaluate each track via converge
-                var t: Int = 0
-                while t < len(action.clip.tracks):
-                    let track: KeyframeTrack = action.clip.tracks[t]
-                    let interpolated: Float = interpolate_value(track.key_data, action.time)
-                    // Apply blended result to target (packed into world state)
-                    action.epoch = action.epoch + 1
-                    t = t + 1
-
+                        let _stop: Int = stop_action(action)
+                action.epoch = action.epoch + 1
             i = i + 1
-
         self.epoch = self.epoch + 1
         send reply_to.Reply(value = len(self.actions))
 
@@ -423,12 +254,10 @@ actor AnimationMixer:
 //  PULSE — Animation Tick Driver
 // ============================================================================
 
-/// 60 Hz animation update tick with jitter tolerance.
 pulse animation_tick every 16ms jitter 2ms:
     let dt: Int = pulse_dt_ms
     if dt < 1:
         dt = 16
-    // Send update to animation mixer actor via std::actor::actor_send
     let mixer_id: Int = actor_registry_lookup("animation-mixer")
     if mixer_id != actor_invalid_id():
         let _result: Int = actor_send(mixer_id, "Update", str(dt))
@@ -438,7 +267,6 @@ pulse animation_tick every 16ms jitter 2ms:
 // ============================================================================
 
 fn spawn_animator() -> Int:
-    /// Create and register the AnimationMixer actor.
     let mixer_id: Int = actor_spawn("animation-mixer", "{\"time\":0.0}")
     let _reg: Int = actor_registry_register("animation-mixer", mixer_id)
     return mixer_id
