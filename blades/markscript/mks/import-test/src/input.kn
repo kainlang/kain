@@ -1,0 +1,86 @@
+// ============================================================================
+//  UI TEMPLATE — Input module (hex string helpers)
+// ============================================================================
+
+use std::text
+
+// ============================================================================
+//  STRING HELPERS
+// ============================================================================
+
+pub fn string_len(s: String) -> Int:
+    return text_len(text_from(s))
+
+pub fn string_char_at(s: String, index: Int) -> String:
+    return text_char_at(text_from(s), index)
+
+pub fn string_substring(s: String, start: Int, length: Int) -> String:
+    return text_substring_string(s, start, length)
+
+// ============================================================================
+//  HEX INPUT BUILDER
+//  Build a display string with cursor underscore at hex_index
+// ============================================================================
+
+pub fn build_display_hex(hex: String, hex_index: Int) -> String:
+    let full = text_from(hex)
+    let flen = text_len(full)
+
+    // Build: "#" + chars before cursor + "_" + chars after cursor
+    var result: String = "#"
+    var i: Int = 0
+    while i < hex_index:
+        if i < flen:
+            result = result + text_char_at(full, i)
+        else:
+            result = result + "."
+        i = i + 1
+
+    if hex_index < 6:
+        result = result + "_"
+
+    i = hex_index
+    while i < 6:
+        if i < flen:
+            result = result + text_char_at(full, i)
+        else:
+            result = result + "."
+        i = i + 1
+    return result
+
+// ============================================================================
+//  INSERT CHARACTER INTO HEX STRING AT POSITION
+// ============================================================================
+
+pub fn hex_insert(hex: String, pos: Int, ch: String) -> String:
+    let full = text_from(hex)
+    let flen = text_len(full)
+    var result: String = ""
+    var i: Int = 0
+    while i < pos:
+        if i < flen:
+            result = result + text_char_at(full, i)
+        i = i + 1
+    result = result + ch
+    i = pos
+    while i < 5:
+        if i < flen:
+            result = result + text_char_at(full, i)
+        i = i + 1
+    return result
+
+pub fn hex_delete(hex: String, pos: Int) -> String:
+    let full = text_from(hex)
+    let flen = text_len(full)
+    var result: String = ""
+    var i: Int = 0
+    while i < pos - 1:
+        if i < flen:
+            result = result + text_char_at(full, i)
+        i = i + 1
+    i = pos
+    while i < 6:
+        if i < flen:
+            result = result + text_char_at(full, i)
+        i = i + 1
+    return result

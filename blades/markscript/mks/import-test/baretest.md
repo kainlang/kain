@@ -1,0 +1,3 @@
+# BareTest
+
+> print

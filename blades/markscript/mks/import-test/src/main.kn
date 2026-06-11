@@ -1,0 +1,345 @@
+// ============================================================================
+//  UI TEMPLATE — Interactive Hex Color Mixer (Entry Point)
+//  Pure Kain std::ui — real text input + live color preview.
+//
+//  Type hex codes (e.g. "FF8040") to see the color update in real time.
+//  Click preset swatches to pick common colors.
+//
+//  Ladder rung: Layer 0 (fn) — raw imperative event loop.
+//  Imports color, input, and ui helpers from sibling modules.
+// ============================================================================
+
+use std::ui
+use std::runtime
+use color
+use input
+use ui
+
+// ============================================================================
+//  WINDOW
+// ============================================================================
+
+const WIN_W: Int = 820
+const WIN_H: Int = 620
+
+// ============================================================================
+//  MAIN ENTRY POINT
+// ============================================================================
+
+fn main() -> Int:
+    // --- Initialize native runtime ---
+    let _ = native_runtime_init()
+    defer native_runtime_shutdown()
+
+    // --- Create session with window ---
+    let session = ui_host_session_create(
+        "ui-template",
+        "Kain UI Template — Hex Color Mixer",
+        WIN_W, WIN_H, "winit",
+    )
+    if session <= 0:
+        return 1
+    defer ui_session_destroy(session)
+
+    // --- Fonts ---
+    let title_font   = ui_font_create(session, "font.title",   "Segoe UI", 22.0)
+    let heading_font = ui_font_create(session, "font.heading", "Segoe UI", 18.0)
+    let body_font    = ui_font_create(session, "font.body",    "Segoe UI", 15.0)
+    let small_font   = ui_font_create(session, "font.small",   "Segoe UI", 12.0)
+    let mono_font    = ui_font_create(session, "font.mono",    "Consolas", 16.0)
+
+    // --- Mutable application state ---
+    var color: Rgb = rgb_new(128, 128, 128)
+    var hex_input: String = "808080"
+    var hex_index: Int = 6
+    var status_msg: String = "Type a hex code (e.g. FF8040) or click a preset"
+
+    // History ring (last 4 colors)
+    var hist0: String = ""
+    var hist1: String = ""
+    var hist2: String = ""
+    var hist3: String = ""
+
+    // ====================================================================
+    //  Layout constants
+    // ====================================================================
+    let left_x: Float    = 20.0
+    let preview_x: Float  = left_x
+    let preview_y: Float  = 90.0
+    let preview_w: Float  = 280.0
+    let preview_h: Float  = 280.0
+    let right_x: Float    = 330.0
+    let input_field_x: Float  = right_x
+    let input_field_y: Float  = 118.0
+    let input_field_w: Float  = 340.0
+    let input_field_h: Float  = 42.0
+    let presets_y: Float      = 210.0
+    let actions_y: Float      = 370.0
+    let hist_y: Float         = 460.0
+    let win_wf: Float         = WIN_W as Float
+    let win_hf: Float         = WIN_H as Float
+
+    // ====================================================================
+    //  MAIN EVENT LOOP
+    // ====================================================================
+    while ui_host_should_close(session) == 0:
+        ui_host_pump(session)
+        ui_begin_frame(session, 16.0)
+
+        // ================================================================
+        //  RENDER — Background
+        // ================================================================
+        let bg = render_filled_box(session, ui_node_create(session, "background"),
+                                   0.0, 0.0, win_wf, win_hf,
+                                   0.10, 0.10, 0.14, 1.0, "fill")
+
+        // --- Title bar ---
+        let bar = render_filled_box(session, ui_node_create(session, "title-bar"),
+                                    0.0, 0.0, win_wf, 46.0,
+                                    0.15, 0.15, 0.21, 1.0, "fill")
+
+        render_label(session, title_font, "Kain UI Template — Hex Color Mixer",
+                     20.0, 32.0, 0.95, 0.95, 1.0, 1.0, "title.text")
+
+        render_label(session, small_font,
+                     "Pure Kain stdlib. Type hex codes, click presets, see colors.",
+                     20.0, 64.0, 0.45, 0.50, 0.60, 1.0, "sub")
+
+        // ================================================================
+        //  LEFT PANEL — Color Preview
+        // ================================================================
+        let pr: Float = rgb_float(color.r)
+        let pg: Float = rgb_float(color.g)
+        let pb: Float = rgb_float(color.b)
+
+        let preview_node = render_filled_box(session, ui_node_create(session, "color-preview"),
+                                             preview_x, preview_y, preview_w, preview_h,
+                                             pr, pg, pb, 1.0, "preview.fill")
+
+        // --- Border overlay ---
+        let border = ui_node_create(session, "preview-border")
+        ui_node_set_rect(session, border, preview_x - 2.0, preview_y - 2.0,
+                         preview_w + 4.0, preview_h + 4.0)
+        ui_style_color_rgba(session, border, "border", 0.25, 0.25, 0.35, 1.0)
+        // Re-render fill on top so border is behind
+        ui_style_color_rgba(session, preview_node, "preview.fill", pr, pg, pb, 1.0)
+        ui_render_box_at(session, preview_node, preview_x, preview_y,
+                         preview_w, preview_h, "preview.fill")
+
+        // --- RGB readout ---
+        let hex_label = rgb_to_hex(color)
+        let rgb_label = "RGB(" + str(color.r) + ", " + str(color.g) + ", " + str(color.b) + ")  #" + hex_label
+        render_label(session, mono_font, rgb_label,
+                     preview_x, preview_y + preview_h + 28.0,
+                     0.85, 0.85, 0.90, 1.0, "rgb-label")
+
+        // ================================================================
+        //  RIGHT PANEL — Hex Input
+        // ================================================================
+        render_label(session, heading_font, "Hex Input",
+                     right_x, 100.0, 0.80, 0.82, 0.90, 1.0, "section")
+
+        // --- Input field background ---
+        let input_node = render_filled_box(session, ui_node_create(session, "hex-input-bg"),
+                                           input_field_x, input_field_y,
+                                           input_field_w, input_field_h,
+                                           0.16, 0.16, 0.22, 1.0, "input.bg")
+
+        let display_hex = build_display_hex(hex_input, hex_index)
+        render_label(session, mono_font, display_hex,
+                     input_field_x + 12.0, input_field_y + 30.0,
+                     0.90, 0.92, 1.0, 1.0, "input.text")
+
+        // --- Hint ---
+        render_label(session, small_font,
+                     "Click the field, then type hex digits — Enter to apply, Backspace to delete",
+                     right_x, input_field_y + input_field_h + 20.0,
+                     0.35, 0.38, 0.45, 1.0, "hint")
+
+        // ================================================================
+        //  PRESETS
+        // ================================================================
+        render_label(session, heading_font, "Presets",
+                     right_x, presets_y, 0.80, 0.82, 0.90, 1.0, "section")
+
+        var pi: Int = 0
+        while pi < PRESET_COUNT:
+            let px: Float = right_x + ((pi % 4) as Float) * 110.0
+            let py: Float = presets_y + 26.0 + ((pi / 4) as Float) * 70.0
+            let psize: Float = 52.0
+
+            let pr2 = preset_rgb(pi)
+            let pnode = render_filled_box(session,
+                              ui_node_create(session, "preset-swatch-" + str(pi)),
+                              px, py, psize, psize,
+                              rgb_float(pr2.r), rgb_float(pr2.g), rgb_float(pr2.b),
+                              1.0, "swatch.fill")
+
+            let plabel = preset_label(pi)
+            let plabel_w: Float = ui_text_width(session, small_font, plabel)
+            let plabel_x: Float = px + (psize - plabel_w) / 2.0
+            render_label(session, small_font, plabel,
+                         plabel_x, py + psize + 18.0,
+                         0.70, 0.72, 0.80, 1.0, "preset.text")
+            pi = pi + 1
+
+        // ================================================================
+        //  ACTION BUTTONS
+        // ================================================================
+        render_label(session, heading_font, "Actions",
+                     right_x, actions_y, 0.80, 0.82, 0.90, 1.0, "section")
+
+        let apply_btn = ui_node_create(session, "btn-apply")
+        render_button(session, apply_btn, "Apply Hex",
+                      right_x, actions_y + 26.0, 140.0, 36.0,
+                      0.18, 0.45, 0.82, body_font)
+
+        let rand_btn = ui_node_create(session, "btn-random")
+        render_button(session, rand_btn, "Random",
+                      right_x + 160.0, actions_y + 26.0, 140.0, 36.0,
+                      0.22, 0.22, 0.30, body_font)
+
+        // ================================================================
+        //  COLOR HISTORY
+        // ================================================================
+        render_label(session, heading_font, "History",
+                     right_x, hist_y, 0.80, 0.82, 0.90, 1.0, "section")
+
+        var hi: Int = 0
+        while hi < 4:
+            let hx: Float = right_x + (hi as Float) * 78.0
+            let hy: Float = hist_y + 26.0
+            let hsize: Float = 56.0
+            var hhex = ""
+            if hi == 0: hhex = hist0
+            if hi == 1: hhex = hist1
+            if hi == 2: hhex = hist2
+            if hi == 3: hhex = hist3
+
+            if hhex != "":
+                let hc = parse_hex_rgb(hhex)
+                let hnode = render_filled_box(session,
+                                  ui_node_create(session, "hist-" + str(hi)),
+                                  hx, hy, hsize, hsize,
+                                  rgb_float(hc.r), rgb_float(hc.g), rgb_float(hc.b),
+                                  1.0, "hist.fill")
+            else:
+                let eh = render_filled_box(session,
+                              ui_node_create(session, "hist-empty-" + str(hi)),
+                              hx, hy, hsize, hsize,
+                              0.14, 0.14, 0.18, 1.0, "hist.empty")
+
+            hi = hi + 1
+
+        // ================================================================
+        //  STATUS BAR
+        // ================================================================
+        render_label(session, small_font, status_msg,
+                     20.0, win_hf - 30.0,
+                     0.45, 0.48, 0.55, 1.0, "status")
+
+        // ================================================================
+        //  EVENT HANDLING
+        // ================================================================
+        var evt: Int = ui_poll_event(session)
+        while evt > 0:
+            let kind: String = ui_event_kind(session)
+            let ex: Float = ui_event_x(session)
+            let ey: Float = ui_event_y(session)
+
+            // --- Mouse press ---
+            if kind == "press":
+                // Click on hex input field → focus
+                let in_field = (ex >= input_field_x) and (ex < (input_field_x + input_field_w)) and (ey >= input_field_y) and (ey < (input_field_y + input_field_h))
+                if in_field:
+                    status_msg = "Input field focused — type a hex code"
+                    hex_index = string_len(hex_input)
+
+                // Apply button
+                let in_apply = (ex >= right_x) and (ex < (right_x + 140.0)) and (ey >= (actions_y + 26.0)) and (ey < (actions_y + 62.0))
+                if in_apply:
+                    color = parse_hex_rgb(hex_input)
+                    let new_hex = rgb_to_hex(color)
+                    hist3 = hist2
+                    hist2 = hist1
+                    hist1 = hist0
+                    hist0 = new_hex
+                    status_msg = "Applied: #" + new_hex
+
+                // Random button
+                let in_rand = (ex >= (right_x + 160.0)) and (ex < (right_x + 300.0)) and (ey >= (actions_y + 26.0)) and (ey < (actions_y + 62.0))
+                if in_rand:
+                    let rand_r = ((ex as Int) * 127 + 31) % 256
+                    let rand_g = ((ey as Int) * 97 + 17) % 256
+                    let rand_b = (((ex as Int) + (ey as Int)) * 53 + 7) % 256
+                    color = rgb_new(rand_r, rand_g, rand_b)
+                    let new_hex2 = rgb_to_hex(color)
+                    hex_input = new_hex2
+                    hex_index = 6
+                    hist3 = hist2
+                    hist2 = hist1
+                    hist1 = hist0
+                    hist0 = new_hex2
+                    status_msg = "Random color: #" + new_hex2
+
+                // Preset swatches
+                var pj: Int = 0
+                while pj < PRESET_COUNT:
+                    let ppx: Float = right_x + ((pj % 4) as Float) * 110.0
+                    let ppy: Float = presets_y + 26.0 + ((pj / 4) as Float) * 70.0
+                    let pps: Float = 52.0
+                    let in_preset = (ex >= ppx) and (ex < (ppx + pps)) and (ey >= ppy) and (ey < (ppy + pps))
+                    if in_preset:
+                        color = preset_rgb(pj)
+                        let new_hex3 = rgb_to_hex(color)
+                        hex_input = new_hex3
+                        hex_index = 6
+                        hist3 = hist2
+                        hist2 = hist1
+                        hist1 = hist0
+                        hist0 = new_hex3
+                        status_msg = "Preset: " + preset_label(pj) + "  #" + new_hex3
+                    pj = pj + 1
+
+            // --- Key press (text input) ---
+            if kind == "key":
+                let key_text: String = ui_event_text(session)
+                let key_code: Int = ui_event_key_code(session)
+
+                // Backspace
+                let is_bs = (key_code == 8) or (key_code == 259)
+                if is_bs:
+                    if hex_index > 0:
+                        hex_input = hex_delete(hex_input, hex_index)
+                        hex_index = hex_index - 1
+
+                // Enter → apply
+                if key_code == 13:
+                    color = parse_hex_rgb(hex_input)
+                    let applied_hex = rgb_to_hex(color)
+                    hist3 = hist2
+                    hist2 = hist1
+                    hist1 = hist0
+                    hist0 = applied_hex
+                    status_msg = "Applied: #" + applied_hex
+
+                // Escape → reset
+                if key_code == 27:
+                    hex_input = "808080"
+                    hex_index = 6
+                    color = rgb_new(128, 128, 128)
+                    status_msg = "Reset to default"
+
+                // Hex character
+                let is_hex = (key_text != "") and (is_hex_char(key_text) == true)
+                if is_hex:
+                    if hex_index < 6:
+                        hex_input = hex_insert(hex_input, hex_index, key_text)
+                        hex_index = hex_index + 1
+
+            evt = ui_poll_event(session)
+
+        // --- Commit frame ---
+        ui_present_to_attached_host(session)
+
+    return 0
