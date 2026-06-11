@@ -1,0 +1,95 @@
+// ============================================================================
+//  UI HELPERS — Rendering helpers for the file explorer
+//  Reusable box, text, button, and panel rendering functions.
+//
+//  Ladder rung: Layer 0 (fn) — pure imperative rendering helpers.
+// ============================================================================
+
+use std::ui
+
+// ============================================================================
+//  RENDER A FILLED RECTANGLE
+// ============================================================================
+
+pub fn render_filled_box(session: Int, node_id: Int, x: Float, y: Float,
+                         w: Float, h: Float, r: Float, g: Float, b: Float,
+                         a: Float, style_key: String) -> Int:
+    ui_node_set_rect(session, node_id, x, y, w, h)
+    ui_style_color_rgba(session, node_id, style_key, r, g, b, a)
+    ui_render_box_at(session, node_id, x, y, w, h, style_key)
+    return node_id
+
+// ============================================================================
+//  RENDER A TEXT LABEL
+// ============================================================================
+
+pub fn render_label(session: Int, font_id: Int, text: String, x: Float,
+                    y: Float, r: Float, g: Float, b: Float, a: Float,
+                    style_key: String):
+    if text == "":
+        return
+    ui_style_color_rgba(session, 0, style_key, r, g, b, a)
+    ui_render_text_value(session, 0, font_id, text, x, y, style_key)
+
+// ============================================================================
+//  RENDER A CLICKABLE BUTTON
+// ============================================================================
+
+pub fn render_button(session: Int, node_id: Int, label: String,
+                     x: Float, y: Float, w: Float, h: Float,
+                     fill_r: Float, fill_g: Float, fill_b: Float,
+                     font_id: Int):
+    if label == "":
+        return
+    ui_node_set_rect(session, node_id, x, y, w, h)
+    ui_style_color_rgba(session, node_id, "btn.fill", fill_r, fill_g, fill_b, 1.0)
+    ui_render_box_at(session, node_id, x, y, w, h, "btn.fill")
+
+    let lw: Float = ui_text_width(session, font_id, label)
+    let lx: Float = x + (w - lw) / 2.0
+    let ly: Float = y + h - 10.0
+    ui_style_color_rgba(session, 0, "btn.text", 1.0, 1.0, 1.0, 1.0)
+    ui_render_text_value(session, 0, font_id, label, lx, ly, "btn.text")
+
+// ============================================================================
+//  RENDER A HIGHLIGHTED ROW (for selected items)
+// ============================================================================
+
+pub fn render_selectable_row(session: Int, node_id: Int, x: Float, y: Float,
+                              w: Float, h: Float, is_selected: Bool,
+                              text: String, font_id: Int,
+                              text_r: Float, text_g: Float, text_b: Float):
+    // Background
+    if is_selected:
+        render_filled_box(session, node_id, x, y, w, h,
+                          0.25, 0.45, 0.85, 0.6, "row.bg.sel")
+    // else: subtle alternating rows - skip for performance
+
+    // Text label
+    render_label(session, font_id, text, x + 28.0, y + h - 8.0,
+                 text_r, text_g, text_b, 1.0, "row.text")
+
+// ============================================================================
+//  RENDER A SMALL ICON RECTANGLE (for file type indicators)
+// ============================================================================
+
+pub fn render_icon_box(session: Int, node_id: Int, x: Float, y: Float,
+                        w: Float, h: Float,
+                        r: Float, g: Float, b: Float):
+    render_filled_box(session, node_id, x, y, w, h, r, g, b, 0.9, "icon.fill")
+
+// ============================================================================
+//  CHECK IF A POINT IS INSIDE A RECTANGLE
+// ============================================================================
+
+pub fn point_in_rect(px: Float, py: Float,
+                     rx: Float, ry: Float,
+                     rw: Float, rh: Float) -> Bool:
+    return (px >= rx) and (px < (rx + rw)) and (py >= ry) and (py < (ry + rh))
+
+// ============================================================================
+//  LAYOUT HELPERS
+// ============================================================================
+
+pub fn layout_column_y(index: Int, start_y: Float, item_height: Float, gap: Float) -> Float:
+    return start_y + (index as Float) * (item_height + gap)

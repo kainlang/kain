@@ -1,0 +1,271 @@
+// ============================================================================
+//  FILE EXPLORER MODULE — Directory listing, navigation, file icons
+//
+//  Ladder rung: Layer 0 (fn, struct) — pure data and functions.
+//  No world, no actor — all state lives in main.kn's local variables.
+// ============================================================================
+
+use std::fs
+use std::text
+use std::fmt
+
+// ============================================================================
+//  FILE ENTRY — simplified display record for one filesystem entry
+// ============================================================================
+
+pub struct FileEntry:
+    name: String = ""
+    full_path: String = ""
+    is_dir: Bool = false
+    extension: String = ""
+    icon_type: String = "file"
+
+// ============================================================================
+//  LIST A DIRECTORY — returns sorted array of FileEntry
+//  Dirs first, then files, alphabetically within each group.
+// ============================================================================
+
+pub fn list_directory(dir_path: String) -> Array<FileEntry>:
+    let dir_entries = fs_read_dir(dir_path)
+    let count = len(dir_entries)
+    let mut entries: Array<FileEntry> = []
+
+    var i: Int = 0
+    while i < count:
+        let de = dir_entries[i]
+        let child_path = de.path
+        let child_name = de.file_name
+        let is_directory = de.file_type == "dir"
+        let ext = fs_path_extension(child_path)
+
+        var icon = resolve_icon(ext, is_directory)
+
+        let entry = FileEntry {
+            name: child_name,
+            full_path: child_path,
+            is_dir: is_directory,
+            extension: ext,
+            icon_type: icon,
+        }
+        push(entries, entry)
+        i = i + 1
+
+    // Sort: directories first, then files, alphabetical within each group
+    let sorted = sort_entries(entries)
+    return sorted
+
+// ============================================================================
+//  RESOLVE FILE ICON TYPE BASED ON EXTENSION
+// ============================================================================
+
+pub fn resolve_icon(ext: String, is_dir: Bool) -> String:
+    if is_dir:
+        return "folder"
+    if ext == "":
+        return "file"
+    if (ext == ".kn") or (ext == ".kn") or (ext == ".kain"):
+        return "kain"
+    if (ext == ".txt") or (ext == ".md") or (ext == ".rst") or (ext == ".log"):
+        return "text"
+    if (ext == ".exe") or (ext == ".dll") or (ext == ".bat") or (ext == ".sh") or (ext == ".cmd") or (ext == ".com"):
+        return "binary"
+    if (ext == ".png") or (ext == ".jpg") or (ext == ".jpeg") or (ext == ".gif") or (ext == ".bmp") or (ext == ".svg") or (ext == ".ico") or (ext == ".webp"):
+        return "image"
+    if (ext == ".json") or (ext == ".xml") or (ext == ".yaml") or (ext == ".yml") or (ext == ".toml") or (ext == ".ini") or (ext == ".cfg"):
+        return "data"
+    if (ext == ".rs") or (ext == ".py") or (ext == ".js") or (ext == ".ts") or (ext == ".c") or (ext == ".h") or (ext == ".cpp") or (ext == ".hpp") or (ext == ".go") or (ext == ".java") or (ext == ".swift"):
+        return "code"
+    if (ext == ".zip") or (ext == ".tar") or (ext == ".gz") or (ext == ".bz2") or (ext == ".7z") or (ext == ".rar") or (ext == ".xz"):
+        return "archive"
+    if (ext == ".html") or (ext == ".htm") or (ext == ".css") or (ext == ".scss") or (ext == ".less") or (ext == ".jsx") or (ext == ".tsx"):
+        return "web"
+    if (ext == ".pdf") or (ext == ".doc") or (ext == ".docx") or (ext == ".xls") or (ext == ".xlsx") or (ext == ".ppt") or (ext == ".pptx"):
+        return "document"
+    if (ext == ".mp3") or (ext == ".wav") or (ext == ".flac") or (ext == ".ogg") or (ext == ".aac") or (ext == ".wma") or (ext == ".m4a"):
+        return "audio"
+    if (ext == ".mp4") or (ext == ".avi") or (ext == ".mkv") or (ext == ".mov") or (ext == ".wmv") or (ext == ".flv") or (ext == ".webm"):
+        return "video"
+    if (ext == ".ttf") or (ext == ".otf") or (ext == ".woff") or (ext == ".woff2"):
+        return "font"
+    return "file"
+
+// ============================================================================
+//  GET ICON COLOR — returns (r, g, b) for a given icon type
+// ============================================================================
+
+pub fn icon_color(icon_type: String) -> (Float, Float, Float):
+    if icon_type == "folder":
+        return (0.95, 0.80, 0.20)  // Gold/Yellow
+    if icon_type == "kain":
+        return (0.40, 0.70, 1.00)  // Blue
+    if icon_type == "text":
+        return (0.60, 0.60, 0.80)  // Light blue-gray
+    if icon_type == "binary":
+        return (0.90, 0.30, 0.30)  // Red
+    if icon_type == "image":
+        return (0.30, 0.85, 0.50)  // Green
+    if icon_type == "data":
+        return (0.80, 0.70, 0.30)  // Amber
+    if icon_type == "code":
+        return (0.50, 0.60, 0.90)  // Periwinkle
+    if icon_type == "archive":
+        return (0.75, 0.40, 0.20)  // Brown
+    if icon_type == "web":
+        return (0.30, 0.70, 0.85)  // Cyan
+    if icon_type == "document":
+        return (0.85, 0.50, 0.30)  // Orange
+    if icon_type == "audio":
+        return (0.80, 0.40, 0.70)  // Pink
+    if icon_type == "video":
+        return (0.70, 0.40, 0.85)  // Purple
+    if icon_type == "font":
+        return (0.50, 0.80, 0.70)  // Teal
+    return (0.50, 0.50, 0.50)      // Gray (default)
+
+// ============================================================================
+//  COMPARE TWO FILE ENTRIES FOR SORTING
+//  Returns true if a should come before b (dirs first, then alpha)
+// ============================================================================
+
+fn entry_less_than(a: FileEntry, b: FileEntry) -> Bool:
+    if a.is_dir and (b.is_dir == false):
+        return true
+    if (a.is_dir == false) and b.is_dir:
+        return false
+    return a.name < b.name
+
+// ============================================================================
+//  SORT ENTRIES — simple insertion sort
+// ============================================================================
+
+pub fn sort_entries(entries: Array<FileEntry>) -> Array<FileEntry>:
+    let n = len(entries)
+    if n <= 1:
+        return entries
+
+    // Insertion sort, building a new sorted array
+    let mut sorted: Array<FileEntry> = []
+    var i: Int = 0
+    while i < n:
+        let entry = entries[i]
+        // Find insertion position
+        var pos: Int = 0
+        while pos < len(sorted):
+            if entry_less_than(entry, sorted[pos]):
+                break
+            pos = pos + 1
+
+        // Insert at position pos by rebuilding
+        let mut new_sorted: Array<FileEntry> = []
+        var j: Int = 0
+        while j < pos:
+            push(new_sorted, sorted[j])
+            j = j + 1
+        push(new_sorted, entry)
+        while j < len(sorted):
+            push(new_sorted, sorted[j])
+            j = j + 1
+        sorted = new_sorted
+        i = i + 1
+    return sorted
+
+// ============================================================================
+//  GET SUBDIRECTORIES ONLY (for sidebar)
+// ============================================================================
+
+pub fn filter_dirs(entries: Array<FileEntry>) -> Array<FileEntry>:
+    let mut dirs: Array<FileEntry> = []
+    var i: Int = 0
+    while i < len(entries):
+        if entries[i].is_dir:
+            push(dirs, entries[i])
+        i = i + 1
+    return dirs
+
+// ============================================================================
+//  GET FILES ONLY (for main panel, when we want to filter)
+// ============================================================================
+
+pub fn filter_files(entries: Array<FileEntry>) -> Array<FileEntry>:
+    let mut files: Array<FileEntry> = []
+    var i: Int = 0
+    while i < len(entries):
+        if entries[i].is_dir == false:
+            push(files, entries[i])
+        i = i + 1
+    return files
+
+// ============================================================================
+//  GET SHORT DISPLAY FORMAT FOR AN ENTRY
+// ============================================================================
+
+pub fn entry_display_name(entry: FileEntry, max_len: Int) -> String:
+    let name = entry.name
+    if len(name) > max_len:
+        return text_substring_string(name, 0, max_len - 2) + ".."
+    return name
+
+// ============================================================================
+//  FORMAT FILE SIZE (from metadata length)
+// ============================================================================
+
+pub fn format_size(bytes: Int) -> String:
+    if bytes < 1024:
+        return str(bytes) + " B"
+    if bytes < 1024 * 1024:
+        return str(bytes / 1024) + " KB"
+    if bytes < 1024 * 1024 * 1024:
+        return str(bytes / (1024 * 1024)) + " MB"
+    return str(bytes / (1024 * 1024 * 1024)) + " GB"
+
+// ============================================================================
+//  GET PARENT DIRECTORY PATH
+// ============================================================================
+
+pub fn parent_path(path: String) -> String:
+    return fs_path_parent(path)
+
+// ============================================================================
+//  IS ROOT PATH?
+//  Simple check: root paths typically end with ":\" on Windows or are empty
+// ============================================================================
+
+pub fn is_root_path(path: String) -> Bool:
+    if path == "":
+        return true
+    let plen = len(path)
+    // Windows root: "C:\" or "D:\" etc.
+    if plen == 3:
+        let c = text_char_at(text_from(path), 1)
+        if c == ":":
+            return true
+    // Unix root: "/"
+    if plen == 1:
+        let c = text_char_at(text_from(path), 0)
+        if c == "/":
+            return true
+    return false
+
+// ============================================================================
+//  FORMAT MODIFICATION TIME
+//  Takes milliseconds since epoch, returns a human-readable date string
+// ============================================================================
+
+pub fn format_time(millis: Int) -> String:
+    // Simple format: just show the raw millis for now
+    // A full date formatter would need more stdlib support
+    if millis <= 0:
+        return ""
+    // Convert to seconds, format as Unix timestamp approximation
+    let seconds = millis / 1000
+    let days_since_epoch = seconds / 86400
+    let year_approx = 1970 + (days_since_epoch / 365)
+    let day_of_year = days_since_epoch % 365
+    let month_approx = (day_of_year / 30) + 1
+    let day_approx = (day_of_year % 30) + 1
+    return str(year_approx) + "-" + pad2(month_approx) + "-" + pad2(day_approx)
+
+fn pad2(n: Int) -> String:
+    if n < 10:
+        return "0" + str(n)
+    return str(n)

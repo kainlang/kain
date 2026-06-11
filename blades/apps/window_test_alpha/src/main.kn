@@ -1,0 +1,495 @@
+// ============================================================================
+//  BASIC FILE EXPLORER — Pure Kain stdlib
+//
+//  A self-contained directory browser built entirely with Kain's standard
+//  library UI and filesystem modules. No C interop, no Python, no Kaintana.
+//
+//  Ladder rung: Layer 0 (fn) — raw imperative event loop with local state.
+//  State is NOT in a world — the entire app is self-contained in main().
+// ============================================================================
+
+use std::ui
+use std::fs
+use std::runtime
+use std::process
+use std::text
+use std::collections
+use explorer
+use ui_helpers
+
+// ============================================================================
+//  LAYOUT CONSTANTS
+// ============================================================================
+
+const WIN_W: Int = 1200
+const WIN_H: Int = 800
+const TITLE_H: Float = 44.0
+const STATUS_H: Float = 28.0
+const SIDEBAR_W: Float = 280.0
+const DIVIDER_W: Float = 1.0
+const ITEM_H: Float = 28.0
+const ITEM_GAP: Float = 2.0
+const ICON_SIZE: Float = 16.0
+const SIDEBAR_ITEM_H: Float = 24.0
+const SIDEBAR_ITEM_GAP: Float = 1.0
+
+const MAIN_X: Float = SIDEBAR_W + DIVIDER_W
+const MAIN_W: Float = (WIN_W as Float) - MAIN_X
+const CONTENT_Y: Float = TITLE_H
+const CONTENT_H: Float = (WIN_H as Float) - TITLE_H - STATUS_H
+const WIN_WF: Float = WIN_W as Float
+const WIN_HF: Float = WIN_H as Float
+
+const SIDEBAR_VISIBLE: Int = 28
+const MAIN_VISIBLE: Int = 28
+
+// ============================================================================
+//  KEY CODES
+// ============================================================================
+
+const KEY_UP: Int = 38
+const KEY_DOWN: Int = 40
+const KEY_LEFT: Int = 37
+const KEY_RIGHT: Int = 39
+const KEY_ENTER: Int = 13
+const KEY_BACKSPACE: Int = 8
+const KEY_TAB: Int = 9
+const KEY_HOME: Int = 36
+const KEY_END: Int = 35
+const KEY_ESCAPE: Int = 27
+
+// ============================================================================
+//  TRY LOAD DIRECTORY
+// ============================================================================
+
+pub struct LoadResult:
+    entries: Array<FileEntry> = []
+    error: String = ""
+
+pub fn try_load_directory(path: String) -> LoadResult:
+    if fs_exists(path) == false:
+        return LoadResult { entries: [], error: "Path does not exist: " + path }
+    if fs_is_dir(path) == false:
+        return LoadResult { entries: [], error: "Not a directory: " + path }
+    let result_entries = list_directory(path)
+    return LoadResult { entries: result_entries, error: "" }
+
+// ============================================================================
+//  MAIN ENTRY POINT
+// ============================================================================
+
+fn main() -> Int:
+    // --- Initialize native runtime ---
+    let _ = native_runtime_init()
+    defer native_runtime_shutdown()
+
+    // --- Create session with window ---
+    let session = ui_host_session_create(
+        "file-explorer",
+        "Kain File Explorer",
+        WIN_W, WIN_H, "winit",
+    )
+    if session <= 0:
+        return 1
+    defer ui_session_destroy(session)
+
+    // --- Fonts ---
+    let title_font  = ui_font_create(session, "font.title",  "Segoe UI", 20.0)
+    let body_font   = ui_font_create(session, "font.body",   "Segoe UI", 14.0)
+    let small_font  = ui_font_create(session, "font.small",  "Segoe UI", 12.0)
+    let icon_font   = ui_font_create(session, "font.icon",   "Segoe UI", 14.0)
+
+    // --- Application state ---
+    var current_path: String = process_current_working_directory()
+    var entries: Array<FileEntry> = []
+    var sidebar_dirs: Array<FileEntry> = []
+    var sidebar_selected: Int = 0
+    var main_selected: Int = 0
+    var focus_panel: String = "main"
+    var sidebar_scroll: Int = 0
+    var main_scroll: Int = 0
+    var status_msg: String = ""
+
+    // --- Load initial directory by inlining helper logic ---
+    let initial = try_load_directory(current_path)
+    if initial.error == "":
+        entries = initial.entries
+        sidebar_dirs = filter_dirs(entries)
+        status_msg = current_path + "  |  " + str(len(entries)) + " items"
+    else:
+        status_msg = initial.error
+
+    // ====================================================================
+    //  MAIN EVENT LOOP
+    // ====================================================================
+    while ui_host_should_close(session) == 0:
+        ui_host_pump(session)
+        ui_begin_frame(session, 16.0)
+
+        // ================================================================
+        //  BACKGROUND
+        // ================================================================
+        render_filled_box(session, ui_node_create(session, "bg"),
+                          0.0, 0.0, WIN_WF, WIN_HF,
+                          0.08, 0.08, 0.12, 1.0, "bg.fill")
+
+        // ================================================================
+        //  TITLE BAR
+        // ================================================================
+        render_filled_box(session, ui_node_create(session, "title-bar"),
+                          0.0, 0.0, WIN_WF, TITLE_H,
+                          0.14, 0.14, 0.20, 1.0, "title.bar")
+
+        render_label(session, title_font, "Kain File Explorer",
+                     16.0, 30.0, 0.90, 0.92, 0.95, 1.0, "title.text")
+
+        render_label(session, small_font,
+                     "Tab:switch  Arrows:navigate  Enter:open  Bksp:up  Esc:quit",
+                     340.0, 30.0, 0.40, 0.45, 0.55, 1.0, "title.hint")
+
+        // ================================================================
+        //  SIDEBAR
+        // ================================================================
+        let sx: Float = 0.0
+        let sy: Float = CONTENT_Y
+        let sh: Float = CONTENT_H
+
+        render_filled_box(session, ui_node_create(session, "sidebar-bg"),
+                          sx, sy, SIDEBAR_W, sh,
+                          0.11, 0.11, 0.16, 1.0, "sidebar.bg")
+
+        // Sidebar header
+        render_filled_box(session, ui_node_create(session, "sidebar-header"),
+                          sx, sy, SIDEBAR_W, 26.0,
+                          0.16, 0.16, 0.22, 1.0, "sidebar.header")
+
+        let sidebar_header = "Directories (" + str(len(sidebar_dirs)) + ")"
+        render_label(session, small_font, sidebar_header,
+                     sx + 10.0, sy + 18.0,
+                     0.60, 0.65, 0.75, 1.0, "sidebar.header.text")
+
+        // Sidebar items
+        let s_start_y: Float = sy + 28.0
+        let s_count = len(sidebar_dirs)
+        var si: Int = 0
+        while si < SIDEBAR_VISIBLE:
+            let idx = si + sidebar_scroll
+            if idx >= s_count:
+                break
+
+            let item = sidebar_dirs[idx]
+            let iy = s_start_y + (si as Float) * (SIDEBAR_ITEM_H + SIDEBAR_ITEM_GAP)
+            let is_selected = (idx == sidebar_selected) and (focus_panel == "sidebar")
+
+            if is_selected:
+                render_filled_box(session, ui_node_create(session, "sb-sel-" + str(si)),
+                                  sx + 2.0, iy, SIDEBAR_W - 4.0, SIDEBAR_ITEM_H,
+                                  0.22, 0.42, 0.82, 0.5, "sb.sel")
+            elif (si % 2) == 0:
+                render_filled_box(session, ui_node_create(session, "sb-row-" + str(si)),
+                                  sx + 2.0, iy, SIDEBAR_W - 4.0, SIDEBAR_ITEM_H,
+                                  0.13, 0.13, 0.18, 0.25, "sb.row")
+
+            // Folder icon
+            render_icon_box(session, ui_node_create(session, "sb-ic-" + str(si)),
+                            sx + 8.0, iy + 4.0, ICON_SIZE, ICON_SIZE,
+                            0.95, 0.80, 0.20)
+
+            let dname = entry_display_name(item, 24)
+            render_label(session, icon_font, dname,
+                         sx + 30.0, iy + SIDEBAR_ITEM_H - 5.0,
+                         0.75, 0.78, 0.85, 1.0, "sb.name")
+
+            si = si + 1
+
+        // ================================================================
+        //  DIVIDER
+        // ================================================================
+        render_filled_box(session, ui_node_create(session, "divider"),
+                          SIDEBAR_W, CONTENT_Y, DIVIDER_W, CONTENT_H,
+                          0.20, 0.20, 0.28, 1.0, "div.fill")
+
+        // ================================================================
+        //  MAIN PANEL
+        // ================================================================
+        let mx: Float = MAIN_X
+        let my: Float = CONTENT_Y
+        let mh: Float = CONTENT_H
+
+        render_filled_box(session, ui_node_create(session, "main-bg"),
+                          mx, my, MAIN_W, mh,
+                          0.09, 0.09, 0.13, 1.0, "main.bg")
+
+        // Column headers
+        render_filled_box(session, ui_node_create(session, "main-header"),
+                          mx, my, MAIN_W, 24.0,
+                          0.13, 0.13, 0.18, 1.0, "main.header")
+
+        render_label(session, small_font, "Name",
+                     mx + 40.0, my + 17.0,
+                     0.50, 0.55, 0.65, 1.0, "hdr.name")
+        render_label(session, small_font, "Type",
+                     mx + MAIN_W - 160.0, my + 17.0,
+                     0.50, 0.55, 0.65, 1.0, "hdr.type")
+        render_label(session, small_font, "Modified",
+                     mx + MAIN_W - 90.0, my + 17.0,
+                     0.50, 0.55, 0.65, 1.0, "hdr.modified")
+
+        // Main panel items
+        let m_start_y: Float = my + 26.0
+        let m_count = len(entries)
+        var mi: Int = 0
+        while mi < MAIN_VISIBLE:
+            let idx = mi + main_scroll
+            if idx >= m_count:
+                break
+
+            let item = entries[idx]
+            let iy = m_start_y + (mi as Float) * (ITEM_H + ITEM_GAP)
+            let is_selected = (idx == main_selected) and (focus_panel == "main")
+
+            // Row background
+            if is_selected:
+                render_filled_box(session, ui_node_create(session, "m-sel-" + str(mi)),
+                                  mx + 2.0, iy, MAIN_W - 4.0, ITEM_H,
+                                  0.22, 0.42, 0.82, 0.5, "m.sel")
+            elif (mi % 2) == 0:
+                render_filled_box(session, ui_node_create(session, "m-row-" + str(mi)),
+                                  mx + 2.0, iy, MAIN_W - 4.0, ITEM_H,
+                                  0.11, 0.11, 0.16, 0.25, "m.row")
+
+            // Icon
+            let (ic_r, ic_g, ic_b) = icon_color(item.icon_type)
+            render_icon_box(session, ui_node_create(session, "m-ic-" + str(mi)),
+                            mx + 8.0, iy + 6.0, ICON_SIZE, ICON_SIZE,
+                            ic_r, ic_g, ic_b)
+
+            // Name
+            var label = item.name
+            if item.is_dir:
+                label = item.name + "/"
+
+            render_label(session, body_font, label,
+                         mx + 30.0, iy + ITEM_H - 7.0,
+                         0.82, 0.85, 0.92, 1.0, "m.name")
+
+            // Type extension
+            if item.extension != "":
+                render_label(session, small_font, item.extension,
+                             mx + MAIN_W - 155.0, iy + ITEM_H - 7.0,
+                             0.40, 0.45, 0.55, 1.0, "m.ext")
+
+            mi = mi + 1
+
+        // ================================================================
+        //  STATUS BAR
+        // ================================================================
+        let status_y: Float = WIN_HF - STATUS_H
+        render_filled_box(session, ui_node_create(session, "status-bar"),
+                          0.0, status_y, WIN_WF, STATUS_H,
+                          0.14, 0.14, 0.20, 1.0, "status.bar")
+
+        render_label(session, small_font, status_msg,
+                     10.0, status_y + 18.0,
+                     0.60, 0.65, 0.75, 1.0, "status.text")
+
+        var focus_ind = "[Main]"
+        if focus_panel == "sidebar":
+            focus_ind = "[Sidebar]"
+        render_label(session, small_font, focus_ind,
+                     WIN_WF - 100.0, status_y + 18.0,
+                     0.30, 0.70, 0.40, 1.0, "status.focus")
+
+        // ================================================================
+        //  EVENTS
+        // ================================================================
+        var evt: Int = ui_poll_event(session)
+        while evt > 0:
+            let kind: String = ui_event_kind(session)
+            let ex: Float = ui_event_x(session)
+            let ey: Float = ui_event_y(session)
+            let key_code: Int = ui_event_key_code(session)
+
+            // --- Mouse press ---
+            if kind == "press":
+                // Sidebar click
+                var hit: Bool = false
+                var sci: Int = 0
+                while sci < SIDEBAR_VISIBLE:
+                    let sidx = sci + sidebar_scroll
+                    if sidx >= s_count:
+                        break
+                    let siy = s_start_y + (sci as Float) * (SIDEBAR_ITEM_H + SIDEBAR_ITEM_GAP)
+                    if point_in_rect(ex, ey, sx + 2.0, siy, SIDEBAR_W - 4.0, SIDEBAR_ITEM_H):
+                        sidebar_selected = sidx
+                        focus_panel = "sidebar"
+                        hit = true
+                        if sidx < len(sidebar_dirs):
+                            // Navigate to clicked directory
+                            let new_path = sidebar_dirs[sidx].full_path
+                            current_path = new_path
+                            sidebar_selected = 0
+                            main_selected = 0
+                            sidebar_scroll = 0
+                            main_scroll = 0
+                            let result = try_load_directory(current_path)
+                            if result.error == "":
+                                entries = result.entries
+                                sidebar_dirs = filter_dirs(entries)
+                                status_msg = current_path + "  |  " + str(len(entries)) + " items"
+                            else:
+                                status_msg = result.error
+                        break
+                    sci = sci + 1
+
+                // Main panel click
+                if hit == false:
+                    var mci: Int = 0
+                    while mci < MAIN_VISIBLE:
+                        let midx = mci + main_scroll
+                        if midx >= m_count:
+                            break
+                        let miy = m_start_y + (mci as Float) * (ITEM_H + ITEM_GAP)
+                        if point_in_rect(ex, ey, mx + 2.0, miy, MAIN_W - 4.0, ITEM_H):
+                            main_selected = midx
+                            focus_panel = "main"
+                            hit = true
+                            let target = entries[midx]
+                            if target.is_dir:
+                                let new_path = target.full_path
+                                current_path = new_path
+                                sidebar_selected = 0
+                                main_selected = 0
+                                sidebar_scroll = 0
+                                main_scroll = 0
+                                let result = try_load_directory(current_path)
+                                if result.error == "":
+                                    entries = result.entries
+                                    sidebar_dirs = filter_dirs(entries)
+                                    status_msg = current_path + "  |  " + str(len(entries)) + " items"
+                                else:
+                                    status_msg = result.error
+                            else:
+                                status_msg = "File: " + target.full_path
+                            break
+                        mci = mci + 1
+
+            // --- Keyboard ---
+            if kind == "key":
+                if key_code == KEY_TAB:
+                    if focus_panel == "sidebar":
+                        focus_panel = "main"
+                    else:
+                        focus_panel = "sidebar"
+
+                elif key_code == KEY_UP:
+                    if focus_panel == "sidebar":
+                        if sidebar_selected > 0:
+                            sidebar_selected = sidebar_selected - 1
+                            if sidebar_selected < sidebar_scroll:
+                                sidebar_scroll = sidebar_selected
+                    else:
+                        if main_selected > 0:
+                            main_selected = main_selected - 1
+                            if main_selected < main_scroll:
+                                main_scroll = main_selected
+
+                elif key_code == KEY_DOWN:
+                    if focus_panel == "sidebar":
+                        if sidebar_selected < (s_count - 1):
+                            sidebar_selected = sidebar_selected + 1
+                            if sidebar_selected >= (sidebar_scroll + SIDEBAR_VISIBLE):
+                                sidebar_scroll = sidebar_selected - SIDEBAR_VISIBLE + 1
+                    else:
+                        if main_selected < (m_count - 1):
+                            main_selected = main_selected + 1
+                            if main_selected >= (main_scroll + MAIN_VISIBLE):
+                                main_scroll = main_selected - MAIN_VISIBLE + 1
+
+                elif key_code == KEY_ENTER:
+                    if focus_panel == "sidebar":
+                        if sidebar_selected < len(sidebar_dirs):
+                            let new_path = sidebar_dirs[sidebar_selected].full_path
+                            current_path = new_path
+                            sidebar_selected = 0
+                            main_selected = 0
+                            sidebar_scroll = 0
+                            main_scroll = 0
+                            let result = try_load_directory(current_path)
+                            if result.error == "":
+                                entries = result.entries
+                                sidebar_dirs = filter_dirs(entries)
+                                status_msg = current_path + "  |  " + str(len(entries)) + " items"
+                            else:
+                                status_msg = result.error
+                    else:
+                        if main_selected < len(entries):
+                            let target = entries[main_selected]
+                            if target.is_dir:
+                                let new_path = target.full_path
+                                current_path = new_path
+                                sidebar_selected = 0
+                                main_selected = 0
+                                sidebar_scroll = 0
+                                main_scroll = 0
+                                let result = try_load_directory(current_path)
+                                if result.error == "":
+                                    entries = result.entries
+                                    sidebar_dirs = filter_dirs(entries)
+                                    status_msg = current_path + "  |  " + str(len(entries)) + " items"
+                                else:
+                                    status_msg = result.error
+                            else:
+                                status_msg = "File: " + target.full_path
+
+                elif key_code == KEY_BACKSPACE:
+                    let parent = parent_path(current_path)
+                    if parent != current_path:
+                        current_path = parent
+                        sidebar_selected = 0
+                        main_selected = 0
+                        sidebar_scroll = 0
+                        main_scroll = 0
+                        let result = try_load_directory(current_path)
+                        if result.error == "":
+                            entries = result.entries
+                            sidebar_dirs = filter_dirs(entries)
+                            status_msg = current_path + "  |  " + str(len(entries)) + " items"
+                        else:
+                            status_msg = result.error
+
+                elif key_code == KEY_HOME:
+                    if focus_panel == "sidebar":
+                        sidebar_selected = 0
+                        sidebar_scroll = 0
+                    else:
+                        main_selected = 0
+                        main_scroll = 0
+
+                elif key_code == KEY_END:
+                    if focus_panel == "sidebar":
+                        sidebar_selected = s_count - 1
+                        if sidebar_selected >= SIDEBAR_VISIBLE:
+                            sidebar_scroll = sidebar_selected - SIDEBAR_VISIBLE + 1
+                    else:
+                        main_selected = m_count - 1
+                        if main_selected >= MAIN_VISIBLE:
+                            main_scroll = main_selected - MAIN_VISIBLE + 1
+
+                elif key_code == KEY_ESCAPE:
+                    break
+
+                elif key_code == KEY_LEFT:
+                    if focus_panel == "main":
+                        focus_panel = "sidebar"
+
+                elif key_code == KEY_RIGHT:
+                    if focus_panel == "sidebar":
+                        focus_panel = "main"
+
+            evt = ui_poll_event(session)
+
+        // --- Present frame ---
+        ui_present_to_attached_host(session)
+
+    return 0
