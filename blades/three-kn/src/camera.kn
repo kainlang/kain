@@ -164,6 +164,37 @@ pub fn select_projection(cam: CameraState) -> Mat4:
         return mat4_perspective(fov_rad, cam.aspect, cam.near, cam.far)
 
 // ============================================================================
+// CONVERGE — Projection Dispatch (scalar return for verification)
+// ============================================================================
+
+/// Compute a hash of the projection matrix by transforming a test point.
+/// Spec reference: Perspective. Fast lane: Orthographic.
+pub converge projection_point_hash(
+    fov: Float,
+    aspect: Float,
+    near: Float,
+    far: Float,
+    zoom: Float,
+) -> Int:
+    spec perspective:
+        let adjusted_fov = fov / zoom
+        let fov_rad = degrees_to_radians(adjusted_fov)
+        let m = mat4_perspective(fov_rad, aspect, near, far)
+        let p = mat4_transform_point(m, vec3(1.0, 2.0, 3.0))
+        let hash = ((p.x * 1000.0) as Int * 31 + (p.y * 1000.0) as Int * 17 + (p.z * 1000.0) as Int * 13) % 1000000007
+        return hash
+
+    fast orthographic when capability("camera.orthographic"):
+        let half_h = 1.0 / zoom
+        let half_w = half_h * aspect
+        let m = mat4_orthographic(-half_w, half_w, -half_h, half_h, near, far)
+        let p = mat4_transform_point(m, vec3(1.0, 2.0, 3.0))
+        let hash = ((p.x * 1000.0) as Int * 31 + (p.y * 1000.0) as Int * 17 + (p.z * 1000.0) as Int * 13) % 1000000007
+        return hash
+
+    verify random(4)
+
+// ============================================================================
 // PATCH — Projection and View Updates
 // ============================================================================
 
