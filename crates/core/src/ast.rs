@@ -1909,6 +1909,13 @@ pub enum Expr {
         span: Span,
     },
 
+    /// Emit event broadcast: `emit EventName(arg1 = val1, arg2 = val2)`
+    Emit {
+        event: String,
+        data: Vec<(String, Expr)>,
+        span: Span,
+    },
+
     /// Comptime expression: `comptime { expr }`
     Comptime(Box<Expr>, Span),
 
@@ -1999,6 +2006,7 @@ impl Expr {
             | Expr::AsyncBlock(_, s)
             | Expr::Spawn { span: s, .. }
             | Expr::SendMsg { span: s, .. }
+            | Expr::Emit { span: s, .. }
             | Expr::Comptime(_, s)
             | Expr::MacroCall { span: s, .. }
             | Expr::Block(_, s)
@@ -3197,6 +3205,11 @@ fn collect_type_names_from_expr(expr: &Expr, out: &mut HashSet<String>) {
         }
         Expr::SendMsg { target, data, .. } => {
             collect_type_names_from_expr(target, out);
+            for (_, data_expr) in data {
+                collect_type_names_from_expr(data_expr, out);
+            }
+        }
+        Expr::Emit { data, .. } => {
             for (_, data_expr) in data {
                 collect_type_names_from_expr(data_expr, out);
             }

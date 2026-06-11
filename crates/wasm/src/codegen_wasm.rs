@@ -2136,6 +2136,11 @@ impl WasmCompiler {
                     self.collect_actor_locals_in_expr(value, actor_locals);
                 }
             }
+            Expr::Emit { data, .. } => {
+                for (_, value) in data {
+                    self.collect_actor_locals_in_expr(value, actor_locals);
+                }
+            }
             Expr::MacroCall { args, .. } => {
                 for arg in args {
                     self.collect_actor_locals_in_expr(arg, actor_locals);
@@ -2413,6 +2418,11 @@ impl WasmCompiler {
             }
             Expr::SendMsg { target, data, .. } => {
                 self.collect_layout_locals_in_expr(target, layout_locals);
+                for (_, value) in data {
+                    self.collect_layout_locals_in_expr(value, layout_locals);
+                }
+            }
+            Expr::Emit { data, .. } => {
                 for (_, value) in data {
                     self.collect_layout_locals_in_expr(value, layout_locals);
                 }
@@ -3108,6 +3118,11 @@ impl WasmCompiler {
             }
             Expr::SendMsg { target, data, .. } => {
                 self.collect_strings_in_expr(target);
+                for (_, value) in data {
+                    self.collect_strings_in_expr(value);
+                }
+            }
+            Expr::Emit { data, .. } => {
                 for (_, value) in data {
                     self.collect_strings_in_expr(value);
                 }
@@ -5343,6 +5358,11 @@ impl WasmCompiler {
                     self.preallocate_locals_in_expr(value, locals, layout_locals);
                 }
             }
+            Expr::Emit { data, .. } => {
+                for (_, value) in data {
+                    self.preallocate_locals_in_expr(value, locals, layout_locals);
+                }
+            }
             Expr::MacroCall { args, .. } => {
                 for arg in args {
                     self.preallocate_locals_in_expr(arg, locals, layout_locals);
@@ -7424,6 +7444,16 @@ impl WasmCompiler {
                     format!("Unsupported actor send in WASM codegen: {}", message),
                     *span,
                 ));
+            }
+            Expr::Emit {
+                event: _event,
+                data: _data,
+                span: _span,
+            } => {
+                // WASM emit: for now, emit is a no-op.
+                // Subscribers are resolved at compile time and wired later.
+                // Return unit (i32 0) to satisfy the expression result.
+                builder.i32_const(0);
             }
             Expr::If {
                 condition,

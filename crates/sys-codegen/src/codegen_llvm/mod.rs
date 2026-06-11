@@ -1431,7 +1431,7 @@ impl LlvmGenerator {
             }
             Expr::Decay { target, .. } => self.collect_pointer_let_types_from_expr(target),
             Expr::Teleport { value, .. } => self.collect_pointer_let_types_from_expr(value),
-            Expr::Spawn { init, .. } | Expr::SendMsg { data: init, .. } => {
+            Expr::Spawn { init, .. } | Expr::SendMsg { data: init, .. } | Expr::Emit { data: init, .. } => {
                 if let Expr::SendMsg { target, .. } = expr {
                     self.collect_pointer_let_types_from_expr(target);
                 }
@@ -3879,6 +3879,9 @@ impl LlvmGenerator {
             Expr::Spawn { init, .. } => init
                 .iter()
                 .any(|(_, value)| Self::expr_requires_addressable_local(value, name)),
+            Expr::Emit { data, .. } => data
+                .iter()
+                .any(|(_, value)| Self::expr_requires_addressable_local(value, name)),
             Expr::SendMsg { target, data, .. } => {
                 Self::expr_requires_addressable_local(target, name)
                     || data
@@ -4440,6 +4443,9 @@ impl LlvmGenerator {
             Expr::Spawn { init, .. } => init
                 .iter()
                 .any(|(_, value)| Self::expr_has_loop_that_mentions_identifier(value, target)),
+            Expr::Emit { data, .. } => data
+                .iter()
+                .any(|(_, value)| Self::expr_has_loop_that_mentions_identifier(value, target)),
             Expr::SendMsg {
                 target: msg_target,
                 data,
@@ -4757,8 +4763,18 @@ impl LlvmGenerator {
                     Self::collect_expr_assigned_identifier_names(value, assigned);
                 }
             }
+            Expr::Emit { data, .. } => {
+                for (_, value) in data {
+                    Self::collect_expr_assigned_identifier_names(value, assigned);
+                }
+            }
             Expr::SendMsg { target, data, .. } => {
                 Self::collect_expr_assigned_identifier_names(target, assigned);
+                for (_, value) in data {
+                    Self::collect_expr_assigned_identifier_names(value, assigned);
+                }
+            }
+            Expr::Emit { data, .. } => {
                 for (_, value) in data {
                     Self::collect_expr_assigned_identifier_names(value, assigned);
                 }
@@ -5391,6 +5407,9 @@ impl LlvmGenerator {
             }
             Expr::Teleport { value, .. } => Self::expr_is_safe_for_ephemeral_local(value, target),
             Expr::Spawn { init, .. } => init
+                .iter()
+                .all(|(_, value)| Self::expr_is_safe_for_ephemeral_local(value, target)),
+            Expr::Emit { data, .. } => data
                 .iter()
                 .all(|(_, value)| Self::expr_is_safe_for_ephemeral_local(value, target)),
             Expr::SendMsg {
@@ -12507,6 +12526,15 @@ impl LlvmGenerator {
         hash
     }
 
+    fn hash_emit_message_tag(event: &str) -> i64 {
+        let s = format!("__emit__::{}", event);
+        let mut hash: i64 = 5381;
+        for c in s.bytes() {
+            hash = ((hash << 5).wrapping_add(hash)) ^ (c as i64);
+        }
+        hash
+    }
+
     fn llvm_type_is_reply_port(&self, ty: &str) -> bool {
         ty == REPLY_PORT_LLVM_TYPE
     }
@@ -14629,9 +14657,11 @@ impl LlvmGenerator {
         self.emit("declare void @kain_machine_shatter_free(i8*)");
 
         // Canonical actor runtime ABI
+        self.emit("declare void @kain_actor_runtime_init()");
         self.emit("declare void @kain_actor_spawn_config_init(%KainActorSpawnConfig*)");
         self.emit("declare i64 @kain_actor_spawn(%KainActorSpawnConfig*, i8*)");
         self.emit("declare i32 @kain_actor_send(i64, %KainActorMessage*, i8*)");
+        self.emit("declare i32 @kain_event_emit(i8*, %KainActorMessage*, i8*)");
         self.emit("declare i32 @kain_actor_ask_send_ref(%KainActorRef*, %KainActorMessage*, i8*)");
         self.emit("declare i32 @kain_actor_receive(i8*, %KainActorMessage*, i8*)");
         self.emit("declare i32 @kain_actor_try_receive(i8*, %KainActorMessage*, i8*)");
@@ -15211,6 +15241,9 @@ impl LlvmGenerator {
 
         if is_main && !self.native_entanglements.is_empty() {
             self.emit("  call void @__kain_register_entanglements()");
+        }
+        if is_main {
+            self.emit("  call void @kain_actor_runtime_init()");
         }
         if is_main {
             self.emit_machine_stones_entry_preamble();
@@ -19617,6 +19650,70 @@ impl LlvmGenerator {
                 self.emit(&format!(
                     "  {} = call i32 @kain_actor_send(i64 {}, %KainActorMessage* {}, i8* null)",
                     send_status, target_id, message_ptr
+                ));
+                Ok(("0".into(), "i64".into()))
+            }
+            Expr::Emit {
+                event,
+                data: _data,
+                span: _span,
+            } => {
+                // 1. Get or create the event name string global
+                let global_name = self.intern_string_global_name(event);
+                let event_ptr = self.next_reg();
+                let len = event.len() + 1;
+                self.emit(&format!(
+                    "  {} = getelementptr inbounds [{} x i8], [{} x i8]* {}, i64 0, i64 0",
+                    event_ptr, len, len, global_name
+                ));
+
+                // 2. Hash the emit message tag
+                let message_tag = Self::hash_emit_message_tag(event);
+
+                // 3. Allocate KainActorMessage on stack
+                let msg_ptr = self.next_reg();
+                self.emit_entry_alloca(&msg_ptr, "%KainActorMessage");
+
+                // 4. Set type_tag
+                let tag_ptr = self.next_reg();
+                self.emit(&format!(
+                    "  {} = getelementptr inbounds %KainActorMessage, %KainActorMessage* {}, i32 0, i32 0",
+                    tag_ptr, msg_ptr
+                ));
+                self.emit(&format!(
+                    "  store i64 {}, i64* {}",
+                    message_tag, tag_ptr
+                ));
+
+                // 5. Set data (null for now — runtime handles emit payload)
+                let data_ptr = self.next_reg();
+                self.emit(&format!(
+                    "  {} = getelementptr inbounds %KainActorMessage, %KainActorMessage* {}, i32 0, i32 1",
+                    data_ptr, msg_ptr
+                ));
+                self.emit(&format!("  store i8* null, i8** {}", data_ptr));
+
+                // 6. Set data_size = 0
+                let size_ptr = self.next_reg();
+                self.emit(&format!(
+                    "  {} = getelementptr inbounds %KainActorMessage, %KainActorMessage* {}, i32 0, i32 2",
+                    size_ptr, msg_ptr
+                ));
+                self.emit(&format!("  store i64 0, i64* {}", size_ptr));
+
+                // 7. Set sender_id = 0 (broadcast)
+                let sender_ptr = self.next_reg();
+                self.emit(&format!(
+                    "  {} = getelementptr inbounds %KainActorMessage, %KainActorMessage* {}, i32 0, i32 3",
+                    sender_ptr, msg_ptr
+                ));
+                self.emit(&format!("  store i64 0, i64* {}", sender_ptr));
+
+                // 8. Call kain_event_emit
+                let status = self.next_reg();
+                self.emit(&format!(
+                    "  {} = call i32 @kain_event_emit(i8* {}, %KainActorMessage* {}, i8* null)",
+                    status, event_ptr, msg_ptr
                 ));
                 Ok(("0".into(), "i64".into()))
             }

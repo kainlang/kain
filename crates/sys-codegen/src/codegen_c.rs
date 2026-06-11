@@ -841,6 +841,15 @@ impl CGen {
                 self.escape_string(message),
                 self.escape_string(&self.render_actor_payload_pairs(data)?)
             )),
+            Expr::Emit {
+                event,
+                data,
+                ..
+            } => Ok(format!(
+                "abi_event_emit(\"{}\", \"{}\")",
+                self.escape_string(event),
+                self.escape_string(&self.render_actor_payload_pairs(data)?)
+            )),
             Expr::Field { object, field, .. } => self.gen_field_access(object, field),
             Expr::Index { object, index, .. } => Ok(format!(
                 "{}[{}]",
@@ -1010,7 +1019,7 @@ impl CGen {
             Expr::Ident(name, _) if self.world_names.contains(name) => Ok(format!("{name}*")),
             Expr::Struct { name, .. } => Ok(name.clone()),
             Expr::Teleport { value, .. } => self.infer_expr_type(value),
-            Expr::Spawn { .. } | Expr::SendMsg { .. } => Ok("int64_t".to_string()),
+            Expr::Spawn { .. } | Expr::SendMsg { .. } | Expr::Emit { .. } => Ok("int64_t".to_string()),
             Expr::Call { callee, .. } => {
                 if let Expr::Ident(name, _) = callee.as_ref() {
                     if let Some(return_type) = self.function_return_types.get(name) {

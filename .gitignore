@@ -9,6 +9,10 @@ private/
 *.lnk
 *.exe
 /spec
+*.ptx
+*.spv
+*.wgsl
+*.hlsl
 spec/
 /packages/ephemaris
 blades/c/ephemaris/

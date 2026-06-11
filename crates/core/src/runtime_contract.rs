@@ -1959,6 +1959,9 @@ fn expr_contains_ownership_expr(expr: &Expr) -> bool {
         Expr::Spawn { init, .. } => init
             .iter()
             .any(|(_, value)| expr_contains_ownership_expr(value)),
+        Expr::Emit { data, .. } => data
+            .iter()
+            .any(|(_, value)| expr_contains_ownership_expr(value)),
         Expr::Block(block, _) => block_contains_ownership_expr(block),
         _ => false,
     }
@@ -2130,6 +2133,9 @@ fn expr_contains_shared_fanout_expr(expr: &Expr) -> bool {
                     .iter()
                     .any(|(_, value)| expr_contains_shared_fanout_expr(value))
         }
+        Expr::Emit { data, .. } => data
+            .iter()
+            .any(|(_, value)| expr_contains_shared_fanout_expr(value)),
         Expr::Spawn { init, .. } => init
             .iter()
             .any(|(_, value)| expr_contains_shared_fanout_expr(value)),
@@ -2304,6 +2310,9 @@ fn expr_contains_atomic_seqcst_expr(expr: &Expr) -> bool {
                     .iter()
                     .any(|(_, value)| expr_contains_atomic_seqcst_expr(value))
         }
+        Expr::Emit { data, .. } => data
+            .iter()
+            .any(|(_, value)| expr_contains_atomic_seqcst_expr(value)),
         Expr::Spawn { init, .. } => init
             .iter()
             .any(|(_, value)| expr_contains_atomic_seqcst_expr(value)),
@@ -2503,6 +2512,9 @@ fn expr_contains_teleport_expr(expr: &Expr) -> bool {
                     .iter()
                     .any(|(_, value)| expr_contains_teleport_expr(value))
         }
+        Expr::Emit { data, .. } => data
+            .iter()
+            .any(|(_, value)| expr_contains_teleport_expr(value)),
         Expr::Spawn { init, .. } => init
             .iter()
             .any(|(_, value)| expr_contains_teleport_expr(value)),

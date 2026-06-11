@@ -2717,6 +2717,7 @@ fn expr_kind_name(expr: &Expr) -> &'static str {
         Expr::AsyncBlock(..) => "AsyncBlock",
         Expr::Spawn { .. } => "Spawn",
         Expr::SendMsg { .. } => "SendMsg",
+        Expr::Emit { .. } => "Emit",
         Expr::Comptime(..) => "Comptime",
         Expr::Block(..) => "Block",
         Expr::JSX(..) => "JSX",

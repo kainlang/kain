@@ -495,6 +495,7 @@ pub enum ConfigCommand {
 #[derive(Subcommand, Debug)]
 pub enum KainCommand {
     /// Initialize a new KAIN project
+    #[command(visible_alias = "i")]
     Init {
         /// Project name
         #[arg(default_value = ".")]
@@ -569,13 +570,14 @@ pub enum KainCommand {
     },
 
     /// Show binary/build diagnostics and resolved compiler capabilities
+    #[command(visible_alias = "d")]
     Doctor {
         #[command(flatten)]
         repair: DoctorRepairArgs,
     },
 
     /// Format Kain source using the compiler-owned canonical printer
-    #[command(visible_alias = "fmt")]
+    #[command(visible_alias = "fmt", visible_alias = "f")]
     Format {
         /// Input Kain source files or directories. Use '-' or piped stdin.
         inputs: Vec<PathBuf>,
@@ -626,6 +628,7 @@ pub enum KainCommand {
     },
 
     /// Check Kain source without emitting backend artifacts
+    #[command(visible_alias = "c")]
     Check {
         /// Input Kain source file or directory. Use '-' to read from stdin.
         input: PathBuf,
@@ -648,6 +651,7 @@ pub enum KainCommand {
     },
 
     /// Run Kain source tests using Rust-style pass/fail directives
+    #[command(visible_alias = "t")]
     Test {
         /// Input Kain source file or directory
         input: PathBuf,
@@ -702,6 +706,7 @@ pub enum KainCommand {
     },
 
     /// Pack, inspect, and unpack portable Kain source capsules
+    #[command(visible_alias = "a")]
     Amalgamate {
         #[command(subcommand)]
         command: Option<AmalgamateCommand>,
@@ -771,6 +776,7 @@ pub enum KainCommand {
     },
 
     /// Build a file, project, or build authority. Without input, builds the current project.
+    #[command(visible_alias = "b")]
     Build {
         #[command(subcommand)]
         command: Option<BuildCommand>,
@@ -815,6 +821,7 @@ pub enum KainCommand {
     },
 
     /// Clean generated .kain roots for the current workspace
+    #[command(visible_alias = "cl")]
     Clean {
         /// Path inside the workspace to clean
         #[arg(default_value = ".")]
@@ -862,6 +869,7 @@ pub enum KainCommand {
     Repl,
 
     /// Run a file, blade, manifest, or workspace through the unified run pipeline
+    #[command(visible_alias = "r")]
     Run {
         #[command(subcommand)]
         command: Option<RunCommand>,

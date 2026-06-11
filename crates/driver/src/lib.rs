@@ -2745,6 +2745,11 @@ fn collect_implicit_root_stdlib_modules_from_expr(
                 collect_implicit_root_stdlib_modules_from_expr(value, symbol_lookup, module_names);
             }
         }
+        Expr::Emit { data, .. } => {
+            for (_, value) in data {
+                collect_implicit_root_stdlib_modules_from_expr(value, symbol_lookup, module_names);
+            }
+        }
         Expr::Block(block, _) => {
             collect_implicit_root_stdlib_modules_from_block(block, symbol_lookup, module_names);
         }

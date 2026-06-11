@@ -1339,6 +1339,20 @@ impl KsGen {
                 }
                 out.push(')');
             }
+            Expr::Emit {
+                event,
+                data,
+                ..
+            } => {
+                out.push_str(&format!("emit {}()", event));
+                for (i, (_, v)) in data.iter().enumerate() {
+                    if i > 0 {
+                        out.push_str(", ");
+                    }
+                    self.expr_to_str(v, out);
+                }
+                out.push(')');
+            }
             Expr::MacroCall { name, args, .. } => match name.as_str() {
                 "print" | "println" | "eprintln" => {
                     out.push_str("console.log(");

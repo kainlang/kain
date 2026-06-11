@@ -1996,6 +1996,13 @@ fn expr_to_string_prec(expr: &kain_core::ast::Expr, parent_prec: u8) -> String {
                 .map(|(name, value)| format!("{name} = {}", expr_to_string(value)))
                 .collect::<Vec<_>>(),
         ),
+        Expr::Emit { event, data, .. } => render_call_like(
+            &format!("emit {}", event),
+            &data
+                .iter()
+                .map(|(name, value)| format!("{name} = {}", expr_to_string(value)))
+                .collect::<Vec<_>>(),
+        ),
         Expr::Comptime(value, _) => match value.as_ref() {
             Expr::Block(block, _) => format!("comptime:\n{}", block_to_string(block, 1)),
             other => format!("comptime {}", expr_to_string(other)),

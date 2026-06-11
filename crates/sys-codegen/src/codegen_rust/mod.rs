@@ -2702,6 +2702,15 @@ impl RustGen {
                 };
                 format!("{{ let _target = {}; let _message = \"{}\"; let _data = {}; () }}", self.gen_expr(target), message, data_expr)
             }
+            Expr::Emit { event, data, .. } => {
+                let data_expr = if data.is_empty() {
+                    "()".to_string()
+                } else {
+                    let fields: Vec<String> = data.iter().map(|(name, value)| format!("{}: {}", name, self.gen_expr(value))).collect();
+                    format!("{{ {} }}", fields.join(", "))
+                };
+                format!("{{ let _event = \"{}\"; let _data = {}; () }}", event, data_expr)
+            }
             Expr::Comptime(expr, _) => self.gen_expr(expr),
             Expr::Block(block, _) => self.gen_block_expr(block),
             Expr::JSX(node, _) => self.gen_jsx(node),
@@ -3260,7 +3269,7 @@ impl RustGen {
             Expr::Cast { value, .. } | Expr::Bitcast { value, .. } => {
                 self.collect_mutated_bindings_in_expr(value, names)
             }
-            Expr::Spawn { init, .. } | Expr::SendMsg { data: init, .. } => {
+            Expr::Spawn { init, .. } | Expr::SendMsg { data: init, .. } | Expr::Emit { data: init, .. } => {
                 for (_, value) in init {
                     self.collect_mutated_bindings_in_expr(value, names);
                 }

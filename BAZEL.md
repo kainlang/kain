@@ -18,6 +18,21 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
+## Fast Paths (TL;DR)
+
+| Task | Command |
+|------|---------|
+| **Sync everything** (compiler + runtime lib, the One True Command) | `kain_sync_binary` |
+| Build + sync compiler only | `kain_bazel action:'build' target:'//:kain'` then `kain_sync_binary` |
+| Build runtime lib only | `bazel build //runtime:native_core_runtime --config=dev` then `kain_sync_binary` |
+| Check if everything is fresh | `kain_bazel action:'freshness'` |
+| Full diagnostic | `kain doctor` |
+| Warm the Bazel server | `kain_bazel action:'server' server_action:'start'` |
+
+**`kain_sync_binary` now syncs BOTH the Rust compiler binary AND the native C runtime library (`kain_runtime.lib` / `.a`).** There is no longer a separate `python scripts/python/kain_bazel_sync.py sync` step.
+
+______________________________________________________________________
+
 ## 1. Architecture Overview
 
 The Kain repo uses **Bazel** as its build system. The build produces:
@@ -27,13 +42,15 @@ The Kain repo uses **Bazel** as its build system. The build produces:
 | kain.exe | crates/cli/ | //:kain | ~/.kain/bin/kain.exe |
 | kn.exe | crates/cli/ | //:kn | ~/.kain/bin/kn.exe |
 | blade.exe | crates/cli/ | //:blade | ~/.kain/bin/blade.exe |
+| kain_runtime.lib | runtime/native/ | //runtime:native_core_runtime | ~/.kain/lib/kain_runtime.lib |
 
 **The build flow:**
-Source code -> Bazel compile -> Bazel output base -> Sync -> ~/.kain/bin/
+Source code -> Bazel compile -> Bazel output base -> Sync -> ~/.kain/bin/ + ~/.kain/lib/
 
 The **kain_sync_binary** tool copies from the Bazel output base to the
-active ~/.kain/bin/ directory. This is the canonical way to update
-the binary the agent uses.
+active ~/.kain/bin/ directory AND archives the native C runtime into
+~/.kain/lib/. This is the canonical way to update **everything** the
+agent needs.
 
 ______________________________________________________________________
 
@@ -113,8 +130,10 @@ This will:
 
 1. Check the Bazel server is alive
 1. Find the output base via bazel info output_base
+1. **Build //runtime:native_core_runtime --config=dev** (fast if cached)
+1. **Archive .obj files into kain_runtime.lib** (Windows) or copy .a (POSIX)
 1. Look for existing kain.exe in bazel-out/
-1. Build //:kain --config=dev if no binary exists
+1. Build //:kain --config=dev if source stamp changed
 1. Copy to ~/.kain/bin/kain.exe (with .bak backup)
 1. Also sync kn.exe if found
 1. Verify with kain doctor
@@ -132,6 +151,15 @@ kain doctor
 ### Sync stamp
 
 Tracked at ~/.kain/state/state/kain_sync_stamp.json
+
+### Historical Note: The Split Pipeline (Pre-2026-06-10)
+
+Prior to 2026-06-10, `kain_sync_binary` only synced the Rust compiler binary.
+The native C runtime library had to be synced separately via
+`python scripts/python/kain_bazel_sync.py sync`. This split caused
+countless hours of debugging wasted on stale runtime artifacts.
+As of the fix, `kain_sync_binary` syncs everything in one command.
+The legacy `sync` subcommand still works but is no longer needed.
 
 ______________________________________________________________________
 

@@ -1530,6 +1530,26 @@ impl TSGen {
                 self.write(")");
             }
 
+            Expr::Emit {
+                event,
+                data,
+                ..
+            } => {
+                self.write(&format!("emit(\"{}\"", event));
+                if !data.is_empty() {
+                    self.write(", {");
+                    for (i, (name, expr)) in data.iter().enumerate() {
+                        if i > 0 {
+                            self.write(", ");
+                        }
+                        self.write(&format!("{}: ", name));
+                        self.gen_expr(expr);
+                    }
+                    self.write("}");
+                }
+                self.write(")");
+            }
+
             Expr::Decay { target, .. } => {
                 self.write("(() => { void ");
                 self.gen_expr(target);

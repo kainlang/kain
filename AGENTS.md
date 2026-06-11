@@ -263,16 +263,18 @@ bazel build //runtime:native_core_runtime --config=dev
 
 ### Syncing to ~/.kain/bin/ — MANDATORY AFTER EVERY BUILD
 
-**Do this every time you build.** A stale binary causes "unsupported flags" errors and missing features.
+**Do this every time you build.** A stale binary causes "unsupported flags" errors and missing features. A stale runtime library causes linker failures and access violations at runtime.
 
 ```powershell
-# One-step sync (builds if needed + copies + verifies)
+# One-step sync (builds if needed + copies + verifies — BOTH compiler AND native runtime)
 kain_sync_binary
 
 # Check if binary is stale
 kain doctor          # look for "Managed Sync Repo Status: drift"
 kain_status          # shows build time, age, git info
 ```
+
+`kain_sync_binary` now also rebuilds & syncs the native C runtime library (`kain_runtime.lib` / `.a`). You no longer need to run `python scripts/python/kain_bazel_sync.py sync` separately.
 
 ### Server Lifecycle
 

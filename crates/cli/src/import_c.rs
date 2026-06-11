@@ -1449,6 +1449,18 @@ fn expr_to_string(expr: &kain_core::ast::Expr) -> String {
                 .join(", ");
             format!("send {}.{}({args})", expr_to_string(target), message)
         }
+        kain_core::ast::Expr::Emit {
+            event,
+            data,
+            ..
+        } => {
+            let args = data
+                .iter()
+                .map(|(name, value)| format!("{name} = {}", expr_to_string(value)))
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!("emit {event}({args})")
+        }
         kain_core::ast::Expr::Comptime(_, _) => "none".to_string(),
         kain_core::ast::Expr::Block(block, _) => {
             if let Some(expr) = single_expr_from_block(block) {

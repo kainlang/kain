@@ -7626,6 +7626,17 @@ pub fn eval_expr(env: &mut Env, expr: &Expr) -> KainResult<Value> {
             }
         }
 
+        Expr::Emit {
+            event: _,
+            data: _,
+            ..
+        } => {
+            // Emit in the interpreter: the interpreter doesn't have a native
+            // event bus, so emit is a no-op that returns Unit.
+            // Native codegen handles the actual event emission.
+            Ok(Value::Unit)
+        }
+
         // Block expression: { stmts }
         Expr::Block(block, _) => eval_block(env, block),
 
@@ -8741,6 +8752,7 @@ fn expr_contains_runtime_best_effort_effects(expr: &Expr) -> bool {
         | Expr::StageCall { .. }
         | Expr::Spawn { .. }
         | Expr::SendMsg { .. }
+        | Expr::Emit { .. }
         | Expr::Await(_, _)
         | Expr::AsyncBlock(_, _) => true,
         Expr::Assign { target, value, .. } => {

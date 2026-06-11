@@ -7388,6 +7388,7 @@ fn expr_uses_kain_runtime(expr: &Expr) -> bool {
         Expr::SendMsg { target, data, .. } => {
             expr_uses_kain_runtime(target) || data.iter().any(|(_, e)| expr_uses_kain_runtime(e))
         }
+        Expr::Emit { data, .. } => data.iter().any(|(_, e)| expr_uses_kain_runtime(e)),
         Expr::Block(block, _) => block_uses_kain_runtime(block),
         Expr::JSX(_, _) => false,
         Expr::Return(value, _) | Expr::Break(value, _) => value

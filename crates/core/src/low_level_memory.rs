@@ -1819,6 +1819,21 @@ fn lower_expr_memory_with_ctx(expr: &Expr, ctx: &mut FunctionMemoryCtx<'_>) -> E
                 span: *span,
             }
         }
+        Expr::Emit {
+            event,
+            data,
+            span,
+        } => {
+            let mut lowered_data: Vec<(String, Expr)> = Vec::new();
+            for (name, value) in data.iter() {
+                lowered_data.push((name.clone(), lower_expr_memory_with_ctx(value, ctx)));
+            }
+            Expr::Emit {
+                event: event.clone(),
+                data: lowered_data,
+                span: *span,
+            }
+        }
         Expr::Comptime(inner, inner_span) => Expr::Comptime(
             Box::new(lower_expr_memory_with_ctx(inner, ctx)),
             *inner_span,
@@ -3170,7 +3185,7 @@ fn first_memory_expr_context(expr: &Expr, base: String) -> Option<String> {
             }
         }
         Expr::Lambda { body, .. } => first_memory_expr_context(body, base),
-        Expr::Spawn { init, .. } | Expr::SendMsg { data: init, .. } => {
+        Expr::Spawn { init, .. } | Expr::SendMsg { data: init, .. } | Expr::Emit { data: init, .. } => {
             first_memory_expr_context_from_pairs(init, base)
         }
         Expr::Block(block, _) => first_memory_block_context(block, base),

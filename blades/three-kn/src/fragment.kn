@@ -151,7 +151,9 @@ shader fragment shade_depth_frag(frag_pos: Vec4, uv: Vec2) -> Vec4:
 
 /// Shadow only
 shader fragment shade_shadow_frag(frag_pos: Vec4, uv: Vec2) -> Vec4:
-    return vec4(0.0, 0.0, 0.0, 1.0)
+    let zero: Float = 0.0
+    let one: Float = 1.0
+    return vec4(zero, zero, zero, one)
 
 // ============================================================================
 // Wrapper functions for converge lanes (shader items not directly callable)

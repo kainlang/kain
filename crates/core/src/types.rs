@@ -5132,6 +5132,12 @@ fn collect_reply_contract_type_from_expr(
             }
             Ok(())
         }
+        Expr::Emit { data, .. } => {
+            for (_, value) in data {
+                collect_reply_contract_type_from_expr(env, value, reply_port_name, reply_type)?;
+            }
+            Ok(())
+        }
         Expr::Block(block, _) => {
             collect_reply_contract_type(env, block, reply_port_name, reply_type)
         }
@@ -6711,7 +6717,7 @@ fn collect_patch_mutation_paths_from_expr(expr: &Expr, output: &mut Vec<String>)
             collect_patch_mutation_paths_from_expr(target, output);
             collect_patch_mutation_paths_from_expr(body, output);
         }
-        Expr::Spawn { init, .. } | Expr::SendMsg { data: init, .. } => {
+        Expr::Spawn { init, .. } | Expr::SendMsg { data: init, .. } | Expr::Emit { data: init, .. } => {
             for (_, value) in init {
                 collect_patch_mutation_paths_from_expr(value, output);
             }
@@ -6822,6 +6828,7 @@ fn expr_requires_best_effort_patch_mode(expr: &Expr) -> bool {
         | Expr::StageCall { .. }
         | Expr::Spawn { .. }
         | Expr::SendMsg { .. }
+        | Expr::Emit { .. }
         | Expr::Await(_, _)
         | Expr::AsyncBlock(_, _) => true,
         Expr::Assign { target, value, .. } => {
@@ -7226,7 +7233,7 @@ fn first_stage_call_in_expr(expr: &Expr) -> Option<Span> {
         | Expr::Share { target, body, .. } => {
             first_stage_call_in_expr(target).or_else(|| first_stage_call_in_expr(body))
         }
-        Expr::Spawn { init, .. } | Expr::SendMsg { data: init, .. } => init
+        Expr::Spawn { init, .. } | Expr::SendMsg { data: init, .. } | Expr::Emit { data: init, .. } => init
             .iter()
             .find_map(|(_, value)| first_stage_call_in_expr(value)),
         Expr::Return(value, _) | Expr::Break(value, _) => value
@@ -9252,6 +9259,7 @@ fn infer_expr_type(
         )?))),
         Expr::Spawn { actor, .. } => Ok(ResolvedType::Struct(actor.clone(), HashMap::new())),
         Expr::SendMsg { .. } => Ok(ResolvedType::Unit),
+        Expr::Emit { .. } => Ok(ResolvedType::Unit),
         Expr::Comptime(value, _) => infer_expr_type(env, value, ctx),
         Expr::MacroCall { name, args, .. } => infer_macro_type(env, name, args, ctx),
         Expr::JSX(node, _) => {
@@ -9596,6 +9604,11 @@ fn ownership_expr_contains_early_exit(expr: &Expr) -> bool {
                 || data
                     .iter()
                     .any(|(_, value)| ownership_expr_contains_early_exit(value))
+        }
+        Expr::Emit { data, .. } => {
+            data
+                .iter()
+                .any(|(_, value)| ownership_expr_contains_early_exit(value))
         }
         Expr::Block(block, _) => ownership_block_contains_early_exit(block),
         Expr::Lambda { .. } => false,

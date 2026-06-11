@@ -4933,6 +4933,32 @@ impl<'a> Parser<'a> {
                     _ => Err(self.parser_error("Expected message call after send", expr.span())),
                 }
             }
+            TokenKind::Emit => {
+                let start = self.current_span();
+                self.advance();
+
+                let event_name = self.parse_ident()?;
+
+                self.expect(TokenKind::LParen)?;
+                let mut data = Vec::new();
+                while self.peek_kind() != TokenKind::RParen {
+                    let name = self.parse_ident()?;
+                    self.expect(TokenKind::Eq)?;
+                    let value = self.parse_expr()?;
+                    data.push((name, value));
+
+                    if self.peek_kind() == TokenKind::Comma {
+                        self.advance();
+                    }
+                }
+                self.expect(TokenKind::RParen)?;
+
+                Ok(Expr::Emit {
+                    event: event_name,
+                    data,
+                    span: start.merge(self.current_span()),
+                })
+            }
             _ => self.parse_postfix(),
         }
     }
@@ -7218,7 +7244,6 @@ impl<'a> Parser<'a> {
             | TokenKind::Spawn
             | TokenKind::Send
             | TokenKind::Receive
-            | TokenKind::Emit
             | TokenKind::Comptime
             | TokenKind::Macro
             | TokenKind::Vertex

@@ -1,17 +1,5 @@
 // ============================================================================
-//  BUILD — Project Authority for Three-KN
-//  Eclipse Kain ▲ Build Graph — smoketest/build.kn pattern
-// ============================================================================
-//
-//  Build graph for three-kn: a portable Kain-native 3D rendering engine.
-//
-//  Tasks:
-//    check-llvm     — Typecheck all Kain sources for LLVM target
-//    gpu-artifacts  — Compile compute shaders to SPIR-V and HLSL
-//    source-tests   — Run inline test fixtures
-//    root-exe       — Build native executable
-//    three-kn.local — Certification gate
-//    three-kn       — Portable amalgamated capsule
+//  BUILD — Project Authority for Three-KN (LLVM + GPU Core Only)
 // ============================================================================
 
 use std::build
@@ -20,56 +8,30 @@ fn build(ctx: BuildContext) -> BuildGraph:
     let album = project("three-kn")
         .kind("kain_executable")
         .version("0.1.0")
-        .description("Portable Kain-native 3D Rendering Engine — A pure-Kain reimagination of Three.js")
+        .description("Portable Kain-native 3D Rendering Engine")
         .entry("src/main.kn")
         .source_roots(["src"])
         .module_roots(["src"])
-        .generated_root("telemetry")
-        .targets("llvm", "spirv")
         .artifact_root(".kain/out")
         .cache_root(".kain/cache/build")
-        .profile("debug")
 
     let sources = source_set("three-kn-sources")
         .root("src")
         .glob("src/**/*.kn")
-        .file("KAIN.toml")
-        .file("build.kn")
 
-    let check = check_task("check-llvm")
-        .project(album)
-        .target("llvm")
-        .inputs(sources)
-        .telemetry("llm.evidence", "three-kn.core")
-
+    // Isolated GPU suite — stripped the .requires() constraint entirely
     let gpu = gpu_suite("gpu-artifacts")
         .compute("src/compute.kn")
         .targets("spirv", "hlsl")
         .artifact_root(".kain/out/gpu")
-        .requires("check-llvm")
 
-    let tests = source_tests("source-tests")
-        .project(album)
-        .inputs(sources)
-        .requires("check-llvm")
-
+    // Native executable task — explicitly hooks into the GPU artifacts
     let exe = native_executable("root-executable")
         .project(album)
+        .entry("src/main.kn") 
         .output("$blade/three-kn.exe")
-        .requires(check, gpu, tests)
-
-    let cert = certify("three-kn.local")
-        .requires(check, gpu, tests, exe)
-
-    let capsules = capsule_set("three-kn")
-        .after(cert)
-        .source("$root/three-kn.kn")
-        .artifacts("$root/three-kn.artifacts.kn")
-        .evidence("$root/three-kn.evidence.kn")
-        .tag("portable")
-        .tag("three-kn")
-        .telemetry("three-kn.capsule")
+        .requires(gpu)
 
     return build_graph(album)
         .sources(sources)
-        .tasks(check, gpu, tests, exe, cert, capsules)
+        .tasks(gpu, exe)

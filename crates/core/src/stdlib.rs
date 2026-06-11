@@ -1264,6 +1264,24 @@ impl StdLib {
             "Send message",
         );
         lib.add_fn(
+            "emit",
+            &[("event", "String"), ("payload", "Any")],
+            "Unit",
+            "Emit an event to all subscribed actors",
+        );
+        lib.add_fn(
+            "actor_event_subscribe",
+            &[("actor", "ActorRef"), ("event_name", "String")],
+            "Int",
+            "Subscribe an actor to an event topic",
+        );
+        lib.add_fn(
+            "actor_event_unsubscribe",
+            &[("actor", "ActorRef"), ("event_name", "String")],
+            "Int",
+            "Unsubscribe an actor from an event topic",
+        );
+        lib.add_fn(
             "ask",
             &[
                 ("actor", "ActorRef"),

@@ -1313,6 +1313,7 @@ pub(crate) fn render_authored_expr_contract(expr: &Expr) -> String {
         | Expr::AsyncBlock(_, _)
         | Expr::Spawn { .. }
         | Expr::SendMsg { .. }
+        | Expr::Emit { .. }
         | Expr::Comptime(_, _)
         | Expr::Block(_, _)
         | Expr::JSX(_, _)

@@ -16,6 +16,7 @@ sources = [
     "native/src/core/services.c",
     "native/src/core/contract.c",
     "native/src/core/entangle.c",
+    "native/src/core/event.c",
     "native/src/core/cpu.c",
     "native/src/core/converge.c",
     "native/src/core/simd.c",

@@ -1661,7 +1661,7 @@ fn collect_macro_calls_from_expr(
             collect_macro_calls_from_expr(value, required, counts);
             collect_macro_calls_from_type(target, required, counts);
         }
-        Expr::Spawn { init, .. } | Expr::SendMsg { data: init, .. } => {
+        Expr::Spawn { init, .. } | Expr::SendMsg { data: init, .. } | Expr::Emit { data: init, .. } => {
             for (_, value) in init {
                 collect_macro_calls_from_expr(value, required, counts);
             }
@@ -3182,6 +3182,7 @@ fn write_function(
         write_line(output, indent + 2, "Expr::Await(_, s) => s.clone()")?;
         write_line(output, indent + 2, "Expr::Spawn { span: s } => s.clone()")?;
         write_line(output, indent + 2, "Expr::SendMsg { span: s } => s.clone()")?;
+        write_line(output, indent + 2, "Expr::Emit { span: s } => s.clone()")?;
         write_line(output, indent + 2, "Expr::Comptime(_, s) => s.clone()")?;
         write_line(
             output,

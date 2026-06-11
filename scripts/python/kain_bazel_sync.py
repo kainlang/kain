@@ -1467,6 +1467,12 @@ def launch_binary(
     if launcher_path:
         env["KAIN_ACTIVE_LAUNCHER_PATH"] = str(launcher_path.resolve())
 
+    # Ensure the native C runtime library is fresh before any build decision.
+    # The runtime stamp is tracked in the payload, but the compiled .lib was
+    # historically neglected — sync it unconditionally so the linker always
+    # gets a library that matches the current runtime/native source tree.
+    sync_runtime_library(context)
+
     existing = read_json(context.stamp_path)
     source_data = source_data_override or source_stamp_data(
         context.repo_root,
@@ -1705,6 +1711,38 @@ def _resolve_bazel_output_dir(context: SyncContext) -> Path | None:
     return Path(lines[-1]).resolve() if lines else None
 
 
+def _find_lib_exe() -> str | None:
+    """Find MSVC lib.exe, trying PATH first, then common installation paths."""
+    exe = shutil.which("lib.exe")
+    if exe:
+        return exe
+    # Common MSVC installation paths
+    program_files = os.environ.get("ProgramFiles", "C:\\Program Files")
+    program_files_x86 = os.environ.get(
+        "ProgramFiles(x86)", "C:\\Program Files (x86)"
+    )
+    candidates = [
+        f"{program_files_x86}\\Microsoft Visual Studio\\2022\\BuildTools\\VC\\Tools\\MSVC",
+        f"{program_files_x86}\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC",
+        f"{program_files}\\Microsoft Visual Studio\\2022\\BuildTools\\VC\\Tools\\MSVC",
+        f"{program_files}\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC",
+        f"{program_files_x86}\\Microsoft Visual Studio\\2019\\BuildTools\\VC\\Tools\\MSVC",
+        f"{program_files_x86}\\Microsoft Visual Studio\\2019\\Community\\VC\\Tools\\MSVC",
+    ]
+    for base in candidates:
+        if os.path.isdir(base):
+            try:
+                for entry in os.listdir(base):
+                    lib_path = os.path.join(
+                        base, entry, "bin", "Hostx64", "x64", "lib.exe"
+                    )
+                    if os.path.isfile(lib_path):
+                        return lib_path
+            except OSError:
+                continue
+    return None
+
+
 def sync_runtime_library(
     context: SyncContext,
     *,
@@ -1729,13 +1767,17 @@ def sync_runtime_library(
         ]
         result = run_live(build_args, context.repo_root, env)
         if result.exit_code != 0:
-            print(f"  [runtime] bazel build //runtime:native_core_runtime failed with exit code {result.exit_code}", file=sys.stderr)
-            return
+            raise SyncError(
+                f"bazel build //runtime:native_core_runtime failed with exit code {result.exit_code}. "
+                f"The runtime library is required for Kain executables to link."
+            )
 
     bazel_bin = _resolve_bazel_output_dir(context)
     if not bazel_bin:
-        print("  [runtime] unable to resolve bazel-bin; skipping runtime library sync", file=sys.stderr)
-        return
+        raise SyncError(
+            "unable to resolve bazel-bin; the runtime library cannot be located. "
+            "Ensure Bazel has completed a build of //runtime:native_core_runtime."
+        )
 
     is_windows = platform.system().lower() == "windows"
     lib_dir = context.repo_kain_home / "lib"
@@ -1746,24 +1788,34 @@ def sync_runtime_library(
         obj_dir = bazel_bin / "runtime" / "_objs" / "native_core_runtime_c"
         obj_files = sorted(obj_dir.glob("*.obj")) if obj_dir.exists() else []
         if not obj_files:
-            print(f"  [runtime] no .obj files found at {obj_dir}; skipping", file=sys.stderr)
-            return
+            raise SyncError(
+                f"no .obj files found at {obj_dir}. "
+                f"Ensure bazel build //runtime:native_core_runtime completed successfully."
+            )
         dst_path = lib_dir / "kain_runtime.lib"
         temp_path = dst_path.with_name(f"{dst_path.name}.tmp.{os.getpid()}")
-        lib_exe = shutil.which("lib.exe") or "lib.exe"
+        lib_exe = _find_lib_exe()
+        if lib_exe is None:
+            raise SyncError(
+                "lib.exe not found on PATH or in standard MSVC installation paths. "
+                "Install Visual Studio Build Tools or run from a Developer Command Prompt."
+            )
         cmd = [lib_exe, "/OUT:" + str(temp_path)] + [str(f) for f in obj_files]
         result = run_capture(cmd, context.repo_root)
         if result.exit_code != 0:
-            print(f"  [runtime] lib.exe failed with exit code {result.exit_code}: {result.output_text[:200]}", file=sys.stderr)
-            return
+            raise SyncError(
+                f"lib.exe failed with exit code {result.exit_code}: {result.output_text[:200]}"
+            )
         os.replace(temp_path, dst_path)
         size_str = f"{sum(f.stat().st_size for f in obj_files)} bytes (archived)"
     else:
         # POSIX: cc_library produces libnative_core_runtime.a directly
         src_path = bazel_bin / "runtime" / "libnative_core_runtime.a"
         if not src_path.exists():
-            print(f"  [runtime] static library not found at {src_path}; skipping", file=sys.stderr)
-            return
+            raise SyncError(
+                f"static library not found at {src_path}. "
+                f"Ensure bazel build //runtime:native_core_runtime completed successfully."
+            )
         dst_path = lib_dir / "libkain_runtime.a"
         copy_file_atomic(src_path, dst_path)
         size_str = f"{src_path.stat().st_size} bytes"

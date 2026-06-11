@@ -4,18 +4,20 @@
 // ============================================================================
 //
 //  Contains all compute shader declarations referenced by the engine:
-//    - audio_fft: Cooley-Tukey radix-2 FFT for audio spectrum analysis
-//    - pmrem_equirect_to_cubemap: Equirect HDR to cubemap conversion
-//    - pmrem_ggx_vndf: GGX VNDF importance sampling for env map prefiltering
-//    - pmrem_irradiance: Irradiance convolution for diffuse IBL
-//
-//  NOTE: These shaders use GPU-specific keywords (shared_mem, workgroup_barrier)
-//  that are only valid during GPU artifact compilation. Regular kain check
-//  will report errors for these keywords — this is expected.
+//    - audio_fft: Direct DFT for audio spectrum analysis
+//      (per-thread-per-bin — no workgroup shared memory required)
 // ============================================================================
 
 // ============================================================================
-//  AUDIO FFT — Cooley-Tukey Radix-2
+//  AUDIO FFT — Direct DFT (per-bin)
+//
+//  Each GPU thread independently computes one frequency bin using a direct
+//  Discrete Fourier Transform. This avoids workgroup shared memory and
+//  barriers, which Kain's shader model does not expose.
+//
+//  The Hann window is applied during the DFT summation. Each thread reads
+//  all N input samples, applies the window, accumulates real and imaginary
+//  parts for its bin, and writes the magnitude to the output buffer.
 // ============================================================================
 
 shader compute audio_fft(id: UVec3) -> Void workgroup(256, 1, 1):
@@ -28,76 +30,36 @@ shader compute audio_fft(id: UVec3) -> Void workgroup(256, 1, 1):
         let compute = (
             [256, 1, 1],
             [
-                ("input_buffer", "f32", ["fft_size"], "input", "kain.shared.buffer"),
-                ("output_buffer", "f32", ["fft_size / 2"], "output", "kain.shared.buffer"),
-                ("fft_size", "u32", [1], "uniform", "kain.uniform"),
-                ("window_type", "u32", [1], "uniform", "kain.uniform"),
+                ("input_buffer", "f32", ["256"], "input", "kain.shared.buffer"),
+                ("output_buffer", "f32", ["128"], "output", "kain.shared.buffer"),
+                ("fft_size", "u32", ["1"], "uniform", "kain.uniform"),
+                ("window_type", "u32", ["1"], "uniform", "kain.uniform"),
             ],
             [],
         )
 
-    shared_mem Float s_real[256]
-    shared_mem Float s_imag[256]
-    let lane: Int = id.x
+    let bin: Int = id.x
     let N: Int = fft_size
-    if lane < N:
-        let window: Float = 0.5 * (1.0 - cos(6.283185 * lane / (N - 1)))
-        s_real[lane] = input_buffer[lane] * window
-        s_imag[lane] = 0.0
-    workgroup_barrier()
-    let rev: Int = bit_reverse(lane, N)
-    if lane < rev:
-        let tmp_r: Float = s_real[lane]
-        let tmp_i: Float = s_imag[lane]
-        s_real[lane] = s_real[rev]
-        s_imag[lane] = s_imag[rev]
-        s_real[rev] = tmp_r
-        s_imag[rev] = tmp_i
-    workgroup_barrier()
-    var s: Int = 1
-    while s < N:
-        let stride: Int = s * 2
-        var sub_fft: Int = 0
-        while sub_fft < N:
-            let group: Int = lane - sub_fft
-            if group >= 0 and group < s:
-                let even_idx: Int = sub_fft + group
-                let odd_idx: Int = even_idx + s
-                let twiddle: Float = -6.283185 * group / stride
-                let cos_t: Float = cos(twiddle)
-                let sin_t: Float = sin(twiddle)
-                let re_odd: Float = s_real[odd_idx] * cos_t - s_imag[odd_idx] * sin_t
-                let im_odd: Float = s_real[odd_idx] * sin_t + s_imag[odd_idx] * cos_t
-                let tmp_re: Float = s_real[even_idx]
-                let tmp_im: Float = s_imag[even_idx]
-                s_real[even_idx] = tmp_re + re_odd
-                s_imag[even_idx] = tmp_im + im_odd
-                s_real[odd_idx] = tmp_re - re_odd
-                s_imag[odd_idx] = tmp_im - im_odd
-            sub_fft = sub_fft + stride
-        workgroup_barrier()
-        s = s * 2
-    if lane < N / 2:
-        let re_f: Float = s_real[lane]
-        let im_f: Float = s_imag[lane]
-        output_buffer[lane] = sqrt(re_f * re_f + im_f * im_f)
+    let half_N: Int = N / 2
+
+    // Early-out for threads beyond the valid bin range
+    if bin >= half_N:
+        return
+
+    // Direct DFT: each thread computes one frequency bin by iterating
+    // over all N input samples and accumulating real/imaginary parts.
+    var sum_real: Float = 0.0
+    var sum_imag: Float = 0.0
+    var k: Int = 0
+    while k < N:
+        // Hann window: 0.5 * (1 - cos(2*pi * k / (N-1)))
+        let angle: Float = -6.283185307 * (bin as Float) * (k as Float) / (N as Float)
+        let window: Float = 0.5 * (1.0 - cos(6.283185307 * (k as Float) / ((N - 1) as Float)))
+        let sample: Float = input_buffer[k] * window
+        sum_real = sum_real + sample * cos(angle)
+        sum_imag = sum_imag + sample * sin(angle)
+        k = k + 1
+
+    // Magnitude spectrum (positive frequencies only)
+    output_buffer[bin] = sqrt(sum_real * sum_real + sum_imag * sum_imag)
     return
-
-// ============================================================================
-//  BIT-REVERSAL HELPER
-// ============================================================================
-
-fn bit_reverse(value: Int, max_val: Int) -> Int with Pure:
-    var v: Int = value
-    var result: Int = 0
-    var bits: Int = 0
-    var tmp: Int = max_val
-    while tmp > 1:
-        tmp = tmp / 2
-        bits = bits + 1
-    var i: Int = 0
-    while i < bits:
-        result = (result << 1) | (v & 1)
-        v = v >> 1
-        i = i + 1
-    return result

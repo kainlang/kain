@@ -2373,6 +2373,21 @@ impl SourceFormatter {
                     args.join(", ")
                 )
             }
+            Expr::Emit {
+                event,
+                data,
+                ..
+            } => {
+                let args = data
+                    .iter()
+                    .map(|(name, value)| Ok(format!("{name} = {}", self.format_expr(value)?)))
+                    .collect::<KainResult<Vec<_>>>()?;
+                format!(
+                    "emit {}({})",
+                    event,
+                    args.join(", ")
+                )
+            }
             Expr::Comptime(value, _) => {
                 if let Expr::Block(block, _) = value.as_ref() {
                     self.format_header_with_block("comptime", block)?

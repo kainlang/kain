@@ -12,6 +12,7 @@
 #include "../../include/attrition.h"
 #include "../../include/base.h"
 #include "../../include/diagnostics.h"
+#include "../../include/event.h"
 #include <stdlib.h>
 #include <stdatomic.h>
 #include <string.h>
@@ -1307,6 +1308,9 @@ void kain_actor_runtime_init(void) {
         kain_scheduler_init();
     }
 
+    /* Initialize the event bus for emit keyword support */
+    kain_event_bus_init();
+
     atomic_store_explicit(
         &g_actor_runtime_init_state,
         KAIN_ACTOR_RUNTIME_INIT_STATE_READY,
@@ -2044,6 +2048,7 @@ static void kain_actor_complete_exit_side_effects(KainActorState_Internal* actor
     }
 
     kain_actor_notify_monitors(actor);
+    kain_event_cleanup_actor(actor->actor_id);
     if (actor->exit_reason != KAIN_ACTOR_EXIT_NORMAL &&
         actor->exit_reason != KAIN_ACTOR_EXIT_SHUTDOWN) {
         kain_actor_propagate_links(actor);
