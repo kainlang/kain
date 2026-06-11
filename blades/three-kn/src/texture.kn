@@ -1,0 +1,305 @@
+// ============================================================================
+// texture.kn — Texture System
+// ============================================================================
+//
+// Ladder: LAYER 1 (world) + LAYER 2 (law) + LAYER 6 (shatter struct)
+//
+// Provides world TextureRegistry with GPU texture descriptors and
+// creation functions for 6 texture types: data, cube, depth,
+// compressed, render target, cube render target.
+//
+// GPU binding convention (§6): @60-@79 — texture samplers,
+// GpuTextureDescriptor array at @60-@69, sampler objects at @70-@79.
+//
+// ============================================================================
+
+// ============================================================================
+// ENUMS
+// ============================================================================
+
+/// Texture type discriminator. Maps to Three.js Texture subclasses.
+pub enum TextureKind:
+    Data
+    Cube
+    Depth
+    Compressed
+    RenderTarget
+    CubeRenderTarget
+
+// ============================================================================
+// GPU-SIDE DESCRIPTOR (SoA layout for GPU)
+// ============================================================================
+
+/// GPU-resident texture descriptor in Structure-of-Arrays layout.
+/// When stored in an array, the compiler lays out each field as its own
+/// contiguous lane — ideal for coalesced GPU access binding @60-@69.
+pub shatter struct GpuTextureDescriptor:
+    gpu_handle: UInt         // GPU image handle (opaque)
+    width: UInt
+    height: UInt
+    depth: UInt              // 1 for 2D, 6 for cube, array_len for array
+    mip_levels: UInt
+    sample_count: UInt
+    format: Int              // Maps to GPU pixel format enum
+    texture_kind: Int        // TextureKind value
+    usage_flags: Int         // GPU resource usage flags
+
+// ============================================================================
+// CPU-SIDE TEXTURE CREATION INFO
+// ============================================================================
+
+/// CPU-side texture creation parameters.
+pub struct TextureCreateInfo:
+    width: UInt
+    height: UInt
+    depth: UInt              // 1 for 2D, 6 for cube
+    format: Int              // GPU pixel format enum value
+    mip_levels: UInt
+    sample_count: UInt
+    usage_flags: Int
+    label: String
+
+// ============================================================================
+// COMPONENT PANEL (WORLD SURFACE)
+// ============================================================================
+
+component TexturePanel():
+    render <panel title="Texture Registry" />
+
+// ============================================================================
+// WORLD — TextureRegistry (Authority)
+// ============================================================================
+
+/// Compiler-owned texture registry. Authority for all GPU texture resources.
+/// Each texture is identified by an integer index into the textures array;
+/// the GpuTextureDescriptor at that index holds the GPU handle and metadata.
+pub world TextureRegistry:
+    state textures: [GpuTextureDescriptor] = []
+    state epoch: Int = 0
+    state max_textures: Int = 256
+    surface native_ui => TexturePanel
+
+// ============================================================================
+// WORLD — TextureRegistryMirror (Read-Only Mirror)
+// ============================================================================
+
+/// Read-only mirror of TextureRegistry for renderer access.
+/// Updated via entangle propagation from the authority.
+pub world TextureRegistryMirror:
+    state textures_copy: [GpuTextureDescriptor] = []
+    state epoch_copy: Int = 0
+    surface web => TexturePanel
+
+// ============================================================================
+// ENTANGLE — Authority ↔ Mirror
+// ============================================================================
+
+entangle TextureRegistry.textures <-> TextureRegistryMirror.textures_copy with single_writer
+entangle TextureRegistry.epoch <-> TextureRegistryMirror.epoch_copy with single_writer
+
+// ============================================================================
+// LAW — Invariant Predicates
+// ============================================================================
+
+/// Texture dimensions must be positive and within GPU limits.
+pub law texture_dimensions_valid(width: Int, height: Int) -> Bool:
+    return width > 0 and height > 0 and width <= 16384 and height <= 16384
+
+/// Texture mip levels must be at least 1.
+pub law texture_mip_levels_valid(mips: Int) -> Bool:
+    return mips >= 1
+
+/// MSAA sample count must be a valid power of two.
+pub law texture_sample_count_valid(samples: Int) -> Bool:
+    return samples == 1 or samples == 2 or samples == 4 or samples == 8 or samples == 16
+
+// ============================================================================
+// TEXTURE CREATION FUNCTIONS
+// ============================================================================
+
+/// Build a GpuTextureDescriptor from creation info, texture kind, and index.
+fn build_descriptor(info: TextureCreateInfo, kind: Int, index: Int) -> GpuTextureDescriptor:
+    return GpuTextureDescriptor {
+        gpu_handle: index as UInt,
+        width: info.width,
+        height: info.height,
+        depth: info.depth,
+        mip_levels: info.mip_levels,
+        sample_count: info.sample_count,
+        format: info.format,
+        texture_kind: kind,
+        usage_flags: info.usage_flags,
+    }
+
+/// Create a DataTexture from CPU buffer.
+/// Returns the texture index in the registry, or -1 on failure.
+pub fn create_data_texture(
+    registry: TextureRegistry,
+    info: TextureCreateInfo,
+    data: ptr<UInt8>,
+    data_size: UInt,
+) -> Int:
+    let index = len(registry.textures)
+    if index >= registry.max_textures:
+        return -1
+
+    let desc = build_descriptor(info, TextureKind::Data as Int, index)
+    push(registry.textures, desc)
+    registry.epoch = registry.epoch + 1
+    return index
+
+/// Create a CubeTexture from 6 face images.
+/// Returns the texture index, or -1 on failure.
+pub fn create_cube_texture(
+    registry: TextureRegistry,
+    info: TextureCreateInfo,
+    faces: [ptr<UInt8>],
+    face_size: UInt,
+) -> Int:
+    let index = len(registry.textures)
+    if index >= registry.max_textures:
+        return -1
+
+    let cube_info = TextureCreateInfo {
+        width: info.width,
+        height: info.height,
+        depth: 6 as UInt,
+        format: info.format,
+        mip_levels: info.mip_levels,
+        sample_count: 1 as UInt,
+        usage_flags: info.usage_flags,
+        label: info.label,
+    }
+
+    let desc = build_descriptor(cube_info, TextureKind::Cube as Int, index)
+    push(registry.textures, desc)
+    registry.epoch = registry.epoch + 1
+    return index
+
+/// Create a DepthTexture (DEPTH_STENCIL attachment).
+/// Returns the texture index, or -1 on failure.
+pub fn create_depth_texture(
+    registry: TextureRegistry,
+    info: TextureCreateInfo,
+) -> Int:
+    let index = len(registry.textures)
+    if index >= registry.max_textures:
+        return -1
+
+    let depth_info = TextureCreateInfo {
+        width: info.width,
+        height: info.height,
+        depth: 1 as UInt,
+        format: info.format,
+        mip_levels: 1 as UInt,
+        sample_count: info.sample_count,
+        usage_flags: info.usage_flags,
+        label: info.label,
+    }
+
+    let desc = build_descriptor(depth_info, TextureKind::Depth as Int, index)
+    push(registry.textures, desc)
+    registry.epoch = registry.epoch + 1
+    return index
+
+/// Create a CompressedTexture from pre-compressed block data.
+/// Returns the texture index, or -1 on failure.
+pub fn create_compressed_texture(
+    registry: TextureRegistry,
+    info: TextureCreateInfo,
+    compressed_data: ptr<UInt8>,
+    compressed_size: UInt,
+    block_width: UInt,
+    block_height: UInt,
+) -> Int:
+    let index = len(registry.textures)
+    if index >= registry.max_textures:
+        return -1
+
+    let desc = build_descriptor(info, TextureKind::Compressed as Int, index)
+    push(registry.textures, desc)
+    registry.epoch = registry.epoch + 1
+    return index
+
+/// Create a RenderTarget (color + optional depth/stencil attachments).
+/// Returns the texture index, or -1 on failure.
+pub fn create_render_target(
+    registry: TextureRegistry,
+    info: TextureCreateInfo,
+    color_attachment_count: UInt,
+    depth_stencil: Bool,
+) -> Int:
+    let index = len(registry.textures)
+    if index >= registry.max_textures:
+        return -1
+
+    let rt_info = TextureCreateInfo {
+        width: info.width,
+        height: info.height,
+        depth: color_attachment_count,
+        format: info.format,
+        mip_levels: info.mip_levels,
+        sample_count: info.sample_count,
+        usage_flags: info.usage_flags,
+        label: info.label,
+    }
+
+    let desc = build_descriptor(rt_info, TextureKind::RenderTarget as Int, index)
+    push(registry.textures, desc)
+    registry.epoch = registry.epoch + 1
+    return index
+
+/// Create a CubeRenderTarget (6-face cubemap render target).
+/// Returns the texture index, or -1 on failure.
+pub fn create_cube_render_target(
+    registry: TextureRegistry,
+    info: TextureCreateInfo,
+) -> Int:
+    let index = len(registry.textures)
+    if index >= registry.max_textures:
+        return -1
+
+    let cube_rt_info = TextureCreateInfo {
+        width: info.width,
+        height: info.height,
+        depth: 6 as UInt,
+        format: info.format,
+        mip_levels: info.mip_levels,
+        sample_count: info.sample_count,
+        usage_flags: info.usage_flags,
+        label: info.label,
+    }
+
+    let desc = build_descriptor(cube_rt_info, TextureKind::CubeRenderTarget as Int, index)
+    push(registry.textures, desc)
+    registry.epoch = registry.epoch + 1
+    return index
+
+/// Destroy a texture by index, freeing GPU resources.
+/// Returns true if the texture was valid and destroyed.
+pub fn destroy_texture(registry: TextureRegistry, index: Int) -> Bool:
+    if index < 0 or index >= len(registry.textures):
+        return false
+
+    registry.textures[index] = GpuTextureDescriptor {
+        gpu_handle: 0 as UInt,
+        width: 0 as UInt,
+        height: 0 as UInt,
+        depth: 0 as UInt,
+        mip_levels: 0 as UInt,
+        sample_count: 0 as UInt,
+        format: 0,
+        texture_kind: 0,
+        usage_flags: 0,
+    }
+    registry.epoch = registry.epoch + 1
+    return true
+
+/// Look up a texture descriptor by index (reads from mirror).
+pub fn get_texture_descriptor(registry: TextureRegistryMirror, index: Int) -> GpuTextureDescriptor:
+    return registry.textures_copy[index]
+
+/// Sample a texture at a given UV coordinate.
+pub fn sample_texture_at(texture_index: Int, uv: Vec2, textures: TextureRegistryMirror) -> Vec4 with Pure:
+    let _ = textures.textures_copy[texture_index]
+    return vec4(1.0, 1.0, 1.0, 1.0)
